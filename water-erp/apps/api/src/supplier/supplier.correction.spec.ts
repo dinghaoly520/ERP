@@ -423,7 +423,10 @@ describe('SupplierService 补正回填（request/verify/draft/submit）', () => 
   });
 
   it('submit：主联系人手机号已是其他供应商主联系人 → 400 DUPLICATE_CONTACT_PHONE', async () => {
-    prisma.supplierContact.findFirst.mockResolvedValueOnce({ id: 'c-other' });
+    // F3 后 supplierContact.findFirst 有两处调用（先联系人证查重、后手机号查重）——
+    // 按 where.phoneIdx 区分，仅手机号查重命中他司（语义不变，仅 mock 适配调用次序）
+    prisma.supplierContact.findFirst.mockImplementation(async ({ where }: any) =>
+      where?.phoneIdx !== undefined ? { id: 'c-other' } : null);
 
     await expect(service.submitCorrection(submitDto))
       .rejects.toMatchObject({ response: { code: 'DUPLICATE_CONTACT_PHONE' } });
@@ -438,5 +441,63 @@ describe('SupplierService 补正回填（request/verify/draft/submit）', () => 
     })).rejects.toMatchObject({ response: { code: 'REGISTRATION_ASSET_URL_INVALID' } });
 
     expect(prisma.supplier.updateMany).not.toHaveBeenCalled();
+  });
+
+  // ── F2/F3（2026-10-14 最终 review 修复波）──
+
+  it('submit（F2）：补正改归属公司+改名 → 待办发新公司、通知/审计文案用提交名（不回退旧快照）', async () => {
+    prisma.company.findUnique.mockImplementation(async ({ where }: any) =>
+      where.id === 'c2' ? { id: 'c2', name: '新测试集团' } : { id: 'c1', name: '测试集团' });
+
+    await service.submitCorrection({ ...submitDto, companyId: 'c2', companyName: '新测试集团', name: '测试公司更名后' });
+
+    // 待办收件人按新归属公司解析（resolveStageApprovers 的 where.companyId=companyRef.id，非旧 supplier.companyId）
+    expect(prisma.user.findMany).toHaveBeenCalledWith({
+      where: { role: 'staff', isActive: true, companyId: 'c2' },
+      select: { id: true },
+    });
+
+    // 通知与审计文案用提交名（改名重提后 supplier.name 是旧名快照）
+    expect(notification.create).toHaveBeenCalledWith(expect.objectContaining({
+      content: expect.stringContaining('测试公司更名后'),
+    }));
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ action: 'SUPPLIER_RESUBMITTED', details: expect.objectContaining({ name: '测试公司更名后' }) }),
+    }));
+  });
+
+  it('submit（F3）：缺营业执照 → 400 REGISTRATION_LICENSE_REQUIRED（零写入）', async () => {
+    await expect(service.submitCorrection({
+      ...submitDto,
+      qualifications: [{ type: '资质证书', name: '安全生产许可证', fileUrl: '/api/upload/files/asset-9' }],
+    })).rejects.toMatchObject({ response: { code: 'REGISTRATION_LICENSE_REQUIRED' } });
+
+    expect(prisma.supplier.updateMany).not.toHaveBeenCalled();
+    expect(verification.consumeRegistrationSession).not.toHaveBeenCalled();
+  });
+
+  it('submit（F3）：主联系人数≠1（两名主联系人）→ 400 REGISTRATION_PRIMARY_CONTACT_REQUIRED', async () => {
+    await expect(service.submitCorrection({
+      ...submitDto,
+      contacts: [
+        { ...submitDto.contacts[0] },
+        { ...submitDto.contacts[0], name: '王五' },
+      ],
+    })).rejects.toMatchObject({ response: { code: 'REGISTRATION_PRIMARY_CONTACT_REQUIRED' } });
+
+    expect(prisma.supplier.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('submit（F3）：法定代表人身份证号撞他司 → 400 DUPLICATE_LEGAL_ID_CARD（带本申请自排除）', async () => {
+    // 第一次调用=按 creditCode 匹配 RETURNED 申请（命中）；第二次=F3 法人证查重（命中他司）
+    prisma.supplier.findFirst
+      .mockResolvedValueOnce(returnedSupplier)
+      .mockResolvedValueOnce({ id: 's-other' });
+
+    await expect(service.submitCorrection(submitDto))
+      .rejects.toMatchObject({ response: { code: 'DUPLICATE_LEGAL_ID_CARD' } });
+
+    expect(prisma.supplier.updateMany).not.toHaveBeenCalled();
+    expect(verification.consumeRegistrationSession).not.toHaveBeenCalled();
   });
 });

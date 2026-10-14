@@ -111,4 +111,29 @@ describe('SupplierService.reject — 数据最小化清洗', () => {
       select: { id: true, key: true, sealedPath: true },
     });
   });
+
+  it('reject（F5）：审计 payload 含 purged:true（驳回即清洗，留痕与快照口径一致）', async () => {
+    await service.reject('s1', '资料不合规', 'u1', []);
+
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        userId: 'u1',
+        action: 'SUPPLIER_REJECTED',
+        resourceId: 's1',
+        details: expect.objectContaining({ purged: true }),
+      }),
+    }));
+  });
+
+  it('reject（F6）：清洗事务崩溃 → 驳回仍成功返回不 500（清洗残留留日志由运维收敛）', async () => {
+    prisma.$transaction.mockRejectedValueOnce(new Error('db down'));
+
+    await expect(service.reject('s1', '资料不合规', 'u1', [])).resolves.toBeTruthy();
+
+    // 驳回语义已完整落库：REJECTED 状态写在前、清洗失败不回滚驳回结果
+    expect(prisma.supplier.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: 's1' }),
+      data: expect.objectContaining({ status: 'REJECTED' }),
+    }));
+  });
 });

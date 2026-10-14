@@ -1585,6 +1585,46 @@ export class SupplierService {
       throw new BadRequestException({ error: '验证手机号与申请主联系人手机号不一致', code: 'CORRECTION_PHONE_MISMATCH' });
     }
 
+    // ── F3（2026-10-14）：补齐 register 的三道闸（补正重提=一次完整的注册资料重报，
+    //    缺闸会让被退回的必填项缺失/撞重申请再次流入审批）──
+    // 闸一：营业执照必传（照 register 口径）
+    const businessLicense = (dto.qualifications ?? []).find(
+      (qualification) => qualification.type.trim() === '营业执照',
+    );
+    if (!businessLicense?.fileUrl) {
+      throw new BadRequestException({ error: '正式注册须上传营业执照', code: 'REGISTRATION_LICENSE_REQUIRED' });
+    }
+    // 闸二：有且仅一名主要联系人
+    if ((dto.contacts ?? []).filter((contact) => contact.isPrimary).length !== 1) {
+      throw new BadRequestException({
+        error: '正式注册须指定且只能指定一名主要联系人',
+        code: 'REGISTRATION_PRIMARY_CONTACT_REQUIRED',
+      });
+    }
+    // 闸三：法人/联系人身份证查重（自排除本申请旧数据——旧行将被 deleteMany 重建，命中他司才拦）
+    if (dto.legalPersonIdCard) {
+      const existingLegal = await this.prisma.supplier.findFirst({
+        where: { legalPersonIdCardIdx: blindIndexPii(dto.legalPersonIdCard) ?? undefined, NOT: { id: supplier.id } },
+        select: { id: true },
+      });
+      if (existingLegal) {
+        throw new BadRequestException({ error: '该法定代表人身份证号已用于其他供应商注册', code: 'DUPLICATE_LEGAL_ID_CARD' });
+      }
+    }
+    const correctionContactIdCards = dto.contacts.map(c => c.idCard?.trim()).filter((x): x is string => !!x);
+    if (correctionContactIdCards.length > 0) {
+      const existingContact = await this.prisma.supplierContact.findFirst({
+        where: {
+          idCardIdx: { in: correctionContactIdCards.map(c => blindIndexPii(c)).filter((x): x is string => !!x) },
+          NOT: { supplierId: supplier.id },
+        },
+        select: { id: true },
+      });
+      if (existingContact) {
+        throw new BadRequestException({ error: '该联系人身份证号已用于其他供应商注册', code: 'DUPLICATE_CONTACT_ID_CARD' });
+      }
+    }
+
     // 联系人手机号唯一性（2026-10-14 并行会话口径，同 register）：数组内查重 +
     // 主联系人全局占用（User.phoneIdx / 他供应商主联系人）——旧联系人行将被 deleteMany
     // 释放自身 phoneIdx，此处只拦被「其他」账号/供应商占用的手机号，给出明确错误而非裸撞唯一约束。
@@ -1685,13 +1725,16 @@ export class SupplierService {
     await this.deleteStaleCorrectionAssets(supplier.id, supplier.userId, keepIds);
 
     const stage = supplier.reviewStage ?? 'STAFF';
-    await this.notifyStageApprovers(stage, supplier.companyId, {
+    // F2（2026-10-14）：补正可改归属公司（事务内已落 companyRef）——审批权按新公司校验，
+    // 待办也须发新公司（旧 supplier.companyId 是改名/改归属前的快照）；文案用提交名 dto.name
+    //（补正中改名后 supplier.name 是旧名，避免通知/审计回退旧名快照）。
+    await this.notifyStageApprovers(stage, companyRef.id, {
       type: 'SUPPLIER_PENDING',
       title: '供应商补正后重新提交',
-      content: `${supplier.name} 已补正资料重新提交，请继续${SupplierService.REVIEW_STAGE_LABELS[stage]}。`,
+      content: `${dto.name} 已补正资料重新提交，请继续${SupplierService.REVIEW_STAGE_LABELS[stage]}。`,
       link: `/supplier/approval?supplierId=${supplier.id}`,
     });
-    await this.audit(supplier.userId, 'SUPPLIER_RESUBMITTED', supplier.id, { name: supplier.name, note: '补正提交' });
+    await this.audit(supplier.userId, 'SUPPLIER_RESUBMITTED', supplier.id, { name: dto.name, note: '补正提交' });
 
     return { success: true };
   }
@@ -2052,15 +2095,22 @@ export class SupplierService {
       content: `您的供应商注册申请在${SupplierService.REVIEW_STAGE_LABELS[stage]}环节审核不通过，原因：${reason}`,
     });
 
-    if (userId) await this.audit(userId, 'SUPPLIER_REJECTED', id, { name: supplier.name, reason, stage });
+    // F5（2026-10-14）：审计 payload 落 purged:true——驳回即触发数据最小化清洗，留痕与快照口径一致。
+    if (userId) await this.audit(userId, 'SUPPLIER_REJECTED', id, { name: supplier.name, reason, stage, purged: true });
     await this.recordApproval(id, 'REJECTED', userId, reason, stage, attachmentIds);
 
-    await this.purgeRejectedSupplier(id, {
-      userId: supplier.userId,
-      name: supplier.name,
-      creditCode: supplier.creditCode,
-      supplierNo: supplier.supplierNo,
-    });
+    // F6（2026-10-14）：清洗失败不 500 驳回端点——驳回语义（REJECTED+留壳字段）已完整落库，
+    // 清洗残留只是旧数据未抹除，吞错落 error 日志供运维跟进（残留可由补清洗脚本收敛）。
+    try {
+      await this.purgeRejectedSupplier(id, {
+        userId: supplier.userId,
+        name: supplier.name,
+        creditCode: supplier.creditCode,
+        supplierNo: supplier.supplierNo,
+      });
+    } catch (err) {
+      this.logger.error(`驳回清洗失败（数据已驳回留壳，清洗未完成）supplier=${id}: ${(err as Error).message}`);
+    }
 
     return result;
   }
