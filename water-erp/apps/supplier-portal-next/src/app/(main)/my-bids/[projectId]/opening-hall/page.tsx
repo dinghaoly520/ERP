@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { CaOpeningDecryptCard } from "@/components/ca-opening-decrypt-card";
+import { CaOpeningConfirmButton } from "@/components/ca-opening-confirm-button";
 import { CaBidReuploadCard } from "@/components/ca-bid-reupload-card";
 import { toast } from "sonner";
 import dayjs from "dayjs";
@@ -437,6 +438,11 @@ export default function OpeningHallPage() {
                 <SpButton warning onClick={() => setDisputeOpen(true)}>
                   提出异议
                 </SpButton>
+              )}
+              {/* dual-v3 确认唱标（办法§30 开标记录经投标人确认；2026-10-14 补接线——
+                  后端 confirmOpening 一直在，Next 大厅页此前无入口） */}
+              {canDispute && (record?.submitted as any)?.envelopeVersion === 'dual-v3' && (
+                <CaOpeningConfirmButton projectId={projectId} onConfirmed={() => refresh()} />
               )}
             </div>
             {!isOpening && stage && <div className="stage-hint">大厅互动仅在开标阶段开放。</div>}

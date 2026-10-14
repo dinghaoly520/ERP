@@ -234,6 +234,11 @@ export const supplierApi = {
     return api.get<{ payload: Record<string, unknown>; canonical: string }>(`/supplier-portal/bid-submissions/${projectId}/opening-confirm-payload`);
   },
   // A-114：确认/补签单端点双语义（服务端按记录态自动分辨），body 签名必填
+  /** 开标确认（dual-v3 P7 强签）：operationId+signP7 */
+  confirmOpeningV3(projectId: string, body: { operationId: string; signatureFormat: string; signP7: string }) {
+    return api.post<any>(`/supplier-portal/bid-submissions/${projectId}/opening-confirm`, body);
+  },
+
   confirmOpening(projectId: string, signature: string) {
     return api.post<any>(`/supplier-portal/bid-submissions/${projectId}/opening-confirm`, { signature });
   },
