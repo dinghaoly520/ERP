@@ -5,6 +5,7 @@ import { Activity, AlertCircle, BarChart3, Lightbulb, Sparkles, Target, Trending
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProgressStats, fetchProgressAiInsights, type ProgressStats, type ProgressAiInsights, type ProjectProgress } from "@/lib/api/progress";
 import { useAuth } from "@/components/m/auth-context";
+import { CompanyPicker } from "@/components/m/company-picker";
 import { BottomSheet } from "@/components/m/bottom-sheet";
 import { SectionCard } from "@/components/m/section-card";
 import { MetricCard } from "@/components/m/metric-card";
@@ -202,23 +203,15 @@ export default function ProgressPage() {
     <div>
       <PullIndicator pull={pull} refreshing={refreshing} />
       {role === "admin" ? (
-        <select
+        <CompanyPicker
           value={companyId}
-          onChange={(e) => {
-            setCompanyId(e.target.value);
+          options={companies}
+          onChange={(next) => {
+            setCompanyId(next);
             setInsights(null); // 口径变化，旧洞察作废（展开态自动重取）
-            saveFilters("progress", { companyId: e.target.value });
+            saveFilters("progress", { companyId: next });
           }}
-          aria-label="公司筛选"
-          className="m-input mb-3 h-10 w-full font-medium"
-        >
-          <option value="all">全部公司</option>
-          {companies.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.shortName || c.name}
-            </option>
-          ))}
-        </select>
+        />
       ) : null}
 
       {error ? <ErrorBanner message={error} onRetry={() => setRetryTick((t) => t + 1)} /> : null}

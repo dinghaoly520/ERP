@@ -18,6 +18,7 @@ import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchDashboardData, type DashboardData } from "@/lib/api/dashboard";
 import { fetchDashboardAnalysis, type DashboardAnalysisResult } from "@/lib/api/ai";
 import { useAuth } from "@/components/m/auth-context";
+import { CompanyPicker } from "@/components/m/company-picker";
 import { BottomSheet } from "@/components/m/bottom-sheet";
 import { SectionCard } from "@/components/m/section-card";
 import { MetricCard } from "@/components/m/metric-card";
@@ -383,22 +384,15 @@ export default function DashboardPage() {
           </div>
         ) : null}
         {role === "admin" ? (
-          <select
+          <CompanyPicker
             value={companyId}
-            onChange={(e) => {
-              setCompanyId(e.target.value);
-              saveFilters("dashboard", { rangeKey, companyId: e.target.value } satisfies DashboardSavedFilters);
+            options={companies}
+            onChange={(next) => {
+              setCompanyId(next);
+              saveFilters("dashboard", { rangeKey, companyId: next } satisfies DashboardSavedFilters);
             }}
-            aria-label="公司筛选"
-            className="m-input mb-0 h-10 w-full font-medium"
-          >
-            <option value="all">全部公司</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.shortName || c.name}
-              </option>
-            ))}
-          </select>
+            className="mb-0"
+          />
         ) : null}
       </div>
 

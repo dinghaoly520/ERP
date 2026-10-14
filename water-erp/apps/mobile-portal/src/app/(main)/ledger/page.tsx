@@ -6,6 +6,7 @@ import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProcurements, fetchLedgerStats, fetchProcurementMethods } from "@/lib/api/procurements";
 import { RESULT_STATUS_CONFIG, type LedgerSummary, type ProcurementRoundItem, type ResultStatusKey } from "@/lib/types/procurement";
 import { useAuth } from "@/components/m/auth-context";
+import { CompanyPicker } from "@/components/m/company-picker";
 import { BottomSheet } from "@/components/m/bottom-sheet";
 import { Chip } from "@/components/m/chip";
 import { MetricCard } from "@/components/m/metric-card";
@@ -310,24 +311,16 @@ export default function LedgerPage() {
         </div>
       ) : null}
       {role === "admin" ? (
-        <select
+        <CompanyPicker
           value={companyId}
-          onChange={(e) =>
+          options={companies}
+          onChange={(next) =>
             changeFilter(() => {
-              setCompanyId(e.target.value);
-              persistLedger({ companyId: e.target.value });
+              setCompanyId(next);
+              persistLedger({ companyId: next });
             })
           }
-          aria-label="公司筛选"
-          className="m-input mb-3 h-10 w-full font-medium"
-        >
-          <option value="all">全部公司</option>
-          {companies.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.shortName || c.name}
-            </option>
-          ))}
-        </select>
+        />
       ) : (
         <div className="mb-3" />
       )}
