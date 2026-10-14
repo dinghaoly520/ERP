@@ -71,8 +71,6 @@ type BidSubmissionData = {
   clientDeks?: Record<string, string>;
   // 双信封 v2（dual-v2 新轨）：客户端密封信封（version/certSn/adminCertId/files/sealedFields/fieldsCommit）
   envelope?: DualEnvelope;
-  // 旧轨代解密授权（办法第30条留痕）——旧轨提交必勾；新轨供应商自解忽略
-  hostDecryptAuthorized?: boolean;
 };
 
 /**
@@ -97,7 +95,6 @@ function pickBidSubmissionFields(data: BidSubmissionData) {
     bidBondAssetId: data.bidBondAssetId,
     fileHash: data.fileHash,
     signature: data.signature,
-    hostDecryptAuthorized: data.hostDecryptAuthorized ?? false,
     // 双信封 v2：信封原样落库（Json 列）；旧轨恒 undefined → 列不动。
     // DualEnvelope 接口无隐式索引签名，入 Prisma Json 列需经 unknown 收口。
     envelope: (data.envelope ?? undefined) as unknown as Prisma.InputJsonValue | undefined,
@@ -2028,29 +2025,22 @@ export class SupplierPortalService {
     const dualOn = process.env.BID_DUAL_ENVELOPE !== 'false';
     const envelope = data.envelope;
     const dual = dualOn && envelope?.version === 'dual-v2';
-    // flag 关但客户端按新轨投递（文件已是双层密文 + dual-v2 信封）：旧轨会因缺 clientDeks 以
-    // 隐晦 MISSING_CLIENT_DEK 拒收，应急开关形同虚设——显式拒收并指引按旧流程投递。
-    if (!dualOn && envelope?.version === 'dual-v2') {
-      // SUP-P2-03：供应商门户旧轨表单已下线（前端仅剩绑盾引导）——「按旧流程投递」无从执行，
-      // 文案改为应急指引；回退语义=API 侧放行旧轨 clientDeks，供应商投递需管理员线下引导。
-      throw new BadRequestException({
-        error: '平台双层信封服务维护中，请联系管理员处理投标事宜（应急通道）',
-        code: 'DUAL_DISABLED',
-      });
-    }
+    // ═══ BID_DUAL_ENVELOPE 应急退回开关废弃（2026-10-14 用户裁定）——旧轨投递整体关闭，
+    //      flag 仅影响双轨内部分派（dual-v2 vs dual-v3），不再提供旧轨退回语义 ═══
     // 旧轨/flag 关/版本不符：剥离 envelope，永不落库——管理方公钥公开、信封格式可伪造良好，
     // 未经验签的信封若以 envelopeVersion='dual-v2' 存库，flag 回开后下游（T10+）按版本分派会误信。
     if (!dual) data.envelope = undefined;
 
-    // 旧轨代解密授权记录——主持人代解密的投标人须在投递时显式授权（办法第30条
-    // 「按招标文件规定方式」的授权留痕）；新轨供应商自解（dual-v2）无需授权。仅 submit 强制，
-    // 草稿不拦。存量数据 flag=false 仅表示记录缺失，不阻断解密（记录语义非闸门）。
-    if (!dual && data.hostDecryptAuthorized !== true) {
+    // ═══ legacy 轨关闭（2026-10-14 用户裁定）：主持端代解密不允许——旧轨投递通道整体封死，
+    //      存量 legacy 行仅作历史证据读，不再产生新义务。BID_DUAL_ENVELOPE 应急退回开关废弃 ═══
+    if (!dual) {
       throw new BadRequestException({
-        error: '未勾选「同意平台在开标环节代为解密投标文件」授权，无法提交（依据招标文件规定的解密方式）',
-        code: 'HOST_DECRYPT_CONSENT_REQUIRED',
+        error: '旧轨（平台代解密）投递通道已关闭——请绑定 SCCA CA U盾后按双层信封（dual-v3）投递',
+        code: 'LEGACY_TRACK_CLOSED',
       });
     }
+
+
 
     // Layer C: SM2 digital signature verification (anti-repudiation)
     // TODO (Phase 6): 当前前端 BidSubmit.vue 未实现 SM2 客户端签名，

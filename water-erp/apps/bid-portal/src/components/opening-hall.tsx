@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, decryptBid, getOpeningDraft, completeOpening, resealBidFiles, startOpening, acceptSupplierDanger, overrideDispute, pauseOpening, resumeOpening, decryptOuter, decryptAdjudge, listBondLedger, upsertBondLedger, removeBondLedger, type BondLedgerRow, type DecryptAdjudgeAttribution, type DecryptOuterResult, type DecryptOuterDetail, type OpeningFieldDef } from '@/lib/api';
+import { enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, getOpeningDraft, completeOpening, startOpening, acceptSupplierDanger, overrideDispute, pauseOpening, resumeOpening, decryptOuter, decryptAdjudge, listBondLedger, upsertBondLedger, removeBondLedger, type BondLedgerRow, type DecryptAdjudgeAttribution, type DecryptOuterResult, type DecryptOuterDetail, type OpeningFieldDef } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
 import StartOpeningDialog from '@/components/start-opening-dialog';
 import DecryptConfirmDialog from '@/components/decrypt-confirm-dialog';
@@ -157,8 +157,6 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const [startOpen, setStartOpen] = useState(false);
   // New UX state
   const [decrypting, setDecrypting] = useState<Set<string>>(new Set());
-  const [bulkDecrypting, setBulkDecrypting] = useState(false);
-  const [decryptTarget, setDecryptTarget] = useState<{ id: string; name: string }[] | null>(null);
   const [inlineDispute, setInlineDispute] = useState<string | null>(null);
   const [disputeHandleResult, setDisputeHandleResult] = useState('');
   const [disputeHandleConfirm, setDisputeHandleConfirm] = useState<'confirmed' | 'rejected' | null>(null);
@@ -181,7 +179,6 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const [serverTimeOffset, setServerTimeOffset] = useState(0);
   const [resuming, setResuming] = useState(false);
   // DANGER 兜底：重新封标（从系统内原始明文恢复）
-  const [resealing, setResealing] = useState<Set<string>>(new Set());
   // 双信封 v2（T17）：解外层 / 归因裁决
   const [outerDecrypting, setOuterDecrypting] = useState<Set<string>>(new Set());
   const [bulkOuterDecrypting, setBulkOuterDecrypting] = useState(false);
@@ -211,22 +208,6 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [reasonDialog, reasonBusy]);
-
-  const handleReseal = async (supplierId: string) => {
-    setResealing(prev => new Set(prev).add(supplierId));
-    try {
-      const result = await resealBidFiles(project.id, supplierId);
-      if (result.recovered.length > 0) {
-        toast.success(result.message);
-      } else if (result.failed.length > 0) {
-        toast.error(result.failed.map(f => `${f.label}: ${f.error}`).join('；'));
-      }
-      onRefresh();
-    } catch (err: any) {
-      toast.error(err?.message || '重新封标失败');
-    }
-    setResealing(prev => { const n = new Set(prev); n.delete(supplierId); return n; });
-  };
 
   // 双信封 v2（T17）：解外层（单家/批量，§5.2）
   const handleDecryptOuter = async (sid: string) => {
@@ -366,13 +347,6 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   // dualOuterPending：外层待解（§5.2 批量候选）
   const dualOuterPending = useMemo(() => (project?.suppliers ?? []).filter(s =>
     isDualTrack(s.envelopeVersion) && !s.outerDecryptedAt && s.submitStatus === '已提交'), [project]);
-  // legacyPending：旧轨批量解密候选（主持端代解密仍走 decryptSupplier；与 decryptProgress/
-  // dualOuterPending 三处同口径=参标家（已投递），仅 PENDING 计数展示与入列，DANGER/RUNNING 行不入批量）
-  const legacyPending = useMemo(() => (project?.suppliers ?? []).filter(s =>
-    !isDualTrack(s.envelopeVersion)
-    && s.decryptStatus !== 'SUCCESS' && s.decryptStatus !== 'DANGER' && s.decryptStatus !== 'RUNNING'
-    && s.submitStatus === '已提交'), [project]);
-
   const sortedRecords = useMemo(() => {
     if (!project) return [];
     // objection rows first, then by confirm status
@@ -491,50 +465,6 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     }
   };
 
-  const executeDecrypt = async (targets: { id: string; name: string }[]) => {
-    if (!projectId) return;
-    const isBulk = targets.length > 1;
-    if (!isBulk) {
-      // Single decrypt: show spinner inline
-      const t = targets[0];
-      setDecrypting(prev => new Set(prev).add(t.id));
-      try {
-        await decryptBid(projectId, t.id);
-      } catch (e: any) {
-        // L3：硬拒绝（窗口关/暂停/重复解密/新轨 400/403）不产生 WS 状态事件，
-        // 此前静默无反馈（确认后 spinner 一转即逝）。密码学失败后端不抛错——置 DANGER 经
-        // WS 推送（页级 toast+音效），此处仅提示请求被拒，无双响。
-        toast.error(`${t.name}：${e?.message || '解密请求被拒'}`);
-      }
-      setDecrypting(prev => { const n = new Set(prev); n.delete(t.id); return n; });
-    } else {
-      // Bulk decrypt: parallelize with Promise.allSettled for partial-failure resilience
-      setBulkDecrypting(true);
-      const settled = await Promise.allSettled(
-        targets.map(t => decryptBid(projectId, t.id)),
-      );
-      // L3：批量同样不吞拒绝——计数+首条原因聚合提示（窗口/暂停类拒绝在批量内同源）
-      const rejected = settled.filter(s => s.status === 'rejected') as PromiseRejectedResult[];
-      if (rejected.length > 0) {
-        const first = rejected[0].reason as any;
-        toast.error(`批量解密：${rejected.length}/${targets.length} 家请求被拒——${first?.message || '请检查解密窗口/暂停状态'}`);
-      }
-      setBulkDecrypting(false);
-      onRefresh();
-    }
-  };
-
-  const handleDecrypt = (sid: string) => {
-    const supplier = project?.suppliers.find(s => s.id === sid);
-    if (supplier) setDecryptTarget([{ id: sid, name: supplier.supplierName }]);
-  };
-
-  const handleBulkDecrypt = () => {
-    // T17：批量解密仅旧轨（dual-v2 行由「解外层」承载；服务端对混轨调用旧端点会 400 USE_SUPPLIER_DECRYPT）
-    const pending = legacyPending;
-    if (pending.length === 0) return;
-    setDecryptTarget(pending.map(s => ({ id: s.id, name: s.supplierName })));
-  };
 
   const openRecordEntry = async (s: { id: string; supplierName: string }, reentry = false) => {
     if (!projectId) return;
@@ -914,13 +844,6 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                 <Unlock size={13} /> {bulkOuterDecrypting ? '批量解外层中...' : session.pausedAt ? '开标已暂停' : `全部解外层 (${dualOuterPending.length})`}
               </button>
             )}
-            {/* 旧轨批量解密（dual-v2 行由「解外层」承载） */}
-            {!!session && canHost && project.stage === 'OPENING' && remaining > 0 && legacyPending.length > 0 && (
-              <button type="button" onClick={handleBulkDecrypt} disabled={bulkDecrypting || !!session.pausedAt}
-                className="neu-btn-soft is-warning disabled:opacity-50">
-                <Zap size={13} /> {bulkDecrypting ? '批量解密中...' : session.pausedAt ? '开标已暂停' : `全部解密 (${legacyPending.length})`}
-              </button>
-            )}
             {/* Wave 5-6：阶段已离 OPENING 后才开抽屉时，initialStageClosed 让输入框初始即禁用（免首次发送撞 403） */}
             {projectId && <ExchangeDrawer projectId={projectId} initialStageClosed={project.stage !== 'OPENING'} />}
           </div>
@@ -1008,7 +931,6 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                 const isRunning = s.decryptStatus === 'RUNNING';
                 const isSuccess = s.decryptStatus === 'SUCCESS';
                 const isDanger = s.decryptStatus === 'DANGER';
-                const resealFailed = isDanger && !!s.decryptError?.includes('重新封标失败');
                 const isDecrypting = decrypting.has(s.id);
                 // 双信封轨（T17 + 阶段2.5）：新轨分派（dual-v2|dual-v3；envelopeVersion 由项目详情派生下发）
                 const isDual = isDualTrack(s.envelopeVersion);
@@ -1107,15 +1029,6 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                           </span>
                         ) : (
                         <>
-                        {/* 旧轨：主持端代解密（dual-v2 行改用「解外层」） */}
-                        {/* C1（第四波）：窗口过期即收口解密入口（后端恒 403）——过期处置走定性/裁决通道 */}
-                        {!!session && canHost && project.stage === 'OPENING' && !isSuccess && !isDanger && !isDual && remaining > 0 && (
-                          <button type="button" onClick={() => handleDecrypt(s.id)} disabled={isDecrypting || bulkDecrypting || !!session.pausedAt}
-                            className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--accent-strong)] transition-colors hover:text-[var(--accent)] disabled:opacity-50">
-                            {isDecrypting ? <Loader size={12} className="animate-spin" /> : <Unlock size={12} strokeWidth={1.5} />}
-                            {isDecrypting ? '解密中...' : session.pausedAt ? '已暂停' : '解密'}
-                          </button>
-                        )}
                         {/* T17：双信封 v2——管理方解外层（§5.2；幂等，重复调用返回 skipped） */}
                         {isDual && !outerDone && canAct && canHost && remaining > 0 && (
                           <button type="button" onClick={() => handleDecryptOuter(s.id)} disabled={isOuterDecrypting || bulkOuterDecrypting}
@@ -1204,18 +1117,9 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                             <RotateCcw size={12} strokeWidth={1.5} /> 重置解密机会
                           </button>
                         )}
-                        {isDanger && project.stage === 'OPENING' && !resealFailed && !isDual && (
+                        {/* 接受解密失败（accept-danger 全角色可办；legacy 代解密剪除后仅新轨 DANGER 处置） */}
+                        {isDanger && project.stage === 'OPENING' && !isDual && (
                           <>
-                            {/* reseal 端点收口 admin/bid_host——重试仅主持人可见；「接受」(accept-danger) 全角色可办 */}
-                            {canHost && (
-                            <button type="button"
-                              disabled={resealing.has(s.id)}
-                              onClick={() => handleReseal(s.id)}
-                              className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--danger)] transition-colors hover:text-[var(--accent-strong)] disabled:opacity-50">
-                              {resealing.has(s.id) ? <Loader size={12} className="animate-spin" /> : <RotateCcw size={12} strokeWidth={1.5} />}
-                              重试
-                            </button>
-                            )}
                             <button type="button"
                               onClick={() => setReasonDialog({
                                 title: '确认接受解密失败',
@@ -1228,11 +1132,6 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                               <AlertTriangle size={12} strokeWidth={1.5} /> 接受
                             </button>
                           </>
-                        )}
-                        {resealFailed && (
-                          <span className="flex items-center gap-1 text-[11px] font-semibold text-[var(--danger)]">
-                            <AlertTriangle size={12} strokeWidth={1.5} /> 文件已损坏
-                          </span>
                         )}
                         </>
                         )}
@@ -1484,19 +1383,6 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           setStartOpen(false);
           onRefresh();
         }}
-      />
-
-      <DecryptConfirmDialog
-        open={decryptTarget !== null}
-        suppliers={decryptTarget ?? []}
-        loading={bulkDecrypting || (decryptTarget?.length === 1 && decrypting.has(decryptTarget[0].id))}
-        onConfirm={() => {
-          if (decryptTarget) {
-            executeDecrypt(decryptTarget);
-            setDecryptTarget(null);
-          }
-        }}
-        onClose={() => setDecryptTarget(null)}
       />
 
       {/* T17：解密失败归因裁决弹窗（unknown/rejudge/reset 三模式共用） */}

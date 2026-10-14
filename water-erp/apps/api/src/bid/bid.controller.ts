@@ -27,7 +27,6 @@ import { NotifyOpeningDecisionDto } from './dto/notify-opening-decision.dto';
 import { StartEvaluationDto } from './dto/start-evaluation.dto';
 import { AssignHostDto } from './dto/assign-host.dto';
 import { ArchiveAllDto } from './dto/archive-all.dto';
-import { DecryptSupplierDto } from './dto/decrypt-supplier.dto';
 import { DecryptOuterDto } from './dto/decrypt-outer.dto';
 import { AdjudicateDecryptFaultDto } from './dto/adjudicate-decrypt-fault.dto';
 import { CreateScoreItemDto } from './dto/create-score-item.dto';
@@ -537,13 +536,6 @@ export class BidController {
   }
 
   @Post('projects/:id/decrypt-all')
-  // BID-P1-01（2026-09-29 审查修复）：与单家解密/解外层/归因裁决同口径收口——批量代解密是
-  // 主持人现场执行动作，leader/staff 不得越 canHost 门直调（类级四角色放过、前端注释却自称已收口）。
-  @Roles('admin', 'bid_host')
-  @ApiOperation({ summary: '一键解密窗口内待解密供应商（4.4）' })
-  @Throttle({ default: { ttl: 60000, limit: 2 } })
-  decryptAll(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.decrypt.decryptAllSuppliers(id, userId); }
-
   @Post('projects/:id/rerun-ai-analysis')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '重新触发 AI 辅助分析（B8/15.5）——清除旧结果并重新入队' })
@@ -641,12 +633,6 @@ export class BidController {
     return this.bidService.notifyOpeningDecision(id, dto, userId);
   }
 
-  @Post('projects/:id/decrypt/:supplierId')
-  @Roles('admin', 'bid_host')
-  @ApiOperation({ summary: '解密供应商投标' })
-  @Throttle({ default: { ttl: 60000, limit: 5 } })
-  decryptSupplier(@Param('id') id: string, @Param('supplierId') supplierId: string, @Body() dto?: DecryptSupplierDto, @CurrentUser('sub') userId?: string) { return this.decrypt.decryptSupplier(id, supplierId, dto, userId); }
-
   @Post('projects/:id/opening/decrypt-outer')
   @Roles('admin', 'bid_host')
   @ApiOperation({ summary: '主持端解外层（dual-v2）：管理方私钥解 K_admin → C_inner 归属链落库；supplierId 缺省=批量' })
@@ -665,42 +651,6 @@ export class BidController {
     @CurrentUser('sub') userId?: string,
   ) {
     return this.decrypt.adjudicateDecryptFault(id, dto.supplierId, dto.attribution, dto.reason, userId);
-  }
-
-  @Post('projects/:id/suppliers/:supplierId/files/:role/reupload')
-  @Roles('admin', 'bid_host')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 50 * 1024 * 1024 } }))
-  @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: '管理员补传异常投标文件（SHA-256 闸门校验，仅 OPENING 阶段）' })
-  @Throttle({ default: { ttl: 60000, limit: 5 } })
-  reuploadBidFile(
-    @Param('id') id: string,
-    @Param('supplierId') supplierId: string,
-    @Param('role') role: string,
-    @UploadedFile() file: Express.Multer.File,
-    @CurrentUser('sub') userId: string,
-  ) {
-    if (!file) throw new BadRequestException({ error: '请选择文件', code: 'NO_FILE' });
-    return this.decrypt.reuploadBidFile(id, supplierId, role, file, userId);
-  }
-
-  @Post('projects/:id/suppliers/:supplierId/reseal')
-  @Roles('admin', 'bid_host')
-  @ApiOperation({ summary: '管理员一键重新封标（E2EE 密钥重包裹；服务端明文恢复通道已下线，非 E2EE 请走标书补传）' })
-  @Throttle({ default: { ttl: 60000, limit: 5 } })
-  resealBidFiles(
-    @Param('id') id: string,
-    @Param('supplierId') supplierId: string,
-    @CurrentUser('sub') userId: string,
-  ) {
-    return this.decrypt.resealBidFiles(id, supplierId, userId);
-  }
-
-  @Post('projects/:id/tender-document/reload')
-  @Roles('admin', 'bid_host')
-  @ApiOperation({ summary: '重新加载招标文件（验证可解密 + 自动修复关联）' })
-  reloadTenderDocument(@Param('id') id: string, @CurrentUser('sub') userId: string) {
-    return this.decrypt.reloadTenderDocument(id, userId);
   }
 
   @Get('projects/:id/backup-verify/:supplierId')
