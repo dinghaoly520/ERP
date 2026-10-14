@@ -384,6 +384,8 @@ export default function RegisterPage() {
 
   /* 查重 */
   async function checkCreditCode() {
+    // 补正会话激活：查重必命中自身 RETURNED 行，不做检测/置标志（2026-10-14 review）
+    if (correction.status === "RETURNED" && correction.token) return;
     setCreditCodeDuplicate(false);
     const code = basic.creditCode.trim();
     if (!/^[0-9A-Z]{18}$/.test(code)) return;
@@ -397,9 +399,9 @@ export default function RegisterPage() {
     } catch { /* 查重失败不阻塞 */ }
   }
   async function checkLegalIdCard() {
-    setLegalIdCardDuplicate(false);
-    // 补正模式：法人证号命中自身 RETURNED 行（非他人占用），不算重复
+    // 补正会话激活：法人证号查重必命中自身 RETURNED 行（非他人占用），不做检测/置标志（2026-10-14 review）
     if (correction.status === "RETURNED" && correction.token) return;
+    setLegalIdCardDuplicate(false);
     const id = basic.legalPersonIdCard.trim();
     if (!/^\d{17}[\dXx]$/.test(id)) return;
     try {
@@ -411,6 +413,10 @@ export default function RegisterPage() {
 
   /* 退回补正 / 驳回重注册（2026-10-14）：公司名失焦检测 → 横幅 → 发码 → 验证回填 */
   async function checkNameForCorrection() {
+    // 补正会话激活时不检测/不清空（2026-10-14 review）：后端 submit 仅按信用代码匹配 RETURNED，
+    // 补正中改名合法；name+creditCode 双因子仅 request/verify/draft 需要，token 已在手即免检。
+    // 否则改完名失焦 → 新名查不到 RETURNED → 整态清空（含 token），横幅/补正模式静默失效。
+    if (correction.token) return;
     const name = basic.name.trim();
     if (!name) return;
     try {
@@ -706,12 +712,14 @@ export default function RegisterPage() {
         contactIdCard: contactIdCards[0],
       });
       if (dup.creditCode) {
-        // RETURNED 必须走补正流程（后端 register 对非 REJECTED 壳硬拦截）；REJECTED 放行交后端壳重开
+        // RETURNED 必须走补正流程（后端 register 对非 REJECTED 壳硬拦截）
         if (dup.creditCodeStatus === "RETURNED") {
           toast.error("该统一社会信用代码有退回补正中的申请，请返回「企业与业务」步骤通过「进入补正」完成验证后重新提交");
           return;
         }
-        toast.error("统一社会信用代码重复，无法注册，请核对后重试"); return;
+        // REJECTED=驳回壳放行（2026-10-14 review）：交后端 register 壳重开原位覆盖重新建档——
+        // 与横幅「可继续正常注册，提交时将重新建档」及失焦查重的放行口径一致
+        if (dup.creditCodeStatus !== "REJECTED") { toast.error("统一社会信用代码重复，无法注册，请核对后重试"); return; }
       }
       if (dup.legalPersonIdCard) { toast.warning("法定代表人身份证号已存在，请核对"); return; }
       if (dup.contactIdCard) { toast.warning("联系人身份证号已存在，请核对"); return; }
@@ -939,15 +947,17 @@ export default function RegisterPage() {
               <strong>检测到贵司有退回补正中的注册申请</strong>
               {correction.reason && <p>退回原因：{correction.reason}</p>}
               {!correction.token && (
-                <button type="button" className="neu-btn-soft" disabled={correctionSending} onClick={startCorrection}>
-                  {correctionSending ? "发送中…" : "进入补正"}
+                <button type="button" className="neu-btn-soft"
+                  disabled={correctionSending || (!!correction.maskedPhone && correctionCooldown > 0)}
+                  onClick={startCorrection}>
+                  {correctionSending ? "发送中…" : correction.maskedPhone ? (correctionCooldown > 0 ? `重发(${correctionCooldown}s)` : "重新发送验证码") : "进入补正"}
                 </button>
               )}
               {correction.maskedPhone && !correction.token && (
                 <div className="reg-correction-verify">
                   <span>验证码已发至 {correction.maskedPhone}</span>
                   <input className="reg-inp" value={correctionCode} onChange={(e) => setCorrectionCode(e.target.value)} placeholder="6 位验证码" maxLength={6} />
-                  <button type="button" className="neu-btn-soft" disabled={correctionLoading || correctionCooldown > 0} onClick={confirmCorrection}>
+                  <button type="button" className="neu-btn-soft" disabled={correctionLoading} onClick={confirmCorrection}>
                     {correctionLoading ? "验证中…" : "验证并回填"}
                   </button>
                 </div>
