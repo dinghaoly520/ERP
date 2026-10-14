@@ -163,13 +163,30 @@ export class BidBackupService {
       where: { supplierId_projectId: { supplierId, projectId } },
     });
     const receiptNo = await this.lookupReceiptNo(projectId, supplierId);
-    const expected: Array<{ role: BackupFileRole; assetId: string }> = submission
-      ? ([
-          { role: 'technical', assetId: submission.technicalFileAssetId },
-          { role: 'business', assetId: submission.businessFileAssetId },
-          { role: 'coverLetter', assetId: submission.coverLetterAssetId },
-        ].filter(x => !!x.assetId) as Array<{ role: BackupFileRole; assetId: string }>)
-      : [];
+    // ── 阶段2.5 T5：版本分派——v3 投递资产列全 null（信封 files[].assetId 承载），
+    //    expected 角色改自 SubmissionVersion 快照；锚点（plainSha256）同源交叉 ──
+    const isV3 = submission?.envelopeVersion === 'dual-v3';
+    let expected: Array<{ role: BackupFileRole; assetId: string }> = [];
+    let snapshotEnv: { files?: Record<string, { plainSha256?: string }> } | null = null;
+    if (isV3 && submission) {
+      const snap = await this.prisma.submissionVersion.findUnique({
+        where: { submissionId_revision: { submissionId: submission.id, revision: submission.revision ?? 0 } },
+        select: { envelope: true },
+      });
+      if (snap) {
+        snapshotEnv = snap.envelope as { files?: Record<string, { plainSha256?: string }> };
+        expected = (Object.entries(snapshotEnv.files ?? {}) as Array<[string, unknown]>)
+          .filter(([, e]) => !!e)
+          .map(([role]) => ({ role: role as BackupFileRole, assetId: '' }));
+      }
+      // 快照缺失 → expected 空 → overall=missing（不误判 consistent）
+    } else if (submission) {
+      expected = ([
+        { role: 'technical', assetId: submission.technicalFileAssetId },
+        { role: 'business', assetId: submission.businessFileAssetId },
+        { role: 'coverLetter', assetId: submission.coverLetterAssetId },
+      ].filter(x => !!x.assetId) as Array<{ role: BackupFileRole; assetId: string }>);
+    }
 
     const perFile: BackupVerifyFileResult[] = [];
     for (const e of expected) {
@@ -188,7 +205,11 @@ export class BidBackupService {
       try { sealedSha256 = this.computeSha256(await streamToBuffer(await minioClient.getObject(MINIO_BUCKET, backup.sealedPath))); } catch { sealedSha256 = null; }
       const backupIntact = backupSha256 !== null && backupSha256 === backup.ciphertextSha256;
       const sealedMatchesBackup = backupSha256 !== null && sealedSha256 !== null && sealedSha256 === backupSha256;
-      const status: BackupVerifyFileResult['status'] = backupIntact && sealedMatchesBackup ? 'consistent' : 'tampered';
+      // T5：v3 锚点交叉——备份明文哈希须等于信封快照声明值（平台无钥可解 DEK 是设计，
+      // 完整性=密文哈希自证 + 明文锚点与签名覆盖快照一致）
+      const anchorOk = !isV3 || !snapshotEnv
+        || backup.plaintextSha256 === (snapshotEnv.files?.[e.role]?.plainSha256 ?? null);
+      const status: BackupVerifyFileResult['status'] = backupIntact && sealedMatchesBackup && anchorOk ? 'consistent' : 'tampered';
       perFile.push({ fileRole: e.role, status, backupIntact, sealedMatchesBackup, recordedSha256: backup.ciphertextSha256, backupSha256, sealedSha256, backupSource: backup.backupSource, submittedAt: backup.submittedAt });
     }
 
@@ -212,7 +233,11 @@ export class BidBackupService {
     return { projectId, supplierId, receiptNo, overall, perFile };
   }
 
-  /** 每 15 分钟：为已提交但缺备份的记录，从 sealedPath 读密文补齐。仍只碰密文，不解密。 */
+  /**
+   * 每 15 分钟：为已提交但缺备份的记录，从 sealedPath 读密文补齐。仍只碰密文，不解密。
+   * v3 投递天然 no-op：reconcile 候选读资产列/sealedKey（v3 全 null→candidates 空）——
+   * v3 备份由投递/补传事务内固化，无补账路径需求（阶段2.5 T5 裁定）。
+   */
   @Cron('*/15 * * * *')
   async reconcileMissing(): Promise<number> {
     if (!this.enabled) return 0;
