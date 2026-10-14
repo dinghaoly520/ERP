@@ -12,7 +12,7 @@ import {
   fetchMyPendingReviewCount,
 } from '@/lib/api/supplier';
 import type { Supplier, SupplierListResponse } from '@/lib/types';
-import { CompanySelect, readInitialCompanyId } from '@/components/company/company-select';
+import { isGroupedCompanyView, CompanySelect, readInitialCompanyId } from '@/components/company/company-select';
 import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from '@/components/company/company-tag';
 import type { SupplierInvitation } from '@/lib/api/supplier';
 import { BadgeCheck } from 'lucide-react';
@@ -250,7 +250,7 @@ export default function SupplierRepositoryPage() {
 
 
   // admin 全部公司视图：当前页行按公司分组（CompanySectionHeader，专家库/台账同款）；标题计数=后端全量口径
-  const companyViewAll = isAdmin && companyId === 'all';
+  const companyViewAll = isAdmin && isGroupedCompanyView(companyId);
   const supplierGroups = useMemo(() => {
     if (!companyViewAll) return [];
     return buildCompanyCounts(displayItems.map(x => ({ company: x.companyName }))).map(g => ({

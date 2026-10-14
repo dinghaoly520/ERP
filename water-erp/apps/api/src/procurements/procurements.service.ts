@@ -13,6 +13,7 @@ import { UpdateProcurementRoundDto } from './dto/update-procurement-round.dto';
 import { QueryProcurementsDto } from './dto/query-procurements.dto';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { createHash } from 'node:crypto';
+import type { CompanyWhere } from '../company/company-scope';
 
 @Injectable()
 export class ProcurementsService {
@@ -63,7 +64,7 @@ export class ProcurementsService {
    * 指标口径：采购项目基础信息 17 项 + 采购项目过程信息 1 项；采购供应商 7 项。
    * 系统无对应字段的指标留空（前端可人工补录）；采购组织结构树 4 项待确认写入逻辑。
    */
-  async sasacExtract(companyWhere?: { companyId?: string | null }) {
+  async sasacExtract(companyWhere?: CompanyWhere) {
     const roundWhere: Record<string, unknown> = {};
     if (companyWhere?.companyId !== undefined) roundWhere.companyId = companyWhere.companyId;
 
@@ -308,7 +309,7 @@ export class ProcurementsService {
   private checkOwnership(
     round: { companyId?: string | null },
     user: AuthenticatedUser,
-    companyFilter: { companyId?: string },
+    companyFilter: CompanyWhere,
   ) {
     // 公司隔离：admin 视野（filter 为空对象）放行；其余仅限本公司数据
     if (companyFilter.companyId && round.companyId !== companyFilter.companyId) {
@@ -319,7 +320,7 @@ export class ProcurementsService {
   /** 台账列表 where 构建（findAll 与 company-counts 共用，保证 chip 计数与列表同口径） */
   private buildListWhere(
     query: Partial<QueryProcurementsDto>,
-    companyFilter: { companyId?: string } = {},
+    companyFilter: CompanyWhere = {},
   ) {
     const { startDate, endDate, procurementMethod, departmentId, resultStatus, searchKeyword, recycleStatus } = query;
     const where: any = {};
@@ -379,7 +380,7 @@ export class ProcurementsService {
    * 与 findAll 同一 where（免分页），供台账「按采购单位规整」chip 显示全量口径——
    * 分页视图下前端从当前页数据统计会失真，此处一次扫描补齐。
    */
-  async companyCounts(query: Partial<QueryProcurementsDto>, companyFilter: { companyId?: string } = {}) {
+  async companyCounts(query: Partial<QueryProcurementsDto>, companyFilter: CompanyWhere = {}) {
     const rounds = await this.prisma.procurementRound.findMany({
       where: this.buildListWhere(query, companyFilter),
       select: { companyName: true, createdBy: { select: { company: true } } },
@@ -400,7 +401,7 @@ export class ProcurementsService {
   async findAll(
     query: QueryProcurementsDto,
     user: AuthenticatedUser,
-    companyFilter: { companyId?: string } = {},
+    companyFilter: CompanyWhere = {},
   ) {
     const {
       page,
@@ -530,7 +531,7 @@ export class ProcurementsService {
     };
   }
 
-  async findOne(id: string, user: AuthenticatedUser, companyFilter: { companyId?: string } = {}) {
+  async findOne(id: string, user: AuthenticatedUser, companyFilter: CompanyWhere = {}) {
     const round = await this.prisma.procurementRound.findUnique({
       where: { id },
       include: {
@@ -668,7 +669,7 @@ export class ProcurementsService {
     return this.findOne(round.id, { sub: userId!, username: '', role: 'admin' } as AuthenticatedUser);
   }
 
-  async update(id: string, dto: UpdateProcurementRoundDto, user: AuthenticatedUser, companyFilter: { companyId?: string } = {}) {
+  async update(id: string, dto: UpdateProcurementRoundDto, user: AuthenticatedUser, companyFilter: CompanyWhere = {}) {
     const existing = await this.prisma.procurementRound.findUnique({
       where: { id },
     });
@@ -729,7 +730,7 @@ export class ProcurementsService {
     return this.findOne(id, user);
   }
 
-  async moveToRecycleBin(id: string, user: AuthenticatedUser, companyFilter: { companyId?: string } = {}) {
+  async moveToRecycleBin(id: string, user: AuthenticatedUser, companyFilter: CompanyWhere = {}) {
     const existing = await this.prisma.procurementRound.findUnique({
       where: { id },
     });
@@ -746,7 +747,7 @@ export class ProcurementsService {
     });
   }
 
-  async restoreFromRecycleBin(id: string, user: AuthenticatedUser, companyFilter: { companyId?: string } = {}) {
+  async restoreFromRecycleBin(id: string, user: AuthenticatedUser, companyFilter: CompanyWhere = {}) {
     const existing = await this.prisma.procurementRound.findUnique({
       where: { id },
     });
@@ -763,7 +764,7 @@ export class ProcurementsService {
     });
   }
 
-  async remove(id: string, user: AuthenticatedUser, companyFilter: { companyId?: string } = {}) {
+  async remove(id: string, user: AuthenticatedUser, companyFilter: CompanyWhere = {}) {
     const existing = await this.prisma.procurementRound.findUnique({
       where: { id },
     });
@@ -790,7 +791,7 @@ export class ProcurementsService {
     startDate?: string,
     endDate?: string,
     user?: AuthenticatedUser,
-    companyFilter: { companyId?: string } = {},
+    companyFilter: CompanyWhere = {},
   ) {
     const where: any = {};
 

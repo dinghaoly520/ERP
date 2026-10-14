@@ -52,7 +52,7 @@ export class PmiOwnershipGuard implements CanActivate {
     if (user?.role === 'admin') visible = true;
     else if (user?.role === 'leader') {
       const scope = await this.companyScope.resolveScope(user);
-      visible = !scope.all && item.companyId === scope.companyId;
+      visible = !scope.all && !!item.companyId && scope.companyIds.includes(item.companyId);
     }
     if (!visible) {
       throw new ForbiddenException({

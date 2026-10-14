@@ -11,6 +11,7 @@ import { ProjectManagementService } from '../project-management/project-manageme
 import { BidDocumentService } from './bid-document.service';
 import { ANNOUNCEMENT_TYPE_LABELS, ANNOUNCEMENT_TYPE_DATA_CLASS, PUBLIC_VISIBLE_CLASSES } from '@water-erp/shared';
 import { checkBidNoticeElements, type ChecklistWarning } from './bid-notice-checklist';
+import type { CompanyWhere } from '../company/company-scope';
 
 /** 回收站操作人上下文（与 confirmWinnerNotice 的 operator 同构，2026-09-26） */
 export type RecycleOperator = { operatorId?: string; operatorName?: string; ipAddress?: string; userAgent?: string };
@@ -205,7 +206,7 @@ export class AnnouncementService {
 
   async list(
     params: { type?: string; status?: string; search?: string; page?: number; pageSize?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' },
-    companyFilter: { companyId?: string } = {},
+    companyFilter: CompanyWhere = {},
     opts: { publicVisibilityOnly?: boolean; excludeIds?: string[] } = {},
   ) {
     const page = params.page ?? 1;
@@ -279,7 +280,7 @@ export class AnnouncementService {
   /** 按公司分组全量计数（2026-09-27 公司下拉语境化 + 全部公司分组标题；与 list 同筛选） */
   async companyCounts(
     params: { type?: string; status?: string; search?: string },
-    companyFilter: { companyId?: string } = {},
+    companyFilter: CompanyWhere = {},
   ) {
     const where: any = { ...companyFilter };
     if (params.type) {
@@ -1249,7 +1250,7 @@ export class AnnouncementService {
     return { deleted: true };
   }
 
-  async getStats(companyFilter: { companyId?: string } = {}) {
+  async getStats(companyFilter: CompanyWhere = {}) {
     // 公司隔离：统计聚合在隔离后的数据集上计算
     const where = { ...companyFilter };
     // 本月起点（服务端口径——此前前端用"当前页 15 条"冒充全量统计，2026-09-28 审计 P1）。
@@ -1497,7 +1498,7 @@ export class AnnouncementService {
    *  命中不阻断——由前端弹窗提示，经办确认后可仍要发布（流标重发等合法场景）。 */
   async checkDuplicate(
     dto: { title?: string; relatedProjectCode?: string; type?: string },
-    companyFilter: { companyId?: string } = {},
+    companyFilter: CompanyWhere = {},
   ) {
     const or: any[] = [];
     if (dto.title?.trim()) or.push({ title: dto.title.trim() });

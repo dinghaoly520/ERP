@@ -41,7 +41,7 @@ describe('UploadService — download permission', () => {
       resolveScope: jest.fn().mockImplementation((user: any) => Promise.resolve(
         user.role === 'admin'
           ? { all: true }
-          : { all: false, companyId: user.sub === 'u-company-b' ? 'company-b' : 'company-a' },
+          : { all: false, companyIds: [user.sub === 'u-company-b' ? 'company-b' : 'company-a'] },
       )),
     };
 

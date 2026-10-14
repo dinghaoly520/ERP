@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectManagementStatus } from '@prisma/client';
 import { AiService } from '../ai/ai.service';
+import type { CompanyWhere } from '../company/company-scope';
 
 export interface ProjectWithCreator {
   id: string;
@@ -176,7 +177,7 @@ export class ProgressService {
   async getProgressStats(
     userId?: string,
     stage?: string,
-    companyFilter: { companyId?: string } = {},
+    companyFilter: CompanyWhere = {},
   ): Promise<ProgressStats> {
     const now = new Date();
     const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -338,7 +339,7 @@ export class ProgressService {
   async getAiInsights(
     userId?: string,
     stage?: string,
-    companyFilter: { companyId?: string } = {},
+    companyFilter: CompanyWhere = {},
   ) {
     const stats = await this.getProgressStats(userId, stage, companyFilter);
 

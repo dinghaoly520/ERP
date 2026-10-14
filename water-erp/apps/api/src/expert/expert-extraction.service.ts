@@ -524,7 +524,7 @@ export class ExpertExtractionService {
         if (u.role !== 'bid_expert' || !u.isActive || u.expertProfile?.availability !== '可用' || u.expertProfile?.entryStatus !== 'ACTIVE') {
           throw new BadRequestException({ error: `专家 ${e.expertName} 不符合抽取资格（须为在用评标专家）`, code: 'EXPERT_INELIGIBLE' });
         }
-        if (!scope.all && u.companyId !== scope.companyId && !allowedCompanyIds.has(u.companyId ?? '')) {
+        if (!scope.all && (u.companyId == null || !scope.companyIds.includes(u.companyId)) && !allowedCompanyIds.has(u.companyId ?? '')) {
           throw new ForbiddenException({ error: `专家 ${e.expertName} 不属于本公司，且未在抽取配置公司白名单内`, code: 'COMPANY_SCOPE_FORBIDDEN' });
         }
         const emp = u.expertProfile?.employer?.trim();

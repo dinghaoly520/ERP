@@ -10,6 +10,7 @@ import { createDecryptStream, encryptBuffer } from '../announcement/bid-document
 import { UPLOAD_CATEGORIES, UPLOAD_SERVER_SEAL_CATEGORIES } from './upload-categories';
 import { matchesFileContentPolicy, PDF_WORD_IMAGE_MIME_TYPES } from './file-content-policy';
 import { CompanyScopeService } from '../company/company-scope';
+import { scopeCompanyIds } from '../company/company-scope';
 
 /** Allowed MIME types for upload */
 const ALLOWED_MIME_TYPES = [
@@ -674,11 +675,12 @@ export class UploadService implements OnModuleInit {
 
     // 同时存在合同引用时，始终以合同公司域为准，不得用主持人指派例外绕过。
     if (contractCompanyIds.length > 0) {
+      const scoped = scopeCompanyIds(scope) ?? [];
       return [...contractCompanyIds, ...awardCompanyIds]
-        .every((companyId) => companyId === scope.companyId);
+        .every((companyId) => companyId != null && scoped.includes(companyId));
     }
 
-    if (awardCompanyIds.every((companyId) => companyId === scope.companyId)) return true;
+    if (awardCompanyIds.every((companyId) => companyId != null && (scopeCompanyIds(scope) ?? []).includes(companyId))) return true;
     // 镜像 BidCompanyScopeGuard：被明确指派的主持人可跨公司回看自己负责项目；
     // 资产若被多个通知书引用，必须每条均是该主持人的指派项目。
     return user.role === 'bid_host'

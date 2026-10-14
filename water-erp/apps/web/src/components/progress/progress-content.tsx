@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { type AuthRole } from "@/lib/api/auth";
-import { CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
+import { isGroupedCompanyView, CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
 import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from "@/components/company/company-tag";
 import {
   fetchProgressStats,
@@ -510,7 +510,7 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
   const clearAll = () => { setKeyword(""); setSelectedStage(null); setSelectedProject(""); setSelectedRequester(""); setSelectedProjectIds(new Set()); };
   useEffect(() => { setCurrentPage(1); }, [keyword, selectedStage, selectedProject, selectedRequester, sortBy, selectedProjectIds]);
 
-  const companyViewAll = currentUserRole === "admin" && companyId === "all";
+  const companyViewAll = currentUserRole === "admin" && isGroupedCompanyView(companyId);
   const filteredProjects = useMemo(() => {
     let list = derivedProjects.filter((p) => {
       if (selectedProjectIds.size > 0 && !selectedProjectIds.has(p.id)) return false;

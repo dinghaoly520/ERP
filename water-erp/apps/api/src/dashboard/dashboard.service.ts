@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AttachmentType, ResultStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import type { CompanyWhere } from '../company/company-scope';
 
 function decimalToNumber(value: unknown) {
   if (value == null) {
@@ -63,7 +64,7 @@ export class DashboardService {
   async getDashboard(
     startDate?: string,
     endDate?: string,
-    companyFilter?: { companyId?: string },
+    companyFilter?: CompanyWhere,
   ) {
     // 公司隔离：where 注入 companyId，轮次主查询与附件统计（经 procurementRound 关联）同时生效
     const where = {

@@ -257,16 +257,15 @@ export class ProjectManagementService {
 
     // 项目可见性（拍板 1C，2026-08-24；2026-10-10 修订）：staff 仅见本人创建的项目；
     // leader 见本公司全部项目（用户裁定：leader 在 :3005 项目管理看公司全量）；
-    // admin 全量 + ?companyId= 切换单公司。user=undefined 属鉴权异常，返回空集不泄露数据。
+    // admin 全量 + ?companyId= 单选/逗号多选（2026-10-14 多选统一——收口 resolveScope，
+    // 原单选直赋 where.companyId 的旁路删除；非法 id 由 resolveScope 过滤为有效集）。
+    // user=undefined 属鉴权异常，返回空集不泄露数据。
     if (user?.role === 'leader') {
       // leader 公司视野：与数据库/台账等页同口径（resolveScope 强制本人公司，传参忽略）
       Object.assign(where, this.companyScope.filter(await this.companyScope.resolveScope(user)));
     } else if (user?.role === 'admin') {
-      if (query.companyId && query.companyId !== 'all') {
-        // admin 公司视图（公司级数据隔离，2026-09-17）：不传/'all' = 全部。
-        // 非法 id 自然得到空集，与 resolveScope 语义一致，无需前置存在性校验。
-        where.companyId = query.companyId;
-      }
+      // admin 公司视图：不传/'all' = 全部；支持 a,b,c 逗号多选（跨子公司统计）
+      Object.assign(where, this.companyScope.filter(await this.companyScope.resolveScope(user, query.companyId)));
     } else {
       where.createdById = user?.sub ?? '__no_user__';
     }
