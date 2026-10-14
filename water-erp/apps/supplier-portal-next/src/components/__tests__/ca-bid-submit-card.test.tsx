@@ -11,7 +11,6 @@ import { CaBidSubmitCard } from '../ca-bid-submit-card';
 const PROPS = {
   projectId: 'proj-1',
   context: { supplierId: 'sup-1', submissionId: '', revision: 0, signingBindingId: 'b-1', signingCertFingerprint: 'cf-1' },
-  encCertPem: '-----BEGIN CERTIFICATE-----\\nQUJD\\n-----END CERTIFICATE-----',
   adminCert: { adminCertId: 'ac-1', publicKey: '04' + 'ab'.repeat(64) },
 } as const;
 

@@ -25,15 +25,13 @@ export interface CaBidSubmitCardProps {
   projectId: string;
   /** 信封上下文（capabilities/binding 下发） */
   context: { supplierId: string; submissionId: string; revision: number; signingBindingId: string; signingCertFingerprint: string };
-  /** 本盾加密证 PEM（封装 kself 收件人） */
-  encCertPem: string;
   /** 管理方加密证书（kadmin 收件人） */
   adminCert: { adminCertId: string; publicKey: string };
   /** 已递交回调（父页刷新投递状态） */
   onSubmitted?: (result: { submissionId: string; revision: number }) => void;
 }
 
-export function CaBidSubmitCard({ projectId, context, encCertPem, adminCert, onSubmitted }: CaBidSubmitCardProps) {
+export function CaBidSubmitCard({ projectId, context, adminCert, onSubmitted }: CaBidSubmitCardProps) {
   const [stage, setStage] = useState<Stage>('form');
   const [error, setError] = useState('');
   const [progressNote, setProgressNote] = useState('');
@@ -67,6 +65,12 @@ export function CaBidSubmitCard({ projectId, context, encCertPem, adminCert, onS
       const roleFiles = (Object.entries(files) as Array<[V3Role, File | undefined]>)
         .filter((entry): entry is [V3Role, File] => !!entry[1])
         .map(([role, f]) => ({ role, file: f }));
+      // 盾枚举：容器 + 加密证 PEM（kself 收件人——随盾在位，不落库不缓存）
+      const certs = await scca.listSccaCerts();
+      const first = certs[0];
+      if (!first) throw new Error('U盾内未找到证书');
+      const encCertPem = first.enc?.pem;
+      if (!encCertPem) throw new Error('U盾证书缺少加密证（enc.pem）');
       const { envelope } = await encryptAndUploadV3(projectId, roleFiles, v3Fields, encCertPem, await sccaGetAdapter(), adminCert, {
         uploadOuter: (role, blob, filename) => supplierApi.caUploadEncryptedOuter(projectId, blob, filename)
           .then((r) => ({ fileAssetId: r.fileAssetId, outerSha256: r.outerSha256, outerBytes: r.outerBytes })),
@@ -77,9 +81,6 @@ export function CaBidSubmitCard({ projectId, context, encCertPem, adminCert, onS
       setProgressNote('盾签名信封原文（P7）…');
       let containerId = container;
       if (!containerId) {
-        const certs = await scca.listSccaCerts();
-        const first = certs[0];
-        if (!first) throw new Error('U盾内未找到证书');
         containerId = first.container;
         setContainer(containerId);
         await scca.loginScca(containerId, pin);
@@ -106,7 +107,7 @@ export function CaBidSubmitCard({ projectId, context, encCertPem, adminCert, onS
       setStage('failed');
       setError(e?.message ?? '投递失败');
     }
-  }, [projectId, files, price, deliveryPeriod, qualityCommitment, pin, encCertPem, adminCert, context, container, onSubmitted]);
+  }, [projectId, files, price, deliveryPeriod, qualityCommitment, pin, adminCert, context, container, onSubmitted]);
 
   if (stage === 'done') {
     return (
