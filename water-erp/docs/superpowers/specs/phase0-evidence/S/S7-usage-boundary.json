@@ -1,0 +1,17 @@
+{
+  "encryptToSignCert": {
+    "ok": true,
+    "retCode": 0,
+    "retMsg": "成功",
+    "size": 460
+  },
+  "decryptSignCiphertext": {
+    "ok": false,
+    "lastError": 184549377,
+    "note": "中间件强制签名/加密分钥"
+  },
+  "signControl": {
+    "ok": true,
+    "size": 1411
+  }
+}

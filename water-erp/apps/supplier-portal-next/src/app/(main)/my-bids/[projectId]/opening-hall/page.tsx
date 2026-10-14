@@ -4,10 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import dayjs from "dayjs";
-import { CloudOff, Clock, KeyRound, Lock, MessageSquareOff, ShieldCheck, User, Wifi } from "lucide-react";
-import { openUkey } from "@/utils/ukey-factory";
-import { useUkeyPresence } from "@/utils/use-ukey-presence";
-import type { UKeyAdapter } from "@water-erp/ukey";
+import { CloudOff, Clock, Lock, MessageSquareOff, User, Wifi } from "lucide-react";
 import { bidApi } from "@/lib/api/bid";
 import { supplierApi, type OpeningRecordRow } from "@/lib/api/supplier";
 // A-113：唱标字段动态渲染辅助（后端 opening-field-config.util.ts 的渲染镜像，含法定四列本页固定口径）
@@ -26,21 +23,9 @@ import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useBidWebSocket } from "@/hooks/use-bid-websocket";
 import { ChatPanel } from "@/components/chat-panel";
-import { EmptyState, SpButton, SpDialog, SpInput, SpTextarea } from "@/components/ui";
-import { OpeningDecryptCard } from "@/components/opening-decrypt-card";
+import { EmptyState, SpButton, SpDialog, SpTextarea } from "@/components/ui";
 import "@/styles/pages/opening.css";
 import "@/styles/pages/bid-components.css"; // ChatPanel（chat-panel / cp-*）样式
-
-/** 服务端绑定记录（仅取签名所需公开字段）——与回执卡/澄清答复页同源 */
-interface ServerCertRow { certSn: string; bindingStatus: string }
-
-/** 本地缓存的绑定证书序列号（U盾管理页绑定成功后写入；仅公开信息）——与回执卡/澄清答复页同源 */
-function boundCertSn(): string {
-  try {
-    const raw = localStorage.getItem("supplier_ukey_bound");
-    return raw ? (JSON.parse(raw)?.certSn ?? "") : "";
-  } catch { return ""; }
-}
 
 /** 唱标总表「状态」列短标签——BidOpeningRecord.confirmStatus 为 String 列（非 ConfirmStatus 枚举，
  *  该枚举属 BidSupplier.confirmStatus），实际写入域为中文状态：待供应商确认/供应商已确认/供应商提出异议/
@@ -64,9 +49,6 @@ export default function OpeningHallPage() {
 
   const [project, setProject] = useState<any>(null);
   const [record, setRecord] = useState<any>(null);
-  // P1-8：开标记录「拉取失败」≠「确无记录」（正常无记录是 HTTP 200 + null）——
-  // 错误标志交解密卡展示错误态+重试，旧实现吞错为 null 令整卡静默消失
-  const [recordError, setRecordError] = useState(false);
   const [records, setRecords] = useState<OpeningRecordRow[]>([]);
   // A-113：本项目唱标字段配置（随公开唱标表端点附带；开标前端点 400 → null，渲染处回退默认四列）
   const [fieldConfig, setFieldConfig] = useState<OpeningFieldDef[] | null>(null);
@@ -78,27 +60,11 @@ export default function OpeningHallPage() {
   const [loadError, setLoadError] = useState(false);
   const [loadErrorMsg, setLoadErrorMsg] = useState("");
   const [profileError, setProfileError] = useState(false);
-  const [profileSm2PublicKey, setProfileSm2PublicKey] = useState("");
   const [bootstrapping, setBootstrapping] = useState(false);
   // 异议弹窗（ElMessageBox.prompt 的样式化等价）：textarea + 必填校验
   const [disputeOpen, setDisputeOpen] = useState(false);
   const [disputeReason, setDisputeReason] = useState("");
   const [disputeSubmitting, setDisputeSubmitting] = useState(false);
-
-  // ── 开标确认电子签名（A-114，序列克隆回执卡 A-101）：口令弹窗 → 解锁 U盾 → canonical 签名 → 提交 ──
-  const [confirming, setConfirming] = useState(false);
-  // ── U盾会话（克隆回执卡/澄清答复页：口令仅内存持有，解锁一次覆盖本页确认/补签）──
-  const [ukeyAdapter, setUkeyAdapter] = useState<UKeyAdapter | null>(null);
-  const [ukeyCertSn, setUkeyCertSn] = useState("");
-  const [ukeyPassword, setUkeyPassword] = useState("");
-  const [ukeyOpening, setUkeyOpening] = useState(false);
-  const [ukeyDialogVisible, setUkeyDialogVisible] = useState(false);
-  const ukeyPresent = useUkeyPresence(ukeyDialogVisible); // 严格模式:弹窗开着时轮询U盾在场
-  const pendingSignRef = useRef(false);
-  /** U盾会话快照 ref——解锁后同一事件闭包内立即签名，useState 异步更新会读到空值 */
-  const ukeySessionRef = useRef<{ adapter: UKeyAdapter; certSn: string } | null>(null);
-  /** 平台 ACTIVE 绑定证书 SN（U盾内证书的兜底匹配；空 = 未绑定，签名时给出引导） */
-  const [activeServerCertSn, setActiveServerCertSn] = useState("");
 
   // ── 聊天栏拖拽调宽：null = 默认比例（未拖过/已重置）；数值 = 用户拖定的像素宽（localStorage 持久化）──
   const [chatW, setChatW] = useState<number | null>(null);
@@ -167,20 +133,17 @@ export default function OpeningHallPage() {
   );
 
   async function refresh() {
-    // 失败保留上次成功数据，仅置标志；首屏（project 为空）时由错误态 + 重试展示
+    // 失败保留上次成功数据（P1-8：勿抹成 null 令开标记录区静默消失）；首屏（project 为空）时由错误态 + 重试展示
     try {
       const [p, recRes, list] = await Promise.all([
         bidApi.getProject(projectId),
-        // P1-8：失败保留上次成功记录、仅置错误标志（勿抹成 null——那会让解密卡随
-        // submitted=false 静默消失且 10s 轮询停摆）；成功才覆盖
         supplierApi.getOpeningRecord(projectId)
-          .then((r: unknown) => { setRecordError(false); return { ok: true as const, r }; })
-          .catch(() => { setRecordError(true); return { ok: false as const, r: null }; }),
+          .then((r: unknown) => { setRecord(r); })
+          .catch(() => { /* 拉取失败保留上次成功记录 */ }),
         // 开标前端点返回 400 OPENING_NOT_STARTED——捕获后置空列表，页面不报错
         supplierApi.getOpeningRecords(projectId).catch(() => null),
       ]);
       setProject(p);
-      if (recRes.ok) setRecord(recRes.r);
       setRecords(list?.records ?? []);
       setFieldConfig(list?.fieldConfig?.fields ?? null);
       setLoadError(false);
@@ -201,7 +164,6 @@ export default function OpeningHallPage() {
       const profile = await supplierApi.getProfile();
       setSupplierId(profile?.id ?? "");
       setSupplierName(profile?.name ?? "");
-      setProfileSm2PublicKey(profile?.sm2PublicKey ?? "");
       const err = !profile?.id;
       setProfileError(err);
       return err;
@@ -245,67 +207,8 @@ export default function OpeningHallPage() {
     }
   }
 
-  // ══ A-114 开标确认电子签名（序列克隆回执卡 A-101）：口令弹窗 → 解锁 U盾 → canonical 签名 → 提交 ══
-
-  /** 确认开标记录 / 补签确认（同一入口：服务端按记录态自动分辨 confirm/resign） */
-  function handleConfirmSign() {
-    if (!ukeyAdapter) {
-      // 先解锁 U盾（口令对话框），解锁成功后凭 pendingSignRef 自动续签——与回执卡同序列
-      pendingSignRef.current = true;
-      setUkeyPassword("");
-      setUkeyDialogVisible(true);
-      return;
-    }
-    void doConfirmSign();
-  }
-
-  /** 口令确认 → 解锁 U盾 → 选定平台绑定证书 → 续跑挂起的确认/补签 */
-  async function handleUkeyOpen() {
-    if (!ukeyPassword) { toast.warning("请输入证书口令"); return; }
-    setUkeyOpening(true);
-    try {
-      const { adapter } = await openUkey(ukeyPassword);
-      const certs = await adapter.listCertificates();
-      // 选中平台已绑定证书：优先本地缓存的 certSn（U盾管理页绑定后写入），兜底服务端 ACTIVE 绑定记录
-      // 服务端 ACTIVE（当前供应商自己的绑定）优先——本地缓存 certSn 可能来自共用浏览器上一次登录的
-      // 其他供应商（跨供应商错签事故，2026-08-31 验收实证），仅作服务端缺位时兜底
-      const cert = certs.find((c) => c.certSn === activeServerCertSn) || certs.find((c) => c.certSn === boundCertSn());
-      if (!cert) throw new Error("U盾内未找到与平台绑定的证书，请先到「U盾管理」页绑定");
-      setUkeyAdapter(adapter);
-      setUkeyCertSn(cert.certSn);
-      ukeySessionRef.current = { adapter, certSn: cert.certSn };
-      setUkeyPassword("");
-      setUkeyDialogVisible(false);
-      toast.success(`U盾已解锁（${cert.certSn}）`);
-      if (pendingSignRef.current) { pendingSignRef.current = false; await doConfirmSign(); }
-    } catch (e: any) {
-      toast.error(e?.message || "U盾解锁失败");
-    } finally {
-      setUkeyOpening(false);
-    }
-  }
-
-  /** 取 canonical（服务端以 DB 为准重建）→ U盾签名 → 提交（确认/补签单端点双语义，幂等） */
-  async function doConfirmSign() {
-    const session = ukeySessionRef.current;
-    if (!session) return;
-    const resign = record?.confirmStatus === "供应商已确认";
-    setConfirming(true);
-    try {
-      const { canonical } = await supplierApi.getOpeningConfirmPayload(projectId);
-      const signature = await session.adapter.sign(session.certSn, canonical);
-      await supplierApi.confirmOpening(projectId, signature);
-      toast.success(resign ? "开标确认电子签名已补签" : "已确认开标记录（已电子签名）");
-      await refresh();
-    } catch (e: any) {
-      const code = e?.code ?? (e?.data as Record<string, unknown> | undefined)?.code;
-      if (code === "SM2_PUBLIC_KEY_MISSING") toast.error("请先在 U盾管理页绑定数字证书");
-      else if (code === "OPENING_CONFIRM_SIGNATURE_INVALID") toast.error("签名验证失败，请重试");
-      else if (!e?.status && e?.message) toast.error(e.message); // 本地签名异常兜底；403/400 等已由 API 层全局 toast
-    } finally {
-      setConfirming(false);
-    }
-  }
+  // A-114 开标确认电子签名（口令弹窗 → 解锁 U盾 → canonical 签名 → 提交）已随 mock U盾轨
+  // 下线（2026-10-13）；开标记录确认/补签随 dual-v3（SCCA，阶段 2）恢复。异议通道不受影响。
 
   async function submitDispute() {
     const reason = disputeReason.trim();
@@ -360,17 +263,6 @@ export default function OpeningHallPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 平台绑定证书（供 U盾内证书匹配兜底；失败不阻塞浏览，签名时按解锁结果报错）——与回执卡/澄清答复页同源
-  useEffect(() => {
-    if (!record?.confirmStatus) return;
-    supplierApi.listMyCerts()
-      .then((rows: ServerCertRow[]) => {
-        const cert = rows.find((r) => r.bindingStatus === "ACTIVE");
-        if (cert) setActiveServerCertSn(cert.certSn);
-      })
-      .catch(() => { /* 列表加载失败已全局 toast；解锁时兜底报错 */ });
-  }, [record?.confirmStatus]);
-
   // 首屏加载失败（尚无项目数据）：错误态 + 重试
   if (loadError && !project) {
     return (
@@ -387,9 +279,8 @@ export default function OpeningHallPage() {
   }
 
   // 后端/种子数据实际写入 '待供应商确认'（bid.service.ts），旧页兼容 '待确认'，两者都接受
-  const canConfirm = isOpening && record && (record.confirmStatus === "待确认" || record.confirmStatus === "待供应商确认");
-  // A-114 补签：已确认但未电子签名（本人视图 record.confirmSignature 为完整归档）——同一签名流，服务端按 resign 处理
-  const canResign = isOpening && record?.confirmStatus === "供应商已确认" && !record?.confirmSignature;
+  // 确认/补签电子签名随 mock U盾轨下线（A-114，见上）；异议在待确认态开放，不受影响
+  const canDispute = isOpening && !!record && (record.confirmStatus === "待确认" || record.confirmStatus === "待供应商确认");
 
   // A-113：两表同一 config 渲染——公开总表列序（config 缺失回退默认四列=现状渲染）、
   // 本司对比区动态字段增显行（仅 config 动态键且有值；无密封源不做比对，仅展示）
@@ -540,37 +431,25 @@ export default function OpeningHallPage() {
               ) : checkedInAt ? (
                 <span className="hall-tag hall-tag--info">已签到 {new Date(checkedInAt).toLocaleTimeString("zh-CN")}</span>
               ) : null}
-              {canConfirm && (
-                <>
-                  <SpButton variant="primary" success icon={ShieldCheck} loading={confirming} onClick={handleConfirmSign}>
-                    确认开标记录
-                  </SpButton>
-                  <SpButton warning onClick={() => setDisputeOpen(true)}>
-                    提出异议
-                  </SpButton>
-                </>
-              )}
-              {canResign && (
-                <SpButton icon={ShieldCheck} loading={confirming} onClick={handleConfirmSign}>
-                  补签确认（U盾）
+              {canDispute && (
+                <SpButton warning onClick={() => setDisputeOpen(true)}>
+                  提出异议
                 </SpButton>
               )}
-              {ukeyAdapter && (canConfirm || canResign) && <span className="ukey-ok">U盾已解锁（{ukeyCertSn}）</span>}
             </div>
             {!isOpening && stage && <div className="stage-hint">大厅互动仅在开标阶段开放。</div>}
           </div>
         </section>
 
-        {/* ═══ 双信封 v2：解密我的投标（OPENING 阶段轮询 opening-package；旧轨自动隐藏）═══ */}
-        <OpeningDecryptCard
-          projectId={projectId}
-          isOpening={isOpening}
-          submitted={!!record?.submitted}
-          recordError={recordError}
-          onRetry={() => { refresh().catch(() => {}); }}
-          profileSm2PublicKey={profileSm2PublicKey}
-          onDecrypted={() => { refresh().catch(() => {}); }}
-        />
+        {/* ═══ 双信封 v2 供应商侧解密卡已随 mock U盾轨下线（2026-10-13）═══
+              old clientDeks 投递由主持端代解密；dual-v3（SCCA，阶段 2）落地后在此恢复自助解密 */}
+        {isOpening && !!record?.submitted && (
+          <section className="hall-card">
+            <div className="hall-card__body">
+              <div className="stage-hint">双信封开标解密随 dual-v3（阶段 2）开放；当前走服务端代解密。</div>
+            </div>
+          </section>
+        )}
 
         {/* 唱标记录总表：自开标起向本项目全体投标人公开（《电子招标投标办法》第30条），
              WS opening:record:updated → refresh() 实时更新；本司行按 bidSupplierId 高亮 */}
@@ -684,41 +563,6 @@ export default function OpeningHallPage() {
           autoFocus
         />
         {!disputeReason.trim() && <p className="mt-2 text-xs text-warning">请填写异议原因</p>}
-      </SpDialog>
-
-      {/* ═══ U盾口令对话框（克隆回执卡 A-101：解锁后自动续跑挂起的开标确认/补签签名，A-114）═══ */}
-      <SpDialog
-        open={ukeyDialogVisible}
-        onClose={() => setUkeyDialogVisible(false)}
-        title="证书口令验证"
-        subtitle="开标确认电子签名需解锁 U盾证书"
-        icon={KeyRound}
-        width={420}
-        footer={
-          <div className="neu-btn-group">
-            <SpButton variant="soft" onClick={() => setUkeyDialogVisible(false)}>取消</SpButton>
-            <SpButton variant="primary" loading={ukeyOpening} disabled={ukeyPresent === false} onClick={handleUkeyOpen}>解锁并签名</SpButton>
-          </div>
-        }
-      >
-        <p className="text-xs leading-relaxed text-[var(--muted-foreground)] mb-2.5">
-          即将对本开标记录（报价、工期、质量目标等）进行 U盾电子签名，签署后归档留痕。
-        </p>
-        {ukeyPresent === false ? (
-          <p className="text-[13px] text-warning">未检测到 U盾——请插入 U盾后重试（插入后自动恢复）</p>
-        ) : (
-        <>
-        <label className="reg-label">证书口令</label>
-        <SpInput
-          type="password"
-          value={ukeyPassword}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUkeyPassword(e.target.value)}
-          placeholder="输入证书口令"
-          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === "Enter") void handleUkeyOpen(); }}
-        />
-        <p className="text-xs mt-3 text-[var(--fg-2)]">口令仅本次会话使用，不会保存。</p>
-        </>
-        )}
       </SpDialog>
     </div>
   );

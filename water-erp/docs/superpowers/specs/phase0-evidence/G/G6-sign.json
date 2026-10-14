@@ -1,0 +1,21 @@
+{
+  "callNo": "P0-GW-014",
+  "cmd": "certvalidate",
+  "ts": "2026-10-13T02:25:39.535Z",
+  "url": "http://testmicrosrv.scca.com.cn:9527/signgw-service/api/signature/certValidate",
+  "opType": "(certValidate)",
+  "requestId": "-",
+  "inputDigest": {
+    "toSignBytes": 0,
+    "toSignSha256": null,
+    "p7Bytes": null,
+    "p7Sha256": null,
+    "certBytes": 1442
+  },
+  "signatureSent": "valid",
+  "httpStatus": 403,
+  "latencyMs": 176,
+  "respBytes": 82,
+  "respTruncated": false,
+  "body": "{\"result_code\":1105,\"result_msg\":\"权限验证错误\",\"body\":null,\"success\":false}"
+}

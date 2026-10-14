@@ -1,0 +1,5 @@
+{ "testId": "S5", "status": "PASS", "ts": "2026-10-13",
+  "vectors": "V1-V7 全部 eContent==UTF8(expect)；V4=LF、V5=CRLF 字节忠实",
+  "C8": "内嵌原文=原始 UTF-8 字节（非双重 base64）；V1d detached 形态合法（encapContentInfo 仅 [OID]）",
+  "C9": "signerInfo 算法=SM3(1.2.156.10197.1.401)+SM2(1.2.156.10197.1.301)——纯国密；signedAttrs 无；「国际算法PKCS#7」=PKCS#7 格式+国密算法，谜底落定",
+  "三方指纹": "9/9 signer serial 与 [0] 证书 sha256 == 所选签名证（本地两方闭环）；V5-demo-enc 内嵌 23B 纯 LF——demo base64Encode 吞 \\r 离线实锤（附录E 编码事实已定案，送验结果仅作 World A/B 佐证）" }

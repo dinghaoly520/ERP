@@ -6,9 +6,15 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "dev": "tsc -p tsconfig.json --watch"
+    "dev": "tsc -p tsconfig.json --watch",
+    "test": "jest --passWithNoTests"
   },
   "dependencies": {
     "sm-crypto": "^0.4.0"
+  },
+  "devDependencies": {
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.9.3",
+    "@types/jest": "^29.5.13"
   }
 }

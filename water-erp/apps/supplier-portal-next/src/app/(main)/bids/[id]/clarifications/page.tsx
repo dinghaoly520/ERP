@@ -1,50 +1,30 @@
 "use client";
 
 /**
- * A-143 评标澄清在线答复页：问题卡片 → 答复编辑器（文本+附件）→ U盾口令解锁 → 对服务端
- * reply-payload 返回的 canonical 串签名 → 提交（前端不自行拼接签名文本）。
- * U盾会话与签名序列克隆自 bids/[id]/submit/page.tsx：
- *  - ukeyDialogVisible 口令弹窗 + pendingReplyRef 挂起续跑 + ukeySessionRef 快照
- *  - 证书选择：优先本地缓存 supplier_ukey_bound.certSn（U盾管理页绑定后写入），
- *    兜底服务端 ACTIVE 绑定记录（supplierApi.listMyCerts）
+ * A-143 评标澄清在线答复页：问题卡片 → 答复编辑器（文本+附件）→ 提交。
+ * 原 U盾签名答复序列（口令弹窗 + adapter.sign）已随 mock U盾轨下线（2026-10-13），
+ * 提交路径保留，签名随 dual-v3（SCCA，阶段 2）恢复。
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import dayjs from "dayjs";
 import {
   ArrowLeft,
   FileText,
-  KeyRound,
   Lock,
   MessageSquare,
-  ShieldCheck,
   Trash2,
   TriangleAlert,
   UploadCloud,
 } from "lucide-react";;
 import { bidApi, type SupplierBidClarification } from "@/lib/api/bid";
-import { supplierApi } from "@/lib/api/supplier";
 import { uploadFile } from "@/lib/api/upload";
 import { SpPageHero } from "@/components/sp-page-hero";
-import { LoadingBlock, SpButton, SpDialog, SpInput, SpTextarea } from "@/components/ui";
-import { openUkey } from "@/utils/ukey-factory";
-import { useUkeyPresence } from "@/utils/use-ukey-presence";
-import type { UKeyAdapter } from "@water-erp/ukey";
+import { LoadingBlock, SpButton, SpTextarea } from "@/components/ui";
 import "@/styles/pages/bids.css";
 
 interface UploadedAttachment { fileAssetId: string; name: string; sha256: string }
-
-/** 服务端绑定记录（仅取答复所需公开字段） */
-interface ServerCertRow { certSn: string; bindingStatus: string }
-
-/** 本地缓存的绑定证书序列号（U盾管理页绑定成功后写入；仅公开信息）——与 submit 页同源 */
-function boundCertSn(): string {
-  try {
-    const raw = localStorage.getItem("supplier_ukey_bound");
-    return raw ? (JSON.parse(raw)?.certSn ?? "") : "";
-  } catch { return ""; }
-}
 
 export default function BidClarificationsPage() {
   const router = useRouter();
@@ -63,19 +43,6 @@ export default function BidClarificationsPage() {
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // ── U盾会话（克隆 submit 页：口令仅内存持有，解锁一次覆盖本页全部答复签名）──
-  const [ukeyAdapter, setUkeyAdapter] = useState<UKeyAdapter | null>(null);
-  const [ukeyCertSn, setUkeyCertSn] = useState("");
-  const [ukeyPassword, setUkeyPassword] = useState("");
-  const [ukeyOpening, setUkeyOpening] = useState(false);
-  const [ukeyDialogVisible, setUkeyDialogVisible] = useState(false);
-  const ukeyPresent = useUkeyPresence(ukeyDialogVisible); // 严格模式:弹窗开着时轮询U盾在场
-  const pendingReplyRef = useRef(false);
-  /** U盾会话快照 ref——解锁后同一事件闭包内立即 doReply，useState 异步更新会读到空值 */
-  const ukeySessionRef = useRef<{ adapter: UKeyAdapter; certSn: string } | null>(null);
-  /** 平台 ACTIVE 绑定证书 SN（U盾内证书的兜底匹配；空 = 未绑定，答复时给出引导） */
-  const [activeServerCertSn, setActiveServerCertSn] = useState("");
-
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -89,16 +56,6 @@ export default function BidClarificationsPage() {
   }, [projectId]);
 
   useEffect(() => { void load(); }, [load]);
-
-  // 平台绑定证书（供 U盾内证书匹配；失败不阻塞浏览，签名时按解锁结果报错）
-  useEffect(() => {
-    supplierApi.listMyCerts()
-      .then((rows: ServerCertRow[]) => {
-        const cert = rows.find((r) => r.bindingStatus === "ACTIVE");
-        if (cert) setActiveServerCertSn(cert.certSn);
-      })
-      .catch(() => { /* 列表加载失败已全局 toast；解锁时兜底报错 */ });
-  }, []);
 
   async function retryLoad() {
     setLoadError(false);
@@ -140,65 +97,28 @@ export default function BidClarificationsPage() {
     setAttachments((prev) => prev.filter((a) => a.fileAssetId !== fileAssetId));
   }
 
-  function handleSignSubmit() {
+  function handleSubmit() {
     if (!active) return;
     if (reply.trim().length < 5) { toast.warning("答复内容至少 5 个字（5~5000 字）"); return; }
     if (reply.trim().length > 5000) { toast.warning("答复内容不能超过 5000 字"); return; }
-    if (!ukeyAdapter) {
-      // 先解锁 U盾（口令对话框），解锁成功后凭 pendingReplyRef 自动继续提交——与 submit 页同序列
-      pendingReplyRef.current = true;
-      setUkeyPassword("");
-      setUkeyDialogVisible(true);
-      return;
-    }
     void doReply();
   }
 
-  /** 口令确认 → 解锁 U盾 → 选定平台绑定证书 → 续跑挂起的答复 */
-  async function handleUkeyOpen() {
-    if (!ukeyPassword) { toast.warning("请输入证书口令"); return; }
-    setUkeyOpening(true);
-    try {
-      const { adapter } = await openUkey(ukeyPassword);
-      const certs = await adapter.listCertificates();
-      // 选中平台已绑定证书：优先本地缓存的 certSn（U盾管理页绑定后写入），兜底服务端 ACTIVE 绑定记录
-      // 选中本供应商平台绑定证书：服务端 ACTIVE（当前供应商自己的绑定）优先——本地缓存 certSn 可能来自
-      // 共用浏览器上一次登录的其他供应商（跨供应商错签事故，2026-08-31 验收实证），仅作服务端缺位时兜底
-      const cert = certs.find((c) => c.certSn === activeServerCertSn) || certs.find((c) => c.certSn === boundCertSn());
-      if (!cert) throw new Error("U盾内未找到与平台绑定的证书，请先到「U盾管理」页绑定");
-      setUkeyAdapter(adapter);
-      setUkeyCertSn(cert.certSn);
-      ukeySessionRef.current = { adapter, certSn: cert.certSn };
-      setUkeyPassword("");
-      setUkeyDialogVisible(false);
-      toast.success(`U盾已解锁（${cert.certSn}）`);
-      if (pendingReplyRef.current) { pendingReplyRef.current = false; await doReply(); }
-    } catch (e: any) {
-      toast.error(e?.message || "U盾解锁失败");
-    } finally {
-      setUkeyOpening(false);
-    }
-  }
-
-  /** 取 canonical → U盾签名 → 提交（签名对象 = 服务端返回串；API 错误已全局 toast） */
+  /** 提交答复（U盾签名随 mock U盾轨下线，签名参数不传；API 错误已全局 toast） */
   async function doReply() {
-    const session = ukeySessionRef.current;
-    if (!active || !session) return;
+    if (!active) return;
     const body = {
       reply: reply.trim(),
       attachmentIds: attachments.map((a) => a.fileAssetId),
-      certSn: session.certSn,
     };
     setSubmitting(true);
     try {
-      const { payload } = await bidApi.getClarificationReplyPayload(projectId, active.id, body);
-      const signature = await session.adapter.sign(session.certSn, payload);
-      await bidApi.submitClarificationReply(projectId, active.id, { ...body, signature });
-      toast.success("澄清答复已签名提交");
+      await bidApi.submitClarificationReply(projectId, active.id, body);
+      toast.success("澄清答复已提交");
       setActiveId(null);
       await load();
     } catch (e: any) {
-      // API 错误由 API 层全局 toast；此处兜底本地签名/组包异常
+      // API 错误由 API 层全局 toast；此处兜底本地组包异常
       if (!e?.status && e?.message) toast.error(e.message);
     } finally {
       setSubmitting(false);
@@ -249,7 +169,7 @@ export default function BidClarificationsPage() {
                         maxLength={5000}
                         value={reply}
                         onChange={(e) => setReply(e.target.value)}
-                        placeholder="请输入澄清答复内容（5~5000 字，提交时经 U盾电子签名，提交后不可修改）"
+                        placeholder="请输入澄清答复内容（5~5000 字，提交后不可修改）"
                       />
                       <div className="cq-att-list">
                         {attachments.map((a) => (
@@ -277,18 +197,14 @@ export default function BidClarificationsPage() {
                         )}
                       </div>
                       <div className="cq-actions">
-                        <span className="cq-actions-hint">
-                          {ukeyAdapter ? `U盾已解锁（${ukeyCertSn}）` : "提交时需输入证书口令解锁 U盾"}
-                        </span>
                         <SpButton variant="soft" onClick={() => setActiveId(null)}>取消</SpButton>
                         <SpButton
                           variant="primary"
-                          icon={ShieldCheck}
                           loading={submitting}
                           disabled={uploading}
-                          onClick={handleSignSubmit}
+                          onClick={handleSubmit}
                         >
-                          U盾签名并提交
+                          提交答复
                         </SpButton>
                       </div>
                     </div>
@@ -335,41 +251,6 @@ export default function BidClarificationsPage() {
           </div>
         </div>
       )}
-
-      {/* ═══ U盾口令对话框（克隆 submit 页：解锁后自动续跑挂起的答复提交）═══ */}
-      <SpDialog
-        open={ukeyDialogVisible}
-        onClose={() => setUkeyDialogVisible(false)}
-        title="证书口令验证"
-        subtitle="评标澄清答复需解锁 U盾证书完成电子签名"
-        icon={KeyRound}
-        width={420}
-        footer={
-          <>
-            <SpButton variant="soft" onClick={() => setUkeyDialogVisible(false)}>取消</SpButton>
-            <SpButton variant="primary" loading={ukeyOpening} disabled={ukeyPresent === false} onClick={handleUkeyOpen}>解锁并签名</SpButton>
-          </>
-        }
-      >
-        <p className="cq-pin-hint">
-          即将对答复内容（服务端返回的规范化文本{attachments.length > 0 ? "及附件清单" : ""}）进行 U盾电子签名，提交后不可修改。
-        </p>
-        {ukeyPresent === false ? (
-          <p className="text-[13px] text-warning">未检测到 U盾——请插入 U盾后重试（插入后自动恢复）</p>
-        ) : (
-        <>
-        <label className="reg-label">证书口令</label>
-        <SpInput
-          type="password"
-          value={ukeyPassword}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUkeyPassword(e.target.value)}
-          placeholder="输入证书口令"
-          onKeyDown={(e: React.KeyboardEvent) => { if (e.key === "Enter") void handleUkeyOpen(); }}
-        />
-        <p className="text-xs mt-3 text-[var(--fg-2)]">口令仅本次会话使用，不会保存。</p>
-        </>
-        )}
-      </SpDialog>
     </div>
   );
 }

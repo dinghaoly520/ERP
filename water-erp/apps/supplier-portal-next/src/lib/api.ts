@@ -51,7 +51,7 @@ async function guard<T>(p: Promise<T>, path: string, opts: ReqOpts = {}): Promis
   } catch (e) {
     if (e instanceof ApiError) {
       const code = (e.data as Record<string, unknown> | undefined)?.code as string | undefined;
-      const isLoginReq = /(^|\/)auth\/login$/.test(path);
+      const isLoginReq = /(^|\/)auth\/(login|ca\/challenge|ca\/login|ca\/result|ca\/config|ca\/reauth)$/.test(path);
       if (e.status === 401) {
         // 登录请求（含「密码正确但待审核/停用」的 ACCOUNT_PENDING）由调用方处理，
         // 这里不弹「登录已过期」、不跳转，避免在登录页给出误导性提示。

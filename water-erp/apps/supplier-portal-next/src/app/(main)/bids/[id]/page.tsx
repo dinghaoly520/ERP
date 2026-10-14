@@ -1,17 +1,14 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import dayjs from "dayjs";
 import {
   FileText, TriangleAlert, Lock, Upload, Download, Sparkles, Loader2, ArrowLeft,
-  CircleX, CircleCheck, Info, KeyRound, ShieldCheck, Copy, Check,
+  CircleX, CircleCheck, Info, KeyRound, Copy, Check,
 } from "lucide-react";
-import { openUkey } from "@/utils/ukey-factory";
-import { useUkeyPresence } from "@/utils/use-ukey-presence";
-import type { UKeyAdapter } from "@water-erp/ukey";
 import { bidApi } from "@/lib/api/bid";
 import { TenderClarificationCard } from "@/components/tender-clarification-card";
 import { supplierApi } from "@/lib/api/supplier";
@@ -41,17 +38,6 @@ function BAlert({ type, title, children, style }: {
       </div>
     </div>
   );
-}
-
-/** 服务端绑定记录（仅取补签所需公开字段）——与评标澄清答复页同源 */
-interface ServerCertRow { certSn: string; bindingStatus: string }
-
-/** 本地缓存的绑定证书序列号（U盾管理页绑定成功后写入；仅公开信息）——与 clarifications 页同源 */
-function boundCertSn(): string {
-  try {
-    const raw = localStorage.getItem("supplier_ukey_bound");
-    return raw ? (JSON.parse(raw)?.certSn ?? "") : "";
-  } catch { return ""; }
 }
 
 import { STAGE_LABEL } from "@water-erp/shared";
@@ -140,25 +126,11 @@ function BidDetailInner() {
   const [payloadLoading, setPayloadLoading] = useState(false);
   // P1-6：失败分类——unbound=未绑定 U盾证书（确定性失败，不可重试，面板给去绑定入口）；retry=网络/服务端瞬时故障
   const [payloadFailed, setPayloadFailed] = useState<"unbound" | "retry" | null>(null);
-  const [signing, setSigning] = useState(false);
   // 核验面板：已签署时服务端重验签结论（A-101）+ 复制原文反馈
   const [receiptVerify, setReceiptVerify] = useState<{ signed: boolean; verified?: boolean; reason?: string } | null>(null);
   const [receiptVerifyFailed, setReceiptVerifyFailed] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [receiptCopied, setReceiptCopied] = useState(false);
-
-  // ── U盾会话（克隆 clarifications 页：口令仅内存持有，解锁一次覆盖本页回执补签）──
-  const [ukeyAdapter, setUkeyAdapter] = useState<UKeyAdapter | null>(null);
-  const [ukeyCertSn, setUkeyCertSn] = useState("");
-  const [ukeyPassword, setUkeyPassword] = useState("");
-  const [ukeyOpening, setUkeyOpening] = useState(false);
-  const [ukeyDialogVisible, setUkeyDialogVisible] = useState(false);
-  const ukeyPresent = useUkeyPresence(ukeyDialogVisible); // 严格模式:弹窗开着时轮询U盾在场
-  const pendingSignRef = useRef(false);
-  /** U盾会话快照 ref——解锁后同一事件闭包内立即 doSignReceipt，useState 异步更新会读到空值 */
-  const ukeySessionRef = useRef<{ adapter: UKeyAdapter; certSn: string } | null>(null);
-  /** 平台 ACTIVE 绑定证书 SN（U盾内证书的兜底匹配；空 = 未绑定，补签时给出引导） */
-  const [activeServerCertSn, setActiveServerCertSn] = useState("");
 
   const isApproved = profile?.status === "APPROVED";
   // C12（第四波）：截止跨过后 canSubmit/阶段文案 30s 自动重算（旧实现不定时重算，页面停显「可投标」误导）
@@ -274,17 +246,6 @@ function BidDetailInner() {
     loadAll();
   }, [loadAll]);
 
-  // 平台绑定证书（供 U盾内证书匹配；失败不阻塞浏览，补签时按解锁结果报错）——与 clarifications 页同源
-  useEffect(() => {
-    if (submission?.status !== "submitted") return;
-    supplierApi.listMyCerts()
-      .then((rows: ServerCertRow[]) => {
-        const cert = rows.find((r) => r.bindingStatus === "ACTIVE");
-        if (cert) setActiveServerCertSn(cert.certSn);
-      })
-      .catch(() => { /* 列表加载失败已全局 toast；解锁时兜底报错 */ });
-  }, [submission?.status]);
-
   async function doPay() {
     if (!bidDoc?.announcementId) return;
     setPaying(true);
@@ -328,65 +289,7 @@ function BidDetailInner() {
     router.push(isListMode ? `/bids/${projectId}/submit?from=list` : `/bids/${projectId}/submit`);
   }
 
-  // ══ A-101 回执补签（序列克隆自 clarifications 页）══
-
-  function handleSignReceipt() {
-    if (!ukeyAdapter) {
-      // 先解锁 U盾（口令对话框），解锁成功后凭 pendingSignRef 自动续签——与 clarifications 页同序列
-      pendingSignRef.current = true;
-      setUkeyPassword("");
-      setUkeyDialogVisible(true);
-      return;
-    }
-    void doSignReceipt();
-  }
-
-  /** 口令确认 → 解锁 U盾 → 选定平台绑定证书 → 续跑挂起的补签 */
-  async function handleUkeyOpen() {
-    if (!ukeyPassword) { toast.warning("请输入证书口令"); return; }
-    setUkeyOpening(true);
-    try {
-      const { adapter } = await openUkey(ukeyPassword);
-      const certs = await adapter.listCertificates();
-      // 选中平台已绑定证书：优先本地缓存的 certSn（U盾管理页绑定后写入），兜底服务端 ACTIVE 绑定记录
-      // 服务端 ACTIVE（当前供应商自己的绑定）优先——本地缓存 certSn 可能来自共用浏览器上一次登录的
-      // 其他供应商（跨供应商错签事故，2026-08-31 验收实证），仅作服务端缺位时兜底
-      const cert = certs.find((c) => c.certSn === activeServerCertSn) || certs.find((c) => c.certSn === boundCertSn());
-      if (!cert) throw new Error("U盾内未找到与平台绑定的证书，请先到「U盾管理」页绑定");
-      setUkeyAdapter(adapter);
-      setUkeyCertSn(cert.certSn);
-      ukeySessionRef.current = { adapter, certSn: cert.certSn };
-      setUkeyPassword("");
-      setUkeyDialogVisible(false);
-      toast.success(`U盾已解锁（${cert.certSn}）`);
-      if (pendingSignRef.current) { pendingSignRef.current = false; await doSignReceipt(); }
-    } catch (e: any) {
-      toast.error(e?.message || "U盾解锁失败");
-    } finally {
-      setUkeyOpening(false);
-    }
-  }
-
-  /** 取 canonical → U盾签名 → 提交（幂等：服务端已签返回原行，刷新后按已签署展示） */
-  async function doSignReceipt() {
-    const session = ukeySessionRef.current;
-    if (!submission || !session) return;
-    setSigning(true);
-    try {
-      const { canonical } = await supplierApi.getReceiptPayload(submission.id);
-      const signature = await session.adapter.sign(session.certSn, canonical);
-      await supplierApi.signReceiptSignature(submission.id, signature);
-      toast.success("回执已签署");
-      await reloadSubmission();
-    } catch (e: any) {
-      const code = e?.code ?? (e?.data as Record<string, unknown> | undefined)?.code;
-      if (code === "SM2_PUBLIC_KEY_MISSING") toast.error("请先在「U盾管理」页绑定数字证书");
-      else if (code === "RECEIPT_SIGNATURE_INVALID") toast.error("回执验签失败，请重试");
-      else if (!e?.status && e?.message) toast.error(e.message); // 本地签名异常兜底；403 等已由 API 层全局 toast
-    } finally {
-      setSigning(false);
-    }
-  }
+  // ══ A-101 回执展示与核验（U盾签署随 mock U盾轨下线，dual-v3 阶段恢复；服务端重验签为只读）══
 
   /** 未签署时展开「核验负载」→ 向服务端取回执负载（以 DB 为准重建；已签署直接看存档 payload）
    *  P1-6：silent 取回——未绑定证书（确定性失败）不再弹「无法签署回执」全局 toast，改面板内解释+去绑定入口 */
@@ -731,7 +634,7 @@ function BidDetailInner() {
                   {/* W1（A-80~86）：澄清与修改——提问 + 澄清文件下载（区别于上方评标澄清答疑只读区） */}
                   <TenderClarificationCard projectId={projectId} stage={project?.stage} deadline={project?.deadline} />
 
-                  {/* ═══ 投标回执（A-101）：已递交后查看编号/递交时间/签名状态，未签署 U盾补签 ═══ */}
+                  {/* ═══ 投标回执（A-101）：已递交后查看编号/递交时间/签名状态；U盾补签随 mock U盾轨下线（dual-v3 阶段恢复）═══ */}
                   {submission?.status === "submitted" && (
                     <div className="neu-card bottom-card">
                       <div className="bc-hd flex items-center justify-between">
@@ -759,22 +662,13 @@ function BidDetailInner() {
                           </span>
                         </div>
                       </div>
-                      {submission.receiptSignature ? (
+                      {submission.receiptSignature && (
                         <div className="cq-sig">
                           <Lock size={12} strokeWidth={1.75} />
                           签名算法 {submission.receiptSignature.algorithm ?? "SM2/SM3"}
                           {submission.receiptSignature.verifiedAt
                             ? ` · 存档时已验签 ${dayjs(submission.receiptSignature.verifiedAt).format("YYYY-MM-DD HH:mm")}`
                             : ""}
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <SpButton variant="primary" icon={ShieldCheck} loading={signing} onClick={handleSignReceipt}>
-                            签署回执（U盾）
-                          </SpButton>
-                          {ukeyAdapter && (
-                            <span className="cq-actions-hint">U盾已解锁（{ukeyCertSn}）</span>
-                          )}
                         </div>
                       )}
                       {/* 回执负载核验：已签署看签署存档 payload + 服务端重验签徽标；未签署展开时向服务端取（以 DB 为准重建） */}
@@ -893,41 +787,6 @@ function BidDetailInner() {
           <span>下载密码</span>
           <SpInput value={decryptPwd} maxLength={10} onChange={(e) => setDecryptPwd(e.target.value)} placeholder="请输入6位下载密码" />
         </div>
-      </SpDialog>
-
-      {/* ═══ U盾口令对话框（克隆 clarifications 页：解锁后自动续跑挂起的回执补签，A-101）═══ */}
-      <SpDialog
-        open={ukeyDialogVisible}
-        onClose={() => setUkeyDialogVisible(false)}
-        title="证书口令验证"
-        subtitle="投标回执补签需解锁 U盾证书完成电子签名"
-        icon={KeyRound}
-        width={420}
-        footer={
-          <>
-            <SpButton variant="soft" onClick={() => setUkeyDialogVisible(false)}>取消</SpButton>
-            <SpButton variant="primary" loading={ukeyOpening} disabled={ukeyPresent === false} onClick={handleUkeyOpen}>解锁并签名</SpButton>
-          </>
-        }
-      >
-        <p className="cq-pin-hint">
-          即将对本标书递交回执进行 U盾电子签名，签署后归档留痕。
-        </p>
-        {ukeyPresent === false ? (
-          <p className="text-[13px] text-warning">未检测到 U盾——请插入 U盾后重试（插入后自动恢复）</p>
-        ) : (
-        <>
-        <label className="reg-label">证书口令</label>
-        <SpInput
-          type="password"
-          value={ukeyPassword}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUkeyPassword(e.target.value)}
-          placeholder="输入证书口令"
-          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === "Enter") void handleUkeyOpen(); }}
-        />
-        <p className="text-xs mt-3 text-[var(--fg-2)]">口令仅本次会话使用，不会保存。</p>
-        </>
-        )}
       </SpDialog>
     </div>
   );

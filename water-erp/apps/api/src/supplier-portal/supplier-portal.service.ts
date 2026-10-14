@@ -566,11 +566,16 @@ export class SupplierPortalService {
       throw new ForbiddenException({ error: '回执归属校验失败', code: 'NOT_YOUR_SUBMISSION' });
     }
     if (sub.receiptSignature) return sub; // 幂等：已签署直接返回
-    const cert = await this.findActiveCertForSigning(supplierId, 'sign');
     const { payload, canonical } = await this.getReceiptPayloadFor(submissionId, supplierId);
-    const valid = this.signatureService.verify(canonical, signature, cert.publicKey);
-    if (!valid) {
-      throw new BadRequestException({ error: '回执签名验证失败（SM2）', code: 'RECEIPT_SIGNATURE_INVALID' });
+    // SCCA 全面适配（2026-10-14）：旧轨免签——signature 空则跳过验签，证据标记 unsigned-legacy
+    // （dual-v3 P7 强签随阶段 2 恢复；SCCA 盾无裸 SM2 原语，空签是当前唯一可行轨）
+    let cert: { certSn: string; publicKey: string } | null = null;
+    if (signature) {
+      cert = await this.findActiveCertForSigning(supplierId, 'sign');
+      const valid = this.signatureService.verify(canonical, signature, cert.publicKey);
+      if (!valid) {
+        throw new BadRequestException({ error: '回执签名验证失败（SM2）', code: 'RECEIPT_SIGNATURE_INVALID' });
+      }
     }
     return this.prisma.supplierBidSubmission.update({
       where: { id: submissionId },
@@ -578,11 +583,11 @@ export class SupplierPortalService {
         // D4 签时快照：certSn+certPublicKey 随证据存档——换绑/撤销/过期均不影响事后复验
         receiptSignature: {
           payload,
-          signature,
-          algorithm: 'SM2/SM3',
-          verifiedAt: new Date().toISOString(),
-          certSn: cert.certSn,
-          certPublicKey: cert.publicKey,
+          signature: signature || null,
+          algorithm: signature ? 'SM2/SM3' : 'unsigned-legacy',
+          verifiedAt: signature ? new Date().toISOString() : null,
+          certSn: cert?.certSn ?? null,
+          certPublicKey: cert?.publicKey ?? null,
         },
         receiptSignedAt: new Date(),
       },
@@ -3250,7 +3255,11 @@ export class SupplierPortalService {
     }
 
     // D5 口径统一：验签公钥=本供应商唯一 ACTIVE SupplierCert（与回执/主链同口径，不读旧列）
-    const cert = await this.findActiveCertForSigning(supplierId, 'verify');
+    // SCCA 全面适配（2026-10-14）：旧轨免签时无需证书（调用方按 signature 有无决定是否取 cert）
+    const cert = await this.findActiveCertForSigning(supplierId, 'verify').catch((e: any) => {
+      if (e?.getResponse?.()?.code === 'SM2_PUBLIC_KEY_MISSING') return null;
+      throw e;
+    });
     return { project, bidSupplier, record, cert };
   }
 
@@ -3310,17 +3319,21 @@ export class SupplierPortalService {
       amount: record.amount, period: record.period, qualityTarget: record.qualityTarget,
       bondStatus: record.bondStatus, decryptResult: record.decryptResult,
     });
-    if (!this.signatureService.verify(canonical, signature, cert.publicKey)) {
+    // SCCA 全面适配（2026-10-14）：旧轨免签——signature 空则跳过验签（unsigned-legacy）
+    if (signature && !cert) {
+      throw new BadRequestException({ error: '未找到有效绑定证书，无法验签开标确认', code: 'SM2_PUBLIC_KEY_MISSING' });
+    }
+    if (signature && !this.signatureService.verify(canonical, signature, cert!.publicKey)) {
       throw new BadRequestException({ error: '开标确认电子签名验证失败（SM2）', code: 'OPENING_CONFIRM_SIGNATURE_INVALID' });
     }
     // D4 签时快照：certSn+certPublicKey 随证据存档（换绑/撤销/过期不影响事后复验）
     const confirmSignature = {
       payload: JSON.parse(canonical),
-      signature,
-      algorithm: 'SM2/SM3',
-      verifiedAt: new Date().toISOString(),
-      certSn: cert.certSn,
-      certPublicKey: cert.publicKey,
+      signature: signature || null,
+      algorithm: signature ? 'SM2/SM3' : 'unsigned-legacy',
+      verifiedAt: signature ? new Date().toISOString() : null,
+      certSn: signature ? cert!.certSn : null,
+      certPublicKey: signature ? cert!.publicKey : null,
     };
 
     if (purpose === 'confirm') {
@@ -4070,7 +4083,7 @@ export class SupplierPortalService {
     return {
       payload: buildClarificationReplyCanonical({
         clarificationId: cid, projectId, supplierId,
-        reply: dto.reply, attachments, certSn: dto.certSn,
+        reply: dto.reply, attachments, certSn: dto.certSn ?? '',
       }),
     };
   }
@@ -4082,20 +4095,23 @@ export class SupplierPortalService {
   ) {
     const clar = await this.assertReplyable(projectId, cid, supplierId);
 
-    // 证书严格校验：与 submitBid 同规则，不回退 supplier.sm2PublicKey（revokeCert 不清该列）
-    const cert = await this.prisma.supplierCert.findFirst({
-      where: { supplierId, certSn: dto.certSn, bindingStatus: 'ACTIVE' },
-    });
-    if (!cert) {
-      throw new BadRequestException({ error: '证书未绑定或已撤销，请先在「U盾管理」绑定有效证书', code: 'CERT_NOT_ACTIVE' });
+    // SCCA 全面适配（2026-10-14）：旧轨免签——signature/certSn 空则跳过证书校验与验签
+    let cert: { certSn: string; publicKey: string } | null = null;
+    if (dto.signature) {
+      cert = await this.prisma.supplierCert.findFirst({
+        where: { supplierId, certSn: dto.certSn, bindingStatus: 'ACTIVE' },
+      });
+      if (!cert) {
+        throw new BadRequestException({ error: '证书未绑定或已撤销，请先在「U盾管理」绑定有效证书', code: 'CERT_NOT_ACTIVE' });
+      }
     }
 
     const attachments = await this.loadOwnedAttachments(dto.attachmentIds ?? [], user.sub);
     const canonical = buildClarificationReplyCanonical({
       clarificationId: cid, projectId, supplierId,
-      reply: dto.reply, attachments, certSn: dto.certSn,
+      reply: dto.reply, attachments, certSn: dto.certSn ?? '',
     });
-    if (!this.signatureService.verify(canonical, dto.signature, cert.publicKey)) {
+    if (dto.signature && !this.signatureService.verify(canonical, dto.signature, cert!.publicKey)) {
       throw new BadRequestException({ error: '电子签名验证失败，请使用绑定证书对最新答复内容重新签名', code: 'CLARIFICATION_REPLY_SIGNATURE_INVALID' });
     }
 

@@ -64,10 +64,15 @@ export async function proxy(request: NextRequest) {
       const upstream = await fetch(targetUrl, init);
       const resHeaders = new Headers();
       upstream.headers.forEach((value, key) => {
-        if (!['content-encoding', 'transfer-encoding'].includes(key.toLowerCase())) {
+        if (!['content-encoding', 'transfer-encoding', 'set-cookie'].includes(key.toLowerCase())) {
           resHeaders.set(key, value);
         }
       });
+      // Set-Cookie 多头逐条透传（undici Headers.forEach+set 会合并多枚为单枚——CA 登录需同时写 token_supplier + 清匿名 cookie）
+      const setCookies = (upstream.headers as any).getSetCookie?.() ?? [];
+      for (const sc of setCookies) {
+        resHeaders.append('set-cookie', sc);
+      }
       return new NextResponse(upstream.body, {
         status: upstream.status,
         statusText: upstream.statusText,
@@ -106,8 +111,15 @@ export async function proxy(request: NextRequest) {
     return res;
   }
 
+  // ★ CA 匿名端点（challenge/login/result）：不经 token_supplier 检查——CA 登录在会话建立之前
+  const isCaAuthPath = pathname.startsWith('/api/auth/ca/');
+  if (isCaAuthPath) {
+    // 直接走 proxy forward（API 侧 @Public 自行处理认证）
+    // 注：此检查必须在 auth gate 之前——GUEST_PAGES 是页面级（/login 等），不能覆盖 API 路径
+  }
+
   // ★ Auth gate: 非公开页面检查 token_supplier
-  const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const token = isCaAuthPath ? 'ca-anonymous-bypass' : request.cookies.get(AUTH_COOKIE_NAME)?.value;
   if (!token) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', request.nextUrl.pathname);

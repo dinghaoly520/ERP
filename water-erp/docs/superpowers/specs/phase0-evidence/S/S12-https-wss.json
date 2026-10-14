@@ -1,0 +1,11 @@
+{
+  "method": "无头 Edge 155（headless=new，CDP 驱动）打开 https://192.168.1.111:8443/（Linux 自签，--ignore-certificate-errors 等效『继续访问』）",
+  "verdict": "S12 PASS：HTTPS 页面可连本机 WSS（PNA/mixed-content/TLS 均不拦）",
+  "probes": [
+    { "name": "① wss://localhost:36171",  "ok": true,  "why": "open", "ms": 24 },
+    { "name": "③ wss://127.0.0.1:36171", "ok": true,  "why": "open", "ms": 9 },
+    { "name": "② ws://localhost:36171",   "ok": false, "why": "error 事件（HTTPS 页面禁 ws:// 明文 = mixed-content 拦截，符合预期）", "ms": 2 }
+  ],
+  "ua": "HeadlessChrome/155.0.0.0 Edg/155.0.0.0（与实机 Edge 155.0.4283.45 同主版本；headed 复测可选）",
+  "ts": "2026-10-13T03:08:55Z"
+}

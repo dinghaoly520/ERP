@@ -5,6 +5,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { WorkflowModule } from './workflow/workflow.module';
 import { TenderClarificationModule } from './tender-clarification/tender-clarification.module';
 import { RedisModule } from './redis/redis.module';
+import { CaModule } from './ca/ca.module';
 import { VerificationModule } from './verification/verification.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -78,6 +79,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     PrismaModule,
     CompanyScopeModule,
     RedisModule,
+    CaModule,
     VerificationModule,
     AuthModule,
     BidModule,

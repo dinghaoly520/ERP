@@ -1,0 +1,15 @@
+{ "baseUrl": "http://127.0.0.1:9331/", "appId": "P0-FICTIONAL-APPID", "appSecret": "p0-secret-fake",
+  "runs": [
+    { "id": "t3-a", "opType": "业务签署", "requestId": "p0-t3-a",
+      "toSignFile": "t3-inputs/t3-a-toSign.txt", "p7File": "t3-inputs/t3-a-p7.b64" },
+    { "id": "t3-b", "opType": "登录签名", "requestId": "p0-t3-b",
+      "toSignFile": "t3-inputs/t3-b-toSign.txt", "p7File": "t3-inputs/t3-b-p7.b64" },
+    { "id": "t3-c", "opType": "业务签署", "requestId": "p0-t3-c",
+      "toSignFile": "t3-inputs/t3-c-toSign.txt", "p7File": "t3-inputs/t3-c-empty.b64" },
+    { "id": "g1-r2", "kind": "certLogin", "opType": null, "requestId": "p0-g1-r2",
+      "toSignFile": "t3-inputs/t3-b-toSign.txt", "p7File": "t3-inputs/t3-b-p7.b64" },
+    { "id": "g1-r3", "opType": "登录签名", "requestId": "p0-g1-r3",
+      "toSignFile": "t3-inputs/t3-a-toSign.txt", "p7File": "t3-inputs/t3-a-p7.b64",
+      "secretOverride": "虚构密钥-中文" }
+  ]
+}

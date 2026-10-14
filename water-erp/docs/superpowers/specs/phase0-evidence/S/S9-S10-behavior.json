@@ -1,0 +1,207 @@
+[
+  {
+    "ts": "2026-10-13T02:38:15.109Z",
+    "label": "S9-1a_助手关闭后SOF_GetVersion",
+    "action": "SOF_GetVersion",
+    "paramsLen": 2,
+    "resp": {
+      "retCode": 0,
+      "retMsg": "成功",
+      "retValue": "1.3.8.806"
+    }
+  },
+  {
+    "ts": "2026-10-13T02:38:17.268Z",
+    "label": "S9-1b_助手关闭后SOF_GetUserList",
+    "action": "SOF_GetUserList",
+    "paramsLen": 2,
+    "resp": {
+      "retCode": 0,
+      "retMsg": "成功",
+      "retValue": "供应商测试企业01||4095ECE8-17DA-A115-821A-FE661C4C6478"
+    }
+  },
+  {
+    "ts": "2026-10-13T02:41:01.166Z",
+    "label": "S9-1a_服务停止后SOF_GetVersion",
+    "action": "SOF_GetVersion",
+    "paramsLen": 2,
+    "resp": {
+      "retCode": 0,
+      "retMsg": "成功",
+      "retValue": "1.3.8.806"
+    }
+  },
+  {
+    "ts": "2026-10-13T02:41:04.317Z",
+    "label": "S9-1b_服务停止后SOF_GetUserList",
+    "action": "SOF_GetUserList",
+    "paramsLen": 2,
+    "resp": {
+      "retCode": 0,
+      "retMsg": "成功",
+      "retValue": "供应商测试企业01||4095ECE8-17DA-A115-821A-FE661C4C6478"
+    }
+  },
+  {
+    "ts": "2026-10-13T02:43:36.336Z",
+    "label": "S9-1a_看门狗清除后SOF_GetVersion",
+    "action": "SOF_GetVersion",
+    "paramsLen": 2,
+    "error": "WSS 连接失败（助手关闭/未监听）"
+  },
+  {
+    "ts": "2026-10-13T02:45:15.226Z",
+    "label": "S9-1c_重启后恢复性SOF_GetVersion",
+    "action": "SOF_GetVersion",
+    "paramsLen": 2,
+    "error": "WSS 连接失败（助手关闭/未监听）"
+  },
+  {
+    "ts": "2026-10-13T02:46:31.472Z",
+    "label": "S9-1c_重启后恢复性SOF_GetVersion",
+    "action": "SOF_GetVersion",
+    "paramsLen": 2,
+    "resp": {
+      "retCode": 0,
+      "retMsg": "成功",
+      "retValue": "1.3.8.806"
+    }
+  },
+  {
+    "ts": "2026-10-13T02:46:44.399Z",
+    "tag": "S10-重启后基线",
+    "step": "connect",
+    "note": "A、B 两条独立连接已建立"
+  },
+  {
+    "ts": "2026-10-13T02:46:44.409Z",
+    "tag": "S10-重启后基线",
+    "step": "loginA",
+    "result": {
+      "retCode": 0,
+      "retMsg": "成功",
+      "retValue": true
+    }
+  },
+  {
+    "ts": "2026-10-13T02:46:44.521Z",
+    "tag": "S10-重启后基线",
+    "step": "sharedB",
+    "note": "B 未登录直接签名 → 成功=进程级共享登录态",
+    "result": {
+      "retCode": 0,
+      "retMsg": "成功",
+      "retValue": "MIIFeAYJKoZIhvcNAQcCoIIFaTCCBWUCAQExDDAK…(1872)"
+    }
+  },
+  {
+    "ts": "2026-10-13T02:46:44.530Z",
+    "tag": "S10-重启后基线",
+    "step": "loginB",
+    "result": {
+      "retCode": 0,
+      "retMsg": "成功",
+      "retValue": true
+    }
+  },
+  {
+    "ts": "2026-10-13T02:46:44.642Z",
+    "tag": "S10-重启后基线",
+    "step": "kickA",
+    "note": "B 登录后 A 再签（互踢/共存）",
+    "result": {
+      "retCode": 0,
+      "retMsg": "成功",
+      "retValue": "MIIFfwYJKoZIhvcNAQcCoIIFcDCCBWwCAQExDDAK…(1884)"
+    }
+  },
+  {
+    "ts": "2026-10-13T02:46:45.157Z",
+    "tag": "S10-重启后基线",
+    "step": "closeA",
+    "note": "A 连接已关闭"
+  },
+  {
+    "ts": "2026-10-13T02:46:45.269Z",
+    "tag": "S10-重启后基线",
+    "step": "signB",
+    "note": "关 A 后 B 再签",
+    "result": {
+      "retCode": 0,
+      "retMsg": "成功",
+      "retValue": "MIIFfwYJKoZIhvcNAQcCoIIFcDCCBWwCAQExDDAK…(1884)"
+    }
+  },
+  {
+    "ts": "2026-10-13T02:47:41.041Z",
+    "label": "S9-2a_拔盾后SOF_GetUserList",
+    "action": "SOF_GetUserList",
+    "paramsLen": 2,
+    "resp": {
+      "retCode": 0,
+      "retMsg": "成功",
+      "retValue": ""
+    }
+  },
+  {
+    "ts": "2026-10-13T02:47:41.160Z",
+    "label": "S9-2b_拔盾后GetVersion",
+    "action": "SOF_GetVersion",
+    "paramsLen": 2,
+    "resp": {
+      "retCode": 0,
+      "retMsg": "成功",
+      "retValue": "1.3.8.806"
+    }
+  },
+  {
+    "ts": "2026-10-13T02:48:18.046Z",
+    "label": "S9-2c_插回后重新枚举",
+    "action": "SOF_GetUserList",
+    "paramsLen": 2,
+    "resp": {
+      "retCode": 0,
+      "retMsg": "成功",
+      "retValue": "供应商测试企业01||4095ECE8-17DA-A115-821A-FE661C4C6478"
+    }
+  },
+  {
+    "ts": "2026-10-13T02:55:02.696Z",
+    "tag": "S10-拔插后",
+    "step": "connect",
+    "note": "A、B 两条独立连接已建立"
+  },
+  {
+    "ts": "2026-10-13T02:55:02.706Z",
+    "tag": "S10-拔插后",
+    "step": "loginA",
+    "result": {
+      "retCode": 0,
+      "retMsg": "成功",
+      "retValue": true
+    }
+  },
+  {
+    "ts": "2026-10-13T02:55:02.818Z",
+    "tag": "S10-拔插后",
+    "step": "sharedB",
+    "note": "B 未登录直接签名 → 成功=进程级共享登录态",
+    "result": {
+      "retCode": 0,
+      "retMsg": "成功",
+      "retValue": "MIIFeAYJKoZIhvcNAQcCoIIFaTCCBWUCAQExDDAK…(1872)"
+    }
+  },
+  {
+    "ts": "2026-10-13T02:56:21.453Z",
+    "label": "S11-0_两盾同插枚举",
+    "action": "SOF_GetUserList",
+    "paramsLen": 2,
+    "resp": {
+      "retCode": 0,
+      "retMsg": "成功",
+      "retValue": "供应商测试企业01||4095ECE8-17DA-A115-821A-FE661C4C6478&&&供应商测试企业02||C8D6FDDB-B11F-0F6D-92A9-E4EC2446696F"
+    }
+  }
+]

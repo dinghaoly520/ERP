@@ -1,0 +1,26 @@
+{
+  "ts": "2026-10-13T04:41:28.559Z",
+  "supplierMultiActive": [],
+  "expertMultiActive": [],
+  "supplierDupCertSn": [],
+  "expertDupCertSn": [],
+  "supplierCertSourceDist": [
+    {
+      "_count": {
+        "_all": 1
+      },
+      "certSource": "mock"
+    }
+  ],
+  "supplierCertSchemeDist": [
+    {
+      "_count": {
+        "_all": 1
+      },
+      "credentialScheme": "legacy-raw-sm2"
+    }
+  ],
+  "certSnLooksLikeVendorCertSN": 0,
+  "pendingReceiptSignatures": 3,
+  "caCertificateCount": 0
+}

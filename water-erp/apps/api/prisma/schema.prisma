@@ -1392,6 +1392,7 @@ model BusinessTag {
   createdBySupplier Supplier? @relation("BusinessTagCreator", fields: [createdBySupplierId], references: [id], onDelete: SetNull)
   reviewedBy        User?     @relation("BusinessTagReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
 
+
   @@index([status])
 }
 
@@ -1421,6 +1422,7 @@ model Supplier {
   id                   String         @id @default(cuid())
   userId               String         @unique
   supplierNo           String         @unique // 供应商编号（SUP-000001，由 PG 序列 supplier_no_seq 生成）
+  caCredentialRevision Int       @default(0) // SCCA CA：绑定/换绑/解绑递增（主体锁+CAS）
   name                 String
   normalizedName       String
   creditCode           String?        @unique
@@ -3778,23 +3780,32 @@ model UserBadge {
 // ── 双信封 v2：证书体系（spec 2026-08-20 §3.1/§3.2）──
 
 model SupplierCert {
-  id                String    @id @default(cuid())
-  supplierId        String
-  certSn            String    @unique // 证书序列号
-  certDn            String // 证书主体（CN=企业名称,...）
-  publicKey         String // SM2 公钥 hex（04 开头）
-  alg               String    @default("SM2")
-  notBefore         DateTime? // 证书有效期起；null=未携带（存量介质/旧中间件实例生成）
-  expiresAt         DateTime? // 证书有效期止；null=长期——投递/补传验签时点闸 + A-13 到期提醒（cron）
-  expiryNotifyStage Int       @default(0) // A-13 提醒档位：0=未提醒 1=已发30天档 2=已发7天档（幂等去重）
-  bindingStatus     String    @default("ACTIVE") // ACTIVE | REVOKED
-  boundAt           DateTime  @default(now())
-  revokedAt         DateTime?
+  id                        String         @id @default(cuid())
+  supplierId                String
+  certSn                    String         @unique // 证书序列号
+  certDn                    String // 证书主体（CN=企业名称,...）
+  publicKey                 String // SM2 公钥 hex（04 开头）
+  alg                       String         @default("SM2")
+  notBefore                 DateTime? // 证书有效期起；null=未携带（存量介质/旧中间件实例生成）
+  expiresAt                 DateTime? // 证书有效期止；null=长期——投递/补传验签时点闸 + A-13 到期提醒（cron）
+  expiryNotifyStage         Int            @default(0) // A-13 提醒档位：0=未提醒 1=已发30天档 2=已发7天档（幂等去重）
+  bindingStatus             String         @default("ACTIVE") // ACTIVE | REVOKED
+  boundAt                   DateTime       @default(now())
+  revokedAt                 DateTime?
   // ── X.509 真证书轨（阶段1，2026-09-28）：DER 唯一事实源落库 ──
-  rawCert           String? // DER base64 原文（null=存量/伪证书，mock 轨兼容）
-  issuerDn          String? // 颁发者 DN（链校验/审计）
-  certSource        String    @default("mock") // mock=声明式轨 | x509=DER 解析轨
-  supplier          Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  rawCert                   String? // DER base64 原文（null=存量/伪证书，mock 轨兼容）
+  issuerDn                  String? // 颁发者 DN（链校验/审计）
+  certSource                String         @default("mock") // mock=声明式轨 | x509=DER 解析轨
+  // ── SCCA CA 轨（阶段1，2026-10-13）──
+  credentialScheme          String         @default("legacy-raw-sm2") // legacy-raw-sm2 | scca-pkcs7
+  signingCaCertificateId    String?
+  signingCaCertificate      CaCertificate? @relation("SupplierSignCert", fields: [signingCaCertificateId], references: [id])
+  encryptionCaCertificateId String?
+  encryptionCaCertificate   CaCertificate? @relation("SupplierEncCert", fields: [encryptionCaCertificateId], references: [id])
+  bindingRevision           Int            @default(0) // 建立时快照
+  createdBy                 String? // 操作者 userId
+  revocationReason          String?
+  supplier                  Supplier       @relation(fields: [supplierId], references: [id], onDelete: Cascade)
 
   @@index([supplierId])
   @@index([bindingStatus, expiresAt])
@@ -3878,16 +3889,23 @@ model BidBondLedger {
 
 /// A-152：评委签名证书（企业内部人员平台自签 SM2 软证书；一专家一 ACTIVE，换证旧证 REVOKED）
 model ExpertCert {
-  id            String    @id @default(cuid())
-  userId        String
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  certSn        String    @unique
-  certDn        String
-  publicKey     String // SM2 hex（04 开头 128 位）
-  alg           String    @default("SM2")
-  bindingStatus String    @default("ACTIVE") // ACTIVE | REVOKED
-  boundAt       DateTime  @default(now())
-  revokedAt     DateTime?
+  id                     String         @id @default(cuid())
+  userId                 String
+  user                   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  certSn                 String         @unique
+  certDn                 String
+  publicKey              String // SM2 hex（04 开头 128 位）
+  alg                    String         @default("SM2")
+  bindingStatus          String         @default("ACTIVE") // ACTIVE | REVOKED
+  boundAt                DateTime       @default(now())
+  revokedAt              DateTime?
+  // ── SCCA CA 轨（阶段1，2026-10-13）──
+  credentialScheme       String         @default("legacy-raw-sm2")
+  signingCaCertificateId String?
+  signingCaCertificate   CaCertificate? @relation("ExpertSignCert", fields: [signingCaCertificateId], references: [id])
+  bindingRevision        Int            @default(0)
+  createdBy              String?
+  revocationReason       String?
 
   @@index([userId, bindingStatus])
 }
@@ -3905,4 +3923,104 @@ model SensitiveAccessLog {
 
   @@index([actorUserId, createdAt])
   @@index([entity, targetId])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SCCA CA 证书体系（阶段1 Task1, 2026-10-13）
+// 设计: docs/superpowers/plans/2026-10-13-scca-phase1-binding-login-pilot.md
+// ═══════════════════════════════════════════════════════════════
+
+/// CA 证书不可变事实源（DER 唯一，按 sha256 指纹全局唯一）
+model CaCertificate {
+  id                   String                      @id @default(cuid())
+  provider             String                      @default("scca")
+  derBase64            String // DER 正文 base64（入库前剥 PEM 甲，经 normalizeToDer）
+  sha256Fingerprint    String                      @unique // 小写 64hex
+  serialHex            String // 无符号去前导零小写
+  issuerNameDerHash    String // sha256(issuer Name DER)
+  issuerDisplay        String
+  subjectDisplay       String
+  spkiAlgorithmOid     String
+  curveOid             String?
+  keyUsage             String[] // DigitalSignature/NonRepudiation/KeyEncipherment/…
+  extendedKeyUsage     String[] // 仅 2.5.29.37 EKU
+  unknownExtensionOids String[] // 私有扩展 OID（ITRUSKMC 等）
+  notBefore            DateTime
+  notAfter             DateTime
+  createdAt            DateTime                    @default(now())
+  supplierSignBindings SupplierCert[]              @relation("SupplierSignCert")
+  supplierEncBindings  SupplierCert[]              @relation("SupplierEncCert")
+  expertSignBindings   ExpertCert[]                @relation("ExpertSignCert")
+  claims               CaSigningCertificateClaim[]
+
+  @@unique([issuerNameDerHash, serialHex])
+  @@index([notAfter])
+}
+
+/// 签名证书全局占用（跨供应商/专家——同证同时只能归一主体）
+model CaSigningCertificateClaim {
+  id                String        @id @default(cuid())
+  certificateId     String        @unique
+  certificate       CaCertificate @relation(fields: [certificateId], references: [id])
+  supplierId        String?
+  expertUserId      String?
+  supplierBindingId String?
+  expertBindingId   String?
+  status            String        @default("ACTIVE") // ACTIVE | RELEASED
+  claimedAt         DateTime      @default(now())
+  releaseAt         DateTime?
+  revision          Int           @default(0)
+
+  @@index([supplierId])
+  @@index([expertUserId])
+}
+
+/// CA 操作状态机（登录/绑定/自检——阶段2 扩展投递/回执等）
+model CaOperation {
+  id          String   @id @default(cuid())
+  subjectType String // 'supplier' | 'expert'
+  subjectId   String? // 登录场景初始 null→COMMITTED 时写入
+  purpose     String // ca-login | bind | replace | revoke | self-test
+  payloadHash String
+  businessRef String?
+  status      String   @default("PREPARED") // PREPARED→VERIFYING→COMMITTED | FAILED/EXPIRED/CANCELLED
+  result      Json?
+  challengeId String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([subjectType, subjectId, status])
+}
+
+/// 验签证据记录（不可变——requestId 全局唯一）
+model CaVerificationRecord {
+  id              String   @id @default(cuid())
+  requestId       String   @unique
+  provider        String   @default("scca")
+  protocolVersion String
+  purpose         String
+  actorUserId     String?
+  subjectId       String?
+  bindingId       String?
+  certFingerprint String
+  operationDigest String?
+  toSignSha256    String
+  p7Sha256        String
+  result          String // ok | CA_* 错误码
+  statusCoverage  String[] // 永不含 'revocation'——阻断项如实记录
+  checkedAt       DateTime
+  evidenceAssetId String?
+  createdAt       DateTime @default(now())
+}
+
+/// 双证到期提醒（幂等去重）
+model CaExpiryReminder {
+  id            String    @id @default(cuid())
+  bindingId     String
+  certificateId String
+  usage         String // signing | encryption
+  stage         Int       @default(0) // 0=未提醒 1=30天档 2=7天档
+  notifiedAt    DateTime?
+
+  @@unique([bindingId, certificateId, usage, stage])
 }
