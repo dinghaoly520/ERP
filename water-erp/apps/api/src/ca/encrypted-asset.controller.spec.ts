@@ -5,8 +5,13 @@
 import { BadRequestException, PayloadTooLargeException } from '@nestjs/common';
 import { createHash } from 'crypto';
 
+jest.mock('../upload/minio.client', () => ({
+  minioClient: { putObject: jest.fn().mockResolvedValue({}) },
+  MINIO_BUCKET: 'test-bucket',
+}));
+
 const mockPrisma: any = {
-  supplier: { findUnique: async () => ({ id: 'sup-1' }) },
+  supplier: { findUnique: async () => ({ id: 'sup-1', userId: 'user-1' }) },
   fileAsset: { create: async (d: any) => ({ id: 'fa-1', ...d.data }) },
 };
 
@@ -24,6 +29,14 @@ describe('EncryptedAssetController（dual-v3 暂存）', () => {
     expect(result.outerSha256).toBe(createHash('sha256').update(buffer).digest('hex'));
     expect(result.outerBytes).toBe(buffer.length);
     expect(result.expiresAt).toBeTruthy();
+    // C1（评审修复）：密文必须真实落 MinIO——否则开标 decryptOuterOneV3 getObject 必 NoSuchKey
+    const { minioClient, MINIO_BUCKET } = require('../upload/minio.client');
+    expect(minioClient.putObject).toHaveBeenCalledTimes(1);
+    const [bucket, key, buf, len] = minioClient.putObject.mock.calls[0];
+    expect(bucket).toBe(MINIO_BUCKET);
+    expect(key).toMatch(/^v3-staging\/proj-1\/sup-1\//);
+    expect(buf.equals(buffer)).toBe(true);
+    expect(len).toBe(buffer.length);
   });
 
   test('无文件→400 NO_FILE', () => {

@@ -59,7 +59,7 @@ export class CaBindingController {
     const activeBinding = await this.prisma.supplierCert.findFirst({
       where: { supplierId: supplier.id, bindingStatus: 'ACTIVE' },
       include: {
-        signingCaCertificate: { select: { serialHex: true, subjectDisplay: true, notAfter: true } },
+        signingCaCertificate: { select: { serialHex: true, subjectDisplay: true, notAfter: true, sha256Fingerprint: true } },
         encryptionCaCertificate: { select: { serialHex: true, subjectDisplay: true, notAfter: true } },
       },
     });
@@ -72,7 +72,7 @@ export class CaBindingController {
         id: activeBinding.id,
         kind: isCa ? 'ca' : 'legacy',
         signingCert: activeBinding.signingCaCertificate
-          ? { serialHex: activeBinding.signingCaCertificate.serialHex, subject: activeBinding.signingCaCertificate.subjectDisplay, notAfter: activeBinding.signingCaCertificate.notAfter }
+          ? { serialHex: activeBinding.signingCaCertificate.serialHex, subject: activeBinding.signingCaCertificate.subjectDisplay, notAfter: activeBinding.signingCaCertificate.notAfter, sha256Fingerprint: activeBinding.signingCaCertificate.sha256Fingerprint }
           : null,
         encryptionCert: activeBinding.encryptionCaCertificate
           ? { serialHex: activeBinding.encryptionCaCertificate.serialHex, subject: activeBinding.encryptionCaCertificate.subjectDisplay, notAfter: activeBinding.encryptionCaCertificate.notAfter }

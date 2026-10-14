@@ -1232,7 +1232,8 @@ export class BidService {
     });
     const decryptedAssetIds = Array.from(new Set(
       submissions
-        .filter((s: any) => s.envelopeVersion === 'dual-v2' && s.decryptedAssets && typeof s.decryptedAssets === 'object')
+        // I4（评审）：双信封双轨（v2|v3 解密上传同写 decryptedAssets）
+        .filter((s: any) => (s.envelopeVersion === 'dual-v2' || s.envelopeVersion === 'dual-v3') && s.decryptedAssets && typeof s.decryptedAssets === 'object')
         .flatMap((s: any) =>
           Object.values(s.decryptedAssets as Record<string, unknown>).filter((v): v is string => typeof v === 'string'),
         ),
@@ -1245,7 +1246,7 @@ export class BidService {
       : new Map<string, string>();
     const suppliersWithFingerprints = suppliers.map((s: any) => {
       const submission = submissionBySupplierId.get(s.supplierId);
-      const decryptedAssets = (submission && submission.envelopeVersion === 'dual-v2'
+      const decryptedAssets = (submission && (submission.envelopeVersion === 'dual-v2' || submission.envelopeVersion === 'dual-v3')
         && submission.decryptedAssets && typeof submission.decryptedAssets === 'object')
         ? submission.decryptedAssets as Record<string, unknown>
         : null;

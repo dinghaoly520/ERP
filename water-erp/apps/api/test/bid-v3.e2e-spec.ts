@@ -111,8 +111,10 @@ describe('dual-v3 全链 (e2e)', () => {
       },
     });
     projectId = proj.id;
+    // G3 闸门要求在册（直接采购=邀请域）；submitStatus 故意不置「已提交」——
+    // 名册翻牌由 submit v3 事务完成（C2 真实断言，不再预置掩盖）
     await prisma.bidSupplier.create({
-      data: { projectId, supplierId, supplierName: 'e2e-v3供应商', submitStatus: '已提交', checkInAt: new Date() },
+      data: { projectId, supplierId, supplierName: 'e2e-v3供应商', submitStatus: '未递交' },
     });
 
     const res = await request(app.getHttpServer())
@@ -122,6 +124,10 @@ describe('dual-v3 全链 (e2e)', () => {
       .expect(200);
     const outerAsset = res.body;
     expect(outerAsset.outerSha256).toBe(await sha256Hex(PLAIN)); // 暂存即明文（outer 未真加密——流程测试）
+    // C1 真实断言：密文对象在 MinIO 在位（decryptOuterOneV3 读取锚点——不再被 mock 掩盖）
+    const { minioClient, MINIO_BUCKET } = await import('../src/upload/minio.client');
+    const staged = await prisma.fileAsset.findUnique({ where: { id: outerAsset.fileAssetId } });
+    await expect(minioClient.statObject(MINIO_BUCKET, staged!.key)).resolves.toBeTruthy();
 
     // 组装 v3 信封（innerSha256 与稍后创建的 C_inner 资产对齐）
     fieldsCommit = await computeV3FieldsCommit(FIELDS, NONCE);
@@ -164,6 +170,12 @@ describe('dual-v3 全链 (e2e)', () => {
       .expect(201);
     submissionId = res.body.submissionId;
     expect(res.body.revision).toBe(1);
+    // C2 真实断言：名册翻牌+serverSubmittedAt（不再预置掩盖）
+    const roster = await prisma.bidSupplier.findFirst({ where: { projectId, supplierId } });
+    expect(roster?.submitStatus).toBe('已提交');
+    expect(roster?.encryptStatus).toBe('双层信封已验签');
+    const submittedRow = await prisma.supplierBidSubmission.findUnique({ where: { id: submissionId } });
+    expect(submittedRow?.serverSubmittedAt).toBeTruthy();
     const version = await prisma.submissionVersion.findUnique({
       where: { submissionId_revision: { submissionId, revision: 1 } },
     });
@@ -190,6 +202,7 @@ describe('dual-v3 全链 (e2e)', () => {
   });
 
   it('⑤ OPENING+会话+外层已解（DB 模拟主持端）→ opening-package v3', async () => {
+    await prisma.bidSupplier.updateMany({ where: { projectId, supplierId }, data: { checkInAt: new Date() } }); // quorum 签到
     await prisma.bidProject.update({ where: { id: projectId }, data: { stage: 'OPENING' } });
     await prisma.bidOpeningSession.create({
       data: { projectId, host: '陈源远', decryptWindowStart: new Date(), decryptWindowEnd: new Date(Date.now() + 3600_000) },
@@ -285,7 +298,7 @@ describe('dual-v3 全链 (e2e)', () => {
       await prisma.bidOpeningSession.deleteMany({ where: { projectId } }).catch(() => {});
       await prisma.caOperation.deleteMany({ where: { subjectId: supplierId } }).catch(() => {});
       await prisma.decryptExecution.deleteMany({ where: { submissionId } }).catch(() => {});
-      await prisma.outbox.deleteMany({ where: {} }).catch(() => {});
+      await prisma.outbox.deleteMany({ where: { topic: 'bid.submitted.v3' } }).catch(() => {});
       await prisma.bidProject.delete({ where: { id: projectId } }).catch(() => {});
     }
     // 落库的外层暂存/内层资产清理（v3-staging/bid-inner-e2e 前缀）

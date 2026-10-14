@@ -81,7 +81,7 @@ const mkPrisma = () => ({
     upsert: jest.fn().mockResolvedValue({ id: 'dec-1' }),
   },
   supplierCert: { findFirst: jest.fn() },
-  caOperation: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}) },
+  caOperation: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
   bidOpeningRecord: { upsert: jest.fn().mockResolvedValue({}) },
   bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
   supplier: { findUnique: jest.fn().mockResolvedValue({ userId: 'user-1' }) },
@@ -142,8 +142,9 @@ describe('opening-package v3 + 解密上传 P7 证明（Task9）', () => {
       p7B64: 'MIIxBgQ.',
       expectedToSign: expectedCanonical,
     }));
-    expect(prisma.caOperation.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: { status: 'COMMITTED', result: expect.any(Object) },
+    expect(prisma.caOperation.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'op-1', status: 'PAYLOAD_READY' },
+      data: expect.objectContaining({ status: 'COMMITTED' }),
     }));
     // 唱标预填：金额=万元裸数字、单位显式（Review Focus 5）+ 明文资产落 bid_decrypted
     expect(prisma.tx.bidOpeningRecord.upsert).toHaveBeenCalledWith(expect.objectContaining({

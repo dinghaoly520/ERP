@@ -1,6 +1,5 @@
 import { CaBidOperationController } from './ca-bid-operation.controller';
 import { CaOperationService } from './ca-operation.service';
-import { CaChallengeService } from './ca-challenge.service';
 
 // ─── 全 mock 依赖 ───
 const mockPrisma: any = {
@@ -8,19 +7,9 @@ const mockPrisma: any = {
   caOperation: { findUnique: async (w: any) => ({ id: w?.where?.id || 'op-x', subjectId: 'sup-1', purpose: 'submit', status: 'RUNNING', result: null }), update: async (w: any) => ({}), create: async (d: any) => ({ id: 'op-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10) }) },
 };
 
-const mockChallenge = {
-  hset: async () => 1, expire: async () => 1,
-  eval: async () => 'CONSUMED', del: async () => 1,
-  hget: async () => null,
-};
-
 function makeController() {
   const svc = new CaOperationService(mockPrisma as any);
-  return new CaBidOperationController(
-    mockPrisma as any,
-    svc,
-    new CaChallengeService(mockChallenge as any),
-  );
+  return new CaBidOperationController(mockPrisma as any, svc);
 }
 
 describe('CaBidOperationController（prepare/signing-payload 接线）', () => {
@@ -56,6 +45,17 @@ describe('CaBidOperationController（prepare/signing-payload 接线）', () => {
     expect(result.signatureFormat).toBe('scca-pkcs7-base64');
     expect(result.canonicalSha256).toMatch(/^[0-9a-f]{64}$/);
     expect(result.canonical).toContain('dual-v3');
+  });
+
+  test('I2：信封已冻结（envelopeFrozen）再提交 → 409 ENVELOPE_ALREADY_FROZEN', async () => {
+    const prep = await ctrl.prepare('proj-1', { action: 'submit', baseRevision: 0 }, mockReq as any);
+    mockPrisma.caOperation.findUnique = async () => ({
+      id: prep.operationId, subjectId: 'sup-1', purpose: 'submit', status: 'PAYLOAD_READY',
+      result: { envelopeFrozen: true },
+    });
+    const { ConflictException } = require('@nestjs/common');
+    await expect(ctrl.signingPayload('proj-1', prep.operationId, { version: 'dual-v3' } as any, mockReq as any))
+      .rejects.toThrow(ConflictException);
   });
 
   test('signing-payload 非法信封→400 ENVELOPE_INVALID', async () => {

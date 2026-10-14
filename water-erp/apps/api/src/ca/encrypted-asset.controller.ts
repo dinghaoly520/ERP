@@ -13,6 +13,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 
 const MAX_OUTER_BYTES = 50 * 1024 * 1024 + 32; // 50MiB + 32B（两层 CBC padding）
 
@@ -44,13 +45,25 @@ export class EncryptedAssetController {
       throw new PayloadTooLargeException({ error: `密文超限（${outerBytes}B > ${MAX_OUTER_BYTES}B）`, code: 'OUTER_TOO_LARGE' });
     }
 
-    // 暂存 24h——由 scheduler 清理过期对象
+    // 暂存 24h（v3-staging/ 前缀 + createdAt 可计算过期；未投递残留由 MinIO 级清理脚本处理——
+    // category=bid_document 受删除端点硬保护，不走删除端点清理）
     const expiresAt = new Date(Date.now() + 24 * 3600 * 1000);
 
-    // 写入暂存记录——此处简化为 FileAsset 落库（category 标识为投标密文暂存）
+    // C1（评审修复）：密文真实落 MinIO——开标 decryptOuterOneV3 以 asset.key 读取本对象；
+    // 先写对象后落库（DB 失败至多留 v3-staging/ 孤儿对象，前缀可扫）
+    const objectKey = `v3-staging/${projectId}/${supplier.id}/${Date.now()}-${outerSha256.slice(0, 8)}.outer`;
+    try {
+      await minioClient.putObject(MINIO_BUCKET, objectKey, file.buffer, file.buffer.length, {
+        'Content-Type': 'application/octet-stream',
+      });
+    } catch (err) {
+      throw new BadRequestException({ error: '密文存储失败，请重试', code: 'STORAGE_FAILED' });
+    }
+
+    // 暂存记录落库（key=MinIO 对象键——decryptOuterOneV3 读取锚点）
     const asset = await this.prisma.fileAsset.create({
       data: {
-        key: `v3-staging/${projectId}/${supplier.id}/${Date.now()}-${outerSha256.slice(0, 8)}.outer`,
+        key: objectKey,
         originalName: file.originalname,
         mimeType: 'application/octet-stream',
         size: outerBytes,

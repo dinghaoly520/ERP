@@ -23,6 +23,7 @@ const mkPrisma = () => ({
     findUnique: jest.fn().mockResolvedValue({ id: 'clar-1', status: '已回复', replySignature: {} }),
   },
   bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING' }) },
+  supplierBidSubmission: { findUnique: jest.fn().mockResolvedValue(null) }, // 默认无投递行（legacy）
   fileAsset: { findMany: jest.fn().mockResolvedValue(ATTACHMENTS) },
   supplierCert: { findFirst: jest.fn() },
   caOperation: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}) },
@@ -51,6 +52,7 @@ describe('澄清答复 P7 强签（dual-v3 Task8）', () => {
     prisma.caOperation.findUnique.mockResolvedValue({
       id: 'op-1', subjectId: 'sup-1', purpose: 'clarification', status: 'PAYLOAD_READY',
     });
+    prisma.caOperation.updateMany = jest.fn().mockResolvedValue({ count: 1 });
   });
 
   test('v3 澄清：P7 验签通过→证据含 scca-pkcs7-base64/certSn/certPublicKey，operation COMMITTED', async () => {
@@ -77,9 +79,9 @@ describe('澄清答复 P7 强签（dual-v3 Task8）', () => {
       certPublicKey: '04ab',
       replySha256: createHash('sha256').update(REPLY, 'utf8').digest('hex'),
     }));
-    expect(prisma.caOperation.update).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: 'op-1' },
-      data: { status: 'COMMITTED', result: expect.any(Object) },
+    expect(prisma.caOperation.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'op-1', status: 'PAYLOAD_READY' },
+      data: expect.objectContaining({ status: 'COMMITTED' }),
     }));
     expect(result.status).toBe('已回复');
   });
@@ -112,6 +114,26 @@ describe('澄清答复 P7 强签（dual-v3 Task8）', () => {
     } as any);
     expect(mockVerify).not.toHaveBeenCalled();
     expect(prisma.bidClarification.updateMany).toHaveBeenCalledTimes(1);
+  });
+
+  test('I2：op 已 COMMITTED（重放）→ 409', async () => {
+    prisma.caOperation.findUnique.mockResolvedValue({
+      id: 'op-1', subjectId: 'sup-1', purpose: 'clarification', status: 'COMMITTED',
+    });
+    const svc = mkService(prisma);
+    const { ConflictException } = require('@nestjs/common');
+    await expect(svc.submitClarificationReply('proj-1', 'clar-1', 'sup-1', { sub: 'user-1' }, {
+      reply: REPLY,
+      operationId: 'op-1', signatureFormat: 'scca-pkcs7-base64', signP7: 'MIIxBgQ.',
+    } as any)).rejects.toThrow(ConflictException);
+  });
+
+  test('I8：v3 轨空签名 → 400 CLARIFICATION_P7_REQUIRED', async () => {
+    prisma.supplierBidSubmission.findUnique.mockResolvedValue({ id: 'sub-1', envelopeVersion: 'dual-v3' });
+    const svc = mkService(prisma);
+    await expect(svc.submitClarificationReply('proj-1', 'clar-1', 'sup-1', { sub: 'user-1' }, {
+      reply: REPLY,
+    } as any)).rejects.toThrow(BadRequestException);
   });
 
   test('P7 验签失败 → 400 拒收，零落库', async () => {

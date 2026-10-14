@@ -13,7 +13,6 @@ import { Request } from 'express';
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CaOperationService } from './ca-operation.service';
-import { CaChallengeService } from './ca-challenge.service';
 import { validateV3Envelope } from '@water-erp/ukey';
 import { IsString, IsIn, IsOptional, IsInt, IsArray, Min, IsObject } from 'class-validator';
 
@@ -35,7 +34,6 @@ export class CaBidOperationController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly operationService: CaOperationService,
-    private readonly challengeService: CaChallengeService,
   ) {}
 
   @Post('prepare')
@@ -49,7 +47,6 @@ export class CaBidOperationController {
     @Req() req: Request,
   ) {
     const userId = (req as any).user?.sub;
-    const sid = (req as any).user?.sid;
     const supplier = await this.prisma.supplier.findUnique({ where: { userId } });
     if (!supplier) throw new ForbiddenException({ error: '供应商不存在', code: 'SUPPLIER_NOT_FOUND' });
 
@@ -73,13 +70,7 @@ export class CaBidOperationController {
       ...(dto.recordRevision !== undefined ? { recordRevision: dto.recordRevision } : {}),
     };
 
-    // 120s 挑战绑定 userId+sid+operationId
-    await this.challengeService.createBound({
-      userId, sid: sid ?? '', purpose: dto.action as any,
-      signCertSha256: operationId, // 简化——此处不需要证书指纹（投递链不用 CA 登录挑战）
-    });
-
-    // 冻结 context 到 operation
+    // 冻结 context 到操作
     await this.operationService.toVerifying(operationId); // PREPARED → 等待 payload
     const canonical = JSON.stringify(context);
     await this.operationService.attachPayload(operationId, canonical, createHash('sha256').update(canonical, 'utf8').digest('hex'));
@@ -116,14 +107,18 @@ export class CaBidOperationController {
 
     // 仅 submit/reupload 提交信封；receipt/opening-confirm 在 prepare 冻结
     if (op.purpose === 'submit' || op.purpose === 'reupload') {
+      // I2（评审）：信封冻结单次——已冻结信封再换不同信封覆盖返回 409（防签名原文被替换）
+      if ((op.result as any)?.envelopeFrozen) {
+        throw new ConflictException({ error: '操作已冻结信封载荷，不可重复提交或替换', code: 'ENVELOPE_ALREADY_FROZEN' });
+      }
       const validation = validateV3Envelope(dto.envelope);
       if (!validation.ok) {
         throw new BadRequestException({ error: `信封校验失败: ${validation.errors.join('; ')}`, code: 'ENVELOPE_INVALID' });
       }
       const envelopeJson = JSON.stringify(dto.envelope);
       const envelopeHash = createHash('sha256').update(envelopeJson, 'utf8').digest('hex');
-      // 冻结信封原文到 operation
-      await this.operationService.attachPayload(operationId, envelopeJson, envelopeHash);
+      // 冻结信封原文到 operation（envelopeFrozen 标记区分 context 冻结与信封冻结）
+      await this.operationService.attachPayload(operationId, envelopeJson, envelopeHash, { envelopeFrozen: true } as any);
       return {
         canonical: envelopeJson,
         canonicalSha256: envelopeHash,

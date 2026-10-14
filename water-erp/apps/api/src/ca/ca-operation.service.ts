@@ -43,14 +43,14 @@ export class CaOperationService {
   }
 
   /** Task3：冻结签名原文到 operation（PREPARED/VERIFYING 阶段可覆盖，COMMITTED 后不可变） */
-  async attachPayload(id: string, canonical: string, sha256: string): Promise<void> {
+  async attachPayload(id: string, canonical: string, sha256: string, extra?: Record<string, unknown>): Promise<void> {
     const op = await this.prisma.caOperation.findUnique({ where: { id } });
     if (!op || op.status === 'COMMITTED') {
       throw new ConflictException({ error: '操作不存在或已提交', code: 'OPERATION_STATE_INVALID' });
     }
     await this.prisma.caOperation.update({
       where: { id },
-      data: { result: { canonical, canonicalSha256: sha256 } as any, status: 'PAYLOAD_READY' },
+      data: { result: { canonical, canonicalSha256: sha256, ...(extra ?? {}) } as any, status: 'PAYLOAD_READY' },
     });
   }
 

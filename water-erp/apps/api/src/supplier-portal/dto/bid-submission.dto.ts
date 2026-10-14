@@ -1,4 +1,4 @@
-import { IsBoolean, IsObject, IsOptional, IsString, Length, Matches, MaxLength } from 'class-validator';
+import { IsBoolean, IsInt, Min, IsObject, IsOptional, IsString, Length, Matches, MaxLength } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 /**
@@ -56,6 +56,8 @@ export class SubmitBidDto extends SaveBidDraftDto {
   @IsOptional() @IsString() @MaxLength(128) operationId?: string;
   @IsOptional() @IsString() @MaxLength(64) signatureFormat?: string; // 'scca-pkcs7-base64'
   @IsOptional() @IsString() @MaxLength(262144) signP7?: string;
+  /** CAS 基线版本（服务端现值不符→409）——缺装饰器会被 whitelist 剥落致 CAS 死码（评审 I1） */
+  @IsOptional() @IsInt() @Min(0) baseRevision?: number;
 }
 
 /** 回执签名提交（Task6）：旧轨 SM2 hex（空=免签 unsigned-legacy）或 dual-v3 P7 强签 */

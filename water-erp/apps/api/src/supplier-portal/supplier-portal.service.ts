@@ -617,6 +617,9 @@ export class SupplierPortalService {
       if (op.purpose !== 'receipt') {
         throw new BadRequestException({ error: `purpose='${op.purpose}' 非 receipt`, code: 'PURPOSE_MISMATCH' });
       }
+      if (op.status !== 'PAYLOAD_READY') {
+        throw new ConflictException({ error: '操作已提交或已失效，请重新发起', code: 'OPERATION_NOT_COMMITTABLE' });
+      }
       const binding = await this.prisma.supplierCert.findFirst({
         where: { supplierId, bindingStatus: 'ACTIVE', credentialScheme: 'scca-pkcs7' },
         include: { signingCaCertificate: true },
@@ -652,16 +655,25 @@ export class SupplierPortalService {
           where: { id: submissionId },
           data: { receiptSignature, receiptSignedAt: now },
         });
-        await tx.caOperation.update({
-          where: { id: v3.operationId! },
+        // I2：CAS commit（PAYLOAD_READY→COMMITTED 单次——重放 count=0 即 409）
+        const commit = await tx.caOperation.updateMany({
+          where: { id: v3.operationId!, status: 'PAYLOAD_READY' },
           data: { status: 'COMMITTED', result: { success: true, submissionId, revision: sub.revision } as any },
         });
+        if (commit.count === 0) {
+          throw new ConflictException({ error: '操作已被提交，请重新发起', code: 'OPERATION_NOT_COMMITTABLE' });
+        }
         return { success: true as const, revision: sub.revision, receiptSignature };
       });
     }
 
+    // I8（评审）：v3 轨不降级——已绑 SCCA 盾的 v3 投递，回执必须 P7 强签（A-101 防抵赖）；
+    // 免签兼容分支仅保留给 legacy/dual-v2 行
+    if (sub.envelopeVersion === 'dual-v3') {
+      throw new BadRequestException({ error: 'dual-v3 投递的回执须以 SCCA 盾 P7 签署（operationId+signP7）', code: 'RECEIPT_P7_REQUIRED' });
+    }
+
     // SCCA 全面适配（2026-10-14）：旧轨免签——signature 空则跳过验签，证据标记 unsigned-legacy
-    // （dual-v3 P7 强签随阶段 2 恢复；SCCA 盾无裸 SM2 原语，空签是当前唯一可行轨）
     let cert: { certSn: string; publicKey: string } | null = null;
     if (signature) {
       cert = await this.findActiveCertForSigning(supplierId, 'sign');
@@ -2431,6 +2443,35 @@ export class SupplierPortalService {
     }
     const envelope = JSON.parse(payload.canonical);
 
+    // I2（评审）：操作单次性——PAYLOAD_READY 才可 commit（COMMITTED 重放/FAILED 拒收）
+    if (op.status !== 'PAYLOAD_READY') {
+      throw new ConflictException({ error: '操作已提交或已失效，请重新发起', code: 'OPERATION_NOT_COMMITTABLE' });
+    }
+
+    // I7（评审）：信封 context 与服务端事实交叉校验（P7 签自声明元数据——冻结时逐键比对，
+    // 防止「声称 revision=5、实际 revision=1」的矛盾证据长期存档）
+    const ctx = (envelope as { context?: Record<string, unknown> })?.context ?? {};
+    if (ctx.projectId !== projectId || ctx.supplierId !== supplierId) {
+      throw new BadRequestException({ error: '信封 context 与投递上下文不符（projectId/supplierId）', code: 'ENVELOPE_CONTEXT_MISMATCH' });
+    }
+
+    // I6（评审）：信封 assetId 归属校验——他人暂存密文不得挂进本信封（v2 assertBidFileAssetsOwnedByUser 同义）
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { id: supplierId }, select: { id: true, name: true, userId: true },
+    });
+    if (!supplier) throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
+    const assetIds = (Object.values((envelope as { files?: Record<string, { assetId?: string }> }).files ?? {})
+      .map((e2) => e2?.assetId)).filter((v): v is string => !!v);
+    if (assetIds.length > 0) {
+      const assets = await this.prisma.fileAsset.findMany({
+        where: { id: { in: assetIds } }, select: { id: true, uploaderId: true },
+      });
+      const foreign = assets.find((a) => a.uploaderId !== supplier.userId);
+      if (assets.length !== new Set(assetIds).size || foreign) {
+        throw new BadRequestException({ error: '投标文件无权使用（暂存资产不存在或非本司上传）', code: 'FILE_NOT_OWNED' });
+      }
+    }
+
     // 查 ACTIVE CA 绑定
     const binding = await this.prisma.supplierCert.findFirst({
       where: { supplierId, bindingStatus: 'ACTIVE', credentialScheme: 'scca-pkcs7' },
@@ -2454,63 +2495,99 @@ export class SupplierPortalService {
       throw new BadRequestException({ error: `P7 验签失败: ${verification.code}`, code: verification.code });
     }
 
-    // 事务：CAS + 版本快照 + 落库
-    const result = await this.prisma.$transaction(async (tx) => {
-      const existing = await tx.supplierBidSubmission.findUnique({
-        where: { supplierId_projectId: { supplierId, projectId } },
-      });
-      if (existing?.status === 'submitted') {
-        throw new BadRequestException({ error: '已提交过标书', code: 'ALREADY_SUBMITTED' });
-      }
-
-      // 获取或创建 submission
-      let sub = existing;
-      if (!sub) {
-        sub = await tx.supplierBidSubmission.create({
-          data: { supplierId, projectId, status: 'submitted', submittedAt: new Date() } as any,
+    // 事务：CAS + 版本快照 + 落库（I1：唯一索引冲突映射 409，不裸 500）
+    try {
+      const result = await this.prisma.$transaction(async (tx) => {
+        const existing = await tx.supplierBidSubmission.findUnique({
+          where: { supplierId_projectId: { supplierId, projectId } },
         });
-      } else {
+        if (existing?.status === 'submitted') {
+          throw new BadRequestException({ error: '已提交过标书', code: 'ALREADY_SUBMITTED' });
+        }
+
+        const now = new Date();
+        // 获取或创建 submission（C2：serverSubmittedAt 审计锚点随递交落列）
+        let sub = existing;
+        if (!sub) {
+          sub = await tx.supplierBidSubmission.create({
+            data: { supplierId, projectId, status: 'submitted', submittedAt: now, serverSubmittedAt: now } as any,
+          });
+        } else {
+          await tx.supplierBidSubmission.update({
+            where: { id: sub.id },
+            data: { status: 'submitted', submittedAt: now, serverSubmittedAt: now } as any,
+          });
+        }
+
+        // CAS：baseRevision 必须匹配（DTO 已补装饰器——whitelist 不再剥落）
+        const baseRevision = data.baseRevision ?? sub.revision;
+        if (baseRevision !== sub.revision) {
+          throw new ConflictException({ error: '版本冲突，请刷新后重试', code: 'REVISION_CONFLICT' });
+        }
+
+        const newRev = sub.revision + 1;
+        // I7 续：context.revision 须等于即将分配的新版本；submissionId 空串=首投（COMMIT 分配）
+        if (ctx.revision !== newRev || (typeof ctx.submissionId === 'string' && ctx.submissionId && ctx.submissionId !== sub.id)) {
+          throw new BadRequestException({ error: '信封 context 与投递上下文不符（revision/submissionId）', code: 'ENVELOPE_CONTEXT_MISMATCH' });
+        }
+        // 版本快照
+        await tx.submissionVersion.create({
+          data: {
+            submissionId: sub.id, revision: newRev,
+            envelope: envelope, envelopeHash: payload.canonicalSha256!,
+            operationId: data.operationId!,
+          },
+        });
+        // 更新当前行
         await tx.supplierBidSubmission.update({
           where: { id: sub.id },
-          data: { status: 'submitted', submittedAt: new Date() } as any,
+          data: {
+            revision: newRev,
+            envelope, envelopeVersion: 'dual-v3',
+          },
         });
-      }
-
-      // CAS：baseRevision 必须匹配
-      const baseRevision = data.baseRevision ?? sub.revision;
-      if (baseRevision !== sub.revision) {
+        // C2（评审）：BidSupplier 名册写入（v2 同款语义——开标名单/任务板计数/回执编号数据源；
+        // 缺名册=投递成功却不被计入已递交）
+        const existingBidSupplier = await tx.bidSupplier.findFirst({
+          where: { projectId, supplierName: supplier.name },
+        });
+        if (existingBidSupplier) {
+          await tx.bidSupplier.update({
+            where: { id: existingBidSupplier.id },
+            data: { supplierId, submitStatus: '已提交', encryptStatus: '双层信封已验签' },
+          });
+        } else {
+          const receiptNo = `TB-${now.toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(Math.random() * 999)).padStart(3, '0')}`;
+          await tx.bidSupplier.create({
+            data: {
+              projectId, supplierId, supplierName: supplier.name,
+              downloadStatus: '已下载', submitStatus: '已提交',
+              encryptStatus: '双层信封已验签', receiptNo,
+            },
+          });
+        }
+        // Outbox
+        await tx.outbox.create({
+          data: { topic: 'bid.submitted.v3', payload: { submissionId: sub.id, revision: newRev, operationId: data.operationId! } as any },
+        });
+        // I2：操作 CAS commit（PAYLOAD_READY→COMMITTED 单次——重放 count=0 即 409）
+        const commit = await tx.caOperation.updateMany({
+          where: { id: data.operationId!, status: 'PAYLOAD_READY' },
+          data: { status: 'COMMITTED', result: { success: true, submissionId: sub.id, revision: newRev } as any },
+        });
+        if (commit.count === 0) {
+          throw new ConflictException({ error: '操作已被提交，请重新发起', code: 'OPERATION_NOT_COMMITTABLE' });
+        }
+        return { submissionId: sub.id, revision: newRev };
+      });
+      return result;
+    } catch (err: any) {
+      // I1：并发撞 SubmissionVersion 唯一索引（submissionId+revision）→ 409 语义，非 P2002 裸 500
+      if (err?.code === 'P2002') {
         throw new ConflictException({ error: '版本冲突，请刷新后重试', code: 'REVISION_CONFLICT' });
       }
-
-      const newRev = sub.revision + 1;
-      // 版本快照
-      await tx.submissionVersion.create({
-        data: {
-          submissionId: sub.id, revision: newRev,
-          envelope: envelope, envelopeHash: payload.canonicalSha256!,
-          operationId: data.operationId!,
-        },
-      });
-      // 更新当前行
-      await tx.supplierBidSubmission.update({
-        where: { id: sub.id },
-        data: {
-          revision: newRev,
-          envelope, envelopeVersion: 'dual-v3',
-        },
-      });
-      // Outbox
-      await tx.outbox.create({
-        data: { topic: 'bid.submitted.v3', payload: { submissionId: sub.id, revision: newRev, operationId: data.operationId! } as any },
-      });
-      // 推进 operation
-      await tx.caOperation.update({
-        where: { id: data.operationId! },
-        data: { status: 'COMMITTED', result: { success: true, submissionId: sub.id, revision: newRev } as any },
-      });
-      return { submissionId: sub.id, revision: newRev };
-    });
-    return result;
+      throw err;
+    }
   }
 
   async reuploadDualEnvelope(
@@ -2961,6 +3038,9 @@ export class SupplierPortalService {
       if (op.purpose !== 'decrypt-upload') {
         throw new BadRequestException({ error: `purpose='${op.purpose}' 非 decrypt-upload`, code: 'PURPOSE_MISMATCH' });
       }
+      if (op.status !== 'PAYLOAD_READY') {
+        throw new ConflictException({ error: '操作已提交或已失效，请重新发起', code: 'OPERATION_NOT_COMMITTABLE' });
+      }
       const binding = await this.prisma.supplierCert.findFirst({
         where: { supplierId, bindingStatus: 'ACTIVE', credentialScheme: 'scca-pkcs7' },
         include: { signingCaCertificate: true },
@@ -2999,10 +3079,14 @@ export class SupplierPortalService {
         certSn: binding.certSn, evidenceId: verification.evidenceId ?? null,
         verifiedAt: new Date().toISOString(),
       };
-      await this.prisma.caOperation.update({
-        where: { id: v3Proof.operationId },
+      // I2：CAS commit（单次——重放 count=0 即 409）
+      const commit = await this.prisma.caOperation.updateMany({
+        where: { id: v3Proof.operationId, status: 'PAYLOAD_READY' },
         data: { status: 'COMMITTED', result: { success: true, projectId, supplierId, revision: submission.revision } as any },
       });
+      if (commit.count === 0) {
+        throw new ConflictException({ error: '操作已被提交，请重新发起', code: 'OPERATION_NOT_COMMITTABLE' });
+      }
     }
 
     // 原子抢占（PENDING→RUNNING；并发第二笔 count=0）
@@ -3492,9 +3576,10 @@ export class SupplierPortalService {
         select: { bidPrice: true, decryptedPrice: true, envelopeVersion: true, deliveryPeriod: true, qualityCommitment: true },
       }),
     ]);
-    // dual-v2（与主持端 draft 同口径）：报价指 decryptedPrice（新轨 bidPrice 列恒 null，
+    // 双信封（与主持端 draft 同口径）：报价指 decryptedPrice（新轨 bidPrice 列恒 null，
     // 读旧列会显示 null 价），单位为「万元」；旧轨读密封 bidPrice 解封，单位隐含在自由文本。
-    const isDualV2 = submission?.envelopeVersion === 'dual-v2';
+    // I4（评审）：dual-v3 同轨读法 + submitted 投影回传 envelopeVersion（前端解密卡挂载依据）。
+    const isDualV2 = submission?.envelopeVersion === 'dual-v2' || submission?.envelopeVersion === 'dual-v3';
     const submittedBidPrice = isDualV2
       ? (submission?.decryptedPrice ?? null)
       : (submission?.bidPrice ? openField(submission.bidPrice, process.env.KMS_SECRET!) : null);
@@ -3514,6 +3599,7 @@ export class SupplierPortalService {
       amountUnit,
       submitted: submission
         ? {
+            envelopeVersion: submission.envelopeVersion ?? null,
             bidPrice: submittedBidPrice,
             bidPriceUnit: submittedUnit,
             bidPriceInYuan: submittedBidPriceInYuan,
@@ -3616,7 +3702,12 @@ export class SupplierPortalService {
       if (e?.getResponse?.()?.code === 'SM2_PUBLIC_KEY_MISSING') return null;
       throw e;
     });
-    return { project, bidSupplier, record, cert };
+    // I8（评审）：确认分支需要投递轨道——v3 轨强制 P7，legacy/v2 走旧逻辑
+    const trackSub = await this.prisma.supplierBidSubmission.findUnique({
+      where: { supplierId_projectId: { supplierId, projectId } },
+      select: { envelopeVersion: true },
+    });
+    return { project, bidSupplier, record, cert, submissionTrack: trackSub?.envelopeVersion ?? 'legacy' };
   }
 
   /**
@@ -3696,7 +3787,7 @@ export class SupplierPortalService {
     signature: string,
     v3?: { operationId?: string; signatureFormat?: string; signP7?: string },
   ) {
-    const { bidSupplier, record, cert } = await this.loadOpeningConfirmContext(supplierId, projectId);
+    const { bidSupplier, record, cert, submissionTrack } = await this.loadOpeningConfirmContext(supplierId, projectId);
     let purpose: 'confirm' | 'resign';
     if (SupplierPortalService.OPENING_PENDING_CONFIRM.includes(record.confirmStatus)) {
       purpose = 'confirm';
@@ -3722,6 +3813,9 @@ export class SupplierPortalService {
       }
       if (op.purpose !== 'opening-confirm') {
         throw new BadRequestException({ error: `purpose='${op.purpose}' 非 opening-confirm`, code: 'PURPOSE_MISMATCH' });
+      }
+      if (op.status !== 'PAYLOAD_READY') {
+        throw new ConflictException({ error: '操作已提交或已失效，请重新发起', code: 'OPERATION_NOT_COMMITTABLE' });
       }
       const binding = await this.prisma.supplierCert.findFirst({
         where: { supplierId, bindingStatus: 'ACTIVE', credentialScheme: 'scca-pkcs7' },
@@ -3753,11 +3847,19 @@ export class SupplierPortalService {
         openingRecordHash: v2.openingRecordHash,
         recordRevision: 0,
       };
-      await this.prisma.caOperation.update({
-        where: { id: v3.operationId },
+      // I2：CAS commit（单次——重放 count=0 即 409）
+      const commit = await this.prisma.caOperation.updateMany({
+        where: { id: v3.operationId, status: 'PAYLOAD_READY' },
         data: { status: 'COMMITTED', result: { success: true, projectId, recordId: record.id, purpose } as any },
       });
+      if (commit.count === 0) {
+        throw new ConflictException({ error: '操作已被提交，请重新发起', code: 'OPERATION_NOT_COMMITTABLE' });
+      }
     } else {
+      // I8（评审）：v3 轨不降级——开标确认必须 P7（A-114 防抵赖）
+      if (submissionTrack === 'dual-v3') {
+        throw new BadRequestException({ error: 'dual-v3 投递的开标确认须以 SCCA 盾 P7 签署（operationId+signP7）', code: 'OPENING_CONFIRM_P7_REQUIRED' });
+      }
       // ── 旧轨：v1 canonical 重建 + SM2 验签（空=unsigned-legacy）──
       const canonical = buildOpeningConfirmCanonical({
         purpose, projectId, supplierId,
@@ -4546,6 +4648,11 @@ export class SupplierPortalService {
   ) {
     const clar = await this.assertReplyable(projectId, cid, supplierId);
     const attachments = await this.loadOwnedAttachments(dto.attachmentIds ?? [], user.sub);
+    // I8（评审）：澄清答复的轨道由投递行决定——v3 轨强制 P7（A-143 防抵赖）
+    const trackSub = await this.prisma.supplierBidSubmission.findUnique({
+      where: { supplierId_projectId: { supplierId, projectId } },
+      select: { envelopeVersion: true },
+    });
 
     let replySignature: Record<string, unknown>;
     let replyChannel: string;
@@ -4558,6 +4665,9 @@ export class SupplierPortalService {
       }
       if (op.purpose !== 'clarification') {
         throw new BadRequestException({ error: `purpose='${op.purpose}' 非 clarification`, code: 'PURPOSE_MISMATCH' });
+      }
+      if (op.status !== 'PAYLOAD_READY') {
+        throw new ConflictException({ error: '操作已提交或已失效，请重新发起', code: 'OPERATION_NOT_COMMITTABLE' });
       }
       const binding = await this.prisma.supplierCert.findFirst({
         where: { supplierId, bindingStatus: 'ACTIVE', credentialScheme: 'scca-pkcs7' },
@@ -4590,11 +4700,18 @@ export class SupplierPortalService {
         verifiedAt: new Date().toISOString(),
       };
       replyChannel = 'online';
-      await this.prisma.caOperation.update({
-        where: { id: dto.operationId },
+      // I2：CAS commit（单次——重放 count=0 即 409）
+      const commit = await this.prisma.caOperation.updateMany({
+        where: { id: dto.operationId, status: 'PAYLOAD_READY' },
         data: { status: 'COMMITTED', result: { success: true, projectId, clarificationId: cid } as any },
       });
+      if (commit.count === 0) {
+        throw new ConflictException({ error: '操作已被提交，请重新发起', code: 'OPERATION_NOT_COMMITTABLE' });
+      }
     } else {
+      if (trackSub?.envelopeVersion === 'dual-v3') {
+        throw new BadRequestException({ error: 'dual-v3 投递的澄清答复须以 SCCA 盾 P7 签署（operationId+signP7）', code: 'CLARIFICATION_P7_REQUIRED' });
+      }
       // ── 旧轨：v1 canonical + SM2 验签（SCCA 全面适配：空签免验照走）──
       // SCCA 全面适配（2026-10-14）：旧轨免签——signature/certSn 空则跳过证书校验与验签
       let cert: { certSn: string; publicKey: string } | null = null;

@@ -57,6 +57,7 @@ describe('回执 P7 强签（dual-v3 Task6）', () => {
       id: 'op-1', subjectId: 'sup-1', purpose: 'receipt', status: 'PAYLOAD_READY',
     });
     mockPrisma.caOperation.update.mockResolvedValue({});
+    mockPrisma.caOperation.updateMany = jest.fn().mockResolvedValue({ count: 1 });
     mockPrisma.submissionVersion.findUnique.mockResolvedValue({ envelopeHash: 'e'.repeat(64) });
     mockPrisma.bidSupplier.findFirst.mockResolvedValue({ receiptNo: 'TB-20261014-001' });
     mockPrisma.supplierBidSubmission.update.mockImplementation(async ({ data }: any) => ({ ...mkSub(), ...data }));
@@ -90,9 +91,9 @@ describe('回执 P7 强签（dual-v3 Task6）', () => {
         receiptSignedAt: expect.any(Date),
       }),
     }));
-    expect(mockPrisma.caOperation.update).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: 'op-1' },
-      data: { status: 'COMMITTED', result: expect.any(Object) },
+    expect(mockPrisma.caOperation.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'op-1', status: 'PAYLOAD_READY' },
+      data: expect.objectContaining({ status: 'COMMITTED' }),
     }));
     expect(result).toEqual(expect.objectContaining({ success: true, revision: 1 }));
   });
@@ -122,7 +123,25 @@ describe('回执 P7 强签（dual-v3 Task6）', () => {
     expect(result).toEqual(expect.objectContaining({ success: true, revision: 2 }));
   });
 
+  test('I2：op 已 COMMITTED（重放）→ 409 OPERATION_NOT_COMMITTABLE', async () => {
+    mockPrisma.caOperation.findUnique.mockResolvedValue({
+      id: 'op-1', subjectId: 'sup-1', purpose: 'receipt', status: 'COMMITTED',
+    });
+    const svc = mkService();
+    await expect(svc.signSubmissionReceipt('sub-1', 'sup-1', '', {
+      operationId: 'op-1', signatureFormat: 'scca-pkcs7-base64', signP7: 'MIIxBgQ.',
+    })).rejects.toThrow(require('@nestjs/common').ConflictException);
+  });
+
+  test('I8：v3 轨空签名免签 → 400 RECEIPT_P7_REQUIRED（防抵赖不降级）', async () => {
+    mockPrisma.supplierBidSubmission.findUnique.mockResolvedValue(mkSub());
+    const svc = mkService();
+    await expect(svc.signSubmissionReceipt('sub-1', 'sup-1', '')).rejects.toThrow(BadRequestException);
+  });
+
   test('旧轨兼容：无 operationId + 空签名 → unsigned-legacy 保持（不验签）', async () => {
+    // I8 后免签兼容仅限 legacy/dual-v2 行——fixture 用旧轨行（v3 行空签已由上一用例 400 拒收）
+    mockPrisma.supplierBidSubmission.findUnique.mockResolvedValue(mkSub({ envelopeVersion: null }));
     const svc = mkService();
     await svc.signSubmissionReceipt('sub-1', 'sup-1', '');
     expect(mockVerify).not.toHaveBeenCalled();

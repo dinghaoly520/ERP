@@ -1,87 +1,132 @@
 /**
- * dual-v3 submit 分支单测（Task4）
- * mock CaVerificationService + Prisma——验签/CAS/快照/outbox 的行为验证
+ * dual-v3 submitBidV3 行为级单测（评审修复轮——替换原空转 spec）
+ * 覆盖：C2 名册/serverSubmittedAt 落库、I1 baseRevision CAS+P2002→409、
+ *      I2 操作单次性 CAS commit、I6 assetId 归属、I7 context 交叉
  */
 import { BadRequestException, ConflictException } from '@nestjs/common';
+import { SupplierPortalService } from '../supplier-portal/supplier-portal.service';
 
-// mock CaVerificationService
 const mockVerify = jest.fn();
 
-// mock Prisma——可控 caOperation + supplierBidSubmission + submissionVersion + outbox
-const mockCaOp = { findUnique: jest.fn(), update: jest.fn() };
-const mockSub = { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() };
-const mockVersion = { create: jest.fn() };
-const mockOutbox = { create: jest.fn() };
-const mockCert = { findFirst: jest.fn() };
+const BASE_CTX = { projectId: 'proj-1', supplierId: 'sup-1', submissionId: '', revision: 1, signingBindingId: 'b-1', signingCertFingerprint: 'f'.repeat(64) };
+const mkEnvelope = (over: Record<string, any> = {}) => ({
+  version: 'dual-v3', canonicalVersion: 'erp-json-v1', provider: 'scca',
+  context: { ...BASE_CTX, ...(over.context ?? {}) },
+  files: { technical: { assetId: 'fa-mine', plainSha256: 'p'.repeat(64), plainBytes: 1, innerSha256: 'i'.repeat(64), innerBytes: 2, outerSha256: 'o'.repeat(64), outerBytes: 3, kself: { format: 'scca-pkcs7-base64', recipientCertFingerprint: 'e'.repeat(64), value: 'P7'.repeat(60) }, kadmin: { format: 'sm2-c1c3c2-hex', adminCertId: 'ac-1', value: '04' + 'ab'.repeat(32) } } },
+  sealedFields: { cipherFormat: 'sm4-cbc-pkcs7-hex', cipher: 'aa', cipherSha256: 'c'.repeat(64), cipherBytes: 1, kself: { format: 'scca-pkcs7-base64', recipientCertFingerprint: 'e'.repeat(64), value: 'P7'.repeat(60) } },
+  fieldsCommit: 'a'.repeat(64),
+  ...(({ context, ...rest }: any = over) => rest)(),
+});
 
-// 最小 PrismaService mock——按 collection 分发
-const mockPrisma: any = {
-  caOperation: mockCaOp,
-  supplierBidSubmission: mockSub,
-  submissionVersion: mockVersion,
-  outbox: mockOutbox,
-  supplierCert: mockCert,
-  $transaction: async (fn: (tx: any) => Promise<any>) => fn(mockPrisma),
-};
+const tx = () => ({
+  supplierBidSubmission: {
+    findUnique: jest.fn().mockResolvedValue(null),
+    create: jest.fn().mockResolvedValue({ id: 'sub-1', revision: 0, status: 'submitted' }),
+    update: jest.fn().mockResolvedValue({}),
+  },
+  bidSupplier: {
+    findFirst: jest.fn().mockResolvedValue(null),
+    create: jest.fn().mockResolvedValue({}),
+    update: jest.fn().mockResolvedValue({}),
+  },
+  submissionVersion: { create: jest.fn().mockResolvedValue({}) },
+  outbox: { create: jest.fn().mockResolvedValue({}) },
+  caOperation: { update: jest.fn().mockResolvedValue({}), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+});
 
-describe('submitBidV3（dual-v3 投递分支）', () => {
+const mkSvc = (prisma: any) => new SupplierPortalService(
+  prisma, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any,
+  undefined, undefined, { verifySignature: mockVerify } as any,
+);
+
+describe('submitBidV3（评审修复轮）', () => {
+  let prisma: any;
+  let t: ReturnType<typeof tx>;
   beforeEach(() => {
-    jest.clearAllMocks();
     mockVerify.mockReset();
-  });
-
-  test('合法 v3 投递：验签通过→版本快照+revision 递增+outbox', async () => {
-    // 从 TS 源中提取 submitBidV3 来直接测试不现实——用行为级测试代替
-    // 此处验证核心逻辑链的正确性：
-    // 1. CaVerificationService.verifySignature 调用参数正确
-    // 2. SubmissionVersion.create 包含正确字段
-    // 3. revision 从 0→1
-    // 4. Outbox.create topic='bid.submitted.v3'
-
-    // 模拟调用链
-    mockCaOp.findUnique.mockResolvedValue({
-      id: 'op-1', subjectId: 'sup-1', purpose: 'submit', status: 'PAYLOAD_READY',
-      result: { canonical: '{"version":"dual-v3","provider":"scca"}', canonicalSha256: 'a'.repeat(64) },
-    });
-    mockCert.findFirst.mockResolvedValue({
-      id: 'cert-1', credentialScheme: 'scca-pkcs7',
-      signingCaCertificate: { serialHex: 'aa', sha256Fingerprint: 'bb'.repeat(32) },
-    });
     mockVerify.mockResolvedValue({ ok: true, signerSerialHex: 'aa', statusCoverage: ['chain'] });
-    mockSub.findUnique.mockResolvedValue({
-      id: 'sub-1', supplierId: 'sup-1', projectId: 'proj-1', revision: 0, status: 'draft',
+    t = tx();
+    prisma = {
+      caOperation: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'op-1', subjectId: 'sup-1', purpose: 'submit', status: 'PAYLOAD_READY',
+          result: { canonical: JSON.stringify(mkEnvelope()), canonicalSha256: 'c'.repeat(64) },
+        }),
+      },
+      supplierCert: { findFirst: jest.fn().mockResolvedValue({ certSn: 'SN1', publicKey: '04ab', credentialScheme: 'scca-pkcs7', signingCaCertificate: { serialHex: 'aa', sha256Fingerprint: 'e'.repeat(64) } }) },
+      // submitBid 前置链（self 检查/I6 归属查询共用）+ v3 事务
+      supplier: { findUnique: jest.fn().mockResolvedValue({ id: 'sup-1', name: '测试供应商', userId: 'user-1', status: 'APPROVED', isTemporary: false }) },
+      supplierBidSubmission: { findUnique: jest.fn().mockResolvedValue(null) },
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'proj-1', stage: 'SUBMIT', deadline: new Date(Date.now() + 86400000), procurementMethod: '公开招标', projectManagementItemId: null, bondRequired: false }) },
+      announcement: { findFirst: jest.fn().mockResolvedValue({ id: 'a-1' }) },
+      bidSupplier: { findFirst: jest.fn().mockResolvedValue(null) },
+      fileAsset: { findMany: jest.fn().mockResolvedValue([{ id: 'fa-mine', uploaderId: 'user-1' }]) },
+      tx: t,
+      $transaction: async (fn: (x: any) => Promise<any>) => fn(t),
+    };
+  });
+
+  const call = (over: Record<string, any> = {}) =>
+    mkSvc(prisma).submitBid('sup-1', 'proj-1', {
+      operationId: 'op-1', signatureFormat: 'scca-pkcs7-base64', signP7: 'MII.', ...over,
+    } as any);
+
+  test('成功：名册写入+receiptNo 生成+serverSubmittedAt 落列+操作 CAS commit', async () => {
+    const result = await call();
+    expect(result).toEqual({ submissionId: 'sub-1', revision: 1 });
+    // C2：BidSupplier 名册（投递即入册——开标名单/回执编号数据源）
+    expect(t.bidSupplier.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        projectId: 'proj-1', supplierId: 'sup-1', supplierName: '测试供应商',
+        submitStatus: '已提交', receiptNo: expect.stringMatching(/^TB-\d{8}-\d{3}$/),
+      }),
+    }));
+    // C2：serverSubmittedAt（审计信任锚点）随递交落列（首投随 create；重投随 status update）
+    expect(t.supplierBidSubmission.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'submitted', serverSubmittedAt: expect.any(Date) }),
+    }));
+    expect(t.supplierBidSubmission.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ revision: 1, envelopeVersion: 'dual-v3' }),
+    }));
+    expect(t.submissionVersion.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ submissionId: 'sub-1', revision: 1, envelopeHash: 'c'.repeat(64) }),
+    }));
+    // I2：操作 commit 走条件 CAS（PAYLOAD_READY→COMMITTED 单次）
+    expect(t.caOperation.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'op-1', status: 'PAYLOAD_READY' },
+      data: expect.objectContaining({ status: 'COMMITTED' }),
+    }));
+  });
+
+  test('I1：baseRevision 与服务端不符 → 409 REVISION_CONFLICT（客户端 CAS）', async () => {
+    t.supplierBidSubmission.findUnique.mockResolvedValue({ id: 'sub-1', revision: 2, status: 'withdrawn' });
+    t.supplierBidSubmission.update.mockResolvedValue({});
+    await expect(call({ baseRevision: 1 })).rejects.toThrow(ConflictException);
+  });
+
+  test('I1：SubmissionVersion 唯一索引 P2002 → 409 REVISION_CONFLICT（非裸 500）', async () => {
+    t.submissionVersion.create.mockRejectedValue({ code: 'P2002' });
+    await expect(call()).rejects.toThrow(ConflictException);
+  });
+
+  test('I6：信封 assetId 非本人上传 → 400 FILE_NOT_OWNED', async () => {
+    prisma.fileAsset.findMany.mockResolvedValue([{ id: 'fa-mine', uploaderId: 'user-OTHER' }]);
+    await expect(call()).rejects.toThrow(BadRequestException);
+  });
+
+  test('I7：context.supplierId 与本人不符 → 400 ENVELOPE_CONTEXT_MISMATCH', async () => {
+    prisma.caOperation.findUnique.mockResolvedValue({
+      id: 'op-1', subjectId: 'sup-1', purpose: 'submit', status: 'PAYLOAD_READY',
+      result: { canonical: JSON.stringify(mkEnvelope({ context: { supplierId: 'sup-OTHER' } })), canonicalSha256: 'c'.repeat(64) },
     });
-    mockSub.update.mockResolvedValue({});
-    mockVersion.create.mockResolvedValue({});
-    mockOutbox.create.mockResolvedValue({});
-    mockCaOp.update.mockResolvedValue({});
-
-    // 直接调用 submitBidV3 的行为级验证——由于是 private 方法，测试核心行为
-    // 1. 验签调用
-    expect(mockVerify).toBeDefined();
-    // 2. 版本快照
-    expect(mockVersion.create).toBeDefined();
-    // 3. outbox
-    expect(mockOutbox.create).toBeDefined();
-    // 行为级断言在 e2e 中覆盖
+    await expect(call()).rejects.toThrow(BadRequestException);
   });
 
-  test('操作不存在 → 400 OPERATION_INVALID', () => {
-    mockCaOp.findUnique.mockResolvedValue(null);
-    // 直接断言异常类型
-    const err = new BadRequestException({ error: '操作不存在或非本人', code: 'OPERATION_INVALID' });
-    expect(err.getStatus()).toBe(400);
-    expect((err.getResponse() as any).code).toBe('OPERATION_INVALID');
-  });
-
-  test('CAS 冲突 → 409 REVISION_CONFLICT', () => {
-    const err = new ConflictException({ error: '版本冲突，请刷新后重试', code: 'REVISION_CONFLICT' });
-    expect(err.getStatus()).toBe(409);
-    expect((err.getResponse() as any).code).toBe('REVISION_CONFLICT');
-  });
-
-  test('purpose 不匹配 → 400 PURPOSE_MISMATCH', () => {
-    const err = new BadRequestException({ error: "purpose='receipt' 非 submit", code: 'PURPOSE_MISMATCH' });
-    expect((err.getResponse() as any).code).toBe('PURPOSE_MISMATCH');
+  test('I2：op 已 COMMITTED（重放）→ 409 OPERATION_NOT_COMMITTABLE', async () => {
+    prisma.caOperation.findUnique.mockResolvedValue({
+      id: 'op-1', subjectId: 'sup-1', purpose: 'submit', status: 'COMMITTED',
+      result: { canonical: JSON.stringify(mkEnvelope()), canonicalSha256: 'c'.repeat(64) },
+    });
+    await expect(call()).rejects.toThrow(ConflictException);
   });
 });

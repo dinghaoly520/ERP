@@ -56,10 +56,12 @@ describe('开标确认 P7 强签（dual-v3 Task7）', () => {
     jest.clearAllMocks();
     mockVerify.mockReset();
     mockPrisma.bidOpeningRecord.findFirst.mockResolvedValue({ ...RECORD });
+    mockPrisma.supplierBidSubmission.findUnique.mockResolvedValue({ id: 'sub-1', revision: 1 }); // 默认旧轨行（I8 用例按需覆写）
     mockPrisma.supplierCert.findFirst.mockResolvedValue(mkCert());
     mockPrisma.caOperation.findUnique.mockResolvedValue({
       id: 'op-1', subjectId: 'sup-1', purpose: 'opening-confirm', status: 'PAYLOAD_READY',
     });
+    mockPrisma.caOperation.updateMany = jest.fn().mockResolvedValue({ count: 1 });
     mockVerify.mockResolvedValue({ ok: true, signerSerialHex: 'aa', statusCoverage: ['chain'] });
   });
 
@@ -87,9 +89,9 @@ describe('开标确认 P7 强签（dual-v3 Task7）', () => {
     // amountUnit 必须进快照（单位歧义钉死——万元/元铁律）
     expect(createHash('sha256').update(canonicalJson({ ...RECORD_SNAPSHOT, amountUnit: null }), 'utf8').digest('hex'))
       .not.toBe(expectedHash);
-    expect(mockPrisma.caOperation.update).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: 'op-1' },
-      data: { status: 'COMMITTED', result: expect.any(Object) },
+    expect(mockPrisma.caOperation.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'op-1', status: 'PAYLOAD_READY' },
+      data: expect.objectContaining({ status: 'COMMITTED' }),
     }));
     expect(mockPrisma.bidSupplier.update).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: 'bs-1' },
@@ -110,6 +112,23 @@ describe('开标确认 P7 强签（dual-v3 Task7）', () => {
     });
     expect(typeof result.payload.openingRecordHash).toBe('string');
     expect(result.payload.openingRecordHash).toHaveLength(64);
+  });
+
+  test('I2：op 已 COMMITTED（重放）→ 409', async () => {
+    mockPrisma.caOperation.findUnique.mockResolvedValue({
+      id: 'op-1', subjectId: 'sup-1', purpose: 'opening-confirm', status: 'COMMITTED',
+    });
+    const svc = mkService();
+    const { ConflictException } = require('@nestjs/common');
+    await expect(svc.confirmOpening('sup-1', 'proj-1', '', {
+      operationId: 'op-1', signatureFormat: 'scca-pkcs7-base64', signP7: 'MIIxBgQ.',
+    })).rejects.toThrow(ConflictException);
+  });
+
+  test('I8：v3 轨空签名 → 400 OPENING_CONFIRM_P7_REQUIRED', async () => {
+    mockPrisma.supplierBidSubmission.findUnique.mockResolvedValue({ id: 'sub-1', revision: 1, envelopeVersion: 'dual-v3' });
+    const svc = mkService();
+    await expect(svc.confirmOpening('sup-1', 'proj-1', '')).rejects.toThrow(BadRequestException);
   });
 
   test('旧轨兼容：空签名 → unsigned-legacy 照走（v1 canonical 重建不受影响）', async () => {

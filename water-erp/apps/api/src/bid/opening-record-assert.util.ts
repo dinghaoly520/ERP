@@ -31,15 +31,17 @@ export async function assertPriceMatchesSealed(
   // 承诺验证落库的报价（新轨投递 bidPrice 列恒 null，读旧列会跳过校验成漏洞）；
   // 旧轨读 openField(sealed bidPrice)。decryptedPrice 缺失（供应商未完成解密上传）→
   // 不校验（与密封价缺失同语义，唱标节奏与「未解密不可唱标」一致）。
+  // I4（评审）：双信封读法 dual-v2|dual-v3 同轨（v3 同样 bidPrice 恒 null、承诺价在 decryptedPrice）
+  const isDualTrack = sub?.envelopeVersion === 'dual-v2' || sub?.envelopeVersion === 'dual-v3';
   const sealed = sub
-    ? (sub.envelopeVersion === 'dual-v2'
+    ? (isDualTrack
         ? (sub.decryptedPrice ?? null)
         : (sub.bidPrice ? openField(sub.bidPrice, process.env.KMS_SECRET!) : null))
     : null;
   if (sealed == null) return null;
-  // dual-v2 单位闸（2026-09-14）：录值呈密封价×10000/÷10000 形态（主持人自行万元↔元换算）硬拦——
+  // 双信封单位闸（2026-09-14）：录值呈密封价×10000/÷10000 形态（主持人自行万元↔元换算）硬拦——
   // 下方交叉容差会把它当「同一报价」静默放行，落库后读端按万元解读再差一万倍。
-  if (sub?.envelopeVersion === 'dual-v2') assertNoCrossUnitEntry(sealed, amount);
+  if (isDualTrack) assertNoCrossUnitEntry(sealed, amount);
   // P1-13 归一 + 容差比对统一走 opening-compare.util（供应商端回显同源）
   const expectedInYuan = resolveExpectedInYuan(sealed, amount);
   if (isPriceMismatch(expectedInYuan, amount)) {

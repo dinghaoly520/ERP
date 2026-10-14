@@ -7,6 +7,7 @@ describe('SupplierPortalService — clarification notification lifecycle', () =>
       status: '待回复', replySignature: null,
     };
     const prisma = {
+      supplierBidSubmission: { findUnique: jest.fn().mockResolvedValue(null) }, // I8：轨道查询（无投递行=legacy）
       bidClarification: {
         findFirst: jest.fn().mockResolvedValue(clarification),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
