@@ -302,9 +302,13 @@ describe('dual-v3 全链 (e2e)', () => {
       await prisma.bidProject.delete({ where: { id: projectId } }).catch(() => {});
     }
     // 落库的外层暂存/内层资产清理（v3-staging/bid-inner-e2e 前缀）
-    await prisma.fileAsset.deleteMany({ where: { OR: [
-      { key: { startsWith: 'v3-staging/' } }, { key: { startsWith: 'bid-inner-e2e/' } },
-    ] } }).catch(() => {});
+    // I-A（复审）：v3-staging/ 是生产端点真实前缀——共享库上全局删会误删他人在途暂存；
+    // 收窄到本项目前缀（bid-inner-e2e/ 为测试专属前缀保持全局）
+    if (projectId) {
+      await prisma.fileAsset.deleteMany({ where: { OR: [
+        { key: { startsWith: `v3-staging/${projectId}/` } }, { key: { startsWith: 'bid-inner-e2e/' } },
+      ] } }).catch(() => {});
+    }
     await app.close();
   });
 });

@@ -115,6 +115,7 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted }: {
     } catch (e: any) {
       if (cancel()) return;
       setStage('failed');
+      setNote(''); // 失败清进度残句（同投递卡口径）
       setError(e?.message ?? '解密失败');
     }
   }, [projectId, pin, onDecrypted]);

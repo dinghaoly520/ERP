@@ -9,7 +9,7 @@ import { useState, useCallback, useRef } from 'react';
 import { ShieldCheck, LoaderCircle, FileText, UploadCloud, CircleCheck } from 'lucide-react';
 import { supplierApi } from '@/lib/api/supplier';
 import * as scca from '@/utils/scca-ukey';
-import { encryptAndUploadV3 } from '@/utils/dual-v3-client';
+import { encryptAndUploadV3, nextRevisionContext } from '@/utils/dual-v3-client';
 import type { V3Role, V3Fields } from '@water-erp/ukey';
 
 type Stage = 'form' | 'encrypting' | 'signing' | 'submitting' | 'done' | 'failed';
@@ -44,7 +44,8 @@ export function CaBidSubmitCard({ projectId, context, adminCert, onSubmitted }: 
   const actionIdRef = useRef(0);
 
   const fieldsValid = /^\d{1,12}(\.\d{1,4})?$/.test(price.trim()) && deliveryPeriod.trim() && qualityCommitment.trim();
-  const canSubmit = stage === 'form' && !!files.technical && fieldsValid && !!pin;
+  // failed 态放行——失败后原页可改字段重试（UI 验收发现：inputs 解锁但按钮死锁）
+  const canSubmit = (stage === 'form' || stage === 'failed') && !!files.technical && fieldsValid && !!pin;
 
   const pick = (role: V3Role) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -71,10 +72,12 @@ export function CaBidSubmitCard({ projectId, context, adminCert, onSubmitted }: 
       if (!first) throw new Error('U盾内未找到证书');
       const encCertPem = first.enc?.pem;
       if (!encCertPem) throw new Error('U盾证书缺少加密证（enc.pem）');
+      // C-1（复审）：信封 context.revision = 当前 revision + 1（服务端按 ===newRev 硬校验；
+      // 首投 0 会被 ukey validator 直接拒）；baseRevision（CAS 基线）保持当前值
       const { envelope } = await encryptAndUploadV3(projectId, roleFiles, v3Fields, encCertPem, await sccaGetAdapter(), adminCert, {
         uploadOuter: (role, blob, filename) => supplierApi.caUploadEncryptedOuter(projectId, blob, filename)
           .then((r) => ({ fileAssetId: r.fileAssetId, outerSha256: r.outerSha256, outerBytes: r.outerBytes })),
-      }, context);
+      }, nextRevisionContext(context));
       if (cancel()) return;
 
       setStage('signing');
@@ -96,7 +99,7 @@ export function CaBidSubmitCard({ projectId, context, adminCert, onSubmitted }: 
         operationId: prep.operationId,
         signatureFormat: 'scca-pkcs7-base64',
         signP7,
-        baseRevision: context.revision,
+        baseRevision: context.revision, // CAS 基线=当前值（信封声明的是 +1，两者刻意不同）
       });
       if (cancel()) return;
       setStage('done');
@@ -105,6 +108,7 @@ export function CaBidSubmitCard({ projectId, context, adminCert, onSubmitted }: 
     } catch (e: any) {
       if (cancel()) return;
       setStage('failed');
+      setProgressNote('');
       setError(e?.message ?? '投递失败');
     }
   }, [projectId, files, price, deliveryPeriod, qualityCommitment, pin, adminCert, context, container, onSubmitted]);
@@ -130,7 +134,7 @@ export function CaBidSubmitCard({ projectId, context, adminCert, onSubmitted }: 
       {(Object.keys(ROLE_LABEL) as V3Role[]).map((role) => (
         <label key={role} className="ca-file-row" data-testid={`ca-file-${role}`}>
           <span className="ca-file-label">{ROLE_LABEL[role]}{!files[role] && role === 'technical' ? '' : ''}</span>
-          <input type="file" accept=".pdf,.zip,.rar" onChange={pick(role)} disabled={stage !== 'form'} />
+          <input type="file" accept=".pdf,.zip,.rar" onChange={pick(role)} disabled={stage !== 'form' && stage !== 'failed'} />
           {files[role] && <FileText size={14} strokeWidth={1.75} />}
         </label>
       ))}
@@ -138,22 +142,22 @@ export function CaBidSubmitCard({ projectId, context, adminCert, onSubmitted }: 
       <label className="ca-field" data-testid="ca-field-price">
         <span>报价（万元）</span>
         <input className="neu-input" inputMode="decimal" placeholder="如 153.95" value={price}
-          onChange={(e) => setPrice(e.target.value)} disabled={stage !== 'form'} />
+          onChange={(e) => setPrice(e.target.value)} disabled={stage !== 'form' && stage !== 'failed'} />
       </label>
       <label className="ca-field" data-testid="ca-field-period">
         <span>工期</span>
         <input className="neu-input" placeholder="如 90 日历天" value={deliveryPeriod}
-          onChange={(e) => setDeliveryPeriod(e.target.value)} disabled={stage !== 'form'} />
+          onChange={(e) => setDeliveryPeriod(e.target.value)} disabled={stage !== 'form' && stage !== 'failed'} />
       </label>
       <label className="ca-field" data-testid="ca-field-quality">
         <span>质量承诺</span>
         <input className="neu-input" placeholder="如 合格" value={qualityCommitment}
-          onChange={(e) => setQualityCommitment(e.target.value)} disabled={stage !== 'form'} />
+          onChange={(e) => setQualityCommitment(e.target.value)} disabled={stage !== 'form' && stage !== 'failed'} />
       </label>
       <label className="ca-field" data-testid="ca-field-pin">
         <span>U盾 PIN</span>
         <input className="neu-input" type="password" value={pin} autoComplete="off"
-          onChange={(e) => setPin(e.target.value)} disabled={stage !== 'form'} />
+          onChange={(e) => setPin(e.target.value)} disabled={stage !== 'form' && stage !== 'failed'} />
       </label>
 
       <div className="flex items-center gap-2 mt-3">

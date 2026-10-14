@@ -94,3 +94,13 @@ test('服务端实算 outerSha256 与本地不一致 → 抛错（防传输损�
     /outerSha256/,
   );
 });
+
+test('C-1 契约：nextRevisionContext——信封 revision = base+1（服务端 ctx.revision===newRev 硬校验）', async () => {
+  const { nextRevisionContext } = await import('../dual-v3-client');
+  const ctx = { supplierId: 'sup-1', submissionId: '', revision: 0, signingBindingId: 'b', signingCertFingerprint: 'f'.repeat(64) };
+  const next = nextRevisionContext(ctx);
+  assert.equal(next.revision, 1, '首投 0→1（validator 也要 ≥1）');
+  assert.equal(ctx.revision, 0, '原 context 不被改动（baseRevision 语义）');
+  const next5 = nextRevisionContext({ ...ctx, revision: 5 });
+  assert.equal(next5.revision, 6, '撤回重投 N→N+1');
+});

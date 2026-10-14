@@ -148,6 +148,13 @@ export async function encryptAndUploadV3(
   return { envelope, uploadedAssets, sealedFields, fieldsCommit, nonceHex };
 }
 
+/** 信封 context revision 契约（C-1 复审修复）：信封声明的 revision = 服务端即将分配的
+ *  新版本（当前 baseRevision + 1）——服务端 submitBidV3 按 ctx.revision === newRev 硬校验。
+ *  baseRevision（CAS 基线）保持当前值不变。 */
+export function nextRevisionContext(context: { supplierId: string; submissionId: string; revision: number; signingBindingId: string; signingCertFingerprint: string }) {
+  return { ...context, revision: context.revision + 1 };
+}
+
 /** decrypt-upload P7 证明 canonical（Task12）——与服务端 Task9 构建逐字一致：
  *  plainSha256ByRole=各角色明文 sha256（诚实客户端==信封声明值），服务端验签即交叉比对。 */
 export function buildDecryptProofCanonical(input: {
