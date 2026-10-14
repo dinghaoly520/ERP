@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, BarChart3, Lightbulb, Sparkles } from "lucide-react";
+import { Activity, AlertCircle, BarChart3, Lightbulb, Sparkles, Target, TrendingUp } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProgressStats, fetchProgressAiInsights, type ProgressStats, type ProgressAiInsights, type ProjectProgress } from "@/lib/api/progress";
 import { useAuth } from "@/components/m/auth-context";
@@ -52,6 +52,13 @@ const URGENCY_COLOR: Record<string, string> = {
   low: "var(--accent)",
 };
 
+/* 洞察分组（与数据库页 AI 卡「亮点/待关注/建议」同款三段式语言，按紧急度分层） */
+const INSIGHT_GROUPS: Array<{ key: "high" | "medium" | "low"; label: string; color: string; icon: typeof AlertCircle }> = [
+  { key: "high", label: "高优先关注", color: URGENCY_COLOR.high, icon: AlertCircle },
+  { key: "medium", label: "关注事项", color: URGENCY_COLOR.medium, icon: TrendingUp },
+  { key: "low", label: "常规提示", color: URGENCY_COLOR.low, icon: Lightbulb },
+];
+
 function fmtBudget(v: number): string {
   return v >= 10000
     ? `${(v / 10000).toLocaleString("zh-CN", { maximumFractionDigits: 1 })} 万`
@@ -98,6 +105,9 @@ export default function ProgressPage() {
   const [stats, setStats] = useState<ProgressStats | null>(null);
   const [insights, setInsights] = useState<ProgressAiInsights | null>(null);
   const [insightsError, setInsightsError] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [insightsTick, setInsightsTick] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryTick, setRetryTick] = useState(0);
@@ -133,21 +143,40 @@ export default function ProgressPage() {
       .finally(() => {
         if (active) setLoading(false);
       });
-
-    fetchProgressAiInsights(filterCompanyId)
-      .then((i) => {
-        if (active) {
-          setInsights(i);
-          setInsightsError(false);
-        }
-      })
-      .catch(() => {
-        if (active) setInsightsError(true);
-      });
     return () => {
       active = false;
     };
   }, [filterCompanyId, retryTick]);
+
+  /* 洞察懒加载：展开时自动请求（未展开不耗 AI 调用）；公司口径变化/重试/下拉刷新使旧结果作废 */
+  useEffect(() => {
+    if (!aiOpen || insights) return;
+    let active = true;
+    setAiLoading(true);
+    setInsightsError(false);
+    fetchProgressAiInsights(filterCompanyId)
+      .then((i) => {
+        if (active) setInsights(i);
+      })
+      .catch(() => {
+        if (active) {
+          setInsights(null);
+          setInsightsError(true);
+        }
+      })
+      .finally(() => {
+        if (active) setAiLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiOpen, insights, filterCompanyId, insightsTick]);
+
+  function retryInsights() {
+    setInsights(null);
+    setInsightsTick((t) => t + 1);
+  }
 
   const maxStageCount = Math.max(...(stats?.stageDistribution.map((d) => d.count) ?? [1]), 1);
 
@@ -164,6 +193,7 @@ export default function ProgressPage() {
   const { pull, refreshing } = usePullToRefresh(
     useCallback(async () => {
       setRetryTick((t) => t + 1);
+      setInsights(null); // 下拉刷新使旧洞察作废（展开态自动重取）
       await new Promise((r) => window.setTimeout(r, 300));
     }, []),
   );
@@ -176,6 +206,7 @@ export default function ProgressPage() {
           value={companyId}
           onChange={(e) => {
             setCompanyId(e.target.value);
+            setInsights(null); // 口径变化，旧洞察作废（展开态自动重取）
             saveFilters("progress", { companyId: e.target.value });
           }}
           aria-label="公司筛选"
@@ -240,42 +271,73 @@ export default function ProgressPage() {
             )}
           </SectionCard>
 
-          {/* ── 进度洞察（AI）── */}
-          <SectionCard icon={Sparkles} index={1} title="进度洞察">
-            {insights ? (
-              <div className="space-y-2">
-                {insights.overview ? (
-                  <p className="rounded-[12px] m-tile px-3 py-2.5 text-[12px] font-medium leading-relaxed text-[var(--foreground)]">
-                    {insights.overview}
-                  </p>
-                ) : null}
-                {insights.insights.length ? (
-                  insights.insights.map((it, i) => (
-                    <div
-                      key={i}
-                      className="m-tile rounded-[12px] px-3 py-2.5"
-                      style={{ background: `color-mix(in oklch, ${URGENCY_COLOR[it.urgency] ?? "var(--accent)"} 5%, oklch(0.985 0.005 258))` }}
+          {/* ── 进度洞察（AI，与数据库页 AI 综合分析同款折叠卡；展开即自动请求）── */}
+          <SectionCard
+            icon={Sparkles}
+            index={1}
+            title="进度洞察"
+            right={
+              <button type="button" onClick={() => setAiOpen((v) => !v)} className="neu-btn-soft h-8 rounded-[9px] px-2.5 text-[11px]">
+                {aiOpen ? "收起" : "展开"}
+              </button>
+            }
+          >
+            {aiOpen ? (
+              <div className="space-y-2.5">
+                {aiLoading ? (
+                  <div className="flex items-center justify-center gap-2 py-5 text-xs text-[var(--muted-foreground)]">
+                    <Activity size={13} className="animate-pulse" /> 正在生成进度洞察...
+                  </div>
+                ) : insightsError ? (
+                  <div className="flex items-center gap-2.5 rounded-[12px] bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-3 py-2.5">
+                    <AlertCircle size={13} className="shrink-0 text-[var(--danger)]" />
+                    <span className="min-w-0 flex-1 text-xs text-[var(--danger)]">洞察生成失败，请重试</span>
+                    <button
+                      type="button"
+                      onClick={retryInsights}
+                      className="neu-btn-soft is-danger h-8 shrink-0 rounded-[9px] px-2.5 text-[11px] active:scale-95"
                     >
-                      <div className="flex items-center gap-1.5">
-                        <Lightbulb size={11} style={{ color: URGENCY_COLOR[it.urgency] ?? "var(--accent)" }} />
-                        <span className="text-[10px] font-bold tracking-[0.06em]" style={{ color: URGENCY_COLOR[it.urgency] ?? "var(--accent)" }}>
-                          {INSIGHT_TYPE_LABELS[it.type] ?? it.type}
-                          {it.urgency === "high" ? " · 高优先" : it.urgency === "medium" ? " · 关注" : ""}
-                        </span>
+                      重试
+                    </button>
+                  </div>
+                ) : insights ? (
+                  <>
+                    {insights.overview ? (
+                      <div className="m-tile rounded-[12px] px-3.5 py-3">
+                        <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold tracking-[0.08em] text-[var(--accent)]">
+                          <Target size={11} /> 综合研判
+                        </div>
+                        <p className="text-[13px] font-medium leading-relaxed text-[var(--foreground)]">{insights.overview}</p>
                       </div>
-                      <p className="mt-1 text-[12px] leading-relaxed text-[var(--foreground)]">{it.message}</p>
-                    </div>
-                  ))
+                    ) : null}
+                    {INSIGHT_GROUPS.map((g) => {
+                      const items = insights.insights.filter((it) => it.urgency === g.key);
+                      if (!items.length) return null;
+                      return (
+                        <div key={g.key} className="m-tile rounded-[12px] px-3.5 py-3">
+                          <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold tracking-[0.08em]" style={{ color: g.color }}>
+                            <g.icon size={11} /> {g.label}
+                          </div>
+                          {items.map((it, i) => (
+                            <div key={i} className="flex items-start gap-2 py-0.5">
+                              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: g.color }} />
+                              <span className="text-[12px] leading-relaxed text-[var(--foreground)]">
+                                {it.message}
+                                <span className="ml-1.5 text-[10px] text-[var(--muted-foreground)]">[{INSIGHT_TYPE_LABELS[it.type] ?? it.type}]</span>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
+                    {!insights.overview && insights.insights.length === 0 ? <EmptyState text="当前无特别洞察" /> : null}
+                  </>
                 ) : (
-                  <EmptyState text="当前无特别洞察" />
+                  <EmptyState text="正在准备洞察..." />
                 )}
               </div>
-            ) : insightsError ? (
-              <EmptyState text="洞察暂不可用，稍后重试" />
             ) : (
-              <div className="flex items-center justify-center gap-2 py-4 text-xs text-[var(--muted-foreground)]">
-                <Activity size={13} className="animate-pulse" /> 洞察生成中...
-              </div>
+              <p className="px-1 text-[11px] text-[var(--muted-foreground)]">展开后自动获取 AI 进度洞察（综合研判 + 分级提示）</p>
             )}
           </SectionCard>
 
