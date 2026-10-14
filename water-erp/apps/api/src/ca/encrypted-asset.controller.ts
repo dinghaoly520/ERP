@@ -51,13 +51,12 @@ export class EncryptedAssetController {
     const asset = await this.prisma.fileAsset.create({
       data: {
         key: `v3-staging/${projectId}/${supplier.id}/${Date.now()}-${outerSha256.slice(0, 8)}.outer`,
-        displayName: file.originalname,
+        originalName: file.originalname,
         mimeType: 'application/octet-stream',
         size: outerBytes,
         sha256: outerSha256,
         category: 'bid_document',
-        uploadedById: userId,
-        metadata: { format: 'dual-v3-outer', staging: true, expiresAt: expiresAt.toISOString() },
+        uploaderId: userId,
       } as any,
     });
 

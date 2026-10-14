@@ -116,9 +116,12 @@ export function validateV3Envelope(env: unknown): { ok: boolean; errors: string[
   const ctx = e.context as Record<string, unknown> | undefined;
   if (!ctx || typeof ctx !== 'object') errors.push('context 缺失');
   else {
-    for (const k of ['projectId', 'supplierId', 'submissionId', 'signingBindingId', 'signingCertFingerprint'] as const) {
+    // submissionId 允许空串——首次投递时 submission 尚不存在（服务端 COMMIT 时分配 id）；
+    // 其余四键必须非空字符串
+    for (const k of ['projectId', 'supplierId', 'signingBindingId', 'signingCertFingerprint'] as const) {
       if (typeof ctx[k] !== 'string' || !ctx[k]) errors.push(`context.${k} 缺失或非字符串`);
     }
+    if (typeof ctx.submissionId !== 'string') errors.push('context.submissionId 缺失或非字符串');
     if (typeof ctx.revision !== 'number' || !Number.isInteger(ctx.revision) || ctx.revision < 1) errors.push('context.revision 须正整数');
   }
 

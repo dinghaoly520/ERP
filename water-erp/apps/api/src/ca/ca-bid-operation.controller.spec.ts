@@ -5,7 +5,7 @@ import { CaChallengeService } from './ca-challenge.service';
 // ─── 全 mock 依赖 ───
 const mockPrisma: any = {
   supplier: { findUnique: async (w: any) => ({ id: 'sup-1', userId: 'user-1' }) },
-  caOperation: { findUnique: async (w: any) => ({ id: w?.where?.id || 'op-x', subjectId: 'user-1', purpose: 'submit', status: 'RUNNING', result: null }), update: async (w: any) => ({}), create: async (d: any) => ({ id: 'op-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10) }) },
+  caOperation: { findUnique: async (w: any) => ({ id: w?.where?.id || 'op-x', subjectId: 'sup-1', purpose: 'submit', status: 'RUNNING', result: null }), update: async (w: any) => ({}), create: async (d: any) => ({ id: 'op-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10) }) },
 };
 
 const mockChallenge = {
@@ -51,7 +51,7 @@ describe('CaBidOperationController（prepare/signing-payload 接线）', () => {
       fieldsCommit: '22'.repeat(32),
     };
     // mock op lookup 返回有效操作
-    mockPrisma.caOperation.findUnique = async () => ({ id: opId, subjectId: 'user-1', purpose: 'submit', status: 'VERIFYING' });
+    mockPrisma.caOperation.findUnique = async () => ({ id: opId, subjectId: 'sup-1', purpose: 'submit', status: 'VERIFYING' });
     const result = await ctrl.signingPayload('proj-1', opId, { envelope }, mockReq as any);
     expect(result.signatureFormat).toBe('scca-pkcs7-base64');
     expect(result.canonicalSha256).toMatch(/^[0-9a-f]{64}$/);
@@ -59,7 +59,7 @@ describe('CaBidOperationController（prepare/signing-payload 接线）', () => {
   });
 
   test('signing-payload 非法信封→400 ENVELOPE_INVALID', async () => {
-    mockPrisma.caOperation.findUnique = async () => ({ id: 'op-bad', subjectId: 'user-1', purpose: 'submit', status: 'VERIFYING' });
+    mockPrisma.caOperation.findUnique = async () => ({ id: 'op-bad', subjectId: 'sup-1', purpose: 'submit', status: 'VERIFYING' });
     try {
       await ctrl.signingPayload('proj-1', 'op-bad', { envelope: { version: 'not-v3' } }, mockReq as any);
       fail('should have thrown');

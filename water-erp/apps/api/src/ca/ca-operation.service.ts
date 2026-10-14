@@ -3,12 +3,13 @@
    PREPARED → VERIFYING → COMMITTED | FAILED / EXPIRED / CANCELLED
    登录场景 subjectId 初始 null → COMMITTED 时写入。
    ================================================================= */
-import { PrismaClient } from '@prisma/client';
-import { ConflictException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { ConflictException, Injectable, Inject } from '@nestjs/common';
 import { CA_OP_STATUS } from './ca-operation';
 
+@Injectable()
 export class CaOperationService {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async create(p: { subjectType: string; subjectId?: string; purpose: string; payloadHash: string; challengeId?: string }): Promise<string> {
     const op = await this.prisma.caOperation.create({

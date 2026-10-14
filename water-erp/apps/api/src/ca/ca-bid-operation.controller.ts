@@ -105,10 +105,14 @@ export class CaBidOperationController {
     @Req() req: Request,
   ) {
     const userId = (req as any).user?.sub;
+    // subjectId=supplier.id（prepare 以供应商域落列）——比对同域，勿用 User id（域错配恒 403）
+    const supplier = await this.prisma.supplier.findUnique({ where: { userId } });
+    if (!supplier) throw new ForbiddenException({ error: '供应商不存在', code: 'SUPPLIER_NOT_FOUND' });
     const op = await this.operationService.findById(operationId);
     if (!op) throw new NotFoundException({ error: '操作不存在', code: 'OPERATION_NOT_FOUND' });
-    if (op.subjectId !== userId) throw new ForbiddenException({ error: '无权访问', code: 'FORBIDDEN' });
-    if (op.status !== 'VERIFYING') throw new ConflictException({ error: '操作状态不允许提交载荷', code: 'OPERATION_STATE_INVALID' });
+    if (op.subjectId !== supplier.id) throw new ForbiddenException({ error: '无权访问', code: 'FORBIDDEN' });
+    // prepare 落点=PAYLOAD_READY（context 已冻结）；信封冻结替换载荷——两态均可
+    if (op.status !== 'VERIFYING' && op.status !== 'PAYLOAD_READY') throw new ConflictException({ error: '操作状态不允许提交载荷', code: 'OPERATION_STATE_INVALID' });
 
     // 仅 submit/reupload 提交信封；receipt/opening-confirm 在 prepare 冻结
     if (op.purpose === 'submit' || op.purpose === 'reupload') {
