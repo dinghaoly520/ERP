@@ -238,9 +238,11 @@ export class AnnouncementService {
       where.status = { notIn: ['HIDDEN', 'OFFLINE'] };
     }
     if (params.search) {
+      // 2026-10-14：补 relatedProjectCode——项目编号可搜（:3002 顶栏/列表、:3004 公告中心、:3005 管理端共用本口径）
       where.OR = [
         { title: { contains: params.search, mode: 'insensitive' } },
         { content: { contains: params.search, mode: 'insensitive' } },
+        { relatedProjectCode: { contains: params.search, mode: 'insensitive' } },
       ];
     }
 
@@ -291,9 +293,11 @@ export class AnnouncementService {
       where.status = { notIn: ['HIDDEN', 'OFFLINE'] };
     }
     if (params.search) {
+      // 2026-10-14：补 relatedProjectCode——项目编号可搜（:3002 顶栏/列表、:3004 公告中心、:3005 管理端共用本口径）
       where.OR = [
         { title: { contains: params.search, mode: 'insensitive' } },
         { content: { contains: params.search, mode: 'insensitive' } },
+        { relatedProjectCode: { contains: params.search, mode: 'insensitive' } },
       ];
     }
     const groups = await this.prisma.announcement.groupBy({ by: ['companyName'], where, _count: { _all: true } });

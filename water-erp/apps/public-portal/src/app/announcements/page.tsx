@@ -28,15 +28,23 @@ function AnnouncementsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [type, setType] = useState('');
+  const [searchInput, setSearchInput] = useState(() => searchParams.get('search') || '');
   const [search, setSearch] = useState(() => searchParams.get('search') || '');
   const [items, setItems] = useState<AnnouncementItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 同步 URL 参数到搜索框
+  // 同步 URL 参数到搜索框（顶栏 Enter / 外部跳转进入）
   useEffect(() => {
     const q = searchParams.get('search') || '';
     setSearch(q);
+    setSearchInput(q);
   }, [searchParams]);
+
+  // 输入防抖 300ms 再触发查询（服务端全库搜索：标题/正文/项目编号）
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,9 +54,10 @@ function AnnouncementsContent() {
       .catch(() => {
         // Fallback to local data
         if (!cancelled) {
+          const lc = search.toLowerCase();
           const filtered = ANNOUNCEMENTS.filter(a => {
             const matchType = !type || a.type === type;
-            const matchSearch = !search || a.title.includes(search) || a.code.includes(search);
+            const matchSearch = !search || a.title.toLowerCase().includes(lc) || a.code.toLowerCase().includes(lc);
             return matchType && matchSearch;
           });
           setItems(filtered);
@@ -105,8 +114,8 @@ function AnnouncementsContent() {
 
           <div className="relative ml-auto shrink-0">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a96aa]" />
-            <input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="搜索公告标题..."
+            <input value={searchInput} onChange={e => setSearchInput(e.target.value)}
+              placeholder="搜索公告标题、项目编号..."
               className="w-[280px] h-9 pl-9 pr-3 bg-white border border-[#d0dae8] rounded-[10px] text-sm focus:outline-none focus:border-[#064ea2] placeholder:text-[#bbb]" />
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#bbb]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />

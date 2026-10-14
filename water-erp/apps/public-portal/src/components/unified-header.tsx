@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import type { AnnouncementItem } from '@/lib/announcements';
+import { fetchPublicAnnouncements, type AnnouncementItem } from '@/lib/announcements';
 import { portalURL } from '@water-erp/config';
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    统一顶栏 — 品牌 + 公告搜索 + 登录注册
-   搜索仅匹配首页已加载的公告数据（标题/编号），
-   结果在下拉中即时展示，点击跳转详情页。
+   搜索（2026-10-14）：≥2 字符 250ms 防抖实时调公开接口
+   全库搜索（标题/正文/项目编号），请求期间以首页预取数据
+   本地过滤兜底展示；结果在下拉中展示，点击跳转详情页。
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 interface UnifiedHeaderProps {
@@ -27,9 +28,23 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 const PLACEHOLDERS = [
-  '搜索公告标题、编号…',
-  '试试搜索「采购公告」或「中标公示」…',
+  '搜索公告标题、项目编号…',
+  '试试输入项目编号，如「SWZB-2026」…',
 ];
+
+/** 命中片段高亮 — 品牌蓝加粗，不整词染色 */
+function Highlight({ text, term }: { text: string; term: string }) {
+  if (!term || !text) return <>{text}</>;
+  const idx = text.toLowerCase().indexOf(term.toLowerCase());
+  if (idx < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <span className="text-[#064ea2] font-extrabold">{text.slice(idx, idx + term.length)}</span>
+      {text.slice(idx + term.length)}
+    </>
+  );
+}
 
 const PLACEHOLDER_INTERVAL = 4000;
 
@@ -175,13 +190,43 @@ export function UnifiedHeader({
 
   const trimmed = query.trim().toLowerCase();
 
-  // 客户端搜索：仅匹配公告标题、编号
+  // 实时全库搜索：≥2 字符 250ms 防抖调公开接口（项目编号在后端 relatedProjectCode 上命中）；
+  // 过期响应用序号丢弃；失败回退本地过滤（首页预取窗口内）。
+  const [remote, setRemote] = useState<{ term: string; items: AnnouncementItem[] } | null>(null);
+  const [searching, setSearching] = useState(false);
+  const searchSeq = useRef(0);
+  useEffect(() => {
+    if (trimmed.length < 2) {
+      searchSeq.current++;
+      setRemote(null);
+      setSearching(false);
+      return;
+    }
+    const mySeq = ++searchSeq.current;
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const data = await fetchPublicAnnouncements({ search: trimmed, pageSize: 8 });
+        if (searchSeq.current !== mySeq) return;
+        setRemote({ term: trimmed, items: data.items });
+      } catch {
+        if (searchSeq.current !== mySeq) return;
+        setRemote(null);
+      } finally {
+        if (searchSeq.current === mySeq) setSearching(false);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [trimmed]);
+
   const results = useMemo(() => {
     if (!trimmed) return [];
+    if (remote && remote.term === trimmed) return remote.items.slice(0, 8);
+    // 本地兜底：首页预取窗口内匹配（标题/项目编号）
     return announcements
       .filter((a) => a.title.toLowerCase().includes(trimmed) || a.code.toLowerCase().includes(trimmed))
       .slice(0, 8);
-  }, [announcements, trimmed]);
+  }, [announcements, trimmed, remote]);
 
   const hasInput = trimmed.length > 0;
 
@@ -340,7 +385,9 @@ export function UnifiedHeader({
             >
               <div className="flex items-center gap-2 border-b border-[#dde1e8] px-4 py-2">
                 <span className="text-[11px] font-semibold text-[#5a6d8a]">{hasInput ? `搜索「${trimmed}」` : '最近搜索'}</span>
-                {hasInput && <span className="text-[11px] text-[#94a3b8]">{results.length} 条结果</span>}
+                {hasInput && (
+                  <span className="text-[11px] text-[#94a3b8]">{searching ? '全库搜索中…' : `${results.length} 条结果`}</span>
+                )}
               </div>
 
               {hasInput ? (
@@ -353,8 +400,8 @@ export function UnifiedHeader({
                           className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition ${idx === selectedIdx ? 'bg-[#e8ebf0]' : 'hover:bg-[#e8ebf0]'}`}
                         >
                           <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ color: item.color, backgroundColor: `${item.color}14` }}>{TYPE_LABEL[item.type] || item.tag}</span>
-                          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#18243a]">{item.title}</span>
-                          <span className="shrink-0 text-xs text-[#bcc6d4] font-mono">{item.code}</span>
+                          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#18243a]"><Highlight text={item.title} term={trimmed} /></span>
+                          <span className="shrink-0 text-xs text-[#bcc6d4] font-mono"><Highlight text={item.code} term={trimmed} /></span>
                         </button>
                       </li>
                     ))}
@@ -380,7 +427,7 @@ export function UnifiedHeader({
                     ))}
                   </ul>
                 ) : (
-                  <div className="px-4 py-6 text-center text-xs text-[#94a3b8]">输入公告标题或编号进行搜索</div>
+                  <div className="px-4 py-6 text-center text-xs text-[#94a3b8]">输入公告标题或项目编号进行搜索</div>
                 )
               )}
             </div>,

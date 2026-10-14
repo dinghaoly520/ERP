@@ -831,3 +831,55 @@ describe('AnnouncementService — supplierList 供应商视角（公开 ∪ 定�
     expect(JSON.stringify(mainWhere)).toContain('dataClass'); // publicVisibilityOnly 同口径
   });
 });
+
+describe('AnnouncementService — search 字段覆盖 relatedProjectCode（2026-10-14 项目编号可搜）', () => {
+  let service: AnnouncementService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      announcement: { count: jest.fn(), findMany: jest.fn(), groupBy: jest.fn() },
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AnnouncementService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: AnnouncementAiService, useValue: {} },
+      ],
+    }).compile();
+    service = module.get(AnnouncementService);
+  });
+
+  it('list({search}) → where.OR 含 relatedProjectCode contains（insensitive）', async () => {
+    prisma.announcement.count.mockResolvedValue(0);
+    prisma.announcement.findMany.mockResolvedValue([]);
+
+    await service.list({ search: 'SWZB-2026' });
+
+    const where = prisma.announcement.findMany.mock.calls[0][0].where;
+    expect(where.OR).toEqual([
+      { title: { contains: 'SWZB-2026', mode: 'insensitive' } },
+      { content: { contains: 'SWZB-2026', mode: 'insensitive' } },
+      { relatedProjectCode: { contains: 'SWZB-2026', mode: 'insensitive' } },
+    ]);
+  });
+
+  it('companyCounts({search}) → 同口径（公司分组计数不漏项目编号命中）', async () => {
+    prisma.announcement.groupBy.mockResolvedValue([]);
+
+    await service.companyCounts({ search: 'SWZB-2026' });
+
+    const where = prisma.announcement.groupBy.mock.calls[0][0].where;
+    expect(where.OR).toContainEqual({ relatedProjectCode: { contains: 'SWZB-2026', mode: 'insensitive' } });
+  });
+
+  it('publicList({search}) → 透传同口径（:3002/:3004 公开端项目编号可搜）', async () => {
+    prisma.announcement.count.mockResolvedValue(0);
+    prisma.announcement.findMany.mockResolvedValue([]);
+
+    await service.publicList({ search: 'SWZB-2026' });
+
+    const where = prisma.announcement.findMany.mock.calls[0][0].where;
+    expect(where.OR).toContainEqual({ relatedProjectCode: { contains: 'SWZB-2026', mode: 'insensitive' } });
+  });
+});
