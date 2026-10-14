@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { blindIndexPii } from '../common/crypto/sm-field-crypto';
+import { blindIndexPii, openPii } from '../common/crypto/sm-field-crypto';
 
 /**
  * 联系人手机号唯一性（2026-10-14 用户裁定口径）：
@@ -88,5 +88,36 @@ export async function assertContactPhonesUnique(
         });
       }
     }
+  }
+}
+
+/**
+ * 钉死「主联系人 = 账号」不变量（2026-10-14 稳健性完善）：
+ * 主联系人就是账号持有人，其 phone 必须等于账号手机号（User.phone，openPii 后明文）。
+ * 如此主联系人手机号的全局唯一性完全由 User.phoneIdx 唯一约束兜底（硬约束），
+ * 联系人层无需另建跨表主联系人唯一域——换主联系人手机号须走「改账号手机号」资料变更。
+ */
+export async function assertPrimaryContactMatchesAccount(
+  prisma: any,
+  params: { supplierId: string; contacts: ContactPhoneInput[] },
+): Promise<void> {
+  const primary = params.contacts.find((c) => c.isPrimary);
+  if (!primary) return;
+  const phone = (primary.phone ?? '').trim();
+  if (!phone) return;
+
+  const sup = await prisma.supplier.findUnique({
+    where: { id: params.supplierId },
+    select: { userId: true },
+  });
+  const user = sup?.userId
+    ? await prisma.user.findUnique({ where: { id: sup.userId }, select: { phone: true } })
+    : null;
+  const accountPhone = (user?.phone ? openPii(user.phone) : '') ?? '';
+  if (accountPhone && phone !== accountPhone) {
+    throw new BadRequestException({
+      error: `主要联系人手机号须与账号手机号一致（如需更换请走资料变更），当前账号手机号：${accountPhone}`,
+      code: 'PRIMARY_CONTACT_PHONE_MISMATCH',
+    });
   }
 }

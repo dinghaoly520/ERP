@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
-import { assertContactPhonesUnique, assertContactsArrayPhonesUnique } from './contact-phone-unique';
+import { assertContactPhonesUnique, assertContactsArrayPhonesUnique, assertPrimaryContactMatchesAccount } from './contact-phone-unique';
+import { sealPii } from '../common/crypto/sm-field-crypto';
 
 /** 联系人手机号唯一性（2026-10-14）：主联系人全局唯一 + 额外联系人供应商内唯一 */
 describe('contact-phone-unique', () => {
@@ -70,5 +71,33 @@ describe('contact-phone-unique', () => {
         where: expect.objectContaining({ NOT: { id: 'c-self' } }),
       }));
     });
+  });
+});
+
+describe('assertPrimaryContactMatchesAccount（主联系人 = 账号 不变量）', () => {
+  const prisma = {
+    supplier: { findUnique: jest.fn().mockResolvedValue({ userId: 'u1' }) },
+    user: { findUnique: jest.fn().mockResolvedValue({ phone: sealPii('13800138000') }) },
+  };
+
+  it('主联系人 phone = 账号 phone → 放行', async () => {
+    await expect(assertPrimaryContactMatchesAccount(prisma, {
+      supplierId: 's1',
+      contacts: [{ phone: '13800138000', isPrimary: true }],
+    })).resolves.toBeUndefined();
+  });
+
+  it('主联系人 phone ≠ 账号 phone → PRIMARY_CONTACT_PHONE_MISMATCH', async () => {
+    await expect(assertPrimaryContactMatchesAccount(prisma, {
+      supplierId: 's1',
+      contacts: [{ phone: '13900139000', isPrimary: true }],
+    })).rejects.toMatchObject({ response: { code: 'PRIMARY_CONTACT_PHONE_MISMATCH' } });
+  });
+
+  it('无主联系人（额外联系人）→ 不校验、放行', async () => {
+    await expect(assertPrimaryContactMatchesAccount(prisma, {
+      supplierId: 's1',
+      contacts: [{ phone: '13900139000', isPrimary: false }],
+    })).resolves.toBeUndefined();
   });
 });

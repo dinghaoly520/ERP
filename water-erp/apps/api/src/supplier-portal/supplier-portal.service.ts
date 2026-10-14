@@ -21,7 +21,7 @@ import { wrapKey } from '../common/crypto/envelope-crypto';
 import { sealField, openField } from '../common/crypto/field-crypto';
 import { sealChangeValue, openChangeValue } from '../supplier/change-record-pii';
 import { openPii, openPiiForMask, sealPii, blindIndexPii } from '../common/crypto/sm-field-crypto';
-import { assertContactPhonesUnique } from '../supplier/contact-phone-unique';
+import { assertContactPhonesUnique, assertPrimaryContactMatchesAccount } from '../supplier/contact-phone-unique';
 import { SignatureService } from '../common/crypto/signature.service';
 import { OID_SM2_ECC, parseCertificate } from '../common/crypto/x509/x509-cert';
 import { TrustStore } from '../common/crypto/x509/trust-store';
@@ -1031,6 +1031,11 @@ export class SupplierPortalService {
       supplierId,
       contacts: [{ phone: dto.phone, isPrimary: dto.isPrimary }],
     });
+    // 主联系人 = 账号（2026-10-14 稳健性）
+    await assertPrimaryContactMatchesAccount(this.prisma, {
+      supplierId,
+      contacts: [{ phone: dto.phone, isPrimary: dto.isPrimary }],
+    });
     // PII 国密密封 + 盲索引（等保+密评）；返回本人自视明文
     const created = await this.prisma.supplierContact.create({
       data: {
@@ -1063,6 +1068,11 @@ export class SupplierPortalService {
         supplierId,
         contacts: [{ phone: nextPhone, isPrimary: nextIsPrimary }],
         excludeContactId: contactId,
+      });
+      // 主联系人 = 账号（2026-10-14 稳健性）
+      await assertPrimaryContactMatchesAccount(this.prisma, {
+        supplierId,
+        contacts: [{ phone: nextPhone, isPrimary: nextIsPrimary }],
       });
     }
     const updated = await this.prisma.supplierContact.update({

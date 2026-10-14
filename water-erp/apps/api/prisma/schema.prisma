@@ -1569,7 +1569,7 @@ model SupplierContact {
 
   @@index([supplierId])
   @@index([idCardIdx]) // 国密加密后等值冲突校验（盲索引）
-  @@index([phoneIdx]) // 联系人手机号查重（盲索引，应用层唯一性校验，非 DB 唯一约束——跨表口径）
+  @@unique([supplierId, phoneIdx]) // 2026-10-14：额外联系人供应商内唯一（硬约束，null 互不冲突；主联系人全局唯一由 User.phoneIdx 兜底）
 }
 
 // ── 供应商自有档案（:3004 我的合同/框架协议页自建留存：线下历史合同、自有履约证明等）──

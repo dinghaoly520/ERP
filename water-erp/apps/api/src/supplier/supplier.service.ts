@@ -27,7 +27,7 @@ import * as XLSX from 'xlsx';
 import { createHash } from 'crypto';
 import { registrationAssetIdFromUrl, registrationUploadNamespace } from '../upload/registration-upload';
 import { sealPii, openPii, blindIndexPii } from '../common/crypto/sm-field-crypto';
-import { assertContactPhonesUnique, assertContactsArrayPhonesUnique } from './contact-phone-unique';
+import { assertContactPhonesUnique, assertContactsArrayPhonesUnique, assertPrimaryContactMatchesAccount } from './contact-phone-unique';
 import { isSealedFieldSm, openPiiForMask } from '../common/crypto/sm-field-crypto';
 import { logSensitiveAccess } from '../common/sensitive-access.util';
 import { openChangeValue, maskChangeValue } from './change-record-pii';
@@ -2190,6 +2190,11 @@ export class SupplierService {
         }
         // 联系人手机号唯一性（2026-10-14）：主联系人全局唯一 + 额外联系人供应商内唯一
         await assertContactPhonesUnique(tx, {
+          supplierId: change.supplierId,
+          contacts: contacts.map((c: any) => ({ phone: String(c.phone ?? '').trim(), isPrimary: !!c.isPrimary })),
+        });
+        // 主联系人 = 账号（2026-10-14 稳健性）：换主联系人手机号须走资料变更，不随转正改账号手机号
+        await assertPrimaryContactMatchesAccount(tx, {
           supplierId: change.supplierId,
           contacts: contacts.map((c: any) => ({ phone: String(c.phone ?? '').trim(), isPrimary: !!c.isPrimary })),
         });
