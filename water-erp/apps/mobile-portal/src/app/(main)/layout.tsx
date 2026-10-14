@@ -61,7 +61,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(238,244,255,0.86))] shadow-[0_8px_20px_rgba(69,99,158,0.16)]">
           <Image src="/procurement-brand-logo.png" alt="蜀水云采" width={32} height={32} className="rounded-[8px] object-cover" priority />
         </div>
-        <div className="min-w-0 flex-1 truncate text-[15px] font-bold tracking-[0.04em] text-[var(--foreground)]">移动驾驶舱</div>
+        <div className="min-w-0 flex-1 truncate text-[15px] font-bold tracking-[0.04em] text-[var(--foreground)]">蜀水云采·移动驾驶舱</div>
         <span className="max-w-[9rem] truncate rounded-full border border-[color-mix(in_oklch,var(--accent)_18%,transparent)] bg-[color-mix(in_oklch,var(--accent)_7%,transparent)] px-2.5 py-1 text-[11px] font-semibold text-[var(--accent)]">
           {user?.displayName ?? ""}
         </span>

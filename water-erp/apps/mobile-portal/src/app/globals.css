@@ -319,6 +319,7 @@ a {
 .neu-btn-soft {
   display: inline-flex;
   align-items: center;
+  justify-content: center; /* 方形图标钮（p-0 + w/h）内容居中——同 neu-btn-primary */
   gap: 6px;
   padding: 8px 18px;
   font-size: 13px;
