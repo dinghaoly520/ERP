@@ -83,6 +83,15 @@ export const supplierApi = {
       { envelope },
     );
   },
+  /** dual-v3 补传锚点（阶段2.5 T1）：roles 明文哈希+sealedFields 自版本快照 */
+  getReuploadContext(projectId: string) {
+    return api.get<any>(`/supplier-portal/bid-submissions/${projectId}/reupload-context`);
+  },
+  /** dual-v3 补传（阶段2.5 T2）：六闸+CAS 版本推进 */
+  reuploadV3(projectId: string, body: { operationId: string; signatureFormat: string; signP7: string; baseRevision: number }) {
+    return api.post<any>(`/supplier-portal/bid-submissions/${projectId}/reupload-v3`, body);
+  },
+
   /** 开标解密包（Task9）：v3 返回 kself P7/innerSha256/revision/envelopeDigest */
   getOpeningPackage(projectId: string) {
     return api.get<any>(`/supplier-portal/bid-submissions/${projectId}/opening-package`);

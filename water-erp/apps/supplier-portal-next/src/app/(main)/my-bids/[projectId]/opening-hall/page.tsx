@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { CaOpeningDecryptCard } from "@/components/ca-opening-decrypt-card";
+import { CaBidReuploadCard } from "@/components/ca-bid-reupload-card";
 import { toast } from "sonner";
 import dayjs from "dayjs";
 import { CloudOff, Clock, Lock, MessageSquareOff, User, Wifi } from "lucide-react";
@@ -447,6 +448,10 @@ export default function OpeningHallPage() {
               旧轨（无信封）家仍走主持端代解密——按 mySubmission.envelopeVersion 分流 */}
         {isOpening && (record?.submitted as any)?.envelopeVersion === 'dual-v3' && (
           <CaOpeningDecryptCard projectId={projectId} onDecrypted={() => refresh()} />
+        )}
+        {/* ═══ dual-v3 解密异常补传卡（阶段2.5 T3）：DANGER 终局恢复通道 ═══ */}
+        {isOpening && (record?.submitted as any)?.envelopeVersion === 'dual-v3' && String(decryptStatus).toUpperCase() === 'DANGER' && (
+          <CaBidReuploadCard projectId={projectId} onReuploaded={() => refresh()} />
         )}
 
         {/* 唱标记录总表：自开标起向本项目全体投标人公开（《电子招标投标办法》第30条），

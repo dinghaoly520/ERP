@@ -6,7 +6,7 @@
    原语全部来自 @water-erp/ukey（前后端同源 sm-crypto 字节通道）
    ================================================================= */
 import {
-  randomHex, sm4Encrypt, sm2EncryptHex, sha256Hex, canonicalJson,
+  randomHex, sm4Encrypt, sm4Decrypt, sm2EncryptHex, sha256Hex, canonicalJson,
   buildV3Envelope, computeV3FieldsCommit, keyWrapJson,
 } from '@water-erp/ukey';
 import type { DualV3Envelope, DualV3SealedFields, V3Fields, V3Role } from '@water-erp/ukey';
@@ -62,6 +62,7 @@ export async function encryptAndUploadV3(
   adminCert: { adminCertId: string; publicKey: string },
   deps: V3UploadDeps,
   context: { supplierId: string; submissionId: string; revision: number; signingBindingId: string; signingCertFingerprint: string },
+  reuseNonce?: string,
 ): Promise<{
   envelope: DualV3Envelope;
   uploadedAssets: Array<{ role: V3Role; fileAssetId: string }>;
@@ -120,7 +121,8 @@ export async function encryptAndUploadV3(
   // ── sealedFields：canonical {fields, nonce} → SM4（DEK_F）→ 盾 P7 封装 DEK_F ──
   // Ruling（Task12 补）：cipher 须同时携带 nonce——供应商开标解密时从密文反解 nonce，
   // 方可回传 decrypt-upload 重验 fieldsCommit（服务端对 cipher 零知识，仅比对承诺）。
-  const nonceHex = randomHex(16);
+  // 补传（阶段2.5 T3）：复用原 nonce——fieldsCommit 与原版一致（服务端改价闸比对通过）
+  const nonceHex = reuseNonce ?? randomHex(16);
   const dekF = { keyHex: randomHex(16), ivHex: randomHex(16) };
   const fieldsJson = canonicalJson({ fields, nonce: nonceHex });
   const cipherHex = sm4Encrypt(dekF.keyHex, dekF.ivHex, utf8Hex(fieldsJson));
@@ -171,4 +173,17 @@ export function buildDecryptProofCanonical(input: {
     plainSha256ByRole: input.plainSha256ByRole,
     fieldsCommit: input.fieldsCommit,
   });
+}
+
+/** 补传方盾复原（阶段2.5 T3）：盾 unwrapKey 得 DEK_F json → 解 sealedFields.cipher
+ *  → {fields, nonce}。与 encryptAndUploadV3 密封侧闭环（单测互证）。 */
+export async function unwrapSealedFields(
+  dekJson: string,
+  sealedFields: { cipher: string },
+): Promise<{ fields: V3Fields; nonce: string }> {
+  const dek = JSON.parse(dekJson) as { k: string; iv: string };
+  const plainHex = sm4Decrypt(dek.k, dek.iv, sealedFields.cipher);
+  const bytes = Uint8Array.from((plainHex.match(/.{2}/g) ?? []).map((h) => parseInt(h, 16)));
+  const parsed = JSON.parse(new TextDecoder().decode(bytes)) as { fields: V3Fields; nonce: string };
+  return { fields: parsed.fields, nonce: parsed.nonce };
 }

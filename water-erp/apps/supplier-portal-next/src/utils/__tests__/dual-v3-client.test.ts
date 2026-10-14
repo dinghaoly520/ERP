@@ -104,3 +104,24 @@ test('C-1 契约：nextRevisionContext——信封 revision = base+1（服务端
   const next5 = nextRevisionContext({ ...ctx, revision: 5 });
   assert.equal(next5.revision, 6, '撤回重投 N→N+1');
 });
+
+test('T3 补传契约：reuseNonce——复用原 nonce 则 fieldsCommit 与首投一致', async () => {
+  const { encryptAndUploadV3 } = await import('../dual-v3-client');
+  const { computeV3FieldsCommit } = await import('@water-erp/ukey');
+  const F = { price: '88.8', amountUnit: '万元', currency: 'CNY', deliveryPeriod: '60 日历天', qualityCommitment: '合格' } as any;
+  const REUSED = 'cd'.repeat(16);
+  const mk = async () => {
+    const captured: string[] = [];
+    const adapter = { wrapKeyToEncCert: async (_p: string, json: string) => { captured.push(json); return 'TURJWA==.' + captured.length; } };
+    return { captured, r: await encryptAndUploadV3('p1', [{ role: 'technical', file: new File([new TextEncoder().encode('reupload-plain')], 't.pdf') }], F, ENC_CERT_PEM, adapter as any, ADMIN, {
+      uploadOuter: async (role: string) => ({ fileAssetId: `fa-${role}`, outerSha256: '', outerBytes: 1 }),
+    }, { supplierId: 'sup-1', submissionId: 'sub-1', revision: 1, signingBindingId: 'b', signingCertFingerprint: 'f'.repeat(64) }, REUSED) };
+  };
+  const { captured, r } = await mk();
+  assert.equal(r.nonceHex, REUSED, 'nonce 复用不自生成');
+  assert.equal(r.fieldsCommit, await computeV3FieldsCommit(F, REUSED), 'fieldsCommit 按复用 nonce 计算——服务端改价闸比对通过');
+  // 闭环：unwrapSealedFields 用捕获的 DEK_F 解回 fields+nonce
+  const { unwrapSealedFields } = await import('../dual-v3-client');
+  const restored = await unwrapSealedFields(captured[1]!, r.sealedFields);
+  assert.deepEqual(restored, { fields: F, nonce: REUSED }, '补传方盾复原 fields+nonce 闭环');
+});
