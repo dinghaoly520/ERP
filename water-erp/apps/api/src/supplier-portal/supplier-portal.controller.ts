@@ -572,7 +572,12 @@ export class SupplierPortalController {
       const f = (uploaded as any)?.[field]?.[0] as Express.Multer.File | undefined;
       if (f) files[role] = f.buffer;
     }
-    return this.portalService.decryptUpload(supplierId, projectId, files, body?.fieldsJson ?? '', body?.nonce ?? '');
+    // dual-v3（Task9）：multipart body 附带 P7 解密证明（operationId/signP7/signatureFormat）
+    return this.portalService.decryptUpload(supplierId, projectId, files, body?.fieldsJson ?? '', body?.nonce ?? '', {
+      operationId: (body as any)?.operationId,
+      signatureFormat: (body as any)?.signatureFormat,
+      signP7: (body as any)?.signP7,
+    });
   }
 
   // 开标确认（供应商侧）
