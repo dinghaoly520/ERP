@@ -30,7 +30,7 @@ import { PullIndicator } from "@/components/m/pull-indicator";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { readSavedFilters, saveFilters } from "@/lib/filter-store";
 
-type DashboardSavedFilters = { rangeKey: RangeKey; companyId: string };
+type DashboardSavedFilters = { rangeKey: RangeKey; companyIds: string[] };
 
 /* ── 工具 ── */
 
@@ -167,8 +167,8 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const role = user?.role ?? null;
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
-  const [companyId, setCompanyId] = useState<string>(
-    () => readSavedFilters<DashboardSavedFilters>("dashboard").companyId ?? "all",
+  const [companyIds, setCompanyIds] = useState<string[]>(
+    () => readSavedFilters<DashboardSavedFilters>("dashboard").companyIds ?? [],
   );
 
   const [rangeKey, setRangeKey] = useState<RangeKey>(
@@ -221,7 +221,7 @@ export default function DashboardPage() {
   const loadData = useCallback(() => {
     setLoading(true);
     setError(null);
-    return fetchDashboardData(queryRange.startDate, queryRange.endDate, companyId === "all" ? undefined : companyId)
+    return fetchDashboardData(queryRange.startDate, queryRange.endDate, companyIds.length ? companyIds.join(",") : undefined)
       .then((d) => {
         setData(d);
         setAiResult(null); // 口径变化后旧分析作废
@@ -232,7 +232,7 @@ export default function DashboardPage() {
       })
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queryRange.startDate, queryRange.endDate, companyId, retryTick]);
+  }, [queryRange.startDate, queryRange.endDate, companyIds, retryTick]);
 
   useEffect(() => {
     loadData();
@@ -347,7 +347,7 @@ export default function DashboardPage() {
                 setCustomApplied({});
                 setCustomStart("");
                 setCustomEnd("");
-                saveFilters("dashboard", { rangeKey: key, companyId } satisfies DashboardSavedFilters);
+                saveFilters("dashboard", { rangeKey: key, companyIds } satisfies DashboardSavedFilters);
               }}
             >
               {RANGE_LABELS[key]}
@@ -385,11 +385,11 @@ export default function DashboardPage() {
         ) : null}
         {role === "admin" ? (
           <CompanyPicker
-            value={companyId}
+            value={companyIds}
             options={companies}
             onChange={(next) => {
-              setCompanyId(next);
-              saveFilters("dashboard", { rangeKey, companyId: next } satisfies DashboardSavedFilters);
+              setCompanyIds(next);
+              saveFilters("dashboard", { rangeKey, companyIds: next } satisfies DashboardSavedFilters);
             }}
             className="mb-0"
           />

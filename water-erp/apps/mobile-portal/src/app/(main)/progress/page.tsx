@@ -99,8 +99,8 @@ export default function ProgressPage() {
   const { user } = useAuth();
   const role = user?.role ?? null;
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
-  const [companyId, setCompanyId] = useState<string>(
-    () => readSavedFilters<{ companyId: string }>("progress").companyId ?? "all",
+  const [companyIds, setCompanyIds] = useState<string[]>(
+    () => readSavedFilters<{ companyIds: string[] }>("progress").companyIds ?? [],
   );
 
   const [stats, setStats] = useState<ProgressStats | null>(null);
@@ -128,7 +128,7 @@ export default function ProgressPage() {
     };
   }, [role]);
 
-  const filterCompanyId = companyId === "all" ? undefined : companyId;
+  const filterCompanyId = companyIds.length ? companyIds.join(",") : undefined;
 
   useEffect(() => {
     let active = true;
@@ -204,12 +204,12 @@ export default function ProgressPage() {
       <PullIndicator pull={pull} refreshing={refreshing} />
       {role === "admin" ? (
         <CompanyPicker
-          value={companyId}
+          value={companyIds}
           options={companies}
           onChange={(next) => {
-            setCompanyId(next);
+            setCompanyIds(next);
             setInsights(null); // 口径变化，旧洞察作废（展开态自动重取）
-            saveFilters("progress", { companyId: next });
+            saveFilters("progress", { companyIds: next });
           }}
         />
       ) : null}

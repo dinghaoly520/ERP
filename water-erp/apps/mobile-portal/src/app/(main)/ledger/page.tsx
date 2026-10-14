@@ -22,7 +22,7 @@ const PAGE_SIZE = 15;
 type LedgerSavedFilters = {
   statusFilter: ResultStatusKey | null;
   methodFilter: string | null;
-  companyId: string;
+  companyIds: string[];
 };
 
 const RETENTION_LABELS: Record<string, string> = { PERMANENT: "永久", Y30: "30 年", Y10: "10 年" };
@@ -60,7 +60,7 @@ export default function LedgerPage() {
   const role = user?.role ?? null;
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const saved = useMemo(() => readSavedFilters<LedgerSavedFilters>("ledger"), []);
-  const [companyId, setCompanyId] = useState<string>(saved.companyId ?? "all");
+  const [companyIds, setCompanyIds] = useState<string[]>(saved.companyIds ?? []);
 
   const [searchInput, setSearchInput] = useState("");
   const [searchKeyword, setSearchKeyword] = useState("");
@@ -116,7 +116,7 @@ export default function LedgerPage() {
     };
   }, [role]);
 
-  const filterCompanyId = companyId === "all" ? undefined : companyId;
+  const filterCompanyId = companyIds.length ? companyIds.join(",") : undefined;
 
   /* 列表（首页替换、翻页追加；失败保留旧数据） */
   useEffect(() => {
@@ -197,9 +197,9 @@ export default function LedgerPage() {
 
   const persistLedger = useCallback(
     (patch: Partial<LedgerSavedFilters>) => {
-      saveFilters("ledger", { statusFilter, methodFilter, companyId, ...patch });
+      saveFilters("ledger", { statusFilter, methodFilter, companyIds, ...patch });
     },
-    [statusFilter, methodFilter, companyId],
+    [statusFilter, methodFilter, companyIds],
   );
 
   const { pull, refreshing } = usePullToRefresh(
@@ -312,12 +312,12 @@ export default function LedgerPage() {
       ) : null}
       {role === "admin" ? (
         <CompanyPicker
-          value={companyId}
+          value={companyIds}
           options={companies}
           onChange={(next) =>
             changeFilter(() => {
-              setCompanyId(next);
-              persistLedger({ companyId: next });
+              setCompanyIds(next);
+              persistLedger({ companyIds: next });
             })
           }
         />
