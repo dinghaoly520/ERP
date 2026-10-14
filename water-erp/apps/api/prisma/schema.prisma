@@ -2074,11 +2074,15 @@ model BidFileBackup {
   size             Int
   receiptNo        String? // 回执号 TB-yyyymmdd-NNN
   backupSource     String   @default("submission") // submission | reconcile
-  cryptoVersion    String   @default("envelope-v1") // AES-256-GCM + wrapKey(salt water-erp-envelope-salt-v1)
+  cryptoVersion    String   @default("envelope-v1") // AES-256-GCM + wrapKey(salt water-erp-envelope-salt-v1) | dual-envelope-v2 | dual-envelope-v3
+  // ── dual-v3（阶段2.5 T0）：版本维度——supplierId+projectId 与 submission 一一对应，
+  //    自然键 [projectId,supplierId,fileRole,revision] 等价 submissionId+revision+role；
+  //    v2 存量行 revision=0 零回填共存
+  revision         Int      @default(0)
   submittedAt      DateTime
   createdAt        DateTime @default(now())
 
-  @@unique([supplierId, projectId, fileRole])
+  @@unique([projectId, supplierId, fileRole, revision])
   @@index([projectId, supplierId])
 }
 
@@ -4066,8 +4070,11 @@ model Outbox {
   id          String    @id @default(cuid())
   topic       String
   payload     Json
-  status      String    @default("PENDING")
+  status      String    @default("PENDING") // PENDING | DISPATCHING | SENT | FAILED
   publishedAt DateTime?
+  // ── dual-v3（阶段2.5 T0）：消费退避——attempts≥5 封顶 FAILED
+  attempts    Int       @default(0)
+  lastError   String?
   createdAt   DateTime  @default(now())
 
   @@index([status, topic])

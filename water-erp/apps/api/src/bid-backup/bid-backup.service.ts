@@ -132,12 +132,14 @@ export class BidBackupService {
       backupSource: meta.backupSource,
       cryptoVersion: meta.cryptoVersion ?? CRYPTO_VERSION,
     };
+    // 阶段2.5 T0：唯一键 [projectId,supplierId,fileRole,revision]——v2 调用不传 revision=0（存量语义不变）
+    const revision = (meta as { revision?: number }).revision ?? 0;
     await tx.bidFileBackup.upsert({
       where: {
-        supplierId_projectId_fileRole: { supplierId: meta.supplierId, projectId: meta.projectId, fileRole: staged.fileRole },
+        projectId_supplierId_fileRole_revision: { supplierId: meta.supplierId, projectId: meta.projectId, fileRole: staged.fileRole, revision },
       },
       update: data,
-      create: { projectId: meta.projectId, supplierId: meta.supplierId, fileRole: staged.fileRole, ...data },
+      create: { projectId: meta.projectId, supplierId: meta.supplierId, fileRole: staged.fileRole, revision, ...data },
     });
   }
 
@@ -166,8 +168,10 @@ export class BidBackupService {
 
     const perFile: BackupVerifyFileResult[] = [];
     for (const e of expected) {
-      const backup = await this.prisma.bidFileBackup.findUnique({
-        where: { supplierId_projectId_fileRole: { supplierId, projectId, fileRole: e.role } },
+      // 阶段2.5 T0：核验按最新版本行取（revision 降序首行——v3 多版本时取当前）
+      const backup = await this.prisma.bidFileBackup.findFirst({
+        where: { supplierId, projectId, fileRole: e.role },
+        orderBy: { revision: 'desc' },
       });
       if (!backup) {
         perFile.push({ fileRole: e.role, status: 'missing', backupIntact: null, sealedMatchesBackup: null, recordedSha256: null, backupSha256: null, sealedSha256: null, backupSource: null, submittedAt: null });
@@ -224,8 +228,9 @@ export class BidBackupService {
       ];
       for (const c of candidates) {
         if (!c.assetId || !c.sealedKey) continue; // 无该文件或 legacy 未封标 → 跳过
-        const existing = await this.prisma.bidFileBackup.findUnique({
-          where: { supplierId_projectId_fileRole: { supplierId: sub.supplierId, projectId: sub.projectId, fileRole: c.role } },
+        // 阶段2.5 T0：补账存在性查任意版本（有任一版本即不重复补）
+        const existing = await this.prisma.bidFileBackup.findFirst({
+          where: { supplierId: sub.supplierId, projectId: sub.projectId, fileRole: c.role },
         });
         if (existing) continue;
         try {
