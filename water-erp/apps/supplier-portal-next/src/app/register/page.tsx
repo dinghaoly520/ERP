@@ -220,6 +220,20 @@ export default function RegisterPage() {
   const [agree, setAgree] = useState(false);
   const [creditCodeDuplicate, setCreditCodeDuplicate] = useState(false);
   const [legalIdCardDuplicate, setLegalIdCardDuplicate] = useState(false);
+  // 退回补正 / 驳回重注册 检测（2026-10-14）：公司名失焦查公开状态——
+  // RETURNED→横幅引导进入补正（主联系人短信验证→回填→原位重提）；REJECTED→提示可正常重注册（后端壳重开）
+  const [correction, setCorrection] = useState<{
+    status: "RETURNED" | "REJECTED" | null;
+    reason?: string;
+    name?: string;
+    creditCode?: string;
+    maskedPhone?: string;
+    token?: string;
+  }>({ status: null });
+  const [correctionCode, setCorrectionCode] = useState("");
+  const [correctionSending, setCorrectionSending] = useState(false);
+  const [correctionCooldown, setCorrectionCooldown] = useState(0);
+  const [correctionLoading, setCorrectionLoading] = useState(false);
 
   /* 本机注册草稿暂存与恢复（localStorage） */
   const draftData = useMemo(() => ({
@@ -375,12 +389,17 @@ export default function RegisterPage() {
     if (!/^[0-9A-Z]{18}$/.test(code)) return;
     try {
       const res = await authApi.checkDuplicate({ creditCode: code });
-      setCreditCodeDuplicate(res.creditCode);
-      if (res.creditCode) toast.warning("该统一社会信用代码已被注册，请核对后重试");
+      // 2026-10-14：REJECTED=驳回壳可重注册（后端 register 原位覆盖）、RETURNED=退回补正流程接管——均不作阻塞重复
+      const blocking = res.creditCode && res.creditCodeStatus !== "REJECTED" && res.creditCodeStatus !== "RETURNED";
+      setCreditCodeDuplicate(blocking);
+      if (res.creditCodeStatus === "RETURNED") toast.info("该统一社会信用代码有退回补正中的申请，请在企业信息步通过「进入补正」完成验证后重新提交");
+      else if (blocking) toast.warning("该统一社会信用代码已被注册，请核对后重试");
     } catch { /* 查重失败不阻塞 */ }
   }
   async function checkLegalIdCard() {
     setLegalIdCardDuplicate(false);
+    // 补正模式：法人证号命中自身 RETURNED 行（非他人占用），不算重复
+    if (correction.status === "RETURNED" && correction.token) return;
     const id = basic.legalPersonIdCard.trim();
     if (!/^\d{17}[\dXx]$/.test(id)) return;
     try {
@@ -388,6 +407,101 @@ export default function RegisterPage() {
       setLegalIdCardDuplicate(res.legalPersonIdCard);
       if (res.legalPersonIdCard) toast.warning("该法定代表人身份证号已用于其他供应商注册，请核对");
     } catch { /* 不阻塞 */ }
+  }
+
+  /* 退回补正 / 驳回重注册（2026-10-14）：公司名失焦检测 → 横幅 → 发码 → 验证回填 */
+  async function checkNameForCorrection() {
+    const name = basic.name.trim();
+    if (!name) return;
+    try {
+      const res = await authApi.getRegisterStatusPublic(undefined, name);
+      if (res.found && res.status === "RETURNED") {
+        // 补正中重复失焦：保留已验证的 token/maskedPhone（补正允许改名，不能因失焦刷新而丢 token）
+        setCorrection((c) => ({ ...c, status: "RETURNED", reason: res.reason ?? undefined, name: res.name, creditCode: res.creditCode ?? undefined }));
+      } else if (res.found && res.status === "REJECTED") {
+        setCorrection({ status: "REJECTED", name: res.name, creditCode: res.creditCode ?? undefined });
+      } else {
+        setCorrection({ status: null });
+      }
+    } catch { /* 查询失败不阻塞 */ }
+  }
+
+  async function startCorrection() {
+    if (!correction.name || !correction.creditCode) { toast.warning("请先填写完整的公司名称与统一社会信用代码"); return; }
+    setCorrectionSending(true);
+    try {
+      const res = await authApi.requestCorrection(correction.name, correction.creditCode);
+      if (!res.maskedPhone) { toast.error("未找到待补正的申请，请核对公司名称与信用代码"); return; }
+      setCorrection((c) => ({ ...c, maskedPhone: res.maskedPhone }));
+      toast.success("验证码已发送至注册时验证的手机号");
+      setCorrectionCooldown(60);
+      const timer = setInterval(() => {
+        setCorrectionCooldown((n) => { if (n <= 1) { clearInterval(timer); return 0; } return n - 1; });
+      }, 1000);
+    } catch (e) {
+      toast.error(getErrorMessage(e, "验证码发送失败"));
+    } finally {
+      setCorrectionSending(false);
+    }
+  }
+
+  async function confirmCorrection() {
+    if (!correction.name || !correction.creditCode) return;
+    setCorrectionLoading(true);
+    try {
+      const v = await authApi.verifyCorrection(correction.name, correction.creditCode, correctionCode.trim());
+      setCorrection((c) => ({ ...c, token: v.correctionToken }));
+      const draftRes = await authApi.getCorrectionDraft(v.correctionToken, correction.name, correction.creditCode);
+      applyCorrectionDraft(draftRes);
+      // 清除进入补正前失焦查重留下的自身命中标志，避免 nextStep 误拦
+      setCreditCodeDuplicate(false);
+      setLegalIdCardDuplicate(false);
+      toast.success("已回填此前填写的资料，请核对后修改并重新提交");
+    } catch (e) {
+      toast.error(getErrorMessage(e, "验证失败，请核对验证码"));
+    } finally {
+      setCorrectionLoading(false);
+    }
+  }
+
+  /** 补正草稿回填（映射风格对齐 acceptRecovery；法定身份证材料单列，营业执照行置首） */
+  function applyCorrectionDraft(d: any) {
+    setBasic((b) => ({
+      ...b,
+      name: d.name ?? b.name, creditCode: d.creditCode ?? b.creditCode,
+      enterpriseType: d.enterpriseType ?? "", legalPerson: d.legalPerson ?? "",
+      legalPersonIdCard: d.legalPersonIdCard ?? "", legalPersonPhone: d.legalPersonPhone ?? "",
+      registeredAddress: d.registeredAddress ?? "", businessScope: d.businessScope ?? "",
+      detailedAddress: d.detailedAddress ?? "", country: d.country ?? b.country,
+      region: d.region ?? "", registeredCapital: d.registeredCapital ? String(d.registeredCapital).replace(/万元$/, "") : "",
+      industry: d.industry ?? "", establishedDate: d.establishedDate ?? "",
+      companyProfile: d.companyProfile ?? "", companyEmail: d.companyEmail ?? "",
+      companyWebsite: d.companyWebsite ?? "",
+    }));
+    setTags(Array.isArray(d.tags) ? d.tags.filter(Boolean) : []);
+    setContacts(d.contacts?.length ? d.contacts.map((c: any) => ({ name: c.name ?? "", gender: c.gender ?? "", phone: c.phone ?? "", idCard: c.idCard ?? "", email: c.email ?? "", position: c.position ?? "", isPrimary: !!c.isPrimary })) : contacts);
+    setBanks((d.bankAccounts ?? []).map((b: any) => ({ accountName: b.accountName ?? "", bankName: b.bankName ?? "", bankBranch: b.bankBranch ?? "", accountNo: b.accountNo ?? "", isDefault: !!b.isDefault })));
+    // 资质：法定代表人身份证条目拆出（fileUrl→人像面、attachments[0]→国徽面），营业执照行置首（UI 首行 type 锁定），其余按原序
+    const qualRows: QualRow[] = (d.qualifications ?? []).map((q: any) => ({
+      type: q.type ?? "", name: q.name ?? "", fileUrl: q.fileUrl ?? "",
+      attachments: Array.isArray(q.attachments) ? q.attachments : [],
+      validFrom: q.validFrom ?? "", validTo: q.validTo ?? "",
+    }));
+    const legalQual = qualRows.find((q) => q.type === "法定代表人身份证");
+    if (legalQual?.fileUrl) setLegalIdFront(legalQual.fileUrl);
+    if (legalQual?.attachments?.[0]?.url) setLegalIdBack(legalQual.attachments[0].url);
+    const rest = qualRows.filter((q) => q !== legalQual);
+    const license = rest.find((q) => q.type === "营业执照");
+    setQuals([license ?? { type: "营业执照", name: "", fileUrl: "", attachments: [], validFrom: "", validTo: "" }, ...rest.filter((q) => q !== license)]);
+    // 业绩证明材料按 kind 拆回证明/汇款凭证两栏（提交时再合并）
+    setPerfs((d.performances ?? []).map((p: any) => ({
+      projectName: p.projectName ?? "", clientName: p.clientName ?? "", contractAmount: p.contractAmount ?? "",
+      signDate: p.signDate ?? "", description: p.description ?? "",
+      proofFiles: (p.proofFiles ?? []).filter((f: any) => (f.kind ?? "proof") !== "payment"),
+      paymentProofs: (p.proofFiles ?? []).filter((f: any) => f.kind === "payment"),
+    })));
+    if (d.companyName) setBelongCompany(d.companyName);
+    draft.clearDraft(); // 补正覆盖本机草稿
   }
 
   /* 分步校验 */
@@ -485,8 +599,10 @@ export default function RegisterPage() {
 
   async function nextStep() {
     if (step === 1) {
-      if (creditCodeDuplicate) { toast.error("统一社会信用代码重复，无法进入下一步"); return; }
-      if (legalIdCardDuplicate) { toast.warning("法定代表人身份证号已存在，请核对"); return; }
+      // 补正模式：信用代码/法人证号命中自身 RETURNED 行，不作重复拦截（2026-10-14）
+      const inCorrection = correction.status === "RETURNED" && !!correction.token;
+      if (creditCodeDuplicate && !inCorrection) { toast.error("统一社会信用代码重复，无法进入下一步"); return; }
+      if (legalIdCardDuplicate && !inCorrection) { toast.warning("法定代表人身份证号已存在，请核对"); return; }
     }
     if (!validate()) return;
     // 步骤 0 门槛（2026-10-09）：服务端消费验证码并换发注册会话 token——后续步骤不再要求验证码
@@ -528,6 +644,60 @@ export default function RegisterPage() {
       toast.warning(message);
       return;
     }
+    // 退回补正重提（2026-10-14）：凭一次性补正 token 原位更新 RETURNED 申请。
+    // 分支置于注册查重之前——自身 RETURNED 行的信用代码/法人证号/联系人证号必然命中查重；
+    // 补正验证链（主联系人短信 token）独立于步骤 0 注册验证，其余校验（资质/联系人/协议）与注册共用。
+    if (correction.status === "RETURNED" && correction.token) {
+      setLoading(true);
+      try {
+        await authApi.submitCorrection({
+          token: correction.token,
+          name: basic.name.trim(),
+          creditCode: basic.creditCode.trim(),
+          enterpriseType: basic.enterpriseType,
+          legalPerson: basic.legalPerson.trim(),
+          legalPersonIdCard: basic.legalPersonIdCard.trim(),
+          legalPersonPhone: basic.legalPersonPhone.trim() || undefined,
+          registeredAddress: basic.registeredAddress.trim(),
+          businessScope: basic.businessScope.trim(),
+          logoUrl: basic.logoUrl || undefined,
+          country: basic.country.trim() || undefined,
+          region: basic.region.trim() || undefined,
+          detailedAddress: basic.detailedAddress.trim() || undefined,
+          registeredCapital: basic.registeredCapital.trim() ? `${basic.registeredCapital.trim()}万元` : undefined,
+          industry: basic.industry.trim() || undefined,
+          establishedDate: basic.establishedDate || undefined,
+          companyProfile: basic.companyProfile.trim() || undefined,
+          companyEmail: basic.companyEmail.trim() || undefined,
+          companyWebsite: basic.companyWebsite.trim() || undefined,
+          companyName: belongCompany || undefined,
+          tags: [...new Set(tags.map((t) => t.trim()).filter(Boolean))],
+          contacts: contacts.filter((c) => c.name.trim() || c.phone.trim() || c.idCard.trim()).map((c) => ({ name: c.name.trim(), gender: c.gender || undefined, phone: c.phone.trim(), idCard: c.idCard.trim(), email: c.email || undefined, position: c.position || undefined, isPrimary: c.isPrimary })),
+          qualifications: [
+            { type: "法定代表人身份证", name: `${basic.legalPerson.trim()}·身份证扫描件（人像面）`, fileUrl: legalIdFront, attachments: legalIdBack ? [{ name: `${basic.legalPerson.trim()}·身份证国徽面（反面）`, url: legalIdBack }] : undefined },
+            ...quals.filter((q) => q.type || q.name.trim() || q.fileUrl).map((q) => ({ type: q.type, name: q.name.trim(), fileUrl: q.fileUrl, attachments: q.attachments.length ? q.attachments : undefined, validFrom: q.validFrom || undefined, validTo: q.validTo || undefined })),
+          ],
+          bankAccounts: banks.filter((b) => b.accountName.trim() || b.accountNo.trim()).map((b) => ({ accountName: b.accountName.trim(), bankName: b.bankName.trim(), bankBranch: b.bankBranch.trim() || undefined, accountNo: b.accountNo.trim(), isDefault: b.isDefault })),
+          performances: perfs.filter((p) => p.projectName.trim() || p.proofFiles.length > 0).map((p) => ({ projectName: p.projectName.trim(), clientName: p.clientName.trim() || undefined, contractAmount: p.contractAmount.trim() || undefined, signDate: p.signDate || undefined, description: p.description.trim() || undefined, proofFiles: [...p.proofFiles.map((f) => ({ ...f, kind: "proof" })), ...p.paymentProofs.map((f) => ({ ...f, kind: "payment" }))] })),
+        });
+        draft.clearDraft();
+        toast.success("补正已重新提交，请等待审核");
+        router.push(`/login?registered=1&creditCode=${encodeURIComponent(basic.creditCode)}`);
+      } catch (error: unknown) {
+        const errCode = (error as { code?: string })?.code;
+        if (errCode === "CORRECTION_NOT_FOUND" || errCode === "CORRECTION_PHONE_MISMATCH" || errCode === "REGISTRATION_SESSION_EXPIRED") {
+          setSubmissionError("补正验证已失效，请重新进入补正流程");
+          toast.error("补正验证已失效，请重新进入补正流程");
+          // 退回横幅的验证态（token/maskedPhone 作废），用户可就地重发验证码
+          setCorrection((c) => ({ ...c, token: undefined, maskedPhone: undefined }));
+        } else {
+          toast.error(getErrorMessage(error, "补正提交失败，请稍后重试"));
+        }
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
     const contactIdCards = contacts.map((c) => c.idCard.trim()).filter(Boolean);
     try {
       const dup = await authApi.checkDuplicate({
@@ -535,7 +705,14 @@ export default function RegisterPage() {
         legalPersonIdCard: basic.legalPersonIdCard.trim(),
         contactIdCard: contactIdCards[0],
       });
-      if (dup.creditCode) { toast.error("统一社会信用代码重复，无法注册，请核对后重试"); return; }
+      if (dup.creditCode) {
+        // RETURNED 必须走补正流程（后端 register 对非 REJECTED 壳硬拦截）；REJECTED 放行交后端壳重开
+        if (dup.creditCodeStatus === "RETURNED") {
+          toast.error("该统一社会信用代码有退回补正中的申请，请返回「企业与业务」步骤通过「进入补正」完成验证后重新提交");
+          return;
+        }
+        toast.error("统一社会信用代码重复，无法注册，请核对后重试"); return;
+      }
       if (dup.legalPersonIdCard) { toast.warning("法定代表人身份证号已存在，请核对"); return; }
       if (dup.contactIdCard) { toast.warning("联系人身份证号已存在，请核对"); return; }
     } catch { /* 不阻塞 */ }
@@ -687,7 +864,7 @@ export default function RegisterPage() {
       {step === STEPS.length - 1 && (
         <button type="button" className="reg-btn reg-btn--primary" disabled={loading} onClick={submit}>
           {!loading && <CheckCircle2 size={16} aria-hidden="true" />}
-          {loading ? "提交中…" : "提交注册申请"}
+          {loading ? "提交中…" : correction.status === "RETURNED" && correction.token ? "补正后重新提交" : "提交注册申请"}
         </button>
       )}
     </>
@@ -756,6 +933,36 @@ export default function RegisterPage() {
       {/* 2 · 企业与业务 */}
       <div className="reg-step-pane" hidden={step !== 1}>
         <div className="reg-form">
+          {/* 退回补正 / 驳回重注册 横幅（2026-10-14）：公司名称失焦检测触发 */}
+          {correction.status === "RETURNED" && (
+            <div className="reg-correction-banner warning" role="status">
+              <strong>检测到贵司有退回补正中的注册申请</strong>
+              {correction.reason && <p>退回原因：{correction.reason}</p>}
+              {!correction.token && (
+                <button type="button" className="neu-btn-soft" disabled={correctionSending} onClick={startCorrection}>
+                  {correctionSending ? "发送中…" : "进入补正"}
+                </button>
+              )}
+              {correction.maskedPhone && !correction.token && (
+                <div className="reg-correction-verify">
+                  <span>验证码已发至 {correction.maskedPhone}</span>
+                  <input className="reg-inp" value={correctionCode} onChange={(e) => setCorrectionCode(e.target.value)} placeholder="6 位验证码" maxLength={6} />
+                  <button type="button" className="neu-btn-soft" disabled={correctionLoading || correctionCooldown > 0} onClick={confirmCorrection}>
+                    {correctionLoading ? "验证中…" : "验证并回填"}
+                  </button>
+                </div>
+              )}
+              {correction.token && (
+                <p>已进入补正模式：资料已回填，统一社会信用代码锁定不可修改；请核对修改后在最后一步「补正后重新提交」。</p>
+              )}
+            </div>
+          )}
+          {correction.status === "REJECTED" && (
+            <div className="reg-correction-banner" role="status">
+              <strong>贵司曾有一笔被驳回的注册申请（资料已按数据最小化清除）</strong>
+              <p>可继续正常注册，提交时将重新建档。</p>
+            </div>
+          )}
           <RegistrationSection icon={Building2} title="企业信息" hint="请按营业执照如实填写">
                 <div className="reg-item">
                   <label className="reg-label">公司 logo</label>
@@ -776,8 +983,8 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="reg-form-grid">
-                  {item("name", "公司名称", inp(basic.name, (s) => setBasic((b) => ({ ...b, name: s })), "营业执照上的企业全称"), true)}
-                  {item("creditCode", "统一社会信用代码", inp(basic.creditCode, (s) => setBasic((b) => ({ ...b, creditCode: s.toUpperCase() })), "18 位代码，注册后与公司名称均可用于登录", { maxLength: 18, onBlur: checkCreditCode }), true)}
+                  {item("name", "公司名称", inp(basic.name, (s) => setBasic((b) => ({ ...b, name: s })), "营业执照上的企业全称", { onBlur: checkNameForCorrection }), true)}
+                  {item("creditCode", "统一社会信用代码", inp(basic.creditCode, (s) => setBasic((b) => ({ ...b, creditCode: s.toUpperCase() })), "18 位代码，注册后与公司名称均可用于登录", { maxLength: 18, onBlur: checkCreditCode, disabled: correction.status === "RETURNED" && !!correction.token }), true)}
                   {item("country", "国别", inp(basic.country, (s) => setBasic((b) => ({ ...b, country: s })), "中国"))}
                   {item("region", "所属行政区域", inp(basic.region, (s) => setBasic((b) => ({ ...b, region: s })), "如：四川省/成都市/双流区"))}
                   {item("enterpriseType", "公司体制类型", (
