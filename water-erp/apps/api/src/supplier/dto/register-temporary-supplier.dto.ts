@@ -17,12 +17,14 @@ export class RegisterTemporarySupplierDto {
   @IsString() @IsNotEmpty() @MaxLength(20)
   invitationCode: string;
 
-  /** 归属公司（Company 主数据 id，自定义短 id 非 UUID；必选——影响投标归属，账号管理按公司分组，admin 可改） */
-  /** 归属公司名称（62 家名单选择；companyId 未命中主数据时按此名称自动建档） */
+  /** 归属公司名称（62 家名单选择；companyId 未命中/缺省时按此名称自动建档——resolveSupplierCompany） */
   @IsOptional() @IsString() @MaxLength(128)
   companyName?: string;
-  @IsString() @IsNotEmpty({ message: '归属公司为必选项，须正确选择，否则将影响投标' })
-  companyId: string;
+  /** 归属公司主数据 id：可选（2026-10-14 修复）。注册页 62 家名单多数不在既有主数据，
+   *  前端 find 不到 id 传 undefined——此前 @IsNotEmpty 必填导致这类选择 400「归属公司为必选项」
+   *  （用户实测临时注册提交报错的根因）。归属解析与建档兜底在 service 层，两者全缺才 400。 */
+  @IsOptional() @IsString() @MaxLength(64)
+  companyId?: string;
 
   @IsString() @IsNotEmpty() @MaxLength(100)
   name: string; // 企业名称

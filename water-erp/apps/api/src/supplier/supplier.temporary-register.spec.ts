@@ -52,6 +52,9 @@ describe('SupplierService.registerTemporary business tags', () => {
         create: jest.fn().mockResolvedValue({
           id: 'user-1',
           username: dtoPayload.creditCode,
+          displayName: dtoPayload.displayName,
+          role: 'supplier',
+          isActive: false,
           passwordHash: 'hash',
         }),
       },
@@ -136,9 +139,25 @@ describe('SupplierService.registerTemporary business tags', () => {
     });
   });
 
-  it('requires companyId at the DTO level (归属公司必选)', async () => {
-    const errors = await validate(plainToInstance(RegisterTemporarySupplierDto, dtoPayload));
-    expect(errors.some((error) => error.property === 'companyId')).toBe(true);
+  it('allows missing companyId when companyName present（62 家名单未入主数据，2026-10-14 修复）', async () => {
+    // 根因回归锁：注册页 62 家名单多数不在 Company 主数据，前端 find 不到 id 传 undefined——
+    // 此前 DTO @IsNotEmpty 必填导致 400「归属公司为必选项」（用户实测临时注册提交报错）。
+    const noId = { ...dtoPayload };
+    const errors = await validate(plainToInstance(RegisterTemporarySupplierDto, { ...noId, companyId: undefined }));
+    expect(errors.some((error) => error.property === 'companyId')).toBe(false);
+  });
+
+  it('companyId 缺省时按 companyName 建档并完成注册（响应白名单化）', async () => {
+    const noId = { ...dtoPayload };
+    const result: any = await service.registerTemporary({ ...noId, companyId: undefined } as RegisterTemporarySupplierDto);
+    expect(prisma.company.upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { name: '四川水发集团' } }));
+    expect(tx.supplier.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ companyName: '四川水发集团', isTemporary: true }),
+    }));
+    // 2026-10-14 响应白名单：不回传 passwordVault / PII 密文（phone/密封字段）
+    expect(result.user).toMatchObject({ username: noId.creditCode, role: 'supplier', isActive: false });
+    expect(JSON.stringify(result.user)).not.toContain('passwordVault');
+    expect(JSON.stringify(result.user)).not.toContain('sm1:');
   });
 
   it('rejects unknown company id with COMPANY_NOT_FOUND (须正确选择)', async () => {

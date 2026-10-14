@@ -491,9 +491,9 @@ export class SupplierService {
     });
 
     // 通知采购管理员：新供应商待审批（待办型，审批后自动 resolve）
-    // 注意：绝不回传 user.passwordHash —— 注册响应泄漏密码哈希属安全事故，仅返回安全字段。
-    const { passwordHash: _omit, ...safeUser } = user;
-    void _omit;
+    // 注意：绝不回传 passwordHash/passwordVault/PII 密文等敏感字段——公开注册响应白名单化
+    //（2026-10-14 测试发现：原「仅剥 passwordHash」的展开写法会把 KMS 保险库与密封字段一并外发）。
+    const safeUser = { id: user.id, username: user.username, displayName: user.displayName, role: user.role, isActive: user.isActive };
 
     // 三级审批：注册通知发首级（STAFF）审批人；后级由上一级通过时逐级流转
     await this.notifyStageApprovers('STAFF', supplier.companyId, {
@@ -726,7 +726,8 @@ export class SupplierService {
     });
 
     const expireLabel = inv.expiresAt.toISOString().slice(0, 10);
-    const { passwordHash: _omit, ...safeUser } = user; void _omit;
+    // 响应白名单化（同正式注册，2026-10-14）：passwordVault/PII 密文不外发
+    const safeUser = { id: user.id, username: user.username, displayName: user.displayName, role: user.role, isActive: user.isActive };
     await this.notifyStageApprovers('STAFF', supplier.companyId, {
       type: 'SUPPLIER_PENDING',
       title: '新临时供应商注册待初审',
