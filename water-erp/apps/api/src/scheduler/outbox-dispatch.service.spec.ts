@@ -7,21 +7,22 @@ const mockSend = jest.fn().mockResolvedValue({});
 const mkRows = (n: number) => Array.from({ length: n }, (_, i) => ({
   id: `ob-${i}`, topic: 'bid.submitted.v3',
   payload: { projectId: 'proj-1', submissionId: 'sub-1', revision: 1 + i, operationId: 'op-1' },
-  status: 'PENDING', attempts: 0, lastError: null as string | null, publishedAt: null as Date | null,
+  status: 'PENDING', attempts: 0, lastError: null as string | null, publishedAt: null as Date | null, claimedAt: null as Date | null,
 }));
 
 const mkPrisma = (over: Record<string, any> = {}) => {
   const state = { rows: over.rows ?? mkRows(1) };
   const prisma: any = {
     outbox: {
-      findMany: jest.fn().mockResolvedValue(state.rows.filter(r => r.status === 'PENDING' || r.status === 'DISPATCHING')),
+      findMany: jest.fn().mockImplementation(async () => state.rows.filter(r => r.status === 'PENDING')),
       updateMany: jest.fn().mockImplementation(async ({ where, data }: any) => {
         // CAS 抢占语义：PENDING→DISPATCHING 仅当当前仍 PENDING；DISPATCHING→SENT/FAILED/PENDING 原子
         let count = 0;
         for (const r of state.rows) {
           if (r.id !== where.id) continue;
-          if (where.status === 'PENDING' && r.status === 'PENDING') { r.status = data.status; count = 1; break; }
-          if (where.status === 'DISPATCHING' && r.status === 'DISPATCHING') { Object.assign(r, data); count = 1; break; }
+          if (where.status === 'PENDING' && r.status === 'PENDING') { Object.assign(r, data); count = 1; break; }
+          if (where.status === 'DISPATCHING' && r.status === 'DISPATCHING'
+            && (!where.claimedAt || (r.claimedAt ?? null) === (where.claimedAt ?? null))) { Object.assign(r, data); count = 1; break; }
         }
         return { count };
       }),
@@ -83,5 +84,34 @@ describe('OutboxDispatchService（T6）', () => {
     await mkSvc(prisma).dispatchOnce();
     expect(state.rows[0].status).toBe('FAILED');
     expect(state.rows[0].lastError).toContain('no handler');
+  });
+});
+
+describe('终审 I-2：DISPATCHING 崩溃残留恢复', () => {
+  test('滞留 >5min 的 DISPATCHING 行可重占并完成；新鲜 DISPATCHING 不捞', async () => {
+    const { prisma, state } = (() => {
+      const stale = { id: 'ob-stale', topic: 'bid.submitted.v3', payload: { projectId: 'proj-1' }, status: 'DISPATCHING', attempts: 0, lastError: null, publishedAt: null, claimedAt: new Date(Date.now() - 10 * 60 * 1000) };
+      const s = { rows: [stale] };
+      const p: any = {
+        outbox: {
+          findMany: jest.fn().mockImplementation(async ({ where }: any) =>
+            s.rows.filter(r => r.status === 'PENDING'
+              || (r.status === 'DISPATCHING' && where.OR && (r.claimedAt ?? new Date()) < where.OR[1].claimedAt.lt))),
+          updateMany: jest.fn().mockImplementation(async ({ where, data }: any) => {
+            const r = s.rows.find(x => x.id === where.id);
+            if (!r) return { count: 0 };
+            if (r.status === 'DISPATCHING' && r.claimedAt === (where.claimedAt ?? r.claimedAt)) { Object.assign(r, data); return { count: 1 }; }
+            if (r.status === 'PENDING' && where.status === 'PENDING') { Object.assign(r, data); return { count: 1 }; }
+            return { count: 0 };
+          }),
+        },
+        bidProject: { findUnique: jest.fn().mockResolvedValue({ assignedHostUserId: 'host-1' }) },
+      };
+      return { prisma: p, state: s };
+    })();
+    const r = await mkSvc(prisma).dispatchOnce();
+    expect(r.sent).toBe(1);
+    expect(state.rows[0].status).toBe('SENT');
+    expect(mockSend).toHaveBeenCalledTimes(1);
   });
 });

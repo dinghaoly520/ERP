@@ -2564,12 +2564,18 @@ export class SupplierPortalService {
       throw new BadRequestException({ error: '唱标字段密封件不得变更（补传仅恢复文件，明文哈希锚点与承诺须与原版一致）', code: 'FIELDS_COMMIT_CHANGED' });
     }
     type V3Entry = NonNullable<DualV3Envelope['files'][keyof DualV3Envelope['files']]>;
+    // M-1（终审）：角色集合双向相等——丢角色（ROLE_LOST）与塞新角色（改版面）都不允许
+    const oldRoles = new Set(Object.keys(oldEnv.files ?? {}));
+    const newRoles = new Set(Object.keys(envelope.files ?? {}));
+    for (const r of oldRoles) if (!newRoles.has(r)) {
+      throw new BadRequestException({ error: `新信封丢失 ${r} 密封件（角色保全闸）`, code: 'ROLE_LOST' });
+    }
+    for (const r of newRoles) if (!oldRoles.has(r)) {
+      throw new BadRequestException({ error: `新信封携带原版没有的 ${r} 密封件（角色集合不得变更）`, code: 'ROLE_LOST' });
+    }
     for (const [role, oldEntry] of Object.entries(oldEnv.files ?? {}) as Array<[string, V3Entry]>) {
       const newEntry = (envelope.files ?? {})[role as keyof typeof envelope.files] as V3Entry | undefined;
-      if (!newEntry) {
-        throw new BadRequestException({ error: `新信封丢失 ${role} 密封件（角色保全闸）`, code: 'ROLE_LOST' });
-      }
-      if (newEntry.plainSha256 !== oldEntry.plainSha256) {
+      if (newEntry && newEntry.plainSha256 !== oldEntry.plainSha256) {
         throw new BadRequestException({ error: `${role} 文件明文 SHA-256 与原版快照不一致（密文可重封、明文不可替换）`, code: 'PLAIN_HASH_MISMATCH' });
       }
     }
@@ -2873,7 +2879,7 @@ export class SupplierPortalService {
         }
         // Outbox
         await tx.outbox.create({
-          data: { topic: 'bid.submitted.v3', payload: { submissionId: sub.id, revision: newRev, operationId: data.operationId! } as any },
+          data: { topic: 'bid.submitted.v3', payload: { projectId, submissionId: sub.id, revision: newRev, operationId: data.operationId! } as any },
         });
         // I2：操作 CAS commit（PAYLOAD_READY→COMMITTED 单次——重放 count=0 即 409）
         const commit = await tx.caOperation.updateMany({

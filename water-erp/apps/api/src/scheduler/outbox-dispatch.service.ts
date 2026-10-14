@@ -29,23 +29,32 @@ export class OutboxDispatchService {
   async dispatchOnce(): Promise<{ sent: number; failed: number; skipped: number }> {
     const sent = 0, failed = 0, skipped = 0;
     const result = { sent, failed, skipped };
+    // 终审 I-2：DISPATCHING 崩溃残留（claim 后进程死）>5min 可重占——at-least-once 语义
+    const staleBefore = new Date(Date.now() - 5 * 60 * 1000);
     const pending = await this.prisma.outbox.findMany({
-      where: { status: 'PENDING' },
+      where: {
+        OR: [
+          { status: 'PENDING' },
+          { status: 'DISPATCHING', claimedAt: { lt: staleBefore } },
+        ],
+      },
       orderBy: { createdAt: 'asc' },
       take: 20,
     });
     for (const row of pending) {
       // CAS 抢占（PENDING→DISPATCHING）——并发第二笔 count=0 跳过
       const claim = await this.prisma.outbox.updateMany({
-        where: { id: row.id, status: 'PENDING' },
-        data: { status: 'DISPATCHING' },
+        where: row.status === 'DISPATCHING'
+          ? { id: row.id, status: 'DISPATCHING', claimedAt: row.claimedAt } // 陈旧重占（CAS on claimedAt）
+          : { id: row.id, status: 'PENDING' },
+        data: { status: 'DISPATCHING', claimedAt: new Date() },
       });
       if (claim.count === 0) continue;
       try {
         const outcome = await this.dispatchTopic(row.topic, row.payload as Record<string, unknown>);
         await this.prisma.outbox.updateMany({
           where: { id: row.id, status: 'DISPATCHING' },
-          data: { status: 'SENT', publishedAt: new Date(), lastError: outcome.skipped ? `skipped: ${outcome.skipped}` : null },
+          data: { status: 'SENT', publishedAt: new Date(), claimedAt: null, lastError: outcome.skipped ? `skipped: ${outcome.skipped}` : null },
         });
         if (outcome.skipped) result.skipped++; else result.sent++;
       } catch (e) {

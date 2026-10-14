@@ -42,25 +42,35 @@ export class StagingCleanupService {
       for (const e of Object.values(files)) if (e?.assetId) referenced.add(e.assetId);
     }
 
+    const perProject = new Map<string, { removed: number; kept: number }>();
     let removed = 0, kept = 0;
+    const tally = (key: string, kind: 'removed' | 'kept') => {
+      const pid = key.split('/')[1] ?? '_unknown_';
+      const agg = perProject.get(pid) ?? { removed: 0, kept: 0 };
+      agg[kind]++; perProject.set(pid, agg);
+    };
     for (const c of candidates) {
-      if (referenced.has(c.id)) { kept++; continue; }
+      if (referenced.has(c.id)) { kept++; tally(c.key, 'kept'); continue; }
       try {
         await minioClient.removeObject(MINIO_BUCKET, c.key);
       } catch (err) {
         // 对象已缺失（NoSuchKey）——孤儿 DB 行仍收敛；其余存储错误跳过本轮该行
-        if ((err as { code?: string }).code !== 'NoSuchKey') { kept++; continue; }
+        if ((err as { code?: string }).code !== 'NoSuchKey') { kept++; tally(c.key, 'kept'); continue; }
       }
       await this.prisma.fileAsset.delete({ where: { id: c.id } }).catch(() => {});
-      removed++;
+      removed++; tally(c.key, 'removed');
     }
-    await this.prisma.bidSupervisionLog.create({
-      data: {
-        projectId: `__ops__`, time: new Date(), role: '系统', target: 'v3-staging 清理',
-        action: '暂存密文过期清理', result: `过期候选 ${candidates.length}：删除 ${removed}、保留 ${kept}（引用/存储异常）`,
-        riskFlag: '无',
-      },
-    }).catch(() => {});
+    // I-1（终审）：'__ops__' 假 projectId 撞 BidProject 外键必败——改按真实项目分组留痕
+    // （key=v3-staging/{projectId}/{supplierId}/... 二段即项目）；单项目无候选时不记
+    for (const [pid, agg] of perProject) {
+      await this.prisma.bidSupervisionLog.create({
+        data: {
+          projectId: pid, time: new Date(), role: '系统', target: 'v3-staging 清理',
+          action: '暂存密文过期清理', result: `删除 ${agg.removed}、保留 ${agg.kept}（引用/未过期保护）`,
+          riskFlag: '无',
+        },
+      }).catch(() => {}); // FK 兜底：假项目段（非 cuid）仍可能拒——日志失败不阻断清理
+    }
     this.logger.log(`v3-staging 清理：候选 ${candidates.length}，删 ${removed}，留 ${kept}`);
     return { removed, kept };
   }

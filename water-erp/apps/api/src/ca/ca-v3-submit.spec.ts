@@ -111,6 +111,13 @@ describe('submitBidV3（评审修复轮）', () => {
       where: { id: 'op-1', status: 'PAYLOAD_READY' },
       data: expect.objectContaining({ status: 'COMMITTED' }),
     }));
+    // 终审 C-1 回归钉：生产 payload 必含 projectId——消费者按其寻址主持人，缺省=通知零送达
+    expect(t.outbox.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        topic: 'bid.submitted.v3',
+        payload: expect.objectContaining({ projectId: 'proj-1', submissionId: 'sub-1', revision: 1 }),
+      }),
+    }));
     // T4（阶段2.5）：未解密备份固化——每 role 一条，双钥合账 + 版本维度
     expect(mockBidBackup.stageBackup).toHaveBeenCalledWith(expect.objectContaining({
       fileRole: 'technical',

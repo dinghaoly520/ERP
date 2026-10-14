@@ -4075,6 +4075,8 @@ model Outbox {
   // ── dual-v3（阶段2.5 T0）：消费退避——attempts≥5 封顶 FAILED
   attempts    Int       @default(0)
   lastError   String?
+  // 终审 I-2：DISPATCHING 崩溃残留恢复——claim 时落 claimedAt，>5min 滞留可重占
+  claimedAt   DateTime?
   createdAt   DateTime  @default(now())
 
   @@index([status, topic])

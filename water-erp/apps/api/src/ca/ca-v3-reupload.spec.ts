@@ -209,6 +209,14 @@ describe('reuploadBidV3（T2）', () => {
     await expect(callReupload(prisma)).rejects.toThrow(BadRequestException);
   });
 
+  test('终审 M-1：新信封携带原版没有的角色（改版面）→ 400 ROLE_LOST', async () => {
+    const bad = mkNewEnvelope();
+    bad.files.extraRole = { ...bad.files.technical, assetId: 'fa-new-extra', plainSha256: 'z'.repeat(64) };
+    const prisma = mkT2({ newEnvelope: bad });
+    await expect(callReupload(prisma)).rejects.toThrow(BadRequestException);
+    expect(prisma.tx.submissionVersion.create).not.toHaveBeenCalled();
+  });
+
   test('角色保全闸：快照有 business 新信封缺 → 400 ROLE_LOST', async () => {
     const bad = mkNewEnvelope(); delete bad.files.business;
     const prisma = mkT2({ newEnvelope: bad });
