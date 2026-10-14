@@ -33,6 +33,9 @@ const decryptColors: Record<string, { cls: string }> = {
 
 const STAGES = ['投递中', '解密中', '确认中', '已完成'] as const;
 
+/** 双信封轨判据（阶段2.5 收口：dual-v2|dual-v3 同走新轨——后端 decryptSupplier 对双轨硬拒代解密） */
+const isDualTrack = (v?: string | null): boolean => v === 'dual-v2' || v === 'dual-v3';
+
 /** decrypt-outer 批量聚合形状判别（批量：details 数组 + total/success/skipped/failed 计数） */
 type DecryptOuterBatch = { total: number; success: number; skipped: number; failed: number; details: DecryptOuterDetail[] };
 function isDecryptOuterBatch(r: DecryptOuterResult): r is DecryptOuterBatch {
@@ -362,11 +365,11 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   // 双信封 v2（T17）：分轨操作集——批量候选只含参标家（已投递；P1-4 防「全部解密」计数污染）
   // dualOuterPending：外层待解（§5.2 批量候选）
   const dualOuterPending = useMemo(() => (project?.suppliers ?? []).filter(s =>
-    s.envelopeVersion === 'dual-v2' && !s.outerDecryptedAt && s.submitStatus === '已提交'), [project]);
+    isDualTrack(s.envelopeVersion) && !s.outerDecryptedAt && s.submitStatus === '已提交'), [project]);
   // legacyPending：旧轨批量解密候选（主持端代解密仍走 decryptSupplier；与 decryptProgress/
   // dualOuterPending 三处同口径=参标家（已投递），仅 PENDING 计数展示与入列，DANGER/RUNNING 行不入批量）
   const legacyPending = useMemo(() => (project?.suppliers ?? []).filter(s =>
-    s.envelopeVersion !== 'dual-v2'
+    !isDualTrack(s.envelopeVersion)
     && s.decryptStatus !== 'SUCCESS' && s.decryptStatus !== 'DANGER' && s.decryptStatus !== 'RUNNING'
     && s.submitStatus === '已提交'), [project]);
 
@@ -443,7 +446,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const adjudgeRows = useMemo(() => {
     if (!project) return [];
     return project.suppliers.filter(s => {
-      if (s.submitStatus === '已撤回' || s.envelopeVersion !== 'dual-v2' || s.decryptStatus === 'SUCCESS') return false;
+      if (s.submitStatus === '已撤回' || !isDualTrack(s.envelopeVersion) || s.decryptStatus === 'SUCCESS') return false;
       if (s.dangerAttribution === 'UNKNOWN') return true;
       if (s.dangerAttribution) return false; // BIDDER/PLATFORM 已终局
       // 未归因候选：仅窗口关闭后（窗口内供应商仍可自行解密，不可裁决）
@@ -452,7 +455,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   }, [project, windowExpired]);
 
   /** 本项目是否含双信封 v2 供应商（混轨项目文案分派用） */
-  const hasDual = useMemo(() => (project?.suppliers ?? []).some(s => s.envelopeVersion === 'dual-v2'), [project]);
+  const hasDual = useMemo(() => (project?.suppliers ?? []).some(s => isDualTrack(s.envelopeVersion)), [project]);
 
   // API
   const handleResolveDispute = async (recordId: string, result: string, confirm: boolean) => {
@@ -1007,8 +1010,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                 const isDanger = s.decryptStatus === 'DANGER';
                 const resealFailed = isDanger && !!s.decryptError?.includes('重新封标失败');
                 const isDecrypting = decrypting.has(s.id);
-                // 双信封 v2（T17）：新轨分派（envelopeVersion 由项目详情派生下发）
-                const isDual = s.envelopeVersion === 'dual-v2';
+                // 双信封轨（T17 + 阶段2.5）：新轨分派（dual-v2|dual-v3；envelopeVersion 由项目详情派生下发）
+                const isDual = isDualTrack(s.envelopeVersion);
                 const outerDone = !!s.outerDecryptedAt;
                 // P1-4：参标=已投递——未投递/已撤回名册行的行级操作收口（见操作列）
                 const isSubmitted = s.submitStatus === '已提交';
