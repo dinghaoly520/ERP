@@ -1,15 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, BarChart3, Lightbulb, Sparkles } from "lucide-react";
-import { fetchCurrentUser, fetchCompanies, type AuthRole, type CompanyOption } from "@/lib/api/auth";
+import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProgressStats, fetchProgressAiInsights, type ProgressStats, type ProgressAiInsights, type ProjectProgress } from "@/lib/api/progress";
+import { useAuth } from "@/components/m/auth-context";
 import { BottomSheet } from "@/components/m/bottom-sheet";
 import { SectionCard } from "@/components/m/section-card";
 import { MetricCard } from "@/components/m/metric-card";
 import { ErrorBanner } from "@/components/m/error-banner";
 import { EmptyState } from "@/components/m/empty-state";
 import { Skeleton } from "@/components/m/skeleton";
+import { PullIndicator } from "@/components/m/pull-indicator";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import { readSavedFilters, saveFilters } from "@/lib/filter-store";
 
 /* ── 阶段元数据（移植自 web progress-content STAGE_META——oklch 阶段色令牌）── */
 
@@ -90,9 +94,12 @@ function StageStepper({ project }: { project: ProjectProgress }) {
 /* ── 主页面 ── */
 
 export default function ProgressPage() {
-  const [role, setRole] = useState<AuthRole | null>(null);
+  const { user } = useAuth();
+  const role = user?.role ?? null;
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
-  const [companyId, setCompanyId] = useState<string>("all");
+  const [companyId, setCompanyId] = useState<string>(
+    () => readSavedFilters<{ companyId: string }>("progress").companyId ?? "all",
+  );
 
   const [stats, setStats] = useState<ProgressStats | null>(null);
   const [insights, setInsights] = useState<ProgressAiInsights | null>(null);
@@ -102,18 +109,6 @@ export default function ProgressPage() {
   const [retryTick, setRetryTick] = useState(0);
 
   const [activeProject, setActiveProject] = useState<ProjectProgress | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    fetchCurrentUser()
-      .then((u) => {
-        if (active) setRole(u.role);
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, []);
 
   useEffect(() => {
     if (role !== "admin") return;
@@ -162,12 +157,23 @@ export default function ProgressPage() {
 
   const maxStageCount = Math.max(...(stats?.stageDistribution.map((d) => d.count) ?? [1]), 1);
 
+  const { pull, refreshing } = usePullToRefresh(
+    useCallback(async () => {
+      setRetryTick((t) => t + 1);
+      await new Promise((r) => window.setTimeout(r, 300));
+    }, []),
+  );
+
   return (
     <div>
+      <PullIndicator pull={pull} refreshing={refreshing} />
       {role === "admin" ? (
         <select
           value={companyId}
-          onChange={(e) => setCompanyId(e.target.value)}
+          onChange={(e) => {
+            setCompanyId(e.target.value);
+            saveFilters("progress", { companyId: e.target.value });
+          }}
           aria-label="公司筛选"
           className="mb-3 h-10 w-full rounded-[12px] border border-[var(--border)] bg-white/70 px-3 text-[13px] font-medium text-[var(--foreground)]"
         >
@@ -208,6 +214,7 @@ export default function ProgressPage() {
 
           {/* ── 执行态势（阶段分布）── */}
           <SectionCard icon={BarChart3} title="执行态势 · 阶段分布">
+            index={0}
             {stats.stageDistribution.length ? (
               <div className="space-y-2">
                 {stats.stageDistribution.map((d, i) => {
@@ -230,6 +237,7 @@ export default function ProgressPage() {
 
           {/* ── 进度洞察（AI）── */}
           <SectionCard icon={Sparkles} title="进度洞察">
+            index={1}
             {insights ? (
               <div className="space-y-2">
                 {insights.overview ? (
@@ -269,6 +277,7 @@ export default function ProgressPage() {
 
           {/* ── 项目清单 ── */}
           <SectionCard title="项目清单" right={<span className="shrink-0 text-[10px] font-semibold text-[var(--muted-foreground)]">{stats.projects.length} 项</span>}>
+            index={2}
             {stats.projects.length ? (
               <div className="space-y-2">
                 {stats.projects.map((p) => {

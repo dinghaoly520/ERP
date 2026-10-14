@@ -14,9 +14,10 @@ import {
   Target,
   TrendingUp,
 } from "lucide-react";
-import { fetchCurrentUser, fetchCompanies, type AuthRole, type CompanyOption } from "@/lib/api/auth";
+import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchDashboardData, type DashboardData } from "@/lib/api/dashboard";
 import { fetchDashboardAnalysis, type DashboardAnalysisResult } from "@/lib/api/ai";
+import { useAuth } from "@/components/m/auth-context";
 import { BottomSheet } from "@/components/m/bottom-sheet";
 import { SectionCard } from "@/components/m/section-card";
 import { MetricCard } from "@/components/m/metric-card";
@@ -24,6 +25,11 @@ import { Chip } from "@/components/m/chip";
 import { ErrorBanner } from "@/components/m/error-banner";
 import { EmptyState } from "@/components/m/empty-state";
 import { Skeleton } from "@/components/m/skeleton";
+import { PullIndicator } from "@/components/m/pull-indicator";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import { readSavedFilters, saveFilters } from "@/lib/filter-store";
+
+type DashboardSavedFilters = { rangeKey: RangeKey; companyId: string };
 
 /* ── 工具 ── */
 
@@ -104,11 +110,16 @@ function ProjectRow({
 /* ── 主页面 ── */
 
 export default function DashboardPage() {
-  const [role, setRole] = useState<AuthRole | null>(null);
+  const { user } = useAuth();
+  const role = user?.role ?? null;
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
-  const [companyId, setCompanyId] = useState<string>("all");
+  const [companyId, setCompanyId] = useState<string>(
+    () => readSavedFilters<DashboardSavedFilters>("dashboard").companyId ?? "all",
+  );
 
-  const [rangeKey, setRangeKey] = useState<RangeKey>("year");
+  const [rangeKey, setRangeKey] = useState<RangeKey>(
+    () => readSavedFilters<DashboardSavedFilters>("dashboard").rangeKey ?? "year",
+  );
   const [showCustom, setShowCustom] = useState(false);
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
@@ -121,6 +132,8 @@ export default function DashboardPage() {
 
   // 各下钻弹层
   const [activeTrend, setActiveTrend] = useState<DashboardData["trendSeries"][number] | null>(null);
+  /** 趋势图按下高亮列（触摸反馈：按下列 → 竖参考线 + 放大点，松开出当日弹层） */
+  const [activeIdx, setActiveIdx] = useState<number | null>(null);
   const [activeDept, setActiveDept] = useState<DashboardData["departmentStats"][number] | null>(null);
   const [activeMethod, setActiveMethod] = useState<DashboardData["methodStats"][number] | null>(null);
   const [activeReason, setActiveReason] = useState<DashboardData["nonAwardReasons"][number] | null>(null);
@@ -138,18 +151,6 @@ export default function DashboardPage() {
   const queryRange = usingCustom ? customApplied : effRange;
 
   useEffect(() => {
-    let active = true;
-    fetchCurrentUser()
-      .then((u) => {
-        if (active) setRole(u.role);
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
     if (role !== "admin") return;
     let active = true;
     fetchCompanies()
@@ -165,7 +166,7 @@ export default function DashboardPage() {
   const loadData = useCallback(() => {
     setLoading(true);
     setError(null);
-    fetchDashboardData(queryRange.startDate, queryRange.endDate, companyId === "all" ? undefined : companyId)
+    return fetchDashboardData(queryRange.startDate, queryRange.endDate, companyId === "all" ? undefined : companyId)
       .then((d) => {
         setData(d);
         setAiResult(null); // 口径变化后旧分析作废
@@ -181,6 +182,8 @@ export default function DashboardPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const { pull, refreshing } = usePullToRefresh(loadData);
 
   const summary = data?.summary;
 
@@ -200,12 +203,14 @@ export default function DashboardPage() {
     const maxAmount = Math.max(...series.map((t) => t.amount), 1);
     const maxCount = Math.max(...series.map((t) => t.count), 1);
     const x = (i: number) => padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+    const colW = n > 0 ? plotW / n : plotW;
+    const colX = (i: number) => padL + i * colW;
     const amountY = (v: number) => padT + plotH - (v / maxAmount) * plotH * 0.86;
     const linePath = series
       .map((t, i) => `${i === 0 ? "M" : "L"} ${x(i).toFixed(1)} ${amountY(t.amount).toFixed(1)}`)
       .join(" ");
     const labelStep = Math.max(1, Math.ceil(n / 5));
-    return { W, H, padT, plotH, x, amountY, maxCount, linePath, series, labelStep };
+    return { W, H, padT, plotH, x, colW, colX, amountY, maxCount, linePath, series, labelStep };
   }, [data]);
 
   /* 环形图分段（采购方式） */
@@ -272,6 +277,7 @@ export default function DashboardPage() {
 
   return (
     <div>
+      <PullIndicator pull={pull} refreshing={refreshing} />
       {/* ── 顶部控制行：范围 + 公司 ── */}
       <div className="mb-3 space-y-2">
         <div className="flex gap-2 overflow-x-auto pb-0.5">
@@ -284,6 +290,7 @@ export default function DashboardPage() {
                 setCustomApplied({});
                 setCustomStart("");
                 setCustomEnd("");
+                saveFilters("dashboard", { rangeKey: key, companyId } satisfies DashboardSavedFilters);
               }}
             >
               {RANGE_LABELS[key]}
@@ -322,7 +329,10 @@ export default function DashboardPage() {
         {role === "admin" ? (
           <select
             value={companyId}
-            onChange={(e) => setCompanyId(e.target.value)}
+            onChange={(e) => {
+              setCompanyId(e.target.value);
+              saveFilters("dashboard", { rangeKey, companyId: e.target.value } satisfies DashboardSavedFilters);
+            }}
             aria-label="公司筛选"
             className="h-10 w-full rounded-[12px] border border-[var(--border)] bg-white/70 px-3 text-[13px] font-medium text-[var(--foreground)]"
           >
@@ -360,6 +370,7 @@ export default function DashboardPage() {
           <SectionCard
             icon={BarChart3}
             title="采购执行趋势"
+            index={0}
             right={<span className="shrink-0 text-[10px] font-semibold text-[var(--muted-foreground)]">柱=数量 · 线=金额(万)</span>}
           >
             {trend ? (
@@ -383,19 +394,44 @@ export default function DashboardPage() {
                 {trend.series.map((t, i) => (
                   <g key={`pt-${i}`}>
                     <circle cx={trend.x(i)} cy={trend.amountY(t.amount)} r={3} fill="var(--success)" />
-                    <circle
-                      cx={trend.x(i)}
-                      cy={trend.amountY(t.amount)}
-                      r={11}
-                      fill="transparent"
-                      onClick={() => setActiveTrend(t)}
-                      style={{ cursor: "pointer" }}
-                    />
                     {i % trend.labelStep === 0 ? (
                       <text x={trend.x(i)} y={148} textAnchor="middle" fontSize={8.5} fill="var(--muted-foreground)">
                         {t.label.slice(-5)}
                       </text>
                     ) : null}
+                  </g>
+                ))}
+                {trend.series.map((t, i) => (
+                  <g key={`hit-${i}`}>
+                    {activeIdx === i ? (
+                      <>
+                        <line
+                          x1={trend.x(i)}
+                          y1={trend.padT}
+                          x2={trend.x(i)}
+                          y2={trend.padT + trend.plotH}
+                          stroke="var(--accent)"
+                          strokeWidth={1}
+                          strokeDasharray="3 3"
+                          opacity={0.6}
+                        />
+                        <circle cx={trend.x(i)} cy={trend.amountY(t.amount)} r={5} fill="var(--success)" stroke="white" strokeWidth={1.5} />
+                      </>
+                    ) : null}
+                    <rect
+                      x={trend.colX(i)}
+                      y={trend.padT}
+                      width={trend.colW}
+                      height={trend.plotH}
+                      fill="transparent"
+                      style={{ cursor: "pointer" }}
+                      onPointerDown={() => setActiveIdx(i)}
+                      onPointerUp={() => {
+                        setActiveIdx(null);
+                        setActiveTrend(t);
+                      }}
+                      onPointerCancel={() => setActiveIdx(null)}
+                    />
                   </g>
                 ))}
               </svg>
@@ -405,7 +441,9 @@ export default function DashboardPage() {
           </SectionCard>
 
           {/* ── 各部门采购分布 ── */}
-          <SectionCard icon={FolderKanban} title="各部门采购分布">
+          <SectionCard icon={FolderKanban} title="各部门采购分布"
+            index={1}
+          >
             {data.departmentStats.length ? (
               <div className="space-y-2">
                 {data.departmentStats.map((d, idx) => (
@@ -434,7 +472,9 @@ export default function DashboardPage() {
           </SectionCard>
 
           {/* ── 采购方式分布（环形图）── */}
-          <SectionCard icon={Layers} title="采购方式分布">
+          <SectionCard icon={Layers} title="采购方式分布"
+            index={2}
+          >
             {methodDonut ? (
               <div className="flex items-center gap-3">
                 <svg viewBox="0 0 150 150" className="w-[130px] shrink-0" role="img" aria-label="采购方式分布环形图">
@@ -471,7 +511,9 @@ export default function DashboardPage() {
           </SectionCard>
 
           {/* ── 结果构成 ── */}
-          <SectionCard title="结果构成">
+          <SectionCard title="结果构成"
+            index={3}
+          >
             {data.resultStats.length ? (
               <div className="grid grid-cols-3 gap-2">
                 {data.resultStats.map((r, i) => (
@@ -491,7 +533,9 @@ export default function DashboardPage() {
 
           {/* ── 未成交原因分析 ── */}
           {data.nonAwardReasons.length ? (
-            <SectionCard icon={AlertCircle} title="未成交原因分析">
+            <SectionCard icon={AlertCircle} title="未成交原因分析"
+            index={4}
+          >
               <div className="space-y-2">
                 {data.nonAwardReasons.map((r, i) => (
                   <button
@@ -518,6 +562,7 @@ export default function DashboardPage() {
           <SectionCard
             icon={TrendingUp}
             title="节资率项目排行"
+            index={5}
             right={
               <span className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--success)_10%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--success)]">
                 Top 5
@@ -567,6 +612,7 @@ export default function DashboardPage() {
             <SectionCard
               icon={AlertCircle}
               title="风险项目预警"
+              index={6}
               right={
                 <span className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--danger)]">
                   {data.riskProjects.length} 项
@@ -589,7 +635,9 @@ export default function DashboardPage() {
           ) : null}
 
           {/* ── 重点供应商动态 ── */}
-          <SectionCard icon={FolderKanban} title="重点供应商动态">
+          <SectionCard icon={FolderKanban} title="重点供应商动态"
+            index={7}
+          >
             {data.supplierStats.length ? (
               <div className="space-y-2">
                 {data.supplierStats.map((s, i) => (
@@ -621,6 +669,7 @@ export default function DashboardPage() {
           <SectionCard
             icon={Sparkles}
             title="AI 综合分析"
+            index={8}
             right={
               <button type="button" onClick={() => setAiOpen((v) => !v)} className="neu-btn-soft !h-8 !rounded-[9px] !px-2.5 !text-[11px]">
                 {aiOpen ? "收起" : "展开"}

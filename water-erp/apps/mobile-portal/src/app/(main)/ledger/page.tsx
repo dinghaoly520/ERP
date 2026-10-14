@@ -2,17 +2,27 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Search } from "lucide-react";
-import { fetchCurrentUser, fetchCompanies, type AuthRole, type CompanyOption } from "@/lib/api/auth";
+import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProcurements, fetchLedgerStats, fetchProcurementMethods } from "@/lib/api/procurements";
 import { RESULT_STATUS_CONFIG, type LedgerSummary, type ProcurementRoundItem, type ResultStatusKey } from "@/lib/types/procurement";
+import { useAuth } from "@/components/m/auth-context";
 import { BottomSheet } from "@/components/m/bottom-sheet";
 import { Chip } from "@/components/m/chip";
 import { MetricCard } from "@/components/m/metric-card";
 import { ErrorBanner } from "@/components/m/error-banner";
 import { EmptyState } from "@/components/m/empty-state";
 import { Skeleton } from "@/components/m/skeleton";
+import { PullIndicator } from "@/components/m/pull-indicator";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import { readSavedFilters, saveFilters } from "@/lib/filter-store";
 
 const PAGE_SIZE = 15;
+
+type LedgerSavedFilters = {
+  statusFilter: ResultStatusKey | null;
+  methodFilter: string | null;
+  companyId: string;
+};
 
 const RETENTION_LABELS: Record<string, string> = { PERMANENT: "永久", Y30: "30 年", Y10: "10 年" };
 const SOURCE_LABELS: Record<string, string> = {
@@ -45,14 +55,16 @@ function DetailRow({ label, value, tone }: { label: string; value: string; tone?
 }
 
 export default function LedgerPage() {
-  const [role, setRole] = useState<AuthRole | null>(null);
+  const { user } = useAuth();
+  const role = user?.role ?? null;
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
-  const [companyId, setCompanyId] = useState<string>("all");
+  const saved = useMemo(() => readSavedFilters<LedgerSavedFilters>("ledger"), []);
+  const [companyId, setCompanyId] = useState<string>(saved.companyId ?? "all");
 
   const [searchInput, setSearchInput] = useState("");
   const [searchKeyword, setSearchKeyword] = useState("");
-  const [statusFilter, setStatusFilter] = useState<ResultStatusKey | null>(null);
-  const [methodFilter, setMethodFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<ResultStatusKey | null>(saved.statusFilter ?? null);
+  const [methodFilter, setMethodFilter] = useState<string | null>(saved.methodFilter ?? null);
   const [methods, setMethods] = useState<string[]>([]);
 
   const [items, setItems] = useState<ProcurementRoundItem[]>([]);
@@ -80,11 +92,6 @@ export default function LedgerPage() {
 
   useEffect(() => {
     let active = true;
-    fetchCurrentUser()
-      .then((u) => {
-        if (active) setRole(u.role);
-      })
-      .catch(() => undefined);
     fetchProcurementMethods()
       .then((list) => {
         if (active) setMethods(list);
@@ -181,13 +188,29 @@ export default function LedgerPage() {
 
   const statusChips = useMemo(() => Object.values(RESULT_STATUS_CONFIG), []);
 
+  /* 筛选变更：重置回第 1 页 + 记忆 */
   const changeFilter = (fn: () => void) => {
     fn();
     setPage(1);
   };
 
+  const persistLedger = useCallback(
+    (patch: Partial<LedgerSavedFilters>) => {
+      saveFilters("ledger", { statusFilter, methodFilter, companyId, ...patch });
+    },
+    [statusFilter, methodFilter, companyId],
+  );
+
+  const { pull, refreshing } = usePullToRefresh(
+    useCallback(async () => {
+      setPage(1);
+      setRetryTick((t) => t + 1);
+    }, []),
+  );
+
   return (
     <div>
+      <PullIndicator pull={pull} refreshing={refreshing} />
       {/* ── 汇总条 ── */}
       {stats ? (
         <div className="neu-card-static mb-3 rounded-[16px] p-3">
@@ -241,22 +264,42 @@ export default function LedgerPage() {
 
       {/* ── 筛选 chips ── */}
       <div className="mb-2 flex gap-2 overflow-x-auto pb-0.5">
-        <Chip active={!statusFilter} onClick={() => changeFilter(() => setStatusFilter(null))}>
+        <Chip active={!statusFilter} onClick={() => changeFilter(() => { setStatusFilter(null); persistLedger({ statusFilter: null }); })}>
           全部状态
         </Chip>
         {statusChips.map((c) => (
-          <Chip key={c.key} active={statusFilter === c.key} onClick={() => changeFilter(() => setStatusFilter(statusFilter === c.key ? null : c.key))}>
+          <Chip
+            key={c.key}
+            active={statusFilter === c.key}
+            onClick={() =>
+              changeFilter(() => {
+                const next = statusFilter === c.key ? null : c.key;
+                setStatusFilter(next);
+                persistLedger({ statusFilter: next });
+              })
+            }
+          >
             {c.label}
           </Chip>
         ))}
       </div>
       {methods.length > 1 ? (
         <div className="mb-2 flex gap-2 overflow-x-auto pb-0.5">
-          <Chip active={!methodFilter} onClick={() => changeFilter(() => setMethodFilter(null))}>
+          <Chip active={!methodFilter} onClick={() => changeFilter(() => { setMethodFilter(null); persistLedger({ methodFilter: null }); })}>
             全部方式
           </Chip>
           {methods.map((m) => (
-            <Chip key={m} active={methodFilter === m} onClick={() => changeFilter(() => setMethodFilter(methodFilter === m ? null : m))}>
+            <Chip
+              key={m}
+              active={methodFilter === m}
+              onClick={() =>
+                changeFilter(() => {
+                  const next = methodFilter === m ? null : m;
+                  setMethodFilter(next);
+                  persistLedger({ methodFilter: next });
+                })
+              }
+            >
               {m}
             </Chip>
           ))}
@@ -265,7 +308,12 @@ export default function LedgerPage() {
       {role === "admin" ? (
         <select
           value={companyId}
-          onChange={(e) => changeFilter(() => setCompanyId(e.target.value))}
+          onChange={(e) =>
+            changeFilter(() => {
+              setCompanyId(e.target.value);
+              persistLedger({ companyId: e.target.value });
+            })
+          }
           aria-label="公司筛选"
           className="mb-3 h-10 w-full rounded-[12px] border border-[var(--border)] bg-white/70 px-3 text-[13px] font-medium text-[var(--foreground)]"
         >
