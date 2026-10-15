@@ -462,15 +462,19 @@ export default function OpeningHallPage() {
                 && String(decryptStatus).toUpperCase() === 'DANGER' && (
                 <CaBidReuploadCard projectId={projectId} onReuploaded={() => refresh()} />
               )}
-              {canDispute && (
+              {canDispute && !record?.handleResult && (
                 <SpButton warning onClick={() => setDisputeOpen(true)}>
                   提出异议
                 </SpButton>
               )}
-              {/* dual-v3 确认唱标（办法§30 开标记录经投标人确认；2026-10-14 补接线——
-                  后端 confirmOpening 一直在，Next 大厅页此前无入口） */}
+              {/* 异议退回后（record 回待供应商确认 + handleResult 在）——确认按钮改文案提示裁决 */}
+              {/* dual-v3 确认唱标（办法§30 开标记录经投标人确认；2026-10-14 补接线） */}
               {canDispute && (record?.submitted as any)?.envelopeVersion === 'dual-v3' && (
-                <CaOpeningConfirmButton projectId={projectId} onConfirmed={() => refresh()} />
+                <CaOpeningConfirmButton
+                  projectId={projectId}
+                  onConfirmed={() => refresh()}
+                  overrideLabel={record?.handleResult ? '接受裁决并确认' : undefined}
+                />
               )}
             </div>
             {!isOpening && stage && <div className="stage-hint">大厅互动仅在开标阶段开放。</div>}

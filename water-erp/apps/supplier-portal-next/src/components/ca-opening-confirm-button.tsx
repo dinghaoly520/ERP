@@ -12,9 +12,11 @@ import { supplierApi } from '@/lib/api/supplier';
 import * as scca from '@/utils/scca-ukey';
 import { SpButton, SpDialog } from '@/components/ui';
 
-export function CaOpeningConfirmButton({ projectId, onConfirmed }: {
+export function CaOpeningConfirmButton({ projectId, onConfirmed, overrideLabel }: {
   projectId: string;
   onConfirmed?: () => void;
+  /** 异议退回后改文案（「接受裁决并确认」）——流程不变，仅提示语境 */
+  overrideLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [pin, setPin] = useState('');
@@ -56,7 +58,7 @@ export function CaOpeningConfirmButton({ projectId, onConfirmed }: {
   return (
     <>
       <SpButton variant="primary" icon={CheckCircle2} onClick={() => setOpen(true)}>
-        确认唱标
+        {overrideLabel ?? '确认唱标'}
       </SpButton>
       <SpDialog
         open={open}
