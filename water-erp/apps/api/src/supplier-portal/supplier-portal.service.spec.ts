@@ -2426,7 +2426,7 @@ describe('SupplierPortalService', () => {
 
       expect(prisma.supplierBidSubmission.update).toHaveBeenCalledWith({
         where: { supplierId_projectId: { supplierId: 'supplier-1', projectId: 'project-1' } },
-        data: { decryptedAssets: { technical: 'dec-t', business: 'dec-b' }, decryptedPrice: '980000.00' },
+        data: { decryptedAssets: { technical: 'dec-t', business: 'dec-b' }, decryptedPrice: '980000.00', deliveryPeriod: '540', qualityCommitment: '合格' },
       });
       expect(prisma.bidSupplier.update).toHaveBeenCalledWith({ where: { id: 'bs-1' }, data: { decryptStatus: 'SUCCESS', decryptedAt: expect.any(Date) } });
 
