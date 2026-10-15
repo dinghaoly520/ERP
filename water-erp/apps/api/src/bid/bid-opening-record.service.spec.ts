@@ -105,7 +105,7 @@ describe('resolveOpeningDispute', () => {
     );
   });
 
-  it('sets BidSupplier EXCEPTION when dispute is not confirmed', async () => {
+  it('退回异议→供应商回 PENDING（2026-10-15 裁定：不排除，接受裁决后确认）', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
     prisma.bidOpeningRecord.findFirst.mockResolvedValue({
       id: 'r1', projectId: 'p1', supplierName: '测试供应商', bidSupplierId: 'bs-1',
@@ -119,7 +119,7 @@ describe('resolveOpeningDispute', () => {
     await service.resolveOpeningDispute('p1', 'r1', { result: '异议成立', confirm: false });
 
     expect(prisma.bidSupplier.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ confirmStatus: 'EXCEPTION' }) }),
+      expect.objectContaining({ data: expect.objectContaining({ confirmStatus: 'PENDING' }) }),
     );
   });
 
