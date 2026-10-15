@@ -44,6 +44,14 @@ const OPENING_CONFIRM_LABELS: Record<string, string> = {
   缺席视为确认: "缺席确认",
 };
 
+/** 解密状态枚举→中文标签（bidSupplier.decryptStatus：PENDING/RUNNING/SUCCESS/DANGER——显示层用，逻辑判定保留英文） */
+const DECRYPT_STATUS_LABEL: Record<string, string> = {
+  PENDING: "待解密",
+  RUNNING: "解密中",
+  SUCCESS: "解密成功",
+  DANGER: "解密异常",
+};
+
 export default function OpeningHallPage() {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId;
@@ -141,7 +149,14 @@ export default function OpeningHallPage() {
       const [p, recRes, list] = await Promise.all([
         bidApi.getProject(projectId),
         supplierApi.getOpeningRecord(projectId)
-          .then((r: unknown) => { setRecord(r); })
+          .then((r: unknown) => {
+            setRecord(r);
+            // 初始化 decryptStatus（后端权威值——WS 事件仅做后续更新，刷新后不初始化会致
+            // DANGER 态补传卡不显示/SUCCESS 态误标已解密）
+            const rr = r as { decryptResult?: string; decryptStatus?: string } | null;
+            if (rr?.decryptStatus) setDecryptStatus(rr.decryptStatus);
+            else if (rr?.decryptResult) setDecryptStatus(rr.decryptResult === '解密成功' ? 'SUCCESS' : rr.decryptResult);
+          })
           .catch(() => { /* 拉取失败保留上次成功记录 */ }),
         // 开标前端点返回 400 OPENING_NOT_STARTED——捕获后置空列表，页面不报错
         supplierApi.getOpeningRecords(projectId).catch(() => null),
@@ -329,7 +344,7 @@ export default function OpeningHallPage() {
               <tbody>
                 <tr>
                   <th>本司解密状态</th>
-                  <td>{decryptStatus || record?.decryptResult || "—"}</td>
+                  <td>{DECRYPT_STATUS_LABEL[decryptStatus] ?? (decryptStatus || record?.decryptResult || "—")}</td>
                 </tr>
                 {/* 2026-10-15 对比卡优化：唱标/投递六行合并为三行——一致只显示一值+绿徽标，
                     不一致显示两侧值+警示徽标（原「工期（投递）—」噪音消除） */}
@@ -430,13 +445,18 @@ export default function OpeningHallPage() {
               ) : checkedInAt ? (
                 <span className="hall-tag hall-tag--info">已签到 {new Date(checkedInAt).toLocaleTimeString("zh-CN")}</span>
               ) : null}
-              {/* dual-v3 解密（v3 轨；已解密→禁用态「已解密」按钮，状态可见不隐藏——2026-10-14 用户裁定） */}
-              {isOpening && (record?.submitted as any)?.envelopeVersion === 'dual-v3' && (
+              {/* dual-v3 解密（v3 轨；已解密→禁用态，状态可见不隐藏）+ DANGER 态补传按钮（同行同族） */}
+              {isOpening && (record?.submitted as any)?.envelopeVersion === 'dual-v3'
+                && String(decryptStatus).toUpperCase() !== 'DANGER' && (
                 <CaOpeningDecryptCard
                   projectId={projectId}
                   onDecrypted={() => refresh()}
                   done={String(decryptStatus).toUpperCase() === 'SUCCESS' || record?.decryptResult === '解密成功'}
                 />
+              )}
+              {isOpening && (record?.submitted as any)?.envelopeVersion === 'dual-v3'
+                && String(decryptStatus).toUpperCase() === 'DANGER' && (
+                <CaBidReuploadCard projectId={projectId} onReuploaded={() => refresh()} />
               )}
               {canDispute && (
                 <SpButton warning onClick={() => setDisputeOpen(true)}>
@@ -452,11 +472,6 @@ export default function OpeningHallPage() {
             {!isOpening && stage && <div className="stage-hint">大厅互动仅在开标阶段开放。</div>}
           </div>
         </section>
-
-        {/* ═══ dual-v3 解密按钮已并入上方 .actions 行（2026-10-14 四键一族）；解密异常补传卡（阶段2.5 T3）：DANGER 终局恢复通道 ═══ */}
-        {isOpening && (record?.submitted as any)?.envelopeVersion === 'dual-v3' && String(decryptStatus).toUpperCase() === 'DANGER' && (
-          <CaBidReuploadCard projectId={projectId} onReuploaded={() => refresh()} />
-        )}
 
         {/* 唱标记录总表：自开标起向本项目全体投标人公开（《电子招标投标办法》第30条），
              WS opening:record:updated → refresh() 实时更新；本司行按 bidSupplierId 高亮 */}

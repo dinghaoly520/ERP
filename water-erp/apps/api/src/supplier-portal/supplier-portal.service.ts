@@ -3952,6 +3952,10 @@ export class SupplierPortalService {
     return {
       ...(record ?? {}),
       amountUnit,
+      // 前端大厅 decryptStatus 初始化数据源（bidSupplier 权威值——PENDING/RUNNING/SUCCESS/DANGER，
+      // 区别于 record.decryptResult 唱标文字）——WS 事件只做后续增量更新，刷新后不初始化会致
+      // DANGER 态补传卡不显示（2026-10-15 真盾补传测试发现）
+      decryptStatus: bidSupplier.decryptStatus,
       submitted: submission
         ? {
             envelopeVersion: submission.envelopeVersion ?? null,
