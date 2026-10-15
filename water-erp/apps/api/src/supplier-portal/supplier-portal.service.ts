@@ -3572,6 +3572,10 @@ export class SupplierPortalService {
           data: {
             decryptedAssets: decryptedAssets as unknown as Prisma.InputJsonValue,
             decryptedPrice: fields.price, // 已经 fieldsCommit 承诺验证（防开标时改价）
+            // 2026-10-15 唱标对比卡优化：投递侧工期/质量回填（承诺验证后的权威值）——
+            // 此前 dual 轨只回填价格，工期/质量读明文列恒空（确认卡「工期（投递）—」+mismatch 失效）
+            deliveryPeriod: fields.deliveryPeriod ?? null,
+            qualityCommitment: fields.qualityCommitment ?? null,
           },
         });
         // 唱标预填（旧轨 decryptSupplier 同款 recordData 形状——唱标表/供应商确认流无感衔接；

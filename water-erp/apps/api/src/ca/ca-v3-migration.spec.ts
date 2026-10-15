@@ -6,15 +6,25 @@ describe('ca-v3-migration（SCCA 阶段2 Task0 约束断言）', () => {
   afterAll(async () => { await prisma.$disconnect(); });
 
   test('SubmissionVersion 唯一索引：同 submissionId+revision 不可重复', async () => {
-    const sub = await prisma.supplierBidSubmission.findFirst();
-    if (!sub) return;
-    const v1 = await prisma.submissionVersion.create({
-      data: { submissionId: sub.id, revision: 1, envelope: { version: 'test' }, envelopeHash: 'aa'.repeat(32) },
+    // I-1 修复：自建隔离行（不读 ambient 首行——真盾 E2E 后库中存在 revision≥1 的行会误红）
+    const proj = await prisma.bidProject.create({
+      data: { projectCode: 'SPEC-ISO-' + Date.now(), name: 'spec隔离', stage: 'DOWNLOAD', procurementMethod: '公开招标', deadline: new Date(Date.now() + 3600_000), openTime: new Date(Date.now() + 7200_000) },
     });
-    await expect(prisma.submissionVersion.create({
-      data: { submissionId: sub.id, revision: 1, envelope: { version: 'test' }, envelopeHash: 'bb'.repeat(32) },
-    })).rejects.toThrow(/unique/i);
-    await prisma.submissionVersion.delete({ where: { id: v1.id } });
+    const sub = await prisma.supplierBidSubmission.create({
+      data: { supplierId: (await prisma.supplier.findFirst({ select: { id: true } }))!.id, projectId: proj.id, status: 'draft' },
+    });
+    try {
+      const v1 = await prisma.submissionVersion.create({
+        data: { submissionId: sub.id, revision: 1, envelope: { version: 'test' }, envelopeHash: 'aa'.repeat(32) },
+      });
+      await expect(prisma.submissionVersion.create({
+        data: { submissionId: sub.id, revision: 1, envelope: { version: 'test' }, envelopeHash: 'bb'.repeat(32) },
+      })).rejects.toThrow(/unique/i);
+      await prisma.submissionVersion.delete({ where: { id: v1.id } });
+    } finally {
+      await prisma.supplierBidSubmission.delete({ where: { id: sub.id } }).catch(() => {});
+      await prisma.bidProject.delete({ where: { id: proj.id } }).catch(() => {});
+    }
   });
 
   test('DecryptExecution 槽位唯一：同 submissionId+revision+phase 不可重复', async () => {
@@ -27,9 +37,17 @@ describe('ca-v3-migration（SCCA 阶段2 Task0 约束断言）', () => {
     await prisma.decryptExecution.delete({ where: { id: d1.id } });
   });
 
-  test('SupplierBidSubmission 有 revision 列且默认 0', async () => {
-    const sub = await prisma.supplierBidSubmission.findFirst({ select: { revision: true } });
-    if (sub !== null) expect(sub.revision).toBe(0);
+  test('SupplierBidSubmission 有 revision 列且新建默认 0', async () => {
+    // I-1 修复：自建行断言默认值（ambient 首行可能是真盾 E2E 的 revision=1 行）
+    const proj = await prisma.bidProject.create({
+      data: { projectCode: 'SPEC-ISO2-' + Date.now(), name: 'spec隔离2', stage: 'DOWNLOAD', procurementMethod: '公开招标', deadline: new Date(Date.now() + 3600_000), openTime: new Date(Date.now() + 7200_000) },
+    });
+    const sub = await prisma.supplierBidSubmission.create({
+      data: { supplierId: (await prisma.supplier.findFirst({ select: { id: true } }))!.id, projectId: proj.id, status: 'draft' },
+    });
+    expect(sub.revision).toBe(0);
+    await prisma.supplierBidSubmission.delete({ where: { id: sub.id } });
+    await prisma.bidProject.delete({ where: { id: proj.id } });
   });
 
   test('Outbox 表可写入且默认 PENDING', async () => {

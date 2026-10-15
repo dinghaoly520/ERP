@@ -3,6 +3,7 @@
  * Node 同源跑 ukey 原语——fieldsCommit 与服务端公式一致 + 信封结构/哈希/密封件闭环
  */
 import assert from 'node:assert/strict';
+import * as nodeCrypto from 'node:crypto';
 import { test } from 'node:test';
 import { canonicalJson, sha256Hex, sm4Decrypt } from '@water-erp/ukey';
 import type { V3Fields } from '@water-erp/ukey';
@@ -88,7 +89,8 @@ test('服务端实算 outerSha256 与本地不一致 → 抛错（防传输损�
       ENC_CERT_PEM,
       fakeAdapter as any,
       ADMIN,
-      { uploadOuter: async (role) => ({ fileAssetId: `fa-${role}`, outerSha256: 'deadbeef', outerBytes: 1 }) },
+      // 负例专用：故意返回错误哈希（真值跨校验由正例用例覆盖——二进制口径回归钉）
+      { uploadOuter: async () => ({ fileAssetId: 'fa-x', outerSha256: 'deadbeef'.padEnd(64, '0'), outerBytes: 1 }) },
       { supplierId: 'sup-1', submissionId: '', revision: 1, signingBindingId: 'b', signingCertFingerprint: 'c' },
     ),
     /outerSha256/,
@@ -114,7 +116,10 @@ test('T3 补传契约：reuseNonce——复用原 nonce 则 fieldsCommit 与首�
     const captured: string[] = [];
     const adapter = { wrapKeyToEncCert: async (_p: string, json: string) => { captured.push(json); return 'TURJWA==.' + captured.length; } };
     return { captured, r: await encryptAndUploadV3('p1', [{ role: 'technical', file: new File([new TextEncoder().encode('reupload-plain')], 't.pdf') }], F, ENC_CERT_PEM, adapter as any, ADMIN, {
-      uploadOuter: async (role: string) => ({ fileAssetId: `fa-${role}`, outerSha256: '', outerBytes: 1 }),
+      uploadOuter: async (role: string, blob: Blob) => {
+        const buf = Buffer.from(await blob.arrayBuffer());
+        return { fileAssetId: `fa-${role}`, outerSha256: nodeCrypto.createHash('sha256').update(buf).digest('hex'), outerBytes: buf.length };
+      },
     }, { supplierId: 'sup-1', submissionId: 'sub-1', revision: 1, signingBindingId: 'b', signingCertFingerprint: 'f'.repeat(64) }, REUSED) };
   };
   const { captured, r } = await mk();

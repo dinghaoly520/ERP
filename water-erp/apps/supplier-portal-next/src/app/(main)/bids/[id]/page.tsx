@@ -2,7 +2,6 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { CaBidSubmitSection } from "@/components/ca-bid-submit-section";
 import Link from "next/link";
 import { toast } from "sonner";
 import dayjs from "dayjs";
@@ -287,7 +286,8 @@ function BidDetailInner() {
       toast.warning("只有已入库供应商可以提交标书");
       return;
     }
-    router.push(isListMode ? `/bids/${projectId}/submit?from=list` : `/bids/${projectId}/submit`);
+    // 投递页 = 旧版表单 UI + SCCA dual-v3 内核（2026-10-14 用户裁定：恢复旧前端设计、后端走 SCCA）
+    router.push(`/bids/${projectId}/submit`);
   }
 
   // ══ A-101 回执展示与核验（U盾签署随 mock U盾轨下线，dual-v3 阶段恢复；服务端重验签为只读）══
@@ -553,14 +553,7 @@ function BidDetailInner() {
               {/* ═══ dual-v3 投递卡（阶段2 · I5 评审修复：挂载点）═══
                     capabilities 门控（CA_SUPPLIER_V3_ENABLED + ACTIVE SCCA 绑定）内置于 Section；
                     未开 v3/未绑盾渲染 null——旧轨用户不受影响 */}
-              {['DOWNLOAD', 'SUBMIT'].includes(project.stage) && submission?.status !== 'submitted' && (
-                <CaBidSubmitSection
-                  projectId={projectId}
-                  submissionId={submission?.id ?? ''}
-                  revision={(submission as any)?.revision ?? 0}
-                  onSubmitted={reloadSubmission}
-                />
-              )}
+
 
               {/* ═══ 招标文件 + 书面交流 ═══
                   B2-1（2026-09-30）：不再按 isListMode 隐藏——「项目机会」列表与工作台均
