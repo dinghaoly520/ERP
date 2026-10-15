@@ -833,8 +833,10 @@ function AccountFormModal({
           ...(permissionEditable ? { role: PERMISSION_ROLE[permission] } : {}),
           company: company.trim() || null,
           departmentName: departmentName.trim() || null,
-          phone: phone.trim() || null,
-          email: email.trim() || null,
+          // 掩码回声防御（2026-10-15）：回填值含 * = 出口掩码，不送该键（后端同样忽略）；
+          // 留空 = 清空手机/邮箱；输入完整新值 = 更新
+          phone: phone.trim().includes("*") ? undefined : (phone.trim() || null),
+          email: email.trim().includes("*") ? undefined : (email.trim() || null),
         });
         onDone(`已更新账号「${account.username}」。`);
       }
@@ -953,10 +955,20 @@ function AccountFormModal({
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-[color:var(--muted-foreground)]">手机号</span>
             <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="手机号" className={inputCls} />
+            {mode === "edit" && phone.includes("*") ? (
+              <span className="mt-1 block text-[10px] text-[color:var(--muted-foreground)]">
+                当前显示为掩码，保持原样提交不会修改；输入完整号码可更新，清空则删除
+              </span>
+            ) : null}
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-[color:var(--muted-foreground)]">邮箱</span>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="邮箱" className={inputCls} />
+            {mode === "edit" && email.includes("*") ? (
+              <span className="mt-1 block text-[10px] text-[color:var(--muted-foreground)]">
+                当前显示为掩码，保持原样提交不会修改；输入完整邮箱可更新，清空则删除
+              </span>
+            ) : null}
           </label>
         </div>
         {error ? <p className="text-xs text-[color:var(--danger)]">{error}</p> : null}

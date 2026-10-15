@@ -323,6 +323,12 @@ export class AccountAdminController {
     }
     // 公司名 → Company 记录（联动 companyId，口径同 create；空串=清除归属）
     const companyRec = dto.company ? await this.resolveCompanyRecord(dto.company) : null;
+    // 掩码回声防御（2026-10-15）：编辑表单回填的是出口掩码（173****0762 / a***@x.com），
+    // 原样提交会把掩码串密封入库 → 本人 /auth/me 拆封回显掩码 → 个人中心资料修改校验卡死。
+    // 含 * 的 phone/email 一律视为「未修改」剔除（同 supervision authToken '******'=保持现有 惯例）；
+    // 空串=清空、正常值=密封写入，语义不变。
+    if (dto.phone?.includes('*')) dto.phone = undefined;
+    if (dto.email?.includes('*')) dto.email = undefined;
     try {
       return await this.prisma.user.update({
         where: { id },

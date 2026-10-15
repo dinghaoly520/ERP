@@ -98,7 +98,9 @@ export function TabBasicInfo({ user, departments }: TabBasicInfoProps) {
     if (!displayName.trim()) { setError('姓名不能为空'); return; }
     if (displayName.trim().length > 32) { setError('姓名不能超过 32 个字符'); return; }
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError('邮箱格式不正确'); return; }
-    if (phone && !/^[\d\-+() ]{7,20}$/.test(phone)) { setError('手机号码格式不正确'); return; }
+    // 只校验「用户实际修改过」的手机号：预填值可能是存量掩码/密文回显（如 173****0762），
+    // 未改动时随其他字段一起提交不应被拦（2026-10-15 卡死修复）；改动过才做格式校验
+    if (phone !== (user.phone ?? '') && !/^[\d\-+() ]{7,20}$/.test(phone)) { setError('手机号码格式不正确'); return; }
     setSaving(true);
     try {
       const payload: ProfileChangePayload = {};
