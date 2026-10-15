@@ -44,6 +44,14 @@ const OPENING_CONFIRM_LABELS: Record<string, string> = {
   缺席视为确认: "缺席确认",
 };
 
+/** 解密状态枚举→中文标签（bidSupplier.decryptStatus：PENDING/RUNNING/SUCCESS/DANGER——显示层用，逻辑判定保留英文） */
+const DECRYPT_STATUS_LABEL: Record<string, string> = {
+  PENDING: "待解密",
+  RUNNING: "解密中",
+  SUCCESS: "解密成功",
+  DANGER: "解密异常",
+};
+
 export default function OpeningHallPage() {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId;
@@ -336,7 +344,7 @@ export default function OpeningHallPage() {
               <tbody>
                 <tr>
                   <th>本司解密状态</th>
-                  <td>{decryptStatus || record?.decryptResult || "—"}</td>
+                  <td>{DECRYPT_STATUS_LABEL[decryptStatus] ?? (decryptStatus || record?.decryptResult || "—")}</td>
                 </tr>
                 {/* 2026-10-15 对比卡优化：唱标/投递六行合并为三行——一致只显示一值+绿徽标，
                     不一致显示两侧值+警示徽标（原「工期（投递）—」噪音消除） */}
