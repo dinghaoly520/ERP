@@ -437,13 +437,18 @@ export default function OpeningHallPage() {
               ) : checkedInAt ? (
                 <span className="hall-tag hall-tag--info">已签到 {new Date(checkedInAt).toLocaleTimeString("zh-CN")}</span>
               ) : null}
-              {/* dual-v3 解密（v3 轨；已解密→禁用态「已解密」按钮，状态可见不隐藏——2026-10-14 用户裁定） */}
-              {isOpening && (record?.submitted as any)?.envelopeVersion === 'dual-v3' && (
+              {/* dual-v3 解密（v3 轨；已解密→禁用态，状态可见不隐藏）+ DANGER 态补传按钮（同行同族） */}
+              {isOpening && (record?.submitted as any)?.envelopeVersion === 'dual-v3'
+                && String(decryptStatus).toUpperCase() !== 'DANGER' && (
                 <CaOpeningDecryptCard
                   projectId={projectId}
                   onDecrypted={() => refresh()}
                   done={String(decryptStatus).toUpperCase() === 'SUCCESS' || record?.decryptResult === '解密成功'}
                 />
+              )}
+              {isOpening && (record?.submitted as any)?.envelopeVersion === 'dual-v3'
+                && String(decryptStatus).toUpperCase() === 'DANGER' && (
+                <CaBidReuploadCard projectId={projectId} onReuploaded={() => refresh()} />
               )}
               {canDispute && (
                 <SpButton warning onClick={() => setDisputeOpen(true)}>
@@ -459,11 +464,6 @@ export default function OpeningHallPage() {
             {!isOpening && stage && <div className="stage-hint">大厅互动仅在开标阶段开放。</div>}
           </div>
         </section>
-
-        {/* ═══ dual-v3 解密按钮已并入上方 .actions 行（2026-10-14 四键一族）；解密异常补传卡（阶段2.5 T3）：DANGER 终局恢复通道 ═══ */}
-        {isOpening && (record?.submitted as any)?.envelopeVersion === 'dual-v3' && String(decryptStatus).toUpperCase() === 'DANGER' && (
-          <CaBidReuploadCard projectId={projectId} onReuploaded={() => refresh()} />
-        )}
 
         {/* 唱标记录总表：自开标起向本项目全体投标人公开（《电子招标投标办法》第30条），
              WS opening:record:updated → refresh() 实时更新；本司行按 bidSupplierId 高亮 */}
