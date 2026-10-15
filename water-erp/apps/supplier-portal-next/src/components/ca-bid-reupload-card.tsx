@@ -152,10 +152,8 @@ export function CaBidReuploadCard({ projectId, onReuploaded }: {
           </>
         }
       >
-        <p className="text-sm leading-relaxed text-[var(--fg-2)]">
-          解密异常恢复通道：请重新选择<span className="font-medium">各角色原始标书文件</span>
-          （明文须与原版一致），系统将以原 nonce 重封保证报价承诺不变。
-        </p>
+        <p className="text-sm font-medium text-[var(--fg-1)]">重新上传原始标书文件</p>
+        <p className="mt-1 text-xs text-[var(--fg-3)]">文件须与投递时一致，报价不变</p>
         {ctx?.roles.map((r) => (
           <div key={r.role} className="mt-3">
             <label className="mb-1 block text-sm font-medium">{ROLE_LABEL[r.role] ?? r.role}</label>

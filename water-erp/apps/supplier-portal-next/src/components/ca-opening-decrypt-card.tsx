@@ -142,10 +142,8 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
           </>
         }
       >
-        <p className="text-sm leading-relaxed text-[var(--fg-2)]">
-          将下载密文并使用 U盾解密标书内层与唱标字段，随后以 P7 电子签名提交解密证明。
-          文件较大时解密需要一些时间，过程中请勿关闭页面。
-        </p>
+        <p className="text-sm font-medium text-[var(--fg-1)]">输入 U盾 PIN 解密标书</p>
+        <p className="mt-1 text-xs text-[var(--fg-3)]">大文件约需 1 分钟，请勿关闭页面</p>
         <div className="mt-3">
           <label className="mb-1 block text-sm font-medium">U盾 PIN</label>
           <input

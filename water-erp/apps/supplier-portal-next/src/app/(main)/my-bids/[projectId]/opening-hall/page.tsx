@@ -7,7 +7,7 @@ import { CaOpeningConfirmButton } from "@/components/ca-opening-confirm-button";
 import { CaBidReuploadCard } from "@/components/ca-bid-reupload-card";
 import { toast } from "sonner";
 import dayjs from "dayjs";
-import { CloudOff, Clock, Lock, MessageSquareOff, User, Wifi } from "lucide-react";
+import { Check, CloudOff, Clock, Lock, MessageSquareOff, TriangleAlert, User, Wifi } from "lucide-react";
 import { bidApi } from "@/lib/api/bid";
 import { supplierApi, type OpeningRecordRow } from "@/lib/api/supplier";
 // A-113：唱标字段动态渲染辅助（后端 opening-field-config.util.ts 的渲染镜像，含法定四列本页固定口径）
@@ -342,25 +342,51 @@ export default function OpeningHallPage() {
           <div className="hall-card__body">
             <table className="hall-desc">
               <tbody>
+                {/* 2026-10-15 文案精简：解密状态+确认状态合并为一行汇总徽标区 */}
                 <tr>
-                  <th>本司解密状态</th>
-                  <td>{DECRYPT_STATUS_LABEL[decryptStatus] ?? (decryptStatus || record?.decryptResult || "—")}</td>
+                  <th>状态</th>
+                  <td>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="hall-tag hall-tag--sm" style={{
+                        background: `color-mix(in oklch, ${decryptStatus === "SUCCESS" ? "var(--success)" : decryptStatus === "DANGER" ? "var(--danger)" : "var(--warning)"} 12%, transparent)`,
+                        borderColor: `color-mix(in oklch, ${decryptStatus === "SUCCESS" ? "var(--success)" : decryptStatus === "DANGER" ? "var(--danger)" : "var(--warning)"} 30%, transparent)`,
+                        color: decryptStatus === "SUCCESS" ? "var(--success)" : decryptStatus === "DANGER" ? "var(--danger)" : "var(--warning)",
+                      }}>
+                        {DECRYPT_STATUS_LABEL[decryptStatus] ?? (decryptStatus || record?.decryptResult || "待解密")}
+                      </span>
+                      {record && (
+                        <span className="hall-tag hall-tag--sm" style={{
+                          background: `color-mix(in oklch, ${record.confirmStatus === "供应商已确认" ? "var(--success)" : "var(--warning)"} 12%, transparent)`,
+                          borderColor: `color-mix(in oklch, ${record.confirmStatus === "供应商已确认" ? "var(--success)" : "var(--warning)"} 30%, transparent)`,
+                          color: record.confirmStatus === "供应商已确认" ? "var(--success)" : "var(--warning)",
+                        }}>
+                          {OPENING_CONFIRM_LABELS[record.confirmStatus] ?? record.confirmStatus}
+                        </span>
+                      )}
+                      {record?.confirmSignature && (
+                        <span className="hall-tag hall-tag--sm gap-1 bg-[color-mix(in_oklch,var(--success)_12%,transparent)] border-[color-mix(in_oklch,var(--success)_30%,transparent)] text-success"
+                          title={`已电子签名 · ${record.confirmSignature.algorithm ?? "SM2/SM3"}${record.confirmSignature.verifiedAt ? ` · ${dayjs(record.confirmSignature.verifiedAt).format("MM-DD HH:mm")}` : ""}`}>
+                          <Lock size={11} strokeWidth={1.75} /> 签名
+                        </span>
+                      )}
+                    </div>
+                  </td>
                 </tr>
-                {/* 2026-10-15 对比卡优化：唱标/投递六行合并为三行——一致只显示一值+绿徽标，
-                    不一致显示两侧值+警示徽标（原「工期（投递）—」噪音消除） */}
+                {/* 对比行：✓/⚠ 图标代文字徽标（悬浮 title 显示详情） */}
                 <tr>
                   <th>投标报价</th>
-                  {/* P1-1：金额归一——裸数字千分位+元、带单位原文直出；dual 轨按 amountUnit 直出「153.95 万元」 */}
                   <td>
                     <span className={record?.submitted?.priceMismatch ? "mismatch" : undefined}>
                       {formatOpeningAmount(record?.amount, record?.amountUnit)}
                     </span>
                     {record?.submitted?.priceMismatch ? (
-                      <>
-                        <span className="hall-tag hall-tag--sm hall-tag--warning-plain ml-1.5">唱标 ≠ 投递 {submittedPriceText}</span>
-                      </>
+                      <span className="ml-1.5 inline-flex items-center" title={`唱标 ≠ 投递（投递：${submittedPriceText}）`}>
+                        <TriangleAlert size={13} className="text-[var(--warning)]" strokeWidth={1.75} />
+                      </span>
                     ) : record?.submitted?.bidPrice ? (
-                      <span className="hall-tag hall-tag--sm ml-1.5 gap-1 bg-[color-mix(in_oklch,var(--success)_12%,transparent)] border-[color-mix(in_oklch,var(--success)_30%,transparent)] text-success">与投递一致</span>
+                      <span className="ml-1.5 inline-flex items-center" title="与投递一致">
+                        <Check size={13} className="text-[var(--success)]" strokeWidth={2} />
+                      </span>
                     ) : null}
                   </td>
                 </tr>
@@ -371,9 +397,13 @@ export default function OpeningHallPage() {
                       {record?.period || "—"}
                     </span>
                     {record?.submitted?.periodMismatch ? (
-                      <span className="hall-tag hall-tag--sm hall-tag--warning-plain ml-1.5">唱标 ≠ 投递 {record?.submitted?.deliveryPeriod || "—"}</span>
+                      <span className="ml-1.5 inline-flex items-center" title={`唱标 ≠ 投递（投递：${record?.submitted?.deliveryPeriod || "—"}）`}>
+                        <TriangleAlert size={13} className="text-[var(--warning)]" strokeWidth={1.75} />
+                      </span>
                     ) : record?.submitted?.deliveryPeriod ? (
-                      <span className="hall-tag hall-tag--sm ml-1.5 gap-1 bg-[color-mix(in_oklch,var(--success)_12%,transparent)] border-[color-mix(in_oklch,var(--success)_30%,transparent)] text-success">与投递一致</span>
+                      <span className="ml-1.5 inline-flex items-center" title="与投递一致">
+                        <Check size={13} className="text-[var(--success)]" strokeWidth={2} />
+                      </span>
                     ) : null}
                   </td>
                 </tr>
@@ -390,9 +420,13 @@ export default function OpeningHallPage() {
                       {record?.qualityTarget || "—"}
                     </span>
                     {record?.submitted?.qualityCommitment && record?.qualityTarget != null && record.qualityTarget !== record.submitted.qualityCommitment ? (
-                      <span className="hall-tag hall-tag--sm hall-tag--warning-plain ml-1.5">唱标 ≠ 投递 {record.submitted.qualityCommitment}</span>
+                      <span className="ml-1.5 inline-flex items-center" title={`唱标 ≠ 投递（投递：${record.submitted.qualityCommitment}）`}>
+                        <TriangleAlert size={13} className="text-[var(--warning)]" strokeWidth={1.75} />
+                      </span>
                     ) : record?.submitted?.qualityCommitment ? (
-                      <span className="hall-tag hall-tag--sm ml-1.5 gap-1 bg-[color-mix(in_oklch,var(--success)_12%,transparent)] border-[color-mix(in_oklch,var(--success)_30%,transparent)] text-success">与投递一致</span>
+                      <span className="ml-1.5 inline-flex items-center" title="与投递一致">
+                        <Check size={13} className="text-[var(--success)]" strokeWidth={2} />
+                      </span>
                     ) : null}
                   </td>
                 </tr>
@@ -410,24 +444,6 @@ export default function OpeningHallPage() {
                     ))}
                   </>
                 )}
-                <tr>
-                  <th>开标记录状态</th>
-                  <td>
-                    {record?.confirmStatus || "—"}
-                    {/* A-114：已电子签名徽标（本人视图完整归档含 algorithm/verifiedAt；配色同本页 .presence 绿色药丸） */}
-                    {record?.confirmSignature && (
-                      <span
-                        className="hall-tag hall-tag--sm ml-1.5 gap-1 bg-[color-mix(in_oklch,var(--success)_12%,transparent)] border-[color-mix(in_oklch,var(--success)_30%,transparent)] text-success"
-                      >
-                        <Lock size={12} strokeWidth={1.75} />
-                        已电子签名（{record.confirmSignature.algorithm ?? "SM2/SM3"}
-                        {record.confirmSignature.verifiedAt
-                          ? ` · ${dayjs(record.confirmSignature.verifiedAt).format("YYYY-MM-DD HH:mm")}`
-                          : ""}）
-                      </span>
-                    )}
-                  </td>
-                </tr>
                 {record?.handleResult && (
                   <tr>
                     <th>异议处理结果</th>
