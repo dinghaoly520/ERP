@@ -1125,7 +1125,13 @@ export function ProjectDetailPanel({
         setAiResult({ type: 'error', message: '未能提取到该字段信息，请检查采购文件内容。' });
       }
     } catch (e) {
-      setAiResult({ type: 'error', message: e instanceof Error ? e.message : 'AI 提取失败' });
+      // 超时（AbortError）单独提示：AI 提取含大模型调用，慢/悬死连接 150s 强制终止——
+      // 无此分支会显示通用失败，用户无从分辨该等还是该查网络（2026-10-15 实录）
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        setAiResult({ type: 'error', message: 'AI 提取超时（采购文件较长，大模型处理中）。请稍后刷新查看结果，或稍候重试。' });
+      } else {
+        setAiResult({ type: 'error', message: e instanceof Error ? e.message : 'AI 提取失败' });
+      }
     } finally {
       setAiExtracting(null);
     }

@@ -110,13 +110,23 @@ export async function reprocProject(projectId: string) {
 // 送审流落地时按后端实际路由重建。
 
 /** 从已上传的采购文件重新提取 projectOverview / bidOpeningTime / documentAcquireTime */
-export async function extractTenderFields(projectId: string, field?: string) {
+export async function extractTenderFields(projectId: string, field?: string, timeoutMs = 150_000) {
   const qs = field ? `?field=${field}` : '';
-  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/extract-tender-fields${qs}`, {
-    method: 'POST',
-    credentials: 'include',
-  });
-  return parseJsonResponse<Record<string, string | null>>(response);
+  // 兜底超时（2026-10-15）：LLM 调用后端已限 60s×1 重试，但连接悬死（如 dev watch 重启断流）
+  // 时 fetch 永不落定、按钮无限转圈——AbortController 强制终止；150s > 后端最坏 120s，
+  // 正常情况下后端结果/报错先到，abort 只是最后防线。
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await apiFetch(`${API_BASE}/project-management/${projectId}/extract-tender-fields${qs}`, {
+      method: 'POST',
+      credentials: 'include',
+      signal: controller.signal,
+    });
+    return await parseJsonResponse<Record<string, string | null>>(response);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** 重开已完成步骤：该步骤→进行中，后续步骤→待解锁；文件与分析内容保留。 */

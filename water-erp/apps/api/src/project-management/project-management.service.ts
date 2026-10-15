@@ -765,9 +765,21 @@ export class ProjectManagementService {
     const result: Record<string, string | null> = {};
 
     if (wants('projectOverview')) {
-      let raw = extractProjectOverviewFromText(text, procurementMethod);
-      if (!raw) raw = await this.aiExtractProjectOverview(text, procurementMethod);
-      const val = raw ? await this.aiMinimalPolish(raw) : null;
+      // 显式点击「AI 提取」（field 传入）→ AI 优先：正则只会复述文件里「项目概况」章节的
+      // 模板套话（如「本项目共计1个包，设置1名成交供应商，询比详见第五章」，2026-10-15 实录），
+      // 用户点名要 AI 就给实质提取（prompt 限采买标的/范围、排除条款性套话）；AI 落空回退正则。
+      // AI 产物免二次抛光：本就是成段干净散文，再过一次 LLM 只加 25-60s 无谓转圈。
+      // 自动路径（上传后自动提取/全字段）仍正则优先 + 抛光——省时且模板文档正则已够用。
+      const explicitOverview = field === 'projectOverview';
+      let fromAi = false;
+      let raw: string | null = null;
+      if (explicitOverview) {
+        raw = await this.aiExtractProjectOverview(text, procurementMethod);
+        fromAi = !!raw;
+      }
+      if (!raw) raw = extractProjectOverviewFromText(text, procurementMethod);
+      if (!raw && !explicitOverview) raw = await this.aiExtractProjectOverview(text, procurementMethod);
+      const val = raw && !fromAi ? await this.aiMinimalPolish(raw) : raw;
       if (val) updateData.projectOverview = val;
       result.projectOverview = val;
     }
