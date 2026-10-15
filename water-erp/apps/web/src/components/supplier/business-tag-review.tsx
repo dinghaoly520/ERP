@@ -107,7 +107,7 @@ export function BusinessTagReview({ onChanged }: { onChanged?: () => void }) {
       {groups !== null && groups.length > 0 && (
         <div className="flex max-h-[min(62vh,600px)] flex-col gap-2.5 overflow-y-auto px-4 pb-4 pt-1">
           {groups.map(g => (
-            <div key={g.key} className="overflow-hidden rounded-xl border border-[var(--border)]">
+            <div key={g.key} className="shrink-0 overflow-hidden rounded-xl border border-[var(--border)]">
               {/* 组头：来源供应商（同一供应商的标签合并于此）+ 待审计数 + 供应商库跳转 */}
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[var(--border)] bg-[color-mix(in_oklch,var(--foreground)_2%,transparent)] px-3.5 py-2">
                 <Building2 size={13} className="shrink-0 text-[var(--muted-foreground)]" />
@@ -124,16 +124,16 @@ export function BusinessTagReview({ onChanged }: { onChanged?: () => void }) {
                 <span className="ml-auto shrink-0 font-mono text-[10px] tabular-nums text-[var(--muted-foreground)]">{g.tags.length} 条{view === 'PENDING' ? '待审' : '记录'}</span>
               </div>
               {/* 列头 */}
-              <div className="grid grid-cols-[1fr_150px_180px] text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+              <div className="grid grid-cols-[1fr_150px_200px] text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
                 <div className="px-3.5 py-1.5">标签名称</div>
                 <div className="px-3 py-1.5">提交时间</div>
                 <div className="px-3 py-1.5 text-right">{view === 'PENDING' ? '操作' : '审核留痕'}</div>
               </div>
               {g.tags.map(t => (
-                <div key={t.id} className="grid grid-cols-[1fr_150px_180px] items-center border-t border-[color-mix(in_oklch,var(--border)_60%,transparent)]">
+                <div key={t.id} className="grid grid-cols-[1fr_150px_200px] items-center border-t border-[color-mix(in_oklch,var(--border)_60%,transparent)]">
                   {/* 展示不全修复：长标签 break-all 完整换行展示，不再溢出/截断 */}
                   <div className="min-w-0 break-all px-3.5 py-2 text-[13px] font-semibold text-[var(--foreground)]" title={t.name}>{t.name}</div>
-                  <div className="px-3 py-2 text-xs text-[var(--muted-foreground)]">
+                  <div className="whitespace-nowrap px-3 py-2 text-xs text-[var(--muted-foreground)]">
                     {new Date(t.createdAt).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
                   </div>
                   <div className="px-3 py-2">
@@ -147,7 +147,7 @@ export function BusinessTagReview({ onChanged }: { onChanged?: () => void }) {
                     ) : null}
                     {/* 逐条独立裁定（仅待审视图）：同组标签互不连带 */}
                     {view === 'PENDING' && (
-                    <div className="flex justify-end gap-1.5">
+                    <div className="flex flex-nowrap justify-end gap-1.5">
                       <button
                         className="neu-btn-xs is-success"
                         disabled={busyId === t.id}
