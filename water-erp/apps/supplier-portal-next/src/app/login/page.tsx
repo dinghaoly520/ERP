@@ -303,7 +303,7 @@ function LoginForm() {
                   ) : queryResult.found ? (
                     <>
                       <strong>{queryResult.name}</strong>
-                      <span>，{STATUS_TEXT[queryResult.status as string] || queryResult.status}</span>
+                      <span>{STATUS_TEXT[queryResult.status as string] || queryResult.status}</span>
                       {queryResult.status === "PENDING" && queryResult.reviewStage && (
                         <span className="lp-query__stage">
                           当前进度：{REVIEW_STAGE_TEXT[queryResult.reviewStage] || queryResult.reviewStage}
