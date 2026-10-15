@@ -153,6 +153,10 @@ describe('opening-package v3 + 解密上传 P7 证明（Task9）', () => {
     expect(prisma.tx.supplierBidSubmission.update).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ decryptedPrice: '153.95' }),
     }));
+    // 2026-10-15 唱标对比卡优化：投递侧工期/质量回填（承诺验证权威值——确认卡对比列不再恒「—」）
+    expect(prisma.tx.supplierBidSubmission.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ deliveryPeriod: '90 日历天', qualityCommitment: '合格' }),
+    }));
     expect(prisma.tx.fileAsset.upsert).toHaveBeenCalledWith(expect.objectContaining({
       create: expect.objectContaining({ category: 'bid_decrypted' }),
     }));

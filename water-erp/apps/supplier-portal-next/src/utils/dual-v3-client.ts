@@ -43,6 +43,10 @@ export async function pemDerSha256(pem: string): Promise<string> {
   return sha256Hex(pemToDer(pem));
 }
 
+/** hex 串 → 二进制字节（加密产物上传/哈希统一走二进制——哈希口径与服务端实算一致） */
+const hexToBytes = (h: string): Uint8Array =>
+  Uint8Array.from((h.match(/.{2}/g) ?? []).map((x) => parseInt(x, 16)));
+
 const utf8Hex = (s: string): string =>
   Array.from(new TextEncoder().encode(s), (b) => b.toString(16).padStart(2, '0')).join('');
 
@@ -82,13 +86,16 @@ export async function encryptAndUploadV3(
 
     const dekS = { keyHex: randomHex(16), ivHex: randomHex(16) };
     const innerHex = sm4Encrypt(dekS.keyHex, dekS.ivHex, plainHex);
-    const innerSha256 = await sha256Hex(innerHex);
+    const innerBin = hexToBytes(innerHex);
+    // 哈希口径=二进制（真盾 E2E 实证：hex 字符串哈希 ≠ 服务端实算二进制哈希——跨校验必炸）
+    const innerSha256 = await sha256Hex(innerBin);
 
     const dekA = { keyHex: randomHex(16), ivHex: randomHex(16) };
     const outerHex = sm4Encrypt(dekA.keyHex, dekA.ivHex, innerHex);
-    const outerSha256Local = await sha256Hex(outerHex);
+    const outerBin = hexToBytes(outerHex);
+    const outerSha256Local = await sha256Hex(outerBin);
 
-    const outerBlob = new Blob([Uint8Array.from((outerHex.match(/.{2}/g) ?? []).map((h) => parseInt(h, 16)))], {
+    const outerBlob = new Blob([new Uint8Array(outerBin)], {
       type: 'application/octet-stream',
     });
     const uploaded = await deps.uploadOuter(role, outerBlob, `${file.name}.outer`);
@@ -129,7 +136,7 @@ export async function encryptAndUploadV3(
   const sealedFields: DualV3SealedFields = {
     cipherFormat: 'sm4-cbc-pkcs7-hex',
     cipher: cipherHex,
-    cipherSha256: await sha256Hex(cipherHex),
+    cipherSha256: await sha256Hex(hexToBytes(cipherHex)),
     cipherBytes: hexBytes(cipherHex),
     kself: {
       format: 'scca-pkcs7-base64',

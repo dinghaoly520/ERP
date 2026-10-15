@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { CaOpeningDecryptCard } from "@/components/ca-opening-decrypt-card";
+import { CaOpeningConfirmButton } from "@/components/ca-opening-confirm-button";
 import { CaBidReuploadCard } from "@/components/ca-bid-reupload-card";
 import { toast } from "sonner";
 import dayjs from "dayjs";
@@ -330,60 +331,56 @@ export default function OpeningHallPage() {
                   <th>本司解密状态</th>
                   <td>{decryptStatus || record?.decryptResult || "—"}</td>
                 </tr>
+                {/* 2026-10-15 对比卡优化：唱标/投递六行合并为三行——一致只显示一值+绿徽标，
+                    不一致显示两侧值+警示徽标（原「工期（投递）—」噪音消除） */}
                 <tr>
-                  <th>唱标金额</th>
-                  {/* P1-1：金额归一——裸数字千分位+元、带单位原文直出（修「1080万元 元」双单位）；
-                      dual-v2 报价以万元入库，按 amountUnit 直出「153.95 万元」（2026-09-11 标记 / 2026-09-14 供应商端接通） */}
-                  <td>{formatOpeningAmount(record?.amount, record?.amountUnit)}</td>
-                </tr>
-                <tr>
-                  <th>投递报价</th>
+                  <th>投标报价</th>
+                  {/* P1-1：金额归一——裸数字千分位+元、带单位原文直出；dual 轨按 amountUnit 直出「153.95 万元」 */}
                   <td>
-                    <span className={record?.submitted?.priceMismatch ? "mismatch" : undefined}>{submittedPriceText}</span>
-                    {record?.submitted?.priceMismatch && (
-                      <span className="hall-tag hall-tag--sm hall-tag--warning-plain ml-1.5">
-                        与唱标不一致
-                      </span>
-                    )}
+                    <span className={record?.submitted?.priceMismatch ? "mismatch" : undefined}>
+                      {formatOpeningAmount(record?.amount, record?.amountUnit)}
+                    </span>
+                    {record?.submitted?.priceMismatch ? (
+                      <>
+                        <span className="hall-tag hall-tag--sm hall-tag--warning-plain ml-1.5">唱标 ≠ 投递 {submittedPriceText}</span>
+                      </>
+                    ) : record?.submitted?.bidPrice ? (
+                      <span className="hall-tag hall-tag--sm ml-1.5 gap-1 bg-[color-mix(in_oklch,var(--success)_12%,transparent)] border-[color-mix(in_oklch,var(--success)_30%,transparent)] text-success">与投递一致</span>
+                    ) : null}
                   </td>
                 </tr>
                 <tr>
-                  <th>工期（唱标）</th>
-                  <td>{record?.period || "—"}</td>
-                </tr>
-                <tr>
-                  <th>工期（投递）</th>
+                  <th>交货工期</th>
                   <td>
                     <span className={record?.submitted?.periodMismatch ? "mismatch" : undefined}>
-                      {record?.submitted?.deliveryPeriod || "—"}
+                      {record?.period || "—"}
                     </span>
-                    {record?.submitted?.periodMismatch && (
-                      <span className="hall-tag hall-tag--sm hall-tag--warning-plain ml-1.5">
-                        与唱标不一致
-                      </span>
-                    )}
+                    {record?.submitted?.periodMismatch ? (
+                      <span className="hall-tag hall-tag--sm hall-tag--warning-plain ml-1.5">唱标 ≠ 投递 {record?.submitted?.deliveryPeriod || "—"}</span>
+                    ) : record?.submitted?.deliveryPeriod ? (
+                      <span className="hall-tag hall-tag--sm ml-1.5 gap-1 bg-[color-mix(in_oklch,var(--success)_12%,transparent)] border-[color-mix(in_oklch,var(--success)_30%,transparent)] text-success">与投递一致</span>
+                    ) : null}
                   </td>
                 </tr>
                 <tr>
-                  <th>质量承诺（唱标）</th>
-                  <td>{record?.qualityTarget || "—"}</td>
+                  <th>质量承诺</th>
+                  <td>
+                    <span
+                      className={
+                        record?.submitted?.qualityCommitment && record?.qualityTarget != null && record.qualityTarget !== record.submitted.qualityCommitment
+                          ? "mismatch"
+                          : undefined
+                      }
+                    >
+                      {record?.qualityTarget || "—"}
+                    </span>
+                    {record?.submitted?.qualityCommitment && record?.qualityTarget != null && record.qualityTarget !== record.submitted.qualityCommitment ? (
+                      <span className="hall-tag hall-tag--sm hall-tag--warning-plain ml-1.5">唱标 ≠ 投递 {record.submitted.qualityCommitment}</span>
+                    ) : record?.submitted?.qualityCommitment ? (
+                      <span className="hall-tag hall-tag--sm ml-1.5 gap-1 bg-[color-mix(in_oklch,var(--success)_12%,transparent)] border-[color-mix(in_oklch,var(--success)_30%,transparent)] text-success">与投递一致</span>
+                    ) : null}
+                  </td>
                 </tr>
-                {record?.submitted?.qualityCommitment && (
-                  <tr>
-                    <th>质量承诺（投递）</th>
-                    <td>
-                      <span
-                        className={
-                          record.qualityTarget != null && record.qualityTarget !== record.submitted.qualityCommitment
-                            ? "mismatch"
-                            : undefined
-                        }
-                      >
-                        {record.submitted.qualityCommitment}
-                      </span>
-                    </td>
-                  </tr>
-                )}
                 {/* A-113：动态唱标字段增显区（仅 config 含动态键且有值时渲染；无法定密封源不比对，仅展示） */}
                 {myOtherRows.length > 0 && (
                   <>
@@ -433,23 +430,30 @@ export default function OpeningHallPage() {
               ) : checkedInAt ? (
                 <span className="hall-tag hall-tag--info">已签到 {new Date(checkedInAt).toLocaleTimeString("zh-CN")}</span>
               ) : null}
+              {/* dual-v3 解密（v3 轨；已解密→禁用态「已解密」按钮，状态可见不隐藏——2026-10-14 用户裁定） */}
+              {isOpening && (record?.submitted as any)?.envelopeVersion === 'dual-v3' && (
+                <CaOpeningDecryptCard
+                  projectId={projectId}
+                  onDecrypted={() => refresh()}
+                  done={String(decryptStatus).toUpperCase() === 'SUCCESS' || record?.decryptResult === '解密成功'}
+                />
+              )}
               {canDispute && (
                 <SpButton warning onClick={() => setDisputeOpen(true)}>
                   提出异议
                 </SpButton>
+              )}
+              {/* dual-v3 确认唱标（办法§30 开标记录经投标人确认；2026-10-14 补接线——
+                  后端 confirmOpening 一直在，Next 大厅页此前无入口） */}
+              {canDispute && (record?.submitted as any)?.envelopeVersion === 'dual-v3' && (
+                <CaOpeningConfirmButton projectId={projectId} onConfirmed={() => refresh()} />
               )}
             </div>
             {!isOpening && stage && <div className="stage-hint">大厅互动仅在开标阶段开放。</div>}
           </div>
         </section>
 
-        {/* ═══ dual-v3 供应商自助解密卡（阶段2 Task12，2026-10-14）═══
-              取包→盾 unwrapKey→SM4 内层解密→P7 解密证明→decrypt-upload；
-              旧轨（无信封）家仍走主持端代解密——按 mySubmission.envelopeVersion 分流 */}
-        {isOpening && (record?.submitted as any)?.envelopeVersion === 'dual-v3' && (
-          <CaOpeningDecryptCard projectId={projectId} onDecrypted={() => refresh()} />
-        )}
-        {/* ═══ dual-v3 解密异常补传卡（阶段2.5 T3）：DANGER 终局恢复通道 ═══ */}
+        {/* ═══ dual-v3 解密按钮已并入上方 .actions 行（2026-10-14 四键一族）；解密异常补传卡（阶段2.5 T3）：DANGER 终局恢复通道 ═══ */}
         {isOpening && (record?.submitted as any)?.envelopeVersion === 'dual-v3' && String(decryptStatus).toUpperCase() === 'DANGER' && (
           <CaBidReuploadCard projectId={projectId} onReuploaded={() => refresh()} />
         )}

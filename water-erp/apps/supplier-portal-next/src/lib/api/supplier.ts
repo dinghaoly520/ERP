@@ -116,8 +116,8 @@ export const supplierApi = {
       xhr.send(fd);
     });
   },
-  /** C_outer 密文暂存（Task5 端点）——multipart，服务端实算 outerSha256 */
-  caUploadEncryptedOuter(projectId: string, blob: Blob, filename: string): Promise<{ fileAssetId: string; outerSha256: string; outerBytes: number; expiresAt: string }> {
+  /** C_outer 密文暂存（Task5 端点）——multipart，服务端实算 outerSha256；onProgress 供投递页逐文件进度条 */
+  caUploadEncryptedOuter(projectId: string, blob: Blob, filename: string, onProgress?: (pct: number) => void): Promise<{ fileAssetId: string; outerSha256: string; outerBytes: number; expiresAt: string }> {
     return new Promise((resolve, reject) => {
       const fd = new FormData();
       fd.append('file', blob, filename);
@@ -126,6 +126,11 @@ export const supplierApi = {
       xhr.withCredentials = true;
       xhr.setRequestHeader('X-Portal', 'supplier');
       xhr.timeout = 180000;
+      if (onProgress) {
+        xhr.upload.onprogress = (ev) => {
+          if (ev.lengthComputable) onProgress(Math.round((ev.loaded / ev.total) * 100));
+        };
+      }
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
           try { resolve(JSON.parse(xhr.responseText)); } catch (e) { reject(e); }
@@ -197,6 +202,11 @@ export const supplierApi = {
   getReceiptPayload(submissionId: string, opts?: ReqOpts) {
     return api.get<{ payload: Record<string, unknown>; canonical: string }>(`/supplier-portal/bid-submissions/${submissionId}/receipt-payload`, opts);
   },
+  /** 回执 P7 强签（dual-v3）：operationId+signP7（阶段2 收尾） */
+  signReceiptV3(submissionId: string, body: { operationId: string; signatureFormat: string; signP7: string }) {
+    return api.post<any>(`/supplier-portal/bid-submissions/${submissionId}/receipt-signature`, body);
+  },
+
   signReceiptSignature(submissionId: string, signature: string) {
     return api.post(`/supplier-portal/bid-submissions/${submissionId}/receipt-signature`, { signature });
   },
@@ -229,6 +239,11 @@ export const supplierApi = {
     return api.get<{ payload: Record<string, unknown>; canonical: string }>(`/supplier-portal/bid-submissions/${projectId}/opening-confirm-payload`);
   },
   // A-114：确认/补签单端点双语义（服务端按记录态自动分辨），body 签名必填
+  /** 开标确认（dual-v3 P7 强签）：operationId+signP7 */
+  confirmOpeningV3(projectId: string, body: { operationId: string; signatureFormat: string; signP7: string }) {
+    return api.post<any>(`/supplier-portal/bid-submissions/${projectId}/opening-confirm`, body);
+  },
+
   confirmOpening(projectId: string, signature: string) {
     return api.post<any>(`/supplier-portal/bid-submissions/${projectId}/opening-confirm`, { signature });
   },

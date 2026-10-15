@@ -13,6 +13,7 @@ const quoteSource = readFileSync(
 );
 
 test("submission and round-quote deadlines use the synchronized server clock", () => {
+  // 投递页已恢复（SCCA 内核）——截止判断仍走 serverNowMs 同步时钟
   assert.match(submissionSource, /serverNowMs\(\)/);
   assert.doesNotMatch(submissionSource, /new Date\(project\.deadline\) > new Date\(\)/);
   assert.doesNotMatch(submissionSource, /d > new Date\(\)/);

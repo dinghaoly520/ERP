@@ -109,7 +109,7 @@ export const bidApi = {
   getClarificationReplyPayload(
     projectId: string,
     cid: string,
-    body: { reply: string; attachmentIds: string[]; certSn: string },
+    body: { reply: string; attachmentIds: string[]; certSn?: string },
   ) {
     return api.post<{ payload: string }>(
       `/supplier-portal/projects/${projectId}/bid-clarifications/${cid}/reply-payload`,
@@ -121,7 +121,9 @@ export const bidApi = {
   submitClarificationReply(
     projectId: string,
     cid: string,
-    body: { reply: string; attachmentIds: string[]; certSn?: string; signature?: string },
+    body: { reply: string; attachmentIds: string[]; certSn?: string; signature?: string;
+            // dual-v3 P7（阶段2 收尾）
+            operationId?: string; signatureFormat?: string; signP7?: string },
   ) {
     return api.post<SupplierBidClarification>(
       `/supplier-portal/projects/${projectId}/bid-clarifications/${cid}/reply`,

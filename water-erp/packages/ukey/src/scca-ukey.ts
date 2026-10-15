@@ -87,13 +87,23 @@ export class SccaUKeyAdapter {
     return String(r.retValue);
   }
 
-  /** 密钥解封（SOF_DecryptData） */
+  /** 密钥解封（SOF_DecryptData）。
+   *  真盾实证（2026-10-14 E2E）：中间件返回 **base64 编码的明文**（"eyJpdiI6Im…" =
+   *  b64('{"iv":"')）——解码后才是 keyWrapJson；兼容已解码形态（直接以 { 开头）。 */
   async unwrapKey(container: string, p7B64: string): Promise<string> {
     const r = await this.transport.call('SOF_DecryptData', [container, p7B64]);
     if (!r.retValue) {
       throw new SccaTransportError('密钥解封失败（错盾/错钥？）', SccaTransport.normalizeError(r.retCode, r.retValue) ?? 'UKEY_TIMEOUT');
     }
-    return String(r.retValue);
+    const raw = String(r.retValue);
+    if (raw.startsWith('{') || raw.startsWith('[')) return raw; // 已解码（兼容形态）
+    try {
+      const bin = atob(raw.replace(/\s+/g, ''));
+      const bytes = Uint8Array.from(bin, (ch) => ch.charCodeAt(0));
+      return new TextDecoder().decode(bytes);
+    } catch {
+      return raw; // 非法 base64——原样返回，由调用方 JSON.parse 报错暴露
+    }
   }
 
   /** 获取日志（PIN 已掩码） */
