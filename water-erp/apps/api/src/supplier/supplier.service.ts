@@ -2401,7 +2401,7 @@ export class SupplierService {
   /** 审批中心右上角角标（2026-09-29）：当前登录人「待我审」数量
    *  注册审批 = 我所在级的在审数（staff→STAFF 级·本公司；leader→LEADER 级·本公司 + 本公司无 staff 时的 STAFF 级；admin→ADMIN 级·全部）
    *  信息更新审批 = 待审变更数（办公权限：leader/staff·本公司；admin 全部可见） */
-  async myPendingReviewCount(actor: AuthenticatedUser, companyIdFilter?: string | null): Promise<{ registration: number; changes: number }> {
+  async myPendingReviewCount(actor: AuthenticatedUser, companyIdFilter?: string | null): Promise<{ registration: number; changes: number; resets: number }> {
     const regWhere: any = { status: 'PENDING' };
     if (actor.role === 'admin') {
       // A 方案（2026-10-08；2026-10-09 扩 STAFF 孤儿）：终审件 + 「无在编 leader」的 LEADER 级
@@ -2421,7 +2421,7 @@ export class SupplierService {
       // JWT payload 不携带 companyId（AuthenticatedUser 仅 sub/role/username）——查库取归属公司
       const me = await this.prisma.user.findUnique({ where: { id: actor.sub }, select: { companyId: true } });
       const myCompany = companyIdFilter ?? me?.companyId ?? null;
-      if (!myCompany) return { registration: 0, changes: 0 }; // 无归属公司 → 无域内待审
+      if (!myCompany) return { registration: 0, changes: 0, resets: 0 }; // 无归属公司 → 无域内待审
       const stageList = ['LEADER'];
       if (actor.role === 'staff') {
         stageList.length = 0;
@@ -2432,7 +2432,7 @@ export class SupplierService {
       regWhere.reviewStage = { in: stageList };
       regWhere.companyId = myCompany;
     } else {
-      return { registration: 0, changes: 0 }; // supplier 等角色无审批待办
+      return { registration: 0, changes: 0, resets: 0 }; // supplier 等角色无审批待办
     }
     const registration = await this.prisma.supplier.count({ where: regWhere });
     const changes = await this.prisma.supplierChangeRecord.count({
@@ -2441,7 +2441,11 @@ export class SupplierService {
         ...(actor.role !== 'admin' ? { supplier: { companyId: regWhere.companyId } } : {}),
       },
     });
-    return { registration, changes };
+    // 供应商密码重置待审（2026-10-15 并入「信息更新审批」角标——此前不计数，审批中心外无被动发现渠道）
+    const resets = await this.prisma.passwordResetRequest.count({
+      where: { status: 'PENDING', matchedUser: { is: { role: 'supplier' } } },
+    });
+    return { registration, changes, resets };
   }
 
   /** 审批中心：全部待审的供应商资料变更（:3004 供应商门户提交，跨供应商） */
