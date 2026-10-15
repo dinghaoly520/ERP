@@ -1374,6 +1374,36 @@ export class SupplierService {
       orderBy: { createdAt: 'desc' },
       select: { createdAt: true, action: true },
     });
+
+    // 审核完成 3 日后停止公开查询（2026-10-15 用户裁定）：终态（APPROVED/REJECTED）自最近一次
+    // 审核动作起算 3 天；RETURNED 为可行动状态（供应商须看补正原因）不受限。截止后仅回
+    // closedAfterCompletion 标记，不再披露状态/时间线。
+    const QUERY_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
+    if (['APPROVED', 'REJECTED'].includes(supplier.status)) {
+      const doneAt = latest?.createdAt ?? null;
+      if (doneAt && Date.now() - doneAt.getTime() > QUERY_RETENTION_MS) {
+        return {
+          found: false as const,
+          closedAfterCompletion: true as const,
+          name: null, status: null, reason: null, reviewedAt: null, urgedAt: null,
+        };
+      }
+    }
+
+    // 审核节点时间线（2026-10-15）：全部审批留痕逐条可见（级/动作/时间）；reason 仅对
+    // RETURNED 节点披露（与既有口径一致——REJECTED 缘由可能含审核员内部备注）。
+    const records = await this.prisma.supplierApprovalRecord.findMany({
+      where: { supplierId: supplier.id },
+      orderBy: { createdAt: 'asc' },
+      select: { stage: true, action: true, reason: true, createdAt: true },
+    });
+    const timeline = records.map((r) => ({
+      stage: r.stage ?? null,
+      action: r.action,
+      at: r.createdAt,
+      reason: r.action === 'RETURNED' ? (r.reason || null) : null,
+    }));
+
     // 公开查询仅对 RETURNED 状态返回补正说明（供应商需知如何修改）；REJECTED 等原因可能含
     // 审核员内部备注，不对未登录公开，避免信息泄露与信用代码枚举爬取。
     const reason = supplier.status === 'RETURNED' ? (supplier.returnReason || null) : null;
@@ -1387,6 +1417,7 @@ export class SupplierService {
       reviewStageLabel: supplier.status === 'PENDING' && supplier.reviewStage
         ? SupplierService.REVIEW_STAGE_LABELS[supplier.reviewStage]
         : null,
+      timeline,
       reason,
       reviewedAt: reviewed?.at ?? null,
       reviewedAction: reviewed?.action ?? null,
