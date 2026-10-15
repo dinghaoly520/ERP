@@ -70,7 +70,7 @@ export class PasswordRequestsService {
     const normalized = hashSync(newPassword, 10);
     const matched = await this.prisma.user.findFirst({
       where: { username, isActive: true },
-      select: { id: true, passwordHash: true },
+      select: { id: true, passwordHash: true, role: true },
     });
     const created = await this.prisma.passwordResetRequest.create({
       data: {
@@ -84,7 +84,63 @@ export class PasswordRequestsService {
       // 匿名响应不返回 matchedUserId，避免用接口枚举真实账号。
       select: { id: true, status: true, requestedAt: true },
     });
+
+    // 提交通知（2026-10-15 修复「提交后采购端未发现待审记录」）：此前提交侧零通知，
+    // 审批入口又分裂（供应商账号→审批中心·密码重置；内部/未匹配→账号管理·安全审批），
+    // 采购端无任何被动渠道知晓。通知失败不阻断提交（申请已落库）。
+    try { await this.notifyResetReviewers(matched, username, applicantName); } catch { /* 不阻断 */ }
     return created;
+  }
+
+  /** 重置申请提交通知：供应商账号 → 归属公司审批人（无则 admin 兜底）；内部/未匹配 → admin 全体。 */
+  private async notifyResetReviewers(
+    matched: { id: string; role: string } | null,
+    username: string,
+    applicantName: string,
+  ): Promise<void> {
+    let recipientIds: string[] = [];
+    let title = '密码重置申请待审批';
+    let content = `「${username}」的忘记密码重置申请已提交（申请人：${applicantName}），请前往账号管理·安全审批处理。`;
+    let link = '/admin/accounts';
+
+    if (matched?.role === 'supplier') {
+      const sup = await this.prisma.supplier.findUnique({
+        where: { userId: matched.id },
+        select: { companyId: true },
+      });
+      if (sup?.companyId) {
+        const approvers = await this.prisma.user.findMany({
+          where: { role: { in: ['staff', 'leader'] }, isActive: true, companyId: sup.companyId },
+          select: { id: true },
+        });
+        recipientIds = approvers.map((u) => u.id);
+      }
+      title = '供应商密码重置申请待审批';
+      content = `「${username}」的忘记密码重置申请已提交（申请人：${applicantName}），请前往供应商审批中心·信息更新审批·密码重置处理。`;
+      link = '/supplier/approval';
+    }
+
+    if (recipientIds.length === 0) {
+      const admins = await this.prisma.user.findMany({
+        where: { role: 'admin', isActive: true },
+        select: { id: true },
+      });
+      recipientIds = admins.map((u) => u.id);
+    }
+
+    await Promise.allSettled(
+      recipientIds.map((userId) =>
+        (this.notifications ? this.notifications.create({
+          userId,
+          type: 'PASSWORD_RESET_PENDING',
+          title,
+          content,
+          link,
+        }) : this.prisma.notification.create({
+          data: { userId, type: 'PASSWORD_RESET_PENDING', title, content, link },
+        })),
+      ),
+    );
   }
 
   // ── 管理端：审批 ──

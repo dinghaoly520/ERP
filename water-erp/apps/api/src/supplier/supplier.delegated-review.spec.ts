@@ -41,6 +41,7 @@ describe('SupplierService — admin 代审可见性（A 方案）', () => {
         findMany: jest.fn().mockResolvedValue([]),
       },
       supplierChangeRecord: { count: jest.fn().mockResolvedValue(0) },
+      passwordResetRequest: { count: jest.fn().mockResolvedValue(0) }, // 2026-10-15 resets 角标
       supplierEvaluation: { groupBy: jest.fn().mockResolvedValue([]) },
       user: { count: jest.fn().mockResolvedValue(0), findUnique: jest.fn().mockResolvedValue(null) },
       $queryRaw: jest.fn().mockResolvedValue([]),

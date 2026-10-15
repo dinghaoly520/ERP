@@ -21,7 +21,7 @@ export function SectionCard({
     >
       <div className="mb-3 flex items-center gap-2">
         {Icon ? <Icon size={15} className="shrink-0 text-[var(--accent)]" /> : null}
-        <h2 className="min-w-0 flex-1 truncate text-sm font-bold tracking-[-0.02em] text-[var(--foreground)]">{title}</h2>
+        <h2 className="min-w-0 flex-1 truncate text-[15px] font-bold tracking-[-0.02em] text-[var(--foreground)]">{title}</h2>
         {right}
       </div>
       {children}

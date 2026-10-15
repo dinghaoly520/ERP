@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { FolderKanban, LayoutDashboard, LogOut, TrendingUp } from "lucide-react";
+import { Crown, FolderKanban, LayoutDashboard, LogOut, TrendingUp } from "lucide-react";
 import { fetchCurrentUser, logout, type AuthUser } from "@/lib/api/auth";
 import { AuthProvider } from "@/components/m/auth-context";
 
@@ -43,7 +43,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       <div className="flow-page flex min-h-dvh items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-[color-mix(in_oklch,var(--accent)_30%,transparent)] border-t-[var(--accent)]" />
-          <span className="text-sm text-[var(--muted-foreground)]">验证登录状态...</span>
+          <span className="text-[15px] text-[var(--muted-foreground)]">验证登录状态...</span>
         </div>
       </div>
     );
@@ -57,21 +57,18 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   return (
     <div className="flow-page ambient-grid flex h-dvh flex-col overflow-hidden">
       <div className="flow-glow" aria-hidden />
-      <header className="z-40 flex h-14 shrink-0 items-center gap-2.5 border-b border-[color-mix(in_oklch,var(--border)_60%,transparent)] bg-[color-mix(in_oklch,var(--background)_86%,transparent)] pl-[max(0.875rem,env(safe-area-inset-left))] pr-[max(0.875rem,env(safe-area-inset-right))] backdrop-blur-md">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(238,244,255,0.86))] shadow-[0_8px_20px_rgba(69,99,158,0.16)]">
-          <Image src="/procurement-brand-logo.png" alt="蜀水云采" width={32} height={32} className="rounded-[8px] object-cover" priority />
+      <header className="z-40 flex h-11 shrink-0 items-center gap-2 border-b border-[color-mix(in_oklch,var(--border)_60%,transparent)] bg-[color-mix(in_oklch,var(--background)_86%,transparent)] pl-[max(0.875rem,env(safe-area-inset-left))] pr-[max(0.875rem,env(safe-area-inset-right))] backdrop-blur-md">
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(238,244,255,0.86))] shadow-[0_6px_16px_rgba(69,99,158,0.15)]">
+          <Image src="/procurement-brand-logo.png" alt="蜀水云采" width={24} height={24} className="rounded-[6px] object-cover" priority />
         </div>
-        <div className="min-w-0 flex-1 truncate text-[15px] font-bold tracking-[0.04em] text-[var(--foreground)]">蜀水云采·移动驾驶舱</div>
-        <span className="max-w-[9rem] truncate rounded-full border border-[color-mix(in_oklch,var(--accent)_18%,transparent)] bg-[color-mix(in_oklch,var(--accent)_7%,transparent)] px-2.5 py-1 text-[11px] font-semibold text-[var(--accent)]">
-          {user?.displayName ?? ""}
-        </span>
+        <div className="min-w-0 flex-1 truncate text-[14px] font-bold tracking-[0.02em] text-[var(--foreground)]">蜀水云采 · 专属驾驶舱</div>
         <button
           type="button"
           onClick={handleLogout}
           aria-label="退出登录"
-          className="neu-btn-soft h-9 w-9 shrink-0 rounded-[11px] p-0 active:scale-95"
+          className="neu-btn-soft h-7 w-7 shrink-0 rounded-[9px] p-0 active:scale-95"
         >
-          <LogOut size={15} />
+          <LogOut size={13} />
         </button>
       </header>
 
@@ -79,6 +76,22 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         id="m-app-scroll"
         className="relative z-10 mx-auto w-full max-w-lg flex-1 overflow-y-auto overscroll-contain px-[max(0.875rem,env(safe-area-inset-left))] pb-4 pr-[max(0.875rem,env(safe-area-inset-right))] pt-3.5"
       >
+        {/* 欢迎卡——问候语设计容器（玻璃凸起 + 金色图标井），随内容滚动 */}
+        <div className="neu-card-static mb-3 flex items-center gap-3 rounded-[16px] px-3.5 py-3">
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px]"
+            style={{ background: "color-mix(in oklch, var(--gold) 14%, transparent)" }}
+          >
+            <Crown size={18} strokeWidth={1.5} className="text-[var(--gold)]" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-baseline gap-1.5">
+              <span className="shrink-0 text-[13px] font-medium text-[var(--gold)]">尊敬的</span>
+              <span className="min-w-0 truncate text-[16px] font-bold tracking-[-0.01em] text-[var(--foreground)]">{user?.displayName ?? ""}</span>
+            </div>
+            <div className="mt-0.5 truncate text-[12px] text-[var(--muted-foreground)]">欢迎回到专属驾驶舱 · 数据库 / 台账 / 进展 全局在握</div>
+          </div>
+        </div>
         <AuthProvider user={user}>{children}</AuthProvider>
       </main>
 

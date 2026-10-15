@@ -60,7 +60,7 @@ export function ReviewCenterModal({ open, onClose }: { open: boolean; onClose: (
   // 通知直达预选（2026-09-30）：event detail supplierId → sessionStorage → 打开时预选该供应商
   const [preselectId, setPreselectId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [myCount, setMyCount] = useState({ registration: 0, changes: 0 });
+  const [myCount, setMyCount] = useState({ registration: 0, changes: 0, resets: 0 });
   // 审核历史（admin only，2026-09-30）
   const [historyOpen, setHistoryOpen] = useState(false);
 
@@ -111,9 +111,10 @@ export function ReviewCenterModal({ open, onClose }: { open: boolean; onClose: (
           <div className="neu-segment rc-segment-inline" role="group" aria-label="审批类型"
             data-count="2" data-index={String(panel === 'registration' ? 0 : 1)}>
             <span className="neu-segment-thumb" aria-hidden="true" />
+            {/* resets 并入「信息更新审批」角标（2026-10-15）：密码重置面板在该 tab 内，此前不计入致无被动发现 */}
             {([
               { key: 'registration', label: '注册审批', icon: Stamp, count: myCount.registration },
-              { key: 'changes', label: '信息更新审批', icon: FileClock, count: myCount.changes },
+              { key: 'changes', label: '信息更新审批', icon: FileClock, count: myCount.changes + myCount.resets },
             ] as const).map(p => (
               <button key={p.key} type="button" className="neu-segment-btn" aria-pressed={panel === p.key}
                 onClick={() => setPanel(p.key)}>

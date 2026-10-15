@@ -405,6 +405,7 @@ body { overscroll-behavior-y: none; }
 .m-tabbar {
   display: flex;
   flex-shrink: 0;
+  z-index: 30; /* 层级链：tabbar 30 < header 40 < sheet 50（弹层 Portal 到 body 后仍恒在其上） */
   padding-bottom: env(safe-area-inset-bottom);
   /* 横屏刘海安全区（viewport-fit=cover） */
   padding-left: env(safe-area-inset-left);
@@ -421,7 +422,7 @@ body { overscroll-behavior-y: none; }
   align-items: center;
   justify-content: center;
   gap: 3px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--muted-foreground);
   transition: color 0.2s var(--ease-out-quart);
@@ -439,7 +440,7 @@ body { overscroll-behavior-y: none; }
   border-radius: 9999px;
   border: none;
   background: oklch(0.985 0.005 258);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--muted-foreground);
   white-space: nowrap;

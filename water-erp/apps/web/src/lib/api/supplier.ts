@@ -694,7 +694,7 @@ export function uploadReviewAttachment(file: File) {
 }
 
 export function fetchMyPendingReviewCount(companyId?: string) {
-  return api.get<{ registration: number; changes: number }>(`/supplier/approvals/my-pending-count${companyId ? `?companyId=${companyId}` : ''}`);
+  return api.get<{ registration: number; changes: number; resets: number }>(`/supplier/approvals/my-pending-count${companyId ? `?companyId=${companyId}` : ''}`);
 }
 
 

@@ -432,7 +432,7 @@ export function PasswordRequestsPanel() {
             <EmptyState
               icon={<LifeBuoy size={20} strokeWidth={1.6} />}
               title="没有待处理的重置申请"
-              hint="新的申请会自动出现在此处"
+              hint="此处仅列内部账号与未匹配到账号的申请；供应商账号的忘记密码申请在「供应商审批中心 → 信息更新审批 → 密码重置」处理"
             />
           </div>
         ) : (

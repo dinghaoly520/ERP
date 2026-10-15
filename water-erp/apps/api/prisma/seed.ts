@@ -566,10 +566,10 @@ async function main() {
   console.log('▶ 创建移动驾驶舱演示账号（admin / admin123）');
   await prisma.user.upsert({
     where: { username_role: { username: 'admin', role: 'admin' } },
-    update: { passwordHash: hashSync('admin123', 10), isActive: true, displayName: '移动驾驶舱管理员' },
+    update: { passwordHash: hashSync('admin123', 10), isActive: true, displayName: '王华董事长' },
     create: {
       username: 'admin',
-      displayName: '移动驾驶舱管理员',
+      displayName: '王华董事长',
       role: 'admin',
       isActive: true,
       passwordHash: hashSync('admin123', 10),
