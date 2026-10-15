@@ -3033,6 +3033,9 @@ export class SupplierService {
     if (claimed.count === 0) {
       throw new ConflictException({ error: '供应商状态已变化，请刷新后重试', code: 'CONCURRENT_UPDATE' });
     }
+    // 账号联动停用（与 updateStatus 同一不变式：黑名单供应商必须立刻丧失登录能力，
+    // 否则被拉黑仍可登录/投标——本端点此前漏写，2026-10-15 复盘补上）
+    await this.prisma.user.update({ where: { id: supplier.userId }, data: { isActive: false } });
     if (supplier.userId) {
       void this.notificationService
         .sendToUser(supplier.userId, ['in_app'], {
@@ -3064,10 +3067,17 @@ export class SupplierService {
     if (supplier.status !== 'BLACKLIST') {
       throw new BadRequestException({ error: '该供应商不在黑名单中', code: 'NOT_BLACKLISTED' });
     }
-    await this.prisma.supplier.updateMany({
+    const claimed = await this.prisma.supplier.updateMany({
       where: { id: supplierId, status: 'BLACKLIST' },
-      data: { status: 'APPROVED', disableReason: null },
+      data: { status: 'APPROVED', disableReason: null, eliminatedAt: null },
     });
+    if (claimed.count === 0) {
+      throw new ConflictException({ error: '供应商状态已变化，请刷新后重试', code: 'CONCURRENT_UPDATE' });
+    }
+    // 账号联动恢复（与 restoreStatus 同一不变式）：拉黑入口有两条——PATCH :id/status（停账号）
+    // 与本端点 A-215。此前解禁只回滚供应商状态、不回滚账号，混合使用两条入口时
+    // 「拉黑→解禁」后账号仍停用（isActive=false），供应商登录永返 ACCOUNT_PENDING（2026-10-15 实录）。
+    await this.prisma.user.update({ where: { id: supplier.userId }, data: { isActive: true } });
     if (supplier.userId) {
       void this.notificationService
         .sendToUser(supplier.userId, ['in_app'], {
