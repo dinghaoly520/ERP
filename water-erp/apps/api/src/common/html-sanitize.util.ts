@@ -2,6 +2,7 @@
 // 项目 tsconfig 未开 esModuleInterop（仅 allowSyntheticDefaultImports），
 // 默认 import 会编译成 sanitize_html_1.default → undefined。用 import = require 才稳。
 import sanitizeHtml = require('sanitize-html');
+import { stripMojibake } from './text-clean.util';
 
 /**
  * 公告 / 富文本允许的标签白名单。
@@ -38,11 +39,11 @@ const ALLOWED_ATTRIBUTES: Record<string, string[]> = {
  */
 export function sanitizeHtmlContent(html: string): string {
   if (!html || typeof html !== 'string') return html;
-  return sanitizeHtml(html, {
+  return stripMojibake(sanitizeHtml(html, {
     allowedTags: ALLOWED_TAGS,
     allowedAttributes: ALLOWED_ATTRIBUTES,
     allowedSchemes: ['http', 'https', 'mailto'],
     allowedSchemesByTag: { img: ['http', 'https', 'data', 'blob'] },
     disallowedTagsMode: 'discard',
-  });
+  }));
 }

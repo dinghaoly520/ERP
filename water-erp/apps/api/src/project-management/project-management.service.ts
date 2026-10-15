@@ -43,6 +43,7 @@ import { estimateBudgetReference } from './budget-reference-estimator';
 import { LOCKED_STAGES, PROJECT_WORKFLOW_STAGES } from './project-management.types';
 import { getStageComplianceRules } from './stage-compliance-rules';
 import { stripAnnouncementTitlePrefix } from '../common/announcement-title.util';
+import { stripMojibake } from '../common/text-clean.util';
 
 type ProjectManagementStatusValue = 'ACTIVE' | 'ARCHIVED' | 'RECYCLED' | 'TERMINATED';
 type ProjectStageStatusValue = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
@@ -6617,15 +6618,17 @@ ${JSON.stringify(algorithmResult, null, 2)}
   private async readAttachmentText(objectKey: string, mimeType?: string | null, fileName?: string): Promise<string> {
     const storedName = objectKey.split('/').pop() ?? objectKey;
     const localPath = resolve(getUploadDir(), storedName);
+    // 出口剔除替换符（2026-10-15 公告乱码实录）：解析器偶发产出含 U+FFFD 的文本，
+    // 直接落 text 缓存后每次提取都带着乱码进字段/公告
     try {
       const stat = await (await import('fs/promises')).stat(localPath).catch(() => null);
       if (stat?.isFile()) {
         const buffer = await (await import('fs/promises')).readFile(localPath);
-        return await this.documentParser.parse(buffer, mimeType ?? '', fileName ?? storedName);
+        return stripMojibake(await this.documentParser.parse(buffer, mimeType ?? '', fileName ?? storedName));
       }
     } catch { /* 本地读取失败继续尝试 MinIO */ }
     const buffer = await this.storage.download(objectKey);
-    return await this.documentParser.parse(buffer, mimeType ?? '', fileName ?? storedName);
+    return stripMojibake(await this.documentParser.parse(buffer, mimeType ?? '', fileName ?? storedName));
   }
 
   private async persistUploadedFile(

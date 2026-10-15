@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import * as https from 'https';
 import { ConfigService } from '@nestjs/config';
+import { stripMojibake, stripMojibakeDeep } from '../common/text-clean.util';
 
 /**
  * LlmService（DeepSeek-only 精简版）—— 全系统 LLM 调用唯一入口
@@ -235,7 +236,9 @@ export class LlmService {
       options,
       signal,
     );
-    return r.content;
+    // 出口剔除 U+FFFD：多字节字符传输损坏的替换符绝不让它流入业务字段/公告
+    // （全系统 LLM 文本唯一漏斗，2026-10-15 公告乱码实录的根修）
+    return stripMojibake(r.content);
   }
 
   async chatJson<T>(
@@ -302,7 +305,8 @@ export class LlmService {
       options,
       signal,
     );
-    return parsed;
+    // 同 chat()：JSON 值内字符串递归剔除替换符（供字段自动填充等结构化消费方）
+    return stripMojibakeDeep(parsed);
   }
 
   /** 多轮对话（assistant 等需要完整 messages 历史的场景） */
@@ -329,7 +333,7 @@ export class LlmService {
       options,
       options?.signal,
     );
-    return r.content;
+    return stripMojibake(r.content);
   }
 
   /** 重试外壳：仅 retryable 错误重试；调用方 abort 立即放弃 */

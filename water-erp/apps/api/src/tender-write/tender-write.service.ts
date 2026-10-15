@@ -56,6 +56,7 @@ import {
   type SupervisionTokens,
 } from './tenant-tokens';
 import { parseUploadedFile } from './import-autofill.file-parser';
+import { stripMojibake } from '../common/text-clean.util';
 import {
   buildImportAutofillSystemPrompt,
   buildImportAutofillUserPrompt,
@@ -324,7 +325,15 @@ export class TenderWriteService {
   }
 
   async exportAnnouncement(dto: ExportAnnouncementDto, user?: { sub?: string }) {
-    const { tenderType, category, draft } = dto;
+    // 入口清洗替换符（2026-10-15 实录）：草稿值可能来自早前 AI 自动填充/OCR 坏字节，
+    // 含 U+FFFD 即公告乱码——LlmService 出口已根修，此处兜底覆盖存量草稿与手输
+    const { tenderType, category } = dto;
+    const draft = Object.fromEntries(
+      Object.entries(dto.draft ?? {}).map(([k, v]) => [
+        k,
+        typeof v === 'string' ? stripMojibake(v) : v,
+      ]),
+    ) as Record<string, unknown>;
 
     // GB/T 43711（7.3）：谈判采购通过定向邀请（≥3 家）组织，不发布采购公告——
     // 前端 ANNOUNCEMENT_AVAILABILITY 已限定谈判只有流标/中标公告，此处后端防线
