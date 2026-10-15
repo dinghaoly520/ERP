@@ -405,6 +405,7 @@ body { overscroll-behavior-y: none; }
 .m-tabbar {
   display: flex;
   flex-shrink: 0;
+  z-index: 30; /* 层级链：tabbar 30 < header 40 < sheet 50（弹层 Portal 到 body 后仍恒在其上） */
   padding-bottom: env(safe-area-inset-bottom);
   /* 横屏刘海安全区（viewport-fit=cover） */
   padding-left: env(safe-area-inset-left);
