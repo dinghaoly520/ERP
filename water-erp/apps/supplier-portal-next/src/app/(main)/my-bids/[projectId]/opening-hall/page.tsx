@@ -331,60 +331,56 @@ export default function OpeningHallPage() {
                   <th>本司解密状态</th>
                   <td>{decryptStatus || record?.decryptResult || "—"}</td>
                 </tr>
+                {/* 2026-10-15 对比卡优化：唱标/投递六行合并为三行——一致只显示一值+绿徽标，
+                    不一致显示两侧值+警示徽标（原「工期（投递）—」噪音消除） */}
                 <tr>
-                  <th>唱标金额</th>
-                  {/* P1-1：金额归一——裸数字千分位+元、带单位原文直出（修「1080万元 元」双单位）；
-                      dual-v2 报价以万元入库，按 amountUnit 直出「153.95 万元」（2026-09-11 标记 / 2026-09-14 供应商端接通） */}
-                  <td>{formatOpeningAmount(record?.amount, record?.amountUnit)}</td>
-                </tr>
-                <tr>
-                  <th>投递报价</th>
+                  <th>投标报价</th>
+                  {/* P1-1：金额归一——裸数字千分位+元、带单位原文直出；dual 轨按 amountUnit 直出「153.95 万元」 */}
                   <td>
-                    <span className={record?.submitted?.priceMismatch ? "mismatch" : undefined}>{submittedPriceText}</span>
-                    {record?.submitted?.priceMismatch && (
-                      <span className="hall-tag hall-tag--sm hall-tag--warning-plain ml-1.5">
-                        与唱标不一致
-                      </span>
-                    )}
+                    <span className={record?.submitted?.priceMismatch ? "mismatch" : undefined}>
+                      {formatOpeningAmount(record?.amount, record?.amountUnit)}
+                    </span>
+                    {record?.submitted?.priceMismatch ? (
+                      <>
+                        <span className="hall-tag hall-tag--sm hall-tag--warning-plain ml-1.5">唱标 ≠ 投递 {submittedPriceText}</span>
+                      </>
+                    ) : record?.submitted?.bidPrice ? (
+                      <span className="hall-tag hall-tag--sm ml-1.5 gap-1 bg-[color-mix(in_oklch,var(--success)_12%,transparent)] border-[color-mix(in_oklch,var(--success)_30%,transparent)] text-success">与投递一致</span>
+                    ) : null}
                   </td>
                 </tr>
                 <tr>
-                  <th>工期（唱标）</th>
-                  <td>{record?.period || "—"}</td>
-                </tr>
-                <tr>
-                  <th>工期（投递）</th>
+                  <th>交货工期</th>
                   <td>
                     <span className={record?.submitted?.periodMismatch ? "mismatch" : undefined}>
-                      {record?.submitted?.deliveryPeriod || "—"}
+                      {record?.period || "—"}
                     </span>
-                    {record?.submitted?.periodMismatch && (
-                      <span className="hall-tag hall-tag--sm hall-tag--warning-plain ml-1.5">
-                        与唱标不一致
-                      </span>
-                    )}
+                    {record?.submitted?.periodMismatch ? (
+                      <span className="hall-tag hall-tag--sm hall-tag--warning-plain ml-1.5">唱标 ≠ 投递 {record?.submitted?.deliveryPeriod || "—"}</span>
+                    ) : record?.submitted?.deliveryPeriod ? (
+                      <span className="hall-tag hall-tag--sm ml-1.5 gap-1 bg-[color-mix(in_oklch,var(--success)_12%,transparent)] border-[color-mix(in_oklch,var(--success)_30%,transparent)] text-success">与投递一致</span>
+                    ) : null}
                   </td>
                 </tr>
                 <tr>
-                  <th>质量承诺（唱标）</th>
-                  <td>{record?.qualityTarget || "—"}</td>
+                  <th>质量承诺</th>
+                  <td>
+                    <span
+                      className={
+                        record?.submitted?.qualityCommitment && record?.qualityTarget != null && record.qualityTarget !== record.submitted.qualityCommitment
+                          ? "mismatch"
+                          : undefined
+                      }
+                    >
+                      {record?.qualityTarget || "—"}
+                    </span>
+                    {record?.submitted?.qualityCommitment && record?.qualityTarget != null && record.qualityTarget !== record.submitted.qualityCommitment ? (
+                      <span className="hall-tag hall-tag--sm hall-tag--warning-plain ml-1.5">唱标 ≠ 投递 {record.submitted.qualityCommitment}</span>
+                    ) : record?.submitted?.qualityCommitment ? (
+                      <span className="hall-tag hall-tag--sm ml-1.5 gap-1 bg-[color-mix(in_oklch,var(--success)_12%,transparent)] border-[color-mix(in_oklch,var(--success)_30%,transparent)] text-success">与投递一致</span>
+                    ) : null}
+                  </td>
                 </tr>
-                {record?.submitted?.qualityCommitment && (
-                  <tr>
-                    <th>质量承诺（投递）</th>
-                    <td>
-                      <span
-                        className={
-                          record.qualityTarget != null && record.qualityTarget !== record.submitted.qualityCommitment
-                            ? "mismatch"
-                            : undefined
-                        }
-                      >
-                        {record.submitted.qualityCommitment}
-                      </span>
-                    </td>
-                  </tr>
-                )}
                 {/* A-113：动态唱标字段增显区（仅 config 含动态键且有值时渲染；无法定密封源不比对，仅展示） */}
                 {myOtherRows.length > 0 && (
                   <>
