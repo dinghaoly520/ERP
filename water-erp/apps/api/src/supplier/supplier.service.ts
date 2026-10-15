@@ -1102,8 +1102,18 @@ export class SupplierService {
     const conditions: Prisma.Sql[] = [];
     // 数据隔离：supplier 角色仅见本企业（与 list() 的 Prisma 路径 where.userId 对齐，否则 raw 路径会丢弃该过滤）。
     if (where.userId) conditions.push(Prisma.sql`s."userId" = ${where.userId}`);
-    // 公司级数据隔离：raw 路径与 Prisma 路径行为一致，否则默认排序下公司过滤被丢弃
-    if (where.companyId) conditions.push(Prisma.sql`s."companyId" = ${where.companyId}`);
+    // 公司级数据隔离：raw 路径与 Prisma 路径行为一致，否则默认排序下公司过滤被丢弃。
+    // 2026-10-14 多选扩展后 filter() 统一返回 { in: string[] }（单选=长度 1 数组）——
+    // 对象直接插参会被 Prisma 序列化为 jsonb，PG 报 operator does not exist: text = jsonb，
+    // 供应商库 leader/admin 选公司即 500（2026-10-15 事故）；string 旧形状仍按等值兼容。
+    if (where.companyId) {
+      const co = where.companyId as string | { in: string[] };
+      if (typeof co === 'string') {
+        conditions.push(Prisma.sql`s."companyId" = ${co}`);
+      } else if (Array.isArray(co.in)) {
+        conditions.push(Prisma.sql`s."companyId" IN (${Prisma.join(co.in)})`);
+      }
+    }
     // status 列是 SupplierStatus 枚举，参数需显式 cast，否则 PG 报 operator does not exist: SupplierStatus = text
     if (where.status) {
       if (where.status.notIn) {
