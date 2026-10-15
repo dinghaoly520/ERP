@@ -2623,7 +2623,14 @@ export class SupplierPortalService {
           wrappedDek: JSON.stringify({ kself: newEntry.kself.value, kadmin: newEntry.kadmin.value, adminCertId: newEntry.kadmin.adminCertId }),
           plaintextSha256: newEntry.plainSha256,
         });
-        if (staged) { reStaged.push(staged); reStagedKeys.push(staged.backupKey); }
+        // M-2：补传统款硬中止
+        if (!staged) {
+          throw new BadRequestException({
+            error: `补传统份备份固化失败（${role}）——请稍后重试或联系管理员`,
+            code: 'BACKUP_REQUIRED',
+          });
+        }
+        reStaged.push(staged); reStagedKeys.push(staged.backupKey);
       }
     } catch (err) {
       for (const k of reStagedKeys) { try { await minioClient.removeObject(MINIO_BUCKET, k); } catch { /* best-effort */ } }
@@ -2799,7 +2806,15 @@ export class SupplierPortalService {
           wrappedDek: JSON.stringify({ kself: entry.kself.value, kadmin: entry.kadmin.value, adminCertId: entry.kadmin.adminCertId }),
           plaintextSha256: entry.plainSha256,
         });
-        if (staged) { stagedBackups.push(staged); newlyStagedKeys.push(staged.backupKey); }
+        // M-2（2.5 终审裁定，2026-10-15 落地）：v3 备份失败=硬中止投递——
+        // 证据链要件不宜 best-effort（v3 无补账路径，缺失=永久缺口仅 verify 报 missing）
+        if (!staged) {
+          throw new BadRequestException({
+            error: `投标备份固化失败（${role}）——标书证据链要求完整备份，请稍后重试或联系管理员`,
+            code: 'BACKUP_REQUIRED',
+          });
+        }
+        stagedBackups.push(staged); newlyStagedKeys.push(staged.backupKey);
       }
     } catch (err) {
       for (const k of newlyStagedKeys) { try { await minioClient.removeObject(MINIO_BUCKET, k); } catch { /* best-effort */ } }

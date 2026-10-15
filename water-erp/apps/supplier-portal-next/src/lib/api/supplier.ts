@@ -202,6 +202,11 @@ export const supplierApi = {
   getReceiptPayload(submissionId: string, opts?: ReqOpts) {
     return api.get<{ payload: Record<string, unknown>; canonical: string }>(`/supplier-portal/bid-submissions/${submissionId}/receipt-payload`, opts);
   },
+  /** 回执 P7 强签（dual-v3）：operationId+signP7（阶段2 收尾） */
+  signReceiptV3(submissionId: string, body: { operationId: string; signatureFormat: string; signP7: string }) {
+    return api.post<any>(`/supplier-portal/bid-submissions/${submissionId}/receipt-signature`, body);
+  },
+
   signReceiptSignature(submissionId: string, signature: string) {
     return api.post(`/supplier-portal/bid-submissions/${submissionId}/receipt-signature`, { signature });
   },

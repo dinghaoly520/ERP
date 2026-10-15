@@ -21,6 +21,8 @@ import {
 import { bidApi, type SupplierBidClarification } from "@/lib/api/bid";
 import { uploadFile } from "@/lib/api/upload";
 import { SpPageHero } from "@/components/sp-page-hero";
+import * as scca from "@/utils/scca-ukey";
+import { supplierApi } from "@/lib/api/supplier";
 import { LoadingBlock, SpButton, SpTextarea } from "@/components/ui";
 import "@/styles/pages/bids.css";
 
@@ -42,6 +44,9 @@ export default function BidClarificationsPage() {
   const [attachments, setAttachments] = useState<UploadedAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // dual-v3 P7 签署（阶段2 收尾）：PIN 输入（不落盘）
+  const [pin, setPin] = useState("");
+  const [signing, setSigning] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -104,24 +109,55 @@ export default function BidClarificationsPage() {
     void doReply();
   }
 
-  /** 提交答复（U盾签名随 mock U盾轨下线，签名参数不传；API 错误已全局 toast） */
+  /** 提交答复（dual-v3 → 盾 P7 签名链；旧轨 → 空签照走） */
   async function doReply() {
     if (!active) return;
-    const body = {
-      reply: reply.trim(),
-      attachmentIds: attachments.map((a) => a.fileAssetId),
-    };
+    const replyText = reply.trim();
+    const attachmentIds = attachments.map((a) => a.fileAssetId);
+
     setSubmitting(true);
+    setSigning(true);
     try {
-      await bidApi.submitClarificationReply(projectId, active.id, body);
+      // 检测投递轨道——dual-v3 供应商必须走 P7 签名
+      const sub = await supplierApi.getBidSubmission(projectId).catch(() => null);
+      const isV3 = (sub as any)?.envelopeVersion === "dual-v3";
+
+      if (isV3) {
+        if (!pin) {
+          toast.warning("请输入 U盾 PIN（dual-v3 投递的澄清答复须以 SCCA CA P7 签名）");
+          setSigning(false);
+          return;
+        }
+        // ① 取 canonical → ② 盾枚举+PIN → ③ prepare → ④ 盾签 → ⑤ 提交
+        const pl = await bidApi.getClarificationReplyPayload(projectId, active.id, {
+          reply: replyText, attachmentIds,
+        });
+        const certs = await scca.listSccaCerts();
+        const first = certs[0];
+        if (!first) throw new Error("U盾内未找到证书——请插入 SCCA CA U盾");
+        await scca.loginScca(first.container, pin);
+        const prep = await supplierApi.caPrepare(projectId, "clarification");
+        const signP7 = await scca.signSccaP7(first.container, pl.payload);
+        await bidApi.submitClarificationReply(projectId, active.id, {
+          reply: replyText, attachmentIds,
+          operationId: prep.operationId,
+          signatureFormat: "scca-pkcs7-base64",
+          signP7,
+        });
+      } else {
+        await bidApi.submitClarificationReply(projectId, active.id, {
+          reply: replyText, attachmentIds,
+        });
+      }
       toast.success("澄清答复已提交");
       setActiveId(null);
+      setPin("");
       await load();
     } catch (e: any) {
-      // API 错误由 API 层全局 toast；此处兜底本地组包异常
       if (!e?.status && e?.message) toast.error(e.message);
     } finally {
       setSubmitting(false);
+      setSigning(false);
     }
   }
 

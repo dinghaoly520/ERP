@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { bidApi } from "@/lib/api/bid";
 import { TenderClarificationCard } from "@/components/tender-clarification-card";
+import { CaReceiptSignButton } from "@/components/ca-receipt-sign-button";
 import { supplierApi } from "@/lib/api/supplier";
 import { announcementApi } from "@/lib/api/announcement";
 import { SpPageHero } from "@/components/sp-page-hero";
@@ -648,7 +649,14 @@ function BidDetailInner() {
                         {submission.receiptSignature ? (
                           <span className="b-tag b-tag--success">已电子签名</span>
                         ) : (
-                          <span className="b-tag b-tag--warning">未签署</span>
+                          <>
+                            <span className="b-tag b-tag--warning">未签署</span>
+                            <CaReceiptSignButton
+                              projectId={projectId}
+                              submissionId={submission.id}
+                              onSigned={() => reloadSubmission()}
+                            />
+                          </>
                         )}
                       </div>
                       <div className="cc-meta mb-3">
