@@ -43,7 +43,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       <div className="flow-page flex min-h-dvh items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-[color-mix(in_oklch,var(--accent)_30%,transparent)] border-t-[var(--accent)]" />
-          <span className="text-sm text-[var(--muted-foreground)]">验证登录状态...</span>
+          <span className="text-[15px] text-[var(--muted-foreground)]">验证登录状态...</span>
         </div>
       </div>
     );
@@ -61,10 +61,13 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(238,244,255,0.86))] shadow-[0_8px_20px_rgba(69,99,158,0.16)]">
           <Image src="/procurement-brand-logo.png" alt="蜀水云采" width={32} height={32} className="rounded-[8px] object-cover" priority />
         </div>
-        <div className="min-w-0 flex-1 truncate text-[15px] font-bold tracking-[0.04em] text-[var(--foreground)]">蜀水云采·移动驾驶舱</div>
-        <span className="max-w-[9rem] truncate rounded-full border border-[color-mix(in_oklch,var(--accent)_18%,transparent)] bg-[color-mix(in_oklch,var(--accent)_7%,transparent)] px-2.5 py-1 text-[11px] font-semibold text-[var(--accent)]">
-          {user?.displayName ?? ""}
-        </span>
+        <div className="min-w-0 flex-1 leading-tight">
+          <div className="truncate text-[12px] font-semibold tracking-[0.06em] text-[var(--muted-foreground)]">蜀水云采 · 专属驾驶舱</div>
+          <div className="mt-0.5 flex min-w-0 items-baseline gap-1.5">
+            <span className="shrink-0 text-[14px] font-medium tracking-[0.1em] text-[var(--gold)]">尊敬的</span>
+            <span className="truncate text-[16px] font-bold text-[var(--foreground)]">{user?.displayName ?? ""}</span>
+          </div>
+        </div>
         <button
           type="button"
           onClick={handleLogout}
