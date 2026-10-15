@@ -43,6 +43,7 @@ describe('ExpertAdminService', () => {
       },
       company: {
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
       },
       bidRound: {
         count: jest.fn().mockResolvedValue(0),
@@ -295,14 +296,35 @@ describe('ExpertAdminService', () => {
       expect(prisma.user.create).not.toHaveBeenCalled();
     });
 
-    it('无 companyId → 回退操作人公司写时快照（CSV 导入等旧轨口径不变）', async () => {
+    it('名称轨：单位名命中公司主数据 → 同源落归属（User.companyId 与 employer 同用该公司）', async () => {
       prisma.user.findFirst.mockResolvedValue(null);
       prisma.user.findUnique.mockResolvedValue({ companyId: 'co-op', company: '操作人公司' });
+      prisma.company.findFirst.mockResolvedValue({ id: 'co-name', name: '四川水发建设有限公司' });
+      prisma.user.create.mockResolvedValue(createdExpert);
+
+      await service.createExpert({ ...dto, employer: '四川水发建设有限公司' }, 'op-1');
+
+      expect(prisma.company.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+        where: { name: '四川水发建设有限公司' },
+      }));
+      expect(prisma.user.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          companyId: 'co-name',
+          company: '四川水发建设有限公司',
+          expertProfile: expect.objectContaining({ create: expect.objectContaining({ employer: '四川水发建设有限公司' }) }),
+        }),
+      }));
+    });
+
+    it('名称轨：单位名未命中（外部单位）→ 保留自由文本 + 回退操作人公司快照', async () => {
+      prisma.user.findFirst.mockResolvedValue(null);
+      prisma.user.findUnique.mockResolvedValue({ companyId: 'co-op', company: '操作人公司' });
+      prisma.company.findFirst.mockResolvedValue(null);
       prisma.user.create.mockResolvedValue(createdExpert);
 
       await service.createExpert({ ...dto, employer: '自由文本单位' }, 'op-1');
 
-      expect(prisma.company.findUnique).not.toHaveBeenCalled();
+      expect(prisma.company.findUnique).not.toHaveBeenCalled(); // id 轨未触发
       expect(prisma.user.create).toHaveBeenCalledWith(expect.objectContaining({
         data: expect.objectContaining({
           companyId: 'co-op',

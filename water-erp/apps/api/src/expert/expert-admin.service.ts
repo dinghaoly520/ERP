@@ -328,9 +328,10 @@ export class ExpertAdminService {
       }
     }
     try {
-      // 公司归属写时快照（自操作人）：本公司账号录入的专家入本公司库；
-      // 2026-10-15 录入收窄 admin 后工作单位=公司选择器——companyId 给定时以所选公司为准
-      //（User 归属与 ExpertProfile.employer 同源为公司名，防「所属公司」与「工作单位」两列漂移）
+      // 公司归属写时快照（自操作人）：本公司账号录入的专家入本公司库。
+      // 2026-10-15 工作单位=公司选择（:3005 注册同款 UnitSearchSelect 传单位名）：
+      //  - companyId 轨（id 直选）：以所选公司为准，employer 同源为公司名（防两列漂移）；
+      //  - 名称轨：单位名命中公司主数据即同源落归属；未命中（外部单位如设计院/高校）保留自由文本+操作人快照
       const { companyId: opCompanyId, companyName: opCompanyName } = operatorId ? await this.operatorCompanyOf(operatorId) : { companyId: null, companyName: null };
       let companyId = opCompanyId;
       let companyName = opCompanyName;
@@ -344,6 +345,12 @@ export class ExpertAdminService {
         companyId = selected.id;
         companyName = selected.name;
         employer = selected.name;
+      } else if (dto.employer?.trim()) {
+        const byName = await this.prisma.company.findFirst({
+          where: { name: dto.employer.trim() },
+          select: { id: true, name: true },
+        });
+        if (byName) { companyId = byName.id; companyName = byName.name; }
       }
       return await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
