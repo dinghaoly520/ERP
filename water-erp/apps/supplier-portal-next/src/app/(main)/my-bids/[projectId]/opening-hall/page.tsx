@@ -141,7 +141,14 @@ export default function OpeningHallPage() {
       const [p, recRes, list] = await Promise.all([
         bidApi.getProject(projectId),
         supplierApi.getOpeningRecord(projectId)
-          .then((r: unknown) => { setRecord(r); })
+          .then((r: unknown) => {
+            setRecord(r);
+            // 初始化 decryptStatus（后端权威值——WS 事件仅做后续更新，刷新后不初始化会致
+            // DANGER 态补传卡不显示/SUCCESS 态误标已解密）
+            const rr = r as { decryptResult?: string; decryptStatus?: string } | null;
+            if (rr?.decryptStatus) setDecryptStatus(rr.decryptStatus);
+            else if (rr?.decryptResult) setDecryptStatus(rr.decryptResult === '解密成功' ? 'SUCCESS' : rr.decryptResult);
+          })
           .catch(() => { /* 拉取失败保留上次成功记录 */ }),
         // 开标前端点返回 400 OPENING_NOT_STARTED——捕获后置空列表，页面不报错
         supplierApi.getOpeningRecords(projectId).catch(() => null),
