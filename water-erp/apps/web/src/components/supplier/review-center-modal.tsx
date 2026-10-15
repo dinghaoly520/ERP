@@ -214,7 +214,11 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
         const hit = res.items.find(x => x.id === preselectId);
         if (hit) { setSelected(hit); }
       }
-    }).catch(() => setData({ total: 0, page: 1, pageSize: PAGE_SIZE, items: [] }))
+    }).catch(() => {
+      // 加载失败必须可见——静默置空会被误读为「角标有数、实际没有供应商」（2026-10-15 实录）
+      setData({ total: 0, page: 1, pageSize: PAGE_SIZE, items: [] });
+      toast.error('审批列表加载失败，请刷新重试');
+    })
       .finally(() => setLoading(false));
   }, [statusTab, page, myRole, preselectId]);
 
