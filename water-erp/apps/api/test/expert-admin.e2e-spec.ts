@@ -23,6 +23,8 @@ import { ExpertExtractionAiService } from '../src/expert/expert-extraction-ai.se
 
 const E2E_ADMIN = 'e2e-expert-admin';
 const E2E_EXPERT = 'e2e-expert-target';
+// 录入收窄（2026-10-15 用户裁定）：专家录入仅 admin——创建用例走独立 admin 账号（与 leader 同公司）
+const E2E_CREATOR = 'e2e-expert-creator';
 
 async function loginAs(app: INestApplication, username: string, password: string, portal: string): Promise<string[]> {
   const res = await request(app.getHttpServer())
@@ -39,6 +41,9 @@ describe('专家管理 ExpertAdmin (e2e)', () => {
   let cookies: string[] = [];
   let adminId = '';
   let testExpertId = '';
+  // leader/admin 测试账号共同的公司归属（beforeAll 解析；录入用例断言 companyId 口径用）
+  let scopeCompanyId = '';
+  let scopeCompanyName = '';
   const createdProjectIds: string[] = [];
 
   // 注意：supertest 需先 .get/.post/.patch 再 .set 头
@@ -65,9 +70,9 @@ describe('专家管理 ExpertAdmin (e2e)', () => {
     prisma = app.get(PrismaService);
 
     // 幂等清理上次 --forceExit 可能遗留的 e2e 账号（按外键顺序），避免撞 DUPLICATE_USERNAME
-    await prisma.expertEvaluation.deleteMany({ where: { expertUser: { username: { in: [E2E_ADMIN, E2E_EXPERT] } } } });
-    await prisma.expertProfile.deleteMany({ where: { user: { username: { in: [E2E_ADMIN, E2E_EXPERT] } } } });
-    await prisma.user.deleteMany({ where: { username: { in: [E2E_ADMIN, E2E_EXPERT] } } });
+    await prisma.expertEvaluation.deleteMany({ where: { expertUser: { username: { in: [E2E_ADMIN, E2E_EXPERT, E2E_CREATOR] } } } });
+    await prisma.expertProfile.deleteMany({ where: { user: { username: { in: [E2E_ADMIN, E2E_EXPERT, E2E_CREATOR] } } } });
+    await prisma.user.deleteMany({ where: { username: { in: [E2E_ADMIN, E2E_EXPERT, E2E_CREATOR] } } });
 
     // 幂等清理他套件崩溃（--forceExit）遗留的悬空评审分配：project 已删的 BidExpert 会让
     // listExperts 的 project relation select 抛 Inconsistent query result → 全量回归 500
@@ -90,10 +95,19 @@ describe('专家管理 ExpertAdmin (e2e)', () => {
       expertCompany?.companyId ??
       (await prisma.company.create({ data: { name: 'E2E测试公司' } })).id;
     const leaderCompanyName = expertCompany?.company ?? 'E2E测试公司';
+    scopeCompanyId = leaderCompanyId;
+    scopeCompanyName = leaderCompanyName;
     await prisma.user.upsert({
       where: { username_role: { username: E2E_ADMIN, role: 'leader' } },
       update: { isActive: true, passwordHash: hashSync('abc123', 10), companyId: leaderCompanyId, company: leaderCompanyName },
       create: { username: E2E_ADMIN, displayName: 'E2E专家管理员', passwordHash: hashSync('abc123', 10), role: 'leader', isActive: true, companyId: leaderCompanyId, company: leaderCompanyName },
+    });
+    // 录入专用 admin 账号（2026-10-15 收窄后 POST /expert-admin 仅 admin）：与 leader 同公司，
+    // 操作人公司快照使新专家落入 leader 视野——leader 后续详情/评价用例不受收窄影响
+    await prisma.user.upsert({
+      where: { username_role: { username: E2E_CREATOR, role: 'admin' } },
+      update: { isActive: true, passwordHash: hashSync('abc123', 10), companyId: leaderCompanyId, company: leaderCompanyName },
+      create: { username: E2E_CREATOR, displayName: 'E2E专家录入员', passwordHash: hashSync('abc123', 10), role: 'admin', isActive: true, companyId: leaderCompanyId, company: leaderCompanyName },
     });
     cookies = await loginAs(app, E2E_ADMIN, 'abc123', 'web');
     const me = await authGet('/api/auth/me');
@@ -106,7 +120,7 @@ describe('专家管理 ExpertAdmin (e2e)', () => {
       await prisma.bidExpert.deleteMany({ where: { userId: testExpertId } }); // 评价用例创建的评审分配
       await prisma.expertProfile.deleteMany({ where: { userId: testExpertId } });
     }
-    await prisma.user.deleteMany({ where: { username: { in: [E2E_ADMIN, E2E_EXPERT] } } });
+    await prisma.user.deleteMany({ where: { username: { in: [E2E_ADMIN, E2E_EXPERT, E2E_CREATOR] } } });
     for (const pid of createdProjectIds) {
       await prisma.bidProject.delete({ where: { id: pid } }).catch(() => {});
     }
@@ -166,12 +180,28 @@ describe('专家管理 ExpertAdmin (e2e)', () => {
   });
 
   it('录入三字段（民族/学历/证书）应真实持久化并回读一致（静默丢弃回归）', async () => {
-    const create = await authPost('/api/expert-admin').send({
-      username: E2E_EXPERT, displayName: 'E2E测试专家', password: 'test@2026',
-      specialty: '水利工程', title: '高级工程师', employer: 'E2E测试单位',
-      ethnicity: '汉族', education: '硕士', licenseNo: 'ZS-E2E-001',
+    // 录入收窄行为契约（2026-10-15 用户裁定）：leader POST /expert-admin → 403，零写入
+    const forbidden = await authPost('/api/expert-admin').send({
+      username: E2E_EXPERT, displayName: 'E2E测试专家', password: 'test@2026', specialty: '水利工程',
     });
+    expect(forbidden.status).toBe(403);
+    expect(await prisma.user.findFirst({ where: { username: E2E_EXPERT, role: 'bid_expert' } })).toBeNull();
+
+    // admin 走创建（独立 admin 账号，与 leader 同公司）；顺带断言新口径：工作单位随所选公司落库
+    const creatorCookies = await loginAs(app, E2E_CREATOR, 'abc123', 'web');
+    const create = await request(app.getHttpServer())
+      .post('/api/expert-admin')
+      .set('Cookie', creatorCookies)
+      .set('X-Portal', 'web')
+      .send({
+        username: E2E_EXPERT, displayName: 'E2E测试专家', password: 'test@2026',
+        specialty: '水利工程', title: '高级工程师', companyId: scopeCompanyId,
+        ethnicity: '汉族', education: '硕士', licenseNo: 'ZS-E2E-001',
+      });
     expect([200, 201]).toContain(create.status);
+    // 新口径（2026-10-15 工作单位=公司选择器）：User 归属与 ExpertProfile.employer 同用所选公司
+    expect(create.body?.companyId).toBe(scopeCompanyId);
+    expect(create.body?.expertProfile?.employer).toBe(scopeCompanyName);
     testExpertId = create.body?.id ?? '';
     expect(testExpertId).toBeTruthy();
     expect(create.body?.expertProfile?.ethnicity).toBe('汉族');

@@ -247,7 +247,8 @@ export default function ExpertRepositoryPage() {
                   <div className="flex flex-col items-center gap-3">
                     <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><UsersRound size={22} className="text-[var(--muted-foreground)]" /></div>
                     <p className="text-sm text-[var(--muted-foreground)]">暂无专家</p>
-                    <button onClick={() => setShowEntryModal(true)} className="neu-btn-xs is-info">前往录入专家 →</button>
+                    {/* 录入专家仅 admin（2026-10-15 用户裁定）：staff/leader 不渲染入口 */}
+                    {isAdmin && <button onClick={() => setShowEntryModal(true)} className="neu-btn-xs is-info">前往录入专家 →</button>}
                   </div>
                 </td></tr>
               ) : rows.map(e => {
@@ -446,7 +447,8 @@ export default function ExpertRepositoryPage() {
           ) : (
             <button onClick={() => { setBatchMode(false); setSelectedIds(new Set()); }} className="neu-btn-xs is-danger">退出批量</button>
           )}
-          <button onClick={() => setShowEntryModal(true)} className="neu-btn-xs"><PlusCircle size={12} />录入专家</button>
+          {/* 录入专家仅 admin（2026-10-15 用户裁定）；导出对全部工作台角色保留 */}
+          {isAdmin && <button onClick={() => setShowEntryModal(true)} className="neu-btn-xs"><PlusCircle size={12} />录入专家</button>}
           <button onClick={doExport} className="neu-btn-xs" title={selectedIds.size > 0 ? `导出已选的 ${selectedIds.size} 位专家` : '导出全部专家'}><Download size={12} />导出CSV{selectedIds.size > 0 && <span className="ml-1 rounded bg-[var(--accent)] px-1 py-0 text-[10px] font-bold text-white">{selectedIds.size}</span>}</button>
         </div>
       </div>

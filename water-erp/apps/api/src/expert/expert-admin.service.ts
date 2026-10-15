@@ -328,8 +328,23 @@ export class ExpertAdminService {
       }
     }
     try {
-      // 公司归属写时快照（自操作人）：本公司账号录入的专家入本公司库
+      // 公司归属写时快照（自操作人）：本公司账号录入的专家入本公司库；
+      // 2026-10-15 录入收窄 admin 后工作单位=公司选择器——companyId 给定时以所选公司为准
+      //（User 归属与 ExpertProfile.employer 同源为公司名，防「所属公司」与「工作单位」两列漂移）
       const { companyId: opCompanyId, companyName: opCompanyName } = operatorId ? await this.operatorCompanyOf(operatorId) : { companyId: null, companyName: null };
+      let companyId = opCompanyId;
+      let companyName = opCompanyName;
+      let employer = dto.employer;
+      if (dto.companyId?.trim()) {
+        const selected = await this.prisma.company.findUnique({
+          where: { id: dto.companyId },
+          select: { id: true, name: true },
+        });
+        if (!selected) throw new BadRequestException({ error: '所选公司不存在，请重新选择工作单位', code: 'COMPANY_NOT_FOUND' });
+        companyId = selected.id;
+        companyName = selected.name;
+        employer = selected.name;
+      }
       return await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
@@ -340,12 +355,12 @@ export class ExpertAdminService {
           role: 'bid_expert',
           isActive: true,
           departmentId,
-          ...(opCompanyId && { companyId: opCompanyId, company: opCompanyName }),
+          ...(companyId && { companyId, company: companyName }),
           expertProfile: {
             create: {
               specialty: dto.specialty,
               title: dto.title,
-              employer: dto.employer,
+              employer,
               phone: sealPii(dto.phone) ?? null,
               idNumber: sealPii(dto.idNumber) ?? null,
               ethnicity: dto.ethnicity,
@@ -372,7 +387,7 @@ export class ExpertAdminService {
       if (safeUser.email) (safeUser as any).email = maskEmail(openPiiForMask(safeUser.email));
       // 审计留痕：单条录入（CSV 导入与种子导入不在此列，各自单独记账）
       await this.auditExpert(operatorId, 'EXPERT_CREATE', user.id, {
-        expertName: normalizedName, specialty: dto.specialty, employer: dto.employer ?? null,
+        expertName: normalizedName, specialty: dto.specialty, employer: employer ?? null,
       });
       return safeUser;
       });

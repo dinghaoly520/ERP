@@ -24,6 +24,7 @@ describe('ExpertAdminService', () => {
         findMany: jest.fn().mockResolvedValue([]),
         findUnique: jest.fn(),
         findFirst: jest.fn(),
+        create: jest.fn(),
         update: jest.fn().mockResolvedValue({}),
         count: jest.fn().mockResolvedValue(0),
       },
@@ -39,6 +40,9 @@ describe('ExpertAdminService', () => {
       bidProject: {
         findUnique: jest.fn(),
         update: jest.fn().mockResolvedValue({}),
+      },
+      company: {
+        findUnique: jest.fn(),
       },
       bidRound: {
         count: jest.fn().mockResolvedValue(0),
@@ -253,6 +257,59 @@ describe('ExpertAdminService', () => {
       await service.updateProfile('u1', { title: '高工' } as any);
       const update = prisma.expertProfile.upsert.mock.calls[0][0].update;
       expect(update).not.toHaveProperty('regionCode');
+    });
+  });
+
+  describe('createExpert（2026-10-15 录入收窄 admin：工作单位=公司选择器）', () => {
+    const dto: any = {
+      username: 'expert_new', displayName: '测试专家', password: '123456', specialty: '水利工程',
+    };
+    const createdExpert = {
+      id: 'e1', username: dto.username, displayName: dto.displayName,
+      expertProfile: { phone: null, idNumber: null, licenseNo: null, employer: '' },
+    };
+
+    it('companyId 给定 → User 归属与 ExpertProfile.employer 同用所选公司（防两列漂移）', async () => {
+      prisma.user.findFirst.mockResolvedValue(null); // 账号查重
+      prisma.user.findUnique.mockResolvedValue({ companyId: 'co-op', company: '操作人公司' }); // operatorCompanyOf
+      prisma.company.findUnique.mockResolvedValue({ id: 'co-sel', name: '四川水发建设有限公司' });
+      prisma.user.create.mockResolvedValue(createdExpert);
+
+      await service.createExpert({ ...dto, companyId: 'co-sel' }, 'op-1');
+
+      expect(prisma.user.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          companyId: 'co-sel',
+          company: '四川水发建设有限公司',
+          expertProfile: expect.objectContaining({ create: expect.objectContaining({ employer: '四川水发建设有限公司' }) }),
+        }),
+      }));
+    });
+
+    it('companyId 不存在 → 400 COMPANY_NOT_FOUND 且零写入', async () => {
+      prisma.user.findFirst.mockResolvedValue(null);
+      prisma.company.findUnique.mockResolvedValue(null);
+
+      await expect(service.createExpert({ ...dto, companyId: 'co-x' }, 'op-1'))
+        .rejects.toMatchObject({ response: { code: 'COMPANY_NOT_FOUND' } });
+      expect(prisma.user.create).not.toHaveBeenCalled();
+    });
+
+    it('无 companyId → 回退操作人公司写时快照（CSV 导入等旧轨口径不变）', async () => {
+      prisma.user.findFirst.mockResolvedValue(null);
+      prisma.user.findUnique.mockResolvedValue({ companyId: 'co-op', company: '操作人公司' });
+      prisma.user.create.mockResolvedValue(createdExpert);
+
+      await service.createExpert({ ...dto, employer: '自由文本单位' }, 'op-1');
+
+      expect(prisma.company.findUnique).not.toHaveBeenCalled();
+      expect(prisma.user.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          companyId: 'co-op',
+          company: '操作人公司',
+          expertProfile: expect.objectContaining({ create: expect.objectContaining({ employer: '自由文本单位' }) }),
+        }),
+      }));
     });
   });
 

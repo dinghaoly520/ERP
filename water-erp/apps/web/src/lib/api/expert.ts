@@ -124,6 +124,8 @@ export function fetchExpertCompanyCounts(params?: { search?: string; specialty?:
 
 export function createExpert(data: {
   username: string; displayName: string; password: string; specialty: string;
+  /** 归属公司（2026-10-15 工作单位=公司选择器）：后端以所选公司落 User 归属与 ExpertProfile.employer */
+  companyId?: string;
   title?: string; employer?: string; departmentName?: string; phone?: string; idNumber?: string; email?: string; notes?: string;
   ethnicity?: string; education?: string; licenseNo?: string;
 }) {

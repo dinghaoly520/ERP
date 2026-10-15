@@ -16,6 +16,8 @@ export class CreateExpertDto {
   specialty!: string;
 
   @IsOptional() @IsString() title?: string;
+  /** 归属公司（2026-10-15 录入收窄 admin 后的工作单位选择器）：给定则以该公司为归属与工作单位，未给定回退操作人公司快照 */
+  @IsOptional() @IsString() companyId?: string;
   @IsOptional() @IsString() employer?: string;
   @IsOptional() @IsString() departmentName?: string;
   @IsOptional() @IsString() phone?: string;

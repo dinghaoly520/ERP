@@ -99,7 +99,8 @@ export class ExpertAdminController {
   }
 
   @Post()
-  @ApiOperation({ summary: '录入专家' })
+  @Roles('admin') // 方法级收窄（类默认含 bid_host/leader/staff）：专家录入仅 admin（2026-10-15 用户裁定）
+  @ApiOperation({ summary: '录入专家（仅 admin）' })
   createExpert(@Body() dto: CreateExpertDto, @Request() req: any) {
     return this.expertAdminService.createExpert(dto, req.user?.sub);
   }
@@ -277,7 +278,8 @@ export class ExpertAdminController {
   }
 
   @Post('import-csv')
-  @ApiOperation({ summary: 'CSV 批量导入专家' })
+  @Roles('admin') // 录入通道随「录入专家」一并收窄 admin（CSV 导入在录入弹窗内）
+  @ApiOperation({ summary: 'CSV 批量导入专家（仅 admin）' })
   importCsv(@Body() dto: ImportCsvDto, @Request() req: any) {
     return this.expertAdminService.importCsv(dto.rows, req.user?.sub);
   }
@@ -422,13 +424,15 @@ export class ExpertAdminController {
   }
 
   @Post('import-from-seed')
-  @ApiOperation({ summary: '从种子数据批量导入专家（跳过已存在的；归操作人公司）' })
+  @Roles('admin') // 录入通道随「录入专家」一并收窄 admin
+  @ApiOperation({ summary: '从种子数据批量导入专家（仅 admin；跳过已存在的；归操作人公司）' })
   importFromSeed(@Request() req: any = {}) {
     return this.expertAdminService.importFromSeed(req.user?.sub);
   }
 
   @Post('ocr-intake')
-  @ApiOperation({ summary: '资质 OCR 自动录入（识别证件图片 → 结构化字段回填）' })
+  @Roles('admin') // 录入辅助随「录入专家」收窄 admin（OCR 仅在录入弹窗内使用）
+  @ApiOperation({ summary: '资质 OCR 自动录入（仅 admin；识别证件图片 → 结构化字段回填）' })
   ocrIntake(@Body() dto: OcrIntakeDto) {
     return this.expertAdminService.ocrIntake(dto.imageBase64, dto.mimeType, dto.filename);
   }

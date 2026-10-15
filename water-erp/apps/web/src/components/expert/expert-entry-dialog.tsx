@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { createExpert, listSpecialties, ocrIntake } from '@/lib/api/expert';
+import { api } from '@/lib/api';
 import { Modal } from '@/components/workbench';
+import { SearchSelect, type SearchSelectOption } from '@/components/workbench/search-select';
 import { ExpertCsvActions } from './expert-csv-actions';
 import { UserPlus, Eye, EyeOff, ScanLine, RefreshCw } from 'lucide-react';
 
@@ -11,8 +13,11 @@ const TITLES = ['教授级高级工程师','高级工程师','高级经济师','
 const EDUCATIONS = ['博士','硕士','本科','大专','其他'];
 const ETHNICITIES = ['汉族','蒙古族','回族','藏族','维吾尔族','苗族','彝族','壮族','布依族','朝鲜族','满族','侗族','瑶族','白族','土家族','其他'];
 
-type FormFields = { username: string; displayName: string; password: string; specialty: string; title: string; employer: string; departmentName: string; phone: string; idNumber: string; email: string; notes: string; ethnicity: string; education: string; licenseNo: string; };
-const INITIAL: FormFields = { username: '', displayName: '', password: '', specialty: '', title: '', employer: '', departmentName: '', phone: '', idNumber: '', email: '', notes: '', ethnicity: '', education: '', licenseNo: '' };
+/** 公司选项来源与 :3005 公司选择器（CompanySelect）同源：GET /companies 主数据 */
+type CompanyOption = { id: string; name: string; shortName: string | null };
+
+type FormFields = { username: string; displayName: string; password: string; specialty: string; title: string; companyId: string; departmentName: string; phone: string; idNumber: string; email: string; notes: string; ethnicity: string; education: string; licenseNo: string; };
+const INITIAL: FormFields = { username: '', displayName: '', password: '', specialty: '', title: '', companyId: '', departmentName: '', phone: '', idNumber: '', email: '', notes: '', ethnicity: '', education: '', licenseNo: '' };
 
 interface ExpertEntryDialogProps {
   open: boolean;
@@ -22,6 +27,7 @@ interface ExpertEntryDialogProps {
 
 export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDialogProps) {
   const [specialties, setSpecialties] = useState<string[]>([]);
+  const [companies, setCompanies] = useState<CompanyOption[] | null>(null);
   const [form, setForm] = useState<FormFields>(INITIAL);
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState('');
@@ -32,6 +38,11 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
   useEffect(() => {
     if (open) {
       listSpecialties().then(setSpecialties).catch(() => toast.warning('加载专业列表失败，可手动输入'));
+      // 工作单位选项：公司主数据（与 :3005 公司选择器同源，2026-10-15）
+      api.get<CompanyOption[]>('/companies').then(setCompanies).catch(() => {
+        setCompanies([]);
+        toast.warning('加载公司列表失败，工作单位暂不可选');
+      });
       // 重置表单
       setForm(INITIAL);
       setErrors({});
@@ -68,7 +79,7 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
     if (!validate()) return;
     setSaving(true);
     try {
-      await createExpert(form);
+      await createExpert({ ...form, companyId: form.companyId || undefined });
       toast.success('专家录入成功');
       onSubmitted?.();
       onClose();
@@ -94,10 +105,16 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
       });
       const { fields } = await ocrIntake({ imageBase64: base64, mimeType: file.type, filename: file.name });
       const map: Partial<FormFields> = {};
-      (['displayName', 'specialty', 'title', 'employer', 'idNumber', 'phone', 'licenseNo', 'education', 'ethnicity'] as (keyof FormFields)[]).forEach(k => {
+      (['displayName', 'specialty', 'title', 'idNumber', 'phone', 'licenseNo', 'education', 'ethnicity'] as (keyof FormFields)[]).forEach(k => {
         const v = fields[k];
         if (v && String(v).trim()) map[k] = String(v).trim();
       });
+      // 工作单位=公司选择器（2026-10-15）：OCR 识别的单位名精确命中公司主数据才回选，未命中忽略（不落自由文本）
+      const ocrEmployer = String(fields.employer ?? '').trim();
+      if (ocrEmployer) {
+        const hit = companies?.find(c => c.name === ocrEmployer || c.shortName === ocrEmployer);
+        if (hit) map.companyId = hit.id;
+      }
       const filled = Object.keys(map).length;
       if (filled === 0) toast.warning('未识别到有效字段，请手动填写');
       else { setForm(prev => ({ ...prev, ...map })); toast.success(`已识别并填充 ${filled} 个字段，请核对后保存`); }
@@ -119,6 +136,12 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
 
   if (!open) return null;
 
+  // 工作单位选项（与 :3005 公司选择器同源同设计：GET /companies，SearchSelect 规范形态）
+  const companyOptions: SearchSelectOption[] = (companies ?? []).map(c => ({
+    value: c.id,
+    label: c.name,
+    sub: c.shortName && c.shortName !== c.name ? c.shortName : undefined,
+  }));
   const inputCls = (field: keyof FormFields) => `neu-input w-full text-sm ${errors[field] ? '!border-[var(--danger)]' : ''}`;
   const FieldError = ({ field }: { field: keyof FormFields }) => errors[field] ? <p className="text-xs font-medium text-[var(--danger)] mt-0.5">{errors[field]}</p> : null;
   const Step = ({ n }: { n: number }) => <span className="flex h-[18px] w-[18px] items-center justify-center rounded-md text-[10px] font-extrabold bg-[var(--accent)] text-white">{n}</span>;
@@ -175,7 +198,19 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">专业领域 <span className="text-[var(--danger)]">*</span></span><input value={form.specialty} onChange={e => set('specialty', e.target.value)} list="entry-spec-list" placeholder="如 水利工程" className={inputCls('specialty')} /><datalist id="entry-spec-list">{specialties.map(s => <option key={s} value={s} />)}</datalist><FieldError field="specialty" /></label>
             <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">职称</span><input value={form.title} onChange={e => set('title', e.target.value)} list="entry-title-list" placeholder="如 高级工程师" className={inputCls('title')} /><datalist id="entry-title-list">{TITLES.map(t => <option key={t} value={t} />)}</datalist></label>
-            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">工作单位</span><input value={form.employer} onChange={e => set('employer', e.target.value)} placeholder="所在单位全称" className={inputCls('employer')} /></label>
+            <div className="space-y-1">
+              <span className="text-xs font-semibold text-[var(--muted-foreground)]">工作单位</span>
+              <SearchSelect
+                options={companyOptions}
+                value={form.companyId}
+                onPick={o => set('companyId', o.value)}
+                placeholder="选择公司"
+                searchPlaceholder="搜索公司…"
+                emptyText="无匹配公司"
+                disabled={companies === null}
+              />
+              <span className="block text-[10px] text-[var(--muted-foreground)]/70">选项同右上角公司选择器，专家归入所选公司库</span>
+            </div>
             <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">所属部门</span><input value={form.departmentName} onChange={e => set('departmentName', e.target.value)} placeholder="如 工程勘察院" className={inputCls('departmentName')} /></label>
           </div>
         </fieldset>
