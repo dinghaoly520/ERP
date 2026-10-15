@@ -82,7 +82,7 @@ const mkPrisma = () => ({
   },
   supplierCert: { findFirst: jest.fn() },
   caOperation: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
-  bidOpeningRecord: { upsert: jest.fn().mockResolvedValue({}) },
+  bidOpeningRecord: { upsert: jest.fn().mockResolvedValue({}), findFirst: jest.fn().mockResolvedValue({ id: 'rec-ws' }) },
   bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
   supplier: { findUnique: jest.fn().mockResolvedValue({ userId: 'user-1' }) },
   tx: txMocks(),

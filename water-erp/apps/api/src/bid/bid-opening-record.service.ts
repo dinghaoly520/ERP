@@ -155,19 +155,40 @@ export class BidOpeningRecordService {
       throw new ConflictException({ error: '该供应商已确认开标记录，禁止覆盖唱标信息', code: 'RECORD_ALREADY_CONFIRMED' });
     }
 
-    // 与供应商密封报价比对（误录一路进排名/中标公示的防线）
-    const priceNote = await assertPriceMatchesSealed(this.prisma, projectId, bidSupplier.id, dto.amount, dto.confirmSealedPrice);
-    // 同构：与投递工期比对（误录工期一路进评标/公示的防线）
-    const periodNote = await assertPeriodMatchesSubmitted(this.prisma, projectId, bidSupplier.id, dto.period, dto.confirmSealedPeriod);
-
-    // 单位戳：dual-v2 轨金额=万元裸数字——落列自描述，读端（util）优先取本列
+    // 单位戳+轨道判定（提前——dual 轨 MISMATCH 跳过判定依赖此值）
     const submission = bidSupplier.supplierId
       ? await this.prisma.supplierBidSubmission.findUnique({
           where: { supplierId_projectId: { supplierId: bidSupplier.supplierId, projectId } },
           select: { envelopeVersion: true },
         })
       : null;
-    const amountUnit = submission?.envelopeVersion === 'dual-v2' ? DUAL_V2_AMOUNT_UNIT : null;
+    const isDualV3 = submission?.envelopeVersion === 'dual-v3';
+    const amountUnit = submission?.envelopeVersion === 'dual-v2' || isDualV3 ? DUAL_V2_AMOUNT_UNIT : null;
+
+    // dual-v3：值来自加密承诺（fieldsCommit），decrypt-upload 已自动预填记录——三法定字段
+    // 与现记录一致即构造恒等（sealedPrice 与预填值同源），MISMATCH 闸门无意义。
+    // 主持人 partial update（仅 bondStatus+customFields）不触发闸门。
+    // 仅当主持人通过 API 传入与预填不一致的三法定字段值时才做比对（防绕过 UI 直接改值）。
+    let priceNote: string | null = null;
+    let periodNote: string | null = null;
+    if (isDualV3) {
+      const existing = await this.prisma.bidOpeningRecord.findFirst({
+        where: { projectId, bidSupplierId: bidSupplier.id },
+        select: { amount: true, period: true },
+      });
+      const fieldsMatch = existing
+        && existing.amount === dto.amount
+        && existing.period === dto.period;
+      if (!fieldsMatch) {
+        // 传入值与预填不一致——走正常 MISMATCH 闸门（防主持人或 API 直改）
+        priceNote = await assertPriceMatchesSealed(this.prisma, projectId, bidSupplier.id, dto.amount, dto.confirmSealedPrice);
+        periodNote = await assertPeriodMatchesSubmitted(this.prisma, projectId, bidSupplier.id, dto.period, dto.confirmSealedPeriod);
+      }
+    } else {
+      // 旧轨/dual-v2：人工录入——完整 MISMATCH 闸门（不变）
+      priceNote = await assertPriceMatchesSealed(this.prisma, projectId, bidSupplier.id, dto.amount, dto.confirmSealedPrice);
+      periodNote = await assertPeriodMatchesSubmitted(this.prisma, projectId, bidSupplier.id, dto.period, dto.confirmSealedPeriod);
+    }
 
     // A-113：动态字段录入校验与净化——config 中非法定键逐项校验，未定义键剥除（只落配置内键）。
     // 法定四字段路径零改动（密封比对在上方、专属列写入在 payload 下方，均不触碰）。

@@ -72,10 +72,8 @@ export function CaOpeningConfirmButton({ projectId, onConfirmed }: {
           </>
         }
       >
-        <p className="text-sm leading-relaxed text-[var(--fg-2)]">
-          确认即表示本司认可唱标记录与投递内容一致。确认动作将以 SCCA U盾 P7 电子签名存档
-          （签名覆盖记录快照哈希，防抵赖；开标后不可撤销）。
-        </p>
+        <p className="text-sm font-medium text-[var(--fg-1)]">确认唱标信息无误后签名</p>
+        <p className="mt-1 text-xs text-[var(--fg-3)]">签名后不可撤销</p>
         <div className="mt-3">
           <label className="mb-1 block text-sm font-medium">U盾 PIN</label>
           <input
