@@ -476,8 +476,8 @@ describe('ProjectManagementService', () => {
       {} as never, // notificationService（2026-09-21 对方项目终止特性新增依赖）
       { assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } as never, // scoreStandardValidator（2026-09-24 评分标准闸）
       {
-        resolveScope: async () => ({ all: false, companyId: 'co-test' }),
-        filter: (s: { all: boolean; companyId: string }) => (s.all ? {} : { companyId: s.companyId }),
+        resolveScope: async () => ({ all: false, companyIds: ['co-test'] }),
+        filter: (s: { all: boolean; companyIds: string[] }) => (s.all ? {} : { companyId: { in: s.companyIds } }),
       } as never, // companyScope（2026-10-10 leader 公司视野）
     );
     return {
@@ -1560,7 +1560,7 @@ describe('ProjectManagementService', () => {
       await service.list({ companyId: 'co-evil' } as never, { sub: 'leader-1', username: 'l', role: 'leader' });
 
       const where = prisma.projectManagementItem.findMany.mock.calls[0][0].where;
-      expect(where.companyId).toBe('co-test'); // makeService 的 companyScope mock 固定本人公司
+      expect(where.companyId).toEqual({ in: ['co-test'] }); // makeService 的 companyScope mock 固定本人公司（2026-10-14 多选口径：filter 恒 in 子句）
       expect(where.createdById).toBeUndefined();
     });
 

@@ -188,6 +188,47 @@ box-shadow:
 |------|------|
 | `.neu-input` | 内凹输入框（44px，focus 环，textarea 自动 min-height: 88px） |
 | `.workbench-input` | 内凹输入框（40px，含 select 下拉箭头），用于弹窗和面板内表单 |
+| **下拉选择器 SearchSelect** | 实体/名单类单值选择（≥9 项或可增长：公司、归属、专家、目录）：瓷片渐变面板 + sticky 搜索行 + 白瓷片激活项 + 视口翻转 + portal 挂 body。组件 `apps/web/src/components/workbench/search-select.tsx`。**分型边界见「下拉选择器（SearchSelect）」专节——短静态枚举（≤8）仍用原生 select** |
+
+## 下拉选择器（SearchSelect，2026-10-14 定版）
+
+实体/名单类单值选择的统一形态（自注册页公司选择器泛化为通用组件：
+`apps/web/src/components/workbench/search-select.tsx`；消费方：UnitSearchSelect、
+项目详情/新建项目归属选择、admin 公司选择器 CompanySelect）。
+
+### 分型规则（何时用哪种「下拉」）
+
+| 场景 | 用 |
+|------|-----|
+| 短静态枚举（≤8 项固定项：是/否、排序、状态筛选） | `workbench-input` 原生 `<select>`（既有表单规范，勿滥用 SearchSelect） |
+| 实体/名单单值选择（公司、归属项目、专家、目录…≥9 项或可增长） | **SearchSelect（本规范）** |
+| 远程联想输入（边打边搜，如供应商名称） | typeahead 输入框 + 候选面板（面板视觉对齐本规范：瓷片渐变 + 白瓷片激活） |
+| 树形 / 多选 | 专用组件（CategoryTreeSelect / quota-multi-select），面板视觉对齐本规范 |
+
+### 设计语言
+
+- **面板**：145° 白→浅灰渐变瓷片 + 方向性双影（无外框线）；**portal 挂 body**（摆脱
+  窄列/overflow 裁切）；**视口翻转定位**（下方放不下且上方够 → 向上弹）；maxHeight 260、
+  圆角 16、内边距 `0 6px 6px`（外层无顶 padding，防 sticky 滚动透字）
+- **搜索行**（sticky 贴顶）：内凹小输入（34px，surface 底 + 双 inset 影）+ Search 图标 +
+  hairline 分隔；**自动显隐**——选项 >8 或 allowCustom 时显示；打开即聚焦
+- **当前值**：白瓷片凸起（`oklch(1 0 0)` + 内高光 + 双影）+ 品牌蓝粗体 + 对勾
+  （与 neu-tab v2 激活语义统一）
+- **选项行**：hover 品牌蓝淡染；主标 + 右侧 `meta`（合同号/编号）+ 副标行 `sub`（分类/说明）
+- **allowCustom**：搜索词非名单项 → 「使用自定义名称「xx」」行直接采用
+- **兜底项**：「全部/其他」类固定项置顶或列尾；空态居中小字
+- **触发器**：surface 内凹 + chevron（打开旋转 180°）；标准 38px / compact 28px
+  （表单行内联，与 `workbench-input !h-[28px]` 等高）
+- **关闭语义**：外点 / Esc / 滚动离开 / resize；选中即回填收起
+
+### 反模式
+
+| 错误 | 正确 |
+|------|------|
+| absolute 列表挂在容器内（窄列裁切、随页滚动错位） | portal + fixed 定位 + 视口翻转 |
+| 白底/边框列表、无搜索行的长名单 | SearchSelect 规范面板 |
+| 给 ≤8 项静态枚举上 SearchSelect | 原生 `workbench-input` select |
+| 用原生 select 承载几十项实体名单 | SearchSelect（可搜索） |
 
 ### 文件上传
 

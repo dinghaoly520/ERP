@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
+import { isGroupedCompanyView, CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
 import { SasacExtractModal } from "@/components/procurements/sasac-extract-modal";
 import { ProjectTimelineStrip } from "@/components/projects/project-timeline-strip";
 import { useRouter } from "next/navigation";
@@ -1369,7 +1369,7 @@ export default function ProcurementsPage() {
         }),
         fetchProcurementMethods(),
         fetchLedgerStats(filters.startDate || undefined, filters.endDate || undefined, companyId) /* 四审 P2：统计卡与列表同筛选，防同屏口径打架 */.catch(() => null),
-        (isAdmin && companyId === 'all')
+        (isAdmin && isGroupedCompanyView(companyId))
           ? fetchLedgerCompanyCounts({
               startDate: filters.startDate || undefined,
               endDate: filters.endDate || undefined,
@@ -1632,7 +1632,7 @@ export default function ProcurementsPage() {
             </div>
           ) : (
             <>
-              {isAdmin && companyId === "all" ? (
+              {isAdmin && isGroupedCompanyView(companyId) ? (
                 <div className="space-y-5">
                   {ledgerGroups.map((g) => (
                     <section key={g.name}>

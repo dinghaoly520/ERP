@@ -9,6 +9,7 @@ import { StorageService } from '../storage/storage.service';
 import { htmlToDocxChildren } from '../project-management/docx/html-to-docx.converter';
 import { checkContractConsistency, type AwardSource, type ConsistencyResult } from './contract-consistency';
 import { buildStandardFileName } from '@water-erp/shared';
+import type { CompanyWhere } from '../company/company-scope';
 
 /**
  * C2/C3（GB/T 43711 7.5.4 + 7.6）：采购合同订立、履行与验收。
@@ -22,7 +23,7 @@ const CONTRACT_STATUSES = [
 const FULFILLMENT_TYPES = ['delivery', 'payment', 'acceptance'] as const;
 const CLOSED_CONTRACT_STATUSES = ['accepted', 'terminated'] as const;
 
-type CompanyFilter = { companyId?: string };
+type CompanyFilter = CompanyWhere;
 type ContractActor = { userId: string; username?: string } & CompanyFilter;
 
 @Injectable()
@@ -172,7 +173,7 @@ export class ContractService {
 
   // ─────────────────────────── 查询 ───────────────────────────
 
-  async list(params: { status?: string; q?: string; companyId?: string }) {
+  async list(params: { status?: string; q?: string } & CompanyWhere) {
     const where: any = {};
     if (params.status && CONTRACT_STATUSES.includes(params.status as any)) where.status = params.status;
     if (params.companyId) where.companyId = params.companyId;
@@ -193,7 +194,7 @@ export class ContractService {
   }
 
   /** :3005 项目管理详情合同 tab：按台账项/项目编号取合同 */
-  async listByProject(params: { projectManagementItemId?: string; projectCode?: string; companyId?: string }) {
+  async listByProject(params: { projectManagementItemId?: string; projectCode?: string } & CompanyWhere) {
     if (!params.projectManagementItemId && !params.projectCode) {
       throw new BadRequestException({ error: '缺少项目定位参数', code: 'BAD_PARAMS' });
     }

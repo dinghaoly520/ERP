@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { CompanySelect, readInitialCompanyId } from '@/components/company/company-select';
+import { isGroupedCompanyView, CompanySelect, readInitialCompanyId } from '@/components/company/company-select';
 import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from '@/components/company/company-tag';
 import { useRouter } from 'next/navigation';
 import {
@@ -146,7 +146,7 @@ export default function NoticePage() {
   const selectableIds = sortedItems.map(i => i.id);
 
   // admin 全部公司视图：按公司分组（供应商/专家库同款）；标题计数=后端全量口径
-  const companyViewAll = isAdmin && companyId === 'all';
+  const companyViewAll = isAdmin && isGroupedCompanyView(companyId);
   const announcementGroups = useMemo(() => {
     if (!companyViewAll) return [];
     return buildCompanyCounts(sortedItems.map(x => ({ company: x.companyName }))).map(g => ({

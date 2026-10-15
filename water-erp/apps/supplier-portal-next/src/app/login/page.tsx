@@ -26,6 +26,20 @@ const STATUS_TEXT: Record<string, string> = {
   BLACKLIST: "账号已列入不良供应商名单，如有异议请联系采购中心申诉。",
 };
 
+// 审批动作文案（2026-10-15）：时间线节点用
+// 时间线紧凑级名（全称带括号说明太长）
+const REVIEW_STAGE_TEXT_SHORT: Record<string, string> = {
+  STAFF: "初审",
+  LEADER: "复审",
+  ADMIN: "终审",
+};
+
+const APPROVAL_ACTION_TEXT: Record<string, string> = {
+  APPROVED: "通过",
+  REJECTED: "拒绝",
+  RETURNED: "退回补正",
+};
+
 // 三级审批阶段文案（2026-09-29）：PENDING 状态下展示当前所处环节
 const REVIEW_STAGE_TEXT: Record<string, string> = {
   STAFF: "初审（公司经办审核）",
@@ -58,7 +72,7 @@ function LoginForm() {
   const [showQuery, setShowQuery] = useState(() => params.get("registered") === "1");
   const [queryCode, setQueryCode] = useState("");
   const [querying, setQuerying] = useState(false);
-  const [queryResult, setQueryResult] = useState<{ found: boolean; ambiguous?: boolean; candidates?: Array<{ name: string; creditCodeMasked: string; status: string; reviewStage: string | null }>; creditCode?: string; name?: string | null; status?: string | null; reason?: string | null; reviewedAt?: string | null; reviewedAction?: string | null; urgedAt?: string | null; reviewStage?: string | null; reviewStageLabel?: string | null } | null>(null);
+  const [queryResult, setQueryResult] = useState<{ found: boolean; ambiguous?: boolean; closedAfterCompletion?: boolean; candidates?: Array<{ name: string; creditCodeMasked: string; status: string; reviewStage: string | null }>; timeline?: Array<{ stage: string | null; action: string; at: string; reason: string | null }>; creditCode?: string; name?: string | null; status?: string | null; reason?: string | null; reviewedAt?: string | null; reviewedAction?: string | null; urgedAt?: string | null; reviewStage?: string | null; reviewStageLabel?: string | null } | null>(null);
   const [urging, setUrging] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -284,6 +298,8 @@ function LoginForm() {
                           `${c.creditCodeMasked}（${STATUS_TEXT[c.status] || c.status}${c.status === "PENDING" && c.reviewStage ? ` · ${REVIEW_STAGE_TEXT[c.reviewStage] || c.reviewStage}` : ""}）`).join("；")}
                       </span>
                     </>
+                  ) : queryResult.closedAfterCompletion ? (
+                    <>该注册的审核已完成超过 3 天，公开查询已关闭。审核通过后可直接使用注册账号（统一社会信用代码）登录；如有疑问请联系采购中心。</>
                   ) : queryResult.found ? (
                     <>
                       <strong>{queryResult.name}</strong>
@@ -294,12 +310,28 @@ function LoginForm() {
                           （初审 → 复审 → 终审 三级审核）
                         </span>
                       )}
+                      {(queryResult.timeline ?? []).length > 0 && (
+                        <span className="lp-query__stage" style={{ display: "block", marginTop: 6 }}>
+                          审核节点：
+                          {(queryResult.timeline ?? []).map((n) => {
+                            const stage = n.stage ? (REVIEW_STAGE_TEXT_SHORT[n.stage] || n.stage) : "审批";
+                            const act = APPROVAL_ACTION_TEXT[n.action] || n.action;
+                            const at = new Date(n.at).toLocaleString("zh-CN", { hour12: false });
+                            return `${stage}·${act}（${at}）`;
+                          }).join(" → ")}
+                        </span>
+                      )}
                       {queryResult.reviewedAt && (
                         <span className="lp-query__reviewed">
                           审核时间：{new Date(queryResult.reviewedAt).toLocaleString("zh-CN", { hour12: false })}
                         </span>
                       )}
                       {queryResult.reason && <span className="lp-query__reason">原因：{queryResult.reason}</span>}
+                      {queryResult.status === "RETURNED" && (
+                        <Link href="/register" className="lp-query__correct">
+                          前往注册页补正资料 →
+                        </Link>
+                      )}
                       {/* 仍可催促的状态：未审核/退回/拒绝（APPROVED/DISABLED 无需催促） */}
                       {["PENDING", "RETURNED", "REJECTED"].includes(queryResult.status as string) && (
                         <button

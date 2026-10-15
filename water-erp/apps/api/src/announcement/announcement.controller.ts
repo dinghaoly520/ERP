@@ -16,6 +16,7 @@ import { CreateAnnouncementDto, UpdateAnnouncementDto } from './dto/create-annou
 import { AnnouncementHistoryService } from './announcement-history.service';
 import { CompanyScopeService } from '../company/company-scope';
 import { PrismaService } from '../prisma/prisma.service';
+import { scopeCompanyIds } from '../company/company-scope';
 
 @ApiTags('信息公告')
 @Controller('announcements')
@@ -44,7 +45,8 @@ export class AnnouncementController {
     const scope = await this.companyScope.resolveScope(user);
     if (scope.all) return;
     const ann = await this.announcementService.get(id).catch(() => null);
-    if (ann && (ann as any).companyId !== scope.companyId) {
+    const ids = scopeCompanyIds(scope);
+    if (ann && ids && !ids.includes((ann as any).companyId)) {
       throw new ForbiddenException({ error: '该公告不属于本公司，无权访问', code: 'COMPANY_SCOPE_FORBIDDEN' });
     }
   }

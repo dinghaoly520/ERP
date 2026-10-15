@@ -135,12 +135,29 @@ export const authApi = {
     return api.post<any>("/supplier/register/urge-review", { creditCode }, { silent: true });
   },
 
-  /** 注册前查重（公开）：统一社会信用代码硬拦截 / 法人身份证·联系人身份证软提示。 */
+  /** 注册前查重（公开）。creditCodeStatus: 命中状态（REJECTED=可重注册壳，不算阻塞重复）。 */
   checkDuplicate(fields: { creditCode?: string; legalPersonIdCard?: string; contactIdCard?: string }) {
-    return api.get<{ creditCode: boolean; legalPersonIdCard: boolean; contactIdCard: boolean }>(
+    return api.get<{ creditCode: boolean; legalPersonIdCard: boolean; contactIdCard: boolean; creditCodeStatus: string | null }>(
       `/supplier/register/check-duplicate${qs(fields)}`,
       { silent: true },
     );
+  },
+
+  /** 退回补正：凭公司名+信用代码向主联系人手机发验证码。 */
+  requestCorrection(name: string, creditCode: string) {
+    return api.post<any>(`/supplier/register/correction/request`, { name, creditCode }, { silent: true });
+  },
+  /** 退回补正：校验验证码换发一次性补正 token。 */
+  verifyCorrection(name: string, creditCode: string, code: string) {
+    return api.post<any>(`/supplier/register/correction/verify`, { name, creditCode, code }, { silent: true });
+  },
+  /** 退回补正：凭 token 拉取已填资料（解封）+ 退回原因。 */
+  getCorrectionDraft(token: string, name: string, creditCode: string) {
+    return api.get<any>(`/supplier/register/correction/draft${qs({ token, name, creditCode })}`, { silent: true });
+  },
+  /** 退回补正：补正后重新提交。 */
+  submitCorrection(data: Record<string, unknown>) {
+    return api.post<any>(`/supplier/register/correction/submit`, data, { silent: true });
   },
 
   /** 公开：校验邀请码（临时注册前）。返回 { valid, validityDays?, expiresAt?, reason? } */

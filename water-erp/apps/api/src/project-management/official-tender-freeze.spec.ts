@@ -19,7 +19,7 @@ describe('正式盖章版冻结锁（OFFICIAL_TENDER_FROZEN）', () => {
       {} as never,
       {} as never,
       { assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } as never as ScoreStandardValidator,
-      { resolveScope: async () => ({ all: false, companyId: 'co-test' }) } as never, // companyScope（2026-10-10）
+      { resolveScope: async () => ({ all: false, companyIds: ['co-test'] }) } as never, // companyScope（2026-10-10）
     );
 
   const ATT = (over: Record<string, unknown> = {}) => ({

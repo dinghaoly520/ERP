@@ -29,6 +29,7 @@ import { buildExpertPortrait } from './expert-portrait.util';
 import { NotificationService } from '../notification/notification.service';
 import { BidGateway } from '../bid/bid.gateway';
 import { CompanyScopeService } from '../company/company-scope';
+import type { CompanyWhere } from '../company/company-scope';
 
 /** 等级→分值（用于加权计算综合等级） */
 const GRADE_SCORE: Record<ExpertLevel, number> = { A: 5, B: 4, C: 3, D: 2, E: 1 };
@@ -89,7 +90,7 @@ export class ExpertAdminService {
    * 规则：admin 默认全部公司、?companyId= 切单公司；非 admin 强制本人公司；
    * 专家归属落在 User.companyId（录入/导入时自操作人写时快照）。 */
   /** where 片段（spread 进 User 维度查询） */
-  private async expertScopeFilter(user: AuthenticatedUser | undefined, companyId?: string): Promise<{ companyId?: string }> {
+  private async expertScopeFilter(user: AuthenticatedUser | undefined, companyId?: string): Promise<CompanyWhere> {
     const scope = await this.companyScope.resolveScope(user, companyId);
     return this.companyScope.filter(scope);
   }
@@ -1981,7 +1982,7 @@ export class ExpertAdminService {
       // 全量违规列表：resourceId 收窄到隔离集内的专家
       const scope = await this.companyScope.resolveScope(user);
       if (!scope.all) {
-        const ids = (await this.prisma.user.findMany({ where: { role: 'bid_expert', companyId: scope.companyId }, select: { id: true } })).map(u => u.id);
+        const ids = (await this.prisma.user.findMany({ where: { role: 'bid_expert', companyId: { in: scope.companyIds } }, select: { id: true } })).map(u => u.id);
         where.resourceId = { in: ids };
       }
     }

@@ -194,4 +194,144 @@ describe('SupplierService.register — P1-13 注册手机验证前置', () => {
 
     expect(verification.verifyRegistrationCode).not.toHaveBeenCalled();
   });
+
+  describe('register — REJECTED 壳重开（2026-10-14）', () => {
+    // F4：壳分支事务内先乐观锁认领（REJECTED→PENDING）——tx.supplier 需挂 updateMany
+    const shellReopenTx = (txUpdate: jest.Mock, claim: jest.Mock = jest.fn().mockResolvedValue({ count: 1 })) =>
+      jest.fn(async (fn: any) => fn({
+        ...prisma,
+        $queryRaw: jest.fn().mockResolvedValue([{ max: 1 }]),
+        supplier: { ...prisma.supplier, update: txUpdate, create: jest.fn(), updateMany: claim },
+        supplierContact: { deleteMany: jest.fn().mockResolvedValue({}) },
+        supplierQualification: { deleteMany: jest.fn().mockResolvedValue({}) },
+        supplierBankAccount: { deleteMany: jest.fn().mockResolvedValue({}) },
+        supplierPerformance: { deleteMany: jest.fn().mockResolvedValue({}) },
+        user: { ...prisma.user, update: jest.fn().mockResolvedValue({ id: 'u1' }) },
+        fileAsset: { updateMany: claimAssets },
+      }));
+
+    it('信用代码命中 REJECTED 壳 → 复用原行 update（不抛 DUPLICATE_CREDIT_CODE）', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 's1', userId: 'u1', status: 'REJECTED', supplierNo: 'SUP-000001' });
+      // tx 内 update 需要返回含子表的 supplier
+      const txUpdate = jest.fn().mockResolvedValue({ id: 's1', userId: 'u1', contacts: [], qualifications: [], bankAccounts: [], performances: [] });
+      prisma.$transaction = shellReopenTx(txUpdate);
+      await expect(service.register({ ...validDto })).resolves.toBeTruthy();
+      expect(txUpdate).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 's1' },
+        data: expect.objectContaining({ status: 'PENDING', reviewStage: 'STAFF', rejectReason: null }),
+      }));
+    });
+
+    it('信用代码命中非 REJECTED（PENDING）→ 仍硬拦截 DUPLICATE_CREDIT_CODE', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 's1', userId: 'u1', status: 'PENDING', supplierNo: 'SUP-000001' });
+      await expect(service.register({ ...validDto }))
+        .rejects.toMatchObject({ response: { code: 'DUPLICATE_CREDIT_CODE' } });
+    });
+
+    it('壳重开：壳自身残存 User 行持有同用户名 → 放行复用（不抛 DUPLICATE_USERNAME）', async () => {
+      // 驳回清洗（purgeRejectedSupplier）保留 username/role，壳的 User 行仍持有同用户名 → username 查重命中壳自身须放行
+      prisma.supplier.findUnique.mockResolvedValue({ id: 's1', userId: 'u1', status: 'REJECTED', supplierNo: 'SUP-000001' });
+      // user.findFirst 同被 username 查重与 DUPLICATE_PHONE 查重复用——按 where.phoneIdx 区分：手机号查重不命中
+      prisma.user.findFirst.mockImplementation(async ({ where }: any) =>
+        where?.phoneIdx !== undefined ? null : { id: 'u1', username: '91510000MA62K5XX0X', role: 'supplier' });
+      const txUpdate = jest.fn().mockResolvedValue({ id: 's1', userId: 'u1', contacts: [], qualifications: [], bankAccounts: [], performances: [] });
+      prisma.$transaction = shellReopenTx(txUpdate);
+      await expect(service.register({ ...validDto })).resolves.toBeTruthy();
+      expect(txUpdate).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 's1' },
+        data: expect.objectContaining({ status: 'PENDING', reviewStage: 'STAFF', rejectReason: null }),
+      }));
+    });
+
+    it('壳重开（F1 存量兜底）：壳残存法人证/手机号/联系人证盲索引命中壳自身 → 三查重 NOT 自排除后放行', async () => {
+      // 存量 REJECTED 壳（驳回清洗功能上线前被驳回、数据未清洗）：legalPersonIdCardIdx/User.phoneIdx/
+      // 联系人 idCardIdx 均残存旧值——三查重都会命中壳自身，须 NOT 自排除后放行重开。
+      prisma.supplier.findUnique.mockResolvedValue({ id: 's1', userId: 'u1', status: 'REJECTED', supplierNo: 'SUP-000001' });
+      // 法人证查重：命中壳自身行；mock 按 NOT 语义——where 排除壳自身后返回 null
+      prisma.supplier.findFirst.mockImplementation(async ({ where }: any) => {
+        if (where?.legalPersonIdCardIdx === undefined) return null;
+        return where.NOT?.id === 's1' ? null : { id: 's1' };
+      });
+      // user.findFirst：username 查重返壳自身 User（放行）；手机号查重命中壳自身 → NOT 排除后 null
+      prisma.user.findFirst.mockImplementation(async ({ where }: any) => {
+        if (where?.phoneIdx === undefined) return { id: 'u1', username: '91510000MA62K5XX0X', role: 'supplier' };
+        return where.NOT?.id === 'u1' ? null : { id: 'u1' };
+      });
+      // 联系人证查重：命中壳自身联系人行 → NOT 排除 supplierId 后 null
+      prisma.supplierContact.findFirst.mockImplementation(async ({ where }: any) =>
+        where.NOT?.supplierId === 's1' ? null : { id: 'c1', supplierId: 's1' });
+      const txUpdate = jest.fn().mockResolvedValue({ id: 's1', userId: 'u1', contacts: [], qualifications: [], bankAccounts: [], performances: [] });
+      prisma.$transaction = shellReopenTx(txUpdate);
+
+      await expect(service.register({ ...validDto })).resolves.toBeTruthy();
+
+      // 三查重 where 均带壳自排除
+      expect(prisma.supplier.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ NOT: { id: 's1' } }),
+      }));
+      expect(prisma.user.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ NOT: { id: 'u1' } }),
+      }));
+      expect(prisma.supplierContact.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ NOT: { supplierId: 's1' } }),
+      }));
+      expect(txUpdate).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 's1' },
+        data: expect.objectContaining({ status: 'PENDING', reviewStage: 'STAFF' }),
+      }));
+    });
+
+    it('壳重开（F4 TOCTOU）：并发流转（认领 updateMany count=0）→ 400 CONFLICT，零写入', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 's1', userId: 'u1', status: 'REJECTED', supplierNo: 'SUP-000001' });
+      const txUpdate = jest.fn().mockResolvedValue({});
+      const txUserUpdate = jest.fn().mockResolvedValue({ id: 'u1' });
+      prisma.$transaction = jest.fn(async (fn: any) => fn({
+        ...prisma,
+        $queryRaw: jest.fn().mockResolvedValue([{ max: 1 }]),
+        supplier: { ...prisma.supplier, update: txUpdate, create: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+        supplierContact: { deleteMany: jest.fn().mockResolvedValue({}) },
+        supplierQualification: { deleteMany: jest.fn().mockResolvedValue({}) },
+        supplierBankAccount: { deleteMany: jest.fn().mockResolvedValue({}) },
+        supplierPerformance: { deleteMany: jest.fn().mockResolvedValue({}) },
+        user: { ...prisma.user, update: txUserUpdate },
+        fileAsset: { updateMany: claimAssets },
+      }));
+
+      await expect(service.register({ ...validDto }))
+        .rejects.toMatchObject({ response: { code: 'CONFLICT' } });
+
+      // 认领即抛（事务中止）：User 覆写/子表重建/壳主档 update 均未发生
+      expect(txUserUpdate).not.toHaveBeenCalled();
+      expect(txUpdate).not.toHaveBeenCalled();
+    });
+
+    it('壳重开：同用户名被其他账号占用（非壳自身 User）→ 仍硬拦截 DUPLICATE_USERNAME', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 's1', userId: 'u1', status: 'REJECTED', supplierNo: 'SUP-000001' });
+      prisma.user.findFirst.mockResolvedValue({ id: 'u-other', username: '91510000MA62K5XX0X', role: 'supplier' });
+      await expect(service.register({ ...validDto }))
+        .rejects.toMatchObject({ response: { code: 'DUPLICATE_USERNAME' } });
+    });
+  });
+
+  describe('checkDuplicate — 信用代码状态感知', () => {
+    it('信用代码命中 REJECTED → creditCode=true 且 creditCodeStatus=REJECTED（可重注册）', async () => {
+      prisma.supplier.findFirst.mockResolvedValue({ id: 's-rej', status: 'REJECTED' });
+      const res = await service.checkDuplicate({ creditCode: '91510000MA62K5XX0X' });
+      expect(res.creditCode).toBe(true);
+      expect(res.creditCodeStatus).toBe('REJECTED');
+    });
+
+    it('信用代码命中 PENDING → creditCodeStatus=PENDING', async () => {
+      prisma.supplier.findFirst.mockResolvedValue({ id: 's-pen', status: 'PENDING' });
+      const res = await service.checkDuplicate({ creditCode: '91510000MA62K5XX0X' });
+      expect(res.creditCodeStatus).toBe('PENDING');
+    });
+
+    it('信用代码未命中 → creditCode=false 且 creditCodeStatus=null', async () => {
+      prisma.supplier.findFirst.mockResolvedValue(null);
+      const res = await service.checkDuplicate({ creditCode: '91510000MA62K5XX0X' });
+      expect(res.creditCode).toBe(false);
+      expect(res.creditCodeStatus).toBeNull();
+    });
+  });
 });

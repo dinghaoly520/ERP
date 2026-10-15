@@ -892,3 +892,46 @@ Signal 徽标可选：`warning` → 橙色"待处理" / `danger` → 红色"风�
 - **门户变量映射**：public-portal (:3002) 无 `--accent-strong/--foreground/--muted-foreground`，映射 `--accent-strong→--brand`、`--foreground→--fg/--ink`、`--muted-foreground→--fg-2`
 - **勿用伪元素实现依赖**（条目分割线一类若需常显，用真实 DOM 元素——伪元素在玻璃卡内有不上色实录，见 :3002 公告分割线教训）
 - **跨页复用须单源 CSS**（:3004 收敛于 `styles/pages/shared.css`；:3002/:3005/:3006 各自 globals.css 同名同义）
+
+
+## 下拉选择器（SearchSelect）CSS 规格（2026-10-14）
+
+组件源：`apps/web/src/components/workbench/search-select.tsx`（视觉/交互单一源）。
+
+```css
+/* 面板（portal 挂 body，fixed 定位 + 视口翻转） */
+background: linear-gradient(145deg, oklch(1 0 0) 0%, oklch(0.965 0.012 258) 100%);
+box-shadow:
+  6px 6px 18px oklch(0.55 0.03 258 / 0.16),
+  -3px -3px 10px oklch(1 0 0 / 0.9),
+  inset 0 1px 0 oklch(1 0 0 / 0.9);
+border-radius: 16px; max-height: 260px; overflow-y: auto; padding: 0 6px 6px;
+
+/* 搜索行（sticky 贴顶；面板无顶 padding 防滚动透字） */
+.sticky { top: 0; z-index: 10; }
+background: 同面板渐变; border-radius: 16px 16px 0 0;
+box-shadow: 0 2px 4px -2px oklch(0.55 0.03 258 / 0.18); /* hairline 分隔 */
+input { height: 34px; border-radius: 10px; padding-left: 30px;
+  background: var(--surface);
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12), inset -2px -2px 5px oklch(1 0 0 / 0.85); }
+
+/* 当前值（白瓷片凸起 + 品牌蓝粗体 + 对勾） */
+background: oklch(1 0 0); color: var(--accent); font-weight: 700;
+box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.95), 2px 2px 6px oklch(0.55 0.03 258 / 0.16),
+  -1px -1px 2px oklch(1 0 0 / 0.9);
+
+/* 选项行 */
+hover: background: color-mix(in oklch, var(--accent) 6%, transparent);
+主标 12px / meta 右浮 10px muted / sub 副标行 10px muted。
+
+/* 触发器（surface 内凹 + chevron 旋转） */
+标准 38px（text-13）/ compact 28px（text-xs，表单行内联）；
+闭合态: background var(--surface); box-shadow inset 2px 2px 5px oklch(0.55 0.03 258/0.12),
+  inset -2px -2px 5px oklch(1 0 0/0.85);
+打开态: background oklch(0.985 0.01 252)（提亮）。
+```
+
+交互语义：外点/Esc/滚动离开（面板内滚动除外）/resize 关闭；打开聚焦搜索框；
+搜索行自动显隐（选项 >8 或 allowCustom）；allowCustom 提供「使用自定义名称」行；
+选中即回填并收起。分型边界（原生 select vs SearchSelect vs typeahead vs 树/多选）
+见 SKILL.md「下拉选择器（SearchSelect）」专节。

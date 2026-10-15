@@ -44,8 +44,13 @@ describe('SupplierService.registerTemporary business tags', () => {
   let service: SupplierService;
   let prisma: any;
   let tx: any;
+  let verification: any;
 
   beforeEach(async () => {
+    verification = {
+      verifyRegistrationCode: jest.fn().mockResolvedValue({ ok: true }),
+      assertRegistrationCodeForUpload: jest.fn().mockResolvedValue({ ok: true }),
+    };
     tx = {
       $queryRaw: jest.fn().mockResolvedValue([{ supplier_no: 'SUP-000001' }]),
       user: { findMany: jest.fn().mockResolvedValue([]), 
@@ -92,6 +97,7 @@ describe('SupplierService.registerTemporary business tags', () => {
       },
       supplier: {
         findUnique: jest.fn().mockResolvedValue(null),
+        findFirst: jest.fn().mockResolvedValue(null), // 2026-10-14 法人身份证号查重
       },
       user: {
         findFirst: jest.fn().mockResolvedValue(null),
@@ -111,7 +117,7 @@ describe('SupplierService.registerTemporary business tags', () => {
         },
         { provide: 'REDIS_CLIENT', useValue: {} },
         { provide: LlmService, useValue: {} },
-        { provide: VerificationService, useValue: { verifyRegistrationCode: jest.fn().mockResolvedValue({ ok: true }) } },
+        { provide: VerificationService, useValue: verification },
       ],
     }).compile();
 
@@ -179,5 +185,23 @@ describe('SupplierService.registerTemporary business tags', () => {
     } as RegisterTemporarySupplierDto)).rejects.toBeInstanceOf(BadRequestException);
 
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('手机号重复 → DUPLICATE_PHONE（盲索引查重，2026-10-14）', async () => {
+    // user.findFirst 第一次=username 查重（不命中），第二次=phone 盲索引查重（命中）
+    prisma.user.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'other-user' });
+    await expect(service.registerTemporary({ ...dtoPayload } as RegisterTemporarySupplierDto)).rejects.toMatchObject({
+      response: { code: 'DUPLICATE_PHONE' },
+    });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('事务失败 → 验证码不消费（非消费校验 + 事务成功后消费，2026-10-14 修复「失败→重试验证码过期」）', async () => {
+    tx.supplier.create.mockRejectedValueOnce(new Error('boom'));
+    await expect(service.registerTemporary({ ...dtoPayload } as RegisterTemporarySupplierDto)).rejects.toThrow('boom');
+    expect(verification.assertRegistrationCodeForUpload).toHaveBeenCalled();
+    expect(verification.verifyRegistrationCode).not.toHaveBeenCalled(); // 消费已移至事务成功后
   });
 });

@@ -20,7 +20,7 @@ import { ProjectCard } from './project-card';
 import { ProjectDetailPanel } from './project-detail-panel';
 import { RecycleBinDrawer } from './recycle-bin-drawer';
 import { useAssistant } from "@/components/assistant/assistant-provider";
-import { CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
+import { isGroupedCompanyView, CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
 import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from "@/components/company/company-tag";
 
 export function ProjectManagementPage() {
@@ -205,7 +205,7 @@ export function ProjectManagementPage() {
   }, [activeTab, sourceItems, keyword, sortBy, filterType, filterValue]);
 
   // admin 全部公司视图：按公司分组（计数降序、未归属沉底）；单公司视图用选择器公司名
-  const companyViewAll = currentUser?.role === 'admin' && companyId === 'all';
+  const companyViewAll = currentUser?.role === 'admin' && isGroupedCompanyView(companyId);
   const selectedCompanyName = useCompanyName(companyId);
   const companyGroups = useMemo(() => {
     if (!companyViewAll) return [];

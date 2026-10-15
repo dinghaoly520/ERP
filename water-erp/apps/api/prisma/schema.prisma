@@ -188,7 +188,7 @@ model User {
   assignedBidProjects BidProject[] @relation("BidProjectAssignedHost")
 
   @@unique([username, role])
-  @@index([phoneIdx])
+  @@unique([phoneIdx]) // 2026-10-14：手机号与供应商账号唯一绑定（临时注册/转正防重复）；NULL 互不冲突
 }
 
 // ── 开评标 ──
@@ -1505,7 +1505,8 @@ model Supplier {
 }
 
 // ── 供应商审核历史（不可变留痕）──
-// 记录每次审核操作：申请完整快照、验证人、是否同意、时间、理由。不可删减、不可修改。
+// 记录每次审核操作：申请完整快照、验证人、是否同意、时间、理由。不可删减、不可修改；
+// 例外（2026-10-14）：供应商被驳回后 snapshot 按数据最小化重写为 {purged:true,...}（见 supplier.service purgeRejectedSupplier）。
 model SupplierApprovalRecord {
   id             String   @id @default(cuid())
   supplierId     String
@@ -1554,6 +1555,7 @@ model SupplierContact {
   name          String
   gender        String? // 性别（男/女）
   phone         String // 联系电话（存国密密文）
+  phoneIdx      String? // 联系电话 HMAC-SM3 盲索引（2026-10-14：主联系人全局唯一 + 额外联系人供应商内唯一 的应用层查重锚点）
   idCard        String? // 联系人身份证号（注册必填，存量数据可空；存国密密文）
   idCardIdx     String? // 联系人身份证号 HMAC-SM3 盲索引（加密后等值冲突校验）
   email         String?
@@ -1568,6 +1570,7 @@ model SupplierContact {
 
   @@index([supplierId])
   @@index([idCardIdx]) // 国密加密后等值冲突校验（盲索引）
+  @@unique([supplierId, phoneIdx]) // 2026-10-14：额外联系人供应商内唯一（硬约束，null 互不冲突；主联系人全局唯一由 User.phoneIdx 兜底）
 }
 
 // ── 供应商自有档案（:3004 我的合同/框架协议页自建留存：线下历史合同、自有履约证明等）──

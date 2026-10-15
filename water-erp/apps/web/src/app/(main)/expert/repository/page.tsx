@@ -11,7 +11,7 @@ import { ExpertEvaluationDialog } from '@/components/expert/expert-evaluation-di
 import { ExpertEntryDialog } from '@/components/expert/expert-entry-dialog';
 import { ExpertOperationHistory } from '@/components/expert/expert-operation-history';
 import { useSort, SortableTh } from '@/lib/hooks/use-sort';
-import { CompanySelect, readInitialCompanyId } from '@/components/company/company-select';
+import { isGroupedCompanyView, CompanySelect, readInitialCompanyId } from '@/components/company/company-select';
 import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from '@/components/company/company-tag';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { UsersRound, PlusCircle, Search, RefreshCw, X, ChevronLeft, ChevronRight, Download, CheckSquare, Square, TrendingUp, UserX, Trophy, AlertTriangle, History, FileText } from 'lucide-react';
@@ -194,7 +194,7 @@ export default function ExpertRepositoryPage() {
 
   // admin 全部公司视图：当前页行按公司分组（CompanySectionHeader 台账/进度同款）；
   // 标题计数用后端全量口径（company-counts，与列表同 where），分页不失真
-  const companyViewAll = isAdmin && companyId === 'all';
+  const companyViewAll = isAdmin && isGroupedCompanyView(companyId);
   const expertGroups = useMemo(() => {
     if (!companyViewAll) return [];
     return buildCompanyCounts(displayedExperts.map(e => ({ company: e.company }))).map(g => ({

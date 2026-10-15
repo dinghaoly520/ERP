@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Building2, Check, ChevronDown, Loader2 } from "lucide-react";
+import { Building2, Check, ChevronDown, Loader2, Search } from "lucide-react";
 import { fetchCurrentUser } from "@/lib/api/auth";
 import { api } from "@/lib/api";
 import { companyColor } from "@/components/company/company-tag";
@@ -22,6 +22,12 @@ export function readInitialCompanyId(): string {
   const url = new URLSearchParams(window.location.search).get("companyId");
   if (url) return url;
   return window.localStorage.getItem(COMPANY_STORAGE_KEY) || "all";
+}
+
+/** 当前视野是否为「分组展示」形态：全部公司 或 多选（逗号列表）——
+ *  各页 companyViewAll 分支统一改用本判断，多选时按公司分组看各子公司统计 */
+export function isGroupedCompanyView(value: string): boolean {
+  return value === "all" || value.includes(",");
 }
 
 interface CompanyOption {
@@ -96,6 +102,9 @@ export function CompanySelect({
   // 业务口径计数（按公司名映射）：suppliers=/supplier/company-counts，experts=/expert-admin/company-counts
   const [bizCounts, setBizCounts] = useState<Record<string, number> | null>(null);
   const [open, setOpen] = useState(false);
+  // 2026-10-14 面板内搜索（cgzxui SearchSelect 规范形态：sticky 搜索行 + 瓷片渐变面板）
+  const [q, setQ] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
   const [anchor, setAnchor] = useState<{ top: number; left: number; width: number } | null>(null);
@@ -132,17 +141,20 @@ export function CompanySelect({
   const syncAnchor = useCallback(() => {
     const r = btnRef.current?.getBoundingClientRect();
     if (r) setAnchor({ top: r.bottom + 8, left: r.left, width: Math.max(r.width, 264) });
+    setTimeout(() => searchRef.current?.focus(), 0);
   }, []);
 
   // 外点 / ESC / 滚动 / 变更尺寸 → 关闭
   useEffect(() => {
     if (!open) return;
+    // 关闭即清搜索词（与 SearchSelect 同语义）——否则重开面板残留上次过滤
+    const close = () => { setOpen(false); setQ(""); };
     const onDoc = (e: MouseEvent) => {
       const t = e.target as Node;
-      if (!popRef.current?.contains(t) && !btnRef.current?.contains(t)) setOpen(false);
+      if (!popRef.current?.contains(t) && !btnRef.current?.contains(t)) close();
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
-    const onAway = () => setOpen(false);
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
+    const onAway = close;
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
     window.addEventListener("resize", onAway);
@@ -157,8 +169,9 @@ export function CompanySelect({
 
   if (role !== "admin") return null;
 
-  const selected = options?.find((c) => c.id === value) ?? null;
-  const isAll = value === "all";
+  // 多选（2026-10-14）：value = 'all' | 单 id | 逗号 id 列表；选中即切换、面板保持展开
+  const selectedIds = value === "all" ? [] : value.split(",").filter(Boolean);
+  const isAll = selectedIds.length === 0;
   const loading = options === null;
 
   const handleChange = (next: string) => {
@@ -170,9 +183,12 @@ export function CompanySelect({
     onChange(next);
   };
 
-  const pick = (next: string) => {
-    setOpen(false);
-    if (next !== value) handleChange(next);
+  /** 多选切换：勾选/取消一家；清空回退「全部公司」。不关闭面板（多选语义） */
+  const toggle = (id: string) => {
+    const next = selectedIds.includes(id)
+      ? selectedIds.filter((x) => x !== id)
+      : [...selectedIds, id];
+    handleChange(next.length === 0 ? "all" : next.join(","));
   };
 
   const optionRow = (key: string, active: boolean, label: string, sub: string, onClick: () => void, badge?: string) => (
@@ -206,6 +222,10 @@ export function CompanySelect({
     </button>
   );
 
+  const selectedNames = selectedIds
+    .map((id) => options?.find((c) => c.id === id)?.name)
+    .filter((n): n is string => !!n);
+
   return (
     <div className="relative">
       <button
@@ -213,7 +233,7 @@ export function CompanySelect({
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label="选择查看的公司"
+        aria-label="选择查看的公司（可多选）"
         onClick={() => {
           if (!open) syncAnchor();
           setOpen((o) => !o);
@@ -228,9 +248,9 @@ export function CompanySelect({
           <Building2 size={13} strokeWidth={1.9} />
         </span>
         <span className={`max-w-[210px] truncate text-xs ${isAll ? "font-medium text-[color:var(--foreground)]" : "font-semibold text-[var(--accent)]"}`}>
-          {loading ? "加载中…" : isAll ? "全部公司" : selected?.name ?? "已选公司"}
+          {loading ? "加载中…" : isAll ? "全部公司" : selectedIds.length === 1 ? selectedNames[0] ?? "已选公司" : `已选 ${selectedIds.length} 家公司`}
         </span>
-        {!isAll && !loading && <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" title={`筛选中：${selected?.name ?? ""}`} />}
+        {!isAll && !loading && <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" title={`筛选中：${selectedNames.join("、")}`} />}
         <ChevronDown size={13} strokeWidth={2} className={`text-[color:var(--muted-foreground)] transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
       </button>
 
@@ -238,20 +258,37 @@ export function CompanySelect({
         <div
           ref={popRef}
           role="listbox"
+          aria-multiselectable="true"
           aria-label="公司列表"
-          style={{ position: "fixed", top: anchor.top, left: anchor.left, minWidth: anchor.width }}
-          className="z-[90] max-h-[320px] overflow-y-auto rounded-[14px] bg-[var(--background)]/96 p-1.5 shadow-[0_18px_44px_rgba(24,40,70,0.18),inset_0_1px_0_oklch(1_0_0/0.8)] backdrop-blur-md"
+          style={{ position: "fixed", top: anchor.top, left: anchor.left, minWidth: anchor.width, background: "linear-gradient(145deg, oklch(1 0 0) 0%, oklch(0.965 0.012 258) 100%)", boxShadow: "6px 6px 18px oklch(0.55 0.03 258 / 0.16), -3px -3px 10px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.9)" }}
+          className="z-[90] max-h-[320px] overflow-y-auto rounded-[16px] p-0"
         >
-          <div className="px-2.5 pb-1 pt-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">
-            已入驻{options ? ` · ${options.length} 家` : ""}
+          {/* 搜索区：sticky 贴顶（cgzxui SearchSelect 规范）+ 计数标 */}
+          <div className="sticky top-0 z-10 px-1 pb-1.5 pt-1.5" style={{ background: "linear-gradient(145deg, oklch(1 0 0) 0%, oklch(0.965 0.012 258) 100%)", borderRadius: "16px 16px 0 0", boxShadow: "0 2px 4px -2px oklch(0.55 0.03 258 / 0.18)" }}>
+            <div className="relative">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-foreground)]" />
+              <input
+                ref={searchRef}
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="搜索公司…"
+                className="h-[34px] w-full rounded-[10px] pl-[30px] pr-2 text-[12.5px] text-[var(--foreground)] outline-none"
+                style={{ background: "var(--surface)", border: "none", boxShadow: "inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12), inset -2px -2px 5px oklch(1 0 0 / 0.85)" }}
+              />
+            </div>
+            <div className="px-2.5 pt-1 text-[10px] font-bold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">
+              已入驻{options ? ` · ${options.length} 家` : ""}
+            </div>
           </div>
+          <div className="p-1.5 pt-0.5">
           {loading ? (
             <div className="flex items-center gap-2 px-3 py-3 text-xs text-[color:var(--muted-foreground)]">
               <Loader2 size={13} className="animate-spin" /> 正在加载公司列表…
             </div>
           ) : (
             <>
-              {optionRow(
+              {/* 「全部公司」= 清空多选回全部视野；仅在无搜索词时展示（搜索即找具体公司） */}
+              {!q.trim() && optionRow(
                 "all",
                 isAll,
                 "全部公司",
@@ -264,16 +301,23 @@ export function CompanySelect({
                       : countMode === "announcements"
                         ? `不限公司 · 共 ${options!.reduce((sum, c) => sum + (bizCounts?.[c.name] ?? 0), 0)} 条公告`
                         : `不限公司 · 共 ${options!.reduce((sum, c) => sum + (bizCounts?.[c.name] ?? 0), 0)} 个项目`,
-                () => pick("all"),
+                () => handleChange("all"),
               )}
               {(() => {
+                const text = q.trim().toLowerCase();
                 const badges = buildCompanyBadges(options!);
-                return options!.map((c) =>
-                  optionRow(c.id, value === c.id, c.name, subLabelFor(c, countMode, bizCounts), () => pick(c.id), badges.get(c.id)),
-                );
+                return options!
+                  .filter((c) => !text || c.name.toLowerCase().includes(text) || (c.shortName ?? "").toLowerCase().includes(text))
+                  .map((c) =>
+                    optionRow(c.id, selectedIds.includes(c.id), c.name, subLabelFor(c, countMode, bizCounts), () => toggle(c.id), badges.get(c.id)),
+                  );
               })()}
+              {options!.filter((c) => q.trim() && (c.name.toLowerCase().includes(q.trim().toLowerCase()) || (c.shortName ?? "").toLowerCase().includes(q.trim().toLowerCase()))).length === 0 && q.trim() && (
+                <div className="px-2 py-2 text-center text-[10px] text-[color:var(--muted-foreground)]">无匹配公司</div>
+              )}
             </>
           )}
+          </div>
         </div>,
         document.body,
       )}

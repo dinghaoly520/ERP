@@ -53,93 +53,6 @@ const BID_SERVICE_STUB = { autoHandoverIfDone: jest.fn(), attributePendingDualSu
 /* ── F1d 迁移说明：本 spec 自 bid.service.spec.ts 迁出（纯移动；BidService→BidDecryptService 字样与
       provider 骨架按域替换）。归因矩阵/H4 守卫/P1-4 updateProject 等留守用例仍在 bid.service.spec.ts ── */
 
-describe('BidDecryptService — 双信封解密域', () => {
-  // 2026-10-15：代解密清除后本 describe 原有 decryptSupplier/decryptAllSuppliers/reupload/reseal
-  // 用例已全删——保留壳以挂 decrypt-outer 存续守卫（legacy 轨仅证据读）
-  it('decryptOuter 方法在位（代解密剪除后保留面）', () => {
-    expect(typeof (BidDecryptService.prototype as any).decryptOuter).toBe('function');
-  });
-});
-/*
-describe('BidDecryptService — 双信封解密域（原 mock 域——已废用例壳）', () => {
-  let service: BidDecryptService;
-  let prisma: any;
-
-  beforeEach(async () => {
-    prisma = {
-      bidProject: {
-        findUnique: jest.fn(),
-        update: jest.fn(),
-        create: jest.fn(),
-        findMany: jest.fn(),
-        count: jest.fn(),
-        groupBy: jest.fn(),
-      },
-      bidSupervisionLog: { findMany: jest.fn(), create: jest.fn() },
-      bidExpert: { groupBy: jest.fn(), findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
-      bidScoreItem: { findFirst: jest.fn(), create: jest.fn(), delete: jest.fn(), count: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
-      bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0), findUnique: jest.fn() },
-      bidScorePoint: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn() },
-      bidScorePointDecision: { upsert: jest.fn().mockResolvedValue({}) },
-      bidScoreReview: { upsert: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
-      aiBidAnalysisTask: { upsert: jest.fn().mockResolvedValue({ id: 'ai-1' }) },
-      aiBidderResult: { createMany: jest.fn().mockResolvedValue({ count: 0 }) },
-      supplier: { count: jest.fn() },
-      announcement: { count: jest.fn(), findFirst: jest.fn() },
-      bidSupplier: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
-      bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), upsert: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }), findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
-      bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn(), findFirst: jest.fn().mockResolvedValue({ generatedAt: new Date(Date.now() - 3600_000) }) },
-      bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), create: jest.fn(), groupBy: jest.fn() },
-      // T17：getProject 派生下发 envelopeVersion/outerDecryptedAt/packageFetchedAt 需要 findMany（默认空）
-      supplierBidSubmission: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
-      bidOpeningSession: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
-      // 签字闸门默认放行（闭环+回流齐）：full 归档用例不逐个 mock；单测闸门本身见 bid-sign-packet.service.spec
-      bidSignPacket: { findUnique: jest.fn().mockResolvedValue({ fileAssetId: 'fa-sign', sha256: 'sha-sign', signPageScanFileId: null, closedAt: new Date(), handoverFileAssetId: 'fa-handover' }), delete: jest.fn().mockResolvedValue({}) },
-      fileAsset: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
-      notification: { create: jest.fn(), createMany: jest.fn() },
-      user: { findMany: jest.fn() },
-      auditLog: { create: jest.fn() },
-      bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
-      expertDispute: { count: jest.fn().mockResolvedValue(0), findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
-      bidScoreRecordHistory: { create: jest.fn() },
-      bidRound: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), count: jest.fn().mockResolvedValue(0) },
-      bidQuote: { create: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
-      projectManagementStage: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
-      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null), update: jest.fn() },
-      $queryRaw: jest.fn().mockResolvedValue([]),
-      // Support both callback-based and batch-based $transaction patterns
-      $transaction: jest.fn(async (callbackOrOps: any) => {
-        if (typeof callbackOrOps === 'function') {
-          // Callback-based: pass a tx client (which is the prisma mock itself)
-          return callbackOrOps(prisma);
-        }
-        // Batch-based: execute all ops sequentially
-        return Promise.all(callbackOrOps);
-      }),
-    };
-
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        BidDecryptService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
-        { provide: PrismaService, useValue: prisma },
-        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
-        { provide: BidService, useValue: BID_SERVICE_STUB },
-      ],
-    }).compile();
-
-    service = module.get<BidDecryptService>(BidDecryptService);
-  });
-
-  // 注：原 submitBid（管理员代投）已移除——真实投标统一走供应商门户
-  // /api/supplier-portal/bid-submissions/:projectId/submit（见 supplier-portal.service.spec.ts）。
-
-});
-
-/* ── 集成测试：decryptSupplier 真实校验（无文件引用 → SUCCESS，保持开标流程不空指针）── */
-
-/* ── 评分标准编制：阶段门控 + 模板幂等 ── */
-
 
 describe('BidDecryptService — acceptSupplierDanger（解密窗口到期定性，P1-1）', () => {
   let service: BidDecryptService;
@@ -764,5 +677,3 @@ describe('BidDecryptService — decryptOuter 主持端解外层 (dual-v2 · Task
     expect(minioClient.putObject).toHaveBeenCalledTimes(2);   // s2 在写 MinIO 前即失败——无孤儿 C_inner
   });
 });
-
-/* ── P1-2：自 bid.service.spec「P1-2/P1-4 旧轨解密归因与时间修改留痕」describe 拆出（P1-4 留守） ── */

@@ -11,19 +11,19 @@ import {
 
 export class InitiationAttachmentDto {
   @IsString()
-  @IsNotEmpty()
+  @IsNotEmpty({ message: '附件文件名不能为空' })
   fileName!: string;
 
   @IsString()
-  @IsNotEmpty()
+  @IsNotEmpty({ message: '附件存储键不能为空' })
   objectKey!: string;
 
   @IsString()
-  @IsNotEmpty()
+  @IsNotEmpty({ message: '附件类型不能为空' })
   mimeType!: string;
 
-  @IsNumber()
-  @Min(1)
+  @IsNumber({}, { message: '附件大小应为不小于 1 的数字' })
+  @Min(1, { message: '附件大小应不小于 1' })
   fileSize!: number;
 
   @IsString()
@@ -102,12 +102,12 @@ export class DemandFieldsDto {
 }
 
 export class CreateProjectFromInitiationDto {
-  @IsString()
-  @IsNotEmpty()
+  @IsString({ message: '需求申请人应为文本' })
+  @IsNotEmpty({ message: '需求申请人不能为空' })
   requesterName!: string;
 
-  @IsString()
-  @IsNotEmpty()
+  @IsString({ message: '需求部门应为文本' })
+  @IsNotEmpty({ message: '需求部门不能为空' })
   requesterDepartment!: string;
 
   /** 部门编号：人工传入尊重人工；缺省按 部门编码-年度-顺序号 自动发号（16a8ac1c） */
@@ -115,12 +115,12 @@ export class CreateProjectFromInitiationDto {
   @IsOptional()
   departmentNumber?: string;
 
-  @IsString()
-  @IsNotEmpty()
+  @IsString({ message: '采购事项名称应为文本' })
+  @IsNotEmpty({ message: '采购事项名称不能为空' })
   procurementTitle!: string;
 
-  @IsString()
-  @IsNotEmpty()
+  @IsString({ message: '采购方式应为文本' })
+  @IsNotEmpty({ message: '请选择采购方式' })
   procurementMethod!: string;
 
   @IsString()
@@ -132,12 +132,12 @@ export class CreateProjectFromInitiationDto {
   procurementOrganizationForm!: string;
 
   @Type(() => Number)
-  @IsNumber()
-  @Min(0)
+  @IsNumber({}, { message: '预算金额应为数字' })
+  @Min(0, { message: '预算金额应不小于 0' })
   budgetAmount!: number;
 
   @Type(() => Boolean)
-  @IsBoolean()
+  @IsBoolean({ message: '年度预算标识应为布尔值' })
   isAnnualBudget!: boolean;
 
   @IsString()

@@ -95,7 +95,7 @@ describe('SupplierService.revealField（明文揭示 + 审计）', () => {
     const { CompanyScopeService: Ctx } = await import('../company/company-scope');
     void Ctx;
     const scopeService = (service as any).companyScope as any;
-    scopeService.resolveScope.mockResolvedValue({ all: false, companyId: 'co-other' });
+    scopeService.resolveScope.mockResolvedValue({ all: false, companyIds: ['co-other'] });
     scopeService.assertInScope.mockImplementation(() => { throw new ForbiddenException(); });
     await expect(
       service.revealField('s1', { entity: 'supplier', field: 'legalPersonIdCard' }, actor as any),

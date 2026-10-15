@@ -1,7 +1,8 @@
 "use client";
 
-import { AlertTriangle, Archive, Award, Ban, Building2, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileCheck2, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Shield, Sparkles, UploadCloud, UserPlus, X } from 'lucide-react';
+import { AlertTriangle, Archive, Award, Ban, Building2, Check, ChevronDown, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileCheck2, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Search, Shield, Sparkles, UploadCloud, UserPlus, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { LoginErrorDialog } from '@/components/login/login-error-dialog';
 import {
@@ -421,12 +422,15 @@ export function ProjectDetailPanel({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [extractedInfoOverride, setExtractedInfoOverride] = useState<Partial<ExtractedInfo> | null>(null);
 
-  // 归属自动补全
+  // 归属自动补全（2026-10-14 重设计：UnitSearchSelect 同款瓷片渐变面板 + 面板内搜索行，
+  // portal 挂 body 防窄列裁切；原「输入框即过滤 + absolute 列表」方案废弃）
   const [projectAttributions, setProjectAttributions] = useState<Array<{ name: string; contractNumber: string | null; usageCount: number }>>([]);
-  const [attributionSearch, setAttributionSearch] = useState('');
-  const [showAttributionDropdown, setShowAttributionDropdown] = useState(false);
+  const [attrOpen, setAttrOpen] = useState(false);
+  const [attrQuery, setAttrQuery] = useState('');
   const attributionInputRef = useRef<HTMLDivElement | null>(null);
-  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  const attrPanelRef = useRef<HTMLDivElement | null>(null);
+  const attrSearchRef = useRef<HTMLInputElement | null>(null);
+  const [attrRect, setAttrRect] = useState<{ top: number; left: number; width: number } | null>(null);
 
   // 提取信息编辑状态
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -641,7 +645,7 @@ export function ProjectDetailPanel({
   }, [item?.projectCode, item?.procurementMethod]);
 
   const filteredAttributions = projectAttributions.filter((attr) =>
-    attr.name.toLowerCase().includes(attributionSearch.toLowerCase()),
+    attr.name.toLowerCase().includes(attrQuery.trim().toLowerCase()),
   );
 
   // Reset file index when stage changes
@@ -654,46 +658,42 @@ export function ProjectDetailPanel({
     }
   }, [selectedStage.stageKey]);
 
-  const openAttributionDropdown = () => {
-    setAttributionSearch(editValues.demandProject);
-    setShowAttributionDropdown(true);
-    // Compute fixed position so the dropdown escapes overflow-hidden ancestors
-    if (attributionInputRef.current) {
-      const rect = attributionInputRef.current.getBoundingClientRect();
-      setDropdownStyle({
-        position: 'fixed',
-        top: rect.bottom + 4,
-        left: rect.left,
-        width: rect.width,
-        zIndex: 200,
-      });
-    }
+  /** 开面板：视口翻转定位（下方放不下且上方够 → 向上弹），宽度下限 280 保证带合同号 meta 可读 */
+  const toggleAttrDropdown = () => {
+    if (attrOpen) { setAttrOpen(false); setAttrQuery(''); return; }
+    const r = attributionInputRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const POP_H = 260;
+    const flip = r.bottom + POP_H + 8 > window.innerHeight && r.top > POP_H + 16;
+    setAttrRect({ top: flip ? r.top - POP_H - 8 : r.bottom + 8, left: r.left, width: Math.max(r.width, 280) });
+    setAttrOpen(true);
+    setTimeout(() => attrSearchRef.current?.focus(), 0);
+  };
+  const closeAttrDropdown = () => { setAttrOpen(false); setAttrQuery(''); };
+  const pickAttribution = (name: string, contractNumber?: string | null) => {
+    setEditValues((prev) => ({ ...prev, demandProject: name, ...(contractNumber ? { demandContractNumber: contractNumber } : {}) }));
+    closeAttrDropdown();
   };
   useEffect(() => {
-    if (!showAttributionDropdown) return;
-    const close = () => setShowAttributionDropdown(false);
-    const reposition = () => {
-      if (attributionInputRef.current) {
-        const rect = attributionInputRef.current.getBoundingClientRect();
-        setDropdownStyle({
-          position: 'fixed',
-          top: rect.bottom + 4,
-          left: rect.left,
-          width: rect.width,
-          zIndex: 200,
-        });
-      }
+    if (!attrOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!attrPanelRef.current?.contains(t) && !attributionInputRef.current?.contains(t)) closeAttrDropdown();
     };
-    const timer = setTimeout(() => document.addEventListener('click', close), 0);
-    window.addEventListener('scroll', reposition, { passive: true, capture: true });
-    window.addEventListener('resize', reposition);
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeAttrDropdown(); };
+    const onScrollAway = (e: Event) => { if (attrPanelRef.current?.contains(e.target as Node)) return; closeAttrDropdown(); };
+    const onResize = () => closeAttrDropdown();
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onScrollAway, true);
+    window.addEventListener('resize', onResize);
     return () => {
-      clearTimeout(timer);
-      document.removeEventListener('click', close);
-      window.removeEventListener('scroll', reposition, { capture: true });
-      window.removeEventListener('resize', reposition);
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onScrollAway, true);
+      window.removeEventListener('resize', onResize);
     };
-  }, [showAttributionDropdown]);
+  }, [attrOpen]);
 
   // 文件分析：组件挂载或切换阶段时加载（使用缓存）
   // 上传后的分析由 uploadStageFiles 直接调用，避免 useEffect 竞态
@@ -1571,31 +1571,105 @@ export function ProjectDetailPanel({
                     <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">所属项目</span>
                     {editingField === 'demandProject' ? (
                       <div className="mt-0.5 flex items-center gap-1.5">
-                        <div ref={attributionInputRef} className="relative flex-1">
-                          <input type="text" value={editValues.demandProject} onChange={(e) => { setEditValues((prev) => ({ ...prev, demandProject: e.target.value })); openAttributionDropdown(); }} onFocus={openAttributionDropdown} onScroll={(e) => e.stopPropagation()} className="workbench-input !h-[28px] !text-xs" placeholder="输入或选择归属项目" autoFocus />
-                          {showAttributionDropdown && (
-                            <div className="absolute left-0 right-0 top-full z-[200] mt-1 overflow-hidden rounded-xl border border-[color-mix(in_oklch,var(--border)_60%,transparent)] bg-[var(--background)] shadow-[0_12px_32px_rgba(0,0,0,0.1)] py-1">
-                              {filteredAttributions.slice(0, 7).map((attr) => (
-                                <button key={attr.name} type="button" onClick={() => { setEditValues((prev) => ({ ...prev, demandProject: attr.name, demandContractNumber: attr.contractNumber || prev.demandContractNumber })); setShowAttributionDropdown(false); }} className="flex w-full items-center justify-between px-3 py-1.5 text-left text-sm hover:bg-[color:var(--muted)]">
-                                  <span className="text-[color:var(--foreground)]">{attr.name}</span>
-                                  {attr.contractNumber && <span className="text-[11px] text-[color:var(--muted-foreground)]">{attr.contractNumber}</span>}
-                                </button>
-                              ))}
-                              {!filteredAttributions.some((a) => a.name === '其他') && (
-                                <button type="button" onClick={() => { setEditValues((prev) => ({ ...prev, demandProject: '其他' })); setShowAttributionDropdown(false); }} className="flex w-full items-center px-3 py-1.5 text-left text-sm hover:bg-[color:var(--muted)] text-[color:var(--foreground)]">其他</button>
-                              )}
-                            </div>
-                          )}
+                        {/* 触发器：UnitSearchSelect 同款内凹瓷片（28px 紧凑档与相邻字段等高，
+                            保存/取消按钮与兄弟字段同构——行宽匹配） */}
+                        <div ref={attributionInputRef} className="min-w-0 flex-1">
+                          <button
+                            type="button"
+                            onClick={toggleAttrDropdown}
+                            aria-haspopup="listbox"
+                            aria-expanded={attrOpen}
+                            aria-label="选择归属项目"
+                            className="flex h-[28px] w-full items-center justify-between gap-1 rounded-[10px] px-2.5 text-left text-xs outline-none transition-all focus-visible:outline-2 focus-visible:outline-[var(--accent)] focus-visible:outline-offset-1"
+                            style={attrOpen
+                              ? { background: 'oklch(0.985 0.01 252)', boxShadow: 'inset 2px 2px 5px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 5px oklch(1 0 0 / 0.9)', border: 'none' }
+                              : { background: 'var(--surface)', boxShadow: 'inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12), inset -2px -2px 5px oklch(1 0 0 / 0.85)', border: 'none' }}
+                          >
+                            <span className={`truncate ${editValues.demandProject ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]'}`}>{editValues.demandProject || '选择或搜索归属项目'}</span>
+                            <ChevronDown size={13} strokeWidth={2} className={`shrink-0 text-[color:var(--muted-foreground)] transition-transform duration-200 ${attrOpen ? 'rotate-180' : ''}`} />
+                          </button>
                         </div>
-                        <button type="button" onClick={() => void handleSaveField('demandProject')} className="neu-btn-xs"><Save size={13} /></button>
+                        <button type="button" onClick={() => void handleSaveField('demandProject')} className="neu-btn-xs shrink-0"><Save size={13} /></button>
+                        <button type="button" onClick={() => { closeAttrDropdown(); setEditingField(null); }} className="neu-btn-xs shrink-0"><X size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => { handleStartEdit('demandProject', item.demandProject || ''); setAttributionSearch(item.demandProject || ''); }} className="group mt-0.5 flex items-center gap-1">
+                      <button type="button" onClick={() => handleStartEdit('demandProject', item.demandProject || '')} className="group mt-0.5 flex items-center gap-1">
                         <span className={item.demandProject ? 'text-sm text-[color:var(--foreground)]' : 'text-sm text-[color:var(--muted-foreground)]/50'}>{item.demandProject || '待补充'}</span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
                       </button>
                     )}
                   </div>
+                  {/* 归属选择面板：UnitSearchSelect 同款——瓷片渐变 + sticky 搜索行 + 白瓷片激活项；
+                      portal 挂 body（z-700），不再受窄列 overflow 裁切 */}
+                  {editingField === 'demandProject' && attrOpen && attrRect && createPortal(
+                    <div
+                      ref={attrPanelRef}
+                      role="listbox"
+                      aria-label="归属项目列表"
+                      style={{ position: 'fixed', top: attrRect.top, left: attrRect.left, width: attrRect.width, zIndex: 700, maxHeight: 260, overflowY: 'auto', borderRadius: 16, padding: '0 6px 6px', background: 'linear-gradient(145deg, oklch(1 0 0) 0%, oklch(0.965 0.012 258) 100%)', boxShadow: '6px 6px 18px oklch(0.55 0.03 258 / 0.16), -3px -3px 10px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.9)' }}
+                    >
+                      {/* 搜索区：sticky 贴顶（外层无顶 padding 防滚动透字）+ 内凹小输入 + hairline 分隔 */}
+                      <div className="sticky top-0 z-10 mb-1 px-1 pb-1.5 pt-1.5" style={{ background: 'linear-gradient(145deg, oklch(1 0 0) 0%, oklch(0.965 0.012 258) 100%)', borderRadius: '16px 16px 0 0', boxShadow: '0 2px 4px -2px oklch(0.55 0.03 258 / 0.18)' }}>
+                        <div className="relative">
+                          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-foreground)]" />
+                          <input
+                            ref={attrSearchRef}
+                            value={attrQuery}
+                            onChange={(e) => setAttrQuery(e.target.value)}
+                            placeholder="搜索归属项目…"
+                            className="h-[34px] w-full rounded-[10px] pl-[30px] pr-2 text-[12.5px] text-[var(--foreground)] outline-none"
+                            style={{ background: 'var(--surface)', border: 'none', boxShadow: 'inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12), inset -2px -2px 5px oklch(1 0 0 / 0.85)' }}
+                          />
+                        </div>
+                        {/* 搜索词非名单项 → 可直接采用为自定义归属（原自由输入能力的保留） */}
+                        {attrQuery.trim() && !filteredAttributions.some((a) => a.name === attrQuery.trim()) && (
+                          <button type="button" onClick={() => pickAttribution(attrQuery.trim())} className="mt-1 w-full rounded-[8px] px-2 py-1.5 text-left text-xs text-[var(--accent)] hover:bg-[color-mix(in_oklch,var(--accent)_6%,transparent)]">
+                            使用自定义名称「{attrQuery.trim()}」
+                          </button>
+                        )}
+                      </div>
+                      {/* 当前值：白瓷片凸起 + 品牌蓝粗体 + 对勾（neu-tab v2 激活语义） */}
+                      {(() => {
+                        const cur = filteredAttributions.find((a) => a.name === editValues.demandProject);
+                        return cur ? (
+                          <button
+                            type="button"
+                            role="option"
+                            aria-selected
+                            onClick={() => pickAttribution(cur.name, cur.contractNumber)}
+                            className="mb-0.5 flex w-full items-center justify-between gap-2 rounded-[10px] px-2.5 py-[7px] text-left text-xs font-bold text-[var(--accent)]"
+                            style={{ background: 'oklch(1 0 0)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.95), 2px 2px 6px oklch(0.55 0.03 258 / 0.16), -1px -1px 2px oklch(1 0 0 / 0.9)' }}
+                          >
+                            <span className="truncate">{cur.name}</span>
+                            <Check size={12} strokeWidth={2.6} className="shrink-0" />
+                          </button>
+                        ) : null;
+                      })()}
+                      {filteredAttributions.filter((a) => a.name !== editValues.demandProject).map((attr) => (
+                        <button
+                          key={attr.name}
+                          type="button"
+                          role="option"
+                          aria-selected={false}
+                          onClick={() => pickAttribution(attr.name, attr.contractNumber)}
+                          className="flex w-full items-center justify-between gap-2 rounded-[8px] px-2.5 py-[7px] text-left text-xs text-[color:var(--foreground)] transition-colors hover:bg-[color-mix(in_oklch,var(--accent)_6%,transparent)]"
+                        >
+                          <span className="truncate">{attr.name}</span>
+                          {attr.contractNumber && <span className="shrink-0 text-[10px] text-[color:var(--muted-foreground)]">{attr.contractNumber}</span>}
+                        </button>
+                      ))}
+                      {/* 「其他」兜底项（未被搜索命中时固定列尾） */}
+                      {!filteredAttributions.some((a) => a.name === '其他') && (
+                        <button type="button" role="option" onClick={() => pickAttribution('其他')} className="w-full truncate rounded-[8px] px-2.5 py-[7px] text-left text-xs text-[color:var(--foreground)] transition-colors hover:bg-[color-mix(in_oklch,var(--accent)_6%,transparent)]">
+                          其他
+                        </button>
+                      )}
+                      {filteredAttributions.length === 0 && !attrQuery.trim() && (
+                        <div className="px-2 py-2 text-center text-[10px] text-[color:var(--muted-foreground)]">暂无归属记录</div>
+                      )}
+                    </div>,
+                    document.body,
+                  )}
                 </div>
                 <div className="mt-3 pt-3" style={{borderTop:"1px solid oklch(0.6 0.04 258 / 0.12)"}}>
                   <div className="flex items-center justify-between gap-2">

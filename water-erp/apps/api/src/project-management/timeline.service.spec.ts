@@ -134,7 +134,7 @@ describe('TimelineService（B3 A-204）', () => {
       handoverAsset: { createdAt: new Date('2026-09-15T09:30:00Z') },
     });
     let nodes = await new TimelineService(withHandover as any).getTimeline('pmi-5');
-    let ev = nodes.find(n => n.key === 'evaluationEnd')!;
+    const ev = nodes.find(n => n.key === 'evaluationEnd')!;
     expect(ev.label).toBe('评标结束');
     expect(ev.time).toMatch(/^2026-09-15T09:30/);
     expect(ev.source).toBe('评标回流包');

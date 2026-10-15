@@ -12,6 +12,7 @@
 
 - 供应商登录名 = 统一社会信用代码（`creditCode`），`username` 恒定 = creditCode；`organizationCode` 是冗余同步列。
 - 手机号 PII 存国密密文（`sealPii`），等值查询走 HMAC-SM3 盲索引（`blindIndexPii`），读回走 `openPii`。
+- **手机号唯一性（2026-10-14 并行会话已部署，最新标准）**：`User.phoneIdx` `@@unique`（账号手机号全局唯一）；`SupplierContact.phoneIdx` `@@unique([supplierId, phoneIdx])`（额外联系人供应商内唯一）；主联系人=账号不变量（换主联系人手机号须走资料变更）。正式注册 `User.create` 不写 phone/phoneIdx；**所有 `SupplierContact.create` 写入点必须写 `phoneIdx: blindIndexPii(c.phone) ?? null`**（register 现状已写，Task 4 提取的 `supplierWriteData` 与 Task 5 补正 submit 的 contacts 写入须同步保留）。
 - `User.displayName` 为 **NOT NULL**（无 `?`）；`email/phone/phoneIdx/passwordHash/passwordVault` 可空。
 - 供应商账号审核通过前 `isActive=false` 不可登录；`passwordHash=null` 时登录天然拒绝（`compareSync` 前判空）。
 - 注册附件校验：`registrationAssetIdFromUrl(url)` 提取 FileAsset id，`uploaderId: null` 且 `category ∈ {qualification,general}` 且 `key` 前缀 `registrationUploadNamespace(phone)/` 才能 claim。
@@ -105,85 +106,9 @@ git commit -m "feat(supplier): checkDuplicate 返回 creditCodeStatus——前�
 
 ---
 
-### Task 2: 管理端手机号占用校验收紧为 internal_user
+### Task 2: ~~管理端手机号占用校验收紧~~（已删除）
 
-**Files:**
-- Modify: `apps/api/src/auth/auth.service.ts`（`register` 方法内 `phoneTaken` 查询）
-- Test: `apps/api/src/auth/password-requests.spec.ts` 旁新建 `apps/api/src/auth/auth.register.phone.spec.ts`
-
-**Interfaces:**
-- Produces: `PHONE_EXISTS` 仅当 `role: 'internal_user'` 且 `isActive: true` 的账号占用该手机号时触发；供应商（正式/临时）手机号永不拦管理端注册。
-
-- [ ] **Step 1: 写失败测试**
-
-新建 `apps/api/src/auth/auth.register.phone.spec.ts`（mock prisma + verification，构造 AuthService）：
-
-```ts
-describe('AuthService.register — 手机号占用仅限 internal_user', () => {
-  let service: AuthService;
-  let prisma: any;
-  beforeEach(async () => {
-    prisma = {
-      user: {
-        findFirst: jest.fn().mockResolvedValue(null),
-        findMany: jest.fn().mockResolvedValue([]),
-        create: jest.fn().mockResolvedValue({ id: 'u1' }),
-      },
-      company: { findMany: jest.fn().mockResolvedValue([]), upsert: jest.fn().mockResolvedValue({ id: 'c1', name: 'x' }) },
-    };
-    const { Test } = await import('@nestjs/testing');
-    const module = await Test.createTestingModule({
-      providers: [
-        AuthService,
-        { provide: PrismaService, useValue: prisma },
-        { provide: JwtService, useValue: {} },
-        { provide: VerificationService, useValue: {} },
-        { provide: 'REDIS_CLIENT', useValue: {} },
-      ],
-    }).compile();
-    service = module.get(AuthService);
-  });
-
-  it('isActive 的 supplier 账号占用手机号 → 不抛 PHONE_EXISTS（供应商不占管理端号码）', async () => {
-    prisma.user.findFirst.mockImplementation(async ({ where }: any) => {
-      // 模拟 ② phoneTaken 查询命中一个 supplier（旧实现会误报）
-      if (where.role === 'internal_user' && where.isActive === true) return null;
-      if (where.isActive === true && where.phoneIdx) return { id: 'supplier-user' };
-      return null;
-    });
-    await expect(service.register({ phone: '13800138000', username: 'u1', password: 'Test1234', company: 'x' } as any))
-      .resolves.toBeTruthy();
-  });
-});
-```
-
-- [ ] **Step 2: 运行确认失败**
-
-Run: `pnpm --filter api test -- auth.register.phone`
-Expected: FAIL——旧实现 ② 无 role 过滤，命中 supplier 抛 `PHONE_EXISTS`。
-
-- [ ] **Step 3: 实现**
-
-`auth.service.ts` 内 `phoneTaken` 查询（约 72 行）：
-
-```ts
-const phoneTaken = await this.prisma.user.findFirst({
-  where: { phoneIdx: blindIndexPii(dto.phone) ?? undefined, isActive: true, role: 'internal_user' },
-  select: { id: true },
-});
-```
-
-- [ ] **Step 4: 运行确认通过**
-
-Run: `pnpm --filter api test -- auth.register.phone`
-Expected: PASS。
-
-- [ ] **Step 5: 提交**
-
-```bash
-git add apps/api/src/auth/auth.service.ts apps/api/src/auth/auth.register.phone.spec.ts
-git commit -m "fix(auth): 管理端注册 PHONE_EXISTS 收紧为 internal_user——供应商手机号不占管理端注册名额"
-```
+**删除原因（2026-10-14 用户裁定）：** 原任务方向「供应商手机号不占管理端注册」与「手机号全局唯一」最新标准相反。手机号唯一性已由并行会话完整部署（`User.phoneIdx @@unique` 全局唯一 + `SupplierContact @@unique([supplierId, phoneIdx])` 供应商内唯一 + `register/registerTemporary` 的 `DUPLICATE_PHONE` 查重 + 主联系人=账号不变量）。手机号**释放**由 Task 3 的 purge（`User.phoneIdx` 置 null + 删联系人行）覆盖，无需单独应用层收紧。
 
 ---
 
@@ -1293,7 +1218,7 @@ git commit -m "feat(supplier-portal): 登录页进度查询 RETURNED 加「前�
 describe('供应商注册驳回/补正全链 (e2e)', () => {
   const t = Date.now().toString().slice(-13);
   const creditCode = `9151${t}X`;
-  const phone = '13900000000';
+  const phone = `139${Date.now().toString().slice(-8)}`; // 唯一手机号，避免 DUPLICATE_PHONE（User.phoneIdx @@unique 全局唯一）
   let supplierId: string;
 
   it('注册 → 退回 → 补正回填 → 重提 → 驳回 → 壳重开', async () => {

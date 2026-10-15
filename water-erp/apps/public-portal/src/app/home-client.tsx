@@ -29,43 +29,27 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
   const [featuredIndex, setFeaturedIndex] = useState(0);
   const [heroIndex, setHeroIndex] = useState(0);
 
-  // 自动轮播：每 6s 切换到下一张，5 张一个循环（30s）
+  // 自动轮播：每 6s 切换到下一张，7 张一个循环（42s）
   useEffect(() => {
     const timer = setInterval(() => {
-      setHeroIndex(prev => (prev + 1) % 5);
+      setHeroIndex(prev => (prev + 1) % 7);
     }, 6000);
     return () => clearInterval(timer);
   }, []);
 
-  // BG 图库（16张），按12小时窗口内随机轮播5张，全天自动刷新
+  // BG 图库（2026-10-14 替换为终版实际项目吉祥物图，7 张全部参与轮换）
+  // 映射（源 → 目标）：0065→01、0072→02、0092→03、0093→04、鲁班水库→05、图片5→06、图片7→07
   const heroImages = useMemo(() => {
     const BG_POOL = [
-      'swdg-mascot-bg-03-helmet-tip-v3-1920x580-real.png',
-      'swdg-mascot-bg-04-helmet-tip-v3-1920x580-real.png',
-      'swdg-mascot-bg-05-helmet-tip-v3-1920x580-real.png',
-      'swdg-mascot-bg-06-helmet-tip-v3-1920x580-real.png',
-      'swdg-mascot-bg-07-helmet-tip-v3-1920x580-real.png',
-      'swdg-mascot-bg-08-helmet-tip-v3-1920x580-real.png',
-      'swdg-mascot-bg-10-helmet-tip-v3-1920x580-real.png',
-      'swdg-mascot-bg-11-helmet-tip-v3-1920x580-real.png',
-      'swdg-mascot-bg-13-helmet-tip-v3-1920x580-real.png',
-      'swdg-mascot-bg-14-helmet-tip-v3-1920x580-real.png',
-      'swdg-mascot-bg-15-helmet-tip-v3-1920x580-real.png',
-      'swdg-mascot-bg-16-helmet-tip-v3-1920x580-real.png',
-      'swdg-mascot-bg-17-1920x580-real.png',
-      'swdg-mascot-bg-18-helmet-tip-v3-1920x580-real.png',
-      'swdg-mascot-bg-19-helmet-tip-v3-1920x580-real.png',
+      'mascot-final-01.png',
+      'mascot-final-02.png',
+      'mascot-final-03.png',
+      'mascot-final-04.png',
+      'mascot-final-05.png',
+      'mascot-final-06.png',
+      'mascot-final-07.png',
     ];
-    const HOURS = 12;
-    const period = Math.floor(Date.now() / (HOURS * 60 * 60 * 1000));
-    let seed = period;
-    const next = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
-    const pool = [...BG_POOL];
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(next() * (i + 1));
-      [pool[i], pool[j]] = [pool[j], pool[i]];
-    }
-    return pool.slice(0, 5).map(f => `BG/${f}`);
+    return BG_POOL.map(f => `BG/${f}`);
   }, []);
 
   const handleLogin = async () => {

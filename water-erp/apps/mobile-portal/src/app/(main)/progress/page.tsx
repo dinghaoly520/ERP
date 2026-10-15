@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, AlertCircle, BarChart3, Lightbulb, Sparkles, Target, TrendingUp } from "lucide-react";
+import { Activity, AlertCircle, BarChart3, Lightbulb, RefreshCw, Sparkles, Target, TrendingUp } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProgressStats, fetchProgressAiInsights, type ProgressStats, type ProgressAiInsights, type ProjectProgress } from "@/lib/api/progress";
 import { useAuth } from "@/components/m/auth-context";
+import { CompanyPicker } from "@/components/m/company-picker";
 import { BottomSheet } from "@/components/m/bottom-sheet";
 import { SectionCard } from "@/components/m/section-card";
 import { MetricCard } from "@/components/m/metric-card";
@@ -98,8 +99,8 @@ export default function ProgressPage() {
   const { user } = useAuth();
   const role = user?.role ?? null;
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
-  const [companyId, setCompanyId] = useState<string>(
-    () => readSavedFilters<{ companyId: string }>("progress").companyId ?? "all",
+  const [companyIds, setCompanyIds] = useState<string[]>(
+    () => readSavedFilters<{ companyIds: string[] }>("progress").companyIds ?? [],
   );
 
   const [stats, setStats] = useState<ProgressStats | null>(null);
@@ -107,7 +108,6 @@ export default function ProgressPage() {
   const [insightsError, setInsightsError] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
-  const [insightsTick, setInsightsTick] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryTick, setRetryTick] = useState(0);
@@ -127,7 +127,7 @@ export default function ProgressPage() {
     };
   }, [role]);
 
-  const filterCompanyId = companyId === "all" ? undefined : companyId;
+  const filterCompanyId = companyIds.length ? companyIds.join(",") : undefined;
 
   useEffect(() => {
     let active = true;
@@ -148,34 +148,21 @@ export default function ProgressPage() {
     };
   }, [filterCompanyId, retryTick]);
 
-  /* 洞察懒加载：展开时自动请求（未展开不耗 AI 调用）；公司口径变化/重试/下拉刷新使旧结果作废 */
-  useEffect(() => {
-    if (!aiOpen || insights) return;
-    let active = true;
+  /* 洞察手动生成（与数据库页 AI 综合分析同款：点「生成分析」才请求）；
+     公司口径变化/下拉刷新使旧结果作废（置 null 后按钮态回归） */
+  async function runInsights() {
+    if (aiLoading) return;
     setAiLoading(true);
     setInsightsError(false);
-    fetchProgressAiInsights(filterCompanyId)
-      .then((i) => {
-        if (active) setInsights(i);
-      })
-      .catch(() => {
-        if (active) {
-          setInsights(null);
-          setInsightsError(true);
-        }
-      })
-      .finally(() => {
-        if (active) setAiLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aiOpen, insights, filterCompanyId, insightsTick]);
-
-  function retryInsights() {
-    setInsights(null);
-    setInsightsTick((t) => t + 1);
+    try {
+      const i = await fetchProgressAiInsights(filterCompanyId);
+      setInsights(i);
+    } catch {
+      setInsights(null);
+      setInsightsError(true);
+    } finally {
+      setAiLoading(false);
+    }
   }
 
   const maxStageCount = Math.max(...(stats?.stageDistribution.map((d) => d.count) ?? [1]), 1);
@@ -202,23 +189,15 @@ export default function ProgressPage() {
     <div>
       <PullIndicator pull={pull} refreshing={refreshing} />
       {role === "admin" ? (
-        <select
-          value={companyId}
-          onChange={(e) => {
-            setCompanyId(e.target.value);
+        <CompanyPicker
+          value={companyIds}
+          options={companies}
+          onChange={(next) => {
+            setCompanyIds(next);
             setInsights(null); // 口径变化，旧洞察作废（展开态自动重取）
-            saveFilters("progress", { companyId: e.target.value });
+            saveFilters("progress", { companyIds: next });
           }}
-          aria-label="公司筛选"
-          className="m-input mb-3 h-10 w-full font-medium"
-        >
-          <option value="all">全部公司</option>
-          {companies.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.shortName || c.name}
-            </option>
-          ))}
-        </select>
+        />
       ) : null}
 
       {error ? <ErrorBanner message={error} onRetry={() => setRetryTick((t) => t + 1)} /> : null}
@@ -284,6 +263,25 @@ export default function ProgressPage() {
           >
             {aiOpen ? (
               <div className="space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="min-w-0 flex-1 text-[11px] text-[var(--muted-foreground)]">
+                    {insights ? "以下为当前口径的分析结果" : "基于当前公司口径生成进度洞察"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={runInsights}
+                    disabled={aiLoading}
+                    className="neu-btn-primary h-9 shrink-0 rounded-[10px] px-3.5 text-xs disabled:opacity-60"
+                  >
+                    {aiLoading ? (
+                      <>
+                        <RefreshCw size={12} className="animate-spin" /> 分析中
+                      </>
+                    ) : (
+                      "生成分析"
+                    )}
+                  </button>
+                </div>
                 {aiLoading ? (
                   <div className="flex items-center justify-center gap-2 py-5 text-xs text-[var(--muted-foreground)]">
                     <Activity size={13} className="animate-pulse" /> 正在生成进度洞察...
@@ -294,7 +292,7 @@ export default function ProgressPage() {
                     <span className="min-w-0 flex-1 text-xs text-[var(--danger)]">洞察生成失败，请重试</span>
                     <button
                       type="button"
-                      onClick={retryInsights}
+                      onClick={runInsights}
                       className="neu-btn-soft is-danger h-8 shrink-0 rounded-[9px] px-2.5 text-[11px] active:scale-95"
                     >
                       重试
@@ -333,11 +331,11 @@ export default function ProgressPage() {
                     {!insights.overview && insights.insights.length === 0 ? <EmptyState text="当前无特别洞察" /> : null}
                   </>
                 ) : (
-                  <EmptyState text="正在准备洞察..." />
+                  <EmptyState text="点击「生成分析」获取 AI 进度洞察" />
                 )}
               </div>
             ) : (
-              <p className="px-1 text-[11px] text-[var(--muted-foreground)]">展开后自动获取 AI 进度洞察（综合研判 + 分级提示）</p>
+              <p className="px-1 text-[11px] text-[var(--muted-foreground)]">展开后可基于当前口径生成综合研判与分级提示</p>
             )}
           </SectionCard>
 

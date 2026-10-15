@@ -23,6 +23,7 @@ import { wrapKey } from '../common/crypto/envelope-crypto';
 import { sealField, openField } from '../common/crypto/field-crypto';
 import { sealChangeValue, openChangeValue } from '../supplier/change-record-pii';
 import { openPii, openPiiForMask, sealPii, blindIndexPii } from '../common/crypto/sm-field-crypto';
+import { assertContactPhonesUnique, assertPrimaryContactMatchesAccount } from '../supplier/contact-phone-unique';
 import { SignatureService } from '../common/crypto/signature.service';
 import { OID_SM2_ECC, parseCertificate } from '../common/crypto/x509/x509-cert';
 import { TrustStore } from '../common/crypto/x509/trust-store';
@@ -1127,12 +1128,23 @@ export class SupplierPortalService {
 
   async addContact(supplierId: string, dto: CreateContactDto) {
     await this.assertNotTemporary(supplierId); // B3-2
+    // 联系人手机号唯一性（2026-10-14）：主联系人全局唯一 + 额外联系人供应商内唯一
+    await assertContactPhonesUnique(this.prisma, {
+      supplierId,
+      contacts: [{ phone: dto.phone, isPrimary: dto.isPrimary }],
+    });
+    // 主联系人 = 账号（2026-10-14 稳健性）
+    await assertPrimaryContactMatchesAccount(this.prisma, {
+      supplierId,
+      contacts: [{ phone: dto.phone, isPrimary: dto.isPrimary }],
+    });
     // PII 国密密封 + 盲索引（等保+密评）；返回本人自视明文
     const created = await this.prisma.supplierContact.create({
       data: {
         supplierId,
         name: dto.name,
         phone: sealPii(dto.phone) as string,
+        phoneIdx: blindIndexPii(dto.phone) ?? null, // 联系人手机号盲索引
         email: sealPii(dto.email) ?? null,
         isPrimary: dto.isPrimary,
         position: dto.position,
@@ -1150,11 +1162,26 @@ export class SupplierPortalService {
     if (!contact || contact.supplierId !== supplierId) {
       throw new BadRequestException({ error: '联系人不存在', code: 'NOT_FOUND' });
     }
+    // 联系人手机号唯一性（2026-10-14）：phone/isPrimary 变更时按「最终口径」查重（排除自身）
+    if (dto.phone !== undefined || dto.isPrimary !== undefined) {
+      const nextIsPrimary = dto.isPrimary !== undefined ? dto.isPrimary : contact.isPrimary;
+      const nextPhone = dto.phone !== undefined ? dto.phone : (openPii(contact.phone) ?? '');
+      await assertContactPhonesUnique(this.prisma, {
+        supplierId,
+        contacts: [{ phone: nextPhone, isPrimary: nextIsPrimary }],
+        excludeContactId: contactId,
+      });
+      // 主联系人 = 账号（2026-10-14 稳健性）
+      await assertPrimaryContactMatchesAccount(this.prisma, {
+        supplierId,
+        contacts: [{ phone: nextPhone, isPrimary: nextIsPrimary }],
+      });
+    }
     const updated = await this.prisma.supplierContact.update({
       where: { id: contactId },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
-        ...(dto.phone !== undefined && { phone: sealPii(dto.phone) as string }),      // PII 国密密封
+        ...(dto.phone !== undefined && { phone: sealPii(dto.phone) as string, phoneIdx: blindIndexPii(dto.phone) ?? null }),      // PII 国密密封 + 盲索引
         ...(dto.email !== undefined && { email: sealPii(dto.email) ?? null }),
         ...(dto.isPrimary !== undefined && { isPrimary: dto.isPrimary }),
         ...(dto.position !== undefined && { position: dto.position }),

@@ -996,7 +996,7 @@ describe('SupplierPortalController — 供应商合同发布边界', () => {
 describe('ContractController — 合同关键动作透传 actor 与公司范围', () => {
   const request = { user: { sub: 'user-1', username: '经办人', role: 'staff' } };
   const companyScope = {
-    resolveScope: jest.fn().mockResolvedValue({ all: false, companyId: 'company-a' }),
+    resolveScope: jest.fn().mockResolvedValue({ all: false, companyIds: ['company-a'] }),
     filter: jest.fn().mockReturnValue({ companyId: 'company-a' }),
   };
 

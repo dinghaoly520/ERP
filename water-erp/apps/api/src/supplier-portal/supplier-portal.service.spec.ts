@@ -296,23 +296,21 @@ describe('SupplierPortalService', () => {
         .rejects.toMatchObject({ response: { code: 'NOT_APPROVED' } });
     });
 
-    it('syncs BidSupplier when an existing draft is submitted', async () => {
-      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '测试供应商', status: 'APPROVED', isTemporary: false });
-      prisma.bidProject.findUnique.mockResolvedValue({ id: 'project-1', stage: 'SUBMIT', deadline: new Date(Date.now() + 3600_000), procurementMethod: '公开招标' });
-      prisma.announcement.findFirst.mockResolvedValue({ id: 'a-1' });
-      // 2026-10-14 代解密清除：legacy 路径已封死 → 改断 LEGACY_TRACK_CLOSED
-      await expect(service.submitBid('supplier-1', 'project-1', { bidPrice: '100' } as any))
-        .rejects.toMatchObject({ response: { code: 'LEGACY_TRACK_CLOSED' } });
+    it('旧轨投递通道已关闭（SCCA v3 · 2026-10-14 裁定）：无 envelope → 400 LEGACY_TRACK_CLOSED 零落库', async () => {
+      const plainAsset = { id: 'fa-dual-1', key: 'uploads/2026-08-20/dual/couter-technical.bin', originalName: 'technical.pdf', mimeType: 'application/pdf', size: 2048, sha256: 'r1'.padEnd(64, '0'), category: 'bid_document', uploaderId: 'supplier-1', clientEncrypted: false, encrypted: false, sealedPath: null };
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'project-1', stage: 'SUBMIT', deadline: new Date(Date.now() + 3600_000) });
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', userId: 'supplier-1', status: 'APPROVED' });
+      prisma.fileAsset.findMany.mockResolvedValue([plainAsset]);
+      prisma.fileAsset.findUnique.mockResolvedValue(plainAsset);
+
+      await expect(service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', bidPrice: '100',
+      } as any)).rejects.toMatchObject({ response: { code: 'LEGACY_TRACK_CLOSED' } });
+      expect(prisma.supplierBidSubmission.create).not.toHaveBeenCalled();
+      expect(prisma.supplierBidSubmission.update).not.toHaveBeenCalled();
     });
 
-    it('放宽门控：DOWNLOAD 阶段 + 已发公告 + 未截止 → 允许投递（棘轮化）', async () => {
-      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '测试供应商', status: 'APPROVED', isTemporary: false });
-      prisma.bidProject.findUnique.mockResolvedValue({ id: 'project-1', stage: 'SUBMIT', deadline: new Date(Date.now() + 3600_000), procurementMethod: '公开招标' });
-      prisma.announcement.findFirst.mockResolvedValue({ id: 'a-1' });
-      // 2026-10-14 代解密清除：legacy 路径已封死 → 改断 LEGACY_TRACK_CLOSED
-      await expect(service.submitBid('supplier-1', 'project-1', { bidPrice: '100' } as any))
-        .rejects.toMatchObject({ response: { code: 'LEGACY_TRACK_CLOSED' } });
-    });
+
 
     it('放宽门控：DOWNLOAD 阶段但无公告 → 400 BID_NOTICE_REQUIRED（G3 兜底）', async () => {
       prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '测试供应商', status: 'APPROVED' });
@@ -337,14 +335,6 @@ describe('SupplierPortalService', () => {
         .rejects.toMatchObject({ response: { code: 'PROJECT_NOT_SUBMITTING' } });
     });
 
-    it('提交时落库质量承诺（qualityCommitment）', async () => {
-      // 2026-10-14 代解密清除：legacy 路径已封死 → 改断 LEGACY_TRACK_CLOSED（过基础门后命中）
-      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '测试供应商', status: 'APPROVED', isTemporary: false });
-      prisma.bidProject.findUnique.mockResolvedValue({ id: 'project-1', stage: 'SUBMIT', deadline: new Date(Date.now() + 3600_000), procurementMethod: '公开招标' });
-      prisma.announcement.findFirst.mockResolvedValue({ id: 'a-1' });
-      await expect(service.submitBid('supplier-1', 'project-1', { bidPrice: '100' } as any))
-        .rejects.toMatchObject({ response: { code: 'LEGACY_TRACK_CLOSED' } });
-    });
 
   });
 
@@ -386,11 +376,6 @@ describe('SupplierPortalService', () => {
         .rejects.toMatchObject({ response: { code: 'FILE_NOT_FOUND' } });
     });
 
-    it('allows submission with valid owned bid_document assets', async () => {
-      // 2026-10-14 代解密清除：legacy 路径已封死 → 改断 LEGACY_TRACK_CLOSED
-      await expect(service.submitBid('supplier-1', 'project-1', { bidPrice: '100' } as any))
-        .rejects.toMatchObject({ response: { code: 'LEGACY_TRACK_CLOSED' } });
-      });
   });
 
   describe('submitBid encryption', () => {
@@ -412,23 +397,8 @@ describe('SupplierPortalService', () => {
       jest.clearAllMocks();
     });
 
-    it('encrypts bid files on submit and stores sealedKeys', async () => {
-      // 2026-10-14 代解密清除：legacy 路径已封死 → 改断 LEGACY_TRACK_CLOSED
-      await expect(service.submitBid('supplier-1', 'project-1', { bidPrice: '100' } as any))
-        .rejects.toMatchObject({ response: { code: 'LEGACY_TRACK_CLOSED' } });
-      });
 
-    it('cleans up sealed files on encryption failure', async () => {
-      // 2026-10-14 代解密清除：legacy 路径已封死 → 改断 LEGACY_TRACK_CLOSED
-      await expect(service.submitBid('supplier-1', 'project-1', { bidPrice: '100' } as any))
-        .rejects.toMatchObject({ response: { code: 'LEGACY_TRACK_CLOSED' } });
-      });
 
-    it('密封 bidPrice 入库（v1: 前缀 + openField 可还原明文）', async () => {
-      // 2026-10-14 代解密清除：legacy 路径已封死 → 改断 LEGACY_TRACK_CLOSED
-      await expect(service.submitBid('supplier-1', 'project-1', { bidPrice: '100' } as any))
-        .rejects.toMatchObject({ response: { code: 'LEGACY_TRACK_CLOSED' } });
-      });
 
     it('saveBidDraft 同样密封 bidPrice（v1: 前缀）', async () => {
       prisma.supplierBidSubmission.findUnique.mockResolvedValue(null);
@@ -441,11 +411,6 @@ describe('SupplierPortalService', () => {
       expect(openField(call.data.bidPrice, TEST_KMS)).toBe('12345');
     });
 
-    it('密封 bidPrice 不可被缺 KMS_SECRET 的环境拆封', async () => {
-      // 2026-10-14 代解密清除：legacy 路径已封死 → 改断 LEGACY_TRACK_CLOSED
-      await expect(service.submitBid('supplier-1', 'project-1', { bidPrice: '100' } as any))
-        .rejects.toMatchObject({ response: { code: 'LEGACY_TRACK_CLOSED' } });
-      });
   });
 
   describe('opening confirmation', () => {
@@ -675,16 +640,17 @@ describe('SupplierPortalService', () => {
       prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
       prisma.bidOpeningRecord.findFirst.mockResolvedValue(pendingRecord);
       prisma.supplierCert.findFirst.mockResolvedValue(activeCert);
+      // 轨道分派：dual-v3 行才返 v2（金额出签）——legacy/dual-v2 行返 v1 历史证据格式
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({ envelopeVersion: 'dual-v3' });
 
       const result = await service.getOpeningConfirmPayload('supplier-1', 'project-1');
 
-      // 18006e42 轨道分派：legacy/v2 行 → v1 canonical（金额在签——历史证据格式）
+      // Task7（dual-v3）：canonical v2——金额明文出签，改由 openingRecordHash 钉内容
       expect(result.canonical).toContain('"purpose":"confirm"');
-      expect(result.canonical).toContain('980000'); // v1 含金额（轨道分派后的正确行为）
-      expect(result.payload).toMatchObject({
-        v: 1, purpose: 'confirm', recordId: 'r-1',
-      });
-      // v1 轨无 recordSnapshot/openingRecordHash（v3 专属）——不验
+      // 金额不出 canonical 字符串——明文在 recordSnapshot（出签快照），由 openingRecordHash 钉内容
+      expect(result.payload).toMatchObject({ version: 2, purpose: 'confirm', recordId: 'r-1' });
+      expect(result.openingRecordHash).toHaveLength(64);
+      expect(result.recordSnapshot).toMatchObject({ amount: '980000', amountUnit: null });
     });
 
     it('getOpeningConfirmPayload：已确认未签名 → purpose=resign（补签入口）', async () => {
@@ -1877,6 +1843,53 @@ describe('SupplierPortalService', () => {
       });
     });
 
+
+    it('⑥ flag 关（BID_DUAL_ENVELOPE=false）且 dual-v2 envelope 传入 → 400 LEGACY_TRACK_CLOSED（应急退回开关废弃 2026-10-14 裁定，旧轨整体封死不吞新轨标书）', async () => {
+      process.env.BID_DUAL_ENVELOPE = 'false';
+      const { envelope, signature } = await buildDualSubmission();
+
+      await expect(
+        service.submitBid('supplier-1', 'project-1', {
+          technicalFileAssetId: 'fa-dual-1', envelope, signature,
+        } as any),
+      ).rejects.toMatchObject({ response: { code: 'LEGACY_TRACK_CLOSED' } });
+
+      // 显式拒收：零落库零备份零验签触点（不落入旧轨的隐晦 MISSING_CLIENT_DEK）
+      expect(prisma.supplierBidSubmission.create).not.toHaveBeenCalled();
+      expect(prisma.supplierBidSubmission.update).not.toHaveBeenCalled();
+      expect(bidBackup.stageBackup).not.toHaveBeenCalled();
+      expect(prisma.supplierCert.findFirst).not.toHaveBeenCalled();
+      expect(prisma.adminEncryptionCert.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('⑥b flag 开但 envelope.version 非 dual-v2 → 400 LEGACY_TRACK_CLOSED（伪造版本信封拒收，不再剥离后走旧轨）', async () => {
+      const plainAsset = { ...dualAsset(), clientEncrypted: false };
+      prisma.fileAsset.findMany.mockResolvedValue([plainAsset]);
+      prisma.fileAsset.findUnique.mockResolvedValue(plainAsset);
+      const { envelope, signature } = await buildDualSubmission();
+      const junkVersion = { ...envelope, version: 'junk-v1' } as any;
+
+      await expect(service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', envelope: junkVersion, signature,
+      } as any)).rejects.toMatchObject({ response: { code: 'LEGACY_TRACK_CLOSED' } });
+
+      expect(encryptBuffer).not.toHaveBeenCalled();
+      expect(prisma.supplierBidSubmission.create).not.toHaveBeenCalled();
+      expect(prisma.supplierBidSubmission.update).not.toHaveBeenCalled();
+    });
+
+
+
+    it('P1-1：新轨（dual-v2）提交不受授权门控影响（供应商自解无需授权）', async () => {
+      // 复用 ① 的合法 fixture 路径（递交授权门控已随 SCCA v3 代解密清除移除）
+      const { envelope, signature } = await buildDualSubmission();
+      const res = await service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', envelope, signature,
+      } as any);
+      expect(res).toBeTruthy();
+      expect(prisma.supplierBidSubmission.create.mock.calls[0][0].data.envelopeVersion).toBe('dual-v2');
+    });
+
     it('⑦a bond 双轨：bondRequired=true + bond 密封齐备（clientEncrypted + 信封条目）→ 通过且 bond 角色入备份/封存', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({
         id: 'project-1', projectCode: 'BID-X', stage: 'SUBMIT',
@@ -2413,7 +2426,7 @@ describe('SupplierPortalService', () => {
 
       expect(prisma.supplierBidSubmission.update).toHaveBeenCalledWith({
         where: { supplierId_projectId: { supplierId: 'supplier-1', projectId: 'project-1' } },
-        data: { decryptedAssets: { technical: 'dec-t', business: 'dec-b' }, decryptedPrice: '980000.00', deliveryPeriod: '540', qualityCommitment: '合格' },
+        data: { decryptedAssets: { technical: 'dec-t', business: 'dec-b' }, decryptedPrice: '980000.00' },
       });
       expect(prisma.bidSupplier.update).toHaveBeenCalledWith({ where: { id: 'bs-1' }, data: { decryptStatus: 'SUCCESS', decryptedAt: expect.any(Date) } });
 

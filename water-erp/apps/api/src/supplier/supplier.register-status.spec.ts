@@ -25,7 +25,10 @@ describe('SupplierService.getRegisterStatusByName — 按企业名称查询审�
   beforeEach(async () => {
     prisma = {
       supplier: { findMany: jest.fn().mockResolvedValue([]) },
-      supplierApprovalRecord: { findFirst: jest.fn().mockResolvedValue(null) },
+      supplierApprovalRecord: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]), // 审核节点时间线（2026-10-15）
+      },
     };
     const module = await Test.createTestingModule({
       providers: [
@@ -87,6 +90,48 @@ describe('SupplierService.getRegisterStatusByName — 按企业名称查询审�
     expect(JSON.stringify(r)).not.toContain('91510100MA6C1234X9');
   });
 
+  it('审核节点时间线：留痕逐条返回，REJECTED 缘由不披露、RETURNED 节点披露补正说明', async () => {
+    prisma.supplier.findMany.mockResolvedValue([supplier({ status: 'APPROVED' })]);
+    prisma.supplierApprovalRecord.findFirst.mockResolvedValue({ createdAt: new Date(), action: 'APPROVED' });
+    prisma.supplierApprovalRecord.findMany.mockResolvedValue([
+      { stage: 'STAFF', action: 'APPROVED', reason: '材料齐备', createdAt: new Date('2026-10-15T08:00:00Z') },
+      { stage: 'LEADER', action: 'APPROVED', reason: '复核无异议', createdAt: new Date('2026-10-15T09:00:00Z') },
+      { stage: 'ADMIN', action: 'APPROVED', reason: '终审通过', createdAt: new Date('2026-10-15T10:00:00Z') },
+    ]);
+    const r: any = await service.getRegisterStatusByName('四川岷江水利水电工程有限公司');
+    expect(r.timeline).toHaveLength(3);
+    expect(r.timeline[0]).toMatchObject({ stage: 'STAFF', action: 'APPROVED', at: new Date('2026-10-15T08:00:00Z') });
+    // 审批缘由不外发（可能含内部口径），仅 RETURNED 节点披露
+    expect(JSON.stringify(r.timeline)).not.toContain('材料齐备');
+    expect(r.timeline.every((n: any) => n.reason === null)).toBe(true);
+  });
+
+  it('审核完成超 3 日 → closedAfterCompletion，不再披露状态/时间线', async () => {
+    prisma.supplier.findMany.mockResolvedValue([supplier({ status: 'APPROVED', reviewStage: null })]);
+    prisma.supplierApprovalRecord.findFirst.mockResolvedValue({ createdAt: new Date(Date.now() - 4 * 86400000), action: 'APPROVED' });
+    prisma.supplierApprovalRecord.findMany.mockResolvedValue([
+      { stage: 'ADMIN', action: 'APPROVED', reason: null, createdAt: new Date(Date.now() - 4 * 86400000) },
+    ]);
+    const r: any = await service.getRegisterStatusByName('四川岷江水利水电工程有限公司');
+    expect(r.found).toBe(false);
+    expect(r.closedAfterCompletion).toBe(true);
+    expect(r.status).toBeNull();
+    expect(r.timeline).toBeUndefined();
+    expect(JSON.stringify(r)).not.toContain('APPROVED');
+  });
+
+  it('审核完成 3 日内 → 仍可查询（时间线可见）', async () => {
+    prisma.supplier.findMany.mockResolvedValue([supplier({ status: 'APPROVED', reviewStage: null })]);
+    prisma.supplierApprovalRecord.findFirst.mockResolvedValue({ createdAt: new Date(Date.now() - 2 * 86400000), action: 'APPROVED' });
+    prisma.supplierApprovalRecord.findMany.mockResolvedValue([
+      { stage: 'ADMIN', action: 'APPROVED', reason: null, createdAt: new Date(Date.now() - 2 * 86400000) },
+    ]);
+    const r: any = await service.getRegisterStatusByName('四川岷江水利水电工程有限公司');
+    expect(r.found).toBe(true);
+    expect(r.status).toBe('APPROVED');
+    expect(r.timeline).toHaveLength(1);
+  });
+
   it('RETURNED 状态返回补正说明，REJECTED 不返回拒绝原因（与信用代码路径同口径）', async () => {
     prisma.supplier.findMany.mockResolvedValue([
       supplier({ status: 'RETURNED', returnReason: '营业执照不清晰，请重传' }),
@@ -97,7 +142,8 @@ describe('SupplierService.getRegisterStatusByName — 按企业名称查询审�
     prisma.supplier.findMany.mockResolvedValue([
       supplier({ status: 'REJECTED', returnReason: null }),
     ]);
-    prisma.supplierApprovalRecord.findFirst.mockResolvedValue({ createdAt: new Date('2026-10-01T00:00:00Z'), action: 'REJECTED' });
+    // REJECTED 为终态——3 日截止口径下须用近期时间（否则触发 closedAfterCompletion）
+    prisma.supplierApprovalRecord.findFirst.mockResolvedValue({ createdAt: new Date(Date.now() - 86400000), action: 'REJECTED' });
     const rejected: any = await service.getRegisterStatusByName('四川岷江水利水电工程有限公司');
     expect(rejected.reason).toBeNull();
     expect(rejected.reviewedAction).toBe('REJECTED');

@@ -10,7 +10,7 @@ describe('PmiOwnershipGuard', () => {
 
   const mkGuard = (item: unknown, scopeCompanyId: string) => {
     const prisma = { projectManagementItem: { findUnique: jest.fn().mockResolvedValue(item) } };
-    const companyScope = { resolveScope: jest.fn().mockResolvedValue({ all: false, companyId: scopeCompanyId }) };
+    const companyScope = { resolveScope: jest.fn().mockResolvedValue({ all: false, companyIds: [scopeCompanyId] }) };
     return new PmiOwnershipGuard(prisma as never, companyScope as never);
   };
 

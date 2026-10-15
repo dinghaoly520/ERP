@@ -8,6 +8,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { AnyRole } from '../common/decorators/any-role.decorator';
 import { RegisterSupplierDto } from './dto/register-supplier.dto';
+import { CorrectionRequestDto, CorrectionVerifyDto, CorrectionSubmitDto } from './dto/correction-request.dto';
 import { RevealSupplierFieldDto } from './dto/reveal-supplier-field.dto';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { RegisterTemporarySupplierDto } from './dto/register-temporary-supplier.dto';
@@ -175,6 +176,44 @@ export class SupplierController {
     const code = (creditCode ?? '').trim();
     if (!code) throw new BadRequestException({ error: '请提供统一社会信用代码', code: 'MISSING_CREDIT_CODE' });
     return this.supplierService.urgeReview(code);
+  }
+
+  // ── 退回补正回填（2026-10-14）：RETURNED 申请凭公司名+信用代码定位，短信验证码
+  //    发主联系人手机换发一次性补正 token，凭 token 拉取已填资料回填并重新提交。──
+
+  @Post('register/correction/request')
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({ summary: '退回补正：凭公司名+信用代码向主联系人手机发验证码' })
+  async requestCorrection(@Body() dto: CorrectionRequestDto, @Request() req: any) {
+    return this.supplierService.requestCorrection(dto.name, dto.creditCode, req.ip ?? '');
+  }
+
+  @Post('register/correction/verify')
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: '退回补正：校验验证码换发一次性补正 token' })
+  async verifyCorrection(@Body() dto: CorrectionVerifyDto) {
+    return this.supplierService.verifyCorrection(dto.name, dto.creditCode, dto.code);
+  }
+
+  @Get('register/correction/draft')
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: '退回补正：凭 token 拉取已填资料（解封回填）+ 退回原因' })
+  async getCorrectionDraft(@Query('token') token?: string, @Query('name') name?: string, @Query('creditCode') creditCode?: string) {
+    if (!token || !name || !creditCode) {
+      throw new BadRequestException({ error: '请提供补正 token、公司名称与统一社会信用代码', code: 'MISSING_CORRECTION_PARAMS' });
+    }
+    return this.supplierService.getCorrectionDraft(token, name, creditCode);
+  }
+
+  @Post('register/correction/submit')
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: '退回补正：补正后重新提交（原位更新，creditCode 锁定）' })
+  async submitCorrection(@Body() dto: CorrectionSubmitDto) {
+    return this.supplierService.submitCorrection(dto);
   }
 
   // 注册前查重（公开）：统一社会信用代码重复=硬拦截；法人/联系人身份证号重复=软提示。

@@ -18,6 +18,7 @@ import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchDashboardData, type DashboardData } from "@/lib/api/dashboard";
 import { fetchDashboardAnalysis, type DashboardAnalysisResult } from "@/lib/api/ai";
 import { useAuth } from "@/components/m/auth-context";
+import { CompanyPicker } from "@/components/m/company-picker";
 import { BottomSheet } from "@/components/m/bottom-sheet";
 import { SectionCard } from "@/components/m/section-card";
 import { MetricCard } from "@/components/m/metric-card";
@@ -29,7 +30,7 @@ import { PullIndicator } from "@/components/m/pull-indicator";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { readSavedFilters, saveFilters } from "@/lib/filter-store";
 
-type DashboardSavedFilters = { rangeKey: RangeKey; companyId: string };
+type DashboardSavedFilters = { rangeKey: RangeKey; companyIds: string[] };
 
 /* ── 工具 ── */
 
@@ -166,8 +167,8 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const role = user?.role ?? null;
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
-  const [companyId, setCompanyId] = useState<string>(
-    () => readSavedFilters<DashboardSavedFilters>("dashboard").companyId ?? "all",
+  const [companyIds, setCompanyIds] = useState<string[]>(
+    () => readSavedFilters<DashboardSavedFilters>("dashboard").companyIds ?? [],
   );
 
   const [rangeKey, setRangeKey] = useState<RangeKey>(
@@ -220,7 +221,7 @@ export default function DashboardPage() {
   const loadData = useCallback(() => {
     setLoading(true);
     setError(null);
-    return fetchDashboardData(queryRange.startDate, queryRange.endDate, companyId === "all" ? undefined : companyId)
+    return fetchDashboardData(queryRange.startDate, queryRange.endDate, companyIds.length ? companyIds.join(",") : undefined)
       .then((d) => {
         setData(d);
         setAiResult(null); // 口径变化后旧分析作废
@@ -231,7 +232,7 @@ export default function DashboardPage() {
       })
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queryRange.startDate, queryRange.endDate, companyId, retryTick]);
+  }, [queryRange.startDate, queryRange.endDate, companyIds, retryTick]);
 
   useEffect(() => {
     loadData();
@@ -346,7 +347,7 @@ export default function DashboardPage() {
                 setCustomApplied({});
                 setCustomStart("");
                 setCustomEnd("");
-                saveFilters("dashboard", { rangeKey: key, companyId } satisfies DashboardSavedFilters);
+                saveFilters("dashboard", { rangeKey: key, companyIds } satisfies DashboardSavedFilters);
               }}
             >
               {RANGE_LABELS[key]}
@@ -383,22 +384,15 @@ export default function DashboardPage() {
           </div>
         ) : null}
         {role === "admin" ? (
-          <select
-            value={companyId}
-            onChange={(e) => {
-              setCompanyId(e.target.value);
-              saveFilters("dashboard", { rangeKey, companyId: e.target.value } satisfies DashboardSavedFilters);
+          <CompanyPicker
+            value={companyIds}
+            options={companies}
+            onChange={(next) => {
+              setCompanyIds(next);
+              saveFilters("dashboard", { rangeKey, companyIds: next } satisfies DashboardSavedFilters);
             }}
-            aria-label="公司筛选"
-            className="m-input mb-0 h-10 w-full font-medium"
-          >
-            <option value="all">全部公司</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.shortName || c.name}
-              </option>
-            ))}
-          </select>
+            className="mb-0"
+          />
         ) : null}
       </div>
 

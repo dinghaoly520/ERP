@@ -6,6 +6,7 @@ import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProcurements, fetchLedgerStats, fetchProcurementMethods } from "@/lib/api/procurements";
 import { RESULT_STATUS_CONFIG, type LedgerSummary, type ProcurementRoundItem, type ResultStatusKey } from "@/lib/types/procurement";
 import { useAuth } from "@/components/m/auth-context";
+import { CompanyPicker } from "@/components/m/company-picker";
 import { BottomSheet } from "@/components/m/bottom-sheet";
 import { Chip } from "@/components/m/chip";
 import { MetricCard } from "@/components/m/metric-card";
@@ -21,7 +22,7 @@ const PAGE_SIZE = 15;
 type LedgerSavedFilters = {
   statusFilter: ResultStatusKey | null;
   methodFilter: string | null;
-  companyId: string;
+  companyIds: string[];
 };
 
 const RETENTION_LABELS: Record<string, string> = { PERMANENT: "永久", Y30: "30 年", Y10: "10 年" };
@@ -59,7 +60,7 @@ export default function LedgerPage() {
   const role = user?.role ?? null;
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const saved = useMemo(() => readSavedFilters<LedgerSavedFilters>("ledger"), []);
-  const [companyId, setCompanyId] = useState<string>(saved.companyId ?? "all");
+  const [companyIds, setCompanyIds] = useState<string[]>(saved.companyIds ?? []);
 
   const [searchInput, setSearchInput] = useState("");
   const [searchKeyword, setSearchKeyword] = useState("");
@@ -115,7 +116,7 @@ export default function LedgerPage() {
     };
   }, [role]);
 
-  const filterCompanyId = companyId === "all" ? undefined : companyId;
+  const filterCompanyId = companyIds.length ? companyIds.join(",") : undefined;
 
   /* 列表（首页替换、翻页追加；失败保留旧数据） */
   useEffect(() => {
@@ -196,9 +197,9 @@ export default function LedgerPage() {
 
   const persistLedger = useCallback(
     (patch: Partial<LedgerSavedFilters>) => {
-      saveFilters("ledger", { statusFilter, methodFilter, companyId, ...patch });
+      saveFilters("ledger", { statusFilter, methodFilter, companyIds, ...patch });
     },
-    [statusFilter, methodFilter, companyId],
+    [statusFilter, methodFilter, companyIds],
   );
 
   const { pull, refreshing } = usePullToRefresh(
@@ -310,24 +311,16 @@ export default function LedgerPage() {
         </div>
       ) : null}
       {role === "admin" ? (
-        <select
-          value={companyId}
-          onChange={(e) =>
+        <CompanyPicker
+          value={companyIds}
+          options={companies}
+          onChange={(next) =>
             changeFilter(() => {
-              setCompanyId(e.target.value);
-              persistLedger({ companyId: e.target.value });
+              setCompanyIds(next);
+              persistLedger({ companyIds: next });
             })
           }
-          aria-label="公司筛选"
-          className="m-input mb-3 h-10 w-full font-medium"
-        >
-          <option value="all">全部公司</option>
-          {companies.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.shortName || c.name}
-            </option>
-          ))}
-        </select>
+        />
       ) : (
         <div className="mb-3" />
       )}
