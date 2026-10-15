@@ -9,7 +9,7 @@ import AdjudicateDialog, { type AdjudgeMode } from '@/components/adjudicate-dial
 import {
   Unlock, Clock, Shield, CheckCircle, AlertTriangle, ExternalLink,
   Volume2, Zap, Loader, FileText, RotateCcw, PencilLine, Lock, Gavel,
-} from 'lucide-react';
+  Eye, ShieldCheck } from "lucide-react";
 import { DECRYPT_LABEL, BOND_STATUS_OPTIONS, deriveOpeningSessionStatus, evaluateBondCompliance } from '@water-erp/shared';
 import { toast } from 'sonner';
 import { ExchangeDrawer } from '@/components/bid/exchange-drawer';
@@ -162,7 +162,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const [disputeHandleConfirm, setDisputeHandleConfirm] = useState<'confirmed' | 'rejected' | null>(null);
   const [disputeSubmitting, setDisputeSubmitting] = useState(false); // M9：防双击 + 失败态按钮锁
   const [handingOver, setHandingOver] = useState(false); // T9：完成开标·移交按钮防双击
-  const [recordEntry, setRecordEntry] = useState<{ bidSupplierId: string; supplierName: string; reentry?: boolean } | null>(null);
+  const [recordEntry, setRecordEntry] = useState<{ bidSupplierId: string; supplierName: string; reentry?: boolean; readOnly?: boolean } | null>(null);
   const [recordDraft, setRecordDraft] = useState<{
     amount: string; period: string; qualityTarget: string; bondStatus: string;
     /** dual-v2 预填报价单位（万元）——录入表单 label/占位符随轨道口径，杜绝「表单标元、预填万元」错位 */
@@ -466,10 +466,11 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   };
 
 
-  const openRecordEntry = async (s: { id: string; supplierName: string }, reentry = false) => {
+  const openRecordEntry = async (s: { id: string; supplierName: string; envelopeVersion?: string | null }, reentry = false) => {
     if (!projectId) return;
     if (recordEntryLoading) return; // C2（第四波补）：行级禁用后防弹窗目标切换竞态（同 openAdjudge 款）
-    setRecordEntry({ bidSupplierId: s.id, supplierName: s.supplierName, reentry });
+    const dualReadOnly = isDualTrack(s.envelopeVersion ?? (project.suppliers.find(x => x.id === s.id)?.envelopeVersion));
+    setRecordEntry({ bidSupplierId: s.id, supplierName: s.supplierName, reentry, readOnly: dualReadOnly });
     setRecordDraft({ amount: '', period: '', qualityTarget: '', bondStatus: '', amountUnit: null, bondCompliance: null, fieldConfig: [], customFields: {} });
     setBidBondAssetId(null);
     setRecordEntryLoading(true);
@@ -1051,10 +1052,18 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                             </button>
                           ) : record.confirmStatus === '待供应商确认' ? (
                             <>
-                              <button type="button" onClick={() => openRecordEntry(s, true)} disabled={recordEntryLoading && recordEntry?.bidSupplierId === s.id}
-                                className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[color:var(--muted-foreground)] transition-colors hover:text-[var(--foreground)] disabled:opacity-50">
-                                <PencilLine size={12} strokeWidth={1.5} /> 重录唱标
-                              </button>
+                              {/* dual-v3：值来自加密承诺（fieldsCommit），主持人只读核对——不可重录修改 */}
+                              {isDual ? (
+                                <button type="button" onClick={() => openRecordEntry(s, true)} disabled={recordEntryLoading && recordEntry?.bidSupplierId === s.id}
+                                  className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[color:var(--muted-foreground)] transition-colors hover:text-[var(--foreground)] disabled:opacity-50">
+                                  <Eye size={12} strokeWidth={1.5} /> 查看唱标
+                                </button>
+                              ) : (
+                                <button type="button" onClick={() => openRecordEntry(s, true)} disabled={recordEntryLoading && recordEntry?.bidSupplierId === s.id}
+                                  className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[color:var(--muted-foreground)] transition-colors hover:text-[var(--foreground)] disabled:opacity-50">
+                                  <PencilLine size={12} strokeWidth={1.5} /> 重录唱标
+                                </button>
+                              )}
                               {/* P1-1（第三波）：缺席视为无异议——供应商解密成功后失联/拒不确认的现场出口
                                   （后端 @Roles admin/leader；缺席只能视为无异议，不得反向定性异常） */}
                               {(me?.role === 'admin' || me?.role === 'leader') && (
@@ -1314,6 +1323,12 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                     }`}>
                       <td className="px-5 py-3 font-medium text-[color:var(--foreground)]">
                         {r.supplierName}
+                        {/* dual-v3 来源标识：值来自加密承诺 */}
+                        {isDualTrack((project.suppliers.find(s => s.supplierName === r.supplierName)?.envelopeVersion)) && (
+                          <span className="ml-1 inline-flex items-center" title="唱标值来自加密承诺（fieldsCommit），自动公布">
+                            <ShieldCheck size={12} strokeWidth={1.75} className="text-[var(--success)]" />
+                          </span>
+                        )}
                         {r.objectionReason && <div className="mt-1 text-[11px] font-normal text-[var(--danger)]">异议：{r.objectionReason}</div>}
                         {r.handleResult && <div className="mt-1 text-[11px] font-normal text-[color:var(--muted-foreground)]">处理：{r.handleResult}</div>}
                       </td>
@@ -1401,8 +1416,20 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
         /* O10：遮罩点击不再关弹窗——已填报价/工期草稿易误触丢失，关闭走「取消」按钮 */
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--background)]/60 backdrop-blur-sm">
           <div className="bid-dialog w-[480px] p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-black text-[color:var(--foreground)]">{recordEntry.reentry ? '重录唱标信息' : '录入唱标信息'} — {recordEntry.supplierName}</h3>
-            <p className="mt-1 text-xs text-[color:var(--muted-foreground)]">据解密后的投标内容填写，提交后{recordEntry.reentry ? '覆盖原开标记录（供应商尚未确认）' : '生成开标记录（待供应商确认）'}。</p>
+            <h3 className="text-base font-black text-[color:var(--foreground)]">
+              {recordEntry.readOnly ? '查看唱标信息' : recordEntry.reentry ? '重录唱标信息' : '录入唱标信息'} — {recordEntry.supplierName}
+            </h3>
+            <p className="mt-1 text-xs text-[color:var(--muted-foreground)]">
+              {recordEntry.readOnly
+                ? '唱标值来自加密承诺（fieldsCommit 验证后自动生成），不可修改。主持人仅补充保证金判定与自定义字段。'
+                : `据解密后的投标内容填写，提交后${recordEntry.reentry ? '覆盖原开标记录（供应商尚未确认）' : '生成开标记录（待供应商确认）'}。`}
+            </p>
+            {recordEntry.readOnly && (
+              <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-[oklch(0.71_0.11_164_/_0.10)] px-3 py-2 text-[11px] font-semibold text-[var(--success)]">
+                <ShieldCheck size={13} strokeWidth={1.75} />
+                来自加密承诺 · 自动公布
+              </div>
+            )}
             {/* A-113：字段按项目配置序渲染——法定四键沿用既有控件（含 A-104 台账提示/凭证链接/密封 409 双确认流在提交侧），
                 动态键按 type 渲染 input/select；label 用配置 label（默认配置下与既有文案一致即零漂移） */}
             <div className="mt-4 grid grid-cols-2 gap-3">
@@ -1451,7 +1478,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                         onChange={e => setRecordDraft(d => f.key === 'amount'
                           ? { ...d, amount: e.target.value }
                           : f.key === 'period' ? { ...d, period: e.target.value } : { ...d, qualityTarget: e.target.value })}
-                        className={`neu-input mt-1 w-full ${f.key === 'amount' ? 'font-mono' : ''}`}
+                        disabled={recordEntry.readOnly}
+                        className={`neu-input mt-1 w-full ${f.key === 'amount' ? 'font-mono' : ''} ${recordEntry.readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
                         placeholder={statutoryPlaceholder} />
                     </label>
                   );
@@ -1482,7 +1510,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
               <button type="button" onClick={() => setRecordEntry(null)}
                 className="neu-btn-soft h-[38px] text-xs">取消</button>
               <button type="button" onClick={() => void handleEnterRecord()}
-                className="neu-btn-primary !h-[38px] text-xs">提交唱标</button>
+                className="neu-btn-primary !h-[38px] text-xs">{recordEntry.readOnly ? '保存补充信息' : '提交唱标'}</button>
             </div>
           </div>
         </div>

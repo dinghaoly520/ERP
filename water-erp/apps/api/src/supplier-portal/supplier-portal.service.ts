@@ -3684,6 +3684,19 @@ export class SupplierPortalService {
       this.notifySupplierDecryptFailure(bidSupplier.supplierId, bidSupplier.supplierName, projectId, gateError!);
     } else {
       this.gateway?.notifyDecryptStatus(projectId, bidSupplier.id, bidSupplier.supplierName, 'SUCCESS');
+      // dual 轨唱标自动预填后广播记录更新——主持端唱标总表实时刷新
+      // （ decrypt-upload 成功即 §30「向所有投标人公布」时刻，主持端须同步看到唱标行）
+      if (outcome === 'SUCCESS') {
+        const createdRecord = await this.prisma.bidOpeningRecord.findFirst({
+          where: { projectId, bidSupplierId: bidSupplier.id },
+          select: { id: true, customFields: true },
+        });
+        if (createdRecord) {
+          this.gateway?.notifyOpeningRecordUpdated(projectId, {
+            supplierId: bidSupplier.id, supplierName: bidSupplier.supplierName, recordId: createdRecord.id,
+          });
+        }
+      }
       this.gateway?.notifySupervisionLog(projectId, {
         role: '系统', action: '标书解密', target: bidSupplier.supplierName,
         result: '供应商解密成功，等待供应商确认唱标信息', riskFlag: '无',
