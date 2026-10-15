@@ -689,6 +689,15 @@ async function main() {
     });
     console.log(`    专家归属重建：${expertBackfill.count} 名 → 设计院本部`);
 
+    // 1.55) 供应商：快照无公司归属（Supplier.json 早于归属必填语义）——统一归设计院本部
+    //       （供应商库公司隔离 2026-09-26 与专家库同口径；注册链路 resolveSupplierCompany
+    //        已强制归属，后续新增不受此段影响；否则非 admin 的供应商库/KPI 全为空集）
+    const supplierBackfill = await prisma.supplier.updateMany({
+      where: { companyId: null },
+      data: { companyId: sjy.id, companyName: sjy.name },
+    });
+    console.log(`    供应商归属重建：${supplierBackfill.count} 家 → 设计院本部`);
+
     // 2) 四张业务表：按创建人回填；无主的种子演示数据归设计院
     const userCompany = new Map(users.map((u) => [u.id, companyByName.get(u.company ?? '') ?? sjy.id]));
     const tables = [

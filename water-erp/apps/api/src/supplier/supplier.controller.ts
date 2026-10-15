@@ -358,9 +358,9 @@ export class SupplierController {
 
   @Get('evaluations/stats')
   @Roles('admin', 'leader', 'staff')
-  @ApiOperation({ summary: '评价统计' })
-  async getEvaluationStats() {
-    return this.supplierService.getEvaluationStats();
+  @ApiOperation({ summary: '评价统计（公司隔离，admin 可 ?companyId= 切公司）' })
+  async getEvaluationStats(@Query('companyId') companyId?: string, @Request() req: any = {}) {
+    return this.supplierService.getEvaluationStats(req.user, companyId);
   }
 
   @Get('classifications')
@@ -441,9 +441,9 @@ export class SupplierController {
 
   @Get('qualification-alerts')
   @Roles('admin', 'leader', 'staff')
-  @ApiOperation({ summary: '资质到期预警看板' })
-  async getQualificationAlerts(@Request() req: any) {
-    return this.supplierService.getQualificationAlerts(req.user?.sub);
+  @ApiOperation({ summary: '资质到期预警看板（公司隔离，admin 可 ?companyId= 切公司）' })
+  async getQualificationAlerts(@Query('companyId') companyId?: string, @Request() req: any = {}) {
+    return this.supplierService.getQualificationAlerts(req.user, companyId);
   }
 
   @Post('qualification-alerts/:qid/notify')
@@ -490,16 +490,16 @@ export class SupplierController {
 
   @Get('evaluations/dimension-stats')
   @Roles('admin', 'leader', 'staff')
-  @ApiOperation({ summary: '评价五维度统计' })
-  async getDimensionStats() {
-    return this.supplierService.getEvaluationDimensionStats();
+  @ApiOperation({ summary: '评价五维度统计（公司隔离，admin 可 ?companyId= 切公司）' })
+  async getDimensionStats(@Query('companyId') companyId?: string, @Request() req: any = {}) {
+    return this.supplierService.getEvaluationDimensionStats(req.user, companyId);
   }
 
   @Get('enterprise-type-distribution')
   @Roles('admin', 'leader', 'staff')
-  @ApiOperation({ summary: '企业类型分布（后端聚合，供看板）' })
-  async getEnterpriseTypeDistribution() {
-    return this.supplierService.getEnterpriseTypeDistribution();
+  @ApiOperation({ summary: '企业类型分布（后端聚合，供看板；公司隔离）' })
+  async getEnterpriseTypeDistribution(@Query('companyId') companyId?: string, @Request() req: any = {}) {
+    return this.supplierService.getEnterpriseTypeDistribution(req.user, companyId);
   }
 
   // 动态路由

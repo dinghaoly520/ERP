@@ -1102,8 +1102,14 @@ export class SupplierService {
     const conditions: Prisma.Sql[] = [];
     // 数据隔离：supplier 角色仅见本企业（与 list() 的 Prisma 路径 where.userId 对齐，否则 raw 路径会丢弃该过滤）。
     if (where.userId) conditions.push(Prisma.sql`s."userId" = ${where.userId}`);
-    // 公司级数据隔离：raw 路径与 Prisma 路径行为一致，否则默认排序下公司过滤被丢弃
-    if (where.companyId) conditions.push(Prisma.sql`s."companyId" = ${where.companyId}`);
+    // 公司级数据隔离：raw 路径与 Prisma 路径行为一致，否则默认排序下公司过滤被丢弃。
+    // 多选隔离（2026-10-14）后 filter() 恒产 { in: [...] }——此处此前仍按标量传参，
+    // 对象进 SQL 即 P2010（非 admin/指定公司的默认完整度排序列表全线 500，2026-10-15 实录）。
+    if (where.companyId) {
+      const cid: { in?: string[] } | string = where.companyId;
+      if (typeof cid === 'object' && cid.in) conditions.push(Prisma.sql`s."companyId" = ANY(${cid.in})`);
+      else conditions.push(Prisma.sql`s."companyId" = ${cid}`);
+    }
     // status 列是 SupplierStatus 枚举，参数需显式 cast，否则 PG 报 operator does not exist: SupplierStatus = text
     if (where.status) {
       if (where.status.notIn) {
@@ -3244,14 +3250,15 @@ export class SupplierService {
     return { success: true };
   }
 
-  /* 资质到期预警看板 */
-  async getQualificationAlerts(userId?: string) {
+  /* 资质到期预警看板（公司隔离 2026-10-15：与 stats 同口径——预警 KPI 卡不得跨视野计数） */
+  async getQualificationAlerts(actor?: AuthenticatedUser, companyId?: string) {
     const now = Date.now();
     const in90 = new Date(now + 90 * 86400000);
+    const f = actor ? this.companyScope.filter(await this.companyScope.resolveScope(actor, companyId)) : {};
     // 取「已过期 或 90 天内到期」的资质（覆盖过期+即将过期两态，避免 status 字段未同步导致漏报）。
     // 预警是否展示完全由 validTo 决定：供应商维护更新资质后（validTo 移出 90 天窗口）自动从看板消失。
     const items = await this.prisma.supplierQualification.findMany({
-      where: { validTo: { not: null, lte: in90 } },
+      where: { validTo: { not: null, lte: in90 }, supplier: { ...f } },
       include: {
         supplier: { select: { id: true, name: true } },
       },
@@ -3433,9 +3440,12 @@ export class SupplierService {
     return { supplierId, supplierName: supplier.name, events };
   }
 
-  async getEvaluationStats() {
+  /** 评价统计（公司隔离 2026-10-15：与非 admin 视野一致，防止看板「0 供应商」旁出现全域评价数） */
+  async getEvaluationStats(actor?: AuthenticatedUser, companyId?: string) {
+    const f = actor ? this.companyScope.filter(await this.companyScope.resolveScope(actor, companyId)) : {};
     const evaluations = await this.prisma.supplierEvaluation.findMany({
       select: { finalGrade: true },
+      where: { supplier: { ...f } },
     });
 
     const levelCounts = {
@@ -3544,10 +3554,12 @@ export class SupplierService {
   }
 
   /** 企业类型分布后端聚合——替代看板拉 1000 条客户端计数（>1000 家偏少 + 首页开销大）。 */
-  async getEnterpriseTypeDistribution() {
+  /** 企业类型分布（公司隔离 2026-10-15：看板口径与 stats/列表同视野） */
+  async getEnterpriseTypeDistribution(actor?: AuthenticatedUser, companyId?: string) {
+    const f = actor ? this.companyScope.filter(await this.companyScope.resolveScope(actor, companyId)) : {};
     const rows = await this.prisma.supplier.groupBy({
       by: ['enterpriseType'],
-      where: { status: 'APPROVED' },
+      where: { status: 'APPROVED', ...f },
       _count: { _all: true },
     });
     const counts: Record<string, number> = {};
@@ -3847,9 +3859,12 @@ export class SupplierService {
 
   /* 评价维度统计 */
 
-  async getEvaluationDimensionStats() {
+  /** 评价五维度统计（公司隔离 2026-10-15：同 getEvaluationStats 口径） */
+  async getEvaluationDimensionStats(actor?: AuthenticatedUser, companyId?: string) {
+    const f = actor ? this.companyScope.filter(await this.companyScope.resolveScope(actor, companyId)) : {};
     const evals = await this.prisma.supplierEvaluation.findMany({
       select: { completenessGrade: true, responsivenessGrade: true, cooperationGrade: true, complianceGrade: true, comprehensiveGrade: true },
+      where: { supplier: { ...f } },
     });
     const gradeKeys: ExpertLevel[] = ['A', 'B', 'C', 'D', 'E'];
     const initCounts = (): Record<ExpertLevel, number> => ({ A: 0, B: 0, C: 0, D: 0, E: 0 });
