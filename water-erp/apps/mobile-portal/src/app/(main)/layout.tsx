@@ -57,25 +57,27 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   return (
     <div className="flow-page ambient-grid flex h-dvh flex-col overflow-hidden">
       <div className="flow-glow" aria-hidden />
-      <header className="z-40 flex h-14 shrink-0 items-center gap-2.5 border-b border-[color-mix(in_oklch,var(--border)_60%,transparent)] bg-[color-mix(in_oklch,var(--background)_86%,transparent)] pl-[max(0.875rem,env(safe-area-inset-left))] pr-[max(0.875rem,env(safe-area-inset-right))] backdrop-blur-md">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(238,244,255,0.86))] shadow-[0_8px_20px_rgba(69,99,158,0.16)]">
-          <Image src="/procurement-brand-logo.png" alt="蜀水云采" width={32} height={32} className="rounded-[8px] object-cover" priority />
-        </div>
-        <div className="min-w-0 flex-1 leading-tight">
-          <div className="truncate text-[12px] font-semibold tracking-[0.06em] text-[var(--muted-foreground)]">蜀水云采 · 专属驾驶舱</div>
-          <div className="mt-0.5 flex min-w-0 items-baseline gap-1.5">
-            <span className="shrink-0 text-[14px] font-medium tracking-[0.1em] text-[var(--gold)]">尊敬的</span>
-            <span className="truncate text-[16px] font-bold text-[var(--foreground)]">{user?.displayName ?? ""}</span>
+      <header className="z-40 shrink-0 border-b border-[color-mix(in_oklch,var(--border)_60%,transparent)] bg-[color-mix(in_oklch,var(--background)_86%,transparent)] pl-[max(0.875rem,env(safe-area-inset-left))] pr-[max(0.875rem,env(safe-area-inset-right))] pt-2 pb-2.5 backdrop-blur-md">
+        {/* 行 1：品牌行——logo + 系统名 + 退出 */}
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(238,244,255,0.86))] shadow-[0_8px_20px_rgba(69,99,158,0.16)]">
+            <Image src="/procurement-brand-logo.png" alt="蜀水云采" width={28} height={28} className="rounded-[7px] object-cover" priority />
           </div>
+          <div className="min-w-0 flex-1 truncate text-[15px] font-bold tracking-[0.02em] text-[var(--foreground)]">蜀水云采 · 专属驾驶舱</div>
+          <button
+            type="button"
+            onClick={handleLogout}
+            aria-label="退出登录"
+            className="neu-btn-soft h-8 w-8 shrink-0 rounded-[10px] p-0 active:scale-95"
+          >
+            <LogOut size={14} />
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={handleLogout}
-          aria-label="退出登录"
-          className="neu-btn-soft h-9 w-9 shrink-0 rounded-[11px] p-0 active:scale-95"
-        >
-          <LogOut size={15} />
-        </button>
+        {/* 行 2：问候行——独占整宽（与系统名文字左对齐），金色敬语 + 大号姓名 */}
+        <div className="mt-1.5 flex items-baseline gap-2 pl-[2.75rem]">
+          <span className="shrink-0 text-[13px] font-medium text-[var(--gold)]">尊敬的</span>
+          <span className="min-w-0 truncate text-[17px] font-bold tracking-[-0.01em] text-[var(--foreground)]">{user?.displayName ?? ""}</span>
+        </div>
       </header>
 
       <main
