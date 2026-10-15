@@ -380,13 +380,9 @@ export default function OpeningHallPage() {
                       {formatOpeningAmount(record?.amount, record?.amountUnit)}
                     </span>
                     {record?.submitted?.priceMismatch ? (
-                      <span className="ml-1.5 inline-flex items-center" title={`唱标 ≠ 投递（投递：${submittedPriceText}）`}>
-                        <TriangleAlert size={13} className="text-[var(--warning)]" strokeWidth={1.75} />
-                      </span>
+                      <span className="hall-tag hall-tag--sm hall-tag--warning-plain ml-1.5">唱标 ≠ 投递 {submittedPriceText}</span>
                     ) : record?.submitted?.bidPrice ? (
-                      <span className="ml-1.5 inline-flex items-center" title="与投递一致">
-                        <Check size={13} className="text-[var(--success)]" strokeWidth={2} />
-                      </span>
+                      <span className="hall-tag hall-tag--sm ml-1.5 bg-[color-mix(in_oklch,var(--success)_12%,transparent)] border-[color-mix(in_oklch,var(--success)_30%,transparent)] text-success">与投递一致</span>
                     ) : null}
                   </td>
                 </tr>
@@ -397,13 +393,9 @@ export default function OpeningHallPage() {
                       {record?.period || "—"}
                     </span>
                     {record?.submitted?.periodMismatch ? (
-                      <span className="ml-1.5 inline-flex items-center" title={`唱标 ≠ 投递（投递：${record?.submitted?.deliveryPeriod || "—"}）`}>
-                        <TriangleAlert size={13} className="text-[var(--warning)]" strokeWidth={1.75} />
-                      </span>
+                      <span className="hall-tag hall-tag--sm hall-tag--warning-plain ml-1.5">唱标 ≠ 投递 {record?.submitted?.deliveryPeriod || "—"}</span>
                     ) : record?.submitted?.deliveryPeriod ? (
-                      <span className="ml-1.5 inline-flex items-center" title="与投递一致">
-                        <Check size={13} className="text-[var(--success)]" strokeWidth={2} />
-                      </span>
+                      <span className="hall-tag hall-tag--sm ml-1.5 bg-[color-mix(in_oklch,var(--success)_12%,transparent)] border-[color-mix(in_oklch,var(--success)_30%,transparent)] text-success">与投递一致</span>
                     ) : null}
                   </td>
                 </tr>
@@ -420,13 +412,9 @@ export default function OpeningHallPage() {
                       {record?.qualityTarget || "—"}
                     </span>
                     {record?.submitted?.qualityCommitment && record?.qualityTarget != null && record.qualityTarget !== record.submitted.qualityCommitment ? (
-                      <span className="ml-1.5 inline-flex items-center" title={`唱标 ≠ 投递（投递：${record.submitted.qualityCommitment}）`}>
-                        <TriangleAlert size={13} className="text-[var(--warning)]" strokeWidth={1.75} />
-                      </span>
+                      <span className="hall-tag hall-tag--sm hall-tag--warning-plain ml-1.5">唱标 ≠ 投递 {record.submitted.qualityCommitment}</span>
                     ) : record?.submitted?.qualityCommitment ? (
-                      <span className="ml-1.5 inline-flex items-center" title="与投递一致">
-                        <Check size={13} className="text-[var(--success)]" strokeWidth={2} />
-                      </span>
+                      <span className="hall-tag hall-tag--sm ml-1.5 bg-[color-mix(in_oklch,var(--success)_12%,transparent)] border-[color-mix(in_oklch,var(--success)_30%,transparent)] text-success">与投递一致</span>
                     ) : null}
                   </td>
                 </tr>
