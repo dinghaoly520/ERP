@@ -92,7 +92,7 @@ export function CompanyPicker({
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder="搜索公司名称"
-            className="m-input h-10 w-full pl-9 text-[15px]"
+            className="m-input h-10 w-full pl-9"
           />
         </div>
 
