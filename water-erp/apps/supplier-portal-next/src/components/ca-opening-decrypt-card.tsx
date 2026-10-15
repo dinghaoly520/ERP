@@ -37,6 +37,12 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
   /** 已解密：显示禁用态按钮（状态可见性优于隐藏——2026-10-14 用户裁定） */
   done?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
+  const [pin, setPin] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState('');
+  const [error, setError] = useState('');
+
   if (done) {
     return (
       <SpButton variant="soft" icon={CircleCheck} disabled
@@ -45,11 +51,6 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
       </SpButton>
     );
   }
-  const [open, setOpen] = useState(false);
-  const [pin, setPin] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState('');
-  const [error, setError] = useState('');
 
   async function start() {
     if (!pin) return;

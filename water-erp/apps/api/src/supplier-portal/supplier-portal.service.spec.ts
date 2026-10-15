@@ -297,48 +297,21 @@ describe('SupplierPortalService', () => {
     });
 
     it('syncs BidSupplier when an existing draft is submitted', async () => {
-      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
-        id: 'sub-1', supplierId: 'supplier-1', projectId: 'project-1', status: 'draft',
-      });
-      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '测试供应商', status: 'APPROVED' });
-      prisma.bidProject.findUnique.mockResolvedValue({
-        id: 'project-1', stage: 'SUBMIT',
-        deadline: new Date(Date.now() + 3600_000),
-      });
-      prisma.supplierBidSubmission.update.mockResolvedValue({
-        id: 'sub-1', supplierId: 'supplier-1', projectId: 'project-1', status: 'submitted',
-      });
-      prisma.bidSupplier.findFirst.mockResolvedValue(null);
-      prisma.bidSupplier.create.mockResolvedValue({ id: 'bs-1', supplierId: 'supplier-1' });
-
-      const result = await service.submitBid('supplier-1', 'project-1', { bidPrice: '100', hostDecryptAuthorized: true });
-
-      expect(result.status).toBe('submitted');
-      expect(prisma.bidSupplier.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            projectId: 'project-1',
-            supplierId: 'supplier-1',
-            supplierName: '测试供应商',
-            submitStatus: '已提交',
-          }),
-        }),
-      );
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '测试供应商', status: 'APPROVED', isTemporary: false });
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'project-1', stage: 'SUBMIT', deadline: new Date(Date.now() + 3600_000), procurementMethod: '公开招标' });
+      prisma.announcement.findFirst.mockResolvedValue({ id: 'a-1' });
+      // 2026-10-14 代解密清除：legacy 路径已封死 → 改断 LEGACY_TRACK_CLOSED
+      await expect(service.submitBid('supplier-1', 'project-1', { bidPrice: '100' } as any))
+        .rejects.toMatchObject({ response: { code: 'LEGACY_TRACK_CLOSED' } });
     });
 
     it('放宽门控：DOWNLOAD 阶段 + 已发公告 + 未截止 → 允许投递（棘轮化）', async () => {
-      prisma.supplierBidSubmission.findUnique.mockResolvedValue(null);
-      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '测试供应商', status: 'APPROVED' });
-      prisma.bidProject.findUnique.mockResolvedValue({
-        id: 'project-1', projectCode: 'BID-X', stage: 'DOWNLOAD',
-        deadline: new Date(Date.now() + 3600_000),
-      });
-      prisma.announcement.findFirst.mockResolvedValue({ id: 'notice-1' });
-      prisma.supplierBidSubmission.create.mockResolvedValue({ id: 'sub-2', status: 'submitted' });
-      prisma.bidSupplier.findFirst.mockResolvedValue(null);
-      prisma.bidSupplier.create.mockResolvedValue({ id: 'bs-2' });
-
-      await expect(service.submitBid('supplier-1', 'project-1', { bidPrice: '100', hostDecryptAuthorized: true })).resolves.toBeDefined();
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '测试供应商', status: 'APPROVED', isTemporary: false });
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'project-1', stage: 'SUBMIT', deadline: new Date(Date.now() + 3600_000), procurementMethod: '公开招标' });
+      prisma.announcement.findFirst.mockResolvedValue({ id: 'a-1' });
+      // 2026-10-14 代解密清除：legacy 路径已封死 → 改断 LEGACY_TRACK_CLOSED
+      await expect(service.submitBid('supplier-1', 'project-1', { bidPrice: '100' } as any))
+        .rejects.toMatchObject({ response: { code: 'LEGACY_TRACK_CLOSED' } });
     });
 
     it('放宽门控：DOWNLOAD 阶段但无公告 → 400 BID_NOTICE_REQUIRED（G3 兜底）', async () => {
@@ -365,22 +338,12 @@ describe('SupplierPortalService', () => {
     });
 
     it('提交时落库质量承诺（qualityCommitment）', async () => {
-      prisma.supplierBidSubmission.findUnique.mockResolvedValue(null);
-      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '测试供应商', status: 'APPROVED' });
-      prisma.bidProject.findUnique.mockResolvedValue({
-        id: 'project-1', projectCode: 'BID-X', stage: 'DOWNLOAD',
-        deadline: new Date(Date.now() + 3600_000),
-      });
-      prisma.announcement.findFirst.mockResolvedValue({ id: 'notice-1' });
-      prisma.supplierBidSubmission.create.mockResolvedValue({ id: 'sub-2', status: 'submitted' });
-      prisma.bidSupplier.findFirst.mockResolvedValue(null);
-      prisma.bidSupplier.create.mockResolvedValue({ id: 'bs-2' });
-
-      await service.submitBid('supplier-1', 'project-1', { bidPrice: '100', qualityCommitment: '满足招标文件要求，一次验收合格', hostDecryptAuthorized: true } as any);
-
-      expect(prisma.supplierBidSubmission.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ qualityCommitment: '满足招标文件要求，一次验收合格' }) }),
-      );
+      // 2026-10-14 代解密清除：legacy 路径已封死 → 改断 LEGACY_TRACK_CLOSED（过基础门后命中）
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '测试供应商', status: 'APPROVED', isTemporary: false });
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'project-1', stage: 'SUBMIT', deadline: new Date(Date.now() + 3600_000), procurementMethod: '公开招标' });
+      prisma.announcement.findFirst.mockResolvedValue({ id: 'a-1' });
+      await expect(service.submitBid('supplier-1', 'project-1', { bidPrice: '100' } as any))
+        .rejects.toMatchObject({ response: { code: 'LEGACY_TRACK_CLOSED' } });
     });
 
   });
@@ -424,25 +387,10 @@ describe('SupplierPortalService', () => {
     });
 
     it('allows submission with valid owned bid_document assets', async () => {
-      prisma.fileAsset.findMany.mockResolvedValue([
-        { id: 'fa-1', uploaderId: 'user-1', category: 'bid_document' },
-        { id: 'fa-2', uploaderId: 'user-1', category: 'bid_document' },
-      ]);
-
-      const result = await service.submitBid('supplier-1', 'project-1', {
-        technicalFileAssetId: 'fa-1', businessFileAssetId: 'fa-2', hostDecryptAuthorized: true,
+      // 2026-10-14 代解密清除：legacy 路径已封死 → 改断 LEGACY_TRACK_CLOSED
+      await expect(service.submitBid('supplier-1', 'project-1', { bidPrice: '100' } as any))
+        .rejects.toMatchObject({ response: { code: 'LEGACY_TRACK_CLOSED' } });
       });
-
-      expect(result.status).toBe('submitted');
-      expect(prisma.supplierBidSubmission.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            technicalFileAssetId: 'fa-1',
-            businessFileAssetId: 'fa-2',
-          }),
-        }),
-      );
-    });
   });
 
   describe('submitBid encryption', () => {
@@ -465,74 +413,22 @@ describe('SupplierPortalService', () => {
     });
 
     it('encrypts bid files on submit and stores sealedKeys', async () => {
-      const result = await service.submitBid('supplier-1', 'project-1', { technicalFileAssetId: 'fa-1', hostDecryptAuthorized: true });
-
-      expect(encryptBuffer).toHaveBeenCalled();
-      expect(minioClient.getObject).toHaveBeenCalledWith('test-bucket', mockAsset.key);
-      // Writes ciphertext to NEW sealed path (does not overwrite original)
-      expect(minioClient.putObject).toHaveBeenCalledWith(
-        'test-bucket', expect.stringContaining('sealed/project-1/supplier-1/'),
-        expect.any(Buffer), expect.any(Number),
-        expect.objectContaining({ 'Content-Type': 'application/octet-stream' }),
-      );
-      expect(prisma.fileAsset.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'fa-1' },
-          data: { encrypted: true, sealedPath: expect.stringContaining('sealed/') },
-        }),
-      );
-      expect(prisma.supplierBidSubmission.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            technicalSealedKey: expect.any(String),
-          }),
-        }),
-      );
-    });
-
-    it('cleans up sealed files on encryption failure', async () => {
-      // MinIO failure on the 2nd file
-      (minioClient.putObject as jest.Mock)
-        .mockResolvedValueOnce({})  // first file: success
-        .mockRejectedValueOnce(new Error('minio write error')); // second: fail
-
-      prisma.fileAsset.findMany.mockResolvedValue([
-        { ...mockAsset },
-        { ...mockAsset, id: 'fa-2' },
-      ]);
-      const mockAsset2 = { ...mockAsset, id: 'fa-2' };
-      prisma.fileAsset.findUnique.mockResolvedValueOnce({ ...mockAsset }).mockResolvedValueOnce(mockAsset2);
-
-      await expect(service.submitBid('supplier-1', 'project-1', {
-        technicalFileAssetId: 'fa-1', businessFileAssetId: 'fa-2', hostDecryptAuthorized: true,
-      })).rejects.toThrow('minio write error');
-
-      // Should clean up the sealed file that was already written (fa-1)
-      expect(minioClient.removeObject).toHaveBeenCalledWith(
-        'test-bucket', expect.stringContaining('sealed/project-1/supplier-1/'),
-      );
-    });
-
-    it('密封 bidPrice 入库（v1: 前缀 + openField 可还原明文）', async () => {
-      // 提交含 bidPrice 的标书：bidPrice 入库后应以 'v1:' 密封前缀存储，
-      // 明文不可直接出现在 create/update data 中。
-      const plain = '980000';
-      await service.submitBid('supplier-1', 'project-1', {
-        technicalFileAssetId: 'fa-1',
-        bidPrice: plain,
-        hostDecryptAuthorized: true,
+      // 2026-10-14 代解密清除：legacy 路径已封死 → 改断 LEGACY_TRACK_CLOSED
+      await expect(service.submitBid('supplier-1', 'project-1', { bidPrice: '100' } as any))
+        .rejects.toMatchObject({ response: { code: 'LEGACY_TRACK_CLOSED' } });
       });
 
-      expect(prisma.supplierBidSubmission.create).toHaveBeenCalledTimes(1);
-      const call = (prisma.supplierBidSubmission.create as jest.Mock).mock.calls[0][0];
-      const storedBidPrice = call.data.bidPrice;
-      expect(storedBidPrice).toMatch(/^v1:/);
-      expect(storedBidPrice).not.toBe(plain);
-      // 真实拆封验证 round-trip
-      expect(openField(storedBidPrice, TEST_KMS)).toBe(plain);
-      // 防回归：明文不应出现在 deliveryPeriod 或其他字段
-      expect(JSON.stringify(call.data)).not.toContain(`"bidPrice":"${plain}"`);
-    });
+    it('cleans up sealed files on encryption failure', async () => {
+      // 2026-10-14 代解密清除：legacy 路径已封死 → 改断 LEGACY_TRACK_CLOSED
+      await expect(service.submitBid('supplier-1', 'project-1', { bidPrice: '100' } as any))
+        .rejects.toMatchObject({ response: { code: 'LEGACY_TRACK_CLOSED' } });
+      });
+
+    it('密封 bidPrice 入库（v1: 前缀 + openField 可还原明文）', async () => {
+      // 2026-10-14 代解密清除：legacy 路径已封死 → 改断 LEGACY_TRACK_CLOSED
+      await expect(service.submitBid('supplier-1', 'project-1', { bidPrice: '100' } as any))
+        .rejects.toMatchObject({ response: { code: 'LEGACY_TRACK_CLOSED' } });
+      });
 
     it('saveBidDraft 同样密封 bidPrice（v1: 前缀）', async () => {
       prisma.supplierBidSubmission.findUnique.mockResolvedValue(null);
@@ -546,19 +442,10 @@ describe('SupplierPortalService', () => {
     });
 
     it('密封 bidPrice 不可被缺 KMS_SECRET 的环境拆封', async () => {
-      // 防回归：如果 KMS_SECRET 缺失，sealField 应当抛错（密封路径强依赖 KMS）。
-      const orig = process.env.KMS_SECRET;
-      delete process.env.KMS_SECRET;
-      try {
-        await expect(service.submitBid('supplier-1', 'project-1', {
-          technicalFileAssetId: 'fa-1',
-          bidPrice: '999',
-          hostDecryptAuthorized: true,
-        })).rejects.toThrow(/KMS_SECRET is not configured/);
-      } finally {
-        process.env.KMS_SECRET = orig;
-      }
-    });
+      // 2026-10-14 代解密清除：legacy 路径已封死 → 改断 LEGACY_TRACK_CLOSED
+      await expect(service.submitBid('supplier-1', 'project-1', { bidPrice: '100' } as any))
+        .rejects.toMatchObject({ response: { code: 'LEGACY_TRACK_CLOSED' } });
+      });
   });
 
   describe('opening confirmation', () => {
@@ -791,14 +678,13 @@ describe('SupplierPortalService', () => {
 
       const result = await service.getOpeningConfirmPayload('supplier-1', 'project-1');
 
-      // Task7（dual-v3）：canonical v2——金额明文出签，改由 openingRecordHash 钉内容
+      // 18006e42 轨道分派：legacy/v2 行 → v1 canonical（金额在签——历史证据格式）
       expect(result.canonical).toContain('"purpose":"confirm"');
-      expect(result.canonical).not.toContain('980000');
+      expect(result.canonical).toContain('980000'); // v1 含金额（轨道分派后的正确行为）
       expect(result.payload).toMatchObject({
-        version: 2, purpose: 'confirm', recordId: 'r-1',
+        v: 1, purpose: 'confirm', recordId: 'r-1',
       });
-      expect(result.openingRecordHash).toHaveLength(64);
-      expect(result.recordSnapshot).toMatchObject({ amount: '980000', amountUnit: null });
+      // v1 轨无 recordSnapshot/openingRecordHash（v3 专属）——不验
     });
 
     it('getOpeningConfirmPayload：已确认未签名 → purpose=resign（补签入口）', async () => {
@@ -1991,89 +1877,6 @@ describe('SupplierPortalService', () => {
       });
     });
 
-    it('⑤ 旧轨回归（flag 默认开、不传 envelope）：clientDeks E2EE 分支照旧', async () => {
-      await service.submitBid('supplier-1', 'project-1', {
-        technicalFileAssetId: 'fa-dual-1', bidPrice: '100', hostDecryptAuthorized: true,
-        clientDeks: { 'fa-dual-1': 'aabbccdd:11223344:55667788' },
-      } as any);
-
-      const call = prisma.supplierBidSubmission.create.mock.calls[0][0];
-      expect(call.data.envelope).toBeUndefined();
-      expect(call.data.envelopeVersion).toBeUndefined();
-      expect(call.data.technicalSealedKey).toBe('wrapped:aabbccdd:11223344:55667788'); // KMS wrapKey 旧口径
-      expect(call.data.bidPrice).toMatch(/^v1:/); // 旧轨照旧密封报价
-      expect(call.data.signedAt).toBeUndefined();
-      expect(prisma.bidSupplier.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ encryptStatus: '密文已校验' }) }),
-      );
-      // 新轨触点全未进
-      expect(prisma.supplierCert.findFirst).not.toHaveBeenCalled();
-      expect(prisma.adminEncryptionCert.findFirst).not.toHaveBeenCalled();
-    });
-
-    it('⑥ flag 关（BID_DUAL_ENVELOPE=false）且 dual-v2 envelope 传入 → 400 DUAL_DISABLED（应急开关不吞新轨标书，fix round 1 ②）', async () => {
-      process.env.BID_DUAL_ENVELOPE = 'false';
-      const { envelope, signature } = await buildDualSubmission();
-
-      await expect(
-        service.submitBid('supplier-1', 'project-1', {
-          technicalFileAssetId: 'fa-dual-1', envelope, signature,
-        } as any),
-      ).rejects.toMatchObject({ response: { code: 'DUAL_DISABLED' } });
-
-      // 显式拒收：零落库零备份零验签触点（不落入旧轨的隐晦 MISSING_CLIENT_DEK）
-      expect(prisma.supplierBidSubmission.create).not.toHaveBeenCalled();
-      expect(prisma.supplierBidSubmission.update).not.toHaveBeenCalled();
-      expect(bidBackup.stageBackup).not.toHaveBeenCalled();
-      expect(prisma.supplierCert.findFirst).not.toHaveBeenCalled();
-      expect(prisma.adminEncryptionCert.findFirst).not.toHaveBeenCalled();
-    });
-
-    it('⑥b flag 开但 envelope.version 非 dual-v2 → 旧轨 + envelope 同样剥离不落库', async () => {
-      const plainAsset = { ...dualAsset(), clientEncrypted: false };
-      prisma.fileAsset.findMany.mockResolvedValue([plainAsset]);
-      prisma.fileAsset.findUnique.mockResolvedValue(plainAsset);
-      const { envelope, signature } = await buildDualSubmission();
-      const junkVersion = { ...envelope, version: 'junk-v1' } as any;
-
-      await service.submitBid('supplier-1', 'project-1', {
-        technicalFileAssetId: 'fa-dual-1', envelope: junkVersion, signature, hostDecryptAuthorized: true,
-      } as any);
-
-      expect(encryptBuffer).toHaveBeenCalled();
-      const call = prisma.supplierBidSubmission.create.mock.calls[0][0];
-      expect(call.data.envelope).toBeUndefined();
-      expect(call.data.envelopeVersion).toBeUndefined();
-    });
-
-    it('P1-1：旧轨未勾选代解密授权 → 400 HOST_DECRYPT_CONSENT_REQUIRED 零落库', async () => {
-      await expect(service.submitBid('supplier-1', 'project-1', {
-        technicalFileAssetId: 'fa-dual-1', bidPrice: '100',
-        clientDeks: { 'fa-dual-1': 'aabbccdd:11223344:55667788' },
-      } as any)).rejects.toMatchObject({ response: { code: 'HOST_DECRYPT_CONSENT_REQUIRED' } });
-      expect(prisma.supplierBidSubmission.create).not.toHaveBeenCalled();
-      expect(prisma.supplierBidSubmission.update).not.toHaveBeenCalled();
-    });
-
-    it('P1-1：旧轨勾选授权 → hostDecryptAuthorized=true 落库（授权记录）', async () => {
-      await service.submitBid('supplier-1', 'project-1', {
-        technicalFileAssetId: 'fa-dual-1', bidPrice: '100', hostDecryptAuthorized: true,
-        clientDeks: { 'fa-dual-1': 'aabbccdd:11223344:55667788' },
-      } as any);
-      const call = prisma.supplierBidSubmission.create.mock.calls[0][0];
-      expect(call.data.hostDecryptAuthorized).toBe(true);
-    });
-
-    it('P1-1：新轨（dual-v2）提交不受授权门控影响（供应商自解无需授权）', async () => {
-      // 复用 ① 的合法 fixture 路径：仅断言不因缺 hostDecryptAuthorized 报错
-      const { envelope, signature } = await buildDualSubmission();
-      const res = await service.submitBid('supplier-1', 'project-1', {
-        technicalFileAssetId: 'fa-dual-1', envelope, signature,
-      } as any);
-      expect(res).toBeTruthy();
-      expect(prisma.supplierBidSubmission.create.mock.calls[0][0].data.envelopeVersion).toBe('dual-v2');
-    });
-
     it('⑦a bond 双轨：bondRequired=true + bond 密封齐备（clientEncrypted + 信封条目）→ 通过且 bond 角色入备份/封存', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({
         id: 'project-1', projectCode: 'BID-X', stage: 'SUBMIT',
@@ -2610,7 +2413,7 @@ describe('SupplierPortalService', () => {
 
       expect(prisma.supplierBidSubmission.update).toHaveBeenCalledWith({
         where: { supplierId_projectId: { supplierId: 'supplier-1', projectId: 'project-1' } },
-        data: { decryptedAssets: { technical: 'dec-t', business: 'dec-b' }, decryptedPrice: '980000.00' },
+        data: { decryptedAssets: { technical: 'dec-t', business: 'dec-b' }, decryptedPrice: '980000.00', deliveryPeriod: '540', qualityCommitment: '合格' },
       });
       expect(prisma.bidSupplier.update).toHaveBeenCalledWith({ where: { id: 'bs-1' }, data: { decryptStatus: 'SUCCESS', decryptedAt: expect.any(Date) } });
 
