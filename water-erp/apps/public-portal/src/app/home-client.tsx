@@ -665,7 +665,6 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                     </button>
                     <button onClick={() => setModal(null)} className="h-[42px] px-6 border border-[#d2deed] text-[#526075] rounded font-bold text-sm hover:bg-[#f8fbff]">取消</button>
                   </div>
-                  <p className="text-xs text-[#8a9aaa] mt-2">测试: caigou/caigou@2026 · supplier1/supplier1@2026 · wangjg/wangjg@2026</p>
                 </div>
               </>
             ) : (

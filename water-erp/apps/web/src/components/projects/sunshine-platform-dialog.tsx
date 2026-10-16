@@ -328,7 +328,7 @@ export function SunshinePlatformDialog({
         planUnique: project.id,
         publishTime: toApiTime(config.publishTime),
         deadline: toApiTime(config.deadline),
-        content: '(公告正文 HTML，随发布自动生成)',
+        content: '（公告正文 HTML，随发布自动生成）',
         annrequire: config.annrequire,
         ...(config.annrequire === 0 && config.annreason ? { annreason: config.annreason } : {}),
       };
@@ -339,7 +339,7 @@ export function SunshinePlatformDialog({
         planUnique: project.id,
         publishTime: toApiTime(config.publishTime || config.startTime),
         issueUserName: config.issueUserName,
-        content: config.content || '(公示内容，随公告正文)',
+        content: config.content || '（公示内容，随公告正文）',
         startTime: toApiTime(config.startTime),
         endTime: toApiTime(config.endTime),
         // 是否对外发布公示：随公告范围（全部可见=对外）
@@ -364,7 +364,7 @@ export function SunshinePlatformDialog({
         planUnique: project.id,
         publishTime: toApiTime(config.publishTime || config.startTime),
         issueUserName: config.issueUserName,
-        content: config.content || '(公示内容，随公告正文)',
+        content: config.content || '（公示内容，随公告正文）',
         startTime: toApiTime(config.startTime),
         endTime: toApiTime(config.endTime),
       };
@@ -396,9 +396,9 @@ export function SunshinePlatformDialog({
   reqText('联系人', config.contacts);
   reqText('联系电话', config.phone);
   reqText('邮箱', config.email);
-  reqNum('招标金额(万元)', config.tenderAmount);
-  reqNum('招标采购限额(万元)', config.standardQuota);
-  reqNum('公开采购限额(万元)', config.publicQuota);
+  reqNum('招标金额（万元）', config.tenderAmount);
+  reqNum('招标采购限额（万元）', config.standardQuota);
+  reqNum('公开采购限额（万元）', config.publicQuota);
   reqText('采购主体id', config.procuringentity);
   reqText('标包名称', config.packageName);
   if (category === 'procurement_document') {
@@ -563,7 +563,7 @@ export function SunshinePlatformDialog({
                     <div key={i} className="flex items-center gap-2">
                       <input type="number" className={`${inputCls} w-16 shrink-0 text-center`} value={c.ranking} title="候选名次" onChange={(e) => setConfig((prev) => prev ? { ...prev, candidates: prev.candidates.map((x, j) => j === i ? { ...x, ranking: Number(e.target.value) } : x) } : prev)} />
                       <input className={`${inputCls} flex-1`} placeholder="公司名称" value={c.supplierName} onChange={(e) => setConfig((prev) => prev ? { ...prev, candidates: prev.candidates.map((x, j) => j === i ? { ...x, supplierName: e.target.value } : x) } : prev)} />
-                      <input type="number" step="0.0001" className={`${inputCls} w-28 shrink-0`} placeholder="投标金额(万元)" value={c.bidAmount ?? ''} onChange={(e) => setConfig((prev) => prev ? { ...prev, candidates: prev.candidates.map((x, j) => j === i ? { ...x, bidAmount: e.target.value === '' ? null : Number(e.target.value) } : x) } : prev)} />
+                      <input type="number" step="0.0001" className={`${inputCls} w-28 shrink-0`} placeholder="投标金额（万元）" value={c.bidAmount ?? ''} onChange={(e) => setConfig((prev) => prev ? { ...prev, candidates: prev.candidates.map((x, j) => j === i ? { ...x, bidAmount: e.target.value === '' ? null : Number(e.target.value) } : x) } : prev)} />
                       <input className={`${inputCls} w-36 shrink-0`} placeholder="供应商唯一标识" value={c.companyUnique} onChange={(e) => setConfig((prev) => prev ? { ...prev, candidates: prev.candidates.map((x, j) => j === i ? { ...x, companyUnique: e.target.value } : x) } : prev)} />
                       <button type="button" className="neu-btn-xs is-danger shrink-0" onClick={() => setConfig((prev) => prev ? { ...prev, candidates: prev.candidates.filter((_, j) => j !== i) } : prev)}><X size={13} /></button>
                     </div>

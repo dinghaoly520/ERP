@@ -25,7 +25,7 @@ interface PushNotification {
 
 
 /** 本门户可跳转路径前缀（专家门户路由）；绝对链接走外链；其余（供应商/管理端路径）不跳转 */
-const EXPERT_LINK_PREFIXES = ["/evaluate", "/tasks", "/projects", "/profile", "/rsvp", "/invitation"];
+const EXPERT_LINK_PREFIXES = ["/evaluate", "/projects", "/profile", "/rsvp", "/invitation"];
 
 export function resolveExpertLink(link?: string | null): { href: string; external: boolean } | null {
   if (!link) return null;

@@ -679,7 +679,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
             <p className="text-xs text-[color:var(--muted-foreground)]">
               {project.stage === 'ABORTED'
                 ? '本项目已流标，后续处理（流标公告）请在采购管理工作台操作；本页仅供查看开标过程记录。'
-                : `本项目已进入${project.stage === 'EVALUATING' ? '评标阶段' : '归档状态'}，评标管理与评标签字请在本工作区对应 tab 操作；完整归档与公示请在采购管理工作台操作。`}
+                : `本项目已进入${project.stage === 'EVALUATING' ? '评标阶段' : '归档状态'}，评标管理与评标签字请在本工作区对应标签页操作；完整归档与公示请在采购管理工作台操作。`}
             </p>
           </div>
           {canGoWeb && (
@@ -715,7 +715,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           <CheckCircle size={20} strokeWidth={1.5} className="flex-shrink-0 text-[var(--success)]" />
           <div className="flex-1">
             <h2 className="mb-0.5 text-sm font-bold text-[oklch(0.4_0.1_155)]">开标资料已移交</h2>
-            <p className="text-xs text-[color:var(--muted-foreground)]">移交时间 {new Date(session.handoverAt).toLocaleString('zh-CN')}。开标文件包已回传采购管理工作台；启动评标请在本工作区「评标管理」tab 操作，完整归档与公示由采购管理工作台办理。</p>
+            <p className="text-xs text-[color:var(--muted-foreground)]">移交时间 {new Date(session.handoverAt).toLocaleString('zh-CN')}。开标文件包已回传采购管理工作台；启动评标请在本工作区「评标管理」标签页操作，完整归档与公示由采购管理工作台办理。</p>
           </div>
           {canGoWeb && (
             <a href={portalURL('web', `/projects`)} target="_blank" rel="noopener"
@@ -1096,8 +1096,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                               placeholder: '如：供应商未在解密窗口内完成解密 / 文件完整性校验不通过',
                               minLen: 5,
                               submitLabel: '确认定性',
-                              description: '定性后该供应商解密状态记为异常（EXCEPTION），将计入开标记录与监督日志，请填写事实性原因。',
-                              onSubmit: async (reason) => { await acceptSupplierDanger(project.id, s.id, reason); toast.success('已定性为解密异常（EXCEPTION）'); onRefresh(); },
+                              description: '定性后该供应商解密状态将记为「解密异常」，计入开标记录与监督日志，请填写事实性原因。',
+                              onSubmit: async (reason) => { await acceptSupplierDanger(project.id, s.id, reason); toast.success('已定性为解密异常'); onRefresh(); },
                             })}
                             className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--danger)] transition-colors hover:opacity-80 disabled:opacity-50">
                             定性异常

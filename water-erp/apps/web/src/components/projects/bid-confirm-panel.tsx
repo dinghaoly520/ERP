@@ -1026,7 +1026,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                   <PlatformPushBlock bidProjectId={bpId} />
                   {/* 评标管理/异议裁决/澄清答疑已迁至 :3007 开评标管理端（现场）——分工 v3（2026-08-13） */}
                   <p className="text-xs text-[var(--muted-foreground)]">
-                    评标管理、专家异议裁决、澄清答疑已在 :3007 开评标管理端现场办理。本面板保留评标前准备与评标后收尾。
+                    评标管理、专家异议裁决、澄清答疑已在开评标管理端现场办理。本面板保留评标前准备与评标后收尾。
                   </p>
                   <ArchiveBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />
                   {/* A1: 公示期状态指示（归档后显示） */}

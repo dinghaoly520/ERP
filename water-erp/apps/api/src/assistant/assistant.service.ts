@@ -194,7 +194,7 @@ ${toolList}
         answer = await this.handleNormalChat(messages, cards, citations, allowedTools);
       }
     } catch (e) {
-      answer = `抱歉，AI 服务暂时不可用：${(e as Error).message}。请检查 DeepSeek API Key 配置或稍后重试。`;
+      answer = '抱歉，AI 服务暂时不可用，请稍后重试。';
       this.logger.error(`chat() 主流程异常: ${(e as Error).message}`, (e as Error).stack);
     }
 

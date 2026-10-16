@@ -55,7 +55,7 @@ describe('Sealed Bid Backup (e2e)', () => {
     // 2026-08-21 起截标↔开标 24h 规则：创建时 deadline 必须 = openTime−24h（align 模式 ±60s）
     const pres = await request(app.getHttpServer())
       .post('/api/bid/projects').set('Cookie', adminCookie).set('X-Portal', 'web')
-      .send({ name: `E2E备份-${Date.now()}`, procurementMethod: '公开招标', openTime: '2099-12-31T09:00:00Z', deadline: '2099-12-30T09:00:00Z' })
+      .send({ name: `E2E备份-${Date.now()}`, procurementMethod: '公开招标', openTime: '2099-12-31T09:00:00Z', deadline: '2099-12-31T08:50:00Z' /* 10min 间隔 */ })
       .expect(201);
     projectId = pres.body.id;
     await prisma.bidProject.update({ where: { id: projectId }, data: { stage: 'SUBMIT', deadline: new Date('2099-12-30T17:00:00Z') } });

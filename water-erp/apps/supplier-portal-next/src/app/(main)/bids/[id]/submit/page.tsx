@@ -269,7 +269,7 @@ function BidSubmitInner() {
       const binding = (caps as any)?.activeBinding;
       const fingerprint: unknown = binding?.signingCert?.sha256Fingerprint;
       if (!allowed) {
-        setSccaReason("平台尚未开放新轨投递通道，请联系管理员");
+        setSccaReason("新版加密投递通道尚未开放，请联系管理员");
       } else if (!binding || binding.kind !== "ca" || typeof fingerprint !== "string") {
         setSccaReason("请先在「证书与U盾」页绑定 SCCA CA 证书后再投递");
         setSccaNeedBind(true);

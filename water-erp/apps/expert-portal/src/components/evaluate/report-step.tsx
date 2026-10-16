@@ -461,7 +461,7 @@ export function ReportStep({ report, busy, onConfirmReport, evaluationOverdue = 
           )}
 
           <p className="text-[10px] text-[var(--muted-foreground)] opacity-60">
-            表决发起、投票与异议提交请前往工作台「评审待办」页面
+            表决发起、投票与异议提交请前往工作台首页「待处理事项」区
           </p>
         </div>
       )}

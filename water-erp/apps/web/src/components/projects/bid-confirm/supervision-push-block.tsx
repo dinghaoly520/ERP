@@ -236,7 +236,7 @@ export function SupervisionPushBlock({ bidProjectId, isAdmin }: Props) {
         </button>
       </div>
       <p className="mt-2 text-[10px] text-[var(--muted-foreground)]">
-        推送结果不影响归档闸门——外部平台未接入时不阻塞完整归档，可改用「离线导出凭证」线下报送。
+        推送结果不作为归档前置条件——外部平台未接入时不影响完整归档，可改用「离线导出凭证」线下报送。
       </p>
 
       {/* 配置模态（admin only；全量替换保存）*/}

@@ -432,7 +432,7 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
 
             {visibleIndices.length === 0 && (
               <div className="text-center py-12 text-[var(--muted-foreground)]/40 text-xs">
-                ✅ 未发现问题
+                未发现问题
               </div>
             )}
           </div>
@@ -451,7 +451,7 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
                 {/* Problem detail */}
                 <section className="neu-tile p-4">
                   <div className="text-xs font-semibold text-[var(--muted-foreground)] mb-3 flex items-center gap-1.5">
-                    {selectedIssue.notApplicable ? '⬜ 不适用' : selectedIssue.passed ? '✅ 通过' : (
+                    {selectedIssue.notApplicable ? '不适用' : selectedIssue.passed ? '通过' : (
                       <>
                         <Search className="h-3.5 w-3.5" />
                         问题详情

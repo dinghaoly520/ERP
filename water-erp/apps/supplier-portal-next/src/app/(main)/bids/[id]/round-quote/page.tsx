@@ -198,7 +198,7 @@ export default function RoundQuotePage() {
         bidSupplierId: myBidSupplierId,
         quotePrice: price,
       }, { silent: true }); // B4-1：错误由本 catch 单一出口提示，避免与全局拦截器双弹
-      toast.success("报价已提交(密封)，不可修改");
+      toast.success("报价已提交（密封），不可修改");
       setQuotePriceText("");
       // 刷新我的报价状态
       await reloadMyQuotes();
@@ -285,7 +285,7 @@ export default function RoundQuotePage() {
 
                       <div className="mb-4 flex items-center gap-4">
                         <label className="w-[100px] text-right text-sm">
-                          报价(元)
+                          报价（元）
                         </label>
                         <input
                           type="number"
@@ -346,7 +346,7 @@ export default function RoundQuotePage() {
                           <tr className="bg-[var(--surface)] text-xs text-muted-foreground">
                             <th className="px-3 py-2 text-left font-semibold">排名</th>
                             <th className="px-3 py-2 text-left font-semibold">供应商</th>
-                            <th className="px-3 py-2 text-right font-semibold">报价(元)</th>
+                            <th className="px-3 py-2 text-right font-semibold">报价（元）</th>
                           </tr>
                         </thead>
                         <tbody>

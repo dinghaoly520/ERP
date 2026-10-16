@@ -191,7 +191,7 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
         <div className="wb-tone-banner wb-tone-banner--warning mt-3 flex flex-wrap text-xs">
           <PenLine size={13} className="shrink-0" />
           <span className="font-semibold text-[var(--foreground)]">{signGate.reason}</span>
-          <span className="text-[var(--muted-foreground)]">——请在 :3007 评标签字 tab 完成后重试（完整归档闸门：签字包 + 全员闭环 + 评标回流包）。</span>
+          <span className="text-[var(--muted-foreground)]">——请在开评标管理端「评标签字」标签页完成后重试（完整归档条件：签字包 + 全员闭环 + 评标回流包）。</span>
         </div>
       )}
 
@@ -208,9 +208,9 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
           {stage === 'OPENING' ? (
             <>项目处于开标阶段。若本项目<span className="font-semibold text-[var(--foreground)]">不进入评标</span>（流标 / 废标 / 开标后终止），可执行「开标归档」——仅归档开标文件材料（不含评分明细与评标结果）。<span className="font-semibold text-[var(--danger)]">归档后流程终结，不可再启动评标。</span>需要评标请改用下方评标管理区块。</>
           ) : (detail?.evaluationResults?.length ?? 0) > 0 ? (
-            <>项目处于评标阶段，评标结果已生成。当前置闸门（评标签字闭环 + 评标回流包）全部满足后即可执行「完整归档」，归档全部开评标材料并生成防篡改哈希链。</>
+            <>项目处于评标阶段，评标结果已生成。当前置条件（评标签字闭环 + 评标回流包）全部满足后即可执行「完整归档」，归档全部开评标材料并生成防篡改哈希链。</>
           ) : (
-            <>项目处于评标阶段。生成评标结果后可执行「完整归档」，归档全部开评标材料并生成防篡改哈希链。若存在已确认供应商但未生成评标结果，归档会被拦截（EVALUATION_RESULTS_REQUIRED）。</>
+            <>项目处于评标阶段。生成评标结果后可执行「完整归档」，归档全部开评标材料并生成防篡改哈希链。若存在已确认供应商但未生成评标结果，归档将被拦截，请先生成评标结果。</>
           )}
         </div>
       ) : (

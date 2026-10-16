@@ -152,9 +152,9 @@ function WorkspaceInner() {
           if (!seenDecrypt.current.has(key)) {
             seenDecrypt.current.add(key);
             if (data.decryptStatus === 'SUCCESS') {
-              toast.success(`🔓 ${supplier.supplierName} 解密成功`, { duration: 3000 });
+              toast.success(`${supplier.supplierName} 解密成功`, { duration: 3000 });
             } else if (data.decryptStatus === 'DANGER') {
-              toast.error(`⚠️ ${supplier.supplierName} 解密失败`, { duration: 5000 });
+              toast.error(`${supplier.supplierName} 解密失败`, { duration: 5000 });
             }
           }
         }

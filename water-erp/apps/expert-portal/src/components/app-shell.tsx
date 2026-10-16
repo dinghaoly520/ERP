@@ -24,7 +24,8 @@ const navGroups: NavGroup[] = [
     items: [
       { key: 'workbench', label: '工作台', caption: '评审总览', path: '/', icon: LayoutDashboard },
       { key: 'projects', label: '评审项目', caption: '项目列表', path: '/projects', icon: ClipboardList },
-      { key: 'tasks', label: '评审待办', caption: '待办事项', path: '/tasks', icon: ClipboardCheck }, // C6（第四波）：tasks 页既有，侧栏补入口
+      // 「评审待办」入口已随 7d3a8df1 死代码清理移除（/tasks 页删除，功能并入工作台首页）——
+      // 该行是 995a2be6（C6）与清理分支的竞态残留，指向 404
     ],
   },
   {

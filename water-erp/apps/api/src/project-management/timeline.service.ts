@@ -52,7 +52,9 @@ function parseDateRange(raw: string | null | undefined): { start: string | null;
   const re = /(\d{4})\D+(\d{1,2})\D+(\d{1,2})(?:\D+(\d{1,2}):(\d{2}))?/g;
   const parts: Date[] = [];
   for (const m of raw.matchAll(re)) {
-    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4] ?? 0), Number(m[5] ?? 0));
+    // 中文口语日期的语义即北京时间：显式 +8 构造（Date.UTC 减 8h），与服务器/CI 时区解耦
+    // （组件构造 new Date(y,m,d) 依赖宿主时区——UTC runner 上本地零点变 00:00Z，时间轴日期漂移）
+    const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4] ?? 0), Number(m[5] ?? 0)) - 8 * 3_600_000);
     if (!Number.isNaN(d.getTime())) parts.push(d);
   }
   if (parts.length === 0) return { start: null, end: null };
