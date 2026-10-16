@@ -497,7 +497,8 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
         meta.winner = { ...origWinner, supplierName: (meta.winner || origWinner.supplierName)?.trim() };
       }
     }
-    const finalMeta = configToMetadata(publishConfig, meta);
+    // 保存草稿必须剥除定时发布字段（draft 闸）——否则 scheduler 到点把草稿自动发布
+    const finalMeta = configToMetadata(publishConfig, meta, { draft: actualStatus === 'DRAFT' });
     const payload = { title, content, type, summary, status: actualStatus, isTop, publishDate, metadata: finalMeta, ...(type === 'BID_NOTICE' ? { relatedProjectCode: meta.projectCode || null } : {}) };
     try { return await updateAnnouncement(ann.id, payload as any); }
     catch (e: any) { toast.error(e?.message || '保存失败'); return null; }

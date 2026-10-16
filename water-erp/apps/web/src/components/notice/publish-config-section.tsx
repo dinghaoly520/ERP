@@ -36,8 +36,16 @@ export function configFromMetadata(meta: Record<string, any> | null | undefined)
   };
 }
 
-/** 将发布配置写入 metadata（供 create/update payload 使用） */
-export function configToMetadata(config: PublishConfig, base: Record<string, any> = {}): Record<string, any> {
+/** 将发布配置写入 metadata（供 create/update payload 使用）。
+ *  opts.draft：保存草稿场景——定时发布语义只属于「发布」动作（发布按钮在 scheduled 模式下
+ *  才存 DRAFT+scheduledPublishDate 等调度）。若「保存草稿」也带上定时字段，scheduler 每分钟
+ *  扫 DRAFT+scheduledPublishDate 到期即发（含已过期），草稿会在保存后被自动发布——
+ *  2026-10-16「点保存草稿公告自动发布」bug 根因。draft=true 时强制剥除。 */
+export function configToMetadata(
+  config: PublishConfig,
+  base: Record<string, any> = {},
+  opts: { draft?: boolean } = {},
+): Record<string, any> {
   const meta: Record<string, any> = { ...base };
   meta.visibility = config.visibility;
   if (config.visibility === 'RESTRICTED') {
@@ -47,7 +55,7 @@ export function configToMetadata(config: PublishConfig, base: Record<string, any
   }
   // 通知设置 UI 已删（2026-10-16）：恒按可见范围通知，meta 钉 true 保持后端既有默认语义
   meta.notifyOnPublish = true;
-  if (config.scheduleMode === 'scheduled' && config.scheduledPublishDate) {
+  if (!opts.draft && config.scheduleMode === 'scheduled' && config.scheduledPublishDate) {
     meta.scheduledPublishDate = config.scheduledPublishDate;
   } else {
     delete meta.scheduledPublishDate;

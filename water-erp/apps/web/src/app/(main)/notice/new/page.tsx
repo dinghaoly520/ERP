@@ -227,7 +227,8 @@ export default function NewNoticePage() {
       if (metadata.projectCode?.trim()) meta.projectCode = metadata.projectCode.trim();
       if (metadata.relatedAnnouncementTitle?.trim()) meta.relatedAnnouncementTitle = metadata.relatedAnnouncementTitle.trim();
     }
-    const finalMeta = configToMetadata(publishConfig, meta);
+    // 保存草稿必须剥除定时发布字段（draft 闸）——否则 scheduler 到点把草稿自动发布
+    const finalMeta = configToMetadata(publishConfig, meta, { draft: actualStatus === 'DRAFT' });
     const payload: any = { title, content, type, summary, status: actualStatus, isTop, publishDate, metadata: finalMeta };
     // 项目绑定类公告挂项目编号：补遗公告供发布联动（补遗计数 + 供应商定向通知）；
     // 资格预审公告供项目反查与列表关联（中标/成交/合同/履行结果四类已收归项目向导，2026-10-16）
