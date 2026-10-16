@@ -275,14 +275,8 @@ jobs:
           check GET  /tmp/admin.jar /operation-log/archive 200 'admin GET /operation-log/archive'      web
           echo 'guard spot-check: all assertions passed'
 
-      - name: Legacy-track regression (13 checks, snapshot-based)
-        working-directory: water-erp/scripts
-        env:
-          SNAPSHOT_RESEAL_CRYPTO: '1'   # 快照密文是 dev KMS 包裹——CI 重封为本地占位（冒烟用）
-        run: |
-          node demo-snapshot.js restore snapshots/BID-DEMO-20260817150148-pre-open.json
-          E2E_API=http://localhost:4001 node e2e-legacy-regression.js
-          node demo-snapshot.js restore snapshots/BID-DEMO-20260817150148-pre-open.json
+      # 旧轨回归（13 项）已随 5f444e87 移除——SCCA 全面替代清除代解密（decrypt-all 端点
+      # 删除），脚本骨架（快照恢复→一键解密→唱标）整体依赖被删流程；快照文件留在库中可复原
 
       - name: Upload failure logs
         if: failure()
