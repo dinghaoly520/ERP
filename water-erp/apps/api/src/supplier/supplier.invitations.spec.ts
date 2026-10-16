@@ -77,4 +77,34 @@ describe('SupplierService.listInvitations — 公司隔离', () => {
     await service.listInvitations({ actor: { sub: 'u-leader', role: 'leader' } });
     expect(prisma.supplierInvitation.count).toHaveBeenCalledWith({ where: whereUsed() });
   });
+
+  describe('revokeInvitation — :id 越权 403', () => {
+    const inv = (companyId: string | null) => ({
+      id: 'inv-1', status: 'ACTIVE', createdBy: companyId ? { companyId } : null,
+    });
+    beforeEach(() => {
+      prisma.supplierInvitation.findUnique = jest.fn();
+      prisma.supplierInvitation.update = jest.fn().mockResolvedValue({});
+    });
+
+    it('leader 作废本司创建的邀请码 → 放行', async () => {
+      prisma.user.findUnique.mockResolvedValue({ companyId: 'co-swhi' });
+      prisma.supplierInvitation.findUnique.mockResolvedValue(inv('co-swhi'));
+      await expect(service.revokeInvitation('inv-1', 'u-leader', { sub: 'u-leader', role: 'leader' })).resolves.toBeTruthy();
+      expect(prisma.supplierInvitation.update).toHaveBeenCalled();
+    });
+
+    it('leader 作废他司邀请码 → 403 COMPANY_SCOPE_FORBIDDEN', async () => {
+      prisma.user.findUnique.mockResolvedValue({ companyId: 'co-swhi' });
+      prisma.supplierInvitation.findUnique.mockResolvedValue(inv('co-other'));
+      await expect(service.revokeInvitation('inv-1', 'u-leader', { sub: 'u-leader', role: 'leader' }))
+        .rejects.toMatchObject({ response: { code: 'COMPANY_SCOPE_FORBIDDEN' } });
+      expect(prisma.supplierInvitation.update).not.toHaveBeenCalled();
+    });
+
+    it('admin 作废任意公司邀请码 → 放行', async () => {
+      prisma.supplierInvitation.findUnique.mockResolvedValue(inv('co-other'));
+      await expect(service.revokeInvitation('inv-1', 'u-admin', { sub: 'u-admin', role: 'admin' })).resolves.toBeTruthy();
+    });
+  });
 });

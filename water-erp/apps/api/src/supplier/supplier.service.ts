@@ -707,9 +707,14 @@ export class SupplierService {
     return { items, total, page, pageSize };
   }
 
-  async revokeInvitation(id: string, userId: string) {
-    const inv = await this.prisma.supplierInvitation.findUnique({ where: { id } });
+  async revokeInvitation(id: string, userId: string, actor?: any) {
+    // 公司隔离同口径（2026-10-16）：列表已按创建人公司过滤，作废按 :id 也要越权 403——
+    // 否则 leader 可凭枚举 id 作废他司邀请码（真隔离=where 注入+:id 越权 403）。
+    const inv = await this.prisma.supplierInvitation.findUnique({ where: { id }, include: { createdBy: { select: { companyId: true } } } });
     if (!inv) throw new NotFoundException('邀请码不存在');
+    if (actor) {
+      this.companyScope.assertInScope(inv.createdBy?.companyId ?? null, await this.companyScope.resolveScope(actor));
+    }
     if (inv.status === 'USED') throw new BadRequestException({ error: '已使用的邀请码不可作废', code: 'ALREADY_USED' });
     if (inv.status === 'REVOKED') throw new BadRequestException({ error: '邀请码已作废', code: 'ALREADY_REVOKED' });
     if (inv.status === 'EXPIRED') throw new BadRequestException({ error: '已过期邀请码不可作废', code: 'ALREADY_EXPIRED' });

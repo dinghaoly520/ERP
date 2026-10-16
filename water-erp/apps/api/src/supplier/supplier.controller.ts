@@ -116,7 +116,7 @@ export class SupplierController {
   @Roles('admin', 'leader') // 邀请码 admin + leader
   @ApiOperation({ summary: '作废邀请码' })
   async revokeInvitation(@Param('id') id: string, @Request() req: any) {
-    return this.supplierService.revokeInvitation(id, req.user.sub);
+    return this.supplierService.revokeInvitation(id, req.user.sub, req.user);
   }
 
   @Get('invitations/verify')
