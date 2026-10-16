@@ -470,7 +470,7 @@ export class AnnouncementController {
   async generateSummary(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser | undefined) {
     await this.assertAnnouncementScope(id, user);
     if (!this.announcementAiService.isConfigured()) {
-      throw new BadRequestException({ error: 'AI 摘要未启用：服务端未配置 DeepSeek（请在 apps/api/.env 设置 DEEPSEEK_API_KEY 后重启 API）', code: 'AI_NOT_CONFIGURED' });
+      throw new BadRequestException({ error: 'AI 摘要未启用：服务端未配置 AI 服务，请联系系统管理员开通', code: 'AI_NOT_CONFIGURED' });
     }
     const ann = await this.announcementService.get(id);
     if (!ann) throw new BadRequestException({ error: '公告不存在', code: 'NOT_FOUND' });
