@@ -94,3 +94,107 @@ describe('SupplierLinkService — 供应商侧', () => {
     expect(rows[0].isPrimary).toBe(true);
   });
 });
+
+describe('SupplierLinkService — 公司侧（三级审批）', () => {
+  const LINK = { id: 'l1', supplierId: 's1', companyId: 'co-2', status: 'PENDING', reviewStage: 'STAFF', supplier: { id: 's1', userId: 'u1', name: '甲供应商', supplierNo: 'SUP-000001', creditCode: '91510000MA62K5XX0X', status: 'APPROVED', isTemporary: false }, company: { name: '乙公司' } };
+  const mkSide = (over: Record<string, any> = {}) => {
+    const prisma: any = {
+      supplierCompanyLink: {
+        findUnique: jest.fn().mockResolvedValue({ ...LINK, ...over.link }),
+        findMany: jest.fn().mockResolvedValue([{ ...LINK, ...over.link }]),
+        update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        create: jest.fn().mockResolvedValue({ id: 'l-new' }),
+      },
+      supplier: { findUnique: jest.fn().mockResolvedValue({ id: 's1', name: '甲供应商', status: 'APPROVED', isTemporary: false, userId: 'u1' }) },
+      user: {
+        findUnique: jest.fn().mockResolvedValue(over.reviewer ?? { id: 'rev-1', role: 'staff', companyId: 'co-2' }),
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(over.staffCount ?? 1),
+      },
+    };
+    const notify = { create: jest.fn().mockResolvedValue({}) };
+    const SCOPE: any = { resolveScope: async () => ({ all: false, companyIds: ['co-2'] }) };
+    const svc = new SupplierLinkService(prisma, notify as any, SCOPE);
+    return { prisma, notify, svc };
+  };
+
+  it('approveLink：STAFF 级同公司 staff 通过 → 推进 LEADER；非本级人 → 403 REVIEW_STAGE_MISMATCH', async () => {
+    const { prisma, svc } = mkSide();
+    const r = await svc.approveLink('l1', 'rev-1', '资质齐全，同意');
+    expect(r).toEqual({ success: true, stage: 'LEADER' });
+    expect(prisma.supplierCompanyLink.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: 'l1', reviewStage: 'STAFF' }),
+      data: expect.objectContaining({ reviewStage: 'LEADER' }),
+    }));
+    const other = mkSide({ reviewer: { id: 'rev-2', role: 'staff', companyId: 'co-other' } });
+    await expect(other.svc.approveLink('l1', 'rev-2', 'x')).rejects.toMatchObject({ response: { code: 'REVIEW_STAGE_MISMATCH' } });
+  });
+
+  it('approveLink：STAFF/LEADER 级通过须填缘由 → 400 REVIEW_REASON_REQUIRED', async () => {
+    const { svc } = mkSide();
+    await expect(svc.approveLink('l1', 'rev-1', '')).rejects.toMatchObject({ response: { code: 'REVIEW_REASON_REQUIRED' } });
+  });
+
+  it('approveLink：ADMIN 终审 → APPROVED + 通知供应商；乐观锁 count=0 → 409 CONFLICT', async () => {
+    const admin = mkSide({ link: { reviewStage: 'ADMIN' }, reviewer: { id: 'adm', role: 'admin', companyId: null } });
+    const r = await admin.svc.approveLink('l1', 'adm', undefined);
+    expect(r).toEqual({ success: true, stage: 'DONE' });
+    expect(admin.prisma.supplierCompanyLink.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'APPROVED', reviewStage: null }),
+    }));
+    const clash = mkSide({ link: { reviewStage: 'ADMIN' }, reviewer: { id: 'adm', role: 'admin', companyId: null } });
+    (clash.prisma.supplierCompanyLink.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
+    await expect(clash.svc.approveLink('l1', 'adm')).rejects.toMatchObject({ response: { code: 'CONFLICT' } });
+  });
+
+  it('approveLink：非待审态（APPROVED）→ 400 INVALID_STATUS', async () => {
+    const bad = mkSide({ link: { status: 'APPROVED', reviewStage: null } });
+    await expect(bad.svc.approveLink('l1', 'rev-1')).rejects.toMatchObject({ response: { code: 'INVALID_STATUS' } });
+  });
+
+  it('rejectLink：任一级驳回 → REJECTED + rejectReason + 通知供应商', async () => {
+    const { prisma, notify, svc } = mkSide();
+    await svc.rejectLink('l1', 'rev-1', '资质不符');
+    expect(prisma.supplierCompanyLink.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'REJECTED', rejectReason: '资质不符' }),
+    }));
+    expect(notify.create).toHaveBeenCalled();
+  });
+
+  it('setDisabled：APPROVED↔DISABLED 切换；非此二态 → 400 INVALID_STATUS', async () => {
+    const { svc } = mkSide({ link: { status: 'APPROVED', reviewStage: null } });
+    await expect(svc.setDisabled('l1', 'rev-1', true)).resolves.toEqual({ success: true });
+    const bad = mkSide({ link: { status: 'PENDING', reviewStage: 'STAFF' } });
+    await expect(bad.svc.setDisabled('l1', 'rev-1', true)).rejects.toMatchObject({ response: { code: 'INVALID_STATUS' } });
+  });
+
+  it('listForCompany：公司视野注入 + supplier 只读字段', async () => {
+    const { prisma, svc } = mkSide();
+    await svc.listForCompany({ sub: 'u9', role: 'staff', username: 'x' } as any, { status: 'PENDING' });
+    expect(prisma.supplierCompanyLink.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ companyId: { in: ['co-2'] }, status: 'PENDING' }),
+      include: expect.objectContaining({ supplier: expect.anything() }),
+    }));
+  });
+});
+
+/** 通知兜底链（Task 3 review 遗留项）：STAFF 级公司无 staff → leader 上浮收件 */
+describe('SupplierLinkService — 通知兜底链', () => {
+  it('STAFF 级缺员 → 通知上浮 leader（staff 查空 → leader 命中）', async () => {
+    const prisma: any = {
+      supplier: { findUnique: jest.fn().mockResolvedValue({ id: 's1', userId: 'u1', companyId: 'co-1', status: 'APPROVED', isTemporary: false, name: '甲供应商' }) },
+      company: { findUnique: jest.fn().mockResolvedValue({ id: 'co-2', name: '乙公司' }) },
+      user: {
+        findMany: jest.fn()
+          .mockResolvedValueOnce([])                  // 同公司 staff 查空
+          .mockResolvedValueOnce([{ id: 'ld-1' }]),   // leader 上浮命中
+      },
+      supplierCompanyLink: { findUnique: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'l-new' }) },
+    };
+    const notify = { create: jest.fn().mockResolvedValue({}) };
+    const svc = new SupplierLinkService(prisma, notify as any, { resolveScope: async () => ({ all: false, companyIds: [] }) } as any);
+    await svc.apply('u1', { companyId: 'co-2' });
+    expect(notify.create).toHaveBeenCalledWith(expect.objectContaining({ userId: 'ld-1' }));
+  });
+});

@@ -1,7 +1,8 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { CompanyScopeService } from '../company/company-scope';
+import type { AuthenticatedUser } from '../auth/auth.types';
 
 /** 供应商多公司归属（2026-10-16 spec）：SupplierCompanyLink 唯一通道=供应商自主申请（三级审批）。
  *  公司侧无任何全系统供应商检索/邀请入口（用户裁决 2026-10-16）。
@@ -21,7 +22,9 @@ export class SupplierLinkService {
     throw new BadRequestException({ error, code });
   }
 
-  /** 只读公司解析（与 SupplierService.findCompanyRef 同口径）：id 优先、名称兜底，查不到 null，不建档 */
+  /** 只读公司解析（与 SupplierService.resolveSupplierCompany·supplier.service.ts:197 同口径）：id 优先、名称兜底。
+   *  有意差异：link 侧只读——查不到返回 null（由调用方报 COMPANY_NOT_FOUND），不建档；
+   *  注册侧按名称归一化 upsert 建档（注册页公司多数不在既有主数据）。 */
   private async resolveCompanyRef(companyId?: string, companyName?: string): Promise<{ id: string; name: string } | null> {
     if (companyId) {
       const c = await this.prisma.company.findUnique({ where: { id: companyId }, select: { id: true, name: true } });
@@ -121,5 +124,138 @@ export class SupplierLinkService {
     await Promise.allSettled(ids.map((id) => this.notificationService.create({ userId: id, ...payload })));
   }
 
-  // 公司侧（listForCompany/approveLink/rejectLink/setDisabled）见 Task 4 追加
+  // ───────────────────────── 公司侧（仅审批与库内停用——零检索面，用户裁决 2026-10-16） ─────────────────────────
+
+  async listForCompany(actor: AuthenticatedUser, params: { status?: string; reviewStage?: string } = {}) {
+    const scope = await this.companyScope.resolveScope(actor);
+    const companyIds = scope.all ? null : scope.companyIds;
+    const where: any = {};
+    if (companyIds) where.companyId = { in: companyIds };
+    if (params.status) where.status = params.status;
+    if (params.reviewStage) where.reviewStage = params.reviewStage;
+    return this.prisma.supplierCompanyLink.findMany({
+      where,
+      orderBy: { updatedAt: 'asc' },
+      include: {
+        company: { select: { id: true, name: true } },
+        supplier: { select: { id: true, name: true, supplierNo: true, creditCode: true, status: true, isTemporary: true } },
+      },
+    });
+  }
+
+  async approveLink(linkId: string, userId: string, reason?: string) {
+    const link = await this.prisma.supplierCompanyLink.findUnique({
+      where: { id: linkId },
+      include: { supplier: { select: { id: true, name: true, userId: true } }, company: { select: { name: true } } },
+    });
+    if (!link) throw new NotFoundException({ error: '加入关系不存在', code: 'LINK_NOT_FOUND' });
+    if (link.status !== 'PENDING' || !link.reviewStage) {
+      this.err('INVALID_STATUS', '该申请不在待审状态');
+    }
+    const stage = link.reviewStage;
+    const reviewer = userId ? await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, companyId: true } }) : null;
+    await this.assertStageApprover(stage, reviewer, link.companyId);
+
+    const trimmed = (reason ?? '').trim();
+    if (stage !== 'ADMIN' && !trimmed) {
+      this.err('REVIEW_REASON_REQUIRED', `请填写${SupplierLinkService.STAGE_LABELS[stage]}的同意缘由（后级审批人将据此复核）`);
+    }
+
+    if (stage === 'ADMIN') {
+      const claimed = await this.prisma.supplierCompanyLink.updateMany({
+        where: { id: linkId, status: 'PENDING', reviewStage: stage },
+        data: { status: 'APPROVED', reviewStage: null, rejectReason: null, reviewedById: userId ?? null, reviewedAt: new Date() },
+      });
+      if (claimed.count === 0) throw new ConflictException({ error: '申请状态已变更，请刷新后重试', code: 'CONFLICT' });
+      await this.notificationService.create({
+        userId: link.supplier.userId,
+        type: 'SUPPLIER_LINK_APPROVED',
+        title: `已加入 ${link.company.name} 供应商库`,
+        content: `贵司加入 ${link.company.name} 的申请已通过三级审核，正式入库。`,
+        link: `/profile/company-links`,
+      });
+      return { success: true as const, stage: 'DONE' as const };
+    }
+
+    const nextStage = stage === 'STAFF' ? 'LEADER' : 'ADMIN';
+    const claimed = await this.prisma.supplierCompanyLink.updateMany({
+      where: { id: linkId, status: 'PENDING', reviewStage: stage },
+      data: { reviewStage: nextStage },
+    });
+    if (claimed.count === 0) throw new ConflictException({ error: '申请状态已变更，请刷新后重试', code: 'CONFLICT' });
+    await this.notifyStageApprovers(nextStage, link.companyId, {
+      type: 'SUPPLIER_LINK_PENDING',
+      title: `供应商加入申请待${SupplierLinkService.STAGE_LABELS[nextStage]}`,
+      content: `${link.supplier.name} 申请加入贵公司，已通过${SupplierLinkService.STAGE_LABELS[stage]}（缘由：${trimmed}），请前往审批。`,
+      link: `/supplier?tab=company-links`,
+    });
+    return { success: true as const, stage: nextStage };
+  }
+
+  async rejectLink(linkId: string, userId: string, reason: string) {
+    const link = await this.prisma.supplierCompanyLink.findUnique({
+      where: { id: linkId },
+      include: { supplier: { select: { userId: true, name: true } }, company: { select: { name: true } } },
+    });
+    if (!link) throw new NotFoundException({ error: '加入关系不存在', code: 'LINK_NOT_FOUND' });
+    if (link.status !== 'PENDING' || !link.reviewStage) this.err('INVALID_STATUS', '该申请不在待审状态');
+    const trimmed = reason.trim();
+    if (!trimmed) this.err('REASON_REQUIRED', '驳回必须填写原因');
+    const reviewer = userId ? await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, companyId: true } }) : null;
+    await this.assertStageApprover(link.reviewStage, reviewer, link.companyId);
+    const claimed = await this.prisma.supplierCompanyLink.updateMany({
+      where: { id: linkId, status: 'PENDING', reviewStage: link.reviewStage },
+      data: { status: 'REJECTED', rejectReason: trimmed, reviewedById: userId ?? null, reviewedAt: new Date() },
+    });
+    if (claimed.count === 0) throw new ConflictException({ error: '申请状态已变更，请刷新后重试', code: 'CONFLICT' });
+    await this.notificationService.create({
+      userId: link.supplier.userId,
+      type: 'SUPPLIER_LINK_REJECTED',
+      title: `加入 ${link.company.name} 申请未通过`,
+      content: `贵司加入 ${link.company.name} 的申请未通过审核。原因：${trimmed}`,
+      link: `/profile/company-links`,
+    });
+    return { success: true as const };
+  }
+
+  async setDisabled(linkId: string, userId: string, disabled: boolean) {
+    const link = await this.prisma.supplierCompanyLink.findUnique({ where: { id: linkId } });
+    if (!link) throw new NotFoundException({ error: '加入关系不存在', code: 'LINK_NOT_FOUND' });
+    const target = disabled ? 'DISABLED' : 'APPROVED';
+    const from = disabled ? 'APPROVED' : 'DISABLED';
+    if (link.status !== from) this.err('INVALID_STATUS', disabled ? '仅库内（APPROVED）供应商可停用' : '仅已停用（DISABLED）供应商可恢复');
+    const claimed = await this.prisma.supplierCompanyLink.updateMany({
+      where: { id: linkId, status: from },
+      data: { status: target },
+    });
+    if (claimed.count === 0) throw new ConflictException({ error: '状态已变更，请刷新后重试', code: 'CONFLICT' });
+    return { success: true as const };
+  }
+
+  /** 三级级权限断言（与 SupplierService.assertStageApprover 同口径；复制避免跨 4k 行服务耦合） */
+  private async assertStageApprover(
+    stage: string | null,
+    reviewer: { id: string; role: string; companyId: string | null } | null,
+    linkCompanyId: string | null,
+  ): Promise<void> {
+    if (!reviewer) return;
+    const sameCompany = reviewer.role !== 'admin' && !!linkCompanyId && reviewer.companyId === linkCompanyId;
+    const hasRole = async (role: 'staff' | 'leader') => linkCompanyId
+      ? (await this.prisma.user.count({ where: { role, isActive: true, companyId: linkCompanyId } })) > 0
+      : false;
+    if (stage === 'STAFF') {
+      if (reviewer.role === 'staff' && sameCompany) return;
+      if (reviewer.role === 'leader' && sameCompany && !(await hasRole('staff'))) return;
+      if (reviewer.role === 'admin' && !(await hasRole('staff')) && !(await hasRole('leader'))) return;
+    } else if (stage === 'LEADER') {
+      if (reviewer.role === 'leader' && sameCompany) return;
+      if (reviewer.role === 'admin' && !(await hasRole('leader'))) return;
+    } else if (stage === 'ADMIN') {
+      if (reviewer.role === 'admin') return;
+    }
+    throw new ForbiddenException({
+      error: `当前为${SupplierLinkService.STAGE_LABELS[stage ?? ''] ?? '本级'}，须由该级审批人操作`,
+      code: 'REVIEW_STAGE_MISMATCH',
+    });
+  }
 }
