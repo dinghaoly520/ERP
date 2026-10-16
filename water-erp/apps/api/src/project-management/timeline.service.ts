@@ -183,14 +183,14 @@ export class TimelineService {
     // 采购文件获取是时段（AI 提取的起止区间；上传同步的单点值 → 无终点）
     const acquireRange = parseDateRange(item.documentAcquireTime);
 
-    // 投标截止 = 开标前 24 小时（口径常量 BID_DEADLINE_BEFORE_OPENING_MS）：
+    // 投标截止 = 开标前间隔时长（口径常量 BID_DEADLINE_BEFORE_OPENING_MS）：
     // BP.deadline 未登记时按开标时间自动推算展示，不再显示「未登记」
     const openingIso = toIso(bp?.openTime) ?? normalizeMaybeDate(item.bidOpeningTime);
     const deadlineRaw = toIso(bp?.deadline);
     const deadlineIso = deadlineRaw ?? (openingIso
       ? new Date(new Date(openingIso).getTime() - BID_DEADLINE_BEFORE_OPENING_MS).toISOString()
       : null);
-    const deadlineSource = deadlineRaw ? '招标项目' : openingIso ? '按开标时间推算（前24小时）' : '招标项目';
+    const deadlineSource = deadlineRaw ? '招标项目' : openingIso ? '按开标时间推算（前10分钟）' : '招标项目';
 
     const nodes: TimelineNode[] = [
       // initiationDate 未登记（直建/AI 提取缺失）→ 建档时刻兜底，避免「采购立项 未登记」

@@ -115,7 +115,7 @@ Also includes a dashboard (project list + statistics) and profile management (ex
 - **项目工作区** (`/bid/project/[id]?tab=`) — 四 tab「开标大厅（嵌入大厅组件）／评标管理（**全操作**，2026-08 从 :3005 迁回：启动评标·专家进度·AI 辅助评标进度卡片·评分矩阵·排名·3 步生成评标结果向导·专家异议裁决（含评标中流标）·澄清答疑）／评分标准（只读：评分项+得分点，编制归 :3005）／评标签字（新增）」；默认 tab 随阶段（EVALUATING→评标管理，其余→开标大厅）；旧链接 `/bid/open?id=` 兼容重定向至此
 - **评标签字**（工作区 tab，2026-08 新增）— 评标结果生成后可用：生成签字包 PDF（《评标报告》十项法定内容 + 签字页含「评标专家声明」与在线操作留痕 + 个人评分确认表×N + 异议工单 + 澄清纪要 + 动议决议）→ 主持人打印 → 专家现场手写签字 → 扫描回传 → 逐专家登记「已签字 / 拒绝(附书面不同意见) / 视为同意(拒绝且未陈述理由)」→ 全员闭环 → 生成评标回流包流转回 :3005。完整归档闸门 = 签字闭环 + 回流已生成。详见 `docs/superpowers/specs/2026-08-13-expert-paper-signing-design.md`
 
-:3005 保留（不迁）：「开标确认」面板的评标前准备（供应商投标状态·催促未投递、专家确认·正选候补替换（开标后、评标启动前、未签到可换；2026-09-23 口径修订）、评分标准编制、监督时间线、开标进度·开标前流标、主持人指派·延时开标·按时开标）与评标后收尾（评标回流接收、完整归档·签字闭环闸门、公示、中标通知书）。评标管理/异议裁决/澄清答疑已迁回 :3007（:3005 面板对应三区块已移除）。
+:3005 保留（不迁）：「开标确认」面板的评标前准备（供应商投标状态·催促未投递、专家确认·正选候补替换（开标后、评标启动前、未签到可换；2026-09-23 口径修订）、评分标准编制、监督时间线、开标进度·开标前流标、主持人指派·延时开标·按时开标）与评标后收尾（评标回流接收、完整归档·签字闭环闸门、公示、中标通知书）。评标管理/异议裁决/澄清答疑已迁回 :3007（:3005 面板对应三区块已移除）。主持人指派口径（2026-10-15）：候选=项目公司内 bid_host/leader/staff（active 未冻结，admin 不入候选；GET /bid/hosts?projectId= 按项目公司过滤，存量无归属回退操作人公司）；:3007 现场执行权跟随指派而非角色——原 17+6 处 @Roles('bid_host','admin') 主持端点改四内部角色+`AssignedHostGuard`（admin 或被指派本人放行，未指派的同公司 bid_host 亦 403 NOT_ASSIGNED_HOST）；staff/leader 登 :3007 须走 :3006 分流（直登 bid 门户按 portalForRole 落地 token_web）。
 
 **Authentication flow:** `admin`/`bid_host` users authenticate from the public portal's "在线开评标系统" card → redirected to expert portal (:3006) login → non-bid_expert roles get cookie `token_bid` written (auth port-roles 分流) → post-login redirect to bid portal (:3007). The bid portal sends `X-Portal: bid` for API calls.
 
@@ -153,6 +153,7 @@ pnpm install
 pnpm infra:up        # Start PostgreSQL, Redis, MinIO
 pnpm infra:down      # Stop
 pnpm infra:logs      # View logs
+pnpm dev:kill         # 全链清理（2026-10-16 升级）：fuser 清 11 端口 + 按 /proc cwd+cmdline 清 apps/api 残树（watch 链/孤儿 dist/ai-worker；`--api` 只清 API 不动 portals、`--list` 干跑）；叠树/半死恢复一律 `pnpm dev:kill && pnpm dev`——main.ts 有 listen 预检（端口占用即 exit 1 秒退），勿再手工起并行救援 watch 树
 
 # Build shared packages (required before first app start)
 pnpm --filter @water-erp/shared build
@@ -406,7 +407,7 @@ DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED
 ```
 
 **单向棘轮（2026-07 弱化，`bid/bid-state.ts`）**：只许前进、**允许跳步**（DOWNLOAD→OPENING、OPENING→ARCHIVED 合法），同阶段幂等；回退或离开 ARCHIVED 抛 `ConflictException` (409)。阶段是**单向进度标记而非逐级许可**——实质准入闸门下沉到端点业务前置（投递 = OPENING 前 + deadline 未到 + 已发布招标公告；解密 = OPENING + 解密窗口内）。人工流转按分工 v3（2026-08-13）：按时开标 :3005「开标确认」面板、启动评标与评标中流标 :3007、完整归档 :3005（闸门=签字闭环+评标回流已生成）。:3007 在 OPENING 阶段内写开标会话并持有「完成开标·资料移交」（`POST /bid/projects/:id/complete-opening`：开标文件包（JSON + SHA-256 指纹）存 MinIO、FileAsset 挂到会话并回传 :3005，幂等、不改 stage，**不作为启动评标的前置闸门**）。水叮当助理的归档动作经用户确认后复用同一 archiveAll 路径，是面板之外唯一的流转入口。例外：删除公告会解除公告↔项目关联——DOWNLOAD/ABORTED/ARCHIVED 三态仅解关联（不重置阶段、不级联销毁开标/评标产物）；SUBMIT+ 已被 409 `BID_IN_PROGRESS` 禁令拦截（见「公告删除规则」）（`announcement.service.ts`，终审裁定 2026-08-21）。
-截标↔开标 24h 业务规则（2026-08-21 P0-2，集团内部惯例，与《招标投标法》第34条偏离留痕）——常量 `BID_DEADLINE_BEFORE_OPENING_MS`（packages/shared）、校验 util `apps/api/src/bid/opening-deadline.util.ts`（align/frozen 分阶段）、存量迁移脚本 `scripts/align-opening-deadline-24h.ts`。
+截标↔开标 10 分钟规则（2026-08-21 定 24h；**2026-10-16 用户裁定正式改为 10 分钟**，与《招标投标法》第34条偏离留痕加巨）——常量 `BID_DEADLINE_BEFORE_OPENING_MS`（packages/shared）、校验 util `apps/api/src/bid/opening-deadline.util.ts`（align/frozen 分阶段）、存量迁移脚本 `apps/api/scripts/align-opening-deadline-24h.ts`（注意：现运行会把存量 deadline 对齐到 10 分钟口径）。
 
 ### File Uploads (MinIO)
 

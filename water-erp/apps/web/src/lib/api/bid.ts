@@ -606,9 +606,13 @@ export function getBidProjectDetail(bidProjectId: string) {
   return api.get<BidProjectDetail>(`/bid/projects/${bidProjectId}`);
 }
 
-/** 列出可指派的开标主持人账号（:3005 选择器用） */
-export function listBidHosts() {
-  return api.get<Array<{ id: string; username: string; displayName: string }>>('/bid/hosts');
+/** 列出可指派的开标主持人（:3005 选择器用；2026-10-15 起候选=项目公司内 bid_host/leader/staff） */
+export function listBidHosts(projectId?: string) {
+  const q = new URLSearchParams();
+  if (projectId) q.set('projectId', projectId);
+  return api.get<Array<{ id: string; username: string; displayName: string; role: string }>>(
+    `/bid/hosts${q.size ? `?${q}` : ''}`,
+  );
 }
 
 /** 指派/改派/清除开标主持人。userId=null 清除指派 */

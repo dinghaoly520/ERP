@@ -184,7 +184,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   const [manualReason, setManualReason] = useState('');
   const [manualDocType, setManualDocType] = useState('');
   const [manualBusy, setManualBusy] = useState(false);
-  // 评标室口令（2026-09-20 spec §4）：主持人展示/轮换；明文仅 bid_host/admin（leader/staff 请求 403 静默）
+  // 评标室口令（2026-09-20 spec §4）：主持人展示/轮换；明文仅 admin/被指派主持人（2026-10-15 起按指派，其余请求 403 静默）
   const [roomCodeInfo, setRoomCodeInfo] = useState<{ roomCode: string | null; roomCodeAt: string | null } | null>(null);
   const [roomCodeBusy, setRoomCodeBusy] = useState(false);
   const [roomCodeVisible, setRoomCodeVisible] = useState(false); // 口令掩码（2026-09-21 审查优化）
@@ -228,10 +228,13 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   // 开弹窗时刻的时限过期快照（事件回调内计算，避免渲染期 Date.now 纯度告警）
   const [reopenDeadlineExpired, setReopenDeadlineExpired] = useState(false);
   const me = useBidUser();
-  /** 评标延期审批 leader/admin/bid_host 可见（与后端 @Roles('leader','admin','bid_host') 对齐） */
+  /** 现场执行权跟随指派（2026-10-15）：admin 或本项目被指派主持人本人（候选=项目公司内 bid_host/leader/staff），
+   *  与后端 AssignedHostGuard 同口径——核验/口令/重开评审确认等主持操作按此显隐 */
+  const canHost = me?.role === 'admin' || (!!me?.id && project?.assignedHostUser?.id === me.id);
+  /** 评标延期审批 leader/admin/bid_host 可见（与后端 @Roles('leader','admin','bid_host') 对齐——按角色的审批权，不随指派） */
   const canApproveExtend = me?.role === 'leader' || me?.role === 'admin' || me?.role === 'bid_host';
-  /** 重开评审确认 admin/bid_host（与后端 @Roles('admin','bid_host') 对齐——受控数据更正，同签字包重开治理级别） */
-  const canReopenScoring = me?.role === 'admin' || me?.role === 'bid_host';
+  /** 重开评审确认（受控数据更正，admin/被指派主持人——同签字包重开治理级别） */
+  const canReopenScoring = canHost;
 
   const showToast = (text: string, tone: 'ok' | 'err' = 'ok') => {
     setFeedback({ text, tone });
@@ -315,8 +318,8 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     return () => { alive = false; clearInterval(timer); };
   }, [projectId, refreshSignal]);
 
-  // 评标室口令（2026-09-20 spec §4）：EVALUATING 时拉取——明文仅 bid_host/admin
-  //（leader/staff 请求 403 静默不渲染卡片；主持人/管理员口径见 getRoomCode @Roles）
+  // 评标室口令（2026-09-20 spec §4）：EVALUATING 时拉取——明文仅 admin/被指派主持人
+  //（未被指派者请求 403 静默不渲染卡片；口径见 getRoomCode 的 AssignedHostGuard）
   // P3（中断审查）：拉取失败与「确认未启用」区分——误显「未启用」会令主持人以为口令闸没开而漏传口令
   const [roomCodeError, setRoomCodeError] = useState(false);
   const loadRoomCode = useCallback(() => {
@@ -878,7 +881,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
       {verification && verification.experts.length > 0 && (
         <div className="mb-3 rounded-[14px] border border-[oklch(0.6_0.04_258/0.14)]">
           {/* 评标室口令条（2026-09-20 spec §4）：主持人/管理员可见——大字可读 + 一键轮换 */}
-          {stage === 'EVALUATING' && (me?.role === 'bid_host' || me?.role === 'admin') && (
+          {stage === 'EVALUATING' && canHost && (
             <div className="flex items-center gap-3 border-b border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(0.975_0.012_258/0.5)] px-3.5 py-2.5">
               <KeyRound size={14} strokeWidth={1.7} className="shrink-0 text-[var(--accent-strong)]" />
               <span className="text-[11px] font-bold text-[var(--foreground)]">评标室口令</span>
@@ -1026,7 +1029,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       已登记异常
                     </span>
                   )}
-                  {!row.signedIn && row.expertRole === EXPERT_ROLE.REGULAR && (me?.role === 'bid_host' || me?.role === 'admin') && (
+                  {!row.signedIn && row.expertRole === EXPERT_ROLE.REGULAR && canHost && (
                     <button
                       type="button"
                       onClick={() => setManualFor({ id: row.id, expertName: row.expertName })}
@@ -1036,7 +1039,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       手动确认
                     </button>
                   )}
-                  {row.signedIn && stage === 'EVALUATING' && (me?.role === 'bid_host' || me?.role === 'admin') && (
+                  {row.signedIn && stage === 'EVALUATING' && canHost && (
                     <button
                       type="button"
                       onClick={() => { setReleaseFor({ id: row.id, expertName: row.expertName, onlineDevice: row.onlineDevice }); setReleaseReason(''); }}
@@ -1046,7 +1049,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       解锁登录
                     </button>
                   )}
-                  {row.transferPhotoPending && !row.transferPhotoExempted && stage === 'EVALUATING' && (me?.role === 'bid_host' || me?.role === 'admin') && (
+                  {row.transferPhotoPending && !row.transferPhotoExempted && stage === 'EVALUATING' && canHost && (
                     <button
                       type="button"
                       onClick={() => { setExemptFor({ id: row.id, expertName: row.expertName }); setExemptReason(''); }}

@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import {
   Megaphone, X, Send, Upload, Loader2, ChevronLeft, ChevronRight, Search, CheckCircle2, CloudUpload, Eye, FileText, PhoneCall, ChevronDown,
 } from 'lucide-react';
-import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
+import { BID_DEADLINE_BEFORE_OPENING_MS, formatDurationCn } from '@water-erp/shared';
 import {
   createAnnouncement,
   previewBidNoticeChecklist,
@@ -71,8 +71,10 @@ type Props = {
 const inputCls =
   'w-full px-3 py-2 border border-[var(--border)] bg-[var(--background)] rounded-lg text-sm placeholder-[var(--muted-foreground)]/60 focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/10';
 
-/** 投标截止 = 开标前小时数。口径统一取自共享常量 BID_DEADLINE_BEFORE_OPENING_MS（@water-erp/shared），勿再写魔法值 24 */
-const DEADLINE_HOURS_BEFORE_OPENING = BID_DEADLINE_BEFORE_OPENING_MS / 3_600_000;
+/** 投标截止 = 开标前间隔，日期运算直接用共享常量毫秒值 BID_DEADLINE_BEFORE_OPENING_MS（@water-erp/shared），勿再写魔法值 24h。
+ *  常量为 10 分钟：运算按毫秒保持精确（原按小时换算会出现 0.1667 之类小数），展示走 DEADLINE_GAP_LABEL。 */
+/** 间隔展示标签：小于 1 小时显示分钟、不小于 1 小时显示小时 */
+const DEADLINE_GAP_LABEL = formatDurationCn(BID_DEADLINE_BEFORE_OPENING_MS);
 
 /**
  * 把公告 draft + 项目数据映射成「信息发布」渲染器与后端 createFromAnnouncement
@@ -136,14 +138,14 @@ function buildCanonicalMeta(
     // ── A3（GB/T 43711 7.2.2.3）：直接采购理由（论证意见）入 canonical meta，随公告同步 BidProject.directSourcingReason ──
     put('directSourcingReason', d.argumentOpinion);
     // ── 直接采购时间逻辑 ──
-    // 开标时间 = 采购时间；投标截止 = 采购时间前 DEADLINE_HOURS_BEFORE_OPENING 小时（源自共享常量 BID_DEADLINE_BEFORE_OPENING_MS）；采购文件下载时间 = 公示时间（公示期限起止）
+    // 开标时间 = 采购时间；投标截止 = 采购时间前 BID_DEADLINE_BEFORE_OPENING_MS 毫秒（10 分钟，源自共享常量）；采购文件下载时间 = 公示时间（公示期限起止）
     // 采购时间：优先 draft 字段，兜底项目 bidOpeningTime（中文格式需转 datetime-local）
     let procurementTime = d.procurementTime || d.bidOpeningTime || '';
     if (!procurementTime && project?.bidOpeningTime) {
       procurementTime = toDatetimeLocalValue(project.bidOpeningTime);
     }
     put('openTime', procurementTime);
-    put('deadline', subtractHours(procurementTime, DEADLINE_HOURS_BEFORE_OPENING));
+    put('deadline', subtractMs(procurementTime, BID_DEADLINE_BEFORE_OPENING_MS));
     // 采购文件下载时间：优先 draft 公示起止，兜底项目 documentAcquireTime
     if (d.announcementStart && d.announcementEnd) {
       putDownloadPeriod(d.announcementStart, d.announcementEnd);
@@ -151,7 +153,7 @@ function buildCanonicalMeta(
       putDownloadPeriod(undefined, d.announcementEnd || d.announcementStart);
     }
   } else {
-    // ── 其他采购方式：开标时间 = 开标时间/采购时间；投标截止 = 开标前 24h
+    // ── 其他采购方式：开标时间 = 开标时间/采购时间；投标截止 = 开标前间隔（10 分钟）
     //    （BID_DEADLINE_BEFORE_OPENING_MS，与关键时间卡同口径），推导失败才回退公示止；
     //    采购文件下载时间 = 公示起止区间，兜底项目 documentAcquireTime ──
     // 开标来源序：draft 开标时间 → 项目开标时间 → 采购时间（procurementTime 是直接采购
@@ -161,7 +163,7 @@ function buildCanonicalMeta(
     const openingIso = toDatetimeLocalValue(openingRaw);
     put('openTime', openingIso || d.bidOpeningTime || d.procurementTime);
     put('deadline', openingIso
-      ? hoursBeforeOpenTime(openingIso, DEADLINE_HOURS_BEFORE_OPENING)
+      ? msBeforeOpenTime(openingIso, BID_DEADLINE_BEFORE_OPENING_MS)
       : d.announcementEnd);
     if (d.announcementStart && d.announcementEnd) {
       putDownloadPeriod(d.announcementStart, d.announcementEnd);
@@ -256,11 +258,11 @@ function deadlineAfterDays(n: number): string {
   return `${y}-${m}-${day}T23:59`;
 }
 
-/** datetime-local 字符串（YYYY-MM-DDTHH:MM）减去指定小时，返回同格式；解析失败返回空串 */
-function subtractHours(datetimeLocal: string, hours: number): string {
+/** datetime-local 字符串（YYYY-MM-DDTHH:MM）减去指定毫秒，返回同格式；解析失败返回空串（参数为毫秒） */
+function subtractMs(datetimeLocal: string, ms: number): string {
   const d = new Date(datetimeLocal);
   if (Number.isNaN(d.getTime())) return '';
-  d.setHours(d.getHours() - hours);
+  d.setTime(d.getTime() - ms);
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
@@ -288,12 +290,12 @@ function formatDateTimeDisplay(iso: string): string {
   return iso;
 }
 
-/** 计算开标时间前指定小时数的 datetime-local 值（小时数传 DEADLINE_HOURS_BEFORE_OPENING，源自共享常量 BID_DEADLINE_BEFORE_OPENING_MS） */
-function hoursBeforeOpenTime(openTimeIso: string, hours: number): string {
+/** 计算开标时间前指定毫秒的 datetime-local 值（毫秒数传共享常量 BID_DEADLINE_BEFORE_OPENING_MS=10 分钟） */
+function msBeforeOpenTime(openTimeIso: string, ms: number): string {
   if (!openTimeIso) return '';
   const dt = new Date(openTimeIso);
   if (isNaN(dt.getTime())) return '';
-  dt.setHours(dt.getHours() - hours);
+  dt.setTime(dt.getTime() - ms);
   const y = dt.getFullYear();
   const m = String(dt.getMonth() + 1).padStart(2, '0');
   const d = String(dt.getDate()).padStart(2, '0');
@@ -674,7 +676,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     } else {
       setAnnouncementEndDate(deadlineAfterDays(isQuickDeadlineCategory ? 3 : 5));
     }
-    // 标书投递截止时间 = 开标时间前 DEADLINE_HOURS_BEFORE_OPENING 小时（源自共享常量 BID_DEADLINE_BEFORE_OPENING_MS）
+    // 标书投递截止时间 = 开标时间前 BID_DEADLINE_BEFORE_OPENING_MS 毫秒（10 分钟，源自共享常量）
     if (!isSingleSource) {
       const openTime = (filledDraft as Record<string, string>).bidOpeningTime?.trim()
         || project.bidOpeningTime?.trim()
@@ -682,7 +684,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         || '';
       const openTimeIso = openTime ? toDatetimeLocalValue(openTime) : '';
       if (openTimeIso) {
-        setBidSubmissionDeadline(hoursBeforeOpenTime(openTimeIso, DEADLINE_HOURS_BEFORE_OPENING));
+        setBidSubmissionDeadline(msBeforeOpenTime(openTimeIso, BID_DEADLINE_BEFORE_OPENING_MS));
       } else {
         setBidSubmissionDeadline(deadlineAfterDays(isQuickDeadlineCategory ? 5 : 10));
       }
@@ -1102,9 +1104,9 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         meta.selectedTenderFileName = officialTender.fileName;
         meta.selectedTenderMimeType = officialTender.mimeType;
       }
-      // 投递截止（bid deadline）—— 由当前开标时间直接推导（开标前 DEADLINE_HOURS_BEFORE_OPENING 小时），
+      // 投递截止（bid deadline）—— 由当前开标时间直接推导（开标前 BID_DEADLINE_BEFORE_OPENING_MS 毫秒=10 分钟），
       // 与关键时间卡展示口径一致；无开标时间时兜底 init 时算的值，再兜底公告截止。
-      // 直接采购：deadline/downloadDeadline 已在 buildCanonicalMeta 中按「采购时间前24h / 公示区间」算好，勿覆盖
+      // 直接采购：deadline/downloadDeadline 已在 buildCanonicalMeta 中按「采购时间前间隔（10 分钟）/ 公示区间」算好，勿覆盖
       if (tenderType !== 'SINGLE_SOURCE') {
         const drPub = draft as Record<string, string>;
         // 开标来源序与 buildCanonicalMeta 同口径：draft 开标时间 → 项目开标时间 → 采购时间
@@ -1114,7 +1116,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
           || '';
         const openTimeIsoPub = openTimeRaw ? toDatetimeLocalValue(openTimeRaw) : '';
         const derivedSubmissionDeadline = openTimeIsoPub
-          ? hoursBeforeOpenTime(openTimeIsoPub, DEADLINE_HOURS_BEFORE_OPENING)
+          ? msBeforeOpenTime(openTimeIsoPub, BID_DEADLINE_BEFORE_OPENING_MS)
           : bidSubmissionDeadline.trim();
         meta.deadline = derivedSubmissionDeadline || effectiveAnnouncementEnd;
         // 采购文件下载时间：区间入 downloadPeriod（两门户芯片按裸字符串渲染），
@@ -1711,9 +1713,9 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                 // 来源序与 buildCanonicalMeta 同口径（procurementTime 可能存过期推导值）
                 const openTime = dr.bidOpeningTime || project?.bidOpeningTime || dr.procurementTime || '';
                 const openTimeIso = openTime ? toDatetimeLocalValue(openTime) : '';
-                // 标书投递截止 = 开标时间前 DEADLINE_HOURS_BEFORE_OPENING 小时，由开标时间直接推导（不再单独编辑）
+                // 标书投递截止 = 开标时间前 BID_DEADLINE_BEFORE_OPENING_MS 毫秒（10 分钟），由开标时间直接推导（不再单独编辑）
                 const submissionDeadline = openTimeIso
-                  ? hoursBeforeOpenTime(openTimeIso, DEADLINE_HOURS_BEFORE_OPENING)
+                  ? msBeforeOpenTime(openTimeIso, BID_DEADLINE_BEFORE_OPENING_MS)
                   : bidSubmissionDeadline;
                 return (
               /* 关键时间（红色标注：边框/标题/标签均为红色系） */
@@ -1731,7 +1733,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                     <div className="text-xs font-semibold text-[var(--foreground)]">{formatDateTimeDisplay(pubEnd)}</div>
                   </div>
                   <div className="rounded-xl px-3 py-2.5" style={{ background: 'oklch(0.96 0.025 25 / 0.55)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
-                    <div className="text-[10px] font-semibold text-[oklch(0.52 0.19 25)] mb-1">{`标书投递截止（开标前${DEADLINE_HOURS_BEFORE_OPENING}h）`}</div>
+                    <div className="text-[10px] font-semibold text-[oklch(0.52 0.19 25)] mb-1">{`标书投递截止（开标前${DEADLINE_GAP_LABEL}）`}</div>
                     <div className="text-xs font-bold text-[oklch(0.5 0.2 25)]">{formatDateTimeDisplay(submissionDeadline)}</div>
                   </div>
                   <div className="rounded-xl px-3 py-2.5" style={{ background: 'oklch(0.96 0.025 25 / 0.55)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>

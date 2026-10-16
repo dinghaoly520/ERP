@@ -22,7 +22,9 @@ import {
   Volume2,
   X,
 } from 'lucide-react';
-import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
+import { BID_DEADLINE_BEFORE_OPENING_MS, BID_OPENING_IMMINENT_WARNING_MS, formatDurationCn, BID_ABORT_WINDOW_BEFORE_OPENING_MS, BID_ABORT_WINDOW_AFTER_OPENING_MS } from '@water-erp/shared';
+// 间隔展示标签（formatDurationCn：<1 小时显示分钟）
+const DEADLINE_GAP_LABEL = formatDurationCn(BID_DEADLINE_BEFORE_OPENING_MS);
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 import {
   awardLetterDeliveryUiState,
@@ -122,13 +124,22 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
   const [failBidAiLoading, setFailBidAiLoading] = useState(false);
   const [failBidConfirming, setFailBidConfirming] = useState(false);
 
-  // 判断是否在开标前 24h 内
-  const isWithin24hOfOpening = (() => {
-    if (!bidProject?.openTime) return false;
-    const openTime = new Date(bidProject.openTime).getTime();
-    const now = Date.now();
-    const diffHours = (openTime - now) / (1000 * 60 * 60);
-    return diffHours <= 24 && diffHours >= -48; // 开标前24h ~ 开标后48h
+  // 开标临近（预警横幅用）：距开标不足 BID_OPENING_IMMINENT_WARNING_MS（2026-10-16 起默认=截标↔开标间隔）。
+  // 剩余时长按实际时间实时计算，30s 心跳刷新横幅倒计时（到点后显示「已到开标时间」）
+  const [imminentNow, setImminentNow] = useState(Date.now());
+  const openTimeMs = bidProject?.openTime ? new Date(bidProject.openTime).getTime() : null;
+  const msToOpening = openTimeMs !== null ? openTimeMs - imminentNow : null;
+  const isOpeningImminent = msToOpening !== null && msToOpening <= BID_OPENING_IMMINENT_WARNING_MS;
+  useEffect(() => {
+    if (openTimeMs === null) return;
+    const t = setInterval(() => setImminentNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, [openTimeMs]);
+  // 流标窗口（独立规则 BID_ABORT_WINDOW_*，与截标↔开标间隔无关）：仅流标按钮使用，与预警横幅互不牵连
+  const isWithinAbortWindow = (() => {
+    if (openTimeMs === null) return false;
+    const diff = openTimeMs - Date.now();
+    return diff <= BID_ABORT_WINDOW_BEFORE_OPENING_MS && diff >= -BID_ABORT_WINDOW_AFTER_OPENING_MS;
   })();
   // D1: 专家在线状态
   const [expertOnlineCount, setExpertOnlineCount] = useState(0);
@@ -561,12 +572,12 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
       <div className="relative z-10 mx-5 my-5 wb-overlay-panel">
         {/* ── 标题栏 ── */}
         <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-4 wb-overlay-panel-header">
-          {/* 开标前 24h 提醒横幅 */}
-          {!isOpened && isWithin24hOfOpening && (
+          {/* 开标临近预警横幅：剩余时长实时刷新 */}
+          {!isOpened && isOpeningImminent && (
             <div className="wb-tone-banner wb-tone-banner--warning mb-3">
               <AlertTriangle size={16} className="shrink-0" />
               <div className="text-[11px] leading-relaxed text-[color:var(--foreground)]">
-                <strong>距开标不足 24 小时</strong>——请确认所有步骤（采购文件、公告、供应商邀请、专家抽取）已完成且内容正确。开标确认后，所有前置信息将锁定不可修改。
+                <strong>{msToOpening !== null && msToOpening > 0 ? `距开标不足 ${formatDurationCn(msToOpening)}` : '已到开标时间'}</strong>——请确认所有步骤（采购文件、公告、供应商邀请、专家抽取）已完成且内容正确。开标确认后，所有前置信息将锁定不可修改。
               </div>
             </div>
           )}
@@ -636,7 +647,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                     {!isNegotiation && !isOpened && (
                       <span
                         className="hidden items-center gap-1.5 rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2.5 py-1 text-[11px] text-[var(--muted-foreground)] sm:inline-flex"
-                        title={`标书投递时间范围：公告发布 → 开标前 ${BID_DEADLINE_BEFORE_OPENING_MS / 3_600_000} 小时`}
+                        title={`标书投递时间范围：公告发布 → 开标前 ${DEADLINE_GAP_LABEL}`}
                       >
                         <Clock size={11} />
                         <span className="tabular-nums">{bidProject.publishTime ? formatDateTime(bidProject.publishTime) : '待发布'}</span>
@@ -1096,9 +1107,9 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                     <button
                       type="button"
                       onClick={() => void handleOpenFailBidDialog()}
-                      disabled={!isWithin24hOfOpening || busy}
+                      disabled={!isWithinAbortWindow || busy}
                       className="neu-btn-soft is-danger !h-[36px]"
-                      title={!isWithin24hOfOpening ? '仅开标时间前 24 小时内可操作流标' : '确认流标并发布流标公告'}
+                      title={!isWithinAbortWindow ? `仅开标时间前 ${formatDurationCn(BID_ABORT_WINDOW_BEFORE_OPENING_MS)} 内可操作流标` : '确认流标并发布流标公告'}
                     >
                       <Ban size={14} /> 流标
                     </button>
@@ -1113,6 +1124,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
           <HostPickerModal
             projectId={bidProject.id}
             currentHostId={assignedHost?.id ?? null}
+            currentHostName={assignedHost?.displayName ?? null}
             onClose={() => setHostPickerOpen(false)}
             onChanged={() => {
               setHostPickerOpen(false);

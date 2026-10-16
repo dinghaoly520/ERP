@@ -42,6 +42,7 @@ import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { ResolveExpertDisputeDto } from './dto/resolve-expert-dispute.dto';
 import { UseGuards } from '@nestjs/common';
 import { BidCompanyScopeGuard } from './bid-company-scope.guard';
+import { AssignedHostGuard } from './assigned-host.guard';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
 import { RetryAiBiddersDto } from './dto/retry-ai-bidders.dto';
 import { ExtendEvaluationDto } from './dto/extend-evaluation.dto';
@@ -105,8 +106,11 @@ export class BidController {
 
   @Get('hosts')
   @Roles('leader', 'staff', 'admin')
-  @ApiOperation({ summary: '列出可指派的开标主持人（:3005 选择器）' })
-  listHosts() { return this.bidService.listHosts(); }
+  @ApiOperation({ summary: '列出可指派的开标主持人（:3005 选择器；候选=项目公司内 bid_host/leader/staff，2026-10-15 口径）' })
+  listHosts(@Query('projectId') projectId?: string, @CurrentUser('sub') userId?: string, @Req() req?: any) {
+    const actor = userId && req?.user?.role ? { id: userId, role: req.user.role } : undefined;
+    return this.bidService.listHosts(projectId, actor);
+  }
 
   @Patch('projects/:id/assigned-host')
   @Roles('leader', 'staff', 'admin')
@@ -168,7 +172,8 @@ export class BidController {
   getExpertVerification(@Param('id') id: string) { return this.bidService.getExpertVerification(id); }
 
   @Post('projects/:id/expert-verification/:expertId/confirm-transfer-photo')
-  @Roles('bid_host', 'admin')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @UseGuards(AssignedHostGuard)
   @ApiOperation({ summary: '严版（2026-09-23）：主持人确认迁移留档照豁免——摄像头不可用等现场判定，理由必填+监督留痕（中风险）' })
   confirmTransferPhotoExemption(
     @Param('id') id: string,
@@ -185,7 +190,8 @@ export class BidController {
   }
 
   @Post('projects/:id/expert-verification/:expertId/manual-confirm')
-  @Roles('bid_host', 'admin')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @UseGuards(AssignedHostGuard)
   @ApiOperation({ summary: 'R9（2026-09-20 spec §4.6）：主持人手动确认专家签到（摄像头故障等现场降级）——逐人+监督日志留痕' })
   manualConfirmExpertVerification(
     @Param('id') id: string,
@@ -202,21 +208,24 @@ export class BidController {
   }
 
   @Post('projects/:id/room-code/rotate')
-  @Roles('bid_host', 'admin')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @UseGuards(AssignedHostGuard)
   @ApiOperation({ summary: '评标室口令生成/轮换（2026-09-20 spec §4）：仅 EVALUATING——存量项目补开或评标中轮换（轮换即全员失效重验）' })
   rotateRoomCode(@Param('id') id: string, @CurrentUser('sub') userId: string, @Req() req: any) {
     return this.bidService.rotateRoomCode(id, { id: userId, username: req?.user?.username ?? '未知' });
   }
 
   @Get('projects/:id/room-code')
-  @Roles('bid_host', 'admin')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @UseGuards(AssignedHostGuard)
   @ApiOperation({ summary: '评标室口令查询（2026-09-20 spec §4）：:3007 主持人矩阵展示（明文仅主持人/管理员可见）' })
   getRoomCode(@Param('id') id: string) {
     return this.bidService.getRoomCode(id);
   }
 
   @Post('projects/:id/expert-verification/:expertId/release-login-lock')
-  @Roles('bid_host', 'admin')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @UseGuards(AssignedHostGuard)
   @ApiOperation({ summary: '闸4 阀门（2026-09-20 spec）：解除专家评标期登录锁定（换设备场景）——现场核身后清 webSessionId 放行重登' })
   releaseLoginLock(
     @Param('id') id: string,
@@ -233,7 +242,8 @@ export class BidController {
   }
 
   @Post('projects/:id/expert-verification/:expertId/verify')
-  @Roles('bid_host', 'admin')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @UseGuards(AssignedHostGuard)
   @ApiOperation({ summary: 'P3（2026-09-20 spec §4.2）：主持人核验登记（host 态签到前置；人↔证件↔名单三对照后登记）' })
   verifyExpertIdentity(
     @Param('id') id: string,
@@ -250,7 +260,8 @@ export class BidController {
   }
 
   @Post('projects/:id/expert-verification/:expertId/unverify')
-  @Roles('bid_host', 'admin')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @UseGuards(AssignedHostGuard)
   @ApiOperation({ summary: 'P3（2026-09-20 spec §4.2）：撤销误登记（原因必填；已签到 409 VERIFY_LOCKED 防证据回退）' })
   unverifyExpertIdentity(
     @Param('id') id: string,
@@ -308,12 +319,14 @@ export class BidController {
   }
 
   @Get('projects/:id/report-notes')
-  @Roles('bid_host', 'admin')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @UseGuards(AssignedHostGuard)
   @ApiOperation({ summary: 'A-151: 评标报告章节附注读取（未设置回空数组）' })
   getReportNotes(@Param('id') id: string) { return this.bidService.getReportNotes(id); }
 
   @Put('projects/:id/report-notes')
-  @Roles('bid_host', 'admin')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @UseGuards(AssignedHostGuard)
   @ApiOperation({ summary: 'A-151: 评标报告章节附注编辑（一~十白名单、空数组=清空，记监督日志；签字包重新生成取最新值）' })
   setReportNotes(@Param('id') id: string, @Body() dto: ReportNotesDto, @CurrentUser('sub') actorId?: string) {
     return this.bidService.setReportNotes(id, dto, actorId);
@@ -500,7 +513,7 @@ export class BidController {
   }
 
   @Post('projects/:id/invalidate-bid/:supplierId')
-  @Roles('admin', 'bid_host', 'leader')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: 'B1: 手动标记废标(围标/串标/资质造假)' })
   manualMarkInvalidBid(@Param('id') id: string, @Param('supplierId') supplierId: string, @Body() dto: { reason: string }, @CurrentUser('sub') userId?: string) {
     return this.bidService.manualMarkInvalidBid(id, supplierId, dto.reason, userId);
@@ -512,12 +525,14 @@ export class BidController {
   reopenBidProject(@Param('id') id: string, @CurrentUser('sub') userId?: string) { return this.bidService.reopenFromAborted(id, userId); }
 
   @Post('projects/:id/pause')
-  @Roles('admin', 'bid_host')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @UseGuards(AssignedHostGuard)
   @ApiOperation({ summary: '暂停开标（冻结解密窗口，拒绝解密操作）' })
   pauseOpening(@Param('id') id: string, @CurrentUser('sub') userId?: string, @Body() body?: { reason?: string }) { return this.bidService.pauseOpening(id, userId, body?.reason); }
 
   @Post('projects/:id/resume')
-  @Roles('admin', 'bid_host')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @UseGuards(AssignedHostGuard)
   @ApiOperation({ summary: '恢复开标（解冻窗口，补偿暂停时长）' })
   resumeOpening(@Param('id') id: string, @CurrentUser('sub') userId?: string) { return this.bidService.resumeOpening(id, userId); }
 
@@ -633,7 +648,8 @@ export class BidController {
   }
 
   @Post('projects/:id/opening/decrypt-outer')
-  @Roles('admin', 'bid_host')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @UseGuards(AssignedHostGuard)
   @ApiOperation({ summary: '主持端解外层（dual-v2）：管理方私钥解 K_admin → C_inner 归属链落库；supplierId 缺省=批量' })
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   decryptOuter(@Param('id') id: string, @Body() dto?: DecryptOuterDto, @CurrentUser('sub') userId?: string) {
@@ -641,7 +657,8 @@ export class BidController {
   }
 
   @Post('projects/:id/opening/decrypt-adjudge')
-  @Roles('admin', 'bid_host')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @UseGuards(AssignedHostGuard)
   @ApiOperation({ summary: '解密失败归因裁决（§5.5）：UNKNOWN 家落 BIDDER/PLATFORM 终局（须填原因，告知权利）；BIDDER→PLATFORM 改判；RESET_PENDING 重置解密机会' })
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   adjudicateDecryptFault(
@@ -654,7 +671,8 @@ export class BidController {
 
   @Get('projects/:id/backup-verify/:supplierId')
   @ApiOperation({ summary: '核验未解密投标文件备份（争议举证：三方哈希比对，只读，仅 admin/bid_host）' })
-  @Roles('admin', 'bid_host')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @UseGuards(AssignedHostGuard)
   verifyBackup(@Param('id') id: string, @Param('supplierId') supplierId: string, @CurrentUser('sub') userId?: string) {
     return this.bidBackup.verify(id, supplierId, userId);
   }
@@ -1015,7 +1033,8 @@ export class BidController {
   }
 
   @Post('projects/:id/claim-host')
-  @Roles('admin', 'bid_host')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @UseGuards(AssignedHostGuard)
   @ApiOperation({ summary: '声明主持操作者身份（并发检测）' })
   claimActiveHost(
     @Param('id') id: string,
@@ -1024,7 +1043,8 @@ export class BidController {
   ) { return this.bidService.claimActiveHost(id, userId, userName); }
 
   @Post('projects/:id/release-host')
-  @Roles('admin', 'bid_host')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @UseGuards(AssignedHostGuard)
   @ApiOperation({ summary: '释放主持操作者身份' })
   releaseActiveHost(@Param('id') id: string, @CurrentUser('sub') userId: string) {
     return this.bidService.releaseActiveHost(id, userId);
@@ -1081,7 +1101,8 @@ export class BidController {
   }
 
   @Post('projects/:id/reopen-expert-scoring')
-  @Roles('admin', 'bid_host')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @UseGuards(AssignedHostGuard)
   @ApiOperation({ summary: '重开专家评审确认（受控数据更正：解锁报告确认允许改分；书面理由+监督/审计留痕，评分历史保留）' })
   reopenExpertScoring(
     @Param('id') id: string,

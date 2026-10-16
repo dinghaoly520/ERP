@@ -83,6 +83,9 @@ export interface BidProject {
   priceFormulaConfig?: Record<string, unknown> | null;
   /** 去极值开关（2026-09-26）：true=≥5 专家去 1 高 1 低后均分（默认）；false=全额均分 */
   scoreTrimEnabled?: boolean;
+  /** 被指派的开标主持人（getProject include 随详情下发；2026-10-15 起候选=项目公司内 bid_host/leader/staff，
+   *  :3007 现场执行权按此判定——前端 canHost= admin 或本人，不再按角色） */
+  assignedHostUser?: { id: string; username: string; displayName: string } | null;
   _count?: { suppliers: number };
 }
 

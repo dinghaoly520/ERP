@@ -6,6 +6,7 @@ import { json, urlencoded } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { assertFieldSecretForProduction } from './common/crypto/sm-field-crypto';
+import { ensurePortFree } from './common/port-preflight';
 import { assertKmsSecretForProduction } from './common/crypto/envelope-crypto';
 import { PORTS } from '@water-erp/config';
 
@@ -113,6 +114,14 @@ async function bootstrap() {
   }
 
   const port = process.env.PORT || PORTS.api;
+  // dev 叠树防护（2026-10-16）：listen 前预检——端口被占（残树/并行实例）快速失败退出，
+  // 杜绝 EADDRINUSE 下 bootstrap 挂起成半死子进程；恢复口径 pnpm dev:kill && pnpm dev
+  try {
+    await ensurePortFree(port);
+  } catch {
+    logger.error(`端口 ${port} 已被占用——存在残留实例或并行启动，请先执行 pnpm dev:kill 后重试`);
+    process.exit(1);
+  }
   await app.listen(port);
   logger.log(`API running on http://localhost:${port}`);
   if (process.env.NODE_ENV !== 'production') {

@@ -149,11 +149,12 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const projectId = project.id;
   // 「前往采购管理工作台」跳转仅对能实际操作 :3005 的角色有意义——bid_host 登 :3005
   // 按 PORTAL_ROLE_PRIORITY.web 解析为 bid_host、采购功能 403，按钮对现场主持人是死链（分工告知文本保留）
-  // L2：解密/一键解密(decrypt-all)/解外层/归因裁决/重新封标/暂停恢复等后端收口 @Roles('admin','bid_host')——
-  // leader/staff 虽可登录本端但无现场执行权，对应按钮不再渲染（此前可见即点、点了 403 且单家解密静默无反馈）
+  // L2：解密/一键解密(decrypt-all)/解外层/归因裁决/重新封标/暂停恢复等后端收口 AssignedHostGuard——
+  // 2026-10-15 起主持人候选=项目公司内员工（bid_host/leader/staff），现场执行权跟随「指派」而非角色：
+  // canHost = admin 或本项目被指派主持人本人；未被指派者对应按钮不渲染（可见即点、点了 403）
   const me = useBidUser();
   const canGoWeb = me?.role !== 'bid_host';
-  const canHost = me?.role === 'admin' || me?.role === 'bid_host';
+  const canHost = me?.role === 'admin' || (!!me?.id && project.assignedHostUser?.id === me.id);
   const [startOpen, setStartOpen] = useState(false);
   // New UX state
   const [decrypting, setDecrypting] = useState<Set<string>>(new Set());

@@ -1,7 +1,7 @@
 /**
  * 存量截标↔开标差值 24h 对齐脚本（截标↔开标 24h 关系规范化 · Task 3）
  *
- * 背景：业务规则「投标截止 = 开标前 24 小时」（BID_DEADLINE_BEFORE_OPENING_MS，口径见
+ * 背景：业务规则「投标截止 = 开标前 10 分钟」（BID_DEADLINE_BEFORE_OPENING_MS，口径见
  * packages/shared/src/constants.ts 与 src/bid/opening-deadline.util.ts）。存量项目（含
  * 旧演示脚本时代创建的）deadline 与 openTime 相差 1h 或任意值，不满足 24h 关系。
  * 本脚本扫描存量 BidProject，把 deadline 对齐到 openTime − 24h（openTime 为基准不动）。
@@ -95,7 +95,7 @@ async function main() {
       ? '  存量截标↔开标差值 24h 对齐 · EXECUTE（将更新「待修正」行的 deadline = openTime − 24h）'
       : '  存量截标↔开标差值 24h 对齐 · DRY-RUN（只读：不更新任何数据）',
   );
-  console.log('  口径: 投标截止 = 开标前 24 小时（BID_DEADLINE_BEFORE_OPENING_MS）');
+  console.log('  口径: 投标截止 = 开标前 10 分钟（BID_DEADLINE_BEFORE_OPENING_MS）');
   console.log('        容差: |deadline − (openTime − 24h)| <= BID_OPENING_GAP_TOLERANCE_MS(60s)');
   if (loadedEnv) console.log(`  env: ${loadedEnv}`);
   console.log(bar);

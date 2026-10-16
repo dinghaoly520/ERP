@@ -152,13 +152,34 @@ export function getNotificationMeta(type: string): NotificationMeta {
 export const PASS_FAIL_CATEGORIES = new Set(['QUALIFICATION', 'RESPONSIVE']);
 export const isPassFailCategory = (category: string): boolean => PASS_FAIL_CATEGORIES.has(category);
 
-/* ── 截标↔开标 24h 业务规则 ── */
+/* ── 截标↔开标间隔规则 ── */
 
-/** 截标↔开标业务规则：投标截止 = 开标前 24 小时（集团采购业务规则·内部惯例）。
- * 留痕：与《招标投标法》第34条「开标应当在提交投标文件截止时间的同一时间公开进行」
- * 存在偏离——依据为集团采购业务规则（内部惯例，无成文条款）；对依法必须招标项目
- * 存在程序瑕疵风险，待制度成文化后更新本引用与 UI 文案。 */
-export const BID_DEADLINE_BEFORE_OPENING_MS = 24 * 3_600_000;
+/** 截标↔开标业务规则：投标截止 = 开标前 10 分钟。
+ * 变更记录：2026-08-21 定为开标前 24 小时（集团内部惯例）；2026-10-16 用户裁定正式改为 10 分钟。
+ * 留痕：与《招标投标法》第34条「开标应当在提交投标文件截止时间的同一时间公开进行」存在偏离
+ * （原 24h 即已偏离，10 分钟偏离更甚）——依据为集团采购业务规则（内部惯例，无成文条款）；
+ * 对依法必须招标项目存在程序瑕疵风险，待制度成文化后更新本引用与 UI 文案。 */
+export const BID_DEADLINE_BEFORE_OPENING_MS = 10 * 60_000; // 2026-10-16 正式：原 24h 规则值 24 * 3_600_000
+
+/** 开标临近预警阈值：距开标不足该时长时，:3005「开标确认」面板顶部显示预警横幅。
+ *  默认跟随截标↔开标间隔（2026-10-16 用户裁定）；独立成常量便于单独调整。 */
+export const BID_OPENING_IMMINENT_WARNING_MS = BID_DEADLINE_BEFORE_OPENING_MS;
+
+/** 毫秒时长中文标签：≥1 小时 → 「X 小时 Y 分」（Y 为 0 省略）；<1 小时 → 「N 分钟」；<1 分钟 → 「不足 1 分钟」。
+ *  供固定口径标签（如「开标前 10 分钟」）与实时剩余时长（预警横幅倒计时）共用。 */
+export function formatDurationCn(ms: number): string {
+  if (ms < 60_000) return '不足 1 分钟';
+  const totalMin = Math.floor(ms / 60_000);
+  if (totalMin < 60) return `${totalMin} 分钟`;
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return m ? `${h} 小时 ${m} 分` : `${h} 小时`;
+}
+
+/** 流标操作窗口（独立规则，与截标↔开标间隔无关，2026-10-16 常量化·行为不变）：
+ *  开标前 24 小时至开标后 48 小时内可操作流标。 */
+export const BID_ABORT_WINDOW_BEFORE_OPENING_MS = 24 * 3_600_000;
+export const BID_ABORT_WINDOW_AFTER_OPENING_MS = 48 * 3_600_000;
 
 /** B-011（CTS-EBS01 附录B）：投标人对招标文件澄清提问，最迟在投标截止时间前 N 日提出 */
 export const CLARIFY_ASK_MIN_DAYS_BEFORE_DEADLINE = 10;

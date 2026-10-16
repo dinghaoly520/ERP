@@ -18,7 +18,7 @@ const STATUS_LABEL: Record<string, string> = {
   PENDING: '待签', SIGNED: '已签字', REFUSED_DISSENT: '拒绝·有异议', DEEMED_AGREED: '视为同意',
 };
 
-export default function SigningTab({ projectId, stage, refreshSignal }: { projectId: string; stage: string; refreshSignal?: number }) {
+export default function SigningTab({ projectId, stage, refreshSignal, assignedHostUserId }: { projectId: string; stage: string; refreshSignal?: number; assignedHostUserId?: string | null }) {
   const [data, setData] = useState<SignPacketResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -40,10 +40,11 @@ export default function SigningTab({ projectId, stage, refreshSignal }: { projec
   // 审查优化（2026-09-21）：文件名路由未识别的文件不再静默 unmatched——弹分配选择器人工指定去向
   const [pendingAssign, setPendingAssign] = useState<Array<{ file: File; reason: string; target: string }> | null>(null);
   const [assignBusy, setAssignBusy] = useState(false);
-  // L2（2026-08-28）：签字包写操作（生成/扫描回传/登记/撤销/回流包）后端收口 @Roles('bid_host','admin')——
-  // leader/staff 只读查看；开标记录签字卡端点为全角色，不受此门控影响
+  // L2（2026-08-28）：签字包写操作（生成/扫描回传/登记/撤销/回流包）后端收口 AssignedHostGuard——
+  // 2026-10-15 起执行权跟随指派（候选=项目公司内 bid_host/leader/staff）：canHost = admin 或被指派
+  // 主持人本人，其余只读查看；开标记录签字卡端点为全角色，不受此门控影响
   const me = useBidUser();
-  const canHost = me?.role === 'admin' || me?.role === 'bid_host';
+  const canHost = me?.role === 'admin' || (!!me?.id && assignedHostUserId === me.id);
 
   /** 文件名 → 回传目标路由（含专家名/关键词匹配；先到先得，重复与未识别留待单传）。hasPacket=false 时不含主报告页（该端点依赖签字包存在） */
   const routeFiles = (files: File[], experts: SignPacketExpertRow[], hasPacket: boolean) => {

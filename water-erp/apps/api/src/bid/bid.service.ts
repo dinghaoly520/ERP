@@ -147,25 +147,60 @@ export class BidService {
     };
   }
 
-  /** 列出可指派的开标主持人账号（:3005 选择器用） */
-  async listHosts() {
+  /** 主持人候选角色集（2026-10-15 用户裁定）：项目公司内的内部员工 bid_host/leader/staff；
+   *  admin 不入候选——全项目可见、无需指派，且属平台管理员而非公司员工。 */
+  static readonly HOST_CANDIDATE_ROLES: readonly string[] = ['bid_host', 'leader', 'staff'];
+
+  /** 列出可指派的开标主持人（:3005 选择器用）——项目公司内的内部员工（active 且未冻结）。
+   *  公司基准：项目 companyId 优先，缺失（存量无归属）回退操作人公司；admin 跨公司放行，
+   *  其余角色须与目标公司一致（与 :3005 面板公司隔离同口径）。 */
+  async listHosts(projectId?: string, actor?: { id: string; role: string }) {
+    let targetCompanyId: string | null = null;
+    if (projectId) {
+      const project = await this.prisma.bidProject.findUnique({
+        where: { id: projectId },
+        select: { companyId: true },
+      });
+      targetCompanyId = project?.companyId ?? null;
+    }
+    const me = actor
+      ? await this.prisma.user.findUnique({ where: { id: actor.id }, select: { companyId: true } })
+      : null;
+    if (!targetCompanyId) targetCompanyId = me?.companyId ?? null;
+
+    if (actor && actor.role !== 'admin') {
+      if (!me?.companyId || me.companyId !== targetCompanyId) {
+        throw new ForbiddenException({
+          error: '无权查看其它公司的主持人候选',
+          code: 'COMPANY_SCOPE_FORBIDDEN',
+        });
+      }
+    }
+
     return this.prisma.user.findMany({
-      where: { role: 'bid_host', isActive: true },
-      select: { id: true, username: true, displayName: true },
+      where: {
+        role: { in: [...BidService.HOST_CANDIDATE_ROLES] },
+        isActive: true,
+        isFrozen: false,
+        companyId: targetCompanyId,
+      },
+      select: { id: true, username: true, displayName: true, role: true },
       orderBy: { displayName: 'asc' },
     });
   }
 
   /**
    * 指派/改派开标主持人（R1 硬分流 / R3 改派窗口）。
-   * - leader/staff/admin 调用（角色守卫在 Controller 层）
+   * - leader/staff/admin 调用（角色守卫在 Controller 层；端点公司隔离由 BidCompanyScopeGuard 把关）
    * - OpeningSession 已存在 → 409 锁定
+   * - 目标须为项目公司内的内部员工（bid_host/leader/staff，active 且未冻结）→ 否则 400 INVALID_HOST
+   *   （2026-10-15 口径：主持人资格=公司归属而非 bid_host 角色；存量无归属项目回退操作人公司）
    * - userId=null 清除指派（项目回到 :3005 公开池，但 :3007 不可见）
    */
   async assignHost(projectId: string, userId: string | null, actorId: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { id: true },
+      select: { id: true, companyId: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
 
@@ -175,14 +210,26 @@ export class BidService {
       throw new ConflictException({ error: '开标会话已组建，无法改派', code: 'OPENING_SESSION_LOCKED' });
     }
 
-    // 校验目标用户必须是 active bid_host
+    // 校验目标用户：项目公司（存量无归属回退操作人公司）内的内部员工，active 且未冻结
     if (userId !== null) {
+      let expectedCompanyId = project.companyId;
+      if (!expectedCompanyId) {
+        const actorUser = await this.prisma.user.findUnique({
+          where: { id: actorId },
+          select: { companyId: true },
+        });
+        expectedCompanyId = actorUser?.companyId ?? null;
+      }
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
-        select: { id: true, role: true, isActive: true },
+        select: { id: true, role: true, isActive: true, isFrozen: true, companyId: true },
       });
-      if (!user || user.role !== 'bid_host' || !user.isActive) {
-        throw new BadRequestException({ error: '目标用户不是有效的开标主持人', code: 'INVALID_HOST' });
+      if (
+        !user || !user.isActive || user.isFrozen
+        || !BidService.HOST_CANDIDATE_ROLES.includes(user.role)
+        || user.companyId !== expectedCompanyId
+      ) {
+        throw new BadRequestException({ error: '目标用户不是本项目公司内的有效开标主持人', code: 'INVALID_HOST' });
       }
     }
 

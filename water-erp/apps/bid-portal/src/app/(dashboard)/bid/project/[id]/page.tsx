@@ -286,7 +286,7 @@ function WorkspaceInner() {
           )}
           {current === 'standard' && <ScoreStandardView projectId={projectId as string} project={project} />}
           {current === 'quotes' && <RoundBlock bidProjectId={projectId as string} detail={project} onChanged={loadProject} />}
-          {current === 'signing' && <SigningTab projectId={projectId as string} stage={stage} refreshSignal={signSignal} />}
+          {current === 'signing' && <SigningTab projectId={projectId as string} stage={stage} refreshSignal={signSignal} assignedHostUserId={project.assignedHostUser?.id ?? null} />}
         </>
       )}
     </div>
