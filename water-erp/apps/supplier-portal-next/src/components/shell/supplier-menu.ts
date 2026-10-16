@@ -176,6 +176,13 @@ export function buildMenuItems(isTemporary: boolean | null | undefined): MenuIte
       // 基本资料/变更记录不进侧栏（单入口），变更记录经页面内入口进入
       extraPaths: ["/change-records"],
     });
+    // 多公司归属（2026-10-16）：自主申请加入多家公司供应商库（临时供应商不可申请）
+    items.push({
+      path: "/profile/company-links",
+      title: "公司归属管理",
+      icon: Building2,
+      desc: "申请加入多家公司供应商库",
+    });
   }
   items.push({
     path: "/profile/ukey",

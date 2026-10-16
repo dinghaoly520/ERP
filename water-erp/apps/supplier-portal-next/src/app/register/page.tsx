@@ -404,7 +404,19 @@ export default function RegisterPage() {
     const code = basic.creditCode.trim();
     if (!/^[0-9A-Z]{18}$/.test(code)) return;
     try {
-      const res = await authApi.checkDuplicate({ creditCode: code });
+      const res = await authApi.checkDuplicate({
+        creditCode: code,
+        // 多公司归属（2026-10-16）：带本公司名区分「本公司重复」vs「他司已注册」（后端只读解析）；
+        // 无公司上下文时 registeredElsewhere 恒 true，已知公司必须传，否则会误弹引导 toast
+        companyName: belongCompany || undefined,
+      });
+      // 多公司归属（2026-10-16）：他司已有在库账号且本公司未入 → 不拦死，引导登录原账号
+      // 在「个人中心 → 公司归属管理」申请加入贵公司（早于下方阻塞计算，REJECTED/RETURNED 壳口径不受影响）
+      if (res.registeredElsewhere) {
+        setCreditCodeDuplicate(true);
+        toast.info("该企业已有平台账号：请直接登录原账号，在「个人中心 → 公司归属管理」申请加入贵公司");
+        return;
+      }
       // 2026-10-14：REJECTED=驳回壳可重注册（后端 register 原位覆盖）、RETURNED=退回补正流程接管——均不作阻塞重复
       const blocking = res.creditCode && res.creditCodeStatus !== "REJECTED" && res.creditCodeStatus !== "RETURNED";
       setCreditCodeDuplicate(blocking);

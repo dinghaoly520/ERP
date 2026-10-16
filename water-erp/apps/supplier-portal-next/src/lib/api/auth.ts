@@ -138,8 +138,10 @@ export const authApi = {
   /**
    * 注册前查重（公开）。creditCodeStatus: 命中状态（REJECTED=可重注册壳，不算阻塞重复）；
    * creditCodeIsTemporary/TemporaryExpired: 临时过期不改 status，凭此区分「过期→引导登录页续期」。
+   * 多公司归属（2026-10-16）：companyId/companyName 供后端区分「本公司重复」vs「他司已注册」；
+   * registeredElsewhere=true 表示信用代码在他司在库且本公司无 link——不拦死，引导登录走「申请加入」。
    */
-  checkDuplicate(fields: { creditCode?: string; legalPersonIdCard?: string; contactIdCard?: string; phone?: string }) {
+  checkDuplicate(fields: { creditCode?: string; legalPersonIdCard?: string; contactIdCard?: string; phone?: string; companyId?: string; companyName?: string }) {
     return api.get<{
       creditCode: boolean;
       legalPersonIdCard: boolean;
@@ -148,6 +150,7 @@ export const authApi = {
       creditCodeStatus: string | null;
       creditCodeIsTemporary: boolean;
       creditCodeTemporaryExpired: boolean;
+      registeredElsewhere?: boolean;
     }>(
       `/supplier/register/check-duplicate${qs(fields)}`,
       { silent: true },

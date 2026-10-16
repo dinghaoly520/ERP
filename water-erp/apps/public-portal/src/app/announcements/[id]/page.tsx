@@ -83,9 +83,10 @@ export default function AnnouncementDetailPage() {
           {/* 标题 */}
           <h1 className="text-2xl font-black text-[#18243a] mb-4 leading-snug" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>{item.title}</h1>
 
-          {/* 元信息 */}
+          {/* 元信息 —— 发布单位（2026-10-16）：公告必须标明公司（创建时写时快照） */}
           <div className="flex items-center gap-5 text-sm text-[#8a96aa] mb-4">
             <span>发布时间：{item.date}</span>
+            {item.companyName ? <span>发布单位：{item.companyName}</span> : null}
           </div>
 
           {/* 结构化元数据（项目编号/招标方式/预算金额/时间等）—— 与采购管理工作台一致 */}

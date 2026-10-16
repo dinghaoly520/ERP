@@ -152,7 +152,8 @@ const FIELD_LABEL_ZH: Record<string, string> = {
   token: '令牌',
 };
 
-/** 单条校验消息翻译："property contactName must be a string" → "参数「联系人」应为文本" */
+/** 单条校验消息翻译："property contactName must be a string" → "联系人应为文本"
+ *  （2026-10-16 文案优化：弃「参数「X」…」双层书名号模板，改自然主谓句——「内容不能为空」而非「参数「内容」不能为空」） */
 function translateValidationMessage(raw: string): string {
   const m = raw.match(/^(?:property\s+)?([A-Za-z][\w.]*)\s+([\s\S]*)$/);
   const propKey = m?.[1];
@@ -166,7 +167,7 @@ function translateValidationMessage(raw: string): string {
   if (!HAS_CJK.test(body)) body = '取值不合法';
   if (!propKey) return body;
   const label = FIELD_LABEL_ZH[propKey] ?? FIELD_LABEL_ZH[propKey.split('.')[0]];
-  return `参数「${label ?? '该字段'}」${body}`;
+  return `${label ?? '该项'}${body}`;
 }
 
 @Catch()

@@ -20,6 +20,8 @@ export interface AnnouncementItem {
   metadata?: Record<string, any>;
   /** 浏览量（后端 viewCount 透传，公开详情页访问自增） */
   viewCount?: number;
+  /** 发布单位（2026-10-16）：公告必须标明公司——创建时按登录人公司落写时快照 */
+  companyName?: string;
   /** 已下线标题壳（2026-09-26 v2）：公示期满/存量下线——仅标题可见，不可点开看内容 */
   titleOnly?: boolean;
 }
@@ -28,7 +30,8 @@ export interface AnnouncementItem {
 export interface MetaField { key: string; label: string; area?: boolean; date?: boolean }
 export const ANNOUNCEMENT_TYPE_META: Record<string, MetaField[]> = {
   ADDENDUM: [
-    { key: 'projectCode', label: '项目编号' }, { key: 'changes', label: '澄清/修改内容', area: true },
+    { key: 'projectCode', label: '项目编号' }, { key: 'relatedAnnouncementTitle', label: '关联采购公告' },
+    { key: 'changes', label: '澄清/修改内容', area: true },
     { key: 'newDeadline', label: '调整后递交截止', date: true },
   ],
   BID_NOTICE: [
@@ -36,6 +39,11 @@ export const ANNOUNCEMENT_TYPE_META: Record<string, MetaField[]> = {
     { key: 'downloadDeadline', label: '采购文件下载时间' },
     { key: 'deadline', label: '报名/投标截止', date: true }, { key: 'openTime', label: '开标时间', date: true }, { key: 'contact', label: '联系方式' },
     { key: 'scope', label: '采购内容/范围', area: true }, { key: 'qualification', label: '投标人资格要求', area: true },
+  ],
+  PREQUAL_NOTICE: [
+    { key: 'title', label: '预审名称' }, { key: 'projectCode', label: '项目编号' }, { key: 'relatedAnnouncementTitle', label: '关联采购公告' },
+    { key: 'method', label: '预审方式' }, { key: 'applyDeadline', label: '申请截止时间', date: true },
+    { key: 'documents', label: '需提交的申请材料', area: true },
   ],
   PRE_WIN_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'winner', label: '预成交供应商' }, { key: 'amount', label: '预成交价格' },
@@ -115,6 +123,7 @@ function toAnnouncementItem(a: any): AnnouncementItem {
     code: a.relatedProjectCode || '',
     deadlineLabel: a.type === 'WIN_NOTICE' || a.type === 'PRE_WIN_NOTICE' ? '公示截止' : '报名截止',
     deadline: '',
+    companyName: a.companyName ?? '',
     content: a.titleOnly ? '' : (a.content || ''),
     aiSummary: a.titleOnly ? undefined : (a.aiSummary || undefined),
     metadata: a.metadata || {},

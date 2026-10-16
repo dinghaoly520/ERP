@@ -288,3 +288,28 @@ export const completedProjectsApi = {
     return api.get<CompletedProjectRow[]>("/supplier-portal/completed-projects");
   },
 };
+
+// ── 公司归属管理（多公司归属 2026-10-16；唯一通道=自主申请）──
+// 已由 controller HTTP-shaped：不含 supplierId/reviewedById
+export interface CompanyLinkView {
+  id: string;
+  companyId: string;
+  companyName: string;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "DISABLED";
+  reviewStage: string | null;
+  note: string | null;
+  rejectReason: string | null;
+  isPrimary: boolean;
+  appliedAt: string | null;
+}
+
+export const supplierCompanyLinksApi = {
+  /** 我的归属列表（silent：页面自行提示加载失败） */
+  my() {
+    return api.get<CompanyLinkView[]>("/supplier-portal/company-links", { silent: true });
+  },
+  /** 申请加入公司（companyId/companyName 二选一；公司只读解析不建档，不存在 400 COMPANY_NOT_FOUND；silent：错误文案由页面 toast） */
+  apply(dto: { companyId?: string; companyName?: string; note?: string }) {
+    return api.post<{ id: string }>("/supplier-portal/company-links/apply", dto, { silent: true });
+  },
+};

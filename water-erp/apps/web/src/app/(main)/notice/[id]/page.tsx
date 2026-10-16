@@ -32,10 +32,12 @@ const statusLabel = ANN_STATUS_LABEL;
 interface MetaField { key: string; label: string; area?: boolean; date?: boolean }
 const TYPE_META: Record<AnnouncementType, MetaField[]> = {
   PREQUAL_NOTICE: [
-    { key: 'title', label: '预审名称' }, { key: 'validUntil', label: '申请截止', date: true },
+    { key: 'title', label: '预审名称' }, { key: 'projectCode', label: '项目编号' }, { key: 'relatedAnnouncementTitle', label: '关联采购公告' },
+    { key: 'validUntil', label: '申请截止', date: true },
   ],
   ADDENDUM: [
-    { key: 'projectCode', label: '项目编号' }, { key: 'changes', label: '澄清/修改内容', area: true },
+    { key: 'projectCode', label: '项目编号' }, { key: 'relatedAnnouncementTitle', label: '关联采购公告' },
+    { key: 'changes', label: '澄清/修改内容', area: true },
     { key: 'newDeadline', label: '调整后递交截止', date: true },
   ],
   BID_NOTICE: [
@@ -144,6 +146,8 @@ export default function NoticeDetailPage() {
               <div className="page-hero__sub">
                 {ann.type === 'BID_NOTICE' && typeof ann.metadata?.method === 'string' && ann.metadata.method.trim() ? ann.metadata.method.trim() : typeLabel[ann.type]}
                 {ann.publishDate && <span> · {new Date(ann.publishDate).toLocaleDateString('zh-CN')} 发布</span>}
+                {/* 发布单位（2026-10-16）：发布的公告必须标明公司——写时快照 */}
+                {ann.companyName && <span> · 发布单位：{ann.companyName}</span>}
                 <span> · 浏览 {ann.viewCount}</span>
               </div>
             </div>

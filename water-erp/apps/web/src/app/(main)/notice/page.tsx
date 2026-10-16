@@ -185,7 +185,7 @@ export default function NoticePage() {
                       <FileText size={22} className="text-[var(--muted-foreground)]" />
                     </div>
                     <p className="text-sm text-[var(--muted-foreground)]">暂无信息</p>
-                    <button onClick={() => router.push('/notice/new')} className="neu-btn-soft"><PlusCircle size={15} /> 新建信息</button>
+                    <button onClick={() => router.push('/notice/new')} className="neu-btn-soft"><PlusCircle size={15} /> 新建公告</button>
                   </div>
                 </td>
               </tr>
@@ -343,7 +343,7 @@ export default function NoticePage() {
               <Trash2 size={15} /> 回收站
             </button>
             <button onClick={() => router.push('/notice/new')} className="neu-btn-soft">
-              <PlusCircle size={15} /> 新建信息
+              <PlusCircle size={15} /> 新建公告
             </button>
             <button onClick={load} disabled={loading} className="neu-btn-xs">
               <RefreshCw size={14} className={loading ? "animate-spin" : ""} />

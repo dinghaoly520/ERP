@@ -4,70 +4,50 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
-  createAnnouncement, updateAnnouncement,
+  createAnnouncement, updateAnnouncement, listAnnouncements,
   listAttachments, addAttachment, removeAttachment, uploadFile,
 } from '@/lib/api/announcement';
 import type { AnnouncementType, AnnouncementStatus, AnnouncementAttachment } from '@/lib/api/announcement';
-import { Upload, PlusCircle, Save, Send } from 'lucide-react';
+import { Upload, PlusCircle, Save, Send, FolderKanban, Megaphone, Search, X } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { useConfirm } from '@/components/workbench/use-confirm';
 import { ANNOUNCEMENT_TYPE_ORDER, announcementTypeGroupIndex } from '@water-erp/shared';
 import { PublishConfigSection, DEFAULT_PUBLISH_CONFIG, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
+import { Modal } from '@/components/workbench';
+import { fetchProjectManagementList } from '@/lib/api/project-management';
+import type { ProjectManagementItem } from '@/lib/types/project-management';
+import { fetchCurrentUser } from '@/lib/api/auth';
 
 /** 可手工新建的公告类型。
  *  采购公告（BID_NOTICE）、流标公告（FAILED_BID_NOTICE）、中标公告（WIN_BID_NOTICE）
- *  由系统在项目公告发布向导中生成，不在此手工创建。 */
+ *  由系统在项目公告发布向导中生成，不在此手工创建。
+ *  2026-10-16 用户裁定：中标公告（PRE_WIN_NOTICE）、成交公告（WIN_NOTICE）、合同公告（CONTRACT_NOTICE）、
+ *  履行结果公告（PERFORMANCE_NOTICE）同样收归项目「公告制作与发布」向导（announcement-publish-wizard）
+ *  生成——此四类不再提供手工创建入口。 */
 type NoticeType =
   | 'ADDENDUM'
   | 'PREQUAL_NOTICE'
-  | 'PRE_WIN_NOTICE'
-  | 'WIN_NOTICE'
-  | 'CONTRACT_NOTICE'
-  | 'PERFORMANCE_NOTICE'
   | 'POLICY'
   | 'PLATFORM';
 
 const typeLabel: Record<NoticeType, string> = {
-  ADDENDUM: '补遗公告', PREQUAL_NOTICE: '资格预审公告', PRE_WIN_NOTICE: '中标公告', WIN_NOTICE: '成交公告',
-  CONTRACT_NOTICE: '合同公告', PERFORMANCE_NOTICE: '履行结果公告', POLICY: '政策法规', PLATFORM: '平台通知',
+  ADDENDUM: '补遗公告', PREQUAL_NOTICE: '资格预审公告', POLICY: '政策法规', PLATFORM: '平台通知',
 };
 
 interface MetaField { key: string; label: string; area?: boolean; date?: boolean }
 const TYPE_META: Record<NoticeType, MetaField[]> = {
   // C5（GB/T 43711 7.2.6）：采购文件澄清/修改 → 补遗公告（发布后自动通知已获取文件的供应商）
+  // projectCode 不在通用网格——移入「关联信息」区块（选择器 + 手填兜底，2026-10-16）
   ADDENDUM: [
-    { key: 'projectCode', label: '项目编号' }, { key: 'changes', label: '澄清/修改内容', area: true },
+    { key: 'changes', label: '澄清/修改内容', area: true },
     { key: 'newDeadline', label: '调整后递交截止', date: true },
   ],
   // 7.2.3 资格预审公告：供应商按公告约定提交资格预审申请
   PREQUAL_NOTICE: [
-    { key: 'title', label: '预审名称' }, { key: 'projectCode', label: '项目编号' },
+    { key: 'title', label: '预审名称' },
     { key: 'method', label: '预审方式（合格制/有限数量制）' }, { key: 'applyDeadline', label: '申请截止时间', date: true },
     { key: 'documents', label: '需提交的申请材料', area: true }, { key: 'validUntil', label: '预审结果有效期', date: true },
     { key: 'contact', label: '联系方式' },
-  ],
-  // C1（GB/T 43711 7.5.2.2）：线下完成评审的项目由此登记预成交公示（线上归档项目自动生成草稿）
-  PRE_WIN_NOTICE: [
-    { key: 'projectCode', label: '项目编号' }, { key: 'winner', label: '预成交供应商' }, { key: 'amount', label: '预成交价格' },
-    { key: 'period', label: '工期/交货期/服务期限' }, { key: 'objection', label: '异议渠道', area: true },
-  ],
-  // 7.5.2.7 成交公告：登记线下成交结果（两段式第二段期满确认由系统自动生成）
-  WIN_NOTICE: [
-    { key: 'projectCode', label: '项目编号' }, { key: 'winner', label: '成交供应商' }, { key: 'amount', label: '成交金额' },
-    { key: 'period', label: '工期/交货期' }, { key: 'quality', label: '质量标准' },
-    { key: 'objection', label: '异议渠道', area: true },
-  ],
-  // 7.5.4.5 合同公告（宜公开）：名称/编码、当事人、价款、签约时间、期限
-  CONTRACT_NOTICE: [
-    { key: 'projectCode', label: '项目编号' }, { key: 'contractCode', label: '合同编号' },
-    { key: 'supplierName', label: '成交供应商' }, { key: 'amount', label: '合同价款' },
-    { key: 'signedAt', label: '签约时间', date: true }, { key: 'period', label: '合同期限' },
-  ],
-  // 7.6.2.2 履行结果公告：验收/履约结果
-  PERFORMANCE_NOTICE: [
-    { key: 'projectCode', label: '项目编号' }, { key: 'contractCode', label: '合同编号' },
-    { key: 'supplierName', label: '成交供应商' }, { key: 'result', label: '履行结果', area: true },
-    { key: 'acceptanceDate', label: '验收日期', date: true }, { key: 'issues', label: '存在问题及处理', area: true },
   ],
   POLICY: [
     { key: 'docNo', label: '文号' }, { key: 'issuer', label: '发布机关' }, { key: 'effectiveDate', label: '生效日期' },
@@ -80,11 +60,54 @@ const TYPE_META: Record<NoticeType, MetaField[]> = {
 };
 
 /** 项目绑定类公告：projectCode 字段同步写入 relatedProjectCode（供项目反查/期满派生/发布联动） */
-const PROJECT_LINKED_TYPES: NoticeType[] = ['ADDENDUM', 'PREQUAL_NOTICE', 'PRE_WIN_NOTICE', 'WIN_NOTICE', 'CONTRACT_NOTICE', 'PERFORMANCE_NOTICE'];
+const PROJECT_LINKED_TYPES: NoticeType[] = ['ADDENDUM', 'PREQUAL_NOTICE'];
 
 const Step = ({ n }: { n: number }) => (
   <span className="flex h-[18px] w-[18px] items-center justify-center rounded-md text-[10px] font-extrabold bg-[var(--accent)] text-white">{n}</span>
 );
+
+/** 关联条目（项目/公告）选择器弹窗：搜索 + 列表 + 空态，选中即回调（2026-10-16 关联信息区块） */
+function LinkOptionPicker({ open, title, hint, busy, options, query, onQuery, onPick, onClose }: {
+  open: boolean;
+  title: string;
+  hint: string;
+  busy: boolean;
+  options: { id: string; primary: string; secondary?: string | null }[];
+  query: string;
+  onQuery: (q: string) => void;
+  onPick: (id: string) => void;
+  onClose: () => void;
+}) {
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? options.filter(o => o.primary.toLowerCase().includes(q) || (o.secondary || '').toLowerCase().includes(q))
+    : options;
+  return (
+    <Modal open={open} onClose={onClose} title={title} size="xl"
+      footer={<span className="text-xs text-[var(--muted-foreground)]">{hint}</span>}>
+      <div className="relative mb-3">
+        <Search size={14} className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-[var(--muted-foreground)]" />
+        {/* !pl-9：压过 .neu-input 自带 padding-left（操作日志/供应商库同款口径），否则文字与放大镜重叠 */}
+        <input autoFocus value={query} onChange={e => onQuery(e.target.value)} placeholder="搜索名称 / 编号…" className="neu-input !pl-9" />
+      </div>
+      {busy ? (
+        <p className="py-8 text-center text-xs text-[var(--muted-foreground)]">加载中…</p>
+      ) : filtered.length === 0 ? (
+        <p className="py-8 text-center text-xs text-[var(--muted-foreground)]">无可选项</p>
+      ) : (
+        <div className="max-h-[46vh] space-y-1.5 overflow-y-auto tender-scroll pr-1">
+          {filtered.map(o => (
+            <button key={o.id} type="button" onClick={() => onPick(o.id)}
+              className="w-full rounded-xl border border-[oklch(0.6_0.04_258_/_0.14)] bg-[oklch(1_0_0_/_0.45)] px-4 py-3 text-left transition-all hover:border-[rgba(107,149,240,0.4)] hover:bg-[oklch(1_0_0_/_0.7)]">
+              <div className="truncate text-sm font-semibold text-[color:var(--foreground)]">{o.primary}</div>
+              {o.secondary && <div className="mt-0.5 truncate font-mono text-[10px] text-[var(--muted-foreground)]">{o.secondary}</div>}
+            </button>
+          ))}
+        </div>
+      )}
+    </Modal>
+  );
+}
 
 export default function NewNoticePage() {
   const router = useRouter();
@@ -104,7 +127,74 @@ export default function NewNoticePage() {
 
   const [attachments, setAttachments] = useState<AnnouncementAttachment[]>([]);
 
-  const onTypeChange = (t: NoticeType) => { setType(t); setMetadata({}); };
+  // ── 关联信息（补遗/资格预审，2026-10-16）：关联项目 / 关联采购公告，均限本公司（服务端公司隔离）──
+  // 补遗公告、资格预审公告须挂在具体项目上（补遗发布联动/资格预审反查），改自由手输为选择器 + 手填兜底
+  const isProjectLinked = type === 'ADDENDUM' || type === 'PREQUAL_NOTICE';
+  const [publisher, setPublisher] = useState(''); // 发布单位（登录人公司，发布时标明）
+  const [linkedProject, setLinkedProject] = useState<{ id: string; title: string; projectCode?: string | null } | null>(null);
+  const [linkedAnnouncement, setLinkedAnnouncement] = useState<{ id: string; title: string; relatedProjectCode?: string | null } | null>(null);
+  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
+  const [annPickerOpen, setAnnPickerOpen] = useState(false);
+  const [projectOptions, setProjectOptions] = useState<ProjectManagementItem[] | null>(null); // null=未加载
+  const [annOptions, setAnnOptions] = useState<{ id: string; title: string; relatedProjectCode?: string | null; publishDate?: string | null }[] | null>(null);
+  const [pickerBusy, setPickerBusy] = useState(false);
+  const [projectQuery, setProjectQuery] = useState('');
+  const [annQuery, setAnnQuery] = useState('');
+
+  const onTypeChange = (t: NoticeType) => {
+    setType(t); setMetadata({});
+    setLinkedProject(null); setLinkedAnnouncement(null); setProjectQuery(''); setAnnQuery('');
+  };
+
+  // 发布单位：登录人公司（后端 create 时 stampFor 落 companyName 快照，此处仅展示口径一致）
+  useEffect(() => { fetchCurrentUser().then(u => setPublisher(u.company || '')).catch(() => {}); }, []);
+
+  const openProjectPicker = () => {
+    setProjectPickerOpen(true);
+    if (projectOptions === null) {
+      setPickerBusy(true);
+      // GET /project-management 已按登录人公司隔离（非 admin 强制本公司；admin 默认全部公司视野）
+      fetchProjectManagementList('ACTIVE')
+        .then(setProjectOptions)
+        .catch(() => { toast.error('项目列表加载失败'); setProjectOptions([]); })
+        .finally(() => setPickerBusy(false));
+    }
+  };
+
+  const openAnnPicker = () => {
+    setAnnPickerOpen(true);
+    if (annOptions === null) {
+      setPickerBusy(true);
+      // GET /announcements 已按登录人公司隔离；仅列已发布采购公告（补遗/预审的对象）
+      listAnnouncements({ type: 'BID_NOTICE', status: 'PUBLISHED', pageSize: 100 })
+        .then(res => setAnnOptions(res.items || []))
+        .catch(() => { toast.error('公告列表加载失败'); setAnnOptions([]); })
+        .finally(() => setPickerBusy(false));
+    }
+  };
+
+  const pickProject = (id: string) => {
+    const p = (projectOptions || []).find(x => x.id === id);
+    if (!p) return;
+    setLinkedProject(p);
+    setMetadata(prev => ({ ...prev, projectCode: p.projectCode || '' }));
+    // 标题为空时按类型给建议标题（可改）
+    if (!title.trim()) setTitle(type === 'ADDENDUM' ? `关于「${p.title}」的补遗公告` : `${p.title}资格预审公告`);
+    setProjectPickerOpen(false); setProjectQuery('');
+  };
+
+  const pickAnnouncement = (id: string) => {
+    const a = (annOptions || []).find(x => x.id === id);
+    if (!a) return;
+    setLinkedAnnouncement(a);
+    setMetadata(prev => ({
+      ...prev,
+      relatedAnnouncementTitle: a.title,
+      // 关联公告可带出项目编号（采购公告发布时必挂 relatedProjectCode）；未带则不覆盖已填值
+      ...(a.relatedProjectCode && !prev.projectCode ? { projectCode: a.relatedProjectCode } : {}),
+    }));
+    setAnnPickerOpen(false); setAnnQuery('');
+  };
 
   const loadExtras = useCallback(async () => {
     if (!annId) return;
@@ -126,10 +216,15 @@ export default function NewNoticePage() {
     setBusy(true);
     const meta: Record<string, any> = {};
     for (const f of TYPE_META[type]) if (metadata[f.key]?.trim()) meta[f.key] = metadata[f.key].trim();
+    // 关联信息（2026-10-16）：projectCode/relatedAnnouncementTitle 移入选择器区块、不在 TYPE_META，须显式带走
+    if (isProjectLinked) {
+      if (metadata.projectCode?.trim()) meta.projectCode = metadata.projectCode.trim();
+      if (metadata.relatedAnnouncementTitle?.trim()) meta.relatedAnnouncementTitle = metadata.relatedAnnouncementTitle.trim();
+    }
     const finalMeta = configToMetadata(publishConfig, meta);
     const payload: any = { title, content, type, summary, status: actualStatus, isTop, publishDate, metadata: finalMeta };
-    // 项目绑定类公告挂项目编号：预成交公示供期满确认派生成交公告幂等去重；补遗公告供发布联动
-    // （补遗计数 + 供应商定向通知）；其余类型供项目反查与列表关联
+    // 项目绑定类公告挂项目编号：补遗公告供发布联动（补遗计数 + 供应商定向通知）；
+    // 资格预审公告供项目反查与列表关联（中标/成交/合同/履行结果四类已收归项目向导，2026-10-16）
     if (PROJECT_LINKED_TYPES.includes(type) && meta.projectCode) payload.relatedProjectCode = meta.projectCode;
     try {
       // P0 修复（2026-09-28 审计）：已保存过草稿（annId 存在）时必须 update 原记录——
@@ -171,7 +266,7 @@ export default function NewNoticePage() {
               <PlusCircle size={17} />
             </div>
             <div>
-              <div className="page-hero__title">新建信息</div>
+              <div className="page-hero__title">新建公告</div>
               <div className="page-hero__sub">{typeLabel[type]} — 填写基本信息后保存草稿，配齐附件后发布</div>
             </div>
           </div>
@@ -216,7 +311,7 @@ export default function NewNoticePage() {
             ))}
           </div>
           <p className="mt-2 text-[11px] text-[var(--muted-foreground)]">
-            采购公告、流标公告、中标公告由系统在项目的「公告制作与发布」向导中生成，不在此手工创建。
+            采购公告、流标公告、中标公告、成交公告、合同公告、履行结果公告由系统在项目的「公告制作与发布」向导中生成，不在此手工创建。
           </p>
         </fieldset>
 
@@ -236,6 +331,12 @@ export default function NewNoticePage() {
               <span className="text-xs font-semibold text-[var(--muted-foreground)]">发布日期</span>
               <input type="date" value={publishDate} onChange={e => setPublishDate(e.target.value)} className="neu-input" />
             </label>
+            {/* 发布单位（2026-10-16）：发布的公告必须标明公司——创建时后端按登录人 stampFor 落快照，此处同步展示 */}
+            <label className="space-y-1">
+              <span className="text-xs font-semibold text-[var(--muted-foreground)]">发布单位</span>
+              <input value={publisher || '（账号未归属公司，发布后将无法标明）'} disabled
+                className={`neu-input ${publisher ? 'text-[var(--foreground)]' : 'text-[var(--danger)]'}`} />
+            </label>
           </div>
           <label className="space-y-1 mt-4 block">
             <span className="text-xs font-semibold text-[var(--muted-foreground)]">标题</span>
@@ -248,10 +349,60 @@ export default function NewNoticePage() {
 
         <hr className="wb-section-rule" />
 
-        {/* ③ 结构化元数据 */}
+        {/* ③ 关联信息（补遗/资格预审）：选择器限本公司项目/公告（服务端公司隔离），保留手填兜底 */}
+        {isProjectLinked && (
+          <fieldset>
+            <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">
+              <Step n={3} />关联信息（仅本公司项目 / 公告）
+            </legend>
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <button type="button" onClick={openProjectPicker} className="neu-btn-soft"><FolderKanban size={14} />选择关联项目</button>
+                {linkedProject ? (
+                  <span className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-[oklch(0.6_0.04_258_/_0.16)] bg-[color-mix(in_oklch,var(--accent)_7%,transparent)] px-2.5 py-1.5 text-xs text-[color:var(--foreground)]">
+                    {linkedProject.projectCode && <span className="font-mono text-[10px] text-[var(--accent-strong)]">{linkedProject.projectCode}</span>}
+                    <span className="truncate font-semibold">{linkedProject.title}</span>
+                    <button type="button" aria-label="清除关联项目" title="清除关联项目"
+                      onClick={() => { setLinkedProject(null); setMetadata(prev => ({ ...prev, projectCode: '' })); }}
+                      className="ml-0.5 rounded p-0.5 text-[var(--muted-foreground)] transition-colors hover:bg-[oklch(0.55_0.04_258_/_0.1)] hover:text-[var(--danger)]">
+                      <X size={12} />
+                    </button>
+                  </span>
+                ) : (
+                  <span className="text-xs text-[var(--muted-foreground)]">未选择——可先选项目（自动带出编号与建议标题），或用下方项目编号手填</span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button type="button" onClick={openAnnPicker} className="neu-btn-soft"><Megaphone size={14} />选择关联采购公告</button>
+                {linkedAnnouncement ? (
+                  <span className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-[oklch(0.6_0.04_258_/_0.16)] bg-[color-mix(in_oklch,var(--accent)_7%,transparent)] px-2.5 py-1.5 text-xs text-[color:var(--foreground)]">
+                    <span className="truncate font-semibold">{linkedAnnouncement.title}</span>
+                    <button type="button" aria-label="清除关联公告" title="清除关联公告"
+                      onClick={() => { setLinkedAnnouncement(null); setMetadata(prev => ({ ...prev, relatedAnnouncementTitle: '' })); }}
+                      className="ml-0.5 rounded p-0.5 text-[var(--muted-foreground)] transition-colors hover:bg-[oklch(0.55_0.04_258_/_0.1)] hover:text-[var(--danger)]">
+                      <X size={12} />
+                    </button>
+                  </span>
+                ) : (
+                  <span className="text-xs text-[var(--muted-foreground)]">可选——关联本公司的已发布采购公告，自动带出其项目编号</span>
+                )}
+              </div>
+              {/* 手填兜底：项目编号随 PROJECT_LINKED_TYPES 写入 relatedProjectCode（发布联动/项目反查） */}
+              <label className="block max-w-md space-y-1">
+                <span className="text-xs font-semibold text-[var(--muted-foreground)]">项目编号（选择项目自动带出，可手填修正）</span>
+                <input value={metadata.projectCode || ''} onChange={e => setMetadata({ ...metadata, projectCode: e.target.value })}
+                  placeholder="如 SWHI-TP-2026101301" className="neu-input font-mono" />
+              </label>
+            </div>
+          </fieldset>
+        )}
+
+        {isProjectLinked && <hr className="wb-section-rule" />}
+
+        {/* ③/④ 结构化元数据（有项目关联区块时顺延一步） */}
         <fieldset>
           <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">
-            <Step n={3} />{typeLabel[type]} — 结构化信息（按字段填写，不混入正文）
+            <Step n={isProjectLinked ? 4 : 3} />{typeLabel[type]} — 结构化信息（按字段填写，不混入正文）
           </legend>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {TYPE_META[type].map(f => {
@@ -278,13 +429,10 @@ export default function NewNoticePage() {
         {/* ⑤ 正文 */}
         <fieldset>
           <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">
-            <Step n={4} />正文内容
+            <Step n={isProjectLinked ? 5 : 4} />正文内容
           </legend>
           <RichTextEditor value={content} onChange={setContent} placeholder="开始输入正文内容..." />
-          <label className="space-y-1 mt-4 block">
-            <span className="text-xs font-semibold text-[var(--muted-foreground)]">摘要（可选）</span>
-            <input value={summary} onChange={e => setSummary(e.target.value)} className="neu-input" placeholder="简要概述..." />
-          </label>
+          {/* 摘要输入已删（2026-10-16 用户裁定）：summary state 保留恒空传参，公开页摘要展示回退 aiSummary/正文截取 */}
         </fieldset>
 
         <hr className="wb-section-rule" />
@@ -292,7 +440,7 @@ export default function NewNoticePage() {
         {/* ⑤ 发布配置 */}
         <fieldset>
           <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">
-            <Step n={5} />发布配置
+            <Step n={isProjectLinked ? 6 : 5} />发布配置
           </legend>
           <PublishConfigSection config={publishConfig} onChange={setPublishConfig} />
         </fieldset>
@@ -303,7 +451,7 @@ export default function NewNoticePage() {
             <hr className="wb-section-rule" />
             <fieldset>
               <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">
-                <Step n={6} />附件（公开可下载）
+                <Step n={isProjectLinked ? 7 : 6} />附件（公开可下载）
               </legend>
               <AttachmentUploader annId={annId} attachments={attachments} onChanged={loadExtras} />
             </fieldset>
@@ -329,6 +477,31 @@ export default function NewNoticePage() {
           </div>
         </div>
       </div>
+
+      {/* 关联选择器弹窗：数据源均为公司隔离端点（非 admin 服务端强制本公司；admin 默认全部视野） */}
+      {isProjectLinked && (
+        <>
+          <LinkOptionPicker
+            open={projectPickerOpen} title="选择关联项目（本公司）"
+            hint="项目列表按登录人公司隔离——仅本公司项目可选（admin 为全部公司视野）"
+            busy={pickerBusy && projectOptions === null}
+            options={(projectOptions || []).map(p => ({ id: p.id, primary: p.title, secondary: p.projectCode }))}
+            query={projectQuery} onQuery={setProjectQuery} onPick={pickProject}
+            onClose={() => setProjectPickerOpen(false)}
+          />
+          <LinkOptionPicker
+            open={annPickerOpen} title="选择关联采购公告（本公司）"
+            hint="仅列本公司的已发布采购公告；选中后自动带出其项目编号"
+            busy={pickerBusy && annOptions === null}
+            options={(annOptions || []).map(a => ({
+              id: a.id, primary: a.title,
+              secondary: [a.relatedProjectCode, a.publishDate ? new Date(a.publishDate).toLocaleDateString('zh-CN') + ' 发布' : ''].filter(Boolean).join(' · '),
+            }))}
+            query={annQuery} onQuery={setAnnQuery} onPick={pickAnnouncement}
+            onClose={() => setAnnPickerOpen(false)}
+          />
+        </>
+      )}
     </div>
   );
 }

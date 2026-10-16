@@ -135,7 +135,8 @@ describe('HttpExceptionFilter — 报错信息中文化（2026-10-10 禁英文�
       ]),
       host,
     );
-    expect(bodyOf(host).error).toBe('参数「联系人」应为文本；参数「密码」长度不足（最少 6 字）；参数「该字段」不能为空');
+    // 2026-10-16 文案优化：弃「参数「X」…」模板，改自然主谓句（未知键兜底「该项」）
+    expect(bodyOf(host).error).toBe('联系人应为文本；密码长度不足（最少 6 字）；该项不能为空');
     expect(bodyOf(host).code).toBe('VALIDATION_ERROR');
   });
 

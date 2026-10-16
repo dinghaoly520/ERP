@@ -33,6 +33,7 @@ const LEGACY_ROUTE_CASES = [
   { path: "/frameworks", workspaceTitle: "成交履约", tabPath: "/award-letters" },
   { path: "/profile", workspaceTitle: "企业信息" },
   { path: "/profile/ukey", workspaceTitle: "证书与U盾" },
+  { path: "/profile/company-links", workspaceTitle: "公司归属管理" },
   { path: "/change-records", workspaceTitle: "企业信息", tabPath: "/profile" },
   { path: "/announcements", workspaceTitle: "公告中心" },
   { path: "/objections", workspaceTitle: "异议投诉" },
@@ -47,6 +48,7 @@ const REGULAR_ONLY_ROUTES = [
   "/supply",
   "/profile",
   "/change-records",
+  "/profile/company-links",
 ] as const;
 
 test("temporary suppliers can resolve /profile/ukey (cert management is required for bidding)", () => {
@@ -76,13 +78,13 @@ test("menu construction stays fail-closed while supplier status is unknown", () 
   assert.equal(workspaces(buildForStatus(null)).length, 8);
   assert.equal(workspaces(buildForStatus(undefined)).length, 8);
   assert.equal(workspaces(buildForStatus(true)).length, 8);
-  assert.equal(workspaces(buildForStatus(false)).length, 9);
+  assert.equal(workspaces(buildForStatus(false)).length, 10);
 });
 
-test("regular suppliers see the nine task-oriented workspaces in order", () => {
+test("regular suppliers see the ten task-oriented workspaces in order", () => {
   assert.deepEqual(
     workspaces(buildMenuItems(false)).map((item) => item.title),
-    ["工作台", "项目机会", "我的投标", "成交履约", "企业信息", "证书与U盾", "消息中心", "公告中心", "异议投诉"],
+    ["工作台", "项目机会", "我的投标", "成交履约", "企业信息", "公司归属管理", "证书与U盾", "消息中心", "公告中心", "异议投诉"],
   );
 });
 
@@ -116,6 +118,7 @@ test("only multi-route workspaces define tabs", () => {
     我的投标: [],
     成交履约: [],
     企业信息: [],
+    公司归属管理: [],
     证书与U盾: [],
     消息中心: [],
     公告中心: [],

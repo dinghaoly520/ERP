@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Eye, Bell, Clock, Users, Search, X, Check } from 'lucide-react';
+import { Eye, Clock, Users, Search, X, Check } from 'lucide-react';
 import { getSupplierList } from '@/lib/api/supplier';
 import type { Supplier } from '@water-erp/shared';
 
@@ -45,7 +45,8 @@ export function configToMetadata(config: PublishConfig, base: Record<string, any
   } else {
     delete meta.restrictedSupplierIds;
   }
-  meta.notifyOnPublish = config.notifyOnPublish;
+  // 通知设置 UI 已删（2026-10-16）：恒按可见范围通知，meta 钉 true 保持后端既有默认语义
+  meta.notifyOnPublish = true;
   if (config.scheduleMode === 'scheduled' && config.scheduledPublishDate) {
     meta.scheduledPublishDate = config.scheduledPublishDate;
   } else {
@@ -105,28 +106,7 @@ export function PublishConfigSection({
 
       <div className="rounded-lg bg-[color-mix(in_oklch,var(--surface)_60%,transparent)] px-3 py-px" style={{ boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.3)' }} />
 
-      {/* 通知设置 */}
-      <div>
-        <label className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">
-          <Bell size={12} />通知设置
-        </label>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={config.notifyOnPublish}
-            onChange={(e) => update({ notifyOnPublish: e.target.checked })}
-            className="neu-checkbox"
-          />
-          <span className="text-sm text-[var(--foreground)]">
-            发布时向{config.visibility === 'PUBLIC' ? '全部' : '选中'}供应商发送站内通知
-          </span>
-        </label>
-        <p className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">
-          通知包含公告标题与链接，供应商可在通知中心直接跳转查看
-        </p>
-      </div>
-
-      <div className="rounded-lg bg-[color-mix(in_oklch,var(--surface)_60%,transparent)] px-3 py-px" style={{ boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.3)' }} />
+      {/* 通知设置已删（2026-10-16 用户裁定）：发布时恒按可见范围向供应商发站内通知（meta.notifyOnPublish 钉 true，见 configToMetadata） */}
 
       {/* 发布时间 */}
       <div>
