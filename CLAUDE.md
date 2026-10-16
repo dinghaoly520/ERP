@@ -153,6 +153,7 @@ pnpm install
 pnpm infra:up        # Start PostgreSQL, Redis, MinIO
 pnpm infra:down      # Stop
 pnpm infra:logs      # View logs
+pnpm dev:kill         # 全链清理（2026-10-16 升级）：fuser 清 11 端口 + 按 /proc cwd+cmdline 清 apps/api 残树（watch 链/孤儿 dist/ai-worker；`--api` 只清 API 不动 portals、`--list` 干跑）；叠树/半死恢复一律 `pnpm dev:kill && pnpm dev`——main.ts 有 listen 预检（端口占用即 exit 1 秒退），勿再手工起并行救援 watch 树
 
 # Build shared packages (required before first app start)
 pnpm --filter @water-erp/shared build
