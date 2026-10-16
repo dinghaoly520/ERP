@@ -18,6 +18,7 @@ import { ApprovalHistory } from '@/components/supplier/approval-history';
 import { PortraitTab } from '@/components/supplier/portrait-tab';
 
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
+import { copyToClipboard } from '@/lib/copy-to-clipboard';
 
 type TabKey = 'info' | 'portrait' | 'contacts' | 'qualifications' | 'evaluations' | 'records' | 'changes' | 'communications' | 'documents';
 
@@ -50,7 +51,7 @@ function InfoField({
       <span
         className={`break-words text-[13px] font-bold leading-snug tabular-nums text-[var(--foreground)] ${mono ? 'font-mono tracking-tight' : ''} ${empty ? 'font-normal text-[var(--muted-foreground)]/55' : ''} ${copyable && !empty ? 'cursor-pointer transition-colors group-hover:text-[var(--accent)]' : ''}`}
         title={copyable && !empty ? '点击复制' : undefined}
-        onClick={copyable && !empty ? () => { navigator.clipboard?.writeText(value!); toast.success(`${label} 已复制`); } : undefined}
+        onClick={copyable && !empty ? async () => { if (await copyToClipboard(value!)) toast.success(`${label} 已复制`); else toast.error('复制失败，请手动选择复制'); } : undefined}
       >
         {empty ? '—' : value}
       </span>
@@ -592,7 +593,7 @@ export default function SupplierDetailPage() {
                 <div className="min-w-0 flex-1">
                   <h4 className="mb-1.5 break-words text-[17px] font-black leading-tight tracking-tight text-[var(--foreground)]">{supplier.name}</h4>
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] font-semibold text-[var(--accent)]" style={{ background: "color-mix(in oklch, var(--accent) 7%, transparent)", cursor: 'pointer' }} title="点击复制" onClick={() => { navigator.clipboard?.writeText(supplier.creditCode ?? ''); toast.success('统一社会信用代码已复制'); }}>
+                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] font-semibold text-[var(--accent)]" style={{ background: "color-mix(in oklch, var(--accent) 7%, transparent)", cursor: 'pointer' }} title="点击复制" onClick={async () => { if (await copyToClipboard(supplier.creditCode ?? '')) toast.success('统一社会信用代码已复制'); else toast.error('复制失败，请手动选择复制'); }}>
                       {supplier.creditCode}
                       <span className="text-[9px] font-sans font-bold opacity-60">复制</span>
                     </span>
