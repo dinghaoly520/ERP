@@ -30,6 +30,12 @@ const statusTone = ANN_STATUS_TONE;
 const statusLabel = ANN_STATUS_LABEL;
 
 interface MetaField { key: string; label: string; area?: boolean; date?: boolean }
+
+/** datetime-local 值归一：存量纯日期（2026-07-01）补 T00:00，否则控件显示空；已合规/空原样 */
+function toDateInputValue(raw: string): string {
+  if (!raw) return '';
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00` : raw;
+}
 const TYPE_META: Record<AnnouncementType, MetaField[]> = {
   PREQUAL_NOTICE: [
     { key: 'title', label: '预审名称' }, { key: 'projectCode', label: '项目编号' }, { key: 'relatedAnnouncementTitle', label: '关联采购公告' },
@@ -43,7 +49,7 @@ const TYPE_META: Record<AnnouncementType, MetaField[]> = {
   BID_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '招标方式' }, { key: 'budget', label: '预算金额' },
     { key: 'scope', label: '采购内容/范围', area: true }, { key: 'qualification', label: '投标人资格要求', area: true },
-    { key: 'downloadDeadline', label: '采购文件下载时间' },
+    { key: 'downloadDeadline', label: '采购文件下载时间' }, // 区间数据（downloadPeriod 优先）——保留自由文本，不用单时刻选择器
     { key: 'deadline', label: '报名/投标截止', date: true }, { key: 'openTime', label: '开标时间', date: true }, { key: 'contact', label: '联系方式' },
   ],
   PRE_WIN_NOTICE: [
@@ -63,7 +69,7 @@ const TYPE_META: Record<AnnouncementType, MetaField[]> = {
     { key: 'projectCode', label: '项目编号' }, { key: 'supplierName', label: '成交供应商' }, { key: 'result', label: '履行结果' },
   ],
   POLICY: [
-    { key: 'docNo', label: '文号' }, { key: 'issuer', label: '发布机关' }, { key: 'effectiveDate', label: '生效日期' },
+    { key: 'docNo', label: '文号' }, { key: 'issuer', label: '发布机关' }, { key: 'effectiveDate', label: '生效日期', date: true },
     { key: 'scope', label: '适用范围', area: true },
   ],
   PLATFORM: [
@@ -73,11 +79,11 @@ const TYPE_META: Record<AnnouncementType, MetaField[]> = {
   // 系统生成类：字段与发布向导写入的 canonical meta / 公告草稿键对齐
   FAILED_BID_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '采购方式' }, { key: 'budget', label: '最高限价' },
-    { key: 'openTime', label: '开标时间' }, { key: 'resultInfo', label: '开标结果公示信息', area: true },
+    { key: 'openTime', label: '开标时间', date: true }, { key: 'resultInfo', label: '开标结果公示信息', area: true },
   ],
   WIN_BID_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '采购方式' }, { key: 'budget', label: '最高限价' },
-    { key: 'openTime', label: '开标时间' }, { key: 'bidder1Name', label: '中标供应商' }, { key: 'bidder1Price', label: '中标价格' },
+    { key: 'openTime', label: '开标时间', date: true }, { key: 'bidder1Name', label: '中标供应商' }, { key: 'bidder1Price', label: '中标价格' },
     { key: 'remark', label: '备注' },
   ],
 };
@@ -549,7 +555,7 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
                 {f.area
                   ? <textarea value={metadata[f.key] || ''} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className="neu-input h-20 resize-none" />
                   : f.date
-                    ? <input type="datetime-local" value={metadata[f.key] || ''} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className="neu-input" />
+                    ? <input type="datetime-local" value={toDateInputValue(metadata[f.key] || '')} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className="neu-input" />
                     : <input value={metadata[f.key] || ''} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className="neu-input" />
                 }
               </div>

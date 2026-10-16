@@ -35,6 +35,12 @@ const typeLabel: Record<NoticeType, string> = {
 };
 
 interface MetaField { key: string; label: string; area?: boolean; date?: boolean }
+
+/** datetime-local 值归一：存量纯日期（2026-07-01）补 T00:00，否则控件显示空；已合规/空原样 */
+function toDateInputValue(raw: string): string {
+  if (!raw) return '';
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00` : raw;
+}
 const TYPE_META: Record<NoticeType, MetaField[]> = {
   // C5（GB/T 43711 7.2.6）：采购文件澄清/修改 → 补遗公告（发布后自动通知已获取文件的供应商）
   // projectCode 不在通用网格——移入「关联信息」区块（选择器 + 手填兜底，2026-10-16）
@@ -50,7 +56,7 @@ const TYPE_META: Record<NoticeType, MetaField[]> = {
     { key: 'contact', label: '联系方式' },
   ],
   POLICY: [
-    { key: 'docNo', label: '文号' }, { key: 'issuer', label: '发布机关' }, { key: 'effectiveDate', label: '生效日期' },
+    { key: 'docNo', label: '文号' }, { key: 'issuer', label: '发布机关' }, { key: 'effectiveDate', label: '生效日期', date: true },
     { key: 'scope', label: '适用范围', area: true },
   ],
   PLATFORM: [
@@ -414,7 +420,7 @@ export default function NewNoticePage() {
                     {f.area
                       ? <textarea value={val} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className="neu-input h-20 resize-y" />
                       : f.date
-                        ? <input type="datetime-local" value={val} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className="neu-input" />
+                        ? <input type="datetime-local" value={toDateInputValue(val)} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className="neu-input" />
                         : <input value={val} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className="neu-input" />
                     }
                   </label>
