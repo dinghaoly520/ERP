@@ -23,6 +23,7 @@ import { ClassificationManagerDialog } from '@/components/supplier/classificatio
 import { ObjectionBoardModal } from '@/components/notice/objection-board-modal';
 import { SupplierAuditLogModal } from '@/components/supplier/supplier-audit-log-modal';
 import { Building2, MessageSquareWarning, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban, Tags, History } from 'lucide-react';
+import { copyToClipboard } from '@/lib/copy-to-clipboard';
 import { exportAllFilteredSuppliersToExcel } from '@/lib/excel-export';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import { LEVEL_LABEL, LEVEL_COLOR, SUPPLIER_STATUS_LABEL } from '@water-erp/shared';
@@ -156,8 +157,11 @@ export default function SupplierRepositoryPage() {
     try { await revokeInvitation(id); toast.success('已作废'); await loadInvitations(); }
     catch { toast.error('作废失败'); }
   };
+  // 复制必须给反馈（2026-10-16）：http 演示环境 navigator.clipboard 为 undefined，静默吞错=点击无反应；
+  // copyToClipboard 带 execCommand 降级兜底，仍失败时把码直接给出来供手动复制
   const copyCode = async (code: string) => {
-    try { await navigator.clipboard.writeText(code); setCopiedCode(code); setTimeout(() => setCopiedCode(null), 1500); } catch {}
+    if (await copyToClipboard(code)) { setCopiedCode(code); setTimeout(() => setCopiedCode(null), 1500); }
+    else toast.error(`复制失败，请手动复制：${code}`);
   };
 
   const loadData = useCallback(async () => {

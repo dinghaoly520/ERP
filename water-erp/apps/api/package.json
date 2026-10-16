@@ -79,6 +79,7 @@
     "@types/supertest": "^7.2.0",
     "@typescript-eslint/eslint-plugin": "^8.65.0",
     "@typescript-eslint/parser": "^8.65.0",
+    "dotenv": "16.6.1",
     "eslint": "^9.39.4",
     "jest": "^30.4.2",
     "prisma": "^6.6.0",

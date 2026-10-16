@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { copyToClipboard } from '@/lib/copy-to-clipboard';
 import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getNotifyPrefs, updateNotifyPrefs, getNotifyHistory, getAiAdoptionRate, confirmInvitation, declineInvitation, updateExpertProfile, getRiskBrief, type ExpertPortrait, type ExpertRiskBrief, type NotifyHistoryItem, revealExpertField } from '@/lib/api/expert';
 import { Modal, AlertBanner, StatusBadge } from '@/components/workbench';
 import { useExpertAlerts } from '@/lib/hooks/use-alerts';
@@ -51,7 +52,7 @@ function InfoField({
       <div
         className={`break-words text-[13px] font-bold leading-snug tabular-nums text-[var(--foreground)] ${mono ? 'font-mono tracking-tight' : ''} ${empty ? 'font-normal text-[var(--muted-foreground)]/55' : ''} ${copyable && !empty ? 'cursor-pointer transition-colors group-hover:text-[var(--accent)]' : ''}`}
         title={copyable && !empty ? '点击复制' : undefined}
-        onClick={copyable && !empty && typeof value === 'string' ? () => { navigator.clipboard?.writeText(value); toast.success(`${label} 已复制`); } : undefined}
+        onClick={copyable && !empty && typeof value === 'string' ? async () => { if (await copyToClipboard(value)) toast.success(`${label} 已复制`); else toast.error('复制失败，请手动选择复制'); } : undefined}
       >
         {empty ? '—' : value}
       </div>

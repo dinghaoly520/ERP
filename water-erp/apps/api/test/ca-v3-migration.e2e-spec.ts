@@ -1,3 +1,4 @@
+import 'dotenv/config'; // 裸 PrismaClient 不经 AppModule——自行加载 apps/api/.env（CI e2e job 写入、本地 dev 库）
 import { PrismaClient } from '@prisma/client';
 
 describe('ca-v3-migration（SCCA 阶段2 Task0 约束断言）', () => {
