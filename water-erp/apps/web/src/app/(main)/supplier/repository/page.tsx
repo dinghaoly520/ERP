@@ -436,7 +436,7 @@ export default function SupplierRepositoryPage() {
           <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">供应商总数</span>
             <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats.total}</span>
-            <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">全量入库</span>
+            <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">在库 / 临时 / 停用 / 黑名单</span>
           </div>
           <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">已入库</span>

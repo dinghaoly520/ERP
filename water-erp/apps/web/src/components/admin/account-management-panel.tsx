@@ -596,7 +596,7 @@ export function AccountManagementPanel() {
                 <th className="px-4 py-3 font-medium">登录账号（信用代码）</th>
                 <th className="px-4 py-3 font-medium">联系人</th>
                 <th className="px-4 py-3 font-medium">手机</th>
-                <th className="px-4 py-3 font-medium">状态</th>
+                <th className="px-4 py-3 font-medium" style={{ width: 120 }}>状态</th>
                 <th className="px-4 py-3 font-medium">归属公司</th>
                 <th className="px-4 py-3 font-medium">最近登录 IP</th>
                 <th className="px-4 py-3 font-medium" style={{ width: 200 }}>密码</th>
@@ -624,7 +624,7 @@ export function AccountManagementPanel() {
                       <td className="px-4 py-3 text-center text-[color:var(--foreground)]">{s.displayName || "—"}</td>
                       <td className="px-4 py-3 text-center text-[color:var(--muted-foreground)]">{s.phone ?? "—"}</td>
                       <td className="px-4 py-3 text-center">
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold leading-none ${s.isFrozen ? "bg-[rgba(215,89,89,0.1)] text-[color:var(--danger)]" : s.isActive ? "bg-[rgba(92,181,150,0.12)] text-[#1d7a5f]" : "bg-[rgba(234,179,8,0.12)] text-[#a16207]"}`}>
+                        <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold leading-none ${s.isFrozen ? "bg-[rgba(215,89,89,0.1)] text-[color:var(--danger)]" : s.isActive ? "bg-[rgba(92,181,150,0.12)] text-[#1d7a5f]" : "bg-[rgba(234,179,8,0.12)] text-[#a16207]"}`}>
                           {s.isFrozen ? "已冻结" : s.isActive ? "已激活" : "待审核"}
                         </span>
                       </td>

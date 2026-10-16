@@ -946,7 +946,8 @@ export function SupplierSelectionPage({
     if (!text) { setError('请至少填写一项采购需求'); return; }
     setError(''); setLoading(true); setResult(null);
     try {
-      const res = await recommendSuppliers({ requirement: text, tags: selectedTags.length ? selectedTags : undefined, maxCount, projectContext: buildProjectContext(text) });
+      // companyId=项目归属公司：admin 场景把 AI 候选池收敛到该公司（非 admin 由后端强制本人公司）
+      const res = await recommendSuppliers({ requirement: text, tags: selectedTags.length ? selectedTags : undefined, maxCount, projectContext: buildProjectContext(text), companyId: project?.companyId || undefined });
       setResult(res);
       setShortlist(new Map());
       setStep(2); // 自动跳转到审核候选步骤
@@ -972,6 +973,7 @@ export function SupplierSelectionPage({
         maxCount: addMoreCount,
         excludedSupplierIds: excludeIds,
         projectContext: buildProjectContext(text),
+        companyId: project?.companyId || undefined,
       });
       if (res.recommendations.length > 0) {
         setResult(prev => prev ? { ...prev, recommendations: [...prev.recommendations, ...res.recommendations] } : res);
@@ -1454,7 +1456,7 @@ export function SupplierSelectionPage({
     const totalDeclined = [...allSupplierStatuses.values()].filter(s => s === 'declined').length;
     const need = totalDeclined + 1;
     const rerunReq = buildRequirement() || selectedProject?.name || project?.title || '';
-    recommendSuppliers({ requirement: rerunReq, tags: selectedTags.length ? selectedTags : undefined, maxCount: need, excludedSupplierIds: excludeIds, projectContext: buildProjectContext(rerunReq) })
+    recommendSuppliers({ requirement: rerunReq, tags: selectedTags.length ? selectedTags : undefined, maxCount: need, excludedSupplierIds: excludeIds, projectContext: buildProjectContext(rerunReq), companyId: project?.companyId || undefined })
       .then(res => { setRerunResult(res); setRerunLoading(false); })
       .catch(() => { setRerunLoading(false); toast.error('补选推荐失败'); });
   };

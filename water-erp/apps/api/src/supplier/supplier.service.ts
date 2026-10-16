@@ -3471,7 +3471,9 @@ export class SupplierService {
     // 公司级数据隔离：统计在隔离集上算（口径同专家库），admin 可 ?companyId= 切单公司
     const f = actor ? this.companyScope.filter(await this.companyScope.resolveScope(actor, companyId)) : {};
     const [total, pending, approved, disabled, blacklist, returned, temporaryApproved] = await Promise.all([
-      this.prisma.supplier.count({ where: { ...f } }),
+      // 总数口径（2026-10-16 用户裁定）：只数库内四态——在库（含临时，临时=APPROVED+isTemporary）/停用/黑名单；
+      // PENDING/RETURNED/REJECTED 为审批流转件（注册审批已迁出供应商库），不计入总数。
+      this.prisma.supplier.count({ where: { status: { in: ['APPROVED', 'DISABLED', 'BLACKLIST'] }, ...f } }),
       this.prisma.supplier.count({ where: { status: 'PENDING', ...f } }),
       this.prisma.supplier.count({ where: { status: 'APPROVED', ...f } }),
       this.prisma.supplier.count({ where: { status: 'DISABLED', ...f } }),

@@ -134,8 +134,8 @@ export function getSupplierStats(companyId?: string) {
   return api.get<SupplierStats>(`/supplier/stats${companyId && companyId !== 'all' ? '?companyId=' + companyId : ''}`);
 }
 
-// AI 智能推荐供应商（按采购需求 + 项目上下文）
-export function recommendSuppliers(data: { requirement: string; classificationId?: string; tags?: string[]; maxCount?: number; excludedSupplierIds?: string[]; projectContext?: Record<string, string> }) {
+// AI 智能推荐供应商（按采购需求 + 项目上下文；候选池公司隔离——companyId=项目归属公司，非 admin 由后端强制本人公司）
+export function recommendSuppliers(data: { requirement: string; classificationId?: string; tags?: string[]; maxCount?: number; excludedSupplierIds?: string[]; projectContext?: Record<string, string>; companyId?: string }) {
   return api.post<SupplierSelectionResult>('/ai/supplier-selection', data);
 }
 

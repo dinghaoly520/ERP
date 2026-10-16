@@ -361,7 +361,7 @@ export default function SupplierDashboardPage() {
         <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 items-stretch">
           {[
-            ['供应商总数', stats?.total ?? '—', '全量入库'],
+            ['供应商总数', stats?.total ?? '—', '在库 / 临时 / 停用 / 黑名单'],
             ['已入库',     stats?.approved ?? '—', '正常运营'],
             ['待审核',     stats?.pending ?? '—', '新注册申请'],
             ['停用/黑名单', stats ? (stats.disabled ?? 0) + (stats.blacklist ?? 0) : '—', '状态冻结'],

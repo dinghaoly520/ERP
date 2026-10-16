@@ -5,6 +5,7 @@ import { SupplierSelectionAiService } from './supplier-selection-ai.service';
 import { LlmService } from '../local-ai/llm.service';
 import { NotificationService } from '../notification/notification.service';
 import { ConfigService } from '@nestjs/config';
+import { CompanyScopeService } from '../company/company-scope';
 
 describe('AiService', () => {
   let service: AiService;
@@ -49,6 +50,7 @@ describe('AiService', () => {
       supplierEvaluation: { groupBy: jest.fn() },
       supplierQualification: { groupBy: jest.fn() },
       procurementProject: { findFirst: jest.fn() },
+      supplier: { findMany: jest.fn() },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -60,10 +62,41 @@ describe('AiService', () => {
         { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn() } },
         // AiService 构造器第 5 参（口径同 local-ai/llm.service.spec.ts）
         { provide: ConfigService, useValue: { get: (key: string, def?: string) => (process.env[key] as string | undefined) ?? def } },
+        // AiService 构造器第 6 参：公司隔离引擎（recommendSuppliers 候选池限定归属公司）
+        { provide: CompanyScopeService, useValue: { resolveScope: jest.fn(), filter: jest.fn() } },
       ],
     }).compile();
 
     service = module.get<AiService>(AiService);
+  });
+
+  describe('recommendSuppliers', () => {
+    it('候选池按公司隔离：filter 片段注入 where，禁止全库推荐', async () => {
+      prisma.supplier.findMany.mockResolvedValue([]);
+      const companyScope = (service as any).companyScope;
+      companyScope.resolveScope.mockResolvedValue({ all: false, companyIds: ['co-swhi'] });
+      companyScope.filter.mockReturnValue({ companyId: { in: ['co-swhi'] } });
+
+      const res = await service.recommendSuppliers('水泵采购', { actor: { sub: 'u1', role: 'leader' } as any });
+
+      expect(prisma.supplier.findMany).toHaveBeenCalledTimes(1);
+      const where = prisma.supplier.findMany.mock.calls[0][0].where;
+      expect(where.status).toBe('APPROVED');
+      expect(where.companyId).toEqual({ in: ['co-swhi'] });
+      // 空（隔离后）候选池 → 空推荐而非报错
+      expect(res.recommendations).toEqual([]);
+    });
+
+    it('actor 与 companyId 透传 resolveScope（非 admin 传参忽略语义由 CompanyScopeService 保证）', async () => {
+      prisma.supplier.findMany.mockResolvedValue([]);
+      const companyScope = (service as any).companyScope;
+      companyScope.resolveScope.mockResolvedValue({ all: true });
+      companyScope.filter.mockReturnValue({});
+
+      await service.recommendSuppliers('水泵采购', { actor: { sub: 'u2', role: 'admin' } as any, companyId: 'co-x' });
+
+      expect(companyScope.resolveScope).toHaveBeenCalledWith({ sub: 'u2', role: 'admin' }, 'co-x');
+    });
   });
 
   describe('analyzeBid', () => {

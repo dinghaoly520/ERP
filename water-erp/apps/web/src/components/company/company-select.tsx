@@ -144,7 +144,7 @@ export function CompanySelect({
     setTimeout(() => searchRef.current?.focus(), 0);
   }, []);
 
-  // 外点 / ESC / 滚动 / 变更尺寸 → 关闭
+  // 外点 / ESC / 滚离视口 / 变更尺寸 → 关闭（面板内部滚动不关，SearchSelect 同语义）
   useEffect(() => {
     if (!open) return;
     // 关闭即清搜索词（与 SearchSelect 同语义）——否则重开面板残留上次过滤
@@ -154,16 +154,17 @@ export function CompanySelect({
       if (!popRef.current?.contains(t) && !btnRef.current?.contains(t)) close();
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
-    const onAway = close;
+    const onScrollAway = (e: Event) => { if (popRef.current?.contains(e.target as Node)) return; close(); };
+    const away = close;
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
-    window.addEventListener("resize", onAway);
-    window.addEventListener("scroll", onAway, true);
+    window.addEventListener("resize", away);
+    window.addEventListener("scroll", onScrollAway, true);
     return () => {
       document.removeEventListener("mousedown", onDoc);
       document.removeEventListener("keydown", onKey);
-      window.removeEventListener("resize", onAway);
-      window.removeEventListener("scroll", onAway, true);
+      window.removeEventListener("resize", away);
+      window.removeEventListener("scroll", onScrollAway, true);
     };
   }, [open]);
 

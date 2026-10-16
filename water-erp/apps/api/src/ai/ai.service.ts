@@ -6,6 +6,8 @@ import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { LlmService } from '../local-ai/llm.service';
 import { NotificationService } from '../notification/notification.service';
+import { CompanyScopeService } from '../company/company-scope';
+import type { AuthenticatedUser } from '../auth/auth.types';
 import { SupplierSelectionAiService } from './supplier-selection-ai.service';
 import { signRsvpToken } from '../supplier/rsvp-token.util';
 import { ShareShortlistDto } from './dto/share-shortlist.dto';
@@ -34,6 +36,7 @@ export class AiService {
     private llm: LlmService,
     private notificationService: NotificationService,
     private config: ConfigService,
+    private companyScope: CompanyScopeService,
   ) {}
 
   /** 便捷方法 —— 直接调用 LLM chatJson，兼容旧代码 */
@@ -1132,7 +1135,15 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
 
   async recommendSuppliers(
     requirement: string,
-    opts: { classificationId?: string; tags?: string[]; maxCount?: number; excludedSupplierIds?: string[]; projectContext?: Record<string, string> },
+    opts: {
+      classificationId?: string;
+      tags?: string[];
+      maxCount?: number;
+      excludedSupplierIds?: string[];
+      projectContext?: Record<string, string>;
+      companyId?: string; // admin 限定候选池公司（项目管理流程传项目归属公司）
+      actor?: AuthenticatedUser; // 登录人（公司隔离视野来源；非 admin 强制本人公司，companyId 传参忽略防伪造）
+    },
   ): Promise<SupplierSelectionResult> {
     const maxCount = Math.min(Math.max(opts.maxCount ?? 10, 1), 30);
     const reqGrams = this.tokenize(requirement);
@@ -1144,6 +1155,9 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     if (opts.tags && opts.tags.length > 0) where.tags = { hasSome: opts.tags };
     // 排除已选供应商（重新选取时不重复推荐）
     if (opts.excludedSupplierIds && opts.excludedSupplierIds.length > 0) where.id = { notIn: opts.excludedSupplierIds };
+    // 公司级数据隔离（2026-10-16）：候选池只含归属公司供应商，禁止全库推荐。
+    // 非 admin 强制本人公司；admin 默认全部、由 companyId 切换（项目管理供应商邀请流程传项目归属公司快照）。
+    Object.assign(where, this.companyScope.filter(await this.companyScope.resolveScope(opts.actor, opts.companyId)));
     const suppliers = await this.prisma.supplier.findMany({
       where,
       include: {
