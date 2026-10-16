@@ -1148,7 +1148,10 @@ export class AnnouncementService {
       // 拟定供应商入参与名单：直接采购公告发布后，公告「拟定供应商名称」
       // （metadata.supplierName，向导发布时随草稿快照写入）自动纳入 BidSupplier——
       // 项目基本信息「供应商参与」区块（getParticipants ∪ bidSuppliers）即可见；
-      // 同时回填 PMI.awardedSupplier（仅当其为空，不覆盖已确认值）。供应商在库时按名关联 id。
+      // 供应商在库时按名关联 id。
+      // 2026-10-16 口径修订：不再同时回填 PMI.awardedSupplier——「中标单位」展示字段
+      // 在发布公告时点即有值属过早（业务上应开标评标后才获取）；合法写入时点 =
+      // 评标结果回写（bidService）/ 定标审批表 / 中标通知书 / 合同附件解析。
       const proposedSupplier = String((announcement.metadata as Record<string, any> | null | undefined)?.supplierName ?? '').trim();
       if (linkedProjectId && proposedSupplier && rawCategory !== 'failed_bid') {
         try {
@@ -1165,12 +1168,6 @@ export class AnnouncementService {
             },
             update: supplier ? { supplierId: supplier.id } : {},
           });
-          if (linkedPmi) {
-            await this.prisma.projectManagementItem.updateMany({
-              where: { id: linkedPmi.id, OR: [{ awardedSupplier: null }, { awardedSupplier: '' }] },
-              data: { awardedSupplier: proposedSupplier },
-            });
-          }
           this.logger.log(`拟定供应商已纳入参与名单: ${proposedSupplier} → 项目 ${linkedProjectId}`);
         } catch (e) {
           this.logger.warn(`拟定供应商入参与名单失败: ${(e as Error).message}`);

@@ -883,3 +883,36 @@ describe('AnnouncementService — search 字段覆盖 relatedProjectCode（2026-
     expect(where.OR).toContainEqual({ relatedProjectCode: { contains: 'SWZB-2026', mode: 'insensitive' } });
   });
 });
+
+describe('AnnouncementService — 直接采购公告发布不提前回填中标单位（2026-10-16）', () => {
+  it('发布联动 → 拟定供应商入 BidSupplier 参与名单，PMI.awardedSupplier 不被写入（中标单位应开标评标后才获取）', async () => {
+    const bidService = { syncFromAnnouncement: jest.fn() };
+    const prisma: any = {
+      projectManagementItem: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'pmi-1', projectCode: 'ZJ-2026001' }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      bidProject: { findFirst: jest.fn().mockResolvedValue({ id: 'bp-1', projectCode: 'ZJ-BP1', projectManagementItemId: 'pmi-1' }) },
+      bidDocument: { findUnique: jest.fn().mockResolvedValue(null) },
+      supplier: { findFirst: jest.fn().mockResolvedValue(null) },
+      bidSupplier: { upsert: jest.fn().mockResolvedValue({}) },
+    };
+    const { AnnouncementService: Svc } = await import('./announcement.service');
+    const service: any = new (Svc as any)(prisma, {}, bidService, {});
+
+    await service.syncBidProject('ann1', {
+      id: 'ann1', title: '直接采购公告', publishDate: new Date(),
+      relatedProjectCode: 'ZJ-2026001',
+      metadata: { method: '直接采购', supplierName: '重庆蜀通岩土工程有限公司' },
+    });
+
+    // 参与名单保留：拟定供应商在「供应商参与」区块可见，且是邀请自动化的载体
+    expect(prisma.bidSupplier.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { projectId_supplierName: { projectId: 'bp-1', supplierName: '重庆蜀通岩土工程有限公司' } },
+      }),
+    );
+    // 中标单位不得在发布公告时点被回填——评标结果回写（bidService）/定标审批表/中标通知书才是合法时点
+    expect(prisma.projectManagementItem.updateMany).not.toHaveBeenCalled();
+  });
+});
