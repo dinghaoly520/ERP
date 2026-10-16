@@ -4,6 +4,8 @@
 # 树会留下；下次 pnpm dev 再拉一棵 → 两棵 watch 同写 dist/ 抢 :4001 → 撞车半死（叠树）。
 #
 # 本脚本 = fuser 清端口 + 按 /proc 的 cwd+cmdline 清 apps/api 残树。
+# 注意：nest CLI 的 node 进程 cmdline 为 ".../@nestjs/cli/bin/nest.js start --watch"，
+# "nest start" 子串匹配不到它（中间隔 .js）——须单列 "@nestjs/cli/bin/nest.js" 模式（2026-10-16 实测漏杀实录）。
 # 归属判定只认 cwd=apps/api（lsof 对 pnpm 硬链接有假命中，勿用）；pnpm/concurrently
 # 祖先进程 cwd 在仓库根，天然不中弹。procurement / ukey / OCR / MCP watchdog 的 cwd
 # 均不在 apps/api，无需显式排除。
@@ -51,7 +53,7 @@ for pid in $(ls /proc 2>/dev/null | grep -E '^[0-9]+$'); do
     *shell-snapshots*) continue ;;
   esac
   case "$cmd" in
-    *"nest start"*|*"nest build"*|*"dist/main"*|*"ai-bid-analysis-worker"*)
+    *"nest start"*|*"nest build"*|*"@nestjs/cli/bin/nest.js"*|*"dist/main"*|*"ai-bid-analysis-worker"*)
       pids+=("$pid")
       descs+=("${cmd:0:70}")
       ;;
