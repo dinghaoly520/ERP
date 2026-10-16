@@ -355,7 +355,9 @@ export default function NoticePage() {
         <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 items-stretch">
           <HeroStat label="已发布" value={published} sub="已生效可见" />
-          <HeroStat label="待处理草稿" value={drafts} signal={drafts > 0 ? "warning" : undefined} sub={drafts > 0 ? "尽快发布" : "全部已发布"} />
+          {/* 点击联动筛选：类型重置 ALL（手工草稿多为政策/平台类，默认「采购公告」tab 下看不到）+ 状态=草稿 */}
+          <HeroStat label="待处理草稿" value={drafts} signal={drafts > 0 ? "warning" : undefined} sub={drafts > 0 ? "尽快发布 · 点击查看" : "全部已发布"}
+            onClick={() => { setFilterType('ALL'); setFilterStatus('DRAFT'); setPage(1); }} />
           <HeroStat label="本月发布" value={publishedThisMonth} sub="本月新增公告" valueStr={publishedThisMonth.toString()} />
           <HeroStat label="浏览总量" value={totalViews} sub="累计曝光量" valueStr={totalViews >= 10000 ? `${(totalViews / 10000).toFixed(1)} 万` : totalViews.toLocaleString('zh-CN')} />
         </div>
@@ -475,16 +477,20 @@ export default function NoticePage() {
 /* HeroStat — 对标采购进度 KpiCard 的紧凑指标瓷片
    kpi-card 基类：浅底凸起 + hover 抬升 + label/value/sub 纵向排版
    所有卡片保留相同结构层（label区 / value / sub区），确保同排高度一致 */
-function HeroStat({ label, value, sub, signal, valueStr }: {
+function HeroStat({ label, value, sub, signal, valueStr, onClick }: {
   label: string; value: number;
   sub?: string;
   signal?: "success" | "warning" | "danger";
   valueStr?: string;
+  /** 可点击联动（如「待处理草稿」点击即筛出草稿列表）——渲染为 button，视觉与纯展示卡一致 */
+  onClick?: () => void;
 }) {
   const sc = signal === "success" ? "bg-[var(--success)]" : signal === "warning" ? "bg-[var(--warning)]" : signal === "danger" ? "bg-[var(--danger)]" : "";
   const st = signal === "success" ? "text-[var(--success)]" : signal === "warning" ? "text-[var(--warning)]" : signal === "danger" ? "text-[var(--danger)]" : "";
   return (
-    <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
+    <div onClick={onClick} role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
+      className={`kpi-card group flex h-full flex-col gap-1.5 p-3${onClick ? ' cursor-pointer' : ''}`}>
       {/* label 行 — 固定 min-h 使得有/无 signal 时 label 位置一致 */}
       <div className="flex items-center justify-between gap-2 min-h-[18px]">
         <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">{label}</span>
