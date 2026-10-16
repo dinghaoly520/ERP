@@ -1,7 +1,8 @@
 import type { Express } from 'express';
 import { BadRequestException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, unlink } from 'node:fs/promises';
+import { getTenderTextCachePath } from './docx/file-utils';
 import { ProjectManagementService } from './project-management.service';
 import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 
@@ -1587,4 +1588,48 @@ describe('ProjectManagementService', () => {
     });
   });
 
+
+describe('直接采购「中标单位」收口（2026-10-16：开标评标前恒空）', () => {
+  const ZJ_ITEM = 'zj-close-item';
+
+  beforeEach(async () => {
+    // 本套件顶部的 jest.mock('node:fs/promises') 是 factory mock（均返回 undefined），
+    // 本用例需要真实 /tmp 缓存 IO —— 恢复真实实现
+    const realFs = await jest.requireActual('node:fs/promises');
+    (readFile as unknown as jest.Mock).mockImplementation(realFs.readFile);
+    (writeFile as unknown as jest.Mock).mockImplementation(realFs.writeFile);
+    (mkdir as unknown as jest.Mock).mockImplementation(realFs.mkdir);
+    const realUnlink = realFs.unlink;
+    (globalThis as any).__zjRealUnlink = realUnlink;
+    const cachePath = getTenderTextCachePath(ZJ_ITEM);
+    await realFs.mkdir('/tmp/project-management-cache', { recursive: true });
+    await realFs.writeFile(cachePath, [
+      '一、项目概况',
+      '本项目采购安全监测设备一批。',
+      '拟定供应商：重庆蜀通岩土工程有限公司',
+      '二、供应商资格要求',
+    ].join('\n'), 'utf8');
+  });
+
+  afterEach(async () => {
+    try { await ((globalThis as any).__zjRealUnlink as typeof unlink)(getTenderTextCachePath(ZJ_ITEM)); } catch { /* already gone */ }
+  });
+
+  it('extractTenderFields（AI提取/自动提取）→ 不提取/不写入 awardedSupplier', async () => {
+    const { service, prisma, aiService } = makeService();
+    // makeService 的 mockReset 会清掉 beforeEach 的恢复——此处重设（extractTenderFields
+    // 需真实 readFile 命中 /tmp 缓存、getTenderTextCachePath 需真实 mkdir）
+    const realFs = await jest.requireActual('node:fs/promises');
+    (readFile as unknown as jest.Mock).mockImplementation(realFs.readFile);
+    (mkdir as unknown as jest.Mock).mockImplementation(realFs.mkdir);
+    aiService.chat.mockResolvedValue(null); // AI 兜底/抛光均落空 → 保留正则产物
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ procurementMethod: '直接采购', awardedSupplier: null });
+    prisma.projectManagementItem.update.mockResolvedValue({});
+
+    await service.extractTenderFields(ZJ_ITEM);
+
+    const data = prisma.projectManagementItem.update.mock.calls.at(-1)?.[0]?.data ?? {};
+    expect(data).not.toHaveProperty('awardedSupplier');
+  });
+});
 });

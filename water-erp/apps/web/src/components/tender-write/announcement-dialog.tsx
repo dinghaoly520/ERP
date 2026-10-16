@@ -45,7 +45,7 @@ import { findContactByName } from "@/lib/api/contacts";
 import { fetchCurrentUser } from "@/lib/api/auth";
 import { getCompanyInfoOnce, type CompanyInfo } from "@/lib/api/company-info";
 import { exportAnnouncementDocument, importWinningBidFromPdf } from "@/lib/api/announcement";
-import { checkSupplierChange, updateProjectExtractedInfo } from "@/lib/api/project-management";
+import { checkSupplierChange } from "@/lib/api/project-management";
 import { getSupplierList } from "@/lib/api/supplier";
 import { confirmDialog } from "@/components/catalog/confirm-dialog";
 
@@ -1134,7 +1134,9 @@ export function AnnouncementDialog({
       });
       if (ok) {
         handleFieldChange('supplierName', r.extracted);
-        await updateProjectExtractedInfo(project.id, { awardedSupplier: r.extracted });
+        // 2026-10-16 收口：不再写 PMI.awardedSupplier（中标单位开标评标前恒空）——
+        // 只更新公告草稿的「拟定供应商名称」字段，发布后由 BidSupplier 参与名单承载
+        handleFieldChange('supplierName', r.extracted);
         const addr = await syncAddressFor(r.extracted, true);
         toast.success(
           addr

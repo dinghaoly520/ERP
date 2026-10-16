@@ -802,19 +802,9 @@ export class ProjectManagementService {
       result.documentAcquireTime = val;
     }
 
-    // 直接采购：额外提取拟定供应商名称（从采购文件中）
-    if (procurementMethod === '直接采购') {
-      const existing = await this.prisma.projectManagementItem.findUnique({
-        where: { id: itemId }, select: { awardedSupplier: true },
-      });
-      if (!existing?.awardedSupplier?.trim()) {
-        const supplierName = extractAwardedSupplierFromText(text);
-        if (supplierName) {
-          updateData.awardedSupplier = supplierName;
-          result.awardedSupplier = supplierName;
-        }
-      }
-    }
+    // 直接采购「拟定供应商」不再写入 awardedSupplier（2026-10-16 收口）：「中标单位」
+    // 在开标评标完成前恒空——合法写入时点 = 评标结果回写/定标审批表/中标通知书/合同附件。
+    // 公告向导的「核对供应商」继续走 checkSupplierChange（只读提取，不写库）。
 
     if (Object.keys(updateData).length > 0) {
       await this.prisma.projectManagementItem.update({ where: { id: itemId }, data: updateData });
@@ -823,9 +813,10 @@ export class ProjectManagementService {
   }
 
   /**
-   * 拟定供应商核对：重新解析采购文件提取当前供应商名（纯公司名），
-   * 与项目已存 awardedSupplier 比对——只读不写库，供公告「拟定供应商名称」字段
-   * 的核对按钮判断「供应商是否已更换」，更新由用户确认后走 updateProjectExtractedInfo。
+   * 拟定供应商核对：重新解析采购文件提取当前供应商名（纯公司名），只读不写库。
+   * 供公告「拟定供应商名称」字段的核对按钮判断「供应商是否已更换」——
+   * 前端以公告草稿 supplierName 为比对基线（2026-10-16 起 awardedSupplier 开标评标前恒空，
+   * current 字段仅为接口兼容保留，无消费方）；确认更新只改公告草稿字段，不写 PMI。
    */
   async checkSupplierChange(itemId: string) {
     const item = await this.prisma.projectManagementItem.findUnique({
@@ -1528,22 +1519,8 @@ ${shortlist}
           }
         }
 
-        // 直接采购：从采购文件提取拟定供应商名称（后续供应商邀请步骤自动跳过选取）
-        if (procurementMethod === '直接采购') {
-          const existingProject = await this.prisma.projectManagementItem.findUnique({
-            where: { id: projectId },
-            select: { awardedSupplier: true },
-          });
-          if (!existingProject?.awardedSupplier?.trim()) {
-            const supplierName = extractAwardedSupplierFromText(text);
-            if (supplierName) {
-              await this.prisma.projectManagementItem.update({
-                where: { id: projectId },
-                data: { awardedSupplier: supplierName },
-              });
-            }
-          }
-        }
+        // 直接采购：拟定供应商不再写入 awardedSupplier（2026-10-16 收口，同 extractTenderFields）——
+        // 公告发布链路由 BidSupplier 参与名单承载拟定供应商（邀请/参与展示不受影响）。
 
         // 采购文件获取时间：正则优先，失败时用 AI 从文本提取
         let rawAcquireTime = this.extractDocumentAcquireTimeFromText(text);
