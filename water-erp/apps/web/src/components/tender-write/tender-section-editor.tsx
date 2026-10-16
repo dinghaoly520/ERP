@@ -328,6 +328,8 @@ export function TenderSectionEditor({
     currentValue: string,
     aiPrompt?: string,
   ) => {
+    // 供应商名称不允许 AI 生成（2026-10-16 用户裁定）：按钮已隐藏，此处兜底拦漏网调用
+    if (fieldKey === 'supplierName') return;
     setGeneratingStates((prev) => ({ ...prev, [fieldKey]: true }));
     setAiError(null);
 

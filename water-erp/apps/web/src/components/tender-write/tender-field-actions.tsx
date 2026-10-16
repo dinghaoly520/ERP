@@ -19,6 +19,12 @@ const FIELDS_WITHOUT_ACTIONS: Set<string> = new Set([
   'contactAddress',
 ]);
 
+// 仅藏 AI 按钮、保留收藏/样本库的字段（2026-10-16 用户裁定）：
+// 供应商名称必须真实选定/手填，AI 会编造公司名——采购文件编写中不允许 AI 生成/优化
+const FIELDS_WITHOUT_AI: Set<string> = new Set([
+  'supplierName',
+]);
+
 // Fields that should hide actions when type is "date"
 // （projectDuration 已改纯文字填写，2026-09-11 移除）
 const FIELDS_HIDE_WHEN_DATE: Set<string> = new Set([
@@ -188,7 +194,10 @@ export function TenderFieldActions({
             {showTooltip === 'sample' && <ActionTooltip>样本库</ActionTooltip>}
           </button>
 
-          {aiOverride ? (
+          {/* FIELDS_WITHOUT_AI（如供应商名称）：仅藏 AI 按钮，收藏/样本库保留；
+              aiOverride（核对供应商等语义覆写）不受此限 */}
+          {(aiOverride || !FIELDS_WITHOUT_AI.has(fieldKey)) && (
+            aiOverride ? (
             <button
               type="button"
               onClick={aiOverride.onClick}
@@ -233,7 +242,7 @@ export function TenderFieldActions({
               </ActionTooltip>
             )}
           </button>
-          )}
+          ))}
         </>
       )}
     </div>

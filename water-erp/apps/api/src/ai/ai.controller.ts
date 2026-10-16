@@ -161,6 +161,11 @@ export class AiController {
   @ApiOperation({ summary: 'AI招标字段内容生成' })
   @Roles('admin', 'bid_host', 'leader', 'staff')
   async tenderFieldGenerate(@Body() payload: TenderFieldGenerateDto) {
+    // 供应商名称不允许 AI 生成（2026-10-16 用户裁定）：直接采购的供应商必须真实
+    // 选定/手填，AI 会编造公司名——前端按钮已隐藏，此处纵深拦截 API 直调
+    if (payload.fieldKey === 'supplierName') {
+      throw new BadRequestException({ error: '供应商名称不支持 AI 生成', code: 'SUPPLIER_NAME_NO_AI' });
+    }
     return this.aiService.generateTenderFieldContent(payload);
   }
 

@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AiService } from './ai.service';
+import { AiController } from './ai.controller';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupplierSelectionAiService } from './supplier-selection-ai.service';
 import { LlmService } from '../local-ai/llm.service';
@@ -304,5 +305,14 @@ describe('AiService', () => {
       // 川水建设有真实数据支撑（文件/解密/履约/资质/报价）→ confidence 高
       expect(result[0].confidence).toBeGreaterThan(50);
     });
+  });
+});
+
+describe('AiController — 供应商名称不允许 AI 生成（2026-10-16 用户裁定）', () => {
+  it('fieldKey=supplierName → 400 SUPPLIER_NAME_NO_AI，不触达 AI service', async () => {
+    const controller = new AiController({} as any, {} as any, {} as any, {} as any, {} as any);
+    await expect(
+      controller.tenderFieldGenerate({ fieldKey: 'supplierName', fieldLabel: '供应商名称', currentValue: '', context: {} } as any),
+    ).rejects.toMatchObject({ response: { code: 'SUPPLIER_NAME_NO_AI' } });
   });
 });
