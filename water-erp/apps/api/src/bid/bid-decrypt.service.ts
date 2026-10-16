@@ -142,7 +142,7 @@ export class BidDecryptService {
       return this.decryptOuterOneV3(projectId, bidSupplierId, actorId, submission, supplierName);
     }
     if (submission.envelopeVersion !== 'dual-v2') {
-      throw new BadRequestException({ error: '该供应商走旧轨（单层）加密，无外层可解', code: 'NOT_DUAL_TRACK' });
+      throw new BadRequestException({ error: '该供应商采用单层加密（历史投递方式），无外层可解', code: 'NOT_DUAL_TRACK' });
     }
     if (submission.outerDecryptedAt && submission.innerAssets !== null) {
       // 已完整解过（innerAssets 已落库）：快路径跳过。outerDecryptedAt 有值但 innerAssets 为

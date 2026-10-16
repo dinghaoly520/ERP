@@ -2062,7 +2062,7 @@ export class SupplierPortalService {
     //      存量 legacy 行仅作历史证据读，不再产生新义务。BID_DUAL_ENVELOPE 应急退回开关废弃 ═══
     if (!dual) {
       throw new BadRequestException({
-        error: '旧轨（平台代解密）投递通道已关闭——请绑定 SCCA CA U盾后按双层信封（dual-v3）投递',
+        error: '原投递方式（平台代解密）已停用——请绑定 SCCA CA U盾，使用新版双信封加密投递',
         code: 'LEGACY_TRACK_CLOSED',
       });
     }
@@ -2454,7 +2454,7 @@ export class SupplierPortalService {
     }
     const track = resolveEnvelopeVersion(submission);
     if (track !== 'dual-v3') {
-      throw new BadRequestException({ error: '该供应商非 dual-v3 轨，请走对应补传通道', code: 'NOT_DUAL_TRACK' });
+      throw new BadRequestException({ error: '该供应商未使用新版双信封加密投递，请走对应补传通道', code: 'NOT_DUAL_TRACK' });
     }
     const versionRow = await this.prisma.submissionVersion.findUnique({
       where: { submissionId_revision: { submissionId: submission.id, revision: submission.revision } },
@@ -2501,7 +2501,7 @@ export class SupplierPortalService {
       throw new BadRequestException({ error: '供应商未提交投标文件', code: 'NO_SUBMISSION' });
     }
     if (submission.envelopeVersion !== 'dual-v3') {
-      throw new BadRequestException({ error: '该供应商非 dual-v3 轨，请走对应补传通道', code: 'NOT_DUAL_TRACK' });
+      throw new BadRequestException({ error: '该供应商未使用新版双信封加密投递，请走对应补传通道', code: 'NOT_DUAL_TRACK' });
     }
 
     // ── ② op 门（purpose/status/归属）+ 冻结信封 ──
@@ -2973,7 +2973,7 @@ export class SupplierPortalService {
       throw new BadRequestException({ error: '供应商未提交投标文件', code: 'NO_SUBMISSION' });
     }
     if (submission.envelopeVersion !== 'dual-v2') {
-      throw new BadRequestException({ error: '旧轨项目请走主持端补传通道', code: 'NOT_DUAL_TRACK' });
+      throw new BadRequestException({ error: '该项目为历史投递方式，请走主持端补传通道', code: 'NOT_DUAL_TRACK' });
     }
 
     // 原始明文锚点：该 role 的 FileAsset 须在位且有 sha256
@@ -3187,7 +3187,7 @@ export class SupplierPortalService {
     const track = resolveEnvelopeVersion(submission); // Task13：读端统一分派
     const isV3 = track === 'dual-v3';
     if (track === 'legacy') {
-      throw new BadRequestException({ error: '该供应商走旧轨（单层）加密，无解密包', code: 'NOT_DUAL_TRACK' });
+      throw new BadRequestException({ error: '该供应商采用单层加密（历史投递方式），无解密包', code: 'NOT_DUAL_TRACK' });
     }
     if (!submission.outerDecryptedAt || !submission.innerAssets) {
       throw new BadRequestException({ error: '外层尚未解密，解密包未就绪', code: 'OUTER_NOT_DECRYPTED' });
@@ -3333,7 +3333,7 @@ export class SupplierPortalService {
     const track = resolveEnvelopeVersion(submission); // Task13：读端统一分派
     const isV3 = track === 'dual-v3';
     if (track === 'legacy') {
-      throw new BadRequestException({ error: '该供应商走旧轨（单层）加密，请走主持端解密通道', code: 'NOT_DUAL_TRACK' });
+      throw new BadRequestException({ error: '该供应商采用单层加密（历史投递方式），请走主持端解密通道', code: 'NOT_DUAL_TRACK' });
     }
     if (!submission.outerDecryptedAt || !submission.innerAssets) {
       throw new BadRequestException({ error: '外层尚未解密，无法进行内层解密上传', code: 'OUTER_NOT_DECRYPTED' });
