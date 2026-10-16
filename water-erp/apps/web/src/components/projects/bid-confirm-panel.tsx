@@ -1113,6 +1113,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
           <HostPickerModal
             projectId={bidProject.id}
             currentHostId={assignedHost?.id ?? null}
+            currentHostName={assignedHost?.displayName ?? null}
             onClose={() => setHostPickerOpen(false)}
             onChanged={() => {
               setHostPickerOpen(false);
