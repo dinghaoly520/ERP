@@ -34,10 +34,11 @@ Run workspace commands from `water-erp/`.
 | Package | Purpose |
 |---------|---------|
 | `packages/config` | Port definitions (`ports.ts`) and role→portal routing (`urls.ts`) — `@water-erp/config` |
-| `packages/shared` | Domain types, status labels/maps, stage colors, brand constants — `@water-erp/shared` |
-| `packages/ui` | Shared React workbench components (`MetricCard`, `PageHero`, `SectionCard`, `StatusBadge`, `DataToolbar`) + `cn` helper — `@water-erp/ui` |
+| `packages/shared` | Domain types, status labels/maps, stage colors, brand constants — `@water-erp/shared`（纯类型/常量，勿放 DOM/浏览器代码） |
 | `packages/ukey` | 供应商 CA U盾适配层（SM2/SM4/SM3 封装、`MockUKeyAdapter`、`DualEnvelope`/`SealedFields` 类型与 `canonicalEnvelopeHash`）——双信封投标加密与开标解密前后端共用，浏览器与 Node 同源可跑 — `@water-erp/ukey` |
 | `packages/client` | 前端 API 客户端（`createApiClient`/`api`/`ApiError`——按 portal 的鉴权头与错误归一，五门户 `lib/api/*` 底座）——**dist 消费且 dist 不入库**：改 src 后必须 `--filter @water-erp/client build`（CI validate 构建链已含） — `@water-erp/client` |
+
+> **无共享组件包**：旧文曾记载 `packages/ui`（`@water-erp/ui`），2026-10-16 核实不存在、全库零引用（`packages/` 下仅 client/config/shared/ukey 四包）——workbench 组件与门户工具在各门户 `src/components`/`src/lib` 本地维护。
 
 Infrastructure in `water-erp/docker-compose.yml`: PostgreSQL 16 (`localhost:5432`), Redis 7 (`localhost:6380→6379`), MinIO (`localhost:9000`, console `localhost:9001`).
 
@@ -415,7 +416,8 @@ DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED
 
 ### Frontend Conventions
 
-- Shared workbench components live in `packages/ui` (`@water-erp/ui`). Consuming apps must add `@source "../../node_modules/@water-erp/ui"` to their `globals.css` (Tailwind v4 requirement).
+- 门户无共享组件包（见 Shared Packages 表末注）——workbench 组件、`cn`、小工具在各门户 `src/components`/`src/lib` 本地维护；跨门户通用小工具（如剪贴板）按门户自包含各放一份，勿抽进 `@water-erp/shared`。
+- 剪贴板复制一律用各门户 `src/lib/copy-to-clipboard.ts`（web/bid-portal/supplier-portal-next/mall）：`navigator.clipboard` 仅 https/localhost 可用，http 演示环境直用=点击无反应或谎报「已复制」；util 带 `execCommand` 降级返回布尔，调用方必须按真实结果反馈。
 - All portals (incl. supplier) use Next.js 16 + React 19 + Tailwind CSS v4.
 - **Design system** (see `.impeccable.md`): industrial precision aesthetic — 1px hairline dividers, monospace numerals, layered navy→ice blue palette, Lucide 1.5px-stroke icons, `rounded-2xl` cards, `rounded-xl` buttons. The signature component treatment is a **neumorphic raised-border system** (directional light/dark shadow pairs derived from the page BG `oklch(0.975 0.012 258)`; never flat omnidirectional `box-shadow`) — buttons raise on hover, inset on active. Anti-patterns: no gradient buttons, no emoji-as-icons, no Material-style elevation shadows, no generic admin-template look. (`docs/glass-morphism-design-system.md` is an earlier, superseded direction; `.impeccable.md` is current.)
 - No mock data fallbacks — show real DB data, loading, or empty states.
