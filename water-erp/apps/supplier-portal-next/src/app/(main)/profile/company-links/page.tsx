@@ -5,9 +5,11 @@ import { Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { UnitSearchSelect } from "@/components/registration/unit-search-select";
 import { SpPageHero } from "@/components/sp-page-hero";
-import { EmptyState, LoadingBlock, SpButton, SpInput } from "@/components/ui";
+import { EmptyState, LoadingBlock, SpButton } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { supplierCompanyLinksApi, type CompanyLinkView } from "@/lib/api/supplier";
+// UnitSearchSelect 的 neumorphic 触发器样式（uss-shadow-*）在 register2.css——须随组件引入
+import "@/styles/pages/register2.css";
 
 const STATUS_LABEL: Record<CompanyLinkView["status"], string> = {
   PENDING: "审批中",
@@ -85,7 +87,10 @@ export default function CompanyLinksPage() {
         <h2 className="text-sm font-medium">申请加入公司</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <UnitSearchSelect value={company} onChange={setCompany} />
-          <SpInput
+          {/* 与 UnitSearchSelect 触发器同规格（52px 内凹），同行两列等高 */}
+          <input
+            className="uss-shadow-sunk w-full"
+            style={{ height: 52, borderRadius: 14, padding: "0 16px", border: "none", outline: "none", fontSize: 15, background: "var(--surface, oklch(0.965 0.012 252))", color: "var(--reg-ink, #1e293b)" }}
             placeholder="申请说明（选填，如：希望参与贵司水务项目）"
             value={note}
             onChange={(e) => setNote(e.target.value)}
