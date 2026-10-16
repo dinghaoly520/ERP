@@ -219,6 +219,9 @@ export default function RegisterPage() {
 
   const [agree, setAgree] = useState(false);
   const [creditCodeDuplicate, setCreditCodeDuplicate] = useState(false);
+  // 信用代码命中状态快照（2026-10-16）：REJECTED=驳回壳重开模式——手机号查重的「自命中」豁免依据
+  //（存量壳 User.phoneIdx 可能残存，前端盲索引查重分不清「壳自己」还是「他人」，放行交后端 F1 自排除裁决）
+  const [creditCodeHitStatus, setCreditCodeHitStatus] = useState<string | null>(null);
   const [legalIdCardDuplicate, setLegalIdCardDuplicate] = useState(false);
   const [phoneDuplicate, setPhoneDuplicate] = useState(false); // 注册手机号失焦查重（2026-10-16）
   // 退回补正 / 驳回重注册 检测（2026-10-14）：公司名失焦查公开状态——
@@ -368,12 +371,15 @@ export default function RegisterPage() {
   /* 注册短信验证码 */
   async function sendRegCode() {
     if (!/^1[3-9]\d{9]$/.test(registrationPhone.trim())) { toast.warning("请先输入有效的注册手机号"); return; }
-    // 手机号查重前置（2026-10-16）：已绑定的手机号先拦在发码前，避免白烧一条短信
-    try {
-      const res = await authApi.checkDuplicate({ phone: registrationPhone.trim() });
-      if (res.phone) { setPhoneDuplicate(true); toast.error("该手机号已绑定其他供应商账号，请更换后再获取验证码"); return; }
-      setPhoneDuplicate(false);
-    } catch { /* 查重失败不阻塞发码 */ }
+    // 手机号查重前置（2026-10-16）：已绑定的手机号先拦在发码前，避免白烧一条短信。
+    // 驳回壳重开豁免（见 checkRegistrationPhoneDuplicate 注释）：壳残存 phoneIdx 自命中不拦发码。
+    if (creditCodeHitStatus !== "REJECTED") {
+      try {
+        const res = await authApi.checkDuplicate({ phone: registrationPhone.trim() });
+        if (res.phone) { setPhoneDuplicate(true); toast.error("该手机号已绑定其他供应商账号，请更换后再获取验证码"); return; }
+        setPhoneDuplicate(false);
+      } catch { /* 查重失败不阻塞发码 */ }
+    }
     setCodeSending(true);
     try {
       await authApi.sendRegistrationCode(registrationPhone.trim());
@@ -394,6 +400,7 @@ export default function RegisterPage() {
     // 补正会话激活：查重必命中自身 RETURNED 行，不做检测/置标志（2026-10-14 review）
     if (correction.status === "RETURNED" && correction.token) return;
     setCreditCodeDuplicate(false);
+    setCreditCodeHitStatus(null);
     const code = basic.creditCode.trim();
     if (!/^[0-9A-Z]{18}$/.test(code)) return;
     try {
@@ -401,6 +408,7 @@ export default function RegisterPage() {
       // 2026-10-14：REJECTED=驳回壳可重注册（后端 register 原位覆盖）、RETURNED=退回补正流程接管——均不作阻塞重复
       const blocking = res.creditCode && res.creditCodeStatus !== "REJECTED" && res.creditCodeStatus !== "RETURNED";
       setCreditCodeDuplicate(blocking);
+      setCreditCodeHitStatus(res.creditCode ? res.creditCodeStatus : null);
       if (res.creditCodeStatus === "RETURNED") toast.info("该统一社会信用代码有退回补正中的申请，请在企业信息步通过「进入补正」完成验证后重新提交");
       // 2026-10-16：临时过期不改 status（仍 APPROVED），命中时优先给续期出路而非「请核对后重试」
       else if (blocking && res.creditCodeIsTemporary && res.creditCodeTemporaryExpired) {
@@ -411,13 +419,16 @@ export default function RegisterPage() {
       else if (blocking) toast.warning("该统一社会信用代码已被注册，请核对后重试");
     } catch { /* 查重失败不阻塞 */ }
   }
-  /* 注册手机号失焦查重（2026-10-16）：对齐法人证失焦预检口径 */
+  /* 注册手机号失焦查重（2026-10-16）：对齐法人证失焦预检口径。
+     驳回壳重开豁免：存量壳 User.phoneIdx 残存时本机手机号必自命中——前端无从分辨，
+     不置阻断标志不发警告，交提交时后端 F1 自排除裁决（他人占用仍在后端 400 拦截）。 */
   async function checkRegistrationPhoneDuplicate() {
     setPhoneDuplicate(false);
     const p = registrationPhone.trim();
     if (!/^1[3-9]\d{9}$/.test(p)) return;
     try {
       const res = await authApi.checkDuplicate({ phone: p });
+      if (res.phone && creditCodeHitStatus === "REJECTED") return;
       setPhoneDuplicate(res.phone);
       if (res.phone) toast.warning("该手机号已绑定其他供应商账号，请更换");
     } catch { /* 查重失败不阻塞 */ }
@@ -633,7 +644,8 @@ export default function RegisterPage() {
       const inCorrection = correction.status === "RETURNED" && !!correction.token;
       if (creditCodeDuplicate && !inCorrection) { toast.error("统一社会信用代码重复，无法进入下一步"); return; }
       if (legalIdCardDuplicate && !inCorrection) { toast.warning("法定代表人身份证号已存在，请核对"); return; }
-      if (phoneDuplicate) { toast.warning("该手机号已绑定其他供应商账号，请更换"); return; }
+      // 补正豁免：补正中手机号本就绑在自身账号（回填草稿必自命中），不阻断步进
+      if (phoneDuplicate && !inCorrection) { toast.warning("该手机号已绑定其他供应商账号，请更换"); return; }
     }
     if (!validate()) return;
     // 步骤 0 门槛（2026-10-09）：服务端消费验证码并换发注册会话 token——后续步骤不再要求验证码
@@ -759,7 +771,9 @@ export default function RegisterPage() {
       }
       if (dup.legalPersonIdCard) { toast.warning("法定代表人身份证号已存在，请核对"); return; }
       if (dup.contactIdCard) { toast.warning("联系人身份证号已存在，请核对"); return; }
-      if (dup.phone) { setPhoneDuplicate(true); toast.error("该手机号已绑定其他供应商账号，无法注册，请更换"); return; }
+      // 驳回壳重开豁免：壳自身残存 phoneIdx 自命中放行（后端 register 按 F1 自排除壳 User 裁决；
+      // 若确为他人账号占用，后端 400 DUPLICATE_PHONE 兜底拦截）
+      if (dup.phone && dup.creditCodeStatus !== "REJECTED") { setPhoneDuplicate(true); toast.error("该手机号已绑定其他供应商账号，无法注册，请更换"); return; }
     } catch { /* 不阻塞 */ }
 
     setLoading(true);
