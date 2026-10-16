@@ -698,6 +698,25 @@ async function main() {
     });
     console.log(`    供应商归属重建：${supplierBackfill.count} 家 → 设计院本部`);
 
+    // ── 供应商多公司归属 link 回填（2026-10-16，幂等）──
+    {
+      const anchored = await prisma.supplier.findMany({
+        where: { companyId: { not: null } },
+        select: { id: true, companyId: true, createdAt: true },
+      });
+      for (const s of anchored) {
+        await prisma.supplierCompanyLink.upsert({
+          where: { supplierId_companyId: { supplierId: s.id, companyId: s.companyId! } },
+          create: {
+            supplierId: s.id, companyId: s.companyId!,
+            status: 'APPROVED', appliedAt: s.createdAt,
+          },
+          update: {},
+        });
+      }
+      console.log(`供应商归属 link 回填 ${anchored.length} 条`);
+    }
+
     // 2) 四张业务表：按创建人回填；无主的种子演示数据归设计院
     const userCompany = new Map(users.map((u) => [u.id, companyByName.get(u.company ?? '') ?? sjy.id]));
     const tables = [

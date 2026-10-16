@@ -2087,6 +2087,17 @@ export class SupplierService {
           throw new BadRequestException({ error: '供应商状态已变更，请刷新后重试', code: 'CONFLICT' });
         }
         await tx.user.update({ where: { id: supplier.userId }, data: { isActive: true } });
+        // 多公司归属（2026-10-16）：终审通过同步落 APPROVED link（幂等；未归属跳过）
+        if (supplier.companyId) {
+          await tx.supplierCompanyLink.upsert({
+            where: { supplierId_companyId: { supplierId: id, companyId: supplier.companyId } },
+            create: {
+              supplierId: id, companyId: supplier.companyId,
+              status: 'APPROVED', appliedAt: supplier.createdAt,
+            },
+            update: { status: 'APPROVED', reviewStage: null, rejectReason: null },
+          });
+        }
       });
       await this.clearSupplierPendingTodos(id);
       await this.notificationService.create({
