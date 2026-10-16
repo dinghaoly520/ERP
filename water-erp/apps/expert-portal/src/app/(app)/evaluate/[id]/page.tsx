@@ -1123,12 +1123,12 @@ export default function ExpertEvaluatePage() {
   const ep = (project as any)?.expertPresence;
   const allMembersConfirmed = !!ep && ep.totalExperts > 0 && ep.reportConfirmedCount === ep.totalExperts;
   const leaderCoSigned = !!(project as any)?.leaderCoSigned;
-  // C1/C3: 动议+投票（只读记录——功能操作在工作台「评审待办」页面）
+  // C1/C3: 动议+投票（只读记录——功能操作在工作台首页「待处理事项」区）
   const [motions, setMotions] = useState<any[]>([]);
   useEffect(() => {
     if (project) { api.get(`/expert/projects/${projectId}/motions`).then((res: any) => setMotions(res)).catch(() => {}); }
   }, [project?.id]);
-  // D2: 异议工单（只读记录——功能操作在工作台「评审待办」页面）
+  // D2: 异议工单（只读记录——功能操作在工作台首页「待处理事项」区）
   const [disputes, setDisputes] = useState<any[]>([]);
   useEffect(() => {
     if (project) { api.get(`/expert/projects/${projectId}/disputes`).then((res: any) => setDisputes(res)).catch(() => {}); }
@@ -2048,7 +2048,7 @@ export default function ExpertEvaluatePage() {
 
               {/* 专家间可见性收口：表决动态不再出现在打分步骤——
                   他人表决倾向会引导独立评分（「供评分参考」表述本身即违背独立评审）。
-                  动议/表决的查看与操作归「评审待办」页与报告步（ReportStep）。 */}
+                  动议/表决的查看与操作归工作台首页「待处理事项」区与报告步（ReportStep）。 */}
 
               {/* draft recovery banner（报告已确认=评分锁定，恢复草稿无意义且矛盾——隐藏） */}
               {draftAvailable && !draftDismissed && !expert?.reportConfirmed && (
