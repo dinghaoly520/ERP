@@ -569,7 +569,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             流标原因：<span className="text-[var(--foreground)]">{project.riskNote || '未记录原因'}</span>
           </p>
           <p className="mt-1.5 text-[var(--muted-foreground)]">
-            后续处理（重新招标 / 变更采购方式等）在采购管理工作台「开标确认」面板进行；开标现场记录可在「开标大厅」tab 回看。
+            后续处理（重新招标 / 变更采购方式等）在采购管理工作台「开标确认」面板进行；开标现场记录可在「开标大厅」标签页回看。
           </p>
         </div>
       </section>
@@ -1485,7 +1485,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             <div className="px-6 py-5">
               {wizardStep === 0 && (
                 <div className="space-y-2 text-xs">
-                  <p className="leading-5 text-[var(--muted-foreground)]">生成评标结果前置条件（与后端闸门同口径，全部满足方可继续）：</p>
+                  <p className="leading-5 text-[var(--muted-foreground)]">生成评标结果前置条件（以下条件须全部满足）：</p>
                   {[
                     {
                       ok: unconfirmed.length === 0,
@@ -1506,8 +1506,8 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       text: roundsClosed
                         ? `报价轮次已全部结束（共 ${allRounds.length} 轮）`
                         : allRounds.length === 0
-                          ? '尚未创建报价轮次——谈判项目须至少完成一轮报价（「报价轮次」tab）'
-                          : `还有 ${roundsUnclosed} 个报价轮次未结束，请先在「报价轮次」tab 关闭`,
+                          ? '尚未创建报价轮次——谈判项目须至少完成一轮报价（「报价轮次」标签页）'
+                          : `还有 ${roundsUnclosed} 个报价轮次未结束，请先在「报价轮次」标签页关闭`,
                     }] : []),
                   ].map(p => (
                     <div
@@ -1557,7 +1557,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
 
               {wizardStep === 2 && (
                 <div className="space-y-2.5 text-xs leading-5 text-[var(--muted-foreground)]">
-                  <p>确认生成评标结果？生成规则（与 :3005 评分标准/评标办法配置一致）：</p>
+                  <p>确认生成评标结果？生成规则（与采购管理工作台的评分标准/评标办法配置一致）：</p>
                   <ul className="list-inside list-disc space-y-1 pl-1">
                     <li>仅纳入解密成功、已确认且未撤回的供应商</li>
                     <li>通过性审查（资格/响应性）不通过票<span className="font-semibold text-[var(--foreground)]">严格过半即废标</span>，废标置后</li>
@@ -2043,7 +2043,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
               />
               <p className="mt-3 flex items-center gap-1.5 text-[11px] leading-4 text-[var(--muted-foreground)]">
                 重开即时生效并通知受影响专家；签字包已闭环须先由系统管理员重开签字包
-                <HelpTip text="签字包闭环后重开评审确认将被后端拒绝（REOPEN_SIGN_PACKET_CLOSED）——先重开签字包（签字登记全部回「待签」），再重开评审确认。" />
+                <HelpTip text="签字包闭环后重开评审确认将被系统拒绝——请先重开签字包（签字登记全部回「待签」），再重开评审确认。" />
               </p>
             </div>
             <hr className="wb-section-rule mx-6" />
