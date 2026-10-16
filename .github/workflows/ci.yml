@@ -253,13 +253,8 @@ jobs:
       - name: Jest e2e suites (13 files serial, maxWorkers=1)
         run: pnpm --filter api test:e2e
 
-      - name: Dual-envelope crypto symmetry selfcheck
-        working-directory: water-erp/apps/supplier-portal-next
-        run: ../api/node_modules/.bin/tsx scripts/dual-selfcheck.ts
-
-      - name: New-track e2e (55 checks)
-        working-directory: water-erp/apps/supplier-portal-next
-        run: E2E_API=http://localhost:4001 ../api/node_modules/.bin/tsx scripts/e2e-dual-envelope.ts
+      # dual-v2 前端轨脚本（selfcheck/e2e-dual-envelope）已随 040df9a8 有意删除（供应商门户
+      # dual-v2 全清、dual-v3 前签名线不可用）——两步骤同步移除；dual-v3 客户端有自带单测
 
       # RolesGuard 默认拒绝抽查（2026-08-26 翻转后的回归闸）：supplier 打管理端点必 403，admin 正常
       - name: RolesGuard default-deny spot check (supplier 403 / admin 200)
