@@ -1,7 +1,7 @@
 # 供应商多公司归属（SupplierCompanyLink）设计
 
 日期：2026-10-16
-状态：已批准（方案一：账号全局唯一 + 多公司加入关系；双向通道；申请制三级审批；邀请制仅 leader 发起）
+状态：已批准（方案一：账号全局唯一 + 多公司加入关系；**仅供应商自主申请**通道、三级审批；「B 公司邀请入库」已取消——2026-10-16 复裁）
 
 ## 背景与问题
 
@@ -33,36 +33,30 @@
 ## 用户裁决记录
 
 1. 采用**方案一**：账号全局唯一 + `SupplierCompanyLink` 多对多加入关系。
-2. 通道**双向**：供应商自助申请加入 + B 公司管理端邀请入库。
-3. **申请制走三级审批**（STAFF→LEADER→ADMIN，按目标公司自己的审批链流转）——理由：公司不同，审核人员不同。
-4. **邀请制仅 leader 可发起**；供应商确认接受后即时生效（不再过三级——发起即公司管理层意志）。
-5. **查重保持全局**（一个企业一个账号）；信用代码命中「他司已注册」从拦死改为引导走加入。
-6. 自然人查重（法人证/手机号/联系人证）维持全局（账号安全约束，非公司库约束）。
-7. 临时供应商（`isTemporary`）不开放加入通道，须先转正。
+2. 通道**仅供应商自助申请**（2026-10-16 复裁：取消「B 公司邀请入库」——**公司侧不得检索/遍历全系统供应商库**，邀请制的全局池检索会跨公司泄露供应商名单）。
+3. **申请走三级审批**（STAFF→LEADER→ADMIN，按目标公司自己的审批链流转）——理由：公司不同，审核人员不同。
+4. **查重保持全局**（一个企业一个账号）；信用代码命中「他司已注册」从拦死改为引导走加入。
+5. 自然人查重（法人证/手机号/联系人证）维持全局（账号安全约束，非公司库约束）。
+6. 临时供应商（`isTemporary`）不开放加入通道，须先转正。
 
 ## 数据模型
 
 ```prisma
-enum SupplierLinkSource { SUPPLIER_APPLY  COMPANY_INVITE }
 enum SupplierLinkStatus { PENDING  APPROVED  REJECTED  DISABLED }
 
 model SupplierCompanyLink {
-  id           String              @id @default(cuid())
+  id           String             @id @default(cuid())
   supplierId   String
   companyId    String
-  source       SupplierLinkSource  // 加入通道
-  status       SupplierLinkStatus  @default(PENDING)
-  reviewStage  String?             // 三级审批当前级（STAFF/LEADER/ADMIN）；null=非审批流转态（邀请待确认/已终态）
-  note         String?             // 申请说明 / 邀请备注
+  status       SupplierLinkStatus @default(PENDING)
+  reviewStage  String?            // 三级审批当前级（STAFF/LEADER/ADMIN）；null=已终态
+  note         String?            // 申请说明
   rejectReason String?
-  invitedById  String?             // COMPANY_INVITE 发起人（leader）
   appliedAt    DateTime?
-  invitedAt    DateTime?
-  acceptedAt   DateTime?           // 邀请制：供应商确认时间
-  reviewedById String?             // 申请制：末级审批人（逐级动作写审计）
+  reviewedById String?            // 末级动作人（逐级动作另落 AuditLog）
   reviewedAt   DateTime?
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
   supplier     Supplier @relation("SupplierCompanyLinks")
   company      Company  @relation("CompanySupplierLinks")
 
@@ -72,6 +66,8 @@ model SupplierCompanyLink {
 }
 ```
 
+（邀请制取消后不再有 `source`/`invitedById`/`invitedAt`/`acceptedAt` 字段——所有关系均来自供应商申请或存量回填。）
+
 关键语义：
 
 - **`Supplier` 与全局唯一性全部不动**：一个企业一个账号、一条 Supplier、一套资质/CA 证书/联系人档案；信用代码/用户名=信用代码/密码/查重全部不变。
@@ -80,25 +76,17 @@ model SupplierCompanyLink {
 
 ## 流程
 
-### 通道一 · 供应商自助申请（三级审批）
+### 唯一通道 · 供应商自助申请（三级审批）
 
 ```
-供应商在 :3004「公司归属管理」选公司（注册同款公司选择器）→ 提交申请（可附说明）
-→ Link(source=SUPPLIER_APPLY, status=PENDING, reviewStage=STAFF) + 通知 B 公司 STAFF 级审批人
+供应商在 :3004「公司归属管理」选公司（注册同款公司选择器，62 家名单只读展示）→ 提交申请（可附说明）
+→ Link(status=PENDING, reviewStage=STAFF) + 通知 B 公司 STAFF 级审批人
 → 三级逐级审批（机制复用注册三级：同公司域断言 assertStageApprover 口径、逐级通知、公司无人时上浮/代审）
    ├─ 各级通过 → 下一级；ADMIN 终审通过 → APPROVED，通知供应商「已入 B 公司库」
    └─ 任一级驳回（填原因）→ REJECTED，通知供应商；可修改后重新申请（原行回 PENDING/STAFF）
 ```
 
-### 通道二 · B 公司管理端邀请（仅 leader）
-
-```
-B 公司 leader 在 :3005「邀请入库」检索全局供应商池（按信用代码/名称；仅全局 APPROVED、非临时、不在本公司库）
-→ 发出邀请（可附备注）→ Link(source=COMPANY_INVITE, status=PENDING, reviewStage=null) + 通知供应商
-→ 供应商在「公司归属管理」页确认
-   ├─ 接受 → APPROVED（acceptedAt 落戳，即时入 B 公司库）
-   └─ 拒绝 → 终态通知 B 公司；B 公司可再次发起（复用原行）
-```
+**公司侧不发起、不检索**：B 公司管理端只有「加入审批」待办（审批时可查看该供应商完整档案——脱敏口径同 `get()`，明文走 reveal 审计）；不提供任何全系统供应商搜索/邀请入口（裁决 #2）。
 
 ## 注册流与查重改造
 
@@ -140,8 +128,6 @@ supplierCompanyFilter(companyId) → { companyLinks: { some: { companyId, status
 |---|---|---|
 | `GET /supplier/company-links/my` | supplier | 我的归属列表（主归属 + 各公司状态/当前审批级） |
 | `POST /supplier/company-links/apply` | supplier | 申请加入 `{ companyId, note }` |
-| `POST /supplier/company-links/:id/accept` · `/decline` | supplier | 邀请确认/拒绝 |
-| `POST /supplier/company-links/invite` | leader | 邀请入库（按信用代码检索全局池） |
 | `GET /supplier/company-links` | leader/staff | 本公司加入审批列表（含三级级联过滤） |
 | `POST /supplier/company-links/:id/approve` · `/reject` | leader/staff/admin | 三级逐级审批（同公司域断言，复用注册审批机制） |
 | `POST /supplier/company-links/:id/disable` · `/enable` | leader | 本公司库内停用/恢复 |
@@ -149,14 +135,14 @@ supplierCompanyFilter(companyId) → { companyLinks: { some: { companyId, status
 
 ## 前端
 
-**:3004 供应商门户**：个人中心新增「公司归属管理」页（归属列表卡、申请入口=注册同款公司选择器、邀请确认按钮、驳回原因与重新申请）；注册向导命中 `registeredElsewhere` 时显示「已有账号，请登录后申请加入」并跳登录。
+**:3004 供应商门户**：个人中心新增「公司归属管理」页（归属列表卡、申请入口=注册同款公司选择器、驳回原因与重新申请）；注册向导命中 `registeredElsewhere` 时显示「已有账号，请登录后申请加入」并跳登录。
 
-**:3005 工作台**：供应商管理中心加「邀请入库」（leader 可见：全局检索 + 邀请弹窗）；审批中心加「加入审批」类型（三级流转交互同注册审批，角标并入）；供应商详情页加「归属公司」区块（主归属 + 各公司库内状态）。
+**:3005 工作台**：审批中心加「加入审批」类型（三级流转交互同注册审批，角标并入——审批详情可看该供应商完整档案）；供应商详情页加「归属公司」区块（主归属 + 各公司库内状态，leader 可停用/恢复本公司关系）。**不加任何全系统供应商检索/邀请入口**（裁决 #2）。
 
 ## 边界与错误处理
 
 - **幂等**：重复申请（PENDING 已存在）→ 400 `LINK_PENDING_EXISTS`；已在库 → 400 `ALREADY_IN_COMPANY`；link 处于 `DISABLED` 时再申请 → 400 `LINK_DISABLED`（提示联系该公司恢复，不走重新申请）；`@@unique([supplierId, companyId])` P2002 并发兜底转 409 语义。
-- **邀请校验**：仅全局 `APPROVED`、非临时（`isTemporary` 须先转正）、不在本公司库的供应商可被邀请；发起人限本公司 leader。
+- **申请校验**：仅全局 `APPROVED`、非临时（`isTemporary` 须先转正）的供应商可发起申请；目标公司从 Company 主数据（62 家名单）只读解析，查无此司 400 `COMPANY_NOT_FOUND`。
 - **状态分层**：全局拉黑/停用 = 全平台闸（库内照常显示状态标签，邀标端点已有校验）；公司内 `DISABLED` 只影响本公司（候选池排除，**在途 BidSupplier 名册/投标不追溯清理**——留痕）。
 - **注册终审通过时同步 upsert APPROVED link**（幂等）；REJECTED 壳重开成功同口径。
 - **PII**：B 公司审批加入申请时可查看供应商全档案，脱敏口径同 `get()`；明文仍走 reveal 端点审计。
@@ -169,7 +155,7 @@ supplierCompanyFilter(companyId) → { companyLinks: { some: { companyId, status
 
 ## 测试
 
-- **单测**：link service（三级流转逐级断言/任一级驳回/邀请 leader-only/接受·拒绝/停用恢复/权限矩阵）、`register` 引导分支（他司 APPROVED → `ACCOUNT_EXISTS_JOIN_INSTEAD`）、`checkDuplicate` companyId 分支。
+- **单测**：link service（三级流转逐级断言/任一级驳回/重新申请/停用恢复/权限矩阵/公司侧零检索面）、`register` 引导分支（他司 APPROVED → `ACCOUNT_EXISTS_JOIN_INSTEAD`）、`checkDuplicate` companyId 分支。
 - **供应商域全套件回归**（memory `supplier-domain-test-scope`：改共享服务后跑全域，窄 pattern 漏跨 spec 破坏）。
 - **raw SQL 翻译点** grep + 非 admin 视野实测（库列表 delegated/leaderExpand 路径）。
 - **e2e**：supplier 套件增加加入流程用例（申请→三级→入库→B 公司库可见→邀标可选）；CI supplier 403 抽查闸口径同步。

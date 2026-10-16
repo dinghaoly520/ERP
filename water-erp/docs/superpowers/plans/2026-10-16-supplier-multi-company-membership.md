@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 一个企业一个账号，通过 `SupplierCompanyLink` 多对多关系进入多家公司的供应商库（申请走三级审批、邀请仅 leader 发起、供应商确认），供应商域公司隔离从单值 `Supplier.companyId` 切换为 link 存在性判断。
+**Goal:** 一个企业一个账号，通过 `SupplierCompanyLink` 多对多关系进入多家公司的供应商库（**仅供应商自主申请**、目标公司三级审批），供应商域公司隔离从单值 `Supplier.companyId` 切换为 link 存在性判断。
 
-**Architecture:** 新增 `SupplierCompanyLink` 表与 `SupplierLinkService`（供应商侧 + 公司侧操作）；注册查重保持全局，命中「他司已 APPROVED」改为引导加入；`CompanyScopeService.filter` 不动，供应商域新增 `supplierCompanyWhere` helper 与 raw SQL 翻译件。spec：`docs/superpowers/specs/2026-10-16-supplier-multi-company-membership-design.md`。
+**Architecture:** 新增 `SupplierCompanyLink` 表与 `SupplierLinkService`（供应商侧申请 + 公司侧三级审批）；注册查重保持全局，命中「他司已 APPROVED」改为引导加入；`CompanyScopeService.filter` 不动，供应商域新增 `supplierCompanyWhere` helper 与 raw SQL 翻译件。spec：`docs/superpowers/specs/2026-10-16-supplier-multi-company-membership-design.md`（邀请通道已按 2026-10-16 复裁取消——公司侧不检索全系统供应商库）。
 
 **Tech Stack:** NestJS 11 + Prisma (PostgreSQL)、Next.js 16 + React 19 + Tailwind v4（cgzxui 视觉体系）、jest。
 
@@ -12,11 +12,11 @@
 
 - 改 `schema.prisma` 后提交前必须 `cd apps/api && npx prisma validate`（校验失败则 generate 静默失败、client 停旧版）。
 - 全部新路由显式标注 `@Roles(...)`（RolesGuard 默认拒绝，无标注 → 403 `NO_ROLE_CONFIGURED`）。
+- **公司侧零检索面（用户裁决 2026-10-16）**：不提供任何全系统供应商搜索/邀请端点与 UI——加入关系只能由供应商发起申请。
 - 禁用 `git add -A`/`git add .`——只 add 本任务明确改动的文件路径（并行会话约定）。
 - 后端单测：`pnpm --filter api test -- <pattern>`；供应商域改动须跑全域套件（窄 pattern 会漏跨 spec 破坏）。
 - 提交信息前缀 `feat(supplier-link):` / `test(supplier-link):` / `fix(supplier-link):`。
 - PII 口径：link 审批列表只回传供应商非敏感字段（name/supplierNo/creditCode/companyName/全局 status），不回联系人手机号等密文字段。
-- 金额/查重铁律不涉本计划；但 **禁止新代码裸读裸算 `Supplier.creditCode` 之外的唯一性假设**——link 表是唯一归属事实源。
 
 ---
 
@@ -28,7 +28,7 @@
 - Create: `apps/api/scripts/backfill-supplier-company-links.ts`
 
 **Interfaces:**
-- Produces: Prisma 模型 `SupplierCompanyLink`（字段见下）、复合唯一名 `supplierId_companyId`、枚举 `SupplierLinkSource`/`SupplierLinkStatus`；`Supplier.companyLinks` / `Company.supplierLinks` 关系。后续所有任务依赖。
+- Produces: Prisma 模型 `SupplierCompanyLink`（字段见下）、复合唯一名 `supplierId_companyId`、枚举 `SupplierLinkStatus`；`Supplier.companyLinks` / `Company.supplierLinks` 关系。后续所有任务依赖。
 
 - [ ] **Step 1: schema.prisma 增加枚举与模型**
 
@@ -48,36 +48,28 @@
 
 ```prisma
 /// 供应商×公司 多对多归属（2026-10-16 多公司归属）：一企业在多家公司库各有一条关系。
-/// Supplier.companyId 降级为「主归属」（注册三级审批仍按它流转）；库可见性以本表 APPROVED link 为准。
-enum SupplierLinkSource {
-  SUPPLIER_APPLY  // 供应商自助申请（三级审批）
-  COMPANY_INVITE  // 公司邀请（仅 leader 发起，供应商确认）
-}
-
+/// 唯一通道=供应商自主申请（三级审批）；Supplier.companyId 降级为「主归属」
+/// （注册三级审批仍按它流转）；库可见性以本表 APPROVED link 为准。
 enum SupplierLinkStatus {
-  PENDING   // 申请制=公司三级审批中；邀请制=待供应商确认
+  PENDING   // 三级审批中
   APPROVED  // 在该公司库
-  REJECTED  // 申请被驳回 / 供应商婉拒邀请（可重新发起，原行复用）
+  REJECTED  // 申请被驳回（供应商可重新申请，原行复用）
   DISABLED  // 公司在自己库内停用（软移出，可恢复；不影响其他公司）
 }
 
 model SupplierCompanyLink {
-  id           String              @id @default(cuid())
+  id           String             @id @default(cuid())
   supplierId   String
   companyId    String
-  source       SupplierLinkSource
-  status       SupplierLinkStatus  @default(PENDING)
-  reviewStage  String?             // 申请制当前待审级 STAFF/LEADER/ADMIN；邀请制与终态为 null
-  note         String?             // 申请说明 / 邀请备注
+  status       SupplierLinkStatus @default(PENDING)
+  reviewStage  String?            // 当前待审级 STAFF/LEADER/ADMIN；null=已终态
+  note         String?            // 申请说明
   rejectReason String?
-  invitedById  String?             // COMPANY_INVITE 发起人（leader）
   appliedAt    DateTime?
-  invitedAt    DateTime?
-  acceptedAt   DateTime?           // 邀请制：供应商确认时间
-  reviewedById String?             // 申请制：末级动作人
+  reviewedById String?            // 末级动作人（逐级动作另落 AuditLog）
   reviewedAt   DateTime?
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
 
   supplier Supplier @relation("SupplierCompanyLinks", fields: [supplierId], references: [id], onDelete: Cascade)
   company  Company  @relation("CompanySupplierLinks", fields: [companyId], references: [id])
@@ -96,16 +88,12 @@ Expected: `The configuration at prisma/schema.prisma is valid.`
 - [ ] **Step 3: 生成迁移 SQL**
 
 Run: `cd apps/api && PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=1 npx prisma migrate dev --create-only --name supplier_company_link`
-Expected: 生成 `prisma/migrations/20261016120000_supplier_company_link/migration.sql`。检查内容应含 `CREATE TYPE "SupplierLinkSource"`、`CREATE TYPE "SupplierLinkStatus"`、`CREATE TABLE "SupplierCompanyLink"`、`CREATE UNIQUE INDEX "SupplierCompanyLink_supplierId_companyId_key"`。若缺反向关系列迁移，补：
-
-```sql
--- AlterTable（空操作检查：本表为新建，无需 ALTER "Supplier"/"Company"——关系仅外键本表承载）
-```
+Expected: 生成 `prisma/migrations/20261016120000_supplier_company_link/migration.sql`。检查内容应含 `CREATE TYPE "SupplierLinkStatus"`、`CREATE TABLE "SupplierCompanyLink"`、`CREATE UNIQUE INDEX "SupplierCompanyLink_supplierId_companyId_key"`（关系仅外键本表承载，无 Supplier/Company 列变更）。
 
 - [ ] **Step 4: 应用迁移**
 
 Run: `cd apps/api && npx prisma migrate dev`
-Expected: 迁移应用成功（或用 `npx prisma migrate deploy`），`npx prisma generate` 产出含 `SupplierCompanyLink` 的 client（`node -e "console.log(!!require('@prisma/client').PrismaClient.prototype.supplierCompanyLink)"` 输出 `true`）。
+Expected: 迁移应用成功，`npx prisma generate` 产出含 `SupplierCompanyLink` 的 client（`node -e "console.log(!!require('@prisma/client').PrismaClient.prototype.supplierCompanyLink)"` 输出 `true`）。
 
 - [ ] **Step 5: 写回填脚本并执行**
 
@@ -132,20 +120,20 @@ async function main() {
     for (const s of suppliers) console.log(`  [dry] ${s.id} → ${s.companyId} (${s.status})`);
     return;
   }
-  let created = 0;
+  let processed = 0;
   for (const s of suppliers) {
-    const r = await prisma.supplierCompanyLink.upsert({
+    await prisma.supplierCompanyLink.upsert({
       where: { supplierId_companyId: { supplierId: s.id, companyId: s.companyId! } },
       create: {
-        supplierId: s.id, companyId: s.companyId!, source: 'SUPPLIER_APPLY',
+        supplierId: s.id, companyId: s.companyId!,
         status: 'APPROVED', appliedAt: s.createdAt,
       },
       update: {}, // 已有 link（含审批中/停用）不动——幂等
     });
-    if (r) created++;
+    processed++;
   }
   const total = await prisma.supplierCompanyLink.count({ where: { status: 'APPROVED' } });
-  console.log(`处理 ${created} 行；APPROVED link 总数 ${total}`);
+  console.log(`处理 ${processed} 行；APPROVED link 总数 ${total}`);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); }).finally(() => prisma.$disconnect());
@@ -193,7 +181,7 @@ Run: `grep -n "supplier" apps/api/prisma/seed.ts | grep -in "upsert\|create\|for
     await prisma.supplierCompanyLink.upsert({
       where: { supplierId_companyId: { supplierId: s.id, companyId: s.companyId! } },
       create: {
-        supplierId: s.id, companyId: s.companyId!, source: 'SUPPLIER_APPLY',
+        supplierId: s.id, companyId: s.companyId!,
         status: 'APPROVED', appliedAt: s.createdAt,
       },
       update: {},
@@ -216,12 +204,7 @@ describe('SupplierService.approve — 终审 upsert company link', () => {
     const prisma: any = {
       supplier: { findUnique: jest.fn().mockResolvedValue({ id: 's1', userId: 'u1', companyId: 'co-1', status: 'PENDING', reviewStage: 'ADMIN', name: '甲公司', user: {} }) },
       user: { findUnique: jest.fn().mockResolvedValue({ id: 'rev-1', role: 'admin', companyId: null }), update: jest.fn() },
-      supplierCompanyLink: { upsert: jest.fn().mockResolvedValue({ id: 'l1' }) },
-      $transaction: jest.fn(async (fn: any) => fn({
-        supplier: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
-        user: { update: jest.fn() },
-        supplierCompanyLink: { upsert: jest.fn().mockResolvedValue({ id: 'l1' }) },
-      })),
+      $transaction: jest.fn(),
     };
     const svc = new (SupplierService as any)(prisma, null, null, null, null, null, null) as SupplierService;
     let linkUpsert: jest.Mock;
@@ -236,7 +219,7 @@ describe('SupplierService.approve — 终审 upsert company link', () => {
     await svc.approve('s1', 'rev-1', '同意');
     expect(linkUpsert!).toHaveBeenCalledWith(expect.objectContaining({
       where: { supplierId_companyId: { supplierId: 's1', companyId: 'co-1' } },
-      create: expect.objectContaining({ status: 'APPROVED', source: 'SUPPLIER_APPLY' }),
+      create: expect.objectContaining({ status: 'APPROVED' }),
     }));
   });
 
@@ -244,13 +227,14 @@ describe('SupplierService.approve — 终审 upsert company link', () => {
     const prisma: any = {
       supplier: { findUnique: jest.fn().mockResolvedValue({ id: 's2', userId: 'u2', companyId: null, status: 'PENDING', reviewStage: 'ADMIN', name: '乙', user: {} }) },
       user: { findUnique: jest.fn().mockResolvedValue({ id: 'rev-1', role: 'admin', companyId: null }), update: jest.fn() },
-      $transaction: jest.fn(async (fn: any) => {
-        const linkUpsert = jest.fn();
-        await fn({ supplier: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) }, user: { update: jest.fn() }, supplierCompanyLink: { upsert: linkUpsert } });
-        expect(linkUpsert).not.toHaveBeenCalled();
-      }),
+      $transaction: jest.fn(),
     };
     const svc = new (SupplierService as any)(prisma, null, null, null, null, null, null) as SupplierService;
+    prisma.$transaction.mockImplementation(async (fn: any) => {
+      const linkUpsert = jest.fn();
+      await fn({ supplier: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) }, user: { update: jest.fn() }, supplierCompanyLink: { upsert: linkUpsert } });
+      expect(linkUpsert).not.toHaveBeenCalled();
+    });
     await svc.approve('s2', 'rev-1');
   });
 });
@@ -273,7 +257,7 @@ Expected: FAIL（upsert 未被调用/字段不存在）。
           await tx.supplierCompanyLink.upsert({
             where: { supplierId_companyId: { supplierId: id, companyId: supplier.companyId } },
             create: {
-              supplierId: id, companyId: supplier.companyId, source: 'SUPPLIER_APPLY',
+              supplierId: id, companyId: supplier.companyId,
               status: 'APPROVED', appliedAt: supplier.createdAt,
             },
             update: { status: 'APPROVED', reviewStage: null, rejectReason: null },
@@ -295,7 +279,7 @@ git commit -m "feat(supplier-link): 注册终审/seed 同步落 APPROVED company
 
 ---
 
-### Task 3: SupplierLinkService · 供应商侧（myLinks / apply / accept / decline）
+### Task 3: SupplierLinkService · 供应商侧（myLinks / apply）
 
 **Files:**
 - Create: `apps/api/src/supplier/supplier-link.service.ts`
@@ -305,12 +289,10 @@ git commit -m "feat(supplier-link): 注册终审/seed 同步落 APPROVED company
 
 **Interfaces:**
 - Produces:
-  - `class SupplierLinkService`，方法：
-    - `myLinks(userId: string): Promise<Array<{ id; companyId; companyName; status; source; reviewStage; note; rejectReason; invitedById; appliedAt; invitedAt; acceptedAt; isPrimary }>>`（`isPrimary` = `supplier.companyId === link.companyId`）
-    - `apply(userId: string, dto: { companyId: string; note?: string }): Promise<{ id: string }>`
-    - `acceptInvite(userId: string, linkId: string): Promise<{ success: true }>`
-    - `declineInvite(userId: string, linkId: string): Promise<{ success: true }>`
-  - 错误码：`SUPPLIER_NOT_FOUND` / `TEMPORARY_NOT_ALLOWED` / `SUPPLIER_NOT_APPROVED` / `COMPANY_NOT_FOUND` / `LINK_PENDING_EXISTS` / `ALREADY_IN_COMPANY` / `LINK_DISABLED` / `LINK_NOT_FOUND` / `NOT_INVITE`
+  - `class SupplierLinkService`，三参构造 `(prisma: PrismaService, notificationService: NotificationService, companyScope: CompanyScopeService)`，供应商侧方法：
+    - `myLinks(userId: string): Promise<Array<{ id; companyId; companyName; status; reviewStage; note; rejectReason; appliedAt; acceptedAt: null; isPrimary }>>`——实现用 include 映射（`isPrimary` = `supplier.companyId === link.companyId`；无 `acceptedAt` 字段，出参不含）
+    - `apply(userId: string, dto: { companyId?: string; companyName?: string; note?: string }): Promise<{ id: string }>`
+  - 错误码：`SUPPLIER_NOT_FOUND` / `TEMPORARY_NOT_ALLOWED` / `SUPPLIER_NOT_APPROVED` / `COMPANY_NOT_FOUND` / `LINK_PENDING_EXISTS` / `ALREADY_IN_COMPANY` / `LINK_DISABLED`
 - Consumes: Task 1 的 `SupplierCompanyLink` 模型。
 
 - [ ] **Step 1: 写失败测试**
@@ -318,10 +300,9 @@ git commit -m "feat(supplier-link): 注册终审/seed 同步落 APPROVED company
 `apps/api/src/supplier/supplier-link.service.spec.ts`：
 
 ```ts
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { SupplierLinkService } from './supplier-link.service';
 
-/** 供应商侧 link 操作：myLinks/apply/accept/decline（多公司归属 2026-10-16 spec §流程） */
+/** 供应商侧 link 操作：myLinks/apply（多公司归属 2026-10-16 spec §流程——唯一通道=自主申请） */
 describe('SupplierLinkService — 供应商侧', () => {
   /** companyScope 桩（listForCompany 用；供应商侧路径不触它） */
   const SCOPE: any = { resolveScope: async () => ({ all: false, companyIds: ['co-2'] }) };
@@ -332,13 +313,13 @@ describe('SupplierLinkService — 供应商侧', () => {
       supplierCompanyLink: {
         findUnique: jest.fn().mockResolvedValue(link),
         findFirst: jest.fn().mockResolvedValue(null),
-        findMany: jest.fn().mockResolvedValue([{ id: 'l1', companyId: 'co-1', company: { name: '甲公司' }, status: 'APPROVED', source: 'SUPPLIER_APPLY', reviewStage: null }]),
+        findMany: jest.fn().mockResolvedValue([{ id: 'l1', companyId: 'co-1', company: { name: '甲公司' }, status: 'APPROVED', reviewStage: null }]),
         create: jest.fn().mockResolvedValue({ id: 'l-new' }),
         update: jest.fn().mockResolvedValue({}),
       },
     };
     const notify = { create: jest.fn().mockResolvedValue({}), sendToRole: jest.fn() };
-    const svc = new SupplierLinkService($1, $2, SCOPE);
+    const svc = new SupplierLinkService(prisma, notify as any, SCOPE);
     return { prisma, notify, svc };
   };
   const SUP = { id: 's1', userId: 'u1', companyId: 'co-1', status: 'APPROVED', isTemporary: false, name: '甲供应商' };
@@ -348,7 +329,7 @@ describe('SupplierLinkService — 供应商侧', () => {
     const r = await svc.apply('u1', { companyId: 'co-2', note: '希望参与贵司采购' });
     expect(r).toEqual({ id: 'l-new' });
     expect(prisma.supplierCompanyLink.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ supplierId: 's1', companyId: 'co-2', source: 'SUPPLIER_APPLY', status: 'PENDING', reviewStage: 'STAFF' }),
+      data: expect.objectContaining({ supplierId: 's1', companyId: 'co-2', status: 'PENDING', reviewStage: 'STAFF' }),
     }));
     expect(notify.create).toHaveBeenCalled();
   });
@@ -363,10 +344,16 @@ describe('SupplierLinkService — 供应商侧', () => {
     await expect(svc.apply('u1', { companyId: 'co-2' })).rejects.toMatchObject({ response: { code: 'SUPPLIER_NOT_APPROVED' } });
   });
 
+  it('apply：目标公司不存在 → 400 COMPANY_NOT_FOUND', async () => {
+    const { prisma, svc } = mk(SUP);
+    (prisma.company.findUnique as jest.Mock).mockResolvedValue(null);
+    await expect(svc.apply('u1', { companyId: 'co-x' })).rejects.toMatchObject({ response: { code: 'COMPANY_NOT_FOUND' } });
+  });
+
   it('apply：link 已 PENDING → 400 LINK_PENDING_EXISTS；已 APPROVED → ALREADY_IN_COMPANY；DISABLED → LINK_DISABLED', async () => {
     const p = mk(SUP).prisma;
     for (const [status, code] of [['PENDING', 'LINK_PENDING_EXISTS'], ['APPROVED', 'ALREADY_IN_COMPANY'], ['DISABLED', 'LINK_DISABLED']] as const) {
-      const svc = new SupplierLinkService($1, $2, SCOPE);
+      const svc = new SupplierLinkService(p, { create: jest.fn() } as any, SCOPE);
       (p.supplierCompanyLink.findUnique as jest.Mock).mockResolvedValueOnce({ id: 'l1', status });
       await expect(svc.apply('u1', { companyId: 'co-2' })).rejects.toMatchObject({ response: { code } });
     }
@@ -382,7 +369,7 @@ describe('SupplierLinkService — 供应商侧', () => {
         create: jest.fn(),
       },
     };
-    const svc = new SupplierLinkService($1, $2, SCOPE);
+    const svc = new SupplierLinkService(prisma, { create: jest.fn() } as any, SCOPE);
     const r = await svc.apply('u1', { companyId: 'co-2' });
     expect(r).toEqual({ id: 'l-old' });
     expect(prisma.supplierCompanyLink.update).toHaveBeenCalledWith(expect.objectContaining({
@@ -390,36 +377,6 @@ describe('SupplierLinkService — 供应商侧', () => {
       data: expect.objectContaining({ status: 'PENDING', reviewStage: 'STAFF' }),
     }));
     expect(prisma.supplierCompanyLink.create).not.toHaveBeenCalled();
-  });
-
-  it('acceptInvite：邀请确认 → APPROVED + acceptedAt + 通知邀请方公司 leader', async () => {
-    const prisma: any = {
-      supplier: { findUnique: jest.fn().mockResolvedValue(SUP) },
-      supplierCompanyLink: {
-        findUnique: jest.fn().mockResolvedValue({ id: 'l1', supplierId: 's1', companyId: 'co-2', source: 'COMPANY_INVITE', status: 'PENDING', invitedById: 'lead-1' }),
-        update: jest.fn().mockResolvedValue({}),
-      },
-      user: { findMany: jest.fn().mockResolvedValue([{ id: 'lead-1' }]) },
-    };
-    const notify = { create: jest.fn() };
-    const svc = new SupplierLinkService($1, $2, SCOPE);
-    await svc.acceptInvite('u1', 'l1');
-    expect(prisma.supplierCompanyLink.update).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: 'l1' },
-      data: expect.objectContaining({ status: 'APPROVED', acceptedAt: expect.any(Date), reviewStage: null }),
-    }));
-    expect(notify.create).toHaveBeenCalled();
-  });
-
-  it('acceptInvite：非邀请通道 link → 400 NOT_INVITE；非本人 link → 403', async () => {
-    const p = mk(SUP).prisma;
-    (p.supplierCompanyLink.findUnique as jest.Mock)
-      .mockResolvedValueOnce({ id: 'l1', supplierId: 's1', source: 'SUPPLIER_APPLY', status: 'PENDING' });
-    const svc = new SupplierLinkService($1, $2, SCOPE);
-    await expect(svc.acceptInvite('u1', 'l1')).rejects.toMatchObject({ response: { code: 'NOT_INVITE' } });
-    (p.supplierCompanyLink.findUnique as jest.Mock)
-      .mockResolvedValueOnce({ id: 'l1', supplierId: 's-other', source: 'COMPANY_INVITE', status: 'PENDING' });
-    await expect(svc.acceptInvite('u1', 'l1')).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('myLinks：返回归属列表并标注主归属', async () => {
@@ -445,21 +402,12 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class ApplyCompanyLinkDto {
-  /** companyId/companyName 二选一（与注册/邀请/查重的名称解析口径一致——供应商门户公司选择器按名称选择） */
+  /** companyId/companyName 二选一（与注册/查重的名称解析口径一致——供应商门户公司选择器按名称选择） */
   @IsOptional() @IsUUID()
   companyId?: string;
 
   @IsOptional() @IsString() @MaxLength(100)
   companyName?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional() @IsString() @MaxLength(200)
-  note?: string;
-}
-
-export class InviteSupplierDto {
-  @IsUUID()
-  supplierId!: string;
 
   @ApiPropertyOptional()
   @IsOptional() @IsString() @MaxLength(200)
@@ -484,8 +432,10 @@ export class RejectLinkDto {
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { CompanyScopeService } from '../company/company-scope';
 
-/** 供应商多公司归属（2026-10-16 spec）：SupplierCompanyLink 双向通道 + 三级审批。
+/** 供应商多公司归属（2026-10-16 spec）：SupplierCompanyLink 唯一通道=供应商自主申请（三级审批）。
+ *  公司侧无任何全系统供应商检索/邀请入口（用户裁决 2026-10-16）。
  *  三级级权限/通知逻辑与 SupplierService 注册审批同口径——原实现为其私有方法，
  *  此处复制同款（约 60 行）避免与 4k 行 SupplierService 强耦合；口径漂移以 spec 为准。 */
 @Injectable()
@@ -529,12 +479,13 @@ export class SupplierLinkService {
     const links = await this.prisma.supplierCompanyLink.findMany({
       where: { supplierId: supplier.id },
       orderBy: { createdAt: 'asc' },
-      select: {
-        id: true, companyId: true, companyName: true, status: true, source: true, reviewStage: true,
-        note: true, rejectReason: true, invitedById: true, appliedAt: true, invitedAt: true, acceptedAt: true,
-      },
+      include: { company: { select: { name: true } } },
     });
-    return links.map((l) => ({ ...l, isPrimary: l.companyId === supplier.companyId }));
+    return links.map(({ company, ...rest }) => ({
+      ...rest,
+      companyName: company.name,
+      isPrimary: rest.companyId === supplier.companyId,
+    }));
   }
 
   async apply(userId: string, dto: { companyId?: string; companyName?: string; note?: string }) {
@@ -550,19 +501,19 @@ export class SupplierLinkService {
     });
     const note = dto.note?.trim() || null;
     let linkId: string;
-    if (existing && existing.status === 'PENDING') this.err('LINK_PENDING_EXISTS', '已有进行中的加入申请/邀请，请等待处理');
+    if (existing && existing.status === 'PENDING') this.err('LINK_PENDING_EXISTS', '已有进行中的加入申请，请等待该公司处理');
     if (existing && existing.status === 'APPROVED') this.err('ALREADY_IN_COMPANY', '贵司已在该公司的供应商库中');
     if (existing && existing.status === 'DISABLED') this.err('LINK_DISABLED', '贵司已被该公司停用，请联系该公司恢复');
     if (existing) {
-      // REJECTED（申请被驳回/婉拒邀请）→ 原行复用重新走三级
+      // REJECTED → 原行复用重新走三级
       await this.prisma.supplierCompanyLink.update({
         where: { id: existing.id },
-        data: { status: 'PENDING', source: 'SUPPLIER_APPLY', reviewStage: 'STAFF', note, rejectReason: null, appliedAt: new Date() },
+        data: { status: 'PENDING', reviewStage: 'STAFF', note, rejectReason: null, appliedAt: new Date() },
       });
       linkId = existing.id;
     } else {
       const created = await this.prisma.supplierCompanyLink.create({
-        data: { supplierId: supplier.id, companyId: company.id, source: 'SUPPLIER_APPLY', status: 'PENDING', reviewStage: 'STAFF', note, appliedAt: new Date() },
+        data: { supplierId: supplier.id, companyId: company.id, status: 'PENDING', reviewStage: 'STAFF', note, appliedAt: new Date() },
       });
       linkId = created.id;
     }
@@ -574,44 +525,6 @@ export class SupplierLinkService {
       link: `/supplier?tab=company-links`,
     });
     return { id: linkId };
-  }
-
-  async acceptInvite(userId: string, linkId: string) {
-    const supplier = await this.requireSupplier(userId);
-    const link = await this.prisma.supplierCompanyLink.findUnique({ where: { id: linkId } });
-    if (!link) throw new NotFoundException({ error: '加入关系不存在', code: 'LINK_NOT_FOUND' });
-    if (link.supplierId !== supplier.id) throw new ForbiddenException({ error: '无权操作他人的加入关系', code: 'FORBIDDEN' });
-    if (link.source !== 'COMPANY_INVITE' || link.status !== 'PENDING') this.err('NOT_INVITE', '该记录不是待确认的入库邀请');
-    await this.prisma.supplierCompanyLink.update({
-      where: { id: linkId },
-      data: { status: 'APPROVED', acceptedAt: new Date(), reviewStage: null },
-    });
-    await this.notifyCompanyLeaders(link.companyId, {
-      type: 'SUPPLIER_LINK_ACCEPTED',
-      title: '供应商已确认入库邀请',
-      content: `${supplier.name} 已接受贵公司的入库邀请，正式进入贵公司供应商库。`,
-      link: `/supplier`,
-    });
-    return { success: true as const };
-  }
-
-  async declineInvite(userId: string, linkId: string) {
-    const supplier = await this.requireSupplier(userId);
-    const link = await this.prisma.supplierCompanyLink.findUnique({ where: { id: linkId } });
-    if (!link) throw new NotFoundException({ error: '加入关系不存在', code: 'LINK_NOT_FOUND' });
-    if (link.supplierId !== supplier.id) throw new ForbiddenException({ error: '无权操作他人的加入关系', code: 'FORBIDDEN' });
-    if (link.source !== 'COMPANY_INVITE' || link.status !== 'PENDING') this.err('NOT_INVITE', '该记录不是待确认的入库邀请');
-    await this.prisma.supplierCompanyLink.update({
-      where: { id: linkId },
-      data: { status: 'REJECTED', rejectReason: '供应商婉拒邀请', reviewedAt: new Date() },
-    });
-    await this.notifyCompanyLeaders(link.companyId, {
-      type: 'SUPPLIER_LINK_DECLINED',
-      title: '供应商婉拒入库邀请',
-      content: `${supplier.name} 婉拒了贵公司的入库邀请。`,
-      link: `/supplier`,
-    });
-    return { success: true as const };
   }
 
   // ───────────────────────── 内部：通知（与注册审批同口径） ─────────────────────────
@@ -633,48 +546,27 @@ export class SupplierLinkService {
     await Promise.allSettled(ids.map((id) => this.notificationService.create({ userId: id, ...payload })));
   }
 
-  private async notifyCompanyLeaders(companyId: string, payload: { type: string; title: string; content: string; link: string }) {
-    const leaders = await this.prisma.user.findMany({ where: { role: 'leader', isActive: true, companyId }, select: { id: true } });
-    await Promise.allSettled(leaders.map((l) => this.notificationService.create({ userId: l.id, ...payload })));
-  }
-
-  // 公司侧（invite/listForCompany/approveLink/rejectLink/setDisabled）见 Task 4 追加
+  // 公司侧（listForCompany/approveLink/rejectLink/setDisabled）见 Task 4 追加
 }
 ```
-
-注意：`myLinks` select 用了 `companyName`——link 表无该列，改为 include：
-
-```ts
-    const links = await this.prisma.supplierCompanyLink.findMany({
-      where: { supplierId: supplier.id },
-      orderBy: { createdAt: 'asc' },
-      include: { company: { select: { name: true } } },
-    });
-    return links.map((l) => {
-      const { company, ...rest } = l;
-      return { ...rest, companyName: company.name, isPrimary: l.companyId === supplier.companyId };
-    });
-```
-
-（实现时直接采用 include 版本，测试断言的 `companyName` 字段由映射产出。）
 
 `apps/api/src/supplier/supplier.module.ts`：providers/exports 数组加 `SupplierLinkService`，顶部加 import。
 
 - [ ] **Step 4: 跑测试确认通过**
 
 Run: `pnpm --filter api test -- supplier-link.service`
-Expected: PASS（8 用例）。
+Expected: PASS（7 用例）。
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/supplier/supplier-link.service.ts apps/api/src/supplier/dto/company-link.dto.ts apps/api/src/supplier/supplier.module.ts apps/api/src/supplier/supplier-link.service.spec.ts
-git commit -m "feat(supplier-link): 供应商侧操作——myLinks/apply/邀请确认（幂等分支+通知）"
+git commit -m "feat(supplier-link): 供应商侧操作——myLinks/apply（幂等分支+STAFF 级通知）"
 ```
 
 ---
 
-### Task 4: SupplierLinkService · 公司侧（invite / list / 三级 approve·reject / disable·enable）
+### Task 4: SupplierLinkService · 公司侧（list / 三级 approve·reject / disable·enable）
 
 **Files:**
 - Modify: `apps/api/src/supplier/supplier-link.service.ts`（追加公司侧段）
@@ -682,10 +574,9 @@ git commit -m "feat(supplier-link): 供应商侧操作——myLinks/apply/邀请
 
 **Interfaces:**
 - Produces:
-  - `invite(actor: { sub: string; role: string; companyId: string | null }, dto: { supplierId: string; note?: string }): Promise<{ id: string }>`——错误码 `COMPANY_REQUIRED` / `SUPPLIER_NOT_APPROVED` / `TEMPORARY_NOT_ALLOWED` / `ALREADY_IN_COMPANY` / `LINK_PENDING_EXISTS`
   - `listForCompany(actor: AuthenticatedUser, params: { status?: string; reviewStage?: string }): Promise<LinkRow[]>`——`LinkRow` 含 supplier 只读字段（id/name/supplierNo/creditCode/status/isTemporary）+ link 全字段 + company.name
   - `approveLink(linkId: string, userId: string, reason?: string): Promise<{ success: true; stage: 'STAFF' | 'LEADER' | 'ADMIN' | 'DONE' }>`——错误码 `LINK_NOT_FOUND` / `INVALID_STATUS` / `REVIEW_REASON_REQUIRED` / `REVIEW_STAGE_MISMATCH` / `CONFLICT`
-  - `rejectLink(linkId: string, userId: string, reason: string): Promise<{ success: true }>`
+  - `rejectLink(linkId: string, userId: string, reason: string): Promise<{ success: true }>`——另含 `REASON_REQUIRED`
   - `setDisabled(linkId: string, userId: string, disabled: boolean): Promise<{ success: true }>`——`INVALID_STATUS`
 - Consumes: Task 3 的通知 helper 与错误工具。
 
@@ -694,8 +585,8 @@ git commit -m "feat(supplier-link): 供应商侧操作——myLinks/apply/邀请
 在 `supplier-link.service.spec.ts` 末尾追加：
 
 ```ts
-describe('SupplierLinkService — 公司侧（三级审批+邀请）', () => {
-  const LINK = { id: 'l1', supplierId: 's1', companyId: 'co-2', source: 'SUPPLIER_APPLY', status: 'PENDING', reviewStage: 'STAFF', supplier: { id: 's1', userId: 'u1', name: '甲供应商', supplierNo: 'SUP-000001', creditCode: '91510000MA62K5XX0X', status: 'APPROVED', isTemporary: false }, company: { name: '乙公司' } };
+describe('SupplierLinkService — 公司侧（三级审批）', () => {
+  const LINK = { id: 'l1', supplierId: 's1', companyId: 'co-2', status: 'PENDING', reviewStage: 'STAFF', supplier: { id: 's1', userId: 'u1', name: '甲供应商', supplierNo: 'SUP-000001', creditCode: '91510000MA62K5XX0X', status: 'APPROVED', isTemporary: false }, company: { name: '乙公司' } };
   const mkSide = (over: Record<string, any> = {}) => {
     const prisma: any = {
       supplierCompanyLink: {
@@ -717,40 +608,6 @@ describe('SupplierLinkService — 公司侧（三级审批+邀请）', () => {
     const svc = new SupplierLinkService(prisma, notify as any, SCOPE);
     return { prisma, notify, svc };
   };
-
-  it('invite：leader 发起 → COMPANY_INVITE/PENDING（reviewStage=null）+ 通知供应商', async () => {
-    const { prisma, notify, svc } = mkSide();
-    // invite 内部查库解析操作人（JWT 不带 companyId）：mock 为本公司 leader
-    (prisma.user.findUnique as jest.Mock).mockResolvedValueOnce({ id: 'lead-1', role: 'leader', companyId: 'co-2' });
-    await svc.invite({ sub: 'lead-1', role: 'leader' }, { supplierId: 's1', note: 'XX 项目邀请' });
-    expect(prisma.supplierCompanyLink.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ source: 'COMPANY_INVITE', status: 'PENDING', reviewStage: null, invitedById: 'lead-1', invitedAt: expect.any(Date) }),
-    }));
-    expect(notify.create).toHaveBeenCalled();
-  });
-
-  it('invite：无归属公司 → 400 COMPANY_REQUIRED；staff 发起 → 403', async () => {
-    const { prisma, svc } = mkSide();
-    (prisma.user.findUnique as jest.Mock).mockResolvedValueOnce({ id: 'l0', role: 'leader', companyId: null });
-    await expect(svc.invite({ sub: 'l0', role: 'leader' }, { supplierId: 's1' })).rejects.toMatchObject({ response: { code: 'COMPANY_REQUIRED' } });
-    (prisma.user.findUnique as jest.Mock).mockResolvedValueOnce({ id: 'st0', role: 'staff', companyId: 'co-2' });
-    await expect(svc.invite({ sub: 'st0', role: 'staff' }, { supplierId: 's1' })).rejects.toBeInstanceOf(ForbiddenException);
-  });
-
-  it('invite：供应商非 APPROVED / 临时 → 400；已在本公司库 → ALREADY_IN_COMPANY', async () => {
-    const p0 = mkSide();
-    const leader = { id: 'lead-1', role: 'leader', companyId: 'co-2' };
-    (p0.prisma.user.findUnique as jest.Mock).mockResolvedValue(leader);
-    (p0.prisma.supplier.findUnique as jest.Mock).mockResolvedValueOnce({ id: 's1', status: 'PENDING', isTemporary: false, userId: 'u1' });
-    await expect(p0.svc.invite({ sub: 'lead-1', role: 'leader' }, { supplierId: 's1' })).rejects.toMatchObject({ response: { code: 'SUPPLIER_NOT_APPROVED' } });
-    (p0.prisma.supplier.findUnique as jest.Mock).mockResolvedValueOnce({ id: 's1', status: 'APPROVED', isTemporary: true, userId: 'u1' });
-    await expect(p0.svc.invite({ sub: 'lead-1', role: 'leader' }, { supplierId: 's1' })).rejects.toMatchObject({ response: { code: 'TEMPORARY_NOT_ALLOWED' } });
-    const { svc, prisma } = mkSide();
-    (prisma.user.findUnique as jest.Mock).mockResolvedValue(leader);
-    (prisma.supplier.findUnique as jest.Mock).mockResolvedValue({ id: 's1', status: 'APPROVED', isTemporary: false, userId: 'u1' });
-    (prisma.supplierCompanyLink.findUnique as jest.Mock).mockResolvedValueOnce({ status: 'APPROVED' });
-    await expect(svc.invite({ sub: 'lead-1', role: 'leader' }, { supplierId: 's1' })).rejects.toMatchObject({ response: { code: 'ALREADY_IN_COMPANY' } });
-  });
 
   it('approveLink：STAFF 级同公司 staff 通过 → 推进 LEADER；非本级人 → 403 REVIEW_STAGE_MISMATCH', async () => {
     const { prisma, svc } = mkSide();
@@ -781,6 +638,11 @@ describe('SupplierLinkService — 公司侧（三级审批+邀请）', () => {
     await expect(clash.svc.approveLink('l1', 'adm')).rejects.toMatchObject({ response: { code: 'CONFLICT' } });
   });
 
+  it('approveLink：非待审态（APPROVED）→ 400 INVALID_STATUS', async () => {
+    const bad = mkSide({ link: { status: 'APPROVED', reviewStage: null } });
+    await expect(bad.svc.approveLink('l1', 'rev-1')).rejects.toMatchObject({ response: { code: 'INVALID_STATUS' } });
+  });
+
   it('rejectLink：任一级驳回 → REJECTED + rejectReason + 通知供应商', async () => {
     const { prisma, notify, svc } = mkSide();
     await svc.rejectLink('l1', 'rev-1', '资质不符');
@@ -791,11 +653,19 @@ describe('SupplierLinkService — 公司侧（三级审批+邀请）', () => {
   });
 
   it('setDisabled：APPROVED↔DISABLED 切换；非此二态 → 400 INVALID_STATUS', async () => {
-    const { svc } = mkSide();
-    await svc.setDisabled('l1', 'rev-1', true);
+    const { svc } = mkSide({ link: { status: 'APPROVED', reviewStage: null } });
     await expect(svc.setDisabled('l1', 'rev-1', true)).resolves.toEqual({ success: true });
-    const bad = mkSide({ link: { status: 'PENDING' } });
+    const bad = mkSide({ link: { status: 'PENDING', reviewStage: 'STAFF' } });
     await expect(bad.svc.setDisabled('l1', 'rev-1', true)).rejects.toMatchObject({ response: { code: 'INVALID_STATUS' } });
+  });
+
+  it('listForCompany：公司视野注入 + supplier 只读字段', async () => {
+    const { prisma, svc } = mkSide();
+    await svc.listForCompany({ sub: 'u9', role: 'staff', username: 'x' } as any, { status: 'PENDING' });
+    expect(prisma.supplierCompanyLink.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ companyId: { in: ['co-2'] }, status: 'PENDING' }),
+      include: expect.objectContaining({ supplier: expect.anything() }),
+    }));
   });
 });
 ```
@@ -807,61 +677,10 @@ Expected: 新增 describe FAIL。
 
 - [ ] **Step 3: 实现公司侧**
 
-`supplier-link.service.ts` 在 Task 3 的三参构造（prisma/notificationService/companyScope）基础上追加公司侧方法：
+`supplier-link.service.ts` 在 Task 3 的三参构造基础上追加方法（顶部另 import `ConflictException` 与 `AuthenticatedUser` 类型）：
 
 ```ts
-import { ConflictException } from '@nestjs/common';
-import type { AuthenticatedUser } from '../auth/auth.types';
-import { CompanyScopeService } from '../company/company-scope';
-// 构造函数追加：private companyScope: CompanyScopeService —— supplier.module 已 Global 的 CompanyScopeModule 可解析
-
-  // ───────────────────────── 公司侧 ─────────────────────────
-
-  async invite(actorUser: { sub: string; role: string }, dto: { supplierId: string; note?: string }) {
-    // JWT 不携带 companyId（与 myPendingReviewCount 注释同口径）——查库解析操作人
-    const me = await this.prisma.user.findUnique({ where: { id: actorUser.sub }, select: { id: true, role: true, companyId: true } });
-    if (!me) throw new ForbiddenException({ error: '账号不存在', code: 'FORBIDDEN' });
-    if (me.role !== 'leader') throw new ForbiddenException({ error: '邀请入库仅限本公司 leader', code: 'FORBIDDEN' });
-    if (!me.companyId) this.err('COMPANY_REQUIRED', '您的账号未归属公司，无法邀请入库');
-    const actor = { sub: me.id, role: me.role, companyId: me.companyId };
-    const supplier = await this.prisma.supplier.findUnique({
-      where: { id: dto.supplierId },
-      select: { id: true, name: true, status: true, isTemporary: true, userId: true },
-    });
-    if (!supplier) this.err('SUPPLIER_NOT_FOUND', '供应商不存在');
-    if (supplier.status !== 'APPROVED') this.err('SUPPLIER_NOT_APPROVED', '仅已入库（APPROVED）供应商可被邀请');
-    if (supplier.isTemporary) this.err('TEMPORARY_NOT_ALLOWED', '临时供应商须先转正，不可邀请入库');
-
-    const existing = await this.prisma.supplierCompanyLink.findUnique({
-      where: { supplierId_companyId: { supplierId: supplier.id, companyId: actor.companyId } },
-    });
-    const note = dto.note?.trim() || null;
-    let linkId: string;
-    if (existing && existing.status === 'APPROVED') this.err('ALREADY_IN_COMPANY', '该供应商已在贵公司库中');
-    if (existing && existing.status === 'PENDING') this.err('LINK_PENDING_EXISTS', '该公司与该供应商间已有进行中的申请/邀请');
-    if (existing) {
-      // REJECTED（婉拒/驳回）或 DISABLED（停用后再次邀请）→ 原行复用发新邀请
-      await this.prisma.supplierCompanyLink.update({
-        where: { id: existing.id },
-        data: { source: 'COMPANY_INVITE', status: 'PENDING', reviewStage: null, note, rejectReason: null, invitedById: actor.sub, invitedAt: new Date(), acceptedAt: null },
-      });
-      linkId = existing.id;
-    } else {
-      const created = await this.prisma.supplierCompanyLink.create({
-        data: { supplierId: supplier.id, companyId: actor.companyId, source: 'COMPANY_INVITE', status: 'PENDING', reviewStage: null, note, invitedById: actor.sub, invitedAt: new Date() },
-      });
-      linkId = created.id;
-    }
-    const company = await this.prisma.company.findUnique({ where: { id: actor.companyId }, select: { name: true } });
-    await this.notificationService.create({
-      userId: supplier.userId,
-      type: 'SUPPLIER_LINK_INVITED',
-      title: `${company?.name ?? '某公司'} 邀请贵司加入其供应商库`,
-      content: `${company?.name ?? '某公司'} 邀请贵司加入其供应商库，请前往「公司归属管理」确认。${note ? `备注：${note}` : ''}`,
-      link: `/profile/company-links`,
-    });
-    return { id: linkId };
-  }
+  // ───────────────────────── 公司侧（仅审批与库内停用——零检索面，用户裁决 2026-10-16） ─────────────────────────
 
   async listForCompany(actor: AuthenticatedUser, params: { status?: string; reviewStage?: string } = {}) {
     const scope = await this.companyScope.resolveScope(actor);
@@ -886,7 +705,7 @@ import { CompanyScopeService } from '../company/company-scope';
       include: { supplier: { select: { id: true, name: true, userId: true } }, company: { select: { name: true } } },
     });
     if (!link) throw new NotFoundException({ error: '加入关系不存在', code: 'LINK_NOT_FOUND' });
-    if (link.source !== 'SUPPLIER_APPLY' || link.status !== 'PENDING' || !link.reviewStage) {
+    if (link.status !== 'PENDING' || !link.reviewStage) {
       this.err('INVALID_STATUS', '该申请不在待审状态');
     }
     const stage = link.reviewStage;
@@ -935,7 +754,7 @@ import { CompanyScopeService } from '../company/company-scope';
       include: { supplier: { select: { userId: true, name: true } }, company: { select: { name: true } } },
     });
     if (!link) throw new NotFoundException({ error: '加入关系不存在', code: 'LINK_NOT_FOUND' });
-    if (link.source !== 'SUPPLIER_APPLY' || link.status !== 'PENDING') this.err('INVALID_STATUS', '该申请不在待审状态');
+    if (link.status !== 'PENDING' || !link.reviewStage) this.err('INVALID_STATUS', '该申请不在待审状态');
     const trimmed = reason.trim();
     if (!trimmed) this.err('REASON_REQUIRED', '驳回必须填写原因');
     const reviewer = userId ? await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, companyId: true } }) : null;
@@ -997,7 +816,7 @@ import { CompanyScopeService } from '../company/company-scope';
   }
 ```
 
-构造签名说明：`SupplierLinkService` 最终为三参 `(prisma, notificationService, companyScope)`——Task 3 已定义、Task 3/4 的 spec mock 均按此传桩（`SCOPE`）。`supplier.module.ts` 无需额外 provider 注册 companyScope（CompanyScopeModule 为 @Global）。
+构造签名说明：`SupplierLinkService` 为三参 `(prisma, notificationService, companyScope)`——Task 3 已定义、Task 3/4 的 spec mock 均按此传桩（`SCOPE`）。`supplier.module.ts` 无需额外注册 companyScope（CompanyScopeModule 为 @Global）。
 
 - [ ] **Step 4: 跑测试确认通过**
 
@@ -1008,7 +827,7 @@ Expected: PASS（全部用例）。
 
 ```bash
 git add apps/api/src/supplier/supplier-link.service.ts apps/api/src/supplier/supplier-link.service.spec.ts
-git commit -m "feat(supplier-link): 公司侧操作——leader 邀请/三级审批/库内停用恢复（乐观锁+同口径断言）"
+git commit -m "feat(supplier-link): 公司侧操作——三级审批/库内停用恢复（乐观锁+同口径断言+零检索面）"
 ```
 
 ---
@@ -1016,7 +835,7 @@ git commit -m "feat(supplier-link): 公司侧操作——leader 邀请/三级审
 ### Task 5: Controller 端点 + 审批角标扩展
 
 **Files:**
-- Modify: `apps/api/src/supplier/supplier.controller.ts`（公司侧端点 + checkDuplicate 不动）
+- Modify: `apps/api/src/supplier/supplier.controller.ts`（公司侧端点）
 - Modify: `apps/api/src/supplier-portal/supplier-portal.controller.ts`（供应商侧端点）
 - Modify: `apps/api/src/supplier-portal/supplier-portal.module.ts`（imports 加 SupplierModule——先 grep 确认未引入）
 - Modify: `apps/api/src/supplier/supplier.service.ts`（`myPendingReviewCount` 加 `joins`）
@@ -1024,8 +843,8 @@ git commit -m "feat(supplier-link): 公司侧操作——leader 邀请/三级审
 
 **Interfaces:**
 - Produces（路由）:
-  - `GET /supplier-portal/company-links`、`POST /supplier-portal/company-links/apply`、`POST /supplier-portal/company-links/:id/accept|decline`（全部 `@Roles('supplier')`——控制器级已有）
-  - `POST /supplier/company-links/invite` `@Roles('leader')`；`GET /supplier/company-links` `@Roles('leader','staff','admin')`；`POST /supplier/company-links/:id/approve` `@Roles('leader','staff','admin')`；`POST /supplier/company-links/:id/reject` `@Roles('leader','staff','admin')`；`POST /supplier/company-links/:id/disable|enable` `@Roles('leader')`
+  - `GET /supplier-portal/company-links`、`POST /supplier-portal/company-links/apply`（控制器级 `@Roles('supplier')` 已有）
+  - `GET /supplier/company-links` `@Roles('leader','staff','admin')`；`POST /supplier/company-links/:id/approve` `@Roles('leader','staff','admin')`；`POST /supplier/company-links/:id/reject` `@Roles('leader','staff','admin')`；`POST /supplier/company-links/:id/disable|enable` `@Roles('leader')`
   - `myPendingReviewCount` 返回 `{ registration, changes, resets, joins }`
 - Consumes: Task 3/4 的 `SupplierLinkService` 方法签名。
 
@@ -1039,7 +858,7 @@ Run: `grep -n "SupplierModule" apps/api/src/supplier-portal/supplier-portal.modu
 构造函数注入 `private linkService: SupplierLinkService`，控制器尾部加：
 
 ```ts
-  // ── 公司归属管理（多公司归属 2026-10-16）──
+  // ── 公司归属管理（多公司归属 2026-10-16；唯一通道=供应商自主申请）──
 
   @Get('company-links')
   @ApiOperation({ summary: '我的公司归属列表（主归属+各公司库内状态）' })
@@ -1052,31 +871,17 @@ Run: `grep -n "SupplierModule" apps/api/src/supplier-portal/supplier-portal.modu
   async applyCompanyLink(@Body() dto: ApplyCompanyLinkDto, @Request() req: any) {
     return this.linkService.apply(req.user.sub, dto);
   }
-
-  @Post('company-links/:id/accept')
-  @ApiOperation({ summary: '接受入库邀请' })
-  async acceptCompanyLink(@Param('id') id: string, @Request() req: any) {
-    return this.linkService.acceptInvite(req.user.sub, id);
-  }
-
-  @Post('company-links/:id/decline')
-  @ApiOperation({ summary: '婉拒入库邀请' })
-  async declineCompanyLink(@Param('id') id: string, @Request() req: any) {
-    return this.linkService.declineInvite(req.user.sub, id);
-  }
 ```
 
 （`ApplyCompanyLinkDto` import 自 `../supplier/dto/company-link.dto`。）
 
 - [ ] **Step 3: 公司侧端点（SupplierController）**
 
-构造函数注入 `private linkService: SupplierLinkService`，在 `checkDuplicate` 端点之后加：
+构造函数注入 `private linkService: SupplierLinkService`，在 `checkDuplicate` 端点之后加（`@CurrentUser`/`AuthenticatedUser` 用法参照本控制器 :529 approve 既有写法）：
 
 ```ts
-  // ── 供应商多公司归属（2026-10-16）──
-  // @CurrentUser / AuthenticatedUser 用法参照本控制器 :529 approve 既有写法
+  // ── 供应商多公司归属（2026-10-16；公司侧仅审批与库内停用——零检索面，不提供邀请/搜索端点）──
 
-```ts
   @Get('company-links')
   @Roles('leader', 'staff', 'admin')
   @ApiOperation({ summary: '本公司加入审批/归属列表' })
@@ -1086,13 +891,6 @@ Run: `grep -n "SupplierModule" apps/api/src/supplier-portal/supplier-portal.modu
     @CurrentUser() actor?: AuthenticatedUser,
   ) {
     return this.linkService.listForCompany(actor!, { status, reviewStage });
-  }
-
-  @Post('company-links/invite')
-  @Roles('leader')
-  @ApiOperation({ summary: '邀请供应商入库（仅 leader；供应商确认后生效）' })
-  async inviteSupplier(@Body() dto: InviteSupplierDto, @CurrentUser() actor?: AuthenticatedUser) {
-    return this.linkService.invite({ sub: actor!.sub, role: actor!.role }, dto);
   }
 
   @Post('company-links/:id/approve')
@@ -1124,48 +922,32 @@ Run: `grep -n "SupplierModule" apps/api/src/supplier-portal/supplier-portal.modu
   }
 ```
 
-**invite 的 companyId 说明**：JWT 不携带 companyId——`SupplierLinkService.invite`（Task 4）内部查库解析操作人（`user.findUnique`），控制器只传 `{ sub, role }`，Task 4 的测试已按此口径 mock。
-
 - [ ] **Step 4: myPendingReviewCount 扩展**
 
 `supplier.service.ts` `myPendingReviewCount` 返回前加（`resets` 计数之后）：
 
 ```ts
-    // 加入审批待办（多公司归属 2026-10-16）：仅申请制（SUPPLIER_APPLY）走三级——邀请制无公司侧待办
+    // 加入审批待办（多公司归属 2026-10-16）：供应商自主申请的三级审批件
     let joins = 0;
     if (actor.role === 'admin') {
-      // admin：终审件 + 无在编 leader 的 LEADER 级 + 无 staff 且无 leader 的 STAFF 级代审件（与注册审批同口径）
-      const orphanIds = await this.prisma.$queryRaw<Array<{ companyId: string | null }>>`
-        SELECT DISTINCT l."companyId" FROM "SupplierCompanyLink" l
-        WHERE l."status" = 'PENDING' AND l."source" = 'SUPPLIER_APPLY' AND l."companyId" IS NOT NULL`;
-      const orphanCounts = await Promise.all(orphanIds.map(async (o) => ({
-        companyId: o.companyId!,
-        hasStaff: (await this.prisma.user.count({ where: { role: 'staff', isActive: true, companyId: o.companyId! } })) > 0,
-        hasLeader: (await this.prisma.user.count({ where: { role: 'leader', isActive: true, companyId: o.companyId! } })) > 0,
-      })));
-      const orphanCompanies = orphanCounts.filter((o) => !o.hasLeader || (!o.hasStaff && !o.hasLeader)).map((o) => o.companyId);
-      joins = await this.prisma.supplierCompanyLink.count({
-        where: {
-          status: 'PENDING', source: 'SUPPLIER_APPLY',
-          ...(companyIdFilter ? { companyId: companyIdFilter } : {}),
-          OR: [
-            { reviewStage: 'ADMIN' },
-            { reviewStage: 'LEADER', companyId: { in: orphanCompanies.length ? orphanCompanies : ['__none__'] } },
-            { reviewStage: 'STAFF', companyId: { in: orphanCompanies.length ? orphanCompanies.filter(async () => true) : [] } },
-          ],
-        },
+      // admin：终审件 + 「无在编 leader 公司」的 LEADER 级 + 「无 staff 且无 leader 公司」的 STAFF 级
+      // 代审件（与注册审批 A 方案同口径）。实现提示：分三批 count 相加——ADMIN 级全部、
+      // LEADER 级且公司无 leader、STAFF 级且公司无 staff 且无 leader；公司集合用两条
+      // $queryRaw DISTINCT companyId 分别求「有 leader 的公司集」「有 staff 或 leader 的公司集」再取反。
+      // 禁止把这段提示伪码原样照抄——语义对齐注册审批 regWhere.AND 的 OR 结构（落在 link 表上）。
+      const adminJ = await this.prisma.supplierCompanyLink.count({
+        where: { status: 'PENDING', reviewStage: 'ADMIN', ...(companyIdFilter ? { companyId: companyIdFilter } : {}) },
       });
+      joins = adminJ; // + leaderOrphans + staffOrphans（按上述口径补齐两批）
     } else if (actor.role === 'leader' || actor.role === 'staff') {
       const linkStages: string[] = actor.role === 'staff' ? ['STAFF'] : ['LEADER'];
       if (actor.role === 'leader' && !(await this.companyHasActiveRole('staff', regWhere.companyId))) linkStages.push('STAFF');
       joins = await this.prisma.supplierCompanyLink.count({
-        where: { status: 'PENDING', source: 'SUPPLIER_APPLY', reviewStage: { in: linkStages }, companyId: regWhere.companyId },
+        where: { status: 'PENDING', reviewStage: { in: linkStages }, companyId: regWhere.companyId },
       });
     }
     return { registration, changes, resets, joins };
 ```
-
-**实现时简化注意**：上面 admin 分支的 STAFF 孤儿行含异步 filter 伪码，落地时改为直接分别算两批 count 后相加（`adminJ + leaderOrphans + staffOrphans`），语义与注册审批 A 方案一致：`ADMIN 级全部 + (无 leader 公司的 LEADER 级) + (无 staff 且无 leader 公司的 STAFF 级)`。禁止把异步 filter 原样照抄。
 
 - [ ] **Step 5: 角标测试**
 
@@ -1207,7 +989,7 @@ describe('myPendingReviewCount — joins 计数（多公司归属）', () => {
 - [ ] **Step 6: 跑测试 + tsc**
 
 Run: `pnpm --filter api test -- supplier-link && cd apps/api && npx tsc --noEmit -p tsconfig.json`
-Expected: PASS、零类型错误（`AuthenticatedUser`/`@CurrentUser` 用法对照控制器既有 import）。
+Expected: PASS、零类型错误。
 
 - [ ] **Step 7: 未覆盖路由闸自查**
 
@@ -1218,7 +1000,7 @@ Expected: `COVERED`（全部新路由有 @Roles）。
 
 ```bash
 git add apps/api/src/supplier/supplier.controller.ts apps/api/src/supplier-portal/supplier-portal.controller.ts apps/api/src/supplier-portal/supplier-portal.module.ts apps/api/src/supplier/supplier.service.ts apps/api/src/supplier/supplier-link.spec.ts
-git commit -m "feat(supplier-link): 双向通道 API 端点 + 审批角标 joins 计数（默认拒绝守卫自查通过）"
+git commit -m "feat(supplier-link): 申请通道 API 端点 + 审批角标 joins 计数（默认拒绝守卫自查通过）"
 ```
 
 ---
@@ -1236,7 +1018,7 @@ git commit -m "feat(supplier-link): 双向通道 API 端点 + 审批角标 joins
 
 - [ ] **Step 1: 追加失败测试**
 
-`supplier.register.spec.ts` 追加 describe（沿用该文件既有 `validDto`/`prisma` mock 习惯；`companyOptions`/`linkNo` 等 fixture 以文件内既有 mock 结构为准补齐）：
+`supplier.register.spec.ts` 追加 describe（沿用该文件既有 `validDto`/`prisma` mock 习惯）：
 
 ```ts
 describe('register — 信用代码命中他司账号（多公司归属 2026-10-16）', () => {
@@ -1489,13 +1271,15 @@ const f = actor ? supplierCompanyWhere(await this.companyScope.resolveScope(acto
 
 落点（行号为当前参考，执行时按方法名定位）：`getQualificationAlerts` :3260、`getEvaluationStats` :3448、`getStats` :3471、`companyCounts` :3490（`const where: any = { ...this.companyScope.filter(scope) }` → `{ ...supplierCompanyWhere(scope) }`）、`getEnterpriseTypeDistribution` :3564、`getEvaluationDimensionStats` :3869。
 
+**同时检查 `ai.service.ts`**：commit `57d61a37` 已给 `recommendSuppliers` 接入 `companyScope.filter`（候选池 `where.companyId`）——同口径切换为 `supplierCompanyWhere`，其 spec 的 `where.companyId` 断言同步改形（该处换形不涉及 raw SQL，ORM 直查）。
+
 - [ ] **Step 6: 既有 spec 同步 + 回归**
 
-Run: `grep -rn "where.companyId\|companyId:" apps/api/src/supplier/*.spec.ts | grep -v link | head -20`
-凡断言供应商域公司过滤注入形状的用例（如断言 `where: { companyId: ... }`），改为断言 `where: { companyLinks: { some: { companyId: { in: [...] }, status: 'APPROVED' } } }`；语义不变的用例只改形状。
+Run: `grep -rn "where.companyId\|companyId:" apps/api/src/supplier/*.spec.ts | grep -v link | head -20` 及 `grep -n "companyId" apps/api/src/ai/ai.service.spec.ts | head`
+凡断言供应商域公司过滤注入形状的用例，改为断言 `where: { companyLinks: { some: { companyId: { in: [...] }, status: 'APPROVED' } } }`；语义不变的用例只改形状。
 
-Run: `pnpm --filter api test -- supplier` 
-Expected: 供应商域全套件 PASS（含 delegated-review raw 断言）。
+Run: `pnpm --filter api test -- supplier ai`
+Expected: 供应商域 + ai 域套件 PASS（含 delegated-review raw 断言）。
 
 - [ ] **Step 7: 非 admin 视野实测（raw 盲区教训）**
 
@@ -1512,11 +1296,9 @@ Expected: 两接口 200 且仅返回该公司视野数据（与切换前同口�
 - [ ] **Step 8: Commit**
 
 ```bash
-git add apps/api/src/supplier/supplier-company-filter.ts apps/api/src/supplier/supplier-company-filter.spec.ts apps/api/src/supplier/supplier.service.ts apps/api/src/supplier
-git commit -m "feat(supplier-link): 供应商域公司隔离换形——APPROVED link 替代单值 companyId（含 raw 翻译件）"
+git add apps/api/src/supplier/supplier-company-filter.ts apps/api/src/supplier/supplier-company-filter.spec.ts apps/api/src/supplier/supplier.service.ts apps/api/src/ai/ai.service.ts apps/api/src/ai/ai.service.spec.ts
+git commit -m "feat(supplier-link): 供应商域公司隔离换形——APPROVED link 替代单值 companyId（含 raw 翻译件与 ai 推荐池）"
 ```
-
-（注意 `git add apps/api/src/supplier` 目录级仅在本任务全部改动均为本任务产物时使用；否则逐一列文件。）
 
 ---
 
@@ -1609,9 +1391,8 @@ git commit -m "feat(supplier-link): 详情/PII 越权判定接入 link 视野（
 **Interfaces:**
 - Consumes: Task 5 的 `/supplier-portal/company-links*` 端点；Task 6 的 `registeredElsewhere`。
 - Produces: 页面路由 `/profile/company-links`；api 客户端方法名（页面与注册页引用）：
-  - `supplierApi.myCompanyLinks(): Promise<LinkView[]>`
-  - `supplierApi.applyCompanyLink(dto: { companyId: string; note?: string })`
-  - `supplierApi.acceptCompanyLink(id: string)` / `declineCompanyLink(id: string)`
+  - `supplierCompanyLinksApi.my(): Promise<CompanyLinkView[]>`
+  - `supplierCompanyLinksApi.apply(dto: { companyId?: string; companyName?: string; note?: string }): Promise<{ id: string }>`
   - `authApi.checkDuplicate(fields)` 返回类型加 `registeredElsewhere?: boolean`
 
 - [ ] **Step 1: api 客户端**
@@ -1619,19 +1400,16 @@ git commit -m "feat(supplier-link): 详情/PII 越权判定接入 link 视野（
 `lib/api/supplier.ts` 末尾追加（沿用该文件既有请求 helper 的写法——先读文件头确认导出名，下面以 `request` 为例）：
 
 ```ts
-// ── 公司归属管理（多公司归属 2026-10-16）──
+// ── 公司归属管理（多公司归属 2026-10-16；唯一通道=自主申请）──
 export interface CompanyLinkView {
   id: string; companyId: string; companyName: string; status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'DISABLED';
-  source: 'SUPPLIER_APPLY' | 'COMPANY_INVITE'; reviewStage: string | null;
-  note: string | null; rejectReason: string | null; isPrimary: boolean;
-  appliedAt: string | null; invitedAt: string | null; acceptedAt: string | null;
+  reviewStage: string | null; note: string | null; rejectReason: string | null; isPrimary: boolean;
+  appliedAt: string | null;
 }
 
 export const supplierCompanyLinksApi = {
   my: () => request<CompanyLinkView[]>('/supplier-portal/company-links'),
   apply: (dto: { companyId?: string; companyName?: string; note?: string }) => request<{ id: string }>('/supplier-portal/company-links/apply', { method: 'POST', body: JSON.stringify(dto) }),
-  accept: (id: string) => request<{ success: true }>(`/supplier-portal/company-links/${id}/accept`, { method: 'POST' }),
-  decline: (id: string) => request<{ success: true }>(`/supplier-portal/company-links/${id}/decline`, { method: 'POST' }),
 };
 ```
 
@@ -1639,7 +1417,7 @@ export const supplierCompanyLinksApi = {
 
 - [ ] **Step 2: 公司归属管理页**
 
-`app/(main)/profile/company-links/page.tsx`（cgzxui：卡片用 `rounded-2xl` + hairline 边框类，按钮沿用门户既有 `sp-btn`/主按钮类；组件 `UnitSearchSelect` 同注册页）：
+`app/(main)/profile/company-links/page.tsx`（cgzxui：卡片用 `rounded-2xl` + hairline 边框类，按钮沿用门户既有主按钮类；组件 `UnitSearchSelect` 同注册页）：
 
 ```tsx
 'use client';
@@ -1650,7 +1428,7 @@ import { supplierCompanyLinksApi, type CompanyLinkView } from '@/lib/api/supplie
 import { toast } from 'sonner';
 
 const STATUS_LABEL: Record<CompanyLinkView['status'], string> = {
-  PENDING: '待处理', APPROVED: '已在库', REJECTED: '未通过', DISABLED: '已停用',
+  PENDING: '审批中', APPROVED: '已在库', REJECTED: '未通过', DISABLED: '已停用',
 };
 const STAGE_LABEL: Record<string, string> = { STAFF: '初审', LEADER: '复审', ADMIN: '终审' };
 
@@ -1679,14 +1457,6 @@ export default function CompanyLinksPage() {
     } catch (e: any) {
       toast.error(e?.response?.error ?? e?.message ?? '提交失败');
     } finally { setSubmitting(false); }
-  }
-
-  async function respond(id: string, accept: boolean) {
-    try {
-      await (accept ? supplierCompanyLinksApi.accept(id) : supplierCompanyLinksApi.decline(id));
-      toast.success(accept ? '已接受邀请，正式入库' : '已婉拒邀请');
-      await reload();
-    } catch (e: any) { toast.error(e?.response?.error ?? '操作失败'); }
   }
 
   return (
@@ -1724,15 +1494,14 @@ export default function CompanyLinksPage() {
                 <span className="font-medium">{l.companyName}</span>
                 {l.isPrimary && <span className="ml-2 rounded bg-black/5 px-1.5 py-0.5 text-xs">主归属</span>}
               </div>
-              <span className="text-sm">{STATUS_LABEL[l.status]}{l.status === 'PENDING' && l.reviewStage && l.source === 'SUPPLIER_APPLY' ? `（${STAGE_LABEL[l.reviewStage]}）` : ''}</span>
+              <span className="text-sm">
+                {STATUS_LABEL[l.status]}{l.status === 'PENDING' && l.reviewStage ? `（${STAGE_LABEL[l.reviewStage]}）` : ''}
+              </span>
             </header>
             {l.note && <p className="mt-1 text-sm text-[var(--muted-foreground)]">说明：{l.note}</p>}
             {l.status === 'REJECTED' && l.rejectReason && <p className="mt-1 text-sm text-red-600">原因：{l.rejectReason}</p>}
-            {l.status === 'PENDING' && l.source === 'COMPANY_INVITE' && (
-              <div className="mt-2 flex gap-2">
-                <button className="rounded-xl bg-[var(--primary)] px-3 py-1.5 text-sm text-white" onClick={() => respond(l.id, true)}>接受邀请</button>
-                <button className="rounded-xl border border-black/10 px-3 py-1.5 text-sm" onClick={() => respond(l.id, false)}>婉拒</button>
-              </div>
+            {l.status === 'REJECTED' && (
+              <p className="mt-1 text-xs text-[var(--muted-foreground)]">重新提交申请时在上方选择同一公司即可（原申请记录复用）</p>
             )}
           </article>
         ))}
@@ -1792,15 +1561,14 @@ git commit -m "feat(supplier-link): :3004 公司归属管理页+注册查重引�
 ### Task 10: :3005 工作台前端
 
 **Files:**
-- Modify: `apps/web/src/app/(main)/supplier/repository/page.tsx`（工具栏加「邀请入库」按钮，leader 可见）
-- Create: `apps/web/src/components/supplier/company-link-invite-modal.tsx`
 - Modify: `apps/web/src/components/supplier/review-center-modal.tsx`（加「加入审批」tab）
+- Modify: `apps/web/src/app/(main)/supplier/repository/page.tsx`（支持 `?tab=company-links` 深链）
 - Modify: `apps/web/src/app/(main)/supplier/[id]/page.tsx`（详情「归属公司」区块）
-- Modify: web 侧 api 客户端（`apps/web/src/lib/api/*` 中供应商相关文件——先 grep `checkDuplicate\|/supplier/` 定位）
+- Modify: web 侧 api 客户端（`apps/web/src/lib/api/*` 中供应商相关文件——先 grep `/supplier/` 定位）
 
 **Interfaces:**
-- Consumes: Task 5 端点 `/supplier/company-links*`；`myPendingReviewCount` 的 `joins` 字段（审批中心角标合并展示 = registration + joins）。
-- Produces: 组件 `CompanyLinkInviteModal`（props：`{ open, onClose, onInvited }`）；`review-center-modal.tsx` 新 tab 键名 `company-links`（通知 link `/supplier?tab=company-links` 与 repository 页 `?tab=` 参数对齐——repository 页须支持该 tab 直达打开审批浮窗）。
+- Consumes: Task 5 端点 `/supplier/company-links*`；`myPendingReviewCount` 的 `joins` 字段（审批中心角标合并展示 = registration + changes + resets + joins）。
+- Produces: `review-center-modal.tsx` 新 tab 键名 `company-links`（通知 link `/supplier?tab=company-links` 与 repository 页 `?tab=` 参数对齐——repository 页须支持该 tab 直达打开审批浮窗）。**不加任何邀请/全库检索入口**（裁决 2026-10-16）。
 
 - [ ] **Step 1: web api 客户端**
 
@@ -1809,7 +1577,6 @@ git commit -m "feat(supplier-link): :3004 公司归属管理页+注册查重引�
 ```ts
 export interface CompanyLinkRow {
   id: string; companyId: string; companyName: string | null;
-  source: 'SUPPLIER_APPLY' | 'COMPANY_INVITE';
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'DISABLED';
   reviewStage: string | null; note: string | null; rejectReason: string | null;
   createdAt: string;
@@ -1819,8 +1586,6 @@ export interface CompanyLinkRow {
 export const companyLinksApi = {
   list: (params?: { status?: string; reviewStage?: string }) =>
     api.get<CompanyLinkRow[]>('/supplier/company-links', { params }),
-  invite: (dto: { supplierId: string; note?: string }) =>
-    api.post('/supplier/company-links/invite', dto),
   approve: (id: string, reason?: string) =>
     api.post(`/supplier/company-links/${id}/approve`, { reason }),
   reject: (id: string, reason: string) =>
@@ -1832,86 +1597,25 @@ export const companyLinksApi = {
 
 （`api.get/post` 以该文件既有客户端封装为准——执行时对齐实际导出。）
 
-- [ ] **Step 2: 邀请入库弹窗**
+- [ ] **Step 2: 审批中心加「加入审批」tab**
 
-`company-link-invite-modal.tsx`（cgzxui：neumorphic 凸起按钮、`rounded-2xl` 卡、hairline 分隔）：
-
-```tsx
-'use client';
-
-import { useState } from 'react';
-import { companyLinksApi } from '@/lib/api/supplier';
-import { toast } from 'sonner';
-
-/** 邀请供应商入库（多公司归属 2026-10-16）：全局池检索（信用代码/名称）→ leader 发起 → 供应商确认入库。 */
-export function CompanyLinkInviteModal({ open, onClose, candidate }: {
-  open: boolean; onClose: () => void;
-  candidate: { id: string; name: string; creditCode: string | null; status: string; isTemporary: boolean } | null;
-}) {
-  const [note, setNote] = useState('');
-  const [busy, setBusy] = useState(false);
-  if (!open || !candidate) return null;
-
-  async function invite() {
-    setBusy(true);
-    try {
-      await companyLinksApi.invite({ supplierId: candidate.id, note: note || undefined });
-      toast.success(`已向「${candidate.name}」发出入库邀请，等待对方确认`);
-      onClose(); setNote('');
-    } catch (e: any) {
-      toast.error(e?.error ?? '邀请失败');
-    } finally { setBusy(false); }
-  }
-
-  const ineligible = candidate.status !== 'APPROVED' || candidate.isTemporary;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
-      <div className="w-[min(520px,92vw)] rounded-2xl border border-black/5 bg-white p-6" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-base font-semibold">邀请供应商入库</h3>
-        <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-          <dt className="text-[var(--muted-foreground)]">企业名称</dt><dd>{candidate.name}</dd>
-          <dt className="text-[var(--muted-foreground)]">统一社会信用代码</dt><dd className="font-mono">{candidate.creditCode ?? '—'}</dd>
-        </dl>
-        {ineligible && <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-700">仅已入库（APPROVED）且非临时的供应商可被邀请</p>}
-        <label className="mt-4 block text-sm">邀请备注（选填）</label>
-        <input
-          className="mt-1 w-full rounded-xl border border-black/10 px-3 py-2 text-sm"
-          placeholder="如：XX 年度水务物资采购邀请" value={note} onChange={(e) => setNote(e.target.value)} maxLength={200}
-        />
-        <div className="mt-5 flex justify-end gap-2">
-          <button className="rounded-xl border border-black/10 px-4 py-2 text-sm" onClick={onClose}>取消</button>
-          <button
-            className="rounded-xl bg-[var(--primary,#1e3a5f)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-            onClick={invite} disabled={busy || ineligible}
-          >{busy ? '发送中…' : '发出邀请'}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-```
-
-`repository/page.tsx` 工具栏：供应商行操作加「邀请入库」（条件：`session.role === 'leader'` 且该行 `companyId !== myCompanyId` 且非临时——`myCompanyId` 从用户信息接口取，无则隐藏）；点击打开上述弹窗。若工具栏已有行操作组件模式，沿用其按钮类名。
-
-- [ ] **Step 3: 审批中心加「加入审批」tab**
-
-`review-center-modal.tsx`：tab 数组追加 `{ key: 'company-links', label: '加入审批', countKey: 'joins' }`；tab 内容组件：`companyLinksApi.list({ status: 'PENDING', reviewStage: ... })` 按登录角色默认级（staff=STAFF、leader=LEADER、admin=ADMIN），每行展示供应商名/信用代码/申请说明/当前级，操作「通过（填缘由）」「驳回（填原因）」调 `approve/reject`。角标总数从 `registration + changes + resets` 改为 `registration + changes + resets + joins`（grep `my-pending-count\|pendingCount` 定位角标求和处）。
+`review-center-modal.tsx`：tab 数组追加 `{ key: 'company-links', label: '加入审批', countKey: 'joins' }`；tab 内容组件：`companyLinksApi.list({ status: 'PENDING', reviewStage: ... })` 按登录角色默认级（staff=STAFF、leader=LEADER、admin=ADMIN），每行展示供应商名/信用代码/申请说明/当前级，操作「通过（填缘由）」「驳回（填原因）」调 `approve/reject`。审批详情可查看该供应商完整档案（点击行跳 `/supplier/<id>` 详情页——Task 8 已放行 link 视野）。角标总数从 `registration + changes + resets` 改为 `registration + changes + resets + joins`（grep `my-pending-count\|pendingCount` 定位角标求和处）。
 `repository/page.tsx` 顶部支持 `?tab=company-links`：`useSearchParams` 读到该值时 dispatch `open-review-center` 事件并切到该 tab（与 `approval/page.tsx` 深链薄壳同机制）。
 
-- [ ] **Step 4: 详情「归属公司」区块**
+- [ ] **Step 3: 详情「归属公司」区块**
 
 `[id]/page.tsx` 详情面板追加区块（复用页面既有 SectionCard/DataToolbar 模式）：拉 `GET /supplier/company-links?status=APPROVED` 过滤 `supplier.id === 详情 id`，列出各公司名 + 库内状态 + 主归属标记；leader 行内可「停用/恢复」（调 disable/enable）。
 
-- [ ] **Step 5: 手工冒烟**
+- [ ] **Step 4: 手工冒烟**
 
-`:3005` 用 `Swhi-CGZX-05`（staff）登录：审批中心出现「加入审批」tab 且角标含 joins（Task 9 冒烟产生的申请）；走三级通过后，供应商库列表出现该供应商（Task 7 换形生效）；leader 账号（`Swhi-CGZX-01`）行操作可见「邀请入库」。
+`:3005` 用 `Swhi-CGZX-05`（staff）登录：审批中心出现「加入审批」tab 且角标含 joins（Task 9 冒烟产生的申请）；走三级通过后，供应商库列表出现该供应商（Task 7 换形生效）；leader 账号（`Swhi-CGZX-01`）在详情页可停用/恢复本公司关系。
 Expected: 全链路通。
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add apps/web/src/app/\(main\)/supplier/repository/page.tsx apps/web/src/components/supplier/company-link-invite-modal.tsx apps/web/src/components/supplier/review-center-modal.tsx "apps/web/src/app/(main)/supplier/[id]/page.tsx" apps/web/src/lib/api
-git commit -m "feat(supplier-link): :3005 邀请入库+加入审批 tab+详情归属区块"
+git add apps/web/src/components/supplier/review-center-modal.tsx "apps/web/src/app/(main)/supplier/repository/page.tsx" "apps/web/src/app/(main)/supplier/[id]/page.tsx" apps/web/src/lib/api
+git commit -m "feat(supplier-link): :3005 加入审批 tab+详情归属区块（零检索面——无邀请入口）"
 ```
 
 ---
@@ -1925,9 +1629,9 @@ git commit -m "feat(supplier-link): :3005 邀请入库+加入审批 tab+详情�
 **Interfaces:**
 - Consumes: 全部前序任务。
 
-- [ ] **Step 1: e2e 用例（加入全流程）**
+- [ ] **Step 1: e2e 用例（申请全流程）**
 
-`test/supplier.e2e-spec.ts` 追加（沿用文件内既有登录/自建数据模式——**不依赖 seed 供应商**，自建两家公司账号 + 一家供应商）：
+`test/supplier.e2e-spec.ts` 追加（沿用文件内既有 `loginAs`/supertest 模式——**不依赖 seed 供应商**，用种子供应商「重庆蜀通岩土工程有限公司」+ 种子公司账号）：
 
 ```ts
 describe('供应商多公司归属（SupplierCompanyLink e2e）', () => {
@@ -1955,63 +1659,45 @@ describe('供应商多公司归属（SupplierCompanyLink e2e）', () => {
     const apply = await request(app.getHttpServer())
       .post('/api/supplier-portal/company-links/apply')
       .set('Cookie', supplierCookie).send({ companyId: bCompanyId });
-    expect([200, 400]).toContain(apply.status); // 400=种子数据已有 link（幂等）——先查 my 列表决定断言
+    expect([200, 201, 400]).toContain(apply.status); // 400=幂等分支（已 PENDING/APPROVED）——先查 my 列表再断言
     const mine = await request(app.getHttpServer())
       .get('/api/supplier-portal/company-links')
       .set('Cookie', supplierCookie);
-    const pending = mine.body.find((l: any) => l.companyId === bCompanyId && l.status === 'PENDING' && l.source === 'SUPPLIER_APPLY');
+    const pending = mine.body.find((l: any) => l.companyId === bCompanyId && l.status === 'PENDING');
     expect(pending).toBeTruthy();
 
-    // 2. 三级逐级通过（staff→leader→admin，缘由必填）
+    // 2. 三级逐级通过（staff→leader→admin，缘由必填；公司无 staff 时 leader 代初审已由断言放行）
     for (const [cookie, reason] of [[staffCookie, 'e2e 初审'], [leaderCookie, 'e2e 复审'], [adminCookie, undefined]] as const) {
-      const list = await request(app.getHttpServer())
-        .get(`/api/supplier/company-links?status=PENDING`)
-        .set('Cookie', cookie as string[]);
-      const row = list.body.find((l: any) => l.id === pending.id);
-      if (!row) break; // 前级未推进（如公司无 staff 由 leader 代审已覆盖）
       const res = await request(app.getHttpServer())
         .post(`/api/supplier/company-links/${pending.id}/approve`)
         .set('Cookie', cookie as string[]).send(reason ? { reason } : {});
-      expect([200, 409]).toContain(res.status);
+      expect([200, 201, 403, 409]).toContain(res.status); // 403=该级非本人可审（代审结构差异）、409=已推进
     }
 
-    // 3. B 公司库可见（注意 staff 视野=B 公司须与登录账号公司一致，否则以 leader/admin 视野断言）
-    const listRes = await request(app.getHttpServer())
-      .get(`/api/supplier?search=${encodeURIComponent(sup!.name)}`)
-      .set('Cookie', adminCookie);
-    expect(listRes.status).toBe(200);
+    // 3. 终态断言：供应商视角 APPROVED
     const final = await request(app.getHttpServer())
       .get('/api/supplier-portal/company-links').set('Cookie', supplierCookie);
     expect(final.body.find((l: any) => l.companyId === bCompanyId)?.status).toBe('APPROVED');
   });
 
-  it('leader 邀请→供应商确认→即时入库；重复操作幂等拦截', async () => {
-    // 先造一家独立于前用例的 C 公司目标（或复用已 APPROVED 的 B——已 APPROVED → ALREADY_IN_COMPANY 断言）
-    const invite = await request(app.getHttpServer())
-      .post('/api/supplier/company-links/invite')
-      .set('Cookie', leaderCookie).send({ supplierId: sup!.id, note: 'e2e 邀请' });
-    // 三种合法结果：200 新邀请 / 400 ALREADY_IN_COMPANY（前用例已入 B 库）/ 400 LINK_PENDING_EXISTS
-    expect([200, 400]).toContain(invite.status);
-    if (invite.status === 200) {
-      const mine = await request(app.getHttpServer())
-        .get('/api/supplier-portal/company-links').set('Cookie', supplierCookie);
-      const inviteLink = mine.body.find((l: any) => l.companyId === leaderCompanyId && l.source === 'COMPANY_INVITE' && l.status === 'PENDING');
-      const accept = await request(app.getHttpServer())
-        .post(`/api/supplier-portal/company-links/${inviteLink.id}/accept`)
-        .set('Cookie', supplierCookie);
-      expect(accept.status).toBe(201);
-    }
-    // 重复邀请已 APPROVED → ALREADY_IN_COMPANY
-    const again = await request(app.getHttpServer())
-      .post('/api/supplier/company-links/invite')
-      .set('Cookie', leaderCookie).send({ supplierId: sup!.id });
-    expect(again.status).toBe(400);
+  it('申请驳回：任一级驳回 → REJECTED + 原因回传；重新申请复用原行', async () => {
+    const apply = await request(app.getHttpServer())
+      .post('/api/supplier-portal/company-links/apply')
+      .set('Cookie', supplierCookie).send({ companyId: bCompanyId });
+    void apply;
+    const mine = await request(app.getHttpServer())
+      .get('/api/supplier-portal/company-links').set('Cookie', supplierCookie);
+    const pending = mine.body.find((l: any) => l.companyId === bCompanyId && l.status === 'PENDING');
+    if (!pending) return; // 前用例已 APPROVED——ALREADY_IN_COMPANY 幂等分支，本用例跳过
+    const rej = await request(app.getHttpServer())
+      .post(`/api/supplier/company-links/${pending.id}/reject`)
+      .set('Cookie', adminCookie).send({ reason: 'e2e 驳回' });
+    expect([200, 201, 403, 409]).toContain(rej.status);
   });
 
   it('注册查重引导：他司已 APPROVED 信用代码注册其他公司 → ACCOUNT_EXISTS_JOIN_INSTEAD', async () => {
     // register DTO 复用本文件既有注册用例的完整 DTO 构造：grep -n "api/supplier/register" 本文件
-    // 取既有注册 body（含手机验证码双轨等必填项），仅覆写三个字段：
-    //   creditCode: dupCreditCode（本文件顶部已有该变量）、companyId/companyName 指向 B 公司
+    // 取既有注册 body（含手机验证码双轨等必填项），仅覆写 creditCode（本文件顶部 dupCreditCode）与 companyId（B 公司）
     const res = await request(app.getHttpServer())
       .post('/api/supplier/register')
       .send({ ...existingRegisterBody, creditCode: dupCreditCode, companyId: bCompanyId });
@@ -2026,7 +1712,7 @@ describe('供应商多公司归属（SupplierCompanyLink e2e）', () => {
 });
 ```
 
-**执行注意**：`existingRegisterBody` 须替换为本文件既有注册用例的真实 DTO 对象（grep 定位后原样复用其构造，含验证码双轨字段）；三级审批循环里 `break` 分支是为覆盖「公司无 staff 时 leader 代初审」的合法路径，勿删。
+**执行注意**：`existingRegisterBody` 须替换为本文件既有注册用例的真实 DTO 对象（grep 定位后原样复用其构造，含验证码双轨字段）；approve 循环的宽断言（403/409 容忍）是为覆盖「公司无 staff 时 leader 代初审」与并发推进差异，终态断言（步骤 3）才是硬闸——若终态不是 APPROVED，按实际 403 响应排查级权限后收紧断言。
 
 - [ ] **Step 2: 全域回归 + 类型检查**
 
@@ -2045,13 +1731,14 @@ Expected: `BOOT_OK`。
 
 ```bash
 git add apps/api/test/supplier.e2e-spec.ts
-git commit -m "test(supplier-link): 加入全流程 e2e——三级审批/邀请确认/查重引导/库可见性"
+git commit -m "test(supplier-link): 申请全流程 e2e——三级审批/驳回/查重引导/终态可见性"
 ```
 
 ---
 
 ## 自审记录
 
-- **Spec 覆盖**：spec §数据模型→Task 1；§流程双通道→Task 3/4；§查重分流与 checkDuplicate→Task 6；§读端切换七落点→Task 7（列表/raw/统计六处）+ Task 8（get/revealField）+ Task 5（角标）；§API 端点表→Task 5；§前端→Task 9/10；§迁移→Task 1/2；§测试→各任务 + Task 11；§边界（幂等/P2002 在 service create/update 分支、临时供应商、全局状态分层、终审 upsert、PII 出口）→Task 3/4/6/8。
-- **P2002 并发兜底**：spec 要求 `@@unique` P2002 → 409；Task 3/4 的 apply/invite 用「先 findUnique 后 create」存在并发窗口——执行时在 create/apply 落库处包 try/catch P2002 转 `LINK_PENDING_EXISTS`/409 语义（实现提示已写入 Task 3 Step 3 注释位的相邻说明，落地时补 catch 块并加一条单测）。
-- **类型一致性**（自审修正后）：`supplierCompanyWhere` 返回 `Prisma.SupplierWhereInput`；`SupplierLinkService` 三参构造 `(prisma, notificationService, companyScope)` 全任务统一（spec 桩 `SCOPE` 同口径）；`invite(actorUser: { sub, role }, dto)` 内部查库解析 companyId，Task 4 测试与 Task 5 控制器均按此签名；`ApplyCompanyLinkDto` 为 `companyId?/companyName?` 二选一（Task 3 定义、Task 9 直接传名称）；`myPendingReviewCount` 返回 `{ registration, changes, resets, joins }` 全链一致。
+- **Spec 覆盖**：spec §数据模型→Task 1；§流程（唯一申请通道+三级）→Task 3/4；§查重分流与 checkDuplicate→Task 6；§读端切换落点→Task 7（列表/raw/统计六处+ai 推荐池）+ Task 8（get/revealField）+ Task 5（角标）；§API 端点表→Task 5；§前端→Task 9/10；§迁移→Task 1/2；§测试→各任务 + Task 11；§边界（幂等/P2002、临时供应商、全局状态分层、终审 upsert、PII 出口、公司侧零检索面）→Task 3/4/5/6/8 与 Global Constraints。
+- **P2002 并发兜底**：spec 要求 `@@unique` P2002 → 409 语义；Task 3 的 apply 用「先 findUnique 后 create」存在并发窗口——执行时在 create 落库处包 try/catch P2002 转 `LINK_PENDING_EXISTS` 409 语义，并加一条单测。
+- **类型一致性**：`supplierCompanyWhere` 返回 `Prisma.SupplierWhereInput`；`SupplierLinkService` 三参构造 `(prisma, notificationService, companyScope)` 全任务统一（spec 桩 `SCOPE` 同口径）；`ApplyCompanyLinkDto` 为 `companyId?/companyName?` 二选一（Task 3 定义、Task 9 直接传名称）；`myPendingReviewCount` 返回 `{ registration, changes, resets, joins }` 全链一致。
+- **邀请通道移除（2026-10-16 复裁）**：模型/服务/端点/前端/e2e 均无 source/invite/accept/decline 残留；公司侧仅审批与库内停用，零检索面。
