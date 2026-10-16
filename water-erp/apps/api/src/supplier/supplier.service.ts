@@ -4020,7 +4020,7 @@ export class SupplierService {
       deliveredAt: new Date().toISOString(),
     };
 
-    // 配置写回 BidProject：openTime=开标时间，deadline=开标前24小时，downloadDeadline=获取截止
+    // 配置写回 BidProject：openTime=开标时间，deadline=开标前间隔常量（10 分钟），downloadDeadline=获取截止
     // backlog §1.1：已下发过配置且截标已过（frozen 语义）→ 重发不得变更已固化截标时间。
     // 2026-09-10 收紧前提为「曾下发过配置」：ensureBidProject 自动建的轮次可能带
     // 项目旧字段推导的过期 deadline（无任何投标活动），首次下发配置必须放行，

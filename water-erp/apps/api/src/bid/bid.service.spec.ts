@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 import { ConflictException, BadRequestException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { BidService } from './bid.service';
@@ -2255,7 +2256,7 @@ describe('BidService — createProject 字段写入', () => {
   it('createProject 写入 qualityRequirement / bondRequired / bondAmount', async () => {
     await service.createProject({
       name: '测试项目', procurementMethod: '公开招标',
-      openTime: '2026-07-02T00:00:00.000Z', deadline: '2026-07-01T00:00:00.000Z',
+      openTime: '2026-07-02T00:00:00.000Z', deadline: '2026-07-01T23:50:00.000Z',
       qualityRequirement: '合格', bondRequired: true, bondAmount: 200000,
     } as any);
 
@@ -2267,13 +2268,13 @@ describe('BidService — createProject 字段写入', () => {
   });
 });
 
-describe('截标↔开标 24h（P0-2）', () => {
+describe('截标↔开标间隔（P0-2；2026-10-16 起 10 分钟）', () => {
   let service: BidService;
   let prisma: any;
 
-  const H24 = 24 * 3_600_000;
+  const GAP_MS = BID_DEADLINE_BEFORE_OPENING_MS;
   const OPEN = new Date('2026-09-01T10:00:00Z');
-  const DEADLINE = new Date(OPEN.getTime() - H24);
+  const DEADLINE = new Date(OPEN.getTime() - GAP_MS);
 
   beforeEach(async () => {
     prisma = {
@@ -2321,12 +2322,12 @@ describe('截标↔开标 24h（P0-2）', () => {
     expect(prisma.bidProject.create).not.toHaveBeenCalled();
   });
 
-  it('createBidProject：缺 deadline → 自动派生 24h', async () => {
+  it('createBidProject：缺 deadline → 自动派生间隔（10 分钟）', async () => {
     prisma.bidProject.create.mockImplementation(({ data }: any) => data);
     const created = await service.createProject({
       name: 'P', procurementMethod: '公开招标', openTime: OPEN.toISOString(),
     } as any);
-    expect(created.deadline.getTime()).toBe(OPEN.getTime() - H24);
+    expect(created.deadline.getTime()).toBe(OPEN.getTime() - GAP_MS);
   });
 
   it('createFromAnnouncement：metadata.deadline 缺省 → 派生（不再 +7 天）', async () => {
@@ -2336,7 +2337,7 @@ describe('截标↔开标 24h（P0-2）', () => {
       { method: '公开招标', openTime: OPEN.toISOString() },
     );
     expect(created.openTime.getTime()).toBe(OPEN.getTime());
-    expect(created.deadline.getTime()).toBe(OPEN.getTime() - H24);
+    expect(created.deadline.getTime()).toBe(OPEN.getTime() - GAP_MS);
   });
 
   it('createFromAnnouncement：提供 deadline 且差 25h → 400', async () => {
@@ -2348,7 +2349,7 @@ describe('截标↔开标 24h（P0-2）', () => {
     expect(prisma.bidProject.create).not.toHaveBeenCalled();
   });
 
-  it('reopenFromAborted：兜底 deadline=+3天、openTime=deadline+24h', async () => {
+  it('reopenFromAborted：兜底 deadline=+3天、openTime=deadline+10分钟', async () => {
     prisma.bidProject.findUnique.mockImplementation(({ where }: any) =>
       where?.projectCode ? Promise.resolve(null) : Promise.resolve({
         stage: 'ABORTED', name: 'P', projectCode: 'BID-1', procurementMethod: '谈判采购',
@@ -2358,7 +2359,7 @@ describe('截标↔开标 24h（P0-2）', () => {
     prisma.bidProject.create.mockImplementation(({ data }: any) => data);
     const created = await service.reopenFromAborted('p1', 'u1');
     expect(new Date(created.deadline).getTime()).toBeGreaterThan(Date.now());
-    expect(new Date(created.openTime).getTime() - new Date(created.deadline).getTime()).toBe(H24);
+    expect(new Date(created.openTime).getTime() - new Date(created.deadline).getTime()).toBe(GAP_MS);
   });
 
   it('updateProject align：仅传 openTime → deadline 自动派生', async () => {
@@ -2370,13 +2371,13 @@ describe('截标↔开标 24h（P0-2）', () => {
     await service.updateProject('p1', { openTime: newOpen.toISOString() } as any);
     const data = prisma.bidProject.update.mock.calls[0][0].data;
     expect(data.openTime.getTime()).toBe(newOpen.getTime());
-    expect(data.deadline.getTime()).toBe(newOpen.getTime() - H24);
+    expect(data.deadline.getTime()).toBe(newOpen.getTime() - GAP_MS);
   });
 
   it('updateProject align：双传差 23h → 400 且 update 零调用', async () => {
     const prevOpen = new Date(Date.now() + 5 * 86400_000);
     prisma.bidProject.findUnique.mockResolvedValue({
-      openTime: prevOpen, deadline: new Date(prevOpen.getTime() - H24), stage: 'SUBMIT',
+      openTime: prevOpen, deadline: new Date(prevOpen.getTime() - GAP_MS), stage: 'SUBMIT',
     });
     const newOpen = new Date(Date.now() + 10 * 86400_000);
     await expect(service.updateProject('p1', {
@@ -2386,7 +2387,7 @@ describe('截标↔开标 24h（P0-2）', () => {
     expect(prisma.bidProject.update).not.toHaveBeenCalled();
   });
 
-  it('updateProject frozen：改 deadline → DEADLINE_FROZEN；仅延 openTime（≥+24h）→ 放行且 deadline 不变', async () => {
+  it('updateProject frozen：改 deadline → DEADLINE_FROZEN；仅延 openTime（≥+10分钟）→ 放行且 deadline 不变', async () => {
     const frozenDeadline = new Date(Date.now() - 86400_000);
     prisma.bidProject.findUnique.mockResolvedValue({
       openTime: new Date(frozenDeadline.getTime() + 12 * 3_600_000), deadline: frozenDeadline, stage: 'OPENING',
@@ -2404,13 +2405,13 @@ describe('截标↔开标 24h（P0-2）', () => {
     expect(data.deadline).toBeUndefined();
   });
 
-  it('updateProject frozen：openTime < deadline+24h → DEADLINE_OPENING_GAP_INVALID', async () => {
+  it('updateProject frozen：openTime < deadline+10分钟 → DEADLINE_OPENING_GAP_INVALID', async () => {
     const frozenDeadline = new Date(Date.now() - 86400_000);
     prisma.bidProject.findUnique.mockResolvedValue({
       openTime: new Date(frozenDeadline.getTime() + 12 * 3_600_000), deadline: frozenDeadline, stage: 'OPENING',
     });
     await expect(service.updateProject('p1', {
-      openTime: new Date(frozenDeadline.getTime() + 23 * 3_600_000).toISOString(),
+      openTime: new Date(frozenDeadline.getTime() + 8 * 60_000).toISOString(),
     } as any)).rejects.toMatchObject({ response: { code: 'DEADLINE_OPENING_GAP_INVALID' } });
     expect(prisma.bidProject.update).not.toHaveBeenCalled();
   });
@@ -2418,7 +2419,7 @@ describe('截标↔开标 24h（P0-2）', () => {
   it('updateProject 终审 null 守卫：PATCH {openTime: null} 视同未提供——不写时间字段、不进 align 校验', async () => {
     const prevOpen = new Date(Date.now() + 5 * 86400_000);
     prisma.bidProject.findUnique.mockResolvedValue({
-      openTime: prevOpen, deadline: new Date(prevOpen.getTime() - H24), stage: 'SUBMIT',
+      openTime: prevOpen, deadline: new Date(prevOpen.getTime() - GAP_MS), stage: 'SUBMIT',
     });
     await service.updateProject('p1', { openTime: null } as any);
     // null 视同未提供：不读 prev（无 align/frozen 校验）、update 入参不含 openTime/deadline

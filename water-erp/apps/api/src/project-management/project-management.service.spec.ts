@@ -1426,7 +1426,7 @@ describe('ProjectManagementService', () => {
       expect(new Date(r.openTime).getTime()).toBeGreaterThan(Date.now() - 1000);
     });
 
-    it('开标时间为陈旧值（48h 前）时：deadline 忠实过期（= 开标 − 24h，不人为续命）', async () => {
+    it('开标时间为陈旧值（48h 前）时：deadline 忠实过期（= 开标 − 间隔常量，10 分钟，不人为续命）', async () => {
       const { service, prisma } = makeService();
       prisma.announcement = { findFirst: jest.fn() };
       prisma.bidProject = { findFirst: jest.fn(), create: jest.fn(), count: jest.fn().mockResolvedValue(0), findUnique: jest.fn().mockResolvedValue(null) };
@@ -1460,7 +1460,7 @@ describe('ProjectManagementService', () => {
       }));
     });
 
-    it('未来开标时间时：惰性创建 deadline = openTime − 24h（BID_DEADLINE_BEFORE_OPENING_MS）', async () => {
+    it('未来开标时间时：惰性创建 deadline = openTime − 间隔常量（BID_DEADLINE_BEFORE_OPENING_MS=10 分钟）', async () => {
       const { service, prisma } = makeService();
       prisma.announcement = { findFirst: jest.fn() };
       prisma.bidProject = { findFirst: jest.fn(), create: jest.fn(), count: jest.fn().mockResolvedValue(0), findUnique: jest.fn().mockResolvedValue(null) };

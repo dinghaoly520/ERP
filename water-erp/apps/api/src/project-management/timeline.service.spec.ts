@@ -1,4 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
+import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 import { TimelineService } from './timeline.service';
 
 /** B3 项目时间信息轴（CTS-EBS01 A-204）：聚合各域时间节点，有值升序、缺值垫底 */
@@ -51,7 +52,7 @@ describe('TimelineService（B3 A-204）', () => {
       null,
     );
     const nodes = await new TimelineService(prisma as any).getTimeline('pmi-1');
-    // BP.deadline 未登记但有开标时间 → 投标截止按「开标前 24 小时」自动推算，不再显示未登记
+    // BP.deadline 未登记但有开标时间 → 投标截止按开标前间隔常量（10 分钟）自动推算，不再显示未登记
     expect(nodes.filter(n => n.time).map(n => n.key)).toEqual(['initiation', 'bidDeadline', 'bidOpening']);
     // Prisma DateTime 为 instant 锚定（timestamp without tz 由驱动按 UTC 读写）——
     // 时间轴 ISO 输出必须恒等。此前 toIsoFromBare 按「DB 裸值=本地时刻」假设 −8h 补偿，
@@ -62,8 +63,8 @@ describe('TimelineService（B3 A-204）', () => {
     expect(`${openingLocal.getFullYear()}-${openingLocal.getMonth() + 1}-${openingLocal.getDate()}`).toBe('2026-8-2');
     expect(openingLocal.getHours()).toBe(10);
     const deadlineNode = nodes.find(n => n.key === 'bidDeadline')!;
-    expect(deadlineNode.source).toBe('按开标时间推算（前24小时）');
-    expect(new Date(deadlineNode.time!).getTime()).toBe(new Date(openingLocal.getTime() - 24 * 3600 * 1000).getTime());
+    expect(deadlineNode.source).toBe('按开标时间推算（前10分钟）');
+    expect(new Date(deadlineNode.time!).getTime()).toBe(new Date(openingLocal.getTime() - BID_DEADLINE_BEFORE_OPENING_MS).getTime());
     expect(nodes.filter(n => !n.time).map(n => n.key)).toEqual(['bidNoticePublish', 'documentAcquire', 'evaluationEnd', 'winNoticePublish', 'failedNoticePublish', 'contractSign', 'archived']);
   });
 

@@ -13,17 +13,17 @@ export function modeFor(prevDeadline: Date | undefined, now: Date = new Date()):
   return prevDeadline && prevDeadline.getTime() < now.getTime() ? 'frozen' : 'align';
 }
 
-/** 催促投递窗口是否仍开放（开标前 24h 之外）。now 缺省取当前时刻。 */
+/** 催促投递窗口是否仍开放（距开标超过间隔时长之外）。now 缺省取当前时刻。 */
 export function nudgeWindowOpen(openTime: Date | null | undefined, now: Date = new Date()): boolean {
   if (!openTime) return true; // 无开标时间无从判定窗口，不拦（沿用旧语义）
   return openTime.getTime() - now.getTime() > BID_DEADLINE_BEFORE_OPENING_MS;
 }
 
-/** 距开标不足 24h 后催促通道整体关闭（定时/立即均不可，2026-09-01 拍板）。 */
+/** 距开标不足间隔时长后催促通道整体关闭（定时/立即均不可，2026-09-01 拍板）。 */
 export function assertNudgeWindowOpen(openTime: Date | null | undefined, now: Date = new Date()): void {
   if (!nudgeWindowOpen(openTime, now)) {
     throw new BadRequestException({
-      error: '距开标已不足 24 小时，催促通道已关闭，无法发送催促通知',
+      error: '距开标已不足 10 分钟，催促通道已关闭，无法发送催促通知',
       code: 'NUDGE_WINDOW_CLOSED',
     });
   }
@@ -39,7 +39,7 @@ export function assertOpeningDeadlineRelation(opts: {
     }
     if (openTime.getTime() < deadline.getTime() + BID_DEADLINE_BEFORE_OPENING_MS) {
       throw new BadRequestException({
-        error: `开标时间须不早于截标后 24 小时（期望 ≥ ${deriveOpenTimeFromDeadline(deadline).toISOString()}）`,
+        error: `开标时间须不早于截标后 10 分钟（期望 ≥ ${deriveOpenTimeFromDeadline(deadline).toISOString()}）`,
         code: 'DEADLINE_OPENING_GAP_INVALID',
       });
     }
@@ -48,7 +48,7 @@ export function assertOpeningDeadlineRelation(opts: {
   const expected = deriveDeadlineFromOpenTime(openTime).getTime();
   if (Math.abs(deadline.getTime() - expected) > BID_OPENING_GAP_TOLERANCE_MS) {
     throw new BadRequestException({
-      error: `截标须为开标前 24 小时（期望 deadline = ${new Date(expected).toISOString()}）`,
+      error: `截标须为开标前 10 分钟（期望 deadline = ${new Date(expected).toISOString()}）`,
       code: 'DEADLINE_OPENING_GAP_INVALID',
     });
   }

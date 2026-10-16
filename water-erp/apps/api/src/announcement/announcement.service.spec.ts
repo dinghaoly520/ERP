@@ -400,7 +400,7 @@ describe('backlog A — 公告直建失败 projectSyncWarning（发布不阻塞�
     svc.announcementAi = { summarize: jest.fn().mockResolvedValue('AI 摘要') };
     svc.notificationService = undefined;
     // syncBidProject 抛错——模拟 24h 校验失败等联动错误
-    svc.syncBidProject = jest.fn().mockRejectedValue(new Error('截标须为开标前 24 小时'));
+    svc.syncBidProject = jest.fn().mockRejectedValue(new Error('截标须为开标前 10 分钟'));
   });
 
   it('联动失败 → 公告仍创建成功，响应带 projectSyncWarning', async () => {
