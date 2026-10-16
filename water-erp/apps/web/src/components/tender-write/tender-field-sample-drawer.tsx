@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Star, Trash2, Copy, Check } from 'lucide-react';
+import { toast } from 'sonner';
 import type { TenderFieldKey } from '@/lib/types/tender-write';
+import { copyToClipboard } from '@/lib/copy-to-clipboard';
 import { Modal } from '@/components/workbench';
 import {
   fetchFieldSamples,
@@ -56,10 +58,10 @@ export function TenderFieldSampleDialog({
     }
   };
 
+  // 复制必须给反馈（2026-10-16）：http 环境 navigator.clipboard undefined，原实现未捕获=点击无反应
   const handleCopy = async (sample: TenderFieldSample) => {
-    await navigator.clipboard.writeText(sample.content);
-    setCopiedId(sample.id);
-    setTimeout(() => setCopiedId(null), 2000);
+    if (await copyToClipboard(sample.content)) { setCopiedId(sample.id); setTimeout(() => setCopiedId(null), 2000); }
+    else toast.error('复制失败，请手动选择复制');
   };
 
   const handleSelect = (content: string) => {

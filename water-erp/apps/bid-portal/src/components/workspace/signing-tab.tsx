@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, ClipboardCheck, Copy, FileDown, Fingerprint, HelpCircle, Loader2, LockOpen, PenLine, RefreshCw, Upload, X, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { copyToClipboard } from '@/lib/copy-to-clipboard';
 import { EXPERT_ROLE } from '@water-erp/shared';
 import {
   generateHandover, generateSignPacket, getReportNotes, getSignPacket, reopenSignPacket, setReportNotes, unregisterSign,
@@ -193,11 +194,11 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
     try { setData(await fn()); } catch (e: any) { setError(e?.message ?? '操作失败'); } finally { setBusy(null); }
   }, []);
 
+  // 复制必须给反馈（2026-10-16）：http 环境 navigator.clipboard undefined，原实现未捕获=点击无反应
   const copySha = async () => {
     if (!data?.packet) return;
-    await navigator.clipboard.writeText(data.packet.sha256);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    if (await copyToClipboard(data.packet.sha256)) { setCopied(true); setTimeout(() => setCopied(false), 1500); }
+    else toast.error('复制失败，请手动选择复制');
   };
 
   if (loading && !data) {

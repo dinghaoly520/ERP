@@ -40,6 +40,7 @@ import {
   type ExpertVerificationMatrix,
   type ScoreCategory,
 } from '@/lib/api/evaluation';
+import { copyToClipboard } from '@/lib/copy-to-clipboard';
 import type { BidProjectDetail } from '@/lib/types';
 import { EXPERT_ROLE, formatBidPrice, summarizeEvaluationRules } from '@water-erp/shared';
 import AiAnalysisCard from './ai-analysis-card';
@@ -901,7 +902,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                   </button>
                   <button
                     type="button"
-                    onClick={() => { void navigator.clipboard.writeText(roomCodeInfo.roomCode ?? ''); showToast('口令已复制到剪贴板', 'ok'); }}
+                    onClick={async () => { if (await copyToClipboard(roomCodeInfo.roomCode ?? '')) showToast('口令已复制到剪贴板', 'ok'); else showToast('复制失败，请手动选择复制', 'err'); }}
                     title="复制口令"
                     className="neu-btn-xs !h-[24px] !px-2 !text-[10px]"
                   >

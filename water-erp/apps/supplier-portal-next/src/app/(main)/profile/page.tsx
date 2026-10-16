@@ -33,6 +33,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { supplierApi } from "@/lib/api/supplier";
+import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import { uploadFile } from "@/lib/api/upload";
 import { cn } from "@/lib/utils";
 import { EmptyState, LoadingBlock, SpButton, SpDialog } from "@/components/ui";
@@ -186,8 +187,8 @@ export default function ProfilePage() {
   /* 企业信息 */
   const copyCreditCode = async () => {
     if (!profile?.creditCode) return;
-    try { await navigator.clipboard.writeText(profile.creditCode); toast.success("已复制统一社会信用代码"); }
-    catch { toast.warning("复制失败，请手动选择"); }
+    if (await copyToClipboard(profile.creditCode)) toast.success("已复制统一社会信用代码");
+    else toast.warning("复制失败，请手动选择");
   };
 
   const profileRows = useMemo(() => {

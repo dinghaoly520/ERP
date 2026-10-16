@@ -21,6 +21,7 @@ import {
   type SignPacketResponse,
 } from '@/lib/api/bid';
 import { Modal } from '@/components/workbench';
+import { copyToClipboard } from '@/lib/copy-to-clipboard';
 
 type Props = {
   bidProjectId: string;
@@ -107,13 +108,8 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
   }
 
   async function copyRootHash(digest: string) {
-    try {
-      await navigator.clipboard.writeText(digest);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
-    } catch {
-      showToast('复制失败，请手动选择复制', 'err');
-    }
+    if (await copyToClipboard(digest)) { setCopied(true); setTimeout(() => setCopied(false), 1600); }
+    else showToast('复制失败，请手动选择复制', 'err');
   }
 
   // F11：JSON 导出走 fetch + Blob 下载（裸 <a> 会在当前标签渲染原始 JSON 离开工作台；

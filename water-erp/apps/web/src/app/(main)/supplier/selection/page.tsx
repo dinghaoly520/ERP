@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { recommendSuppliers, suggestBusinessTags, getTagVocabulary, polishRequirement, updateSelectionShortlist, notifySuppliers, generateNotificationContent, getSupplierList, getRsvpList, sendNegotiationConfig, markRsvpManual } from '@/lib/api/supplier';
 import type { TagVocabularyItem, RsvpListResult, RsvpListItem } from '@/lib/api/supplier';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
+import { copyToClipboard } from '@/lib/copy-to-clipboard';
 import { getPmBidProject } from '@/lib/api/project-management';
 import type { SupplierRecommendation, SupplierSelectionResult } from '@/lib/api/supplier';
 import type { SupplierSelectionHistoryRecord } from '@/lib/api/supplier';
@@ -1381,7 +1382,7 @@ export function SupplierSelectionPage({
     }).join('\n\n');
     return header + body;
   };
-  const copyList = async () => { if (shortlist.size === 0) return; try { await navigator.clipboard.writeText(buildExportText()); toast.success('已复制到剪贴板'); } catch { toast.error('复制失败'); } };
+  const copyList = async () => { if (shortlist.size === 0) return; if (await copyToClipboard(buildExportText())) toast.success('已复制到剪贴板'); else toast.error('复制失败，请手动复制'); };
   // 附件上传（谈判采购）
   const handleAttachUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;

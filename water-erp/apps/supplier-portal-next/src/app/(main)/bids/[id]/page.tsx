@@ -14,6 +14,7 @@ import { TenderClarificationCard } from "@/components/tender-clarification-card"
 import { CaReceiptSignButton } from "@/components/ca-receipt-sign-button";
 import { supplierApi } from "@/lib/api/supplier";
 import { announcementApi } from "@/lib/api/announcement";
+import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { InvitationDocxPreview } from "@/components/invitation-docx-preview";
 import { SpButton, SpInput, SpDialog, LoadingBlock } from "@/components/ui";
@@ -333,13 +334,8 @@ function BidDetailInner() {
   async function copyReceiptText() {
     const payload = submission?.receiptSignature?.payload ?? receiptPayload;
     if (!payload) return;
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
-      setReceiptCopied(true);
-      window.setTimeout(() => setReceiptCopied(false), 2000);
-    } catch {
-      toast.error("复制失败，请手动选择文本复制");
-    }
+    if (await copyToClipboard(JSON.stringify(payload, null, 2))) { setReceiptCopied(true); window.setTimeout(() => setReceiptCopied(false), 2000); }
+    else toast.error("复制失败，请手动选择文本复制");
   }
 
   function fmtTime(t: string) {

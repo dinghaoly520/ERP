@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { portalURL } from '@water-erp/config';
 import { api as apiClient } from '@/lib/api';
+import { copyToClipboard } from '@/lib/copy-to-clipboard';
 import PriceChart from './price-chart';
 import { HeroSection } from '@/components/hero-section';
 import type { MallAssistantContext } from './assistant/types';
@@ -1390,7 +1391,7 @@ export default function MallPage() {
               <PriceChart points={detailHistory} referencePrice={detail.referencePrice} />
             )}
           </div>
-          <div className="rounded-2xl border border-white/30 p-5" style={{background: "rgba(255,255,255,.22)", backdropFilter: "blur(14px) saturate(1.15)", WebkitBackdropFilter: "blur(14px) saturate(1.15)", boxShadow: "0 1px 2px rgba(15,35,65,.02), 0 2px 8px rgba(91,155,213,.03)"}}><div className="mb-3 flex items-center justify-between"><div className="text-sm font-black text-[#2c5282]">AI 价格研判</div><button onClick={() => { const item = detail; setDetail(null); setTimeout(() => setAssistantInitialQuestion(buildDetailPrompt(item)), 200); }} className="rounded-full bg-[#5b9bd5] px-3 py-1 text-xs font-black text-white">AI 智能分析</button></div><p className="text-sm leading-6 text-[#5a6d8a]">点击分析后，AI 将结合参考价、价格区间、历史均价、供应商、价格来源和有效期，生成风险结论、询价建议和预算引用说明。</p></div><div className="grid grid-cols-2 gap-3"><button onClick={() => { navigator.clipboard?.writeText(detail.code); toast.success('目录编码已复制'); }} className="h-12 rounded-xl border border-[#cdd9ea] text-sm font-bold text-[#5b9bd5] transition hover:bg-[#f3f7fc]">复制目录编码</button><button onClick={() => { addToBudget(detail); setDetail(null); }} className="h-12 rounded-xl bg-[#5b9bd5] text-sm font-bold text-white transition hover:bg-[#4a89c4]">加入预算清单</button></div></div></motion.div></motion.div>)}</AnimatePresence>, document.body)}
+          <div className="rounded-2xl border border-white/30 p-5" style={{background: "rgba(255,255,255,.22)", backdropFilter: "blur(14px) saturate(1.15)", WebkitBackdropFilter: "blur(14px) saturate(1.15)", boxShadow: "0 1px 2px rgba(15,35,65,.02), 0 2px 8px rgba(91,155,213,.03)"}}><div className="mb-3 flex items-center justify-between"><div className="text-sm font-black text-[#2c5282]">AI 价格研判</div><button onClick={() => { const item = detail; setDetail(null); setTimeout(() => setAssistantInitialQuestion(buildDetailPrompt(item)), 200); }} className="rounded-full bg-[#5b9bd5] px-3 py-1 text-xs font-black text-white">AI 智能分析</button></div><p className="text-sm leading-6 text-[#5a6d8a]">点击分析后，AI 将结合参考价、价格区间、历史均价、供应商、价格来源和有效期，生成风险结论、询价建议和预算引用说明。</p></div><div className="grid grid-cols-2 gap-3"><button onClick={async () => { if (await copyToClipboard(detail.code)) toast.success('目录编码已复制'); else toast.error('复制失败，请手动复制'); }} className="h-12 rounded-xl border border-[#cdd9ea] text-sm font-bold text-[#5b9bd5] transition hover:bg-[#f3f7fc]">复制目录编码</button><button onClick={() => { addToBudget(detail); setDetail(null); }} className="h-12 rounded-xl bg-[#5b9bd5] text-sm font-bold text-white transition hover:bg-[#4a89c4]">加入预算清单</button></div></div></motion.div></motion.div>)}</AnimatePresence>, document.body)}
       {mounted && createPortal(
         <AnimatePresence>
           {auditOpen && (
