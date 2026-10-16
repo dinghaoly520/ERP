@@ -590,6 +590,24 @@ function isSelfCompany(name: string): boolean {
     return experts.map(e => `${e.name}|${e.department}|${e.specialty}|${e.title}`).join('\n');
   }
 
+  /**
+   * 概况出口硬闸（2026-10-16 稳健性加固）：概况字段简洁口径的最后一道防线——
+   * 正则 in-loop 闸管不住「标题行单行长文」逃逸，AI 输出对 prompt 字数约束也只是软约束。
+   * ≤220 直通；超长在 210 字窗口内找最后一个句末标点（。！？；;）截断（含标点），
+   * 无句末标点则硬切 200 字补省略号。null/空串原样返回。
+   */
+  export function capOverviewLength(text: string | null, max = 200): string | null {
+    if (text == null || text === '') return text;
+    const HARD_LIMIT = max + 20; // 容差：窗口内截断点 + 省略号等收尾余量
+    if (text.length <= HARD_LIMIT) return text;
+    const window = text.slice(0, max + 10);
+    const lastStop = Math.max(window.lastIndexOf('。'), window.lastIndexOf('！'), window.lastIndexOf('？'), window.lastIndexOf('；'), window.lastIndexOf(';'));
+    if (lastStop >= Math.floor(max * 0.5)) {
+      return window.slice(0, lastStop + 1); // 含句末标点
+    }
+    return text.slice(0, max) + '……';
+  }
+
   /** 从采购文件正文中提取项目概况描述。procurementMethod 用于适配不同采购方式的段落结构。 */
   export function extractProjectOverviewFromText(text: string, procurementMethod?: string): string | null {
     const isDirect = procurementMethod === '直接采购';
@@ -628,6 +646,7 @@ function isSelfCompany(name: string): boolean {
       if (parts.join('').length >= MAX_OVERVIEW_CHARS) break;
     }
 
-    const result = parts.join('\n');
-    return result.length >= 20 ? result : null;
+    // 出口硬闸：覆盖标题行（firstLine）单行长文逃逸——in-loop 闸只管后续行
+    const result = capOverviewLength(parts.join('\n'));
+    return result && result.length >= 20 ? result : null;
   }

@@ -17,7 +17,7 @@ import { htmlToDocxChildren } from './docx/html-to-docx.converter';
 import { getTenderTextCachePath, isLabelLine, isTenderMainFile, normalizeStageMatchText, getUploadDir, getProjectSummaryCachePath, getStageAnalysisCachePath, getStepAnalysisCachePath, buildStageAnalysisFingerprint, sanitizeFileName, normalizeUploadedFileName, summarizeHtmlDiff } from './docx/file-utils';
 import { parseArchiveTxt } from './docx/archive-txt-parser';
 import { decodeXmlText, extractPlainText, applyTextToParagraphXml } from './docx/paragraph-xml';
-import { extractBiddingUnitsFromText, extractAwardedSupplierFromText, extractContractAmountFromText, extractAwardedSupplierFromAwardTable, extractAwardedSupplierFromContract, extractContractNumberFromText, extractExpertInfoFromText, extractProjectOverviewFromText } from './docx/field-extractor';
+import { extractBiddingUnitsFromText, extractAwardedSupplierFromText, extractContractAmountFromText, extractAwardedSupplierFromAwardTable, extractAwardedSupplierFromContract, extractContractNumberFromText, extractExpertInfoFromText, extractProjectOverviewFromText, capOverviewLength } from './docx/field-extractor';
 import { patchDocx, ConcurrentEditError } from './docx/html-to-docx.patcher';
 import { Document, Packer } from 'docx';
 import { DocumentParserService } from '../knowledge/services/document-parser.service';
@@ -780,7 +780,8 @@ export class ProjectManagementService {
       }
       if (!raw) raw = extractProjectOverviewFromText(text, procurementMethod);
       if (!raw && !explicitOverview) raw = await this.aiExtractProjectOverview(text, procurementMethod);
-      const val = raw && !fromAi ? await this.aiMinimalPolish(raw) : raw;
+      // 落库口终极闸：抛光是 LLM 改写、长度无硬保证（2026-10-16 稳健性加固）
+      const val = capOverviewLength(raw && !fromAi ? await this.aiMinimalPolish(raw) : raw);
       if (val) updateData.projectOverview = val;
       result.projectOverview = val;
     }
@@ -1481,7 +1482,7 @@ ${shortlist}
         let rawOverview = extractProjectOverviewFromText(text, procurementMethod);
         if (!rawOverview) rawOverview = await this.aiExtractProjectOverview(text, procurementMethod);
         if (rawOverview) {
-          const projectOverview = await this.aiMinimalPolish(rawOverview);
+          const projectOverview = capOverviewLength(await this.aiMinimalPolish(rawOverview));
           await this.prisma.projectManagementItem.update({
             where: { id: projectId },
             data: { projectOverview },
@@ -6599,7 +6600,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
       });
       const cleaned = result?.trim();
       if (cleaned && cleaned !== '无' && cleaned.length >= 20) {
-        return cleaned;
+        // 出口硬闸：prompt 字数约束是软约束，模型超长输出兜底截断（2026-10-16 稳健性加固）
+        return capOverviewLength(cleaned);
       }
       return null;
     } catch {

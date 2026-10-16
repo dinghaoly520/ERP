@@ -1,4 +1,4 @@
-import { extractProjectOverviewFromText } from './field-extractor';
+import { extractProjectOverviewFromText, capOverviewLength } from './field-extractor';
 
 /**
  * 概况长度闸（2026-10-16）：项目基本信息「项目概况」定位为简介与概括性描述——
@@ -36,5 +36,49 @@ describe('extractProjectOverviewFromText — 概况长度闸（2026-10-16 简洁
 
     expect(out).toBeTruthy();
     expect(out!.length).toBeLessThanOrEqual(300);
+  });
+
+  it('单行长概况（整段写在标题行）→ 同样被闸住（firstLine 逃逸防御）', () => {
+    const longLine = '项目概况：' + '本项目采购水利信息化设备并配套建设监测平台。'.repeat(40);
+    const text = [longLine, '二、供应商资格要求'].join('\n');
+
+    const out = extractProjectOverviewFromText(text, undefined);
+
+    expect(out).toBeTruthy();
+    expect(out!.length).toBeLessThanOrEqual(260);
+  });
+});
+
+describe('capOverviewLength — 出口硬闸（句边界截断）', () => {
+  it('≤220 字直通不动', () => {
+    const s = '本'.repeat(210);
+    expect(capOverviewLength(s)).toBe(s);
+  });
+
+  it('超长且句末标点在中后部 → 截到窗口内最后一个句末标点（含标点）', () => {
+    const s = '概况首句。' + '核心采购内容说明文字。'.repeat(20); // 句号每 11 字一个，窗口 210 内最后一个在 ~203 字
+    const out = capOverviewLength(s)!;
+    expect(out.length).toBeLessThanOrEqual(215);
+    expect(out.endsWith('。')).toBe(true);
+    expect(out).toContain('核心采购内容');
+  });
+
+  it('超长但句末标点仅在前部（截前句会丢绝大部分内容）→ 硬切 200 字 + 省略号', () => {
+    const s = '第一句概况。' + '第二句说明。' + '后续无标点的参数细目长串'.repeat(30);
+    const out = capOverviewLength(s)!;
+    expect(out.length).toBeLessThanOrEqual(202);
+    expect(out.endsWith('……')).toBe(true);
+  });
+
+  it('超长且窗口内无句末标点 → 硬切 200 字 + 省略号', () => {
+    const s = '无标点长串'.repeat(80);
+    const out = capOverviewLength(s)!;
+    expect(out.length).toBeLessThanOrEqual(202);
+    expect(out.endsWith('……')).toBe(true);
+  });
+
+  it('null/空串原样返回', () => {
+    expect(capOverviewLength(null)).toBeNull();
+    expect(capOverviewLength('')).toBe('');
   });
 });
