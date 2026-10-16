@@ -17,6 +17,7 @@ const VOTE_LABEL: Record<string, string> = { approve: '赞成', reject: '反对'
 interface MotionItem {
   id: string; projectId: string; projectName: string; projectStage: string;
   title: string; status: string; result?: string | null; myVote: string | null;
+  description?: string | null;
   /** EXP-P2-03：动议发起人（行 id）——结束投票 per-project 判定用（组长或发起人） */
   createdBy?: string;
   totalVoters?: number;
@@ -393,6 +394,9 @@ export default function ExpertDashboardPage() {
                             </span>
                           </div>
                           <p className="text-[11px] font-semibold text-[var(--foreground)] mb-1">{m.title}</p>
+                          {m.description && (
+                            <p className="mb-1 text-[10px] leading-4 text-[var(--muted-foreground)]">{m.description}</p>
+                          )}
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] tabular-nums text-[var(--muted-foreground)]">
                               {showCounts ? `赞成 ${approves} · 反对 ${rejects} · 弃权 ${abstains}` : '投票进行中'}
