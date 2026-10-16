@@ -1318,6 +1318,22 @@ export class SupplierService {
     }
   }
 
+  /** 公司视野越权判定（多公司归属 2026-10-16）：任一 APPROVED link 在视野 或 主归属在视野（未回填兜底）。
+   *  全部不命中 → 复用 assertInScope 的 403 语义。 */
+  private async assertSupplierInScope(supplier: { id: string; companyId: string | null }, actor: AuthenticatedUser) {
+    const scope = await this.companyScope.resolveScope(actor);
+    if (scope.all) return;
+    const ids = scope.companyIds;
+    if (supplier.companyId != null && ids.includes(supplier.companyId)) return;
+    const links = await this.prisma.supplierCompanyLink.findMany({
+      where: { supplierId: supplier.id, companyId: { in: ids }, status: 'APPROVED' },
+      select: { id: true },
+      take: 1,
+    });
+    if (links.length > 0) return;
+    this.companyScope.assertInScope(supplier.companyId, scope); // 403 COMPANY_SCOPE_FORBIDDEN
+  }
+
   async get(id: string, actor?: AuthenticatedUser) {
     const supplier = await this.prisma.supplier.findUnique({
       where: { id },
@@ -1341,10 +1357,9 @@ export class SupplierService {
         .catch(() => undefined);
     }
     // 公司级数据隔离（2026-09-26）：非 admin 直调他人公司供应商详情 → 403（admin 全视野放行；
-    // supplier 角色另有归属校验，不走此闸）
+    // supplier 角色另有归属校验，不走此闸；多公司归属 2026-10-16 起视野含 APPROVED link 公司）
     if (actor && actor.role !== 'supplier' && supplier) {
-      const scope = await this.companyScope.resolveScope(actor);
-      this.companyScope.assertInScope(supplier.companyId, scope);
+      await this.assertSupplierInScope(supplier, actor);
     }
     if (!supplier) return null;
     // PII 出口（等保+密评）：supplier 本人自视明文（归属校验在 controller，跨企访问 403 于响应前拦截）；
@@ -4355,8 +4370,7 @@ export class SupplierService {
     });
     if (!supplier) throw new NotFoundException({ error: '供应商不存在', code: 'NOT_FOUND' });
     if (actor && actor.role !== 'supplier') {
-      const scope = await this.companyScope.resolveScope(actor);
-      this.companyScope.assertInScope(supplier.companyId, scope);
+      await this.assertSupplierInScope(supplier, actor);
     }
 
     let value: string | null;

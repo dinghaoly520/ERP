@@ -1,3 +1,4 @@
+import { ForbiddenException } from '@nestjs/common';
 import { SupplierService } from './supplier.service';
 
 /** 注册终审通过 upsert APPROVED link（多公司归属 2026-10-16）——三级闭环与库归属同事务一致。 */
@@ -145,5 +146,60 @@ describe('checkDuplicate — companyId/registeredElsewhere（防枚举：不回�
     const svc = newService(prisma);
     const r = await svc.checkDuplicate({ creditCode: '91510000MA62K5XX0X', companyId: 'co-mine' });
     expect(r.registeredElsewhere).toBe(false);
+  });
+});
+
+/** get/revealField 越权判定（多公司归属 2026-10-16）——任一 APPROVED link 在视野 或 主归属在视野
+ *  即放行（未回填窗口兜底）；无交集复用 assertInScope 的 403 COMPANY_SCOPE_FORBIDDEN。 */
+describe('get/revealField — link 视野越权判定（多公司归属）', () => {
+  const scopeSvc: any = {
+    resolveScope: async () => ({ all: false, companyIds: ['co-2'] }),
+    assertInScope: (id: string | null, s: any) => {
+      if (!s.all && (id == null || !s.companyIds.includes(id))) {
+        throw new ForbiddenException({ error: '该数据不属于本公司，无权访问', code: 'COMPANY_SCOPE_FORBIDDEN' });
+      }
+    },
+  };
+  // SupplierService 构造实参（prisma, notification, redis, llm, verification, companyScope）——
+  // companyScope 用注入覆盖；supplier 命中时 notification 不触达可为 null。
+  // get() 返回形状依赖 include 关系（user/contacts/bankAccounts/changeRecords），mock 补空集合。
+  const newService = (prisma: any) => {
+    const svc: any = new (SupplierService as any)(prisma, null, null, null, null, null);
+    svc['companyScope'] = scopeSvc;
+    return svc as SupplierService;
+  };
+  const actor = { sub: 'u2', role: 'staff', username: 'x' } as any;
+
+  it('get：主归属他司但存在本公司 APPROVED link → 放行', async () => {
+    const prisma: any = {
+      supplier: { findUnique: jest.fn().mockResolvedValue({ id: 's1', companyId: 'co-1', userId: 'u1', user: null, contacts: [], bankAccounts: [], changeRecords: [] }) },
+      supplierCompanyLink: { findMany: jest.fn().mockResolvedValue([{ id: 'l1' }]) },
+    };
+    const svc = newService(prisma);
+    await expect(svc.get('s1', actor)).resolves.toBeTruthy();
+    expect(prisma.supplierCompanyLink.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { supplierId: 's1', companyId: { in: ['co-2'] }, status: 'APPROVED' },
+      take: 1,
+    }));
+  });
+
+  it('get：无任何视野交集 → 403 COMPANY_SCOPE_FORBIDDEN', async () => {
+    const prisma: any = {
+      supplier: { findUnique: jest.fn().mockResolvedValue({ id: 's1', companyId: 'co-1', userId: 'u1', user: null, contacts: [], bankAccounts: [], changeRecords: [] }) },
+      supplierCompanyLink: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const svc = newService(prisma);
+    await expect(svc.get('s1', actor)).rejects.toMatchObject({ response: { code: 'COMPANY_SCOPE_FORBIDDEN' } });
+  });
+
+  it('revealField：主归属他司但存在本公司 APPROVED link → 放行（同口径闸门）', async () => {
+    const prisma: any = {
+      supplier: { findUnique: jest.fn().mockResolvedValue({ id: 's1', companyId: 'co-1', legalPersonIdCard: null, legalPersonPhone: null }) },
+      supplierCompanyLink: { findMany: jest.fn().mockResolvedValue([{ id: 'l1' }]) },
+      sensitiveAccessLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const svc = newService(prisma);
+    const r = await svc.revealField('s1', { entity: 'supplier', field: 'legalPersonIdCard' }, actor);
+    expect(r).toMatchObject({ entity: 'supplier', targetId: 's1', field: 'legalPersonIdCard', value: null });
   });
 });

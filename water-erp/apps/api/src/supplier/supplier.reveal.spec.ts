@@ -31,6 +31,8 @@ describe('SupplierService.revealField（明文揭示 + 审计）', () => {
         findFirst: jest.fn().mockResolvedValue({ id: 'b1', supplierId: 's1', accountNo: sealPii('6222020200112233445') }),
       },
       sensitiveAccessLog: { create: jest.fn().mockResolvedValue({}) },
+      // 多公司归属（2026-10-16）：越权闸门主归属不在视野时查 APPROVED link 兜底（空=无交集走 403）
+      supplierCompanyLink: { findMany: jest.fn().mockResolvedValue([]) },
     };
     const module = await Test.createTestingModule({
       providers: [
