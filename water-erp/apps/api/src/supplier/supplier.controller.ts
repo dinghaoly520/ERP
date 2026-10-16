@@ -225,14 +225,16 @@ export class SupplierController {
   @Get('register/check-duplicate')
   @Public()
   @Throttle({ default: { limit: 20, ttl: 60_000 } }) // 防身份证号/信用代码/手机号枚举爬取
-  @ApiOperation({ summary: '注册前查重（信用代码[带临时过期事实]/法人身份证/联系人身份证/手机号）' })
+  @ApiOperation({ summary: '注册前查重（信用代码[带临时过期事实+他司已注册事实]/法人身份证/联系人身份证/手机号）' })
   async checkDuplicate(
     @Query('creditCode') creditCode?: string,
     @Query('legalPersonIdCard') legalPersonIdCard?: string,
     @Query('contactIdCard') contactIdCard?: string,
     @Query('phone') phone?: string,
+    @Query('companyId') companyId?: string,
+    @Query('companyName') companyName?: string,
   ) {
-    return this.supplierService.checkDuplicate({ creditCode, legalPersonIdCard, contactIdCard, phone });
+    return this.supplierService.checkDuplicate({ creditCode, legalPersonIdCard, contactIdCard, phone, companyId, companyName });
   }
 
   // ── 供应商多公司归属（2026-10-16；公司侧仅审批与库内停用——零检索面，不提供邀请/搜索端点）──

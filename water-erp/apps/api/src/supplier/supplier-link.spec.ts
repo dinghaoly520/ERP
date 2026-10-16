@@ -116,3 +116,34 @@ describe('myPendingReviewCount — joins 计数（多公司归属）', () => {
     ]);
   });
 });
+
+/** checkDuplicate registeredElsewhere（多公司归属 2026-10-16）——防公开端点枚举：只回布尔，不回公司名。 */
+describe('checkDuplicate — companyId/registeredElsewhere（防枚举：不回传公司名）', () => {
+  // SupplierService 构造实参（prisma, notification, redis, llm, verification, companyScope）——checkDuplicate 仅用 prisma
+  const newService = (prisma: any) => new (SupplierService as any)(prisma, null, null, null, null, null);
+
+  it('他司 APPROVED、本公司无 link → registeredElsewhere=true', async () => {
+    const prisma: any = {
+      supplier: { findFirst: jest.fn().mockResolvedValue({ id: 's1', status: 'APPROVED' }) },
+      company: { findUnique: jest.fn().mockResolvedValue({ id: 'co-mine', name: '本公司' }) },
+      supplierCompanyLink: { findUnique: jest.fn().mockResolvedValue(null) },
+      supplierContact: { findFirst: jest.fn().mockResolvedValue(null) },
+    };
+    const svc = newService(prisma);
+    const r = await svc.checkDuplicate({ creditCode: '91510000MA62K5XX0X', companyId: 'co-mine' });
+    expect(r.creditCode).toBe(true);
+    expect(r.registeredElsewhere).toBe(true);
+  });
+
+  it('本公司已有 APPROVED link → registeredElsewhere=false', async () => {
+    const prisma: any = {
+      supplier: { findFirst: jest.fn().mockResolvedValue({ id: 's1', status: 'APPROVED' }) },
+      company: { findUnique: jest.fn().mockResolvedValue({ id: 'co-mine', name: '本公司' }) },
+      supplierCompanyLink: { findUnique: jest.fn().mockResolvedValue({ id: 'l1', status: 'APPROVED' }) },
+      supplierContact: { findFirst: jest.fn().mockResolvedValue(null) },
+    };
+    const svc = newService(prisma);
+    const r = await svc.checkDuplicate({ creditCode: '91510000MA62K5XX0X', companyId: 'co-mine' });
+    expect(r.registeredElsewhere).toBe(false);
+  });
+});

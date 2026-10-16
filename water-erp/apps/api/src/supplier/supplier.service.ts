@@ -217,6 +217,17 @@ export class SupplierService {
     return row.supplier_no;
   }
 
+  /** 只读公司解析（查重分流用）：companyId 优先、companyName 兜底，均查不到返回 null——不建档（区别于 resolveSupplierCompany） */
+  private async findCompanyRef(companyId?: string, companyName?: string): Promise<{ id: string; name: string } | null> {
+    if (companyId) {
+      const c = await this.prisma.company.findUnique({ where: { id: companyId }, select: { id: true, name: true } });
+      if (c) return c;
+    }
+    const name = (companyName ?? '').trim();
+    if (!name) return null;
+    return this.prisma.company.findUnique({ where: { name }, select: { id: true, name: true } });
+  }
+
   async register(dto: RegisterSupplierDto) {
     // 注册实名核验——主联系人手机号验证前置校验。内部批量导入用哨兵码跳过（管理端已实名核验的建档渠道）。
     // 双轨（2026-10-09）：token 轨=步骤 0 已消费验证码换发的注册会话；旧轨=验证码非消费校验（最终消费）。
@@ -264,12 +275,31 @@ export class SupplierService {
     const creditCode = dto.creditCode.trim();
     const username = creditCode;
 
-    // 信用代码命中：REJECTED 壳（驳回数据最小化留壳，2026-10-14）→ 走壳重开复用原行；其余状态仍硬拦截。
+    // 信用代码命中：REJECTED 壳（驳回数据最小化留壳，2026-10-14）→ 走壳重开复用原行；
+    // PENDING/RETURNED → 硬拦截（重复提交）；已入库（APPROVED/DISABLED/BLACKLIST）→ 多公司归属分流（2026-10-16）。
     const existingSupplier = await this.prisma.supplier.findUnique({
       where: { creditCode },
     });
     if (existingSupplier && existingSupplier.status !== 'REJECTED') {
-      throw new BadRequestException({ error: '统一社会信用代码已存在', code: 'DUPLICATE_CREDIT_CODE' });
+      if (existingSupplier.status === 'PENDING' || existingSupplier.status === 'RETURNED') {
+        throw new BadRequestException({ error: '统一社会信用代码已存在', code: 'DUPLICATE_CREDIT_CODE' });
+      }
+      // 多公司归属（2026-10-16）：已有平台账号（APPROVED/DISABLED/BLACKLIST）——
+      // 本公司已入=纯重复；否则不拦死，引导用原账号登录走「申请加入」
+      const candidate = await this.findCompanyRef(dto.companyId, dto.companyName);
+      if (candidate) {
+        const link = await this.prisma.supplierCompanyLink.findUnique({
+          where: { supplierId_companyId: { supplierId: existingSupplier.id, companyId: candidate.id } },
+          select: { status: true },
+        });
+        if (link?.status === 'APPROVED') {
+          throw new BadRequestException({ error: '统一社会信用代码已存在', code: 'DUPLICATE_CREDIT_CODE' });
+        }
+      }
+      throw new BadRequestException({
+        error: '该企业已有平台账号，请使用原账号登录，在「公司归属管理」中申请加入贵公司',
+        code: 'ACCOUNT_EXISTS_JOIN_INSTEAD',
+      });
     }
 
     // 公司名允许重复，不再按名称查重；唯一标识由统一社会信用代码（creditCode）承担（上方已查重）
@@ -1880,7 +1910,7 @@ export class SupplierService {
 
   /** 注册前查重：统一社会信用代码（组织机构代码，硬拦截）、法定代表人身份证号、联系人身份证号（软提示）。
    *  公开端点，只回传「是否重复」布尔值，不回传命中的供应商名称/编号等敏感信息。 */
-  async checkDuplicate(fields: { creditCode?: string; legalPersonIdCard?: string; contactIdCard?: string; phone?: string }) {
+  async checkDuplicate(fields: { creditCode?: string; legalPersonIdCard?: string; contactIdCard?: string; phone?: string; companyId?: string; companyName?: string }) {
     // creditCodeIsTemporary/TemporaryExpired（2026-10-16）：临时过期不改 status（仍 APPROVED），
     // 前端凭这两个事实字段区分「临时已过期→引导登录页续期」与其他命中状态。
     const result: {
@@ -1891,6 +1921,7 @@ export class SupplierService {
       creditCodeStatus: string | null;
       creditCodeIsTemporary: boolean;
       creditCodeTemporaryExpired: boolean;
+      registeredElsewhere: boolean;
     } = {
       creditCode: false,
       legalPersonIdCard: false,
@@ -1899,6 +1930,7 @@ export class SupplierService {
       creditCodeStatus: null,
       creditCodeIsTemporary: false,
       creditCodeTemporaryExpired: false,
+      registeredElsewhere: false,
     };
 
     const creditCode = (fields.creditCode ?? '').trim().toUpperCase();
@@ -1912,6 +1944,18 @@ export class SupplierService {
       result.creditCodeIsTemporary = !!hit?.isTemporary;
       result.creditCodeTemporaryExpired =
         !!hit?.isTemporary && !!hit?.temporaryExpiresAt && hit.temporaryExpiresAt < new Date();
+      // 多公司归属（2026-10-16）：他司已有在库账号且本公司未入 → 提示走「申请加入」而非拦死。
+      // 防公开端点枚举：只回布尔，不回公司名。
+      if (hit && ['APPROVED', 'DISABLED', 'BLACKLIST'].includes(hit.status)) {
+        const candidate = await this.findCompanyRef(fields.companyId, fields.companyName);
+        const link = candidate
+          ? await this.prisma.supplierCompanyLink.findUnique({
+              where: { supplierId_companyId: { supplierId: hit.id, companyId: candidate.id } },
+              select: { status: true },
+            })
+          : null;
+        result.registeredElsewhere = link?.status !== 'APPROVED';
+      }
     }
 
     const legalPersonIdCard = (fields.legalPersonIdCard ?? '').trim();

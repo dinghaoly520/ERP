@@ -32,6 +32,7 @@ describe('SupplierService.register — P1-13 注册手机验证前置', () => {
     prisma = {
       supplier: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 's1', userId: 'u1' }) },
       company: { findUnique: jest.fn().mockResolvedValue(null), upsert: jest.fn().mockResolvedValue({ id: 'c1', name: '测试集团' }) }, // 2026-09-17 归档合并：注册按 companyName upsert 建档
+      supplierCompanyLink: { findUnique: jest.fn().mockResolvedValue(null) }, // 多公司归属（2026-10-16）：注册查重分流读 link
       supplierContact: { findFirst: jest.fn().mockResolvedValue(null) },
       user: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'u1' }) },
       businessTag: {
@@ -379,6 +380,30 @@ describe('SupplierService.register — P1-13 注册手机验证前置', () => {
       expect(where.phone).toBeUndefined();
       expect(typeof where.phoneIdx).toBe('string');
       expect(where.phoneIdx).not.toBe('13800138000');
+    });
+  });
+
+  describe('register — 信用代码命中他司账号（多公司归属 2026-10-16）', () => {
+    it('他司 APPROVED 且所选公司无 link → 400 ACCOUNT_EXISTS_JOIN_INSTEAD（引导加入）', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 's-other', userId: 'u-other', status: 'APPROVED' });
+      prisma.company.findUnique.mockResolvedValue({ id: 'co-mine', name: '本公司' });
+      prisma.supplierCompanyLink.findUnique.mockResolvedValue(null);
+      await expect(service.register({ ...validDto }))
+        .rejects.toMatchObject({ response: { code: 'ACCOUNT_EXISTS_JOIN_INSTEAD' } });
+    });
+
+    it('所选公司已有 APPROVED link → 仍 DUPLICATE_CREDIT_CODE（纯重复）', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 's-other', userId: 'u-other', status: 'APPROVED' });
+      prisma.company.findUnique.mockResolvedValue({ id: 'co-mine', name: '本公司' });
+      prisma.supplierCompanyLink.findUnique.mockResolvedValue({ id: 'l1', status: 'APPROVED' });
+      await expect(service.register({ ...validDto }))
+        .rejects.toMatchObject({ response: { code: 'DUPLICATE_CREDIT_CODE' } });
+    });
+
+    it('命中 PENDING → 维持 DUPLICATE_CREDIT_CODE（现状不变）', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 's1', userId: 'u1', status: 'PENDING' });
+      await expect(service.register({ ...validDto }))
+        .rejects.toMatchObject({ response: { code: 'DUPLICATE_CREDIT_CODE' } });
     });
   });
 });
