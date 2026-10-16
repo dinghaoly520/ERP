@@ -50,6 +50,7 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
   const validateIdNumber = (v: string) => /^\d{17}[\dXx]$/.test(v.trim());
   const validateEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 
+  // 全字段必填（2026-10-15 用户裁定）——唯一例外：执业资格证号选填
   const validate = (): boolean => {
     const e: Partial<Record<keyof FormFields, string>> = {};
     if (!form.username.trim()) e.username = '请输入登录账号';
@@ -57,9 +58,18 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
     if (!form.password.trim()) e.password = '请输入初始密码';
     else if (form.password.length < 6) e.password = '密码至少 6 位';
     if (!form.specialty.trim()) e.specialty = '请选择或输入专业领域';
-    if (form.phone.trim() && !validatePhone(form.phone)) e.phone = '手机号格式不正确（11位数字）';
-    if (form.idNumber.trim() && !validateIdNumber(form.idNumber)) e.idNumber = '身份证号格式不正确（18位）';
-    if (form.email.trim() && !validateEmail(form.email)) e.email = '邮箱格式不正确';
+    if (!form.title.trim()) e.title = '请选择或输入职称';
+    if (!form.employer.trim()) e.employer = '请选择工作单位';
+    if (!form.departmentName.trim()) e.departmentName = '请输入所属部门';
+    if (!form.phone.trim()) e.phone = '请输入联系电话';
+    else if (!validatePhone(form.phone)) e.phone = '手机号格式不正确（11位数字）';
+    if (!form.email.trim()) e.email = '请输入电子邮箱';
+    else if (!validateEmail(form.email)) e.email = '邮箱格式不正确';
+    if (!form.idNumber.trim()) e.idNumber = '请输入身份证号';
+    else if (!validateIdNumber(form.idNumber)) e.idNumber = '身份证号格式不正确（18位）';
+    if (!form.ethnicity.trim()) e.ethnicity = '请选择民族';
+    if (!form.education.trim()) e.education = '请选择学历';
+    if (!form.notes.trim()) e.notes = '请输入备注';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -175,14 +185,15 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
           <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><Step n={2} />专业资质</legend>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">专业领域 <span className="text-[var(--danger)]">*</span></span><input value={form.specialty} onChange={e => set('specialty', e.target.value)} list="entry-spec-list" placeholder="如 水利工程" className={inputCls('specialty')} /><datalist id="entry-spec-list">{specialties.map(s => <option key={s} value={s} />)}</datalist><FieldError field="specialty" /></label>
-            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">职称</span><input value={form.title} onChange={e => set('title', e.target.value)} list="entry-title-list" placeholder="如 高级工程师" className={inputCls('title')} /><datalist id="entry-title-list">{TITLES.map(t => <option key={t} value={t} />)}</datalist></label>
+            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">职称 <span className="text-[var(--danger)]">*</span></span><input value={form.title} onChange={e => set('title', e.target.value)} list="entry-title-list" placeholder="如 高级工程师" className={inputCls('title')} /><datalist id="entry-title-list">{TITLES.map(t => <option key={t} value={t} />)}</datalist><FieldError field="title" /></label>
             {/* 工作单位：与 :3005 注册「公司」选择同款同源（UnitSearchSelect：62 家全级次企业名单 +
                 搜索 + 可手输），后端按名称命中公司主数据落归属 */}
             <div className="space-y-1">
-              <span className="text-xs font-semibold text-[var(--muted-foreground)]">工作单位</span>
+              <span className="text-xs font-semibold text-[var(--muted-foreground)]">工作单位 <span className="text-[var(--danger)]">*</span></span>
               <UnitSearchSelect value={form.employer} onChange={v => set('employer', v)} />
+              <FieldError field="employer" />
             </div>
-            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">所属部门</span><input value={form.departmentName} onChange={e => set('departmentName', e.target.value)} placeholder="如 工程勘察院" className={inputCls('departmentName')} /></label>
+            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">所属部门 <span className="text-[var(--danger)]">*</span></span><input value={form.departmentName} onChange={e => set('departmentName', e.target.value)} placeholder="如 工程勘察院" className={inputCls('departmentName')} /><FieldError field="departmentName" /></label>
           </div>
         </fieldset>
         <hr className="wb-section-rule" />
@@ -191,31 +202,28 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
         <fieldset>
           <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><Step n={3} />联系信息</legend>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">联系电话</span><input value={form.phone} onChange={e => set('phone', e.target.value)} className={inputCls('phone')} /></label>
-            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">电子邮箱</span><input value={form.email} onChange={e => set('email', e.target.value)} placeholder="example@domain.com" className={inputCls('email')} /></label>
-            <label className="space-y-1 md:col-span-2"><span className="text-xs font-semibold text-[var(--muted-foreground)]">身份证号</span><input value={form.idNumber} onChange={e => set('idNumber', e.target.value)} className={inputCls('idNumber') + ' font-mono'} /></label>
+            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">联系电话 <span className="text-[var(--danger)]">*</span></span><input value={form.phone} onChange={e => set('phone', e.target.value)} className={inputCls('phone')} /><FieldError field="phone" /></label>
+            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">电子邮箱 <span className="text-[var(--danger)]">*</span></span><input value={form.email} onChange={e => set('email', e.target.value)} placeholder="example@domain.com" className={inputCls('email')} /><FieldError field="email" /></label>
+            <label className="space-y-1 md:col-span-2"><span className="text-xs font-semibold text-[var(--muted-foreground)]">身份证号 <span className="text-[var(--danger)]">*</span></span><input value={form.idNumber} onChange={e => set('idNumber', e.target.value)} className={inputCls('idNumber') + ' font-mono'} /><FieldError field="idNumber" /></label>
           </div>
         </fieldset>
         <hr className="wb-section-rule" />
 
-        {/* ④ 档案信息（选填，默认折叠）*/}
-        <details className="group">
-          <summary className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)] cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-            <Step n={4} />档案信息（选填）<span className="text-[var(--muted-foreground)]/60 font-normal normal-case tracking-normal">— 民族 / 学历 / 执业资格证号</span>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-auto text-[var(--muted-foreground)] transition-transform group-open:rotate-180"><path d="M6 9l6 6 6-6"/></svg>
-          </summary>
+        {/* ④ 档案信息（平铺不折叠，2026-10-15 用户裁定；民族/学历必填，执业资格证号选填） */}
+        <fieldset>
+          <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><Step n={4} />档案信息</legend>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">民族</span><input value={form.ethnicity} onChange={e => set('ethnicity', e.target.value)} list="entry-ethnicity-list" placeholder="如 汉族" className={inputCls('ethnicity')} /><datalist id="entry-ethnicity-list">{ETHNICITIES.map(t => <option key={t} value={t} />)}</datalist></label>
-            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">学历</span><input value={form.education} onChange={e => set('education', e.target.value)} list="entry-edu-list" placeholder="如 硕士" className={inputCls('education')} /><datalist id="entry-edu-list">{EDUCATIONS.map(t => <option key={t} value={t} />)}</datalist></label>
-            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">执业资格证号</span><input value={form.licenseNo} onChange={e => set('licenseNo', e.target.value)} placeholder="执业资格证号" className={inputCls('licenseNo') + ' font-mono'} /></label>
+            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">民族 <span className="text-[var(--danger)]">*</span></span><input value={form.ethnicity} onChange={e => set('ethnicity', e.target.value)} list="entry-ethnicity-list" placeholder="如 汉族" className={inputCls('ethnicity')} /><datalist id="entry-ethnicity-list">{ETHNICITIES.map(t => <option key={t} value={t} />)}</datalist><FieldError field="ethnicity" /></label>
+            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">学历 <span className="text-[var(--danger)]">*</span></span><input value={form.education} onChange={e => set('education', e.target.value)} list="entry-edu-list" placeholder="如 硕士" className={inputCls('education')} /><datalist id="entry-edu-list">{EDUCATIONS.map(t => <option key={t} value={t} />)}</datalist><FieldError field="education" /></label>
+            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">执业资格证号</span><input value={form.licenseNo} onChange={e => set('licenseNo', e.target.value)} placeholder="选填" className={inputCls('licenseNo') + ' font-mono'} /></label>
           </div>
-        </details>
+        </fieldset>
         <hr className="wb-section-rule" />
 
         {/* ⑤ 补充信息 */}
         <fieldset>
           <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><Step n={5} />补充信息</legend>
-          <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">备注</span><textarea value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="补充说明、特殊资质说明、回避事项等" rows={3} className={inputCls('notes') + ' resize-y'} /></label>
+          <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">备注 <span className="text-[var(--danger)]">*</span></span><textarea value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="补充说明、特殊资质说明、回避事项等" rows={3} className={inputCls('notes') + ' resize-y'} /><FieldError field="notes" /></label>
         </fieldset>
       </div>
     </Modal>
