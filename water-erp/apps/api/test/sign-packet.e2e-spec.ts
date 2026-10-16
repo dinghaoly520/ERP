@@ -42,7 +42,7 @@ describe('评标签字包全流程 (e2e)', () => {
       .post('/api/bid/projects')
       .set('Cookie', hostCookie)
       .set('X-Portal', 'bid')
-      .send({ name: `签字E2E项目-${Date.now()}`, procurementMethod: '公开招标', openTime: '2099-12-31T09:00:00Z', deadline: '2099-12-31T08:50:00Z' // 10min 间隔（2026-10-16 起） })
+      .send({ name: `签字E2E项目-${Date.now()}`, procurementMethod: '公开招标', openTime: '2099-12-31T09:00:00Z', deadline: '2099-12-31T08:50:00Z' /* 10min 间隔 */ })
       .expect(201);
     projectId = proj.body.id;
 
