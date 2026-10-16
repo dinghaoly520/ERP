@@ -429,7 +429,6 @@ export default function NoticePage() {
         >
           <option value="">全部状态</option>
           <option value="PUBLISHED">已发布</option>
-          <option value="DRAFT">草稿</option>
           <option value="ARCHIVED">已下线</option>
         </select>
       </div>

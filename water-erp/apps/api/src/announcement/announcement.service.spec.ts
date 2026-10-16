@@ -649,11 +649,15 @@ describe('AnnouncementService — 回收站体系（隐藏/下架/恢复，2026-
     prisma.announcement.count.mockResolvedValue(0);
     prisma.announcement.findMany.mockResolvedValue([]);
     await service.list({});
-    expect(prisma.announcement.findMany.mock.calls[0][0].where.status).toEqual({ notIn: ['HIDDEN', 'OFFLINE'] });
+    // 2026-10-16：默认「全部」排除草稿（草稿收纳进 KPI 弹窗），回收态照旧排除
+    expect(prisma.announcement.findMany.mock.calls[0][0].where.status).toEqual({ notIn: ['HIDDEN', 'OFFLINE', 'DRAFT'] });
     await service.list({ status: 'HIDDEN,OFFLINE' });
     expect(prisma.announcement.findMany.mock.calls[1][0].where.status).toEqual({ in: ['HIDDEN', 'OFFLINE'] });
     await service.list({ status: 'PUBLISHED' });
     expect(prisma.announcement.findMany.mock.calls[2][0].where.status).toBe('PUBLISHED');
+    // 显式 status=DRAFT 仍可查（KPI 弹窗草稿列表数据源）
+    await service.list({ status: 'DRAFT' });
+    expect(prisma.announcement.findMany.mock.calls[3][0].where.status).toBe('DRAFT');
   });
 });
 

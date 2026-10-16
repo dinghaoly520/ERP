@@ -236,7 +236,9 @@ export class AnnouncementService {
       where.status = statuses.length > 1 ? { in: statuses } : params.status;
     } else {
       // 2026-09-26 回收站体系：默认排除回收站内容（隐藏/下架只在回收站可见，公开端本就只出 PUBLISHED）
-      where.status = { notIn: ['HIDDEN', 'OFFLINE'] };
+      // 2026-10-16 用户裁定：草稿不再混入管理端「全部」列表——草稿统一收纳进「待处理草稿」KPI 弹窗，
+      // 显式 status=DRAFT 仍可查（KPI 弹窗/草稿筛选用），仅默认「全部」排除
+      where.status = { notIn: ['HIDDEN', 'OFFLINE', 'DRAFT'] };
     }
     if (params.search) {
       // 2026-10-14：补 relatedProjectCode——项目编号可搜（:3002 顶栏/列表、:3004 公告中心、:3005 管理端共用本口径）
@@ -291,7 +293,8 @@ export class AnnouncementService {
       const statuses = params.status.split(',').map((s: string) => s.trim()).filter(Boolean);
       where.status = statuses.length > 1 ? { in: statuses } : params.status;
     } else {
-      where.status = { notIn: ['HIDDEN', 'OFFLINE'] };
+      // 与 list() 同口径：默认「全部」排除草稿（2026-10-16），公司分组计数与列表一致
+      where.status = { notIn: ['HIDDEN', 'OFFLINE', 'DRAFT'] };
     }
     if (params.search) {
       // 2026-10-14：补 relatedProjectCode——项目编号可搜（:3002 顶栏/列表、:3004 公告中心、:3005 管理端共用本口径）
