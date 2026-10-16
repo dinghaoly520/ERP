@@ -346,7 +346,8 @@ export class BidOpeningRecordService {
     }
 
     const now = new Date();
-    const confirmStatus = dto.confirm ? '异议已处理-确认' : '异议已处理-退回';
+    // 退回→record 回「待供应商确认」（供应商可接受裁决并确认）；确认受理→终局
+    const confirmStatus = dto.confirm ? '异议已处理-确认' : '待供应商确认';
     // Wave4a-M5：监督日志记态迁移（前态 → 后态：处理结果），便于监督端回放异议闭环
     const supervisionResult = `供应商提出异议 → ${confirmStatus}：${dto.result}`;
 
@@ -363,9 +364,12 @@ export class BidOpeningRecordService {
         throw new BadRequestException({ error: '该异议已被处理', code: 'DISPUTE_NOT_PENDING' });
       }
       if (record.bidSupplierId) {
+        // 2026-10-15 用户裁定：退回异议不排除供应商——record 回「待供应商确认」，
+        // 供应商获「接受裁决并确认」按钮（办法§30 开标记录经投标人确认；
+        // 善意异议不应导致被踢出评标；失联走主持人「缺席视为确认」）
         await tx.bidSupplier.update({
           where: { id: record.bidSupplierId },
-          data: { confirmStatus: dto.confirm ? 'CONFIRMED' : 'EXCEPTION' },
+          data: { confirmStatus: dto.confirm ? 'CONFIRMED' : 'PENDING' },
         });
       }
       // 全清 DISPUTED → 清除 disputedSince
@@ -411,7 +415,7 @@ export class BidOpeningRecordService {
               title: `开标异议已处理：${record.supplierName}`,
               content: dto.confirm
                 ? `您的异议已确认受理：${dto.result}`
-                : `您的异议已处理（退回）：${dto.result}`,
+                : `您的异议已处理（退回）：${dto.result}。请返回开标大厅确认唱标记录。`,
               link: `/my-bids/${projectId}/opening-hall`,
             });
           }
