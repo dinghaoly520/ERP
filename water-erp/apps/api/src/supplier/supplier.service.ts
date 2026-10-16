@@ -721,7 +721,7 @@ export class SupplierService {
       select: { validityDays: true, status: true, expiresAt: true },
     });
     if (!inv) return { valid: false, reason: '邀请码不存在' };
-    if (inv.status === 'USED') return { valid: false, reason: '邀请码已被使用' };
+    if (inv.status === 'USED') return { valid: false, reason: '该邀请码已被使用（每个邀请码仅可注册一次）；若贵司已注册请直接登录，临时资格过期请到登录页凭新邀请码续期' };
     if (inv.status === 'REVOKED') return { valid: false, reason: '邀请码已作废' };
     if (inv.status === 'EXPIRED' || inv.expiresAt < new Date()) return { valid: false, reason: '邀请码已过期' };
     return { valid: true, validityDays: inv.validityDays, expiresAt: inv.expiresAt };
@@ -743,7 +743,7 @@ export class SupplierService {
     await this.syncExpiredStatus();
     const inv = await this.prisma.supplierInvitation.findUnique({ where: { code } });
     if (!inv) throw new BadRequestException({ error: '邀请码不存在', code: 'INVITATION_NOT_FOUND' });
-    if (inv.status === 'USED') throw new BadRequestException({ error: '邀请码已被使用', code: 'INVITATION_USED' });
+    if (inv.status === 'USED') throw new BadRequestException({ error: '该邀请码已被使用（每个邀请码仅可注册一次）；若贵司已注册请直接登录，临时资格过期请到登录页凭新邀请码续期', code: 'INVITATION_USED' });
     if (inv.status === 'REVOKED') throw new BadRequestException({ error: '邀请码已作废', code: 'INVITATION_REVOKED' });
     if (inv.status === 'EXPIRED' || inv.expiresAt < new Date()) throw new BadRequestException({ error: '邀请码已过期', code: 'INVITATION_EXPIRED' });
     // R-3：若邀请码绑定了信用代码，校验注册企业必须匹配（防码泄漏被任意企业使用）
@@ -1868,22 +1868,38 @@ export class SupplierService {
 
   /** 注册前查重：统一社会信用代码（组织机构代码，硬拦截）、法定代表人身份证号、联系人身份证号（软提示）。
    *  公开端点，只回传「是否重复」布尔值，不回传命中的供应商名称/编号等敏感信息。 */
-  async checkDuplicate(fields: { creditCode?: string; legalPersonIdCard?: string; contactIdCard?: string }) {
-    const result: { creditCode: boolean; legalPersonIdCard: boolean; contactIdCard: boolean; creditCodeStatus: string | null } = {
+  async checkDuplicate(fields: { creditCode?: string; legalPersonIdCard?: string; contactIdCard?: string; phone?: string }) {
+    // creditCodeIsTemporary/TemporaryExpired（2026-10-16）：临时过期不改 status（仍 APPROVED），
+    // 前端凭这两个事实字段区分「临时已过期→引导登录页续期」与其他命中状态。
+    const result: {
+      creditCode: boolean;
+      legalPersonIdCard: boolean;
+      contactIdCard: boolean;
+      phone: boolean;
+      creditCodeStatus: string | null;
+      creditCodeIsTemporary: boolean;
+      creditCodeTemporaryExpired: boolean;
+    } = {
       creditCode: false,
       legalPersonIdCard: false,
       contactIdCard: false,
+      phone: false,
       creditCodeStatus: null,
+      creditCodeIsTemporary: false,
+      creditCodeTemporaryExpired: false,
     };
 
     const creditCode = (fields.creditCode ?? '').trim().toUpperCase();
     if (creditCode) {
       const hit = await this.prisma.supplier.findFirst({
         where: { creditCode },
-        select: { id: true, status: true },
+        select: { id: true, status: true, isTemporary: true, temporaryExpiresAt: true },
       });
       result.creditCode = !!hit;
       result.creditCodeStatus = hit?.status ?? null;
+      result.creditCodeIsTemporary = !!hit?.isTemporary;
+      result.creditCodeTemporaryExpired =
+        !!hit?.isTemporary && !!hit?.temporaryExpiresAt && hit.temporaryExpiresAt < new Date();
     }
 
     const legalPersonIdCard = (fields.legalPersonIdCard ?? '').trim();
@@ -1902,6 +1918,17 @@ export class SupplierService {
         select: { id: true },
       });
       result.contactIdCard = !!hit;
+    }
+
+    // 手机号查重（2026-10-16）：与提交口径同路数（registerTemporary/register 的 User.phoneIdx 盲索引查重），
+    // 失焦预检用——公开端点，仅回布尔，靠限流兜底防枚举。
+    const phone = (fields.phone ?? '').trim();
+    if (phone) {
+      const hit = await this.prisma.user.findFirst({
+        where: { phoneIdx: blindIndexPii(phone) ?? undefined },
+        select: { id: true },
+      });
+      result.phone = !!hit;
     }
 
     return result;

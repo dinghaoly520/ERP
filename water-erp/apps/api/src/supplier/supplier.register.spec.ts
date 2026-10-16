@@ -333,5 +333,52 @@ describe('SupplierService.register — P1-13 注册手机验证前置', () => {
       expect(res.creditCode).toBe(false);
       expect(res.creditCodeStatus).toBeNull();
     });
+
+    it('命中正式供应商 → creditCodeIsTemporary=false 且 TemporaryExpired=false', async () => {
+      prisma.supplier.findFirst.mockResolvedValue({ id: 's-formal', status: 'APPROVED', isTemporary: false, temporaryExpiresAt: null });
+      const res = await service.checkDuplicate({ creditCode: '91510000MA62K5XX0X' });
+      expect(res.creditCodeIsTemporary).toBe(false);
+      expect(res.creditCodeTemporaryExpired).toBe(false);
+    });
+
+    it('命中临时未过期 → creditCodeIsTemporary=true 且 TemporaryExpired=false（引导直接登录）', async () => {
+      prisma.supplier.findFirst.mockResolvedValue({ id: 's-temp', status: 'APPROVED', isTemporary: true, temporaryExpiresAt: new Date(Date.now() + 86_400_000) });
+      const res = await service.checkDuplicate({ creditCode: '91510000MA62K5XX0X' });
+      expect(res.creditCodeIsTemporary).toBe(true);
+      expect(res.creditCodeTemporaryExpired).toBe(false);
+    });
+
+    it('命中临时已过期 → TemporaryExpired=true（引导登录页续期）', async () => {
+      prisma.supplier.findFirst.mockResolvedValue({ id: 's-exp', status: 'APPROVED', isTemporary: true, temporaryExpiresAt: new Date(Date.now() - 86_400_000) });
+      const res = await service.checkDuplicate({ creditCode: '91510000MA62K5XX0X' });
+      expect(res.creditCodeIsTemporary).toBe(true);
+      expect(res.creditCodeTemporaryExpired).toBe(true);
+    });
+
+    it('命中临时但 temporaryExpiresAt=null（长期）→ TemporaryExpired=false', async () => {
+      prisma.supplier.findFirst.mockResolvedValue({ id: 's-null', status: 'APPROVED', isTemporary: true, temporaryExpiresAt: null });
+      const res = await service.checkDuplicate({ creditCode: '91510000MA62K5XX0X' });
+      expect(res.creditCodeTemporaryExpired).toBe(false);
+    });
+
+    it('phone 命中已绑定 User.phoneIdx → phone=true；未命中 → false', async () => {
+      prisma.user.findFirst.mockResolvedValue({ id: 'u-bound' });
+      await expect(service.checkDuplicate({ phone: '13800138000' })).resolves.toMatchObject({ phone: true });
+      prisma.user.findFirst.mockResolvedValue(null);
+      const res = await service.checkDuplicate({ phone: '13800138000' });
+      expect(res.phone).toBe(false);
+      expect(prisma.user.findFirst).toHaveBeenLastCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ phoneIdx: expect.any(String) }) }),
+      );
+    });
+
+    it('phone 入参走盲索引（phoneIdx）而非明文 phone 列', async () => {
+      prisma.user.findFirst.mockResolvedValue(null);
+      await service.checkDuplicate({ phone: '13800138000' });
+      const where: any = prisma.user.findFirst.mock.calls[0][0].where;
+      expect(where.phone).toBeUndefined();
+      expect(typeof where.phoneIdx).toBe('string');
+      expect(where.phoneIdx).not.toBe('13800138000');
+    });
   });
 });

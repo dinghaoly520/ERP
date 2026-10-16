@@ -216,17 +216,18 @@ export class SupplierController {
     return this.supplierService.submitCorrection(dto);
   }
 
-  // 注册前查重（公开）：统一社会信用代码重复=硬拦截；法人/联系人身份证号重复=软提示。
+  // 注册前查重（公开）：统一社会信用代码重复=硬拦截；法人/联系人身份证号、手机号重复=软提示。
   @Get('register/check-duplicate')
   @Public()
-  @Throttle({ default: { limit: 20, ttl: 60_000 } }) // 防身份证号/信用代码枚举爬取
-  @ApiOperation({ summary: '注册前查重（信用代码/法人身份证/联系人身份证）' })
+  @Throttle({ default: { limit: 20, ttl: 60_000 } }) // 防身份证号/信用代码/手机号枚举爬取
+  @ApiOperation({ summary: '注册前查重（信用代码[带临时过期事实]/法人身份证/联系人身份证/手机号）' })
   async checkDuplicate(
     @Query('creditCode') creditCode?: string,
     @Query('legalPersonIdCard') legalPersonIdCard?: string,
     @Query('contactIdCard') contactIdCard?: string,
+    @Query('phone') phone?: string,
   ) {
-    return this.supplierService.checkDuplicate({ creditCode, legalPersonIdCard, contactIdCard });
+    return this.supplierService.checkDuplicate({ creditCode, legalPersonIdCard, contactIdCard, phone });
   }
 
   @Get('approvals/my-pending-count')
