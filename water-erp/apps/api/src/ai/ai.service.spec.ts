@@ -72,18 +72,17 @@ describe('AiService', () => {
   });
 
   describe('recommendSuppliers', () => {
-    it('候选池按公司隔离：filter 片段注入 where，禁止全库推荐', async () => {
+    it('候选池按公司隔离：APPROVED link 存在性注入 where（多公司归属换形 2026-10-16），禁止全库推荐', async () => {
       prisma.supplier.findMany.mockResolvedValue([]);
       const companyScope = (service as any).companyScope;
       companyScope.resolveScope.mockResolvedValue({ all: false, companyIds: ['co-swhi'] });
-      companyScope.filter.mockReturnValue({ companyId: { in: ['co-swhi'] } });
 
       const res = await service.recommendSuppliers('水泵采购', { actor: { sub: 'u1', role: 'leader' } as any });
 
       expect(prisma.supplier.findMany).toHaveBeenCalledTimes(1);
       const where = prisma.supplier.findMany.mock.calls[0][0].where;
       expect(where.status).toBe('APPROVED');
-      expect(where.companyId).toEqual({ in: ['co-swhi'] });
+      expect(where.companyLinks).toEqual({ some: { companyId: { in: ['co-swhi'] }, status: 'APPROVED' } });
       // 空（隔离后）候选池 → 空推荐而非报错
       expect(res.recommendations).toEqual([]);
     });
@@ -92,7 +91,6 @@ describe('AiService', () => {
       prisma.supplier.findMany.mockResolvedValue([]);
       const companyScope = (service as any).companyScope;
       companyScope.resolveScope.mockResolvedValue({ all: true });
-      companyScope.filter.mockReturnValue({});
 
       await service.recommendSuppliers('水泵采购', { actor: { sub: 'u2', role: 'admin' } as any, companyId: 'co-x' });
 
@@ -110,7 +108,6 @@ describe('AiService', () => {
       }]);
       const companyScope = (service as any).companyScope;
       companyScope.resolveScope.mockResolvedValue({ all: true });
-      companyScope.filter.mockReturnValue({});
       // LLM 缺席走规则引擎轨：toRecommendation 逐家组装视图模型
       (service as any).selectionAi.rankCandidates.mockResolvedValue(undefined);
 

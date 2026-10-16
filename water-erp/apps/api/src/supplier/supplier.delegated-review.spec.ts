@@ -239,8 +239,9 @@ describe('SupplierService.list — leader 查 LEADER 级时带上本公司 STAFF
 
   beforeEach(async () => {
     companyScope = {
-      resolveScope: jest.fn().mockResolvedValue({ all: false }),
-      filter: jest.fn().mockReturnValue({ companyId: 'co-1' }), // leader 公司域注入
+      // leader 公司域注入（2026-10-16 换形：resolveScope 产 scope，supplierCompanyWhere 产 companyLinks）
+      resolveScope: jest.fn().mockResolvedValue({ all: false, companyIds: ['co-1'] }),
+      filter: jest.fn(), // 供应商域已不走 filter——留空防误用回退
     };
     prisma = {
       supplier: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
@@ -271,7 +272,8 @@ describe('SupplierService.list — leader 查 LEADER 级时带上本公司 STAFF
     const res = await service.list({ reviewStage: 'LEADER', actor: ACTOR_LEADER as any, sort: 'createdAt' });
 
     const where = prisma.supplier.count.mock.calls[0][0].where;
-    expect(where.companyId).toBe('co-1');
+    // 公司域注入形状（2026-10-16 换形）：APPROVED link 存在性
+    expect(where.companyLinks).toEqual({ some: { companyId: { in: ['co-1'] }, status: 'APPROVED' } });
     expect(where.reviewStage).toBeUndefined();
     expect(where.AND?.[0]?.OR).toEqual([{ reviewStage: 'LEADER' }, { reviewStage: 'STAFF' }]);
     expect(res.items.find((i: any) => i.id === 'l1').delegatedReview).toBeUndefined(); // 复审是本职
@@ -286,8 +288,8 @@ describe('SupplierService.list — leader 查 LEADER 级时带上本公司 STAFF
     expect(where.AND).toBeUndefined();
   });
 
-  it('leader 无公司域（companyId 未注入）：不展开——防无归属 leader 拖全库 STAFF 件', async () => {
-    companyScope.filter.mockReturnValue({}); // 无公司域
+  it('leader 无公司域（公司视野=全部→link 未注入）：不展开——防无归属 leader 拖全库 STAFF 件', async () => {
+    companyScope.resolveScope.mockResolvedValue({ all: true }); // 无公司域限定
     await service.list({ reviewStage: 'LEADER', actor: ACTOR_LEADER as any, sort: 'createdAt' });
     const where = prisma.supplier.count.mock.calls[0][0].where;
     expect(where.reviewStage).toBe('LEADER');

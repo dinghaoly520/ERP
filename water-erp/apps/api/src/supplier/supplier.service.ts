@@ -23,7 +23,8 @@ import { shouldAutoDisable } from './supplier-performance';
 import { buildSupplierPortrait } from './supplier-portrait.util';
 import { generateBusinessTags, TAG_MAX, TAG_MIN } from './business-tags';
 import { LlmService } from '../local-ai/llm.service';
-import { CompanyScopeService } from '../company/company-scope';
+import { CompanyScopeService, scopeCompanyIds } from '../company/company-scope';
+import { supplierCompanyWhere } from './supplier-company-filter';
 import * as XLSX from 'xlsx';
 import { createHash } from 'crypto';
 import { registrationAssetIdFromUrl, registrationUploadNamespace } from '../upload/registration-upload';
@@ -989,13 +990,19 @@ export class SupplierService {
     const sortMode = params.sort ?? 'completeness';
 
     const where: any = {};
+    // 公司域已注入的公司 id 集（null=未注入/全部视野）——leader 代初审展开前提取值
+    let scopedCompanyIds: string[] | null = null;
     // 数据隔离：supplier 角色只能看到自己企业，防止跨企枚举与主联系人 PII 泄露。
     if (params.scopeUserId) where.userId = params.scopeUserId;
-    // 公司级数据隔离（2026-09-26，口径同专家库）：内部角色 admin 可 ?companyId= 切单公司（默认全部）、
-    // 非 admin 强制本公司；supplier 角色走 scopeUserId 既有收敛，不叠加公司过滤
+    // 公司级数据隔离（2026-10-16 多公司归属换形）：APPROVED link 存在性替代 where.companyId——
+    // B 公司库可见已加入供应商；存量由 backfill 脚本镜像为 APPROVED link，PENDING 审批件不受影响。
+    // admin 可 ?companyId= 切单/多公司（默认全部）、非 admin 强制本公司；supplier 角色走 scopeUserId
+    // 既有收敛，不叠加公司过滤。
     if (!params.scopeUserId && params.actor) {
-      const f = this.companyScope.filter(await this.companyScope.resolveScope(params.actor, params.companyId));
-      if (f.companyId) where.companyId = f.companyId;
+      const scope = await this.companyScope.resolveScope(params.actor, params.companyId);
+      const w = supplierCompanyWhere(scope);
+      if (w.companyLinks) where.companyLinks = (w as any).companyLinks;
+      scopedCompanyIds = scopeCompanyIds(scope);
     }
     if (params.status) {
       // 支持「排除若干状态」语义：前端「全部」标签传 `exclude:PENDING,RETURNED`，使默认列表不含待审核/退回补正。
@@ -1037,9 +1044,10 @@ export class SupplierService {
     const delegatedExpand = params.actor?.role === 'admin' && params.reviewStage === 'ADMIN';
     // leader 查 LEADER 级时带上本公司 STAFF 级代初审件（2026-10-09）：公司无在编 staff 时
     // leader 代初审——权限/通知/角标均已达成，唯列表不可见（角标有数、列表却空）。
-    // 前提：公司域已注入（where.companyId 非空），否则不展开——无归属 leader 不得拖全库 STAFF 件。
+    // 前提：公司域已注入（scopedCompanyIds 非 null；2026-10-16 换形后自 link 注入点取值），
+    // 否则不展开——无归属 leader 不得拖全库 STAFF 件。leader 视野恒单公司，取首 id 判 staff。
     const leaderExpand = params.actor?.role === 'leader' && params.reviewStage === 'LEADER'
-      && !!where.companyId && !(await this.companyHasActiveRole('staff', where.companyId));
+      && scopedCompanyIds !== null && !(await this.companyHasActiveRole('staff', scopedCompanyIds[0]));
     if (params.reviewStage && !delegatedExpand && !leaderExpand) where.reviewStage = params.reviewStage;
     if (delegatedExpand) (where as any).__delegatedExpand = true; // raw 路径翻译为 SQL；ORM 路径在查询前展开并剥离
     if (leaderExpand) (where as any).__leaderExpand = true; // 同上（两级 OR）
@@ -1087,7 +1095,7 @@ export class SupplierService {
       }];
     } else if ((where as any).__leaderExpand) {
       // leader 代初审展开（2026-10-09）：LEADER（本职）OR STAFF（本公司无 staff 的代审件）；
-      // 公司域由 companyScope 注入的 where.companyId 限定
+      // 公司域由 companyScope 注入的 where.companyLinks 限定（2026-10-16 换形）
       delete ormWhere.__leaderExpand;
       ormWhere.AND = [...(Array.isArray(where.AND) ? where.AND : []), {
         OR: [{ reviewStage: 'LEADER' }, { reviewStage: 'STAFF' }],
@@ -1144,16 +1152,15 @@ export class SupplierService {
     const conditions: Prisma.Sql[] = [];
     // 数据隔离：supplier 角色仅见本企业（与 list() 的 Prisma 路径 where.userId 对齐，否则 raw 路径会丢弃该过滤）。
     if (where.userId) conditions.push(Prisma.sql`s."userId" = ${where.userId}`);
-    // 公司级数据隔离：raw 路径与 Prisma 路径行为一致，否则默认排序下公司过滤被丢弃。
-    // 2026-10-14 多选扩展后 filter() 统一返回 { in: string[] }（单选=长度 1 数组）——
-    // 对象直接插参会被 Prisma 序列化为 jsonb，PG 报 operator does not exist: text = jsonb，
-    // 供应商库 leader/admin 选公司即 500（2026-10-15 事故）；string 旧形状仍按等值兼容。
-    if (where.companyId) {
-      const co = where.companyId as string | { in: string[] };
-      if (typeof co === 'string') {
-        conditions.push(Prisma.sql`s."companyId" = ${co}`);
-      } else if (Array.isArray(co.in)) {
-        conditions.push(Prisma.sql`s."companyId" IN (${Prisma.join(co.in)})`);
+    // 公司级数据隔离（2026-10-16 多公司归属）：link 存在性翻译——与 ORM 路径 companyLinks.some 同口径，
+    // raw 路径漏译即静默 no-op（历史事故病根），改形状必须同步本件。companyId 参数只可能是
+    // string 或 { in: string[] }（supplierCompanyWhere 产 { in }；string 分支为容错），逐元素
+    // 参数化入 IN——对象本体不得直接插参（jsonb 500，2026-10-15 事故）。
+    if (where.companyLinks?.some?.companyId) {
+      const co = where.companyLinks.some.companyId as string | { in: string[] };
+      const list = typeof co === 'string' ? [co] : (co.in ?? []);
+      if (list.length > 0) {
+        conditions.push(Prisma.sql`EXISTS (SELECT 1 FROM "SupplierCompanyLink" l WHERE l."supplierId" = s.id AND l."companyId" IN (${Prisma.join(list)}) AND l."status" = 'APPROVED')`);
       }
     }
     // status 列是 SupplierStatus 枚举，参数需显式 cast，否则 PG 报 operator does not exist: SupplierStatus = text
@@ -1175,7 +1182,7 @@ export class SupplierService {
         conditions.push(Prisma.sql`(s."reviewStage" = 'ADMIN' OR (s."reviewStage" = 'LEADER' AND NOT EXISTS (SELECT 1 FROM "User" u WHERE u."companyId" = s."companyId" AND u."role" = 'leader' AND u."isActive" = TRUE)) OR (s."reviewStage" = 'STAFF' AND NOT EXISTS (SELECT 1 FROM "User" u WHERE u."companyId" = s."companyId" AND u."isActive" = TRUE AND (u."role" = 'staff' OR u."role" = 'leader'))))`);
       }
       // leader 代初审展开（2026-10-09）：LEADER（本职）OR STAFF（本公司无 staff 的代审件）；
-      // 公司域由 where.companyId 翻译的既有条件限定，无需重复判 staff
+      // 公司域由 where.companyLinks 翻译的既有条件限定（2026-10-16 换形），无需重复判 staff
       if ((where as any).__leaderExpand) {
         conditions.push(Prisma.sql`(s."reviewStage" = 'LEADER' OR s."reviewStage" = 'STAFF')`);
       }
@@ -3370,7 +3377,7 @@ export class SupplierService {
   async getQualificationAlerts(actor?: AuthenticatedUser, companyId?: string) {
     const now = Date.now();
     const in90 = new Date(now + 90 * 86400000);
-    const f = actor ? this.companyScope.filter(await this.companyScope.resolveScope(actor, companyId)) : {};
+    const f = actor ? supplierCompanyWhere(await this.companyScope.resolveScope(actor, companyId)) : {};
     // 取「已过期 或 90 天内到期」的资质（覆盖过期+即将过期两态，避免 status 字段未同步导致漏报）。
     // 预警是否展示完全由 validTo 决定：供应商维护更新资质后（validTo 移出 90 天窗口）自动从看板消失。
     const items = await this.prisma.supplierQualification.findMany({
@@ -3558,7 +3565,7 @@ export class SupplierService {
 
   /** 评价统计（公司隔离 2026-10-15：与非 admin 视野一致，防止看板「0 供应商」旁出现全域评价数） */
   async getEvaluationStats(actor?: AuthenticatedUser, companyId?: string) {
-    const f = actor ? this.companyScope.filter(await this.companyScope.resolveScope(actor, companyId)) : {};
+    const f = actor ? supplierCompanyWhere(await this.companyScope.resolveScope(actor, companyId)) : {};
     const evaluations = await this.prisma.supplierEvaluation.findMany({
       select: { finalGrade: true },
       where: { supplier: { ...f } },
@@ -3581,7 +3588,7 @@ export class SupplierService {
 
   async getStats(actor?: AuthenticatedUser, companyId?: string) {
     // 公司级数据隔离：统计在隔离集上算（口径同专家库），admin 可 ?companyId= 切单公司
-    const f = actor ? this.companyScope.filter(await this.companyScope.resolveScope(actor, companyId)) : {};
+    const f = actor ? supplierCompanyWhere(await this.companyScope.resolveScope(actor, companyId)) : {};
     const [total, pending, approved, disabled, blacklist, returned, temporaryApproved] = await Promise.all([
       // 总数口径（2026-10-16 用户裁定）：只数库内四态——在库（含临时，临时=APPROVED+isTemporary）/停用/黑名单；
       // PENDING/RETURNED/REJECTED 为审批流转件（注册审批已迁出供应商库），不计入总数。
@@ -3600,7 +3607,7 @@ export class SupplierService {
   /** 按公司分组全量计数（admin 全部公司视图的分组标题全量口径，与列表同筛选；台账/专家库 company-counts 同款） */
   async companyCounts(params: { status?: string; search?: string; enterpriseTypes?: string[]; isTemporary?: boolean }, actor?: AuthenticatedUser) {
     const scope = await this.companyScope.resolveScope(actor);
-    const where: any = { ...this.companyScope.filter(scope) };
+    const where: any = { ...supplierCompanyWhere(scope) };
     if (params.status) {
       if (params.status.startsWith('exclude:')) {
         const excl = params.status.slice('exclude:'.length).split(',').filter(Boolean);
@@ -3674,7 +3681,7 @@ export class SupplierService {
   /** 企业类型分布后端聚合——替代看板拉 1000 条客户端计数（>1000 家偏少 + 首页开销大）。 */
   /** 企业类型分布（公司隔离 2026-10-15：看板口径与 stats/列表同视野） */
   async getEnterpriseTypeDistribution(actor?: AuthenticatedUser, companyId?: string) {
-    const f = actor ? this.companyScope.filter(await this.companyScope.resolveScope(actor, companyId)) : {};
+    const f = actor ? supplierCompanyWhere(await this.companyScope.resolveScope(actor, companyId)) : {};
     const rows = await this.prisma.supplier.groupBy({
       by: ['enterpriseType'],
       where: { status: 'APPROVED', ...f },
@@ -3979,7 +3986,7 @@ export class SupplierService {
 
   /** 评价五维度统计（公司隔离 2026-10-15：同 getEvaluationStats 口径） */
   async getEvaluationDimensionStats(actor?: AuthenticatedUser, companyId?: string) {
-    const f = actor ? this.companyScope.filter(await this.companyScope.resolveScope(actor, companyId)) : {};
+    const f = actor ? supplierCompanyWhere(await this.companyScope.resolveScope(actor, companyId)) : {};
     const evals = await this.prisma.supplierEvaluation.findMany({
       select: { completenessGrade: true, responsivenessGrade: true, cooperationGrade: true, complianceGrade: true, comprehensiveGrade: true },
       where: { supplier: { ...f } },

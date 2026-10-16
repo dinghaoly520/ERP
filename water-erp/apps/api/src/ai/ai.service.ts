@@ -9,6 +9,7 @@ import { CompanyScopeService } from '../company/company-scope';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { SupplierSelectionAiService } from './supplier-selection-ai.service';
 import { signRsvpToken } from '../supplier/rsvp-token.util';
+import { supplierCompanyWhere } from '../supplier/supplier-company-filter';
 import { ShareShortlistDto } from './dto/share-shortlist.dto';
 import type {
   ComplianceItem,
@@ -1167,8 +1168,9 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     // 排除已选供应商（重新选取时不重复推荐）
     if (opts.excludedSupplierIds && opts.excludedSupplierIds.length > 0) where.id = { notIn: opts.excludedSupplierIds };
     // 公司级数据隔离（2026-10-16）：候选池只含归属公司供应商，禁止全库推荐。
+    // 多公司归属换形（2026-10-16）：APPROVED link 存在性替代单值 companyId（同供应商域读端口径）。
     // 非 admin 强制本人公司；admin 默认全部、由 companyId 切换（项目管理供应商邀请流程传项目归属公司快照）。
-    Object.assign(where, this.companyScope.filter(await this.companyScope.resolveScope(opts.actor, opts.companyId)));
+    Object.assign(where, supplierCompanyWhere(await this.companyScope.resolveScope(opts.actor, opts.companyId)));
     const suppliers = await this.prisma.supplier.findMany({
       where,
       include: {
