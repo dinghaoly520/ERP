@@ -617,11 +617,15 @@ function isSelfCompany(name: string): boolean {
     firstLine = firstLine.replace(/^[和与及以及：:、.\s]+/, '');                  // strip leading connectors & colons
     if (firstLine.trim()) parts.push(firstLine.trim());
 
+    // 概况长度闸（2026-10-16 简洁口径）：项目概况定位为简介与概括——采购内容可写但不整章
+    // 搬运；累计约 200 字即停收（当前行收完再停，保证行完整）。
+    const MAX_OVERVIEW_CHARS = 200;
     for (let i = startIdx + 1; i < Math.min(lines.length, startIdx + 40); i++) {
       const line = lines[i];
       if (endMarkers.test(line)) break;
       if (stopKeywords.test(line)) break;  // 遇到"要求/资格/条件/条款"类段落头即停
       if (line.trim()) parts.push(line.trim());
+      if (parts.join('').length >= MAX_OVERVIEW_CHARS) break;
     }
 
     const result = parts.join('\n');
