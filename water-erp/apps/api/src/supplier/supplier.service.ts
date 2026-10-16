@@ -679,11 +679,18 @@ export class SupplierService {
     });
   }
 
-  async listInvitations(params: { page?: number; pageSize?: number; status?: string }) {
+  async listInvitations(params: { page?: number; pageSize?: number; status?: string; actor?: any }) {
     await this.syncExpiredStatus();
+    // 邀请码历史公司隔离（2026-10-16 用户裁定）：非 admin 仅看本司创建人生成的邀请码——
+    // 邀请码表无公司列，经创建人 User.companyId 关联过滤（读时关联，不加列不迁移）；
+    // admin 经 resolveScope 全量视角；无归属创建人（companyId=null）落入 NO_COMPANY 哨兵=空集。
+    const scope = params.actor ? await this.companyScope.resolveScope(params.actor) : { all: true, companyIds: [] };
+    const where: any = {
+      ...(params.status ? { status: params.status as any } : {}),
+      ...(scope.all ? {} : { createdBy: this.companyScope.filter(scope) }),
+    };
     const page = params.page ?? 1;
     const pageSize = Math.min(params.pageSize ?? 20, 100);
-    const where = params.status ? { status: params.status as any } : {};
     const [items, total] = await Promise.all([
       this.prisma.supplierInvitation.findMany({
         where,

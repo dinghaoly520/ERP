@@ -97,8 +97,9 @@ export class SupplierController {
 
   @Get('invitations')
   @Roles('admin', 'leader') // 邀请码 admin + leader
-  @ApiOperation({ summary: '邀请码列表' })
+  @ApiOperation({ summary: '邀请码列表（非 admin 按创建人公司隔离，仅本司）' })
   async listInvitations(
+    @Request() req: any,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('status') status?: string,
@@ -107,6 +108,7 @@ export class SupplierController {
       page: page ? Number(page) : 1,
       pageSize: pageSize ? Number(pageSize) : 20,
       status: status || undefined,
+      actor: req.user,
     });
   }
 
