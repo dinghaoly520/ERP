@@ -97,6 +97,10 @@ export default function NoticePage() {
   const [page, setPage] = useState(1);
   const [partAnn, setPartAnn] = useState<AnnouncementListItem | null>(null);
   const [historyAnnId, setHistoryAnnId] = useState<string | null>(null);
+  // 草稿速览弹窗（2026-10-16 用户裁定：KPI 点击开窗展示，不改列表筛选）
+  const [draftsOpen, setDraftsOpen] = useState(false);
+  const [draftsList, setDraftsList] = useState<AnnouncementListItem[] | null>(null);
+  const [draftsLoading, setDraftsLoading] = useState(false);
   const [showAllHistories, setShowAllHistories] = useState(false);
   const [showRecycle, setShowRecycle] = useState(false);
 
@@ -131,6 +135,22 @@ export default function NoticePage() {
   }, [isAdmin, companyId, filterType, filterStatus, search]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setSelectedIds(new Set()); }, [filterType, filterStatus, search, page]);
+
+  // 草稿速览：独立请求 DRAFT 全量（不带类型/公司隔离，跟随当前公司选择），不动主列表筛选
+  const openDrafts = useCallback(async () => {
+    setDraftsOpen(true);
+    setDraftsLoading(true);
+    setDraftsList(null);
+    try {
+      const res = await listAnnouncements({ status: 'DRAFT', page: 1, pageSize: 50, companyId });
+      setDraftsList(res.items || []);
+    } catch (e: any) {
+      toast.error(e?.message || '草稿列表加载失败');
+      setDraftsList([]);
+    } finally {
+      setDraftsLoading(false);
+    }
+  }, [companyId]);
 
   const totalPages = Math.max(1, Math.ceil(data.total / 15));
 
@@ -356,9 +376,9 @@ export default function NoticePage() {
         <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 items-stretch">
           <HeroStat label="已发布" value={published} sub="已生效可见" />
-          {/* 点击联动筛选：类型重置 ALL（手工草稿多为政策/平台类，默认「采购公告」tab 下看不到）+ 状态=草稿 */}
+          {/* 点击开窗速览草稿（不动列表筛选）——行点击跳详情页继续编辑/发布 */}
           <HeroStat label="待处理草稿" value={drafts} signal={drafts > 0 ? "warning" : undefined} sub={drafts > 0 ? "尽快发布 · 点击查看" : "全部已发布"}
-            onClick={() => { setFilterType('ALL'); setFilterStatus('DRAFT'); setPage(1); }} />
+            onClick={() => void openDrafts()} />
           <HeroStat label="本月发布" value={publishedThisMonth} sub="本月新增公告" valueStr={publishedThisMonth.toString()} />
           <HeroStat label="浏览总量" value={totalViews} sub="累计曝光量" valueStr={totalViews >= 10000 ? `${(totalViews / 10000).toFixed(1)} 万` : totalViews.toLocaleString('zh-CN')} />
         </div>
@@ -471,6 +491,39 @@ export default function NoticePage() {
       {showRecycle && <AnnouncementRecycleModal onClose={() => setShowRecycle(false)} onChanged={load} />}
       {dialog}
 
+      {/* 草稿速览弹窗（2026-10-16）：KPI 点击开窗，不改列表筛选 */}
+      {draftsOpen && (
+        <Modal
+          open
+          onClose={() => { setDraftsOpen(false); setDraftsList(null); }}
+          size="lg"
+          title="待处理草稿"
+          description="未发布的公告草稿，点击进入详情继续编辑或发布"
+        >
+          {draftsLoading ? (
+            <div className="flex justify-center py-12 text-[var(--muted-foreground)] text-sm">加载中…</div>
+          ) : !draftsList || draftsList.length === 0 ? (
+            <div className="py-12 text-center text-[var(--muted-foreground)] text-sm">暂无草稿</div>
+          ) : (
+            <div className="flex flex-col divide-y divide-[oklch(0.6_0.04_258_/_0.12)]">
+              {draftsList.map(a => (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => router.push(`/notice/${a.id}`)}
+                  className="flex items-center gap-3 px-1 py-3 text-left transition-colors hover:bg-[color-mix(in_oklch,var(--accent)_6%,transparent)]"
+                >
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--foreground)]">{a.title}</span>
+                  {(() => { const sm = displayStatus(a); return <StatusBadge tone={sm.tone}>{sm.label}</StatusBadge>; })()}
+                  <span className="shrink-0 font-mono text-[11px] text-[var(--muted-foreground)]">
+                    {a.publishDate ? new Date(a.publishDate).toLocaleDateString('zh-CN') : '—'}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }
