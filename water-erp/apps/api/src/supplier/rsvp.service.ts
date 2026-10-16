@@ -90,31 +90,31 @@ export class RsvpService {
 
       // 接受 + 带项目：确保供应商进入项目候选（已存在则不动其投标进度，仅保证行存在）。
       // 拒绝：仅记录，不自动移出候选名单（由采购方在看板人工处理）——按用户确认的产品决策。
-      // rsvp.projectId 是邀请页写入的 ProjectManagementItem id（非 BidProject id），
-      // 旧实现直接拿去 upsert BidSupplier → FK(P2003)。须先解析真实 BidProject。
-      // BidProject 尚未懒创建时【立即触发 ensureBidProject】而非仅记录回执——
-      // 供应商确认参加后门户「可投标项目/工作台」需立即可见（此前要等采购端后续操作才补挂，
-      // 造成"已确认却看不到项目"）。ensureBidProject 幂等，且创建时会回填全部已接受回执的候选。
+      // projectId 双 id 空间（2026-10-16）：生成端（ai.generateNotificationContent）已把回执行
+      // projectId 规范化为 BidProject id；旧轨行可能仍是 PMI id——先按 BidProject 主键解析，
+      // 落空再按 projectManagementItemId 反查（两代口径兼容）。旧实现直接拿 PMI id upsert
+      // BidSupplier → FK(P2003)；规范化后若漏改，ACCEPTED 永远解析不到项目 → 候选不落、门户不可见。
+      // BidProject 尚未懒创建时【事务提交后触发 ensureBidProject】而非仅记录回执——
+      // 供应商确认参加后门户「可投标项目/工作台」需立即可见。ensureBidProject 幂等，
+      // 且创建时会回填全部已接受回执的候选。
       if (body.status === 'ACCEPTED' && row.projectId) {
-        const bp = await tx.bidProject.findFirst({
-          where: { projectManagementItemId: row.projectId },
-          orderBy: { createdAt: 'desc' },
-          select: { id: true },
-        });
-        if (!bp) {
-          // 【事务边界修复】ensureBidProject 使用根 prisma（独立连接），必须在 $transaction 回调
-          // 之外调用——在事务内调用会造成：交互式事务 5s 超时导致 RSVP 状态回滚但 BidProject
-          // 已提交（半成功态）+ 连接池双倍占用。
-          // 由于无法在事务中间跳出，这里改为：先标记回执已落（事务提交后再懒创建）。
-          // 实际方案：本函数外层先做 ensureBidProject，此处只做查询。
-          this.logger.warn(`BidProject 未懒创建（将在事务外补挂）pmi=${row.projectId}`);
-        }
+        const bp = (await tx.bidProject.findUnique({ where: { id: row.projectId }, select: { id: true } })) ||
+          (await tx.bidProject.findFirst({
+            where: { projectManagementItemId: row.projectId },
+            orderBy: { createdAt: 'desc' },
+            select: { id: true },
+          }));
         if (bp) {
           await tx.bidSupplier.upsert({
             where: { projectId_supplierName: { projectId: bp.id, supplierName: row.supplierName } },
             create: { projectId: bp.id, supplierId: row.supplierId, supplierName: row.supplierName },
             update: { supplierId: row.supplierId },
           });
+        } else {
+          // 【事务边界修复】ensureBidProject 使用根 prisma（独立连接），必须在 $transaction 回调
+          // 之外调用——在事务内调用会造成：交互式事务 5s 超时导致 RSVP 状态回滚但 BidProject
+          // 已提交（半成功态）+ 连接池双倍占用。此处只标记，事务提交后再懒创建（见下方）。
+          this.logger.warn(`BidProject 未懒创建（将在事务外补挂）projectId=${row.projectId}`);
         }
       }
       return r;
@@ -123,10 +123,12 @@ export class RsvpService {
     // 【事务边界修复】事务提交后，若 ACCEPTED 且 BidProject 尚未懒创建，在此触发
     // （ensureBidProject 幂等，其内部自管事务；创建时自动回填全部已接受回执的候选）
     if (body.status === 'ACCEPTED' && row.projectId) {
-      const bp = await this.prisma.bidProject.findFirst({
-        where: { projectManagementItemId: row.projectId },
-        select: { id: true },
-      });
+      // 同上双 id 空间：主键命中 → 无需懒创建；仅当两查均落空才 ensureBidProject（吃 PMI id）
+      const bp = (await this.prisma.bidProject.findUnique({ where: { id: row.projectId }, select: { id: true } })) ||
+        (await this.prisma.bidProject.findFirst({
+          where: { projectManagementItemId: row.projectId },
+          select: { id: true },
+        }));
       if (!bp) {
         try {
           await this.projectManagement.ensureBidProject(row.projectId);

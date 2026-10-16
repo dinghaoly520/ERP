@@ -1,8 +1,8 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { RsvpService } from './rsvp.service';
 
-/** P0-1 回执 respond() 单测：PMI id→真实 BidProject 解析 + 同事务 + 半成功防护。
- *  （extract 前置：InvitationRsvp.projectId 是邀请页写入的 ProjectManagementItem id。） */
+/** P0-1 回执 respond() 单测：BidProject 解析（双 id 空间：BidProject 主键 / PMI 反查）+ 同事务 + 半成功防护。
+ *  （projectId 口径：2026-10-16 起生成端规范化为 BidProject id；旧轨行仍是 PMI id——respond 兼容两者。） */
 describe('RsvpService.respond（P0-1）', () => {
   let service: RsvpService;
   let prisma: any;
@@ -16,7 +16,7 @@ describe('RsvpService.respond（P0-1）', () => {
   beforeEach(() => {
     prisma = {
       invitationRsvp: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({ id: 'rsvp1', status: 'ACCEPTED', respondedAt: new Date() }) },
-      bidProject: { findFirst: jest.fn() },
+      bidProject: { findFirst: jest.fn(), findUnique: jest.fn().mockResolvedValue(null) },
       bidSupplier: { upsert: jest.fn().mockResolvedValue({}) },
       supplier: { findUnique: jest.fn().mockResolvedValue({ userId: 'u-supplier' }) },
       $transaction: jest.fn().mockImplementation(async (fn: any) => fn(prisma)),
@@ -25,7 +25,23 @@ describe('RsvpService.respond（P0-1）', () => {
     service = new RsvpService(prisma, { ensureBidProject: jest.fn().mockResolvedValue({}) } as any, notification as any);
   });
 
-  it('ACCEPTED：以 rsvp.projectId（PMI id）解析 BidProject 后用真实项目 id upsert 候选', async () => {
+  it('ACCEPTED：projectId 已是规范 BidProject id（生成端 2026-10-16 起规范化）→ 主键直接命中，不再当 PMI id 反查', async () => {
+    prisma.invitationRsvp.findUnique.mockResolvedValue({ ...baseRow, projectId: 'BP-CANON' });
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'BP-CANON' });
+
+    const r = await service.respond('t1', { status: 'ACCEPTED' });
+
+    expect(r.success).toBe(true);
+    expect(prisma.bidProject.findFirst).not.toHaveBeenCalled();
+    expect(prisma.bidSupplier.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { projectId_supplierName: { projectId: 'BP-CANON', supplierName: '供应商A' } },
+        create: expect.objectContaining({ projectId: 'BP-CANON', supplierId: 's1' }),
+      }),
+    );
+  });
+
+  it('ACCEPTED（旧轨）：projectId 是 PMI id → 主键落空后按 projectManagementItemId 反查再 upsert', async () => {
     prisma.invitationRsvp.findUnique.mockResolvedValue(baseRow);
     prisma.bidProject.findFirst.mockResolvedValue({ id: 'BP-1' });
 

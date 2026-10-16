@@ -1,7 +1,6 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createId } from '@paralleldrive/cuid2';
-import { portalOrigin } from '@water-erp/config';
 import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { LlmService } from '../local-ai/llm.service';
@@ -22,6 +21,8 @@ import type {
 import { computeRiskFactors, riskLevel, predictDefaultRisk } from './risk-score.compute';
 import { buildCalibration } from '../ai-bid-analysis/utils/calibration';
 import { openField } from '../common/crypto/field-crypto';
+import { resolvePortalLinkOrigin, type PortalLinkHeaders } from '../common/portal-link-origin';
+import { openPiiForMask } from '../common/crypto/sm-field-crypto';
 
 /*
    AI 辅助评标引擎
@@ -261,6 +262,7 @@ export class AiService {
     projectOverview?: string;      // 项目概况（项目基本信息中的概述）
     fileAnalysisContext?: string;
     validityDays?: number;         // 回执链接有效期（天），默认 1（24小时）
+    requestHeaders?: PortalLinkHeaders; // 请求头透传：RSVP 链接按「当前访问主机」生成（局域网自适应）
   }): Promise<{ title: string; body: string; rsvpTokens: Record<string, string>; invitationId: string | null }> {
     const ctxParts: string[] = [];
     if (context.projectName) ctxParts.push(`项目名称：${context.projectName}`);
@@ -309,9 +311,11 @@ export class AiService {
       const title0 = `关于${context.projectName || '采购项目'}采购项目候选供应商邀请的通知`;
       // 此 URL 用于生成「供应商邀请」链接，应指向供应商门户（:3004），而非公众门户（:3002）。
       // 旧 env 名 PUBLIC_PORTAL_URL 实易误读为「公众门户」——保留作为向后兼容别名。
-      // 兜底 origin 由 @water-erp/config 的 PORTS 派生（审计 D：原硬编码 :3004）。
-      const base = portalOrigin(
+      // origin 解析（2026-10-16 局域网缺口）：链接会被供应商的机器点开，localhost 不可达——
+      // 生产域名 env > 请求访问主机（LAN 自适应）> 本机 LAN IP > localhost 兜底，见 resolvePortalLinkOrigin。
+      const base = resolvePortalLinkOrigin(
         'supplier',
+        context.requestHeaders,
         this.config.get<string>('SUPPLIER_PORTAL_URL') || this.config.get<string>('PUBLIC_PORTAL_URL'),
       );
 
@@ -503,6 +507,11 @@ ${hasRsvp ? `- ★★ 正文必须包含且仅包含一次占位符 {rsvpLink}�
       projectOverview?.trim(),
     ].filter(Boolean);
     if (sources.length === 0) return '';
+    // 确定性拼接（LLM 失败/残句时的兜底，两条降级路径共用）
+    const deterministic = [projectReason, supplierRequirements, projectOverview]
+      .filter(Boolean)
+      .join('；')
+      .slice(0, 500);
     try {
       const summary = await this.llm.chat(
         '你是四川省水利发展集团有限公司采购项目的概况撰写人。请将以下三部分信息（若存在）整合为一段 100-200 字的项目概况及采购内容综合性文字：\n'
@@ -514,17 +523,19 @@ ${hasRsvp ? `- ★★ 正文必须包含且仅包含一次占位符 {rsvpLink}�
         0.2,
         undefined,
         undefined,
-        // 推理型模型思维链与正文共享输出预算：500 会被 reasoning 耗尽导致正文为空
-        { maxTokens: 2048, timeoutMs: 60_000 },
+        // 推理型模型思维链与正文共享输出预算：500 会被 reasoning 耗尽导致正文为空；
+        // 2026-10-16 实录：2048 仍会被长 reasoning 吃到只剩 19 字断片（概况止于「…满足深孔、」
+        // 直出回执页）——预算抬高到 4096，并在返回前做残句防御（见下），双保险。
+        { maxTokens: 4096, timeoutMs: 60_000 },
       );
-      return await this.sanitizeAiText((summary || '').replace(/```[^]*?```/g, '').trim().slice(0, 500));
+      const text = (summary || '').replace(/```[^]*?```/g, '').trim();
+      // 残句防御：健康输出为 100-200 字整段；输出预算被思维链耗尽时只剩十几字断片——
+      // 宁可弃用 LLM 结果走确定性拼接，也不让半句话直出回执页。
+      if (text.length < 40) return deterministic;
+      return await this.sanitizeAiText(text.slice(0, 500));
     } catch {
       // 降级：直接拼接三方内容
-      const fallback = [projectReason, supplierRequirements, projectOverview]
-        .filter(Boolean)
-        .join('；')
-        .slice(0, 500);
-      return fallback || '';
+      return deterministic;
     }
   }
 
@@ -1400,7 +1411,14 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       legalPerson: s.legalPerson,
       enterpriseType: s.enterpriseType,
       tags: (s.tags || []) as string[],
-      contacts: (s.contacts || []).map((c: any) => ({ name: c.name, phone: c.phone, isPrimary: c.isPrimary })),
+      contacts: (s.contacts || []).map((c: any) => ({
+        name: c.name,
+        // 邀请场景明文出口（2026-10-12 用户裁定，口径同 supplier.service 遴选视图）：
+        // 选取页联系人用于电话联系，无点击揭示机制，掩码/密文即不可见；存储仍密封。
+        // 漏接时密态 sm1:... 密文直出确认页（2026-10-16 实录）。
+        phone: openPiiForMask(c.phone),
+        isPrimary: c.isPrimary,
+      })),
       evaluation: enrichment?.evalMap.get(id),
       activeProjects: enrichment?.activeMap.get(id) ?? 0,
       // 对比面板扩充

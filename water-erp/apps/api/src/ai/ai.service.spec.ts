@@ -6,6 +6,7 @@ import { LlmService } from '../local-ai/llm.service';
 import { NotificationService } from '../notification/notification.service';
 import { ConfigService } from '@nestjs/config';
 import { CompanyScopeService } from '../company/company-scope';
+import { sealPii } from '../common/crypto/sm-field-crypto';
 
 describe('AiService', () => {
   let service: AiService;
@@ -58,7 +59,7 @@ describe('AiService', () => {
         AiService,
         { provide: PrismaService, useValue: prisma },
         { provide: SupplierSelectionAiService, useValue: { rankCandidates: jest.fn() } },
-        { provide: LlmService, useValue: { chatJson: jest.fn() } },
+        { provide: LlmService, useValue: { chatJson: jest.fn(), chat: jest.fn() } },
         { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn() } },
         // AiService 构造器第 5 参（口径同 local-ai/llm.service.spec.ts）
         { provide: ConfigService, useValue: { get: (key: string, def?: string) => (process.env[key] as string | undefined) ?? def } },
@@ -96,6 +97,43 @@ describe('AiService', () => {
       await service.recommendSuppliers('水泵采购', { actor: { sub: 'u2', role: 'admin' } as any, companyId: 'co-x' });
 
       expect(companyScope.resolveScope).toHaveBeenCalledWith({ sub: 'u2', role: 'admin' }, 'co-x');
+    });
+
+    it('联系人电话 PII 密文拆封为明文（邀请场景出口口径），sm1 密文不得直出确认页', async () => {
+      const sealedPhone = sealPii('13812345678') as string;
+      expect(sealedPhone.startsWith('sm1:')).toBe(true); // 前置：确系密态样本
+      prisma.supplier.findMany.mockResolvedValue([{
+        id: 'sup-pii', name: '测试供应商', enterpriseType: '有限责任公司', legalPerson: '张三',
+        businessScope: '液压设备', tags: ['液压'], supplierNo: 'SUP-000001',
+        classification: null, qualifications: [], evaluations: [], bidSuppliers: [],
+        contacts: [{ name: '孟鹏宇', phone: sealedPhone, isPrimary: true }],
+      }]);
+      const companyScope = (service as any).companyScope;
+      companyScope.resolveScope.mockResolvedValue({ all: true });
+      companyScope.filter.mockReturnValue({});
+      // LLM 缺席走规则引擎轨：toRecommendation 逐家组装视图模型
+      (service as any).selectionAi.rankCandidates.mockResolvedValue(undefined);
+
+      const res = await service.recommendSuppliers('液压钻机采购', {});
+
+      expect(res.recommendations.length).toBeGreaterThan(0);
+      expect(res.recommendations[0].contacts?.[0].phone).toBe('13812345678');
+    });
+  });
+
+  describe('generateOverviewSummary（概况残句防御，2026-10-16）', () => {
+    it('LLM 输出为思维链耗尽预算后的断片（<40 字）→ 弃用，降级确定性拼接', async () => {
+      (service as any).llm.chat.mockResolvedValue('为提升工程勘察院钻探装备能力，满足深孔、');
+      const out = await (service as any).generateOverviewSummary('立项事由甲', '供方要求乙', '项目概况丙');
+      expect(out).toBe('立项事由甲；供方要求乙；项目概况丙');
+    });
+
+    it('LLM 健康输出（≥40 字）→ 原样采用', async () => {
+      const healthy =
+        '本项目为提升工程勘察院钻探装备能力，满足深孔、超深孔岩心钻探任务需求，采购便携式全液压岩心钻机（800型）一台，含配套钻具与运输固定装置，供应商须具备同类设备供货业绩。';
+      (service as any).llm.chat.mockResolvedValue(healthy);
+      const out = await (service as any).generateOverviewSummary('立项事由', undefined, undefined);
+      expect(out).toContain('岩心钻探任务需求');
     });
   });
 

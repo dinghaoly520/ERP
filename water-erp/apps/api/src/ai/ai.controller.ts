@@ -184,8 +184,15 @@ export class AiController {
       projectReason?: string; supplierRequirements?: string; projectOverview?: string;
       fileAnalysisContext?: string; validityDays?: number;
     },
+    @Request() req: any = {},
   ) {
-    return this.aiService.generateNotificationContent(payload);
+    // 请求头透传：RSVP 回执链接按「当前访问主机」生成（局域网自适应，防 localhost 链接发给供应商）
+    const { requestHeaders: _clientIgnored, ...context } = payload as typeof payload & { requestHeaders?: unknown };
+    const h = (req.headers || {}) as Record<string, string>;
+    return this.aiService.generateNotificationContent({
+      ...context,
+      requestHeaders: { origin: h.origin, referer: h.referer, 'x-forwarded-host': h['x-forwarded-host'] },
+    });
   }
 
   @Post('polish-requirement')
