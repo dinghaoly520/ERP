@@ -498,9 +498,10 @@
 .reg-page--temp .reg-panel { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; padding: 84px 24px 40px; }
 .reg-page--temp .reg-card { width: min(820px, 100%); }
 
-/* 邀请码校验反馈行（reg-module 内，输入框下方） */
+/* 邀请码校验反馈行（reg-module 内，输入框下方）；flex-wrap：USED 增强文案较长须可换行不溢出卡片 */
 .reg-invite-note {
   display: inline-flex; align-items: center; gap: 5px;
+  flex-wrap: wrap; line-height: 1.5; max-width: 100%;
   margin-top: 7px; font-size: 12px; font-weight: 600;
 }
 .reg-invite-note.is-ok { color: oklch(0.5 0.14 152); }

@@ -475,6 +475,10 @@ const SUPPLIER_SPECS: NotificationTypeSpec[] = [
   { code: 'OBJECTION_ANSWERED', label: '异议答复', domain: 'bid', icon: 'MessageCircle', tone: 'blue', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP }, // 2026-09-27 从 SYSTEM 拆分（供应商收）
   { code: 'SELECTION_SHARED', label: '候选名单分享', domain: 'supplier', icon: 'Share2', tone: 'blue', actionable: true, audiences: [{ kind: 'ROLE', roles: ['leader'] }], channels: IN_APP },
   { code: 'SUPPLIER_CLEANUP_DUE', label: '临时供应商清理', domain: 'supplier', icon: 'UserMinus', tone: 'orange', actionable: true, audiences: [{ kind: 'ROLE', roles: ['staff'] }], channels: IN_APP, link: () => '/supplier/repository' }, // 2026-09-27 从 SYSTEM 拆分
+  // 供应商多公司归属（2026-10-16）：加入申请三级审批链（SupplierLinkService）
+  { code: 'SUPPLIER_LINK_PENDING', label: '供应商加入申请', domain: 'supplier', icon: 'UserPlus', tone: 'blue', actionable: true, audiences: [{ kind: 'COMPANY_LEADER_STAFF' }], channels: IN_APP, link: () => '/supplier?tab=company-links' }, // 实际投递按 notifyStageApprovers 逐级（staff→leader→admin 上浮），audience 为类型快照；入口=审批中心 company-links
+  { code: 'SUPPLIER_LINK_APPROVED', label: '加入公司通过', domain: 'supplier', icon: 'CheckCircle2', tone: 'green', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
+  { code: 'SUPPLIER_LINK_REJECTED', label: '加入公司驳回', domain: 'supplier', icon: 'XCircle', tone: 'red', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
 ];
 
 const ACCOUNT_SPECS: NotificationTypeSpec[] = [

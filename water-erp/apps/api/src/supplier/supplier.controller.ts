@@ -26,6 +26,8 @@ import { NotifySuppliersDto } from './dto/notify-suppliers.dto';
 import { NegotiationConfigDto } from './dto/negotiation-config.dto';
 import { SetClassificationsDto } from './dto/set-classifications.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { SupplierLinkService } from './supplier-link.service';
+import { ApproveLinkDto, RejectLinkDto } from './dto/company-link.dto';
 
 @ApiTags('供应商管理')
 @ApiCookieAuth('token')
@@ -34,6 +36,7 @@ export class SupplierController {
   constructor(
     private supplierService: SupplierService,
     private prisma: PrismaService,
+    private linkService: SupplierLinkService,
   ) {}
 
   @Post('register')
@@ -89,16 +92,17 @@ export class SupplierController {
 
   // ── 临时供应商邀请码（采购端管理）──
   @Post('invitations')
-  @Roles('admin') // 邀请码：仅管理权限（2026-09-24 用户裁定，leader/staff 不再放行）
+  @Roles('admin', 'leader') // 邀请码：admin + leader（2026-10-16 用户裁定放开 leader；staff 仍不放行）
   @ApiOperation({ summary: '生成临时供应商邀请码（30/180/360 天）' })
   async createInvitation(@Body() dto: CreateInvitationDto, @Request() req: any) {
     return this.supplierService.createInvitation(dto, req.user.sub);
   }
 
   @Get('invitations')
-  @Roles('admin') // 邀请码仅 admin
-  @ApiOperation({ summary: '邀请码列表' })
+  @Roles('admin', 'leader') // 邀请码 admin + leader
+  @ApiOperation({ summary: '邀请码列表（非 admin 按创建人公司隔离，仅本司）' })
   async listInvitations(
+    @Request() req: any,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('status') status?: string,
@@ -107,14 +111,15 @@ export class SupplierController {
       page: page ? Number(page) : 1,
       pageSize: pageSize ? Number(pageSize) : 20,
       status: status || undefined,
+      actor: req.user,
     });
   }
 
   @Post('invitations/:id/revoke')
-  @Roles('admin') // 邀请码仅 admin
+  @Roles('admin', 'leader') // 邀请码 admin + leader
   @ApiOperation({ summary: '作废邀请码' })
   async revokeInvitation(@Param('id') id: string, @Request() req: any) {
-    return this.supplierService.revokeInvitation(id, req.user.sub);
+    return this.supplierService.revokeInvitation(id, req.user.sub, req.user);
   }
 
   @Get('invitations/verify')
@@ -220,14 +225,58 @@ export class SupplierController {
   @Get('register/check-duplicate')
   @Public()
   @Throttle({ default: { limit: 20, ttl: 60_000 } }) // 防身份证号/信用代码/手机号枚举爬取
-  @ApiOperation({ summary: '注册前查重（信用代码[带临时过期事实]/法人身份证/联系人身份证/手机号）' })
+  @ApiOperation({ summary: '注册前查重（信用代码[带临时过期事实+他司已注册事实]/法人身份证/联系人身份证/手机号）' })
   async checkDuplicate(
     @Query('creditCode') creditCode?: string,
     @Query('legalPersonIdCard') legalPersonIdCard?: string,
     @Query('contactIdCard') contactIdCard?: string,
     @Query('phone') phone?: string,
+    @Query('companyId') companyId?: string,
+    @Query('companyName') companyName?: string,
   ) {
-    return this.supplierService.checkDuplicate({ creditCode, legalPersonIdCard, contactIdCard, phone });
+    return this.supplierService.checkDuplicate({ creditCode, legalPersonIdCard, contactIdCard, phone, companyId, companyName });
+  }
+
+  // ── 供应商多公司归属（2026-10-16；公司侧仅审批与库内停用——零检索面，不提供邀请/搜索端点）──
+
+  @Get('company-links')
+  @Roles('leader', 'staff', 'admin') // 列表按公司视野隔离（admin 可 ?companyId= 切单公司，同 :3005 供应商库）
+  @ApiOperation({ summary: '本公司加入审批/归属列表（admin 可 ?companyId= 切公司视野）' })
+  async listCompanyLinks(
+    @Query('status') status?: string,
+    @Query('reviewStage') reviewStage?: string,
+    @Query('companyId') companyId?: string,
+    @Request() req: any = {},
+  ) {
+    return this.linkService.listForCompany(req.user, { status, reviewStage, companyId });
+  }
+
+  @Post('company-links/:id/approve')
+  @Roles('leader', 'staff', 'admin') // 三级审批：service 按级断言（staff 初审/leader 复审/admin 终审，同注册审批口径）
+  @ApiOperation({ summary: '加入申请逐级审批通过（staff/leader 级须填同意缘由）' })
+  async approveCompanyLink(@Param('id') id: string, @Body() dto: ApproveLinkDto, @Request() req: any) {
+    return this.linkService.approveLink(id, req.user?.sub, dto.reason);
+  }
+
+  @Post('company-links/:id/reject')
+  @Roles('leader', 'staff', 'admin') // 任一级可驳回（终态，须填原因）
+  @ApiOperation({ summary: '加入申请驳回（任一级，填原因）' })
+  async rejectCompanyLink(@Param('id') id: string, @Body() dto: RejectLinkDto, @Request() req: any) {
+    return this.linkService.rejectLink(id, req.user?.sub, dto.reason);
+  }
+
+  @Post('company-links/:id/disable')
+  @Roles('leader') // 库内停用属公司治理动作，收窄 leader（软移出，不影响其他公司）
+  @ApiOperation({ summary: '本公司库内停用该供应商（软移出，不影响其他公司）' })
+  async disableCompanyLink(@Param('id') id: string, @Request() req: any) {
+    return this.linkService.setDisabled(id, req.user?.sub, true);
+  }
+
+  @Post('company-links/:id/enable')
+  @Roles('leader')
+  @ApiOperation({ summary: '恢复已停用的库内供应商' })
+  async enableCompanyLink(@Param('id') id: string, @Request() req: any) {
+    return this.linkService.setDisabled(id, req.user?.sub, false);
   }
 
   @Get('approvals/my-pending-count')

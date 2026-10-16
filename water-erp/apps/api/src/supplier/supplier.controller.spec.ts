@@ -12,7 +12,7 @@ import { SupplierController } from './supplier.controller';
 describe('SupplierController 补正回填公开端点（correction/draft 缺参 500→400 守卫）', () => {
   function makeController() {
     const supplierService = { getCorrectionDraft: jest.fn().mockResolvedValue({}) };
-    const ctrl = new SupplierController(supplierService as never, {} as never);
+    const ctrl = new SupplierController(supplierService as never, {} as never, {} as never);
     return { ctrl, supplierService };
   }
 

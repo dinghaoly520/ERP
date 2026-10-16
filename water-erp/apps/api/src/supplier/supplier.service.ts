@@ -217,6 +217,17 @@ export class SupplierService {
     return row.supplier_no;
   }
 
+  /** 只读公司解析（查重分流用）：companyId 优先、companyName 兜底，均查不到返回 null——不建档（区别于 resolveSupplierCompany） */
+  private async findCompanyRef(companyId?: string, companyName?: string): Promise<{ id: string; name: string } | null> {
+    if (companyId) {
+      const c = await this.prisma.company.findUnique({ where: { id: companyId }, select: { id: true, name: true } });
+      if (c) return c;
+    }
+    const name = (companyName ?? '').trim();
+    if (!name) return null;
+    return this.prisma.company.findUnique({ where: { name }, select: { id: true, name: true } });
+  }
+
   async register(dto: RegisterSupplierDto) {
     // 注册实名核验——主联系人手机号验证前置校验。内部批量导入用哨兵码跳过（管理端已实名核验的建档渠道）。
     // 双轨（2026-10-09）：token 轨=步骤 0 已消费验证码换发的注册会话；旧轨=验证码非消费校验（最终消费）。
@@ -264,12 +275,31 @@ export class SupplierService {
     const creditCode = dto.creditCode.trim();
     const username = creditCode;
 
-    // 信用代码命中：REJECTED 壳（驳回数据最小化留壳，2026-10-14）→ 走壳重开复用原行；其余状态仍硬拦截。
+    // 信用代码命中：REJECTED 壳（驳回数据最小化留壳，2026-10-14）→ 走壳重开复用原行；
+    // PENDING/RETURNED → 硬拦截（重复提交）；已入库（APPROVED/DISABLED/BLACKLIST）→ 多公司归属分流（2026-10-16）。
     const existingSupplier = await this.prisma.supplier.findUnique({
       where: { creditCode },
     });
     if (existingSupplier && existingSupplier.status !== 'REJECTED') {
-      throw new BadRequestException({ error: '统一社会信用代码已存在', code: 'DUPLICATE_CREDIT_CODE' });
+      if (existingSupplier.status === 'PENDING' || existingSupplier.status === 'RETURNED') {
+        throw new BadRequestException({ error: '统一社会信用代码已存在', code: 'DUPLICATE_CREDIT_CODE' });
+      }
+      // 多公司归属（2026-10-16）：已有平台账号（APPROVED/DISABLED/BLACKLIST）——
+      // 本公司已入=纯重复；否则不拦死，引导用原账号登录走「申请加入」
+      const candidate = await this.findCompanyRef(dto.companyId, dto.companyName);
+      if (candidate) {
+        const link = await this.prisma.supplierCompanyLink.findUnique({
+          where: { supplierId_companyId: { supplierId: existingSupplier.id, companyId: candidate.id } },
+          select: { status: true },
+        });
+        if (link?.status === 'APPROVED') {
+          throw new BadRequestException({ error: '统一社会信用代码已存在', code: 'DUPLICATE_CREDIT_CODE' });
+        }
+      }
+      throw new BadRequestException({
+        error: '该企业已有平台账号，请使用原账号登录，在「公司归属管理」中申请加入贵公司',
+        code: 'ACCOUNT_EXISTS_JOIN_INSTEAD',
+      });
     }
 
     // 公司名允许重复，不再按名称查重；唯一标识由统一社会信用代码（creditCode）承担（上方已查重）
@@ -679,11 +709,18 @@ export class SupplierService {
     });
   }
 
-  async listInvitations(params: { page?: number; pageSize?: number; status?: string }) {
+  async listInvitations(params: { page?: number; pageSize?: number; status?: string; actor?: any }) {
     await this.syncExpiredStatus();
+    // 邀请码历史公司隔离（2026-10-16 用户裁定）：非 admin 仅看本司创建人生成的邀请码——
+    // 邀请码表无公司列，经创建人 User.companyId 关联过滤（读时关联，不加列不迁移）；
+    // admin 经 resolveScope 全量视角；无归属创建人（companyId=null）落入 NO_COMPANY 哨兵=空集。
+    const scope = params.actor ? await this.companyScope.resolveScope(params.actor) : { all: true, companyIds: [] };
+    const where: any = {
+      ...(params.status ? { status: params.status as any } : {}),
+      ...(scope.all ? {} : { createdBy: this.companyScope.filter(scope) }),
+    };
     const page = params.page ?? 1;
     const pageSize = Math.min(params.pageSize ?? 20, 100);
-    const where = params.status ? { status: params.status as any } : {};
     const [items, total] = await Promise.all([
       this.prisma.supplierInvitation.findMany({
         where,
@@ -700,9 +737,14 @@ export class SupplierService {
     return { items, total, page, pageSize };
   }
 
-  async revokeInvitation(id: string, userId: string) {
-    const inv = await this.prisma.supplierInvitation.findUnique({ where: { id } });
+  async revokeInvitation(id: string, userId: string, actor?: any) {
+    // 公司隔离同口径（2026-10-16）：列表已按创建人公司过滤，作废按 :id 也要越权 403——
+    // 否则 leader 可凭枚举 id 作废他司邀请码（真隔离=where 注入+:id 越权 403）。
+    const inv = await this.prisma.supplierInvitation.findUnique({ where: { id }, include: { createdBy: { select: { companyId: true } } } });
     if (!inv) throw new NotFoundException('邀请码不存在');
+    if (actor) {
+      this.companyScope.assertInScope(inv.createdBy?.companyId ?? null, await this.companyScope.resolveScope(actor));
+    }
     if (inv.status === 'USED') throw new BadRequestException({ error: '已使用的邀请码不可作废', code: 'ALREADY_USED' });
     if (inv.status === 'REVOKED') throw new BadRequestException({ error: '邀请码已作废', code: 'ALREADY_REVOKED' });
     if (inv.status === 'EXPIRED') throw new BadRequestException({ error: '已过期邀请码不可作废', code: 'ALREADY_EXPIRED' });
@@ -1868,7 +1910,7 @@ export class SupplierService {
 
   /** 注册前查重：统一社会信用代码（组织机构代码，硬拦截）、法定代表人身份证号、联系人身份证号（软提示）。
    *  公开端点，只回传「是否重复」布尔值，不回传命中的供应商名称/编号等敏感信息。 */
-  async checkDuplicate(fields: { creditCode?: string; legalPersonIdCard?: string; contactIdCard?: string; phone?: string }) {
+  async checkDuplicate(fields: { creditCode?: string; legalPersonIdCard?: string; contactIdCard?: string; phone?: string; companyId?: string; companyName?: string }) {
     // creditCodeIsTemporary/TemporaryExpired（2026-10-16）：临时过期不改 status（仍 APPROVED），
     // 前端凭这两个事实字段区分「临时已过期→引导登录页续期」与其他命中状态。
     const result: {
@@ -1879,6 +1921,7 @@ export class SupplierService {
       creditCodeStatus: string | null;
       creditCodeIsTemporary: boolean;
       creditCodeTemporaryExpired: boolean;
+      registeredElsewhere: boolean;
     } = {
       creditCode: false,
       legalPersonIdCard: false,
@@ -1887,6 +1930,7 @@ export class SupplierService {
       creditCodeStatus: null,
       creditCodeIsTemporary: false,
       creditCodeTemporaryExpired: false,
+      registeredElsewhere: false,
     };
 
     const creditCode = (fields.creditCode ?? '').trim().toUpperCase();
@@ -1900,6 +1944,18 @@ export class SupplierService {
       result.creditCodeIsTemporary = !!hit?.isTemporary;
       result.creditCodeTemporaryExpired =
         !!hit?.isTemporary && !!hit?.temporaryExpiresAt && hit.temporaryExpiresAt < new Date();
+      // 多公司归属（2026-10-16）：他司已有在库账号且本公司未入 → 提示走「申请加入」而非拦死。
+      // 防公开端点枚举：只回布尔，不回公司名。
+      if (hit && ['APPROVED', 'DISABLED', 'BLACKLIST'].includes(hit.status)) {
+        const candidate = await this.findCompanyRef(fields.companyId, fields.companyName);
+        const link = candidate
+          ? await this.prisma.supplierCompanyLink.findUnique({
+              where: { supplierId_companyId: { supplierId: hit.id, companyId: candidate.id } },
+              select: { status: true },
+            })
+          : null;
+        result.registeredElsewhere = link?.status !== 'APPROVED';
+      }
     }
 
     const legalPersonIdCard = (fields.legalPersonIdCard ?? '').trim();
@@ -2087,6 +2143,17 @@ export class SupplierService {
           throw new BadRequestException({ error: '供应商状态已变更，请刷新后重试', code: 'CONFLICT' });
         }
         await tx.user.update({ where: { id: supplier.userId }, data: { isActive: true } });
+        // 多公司归属（2026-10-16）：终审通过同步落 APPROVED link（幂等；未归属跳过）
+        if (supplier.companyId) {
+          await tx.supplierCompanyLink.upsert({
+            where: { supplierId_companyId: { supplierId: id, companyId: supplier.companyId } },
+            create: {
+              supplierId: id, companyId: supplier.companyId,
+              status: 'APPROVED', appliedAt: supplier.createdAt,
+            },
+            update: { status: 'APPROVED', reviewStage: null, rejectReason: null },
+          });
+        }
       });
       await this.clearSupplierPendingTodos(id);
       await this.notificationService.create({
@@ -2437,9 +2504,11 @@ export class SupplierService {
 
   /** 审批中心右上角角标（2026-09-29）：当前登录人「待我审」数量
    *  注册审批 = 我所在级的在审数（staff→STAFF 级·本公司；leader→LEADER 级·本公司 + 本公司无 staff 时的 STAFF 级；admin→ADMIN 级·全部）
-   *  信息更新审批 = 待审变更数（办公权限：leader/staff·本公司；admin 全部可见） */
-  async myPendingReviewCount(actor: AuthenticatedUser, companyIdFilter?: string | null): Promise<{ registration: number; changes: number; resets: number }> {
+   *  信息更新审批 = 待审变更数（办公权限：leader/staff·本公司；admin 全部可见）
+   *  加入审批（多公司归属 2026-10-16）= SupplierCompanyLink 三级审批件，级/公司口径与注册审批同构（落在 link 表上） */
+  async myPendingReviewCount(actor: AuthenticatedUser, companyIdFilter?: string | null): Promise<{ registration: number; changes: number; resets: number; joins: number }> {
     const regWhere: any = { status: 'PENDING' };
+    let linkWhere: any = null; // null = 本角色无加入审批待办（supplier 等），不查 link 表
     if (actor.role === 'admin') {
       // A 方案（2026-10-08；2026-10-09 扩 STAFF 孤儿）：终审件 + 「无在编 leader」的 LEADER 级
       // 代复审件 + 「无 staff 且无 leader」的 STAFF 级代初审件都计入 admin 待办——
@@ -2454,11 +2523,24 @@ export class SupplierService {
         ],
       }];
       if (companyIdFilter) regWhere.companyId = companyIdFilter;
+      // 加入审批（link 表）同口径三批：ADMIN 级全部 + 「公司无 leader」的 LEADER 级 + 「公司无 staff 且无 leader」的 STAFF 级。
+      // link.companyId 非空（必填外键）→ 无注册侧「未归属公司」分支。
+      linkWhere = {
+        status: 'PENDING',
+        AND: [{
+          OR: [
+            { reviewStage: 'ADMIN' },
+            { reviewStage: 'LEADER', company: { users: { none: { role: 'leader', isActive: true } } } },
+            { reviewStage: 'STAFF', company: { users: { none: { OR: [{ role: 'staff' }, { role: 'leader' }], isActive: true } } } },
+          ],
+        }],
+        ...(companyIdFilter ? { companyId: companyIdFilter } : {}),
+      };
     } else if (actor.role === 'leader' || actor.role === 'staff') {
       // JWT payload 不携带 companyId（AuthenticatedUser 仅 sub/role/username）——查库取归属公司
       const me = await this.prisma.user.findUnique({ where: { id: actor.sub }, select: { companyId: true } });
       const myCompany = companyIdFilter ?? me?.companyId ?? null;
-      if (!myCompany) return { registration: 0, changes: 0, resets: 0 }; // 无归属公司 → 无域内待审
+      if (!myCompany) return { registration: 0, changes: 0, resets: 0, joins: 0 }; // 无归属公司 → 无域内待审
       const stageList = ['LEADER'];
       if (actor.role === 'staff') {
         stageList.length = 0;
@@ -2468,8 +2550,9 @@ export class SupplierService {
       }
       regWhere.reviewStage = { in: stageList };
       regWhere.companyId = myCompany;
+      linkWhere = { status: 'PENDING', reviewStage: { in: stageList }, companyId: myCompany };
     } else {
-      return { registration: 0, changes: 0, resets: 0 }; // supplier 等角色无审批待办
+      return { registration: 0, changes: 0, resets: 0, joins: 0 }; // supplier 等角色无审批待办
     }
     const registration = await this.prisma.supplier.count({ where: regWhere });
     const changes = await this.prisma.supplierChangeRecord.count({
@@ -2482,7 +2565,9 @@ export class SupplierService {
     const resets = await this.prisma.passwordResetRequest.count({
       where: { status: 'PENDING', matchedUser: { is: { role: 'supplier' } } },
     });
-    return { registration, changes, resets };
+    // 加入审批待办（多公司归属 2026-10-16）：供应商自主申请的三级审批件
+    const joins = linkWhere ? await this.prisma.supplierCompanyLink.count({ where: linkWhere }) : 0;
+    return { registration, changes, resets, joins };
   }
 
   /** 审批中心：全部待审的供应商资料变更（:3004 供应商门户提交，跨供应商） */

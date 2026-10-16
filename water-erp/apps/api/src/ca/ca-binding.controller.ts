@@ -303,7 +303,7 @@ export class CaBindingController {
     // 主体归属校验（登录操作 subjectId 可能 null——跳过）。
     // 阶段2.5 T8 修复：投递链 op 的 subjectId=supplier.id（供应商域）——对 supplier
     // 主体按 supplier.findUnique(userId).id 比对（原 User id 直比恒 403）
-    let subjectId = op.subjectId;
+    const subjectId = op.subjectId;
     if (subjectId && op.subjectType === 'supplier') {
       const supplier = await this.prisma.supplier.findUnique({ where: { userId }, select: { id: true } });
       if (supplier && subjectId !== supplier.id) {

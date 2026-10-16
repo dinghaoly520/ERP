@@ -284,19 +284,19 @@ export default function RegisterTemporaryPage() {
         <RegistrationSection icon={Building2} title="企业与账号" hint="请按营业执照如实填写">
           <div className="reg-form-grid">
             {item("name", "企业名称", inp(form.name, (s) => set("name", s), "营业执照上的企业全称"), true)}
-            {item("creditCode", "统一社会信用代码", inp(form.creditCode, (s) => set("creditCode", s.toUpperCase()), "18 位代码，注册后与公司名称均可用于登录", { maxLength: 18, onBlur: checkCreditCodeDuplicate }), true, ccGuidance && (
+            {item("creditCode", "统一社会信用代码", inp(form.creditCode, (s) => { set("creditCode", s.toUpperCase()); if (ccGuidance) setCcGuidance(null); }, "18 位代码，注册后与公司名称均可用于登录", { maxLength: 18, onBlur: checkCreditCodeDuplicate }), true, ccGuidance && (
               <span className="reg-dup-guidance" data-kind={ccGuidance.kind} role="status">
                 {ccGuidance.message}
                 {ccGuidance.link && <Link className="reg-dup-guidance__link" href={ccGuidance.link.href}>{ccGuidance.link.label}</Link>}
               </span>
             ))}
             {item("legalPerson", "法定代表人", inp(form.legalPerson, (s) => set("legalPerson", s), "营业执照上的法定代表人"), true)}
-            {item("legalPersonIdCard", "法定代表人身份证号", inp(form.legalPersonIdCard, (s) => set("legalPersonIdCard", s.toUpperCase()), "18 位身份证号", { maxLength: 18, onBlur: checkLegalIdCardDuplicate }), true)}
+            {item("legalPersonIdCard", "法定代表人身份证号", inp(form.legalPersonIdCard, (s) => { set("legalPersonIdCard", s.toUpperCase()); if (legalIdCardDuplicate) setLegalIdCardDuplicate(false); }, "18 位身份证号", { maxLength: 18, onBlur: checkLegalIdCardDuplicate }), true)}
             {item("displayName", "联系人姓名", inp(form.displayName, (s) => set("displayName", s), "请输入联系人姓名"), true)}
             {item("phone", "注册手机号", (
               <div className="reg-code-row">
                 <input id="reg-temp-phone" className="reg-inp" value={form.phone} placeholder="本人手机号，用于接收注册验证码" maxLength={11} inputMode="numeric" autoComplete="tel"
-                  onChange={(e) => set("phone", e.target.value.replace(/\D/g, ""))} onBlur={checkPhoneDuplicate} />
+                  onChange={(e) => { set("phone", e.target.value.replace(/\D/g, "")); if (phoneDuplicate) setPhoneDuplicate(false); }} onBlur={checkPhoneDuplicate} />
                 <button type="button" className="reg-btn reg-btn--ghost-sm reg-code-btn" disabled={codeSending || codeCooldown > 0} onClick={sendRegCode}>
                   {codeSending ? "发送中…" : codeCooldown > 0 ? `${codeCooldown}s` : "获取验证码"}
                 </button>
