@@ -286,7 +286,7 @@ function AnnouncementFieldEditor({
   onSampleOpen: (fieldKey: AnnouncementFieldKey, fieldLabel: string) => void;
   onAiGenerate: (fieldKey: AnnouncementFieldKey, fieldLabel: string, value: string, aiPrompt?: string) => void;
   onContactOpen?: () => void;
-  /** 监督人字段（supervisionContact）专属：打开联系人多选（2026-10-09） */
+  /** 监督人字段（supervisionContact）专属：打开监督举报条目选择（2026-10-09 联系人多选 → 2026-10-13 改条目整块填四字段） */
   onSupervisorOpen?: () => void;
   /** 拟定供应商名称专属：核对采购文件中供应商是否已更换（替代 AI 内容优化） */
   onSupplierCheck?: () => void;
@@ -330,7 +330,10 @@ function AnnouncementFieldEditor({
           {field.label}
         </span>
         <div className="flex items-center gap-2">
-          {!hideActions && (
+          {/* 监督人按钮豁免（2026-10-16）：supervisionContact 虽在 FIELDS_WITHOUT_ACTIONS
+              （无 AI/样本语义），但「监督人」条目选择按钮须与采购文件编写（tender-section-editor）
+              同款——那边按钮不受 hideActions 闸门影响恒显示，此处外层闸门曾把整个组件一起藏掉。 */}
+          {(!hideActions || isSupervisionContactField) && (
             <TenderFieldActions
               fieldKey={field.key as TenderFieldKey}
               currentValue={value}
