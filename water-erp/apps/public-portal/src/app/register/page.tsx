@@ -1,14 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { portalURL } from '@water-erp/config';
 
 const enterpriseTypes = ['国有企业', '有限责任公司', '股份有限公司', '集体企业', '个体工商户'];
 
 export default function RegisterPage() {
-  const router = useRouter();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
@@ -37,8 +36,9 @@ export default function RegisterPage() {
         contacts: [{ name: form.contactName, phone: form.contactPhone, email: form.contactEmail, isPrimary: true }],
         qualifications: [],
       });
+      // 注册的是供应商账号 → 跳供应商门户登录（:3002 独立 login 页已删除，登录入口为首页弹窗/各门户）
       toast.success('注册成功！请登录后完善企业资料');
-      setTimeout(() => router.push('/login'), 1000);
+      setTimeout(() => { window.location.href = portalURL('supplier', '/login'); }, 1000);
     } catch (e: any) { toast.error(e.message || '注册失败'); }
     setLoading(false);
   };
