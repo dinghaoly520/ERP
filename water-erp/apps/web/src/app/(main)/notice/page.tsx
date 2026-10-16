@@ -90,7 +90,8 @@ export default function NoticePage() {
   const [stats, setStats] = useState<{ drafts: number; published: number; publishedThisMonth: number; totalViews: number }>({ drafts: 0, published: 0, publishedThisMonth: 0, totalViews: 0 });
   const [loading, setLoading] = useState(true);
   const loadReqIdRef = useRef(0);
-  const [filterType, setFilterType] = useState<string>('BID_NOTICE');
+  // 默认「全部」（2026-10-16 用户裁定）：手工公告类型分散（政策/平台/补遗/预审），默认采购公告首屏易空
+  const [filterType, setFilterType] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<AnnouncementStatus | ''>('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
