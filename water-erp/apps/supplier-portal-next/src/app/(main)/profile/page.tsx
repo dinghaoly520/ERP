@@ -250,7 +250,7 @@ export default function ProfilePage() {
     e.target.value = "";
     if (!f) return;
     if (f.size > 10 * 1024 * 1024) { toast.error("文件不能超过10MB"); return; } // B3-3：与资质材料口径一致
-    toast.warning("附件上传功能即将上线");
+    toast.warning("附件上传功能暂未开放");
   };
 
   /* 变更申请弹窗逻辑 */
