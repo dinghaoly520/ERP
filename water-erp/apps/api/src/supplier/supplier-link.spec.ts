@@ -57,3 +57,62 @@ describe('SupplierService.approve — 终审 upsert company link', () => {
     await svc.approve('s2', 'rev-1');
   });
 });
+
+/** 审批角标 joins 计数（多公司归属 2026-10-16）——与注册审批同口径：
+ *  staff→STAFF 级·本公司；leader→LEADER 级·本公司（+本公司无 staff 时兼 STAFF 级）；
+ *  admin→ADMIN 级全部 + 「无 leader 公司」LEADER 级 + 「无 staff 且无 leader 公司」STAFF 级（代审，A 方案同口径）。 */
+describe('myPendingReviewCount — joins 计数（多公司归属）', () => {
+  const mkPrisma = (over: Record<string, any> = {}): any => ({
+    user: { findUnique: jest.fn().mockResolvedValue(over.me ?? { companyId: 'co-2' }), count: jest.fn().mockResolvedValue(over.roleCount ?? 1) },
+    supplier: { count: jest.fn().mockResolvedValue(0) },
+    supplierChangeRecord: { count: jest.fn().mockResolvedValue(0) },
+    passwordResetRequest: { count: jest.fn().mockResolvedValue(0) },
+    supplierCompanyLink: { count: jest.fn().mockResolvedValue(over.joins ?? 3) },
+  });
+  // SupplierService 构造实参（prisma, notification, redis, llm, verification, companyScope）——myPendingReviewCount 仅用 prisma
+  const newService = (prisma: any) => new (SupplierService as any)(prisma, null, null, null, null, null);
+
+  it('staff：本公司 STAFF 级申请计数', async () => {
+    const prisma = mkPrisma();
+    const svc = newService(prisma);
+    const r = await svc.myPendingReviewCount({ sub: 'u1', role: 'staff', username: 'x' } as any);
+    expect(r).toEqual({ registration: 0, changes: 0, resets: 0, joins: 3 });
+    expect(prisma.supplierCompanyLink.count).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ reviewStage: { in: ['STAFF'] }, companyId: 'co-2' }),
+    }));
+  });
+
+  it('supplier 角色：无审批待办，joins=0 且不查 link 表', async () => {
+    const prisma: any = { supplierCompanyLink: { count: jest.fn() } };
+    const svc = newService(prisma);
+    const r = await svc.myPendingReviewCount({ sub: 'u1', role: 'supplier', username: 'x' } as any);
+    expect(r.joins).toBe(0);
+    expect(prisma.supplierCompanyLink.count).not.toHaveBeenCalled();
+  });
+
+  it('leader：LEADER 级 + 本公司无 staff 时兼计 STAFF 级', async () => {
+    const prisma = mkPrisma({ roleCount: 0, joins: 4 }); // user.count=0 → 本公司无在编 staff
+    const svc = newService(prisma);
+    const r = await svc.myPendingReviewCount({ sub: 'u1', role: 'leader', username: 'x' } as any);
+    expect(r).toEqual({ registration: 0, changes: 0, resets: 0, joins: 4 });
+    expect(prisma.supplierCompanyLink.count).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ reviewStage: { in: ['LEADER', 'STAFF'] }, companyId: 'co-2' }),
+    }));
+  });
+
+  it('admin：终审件 + 无 leader 公司 LEADER 级 + 无 staff/leader 公司 STAFF 级（代审口径同注册审批 A 方案）', async () => {
+    const prisma = mkPrisma({ joins: 7 });
+    const svc = newService(prisma);
+    const r = await svc.myPendingReviewCount({ sub: 'adm', role: 'admin', username: 'a' } as any);
+    expect(r).toEqual({ registration: 0, changes: 0, resets: 0, joins: 7 });
+    expect(prisma.supplierCompanyLink.count).toHaveBeenCalledTimes(1);
+    // 三批口径锁定在 where 结构上（link.companyId 非空，无「未归属公司」分支）
+    const where = (prisma.supplierCompanyLink.count as jest.Mock).mock.calls[0][0].where;
+    expect(where.status).toBe('PENDING');
+    expect(where.AND[0].OR).toEqual([
+      { reviewStage: 'ADMIN' },
+      { reviewStage: 'LEADER', company: { users: { none: { role: 'leader', isActive: true } } } },
+      { reviewStage: 'STAFF', company: { users: { none: { OR: [{ role: 'staff' }, { role: 'leader' }], isActive: true } } } },
+    ]);
+  });
+});

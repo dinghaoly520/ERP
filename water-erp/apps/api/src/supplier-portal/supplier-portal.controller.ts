@@ -27,6 +27,8 @@ import { FrameworkService } from '../framework/framework.service';
 import { PerformanceService } from '../performance/performance.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { SupplierLinkService } from '../supplier/supplier-link.service';
+import { ApplyCompanyLinkDto } from '../supplier/dto/company-link.dto';
 
 @Controller('supplier-portal')
 @Roles('supplier')
@@ -42,6 +44,7 @@ export class SupplierPortalController {
     private frameworkService: FrameworkService,
     private performanceService: PerformanceService,
     private notificationService: NotificationService,
+    private linkService: SupplierLinkService,
   ) {}
 
   private async getSupplierId(userId: string): Promise<string> {
@@ -931,5 +934,32 @@ export class SupplierPortalController {
       ...q,
       bidSupplierId: q.bidSupplierId === myBidSupplier?.id ? q.bidSupplierId : `competitor_${++seq}`,
     }));
+  }
+
+  // ── 公司归属管理（多公司归属 2026-10-16；唯一通道=供应商自主申请）──
+
+  @Get('company-links')
+  @ApiOperation({ summary: '我的公司归属列表（主归属+各公司库内状态）' })
+  async myCompanyLinks(@Request() req: any) {
+    const rows = await this.linkService.myLinks(req.user.sub);
+    // HTTP 出参边界：仅暴露供应商可见字段——supplierId / reviewedById / reviewedAt / updatedAt 不出参
+    return rows.map((l: any) => ({
+      id: l.id,
+      companyId: l.companyId,
+      companyName: l.companyName,
+      status: l.status,
+      reviewStage: l.reviewStage,
+      note: l.note,
+      rejectReason: l.rejectReason,
+      isPrimary: l.isPrimary,
+      appliedAt: l.appliedAt,
+      createdAt: l.createdAt,
+    }));
+  }
+
+  @Post('company-links/apply')
+  @ApiOperation({ summary: '申请加入公司（走该公司三级审批）' })
+  async applyCompanyLink(@Body() dto: ApplyCompanyLinkDto, @Request() req: any) {
+    return this.linkService.apply(req.user.sub, dto);
   }
 }

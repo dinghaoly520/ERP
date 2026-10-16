@@ -112,11 +112,12 @@ describe('SupplierLinkService — 公司侧（三级审批）', () => {
         findMany: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(over.staffCount ?? 1),
       },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
     };
     const notify = { create: jest.fn().mockResolvedValue({}) };
-    const SCOPE: any = { resolveScope: async () => ({ all: false, companyIds: ['co-2'] }) };
+    const SCOPE: any = { resolveScope: jest.fn(async () => ({ all: false, companyIds: ['co-2'] })) };
     const svc = new SupplierLinkService(prisma, notify as any, SCOPE);
-    return { prisma, notify, svc };
+    return { prisma, notify, svc, scope: SCOPE };
   };
 
   it('approveLink：STAFF 级同公司 staff 通过 → 推进 LEADER；非本级人 → 403 REVIEW_STAGE_MISMATCH', async () => {
@@ -136,12 +137,16 @@ describe('SupplierLinkService — 公司侧（三级审批）', () => {
     await expect(svc.approveLink('l1', 'rev-1', '')).rejects.toMatchObject({ response: { code: 'REVIEW_REASON_REQUIRED' } });
   });
 
-  it('approveLink：ADMIN 终审 → APPROVED + 通知供应商；乐观锁 count=0 → 409 CONFLICT', async () => {
+  it('approveLink：ADMIN 终审 → APPROVED + 通知供应商 + 审计留痕；乐观锁 count=0 → 409 CONFLICT', async () => {
     const admin = mkSide({ link: { reviewStage: 'ADMIN' }, reviewer: { id: 'adm', role: 'admin', companyId: null } });
     const r = await admin.svc.approveLink('l1', 'adm', undefined);
     expect(r).toEqual({ success: true, stage: 'DONE' });
     expect(admin.prisma.supplierCompanyLink.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ status: 'APPROVED', reviewStage: null }),
+    }));
+    // 审计留痕（Task 4 review 遗留项）：终审通过落 AuditLog（逐级推进为 SUPPLIER_LINK_PASSED_<STAGE>）
+    expect(admin.prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ userId: 'adm', action: 'SUPPLIER_LINK_APPROVED', resourceType: 'supplier_company_link', resourceId: 'l1' }),
     }));
     const clash = mkSide({ link: { reviewStage: 'ADMIN' }, reviewer: { id: 'adm', role: 'admin', companyId: null } });
     (clash.prisma.supplierCompanyLink.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
@@ -169,13 +174,17 @@ describe('SupplierLinkService — 公司侧（三级审批）', () => {
     await expect(bad.svc.setDisabled('l1', 'rev-1', true)).rejects.toMatchObject({ response: { code: 'INVALID_STATUS' } });
   });
 
-  it('listForCompany：公司视野注入 + supplier 只读字段', async () => {
-    const { prisma, svc } = mkSide();
+  it('listForCompany：公司视野注入 + supplier 只读字段 + admin companyId 透传', async () => {
+    const { prisma, svc, scope } = mkSide();
     await svc.listForCompany({ sub: 'u9', role: 'staff', username: 'x' } as any, { status: 'PENDING' });
     expect(prisma.supplierCompanyLink.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ companyId: { in: ['co-2'] }, status: 'PENDING' }),
       include: expect.objectContaining({ supplier: expect.anything() }),
     }));
+    // admin ?companyId= 切换公司视野（Task 4 review 遗留项）：控制器透传，非 admin 传参被 resolveScope 自身忽略
+    const adminActor = { sub: 'adm', role: 'admin', username: 'a' } as any;
+    await svc.listForCompany(adminActor, { companyId: 'co-9' });
+    expect(scope.resolveScope).toHaveBeenCalledWith(adminActor, 'co-9');
   });
 });
 

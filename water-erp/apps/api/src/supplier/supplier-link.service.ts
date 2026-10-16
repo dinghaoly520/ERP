@@ -22,6 +22,13 @@ export class SupplierLinkService {
     throw new BadRequestException({ error, code });
   }
 
+  /** 审批动作审计留痕（逐级动作落 AuditLog——与 SupplierService.audit·supplier.service.ts:1949 同款：
+   *  失败不阻断业务但可观测）。schema 注：SupplierCompanyLink.reviewedById 只记末级动作人。 */
+  private async audit(userId: string, action: string, linkId: string, details?: any) {
+    await this.prisma.auditLog.create({ data: { userId, action, resourceType: 'supplier_company_link', resourceId: linkId, details: details ?? {} } })
+      .catch((err: any) => console.error(`[audit] 写入失败 action=${action} resource=${linkId}`, err?.message ?? err));
+  }
+
   /** 只读公司解析（与 SupplierService.resolveSupplierCompany·supplier.service.ts:197 同口径）：id 优先、名称兜底。
    *  有意差异：link 侧只读——查不到返回 null（由调用方报 COMPANY_NOT_FOUND），不建档；
    *  注册侧按名称归一化 upsert 建档（注册页公司多数不在既有主数据）。 */
@@ -126,8 +133,9 @@ export class SupplierLinkService {
 
   // ───────────────────────── 公司侧（仅审批与库内停用——零检索面，用户裁决 2026-10-16） ─────────────────────────
 
-  async listForCompany(actor: AuthenticatedUser, params: { status?: string; reviewStage?: string } = {}) {
-    const scope = await this.companyScope.resolveScope(actor);
+  async listForCompany(actor: AuthenticatedUser, params: { status?: string; reviewStage?: string; companyId?: string } = {}) {
+    // admin 可 ?companyId= 切单公司视野（与 :3005 供应商库同款）；非 admin 传参被 resolveScope 自身忽略（防伪造）
+    const scope = await this.companyScope.resolveScope(actor, params.companyId);
     const companyIds = scope.all ? null : scope.companyIds;
     const where: any = {};
     if (companyIds) where.companyId = { in: companyIds };
@@ -167,6 +175,7 @@ export class SupplierLinkService {
         data: { status: 'APPROVED', reviewStage: null, rejectReason: null, reviewedById: userId ?? null, reviewedAt: new Date() },
       });
       if (claimed.count === 0) throw new ConflictException({ error: '申请状态已变更，请刷新后重试', code: 'CONFLICT' });
+      if (userId) await this.audit(userId, 'SUPPLIER_LINK_APPROVED', linkId, { supplierId: link.supplierId, companyId: link.companyId, stage });
       await this.notificationService.create({
         userId: link.supplier.userId,
         type: 'SUPPLIER_LINK_APPROVED',
@@ -183,6 +192,7 @@ export class SupplierLinkService {
       data: { reviewStage: nextStage },
     });
     if (claimed.count === 0) throw new ConflictException({ error: '申请状态已变更，请刷新后重试', code: 'CONFLICT' });
+    if (userId) await this.audit(userId, `SUPPLIER_LINK_PASSED_${stage}`, linkId, { supplierId: link.supplierId, companyId: link.companyId, fromStage: stage, nextStage, reason: trimmed });
     await this.notifyStageApprovers(nextStage, link.companyId, {
       type: 'SUPPLIER_LINK_PENDING',
       title: `供应商加入申请待${SupplierLinkService.STAGE_LABELS[nextStage]}`,
@@ -208,6 +218,7 @@ export class SupplierLinkService {
       data: { status: 'REJECTED', rejectReason: trimmed, reviewedById: userId ?? null, reviewedAt: new Date() },
     });
     if (claimed.count === 0) throw new ConflictException({ error: '申请状态已变更，请刷新后重试', code: 'CONFLICT' });
+    if (userId) await this.audit(userId, 'SUPPLIER_LINK_REJECTED', linkId, { supplierId: link.supplierId, companyId: link.companyId, stage: link.reviewStage, reason: trimmed });
     await this.notificationService.create({
       userId: link.supplier.userId,
       type: 'SUPPLIER_LINK_REJECTED',

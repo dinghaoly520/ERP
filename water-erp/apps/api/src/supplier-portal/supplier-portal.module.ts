@@ -16,9 +16,10 @@ import { NotificationModule } from '../notification/notification.module';
 import { PrequalModule } from '../prequal/prequal.module';
 import { FrameworkModule } from '../framework/framework.module';
 import { PerformanceModule } from '../performance/performance.module';
+import { SupplierModule } from '../supplier/supplier.module';
 
 @Module({
-  imports: [TenderClarificationModule, AuthModule, PrismaModule, AnnouncementModule, BidBackupModule, BidModule, NotificationModule, PrequalModule, FrameworkModule, PerformanceModule, CaModule],
+  imports: [TenderClarificationModule, AuthModule, PrismaModule, AnnouncementModule, BidBackupModule, BidModule, NotificationModule, PrequalModule, FrameworkModule, PerformanceModule, CaModule, SupplierModule],
   controllers: [SupplierPortalController, ObjectionController],
   providers: [SupplierPortalService, ObjectionService, SignatureService, DualEnvelopeService],
   exports: [SupplierPortalService, ObjectionService, DualEnvelopeService],

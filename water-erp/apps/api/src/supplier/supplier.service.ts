@@ -2460,9 +2460,11 @@ export class SupplierService {
 
   /** 审批中心右上角角标（2026-09-29）：当前登录人「待我审」数量
    *  注册审批 = 我所在级的在审数（staff→STAFF 级·本公司；leader→LEADER 级·本公司 + 本公司无 staff 时的 STAFF 级；admin→ADMIN 级·全部）
-   *  信息更新审批 = 待审变更数（办公权限：leader/staff·本公司；admin 全部可见） */
-  async myPendingReviewCount(actor: AuthenticatedUser, companyIdFilter?: string | null): Promise<{ registration: number; changes: number; resets: number }> {
+   *  信息更新审批 = 待审变更数（办公权限：leader/staff·本公司；admin 全部可见）
+   *  加入审批（多公司归属 2026-10-16）= SupplierCompanyLink 三级审批件，级/公司口径与注册审批同构（落在 link 表上） */
+  async myPendingReviewCount(actor: AuthenticatedUser, companyIdFilter?: string | null): Promise<{ registration: number; changes: number; resets: number; joins: number }> {
     const regWhere: any = { status: 'PENDING' };
+    let linkWhere: any = null; // null = 本角色无加入审批待办（supplier 等），不查 link 表
     if (actor.role === 'admin') {
       // A 方案（2026-10-08；2026-10-09 扩 STAFF 孤儿）：终审件 + 「无在编 leader」的 LEADER 级
       // 代复审件 + 「无 staff 且无 leader」的 STAFF 级代初审件都计入 admin 待办——
@@ -2477,11 +2479,24 @@ export class SupplierService {
         ],
       }];
       if (companyIdFilter) regWhere.companyId = companyIdFilter;
+      // 加入审批（link 表）同口径三批：ADMIN 级全部 + 「公司无 leader」的 LEADER 级 + 「公司无 staff 且无 leader」的 STAFF 级。
+      // link.companyId 非空（必填外键）→ 无注册侧「未归属公司」分支。
+      linkWhere = {
+        status: 'PENDING',
+        AND: [{
+          OR: [
+            { reviewStage: 'ADMIN' },
+            { reviewStage: 'LEADER', company: { users: { none: { role: 'leader', isActive: true } } } },
+            { reviewStage: 'STAFF', company: { users: { none: { OR: [{ role: 'staff' }, { role: 'leader' }], isActive: true } } } },
+          ],
+        }],
+        ...(companyIdFilter ? { companyId: companyIdFilter } : {}),
+      };
     } else if (actor.role === 'leader' || actor.role === 'staff') {
       // JWT payload 不携带 companyId（AuthenticatedUser 仅 sub/role/username）——查库取归属公司
       const me = await this.prisma.user.findUnique({ where: { id: actor.sub }, select: { companyId: true } });
       const myCompany = companyIdFilter ?? me?.companyId ?? null;
-      if (!myCompany) return { registration: 0, changes: 0, resets: 0 }; // 无归属公司 → 无域内待审
+      if (!myCompany) return { registration: 0, changes: 0, resets: 0, joins: 0 }; // 无归属公司 → 无域内待审
       const stageList = ['LEADER'];
       if (actor.role === 'staff') {
         stageList.length = 0;
@@ -2491,8 +2506,9 @@ export class SupplierService {
       }
       regWhere.reviewStage = { in: stageList };
       regWhere.companyId = myCompany;
+      linkWhere = { status: 'PENDING', reviewStage: { in: stageList }, companyId: myCompany };
     } else {
-      return { registration: 0, changes: 0, resets: 0 }; // supplier 等角色无审批待办
+      return { registration: 0, changes: 0, resets: 0, joins: 0 }; // supplier 等角色无审批待办
     }
     const registration = await this.prisma.supplier.count({ where: regWhere });
     const changes = await this.prisma.supplierChangeRecord.count({
@@ -2505,7 +2521,9 @@ export class SupplierService {
     const resets = await this.prisma.passwordResetRequest.count({
       where: { status: 'PENDING', matchedUser: { is: { role: 'supplier' } } },
     });
-    return { registration, changes, resets };
+    // 加入审批待办（多公司归属 2026-10-16）：供应商自主申请的三级审批件
+    const joins = linkWhere ? await this.prisma.supplierCompanyLink.count({ where: linkWhere }) : 0;
+    return { registration, changes, resets, joins };
   }
 
   /** 审批中心：全部待审的供应商资料变更（:3004 供应商门户提交，跨供应商） */
