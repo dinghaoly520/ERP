@@ -3,6 +3,7 @@ import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { BidSignPacketController } from './bid-sign-packet.controller';
 import { BidSignPacketService } from './bid-sign-packet.service';
 import { RegisterSignDto } from './dto/bid-sign-packet.dto';
+import { PrismaService } from '../prisma/prisma.service';
 
 describe('BidSignPacketController', () => {
   let controller: BidSignPacketController;
@@ -20,7 +21,11 @@ describe('BidSignPacketController', () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
       controllers: [BidSignPacketController],
-      providers: [{ provide: BidSignPacketService, useValue: svc }],
+      providers: [
+        { provide: BidSignPacketService, useValue: svc },
+        // AssignedHostGuard（方法级 @UseGuards）构造依赖 PrismaService
+        { provide: PrismaService, useValue: { bidProject: { findUnique: jest.fn() } } },
+      ],
     }).compile();
     controller = module.get(BidSignPacketController);
   });

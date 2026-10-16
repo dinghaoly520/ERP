@@ -2620,7 +2620,7 @@ describe('BidService — revokeInvalidBid (废标复核撤销)', () => {
 // 开标主持人指派 (assignHost) + listProjects 角色过滤 — Task 2
 // ──────────────────────────────────────────────────────────
 
-describe('assignHost (BidService) — Task 2', () => {
+describe('assignHost (BidService) — 主持人=项目公司内员工（2026-10-15 口径）', () => {
   let service: BidService;
   let prisma: any;
 
@@ -2628,7 +2628,7 @@ describe('assignHost (BidService) — Task 2', () => {
     prisma = {
       bidProject: { findUnique: jest.fn(), update: jest.fn() },
       bidOpeningSession: { findUnique: jest.fn() },
-      user: { findUnique: jest.fn() },
+      user: { findUnique: jest.fn(), findMany: jest.fn() },
     };
     const module = await Test.createTestingModule({
       providers: [
@@ -2649,22 +2649,67 @@ describe('assignHost (BidService) — Task 2', () => {
   });
 
   it('OpeningSession 已存在 → ConflictException OPENING_SESSION_LOCKED', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1' });
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', companyId: 'co1' });
     prisma.bidOpeningSession.findUnique.mockResolvedValue({ id: 's1', projectId: 'p1' });
     await expect(service.assignHost('p1', 'u1', 'actor1'))
       .rejects.toMatchObject({ response: { code: 'OPENING_SESSION_LOCKED' } });
   });
 
-  it('userId 非 bid_host → BadRequestException INVALID_HOST', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1' });
+  it('userId 非候选角色（supplier）→ BadRequestException INVALID_HOST', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', companyId: 'co1' });
     prisma.bidOpeningSession.findUnique.mockResolvedValue(null);
-    prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: 'supplier', isActive: true });
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: 'supplier', isActive: true, isFrozen: false, companyId: 'co1' });
     await expect(service.assignHost('p1', 'u1', 'actor1'))
       .rejects.toMatchObject({ response: { code: 'INVALID_HOST' } });
   });
 
+  it('同公司 staff → 合法指派（主持人不再限于 bid_host 角色）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', companyId: 'co1' });
+    prisma.bidOpeningSession.findUnique.mockResolvedValue(null);
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: 'staff', isActive: true, isFrozen: false, companyId: 'co1' });
+    prisma.bidProject.update.mockResolvedValue({
+      id: 'p1',
+      assignedHostUser: { id: 'u1', username: 'Swhi-CGZX-05', displayName: '彭强' },
+    });
+    const result = await service.assignHost('p1', 'u1', 'actor1');
+    expect(prisma.bidProject.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ assignedHostUserId: 'u1', assignedByUserId: 'actor1' }),
+    }));
+    expect(result.assignedHostUser?.username).toBe('Swhi-CGZX-05');
+  });
+
+  it('跨公司 staff → BadRequestException INVALID_HOST', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', companyId: 'co1' });
+    prisma.bidOpeningSession.findUnique.mockResolvedValue(null);
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: 'staff', isActive: true, isFrozen: false, companyId: 'co2' });
+    await expect(service.assignHost('p1', 'u1', 'actor1'))
+      .rejects.toMatchObject({ response: { code: 'INVALID_HOST' } });
+  });
+
+  it('冻结账号 → BadRequestException INVALID_HOST（含 bid_host）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', companyId: 'co1' });
+    prisma.bidOpeningSession.findUnique.mockResolvedValue(null);
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: 'bid_host', isActive: true, isFrozen: true, companyId: 'co1' });
+    await expect(service.assignHost('p1', 'u1', 'actor1'))
+      .rejects.toMatchObject({ response: { code: 'INVALID_HOST' } });
+  });
+
+  it('项目无 companyId（存量）→ 回退操作人公司作为归属基准', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', companyId: null });
+    prisma.bidOpeningSession.findUnique.mockResolvedValue(null);
+    // 第一次查 actor（companyId），第二次查目标用户
+    prisma.user.findUnique
+      .mockResolvedValueOnce({ id: 'actor1', companyId: 'co1' })
+      .mockResolvedValueOnce({ id: 'u1', role: 'staff', isActive: true, isFrozen: false, companyId: 'co1' });
+    prisma.bidProject.update.mockResolvedValue({ id: 'p1', assignedHostUser: { id: 'u1', username: 'u1', displayName: '员工' } });
+    await expect(service.assignHost('p1', 'u1', 'actor1')).resolves.toBeTruthy();
+    expect(prisma.bidProject.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ assignedHostUserId: 'u1' }),
+    }));
+  });
+
   it('userId = null → 清除指派（assignedHostUserId/assignedAt/assignedByUserId 置空）', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1' });
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', companyId: 'co1' });
     prisma.bidOpeningSession.findUnique.mockResolvedValue(null);
     prisma.bidProject.update.mockResolvedValue({ id: 'p1', assignedHostUser: null });
     const result = await service.assignHost('p1', null, 'actor1');
@@ -2679,10 +2724,10 @@ describe('assignHost (BidService) — Task 2', () => {
     expect(result.assignedHostUser).toBeNull();
   });
 
-  it('合法 bid_host → 写入 assignedHostUserId + assignedAt + assignedByUserId', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1' });
+  it('合法 bid_host（同公司）→ 写入 assignedHostUserId + assignedAt + assignedByUserId', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', companyId: 'co1' });
     prisma.bidOpeningSession.findUnique.mockResolvedValue(null);
-    prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: 'bid_host', isActive: true });
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: 'bid_host', isActive: true, isFrozen: false, companyId: 'co1' });
     prisma.bidProject.update.mockResolvedValue({
       id: 'p1',
       assignedHostUser: { id: 'u1', username: '陈源远', displayName: '陈源远' },
@@ -2696,6 +2741,89 @@ describe('assignHost (BidService) — Task 2', () => {
       }),
     }));
     expect(result.assignedHostUser?.username).toBe('陈源远');
+  });
+});
+
+describe('listHosts (BidService) — 公司范围候选（2026-10-15）', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: { findUnique: jest.fn() },
+      user: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        BidService,
+        BidOpeningRecordService,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        BidScoreStandardService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: {} },
+        { provide: ClarificationAiService, useValue: {} },
+        { provide: BidGateway, useValue: {} },
+        { provide: ScoreStandardValidator, useValue: {} },
+        { provide: PriceFormulaService, useValue: {} },
+        { provide: StorageService, useValue: {} },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('带 projectId → 候选=项目公司内的 bid_host/leader/staff（active 且未冻结，带 role 字段）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', companyId: 'co1' });
+    prisma.user.findUnique.mockResolvedValue({ id: 'leader1', companyId: 'co1' });
+    prisma.user.findMany.mockResolvedValue([
+      { id: 'u1', username: '陈源远', displayName: '陈源远', role: 'bid_host' },
+      { id: 'u2', username: 'Swhi-CGZX-01', displayName: '陈源远(leader)', role: 'leader' },
+      { id: 'u3', username: 'Swhi-CGZX-05', displayName: '彭强', role: 'staff' },
+    ]);
+    const result = await service.listHosts('p1', { id: 'leader1', role: 'leader' });
+    expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        role: { in: ['bid_host', 'leader', 'staff'] },
+        isActive: true,
+        isFrozen: false,
+        companyId: 'co1',
+      },
+      select: expect.objectContaining({ role: true }),
+    }));
+    expect(result.map((u: any) => u.role)).toEqual(['bid_host', 'leader', 'staff']);
+  });
+
+  it('非 admin 操作人跨公司 → ForbiddenException COMPANY_SCOPE_FORBIDDEN', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', companyId: 'co1' });
+    prisma.user.findUnique.mockResolvedValue({ id: 'leader2', companyId: 'co2' });
+    await expect(service.listHosts('p1', { id: 'leader2', role: 'leader' }))
+      .rejects.toMatchObject({ response: { code: 'COMPANY_SCOPE_FORBIDDEN' } });
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
+  });
+
+  it('admin → 跨公司亦放行', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', companyId: 'co9' });
+    prisma.user.findUnique.mockResolvedValue({ id: 'admin1', companyId: 'co1' });
+    await expect(service.listHosts('p1', { id: 'admin1', role: 'admin' })).resolves.toEqual([]);
+    expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ companyId: 'co9' }),
+    }));
+  });
+
+  it('项目无 companyId → 回退操作人公司', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', companyId: null });
+    prisma.user.findUnique.mockResolvedValue({ id: 'leader1', companyId: 'co1' });
+    await expect(service.listHosts('p1', { id: 'leader1', role: 'leader' })).resolves.toEqual([]);
+    expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ companyId: 'co1' }),
+    }));
+  });
+
+  it('无 projectId → 回退操作人公司（选择器兜底）', async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: 'leader1', companyId: 'co1' });
+    await expect(service.listHosts(undefined, { id: 'leader1', role: 'leader' })).resolves.toEqual([]);
+    expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ companyId: 'co1' }),
+    }));
   });
 });
 

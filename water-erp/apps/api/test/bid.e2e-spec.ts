@@ -794,7 +794,7 @@ describe('Bid Lifecycle (e2e)', () => {
 
   // ── 开标主持人指派与硬分流 (Task 3) ──
   describe('Bid host assignment (e2e)', () => {
-  it('GET /bid/hosts 返回 bid_host 用户列表（leader 可访问）', async () => {
+  it('GET /bid/hosts 返回本公司主持人候选（bid_host/leader/staff，2026-10-15 口径）', async () => {
     const res = await request(app.getHttpServer())
       .get('/api/bid/hosts')
       .set('Cookie', leaderCookie)
@@ -802,7 +802,33 @@ describe('Bid Lifecycle (e2e)', () => {
       .expect(200);
     expect(Array.isArray(res.body)).toBe(true);
     expect(res.body.length).toBeGreaterThan(0);
+    // 候选=登录 leader 本公司的内部员工（含 staff），admin 不入候选
     expect(res.body.some((u: any) => u.username === '陈源远')).toBe(true);
+    expect(res.body.some((u: any) => u.role === 'staff')).toBe(true);
+    expect(res.body.every((u: any) => ['bid_host', 'leader', 'staff'].includes(u.role))).toBe(true);
+    expect(res.body.some((u: any) => u.role === 'admin')).toBe(false);
+  });
+
+  it('GET /bid/hosts?projectId= — 按项目公司过滤；跨公司 leader 403', async () => {
+    const project = await findLeaderScopedProject();
+    if (!project) return;
+    const res = await request(app.getHttpServer())
+      .get(`/api/bid/hosts?projectId=${project.id}`)
+      .set('Cookie', leaderCookie)
+      .set('X-Portal', 'web')
+      .expect(200);
+    expect(res.body.length).toBeGreaterThan(0);
+
+    // 跨公司 leader（Swhi-JS-01 @ 四川水发建设）查勘测设计公司项目候选 → 403
+    const jsLeader = await prisma.user.findFirst({ where: { username: 'Swhi-JS-01', role: 'leader' } });
+    if (!jsLeader || jsLeader.companyId === project.companyId) return;
+    const jsCookie = await loginAs(app, 'Swhi-JS-01', 'Swhi-JS-01@2026', 'web');
+    await request(app.getHttpServer())
+      .get(`/api/bid/hosts?projectId=${project.id}`)
+      .set('Cookie', jsCookie)
+      .set('X-Portal', 'web')
+      .expect(403)
+      .expect((r) => expect(r.body).toMatchObject({ code: 'COMPANY_SCOPE_FORBIDDEN' }));
   });
 
   it('GET /bid/hosts — bid_host 角色被 403 拒绝（非管理端角色）', async () => {
@@ -833,6 +859,59 @@ describe('Bid Lifecycle (e2e)', () => {
       .expect(200);
     expect(res.body.assignedHostUser).toBeTruthy();
     expect(res.body.assignedHostUser.id).toBe(host.id);
+
+    // 清理：恢复原值（避免影响其它测试 / 种子状态）
+    await prisma.bidProject.update({
+      where: { id: project.id },
+      data: { assignedHostUserId: originalAssign ?? null, assignedAt: null, assignedByUserId: null },
+    });
+  });
+
+  it('PATCH /bid/projects/:id/assigned-host — leader 可指派本公司 staff（执行权跟随指派）', async () => {
+    const project = await findLeaderScopedProject();
+    if (!project) return;
+    const originalAssign = project.assignedHostUserId;
+
+    // 候选扩到项目公司内 staff：指派 Swhi-CGZX-05（彭强，同公司员工）
+    const staff = await prisma.user.findFirst({
+      where: { role: 'staff', isActive: true, companyId: project.companyId },
+    });
+    if (!staff) return;
+
+    const res = await request(app.getHttpServer())
+      .patch(`/api/bid/projects/${project.id}/assigned-host`)
+      .set('Cookie', leaderCookie)
+      .set('X-Portal', 'web')
+      .send({ userId: staff.id })
+      .expect(200);
+    expect(res.body.assignedHostUser).toBeTruthy();
+    expect(res.body.assignedHostUser.id).toBe(staff.id);
+
+    // 被指派 staff 从 :3007 调主持端点 → AssignedHostGuard 放行（getRoomCode 无会话亦 200）。
+    // 登录走 :3006 分流口径（X-Portal: expert → 非 bid_expert 写 token_bid）；staff 直登 bid 门户
+    // 会按 portalForRole 落地 token_web（陈源远 bid_host 因 ROLE_PORTAL=bid 才直写 token_bid）
+    const staffBidCookie = await loginAs(app, staff.username, `${staff.username}@2026`, 'expert');
+    if (staffBidCookie.join().includes('token_bid=')) {
+      await request(app.getHttpServer())
+        .get(`/api/bid/projects/${project.id}/room-code`)
+        .set('Cookie', staffBidCookie)
+        .set('X-Portal', 'bid')
+        .expect(200);
+    }
+
+    // 未指派的同公司 bid_host（陈源远）与 leader → 403 NOT_ASSIGNED_HOST（收紧：执行权=指派）
+    await request(app.getHttpServer())
+      .get(`/api/bid/projects/${project.id}/room-code`)
+      .set('Cookie', bidHostCookie)
+      .set('X-Portal', 'bid')
+      .expect(403)
+      .expect((r) => expect(r.body).toMatchObject({ code: 'NOT_ASSIGNED_HOST' }));
+    await request(app.getHttpServer())
+      .get(`/api/bid/projects/${project.id}/room-code`)
+      .set('Cookie', leaderCookie)
+      .set('X-Portal', 'web')
+      .expect(403)
+      .expect((r) => expect(r.body).toMatchObject({ code: 'NOT_ASSIGNED_HOST' }));
 
     // 清理：恢复原值（避免影响其它测试 / 种子状态）
     await prisma.bidProject.update({
