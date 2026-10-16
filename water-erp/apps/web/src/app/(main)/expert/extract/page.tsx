@@ -2183,7 +2183,7 @@ export function ExpertExtractPage({
                       {demandRepCompany && (companyDepartments.get(demandRepCompany) || []).length === 0 && (
                         <div className="flex items-start gap-1.5 rounded-[9px] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-2.5 py-1.5">
                           <AlertTriangle size={11} strokeWidth={2} className="mt-px shrink-0 text-[var(--warning)]" />
-                          <p className="text-[10px] leading-4 text-[color-mix(in_oklch,var(--warning)_85%,black)]">「{demandRepCompany}」专家库内暂无专家，部门下拉为空；如需按部门抽取，请先在专家库为该公司录入专家。</p>
+                          <p className="text-[10px] leading-4 text-[color-mix(in_oklch,var(--warning)_85%,black)]">「{demandRepCompany}」专家库内暂无专家，部门下拉为空；如需按部门抽取，请联系管理员（admin）在专家库为该公司录入专家。</p>
                         </div>
                       )}
                       {!demandRepCompany && (
