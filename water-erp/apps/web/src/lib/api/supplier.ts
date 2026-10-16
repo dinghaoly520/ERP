@@ -679,7 +679,8 @@ export function fetchPendingSupplierChanges() {
   return api.get<SupplierChangePendingRow[]>('/supplier/changes/pending');
 }
 
-// 审批中心角标（2026-09-29）：待我审的注册数 + 信息更新数
+// 审批中心角标（2026-09-29）：待我审的注册数 + 信息更新数 + 密码重置数 + 加入审批数（2026-10-16）
+
 /** 审批留痕附件解析（2026-09-30）：id → 文件名/大小 */
 export interface ApprovalAttachment { id: string; name: string; size: number; mimeType: string }
 export function resolveApprovalAttachments(ids: string[]) {
@@ -694,8 +695,50 @@ export function uploadReviewAttachment(file: File) {
 }
 
 export function fetchMyPendingReviewCount(companyId?: string) {
-  return api.get<{ registration: number; changes: number; resets: number }>(`/supplier/approvals/my-pending-count${companyId ? `?companyId=${companyId}` : ''}`);
+  // joins=加入审批（多公司归属 2026-10-16）待我审数，级/公司口径与 registration 同构
+  return api.get<{ registration: number; changes: number; resets: number; joins: number }>(`/supplier/approvals/my-pending-count${companyId ? `?companyId=${companyId}` : ''}`);
 }
+
+/* ── 供应商多公司归属·公司侧（2026-10-16）──
+ *  仅审批与库内停用：公司侧零检索面（用户裁决 2026-10-16），无邀请/全库搜索端点，
+ *  全部动作针对供应商自主发起的加入申请。 */
+export interface CompanyLinkRow {
+  id: string;
+  supplierId: string;
+  companyId: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'DISABLED';
+  /** 三级审批当前待审级 STAFF/LEADER/ADMIN；null=已终态（通过/驳回） */
+  reviewStage: string | null;
+  /** 供应商申请说明 */
+  note: string | null;
+  rejectReason: string | null;
+  appliedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  company: { id: string; name: string };
+  supplier: { id: string; name: string; supplierNo: string; creditCode: string | null; status: string; isTemporary: boolean };
+}
+
+export const companyLinksApi = {
+  /** 加入审批/归属列表（按登录人公司视野隔离；admin 可 companyId 切单公司，'all'=全部） */
+  list: (params?: { status?: string; reviewStage?: string; companyId?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.status) q.set('status', params.status);
+    if (params?.reviewStage) q.set('reviewStage', params.reviewStage);
+    if (params?.companyId && params.companyId !== 'all') q.set('companyId', params.companyId);
+    const qs = q.toString();
+    return api.get<CompanyLinkRow[]>(`/supplier/company-links${qs ? `?${qs}` : ''}`);
+  },
+  /** 逐级通过（非 ADMIN 级 reason 必填——后端校验）；返回 {success, stage}（stage=DONE|下一级），并发已审 → 409 */
+  approve: (id: string, reason?: string) =>
+    api.post<{ success: boolean; stage: string }>(`/supplier/company-links/${id}/approve`, { reason }),
+  /** 驳回（终态，reason 必填） */
+  reject: (id: string, reason: string) =>
+    api.post<{ success: boolean }>(`/supplier/company-links/${id}/reject`, { reason }),
+  /** 本公司库内停用/恢复（leader only；软移出——不影响供应商在其他公司的归属） */
+  disable: (id: string) => api.post<{ success: boolean }>(`/supplier/company-links/${id}/disable`, {}),
+  enable: (id: string) => api.post<{ success: boolean }>(`/supplier/company-links/${id}/enable`, {}),
+};
 
 
 export function approveSupplierChange(id: string) {

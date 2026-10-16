@@ -10,9 +10,10 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
-  BadgeCheck, Building2, FileClock, History, Loader2, Paperclip, Upload, X,
+  BadgeCheck, Building2, Check, FileClock, History, Loader2, Paperclip, RefreshCw, Upload, X,
   ShieldCheck, Stamp,
 } from 'lucide-react';
 import { Modal } from '@/components/workbench';
@@ -20,6 +21,7 @@ import {
   getSupplierList, getSupplier, approveSupplier, rejectSupplier, returnSupplier, reactivateSupplier,
   getApprovalHistory, fetchMyPendingReviewCount,
   resolveApprovalAttachments, uploadReviewAttachment,
+  companyLinksApi, type CompanyLinkRow,
   type ApprovalRecord, type ApprovalAttachment,
 } from '@/lib/api/supplier';
 import { BusinessTagReview } from './business-tag-review';
@@ -55,12 +57,20 @@ const STATUS_TABS = [
 ] as const;
 const PAGE_SIZE = 8;
 
+/* 审批中心三 panel（2026-10-16 增「加入审批」：供应商自主申请加入本公司的三级审批件） */
+const PANEL_TABS = [
+  { key: 'registration', label: '注册审批' },
+  { key: 'changes', label: '信息更新审批' },
+  { key: 'company-links', label: '加入审批' },
+] as const;
+type PanelKey = (typeof PANEL_TABS)[number]['key'];
+
 export function ReviewCenterModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [panel, setPanel] = useState<'registration' | 'changes'>('registration');
+  const [panel, setPanel] = useState<PanelKey>('registration');
   // 通知直达预选（2026-09-30）：event detail supplierId → sessionStorage → 打开时预选该供应商
   const [preselectId, setPreselectId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [myCount, setMyCount] = useState({ registration: 0, changes: 0, resets: 0 });
+  const [myCount, setMyCount] = useState({ registration: 0, changes: 0, resets: 0, joins: 0 });
   // 审核历史（admin only，2026-09-30）
   const [historyOpen, setHistoryOpen] = useState(false);
 
@@ -71,6 +81,12 @@ export function ReviewCenterModal({ open, onClose }: { open: boolean; onClose: (
     if (open) {
       const id = sessionStorage.getItem('review-center-preselect');
       if (id) { setPreselectId(id); sessionStorage.removeItem('review-center-preselect'); }
+      // 深链预选 panel（2026-10-16）：通知 link /supplier?tab=company-links 直达「加入审批」
+      const panelKey = sessionStorage.getItem('review-center-panel');
+      if (panelKey && PANEL_TABS.some(p => p.key === panelKey)) {
+        setPanel(panelKey as PanelKey);
+        sessionStorage.removeItem('review-center-panel');
+      }
     } else setPreselectId(null);
   }, [open]);
   // 关闭重开回到默认 panel（避免残留上次「信息更新审批」/某个状态筛选）
@@ -88,7 +104,7 @@ export function ReviewCenterModal({ open, onClose }: { open: boolean; onClose: (
       open={open}
       onClose={onClose}
       title="供应商审批"
-      description="注册审批 · 信息更新审批"
+      description="注册审批 · 信息更新审批 · 加入审批"
       size="2xl"
       className="!max-w-[min(1180px,96vw)]"
       headerExtra={myRole === 'admin' ? (
@@ -109,13 +125,14 @@ export function ReviewCenterModal({ open, onClose }: { open: boolean; onClose: (
         <div className="flex flex-col gap-4">
           {/* panel 切换 */}
           <div className="neu-segment rc-segment-inline" role="group" aria-label="审批类型"
-            data-count="2" data-index={String(panel === 'registration' ? 0 : 1)}>
+            data-count={String(PANEL_TABS.length)} data-index={String(PANEL_TABS.findIndex(p => p.key === panel))}>
             <span className="neu-segment-thumb" aria-hidden="true" />
             {/* resets 并入「信息更新审批」角标（2026-10-15）：密码重置面板在该 tab 内，此前不计入致无被动发现 */}
             {([
-              { key: 'registration', label: '注册审批', icon: Stamp, count: myCount.registration },
-              { key: 'changes', label: '信息更新审批', icon: FileClock, count: myCount.changes + myCount.resets },
-            ] as const).map(p => (
+              { key: 'registration' as const, label: '注册审批', icon: Stamp, count: myCount.registration },
+              { key: 'changes' as const, label: '信息更新审批', icon: FileClock, count: myCount.changes + myCount.resets },
+              { key: 'company-links' as const, label: '加入审批', icon: Building2, count: myCount.joins },
+            ]).map(p => (
               <button key={p.key} type="button" className="neu-segment-btn" aria-pressed={panel === p.key}
                 onClick={() => setPanel(p.key)}>
                 <p.icon size={12} className="shrink-0" />
@@ -126,9 +143,13 @@ export function ReviewCenterModal({ open, onClose }: { open: boolean; onClose: (
           </div>
 
           <div className="rc-panel-stage">
-            {panel === 'registration'
-              ? <RegistrationPanel key={String(open)} myRole={myRole} onChanged={refreshBadge} preselectId={preselectId} />
-              : <ChangesTabs />}
+            {panel === 'registration' && (
+              <RegistrationPanel key={String(open)} myRole={myRole} onChanged={refreshBadge} preselectId={preselectId} />
+            )}
+            {panel === 'changes' && <ChangesTabs />}
+            {panel === 'company-links' && (
+              <CompanyLinksPanel key={String(open)} myRole={myRole} onChanged={refreshBadge} />
+            )}
           </div>
         </div>
       )}
@@ -178,6 +199,207 @@ function ChangesTabs() {
         {tab === 'resets' && <SupplierPasswordResetPanel />}
       </div>
     </>
+  );
+}
+
+/* ═══ 加入审批（多公司归属 2026-10-16）：供应商自主申请加入本公司的三级审批件 ═══
+ *  公司侧零检索面（用户裁决 2026-10-16）：仅处理收到的申请，无邀请/全库搜索入口。
+ *  三级流转与注册审批同构（staff 初审→leader 复审→admin 终审；通过后供应商入本公司库）。 */
+function CompanyLinksPanel({ myRole, onChanged }: { myRole?: string; onChanged: () => void }) {
+  const router = useRouter();
+  const [items, setItems] = useState<CompanyLinkRow[] | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [acting, setActing] = useState<{ row: CompanyLinkRow; type: 'approve' | 'reject' } | null>(null);
+  const [reason, setReason] = useState('');
+  const [confirming, setConfirming] = useState(false);
+
+  const load = useCallback(() => {
+    companyLinksApi.list({ status: 'PENDING' })
+      .then(rows => { setItems(rows); setLoadFailed(false); })
+      // 加载失败必须可见（同注册审批面板口径）：静默置空会被误读为「角标有数、实际没有申请」
+      .catch(() => { setItems([]); setLoadFailed(true); toast.error('加入审批列表加载失败，请刷新重试'); });
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  /** 操作可见性（后端 assertStageApprover 为准，前端只做本级预亮）：
+   *  staff=初审级；leader=复审级+初审级（公司无在编 staff 时代初审，后端放行）；
+   *  admin=各级（终审+无在编审批人公司的代审件，后端放行）。非本级点击后端 403 拦截。 */
+  const canAct = (row: CompanyLinkRow): boolean => {
+    const st = row.reviewStage ?? '';
+    if (myRole === 'staff') return st === 'STAFF';
+    if (myRole === 'leader') return st === 'LEADER' || st === 'STAFF';
+    if (myRole === 'admin') return st === 'ADMIN' || st === 'LEADER' || st === 'STAFF';
+    return false;
+  };
+  const isMyStrictStage = (row: CompanyLinkRow): boolean =>
+    (row.reviewStage ?? '') === (myRole === 'admin' ? 'ADMIN' : myRole === 'leader' ? 'LEADER' : 'STAFF');
+
+  const act = async () => {
+    if (!acting) return;
+    const stage = acting.row.reviewStage ?? '';
+    if (acting.type === 'reject' && !reason.trim()) { toast.error('请填写驳回原因（供应商可见）'); return; }
+    if (acting.type === 'approve' && stage !== 'ADMIN' && !reason.trim()) {
+      toast.error(`请填写${STAGE_META[stage]?.short ?? '本级'}的同意缘由（后级审批人将据此复核）`);
+      return;
+    }
+    setConfirming(true);
+    try {
+      if (acting.type === 'approve') {
+        const res = await companyLinksApi.approve(acting.row.id, reason.trim() || undefined);
+        toast.success(res.stage === 'DONE'
+          ? `「${acting.row.supplier.name}」三级审核全部通过，已正式加入 ${acting.row.company.name}`
+          : `「${acting.row.supplier.name}」已通过${STAGE_META[stage]?.short ?? ''}，流转至${STAGE_META[res.stage]?.short ?? '下一级'}`);
+      } else {
+        await companyLinksApi.reject(acting.row.id, reason.trim());
+        toast.success(`已驳回「${acting.row.supplier.name}」加入 ${acting.row.company.name} 的申请`);
+      }
+      setActing(null); setReason('');
+      load(); onChanged();
+    } catch (e: unknown) {
+      // 409 并发已审 / 403 非本级——服务端消息自含口径；toast 后刷新列表与角标对齐真实状态
+      toast.error((e as Error)?.message || '操作失败');
+      load(); onChanged();
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  const pending = items ?? [];
+  const actStage = acting?.row.reviewStage ?? '';
+
+  return (
+    <div className="rc-changes-body">
+      <div className="neu-table-card !p-0">
+        <div className="neu-table-card-header flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-7 w-7 items-center justify-center rounded-[9px] text-[var(--accent)]" style={{ background: 'color-mix(in oklch, var(--accent) 9%, transparent)' }}>
+              <Building2 size={14} strokeWidth={1.9} />
+            </span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-[0.95rem] font-bold tracking-tight text-[var(--foreground)]">加入审批</span>
+              <span className="text-[11px] text-[var(--muted-foreground)]">供应商自主申请加入本公司 · 三级审核</span>
+            </div>
+            {pending.length > 0 && <span className="neu-tab-count !static">{pending.length}</span>}
+          </div>
+          <button type="button" onClick={load} className="neu-btn-xs" aria-label="刷新加入审批列表">
+            <RefreshCw size={12} />
+          </button>
+        </div>
+
+        {items === null ? (
+          <div className="px-4 py-6 text-center text-xs text-[var(--muted-foreground)]">加载中…</div>
+        ) : pending.length === 0 ? (
+          <div className="px-4 py-5 text-center text-xs text-[var(--muted-foreground)]">
+            {loadFailed ? '加入审批列表加载失败，请点击右上角刷新重试' : '暂无待审的加入申请 · 供应商在门户自主申请加入后将出现在此处'}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="neu-table w-full min-w-[860px]">
+              <thead>
+                <tr>
+                  <th>供应商</th>
+                  <th>申请加入</th>
+                  <th>申请说明</th>
+                  <th style={{ textAlign: 'center' }}>当前级</th>
+                  <th style={{ textAlign: 'center' }}>申请时间</th>
+                  <th style={{ textAlign: 'center' }}>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pending.map(row => {
+                  const st = row.reviewStage ?? '';
+                  const meta = STAGE_META[st];
+                  const actionable = canAct(row);
+                  return (
+                    <tr key={row.id}>
+                      <td>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-extrabold"
+                            style={{ background: 'color-mix(in oklch, var(--accent) 10%, transparent)', color: 'var(--accent)' }}>
+                            {row.supplier.name[0]}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <button type="button" onClick={() => router.push(`/supplier/${row.supplier.id}`)}
+                                className="truncate text-left text-[13px] font-bold text-[var(--foreground)] transition-colors hover:text-[var(--accent)] hover:underline"
+                                title={`${row.supplier.name} · 点击查看完整档案`}>{row.supplier.name}</button>
+                              {row.supplier.isTemporary && (
+                                <span className="shrink-0 rounded-md border border-[#fde68a] bg-[#fffbeb] px-1.5 py-px text-[9px] font-bold text-[#b45309]" title="临时供应商（凭邀请码注册）">临时</span>
+                              )}
+                              {isMyStrictStage(row) && <span className="shrink-0 text-[9px] font-bold text-[var(--success)]">待我审</span>}
+                            </div>
+                            <div className="truncate font-mono text-[10px] tabular-nums text-[var(--muted-foreground)]" title={`编号 ${row.supplier.supplierNo}`}>{row.supplier.creditCode || '—'}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="font-semibold text-[var(--foreground)]">{row.company.name}</td>
+                      <td className="max-w-[220px] truncate text-[var(--muted-foreground)]" title={row.note ?? ''}>{row.note || '—'}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        {meta
+                          ? <span className="rc-stage-chip" style={{ '--rc-accent': meta.color } as React.CSSProperties}>{meta.short}</span>
+                          : <span className="text-xs text-[var(--muted-foreground)]">—</span>}
+                      </td>
+                      <td style={{ textAlign: 'center' }} className="text-xs tabular-nums text-[var(--muted-foreground)]">
+                        {new Date(row.createdAt).toLocaleString('zh-CN', { hour12: false })}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button type="button" onClick={() => { setActing({ row, type: 'approve' }); setReason(''); }}
+                            disabled={!actionable}
+                            title={actionable ? undefined : `当前为${meta?.short ?? '—'}级，须由该级审批人操作（后端按级校验）`}
+                            className="neu-btn-xs is-success">
+                            <Check size={12} />通过
+                          </button>
+                          <button type="button" onClick={() => { setActing({ row, type: 'reject' }); setReason(''); }}
+                            disabled={!actionable}
+                            title={actionable ? undefined : `当前为${meta?.short ?? '—'}级，须由该级审批人操作（后端按级校验）`}
+                            className="neu-btn-xs is-danger">
+                            <X size={12} />驳回
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* 通过 / 驳回意见弹窗（缘由口径与后端校验一致：非终审级通过必填、驳回必填） */}
+      <Modal
+        open={acting !== null}
+        onClose={() => setActing(null)}
+        title={acting?.type === 'approve' ? '通过加入申请' : '驳回加入申请'}
+        description={acting
+          ? <>{acting.row.supplier.name} 申请加入 <strong className="text-[var(--foreground)]">{acting.row.company.name}</strong>（当前{STAGE_META[actStage]?.label ?? '—'}）</>
+          : null}
+        footer={
+          <>
+            <button type="button" onClick={() => setActing(null)} className="neu-btn-soft">取消</button>
+            <button type="button" onClick={() => void act()} disabled={confirming}
+              className={`neu-btn-soft ${acting?.type === 'approve' ? 'is-success' : 'is-danger'}`}>
+              {confirming ? '处理中…'
+                : acting?.type === 'approve'
+                  ? (actStage === 'ADMIN' ? '终审通过 · 正式入库' : `通过 · 流转至${STAGE_META[actStage === 'STAFF' ? 'LEADER' : 'ADMIN']?.short ?? '下一级'}`)
+                  : '确认驳回'}
+            </button>
+          </>
+        }
+      >
+        <label className="block text-sm">
+          {acting?.type === 'approve'
+            ? (actStage === 'ADMIN' ? '终审意见（可选）' : `同意缘由（${STAGE_META[actStage]?.short ?? '本级'}必填 · 后级审批人将据此复核）`)
+            : '驳回原因（必填，供应商在门户可见）'}
+          <textarea className="neu-input mt-1.5 text-sm" rows={3} value={reason}
+            onChange={e => setReason(e.target.value)}
+            placeholder={acting?.type === 'approve'
+              ? (actStage === 'ADMIN' ? '终审确认意见…' : '如：经营范围与本公司采购需求匹配…')
+              : '如：经营范围与本公司采购需求不符…'} />
+        </label>
+      </Modal>
+    </div>
   );
 }
 

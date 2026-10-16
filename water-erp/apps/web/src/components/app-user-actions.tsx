@@ -16,8 +16,9 @@ type AppUserActionsProps = {
  *  被 UnifiedHeader（页面顶栏常驻）与 AppUserActions（窄屏 page-header）两处复用。 */
 /** 全局事件：任意入口（供应商库「审批」按钮等）打开审批中心窗口 */
 export const OPEN_REVIEW_CENTER_EVENT = 'open-review-center';
-/** 打开审批中心时可携带预选 supplierId（通知直达精确预选该供应商，2026-09-30） */
-export type OpenReviewCenterDetail = { supplierId?: string };
+/** 打开审批中心时可携带预选 supplierId（通知直达精确预选该供应商，2026-09-30）
+ *  或预选 panel（2026-10-16：通知深链 /supplier?tab=company-links 直达「加入审批」） */
+export type OpenReviewCenterDetail = { supplierId?: string; panel?: 'registration' | 'changes' | 'company-links' };
 
 export function ReviewCenterButton({ className, withModal = false }: { className?: string; withModal?: boolean }) {
   const [open, setOpen] = useState(false);
@@ -30,6 +31,7 @@ export function ReviewCenterButton({ className, withModal = false }: { className
     const onOpen = (e: Event) => {
       const detail = (e as CustomEvent<OpenReviewCenterDetail>).detail;
       if (detail?.supplierId) sessionStorage.setItem('review-center-preselect', detail.supplierId);
+      if (detail?.panel) sessionStorage.setItem('review-center-panel', detail.panel);
       setOpen(true);
     };
     window.addEventListener(OPEN_REVIEW_CENTER_EVENT, onOpen);
@@ -42,8 +44,9 @@ export function ReviewCenterButton({ className, withModal = false }: { className
   }, []);
 
   const refresh = useCallback(() => {
+    // 总数=三 panel 角标之和：注册 + 信息更新（变更+密码重置，2026-10-15 并入）+ 加入审批（2026-10-16）
     fetchMyPendingReviewCount()
-      .then((c) => setCount((c.registration ?? 0) + (c.changes ?? 0)))
+      .then((c) => setCount((c.registration ?? 0) + (c.changes ?? 0) + (c.resets ?? 0) + (c.joins ?? 0)))
       .catch(() => setCount(null));
   }, []);
 

@@ -199,6 +199,15 @@ export default function SupplierRepositoryPage() {
   }, [companyId]);
 
   useEffect(() => { setCompanyId(readInitialCompanyId()); }, []);
+  // ?tab=company-links 深链（通知直达，2026-10-16）：拉起审批中心浮窗并预选「加入审批」panel
+  // （后端 SUPPLIER_LINK_PENDING 通知 link=/supplier?tab=company-links，经 /supplier 索引页带参转跳至此）
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    if (tab === 'company-links') {
+      sessionStorage.setItem('review-center-panel', 'company-links');
+      window.dispatchEvent(new CustomEvent('open-review-center', { detail: { panel: 'company-links' } }));
+    }
+  }, []);
   // admin 全部公司视图：拉后端全量分组计数（与列表同筛选），分组标题用全量口径不因分页失真
   useEffect(() => {
     if (!isAdmin || companyId !== 'all') { setCompanyCounts(null); return; }

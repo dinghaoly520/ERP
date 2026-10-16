@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, ConflictException, HttpException, HttpStatus } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { HttpExceptionFilter } from './http-exception.filter';
 import { OperationLogService } from '../../operation-log/operation-log.service';
 
@@ -66,6 +67,41 @@ describe('HttpExceptionFilter — operation-log 补记', () => {
     expect(oplog.create).not.toHaveBeenCalled();
     // 响应仍照常发出
     expect(host._res.status).toHaveBeenCalledWith(500);
+  });
+
+  // ── P2002 唯一冲突文案：约束列名 → 中文名（2026-10-16 映射表）──
+
+  const p2002 = (target: unknown) =>
+    new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+      code: 'P2002',
+      clientVersion: 'test',
+      meta: { target } as any,
+    });
+
+  it('P2002：业务列全命中 → 中文列名拼接（复合键顿号连接，无书名号堆叠）', () => {
+    const host = makeHost();
+    filter.catch(p2002(['username', 'role']), host);
+    expect(host._res.json.mock.calls[0][0]).toEqual(
+      expect.objectContaining({ statusCode: 409, code: 'DUPLICATE_RECORD', error: '数据重复，用户名、角色已存在，请勿重复提交。' }),
+    );
+  });
+
+  it('P2002：单业务列 → 单列中文名', () => {
+    const host = makeHost();
+    filter.catch(p2002(['supplierNo']), host);
+    expect(host._res.json.mock.calls[0][0].error).toBe('数据重复，供应商编号已存在，请勿重复提交。');
+  });
+
+  it('P2002：技术列（未收录映射）→ 整体退回「该记录」，英文列名不外露', () => {
+    const host = makeHost();
+    filter.catch(p2002(['userId', 'documentType', 'contentHash']), host);
+    expect(host._res.json.mock.calls[0][0].error).toBe('数据重复，该记录已存在，请勿重复提交。');
+  });
+
+  it('P2002：无 target 元数据 → 通用文案', () => {
+    const host = makeHost();
+    filter.catch(p2002(undefined), host);
+    expect(host._res.json.mock.calls[0][0].error).toBe('数据重复，该记录已存在，请勿重复提交。');
   });
 
   // ── 对接专项 Phase 2 K4：结构化附加键透传（加法契约）──

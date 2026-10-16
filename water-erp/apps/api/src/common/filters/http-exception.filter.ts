@@ -22,8 +22,12 @@ function prismaErrorToMessage(e: Prisma.PrismaClientKnownRequestError): { status
     case 'P2025':
       return { status: 404, code: 'RECORD_NOT_FOUND', message: '操作的记录不存在或已被删除，请刷新后重试。' };
     case 'P2002': {
-      const target = Array.isArray(meta.target) ? (meta.target as string[]).join('、') : String(meta.target ?? '');
-      return { status: 409, code: 'DUPLICATE_RECORD', message: `数据重复，${target ? `「${target}」` : '该记录'}已存在，请勿重复提交。` };
+      // 约束列名 → 中文（2026-10-16 用户裁定）：全命中才展示列名；任一未收录（哈希/对象键等技术列）
+      // 整体退回「该记录」——既不让英文列名外露，也不用生造术语污染文案
+      const raw = Array.isArray(meta.target) ? (meta.target as string[]) : meta.target != null ? [String(meta.target)] : [];
+      const labels = raw.map((t) => UNIQUE_COLUMN_LABEL_ZH[t]);
+      const label = raw.length > 0 && labels.every(Boolean) ? labels.join('、') : '该记录';
+      return { status: 409, code: 'DUPLICATE_RECORD', message: `数据重复，${label}已存在，请勿重复提交。` };
     }
     case 'P2003':
       return { status: 409, code: 'FK_CONSTRAINT', message: '操作失败：存在关联数据依赖，请先处理相关记录。' };
@@ -42,6 +46,44 @@ function prismaErrorToMessage(e: Prisma.PrismaClientKnownRequestError): { status
 
 /** 含中日韩统一表意字符（中文）即视为已本地化消息，出口原样透传 */
 const HAS_CJK = /[一-鿿]/;
+
+/** Prisma 唯一约束列名 → 中文名（P2002 唯一冲突文案用，2026-10-16）。
+ *  收录口径 = 全库 @unique / @@unique 的业务语义列（schema 扫描）；技术列
+ *  （backupKey/contentHash/objectKey/key/roomKey/serialHex/sha256Fingerprint/
+ *  issuerNameDerHash）刻意不收录——命中即整体退回「该记录」通用文案。
+ *  新增唯一约束后请对表补录，防英文列名漏网。 */
+const UNIQUE_COLUMN_LABEL_ZH: Record<string, string> = {
+  // 账号与公司
+  username: '用户名', role: '角色', userId: '用户', phoneIdx: '手机号',
+  companyId: '公司', name: '名称', code: '编码',
+  // 供应商
+  supplierId: '供应商', supplierNo: '供应商编号', supplierName: '供应商名称',
+  creditCode: '统一社会信用代码', qualificationId: '资质',
+  // 项目与轮次
+  projectId: '项目', projectCode: '项目编号', projectManagementItemId: '项目管理项',
+  bidProjectId: '开评标项目', procurementProjectId: '采购项目',
+  procurementRoundId: '采购轮次', roundId: '评审轮次', roundNo: '轮次号', round: '轮次',
+  stage: '阶段', stageKey: '阶段', stageCode: '阶段编码', phase: '阶段',
+  // 公告与文档
+  announcementId: '公告', attachmentId: '附件', documentId: '文档', docId: '文档',
+  documentType: '文档类型', fileAssetId: '附件资产', templateId: '模板',
+  version: '版本', revision: '版本',
+  // 专家与评分
+  expertId: '专家', pointId: '评分点', scoreItemId: '评分项',
+  // 投标
+  bidSupplierId: '投标供应商记录', submissionId: '投标递交', fileRole: '文件角色',
+  // CA 证书
+  certSn: '证书序列号', certificateId: '证书', bindingId: '证书绑定记录', usage: '用途',
+  // 编号类
+  contractCode: '合同编号', penaltyDocNo: '处罚文书编号', faCode: '框架协议编码',
+  badgeCode: '徽章编码', month: '月份', date: '日期',
+  // 目录与流程杂项
+  categoryId: '分类', fieldKey: '字段标识', catalogItemId: '商品目录项',
+  relatedItemId: '关联目录项', relationType: '关联类型',
+  requirementId: '要求项', bidderResultId: '中标结果', motionId: '动议',
+  prequalId: '资格预审', invitationId: '邀请记录', requestId: '申请记录',
+  taskId: '任务', kind: '类型', token: '令牌', rsvpToken: '回执令牌',
+};
 
 /**
  * Nest/express 框架默认英文文案 → 中文（2026-10-10 用户裁定：报错信息不允许出现英文）。

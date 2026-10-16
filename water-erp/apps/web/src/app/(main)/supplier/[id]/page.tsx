@@ -3,9 +3,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, getSupplierCommunications, getSupplierDocuments, uploadSupplierDocument, deleteSupplierDocument, updateSupplierTags, uploadSupplierFile, blacklistSupplier, unblacklistSupplier, addSupplierRecord, listSupplierRecords, updateContactPersonnel, revealSupplierField } from '@/lib/api/supplier';
+import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, getSupplierCommunications, getSupplierDocuments, uploadSupplierDocument, deleteSupplierDocument, updateSupplierTags, uploadSupplierFile, blacklistSupplier, unblacklistSupplier, addSupplierRecord, listSupplierRecords, updateContactPersonnel, revealSupplierField, companyLinksApi } from '@/lib/api/supplier';
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification } from '@/lib/types';
-import type { CommunicationRecord, SupplierDocumentRecord } from '@/lib/api/supplier';
+import type { CommunicationRecord, SupplierDocumentRecord, CompanyLinkRow } from '@/lib/api/supplier';
 import { ApprovalTimeline } from '@/components/workbench/approval-timeline';
 import { AlertBanner, type AlertSeverity, StatusBadge, Modal } from '@/components/workbench';
 import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
@@ -20,7 +20,7 @@ import { PortraitTab } from '@/components/supplier/portrait-tab';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import { copyToClipboard } from '@/lib/copy-to-clipboard';
 
-type TabKey = 'info' | 'portrait' | 'contacts' | 'qualifications' | 'evaluations' | 'records' | 'changes' | 'communications' | 'documents';
+type TabKey = 'info' | 'portrait' | 'contacts' | 'qualifications' | 'evaluations' | 'records' | 'changes' | 'links' | 'communications' | 'documents';
 
 const STATUS_LABEL: Record<string, string> = SUPPLIER_STATUS_LABEL; // 统一 shared 口径（第五处分叉，2026-09-29 收编）
 const STATUS_TONE: Record<string, 'green' | 'blue' | 'orange' | 'red' | 'gray'> = {
@@ -89,7 +89,7 @@ export default function SupplierDetailPage() {
   const [expandedChangeId, setExpandedChangeId] = useState<string | null>(null);
   // tab 深链（2026-09-29 审批「详情」入口直达资质材料）：?tab=qualifications 等
   const [activeTab, setActiveTab] = useState<TabKey>(
-    (typeof window !== 'undefined' && ['info', 'portrait', 'contacts', 'qualifications', 'evaluations', 'records', 'changes', 'communications', 'documents'].includes(new URL(window.location.href).searchParams.get('tab') || '')
+    (typeof window !== 'undefined' && ['info', 'portrait', 'contacts', 'qualifications', 'evaluations', 'records', 'changes', 'links', 'communications', 'documents'].includes(new URL(window.location.href).searchParams.get('tab') || '')
       ? new URL(window.location.href).searchParams.get('tab') as TabKey : 'info'),
   );
   const [loading, setLoading] = useState(true);
@@ -176,11 +176,37 @@ export default function SupplierDetailPage() {
   const [newDocNote, setNewDocNote] = useState('');
   const [newDocFile, setNewDocFile] = useState<File | null>(null);
 
+  // 归属公司（多公司归属 2026-10-16）：本视野内该供应商的库内归属（APPROVED/DISABLED link），
+  // 列表按登录人公司隔离（staff/leader=本公司；admin=全部公司）——公司侧零检索面，仅展示归属事实
+  const [companyLinks, setCompanyLinks] = useState<CompanyLinkRow[] | null>(null);
+  const [linksLoading, setLinksLoading] = useState(false);
+  const [linkBusyId, setLinkBusyId] = useState<string | null>(null);
+  const loadCompanyLinks = useCallback(() => {
+    if (!id) return;
+    setLinksLoading(true);
+    companyLinksApi.list()
+      .then(rows => setCompanyLinks(rows.filter(r => r.supplierId === id && (r.status === 'APPROVED' || r.status === 'DISABLED'))))
+      .catch(() => setCompanyLinks([]))
+      .finally(() => setLinksLoading(false));
+  }, [id]);
+  // leader 库内停用/恢复（后端 @Roles('leader')；软移出本公司库，不影响其他公司归属）
+  const toggleCompanyLink = async (row: CompanyLinkRow, disable: boolean) => {
+    setLinkBusyId(row.id);
+    try {
+      if (disable) await companyLinksApi.disable(row.id);
+      else await companyLinksApi.enable(row.id);
+      toast.success(disable ? `已在 ${row.company.name} 库内停用该供应商` : `已恢复该供应商在 ${row.company.name} 的库内资格`);
+      loadCompanyLinks();
+    } catch (e: any) { toast.error(e?.message || '操作失败'); loadCompanyLinks(); }
+    finally { setLinkBusyId(null); }
+  };
+
   useEffect(() => { loadAll(); }, [loadAll]);
   useEffect(() => { if (id) void loadRewardRecords(id); }, [id]); // CTS A-213 奖惩记录
   useEffect(() => {
     if (activeTab === 'communications' && communications.length === 0) { setCommLoading(true); getSupplierCommunications(id as string).then(setCommunications).catch(() => {}).finally(() => setCommLoading(false)); }
     if (activeTab === 'documents' && documents.length === 0) { setDocLoading(true); getSupplierDocuments(id as string).then(setDocuments).catch(() => {}).finally(() => setDocLoading(false)); }
+    if (activeTab === 'links' && companyLinks === null) loadCompanyLinks();
   }, [activeTab, id]);
 
   const supplierAlerts = useSupplierAlerts(id as string);
@@ -333,6 +359,7 @@ export default function SupplierDetailPage() {
     { key: 'evaluations', label: '履约评价', count: evaluations.length },
     { key: 'records', label: '奖惩记录', count: rewardRecords.length },
     { key: 'changes', label: '变更记录', count: changes.length },
+    { key: 'links', label: '归属公司' },
     { key: 'communications', label: '沟通记录' },
     { key: 'documents', label: '文件档案' },
   ];
@@ -1192,6 +1219,78 @@ export default function SupplierDetailPage() {
             )}
           </div>
         )}
+      {/* 归属公司（多公司归属 2026-10-16）：本视野内该供应商的库内归属与状态 */}
+      {activeTab === 'links' && (
+        <section>
+          <SectionTitle icon={Link2}>归属公司</SectionTitle>
+          {linksLoading || companyLinks === null ? (
+            <div className="py-8 text-center"><Loader2 size={14} className="animate-spin mx-auto mb-2" /><span className="text-sm text-[var(--muted-foreground)]">加载中...</span></div>
+          ) : companyLinks.length === 0 ? (
+            <div className="neu-card-static !rounded-2xl py-10 text-center">
+              <Building2 size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />
+              <p className="text-sm text-[var(--muted-foreground)]">本视野内暂无该供应商的库内归属关系</p>
+              <p className="mt-1 text-xs text-[var(--muted-foreground)]/70">供应商自主申请加入并经三级审核通过后出现在此处（列表按登录人公司隔离）</p>
+            </div>
+          ) : (
+            <div className="neu-table-card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="neu-table w-full">
+                  <thead>
+                    <tr>
+                      <th>归属公司</th>
+                      <th className="text-center">库内状态</th>
+                      <th className="text-center">加入时间</th>
+                      {currentUser?.role === 'leader' && <th className="text-center">操作</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {companyLinks.map(l => {
+                      // 主归属=注册归属公司（Supplier.companyId 写时快照）；其余为自主申请加入的公司
+                      const isPrimary = l.companyId === (supplier as { companyId?: string | null }).companyId;
+                      return (
+                        <tr key={l.id}>
+                          <td>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-[var(--foreground)]">{l.company.name}</span>
+                              {isPrimary && (
+                                <span className="inline-flex items-center rounded-full bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--accent)]" title="注册归属公司（主归属）">主归属</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="text-center">
+                            {l.status === 'APPROVED'
+                              ? <StatusBadge tone="green">在库</StatusBadge>
+                              : <StatusBadge tone="gray">已停用（本公司）</StatusBadge>}
+                          </td>
+                          <td className="text-center tabular-nums text-[var(--muted-foreground)]">{new Date(l.createdAt).toLocaleDateString('zh-CN')}</td>
+                          {currentUser?.role === 'leader' && (
+                            <td className="text-center">
+                              {l.status === 'APPROVED' ? (
+                                <button onClick={() => void toggleCompanyLink(l, true)} disabled={linkBusyId === l.id}
+                                  title="本公司库内停用（软移出，不影响该供应商在其他公司的归属）"
+                                  className="neu-btn-xs is-warning">
+                                  {linkBusyId === l.id ? <Loader2 size={12} className="animate-spin" /> : null}停用
+                                </button>
+                              ) : (
+                                <button onClick={() => void toggleCompanyLink(l, false)} disabled={linkBusyId === l.id}
+                                  title="恢复本公司库内资格"
+                                  className="neu-btn-xs is-success">
+                                  {linkBusyId === l.id ? <Loader2 size={12} className="animate-spin" /> : null}恢复
+                                </button>
+                              )}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
       {/* 沟通记录 */}
       {activeTab === 'communications' && (
         <section>
