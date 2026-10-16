@@ -32,6 +32,7 @@ model Company {
 
   users               User[]
   suppliers           Supplier[]              @relation("SupplierCompany")
+  supplierLinks       SupplierCompanyLink[]    @relation("CompanySupplierLinks")
   pmItems             ProjectManagementItem[]
   procurementProjects ProcurementProject[]
   procurementRounds   ProcurementRound[]
@@ -1489,6 +1490,7 @@ model Supplier {
   contractPrices        ContractPrice[]
   invitation            SupplierInvitation[]         @relation("InvitationUsedBy")
   certs                 SupplierCert[]
+  companyLinks          SupplierCompanyLink[] @relation("SupplierCompanyLinks")
 
   // ── 采购中心关联 ──
   awardedRounds  ProcurementRound[] @relation("AwardedSupplier")
@@ -1547,6 +1549,38 @@ model SupplierInvitation {
 
   @@index([status])
   @@index([createdById])
+}
+
+/// 供应商×公司 多对多归属（2026-10-16 多公司归属）：一企业在多家公司库各有一条关系。
+/// 唯一通道=供应商自主申请（三级审批）；Supplier.companyId 降级为「主归属」
+/// （注册三级审批仍按它流转）；库可见性以本表 APPROVED link 为准。
+enum SupplierLinkStatus {
+  PENDING   // 三级审批中
+  APPROVED  // 在该公司库
+  REJECTED  // 申请被驳回（供应商可重新申请，原行复用）
+  DISABLED  // 公司在自己库内停用（软移出，可恢复；不影响其他公司）
+}
+
+model SupplierCompanyLink {
+  id           String             @id @default(cuid())
+  supplierId   String
+  companyId    String
+  status       SupplierLinkStatus @default(PENDING)
+  reviewStage  String?            // 当前待审级 STAFF/LEADER/ADMIN；null=已终态
+  note         String?            // 申请说明
+  rejectReason String?
+  appliedAt    DateTime?
+  reviewedById String?            // 末级动作人（逐级动作另落 AuditLog）
+  reviewedAt   DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  supplier Supplier @relation("SupplierCompanyLinks", fields: [supplierId], references: [id], onDelete: Cascade)
+  company  Company  @relation("CompanySupplierLinks", fields: [companyId], references: [id])
+
+  @@unique([supplierId, companyId])
+  @@index([companyId, status])
+  @@index([supplierId])
 }
 
 model SupplierContact {
