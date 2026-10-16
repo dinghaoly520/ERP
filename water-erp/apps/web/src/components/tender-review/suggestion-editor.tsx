@@ -122,12 +122,12 @@ export default function SuggestionEditor({
     return (
       <div>
         <div className="text-xs font-semibold text-[var(--muted-foreground)] mb-2">
-          ✏️ 修改意见
+          修改意见
         </div>
         <div className="rounded-xl border border-[color-mix(in_oklch,var(--success)_30%,transparent)] overflow-hidden">
           <div className="px-3.5 py-2.5 bg-[color-mix(in_oklch,var(--success)_8%,transparent)] flex items-center justify-between">
             <span className="text-[11px] font-semibold text-[var(--success)]">
-              ✅ 已修改
+              已修改
             </span>
             <button
               onClick={handleUndo}
@@ -156,7 +156,7 @@ export default function SuggestionEditor({
     return (
       <div className="opacity-50">
         <div className="text-xs font-semibold text-[var(--muted-foreground)] mb-2">
-          ✏️ 修改意见
+          修改意见
         </div>
         <div className="rounded-xl border border-[var(--muted-foreground)]/10 overflow-hidden">
           <div className="px-3.5 py-2.5 bg-[var(--muted-foreground)]/[0.03] flex items-center justify-between">
@@ -180,7 +180,7 @@ export default function SuggestionEditor({
   return (
     <div>
       <div className="text-xs font-semibold text-[var(--muted-foreground)] mb-2">
-        ✏️ 修改意见
+        修改意见
       </div>
       <div className="rounded-xl border border-[var(--muted-foreground)]/15 overflow-hidden">
         <div className="px-3.5 py-2.5 bg-[var(--muted-foreground)]/[0.03]">

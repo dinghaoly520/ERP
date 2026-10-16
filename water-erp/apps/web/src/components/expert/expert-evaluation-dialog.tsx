@@ -127,7 +127,7 @@ export function ExpertEvaluationDialog({
       setComment(res.analysis);
       setAiEngine(res.engine);
       setAiSuggested(true);
-      toast.success(res.engine === 'ai' ? 'AI 分析完成，已自动选择等级并写入评价说明' : '规则兜底已写入评价说明（AI 暂不可用）');
+      toast.success(res.engine === 'ai' ? 'AI 分析完成，已自动选择等级并写入评价说明' : '规则分析已写入评价说明（AI 暂不可用）');
     } catch (e: any) {
       setAiError(e?.message || 'AI 分析失败');
     }
@@ -222,7 +222,7 @@ export function ExpertEvaluationDialog({
           {aiLoading ? (
             <><Loader2 size={14} className="animate-spin text-[var(--accent)]" /><span className="text-xs text-[var(--muted-foreground)]">AI 正在分析 {expert.displayName} 的历史评价、偏离度与履职数据…</span></>
           ) : aiSuggested ? (
-            <><Brain size={14} className="text-[var(--accent)] flex-shrink-0" /><span className={`text-xs font-semibold flex-shrink-0 ${aiEngine === 'ai' ? 'text-[var(--accent)]' : 'text-[var(--warning)]'}`}>{aiEngine === 'ai' ? 'AI 已分析' : '规则兜底'}</span><span className="text-xs text-[var(--muted-foreground)] leading-relaxed">{aiEngine === 'ai' ? 'LLM 综合历史评价、偏离度、违规与负荷给出建议，已自动选择各维度等级并填入评价说明' : '基于历史数据与违规记录综合得出，AI 暂不可用'}</span></>
+            <><Brain size={14} className="text-[var(--accent)] flex-shrink-0" /><span className={`text-xs font-semibold flex-shrink-0 ${aiEngine === 'ai' ? 'text-[var(--accent)]' : 'text-[var(--warning)]'}`}>{aiEngine === 'ai' ? 'AI 已分析' : '规则分析'}</span><span className="text-xs text-[var(--muted-foreground)] leading-relaxed">{aiEngine === 'ai' ? 'AI 综合历史评价、偏离度、违规与负荷给出建议，已自动选择各维度等级并填入评价说明' : '基于历史数据与违规记录综合得出，AI 暂不可用'}</span></>
           ) : (
             <><Brain size={14} className="text-[var(--muted-foreground)]/40 flex-shrink-0" /><span className="text-xs text-[var(--muted-foreground)]">AI 可自动分析专家履职数据，完成后将直接填入各维度等级与评价说明</span></>
           )}
@@ -279,7 +279,7 @@ export function ExpertEvaluationDialog({
       {/* 评价说明 */}
       <div>
         <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">评价说明</span>
-        <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder={aiSuggested ? `${aiEngine === 'ai' ? 'AI' : '规则兜底'}已填入参考说明，可编辑或补充...` : '评价说明（可选）'} className="neu-input w-full h-20 resize-none text-sm" />
+        <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder={aiSuggested ? `${aiEngine === 'ai' ? 'AI' : '规则分析'}已填入参考说明，可编辑或补充...` : '评价说明（可选）'} className="neu-input w-full h-20 resize-none text-sm" />
       </div>
     </Modal>
   );
@@ -437,7 +437,7 @@ function EvaluationResultModal({
               <div className="flex items-center gap-2 flex-1 min-w-0 text-xs text-[var(--muted-foreground)]">
                 <Brain size={14} className={aiLoading ? 'animate-pulse text-[var(--accent)]' : 'text-[var(--accent)]/60 flex-shrink-0'} />
                 {aiLoading ? 'AI 正在结合评标结果与历史履职分析该专家在此项目中的行为…'
-                  : ai ? `${ai.engine === 'ai' ? 'AI 分析' : '规则兜底'}完成`
+                  : ai ? `${ai.engine === 'ai' ? 'AI 分析' : '规则分析'}完成`
                     : '基于该项目评分偏离、极值倾向、修改记录与合规留痕，AI 输出专家行为分析'}
               </div>
               <button onClick={runBehaviorAnalysis} disabled={aiLoading} className="neu-btn-soft flex-shrink-0 inline-flex items-center gap-1.5">
@@ -450,7 +450,7 @@ function EvaluationResultModal({
               <div className="mt-3 space-y-2 border-t border-[var(--border)] pt-3">
                 <div className="flex items-center gap-2">
                   <StatusBadge tone={riskTone(ai.riskLevel)}>{ai.riskLevel}</StatusBadge>
-                  <span className={`text-[10px] font-bold uppercase tracking-wide ${ai.engine === 'ai' ? 'text-[var(--accent)]' : 'text-[var(--warning)]'}`}>{ai.engine === 'ai' ? 'LLM' : '规则兜底'}</span>
+                  <span className={`text-[10px] font-bold uppercase tracking-wide ${ai.engine === 'ai' ? 'text-[var(--accent)]' : 'text-[var(--warning)]'}`}>{ai.engine === 'ai' ? 'AI' : '规则分析'}</span>
                 </div>
                 <ul className="space-y-1">
                   {ai.findings.map((f, i) => (

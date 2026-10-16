@@ -549,7 +549,7 @@ export default function SupplierDashboardPage() {
         <div className="neu-table-card p-5 flex flex-col">
           <h3 className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-4 flex-shrink-0 flex items-center gap-2"><Star size={13} />我的关注</h3>
           {favorites.length === 0 ? (
-            <p className="text-sm text-[var(--muted-foreground)] py-4 text-center flex-1 flex items-center justify-center">暂无关注供应商，在供应商库中点击 ⭐ 即可关注</p>
+            <p className="text-sm text-[var(--muted-foreground)] py-4 text-center flex-1 flex items-center justify-center">暂无关注供应商，在供应商库中点击星标即可关注</p>
           ) : (
             <div className="space-y-2 flex-1 min-h-0 overflow-y-auto">
               {favorites.map(f => (

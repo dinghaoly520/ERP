@@ -166,7 +166,7 @@ export function OpeningProgressBlock({ detail, onAbort }: Props) {
           {openingDone && stage === 'OPENING' && (
             <div className="wb-tone-banner wb-tone-banner--success flex-wrap py-3">
               <UserCheck size={14} className="text-[var(--success)]" />
-              <span className="text-xs font-semibold text-[var(--success)] mr-auto">开标已完成——确认开标结果进入评标由开评标管理端（:3007）执行；如需流标，请在此发起。</span>
+              <span className="text-xs font-semibold text-[var(--success)] mr-auto">开标已完成——确认开标结果进入评标由开评标管理端执行；如需流标，请在此发起。</span>
               {onAbort && (
                 <button type="button" onClick={onAbort} className="neu-btn-soft is-danger !h-[32px] !text-xs">
                   <Ban size={13} /> 流标

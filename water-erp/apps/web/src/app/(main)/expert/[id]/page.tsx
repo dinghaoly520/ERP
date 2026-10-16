@@ -640,7 +640,7 @@ export default function ExpertDetailPage() {
           <div className="neu-table-card p-4 space-y-2">
             <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">风险简报{risk.aiBrief ? '（AI 生成）' : '（规则判定）'}</span>
             <p className="text-sm leading-relaxed text-[var(--foreground)]">{risk.aiBrief || risk.ruleBrief}</p>
-            {risk.aiBrief && <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">规则兜底：{risk.ruleBrief}</p>}
+            {risk.aiBrief && <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">规则分析：{risk.ruleBrief}</p>}
           </div>
         </div>
       )}
@@ -906,7 +906,7 @@ export default function ExpertDetailPage() {
                 ))}
                 <label className="space-y-1 block">
                   <span className="text-xs font-semibold text-[var(--muted-foreground)]">库内等级<span className="ml-1 text-[10px] font-normal opacity-70">清空保存即清除</span></span>
-                  <select value={editForm.expertLevel} onChange={e => setEditForm(prev => ({ ...prev, expertLevel: e.target.value }))} className="workbench-input" title="专家库档案等级（A-129，区别于履职评价等级），抽取配额可按此过滤">
+                  <select value={editForm.expertLevel} onChange={e => setEditForm(prev => ({ ...prev, expertLevel: e.target.value }))} className="workbench-input" title="专家库档案等级（区别于履职评价等级），抽取配额可按此过滤">
                     <option value="">未设置</option>
                     {(['A', 'B', 'C', 'D', 'E'] as const).map(l => <option key={l} value={l}>{l} 级</option>)}
                   </select>
@@ -937,7 +937,7 @@ export default function ExpertDetailPage() {
             </section>
 
             <section className="space-y-3">
-              <GroupHead>档案维度（A-129）与备注</GroupHead>
+              <GroupHead>档案维度与备注</GroupHead>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="space-y-1 block">
                   <span className="text-xs font-semibold text-[var(--muted-foreground)]">区域代码<span className="ml-1 text-[10px] font-normal opacity-70">清空保存即清除</span></span>
