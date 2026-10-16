@@ -135,9 +135,20 @@ export const authApi = {
     return api.post<any>("/supplier/register/urge-review", { creditCode }, { silent: true });
   },
 
-  /** 注册前查重（公开）。creditCodeStatus: 命中状态（REJECTED=可重注册壳，不算阻塞重复）。 */
-  checkDuplicate(fields: { creditCode?: string; legalPersonIdCard?: string; contactIdCard?: string }) {
-    return api.get<{ creditCode: boolean; legalPersonIdCard: boolean; contactIdCard: boolean; creditCodeStatus: string | null }>(
+  /**
+   * 注册前查重（公开）。creditCodeStatus: 命中状态（REJECTED=可重注册壳，不算阻塞重复）；
+   * creditCodeIsTemporary/TemporaryExpired: 临时过期不改 status，凭此区分「过期→引导登录页续期」。
+   */
+  checkDuplicate(fields: { creditCode?: string; legalPersonIdCard?: string; contactIdCard?: string; phone?: string }) {
+    return api.get<{
+      creditCode: boolean;
+      legalPersonIdCard: boolean;
+      contactIdCard: boolean;
+      phone: boolean;
+      creditCodeStatus: string | null;
+      creditCodeIsTemporary: boolean;
+      creditCodeTemporaryExpired: boolean;
+    }>(
       `/supplier/register/check-duplicate${qs(fields)}`,
       { silent: true },
     );

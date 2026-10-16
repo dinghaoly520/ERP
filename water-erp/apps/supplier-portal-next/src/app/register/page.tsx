@@ -220,6 +220,7 @@ export default function RegisterPage() {
   const [agree, setAgree] = useState(false);
   const [creditCodeDuplicate, setCreditCodeDuplicate] = useState(false);
   const [legalIdCardDuplicate, setLegalIdCardDuplicate] = useState(false);
+  const [phoneDuplicate, setPhoneDuplicate] = useState(false); // 注册手机号失焦查重（2026-10-16）
   // 退回补正 / 驳回重注册 检测（2026-10-14）：公司名失焦查公开状态——
   // RETURNED→横幅引导进入补正（主联系人短信验证→回填→原位重提）；REJECTED→提示可正常重注册（后端壳重开）
   const [correction, setCorrection] = useState<{
@@ -366,7 +367,13 @@ export default function RegisterPage() {
 
   /* 注册短信验证码 */
   async function sendRegCode() {
-    if (!/^1[3-9]\d{9}$/.test(registrationPhone.trim())) { toast.warning("请先输入有效的注册手机号"); return; }
+    if (!/^1[3-9]\d{9]$/.test(registrationPhone.trim())) { toast.warning("请先输入有效的注册手机号"); return; }
+    // 手机号查重前置（2026-10-16）：已绑定的手机号先拦在发码前，避免白烧一条短信
+    try {
+      const res = await authApi.checkDuplicate({ phone: registrationPhone.trim() });
+      if (res.phone) { setPhoneDuplicate(true); toast.error("该手机号已绑定其他供应商账号，请更换后再获取验证码"); return; }
+      setPhoneDuplicate(false);
+    } catch { /* 查重失败不阻塞发码 */ }
     setCodeSending(true);
     try {
       await authApi.sendRegistrationCode(registrationPhone.trim());
@@ -395,7 +402,24 @@ export default function RegisterPage() {
       const blocking = res.creditCode && res.creditCodeStatus !== "REJECTED" && res.creditCodeStatus !== "RETURNED";
       setCreditCodeDuplicate(blocking);
       if (res.creditCodeStatus === "RETURNED") toast.info("该统一社会信用代码有退回补正中的申请，请在企业信息步通过「进入补正」完成验证后重新提交");
+      // 2026-10-16：临时过期不改 status（仍 APPROVED），命中时优先给续期出路而非「请核对后重试」
+      else if (blocking && res.creditCodeIsTemporary && res.creditCodeTemporaryExpired) {
+        toast.warning("该企业临时供应商资格已过期，请到登录页凭新邀请码续期", {
+          action: { label: "去续期", onClick: () => router.push("/login?reactivate=1") },
+        });
+      }
       else if (blocking) toast.warning("该统一社会信用代码已被注册，请核对后重试");
+    } catch { /* 查重失败不阻塞 */ }
+  }
+  /* 注册手机号失焦查重（2026-10-16）：对齐法人证失焦预检口径 */
+  async function checkRegistrationPhoneDuplicate() {
+    setPhoneDuplicate(false);
+    const p = registrationPhone.trim();
+    if (!/^1[3-9]\d{9}$/.test(p)) return;
+    try {
+      const res = await authApi.checkDuplicate({ phone: p });
+      setPhoneDuplicate(res.phone);
+      if (res.phone) toast.warning("该手机号已绑定其他供应商账号，请更换");
     } catch { /* 查重失败不阻塞 */ }
   }
   async function checkLegalIdCard() {
@@ -609,6 +633,7 @@ export default function RegisterPage() {
       const inCorrection = correction.status === "RETURNED" && !!correction.token;
       if (creditCodeDuplicate && !inCorrection) { toast.error("统一社会信用代码重复，无法进入下一步"); return; }
       if (legalIdCardDuplicate && !inCorrection) { toast.warning("法定代表人身份证号已存在，请核对"); return; }
+      if (phoneDuplicate) { toast.warning("该手机号已绑定其他供应商账号，请更换"); return; }
     }
     if (!validate()) return;
     // 步骤 0 门槛（2026-10-09）：服务端消费验证码并换发注册会话 token——后续步骤不再要求验证码
@@ -710,6 +735,7 @@ export default function RegisterPage() {
         creditCode: basic.creditCode.trim(),
         legalPersonIdCard: basic.legalPersonIdCard.trim(),
         contactIdCard: contactIdCards[0],
+        phone: registrationPhone.trim(),
       });
       if (dup.creditCode) {
         // RETURNED 必须走补正流程（后端 register 对非 REJECTED 壳硬拦截）
@@ -719,10 +745,21 @@ export default function RegisterPage() {
         }
         // REJECTED=驳回壳放行（2026-10-14 review）：交后端 register 壳重开原位覆盖重新建档——
         // 与横幅「可继续正常注册，提交时将重新建档」及失焦查重的放行口径一致
-        if (dup.creditCodeStatus !== "REJECTED") { toast.error("统一社会信用代码重复，无法注册，请核对后重试"); return; }
+        // 2026-10-16：临时已过期（status 仍 APPROVED）→ 续期出路优先于「请核对后重试」
+        if (dup.creditCodeStatus !== "REJECTED") {
+          if (dup.creditCodeIsTemporary && dup.creditCodeTemporaryExpired) {
+            toast.error("该企业临时供应商资格已过期，请到登录页凭新邀请码续期", {
+              action: { label: "去续期", onClick: () => router.push("/login?reactivate=1") },
+            });
+          } else {
+            toast.error("统一社会信用代码重复，无法注册，请核对后重试");
+          }
+          return;
+        }
       }
       if (dup.legalPersonIdCard) { toast.warning("法定代表人身份证号已存在，请核对"); return; }
       if (dup.contactIdCard) { toast.warning("联系人身份证号已存在，请核对"); return; }
+      if (dup.phone) { setPhoneDuplicate(true); toast.error("该手机号已绑定其他供应商账号，无法注册，请更换"); return; }
     } catch { /* 不阻塞 */ }
 
     setLoading(true);
@@ -898,7 +935,7 @@ export default function RegisterPage() {
               {item("registrationPhone", "注册手机号", (
                 <div className="reg-code-row">
                   <input id="register-registrationPhone" className="reg-inp" value={registrationPhone} placeholder="本人手机号，用于接收注册验证码" maxLength={11} inputMode="numeric" autoComplete="tel"
-                    onChange={(e) => setRegistrationPhone(e.target.value.replace(/\D/g, ""))} />
+                    onChange={(e) => setRegistrationPhone(e.target.value.replace(/\D/g, ""))} onBlur={checkRegistrationPhoneDuplicate} />
                   <button type="button" className="reg-btn reg-btn--ghost-sm reg-code-btn" disabled={codeSending || codeCooldown > 0} onClick={sendRegCode}>
                     {codeSending ? "发送中…" : codeCooldown > 0 ? `${codeCooldown}s` : "获取验证码"}
                   </button>

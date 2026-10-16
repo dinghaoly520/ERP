@@ -76,8 +76,8 @@ function LoginForm() {
   const [urging, setUrging] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
-  // 临时供应商过期续期
-  const [showReactivate, setShowReactivate] = useState(false);
+  // 临时供应商过期续期（?reactivate=1：注册页查重引导「去登录续期」的落点，预展开面板）
+  const [showReactivate, setShowReactivate] = useState(() => params.get("reactivate") === "1");
   const [reactivateCode, setReactivateCode] = useState("");
   const [reactivating, setReactivating] = useState(false);
 

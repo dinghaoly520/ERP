@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { authApi } from "@/lib/api/auth";
+import { creditCodeGuidance, type CreditCodeGuidance } from "@/lib/registration-dedup-guidance";
 import { RegisterAgreement } from "@/components/register-agreement";
 import { RegistrationField, RegistrationSection, RegistrationShell } from "@/components/registration/registration-shell";
 import { PasswordField } from "@/components/registration/password-field";
@@ -14,7 +15,7 @@ import { BusinessTagField } from "@/components/registration/business-tag-field";
 import { UnitSearchSelect } from "@/components/registration/unit-search-select";
 import "@/styles/pages/register2.css";
 
-/** 临时供应商注册：邀请码校验、协议确认与信用代码查重。 */
+/** 临时供应商注册：邀请码校验、协议确认与三查重项失焦预检（信用代码=状态感知引导，法人证/手机号=提示）。 */
 export default function RegisterTemporaryPage() {
   const router = useRouter();
   const [form, setForm] = useState({
@@ -34,7 +35,10 @@ export default function RegisterTemporaryPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [agreeAgreement, setAgreeAgreement] = useState(false);
-  const [creditCodeDuplicate, setCreditCodeDuplicate] = useState(false);
+  // 查重命中状态（2026-10-16）：信用代码升级为状态感知引导；法人证/手机号补失焦预检
+  const [ccGuidance, setCcGuidance] = useState<CreditCodeGuidance | null>(null);
+  const [legalIdCardDuplicate, setLegalIdCardDuplicate] = useState(false);
+  const [phoneDuplicate, setPhoneDuplicate] = useState(false);
 
   // 归属公司选项（拉取失败不阻塞注册——留空即未归属，admin 可后补）
   const [companyOptions, setCompanyOptions] = useState<{ id: string; name: string }[]>([]);
@@ -55,6 +59,12 @@ export default function RegisterTemporaryPage() {
 
   async function sendRegCode() {
     if (!/^1[3-9]\d{9}$/.test(form.phone.trim())) { toast.warning("请先输入有效的手机号"); return; }
+    // 手机号查重前置（2026-10-16）：已绑定的手机号先拦在发码前，避免白烧一条短信
+    try {
+      const res = await authApi.checkDuplicate({ phone: form.phone.trim() });
+      if (res.phone) { setPhoneDuplicate(true); toast.error("该手机号已绑定其他供应商账号，请更换后再获取验证码"); return; }
+      setPhoneDuplicate(false);
+    } catch { /* 查重失败不阻塞发码 */ }
     setCodeSending(true);
     try {
       await authApi.sendRegistrationCode(form.phone.trim());
@@ -121,14 +131,35 @@ export default function RegisterTemporaryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.invitationCode]);
 
+  /* 失焦查重（2026-10-16）：信用代码命中 → 状态感知引导（字段下方持久内联条+出路链接）；
+     法人证/手机号 → toast 提示 + 提交阻断标志。查重失败一律不阻塞流程（提交时复检+后端硬拦兜底）。 */
   async function checkCreditCodeDuplicate() {
-    setCreditCodeDuplicate(false);
+    setCcGuidance(null);
     const code = form.creditCode.trim();
     if (!/^[0-9A-Z]{18}$/.test(code)) return;
     try {
       const res = await authApi.checkDuplicate({ creditCode: code });
-      setCreditCodeDuplicate(res.creditCode);
-      if (res.creditCode) toast.warning("该统一社会信用代码已被注册，请核对后重试");
+      setCcGuidance(creditCodeGuidance(res));
+    } catch { /* 查重失败不阻塞流程 */ }
+  }
+  async function checkLegalIdCardDuplicate() {
+    setLegalIdCardDuplicate(false);
+    const id = form.legalPersonIdCard.trim();
+    if (!/^\d{17}[\dXx]$/.test(id)) return;
+    try {
+      const res = await authApi.checkDuplicate({ legalPersonIdCard: id });
+      setLegalIdCardDuplicate(res.legalPersonIdCard);
+      if (res.legalPersonIdCard) toast.warning("该法定代表人身份证号已用于其他供应商注册，请核对");
+    } catch { /* 查重失败不阻塞流程 */ }
+  }
+  async function checkPhoneDuplicate() {
+    setPhoneDuplicate(false);
+    const p = form.phone.trim();
+    if (!/^1[3-9]\d{9}$/.test(p)) return;
+    try {
+      const res = await authApi.checkDuplicate({ phone: p });
+      setPhoneDuplicate(res.phone);
+      if (res.phone) toast.warning("该手机号已绑定其他供应商账号，请更换");
     } catch { /* 查重失败不阻塞流程 */ }
   }
 
@@ -165,7 +196,22 @@ export default function RegisterTemporaryPage() {
     if (!validate()) return;
     if (!inviteVerified) { toast.warning("请先校验邀请码"); return; }
     if (!agreeAgreement) { toast.warning("请先阅读并同意《供应商注册入驻协议》"); return; }
-    if (creditCodeDuplicate) { toast.error("统一社会信用代码重复，无法注册，请核对后重试"); return; }
+    if (ccGuidance?.blocking) { toast.error(ccGuidance.message); return; }
+    if (legalIdCardDuplicate) { toast.error("法定代表人身份证号已存在，无法注册，请核对后重试"); return; }
+    if (phoneDuplicate) { toast.error("该手机号已绑定其他供应商账号，无法注册，请更换"); return; }
+    // 防漏 blur：提交前一次性复检三查重项（对齐正式注册页提交时预检模式）
+    try {
+      const dup = await authApi.checkDuplicate({
+        creditCode: form.creditCode.trim(),
+        legalPersonIdCard: form.legalPersonIdCard.trim(),
+        phone: form.phone.trim(),
+      });
+      const g = creditCodeGuidance(dup);
+      setCcGuidance(g);
+      if (g?.blocking) { toast.error(g.message); return; }
+      if (dup.legalPersonIdCard) { setLegalIdCardDuplicate(true); toast.error("法定代表人身份证号已存在，无法注册，请核对后重试"); return; }
+      if (dup.phone) { setPhoneDuplicate(true); toast.error("该手机号已绑定其他供应商账号，无法注册，请更换"); return; }
+    } catch { /* 查重失败不阻塞提交（后端硬拦截兜底） */ }
     setSubmitting(true);
     try {
       await authApi.registerTemporary({
@@ -238,14 +284,19 @@ export default function RegisterTemporaryPage() {
         <RegistrationSection icon={Building2} title="企业与账号" hint="请按营业执照如实填写">
           <div className="reg-form-grid">
             {item("name", "企业名称", inp(form.name, (s) => set("name", s), "营业执照上的企业全称"), true)}
-            {item("creditCode", "统一社会信用代码", inp(form.creditCode, (s) => set("creditCode", s.toUpperCase()), "18 位代码，注册后与公司名称均可用于登录", { maxLength: 18, onBlur: checkCreditCodeDuplicate }), true)}
+            {item("creditCode", "统一社会信用代码", inp(form.creditCode, (s) => set("creditCode", s.toUpperCase()), "18 位代码，注册后与公司名称均可用于登录", { maxLength: 18, onBlur: checkCreditCodeDuplicate }), true, ccGuidance && (
+              <span className="reg-dup-guidance" data-kind={ccGuidance.kind} role="status">
+                {ccGuidance.message}
+                {ccGuidance.link && <Link className="reg-dup-guidance__link" href={ccGuidance.link.href}>{ccGuidance.link.label}</Link>}
+              </span>
+            ))}
             {item("legalPerson", "法定代表人", inp(form.legalPerson, (s) => set("legalPerson", s), "营业执照上的法定代表人"), true)}
-            {item("legalPersonIdCard", "法定代表人身份证号", inp(form.legalPersonIdCard, (s) => set("legalPersonIdCard", s.toUpperCase()), "18 位身份证号", { maxLength: 18 }), true)}
+            {item("legalPersonIdCard", "法定代表人身份证号", inp(form.legalPersonIdCard, (s) => set("legalPersonIdCard", s.toUpperCase()), "18 位身份证号", { maxLength: 18, onBlur: checkLegalIdCardDuplicate }), true)}
             {item("displayName", "联系人姓名", inp(form.displayName, (s) => set("displayName", s), "请输入联系人姓名"), true)}
             {item("phone", "注册手机号", (
               <div className="reg-code-row">
                 <input id="reg-temp-phone" className="reg-inp" value={form.phone} placeholder="本人手机号，用于接收注册验证码" maxLength={11} inputMode="numeric" autoComplete="tel"
-                  onChange={(e) => set("phone", e.target.value.replace(/\D/g, ""))} />
+                  onChange={(e) => set("phone", e.target.value.replace(/\D/g, ""))} onBlur={checkPhoneDuplicate} />
                 <button type="button" className="reg-btn reg-btn--ghost-sm reg-code-btn" disabled={codeSending || codeCooldown > 0} onClick={sendRegCode}>
                   {codeSending ? "发送中…" : codeCooldown > 0 ? `${codeCooldown}s` : "获取验证码"}
                 </button>
