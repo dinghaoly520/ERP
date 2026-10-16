@@ -11,7 +11,8 @@ export class UserSettingsService {
   async getOrCreateSettings(userId: string) {
     return this.prisma.userSettings.upsert({
       where: { userId },
-      create: { userId },
+      // 主题默认浅色（2026-10-16 用户裁定）；schema @default("system") 未动——并行会话占用共享 schema.prisma，勿在 create 之外依赖该默认
+      create: { userId, theme: 'light' },
       update: {},
     });
   }

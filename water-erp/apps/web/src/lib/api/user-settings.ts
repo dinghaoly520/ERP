@@ -51,11 +51,3 @@ export const THEME_OPTIONS = [
   { value: 'dark', label: '深色' },
   { value: 'system', label: '跟随系统' },
 ] as const;
-
-// Default home page options
-export const HOME_PAGE_OPTIONS = [
-  { value: 'dashboard', label: '数据库' },
-  { value: 'procurements', label: '采购台账' },
-  { value: 'projects', label: '项目管理' },
-  { value: 'work-arrangements', label: '工作安排' },
-] as const;

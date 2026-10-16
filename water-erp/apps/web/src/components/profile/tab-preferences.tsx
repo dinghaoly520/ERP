@@ -1,35 +1,9 @@
 'use client';
 
-import { Loader2, AlertTriangle, Check, Palette, LayoutDashboard, Globe, Bell, UserCheck, Tag, AlertTriangle as AlertIcon, Clock, FileText } from 'lucide-react';
+import { Loader2, AlertTriangle, Check, Palette, LayoutDashboard } from 'lucide-react';
 import { useState } from 'react';
-import { THEME_OPTIONS, HOME_PAGE_OPTIONS, type UserSettings } from '@/lib/api/user-settings';
+import { THEME_OPTIONS, type UserSettings } from '@/lib/api/user-settings';
 import { useUserSettings } from '@/lib/user-settings-context';
-
-type NotifToggle = { type: string; label: string; desc: string; icon: typeof Bell };
-
-const NOTIF_GROUPS: { group: string; items: NotifToggle[] }[] = [
-  {
-    group: '审批与审核',
-    items: [
-      { type: 'SUPPLIER_PENDING', label: '供应商审批', desc: '新供应商入库、变更申请等', icon: UserCheck },
-      { type: 'CATALOG_PRICE_ALERT', label: '目录价格预警', desc: '目录价格偏离预警待处理', icon: Tag },
-    ],
-  },
-  {
-    group: '预警与到期',
-    items: [
-      { type: 'QUALIFICATION_EXPIRING', label: '资质到期', desc: '供应商资质证书即将到期提醒', icon: AlertIcon },
-      { type: 'BID_DEADLINE_NUDGE', label: '投标截止', desc: '投标即将截止的提醒通知', icon: Clock },
-    ],
-  },
-  {
-    group: '招投标与公告',
-    items: [
-      { type: 'BID_PUBLISHED', label: '招标公告（已停用）', desc: '该类型已停止产生，设置仅作历史保留', icon: FileText },
-    ],
-  },
-]; // R7-1⑦：移除注册表不存在的 BID_OPENING；BID_PUBLISHED 已 deprecated 停止产生
-
 
 export function TabPreferences() {
   const { settings, loading, updateSettings } = useUserSettings();
@@ -52,8 +26,6 @@ export function TabPreferences() {
     );
   }
 
-  const prefs = (settings.notificationPrefs as Record<string, boolean> | null) ?? {};
-
   const handleUpdate = async (updates: Partial<UserSettings>) => {
     setSaving(true); setError(null); setSuccess(null);
     try {
@@ -62,12 +34,6 @@ export function TabPreferences() {
       setTimeout(() => setSuccess(null), 2000);
     } catch { setError('保存失败，请稍后重试'); }
     finally { setSaving(false); }
-  };
-
-  const toggleNotif = (type: string) => {
-    const next: Record<string, boolean> = { ...prefs };
-    if (next[type]) delete next[type]; else next[type] = false;
-    handleUpdate({ notificationPrefs: Object.keys(next).length ? next : null as any });
   };
 
   return (
@@ -122,65 +88,8 @@ export function TabPreferences() {
               <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-200 ${settings.compactMode ? 'translate-x-5' : ''}`} />
             </button>
           </div>
-
-          <hr className="wb-section-rule" />
-
-          {/* 默认首页 */}
-          <div className="flex items-start justify-between gap-6 py-4">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <Globe size={14} strokeWidth={1.6} className="shrink-0 text-[var(--accent)]" />
-                <span className="text-[13px] font-semibold text-[var(--foreground)]">默认首页</span>
-              </div>
-              <p className="mt-0.5 text-[12px] leading-relaxed text-[var(--muted-foreground)]">登录后自动跳转至此页面</p>
-            </div>
-            <select value={settings.defaultHomePage} onChange={e => handleUpdate({ defaultHomePage: e.target.value as UserSettings['defaultHomePage'] })} disabled={saving}
-              className="workbench-input !w-auto min-w-[140px]">
-              {HOME_PAGE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-          </div>
         </div>
       </div>
-
-      {/* ══ 通知偏好 ══ */}
-      <p className="text-xs text-[var(--muted-foreground)]">部分通知偏好已接入投递过滤；未接入项为展示预留，正式接入前不影响实际接收。</p>
-      {NOTIF_GROUPS.map(group => (
-        <div key={group.group} className="wb-panel p-6">
-          <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
-            <Bell size={12} strokeWidth={1.8} className="text-[var(--accent)]" />
-            {group.group}
-          </h3>
-
-          <div className="mt-3">
-            {group.items.map((item, idx) => {
-              const enabled = prefs[item.type] !== false;
-              const Icon = item.icon;
-              return (
-                <div key={item.type}>
-                  {idx > 0 && <hr className="wb-section-rule" />}
-                  <div className="flex items-center justify-between gap-6 py-4">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-md"
-                          style={{ backgroundColor: enabled ? 'oklch(0.62 0.12 258 / 0.14)' : 'oklch(0.55 0.03 258 / 0.06)' }}>
-                          <Icon size={13} style={{ color: enabled ? 'var(--accent)' : 'var(--muted-foreground)' }} />
-                        </span>
-                        <span className={`text-[13px] font-semibold ${enabled ? 'text-[var(--foreground)]' : 'text-[var(--muted-foreground)]'}`}>{item.label}</span>
-                      </div>
-                      <p className="mt-0.5 ml-8 text-[12px] leading-relaxed text-[var(--muted-foreground)]">{item.desc}</p>
-                    </div>
-                    <button type="button" onClick={() => toggleNotif(item.type)} disabled={saving}
-                      className="relative h-6 w-11 shrink-0 rounded-full transition-all duration-200"
-                      style={{ backgroundColor: enabled ? 'var(--accent)' : 'oklch(0.55 0.03 258 / 0.2)' }}>
-                      <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-200 ${enabled ? 'translate-x-5' : ''}`} />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
 
       {/* 提示条 */}
       {success && (
