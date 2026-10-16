@@ -89,14 +89,14 @@ export class SupplierController {
 
   // ── 临时供应商邀请码（采购端管理）──
   @Post('invitations')
-  @Roles('admin') // 邀请码：仅管理权限（2026-09-24 用户裁定，leader/staff 不再放行）
+  @Roles('admin', 'leader') // 邀请码：admin + leader（2026-10-16 用户裁定放开 leader；staff 仍不放行）
   @ApiOperation({ summary: '生成临时供应商邀请码（30/180/360 天）' })
   async createInvitation(@Body() dto: CreateInvitationDto, @Request() req: any) {
     return this.supplierService.createInvitation(dto, req.user.sub);
   }
 
   @Get('invitations')
-  @Roles('admin') // 邀请码仅 admin
+  @Roles('admin', 'leader') // 邀请码 admin + leader
   @ApiOperation({ summary: '邀请码列表' })
   async listInvitations(
     @Query('page') page?: string,
@@ -111,7 +111,7 @@ export class SupplierController {
   }
 
   @Post('invitations/:id/revoke')
-  @Roles('admin') // 邀请码仅 admin
+  @Roles('admin', 'leader') // 邀请码 admin + leader
   @ApiOperation({ summary: '作废邀请码' })
   async revokeInvitation(@Param('id') id: string, @Request() req: any) {
     return this.supplierService.revokeInvitation(id, req.user.sub);

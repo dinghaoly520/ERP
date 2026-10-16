@@ -32,9 +32,11 @@ import { fetchCurrentUser } from '@/lib/api/auth';
 export default function SupplierRepositoryPage() {
   const router = useRouter();
   const { confirm, dialog } = useConfirm();
-  // 邀请码管理仅管理权限账号（2026-09-24 用户裁定；后端 @Roles('admin') 已同步收紧）
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const isAdmin = currentUser?.role === 'admin';
+  // 邀请码管理 admin + leader（2026-10-16 用户裁定放开 leader，staff 仍不放行；后端 @Roles 同步）
+  // 2026-09-24 旧口径「仅 admin」已废弃
+  const canManageInvitations = ['admin', 'leader'].includes(currentUser?.role ?? '');
   // 注册审批=归属公司管理账号（2026-09-26 改定，与后端 @Roles('admin','leader','staff') 及
   // 详情页审批栏对齐；2026-09-24 旧口径"审批仅 admin"已废弃——leader/staff 应见待审队列）
   const canApprove = ['admin', 'leader', 'staff'].includes(currentUser?.role ?? '');
@@ -137,8 +139,8 @@ export default function SupplierRepositoryPage() {
     catch { toast.error('邀请码加载失败'); }
     finally { setInvLoading(false); }
   }, []);
-  // 非 admin 不拉邀请码列表（后端已 403，这里避免无效请求与报错噪音）
-  useEffect(() => { if (isAdmin) loadInvitations(); }, [loadInvitations, isAdmin]);
+  // 非 admin/leader 不拉邀请码列表（后端已 403，这里避免无效请求与报错噪音）
+  useEffect(() => { if (canManageInvitations) loadInvitations(); }, [loadInvitations, canManageInvitations]);
   const handleCreateInvitation = async () => {
     setInvCreating(true);
     try {
@@ -425,7 +427,7 @@ export default function SupplierRepositoryPage() {
             <button onClick={() => router.push('/supplier/qualification-alerts')} className="neu-btn-soft"><AlertTriangle size={15} />资质预警</button>
             <button onClick={() => setShowObjections(true)} className="neu-btn-soft"><MessageSquareWarning size={15} />异议与投诉</button>
             <button onClick={() => router.push('/supplier/elimination')} className="neu-btn-soft"><Trash2 size={15} />淘汰候选</button>
-            {isAdmin && <button onClick={() => setInvModalOpen(true)} className="neu-btn-soft"><Key size={15} />邀请码</button>}
+            {canManageInvitations && <button onClick={() => setInvModalOpen(true)} className="neu-btn-soft"><Key size={15} />邀请码</button>}
             <button onClick={() => setShowAuditLog(true)} className="neu-btn-soft"><History size={15} />操作历史</button>
             <button onClick={loadData} disabled={loading} className="neu-btn-xs" aria-label="刷新"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></button>
           </div>
