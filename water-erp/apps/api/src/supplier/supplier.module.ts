@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { SupplierController } from './supplier.controller';
 import { SupplierService } from './supplier.service';
+import { SupplierLinkService } from './supplier-link.service';
 import { RsvpController } from './rsvp.controller';
 import { RsvpService } from './rsvp.service';
 import { OwnerGuard } from './owner.guard';
@@ -13,7 +14,7 @@ import { ProjectManagementModule } from '../project-management/project-managemen
 @Module({
   imports: [AuthModule, PrismaModule, NotificationModule, VerificationModule, ProjectManagementModule],
   controllers: [SupplierController, RsvpController],
-  providers: [SupplierService, RsvpService, OwnerGuard],
-  exports: [SupplierService, RsvpService],
+  providers: [SupplierService, SupplierLinkService, RsvpService, OwnerGuard],
+  exports: [SupplierService, SupplierLinkService, RsvpService],
 })
 export class SupplierModule {}
