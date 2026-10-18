@@ -324,7 +324,7 @@ export class BidSignPacketDocxService {
     const header = ['专家姓名', '角色', '签到状态', '签到时间', '登录/核验方式', '遮挡检测', '留档照', '签到 IP'];
     const rows = s.committee.map(e => {
       const meta = (e.signInMeta ?? {}) as { timestamp?: string; method?: string; occlusion?: string; photoAssetId?: string; reason?: string };
-      const oc = meta.occlusion === 'passed' ? '通过' : meta.occlusion === 'unchecked' ? '未运行（降级）' : '—';
+      const oc = meta.occlusion === 'passed' ? '通过' : meta.occlusion === 'unchecked' ? '未运行' : '—';
       return new TableRow({
         children: header.map((_, i) => {
           let text = '—';
@@ -348,7 +348,7 @@ export class BidSignPacketDocxService {
       new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [this.headerRow(header), ...rows] }),
       ...(s.verifyEvents && s.verifyEvents.length > 0
         ? [
-          this.h2('核验事件（异常/降级/替换留痕）'),
+          this.h2('核验事件（异常/转人工核验/替换留痕）'),
           ...s.verifyEvents.map(ev =>
             this.para(`${ev.time.replace('T', ' ').slice(0, 16)} · ${ev.action} · ${ev.target} · ${ev.result}`)),
         ]
