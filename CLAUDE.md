@@ -426,6 +426,8 @@ DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED
 
 In non-interactive environments, use `prisma migrate dev --create-only` → `prisma db execute` → `prisma migrate resolve --applied`, or set `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=1`.
 
+**拉取后必跑 `migrate status`（schema drift 铁律，2026-10-16 六度应验）**：任何 pull/merge 之后、`pnpm dev` 之前，在 `apps/api` 下跑 `npx prisma migrate status` 判定——有 pending 即 `npx prisma migrate deploy && npx prisma generate`。**判定勿走「本次 diff 是否动 schema.prisma」**：存量 drift 会被脱离树代打的旧 :4001 进程掩盖（2026-10-16 实录：`83a1e057` 的 SupplierCompanyLink 早已在本地 main 但从未 deploy/generate；`dev:kill` 清掉旧进程后新 `pnpm dev` 首次编译新代码即红——症状=门户全活、唯 :4001 死。client 旧→TS 编译红，DB 旧→起来后 P2022，可叠加）。修完须整体 `pnpm dev:kill && pnpm dev`（watch 对 node_modules/.d.ts 变更不可靠），验证=10 端口全监听 + `/api/docs` 200。
+
 ## 运维环境变量（2026-07 production hardening）
 - **DATABASE_URL**：现在走 pgbouncer `localhost:6432`（`?pgbouncer=true&connection_limit=10`）。直连用 `DIRECT_URL=localhost:5432`。
 - **pgbouncer**：`docker-compose.yml` 新增服务 `water-erp-pgbouncer`（本地构建于 `docker/pgbouncer/`），transaction 池，scram-sha-256 认证，6432→容器6432。postgres `max_connections=200`。

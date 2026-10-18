@@ -47,14 +47,14 @@ function buildCards(s: QuickStats | null): Card[] {
       icon: Search,
       label: '全系统数据问答',
       subtitle: focusAreas.length > 0
-        ? `⚠ ${focusAreas.slice(0, 2).join(' · ')}`
+        ? `${focusAreas.slice(0, 2).join(' · ')}`
         : '系统各模块运行正常',
     },
     {
       icon: ShieldAlert,
       label: '招采风险扫描',
       subtitle: supplier.risk > 0
-        ? `⚠ ${supplier.risk} 家供应商有风险`
+        ? `${supplier.risk} 家供应商有风险`
         : bid.active > 0
           ? `${bid.active} 个项目在开/评标中`
           : '暂无风险项目',

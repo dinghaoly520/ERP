@@ -5412,7 +5412,7 @@ export class BidService {
       lines.push(['存证摘要-监督日志', sectionDigests.supervisionLogs].join(','));
       lines.push(['存证摘要-澄清答疑', sectionDigests.clarifications].join(','));
       if (submissionReceipts.length > 0) {
-        lines.push('', '=== 投标回执 SM2 签名（A-101）===');
+        lines.push('', '=== 投标回执 SM2 签名 ===');
         lines.push(['提交ID', '供应商', '签署时间', '算法'].map(esc).join(','));
         for (const r of submissionReceipts) {
           const rec = r.receiptSignature as { algorithm?: string } | null;

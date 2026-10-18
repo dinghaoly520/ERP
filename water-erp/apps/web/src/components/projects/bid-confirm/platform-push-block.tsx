@@ -332,7 +332,7 @@ export function PlatformPushBlock({ bidProjectId }: Props) {
             className="neu-btn-primary !h-[32px] !text-xs shrink-0"
             onClick={openPreview}
             disabled={busy || selected.size === 0}
-            title={selected.size === 0 ? '先勾选可推数据项（⚠ 待补全行禁勾）' : '预览中间信封（人工确认制第一步——推送前必经）'}
+            title={selected.size === 0 ? '先勾选可推数据项（待补全行禁勾）' : '预览中间信封（人工确认制第一步——推送前必经）'}
           >
             <Eye size={13} /> 预览选中{selected.size > 0 ? `（${selected.size}）` : ''}
           </button>
@@ -403,7 +403,7 @@ export function PlatformPushBlock({ bidProjectId }: Props) {
                             className="font-semibold text-[var(--warning)]"
                             title={`缺 ${row.missing.join('/')}——${missingHints.join('；')}`}
                           >
-                            ⚠ 待补全（{row.missing.join('/')}）
+                            待补全（{row.missing.join('/')}）
                           </span>
                         )}
                       </td>

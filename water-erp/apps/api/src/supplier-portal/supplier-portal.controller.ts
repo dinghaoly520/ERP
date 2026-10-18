@@ -551,7 +551,7 @@ export class SupplierPortalController {
   async reuploadV3(@Param('projectId') projectId: string, @Body() body: { operationId?: string; signatureFormat?: string; signP7?: string; baseRevision?: number }, @Request() req: any) {
     const supplierId = await this.getSupplierId(req.user.sub);
     if (!body?.operationId || body?.signatureFormat !== 'scca-pkcs7-base64' || !body?.signP7) {
-      throw new BadRequestException({ error: 'dual-v3 补传须携带 operationId+signP7（scca-pkcs7-base64）', code: 'BAD_PARAMS' });
+      throw new BadRequestException({ error: '补传须携带操作标识与盾内 P7 签名，请重试或联系管理员', code: 'BAD_PARAMS' });
     }
     return this.portalService.reuploadBidV3(supplierId, projectId, {
       operationId: body.operationId, signatureFormat: body.signatureFormat, signP7: body.signP7, baseRevision: body.baseRevision,

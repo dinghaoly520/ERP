@@ -1236,7 +1236,7 @@ export default function ProfilePage() {
                 <span className="crp-ft-h ok">检测到变更</span>
               )}
               {(crMode === "quals" || crMode === "contacts") && (
-                <span className="ml-auto text-[11px] font-semibold text-warning">⚠ 资质与联系人修改保存后立即生效（不走审核）</span>
+                <span className="ml-auto text-[11px] font-semibold text-warning">资质与联系人修改保存后立即生效（不走审核）</span>
               )}
               <div className="neu-btn-group">
                 <button type="button" className="neu-btn-soft" onClick={() => setCrDlg(false)}>取消</button>

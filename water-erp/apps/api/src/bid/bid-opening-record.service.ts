@@ -454,7 +454,7 @@ export class BidOpeningRecordService {
     const isAbsentConfirm = bidSupplier.decryptStatus === 'SUCCESS' && bidSupplier.confirmStatus === 'PENDING';
     // 扩展接受 DISPUTED 和 EXCEPTION（CONFIRMED 无需覆盖）
     if (!['DISPUTED', 'EXCEPTION'].includes(bidSupplier.confirmStatus) && !isAbsentConfirm) {
-      throw new BadRequestException({ error: '仅异议中（DISPUTED）或异常（EXCEPTION）的供应商可被强制裁决', code: 'NOT_OVERRIDABLE' });
+      throw new BadRequestException({ error: '仅处于「异议中」或「解密异常」状态的供应商可被强制裁决', code: 'NOT_OVERRIDABLE' });
     }
     if (isAbsentConfirm && target !== 'confirmed') {
       throw new BadRequestException({ error: '解密成功但未确认的家只能视为无异议确认（缺席视为确认）；如需定性异常请走「确认接受解密失败」通道', code: 'ABSENT_CONFIRM_ONLY' });

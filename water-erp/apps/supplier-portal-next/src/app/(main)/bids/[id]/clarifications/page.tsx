@@ -124,7 +124,7 @@ export default function BidClarificationsPage() {
 
       if (isV3) {
         if (!pin) {
-          toast.warning("请输入 U盾 PIN（dual-v3 投递的澄清答复须以 SCCA CA P7 签名）");
+          toast.warning("请输入 U盾 PIN（澄清答复将以 SCCA CA P7 签名）");
           setSigning(false);
           return;
         }

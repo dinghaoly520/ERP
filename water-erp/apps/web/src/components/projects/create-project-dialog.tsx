@@ -907,7 +907,7 @@ export function CreateProjectDialog({
                                   <span className="font-semibold text-[var(--success)]">= {l.lineTotal!.toLocaleString()}</span>
                                   {l.lineLow != null && l.lineHigh != null && (<span className="text-[color:var(--muted-foreground)]">区间 {l.lineLow.toLocaleString()}–{l.lineHigh.toLocaleString()}</span>)}
                                 </div>
-                                {l.specWarning && (<div className="mt-0.5 text-[9px] text-[color:var(--warning)] leading-snug">⚠ {l.specWarning}</div>)}
+                                {l.specWarning && (<div className="mt-0.5 text-[9px] text-[color:var(--warning)] leading-snug">{l.specWarning}</div>)}
                               </div>
                             ))}
                           </div>

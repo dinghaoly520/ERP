@@ -503,7 +503,7 @@ export class BidDecryptService {
       const isDanger = bidSupplier.decryptStatus === 'DANGER' && bidSupplier.dangerAttribution !== 'BIDDER';
       const isUnknownPending = bidSupplier.decryptStatus === 'PENDING' && bidSupplier.dangerAttribution === 'UNKNOWN';
       if (!isDanger && !isUnknownPending) {
-        throw new BadRequestException({ error: '仅解密异常（DANGER）或待裁决（UNKNOWN）供应商可重置解密机会', code: 'NOT_RESETTABLE' });
+        throw new BadRequestException({ error: '仅「解密异常」或「待裁决」状态的供应商可重置解密机会', code: 'NOT_RESETTABLE' });
       }
       await this.prisma.$transaction(async (tx) => {
         await tx.bidSupplier.update({
@@ -606,7 +606,7 @@ export class BidDecryptService {
     const windowExpired = !session || session.decryptWindowEnd.getTime() <= Date.now();
     const undecrypted = bidSupplier.decryptStatus === 'PENDING' || bidSupplier.decryptStatus === 'RUNNING';
     if (bidSupplier.decryptStatus !== 'DANGER' && !(windowExpired && undecrypted)) {
-      throw new BadRequestException({ error: '仅解密异常（DANGER）状态的供应商可确认接受', code: 'NOT_DANGER' });
+      throw new BadRequestException({ error: '仅「解密异常」状态的供应商可确认接受', code: 'NOT_DANGER' });
     }
 
     const finalReason = windowExpired && undecrypted
