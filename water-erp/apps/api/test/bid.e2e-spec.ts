@@ -616,8 +616,8 @@ describe('Bid Lifecycle (e2e)', () => {
           name: `移交测试项目-${Date.now()}`,
           procurementMethod: '公开招标',
           budget: 1000000,
-          // 24h 关系（P0-2 align）：deadline = openTime − 24h，两者均在过去（/open 要求截标已过）
-          deadline: new Date(Date.now() - 43200_000 - 86400_000).toISOString(),
+          // 10min 间隔（P0-2 align，2026-10-16 起）：deadline = openTime − 10min，两者均在过去（/open 要求截标已过）
+          deadline: new Date(Date.now() - 43200_000 - 10 * 60_000).toISOString(),
           openTime: new Date(Date.now() - 43200_000).toISOString(),
         });
       projectId = createRes.body.id;

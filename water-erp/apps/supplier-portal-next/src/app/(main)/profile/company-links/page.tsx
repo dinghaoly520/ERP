@@ -83,7 +83,7 @@ export default function CompanyLinksPage() {
       />
 
       {/* 申请加入 */}
-      <section className="mt-4 rounded-2xl border border-black/5 bg-white p-5">
+      <section className="neu-card-static mt-4 p-5">
         <h2 className="text-sm font-medium">申请加入公司</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <UnitSearchSelect value={company} onChange={setCompany} />
@@ -112,12 +112,12 @@ export default function CompanyLinksPage() {
           <EmptyState icon={Building2} title="尚无公司归属记录" desc="通过上方「申请加入公司」加入该公司的供应商库" />
         ) : (
           links.map((l) => (
-            <article key={l.id} className="rounded-2xl border border-black/5 bg-white p-4">
+            <article key={l.id} className="neu-card-static p-4">
               <header className="flex items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{l.companyName}</span>
                   {l.isPrimary && (
-                    <span className="rounded bg-black/5 px-1.5 py-0.5 text-xs text-[var(--muted-foreground)]">主归属</span>
+                    <span className="rounded-full px-1.5 py-0.5 text-xs text-[var(--muted-foreground)] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)]">主归属</span>
                   )}
                 </div>
                 <span
