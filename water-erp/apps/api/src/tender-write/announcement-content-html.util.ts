@@ -25,7 +25,9 @@ function normalizeRepeatedCaiGou(html: string): string {
  */
 export function alignSignatureParagraphs(html: string): string {
   if (!html) return html;
-  const dateRe = /<p>(\d{4}年\d{1,2}月\d{1,2}日)<\/p>/g;
+  // 前导/尾随空白（docx 前导空格模拟右对齐，mammoth 保留为空格/nbsp）与纯文本路径
+  // 的 /^\s*…\s*$/ 同口径，否则询比/竞价/流标模板的落款日期段会失配（2026-10-19 补）
+  const dateRe = /<p>[\s\u00a0]*(\d{4}年\d{1,2}月\d{1,2}日)[\s\u00a0]*<\/p>/g;
   let m: RegExpExecArray | null;
   let last: { index: number; len: number; date: string } | null = null;
   while ((m = dateRe.exec(html))) {

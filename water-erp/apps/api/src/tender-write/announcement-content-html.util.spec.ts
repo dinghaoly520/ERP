@@ -33,6 +33,17 @@ describe('alignSignatureParagraphs（落款右对齐）', () => {
     );
   });
 
+  it('日期段带前导空格/nbsp（询比/竞价/流标模板 docx 前导空格模拟右对齐）仍对齐', () => {
+    const html = '<p>           四川水发勘测设计研究有限公司</p><p>           2026年10月19日</p>';
+    expect(alignSignatureParagraphs(html)).toBe(
+      '<p style="text-align:right">           四川水发勘测设计研究有限公司</p><p style="text-align:right">2026年10月19日</p>',
+    );
+    const nbspHtml = '<p>公司</p><p>  2026年10月19日 </p>';
+    expect(alignSignatureParagraphs(nbspHtml)).toBe(
+      '<p style="text-align:right">公司</p><p style="text-align:right">2026年10月19日</p>',
+    );
+  });
+
   it('非纯日期（含其他文字）不触发对齐', () => {
     const html = '<p>公示期限：2026年10月19日 至 2026年10月22日</p><p>公司</p>';
     expect(alignSignatureParagraphs(html)).toBe(html);
