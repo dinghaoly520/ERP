@@ -208,7 +208,7 @@ export function RequirementComparePanel({
       setLocal((cur) => ({ ...cur, [item.id]: prevReview }));
       // EXP-P1-01（2026-09-29 审查修复）：本门户 lib/api.ts 并无「全局 toast 拦截器」——
       // 静默回滚=保存失败无声无息，就地报错并保持 touched 促使重同步
-      toast.error(e?.message || '标注保存失败，已回滚');
+      toast.error(e?.message || '标注保存失败，已恢复原状');
     }
   };
 

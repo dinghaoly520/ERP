@@ -13,7 +13,7 @@
 # 规则集（命中即 exit 1）：
 #   U1 端口号入散文      （:3007）| 在 :3007 | 由 :3005 …
 #   U2 内部工单/规范代号 （A-129，|（A-102）| 分工 v3 | BID-P3-02
-#   U3 研发黑话          规则兜底 | LLM 综合
+#   U3 研发黑话          规则兜底 | LLM 综合 | 幂等 | 回滚 | 透传 | payloadHash(schema=) 入散文
 #   U4 英文 tab 混排     「…」tab | 对应 tab 操作
 #   U5 散文内嵌机器码    （EXCEPTION）
 #   U6 emoji 当图标      🔓 ⚠ ✅ ⬜ ✏ ⭐（.impeccable.md 禁 emoji-as-icons）
@@ -44,7 +44,7 @@ for a in "${ARGS[@]:-}"; do [[ -n "$a" && "$a" != "--ci" ]] && PATHS+=("$a"); do
 RULES=(
   'U1|（:300[0-9]|\p{Han} :300[0-9]'
   'U2|（A-1[0-9]{2}[，）]|分工 v[0-9]|BID-P[0-9]'
-  'U3|规则兜底|LLM 综合'
+  'U3|规则兜底|LLM 综合|幂等|回滚|透传|[\p{Han}\d] payloadHash|（payloadHash）|payloadHash（|schema=[a-z]'
   'U4|」tab|\p{Han} tab \p{Han}'
   'U5|（EXCEPTION）'
   'U6|🔓|⚠|✅|⬜|✏|⭐'

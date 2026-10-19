@@ -725,7 +725,7 @@ export class UploadService implements OnModuleInit {
     // ① 新轨 C_inner / 明文资产不在 submission 四列中，通用规则漏不掉也得拦——按类目整体禁删；
     // ② dual-v2 C_outer 恰在四列内，必须先按 dual-v2 口径给 FILE_PROTECTED（否则被通用规则吞成 FILE_REFERENCED）。
     if (asset.category === 'bid_inner_ciphertext' || asset.category === 'bid_decrypted') {
-      throw new ConflictException({ error: '该文件属开标解密链路资产，禁止删除', code: 'FILE_PROTECTED' });
+      throw new ConflictException({ error: '该文件属开标解密环节的关键文件，禁止删除', code: 'FILE_PROTECTED' });
     }
     if (asset.category === 'bid_document') {
       const dualOuter = await this.prisma.supplierBidSubmission.findFirst({
@@ -741,7 +741,7 @@ export class UploadService implements OnModuleInit {
         select: { id: true },
       });
       if (dualOuter) {
-        throw new ConflictException({ error: '该文件属开标解密链路资产，禁止删除', code: 'FILE_PROTECTED' });
+        throw new ConflictException({ error: '该文件属开标解密环节的关键文件，禁止删除', code: 'FILE_PROTECTED' });
       }
     }
 
