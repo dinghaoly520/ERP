@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import { validateFileSize } from "@/lib/upload-rules";
 import {
   FileDown,
   Upload,
@@ -312,6 +314,9 @@ export function NotificationLetterDialog({
   const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // 附件统一限制（2026-10-19）：定标审批表仅大小校验（PDF 业务格式保持）
+    const sizeErr = validateFileSize(file);
+    if (sizeErr) { toast.error(sizeErr); e.target.value = ""; return; }
     e.target.value = "";
 
     setExtracting(true);
