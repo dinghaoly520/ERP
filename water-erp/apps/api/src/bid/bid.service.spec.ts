@@ -3633,6 +3633,8 @@ describe('createRound — 供应商准入', () => {
       bidQuote: { create: jest.fn() },
       bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
       bidOpeningSession: { update: jest.fn() },
+      // 结果冻结闸（2026-10-19）：createRound 新增前置——默认无既有结果（放行路径）
+      bidEvaluationResult: { count: jest.fn().mockResolvedValue(0) },
       $queryRaw: jest.fn(),
       $transaction: jest.fn(async (cb: any) => typeof cb === 'function' ? cb(prisma) : Promise.all(cb)),
     };
@@ -3762,6 +3764,8 @@ describe('createRound — 谈判采购评标完成闸门（先评标→再报价
       bidQuote: { create: jest.fn() },
       bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
       bidOpeningSession: { update: jest.fn() },
+      // 结果冻结闸（2026-10-19）：createRound 新增前置——默认无既有结果（放行路径）
+      bidEvaluationResult: { count: jest.fn().mockResolvedValue(0) },
       $queryRaw: jest.fn(),
       $transaction: jest.fn(async (cb: any) => typeof cb === 'function' ? cb(prisma) : Promise.all(cb)),
     };
