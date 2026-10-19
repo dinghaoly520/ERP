@@ -66,6 +66,7 @@ describe('updateStage 评分标准闸（SCORE_STANDARD_REQUIRED）', () => {
       projectManagementItem: {
         findUnique: jest.fn().mockResolvedValue({
           id: 'pmi-1',
+          status: 'ACTIVE', // PMI 可变闸（2026-10-19）
           title: '测试项目',
           currentStage: 'TENDER_DOCUMENT',
           procurementMethod: opts.procurementMethod,
@@ -194,6 +195,7 @@ describe('updateStage 评分标准闸（SCORE_STANDARD_REQUIRED）', () => {
   it('stage 行解析 round 缺省 → 取 PMI.currentRound（不落回任意行）', async () => {
     const prisma = mkHappyPrisma({ procurementMethod: '竞价采购', stageRound: 2, bidProject: null });
     prisma.projectManagementItem.findUnique.mockResolvedValue({
+      status: 'ACTIVE',
       id: 'pmi-1',
       title: '测试项目',
       currentStage: 'TENDER_DOCUMENT',
