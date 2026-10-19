@@ -4,6 +4,9 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, Search } from "lucide-react";
 import { SASAC_UNITS } from "@/lib/data/sasac-units";
+// 组件自带的 neumorphic 触发器样式（uss-shadow-*）——随组件走（消费方无需再引；
+// 2026-10-19：从消费方收口到组件本体，防顶栏浮窗等新消费方漏引）
+import "@/styles/pages/register2.css";
 
 /**
  * 集团单位选择器（供应商门户版，2026-09-17）：62 家全级次企业名单 + 首行搜索。

@@ -9,6 +9,7 @@ import dayjs from "dayjs";
 import {
   ArrowDown,
   Bell,
+  Building2,
   ChevronDown,
   Lock,
   LogOut,
@@ -30,6 +31,8 @@ import {
   type MenuItem,
 } from "@/components/shell/supplier-menu";
 import { ChangePasswordDialog } from "@/components/shell/change-password-dialog";
+import { CompanyLinksDialog } from "@/components/shell/company-links-dialog";
+import { supplierCompanyLinksApi } from "@/lib/api/supplier";
 import { BackToTop } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -201,6 +204,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { displayName, logout } = useAuth();
   const { unreadCount, notifications, fetchNotifications, markAsRead, markAllAsRead, fetchUnreadCount } = useNotifications();
   const { status, statusError, fetchStatus } = useSupplierStatus();
+  // 归属徽标：非临时供应商挂载时拉一次「审批中」数（浮窗交互后经 onPendingChange 同步）
+  useEffect(() => {
+    if (status?.isTemporary) return;
+    supplierCompanyLinksApi
+      .my()
+      .then((rows) => setClqPending(rows.filter((l) => l.status === "PENDING").length))
+      .catch(() => {});
+  }, [status?.isTemporary]);
 
   const [collapsed, setCollapsed] = useState(false);
   // 分组折叠（对齐 :3005 sidebar-group-header 可点击折叠）
@@ -208,6 +219,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileDrawer, setMobileDrawer] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [pwdOpen, setPwdOpen] = useState(false);
+  // 公司归属管理浮窗（多公司归属 2026-10-16）：徽标=审批中归属申请数
+  const [clqOpen, setClqOpen] = useState(false);
+  const [clqPending, setClqPending] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { confirm, dialog } = useConfirm();
@@ -434,6 +448,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="sp-header-right">
+          {/* 公司归属管理（多公司归属 2026-10-16）：临时供应商无此通道 */}
+          {!status?.isTemporary && (
+            <button
+              type="button"
+              className="sp-header-icon"
+              onClick={() => setClqOpen(true)}
+              aria-label={clqPending > 0 ? `公司归属管理，${clqPending} 条申请审批中` : "公司归属管理"}
+            >
+              <Building2 size={18} aria-hidden="true" />
+              {clqPending > 0 && (
+                <span className="sp-header-badge" aria-hidden="true">{clqPending > 99 ? "99+" : clqPending}</span>
+              )}
+            </button>
+          )}
           {/* Notification bell */}
           <div className="sp-notif-anchor" ref={notifAnchorRef}>
             <button
@@ -630,6 +658,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <div inert={mobileDrawer || undefined}>
         <ChangePasswordDialog open={pwdOpen} onClose={() => setPwdOpen(false)} />
+        <CompanyLinksDialog open={clqOpen} onClose={() => setClqOpen(false)} onPendingChange={setClqPending} />
         <BackToTop />
       </div>
       {dialog}
