@@ -39,13 +39,20 @@ export async function openAuthedFile(url: string): Promise<void> {
 /** 触发浏览器下载（fileName 指定保存名，缺省由浏览器定） */
 export async function downloadAuthedFile(url: string, fileName?: string): Promise<void> {
   const blob = await fetchAuthedFile(url);
+  await saveBlob(blob, fileName);
+}
+
+/**
+ * 已持有 blob 的落盘下载（2026-10-19 收口：bids/[id] 与 announcements/[id] 的 doDownload
+ * 原各自内联「离屏 anchor + click 后立即 revokeObjectURL」——真实浏览器中 revoke 抢在读取
+ * blob URL 之前，下载静默失败/截断（API 已 200、fetch/blob 均成功，唯独不落盘）。
+ * 与 downloadAuthedFile 同一口径：挂 DOM 锚 + 60s 延迟 revoke。
+ */
+export async function saveBlob(blob: Blob, fileName?: string): Promise<void> {
   const objectUrl = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = objectUrl;
   if (fileName) a.download = fileName;
-  // 挂 DOM + 延迟 revoke：老版本 Safari 对离屏 anchor 的 click() 不触发下载；且立即
-  // revokeObjectURL 会抢在浏览器读取 blob URL 之前撤销它（Safari/Firefox 下载截断竞态）。
-  // 与 openAuthedFile 的 60s 策略一致，objectURL 极小无内存压力。
   document.body.appendChild(a);
   a.click();
   a.remove();

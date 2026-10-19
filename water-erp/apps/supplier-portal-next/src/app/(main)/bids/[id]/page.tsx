@@ -14,6 +14,7 @@ import { TenderClarificationCard } from "@/components/tender-clarification-card"
 import { CaReceiptSignButton } from "@/components/ca-receipt-sign-button";
 import { supplierApi } from "@/lib/api/supplier";
 import { announcementApi } from "@/lib/api/announcement";
+import { saveBlob } from "@/lib/authed-file";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { InvitationDocxPreview } from "@/components/invitation-docx-preview";
@@ -268,12 +269,8 @@ function BidDetailInner() {
     setDownloading(true);
     try {
       const { blob, fileName } = await announcementApi.downloadBidDocument(bidDoc.announcementId, decryptPwd || undefined);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      a.click();
-      URL.revokeObjectURL(url);
+      // 2026-10-19：落盘收口 saveBlob（旧内联「立即 revokeObjectURL」竞态致真实浏览器下载静默失败）
+      await saveBlob(blob, fileName);
       setDecryptPwd("");
       setPwdDialog(false);
       await loadBidDoc();
