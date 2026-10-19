@@ -16,5 +16,14 @@ export const LOCKED_STAGES = new Set(
   PROJECT_WORKFLOW_STAGES.filter((s) => (s as { locked?: boolean }).locked).map((s) => s.key),
 );
 
+/** 投标侧收口闸的阶段集（2026-10-19）：开标评标及其后（定标/合同/直接采购备案表）——
+ *  这些阶段完成前，同轮关联 BidProject 必须已终局（ARCHIVED/ABORTED）；
+ *  正门=「开标确认」面板完整归档（archiveAll→syncPmStage 自动置 COMPLETED 并解锁定标）。 */
+export const BID_TAIL_STAGE_KEYS = new Set(
+  PROJECT_WORKFLOW_STAGES
+    .slice(PROJECT_WORKFLOW_STAGES.findIndex((s) => s.key === 'BID_EVALUATION'))
+    .map((s) => s.key),
+);
+
 export type ProjectWorkflowStageKey =
   (typeof PROJECT_WORKFLOW_STAGES)[number]['key'];
