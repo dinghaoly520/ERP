@@ -85,7 +85,7 @@ export function AiPlanningPanel({
                 </p>
                 {dailyPlan.focusItems.map((item, idx) => (
                   <div
-                    key={item.id || idx}
+                    key={`${item.id || 'fi'}-${idx}`}
                     className="neu-surface-subtle flex items-start gap-3 rounded-[12px] px-3.5 py-2.5"
                   >
                     <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[rgba(96,139,239,0.15)] text-[10px] font-bold tabular-nums text-[color:var(--accent)]">
