@@ -7,16 +7,16 @@ import { toast } from "sonner";
 import dayjs from "dayjs";
 import {
   FileText, TriangleAlert, Lock, Upload, Download, Sparkles, Loader2, ArrowLeft,
-  CircleX, CircleCheck, Info, KeyRound, Copy, Check,
+  CircleX, CircleCheck, Info, KeyRound, Copy, Check, Coins,
 } from "lucide-react";
 import { bidApi } from "@/lib/api/bid";
 import { TenderClarificationCard } from "@/components/tender-clarification-card";
 import { CaReceiptSignButton } from "@/components/ca-receipt-sign-button";
+import { CountdownTimer } from "@/components/countdown-timer";
 import { supplierApi } from "@/lib/api/supplier";
 import { announcementApi } from "@/lib/api/announcement";
 import { saveBlob } from "@/lib/authed-file";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
-import { SpPageHero } from "@/components/sp-page-hero";
 import { InvitationDocxPreview } from "@/components/invitation-docx-preview";
 import { SpButton, SpInput, SpDialog, LoadingBlock } from "@/components/ui";
 import { HelpTip } from "@/components/help-tip";
@@ -372,33 +372,59 @@ function BidDetailInner() {
             </div>
           ) : project ? (
             <>
-              {/* ═══ Hero（详情页保留真实项目名为可见标题；图标+描述句装饰已删）═══ */}
-              <SpPageHero title={project.name}
-                actions={
-                  <>
-                    <button
-                      type="button"
-                      className="neu-btn-primary !h-10 !px-5"
-                      disabled={!canSubmit}
-                      title={canSubmit ? undefined : (
-                        !isApproved ? "供应商资料未审核通过，暂不可投标"
-                          : !["DOWNLOAD", "SUBMIT"].includes(project?.stage || "") ? "项目不在投标期内（下载/递交阶段）"
-                          : "投标截止时间已过"
-                      )}
-                      onClick={goToSubmit}
-                    >
-                      <Upload size={14} strokeWidth={1.75} />{canSubmit ? "提交标书" : "不可投标"}
+              {/* ═══ 详情头（2026-10-19 重设计：弃 cgzxui page-hero 标题卡——实体详情页不套标题栏，
+                  直接开篇：eyebrow 入口语境 + 项目名大标题 + 阶段徽标，坐在页面底色上）═══ */}
+              <header className="bd-head">
+                <div className="bd-eyebrow">{isListMode ? "项目机会" : "投标进展"} · 项目详情</div>
+                <div className="bd-title-row">
+                  <h1 className="bd-title">{project.name}</h1>
+                  <span className="bd-stage" style={{ "--sc": stageMap[project.stage]?.color } as React.CSSProperties}>
+                    <span className="bd-stage-dot" />
+                    {stageMap[project.stage]?.label ?? project.stage}
+                  </span>
+                </div>
+              </header>
+
+              {/* ═══ 投标操作条（2026-10-19 重设计：内容区首卡）═══
+                  cgzxui：并排主/次按钮 .neu-btn-group 统一等高；状态说明常驻卡内（原藏原生 title，触屏不可见）。
+                  CountdownTimer 挂载即同步服务器时钟——canSubmit 预检同源（列表路径 info-bar 隐藏时不退化本地时钟） */}
+              <div className="bid-act-card">
+                <span className="bid-act-note">
+                  {canSubmit ? (
+                    <>
+                      投标截止 <strong>{dayjs(project.deadline).format("MM-DD HH:mm")}</strong>
+                      <CountdownTimer deadline={project.deadline} />
+                    </>
+                  ) : (
+                    <>
+                      <Lock size={13} strokeWidth={1.75} />
+                      {!isApproved ? "供应商资料未审核通过，暂不可投标"
+                        : !["DOWNLOAD", "SUBMIT"].includes(project?.stage || "") ? "项目不在投标期内（下载/递交阶段）"
+                        : `投标截止时间已过（${dayjs(project.deadline).format("MM-DD HH:mm")} 截止）`}
+                    </>
+                  )}
+                </span>
+                <div className="neu-btn-group">
+                  <button
+                    type="button"
+                    className="neu-btn-primary"
+                    disabled={!canSubmit}
+                    onClick={goToSubmit}
+                  >
+                    {canSubmit
+                      ? <Upload size={14} strokeWidth={1.75} />
+                      : <Lock size={14} strokeWidth={1.75} />}
+                    {canSubmit ? "提交标书" : "不可投标"}
+                  </button>
+                  {/* 2c: 多轮报价入口——仅谈判采购（roundMode=negotiation）；竞价采购 sealed_auction 为单轮唱标模式。
+                      B4-1（2026-09-30）：加成员/参与门槛——非参与供应商点了只会看到 403 空态 */}
+                  {project.roundMode === "negotiation" && (canSubmit || submission?.status === "submitted") && (
+                    <button type="button" className="neu-btn-soft" onClick={() => router.push(`/bids/${projectId}/round-quote`)}>
+                      <Coins size={14} strokeWidth={1.75} />多轮报价
                     </button>
-                    {/* 2c: 多轮报价入口——仅谈判采购（roundMode=negotiation）；竞价采购 sealed_auction 为单轮唱标模式。
-                        B4-1（2026-09-30）：加成员/参与门槛——非参与供应商点了只会看到 403 空态 */}
-                    {project.roundMode === "negotiation" && (canSubmit || submission?.status === "submitted") && (
-                      <button type="button" className="neu-btn-soft !h-10 !px-5" onClick={() => router.push(`/bids/${projectId}/round-quote`)}>
-                        多轮报价
-                      </button>
-                    )}
-                  </>
-                }
-              />
+                  )}
+                </div>
+              </div>
 
               {/* ═══ 阶段进度 + 指引（非列表模式）═══ */}
               {!isListMode && (
