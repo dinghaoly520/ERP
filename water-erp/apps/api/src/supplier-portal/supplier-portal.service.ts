@@ -2105,7 +2105,7 @@ export class SupplierPortalService {
       return this.submitBidV3(supplierId, projectId, data);
     }
 
-    // 双信封 v2 新轨开关：默认开；BID_DUAL_ENVELOPE=false 全局退回旧轨（灰度/应急双向可退）
+    // 双信封开关：仅影响 dual-v2|dual-v3 轨道内部分派（旧轨投递已整体关闭，开关不再提供退回语义）
     const dualOn = process.env.BID_DUAL_ENVELOPE !== 'false';
     const envelope = data.envelope;
     const dual = dualOn && envelope?.version === 'dual-v2';
@@ -4252,6 +4252,12 @@ export class SupplierPortalService {
     let pendingOpCommit: { id: string; result: Record<string, unknown> } | null = null;
 
     if (v3?.operationId && v3?.signatureFormat === 'scca-pkcs7-base64' && v3?.signP7) {
+      // I-2（阶段2 终审）：轨道一致性校验——v3 提交仅对 dual-v3 投递行放行
+      // （payload 端点按轨道分派 v2/v1，但 submit 端点按请求形状分派——
+      //  legacy/v2 行手工构造 v3 式提交会按 v2 重算导致必败且报错误导）
+      if (submissionTrack !== 'dual-v3') {
+        throw new BadRequestException({ error: '该投递非 dual-v3 轨，不支持 P7 确认', code: 'NOT_DUAL_TRACK' });
+      }
       // ── SCCA dual-v3 轨（Task7）：canonical v2 + P7 验签 ──
       const op = await this.prisma.caOperation.findUnique({ where: { id: v3.operationId } });
       if (!op || op.subjectId !== supplierId) {

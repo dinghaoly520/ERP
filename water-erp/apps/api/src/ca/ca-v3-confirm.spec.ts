@@ -33,7 +33,7 @@ const mockPrisma: any = {
   },
   bidOpeningRecord: { findFirst: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }), update: jest.fn().mockResolvedValue({}) },
   bidOpeningSession: { findUnique: jest.fn().mockResolvedValue({ id: 'sess-1' }) },
-  supplierBidSubmission: { findUnique: jest.fn().mockResolvedValue({ id: 'sub-1', revision: 1 }) },
+  supplierBidSubmission: { findUnique: jest.fn().mockResolvedValue({ id: 'sub-1', revision: 1, envelopeVersion: 'dual-v3' }) },
   supplierCert: { findFirst: jest.fn() },
   caOperation: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}) },
   bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
@@ -56,7 +56,7 @@ describe('开标确认 P7 强签（dual-v3 Task7）', () => {
     jest.clearAllMocks();
     mockVerify.mockReset();
     mockPrisma.bidOpeningRecord.findFirst.mockResolvedValue({ ...RECORD });
-    mockPrisma.supplierBidSubmission.findUnique.mockResolvedValue({ id: 'sub-1', revision: 1 }); // 默认旧轨行（I8 用例按需覆写）
+    mockPrisma.supplierBidSubmission.findUnique.mockResolvedValue({ id: 'sub-1', revision: 1, envelopeVersion: 'dual-v3' }); // 默认 dual-v3（I-2 轨道校验要求；I8 旧轨用例按需覆写）
     mockPrisma.supplierCert.findFirst.mockResolvedValue(mkCert());
     mockPrisma.caOperation.findUnique.mockResolvedValue({
       id: 'op-1', subjectId: 'sup-1', purpose: 'opening-confirm', status: 'PAYLOAD_READY',
@@ -133,6 +133,8 @@ describe('开标确认 P7 强签（dual-v3 Task7）', () => {
   });
 
   test('旧轨兼容：空签名 → unsigned-legacy 照走（v1 canonical 重建不受影响）', async () => {
+    // I8+I-2：本用例模拟旧轨行——mock 改回 legacy（默认已改 dual-v3）
+    mockPrisma.supplierBidSubmission.findUnique.mockResolvedValue({ id: 'sub-1', revision: 1, envelopeVersion: null });
     const svc = mkService();
     await svc.confirmOpening('sup-1', 'proj-1', '');
     const updateArg = mockPrisma.bidOpeningRecord.updateMany.mock.calls[0][0];

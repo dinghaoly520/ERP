@@ -4,7 +4,6 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, getOpeningDraft, completeOpening, startOpening, acceptSupplierDanger, overrideDispute, pauseOpening, resumeOpening, decryptOuter, decryptAdjudge, listBondLedger, upsertBondLedger, removeBondLedger, type BondLedgerRow, type DecryptAdjudgeAttribution, type DecryptOuterResult, type DecryptOuterDetail, type OpeningFieldDef } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
 import StartOpeningDialog from '@/components/start-opening-dialog';
-import DecryptConfirmDialog from '@/components/decrypt-confirm-dialog';
 import AdjudicateDialog, { type AdjudgeMode } from '@/components/adjudicate-dialog';
 import {
   Unlock, Clock, Shield, CheckCircle, AlertTriangle, ExternalLink,
