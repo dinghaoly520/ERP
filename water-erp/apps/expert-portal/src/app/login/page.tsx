@@ -4,7 +4,6 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { portalURL } from '@water-erp/config';
-import { detectTabletClient } from '@/lib/device';
 import SplashCursor from '@/components/SplashCursor';
 import TrueFocus from '@/components/TrueFocus';
 import './login.css';
@@ -70,9 +69,6 @@ function ExpertLoginPage() {
     setForm({ username: '', password: '' });
   };
 
-  // 平板设备检测（判定收口在 @/lib/device，与 root layout 脚本、proxy.ts 共用一份定义）
-  const isTabletDevice = detectTabletClient;
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.username || !form.password) { toast.error('请输入用户名和密码'); return; }
@@ -90,14 +86,12 @@ function ExpertLoginPage() {
       const { role } = (await res.json()) as { role: string };
       if (tab === 'expert') {
         if (role === 'bid_expert') {
-          // 邀请确认页（/invitation）已豁免桌面/平板分流，优先回跳，保证通知链接在平板上可用
+          // 邀请确认页（/invitation）已豁免桌面/平板分流，优先回跳，保证通知链接在平板上可用。
+          // 平板设备：经底部「平板设备入口」链接（?device=tablet 由 proxy 写 cookie）落到
+          // /login?redirect=/tablet，returnTo=/tablet 登录后直达平板工作台——UA 自动检测已删
+          //（2026-10-19，触摸屏笔记本/Chromebook 误判），桌面/平板形态只认显式声明
           if (returnTo.startsWith('/invitation')) {
             window.location.replace(returnTo);
-          } else if (isTabletDevice()) {
-            // 平板设备 → 写 cookie + 整页跳转平板首页（原 /tablet/face-verify 假人脸门禁已删除，
-            // 拍照留痕随按项目签到进行；SPA 导航不会触发 beforeInteractive 脚本，故整页跳转）
-            document.cookie = 'device_mode=tablet;path=/;max-age=604800;SameSite=Lax';
-            window.location.replace('/tablet');
           } else {
             router.push(returnTo);
           }
@@ -235,6 +229,18 @@ function ExpertLoginPage() {
               />
             )}
           </div>
+
+          {/* 平板模式显式入口：仅专家 tab——平板路由只对 bid_expert 有意义，管理员登录直跳 :3007。
+              主路径是桌面评审页扫码迁移（/tablet/claim）；此处为确定性兜底（平板会话中断重登等），
+              ?device=tablet 由 proxy 写 7 天 cookie 后 302 /tablet（未登录则再弹回本页并带 redirect=/tablet） */}
+          {tab === 'expert' && (
+            <a
+              href="/?device=tablet"
+              className="mt-4 inline-block py-2.5 text-xs text-[color:var(--muted-foreground)] underline underline-offset-4 transition-colors hover:text-[color:var(--foreground)]"
+            >
+              平板设备？进入平板评分模式
+            </a>
+          )}
         </div>
       </div>
     </main>

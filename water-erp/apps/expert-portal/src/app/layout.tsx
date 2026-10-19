@@ -1,33 +1,17 @@
 import type { Metadata, Viewport } from 'next';
 import { Plus_Jakarta_Sans } from 'next/font/google';
-import Script from 'next/script';
 import { Toaster } from 'sonner';
 import { ServiceWorkerRegister } from '@/components/sw-register';
-import { TABLET_UA_RE, ANDROID_RE, MOBILE_RE } from '@/lib/device';
 import './globals.css';
 
-/**
- * 客户端先行分流脚本（正则源取自 @/lib/device，与 proxy.ts / login 共用一份定义）。
- * 逐项等价：uaTablet || androidTablet || touchTablet（maxTouchPoints 兜底 iPadOS 13+ 伪装 Mac UA）。
- */
+// 平板 UA/触摸自动检测已删（2026-10-19）：maxTouchPoints 兜底命中触摸屏笔记本、CrOS 命中
+// Chromebook，误判写 7 天 device_mode cookie 把台式机锁进平板模式。平板进入改显式信号——
+// 桌面扫码迁移（/tablet/claim）或登录页「平板设备入口」（?device=tablet，proxy 写 cookie）。
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: '--font-body',
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
 });
-
-const TABLET_DETECT_SCRIPT = `(function(){
-  if (document.cookie.indexOf('device_mode=') !== -1) return;
-  var ua = navigator.userAgent;
-  var uaTablet = /${TABLET_UA_RE.source}/i.test(ua);
-  var androidTablet = /${ANDROID_RE.source}/i.test(ua) && !/${MOBILE_RE.source}/i.test(ua);
-  var touchTablet = navigator.maxTouchPoints > 1 && !/${MOBILE_RE.source}/i.test(ua);
-  var isTablet = uaTablet || androidTablet || touchTablet;
-  if (!isTablet) return;
-  if (location.pathname === '/tablet' || location.pathname.indexOf('/tablet/') === 0 || location.pathname === '/login' || location.pathname.indexOf('/invitation') === 0 || location.pathname.indexOf('/rsvp') === 0) return;
-  document.cookie = 'device_mode=tablet;path=/;max-age=604800;SameSite=Lax';
-  location.replace('/tablet');
-})()`;
 
 export const metadata: Metadata = {
   title: '在线开评标系统-蜀水云采·智慧水发',
@@ -59,11 +43,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="zh-CN" className={plusJakartaSans.variable}>
       <body>
-        {/* iPadOS 13+ 伪装 Mac UA，中间件无法识别 → 客户端检测先行分流。
-            beforeInteractive 确保 React hydrate 之前执行，避免桌面仪表盘闪烁。 */}
-        <Script id="tablet-detect" strategy="beforeInteractive">
-          {TABLET_DETECT_SCRIPT}
-        </Script>
         {children}
         <Toaster position="top-right" richColors closeButton />
         <ServiceWorkerRegister />
