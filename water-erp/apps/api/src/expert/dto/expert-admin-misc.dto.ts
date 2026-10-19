@@ -123,6 +123,6 @@ export class CreateCustomProjectDto {
 
 /** PII 明文揭示（等保+密评）：白名单字段；揭示动作写 SensitiveAccessLog 审计 */
 export class RevealExpertFieldDto {
-  @IsIn(['idNumber', 'phone', 'licenseNo'])
-  field!: 'idNumber' | 'phone' | 'licenseNo';
+  @IsIn(['idNumber', 'phone', 'licenseNo', 'email'])
+  field!: 'idNumber' | 'phone' | 'licenseNo' | 'email';
 }

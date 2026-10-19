@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, ValidationPipe } from '@nestjs/common';
 import { ExpertAdminService } from './expert-admin.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ExpertCrossConflictService } from './expert-cross-conflict.service';
@@ -11,6 +11,7 @@ import { OcrService } from '../local-ai/ocr.service';
 import { ExpertExtractionService } from './expert-extraction.service';
 import { CompanyScopeService } from '../company/company-scope';
 import { sealPii } from '../common/crypto/sm-field-crypto';
+import { RevealExpertFieldDto } from './dto/expert-admin-misc.dto';
 
 describe('ExpertAdminService.revealExpertField（明文揭示 + 审计）', () => {
   let service: ExpertAdminService;
@@ -92,5 +93,27 @@ describe('ExpertAdminService.revealExpertField（明文揭示 + 审计）', () =
   it('专家不存在 → 404', async () => {
     prisma.user.findUnique.mockResolvedValue(null);
     await expect(service.revealExpertField('nope', 'idNumber', actor as any)).rejects.toThrow(NotFoundException);
+  });
+});
+
+describe('RevealExpertFieldDto（DTO 白名单与 service REVEALABLE_EXPERT_FIELDS 同步）', () => {
+  // 2026-10-19 实录：:3005 专家详情点邮箱「明文」报「该项不在允许的取值范围内: idNumber, phone, licenseNo」
+  // ——service 层 email 支持与审计齐全，唯 DTO @IsIn 漏 email，ValidationPipe 进门即拒。此闸锁定两层不再漂移。
+  const pipe = new ValidationPipe({ whitelist: true, transform: true });
+  const transform = (value: unknown) =>
+    pipe.transform(value, { type: 'body', metatype: RevealExpertFieldDto, data: '' } as any);
+
+  it('email 在白名单内（专家详情邮箱明文按钮可用）', async () => {
+    await expect(transform({ field: 'email' })).resolves.toEqual({ field: 'email' });
+  });
+
+  it('service 可揭示四字段逐一过 DTO 闸', async () => {
+    for (const field of ['idNumber', 'phone', 'licenseNo', 'email']) {
+      await expect(transform({ field })).resolves.toEqual({ field });
+    }
+  });
+
+  it('白名单外字段仍被拒（passwordHash）', async () => {
+    await expect(transform({ field: 'passwordHash' })).rejects.toThrow(BadRequestException);
   });
 });
