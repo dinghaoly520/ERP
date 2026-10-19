@@ -399,7 +399,7 @@ export function TaskDetailModal({
                               className="neu-btn-soft"
                             >
                               <FilePenLine size={16} />
-                              添加记录
+                              编辑任务
                             </button>
                           </div>
                         </>
