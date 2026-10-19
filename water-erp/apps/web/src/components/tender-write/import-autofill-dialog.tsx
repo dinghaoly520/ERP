@@ -2,6 +2,8 @@
 
 import { useRef, useState } from 'react';
 import { X, FileUp, Check, AlertTriangle, HelpCircle } from 'lucide-react';
+import { toast } from 'sonner';
+import { validateFileSize } from '@/lib/upload-rules';
 import type { ReadyTenderDocumentType, TenderFieldKey, TenderSectionKey } from '@/lib/types/tender-write';
 import type {
   ImportAutofillResult,
