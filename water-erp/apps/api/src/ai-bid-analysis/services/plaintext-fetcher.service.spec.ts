@@ -124,4 +124,37 @@ describe('PlaintextFetcherService — 解密双格式测试 (C12)', () => {
       expect(out!.fileId).toBe('asset-1');
     });
   });
+
+  describe('双信封新轨（dual-v2/v3）：decryptedAssets 明文直读', () => {
+    const setupDual = (envelopeVersion: 'dual-v2' | 'dual-v3') => {
+      prisma.bidSupplier.findUnique.mockResolvedValue({
+        supplierId: 'supplier-1',
+        projectId: 'project-1',
+      });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        envelopeVersion,
+        technicalFileAssetId: null, businessFileAssetId: null, coverLetterAssetId: null,
+        technicalSealedKey: 'a1b2c3d4e5f6:010203040506:ffeeddccbbaa', // 新轨应忽略旧轨 sealedKey（防误走 AES/KMS 通道）
+        decryptedAssets: { technical: 'fa-dec-t' },
+      });
+      prisma.fileAsset.findUnique.mockResolvedValue({
+        id: 'fa-dec-t',
+        key: 'bid-decrypted/project-1/bs-1/technical.plain',
+        sha256: 'abc123',
+        sealedPath: null,
+      });
+    };
+
+    // dual-v3 旧轨三列为 null——漏判新轨版本会 throw「缺少 technical 文件引用」（2026-10-19 专家标书获取事故同根）
+    it.each(['dual-v2', 'dual-v3'])('%s：assetId 取 decryptedAssets[which]，sealedKey 置空不走 KMS/AES', async (v) => {
+      setupDual(v as 'dual-v2' | 'dual-v3');
+
+      const out = await service.fetchBidderPlaintext('bs-1', 'technical');
+
+      expect(out!.fileId).toBe('fa-dec-t');
+      expect(prisma.fileAsset.findUnique).toHaveBeenCalledWith({ where: { id: 'fa-dec-t' } });
+      expect(unwrapKey).not.toHaveBeenCalled();
+      expect(decryptBuffer).not.toHaveBeenCalled();
+    });
+  });
 });

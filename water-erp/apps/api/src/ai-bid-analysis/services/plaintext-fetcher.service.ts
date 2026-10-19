@@ -7,6 +7,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { minioClient, MINIO_BUCKET } from '../../upload/minio.client';
 import { decryptBuffer, streamToBuffer, verifyIntegrity } from '../../bid/bid-submission.crypto';
 import { unwrapKey, isWrappedKey } from '../../common/crypto/envelope-crypto';
+import { resolveEnvelopeVersion } from '../../supplier-portal/envelope-version.util';
 
 export type BidderFileType = 'technical' | 'business' | 'coverLetter';
 
@@ -47,19 +48,20 @@ export class PlaintextFetcherService {
     });
     if (!submission) throw new Error('供应商未提交投标文件');
 
-    // 双信封新轨（dual-v2）：开标解密后 decryptedAssets[role] 存明文 FileAsset id，直接读明文——
+    // 双信封新轨（dual-v2/v3，阶段2 Task13 读端分派）：开标解密后 decryptedAssets[role] 存明文 FileAsset id，直接读明文——
     // 旧轨 sealedKey（iv:tag:data AES 包）与新轨 kself（SM2 密文 hex）格式不同，
     // 误走旧轨解密会抛「decryptKey 格式错误」（2026-09-10 实测 AI 投标分析 3 家全挂）。
+    const dualTrack = resolveEnvelopeVersion(submission) !== 'legacy';
     const decryptedMap = (submission.decryptedAssets ?? {}) as Record<string, unknown>;
     const decryptedAssetId = decryptedMap[which];
-    const assetId = submission.envelopeVersion === 'dual-v2' && typeof decryptedAssetId === 'string'
+    const assetId = dualTrack && typeof decryptedAssetId === 'string'
       ? decryptedAssetId
       : which === 'technical'
         ? submission.technicalFileAssetId
         : which === 'business'
           ? submission.businessFileAssetId
           : submission.coverLetterAssetId;
-    const sealedKey = submission.envelopeVersion === 'dual-v2'
+    const sealedKey = dualTrack
       ? null
       : which === 'technical'
         ? submission.technicalSealedKey
