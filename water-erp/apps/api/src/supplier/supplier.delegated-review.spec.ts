@@ -272,20 +272,31 @@ describe('SupplierService.list — leader 查 LEADER 级时带上本公司 STAFF
     const res = await service.list({ reviewStage: 'LEADER', actor: ACTOR_LEADER as any, sort: 'createdAt' });
 
     const where = prisma.supplier.count.mock.calls[0][0].where;
-    // 公司域注入形状（2026-10-16 换形）：APPROVED link 存在性
-    expect(where.companyLinks).toEqual({ some: { companyId: { in: ['co-1'] }, status: 'APPROVED' } });
+    // 公司域注入形状（C1 终审修复 2026-10-19）：reviewStage 给定 → 审批流双谓词
+    // （APPROVED link OR 主归属 companyId——新注册件终审前无 link 也可见），落 where.AND[0]
+    expect(where.companyLinks).toBeUndefined();
+    expect(where.AND?.[0]?.OR).toEqual([
+      { companyLinks: { some: { companyId: { in: ['co-1'] }, status: 'APPROVED' } } },
+      { companyId: { in: ['co-1'] } },
+    ]);
     expect(where.reviewStage).toBeUndefined();
-    expect(where.AND?.[0]?.OR).toEqual([{ reviewStage: 'LEADER' }, { reviewStage: 'STAFF' }]);
+    // 代审展开组追加在 AND[1]（2026-10-09 口径不变，位置随双谓词后移）
+    expect(where.AND?.[1]?.OR).toEqual([{ reviewStage: 'LEADER' }, { reviewStage: 'STAFF' }]);
     expect(res.items.find((i: any) => i.id === 'l1').delegatedReview).toBeUndefined(); // 复审是本职
     expect(res.items.find((i: any) => i.id === 's1').delegatedReview).toBe(true);      // 代初审件
   });
 
-  it('本公司有 staff：不展开（严格 LEADER——初审归同公司 staff）', async () => {
+  it('本公司有 staff：不展开（严格 LEADER——初审归同公司 staff）；审批流公司域仍为双谓词组', async () => {
     prisma.user.count.mockResolvedValue(1); // 有在编 staff
     await service.list({ reviewStage: 'LEADER', actor: ACTOR_LEADER as any, sort: 'createdAt' });
     const where = prisma.supplier.count.mock.calls[0][0].where;
     expect(where.reviewStage).toBe('LEADER');
-    expect(where.AND).toBeUndefined();
+    // 无代审展开组——AND 仅剩审批流双谓词组（C1），不再 undefined
+    expect(where.AND).toHaveLength(1);
+    expect(where.AND?.[0]?.OR).toEqual([
+      { companyLinks: { some: { companyId: { in: ['co-1'] }, status: 'APPROVED' } } },
+      { companyId: { in: ['co-1'] } },
+    ]);
   });
 
   it('leader 无公司域（公司视野=全部→link 未注入）：不展开——防无归属 leader 拖全库 STAFF 件', async () => {

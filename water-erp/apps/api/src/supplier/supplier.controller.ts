@@ -266,17 +266,17 @@ export class SupplierController {
   }
 
   @Post('company-links/:id/disable')
-  @Roles('leader') // 库内停用属公司治理动作，收窄 leader（软移出，不影响其他公司）
+  @Roles('leader') // 库内停用属公司治理动作，收窄 leader（软移出，不影响其他公司）；service 内再断言本公司 link（I1 终审：跨公司 403）
   @ApiOperation({ summary: '本公司库内停用该供应商（软移出，不影响其他公司）' })
   async disableCompanyLink(@Param('id') id: string, @Request() req: any) {
-    return this.linkService.setDisabled(id, req.user?.sub, true);
+    return this.linkService.setDisabled(id, req.user, true);
   }
 
   @Post('company-links/:id/enable')
   @Roles('leader')
   @ApiOperation({ summary: '恢复已停用的库内供应商' })
   async enableCompanyLink(@Param('id') id: string, @Request() req: any) {
-    return this.linkService.setDisabled(id, req.user?.sub, false);
+    return this.linkService.setDisabled(id, req.user, false);
   }
 
   @Get('approvals/my-pending-count')

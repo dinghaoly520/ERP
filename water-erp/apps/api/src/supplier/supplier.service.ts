@@ -1000,9 +1000,33 @@ export class SupplierService {
     // 既有收敛，不叠加公司过滤。
     if (!params.scopeUserId && params.actor) {
       const scope = await this.companyScope.resolveScope(params.actor, params.companyId);
-      const w = supplierCompanyWhere(scope);
-      if (w.companyLinks) where.companyLinks = (w as any).companyLinks;
       scopedCompanyIds = scopeCompanyIds(scope);
+      // 审批流上下文（C1 终审修复 2026-10-19）：reviewStage 显式给定，或 status 正向选定
+      // PENDING/RETURNED/REJECTED 之一 → 审批中心注册列表。exclude: 形式（库「全部」标签
+      // exclude:PENDING,RETURNED）与缺省均为库视图——exclude 语义是「排除待审」而非「选定待审」，
+      // 不触发双谓词。新注册件提交即落 Supplier.companyId，但 APPROVED link 要到 ADMIN 终审才
+      // upsert（approve·终审事务）——单用 link 谓词会「角标有数（myPendingReviewCount 按
+      // companyId 计）、列表却空」。审批流面改双谓词：APPROVED link 在视野 OR 主归属在视野；
+      // 库视图保持 APPROVED link-only 不动（Task 7 口径，spec 裁定）。
+      const approvalFlow = !!params.reviewStage
+        || (!!params.status
+          && !params.status.startsWith('exclude:')
+          && ['PENDING', 'RETURNED', 'REJECTED'].includes(params.status));
+      if (scopedCompanyIds !== null) {
+        if (approvalFlow) {
+          // 双谓词须单组 OR（Prisma 顶层字段为 AND 语义），放 where.AND 组——与 search 的顶层
+          // where.OR、代审展开的 AND 追加均不冲突（各自 conjunctive）
+          where.AND = [...(Array.isArray(where.AND) ? where.AND : []), {
+            OR: [
+              { companyLinks: { some: { companyId: { in: scopedCompanyIds }, status: 'APPROVED' } } },
+              { companyId: { in: scopedCompanyIds } },
+            ],
+          }];
+        } else {
+          const w = supplierCompanyWhere(scope);
+          if (w.companyLinks) where.companyLinks = (w as any).companyLinks;
+        }
+      }
     }
     if (params.status) {
       // 支持「排除若干状态」语义：前端「全部」标签传 `exclude:PENDING,RETURNED`，使默认列表不含待审核/退回补正。
@@ -1156,12 +1180,32 @@ export class SupplierService {
     // raw 路径漏译即静默 no-op（历史事故病根），改形状必须同步本件。companyId 参数只可能是
     // string 或 { in: string[] }（supplierCompanyWhere 产 { in }；string 分支为容错），逐元素
     // 参数化入 IN——对象本体不得直接插参（jsonb 500，2026-10-15 事故）。
+    // C1 终审修复（2026-10-19）加译审批流双谓词（ORM 侧形状 where.AND[].OR[]）：
+    // (EXISTS APPROVED link OR s."companyId" IN 视野集)；状态改自 where 形状读取（不再硬编码
+    // 'APPROVED'）且空 in 集 → 恒 false（不再静默跳过=丢公司过滤）。
+    const toCompanyIdList = (co: string | { in: string[] }): string[] => (typeof co === 'string' ? [co] : (co.in ?? []));
+    const linkExistsSql = (companyId: string | { in: string[] }, status?: string): Prisma.Sql => {
+      const list = toCompanyIdList(companyId);
+      if (list.length === 0) return Prisma.sql`false`;
+      // SupplierLinkStatus 枚举列同 SupplierStatus：参数化后须显式 cast，否则 PG 报
+      // operator does not exist: "SupplierLinkStatus" = text（旧硬编码字面量无此问题）
+      return Prisma.sql`EXISTS (SELECT 1 FROM "SupplierCompanyLink" l WHERE l."supplierId" = s.id AND l."companyId" IN (${Prisma.join(list)}) AND l."status" = ${status ?? 'APPROVED'}::"SupplierLinkStatus")`;
+    };
     if (where.companyLinks?.some?.companyId) {
-      const co = where.companyLinks.some.companyId as string | { in: string[] };
-      const list = typeof co === 'string' ? [co] : (co.in ?? []);
-      if (list.length > 0) {
-        conditions.push(Prisma.sql`EXISTS (SELECT 1 FROM "SupplierCompanyLink" l WHERE l."supplierId" = s.id AND l."companyId" IN (${Prisma.join(list)}) AND l."status" = 'APPROVED')`);
-      }
+      conditions.push(linkExistsSql(where.companyLinks.some.companyId, where.companyLinks.some.status));
+    }
+    // 审批流双谓词组（C1）：AND 组内同时含 companyLinks 分支与 companyId 分支的 OR 组才翻译
+    //（代审展开的 AND 组仅 reviewStage 分支，不在此列）
+    for (const andPart of Array.isArray(where.AND) ? where.AND : []) {
+      const orGroup = (andPart as any)?.OR;
+      if (!Array.isArray(orGroup)) continue;
+      const linkBranch = orGroup.find((o: any) => o?.companyLinks?.some?.companyId);
+      const companyBranch = orGroup.find((o: any) => o?.companyId);
+      if (!linkBranch || !companyBranch) continue;
+      const list = toCompanyIdList(companyBranch.companyId);
+      conditions.push(list.length === 0
+        ? Prisma.sql`false`
+        : Prisma.sql`(${linkExistsSql(linkBranch.companyLinks.some.companyId, linkBranch.companyLinks.some.status)} OR s."companyId" IN (${Prisma.join(list)}))`);
     }
     // status 列是 SupplierStatus 枚举，参数需显式 cast，否则 PG 报 operator does not exist: SupplierStatus = text
     if (where.status) {
@@ -1318,15 +1362,17 @@ export class SupplierService {
     }
   }
 
-  /** 公司视野越权判定（多公司归属 2026-10-16）：任一 APPROVED link 在视野 或 主归属在视野（未回填兜底）。
-   *  全部不命中 → 复用 assertInScope 的 403 语义。 */
+  /** 公司视野越权判定（多公司归属 2026-10-16）：任一 APPROVED/DISABLED link 在视野 或 主归属在视野（未回填兜底）。
+   *  全部不命中 → 复用 assertInScope 的 403 语义。DISABLED 也放行（终审 I2 2026-10-19）：与本公司
+   *  存在非终态关系的供应商可查看档案——否则本公司停用 link 后详情页 403，「恢复」按钮不可达（死锁）；
+   *  库可见性（列表 supplierCompanyWhere）仍 APPROVED-only，不受本判定影响。 */
   private async assertSupplierInScope(supplier: { id: string; companyId: string | null }, actor: AuthenticatedUser) {
     const scope = await this.companyScope.resolveScope(actor);
     if (scope.all) return;
     const ids = scope.companyIds;
     if (supplier.companyId != null && ids.includes(supplier.companyId)) return;
     const links = await this.prisma.supplierCompanyLink.findMany({
-      where: { supplierId: supplier.id, companyId: { in: ids }, status: 'APPROVED' },
+      where: { supplierId: supplier.id, companyId: { in: ids }, status: { in: ['APPROVED', 'DISABLED'] } },
       select: { id: true },
       take: 1,
     });
@@ -3603,16 +3649,25 @@ export class SupplierService {
 
   async getStats(actor?: AuthenticatedUser, companyId?: string) {
     // 公司级数据隔离：统计在隔离集上算（口径同专家库），admin 可 ?companyId= 切单公司
-    const f = actor ? supplierCompanyWhere(await this.companyScope.resolveScope(actor, companyId)) : {};
+    const scope = actor ? await this.companyScope.resolveScope(actor, companyId) : null;
+    const f = scope ? supplierCompanyWhere(scope) : {};
+    const ids = scope ? scopeCompanyIds(scope) : null;
+    // C1 终审修复（2026-10-19）：pending/returned 是审批流转件——新注册在 ADMIN 终审落 APPROVED link
+    // 前只有 Supplier.companyId，单用 link 谓词会漏计（与 myPendingReviewCount 角标的 companyId 口径
+    // 漂移，列表/统计与角标不一致）。审批面两计数改双谓词（同 list() 审批流口径）；库内四态仍
+    // link-only（库可见性口径不动）。
+    const approvalF: Prisma.SupplierWhereInput = ids !== null
+      ? { OR: [{ companyLinks: { some: { companyId: { in: ids }, status: 'APPROVED' } } }, { companyId: { in: ids } }] }
+      : {};
     const [total, pending, approved, disabled, blacklist, returned, temporaryApproved] = await Promise.all([
       // 总数口径（2026-10-16 用户裁定）：只数库内四态——在库（含临时，临时=APPROVED+isTemporary）/停用/黑名单；
       // PENDING/RETURNED/REJECTED 为审批流转件（注册审批已迁出供应商库），不计入总数。
       this.prisma.supplier.count({ where: { status: { in: ['APPROVED', 'DISABLED', 'BLACKLIST'] }, ...f } }),
-      this.prisma.supplier.count({ where: { status: 'PENDING', ...f } }),
+      this.prisma.supplier.count({ where: { status: 'PENDING', ...approvalF } }),
       this.prisma.supplier.count({ where: { status: 'APPROVED', ...f } }),
       this.prisma.supplier.count({ where: { status: 'DISABLED', ...f } }),
       this.prisma.supplier.count({ where: { status: 'BLACKLIST', ...f } }),
-      this.prisma.supplier.count({ where: { status: 'RETURNED', ...f } }),
+      this.prisma.supplier.count({ where: { status: 'RETURNED', ...approvalF } }),
       this.prisma.supplier.count({ where: { status: 'APPROVED', isTemporary: true, ...f } }),
     ]);
 

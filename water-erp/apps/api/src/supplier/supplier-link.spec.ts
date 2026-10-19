@@ -149,8 +149,10 @@ describe('checkDuplicate — companyId/registeredElsewhere（防枚举：不回�
   });
 });
 
-/** get/revealField 越权判定（多公司归属 2026-10-16）——任一 APPROVED link 在视野 或 主归属在视野
- *  即放行（未回填窗口兜底）；无交集复用 assertInScope 的 403 COMPANY_SCOPE_FORBIDDEN。 */
+/** get/revealField 越权判定（多公司归属 2026-10-16）——任一 APPROVED/DISABLED link 在视野 或 主归属
+ *  在视野即放行（未回填窗口兜底）；无交集复用 assertInScope 的 403 COMPANY_SCOPE_FORBIDDEN。
+ *  DISABLED 也放行（终审 I2 2026-10-19）：本公司停用 link 后详情页仍可达——「恢复」按钮不悬空；
+ *  库可见性（列表）仍 APPROVED-only。 */
 describe('get/revealField — link 视野越权判定（多公司归属）', () => {
   const scopeSvc: any = {
     resolveScope: async () => ({ all: false, companyIds: ['co-2'] }),
@@ -178,7 +180,20 @@ describe('get/revealField — link 视野越权判定（多公司归属）', () 
     const svc = newService(prisma);
     await expect(svc.get('s1', actor)).resolves.toBeTruthy();
     expect(prisma.supplierCompanyLink.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { supplierId: 's1', companyId: { in: ['co-2'] }, status: 'APPROVED' },
+      where: { supplierId: 's1', companyId: { in: ['co-2'] }, status: { in: ['APPROVED', 'DISABLED'] } },
+      take: 1,
+    }));
+  });
+
+  it('get（I2）：本公司 link 为 DISABLED → 放行——停用后详情可达，「恢复」按钮不悬空', async () => {
+    const prisma: any = {
+      supplier: { findUnique: jest.fn().mockResolvedValue({ id: 's1', companyId: 'co-1', userId: 'u1', user: null, contacts: [], bankAccounts: [], changeRecords: [] }) },
+      supplierCompanyLink: { findMany: jest.fn().mockResolvedValue([{ id: 'l1', status: 'DISABLED' }]) },
+    };
+    const svc = newService(prisma);
+    await expect(svc.get('s1', actor)).resolves.toBeTruthy();
+    expect(prisma.supplierCompanyLink.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { supplierId: 's1', companyId: { in: ['co-2'] }, status: { in: ['APPROVED', 'DISABLED'] } },
       take: 1,
     }));
   });

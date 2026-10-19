@@ -532,6 +532,9 @@ describe('Supplier (e2e)', () => {
     let jsLeaderCookie: string[]; // Swhi-JS-01 leader@建设
     let tzStaffCookie: string[]; // Swhi-TZ-02 staff@投资
     let adminCookie: string[]; // Swhi-CGZX-admin
+    /** C1 终审修复（2026-10-19）e2e 夹具：PENDING 新注册供应商（companyId=建设、无任何 link），afterAll 清理 */
+    let c1UserId = '';
+    let c1SupplierId = '';
 
     /** 注册 DTO：复用本文件既有注册用例的完整构造（含营业执照/主联系人/验证码双轨必填项），
      *  仅覆写 creditCode/companyId。信用代码查重分流（ACCOUNT_EXISTS_JOIN_INSTEAD）在手机验证之后、
@@ -585,6 +588,10 @@ describe('Supplier (e2e)', () => {
         await prisma.supplierCompanyLink.deleteMany({
           where: { supplierId: sup.id, companyId: { not: sup.companyId ?? '' } },
         });
+      }
+      // C1 终审修复 e2e 夹具：删 User 即级联删 Supplier（onDelete: Cascade）
+      if (c1UserId) {
+        await prisma.user.deleteMany({ where: { id: c1UserId } }).catch(() => {});
       }
     });
 
@@ -669,6 +676,56 @@ describe('Supplier (e2e)', () => {
         .send({ ...existingRegisterBody, creditCode: dupCreditCode, companyId: dCompanyId })
         .expect(400);
       expect(res.body.code).toBe('ACCOUNT_EXISTS_JOIN_INSTEAD');
+    });
+
+    // C1 终审修复（2026-10-19）：审批流面公司谓词双化——新注册件提交即落 Supplier.companyId，
+    // 但 APPROVED link 要到 ADMIN 终审才 upsert，此前单 link 谓词致 B 公司 staff 的 PENDING 列表
+    // 空（角标 myPendingReviewCount 按 companyId 计却有数——「角标有数、列表却空」）。
+    it('新注册件（companyId=建设、无 link）→ 建设 staff 的 PENDING 列表可见（raw+ORM 双路径）、库视图不可见', async () => {
+      const t = Date.now();
+      const c1Name = `E2E-C1新注册供应商${t}`;
+      const user = await prisma.user.create({
+        data: { username: `e2e-c1-${t}`, role: 'supplier', displayName: 'C1双谓词', companyId: bCompanyId },
+      });
+      c1UserId = user.id;
+      const supplier = await prisma.supplier.create({
+        data: {
+          userId: user.id, supplierNo: `E2E-C1-${t}`, name: c1Name, normalizedName: c1Name,
+          creditCode: `9151C1${t}`, enterpriseType: '有限责任公司', legalPerson: '测试',
+          registeredAddress: '测试地址', businessScope: '测试',
+          companyId: bCompanyId, status: 'PENDING', reviewStage: 'STAFF',
+        },
+      });
+      c1SupplierId = supplier.id;
+      // 无任何 link（终审前事实）——双谓词的第二分支（主归属在视野）必须兜住
+      expect(await prisma.supplierCompanyLink.count({ where: { supplierId: c1SupplierId } })).toBe(0);
+
+      // raw 路径（默认 completeness 排序 = 审批面板实际路径）
+      const raw = await request(app.getHttpServer())
+        .get('/api/supplier/list')
+        .query({ status: 'PENDING', search: 'E2E-C1新注册供应商' })
+        .set('Cookie', jsStaffCookie)
+        .set('X-Portal', 'web')
+        .expect(200);
+      expect(raw.body.items.some((i: any) => i.id === c1SupplierId)).toBe(true);
+
+      // ORM 路径（sort=createdAt）
+      const orm = await request(app.getHttpServer())
+        .get('/api/supplier/list')
+        .query({ status: 'PENDING', sort: 'createdAt', search: 'E2E-C1新注册供应商' })
+        .set('Cookie', jsStaffCookie)
+        .set('X-Portal', 'web')
+        .expect(200);
+      expect(orm.body.items.some((i: any) => i.id === c1SupplierId)).toBe(true);
+
+      // 库视图（无 status）仍 APPROVED link-only——无 link 的新注册件不入库（Task 7 口径不动）
+      const lib = await request(app.getHttpServer())
+        .get('/api/supplier/list')
+        .query({ search: 'E2E-C1新注册供应商' })
+        .set('Cookie', jsStaffCookie)
+        .set('X-Portal', 'web')
+        .expect(200);
+      expect(lib.body.items.some((i: any) => i.id === c1SupplierId)).toBe(false);
     });
   });
 });
