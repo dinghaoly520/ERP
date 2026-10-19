@@ -1,5 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
-import { BID_DEADLINE_BEFORE_OPENING_MS, BID_OPENING_GAP_TOLERANCE_MS } from '@water-erp/shared';
+import { BID_DEADLINE_BEFORE_OPENING_MS, BID_OPENING_GAP_TOLERANCE_MS, formatDurationCn } from '@water-erp/shared';
+
+/** 间隔时长中文标签（随共享常量自动更新） */
+const GAP_LABEL = formatDurationCn(BID_DEADLINE_BEFORE_OPENING_MS);
 
 export type DeadlineOpenMode = 'align' | 'frozen';
 
@@ -23,7 +26,7 @@ export function nudgeWindowOpen(openTime: Date | null | undefined, now: Date = n
 export function assertNudgeWindowOpen(openTime: Date | null | undefined, now: Date = new Date()): void {
   if (!nudgeWindowOpen(openTime, now)) {
     throw new BadRequestException({
-      error: '距开标已不足 10 分钟，催促通道已关闭，无法发送催促通知',
+      error: `距开标已不足 ${GAP_LABEL}，催促通道已关闭，无法发送催促通知`,
       code: 'NUDGE_WINDOW_CLOSED',
     });
   }
@@ -39,7 +42,7 @@ export function assertOpeningDeadlineRelation(opts: {
     }
     if (openTime.getTime() < deadline.getTime() + BID_DEADLINE_BEFORE_OPENING_MS) {
       throw new BadRequestException({
-        error: `开标时间须不早于截标后 10 分钟（期望 ≥ ${deriveOpenTimeFromDeadline(deadline).toISOString()}）`,
+        error: `开标时间须不早于截标后 ${GAP_LABEL}（期望 ≥ ${deriveOpenTimeFromDeadline(deadline).toISOString()}）`,
         code: 'DEADLINE_OPENING_GAP_INVALID',
       });
     }
@@ -48,7 +51,7 @@ export function assertOpeningDeadlineRelation(opts: {
   const expected = deriveDeadlineFromOpenTime(openTime).getTime();
   if (Math.abs(deadline.getTime() - expected) > BID_OPENING_GAP_TOLERANCE_MS) {
     throw new BadRequestException({
-      error: `截标须为开标前 10 分钟（期望 deadline = ${new Date(expected).toISOString()}）`,
+      error: `截标须为开标前 ${GAP_LABEL}（期望 deadline = ${new Date(expected).toISOString()}）`,
       code: 'DEADLINE_OPENING_GAP_INVALID',
     });
   }

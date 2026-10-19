@@ -2,8 +2,9 @@
 
 /**
  * A-143 评标澄清在线答复页：问题卡片 → 答复编辑器（文本+附件）→ 提交。
- * 原 U盾签名答复序列（口令弹窗 + adapter.sign）已随 mock U盾轨下线（2026-10-13），
- * 提交路径保留，签名随 dual-v3（SCCA，阶段 2）恢复。
+ * dual-v3（SCCA，阶段 2）：提交时检测投递轨道——v3 弹 CaClarificationSignDialog
+ * 盾签 P7（2026-10-19 补齐 24de18a8 接线缺口：当时只落了 doReply 逻辑、
+ * PIN 输入从未渲染）；旧轨空签照走。
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -17,11 +18,11 @@ import {
   Trash2,
   TriangleAlert,
   UploadCloud,
-} from "lucide-react";;
+} from "lucide-react";
 import { bidApi, type SupplierBidClarification } from "@/lib/api/bid";
 import { uploadFile } from "@/lib/api/upload";
 import { SpPageHero } from "@/components/sp-page-hero";
-import * as scca from "@/utils/scca-ukey";
+import { CaClarificationSignDialog, type CaClarificationSignTarget } from "@/components/ca-clarification-sign-dialog";
 import { supplierApi } from "@/lib/api/supplier";
 import { LoadingBlock, SpButton, SpTextarea } from "@/components/ui";
 import "@/styles/pages/bids.css";
@@ -44,9 +45,8 @@ export default function BidClarificationsPage() {
   const [attachments, setAttachments] = useState<UploadedAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  // dual-v3 P7 签署（阶段2 收尾）：PIN 输入（不落盘）
-  const [pin, setPin] = useState("");
-  const [signing, setSigning] = useState(false);
+  // dual-v3 P7 签署：非空 = PIN 弹窗开启（PIN 只在弹窗内存续，不落盘）
+  const [signTarget, setSignTarget] = useState<CaClarificationSignTarget | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -109,55 +109,29 @@ export default function BidClarificationsPage() {
     void doReply();
   }
 
-  /** 提交答复（dual-v3 → 盾 P7 签名链；旧轨 → 空签照走） */
+  /** 提交答复：检测投递轨道——dual-v3 弹 PIN 签署弹窗，旧轨空签照走 */
   async function doReply() {
     if (!active) return;
     const replyText = reply.trim();
     const attachmentIds = attachments.map((a) => a.fileAssetId);
 
     setSubmitting(true);
-    setSigning(true);
     try {
-      // 检测投递轨道——dual-v3 供应商必须走 P7 签名
       const sub = await supplierApi.getBidSubmission(projectId).catch(() => null);
-      const isV3 = (sub as any)?.envelopeVersion === "dual-v3";
-
-      if (isV3) {
-        if (!pin) {
-          toast.warning("请输入 U盾 PIN（dual-v3 投递的澄清答复须以 SCCA CA P7 签名）");
-          setSigning(false);
-          return;
-        }
-        // ① 取 canonical → ② 盾枚举+PIN → ③ prepare → ④ 盾签 → ⑤ 提交
-        const pl = await bidApi.getClarificationReplyPayload(projectId, active.id, {
-          reply: replyText, attachmentIds,
-        });
-        const certs = await scca.listSccaCerts();
-        const first = certs[0];
-        if (!first) throw new Error("U盾内未找到证书——请插入 SCCA CA U盾");
-        await scca.loginScca(first.container, pin);
-        const prep = await supplierApi.caPrepare(projectId, "clarification");
-        const signP7 = await scca.signSccaP7(first.container, pl.payload);
-        await bidApi.submitClarificationReply(projectId, active.id, {
-          reply: replyText, attachmentIds,
-          operationId: prep.operationId,
-          signatureFormat: "scca-pkcs7-base64",
-          signP7,
-        });
+      if ((sub as any)?.envelopeVersion === "dual-v3") {
+        setSignTarget({ id: active.id, replyText, attachmentIds });
       } else {
         await bidApi.submitClarificationReply(projectId, active.id, {
           reply: replyText, attachmentIds,
         });
+        toast.success("澄清答复已提交");
+        setActiveId(null);
+        await load();
       }
-      toast.success("澄清答复已提交");
-      setActiveId(null);
-      setPin("");
-      await load();
     } catch (e: any) {
       if (!e?.status && e?.message) toast.error(e.message);
     } finally {
       setSubmitting(false);
-      setSigning(false);
     }
   }
 
@@ -186,7 +160,7 @@ export default function BidClarificationsPage() {
       ) : items.length === 0 ? (
         <div className="bc-empty !py-12">暂无向贵司发出的评标澄清</div>
       ) : (
-        <div className="neu-card mt-5">
+        <div className="neu-card bottom-card mt-5">
           <div className="cq-list">
             {items.map((c) => (
               <div key={c.id} className="cq-item">
@@ -287,6 +261,19 @@ export default function BidClarificationsPage() {
           </div>
         </div>
       )}
+
+      {/* dual-v3 澄清答复盾签弹窗（补齐 PIN 入口；旧轨不触发） */}
+      <CaClarificationSignDialog
+        open={!!signTarget}
+        onClose={() => setSignTarget(null)}
+        projectId={projectId}
+        clarification={signTarget}
+        onSubmitted={() => {
+          setSignTarget(null);
+          setActiveId(null);
+          void load();
+        }}
+      />
     </div>
   );
 }

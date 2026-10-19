@@ -186,9 +186,11 @@ pnpm dev:mobile      # :3011 移动驾驶舱（数据库/台账/进展 手机端
 # AI 投标分析 worker（独立进程 — 必需，否则 per-item 分析任务不出队执行）
 pnpm --filter api dev:worker:ai-bid-analysis   # = nest build && node dist/ai-bid-analysis-worker.js（dist 镜像 src，无 dist/src 层）
 
-# Mock U盾中间件（Node，:17999，全仿真 CA 盾：插拔/PIN/锁死）
-pnpm dev:ukey-mw            # :17999
-pnpm dev:ukey-mw-guard      # 哨兵式（pnpm dev 已含）：:17999 已被 systemd/便携盘常驻占用则让位，空闲才拉起 U盘模式（2026-09-18 起随 pnpm dev 自动接入）
+# Mock U盾中间件（已于 2026-10-19 退役——systemd 已 stop+disable）
+# 供应商端 SCCA 适配时已删 mock 轨；专家端自动回落浏览器软证书（MockUKeyAdapter，零进程零端口）
+# 命令保留但不应再启动：
+# pnpm dev:ukey-mw          # :17999（已退役）
+# pnpm dev:ukey-mw-guard    # :17999（已退役，guard 会因 systemd 不在而尝试拉起——生产不应启用）
 
 # OCR 微服务（Python，:8100）
 pnpm dev:ocr
@@ -425,6 +427,8 @@ DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED
 ### Prisma Migration Notes
 
 In non-interactive environments, use `prisma migrate dev --create-only` → `prisma db execute` → `prisma migrate resolve --applied`, or set `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=1`.
+
+**拉取后必跑 `migrate status`（schema drift 铁律，2026-10-16 六度应验）**：任何 pull/merge 之后、`pnpm dev` 之前，在 `apps/api` 下跑 `npx prisma migrate status` 判定——有 pending 即 `npx prisma migrate deploy && npx prisma generate`。**判定勿走「本次 diff 是否动 schema.prisma」**：存量 drift 会被脱离树代打的旧 :4001 进程掩盖（2026-10-16 实录：`83a1e057` 的 SupplierCompanyLink 早已在本地 main 但从未 deploy/generate；`dev:kill` 清掉旧进程后新 `pnpm dev` 首次编译新代码即红——症状=门户全活、唯 :4001 死。client 旧→TS 编译红，DB 旧→起来后 P2022，可叠加）。修完须整体 `pnpm dev:kill && pnpm dev`（watch 对 node_modules/.d.ts 变更不可靠），验证=10 端口全监听 + `/api/docs` 200。
 
 ## 运维环境变量（2026-07 production hardening）
 - **DATABASE_URL**：现在走 pgbouncer `localhost:6432`（`?pgbouncer=true&connection_limit=10`）。直连用 `DIRECT_URL=localhost:5432`。

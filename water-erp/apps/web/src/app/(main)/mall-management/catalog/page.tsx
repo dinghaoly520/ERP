@@ -1042,7 +1042,7 @@ function EntryTab({ canManage, roleReady }: { canManage: boolean; roleReady: boo
           {importResult && (
             <div className="mt-4 p-3 rounded-xl bg-[var(--accent-tint)] text-sm">
               <span>共 {importResult.totalRows} 行 · 新增 {importResult.created} · 更新 {importResult.updated} · 失败 {importResult.failed}</span>
-              {importResult.failed > 0 && <p className="mt-1 text-xs text-[var(--muted-foreground)]">逐行导入：已成功的 {importResult.created + importResult.updated} 行不会因失败行回滚，请修正失败行后重新导入。</p>}
+              {importResult.failed > 0 && <p className="mt-1 text-xs text-[var(--muted-foreground)]">逐行导入：已成功的 {importResult.created + importResult.updated} 行不受失败行影响，请修正失败行后重新导入。</p>}
               {importResult.failedRows?.length > 0 && <div className="mt-2 max-h-40 overflow-y-auto text-xs">{importResult.failedRows.map((r: any, i: number) => <div key={i} className="text-[var(--danger)]">行{r.rowNumber} {r.code}: {r.errors?.join(', ')}</div>)}</div>}
             </div>
           )}

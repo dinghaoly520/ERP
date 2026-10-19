@@ -4,6 +4,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { openField } from '../../common/crypto/field-crypto';
+import { resolveEnvelopeVersion } from '../../supplier-portal/envelope-version.util';
 import type { SystemData } from '../types';
 
 @Injectable()
@@ -41,13 +42,13 @@ export class SystemDataAggregatorService {
 
     const supplier = bs.supplier;
 
-    // 双信封新轨（dual-v2）报价/唱标金额以「万元」为单位入库；旧轨以「元」入库。
+    // 双信封新轨（dual-v2/v3，阶段2 Task13 读端分派）报价/唱标金额以「万元」为单位入库；旧轨以「元」入库。
     // ConcordanceVerifier.normalizePriceYuan 对裸数字一律 ÷10000 按元处理——
-    // dual-v2 的万元数值会被误除一万倍（148.65 → 0.014865 万元），报价一致性恒判冲突、
+    // 新轨的万元数值会被误除一万倍（148.65 → 0.014865 万元），报价一致性恒判冲突、
     // PRICE 项被方案 7.3 置 0（2026-09-10 实测 3 家 AI 投标分析全部 0 分）。带「万元」后缀走原值分支。
-    const isDualV2 = submission?.envelopeVersion === 'dual-v2';
+    const isDualTrack = submission ? resolveEnvelopeVersion(submission) !== 'legacy' : false;
     const fmtAmount = (v: string | number | null | undefined): string | null =>
-      v == null ? null : (isDualV2 ? `${v}万元` : String(v));
+      v == null ? null : (isDualTrack ? `${v}万元` : String(v));
 
     return {
       // 报价：开标唱标（权威）> 表单提交

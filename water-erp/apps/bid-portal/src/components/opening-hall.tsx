@@ -219,7 +219,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
         // 单家路径正常不返回批量形状；防御性处理（后端契约变更时仍可读）
         toast.info(`解外层完成：成功 ${res.success} · 跳过 ${res.skipped} · 失败 ${res.failed}`);
       } else if ('skipped' in res) {
-        toast.info('外层已解密（幂等跳过）');
+        toast.info('外层已解密（此前已完成，无需重复）');
       } else if (res.success) {
         toast.success(`外层解密成功（${res.roles.length} 个密封件）`);
       } else {
@@ -247,7 +247,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           }
         }
       } else if ('skipped' in res) {
-        toast.info('外层已解密（幂等跳过）');
+        toast.info('外层已解密（此前已完成，无需重复）');
       } else if (res.success) {
         toast.success('外层解密成功');
       } else {

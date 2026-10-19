@@ -149,7 +149,7 @@ describe('BidSignPacketDocxService', () => {
       ],
     };
     const text = textOf(svc.buildChildren(snap));
-    expect(text).toContain('核验事件（异常/降级/替换留痕）');
+    expect(text).toContain('核验事件（异常/转人工核验/替换留痕）');
     expect(text).toContain('2026-09-20 10:05 · 核验异常 · 刘苡池 · 人证不符（登记人：陈源远）');
     expect(text).toContain('2026-09-20 10:08 · 身份核验降级 · 刘苡池');
   });

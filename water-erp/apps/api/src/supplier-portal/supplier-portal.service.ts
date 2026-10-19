@@ -670,7 +670,7 @@ export class SupplierPortalService {
     // I8（评审）：v3 轨不降级——已绑 SCCA 盾的 v3 投递，回执必须 P7 强签（A-101 防抵赖）；
     // 免签兼容分支仅保留给 legacy/dual-v2 行
     if (sub.envelopeVersion === 'dual-v3') {
-      throw new BadRequestException({ error: 'dual-v3 投递的回执须以 SCCA 盾 P7 签署（operationId+signP7）', code: 'RECEIPT_P7_REQUIRED' });
+      throw new BadRequestException({ error: '回执须以 SCCA 盾 P7 签署', code: 'RECEIPT_P7_REQUIRED' });
     }
 
     // SCCA 全面适配（2026-10-14）：旧轨免签——signature 空则跳过验签，证据标记 unsigned-legacy
@@ -4298,7 +4298,7 @@ export class SupplierPortalService {
     } else {
       // I8（评审）：v3 轨不降级——开标确认必须 P7（A-114 防抵赖）
       if (submissionTrack === 'dual-v3') {
-        throw new BadRequestException({ error: 'dual-v3 投递的开标确认须以 SCCA 盾 P7 签署（operationId+signP7）', code: 'OPENING_CONFIRM_P7_REQUIRED' });
+        throw new BadRequestException({ error: '开标确认须以 SCCA 盾 P7 签署', code: 'OPENING_CONFIRM_P7_REQUIRED' });
       }
       // ── 旧轨：v1 canonical 重建 + SM2 验签（空=unsigned-legacy）──
       const canonical = buildOpeningConfirmCanonical({
@@ -5169,7 +5169,7 @@ export class SupplierPortalService {
       pendingOpCommit = { id: dto.operationId, result: { success: true, projectId, clarificationId: cid } as any };
     } else {
       if (trackSub?.envelopeVersion === 'dual-v3') {
-        throw new BadRequestException({ error: 'dual-v3 投递的澄清答复须以 SCCA 盾 P7 签署（operationId+signP7）', code: 'CLARIFICATION_P7_REQUIRED' });
+        throw new BadRequestException({ error: '澄清答复须以 SCCA 盾 P7 签署', code: 'CLARIFICATION_P7_REQUIRED' });
       }
       // ── 旧轨：v1 canonical + SM2 验签（SCCA 全面适配：空签免验照走）──
       // SCCA 全面适配（2026-10-14）：旧轨免签——signature/certSn 空则跳过证书校验与验签
@@ -5247,7 +5247,7 @@ export class SupplierPortalService {
     if (clar.status !== '待回复') throw new ConflictException({ error: '澄清已答复或已关闭，不可重复答复', code: 'CLARIFICATION_ALREADY_REPLIED' });
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
     if (!project || project.stage !== 'EVALUATING') {
-      throw new ConflictException({ error: '仅评标中（EVALUATING）可答复澄清', code: 'STAGE_NOT_EVALUATING' });
+      throw new ConflictException({ error: '仅评标进行中的项目可答复澄清', code: 'STAGE_NOT_EVALUATING' });
     }
     return clar;
   }

@@ -315,16 +315,16 @@ export function UnifiedHeader({
             className={`rounded-lg p-[1px] transition-shadow duration-300 ${
               showDropdown
                 ? 'shadow-[0_4px_18px_rgba(80,120,190,.10),0_0_0_3px_rgba(120,160,220,.12)]'
-                : 'shadow-none hover:shadow-[0_3px_12px_rgba(80,120,190,.06)]'
+                : 'shadow-[0_1px_6px_rgba(80,120,190,.08)] hover:shadow-[0_3px_14px_rgba(80,120,190,.12)]'
             }`}
             style={{
               backgroundImage: showDropdown
-                ? 'linear-gradient(110deg, #cfe0f4, #a9c8ee 50%, #cfe0f4)'
-                : 'linear-gradient(110deg, #e3eaf4, #cdd8e8 50%, #e3eaf4)',
+                ? 'linear-gradient(110deg, #d3e1f5, #b0ccf0 50%, #d3e1f5)'
+                : 'linear-gradient(110deg, #eef3f9, #dee6f0 50%, #eef3f9)',
             }}
           >
             {/* 内层：白色容器 */}
-            <div className={`flex items-center rounded-[7px] transition-colors duration-300 ${showDropdown ? 'bg-[oklch(1,0,0/0.6)]' : 'bg-[oklch(1,0,0/0.35)]'}`}>
+            <div className={`flex items-center rounded-[7px] transition-colors duration-300 ${showDropdown ? 'bg-[oklch(1_0_0/0.92)]' : 'bg-[oklch(1_0_0/0.78)]'}`}>
             {/* 搜索图标 — 静态，聚焦时变色 */}
             <span
               className={`shrink-0 pl-3.5 transition-colors duration-300 ${

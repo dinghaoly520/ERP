@@ -29,6 +29,16 @@ export interface OpenedExpertUkey {
 
 /** 开锁：中间件在线走真 U盾，否则软证书（独立存储键）。口令仅由调用方内存持有，本工厂不落盘。 */
 export async function openExpertUkey(password: string): Promise<OpenedExpertUkey> {
+  // WebCrypto 仅 secure context（https/localhost）可用——局域网 http 访问时 crypto.subtle 为
+  // undefined，软证书轨派生密钥即抛裸 TypeError（reading 'importKey'）。前置闸换成可操作指引
+  //（与 :3004 演示机 chrome flag 方案同款，见 CLAUDE.md「供应商门户须 https（或 localhost）」注）。
+  if (typeof window !== 'undefined' && (!window.isSecureContext || !globalThis.crypto?.subtle)) {
+    throw new Error(
+      `电子签署需浏览器安全上下文（WebCrypto）——当前来源 ${window.location.origin} 非 https/localhost，浏览器未开放 crypto.subtle。` +
+      `请在浏览器地址栏打开 chrome://flags/#unsafely-treat-insecure-origin-as-secure，添加 ${window.location.origin} 并重启浏览器` +
+      `（与采购商城演示机同款配置），或改用 https / 本机 localhost 访问`,
+    );
+  }
   if (await VendorUKeyAdapter.probe()) {
     return { kind: 'vendor', adapter: await VendorUKeyAdapter.open({ password }) };
   }

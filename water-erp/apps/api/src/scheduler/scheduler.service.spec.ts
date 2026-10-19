@@ -1,4 +1,5 @@
 import { buildExpiryNotification, buildCertExpiryNotification, SchedulerService } from './scheduler.service';
+import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 import { pendingBondReturnWhere } from '../bid/bond-pending.util';
 
 describe('buildExpiryNotification', () => {
@@ -35,12 +36,12 @@ describe('autoNudgePendingBidders — 截止 24h（P0-2 第六写点）', () => 
     expect(notification.create).not.toHaveBeenCalled();
   });
 
-  it('deadline 缺失时按常量派生 openTime − 常量（10 分钟；不再按 12h 计算窗口）', async () => {
+  it('deadline 缺失时按常量派生 openTime − 常量（常量口径；不再按 12h 计算窗口）', async () => {
     const { scheduler, prisma, notification } = makeScheduler();
     const now = Date.now();
     // openTime − 10min = now+30min 落入窗口；若按旧 12h 反推 = now−11h20m 不落窗口 → 旧实现不发
     prisma.bidProject.findMany.mockResolvedValue([
-      { id: 'p2', name: '常规项目', openTime: new Date(now + 10 * 60 * 1000 + 30 * 60 * 1000), deadline: null },
+      { id: 'p2', name: '常规项目', openTime: new Date(now + BID_DEADLINE_BEFORE_OPENING_MS + 30 * 60 * 1000), deadline: null },
     ]);
     prisma.bidSupplier.findMany.mockResolvedValue([{ supplier: { userId: 'u1' } }]);
     await scheduler.autoNudgePendingBidders();

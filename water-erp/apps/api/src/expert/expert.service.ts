@@ -28,6 +28,7 @@ import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 import { recomputeExpertProgress, recomputeItemFromDecisions, filterEvaluableSuppliers, recomputeAllExpertsProgress } from '../bid/score-recalculate.helper';
 import { evaluateInvalidBid } from '../bid/evaluate-invalid-bid.helper';
 import { parseConflictedIds } from '../common/scoring/expert.util';
+import { resolveEnvelopeVersion } from '../supplier-portal/envelope-version.util';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../common/scoring/expert-deviation';
 import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
 import { SignatureService } from '../common/crypto/signature.service';
@@ -784,14 +785,14 @@ export class ExpertService {
         })
       : null;
 
-    // §5.4a 新轨分派：dual-v2 且已写 decryptedAssets 时，文件列表取明文归属链
-    // （旧轨不变——下载 URL 必须指向 bid_decrypted 明文资产，而非 C_outer）。
+    // §5.4a 新轨分派：双信封（dual-v2/v3，阶段2 Task13 读端统一分派）且已写 decryptedAssets 时，
+    // 文件列表取明文归属链（旧轨不变——下载 URL 必须指向 bid_decrypted 明文资产，而非 C_outer）。
     // decryptedAssets 缺失（供应商未完成解密上传）→ 回退旧轨三列形状，status 加密中。
     const dualRoleLabels: Record<string, string> = {
       technical: '技术方案', business: '商务文件', coverLetter: '投标函',
     };
     const decryptedRefs: Array<[string, string]> = [];
-    if (submission?.envelopeVersion === 'dual-v2' && submission.decryptedAssets) {
+    if (submission && resolveEnvelopeVersion(submission) !== 'legacy' && submission.decryptedAssets) {
       for (const [role, id] of Object.entries(submission.decryptedAssets as Record<string, unknown>)) {
         if (dualRoleLabels[role] && id) decryptedRefs.push([dualRoleLabels[role], String(id)]);
       }
@@ -1000,7 +1001,7 @@ export class ExpertService {
     if (submission.technicalFileAssetId === fileId) which = 'technical';
     else if (submission.businessFileAssetId === fileId) which = 'business';
     else if (submission.coverLetterAssetId === fileId) which = 'coverLetter';
-    else if (submission.envelopeVersion === 'dual-v2' && submission.decryptedAssets) {
+    else if (resolveEnvelopeVersion(submission) !== 'legacy' && submission.decryptedAssets) {
       for (const [role, id] of Object.entries(submission.decryptedAssets as Record<string, unknown>)) {
         if (id === fileId && (role === 'technical' || role === 'business' || role === 'coverLetter')) {
           which = role;

@@ -85,7 +85,7 @@ const IconLock = (
 
 export default function MallLoginPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ username: '陈主任', password: 'czr@2026' });
+  const [form, setForm] = useState({ username: '', password: '' });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {

@@ -998,7 +998,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                                   <td className="font-semibold">{log.role}</td>
                                   <td className="text-[var(--muted-foreground)]">{log.action}<br/><span className="text-[var(--foreground)]">{log.result}</span></td>
                                   <td>
-                                    {log.riskFlag === '高风险' ? <span className="font-bold text-[var(--danger)]">⚠高</span> : log.riskFlag === '中风险' ? <span className="text-[var(--warning)]">中</span> : <span className="text-[var(--muted-foreground)]">—</span>}
+                                    {log.riskFlag === '高风险' ? <span className="font-bold text-[var(--danger)]">高</span> : log.riskFlag === '中风险' ? <span className="text-[var(--warning)]">中</span> : <span className="text-[var(--muted-foreground)]">—</span>}
                                   </td>
                                 </tr>
                               ))}

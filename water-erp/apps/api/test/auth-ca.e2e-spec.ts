@@ -64,6 +64,7 @@ describe('CA 认证 (e2e)', () => {
     void pilotUserId;
     // CI e2e 的 .env 不含 CA 开关（本地 dev .env 开着所以绿）——本套件专测绑定链路，
     // 显式开启；loadCaConfig 在 provider factory 读 env，须在 AppModule 创建前生效
+    // （2026-10-18 补回：合并冲突时本段曾整块取旧侧丢失）
     process.env.CA_BINDING_ENABLED = 'true';
     // e2e 供应商加入试点白名单（追加到现有 env 值——模块创建前生效）
     const existingIds = process.env.CA_PILOT_SUBJECT_IDS ?? '';

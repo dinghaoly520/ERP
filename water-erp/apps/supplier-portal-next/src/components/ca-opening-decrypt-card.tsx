@@ -12,7 +12,7 @@ import { LockOpen, LoaderCircle, CircleCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { supplierApi } from '@/lib/api/supplier';
 import * as scca from '@/utils/scca-ukey';
-import { buildDecryptProofCanonical } from '@/utils/dual-v3-client';
+import { assertSecureContext, buildDecryptProofCanonical } from '@/utils/dual-v3-client';
 import { canonicalJson, computeV3FieldsCommit, sha256Hex, sm4Decrypt } from '@water-erp/ukey';
 import type { V3Fields, V3Role } from '@water-erp/ukey';
 import { SpButton, SpDialog } from '@/components/ui';
@@ -54,6 +54,7 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
 
   async function start() {
     if (!pin) return;
+    assertSecureContext(); // LAN http 下 sha256Hex（解密证明哈希）首触即裸 TypeError——先给指引
     setBusy(true);
     setError('');
     try {

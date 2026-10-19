@@ -97,6 +97,34 @@ test('服务端实算 outerSha256 与本地不一致 → 抛错（防传输损�
   );
 });
 
+test('非安全上下文（浏览器禁用 crypto.subtle，http 局域网访问）→ 中文指引而非裸 TypeError', async () => {
+  // 复现线上形态：http://192.168.x:3004 等非安全上下文里 crypto.subtle 为 undefined，
+  // sha256Hex 首触即抛 "Cannot read properties of undefined (reading 'digest')"（2026-10-16 02盾投递实录）
+  const orig = Object.getOwnPropertyDescriptor(globalThis, 'crypto')!;
+  Object.defineProperty(globalThis, 'crypto', {
+    configurable: true,
+    value: { getRandomValues: (orig.get!.call(globalThis) as Crypto).getRandomValues },
+  });
+  try {
+    await assert.rejects(
+      encryptAndUploadV3(
+        'proj-1',
+        [{ role: 'technical', file: new File([new TextEncoder().encode('x')], 'a.pdf') }],
+        FIELDS,
+        ENC_CERT_PEM,
+        {} as any,
+        ADMIN,
+        { uploadOuter: async () => ({ fileAssetId: 'fa', outerSha256: '', outerBytes: 1 }) },
+        { supplierId: 'sup-1', submissionId: '', revision: 1, signingBindingId: 'b', signingCertFingerprint: 'c' },
+      ),
+      (e: Error) => e.message.includes('安全上下文') && e.message.includes('https'),
+      'LAN http 下须给出 https/localhost 指引，而非 reading (digest) 裸 TypeError',
+    );
+  } finally {
+    Object.defineProperty(globalThis, 'crypto', orig);
+  }
+});
+
 test('C-1 契约：nextRevisionContext——信封 revision = base+1（服务端 ctx.revision===newRev 硬校验）', async () => {
   const { nextRevisionContext } = await import('../dual-v3-client');
   const ctx = { supplierId: 'sup-1', submissionId: '', revision: 0, signingBindingId: 'b', signingCertFingerprint: 'f'.repeat(64) };

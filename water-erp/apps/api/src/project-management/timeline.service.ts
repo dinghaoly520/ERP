@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
+import { BID_DEADLINE_BEFORE_OPENING_MS, formatDurationCn } from '@water-erp/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { parseFlexibleDate } from '../common/parse-date.util';
 
@@ -192,7 +192,7 @@ export class TimelineService {
     const deadlineIso = deadlineRaw ?? (openingIso
       ? new Date(new Date(openingIso).getTime() - BID_DEADLINE_BEFORE_OPENING_MS).toISOString()
       : null);
-    const deadlineSource = deadlineRaw ? '招标项目' : openingIso ? '按开标时间推算（前10分钟）' : '招标项目';
+    const deadlineSource = deadlineRaw ? '招标项目' : openingIso ? `按开标时间推算（前${formatDurationCn(BID_DEADLINE_BEFORE_OPENING_MS)}）` : '招标项目';
 
     const nodes: TimelineNode[] = [
       // initiationDate 未登记（直建/AI 提取缺失）→ 建档时刻兜底，避免「采购立项 未登记」

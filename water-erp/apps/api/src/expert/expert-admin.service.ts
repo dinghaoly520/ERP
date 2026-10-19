@@ -1320,7 +1320,7 @@ export class ExpertAdminService {
         attendanceGrade: attGrade,
         qualityGrade: qualGrade,
         disciplineGrade: discGrade,
-        analysis: `规则兜底建议：基于近 ${evals.length} 次评价最高频等级${
+        analysis: `规则分析建议：基于近 ${evals.length} 次评价最高频等级${
           meanDeviation != null ? `、评分偏离度 ${meanDeviation}` : ''
         }${violations.length > 0 ? `、${violations.length} 条违规记录` : ''}综合得出。AI 暂不可用，建议人工复核后调整。`,
         engine: 'rules' as const,

@@ -79,6 +79,9 @@ jobs:
       - name: cgzxui red-card check (前端硬性红牌闸)
         run: bash scripts/check-cgzxui-redcards.sh --ci
 
+      - name: copy-lint (文案巡检闸——开发黑话/内部代号/AI 痕迹)
+        run: bash scripts/copy-lint.sh --ci
+
       - name: Unit tests (api)
         run: pnpm --filter api test
 

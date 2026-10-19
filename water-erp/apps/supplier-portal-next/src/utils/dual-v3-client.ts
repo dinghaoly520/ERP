@@ -29,6 +29,18 @@ export interface V3UploadDeps {
   uploadOuter(role: V3Role, blob: Blob, filename: string): Promise<V3UploadResult>;
 }
 
+/** 非安全上下文守卫：http 局域网地址（非 localhost/https）下浏览器禁用 crypto.subtle，
+ *  哈希原语首触即抛裸 TypeError "reading 'digest'"（2026-10-16 02盾 LAN 投递实录）——入口转中文指引。 */
+export function assertSecureContext(): void {
+  if (!globalThis.crypto?.subtle) {
+    throw new Error(
+      '当前页面为非安全上下文（http 局域网地址），浏览器已禁用 WebCrypto，无法加解密。' +
+      '请改用 https 或 localhost 访问，或在测试机浏览器开启 ' +
+      'chrome://flags/#unsafely-treat-insecure-origin-as-secure（填本门户地址）并重启浏览器。',
+    );
+  }
+}
+
 /** PEM 甲剥除 → DER 字节（供加密证指纹） */
 export function pemToDer(pem: string): Uint8Array {
   const b64 = pem.replace(/-----[^-]+-----/g, '').replace(/\s+/g, '');
@@ -74,6 +86,7 @@ export async function encryptAndUploadV3(
   fieldsCommit: string;
   nonceHex: string;
 }> {
+  assertSecureContext();
   const encCertFingerprint = await pemDerSha256(encCertPem);
   const uploadedAssets: Array<{ role: V3Role; fileAssetId: string }> = [];
   const entries: Partial<Record<V3Role, DualV3Envelope['files'][V3Role]>> = {};

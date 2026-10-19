@@ -2329,7 +2329,7 @@ describe('BidService — createProject 字段写入', () => {
   it('createProject 写入 qualityRequirement / bondRequired / bondAmount', async () => {
     await service.createProject({
       name: '测试项目', procurementMethod: '公开招标',
-      openTime: '2026-07-02T00:00:00.000Z', deadline: '2026-07-01T23:50:00.000Z',
+      openTime: '2026-07-02T00:00:00.000Z', deadline: new Date(new Date('2026-07-02T00:00:00.000Z').getTime() - BID_DEADLINE_BEFORE_OPENING_MS).toISOString(),
       qualityRequirement: '合格', bondRequired: true, bondAmount: 200000,
     } as any);
 
@@ -2341,7 +2341,7 @@ describe('BidService — createProject 字段写入', () => {
   });
 });
 
-describe('截标↔开标间隔（P0-2；2026-10-16 起 10 分钟）', () => {
+describe('截标↔开标间隔（P0-2；间隔=共享常量）', () => {
   let service: BidService;
   let prisma: any;
 
@@ -2395,7 +2395,7 @@ describe('截标↔开标间隔（P0-2；2026-10-16 起 10 分钟）', () => {
     expect(prisma.bidProject.create).not.toHaveBeenCalled();
   });
 
-  it('createBidProject：缺 deadline → 自动派生间隔（10 分钟）', async () => {
+  it('createBidProject：缺 deadline → 自动派生间隔', async () => {
     prisma.bidProject.create.mockImplementation(({ data }: any) => data);
     const created = await service.createProject({
       name: 'P', procurementMethod: '公开招标', openTime: OPEN.toISOString(),
@@ -2422,7 +2422,7 @@ describe('截标↔开标间隔（P0-2；2026-10-16 起 10 分钟）', () => {
     expect(prisma.bidProject.create).not.toHaveBeenCalled();
   });
 
-  it('reopenFromAborted：兜底 deadline=+3天、openTime=deadline+10分钟', async () => {
+  it('reopenFromAborted：兜底 deadline=+3天、openTime=deadline+间隔', async () => {
     prisma.bidProject.findUnique.mockImplementation(({ where }: any) =>
       where?.projectCode ? Promise.resolve(null) : Promise.resolve({
         stage: 'ABORTED', name: 'P', projectCode: 'BID-1', procurementMethod: '谈判采购',
@@ -2460,7 +2460,7 @@ describe('截标↔开标间隔（P0-2；2026-10-16 起 10 分钟）', () => {
     expect(prisma.bidProject.update).not.toHaveBeenCalled();
   });
 
-  it('updateProject frozen：改 deadline → DEADLINE_FROZEN；仅延 openTime（≥+10分钟）→ 放行且 deadline 不变', async () => {
+  it('updateProject frozen：改 deadline → DEADLINE_FROZEN；仅延 openTime（≥+间隔）→ 放行且 deadline 不变', async () => {
     const frozenDeadline = new Date(Date.now() - 86400_000);
     prisma.bidProject.findUnique.mockResolvedValue({
       openTime: new Date(frozenDeadline.getTime() + 12 * 3_600_000), deadline: frozenDeadline, stage: 'OPENING',
@@ -2478,13 +2478,13 @@ describe('截标↔开标间隔（P0-2；2026-10-16 起 10 分钟）', () => {
     expect(data.deadline).toBeUndefined();
   });
 
-  it('updateProject frozen：openTime < deadline+10分钟 → DEADLINE_OPENING_GAP_INVALID', async () => {
+  it('updateProject frozen：openTime < deadline+间隔 → DEADLINE_OPENING_GAP_INVALID', async () => {
     const frozenDeadline = new Date(Date.now() - 86400_000);
     prisma.bidProject.findUnique.mockResolvedValue({
       openTime: new Date(frozenDeadline.getTime() + 12 * 3_600_000), deadline: frozenDeadline, stage: 'OPENING',
     });
     await expect(service.updateProject('p1', {
-      openTime: new Date(frozenDeadline.getTime() + 8 * 60_000).toISOString(),
+      openTime: new Date(frozenDeadline.getTime() + GAP_MS - 2 * 60_000).toISOString(),
     } as any)).rejects.toMatchObject({ response: { code: 'DEADLINE_OPENING_GAP_INVALID' } });
     expect(prisma.bidProject.update).not.toHaveBeenCalled();
   });
@@ -4923,8 +4923,8 @@ describe('P1-4 — 旧轨解密归因与时间修改留痕（updateProject）—
   it('P1-4：actorId 缺省 → 有监督日志、无审计日志', async () => {
     // 墙钟无关：prev.deadline 须在未来，否则 modeFor 判 frozen、改 deadline 触发 DEADLINE_FROZEN
     const openTime = new Date(Date.now() + 7 * 24 * 3600 * 1000); // 开标：now+7d
-    const prevDeadline = new Date(Date.now() + 6 * 24 * 3600 * 1000); // 原截标：now+6d（开标前 24h）
-    const newDeadline = new Date(Date.now() + 5 * 24 * 3600 * 1000); // 新截标：now+5d（仍 ≥ 开标前 24h）
+    const prevDeadline = new Date(Date.now() + 6 * 24 * 3600 * 1000); // 原截标：now+6d（早于开标即可，frozen 场景与间隔常量无关）
+    const newDeadline = new Date(Date.now() + 5 * 24 * 3600 * 1000); // 新截标：now+5d（间隔 2d ≥ 常量，满足 frozen 约束）
     prisma.bidProject.findUnique.mockResolvedValue({ openTime, deadline: prevDeadline, stage: 'DOWNLOAD' });
     prisma.bidProject.update.mockResolvedValue({ id: 'p1' });
 

@@ -211,7 +211,7 @@ export function PlatformPushBlock({ bidProjectId }: Props) {
   function toggleMask(key: 'ceilingPrice' | 'contractAmount', on: boolean) {
     const next = { ...mask, [key]: on };
     setMask(next);
-    void runPreview([...previewedIds], next); // 变更即重新预览——脱敏效果计入 payloadHash
+    void runPreview([...previewedIds], next); // 变更即重新预览——脱敏效果计入指纹校验
   }
 
   const previewMatchesSelection = sameSet(previewedIds, selected);
@@ -332,7 +332,7 @@ export function PlatformPushBlock({ bidProjectId }: Props) {
             className="neu-btn-primary !h-[32px] !text-xs shrink-0"
             onClick={openPreview}
             disabled={busy || selected.size === 0}
-            title={selected.size === 0 ? '先勾选可推数据项（⚠ 待补全行禁勾）' : '预览中间信封（人工确认制第一步——推送前必经）'}
+            title={selected.size === 0 ? '先勾选可推数据项（待补全行禁勾）' : '预览中间信封（人工确认制第一步——推送前必经）'}
           >
             <Eye size={13} /> 预览选中{selected.size > 0 ? `（${selected.size}）` : ''}
           </button>
@@ -403,7 +403,7 @@ export function PlatformPushBlock({ bidProjectId }: Props) {
                             className="font-semibold text-[var(--warning)]"
                             title={`缺 ${row.missing.join('/')}——${missingHints.join('；')}`}
                           >
-                            ⚠ 待补全（{row.missing.join('/')}）
+                            待补全（{row.missing.join('/')}）
                           </span>
                         )}
                       </td>
@@ -440,7 +440,7 @@ export function PlatformPushBlock({ bidProjectId }: Props) {
 
       <p className="mt-2 flex items-start gap-1.5 text-[10px] text-[var(--muted-foreground)]">
         <ShieldAlert size={12} className="mt-0.5 shrink-0" />
-        人工确认制：推送前必经预览（payloadHash 防预览后数据漂移）；发布内容真实性、准确性、合法性由发布人负责；涉密信息须脱密脱敏后发布。
+        人工确认制：推送前必经预览（指纹校验防预览后数据变化）；发布内容真实性、准确性、合法性由发布人负责；涉密信息须脱密脱敏后发布。
       </p>
 
       {/* 预览弹窗（人工确认制第一步：信封 JSON + 脱敏开关 + 指纹 + 责任提示） */}
@@ -448,7 +448,7 @@ export function PlatformPushBlock({ bidProjectId }: Props) {
         open={previewOpen}
         onClose={() => setPreviewOpen(false)}
         title="推送内容预览（中间信封）"
-        description="schema=sc-v2-preview——推送/导出将校验下列逐项载荷指纹（payloadHash），预览后数据变化将被拒绝"
+        description="推送/导出将校验下列逐项载荷指纹，预览后数据变化将被拒绝"
         size="xl"
         footer={
           <>
@@ -492,7 +492,7 @@ export function PlatformPushBlock({ bidProjectId }: Props) {
             />
             合同金额置空（合同公告）
           </label>
-          <span className="text-[10px] text-[var(--muted-foreground)]">变更即重新预览——脱敏效果计入 payloadHash</span>
+          <span className="text-[10px] text-[var(--muted-foreground)]">变更即重新预览——脱敏效果计入指纹校验</span>
         </div>
 
         {previewBusy && <p className="text-xs text-[var(--muted-foreground)]">信封生成中…</p>}
@@ -509,7 +509,7 @@ export function PlatformPushBlock({ bidProjectId }: Props) {
             </summary>
             <div className="border-t border-[var(--border)] px-3 py-2">
               <div className="mb-1 text-[10px] text-[var(--muted-foreground)]">
-                payloadHash（sha256）：<span className="font-mono break-all">{p.payloadHash}</span>
+                载荷指纹（SHA-256）：<span className="font-mono break-all">{p.payloadHash}</span>
                 {p.envelope.masked.length > 0 && (
                   <span className="ml-2 font-semibold text-[var(--warning)]">已脱敏：{p.envelope.masked.join('、')}</span>
                 )}
@@ -556,7 +556,7 @@ export function PlatformPushBlock({ bidProjectId }: Props) {
           </div>
           <div className="flex items-center justify-between gap-4">
             <span className="text-[var(--muted-foreground)]">载荷指纹校验</span>
-            <span className="text-right text-[var(--foreground)]">{previewedIds.size} 项 payloadHash（不一致将拒绝）</span>
+            <span className="text-right text-[var(--foreground)]">{previewedIds.size} 项载荷指纹（不一致将拒绝）</span>
           </div>
           <div className="flex items-center justify-between gap-4">
             <span className="text-[var(--muted-foreground)]">脱敏</span>

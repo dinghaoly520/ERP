@@ -338,7 +338,7 @@ export function ContractStageModal({ open, onClose, item, onUpdated }: Props) {
                   </>
                 )}
                 {['signed', 'performing', 'accepted'].includes(c.status) && (
-                  <button onClick={() => act(() => publishContractNotice(c.id), '合同公告已发布（幂等）')} disabled={busy} className="neu-btn-soft !h-[26px] !px-2.5 !text-[11px]"><Megaphone size={11} /> 合同公告</button>
+                  <button onClick={() => act(() => publishContractNotice(c.id), '合同公告已发布（重复点击无影响）')} disabled={busy} className="neu-btn-soft !h-[26px] !px-2.5 !text-[11px]"><Megaphone size={11} /> 合同公告</button>
                 )}
                 {['signed', 'performing'].includes(c.status) && (
                   <>
