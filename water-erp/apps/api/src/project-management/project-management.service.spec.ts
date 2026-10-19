@@ -1221,6 +1221,67 @@ describe('ProjectManagementService', () => {
     ).resolves.toMatchObject({ status: 'ARCHIVED' });
   });
 
+  it('rejects completing a tail PMI stage while the linked bid project is still in flight (409 BID_IN_PROGRESS)', async () => {
+    // 2026-10-19 续：手工 PATCH 阶段曾可绕过「归档解锁定标」正门（syncPmStage 只在
+    // archiveAll 里推进）——开标评标/定标/合同/备案表完成前投标侧必须已终局。
+    const { service, prisma } = makeService();
+
+    prisma.projectManagementItem.findUnique.mockResolvedValue({
+      id: 'pm-01',
+      currentStage: 'BID_EVALUATION',
+      currentRound: 1,
+    });
+    prisma.projectManagementStage.findFirst.mockResolvedValue({
+      id: 'stage-bid-eval',
+      stageKey: 'BID_EVALUATION',
+      stageOrder: 7,
+      round: 1,
+      status: 'IN_PROGRESS',
+    });
+    prisma.bidProject.findMany.mockResolvedValue([
+      { id: 'bp-01', name: '谈判采购测试', stage: 'EVALUATING' },
+    ]);
+
+    await expect(
+      service.updateStage('pm-01', 'BID_EVALUATION', { status: 'COMPLETED' }),
+    ).rejects.toMatchObject({ response: { code: 'BID_IN_PROGRESS' } });
+
+    expect(prisma.projectManagementStage.update).not.toHaveBeenCalled();
+  });
+
+  it('allows completing a tail PMI stage when the linked bid project is terminal (ARCHIVED/ABORTED)', async () => {
+    const { service, prisma } = makeService();
+
+    prisma.projectManagementItem.findUnique.mockResolvedValue({
+      id: 'pm-01',
+      currentStage: 'BID_EVALUATION',
+      currentRound: 1,
+      // refreshProjectAnalysis 二次查询 include.stages——空附件走空简报缓存路径
+      stages: [],
+    });
+    prisma.projectManagementStage.findFirst.mockResolvedValue({
+      id: 'stage-bid-eval',
+      stageKey: 'BID_EVALUATION',
+      stageOrder: 7,
+      round: 1,
+      status: 'IN_PROGRESS',
+    });
+    // 阶段闸查同轮活动态（空=已终局）；后续 nextStage 推进的 findMany（无 stage 过滤）回退全量
+    prisma.bidProject.findMany.mockImplementation((args?: { where?: { stage?: { in?: string[] } } }) => {
+      const all = [{ id: 'bp-01', name: '谈判采购测试', stage: 'ARCHIVED' }];
+      const inStages = args?.where?.stage?.in;
+      return Promise.resolve(inStages ? all.filter((bp) => inStages.includes(bp.stage)) : []);
+    });
+    prisma.projectManagementStage.update.mockResolvedValue({
+      id: 'stage-bid-eval', stageKey: 'BID_EVALUATION', status: 'COMPLETED',
+    });
+
+    await expect(
+      service.updateStage('pm-01', 'BID_EVALUATION', { status: 'COMPLETED' }),
+    ).resolves.toBeTruthy();
+    expect(prisma.projectManagementStage.update).toHaveBeenCalled();
+  });
+
   it('rejects marking a later stage complete before the current stage finishes', async () => {
     const { service, prisma } = makeService();
 

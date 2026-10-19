@@ -41,7 +41,7 @@ import { SelectOfficialTenderDto } from './dto/select-official-tender.dto';
 import { UpdateProjectStageDto } from './dto/update-project-stage.dto';
 import { AnalyzeBudgetReferenceDto } from './dto/analyze-budget-reference.dto';
 import { estimateBudgetReference } from './budget-reference-estimator';
-import { LOCKED_STAGES, PROJECT_WORKFLOW_STAGES } from './project-management.types';
+import { BID_TAIL_STAGE_KEYS, LOCKED_STAGES, PROJECT_WORKFLOW_STAGES } from './project-management.types';
 import { getStageComplianceRules } from './stage-compliance-rules';
 import { stripAnnouncementTitlePrefix } from '../common/announcement-title.util';
 import { stripMojibake } from '../common/text-clean.util';
@@ -3442,6 +3442,31 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // P1-12：阶段完成最小实质校验（与 UI 步骤检查口径一致——此前 0 文件/0 邀请/0 专家可空完成，
     // 一路放行到开标确认才发现缺前置，返工成本高）
     if (dto.status === PROJECT_STAGE_STATUS.COMPLETED) {
+      // 投标侧收口闸（2026-10-19，TP-2026101901 实例续）：开标评标及之后阶段（定标/合同/
+      // 备案表）完成前，同轮关联 BidProject 必须已终局。正门=「开标确认」面板完整归档
+      // （archiveAll→syncPmStage 置本阶段 COMPLETED 并解锁定标）；手工标完成/补录均不得越过
+      // 投标侧——否则 PMI 一路推到合同而投标侧永卡活动态（专家/供应商端僵尸滞留）。
+      // 无关联招标项目（无投标链方式）不拦；旧轮已流标/归档自然放行。与 completeProject
+      // 归档闸、公告删除 BID_IN_PROGRESS 同源。
+      if (BID_TAIL_STAGE_KEYS.has(stageKey as (typeof PROJECT_WORKFLOW_STAGES)[number]['key'])) {
+        const activeBidProjects = await this.prisma.bidProject.findMany({
+          where: {
+            projectManagementItemId: projectId,
+            round: targetRound,
+            stage: { in: ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING'] },
+          },
+          select: { name: true, stage: true },
+        });
+        if (activeBidProjects.length > 0) {
+          const names = activeBidProjects
+            .map((bp) => `「${bp.name}」(${STAGE_LABEL[bp.stage] ?? bp.stage})`)
+            .join('、');
+          throw new ConflictException({
+            error: `关联招标项目仍在开评标流程中：${names}。请先在「开标确认」面板完成完整归档（自动完成本阶段并解锁定标），或流标后再推进`,
+            code: 'BID_IN_PROGRESS',
+          });
+        }
+      }
       // 评分标准配置闸（2026-09-24 方案 v2）：03 采购文件完成前须完成评分标准配置——
       // 评标标准属采购文件组成内容，配置前置到本阶段收口；办法=none（不评分）免校验。
       // 先于归档材料闸抛出（评分标准是本阶段产物本身，不可豁免）。
