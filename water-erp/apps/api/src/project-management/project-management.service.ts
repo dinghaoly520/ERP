@@ -67,6 +67,16 @@ const PROJECT_MANAGEMENT_STATUS: Record<
   TERMINATED: 'TERMINATED',
 };
 
+/** 归档/终止/回收站项目不可再变更（2026-10-19 复查）：阶段推进/重开、附件增删与正文改写、
+ *  提取信息回填等写路径统一前置校验 PMI.status=ACTIVE——UI 只读挡不住 API 直调
+ *  （本日 TP-2026101901 实例即 API 层绕行；归档数据不可扰动，更正走 DA/T103 重新归档流程）。
+ *  读取、分析缓存与 aiPolish（纯文本变换无落库）不受限。 */
+const PMI_STATUS_MUTABLE_LABEL: Record<string, string> = {
+  ARCHIVED: '已归档',
+  TERMINATED: '已终止',
+  RECYCLED: '已移入回收站',
+};
+
 const PROJECT_STAGE_STATUS: Record<
   ProjectStageStatusValue,
   ProjectStageStatusValue
@@ -1309,6 +1319,7 @@ ${shortlist}
     // 正式盖章版、向导自动上传的公告 docx）100MB + 9 扩展白名单——
     // 复用 announcement 规则集，先于任何 prisma/落盘调用
     assertAttachmentRules(file, 'announcement');
+    await this.assertPmiMutable(projectId);
     // R6-1（2026-09-30 审计⑤升级为硬死锁）：多轮项目每轮各有一行同 stageKey 阶段——
     // 此前 findFirst 无 round 过滤，round-2 上传必落 round-1 行，selectOfficialTender
     // 校验 projectManagementStageId 必拒"该文件不属于本步骤"→流标重采后 03 无法完成。
@@ -3388,11 +3399,27 @@ ${JSON.stringify(algorithmResult, null, 2)}
     };
   }
 
+  /** PMI 可变更前置闸（见文件头 PMI_STATUS_MUTABLE_LABEL 注释）——写路径统一入口。 */
+  private async assertPmiMutable(projectId: string): Promise<void> {
+    const item = await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+      select: { status: true },
+    });
+    if (!item) throw new NotFoundException('未找到对应项目。');
+    if (item.status !== PROJECT_MANAGEMENT_STATUS.ACTIVE) {
+      throw new ConflictException({
+        error: `项目${PMI_STATUS_MUTABLE_LABEL[item.status] ?? item.status}，不可变更（归档数据不可扰动；更正请走重新归档流程）`,
+        code: 'PMI_NOT_ACTIVE',
+      });
+    }
+  }
+
   async updateStage(
     projectId: string,
     stageKey: string,
     dto: UpdateProjectStageDto,
   ) {
+    await this.assertPmiMutable(projectId);
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
       select: { currentStage: true, currentRound: true },
@@ -3737,6 +3764,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
    * 附件（已上传文件）与分析缓存（按 stageKey 键控）一律不动——文件在，分析结论保留。
    */
   async reopenStage(projectId: string, stageKey: string, round?: number) {
+    await this.assertPmiMutable(projectId);
     const stage = await this.prisma.projectManagementStage.findFirst({
       where: {
         projectManagementItemId: projectId,
@@ -4271,6 +4299,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       riskMeasures?: string;
     },
   ) {
+    await this.assertPmiMutable(projectId);
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
     });
@@ -5880,6 +5909,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
   }
 
   async deleteAttachment(projectId: string, attachmentId: string) {
+    await this.assertPmiMutable(projectId);
     const attachment = await this.prisma.attachment.findUnique({
       where: { id: attachmentId },
       select: {
@@ -7003,6 +7033,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     },
     uploadedById?: string,
   ) {
+    await this.assertPmiMutable(projectId);
     const oldAttachment = await this.prisma.attachment.findUnique({
       where: { id: dto.attachmentId },
       select: { id: true, fileName: true, objectKey: true, projectManagementStageId: true },
@@ -7206,6 +7237,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     fileName: string,
     uploadedById?: string,
   ) {
+    await this.assertPmiMutable(projectId);
     const oldAttachment = await this.prisma.attachment.findUnique({
       where: { id: attachmentId },
       select: { id: true, fileName: true, objectKey: true, projectManagementStageId: true },
@@ -7481,6 +7513,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     dto: { attachmentId: string; html: string; originalHash?: string },
     uploadedById?: string,
   ) {
+    await this.assertPmiMutable(projectId);
     const oldAttachment = await this.prisma.attachment.findUnique({
       where: { id: dto.attachmentId },
       select: { id: true, fileName: true, objectKey: true, projectManagementStageId: true },

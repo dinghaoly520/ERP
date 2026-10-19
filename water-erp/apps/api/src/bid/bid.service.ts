@@ -5044,6 +5044,13 @@ export class BidService {
     if (project.stage !== 'OPENING' && project.stage !== 'EVALUATING') {
       throw new ConflictException({ error: '当前阶段不可创建报价轮次', code: 'STAGE_NOT_OPENING' });
     }
+    // 结果冻结闸（2026-10-19）：评标结果已生成后不再开新轮——结果生成要求全部轮次 closed
+    // （ROUNDS_NOT_CLOSED），事后新轮的报价永不同步（syncMultiRoundPrices 已跑）、且结果/
+    // 签字链已定型；submitQuote 提交侧同闸（RESULTS_FROZEN）。数据修正流程清零结果后自然放行。
+    const existingResults = await this.prisma.bidEvaluationResult.count({ where: { projectId } });
+    if (existingResults > 0) {
+      throw new ConflictException({ error: '评标结果已生成，不可再创建报价轮次；如需更正请走数据修正流程', code: 'RESULTS_FROZEN' });
+    }
     // H5: 并发守卫——不允许同时存在多个 open 轮次
     const openRound = await this.prisma.bidRound.findFirst({ where: { projectId, status: 'open' } });
     if (openRound) throw new ConflictException({ error: `第${openRound.roundNo}轮仍在进行中，请先截止并公布`, code: 'ROUND_STILL_OPEN' });

@@ -21,6 +21,9 @@ describe('round quote notification lifecycle', () => {
           eligibleSupplierIds: ['bid-supplier-1'],
         }),
       },
+      // 报价窗口闸（2026-10-19）：submitQuote 新增项目阶段+结果冻结前置——补齐 happy-path mock
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'project-1', stage: 'EVALUATING' }) },
+      bidEvaluationResult: { count: jest.fn().mockResolvedValue(0) },
       bidQuote: { create: jest.fn().mockResolvedValue({ id: 'quote-1' }) },
     };
     const notificationService = {
