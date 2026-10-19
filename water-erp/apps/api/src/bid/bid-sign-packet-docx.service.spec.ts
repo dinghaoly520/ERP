@@ -186,4 +186,33 @@ describe('BidSignPacketDocxService', () => {
     );
     expect(textOf(children)).not.toContain('附注：');
   });
+
+  /* ── 2026-10-19 none 直接采购 §4.6：个人评分确认表 →「直接采购·不评分」页 ── */
+  it('none sheet：渲染「直接采购·不评分」占位，不渲染空评分表/得分点裁定表；核对留痕与签认照常', () => {
+    const snap: SignPacketSnapshot = {
+      ...baseSnapshot,
+      expertSheets: [{
+        ...baseSnapshot.expertSheets[0],
+        noneEvaluation: true,
+        rows: [],          // none 项目 0 条 BidScoreRecord
+        pointDecisions: [],
+      }],
+    };
+    const text = textOf(svc.buildChildren(snap));
+    expect(text).toContain('直接采购·不评分');
+    // 不渲染空表格：评分表表头串/得分点裁定表头串不出现（六节「得分点」列不在两串口径内，不误伤）
+    expect(text).not.toContain('供应商评分项类别得分通过备注');
+    expect(text).not.toContain('得分点供应商裁定得分');
+    // 核对时间戳与签认照常（spec §4.6：核对签章照常）
+    expect(text).toContain('评分核对：2026-08-12T02:30:00.000Z');
+    expect(text).toContain('本人确认：本项目为直接采购、不评分');
+  });
+
+  it('非 none sheet：评分表/得分点裁定表照常渲染（回归）', () => {
+    const text = textOf(svc.buildChildren(baseSnapshot));
+    expect(text).toContain('供应商评分项类别得分通过备注');
+    expect(text).toContain('得分点供应商裁定得分');
+    expect(text).toContain('商务要点1');
+    expect(text).toContain('本人确认：以上分数、得分点裁定及在线操作留痕均为本人亲为');
+  });
 });

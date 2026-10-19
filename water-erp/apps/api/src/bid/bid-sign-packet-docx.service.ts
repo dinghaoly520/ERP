@@ -31,6 +31,8 @@ export interface SignPacketSnapshot {
   results: Array<{ supplierName: string; totalScore: number; averageScore: number; rank: number; recommended: boolean; disqualified: boolean; bidPrice: number | null }>;
   expertSheets: Array<{
     expertId: string; name: string; major: string; role: string;
+    /** 2026-10-19 none 直接采购：评分确认表渲染「直接采购·不评分」占位页，不渲染空评分表（spec §4.6） */
+    noneEvaluation?: boolean;
     rows: Array<{ supplierName: string; scoreItemName: string; category: string; score: number; passed: boolean | null; reason: string | null }>;
     pointDecisions: Array<{ pointName: string; supplierName: string; checked: boolean; awardedScore: number }>;
     trace: OperationTrace;
@@ -245,27 +247,35 @@ export class BidSignPacketDocxService {
     const out: (Paragraph | Table)[] = [];
     for (const sheet of s.expertSheets) {
       out.push(new Paragraph({ pageBreakBefore: true, children: [new TextRun({ text: `个人评分确认表 — ${sheet.name}（${sheet.role}）`, bold: true, size: 28 })] }));
-      out.push(new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [
-          this.headerRow(['供应商', '评分项', '类别', '得分', '通过', '备注']),
-          ...sheet.rows.map(r => new TableRow({
-            children: [r.supplierName, r.scoreItemName, r.category, String(r.score), r.passed == null ? '—' : r.passed ? '通过' : '不通过', r.reason ?? ''].map(v => new TableCell({ children: [this.para(v)] })),
-          })),
-        ],
-      }));
-      out.push(this.h2('得分点裁定'));
-      out.push(new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [
-          this.headerRow(['得分点', '供应商', '裁定', '得分']),
-          ...sheet.pointDecisions.map(d => new TableRow({
-            children: [d.pointName, d.supplierName, d.checked ? '符合' : '不符合', String(d.awardedScore)].map(v => new TableCell({ children: [this.para(v)] })),
-          })),
-        ],
-      }));
-      out.push(this.traceTable(sheet.trace));
-      out.push(this.para('本人确认：以上分数、得分点裁定及在线操作留痕均为本人亲为，与系统记录一致。'));
+      // none（直接采购）：不设评分项——「直接采购·不评分」占位替代空评分表/得分点裁定表；
+      // 核对留痕（traceTable 含评分核对 verifiedAt）与签章照常（spec 2026-10-19 §4.6）
+      if (sheet.noneEvaluation) {
+        out.push(this.para('直接采购·不评分——本项目采用直接采购方式，不设评分项，无个人评分记录。'));
+        out.push(this.traceTable(sheet.trace));
+        out.push(this.para('本人确认：本项目为直接采购、不评分；以上在线操作留痕与核对记录均为本人亲为，与系统记录一致。'));
+      } else {
+        out.push(new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            this.headerRow(['供应商', '评分项', '类别', '得分', '通过', '备注']),
+            ...sheet.rows.map(r => new TableRow({
+              children: [r.supplierName, r.scoreItemName, r.category, String(r.score), r.passed == null ? '—' : r.passed ? '通过' : '不通过', r.reason ?? ''].map(v => new TableCell({ children: [this.para(v)] })),
+            })),
+          ],
+        }));
+        out.push(this.h2('得分点裁定'));
+        out.push(new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            this.headerRow(['得分点', '供应商', '裁定', '得分']),
+            ...sheet.pointDecisions.map(d => new TableRow({
+              children: [d.pointName, d.supplierName, d.checked ? '符合' : '不符合', String(d.awardedScore)].map(v => new TableCell({ children: [this.para(v)] })),
+            })),
+          ],
+        }));
+        out.push(this.traceTable(sheet.trace));
+        out.push(this.para('本人确认：以上分数、得分点裁定及在线操作留痕均为本人亲为，与系统记录一致。'));
+      }
       out.push(this.kvTable([['签字', ''], ['日期', '　　年　月　日']]));
     }
     return out;

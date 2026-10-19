@@ -13,6 +13,7 @@ import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
 import { convertOfficeToPdf } from '../common/office-to-pdf.util';
 import { BidEvaluationResultsService } from './bid-evaluation-results.service'; // 值导入：emitDecoratorMetadata 需运行时引用，import type 会退化为 Object 致 DI 失败
 import { buildStandardFileName } from '@water-erp/shared';
+import { isNoneEvaluation } from './none-evaluation.util';
 import { formatAmountWithUnit, resolveOpeningAmountUnitMap } from './opening-amount-unit.util';
 
 export type SignStatusValue = 'PENDING' | 'SIGNED' | 'REFUSED_DISSENT' | 'DEEMED_AGREED';
@@ -644,7 +645,7 @@ export class BidSignPacketService {
       await Promise.all([
         this.prisma.bidProject.findUnique({
           where: { id: projectId },
-          select: { name: true, projectCode: true, procurementMethod: true, openTime: true, deadline: true, scope: true, qualification: true, budget: true, leaderCoSignedAt: true, reportNotes: true },
+          select: { name: true, projectCode: true, procurementMethod: true, evaluationMethod: true, openTime: true, deadline: true, scope: true, qualification: true, budget: true, leaderCoSignedAt: true, reportNotes: true },
         }),
         this.prisma.bidExpert.findMany({
           where: { projectId, expertRole: '正选' },
@@ -694,6 +695,9 @@ export class BidSignPacketService {
       if (t && (!verifiedAt.has(r.expertId) || t < verifiedAt.get(r.expertId)!)) verifiedAt.set(r.expertId, t);
     }
 
+    // none（直接采购）项目：评分确认表改「直接采购·不评分」页——谓词算一次全 sheet 共用（spec 2026-10-19 §4.6）
+    const noneEvaluation = isNoneEvaluation(project.evaluationMethod, project.procurementMethod);
+
     const expertSheets = committee.map(e => {
       // 2026-09-18 身份核验 §4.5：签到时间取自 signInMeta.timestamp（旧数据无 → at 保持 null）
       const signInMeta = (e.signInMeta ?? {}) as { timestamp?: string };
@@ -712,6 +716,7 @@ export class BidSignPacketService {
         name: e.expertName,
         major: e.major,
         role: e.expertRole,
+        noneEvaluation,
         rows: records.filter(r => r.expertId === e.id).map(r => ({
           supplierName: supplierNameById.get(r.supplierId) ?? '（未知供应商）',
           scoreItemName: itemNameById.get(r.scoreItemId) ?? '（未知评分项）',

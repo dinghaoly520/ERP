@@ -668,6 +668,56 @@ describe('BidSignPacketService.buildSnapshot（A-132 分工入委员会名单 / 
   });
 });
 
+/* ── 2026-10-19 none 直接采购：个人评分确认表 →「直接采购·不评分」页（spec §4.6）── */
+describe('BidSignPacketService.buildSnapshot（none 直接采购 noneEvaluation）', () => {
+  const projectId = 'p1';
+
+  beforeEach(() => jest.clearAllMocks());
+
+  function arrangeProject(project: Record<string, unknown>) {
+    (prisma.bidProject.findUnique as jest.Mock).mockResolvedValue(project);
+    (prisma.bidExpert.findMany as jest.Mock).mockResolvedValue([
+      { id: 'e1', expertName: '张三', major: '水利水电', expertRole: '正选', isLead: true,
+        signInIp: null, signInMeta: null, confidentialityAgreedAt: null, disciplineAgreedAt: null, reportConfirmedAt: null },
+    ]);
+  }
+
+  it('none 项目：expertSheets 携带 noneEvaluation=true（select 须带 evaluationMethod 列）', async () => {
+    arrangeProject({
+      name: '直接采购项目', projectCode: 'ZJ-1', procurementMethod: '直接采购', evaluationMethod: 'none',
+      openTime: null, deadline: null, scope: null, qualification: null, budget: null, leaderCoSignedAt: null,
+    });
+    const svc = makeService();
+    const snapshot = await svc.buildSnapshot(projectId);
+
+    // 缺列则映射 undefined，docx 端 if(sheet.noneEvaluation) 恒假 → none 页退化为空评分表
+    const projectSelect = (prisma.bidProject.findUnique as jest.Mock).mock.calls[0]?.[0]?.select;
+    expect(projectSelect?.evaluationMethod).toBe(true);
+    expect(snapshot.expertSheets).toHaveLength(1);
+    expect(snapshot.expertSheets[0].noneEvaluation).toBe(true);
+  });
+
+  it('evaluationMethod 缺省回退采购方式派生：直接采购 → true（谓词双参防御，spec §6 F2）', async () => {
+    arrangeProject({
+      name: '直接采购项目', projectCode: 'ZJ-2', procurementMethod: '直接采购', evaluationMethod: null,
+      openTime: null, deadline: null, scope: null, qualification: null, budget: null, leaderCoSignedAt: null,
+    });
+    const svc = makeService();
+    const snapshot = await svc.buildSnapshot(projectId);
+    expect(snapshot.expertSheets[0].noneEvaluation).toBe(true);
+  });
+
+  it('非 none 项目：noneEvaluation=false（回归）', async () => {
+    arrangeProject({
+      name: '询比项目', projectCode: 'XB-1', procurementMethod: '询比采购', evaluationMethod: 'manual',
+      openTime: null, deadline: null, scope: null, qualification: null, budget: null, leaderCoSignedAt: null,
+    });
+    const svc = makeService();
+    const snapshot = await svc.buildSnapshot(projectId);
+    expect(snapshot.expertSheets[0].noneEvaluation).toBe(false);
+  });
+});
+
 // ═══ 数据修正流程：admin 重开已闭环签字包（2026-09-24 验收落地） ═══
 describe('BidSignPacketService.reopen（数据修正）', () => {
   const projectId = 'p1';
