@@ -300,10 +300,12 @@
 
 /* ════════ 底部双栏 ════════ */
 .bottom-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: stretch;
   margin-top: 16px;
 }
-.bottom-card { padding: 18px; }
+/* 2026-10-19：采购文件/澄清答疑同行等高——stretch 拉齐 + 基线 min-height（双短态也不塌）；
+   澄清列表长时卡内滚动封顶，行高保持适中 */
+.bottom-card { padding: 18px; min-height: 220px; }
 .bc-hd {
   font-size: 11px; font-weight: 800; color: var(--muted-foreground);
   text-transform: uppercase; letter-spacing: .06em;
@@ -325,7 +327,7 @@
 .cq-notice p { margin: 0 0 6px; }
 .cq-notice p:last-child { margin-bottom: 0; }
 .cq-desc   { margin: 2px 0 10px; font-size: 12px; line-height: 1.6; color: var(--muted-foreground); }
-.cq-list  { display: flex; flex-direction: column; }
+.cq-list  { display: flex; flex-direction: column; max-height: 300px; overflow-y: auto; scrollbar-width: thin; }
 .cq-item  { padding: 9px 0; border-bottom: 1px solid var(--hairline); }
 .cq-item:last-child { border-bottom: none; }
 .cq-head   { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
