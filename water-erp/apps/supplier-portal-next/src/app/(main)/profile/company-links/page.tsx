@@ -27,6 +27,25 @@ const STATUS_TONE: Record<CompanyLinkView["status"], string> = {
   DISABLED: "disabled",
 };
 
+/** 公司着色调板（2026-10-19 用户裁定：各公司卡片轻微色彩区分，非纯色覆盖）——
+ *  六档低饱和 oklch 色调（蓝/水青/紫/赭/绿/青蓝），经 --card-color 驱动图标井+渐变轻染+角部光晕；
+ *  状态胶囊（sp-status）保持语义色，不参与公司着色。 */
+const CARD_TONES = [
+  "oklch(0.62 0.11 258)",
+  "oklch(0.6 0.1 175)",
+  "oklch(0.62 0.1 300)",
+  "oklch(0.64 0.11 30)",
+  "oklch(0.63 0.1 145)",
+  "oklch(0.63 0.1 220)",
+] as const;
+
+/** 公司名 → 确定性色调（同名恒色、异名大概率异色） */
+function companyTone(name: string): string {
+  let h = 0;
+  for (const ch of name) h = (h * 31 + (ch.codePointAt(0) ?? 0)) % 997;
+  return CARD_TONES[h % CARD_TONES.length];
+}
+
 /**
  * 公司归属管理（多公司归属 2026-10-16）：正文只展示目前归属的公司（已在库/已停用）；
  * 「申请加入公司」「审核进度」为标题栏右侧按钮（同「企业信息 · 申请资料变更」模式）。
@@ -89,24 +108,34 @@ export default function CompanyLinksPage() {
           />
         ) : (
           affiliations.map((l) => (
-            <article key={l.id} className="clq-aff-card">
-              <header className="flex items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{l.companyName}</span>
-                  {l.isPrimary && <span className="clq-tag">主归属</span>}
-                </div>
-                <span className={cn("sp-status whitespace-nowrap", STATUS_TONE[l.status])}>
-                  {STATUS_LABEL[l.status]}
-                </span>
-              </header>
-              {l.status === "DISABLED" && (
-                <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                  该公司已将贵司在其库内停用，请联系该公司恢复
-                </p>
-              )}
-              {l.appliedAt && (
-                <p className="mt-1 text-xs text-[var(--muted-foreground)]">入库时间：{l.appliedAt.slice(0, 10)}</p>
-              )}
+            // --card-color 为 CSS 变量传递（cgzxui 唯一允许的内联 style 通道，同 flow-chip）
+            <article
+              key={l.id}
+              className="clq-aff-card"
+              style={{ "--card-color": companyTone(l.companyName) } as React.CSSProperties}
+            >
+              <div className="clq-aff-well" aria-hidden="true">
+                <Building2 size={16} strokeWidth={1.8} />
+              </div>
+              <div className="clq-aff-body">
+                <header className="flex items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">{l.companyName}</span>
+                    {l.isPrimary && <span className="clq-tag">主归属</span>}
+                  </div>
+                  <span className={cn("sp-status whitespace-nowrap", STATUS_TONE[l.status])}>
+                    {STATUS_LABEL[l.status]}
+                  </span>
+                </header>
+                {l.status === "DISABLED" && (
+                  <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                    该公司已将贵司在其库内停用，请联系该公司恢复
+                  </p>
+                )}
+                {l.appliedAt && (
+                  <p className="mt-1 text-xs text-[var(--muted-foreground)]">入库时间：{l.appliedAt.slice(0, 10)}</p>
+                )}
+              </div>
             </article>
           ))
         )}

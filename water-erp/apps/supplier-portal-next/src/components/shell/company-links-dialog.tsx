@@ -75,7 +75,8 @@ export function CompanyLinkApplyDialog({
       }
     >
       <div className="clq-field">
-        <label htmlFor="clq-company">归属公司</label>
+        {/* 无 htmlFor：UnitSearchSelect 触发器自带 placeholder 作可达名（组件不收 id），悬空 for 反伤 a11y */}
+        <label>归属公司</label>
         <UnitSearchSelect value={company} onChange={setCompany} />
         <p className="clq-hint">须正确选择归属公司，否则将影响投标</p>
       </div>
