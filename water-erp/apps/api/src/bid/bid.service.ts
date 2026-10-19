@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, ConflictException, ForbiddenException,
 import * as crypto from 'crypto';
 import { GB_ARCHIVE_CATEGORIES, parseAmountToYuan, renderNotificationPayload } from '@water-erp/shared';
 import { resolveOpeningAmountUnitMap, formatAmountWithUnit, DUAL_V2_AMOUNT_UNIT } from './opening-amount-unit.util';
+import { isNoneEvaluation } from './none-evaluation.util';
 import { buildArchiveTemplate } from './archive-template';
 import { aggregateSupplierScores } from './aggregate-supplier-scores';
 import { PrismaService } from '../prisma/prisma.service';
@@ -2082,7 +2083,7 @@ export class BidService {
   async startEvaluation(id: string, actorId?: string, evaluationHours?: number) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { stage: true, name: true, procurementMethod: true, roundMode: true, projectManagementItemId: true, priceFormulaConfig: true, ceilingPrice: true },
+      select: { stage: true, name: true, procurementMethod: true, evaluationMethod: true, roundMode: true, projectManagementItemId: true, priceFormulaConfig: true, ceilingPrice: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     // F17：同阶段早退——阶段棘轮 EVALUATING→EVALUATING 幂等放行后旧实现会全流程重跑
@@ -2163,7 +2164,10 @@ export class BidService {
     await this.checkDisputeTimeout(id);
 
     // G9: 评分标准完整(打分类 Σ=100 + 每个打分类项 ≥1 得分点),否则专家无法打分
-    await this.scoreStandardValidator.assertScoreStandardComplete(id);
+    // none-eval 豁免（spec 2026-10-19 §4.1）：直接采购族不评分，免评分标准（null 时按采购方式派生）
+    if (!isNoneEvaluation(project.evaluationMethod, project.procurementMethod)) {
+      await this.scoreStandardValidator.assertScoreStandardComplete(id);
+    }
 
     // P1-2（第三波）：价格公式限价前置校验——与 generateEvaluationResults 的 CEILING_PRICE_REQUIRED
     // 同口径。旧实现不预检，专家全部评完点「生成评标结果」才炸 400，而 EVALUATING 期配置又已锁定

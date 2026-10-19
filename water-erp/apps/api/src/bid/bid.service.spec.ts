@@ -1297,6 +1297,30 @@ describe('BidService — stage transitions', () => {
       });
     });
 
+    // none-eval（spec 2026-10-19 §4.1）：直接采购族免评分标准——G9 对 none 项目豁免、manual 行为不变
+    it('G9 豁免: evaluationMethod=none（直接采购）→ 空评分标准不拦 MAX_SCORE_SUM_NOT_100，validator 不调用', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P', procurementMethod: '直接采购', evaluationMethod: 'none' });
+      prisma.bidSupplier.count.mockResolvedValue(3);
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'EVALUATING' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.auditLog.create.mockResolvedValue({});
+      const validator = service['scoreStandardValidator'] as any;
+      // validator 若被调用即抛 Σ≠100（空评分标准的真实语义）——豁免生效则根本不进 validator
+      validator.assertScoreStandardComplete.mockRejectedValue({ response: { code: 'MAX_SCORE_SUM_NOT_100', statusCode: 409 } });
+      await expect(service.startEvaluation('p1', 'u1')).resolves.toMatchObject({ stage: 'EVALUATING' });
+      expect(validator.assertScoreStandardComplete).not.toHaveBeenCalled();
+    });
+
+    it('G9 豁免: evaluationMethod=manual → 空评分标准仍拦 MAX_SCORE_SUM_NOT_100（既有行为零变化）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P', procurementMethod: '公开招标', evaluationMethod: 'manual' });
+      prisma.bidSupplier.count.mockResolvedValue(3);
+      const validator = service['scoreStandardValidator'] as any;
+      validator.assertScoreStandardComplete.mockRejectedValueOnce({ response: { code: 'MAX_SCORE_SUM_NOT_100', statusCode: 409 } });
+      await expect(service.startEvaluation('p1', 'u1')).rejects.toMatchObject({
+        response: { code: 'MAX_SCORE_SUM_NOT_100' },
+      });
+    });
+
     it('专家/供应商/评分项齐备时不抛前置异常', async () => {
       prisma.bidSupplier.count.mockResolvedValue(3);
       prisma.bidScoreItem.count.mockResolvedValue(5);

@@ -34,6 +34,7 @@ import { CompleteProjectDto } from './dto/complete-project.dto';
 import { CreateProjectFromInitiationDto } from './dto/create-project-from-initiation.dto';
 import { QueryProjectManagementDto } from './dto/query-project-management.dto';
 import { getEvaluationDefault } from '../bid/evaluation-method.config';
+import { isNoneEvaluation } from '../bid/none-evaluation.util';
 import { ScoreStandardValidator } from '../bid/score-standard-validator.service';
 import { resolveActiveUserId } from '../bid/bid-project-notify.util';
 import { SelectOfficialTenderDto } from './dto/select-official-tender.dto';
@@ -3566,7 +3567,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
       select: { id: true, evaluationMethod: true },
     });
     if (!bp) return; // 方案 E：未关联开评标项目 → 放行（启动评标 G9 硬闸兜底）
-    if (bp.evaluationMethod === 'none') return;
+    // none-eval（spec 2026-10-19 §4.1）：改调共享谓词——与 :3007 G9 唯一口径来源，行为不变
+    if (isNoneEvaluation(bp.evaluationMethod)) return;
     try {
       await this.scoreStandardValidator.assertScoreStandardComplete(bp.id);
     } catch (e) {
