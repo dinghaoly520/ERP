@@ -36,7 +36,7 @@ import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-ar
 import { openField } from '../common/crypto/field-crypto';
 import { parseFlexibleDate } from '../common/parse-date.util';
 import { stripAnnouncementTitlePrefix } from '../common/announcement-title.util';
-import { generateProjectCode } from '../common/project-code.util';
+import { generateProjectCode, resolveHostedProjectCode } from '../common/project-code.util';
 import { GbCodeService } from '../common/gb-code.service';
 import { assertNudgeWindowOpen, assertOpeningDeadlineRelation, deriveDeadlineFromOpenTime, deriveOpenTimeFromDeadline, modeFor } from './opening-deadline.util';
 import { parseConflictedIds } from '../common/scoring/expert.util';
@@ -709,7 +709,17 @@ export class BidService {
   }
 
   async createProject(dto: CreateBidProjectDto, operator?: { sub: string; role: string }) {
-    const projectCode = await generateProjectCode(this.prisma, dto.procurementMethod);
+    // 2026-10-19 编号统一：有 PMI 宿主继承其业务编号（同公告/立项口径），否则三段式公司码
+    const companyStamp = await this.operatorCompanyStamp(operator);
+    const hostPmi = dto.projectManagementItemId
+      ? await this.prisma.projectManagementItem.findUnique({
+          where: { id: dto.projectManagementItemId },
+          select: { projectCode: true },
+        })
+      : null;
+    const projectCode = hostPmi?.projectCode
+      ? await resolveHostedProjectCode(this.prisma, { pmiCode: hostPmi.projectCode })
+      : await generateProjectCode(this.prisma, dto.procurementMethod, 'bidProject', { companyId: companyStamp.companyId });
     // A1（B.4.3.3/4）：分配国标编码——有 PMI 宿主复用其 18 位基码，否则自立
     const host = dto.projectManagementItemId
       ? await this.prisma.projectManagementItem.findUnique({ where: { id: dto.projectManagementItemId }, select: { gbProjectCode: true } })
@@ -748,7 +758,7 @@ export class BidService {
         bondRequired: dto.bondRequired ?? false,
         bondAmount: dto.bondAmount,
         // 公司归属快照自创建人（BidCompanyScopeGuard：非_admin 内部角色仅本公司项目可见）
-        ...(await this.operatorCompanyStamp(operator)),
+        ...companyStamp,
       },
     });
 
@@ -774,9 +784,14 @@ export class BidService {
     announcement: { id: string; title: string; publishDate: Date | null },
     metadata: Record<string, any>,
     companyStamp: { companyId?: string | null; companyName?: string | null } = {},
+    hostPmi?: { id: string; projectCode: string | null } | null,
   ) {
     const procurementMethod = metadata.method || '公开招标';
-    const projectCode = await generateProjectCode(this.prisma, procurementMethod);
+    // 2026-10-19 编号统一：公告直建继承宿主 PMI 业务编号（公告 relatedProjectCode 同码），
+    // 无宿主（历史直发公告）按三段式公司码生成——不再产出两段式孤儿编号
+    const projectCode = hostPmi?.projectCode
+      ? await resolveHostedProjectCode(this.prisma, { pmiCode: hostPmi.projectCode })
+      : await generateProjectCode(this.prisma, procurementMethod, 'bidProject', { companyId: companyStamp.companyId });
     // A1（B.4.3.3/4）：国标采购项目编码 + 标段编码（宿主 PMI 的 18 位码优先复用）
     const host = metadata.projectManagementItemId
       ? await this.prisma.projectManagementItem.findUnique({ where: { id: metadata.projectManagementItemId }, select: { gbProjectCode: true } })
@@ -1527,7 +1542,17 @@ export class BidService {
     // N5：原时间已随流标过期——重启项目给「截标 +3 天、开标 = 截标 +24h」兜底窗口，并在留痕中提示重新设定
     const fallbackDeadline = new Date(Date.now() + 3 * 24 * 3600 * 1000);
     const fallbackOpenTime = deriveOpenTimeFromDeadline(fallbackDeadline);
-    const newCode = await generateProjectCode(this.prisma, original.procurementMethod);
+    // 2026-10-19 编号统一：重招继承宿主 PMI 业务编号（原项目持有基础码 → 新轮次 -Rn 后缀）；
+    // 无 PMI 宿主按三段式公司码生成
+    const reopenPmi = original.projectManagementItemId
+      ? await this.prisma.projectManagementItem.findUnique({
+          where: { id: original.projectManagementItemId },
+          select: { projectCode: true },
+        })
+      : null;
+    const newCode = reopenPmi?.projectCode
+      ? await resolveHostedProjectCode(this.prisma, { pmiCode: reopenPmi.projectCode, preferredRound: (original.round ?? 1) + 1 })
+      : await generateProjectCode(this.prisma, original.procurementMethod, 'bidProject', { companyId: original.companyId });
     const now = new Date();
     const newProject = await this.prisma.bidProject.create({
       data: {

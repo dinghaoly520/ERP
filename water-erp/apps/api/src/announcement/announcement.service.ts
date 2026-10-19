@@ -1092,6 +1092,8 @@ export class AnnouncementService {
         const project = await this.bidService.createFromAnnouncement(
           { id: announcement.id, title: announcement.title, publishDate: announcement.publishDate }, meta,
           annCompany,
+          // 2026-10-19 编号统一：直建项目继承宿主 PMI 业务编号（relatedProjectCode 同码）
+          linkedPmi,
         );
         linkedProjectId = project.id;
         await this.prisma.announcement.update({ where: { id: annId }, data: { relatedProjectCode: project.projectCode } });

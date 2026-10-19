@@ -9,7 +9,7 @@ import { ResultStatus, SourceType, type Prisma } from '@prisma/client';
 import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 import { AiService } from '../ai/ai.service';
 import { parseFlexibleDate } from '../common/parse-date.util';
-import { generateProjectCode, generatePmiProjectCode, stageCodeFor } from '../common/project-code.util';
+import { generateProjectCode, generatePmiProjectCode, resolveHostedProjectCode, stageCodeFor } from '../common/project-code.util';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import * as mammoth from 'mammoth';
 import { convertDocxToHtml as convertDocxToHtmlPatched } from './docx/docx-to-html.converter';
@@ -530,7 +530,11 @@ export class ProjectManagementService {
     const created = await this.prisma.bidProject.create({
       data: {
         name: item.title,
-        projectCode: await generateProjectCode(this.prisma, item.procurementMethod || '公开招标'),
+        // 2026-10-19 编号统一：PMI 宿主懒建直接继承 PMI 业务编号（多轮 -Rn 后缀）；
+        // PMI 编号缺失（历史空值）回退三段式生成
+        projectCode: item.projectCode
+          ? await resolveHostedProjectCode(this.prisma, { pmiCode: item.projectCode, preferredRound: targetRound })
+          : await generateProjectCode(this.prisma, item.procurementMethod || '公开招标', 'bidProject', { companyId: item.companyId }),
         procurementMethod: item.procurementMethod || '公开招标',
         openTime,
         deadline,
