@@ -745,6 +745,10 @@ export default function ExpertEvaluatePage() {
   const expert = project?.myExpertRecord;
   // none-eval（spec §4.4）：直接采购（不评分）轨道——打分步信息卡 + 核对步「定性审查确认」文案
   const noneEvaluation = !!project?.noneEvaluation;
+  // F-1（终审 2026-10-19）：信息卡/定性确认轨取两因子（none 且 0 评分项），与 :3007 G9 豁免同型。
+  // none 项目若已编制评分标准（存量/误配，如 ZJ-2026101903 Σ=100），回避确认重算会把 progress
+  // 拉回真实比例（<100）→ confirmReport SCORING_INCOMPLETE——此时打分表必须照常渲染，否则桌面死锁。
+  const noneNoScoring = noneEvaluation && (project?.scoreItems?.length ?? 0) === 0;
   // EXP-P2-02：候补专家（expertRole!=='正选'）——R5 递补前非评标委员会成员（招标投标法第37条），
   // 签到入口收口+待命横幅；被递补转正时 WS role_changed 里程碑触发 loadProject 自动解锁
   const expertRole = (expert as { expertRole?: string } | undefined)?.expertRole;
@@ -1585,7 +1589,7 @@ export default function ExpertEvaluatePage() {
             invalidSupplierIds={invalidSupplierIds}
             decryptLabel={DECRYPT_LABEL}
             scoringProgress={
-              step === 'scoring' && !noneEvaluation // none 轨道 0 评分项——侧栏不渲染 0/0 进度（spec §4.4）
+              step === 'scoring' && !noneNoScoring // F-1 两因子：none 且 0 评分项才不渲染侧栏进度（有评分项照常计）
                 ? Object.fromEntries(
                     project.suppliers.map((s) => {
                       // EXP-P0-01：进度分母/计数基线均不含公式 PRICE 项（顺带移除 filter(()=>true) 死代码）
@@ -2021,9 +2025,10 @@ export default function ExpertEvaluatePage() {
 
           {/* 专家打分 */}
           {step === 'scoring' && (
-            noneEvaluation ? (
-              /* none-eval（spec §4.4）：直接采购不评分——打分表撤下改信息卡；完成谓词与自动跳步不动
-                 （后端启动评标已回填 progress=100，report 步照常放行，手动导航至此仍见信息卡） */
+            noneNoScoring ? (
+              /* none-eval（spec §4.4 + F-1 两因子）：直接采购且 0 评分项——打分表撤下改信息卡；完成谓词
+                 与自动跳步不动（后端启动评标已回填 progress=100，report 步照常放行，手动导航至此仍见信息卡）。
+                 none 但已编评分项的项目仍走下方打分表（回避重算 progress<100 须真打分，否则桌面死锁） */
               <div className="p-6">
                 <div className="exp-alert exp-alert--info flex items-start gap-3 !p-4">
                   <Info size={18} strokeWidth={1.5} className="mt-0.5 shrink-0" />
@@ -2406,7 +2411,7 @@ export default function ExpertEvaluatePage() {
                 )?.status as 'draft' | 'verified' | undefined
               }
               locked={!!expert?.reportConfirmed}
-              noneEvaluation={noneEvaluation}
+              noneEvaluation={noneNoScoring}
               onVerified={loadProject}
               onOpenMemo={() => setMemoOpen(true)}
             />

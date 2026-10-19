@@ -27,7 +27,8 @@ interface Props {
   locked?: boolean;
   /** 打开桌面端备忘抽屉 */
   onOpenMemo?: () => void;
-  /** none（直接采购·不评分）轨道（spec §4.4）：核对步转「定性审查确认」——隐藏分数列，确认动作仍调 verifyScoreReview */
+  /** none 轨道（spec §4.4 + F-1 两因子）：调用方传「none 且 0 评分项」——核对步转「定性审查确认」、
+   *  隐藏分数列，确认动作仍调 verifyScoreReview；none 但已编评分项的项目走常规评分核对轨 */
   noneEvaluation?: boolean;
 }
 
