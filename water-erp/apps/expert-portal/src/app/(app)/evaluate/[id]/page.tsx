@@ -20,6 +20,7 @@ import { RequirementComparePanel } from '@/components/evaluate/assist/requiremen
 import { SupplierSidebar } from '@/components/evaluate/supplier-sidebar';
 import { DocumentsStep } from '@/components/evaluate/documents-step';
 import { ReportStep, type EsignBlockState } from '@/components/evaluate/report-step';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { ExpPinDialog } from '@/components/exp-pin-dialog';
 import { openExpertUkey } from '@/utils/expert-ukey';
 import { MockUKeyAdapter } from '@water-erp/ukey';
@@ -2536,6 +2537,20 @@ export default function ExpertEvaluatePage() {
             </div>
           </div>
         )}
+
+        {/* EXP-P3-01 补齐：报告确认/组长末签确认弹窗——831b2416 只拆了 confirmAction 状态机漏了本渲染块，
+            置态后无消费致两按钮点击无反应（文案沿用原 window.confirm 提示） */}
+        <ConfirmDialog
+          open={confirmAction !== null}
+          title={confirmAction === 'cosign' ? '组长末签' : '确认评审报告'}
+          message={confirmAction === 'cosign'
+            ? '末签后将锁定评审报告，可生成评标结果。是否继续？'
+            : '确认后将锁定所有评分，不可再修改。是否继续？'}
+          confirmText={confirmAction === 'cosign' ? '末签' : '确认'}
+          cancelText="取消"
+          onConfirm={() => { void runConfirmAction(); }}
+          onCancel={() => setConfirmAction(null)}
+        />
 
         {/* A-152 电子签署口令弹窗（口令仅内存持有，用后即清） */}
         <ExpPinDialog
