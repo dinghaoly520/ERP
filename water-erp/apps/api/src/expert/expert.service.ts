@@ -37,6 +37,7 @@ import { lockAndReassertStage } from '../bid/bid-state';
 import { formatAmountWithUnit, resolveOpeningAmountUnitMap } from '../bid/opening-amount-unit.util';
 import { parseAmountToWan } from '@water-erp/shared';
 import { closeSignLoopIfDone } from '../bid/sign-loop.util';
+import { isNoneEvaluation } from '../bid/none-evaluation.util';
 import { buildExpertEsignCanonical } from './expert-esign.util';
 import type { ExpertEsignatureRecord } from './expert-esign.util';
 import { BindExpertCertDto } from './dto/expert-cert.dto';
@@ -339,6 +340,9 @@ export class ExpertService {
 
     const isActive = project.stage === 'OPENING' || project.stage === 'EVALUATING';
 
+    // none（直接采购·不评分）轨道标志（2026-10-19 spec §4.4）：向导打分/核对步信息态分支（Task 7 前端消费）
+    const noneEvaluation = isNoneEvaluation(project.evaluationMethod, project.procurementMethod);
+
     // Compute masked phone from ExpertProfile
     const phone = expertRecord.user?.expertProfile?.phone ?? null;
     const phoneMasked = phone
@@ -389,6 +393,7 @@ export class ExpertService {
         myExpertRecord,
         myScores: [] as any[],
         tenderDocument: null,
+        noneEvaluation,
         restricted: true,
       };
     }
@@ -428,6 +433,7 @@ export class ExpertService {
       },
       myExpertRecord,
       myScores,
+      noneEvaluation,
       restricted: false,
       tenderDocument: this.buildTenderDocumentMeta(tenderDoc, projectId),
     };
@@ -1919,13 +1925,19 @@ export class ExpertService {
 
     // 必须先有评分记录
     const scores = await this.prisma.bidScoreRecord.findMany({ where: { expertId: expert.id, supplierId } });
-    if (scores.length === 0) throw new BadRequestException({ error: '该供应商尚未评分，无法核对', code: 'SCORING_INCOMPLETE' });
-    // 须评完该供应商全部评分项才能核对（防止漏评项被核对/确认）
-    // PRICE 项由公式引擎出分、专家不写记录——同 recomputeExpertProgress 口径排除，
-    // 否则竞价采购（仅通过性+PRICE）每家恒「尚 1 项未评」，核对/报告确认/末签全链死锁。
-    const itemCount = await this.prisma.bidScoreItem.count({ where: { projectId, category: { not: 'PRICE' } } });
-    if (scores.length < itemCount) {
-      throw new BadRequestException({ error: `该供应商尚有 ${itemCount - scores.length} 个评分项未评，无法核对`, code: 'SCORING_INCOMPLETE' });
+    // none（直接采购·不评分）轨道（2026-10-19 spec §4.3，用户裁定 ①b）：核对语义转为「定性审查确认」——
+    // 0 评分记录是设计态而非缺失，跳过两处 SCORING_INCOMPLETE 完整性闸门，正常落 verified 行（签名/留痕照常）。
+    // confirmReport 的逐家 verified 闸（REVIEW_PENDING）不变——核对动作本身仍是显式确认。
+    const noneEvaluation = isNoneEvaluation(project.evaluationMethod, project.procurementMethod);
+    if (!noneEvaluation) {
+      if (scores.length === 0) throw new BadRequestException({ error: '该供应商尚未评分，无法核对', code: 'SCORING_INCOMPLETE' });
+      // 须评完该供应商全部评分项才能核对（防止漏评项被核对/确认）
+      // PRICE 项由公式引擎出分、专家不写记录——同 recomputeExpertProgress 口径排除，
+      // 否则竞价采购（仅通过性+PRICE）每家恒「尚 1 项未评」，核对/报告确认/末签全链死锁。
+      const itemCount = await this.prisma.bidScoreItem.count({ where: { projectId, category: { not: 'PRICE' } } });
+      if (scores.length < itemCount) {
+        throw new BadRequestException({ error: `该供应商尚有 ${itemCount - scores.length} 个评分项未评，无法核对`, code: 'SCORING_INCOMPLETE' });
+      }
     }
 
     // 改 upsert——无 review 行（如管理端代评路径）也能核对，消除 P2025→500
@@ -1942,7 +1954,7 @@ export class ExpertService {
         role: '评审专家',
         target: expert.expertName,
         action: '核对评分完成（供应商）',
-        result: '已核对',
+        result: noneEvaluation ? '已核对（直接采购·定性审查确认）' : '已核对',
         riskFlag: '无',
       },
     });
@@ -2179,6 +2191,10 @@ export class ExpertService {
       decisionsByItem.set(key, arr);
     }
 
+    // none（直接采购·不评分）轨道标志（2026-10-19 spec §4.2）：0 评分项的 perSupplierComplete
+    // 视为完成（0 项是设计态而非缺失），payload 同时下发供前端信息态分支（Task 7 消费）
+    const noneEvaluation = isNoneEvaluation(project.evaluationMethod, project.procurementMethod);
+
     // 按供应商分组汇总评分
     const supplierScores = project.suppliers.map(supplier => {
       const records = bySupplier.get(supplier.id) || [];
@@ -2207,7 +2223,8 @@ export class ExpertService {
         bidPrice: openingRecMap.get(supplier.id) ?? undefined, // C3+M9: 最终报价
         bidPriceUnit: openingUnitMap.get(supplier.id) ?? null, // 2026-09-15 dual-v2 万元口径戳，前端按 unitHint 渲染
         categoryScores,
-        perSupplierComplete: project.scoreItems.length > 0 && records.length === project.scoreItems.length,
+        // none 轨道：0 评分项 → true（0 项=完成；非 none 项目 0 项属数据异常，同样宽容放行）
+        perSupplierComplete: project.scoreItems.length === 0 || records.length === project.scoreItems.length,
         scoreReview: reviewBySupplier.has(supplier.id)
           ? { status: reviewBySupplier.get(supplier.id)!.status, verifiedAt: reviewBySupplier.get(supplier.id)!.verifiedAt }
           : null,
@@ -2236,6 +2253,7 @@ export class ExpertService {
       avoidanceConfirmed: expert.avoidanceConfirmed,
       supplierScores,
       scoreItems: project.scoreItems,
+      noneEvaluation,
       // 已确认报告不可再确认——缺此闸门则前端按钮永续可点、重复确认
       canConfirm: !expert.reportConfirmed && progressForGate >= 100 && allVerified,
       overallComplete: progressForGate >= 100,

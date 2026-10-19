@@ -1740,6 +1740,21 @@ describe('ExpertService', () => {
       expect((report.supplierScores[0] as any).completed).toBeUndefined();
     });
 
+    it('none 轨道（直接采购）：0 评分项 → perSupplierComplete=true 且 payload noneEvaluation=true（2026-10-19 spec §4.2）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', name: '直接采购项目', projectCode: 'BID-1',
+        evaluationMethod: 'none', procurementMethod: '直接采购',
+        suppliers: [{ id: 's1', supplierName: '甲' }],
+        scoreItems: [], // 直接采购免评分标准（Task 2 语义）→ 0 项
+      });
+      prisma.bidScoreRecord.findMany.mockResolvedValue([]); // 0 记录是设计态而非缺失
+
+      const report = await service.getReport('u1', 'p1');
+
+      expect(report.noneEvaluation).toBe(true);
+      expect(report.supplierScores[0].perSupplierComplete).toBe(true); // 0 项=完成
+    });
+
     it('progress<100 时 overallComplete=false（即便单供应商评分已齐）', async () => {
       // G7: overallComplete 仅由 expert.progress>=100 决定，与 perSupplierComplete 无强耦合
       prisma.bidExpert.findFirst.mockResolvedValue({
@@ -1983,6 +1998,41 @@ describe('ExpertService', () => {
 
       expect(result.restricted).toBe(false);
       expect(result.tenderDocument).toBeNull();
+    });
+
+    it('none 轨道：payload noneEvaluation 与 evaluationMethod 一致（2026-10-19 spec §4.4，Task 7 前端消费）', async () => {
+      prisma.bidDocument.findFirst.mockResolvedValue(null);
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'proj-1', stage: 'EVALUATING', projectCode: 'BID-1', name: '直接采购项目',
+        evaluationMethod: 'none', procurementMethod: '直接采购',
+        suppliers: [], openingSession: null, openingRecords: [], experts: [],
+        scoreItems: [], clarifications: [], supervisionLogs: [],
+      });
+
+      const none = await service.getProject('user-1', 'proj-1');
+      expect(none.restricted).toBe(false);
+      expect(none.noneEvaluation).toBe(true);
+
+      // 对照：非 none（manual）→ false
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'proj-1', stage: 'EVALUATING', projectCode: 'BID-2', name: '询比项目',
+        evaluationMethod: 'manual', procurementMethod: '询比采购',
+        suppliers: [], openingSession: null, openingRecords: [], experts: [],
+        scoreItems: [], clarifications: [], supervisionLogs: [],
+      });
+      const manual = await service.getProject('user-1', 'proj-1');
+      expect(manual.noneEvaluation).toBe(false);
+
+      // 非 active（restricted）payload 同样下发该标志——历史项目视图口径一致
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'proj-1', stage: 'ARCHIVED', projectCode: 'BID-1', name: '直接采购项目',
+        evaluationMethod: 'none', procurementMethod: '直接采购',
+        suppliers: [], openingSession: null, openingRecords: [], experts: [],
+        scoreItems: [], clarifications: [], supervisionLogs: [],
+      });
+      const archived = await service.getProject('user-1', 'proj-1');
+      expect(archived.restricted).toBe(true);
+      expect(archived.noneEvaluation).toBe(true);
     });
   });
 
@@ -2313,6 +2363,34 @@ describe('ExpertService', () => {
       expect(r.status).toBe('verified');
     });
 
+    it('none 轨道（直接采购·定性审查确认）：0 评分记录放行——落 verified 行，监督日志转定性文案（2026-10-19 spec §4.3）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', evaluationMethod: 'none', procurementMethod: '直接采购' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...signedExpert, id: 'exp1' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup1', projectId: 'p1', decryptStatus: 'SUCCESS' });
+      prisma.bidScoreRecord.findMany.mockResolvedValue([]); // none 项目 0 记录是设计态
+      prisma.bidScoreReview.upsert.mockResolvedValue({ id: 'rv1', status: 'verified' });
+      const r = await service.verifyScoreReview('user-1', 'p1', 'sup1');
+      expect(r.status).toBe('verified');
+      expect(prisma.bidScoreReview.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        where: { expertId_projectId_supplierId: { expertId: 'exp1', projectId: 'p1', supplierId: 'sup1' } },
+        update: expect.objectContaining({ status: 'verified' }),
+      }));
+      expect(prisma.bidScoreItem.count).not.toHaveBeenCalled(); // 两处完整性闸整体跳过
+      expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ action: '核对评分完成（供应商）', result: '已核对（直接采购·定性审查确认）' }),
+      }));
+    });
+
+    it('none 判定回退 procurementMethod：evaluationMethod 空 + 直接采购 → 同样按 none 放行', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', evaluationMethod: null, procurementMethod: '直接采购' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...signedExpert, id: 'exp1' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup1', projectId: 'p1', decryptStatus: 'SUCCESS' });
+      prisma.bidScoreRecord.findMany.mockResolvedValue([]);
+      prisma.bidScoreReview.upsert.mockResolvedValue({ id: 'rv1', status: 'verified' });
+      const r = await service.verifyScoreReview('user-1', 'p1', 'sup1');
+      expect(r.status).toBe('verified');
+    });
+
     it('非评标阶段 → PROJECT_NOT_EVALUATING', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       await expect(service.verifyScoreReview('user-1', 'p1', 'sup1')).rejects.toMatchObject({ response: { code: 'PROJECT_NOT_EVALUATING' } });
@@ -2324,8 +2402,8 @@ describe('ExpertService', () => {
       await expect(service.verifyScoreReview('user-1', 'p1', 'sup1')).rejects.toMatchObject({ response: { code: 'VERIFICATION_REQUIRED' } });
     });
 
-    it('未提交评分的供应商不能核对 → SCORING_INCOMPLETE', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+    it('未提交评分的供应商不能核对 → SCORING_INCOMPLETE（非 none 回归锁，Review Focus #5）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', evaluationMethod: 'manual', procurementMethod: '询比采购' });
       prisma.bidExpert.findFirst.mockResolvedValue({ ...signedExpert, id: 'exp1' });
       prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup1', projectId: 'p1', decryptStatus: 'SUCCESS' }); // P2-2 活跃供应商闸门
       prisma.bidScoreRecord.findMany.mockResolvedValue([]); // 无评分
