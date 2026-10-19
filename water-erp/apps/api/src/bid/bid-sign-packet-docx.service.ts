@@ -19,6 +19,8 @@ export interface SignPacketSnapshot {
   packageType: string;
   packageVersion: number;
   generatedAt: string;
+  /** 2026-10-19 none 直接采购：主报告六/八节按不评分口径渲染（spec §4.6）——buildSnapshot 置位 */
+  noneEvaluation?: boolean;
   project: { name: string; projectCode: string; procurementMethod: string; openTime: string | null; deadline: string | null; scope: string | null; qualification: string | null; budget: number | null };
   committee: Array<{ expertId: string; name: string; major: string; role: string; reviewGroup?: string | null; dutyRole?: string | null; isLead: boolean; isPurchaserRepresentative: boolean; signInIp: string | null; signInMeta: unknown; confidentialityAgreedAt: string | null; disciplineAgreedAt: string | null; reportConfirmedAt: string | null; signedIn: boolean; aiConsentConfirmed: boolean; aiConsentAt: string | null; avoidanceConfirmed: boolean }>;
   leaderCoSignedAt: string | null;
@@ -179,15 +181,18 @@ export class BidSignPacketDocxService {
         : [this.para('无。')]),
       ...this.noteParas(s, '五'),
       this.h2('六、评标标准、评标方法一览表'),
-      new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [
-          this.headerRow(['类别', '评分项', '满分', '得分点']),
-          ...s.scoreStandard.map(it => new TableRow({
-            children: [it.category, it.name, String(it.maxScore), it.points.join('；')].map(v => new TableCell({ children: [this.para(v)] })),
-          })),
-        ],
-      }),
+      // none（直接采购）：0 评分项——「直接采购·不评分」占位段替代零行裸表（spec 2026-10-19 §4.6）
+      ...(s.noneEvaluation
+        ? [this.para('直接采购·不评分——本项目采用直接采购方式，不设评分项，无评分标准一览。')]
+        : [new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: [
+              this.headerRow(['类别', '评分项', '满分', '得分点']),
+              ...s.scoreStandard.map(it => new TableRow({
+                children: [it.category, it.name, String(it.maxScore), it.points.join('；')].map(v => new TableCell({ children: [this.para(v)] })),
+              })),
+            ],
+          })]),
       ...this.noteParas(s, '六'),
       this.h2('七、经评审的价格或评分比较一览表'),
       new Table({
@@ -201,7 +206,12 @@ export class BidSignPacketDocxService {
       }),
       ...this.noteParas(s, '七'),
       this.h2('八、排序结果与推荐中标候选人名单'),
-      ...s.results.filter(r => r.recommended && !r.disqualified).map(r => this.para(`第 ${r.rank} 名：${r.supplierName}（总分 ${r.totalScore}）`)),
+      // none：结果行 totalScore=0（0 记录聚合的设计态）——推荐行不以「总分 0」回显，按不评分口径
+      ...s.results.filter(r => r.recommended && !r.disqualified).map(r => this.para(
+        s.noneEvaluation
+          ? `第 ${r.rank} 名：${r.supplierName}（直接采购·不评分）`
+          : `第 ${r.rank} 名：${r.supplierName}（总分 ${r.totalScore}）`,
+      )),
       ...(s.results.filter(r => r.recommended).length === 0 ? [this.para('无。')] : []),
       ...this.noteParas(s, '八'),
       this.h2('九、澄清、说明、补正事项纪要'),

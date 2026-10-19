@@ -739,6 +739,7 @@ export class BidSignPacketService {
       packageType: 'BID_SIGN_PACKET',
       packageVersion: 1,
       generatedAt: new Date().toISOString(),
+      noneEvaluation, // 顶层同口径：主报告六/八节按不评分口径渲染（fix轮1，spec 2026-10-19 §4.6）
       project: {
         name: project.name, projectCode: project.projectCode, procurementMethod: project.procurementMethod,
         openTime: project.openTime ? project.openTime.toISOString() : null,

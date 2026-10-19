@@ -695,6 +695,7 @@ describe('BidSignPacketService.buildSnapshot（none 直接采购 noneEvaluation�
     expect(projectSelect?.evaluationMethod).toBe(true);
     expect(snapshot.expertSheets).toHaveLength(1);
     expect(snapshot.expertSheets[0].noneEvaluation).toBe(true);
+    expect(snapshot.noneEvaluation).toBe(true); // 快照顶层同口径（主报告六/八节消费，fix轮1）
   });
 
   it('evaluationMethod 缺省回退采购方式派生：直接采购 → true（谓词双参防御，spec §6 F2）', async () => {
@@ -715,6 +716,7 @@ describe('BidSignPacketService.buildSnapshot（none 直接采购 noneEvaluation�
     const svc = makeService();
     const snapshot = await svc.buildSnapshot(projectId);
     expect(snapshot.expertSheets[0].noneEvaluation).toBe(false);
+    expect(snapshot.noneEvaluation).toBe(false); // 顶层同口径（fix轮1）
   });
 });
 
