@@ -160,7 +160,7 @@ export default function BidClarificationsPage() {
       ) : items.length === 0 ? (
         <div className="bc-empty !py-12">暂无向贵司发出的评标澄清</div>
       ) : (
-        <div className="neu-card mt-5">
+        <div className="neu-card bottom-card mt-5">
           <div className="cq-list">
             {items.map((c) => (
               <div key={c.id} className="cq-item">
