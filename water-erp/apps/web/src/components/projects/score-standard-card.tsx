@@ -1,6 +1,6 @@
 'use client';
 
-import { FileText, ListChecks, Loader2 } from 'lucide-react';
+import { FileText, Info, ListChecks, Loader2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type { ProjectManagementAttachment, ProjectManagementItem } from '@/lib/types/project-management';
@@ -46,6 +46,10 @@ export function ScoreStandardCard({ project, round, bidProject, detail, priceIte
   const roundEvaluated = (project.stages ?? []).some(
     (s) => s.stageKey === 'BID_EVALUATION' && (s.round ?? 1) === round && s.status === 'COMPLETED',
   );
+
+  /** none-eval（spec §4.7/§2）：直接采购族（evaluationMethod=none）免评分标准——② 编制区
+   *  撤下改信息态，不显示「尚未编制」缺口空态；判定与 ① 评标办法块同源（detail 优先、ref 兜底） */
+  const noneEvaluation = (detail ?? bidProject)?.evaluationMethod === 'none';
 
   async function linkNow() {
     setLinkError(null);
@@ -109,15 +113,23 @@ export function ScoreStandardCard({ project, round, bidProject, detail, priceIte
               <ListChecks size={15} className="shrink-0 text-[var(--stage-evaluation)]" />
               评分项与得分点
             </h4>
-            <ScoreStandardEditor
-              project={project}
-              round={round}
-              bidProject={bidProject}
-              onChanged={onChanged}
-              variant="embedded"
-              extractSource={extractSource}
-              tenderCandidates={tenderCandidates}
-            />
+            {noneEvaluation ? (
+              // none-eval 信息态（spec §2）：编制入口与「尚未编制」缺口红牌一并撤下——直接采购族免评分标准
+              <div className="wb-alert wb-alert--info flex items-center gap-2 !p-3">
+                <Info size={14} strokeWidth={1.7} className="shrink-0" />
+                直接采购·不评分——无需编制评分标准
+              </div>
+            ) : (
+              <ScoreStandardEditor
+                project={project}
+                round={round}
+                bidProject={bidProject}
+                onChanged={onChanged}
+                variant="embedded"
+                extractSource={extractSource}
+                tenderCandidates={tenderCandidates}
+              />
+            )}
           </div>
           {/* ③ 价格分公式参数——已于 2026-09-26 表单化并入①（原裸 JSON 高级区撤销） */}
         </div>

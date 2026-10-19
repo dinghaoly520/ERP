@@ -470,6 +470,9 @@ export class ProjectManagementService {
         name: true,
         stage: true,
         procurementMethod: true,
+        // none-eval（2026-10-19 审查 F1 / spec §4.7）：:3005 评分标准卡信息态判定字段——
+        // 此前 existing 路径缺列、返回体无 evaluationMethod，前端只能回退 detail 全量接口
+        evaluationMethod: true,
         openTime: true,
         deadline: true,
       },
@@ -578,6 +581,8 @@ export class ProjectManagementService {
       name: created.name,
       stage: created.stage,
       procurementMethod: created.procurementMethod,
+      // 与 existing 路径返回体对齐（none-eval F1）：创建时已由 buildEvaluationDefaults 落默认值
+      evaluationMethod: created.evaluationMethod,
       round: targetRound,
       openTime: created.openTime.toISOString(),
       deadline: created.deadline.toISOString(),
@@ -3692,6 +3697,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
         name: true,
         stage: true,
         procurementMethod: true,
+        // none-eval（spec §4.7）：:3005 评分标准卡 ref 兜底路径（detail 拉取失败时）也须能判 none
+        evaluationMethod: true,
         openTime: true,
         deadline: true,
       },

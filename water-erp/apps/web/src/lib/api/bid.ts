@@ -26,6 +26,8 @@ export interface BidProjectRef {
   name: string;
   stage: BidStage;
   procurementMethod: string;
+  /** 评标办法（none=直接采购族·不评分，ref/ensure 返回体均下发）——评分标准卡信息态判定（none-eval spec §4.7） */
+  evaluationMethod?: string | null;
   round?: number; // 多轮采购：所属轮次（再次采购递增）
   openTime: string;
   deadline: string;
