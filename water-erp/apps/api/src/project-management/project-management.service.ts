@@ -9,6 +9,7 @@ import { ResultStatus, SourceType, type Prisma } from '@prisma/client';
 import { BID_DEADLINE_BEFORE_OPENING_MS, STAGE_LABEL } from '@water-erp/shared';
 import { AiService } from '../ai/ai.service';
 import { parseFlexibleDate } from '../common/parse-date.util';
+import { assertAttachmentRules } from '../upload/attachment-rules';
 import { generateProjectCode, generatePmiProjectCode, resolveHostedProjectCode, stageCodeFor } from '../common/project-code.util';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import * as mammoth from 'mammoth';
@@ -1304,6 +1305,10 @@ ${shortlist}
     uploadedById?: string,
     round?: number,
   ) {
+    // 附件统一限制（2026-10-19）：阶段附件（含供应商邀请函/回执、采购文件、
+    // 正式盖章版、向导自动上传的公告 docx）100MB + 9 扩展白名单——
+    // 复用 announcement 规则集，先于任何 prisma/落盘调用
+    assertAttachmentRules(file, 'announcement');
     // R6-1（2026-09-30 审计⑤升级为硬死锁）：多轮项目每轮各有一行同 stageKey 阶段——
     // 此前 findFirst 无 round 过滤，round-2 上传必落 round-1 行，selectOfficialTender
     // 校验 projectManagementStageId 必拒"该文件不属于本步骤"→流标重采后 03 无法完成。

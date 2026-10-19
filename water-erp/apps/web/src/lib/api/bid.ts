@@ -447,7 +447,8 @@ const AWARD_LETTER_MIME_TYPES = new Set([
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]);
-const AWARD_LETTER_MAX_BYTES = 20 * 1024 * 1024;
+// 附件统一限制（2026-10-19）：通知书上限对齐 100MB（格式闸 PDF/DOC/DOCX 保持）
+const AWARD_LETTER_MAX_BYTES = 100 * 1024 * 1024;
 
 export function validateAwardLetterFile(file: AwardLetterFileLike | null): string | null {
   if (!file) return '请先选择中标通知书文件';
@@ -455,7 +456,7 @@ export function validateAwardLetterFile(file: AwardLetterFileLike | null): strin
   if (!AWARD_LETTER_MIME_TYPES.has(file.type) || !extensionAllowed) {
     return '仅支持 PDF、DOC 或 DOCX 格式的通知书';
   }
-  if (file.size > AWARD_LETTER_MAX_BYTES) return '通知书文件不得超过 20 MB';
+  if (file.size > AWARD_LETTER_MAX_BYTES) return '通知书文件不得超过 100 MB';
   return null;
 }
 

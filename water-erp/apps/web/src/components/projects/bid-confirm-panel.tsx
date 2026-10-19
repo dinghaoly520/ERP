@@ -1458,7 +1458,7 @@ function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detai
                 </button>
               </div>
               <p id={`award-letter-help-${bidProjectId}`} className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">
-                支持 PDF、DOC、DOCX，最大 20 MB；供应商将在门户内查看、下载并签收该文件。
+                支持 PDF、DOC、DOCX，最大 100 MB；供应商将在门户内查看、下载并签收该文件。
               </p>
               {deliverError && <p role="alert" className="mt-1.5 text-xs font-medium text-[var(--danger)]">{deliverError}</p>}
             </div>

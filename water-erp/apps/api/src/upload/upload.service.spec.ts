@@ -84,6 +84,32 @@ describe('UploadService — download permission', () => {
     });
   });
 
+  describe('附件统一限制（2026-10-19：100MB+9 扩展白名单）', () => {
+    const pdfFile = {
+      mimetype: 'application/pdf',
+      originalname: 'proof.pdf',
+      buffer: Buffer.from('%PDF-1.7\nproof'),
+      size: 14,
+    } as Express.Multer.File;
+
+    it('announcement 类目拒绝白名单外扩展名', () => {
+      const exe = { ...pdfFile, originalname: 'a.exe' } as Express.Multer.File;
+      expect(() => service.validateFile(exe, 'announcement'))
+        .toThrow(expect.objectContaining({ response: expect.objectContaining({ code: 'ATTACHMENT_FILE_TYPE_INVALID' }) }));
+    });
+
+    it('announcement 允许 rar（MIME 白名单已含变体）', () => {
+      const rar = { ...pdfFile, originalname: '打包.rar', mimetype: 'application/vnd.rar' } as Express.Multer.File;
+      expect(() => service.validateFile(rar, 'announcement')).not.toThrow();
+    });
+
+    it('其余类目 >50MB 由服务层拒绝（multer 已放宽到 100MB）', () => {
+      const big = { ...pdfFile, size: 51 * 1024 * 1024, buffer: Buffer.alloc(0) } as Express.Multer.File;
+      expect(() => service.validateFile(big, 'general'))
+        .toThrow(expect.objectContaining({ response: expect.objectContaining({ code: 'ATTACHMENT_FILE_TOO_LARGE' }) }));
+    });
+  });
+
   it('allows the uploader to stream their own file', async () => {
     prisma.fileAsset.findUnique.mockResolvedValue(asset);
     await service.streamFile('fa-1', { sub: 'u-supplier', role: 'supplier' }, res);

@@ -53,6 +53,7 @@ import { ScoreStandardCard } from './score-standard-card';
 import { OfficialTenderWizard } from './official-tender-wizard';
 import { Modal, StatusBadge } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
+import { ATTACHMENT_ACCEPT, ATTACHMENT_HINT, validateAttachmentFile } from '@/lib/upload-rules';
 
 // Extracted Info Field Components
 
@@ -2104,8 +2105,17 @@ export function ProjectDetailPanel({
                     <span className="text-sm font-medium text-[color:var(--foreground)]">{selectedFiles.length > 0 ? `已选择 ${selectedFiles.length} 个文件` : '选取文件（支持多选）'}</span>
                     <span className="mt-0.5 block text-xs text-[color:var(--muted-foreground)]">{selectedFiles.length > 0 ? '点击重新选择' : '点击浏览或拖拽文件到此区域'}</span>
                   </div>
-                  <input ref={fileInputRef} type="file" multiple disabled={stageLocked || actionsDisabled} onChange={(event) => setSelectedFiles(Array.from(event.target.files ?? []))} className="sr-only" />
+                  <input ref={fileInputRef} type="file" multiple accept={ATTACHMENT_ACCEPT} disabled={stageLocked || actionsDisabled} onChange={(event) => {
+                    // 附件统一限制（2026-10-19）：100MB + 9 扩展白名单，坏文件当场提示并剔除
+                    const picked = Array.from(event.target.files ?? []);
+                    const invalid = picked.map((f) => validateAttachmentFile(f)).filter(Boolean) as string[];
+                    const okFiles = picked.filter((f) => !validateAttachmentFile(f));
+                    if (invalid.length > 0) toast.error(invalid[0] + (invalid.length > 1 ? ` 等 ${invalid.length} 个文件被跳过` : ''));
+                    if (okFiles.length > 0) setSelectedFiles(okFiles);
+                    event.target.value = '';
+                  }} className="sr-only" />
                 </label>
+                <p className="mt-2 text-[11px] leading-4 text-[color:var(--muted-foreground)]">{ATTACHMENT_HINT}，可选择多个文件</p>
 
                 {selectedFiles.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-2">

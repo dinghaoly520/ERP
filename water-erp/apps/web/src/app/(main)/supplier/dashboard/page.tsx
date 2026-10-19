@@ -9,6 +9,7 @@ import { getSupplierStats, getClassifications, getEvaluationStats, getQualificat
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import type { SupplierStats, QualificationAlerts, ActivityItem, SupplierFavoriteRecord, DimensionStats } from '@/lib/api/supplier';
 import type { SupplierClassification } from '@/lib/types';
+import { CompanySelect, readInitialCompanyId } from '@/components/company/company-select';
 import Link from 'next/link';
 
 /* ─────────────── 供应结构分析（纯客户端规则推导，非 AI）─────────────── */
@@ -305,26 +306,29 @@ export default function SupplierDashboardPage() {
   const [favorites, setFavorites] = useState<SupplierFavoriteRecord[]>([]);
   const [insightsExpanded, setInsightsExpanded] = useState(true);
   const [loadError, setLoadError] = useState(false); // B13：任一面板加载失败即提示，避免静默空面板
+  // 公司视野（admin 选择器，与供应商库共用 localStorage 记忆；非 admin 后端强制本公司）
+  const [companyId, setCompanyId] = useState('all');
+  useEffect(() => { setCompanyId(readInitialCompanyId()); }, []);
 
   const loadDashboard = useCallback(() => {
     setLoadError(false);
     const fail = () => setLoadError(true);
-    getSupplierStats().then(setStats).catch(fail);
-    getClassifications().then(setClassifications).catch(fail);
-    getEvaluationStats().then(setEvalStats).catch(fail);
-    getEvaluationDimensionStats().then(setDimStats).catch(fail);
-    getQualificationAlerts().then(setAlerts).catch(fail);
-    getRecentActivities().then(setActivities).catch(fail);
-    getFavorites().then(setFavorites).catch(fail);
+    getSupplierStats(companyId).then(setStats).catch(fail);
+    getClassifications(companyId).then(setClassifications).catch(fail);
+    getEvaluationStats(companyId).then(setEvalStats).catch(fail);
+    getEvaluationDimensionStats(companyId).then(setDimStats).catch(fail);
+    getQualificationAlerts(companyId).then(setAlerts).catch(fail);
+    getRecentActivities(15, companyId).then(setActivities).catch(fail);
+    getFavorites(companyId).then(setFavorites).catch(fail);
     // P0-14：改后端 groupBy 聚合，不再拉 1000 条客户端计数（>1000 家偏少 + 首页开销大）。
-    getEnterpriseTypeDistribution()
+    getEnterpriseTypeDistribution(companyId)
       .then(({ counts }) => {
         const norm: Record<string, number> = {};
         for (const [k, v] of Object.entries(counts)) { const t = normalizeEnterpriseType(k); norm[t] = (norm[t] || 0) + v; }
         setEnterpriseTypeCounts(norm);
       })
       .catch(fail);
-  }, []);
+  }, [companyId]);
 
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
 
@@ -352,6 +356,7 @@ export default function SupplierDashboardPage() {
             </div>
           </div>
           <div className="page-hero__right">
+            <CompanySelect value={companyId} onChange={setCompanyId} countMode="suppliers" />
             <Link href="/supplier/repository" className="neu-btn-soft is-porcelain">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
               返回供应商库

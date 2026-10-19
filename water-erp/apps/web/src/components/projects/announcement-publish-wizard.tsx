@@ -17,6 +17,7 @@ import {
   type AnnouncementStatus,
   type AnnouncementType,
 } from '@/lib/api/announcement';
+import { ATTACHMENT_ACCEPT, ATTACHMENT_HINT, validateAttachmentFile } from '@/lib/upload-rules';
 import { uploadProjectStageAttachment, reprocProject, getPmBidProject, type UploadStageAttachmentResult } from '@/lib/api/project-management';
 import { getBidProjectDetail } from '@/lib/api/bid';
 import { generateFieldContent } from '@/lib/api/tender-sample';
@@ -2065,6 +2066,9 @@ function AttachmentSection({
   const onSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
+    // 附件统一限制（2026-10-19）：100MB + 9 扩展白名单
+    const err = validateAttachmentFile(f);
+    if (err) { toast.error(err); e.target.value = ''; return; }
     onAdd(f, attTitle);
     setAttTitle('');
     e.target.value = '';
@@ -2086,12 +2090,14 @@ function AttachmentSection({
           <label className="neu-btn-primary cursor-pointer whitespace-nowrap">
             <Upload size={14} />
             上传公告附件
-            <input type="file" className="hidden" onChange={onSelect} />
+            <input type="file" className="hidden" accept={ATTACHMENT_ACCEPT} onChange={onSelect} />
           </label>
         </div>
         {pendingFiles.length === 0 ? (
           <p className="text-xs text-[var(--muted-foreground)]">暂无附件</p>
-        ) : (
+        ) : null}
+        <p className="text-[11px] text-[var(--muted-foreground)]">{ATTACHMENT_HINT}</p>
+        {pendingFiles.length > 0 && (
           pendingFiles.map((item, idx) => (
             <div
               key={idx}

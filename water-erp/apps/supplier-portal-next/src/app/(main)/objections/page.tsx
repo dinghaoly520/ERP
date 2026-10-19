@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { objectionApi, type SupplierObjection } from "@/lib/api/objection";
 import { bidApi } from "@/lib/api/bid";
-import { announcementApi } from "@/lib/api/announcement";
+import { supplierApi } from "@/lib/api/supplier";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { EmptyState, LoadingBlock, SpButton, SpDialog, SpInput, SpPagination, SpSelect, SpTextarea } from "@/components/ui";
 import { toast } from "sonner";
@@ -56,8 +56,8 @@ export default function ObjectionsPage() {
   const [busy, setBusy] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | string>("all");
   const [form, setForm] = useState({ phase: "document", projectCode: "", title: "", content: "" });
-  // 项目编号下拉选项：与本供应商相关的项目（可投标 + 受邀），业务编号
-  const [projectCodeOptions, setProjectCodeOptions] = useState<string[]>([]);
+  // 关联项目下拉候选：{code,name}——datalist 显项目名称、选中回填业务编号（提交契约不变）
+  const [projectOptions, setProjectOptions] = useState<{ code: string; name?: string }[]>([]);
 
   const PAGE_SIZE = 10;
 
@@ -101,22 +101,30 @@ export default function ObjectionsPage() {
   };
 
   useEffect(() => {
-    // 关联项目候选 = 我相关的投标项目 + 公告中的项目编号（relatedProjectCode/metadata.projectCode），合并去重
+    // 关联项目候选 = 我参与的投标项目（listBidSubmissions：已投/草稿，全阶段——含已开标/归档）
+    //              ∪ 相关可投标项目（supplier-portal bid-projects：受邀/公开，未投阶段提文件类异议用）
+    // 2026-10-19 修复：原实现并入全平台公开公告编号并集——候选变成「所有项目」且只显编号；
+    // 移除公告源（越权视野），候选改 {code,name} 供 datalist 显示项目名称
     (async () => {
-      const codes = new Set<string>();
+      const byCode = new Map<string, { code: string; name?: string }>();
+      try {
+        const subs: any = await supplierApi.listBidSubmissions();
+        for (const s of Array.isArray(subs) ? subs : subs?.items || []) {
+          if (s?.project?.projectCode) {
+            byCode.set(s.project.projectCode, { code: s.project.projectCode, name: s.project.name });
+          }
+        }
+      } catch { /* 静默 */ }
       try {
         const res: any = await bidApi.listProjects({ page: 1, pageSize: 500 });
         const items = Array.isArray(res) ? res : res?.items || [];
-        for (const x of items) if (x.projectCode) codes.add(x.projectCode);
-      } catch { /* 静默 */ }
-      try {
-        const ann: any = await announcementApi.publicList({ page: 1, pageSize: 500 });
-        for (const a of ann?.items || []) {
-          const c = a.relatedProjectCode || a.metadata?.projectCode;
-          if (c) codes.add(c);
+        for (const x of items) {
+          if (!x.projectCode) continue;
+          const prev = byCode.get(x.projectCode);
+          byCode.set(x.projectCode, { code: x.projectCode, name: x.name || prev?.name });
         }
       } catch { /* 静默 */ }
-      setProjectCodeOptions(Array.from(codes).sort());
+      setProjectOptions(Array.from(byCode.values()).sort((a, b) => a.code.localeCompare(b.code)));
     })();
   }, []);
 
@@ -253,7 +261,7 @@ export default function ObjectionsPage() {
               list="obj-project-codes"
             />
             <datalist id="obj-project-codes">
-              {projectCodeOptions.map((c) => <option key={c} value={c} />)}
+              {projectOptions.map((p) => <option key={p.code} value={p.code}>{p.name}</option>)}
             </datalist>
           </label>
           <label className="obj-field">

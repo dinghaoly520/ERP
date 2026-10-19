@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { X, Upload, FileText, CheckCircle, Loader2, Sparkles, ChevronDown } from 'lucide-react';
+import { toast } from 'sonner';
+import { validateFileSize } from '@/lib/upload-rules';
 import {
   createProjectManagementItem,
   extractInitiationFields,
@@ -481,7 +483,13 @@ export function CreateProjectDialog({
         type="file"
         accept="application/pdf"
         onChange={(event) => {
-          onFileChange(event.target.files?.[0] ?? null);
+          const file = event.target.files?.[0] ?? null;
+          // 附件统一限制（2026-10-19）：解析入口仅大小校验（PDF 解析业务约束保持）
+          if (file) {
+            const sizeErr = validateFileSize(file);
+            if (sizeErr) { toast.error(sizeErr); event.target.value = ''; return; }
+          }
+          onFileChange(file);
         }}
         className="hidden"
         id={`file-upload-${label.replace(/\s/g, '-')}`}

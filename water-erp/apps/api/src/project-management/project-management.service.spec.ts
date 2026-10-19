@@ -1765,5 +1765,40 @@ describe('直接采购「中标单位」收口（2026-10-16：开标评标前恒
     const data = prisma.projectManagementItem.update.mock.calls.at(-1)?.[0]?.data ?? {};
     expect(data).not.toHaveProperty('awardedSupplier');
   });
+
+  describe('addStageAttachment 附件统一限制（2026-10-19：100MB+9 扩展白名单）', () => {
+    it('拒绝白名单外扩展名（先于任何 prisma 调用）', async () => {
+      const { service, prisma } = makeService();
+      const bad = {
+        originalname: '工具.exe', mimetype: 'application/octet-stream',
+        buffer: Buffer.from('x'), size: 1,
+      } as Express.Multer.File;
+      await expect(service.addStageAttachment('p1', 'TENDER_DOCUMENT', bad))
+        .rejects.toThrow(expect.objectContaining({ response: expect.objectContaining({ code: 'ATTACHMENT_FILE_TYPE_INVALID' }) }));
+      expect(prisma.projectManagementItem.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('拒绝超 100MB 文件', async () => {
+      const { service } = makeService();
+      const big = {
+        originalname: '大文件.pdf', mimetype: 'application/pdf',
+        buffer: Buffer.alloc(0), size: 100 * 1024 * 1024 + 1,
+      } as Express.Multer.File;
+      await expect(service.addStageAttachment('p1', 'TENDER_DOCUMENT', big))
+        .rejects.toThrow(expect.objectContaining({ response: expect.objectContaining({ code: 'ATTACHMENT_FILE_TOO_LARGE' }) }));
+    });
+
+    it('放行白名单内文件（走到阶段定位即认为通过校验）', async () => {
+      const { service, prisma } = makeService();
+      prisma.projectManagementItem.findUnique.mockResolvedValue({ currentRound: 1 });
+      prisma.projectManagementStage.findFirst.mockResolvedValue(null); // 阶段不存在 → NotFound，校验已过
+      const ok = {
+        originalname: '回执.zip', mimetype: 'application/zip',
+        buffer: Buffer.from('PK'), size: 4,
+      } as Express.Multer.File;
+      await expect(service.addStageAttachment('p1', 'SUPPLIER_INVITATION', ok))
+        .rejects.toThrow(/未找到对应的项目阶段/);
+    });
+  });
 });
 });

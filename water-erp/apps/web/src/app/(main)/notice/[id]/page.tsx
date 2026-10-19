@@ -10,6 +10,7 @@ import {
   generateSummary, confirmWinnerNotice, getParticipants,
 } from '@/lib/api/announcement';
 import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, AnnouncementAttachment, BidDocumentManage, ParticipantsResult } from '@/lib/api/announcement';
+import { ATTACHMENT_ACCEPT, ATTACHMENT_HINT, validateAttachmentFile } from '@/lib/upload-rules';
 import { getSupplierList } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
 import { StatusBadge } from '@/components/workbench';
@@ -600,22 +601,39 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
 /* 附件编辑 */
 function AttachmentEditSection({ annId, attachments, onChanged }: { annId: string; attachments: AnnouncementAttachment[]; onChanged: () => void }) {
   const [title, setTitle] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const { confirm, dialog } = useConfirm();
+  const file = files[0] ?? null;
+
+  const handlePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(e.target.files ?? []);
+    if (picked.length === 0) return;
+    // 附件统一限制（2026-10-19）：100MB + 9 扩展白名单，坏文件当场提示并剔除
+    const invalid = picked.map((f) => validateAttachmentFile(f)).filter(Boolean) as string[];
+    const okFiles = picked.filter((f) => !validateAttachmentFile(f));
+    if (invalid.length > 0) toast.error(invalid[0] + (invalid.length > 1 ? ` 等 ${invalid.length} 个文件被跳过` : ""));
+    setFiles(okFiles);
+    e.target.value = "";
+  };
 
   const handleAdd = async () => {
-    if (!file) return;
+    if (files.length === 0) return;
     setUploading(true);
     try {
-      const asset = await uploadFile(file, "announcement");
-      await addAttachment(annId, asset.id, title || file.name);
+      let done = 0;
+      for (const f of files) {
+        try {
+          const asset = await uploadFile(f, "announcement");
+          await addAttachment(annId, asset.id, title || f.name);
+          done++;
+        } catch (err: any) { toast.error(`${f.name}：${err?.message || "上传失败"}`); }
+      }
       setTitle("");
-      setFile(null);
+      setFiles([]);
       onChanged();
-      toast.success("附件已添加");
-    } catch (err: any) { toast.error(err?.message || "上传失败"); }
-    finally { setUploading(false); }
+      if (done > 0) toast.success(`已添加 ${done} 个附件`);
+    } finally { setUploading(false); }
   };
 
   return (
@@ -625,18 +643,19 @@ function AttachmentEditSection({ annId, attachments, onChanged }: { annId: strin
       <label className="neu-drop-zone mt-3">
         <Upload size={14} className="text-[var(--muted-foreground)] mb-1" />
         <span className="text-[0.75rem] font-medium text-[var(--muted-foreground)]">
-          {file ? file.name : "选择文件"}
+          {files.length > 0 ? files.map((f) => f.name).join("、") : "选择文件"}
         </span>
         <span className="mt-0.5 text-[0.65rem] text-[var(--muted-foreground)]/60">
-          {file ? `${(file.size / 1024).toFixed(0)} KB` : "点击浏览或拖拽上传"}
+          {files.length > 0 ? `${files.length} 个文件 · ${(files.reduce((s, f) => s + f.size, 0) / 1024).toFixed(0)} KB` : "点击浏览或拖拽上传"}
         </span>
-        <input type="file" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
+        <input type="file" multiple accept={ATTACHMENT_ACCEPT} className="hidden" onChange={handlePick} />
       </label>
+      <p className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">{ATTACHMENT_HINT}，可选择多个文件</p>
 
       {/* 标题 + 添加按钮 */}
       <div className="mt-2.5 flex gap-2">
         <input value={title} onChange={e => setTitle(e.target.value)} placeholder="标题（可选）" className="neu-input flex-1 text-sm" />
-        <button onClick={handleAdd} disabled={!file || uploading} className="neu-btn-soft shrink-0 disabled:opacity-40">
+        <button onClick={handleAdd} disabled={files.length === 0 || uploading} className="neu-btn-soft shrink-0 disabled:opacity-40">
           <Upload size={14} />{uploading ? "..." : "添加"}
         </button>
       </div>
