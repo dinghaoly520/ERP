@@ -790,11 +790,15 @@
 
 /* ════════ §4 BidClarifications（评标澄清答复 /bids/[id]/clarifications，A-143）════════ */
 
-/* 答复编辑器（凸起小卡容器；输入内凹由 SpTextarea 的 neu-input 提供） */
+/* 答复编辑器（凸起小卡容器；输入内凹由 SpTextarea 的 neu-input 提供）
+   2026-10-19：原 var(--surface) 与页面底色几乎同明度（0.985 vs 0.975）+ 阴影
+   alpha .06——容器视觉隐形（用户实测「没有容器」）。改 105° 白→透明渐变 +
+   卡级方向双影，与 .neu-card 同语言。 */
 .cq-editor {
-  display: flex; flex-direction: column; gap: 10px; margin-top: 10px; padding: 12px;
-  border-radius: 12px; background: var(--surface);
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / .5), 1px 1px 3px oklch(.55 .03 258 / .06), -1px -1px 2px oklch(1 0 0 / .6);
+  display: flex; flex-direction: column; gap: 10px; margin-top: 10px; padding: 14px;
+  border-radius: 14px;
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.9) 0%, oklch(0.99 0.003 258 / 0.55) 45%, oklch(1 0 0 / 0.18) 100%);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 2px 2px 8px oklch(0.5 0.06 258 / 0.12), -1px -1px 4px oklch(1 0 0 / 0.9);
 }
 .cq-editor textarea { min-height: 110px; resize: vertical; }
 
