@@ -62,6 +62,20 @@ const SUPERVISION_TENDER_FIELDS: TenderSectionConfig["fields"] = [
   { key: "supervisionPhone", label: "监督电话", placeholder: "留空使用模板默认电话", type: "tel" },
 ];
 
+/**
+ * 概况/内容类字段 AI 提示词（2026-10-19 用户裁定统一从简）：行文重点=项目背景、采购缘由、
+ * 采购内容，其中采购内容只罗列要点，全文不宜长篇大论。谈判/竞价/邀请招标的「项目概况和
+ * 采购内容」、询比的「项目介绍」「采购内容」、直接采购的「采购内容」共用，覆盖全部采购方式。
+ */
+const PROJECT_OVERVIEW_AI_PROMPT =
+  "根据项目名称生成项目概况和采购内容，行文只围绕三点：项目背景（因何立项、现状与需求）、采购缘由（为何此时采购）、采购内容（采购标的清单）。篇幅从简：全文不超过200字，一至两个自然段，无需编号；采购内容一句带过，只罗列标的名称、规格/型号、数量，用顿号和逗号连接，不逐项展开描述。禁止长篇大论和「提升管理水平」类空泛套话。不要使用#、*等符号，不要出现空行，不要在开头重复字段名称，必须以自然段落形式输出，绝对不能使用表格（Tab分隔符）形式。";
+
+const PROJECT_INTRODUCTION_AI_PROMPT =
+  "根据项目名称生成简短的项目介绍，重点写项目背景与采购缘由：因何立项、现状与需求、为何此时组织采购，末尾可用一句话概述采购内容。篇幅从简：200字以内，一至两个自然段，无需编号。禁止长篇大论和空泛套话。不要使用#、*等符号，不要出现空行，不要在开头重复字段名称，必须以自然段落形式输出，绝对不能使用表格（Tab分隔符）形式。";
+
+const PROCUREMENT_CONTENT_AI_PROMPT =
+  "根据项目信息生成简明的采购内容：只罗列采购标的的名称、规格/型号、数量等必要要素，品目之间用顿号和逗号自然连接成句，不写背景、意义、要求等其他内容。篇幅从简：200字以内、一两句话即可，不逐项展开描述，不堆砌修饰词。不要使用#、*等符号，不要出现空行，不要在开头重复字段名称，必须以自然段落形式输出，绝对不能使用表格（Tab分隔符）形式。";
+
 export const COMPETITIVE_NEGOTIATION_SECTIONS: TenderSectionConfig[] = [
   {
     key: "cover",
@@ -82,7 +96,7 @@ export const COMPETITIVE_NEGOTIATION_SECTIONS: TenderSectionConfig[] = [
         label: "项目概况和采购内容",
         placeholder: "请输入项目概况和采购内容",
         multiline: true,
-        aiPrompt: "根据项目名称生成项目概况和采购内容，包含采购背景、目标、范围、具体采购内容等关键信息。要求：根据内容复杂度选择合适的表达方式。简单内容直接用段落描述，无需编号；复杂或多项内容可用层次编号（主层次用1.、2.、3.，子层次用①②③）。不要过度使用编号，避免机械感。不要使用#、*等符号，不要出现空行，不要在开头重复字段名称。必须以自然段落形式输出，绝对不能使用表格（Tab分隔符）形式。对采购标的逐项描述时使用连贯的叙述语句，各品目用逗号和顿号自然连接。",
+        aiPrompt: PROJECT_OVERVIEW_AI_PROMPT,
       },
       {
         key: "maxPrice",
@@ -316,7 +330,7 @@ export const SINGLE_SOURCE_SECTIONS: TenderSectionConfig[] = [
         label: "采购内容",
         placeholder: "请输入采购内容",
         multiline: true,
-        aiPrompt: "根据项目信息生成采购内容，详细描述采购的具体物品、服务或工程内容。要求：根据内容复杂度选择合适的表达方式。简单内容直接用段落描述，无需编号；复杂或多项内容可用层次编号（主层次用1.、2.、3.，子层次用①②③）。不要过度使用编号，避免机械感。不要使用#、*等符号，不要出现空行，不要在开头重复字段名称。必须以自然段落形式输出，绝对不能使用表格（Tab分隔符）形式。对采购标的逐项描述时使用连贯的叙述语句，各品目用逗号和顿号自然连接。",
+        aiPrompt: PROCUREMENT_CONTENT_AI_PROMPT,
       },
       {
         key: "procurementRequirements",
@@ -393,14 +407,14 @@ export const INQUIRY_PURCHASE_SECTIONS: TenderSectionConfig[] = [
         label: "项目介绍",
         placeholder: "请输入项目介绍",
         multiline: true,
-        aiPrompt: "根据项目名称生成项目介绍，包含项目背景、目标、范围等信息。要求：根据内容复杂度选择合适的表达方式。简单内容直接用段落描述，无需编号；复杂或多项内容可用层次编号（主层次用1.、2.、3.，子层次用①②③）。不要过度使用编号，避免机械感。不要使用#、*等符号，不要出现空行，不要在开头重复字段名称。必须以自然段落形式输出，绝对不能使用表格（Tab分隔符）形式。对采购标的逐项描述时使用连贯的叙述语句，各品目用逗号和顿号自然连接。",
+        aiPrompt: PROJECT_INTRODUCTION_AI_PROMPT,
       },
       {
         key: "procurementContent",
         label: "采购内容",
         placeholder: "请输入采购内容",
         multiline: true,
-        aiPrompt: "根据项目信息生成采购内容，详细描述采购的具体物品、服务或工程内容。要求：根据内容复杂度选择合适的表达方式。简单内容直接用段落描述，无需编号；复杂或多项内容可用层次编号（主层次用1.、2.、3.，子层次用①②③）。不要过度使用编号，避免机械感。不要使用#、*等符号，不要出现空行，不要在开头重复字段名称。必须以自然段落形式输出，绝对不能使用表格（Tab分隔符）形式。对采购标的逐项描述时使用连贯的叙述语句，各品目用逗号和顿号自然连接。",
+        aiPrompt: PROCUREMENT_CONTENT_AI_PROMPT,
       },
       {
         key: "requiredDocuments",
@@ -513,7 +527,7 @@ export const INTERNAL_BIDDING_SECTIONS: TenderSectionConfig[] = [
         label: "项目概况和采购内容",
         placeholder: "请输入项目概况和采购内容",
         multiline: true,
-        aiPrompt: "根据项目名称生成项目概况和采购内容，包含采购背景、目标、范围、具体采购内容等关键信息。要求：根据内容复杂度选择合适的表达方式。简单内容直接用段落描述，无需编号；复杂或多项内容可用层次编号（主层次用1.、2.、3.，子层次用①②③）。不要过度使用编号，避免机械感。不要使用#、*等符号，不要出现空行，不要在开头重复字段名称。必须以自然段落形式输出，绝对不能使用表格（Tab分隔符）形式。对采购标的逐项描述时使用连贯的叙述语句，各品目用逗号和顿号自然连接。",
+        aiPrompt: PROJECT_OVERVIEW_AI_PROMPT,
       },
       {
         key: "maxPrice",
