@@ -1,4 +1,4 @@
-import { Workbook } from 'exceljs';
+import { Workbook, type Borders } from 'exceljs';
 import type { SupplierRecommendation } from '@/lib/api/supplier';
 import { LEVEL_LABEL } from '@water-erp/shared';
 import { SUPPLIER_STATUS_LABEL } from '@water-erp/shared';
@@ -205,4 +205,87 @@ export function exportSuppliersToExcel(suppliers: any[]) {
     a.href = url; a.download = `供应商库_${dateStr}.xlsx`; a.click();
     URL.revokeObjectURL(url);
   });
+}
+
+// ── 专家库导出（按公司分组区块，2026-10-19）──
+// 后端 /expert-admin/export 返回扁平 JSON（PII 已掩码）；本函数按「所属公司」分组放置：
+// admin 全部公司=多区块、非 admin 单区块，同一代码路径。公司按人数降序（与 :3005 库页
+// 「全部公司」视图一致），组内保持后端姓名升序；每区块自带列头，区块间空行打打印分页符
+// ——打印时每公司自然成页（「表内分页」）。
+const EXPERT_EXPORT_COLUMNS: Array<{ key: string; width: number }> = [
+  { key: '姓名', width: 10 }, { key: '登录账号', width: 12 }, { key: '专业', width: 24 },
+  { key: '职称', width: 20 }, { key: '工作单位', width: 30 }, { key: '所属公司', width: 26 },
+  { key: '部门', width: 24 }, { key: '手机号', width: 14 }, { key: '身份证号', width: 22 },
+  { key: '邮箱', width: 22 }, { key: '状态', width: 8 }, { key: '入库时间', width: 12 },
+];
+
+export async function exportExpertsToExcel(rows: Record<string, string>[]): Promise<number> {
+  // 按所属公司分组（空值兜底「未归属」），公司人数降序、同人数按名称
+  const groups = new Map<string, Record<string, string>[]>();
+  for (const r of rows) {
+    const company = r['所属公司']?.trim() || '未归属';
+    const list = groups.get(company);
+    if (list) list.push(r); else groups.set(company, [r]);
+  }
+  const ordered = [...groups.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0], 'zh'));
+
+  const wb = new Workbook();
+  const ws = wb.addWorksheet('专家库');
+  const colCount = EXPERT_EXPORT_COLUMNS.length;
+  const lastCol = ws.getColumn(colCount).letter;
+  const thinBorder: Partial<Borders> = {
+    top: { style: 'thin', color: { argb: 'FFD3DDE8' } },
+    bottom: { style: 'thin', color: { argb: 'FFD3DDE8' } },
+    left: { style: 'thin', color: { argb: 'FFD3DDE8' } },
+    right: { style: 'thin', color: { argb: 'FFD3DDE8' } },
+  };
+  const dateStr = new Date().toISOString().slice(0, 10);
+
+  // 总标题（合并整行）
+  const title = ws.addRow([`四川省水利发展集团采购评审专家库（共 ${rows.length} 人 · 导出于 ${dateStr}）`]);
+  ws.mergeCells(`A${title.number}:${lastCol}${title.number}`);
+  const titleCell = title.getCell(1);
+  titleCell.font = { bold: true, size: 13, color: { argb: 'FF3B5998' } };
+  titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+  titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEF3FB' } };
+  title.eachCell({ includeEmpty: true }, (cell) => { cell.border = thinBorder; });
+
+  ordered.forEach(([company, list], idx) => {
+    if (idx > 0) {
+      // 区块间空行 + 打印分页符：空行留在上一页页尾，下一公司起新页
+      ws.addRow([]).addPageBreak();
+    }
+    // 公司区块标题（合并整行）
+    const head = ws.addRow([`${company}（${list.length} 人）`]);
+    ws.mergeCells(`A${head.number}:${lastCol}${head.number}`);
+    const headCell = head.getCell(1);
+    headCell.font = { bold: true, size: 12, color: { argb: 'FF3B5998' } };
+    headCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCE6F5' } };
+    headCell.alignment = { horizontal: 'left', vertical: 'middle' };
+    head.eachCell({ includeEmpty: true }, (cell) => { cell.border = thinBorder; });
+
+    // 每区块自含列头（打印分页后每组页内可读）
+    const header = ws.addRow(EXPERT_EXPORT_COLUMNS.map((c) => c.key));
+    header.font = { bold: true, size: 11, color: { argb: 'FF5E7EBD' } };
+    header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEF3FB' } };
+    header.alignment = { vertical: 'middle', horizontal: 'center' };
+    header.eachCell({ includeEmpty: true }, (cell) => { cell.border = thinBorder; });
+
+    for (const r of list) {
+      const row = ws.addRow(EXPERT_EXPORT_COLUMNS.map((c) => r[c.key] ?? ''));
+      row.alignment = { vertical: 'middle' };
+      row.eachCell({ includeEmpty: true }, (cell) => { cell.border = thinBorder; });
+    }
+  });
+
+  ws.columns = EXPERT_EXPORT_COLUMNS.map((c) => ({ width: c.width }));
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `专家库导出_${dateStr}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+  return ordered.length; // 公司组数，供调用方提示
 }

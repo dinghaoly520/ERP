@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { listExperts, listSpecialties, setExpertAvailability, batchOperation, exportExperts, updateExpertEntryStatus, fetchExpertCompanyCounts, getExpertStatistics } from '@/lib/api/expert';
+import { exportExpertsToExcel } from '@/lib/excel-export';
 import type { ExpertListItem } from '@/lib/api/expert';
 import { Modal, StatusBadge, TableSkeleton } from '@/components/workbench';
 import { ExpertEvaluationDialog } from '@/components/expert/expert-evaluation-dialog';
@@ -170,12 +171,9 @@ export default function ExpertRepositoryPage() {
     try {
       const data = await exportExperts(selectedIds.size > 0 ? [...selectedIds] : undefined);
       if (!data || data.length === 0) { toast.error('无数据可导出'); return; }
-      const csv = [Object.keys(data[0]).join(',')].concat(data.map((r: any) => Object.values(r).map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))).join('\n');
-      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `专家库导出_${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click(); URL.revokeObjectURL(url);
-      toast.success(`导出 ${data.length} 条记录`);
+      // 按公司分组 xlsx（admin=全部公司多区块，非 admin=本公司单区块；每区块打印分页）
+      const companies = await exportExpertsToExcel(data);
+      toast.success(`已导出 ${data.length} 人 · 按 ${companies} 家公司分组`);
     } catch (e: any) { toast.error(e?.message || '导出失败'); }
   };
   const { sortKey, sortDir, toggle: sortToggle, sorted } = useSort<ExpertListItem>('displayName', 'asc');
@@ -449,7 +447,7 @@ export default function ExpertRepositoryPage() {
           )}
           {/* 录入专家仅 admin（2026-10-15 用户裁定）；导出对全部工作台角色保留 */}
           {isAdmin && <button onClick={() => setShowEntryModal(true)} className="neu-btn-xs"><PlusCircle size={12} />录入专家</button>}
-          <button onClick={doExport} className="neu-btn-xs" title={selectedIds.size > 0 ? `导出已选的 ${selectedIds.size} 位专家` : '导出全部专家'}><Download size={12} />导出CSV{selectedIds.size > 0 && <span className="ml-1 rounded bg-[var(--accent)] px-1 py-0 text-[10px] font-bold text-white">{selectedIds.size}</span>}</button>
+          <button onClick={doExport} className="neu-btn-xs" title={selectedIds.size > 0 ? `导出已选的 ${selectedIds.size} 位专家（按公司分组）` : '导出全部专家（按公司分组）'}><Download size={12} />导出Excel{selectedIds.size > 0 && <span className="ml-1 rounded bg-[var(--accent)] px-1 py-0 text-[10px] font-bold text-white">{selectedIds.size}</span>}</button>
         </div>
       </div>
 
