@@ -60,7 +60,8 @@ export async function recomputeExpertProgress(
     // N8b：分子与分母同口径排 PRICE——手填价格分记录不得虚增进度（P1-12fix 分母已排）
     where: { expertId, scoreItem: { projectId, category: { not: 'PRICE' } }, supplierId: { in: activeIds } },
   });
-  const progress = totalItems > 0 ? Math.min(100, Math.floor((scoredItems / totalItems) * 100)) : 0; // P1-6 下取整 + P1-9 封顶
+  // 0 评分项（none 直接采购）且有可评家=定性审查口径已评完；0 家=可评集合空维持 0（spec §4.2，防普通项目回避/废标殆尽语义漂移）
+  const progress = totalItems > 0 ? Math.min(100, Math.floor((scoredItems / totalItems) * 100)) : (activeIds.length > 0 ? 100 : 0); // P1-6 下取整 + P1-9 封顶
   const allRecords = await tx.bidScoreRecord.findMany({
     where: { expertId, scoreItem: { projectId }, supplierId: { in: activeIds } },
   });
