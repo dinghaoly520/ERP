@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { PORTS, portalURL } from '@water-erp/config';
-import { detectTabletUA } from '@/lib/device';
 
 const PORTAL = 'expert';
 const COOKIE = `token_${PORTAL}`;
+const DEVICE_COOKIE = 'device_mode';
 // 登录跳转不能用模块级 portalURL：middleware 在服务端求值恒为 localhost，
 // 平板/局域网客户端被 307 到打不开的 localhost 地址（2026-09-22 平板实测）。
 // 一律以 request.url 为基准相对构建。
@@ -19,20 +19,19 @@ const loginUrlFor = (request: NextRequest, pathname: string) => {
 };
 
 /**
- * 无线网络 / 平板设备检测
+ * 平板形态判定（2026-10-19 收窄为显式信号）：只认 cookie / 反代头，不再 UA/触摸猜测——
+ * maxTouchPoints>1 命中触摸屏笔记本、UA 含 CrOS 命中 Chromebook，误判后 7 天 cookie 把
+ * 台式机锁进平板模式（平板端无法提交评分）。发现平板的唯一主动机制 = 桌面端扫码迁移
+ * （/tablet/claim），本判定只负责「已显式声明为平板」的设备保持平板形态。
  *
- * 检测策略（按优先级）：
- * 1. X-Forwarded-Device 头 → 生产环境由反向代理根据无线子网注入
- * 2. User-Agent 匹配 → 开发/当前同局域网场景（正则与判定收口在 @/lib/device）
- * 3. TABLET_SUBNETS 环境变量 → 生产环境直接 IP 子网匹配（未来扩展）
+ * 1. device_mode cookie：登录页「平板设备入口」链接 / ?device=tablet|desktop 手动切换写入（7 天）
+ * 2. X-Forwarded-Device 头：生产环境由反向代理根据无线子网注入
  */
-function isTabletDevice(request: NextRequest): boolean {
-  // 1. 反向代理注入的设备类型头（生产环境推荐方案）
-  const forwardedDevice = request.headers.get('x-forwarded-device');
-  if (forwardedDevice === 'tablet') return true;
-
-  // 2. User-Agent 检测（detectTabletUA：明确标识平板，或 Android 无 Mobile）
-  return detectTabletUA(request.headers.get('user-agent') || '');
+function isTabletMode(request: NextRequest): boolean {
+  const cookie = request.cookies.get(DEVICE_COOKIE)?.value;
+  if (cookie === 'tablet') return true;
+  if (cookie === 'desktop') return false;
+  return request.headers.get('x-forwarded-device') === 'tablet';
 }
 
 export default async function proxy(request: NextRequest) {
@@ -52,6 +51,23 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // ── 设备模式手动切换（?device=tablet|desktop）：写 7 天 cookie + 302 对应首页 ──
+  // 必须在鉴权闸门之前：未登录的平板从登录页「平板设备入口」点进来时，先落 cookie 再由
+  // /tablet 闸门弹回 /login?redirect=/tablet，登录后直达平板工作台；若放在闸门后，匿名
+  // 请求先被弹回登录页、device 参数丢失（2026-10-19 实测）。
+  const queryDevice = request.nextUrl.searchParams.get('device'); // ?device=tablet|desktop
+  if (queryDevice === 'tablet' || queryDevice === 'desktop') {
+    const res = NextResponse.redirect(
+      new URL(queryDevice === 'tablet' ? '/tablet' : '/', request.url),
+    );
+    res.cookies.set(DEVICE_COOKIE, queryDevice, {
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7, // 7 天
+      sameSite: 'lax',
+    });
+    return res;
+  }
+
   // Allow login page without auth. Public homepage quick-entry uses forceLogin=1
   // so users must re-enter credentials even if this portal already has a cookie.
   if (pathname === '/login') {
@@ -66,7 +82,7 @@ export default async function proxy(request: NextRequest) {
         if (res.ok) {
           const me = await res.json();
           if (me?.role === 'bid_expert') {
-            const target = isTabletDevice(request) ? '/tablet' : '/';
+            const target = isTabletMode(request) ? '/tablet' : '/';
             return NextResponse.redirect(new URL(target, request.url));
           }
         }
@@ -110,39 +126,9 @@ export default async function proxy(request: NextRequest) {
     return loginWithRedirect();
   }
 
-  // ── 设备模式判断（手动覆盖 > cookie > UA 检测）──
-  const DEVICE_COOKIE = 'device_mode';
-  const queryDevice = request.nextUrl.searchParams.get('device'); // ?device=tablet|desktop
-
-  let tabletMode = false;
-
-  if (queryDevice === 'tablet' || queryDevice === 'desktop') {
-    // 手动切换：写入 cookie 持久化
-    tabletMode = queryDevice === 'tablet';
-    const res = NextResponse.redirect(
-      new URL(queryDevice === 'tablet' ? '/tablet' : '/', request.url),
-    );
-    res.cookies.set(DEVICE_COOKIE, queryDevice, {
-      path: '/',
-      maxAge: 60 * 60 * 24 * 7, // 7 天
-      sameSite: 'lax',
-    });
-    return res;
-  }
-
-  const deviceCookie = request.cookies.get(DEVICE_COOKIE)?.value;
-  if (deviceCookie === 'tablet') {
-    tabletMode = true;
-  } else if (deviceCookie === 'desktop') {
-    tabletMode = false;
-  } else {
-    // 无 cookie → 走 UA 检测
-    tabletMode = isTabletDevice(request);
-  }
-
-  // ── 无线网络 / 平板设备隔离 ──
+  // ── 平板形态隔离（cookie / X-Forwarded-Device 显式声明；?device= 手动切换已在闸门前处理）──
   // 平板设备只允许访问 tablet 路由和 login/assets，桌面端路由一律重定向
-  if (tabletMode) {
+  if (isTabletMode(request)) {
     // 已在 tablet 子路由 → 放行
     if (pathname.startsWith('/tablet')) {
       return NextResponse.next();
