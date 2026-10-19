@@ -353,13 +353,14 @@ export async function exportAnnouncementDocument(payload: {
   };
 }
 
-/** 生成公告 docx + 全文文本（公告发布向导用：正文取全文、docx 上传到阶段） */
+/** 生成公告 docx + 全文文本/正文 HTML（公告发布向导用：正文优先 contentHtml——表格保结构；
+ *  textContent 供要素预检等纯文本消费方，旧后端无 contentHtml 时回退纯文本分段） */
 export async function buildAnnouncement(payload: {
   tenderType: ReadyTenderDocumentType;
   category: AnnouncementCategory;
   draft: AnnouncementDraft;
   projectCode?: string;
-}): Promise<{ blob: Blob; fileName: string; textContent: string }> {
+}): Promise<{ blob: Blob; fileName: string; textContent: string; contentHtml?: string }> {
   const response = await apiFetch(`${API_BASE}/tender-write/build-announcement`, {
     method: "POST",
     credentials: "include",
@@ -371,10 +372,11 @@ export async function buildAnnouncement(payload: {
     throw await toApiError(response, '生成公告失败，请稍后重试。');
   }
 
-  const { bufferBase64, fileName, textContent } = (await response.json()) as {
+  const { bufferBase64, fileName, textContent, contentHtml } = (await response.json()) as {
     bufferBase64: string;
     fileName: string;
     textContent: string;
+    contentHtml?: string;
   };
 
   // base64 → Blob
@@ -385,7 +387,7 @@ export async function buildAnnouncement(payload: {
     type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   });
 
-  return { blob, fileName, textContent };
+  return { blob, fileName, textContent, contentHtml };
 }
 
 export type WinningBidImporter = {
