@@ -10,6 +10,7 @@ import { lockAndReassertStage } from './bid-state';
 import { isBondQualified } from './bid-bond-status';
 import { PriceFormulaService } from './price-formula.service';
 import { getEvaluationDefault } from './evaluation-method.config';
+import { isNoneEvaluation } from './none-evaluation.util';
 import { StorageService } from '../storage/storage.service';
 
 /** 评标结果查询、生成与评标文件包构建。 */
@@ -183,6 +184,16 @@ export class BidEvaluationResultsService {
       s => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回' && s.confirmStatus === 'CONFIRMED' && s.bidValidity !== 'invalid',
     );
 
+    // 裁定②（2026-10-19，spec §4.5）：none（直接采购）按单一成交对象口径——多家可评属采购
+    // 方式错配；0 评分记录下排名走供应商名字母序 tiebreak 静默选人，有审计红线风险，硬拦。
+    const isNoneEval = isNoneEvaluation(project.evaluationMethod, project.procurementMethod);
+    if (isNoneEval && activeSuppliers.length > 1) {
+      throw new BadRequestException({
+        error: `直接采购按单一成交对象口径，现有 ${activeSuppliers.length} 家可评供应商属采购方式错配，请流标或更正采购方式后重新组织`,
+        code: 'NONE_MULTI_BIDDERS',
+      });
+    }
+
     // 保证金软标记：bondRequired 时查各供应商 bondStatus，异常者写监督日志（不排除，由评标委员会定）
     // A-104：叠加到账台账自动比对（金额/到账/支付形式/台账缺），flagged 项附 reasons 供日志展开
     const bondFlagged: { supplierName: string; bondStatus: string; reasons: string[] }[] = [];
@@ -289,16 +300,19 @@ export class BidEvaluationResultsService {
         passFailVerdicts.set(supplier.id, disqualified);
 
         // 防御性检查——该供应商是否所有正选专家都已提交通过性评分
-        const votersWithPassFail = new Set(
-          records.filter(r => passFailItemIds.has(r.scoreItemId) && r.passed !== null && r.passed !== undefined
-            && mainExpertIds.has(r.expertId)).map(r => r.expertId),
-        );
-        if (votersWithPassFail.size < expectedVoters) {
-          completenessWarnings.push({
-            supplierName: supplier.supplierName,
-            voters: votersWithPassFail.size,
-            expected: expectedVoters,
-          });
+        // spec §4.5：none（直接采购）抑制——0 记录是设计态而非缺失，告警是噪音
+        if (!isNoneEval) {
+          const votersWithPassFail = new Set(
+            records.filter(r => passFailItemIds.has(r.scoreItemId) && r.passed !== null && r.passed !== undefined
+              && mainExpertIds.has(r.expertId)).map(r => r.expertId),
+          );
+          if (votersWithPassFail.size < expectedVoters) {
+            completenessWarnings.push({
+              supplierName: supplier.supplierName,
+              voters: votersWithPassFail.size,
+              expected: expectedVoters,
+            });
+          }
         }
       }
     }
@@ -334,6 +348,16 @@ export class BidEvaluationResultsService {
             ?? parseFloat(String(r.amount).replace(/,/g, ''));
           if (!isNaN(price) && price >= 0) bidPrices.set(r.bidSupplierId!, price);
         }
+      }
+
+      // 裁定③（2026-10-19，spec §4.5）：none 唯一可评供应商必须有有效唱标价——成交价是
+      // 直接采购唯一实质条款（万元单位事故前科），缺价静默生成无价结果会让中标通知书无价格可引。
+      // bidPrices 已由 parseAmountToYuan 换算为元（2026-09-14 铁律），此处只判有无、不裸读裸算。
+      if (isNoneEval && activeSuppliers.length === 1 && !bidPrices.has(activeSuppliers[0].id)) {
+        throw new BadRequestException({
+          error: '直接采购项目唯一可评供应商无有效唱标价，无法生成成交结果——请核对/补正开标记录唱标金额',
+          code: 'NONE_PRICE_REQUIRED',
+        });
       }
 
       // 最高限价：公式引擎与谈判采购超限价判废共用（谈判路径 bidPrices 已含最终轮报价）
