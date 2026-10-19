@@ -6,7 +6,7 @@ import { createReadStream } from 'node:fs';
 import JSZip = require('jszip');
 import { Response } from 'express';
 import { ResultStatus, SourceType, type Prisma } from '@prisma/client';
-import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
+import { BID_DEADLINE_BEFORE_OPENING_MS, STAGE_LABEL } from '@water-erp/shared';
 import { AiService } from '../ai/ai.service';
 import { parseFlexibleDate } from '../common/parse-date.util';
 import { generateProjectCode, generatePmiProjectCode, resolveHostedProjectCode, stageCodeFor } from '../common/project-code.util';
@@ -3796,6 +3796,28 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // 否则终止项目（若恰在合同阶段）可被再次归档，台账出现同名 CANCELLED + AWARDED 双记录。
     if (project.status !== PROJECT_MANAGEMENT_STATUS.ACTIVE) {
       throw new BadRequestException('仅进行中的项目可以归档。');
+    }
+
+    // 闸门（2026-10-19，TP-2026101901 实例）：关联招标项目仍处活动阶段（含已发布未截标）时禁归档 PMI。
+    // 否则 PMI 已 ARCHIVED 而投标侧永卡活动态——专家门户「已完结待归档」、供应商端流程条僵尸滞留
+    // （单向棘轮无回退，且无人再触发投标侧归档）；投标侧收口须走「开标确认」面板完整归档
+    // （签字闭环+评标回流法定闸门），流标场景先走流标端点留痕（ABORTED 终态不阻塞）。
+    // 同源闸参照公告删除 BID_IN_PROGRESS；终止路径则是显式联动流标（terminateProject 下游联动①）。
+    const activeBidProjects = await this.prisma.bidProject.findMany({
+      where: {
+        projectManagementItemId: projectId,
+        stage: { in: ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING'] },
+      },
+      select: { name: true, stage: true },
+    });
+    if (activeBidProjects.length > 0) {
+      const names = activeBidProjects
+        .map((bp) => `「${bp.name}」(${STAGE_LABEL[bp.stage] ?? bp.stage})`)
+        .join('、');
+      throw new ConflictException({
+        error: `关联招标项目仍在开评标流程中：${names}。请先在「开标确认」面板完成完整归档，或流标后再归档本项目`,
+        code: 'BID_IN_PROGRESS',
+      });
     }
 
     // allowIncomplete：流标归档等场景，跳过"最后阶段完成"校验
@@ -7616,3 +7638,4 @@ ${JSON.stringify(algorithmResult, null, 2)}
     return { fields, extractedText };
   }
 }
+
