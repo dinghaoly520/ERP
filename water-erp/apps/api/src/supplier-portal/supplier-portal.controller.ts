@@ -452,6 +452,18 @@ export class SupplierPortalController {
     return this.portalService.getNegotiationFiles(id, supplierId);
   }
 
+  // 谈判采购文件逐个下载（PMI 阶段附件；受邀 + 获取窗口闸门在服务内）
+  @Get('bid-projects/:id/negotiation-files/:fileId/download')
+  async downloadNegotiationFile(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Param('fileId') fileId: string,
+    @Res() res: any,
+  ) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    await this.portalService.downloadNegotiationFile(id, fileId, supplierId, res);
+  }
+
   // A-87 招标文件要点端点已删（2026-09-29 SUP-P3-03：前后端零消费死代码，详情页 2026-09-11 已拍板移除该板块）
 
   // Bid Submissions

@@ -15,7 +15,7 @@ import { CaReceiptSignButton } from "@/components/ca-receipt-sign-button";
 import { CountdownTimer } from "@/components/countdown-timer";
 import { supplierApi } from "@/lib/api/supplier";
 import { announcementApi } from "@/lib/api/announcement";
-import { saveBlob } from "@/lib/authed-file";
+import { authedFileAction, saveBlob } from "@/lib/authed-file";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import { InvitationDocxPreview } from "@/components/invitation-docx-preview";
 import { SpButton, SpInput, SpDialog, LoadingBlock } from "@/components/ui";
@@ -122,6 +122,51 @@ function BidDetailInner() {
   const [overviewLoading, setOverviewLoading] = useState(false);
 
   // ── 招标文件要点（A-87）板块已按 2026-09-11 拍板移除（解析不可用造成长期空态）──
+
+  // ── 谈判采购文件（2026-10-19 适应性）：详情页与列表行同源——后端 getBidProject 已富化
+  //    negotiation 摘要（窗口/下载模式/文件数），谈判项目不再恒「暂无采购文件」
+  const [negoLoading, setNegoLoading] = useState(false);
+  const nego = (project as any)?.negotiation as {
+    acquireStartTime: string | null; acquireEndTime: string | null;
+    downloadMode: string; fileCount: number;
+  } | null | undefined;
+  /** 获取窗口状态（与列表页 negoWindowState 同口径，走服务器标准时钟） */
+  const negoWinState = (() => {
+    if (!nego) return null;
+    const now = serverNowMs();
+    const s = nego.acquireStartTime ? new Date(nego.acquireStartTime).getTime() : NaN;
+    const e = nego.acquireEndTime ? new Date(nego.acquireEndTime).getTime() : NaN;
+    if (!isNaN(s) && now < s) return "before" as const;
+    if (!isNaN(e) && now > e) return "after" as const;
+    return "open" as const;
+  })();
+
+  async function doDownloadNegotiation() {
+    setNegoLoading(true);
+    try {
+      const res: any = await bidApi.getNegotiationFiles(projectId);
+      if (!res.files || res.files.length === 0) {
+        toast.warning("该项目暂无可下载的采购文件");
+        return;
+      }
+      if (res.downloadMode === "encrypted" && res.password) {
+        toast.info(`加密文件，访问密码：${res.password}`);
+      } else if (res.downloadMode === "paid" && res.paidAmount) {
+        toast.info(`付费文件，金额：¥${res.paidAmount}`);
+      }
+      // 全部经 authed-file 带 token 下载（窗口明示的「下载」动作无需新开预览标签，
+      // 顺带规避单文件 window.open 在弹窗拦截/无头环境下的静默失败）
+      const files = (res.files ?? []) as Array<{ url?: string; name?: string }>;
+      for (const f of files) {
+        if (f.url) authedFileAction(f.url, "download", f.name || undefined);
+      }
+      if (files.length > 0) toast.success(`已开始下载 ${files.length} 个采购文件`);
+    } catch {
+      /* API 层已全局错误 toast（窗口未开始/已截止/未受邀等后端文案） */
+    } finally {
+      setNegoLoading(false);
+    }
+  }
 
   // ── 投标回执（A-101）：已递交后查看 + U盾补签 ──
   const [submission, setSubmission] = useState<any>(null);
@@ -565,7 +610,8 @@ function BidDetailInner() {
                 ) : (
                   <div className="cc-empty">
                     <FileText size={20} strokeWidth={1.75} />
-                    <p>暂无公告正文</p>
+                    {/* 谈判采购以邀请书代替公告——空态口径区分（2026-10-19 用户裁定） */}
+                    <p>{project.roundMode === "negotiation" || project.procurementMethod === "谈判采购" ? "暂无邀请书" : "暂无公告正文"}</p>
                   </div>
                 )}
               </div>
@@ -582,10 +628,34 @@ function BidDetailInner() {
                   断头。紧凑模式下仅保留阶段条/关键信息的隐藏。 */}
               {
                 <div className="bottom-grid">
-                  {/* 招标文件 */}
+                  {/* 招标文件（谈判采购：走谈判配置变体——窗口/下载模式/文件数；其余走公告 BidDocument） */}
                   <div className="neu-card bottom-card">
                     <div className="bc-hd">采购文件</div>
-                    {bidDoc ? (
+                    {nego ? (
+                      <>
+                        <div className="bdoc">
+                          <Lock size={14} strokeWidth={1.75} className="bdoc-icon" />
+                          <span className="bdoc-name">谈判采购文件（共 {nego.fileCount} 个）</span>
+                        </div>
+                        <div className="bdoc-acts">
+                          {nego.acquireStartTime && nego.acquireEndTime && (
+                            <p className="cq-desc !mb-0">
+                              获取窗口：{dayjs(nego.acquireStartTime).format("YYYY-MM-DD HH:mm")} ~ {dayjs(nego.acquireEndTime).format("YYYY-MM-DD HH:mm")}
+                            </p>
+                          )}
+                          {negoWinState === "before" && <BAlert type="info" title="采购文件获取尚未开始，请于窗口开启后下载" />}
+                          {negoWinState === "after" && <BAlert type="warning" title="采购文件获取已截止" />}
+                          <SpButton
+                            variant="primary"
+                            icon={Download}
+                            disabled={negoWinState !== "open" || negoLoading}
+                            onClick={doDownloadNegotiation}
+                          >
+                            {negoLoading ? "下载中…" : negoWinState === "open" ? `下载采购文件（${nego.fileCount}）` : "暂不可下载"}
+                          </SpButton>
+                        </div>
+                      </>
+                    ) : bidDoc ? (
                       <>
                         <div className="bdoc">
                           <Lock size={14} strokeWidth={1.75} className="bdoc-icon" />

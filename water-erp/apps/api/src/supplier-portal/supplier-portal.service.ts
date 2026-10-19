@@ -1,4 +1,6 @@
 import { Injectable, BadRequestException, ForbiddenException, ConflictException, NotFoundException, Optional, Inject, Logger, forwardRef } from '@nestjs/common';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { parseAmountToYuan } from '@water-erp/shared';
 import type Redis from 'ioredis';
 import { Prisma } from '@prisma/client';
@@ -1702,7 +1704,8 @@ export class SupplierPortalService {
   }
 
   /** 谈判采购文件下载：校验受邀 + 获取窗口内，解析 refFileKeys/attachFileIds 为 FileAsset 列表 */
-  async getNegotiationFiles(projectId: string, supplierId: string) {
+  /** 谈判配置访问闸（受邀 + 配置存在 + 获取窗口内）——文件清单与逐文件下载共用 */
+  private async assertNegotiationAccess(projectId: string, supplierId: string) {
     // 校验供应商被邀请
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: supplierId },
@@ -1729,15 +1732,38 @@ export class SupplierPortalService {
     if (!isNaN(end) && now > end) {
       throw new BadRequestException({ error: '采购文件获取时间已截止', code: 'ACQUIRE_ENDED' });
     }
+    return cfg;
+  }
 
-    // 解析文件：refFileKeys（FileAsset.key）+ attachFileIds（FileAsset.id）
+  async getNegotiationFiles(projectId: string, supplierId: string) {
+    const cfg = await this.assertNegotiationAccess(projectId, supplierId);
+
+    // 解析文件——refFileKeys 双存储空间（2026-10-19 修复）：
+    //   主轨 = PMI 阶段附件（Attachment.objectKey，:3005「引用采购文件」勾选即此体系），
+    //          经本门户专用端点流式下载；旧实现按 FileAsset.key 查恒空 → 谈判项目文件不可见
+    //   兼容 = 历史 FileAsset.key 命中；attachFileIds 走 FileAsset.id（/api/upload/files/:id）
     const keys: string[] = cfg.refFileKeys || [];
     const ids: string[] = cfg.attachFileIds || [];
-    const [byKey, byId] = await Promise.all([
-      keys.length > 0 ? this.prisma.fileAsset.findMany({ where: { key: { in: keys } }, select: { id: true, originalName: true, size: true, mimeType: true } }) : [],
-      ids.length > 0 ? this.prisma.fileAsset.findMany({ where: { id: { in: ids } }, select: { id: true, originalName: true, size: true, mimeType: true } }) : [],
+    const [attachments, byKey, byId] = await Promise.all([
+      keys.length > 0
+        ? this.prisma.attachment.findMany({ where: { objectKey: { in: keys } }, select: { id: true, fileName: true, fileSize: true, mimeType: true } })
+        : Promise.resolve([]),
+      keys.length > 0
+        ? this.prisma.fileAsset.findMany({ where: { key: { in: keys } }, select: { id: true, originalName: true, size: true, mimeType: true } })
+        : Promise.resolve([]),
+      ids.length > 0
+        ? this.prisma.fileAsset.findMany({ where: { id: { in: ids } }, select: { id: true, originalName: true, size: true, mimeType: true } })
+        : Promise.resolve([]),
     ]);
-    const files = [...byKey, ...byId].filter((f, i, arr) => arr.findIndex(x => x.id === f.id) === i);
+    const files = [
+      ...attachments.map(f => ({
+        id: f.id, name: f.fileName, size: f.fileSize, mimeType: f.mimeType,
+        url: `/api/supplier-portal/bid-projects/${projectId}/negotiation-files/${f.id}/download`,
+      })),
+      ...[...byKey, ...byId]
+        .filter((f, i, arr) => arr.findIndex(x => x.id === f.id) === i)
+        .map(f => ({ id: f.id, name: f.originalName, size: f.size, mimeType: f.mimeType, url: `/api/upload/files/${f.id}` })),
+    ];
 
     return {
       downloadMode: cfg.downloadMode || 'free',
@@ -1746,8 +1772,30 @@ export class SupplierPortalService {
       acquireStartTime: cfg.acquireStartTime || null,
       acquireEndTime: cfg.acquireEndTime || null,
       bidOpeningTime: cfg.bidOpeningTime || null,
-      files: files.map(f => ({ id: f.id, name: f.originalName, size: f.size, mimeType: f.mimeType, url: `/api/upload/files/${f.id}` })),
+      files,
     };
+  }
+
+  /**
+   * 谈判采购文件逐个下载（PMI 阶段附件，本地 uploads/ 磁盘流）。
+   * 闸门与清单端点同源（assertNegotiationAccess）；附件 id 须命中本项目配置引用集，
+   * 防跨项目附件越权读取。
+   */
+  async downloadNegotiationFile(projectId: string, attachmentId: string, supplierId: string, res: { setHeader(k: string, v: string): void; end(body?: Buffer): void }) {
+    const cfg = await this.assertNegotiationAccess(projectId, supplierId);
+    const attachment = await this.prisma.attachment.findUnique({
+      where: { id: attachmentId },
+      select: { fileName: true, objectKey: true, mimeType: true },
+    });
+    if (!attachment) throw new NotFoundException({ error: '附件不存在', code: 'NOT_FOUND' });
+    if (!(cfg.refFileKeys || []).includes(attachment.objectKey)) {
+      throw new ForbiddenException({ error: '该文件不在本项目的采购文件清单内', code: 'FILE_NOT_IN_CONFIG' });
+    }
+    const buffer = await readFile(resolve(process.cwd(), 'uploads', attachment.objectKey));
+    res.setHeader('Content-Type', attachment.mimeType || 'application/octet-stream');
+    res.setHeader('Content-Length', String(buffer.length));
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(attachment.fileName)}"`);
+    res.end(buffer);
   }
 
   /** 批量读取项目的谈判配置（Redis），返回 projectId → 配置摘要 映射 */
@@ -1857,8 +1905,13 @@ export class SupplierPortalService {
         }
       }
       if (!announcement && !(project as any).invitationLetter && supplierId && project.projectManagementItemId) {
+        // RSVP.projectId 双 id 空间（2026-10-16 生成端规范化为 BidProject id；旧轨行为 PMI id）——
+        // 详情侧按双 id 命中，防新轨回执漏查（2026-10-19 谈判采购适应性回归修复）
         const rsvp = await this.prisma.invitationRsvp.findFirst({
-          where: { supplierId, projectId: project.projectManagementItemId },
+          where: {
+            supplierId,
+            projectId: { in: [project.id, project.projectManagementItemId].filter(Boolean) as string[] },
+          },
           orderBy: { createdAt: 'desc' },
           select: { title: true, summary: true, status: true, expiresAt: true, respondedAt: true },
         });
@@ -1878,6 +1931,10 @@ export class SupplierPortalService {
           };
         }
       }
+      // 谈判采购适应性（2026-10-19）：详情页与列表同源下发谈判配置摘要——采购文件卡片
+      // （窗口/下载模式/文件数）据此渲染，谈判项目不再恒「暂无采购文件」
+      const negoConfigs = await this.fetchNegotiationConfigs([project.id]);
+      (project as any).negotiation = negoConfigs[project.id] || null;
     }
     // 编号覆盖放最后：公告查找已完成，仅展示层换业务编号
     if (project) return this.resolveDisplayCode(project);
