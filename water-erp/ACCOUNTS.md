@@ -40,16 +40,16 @@
 
 ## 专家门户 — http://localhost:3006
 
-> 评审专家共 187 名，来自真实专家库（`ExpertProfile.json`）。**用户名 = 专家姓名，口令统一 `111111111111111111`**（2026-09-20 起快照统一注入 idNumber，档案缺失者回退 `expert@2026`）。完整名单见 `apps/api/prisma/seed-data/ExpertProfile.json`。
+> 评审专家共 180 名，来自 2026-10 集团拟入库名单（`ExpertLibrary.json`，2026-10-19 起为专家库唯一来源）。**用户名 = 专家姓名，口令 = 身份证号**（名单缺身份证号者回退 `expert@2026`）。完整名单见 `apps/api/prisma/seed-data/ExpertLibrary.json`。
 
 | 用户名 | 密码 | 角色(role) | 姓名 |
 |--------|------|------------|------|
-| `刘苡池` | `111111111111111111` | `bid_expert` · 评标专家 | 刘苡池 |
-| `宋为广` | `111111111111111111` | `bid_expert` · 评标专家 | 宋为广 |
-| `魏熙` | `111111111111111111` | `bid_expert` · 评标专家 | 魏熙 |
-| …（共 187 名） | `111111111111111111` | `bid_expert` · 评标专家 | 见专家库 |
+| `杨睿` | `<其身份证号，见 ExpertLibrary.json>` | `bid_expert` · 评标专家（集团本部） | 杨睿 |
+| `王青青` | `<其身份证号，见 ExpertLibrary.json>` | `bid_expert` · 评标专家（设计院） | 王青青 |
+| `张尚明` | `<其身份证号，见 ExpertLibrary.json>` | `bid_expert` · 评标专家（建设） | 张尚明 |
+| …（共 180 名，8 家公司：集团本部 30/设计院 47/建设 30/投资 18/能源 5/亭子口 10/向家坝 20/引大 20） | | `bid_expert` · 评标专家 | 见专家库 |
 
-> `seed.ts` 末尾会把真实库导出的编号用户名（如 `a000912`）自动重置为专家姓名、口令取档案 `idNumber`（现统一为 `111111111111111111`，缺失回退 `expert@2026`），故即使从真实库重新 `dump-seed.ts` 导出，再 seed 一次凭据即自动修复。
+> `seed.ts` 公司归属重建段按 `ExpertLibrary.json` 整体装载专家库（清空快照旧专家后重建，归属公司直挂主数据）；`POST /expert-admin/import-from-seed` 同读该名单（走 PENDING 待审核）。旧 187 名真实库导出快照（`User.json`/`ExpertProfile.json`）不再作为专家来源。
 
 ## 开评标管理端 — http://localhost:3007
 

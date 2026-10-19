@@ -246,7 +246,7 @@ Passwords follow `<username>@2026` convention:
 | `Swhi-CGZX-00` | `Swhi-CGZX-00@2026` | leader · 董事长（工作台董事长变体+受限导航，见 `apps/web/src/lib/workbench-profiles.ts`） | 采购管理工作台 (:3005) |
 | `SWDG-01` | `SWDG-01@2026` | staff · 水发集团（落地 /tender-write+受限导航，见 workbench-profiles.ts） | 采购管理工作台 (:3005) |
 | `Swhi-CGZX-admin` | `Swhi-CGZX-admin@2026` | admin · 密码审批等管理功能 | 采购管理工作台 (:3005) |
-| 专家姓名（如 `刘苡池`） | `111111111111111111` | bid_expert | 专家门户 (:3006) |
+| 专家姓名（如 `杨睿`） | `<其身份证号，见 ExpertLibrary.json>` | bid_expert | 专家门户 (:3006) |
 | `陈源远` | `陈源远@2026` | bid_host | 开评标管理端 (:3007) |
 
 > **「陈源远」同名账号**：username 不再全局唯一（改为 `[username, role]` 复合唯一），两个 role 不同的账号共用登录名「陈源远」/ `陈源远@2026`。登录时按来源门户（`X-Portal` 头）区分：电子商城→mall、开标端（专家门户 admin tab）→bid_host。注意 `PORTAL_ROLE_PRIORITY.web` = `[leader, staff, bid_host, admin]` （原 `procurement_staff` 幽灵账户已于 2026-08-20 删除），故「陈源远」从采购管理端 :3005 登录会解析为 `bid_host`、采购功能 403——**:3005 请用 `Swhi-CGZX-*` leader/staff 账号**（口令 `<用户名>@2026`，见上表与 `water-erp/ACCOUNTS.md`）。详见 `auth.service.ts`。
@@ -254,7 +254,7 @@ Passwords follow `<username>@2026` convention:
 
 > `admin` role 已有种子账号 `Swhi-CGZX-admin`（密码审批等管理功能；登录口令 `<用户名>@2026`）。开评标管理端 (:3007) 演示请用 `陈源远` (bid_host)。
 
-> **评审专家库（187 名）**：来自真实专家库（`apps/api/prisma/seed-data/ExpertProfile.json`）。`seed.ts` 末尾会把真实库导出的编号用户名重置为专家姓名、口令取档案 `idNumber`（2026-09-20 起快照统一注入 `111111111111111111`；档案缺失者回退 `expert@2026`），便于演示登录。
+> **评审专家库（180 名，2026-10-19 换血）**：唯一来源 `apps/api/prisma/seed-data/ExpertLibrary.json`（集团拟入库名单，8 家公司：集团本部 30/设计院 47/建设 30/投资 18/能源 5/亭子口 10/向家坝 20/引大 20——后 4 家公司主数据由 seed `SEED_COMPANIES` 建档）。`seed.ts` 公司归属重建段 1.45 清空快照旧专家后按名单整体重建：**用户名=姓名、口令=身份证号**、`entryStatus=ACTIVE`、归属公司直挂 `companyId`（分公司/下属简写单位并入母公司，原表单位入 notes）。`POST /expert-admin/import-from-seed` 同读该名单（PENDING 待审核）。旧 187 名真实库导出快照（`User.json`/`ExpertProfile.json`）不再是专家来源（会被 1.45 清空，勿再从其恢复专家）。
 >
 > **供应商登录**：同理，`seed.ts` 会把所有供应商用户名重置为**公司名**、口令统一为 `supplier@2026`（与上表一致）。故供应商一律用「公司名 / supplier@2026」登录，不再有 `supplier1`/`huaxi` 等短用户名。
 

@@ -12,7 +12,8 @@
  *
  * 账号说明
  *   seed 直接写回库中真实的 bcrypt 口令哈希；常用演示账号口令沿用 `<用户名>@2026`（见下方输出）。
- *   评审专家例外：seed 末尾会把用户名重置为专家姓名、口令置为身份证号（R2 2026-09-18；档案缺 idNumber 回退 `expert@2026`）。
+ *   评审专家：由 seed-data/ExpertLibrary.json（2026-10 集团拟入库名单 180 名）整体装载，
+ *   用户名=姓名、口令=身份证号（公司归属重建段 1.45）。
  *
  * 注意
  *   `ProcurementProject.json` 为空——导出快照前该表数据已被一次失败的 seed 清空且未能恢复，
@@ -29,7 +30,7 @@ import { hashSync } from 'bcryptjs';
 import { encryptPasswordVault } from '../src/auth/password-vault.util';
 import { GbCodeService } from '../src/common/gb-code.service';
 import { backfillGbCodes } from '../src/common/gb-code.backfill';
-import { sealPii, openPii, blindIndexPii } from '../src/common/crypto/sm-field-crypto';
+import { sealPii, blindIndexPii } from '../src/common/crypto/sm-field-crypto';
 import { execSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { minioClient, MINIO_BUCKET } from '../src/upload/minio.client';
@@ -425,56 +426,6 @@ async function main() {
     console.warn(`    ⚠ 供应商编号序列对齐失败（不阻塞）: ${(e as Error).message}`);
   }
 
-  // ═══ 评审专家凭据规整 ═══
-  // 真实库导出的专家用户名是编号（如 a000912）、口令为真实库哈希（本地不知明文）。
-  // 统一重置为：用户名 = 专家姓名（displayName），口令 = 身份证号（R2，2026-09-18 身份核验设计）；
-  // 档案无身份证号时回退 expert@2026（存量 ExpertProfile 导出暂无 idNumber，回退为主）。
-  // 幂等：每次 seed 后专家凭据恒为此状态，即便从真实库重新 dump 也能自动修复。
-  console.log('▶ 规整评审专家凭据（用户名=姓名，口令=身份证号；缺失回退 expert@2026）');
-  const FALLBACK_EXPERT_PW = 'expert@2026';
-  const pwHashCache = new Map<string, string>();
-  const hashOf = (pw: string) => {
-    let h = pwHashCache.get(pw);
-    if (!h) { h = hashSync(pw, 10); pwHashCache.set(pw, h); }
-    return h;
-  };
-  const experts = await prisma.user.findMany({
-    where: { role: 'bid_expert' },
-    include: { expertProfile: { select: { idNumber: true } } },
-  });
-  let renamed = 0;
-  let passwordOnly = 0;
-  let conflictSkipped = 0;
-  let idNumberPw = 0;
-  let fallbackPw = 0;
-  for (const u of experts) {
-    // idNumber 密文落库 → 口令源取拆封明文（占位串 111111111111111111 = 演示口令）
-    const idNumber = openPii(u.expertProfile?.idNumber ?? '')?.trim() ?? '';
-    const password = idNumber || FALLBACK_EXPERT_PW;
-    if (idNumber) idNumberPw++; else fallbackPw++;
-    const pwHash = hashOf(password);
-    const targetUsername = (u.displayName ?? '').trim() || u.username;
-    if (targetUsername === u.username) {
-      await prisma.user.update({ where: { id: u.id }, data: { passwordHash: pwHash } });
-      passwordOnly++;
-      continue;
-    }
-    const occupied = await prisma.user.findFirst({ where: { username: targetUsername } });
-    if (occupied && occupied.id !== u.id) {
-      console.warn(`  ⚠ 「${targetUsername}」已被占用，专家 ${u.username} 保留原用户名，仅重置口令`);
-      await prisma.user.update({ where: { id: u.id }, data: { passwordHash: pwHash } });
-      conflictSkipped++;
-      continue;
-    }
-    await prisma.user.update({
-      where: { id: u.id },
-      data: { username: targetUsername, passwordHash: pwHash },
-    });
-    renamed++;
-  }
-  console.log(`    专家 ${experts.length} 名：重命名 ${renamed}、仅改口令 ${passwordOnly}、冲突跳过 ${conflictSkipped}`);
-  console.log(`    口令来源：身份证号 ${idNumberPw} 名、回退 ${FALLBACK_EXPERT_PW} ${fallbackPw} 名（档案缺 idNumber——:3005 专家库待补录）`);
-
   // ═══ 供应商凭据规整 ═══
   // 与专家规整同理：供应商用户名原始为统一社会信用代码/短码（如 s9151…、supplier1、huaxi），不便演示。
   // 统一重置为：用户名 = 关联 Supplier.name（公司名），口令 = supplier@2026。
@@ -668,6 +619,11 @@ async function main() {
       { id: 'co-swhi-js', name: '四川水发建设有限公司', shortName: '建设', code: 'SFJS' },
       { id: 'co-swhi-tz', name: '四川水发投资有限公司', shortName: '投资', code: 'SFTZ' },
       { id: 'co-swdg-jt', name: '四川省水利发展集团有限公司', shortName: '集团本部', code: 'SWDG' },
+      // 2026-10-19 专家拟入库名单涉及 4 家新单位（ExpertLibrary.json 归属目标）——code 留空：未定项目编号前缀
+      { id: 'co-swhi-ny', name: '四川水发能源开发有限公司', shortName: '能源', code: null },
+      { id: 'co-swhi-tzk', name: '四川省亭子口灌区建设开发有限公司', shortName: '亭子口', code: null },
+      { id: 'co-swhi-xjb', name: '四川省向家坝灌区建设开发有限责任公司', shortName: '向家坝', code: null },
+      { id: 'co-swhi-ydm', name: '引大济岷水资源开发有限公司', shortName: '引大', code: null },
     ] as const;
     for (const c of SEED_COMPANIES) {
       await prisma.company.upsert({ where: { name: c.name }, update: { shortName: c.shortName, code: c.code }, create: { ...c } });
@@ -683,8 +639,89 @@ async function main() {
       if (cid) { await prisma.user.update({ where: { id: u.id }, data: { companyId: cid } }); userLinked++; }
     }
 
-    // 1.5) 专家（bid_expert）：快照无公司归属——统一归设计院本部（专家库公司隔离 2026-09-24，
-    //      与存量回填脚本 scripts/backfill-expert-company.ts 同口径；后续新增专家由录入链路自操作人快照）
+    // 1.45) 专家库整体装载（2026-10-19 换血：seed-data/ExpertLibrary.json = 集团拟入库名单，唯一来源）
+    //   快照 User.json/ExpertProfile.json 里的旧专家（187 名真实库导出）连同英雄项目 BidExpert/履职评价
+    //   一并清空后按名单重建，归属公司按 company 字段直挂（SEED_COMPANIES 含名单全部 8 家）。
+    //   口令=身份证号（R2 口径）；entryStatus=ACTIVE——名单即批文，seed 恒在库
+    //   （API 录入通道仍 PENDING 待审核，勿据此放宽）。
+    const library = load<Array<{
+      name: string; company: string; employer?: string | null; department?: string | null;
+      specialty: string; title?: string | null; education?: string | null;
+      phone?: string | null; idNumber?: string | null; email?: string | null;
+    }>>('ExpertLibrary');
+    // 清空旧专家域。⚠ 不能只 deleteMany User 赌 DB 级联：装载段把连接切成 session_replication_role=replica
+    // （停 FK 触发器）后，级联会被静默吞掉留孤儿（2026-10-19 实测：ExpertProfile/BidExpert/ExpertEvaluation
+    // 各残留 187/5/256 孤儿）。专家域各表业务上只属于专家——显式清空，评委打分链（hero 项目演示评分）随旧评委一并清。
+    // 注：BidScoreDelta 模型在 schema 有、表从未建（迁移缺失）——不在清理列，勿加（deleteMany 会 P2021）。
+    await prisma.$transaction([
+      prisma.user.deleteMany({ where: { role: 'bid_expert' } }),
+      prisma.expertProfile.deleteMany({}),
+      prisma.expertEvaluation.deleteMany({}),
+      prisma.bidExpert.deleteMany({}),
+      prisma.expertMemo.deleteMany({}),
+      prisma.bidScoreRecord.deleteMany({}),
+      prisma.bidScoreRecordHistory.deleteMany({}),
+      prisma.bidScorePointDecision.deleteMany({}),
+      prisma.bidScoreReview.deleteMany({}),
+    ]);
+    const libPwHash = new Map<string, string>();
+    const libHashOf = (pw: string) => {
+      let h = libPwHash.get(pw);
+      if (!h) { h = hashSync(pw, 10); libPwHash.set(pw, h); }
+      return h;
+    };
+    const deptByName = new Map((await prisma.department.findMany({ select: { id: true, name: true } })).map((d) => [d.name, d.id]));
+    let libCreated = 0;
+    let libSkipped = 0;
+    for (const e of library) {
+      const companyId = companyByName.get(e.company);
+      if (!companyId) {
+        console.warn(`    ⚠ 专家「${e.name}」归属公司「${e.company}」不在主数据，跳过`);
+        libSkipped++;
+        continue;
+      }
+      let departmentId: string | undefined;
+      if (e.department) {
+        let deptId = deptByName.get(e.department);
+        if (!deptId) {
+          deptId = (await prisma.department.create({ data: { name: e.department! } })).id;
+          deptByName.set(e.department, deptId);
+        }
+        departmentId = deptId;
+      }
+      await prisma.user.create({
+        data: {
+          username: e.name,
+          displayName: e.name,
+          role: 'bid_expert',
+          isActive: true,
+          email: e.email ? sealPii(e.email) : null,
+          passwordHash: libHashOf(e.idNumber?.trim() || 'expert@2026'),
+          companyId,
+          company: e.company,
+          departmentId,
+          expertProfile: {
+            create: {
+              specialty: e.specialty,
+              title: e.title ?? '',
+              employer: e.company,
+              phone: e.phone ? sealPii(e.phone) : null,
+              idNumber: e.idNumber ? sealPii(e.idNumber) : null,
+              education: e.education ?? null,
+              availability: '可用',
+              entryStatus: 'ACTIVE',
+              // 名表工作单位为分公司/下属简写（如「四川水发建设有限公司三分公司」「水网科技公司」）时留溯源备注
+              ...(e.employer && e.employer !== e.company ? { notes: `原表工作单位：${e.employer}` } : {}),
+            },
+          },
+        },
+      });
+      libCreated++;
+    }
+    console.log(`    专家库装载：ExpertLibrary.json ${library.length} 名 → 入库 ${libCreated}、跳过 ${libSkipped}（用户名=姓名，口令=身份证号）`);
+
+    // 1.5) 专家（bid_expert）归属兜底：1.45 装载已直挂 companyId，此处恒为 0——仅防名单外
+    //      残留快照专家漏归属（同 scripts/backfill-expert-company.ts 口径；后续新增专家由录入链路自操作人快照）
     const expertBackfill = await prisma.user.updateMany({
       where: { role: 'bid_expert', companyId: null },
       data: { companyId: sjy.id, company: sjy.name },

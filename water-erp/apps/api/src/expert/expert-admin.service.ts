@@ -407,11 +407,12 @@ export class ExpertAdminService {
     }
   }
 
-  /** 从种子数据批量导入专家（仅导入尚未存在于数据库中的专家） */
+  /** 从专家名单种子批量导入：seed-data/ExpertLibrary.json（2026-10 集团拟入库名单，专家库唯一来源）。
+   *  只导入库中不存在者；公司归属按名单 company 命中主数据，未命中回退操作人快照。 */
   async importFromSeed(operatorId?: string) {
     const logger = new Logger(ExpertAdminService.name);
     const seedDir = join(__dirname, '..', '..', '..', 'prisma', 'seed-data');
-    // R2（2026-09-18 身份核验设计）：批量导入口令=各自档案身份证号，缺失回退 expert@2026（按口令去重哈希）
+    // R2（2026-09-18 身份核验设计）：批量导入口令=各自身份证号，缺失回退 expert@2026（按口令去重哈希）
     const pwHashCache = new Map<string, string>();
     const hashOf = (pw: string) => {
       let h = pwHashCache.get(pw);
@@ -419,18 +420,16 @@ export class ExpertAdminService {
       return h;
     };
 
-    // 读取种子数据
-    let users: any[] = [];
-    let profiles: any[] = [];
+    let library: Array<{
+      name: string; company: string; employer?: string | null; department?: string | null;
+      specialty: string; title?: string | null; education?: string | null;
+      phone?: string | null; idNumber?: string | null; email?: string | null;
+    }> = [];
     try {
-      users = JSON.parse(readFileSync(join(seedDir, 'User.json'), 'utf-8')) as any[];
-      profiles = JSON.parse(readFileSync(join(seedDir, 'ExpertProfile.json'), 'utf-8')) as any[];
+      library = JSON.parse(readFileSync(join(seedDir, 'ExpertLibrary.json'), 'utf-8'));
     } catch {
-      throw new BadRequestException('种子数据文件不存在，请先运行 dump 导出快照');
+      throw new BadRequestException('专家名单种子不存在（prisma/seed-data/ExpertLibrary.json）');
     }
-
-    const expertProfileUserIds = new Set(profiles.map((p: any) => p.userId));
-    const seedExpertUsers = users.filter((u: any) => expertProfileUserIds.has(u.id) && u.role === 'bid_expert');
 
     // 已在库中的用户名
     const existingUsernames = new Set(
@@ -440,52 +439,51 @@ export class ExpertAdminService {
     let imported = 0;
     let skipped = 0;
 
-    for (const seedUser of seedExpertUsers) {
-      const targetUsername = (seedUser.displayName ?? '').trim() || seedUser.username;
-
-      // 检查用户名是否已存在（bid_expert 下）
-      if (existingUsernames.has(targetUsername)) {
+    for (const e of library) {
+      if (existingUsernames.has(e.name)) {
         skipped++;
         continue;
       }
 
-      const profile = profiles.find((p: any) => p.userId === seedUser.id);
-
-      // 公司归属写时快照：种子导入同录入口径，归操作人公司
+      // 公司归属：名单 company 命中主数据即挂该公司（employer 同源防漂移）；未命中回退操作人快照
+      const byName = await this.prisma.company.findUnique({ where: { name: e.company }, select: { id: true, name: true } });
       const { companyId: opCompanyId, companyName: opCompanyName } = operatorId ? await this.operatorCompanyOf(operatorId) : { companyId: null, companyName: null };
+      const companyId = byName?.id ?? opCompanyId;
+      const companyName = byName?.name ?? opCompanyName;
 
       try {
         await this.prisma.user.create({
           data: {
-            username: targetUsername,
-            displayName: targetUsername,
-            passwordHash: hashOf((profile?.idNumber ?? '').toString().trim() || 'expert@2026'),
+            username: e.name,
+            displayName: e.name,
+            passwordHash: hashOf(e.idNumber?.trim() || 'expert@2026'),
             role: 'bid_expert',
             isActive: true,
-            ...(opCompanyId && { companyId: opCompanyId, company: opCompanyName }),
+            ...(companyId && { companyId, company: companyName }),
             expertProfile: {
               create: {
-                specialty: profile?.specialty ?? '未分类',
-                title: profile?.title ?? '',
-                employer: profile?.employer ?? '',
-                phone: sealPii(profile?.phone ?? '') ?? '', // PII 国密密封（等保+密评）
-                idNumber: sealPii(profile?.idNumber ?? null) ?? null,
+                specialty: e.specialty ?? '未分类',
+                title: e.title ?? '',
+                employer: byName ? byName.name : (e.employer ?? ''),
+                phone: sealPii(e.phone ?? '') ?? null, // PII 国密密封（等保+密评）
+                idNumber: sealPii(e.idNumber ?? '') ?? null,
+                education: e.education ?? null,
                 availability: '可用',
                 entryStatus: 'PENDING', // CTS A-218 批量导入同样待审核入库
-                notes: profile?.notes ?? '',
+                ...(e.employer && e.employer !== e.company ? { notes: `原表工作单位：${e.employer}` } : {}),
               },
             },
           },
         });
-        existingUsernames.add(targetUsername);
+        existingUsernames.add(e.name);
         imported++;
       } catch (err: any) {
-        logger.warn(`跳过专家「${targetUsername}」: ${err?.message ?? String(err)}`);
+        logger.warn(`跳过专家「${e.name}」: ${err?.message ?? String(err)}`);
         skipped++;
       }
     }
 
-    return { imported, skipped, total: seedExpertUsers.length };
+    return { imported, skipped, total: library.length };
   }
 
   /** 启用/停用专家（停用 = isActive=false + availability 停用；公司隔离） */
