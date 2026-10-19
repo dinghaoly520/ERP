@@ -65,18 +65,20 @@ export class TenderWriteController {
     res.send(buffer);
   }
 
-  /** 生成公告 docx + 全文文本（供项目管理公告发布向导：正文取全文、docx 上传到阶段） */
+  /** 生成公告 docx + 全文文本/正文 HTML（供项目管理公告发布向导：正文优先取 contentHtml
+   *  ——表格保结构；textContent 供要素预检等纯文本消费方） */
   @Post('build-announcement')
   async buildAnnouncement(
     @Body() dto: ExportAnnouncementDto,
     @CurrentUser() user: { sub?: string },
   ) {
-    const { buffer, fileName, textContent } =
+    const { buffer, fileName, textContent, contentHtml } =
       await this.tenderWriteService.buildAnnouncementWithContent(dto, user);
     return {
       bufferBase64: buffer.toString('base64'),
       fileName,
       textContent,
+      contentHtml,
     };
   }
 

@@ -41,7 +41,7 @@ import { GbCodeService } from '../common/gb-code.service';
 import { assertNudgeWindowOpen, assertOpeningDeadlineRelation, deriveDeadlineFromOpenTime, deriveOpenTimeFromDeadline, modeFor } from './opening-deadline.util';
 import { parseConflictedIds } from '../common/scoring/expert.util';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../common/scoring/expert-deviation';
-import { Prisma, AiBidderStatus } from '@prisma/client';
+import { Prisma, AiBidderStatus, AnnouncementType } from '@prisma/client';
 import { classifyUserAgent } from '../common/session-device.util';
 import { pendingBondReturnWhere } from './bond-pending.util';
 import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
@@ -4257,9 +4257,12 @@ export class BidService {
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
 
-    // C1（7.5.2）：优先取预成交公示（两段式第一段）；无则回落存量 WIN_NOTICE（老"中标公示"，
-    // 其 publicityEnd 语义同为公示期）。多轮采购取"本轮"（最近评标结果之后）的公告——
-    // 上一轮已确认的公示不应继续给第二轮项目当公示状态（否则二轮永远"已公示"）。
+    // 公示载体（2026-10-19 收口）：本系统实际使用的载体是发布向导「中标公告」（WIN_BID_NOTICE）
+    // ——发布即公告中标候选人（确认 rank1 推荐为中标人）。此前查找只认 PRE_WIN_NOTICE/
+    // WIN_NOTICE（代码遗留的两段式轨道，系统内并不产生），导致「已发中标公告仍提示中标
+    // 候选人未公布」、中标通知书被 PUBLICITY_NOT_ENDED 卡死。三类候选并行查询、
+    // 仅取已发布者（草稿不得遮蔽已发布中标公告），本轮（最近评标结果之后）优先、
+    // 无则回落全量（在途/登记制场景）。
     const codes = await this.resolveAnnouncementCodes(project);
     const latestResult = await this.prisma.bidEvaluationResult.findFirst({
       where: { projectId },
@@ -4267,34 +4270,56 @@ export class BidService {
       select: { generatedAt: true },
     });
     const roundFilter = latestResult ? { createdAt: { gt: latestResult.generatedAt } } : {};
-    const pick = (type: any) => this.prisma.announcement.findFirst({
-      where: { relatedProjectCode: { in: codes }, type, ...roundFilter },
+    const pick = (type: AnnouncementType, round: boolean) => this.prisma.announcement.findFirst({
+      where: { relatedProjectCode: { in: codes }, type, ...(round ? roundFilter : {}) },
       orderBy: { createdAt: 'desc' },
-      select: { status: true, publishDate: true, publicityEnd: true },
+      select: { id: true, title: true, type: true, status: true, publishDate: true, publicityEnd: true },
     });
-    const notice =
-      (await pick('PRE_WIN_NOTICE')
-        .then(r => r ?? pick('WIN_NOTICE'))) ??
-      // 本轮无任何公示 → 回落全量（在途/登记制场景）
-      (await this.prisma.announcement.findFirst({
-        where: { relatedProjectCode: { in: codes }, type: 'PRE_WIN_NOTICE' },
-        orderBy: { createdAt: 'desc' },
-        select: { status: true, publishDate: true, publicityEnd: true },
-      })) ??
-      (await this.prisma.announcement.findFirst({
-        where: { relatedProjectCode: { in: codes }, type: 'WIN_NOTICE' },
-        orderBy: { createdAt: 'desc' },
-        select: { status: true, publishDate: true, publicityEnd: true },
-      }));
+    const carrierTypes: AnnouncementType[] = ['PRE_WIN_NOTICE', 'WIN_NOTICE', 'WIN_BID_NOTICE'];
+    const firstPublished = async (round: boolean) => {
+      const rows = await Promise.all(carrierTypes.map(t => pick(t, round)));
+      return rows.find(r => r?.status === 'PUBLISHED') ?? null;
+    };
+    const notice = (await firstPublished(true)) ?? (await firstPublished(false));
+
+    // 已确认中标候选人（最近一轮 rank1 推荐）——中标公告/预成交公示发布即确认，
+    // 随状态返回供前端「公示载体 + 中标候选人」展示与核对（查询失败不阻塞状态判定）
+    let winner: { supplierName: string; bidPrice: unknown } | null = null;
+    try {
+      winner = await this.prisma.bidEvaluationResult.findFirst({
+        where: { projectId, recommended: true, rank: 1 },
+        orderBy: { generatedAt: 'desc' },
+        select: { supplierName: true, bidPrice: true },
+      });
+    } catch { /* 候选人投影缺失不影响公示闸门判定 */ }
+    const winnerProjection = winner
+      ? { supplierName: winner.supplierName, ...(winner.bidPrice != null ? { bidPrice: Number(winner.bidPrice) } : {}) }
+      : null;
 
     if (!notice || notice.status !== 'PUBLISHED') {
-      return { hasPublicity: false, publicityEnd: null, canIssueAward: false };
+      return { hasPublicity: false, publicityEnd: null, canIssueAward: false, announcement: null, winner: winnerProjection };
     }
     const now = new Date();
-    const publicityEnd = notice.publicityEnd;
+    // 中标公告（WIN_BID_NOTICE）公示期读时推导（publishDate + 3 个日历日），不落库：
+    // ① 公开端 isOfflined 口径「有 publicityEnd 才会到期」——持久化会让中标公告 3 天后
+    //    被打成标题壳下线，而结果公告应长期可查（两段式的最终成交公告同样刻意不带 publicityEnd）；
+    // ② 存量已发布中标公告（修复前创建，publicityEnd 恒 null）经此自愈，无需数据迁移。
+    // 其余载体（预成交公示/成交公告）维持「null 不放行」铁律——create/update 路径已兜底必设。
+    let publicityEnd = notice.publicityEnd;
+    if (!publicityEnd && notice.type === 'WIN_BID_NOTICE' && notice.publishDate) {
+      const derived = new Date(notice.publishDate);
+      derived.setDate(derived.getDate() + 3);
+      publicityEnd = derived;
+    }
     // 公示期未设置（null）不再放行——create/update 路径已兜底必设；null 视为未满足（条例第54条）
     const canIssueAward = !!publicityEnd && now >= new Date(publicityEnd);
-    return { hasPublicity: true, publicityEnd, canIssueAward };
+    return {
+      hasPublicity: true,
+      publicityEnd,
+      canIssueAward,
+      announcement: { id: notice.id, title: notice.title, type: notice.type },
+      winner: winnerProjection,
+    };
   }
 
   /** P1: 设置最高限价 + 价格分公式配置 + 评标办法 */

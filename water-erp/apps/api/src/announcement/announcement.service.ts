@@ -130,12 +130,19 @@ export class AnnouncementService {
 
     // C1（7.5.2）：直接以 PUBLISHED 创建的预成交公示/成交公告同样设置公示期（登记制路径，
     // publishDate 可回填线下实际发布日 → 公示期随之起算）；
-    // BID_NOTICE 同样设 3 天公示期（2026-09-09：前端状态徽标「公示中/已公示」按此判定，兜底同款）
+    // BID_NOTICE 同样设 3 天公示期（2026-09-09：前端状态徽标「公示中/已公示」按此判定，兜底同款）。
+    // 注意不含 WIN_BID_NOTICE：中标公告的公示期由 BidService.getPublicityStatus 读时推导
+    // （publishDate+3d）——持久化会让公开端 isOfflined 在 3 天后把结果公告打成标题壳下线。
     if ((dto.type === 'PRE_WIN_NOTICE' || dto.type === 'WIN_NOTICE' || dto.type === 'BID_NOTICE') && status === 'PUBLISHED' && !result.publicityEnd) {
       const end = new Date(result.publishDate || new Date());
       end.setDate(end.getDate() + 3);
       await this.prisma.announcement.update({ where: { id: result.id }, data: { publicityEnd: end } });
       result.publicityEnd = end;
+    }
+
+    // 中标公告发布即链接/确认中标候选人（2026-10-19）：评标结果结构化落 metadata.winCandidates
+    if (result.type === 'WIN_BID_NOTICE' && status === 'PUBLISHED') {
+      await this.linkWinBidCandidates(result.id, result.relatedProjectCode);
     }
 
     // create 端点也触发联动（status=PUBLISHED + BID_NOTICE）
@@ -548,12 +555,18 @@ export class AnnouncementService {
     }
 
     // A1→C1（GB/T 43711 7.5.2）：预成交公示发布时自动设置公示期（3 个日历日）；
-    // WIN_NOTICE 保留同逻辑以兼容存量"中标公示"与手动直发成交公告的路径
+    // WIN_NOTICE 保留同逻辑以兼容存量"中标公示"与手动直发成交公告的路径。
+    // 不含 WIN_BID_NOTICE——中标公告公示期由 BidService.getPublicityStatus 读时推导（见 create 同款注释）
     if ((result.type === 'PRE_WIN_NOTICE' || result.type === 'WIN_NOTICE' || result.type === 'BID_NOTICE') && targetStatus === 'PUBLISHED' && !result.publicityEnd) {
       const end = new Date(result.publishDate || new Date());
       end.setDate(end.getDate() + 3);
       await this.prisma.announcement.update({ where: { id: result.id }, data: { publicityEnd: end } });
       result.publicityEnd = end;
+    }
+
+    // 中标公告发布即链接/确认中标候选人（2026-10-19，与 create 路径同款）
+    if (result.type === 'WIN_BID_NOTICE' && isPublishTransition) {
+      await this.linkWinBidCandidates(result.id, result.relatedProjectCode);
     }
 
     // 联动：BID_NOTICE 首次发布 → 创建 BidProject
@@ -797,6 +810,65 @@ export class AnnouncementService {
 
     this.logger.log(`预成交公示 ${pre.id} 已确认，生成成交公告 ${winnerNotice.id}`);
     return { winnerNotice, created: true };
+  }
+
+  /**
+   * 发布向导「中标公告」（WIN_BID_NOTICE）发布时链接中标候选人（2026-10-19）：
+   * 评标结果（最近一轮，rank 排序）结构化落 metadata.winCandidates——rank1 推荐即
+   * 「确认的中标候选人」，候选全量随公告留档（形状对齐 BidService.ensureWinnerNotice），
+   * 供 publicity-status / 门户展示与审计追溯。无关联项目或无评标结果 → 静默跳过
+   * （登记制/线下评标公告不拦发布），失败仅告警不阻塞。
+   */
+  private async linkWinBidCandidates(announcementId: string, relatedProjectCode: string | null | undefined) {
+    try {
+      const code = relatedProjectCode?.trim();
+      if (!code) return;
+      // 编号空间：公告存 PMI 业务编号（ZJ-xxx）或 BidProject 内部编号（BID-时间戳）——先 PMI 后直查
+      const pm = await this.prisma.projectManagementItem.findUnique({
+        where: { projectCode: code },
+        select: { id: true },
+      });
+      const project = pm
+        ? await this.prisma.bidProject.findFirst({
+            where: { projectManagementItemId: pm.id },
+            orderBy: { createdAt: 'desc' },
+            select: { id: true },
+          })
+        : await this.prisma.bidProject.findUnique({ where: { projectCode: code }, select: { id: true } });
+      if (!project) return;
+      const results = await this.prisma.bidEvaluationResult.findMany({
+        where: { projectId: project.id },
+        orderBy: [{ generatedAt: 'desc' }, { rank: 'asc' }],
+        select: { rank: true, supplierName: true, bidPrice: true, totalScore: true, recommended: true, generatedAt: true },
+      });
+      if (results.length === 0) return;
+      // 多轮采购只链接最近一轮（同批 generatedAt）
+      const latestGeneratedAt = results[0].generatedAt as Date;
+      const latest = results.filter(r => (r.generatedAt as Date).getTime() === latestGeneratedAt.getTime());
+      const winner = latest.find(r => r.rank === 1 && r.recommended);
+
+      const ann = await this.prisma.announcement.findUnique({
+        where: { id: announcementId },
+        select: { metadata: true },
+      });
+      const meta = { ...((ann?.metadata as Record<string, any>) ?? {}) };
+      meta.winCandidates = {
+        confirmedAt: new Date().toISOString(),
+        winner: winner
+          ? { rank: 1, supplierName: winner.supplierName, ...(winner.bidPrice != null ? { bidPrice: Number(winner.bidPrice) } : {}) }
+          : null,
+        candidates: latest.map(r => ({
+          rank: r.rank,
+          supplierName: r.supplierName,
+          recommended: r.recommended,
+          ...(r.bidPrice != null ? { bidPrice: Number(r.bidPrice) } : {}),
+        })),
+      };
+      await this.prisma.announcement.update({ where: { id: announcementId }, data: { metadata: meta as any } });
+      this.logger.log(`中标公告 ${announcementId} 已链接中标候选人（项目 ${project.id}，${latest.length} 名候选）`);
+    } catch (e) {
+      this.logger.warn(`中标公告链接中标候选人失败（不阻塞发布）: ${(e as Error).message}`);
+    }
   }
 
   /* ── 回收站体系（2026-09-26）：隐藏/下架/恢复，UI 不再提供删除 ── */

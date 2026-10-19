@@ -27,6 +27,8 @@ import { readFileSync, mkdirSync, writeFileSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import { hashSync } from 'bcryptjs';
 import { encryptPasswordVault } from '../src/auth/password-vault.util';
+import { GbCodeService } from '../src/common/gb-code.service';
+import { backfillGbCodes } from '../src/common/gb-code.backfill';
 import { sealPii, openPii, blindIndexPii } from '../src/common/crypto/sm-field-crypto';
 import { execSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -772,6 +774,17 @@ async function main() {
   };
   console.log('\n✔ Seed 完成，关键表行数：');
   for (const [k, v] of Object.entries(counts)) console.log(`    ${k}: ${v}`);
+
+  // ▶ 国标编码回填（2026-10-19）：种子直载绕过 GbCodeService 分配，发布赋码闸
+  //    （announcement.assertGbCodeIfLinked）会拦下所有关联项目公告发布——重灌后
+  //    此处自动补齐（幂等，已有码跳过）；PMI 18 位基码 ↔ BidProject 21 位（宿主复用）
+  const gbPrisma = prisma as unknown as ConstructorParameters<typeof GbCodeService>[0];
+  const gbRows = await backfillGbCodes(gbPrisma, new GbCodeService(gbPrisma));
+  if (gbRows.length > 0) {
+    const pmi = gbRows.filter(r => r.scope === 'PMI').length;
+    const bid = gbRows.filter(r => r.scope === 'BidProject').length;
+    console.log(`▶ 国标编码回填: PMI ${pmi} + BidProject ${bid}（发布赋码闸不再拦截存量项目）`);
+  }
 
   console.log('\n  各门户独立账号（每端口需单独登录，口令沿用 <用户名>@2026）：');
   console.log('    [信息门户   :3002]  公开访问，无需登录');

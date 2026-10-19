@@ -395,8 +395,19 @@ export function downloadRegulatoryExport(projectId: string) {
   return api.get<unknown>(`/bid/projects/${projectId}/regulatory-export`);
 }
 
+/** A1: 公示期状态——公示载体公告（预成交公示/成交公告/中标公告）+ 已确认中标候选人 */
+export interface PublicityStatus {
+  hasPublicity: boolean;
+  publicityEnd: string | null;
+  canIssueAward: boolean;
+  /** 公示载体公告（未发布/无公示时为 null） */
+  announcement: { id: string; title: string; type: string } | null;
+  /** 已确认中标候选人（最近一轮 rank1 推荐；评标结果缺失时为 null） */
+  winner: { supplierName: string; bidPrice?: number } | null;
+}
+
 export function getPublicityStatus(bidProjectId: string) {
-  return api.get<{ hasPublicity: boolean; publicityEnd: string | null; canIssueAward: boolean }>(
+  return api.get<PublicityStatus>(
     `/bid/projects/${bidProjectId}/publicity-status`,
   );
 }

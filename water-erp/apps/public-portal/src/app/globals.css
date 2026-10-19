@@ -2945,6 +2945,35 @@ a.group:hover::after {
   color: #26364e;
 }
 
+/* 公告正文表格（2026-10-19）：发布向导正文改走 mammoth convertToHtml（表格保结构），
+   中标公告投标单位/报价等表格按 1px 发丝线 + 冰蓝表头渲染，与供应商门户同口径 */
+.announcement-detail-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 4px 0 18px;
+}
+
+.announcement-detail-content td,
+.announcement-detail-content th {
+  border: 1px solid #dbe4ef;
+  padding: 8px 12px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #26364e;
+}
+
+.announcement-detail-content th {
+  background: rgba(240, 245, 255, 0.55);
+  font-weight: 700;
+  text-align: center;
+}
+
+.announcement-detail-content td p {
+  margin: 0;
+  line-height: 1.7;
+  text-align: inherit;
+}
+
 /* ═══════════════════════════════════════════════════════════════
    水叮当 & 统合顶栏 动画
    ═══════════════════════════════════════════════════════════════ */
