@@ -64,16 +64,17 @@ export default function CompanyLinksPage() {
         icon={Building2}
         title="公司归属管理"
         sub="贵司可加入多家公司的供应商库，接收其采购邀请；申请将经该公司初审/复审/终审三级审批"
-        actions={
-          <>
+        actions={(
+          // 相邻双按钮一律包 neu-btn-group（cgzxui：primary 44px 与 soft 38px 统一为 38px 等高）
+          <span className="neu-btn-group">
             <SpButton variant="primary" water icon={Plus} onClick={() => { setPrefillCompany(undefined); setApplyOpen(true); }}>
               申请加入公司
             </SpButton>
             <SpButton icon={ClipboardList} onClick={() => setProgressOpen(true)}>
               审核进度{pendingCount > 0 ? `（${pendingCount}）` : ""}
             </SpButton>
-          </>
-        }
+          </span>
+        )}
       />
 
       {/* 目前归属的公司 */}
