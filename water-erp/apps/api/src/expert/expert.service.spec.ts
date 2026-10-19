@@ -80,7 +80,7 @@ describe('ExpertService', () => {
       bidSignPacket: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}) },
       expertCert: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn().mockResolvedValue({}), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
-      bidRequirementReview: { findMany: jest.fn().mockResolvedValue([]) },
+      bidRequirementReview: { findMany: jest.fn().mockResolvedValue([]), upsert: jest.fn().mockResolvedValue({}) },
       auditLog: { create: jest.fn().mockResolvedValue({}) },
       $transaction: jest.fn(async (arg: any) => (Array.isArray(arg) ? Promise.all(arg) : arg(prisma))),
       $queryRaw: jest.fn(),
@@ -264,6 +264,41 @@ describe('ExpertService', () => {
       expect(prisma.bidExpert.update).toHaveBeenCalledWith(
         expect.objectContaining({ data: { avoidanceConfirmed: true, conflictedSupplierIds: ['s-1'] } }),
       );
+    });
+  });
+
+  describe('报告确认后个人评审写锁定（2026-10-19：「已完成评审」窗口=只读——提交/草稿/核对已锁，补齐条款标注与重复确认）', () => {
+    const confirmedExpert = {
+      ...mockExpert,
+      signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true,
+      confidentialityAgreed: true, disciplineAgreed: true,
+      progress: 100, reportConfirmed: true, reportConfirmedAt: new Date('2026-10-19T08:00:00Z'),
+    };
+
+    beforeEach(() => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'proj-1', stage: 'EVALUATING', roomCode: null, evaluationDeadline: null });
+    });
+
+    it('upsertRequirementReview 报告确认后 → SCORE_LOCKED（条款标注=个人评审工件，确认后不得再写）', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue(confirmedExpert);
+      prisma.aiBidderResult.findFirst.mockResolvedValue({ id: 'abr-1' });
+
+      await expect(
+        service.upsertRequirementReview('user-1', 'proj-1', 'sup-1', {
+          requirementId: 'req-1', category: 'technical', verdict: 'pass', note: '补标',
+        }),
+      ).rejects.toMatchObject({ response: { code: 'SCORE_LOCKED' } });
+      expect(prisma.bidRequirementReview.upsert).not.toHaveBeenCalled();
+    });
+
+    it('confirmReport 重复确认 → REPORT_ALREADY_CONFIRMED（不重盖章、不重复监督日志）', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue(confirmedExpert);
+
+      await expect(service.confirmReport('user-1', 'proj-1', '再确认一次')).rejects.toMatchObject({
+        response: { code: 'REPORT_ALREADY_CONFIRMED' },
+      });
+      expect(prisma.bidExpert.update).not.toHaveBeenCalled();
+      expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
     });
   });
 

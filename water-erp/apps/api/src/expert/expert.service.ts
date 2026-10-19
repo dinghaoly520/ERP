@@ -1102,6 +1102,11 @@ export class ExpertService {
   async upsertRequirementReview(userId: string, projectId: string, supplierId: string, dto: UpsertRequirementReviewDto) {
     await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     const { expert, bidderResult } = await this.resolveReviewContext(userId, projectId, supplierId);
+    // 报告确认锁（2026-10-19）：条款标注=个人评审工件（条款对比视图/留痕链证据），
+    // 与评分/核对同口径——报告确认后不得再写，否则「已确认报告」不再覆盖当前标注集。
+    if (expert.reportConfirmed) {
+      throw new BadRequestException({ error: '评审报告已确认，评分已锁定', code: 'SCORE_LOCKED' });
+    }
     return this.prisma.bidRequirementReview.upsert({
       where: {
         projectId_bidderResultId_expertId_requirementId: {
@@ -2262,6 +2267,11 @@ export class ExpertService {
     this.assertRegularExpert(expert, '确认评审报告');
     if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed || !expert.confidentialityAgreed || !expert.disciplineAgreed) {
       throw new ForbiddenException({ error: '请先完成身份核验、回避确认、AI 辅助评标声明、保密承诺与评标纪律确认', code: 'VERIFICATION_REQUIRED' });
+    }
+    // 报告确认幂等闸（2026-10-19）：重复确认此前会重盖 reportConfirmedAt + 重复监督日志
+    // （证据噪音）；「已完成评审」窗口=只读，二次调用直接拒绝。
+    if (expert.reportConfirmed) {
+      throw new ConflictException({ error: '评审报告已确认，无需重复确认', code: 'REPORT_ALREADY_CONFIRMED' });
     }
     // P1-5/P1-6（中断审查）：存量 progress 偏低不再一票否决——回避申报/废标翻转后分母已收缩
     // 但重算触发点竞态时会陈旧；事务内按可评集合活体重算自愈，活体仍 <100 才是真实未评完
