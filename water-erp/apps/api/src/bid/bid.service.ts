@@ -5776,7 +5776,7 @@ export class BidService {
     return { sent, notFound };
   }
 
-  /** 定时发送（UI 默认定时点=开标前间隔常量）：写入 SCHEDULED；若已发则 409。重复定时以最新为准。 */
+  /** 定时发送（UI 默认定时点=开标前 2 小时，早于撤销闸边界）：写入 SCHEDULED；若已发则 409。重复定时以最新为准。 */
   async scheduleNudge(
     bidProjectId: string,
     input: { sendAt: string; channels: string[]; messages: Record<string, { title: string; body: string }> },

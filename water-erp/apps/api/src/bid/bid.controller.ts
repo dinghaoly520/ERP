@@ -603,7 +603,7 @@ export class BidController {
   ) { return this.bidService.sendNudgeNow(id, dto, userId); }
 
   @Post('projects/:id/supplier-nudge/schedule')
-  @ApiOperation({ summary: '催促未投递供应商：定时发送（一次性；默认定时点=开标前间隔常量）' })
+  @ApiOperation({ summary: '催促未投递供应商：定时发送（一次性；UI 默认定时点=开标前 2 小时）' })
   scheduleSupplierNudge(
     @Param('id') id: string,
     @Body() dto: { sendAt: string; channels: string[]; messages: Record<string, { title: string; body: string }> },

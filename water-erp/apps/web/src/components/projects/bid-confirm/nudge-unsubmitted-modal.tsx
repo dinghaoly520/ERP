@@ -6,6 +6,15 @@ import { BID_DEADLINE_BEFORE_OPENING_MS, formatDurationCn } from '@water-erp/sha
 
 /** 间隔时长中文标签（随共享常量自动更新） */
 const GAP_LABEL = formatDurationCn(BID_DEADLINE_BEFORE_OPENING_MS);
+
+/**
+ * 定时催促默认提前量：开标前 2 小时（且不小于间隔常量）。
+ * 勿把定时点设在 openTime − BID_DEADLINE_BEFORE_OPENING_MS 边界上——后端撤销闸为
+ * 严格大于（openTime − now > 间隔常量），恰好落在边界的定时到点必被撤销（2026-10-19
+ * 实录：定时催促自窗口闸上线起实际不可用）。max() 保证间隔常量日后调大时定时点自动外移。
+ */
+const NUDGE_DEFAULT_LEAD_MS = Math.max(BID_DEADLINE_BEFORE_OPENING_MS, 2 * 3_600_000);
+const LEAD_LABEL = formatDurationCn(NUDGE_DEFAULT_LEAD_MS);
 import { toast } from 'sonner';
 import { Modal } from '@/components/workbench';
 import {
@@ -43,7 +52,7 @@ function fmt(iso: string | null): string {
 
 /**
  * 催促"已回执参加但未投递"供应商：打开即用 AI 逐家生成文案（含对应供应商名称），
- * 通知渠道默认 3 种；可人工立即发送或定时（开标前间隔时长）发送，人工/自动共用一次额度。
+ * 通知渠道默认 3 种；可人工立即发送或定时（开标前 2 小时，见 NUDGE_DEFAULT_LEAD_MS）发送，人工/自动共用一次额度。
  * 距开标不足间隔时长后催促通道整体关闭（立即/定时均不可，2026-09-01 拍板，后端同步闸门）。
  */
 export function NudgeUnsubmittedModal({ isOpen, onClose, project, bidProjectId, onChanged }: Props) {
@@ -84,15 +93,18 @@ export function NudgeUnsubmittedModal({ isOpen, onClose, project, bidProjectId, 
   const mode: 'sent' | 'scheduled' | 'editable' =
     status?.status === 'SENT' ? 'sent' : status?.status === 'SCHEDULED' ? 'scheduled' : 'editable';
 
-  // 定时点 = 开标前间隔时长（取共享常量）
+  // 定时点 = 开标前 NUDGE_DEFAULT_LEAD_MS（须早于撤销闸边界，见常量注释）
   const scheduleAtIso = useMemo(() => {
     if (!status?.openTime) return null;
-    return new Date(new Date(status.openTime).getTime() - BID_DEADLINE_BEFORE_OPENING_MS).toISOString();
+    return new Date(new Date(status.openTime).getTime() - NUDGE_DEFAULT_LEAD_MS).toISOString();
   }, [status?.openTime]);
   const scheduleInFuture = !!scheduleAtIso && new Date(scheduleAtIso).getTime() > Date.now();
   // 催促窗口（2026-09-01 拍板）：距开标不足间隔时长后催促通道整体关闭——立即发送与定时均不可。
-  // openTime 未登记时无从判定窗口，不拦（与后端 assertNudgeWindowOpen 口径一致）
-  const windowClosed = !!status?.openTime && !scheduleInFuture;
+  // 按间隔常量直接判定（与后端 assertNudgeWindowOpen/nudgeWindowOpen 同口径），与定时点解耦：
+  // 定时点已过（距开标不足 2 小时）但窗口未关时，立即发送仍可用。
+  // openTime 未登记时无从判定窗口，不拦（与后端口径一致）
+  const msToOpening = status?.openTime ? new Date(status.openTime).getTime() - Date.now() : null;
+  const windowClosed = msToOpening !== null && msToOpening <= BID_DEADLINE_BEFORE_OPENING_MS;
 
   const allHaveContent = targets.length > 0 && targets.every((t) => messages[t.supplierId]?.body?.trim());
 
@@ -183,7 +195,7 @@ export function NudgeUnsubmittedModal({ isOpen, onClose, project, bidProjectId, 
     setScheduling(true);
     try {
       await scheduleSupplierNudge(bidProjectId, { sendAt: scheduleAtIso, channels, messages });
-      toast.success(`已设定开标前 ${GAP_LABEL}（${fmt(scheduleAtIso)}）自动催促`);
+      toast.success(`已设定开标前 ${LEAD_LABEL}（${fmt(scheduleAtIso)}）自动催促`);
       await load();
       onChanged?.();
     } catch (e: any) {
@@ -238,10 +250,16 @@ export function NudgeUnsubmittedModal({ isOpen, onClose, project, bidProjectId, 
               onClick={() => void handleSchedule()}
               disabled={scheduling || sending || !allHaveContent || !scheduleInFuture}
               className="neu-btn-soft gap-1.5"
-              title={scheduleInFuture ? `开标前 ${GAP_LABEL} 自动发送` : `距开标不足 ${GAP_LABEL}，催促通道已关闭`}
+              title={
+                scheduleInFuture
+                  ? `开标前 ${LEAD_LABEL} 自动发送`
+                  : windowClosed
+                    ? `距开标不足 ${GAP_LABEL}，催促通道已关闭`
+                    : `距开标已不足 ${LEAD_LABEL}，定时点已过——请改用立即发送`
+              }
             >
               {scheduling ? <Loader2 size={13} className="animate-spin" /> : <CalendarClock size={13} />}
-              {`定时（开标前${GAP_LABEL}）`}
+              {`定时（开标前${LEAD_LABEL}）`}
             </button>
             <button
               type="button"
@@ -326,7 +344,7 @@ export function NudgeUnsubmittedModal({ isOpen, onClose, project, bidProjectId, 
           {mode === 'scheduled' ? (
             <div className="wb-tone-banner wb-tone-banner--info text-xs">
               <CalendarClock size={14} />
-              <span className="text-[var(--foreground)]">已设定 <strong className="tabular-nums">{fmt(status?.sendAt ?? null)}</strong>（开标前 {GAP_LABEL}）自动催促</span>
+              <span className="text-[var(--foreground)]">已设定 <strong className="tabular-nums">{fmt(status?.sendAt ?? null)}</strong>（开标前 {LEAD_LABEL}）自动催促</span>
             </div>
           ) : windowClosed ? (
             <div className="wb-tone-banner wb-tone-banner--warning text-[11px] font-semibold">
@@ -337,8 +355,8 @@ export function NudgeUnsubmittedModal({ isOpen, onClose, project, bidProjectId, 
             <div className="flex items-center gap-2 rounded-[14px] bg-[oklch(0.975_0.012_258/0.4)] px-3 py-2 text-[11px] text-[var(--muted-foreground)]">
               <CalendarClock size={13} />
               {scheduleInFuture
-                ? <span>定时发送将于 <strong className="tabular-nums text-[var(--foreground)]">{fmt(scheduleAtIso)}</strong>（开标前 {GAP_LABEL}）自动触发；若提前手动发送则取消定时。</span>
-                : <span>距开标已不足 {GAP_LABEL}，催促通道已关闭，无法发送催促通知。</span>}
+                ? <span>定时发送将于 <strong className="tabular-nums text-[var(--foreground)]">{fmt(scheduleAtIso)}</strong>（开标前 {LEAD_LABEL}）自动触发；若提前手动发送则取消定时。</span>
+                : <span>距开标已不足 {LEAD_LABEL}，定时点已过——请改用立即发送（窗口于开标前 {GAP_LABEL} 关闭）。</span>}
             </div>
           )}
         </>
