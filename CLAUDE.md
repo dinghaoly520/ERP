@@ -186,9 +186,11 @@ pnpm dev:mobile      # :3011 移动驾驶舱（数据库/台账/进展 手机端
 # AI 投标分析 worker（独立进程 — 必需，否则 per-item 分析任务不出队执行）
 pnpm --filter api dev:worker:ai-bid-analysis   # = nest build && node dist/ai-bid-analysis-worker.js（dist 镜像 src，无 dist/src 层）
 
-# Mock U盾中间件（Node，:17999，全仿真 CA 盾：插拔/PIN/锁死）
-pnpm dev:ukey-mw            # :17999
-pnpm dev:ukey-mw-guard      # 哨兵式（pnpm dev 已含）：:17999 已被 systemd/便携盘常驻占用则让位，空闲才拉起 U盘模式（2026-09-18 起随 pnpm dev 自动接入）
+# Mock U盾中间件（已于 2026-10-19 退役——systemd 已 stop+disable）
+# 供应商端 SCCA 适配时已删 mock 轨；专家端自动回落浏览器软证书（MockUKeyAdapter，零进程零端口）
+# 命令保留但不应再启动：
+# pnpm dev:ukey-mw          # :17999（已退役）
+# pnpm dev:ukey-mw-guard    # :17999（已退役，guard 会因 systemd 不在而尝试拉起——生产不应启用）
 
 # OCR 微服务（Python，:8100）
 pnpm dev:ocr
