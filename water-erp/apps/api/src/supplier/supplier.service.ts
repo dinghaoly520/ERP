@@ -930,12 +930,15 @@ export class SupplierService {
    * 推荐结果无扩充字段，对比页大面积「—」。改为面板打开时按 supplierId 实时
    * 抓取库内资料（与 ai.service 推荐组装同源 include），对比数据永远以库为准。
    */
-  async compareProfiles(ids: string[]): Promise<Record<string, unknown>> {
+  /** 候选对比（公司视野过滤 2026-10-19）：含明文联系人电话（遴选/邀请场景裁定）——
+   *  出视野 id 静默丢弃（结果列缺席），不得向视野外供应商出口资料。 */
+  async compareProfiles(ids: string[], actor?: AuthenticatedUser, companyId?: string): Promise<Record<string, unknown>> {
     const cleaned = [...new Set((ids ?? []).map((i) => String(i).trim()).filter(Boolean))].slice(0, 12);
     if (cleaned.length === 0) return {};
 
+    const f = actor ? supplierCompanyWhere(await this.companyScope.resolveScope(actor, companyId)) : {};
     const suppliers = await this.prisma.supplier.findMany({
-      where: { id: { in: cleaned } },
+      where: { id: { in: cleaned }, ...f },
       include: {
         classification: true,
         contacts: { where: { isPrimary: true }, take: 2 },
@@ -3375,9 +3378,15 @@ export class SupplierService {
   /* 淘汰预警 + 人工确认（决策 #3：只预警，不自动改状态） */
 
   /** 扫描淘汰候选（最近 3 次绩效均为 E），通知管理员；不修改 status。 */
-  async reviewEliminationCandidates() {
+  /** 淘汰候选扫描（公司隔离 2026-10-19）：候选池与知会范围均限视野——此前全量扫描
+   *  APPROVED 供应商且 sendToRole 平台全员知会，他司淘汰名单（供应商名）跨公司外泄。
+   *  限定视野走 notifyCompanyApprovers（逐视野公司发该公司 leader+staff）；全部公司
+   *  视野（admin 默认）保持 sendToRole 原行为。 */
+  async reviewEliminationCandidates(actor?: AuthenticatedUser, companyId?: string) {
+    const scope = actor ? await this.companyScope.resolveScope(actor, companyId) : null;
+    const f = scope ? supplierCompanyWhere(scope) : {};
     const suppliers = await this.prisma.supplier.findMany({
-      where: { status: 'APPROVED' },
+      where: { status: 'APPROVED', ...f },
       select: { id: true, name: true },
     });
 
@@ -3402,8 +3411,15 @@ export class SupplierService {
         content: `${candidates.length} 家供应商进入淘汰候选，请人工复核：${names}`,
         link: '/supplier',
       };
-      // 淘汰复核属 :3005 供应商库管理（leader+staff）；admin 只管管理端账号，不收业务知会
-      await Promise.all(['leader', 'staff'].map(r => this.notificationService.sendToRole(r, payload)));
+      // 淘汰复核属 :3005 供应商库管理（leader+staff）；admin 只管管理端账号，不收业务知会。
+      // 限定视野时逐视野公司发该公司 approvers（知会不跨公司）；全部公司视野保持平台全员。
+      if (scope && !scope.all) {
+        for (const cid of scope.companyIds) {
+          await this.notifyCompanyApprovers(cid, payload);
+        }
+      } else {
+        await Promise.all(['leader', 'staff'].map(r => this.notificationService.sendToRole(r, payload)));
+      }
     }
 
     return candidates;
@@ -3471,16 +3487,20 @@ export class SupplierService {
     };
   }
 
-  /** 发送资质维护提醒通知：站内信触达供应商门户（link 指向 /profile 资质与证照 tab）。 */
-  async notifyQualificationAlert(qualificationId: string, userId: string) {
+  /** 发送资质维护提醒通知：站内信触达供应商门户（link 指向 /profile 资质与证照 tab）。
+   *  公司视野断言（2026-10-19）：此前可直打任意资质 id 向他司供应商发提醒。 */
+  async notifyQualificationAlert(qualificationId: string, userId: string, actor?: AuthenticatedUser) {
     if (!userId) throw new ForbiddenException({ error: '未登录', code: 'UNAUTHORIZED' });
     const qual = await this.prisma.supplierQualification.findUnique({
       where: { id: qualificationId },
-      select: { id: true, name: true, validTo: true, supplier: { select: { userId: true } } },
+      select: { id: true, name: true, validTo: true, supplier: { select: { id: true, userId: true, companyId: true } } },
     });
     if (!qual) throw new NotFoundException('资质记录不存在');
     if (!qual.supplier?.userId) {
       throw new BadRequestException({ error: '该供应商尚未关联登录账号，无法发送通知', code: 'NO_SUPPLIER_ACCOUNT' });
+    }
+    if (actor && actor.role !== 'supplier') {
+      await this.assertSupplierInScope(qual.supplier, actor);
     }
 
     const now = new Date();
@@ -3819,11 +3839,14 @@ export class SupplierService {
     return { ...stats, levelCounts, avgGradeScore, evalTotal: total, trend, cats };
   }
 
-  async listClassifications() {
+  /** 分类列表（公司隔离 2026-10-19）：_count 过滤计数（视野内供应商数，库口径=APPROVED link-only），
+   *  总览「分类分布」曾全量计数跨视野；无 actor（内部调用）保持全量。 */
+  async listClassifications(actor?: AuthenticatedUser, companyId?: string) {
+    const f = actor ? supplierCompanyWhere(await this.companyScope.resolveScope(actor, companyId)) : {};
     return this.prisma.supplierClassification.findMany({
       orderBy: { createdAt: 'asc' },
       include: {
-        _count: { select: { suppliers: true } },
+        _count: { select: { suppliers: f.companyLinks ? { where: f } : true } },
       },
     });
   }
@@ -3923,13 +3946,22 @@ export class SupplierService {
 
   /* 通知供应商 */
 
+  /** 批量通知供应商（公司视野过滤 2026-10-19）：此前可直打任意 id 向他司供应商发站内+短信。
+   *  出视野目标静默跳过（响应带 outOfScope 计数）——多选含过期项时整批不 403，与列表视野一致。 */
   async notifySuppliers(
     supplierIds: string[],
     channels: string[],
     payload: { type: string; title: string; content: string; link?: string },
+    actor?: AuthenticatedUser,
+    companyId?: string,
   ) {
-    const suppliers = await this.prisma.supplier.findMany({
+    const existing = await this.prisma.supplier.findMany({
       where: { id: { in: supplierIds } },
+      select: { id: true },
+    });
+    const f = actor ? supplierCompanyWhere(await this.companyScope.resolveScope(actor, companyId)) : {};
+    const suppliers = await this.prisma.supplier.findMany({
+      where: { id: { in: supplierIds }, ...f },
       select: { id: true, name: true, userId: true },
     });
 
@@ -3944,8 +3976,9 @@ export class SupplierService {
       results.push({ supplierId: s.id, supplierName: s.name, userId: s.userId, channels: r.results });
     }
 
-    const notFound = supplierIds.length - suppliers.length;
-    return { totalTargets: supplierIds.length, sent: results.length, notFound, results };
+    const notFound = supplierIds.length - existing.length;
+    const outOfScope = existing.length - suppliers.length;
+    return { totalTargets: supplierIds.length, sent: results.length, notFound, outOfScope, results };
   }
 
   /* 供应商关注/收藏 */
@@ -3962,15 +3995,18 @@ export class SupplierService {
     return { favorited: true };
   }
 
-  async getFavorites(userId: string) {
+  /** 我的收藏（公司隔离 2026-10-19）：解析供应商叠加 link 视野——出视野收藏（跨公司）
+   *  不展示供应商信息，与库列表可见性同口径；未关联供应商记录的收藏本就过滤（下方 filter）。 */
+  async getFavorites(userId: string, actor?: AuthenticatedUser, companyId?: string) {
     const favs = await this.prisma.supplierFavorite.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
     });
     if (favs.length === 0) return [];
     const supplierIds = favs.map(f => f.supplierId);
+    const f = actor ? supplierCompanyWhere(await this.companyScope.resolveScope(actor, companyId)) : {};
     const suppliers = await this.prisma.supplier.findMany({
-      where: { id: { in: supplierIds } },
+      where: { id: { in: supplierIds }, ...f },
       include: { classification: { select: { id: true, name: true } } },
     });
     const sMap = new Map(suppliers.map(s => [s.id, s]));
@@ -3986,9 +4022,30 @@ export class SupplierService {
 
   /* 近期动态 */
 
-  async getRecentActivities(limit = 15) {
+  /** 近期动态（公司隔离 2026-10-19）：总览页旁路端点曾全量拉 audit——跨公司供应商名外泄。
+   *  AuditLog 无公司列，先取视野内供应商 id 集再限定 resourceId；供应商取数用审批流双谓词
+   *  （APPROVED link OR 主归属）——动态含注册审批动作，流转件终审落 link 前只有 Supplier.companyId
+   *  （对齐 C1 2026-10-19 口径）。全部公司视野（admin 默认）不加过滤，保持原行为。 */
+  async getRecentActivities(limit = 15, actor?: AuthenticatedUser, companyId?: string) {
+    const where: any = { resourceType: 'supplier' };
+    if (actor) {
+      const scope = await this.companyScope.resolveScope(actor, companyId);
+      const ids = scopeCompanyIds(scope);
+      if (ids !== null) {
+        const inScope = await this.prisma.supplier.findMany({
+          where: {
+            OR: [
+              { companyLinks: { some: { companyId: { in: ids }, status: 'APPROVED' } } },
+              { companyId: { in: ids } },
+            ],
+          },
+          select: { id: true },
+        });
+        where.resourceId = { in: inScope.map(s => s.id) };
+      }
+    }
     const logs = await this.prisma.auditLog.findMany({
-      where: { resourceType: 'supplier' },
+      where,
       orderBy: { createdAt: 'desc' },
       take: limit,
       include: { user: { select: { displayName: true } } },
@@ -4002,11 +4059,38 @@ export class SupplierService {
 
   /** 供应商操作历史（审计）：不可变留痕，供「操作历史」只读看板追溯。
    *  覆盖入库/审核/停用/拉黑/恢复/变更/评价/淘汰/标签等全部 audit 落库动作。 */
-  async listSupplierAuditLogs(opts: { page: number; pageSize: number; supplierId?: string; action?: string; dateFrom?: string; dateTo?: string }) {
+  /** 供应商操作历史（公司隔离 2026-10-19）：全局模式曾全量拉审计流（nameMap 解析跨公司供应商名）；
+   *  按供应商模式可直打他司 id。全局模式=视野内供应商 id 集（双谓词，同 getRecentActivities）；
+   *  按供应商模式=该供应商须在视野（同详情页 assertSupplierInScope 谓词）。 */
+  async listSupplierAuditLogs(opts: { page: number; pageSize: number; supplierId?: string; action?: string; dateFrom?: string; dateTo?: string }, actor?: AuthenticatedUser, companyId?: string) {
     const page = Math.max(1, opts.page);
     const pageSize = Math.min(100, Math.max(1, opts.pageSize));
     const where: any = { resourceType: 'supplier' };
-    if (opts.supplierId) where.resourceId = opts.supplierId;
+    if (opts.supplierId) {
+      if (actor && actor.role !== 'supplier') {
+        const supplier = await this.prisma.supplier.findUnique({
+          where: { id: opts.supplierId },
+          select: { id: true, companyId: true },
+        });
+        if (supplier) await this.assertSupplierInScope(supplier, actor);
+      }
+      where.resourceId = opts.supplierId;
+    } else if (actor) {
+      const scope = await this.companyScope.resolveScope(actor, companyId);
+      const ids = scopeCompanyIds(scope);
+      if (ids !== null) {
+        const inScope = await this.prisma.supplier.findMany({
+          where: {
+            OR: [
+              { companyLinks: { some: { companyId: { in: ids }, status: 'APPROVED' } } },
+              { companyId: { in: ids } },
+            ],
+          },
+          select: { id: true },
+        });
+        where.resourceId = { in: inScope.map(s => s.id) };
+      }
+    }
     if (opts.action) where.action = opts.action;
     // 日期范围（YYYY-MM-DD，按本地时区边界）：dateFrom 当日 00:00:00 起，dateTo 当日 23:59:59.999 止。
     if (opts.dateFrom || opts.dateTo) {

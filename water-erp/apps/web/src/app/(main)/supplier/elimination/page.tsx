@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { AlertTriangle, Trash2, RefreshCw } from 'lucide-react';
 import { getEliminationCandidates, confirmEliminate } from '@/lib/api/supplier';
 import type { EliminationCandidate } from '@/lib/api/supplier';
+import { CompanySelect, readInitialCompanyId } from '@/components/company/company-select';
 import { Modal, TableSkeleton } from '@/components/workbench';
 
 export default function EliminationPage() {
@@ -17,20 +18,23 @@ export default function EliminationPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [confirmModal, setConfirmModal] = useState<EliminationCandidate | null>(null);
   const [reason, setReason] = useState('');
+  // 公司视野（admin 选择器，与供应商库共用 localStorage 记忆；非 admin 后端强制本公司）
+  const [companyId, setCompanyId] = useState('all');
+  useEffect(() => { setCompanyId(readInitialCompanyId()); }, []);
 
-  const loadData = async () => {
+  const loadData = async (cid: string = companyId) => {
     setLoading(true); setErrored(false);
-    try { setCandidates(await getEliminationCandidates()); } catch { setErrored(true); }
+    try { setCandidates(await getEliminationCandidates(cid)); } catch { setErrored(true); }
     setLoading(false);
   };
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [companyId]);
 
   const handleManualScan = async () => {
     setRefreshing(true);
     toast.info('正在扫描供应商绩效数据…');
     try {
-      const fresh = await getEliminationCandidates();
+      const fresh = await getEliminationCandidates(companyId);
       setCandidates(fresh);
       toast.success(fresh.length > 0 ? `扫描完成，发现 ${fresh.length} 个淘汰候选` : '扫描完成，当前无淘汰候选');
     } catch (e: any) {
@@ -80,6 +84,7 @@ export default function EliminationPage() {
             </div>
           </div>
           <div className="page-hero__right">
+            <CompanySelect value={companyId} onChange={setCompanyId} countMode="suppliers" />
             <button onClick={handleManualScan} disabled={refreshing || loading} className="neu-btn-xs gap-1" title="手动触发绩效扫描">
               <RefreshCw size={13} className={refreshing ? "animate-spin" : ""} />
               {refreshing ? '扫描中...' : '手动扫描'}
@@ -102,7 +107,7 @@ export default function EliminationPage() {
           <div className="flex flex-col items-center gap-3 py-10">
             <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><AlertTriangle size={22} className="text-[var(--danger)]" /></div>
             <p className="text-sm font-semibold text-[var(--danger)]">淘汰候选加载失败</p>
-            <button onClick={loadData} className="neu-btn-soft"><RefreshCw size={15} />重试</button>
+            <button onClick={() => loadData()} className="neu-btn-soft"><RefreshCw size={15} />重试</button>
           </div>
         </div>
       ) : loading ? (

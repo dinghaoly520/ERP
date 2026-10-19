@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { getQualificationAlerts, notifyQualificationAlert } from '@/lib/api/supplier';
 import type { QualificationAlerts } from '@/lib/api/supplier';
+import { CompanySelect, readInitialCompanyId } from '@/components/company/company-select';
 
 export default function QualificationAlertsPage() {
   const router = useRouter();
@@ -19,11 +20,14 @@ export default function QualificationAlertsPage() {
   const [notifiedIds, setNotifiedIds] = useState<Set<string>>(new Set());
   // 批量选择
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // 公司视野（admin 选择器，与供应商库共用 localStorage 记忆；非 admin 后端强制本公司）
+  const [companyId, setCompanyId] = useState('all');
+  useEffect(() => { setCompanyId(readInitialCompanyId()); }, []);
 
   const load = useCallback(() => {
     setLoading(true);
-    getQualificationAlerts().then(setData).catch(() => setData(null)).finally(() => setLoading(false));
-  }, []);
+    getQualificationAlerts(companyId).then(setData).catch(() => setData(null)).finally(() => setLoading(false));
+  }, [companyId]);
   useEffect(() => { load(); }, [load]);
 
   const notifyItem = async (id: string, name: string) => {
@@ -80,6 +84,7 @@ export default function QualificationAlertsPage() {
             </div>
           </div>
           <div className="page-hero__right">
+            <CompanySelect value={companyId} onChange={setCompanyId} countMode="suppliers" />
             <button onClick={() => { load(); toast.success('已刷新'); }} disabled={loading} className="neu-btn-xs gap-1"><RefreshCw size={13} className={loading ? 'animate-spin' : ''} /></button>
             <button onClick={() => router.push('/supplier/repository')} className="neu-btn-soft is-porcelain">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>

@@ -421,7 +421,7 @@ export default function SupplierRepositoryPage() {
       {showObjections && <ObjectionBoardModal onClose={() => setShowObjections(false)} />}
 
       {/* 操作历史（审计留痕，只读） */}
-      {showAuditLog && <SupplierAuditLogModal onClose={() => setShowAuditLog(false)} />}
+      {showAuditLog && <SupplierAuditLogModal onClose={() => setShowAuditLog(false)} companyId={companyId} />}
 
       {/* page-hero */}
       <div className="page-hero">
