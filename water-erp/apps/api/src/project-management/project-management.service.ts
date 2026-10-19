@@ -510,10 +510,10 @@ export class ProjectManagementService {
     // fallback 不再取 now（旧行为 deadline=now-12h，项目一创建即 DEADLINE_PASSED，供应商无法投递）
     const parsedOpen = parseBidOpeningTime(item.bidOpeningTime);
     const openTime = parsedOpen ?? (item.initiationDate ?? new Date(Date.now() + 72 * 60 * 60 * 1000));
-    // 投递截止 = 开标前 BID_DEADLINE_BEFORE_OPENING_MS（24h 业务规则，第五写点，口径同 ）；
+    // 投递截止 = 开标前 BID_DEADLINE_BEFORE_OPENING_MS（间隔常量，2026-10-16 起 10 分钟；第五写点）；
     // 兜底【仅当 openTime 来自纯兜底（now+72h）时顺延至 24h 后】：真实解析出的历史开标
     // 时间（如老项目时间轴 3/26）若也顺延，会出现"开标 3/26 / 截止 9/1"倒挂——历史项目
-    // 忠实过期（deadline=开标-24h，供应商端显示已截止、不可投），不再人为续命。
+    // 忠实过期（deadline=开标−间隔常量，供应商端显示已截止、不可投），不再人为续命。
     let deadline = new Date(openTime.getTime() - BID_DEADLINE_BEFORE_OPENING_MS);
     const openTimeIsPureFallback = parsedOpen == null && item.initiationDate == null;
     if (openTimeIsPureFallback && deadline.getTime() <= Date.now()) {
@@ -1487,11 +1487,11 @@ ${shortlist}
             where: { id: projectId },
             data: { bidOpeningTime },
           });
-          // 开标时间提取成功 → 对齐同轮 BidProject（24h 业务规则，口径同 ）。
+          // 开标时间提取成功 → 对齐同轮 BidProject（间隔常量口径，同 opening-deadline.util）。
           // 懒创建常早于本次提取（创建时 bidOpeningTime 尚未提取 → openTime 落在
           // fallback=立项日、deadline 落在兜底 now+24h），时间轴因此出现
           // "开标=立项日、投标截止=无关兜底值"的错乱；未开标前按下式回填修正：
-          // openTime=提取值，deadline=openTime−24h
+          // openTime=提取值，deadline=openTime−BID_DEADLINE_BEFORE_OPENING_MS
           try {
             const parsed = parseBidOpeningTime(bidOpeningTime);
             if (parsed) {
@@ -1510,7 +1510,7 @@ ${shortlist}
                   },
                 });
                 this.logger.log(
-                  `采购文件提取开标时间 ${bidOpeningTime} → 已回填 BidProject ${bp.id}（deadline=openTime−24h）`,
+                  `采购文件提取开标时间 ${bidOpeningTime} → 已回填 BidProject ${bp.id}（deadline=openTime−间隔常量）`,
                 );
               }
             }

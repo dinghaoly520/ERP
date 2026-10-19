@@ -2,7 +2,7 @@ import { Injectable, BadRequestException, ConflictException, ForbiddenException,
 import { hashSync } from 'bcryptjs';
 import { Prisma, ExpertLevel } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { buildSubjectCode } from '@water-erp/shared';
+import { buildSubjectCode, BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 import { encryptPasswordVault } from '../auth/password-vault.util';
 import { NotificationService } from '../notification/notification.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
@@ -4139,7 +4139,9 @@ export class SupplierService {
         where: { id: dto.projectId },
         select: { deadline: true },
       });
-      const newDeadline = new Date(bidOpening.getTime() - 24 * 60 * 60 * 1000);
+      // 2026-10-19 修复：曾硬编码 24h 与 10 分钟口径漂移——当天开标的谈判项目 deadline 落到一天前，
+      // 供应商端投标机会列表（deadline > now）整体不可见。间隔随共享常量走（opening-deadline.util 同源）。
+      const newDeadline = new Date(bidOpening.getTime() - BID_DEADLINE_BEFORE_OPENING_MS);
       if (configDelivered && prev?.deadline && prev.deadline.getTime() < Date.now()
           && prev.deadline.getTime() !== newDeadline.getTime()) {
         throw new ConflictException({
