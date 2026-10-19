@@ -103,6 +103,8 @@ The bid expert evaluation workstation. Core workflow (5-step wizard):
 
 Also includes a dashboard (project list + statistics) and profile management (expert info editing, review records).
 
+**平板形态·只认显式声明（2026-10-19，`e732eb56`）**：平板是独立路由组 `(tablet)`（`/tablet` 工作台 + `/tablet/evaluate/[id]` 触屏打分页——平板只存草稿、正式提交在桌面端）。形态判定只认两条显式信号：`device_mode` cookie（登录页署名下方「平板设备入口」链接、或 `?device=tablet|desktop` 手动切换，proxy 写 7 天 cookie）与 `X-Forwarded-Device` 反代头（生产按无线子网注入）。**UA/触摸自动检测已删**（旧 `lib/device.ts`：maxTouchPoints>1 误判触摸屏笔记本、UA 含 CrOS 误判 Chromebook，7 天 cookie 把台式机锁进平板模式且无法提交评分）——勿再引入 UA 猜测。发现平板的主动机制 = 桌面评审页扫码工位迁移（`/tablet/claim` 公开页：90s 单次票据 + 登录密码重证 + 留档照，会话轮换到平板、桌面会话失效）。坑：proxy 的 `?device=` 处理块必须在鉴权闸门**之前**（匿名平板点入口须先落 cookie 再弹回 `/login?redirect=/tablet`，放闸门后匿名请求丢 device 参数）；平板 15min 空闲自动登出后重登靠 `redirect=/tablet` 直达工作台；曾被误判的存量机器用 `/?device=desktop` 一次解除。
+
 **Access:** Requires login as `bid_expert` role.  
 **Login cookie:** `token_expert`.  
 **Target audience:** Expert evaluators assigned to bid projects.
