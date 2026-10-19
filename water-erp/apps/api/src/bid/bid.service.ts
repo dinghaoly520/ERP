@@ -719,7 +719,7 @@ export class BidService {
       this.logger.warn(`国标采购编码分配失败（建项降级为无码，须回填）: ${(e as Error).message}`);
       return null;
     });
-    // 截标↔开标 24h：双字段提供 → align 校验；缺 deadline → 按规则派生
+    // 截标↔开标间隔（共享常量 BID_DEADLINE_BEFORE_OPENING_MS，2026-10-16 起 10 分钟）：双字段提供 → align 校验；缺 deadline → 按规则派生
     // （DTO 层 openTime/deadline 均为必填，此分支为服务层防御；缺 openTime 保持原行为不动）
     const openTime = new Date(dto.openTime);
     let deadline: Date;
@@ -787,8 +787,8 @@ export class BidService {
     });
     const parsedOpen = parseFlexibleDate(metadata.openTime);
     const openTime = parsedOpen ?? (announcement.publishDate || new Date());
-    // 截标↔开标 24h：metadata.deadline 缺省 → 派生（替换原 +7 天兜底）；提供 → align 校验。
-    // 开标时间「另行通知」等不可解析时（parsedOpen 为空），截标作为独立值落库，不做 24h 相对校验——
+    // 截标↔开标间隔（共享常量）：metadata.deadline 缺省 → 派生（替换原 +7 天兜底）；提供 → align 校验。
+    // 开标时间「另行通知」等不可解析时（parsedOpen 为空），截标作为独立值落库，不做间隔相对校验——
     // 否则兜底 openTime 与未来截标冲突抛异常，公告已发布但 BidProject 静默缺失（2026-09-10 实测）。
     const parsedDeadline = parseFlexibleDate(metadata.deadline);
     let deadline: Date;
@@ -865,8 +865,8 @@ export class BidService {
     const openTime = parsedOpen && parsedOpen.getTime() > Date.now()
       ? parsedOpen
       : undefined;
-    // 截标↔开标 24h：覆盖方向不变（parsedDeadline < openTime 才覆盖 / 无有效 openTime 时
-    // 沿用 metadata deadline），但覆盖值改为按 openTime 派生 24h，杜绝公告元数据把非 24h 关系写回。
+    // 截标↔开标间隔（共享常量）：覆盖方向不变（parsedDeadline < openTime 才覆盖 / 无有效 openTime 时
+    // 沿用 metadata deadline），但覆盖值改为按 openTime 派生（间隔常量），杜绝公告元数据把非规则间隔写回。
     const deadline = parsedDeadline
       && (!openTime || parsedDeadline.getTime() < openTime.getTime())
       ? (openTime ? deriveDeadlineFromOpenTime(openTime) : parsedDeadline)
@@ -950,9 +950,9 @@ export class BidService {
       }
     }
 
-    // 截标↔开标 24h分阶段语义：
+    // 截标↔开标间隔（共享常量）分阶段语义：
     // - align（prev.deadline 未过）：仅传 openTime → deadline 派生；仅传 deadline → openTime 派生；双传 → align 校验
-    // - frozen（prev.deadline 已过，延时开标 PATCH openTime 走此分支）：deadline 不得变更；openTime ≥ deadline + 24h
+    // - frozen（prev.deadline 已过，延时开标 PATCH openTime 走此分支）：deadline 不得变更；openTime ≥ deadline + 间隔常量
     // 非时间字段更新不读 prev、不走校验（零回归）。
     let openTime: Date | undefined;
     let deadline: Date | undefined;
@@ -5776,7 +5776,7 @@ export class BidService {
     return { sent, notFound };
   }
 
-  /** 定时发送（开标前 24h）：写入 SCHEDULED；若已发则 409。重复定时以最新为准。 */
+  /** 定时发送（UI 默认定时点=开标前间隔常量）：写入 SCHEDULED；若已发则 409。重复定时以最新为准。 */
   async scheduleNudge(
     bidProjectId: string,
     input: { sendAt: string; channels: string[]; messages: Record<string, { title: string; body: string }> },

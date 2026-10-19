@@ -1,5 +1,6 @@
 /**
- * 存量截标↔开标差值 24h 对齐脚本（截标↔开标 24h 关系规范化 · Task 3）
+ * 存量截标↔开标差值对齐脚本（随 BID_DEADLINE_BEFORE_OPENING_MS 当前值对齐——文件名留 24h 为历史称呼，
+ * 2026-10-16 起常量=10 分钟，运行即把存量 deadline 对齐到 10 分钟口径 · 原Task 3）
  *
  * 背景：业务规则「投标截止 = 开标前 10 分钟」（BID_DEADLINE_BEFORE_OPENING_MS，口径见
  * packages/shared/src/constants.ts 与 src/bid/opening-deadline.util.ts）。存量项目（含
@@ -22,7 +23,7 @@
  *   - 逐条 try/catch：单行失败不中断，失败行保持原样并计数；
  *   - 无交互确认——命令行 --execute 参数即确认（执行前请审阅 dry-run 清单）。
  *
- * 口径来源：BID_DEADLINE_BEFORE_OPENING_MS（24h）/ BID_OPENING_GAP_TOLERANCE_MS（60s）
+ * 口径来源：BID_DEADLINE_BEFORE_OPENING_MS（2026-10-16 起 10 分钟）/ BID_OPENING_GAP_TOLERANCE_MS（60s）
  * 直接 import 自 @water-erp/shared dist（tsx 经 apps/api/tsconfig.json paths 解析，
  * 前置：shared 已 build）；deriveDeadlineFromOpenTime 复用 Task 1 的
  * src/bid/opening-deadline.util.ts（单一事实来源）。

@@ -455,7 +455,7 @@ export class SchedulerService {
     }
   }
 
-  /** 每分钟扫描"催促未投递供应商"的定时任务（status=SCHEDULED 且 sendAt<=now，通常=开标前 24h）。
+  /** 每分钟扫描"催促未投递供应商"的定时任务（status=SCHEDULED 且 sendAt<=now，通常=开标前间隔常量）。
    *  到点重算"已回执参加 + 未投递"目标集合，逐家按所选渠道投递；原子抢占一次性额度（人工已发则跳过）。 */
   @Cron('0 * * * * *')
   async fireScheduledSupplierNudges() {
@@ -468,8 +468,8 @@ export class SchedulerService {
       try {
         const messages = (nudge.messages as Record<string, { title: string; body: string }> | null) ?? {};
         const channels = (nudge.channels as string[] | null) ?? ['in_app', 'sms', 'phone'];
-        // 窗口闸门（2026-09-01）：开标时间被提前改期后，原定时点可能落入开标前 24h 内 →
-        // 不再补发，撤销定时（保持"距开标不足 24h 一律不催"的不变式）
+        // 窗口闸门（2026-09-01）：开标时间被提前改期后，原定时点可能落入开标前间隔常量内 →
+        // 不再补发，撤销定时（保持"距开标不足间隔常量一律不催"的不变式）
         const proj = await this.prisma.bidProject.findUnique({
           where: { id: nudge.bidProjectId },
           select: { openTime: true },
@@ -479,7 +479,7 @@ export class SchedulerService {
             where: { id: nudge.id, status: 'SCHEDULED' },
             data: { status: null, sendAt: null },
           });
-          this.logger.warn(`定时催促被撤销（已进入开标前 24h 窗口）: bidProject=${nudge.bidProjectId}`);
+          this.logger.warn(`定时催促被撤销（已进入开标临近窗口，距开标不足间隔常量）: bidProject=${nudge.bidProjectId}`);
           continue;
         }
         const targets = await this.computeNudgeTargetsLocal(nudge.bidProjectId);
@@ -552,7 +552,7 @@ export class SchedulerService {
     return out;
   }
 
-  /** 每小时扫描：投标投递截止（开标前 24h）落在未来 1 小时窗口内的项目，自动催促未投递供应商 */
+  /** 每小时扫描：投标投递截止（开标前间隔常量，优先取 DB deadline）落在未来 1 小时窗口内的项目，自动催促未投递供应商 */
   @Cron('0 0 * * * *')
   async autoNudgePendingBidders() {
     const now = new Date();
@@ -562,8 +562,8 @@ export class SchedulerService {
       select: { id: true, name: true, openTime: true, deadline: true },
     });
     for (const p of projects) {
-      // P0-2 第六写点：优先取 DB deadline（frozen 延时下 openTime 已后移，openTime−12h 会在真实截标已过后仍误催）；
-      // 历史行 deadline 缺失时按常量派生 openTime − 24h
+      // P0-2 第六写点：优先取 DB deadline（frozen 延时下 openTime 已后移，openTime−固定偏移会在真实截标已过后仍误催）；
+      // 历史行 deadline 缺失时按常量派生 openTime − BID_DEADLINE_BEFORE_OPENING_MS
       const deadline = p.deadline ?? new Date(p.openTime.getTime() - BID_DEADLINE_BEFORE_OPENING_MS);
       if (deadline >= now && deadline <= windowEnd) {
         try {
