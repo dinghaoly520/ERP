@@ -29,10 +29,15 @@ import {
 } from "@/lib/api/announcement";
 import { fetchProjectAttributions, updateProjectExtractedInfo, getPmBidProject, type ProjectAttribution } from "@/lib/api/project-management";
 import { aiIdentifyField } from "@/lib/api/project-management";
-import { getBidProjectDetail, getPublicityStatus, deliverAwardLetter } from "@/lib/api/bid";
+import { getBidProjectDetail, getPublicityStatus, deliverAwardLetter, type PublicityStatus } from "@/lib/api/bid";
 import type { FieldCandidate, ProjectManagementItem } from "@/lib/types/project-management";
 import { ContactPickerDialog } from "./contact-picker-dialog";
 import { fetchCurrentUser } from "@/lib/api/auth";
+
+/** 公示载体公告类型 → 中文名（publicity-status.announcement.type 展示用；系统实际只有中标公告一轨） */
+const PUBLICITY_CARRIER_LABEL: Record<string, string> = {
+  WIN_BID_NOTICE: '中标公告',
+};
 
 function downloadBlobFile(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob);
@@ -206,7 +211,7 @@ export function NotificationLetterDialog({
 
   // ── 发布步骤：公示状态检查 + 生成 docx → 上传 → 定向发出（门户成交通知 + 站内信）──
   const [publishing, setPublishing] = useState(false);
-  const [publicity, setPublicity] = useState<{ hasPublicity: boolean; publicityEnd: string | null; canIssueAward: boolean } | null>(null);
+  const [publicity, setPublicity] = useState<PublicityStatus | null>(null);
   const [publishError, setPublishError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -609,7 +614,25 @@ export function NotificationLetterDialog({
                   <div className="mt-2 text-sm text-[color:var(--warning)]">
                     {publicity.hasPublicity
                       ? `中标候选人公示期未满（截止 ${publicity.publicityEnd ? new Date(publicity.publicityEnd).toLocaleString('zh-CN') : '—'}），期满后方可发出`
-                      : '尚未发布中标候选人公示，须先发布中标公告并公示期满'}
+                      : '尚未发布中标公告，发布并公示期满后方可发出中标通知书'}
+                  </div>
+                )}
+                {/* 公示载体 + 已确认中标候选人（中标公告发布即链接/确认 rank1 推荐，2026-10-19） */}
+                {publicity?.hasPublicity && (
+                  <div className="mt-2 space-y-1 border-t border-[oklch(0.6_0.04_258_/_0.12)] pt-2 text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">
+                    {publicity.announcement && (
+                      <div>
+                        公示载体：{PUBLICITY_CARRIER_LABEL[publicity.announcement.type] ?? publicity.announcement.type}
+                        《{publicity.announcement.title}》
+                      </div>
+                    )}
+                    {publicity.winner && (
+                      <div>
+                        中标候选人：<span className="font-semibold text-[color:var(--foreground)]">{publicity.winner.supplierName}</span>
+                        （评标第 1 名·已随公告确认）
+                        {publicity.winner.bidPrice != null && ` · 中标金额 ¥${Number(publicity.winner.bidPrice).toLocaleString('zh-CN')}`}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
