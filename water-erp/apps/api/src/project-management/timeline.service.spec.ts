@@ -1,5 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
-import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
+import { BID_DEADLINE_BEFORE_OPENING_MS, formatDurationCn } from '@water-erp/shared';
 import { TimelineService } from './timeline.service';
 
 /** B3 项目时间信息轴（CTS-EBS01 A-204）：聚合各域时间节点，有值升序、缺值垫底 */
@@ -63,7 +63,7 @@ describe('TimelineService（B3 A-204）', () => {
     expect(`${openingLocal.getFullYear()}-${openingLocal.getMonth() + 1}-${openingLocal.getDate()}`).toBe('2026-8-2');
     expect(openingLocal.getHours()).toBe(10);
     const deadlineNode = nodes.find(n => n.key === 'bidDeadline')!;
-    expect(deadlineNode.source).toBe('按开标时间推算（前10分钟）');
+    expect(deadlineNode.source).toBe(`按开标时间推算（前${formatDurationCn(BID_DEADLINE_BEFORE_OPENING_MS)}）`);
     expect(new Date(deadlineNode.time!).getTime()).toBe(new Date(openingLocal.getTime() - BID_DEADLINE_BEFORE_OPENING_MS).getTime());
     expect(nodes.filter(n => !n.time).map(n => n.key)).toEqual(['bidNoticePublish', 'documentAcquire', 'evaluationEnd', 'winNoticePublish', 'failedNoticePublish', 'contractSign', 'archived']);
   });
