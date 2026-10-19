@@ -16,6 +16,7 @@ import { selectOfficialTender, uploadProjectStageAttachment } from '@/lib/api/pr
 import type { BidProjectDetail, BidProjectRef } from '@/lib/api/bid';
 import { ScoreStandardCard } from './score-standard-card';
 import { FilePreviewPane, getFileKind } from './file-preview-pane';
+import { ATTACHMENT_ACCEPT, ATTACHMENT_HINT, validateAttachmentFile } from '@/lib/upload-rules';
 
 type Props = {
   project: ProjectManagementItem;
@@ -101,6 +102,9 @@ export function OfficialTenderWizard({
   }
 
   async function handleUpload(file: File) {
+    // 附件统一限制（2026-10-19）：100MB + 9 扩展白名单（盖章扫描 pdf/图片/docx 均在白名单内）
+    const invalid = validateAttachmentFile(file);
+    if (invalid) { toast.error(invalid); return; }
     setUploading(true);
     try {
       const uploaded = await uploadProjectStageAttachment(project.id, 'TENDER_DOCUMENT', file, round); // R6-1: 显式 round 防错挂
@@ -204,6 +208,7 @@ export function OfficialTenderWizard({
                   <FileText size={26} className="text-[var(--muted-foreground)] opacity-60" />
                   <div className="text-sm font-semibold text-[var(--foreground)]">本步骤还没有上传文件</div>
                   <div className="text-xs text-[var(--muted-foreground)]">请上传正式盖章版采购文件（扫描 PDF / 图片 / 盖章 docx）</div>
+                  <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">{ATTACHMENT_HINT}</div>
                 </div>
               )}
 
@@ -216,7 +221,7 @@ export function OfficialTenderWizard({
                     <span className="text-sm font-medium text-[var(--foreground)]">{uploading ? '正在上传…' : '没有提前上传？现在上传正式盖章版文件'}</span>
                     <span className="mt-0.5 block text-xs text-[var(--muted-foreground)]">上传后自动选定为正式文件</span>
                   </div>
-                  <input ref={fileInputRef} type="file" disabled={uploading}
+                  <input ref={fileInputRef} type="file" disabled={uploading} accept={ATTACHMENT_ACCEPT}
                     onChange={(e) => {
                       const f = e.target.files?.[0];
                       if (f) void handleUpload(f);
