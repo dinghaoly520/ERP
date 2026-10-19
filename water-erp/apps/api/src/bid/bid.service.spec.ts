@@ -1331,6 +1331,38 @@ describe('BidService — stage transitions', () => {
     });
   });
 
+  // none-eval（spec 2026-10-19 §4.2）：startEvaluation 对 none 项目事务内回填正选 confirmed 专家
+  // progress=100——修复前已签到/回避确认的存量专家 stored progress=0，报告步死锁随启动评标自愈
+  describe('BidService.startEvaluation — none 项目专家 progress 回填（存量自愈）', () => {
+    beforeEach(() => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P' });
+      prisma.bidExpert.count.mockResolvedValueOnce(3).mockResolvedValue(0); // 首次=确认正选数，其后=采购人代表数(0)
+      prisma.bidSupplier.findMany.mockResolvedValue([]);
+      prisma.bidSupplier.count.mockResolvedValue(1); // 直接采购法定 1 家即可（getMinBiddersForMethod）
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'EVALUATING' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.auditLog.create.mockResolvedValue({});
+    });
+
+    it('none：事务内以精确谓词回填正选 confirmed 且 progress<100 → progress=100，恰好一次', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P', procurementMethod: '直接采购', evaluationMethod: 'none' });
+      await expect(service.startEvaluation('p1', 'u1')).resolves.toMatchObject({ stage: 'EVALUATING' });
+      expect(prisma.bidExpert.updateMany).toHaveBeenCalledTimes(1);
+      expect(prisma.bidExpert.updateMany).toHaveBeenCalledWith({
+        where: { projectId: 'p1', expertRole: '正选', invitationStatus: 'confirmed', progress: { lt: 100 } },
+        data: { progress: 100 },
+      });
+    });
+
+    it('manual：不走回填（bidExpert.updateMany 全程不被调用）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P', procurementMethod: '公开招标', evaluationMethod: 'manual' });
+      prisma.bidSupplier.count.mockResolvedValue(3); // manual=公开招标须 3 家
+      prisma.bidScoreItem.count.mockResolvedValue(5);
+      await expect(service.startEvaluation('p1', 'u1')).resolves.toMatchObject({ stage: 'EVALUATING' });
+      expect(prisma.bidExpert.updateMany).not.toHaveBeenCalled();
+    });
+  });
+
   describe('P3 — startEvaluation ≥3 家法定门槛', () => {
     beforeEach(() => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });

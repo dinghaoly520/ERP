@@ -2204,6 +2204,13 @@ export class BidService {
 
     const updated = await this.prisma.$transaction(async (tx) => {
       await lockAndReassertStage(tx, id, 'EVALUATING'); // C1: 行锁后复查阶段（含 与评分标准编辑互斥的 FOR UPDATE）
+      // 存量自愈：修复前已签到/回避确认的 none 项目专家 stored progress=0（spec §4.2；回避确认重算为第二道自然修复）
+      if (isNoneEvaluation(project.evaluationMethod, project.procurementMethod)) {
+        await tx.bidExpert.updateMany({
+          where: { projectId: id, expertRole: '正选', invitationStatus: 'confirmed', progress: { lt: 100 } },
+          data: { progress: 100 },
+        });
+      }
       // E2: 评标时限可自定义（缺省 72h，上限 720h）——「自定义评标时长」；超时可经「评标延期审批」延长
       const hours = evaluationHours && evaluationHours > 0 ? Math.min(Math.floor(evaluationHours), 720) : 72;
       const result = await tx.bidProject.update({
