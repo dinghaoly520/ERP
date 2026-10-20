@@ -633,32 +633,8 @@ export function ExpertExtractPage({
     setOpenTimeTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
   }, [step3Confirmed, openTimeDate, pd]);
 
-  // 用户是否动过配额（addQ/rmQ/upQ/adjustQuota 置位）——2026-10-20 起允许全行「专业不限」，
-  // 该形态也是有效配置，不能被 AI 自动推断误判为"未配置"而覆盖
-  const quotaTouchedRef = useRef(false);
-  // 已有项目 AI 自动推断专业配额（pd 加载后、且用户尚未手动配置配额时触发）
-  useEffect(() => {
-    if (!pid || !pd || specs.length === 0) return;
-    // 已有用户手动填写的专业、或用户已动过配额（含全行专业不限）→ 不覆盖
-    if (quotaTouchedRef.current || quotas.some(quotaFilled)) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await analyzeProjectSpecialties(pid);
-        if (cancelled) return;
-        if (!res.requiredSpecialties?.length) return;
-        const newQuotas = aiRowsToQuotas(res.requiredSpecialties, mkMatchSpec(specs));
-        if (newQuotas.length > 0 && !cancelled) {
-          setQuotas(clampToExpertSeats(newQuotas));
-        }
-      } catch {
-        // 静默失败，AI 不可用时用户可手动配置
-      }
-    })();
-    return () => { cancelled = true; };
-    // 配额依赖仅作为"是否已有配置"的守卫取值，不应触发重新分析
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pid, pd, specs]);
+  // AI 配额不自动触发（2026-10-20 用户口径）：项目加载/席位变化均不后台调 AI，仅用户点「AI 配额」
+  // 按钮时执行（aiQuota）——原「项目加载自动推断」effect 已删（补选弹窗内 AI 为显式打开弹窗触发，保留）。
 
   // 专家选取：搜索专家（防抖 300ms）
   useEffect(() => {
@@ -900,16 +876,15 @@ export function ExpertExtractPage({
     return [...next, ...empties];
   };
 
-  // expertSeats 变化时的自动响应：减少→裁剪/恢复缓存；增加→缓存命中直接恢复，未命中则防抖 AI
+// expertSeats 变化时的自动响应：减少→裁剪/恢复缓存；增加→缓存命中直接恢复。
+  // AI 配额不再随席位变化自动触发（2026-10-20 用户口径：仅按钮执行）——原防抖 AI 分支与 aiQuotaTimerRef 已删。
   const prevExpertSeatsRef = useRef(expertSeats);
-  const aiQuotaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     const prev = prevExpertSeatsRef.current;
     prevExpertSeatsRef.current = expertSeats;
     if (prev === expertSeats) return;
     if (expertSeats < prev) {
-      // 缩减：取消排队 AI 请求，有缓存直接恢复，无缓存则裁剪
-      if (aiQuotaTimerRef.current) { clearTimeout(aiQuotaTimerRef.current); aiQuotaTimerRef.current = null; setQuotaAnalyzing(false); }
+      // 缩减：有缓存直接恢复，无缓存则裁剪
       const cached = quotaCacheRef.current.get(expertSeats);
       if (cached) {
         setQuotas(cached);
@@ -917,16 +892,9 @@ export function ExpertExtractPage({
         setQuotas(prevQ => clampToExpertSeats(prevQ));
       }
     } else if (expertSeats > prev && pid && quotas.some(quotaFilled)) {
-      // 增加：缓存命中直接恢复；未命中则防抖 600ms 后 AI 推荐
+      // 增加：缓存命中直接恢复；未命中由用户手动加行或点「AI 配额」按钮
       const cached = quotaCacheRef.current.get(expertSeats);
-      if (cached) {
-        setQuotas(cached);
-        if (aiQuotaTimerRef.current) { clearTimeout(aiQuotaTimerRef.current); aiQuotaTimerRef.current = null; setQuotaAnalyzing(false); }
-      } else {
-        setQuotaAnalyzing(true);
-        if (aiQuotaTimerRef.current) clearTimeout(aiQuotaTimerRef.current);
-        aiQuotaTimerRef.current = setTimeout(() => { aiQuotaTimerRef.current = null; aiQuota(); }, 600);
-      }
+      if (cached) setQuotas(cached);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expertSeats]);
@@ -943,8 +911,7 @@ export function ExpertExtractPage({
   const canExtract = !!pid && extractMode !== 'manual' && seatsBalanced && demandRepOk;
 
   // 专业配额增删改：始终在专业间调配席位，总和恒 = expertSeats（"一定要分配满"）
-  // 用户手动操作配额均置 quotaTouchedRef（含全行「专业不限」的配置——有效配置不得被 AI 推断覆盖）
-  const addQ = () => { quotaTouchedRef.current = true; setQuotas(p => {
+  const addQ = () => setQuotas(p => {
     const sum = p.reduce((s, q) => s + q.count, 0);
     const next = [...p, { specialties: [], count: 1, companyIds: [] } as SpecialtyQuota]; // 新配额默认不限公司（2026-10-20 用户口径：不强制选公司，空=按池 scope）
     // 总和已满 → 从 count 最大的现有专业借 1 席给新专业；未满 → 直接占 1 席（向 expertSeats 靠拢）
@@ -954,8 +921,7 @@ export function ExpertExtractPage({
     }
     return next;
   });
-  };
-  const rmQ = (i: number) => { quotaTouchedRef.current = true; setQuotas(p => {
+  const rmQ = (i: number) => setQuotas(p => {
     if (p.length <= 1) return p;
     const removedCount = p[i].count;
     const next = p.filter((_, x) => x !== i);
@@ -964,10 +930,9 @@ export function ExpertExtractPage({
     next[target] = { ...next[target], count: next[target].count + removedCount };
     return next;
   });
-  };
-  const upQ = (i: number, f: keyof SpecialtyQuota, v: string | number | string[]) => { quotaTouchedRef.current = true; setQuotas(p => p.map((q, x) => x === i ? { ...q, [f]: v } : q)); };
+  const upQ = (i: number, f: keyof SpecialtyQuota, v: string | number | string[]) => setQuotas(p => p.map((q, x) => x === i ? { ...q, [f]: v } : q));
   // 加/减某专业人数：未满 expertSeats 时向其靠拢；已满则在专业间调配（加=从最大专业借，减=补到最小专业）
-  const adjustQuota = (idx: number, delta: 1 | -1) => { quotaTouchedRef.current = true; setQuotas(p => {
+  const adjustQuota = (idx: number, delta: 1 | -1) => setQuotas(p => {
     const sum = p.reduce((s, q) => s + q.count, 0);
     const next = [...p];
     if (delta === 1) {
@@ -990,7 +955,6 @@ export function ExpertExtractPage({
     }
     return next;
   });
-  };
 
   // AI 配额：手动触发，读取项目需求/立项/采购文件等生成专业配额（仅保留库内真实存在的专业）
   const aiQuota = async () => {
