@@ -112,6 +112,12 @@ export function listSpecialties(companyId?: string) {
   return api.get<string[]>(`/expert-admin/specialties${companyId && companyId !== 'all' ? '?companyId=' + companyId : ''}`);
 }
 
+/** 配额「公司」下拉候选（2026-10-20）：仅列库内确有可抽取专家的公司（与抽取池同资格口径）。
+ *  替代直拉 /companies 主数据全集——0 专家的残留公司会污染抽取下拉（走查测试集团实录）。 */
+export function listPoolCompanies() {
+  return api.get<Array<{ id: string; name: string; shortName?: string | null }>>('/expert-admin/pool-companies');
+}
+
 /** 按公司分组全量计数（admin 全部公司视图的分组标题全量口径；与列表同 where） */
 export function fetchExpertCompanyCounts(params?: { search?: string; specialty?: string; employer?: string }) {
   const q = new URLSearchParams();

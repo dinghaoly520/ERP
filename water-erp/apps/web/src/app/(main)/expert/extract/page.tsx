@@ -1,12 +1,11 @@
 'use client';
 
 import { useEffect, useState, Suspense, useMemo, useRef } from 'react';
-import { api } from '@/lib/api';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { companyColor } from '@/components/company/company-tag';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis } from '@/lib/api/expert';
+import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, listPoolCompanies, listExperts, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis } from '@/lib/api/expert';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { QuotaMultiSelect } from '@/components/expert/quota-multi-select';
@@ -670,7 +669,9 @@ export function ExpertExtractPage({
 
   useEffect(() => {
     fetchCurrentUser().then(u => { setUser(u); setMyCompanyId((u as any).companyId ?? ''); }).catch(() => {});
-    api.get<Array<{ id: string; name: string; shortName?: string | null }>>('/companies').then(setCompanies).catch(() => {});
+    // 公司下拉与专家库同口径（2026-10-20）：仅列库内确有可抽取专家的公司（pool-companies），
+    // 不再直拉 /companies 主数据全集——0 专家的残留公司会混进下拉（走查测试集团实录）
+    listPoolCompanies().then(setCompanies).catch(() => {});
   }, []);
 
   // 公司/部门/专业三级映射：一次性拉取全部专家构建（供需求方代表「公司→部门→专业」级联）
