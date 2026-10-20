@@ -4256,7 +4256,7 @@ export class SupplierPortalService {
       // （payload 端点按轨道分派 v2/v1，但 submit 端点按请求形状分派——
       //  legacy/v2 行手工构造 v3 式提交会按 v2 重算导致必败且报错误导）
       if (submissionTrack !== 'dual-v3') {
-        throw new BadRequestException({ error: '该投递非 dual-v3 轨，不支持 P7 确认', code: 'NOT_DUAL_TRACK' });
+        throw new BadRequestException({ error: '该投标投递不支持此签名确认方式——请按投标时使用的加密方式操作，或联系平台管理员', code: 'NOT_DUAL_TRACK' });
       }
       // ── SCCA dual-v3 轨（Task7）：canonical v2 + P7 验签 ──
       const op = await this.prisma.caOperation.findUnique({ where: { id: v3.operationId } });

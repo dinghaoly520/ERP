@@ -358,6 +358,106 @@ describe('BidEvaluationResultsService — evaluation results', () => {
       const createData = prisma.bidEvaluationResult.createMany.mock.calls[0][0].data;
       expect(createData.find((d: any) => d.supplierName === '甲' || d.bidSupplierId === 's1').bidPrice).toBe(1_539_500);
     });
+
+    /* ── Task 5（spec 2026-10-19 §4.5）：none（直接采购）双硬闸 + completenessWarnings 抑制 ── */
+    describe('none（直接采购）双硬闸（spec §4.5 裁定②③）', () => {
+      const buildNoneProject = (overrides = {}) => ({
+        id: 'p1', name: '直接采购项目', stage: 'EVALUATING', leaderCoSigned: true,
+        evaluationMethod: 'none', procurementMethod: '直接采购',
+        roundMode: null, bondRequired: false,
+        experts: [{ id: 'e1', expertRole: '正选', invitationStatus: 'confirmed', reportConfirmed: true }],
+        suppliers: [
+          { id: 's1', supplierName: 'SCCA试点供应商', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED', bidValidity: 'valid' },
+        ],
+        ...overrides,
+      });
+
+      beforeEach(() => {
+        prisma.bidSignPacket.findUnique.mockResolvedValue(null);
+        prisma.bidScoreRecord.findMany.mockResolvedValue([]); // none 设计态：0 评分记录
+        prisma.bidScoreItem.findMany.mockResolvedValue([]);   // none 设计态：0 评分项
+        prisma.bidEvaluationResult.deleteMany.mockResolvedValue({ count: 0 });
+        prisma.bidEvaluationResult.createMany.mockResolvedValue({ count: 1 });
+        prisma.bidEvaluationResult.findMany.mockResolvedValue([]);
+        prisma.bidSupervisionLog.create.mockResolvedValue({});
+        prisma.auditLog.create.mockResolvedValue({});
+      });
+
+      it('① none + 2 家可评 → 400 NONE_MULTI_BIDDERS（字母序 tiebreak 静默选人有审计红线风险）', async () => {
+        prisma.bidProject.findUnique.mockResolvedValue(buildNoneProject({
+          suppliers: [
+            { id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED', bidValidity: 'valid' },
+            { id: 's2', supplierName: '乙', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED', bidValidity: 'valid' },
+          ],
+        }));
+
+        await expect(service.generateEvaluationResults('p1'))
+          .rejects.toMatchObject({
+            response: {
+              code: 'NONE_MULTI_BIDDERS',
+              error: '直接采购按单一成交对象口径，现有 2 家可评供应商属采购方式错配，请流标或更正采购方式后重新组织',
+            },
+          });
+        // 闸门先于任何结果写入
+        expect(prisma.bidEvaluationResult.createMany).not.toHaveBeenCalled();
+      });
+
+      it('② none + 1 家 + 唱标 10000（万元戳）→ resolve，bidPrice 换算为元 1 亿', async () => {
+        prisma.bidProject.findUnique.mockResolvedValue(buildNoneProject());
+        // 单位解析走记录戳（amountUnit='万元'）：amountUnit 查询与金额查询按 select 分流
+        prisma.bidSupplier.findMany.mockResolvedValue([{ id: 's1', supplierId: 'sup-1' }]);
+        prisma.supplierBidSubmission.findMany.mockResolvedValue([]);
+        prisma.bidOpeningRecord.findMany.mockImplementation(async (args: any) =>
+          args?.select?.amountUnit
+            ? [{ bidSupplierId: 's1', amountUnit: '万元' }]
+            : [{ bidSupplierId: 's1', amount: '10000' }],
+        );
+
+        await expect(service.generateEvaluationResults('p1')).resolves.toBeDefined();
+
+        const created = prisma.bidEvaluationResult.createMany.mock.calls[0][0].data as any[];
+        expect(created).toHaveLength(1);
+        expect(created[0]).toMatchObject({
+          supplierId: 's1', rank: 1, recommended: true, disqualified: false,
+          bidPrice: 100_000_000, // 10000 万元 → 元（2026-09-14 铁律：禁止裸读裸算）
+        });
+        // completenessWarnings 抑制：none 0 记录是设计态而非缺失，不得写完整性警告
+        expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalledWith(
+          expect.objectContaining({ data: expect.objectContaining({ action: '废标表决完整性警告' }) }),
+        );
+      });
+
+      it('③ none + 1 家 + 无开标记录 → 400 NONE_PRICE_REQUIRED（成交价是唯一实质条款）', async () => {
+        // evaluationMethod 走采购方式派生（F2 口径）：直接采购 → none
+        prisma.bidProject.findUnique.mockResolvedValue(buildNoneProject({ evaluationMethod: null }));
+        prisma.bidSupplier.findMany.mockResolvedValue([{ id: 's1', supplierId: 'sup-1' }]);
+        prisma.supplierBidSubmission.findMany.mockResolvedValue([]);
+        prisma.bidOpeningRecord.findMany.mockResolvedValue([]);
+
+        await expect(service.generateEvaluationResults('p1'))
+          .rejects.toMatchObject({
+            response: {
+              code: 'NONE_PRICE_REQUIRED',
+              error: '直接采购项目唯一可评供应商无有效唱标价，无法生成成交结果——请核对/补正开标记录唱标金额',
+            },
+          });
+        expect(prisma.bidEvaluationResult.createMany).not.toHaveBeenCalled();
+      });
+
+      it('④ 非 none 缺通过性投票 → 完整性警告行为回归不变', async () => {
+        prisma.bidProject.findUnique.mockResolvedValue(buildNoneProject({
+          evaluationMethod: 'manual', procurementMethod: '邀请招标',
+        }));
+        prisma.bidScoreItem.findMany.mockResolvedValue([{ id: 'si_qual', category: 'QUALIFICATION' }]);
+        prisma.bidOpeningRecord.findMany.mockResolvedValue([]);
+
+        await service.generateEvaluationResults('p1');
+
+        expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
+          data: expect.objectContaining({ action: '废标表决完整性警告', target: 'SCCA试点供应商' }),
+        }));
+      });
+    });
   });
 
 

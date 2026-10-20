@@ -154,13 +154,34 @@ describe('recomputeExpertProgress', () => {
     expect((await recomputeExpertProgress(tx, 'exp1', 'p1')).progress).toBe(100);
   });
 
-  it('totalItems=0 → progress=0', async () => {
+  it('totalItems=0 且 0 家可评（空项目退化态）→ progress=0', async () => {
     const tx: any = {
       bidScoreItem: { findMany: jest.fn().mockResolvedValue([]) },
       bidSupplier: { findMany: jest.fn().mockResolvedValue([]) },
       bidScoreRecord: { count: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     };
     expect((await recomputeExpertProgress(tx, 'exp1', 'p1')).progress).toBe(0);
+  });
+
+  it('none 直接采购（spec §4.2）：0 个非 PRICE 评分项 + ≥1 家可评 → progress=100（解报告步死锁）', async () => {
+    const tx: any = {
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue([]) }, // 直接采购零评分项
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([{ id: 'a', bidValidity: 'valid' }]) },
+      bidScoreRecord: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) }, // 0 条记录
+    };
+    const r = await recomputeExpertProgress(tx, 'exp1', 'p1');
+    expect(r.progress).toBe(100); // 修复前 totalItems=0 → 0，报告确认永久死锁
+    expect(r.totalScore).toBe(0); // totalScore 沿用 0（spec §4.2）
+  });
+
+  it('spec §4.2：0 个评分项 + 0 家可评（全部回避）→ progress 维持 0（防普通项目语义漂移）', async () => {
+    const tx: any = {
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue([]) },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([{ id: 'a' }, { id: 'b' }]) }, // 两家全部被该专家回避
+      bidScoreRecord: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const r = await recomputeExpertProgress(tx, 'exp1', 'p1', ['a', 'b']);
+    expect(r.progress).toBe(0); // 可评集合空=维持 0，不随本次改动漂移
   });
 
   it('P1-12fix：PRICE 公式项不计入专家进度分母（竞价采购仅通过性时可达 100）', async () => {

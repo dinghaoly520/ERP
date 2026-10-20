@@ -1234,7 +1234,13 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         </div>
 
         {/* 专家×供应商评分矩阵 */}
-        {regularExperts.length > 0 && suppliers.length > 0 && (
+        {project.evaluationMethod === 'none' && scoreItems.length === 0 ? (
+          /* none-eval（spec §4.7）：0 评分项是设计态——信息态呈现，不显示「未编制评分标准」类缺口文案；
+             评分进度 tile 对 totalSlots=0 已有 scorePct=0 兜底 */
+          <div className="rounded-[14px] border border-[oklch(0.6_0.04_258/0.14)] px-3.5 py-6 text-center text-xs font-semibold text-[var(--muted-foreground)]">
+            直接采购·不评分
+          </div>
+        ) : regularExperts.length > 0 && suppliers.length > 0 ? (
           <div>
             {/* P2-8：匿名/实名还原规则标注——防「同屏时隐时现」被质疑匿名化不一致 */}
             <p className="mb-1.5 flex items-center gap-1.5 text-[10px] text-[var(--muted-foreground)]">
@@ -1342,7 +1348,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             )}
             </div>
           </div>
-        )}
+        ) : null}
 
         {/* 供应商汇总与排名 */}
         <div className="rounded-[14px] border border-[oklch(0.6_0.04_258/0.14)]">

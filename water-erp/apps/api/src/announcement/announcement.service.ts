@@ -12,6 +12,7 @@ import { BidDocumentService } from './bid-document.service';
 import { ANNOUNCEMENT_TYPE_LABELS, ANNOUNCEMENT_TYPE_DATA_CLASS, PUBLIC_VISIBLE_CLASSES } from '@water-erp/shared';
 import { checkBidNoticeElements, type ChecklistWarning } from './bid-notice-checklist';
 import type { CompanyWhere } from '../company/company-scope';
+import { GbCodeService } from '../common/gb-code.service';
 
 /** 回收站操作人上下文（与 confirmWinnerNotice 的 operator 同构，2026-09-26） */
 export type RecycleOperator = { operatorId?: string; operatorName?: string; ipAddress?: string; userAgent?: string };
@@ -28,26 +29,37 @@ export class AnnouncementService {
     @Optional() private bidDocumentService?: BidDocumentService,
     @Optional() @Inject(forwardRef(() => NotificationService))
     private readonly notifications?: NotificationService,
+    /** 发布赋码闸自愈用（@Optional：无注入时缺码仍硬拦，兼容测试直构） */
+    @Optional() private readonly gbCode?: GbCodeService,
   ) {}
 
   /** 公告类型→中文名称（AI 摘要 prompt 期望中文类型名；两段式公示语义收口 shared） */
   private static readonly TYPE_LABELS: Record<string, string> = { ...ANNOUNCEMENT_TYPE_LABELS };
 
-  /** 对接专项 Phase 1（T4）：发布赋码强制闸——发布关联 BidProject 的公告时，
-   *  项目须已有 21 位国标采购编码（省平台统一交易识别码前置）。无关联项目（POLICY/PLATFORM 等）不拦。
-   *  存量项目已在回填清单（docs/认证送测材料/gb-code-backfill-*.csv）；新项目 API 创建时自动赋码。 */
+  /** 对接专项 Phase 1（T4）：发布赋码闸（自愈版，2026-10-20 缺码事故）——发布关联 BidProject
+   *  的公告时，项目须已有 21 位国标采购编码（省平台统一交易识别码前置）。无关联项目（POLICY/
+   *  PLATFORM 等）不拦。缺码不再硬拦：旁路创建（ensureBidProject 懒建/流标重启等）的缺码行
+   *  现场补码放行；仅自愈失败（分配器抛错/未注入）才拒绝。 */
   private async assertGbCodeIfLinked(relatedProjectCode?: string | null) {
     if (!relatedProjectCode) return;
     const project = await this.prisma.bidProject.findUnique({
       where: { projectCode: relatedProjectCode },
-      select: { gbProcureCode: true },
+      select: { id: true, gbProcureCode: true, projectManagementItemId: true },
     });
-    if (project && !project.gbProcureCode) {
-      throw new BadRequestException({
-        error: '项目未取得国标采购编码（gbProcureCode），不能发布关联公告——请先在项目管理补码（存量项目已在回填清单）；新项目创建时自动赋码',
-        code: 'GB_CODE_REQUIRED',
-      });
+    if (!project || project.gbProcureCode) return;
+    if (this.gbCode) {
+      try {
+        const { gbProcureCode } = await this.gbCode.backfillProcureCodeFor(project);
+        this.logger.warn(`发布赋码闸自愈：${relatedProjectCode} 现场补码 ${gbProcureCode}（旁路创建缺码行已治愈）`);
+        return;
+      } catch (e) {
+        this.logger.warn(`发布赋码闸自愈失败，转硬拦: ${(e as Error).message}`);
+      }
     }
+    throw new BadRequestException({
+      error: '项目未取得国标采购编码（gbProcureCode）且自动补码失败——请稍后重试，或由管理员执行 apps/api/scripts/backfill-gb-codes.ts --execute 补码后发布',
+      code: 'GB_CODE_REQUIRED',
+    });
   }
 
   /**

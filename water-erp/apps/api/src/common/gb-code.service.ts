@@ -52,4 +52,24 @@ export class GbCodeService {
     const gbProcureCode = buildGbProcureCode(base18, seq);
     return { gbProcureCode, gbSectionCode: buildGbSectionCode(gbProcureCode, 1) };
   }
+
+  /** 为无码 BidProject 现场补齐 21 位采购编码并落库（2026-10-20 缺码事故防线）。
+   *  发布闸自愈（announcement.assertGbCodeIfLinked）与 ensureBidProject 存量治愈共用；
+   *  宿主 PMI 有 18 位基码复用之，否则自立。幂等由调用方保证（仅对 gbProcureCode 为 null 的行调用）。 */
+  async backfillProcureCodeFor(
+    bidProject: { id: string; gbProcureCode?: string | null; projectManagementItemId?: string | null },
+  ): Promise<{ gbProcureCode: string; gbSectionCode: string }> {
+    const host = bidProject.projectManagementItemId
+      ? await this.prisma.projectManagementItem.findUnique({
+          where: { id: bidProject.projectManagementItemId },
+          select: { gbProjectCode: true },
+        })
+      : null;
+    const { gbProcureCode, gbSectionCode } = await this.allocateProcureCode(host?.gbProjectCode ?? null);
+    await this.prisma.bidProject.update({
+      where: { id: bidProject.id },
+      data: { gbProcureCode, gbSectionCode },
+    });
+    return { gbProcureCode, gbSectionCode };
+  }
 }
