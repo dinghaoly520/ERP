@@ -3097,9 +3097,24 @@ export function ExpertExtractPage({
               </div>
               <div className="space-y-2">
                 {reDraft.quotas.map((q, qi) => (
-                <div key={qi} className="flex items-center gap-2">
+                <div key={qi} className="flex flex-wrap items-center gap-2">
+                  {/* 公司色标 + 公司列（2026-10-20 用户口径：补选配置行需显示公司）——普通行可改（同步骤1），
+                      需求方代表限定行公司为限定条件（employer+department）只读展示 */}
+                  <span className="h-8 w-1 shrink-0 self-center rounded-full" style={{ backgroundColor: companyColor(q.employer ?? companies.find(c => c.id === (q.companyIds ?? [])[0])?.name ?? '') }} title={q.employer ?? ((q.companyIds ?? []).map(id => companies.find(c => c.id === id)?.name).filter(Boolean).join('、') || '不限公司')} />
+                  {q.employer ? (
+                    <span className="min-w-[150px] flex-1 truncate rounded-[9px] bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-2.5 py-2 text-xs font-semibold text-[var(--foreground)]" title={`需求方代表限定：${q.employer}${q.department ? ` · ${q.department}` : ''}`}>{q.employer}{q.department ? ` · ${q.department}` : ''}</span>
+                  ) : (
+                    <QuotaMultiSelect
+                      className="min-w-[150px] flex-1"
+                      options={companies.map(c => ({ value: c.id, label: c.id === myCompanyId ? `${c.name}（本公司）` : c.name }))}
+                      selected={q.companyIds ?? []}
+                      onChange={list => updateDraft({ quotas: reDraft.quotas.map((x, i) => i === qi ? { ...x, companyIds: list } : x) })}
+                      placeholder="不限公司"
+                      title="公司（可多选）：本配额从所选公司并集的专家库抽取；清空=不限公司"
+                    />
+                  )}
                   <QuotaMultiSelect
-                    className="flex-1"
+                    className="min-w-[150px] flex-1"
                     options={rowSpecOptions(q.companyIds ?? []).map(s => { const n = rowSpecCount(q.companyIds ?? [], s); return { value: s, label: s, hint: n > 0 ? `${n}人·库内` : undefined }; })}
                     selected={quotaSpecsOf(q)}
                     onChange={list => updateDraft({ quotas: reDraft.quotas.map((x, i) => i === qi ? { ...x, specialties: list } : x) })}
@@ -3114,7 +3129,7 @@ export function ExpertExtractPage({
                   <button onClick={() => updateDraft({ quotas: reDraft.quotas.filter((_, i) => i !== qi) })} className="neu-btn-xs is-danger">×</button>
                 </div>
                 ))}
-                <button onClick={() => updateDraft({ quotas: [...reDraft.quotas, { specialties: [], count: 1 }] })} className="neu-btn-xs"><Plus size={12} />添加专业</button>
+                <button onClick={() => updateDraft({ quotas: [...reDraft.quotas, { specialties: [], count: 1, companyIds: [] }] })} className="neu-btn-xs"><Plus size={12} />添加专业</button>
               </div>
               {reShortfallSpecs.length > 0 && (
                 <div className="rounded-xl bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-xs text-[var(--warning)] flex items-center gap-2">
@@ -3122,7 +3137,7 @@ export function ExpertExtractPage({
                 </div>
               )}
               <div className="flex justify-end pt-2 border-t border-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                <button onClick={extractReDraft} disabled={!reDraft.quotas.some(q => quotaFilled(q) && q.count > 0)} className="neu-btn-soft is-info">
+                <button onClick={extractReDraft} disabled={!reDraft.quotas.some(q => q.count > 0)} className="neu-btn-soft is-info">
                   <Search size={14} className="inline mr-1" />开始抽取
                 </button>
               </div>
