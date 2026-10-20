@@ -910,6 +910,9 @@ export function ExpertExtractPage({
       }
     } else {
       if (next[idx].count <= 1) return p;
+      // 超配态直减本行（总量向 expertSeats 收敛）——减席旧语义是行间转移，单行超配无处转移
+      // 恒 no-op，用户被锁死在超配态无法自救（2026-10-20 实录：专业不限×4 / 可分配 2 减不动）
+      if (sum > expertSeats) { next[idx] = { ...next[idx], count: next[idx].count - 1 }; return next; }
       let donee = -1, minC = Infinity;
       for (let i = 0; i < next.length; i++) if (i !== idx && next[i].count < minC) { donee = i; minC = next[i].count; }
       if (donee < 0) return p; // 只有一个专业，无处转移
@@ -952,21 +955,9 @@ export function ExpertExtractPage({
     if (!next) { setDemandRepMode(null); setDemandRepPersons([]); setDemandRepCount(1); setDemandRepDept(''); setDemandRepDeptSpecialty(''); setDemandRepSearch(''); }
     const newFixed = next ? demandRepCount : 0;
     const newExpert = Math.max(0, totalSeats - newFixed);
-    setQuotas(prev => {
-      const filled = prev.filter(quotaFilled);
-      const empties = prev.filter(q => !quotaFilled(q));
-      const list = filled.length ? filled : [{ specialties: [], count: 1 } as SpecialtyQuota];
-      let sum = list.reduce((s, q) => s + q.count, 0);
-      let target = Math.max(newExpert, list.length);
-      if (target < sum) {
-        let reduce = sum - target;
-        for (let i = list.length - 1; i >= 0 && reduce > 0; i--) { const t = Math.min(list[i].count - 1, reduce); list[i] = { ...list[i], count: list[i].count - t }; reduce -= t; }
-      } else if (target > sum) {
-        let add = target - sum;
-        for (let i = list.length - 1; i >= 0 && add > 0; i--) { list[i] = { ...list[i], count: list[i].count + 1 }; add--; }
-      }
-      return [...list, ...empties];
-    });
+    // 重平衡走双向 clamp（2026-10-20）：全行参与（含专业不限行）。旧 filled-only 手写平衡对
+    // 全不限配置会丢行重造再原样追加空行（双行超配实录来源），已弃用
+    setQuotas(prev => clampToExpertSeats(prev, newExpert));
   };
   // 切换需求方代表人数（0-2 人）：同步截断已选指定代表 + 重平衡专业配额
   const changeDemandRepCount = (n: number) => {
@@ -974,21 +965,8 @@ export function ExpertExtractPage({
     setDemandRepCount(n);
     setDemandRepPersons(prev => prev.slice(0, n));
     const newExpert = Math.max(0, totalSeats - n);
-    setQuotas(prev => {
-      const filled = prev.filter(quotaFilled);
-      const empties = prev.filter(q => !quotaFilled(q));
-      const list = filled.length ? filled : [{ specialties: [], count: 1 } as SpecialtyQuota];
-      let sum = list.reduce((s, q) => s + q.count, 0);
-      const target = Math.max(newExpert, list.length);
-      if (target < sum) {
-        let reduce = sum - target;
-        for (let i = list.length - 1; i >= 0 && reduce > 0; i--) { const t = Math.min(list[i].count - 1, reduce); list[i] = { ...list[i], count: list[i].count - t }; reduce -= t; }
-      } else if (target > sum) {
-        let add = target - sum;
-        for (let i = list.length - 1; i >= 0 && add > 0; i--) { list[i] = { ...list[i], count: list[i].count + 1 }; add--; }
-      }
-      return [...list, ...empties];
-    });
+    // 重平衡走双向 clamp（同 toggleDemandRep 口径，2026-10-20）
+    setQuotas(prev => clampToExpertSeats(prev, newExpert));
   };
   const qt = quotas.reduce((s, q) => s + (quotaFilled(q) ? q.count : 0), 0);
   const qp = extractMode === 'specialty_match' ? quotas.filter(quotaFilled).map(q => ({ specialties: quotaSpecsOf(q), count: q.count })) : undefined;
