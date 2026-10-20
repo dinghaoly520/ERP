@@ -5,7 +5,7 @@ import { fetchCurrentUser } from '@/lib/api/auth';
 import { companyColor } from '@/components/company/company-tag';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, listPoolCompanies, listExperts, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis } from '@/lib/api/expert';
+import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, listPoolCompanies, listExperts, getDemandRepDirectory, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, type DemandRepDirectoryItem } from '@/lib/api/expert';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { QuotaMultiSelect } from '@/components/expert/quota-multi-select';
@@ -30,8 +30,9 @@ function QuotaFiltersAppliedHint({ filters }: { filters?: ExtractionPreview['quo
   return <p className="text-[11px] text-[var(--muted-foreground)] mt-2">已启用档案过滤：{parts.join(' · ')}{filters.note ? `（${filters.note}）` : ''}</p>;
 }
 
-/** 配额行（2026-10-13 多选化）：specialties=相近专业并桶（空=专业不限）；companyIds=公司并集（空=按池 scope） */
-interface SpecialtyQuota { specialties: string[]; count: number; employer?: string; regionCode?: string; expertLevel?: string; companyIds?: string[] }
+/** 配额行（2026-10-13 多选化）：specialties=相近专业并桶（空=专业不限）；companyIds=公司并集（空=按池 scope）；
+ *  employer/department=需求方代表「部门抽取」限定（employer=公司名、department=Department.name） */
+interface SpecialtyQuota { specialties: string[]; count: number; employer?: string; department?: string; regionCode?: string; expertLevel?: string; companyIds?: string[] }
 
 /** 行内非空专业列表（trim 后） */
 const quotaSpecsOf = (q: SpecialtyQuota) => (q.specialties ?? []).map(s => s.trim()).filter(Boolean);
@@ -153,13 +154,12 @@ export function ExpertExtractPage({
   // 需求方代表配置
   const [needDemandRep, setNeedDemandRep] = useState(false);
   const [demandRepMode, setDemandRepMode] = useState<'designated' | 'department' | null>(null);
-  const [demandRepPersons, setDemandRepPersons] = useState<{ userId: string; name: string; specialty: string; title?: string | null; employer?: string | null; reason?: string; evaluationLevel?: string }[]>([]);
+  const [demandRepPersons, setDemandRepPersons] = useState<{ userId: string; name: string; specialty: string; title?: string | null; employer?: string | null; companyId?: string; reason?: string; evaluationLevel?: string }[]>([]);
   const [demandRepCount, setDemandRepCount] = useState(1); // 需求方代表人数（>100万可选 1 或 2；≤100万固定 1）
   const [demandRepDept, setDemandRepDept] = useState('');
   const [demandRepDeptSpecialty, setDemandRepDeptSpecialty] = useState('');
   const [demandRepSearch, setDemandRepSearch] = useState('');
-  const [demandRepResults, setDemandRepResults] = useState<ExpertListItem[]>([]);
-  const [demandRepSearching, setDemandRepSearching] = useState(false);
+  const [demandRepDirectory, setDemandRepDirectory] = useState<DemandRepDirectoryItem[]>([]); // 全库目录（级联 + 指定代表搜索数据源，无 PII）
   const [employerSpecs, setEmployerSpecs] = useState<Map<string, string[]>>(new Map()); // 公司 → 该公司专家的可选专业
   // 公司→真部门映射（User.department）+ 公司→部门→专业映射（公司→部门→专业三级级联）
   const [companyDepartments, setCompanyDepartments] = useState<Map<string, string[]>>(new Map());
@@ -674,20 +674,23 @@ export function ExpertExtractPage({
     listPoolCompanies().then(setCompanies).catch(() => {});
   }, []);
 
-  // 公司/部门/专业三级映射：一次性拉取全部专家构建（供需求方代表「公司→部门→专业」级联）
+  // 公司/部门/专业三级映射 + 人员目录：全库目录端点构建（供需求方代表「公司→部门→专业」级联）。
+  // 2026-10-20 前误在隔离的列表端点上聚合——非 admin 只回本公司专家，其余公司部门恒空且误报
+  // 「该公司专家库内暂无专家」；跨公司选需求方代表为既定口径（抽取配额公司白名单）
   useEffect(() => {
-    listExperts({ pageSize: 1000 }).then(raw => {
-      const list = (unwrapList(raw as any).items) as ExpertListItem[];
+    getDemandRepDirectory().then(res => {
+      const items = (res?.items ?? []) as DemandRepDirectoryItem[];
+      setDemandRepDirectory(items);
       const empSpecs = new Map<string, Set<string>>();
       const compDepts = new Map<string, Set<string>>();
       const compDeptSpecs = new Map<string, Set<string>>();
       const uDepts = new Map<string, string>();
-      for (const e of list) {
-        const emp = e.expertProfile?.employer?.trim();
-        const dept = e.department?.name?.trim();
-        if (dept) uDepts.set(e.id, dept);
+      for (const e of items) {
+        const emp = e.employer?.trim();
+        const dept = e.department?.trim();
+        if (dept) uDepts.set(e.userId, dept);
         if (!emp) continue;
-        const sp = e.expertProfile?.specialty?.trim();
+        const sp = e.specialty?.trim();
         if (!empSpecs.has(emp)) empSpecs.set(emp, new Set());
         if (sp) empSpecs.get(emp)!.add(sp);
         if (dept) {
@@ -707,27 +710,16 @@ export function ExpertExtractPage({
     }).catch(() => {});
   }, [user?.company]);
 
-
-
-  // 指定需求方代表：搜索专家（防抖 300ms）
-  const demandRepReqIdRef = useRef(0);
-  useEffect(() => {
-    if (demandRepMode !== 'designated' || !demandRepSearch.trim()) { setDemandRepResults([]); return; }
-    const t = setTimeout(async () => {
-      setDemandRepSearching(true);
-      const rid = ++demandRepReqIdRef.current;
-      try {
-        const list = unwrapList(await listExperts({ search: demandRepSearch.trim(), employer: demandRepCompany || undefined })).items;
-        if (rid !== demandRepReqIdRef.current) return;
-        setDemandRepResults(list);
-      } catch {
-        if (rid !== demandRepReqIdRef.current) return;
-        setDemandRepResults([]);
-      }
-      setDemandRepSearching(false);
-    }, 300);
-    return () => clearTimeout(t);
-  }, [demandRepSearch, demandRepMode]);
+  // 指定需求方代表：全库目录内本地检索（原隔离列表端点防抖搜索——非 admin 选其他公司恒「未匹配到人员」；
+  // 已选定公司时按公司过滤，关键词匹配姓名/专业/部门）
+  const demandRepResults = useMemo(() => {
+    if (demandRepMode !== 'designated' || !demandRepSearch.trim()) return [] as DemandRepDirectoryItem[];
+    const kw = demandRepSearch.trim().toLowerCase();
+    return demandRepDirectory
+      .filter(e => !demandRepCompany || e.employer === demandRepCompany)
+      .filter(e => !kw || e.name.toLowerCase().includes(kw) || e.specialty.toLowerCase().includes(kw) || e.department.toLowerCase().includes(kw))
+      .slice(0, 10);
+  }, [demandRepDirectory, demandRepMode, demandRepSearch, demandRepCompany]);
 
   const addManualExpert = (e: ExpertListItem) => {
     if (manualExperts.some(x => x.userId === e.id)) return;
@@ -1147,20 +1139,24 @@ export function ExpertExtractPage({
     toast.loading('AI 正在分析项目需求并抽取专家组...', { id: 'extract-loading' });
 
     // 组装抽取配额：专业可空=「不选择」（不限专业桶，2026-09-24）；公司=配额所选（默认本公司，可跨公司）；
-    // 部门需求方代表走 employer 限定配额；区域/等级档案过滤已随 UI 下线不再发送
+    // 部门需求方代表走 employer+department 限定配额，并带 companyIds=所选公司——跨公司时池子按白名单
+    // 并集取（与普通配额同口径；2026-10-20 前只传 employer，非 admin 池子被本公司隔离收窄恒抽 0 人）；
+    // 顶层 employer 大锤已删——它会把整池（含普通配额）错砍到需求方公司。
+    // 区域/等级档案过滤已随 UI 下线不再发送
     const manualQuotas: { specialties: string[]; count: number; companyIds?: string[] }[] = [];
     for (const qq of quotas) manualQuotas.push({
       specialties: quotaSpecsOf(qq), count: qq.count, // 空=专业不限（不限专业桶）
       companyIds: qq.companyIds?.length ? qq.companyIds : (myCompanyId ? [myCompanyId] : []), // 空=不限公司（按池 scope）
     });
     const regularQuotaCount = manualQuotas.length; // 候补 = 每个配额组 1 位
+    const demandRepCompanyId = companyIdOfName(demandRepCompany);
     const allQuotas = (needDemandRep && demandRepMode === 'department')
-      ? [...manualQuotas, { specialties: demandRepDeptSpecialty ? [demandRepDeptSpecialty] : [], count: demandRepCount, employer: demandRepCompany, department: demandRepDept }]
+      ? [...manualQuotas, { specialties: demandRepDeptSpecialty ? [demandRepDeptSpecialty] : [], count: demandRepCount, employer: demandRepCompany, department: demandRepDept, companyIds: demandRepCompanyId ? [demandRepCompanyId] : [] }]
       : manualQuotas;
     const totalNeeded = allQuotas.reduce((s, q) => s + q.count, 0);
 
     try {
-      const result = await previewExtraction({ projectId: pid, totalNeeded, alternatives: 0, extractMode: extractMode as ApiExtractMode, manualQuotas: allQuotas, employer: demandRepCompany || undefined });
+      const result = await previewExtraction({ projectId: pid, totalNeeded, alternatives: 0, extractMode: extractMode as ApiExtractMode, manualQuotas: allQuotas });
       if (!result?.selected) throw new Error('服务器返回数据异常');
       setPreview(result);
       // 部门模式：抽取结果末尾 demandRepCount 人为需求方代表，从 selectedExperts 中分离
@@ -1188,10 +1184,26 @@ export function ExpertExtractPage({
     }
   };
 
-  /** 抽取配置公司白名单：各配额所选公司（默认本公司）的去重集合，确认抽取时随 payload 递交（跨公司放行依据） */
+  /** 公司名 → 公司主数据 id（需求方代表按公司名选择，配额/白名单按 id 递交；未匹配返回 ''） */
+  const companyIdOfName = (name: string) => companies.find(c => c.name === name)?.id ?? '';
+
+  /** 抽取配置公司白名单：各配额所选公司（默认本公司）∪ 需求方代表所选公司/人员所属公司的去重集合，
+   *  确认抽取时随 payload 递交（跨公司放行依据）——部门模式=所选公司；指定模式=代表所属公司
+   *  （2026-10-20 前缺此段，指定/抽取跨公司代表在 confirm 被 COMPANY_SCOPE_FORBIDDEN 拦） */
   const extractionCompanyIds = (extraQuotas: SpecialtyQuota[] = []): string[] | undefined => {
-    const ids = [...new Set([...quotas, ...extraQuotas].flatMap(q => (q.companyIds?.length ? q.companyIds : (myCompanyId ? [myCompanyId] : [])).map(c => c.trim())).filter(Boolean))];
-    return ids.length ? ids : undefined;
+    const ids = new Set([...quotas, ...extraQuotas].flatMap(q => (q.companyIds?.length ? q.companyIds : (myCompanyId ? [myCompanyId] : [])).map(c => c.trim())).filter(Boolean));
+    if (needDemandRep) {
+      if (demandRepMode === 'department') {
+        const cid = companyIdOfName(demandRepCompany);
+        if (cid) ids.add(cid);
+      } else {
+        for (const p of demandRepPersons) {
+          const cid = p.companyId || demandRepDirectory.find(d => d.userId === p.userId)?.companyId;
+          if (cid) ids.add(cid);
+        }
+      }
+    }
+    return ids.size ? [...ids] : undefined;
   };
 
   // 需求方代表（正选成员，不参与 AI 抽取；designated 来自手动指定，department 来自抽取分离）
@@ -1387,7 +1399,7 @@ export function ExpertExtractPage({
       const aiRes = await analyzeProjectSpecialties(pid);
       let quotas: SpecialtyQuota[] = [];
       let declinedDemandRepIds: any[] = [];
-      let reEmployerQuotas: { specialties: string[]; count: number; employer?: string }[] = [];
+      let reEmployerQuotas: { specialties: string[]; count: number; employer?: string; department?: string; companyIds?: string[] }[] = [];
       if (aiRes?.requiredSpecialties?.length) {
         // AI 推荐行（相近专业组）→ 多选配额行，按席位数降序供补满
         const aiRows = aiRowsToQuotas(aiRes.requiredSpecialties, mkMatchSpec(specs)).sort((a, b) => b.count - a.count);
@@ -1396,13 +1408,17 @@ export function ExpertExtractPage({
         declinedDemandRepIds = allMain.filter(e => e.invitationStatus === 'declined' && demandRepIdSet.has(e.userId));
         const declinedNormalExperts = allMain.filter(e => e.invitationStatus === 'declined' && !demandRepIdSet.has(e.userId));
 
-        // 需求方代表补选配额（走 employer 限定，与初次抽取一致）
+        // 需求方代表补选配额（走 employer+department 限定，与初次抽取同款；
+        // 2026-10-20 前误把部门名当公司名传（employer: demandRepDept）→ 恒 0 匹配）
         reEmployerQuotas = [];
         if (declinedDemandRepIds.length > 0 && demandRepMode === 'department' && demandRepDept) {
+          const reCid = companyIdOfName(demandRepCompany);
           reEmployerQuotas.push({
             specialties: demandRepDeptSpecialty ? [demandRepDeptSpecialty] : [],
             count: declinedDemandRepIds.length,
-            employer: demandRepDept,
+            employer: demandRepCompany,
+            department: demandRepDept,
+            companyIds: reCid ? [reCid] : [],
           });
           remaining -= declinedDemandRepIds.length;
         }
@@ -1444,7 +1460,7 @@ export function ExpertExtractPage({
       const allReQuotas: SpecialtyQuota[] = [...quotas, ...reEmployerQuotas];
       const totalNeeded = allReQuotas.reduce((s, q) => s + q.count, 0);
       const excludedIds = Array.from(new Set(invitationData.experts.map(e => e.userId)));
-      const manualQuotas = allReQuotas.map(q => ({ specialties: quotaSpecsOf(q), count: q.count, employer: q.employer, companyIds: q.companyIds }));
+      const manualQuotas = allReQuotas.map(q => ({ specialties: quotaSpecsOf(q), count: q.count, employer: q.employer, department: q.department, companyIds: q.companyIds }));
       updateDraft({ quotas: allReQuotas.map(q => ({ specialties: quotaSpecsOf(q), count: q.count })) });
       const result = await previewExtraction({ projectId: pid, totalNeeded, alternatives: Math.min(quotas.length, 9), extractMode: extractMode as ApiExtractMode, manualQuotas, excludedUserIds: excludedIds.length > 0 ? excludedIds : undefined });
       if (!result?.selected) throw new Error('返回数据异常');
@@ -2179,15 +2195,14 @@ export function ExpertExtractPage({
                       )}
                       {demandRepSearch.trim() && demandRepPersons.length < demandRepCount && (
                         <div className="max-h-[200px] overflow-y-auto space-y-1 rounded-xl bg-[var(--surface)] p-2 shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
-                          {demandRepSearching ? <p className="text-xs text-[var(--muted-foreground)] text-center py-3"><RefreshCw size={12} className="animate-spin inline mr-1" />搜索中...</p>
-                          : demandRepResults.length === 0 ? <p className="text-xs text-[var(--muted-foreground)] text-center py-3">未匹配到人员</p>
-                          : demandRepResults.slice(0, 10).map(e => (
-                            <div key={e.id} className="flex items-center justify-between rounded-lg px-2.5 py-1.5">
+                          {demandRepResults.length === 0 ? <p className="text-xs text-[var(--muted-foreground)] text-center py-3">未匹配到人员</p>
+                          : demandRepResults.map(e => (
+                            <div key={e.userId} className="flex items-center justify-between rounded-lg px-2.5 py-1.5">
                               <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2"><span className="text-sm font-bold text-[var(--foreground)]">{e.displayName}</span>{e.expertProfile?.specialty && <span className="text-xs text-[var(--muted-foreground)]">{e.expertProfile.specialty}</span>}</div>
-                                <div className="text-[11px] text-[var(--muted-foreground)] truncate">{e.expertProfile?.employer || ''}</div>
+                                <div className="flex items-center gap-2"><span className="text-sm font-bold text-[var(--foreground)]">{e.name}</span>{e.specialty && <span className="text-xs text-[var(--muted-foreground)]">{e.specialty}</span>}</div>
+                                <div className="text-[11px] text-[var(--muted-foreground)] truncate">{[e.department, e.employer].filter(Boolean).join(' · ')}</div>
                               </div>
-                              <button onClick={() => { setDemandRepPersons(prev => prev.some(x => x.userId === e.id) ? prev : [...prev, { userId: e.id, name: e.displayName, specialty: e.expertProfile?.specialty ?? '', title: e.expertProfile?.title, employer: e.expertProfile?.employer }]); setDemandRepSearch(''); }} className="neu-btn-xs is-info shrink-0 ml-2">选定</button>
+                              <button onClick={() => { setDemandRepPersons(prev => prev.some(x => x.userId === e.userId) ? prev : [...prev, { userId: e.userId, name: e.name, specialty: e.specialty ?? '', employer: e.employer, companyId: e.companyId }]); setDemandRepSearch(''); }} className="neu-btn-xs is-info shrink-0 ml-2">选定</button>
                             </div>
                           ))}
                         </div>
@@ -2209,14 +2224,26 @@ export function ExpertExtractPage({
                           placeholder="选择公司"
                           title="抽取公司：默认本公司，可选其他公司（公司主数据，附搜索）"
                         />
-                        <select value={demandRepDept} onChange={e => { setDemandRepDept(e.target.value); setDemandRepDeptSpecialty(''); }} disabled={!demandRepCompany} className="neu-input text-sm flex-1 disabled:opacity-50">
-                          <option value="">选择部门</option>
-                          {(companyDepartments.get(demandRepCompany) || []).map(d => <option key={d} value={d}>{d}</option>)}
-                        </select>
-                        <select value={demandRepDeptSpecialty} onChange={e => setDemandRepDeptSpecialty(e.target.value)} disabled={!demandRepDept} className="neu-input text-sm flex-1 disabled:opacity-50">
-                          <option value="">专业不限</option>
-                          {(companyDeptSpecs.get(`${demandRepCompany}||${demandRepDept}`) || []).map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
+                        <QuotaMultiSelect
+                          single
+                          className="flex-1 min-w-0"
+                          disabled={!demandRepCompany}
+                          options={(companyDepartments.get(demandRepCompany) || []).map(d => ({ value: d, label: d }))}
+                          selected={demandRepDept ? [demandRepDept] : []}
+                          onChange={list => { setDemandRepDept(list[0] ?? ''); setDemandRepDeptSpecialty(''); }}
+                          placeholder="选择部门"
+                          title="需求方代表所在部门（所选公司专家库内真部门；再点当前项=回全公司）"
+                        />
+                        <QuotaMultiSelect
+                          single
+                          className="flex-1 min-w-0"
+                          disabled={!demandRepDept}
+                          options={(companyDeptSpecs.get(`${demandRepCompany}||${demandRepDept}`) || []).map(s => ({ value: s, label: s }))}
+                          selected={demandRepDeptSpecialty ? [demandRepDeptSpecialty] : []}
+                          onChange={list => setDemandRepDeptSpecialty(list[0] ?? '')}
+                          placeholder="专业不限"
+                          title="在所选部门内进一步按专业收窄；再点当前项=回专业不限"
+                        />
                       </div>
                       {demandRepCompany && (
                         <div className="flex items-start gap-1.5 rounded-[9px] bg-[color-mix(in_oklch,var(--muted-foreground)_5%,transparent)] px-2.5 py-1.5">

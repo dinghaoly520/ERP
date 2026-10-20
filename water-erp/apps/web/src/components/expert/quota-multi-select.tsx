@@ -30,6 +30,7 @@ export function QuotaMultiSelect({
   title,
   className,
   single = false,
+  disabled = false,
 }: {
   options: QuotaMultiOption[];
   selected: string[];
@@ -40,6 +41,8 @@ export function QuotaMultiSelect({
   className?: string;
   /** 单选模式（需求方代表公司等）：点击即选中并收起，触发器显纯文本 */
   single?: boolean;
+  /** 禁用态（级联上游未选时）：触发器不响应、降不透明度（2026-10-20 需求方代表级联） */
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -92,7 +95,9 @@ export function QuotaMultiSelect({
       <button
         type="button"
         title={title}
+        disabled={disabled}
         onClick={() => {
+          if (disabled) return;
           if (!open) {
             const r = anchorRef.current?.getBoundingClientRect();
             if (r) {
@@ -102,7 +107,7 @@ export function QuotaMultiSelect({
           }
           setOpen(o => !o);
         }}
-        className="flex min-h-[38px] w-full flex-wrap items-center gap-1 rounded-[10px] px-2.5 py-1 text-left text-[13px] outline-none transition-all focus-visible:outline-2 focus-visible:outline-[var(--accent)] focus-visible:outline-offset-1"
+        className={`flex min-h-[38px] w-full flex-wrap items-center gap-1 rounded-[10px] px-2.5 py-1 text-left text-[13px] outline-none transition-all focus-visible:outline-2 focus-visible:outline-[var(--accent)] focus-visible:outline-offset-1 ${disabled ? 'cursor-not-allowed opacity-50' : ''}`}
         style={{
           background: open ? 'oklch(0.985 0.01 252)' : 'var(--surface)',
           border: 'none',

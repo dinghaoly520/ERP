@@ -37,6 +37,16 @@ export interface ExpertListItem {
   avgGrade?: string | null;
 }
 
+/** 需求方代表目录项（全库，无 PII）：抽取页级联与指定代表搜索数据源（2026-10-20） */
+export interface DemandRepDirectoryItem {
+  userId: string;
+  name: string;
+  employer: string;
+  specialty: string;
+  department: string;
+  companyId: string;
+}
+
 export interface ExtractionSelected {
   userId: string;
   name: string;
@@ -116,6 +126,11 @@ export function listSpecialties(companyId?: string) {
  *  替代直拉 /companies 主数据全集——0 专家的残留公司会污染抽取下拉（走查测试集团实录）。 */
 export function listPoolCompanies() {
   return api.get<Array<{ id: string; name: string; shortName?: string | null }>>('/expert-admin/pool-companies');
+}
+
+/** 需求方代表目录（全库，不隔离）：公司→部门→专业级联 + 指定代表搜索（2026-10-20，见后端端点注释） */
+export function getDemandRepDirectory() {
+  return api.get<{ items: DemandRepDirectoryItem[] }>('/expert-admin/demand-rep-directory');
 }
 
 /** 按公司分组全量计数（admin 全部公司视图的分组标题全量口径；与列表同 where） */
