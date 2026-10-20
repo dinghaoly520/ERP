@@ -58,6 +58,7 @@ describe('ExpertService', () => {
       supplierBidSubmission: { findUnique: jest.fn(), findMany: jest.fn() }, // findMany：getReport→resolveOpeningAmountUnitMap（P1-1 单位口径）
       supplier: { findUnique: jest.fn() },
       fileAsset: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn() },
+      attachment: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidScoreRecord: {
         findMany: jest.fn().mockResolvedValue([]),
         deleteMany: jest.fn(),
@@ -1992,6 +1993,189 @@ describe('ExpertService', () => {
           riskFlag: '无',
         }),
       }));
+    });
+  });
+
+  describe('谈判采购文件轨（2026-10-20：谈判项目不发布采购公告，BidDocument 恒空；采购文件经 Redis negotiation-config 交付——专家端镜像供应商端修复 14f55c5f）', () => {
+    const signedExpert = { ...mockExpert, id: 'exp-1', expertName: '王建国', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true };
+    let redis: { get: jest.Mock };
+    const cfg = {
+      projectId: 'proj-1',
+      refFileKeys: ['pm/tender-file.docx'],
+      attachFileIds: ['fa-invite-1'],
+      acquireStartTime: '2026-10-19 09:00',
+      acquireEndTime: '2026-10-20 15:00',
+      downloadMode: 'encrypted',
+    };
+
+    beforeEach(() => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue(signedExpert);
+      prisma.bidDocument = { findFirst: jest.fn().mockResolvedValue(null) };
+      redis = { get: jest.fn().mockResolvedValue(JSON.stringify(cfg)) };
+      (service as any).redis = redis;
+    });
+
+    afterEach(() => {
+      (service as any).redis = undefined;
+    });
+
+    it('getTenderDocument：BidDocument 空且谈判配置在 → 组装谈判文件 meta（Attachment 主轨 + FileAsset 兼容轨）', async () => {
+      prisma.attachment.findMany.mockResolvedValue([
+        { id: 'att-1', fileName: '谈判采购文件.docx', fileSize: 12870380, mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+      ]);
+      // refFileKeys 兜底 FileAsset.byKey 与 attachFileIds FileAsset.byId 各返回互不重复的行
+      prisma.fileAsset.findMany.mockImplementation(async (args: any) => {
+        const where = args?.where ?? {};
+        if (where.id) return [{ id: 'fa-invite-1', originalName: '采购邀请书.docx', size: 11303, mimeType: null }];
+        return [];
+      });
+
+      const result = await service.getTenderDocument('user-1', 'proj-1');
+
+      expect(result).toMatchObject({
+        source: 'negotiation',
+        title: '谈判采购文件',
+        fileName: '谈判采购文件.docx',
+        fileSize: 12870380,
+        downloadUrl: '/api/expert/projects/proj-1/negotiation-files/att-1/download',
+        files: [
+          { id: 'att-1', name: '谈判采购文件.docx', size: 12870380, downloadUrl: '/api/expert/projects/proj-1/negotiation-files/att-1/download' },
+          { id: 'fa-invite-1', name: '采购邀请书.docx', size: 11303, downloadUrl: '/api/expert/projects/proj-1/negotiation-files/fa-invite-1/download' },
+        ],
+      });
+    });
+
+    it('无谈判配置（Redis 无 key）→ 返回 null（现有空态行为不变）', async () => {
+      redis.get.mockResolvedValue(null);
+
+      const result = await service.getTenderDocument('user-1', 'proj-1');
+
+      expect(result).toBeNull();
+    });
+
+    it('BidDocument 公告轨命中 → 优先公告轨，不读谈判配置', async () => {
+      prisma.bidDocument.findFirst.mockResolvedValue({
+        id: 'bd-1', title: '招标文件',
+        fileAsset: { originalName: 'tender.pdf', size: 100 },
+      });
+
+      const result = await service.getTenderDocument('user-1', 'proj-1');
+
+      expect(result).toEqual({
+        title: '招标文件',
+        fileName: 'tender.pdf',
+        fileSize: 100,
+        downloadUrl: '/api/expert/projects/proj-1/tender-document/download',
+      });
+      expect(redis.get).not.toHaveBeenCalled();
+    });
+
+    it('getProject 详情 payload 同样附带谈判文件 meta', async () => {
+      prisma.attachment.findMany.mockResolvedValue([
+        { id: 'att-1', fileName: '谈判采购文件.docx', fileSize: 12870380, mimeType: null },
+      ]);
+      prisma.fileAsset.findMany.mockResolvedValue([]);
+      prisma.bidProject.findUnique.mockImplementation(async (args: any) => {
+        // getProject 主查 include 全量；findTenderDoc/assertRoomUnlocked 走 select 子集
+        if (args?.select?.stage) return { stage: 'EVALUATING' };
+        return {
+          id: 'proj-1', stage: 'EVALUATING', projectCode: 'SWHI-TP-1', name: '谈判项目',
+          suppliers: [], openingSession: null, openingRecords: [], experts: [],
+          scoreItems: [], clarifications: [], supervisionLogs: [],
+        };
+      });
+      prisma.bidScoreRecord.findMany.mockResolvedValue([]);
+
+      const result = await service.getProject('user-1', 'proj-1');
+
+      expect((result as any).tenderDocument).toMatchObject({
+        source: 'negotiation',
+        fileName: '谈判采购文件.docx',
+      });
+    });
+
+    describe('downloadNegotiationFile — 谈判采购文件逐个下载', () => {
+      it('无谈判配置 → 404 NOT_FOUND', async () => {
+        redis.get.mockResolvedValue(null);
+
+        await expect(service.downloadNegotiationFile('user-1', 'proj-1', 'att-1'))
+          .rejects.toMatchObject({ response: { code: 'NOT_FOUND' } });
+      });
+
+      it('未完成签到/回避 → 403 VERIFICATION_REQUIRED', async () => {
+        prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, signedIn: false, avoidanceConfirmed: false });
+
+        await expect(service.downloadNegotiationFile('user-1', 'proj-1', 'att-1'))
+          .rejects.toMatchObject({ response: { code: 'VERIFICATION_REQUIRED' } });
+      });
+
+      it('附件不在本项目引用集 → 403 FILE_NOT_IN_CONFIG（防跨项目越权）', async () => {
+        prisma.attachment.findUnique.mockResolvedValue({
+          fileName: '他项目附件.docx', objectKey: 'other-project/att.docx', mimeType: null,
+        });
+
+        await expect(service.downloadNegotiationFile('user-1', 'proj-1', 'att-foreign'))
+          .rejects.toMatchObject({ response: { code: 'FILE_NOT_IN_CONFIG' } });
+      });
+
+      it('Attachment 主轨：本地磁盘读取 + docx 命名转 PDF + 写监督日志', async () => {
+        const fs = require('fs');
+        const buf = Buffer.from('fake docx content');
+        jest.spyOn(fs.promises, 'readFile').mockResolvedValue(buf);
+        const childProcess = require('child_process');
+        const spy = jest.spyOn(childProcess, 'execFileSync').mockImplementation(() => undefined as any);
+        prisma.attachment.findUnique.mockResolvedValue({
+          fileName: '谈判采购文件.docx', objectKey: 'pm/tender-file.docx', mimeType: null,
+        });
+        prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+        const result = await service.downloadNegotiationFile('user-1', 'proj-1', 'att-1');
+
+        expect(result.buffer).toBe(buf); // 转换被 mock 失败 → 原样返回
+        expect(result.fileName).toBe('谈判采购文件.pdf');
+        expect(result.mimeType).toBe('application/pdf');
+        expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
+          data: expect.objectContaining({
+            projectId: 'proj-1',
+            role: '评审专家',
+            target: '王建国',
+            action: '访问谈判采购文件',
+            riskFlag: '无',
+          }),
+        }));
+        spy.mockRestore();
+      });
+
+      it('FileAsset 兼容轨：attachFileIds 内 id 走 MinIO 读取', async () => {
+        const buf = Buffer.from('invitation docx');
+        prisma.attachment.findUnique.mockResolvedValue(null);
+        prisma.fileAsset.findUnique.mockResolvedValue({
+          key: 'general/invitation/x.docx', originalName: '采购邀请书.docx', mimeType: null,
+        });
+        jest.spyOn(minioClient, 'getObject').mockResolvedValue({
+          async *[Symbol.asyncIterator]() { yield buf; },
+        } as any);
+        const childProcess = require('child_process');
+        const spy = jest.spyOn(childProcess, 'execFileSync').mockImplementation(() => undefined as any);
+        prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+        const result = await service.downloadNegotiationFile('user-1', 'proj-1', 'fa-invite-1');
+
+        expect(result.buffer.equals(buf)).toBe(true); // streamToBuffer 拼接产生新 Buffer，按内容比对
+        expect(result.fileName).toBe('采购邀请书.pdf');
+        spy.mockRestore();
+      });
+
+      it('FileAsset 不在引用集（id 与 key 均未命中）→ 403 FILE_NOT_IN_CONFIG', async () => {
+        prisma.attachment.findUnique.mockResolvedValue(null);
+        prisma.fileAsset.findUnique.mockResolvedValue({
+          key: 'general/other.docx', originalName: '无关文件.docx', mimeType: null,
+        });
+
+        await expect(service.downloadNegotiationFile('user-1', 'proj-1', 'fa-foreign'))
+          .rejects.toMatchObject({ response: { code: 'FILE_NOT_IN_CONFIG' } });
+      });
     });
   });
 

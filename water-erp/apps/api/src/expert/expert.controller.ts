@@ -318,6 +318,22 @@ export class ExpertController {
     res.send(buffer);
   }
 
+  /* 谈判采购文件（2026-10-20：谈判项目无 BidDocument 公告轨，采购文件经 Redis 配置交付——镜像供应商端 14f55c5f） */
+
+  @ApiOperation({ summary: '谈判采购文件逐个下载（inline 预览；Attachment 主轨 + FileAsset 兼容轨，引用集越权闸）' })
+  @Get('projects/:projectId/negotiation-files/:fileId/download')
+  async downloadNegotiationFile(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Param('fileId') fileId: string,
+    @Res() res: Response,
+  ) {
+    const { buffer, fileName, mimeType } = await this.expertService.downloadNegotiationFile(userId, projectId, fileId);
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
+    res.send(buffer);
+  }
+
   /* A-136：澄清与修改文件（评委核对招标文件修改的法定输入） */
 
   @ApiOperation({ summary: '本项目已发布澄清/修改文件列表（本项目评委）' })

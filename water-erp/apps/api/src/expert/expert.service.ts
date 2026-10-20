@@ -408,7 +408,10 @@ export class ExpertService {
     // announcement.relatedProjectCode 匹配当前 projectCode）查找。
     // 撞号安全（2026-09-10 实测）：relatedProjectCode 与 PMI 编码同空间，OR 分支可能命中
     // 他方项目公告（专家侧招标文件显示成空调项目文件）——优先 bidProjectId 直连。
+    // 2026-10-20：谈判项目公告轨恒空时回退 Redis 谈判配置轨（SWHI-TP-2026102003 实录）。
     const tenderDoc = await this.findTenderDoc(projectId, project.projectCode);
+    const tenderDocument = this.buildTenderDocumentMeta(tenderDoc, projectId)
+      ?? await this.findNegotiationTenderMeta(projectId);
     return {
       ...project,
       // host 态（2026-09-20 spec §4.2）：专家端据此锁定/解锁第 1 步（自我态恒 self）
@@ -435,7 +438,7 @@ export class ExpertService {
       myScores,
       noneEvaluation,
       restricted: false,
-      tenderDocument: this.buildTenderDocumentMeta(tenderDoc, projectId),
+      tenderDocument,
     };
   }
 
@@ -864,14 +867,13 @@ export class ExpertService {
     return expert;
   }
 
-  /** 招标文件元信息（供前端「招标文件」卡片展示），无则 null。 */
+  /** 招标文件元信息（供前端「招标文件」卡片展示），无则 null。谈判项目回退 Redis 配置轨。 */
   async getTenderDocument(userId: string, projectId: string) {
     await this.assertExpertActiveForProject(userId, projectId);
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId }, select: { projectCode: true },
     });
-    const doc = await this.findTenderDoc(projectId, project?.projectCode ?? '');
-    return this.buildTenderDocumentMeta(doc, projectId);
+    return this.resolveTenderDocumentMeta(projectId, project?.projectCode ?? '');
   }
 
   /** 招标文件查找：优先 bidProjectId 直连，回退公告链（relatedProjectCode）——避免编码空间撞号误读他方文件。 */
@@ -899,6 +901,67 @@ export class ExpertService {
       fileSize: doc.fileAsset.size,
       downloadUrl: `/api/expert/projects/${projectId}/tender-document/download`,
     };
+  }
+
+  /** 谈判采购文件轨（2026-10-20，镜像供应商端修复 14f55c5f）：谈判项目不发布采购公告
+   *  （采购邀请书替代，:3005 selection 向导），BidDocument 恒空；采购文件经 Redis
+   *  negotiation-config 交付——refFileKeys 主轨=PMI 阶段附件（本地 uploads/ 磁盘），
+   *  attachFileIds/refFileKeys 兜底=FileAsset。公告轨 miss 时回退此轨，否则专家端
+   *  「招标文件」卡恒空（SWHI-TP-2026102003 实录）。
+   *  注意：不加供应商获取窗口闸——窗口面向供应商获取期，评标阶段（OPENING/EVALUATING）
+   *  专家核对原文是法定评标需要，勿照搬 supplier-portal 的 assertNegotiationAccess。 */
+  private async findNegotiationTenderMeta(projectId: string) {
+    if (!this.redis) return null;
+    let cfg: { refFileKeys?: string[]; attachFileIds?: string[] } | null = null;
+    try {
+      const raw = await this.redis.get(`negotiation-config:${projectId}`);
+      if (raw) cfg = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+    if (!cfg) return null;
+
+    const keys: string[] = cfg.refFileKeys || [];
+    const ids: string[] = cfg.attachFileIds || [];
+    if (keys.length === 0 && ids.length === 0) return null;
+    const [attachments, byKey, byId] = await Promise.all([
+      keys.length > 0
+        ? this.prisma.attachment.findMany({ where: { objectKey: { in: keys } }, select: { id: true, fileName: true, fileSize: true, mimeType: true } })
+        : Promise.resolve([]),
+      keys.length > 0
+        ? this.prisma.fileAsset.findMany({ where: { key: { in: keys } }, select: { id: true, originalName: true, size: true, mimeType: true } })
+        : Promise.resolve([]),
+      ids.length > 0
+        ? this.prisma.fileAsset.findMany({ where: { id: { in: ids } }, select: { id: true, originalName: true, size: true, mimeType: true } })
+        : Promise.resolve([]),
+    ]);
+    const files = [
+      ...attachments.map(f => ({
+        id: f.id, name: f.fileName, size: f.fileSize ?? 0, mimeType: f.mimeType ?? null,
+        downloadUrl: `/api/expert/projects/${projectId}/negotiation-files/${f.id}/download`,
+      })),
+      ...[...byKey, ...byId]
+        .filter((f, i, arr) => arr.findIndex(x => x.id === f.id) === i)
+        .map(f => ({
+          id: f.id, name: f.originalName, size: f.size, mimeType: f.mimeType ?? null,
+          downloadUrl: `/api/expert/projects/${projectId}/negotiation-files/${f.id}/download`,
+        })),
+    ];
+    if (files.length === 0) return null;
+    return {
+      title: '谈判采购文件',
+      fileName: files[0].name,
+      fileSize: files[0].size,
+      downloadUrl: files[0].downloadUrl,
+      source: 'negotiation' as const,
+      files,
+    };
+  }
+
+  /** 招标/采购文件元信息解析：BidDocument 公告轨优先，miss 回退谈判配置轨。 */
+  private async resolveTenderDocumentMeta(projectId: string, projectCode: string) {
+    const doc = await this.findTenderDoc(projectId, projectCode);
+    return this.buildTenderDocumentMeta(doc, projectId) ?? await this.findNegotiationTenderMeta(projectId);
   }
 
   /** 解密下载招标文件明文 PDF，并写一条访问审计日志（不递增 downloadCount）。 */
@@ -929,6 +992,82 @@ export class ExpertService {
     });
 
     return { buffer: this.maybeConvertDocxToPdf(plaintext, doc.fileAsset.originalName), fileName: this.pdfFileName(doc.fileAsset.originalName), mimeType: 'application/pdf' };
+  }
+
+  /** 谈判采购文件逐个下载（专家端，2026-10-20）：与清单端点同源解析（Attachment 主轨 +
+   *  FileAsset 兼容轨），fileId 须命中本项目配置引用集，防跨项目附件越权读取
+   *  （与供应商端 downloadNegotiationFile 同款 FILE_NOT_IN_CONFIG 闸）。
+   *  闸门 = 评标室口令 + 专家身份核验（OPENING/EVALUATING + 签到/回避五项）；
+   *  不加供应商获取窗口闸（评标阶段核对原文是法定需要，见 findNegotiationTenderMeta 注）。 */
+  async downloadNegotiationFile(
+    userId: string,
+    projectId: string,
+    fileId: string,
+  ): Promise<{ buffer: Buffer; fileName: string; mimeType: string }> {
+    await this.assertRoomUnlocked(projectId, userId);
+    const expert = await this.assertExpertActiveForProject(userId, projectId);
+
+    const raw = await this.redis?.get(`negotiation-config:${projectId}`).catch(() => null);
+    const cfg = raw ? (JSON.parse(raw) as { refFileKeys?: string[]; attachFileIds?: string[] }) : null;
+    if (!cfg) throw new NotFoundException({ error: '该项目暂无谈判配置', code: 'NOT_FOUND' });
+    const keys: string[] = cfg.refFileKeys || [];
+    const ids: string[] = cfg.attachFileIds || [];
+
+    // 主轨：PMI 阶段附件（本地 uploads/ 磁盘）——objectKey 须命中引用集
+    const attachment = await this.prisma.attachment.findUnique({
+      where: { id: fileId },
+      select: { fileName: true, objectKey: true, mimeType: true },
+    });
+    if (attachment) {
+      if (!keys.includes(attachment.objectKey)) {
+        throw new ForbiddenException({ error: '该文件不在本项目的采购文件清单内', code: 'FILE_NOT_IN_CONFIG' });
+      }
+      const buffer = await fs.promises.readFile(path.resolve(process.cwd(), 'uploads', attachment.objectKey));
+      return this.finishNegotiationDownload(buffer, attachment.fileName, attachment.mimeType, expert, projectId);
+    }
+
+    // 兼容轨：FileAsset（MinIO）——id ∈ attachFileIds 或 key ∈ refFileKeys
+    const asset = await this.prisma.fileAsset.findUnique({
+      where: { id: fileId },
+      select: { key: true, originalName: true, mimeType: true },
+    });
+    if (asset) {
+      if (!ids.includes(fileId) && !keys.includes(asset.key)) {
+        throw new ForbiddenException({ error: '该文件不在本项目的采购文件清单内', code: 'FILE_NOT_IN_CONFIG' });
+      }
+      const buffer = await streamToBuffer(await minioClient.getObject(MINIO_BUCKET, asset.key));
+      return this.finishNegotiationDownload(buffer, asset.originalName, asset.mimeType, expert, projectId);
+    }
+
+    throw new NotFoundException({ error: '谈判采购文件不存在', code: 'NOT_FOUND' });
+  }
+
+  /** 谈判文件下载收尾：监督日志留痕 + docx/doc 统一转 PDF（预览口径与 downloadTenderDocument 一致）。 */
+  private async finishNegotiationDownload(
+    buffer: Buffer,
+    fileName: string,
+    mimeType: string | null,
+    expert: { expertName: string },
+    projectId: string,
+  ): Promise<{ buffer: Buffer; fileName: string; mimeType: string }> {
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId,
+        time: new Date(),
+        role: '评审专家',
+        target: expert.expertName,
+        action: '访问谈判采购文件',
+        result: fileName,
+        riskFlag: '无',
+      },
+    });
+    const pdfName = this.pdfFileName(fileName);
+    const isPdf = pdfName !== fileName; // docx/doc 被改名 → 已转 PDF
+    return {
+      buffer: this.maybeConvertDocxToPdf(buffer, fileName),
+      fileName: pdfName,
+      mimeType: isPdf ? 'application/pdf' : (mimeType || 'application/octet-stream'),
+    };
   }
 
   /** 如果 plaintext 是 .docx/.doc，则用 LibreOffice 转换为 PDF；否则原样返回。
