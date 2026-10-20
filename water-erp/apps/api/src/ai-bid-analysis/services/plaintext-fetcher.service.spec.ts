@@ -229,17 +229,54 @@ describe('PlaintextFetcherService — 解密双格式测试 (C12)', () => {
 
       expect(out).toBeNull();
     });
+  });
 
-    it('公告轨命中 → 优先公告轨，不读谈判配置；返回 fileName=FileAsset.originalName', async () => {
-      prisma.announcement.findFirst.mockResolvedValue({ id: 'ann-1' });
-      prisma.bidDocument.findFirst.mockResolvedValue({ id: 'bd-1', fileAssetId: 'asset-1', decryptKey: null });
+  describe('fetchTenderPlaintext — 公告轨编号并集（2026-10-20：公告存 PMI 业务编号，仅按 BidProject 内部编号查恒空 → tenderText=0、条款提取空链，实录 DMGY-XB-2026100901）', () => {
+    let redis: { get: jest.Mock };
+
+    beforeEach(() => {
+      prisma.bidProject = { findUnique: jest.fn().mockResolvedValue({ projectCode: 'XB-1', projectManagementItemId: 'pmi-1' }) };
+      prisma.projectManagementItem = { findUnique: jest.fn().mockResolvedValue({ projectCode: 'DMGY-XB-1' }) };
+      prisma.announcement = { findFirst: jest.fn().mockResolvedValue({ id: 'ann-1' }) };
+      prisma.bidDocument = { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn().mockResolvedValue({ id: 'bd-1', fileAssetId: 'asset-1', decryptKey: null }) };
       prisma.fileAsset.findUnique.mockResolvedValue({
-        id: 'asset-1', key: 'bid-doc/x.pdf', originalName: '招标文件.pdf', sha256: 'abc123', sealedPath: null,
+        id: 'asset-1', key: 'bid-doc/x.pdf', originalName: '询比采购文件.pdf', sha256: 'abc123', sealedPath: null,
       });
+      redis = { get: jest.fn() };
+      (service as any).redis = redis;
+    });
+
+    afterEach(() => {
+      (service as any).redis = undefined;
+    });
+
+    it('公告按双编号并集命中（relatedProjectCode in [XB-1, DMGY-XB-1]）→ BidDocument(announcementId) → 返回文件', async () => {
+      const out = await service.fetchTenderPlaintext('project-1');
+
+      expect(out!.fileName).toBe('询比采购文件.pdf');
+      expect(prisma.announcement.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ relatedProjectCode: { in: ['XB-1', 'DMGY-XB-1'] } }),
+      }));
+      expect(prisma.bidDocument.findUnique).toHaveBeenCalledWith({ where: { announcementId: 'ann-1' } });
+    });
+
+    it('bidProjectId 直连优先：PUBLISHED 公告名下最新一份命中即不查公告链（重发公告旧版不得被无序捞走）', async () => {
+      prisma.bidDocument.findFirst.mockResolvedValue({ id: 'bd-9', fileAssetId: 'asset-1', decryptKey: null });
 
       const out = await service.fetchTenderPlaintext('project-1');
 
-      expect(out!.fileName).toBe('招标文件.pdf');
+      expect(out!.fileName).toBe('询比采购文件.pdf');
+      expect(prisma.announcement.findFirst).not.toHaveBeenCalled();
+      expect(prisma.bidDocument.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ bidProjectId: 'project-1', announcement: { status: 'PUBLISHED' } }),
+        orderBy: { createdAt: 'desc' },
+      }));
+    });
+
+    it('公告轨命中 → 优先公告轨，不读谈判配置（redis.get 不触发）', async () => {
+      const out = await service.fetchTenderPlaintext('project-1');
+
+      expect(out!.fileName).toBe('询比采购文件.pdf');
       expect(redis.get).not.toHaveBeenCalled();
     });
   });

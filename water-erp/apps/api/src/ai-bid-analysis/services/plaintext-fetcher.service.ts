@@ -108,8 +108,12 @@ export class PlaintextFetcherService {
 
   /**
    * 获取招标/采购文件明文（方案 4.1 链路 + 2026-10-20 谈判轨回退）
-   * 公告轨：BidProject.projectCode → Announcement(relatedProjectCode, BID_NOTICE, PUBLISHED)
-   *   → BidDocument(announcementId @unique) → decryptKey + FileAsset
+   * 公告轨：BidDocument 优先 bidProjectId 直连（PUBLISHED 公告名下最新一份）；miss 走
+   *   Announcement(relatedProjectCode ∈ {BidProject.projectCode ∪ PMI.projectCode},
+   *   BID_NOTICE, PUBLISHED) → BidDocument(announcementId @unique) → decryptKey + FileAsset
+   *   （双编号并集：公告实际存 PMI 业务编号，仅按内部编号查恒空——2026-10-20 实录
+   *    DMGY-XB-2026100901 内部码 XB-…，tenderText=0、条款提取整链空；同 supplier-portal
+   *    resolveAnnouncementCodes 口径）
    * 谈判轨：谈判项目不发布采购公告（邀请书替代），BidDocument 恒空 → Redis
    *   negotiation-config（refFileKeys=PMI 附件主轨 / attachFileIds·refFileKeys 兜底=FileAsset）
    * 返回 { buffer, fileName }（fileName 供 processFile 按扩展名分派 docx/pdf/ocr 路径）。
@@ -121,42 +125,60 @@ export class PlaintextFetcherService {
 
   /** 公告轨（BidDocument）：任一环节 miss 返回 null（由调用方回退谈判轨）。 */
   private async fetchBidDocumentTenderFile(projectId: string): Promise<{ buffer: Buffer; fileName: string } | null> {
-    // 1. BidProject → projectCode
+    // 1. BidProject → 内部编号 + PMI 业务编号（公告 relatedProjectCode 的两个候选值）
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { projectCode: true },
+      select: { projectCode: true, projectManagementItemId: true },
     });
     if (!project?.projectCode) return null;
+    const codes = new Set<string>([project.projectCode]);
+    if (project.projectManagementItemId) {
+      const pm = await this.prisma.projectManagementItem.findUnique({
+        where: { id: project.projectManagementItemId },
+        select: { projectCode: true },
+      });
+      if (pm?.projectCode) codes.add(pm.projectCode);
+    }
 
-    // 2. Announcement（BID_NOTICE 已发布，按 relatedProjectCode 关联）
+    // 2. BidDocument 直连优先（不受编码空间撞号影响，2026-09-10 注）：取 PUBLISHED 公告名下
+    //    最新一份——同一 bidProject 会因公告重发挂多份，OFFLINE 历史公告的旧版不得被无序
+    //    findFirst 捞走（2026-10-20，与 expert.service findTenderDoc 同口径）
+    const bidDocument = (await this.prisma.bidDocument.findFirst({
+      where: { bidProjectId: projectId, announcement: { status: 'PUBLISHED' } },
+      orderBy: { createdAt: 'desc' },
+    })) ?? (await this.prisma.bidDocument.findFirst({
+      where: { bidProjectId: projectId },
+      orderBy: { createdAt: 'desc' },
+    }));
+    if (bidDocument) return this.readBidDocumentFile(bidDocument);
+
+    // 3. 公告链兜底：双编号并查 Announcement（BID_NOTICE 已发布）→ BidDocument(announcementId)
     const announcement = await this.prisma.announcement.findFirst({
       where: {
-        relatedProjectCode: project.projectCode,
+        relatedProjectCode: { in: [...codes] },
         type: 'BID_NOTICE',
         status: 'PUBLISHED',
       },
       select: { id: true },
     });
     if (!announcement) return null;
-
-    // 3. BidDocument（1:1 Announcement）→ decryptKey + fileAssetId
-    // 优先按 bidProjectId 直连：relatedProjectCode 与 PMI 编码同空间，公告直建回写后可能撞号
-    // （2026-09-10 实测：BidProject JJ-2026091003 vs 空调项目 PMI JJ-2026091003，findFirst
-    // 命中他人公告 → 提取到错误招标文件），直连 BidDocument.bidProjectId 不受编码空间影响。
-    const bidDocument = (await this.prisma.bidDocument.findFirst({
-      where: { bidProjectId: projectId },
-    })) ?? (await this.prisma.bidDocument.findUnique({
+    const doc = await this.prisma.bidDocument.findUnique({
       where: { announcementId: announcement.id },
-    }));
-    if (!bidDocument) return null;
+    });
+    if (!doc) return null;
+    return this.readBidDocumentFile(doc);
+  }
 
-    // 4. FileAsset
+  /** BidDocument → FileAsset 下载 + decryptKey 解密 + 完整性校验（公告轨共用读端） */
+  private async readBidDocumentFile(
+    bidDocument: { fileAssetId: string | null; decryptKey: string | null },
+  ): Promise<{ buffer: Buffer; fileName: string } | null> {
+    if (!bidDocument.fileAssetId) return null;
     const asset = await this.prisma.fileAsset.findUnique({
       where: { id: bidDocument.fileAssetId },
     });
     if (!asset) return null;
 
-    // 5. 下载 + 解密（decryptKey）+ 完整性校验
     const readKey = asset.sealedPath || asset.key;
     let buffer = await streamToBuffer(
       await minioClient.getObject(MINIO_BUCKET, readKey),
