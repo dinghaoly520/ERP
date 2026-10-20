@@ -2544,7 +2544,7 @@ export class ExpertAdminService {
     // 供配额行附挂 companyIds——否则配额公司默认本公司，跨公司专业 0 候选
     const poolSpecsRows = await this.prisma.expertProfile.findMany({
       where: { user: { isActive: true } },
-      select: { specialty: true, user: { select: { companyId: true } } },
+      select: { specialty: true, availability: true, entryStatus: true, user: { select: { companyId: true } } },
     });
     const poolSpecs = Array.from(new Set(poolSpecsRows.map(r => r.specialty).filter(Boolean)));
     const companiesBySpec = this.companiesBySpecOf(poolSpecsRows);
@@ -2704,12 +2704,17 @@ ${combined}`,
     }
   }
 
-  /** 专业→持有公司并集映射（入参=expertProfile 含 user.companyId 的行；配额行 companyIds 附挂用） */
-  private companiesBySpecOf(rows: { specialty: string | null; user?: { companyId: string | null } | null }[]): Map<string, Set<string>> {
+  /** 专业→持有公司并集映射（入参=expertProfile 含 user.companyId 的行；配额行 companyIds 附挂用）。
+   *  行带 availability/entryStatus 字段时按可抽取资格过滤（与 listPoolCompanies 同口径）——
+   *  只挂「不可用/非 ACTIVE 专家」的公司会让配额行 chip 查不到名称回落显 ID 且抽取 0 候选。 */
+  private companiesBySpecOf(rows: { specialty: string | null; availability?: string | null; entryStatus?: string | null; user?: { companyId: string | null } | null }[]): Map<string, Set<string>> {
     const map = new Map<string, Set<string>>();
     for (const r of rows) {
       const cid = r.user?.companyId;
       if (!cid || !r.specialty?.trim()) continue;
+      if (r.availability != null || r.entryStatus != null) {
+        if (r.availability !== '可用' || r.entryStatus !== 'ACTIVE') continue;
+      }
       const set = map.get(r.specialty) ?? new Set<string>();
       set.add(cid);
       map.set(r.specialty, set);
@@ -2721,7 +2726,7 @@ ${combined}`,
   private async companiesBySpecialty(): Promise<Map<string, Set<string>>> {
     const rows = await this.prisma.expertProfile.findMany({
       where: { user: { isActive: true } },
-      select: { specialty: true, user: { select: { companyId: true } } },
+      select: { specialty: true, availability: true, entryStatus: true, user: { select: { companyId: true } } },
     });
     return this.companiesBySpecOf(rows);
   }
