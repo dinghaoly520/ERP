@@ -5,6 +5,7 @@ import type {
   InternalBiddingAnswers,
   TableData,
 } from './tender-write.types';
+import { joinSoftWrappedLines } from '../common/text-clean.util';
 
 export const COMPETITIVE_NEGOTIATION_TEMPLATE_FILE =
   '模板文件/谈判采购文件模板.docx';
@@ -1658,11 +1659,14 @@ export function renderTemplateXml(
       );
     }
 
-    // Use replacePlaceholderPreservingFormat to preserve original font
+    // Use replacePlaceholderPreservingFormat to preserve original font.
+    // 普通字段（非 isHierarchicalText）合并句中软换行（2026-10-20 根修）：PDF 解析来源的
+    // draft 值带排版软换行（「勘察设\n计」），裸 \n 落进 w:t 后 convertToHtml 会转成
+    // <br/>——门户正文词中断行。层级字段（\n→w:br 为合法结构）走上面分支不受影响。
     return replacePlaceholderPreservingFormat(
       result,
       replacement.targetText,
-      replacement.replacementText,
+      joinSoftWrappedLines(replacement.replacementText),
       replacement.highlight,
     );
   }, output);
