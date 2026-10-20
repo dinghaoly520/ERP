@@ -2756,7 +2756,7 @@ export function ExpertExtractPage({
                               {experts.map(e => (
                                 <tr key={e.id}>
                                   <td className="text-center"><span className="text-sm font-bold text-[var(--foreground)]">{e.expertName}</span></td>
-                                  <td className="text-center text-sm text-[var(--muted-foreground)]">{e.major}</td>
+                                  <td className="text-center text-sm text-[var(--muted-foreground)]">{fmtExpertSpecialty(e.userId, e.major)}</td>
                                   <td className="text-center text-xs text-[var(--muted-foreground)]">{e.title || '—'}</td>
                                   <td className="text-center text-xs text-[var(--muted-foreground)]">{e.employer || '—'}</td><td className="text-center text-xs text-[var(--muted-foreground)]">{deptByUser.get(e.userId) || '—'}</td>
                                   <td className="text-center text-xs font-mono text-[var(--muted-foreground)]">{phoneCell(e.userId, e.phone)}</td>
@@ -3186,7 +3186,7 @@ export function ExpertExtractPage({
                 ) : reDraft.selected.map((s, i) => (
                   <div key={s.userId} className={`flex items-start gap-3 ${i > 0 ? 'border-t border-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)] mt-2 pt-2' : 'mt-2'}`}>
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-extrabold text-white">{i + 1}</span>
-                    <div className="min-w-0 flex-1"><div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-bold text-[var(--foreground)]">{s.name}</span><StatusBadge tone="blue">{fmtExpertSpecialty(s.userId, s.specialty)}</StatusBadge>{s.evaluationLevel && <StatusBadge tone={s.evaluationLevel === 'A' ? 'green' : s.evaluationLevel === 'B' ? 'blue' : s.evaluationLevel === 'D' ? 'orange' : s.evaluationLevel === 'E' ? 'red' : 'gray'}>{s.evaluationLevel}</StatusBadge>}</div><p className="text-[11px] text-[var(--muted-foreground)] mt-0.5">{s.reason}</p></div>
+                    <div className="min-w-0 flex-1"><div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-bold text-[var(--foreground)]">{s.name}</span><StatusBadge tone="blue">{fmtExpertSpecialty(s.userId, s.specialty)}</StatusBadge>{s.evaluationLevel && <StatusBadge tone={s.evaluationLevel === 'A' ? 'green' : s.evaluationLevel === 'B' ? 'blue' : s.evaluationLevel === 'D' ? 'orange' : s.evaluationLevel === 'E' ? 'red' : 'gray'}>{s.evaluationLevel}</StatusBadge>}</div><p className="text-[11px] text-[var(--muted-foreground)] mt-0.5">公司：{s.employer || '—'} · 职称：{s.title || '—'}</p></div>
                     {!reDraft.confirmed && <div className="flex items-center gap-1 shrink-0"><button onClick={() => { setReplaceTarget({ userId: s.userId, role: 'selected' }); setReplaceSearch(''); setShowReplaceModal(true); }} className="neu-btn-xs" title="替换"><Pencil size={11} /></button><button onClick={() => updateDraft({ selected: reDraft.selected.filter(x => x.userId !== s.userId) })} className="neu-btn-xs is-danger" title="移除"><X size={11} /></button></div>}
                   </div>
                 ))}
