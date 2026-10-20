@@ -2663,11 +2663,11 @@ export function ExpertExtractPage({
                         if(e.invitationStatus==='confirmed') repConfirmed++;
                         return; // 不计入专业分布
                       }
-                      const m=e.major||'综合';
+                      const m = fmtExpertSpecialty(e.userId, e.major || '综合');
                       totalByMajor.set(m,(totalByMajor.get(m)||0)+1);
                       if(e.invitationStatus==='confirmed') confirmedByMajor.set(m,(confirmedByMajor.get(m)||0)+1);
                     });
-                    const nonDemandMajors = [...new Set(experts.filter(e=>!demandRepIdSet.has(e.userId)).map(e=>e.major))].filter(Boolean);
+                    const nonDemandMajors = [...new Set(experts.filter(e=>!demandRepIdSet.has(e.userId)).map(e=>fmtExpertSpecialty(e.userId, e.major || '综合')))].filter(Boolean);
                     return (
                   <div className="flex items-center gap-1.5">
                     {nonDemandMajors.map(m=>{const done=confirmedByMajor.get(m)||0;const total=totalByMajor.get(m)||0;return(<span key={m} className={`rounded-[6px] px-2 py-0.5 text-[10px] font-bold ${done>=total?'bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[var(--success)]':'bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] text-[var(--warning)]'}`}>{m} {done}/{total}</span>);})}
@@ -2719,21 +2719,22 @@ export function ExpertExtractPage({
                         <div key={hi} className="rounded-xl border border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)] overflow-hidden">
                           <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-[color-mix(in_oklch,var(--accent)_4%,transparent)]">
                             <span className="text-xs font-bold text-[var(--foreground)]">{isAlt ? '候补专家' : `第${h.roundNo}次补选`}</span>
-                            <span className="text-[11px] text-[var(--muted-foreground)]">· {h.selected.length} 人</span>
+                            <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--accent)]">{h.selected.length} 人</span>
                             {isAlt ? (
                               <div className="ml-auto flex items-center gap-1.5">
                                 <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--success)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--success)]">已记录</span>
                               </div>
                             ) : (
                               <>
-                                {/* 专业进度芯片：与正选表头同款同口径（major=落库配额标签；需求方代表独立计数不入专业分布） */}
+                                {/* 专业进度芯片：与正选表头同款同口径（专业=专家本人档案专业 fmtExpertSpecialty，
+                                    不用落库 major 配额标签；需求方代表独立计数不入专业分布） */}
                                 {(() => {
                                   const confirmedByMajor = new Map<string, number>();
                                   const totalByMajor = new Map<string, number>();
                                   let repConfirmed = 0, repTotal = 0;
                                   experts.forEach(e => {
                                     if (demandRepIdSet.has(e.userId)) { repTotal++; if (e.invitationStatus === 'confirmed') repConfirmed++; return; }
-                                    const m = e.major || '综合';
+                                    const m = fmtExpertSpecialty(e.userId, e.major || '综合');
                                     totalByMajor.set(m, (totalByMajor.get(m) || 0) + 1);
                                     if (e.invitationStatus === 'confirmed') confirmedByMajor.set(m, (confirmedByMajor.get(m) || 0) + 1);
                                   });
