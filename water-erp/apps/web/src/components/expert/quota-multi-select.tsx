@@ -14,8 +14,6 @@ import { Check, ChevronDown, Search, X } from 'lucide-react';
  *  - 搜索区 = sticky 贴顶内凹小输入 + hairline 分隔（多选态附「已选 N 项/清空」）；
  *  - 激活项 = 白瓷片凸起 + 品牌蓝粗体（与 neu-tab v2 激活语义统一）。
  * 受控组件：selected 为已选值数组（single 模式至多 1 项），onChange 回传完整新数组。
- * 选项 >12 自动双列网格（2026-10-20）：专业库 78 项单列滚动过长——双列 + 面板加高（420）/拉宽
- * （≥360）压缩滚动，右缘溢出夹紧；少选项（公司 8 家）维持单列观感，调用方无需传参。
  */
 export interface QuotaMultiOption {
   value: string;
@@ -32,7 +30,6 @@ export function QuotaMultiSelect({
   title,
   className,
   single = false,
-  disabled = false,
 }: {
   options: QuotaMultiOption[];
   selected: string[];
@@ -43,8 +40,6 @@ export function QuotaMultiSelect({
   className?: string;
   /** 单选模式（需求方代表公司等）：点击即选中并收起，触发器显纯文本 */
   single?: boolean;
-  /** 禁用态（级联上游未选时）：触发器不响应、降不透明度（2026-10-20 需求方代表级联） */
-  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -88,34 +83,7 @@ export function QuotaMultiSelect({
     if (single) { onChange(selected[0] === v ? [] : [v]); setOpen(false); setQ(''); return; }
     onChange(selected.includes(v) ? selected.filter(x => x !== v) : [...selected, v]);
   };
-  // 选项多（专业库 78 项）自动双列网格 + 加高面板压缩滚动；少选项（公司 8 家）维持单列观感（2026-10-20）
-  const grid = !single && options.length > 12;
-  const POP_H = grid ? 420 : 272;
-  const optionRow = (o: QuotaMultiOption) => {
-    const on = selected.includes(o.value);
-    return (
-      <button
-        key={o.value}
-        type="button"
-        role="option"
-        aria-selected={on}
-        title={o.label}
-        onClick={() => toggle(o.value)}
-        className={`${grid ? '' : 'mb-0.5'} flex w-full items-center gap-2 rounded-[10px] px-2.5 py-[7px] text-left text-xs transition-colors ${on ? 'font-bold text-[var(--accent)]' : 'text-[color:var(--foreground)] hover:bg-[color-mix(in_oklch,var(--accent)_6%,transparent)]'}`}
-        style={on ? { background: 'oklch(1 0 0)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.95), 2px 2px 6px oklch(0.55 0.03 258 / 0.16), -1px -1px 2px oklch(1 0 0 / 0.9)' } : undefined}
-      >
-        <span
-          className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[4px] border transition-colors ${
-            on ? 'border-[var(--accent)] bg-[var(--accent)] text-white' : 'border-[oklch(0.55_0.04_258/0.35)]'
-          }`}
-        >
-          {on && <Check size={10} strokeWidth={3} />}
-        </span>
-        <span className="truncate">{o.label}</span>
-        {o.hint && <span className="ml-auto pl-3 text-[10px] font-normal text-[color:var(--muted-foreground)]">{o.hint}</span>}
-      </button>
-    );
-  };
+  const POP_H = 272;
 
   return (
     <div ref={anchorRef} className={`relative ${className ?? ''}`}>
@@ -123,21 +91,17 @@ export function QuotaMultiSelect({
       <button
         type="button"
         title={title}
-        disabled={disabled}
         onClick={() => {
-          if (disabled || !open) {
-            if (disabled) return;
+          if (!open) {
             const r = anchorRef.current?.getBoundingClientRect();
             if (r) {
               const flip = r.bottom + POP_H + 8 > window.innerHeight && r.top > POP_H + 16; // 下方放不下且上方够 → 向上弹
-              const width = Math.max(r.width, grid ? 360 : 220); // 双列模式拉宽面板，容纳长专业名
-              // 右缘溢出夹紧（portal 为 fixed 定位，不随锚点收缩）
-              setRect({ top: flip ? r.top - POP_H - 8 : r.bottom + 8, left: Math.min(r.left, window.innerWidth - width - 8), width });
+              setRect({ top: flip ? r.top - POP_H - 8 : r.bottom + 8, left: r.left, width: Math.max(r.width, 220) });
             }
           }
-          if (!disabled) setOpen(o => !o);
+          setOpen(o => !o);
         }}
-        className={`flex min-h-[38px] w-full flex-wrap items-center gap-1 rounded-[10px] px-2.5 py-1 text-left text-[13px] outline-none transition-all focus-visible:outline-2 focus-visible:outline-[var(--accent)] focus-visible:outline-offset-1 ${disabled ? 'cursor-not-allowed opacity-50' : ''}`}
+        className="flex min-h-[38px] w-full flex-wrap items-center gap-1 rounded-[10px] px-2.5 py-1 text-left text-[13px] outline-none transition-all focus-visible:outline-2 focus-visible:outline-[var(--accent)] focus-visible:outline-offset-1"
         style={{
           background: open ? 'oklch(0.985 0.01 252)' : 'var(--surface)',
           border: 'none',
@@ -206,12 +170,31 @@ export function QuotaMultiSelect({
               </div>
             )}
           </div>
-          {grid ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '2px 4px' }}>
-              {filtered.map(optionRow)}
-            </div>
-          ) : filtered.map(optionRow)}
-          {filtered.length === 0 && <div className="px-2 py-2 text-center text-[10px] text-[color:var(--muted-foreground)]" style={grid ? { gridColumn: '1 / -1' } : undefined}>无匹配项</div>}
+          {filtered.map(o => {
+            const on = selected.includes(o.value);
+            return (
+              <button
+                key={o.value}
+                type="button"
+                role="option"
+                aria-selected={on}
+                onClick={() => toggle(o.value)}
+                className={`mb-0.5 flex w-full items-center gap-2 rounded-[10px] px-2.5 py-[7px] text-left text-xs transition-colors ${on ? 'font-bold text-[var(--accent)]' : 'text-[color:var(--foreground)] hover:bg-[color-mix(in_oklch,var(--accent)_6%,transparent)]'}`}
+                style={on ? { background: 'oklch(1 0 0)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.95), 2px 2px 6px oklch(0.55 0.03 258 / 0.16), -1px -1px 2px oklch(1 0 0 / 0.9)' } : undefined}
+              >
+                <span
+                  className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[4px] border transition-colors ${
+                    on ? 'border-[var(--accent)] bg-[var(--accent)] text-white' : 'border-[oklch(0.55_0.04_258/0.35)]'
+                  }`}
+                >
+                  {on && <Check size={10} strokeWidth={3} />}
+                </span>
+                <span className="truncate">{o.label}</span>
+                {o.hint && <span className="ml-auto pl-3 text-[10px] font-normal text-[color:var(--muted-foreground)]">{o.hint}</span>}
+              </button>
+            );
+          })}
+          {filtered.length === 0 && <div className="px-2 py-2 text-center text-[10px] text-[color:var(--muted-foreground)]">无匹配项</div>}
         </div>,
         document.body,
       )}
