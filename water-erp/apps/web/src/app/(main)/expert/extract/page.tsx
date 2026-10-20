@@ -912,6 +912,14 @@ export function ExpertExtractPage({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expertSeats]);
+
+  // 配额总量不变量（2026-10-20 修复）：任何来源（localStorage 快照恢复 / autoExtractResult
+  // 历史抽取回填 / 旧版本数据）写入的配额总和不得超过 expertSeats，超过立即裁剪。
+  // 此前无此闸：旧快照恢复出超配总和（如 5+1 应 4 席却恒 8 席）后，adjustQuota/addQ/rmQ
+  // 只在行间转移席位、总量恒定，超配值永久固化。
+  useEffect(() => {
+    if (quotaSum > expertSeats) setQuotas(prev => trimQuotas(prev, expertSeats));
+  }, [quotaSum, expertSeats]);
   const demandRepOk = !needDemandRep || (demandRepMode === 'designated' ? demandRepPersons.length === demandRepCount : demandRepMode === 'department' ? !!demandRepDept : false);
   // 手动选取模式 UI 已移除；其余模式须配平专业配额
   const canExtract = !!pid && extractMode !== 'manual' && seatsBalanced && demandRepOk;
