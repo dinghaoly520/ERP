@@ -35,6 +35,7 @@ import { CompleteProjectDto } from './dto/complete-project.dto';
 import { CreateProjectFromInitiationDto } from './dto/create-project-from-initiation.dto';
 import { QueryProjectManagementDto } from './dto/query-project-management.dto';
 import { getEvaluationDefault } from '../bid/evaluation-method.config';
+import { isNoneEvaluation } from '../bid/none-evaluation.util';
 import { ScoreStandardValidator } from '../bid/score-standard-validator.service';
 import { resolveActiveUserId } from '../bid/bid-project-notify.util';
 import { SelectOfficialTenderDto } from './dto/select-official-tender.dto';
@@ -480,6 +481,9 @@ export class ProjectManagementService {
         name: true,
         stage: true,
         procurementMethod: true,
+        // none-eval（2026-10-19 审查 F1 / spec §4.7）：:3005 评分标准卡信息态判定字段——
+        // 此前 existing 路径缺列、返回体无 evaluationMethod，前端只能回退 detail 全量接口
+        evaluationMethod: true,
         openTime: true,
         deadline: true,
       },
@@ -592,6 +596,8 @@ export class ProjectManagementService {
       name: created.name,
       stage: created.stage,
       procurementMethod: created.procurementMethod,
+      // 与 existing 路径返回体对齐（none-eval F1）：创建时已由 buildEvaluationDefaults 落默认值
+      evaluationMethod: created.evaluationMethod,
       round: targetRound,
       openTime: created.openTime.toISOString(),
       deadline: created.deadline.toISOString(),
@@ -3627,7 +3633,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
       select: { id: true, evaluationMethod: true },
     });
     if (!bp) return; // 方案 E：未关联开评标项目 → 放行（启动评标 G9 硬闸兜底）
-    if (bp.evaluationMethod === 'none') return;
+    // none-eval（spec 2026-10-19 §4.1）：改调共享谓词——与 :3007 G9 唯一口径来源，行为不变
+    if (isNoneEvaluation(bp.evaluationMethod)) return;
     try {
       await this.scoreStandardValidator.assertScoreStandardComplete(bp.id);
     } catch (e) {
@@ -3751,6 +3758,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
         name: true,
         stage: true,
         procurementMethod: true,
+        // none-eval（spec §4.7）：:3005 评分标准卡 ref 兜底路径（detail 拉取失败时）也须能判 none
+        evaluationMethod: true,
         openTime: true,
         deadline: true,
       },

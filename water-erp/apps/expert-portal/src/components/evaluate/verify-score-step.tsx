@@ -27,6 +27,9 @@ interface Props {
   locked?: boolean;
   /** 打开桌面端备忘抽屉 */
   onOpenMemo?: () => void;
+  /** none 轨道（spec §4.4 + F-1 两因子）：调用方传「none 且 0 评分项」——核对步转「定性审查确认」、
+   *  隐藏分数列，确认动作仍调 verifyScoreReview；none 但已编评分项的项目走常规评分核对轨 */
+  noneEvaluation?: boolean;
 }
 
 const key = (sid: string, iid: string) => `${sid}:${iid}`;
@@ -41,6 +44,7 @@ export function VerifyScoreStep({
   onVerified,
   locked,
   onOpenMemo,
+  noneEvaluation,
 }: Props) {
   const [busy, setBusy] = useState(false);
   const verified = reviewStatus === 'verified';
@@ -56,7 +60,9 @@ export function VerifyScoreStep({
     setBusy(true);
     try {
       await verifyScoreReview(projectId, supplierId);
-      toast.success(`${supplierName} 评分核对已确认`);
+      toast.success(noneEvaluation
+        ? `${supplierName} 定性审查确认已提交`
+        : `${supplierName} 评分核对已确认`);
       onVerified();
     } catch (e) {
       const msg = e instanceof Error ? e.message : '核对失败';
@@ -73,7 +79,7 @@ export function VerifyScoreStep({
         <div className="flex items-center gap-2">
           <ShieldCheck size={20} strokeWidth={1.5} className="text-[var(--accent-strong)]" />
           <h2 className="text-lg font-bold text-[var(--foreground)]">
-            核对评分 — {supplierName}
+            {noneEvaluation ? '定性审查确认' : '核对评分'} — {supplierName}
           </h2>
           {verified && (
             <span className="exp-pill" style={{ '--c': 'var(--success)' } as React.CSSProperties}>
@@ -94,10 +100,13 @@ export function VerifyScoreStep({
         )}
       </div>
       <p className="mb-6 text-sm text-[var(--muted-foreground)]">
-        请审阅以下评分，确认无误后点击「确认核对」。核对后评分将进入下一环节。
+        {noneEvaluation
+          ? '本项目为直接采购（不评分），请审阅该供应商的标书材料，确认审查结论后点击「确认核对」。'
+          : '请审阅以下评分，确认无误后点击「确认核对」。核对后评分将进入下一环节。'}
       </p>
 
-      {/* 只读评分汇总（按类别） */}
+      {/* 只读评分汇总（按类别）——none 轨道无分数列（0 评分项是设计态，spec §4.4） */}
+      {!noneEvaluation && (
       <div className="space-y-6">
         {Object.entries(grouped).map(([category, items]) => {
           const catTotal = items.reduce((s, i) => s + Number(i.maxScore), 0);
@@ -182,6 +191,7 @@ export function VerifyScoreStep({
           );
         })}
       </div>
+      )}
 
       {/* 报告已确认（评分锁定）——无核对记录的历史数据渲染锁定说明，不给可点死循环按钮 */}
       {locked && !verified && (

@@ -186,4 +186,61 @@ describe('BidSignPacketDocxService', () => {
     );
     expect(textOf(children)).not.toContain('附注：');
   });
+
+  /* ── 2026-10-19 none 直接采购 §4.6：个人评分确认表 →「直接采购·不评分」页 ── */
+  it('none sheet：渲染「直接采购·不评分」占位，不渲染空评分表/得分点裁定表；核对留痕与签认照常', () => {
+    const snap: SignPacketSnapshot = {
+      ...baseSnapshot,
+      expertSheets: [{
+        ...baseSnapshot.expertSheets[0],
+        noneEvaluation: true,
+        rows: [],          // none 项目 0 条 BidScoreRecord
+        pointDecisions: [],
+      }],
+    };
+    const text = textOf(svc.buildChildren(snap));
+    expect(text).toContain('直接采购·不评分');
+    // 不渲染空表格：评分表表头串/得分点裁定表头串不出现（六节「得分点」列不在两串口径内，不误伤）
+    expect(text).not.toContain('供应商评分项类别得分通过备注');
+    expect(text).not.toContain('得分点供应商裁定得分');
+    // 核对时间戳与签认照常（spec §4.6：核对签章照常）
+    expect(text).toContain('评分核对：2026-08-12T02:30:00.000Z');
+    expect(text).toContain('本人确认：本项目为直接采购、不评分');
+  });
+
+  it('非 none sheet：评分表/得分点裁定表照常渲染（回归）', () => {
+    const text = textOf(svc.buildChildren(baseSnapshot));
+    expect(text).toContain('供应商评分项类别得分通过备注');
+    expect(text).toContain('得分点供应商裁定得分');
+    expect(text).toContain('商务要点1');
+    expect(text).toContain('本人确认：以上分数、得分点裁定及在线操作留痕均为本人亲为');
+  });
+
+  /* ── 2026-10-19 fix轮1 none §4.6：主报告六/八节——expertSheets 保持非 none 以隔离主报告段 ── */
+  it('主报告 none：六节「直接采购·不评分」占位不渲染裸表头；八节推荐行不回显「总分 0」；七节结果表保留', () => {
+    const snap: SignPacketSnapshot = {
+      ...baseSnapshot,
+      noneEvaluation: true,
+      scoreStandard: [],  // none 项目 0 评分项（03 闸免编制）
+      results: [{ supplierName: 'SCCA试点供应商', totalScore: 0, averageScore: 0, rank: 1, recommended: true, disqualified: false, bidPrice: 100000000 }],
+    };
+    const text = textOf(svc.buildChildren(snap));
+    // 六节：占位段在七节标题之前（证明位于主报告段而非个人确认表）
+    expect(text.indexOf('直接采购·不评分')).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf('直接采购·不评分')).toBeLessThan(text.indexOf('七、经评审的价格'));
+    // 不渲染零行裸表（六节表头串不出现）
+    expect(text).not.toContain('类别评分项满分得分点');
+    // 八节：推荐行按不评分口径，不以「总分 0」回显（0 记录聚合的 0 分是设计态非评分结果）
+    expect(text).toContain('第 1 名：SCCA试点供应商（直接采购·不评分）');
+    expect(text).not.toContain('（总分 0）');
+    // 七节结果表保留（Task 5：none 保证 1 行结果，报价=唱标价换算元）
+    expect(text).toContain('¥100000000');
+  });
+
+  it('主报告非 none：六节评分标准表/八节总分回显照常（回归锁）', () => {
+    const text = textOf(svc.buildChildren(baseSnapshot));
+    expect(text).toContain('类别评分项满分得分点');
+    expect(text).toContain('商务要点1');
+    expect(text).toContain('第 1 名：重庆蜀通岩土工程有限公司（总分 88.5）');
+  });
 });

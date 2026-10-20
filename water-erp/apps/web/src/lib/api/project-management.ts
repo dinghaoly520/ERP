@@ -653,6 +653,8 @@ export interface PmBidProjectRefItem {
   name: string;
   stage: import('./bid').BidStage;
   procurementMethod: string;
+  /** 评标办法（none=直接采购族·不评分）——评分标准卡信息态判定（none-eval spec §4.7） */
+  evaluationMethod?: string | null;
   openTime: string;
   deadline: string;
 }

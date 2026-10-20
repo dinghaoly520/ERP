@@ -10,7 +10,7 @@ import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationRep
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
 import { validateSupplierScores, buildFullPoints, committedRecordFor, isCommittedEquivalent, filterScorableItems, type ScoreEntry } from '@/lib/score-validation';
 import { markTransferClaimed } from '@/lib/transfer-claimed-flag';
-import { ArrowLeft, Check, ShieldCheck, ShieldAlert, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, Clock, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History, Smartphone, UserRoundCog } from 'lucide-react';
+import { ArrowLeft, Check, ShieldCheck, ShieldAlert, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, Clock, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History, Info, Smartphone, UserRoundCog } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
 import { SigninCamera } from '@/components/signin-camera';
 import { QRCodeSVG } from 'qrcode.react';
@@ -53,7 +53,8 @@ export default function ExpertEvaluatePage() {
   const params = useParams();
   const projectId = params.id as string;
 
-  const [project, setProject] = useState<ExpertProjectDetail | null>(null);
+  // noneEvaluation（Task 4 getProject 下发）：直接采购·不评分轨道标志——打分/核对步信息态分支
+  const [project, setProject] = useState<(ExpertProjectDetail & { noneEvaluation?: boolean }) | null>(null);
   // 分钟级时钟——评标截止横幅的剩余时间/过期态随它刷新（无需秒级）
   const [nowTick, setNowTick] = useState(Date.now());
   useEffect(() => {
@@ -372,7 +373,7 @@ export default function ExpertEvaluatePage() {
   const loadProject = useCallback((committedSupplierId?: string, silent = false) => {
     if (!silent) setLoading(true);
     setLoadError(null);
-    return api.get<ExpertProjectDetail & { restricted?: boolean }>(`/expert/projects/${projectId}`)
+    return api.get<ExpertProjectDetail & { restricted?: boolean; noneEvaluation?: boolean }>(`/expert/projects/${projectId}`)
       .then(p => {
         // Stage gate: redirect if project is not in an active review stage
         if (p.restricted || (p.stage !== 'OPENING' && p.stage !== 'EVALUATING')) {
@@ -742,6 +743,12 @@ export default function ExpertEvaluatePage() {
   }, [activeSupplier, projectId]);
 
   const expert = project?.myExpertRecord;
+  // none-eval（spec §4.4）：直接采购（不评分）轨道——打分步信息卡 + 核对步「定性审查确认」文案
+  const noneEvaluation = !!project?.noneEvaluation;
+  // F-1（终审 2026-10-19）：信息卡/定性确认轨取两因子（none 且 0 评分项），与 :3007 G9 豁免同型。
+  // none 项目若已编制评分标准（存量/误配，如 ZJ-2026101903 Σ=100），回避确认重算会把 progress
+  // 拉回真实比例（<100）→ confirmReport SCORING_INCOMPLETE——此时打分表必须照常渲染，否则桌面死锁。
+  const noneNoScoring = noneEvaluation && (project?.scoreItems?.length ?? 0) === 0;
   // EXP-P2-02：候补专家（expertRole!=='正选'）——R5 递补前非评标委员会成员（招标投标法第37条），
   // 签到入口收口+待命横幅；被递补转正时 WS role_changed 里程碑触发 loadProject 自动解锁
   const expertRole = (expert as { expertRole?: string } | undefined)?.expertRole;
@@ -1582,7 +1589,7 @@ export default function ExpertEvaluatePage() {
             invalidSupplierIds={invalidSupplierIds}
             decryptLabel={DECRYPT_LABEL}
             scoringProgress={
-              step === 'scoring'
+              step === 'scoring' && !noneNoScoring // F-1 两因子：none 且 0 评分项才不渲染侧栏进度（有评分项照常计）
                 ? Object.fromEntries(
                     project.suppliers.map((s) => {
                       // EXP-P0-01：进度分母/计数基线均不含公式 PRICE 项（顺带移除 filter(()=>true) 死代码）
@@ -2018,6 +2025,22 @@ export default function ExpertEvaluatePage() {
 
           {/* 专家打分 */}
           {step === 'scoring' && (
+            noneNoScoring ? (
+              /* none-eval（spec §4.4 + F-1 两因子）：直接采购且 0 评分项——打分表撤下改信息卡；完成谓词
+                 与自动跳步不动（后端启动评标已回填 progress=100，report 步照常放行，手动导航至此仍见信息卡）。
+                 none 但已编评分项的项目仍走下方打分表（回避重算 progress<100 须真打分，否则桌面死锁） */
+              <div className="p-6">
+                <div className="exp-alert exp-alert--info flex items-start gap-3 !p-4">
+                  <Info size={18} strokeWidth={1.5} className="mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-bold">直接采购·不评分</p>
+                    <p className="mt-1 text-xs leading-relaxed opacity-90">
+                      本项目为直接采购（不评分），请审阅标书后于「核对」步逐家确认审查结论
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
             <div className="p-6">
               {/* WS 同步冲突横幅 */}
               {draftConflicts.length > 0 && (
@@ -2369,6 +2392,7 @@ export default function ExpertEvaluatePage() {
                 );
               })()}
             </div>
+            )
           )}
 
 
@@ -2387,6 +2411,7 @@ export default function ExpertEvaluatePage() {
                 )?.status as 'draft' | 'verified' | undefined
               }
               locked={!!expert?.reportConfirmed}
+              noneEvaluation={noneNoScoring}
               onVerified={loadProject}
               onOpenMemo={() => setMemoOpen(true)}
             />

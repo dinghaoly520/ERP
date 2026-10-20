@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, ConflictException, ForbiddenException,
 import * as crypto from 'crypto';
 import { GB_ARCHIVE_CATEGORIES, parseAmountToYuan, renderNotificationPayload } from '@water-erp/shared';
 import { resolveOpeningAmountUnitMap, formatAmountWithUnit, DUAL_V2_AMOUNT_UNIT } from './opening-amount-unit.util';
+import { isNoneEvaluation } from './none-evaluation.util';
 import { buildArchiveTemplate } from './archive-template';
 import { aggregateSupplierScores } from './aggregate-supplier-scores';
 import { PrismaService } from '../prisma/prisma.service';
@@ -2107,7 +2108,7 @@ export class BidService {
   async startEvaluation(id: string, actorId?: string, evaluationHours?: number) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { stage: true, name: true, procurementMethod: true, roundMode: true, projectManagementItemId: true, priceFormulaConfig: true, ceilingPrice: true },
+      select: { stage: true, name: true, procurementMethod: true, evaluationMethod: true, roundMode: true, projectManagementItemId: true, priceFormulaConfig: true, ceilingPrice: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     // F17：同阶段早退——阶段棘轮 EVALUATING→EVALUATING 幂等放行后旧实现会全流程重跑
@@ -2188,7 +2189,10 @@ export class BidService {
     await this.checkDisputeTimeout(id);
 
     // G9: 评分标准完整(打分类 Σ=100 + 每个打分类项 ≥1 得分点),否则专家无法打分
-    await this.scoreStandardValidator.assertScoreStandardComplete(id);
+    // none-eval 豁免（spec 2026-10-19 §4.1）：直接采购族不评分，免评分标准（null 时按采购方式派生）
+    if (!isNoneEvaluation(project.evaluationMethod, project.procurementMethod)) {
+      await this.scoreStandardValidator.assertScoreStandardComplete(id);
+    }
 
     // P1-2（第三波）：价格公式限价前置校验——与 generateEvaluationResults 的 CEILING_PRICE_REQUIRED
     // 同口径。旧实现不预检，专家全部评完点「生成评标结果」才炸 400，而 EVALUATING 期配置又已锁定
@@ -2225,6 +2229,19 @@ export class BidService {
 
     const updated = await this.prisma.$transaction(async (tx) => {
       await lockAndReassertStage(tx, id, 'EVALUATING'); // C1: 行锁后复查阶段（含 与评分标准编辑互斥的 FOR UPDATE）
+      // 存量自愈：修复前已签到/回避确认的 none 项目专家 stored progress=0（spec §4.2；回避确认重算为第二道自然修复）。
+      // 两因子（F-1 终审同口径，2026-10-20）：仅「none 且 0 评分项」才回填 100——none+已编评分项
+      // （存量/误配，如 ZJ-2026101903 Σ=100）的专家须真打分，progress 保持真实比例；强设 100 会
+      // 造成 confirmReport SCORING_INCOMPLETE 的假完成态（:3006 打分表已按同口径两因子渲染）。
+      const noneNoScoring =
+        isNoneEvaluation(project.evaluationMethod, project.procurementMethod)
+        && (await tx.bidScoreItem.count({ where: { projectId: id } })) === 0;
+      if (noneNoScoring) {
+        await tx.bidExpert.updateMany({
+          where: { projectId: id, expertRole: '正选', invitationStatus: 'confirmed', progress: { lt: 100 } },
+          data: { progress: 100 },
+        });
+      }
       // E2: 评标时限可自定义（缺省 72h，上限 720h）——「自定义评标时长」；超时可经「评标延期审批」延长
       const hours = evaluationHours && evaluationHours > 0 ? Math.min(Math.floor(evaluationHours), 720) : 72;
       const result = await tx.bidProject.update({
