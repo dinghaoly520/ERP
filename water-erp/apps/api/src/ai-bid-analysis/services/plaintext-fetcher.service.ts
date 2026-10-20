@@ -1,8 +1,12 @@
 // apps/api/src/ai-bid-analysis/services/plaintext-fetcher.service.ts
 // 明文获取（方案 5.2）：复用 bid.service decryptSupplier 的解密流程，返回明文 buffer
 // fetchBidderPlaintext：供应商投标文件（technical/business/coverLetter）
-// fetchTenderPlaintext：招标文件（BidDocument，链路见方案 4.1）
-import { Injectable, NotFoundException } from '@nestjs/common';
+// fetchTenderPlaintext：招标文件（BidDocument，链路见方案 4.1）；谈判采购项目公告轨恒空
+//   → 回退 Redis negotiation-config 轨（refFileKeys=PMI 阶段附件主轨 / FileAsset 兼容轨，2026-10-20）
+import { Injectable, NotFoundException, Optional, Inject } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
+import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { minioClient, MINIO_BUCKET } from '../../upload/minio.client';
 import { decryptBuffer, streamToBuffer, verifyIntegrity } from '../../bid/bid-submission.crypto';
@@ -13,7 +17,10 @@ export type BidderFileType = 'technical' | 'business' | 'coverLetter';
 
 @Injectable()
 export class PlaintextFetcherService {
-  constructor(private prisma: PrismaService) {
+  constructor(
+    private prisma: PrismaService,
+    @Optional() @Inject('REDIS_CLIENT') private readonly redis?: Redis,
+  ) {
     // wrapped key 场景需要 KMS_SECRET；缺失时启动即 warn（运行时 unwrapKey 会抛错，但有明确日志）
     if (!process.env.KMS_SECRET) {
       console.warn('[PlaintextFetcher] KMS_SECRET 未配置，加密招标文件/投标文件将无法解密');
@@ -100,11 +107,20 @@ export class PlaintextFetcherService {
   }
 
   /**
-   * 获取招标文件明文（方案 4.1 链路）
-   * BidProject.projectCode → Announcement(relatedProjectCode, BID_NOTICE, PUBLISHED)
+   * 获取招标/采购文件明文（方案 4.1 链路 + 2026-10-20 谈判轨回退）
+   * 公告轨：BidProject.projectCode → Announcement(relatedProjectCode, BID_NOTICE, PUBLISHED)
    *   → BidDocument(announcementId @unique) → decryptKey + FileAsset
+   * 谈判轨：谈判项目不发布采购公告（邀请书替代），BidDocument 恒空 → Redis
+   *   negotiation-config（refFileKeys=PMI 附件主轨 / attachFileIds·refFileKeys 兜底=FileAsset）
+   * 返回 { buffer, fileName }（fileName 供 processFile 按扩展名分派 docx/pdf/ocr 路径）。
    */
-  async fetchTenderPlaintext(projectId: string): Promise<Buffer | null> {
+  async fetchTenderPlaintext(projectId: string): Promise<{ buffer: Buffer; fileName: string } | null> {
+    return (await this.fetchBidDocumentTenderFile(projectId))
+      ?? (await this.fetchNegotiationTenderFile(projectId));
+  }
+
+  /** 公告轨（BidDocument）：任一环节 miss 返回 null（由调用方回退谈判轨）。 */
+  private async fetchBidDocumentTenderFile(projectId: string): Promise<{ buffer: Buffer; fileName: string } | null> {
     // 1. BidProject → projectCode
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
@@ -157,6 +173,59 @@ export class PlaintextFetcherService {
       throw new Error('招标文件完整性校验失败：SHA-256 不匹配');
     }
 
-    return buffer;
+    return { buffer, fileName: asset.originalName };
+  }
+
+  /** 谈判配置轨（2026-10-20，与专家端/供应商端同源口径）：Redis negotiation-config
+   *  → refFileKeys 主轨=PMI 阶段附件（本地 uploads/ 磁盘，明文无信封，跳过完整性校验）
+   *  → 兼容轨=FileAsset（attachFileIds byId / refFileKeys byKey，MinIO；sealedPath/sealedKey
+   *    资产按 /upload streamFile 同口径解封）。取第一件（refFileKeys[0]=采购文件本体）。 */
+  private async fetchNegotiationTenderFile(projectId: string): Promise<{ buffer: Buffer; fileName: string } | null> {
+    if (!this.redis) return null;
+    let cfg: { refFileKeys?: string[]; attachFileIds?: string[] } | null = null;
+    try {
+      const raw = await this.redis.get(`negotiation-config:${projectId}`);
+      if (raw) cfg = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+    if (!cfg) return null;
+
+    const keys: string[] = cfg.refFileKeys || [];
+    const ids: string[] = cfg.attachFileIds || [];
+    if (keys.length === 0 && ids.length === 0) return null;
+
+    // 主轨：PMI 阶段附件（:3005「引用采购文件」勾选即此体系）
+    if (keys.length > 0) {
+      const attachments = await this.prisma.attachment.findMany({
+        where: { objectKey: { in: keys } },
+        select: { fileName: true, objectKey: true },
+      });
+      if (attachments.length > 0) {
+        const att = attachments[0];
+        const buffer = await fs.promises.readFile(path.resolve(process.cwd(), 'uploads', att.objectKey));
+        return { buffer, fileName: att.fileName };
+      }
+    }
+
+    // 兼容轨：FileAsset（byId 优先，byKey 兜底），sealed 资产解封
+    const assets = await this.prisma.fileAsset.findMany({
+      where: ids.length > 0
+        ? { OR: [{ id: { in: ids } }, ...(keys.length > 0 ? [{ key: { in: keys } }] : [])] }
+        : { key: { in: keys } },
+      select: { key: true, sealedPath: true, sealedKey: true, clientEncrypted: true, originalName: true },
+    });
+    if (assets.length === 0) return null;
+    const asset = assets[0];
+    let buffer = await streamToBuffer(
+      await minioClient.getObject(MINIO_BUCKET, asset.sealedPath || asset.key),
+    );
+    if (asset.sealedKey && !asset.clientEncrypted) {
+      const rawKey = isWrappedKey(asset.sealedKey)
+        ? unwrapKey(asset.sealedKey, process.env.KMS_SECRET!)
+        : asset.sealedKey;
+      buffer = decryptBuffer(buffer, rawKey);
+    }
+    return { buffer, fileName: asset.originalName };
   }
 }

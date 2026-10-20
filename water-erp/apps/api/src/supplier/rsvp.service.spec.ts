@@ -113,3 +113,43 @@ describe('RsvpService.respond（P0-1）', () => {
     await expect(service.respond('t1', { status: 'ACCEPTED' })).rejects.toBeInstanceOf(BadRequestException);
   });
 });
+
+/** markNotified（2026-10-20 用户口径）：一键通知点击时刻打戳——时间轴「供应商邀请」数据源。
+ *  仅补空（notifiedAt null）不覆盖；双 id 空间双向兜底（BidProject 主键 / PMI 反查）。 */
+describe('RsvpService.markNotified（邀请发送打戳）', () => {
+  let service: RsvpService;
+  let prisma: any;
+
+  beforeEach(() => {
+    prisma = {
+      invitationRsvp: { updateMany: jest.fn().mockResolvedValue({ count: 2 }) },
+      bidProject: { findFirst: jest.fn(), findUnique: jest.fn().mockResolvedValue(null) },
+    };
+    service = new RsvpService(prisma, {} as any, {} as any);
+  });
+
+  it('传入 BidProject id：双向兜底出双 id 空间，仅对未打戳行写入', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ projectManagementItemId: 'PMI-1' }); // 传的是 BP id
+    const r = await service.markNotified('BP-1', ['s1', 's2']);
+    expect(r).toEqual({ stamped: 2 });
+    expect(prisma.invitationRsvp.updateMany).toHaveBeenCalledWith({
+      where: { supplierId: { in: ['s1', 's2'] }, projectId: { in: ['BP-1', 'PMI-1'] }, notifiedAt: null },
+      data: { notifiedAt: expect.any(Date) },
+    });
+  });
+
+  it('传入 PMI id：按 projectManagementItemId 反查 BidProject id 并入空间', async () => {
+    prisma.bidProject.findFirst.mockResolvedValue({ id: 'BP-1' }); // PMI→BP 反查命中
+    await service.markNotified('PMI-1', ['s1']);
+    expect(prisma.invitationRsvp.updateMany).toHaveBeenCalledWith({
+      where: { supplierId: { in: ['s1'] }, projectId: { in: ['PMI-1', 'BP-1'] }, notifiedAt: null },
+      data: { notifiedAt: expect.any(Date) },
+    });
+  });
+
+  it('参数缺失 → BAD_INPUT', async () => {
+    await expect(service.markNotified('', ['s1'])).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.markNotified('BP-1', [])).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.invitationRsvp.updateMany).not.toHaveBeenCalled();
+  });
+});

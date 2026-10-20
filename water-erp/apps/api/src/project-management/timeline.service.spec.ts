@@ -4,7 +4,7 @@ import { TimelineService } from './timeline.service';
 
 /** B3 项目时间信息轴（CTS-EBS01 A-204）：聚合各域时间节点，有值升序、缺值垫底 */
 describe('TimelineService（B3 A-204）', () => {
-  const mk = (pmi: any, bp: any = null, contract: any = null, stage: any = null, published: any[] = [], opts: { hasPublicStage?: boolean | null; firstRsvp?: any; handoverPacket?: any; handoverAsset?: any } = {}) => ({
+  const mk = (pmi: any, bp: any = null, contract: any = null, stage: any = null, published: any[] = [], opts: { hasPublicStage?: boolean | null; firstRsvp?: any; firstNotified?: any; handoverPacket?: any; handoverAsset?: any } = {}) => ({
     projectManagementItem: { findUnique: jest.fn().mockResolvedValue(pmi) },
     bidProject: { findFirst: jest.fn().mockResolvedValue(bp), findMany: jest.fn().mockResolvedValue([]) },
     contract: { findFirst: jest.fn().mockResolvedValue(contract) },
@@ -17,7 +17,9 @@ describe('TimelineService（B3 A-204）', () => {
         ? (opts.hasPublicStage === false ? null : { id: 'pub-stage' })
         : stage) },
     announcement: { findMany: jest.fn().mockResolvedValue(published) },
-    invitationRsvp: { findFirst: jest.fn().mockResolvedValue(opts.firstRsvp ?? null) },
+    // findFirst 按 notifiedAt 条件分流：打戳查询（时间轴新口径）与 createdAt 兜底查询
+    invitationRsvp: { findFirst: jest.fn().mockImplementation((args: any) =>
+      args?.where?.notifiedAt ? (opts.firstNotified ?? null) : (opts.firstRsvp ?? null)) },
   });
 
   it('固定业务顺序（2026-09-08）：时间乱序（归档早于文件获取/开标）也不重排', async () => {
@@ -107,19 +109,39 @@ describe('TimelineService（B3 A-204）', () => {
     }));
   });
 
-  it('无公告步骤（谈判/直接采购）→ 第三节点为「供应商邀请」，取最早邀请通知批次时刻', async () => {
+  it('无公告步骤（谈判/直接采购）→ 第三节点为「供应商邀请」：有发送打戳取最早 notifiedAt（2026-10-20 口径=一键通知点击时刻）', async () => {
     const prisma = mk(
       { id: 'pmi-9', projectCode: 'SWHI-TP-2026091601', initiationDate: new Date('2026-09-16T00:00:00Z'), documentAcquireTime: null, bidOpeningTime: null, archivedAt: null },
       null, null, null, [],
-      { hasPublicStage: false, firstRsvp: { createdAt: new Date('2026-09-16T10:00:00Z') } },
+      {
+        hasPublicStage: false,
+        // token 签发（9/16 10:00，进第 3 步自动生成）早于实际发送（9/16 15:30 点击一键通知）
+        firstRsvp: { createdAt: new Date('2026-09-16T10:00:00Z') },
+        firstNotified: { notifiedAt: new Date('2026-09-16T15:30:00Z') },
+      },
     );
     const nodes = await new TimelineService(prisma as any).getTimeline('pmi-9');
     const invite = nodes.find(n => n.key === 'supplierInvitation')!;
     expect(invite.label).toBe('供应商邀请');
     expect(invite.source).toBe('邀请通知');
-    expect(invite.time).toMatch(/^2026-09-16/);
+    expect(invite.time).toMatch(/^2026-09-16T15:30/);
     expect(prisma.invitationRsvp.findFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ projectId: { in: expect.arrayContaining(['pmi-9']) } }),
+      where: expect.objectContaining({ notifiedAt: { not: null }, projectId: { in: expect.arrayContaining(['pmi-9']) } }),
+    }));
+  });
+
+  it('供应商邀请：无发送打戳（存量行/仅生成未发送）回退 token 签发时刻 createdAt', async () => {
+    const prisma = mk(
+      { id: 'pmi-10', projectCode: 'SWHI-TP-2026091602', initiationDate: new Date('2026-09-16T00:00:00Z'), documentAcquireTime: null, bidOpeningTime: null, archivedAt: null },
+      null, null, null, [],
+      { hasPublicStage: false, firstRsvp: { createdAt: new Date('2026-09-16T10:00:00Z') }, firstNotified: null },
+    );
+    const nodes = await new TimelineService(prisma as any).getTimeline('pmi-10');
+    const invite = nodes.find(n => n.key === 'supplierInvitation')!;
+    expect(invite.time).toMatch(/^2026-09-16/);
+    // 兜底查询不带 notifiedAt 条件
+    expect(prisma.invitationRsvp.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.not.objectContaining({ notifiedAt: expect.anything() }),
     }));
   });
 

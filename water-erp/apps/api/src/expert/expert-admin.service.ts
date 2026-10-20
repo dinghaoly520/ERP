@@ -213,13 +213,32 @@ export class ExpertAdminService {
   }
 
   /** 全部专业（去重；公司隔离——下拉只列可见专家的专业）。
-   *  scope='group'（抽取页专用）：全库去重专业、不挂公司过滤——与 AI 专业池（analyzeProjectSpecialties）、
-   *  跨公司抽取（配额 companyIds 白名单，2026-10-13 拍板）同口径。专家库换血（2026-10-19，8 公司直挂）后
-   *  各专业分散在全集团，仍按本公司收窄会把 AI 配额行全部滤成 0 个专业。 */
+   *  专家抽取不过滤（2026-10-20 用户裁定）：显式指定 companyId（支持逗号多选）时按所指公司并集
+   *  取专业，任何账号放行——与抽取池 companyFilter 同口径（expert-extraction.service：配额声明
+   *  公司=可跨公司抽，confirm 同白名单放行）。此前传参被登录人隔离吞掉，非 admin 配额行选多公司
+   *  后专业下拉恒为本公司，看似"固定"。未指定时维持登录人公司口径（admin=全部，非 admin=本公司，
+   *  供专家库列表页等非抽取场景复用）。
+   *  scope='group'（抽取页挂载/AI 配额纠偏用）：全库去重专业、不挂任何公司过滤——与 AI 专业池
+   *  （analyzeProjectSpecialties）、跨公司抽取同口径。专家库换血（2026-10-19，8 公司直挂）后各专业
+   *  分散在全集团，挂载口径仍按本公司收窄会把 AI 配额行全部滤成 0 个专业。 */
   async listSpecialties(user?: AuthenticatedUser, companyId?: string, scope?: string) {
-    const groupWide = scope === 'group';
+    const requested = (companyId ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s && s !== 'all');
+    let companyWhere: CompanyWhere;
+    if (scope === 'group') {
+      companyWhere = {};
+    } else if (requested.length > 0) {
+      const uniq = [...new Set(requested)];
+      const valid = await this.prisma.company.findMany({ where: { id: { in: uniq } }, select: { id: true } });
+      const validIds = new Set(valid.map((c) => c.id));
+      companyWhere = { companyId: { in: uniq.filter((id) => validIds.has(id)) } };
+    } else {
+      companyWhere = await this.expertScopeFilter(user);
+    }
     const rows = await this.prisma.expertProfile.findMany({
-      where: { user: { isActive: true, role: 'bid_expert', ...(groupWide ? {} : await this.expertScopeFilter(user, companyId)) } },
+      where: { user: { isActive: true, role: 'bid_expert', ...companyWhere } },
       select: { specialty: true },
       distinct: ['specialty'],
       orderBy: { specialty: 'asc' },
@@ -239,6 +258,64 @@ export class ExpertAdminService {
       .filter(g => g.specialty?.trim())
       .map(g => ({ specialty: g.specialty, count: g._count._all }))
       .sort((a, b) => b.count - a.count || a.specialty.localeCompare(b.specialty, 'zh'));
+  }
+
+  /**
+   * 需求方代表目录（2026-10-20）：全库在用评标专家聚合为目录级字段（姓名/单位/部门/专业/公司id），
+   * 供抽取页「公司→部门→专业」级联与指定代表搜索。**刻意不走公司隔离**——跨公司选需求方代表
+   * 为 2026-09-24 用户拍板既定口径（抽取配额公司白名单，confirm 同白名单放行）；列表端点的隔离
+   * 保护的是含电话/证件号/评价的全量档案浏览，本目录仅暴露抽取流程本就会回显的目录字段。
+   * 前端曾在隔离列表端点上聚合级联，非 admin 只见本公司部门，其余公司误报「专家库内暂无专家」。
+   */
+  async getDemandRepDirectory() {
+    const users = await this.prisma.user.findMany({
+      where: {
+        role: 'bid_expert',
+        isActive: true,
+        expertProfile: { entryStatus: 'ACTIVE', availability: '可用' },
+      },
+      select: {
+        id: true,
+        displayName: true,
+        companyId: true,
+        department: { select: { name: true } },
+        expertProfile: { select: { employer: true, specialty: true } },
+      },
+      orderBy: { displayName: 'asc' },
+    });
+    return {
+      items: users.map(u => ({
+        userId: u.id,
+        name: u.displayName,
+        employer: u.expertProfile?.employer ?? '',
+        specialty: u.expertProfile?.specialty ?? '',
+        department: u.department?.name ?? '',
+        companyId: u.companyId ?? '',
+      })),
+    };
+  }
+
+  /** 配额「公司」下拉候选（2026-10-20）：仅列库内确有可抽取专家的公司——与抽取池同资格口径
+   *  （role=bid_expert + isActive + availability 可用 + entryStatus ACTIVE）。全公司口径：配额
+   *  声明公司=用户拍板可跨公司（与 listSpecialties 显式 companyId 分支同语义），不受登录人 scope
+   *  收窄。此前前端直拉 /companies 主数据全集，0 专家的残留公司也会进下拉（走查测试集团实录）。 */
+  async listPoolCompanies() {
+    const groups = await this.prisma.user.groupBy({
+      by: ['companyId'],
+      where: {
+        role: 'bid_expert' as const,
+        isActive: true,
+        companyId: { not: null },
+        expertProfile: { availability: '可用', entryStatus: 'ACTIVE' },
+      },
+    });
+    const ids = [...new Set(groups.map((g) => g.companyId).filter((id): id is string => !!id))];
+    if (ids.length === 0) return [];
+    return this.prisma.company.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, name: true, shortName: true },
+      orderBy: { name: 'asc' },
+    });
   }
 
   /** 按公司分组全量计数（admin 全部公司视图的分组标题全量口径，与列表同 where；台账 company-counts 同款） */

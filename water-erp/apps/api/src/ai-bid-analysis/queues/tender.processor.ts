@@ -48,17 +48,18 @@ export class TenderProcessor extends WorkerHost {
 
       await this.updateTaskStatus(taskId, AiAnalysisTaskStatus.TENDER_PROCESSING);
 
-      // 1. 招标文件明文：优先用已存的 tenderText；否则 fetchTenderPlaintext（解密招标文件）→ OCR
+      // 1. 招标/采购文件明文：优先用已存的 tenderText；否则 fetchTenderPlaintext
+      // （公告轨 BidDocument / 谈判轨 Redis 配置）→ 按真实扩展名分派提取（docx=mammoth / pdf=pdftotext / 扫描件=OCR）
       let tenderText = task.tenderText ?? null;
       let tenderPages: any = task.tenderPages;
       if (!tenderText) {
-        const buffer = await this.plaintextFetcher.fetchTenderPlaintext(task.projectId);
-        if (buffer) {
-          const ocrResult = await processFile(this.ocrService, buffer, 'tender.pdf');
+        const fetched = await this.plaintextFetcher.fetchTenderPlaintext(task.projectId);
+        if (fetched) {
+          const ocrResult = await processFile(this.ocrService, fetched.buffer, fetched.fileName || 'tender.pdf');
           tenderText = ocrResult.text;
           tenderPages = ocrResult.pages;
         } else {
-          // fetchTenderPlaintext 链路未就绪（TODO）：跳过招标提取，bidder 处理时降级
+          // 两轨均未就绪（无公告无谈判配置）：跳过招标提取，bidder 处理时降级
           this.logger.warn(`Task ${taskId}: fetchTenderPlaintext 未就绪，跳过招标要求提取`);
         }
       }

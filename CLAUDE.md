@@ -529,5 +529,5 @@ In non-interactive environments, use `prisma migrate dev --create-only` → `pri
 
 - **供应商端**（:3004 详情页）：已适配（14f55c5f，2026-10-19）——Attachment 主轨 + FileAsset 兼容轨 + 专用流式下载端点。
 - **专家端**（:3006 标书获取「招标/采购文件」卡）：已适配（2026-10-20，SWHI-TP-2026102003 实录）——`resolveTenderDocumentMeta` 公告轨 miss 回退谈判轨（meta 带 `source:'negotiation'` + `files[]`）；下载端点 `GET /expert/projects/:id/negotiation-files/:fileId/download`（闸=评标室口令+专家五项核验+引用集 `FILE_NOT_IN_CONFIG`；docx 统一转 PDF 预览；监督日志「访问谈判采购文件」）。**勿给专家端加供应商获取窗口闸**——窗口面向供应商获取期，评标阶段核对原文是法定需要。
-- **AI 辅助评标 worker**（`plaintext-fetcher.fetchTenderPlaintext`）：**仍只读 BidDocument，谈判项目 tender 侧分析断链**——已知缺口待修。
+- **AI 辅助评标 worker**（`plaintext-fetcher.fetchTenderPlaintext`）：已适配（2026-10-20 同日）——公告轨 miss 回退谈判轨，返回 `{buffer, fileName}` 供 processFile 按真实扩展名分派（docx=mammoth/pdf=pdftotext/扫描件=OCR）；FileAsset 兼容轨按 sealedPath/sealedKey 解封（general 类目受 UPLOAD_SERVER_SEAL 密封，裸读 key 吐密文——专家端下载端点同日加固）。
 - 公开/邀请/询比/竞价走 04 公告向导「引用采购文件」→ `attachFromObject` 建 BidDocument，专家端天然可见；直接采购同理（但当前 ZJ 项目 0 专家 0 公告，无实际爆发点，若将来配专家且未发公告同样断链）。

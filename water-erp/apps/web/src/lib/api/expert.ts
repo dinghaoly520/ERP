@@ -37,6 +37,16 @@ export interface ExpertListItem {
   avgGrade?: string | null;
 }
 
+/** 需求方代表目录项（全库，无 PII）：抽取页级联与指定代表搜索数据源（2026-10-20） */
+export interface DemandRepDirectoryItem {
+  userId: string;
+  name: string;
+  employer: string;
+  specialty: string;
+  department: string;
+  companyId: string;
+}
+
 export interface ExtractionSelected {
   userId: string;
   name: string;
@@ -116,6 +126,17 @@ export function listSpecialties(companyId?: string, scope?: 'group') {
 /** 全库各专业人数（抽取页配额卡「N人·库内」提示；不分公司——与 group 专业池同口径） */
 export function specialtyPoolCounts() {
   return api.get<{ specialty: string; count: number }[]>('/expert-admin/specialty-pool-counts');
+}
+
+/** 配额「公司」下拉候选（2026-10-20）：仅列库内确有可抽取专家的公司（与抽取池同资格口径）。
+ *  替代直拉 /companies 主数据全集——0 专家的残留公司会污染抽取下拉（走查测试集团实录）。 */
+export function listPoolCompanies() {
+  return api.get<Array<{ id: string; name: string; shortName?: string | null }>>('/expert-admin/pool-companies');
+}
+
+/** 需求方代表目录（全库，不隔离）：公司→部门→专业级联 + 指定代表搜索（2026-10-20，见后端端点注释） */
+export function getDemandRepDirectory() {
+  return api.get<{ items: DemandRepDirectoryItem[] }>('/expert-admin/demand-rep-directory');
 }
 
 /** 按公司分组全量计数（admin 全部公司视图的分组标题全量口径；与列表同 where） */

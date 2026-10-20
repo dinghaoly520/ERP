@@ -23,7 +23,7 @@ jest.mock('../../common/crypto/envelope-crypto', () => ({
   }),
 }));
 
-const { decryptBuffer } = require('../../bid/bid-submission.crypto');
+const { decryptBuffer, streamToBuffer } = require('../../bid/bid-submission.crypto');
 const { unwrapKey, isWrappedKey } = require('../../common/crypto/envelope-crypto');
 
 describe('PlaintextFetcherService — 解密双格式测试 (C12)', () => {
@@ -155,6 +155,92 @@ describe('PlaintextFetcherService — 解密双格式测试 (C12)', () => {
       expect(prisma.fileAsset.findUnique).toHaveBeenCalledWith({ where: { id: 'fa-dec-t' } });
       expect(unwrapKey).not.toHaveBeenCalled();
       expect(decryptBuffer).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('fetchTenderPlaintext — 谈判采购配置轨（2026-10-20：谈判项目无 BID_NOTICE 公告，采购文件经 Redis negotiation-config 交付，公告轨 miss 回退）', () => {
+    let redis: { get: jest.Mock };
+    const fs = require('fs');
+    const { minioClient } = require('../../upload/minio.client');
+
+    const negoCfg = {
+      projectId: 'project-1',
+      refFileKeys: ['pm/tender-file.docx'],
+      attachFileIds: ['fa-invite-1'],
+    };
+
+    beforeEach(() => {
+      prisma.bidProject = { findUnique: jest.fn().mockResolvedValue({ projectCode: 'SWHI-TP-1' }) };
+      prisma.announcement = { findFirst: jest.fn().mockResolvedValue(null) }; // 公告轨 miss
+      prisma.attachment = { findMany: jest.fn().mockResolvedValue([]) };
+      prisma.fileAsset.findMany = jest.fn().mockResolvedValue([]);
+      prisma.bidDocument = { findFirst: jest.fn(), findUnique: jest.fn() };
+      redis = { get: jest.fn().mockResolvedValue(JSON.stringify(negoCfg)) };
+      (service as any).redis = redis;
+    });
+
+    afterEach(() => {
+      (service as any).redis = undefined;
+      jest.restoreAllMocks();
+    });
+
+    it('公告轨 miss + 谈判配置在 → Attachment 主轨本地磁盘读取，返回 { buffer, fileName }', async () => {
+      prisma.attachment.findMany.mockResolvedValue([
+        { id: 'att-1', fileName: '谈判采购文件.docx', objectKey: 'pm/tender-file.docx' },
+      ]);
+      const buf = Buffer.from('negotiation tender docx');
+      jest.spyOn(fs.promises, 'readFile').mockResolvedValue(buf);
+
+      const out = await service.fetchTenderPlaintext('project-1');
+
+      expect(out).toEqual({ buffer: buf, fileName: '谈判采购文件.docx' });
+      expect(fs.promises.readFile).toHaveBeenCalledWith(
+        expect.stringContaining('uploads/pm/tender-file.docx'),
+      );
+    });
+
+    it('Attachment 轨空 → 回退 FileAsset 兼容轨（attachFileIds），sealedPath/sealedKey 资产解封后返回', async () => {
+      prisma.fileAsset.findMany.mockImplementation(async (args: any) => {
+        const where = args?.where ?? {};
+        // 兼容轨查询形状：ids 非空时 OR[{id in},{key in}]，否则 {key in}
+        if (where.OR || where.id) {
+          return [{
+            id: 'fa-invite-1', originalName: '采购邀请书.docx',
+            key: 'general/invitation/x.docx', sealedPath: 'sealed/invitation/x.enc',
+            sealedKey: 'aGVsbG8gd29ybGQgdGhpcw==', clientEncrypted: false, sha256: 'abc123',
+          }];
+        }
+        return [];
+      });
+      // negotiation FileAsset 不走 BidDocument.decryptKey 解密轨——sealedKey 资产走资产自持密钥解封
+      (streamToBuffer as jest.Mock).mockResolvedValueOnce(Buffer.from('sealed ciphertext'));
+
+      const out = await service.fetchTenderPlaintext('project-1');
+
+      expect(out!.fileName).toBe('采购邀请书.docx');
+      expect(minioClient.getObject).toHaveBeenCalledWith('test-bucket', 'sealed/invitation/x.enc');
+      expect(decryptBuffer).toHaveBeenCalled(); // 资产密封解封（与 /upload streamFile 同口径）
+    });
+
+    it('无谈判配置且公告轨 miss → null（空态行为不变）', async () => {
+      redis.get.mockResolvedValue(null);
+
+      const out = await service.fetchTenderPlaintext('project-1');
+
+      expect(out).toBeNull();
+    });
+
+    it('公告轨命中 → 优先公告轨，不读谈判配置；返回 fileName=FileAsset.originalName', async () => {
+      prisma.announcement.findFirst.mockResolvedValue({ id: 'ann-1' });
+      prisma.bidDocument.findFirst.mockResolvedValue({ id: 'bd-1', fileAssetId: 'asset-1', decryptKey: null });
+      prisma.fileAsset.findUnique.mockResolvedValue({
+        id: 'asset-1', key: 'bid-doc/x.pdf', originalName: '招标文件.pdf', sha256: 'abc123', sealedPath: null,
+      });
+
+      const out = await service.fetchTenderPlaintext('project-1');
+
+      expect(out!.fileName).toBe('招标文件.pdf');
+      expect(redis.get).not.toHaveBeenCalled();
     });
   });
 });

@@ -36,6 +36,7 @@ describe('ExpertAdminService', () => {
         create: jest.fn(),
         update: jest.fn().mockResolvedValue({}),
         count: jest.fn().mockResolvedValue(0),
+        groupBy: jest.fn().mockResolvedValue([]),
       },
       bidExpert: {
         findMany: jest.fn().mockResolvedValue([]),
@@ -53,6 +54,7 @@ describe('ExpertAdminService', () => {
       company: {
         findUnique: jest.fn(),
         findFirst: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
       },
       bidRound: {
         count: jest.fn().mockResolvedValue(0),
@@ -286,6 +288,39 @@ describe('ExpertAdminService', () => {
       expect(rows[1].rank).toBe(1);
       expect(rows[0].aCount).toBe(0); // 并列键 = aCount|evalCount，两者均为 0|1
       expect(rows[0].evalCount).toBe(1);
+    });
+  });
+
+  describe('listPoolCompanies（配额公司下拉=库内可抽取口径，2026-10-20）', () => {
+    it('仅返回库内可抽取专家≥1 的公司，资格口径与抽取池一致', async () => {
+      (prisma.user.groupBy as jest.Mock).mockResolvedValue([
+        { companyId: 'co-a' }, { companyId: 'co-b' }, { companyId: null },
+      ]);
+      (prisma.company.findMany as jest.Mock).mockResolvedValue([
+        { id: 'co-a', name: '四川水发建设有限公司', shortName: '建设' },
+        { id: 'co-b', name: '四川水发能源开发有限公司', shortName: '能源' },
+      ]);
+      const res = await service.listPoolCompanies();
+      // 资格口径与 previewExtraction 候选池一致：在库 ACTIVE + 可用 + 账号激活 + 已归属公司
+      expect(prisma.user.groupBy).toHaveBeenCalledWith(expect.objectContaining({
+        by: ['companyId'],
+        where: {
+          role: 'bid_expert',
+          isActive: true,
+          companyId: { not: null },
+          expertProfile: { availability: '可用', entryStatus: 'ACTIVE' },
+        },
+      }));
+      // null 归属（未归属专家）不产生下拉项
+      expect((prisma.company.findMany as jest.Mock).mock.calls[0][0].where).toEqual({ id: { in: ['co-a', 'co-b'] } });
+      expect(res.map((c: any) => c.id)).toEqual(['co-a', 'co-b']);
+    });
+
+    it('库内无可抽取专家时不查公司表、返回空数组', async () => {
+      (prisma.user.groupBy as jest.Mock).mockResolvedValue([{ companyId: null }]);
+      const res = await service.listPoolCompanies();
+      expect(res).toEqual([]);
+      expect(prisma.company.findMany).not.toHaveBeenCalled();
     });
   });
 
@@ -897,4 +932,25 @@ describe('ExpertAdminService', () => {
       );
     });
   });
+  describe('listSpecialties（2026-10-20 用户裁定：专家抽取不过滤，任何账号可选所有公司）', () => {
+    it('显式 companyId（含逗号多选）→ 按所指公司并集取专业，任何角色放行（与抽取池 companyFilter 同口径）', async () => {
+      prisma.company.findMany.mockResolvedValue([{ id: 'co-a' }, { id: 'co-b' }]);
+      prisma.expertProfile.findMany.mockResolvedValue([{ specialty: '水利工程' }, { specialty: '造价咨询' }]);
+      const res = await service.listSpecialties({ role: 'staff', sub: 'u1' } as any, 'co-a,co-b,co-x');
+      // 无效 id（co-x）被公司主数据校验滤除
+      expect(prisma.expertProfile.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ user: expect.objectContaining({ companyId: { in: ['co-a', 'co-b'] } }) }),
+      }));
+      expect(res).toEqual(['水利工程', '造价咨询']);
+    });
+
+    it('未指定 companyId → 走登录人公司隔离（expertScopeFilter 路径，不做跨公司放行）', async () => {
+      await service.listSpecialties({ role: 'staff', sub: 'u1' } as any);
+      expect(prisma.company.findMany).not.toHaveBeenCalled();
+      expect(prisma.expertProfile.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ user: expect.objectContaining({ isActive: true, role: 'bid_expert' }) }),
+      }));
+    });
+  });
 });
+

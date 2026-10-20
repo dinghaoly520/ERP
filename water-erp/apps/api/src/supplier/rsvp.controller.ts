@@ -72,4 +72,15 @@ export class RsvpController {
     }
     return this.rsvp.manualMark(body.projectId, body.supplierId, body.status as never);
   }
+
+  @Post('mark-notified')
+  @Roles('admin', 'leader', 'staff')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @ApiOperation({ summary: '邀请通知发送打戳（一键通知点击时刻；仅补空不覆盖，时间轴「供应商邀请」数据源）' })
+  async markNotified(@Body() body: { projectId?: string; supplierIds?: string[] }) {
+    if (!body?.projectId || !Array.isArray(body?.supplierIds) || body.supplierIds.length === 0) {
+      throw new BadRequestException({ error: 'projectId 与 supplierIds 必填', code: 'BAD_INPUT' });
+    }
+    return this.rsvp.markNotified(body.projectId, body.supplierIds);
+  }
 }

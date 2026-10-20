@@ -1027,15 +1027,23 @@ export class ExpertService {
     }
 
     // 兼容轨：FileAsset（MinIO）——id ∈ attachFileIds 或 key ∈ refFileKeys
+    // sealedPath/sealedKey 资产按 /upload streamFile 同口径解封（general 类目受
+    // UPLOAD_SERVER_SEAL 密封，裸读 key 会吐密文）
     const asset = await this.prisma.fileAsset.findUnique({
       where: { id: fileId },
-      select: { key: true, originalName: true, mimeType: true },
+      select: { key: true, sealedPath: true, sealedKey: true, clientEncrypted: true, originalName: true, mimeType: true },
     });
     if (asset) {
       if (!ids.includes(fileId) && !keys.includes(asset.key)) {
         throw new ForbiddenException({ error: '该文件不在本项目的采购文件清单内', code: 'FILE_NOT_IN_CONFIG' });
       }
-      const buffer = await streamToBuffer(await minioClient.getObject(MINIO_BUCKET, asset.key));
+      let buffer = await streamToBuffer(await minioClient.getObject(MINIO_BUCKET, asset.sealedPath || asset.key));
+      if (asset.sealedKey && !asset.clientEncrypted) {
+        const rawKey = isWrappedKey(asset.sealedKey)
+          ? unwrapKey(asset.sealedKey, process.env.KMS_SECRET!)
+          : asset.sealedKey;
+        buffer = decryptBuffer(buffer, rawKey);
+      }
       return this.finishNegotiationDownload(buffer, asset.originalName, asset.mimeType, expert, projectId);
     }
 

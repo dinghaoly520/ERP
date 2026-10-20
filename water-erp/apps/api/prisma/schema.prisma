@@ -535,6 +535,9 @@ model InvitationRsvp {
   summary      String // 链接页关键信息快照（采购方式/预算/截止/邀请方…，JSON 文本）
   status       String    @default("PENDING") // PENDING | ACCEPTED | DECLINED
   note         String? // 供应商回执备注（如「档期冲突」）
+  // 邀请通知实际发送时刻（2026-10-20 用户口径）：一键通知点击时打戳，时间轴「供应商邀请」
+  // 以此为准——区别于 createdAt（token 签发=进第 3 步自动生成通知内容的时刻）；null=未发送或存量
+  notifiedAt   DateTime?
   respondedAt  DateTime?
   responseIp   String? // 回执存证
   responseUa   String? // 回执存证
