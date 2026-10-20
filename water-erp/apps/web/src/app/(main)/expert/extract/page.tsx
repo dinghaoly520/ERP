@@ -2050,7 +2050,6 @@ export function ExpertExtractPage({
                     {pd.openTime && <span>开标时间：<strong className="text-[var(--foreground)] tabular-nums">{new Date(pd.openTime).toLocaleDateString('zh-CN')} {new Date(pd.openTime).toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'})}</strong></span>}
                     {pd.budget != null && <span>预算：<strong className="text-[var(--foreground)] tabular-nums">{typeof pd.budget === 'number' ? `${(pd.budget / 10000).toFixed(0)} 万元` : String(pd.budget)}</strong></span>}
                     <span>供应商：<strong className="text-[var(--foreground)] tabular-nums">{pd.suppliers?.length ?? 0} 家</strong></span>
-                    <span>已有专家：<strong className="text-[var(--foreground)] tabular-nums">{pd.experts?.length ?? 0} 人</strong></span>
                     {pd.riskNote && <span className="text-[var(--warning)] max-w-[360px] truncate" title={pd.riskNote}>风险提示：{pd.riskNote}</span>}
                   </div>
                 )}
