@@ -1565,20 +1565,26 @@ export function SupplierSelectionPage({
       // 站内/短信共用正文 body；电话渠道单独发简短话术 phoneScript
       const nonPhoneChannels = notifyChannels.filter(c => c !== 'phone');
       const phoneChannels = notifyChannels.filter(c => c === 'phone');
-      let totalSent = 0;
-      let totalNotFound = 0;
+      // 用 Set 去重统计：同一供应商走多个渠道只计 1 家（与正选 handleNotify 同口径；
+      // 2026-10-19 修复：补选 1 家走站内+电话两笔会被累加成「已通知 2 家」）
+      const sentSupplierIds = new Set<string>();
+      const notFoundSupplierIds = new Set<string>();
       for (const [sid, msg] of rerunNotifyPerSupplier) {
         if (!msg.title.trim() || !msg.body.trim()) continue;
         const link = notifyRsvpTokens[sid] || undefined; // 站内信点击直达回执页
         if (nonPhoneChannels.length) {
           const r = await notifySuppliers({ supplierIds: [sid], channels: nonPhoneChannels, type: 'SELECTION_NOTIFY', title: msg.title, content: msg.body, link }).catch(() => ({} as any));
-          totalSent += r.sent ?? 1; totalNotFound += r.notFound || 0;
+          if (r.sent > 0) sentSupplierIds.add(sid);
+          if (r.notFound > 0) notFoundSupplierIds.add(sid);
         }
         if (phoneChannels.length) {
           const r = await notifySuppliers({ supplierIds: [sid], channels: phoneChannels, type: 'SELECTION_NOTIFY', title: msg.title, content: msg.phoneScript || msg.body }).catch(() => ({} as any));
-          totalSent += r.sent ?? 1; totalNotFound += r.notFound || 0;
+          if (r.sent > 0) sentSupplierIds.add(sid);
+          if (r.notFound > 0) notFoundSupplierIds.add(sid);
         }
       }
+      const totalSent = sentSupplierIds.size;
+      const totalNotFound = notFoundSupplierIds.size;
       setRerunNotified(true);
       setRerunConfirmations(new Map([...rerunShortlist.keys()].map(sid => [sid, 'pending' as const])));
       toast.success(`已通知 ${totalSent} 家补选供应商${totalNotFound > 0 ? `，${totalNotFound} 家未找到关联账户` : ''}`);
