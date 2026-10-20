@@ -144,6 +144,7 @@ export function ExpertExtractPage({
     roundNo: number;
   };
   const [reDraft, setReDraft] = useState<ReDraft | null>(null);
+  const [reModalOpen, setReModalOpen] = useState(false); // 弹窗可见位与草稿解耦：关闭保留草稿、重开恢复（2026-10-20 用户口径）
   const updateDraft = (patch: Partial<ReDraft>) => setReDraft(prev => prev ? { ...prev, ...patch } : prev);
   const [showReNotifyPreview, setShowReNotifyPreview] = useState(false); // 弹窗内通知内容预览展开
   const [reShortfallSpecs, setReShortfallSpecs] = useState<string[]>([]); // 池不足时需调整的专业列表
@@ -1312,6 +1313,9 @@ export function ExpertExtractPage({
    *  「开始抽取」（extractReDraft）。 */
   const openReModal = () => {
     if (!invitationData || !pid) return;
+    // 未完结草稿恢复（2026-10-20 用户口径）：刚抽出结果但未确认就关窗——再点「补选」直接恢复
+    // 到该结果（或配置中途态），不重进配置重建默认行；已确认且已通知的完结轮才开新一轮。
+    if (reDraft && !(reDraft.confirmed && reDraft.notified)) { setReModalOpen(true); return; }
     const allMain = invitationData.experts.filter(e => e.expertRole === '正选');
     // 补选人数 = 当时已拒绝(declined)的正选专家数（等额补选）；已确认参加与未确认的成员
     // 不参与本次补选人数——待回复者仍可能确认，不应提前占位补选。
@@ -1381,6 +1385,7 @@ export function ExpertExtractPage({
     if (reQuotas.length === 0 && reEmployerQuotas.length === 0) reQuotas.push({ specialties: [], count: declined.length });
 
     setReDraft({ phase: 'configuring', preview: null, selected: [], alternatives: [], quotas: [...reQuotas, ...reEmployerQuotas], confirmed: false, notified: false, expertIds: [], roundNo });
+    setReModalOpen(true);
   };
 
   /** 弹窗配置阶段 → 开始抽取：用户调整配额后触发 previewExtraction */
@@ -1512,7 +1517,8 @@ export function ExpertExtractPage({
       for (const e of (invitationData?.experts ?? [])) if (e.invitationStatus === 'declined') exclMap.set(e.userId, { name: e.expertName, specialty: e.major });
       setExcludedExpertMap(exclMap);
     }
-    setReDraft(null);
+    // 只关弹窗不清草稿（2026-10-20 用户口径）：未确认的抽取结果保留，重开补选时直接恢复
+    setReModalOpen(false);
     setReShortfallSpecs([]);
   };
 
@@ -1520,6 +1526,7 @@ export function ExpertExtractPage({
   const reopenReModal = (roundNo: number) => {
     const h = reHistory.find(x => x.roundNo === roundNo);
     if (!h) return;
+    setReModalOpen(true);
     setReDraft({
       phase: 'review',
       preview: h.preview,
@@ -3149,7 +3156,7 @@ export function ExpertExtractPage({
       )}
 
       {/* 补选弹窗：抽取 → 审核 → 一键通知，闭环后写入历史 */}
-      {reDraft && (
+      {reDraft && reModalOpen && (
         <Modal open onClose={() => { if (reDraft.phase !== 'extracting' && reDraft.phase !== 'sending') closeReModal(); }} size="lg"
           title={<span className="flex items-center gap-2"><RefreshCw size={15} className="text-[var(--accent)]" />第{reDraft.roundNo}次补选</span>}
           description="补选专家抽取 · 审核 · 一键通知（默认复用步骤3通知模板）"
