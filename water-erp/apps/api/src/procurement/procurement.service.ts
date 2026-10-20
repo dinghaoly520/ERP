@@ -1,7 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ConflictException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProcurementDto, UpdateProcurementDto } from './dto/create-procurement.dto';
 import { generateProjectCode } from '../common/project-code.util';
+import { GbCodeService } from '../common/gb-code.service';
 
 type ProcurementStatus = 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'BIDDING' | 'CONTRACTED' | 'CLOSED';
 
@@ -17,7 +18,9 @@ const STATUS_TRANSITIONS: Record<ProcurementStatus, ProcurementStatus[]> = {
 
 @Injectable()
 export class ProcurementService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(ProcurementService.name);
+
+  constructor(private prisma: PrismaService, private gbCode: GbCodeService) {}
 
   async list(status?: string) {
     return this.prisma.procurementProject.findMany({
@@ -151,6 +154,12 @@ export class ProcurementService {
       data: {
         name: project.title,
         projectCode: await generateProjectCode(this.prisma, project.procurementMethod, 'bidProject', { companyId: project.companyId }),
+        // A1（B.4.3.3/4）国标采购编码（2026-10-20 缺码事故补齐：legacy 建项路径同口径赋码；
+        // 本模块无 PMI 宿主 → 自立基码；分配失败降级不阻塞，发布闸自愈兜底）
+        ...(await this.gbCode.allocateProcureCode(null).catch((e) => {
+          this.logger.warn(`国标采购编码分配失败（legacy createBid 降级为无码，须回填）: ${(e as Error).message}`);
+          return null;
+        }) ?? {}),
         procurementMethod: project.procurementMethod,
         roundMode: project.procurementMethod === '谈判采购' ? 'negotiation'
                   : project.procurementMethod === '竞价采购' ? 'sealed_auction'

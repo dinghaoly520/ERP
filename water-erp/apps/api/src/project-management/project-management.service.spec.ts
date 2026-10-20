@@ -1642,6 +1642,67 @@ describe('ProjectManagementService', () => {
       expect(Math.abs(new Date(r.deadline).getTime() - (future.getTime() - BID_DEADLINE_BEFORE_OPENING_MS))).toBeLessThan(5000);
     });
   });
+
+  describe('ensureBidProject 国标编码（2026-10-20 缺码事故：懒建路径补齐赋码+存量治愈）', () => {
+    const gbMock = () => ({
+      allocateProjectCode: jest.fn(),
+      allocateProcureCode: jest.fn().mockResolvedValue({ gbProcureCode: '511510000261020004001', gbSectionCode: '511510000261020004001001' }),
+      backfillProcureCodeFor: jest.fn().mockResolvedValue({ gbProcureCode: '511510000261020004001', gbSectionCode: '511510000261020004001001' }),
+    });
+
+    const setup = (prisma: Record<string, any>, itemOver: Record<string, unknown>) => {
+      prisma.projectManagementItem.findUnique.mockResolvedValue({
+        status: 'ACTIVE', id: 'pm-01', title: '测试项目', procurementMethod: '竞价采购', budgetAmount: null,
+        projectOverview: null, currentRound: 1, bidOpeningTime: null, initiationDate: null, ...itemOver,
+      });
+    };
+
+    it('创建分支：宿主 PMI 有 18 位基码 → 复用基码分配 21 位采购码并随建项落库', async () => {
+      const { service, prisma } = makeService();
+      const gb = gbMock();
+      (service as any).gbCode = gb;
+      prisma.announcement = { findFirst: jest.fn().mockResolvedValue(null) };
+      prisma.bidProject = { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockImplementation(({ data }: any) => ({ ...data })), count: jest.fn().mockResolvedValue(0), findUnique: jest.fn().mockResolvedValue(null) };
+      setup(prisma, { gbProjectCode: '511510000261020004' });
+
+      await service.ensureBidProject('pm-01');
+
+      expect(gb.allocateProcureCode).toHaveBeenCalledWith('511510000261020004');
+      expect(prisma.bidProject.create.mock.calls[0][0].data.gbProcureCode).toBe('511510000261020004001');
+      expect(prisma.bidProject.create.mock.calls[0][0].data.gbSectionCode).toBe('511510000261020004001001');
+    });
+
+    it('创建分支：分配失败 → 降级不阻塞建项（无码建项，发布闸自愈兜底）', async () => {
+      const { service, prisma } = makeService();
+      const gb = gbMock();
+      gb.allocateProcureCode.mockRejectedValue(new Error('seq overflow'));
+      (service as any).gbCode = gb;
+      prisma.announcement = { findFirst: jest.fn().mockResolvedValue(null) };
+      prisma.bidProject = { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockImplementation(({ data }: any) => ({ ...data })), count: jest.fn().mockResolvedValue(0), findUnique: jest.fn().mockResolvedValue(null) };
+      setup(prisma, {});
+
+      await expect(service.ensureBidProject('pm-01')).resolves.toBeDefined();
+      expect(prisma.bidProject.create.mock.calls[0][0].data.gbProcureCode).toBeUndefined();
+    });
+
+    it('existing 分支：命中无码存量 BP → 现场治愈补码（不重建不换码）', async () => {
+      const { service, prisma } = makeService();
+      const gb = gbMock();
+      (service as any).gbCode = gb;
+      prisma.announcement = { findFirst: jest.fn().mockResolvedValue(null) };
+      prisma.bidProject = {
+        findFirst: jest.fn().mockResolvedValue({ id: 'bp-1', projectCode: 'SWHI-JJ-2026102004', name: '测试项目', stage: 'SUBMIT', procurementMethod: '竞价采购', openTime: new Date(), deadline: new Date(), gbProcureCode: null }),
+        create: jest.fn(), count: jest.fn().mockResolvedValue(0), findUnique: jest.fn().mockResolvedValue(null), update: jest.fn().mockResolvedValue({}),
+      };
+      setup(prisma, {});
+
+      const r = await service.ensureBidProject('pm-01');
+
+      expect(gb.backfillProcureCodeFor).toHaveBeenCalledWith({ id: 'bp-1', gbProcureCode: null, projectManagementItemId: 'pm-01' });
+      expect(prisma.bidProject.create).not.toHaveBeenCalled(); // 治愈而非重建
+      expect(r.id).toBe('bp-1');
+    });
+  });
   describe('N16-A createItemFromAnnouncement（公告直建补 PMI）', () => {
     it('竞价采购：编号前缀 JJ + 阶段集含 PUBLIC_ANNOUNCEMENT + 前置阶段 COMPLETED + currentStage=BID_EVALUATION', async () => {
       const { service, prisma } = makeService();

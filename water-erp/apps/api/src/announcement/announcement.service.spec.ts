@@ -421,8 +421,11 @@ describe('backlog A — 公告直建失败 projectSyncWarning（发布不阻塞�
   });
 });
 
-describe('AnnouncementService — 对接专项 T4 发布赋码强制闸（GB_CODE_REQUIRED）', () => {
-  const mk = async (proj: { gbProcureCode: string | null } | null) => {
+describe('AnnouncementService — 对接专项 T4 发布赋码闸（自愈版，2026-10-20 缺码事故）', () => {
+  const mk = async (
+    proj: { id?: string; gbProcureCode: string | null; projectManagementItemId?: string | null } | null,
+    gbCode?: any,
+  ) => {
     const prisma: any = {
       bidProject: { findUnique: jest.fn().mockResolvedValue(proj) },
       announcement: {
@@ -434,12 +437,28 @@ describe('AnnouncementService — 对接专项 T4 发布赋码强制闸（GB_COD
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
     };
     const { AnnouncementService: Svc } = await import('./announcement.service');
-    const service: any = new (Svc as any)(prisma, { summarize: jest.fn().mockResolvedValue('摘要') }, { syncFromAnnouncement: jest.fn().mockResolvedValue({}), ensureTenderAnalysis: jest.fn() }, undefined);
+    const service: any = new (Svc as any)(prisma, { summarize: jest.fn().mockResolvedValue('摘要') }, { syncFromAnnouncement: jest.fn().mockResolvedValue({}), ensureTenderAnalysis: jest.fn() }, undefined, undefined, undefined, gbCode);
     return { service, prisma };
   };
 
-  it('update 转入 PUBLISHED 且关联项目缺码 → 400 GB_CODE_REQUIRED', async () => {
-    const { service } = await mk({ gbProcureCode: null });
+  it('update 转入 PUBLISHED 且关联项目缺码 → 自愈补码放行（缺码不再硬拦发布）', async () => {
+    const gbCode = { backfillProcureCodeFor: jest.fn().mockResolvedValue({ gbProcureCode: '511510000261020004001', gbSectionCode: '511510000261020004001001' }) };
+    const { service, prisma } = await mk({ id: 'bp-1', gbProcureCode: null, projectManagementItemId: 'pmi-1' }, gbCode);
+    await service.update('a1', { status: 'PUBLISHED' } as any);
+    expect(gbCode.backfillProcureCodeFor).toHaveBeenCalledWith({ id: 'bp-1', gbProcureCode: null, projectManagementItemId: 'pmi-1' });
+    expect(prisma.announcement.update).toHaveBeenCalled(); // 发布未被拦截
+  });
+
+  it('自愈分配失败 → 400 GB_CODE_REQUIRED（文案指向补码脚本）', async () => {
+    const gbCode = { backfillProcureCodeFor: jest.fn().mockRejectedValue(new Error('db down')) };
+    const { service, prisma } = await mk({ id: 'bp-1', gbProcureCode: null }, gbCode);
+    await expect(service.update('a1', { status: 'PUBLISHED' } as any))
+      .rejects.toMatchObject({ response: { code: 'GB_CODE_REQUIRED' } });
+    expect(prisma.announcement.update).not.toHaveBeenCalled();
+  });
+
+  it('缺码且 gbCode 未注入（防御兜底）→ 400 GB_CODE_REQUIRED', async () => {
+    const { service } = await mk({ id: 'bp-1', gbProcureCode: null });
     await expect(service.update('a1', { status: 'PUBLISHED' } as any))
       .rejects.toMatchObject({ response: { code: 'GB_CODE_REQUIRED' } });
   });

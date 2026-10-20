@@ -45,7 +45,9 @@ jest.mock('../upload/minio.client', () => ({
 
 /* BidService 新增构造依赖（Task 12）：Nest 测试模块不自动实例化未注册 provider，
    各 TestingModule 须显式提供——以下为全局默认 mock（decryptOuter 相关 describe 自行覆盖）。 */
-const GB_CODE_SVC = { provide: GbCodeService, useValue: { allocateProjectCode: async () => 'GB-TEST', allocateProcureCode: async () => 'GB-PROC-TEST' } };
+// 2026-10-20：allocateProcureCode 返回体对齐真实服务（{gbProcureCode, gbSectionCode}——
+// 此前返回裸字符串，建项 data 的字符串展开产生字符键垃圾，无法断言 gb 字段）
+const GB_CODE_SVC = { provide: GbCodeService, useValue: { allocateProjectCode: async () => 'GB-TEST', allocateProcureCode: async () => ({ gbProcureCode: 'GB-PROC-TEST', gbSectionCode: 'GB-PROC-TEST-001' }) } };
 const ADMIN_KEY_SVC = {
   provide: AdminKeyService,
   useValue: { readPrivateKey: jest.fn(), getActiveCert: jest.fn(), ensureBootstrap: jest.fn(), generate: jest.fn() },
@@ -293,6 +295,25 @@ describe('BidService — stage transitions', () => {
         await service.reopenFromAborted('p1', 'u1');
         expect(prisma.bidProject.create.mock.calls[0][0].data.projectCode).toBe('SWHI-JJ-2026101901-R2');
         expect(prisma.bidProject.create.mock.calls[0][0].data.round).toBe(2);
+      });
+
+      it('reopenFromAborted 重启建项 → 分配国标采购编码（2026-10-20 缺码事故补洞）', async () => {
+        prisma.bidProject.findUnique.mockImplementation(({ where }: any) => {
+          if (where?.id === 'p1') {
+            return { stage: 'ABORTED', name: 'X', projectCode: 'SWHI-JJ-2026101901', procurementMethod: '竞价采购',
+              budget: null, scope: null, qualification: null, contact: null, qualityRequirement: null,
+              bondRequired: false, bondAmount: null, riskNote: '', round: 1,
+              projectManagementItemId: 'pmi-1', openTime: new Date(), deadline: new Date(), downloadDeadline: null,
+              companyId: null, companyName: null };
+          }
+          return where?.projectCode === 'SWHI-JJ-2026101901' ? { id: 'p1' } : null;
+        });
+        prisma.projectManagementItem.findUnique.mockResolvedValue({ projectCode: 'SWHI-JJ-2026101901', gbProjectCode: '511510000261019001' });
+        prisma.bidProject.create.mockResolvedValue({ id: 'p2' });
+        prisma.auditLog.create.mockResolvedValue({});
+        await service.reopenFromAborted('p1', 'u1');
+        // 宿主基码传入分配器 + 建项 data 含 21 位采购码（GB_CODE_SVC 返回 GB-PROC-TEST）
+        expect(prisma.bidProject.create.mock.calls[0][0].data.gbProcureCode).toBe('GB-PROC-TEST');
       });
     });
 

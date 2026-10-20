@@ -461,6 +461,8 @@ export class ProjectManagementService {
         initiationDate: true,
         projectOverview: true,
         currentRound: true,
+        // 国标 18 位基码（2026-10-20 缺码事故：懒建 BidProject 复用宿主基码赋 21 位采购码）
+        gbProjectCode: true,
         // 公司归属写时快照（BidCompanyScopeGuard 据此放行 :3005 开标确认面板）
         companyId: true,
         companyName: true,
@@ -486,6 +488,8 @@ export class ProjectManagementService {
         evaluationMethod: true,
         openTime: true,
         deadline: true,
+        // 存量治愈判定（2026-10-20 缺码事故）：旁路创建的无码行现场补码，不等 seed 回填
+        gbProcureCode: true,
       },
     });
     // 关联的招标公告发布时间（投递时间范围起点；2026-09-29 收紧匹配——此前仅按标题精确
@@ -510,6 +514,17 @@ export class ProjectManagementService {
       : null;
 
     if (existing) {
+      // 存量治愈（2026-10-20 缺码事故）：无码行现场补码放行——不重建不换码，补码失败降级告警
+      // （发布闸仍有自愈兜底，此处治愈让开标确认/评分标准链路尽早拿码）
+      if (!existing.gbProcureCode) {
+        await this.gbCode.backfillProcureCodeFor({
+          id: existing.id,
+          gbProcureCode: existing.gbProcureCode,
+          projectManagementItemId: itemId,
+        }).catch((e) => {
+          this.logger.warn(`国标采购编码治愈失败（ensureBidProject 存量分支，发布闸将自愈兜底）: ${(e as Error).message}`);
+        });
+      }
       // 2026-07 重构：棘轮状态机 + 投递放宽后，DOWNLOAD 阶段即可投递（以公告发布为权威闸门），
       // 不再自动裸推 DOWNLOAD→SUBMIT；阶段推进统一由 :3005 人工确认驱动，返回真实 stage
       return {
@@ -550,6 +565,12 @@ export class ProjectManagementService {
         projectCode: item.projectCode
           ? await resolveHostedProjectCode(this.prisma, { pmiCode: item.projectCode, preferredRound: targetRound })
           : await generateProjectCode(this.prisma, item.procurementMethod || '公开招标', 'bidProject', { companyId: item.companyId }),
+        // A1（B.4.3.3/4）国标采购编码（2026-10-20 缺码事故补齐：懒建路径与 createProject 同口径——
+        // 宿主 PMI 18 位基码复用；分配失败降级不阻塞建项，发布闸自愈兜底）
+        ...(await this.gbCode.allocateProcureCode(item.gbProjectCode ?? null).catch((e) => {
+          this.logger.warn(`国标采购编码分配失败（PMI 懒建降级为无码，须回填）: ${(e as Error).message}`);
+          return null;
+        }) ?? {}),
         procurementMethod: item.procurementMethod || '公开招标',
         openTime,
         deadline,

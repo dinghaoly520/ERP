@@ -1548,17 +1548,24 @@ export class BidService {
     const reopenPmi = original.projectManagementItemId
       ? await this.prisma.projectManagementItem.findUnique({
           where: { id: original.projectManagementItemId },
-          select: { projectCode: true },
+          select: { projectCode: true, gbProjectCode: true },
         })
       : null;
     const newCode = reopenPmi?.projectCode
       ? await resolveHostedProjectCode(this.prisma, { pmiCode: reopenPmi.projectCode, preferredRound: (original.round ?? 1) + 1 })
       : await generateProjectCode(this.prisma, original.procurementMethod, 'bidProject', { companyId: original.companyId });
+    // A1（B.4.3.3/4）国标采购编码（2026-10-20 缺码事故补齐：重启路径与 createProject 同口径——
+    // 宿主 PMI 18 位基码复用；分配失败降级不阻塞重启，发布闸自愈兜底）
+    const gbCodes = await this.gbCode.allocateProcureCode(reopenPmi?.gbProjectCode ?? null).catch((e) => {
+      this.logger.warn(`国标采购编码分配失败（流标重启降级为无码，须回填）: ${(e as Error).message}`);
+      return null;
+    });
     const now = new Date();
     const newProject = await this.prisma.bidProject.create({
       data: {
         name: original.name,
         projectCode: newCode,
+        ...(gbCodes ?? {}),
         procurementMethod: original.procurementMethod,
         openTime: fallbackOpenTime,
         deadline: fallbackDeadline,
