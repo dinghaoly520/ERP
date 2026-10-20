@@ -289,8 +289,6 @@ export function ExpertExtractPage({
   const notifySentRef = useRef(false);
   // 原始正选专家组 userId 集合（步骤2确认入的，不受补选覆盖），步骤4仅展示此集合内专家
   const originalConfirmedIdsRef = useRef<Set<string>>(new Set());
-  // 上次补选用户确认的专业配额（跳过 configuring 直接抽取，直到该专业池空）
-  const lastReQuotasRef = useRef<{ specialties: string[]; count: number; companyIds?: string[] }[]>([]);
   // AI 配额缓存：按可分配席位数 key，记录已生成的配额结果（切回同一席位数时直接恢复，不走 AI）
   const quotaCacheRef = useRef<Map<number, SpecialtyQuota[]>>(new Map());
   // 由调用方传入的 defaultPid 在一次匹配成功后标记为已消费，避免后续 deps 变化重复触发
@@ -628,7 +626,6 @@ export function ExpertExtractPage({
     setDemandRepDept('');
     setDemandRepDeptSpecialty('');
     setError('');
-    lastReQuotasRef.current = [];
     quotaCacheRef.current.clear();
   }, [pid]);
   // 专业池人数已随挂载一次取全（specialtyPoolCounts，全库口径）——原逐专业 listExperts 扇出（86 专业×1 次）已删
@@ -1076,7 +1073,7 @@ export function ExpertExtractPage({
     setConfirmedExpertIds([]); setNotifyExpertList([]); setNotifyResults(null);
     setCommitteeDraft({}); // A-132：旧专家组分工草稿随邀请一并作废
     notifySentRef.current = false; originalConfirmedIdsRef.current = new Set();
-    lastReQuotasRef.current = []; setReHistory([]);
+    setReHistory([]);
     setAltPreview(null); setAltSelected([]); setAltNotified(false); setAltExhausted(false);
     invitationRestoredRef.current = false;
     modalLocalRestoredRef.current = false;
@@ -1300,144 +1297,66 @@ export function ExpertExtractPage({
   // 保持 stateRef 同步最新渲染值（必须在所有 useState 之后，供 beforeunload 保存使用）
   stateRef.current = { pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified, altExhausted, needDemandRep, demandRepCount, demandRepPersons, demandRepMode, demandRepCompany, demandRepDept, demandRepDeptSpecialty, totalSeats };
 
-  /** 打开补选弹窗：AI 分析项目 → 推荐补选专业与人数 → 用户调整 → 开始抽取。
-   *  如果上次用户已手动调整过配额且池仍有可用专家，则跳过 configuring，直接用旧配额抽取。 */
-  const openReModal = async () => {
+  /** 打开补选弹窗（2026-10-20 用户口径）：不直接抽取、不 AI 推荐——进手动配额。默认沿用
+   *  步骤1配额结构（公司选择一并保留），人数按「确认无法参加」专家的专业对应到各配额行
+   *  （对应不上的按其实际专业单列，总数=缺席数）；部门模式需求方代表缺席走 employer+
+   *  department 限定行（与初次抽取同口径）。用户调整后点「开始抽取」（extractReDraft）。 */
+  const openReModal = () => {
     if (!invitationData || !pid) return;
     const allMain = invitationData.experts.filter(e => e.expertRole === '正选');
-    // 补选人数 = 当时已拒绝(declined)的正选专家数（等额补选）；已确认参加(confirmed)与
-    // 未确认(pending/待回复)的成员不参与本次补选人数——待回复者仍可能确认，不应提前占位补选。
-    const declinedCount = allMain.filter(e => e.invitationStatus === 'declined').length;
-    if (declinedCount <= 0) {
+    // 补选人数 = 当时已拒绝(declined)的正选专家数（等额补选）；已确认参加与未确认的成员
+    // 不参与本次补选人数——待回复者仍可能确认，不应提前占位补选。
+    const declined = allMain.filter(e => e.invitationStatus === 'declined');
+    if (declined.length <= 0) {
       toast.warning('没有需要补选的专家（已确认参加与待回复的成员不参与本次补选）'); return;
     }
-    const shortfall = declinedCount;
     const roundNo = reHistory.length + 1;
-    // 如果用户上次手动调整过配额，且该配额池仍有专家 → 直接抽取
-    if (lastReQuotasRef.current.length > 0) {
-      const shortages: string[] = [];
-      for (const q of lastReQuotasRef.current) {
-        const list = quotaSpecsOf(q);
-        const pc = list.reduce((n, sp) => n + (pool.get(sp) ?? 0), 0);
-        const invited = invitationData.experts.filter(e => list.includes(e.major ?? '')).length;
-        if (pc - invited < q.count) shortages.push(`${quotaLabel(q)}（池${pc}人/已邀${invited}人/需${q.count}人）`);
-      }
-      if (shortages.length === 0) {
-        const totalNeeded = lastReQuotasRef.current.reduce((s, q) => s + q.count, 0);
-        const excludedIds = Array.from(new Set(invitationData.experts.map(e => e.userId)));
-        setReDraft({ phase: 'extracting', preview: null, selected: [], alternatives: [], quotas: lastReQuotasRef.current.map(q => ({ ...q })), confirmed: false, notified: false, expertIds: [], roundNo });
-        try {
-          const result = await previewExtraction({ projectId: pid, totalNeeded, alternatives: Math.min(lastReQuotasRef.current.length, 9), extractMode: extractMode as ApiExtractMode, manualQuotas: lastReQuotasRef.current, excludedUserIds: excludedIds.length > 0 ? excludedIds : undefined });
-          if (!result?.selected) throw new Error('返回数据异常');
-          updateDraft({ phase: 'review', preview: result, selected: [...result.selected], alternatives: [...result.alternatives] });
-          if (result.suggestedLeaderId) setLeadExpertId(result.suggestedLeaderId);
-        } catch (e: any) { toast.error(e?.message || '补选抽取失败'); setReDraft(null); }
-        return;
-      }
-      // 池空了 → 清除旧配额，走 AI 推荐重新配置
-      lastReQuotasRef.current = [];
-      toast.warning('上次补选的专业配额已用完，请重新配置');
-    }
-    setReDraft({ phase: 'extracting', preview: null, selected: [], alternatives: [], quotas: [], confirmed: false, notified: false, expertIds: [], roundNo });
-    try {
-      // AI 分析项目 → 推荐补选专业配额
-      const aiRes = await analyzeProjectSpecialties(pid);
-      let quotas: SpecialtyQuota[] = [];
-      let declinedDemandRepIds: any[] = [];
-      let reEmployerQuotas: { specialties: string[]; count: number; employer?: string; department?: string; companyIds?: string[] }[] = [];
-      if (aiRes?.requiredSpecialties?.length) {
-        // AI 推荐行（相近专业组）→ 多选配额行，按席位数降序供补满
-        const aiRows = aiRowsToQuotas(aiRes.requiredSpecialties, mkMatchSpec(specs)).sort((a, b) => b.count - a.count);
-        let remaining = shortfall;
-        // 需求方代表补选：按原配置的部门+专业生成 employer 限定配额，而非用专家真实专业
-        declinedDemandRepIds = allMain.filter(e => e.invitationStatus === 'declined' && demandRepIdSet.has(e.userId));
-        const declinedNormalExperts = allMain.filter(e => e.invitationStatus === 'declined' && !demandRepIdSet.has(e.userId));
 
-        // 需求方代表补选配额（走 employer+department 限定，与初次抽取同款；
-        // 2026-10-20 前误把部门名当公司名传（employer: demandRepDept）→ 恒 0 匹配）
-        reEmployerQuotas = [];
-        if (declinedDemandRepIds.length > 0 && demandRepMode === 'department' && demandRepDept) {
-          const reCid = companyIdOfName(demandRepCompany);
-          reEmployerQuotas.push({
-            specialties: demandRepDeptSpecialty ? [demandRepDeptSpecialty] : [],
-            count: declinedDemandRepIds.length,
-            employer: demandRepCompany,
-            department: demandRepDept,
-            companyIds: reCid ? [reCid] : [],
-          });
-          remaining -= declinedDemandRepIds.length;
-        }
-
-        // 普通专家补选：按已拒绝专家的专业计数分配配额
-        const declinedCounts = new Map<string, number>();
-        for (const e of declinedNormalExperts) {
-          const m = e.major || '综合';
-          declinedCounts.set(m, (declinedCounts.get(m) ?? 0) + 1);
-        }
-        for (const [spec, cnt] of declinedCounts) {
-          if (remaining <= 0) break;
-          const take = Math.min(cnt, remaining);
-          quotas.push({ specialties: [spec], count: take });
-          remaining -= take;
-        }
-        // 再按 AI 推荐席位组补满剩余席位（专业重叠的组跳过，避免同专业双份配额）
-        for (const row of aiRows) {
-          if (remaining <= 0) break;
-          if (quotas.some(q => q.specialties.some(sp => row.specialties.includes(sp)))) continue; // 已在 declined 中分配
-          const take = Math.min(row.count, remaining);
-          quotas.push({ specialties: row.specialties, count: take });
-          remaining -= take;
-        }
-      }
-      // 过滤掉库内已无可抽专家的配额组（行内任一专业池有余量即保留），仅保留池内有人的组
-      quotas = quotas.filter(q => {
-        const list = quotaSpecsOf(q);
-        const pc = list.reduce((n, sp) => n + (pool.get(sp) ?? 0), 0);
-        const invited = invitationData.experts.filter(e => list.includes(e.major ?? '')).length;
-        return pc - invited > 0;
+    // 需求方代表缺席（部门模式）→ employer+department 限定行（指定代表模式缺席由用户
+    // 在个人中心/后续流程自行补位，不自动建行）
+    const declinedDemandRep = declined.filter(e => demandRepIdSet.has(e.userId));
+    const declinedNormal = declined.filter(e => !demandRepIdSet.has(e.userId));
+    const reEmployerQuotas: SpecialtyQuota[] = [];
+    if (declinedDemandRep.length > 0 && demandRepMode === 'department' && demandRepDept) {
+      const reCid = companyIdOfName(demandRepCompany);
+      reEmployerQuotas.push({
+        specialties: demandRepDeptSpecialty ? [demandRepDeptSpecialty] : [],
+        count: declinedDemandRep.length,
+        employer: demandRepCompany,
+        department: demandRepDept,
+        companyIds: reCid ? [reCid] : [],
       });
-      if (quotas.length === 0) {
-        toast.warning('相关专业的专家库已无可抽专家，无法补选');
-        setReDraft(null);
-        return;
-      }
-      // 库内还有专家 → 直接抽取，不再弹配置对话框
-      const allReQuotas: SpecialtyQuota[] = [...quotas, ...reEmployerQuotas];
-      const totalNeeded = allReQuotas.reduce((s, q) => s + q.count, 0);
-      const excludedIds = Array.from(new Set(invitationData.experts.map(e => e.userId)));
-      const manualQuotas = allReQuotas.map(q => ({ specialties: quotaSpecsOf(q), count: q.count, employer: q.employer, department: q.department, companyIds: q.companyIds }));
-      updateDraft({ quotas: allReQuotas.map(q => ({ specialties: quotaSpecsOf(q), count: q.count })) });
-      const result = await previewExtraction({ projectId: pid, totalNeeded, alternatives: Math.min(quotas.length, 9), extractMode: extractMode as ApiExtractMode, manualQuotas, excludedUserIds: excludedIds.length > 0 ? excludedIds : undefined });
-      if (!result?.selected) throw new Error('返回数据异常');
-      // 分离部门抽取的需求方代表（末尾 reEmployerQuotas 总人数）
-      const repCount = reEmployerQuotas.reduce((s, q) => s + q.count, 0);
-      if (repCount > 0) {
-        const all = [...result.selected];
-        const dps = all.splice(-repCount);
-        updateDraft({ phase: 'review', preview: result, selected: [...all], alternatives: [...result.alternatives] });
-        // 补选出的需求方代表追加到 demandRepPersons（保持部门模式标记）
-        setDemandRepPersons(prev => [...prev.filter(p => !declinedDemandRepIds.some(d => d.userId === p.userId)), ...dps.map(s => ({ userId: s.userId, name: s.name, specialty: s.specialty, title: s.title, employer: s.employer, reason: s.reason, evaluationLevel: s.evaluationLevel ?? undefined }))]);
-      } else {
-        updateDraft({ phase: 'review', preview: result, selected: [...result.selected], alternatives: [...result.alternatives] });
-      }
-      if (result.suggestedLeaderId) setLeadExpertId(result.suggestedLeaderId);
-      // 记住本次配额（下次补选直接用）——仅普通专业，需求方代表配额由 demandRepDept 驱动
-      lastReQuotasRef.current = quotas.map(q => ({ specialties: quotaSpecsOf(q), count: q.count }));
-    } catch (e: any) {
-      toast.error(e?.message || 'AI 分析失败');
-      setReDraft(null);
     }
+
+    // 普通专家：步骤1配额行做骨架（保留公司选择），缺席专家按专业对应计数（精确→互相包含）
+    const rows = quotas.map(q => ({ ...q, specialties: quotaSpecsOf(q), count: 0 }));
+    const unmatched = new Map<string, number>();
+    for (const e of declinedNormal) {
+      const m = (e.major ?? '').trim();
+      const idx = rows.findIndex(r => r.specialties.some(sp => sp === m || (!!m && (sp.includes(m) || m.includes(sp)))));
+      if (idx >= 0) rows[idx].count += 1;
+      else unmatched.set(m || '综合', (unmatched.get(m || '综合') ?? 0) + 1);
+    }
+    const reQuotas: SpecialtyQuota[] = rows.filter(r => r.count > 0);
+    // 对应不上任何步骤1行的缺席专业 → 按其实际专业单列（保总数=缺席人数）
+    for (const [sp, cnt] of unmatched) reQuotas.push({ specialties: sp === '综合' ? [] : [sp], count: cnt });
+    // 兜底：全部缺席均为指定代表（无行可建）→ 一行专业不限供用户调整
+    if (reQuotas.length === 0 && reEmployerQuotas.length === 0) reQuotas.push({ specialties: [], count: declined.length });
+
+    setReDraft({ phase: 'configuring', preview: null, selected: [], alternatives: [], quotas: [...reQuotas, ...reEmployerQuotas], confirmed: false, notified: false, expertIds: [], roundNo });
   };
 
   /** 弹窗配置阶段 → 开始抽取：用户调整配额后触发 previewExtraction */
   const extractReDraft = async () => {
     if (!reDraft || !pid || !invitationData) return;
-    const quotas = reDraft.quotas.filter(quotaFilled).filter(q => q.count > 0);
-    if (quotas.length === 0) { toast.warning('请至少配置一个专业'); return; }
-    // 检查池（行内多专业=并集池）
+    // 专业可不选（同主流程口径）：空 specialties=不限专业桶，仅按行数>0 过滤
+    const quotas = reDraft.quotas.filter(q => q.count > 0);
+    if (quotas.length === 0) { toast.warning('请至少配置一行配额'); return; }
+    // 检查池（行内多专业=并集池；不限专业行无行级口径，跳过——池不足由后端报错兜底）
     const shortages: string[] = [];
     for (const q of quotas) {
       const list = quotaSpecsOf(q);
+      if (list.length === 0) continue;
       const pc = list.reduce((n, sp) => n + (pool.get(sp) ?? 0), 0);
       const invited = invitationData.experts.filter(e => list.includes(e.major ?? '')).length;
       if (pc - invited < q.count) shortages.push(`${quotaLabel(q)}（池内${pc}人，已邀请${invited}人，需补${q.count}人）`);
@@ -1446,15 +1365,24 @@ export function ExpertExtractPage({
     setReShortfallSpecs([]);
     const totalNeeded = quotas.reduce((s, q) => s + q.count, 0);
     const excludedIds = Array.from(new Set(invitationData.experts.map(e => e.userId)));
-    const manualQuotas: { specialties: string[]; count: number }[] = quotas.map(q => ({ specialties: quotaSpecsOf(q), count: q.count }));
+    // employer/department/companyIds 随行透传（部门模式需求方代表限定 + 步骤1公司对应保留）
+    const manualQuotas: { specialties: string[]; count: number; employer?: string; department?: string; companyIds?: string[] }[] = quotas.map(q => ({ specialties: quotaSpecsOf(q), count: q.count, employer: q.employer, department: q.department, companyIds: q.companyIds }));
     updateDraft({ phase: 'extracting' });
     try {
       const result = await previewExtraction({ projectId: pid, totalNeeded, alternatives: Math.min(manualQuotas.length, 9), extractMode: extractMode as ApiExtractMode, manualQuotas, excludedUserIds: excludedIds.length > 0 ? excludedIds : undefined });
       if (!result?.selected) throw new Error('返回数据异常');
-      updateDraft({ phase: 'review', preview: result, selected: [...result.selected], alternatives: [...result.alternatives] });
+      // 分离部门抽取的需求方代表（末尾 employer 行总人数），替换已缺席的原代表
+      const repCount = quotas.filter(q => q.employer).reduce((s, q) => s + q.count, 0);
+      if (repCount > 0) {
+        const all = [...result.selected];
+        const dps = all.splice(-repCount);
+        updateDraft({ phase: 'review', preview: result, selected: [...all], alternatives: [...result.alternatives] });
+        const declinedRepIds = new Set(invitationData.experts.filter(e => e.invitationStatus === 'declined' && demandRepIdSet.has(e.userId)).map(e => e.userId));
+        setDemandRepPersons(prev => [...prev.filter(p => !declinedRepIds.has(p.userId)), ...dps.map(s => ({ userId: s.userId, name: s.name, specialty: s.specialty, title: s.title, employer: s.employer, reason: s.reason, evaluationLevel: s.evaluationLevel ?? undefined }))]);
+      } else {
+        updateDraft({ phase: 'review', preview: result, selected: [...result.selected], alternatives: [...result.alternatives] });
+      }
       if (result.suggestedLeaderId) setLeadExpertId(result.suggestedLeaderId);
-      // 记住本次用户确认的配额（下次补选直接用，不再询问）
-      lastReQuotasRef.current = quotas.filter(quotaFilled).filter(q => q.count > 0).map(q => ({ specialties: quotaSpecsOf(q), count: q.count, companyIds: q.companyIds }));
     } catch (e: any) {
       toast.error(e?.message || '补选抽取失败');
       updateDraft({ phase: 'configuring' });
@@ -1798,7 +1726,7 @@ export function ExpertExtractPage({
     setShowReplaceModal(false);
     setReplaceTarget(null);
   };
-  const reset = () => { setStep(1); setDone(false); setPreview(null); setSelectedExperts([]); setAlternativeExperts([]); setNotifyResults(null); setConfirmedExpertIds([]); setStep3Confirmed(false); notifySentRef.current = false; originalConfirmedIdsRef.current = new Set(); lastReQuotasRef.current = []; quotaCacheRef.current.clear(); setReHistory([]); setAltPreview(null); setAltSelected([]); setAltNotified(false); setAltExhausted(false); invitationRestoredRef.current = false; modalLocalRestoredRef.current = false; localStorage.removeItem(`${storageKey}-${pid}`); localStorage.removeItem(LAST_PID_KEY); };
+  const reset = () => { setStep(1); setDone(false); setPreview(null); setSelectedExperts([]); setAlternativeExperts([]); setNotifyResults(null); setConfirmedExpertIds([]); setStep3Confirmed(false); notifySentRef.current = false; originalConfirmedIdsRef.current = new Set(); quotaCacheRef.current.clear(); setReHistory([]); setAltPreview(null); setAltSelected([]); setAltNotified(false); setAltExhausted(false); invitationRestoredRef.current = false; modalLocalRestoredRef.current = false; localStorage.removeItem(`${storageKey}-${pid}`); localStorage.removeItem(LAST_PID_KEY); };
 
   // 配置卡片
   // 替换/添加弹窗
@@ -3165,7 +3093,7 @@ export function ExpertExtractPage({
           ) : reDraft.phase === 'configuring' ? (
             <div className="space-y-4">
               <div className="rounded-xl bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] px-3 py-2 text-xs text-[var(--muted-foreground)]">
-                缺 {totalSeats - (invitationData?.experts?.filter(e => e.expertRole === '正选' && e.invitationStatus === 'confirmed').length ?? 0)} 席，AI 推荐以下补选专业配额，可手动调整人数后开始抽取
+                缺 {totalSeats - (invitationData?.experts?.filter(e => e.expertRole === '正选' && e.invitationStatus === 'confirmed').length ?? 0)} 席，默认沿用步骤1配额、按确认无法参加的专家对应到各行，可手动调整后开始抽取
               </div>
               <div className="space-y-2">
                 {reDraft.quotas.map((q, qi) => (
