@@ -813,15 +813,14 @@ export function ExpertExtractPage({
   const expertSeats = Math.max(0, totalSeats - demandRepSeats); // 专业专家可分配席位
   const quotaSum = quotas.reduce((s, q) => s + q.count, 0); // 所有专业行的人数和（含未选专业的占位行，与 addQ/adjustQuota 调配一致）
   const seatsBalanced = quotaSum === expertSeats && expertSeats > 0;
-  // 配额适配 expertSeats：少→裁减；多→均分到已有专业（新专业由 AI 推荐决定，此处不增减专业）
+  // 配额适配 expertSeats（2026-10-20 双向化）：少→裁减；多→轮转均分到已有行——全行「专业不限」
+  // 同样参与调配（拆自动 AI 后全不限是合法配置，旧 filled-only 口径会漏配）；空列表兜底单行专业不限。
   const clampToExpertSeats = (list: SpecialtyQuota[], target = expertSeats): SpecialtyQuota[] => {
-    if (list.length === 0) return list;
-    const filled = list.filter(quotaFilled);
-    const empties = list.filter(q => !quotaFilled(q));
-    if (filled.length === 0) return list;
-    const sum = filled.reduce((s, q) => s + q.count, 0);
+    if (target <= 0) return list;
+    if (list.length === 0) return [{ specialties: [], count: target } as SpecialtyQuota];
+    const sum = list.reduce((s, q) => s + q.count, 0);
     if (sum === target) return list;
-    const next = [...filled];
+    const next = [...list];
     const diff = target - sum;
     if (diff < 0) {
       // 缩减
@@ -835,7 +834,7 @@ export function ExpertExtractPage({
       while (remain > 0 && next.length > 1) { const last = next.pop()!; remain -= last.count; }
       if (remain > 0 && next.length === 1) { next[0] = { ...next[0], count: Math.max(1, next[0].count - remain) }; }
     } else {
-      // 增加：均分到已有专业
+      // 增加：轮转均分到已有行（含专业不限行）
       let remain = diff;
       while (remain > 0) {
         let done = false;
@@ -847,33 +846,7 @@ export function ExpertExtractPage({
         if (!done) break;
       }
     }
-    return [...next, ...empties];
-  };
-  // 配额缩减（仅减少，由 clampToExpertSeats 内在消减分支驱动；不丢用户所选专业）
-  const trimQuotas = (list: SpecialtyQuota[], target: number): SpecialtyQuota[] => {
-    if (list.length === 0) return list;
-    const filled = list.filter(quotaFilled);
-    const empties = list.filter(q => !quotaFilled(q));
-    if (filled.length === 0) return list;
-    const sum = filled.reduce((s, q) => s + q.count, 0);
-    if (sum <= target) return list;
-    const next = [...filled];
-    let remain = sum - target;
-    // 先降 count>2 → 2
-    for (let i = 0; i < next.length && remain > 0; i++) {
-      while (next[i].count > 2 && remain > 0) { next[i] = { ...next[i], count: next[i].count - 1 }; remain--; }
-    }
-    // 再降 count>1 → 1
-    for (let i = 0; i < next.length && remain > 0; i++) {
-      while (next[i].count > 1 && remain > 0) { next[i] = { ...next[i], count: next[i].count - 1 }; remain--; }
-    }
-    // 仍不够→删末尾专业
-    while (remain > 0 && next.length > 1) { const last = next.pop()!; remain -= last.count; }
-    // 兜底：只剩 1 个专业时截到 target
-    if (remain > 0 && next.length === 1) {
-      next[0] = { ...next[0], count: Math.max(1, next[0].count - remain) };
-    }
-    return [...next, ...empties];
+    return next;
   };
 
 // expertSeats 变化时的自动响应：减少→裁剪/恢复缓存；增加→缓存命中直接恢复。
@@ -883,28 +856,18 @@ export function ExpertExtractPage({
     const prev = prevExpertSeatsRef.current;
     prevExpertSeatsRef.current = expertSeats;
     if (prev === expertSeats) return;
-    if (expertSeats < prev) {
-      // 缩减：有缓存直接恢复，无缓存则裁剪
-      const cached = quotaCacheRef.current.get(expertSeats);
-      if (cached) {
-        setQuotas(cached);
-      } else {
-        setQuotas(prevQ => clampToExpertSeats(prevQ));
-      }
-    } else if (expertSeats > prev && pid && quotas.some(quotaFilled)) {
-      // 增加：缓存命中直接恢复；未命中由用户手动加行或点「AI 配额」按钮
-      const cached = quotaCacheRef.current.get(expertSeats);
-      if (cached) setQuotas(cached);
-    }
+    // 席位切换（3/5/7、需求方代表增减）：缓存命中恢复该席位规模的历史配额；未命中交由下方
+    // 双向不变量自动配平（2026-10-20 用户口径：任何时刻不超配、不不足，牢记可分配席位数）
+    const cached = quotaCacheRef.current.get(expertSeats);
+    if (cached) setQuotas(cached);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expertSeats]);
 
-  // 配额总量不变量（2026-10-20 修复）：任何来源（localStorage 快照恢复 / autoExtractResult
-  // 历史抽取回填 / 旧版本数据）写入的配额总和不得超过 expertSeats，超过立即裁剪。
-  // 此前无此闸：旧快照恢复出超配总和（如 5+1 应 4 席却恒 8 席）后，adjustQuota/addQ/rmQ
-  // 只在行间转移席位、总量恒定，超配值永久固化。
+  // 配额总量不变量（2026-10-20 双向强化）：任何来源（席位切换 3/5/7、localStorage 快照恢复 /
+  // 历史抽取回填 / 旧版本数据）写入的配额总和必须恰好等于 expertSeats——超配裁剪、不足轮转
+  // 补足（clampToExpertSeats 双向），配额区始终牢记可分配席位数；expertSeats=0（席位未定）不动。
   useEffect(() => {
-    if (quotaSum > expertSeats) setQuotas(prev => trimQuotas(prev, expertSeats));
+    if (expertSeats > 0 && quotaSum !== expertSeats) setQuotas(prev => clampToExpertSeats(prev, expertSeats));
   }, [quotaSum, expertSeats]);
   const demandRepOk = !needDemandRep || (demandRepMode === 'designated' ? demandRepPersons.length === demandRepCount : demandRepMode === 'department' ? !!demandRepDept : false);
   // 手动选取模式 UI 已移除；其余模式须配平专业配额
