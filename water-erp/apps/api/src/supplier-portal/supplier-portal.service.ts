@@ -1364,10 +1364,10 @@ export class SupplierPortalService {
     select: Prisma.AnnouncementSelect,
   ): Promise<T | null> {
     const codes = await this.resolveAnnouncementCodes(project);
-    // SUP-P1-05（2026-09-29 审查修复）：对齐 2026-09-26 v2 下线政策——OFFLINE/HIDDEN/DRAFT
-    // 完全不出；公示期满 PUBLISHED / 存量 ARCHIVED 正文不可看（本读端统一下发 null，三消费端
-    // ——详情正文/概览 AI 摘要/招标文件解析——的既有 null 分支自会走邀请书/回执兜底或空态）。
-    // 镜像 announcement.service isOfflined 口径：有 publicityEnd 才会到期（政策/平台类永不过期）。
+    // SUP-P1-05（2026-09-29）→ 2026-10-20 用户裁定修订：OFFLINE/HIDDEN/DRAFT/ARCHIVED 仍完全不出
+    // （status: PUBLISHED 硬过滤）；「公示期满」不再对项目机会读端生效——公示期满仅在公开
+    // 渠道下线，供应商「项目机会」必须持续显示公告原文与采购文件（实录：DMGY-XB-2026100901
+    // 公示期 3 天默认值短于投标窗口，截标前详情页采购文件「暂无」）。
     const visibilityWhere = (extra?: Prisma.AnnouncementWhereInput): Prisma.AnnouncementWhereInput => ({
       ...extra,
       type: 'BID_NOTICE',
@@ -1377,7 +1377,6 @@ export class SupplierPortalService {
     const enrichedSelect = { ...select, publicityEnd: true } as Prisma.AnnouncementSelect;
     const strip = (a: Record<string, unknown> | null): T | null => {
       if (!a) return null;
-      if (a.publicityEnd && new Date(a.publicityEnd as string | Date).getTime() < Date.now()) return null;
       const { publicityEnd: _pe, ...rest } = a;
       return rest as T;
     };

@@ -192,35 +192,59 @@ export function DocumentsStep({ project, documents, onRefresh, refreshing }: Doc
           </button>
         </div>
       )}
-      {/* 招标文件（项目级，专家独立核对原文 ★号实质性条款）*/}
+      {/* 招标文件（项目级，专家独立核对原文 ★号实质性条款）。
+          谈判采购项目（source='negotiation'）无公告轨——采购文件经谈判配置交付，
+          files 携带全部文件（采购文件 + 邀请书等），按列表渲染。 */}
       <div className="neu-card-static mb-5 overflow-hidden">
         <div className="flex items-center gap-2.5 px-4 py-3">
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-[var(--accent-strong)] text-white">
             <FileText size={15} strokeWidth={1.5} />
           </div>
           <div className="min-w-0">
-            <h3 className="text-sm font-bold text-[var(--foreground)]">招标文件</h3>
+            <h3 className="text-sm font-bold text-[var(--foreground)]">{project.tenderDocument?.source === 'negotiation' ? '采购文件' : '招标文件'}</h3>
             <p className="text-[10px] text-[var(--muted-foreground)]">评标依据原文 · 请独立核对 ★号实质性条款</p>
           </div>
         </div>
         <hr className="wb-section-rule" />
         <div className="p-4">
           {project.tenderDocument ? (
-            <div className="neu-attachment-item">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[var(--accent-strong)] text-[9px] font-bold uppercase text-white">
-                PDF
+            project.tenderDocument.files?.length ? (
+              <div className="space-y-2">
+                {project.tenderDocument.files.map(f => (
+                  <div key={f.id} className="neu-attachment-item">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[var(--accent-strong)] text-[9px] font-bold uppercase text-white">
+                      {f.name?.toLowerCase().endsWith('.pdf') ? 'PDF' : 'DOC'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="truncate text-xs font-semibold text-[var(--foreground)]" title={f.name}>{f.name}</h4>
+                      <div className="mt-0.5 flex items-center gap-2">
+                        <span className="text-[10px] text-[var(--muted-foreground)]">{formatBytes(f.size)}</span>
+                        <span className="text-[10px] font-semibold text-[var(--accent-strong)]">可预览</span>
+                      </div>
+                    </div>
+                    <a href={f.downloadUrl} target="_blank" rel="noopener" className="neu-btn-xs is-info shrink-0">
+                      <Download size={12} strokeWidth={1.5} /> 预览
+                    </a>
+                  </div>
+                ))}
               </div>
-              <div className="min-w-0 flex-1">
-                <h4 className="truncate text-xs font-semibold text-[var(--foreground)]" title={project.tenderDocument.fileName}>{project.tenderDocument.fileName}</h4>
-                <div className="mt-0.5 flex items-center gap-2">
-                  <span className="text-[10px] text-[var(--muted-foreground)]">{formatBytes(project.tenderDocument.fileSize)}</span>
-                  <span className="text-[10px] font-semibold text-[var(--accent-strong)]">可预览</span>
+            ) : (
+              <div className="neu-attachment-item">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[var(--accent-strong)] text-[9px] font-bold uppercase text-white">
+                  PDF
                 </div>
+                <div className="min-w-0 flex-1">
+                  <h4 className="truncate text-xs font-semibold text-[var(--foreground)]" title={project.tenderDocument.fileName}>{project.tenderDocument.fileName}</h4>
+                  <div className="mt-0.5 flex items-center gap-2">
+                    <span className="text-[10px] text-[var(--muted-foreground)]">{formatBytes(project.tenderDocument.fileSize)}</span>
+                    <span className="text-[10px] font-semibold text-[var(--accent-strong)]">可预览</span>
+                  </div>
+                </div>
+                <a href={project.tenderDocument.downloadUrl} target="_blank" rel="noopener" className="neu-btn-xs is-info shrink-0">
+                  <Download size={12} strokeWidth={1.5} /> 预览
+                </a>
               </div>
-              <a href={project.tenderDocument.downloadUrl} target="_blank" rel="noopener" className="neu-btn-xs is-info shrink-0">
-                <Download size={12} strokeWidth={1.5} /> 预览
-              </a>
-            </div>
+            )
           ) : (
             <div className="py-5 text-center text-[var(--muted-foreground)]">
               <FileText size={26} strokeWidth={1} className="mx-auto mb-2 opacity-50" />

@@ -5,7 +5,7 @@ import { fetchCurrentUser } from '@/lib/api/auth';
 import { companyColor } from '@/components/company/company-tag';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, listPoolCompanies, listExperts, getDemandRepDirectory, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, type DemandRepDirectoryItem } from '@/lib/api/expert';
+import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, specialtyPoolCounts, listPoolCompanies, listExperts, getDemandRepDirectory, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, type DemandRepDirectoryItem } from '@/lib/api/expert';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { QuotaMultiSelect } from '@/components/expert/quota-multi-select';
@@ -55,16 +55,19 @@ const mkMatchSpec = (specs: string[]) => (sp: string): string => {
   return specs.find(x => x.includes(t) || t.includes(x)) || '';
 };
 
-/** AI 返回行（specialty 单值兜底 + specialties 相近组）→ 多选配额行：逐专业库内纠偏，相同专业组并桶累加席数 */
-const aiRowsToQuotas = (rows: { specialty?: string; specialties?: string[]; count: number }[], matchSpec: (sp: string) => string): SpecialtyQuota[] => {
+/** AI 返回行（specialty 单值兜底 + specialties 相近组）→ 多选配额行：逐专业库内纠偏，相同专业组并桶累加席数；
+ *  行带 companyIds（后端附挂持有该专业的公司并集）则透传——跨公司专业直达可抽，不卡死在本公司默认 */
+const aiRowsToQuotas = (rows: { specialty?: string; specialties?: string[]; companyIds?: string[]; count: number }[], matchSpec: (sp: string) => string): SpecialtyQuota[] => {
   const merged = new Map<string, SpecialtyQuota>();
   for (const s of rows) {
     const list = [...new Set([...(s.specialties ?? []).map(matchSpec), matchSpec(s.specialty ?? '')].filter(Boolean))];
     if (!list.length) continue;
     const key = list.join('、');
     const ex = merged.get(key);
-    if (ex) ex.count += Math.max(1, s.count);
-    else merged.set(key, { specialties: list, count: Math.max(1, s.count) });
+    if (ex) {
+      ex.count += Math.max(1, s.count);
+      if (s.companyIds?.length) ex.companyIds = [...new Set([...(ex.companyIds ?? []), ...s.companyIds])];
+    } else merged.set(key, { specialties: list, count: Math.max(1, s.count), ...(s.companyIds?.length ? { companyIds: s.companyIds } : {}) });
   }
   return [...merged.values()];
 };
@@ -150,6 +153,8 @@ export function ExpertExtractPage({
   const [altExtracting, setAltExtracting] = useState(false);
   const [altNotified, setAltNotified] = useState(false);
   const [altNotifying, setAltNotifying] = useState(false);
+  // 候补池枯竭（NO_ELIGIBLE_EXPERTS / 配额全部 fallback 失败）：候补为可选席位，软空态放行，不算错误
+  const [altExhausted, setAltExhausted] = useState(false);
   const [quotas, setQuotas] = useState<SpecialtyQuota[]>([{ specialties: [], count: 2 }]);
   // 需求方代表配置
   const [needDemandRep, setNeedDemandRep] = useState(false);
@@ -387,6 +392,7 @@ export function ExpertExtractPage({
       if (snap.phoneScriptsArr?.length) setPhoneScripts(new Map(snap.phoneScriptsArr));
       if (snap.reHistory?.length) setReHistory(snap.reHistory);
       if (snap.altPreview) setAltPreview(snap.altPreview);
+      if (snap.altExhausted) setAltExhausted(true);
       if (snap.altSelected?.length) setAltSelected(snap.altSelected);
       if (snap.altNotified) setAltNotified(snap.altNotified);
     } catch { localStorage.removeItem(lskeyForPid); }
@@ -444,15 +450,15 @@ export function ExpertExtractPage({
     setStep(allFinal ? 5 : anyNotified ? 4 : 3);
   }, [pid, invitationData, defaultPid]);
 
-  // 步骤6：进入时自动抽取候补专家（仅首次，已抽过时直接展示）
+  // 步骤6：进入时自动抽取候补专家（仅首次，已抽过/池枯竭软空态时直接展示）
   useEffect(() => {
-    if (step !== 6 || !pid || altPreview) return;
+    if (step !== 6 || !pid || altPreview || altExhausted) return;
     extractAlternates();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, pid, altPreview]);
+  }, [step, pid, altPreview, altExhausted]);
 
   // 状态变更时自动保存到 localStorage（页面切换后恢复）
-  const stateRef = useRef({ pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified, needDemandRep, demandRepCount, demandRepPersons, demandRepMode, demandRepCompany, demandRepDept, demandRepDeptSpecialty, totalSeats: 5 as 3 | 5 | 7 });
+  const stateRef = useRef({ pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified, altExhausted, needDemandRep, demandRepCount, demandRepPersons, demandRepMode, demandRepCompany, demandRepDept, demandRepDeptSpecialty, totalSeats: 5 as 3 | 5 | 7 });
   useEffect(() => {
     const save = () => {
       const s = stateRef.current;
@@ -513,6 +519,7 @@ export function ExpertExtractPage({
       if (snap.pd) setPd(snap.pd);
       if (snap.step) setStep(snap.step);
       if (snap.altPreview) setAltPreview(snap.altPreview);
+      if (snap.altExhausted) setAltExhausted(true);
       if (snap.altSelected?.length) setAltSelected(snap.altSelected);
       if (snap.altNotified) setAltNotified(snap.altNotified);
       if (snap.needDemandRep) { setNeedDemandRep(true); if (snap.demandRepPersons?.length) setDemandRepPersons(snap.demandRepPersons); if (snap.demandRepCount) setDemandRepCount(snap.demandRepCount); if (snap.demandRepMode) setDemandRepMode(snap.demandRepMode); if (snap.demandRepCompany) setDemandRepCompany(snap.demandRepCompany); if (snap.demandRepDept) setDemandRepDept(snap.demandRepDept); if (snap.demandRepDeptSpecialty) setDemandRepDeptSpecialty(snap.demandRepDeptSpecialty); }
@@ -531,7 +538,9 @@ export function ExpertExtractPage({
     setStep(2); // 已有抽取结果 → 直接进入抽取结果
   }, [autoExtractResult]);
 
-  useEffect(() => { listBidProjects().then(setProjects).catch(() => toast.error('加载项目列表失败')); listSpecialties().then(setSpecs).catch(() => {}); }, []);
+  // 专业池取全库口径（scope=group）：专家库换血后专业分散 8 公司，本公司口径会把 AI 配额行全部滤成 0 个专业；
+  // 与后端 AI 专业池、跨公司抽取（配额 companyIds 白名单）同口径
+  useEffect(() => { listBidProjects().then(setProjects).catch(() => toast.error('加载项目列表失败')); listSpecialties(undefined, 'group').then(setSpecs).catch(() => {}); specialtyPoolCounts().then(list => { const m = new Map<string, number>(); list.forEach(({ specialty, count }) => { if (count > 0) m.set(specialty, count); }); setPool(m); }).catch(() => {}); }, []);
 
   // 专业下拉随配额行所选公司懒加载（2026-10-20）：逐公司调 listSpecialties(companyId) 缓存，
   // 行内专业选项=所选公司专业并集（Set 去重=同名合并）。resolveScope 支持 admin 多公司；
@@ -540,7 +549,7 @@ export function ExpertExtractPage({
   useEffect(() => {
     const wanted = new Set<string>();
     for (const q of quotas) {
-      for (const id of (q.companyIds?.length ? q.companyIds : (myCompanyId ? [myCompanyId] : []))) {
+      for (const id of q.companyIds ?? []) { // 空=不限公司（2026-10-20 用户口径）：不回填本公司，无公司则不预取（下拉兜底全量 specs）
         const v = id.trim();
         if (v) wanted.add(v);
       }
@@ -612,7 +621,7 @@ export function ExpertExtractPage({
     lastReQuotasRef.current = [];
     quotaCacheRef.current.clear();
   }, [pid]);
-  useEffect(() => { if (!pid || specs.length === 0) return; Promise.all(specs.map(s => listExperts({ specialty: s, pageSize: 1000 }).then(l => ({ s, c: unwrapList(l as any).total })))).then(rs => { const m = new Map<string, number>(); rs.forEach(({ s, c }) => { if (c > 0) m.set(s, c); }); setPool(m); }).catch(() => {}); }, [pid, specs]);
+  // 专业池人数已随挂载一次取全（specialtyPoolCounts，全库口径）——原逐专业 listExperts 扇出（86 专业×1 次）已删
 
   // 开标时间自愈回填：预填本只在 confirm() 里做——若确认当时详情接口失败（曾因 DB 迁移漂移 500）
   // 或 openTime 尚未落库，localStorage 恢复的步骤3 会永远停在空值。进入步骤3 后字段仍空而详情
@@ -677,6 +686,19 @@ export function ExpertExtractPage({
     listPoolCompanies().then(setCompanies).catch(() => {});
   }, []);
 
+  // 陈旧公司清洗（一次性，2026-10-20）：配额行 companyIds 里不在 pool-companies 的 ID（旧会话快照/
+  // 历史回填带出的 0 可抽取专家公司，如大岷管业）——chip 查不到名称回落显原始 ID 且抽取恒 0 候选；
+  // 剔除后行自然回到「不限公司」（空=按池 scope，2026-10-20 用户口径）
+  const companySanitizedRef = useRef(false);
+  useEffect(() => {
+    if (companySanitizedRef.current || companies.length === 0) return;
+    companySanitizedRef.current = true;
+    const pool = new Set(companies.map(c => c.id));
+    setQuotas(p => p.some(q => (q.companyIds ?? []).some(id => !pool.has(id)))
+      ? p.map(q => ({ ...q, companyIds: (q.companyIds ?? []).filter(id => pool.has(id)) }))
+      : p);
+  }, [companies]);
+
   // 公司/部门/专业三级映射 + 人员目录：全库目录端点构建（供需求方代表「公司→部门→专业」级联）。
   // 2026-10-20 前误在隔离的列表端点上聚合——非 admin 只回本公司专家，其余公司部门恒空且误报
   // 「该公司专家库内暂无专家」；跨公司选需求方代表为既定口径（抽取配额公司白名单）
@@ -713,16 +735,16 @@ export function ExpertExtractPage({
     }).catch(() => {});
   }, [user?.company]);
 
-  // 指定需求方代表：全库目录内本地检索（原隔离列表端点防抖搜索——非 admin 选其他公司恒「未匹配到人员」；
-  // 已选定公司时按公司过滤，关键词匹配姓名/专业/部门）
+  // 指定需求方代表：全库目录内本地检索，不限公司（跨公司指定需求方代表为既定口径）——
+  // 曾按 demandRepCompany 过滤：该值默认登录人公司且指定代表模式无公司选择器，搜索被静默锁死在
+  // 本公司；关键词匹配姓名/专业/部门/单位（占位符承诺「单位」但曾漏匹配 employer）
   const demandRepResults = useMemo(() => {
     if (demandRepMode !== 'designated' || !demandRepSearch.trim()) return [] as DemandRepDirectoryItem[];
     const kw = demandRepSearch.trim().toLowerCase();
     return demandRepDirectory
-      .filter(e => !demandRepCompany || e.employer === demandRepCompany)
-      .filter(e => !kw || e.name.toLowerCase().includes(kw) || e.specialty.toLowerCase().includes(kw) || e.department.toLowerCase().includes(kw))
+      .filter(e => e.name.toLowerCase().includes(kw) || e.specialty.toLowerCase().includes(kw) || e.department.toLowerCase().includes(kw) || e.employer.toLowerCase().includes(kw))
       .slice(0, 10);
-  }, [demandRepDirectory, demandRepMode, demandRepSearch, demandRepCompany]);
+  }, [demandRepDirectory, demandRepMode, demandRepSearch]);
 
   const addManualExpert = (e: ExpertListItem) => {
     if (manualExperts.some(x => x.userId === e.id)) return;
@@ -924,7 +946,7 @@ export function ExpertExtractPage({
   // 用户手动操作配额均置 quotaTouchedRef（含全行「专业不限」的配置——有效配置不得被 AI 推断覆盖）
   const addQ = () => { quotaTouchedRef.current = true; setQuotas(p => {
     const sum = p.reduce((s, q) => s + q.count, 0);
-    const next = [...p, { specialties: [], count: 1, companyIds: myCompanyId ? [myCompanyId] : [] } as SpecialtyQuota]; // 新配额默认本公司
+    const next = [...p, { specialties: [], count: 1, companyIds: [] } as SpecialtyQuota]; // 新配额默认不限公司（2026-10-20 用户口径：不强制选公司，空=按池 scope）
     // 总和已满 → 从 count 最大的现有专业借 1 席给新专业；未满 → 直接占 1 席（向 expertSeats 靠拢）
     if (sum >= expertSeats) {
       let donor = 0; for (let i = 1; i < p.length; i++) if (p[i].count > p[donor].count) donor = i;
@@ -1140,7 +1162,7 @@ export function ExpertExtractPage({
     setCommitteeDraft({}); // A-132：旧专家组分工草稿随邀请一并作废
     notifySentRef.current = false; originalConfirmedIdsRef.current = new Set();
     lastReQuotasRef.current = []; setReHistory([]);
-    setAltPreview(null); setAltSelected([]); setAltNotified(false);
+    setAltPreview(null); setAltSelected([]); setAltNotified(false); setAltExhausted(false);
     invitationRestoredRef.current = false;
     modalLocalRestoredRef.current = false;
     updateMessages(new Map());
@@ -1154,7 +1176,7 @@ export function ExpertExtractPage({
     const manualQuotas: { specialties: string[]; count: number; companyIds?: string[] }[] = [];
     for (const qq of quotas) manualQuotas.push({
       specialties: quotaSpecsOf(qq), count: qq.count, // 空=专业不限（不限专业桶）
-      companyIds: qq.companyIds?.length ? qq.companyIds : (myCompanyId ? [myCompanyId] : []), // 空=不限公司（按池 scope）
+      companyIds: qq.companyIds ?? [], // 空=不限公司（按池 scope；2026-10-20 用户口径：不回填本公司）
     });
     const regularQuotaCount = manualQuotas.length; // 候补 = 每个配额组 1 位
     const demandRepCompanyId = companyIdOfName(demandRepCompany);
@@ -1199,7 +1221,7 @@ export function ExpertExtractPage({
    *  确认抽取时随 payload 递交（跨公司放行依据）——部门模式=所选公司；指定模式=代表所属公司
    *  （2026-10-20 前缺此段，指定/抽取跨公司代表在 confirm 被 COMPANY_SCOPE_FORBIDDEN 拦） */
   const extractionCompanyIds = (extraQuotas: SpecialtyQuota[] = []): string[] | undefined => {
-    const ids = new Set([...quotas, ...extraQuotas].flatMap(q => (q.companyIds?.length ? q.companyIds : (myCompanyId ? [myCompanyId] : [])).map(c => c.trim())).filter(Boolean));
+    const ids = new Set([...quotas, ...extraQuotas].flatMap(q => (q.companyIds ?? []).map(c => c.trim())).filter(Boolean)); // 空配额行不注入本公司（2026-10-20 用户口径）
     if (needDemandRep) {
       if (demandRepMode === 'department') {
         const cid = companyIdOfName(demandRepCompany);
@@ -1361,7 +1383,7 @@ export function ExpertExtractPage({
   const [rsvpLinks, setRsvpLinks] = useState<Record<string, string>>({});
 
   // 保持 stateRef 同步最新渲染值（必须在所有 useState 之后，供 beforeunload 保存使用）
-  stateRef.current = { pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified, needDemandRep, demandRepCount, demandRepPersons, demandRepMode, demandRepCompany, demandRepDept, demandRepDeptSpecialty, totalSeats };
+  stateRef.current = { pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified, altExhausted, needDemandRep, demandRepCount, demandRepPersons, demandRepMode, demandRepCompany, demandRepDept, demandRepDeptSpecialty, totalSeats };
 
   /** 打开补选弹窗：AI 分析项目 → 推荐补选专业与人数 → 用户调整 → 开始抽取。
    *  如果上次用户已手动调整过配额且池仍有可用专家，则跳过 configuring，直接用旧配额抽取。 */
@@ -1638,6 +1660,7 @@ export function ExpertExtractPage({
     const quotaSpecs = quotaRows.flatMap(quotaSpecsOf); // 扁平化专业清单（fallback 换专业用）
     if (quotaRows.length === 0) { toast.warning('无专业配额，无法抽取候补'); return; }
     const mainExperts = invitationData.experts.filter(e => e.expertRole === '正选');
+    setAltExhausted(false);
     setAltExtracting(true);
     try {
       const manualQuotas: { specialties: string[]; count: number }[] = [];
@@ -1666,6 +1689,8 @@ export function ExpertExtractPage({
         manualQuotas.push({ specialties: target, count: 1 });
       }
       const totalNeeded = manualQuotas.length;
+      // 配额全部 fallback 失败 = 池枯竭：候补为可选席位，软空态放行（不调接口硬报错）
+      if (manualQuotas.length === 0) { setAltExhausted(true); toast.info('专家库已无可抽候补专家，本次不设候补（不影响评审组组建）'); setAltExtracting(false); return; }
       const excludedIds = [...allInvited];
       const result = await previewExtraction({ projectId: pid, totalNeeded, extractMode: extractMode as ApiExtractMode, manualQuotas, excludedUserIds: excludedIds.length > 0 ? excludedIds : undefined });
       if (!result?.selected) throw new Error('返回数据异常');
@@ -1680,7 +1705,12 @@ export function ExpertExtractPage({
       }
       updateMessages(altMsg);
       toast.success(`候补专家抽取完成，共 ${result.selected.length} 人`);
-    } catch (e: any) { toast.error(e?.message || '抽取失败'); }
+    } catch (e: any) {
+      // 候补池枯竭：候补为可选席位（2026-10-20 用户裁定「允许没有候补专家」）——软空态而非报错；
+      // 正选抽取（步骤1 开始抽取）不经过本函数，NO_ELIGIBLE_EXPERTS 在那里仍是硬错误
+      if (e?.code === 'NO_ELIGIBLE_EXPERTS') { setAltExhausted(true); toast.info('专家库已无可抽候补专家，本次不设候补（不影响评审组组建）'); }
+      else toast.error(e?.message || '抽取失败');
+    }
     setAltExtracting(false);
   };
 
@@ -1853,7 +1883,7 @@ export function ExpertExtractPage({
     setShowReplaceModal(false);
     setReplaceTarget(null);
   };
-  const reset = () => { setStep(1); setDone(false); setPreview(null); setSelectedExperts([]); setAlternativeExperts([]); setNotifyResults(null); setConfirmedExpertIds([]); setStep3Confirmed(false); notifySentRef.current = false; originalConfirmedIdsRef.current = new Set(); lastReQuotasRef.current = []; quotaCacheRef.current.clear(); setReHistory([]); setAltPreview(null); setAltSelected([]); setAltNotified(false); invitationRestoredRef.current = false; modalLocalRestoredRef.current = false; localStorage.removeItem(`${storageKey}-${pid}`); localStorage.removeItem(LAST_PID_KEY); };
+  const reset = () => { setStep(1); setDone(false); setPreview(null); setSelectedExperts([]); setAlternativeExperts([]); setNotifyResults(null); setConfirmedExpertIds([]); setStep3Confirmed(false); notifySentRef.current = false; originalConfirmedIdsRef.current = new Set(); lastReQuotasRef.current = []; quotaCacheRef.current.clear(); setReHistory([]); setAltPreview(null); setAltSelected([]); setAltNotified(false); setAltExhausted(false); invitationRestoredRef.current = false; modalLocalRestoredRef.current = false; localStorage.removeItem(`${storageKey}-${pid}`); localStorage.removeItem(LAST_PID_KEY); };
 
   // 配置卡片
   // 替换/添加弹窗
@@ -1929,7 +1959,7 @@ export function ExpertExtractPage({
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">1.</span>合规过滤：仅「可用」状态专家，工作单位与供应商无关联，未被重复分配至同一项目，自动回避利益相关方</li>
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">2.</span>席位规则：可选择 3 / 5 / 7 人委员会；需求方（业主）代表可选 0-2 人（指定人员或按部门抽取）；其余席位按专业配额抽取，每专业候补 1 位</li>
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">3.</span>多维评估：AI 综合专家履职评价等级(A/B/C/D)、出勤/质量/廉洁三维度评分、评分偏离度、历史经验与当前负荷</li>
-                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">4.</span>结果即定：抽取完成后进入「抽取结果」全信息总览，配置不可回改；如需更换人选在后续步骤补选</li>
+                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">4.</span>可返可补：任意步骤均可回「抽取配置」重新抽取（重走确认即整体替换原专家组）；如只换个别人员，在后续步骤补选更轻量</li>
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">5.</span>通知送达：确认后支持 OA站内信 / 短信 / 电话 多渠道通知被选专家</li>
               </ol>
             </RulesPopover>
@@ -1951,8 +1981,9 @@ export function ExpertExtractPage({
         current={step}
         onStepClick={(s) => setStep(s)}
         reachable={(s) => {
-          // 抽取完成进入步骤2后不可回步骤1重新抽取（2026-09-24 拍板）——结果即定，后续仅向前
-          if (s === 1 && step >= 2) return false;
+          // 始终允许回步骤1重新配置/重抽（2026-10-20 用户裁定，推翻 2026-09-24「结果即定」拍板）——
+          // 重走步骤3确认时后端非追加 confirm 本就先清空再写入；评标/归档/流标项目的硬闸仍在
+          // 后端 RE_EXTRACTION_LOCKED，前端不重复设卡
           if (s <= step) return true;
           if (s === 2 && !!preview) return true;
           if (s === 3 && confirmedExpertIds.length > 0) return true;
@@ -2318,7 +2349,7 @@ export function ExpertExtractPage({
                         return cb - ca; // 库内人数降序，未选专业排末尾
                       })
                       .map(({ q, idx }) => {
-                        const qcIds = q.companyIds?.length ? q.companyIds : (myCompanyId ? [myCompanyId] : []);
+                        const qcIds = q.companyIds ?? []; // 空=不限公司（2026-10-20 用户口径），不回填本公司
                         const qc = companies.find(c => c.id === qcIds[0]);
                         const qcNames = qcIds.map(id => companies.find(c => c.id === id)?.name).filter(Boolean).join('、');
                         return (
@@ -2426,7 +2457,7 @@ export function ExpertExtractPage({
 
                 {preview.shortages.length > 0 && <div className="rounded-xl bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] px-4 py-3 text-sm text-[var(--warning)]"><AlertTriangle size={16} className="inline mr-2" />专业候选人不足{preview.shortages.map(s => `：${s.specialty} 需${s.needed}人/仅${s.available}人`).join('')}</div>}
 
-                {/* 抽取结果全信息表（2026-09-24 改版：表格式全量信息；结果即定，不提供添加/替换/移除） */}
+                {/* 抽取结果全信息表（2026-09-24 改版：表格式全量信息；结果可经回步骤1重抽整体替换，表内不提供单项添加/替换/移除） */}
                 <div className="neu-table-card p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                     <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">抽取结果 · 专家组 {selectedExperts.length + demandRepItems.length} 人（正选 {selectedExperts.filter(s => !demandRepIdSet.has(s.userId)).length} · 需求方（业主）代表 {demandRepItems.length}）</span>
@@ -2507,7 +2538,7 @@ export function ExpertExtractPage({
 
             <div className="flex items-center justify-between pt-4 border-t border-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
               <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--muted-foreground)]">
-                <ShieldCheck size={13} className="text-[var(--success)]" />抽取已完成，抽取配置不可回改；如需更换专家组请在后续步骤补选
+                <ShieldCheck size={13} className="text-[var(--success)]" />抽取已完成；如需调整可返回「抽取配置」重新抽取（确认后整体替换），仅换个别人员请在后续步骤补选
               </span>
               <div className="flex items-center gap-3">
                 {step3Confirmed || confirmedExpertIds.length > 0 ? (
@@ -3061,7 +3092,7 @@ export function ExpertExtractPage({
               <div className="neu-table-card p-4">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">候补专家组 · {altSelected.length} 人</span>
-                  <button onClick={() => { setAltPreview(null); setAltSelected([]); setAltNotified(false); extractAlternates(); }} disabled={altExtracting} className="neu-btn-xs"><RefreshCw size={12} className="inline mr-0.5" />重新抽取</button>
+                  <button onClick={() => { setAltPreview(null); setAltSelected([]); setAltNotified(false); setAltExhausted(false); extractAlternates(); }} disabled={altExtracting} className="neu-btn-xs"><RefreshCw size={12} className="inline mr-0.5" />重新抽取</button>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="neu-table w-full table-fixed">
@@ -3192,6 +3223,14 @@ export function ExpertExtractPage({
                 </div>
               </div>
             </>
+          ) : altExhausted ? (
+            /* 候补池枯竭软空态（2026-10-20 用户裁定：允许没有候补专家）——不算错误，可维护专家后重试 */
+            <div className="neu-table-card py-10 px-6 text-center">
+              <Info size={22} strokeWidth={1.9} className="mx-auto mb-3 text-[var(--muted-foreground)]" />
+              <p className="text-sm font-bold text-[var(--foreground)]">专家库已无可抽候补专家，本次不设候补</p>
+              <p className="mx-auto mt-1.5 max-w-[480px] text-xs leading-relaxed text-[var(--muted-foreground)]">可用专家均已被本项目占用、列入预排除或不符合配额条件。候补为可选席位，不影响评审组组建与后续流程；如需候补，可先在「专家管理」维护可用专家后重试。</p>
+              <button onClick={() => extractAlternates()} disabled={altExtracting} className="neu-btn-soft mt-4 mx-auto"><RefreshCw size={13} className={`inline mr-1 ${altExtracting ? 'animate-spin' : ''}`} />重试抽取候补</button>
+            </div>
           ) : (
             <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]">候补抽取未就绪，请返回上一步重新进入</div>
           )}

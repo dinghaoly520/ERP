@@ -1,8 +1,9 @@
 /**
- * SUP-P1-05（2026-09-29 审查修复）：resolveOwnAnnouncement 状态闸回归防护。
- * 项目侧公告读端（详情正文/概览 AI 摘要/招标文件解析三消费端）此前无任何 status
- * 过滤——OFFLINE/HIDDEN/ARCHIVED/公示期满甚至 DRAFT（从未发布）的 BID_NOTICE
- * 正文照常下发，绕过 2026-09-26 v2「已下线仅标题壳/下架完全不出」政策。
+ * SUP-P1-05（2026-09-29 审查修复）→ 2026-10-20 用户裁定修订：resolveOwnAnnouncement 状态闸回归防护。
+ * 项目侧公告读端（详情正文/概览 AI 摘要/招标文件解析三消费端）：OFFLINE/HIDDEN/ARCHIVED/DRAFT
+ * 仍完全不出（status: PUBLISHED 硬过滤）；但「公示期满」不再对项目机会读端生效——公示期满
+ * 仅在公开渠道下线，供应商「项目机会」必须持续显示公告原文与采购文件
+ * （实录：DMGY-XB-2026100901 公示期 3 天默认值短于投标窗口，截标前采购文件显示「暂无」）。
  */
 describe('resolveOwnAnnouncement 状态闸（SUP-P1-05）', () => {
   const makeService = (findFirstResult: Record<string, unknown> | null) => {
@@ -31,13 +32,14 @@ describe('resolveOwnAnnouncement 状态闸（SUP-P1-05）', () => {
     expect(out).toMatchObject({ id: 'a1', content: '正文' });
   });
 
-  it('公示期满（publicityEnd 已过）→ 返回 null（正文不可看）', async () => {
+  it('公示期满（publicityEnd 已过）→ 仍返回正文（2026-10-20 裁定：项目机会须持续显示公告原文与采购文件）', async () => {
     const { svc } = makeService({ id: 'a1', publicityEnd: new Date('2020-01-01').toISOString(), content: '正文' });
     const out = await svc.resolveOwnAnnouncement(
       { projectCode: 'BID-1', projectManagementItemId: null },
       { id: true, content: true },
     );
-    expect(out).toBeNull();
+    expect(out).toMatchObject({ id: 'a1', content: '正文' });
+    expect(out).not.toHaveProperty('publicityEnd');
   });
 
   it('PUBLISHED 未到期（publicityEnd 在未来/为空）→ 原样返回且不泄漏探测列', async () => {

@@ -212,19 +212,24 @@ export class ExpertAdminService {
     return { total, page, pageSize, items };
   }
 
-  /** 全部专业（去重；公司隔离——下拉只列可见专家的专业） */
-  async listSpecialties(user?: AuthenticatedUser, companyId?: string) {
-    // 专家抽取不过滤（2026-10-20 用户裁定）：显式指定 companyId（支持逗号多选）时按所指公司并集
-    // 取专业，任何账号放行——与抽取池 companyFilter 同口径（expert-extraction.service：配额声明
-    // 公司=可跨公司抽，confirm 同白名单放行）。此前传参被登录人隔离吞掉，非 admin 配额行选多公司
-    // 后专业下拉恒为本公司，看似"固定"。未指定时维持登录人公司口径（admin=全部，非 admin=本公司，
-    // 供专家库列表页等非抽取场景复用）。
+  /** 全部专业（去重；公司隔离——下拉只列可见专家的专业）。
+   *  专家抽取不过滤（2026-10-20 用户裁定）：显式指定 companyId（支持逗号多选）时按所指公司并集
+   *  取专业，任何账号放行——与抽取池 companyFilter 同口径（expert-extraction.service：配额声明
+   *  公司=可跨公司抽，confirm 同白名单放行）。此前传参被登录人隔离吞掉，非 admin 配额行选多公司
+   *  后专业下拉恒为本公司，看似"固定"。未指定时维持登录人公司口径（admin=全部，非 admin=本公司，
+   *  供专家库列表页等非抽取场景复用）。
+   *  scope='group'（抽取页挂载/AI 配额纠偏用）：全库去重专业、不挂任何公司过滤——与 AI 专业池
+   *  （analyzeProjectSpecialties）、跨公司抽取同口径。专家库换血（2026-10-19，8 公司直挂）后各专业
+   *  分散在全集团，挂载口径仍按本公司收窄会把 AI 配额行全部滤成 0 个专业。 */
+  async listSpecialties(user?: AuthenticatedUser, companyId?: string, scope?: string) {
     const requested = (companyId ?? '')
       .split(',')
       .map((s) => s.trim())
       .filter((s) => s && s !== 'all');
     let companyWhere: CompanyWhere;
-    if (requested.length > 0) {
+    if (scope === 'group') {
+      companyWhere = {};
+    } else if (requested.length > 0) {
       const uniq = [...new Set(requested)];
       const valid = await this.prisma.company.findMany({ where: { id: { in: uniq } }, select: { id: true } });
       const validIds = new Set(valid.map((c) => c.id));
@@ -239,6 +244,20 @@ export class ExpertAdminService {
       orderBy: { specialty: 'asc' },
     });
     return rows.map(r => r.specialty);
+  }
+
+  /** 全库各专业在库人数（抽取页配额卡「N人·库内」提示与行排序；不分公司，与 listSpecialties(scope=group) 同口径）。
+   *  一次 groupBy 取代前端逐专业 listExperts 扇出（86 专业 × 1 次调用）。 */
+  async specialtyPoolCounts() {
+    const groups = await this.prisma.expertProfile.groupBy({
+      by: ['specialty'],
+      where: { user: { isActive: true, role: 'bid_expert' } },
+      _count: { _all: true },
+    });
+    return groups
+      .filter(g => g.specialty?.trim())
+      .map(g => ({ specialty: g.specialty, count: g._count._all }))
+      .sort((a, b) => b.count - a.count || a.specialty.localeCompare(b.specialty, 'zh'));
   }
 
   /**
@@ -2520,13 +2539,18 @@ export class ExpertAdminService {
       return { requiredSpecialties: [], totalExperts: 0, analysis: '项目信息不足，请手动添加专业配额', engine: 'rules' as const };
     }
 
-    // 取专家库内实际存在的专业，AI 必须从中选择（避免生成库内没有的专业，且更贴合实际）
+    // 取专家库内实际存在的专业，AI 必须从中选择（避免生成库内没有的专业，且更贴合实际）；
+    // 顺带取各专业的归属公司（换血后 8 公司直挂，同一专业可能只在别家公司），
+    // 供配额行附挂 companyIds——否则配额公司默认本公司，跨公司专业 0 候选
     const poolSpecsRows = await this.prisma.expertProfile.findMany({
       where: { user: { isActive: true } },
-      select: { specialty: true },
-      distinct: ['specialty'],
+      select: { specialty: true, availability: true, entryStatus: true, user: { select: { companyId: true } } },
     });
     const poolSpecs = Array.from(new Set(poolSpecsRows.map(r => r.specialty).filter(Boolean)));
+    const companiesBySpec = this.companiesBySpecOf(poolSpecsRows);
+    /** 每席位组附挂持有该组专业的公司并集（跨公司抽取白名单直连；空组跳过） */
+    const attachCompanies = (rows: { specialty: string; specialties: string[]; count: number; reason: string }[]) =>
+      this.attachHolderCompanies(rows, companiesBySpec);
     const poolHint = poolSpecs.length > 0
       ? `\n\n【专家库现有专业】（specialty 字段必须严格从这里选，用词完全一致，不得生造或同义词替换）：\n${poolSpecs.join('、')}`
       : '';
@@ -2555,7 +2579,10 @@ ${context}${poolHint}`,
         0.3,
       );
       const jsonMatch = raw.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) return fallback();
+      if (!jsonMatch) {
+        const fb = fallback();
+        return { ...fb, requiredSpecialties: attachCompanies(fb.requiredSpecialties) };
+      }
       const parsed = JSON.parse(jsonMatch[0]);
       // 行内专业逐项对专家库白名单纠偏（原词→词缀包含），对不上的丢弃；整行无有效专业时弃行
       const matchPool = (sp: string): string => {
@@ -2581,14 +2608,15 @@ ${context}${poolHint}`,
         : fallback().requiredSpecialties;
       const totalExperts = Math.max(1, Math.min(20, Number(parsed.totalExperts) || specialties.reduce((a: number, s: any) => a + s.count, 0) || 3));
       return {
-        requiredSpecialties: specialties,
+        requiredSpecialties: attachCompanies(specialties),
         totalExperts,
         analysis: String(parsed.analysis || '').slice(0, 500),
         engine: 'ai' as const,
       };
     } catch (err) {
       new Logger(ExpertAdminService.name).warn(`已有项目专业分析降级（LLM 不可用）: ${(err as Error)?.message ?? err}`);
-      return fallback();
+      const fb = fallback();
+      return { ...fb, requiredSpecialties: attachCompanies(fb.requiredSpecialties) };
     }
   }
 
@@ -2624,6 +2652,8 @@ ${context}${poolHint}`,
       engine: 'rules' as const,
     });
 
+    // 专业→持有公司（配额行 companyIds 附挂；try 外声明——LLM 前置失败时 catch 兜底也能用）
+    let companiesBySpec = new Map<string, Set<string>>();
     try {
       const raw = await this.llm.chat(
         '你是招标采购评审专家抽取助手。用户会提供一份或多份项目相关文件（可能是招标公告、采购需求、项目背景等）。你需要【理解项目背景与采购内容】，推断该项目评审需要哪些专业的专家、各专业建议人数，以及评审专家总数。文件里未必直接写明专业和人数，你要根据项目性质、采购内容、技术要求自行推理。专业请用水发/水利采购常见表述（如水利工程、机电设备及安装、造价咨询、工程造价、信息技术、法律、财务等）。相近专业（同一技术学科、评审可互替）必须合并为一个席位组：写入该组 specialties 数组（1-4 个，主专业放首位），不得拆成多行。',
@@ -2636,7 +2666,11 @@ ${combined}`,
         0.2,
       );
       const jsonMatch = raw.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) return fallback();
+      companiesBySpec = await this.companiesBySpecialty();
+      if (!jsonMatch) {
+        const fb = fallback();
+        return { ...fb, requiredSpecialties: this.attachHolderCompanies(fb.requiredSpecialties, companiesBySpec) };
+      }
       const parsed = JSON.parse(jsonMatch[0]);
       const specialties = Array.isArray(parsed.requiredSpecialties) && parsed.requiredSpecialties.length
         ? parsed.requiredSpecialties
@@ -2658,15 +2692,52 @@ ${combined}`,
         suggestedName: String(parsed.suggestedName || '自定义抽取项目').slice(0, 60),
         projectBackground: String(parsed.projectBackground || '').slice(0, 500),
         procurementType: String(parsed.procurementType || '公开招标').slice(0, 30),
-        requiredSpecialties: specialties,
+        requiredSpecialties: this.attachHolderCompanies(specialties, companiesBySpec),
         totalExperts,
         analysis: String(parsed.analysis || '').slice(0, 500),
         engine: 'ai' as const,
       };
     } catch (err) {
       new Logger(ExpertAdminService.name).warn(`自定义抽取文件分析降级（LLM 不可用）: ${(err as Error)?.message ?? err}`);
-      return fallback();
+      const fb = fallback();
+      return { ...fb, requiredSpecialties: this.attachHolderCompanies(fb.requiredSpecialties, companiesBySpec) };
     }
+  }
+
+  /** 专业→持有公司并集映射（入参=expertProfile 含 user.companyId 的行；配额行 companyIds 附挂用）。
+   *  行带 availability/entryStatus 字段时按可抽取资格过滤（与 listPoolCompanies 同口径）——
+   *  只挂「不可用/非 ACTIVE 专家」的公司会让配额行 chip 查不到名称回落显 ID 且抽取 0 候选。 */
+  private companiesBySpecOf(rows: { specialty: string | null; availability?: string | null; entryStatus?: string | null; user?: { companyId: string | null } | null }[]): Map<string, Set<string>> {
+    const map = new Map<string, Set<string>>();
+    for (const r of rows) {
+      const cid = r.user?.companyId;
+      if (!cid || !r.specialty?.trim()) continue;
+      if (r.availability != null || r.entryStatus != null) {
+        if (r.availability !== '可用' || r.entryStatus !== 'ACTIVE') continue;
+      }
+      const set = map.get(r.specialty) ?? new Set<string>();
+      set.add(cid);
+      map.set(r.specialty, set);
+    }
+    return map;
+  }
+
+  /** 全库查一次专业→持有公司映射（自定义抽取文件流用——项目流复用池查询行不另查） */
+  private async companiesBySpecialty(): Promise<Map<string, Set<string>>> {
+    const rows = await this.prisma.expertProfile.findMany({
+      where: { user: { isActive: true } },
+      select: { specialty: true, availability: true, entryStatus: true, user: { select: { companyId: true } } },
+    });
+    return this.companiesBySpecOf(rows);
+  }
+
+  /** 每席位组附挂持有该组专业的公司并集（跨公司抽取白名单直连——专家库换血后专业分散 8 公司，
+   *  配额公司默认本公司会把跨公司专业饿成 0 候选；库内无此专业则空数组=沿用前端默认） */
+  private attachHolderCompanies<T extends { specialty: string; specialties?: string[] }>(rows: T[], companiesBySpec: Map<string, Set<string>>): (T & { companyIds: string[] })[] {
+    return rows.map(r => ({
+      ...r,
+      companyIds: [...new Set((r.specialties?.length ? r.specialties : [r.specialty]).flatMap(s => [...(companiesBySpec.get(s) ?? [])]))],
+    }));
   }
 
   /** 操作人所在公司（归属写时快照用，口径同 CompanyScopeService.stampFor；User 表公司名字段为 company） */

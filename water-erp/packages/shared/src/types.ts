@@ -298,8 +298,18 @@ export interface ExpertProjectDetail extends BidProjectDetail {
   roomCodeVerified?: boolean;
   myExpertRecord: BidExpert & { id: string };
   myScores: { id: string; expertId: string; supplierId: string; scoreItemId: string; score: number; passed?: boolean | null; reason?: string; scoreItem: BidScoreItem }[];
-  /** 招标文件元信息（仅 OPENING/EVALUATING active 项目附带，否则 null）；供专家独立核对原文 */
-  tenderDocument?: { title: string; fileName: string; fileSize: number; downloadUrl: string } | null;
+  /** 招标/采购文件元信息（仅 OPENING/EVALUATING active 项目附带，否则 null）；供专家独立核对原文。
+   *  谈判采购项目无 BidDocument 公告轨（采购邀请书替代公告），回退 Redis 谈判配置轨：
+   *  source='negotiation' 且 files 携带全部文件（refFileKeys 主轨 + attachFileIds 兼容轨），
+   *  前端按列表渲染；首四字段（单文件形态）保持向后兼容。 */
+  tenderDocument?: {
+    title: string;
+    fileName: string;
+    fileSize: number;
+    downloadUrl: string;
+    source?: 'bid_document' | 'negotiation';
+    files?: { id: string; name: string; size: number; mimeType?: string | null; downloadUrl: string }[];
+  } | null;
 }
 
 export interface DecryptedDocuments {

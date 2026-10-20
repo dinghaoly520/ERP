@@ -522,3 +522,12 @@ In non-interactive environments, use `prisma migrate dev --create-only` → `pri
 - **e2e job**（~4 min，pgvector:pg16 + redis:7 services + docker MinIO）：`migrate deploy` 全新库重放（迁移链健康）→ status 干净 → build → **boot smoke**（:4099 起 → docs 200 → 杀；单测绿≠能启动）→ 装 reportlab（seed 投标 PDF 依赖）→ seed（含供应商编号序列对齐）→ 起 :4001 → dual-selfcheck → 新轨 e2e 55 项 → 快照恢复（CI 重封模式）+ 旧轨 13 项 + 恢复。
 - **快照重封**（`SNAPSHOT_RESEAL_CRYPTO=1`，仅 CI）：快照内 sealedKey/bidPrice 是 dev KMS 包裹、FileAsset 引用 dev 产物——异 KMS 环境解不开。恢复时缺失 FileAsset 补桩（dummy 对象+哈希）、sealedKey 置空（走 legacy 完整性校验）、bidPrice 本地重封占位价。dev 关闭保持原值（快照是证据件）。产物仅作冒烟，非证据。
 - **教训闸**（memory `unit-tests-green-does-not-mean-boots` 的落地）：boot smoke 与 tsc 闸在 CI 首日各捕获一个真实 bug（ConflictException 导入漏 / Length 同类）。
+
+## 谈判采购文件读端口径（2026-10-20 定案）
+
+**谈判采购不发布采购公告（BID_NOTICE），采购邀请书替代公告位**——故 `BidDocument` 表对谈判项目**恒空**，采购文件经 Redis `negotiation-config:{projectId}` 交付（`refFileKeys`=PMI 阶段附件主轨·本地 uploads/ 磁盘，`attachFileIds`/`refFileKeys` 兜底=FileAsset·MinIO）。任何读 `BidDocument` 的消费端对谈判项目都会拿到空——新消费端先判采购方式：
+
+- **供应商端**（:3004 详情页）：已适配（14f55c5f，2026-10-19）——Attachment 主轨 + FileAsset 兼容轨 + 专用流式下载端点。
+- **专家端**（:3006 标书获取「招标/采购文件」卡）：已适配（2026-10-20，SWHI-TP-2026102003 实录）——`resolveTenderDocumentMeta` 公告轨 miss 回退谈判轨（meta 带 `source:'negotiation'` + `files[]`）；下载端点 `GET /expert/projects/:id/negotiation-files/:fileId/download`（闸=评标室口令+专家五项核验+引用集 `FILE_NOT_IN_CONFIG`；docx 统一转 PDF 预览；监督日志「访问谈判采购文件」）。**勿给专家端加供应商获取窗口闸**——窗口面向供应商获取期，评标阶段核对原文是法定需要。
+- **AI 辅助评标 worker**（`plaintext-fetcher.fetchTenderPlaintext`）：已适配（2026-10-20 同日）——公告轨 miss 回退谈判轨，返回 `{buffer, fileName}` 供 processFile 按真实扩展名分派（docx=mammoth/pdf=pdftotext/扫描件=OCR）；FileAsset 兼容轨按 sealedPath/sealedKey 解封（general 类目受 UPLOAD_SERVER_SEAL 密封，裸读 key 吐密文——专家端下载端点同日加固）。
+- 公开/邀请/询比/竞价走 04 公告向导「引用采购文件」→ `attachFromObject` 建 BidDocument，专家端天然可见；直接采购同理（但当前 ZJ 项目 0 专家 0 公告，无实际爆发点，若将来配专家且未发公告同样断链）。

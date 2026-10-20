@@ -87,7 +87,7 @@ export interface ExtractionPreview {
   model: string;
   extractMode: 'specialty_match' | 'random' | 'merit_best';
   analysis: string;
-  requiredSpecialties: { specialty: string; specialties?: string[]; count: number; reason: string }[];
+  requiredSpecialties: { specialty: string; specialties?: string[]; companyIds?: string[]; count: number; reason: string }[];
   eligiblePool: number;
   candidatePool: CandidatePoolItem[];
   selected: ExtractionSelected[];
@@ -118,8 +118,14 @@ export function listExperts(params?: { search?: string; specialty?: string; empl
   return api.get<{ total: number; page: number; pageSize: number; items: ExpertListItem[] }>(`/expert-admin${qs ? '?' + qs : ''}`);
 }
 
-export function listSpecialties(companyId?: string) {
-  return api.get<string[]>(`/expert-admin/specialties${companyId && companyId !== 'all' ? '?companyId=' + companyId : ''}`);
+export function listSpecialties(companyId?: string, scope?: 'group') {
+  const qs = [companyId && companyId !== 'all' ? 'companyId=' + companyId : '', scope === 'group' ? 'scope=group' : ''].filter(Boolean).join('&');
+  return api.get<string[]>(`/expert-admin/specialties${qs ? '?' + qs : ''}`);
+}
+
+/** 全库各专业人数（抽取页配额卡「N人·库内」提示；不分公司——与 group 专业池同口径） */
+export function specialtyPoolCounts() {
+  return api.get<{ specialty: string; count: number }[]>('/expert-admin/specialty-pool-counts');
 }
 
 /** 配额「公司」下拉候选（2026-10-20）：仅列库内确有可抽取专家的公司（与抽取池同资格口径）。
@@ -203,7 +209,7 @@ export interface ExtractionFileAnalysis {
   suggestedName: string;
   projectBackground: string;
   procurementType: string;
-  requiredSpecialties: { specialty: string; specialties?: string[]; count: number; reason: string }[];
+  requiredSpecialties: { specialty: string; specialties?: string[]; companyIds?: string[]; count: number; reason: string }[];
   totalExperts: number;
   analysis: string;
   engine: 'ai' | 'rules';
@@ -214,7 +220,7 @@ export function analyzeExtractionFiles(fileIds: string[]) {
 
 /** 已有项目 AI 推断专业配额（仅分析不抽取，用于预填配额） */
 export interface ProjectSpecialtyAnalysis {
-  requiredSpecialties: { specialty: string; specialties?: string[]; count: number; reason: string }[];
+  requiredSpecialties: { specialty: string; specialties?: string[]; companyIds?: string[]; count: number; reason: string }[];
   totalExperts: number;
   analysis: string;
   engine: 'ai' | 'rules';
