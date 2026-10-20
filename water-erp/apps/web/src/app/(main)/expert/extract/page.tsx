@@ -2777,7 +2777,7 @@ export function ExpertExtractPage({
                                   <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--warning)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--warning)]">{experts.filter(e => e.invitationStatus === 'pending').length} 待回复</span>
                                   {experts.filter(e => e.invitationStatus === 'declined').length > 0 && <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--danger)]">{experts.filter(e => e.invitationStatus === 'declined').length} 已拒绝</span>}
                                   {!h.notified && <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--muted-foreground)]">未通知</span>}
-                                  {!h.notified && <button onClick={() => reopenReModal(h.roundNo)} disabled={!!reDraft} className="neu-btn-xs is-info">继续通知</button>}
+                                  {!h.notified && <button onClick={() => reopenReModal(h.roundNo)} disabled={reModalOpen} className="neu-btn-xs is-info">继续通知</button>}
                                 </div>
                               </>
                             )}
@@ -2841,7 +2841,7 @@ export function ExpertExtractPage({
                     </button>
                   );
                   return (
-                    <button onClick={openReModal} disabled={!!reDraft} className="neu-btn-soft"><Plus size={13} className="mr-0.5" />{reDraft ? '补选中…' : '补选'}</button>
+                    <button onClick={openReModal} disabled={reModalOpen} className="neu-btn-soft"><Plus size={13} className="mr-0.5" />{reModalOpen ? '补选中…' : reDraft ? '继续补选' : '补选'}</button>
                   );
                 })()}
               </div>
