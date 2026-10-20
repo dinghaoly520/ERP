@@ -564,14 +564,24 @@ export function ExpertExtractPage({
     }
   }, [quotas, myCompanyId, companySpecs]);
 
-  /** 行内专业选项：所选公司专业并集（同名合并去重，按库内人数降序）；
-   *  未选公司=池口径全量 specs；懒加载未就绪时暂以全量兜底避免空下拉 */
+  /** 行内专业池人数（2026-10-20 修复）：按所选公司并集口径计数——此前恒显全库计数，选任何
+   *  公司置顶都是「水利工程管理 29人」（全集团数、该公司可能仅 1 人），看似专业列表不跟公司走。
+   *  所选公司口径取自需求方代表目录（在用可用库，与抽取池资格同口径）；未选公司=全库 pool。 */
+  const rowSpecCount = (ids: string[], sp: string): number => {
+    if (!ids.length) return pool.get(sp) ?? 0;
+    let n = 0;
+    for (const e of demandRepDirectory) if (ids.includes(e.companyId) && e.specialty === sp) n++;
+    return n;
+  };
+
+  /** 行内专业选项：所选公司专业并集（同名合并去重，按**所选公司口径**人数降序）；
+   *  未选公司=池口径全量 specs；懒加载未就绪时暂以全量兜底（按公司口径预排序）避免空下拉 */
   const rowSpecOptions = (ids: string[]): string[] => {
-    const byPool = (a: string, b: string) => (pool.get(b) ?? 0) - (pool.get(a) ?? 0);
-    if (ids.length === 0) return [...specs].sort(byPool);
+    if (ids.length === 0) return [...specs].sort((a, b) => (pool.get(b) ?? 0) - (pool.get(a) ?? 0));
     const union = new Set<string>();
     ids.forEach(id => (companySpecs.get(id) ?? []).forEach(sp => union.add(sp)));
-    return union.size > 0 ? [...union].sort(byPool) : [...specs].sort(byPool);
+    const byRow = (a: string, b: string) => rowSpecCount(ids, b) - rowSpecCount(ids, a);
+    return union.size > 0 ? [...union].sort(byRow) : [...specs].sort(byRow);
   };
 
   // 从 modal 传入 defaultPid 时预选该项目（不自动抽取，由用户在步骤1配置后手动「开始抽取」）
@@ -2269,7 +2279,7 @@ export function ExpertExtractPage({
                             />
                             <QuotaMultiSelect
                               className="min-w-[150px] flex-1"
-                              options={rowSpecOptions(qcIds).map(s => ({ value: s, label: s, hint: pool.has(s) ? `${pool.get(s)}人·库内` : undefined }))}
+                              options={rowSpecOptions(qcIds).map(s => { const n = rowSpecCount(qcIds, s); return { value: s, label: s, hint: n > 0 ? `${n}人·库内` : undefined }; })}
                               selected={quotaSpecsOf(q)}
                               onChange={list => upQ(idx, 'specialties', list)}
                               placeholder="专业不限"
@@ -3162,7 +3172,7 @@ export function ExpertExtractPage({
                 <div key={qi} className="flex items-center gap-2">
                   <QuotaMultiSelect
                     className="flex-1"
-                    options={rowSpecOptions(q.companyIds ?? []).map(s => ({ value: s, label: s, hint: pool.has(s) ? `${pool.get(s)}人·库内` : undefined }))}
+                    options={rowSpecOptions(q.companyIds ?? []).map(s => { const n = rowSpecCount(q.companyIds ?? [], s); return { value: s, label: s, hint: n > 0 ? `${n}人·库内` : undefined }; })}
                     selected={quotaSpecsOf(q)}
                     onChange={list => updateDraft({ quotas: reDraft.quotas.map((x, i) => i === qi ? { ...x, specialties: list } : x) })}
                     placeholder="选择专业"
