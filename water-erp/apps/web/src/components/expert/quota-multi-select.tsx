@@ -87,7 +87,8 @@ export function QuotaMultiSelect({
 
   return (
     <div ref={anchorRef} className={`relative ${className ?? ''}`}>
-      {/* 触发器：neumorphic 内凹（注册公司选择器同款）；多选=chips 行内可点删，单选=纯文本 */}
+      {/* 触发器：neumorphic 内凹（注册公司选择器同款）；多选=已选项一列多行逐行展示（2026-10-20
+          用户口径：不横向挤排）行尾 X 可点删，单选=纯文本；chevron 随行高居右 */}
       <button
         type="button"
         title={title}
@@ -115,19 +116,22 @@ export function QuotaMultiSelect({
         ) : single ? (
           <span className="truncate font-semibold text-[var(--foreground)]">{labelOf(selected[0])}</span>
         ) : (
-          selected.map(v => (
-            <span
-              key={v}
-              role="button"
-              tabIndex={-1}
-              title={`${labelOf(v)}（点击移除）`}
-              onClick={e => { e.stopPropagation(); toggle(v); }}
-              className="inline-flex max-w-[180px] shrink-0 cursor-pointer items-center gap-0.5 rounded-full bg-[oklch(1_0_0)] px-1.5 py-0.5 text-[11px] font-semibold leading-none text-[var(--foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.95),1px_1px_3px_oklch(0.55_0.03_258/0.14),-1px_-1px_2px_oklch(1_0_0/0.9)] transition-colors hover:text-[color:var(--danger)]"
-            >
-              <span className="truncate">{labelOf(v)}</span>
-              <X size={10} className="shrink-0 opacity-70" />
-            </span>
-          ))
+          /* 已选项一列多行（2026-10-20 用户口径）：不横向挤排，逐行整宽展示、行尾 X 点删 */
+          <div className="flex min-w-0 flex-1 flex-col items-stretch gap-1">
+            {selected.map(v => (
+              <span
+                key={v}
+                role="button"
+                tabIndex={-1}
+                title={`${labelOf(v)}（点击移除）`}
+                onClick={e => { e.stopPropagation(); toggle(v); }}
+                className="inline-flex w-full cursor-pointer items-center gap-0.5 rounded-full bg-[oklch(1_0_0)] px-2 py-1 text-[11px] font-semibold leading-none text-[var(--foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.95),1px_1px_3px_oklch(0.55_0.03_258/0.14),-1px_-1px_2px_oklch(1_0_0/0.9)] transition-colors hover:text-[color:var(--danger)]"
+              >
+                <span className="truncate">{labelOf(v)}</span>
+                <X size={10} className="ml-auto shrink-0 opacity-70" />
+              </span>
+            ))}
+          </div>
         )}
         <ChevronDown size={13} strokeWidth={2} className={`ml-auto shrink-0 text-[color:var(--muted-foreground)] transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
       </button>
