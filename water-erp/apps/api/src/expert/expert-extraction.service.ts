@@ -343,50 +343,41 @@ export class ExpertExtractionService {
       const qcIds = q.companyIds; // 抽取配置「公司」（可多选）：该配额仅从所选公司并集的库内抽
       const inCompany = (c: any) => qcIds.length === 0 || qcIds.includes(c.companyId ?? '');
       const quotaLabel = anySpecialty ? '不限专业' : q.specialties.join('、');
-      let pool: any[];
-      if (anySpecialty) {
-        // 不限专业：从全池（含 D/E 补齐语义天然成立）未被占用且符合公司的候选中抽
-        pool = drawPool.filter(c => !usedIds.has(c.id) && inCompany(c));
-        if (pool.length < q.count) {
-          const fallback = candidates.filter(c => !usedIds.has(c.id) && inCompany(c) && !pool.some(p => p.id === c.id));
-          pool = [...pool, ...fallback];
+      const inBucket = (c: any) => {
+        const fit = scoreMap.get(c.id)?.fitSpecialty || c.specialty;
+        return matchQuotaIdx(fit, quotas) === qi;
+      };
+      // 分层补位（2026-10-20 用户裁定，优先级不得被随机打穿——逐层抽满等额）：
+      // ①同公司·本行专业（A/B/C 池）②同公司·本行专业（全池含 D/E，凑人优先于等级门槛）
+      // ③同公司·其他专业 ④其他公司·本行专业 ⑤迫不得已·其他公司·其他专业。
+      // 需求方代表 employer 行不适用（公司/部门是其限定语义，另行抽取）。
+      const taken = new Set<string>();
+      const levels: (() => any[])[] = anySpecialty ? [
+        () => drawPool.filter(c => !usedIds.has(c.id) && !taken.has(c.id) && inCompany(c)),
+        () => candidates.filter(c => !usedIds.has(c.id) && !taken.has(c.id) && inCompany(c)),
+        () => candidates.filter(c => !usedIds.has(c.id) && !taken.has(c.id)),
+      ] : [
+        () => (groups.get(qi) || []).filter(c => !usedIds.has(c.id) && !taken.has(c.id) && inCompany(c)),
+        () => candidates.filter(c => !usedIds.has(c.id) && !taken.has(c.id) && inCompany(c) && inBucket(c)),
+        () => candidates.filter(c => !usedIds.has(c.id) && !taken.has(c.id) && inCompany(c) && !inBucket(c)),
+        () => candidates.filter(c => !usedIds.has(c.id) && !taken.has(c.id) && inBucket(c)),
+        () => candidates.filter(c => !usedIds.has(c.id) && !taken.has(c.id)),
+      ];
+      let poolTotal = 0;
+      let drawnCount = 0;
+      for (const level of levels) {
+        if (drawnCount >= q.count) break;
+        const lv = level();
+        poolTotal += lv.length;
+        const drawn = this.drawByMode(lv, Math.min(q.count - drawnCount, lv.length), extractMode, scoreMap);
+        for (const c of drawn) {
+          usedIds.add(c.id); taken.add(c.id);
+          selected.push(this.toSelection(c, anySpecialty ? (c.specialty || '不限专业') : quotaLabel, '正选', scoreMap));
         }
-        // 池扩围·等额保底（2026-10-20 用户口径：必须抽满）：所选公司全库无余量时
-        // 放开公司限定（专业本就不限），从未占用候选中补齐
-        if (pool.length < q.count) {
-          const widen = candidates.filter(c => !usedIds.has(c.id) && !pool.some(p => p.id === c.id));
-          pool = [...pool, ...widen];
-        }
-      } else {
-        // 优先从 A/B/C 池（drawPool）抽；不够时从 D/E 补齐（凑人优先于等级门槛）
-        const group = (groups.get(qi) || []).filter(c => !usedIds.has(c.id) && inCompany(c));
-        pool = group;
-        if (pool.length < q.count) {
-          // 从全池（含 D/E）补齐本配额组（行内任一相近专业）未被占用的候选
-          const fallback = candidates.filter(c => {
-            if (usedIds.has(c.id) || pool.some(p => p.id === c.id) || !inCompany(c)) return false;
-            const fit = scoreMap.get(c.id)?.fitSpecialty || c.specialty;
-            return matchQuotaIdx(fit, quotas) === qi;
-          });
-          pool = [...pool, ...fallback];
-        }
-        // 池扩围·等额保底（2026-10-20 用户口径：必须抽满，实录 3 席只出 1 人）：同公司
-        // 相关专业余量不足时放开公司限定、仍限本行专业——其他公司的相关专业专家补位。
-        // 需求方代表 employer 行不扩（公司/部门是其限定语义）。
-        if (pool.length < q.count) {
-          const widen = candidates.filter(c => {
-            if (usedIds.has(c.id) || pool.some(p => p.id === c.id)) return false;
-            const fit = scoreMap.get(c.id)?.fitSpecialty || c.specialty;
-            return matchQuotaIdx(fit, quotas) === qi;
-          });
-          pool = [...pool, ...widen];
-        }
+        drawnCount += drawn.length;
       }
-      if (pool.length === 0) shortages.push({ specialty: quotaLabel, needed: q.count, available: 0 });
-      else if (pool.length < q.count) shortages.push({ specialty: quotaLabel, needed: q.count, available: pool.length });
-
-      const drawn = this.drawByMode(pool, Math.min(q.count, pool.length), extractMode, scoreMap);
-      for (const c of drawn) { usedIds.add(c.id); selected.push(this.toSelection(c, anySpecialty ? (c.specialty || '不限专业') : quotaLabel, '正选', scoreMap)); }
+      if (poolTotal === 0) shortages.push({ specialty: quotaLabel, needed: q.count, available: 0 });
+      else if (drawnCount < q.count) shortages.push({ specialty: quotaLabel, needed: q.count, available: drawnCount });
     });
 
     // 部门限定配额抽取（需求方代表）：按工作单位匹配部门，专业可选作附加过滤

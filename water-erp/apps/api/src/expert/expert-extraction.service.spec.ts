@@ -192,9 +192,21 @@ describe('ExpertExtractionService', () => {
       const res = await service.previewExtraction('p1', { mode: 'manual', manualQuotas: [
         { specialties: ['水利水电工程'], count: 2, companyIds: ['c2'] },
       ] } as any);
-      // c2 仅有丙 1 人 → 扩围补乙（c1，同专业水利水电工程）；甲=水利工程非本行专业、丁=造价咨询不进
+      // c2 仅有丙 1 人，且 c2 无其他专业候选 → 层④其他公司·本行专业补乙（c1，水利水电工程）
       expect(res.selected).toHaveLength(2);
       expect(res.selected.map(s => s.name).sort()).toEqual(['丙', '乙']);
+    });
+
+    it('分层补位优先级（2026-10-20 用户裁定）：同公司其他专业 先于 其他公司本专业', async () => {
+      setupMulti();
+      const res = await service.previewExtraction('p1', { mode: 'manual', manualQuotas: [
+        { specialties: ['水利水电工程'], count: 2, companyIds: ['c1'] },
+      ] } as any);
+      // 层①乙（c1·水利水电工程）→ 层②无（D/E 均已在内）→ 层③甲（c1·水利工程=同公司其他专业）
+      // ——丙（c2·同专业=其他公司）不得越级入选
+      expect(res.selected).toHaveLength(2);
+      expect(res.selected.map(s => s.name).sort()).toEqual(['乙', '甲']);
+      expect(res.selected.map(s => s.name)).not.toContain('丙');
     });
 
     it('两行专业集合相同 → reconcile 并桶累加席数（requiredSpecialties 单行、标签为专业组）', async () => {
