@@ -156,8 +156,10 @@ export function ExpertExtractPage({
   const [altNotifying, setAltNotifying] = useState(false);
   // 候补池枯竭（NO_ELIGIBLE_EXPERTS / 配额全部 fallback 失败）：候补为可选席位，软空态放行，不算错误
   const [altExhausted, setAltExhausted] = useState(false);
-  // 候补配额草稿（先配额再抽取，与补选同思路——2026-10-20 用户口径）：非 null=配置态
+  // 候补配额草稿（先配额再抽取，与补选同思路——2026-10-20 用户口径）：非 null=配置态；
+  // 配额配置在弹窗内完成（页面只展示抽取结果/入口）
   const [altQuotas, setAltQuotas] = useState<SpecialtyQuota[] | null>(null);
+  const [altModalOpen, setAltModalOpen] = useState(false);
   const [quotas, setQuotas] = useState<SpecialtyQuota[]>([{ specialties: [], count: 2 }]);
   // 需求方代表配置
   const [needDemandRep, setNeedDemandRep] = useState(false);
@@ -454,6 +456,7 @@ export function ExpertExtractPage({
   useEffect(() => {
     if (step !== 6 || !pid || altPreview || altExhausted || altQuotas) return;
     setAltQuotas(quotas.map(q => ({ ...q, count: 1 })));
+    setAltModalOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, pid, altPreview, altExhausted, altQuotas]);
 
@@ -1566,6 +1569,7 @@ export function ExpertExtractPage({
       setAltPreview(result);
       setAltSelected([...result.selected]);
       setAltQuotas(null); // 抽出结果即离开配置态（重新抽取/重试时再回配置）
+      setAltModalOpen(false); // 结果回页面展示，关配置弹窗
       if (result.suggestedLeaderId) setLeadExpertId(result.suggestedLeaderId);
       // 候补通知：专属文案（不含 RSVP 链接，不要求确认，仅告知准备参加；含开标时间）
       const projectName = sel?.name || pd?.name || '采购项目';
@@ -2992,7 +2996,7 @@ export function ExpertExtractPage({
               <div className="neu-table-card p-4">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">候补专家组 · {altSelected.length} 人</span>
-                  <button onClick={() => { setAltPreview(null); setAltSelected([]); setAltNotified(false); setAltExhausted(false); setAltQuotas(quotas.map(q => ({ ...q, count: 1 }))); }} disabled={altExtracting} className="neu-btn-xs"><RefreshCw size={12} className="inline mr-0.5" />重新抽取</button>
+                  <button onClick={() => { setAltPreview(null); setAltSelected([]); setAltNotified(false); setAltExhausted(false); setAltQuotas(quotas.map(q => ({ ...q, count: 1 }))); setAltModalOpen(true); }} disabled={altExtracting} className="neu-btn-xs"><RefreshCw size={12} className="inline mr-0.5" />重新抽取</button>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="neu-table w-full table-fixed">
@@ -3129,19 +3133,38 @@ export function ExpertExtractPage({
               <Info size={22} strokeWidth={1.9} className="mx-auto mb-3 text-[var(--muted-foreground)]" />
               <p className="text-sm font-bold text-[var(--foreground)]">专家库已无可抽候补专家，本次不设候补</p>
               <p className="mx-auto mt-1.5 max-w-[480px] text-xs leading-relaxed text-[var(--muted-foreground)]">可用专家均已被本项目占用、列入预排除或不符合配额条件。候补为可选席位，不影响评审组组建与后续流程；如需候补，可先在「专家管理」维护可用专家后重试。</p>
-              <button onClick={() => { setAltExhausted(false); setAltQuotas(quotas.map(q => ({ ...q, count: 1 }))); }} disabled={altExtracting} className="neu-btn-soft mt-4 mx-auto"><RefreshCw size={13} className="inline mr-1" />调整配额再试</button>
+              <button onClick={() => { setAltExhausted(false); setAltQuotas(quotas.map(q => ({ ...q, count: 1 }))); setAltModalOpen(true); }} disabled={altExtracting} className="neu-btn-soft mt-4 mx-auto"><RefreshCw size={13} className="inline mr-1" />调整配额再试</button>
             </div>
-          ) : altQuotas ? (
-            /* 候补配额配置（先配额再抽取，与补选同思路——2026-10-20 用户口径） */
-            <div className="neu-table-card p-4">
-              <div className="flex flex-wrap items-center gap-2.5 mb-2">
-                <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">候补配额 · 共 {altQuotas.reduce((s, q) => s + q.count, 0)} 人</span>
-                <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 text-[10px] font-bold text-[color-mix(in_oklch,var(--accent)_85%,black)]">已邀请专家自动排除</span>
-              </div>
+          ) : (
+            /* 入口卡：无结果/未配置/未枯竭——打开配置弹窗（配额在弹窗内完成，页面展示结果） */
+            <div className="neu-table-card py-12 px-6 text-center">
+              <UsersRound size={22} strokeWidth={1.9} className="mx-auto mb-3 text-[var(--muted-foreground)]" />
+              <p className="text-sm font-bold text-[var(--foreground)]">候补专家（可选席位）尚未配置</p>
+              <p className="mx-auto mt-1.5 max-w-[480px] text-xs leading-relaxed text-[var(--muted-foreground)]">默认沿用步骤1专业配额（每行 1 席），可在配置弹窗中调整公司/专业/人数；已邀请专家自动排除，同公司同专业不足时按优先级补位。</p>
+              <button onClick={() => setAltModalOpen(true)} disabled={altExtracting} className="neu-btn-soft mx-auto mt-4"><Plus size={13} className="inline mr-0.5" />配置候补配额</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 候补配额弹窗：先配额再抽取（与补选同思路，2026-10-20 用户口径）——配额在弹窗内完成，结果回页面展示 */}
+      {altQuotas !== null && altModalOpen && (
+        <Modal open onClose={() => { if (!altExtracting) setAltModalOpen(false); }} size="lg"
+          title={<span className="flex items-center gap-2"><UsersRound size={15} className="text-[var(--accent)]" />候补配额 · 共 {altQuotas.reduce((s, q) => s + q.count, 0)} 人</span>}
+          description="配置候补配额并抽取（已邀请专家自动排除）"
+        >
+          {altExtracting ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-16">
+              <RefreshCw size={26} className="animate-spin text-[var(--accent)]" />
+              <p className="text-sm font-bold text-[var(--foreground)]">AI 正在抽取候补专家...</p>
+              <p className="text-xs text-[var(--muted-foreground)] mt-1">按配置配额抽取，自动排除已邀请专家</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
               <div className="rounded-xl bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] px-3 py-2 text-xs text-[var(--muted-foreground)]">
                 默认沿用步骤1配额（每行 1 席），可手动调整公司/专业/人数后开始抽取；同公司同专业不足时按优先级补位（同公司其他专业 → 其他公司）
               </div>
-              <div className="mt-3 space-y-1.5">
+              <div className="space-y-1.5">
                 {altQuotas.map((q, qi) => (
                 <div key={qi} className="flex flex-wrap items-center gap-2">
                   <span className="h-8 w-1 shrink-0 self-center rounded-full" style={{ backgroundColor: companyColor(companies.find(c => c.id === (q.companyIds ?? [])[0])?.name ?? '') }} title={(q.companyIds ?? []).map(id => companies.find(c => c.id === id)?.name).filter(Boolean).join('、') || '不限公司'} />
@@ -3171,14 +3194,13 @@ export function ExpertExtractPage({
                 ))}
                 <button onClick={() => setAltQuotas(prev => [...(prev ?? []), { specialties: [], count: 1, companyIds: [] }])} className="neu-btn-xs"><Plus size={12} />添加专业</button>
               </div>
-              <div className="flex justify-end pt-3 mt-3 border-t border-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+              <div className="flex items-center gap-2 pt-3 border-t border-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+                <span className="flex-1 text-[11px] text-[var(--muted-foreground)]">抽出结果将在页面展示；候补不入库，仅通知备选</span>
                 <button onClick={extractAlternates} disabled={altExtracting} className="neu-btn-soft is-info"><Search size={14} className="inline mr-1" />开始抽取候补</button>
               </div>
             </div>
-          ) : (
-            <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]">候补抽取未就绪，请返回上一步重新进入</div>
           )}
-        </div>
+        </Modal>
       )}
 
       {/* 补选弹窗：抽取 → 审核 → 一键通知，闭环后写入历史 */}
