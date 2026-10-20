@@ -876,15 +876,26 @@ export class ExpertService {
     return this.resolveTenderDocumentMeta(projectId, project?.projectCode ?? '');
   }
 
-  /** 招标文件查找：优先 bidProjectId 直连，回退公告链（relatedProjectCode）——避免编码空间撞号误读他方文件。 */
+  /** 招标文件查找：优先本项目 PUBLISHED 公告名下最新一份——同一 bidProject 名下会因公告重发
+   *  挂多份 BidDocument（2026-10-20 实录 DMGY-XB-2026100901 名下 4 份、3 份挂 OFFLINE 历史公告），
+   *  无序 findFirst 会捞走旧版文件；其次 bidProjectId 直连最新（公告已下架但评标仍需核对原文），
+   *  最后回退公告链（relatedProjectCode）——避免编码空间撞号误读他方文件。 */
   private async findTenderDoc(projectId: string, projectCode: string) {
     const doc = await this.prisma.bidDocument.findFirst({
-      where: { bidProjectId: projectId },
+      where: { bidProjectId: projectId, announcement: { status: 'PUBLISHED' } },
+      orderBy: { createdAt: 'desc' },
       include: { fileAsset: true },
     });
     if (doc) return doc;
+    const anyDoc = await this.prisma.bidDocument.findFirst({
+      where: { bidProjectId: projectId },
+      orderBy: { createdAt: 'desc' },
+      include: { fileAsset: true },
+    });
+    if (anyDoc) return anyDoc;
     return this.prisma.bidDocument.findFirst({
       where: { announcement: { relatedProjectCode: projectCode } },
+      orderBy: { createdAt: 'desc' },
       include: { fileAsset: true },
     });
   }

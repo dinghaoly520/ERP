@@ -1906,10 +1906,33 @@ describe('ExpertService', () => {
         fileSize: 4979,
         downloadUrl: '/api/expert/projects/proj-1/tender-document/download',
       });
-      // 7f1c56a7 撞号防御后的契约：bidProjectId 直连优先（非 OR 混查）；直连命中即止，不落公告链回退
+      // 7f1c56a7 撞号防御后的契约：bidProjectId 直连优先（非 OR 混查）；直连命中即止，不落公告链回退。
+      // 2026-10-20 增量：直连轨收敛为 PUBLISHED 公告名下最新一份——公告重发会在同一 bidProject
+      // 下留多份 BidDocument，OFFLINE 历史公告的旧版不得被无序捞走（DMGY-XB-2026100901 实录 4 份/3 旧）。
       expect(prisma.bidDocument.findFirst).toHaveBeenCalledTimes(1);
       expect(prisma.bidDocument.findFirst).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { bidProjectId: 'proj-1' }, include: { fileAsset: true } }),
+        expect.objectContaining({
+          where: { bidProjectId: 'proj-1', announcement: { status: 'PUBLISHED' } },
+          orderBy: { createdAt: 'desc' },
+          include: { fileAsset: true },
+        }),
+      );
+    });
+
+    it('PUBLISHED 公告轨 miss → 回退 bidProjectId 直连最新一份（不落公告链）', async () => {
+      prisma.bidDocument.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          id: 'bd-2', title: '招标文件（历史公告）', decryptKey: 'xxx',
+          fileAsset: { id: 'fa-2', originalName: 'tender-old.pdf', size: 100 },
+        });
+
+      const result = await service.getTenderDocument('user-1', 'proj-1');
+
+      expect(result).toMatchObject({ fileName: 'tender-old.pdf', title: '招标文件（历史公告）' });
+      expect(prisma.bidDocument.findFirst).toHaveBeenCalledTimes(2);
+      expect(prisma.bidDocument.findFirst).toHaveBeenNthCalledWith(2,
+        expect.objectContaining({ where: { bidProjectId: 'proj-1' }, orderBy: { createdAt: 'desc' } }),
       );
     });
 
