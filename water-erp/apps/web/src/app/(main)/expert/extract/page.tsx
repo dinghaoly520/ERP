@@ -6,7 +6,7 @@ import { fetchCurrentUser } from '@/lib/api/auth';
 import { companyColor } from '@/components/company/company-tag';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis } from '@/lib/api/expert';
+import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, specialtyPoolCounts, listExperts, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis } from '@/lib/api/expert';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { QuotaMultiSelect } from '@/components/expert/quota-multi-select';
@@ -55,16 +55,19 @@ const mkMatchSpec = (specs: string[]) => (sp: string): string => {
   return specs.find(x => x.includes(t) || t.includes(x)) || '';
 };
 
-/** AI 返回行（specialty 单值兜底 + specialties 相近组）→ 多选配额行：逐专业库内纠偏，相同专业组并桶累加席数 */
-const aiRowsToQuotas = (rows: { specialty?: string; specialties?: string[]; count: number }[], matchSpec: (sp: string) => string): SpecialtyQuota[] => {
+/** AI 返回行（specialty 单值兜底 + specialties 相近组）→ 多选配额行：逐专业库内纠偏，相同专业组并桶累加席数；
+ *  行带 companyIds（后端附挂持有该专业的公司并集）则透传——跨公司专业直达可抽，不卡死在本公司默认 */
+const aiRowsToQuotas = (rows: { specialty?: string; specialties?: string[]; companyIds?: string[]; count: number }[], matchSpec: (sp: string) => string): SpecialtyQuota[] => {
   const merged = new Map<string, SpecialtyQuota>();
   for (const s of rows) {
     const list = [...new Set([...(s.specialties ?? []).map(matchSpec), matchSpec(s.specialty ?? '')].filter(Boolean))];
     if (!list.length) continue;
     const key = list.join('、');
     const ex = merged.get(key);
-    if (ex) ex.count += Math.max(1, s.count);
-    else merged.set(key, { specialties: list, count: Math.max(1, s.count) });
+    if (ex) {
+      ex.count += Math.max(1, s.count);
+      if (s.companyIds?.length) ex.companyIds = [...new Set([...(ex.companyIds ?? []), ...s.companyIds])];
+    } else merged.set(key, { specialties: list, count: Math.max(1, s.count), ...(s.companyIds?.length ? { companyIds: s.companyIds } : {}) });
   }
   return [...merged.values()];
 };
@@ -529,7 +532,9 @@ export function ExpertExtractPage({
     setStep(2); // 已有抽取结果 → 直接进入抽取结果
   }, [autoExtractResult]);
 
-  useEffect(() => { listBidProjects().then(setProjects).catch(() => toast.error('加载项目列表失败')); listSpecialties().then(setSpecs).catch(() => {}); }, []);
+  // 专业池取全库口径（scope=group）：专家库换血后专业分散 8 公司，本公司口径会把 AI 配额行全部滤成 0 个专业；
+  // 与后端 AI 专业池、跨公司抽取（配额 companyIds 白名单）同口径
+  useEffect(() => { listBidProjects().then(setProjects).catch(() => toast.error('加载项目列表失败')); listSpecialties(undefined, 'group').then(setSpecs).catch(() => {}); specialtyPoolCounts().then(list => { const m = new Map<string, number>(); list.forEach(({ specialty, count }) => { if (count > 0) m.set(specialty, count); }); setPool(m); }).catch(() => {}); }, []);
 
   // 从 modal 传入 defaultPid 时预选该项目（不自动抽取，由用户在步骤1配置后手动「开始抽取」）
   useEffect(() => {
@@ -578,7 +583,7 @@ export function ExpertExtractPage({
     lastReQuotasRef.current = [];
     quotaCacheRef.current.clear();
   }, [pid]);
-  useEffect(() => { if (!pid || specs.length === 0) return; Promise.all(specs.map(s => listExperts({ specialty: s, pageSize: 1000 }).then(l => ({ s, c: unwrapList(l as any).total })))).then(rs => { const m = new Map<string, number>(); rs.forEach(({ s, c }) => { if (c > 0) m.set(s, c); }); setPool(m); }).catch(() => {}); }, [pid, specs]);
+  // 专业池人数已随挂载一次取全（specialtyPoolCounts，全库口径）——原逐专业 listExperts 扇出（86 专业×1 次）已删
 
   // 开标时间自愈回填：预填本只在 confirm() 里做——若确认当时详情接口失败（曾因 DB 迁移漂移 500）
   // 或 openTime 尚未落库，localStorage 恢复的步骤3 会永远停在空值。进入步骤3 后字段仍空而详情

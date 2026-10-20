@@ -81,9 +81,15 @@ export class ExpertAdminController {
   }
 
   @Get('specialties')
-  @ApiOperation({ summary: '专家专业列表（去重；公司隔离）' })
-  listSpecialties(@Query('companyId') companyId?: string, @Request() req: any = {}) {
-    return this.expertAdminService.listSpecialties(req.user, companyId);
+  @ApiOperation({ summary: '专家专业列表（去重；公司隔离；?scope=group 全库口径——抽取页专业池与 AI 配额/跨公司抽取同口径）' })
+  listSpecialties(@Query('companyId') companyId?: string, @Query('scope') scope?: string, @Request() req: any = {}) {
+    return this.expertAdminService.listSpecialties(req.user, companyId, scope);
+  }
+
+  @Get('specialty-pool-counts')
+  @ApiOperation({ summary: '全库各专业人数（抽取页配额卡「N人·库内」提示；不分公司）' })
+  specialtyPoolCounts() {
+    return this.expertAdminService.specialtyPoolCounts();
   }
 
   @Get('evaluations/stats')

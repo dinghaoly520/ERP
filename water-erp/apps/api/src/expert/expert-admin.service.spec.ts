@@ -17,8 +17,17 @@ describe('ExpertAdminService', () => {
   let prisma: any;
   let extractionAi: any;
   let notification: any;
+  let companyScope: any;
+  let llm: any;
 
   beforeEach(async () => {
+    companyScope = {
+      resolveScope: jest.fn().mockResolvedValue({ all: true }),
+      filter: jest.fn().mockReturnValue({}),
+      assertInScope: jest.fn(),
+      stampFor: jest.fn().mockResolvedValue({}),
+    };
+    llm = { chat: jest.fn(), chatJson: jest.fn(), getModel: jest.fn().mockReturnValue(null) };
     prisma = {
       user: {
         findMany: jest.fn().mockResolvedValue([]),
@@ -56,6 +65,8 @@ describe('ExpertAdminService', () => {
         groupBy: jest.fn().mockResolvedValue([]),
       },
       expertProfile: {
+        findMany: jest.fn().mockResolvedValue([]),
+        groupBy: jest.fn().mockResolvedValue([]),
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         upsert: jest.fn().mockResolvedValue({}),
       },
@@ -78,13 +89,13 @@ describe('ExpertAdminService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        { provide: CompanyScopeService, useValue: { resolveScope: jest.fn().mockResolvedValue({ all: true }), filter: jest.fn().mockReturnValue({}), assertInScope: jest.fn(), stampFor: jest.fn().mockResolvedValue({}) } },
+        { provide: CompanyScopeService, useValue: companyScope },
         ExpertAdminService,
         { provide: PrismaService, useValue: prisma },
         { provide: ExpertExtractionAiService, useValue: extractionAi },
         { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn(), sendToUser: jest.fn().mockResolvedValue({}) } },
         { provide: EmbeddingService, useValue: { embed: jest.fn().mockResolvedValue([]) } },
-        { provide: LlmService, useValue: { chat: jest.fn(), chatJson: jest.fn(), getModel: jest.fn().mockReturnValue(null) } },
+        { provide: LlmService, useValue: llm },
         { provide: OcrService, useValue: { isAvailable: jest.fn().mockResolvedValue(false), ocrImage: jest.fn() } },
         { provide: ExpertCrossConflictService, useValue: { checkCrossConflicts: jest.fn().mockResolvedValue([]) } },
         { provide: ExpertExtractionService, useValue: { extendedRuleScore: jest.fn() } },
@@ -138,6 +149,77 @@ describe('ExpertAdminService', () => {
       expect(prisma.user.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: expect.objectContaining({ expertProfile: { specialty: '地质', employer: '设计院' } }) }),
       );
+    });
+  });
+
+  describe('listSpecialties（专业池口径）', () => {
+    it('默认（无 scope）：按操作人公司隔离——where 挂公司过滤', async () => {
+      companyScope.resolveScope.mockResolvedValue({ all: false, companyIds: ['co-me'] });
+      companyScope.filter.mockReturnValue({ companyId: 'co-me' });
+      prisma.expertProfile.findMany.mockResolvedValue([{ specialty: '水利工程' }]);
+      await service.listSpecialties({ sub: 'u1', role: 'staff' } as any);
+      expect(prisma.expertProfile.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { user: { isActive: true, role: 'bid_expert', companyId: 'co-me' } } }),
+      );
+    });
+
+    it("scope='group'：全库去重专业、不挂公司过滤（与 AI 专业池/跨公司抽取同口径）", async () => {
+      prisma.expertProfile.findMany.mockResolvedValue([{ specialty: '法律' }, { specialty: '水利工程' }]);
+      const res = await service.listSpecialties({ sub: 'u1', role: 'staff' } as any, undefined, 'group');
+      expect(companyScope.resolveScope).not.toHaveBeenCalled();
+      expect(prisma.expertProfile.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { user: { isActive: true, role: 'bid_expert' } } }),
+      );
+      expect(res).toEqual(['法律', '水利工程']);
+    });
+  });
+
+  describe('specialtyPoolCounts（全库各专业人数）', () => {
+    it('一次 groupBy 返回 specialty/count（按人数降序），不带公司过滤', async () => {
+      prisma.expertProfile.groupBy.mockResolvedValue([
+        { specialty: '水利工程', _count: { _all: 3 } },
+        { specialty: '测绘工程', _count: { _all: 5 } },
+        { specialty: '   ', _count: { _all: 1 } },
+      ]);
+      const res = await service.specialtyPoolCounts();
+      expect(prisma.expertProfile.groupBy).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { user: { isActive: true, role: 'bid_expert' } } }),
+      );
+      expect(res).toEqual([
+        { specialty: '测绘工程', count: 5 },
+        { specialty: '水利工程', count: 3 },
+      ]);
+    });
+  });
+
+  describe('analyzeProjectSpecialties（AI 配额行附挂持专业公司）', () => {
+    it('每行 companyIds=持有该组专业的公司并集——跨公司配额直达可抽', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        name: '人事档案数字化服务',
+        procurementMethod: '竞价采购',
+        scope: '档案数字化加工、扫描图像处理与数据挂接',
+        projectManagementItem: null,
+      });
+      // 全库专业池（含归属公司）：换血后「信息技术/法律」等专业只在别家公司
+      prisma.expertProfile.findMany.mockResolvedValue([
+        { specialty: '信息技术应用与管理、保险', user: { companyId: 'co-jt' } },
+        { specialty: '法律', user: { companyId: 'co-js' } },
+        { specialty: '水利工程管理', user: { companyId: 'co-sjy' } },
+      ]);
+      llm.chat.mockResolvedValue(JSON.stringify({
+        requiredSpecialties: [
+          { specialty: '信息技术应用与管理、保险', specialties: ['信息技术应用与管理、保险'], count: 2, reason: '档案数字化需信息技术评审' },
+          { specialty: '法律', specialties: ['法律'], count: 1, reason: '合同合规需法律评审' },
+          { specialty: '量子力学', specialties: ['量子力学'], count: 1, reason: '库内无此专业应被丢弃' },
+        ],
+        totalExperts: 3,
+        analysis: '档案数字化以信息技术为核心',
+      }));
+      const res = await service.analyzeProjectSpecialties('p1');
+      expect(res.engine).toBe('ai');
+      expect(res.requiredSpecialties.map(r => r.specialty)).toEqual(['信息技术应用与管理、保险', '法律']);
+      expect(res.requiredSpecialties[0].companyIds).toEqual(['co-jt']);
+      expect(res.requiredSpecialties[1].companyIds).toEqual(['co-js']);
     });
   });
 
