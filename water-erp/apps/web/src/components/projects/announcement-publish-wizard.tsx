@@ -17,6 +17,7 @@ import {
   type AnnouncementStatus,
   type AnnouncementType,
 } from '@/lib/api/announcement';
+import { ATTACHMENT_ACCEPT, ATTACHMENT_HINT, validateAttachmentFile } from '@/lib/upload-rules';
 import { uploadProjectStageAttachment, reprocProject, getPmBidProject, type UploadStageAttachmentResult } from '@/lib/api/project-management';
 import { getBidProjectDetail } from '@/lib/api/bid';
 import { generateFieldContent } from '@/lib/api/tender-sample';
@@ -202,6 +203,18 @@ function buildAnnouncementContentHtml(textContent: string, title: string): strin
     : `<p>${esc(title)}</p>`;
 }
 
+/** 正文 HTML 取值（2026-10-19 表格丢失根治）：后端 contentHtml（mammoth convertToHtml，
+ *  表格保结构）优先；旧后端/提取失败为空时回退纯文本分段（buildAnnouncementContentHtml，
+ *  表格会退化为逐格竖排）。预览与发布共用同一取值——预览即所得。 */
+function resolveAnnouncementContentHtml(
+  built: { textContent: string; contentHtml?: string },
+  title: string,
+): string {
+  return built.contentHtml?.trim()
+    ? built.contentHtml
+    : buildAnnouncementContentHtml(built.textContent, title);
+}
+
 /* ── Step3「门户发布效果」预览：复刻信息门户公告详情页（public-portal lib/announcements
       + announcements/[id]/page）的展示映射与版式——口径照抄勿自创；门户侧改字段两处同步。── */
 const PORTAL_TYPE_TAG: Record<string, { tag: string; color: string }> = {
@@ -245,6 +258,10 @@ const PORTAL_PREVIEW_CONTENT_CSS = `
 .portal-announce-preview h4 { margin: 18px 0 8px; font-size: 15px; font-weight: 800; color: #26364e; }
 .portal-announce-preview p { margin: 0 0 14px; font-size: 15px; line-height: 2; color: #26364e; text-align: justify; }
 .portal-announce-preview ul, .portal-announce-preview ol { margin: 0 0 16px 1.2em; line-height: 2; color: #26364e; }
+.portal-announce-preview table { width: 100%; border-collapse: collapse; margin: 4px 0 18px; }
+.portal-announce-preview td, .portal-announce-preview th { border: 1px solid #dbe4ef; padding: 8px 12px; font-size: 14px; line-height: 1.7; color: #26364e; }
+.portal-announce-preview th { background: rgba(240, 245, 255, 0.55); font-weight: 700; text-align: center; }
+.portal-announce-preview td p { margin: 0; line-height: 1.7; text-align: inherit; }
 `;
 
 /** 今天 + n 天后的截止时刻（YYYY-MM-DDTHH:MM），时分默认 23:59
@@ -1009,7 +1026,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
           title,
           announcementType,
           meta: displayMeta,
-          contentHtml: buildAnnouncementContentHtml(built.textContent, title),
+          contentHtml: resolveAnnouncementContentHtml(built, title),
         },
       });
       setStep(3);
@@ -1067,15 +1084,19 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       const effectiveAnnouncementEnd = announcementEndDate || ((draft as Record<string, string>).announcementEnd ?? '');
       const finalDraft = { ...(draft as Record<string, string>), announcementEnd: effectiveAnnouncementEnd } as AnnouncementDraft;
       // 复用「预览并发布」生成的 docx（同一 draft 构建，预览即所得）；直接调用兜底重建
-      const { blob, fileName, textContent } = preview ?? await buildAnnouncement({
+      const built = preview ?? await buildAnnouncement({
         tenderType,
         category,
         draft: finalDraft,
         projectCode: project?.projectCode || undefined,
       });
+      const { blob, fileName, textContent } = built;
 
-      // 2. 正文 = 公告全文 → HTML（buildAnnouncementContentHtml：与 Step3 门户预览共用同一变换，预览即所得）
-      const content = buildAnnouncementContentHtml(textContent, title);
+      // 2. 正文 = 后端正文 HTML（表格保结构，2026-10-19）；预览产物复用同一字符串
+      //    （预览即所得），直接构建时按 contentHtml → 纯文本分段兜底
+      const content = preview
+        ? preview.portal.contentHtml
+        : resolveAnnouncementContentHtml(built, title);
 
       // 3. 创建公告（正文为全文；canonical 精炼字段供「信息发布」详情页与后端消费）
       const meta: Record<string, unknown> = { ...finalDraft, visibility, category, ...buildCanonicalMeta(project, finalDraft, tenderType === 'SINGLE_SOURCE') };
@@ -2045,6 +2066,9 @@ function AttachmentSection({
   const onSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
+    // 附件统一限制（2026-10-19）：100MB + 9 扩展白名单
+    const err = validateAttachmentFile(f);
+    if (err) { toast.error(err); e.target.value = ''; return; }
     onAdd(f, attTitle);
     setAttTitle('');
     e.target.value = '';
@@ -2066,12 +2090,14 @@ function AttachmentSection({
           <label className="neu-btn-primary cursor-pointer whitespace-nowrap">
             <Upload size={14} />
             上传公告附件
-            <input type="file" className="hidden" onChange={onSelect} />
+            <input type="file" className="hidden" accept={ATTACHMENT_ACCEPT} onChange={onSelect} />
           </label>
         </div>
         {pendingFiles.length === 0 ? (
           <p className="text-xs text-[var(--muted-foreground)]">暂无附件</p>
-        ) : (
+        ) : null}
+        <p className="text-[11px] text-[var(--muted-foreground)]">{ATTACHMENT_HINT}</p>
+        {pendingFiles.length > 0 && (
           pendingFiles.map((item, idx) => (
             <div
               key={idx}

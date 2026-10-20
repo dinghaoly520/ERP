@@ -144,7 +144,7 @@ export default function ExpertDashboardPage() {
   const pendingDisputeCount = activeDisputes.filter(d => d.status === 'open').length;
 
   const inProgress = useMemo(
-    // 闸3（2026-09-20 spec）：已确认评审报告=本人评标窗口闭合（不等归档文书），移「已完结待归档」——
+    // 闸3（2026-09-20 spec）：已确认评审报告=本人评标窗口闭合（不等归档文书），移「已完成评审」——
     // 同日两标不同屏共存两个「进行中」；窗口闭合即同日下一标可正常登录/签到
     () => projects.filter(p => isActive(p.project.stage) && p.signedIn && !p.reportConfirmed),
     [projects],
@@ -236,12 +236,13 @@ export default function ExpertDashboardPage() {
             )}
           </section>
 
-          {/* ====== ✅ 已完结待归档（2026-09-20 spec 闸3：报告已确认、等 :3005 归档文书）====== */}
+          {/* ====== ✅ 已完成评审（2026-09-20 spec 闸3：报告已确认、等 :3005 归档文书——
+              2026-10-19 文案折中：状态真实保留，但明确「无需专家操作」，消除「待归档=我还有事」误读）====== */}
           {finishedPendingArchive.length > 0 && (
             <section>
               <div className="mb-3 flex items-center gap-2">
                 <CheckCircle2 size={15} strokeWidth={1.8} className="text-[var(--success)]" />
-                <h3 className="text-sm font-bold text-[var(--foreground)]">已完结待归档</h3>
+                <h3 className="text-sm font-bold text-[var(--foreground)]">已完成评审</h3>
                 <span className="exp-pill exp-pill--solid tabular-nums" style={{ '--c': 'var(--success)' } as React.CSSProperties}>
                   {finishedPendingArchive.length}
                 </span>
@@ -254,7 +255,7 @@ export default function ExpertDashboardPage() {
                       <span className="truncate text-sm font-bold text-[var(--foreground)]">{p.project.name}</span>
                       <span className="exp-pill" style={{ '--c': 'var(--success)' } as React.CSSProperties}>报告已确认</span>
                     </div>
-                    <p className="text-xs text-[var(--muted-foreground)]">评审报告已确认，等待采购中心归档——同日下一场评标不受影响</p>
+                    <p className="text-xs text-[var(--muted-foreground)]">评审报告已确认，等待采购中心归档文书（无需您操作）——同日下一场评标不受影响</p>
                   </button>
                 ))}
               </div>

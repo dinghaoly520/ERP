@@ -3250,3 +3250,196 @@ describe('X.509 真证书绑定轨（rawCert+链闸+PoP）', () => {
     }));
   });
 });
+
+/* ══ 谈判采购适应性（2026-10-19 用户裁定）：详情页采购文件正常显示下载 + 公告位显示采购邀请书 ══
+ * 根因①：getBidProject 邀请书 RSVP 回退按 PMI id 查 invitationRsvp.projectId，而生成端
+ *         （ai.generateNotificationContent，2026-10-16）已把该列规范化为 BidProject id——
+ *         新轨回执恒漏查 → invitationLetter null（旧文「曾经正确改过」即此处回归）。
+ * 根因②：getBidProject 不富化 negotiation（仅列表接口做）——详情页拿不到谈判配置，
+ *         采购文件卡片无数据可渲染（谈判项目无 BidDocument → 恒「暂无采购文件」）。 */
+describe('SupplierPortalService — getBidProject 谈判采购适应性', () => {
+  let svc: any;
+  let prisma: any;
+  let redis: any;
+
+  const project = {
+    id: 'bp-1', projectCode: 'SWHI-TP-2026101902', projectManagementItemId: 'pmi-1',
+    name: '便携式全液压岩心钻机采购', procurementMethod: '谈判采购', roundMode: 'negotiation',
+    stage: 'SUBMIT', openTime: new Date(), deadline: new Date(Date.now() + 86400_000),
+    downloadDeadline: null, riskNote: null, isExtractionOnly: false,
+    bondRequired: false, bondAmount: null, scope: null, qualification: null,
+    contact: null, qualityRequirement: null, clarifications: [], currentRoundNo: 1,
+    _count: { suppliers: 3 }, openingSession: null,
+  };
+
+  beforeEach(() => {
+    prisma = {
+      // 每次深克隆 fixture：getBidProject 会原位写入 invitationLetter/negotiation/announcement——
+      // 复用同一对象会让先跑用例的写入短路后续用例的 !invitationLetter 守卫（跨测试污染）
+      bidProject: { findUnique: jest.fn().mockResolvedValue(structuredClone(project)) },
+      // 本人为投标成员（澄清记录不剥离）
+      bidSupplier: { findFirst: jest.fn().mockResolvedValue({ id: 'member-1' }) },
+      // PMI 编号查询与 resolveDisplayCode 均查 projectManagementItem.findUnique → 无 PMI 行则原样返回
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) },
+      announcement: { findFirst: jest.fn().mockResolvedValue(null) },
+      fileAsset: { findFirst: jest.fn().mockResolvedValue(null) },
+      invitationRsvp: { findFirst: jest.fn().mockResolvedValue(null) },
+    };
+    redis = { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn() };
+    const instance: any = Object.create(SupplierPortalService.prototype);
+    instance.prisma = prisma;
+    instance.redis = redis;
+    instance.logger = { log: jest.fn(), warn: jest.fn(), error: jest.fn() };
+    svc = instance;
+  });
+
+  it('Redis 有谈判配置 → 详情下发 negotiation 摘要（窗口/下载模式/文件数）', async () => {
+    redis.get.mockResolvedValue(JSON.stringify({
+      projectId: 'bp-1',
+      acquireStartTime: '2026-10-20 09:00', acquireEndTime: '2026-10-25 15:00',
+      bidOpeningTime: '2026-10-26 14:00', downloadMode: 'free',
+      refFileKeys: ['project-management/xxx-谈判采购文件.docx'], attachFileIds: [],
+    }));
+    const res = await svc.getBidProject('bp-1', 'supplier-1');
+    expect((res as any).negotiation).toMatchObject({
+      acquireStartTime: '2026-10-20 09:00',
+      acquireEndTime: '2026-10-25 15:00',
+      downloadMode: 'free',
+      fileCount: 1,
+    });
+  });
+
+  it('无谈判配置 → negotiation 为 null（非谈判项目不受影响）', async () => {
+    const res = await svc.getBidProject('bp-1', 'supplier-1');
+    expect((res as any).negotiation).toBeNull();
+  });
+
+  it('RSVP 行 projectId 为 BidProject id（2026-10-16 新轨）→ invitationLetter 命中 kind rsvp', async () => {
+    prisma.invitationRsvp.findFirst.mockImplementation(({ where }: any) => {
+      // 查询须覆盖双 id 空间（in 数组含 BidProject id）——按 PMI id 单查即漏（本缺陷）
+      const ids: string[] = where?.projectId?.in ?? [where?.projectId].filter(Boolean);
+      expect(ids).toEqual(expect.arrayContaining(['bp-1']));
+      return {
+        title: '关于便携式全液压岩心钻机采购采购项目候选供应商邀请的通知',
+        summary: '{"采购方式":"谈判采购","预算金额":"87.3 万元"}',
+        status: 'ACCEPTED', expiresAt: null, respondedAt: new Date(),
+      };
+    });
+    const res = await svc.getBidProject('bp-1', 'supplier-1');
+    const letter = (res as any).invitationLetter;
+    expect(letter).toMatchObject({ kind: 'rsvp', status: 'ACCEPTED' });
+    expect(letter.summaryFields).toMatchObject({ 采购方式: '谈判采购' });
+  });
+
+  it('旧轨 RSVP 行 projectId 为 PMI id → 同样命中（双 id 兼容，回归不破）', async () => {
+    prisma.invitationRsvp.findFirst.mockImplementation(({ where }: any) => {
+      const ids: string[] = where?.projectId?.in ?? [where?.projectId].filter(Boolean);
+      return ids.includes('pmi-1')
+        ? { title: '旧轨邀请通知', summary: null, status: 'PENDING', expiresAt: new Date(), respondedAt: null }
+        : null;
+    });
+    const res = await svc.getBidProject('bp-1', 'supplier-1');
+    expect((res as any).invitationLetter).toMatchObject({ kind: 'rsvp', title: '旧轨邀请通知' });
+  });
+
+  it('无公告、无邀请书文件、无 RSVP → invitationLetter 无值（前端按谈判项目渲染「暂无邀请书」）', async () => {
+    const res = await svc.getBidProject('bp-1', 'supplier-1');
+    expect((res as any).invitationLetter).toBeFalsy();
+    expect((res as any).announcement).toBeNull();
+  });
+});
+
+/* ══ 谈判采购文件解析与下载（2026-10-19 修复主根因）：
+ * :3005「引用采购文件」勾选的是 PMI 阶段附件（Attachment.objectKey，本地 uploads/ 磁盘），
+ * 旧实现按 FileAsset.key 解析恒空 → 供应商端 files:[] = 「无法看到采购文件」。
+ * 新口径：Attachment 主轨 + FileAsset 兼容轨；逐文件下载走专用端点（受邀+窗口+清单内三闸）。 */
+describe('SupplierPortalService — getNegotiationFiles / downloadNegotiationFile', () => {
+  let svc: any;
+  let prisma: any;
+  let redis: any;
+  let res: { setHeader: jest.Mock; end: jest.Mock };
+
+  const CFG = {
+    projectId: 'bp-1', supplierIds: ['sup-1'],
+    acquireStartTime: '2026-10-19 00:00', acquireEndTime: '2026-12-31 23:59',
+    bidOpeningTime: '2027-01-10 14:00',
+    refFileKeys: ['project-management/1-pmi-1-tender_document-谈判采购文件.docx'],
+    attachFileIds: [],
+    downloadMode: 'free',
+  };
+
+  beforeEach(() => {
+    prisma = {
+      supplier: { findUnique: jest.fn().mockResolvedValue({ id: 'sup-1', name: '腾威达液压设备（成都）有限公司' }) },
+      bidSupplier: { findUnique: jest.fn().mockResolvedValue({ id: 'roster-1' }) },
+      fileAsset: { findMany: jest.fn().mockResolvedValue([]) },
+      attachment: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn().mockResolvedValue(null) },
+    };
+    redis = { get: jest.fn().mockResolvedValue(JSON.stringify(CFG)) };
+    const instance: any = Object.create(SupplierPortalService.prototype);
+    instance.prisma = prisma;
+    instance.redis = redis;
+    instance.logger = { log: jest.fn(), warn: jest.fn(), error: jest.fn() };
+    svc = instance;
+    res = { setHeader: jest.fn(), end: jest.fn() };
+  });
+
+  it('refFileKeys 命中 PMI 阶段附件（Attachment.objectKey）→ files 非空且走门户专用下载 URL', async () => {
+    prisma.attachment.findMany.mockResolvedValue([
+      { id: 'att-1', fileName: 'SWHI-TP-2026101901-谈判采购文件.docx', fileSize: 12345, mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+    ]);
+    const r = await svc.getNegotiationFiles('bp-1', 'sup-1');
+    expect(r.files).toHaveLength(1);
+    expect(r.files[0]).toMatchObject({ id: 'att-1', name: 'SWHI-TP-2026101901-谈判采购文件.docx' });
+    expect(r.files[0].url).toBe('/api/supplier-portal/bid-projects/bp-1/negotiation-files/att-1/download');
+  });
+
+  it('历史 FileAsset.key 兼容轨保留（/api/upload/files/:id URL）', async () => {
+    prisma.fileAsset.findMany.mockImplementation(({ where }: any) =>
+      where?.key ? [{ id: 'fa-1', originalName: 'legacy.docx', size: 9, mimeType: 'application/msword' }] : [],
+    );
+    const r = await svc.getNegotiationFiles('bp-1', 'sup-1');
+    expect(r.files).toHaveLength(1);
+    expect(r.files[0].url).toBe('/api/upload/files/fa-1');
+  });
+
+  it('未受邀 → 403 NOT_INVITED', async () => {
+    prisma.bidSupplier.findUnique.mockResolvedValue(null);
+    await expect(svc.getNegotiationFiles('bp-1', 'sup-1')).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('下载：附件不在配置引用集 → 403 FILE_NOT_IN_CONFIG（防跨项目附件越权）', async () => {
+    prisma.attachment.findUnique.mockResolvedValue({ fileName: 'x.docx', objectKey: 'other/key.docx', mimeType: 'a/b' });
+    await expect(svc.downloadNegotiationFile('bp-1', 'att-x', 'sup-1', res)).rejects.toMatchObject({
+      status: 403,
+      response: { code: 'FILE_NOT_IN_CONFIG' },
+    });
+  });
+
+  it('下载：受邀 + 窗口内 + 清单内 → 流式输出（header + buffer）', async () => {
+    const { writeFile, rm } = require('node:fs/promises');
+    const path = require('node:path');
+    const tmpKey = 'nego-spec-tmp.docx';
+    // 本用例的配置引用集指向临时 key（与磁盘临时文件对应）
+    redis.get.mockResolvedValue(JSON.stringify({ ...CFG, refFileKeys: [tmpKey] }));
+    const abs = path.resolve(process.cwd(), 'uploads', tmpKey);
+    await writeFile(abs, Buffer.from('PK-fake-docx'));
+    try {
+      prisma.attachment.findUnique.mockResolvedValue({ fileName: '谈判采购文件.docx', objectKey: tmpKey, mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      await svc.downloadNegotiationFile('bp-1', 'att-1', 'sup-1', res);
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining(encodeURIComponent('谈判采购文件.docx')));
+      expect(res.end).toHaveBeenCalledWith(Buffer.from('PK-fake-docx'));
+    } finally {
+      await rm(abs, { force: true });
+    }
+  });
+
+  it('下载：窗口未开始 → 400 ACQUIRE_NOT_STARTED', async () => {
+    redis.get.mockResolvedValue(JSON.stringify({ ...CFG, acquireStartTime: '2099-01-01 09:00', acquireEndTime: '2099-01-02 15:00' }));
+    await expect(svc.downloadNegotiationFile('bp-1', 'att-1', 'sup-1', res)).rejects.toMatchObject({
+      status: 400,
+      response: { code: 'ACQUIRE_NOT_STARTED' },
+    });
+  });
+});

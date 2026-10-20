@@ -479,6 +479,7 @@ const SUPPLIER_SPECS: NotificationTypeSpec[] = [
   { code: 'SUPPLIER_LINK_PENDING', label: '供应商加入申请', domain: 'supplier', icon: 'UserPlus', tone: 'blue', actionable: true, audiences: [{ kind: 'COMPANY_LEADER_STAFF' }], channels: IN_APP, link: () => '/supplier?tab=company-links' }, // 实际投递按 notifyStageApprovers 逐级（staff→leader→admin 上浮），audience 为类型快照；入口=审批中心 company-links
   { code: 'SUPPLIER_LINK_APPROVED', label: '加入公司通过', domain: 'supplier', icon: 'CheckCircle2', tone: 'green', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'SUPPLIER_LINK_REJECTED', label: '加入公司驳回', domain: 'supplier', icon: 'XCircle', tone: 'red', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
+  { code: 'SUPPLIER_LINK_DISABLED', label: '加入公司停用', domain: 'supplier', icon: 'UserMinus', tone: 'orange', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP }, // 公司侧库内停用（软移出，可恢复；终审 I1 2026-10-19）——恢复不通知（供应商 myLinks 自见状态）
 ];
 
 const ACCOUNT_SPECS: NotificationTypeSpec[] = [

@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { toast } from "sonner";
+import { validateFileSize } from "@/lib/upload-rules";
 import { FileDown, FileSearch, Plus, Trash2, ScrollText, FileCheck, Ban, Sparkles, Loader2 } from "lucide-react";
 import type { ProjectManagementItem } from "@/lib/types/project-management";
 

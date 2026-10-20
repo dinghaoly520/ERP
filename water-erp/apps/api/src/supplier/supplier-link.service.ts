@@ -229,9 +229,20 @@ export class SupplierLinkService {
     return { success: true as const };
   }
 
-  async setDisabled(linkId: string, userId: string, disabled: boolean) {
-    const link = await this.prisma.supplierCompanyLink.findUnique({ where: { id: linkId } });
+  /** 库内停用/恢复（公司治理动作，leader）。I1 终审修复（2026-10-19）：
+   *  - :id 公司域断言——此前无 actor 视野校验，任意公司 leader 可停用/恢复他司 link（越权写）。
+   *    非 admin 须本公司 link（resolveScope → assertInScope，同邀请码作废/其余 :id 变更口径）；admin 全视野放行。
+   *  - 审计留痕 SUPPLIER_LINK_DISABLED/ENABLED（audit 内部 catch 隔离，失败不阻断业务）；
+   *  - 停用通知供应商（软移出影响其参与本公司业务，须被动知晓）；恢复不通知（供应商 myLinks 自见状态）。 */
+  async setDisabled(linkId: string, actor: AuthenticatedUser, disabled: boolean) {
+    const userId = actor.sub;
+    const link = await this.prisma.supplierCompanyLink.findUnique({
+      where: { id: linkId },
+      include: { supplier: { select: { userId: true, name: true } }, company: { select: { name: true } } },
+    });
     if (!link) throw new NotFoundException({ error: '加入关系不存在', code: 'LINK_NOT_FOUND' });
+    const scope = await this.companyScope.resolveScope(actor);
+    this.companyScope.assertInScope(link.companyId, scope); // 跨公司 → 403 COMPANY_SCOPE_FORBIDDEN（admin scope.all 放行）
     const target = disabled ? 'DISABLED' : 'APPROVED';
     const from = disabled ? 'APPROVED' : 'DISABLED';
     if (link.status !== from) this.err('INVALID_STATUS', disabled ? '仅库内（APPROVED）供应商可停用' : '仅已停用（DISABLED）供应商可恢复');
@@ -240,6 +251,20 @@ export class SupplierLinkService {
       data: { status: target },
     });
     if (claimed.count === 0) throw new ConflictException({ error: '状态已变更，请刷新后重试', code: 'CONFLICT' });
+    if (userId) {
+      await this.audit(userId, disabled ? 'SUPPLIER_LINK_DISABLED' : 'SUPPLIER_LINK_ENABLED', linkId, {
+        supplierId: link.supplierId, companyId: link.companyId, from, to: target,
+      });
+    }
+    if (disabled) {
+      await this.notificationService.create({
+        userId: link.supplier.userId,
+        type: 'SUPPLIER_LINK_DISABLED',
+        title: `已被 ${link.company.name} 停用`,
+        content: `贵司已被 ${link.company.name} 在其供应商库内停用（软移出，不影响贵司在其他公司的库内状态）。如需恢复，请联系该公司采购管理部门。`,
+        link: `/profile/company-links`,
+      }).catch((err: any) => console.error(`[notify] SUPPLIER_LINK_DISABLED 发送失败 link=${linkId}`, err?.message ?? err));
+    }
     return { success: true as const };
   }
 

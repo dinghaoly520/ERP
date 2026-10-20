@@ -150,7 +150,7 @@ export class ProcurementService {
     const bidProject = await this.prisma.bidProject.create({
       data: {
         name: project.title,
-        projectCode: await generateProjectCode(this.prisma, project.procurementMethod),
+        projectCode: await generateProjectCode(this.prisma, project.procurementMethod, 'bidProject', { companyId: project.companyId }),
         procurementMethod: project.procurementMethod,
         roundMode: project.procurementMethod === '谈判采购' ? 'negotiation'
                   : project.procurementMethod === '竞价采购' ? 'sealed_auction'

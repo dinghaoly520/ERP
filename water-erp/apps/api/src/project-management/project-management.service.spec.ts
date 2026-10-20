@@ -426,6 +426,8 @@ describe('ProjectManagementService', () => {
       attachment: {
         create: jest.fn(),
         findMany: jest.fn(),
+        findUnique: jest.fn(),
+        delete: jest.fn(),
       },
       project: {
         create: jest.fn(),
@@ -1148,6 +1150,162 @@ describe('ProjectManagementService', () => {
     );
   });
 
+  it('rejects completing while a linked bid project is still in flight (409 BID_IN_PROGRESS)', async () => {
+    // 2026-10-19 实例（TP-2026101901 谈判采购001）：PMI 归档时投标侧卡 EVALUATING——
+    // 专家门户「已完结待归档」、供应商端流程条僵尸滞留；归档前须先收口投标侧。
+    const { service, prisma } = makeService();
+
+    prisma.projectManagementItem.findUnique.mockResolvedValue({
+      id: 'pm-01',
+      title: '谈判采购测试',
+      requesterDepartment: '采购中心',
+      procurementMethod: '谈判采购',
+      budgetAmount: 100000,
+      currentStage: 'CONTRACT',
+      status: 'ACTIVE',
+    });
+    prisma.projectManagementStage.findMany.mockResolvedValue([
+      { stageKey: 'CONTRACT', status: 'COMPLETED', attachments: [] },
+    ]);
+    prisma.bidProject.findMany.mockResolvedValue([
+      { id: 'bp-01', name: '谈判采购测试', stage: 'EVALUATING' },
+    ]);
+
+    await expect(
+      service.completeProject('pm-01', { confirmedCompleted: true }),
+    ).rejects.toMatchObject({ response: { code: 'BID_IN_PROGRESS' } });
+
+    expect(prisma.projectManagementItem.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'ARCHIVED' }),
+      }),
+    );
+  });
+
+  it('allows completing when linked bid projects are all terminal (ABORTED/ARCHIVED)', async () => {
+    const { service, prisma } = makeService();
+
+    prisma.projectManagementItem.findUnique.mockResolvedValue({
+      id: 'pm-01',
+      title: '谈判采购测试',
+      requesterName: '张三',
+      requesterDepartment: '采购中心',
+      procurementMethod: '谈判采购',
+      procurementCategory: '服务',
+      budgetAmount: 100000,
+      currentStage: 'CONTRACT',
+      status: 'ACTIVE',
+    });
+    prisma.projectManagementStage.findMany.mockResolvedValue([
+      { stageKey: 'CONTRACT', status: 'COMPLETED', attachments: [{ id: 'a1' }] },
+    ]);
+    // 轮次已终局（流标/归档）不阻塞——按 where.stage.in 过滤模拟真实查询；
+    // 快照回写路径（无 stage 过滤）同 mock 消费全量行
+    prisma.bidProject.findMany.mockImplementation((args?: { where?: { stage?: { in?: string[] } } }) => {
+      const all = [
+        { id: 'bp-01', name: '谈判采购测试', stage: 'ARCHIVED' },
+        { id: 'bp-00', name: '谈判采购测试·首轮', stage: 'ABORTED' },
+      ];
+      const inStages = args?.where?.stage?.in;
+      return Promise.resolve(inStages ? all.filter((bp) => inStages.includes(bp.stage)) : all);
+    });
+    prisma.department.upsert.mockResolvedValue({ id: 'dept-01', name: '采购中心' });
+    prisma.project.create.mockResolvedValue({ id: 'project-01' });
+    prisma.procurementRound.create.mockResolvedValue({ id: 'round-01' });
+    prisma.projectManagementItem.update.mockResolvedValue({
+      id: 'pm-01',
+      status: 'ARCHIVED',
+      archivedProcurementRoundId: 'round-01',
+    });
+
+    await expect(
+      service.completeProject('pm-01', { confirmedCompleted: true }),
+    ).resolves.toMatchObject({ status: 'ARCHIVED' });
+  });
+
+  it('rejects completing a tail PMI stage while the linked bid project is still in flight (409 BID_IN_PROGRESS)', async () => {
+    // 2026-10-19 续：手工 PATCH 阶段曾可绕过「归档解锁定标」正门（syncPmStage 只在
+    // archiveAll 里推进）——开标评标/定标/合同/备案表完成前投标侧必须已终局。
+    const { service, prisma } = makeService();
+
+    prisma.projectManagementItem.findUnique.mockResolvedValue({
+      status: 'ACTIVE',
+      id: 'pm-01',
+      currentStage: 'BID_EVALUATION',
+      currentRound: 1,
+    });
+    prisma.projectManagementStage.findFirst.mockResolvedValue({
+      id: 'stage-bid-eval',
+      stageKey: 'BID_EVALUATION',
+      stageOrder: 7,
+      round: 1,
+      status: 'IN_PROGRESS',
+    });
+    prisma.bidProject.findMany.mockResolvedValue([
+      { id: 'bp-01', name: '谈判采购测试', stage: 'EVALUATING' },
+    ]);
+
+    await expect(
+      service.updateStage('pm-01', 'BID_EVALUATION', { status: 'COMPLETED' }),
+    ).rejects.toMatchObject({ response: { code: 'BID_IN_PROGRESS' } });
+
+    expect(prisma.projectManagementStage.update).not.toHaveBeenCalled();
+  });
+
+  it('allows completing a tail PMI stage when the linked bid project is terminal (ARCHIVED/ABORTED)', async () => {
+    const { service, prisma } = makeService();
+
+    prisma.projectManagementItem.findUnique.mockResolvedValue({
+      status: 'ACTIVE',
+      id: 'pm-01',
+      currentStage: 'BID_EVALUATION',
+      currentRound: 1,
+      // refreshProjectAnalysis 二次查询 include.stages——空附件走空简报缓存路径
+      stages: [],
+    });
+    prisma.projectManagementStage.findFirst.mockResolvedValue({
+      id: 'stage-bid-eval',
+      stageKey: 'BID_EVALUATION',
+      stageOrder: 7,
+      round: 1,
+      status: 'IN_PROGRESS',
+    });
+    // 阶段闸查同轮活动态（空=已终局）；后续 nextStage 推进的 findMany（无 stage 过滤）回退全量
+    prisma.bidProject.findMany.mockImplementation((args?: { where?: { stage?: { in?: string[] } } }) => {
+      const all = [{ id: 'bp-01', name: '谈判采购测试', stage: 'ARCHIVED' }];
+      const inStages = args?.where?.stage?.in;
+      return Promise.resolve(inStages ? all.filter((bp) => inStages.includes(bp.stage)) : []);
+    });
+    prisma.projectManagementStage.update.mockResolvedValue({
+      id: 'stage-bid-eval', stageKey: 'BID_EVALUATION', status: 'COMPLETED',
+    });
+
+    await expect(
+      service.updateStage('pm-01', 'BID_EVALUATION', { status: 'COMPLETED' }),
+    ).resolves.toBeTruthy();
+    expect(prisma.projectManagementStage.update).toHaveBeenCalled();
+  });
+
+  it('已归档/已终止 PMI 拒绝变更（409 PMI_NOT_ACTIVE）——updateStage/deleteAttachment/addStageAttachment 三代表面零写入', async () => {
+    // 2026-10-19 复查：PMI 写端点群缺 status 闸，归档/终止项目在 API 层仍可改阶段/传删附件
+    // （UI 只读挡不住直调；本日 TP-2026101901 即 API 层绕行实例）。
+    const { service, prisma } = makeService();
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ id: 'pm-01', status: 'ARCHIVED', currentStage: 'CONTRACT', currentRound: 1 });
+    prisma.projectManagementStage.findFirst.mockResolvedValue({ id: 's1', stageKey: 'CONTRACT', stageOrder: 9, round: 1, status: 'COMPLETED' });
+    prisma.attachment.findUnique.mockResolvedValue({ id: 'a1', fileName: '合同.pdf', projectManagementItemId: 'pm-01', objectKey: 'k', projectManagementStageId: 's1' });
+
+    await expect(service.updateStage('pm-01', 'CONTRACT', { status: 'COMPLETED' }))
+      .rejects.toMatchObject({ response: { code: 'PMI_NOT_ACTIVE' } });
+    await expect(service.deleteAttachment('pm-01', 'a1'))
+      .rejects.toMatchObject({ response: { code: 'PMI_NOT_ACTIVE' } });
+    await expect(
+      service.addStageAttachment('pm-01', 'CONTRACT', { originalname: 'x.pdf', mimetype: 'application/pdf', buffer: Buffer.from('x'), size: 1 } as Express.Multer.File, 'u1'),
+    ).rejects.toMatchObject({ response: { code: 'PMI_NOT_ACTIVE' } });
+
+    expect(prisma.projectManagementStage.update).not.toHaveBeenCalled();
+    expect(prisma.attachment.delete).not.toHaveBeenCalled();
+  });
+
   it('rejects marking a later stage complete before the current stage finishes', async () => {
     const { service, prisma } = makeService();
 
@@ -1158,6 +1316,7 @@ describe('ProjectManagementService', () => {
       projectManagementItemId: 'pm-01',
     });
     prisma.projectManagementItem.findUnique.mockResolvedValue({
+      status: 'ACTIVE',
       id: 'pm-01',
       currentStage: 'TENDER_DOCUMENT',
     });
@@ -1185,6 +1344,7 @@ describe('ProjectManagementService', () => {
       officialTenderAttachmentId: 'att-official', // 正式盖章版闸（2026-09-26）：已选定放行
     });
     prisma.projectManagementItem.findUnique.mockResolvedValue({
+      status: 'ACTIVE',
       id: 'pm-01',
       title: '办公家具采购',
       requesterName: '张三',
@@ -1256,6 +1416,7 @@ describe('ProjectManagementService', () => {
       projectManagementItemId: 'pm-small',
     });
     prisma.projectManagementItem.findUnique.mockResolvedValue({
+      status: 'ACTIVE',
       id: 'pm-small',
       title: '小额打印服务',
       requesterName: '张三',
@@ -1360,7 +1521,8 @@ describe('ProjectManagementService', () => {
     it('TENDER_DOCUMENT 完成 + 归档范围必选材料缺失 → 400（DA/T103 前端控制）', async () => {
       const { service, prisma, archiveScope } = makeService();
       prisma.projectManagementStage.findFirst.mockResolvedValue({ id: 'st-1', stageKey: 'TENDER_DOCUMENT', officialTenderAttachmentId: 'att-official' });
-      prisma.projectManagementItem.findUnique.mockResolvedValue({ currentStage: 'TENDER_DOCUMENT', stages: [] });
+      prisma.projectManagementItem.findUnique.mockResolvedValue({
+      status: 'ACTIVE', currentStage: 'TENDER_DOCUMENT', stages: [] });
       // 评分标准闸（2026-09-24）先于归档材料闸：本用例聚焦归档闸——BP 已配置放行评分闸
       prisma.bidProject = { findFirst: jest.fn().mockResolvedValue({ id: 'bp-1', evaluationMethod: 'comprehensive' }) };
       archiveScope.checkStageGate.mockResolvedValueOnce(['采购文件']);
@@ -1373,7 +1535,8 @@ describe('ProjectManagementService', () => {
     it('SUPPLIER_INVITATION 完成 + 0 邀请回执 → 400', async () => {
       const { service, prisma } = makeService();
       prisma.projectManagementStage.findFirst.mockResolvedValue({ id: 'st-1', stageKey: 'SUPPLIER_INVITATION' });
-      prisma.projectManagementItem.findUnique.mockResolvedValue({ currentStage: 'SUPPLIER_INVITATION' });
+      prisma.projectManagementItem.findUnique.mockResolvedValue({
+      status: 'ACTIVE', currentStage: 'SUPPLIER_INVITATION' });
       // 回执核验走 PMI/BP 两个 id 空间：先查项目关联的 BidProject id 集
       prisma.bidProject = { findMany: jest.fn().mockResolvedValue([]) };
       prisma.invitationRsvp = { count: jest.fn().mockResolvedValue(0) };
@@ -1383,7 +1546,8 @@ describe('ProjectManagementService', () => {
     it('EXPERT_SELECTION 完成 + BidProject 存在但 0 专家 → 400', async () => {
       const { service, prisma } = makeService();
       prisma.projectManagementStage.findFirst.mockResolvedValue({ id: 'st-1', stageKey: 'EXPERT_SELECTION' });
-      prisma.projectManagementItem.findUnique.mockResolvedValue({ currentStage: 'EXPERT_SELECTION' });
+      prisma.projectManagementItem.findUnique.mockResolvedValue({
+      status: 'ACTIVE', currentStage: 'EXPERT_SELECTION' });
       prisma.bidProject = { findFirst: jest.fn().mockResolvedValue({ id: 'bp-1' }) };
       prisma.bidExpert = { count: jest.fn().mockResolvedValue(0) };
       await expect(service.updateStage('pm-01', 'EXPERT_SELECTION', completing)).rejects.toThrow('完成专家抽取');
@@ -1393,8 +1557,9 @@ describe('ProjectManagementService', () => {
       const { service, prisma } = makeService();
       prisma.projectManagementStage.findFirst.mockResolvedValue({ id: 'st-1', stageKey: 'EXPERT_SELECTION' });
       prisma.projectManagementItem.findUnique
-        .mockResolvedValueOnce({ currentStage: 'EXPERT_SELECTION' }) // updateStage 前置读
-        .mockResolvedValue({ id: 'pm-01', currentStage: 'CONTRACT', stages: [{ stageKey: 'EXPERT_SELECTION', attachments: [] }] }); // refreshProjectAnalysis
+        .mockResolvedValueOnce({ status: 'ACTIVE' }) // PMI 可变闸读（2026-10-19）
+        .mockResolvedValueOnce({ status: 'ACTIVE', currentStage: 'EXPERT_SELECTION' }) // updateStage 前置读
+        .mockResolvedValue({ id: 'pm-01', status: 'ACTIVE', currentStage: 'CONTRACT', stages: [{ stageKey: 'EXPERT_SELECTION', attachments: [] }] }); // refreshProjectAnalysis
       prisma.bidProject = { findFirst: jest.fn().mockResolvedValue(null) };
       prisma.projectManagementStage.update.mockResolvedValue({});
       prisma.projectManagementStage.findMany.mockResolvedValue([{ stageKey: 'EXPERT_SELECTION', stageOrder: 5, status: 'COMPLETED' }]);
@@ -1407,6 +1572,7 @@ describe('ProjectManagementService', () => {
   describe('ensureBidProject 时间兜底（P0-5）', () => {
     const mockItem = (prisma: Record<string, any>, over: Record<string, unknown>) => {
       prisma.projectManagementItem.findUnique.mockResolvedValue({
+      status: 'ACTIVE',
         id: 'pm-01', title: '测试项目', procurementMethod: '谈判采购', budgetAmount: null,
         projectOverview: null, currentRound: 1, ...over,
       });
@@ -1623,13 +1789,50 @@ describe('直接采购「中标单位」收口（2026-10-16：开标评标前恒
     (readFile as unknown as jest.Mock).mockImplementation(realFs.readFile);
     (mkdir as unknown as jest.Mock).mockImplementation(realFs.mkdir);
     aiService.chat.mockResolvedValue(null); // AI 兜底/抛光均落空 → 保留正则产物
-    prisma.projectManagementItem.findUnique.mockResolvedValue({ procurementMethod: '直接采购', awardedSupplier: null });
+    prisma.projectManagementItem.findUnique.mockResolvedValue({
+      status: 'ACTIVE', procurementMethod: '直接采购', awardedSupplier: null });
     prisma.projectManagementItem.update.mockResolvedValue({});
 
     await service.extractTenderFields(ZJ_ITEM);
 
     const data = prisma.projectManagementItem.update.mock.calls.at(-1)?.[0]?.data ?? {};
     expect(data).not.toHaveProperty('awardedSupplier');
+  });
+
+  describe('addStageAttachment 附件统一限制（2026-10-19：100MB+9 扩展白名单）', () => {
+    it('拒绝白名单外扩展名（先于任何 prisma 调用）', async () => {
+      const { service, prisma } = makeService();
+      const bad = {
+        originalname: '工具.exe', mimetype: 'application/octet-stream',
+        buffer: Buffer.from('x'), size: 1,
+      } as Express.Multer.File;
+      await expect(service.addStageAttachment('p1', 'TENDER_DOCUMENT', bad))
+        .rejects.toThrow(expect.objectContaining({ response: expect.objectContaining({ code: 'ATTACHMENT_FILE_TYPE_INVALID' }) }));
+      expect(prisma.projectManagementItem.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('拒绝超 100MB 文件', async () => {
+      const { service } = makeService();
+      const big = {
+        originalname: '大文件.pdf', mimetype: 'application/pdf',
+        buffer: Buffer.alloc(0), size: 100 * 1024 * 1024 + 1,
+      } as Express.Multer.File;
+      await expect(service.addStageAttachment('p1', 'TENDER_DOCUMENT', big))
+        .rejects.toThrow(expect.objectContaining({ response: expect.objectContaining({ code: 'ATTACHMENT_FILE_TOO_LARGE' }) }));
+    });
+
+    it('放行白名单内文件（走到阶段定位即认为通过校验）', async () => {
+      const { service, prisma } = makeService();
+      prisma.projectManagementItem.findUnique.mockResolvedValue({
+      status: 'ACTIVE', currentRound: 1 });
+      prisma.projectManagementStage.findFirst.mockResolvedValue(null); // 阶段不存在 → NotFound，校验已过
+      const ok = {
+        originalname: '回执.zip', mimetype: 'application/zip',
+        buffer: Buffer.from('PK'), size: 4,
+      } as Express.Multer.File;
+      await expect(service.addStageAttachment('p1', 'SUPPLIER_INVITATION', ok))
+        .rejects.toThrow(/未找到对应的项目阶段/);
+    });
   });
 });
 });

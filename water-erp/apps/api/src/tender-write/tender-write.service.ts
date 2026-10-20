@@ -56,6 +56,7 @@ import {
   type SupervisionTokens,
 } from './tenant-tokens';
 import { parseUploadedFile } from './import-autofill.file-parser';
+import { extractAnnouncementContentHtml } from './announcement-content-html.util';
 import { stripMojibake } from '../common/text-clean.util';
 import {
   buildImportAutofillSystemPrompt,
@@ -481,6 +482,9 @@ export class TenderWriteService {
     buffer: Buffer;
     fileName: string;
     textContent: string;
+    /** 正文 HTML（表格保结构，2026-10-19）：发布向导正文优先取此值；
+     *  提取失败为空串，前端回退 textContent 纯文本路径 */
+    contentHtml: string;
   }> {
     const { buffer, fileName } = await this.exportAnnouncement(dto, user);
     let textContent = '';
@@ -496,7 +500,17 @@ export class TenderWriteService {
     // 「采购采购」（docx XML 层的归一见 exportAnnouncement，正则抓不到跨 run 重复，
     // 提取为纯文本后可稳定归一）。
     textContent = textContent.replace(/采购采购+/g, '采购');
-    return { buffer, fileName, textContent };
+    // 正文 HTML：convertToHtml 保留表格结构（extractRawText 会把表格拆成逐格
+    // 竖排段落 → 门户「表格内容缺失」），归一与落款右对齐在 util 内完成
+    let contentHtml = '';
+    try {
+      contentHtml = await extractAnnouncementContentHtml(buffer);
+    } catch (e) {
+      this.logger.warn(
+        `buildAnnouncementWithContent: mammoth 提取正文 HTML 失败 ${(e as Error).message}`,
+      );
+    }
+    return { buffer, fileName, textContent, contentHtml };
   }
 
   /**

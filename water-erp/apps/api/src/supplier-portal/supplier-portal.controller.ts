@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Request, Res, UseInterceptors, UploadedFile, UploadedFiles, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Request, Res, UseInterceptors, UploadedFile, UploadedFiles, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
 import { ApiOperation } from '@nestjs/swagger';
 import { FileInterceptor, FileFieldsInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
@@ -452,6 +452,18 @@ export class SupplierPortalController {
     return this.portalService.getNegotiationFiles(id, supplierId);
   }
 
+  // 谈判采购文件逐个下载（PMI 阶段附件；受邀 + 获取窗口闸门在服务内）
+  @Get('bid-projects/:id/negotiation-files/:fileId/download')
+  async downloadNegotiationFile(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Param('fileId') fileId: string,
+    @Res() res: any,
+  ) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    await this.portalService.downloadNegotiationFile(id, fileId, supplierId, res);
+  }
+
   // A-87 招标文件要点端点已删（2026-09-29 SUP-P3-03：前后端零消费死代码，详情页 2026-09-11 已拍板移除该板块）
 
   // Bid Submissions
@@ -884,6 +896,20 @@ export class SupplierPortalController {
       where: { id: body.bidSupplierId, projectId, supplierId: supplierTableId },
     });
     if (!bidSupplier) throw new ForbiddenException({ error: '无权报价', code: 'FORBIDDEN' });
+
+    // 项目阶段闸（2026-10-19）：报价仅限开标/评标阶段——轮次忘关不应让已归档/流标
+    // 项目仍可落报价（与 createRound 阶段守卫同口径，补齐提交侧镜像）。
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
+    if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
+      throw new ConflictException({ error: '项目不在可报价阶段', code: 'PROJECT_NOT_ACTIVE' });
+    }
+    // 结果冻结闸（2026-10-19）：评标结果已生成=最终价已冻结（syncMultiRoundPrices 在生成时
+    // 已跑完），迟到的报价永不同步、与结果/中标通知书脱钩——拒绝；如确需新一轮须走
+    // 数据修正流程重开结果（结果清零后本闸自然放行）。
+    const resultCount = await this.prisma.bidEvaluationResult.count({ where: { projectId } });
+    if (resultCount > 0) {
+      throw new ConflictException({ error: '评标结果已生成，报价窗口已关闭', code: 'RESULTS_FROZEN' });
+    }
 
     // 验证轮次开放
     const round = await this.prisma.bidRound.findUnique({ where: { id: roundId } });

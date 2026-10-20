@@ -1,6 +1,12 @@
 import { api } from '../api';
 import type { Supplier, SupplierListResponse, SupplierClassification, SupplierEvaluation, SupplierChangeRecord, SupplierQualification } from '../types';
 
+/** 公司视野 query 段（admin 选择器值：'all'/空=全部，缺省 ''；多选逗号列表 encodeURIComponent） */
+function companyQuery(companyId?: string): string {
+  if (!companyId || companyId === 'all') return '';
+  return `?companyId=${encodeURIComponent(companyId)}`;
+}
+
 /* 供应商智能选取（web 门户专属视图模型） */
 export interface SupplierStats {
   total: number;
@@ -369,14 +375,14 @@ export function createEvaluation(id: string, data: {
   return api.post<SupplierEvaluation>(`/supplier/${id}/evaluations`, data);
 }
 
-// 评价统计
-export function getEvaluationStats() {
-  return api.get<{ levelCounts: { A: number; B: number; C: number; D: number; E: number }; excellentRatio: number; total: number }>('/supplier/evaluations/stats');
+// 评价统计（公司隔离：admin companyId 切公司，非 admin 后端强制本公司）
+export function getEvaluationStats(companyId?: string) {
+  return api.get<{ levelCounts: { A: number; B: number; C: number; D: number; E: number }; excellentRatio: number; total: number }>(`/supplier/evaluations/stats${companyQuery(companyId)}`);
 }
 
-// 分类列表
-export function getClassifications() {
-  return api.get<SupplierClassification[]>('/supplier/classifications');
+// 分类列表（计数按公司视野）
+export function getClassifications(companyId?: string) {
+  return api.get<SupplierClassification[]>(`/supplier/classifications${companyQuery(companyId)}`);
 }
 
 // 业务标签词表（按频次降序；供选取/邀请页标签多选）
@@ -470,17 +476,17 @@ export interface QualificationAlerts {
   items: QualificationAlertItem[];
   expiredCount: number; expiringCount: number; affectedSupplierCount: number;
 }
-export function getQualificationAlerts() {
-  return api.get<QualificationAlerts>('/supplier/qualification-alerts');
+export function getQualificationAlerts(companyId?: string) {
+  return api.get<QualificationAlerts>(`/supplier/qualification-alerts${companyQuery(companyId)}`);
 }
 export function notifyQualificationAlert(qualificationId: string) {
   return api.post<{ success: boolean }>(`/supplier/qualification-alerts/${qualificationId}/notify`, {});
 }
 
-// 淘汰候选
+// 淘汰候选（按公司视野）
 export interface EliminationCandidate { supplierId: string; name: string; reason: string; }
-export function getEliminationCandidates() {
-  return api.get<EliminationCandidate[]>('/supplier/eliminate-candidates');
+export function getEliminationCandidates(companyId?: string) {
+  return api.get<EliminationCandidate[]>(`/supplier/eliminate-candidates${companyQuery(companyId)}`);
 }
 export function confirmEliminate(id: string, reason: string) {
   return api.post<{ success: boolean }>(`/supplier/${id}/eliminate`, { reason });
@@ -506,14 +512,16 @@ export function toggleFavorite(supplierId: string) {
   return api.post<{ favorited: boolean }>(`/supplier/${supplierId}/favorite`, {});
 }
 export interface SupplierFavoriteRecord { id: string; supplierId: string; createdAt: string; supplier: { id: string; name: string; enterpriseType: string; classification?: { name: string }; createdAt: string }; }
-export function getFavorites() {
-  return api.get<SupplierFavoriteRecord[]>('/supplier/favorites/list');
+export function getFavorites(companyId?: string) {
+  return api.get<SupplierFavoriteRecord[]>(`/supplier/favorites/list${companyQuery(companyId)}`);
 }
 
-// 近期动态
+// 近期动态（按公司视野，跨公司供应商不外泄）
 export interface ActivityItem { id: string; action: string; resourceId: string; details: any; actorName: string; at: string; }
-export function getRecentActivities(limit?: number) {
-  return api.get<ActivityItem[]>(`/supplier/recent-activities?limit=${limit ?? 15}`);
+export function getRecentActivities(limit?: number, companyId?: string) {
+  const q = new URLSearchParams({ limit: String(limit ?? 15) });
+  if (companyId && companyId !== 'all') q.set('companyId', companyId);
+  return api.get<ActivityItem[]>(`/supplier/recent-activities?${q.toString()}`);
 }
 
 // 操作历史（审计留痕）
@@ -524,7 +532,7 @@ export interface SupplierAuditLogItem {
 export interface SupplierAuditLogs {
   items: SupplierAuditLogItem[]; total: number; page: number; pageSize: number;
 }
-export function getSupplierAuditLogs(opts?: { page?: number; pageSize?: number; supplierId?: string; action?: string; dateFrom?: string; dateTo?: string }) {
+export function getSupplierAuditLogs(opts?: { page?: number; pageSize?: number; supplierId?: string; action?: string; dateFrom?: string; dateTo?: string; companyId?: string }) {
   const params = new URLSearchParams();
   if (opts?.page) params.set('page', String(opts.page));
   if (opts?.pageSize) params.set('pageSize', String(opts.pageSize));
@@ -532,6 +540,7 @@ export function getSupplierAuditLogs(opts?: { page?: number; pageSize?: number; 
   if (opts?.action) params.set('action', opts.action);
   if (opts?.dateFrom) params.set('dateFrom', opts.dateFrom);
   if (opts?.dateTo) params.set('dateTo', opts.dateTo);
+  if (opts?.companyId && opts.companyId !== 'all') params.set('companyId', opts.companyId);
   const q = params.toString();
   return api.get<SupplierAuditLogs>(`/supplier/audit-logs${q ? `?${q}` : ''}`);
 }
@@ -562,13 +571,13 @@ export function getSupplierEvaluationAnalysis(supplierId: string) {
 
 // 评价维度统计（等级分布）
 export interface DimensionStats { completeness: Record<string, number>; responsiveness: Record<string, number>; cooperation: Record<string, number>; compliance: Record<string, number>; comprehensive: Record<string, number>; total: number; }
-export function getEvaluationDimensionStats() {
-  return api.get<DimensionStats>('/supplier/evaluations/dimension-stats');
+export function getEvaluationDimensionStats(companyId?: string) {
+  return api.get<DimensionStats>(`/supplier/evaluations/dimension-stats${companyQuery(companyId)}`);
 }
 
-// 企业类型分布（看板后端聚合）
-export function getEnterpriseTypeDistribution() {
-  return api.get<{ counts: Record<string, number> }>('/supplier/enterprise-type-distribution');
+// 企业类型分布（看板后端聚合，按公司视野）
+export function getEnterpriseTypeDistribution(companyId?: string) {
+  return api.get<{ counts: Record<string, number> }>(`/supplier/enterprise-type-distribution${companyQuery(companyId)}`);
 }
 
 // 沟通记录

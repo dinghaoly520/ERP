@@ -658,7 +658,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
         riskSummary: await this.sanitizeAiText(result.riskSummary || (todoCount > 5 ? '待办事项较多' : '风险可控')),
         aiSuggestion: '',
         overview: await this.sanitizeAiText(result.overview || `共${totalItems}项任务 | ${todoCount}待办`),
-        focusItems: result.focusItems || [],
+        focusItems: this.safeFocusItems(result.focusItems),
         timeBlocks: safeTimeBlocks,
         riskAlerts: result.riskAlerts || [],
         completionAdvice: '',
@@ -2000,7 +2000,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
         riskSummary: result.riskSummary || (todoCount > 5 ? '待办事项较多' : '风险可控'),
         aiSuggestion: result.aiSuggestion || '建议按优先级依次处理',
         overview: result.overview || `共${totalItems}项任务 | ${todoCount}待办`,
-        focusItems: result.focusItems || [],
+        focusItems: this.safeFocusItems(result.focusItems),
         timeBlocks: safeTimeBlocks,
         riskAlerts: result.riskAlerts || [],
         completionAdvice: result.completionAdvice || '完成所有待办后记得复盘',
@@ -2169,6 +2169,24 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
 
   /** 去掉字符串开头的空白和中英文标点符号。
    *  LLM 偶尔会把问候语漏掉、直接以句号开头（如"。今天有..."），这里做兜底清洗。 */
+  /** focusItems 规整：LLM 可能把同一任务 id 输出两次（2026-10-19 实录，前端 key=item.id 触发
+   *  React 双 key 告警）。剔除非对象项、按 id 去重保首；无 id 项保留（前端回退按序号 key）。 */
+  private safeFocusItems(raw: unknown): any[] {
+    if (!Array.isArray(raw)) return [];
+    const seen = new Set<string>();
+    const out: any[] = [];
+    for (const f of raw) {
+      if (!f || typeof f !== 'object') continue;
+      const id = typeof (f as any).id === 'string' ? (f as any).id : '';
+      if (id) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+      }
+      out.push(f);
+    }
+    return out;
+  }
+
   private trimLeadingPunctuation(s: string | null | undefined): string {
     if (!s) return '';
     return s.replace(/^[\s。，、；：！？.,;:!?'""''（）()【】《》<>\[\]\-—~·…]+/, '');

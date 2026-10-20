@@ -6,6 +6,7 @@ import dayjs from "dayjs";
 import { toast } from "sonner";
 import { CircleX, Download, FileText, Info, Link as LinkIcon, Lock, TriangleAlert } from "lucide-react";
 import { announcementApi } from "@/lib/api/announcement";
+import { saveBlob } from "@/lib/authed-file";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { EmptyState, LoadingBlock, SpButton, SpDialog, SpInput } from "@/components/ui";
 import "@/styles/pages/announcements.css";
@@ -162,12 +163,8 @@ export default function AnnouncementDetailPage() {
     setDownloading(true);
     try {
       const { blob, fileName } = await announcementApi.downloadBidDocument(id);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      a.click();
-      URL.revokeObjectURL(url);
+      // 2026-10-19：落盘收口 saveBlob（旧内联「立即 revokeObjectURL」竞态致真实浏览器下载静默失败）
+      await saveBlob(blob, fileName);
       await loadBidDoc();
     } catch (e: any) {
       toast.error(e?.message || "下载失败");

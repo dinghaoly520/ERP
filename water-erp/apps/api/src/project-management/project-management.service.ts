@@ -6,10 +6,11 @@ import { createReadStream } from 'node:fs';
 import JSZip = require('jszip');
 import { Response } from 'express';
 import { ResultStatus, SourceType, type Prisma } from '@prisma/client';
-import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
+import { BID_DEADLINE_BEFORE_OPENING_MS, STAGE_LABEL } from '@water-erp/shared';
 import { AiService } from '../ai/ai.service';
 import { parseFlexibleDate } from '../common/parse-date.util';
-import { generateProjectCode, generatePmiProjectCode, stageCodeFor } from '../common/project-code.util';
+import { assertAttachmentRules } from '../upload/attachment-rules';
+import { generateProjectCode, generatePmiProjectCode, resolveHostedProjectCode, stageCodeFor } from '../common/project-code.util';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import * as mammoth from 'mammoth';
 import { convertDocxToHtml as convertDocxToHtmlPatched } from './docx/docx-to-html.converter';
@@ -41,7 +42,7 @@ import { SelectOfficialTenderDto } from './dto/select-official-tender.dto';
 import { UpdateProjectStageDto } from './dto/update-project-stage.dto';
 import { AnalyzeBudgetReferenceDto } from './dto/analyze-budget-reference.dto';
 import { estimateBudgetReference } from './budget-reference-estimator';
-import { LOCKED_STAGES, PROJECT_WORKFLOW_STAGES } from './project-management.types';
+import { BID_TAIL_STAGE_KEYS, LOCKED_STAGES, PROJECT_WORKFLOW_STAGES } from './project-management.types';
 import { getStageComplianceRules } from './stage-compliance-rules';
 import { stripAnnouncementTitlePrefix } from '../common/announcement-title.util';
 import { stripMojibake } from '../common/text-clean.util';
@@ -65,6 +66,16 @@ const PROJECT_MANAGEMENT_STATUS: Record<
   ARCHIVED: 'ARCHIVED',
   RECYCLED: 'RECYCLED',
   TERMINATED: 'TERMINATED',
+};
+
+/** 归档/终止/回收站项目不可再变更（2026-10-19 复查）：阶段推进/重开、附件增删与正文改写、
+ *  提取信息回填等写路径统一前置校验 PMI.status=ACTIVE——UI 只读挡不住 API 直调
+ *  （本日 TP-2026101901 实例即 API 层绕行；归档数据不可扰动，更正走 DA/T103 重新归档流程）。
+ *  读取、分析缓存与 aiPolish（纯文本变换无落库）不受限。 */
+const PMI_STATUS_MUTABLE_LABEL: Record<string, string> = {
+  ARCHIVED: '已归档',
+  TERMINATED: '已终止',
+  RECYCLED: '已移入回收站',
 };
 
 const PROJECT_STAGE_STATUS: Record<
@@ -534,7 +545,11 @@ export class ProjectManagementService {
     const created = await this.prisma.bidProject.create({
       data: {
         name: item.title,
-        projectCode: await generateProjectCode(this.prisma, item.procurementMethod || '公开招标'),
+        // 2026-10-19 编号统一：PMI 宿主懒建直接继承 PMI 业务编号（多轮 -Rn 后缀）；
+        // PMI 编号缺失（历史空值）回退三段式生成
+        projectCode: item.projectCode
+          ? await resolveHostedProjectCode(this.prisma, { pmiCode: item.projectCode, preferredRound: targetRound })
+          : await generateProjectCode(this.prisma, item.procurementMethod || '公开招标', 'bidProject', { companyId: item.companyId }),
         procurementMethod: item.procurementMethod || '公开招标',
         openTime,
         deadline,
@@ -1306,6 +1321,11 @@ ${shortlist}
     uploadedById?: string,
     round?: number,
   ) {
+    // 附件统一限制（2026-10-19）：阶段附件（含供应商邀请函/回执、采购文件、
+    // 正式盖章版、向导自动上传的公告 docx）100MB + 9 扩展白名单——
+    // 复用 announcement 规则集，先于任何 prisma/落盘调用
+    assertAttachmentRules(file, 'announcement');
+    await this.assertPmiMutable(projectId);
     // R6-1（2026-09-30 审计⑤升级为硬死锁）：多轮项目每轮各有一行同 stageKey 阶段——
     // 此前 findFirst 无 round 过滤，round-2 上传必落 round-1 行，selectOfficialTender
     // 校验 projectManagementStageId 必拒"该文件不属于本步骤"→流标重采后 03 无法完成。
@@ -3385,11 +3405,27 @@ ${JSON.stringify(algorithmResult, null, 2)}
     };
   }
 
+  /** PMI 可变更前置闸（见文件头 PMI_STATUS_MUTABLE_LABEL 注释）——写路径统一入口。 */
+  private async assertPmiMutable(projectId: string): Promise<void> {
+    const item = await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+      select: { status: true },
+    });
+    if (!item) throw new NotFoundException('未找到对应项目。');
+    if (item.status !== PROJECT_MANAGEMENT_STATUS.ACTIVE) {
+      throw new ConflictException({
+        error: `项目${PMI_STATUS_MUTABLE_LABEL[item.status] ?? item.status}，不可变更（归档数据不可扰动；更正请走重新归档流程）`,
+        code: 'PMI_NOT_ACTIVE',
+      });
+    }
+  }
+
   async updateStage(
     projectId: string,
     stageKey: string,
     dto: UpdateProjectStageDto,
   ) {
+    await this.assertPmiMutable(projectId);
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
       select: { currentStage: true, currentRound: true },
@@ -3439,6 +3475,31 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // P1-12：阶段完成最小实质校验（与 UI 步骤检查口径一致——此前 0 文件/0 邀请/0 专家可空完成，
     // 一路放行到开标确认才发现缺前置，返工成本高）
     if (dto.status === PROJECT_STAGE_STATUS.COMPLETED) {
+      // 投标侧收口闸（2026-10-19，TP-2026101901 实例续）：开标评标及之后阶段（定标/合同/
+      // 备案表）完成前，同轮关联 BidProject 必须已终局。正门=「开标确认」面板完整归档
+      // （archiveAll→syncPmStage 置本阶段 COMPLETED 并解锁定标）；手工标完成/补录均不得越过
+      // 投标侧——否则 PMI 一路推到合同而投标侧永卡活动态（专家/供应商端僵尸滞留）。
+      // 无关联招标项目（无投标链方式）不拦；旧轮已流标/归档自然放行。与 completeProject
+      // 归档闸、公告删除 BID_IN_PROGRESS 同源。
+      if (BID_TAIL_STAGE_KEYS.has(stageKey as (typeof PROJECT_WORKFLOW_STAGES)[number]['key'])) {
+        const activeBidProjects = await this.prisma.bidProject.findMany({
+          where: {
+            projectManagementItemId: projectId,
+            round: targetRound,
+            stage: { in: ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING'] },
+          },
+          select: { name: true, stage: true },
+        });
+        if (activeBidProjects.length > 0) {
+          const names = activeBidProjects
+            .map((bp) => `「${bp.name}」(${STAGE_LABEL[bp.stage] ?? bp.stage})`)
+            .join('、');
+          throw new ConflictException({
+            error: `关联招标项目仍在开评标流程中：${names}。请先在「开标确认」面板完成完整归档（自动完成本阶段并解锁定标），或流标后再推进`,
+            code: 'BID_IN_PROGRESS',
+          });
+        }
+      }
       // 评分标准配置闸（2026-09-24 方案 v2）：03 采购文件完成前须完成评分标准配置——
       // 评标标准属采购文件组成内容，配置前置到本阶段收口；办法=none（不评分）免校验。
       // 先于归档材料闸抛出（评分标准是本阶段产物本身，不可豁免）。
@@ -3712,6 +3773,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
    * 附件（已上传文件）与分析缓存（按 stageKey 键控）一律不动——文件在，分析结论保留。
    */
   async reopenStage(projectId: string, stageKey: string, round?: number) {
+    await this.assertPmiMutable(projectId);
     const stage = await this.prisma.projectManagementStage.findFirst({
       where: {
         projectManagementItemId: projectId,
@@ -3801,6 +3863,28 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // 否则终止项目（若恰在合同阶段）可被再次归档，台账出现同名 CANCELLED + AWARDED 双记录。
     if (project.status !== PROJECT_MANAGEMENT_STATUS.ACTIVE) {
       throw new BadRequestException('仅进行中的项目可以归档。');
+    }
+
+    // 闸门（2026-10-19，TP-2026101901 实例）：关联招标项目仍处活动阶段（含已发布未截标）时禁归档 PMI。
+    // 否则 PMI 已 ARCHIVED 而投标侧永卡活动态——专家门户「已完结待归档」、供应商端流程条僵尸滞留
+    // （单向棘轮无回退，且无人再触发投标侧归档）；投标侧收口须走「开标确认」面板完整归档
+    // （签字闭环+评标回流法定闸门），流标场景先走流标端点留痕（ABORTED 终态不阻塞）。
+    // 同源闸参照公告删除 BID_IN_PROGRESS；终止路径则是显式联动流标（terminateProject 下游联动①）。
+    const activeBidProjects = await this.prisma.bidProject.findMany({
+      where: {
+        projectManagementItemId: projectId,
+        stage: { in: ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING'] },
+      },
+      select: { name: true, stage: true },
+    });
+    if (activeBidProjects.length > 0) {
+      const names = activeBidProjects
+        .map((bp) => `「${bp.name}」(${STAGE_LABEL[bp.stage] ?? bp.stage})`)
+        .join('、');
+      throw new ConflictException({
+        error: `关联招标项目仍在开评标流程中：${names}。请先在「开标确认」面板完成完整归档，或流标后再归档本项目`,
+        code: 'BID_IN_PROGRESS',
+      });
     }
 
     // allowIncomplete：流标归档等场景，跳过"最后阶段完成"校验
@@ -4224,6 +4308,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       riskMeasures?: string;
     },
   ) {
+    await this.assertPmiMutable(projectId);
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
     });
@@ -5833,6 +5918,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
   }
 
   async deleteAttachment(projectId: string, attachmentId: string) {
+    await this.assertPmiMutable(projectId);
     const attachment = await this.prisma.attachment.findUnique({
       where: { id: attachmentId },
       select: {
@@ -6956,6 +7042,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     },
     uploadedById?: string,
   ) {
+    await this.assertPmiMutable(projectId);
     const oldAttachment = await this.prisma.attachment.findUnique({
       where: { id: dto.attachmentId },
       select: { id: true, fileName: true, objectKey: true, projectManagementStageId: true },
@@ -7159,6 +7246,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     fileName: string,
     uploadedById?: string,
   ) {
+    await this.assertPmiMutable(projectId);
     const oldAttachment = await this.prisma.attachment.findUnique({
       where: { id: attachmentId },
       select: { id: true, fileName: true, objectKey: true, projectManagementStageId: true },
@@ -7434,6 +7522,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     dto: { attachmentId: string; html: string; originalHash?: string },
     uploadedById?: string,
   ) {
+    await this.assertPmiMutable(projectId);
     const oldAttachment = await this.prisma.attachment.findUnique({
       where: { id: dto.attachmentId },
       select: { id: true, fileName: true, objectKey: true, projectManagementStageId: true },
@@ -7621,3 +7710,4 @@ ${JSON.stringify(algorithmResult, null, 2)}
     return { fields, extractedText };
   }
 }
+

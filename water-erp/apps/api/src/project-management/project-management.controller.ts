@@ -69,7 +69,7 @@ export class ProjectManagementController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
-      limits: { fileSize: 500 * 1024 * 1024 },
+      limits: { fileSize: 100 * 1024 * 1024 }, // 100MB（2026-10-19 附件统一限制）
     }),
   )
   async extractInitiation(
@@ -90,7 +90,7 @@ export class ProjectManagementController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
-      limits: { fileSize: 500 * 1024 * 1024 },
+      limits: { fileSize: 100 * 1024 * 1024 }, // 100MB（2026-10-19 附件统一限制）
     }),
   )
   async extractDemand(
@@ -169,7 +169,7 @@ export class ProjectManagementController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
-      limits: { fileSize: 500 * 1024 * 1024 },
+      limits: { fileSize: 100 * 1024 * 1024 }, // 100MB（2026-10-19 附件统一限制）
     }),
   )
   uploadStageAttachment(

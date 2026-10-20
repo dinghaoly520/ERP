@@ -397,8 +397,19 @@ export function downloadRegulatoryExport(projectId: string) {
   return api.get<unknown>(`/bid/projects/${projectId}/regulatory-export`);
 }
 
+/** A1: 公示期状态——公示载体公告（预成交公示/成交公告/中标公告）+ 已确认中标候选人 */
+export interface PublicityStatus {
+  hasPublicity: boolean;
+  publicityEnd: string | null;
+  canIssueAward: boolean;
+  /** 公示载体公告（未发布/无公示时为 null） */
+  announcement: { id: string; title: string; type: string } | null;
+  /** 已确认中标候选人（最近一轮 rank1 推荐；评标结果缺失时为 null） */
+  winner: { supplierName: string; bidPrice?: number } | null;
+}
+
 export function getPublicityStatus(bidProjectId: string) {
-  return api.get<{ hasPublicity: boolean; publicityEnd: string | null; canIssueAward: boolean }>(
+  return api.get<PublicityStatus>(
     `/bid/projects/${bidProjectId}/publicity-status`,
   );
 }
@@ -438,7 +449,8 @@ const AWARD_LETTER_MIME_TYPES = new Set([
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]);
-const AWARD_LETTER_MAX_BYTES = 20 * 1024 * 1024;
+// 附件统一限制（2026-10-19）：通知书上限对齐 100MB（格式闸 PDF/DOC/DOCX 保持）
+const AWARD_LETTER_MAX_BYTES = 100 * 1024 * 1024;
 
 export function validateAwardLetterFile(file: AwardLetterFileLike | null): string | null {
   if (!file) return '请先选择中标通知书文件';
@@ -446,7 +458,7 @@ export function validateAwardLetterFile(file: AwardLetterFileLike | null): strin
   if (!AWARD_LETTER_MIME_TYPES.has(file.type) || !extensionAllowed) {
     return '仅支持 PDF、DOC 或 DOCX 格式的通知书';
   }
-  if (file.size > AWARD_LETTER_MAX_BYTES) return '通知书文件不得超过 20 MB';
+  if (file.size > AWARD_LETTER_MAX_BYTES) return '通知书文件不得超过 100 MB';
   return null;
 }
 

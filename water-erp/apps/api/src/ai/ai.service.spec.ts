@@ -234,6 +234,50 @@ describe('AiService', () => {
     });
   });
 
+  describe('analyzeWorkArrangementDailyPlan（focusItems 去重，2026-10-19 双 key 告警实录）', () => {
+    it('LLM 将同一任务 id 输出两次 → 去重保首，防前端 React key 冲突', async () => {
+      (service as any).llm.chatJson.mockResolvedValue({
+        overview: '今日共2项任务，全部待处理。上午处理甲，下午处理乙，核心策略是先急后缓。',
+        headerGreeting: '今天有2项任务需要关注。',
+        namePraise: '', dailyGreeting: '', riskSummary: '', aiSuggestion: '',
+        projectBrief: '', completionAdvice: '', dailyQuote: '',
+        focusItems: [
+          { id: 'task-dup', title: '任务甲', priorityRank: 1, reason: '紧迫' },
+          { id: 'task-unique', title: '任务乙', priorityRank: 2, reason: '重要' },
+          { id: 'task-dup', title: '任务甲（重复）', priorityRank: 3, reason: 'LLM 重复输出' },
+        ],
+        timeBlocks: [], riskAlerts: [],
+      });
+
+      const res = await service.analyzeWorkArrangementDailyPlan({
+        date: '2026-10-19T00:00:00.000Z',
+        items: [
+          { id: 'task-dup', title: '任务甲', status: 'TODO', urgency: 'HIGH' },
+          { id: 'task-unique', title: '任务乙', status: 'TODO', urgency: 'MEDIUM' },
+        ],
+      });
+
+      const ids = res.focusItems.map((f: any) => f.id);
+      expect(ids).toEqual(['task-dup', 'task-unique']);
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it('focusItems 非数组/含非对象项 → 容错为安全数组', async () => {
+      (service as any).llm.chatJson.mockResolvedValue({
+        overview: '今日共1项任务。',
+        headerGreeting: '今天有1项任务。',
+        namePraise: '', dailyGreeting: '', riskSummary: '', aiSuggestion: '',
+        projectBrief: '', completionAdvice: '', dailyQuote: '',
+        focusItems: [{ id: 'a', title: '甲' }, null, 'garbage'],
+        timeBlocks: [], riskAlerts: [],
+      });
+
+      const res = await service.analyzeWorkArrangementDailyPlan({ date: '2026-10-19T00:00:00.000Z', items: [] });
+
+      expect(res.focusItems).toEqual([{ id: 'a', title: '甲' }]);
+    });
+  });
+
   describe('detectAnomalies', () => {
     it('少于 2 位专家时应返回提示', async () => {
       prisma.bidScoreRecord.findMany = jest.fn().mockResolvedValue([]);

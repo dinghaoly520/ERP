@@ -15,6 +15,7 @@ import { ANNOUNCEMENT_TYPE_ORDER, announcementTypeGroupIndex } from '@water-erp/
 import { PublishConfigSection, DEFAULT_PUBLISH_CONFIG, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
 import { Modal } from '@/components/workbench';
 import { fetchProjectManagementList } from '@/lib/api/project-management';
+import { ATTACHMENT_ACCEPT, ATTACHMENT_HINT, validateAttachmentFile } from '@/lib/upload-rules';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 import { fetchCurrentUser } from '@/lib/api/auth';
 
@@ -518,12 +519,22 @@ function AttachmentUploader({ annId, attachments, onChanged }: { annId: string; 
   const [title, setTitle] = useState('');
   const [uploading, setUploading] = useState(false);
   const { confirm, dialog } = useConfirm();
+  // 附件统一限制（2026-10-19）：多选 + 100MB + 9 扩展白名单，坏文件当场提示并剔除
   const onUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]; if (!f) return;
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+    const invalid = files.map((f) => validateAttachmentFile(f)).filter(Boolean) as string[];
+    const okFiles = files.filter((f) => !validateAttachmentFile(f));
+    if (invalid.length > 0) toast.error(invalid[0] + (invalid.length > 1 ? ` 等 ${invalid.length} 个文件被跳过` : ''));
+    if (okFiles.length === 0) { e.target.value = ''; return; }
     setUploading(true);
-    try { const asset = await uploadFile(f, 'announcement'); await addAttachment(annId, asset.id, title || f.name); setTitle(''); onChanged(); toast.success('附件已添加'); }
-    catch (err: any) { toast.error(err?.message || '上传失败'); }
-    setUploading(false); e.target.value = '';
+    let done = 0;
+    for (const f of okFiles) {
+      try { const asset = await uploadFile(f, 'announcement'); await addAttachment(annId, asset.id, title || f.name); done++; }
+      catch (err: any) { toast.error(`${f.name}：${err?.message || '上传失败'}`); }
+    }
+    if (done > 0) { setTitle(''); toast.success(`已添加 ${done} 个附件`); }
+    setUploading(false); e.target.value = ''; onChanged();
   };
   return (
     <div className="space-y-3">
@@ -531,9 +542,10 @@ function AttachmentUploader({ annId, attachments, onChanged }: { annId: string; 
         <input value={title} onChange={e => setTitle(e.target.value)} placeholder="附件标题（可选）" className="neu-input flex-1" />
         <label className={'neu-btn-primary cursor-pointer whitespace-nowrap ' + (uploading ? 'opacity-50' : '')}>
           <Upload size={14} />{uploading ? '上传中...' : '添加附件'}
-          <input type="file" className="hidden" onChange={onUpload} />
+          <input type="file" multiple accept={ATTACHMENT_ACCEPT} className="hidden" onChange={onUpload} />
         </label>
       </div>
+      <p className="text-[11px] text-[var(--muted-foreground)]">{ATTACHMENT_HINT}，可选择多个文件</p>
       {attachments.length === 0 ? <p className="text-xs text-[var(--muted-foreground)]">暂无附件</p> : attachments.map(a => (
         <div key={a.id} className="neu-attachment-item">
           <div><div className="text-sm font-semibold text-[var(--foreground)]">{a.title}</div><div className="text-xs text-[var(--muted-foreground)]">{a.fileAsset.originalName} · {(a.fileAsset.size / 1024).toFixed(0)} KB</div></div>

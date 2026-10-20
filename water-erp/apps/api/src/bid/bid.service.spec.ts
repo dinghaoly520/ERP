@@ -223,6 +223,79 @@ describe('BidService — stage transitions', () => {
       });
     });
 
+    describe('编号统一（2026-10-19 用户裁定）：PMI 宿主继承 / 三段式生成', () => {
+      beforeEach(() => {
+        // 编号探测（findUnique 默认 undefined=未占用 → 基础码空闲）；count 归零起序
+        prisma.bidProject.findUnique.mockResolvedValue(null);
+        prisma.bidProject.count.mockResolvedValue(0);
+      });
+
+      it('createFromAnnouncement 传宿主 PMI → projectCode 原样继承 PMI 业务编号', async () => {
+        prisma.bidProject.create.mockResolvedValue({ id: 'p1', projectCode: 'SWHI-JJ-2026101901' });
+        await service.createFromAnnouncement(
+          { id: 'a1', title: 'T', publishDate: new Date() },
+          { method: '竞价采购' },
+          {},
+          { id: 'pmi-1', projectCode: 'SWHI-JJ-2026101901' },
+        );
+        expect(prisma.bidProject.create.mock.calls[0][0].data.projectCode).toBe('SWHI-JJ-2026101901');
+      });
+
+      it('createFromAnnouncement 基础码被占（同 PMI 首轮已在）→ 第二轮 -R2', async () => {
+        prisma.bidProject.findUnique.mockImplementation(({ where }: any) =>
+          where?.projectCode === 'SWHI-JJ-2026101901' ? { id: 'first' } : null,
+        );
+        prisma.bidProject.create.mockResolvedValue({ id: 'p2', projectCode: 'SWHI-JJ-2026101901-R2' });
+        await service.createFromAnnouncement(
+          { id: 'a1', title: 'T', publishDate: new Date() },
+          { method: '竞价采购' },
+          {},
+          { id: 'pmi-1', projectCode: 'SWHI-JJ-2026101901' },
+        );
+        expect(prisma.bidProject.create.mock.calls[0][0].data.projectCode).toBe('SWHI-JJ-2026101901-R2');
+      });
+
+      it('无宿主 PMI → 三段式生成（SW 回退段，不再产两段式）', async () => {
+        prisma.bidProject.create.mockResolvedValue({ id: 'p1', projectCode: 'SW-JJ-x' });
+        await service.createFromAnnouncement(
+          { id: 'a1', title: 'T', publishDate: new Date() },
+          { method: '竞价采购' },
+        );
+        const code = prisma.bidProject.create.mock.calls[0][0].data.projectCode as string;
+        expect(code).toMatch(/^SW-JJ-\d{8}\d{2}$/);
+      });
+
+      it('createProject 传 PMI 宿主 → 继承 PMI 业务编号', async () => {
+        prisma.projectManagementItem.findUnique.mockResolvedValue({ projectCode: 'SWHI-TP-2026101902' });
+        prisma.bidProject.create.mockResolvedValue({ id: 'p1', projectCode: 'SWHI-TP-2026101902' });
+        await service.createProject({
+          name: 'X', procurementMethod: '谈判采购', openTime: '2099-01-01T10:00:00.000Z',
+          projectManagementItemId: 'pmi-1',
+        } as any);
+        expect(prisma.bidProject.create.mock.calls[0][0].data.projectCode).toBe('SWHI-TP-2026101902');
+      });
+
+      it('reopenFromAborted 有 PMI 宿主 → 新轮次 -R2 后缀（原项目持基础码）', async () => {
+        prisma.bidProject.findUnique.mockImplementation(({ where }: any) => {
+          if (where?.id === 'p1') {
+            return { stage: 'ABORTED', name: 'X', projectCode: 'SWHI-JJ-2026101901', procurementMethod: '竞价采购',
+              budget: null, scope: null, qualification: null, contact: null, qualityRequirement: null,
+              bondRequired: false, bondAmount: null, riskNote: '', round: 1,
+              projectManagementItemId: 'pmi-1', openTime: new Date(), deadline: new Date(), downloadDeadline: null,
+              companyId: null, companyName: null };
+          }
+          // 编号探测：基础码已被原项目占用 → -R2 空闲
+          return where?.projectCode === 'SWHI-JJ-2026101901' ? { id: 'p1' } : null;
+        });
+        prisma.projectManagementItem.findUnique.mockResolvedValue({ projectCode: 'SWHI-JJ-2026101901' });
+        prisma.bidProject.create.mockResolvedValue({ id: 'p2', projectCode: 'SWHI-JJ-2026101901-R2' });
+        prisma.auditLog.create.mockResolvedValue({});
+        await service.reopenFromAborted('p1', 'u1');
+        expect(prisma.bidProject.create.mock.calls[0][0].data.projectCode).toBe('SWHI-JJ-2026101901-R2');
+        expect(prisma.bidProject.create.mock.calls[0][0].data.round).toBe(2);
+      });
+    });
+
     describe('syncFromAnnouncement — 公告再编辑同步', () => {
       it('metadata.legalMandatory=true → 同步项目列', async () => {
         prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'GK-1' });
@@ -3616,6 +3689,8 @@ describe('createRound — 供应商准入', () => {
       bidQuote: { create: jest.fn() },
       bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
       bidOpeningSession: { update: jest.fn() },
+      // 结果冻结闸（2026-10-19）：createRound 新增前置——默认无既有结果（放行路径）
+      bidEvaluationResult: { count: jest.fn().mockResolvedValue(0) },
       $queryRaw: jest.fn(),
       $transaction: jest.fn(async (cb: any) => typeof cb === 'function' ? cb(prisma) : Promise.all(cb)),
     };
@@ -3745,6 +3820,8 @@ describe('createRound — 谈判采购评标完成闸门（先评标→再报价
       bidQuote: { create: jest.fn() },
       bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
       bidOpeningSession: { update: jest.fn() },
+      // 结果冻结闸（2026-10-19）：createRound 新增前置——默认无既有结果（放行路径）
+      bidEvaluationResult: { count: jest.fn().mockResolvedValue(0) },
       $queryRaw: jest.fn(),
       $transaction: jest.fn(async (cb: any) => typeof cb === 'function' ? cb(prisma) : Promise.all(cb)),
     };

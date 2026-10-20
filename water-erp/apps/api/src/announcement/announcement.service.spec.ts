@@ -920,3 +920,117 @@ describe('AnnouncementService — 直接采购公告发布不提前回填中标�
     expect(prisma.projectManagementItem.updateMany).not.toHaveBeenCalled();
   });
 });
+
+describe('AnnouncementService — 发布向导中标公告（WIN_BID_NOTICE）公示期与中标候选人链接（2026-10-19）', () => {
+  const generatedAt = new Date('2026-09-28T08:00:00.000Z');
+  const publishDate = new Date('2026-10-19T02:00:00.000Z');
+
+  /** create/update 共用的候选人链路 mock：PMI 业务编号 → BidProject → 评标结果 */
+  const makePrisma = () => ({
+    projectManagementItem: {
+      findUnique: jest.fn().mockImplementation((args: any) =>
+        args.where?.projectCode === 'ZJ-2026001'
+          ? Promise.resolve({ id: 'pmi-1' })
+          : Promise.resolve(null),
+      ),
+    },
+    bidProject: {
+      findUnique: jest.fn().mockResolvedValue(null),
+      findFirst: jest.fn().mockResolvedValue({ id: 'bp-1' }),
+    },
+    bidEvaluationResult: {
+      findMany: jest.fn().mockResolvedValue([
+        { rank: 1, supplierName: '四川水发建设有限公司', bidPrice: 1539500, totalScore: 92.5, recommended: true, generatedAt },
+        { rank: 2, supplierName: '中科院成都信息技术股份有限公司', bidPrice: 1560000, totalScore: 88.1, recommended: true, generatedAt },
+        { rank: 3, supplierName: '四川省通信产业服务有限公司', bidPrice: 1580000, totalScore: 85.3, recommended: false, generatedAt },
+      ]),
+    },
+    announcement: {
+      create: jest.fn(),
+      update: jest.fn(),
+      findUnique: jest.fn().mockResolvedValue({ metadata: { publicityPeriod: '3天' } }),
+      findMany: jest.fn().mockResolvedValue([]),
+      count: jest.fn().mockResolvedValue(0),
+      groupBy: jest.fn().mockResolvedValue([]),
+    },
+  });
+
+  const makeSvc = (prisma: any) => {
+    const announcementAi: any = { summarize: jest.fn(), looksLikePromptLeak: jest.fn().mockReturnValue(false) };
+    const service: any = new (AnnouncementService as any)(prisma, announcementAi, undefined, undefined, undefined, undefined);
+    return service;
+  };
+
+  it('create 直接发布 → 不持久化 publicityEnd（读时推导），metadata 落 winCandidates（winner=rank1 推荐）', async () => {
+    const prisma: any = makePrisma();
+    prisma.announcement.create.mockResolvedValue({
+      id: 'ann-wb-1', type: 'WIN_BID_NOTICE', status: 'PUBLISHED',
+      publishDate, publicityEnd: null, relatedProjectCode: 'ZJ-2026001',
+      metadata: { publicityPeriod: '3天' },
+    });
+    const service = makeSvc(prisma);
+
+    const result = await service.create({
+      title: '中标公告：智慧水务平台建设', content: '公告正文',
+      type: 'WIN_BID_NOTICE', status: 'PUBLISHED',
+      relatedProjectCode: 'ZJ-2026001', aiSummary: '测试摘要',
+    });
+
+    // 公示期不落库：持久化会让公开端 isOfflined 在 3 天后把结果公告打成标题壳——推导职责在
+    // BidService.getPublicityStatus（publishDate+3d，存量行同步自愈）
+    expect(result.publicityEnd).toBeNull();
+    expect(prisma.announcement.update).toHaveBeenCalledTimes(1); // 仅候选人链接一次
+    // 中标候选人链接：rank1 推荐为确认中标人，候选全量随公告留档（保留既有 metadata 键）
+    const linkage = prisma.announcement.update.mock.calls[0];
+    expect(linkage[0].data.publicityEnd).toBeUndefined();
+    expect(linkage[0].data.metadata.publicityPeriod).toBe('3天');
+    expect(linkage[0].data.metadata.winCandidates.winner).toMatchObject({ rank: 1, supplierName: '四川水发建设有限公司' });
+    expect(linkage[0].data.metadata.winCandidates.candidates).toHaveLength(3);
+    expect(linkage[0].data.metadata.winCandidates.candidates[0]).toMatchObject({ supplierName: '四川水发建设有限公司', recommended: true });
+  });
+
+  it('update 草稿转发布 → 同样不持久化公示期、候选人照常链接（定时发布路径）', async () => {
+    const prisma: any = makePrisma();
+    prisma.announcement.findUnique.mockResolvedValue({
+      id: 'ann-wb-2', title: '中标公告：智慧水务平台建设', content: '公告正文',
+      type: 'WIN_BID_NOTICE', status: 'DRAFT', publishDate,
+      publicityEnd: null, relatedProjectCode: 'ZJ-2026001',
+      metadata: { scheduledPublishDate: '2026-10-19T02:00:00.000Z' }, authorId: 'u1',
+    });
+    prisma.announcement.update.mockImplementation(async (args: any) => ({
+      id: 'ann-wb-2', type: 'WIN_BID_NOTICE', publishDate, publicityEnd: null,
+      relatedProjectCode: 'ZJ-2026001', status: 'PUBLISHED', title: '中标公告：智慧水务平台建设',
+      metadata: { scheduledPublishDate: '2026-10-19T02:00:00.000Z' },
+      ...args.data,
+    }));
+    const service = makeSvc(prisma);
+
+    await service.update('ann-wb-2', { status: 'PUBLISHED', publishDate: publishDate.toISOString() });
+
+    const publicityWrite = prisma.announcement.update.mock.calls.find(
+      (c: any[]) => c[0]?.data?.publicityEnd !== undefined,
+    );
+    expect(publicityWrite).toBeUndefined(); // 中标公告不写 publicityEnd
+    const linkage = prisma.announcement.update.mock.calls.find(
+      (c: any[]) => c[0]?.data?.metadata?.winCandidates,
+    );
+    expect(linkage[0].data.metadata.winCandidates.winner).toMatchObject({ supplierName: '四川水发建设有限公司' });
+  });
+
+  it('无关联项目编号 → 零后续写入（登记制公告不报错、不做候选人链接）', async () => {
+    const prisma: any = makePrisma();
+    prisma.announcement.create.mockResolvedValue({
+      id: 'ann-wb-3', type: 'WIN_BID_NOTICE', status: 'PUBLISHED',
+      publishDate, publicityEnd: null, relatedProjectCode: null, metadata: null,
+    });
+    const service = makeSvc(prisma);
+
+    await service.create({
+      title: '中标公告（无项目关联）', content: '正文',
+      type: 'WIN_BID_NOTICE', status: 'PUBLISHED', aiSummary: '测试摘要',
+    });
+
+    expect(prisma.projectManagementItem.findUnique).not.toHaveBeenCalled();
+    expect(prisma.announcement.update).not.toHaveBeenCalled();
+  });
+});

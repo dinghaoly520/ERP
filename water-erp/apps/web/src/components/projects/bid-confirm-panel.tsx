@@ -47,6 +47,7 @@ import {
   type BidWorkspace,
   type BidWorkspaceExpert,
   type AwardLetterStatus,
+  type PublicityStatus,
 } from '@/lib/api/bid';
 import { ApiError } from '@water-erp/client';
 import { getRsvpList, type RsvpListItem, type RsvpListResult } from '@/lib/api/supplier';
@@ -1347,9 +1348,14 @@ function EmptyHint({ text }: { text: string }) {
   );
 }
 
+/** 公示载体公告类型 → 中文名（publicity-status.announcement.type 展示用；系统实际只有中标公告一轨，2026-10-19） */
+const PUBLICITY_CARRIER_LABEL: Record<string, string> = {
+  WIN_BID_NOTICE: '中标公告',
+};
+
 /** A1+A3: 公示期状态指示 + 中标通知书推送——归档后显示公示倒计时 / 期满可发通知书 */
 function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detail: BidProjectDetail | null }) {
-  const [status, setStatus] = useState<{ hasPublicity: boolean; publicityEnd: string | null; canIssueAward: boolean } | null>(null);
+  const [status, setStatus] = useState<PublicityStatus | null>(null);
   const [letters, setLetters] = useState<AwardLetterStatus[]>([]);
   const [delivering, setDelivering] = useState(false);
   const [letterFile, setLetterFile] = useState<File | null>(null);
@@ -1403,7 +1409,7 @@ function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detai
       {!status.hasPublicity ? (
         <div className="wb-alert wb-alert--info flex items-center gap-2 !p-3">
           <Clock size={14} strokeWidth={1.5} className="shrink-0" />
-          <span className="text-xs">尚未发布预成交公示</span>
+          <span className="text-xs">尚未发布中标公告</span>
           {winner?.bidPrice && (
             <span className="ml-2 text-xs font-mono tabular-nums text-[var(--muted-foreground)]">
               中标金额：¥{Number(winner.bidPrice).toLocaleString('zh-CN')}
@@ -1415,6 +1421,11 @@ function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detai
           <div className="flex items-center gap-2">
             <CheckCircle2 size={14} strokeWidth={1.5} className="shrink-0" />
             <span className="text-xs font-semibold">公示期已满，可发出中标通知书</span>
+            {status.announcement && (
+              <span className="text-xs text-[var(--muted-foreground)]">
+                公示载体：{PUBLICITY_CARRIER_LABEL[status.announcement.type] ?? status.announcement.type}《{status.announcement.title}》
+              </span>
+            )}
           </div>
           {detail?.evaluationResults?.some(r => r.rank === 1 && r.recommended) && deliveryUiState !== 'locked' && (
             <div className="mt-3 rounded-lg bg-[var(--surface)] p-3">
@@ -1447,7 +1458,7 @@ function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detai
                 </button>
               </div>
               <p id={`award-letter-help-${bidProjectId}`} className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">
-                支持 PDF、DOC、DOCX，最大 20 MB；供应商将在门户内查看、下载并签收该文件。
+                支持 PDF、DOC、DOCX，最大 100 MB；供应商将在门户内查看、下载并签收该文件。
               </p>
               {deliverError && <p role="alert" className="mt-1.5 text-xs font-medium text-[var(--danger)]">{deliverError}</p>}
             </div>
@@ -1457,6 +1468,11 @@ function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detai
         <div className="wb-alert wb-alert--warning flex items-center gap-2 !p-3">
           <Clock size={14} strokeWidth={1.5} className="shrink-0" />
           <span className="text-xs font-semibold">公示期未满，剩余约 {status.publicityEnd ? Math.ceil((new Date(status.publicityEnd).getTime() - Date.now()) / 86400000) : 0} 天，暂不可发出中标通知书</span>
+          {status.announcement && (
+            <span className="text-xs text-[var(--muted-foreground)]">
+              公示载体：{PUBLICITY_CARRIER_LABEL[status.announcement.type] ?? status.announcement.type}《{status.announcement.title}》
+            </span>
+          )}
         </div>
       )}
 

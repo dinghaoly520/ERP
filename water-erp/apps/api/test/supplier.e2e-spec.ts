@@ -507,4 +507,225 @@ describe('Supplier (e2e)', () => {
       });
     });
   });
+
+  // ── 供应商多公司归属（SupplierCompanyLink，2026-10-16 spec）：唯一通道=供应商自主申请，
+  //    走该公司三级审批（staff 初审 → leader 复审 → admin 终审），任一级可驳回。──
+  //
+  // 种子锚点：供应商「重庆蜀通岩土工程有限公司」主归属=设计院本部（co-swhi-sjy，backfill）。
+  // 三级审批的级权限口径（SupplierLinkService.assertStageApprover）：
+  //   STAFF  → 本公司 staff；无 staff 则本公司 leader；二者皆无则 admin（上浮代审）
+  //   LEADER → 本公司 leader；无 leader 则 admin
+  //   ADMIN  → 仅 admin
+  // 故驱动真三级须选「有 staff+leader」的公司作 B/C：
+  //   B = 四川水发建设有限公司（co-swhi-js）：staff Swhi-JS-02、leader Swhi-JS-01 —— 全链通过
+  //   C = 四川水发投资有限公司（co-swhi-tz）：staff Swhi-TZ-02 —— 驳回路径
+  //   D = 四川省水利发展集团有限公司（co-swdg-jt）：无 staff/leader —— 注册查重引导（供应商无 link）
+  describe('供应商多公司归属（SupplierCompanyLink e2e）', () => {
+    let sup: { id: string; companyId: string | null; creditCode: string | null };
+    let bCompanyId: string;
+    let cCompanyId: string;
+    let dCompanyId: string;
+    // ApplyCompanyLinkDto.companyId 为 @IsUUID()，而种子公司 id 是 'co-*' 非 UUID——申请须走 companyName（与 :3004 前端同口径）
+    const bCompanyName = '四川水发建设有限公司';
+    const cCompanyName = '四川水发投资有限公司';
+    let jsStaffCookie: string[]; // Swhi-JS-02 staff@建设
+    let jsLeaderCookie: string[]; // Swhi-JS-01 leader@建设
+    let tzStaffCookie: string[]; // Swhi-TZ-02 staff@投资
+    let adminCookie: string[]; // Swhi-CGZX-admin
+    /** C1 终审修复（2026-10-19）e2e 夹具：PENDING 新注册供应商（companyId=建设、无任何 link），afterAll 清理 */
+    let c1UserId = '';
+    let c1SupplierId = '';
+
+    /** 注册 DTO：复用本文件既有注册用例的完整构造（含营业执照/主联系人/验证码双轨必填项），
+     *  仅覆写 creditCode/companyId。信用代码查重分流（ACCOUNT_EXISTS_JOIN_INSTEAD）在手机验证之后、
+     *  法人身份证/手机号盲索引查重之前，故此处值可独立不冲突。 */
+    const existingRegisterBody = {
+      companyId: '', // 每次请求覆写
+      name: 'E2E多公司归属查重引导公司',
+      creditCode: '', // 每次请求覆写为 dupCreditCode
+      enterpriseType: '有限责任公司',
+      legalPerson: '李四',
+      legalPersonIdCard: '510104199001019999',
+      registeredAddress: '测试地址',
+      businessScope: '测试范围',
+      username: 'ignored', // 注册强制 username=统一社会信用代码，此值被忽略
+      displayName: '查重引导',
+      password: 'Test1234',
+      email: 'join-guide@test.com',
+      registrationPhone: '13800000002',
+      registrationCode: '123456', // SMS_DEBUG_BYPASS（setup-throttle.ts）下直过
+      contacts: [{ name: '联系人', phone: '13800000002', idCard: '510104199001019998', isPrimary: true }],
+      qualifications: [{ type: '营业执照', name: '企业法人营业执照', fileUrl: '/api/upload/files/e2e-join-guide-license' }],
+      tags: ['物资供应', '工程服务'], // tags 需 ≥2 项（DTO @ArrayMinSize(2)）
+    };
+
+    beforeAll(async () => {
+      const u = await prisma.user.findUnique({
+        where: { username_role: { username: '重庆蜀通岩土工程有限公司', role: 'supplier' } },
+      });
+      const s = await prisma.supplier.findUnique({
+        where: { userId: u!.id },
+        select: { id: true, companyId: true, creditCode: true },
+      });
+      sup = s!;
+      const byName = async (name: string): Promise<string> => {
+        const c = await prisma.company.findUnique({ where: { name } });
+        if (!c) throw new Error(`seed 缺少公司主数据：${name}`);
+        return c.id;
+      };
+      bCompanyId = await byName('四川水发建设有限公司');
+      cCompanyId = await byName('四川水发投资有限公司');
+      dCompanyId = await byName('四川省水利发展集团有限公司');
+      jsStaffCookie = await loginAs(app, 'Swhi-JS-02', 'Swhi-JS-02@2026', 'web');
+      jsLeaderCookie = await loginAs(app, 'Swhi-JS-01', 'Swhi-JS-01@2026', 'web');
+      tzStaffCookie = await loginAs(app, 'Swhi-TZ-02', 'Swhi-TZ-02@2026', 'web');
+      adminCookie = await loginAs(app, 'Swhi-CGZX-admin', 'Swhi-CGZX-admin@2026', 'web');
+    });
+
+    afterAll(async () => {
+      // 清理本 describe 建的 link（防污染后续 CI 跑：种子供应商的 link 恢复 backfill 态）
+      if (sup) {
+        await prisma.supplierCompanyLink.deleteMany({
+          where: { supplierId: sup.id, companyId: { not: sup.companyId ?? '' } },
+        });
+      }
+      // C1 终审修复 e2e 夹具：删 User 即级联删 Supplier（onDelete: Cascade）
+      if (c1UserId) {
+        await prisma.user.deleteMany({ where: { id: c1UserId } }).catch(() => {});
+      }
+    });
+
+    it('申请 → 三级审批（staff→leader→admin）→ 终态 APPROVED', async () => {
+      // 1. 供应商申请加入 B 公司
+      const apply = await request(app.getHttpServer())
+        .post('/api/supplier-portal/company-links/apply')
+        .set('Cookie', supplierCookie)
+        .set('X-Portal', 'supplier')
+        .send({ companyName: bCompanyName, note: 'e2e 多公司归属' })
+        .expect(201);
+      expect(apply.body.id).toBeTruthy();
+
+      // 2. 三级逐级通过（staff→leader→admin；staff/leader 须填同意缘由）
+      const staffApprove = await request(app.getHttpServer())
+        .post(`/api/supplier/company-links/${apply.body.id}/approve`)
+        .set('Cookie', jsStaffCookie)
+        .set('X-Portal', 'web')
+        .send({ reason: 'e2e 初审通过' })
+        .expect(201);
+      expect(staffApprove.body.stage).toBe('LEADER');
+
+      const leaderApprove = await request(app.getHttpServer())
+        .post(`/api/supplier/company-links/${apply.body.id}/approve`)
+        .set('Cookie', jsLeaderCookie)
+        .set('X-Portal', 'web')
+        .send({ reason: 'e2e 复审通过' })
+        .expect(201);
+      expect(leaderApprove.body.stage).toBe('ADMIN');
+
+      const adminApprove = await request(app.getHttpServer())
+        .post(`/api/supplier/company-links/${apply.body.id}/approve`)
+        .set('Cookie', adminCookie)
+        .set('X-Portal', 'web')
+        .send({}) // 终审无须缘由
+        .expect(201);
+      expect(adminApprove.body.stage).toBe('DONE');
+
+      // 3. 终态断言（硬闸）：供应商视角 B 公司库内状态 = APPROVED
+      const mine = await request(app.getHttpServer())
+        .get('/api/supplier-portal/company-links')
+        .set('Cookie', supplierCookie)
+        .set('X-Portal', 'supplier')
+        .expect(200);
+      const link = mine.body.find((l: any) => l.companyId === bCompanyId);
+      expect(link).toBeTruthy();
+      expect(link.status).toBe('APPROVED');
+    });
+
+    it('申请驳回：STAFF 级驳回 → REJECTED + 原因回传', async () => {
+      const apply = await request(app.getHttpServer())
+        .post('/api/supplier-portal/company-links/apply')
+        .set('Cookie', supplierCookie)
+        .set('X-Portal', 'supplier')
+        .send({ companyName: cCompanyName })
+        .expect(201);
+      expect(apply.body.id).toBeTruthy();
+
+      const rej = await request(app.getHttpServer())
+        .post(`/api/supplier/company-links/${apply.body.id}/reject`)
+        .set('Cookie', tzStaffCookie)
+        .set('X-Portal', 'web')
+        .send({ reason: 'e2e 驳回原因' })
+        .expect(201);
+      expect(rej.body.success).toBe(true);
+
+      const mine = await request(app.getHttpServer())
+        .get('/api/supplier-portal/company-links')
+        .set('Cookie', supplierCookie)
+        .set('X-Portal', 'supplier')
+        .expect(200);
+      const link = mine.body.find((l: any) => l.companyId === cCompanyId);
+      expect(link).toBeTruthy();
+      expect(link.status).toBe('REJECTED');
+      expect(link.rejectReason).toBe('e2e 驳回原因');
+    });
+
+    it('注册查重引导：他司已入库信用代码注册其他公司 → ACCOUNT_EXISTS_JOIN_INSTEAD', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/supplier/register')
+        .set('X-Portal', 'public')
+        .send({ ...existingRegisterBody, creditCode: dupCreditCode, companyId: dCompanyId })
+        .expect(400);
+      expect(res.body.code).toBe('ACCOUNT_EXISTS_JOIN_INSTEAD');
+    });
+
+    // C1 终审修复（2026-10-19）：审批流面公司谓词双化——新注册件提交即落 Supplier.companyId，
+    // 但 APPROVED link 要到 ADMIN 终审才 upsert，此前单 link 谓词致 B 公司 staff 的 PENDING 列表
+    // 空（角标 myPendingReviewCount 按 companyId 计却有数——「角标有数、列表却空」）。
+    it('新注册件（companyId=建设、无 link）→ 建设 staff 的 PENDING 列表可见（raw+ORM 双路径）、库视图不可见', async () => {
+      const t = Date.now();
+      const c1Name = `E2E-C1新注册供应商${t}`;
+      const user = await prisma.user.create({
+        data: { username: `e2e-c1-${t}`, role: 'supplier', displayName: 'C1双谓词', companyId: bCompanyId },
+      });
+      c1UserId = user.id;
+      const supplier = await prisma.supplier.create({
+        data: {
+          userId: user.id, supplierNo: `E2E-C1-${t}`, name: c1Name, normalizedName: c1Name,
+          creditCode: `9151C1${t}`, enterpriseType: '有限责任公司', legalPerson: '测试',
+          registeredAddress: '测试地址', businessScope: '测试',
+          companyId: bCompanyId, status: 'PENDING', reviewStage: 'STAFF',
+        },
+      });
+      c1SupplierId = supplier.id;
+      // 无任何 link（终审前事实）——双谓词的第二分支（主归属在视野）必须兜住
+      expect(await prisma.supplierCompanyLink.count({ where: { supplierId: c1SupplierId } })).toBe(0);
+
+      // raw 路径（默认 completeness 排序 = 审批面板实际路径）
+      const raw = await request(app.getHttpServer())
+        .get('/api/supplier/list')
+        .query({ status: 'PENDING', search: 'E2E-C1新注册供应商' })
+        .set('Cookie', jsStaffCookie)
+        .set('X-Portal', 'web')
+        .expect(200);
+      expect(raw.body.items.some((i: any) => i.id === c1SupplierId)).toBe(true);
+
+      // ORM 路径（sort=createdAt）
+      const orm = await request(app.getHttpServer())
+        .get('/api/supplier/list')
+        .query({ status: 'PENDING', sort: 'createdAt', search: 'E2E-C1新注册供应商' })
+        .set('Cookie', jsStaffCookie)
+        .set('X-Portal', 'web')
+        .expect(200);
+      expect(orm.body.items.some((i: any) => i.id === c1SupplierId)).toBe(true);
+
+      // 库视图（无 status）仍 APPROVED link-only——无 link 的新注册件不入库（Task 7 口径不动）
+      const lib = await request(app.getHttpServer())
+        .get('/api/supplier/list')
+        .query({ search: 'E2E-C1新注册供应商' })
+        .set('Cookie', jsStaffCookie)
+        .set('X-Portal', 'web')
+        .expect(200);
+      expect(lib.body.items.some((i: any) => i.id === c1SupplierId)).toBe(false);
+    });
+  });
 });

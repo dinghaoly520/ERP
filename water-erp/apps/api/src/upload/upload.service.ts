@@ -9,6 +9,7 @@ import { unwrapKey, wrapKey, isWrappedKey } from '../common/crypto/envelope-cryp
 import { createDecryptStream, encryptBuffer } from '../announcement/bid-document.crypto';
 import { UPLOAD_CATEGORIES, UPLOAD_SERVER_SEAL_CATEGORIES } from './upload-categories';
 import { matchesFileContentPolicy, PDF_WORD_IMAGE_MIME_TYPES } from './file-content-policy';
+import { assertAttachmentRules } from './attachment-rules';
 import { CompanyScopeService } from '../company/company-scope';
 import { scopeCompanyIds } from '../company/company-scope';
 
@@ -24,6 +25,10 @@ const ALLOWED_MIME_TYPES = [
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/zip',
+  // rar/zip 变体 MIME（2026-10-19 附件白名单含 rar，浏览器/系统探测发送的常见形式）
+  'application/vnd.rar',
+  'application/x-rar-compressed',
+  'application/x-zip-compressed',
   'text/plain',
 ];
 
@@ -122,6 +127,10 @@ export class UploadService implements OnModuleInit {
         });
       }
     }
+
+    // 附件统一限制（2026-10-19）：类目级大小上限（announcement/contract_document 100MB、
+    // 其余 50MB）+ announcement 扩展白名单
+    assertAttachmentRules(file, category);
   }
 
   /**

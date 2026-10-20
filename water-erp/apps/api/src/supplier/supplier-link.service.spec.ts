@@ -1,3 +1,4 @@
+import { ForbiddenException } from '@nestjs/common';
 import { SupplierLinkService } from './supplier-link.service';
 
 /** 供应商侧 link 操作：myLinks/apply（多公司归属 2026-10-16 spec §流程——唯一通道=自主申请） */
@@ -115,7 +116,16 @@ describe('SupplierLinkService — 公司侧（三级审批）', () => {
       auditLog: { create: jest.fn().mockResolvedValue({}) },
     };
     const notify = { create: jest.fn().mockResolvedValue({}) };
-    const SCOPE: any = { resolveScope: jest.fn(async () => ({ all: false, companyIds: ['co-2'] })) };
+    // I1 终审修复（2026-10-19）：setDisabled 经 resolveScope+assertInScope 断言本公司 link——
+    // 桩与真 CompanyScopeService 同语义（限定集不含目标公司 id → 403 COMPANY_SCOPE_FORBIDDEN）
+    const SCOPE: any = {
+      resolveScope: jest.fn(async () => ({ all: false, companyIds: ['co-2'] })),
+      assertInScope: (id: string | null, s: any) => {
+        if (!s.all && (id == null || !s.companyIds.includes(id))) {
+          throw new ForbiddenException({ error: '该数据不属于本公司，无权访问', code: 'COMPANY_SCOPE_FORBIDDEN' });
+        }
+      },
+    };
     const svc = new SupplierLinkService(prisma, notify as any, SCOPE);
     return { prisma, notify, svc, scope: SCOPE };
   };
@@ -167,11 +177,43 @@ describe('SupplierLinkService — 公司侧（三级审批）', () => {
     expect(notify.create).toHaveBeenCalled();
   });
 
+  // I1 终审修复（2026-10-19）：setDisabled 接入 :id 公司域断言 + 审计留痕 + 停用通知
+  const ACTOR_LEADER = { sub: 'ld-1', role: 'leader', username: 'Swhi-JS-01' } as any;
+
   it('setDisabled：APPROVED↔DISABLED 切换；非此二态 → 400 INVALID_STATUS', async () => {
     const { svc } = mkSide({ link: { status: 'APPROVED', reviewStage: null } });
-    await expect(svc.setDisabled('l1', 'rev-1', true)).resolves.toEqual({ success: true });
+    await expect(svc.setDisabled('l1', ACTOR_LEADER, true)).resolves.toEqual({ success: true });
     const bad = mkSide({ link: { status: 'PENDING', reviewStage: 'STAFF' } });
-    await expect(bad.svc.setDisabled('l1', 'rev-1', true)).rejects.toMatchObject({ response: { code: 'INVALID_STATUS' } });
+    await expect(bad.svc.setDisabled('l1', ACTOR_LEADER, true)).rejects.toMatchObject({ response: { code: 'INVALID_STATUS' } });
+  });
+
+  it('setDisabled：跨公司 leader → 403 COMPANY_SCOPE_FORBIDDEN，且不落库不审计', async () => {
+    const { prisma, svc, scope } = mkSide({ link: { status: 'APPROVED', reviewStage: null } });
+    scope.resolveScope.mockResolvedValueOnce({ all: false, companyIds: ['co-other'] }); // 他司视野
+    await expect(svc.setDisabled('l1', ACTOR_LEADER, true)).rejects.toMatchObject({ response: { code: 'COMPANY_SCOPE_FORBIDDEN' } });
+    expect(prisma.supplierCompanyLink.updateMany).not.toHaveBeenCalled();
+    expect(prisma.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it('setDisabled：本公司 leader 停用 → 成功 + audit(SUPPLIER_LINK_DISABLED) + 通知供应商', async () => {
+    const { prisma, notify, svc } = mkSide({ link: { status: 'APPROVED', reviewStage: null } });
+    await expect(svc.setDisabled('l1', ACTOR_LEADER, true)).resolves.toEqual({ success: true });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ userId: 'ld-1', action: 'SUPPLIER_LINK_DISABLED', resourceType: 'supplier_company_link', resourceId: 'l1' }),
+    }));
+    expect(notify.create).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'u1',
+      type: 'SUPPLIER_LINK_DISABLED',
+    }));
+  });
+
+  it('setDisabled：恢复（enable）→ audit(SUPPLIER_LINK_ENABLED) 且不通知（myLinks 自见状态）', async () => {
+    const { prisma, notify, svc } = mkSide({ link: { status: 'DISABLED', reviewStage: null } });
+    await expect(svc.setDisabled('l1', ACTOR_LEADER, false)).resolves.toEqual({ success: true });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ action: 'SUPPLIER_LINK_ENABLED' }),
+    }));
+    expect(notify.create).not.toHaveBeenCalled();
   });
 
   it('listForCompany：公司视野注入 + supplier 只读字段 + admin companyId 透传', async () => {

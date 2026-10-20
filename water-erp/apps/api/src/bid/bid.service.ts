@@ -37,12 +37,12 @@ import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-ar
 import { openField } from '../common/crypto/field-crypto';
 import { parseFlexibleDate } from '../common/parse-date.util';
 import { stripAnnouncementTitlePrefix } from '../common/announcement-title.util';
-import { generateProjectCode } from '../common/project-code.util';
+import { generateProjectCode, resolveHostedProjectCode } from '../common/project-code.util';
 import { GbCodeService } from '../common/gb-code.service';
 import { assertNudgeWindowOpen, assertOpeningDeadlineRelation, deriveDeadlineFromOpenTime, deriveOpenTimeFromDeadline, modeFor } from './opening-deadline.util';
 import { parseConflictedIds } from '../common/scoring/expert.util';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../common/scoring/expert-deviation';
-import { Prisma, AiBidderStatus } from '@prisma/client';
+import { Prisma, AiBidderStatus, AnnouncementType } from '@prisma/client';
 import { classifyUserAgent } from '../common/session-device.util';
 import { pendingBondReturnWhere } from './bond-pending.util';
 import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
@@ -710,7 +710,17 @@ export class BidService {
   }
 
   async createProject(dto: CreateBidProjectDto, operator?: { sub: string; role: string }) {
-    const projectCode = await generateProjectCode(this.prisma, dto.procurementMethod);
+    // 2026-10-19 编号统一：有 PMI 宿主继承其业务编号（同公告/立项口径），否则三段式公司码
+    const companyStamp = await this.operatorCompanyStamp(operator);
+    const hostPmi = dto.projectManagementItemId
+      ? await this.prisma.projectManagementItem.findUnique({
+          where: { id: dto.projectManagementItemId },
+          select: { projectCode: true },
+        })
+      : null;
+    const projectCode = hostPmi?.projectCode
+      ? await resolveHostedProjectCode(this.prisma, { pmiCode: hostPmi.projectCode })
+      : await generateProjectCode(this.prisma, dto.procurementMethod, 'bidProject', { companyId: companyStamp.companyId });
     // A1（B.4.3.3/4）：分配国标编码——有 PMI 宿主复用其 18 位基码，否则自立
     const host = dto.projectManagementItemId
       ? await this.prisma.projectManagementItem.findUnique({ where: { id: dto.projectManagementItemId }, select: { gbProjectCode: true } })
@@ -749,7 +759,7 @@ export class BidService {
         bondRequired: dto.bondRequired ?? false,
         bondAmount: dto.bondAmount,
         // 公司归属快照自创建人（BidCompanyScopeGuard：非_admin 内部角色仅本公司项目可见）
-        ...(await this.operatorCompanyStamp(operator)),
+        ...companyStamp,
       },
     });
 
@@ -775,9 +785,14 @@ export class BidService {
     announcement: { id: string; title: string; publishDate: Date | null },
     metadata: Record<string, any>,
     companyStamp: { companyId?: string | null; companyName?: string | null } = {},
+    hostPmi?: { id: string; projectCode: string | null } | null,
   ) {
     const procurementMethod = metadata.method || '公开招标';
-    const projectCode = await generateProjectCode(this.prisma, procurementMethod);
+    // 2026-10-19 编号统一：公告直建继承宿主 PMI 业务编号（公告 relatedProjectCode 同码），
+    // 无宿主（历史直发公告）按三段式公司码生成——不再产出两段式孤儿编号
+    const projectCode = hostPmi?.projectCode
+      ? await resolveHostedProjectCode(this.prisma, { pmiCode: hostPmi.projectCode })
+      : await generateProjectCode(this.prisma, procurementMethod, 'bidProject', { companyId: companyStamp.companyId });
     // A1（B.4.3.3/4）：国标采购项目编码 + 标段编码（宿主 PMI 的 18 位码优先复用）
     const host = metadata.projectManagementItemId
       ? await this.prisma.projectManagementItem.findUnique({ where: { id: metadata.projectManagementItemId }, select: { gbProjectCode: true } })
@@ -1528,7 +1543,17 @@ export class BidService {
     // N5：原时间已随流标过期——重启项目给「截标 +3 天、开标 = 截标 +24h」兜底窗口，并在留痕中提示重新设定
     const fallbackDeadline = new Date(Date.now() + 3 * 24 * 3600 * 1000);
     const fallbackOpenTime = deriveOpenTimeFromDeadline(fallbackDeadline);
-    const newCode = await generateProjectCode(this.prisma, original.procurementMethod);
+    // 2026-10-19 编号统一：重招继承宿主 PMI 业务编号（原项目持有基础码 → 新轮次 -Rn 后缀）；
+    // 无 PMI 宿主按三段式公司码生成
+    const reopenPmi = original.projectManagementItemId
+      ? await this.prisma.projectManagementItem.findUnique({
+          where: { id: original.projectManagementItemId },
+          select: { projectCode: true },
+        })
+      : null;
+    const newCode = reopenPmi?.projectCode
+      ? await resolveHostedProjectCode(this.prisma, { pmiCode: reopenPmi.projectCode, preferredRound: (original.round ?? 1) + 1 })
+      : await generateProjectCode(this.prisma, original.procurementMethod, 'bidProject', { companyId: original.companyId });
     const now = new Date();
     const newProject = await this.prisma.bidProject.create({
       data: {
@@ -4243,9 +4268,12 @@ export class BidService {
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
 
-    // C1（7.5.2）：优先取预成交公示（两段式第一段）；无则回落存量 WIN_NOTICE（老"中标公示"，
-    // 其 publicityEnd 语义同为公示期）。多轮采购取"本轮"（最近评标结果之后）的公告——
-    // 上一轮已确认的公示不应继续给第二轮项目当公示状态（否则二轮永远"已公示"）。
+    // 公示载体（2026-10-19 收口）：本系统实际使用的载体是发布向导「中标公告」（WIN_BID_NOTICE）
+    // ——发布即公告中标候选人（确认 rank1 推荐为中标人）。此前查找只认 PRE_WIN_NOTICE/
+    // WIN_NOTICE（代码遗留的两段式轨道，系统内并不产生），导致「已发中标公告仍提示中标
+    // 候选人未公布」、中标通知书被 PUBLICITY_NOT_ENDED 卡死。三类候选并行查询、
+    // 仅取已发布者（草稿不得遮蔽已发布中标公告），本轮（最近评标结果之后）优先、
+    // 无则回落全量（在途/登记制场景）。
     const codes = await this.resolveAnnouncementCodes(project);
     const latestResult = await this.prisma.bidEvaluationResult.findFirst({
       where: { projectId },
@@ -4253,34 +4281,56 @@ export class BidService {
       select: { generatedAt: true },
     });
     const roundFilter = latestResult ? { createdAt: { gt: latestResult.generatedAt } } : {};
-    const pick = (type: any) => this.prisma.announcement.findFirst({
-      where: { relatedProjectCode: { in: codes }, type, ...roundFilter },
+    const pick = (type: AnnouncementType, round: boolean) => this.prisma.announcement.findFirst({
+      where: { relatedProjectCode: { in: codes }, type, ...(round ? roundFilter : {}) },
       orderBy: { createdAt: 'desc' },
-      select: { status: true, publishDate: true, publicityEnd: true },
+      select: { id: true, title: true, type: true, status: true, publishDate: true, publicityEnd: true },
     });
-    const notice =
-      (await pick('PRE_WIN_NOTICE')
-        .then(r => r ?? pick('WIN_NOTICE'))) ??
-      // 本轮无任何公示 → 回落全量（在途/登记制场景）
-      (await this.prisma.announcement.findFirst({
-        where: { relatedProjectCode: { in: codes }, type: 'PRE_WIN_NOTICE' },
-        orderBy: { createdAt: 'desc' },
-        select: { status: true, publishDate: true, publicityEnd: true },
-      })) ??
-      (await this.prisma.announcement.findFirst({
-        where: { relatedProjectCode: { in: codes }, type: 'WIN_NOTICE' },
-        orderBy: { createdAt: 'desc' },
-        select: { status: true, publishDate: true, publicityEnd: true },
-      }));
+    const carrierTypes: AnnouncementType[] = ['PRE_WIN_NOTICE', 'WIN_NOTICE', 'WIN_BID_NOTICE'];
+    const firstPublished = async (round: boolean) => {
+      const rows = await Promise.all(carrierTypes.map(t => pick(t, round)));
+      return rows.find(r => r?.status === 'PUBLISHED') ?? null;
+    };
+    const notice = (await firstPublished(true)) ?? (await firstPublished(false));
+
+    // 已确认中标候选人（最近一轮 rank1 推荐）——中标公告/预成交公示发布即确认，
+    // 随状态返回供前端「公示载体 + 中标候选人」展示与核对（查询失败不阻塞状态判定）
+    let winner: { supplierName: string; bidPrice: unknown } | null = null;
+    try {
+      winner = await this.prisma.bidEvaluationResult.findFirst({
+        where: { projectId, recommended: true, rank: 1 },
+        orderBy: { generatedAt: 'desc' },
+        select: { supplierName: true, bidPrice: true },
+      });
+    } catch { /* 候选人投影缺失不影响公示闸门判定 */ }
+    const winnerProjection = winner
+      ? { supplierName: winner.supplierName, ...(winner.bidPrice != null ? { bidPrice: Number(winner.bidPrice) } : {}) }
+      : null;
 
     if (!notice || notice.status !== 'PUBLISHED') {
-      return { hasPublicity: false, publicityEnd: null, canIssueAward: false };
+      return { hasPublicity: false, publicityEnd: null, canIssueAward: false, announcement: null, winner: winnerProjection };
     }
     const now = new Date();
-    const publicityEnd = notice.publicityEnd;
+    // 中标公告（WIN_BID_NOTICE）公示期读时推导（publishDate + 3 个日历日），不落库：
+    // ① 公开端 isOfflined 口径「有 publicityEnd 才会到期」——持久化会让中标公告 3 天后
+    //    被打成标题壳下线，而结果公告应长期可查（两段式的最终成交公告同样刻意不带 publicityEnd）；
+    // ② 存量已发布中标公告（修复前创建，publicityEnd 恒 null）经此自愈，无需数据迁移。
+    // 其余载体（预成交公示/成交公告）维持「null 不放行」铁律——create/update 路径已兜底必设。
+    let publicityEnd = notice.publicityEnd;
+    if (!publicityEnd && notice.type === 'WIN_BID_NOTICE' && notice.publishDate) {
+      const derived = new Date(notice.publishDate);
+      derived.setDate(derived.getDate() + 3);
+      publicityEnd = derived;
+    }
     // 公示期未设置（null）不再放行——create/update 路径已兜底必设；null 视为未满足（条例第54条）
     const canIssueAward = !!publicityEnd && now >= new Date(publicityEnd);
-    return { hasPublicity: true, publicityEnd, canIssueAward };
+    return {
+      hasPublicity: true,
+      publicityEnd,
+      canIssueAward,
+      announcement: { id: notice.id, title: notice.title, type: notice.type },
+      winner: winnerProjection,
+    };
   }
 
   /** P1: 设置最高限价 + 价格分公式配置 + 评标办法 */
@@ -5004,6 +5054,13 @@ export class BidService {
     // 阶段守卫——谈判采购的多轮报价在评标阶段进行（先评标→再报价→最后生成结果）
     if (project.stage !== 'OPENING' && project.stage !== 'EVALUATING') {
       throw new ConflictException({ error: '当前阶段不可创建报价轮次', code: 'STAGE_NOT_OPENING' });
+    }
+    // 结果冻结闸（2026-10-19）：评标结果已生成后不再开新轮——结果生成要求全部轮次 closed
+    // （ROUNDS_NOT_CLOSED），事后新轮的报价永不同步（syncMultiRoundPrices 已跑）、且结果/
+    // 签字链已定型；submitQuote 提交侧同闸（RESULTS_FROZEN）。数据修正流程清零结果后自然放行。
+    const existingResults = await this.prisma.bidEvaluationResult.count({ where: { projectId } });
+    if (existingResults > 0) {
+      throw new ConflictException({ error: '评标结果已生成，不可再创建报价轮次；如需更正请走数据修正流程', code: 'RESULTS_FROZEN' });
     }
     // H5: 并发守卫——不允许同时存在多个 open 轮次
     const openRound = await this.prisma.bidRound.findFirst({ where: { projectId, status: 'open' } });

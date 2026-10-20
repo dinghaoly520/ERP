@@ -145,7 +145,7 @@ box-shadow:
 | `.neu-btn-soft` | 次要操作按钮 | `var(--surface)` | 38px 凸起，hover 抬升，active 内凹 |
 | `.neu-btn-xs` | 紧凑按钮 | `var(--surface)` | 30px，含 `.is-danger`/`.is-success`/`.is-warning` 颜色变体 |
 | `.neu-link` | 次级链接 | `#e8ecf2` | 经典 neumorphic |
-| `.neu-btn-group` | **按钮组容器** | — | 将并排的 `.neu-btn-primary`(44px) 与 `.neu-btn-soft`(38px) 统一为 38px 等高，消除高度不齐 |
+| `.neu-btn-group` | **按钮组容器** | — | 将并排的 `.neu-btn-primary`(44px) 与 `.neu-btn-soft`(38px) 统一为 38px 等高，消除高度不齐。**相邻双按钮铁律（2026-10-19 收录）**：标题栏（page-hero `actions`）右侧的成对操作——主操作 `primary`（可 water）+ 次操作默认 `soft`——必须包 `<span className="neu-btn-group">`：等高 38px、组内间距统一、随容器右对齐；次操作可带计数后缀（如「审核进度（2）」）。范本：:3004 企业信息「申请资料变更 / 变更记录」、公司归属管理「申请加入公司 / 审核进度」 |
 | `.flow-cta-btn` | CTA 底栏按钮 | `var(--brand)` | 54px |
 | `.hero-btn` | Hero 主 CTA | `var(--brand)` | 52px 大尺寸 |
 | `.hero-btn-outline` | Hero 描边 CTA | transparent | 描边变体 |

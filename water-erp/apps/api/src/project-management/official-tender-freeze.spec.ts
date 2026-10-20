@@ -49,7 +49,8 @@ describe('正式盖章版冻结锁（OFFICIAL_TENDER_FROZEN）', () => {
       }),
     },
     // deleteAttachment 尾部「删采购文件清空提取信息」链（clearData 落 item.update）
-    projectManagementItem: { update: jest.fn().mockResolvedValue({ id: 'pmi-1' }) },
+    // PMI 可变闸（2026-10-19）：saveAttachmentHtml/deleteAttachment 前置——默认 ACTIVE
+    projectManagementItem: { update: jest.fn().mockResolvedValue({ id: 'pmi-1' }), findUnique: jest.fn().mockResolvedValue({ status: 'ACTIVE' }) },
   });
 
   const errOf = (p: Promise<unknown>) => p.then(() => null, (e: unknown) => e);

@@ -103,7 +103,7 @@ function dayLabel(day: string): string {
   return d.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
-export function SupplierAuditLogModal({ onClose }: { onClose: () => void }) {
+export function SupplierAuditLogModal({ onClose, companyId }: { onClose: () => void; companyId?: string }) {
   const [items, setItems] = useState<SupplierAuditLogItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -121,6 +121,7 @@ export function SupplierAuditLogModal({ onClose }: { onClose: () => void }) {
         action: action || undefined,
         dateFrom: df || undefined,
         dateTo: dt || undefined,
+        companyId, // 公司视野（admin 选择器上下文透传；非 admin 后端强制本公司）
       });
       setItems(res.items);
       setTotal(res.total);
@@ -131,7 +132,7 @@ export function SupplierAuditLogModal({ onClose }: { onClose: () => void }) {
     } finally {
       setLoading(false);
     }
-  }, [pageSize]);
+  }, [pageSize, companyId]);
 
   useEffect(() => { doLoad(1, '', '', ''); }, [doLoad]);
 

@@ -103,6 +103,8 @@ The bid expert evaluation workstation. Core workflow (5-step wizard):
 
 Also includes a dashboard (project list + statistics) and profile management (expert info editing, review records).
 
+**平板形态·只认显式声明（2026-10-19，`e732eb56`）**：平板是独立路由组 `(tablet)`（`/tablet` 工作台 + `/tablet/evaluate/[id]` 触屏打分页——平板只存草稿、正式提交在桌面端）。形态判定只认两条显式信号：`device_mode` cookie（登录页署名下方「平板设备入口」链接、或 `?device=tablet|desktop` 手动切换，proxy 写 7 天 cookie）与 `X-Forwarded-Device` 反代头（生产按无线子网注入）。**UA/触摸自动检测已删**（旧 `lib/device.ts`：maxTouchPoints>1 误判触摸屏笔记本、UA 含 CrOS 误判 Chromebook，7 天 cookie 把台式机锁进平板模式且无法提交评分）——勿再引入 UA 猜测。发现平板的主动机制 = 桌面评审页扫码工位迁移（`/tablet/claim` 公开页：90s 单次票据 + 登录密码重证 + 留档照，会话轮换到平板、桌面会话失效）。坑：proxy 的 `?device=` 处理块必须在鉴权闸门**之前**（匿名平板点入口须先落 cookie 再弹回 `/login?redirect=/tablet`，放闸门后匿名请求丢 device 参数）；平板 15min 空闲自动登出后重登靠 `redirect=/tablet` 直达工作台；曾被误判的存量机器用 `/?device=desktop` 一次解除。
+
 **Access:** Requires login as `bid_expert` role.  
 **Login cookie:** `token_expert`.  
 **Target audience:** Expert evaluators assigned to bid projects.
@@ -244,7 +246,7 @@ Passwords follow `<username>@2026` convention:
 | `Swhi-CGZX-00` | `Swhi-CGZX-00@2026` | leader · 董事长（工作台董事长变体+受限导航，见 `apps/web/src/lib/workbench-profiles.ts`） | 采购管理工作台 (:3005) |
 | `SWDG-01` | `SWDG-01@2026` | staff · 水发集团（落地 /tender-write+受限导航，见 workbench-profiles.ts） | 采购管理工作台 (:3005) |
 | `Swhi-CGZX-admin` | `Swhi-CGZX-admin@2026` | admin · 密码审批等管理功能 | 采购管理工作台 (:3005) |
-| 专家姓名（如 `刘苡池`） | `111111111111111111` | bid_expert | 专家门户 (:3006) |
+| 专家姓名（如 `杨睿`） | `<其身份证号，见 ExpertLibrary.json>` | bid_expert | 专家门户 (:3006) |
 | `陈源远` | `陈源远@2026` | bid_host | 开评标管理端 (:3007) |
 
 > **「陈源远」同名账号**：username 不再全局唯一（改为 `[username, role]` 复合唯一），两个 role 不同的账号共用登录名「陈源远」/ `陈源远@2026`。登录时按来源门户（`X-Portal` 头）区分：电子商城→mall、开标端（专家门户 admin tab）→bid_host。注意 `PORTAL_ROLE_PRIORITY.web` = `[leader, staff, bid_host, admin]` （原 `procurement_staff` 幽灵账户已于 2026-08-20 删除），故「陈源远」从采购管理端 :3005 登录会解析为 `bid_host`、采购功能 403——**:3005 请用 `Swhi-CGZX-*` leader/staff 账号**（口令 `<用户名>@2026`，见上表与 `water-erp/ACCOUNTS.md`）。详见 `auth.service.ts`。
@@ -252,7 +254,7 @@ Passwords follow `<username>@2026` convention:
 
 > `admin` role 已有种子账号 `Swhi-CGZX-admin`（密码审批等管理功能；登录口令 `<用户名>@2026`）。开评标管理端 (:3007) 演示请用 `陈源远` (bid_host)。
 
-> **评审专家库（187 名）**：来自真实专家库（`apps/api/prisma/seed-data/ExpertProfile.json`）。`seed.ts` 末尾会把真实库导出的编号用户名重置为专家姓名、口令取档案 `idNumber`（2026-09-20 起快照统一注入 `111111111111111111`；档案缺失者回退 `expert@2026`），便于演示登录。
+> **评审专家库（180 名，2026-10-19 换血）**：唯一来源 `apps/api/prisma/seed-data/ExpertLibrary.json`（集团拟入库名单，8 家公司：集团本部 30/设计院 47/建设 30/投资 18/能源 5/亭子口 10/向家坝 20/引大 20——后 4 家公司主数据由 seed `SEED_COMPANIES` 建档）。`seed.ts` 公司归属重建段 1.45 清空快照旧专家后按名单整体重建：**用户名=姓名、口令=身份证号**、`entryStatus=ACTIVE`、归属公司直挂 `companyId`（分公司/下属简写单位并入母公司，原表单位入 notes）。`POST /expert-admin/import-from-seed` 同读该名单（PENDING 待审核）。旧 187 名真实库导出快照（`User.json`/`ExpertProfile.json`）不再是专家来源（会被 1.45 清空，勿再从其恢复专家）。
 >
 > **供应商登录**：同理，`seed.ts` 会把所有供应商用户名重置为**公司名**、口令统一为 `supplier@2026`（与上表一致）。故供应商一律用「公司名 / supplier@2026」登录，不再有 `supplier1`/`huaxi` 等短用户名。
 
@@ -410,6 +412,12 @@ DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED
 ```
 
 **单向棘轮（2026-07 弱化，`bid/bid-state.ts`）**：只许前进、**允许跳步**（DOWNLOAD→OPENING、OPENING→ARCHIVED 合法），同阶段幂等；回退或离开 ARCHIVED 抛 `ConflictException` (409)。阶段是**单向进度标记而非逐级许可**——实质准入闸门下沉到端点业务前置（投递 = OPENING 前 + deadline 未到 + 已发布招标公告；解密 = OPENING + 解密窗口内）。人工流转按分工 v3（2026-08-13）：按时开标 :3005「开标确认」面板、启动评标与评标中流标 :3007、完整归档 :3005（闸门=签字闭环+评标回流已生成）。:3007 在 OPENING 阶段内写开标会话并持有「完成开标·资料移交」（`POST /bid/projects/:id/complete-opening`：开标文件包（JSON + SHA-256 指纹）存 MinIO、FileAsset 挂到会话并回传 :3005，幂等、不改 stage，**不作为启动评标的前置闸门**）。水叮当助理的归档动作经用户确认后复用同一 archiveAll 路径，是面板之外唯一的流转入口。例外：删除公告会解除公告↔项目关联——DOWNLOAD/ABORTED/ARCHIVED 三态仅解关联（不重置阶段、不级联销毁开标/评标产物）；SUBMIT+ 已被 409 `BID_IN_PROGRESS` 禁令拦截（见「公告删除规则」）（`announcement.service.ts`，终审裁定 2026-08-21）。
+**PMI 归档闸（2026-10-19，TP-2026101901 谈判采购001 实例）**：PMI「完成项目」（`POST /project-management/:id/complete`）与投标侧完整归档是**两扇门**——PMI 归档只写 PMI.status=ARCHIVED，曾对关联 BidProject 零检查零联动，投标侧永卡活动态（专家门户「已完结待归档」、供应商端流程条僵尸滞留，且 BidArchiveItem 证据链永不生成）。现已在 `completeProject` 加闸：关联 BidProject 处 DOWNLOAD/SUBMIT/OPENING/EVALUATING 任一活动态 → 409 `BID_IN_PROGRESS`（终态 ABORTED/ARCHIVED 放行，流标后归档不受阻）；文案引导先走「开标确认」面板 `archive-all scope=full`。同源闸=公告删除 BID_IN_PROGRESS；终止路径的下游联动流标（terminateProject 下游联动①）不受影响。存量脏数据修复=对卡住项目补调正门 archive-all（闸门满足即成功，PMI 已 ARCHIVED 不受扰动）。同闸已下渗阶段推进（同日 09d8926c）：updateStage 对尾段阶段（开标评标/定标/合同/直接采购备案表，`BID_TAIL_STAGE_KEYS`）完成前校验同轮关联 BidProject 已终局——「归档解锁定标」的正门是 archiveAll→syncPmStage（自动置本阶段 COMPLETED 并推进指针），手工 PATCH/补录不得越过。专家门户报告确认后的分组改「已完成评审」（原「已完结待归档」），副文案注明等待归档文书无需专家操作。
+**收尾窗口写路径冻结口径（2026-10-19 审计，五提交 09d8926c…14c72503）**：报告确认（专家个人评审）/评标结果生成（价格）/PMI 归档（项目本体）三个冻结点之后的写路径全部上闸：
+- 专家侧个人评审写端点全锁——提交评分/评分草稿（空清豁免）/核对/条款标注 → 400 `SCORE_LOCKED`，`confirmReport` 重复确认 → 409 `REPORT_ALREADY_CONFIRMED`（重盖章+重复监督日志绝迹）；动议表决/异议工单/澄清应邀答复/回避申报/组长末签/电子签名/评标室口令为法定过程与签字链动作，**保持开放勿再加锁**。
+- 多轮报价双闸——`submitQuote` 补项目阶段闸（OPENING/EVALUATING，镜像 createRound）与结果冻结闸：既有 `BidEvaluationResult` → 409 `RESULTS_FROZEN`（迟到报价永不同步 syncMultiRoundPrices、与中标通知书脱钩）；`createRound` 同闸（结果生成要求全部轮次 closed，事后新轮即错配）；数据修正流程清零结果后自然放行。
+- PMI 写端点群 8 处前置 `assertPmiMutable`（status≠ACTIVE → 409 `PMI_NOT_ACTIVE`，文案分已归档/已终止/回收站）：`updateStage`/`reopenStage`（开标锁只护 BID_EVALUATION 之前，尾段曾裸奔）/`addStageAttachment`/`deleteAttachment`/`updateExtractedInfo`/`saveAttachmentParagraphs`/`saveAttachmentHtml`/`replaceAttachmentWithText`——归档数据不可扰动（DA/T103 更正走重新归档流程）；`aiPolish`（纯文本变换无落库）与 tender-draft 草稿（编写态工件、不入归档材料）不受限。
+- 审计核过守卫齐全（勿重复排查）：供应商撤回与售疑（DOWNLOAD/SUBMIT）、澄清答复（EVALUATING+待回复+寻址本司）、开标确认（OPENING+记录状态机）、主持端唱标录入（OPENING+已确认记录禁覆盖 H11）、专家 esign（signStatus PENDING 状态机）、邀请婉拒（ALREADY_CONFIRMED）、结果重生成（SIGN_PACKET_CLOSED）。
 截标↔开标 10 分钟规则（2026-08-21 定 24h；**2026-10-16 用户裁定正式改为 10 分钟**，与《招标投标法》第34条偏离留痕加巨）——常量 `BID_DEADLINE_BEFORE_OPENING_MS`（packages/shared）、校验 util `apps/api/src/bid/opening-deadline.util.ts`（align/frozen 分阶段）、存量迁移脚本 `apps/api/scripts/align-opening-deadline-24h.ts`（注意：现运行会把存量 deadline 对齐到 10 分钟口径）。
 
 ### File Uploads (MinIO)
