@@ -1317,6 +1317,11 @@ export function ExpertExtractPage({
     // 到该结果（或配置中途态），不重进配置重建默认行；已确认且已通知的完结轮才开新一轮。
     if (reDraft && !(reDraft.confirmed && reDraft.notified)) { setReModalOpen(true); return; }
     const allMain = invitationData.experts.filter(e => e.expertRole === '正选');
+    // 有待回复的正选成员时不开新轮（待回复者仍可能确认，不应提前占位补选——与步骤4横幅同口径；
+    // 否则会把历史轮已补位过的旧拒绝者重复计数）
+    if (allMain.some(e => e.invitationStatus === 'pending')) {
+      toast.warning('有待回复的成员，请等待其确认或拒绝后再补选'); return;
+    }
     // 补选人数 = 当时已拒绝(declined)的正选专家数（等额补选）；已确认参加与未确认的成员
     // 不参与本次补选人数——待回复者仍可能确认，不应提前占位补选。
     // 历史轮已补位过的拒绝者仍留在列表里（append 不清旧记录）——以「总席位-已确认」缺口为
