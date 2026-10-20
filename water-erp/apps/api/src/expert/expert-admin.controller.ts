@@ -81,9 +81,24 @@ export class ExpertAdminController {
   }
 
   @Get('specialties')
-  @ApiOperation({ summary: '专家专业列表（去重；公司隔离）' })
+  @ApiOperation({ summary: '专家专业列表（去重；显式 companyId=配额公司白名单并集可跨公司，未指定=登录人公司隔离）' })
   listSpecialties(@Query('companyId') companyId?: string, @Request() req: any = {}) {
     return this.expertAdminService.listSpecialties(req.user, companyId);
+  }
+
+  @Get('pool-companies')
+  @ApiOperation({ summary: '配额「公司」下拉候选：仅列库内确有可抽取专家的公司（与抽取池同资格口径，可跨公司）' })
+  listPoolCompanies() {
+    return this.expertAdminService.listPoolCompanies();
+  }
+
+  @Get('demand-rep-directory')
+  @ApiOperation({
+    summary: '需求方代表目录（全库，不隔离）：抽取页「公司→部门→专业」级联与指定代表搜索的数据源',
+    description: '仅输出目录级字段（姓名/单位/部门/专业/公司id），不含电话、证件号、评价等 PII；跨公司选需求方代表为既定口径（2026-09-24 抽取配置公司白名单），专家库列表端点的公司隔离保护的是全量档案浏览，本端点不适用',
+  })
+  getDemandRepDirectory() {
+    return this.expertAdminService.getDemandRepDirectory();
   }
 
   @Get('evaluations/stats')
