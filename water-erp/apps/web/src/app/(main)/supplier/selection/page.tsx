@@ -15,7 +15,7 @@ import type { Supplier } from '@/lib/types';
 import { listBidProjects, getBidProjectDetail, type BidProjectOption, type BidProjectDetail } from '@/lib/api/expert';
 import { analyzeProjectManagementItem, extractTenderFields } from '@/lib/api/project-management';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
-import { Wand2, Copy, X, Plus, FileSearch, ChevronDown, ChevronUp, Award, Zap, Building2, RefreshCw, Sparkles, Clock3, Columns3, FileSpreadsheet, Send, ListPlus, Bell, MessageSquare, ShieldCheck, Check, Search, MousePointer2, Phone, User, Upload, Loader2, FileText, Calendar, FileSignature } from 'lucide-react';
+import { Wand2, Copy, X, Plus, FileSearch, ChevronDown, ChevronUp, Award, Zap, Building2, RefreshCw, Sparkles, Clock3, Columns3, FileSpreadsheet, Send, ListPlus, Bell, MessageSquare, ShieldCheck, Check, Search, Phone, User, Upload, Loader2, FileText, Calendar, FileSignature } from 'lucide-react';
 import { Modal } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
 import { RulesPopover } from '@/components/rules-popover';
@@ -226,6 +226,10 @@ export function SupplierSelectionPage({
   const [loading, setLoading] = useState(false);
   const [reqGenerating, setReqGenerating] = useState(false);
   const reqGeneratedRef = useRef(false);
+  // 会话恢复完成标记：草稿回填（localStorage 与服务端取新）后置 true。自动 AI 生成
+  // 必须等它——恢复要 await 服务端草稿，挂载首拍字段恒空，不等则每次打开页面都白发
+  // 一次 AI 请求、再被草稿覆盖（2026-10-19 用户裁定：有内容就不触发 AI 更新）
+  const [sessionRestored, setSessionRestored] = useState(false);
   // 结构化需求字段（替代单一 textarea：5 个独立输入区 → 组合为 requirement 字符串）
   const [reqOverview, setReqOverview] = useState('');
   const [reqScope, setReqScope] = useState('');
@@ -497,14 +501,13 @@ export function SupplierSelectionPage({
     return saved >= 1 && saved <= 50 ? saved : 3;
   });
 
-  // 选取方式：AI 智能选取 / 手动选取
-  const [selectionMode, setSelectionMode] = useState<'ai' | 'manual'>('ai');
+  // 手动搜索状态（「手动补充」折叠面板用；手动选取模式已于 2026-10-19 移除，仅剩 AI 智能选取）
   const [manualSearch, setManualSearch] = useState('');
   const [manualSuppliers, setManualSuppliers] = useState<Supplier[]>([]);
   const [manualLoading, setManualLoading] = useState(false);
   const [manualTotal, setManualTotal] = useState(0);
   const [showManualAdd, setShowManualAdd] = useState(false);
-  // 增选（手动模式下追加推荐）
+  // 增选（在已推荐名单外追加 N 家 AI 推荐）
   const [addMoreOpen, setAddMoreOpen] = useState(false);
   const [addMoreCount, setAddMoreCount] = useState(1);
   const [addMoreLoading, setAddMoreLoading] = useState(false);
@@ -577,8 +580,10 @@ export function SupplierSelectionPage({
           else if (localAt > remoteAt) void saveDraft(draftKey, local); // 本机更新 → 回写服务端
         }
       } catch { /* 服务端草稿不可达时退化为纯本地（离线可用） */ }
-      if (!saved) return;
+      if (!saved) { setSessionRestored(true); return; }
       applySnapshot(saved);
+      // 与 applySnapshot 的 setState 同批落值——自动生成 effect 重跑时草稿内容已就位
+      setSessionRestored(true);
     })();
     function applySnapshot(saved: string | null) {
     try {
@@ -615,7 +620,6 @@ export function SupplierSelectionPage({
         if (state.notified) setNotified(true);
         if (state.completed) setCompleted(true);
         if (typeof state.notifyNotFound === 'number') setNotifyNotFound(state.notifyNotFound);
-        if (state.selectionMode) setSelectionMode(state.selectionMode);
         if (state.confirmationsArr) {
           const cm = new Map<string, 'pending' | 'confirmed' | 'declined'>();
           (state.confirmationsArr as [string, string][]).forEach(([k, v]) => cm.set(k, v as 'pending' | 'confirmed' | 'declined'));
@@ -768,7 +772,6 @@ export function SupplierSelectionPage({
         shortlistArr: [...shortlist.entries()],
         notified, notifyNotFound, completed,
         confirmationsArr: [...confirmations.entries()],
-        selectionMode,
         notifyPerSupplierArr: [...notifyPerSupplier.entries()],
         notifyRsvpTokens,
         manualSearch, manualSuppliers, manualTotal,
@@ -794,10 +797,10 @@ export function SupplierSelectionPage({
       draftPayloadRef.current = raw;
       scheduleDraftSync(draftKey);
     } catch {}
-  }, [requirementSnapshot, selectedTags, projectId, step, maxStepReached, result, shortlist, notified, notifyNotFound, completed, confirmations, selectionMode, notifyPerSupplier, notifyRsvpTokens, manualSearch, manualSuppliers, manualTotal, isRerun, rerunShortlist, rerunConfirmations, rerunResult, rerunNotified, rerunNotifyPerSupplier, rerunMode, rerunHistory.length, configSent, timeConfirmed, attachFiles, refFileKeys, downloadMode, downloadPassword, paidAmount, addMoreIdsSnapshot]);
+  }, [requirementSnapshot, selectedTags, projectId, step, maxStepReached, result, shortlist, notified, notifyNotFound, completed, confirmations, notifyPerSupplier, notifyRsvpTokens, manualSearch, manualSuppliers, manualTotal, isRerun, rerunShortlist, rerunConfirmations, rerunResult, rerunNotified, rerunNotifyPerSupplier, rerunMode, rerunHistory.length, configSent, timeConfirmed, attachFiles, refFileKeys, downloadMode, downloadPassword, paidAmount, addMoreIdsSnapshot]);
   useEffect(() => { if (!projectId) { setProjectDetail(null); return; } getBidProjectDetail(projectId).then(setProjectDetail).catch(() => setProjectDetail(null)); }, [projectId]);
 
-  // 加载项目文件分析上下文（用于 AI 润色 + 标签预选；步骤 1 即加载，手动模式据此预填标签）
+  // 加载项目文件分析上下文（用于 AI 润色 + 供应商要求预填；步骤 1 即加载）
   useEffect(() => {
     if (!project?.id || fileContextLoaded) return;
     setFileContextLoaded(true);
@@ -828,7 +831,7 @@ export function SupplierSelectionPage({
   const selectedProject = useMemo(() => projects.find(p => p.id === projectId), [projects, projectId]);
 
   // 业务标签 AI 预填
-  // 选项目后（AI 模式）/ 文件分析后（手动模式）调用 LLM 从词表预选标签；
+  // 选项目后调用 LLM 从词表预选标签；
   // 用户一旦手动删减/补充即停止自动预填，可点「AI 匹配」重新触发。
   const runTagSuggestion = useCallback(async () => {
     const vocab = tagVocab.map(t => t.tag);
@@ -868,25 +871,14 @@ export function SupplierSelectionPage({
     setTagQuery('');
   }, [selectedProject?.id]);
 
-  // AI 模式：选定项目后即预填（仅当尚无选中标签时）
+  // 选定项目后即预填业务标签（仅当尚无选中标签时；手动选取模式移除后唯一入口）
   useEffect(() => {
-    if (selectionMode !== 'ai' || !selectedProject || tagVocab.length === 0) return;
+    if (!sessionRestored || !selectedProject || tagVocab.length === 0) return;
     if (tagsUserEditedRef.current) return;
     if (selectedTags.length > 0) return;
     runTagSuggestion();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProject?.id, selectionMode, tagVocab.length]);
-
-  // 手动模式：文件分析完成后预填；无项目分析来源时退化为选定项目即预填（仅当尚无选中标签时）
-  useEffect(() => {
-    if (selectionMode !== 'manual' || tagVocab.length === 0) return;
-    if (tagsUserEditedRef.current) return;
-    if (selectedTags.length > 0) return;
-    if (project?.id && !fileContextLoaded) return;
-    if (!selectedProject && !project) return;
-    runTagSuggestion();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fileContextLoaded, selectionMode, tagVocab.length, selectedProject?.id, project?.id]);
+  }, [sessionRestored, selectedProject?.id, tagVocab.length]);
 
   // 模态入口：自动解析项目 ID；步骤由 session 恢复决定（首次进入=步骤 1，再次进入=上次步骤）
   // 不再按项目名模糊匹配 BidProject——多轮/同名场景会把新项目误挂到
@@ -961,7 +953,7 @@ export function SupplierSelectionPage({
     setLoading(false);
   };
 
-  /** 增选：在手动模式下，排除已入围供应商，追加推荐 */
+  /** 增选：排除已入围供应商，追加推荐 */
   const handleAddMore = async () => {
     setAddMoreLoading(true);
     setAddMoreOpen(false);
@@ -1095,16 +1087,17 @@ export function SupplierSelectionPage({
     setReqGenerating(false);
   }, [project, fileAnalysisContext, selectedProject, defaultProjectTitle, buildRequirement, parsePolishedResult]);
 
-  // 首次进入供应商要求步骤（现为第 1 步）时，若无内容则自动 AI 生成
+  // 首次进入供应商要求步骤（现为第 1 步）时，若无内容则自动 AI 生成。
+  // 须等会话恢复完成（sessionRestored）再判空——已有草稿内容就不触发 AI，仅在空白时生成
   useEffect(() => {
-    if (step !== 1 || reqGeneratedRef.current) return;
+    if (step !== 1 || reqGeneratedRef.current || !sessionRestored) return;
     if (reqOverview.trim() || reqScope.trim() || reqQualification.trim() || reqSpecial.trim() || reqOther.trim()) {
       reqGeneratedRef.current = true;
       return;
     }
     reqGeneratedRef.current = true;
     generateRequirement();
-  }, [step, generateRequirement]);
+  }, [step, generateRequirement, sessionRestored]);
 
   const handleApplyHistory = (record: SupplierSelectionHistoryRecord) => {
     setRequirement(record.requirement);
@@ -1349,16 +1342,11 @@ export function SupplierSelectionPage({
     }
     lines.push('');
     lines.push('【选取原则】');
-    if (selectionMode === 'ai') {
-      lines.push(`  选取方式：AI 智能选取（基于采购需求语义匹配）`);
-      if (selectedTags.length) lines.push(`  业务标签：${selectedTags.join('、')}`);
-      if (result) {
-        lines.push(`  候选池规模：${result.candidatePool} 家`);
-        lines.push(`  匹配度区间：≥85 强匹配 / ≥70 较匹配 / ≥55 可考虑 / 弱匹配`);
-      }
-    } else {
-      lines.push(`  选取方式：手动选取`);
-      if (manualSearch) lines.push(`  搜索关键词：${manualSearch}`);
+    lines.push(`  选取方式：AI 智能选取（基于采购需求语义匹配）`);
+    if (selectedTags.length) lines.push(`  业务标签：${selectedTags.join('、')}`);
+    if (result) {
+      lines.push(`  候选池规模：${result.candidatePool} 家`);
+      lines.push(`  匹配度区间：≥85 强匹配 / ≥70 较匹配 / ≥55 可考虑 / 弱匹配`);
     }
     lines.push('');
     lines.push(`  候选数量：${shortlist.size} 家`);
@@ -1374,7 +1362,7 @@ export function SupplierSelectionPage({
     const body = [...shortlist.entries()].map(([_, { item: r, note }], i) => {
       const contact = r.contacts?.find(c => c.isPrimary) || r.contacts?.[0];
       return [`${i + 1}. ${r.name}`,
-        `   企业类型：${r.enterpriseType || '—'}  匹配度：${r.matchScore}${selectionMode === 'ai' ? `  ${scoreLabel(r.matchScore)}` : ''}`,
+        `   企业类型：${r.enterpriseType || '—'}  匹配度：${r.matchScore}  ${scoreLabel(r.matchScore)}`,
         `${r.reason !== '手动选取' ? `   推荐理由：${r.reason}` : ''}`,
         contact ? `   联系人：${contact.name} ${contact.phone}` : '',
         note ? `   备注：${note}` : '',
@@ -1496,20 +1484,25 @@ export function SupplierSelectionPage({
     return () => clearTimeout(rerunSearchTimerRef.current);
   }, [rerunManualSearch, rerunMode, step, rerunPickStep]);
 
-  // 进入补选通知步骤时自动填充（仅首次无内容时触发）
+  // 进入补选通知步骤时自动填充（增量：只要还有补选供应商缺内容就补，2026-10-20。
+  // 原版仅在 map 为空时整体生成——回补选候选步新增供应商后再进通知步，新供应商
+  // 永远卡在「请等待AI自动生成」，一键通知也只发已生成的那几家）
   useEffect(() => {
     if (step !== rerunNotifyStep || !isRerun) return;
     if (rerunShortlist.size === 0 || notifyPerSupplier.size === 0) return;
-    if (rerunNotifyPerSupplier.size > 0) return;
+    if ([...rerunShortlist.keys()].every(sid => rerunNotifyPerSupplier.has(sid))) return;
     fillRerunNotify();
-  }, [step, rerunNotifyStep, isRerun, rerunShortlist, rerunNotifyPerSupplier.size, notifyPerSupplier, selectedProject, project, projectId]);
+  }, [step, rerunNotifyStep, isRerun, rerunShortlist, rerunNotifyPerSupplier, notifyPerSupplier, selectedProject, project, projectId]);
 
-  const fillRerunNotify = async () => {
+  const fillRerunNotify = async (): Promise<Map<string, { title: string; body: string; phoneScript: string }> | null> => {
     // 无确认通知模板时不生成补选通知，渲染侧显示"请等待AI自动生成"
-    if (notifyPerSupplier.size === 0) return;
+    if (notifyPerSupplier.size === 0) return null;
+    // 增量填充：只为尚无内容的供应商生成，已有条目（含用户编辑）原样保留
+    const missing = [...rerunShortlist.entries()].filter(([sid]) => !rerunNotifyPerSupplier.has(sid));
+    if (missing.length === 0) return rerunNotifyPerSupplier;
     try {
-      const sids = [...rerunShortlist.keys()];
-      const snames = [...rerunShortlist.values()].map(({ item: r }) => r.name);
+      const sids = missing.map(([sid]) => sid);
+      const snames = missing.map(([, { item: r }]) => r.name);
       const ctx = buildNotifyContext();
       // 生成 RSVP 链接（与正选共用完整上下文，保证链接内容一致）
       const res = await generateNotificationContent({
@@ -1526,8 +1519,9 @@ export function SupplierSelectionPage({
       // 延用确认通知中已有内容模板（取第一个已通知供应商的 body），仅替换名称和链接
       const existingMsg = [...notifyPerSupplier.values()][0];
       const tokens = { ...notifyRsvpTokens, ...(res.rsvpTokens || {}) };
-      const perSupplier = new Map<string, { title: string; body: string; phoneScript: string }>();
-      for (const [sid, { item: r }] of rerunShortlist) {
+      // 在已有 map 基础上合并（保留已生成/已编辑条目），只补 missing
+      const perSupplier = new Map(rerunNotifyPerSupplier);
+      for (const [sid, { item: r }] of missing) {
         const link = tokens[sid] || '';
         // 取已有模板 body，去掉第一行问候语（"XXX 您好！\n\n"），替换链接
         const parts = existingMsg.body.split('\n\n');
@@ -1540,11 +1534,18 @@ export function SupplierSelectionPage({
         perSupplier.set(sid, { title: existingMsg.title, body: `${r.name} 您好！\n\n${bodyWithLink}`, phoneScript: buildPhoneScript(r.name, ctx) });
       }
       setRerunNotifyPerSupplier(perSupplier);
-    } catch {}
+      return perSupplier;
+    } catch { return null; }
   };
 
   const handleRerunNotify = async () => {
-    if (rerunNotifyPerSupplier.size === 0) { toast.error('请先生成补选通知内容'); return; }
+    // 兜底（2026-10-20）：点击时仍有补选供应商缺内容（AI 填充失败/竞态）→ 现场补齐再发，
+    // 保证一键通知覆盖全部补选单位，而非只发已生成内容的那几家
+    let perSupplier = rerunNotifyPerSupplier;
+    if ([...rerunShortlist.keys()].some(sid => !perSupplier.has(sid))) {
+      perSupplier = (await fillRerunNotify()) || perSupplier;
+    }
+    if (perSupplier.size === 0) { toast.error('请先生成补选通知内容'); return; }
     setRerunNotifySending(true);
     try {
       // 为尚未生成 RSVP token 的补选供应商补签（与正选 handleNotify 一致）
@@ -1565,26 +1566,20 @@ export function SupplierSelectionPage({
       // 站内/短信共用正文 body；电话渠道单独发简短话术 phoneScript
       const nonPhoneChannels = notifyChannels.filter(c => c !== 'phone');
       const phoneChannels = notifyChannels.filter(c => c === 'phone');
-      // 用 Set 去重统计：同一供应商走多个渠道只计 1 家（与正选 handleNotify 同口径；
-      // 2026-10-19 修复：补选 1 家走站内+电话两笔会被累加成「已通知 2 家」）
-      const sentSupplierIds = new Set<string>();
-      const notFoundSupplierIds = new Set<string>();
-      for (const [sid, msg] of rerunNotifyPerSupplier) {
+      let totalSent = 0;
+      let totalNotFound = 0;
+      for (const [sid, msg] of perSupplier) {
         if (!msg.title.trim() || !msg.body.trim()) continue;
         const link = notifyRsvpTokens[sid] || undefined; // 站内信点击直达回执页
         if (nonPhoneChannels.length) {
           const r = await notifySuppliers({ supplierIds: [sid], channels: nonPhoneChannels, type: 'SELECTION_NOTIFY', title: msg.title, content: msg.body, link }).catch(() => ({} as any));
-          if (r.sent > 0) sentSupplierIds.add(sid);
-          if (r.notFound > 0) notFoundSupplierIds.add(sid);
+          totalSent += r.sent ?? 1; totalNotFound += r.notFound || 0;
         }
         if (phoneChannels.length) {
           const r = await notifySuppliers({ supplierIds: [sid], channels: phoneChannels, type: 'SELECTION_NOTIFY', title: msg.title, content: msg.phoneScript || msg.body }).catch(() => ({} as any));
-          if (r.sent > 0) sentSupplierIds.add(sid);
-          if (r.notFound > 0) notFoundSupplierIds.add(sid);
+          totalSent += r.sent ?? 1; totalNotFound += r.notFound || 0;
         }
       }
-      const totalSent = sentSupplierIds.size;
-      const totalNotFound = notFoundSupplierIds.size;
       setRerunNotified(true);
       setRerunConfirmations(new Map([...rerunShortlist.keys()].map(sid => [sid, 'pending' as const])));
       toast.success(`已通知 ${totalSent} 家补选供应商${totalNotFound > 0 ? `，${totalNotFound} 家未找到关联账户` : ''}`);
@@ -1609,15 +1604,6 @@ export function SupplierSelectionPage({
     } catch { toast.error('供应商搜索失败'); }
     setManualLoading(false);
   };
-
-  // 输入防抖自动搜索（热加载）
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => {
-    if (!manualSearch.trim() || selectionMode !== 'manual' || step !== 3) return;
-    clearTimeout(searchTimerRef.current);
-    searchTimerRef.current = setTimeout(() => { handleManualSearch(); }, 300);
-    return () => clearTimeout(searchTimerRef.current);
-  }, [manualSearch, selectionMode, step]);
 
   // 手动将供应商加入候选名单（构造虚拟 SupplierRecommendation）
   const toggleManualSupplier = (s: Supplier) => {
@@ -1978,34 +1964,15 @@ export function SupplierSelectionPage({
 
           <div className="rounded-[20px] p-5 space-y-4"
             style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.92) 0%, oklch(0.985 0.005 258 / 0.58) 40%, oklch(1 0 0 / 0.14) 75%)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.75), 2px 3px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.88)' }}>
-            {/* 选取方式 — pill 容器（参考专家抽取抽取方式） */}
+            {/* 业务标签（选取方式仅 AI 智能选取——手动选取已于 2026-10-19 移除） */}
             <div>
-              <div className="inline-flex items-center gap-2.5 rounded-xl bg-[color-mix(in_oklch,var(--surface)_70%,transparent)] py-1.5 pl-3.5 pr-1.5 shadow-[inset_0_1px_0_oklch(1_0_0/0.6),1.5px_1.5px_3px_oklch(0.55_0.03_258/0.08),-1px_-1px_2.5px_oklch(1_0_0/0.8)]">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)] whitespace-nowrap">选取方式</span>
-                <div className="neu-tab-bar">
-                  {(['ai', 'manual'] as const).map(mode => (
-                    <button key={mode} type="button" onClick={() => { setSelectionMode(mode); setError(''); }}
-                      className={`neu-tab px-3.5 py-1.5 text-xs font-bold ${selectionMode === mode ? 'is-active' : ''}`}>
-                      {mode === 'ai' ? 'AI 智能选取' : '手动选取'}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <label className="text-xs font-extrabold uppercase tracking-[0.08em] text-[var(--muted-foreground)] block mb-1.5">业务标签</label>
+              <BusinessTagsPicker
+                tagVocab={tagVocab} selectedTags={selectedTags} tagQuery={tagQuery} setTagQuery={setTagQuery}
+                tagSuggesting={tagSuggesting} runTagSuggestion={runTagSuggestion} markTagsEdited={markTagsEdited}
+                setSelectedTags={setSelectedTags} removeTag={removeTag} toggleTag={toggleTag} addCustomTag={addCustomTag}
+              />
             </div>
-
-            <div className="wb-section-rule" />
-
-            {/* 业务标签 */}
-            {selectionMode === 'ai' && (
-              <div>
-                <label className="text-xs font-extrabold uppercase tracking-[0.08em] text-[var(--muted-foreground)] block mb-1.5">业务标签</label>
-                <BusinessTagsPicker
-                  tagVocab={tagVocab} selectedTags={selectedTags} tagQuery={tagQuery} setTagQuery={setTagQuery}
-                  tagSuggesting={tagSuggesting} runTagSuggestion={runTagSuggestion} markTagsEdited={markTagsEdited}
-                  setSelectedTags={setSelectedTags} removeTag={removeTag} toggleTag={toggleTag} addCustomTag={addCustomTag}
-                />
-              </div>
-            )}
           </div>
 
           {/* 供应商要求卡（合并自原「描述需求」）：聚焦对供应商的要求，项目上下文 AI 已从项目文件注入 */}
@@ -2019,16 +1986,13 @@ export function SupplierSelectionPage({
                 <span className="text-sm font-bold text-[var(--foreground)]">供应商要求</span>
                 <span className="text-[10px] text-[var(--muted-foreground)]">项目信息已自动关联，此处只需描述对供应商的要求</span>
               </div>
-              {selectionMode === 'ai' && (
-                <button onClick={generateRequirement} disabled={reqGenerating} className="neu-btn-xs gap-1.5 text-[var(--accent)]">
-                  <Sparkles size={11} />{reqGenerating ? 'AI 生成中…' : (reqOverview || reqScope || reqQualification) ? '重新生成' : 'AI 按项目文件生成'}
-                </button>
-              )}
+              <button onClick={generateRequirement} disabled={reqGenerating} className="neu-btn-xs gap-1.5 text-[var(--accent)]">
+                <Sparkles size={11} />{reqGenerating ? 'AI 生成中…' : (reqOverview || reqScope || reqQualification) ? '重新生成' : 'AI 按项目文件生成'}
+              </button>
             </div>
 
             <div className="wb-section-rule" />
 
-            {selectionMode === 'ai' ? (<>
               {/* 项目概况（AI 预填上下文，可改） */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-[var(--foreground)]">项目概况 <span className="font-normal text-[var(--muted-foreground)]">（AI 依据项目文件预填，作为推荐方向参照）</span></label>
@@ -2079,37 +2043,22 @@ export function SupplierSelectionPage({
                   minRows={1}
                 />
               </div>
-            </>) : (
-              <div className="py-6 text-center">
-                <p className="text-xs text-[var(--muted-foreground)] leading-relaxed">
-                  手动选取模式无需填写供应商要求——直接按名称/标签搜索并逐家加入候选名单。
-                </p>
-              </div>
-            )}
           </div>
 
           {error && <div className="rounded-xl px-4 py-3 text-sm font-semibold text-[var(--danger)]" style={{ background: 'color-mix(in oklch, var(--danger) 8%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.3)' }}>{error}</div>}
 
-          {/* 底部操作：AI 模式直接智能推荐；手动模式进入候选列表 */}
+          {/* 底部操作：直接智能推荐 */}
           <div className="flex items-center justify-end gap-3">
-            {selectionMode === 'ai' && (
-              <div className="flex items-center gap-2 text-xs font-semibold text-[var(--muted-foreground)]">
-                <span>推荐</span>
-                <select value={maxCount} onChange={e => setMaxCount(Number(e.target.value))} className="workbench-input !w-[60px] text-xs !h-7">
-                  {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-                <span>家供应商</span>
-              </div>
-            )}
-            {selectionMode === 'ai' ? (
-              <button onClick={run} disabled={loading || !buildRequirement()} className="neu-btn-primary gap-2">
-                <Wand2 size={14} />{loading ? '智能匹配中…' : '开始智能推荐'}
-              </button>
-            ) : (
-              <button onClick={() => { setError(''); setStep(2); }} className="neu-btn-primary gap-2">
-                下一步：审核候选<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-              </button>
-            )}
+            <div className="flex items-center gap-2 text-xs font-semibold text-[var(--muted-foreground)]">
+              <span>推荐</span>
+              <select value={maxCount} onChange={e => setMaxCount(Number(e.target.value))} className="workbench-input !w-[60px] text-xs !h-7">
+                {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+              <span>家供应商</span>
+            </div>
+            <button onClick={run} disabled={loading || !buildRequirement()} className="neu-btn-primary gap-2">
+              <Wand2 size={14} />{loading ? '智能匹配中…' : '开始智能推荐'}
+            </button>
           </div>
         </div>
       )}
@@ -2292,79 +2241,10 @@ export function SupplierSelectionPage({
           {!result && !loading && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
               <div className="lg:col-span-2">
-                {selectionMode === 'ai' && (
-                  <div className="rounded-[20px] py-16 text-center" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
+                <div className="rounded-[20px] py-16 text-center" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
                     <Wand2 size={28} className="mx-auto mb-4 text-[var(--muted-foreground)]/30" />
                     <p className="text-sm text-[var(--muted-foreground)]">返回上一步调整需求后重新执行智能推荐</p>
                   </div>
-                )}
-                {selectionMode === 'manual' && (
-                  <div className="space-y-4">
-                    <div className="rounded-[20px] p-5 space-y-4" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
-                      <div className="flex gap-2">
-                        <div className="flex-1 relative">
-                          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
-                          <input value={manualSearch} onChange={e => setManualSearch(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter') handleManualSearch(); }}
-                            placeholder="按供应商名称、标签或经营范围搜索..." className="workbench-input w-full !pl-9 !pr-8 text-sm" />
-                          {manualSearch && (
-                            <button type="button"
-                              onClick={() => { setManualSearch(''); setManualSuppliers([]); setManualTotal(0); }}
-                              className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-[4px] text-[var(--muted-foreground)]/50 hover:text-[var(--muted-foreground)] transition-colors">
-                              <X size={14} strokeWidth={2} />
-                            </button>
-                          )}
-                        </div>
-                        <button onClick={handleManualSearch} disabled={manualLoading} className="neu-btn-soft text-sm gap-1.5">
-                          <Search size={14} />{manualLoading ? '搜索中…' : '搜索'}
-                        </button>
-                      </div>
-                      {manualTotal > 0 && <p className="text-[11px] tabular-nums text-[var(--muted-foreground)]">共 <strong className="text-[var(--foreground)]">{manualTotal}</strong> 家{manualSuppliers.length < manualTotal ? `（显示前 ${manualSuppliers.length} 家）` : ''}</p>}
-                    </div>
-
-                    {manualSuppliers.map((s) => {
-                      const inList = shortlist.has(s.id);
-                      const contact = (s as any).contacts?.[0];
-                      return (
-                        <div key={s.id} className={`rounded-[16px] p-3 flex items-center gap-3 ${inList ? 'ring-2 ring-[var(--success)]/20' : ''}`}
-                          style={{ background: 'oklch(1 0 0 / 0.58)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.65), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.75)' }}>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm font-bold text-[var(--foreground)]">{s.name}</span>
-                              {(s as any).enterpriseType && <span className="neu-tab-count">{normalizeEnterpriseType((s as any).enterpriseType)}</span>}
-                              {inList && <span className="text-[10px] font-bold text-[var(--success)]">✓ 已加入</span>}
-                            </div>
-                            {s.tags && s.tags.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {s.tags.slice(0, 5).map(tg => (
-                                  <span key={tg} className="inline-flex items-center rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--accent-strong)]"
-                                    style={{ background: 'color-mix(in oklch, var(--accent) 9%, transparent)' }}>{tg}</span>
-                                ))}
-                              </div>
-                            )}
-                            {contact && <div className="text-xs text-[var(--muted-foreground)] mt-0.5">联系人：{contact.name}{contact.phone ? ` · ${contact.phone}` : ''}</div>}
-                          </div>
-                          <button onClick={() => toggleManualSupplier(s)} className={`neu-btn-xs flex-shrink-0 ${inList ? 'is-danger' : 'is-success'}`}>
-                            {inList ? <><X size={12} />移除</> : <><Plus size={12} />加入</>}
-                          </button>
-                        </div>
-                      );
-                    })}
-
-                    {!manualLoading && manualSearch && manualSuppliers.length === 0 && (
-                      <div className="rounded-[20px] py-14 text-center" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
-                        <Search size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />
-                        <p className="text-sm text-[var(--muted-foreground)]">未找到匹配的供应商</p>
-                      </div>
-                    )}
-                    {!manualSearch && (
-                      <div className="rounded-[20px] py-14 text-center" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
-                        <MousePointer2 size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />
-                        <p className="text-sm text-[var(--muted-foreground)]">输入供应商名称或标签关键词搜索</p>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
               {/* 候选名单 sidebar —— 始终显示 */}
               <div className="lg:col-span-1 lg:sticky lg:top-20">{shortlistPanel}</div>
