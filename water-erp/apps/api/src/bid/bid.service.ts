@@ -2229,8 +2229,14 @@ export class BidService {
 
     const updated = await this.prisma.$transaction(async (tx) => {
       await lockAndReassertStage(tx, id, 'EVALUATING'); // C1: 行锁后复查阶段（含 与评分标准编辑互斥的 FOR UPDATE）
-      // 存量自愈：修复前已签到/回避确认的 none 项目专家 stored progress=0（spec §4.2；回避确认重算为第二道自然修复）
-      if (isNoneEvaluation(project.evaluationMethod, project.procurementMethod)) {
+      // 存量自愈：修复前已签到/回避确认的 none 项目专家 stored progress=0（spec §4.2；回避确认重算为第二道自然修复）。
+      // 两因子（F-1 终审同口径，2026-10-20）：仅「none 且 0 评分项」才回填 100——none+已编评分项
+      // （存量/误配，如 ZJ-2026101903 Σ=100）的专家须真打分，progress 保持真实比例；强设 100 会
+      // 造成 confirmReport SCORING_INCOMPLETE 的假完成态（:3006 打分表已按同口径两因子渲染）。
+      const noneNoScoring =
+        isNoneEvaluation(project.evaluationMethod, project.procurementMethod)
+        && (await tx.bidScoreItem.count({ where: { projectId: id } })) === 0;
+      if (noneNoScoring) {
         await tx.bidExpert.updateMany({
           where: { projectId: id, expertRole: '正选', invitationStatus: 'confirmed', progress: { lt: 100 } },
           data: { progress: 100 },

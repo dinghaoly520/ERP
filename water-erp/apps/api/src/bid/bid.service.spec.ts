@@ -1412,6 +1412,8 @@ describe('BidService — stage transitions', () => {
       prisma.bidExpert.count.mockResolvedValueOnce(3).mockResolvedValue(0); // 首次=确认正选数，其后=采购人代表数(0)
       prisma.bidSupplier.findMany.mockResolvedValue([]);
       prisma.bidSupplier.count.mockResolvedValue(1); // 直接采购法定 1 家即可（getMinBiddersForMethod）
+      // F-1 两因子（2026-10-20）：回填前事务内计数评分项——0=none 真不评分（下方用例按需覆盖）
+      prisma.bidScoreItem.count.mockResolvedValue(0);
       prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'EVALUATING' });
       prisma.bidSupervisionLog.create.mockResolvedValue({});
       prisma.auditLog.create.mockResolvedValue({});
@@ -1425,6 +1427,13 @@ describe('BidService — stage transitions', () => {
         where: { projectId: 'p1', expertRole: '正选', invitationStatus: 'confirmed', progress: { lt: 100 } },
         data: { progress: 100 },
       });
+    });
+
+    it('F-1 两因子：none 但已编 1 个评分项 → 不回填（updateMany 不被调用，progress 留真实比例）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P', procurementMethod: '直接采购', evaluationMethod: 'none' });
+      prisma.bidScoreItem.count.mockResolvedValue(1); // 已编 1 项（如 ZJ-2026101903 Σ=100 存量/误配）
+      await expect(service.startEvaluation('p1', 'u1')).resolves.toMatchObject({ stage: 'EVALUATING' });
+      expect(prisma.bidExpert.updateMany).not.toHaveBeenCalled();
     });
 
     it('manual：不走回填（bidExpert.updateMany 全程不被调用）', async () => {

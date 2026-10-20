@@ -695,8 +695,11 @@ export class BidSignPacketService {
       if (t && (!verifiedAt.has(r.expertId) || t < verifiedAt.get(r.expertId)!)) verifiedAt.set(r.expertId, t);
     }
 
-    // none（直接采购）项目：评分确认表改「直接采购·不评分」页——谓词算一次全 sheet 共用（spec 2026-10-19 §4.6）
-    const noneEvaluation = isNoneEvaluation(project.evaluationMethod, project.procurementMethod);
+    // none（直接采购）项目：评分确认表改「直接采购·不评分」页——谓词算一次全 sheet 共用（spec 2026-10-19 §4.6）。
+    // 两因子（F-1 终审同口径，2026-10-20）：none 且 0 评分项才按不评分口径出包——none+已编评分项
+    // （存量/误配）仍出常规评分确认表（docx 服务只消费本标志，不改）。
+    const noneEvaluation = isNoneEvaluation(project.evaluationMethod, project.procurementMethod)
+      && scoreItems.length === 0;
 
     const expertSheets = committee.map(e => {
       // 2026-09-18 身份核验 §4.5：签到时间取自 signInMeta.timestamp（旧数据无 → at 保持 null）

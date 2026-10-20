@@ -1935,11 +1935,16 @@ export class ExpertService {
     // confirmReport 的逐家 verified 闸（REVIEW_PENDING）不变——核对动作本身仍是显式确认。
     const noneEvaluation = isNoneEvaluation(project.evaluationMethod, project.procurementMethod);
     if (!noneEvaluation) {
-      if (scores.length === 0) throw new BadRequestException({ error: '该供应商尚未评分，无法核对', code: 'SCORING_INCOMPLETE' });
       // 须评完该供应商全部评分项才能核对（防止漏评项被核对/确认）
       // PRICE 项由公式引擎出分、专家不写记录——同 recomputeExpertProgress 口径排除，
       // 否则竞价采购（仅通过性+PRICE）每家恒「尚 1 项未评」，核对/报告确认/末签全链死锁。
       const itemCount = await this.prisma.bidScoreItem.count({ where: { projectId, category: { not: 'PRICE' } } });
+      // 0 记录拒收须 0 项感知（2026-10-20 终审对齐）：非 none 项目 0 个非 PRICE 项（如仅 PRICE 公式标）
+      // 的 progress 已按真实比例算到 100，旧序先判 scores.length===0 → 恒 400 SCORING_INCOMPLETE
+      // 的混合态——先取 itemCount 再判「有项且 0 记录」（scores.length < itemCount 对 0 项天然放行）。
+      if (itemCount > 0 && scores.length === 0) {
+        throw new BadRequestException({ error: '该供应商尚未评分，无法核对', code: 'SCORING_INCOMPLETE' });
+      }
       if (scores.length < itemCount) {
         throw new BadRequestException({ error: `该供应商尚有 ${itemCount - scores.length} 个评分项未评，无法核对`, code: 'SCORING_INCOMPLETE' });
       }

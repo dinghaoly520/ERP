@@ -672,7 +672,12 @@ describe('BidSignPacketService.buildSnapshot（A-132 分工入委员会名单 / 
 describe('BidSignPacketService.buildSnapshot（none 直接采购 noneEvaluation）', () => {
   const projectId = 'p1';
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // 上文（完整性扩展 v2 用例）对 bidScoreItem.findMany 的非空覆盖会跨 clearAllMocks 存留
+    // （clear 只清调用记录不清实现）——两因子判定读 scoreItems.length，须显式恢复空基准
+    (prisma.bidScoreItem.findMany as jest.Mock).mockResolvedValue([]);
+  });
 
   function arrangeProject(project: Record<string, unknown>) {
     (prisma.bidProject.findUnique as jest.Mock).mockResolvedValue(project);
@@ -706,6 +711,21 @@ describe('BidSignPacketService.buildSnapshot（none 直接采购 noneEvaluation�
     const svc = makeService();
     const snapshot = await svc.buildSnapshot(projectId);
     expect(snapshot.expertSheets[0].noneEvaluation).toBe(true);
+  });
+
+  it('F-1 两因子：none 但已编 2 个评分项 → false（顶层与 expertSheets 均出常规评分确认表）', async () => {
+    arrangeProject({
+      name: '直接采购项目', projectCode: 'ZJ-3', procurementMethod: '直接采购', evaluationMethod: 'none',
+      openTime: null, deadline: null, scope: null, qualification: null, budget: null, leaderCoSignedAt: null,
+    });
+    (prisma.bidScoreItem.findMany as jest.Mock).mockResolvedValue([
+      { id: 'si1', name: '技术方案', category: 'TECHNICAL', maxScore: 60, points: [] },
+      { id: 'si2', name: '商务响应', category: 'BUSINESS', maxScore: 40, points: [] },
+    ]);
+    const svc = makeService();
+    const snapshot = await svc.buildSnapshot(projectId);
+    expect(snapshot.expertSheets[0].noneEvaluation).toBe(false);
+    expect(snapshot.noneEvaluation).toBe(false); // 顶层同口径（主报告六/八节仍按评分口径渲染）
   });
 
   it('非 none 项目：noneEvaluation=false（回归）', async () => {

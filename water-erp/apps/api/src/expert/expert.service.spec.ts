@@ -2437,12 +2437,28 @@ describe('ExpertService', () => {
       await expect(service.verifyScoreReview('user-1', 'p1', 'sup1')).rejects.toMatchObject({ response: { code: 'VERIFICATION_REQUIRED' } });
     });
 
-    it('未提交评分的供应商不能核对 → SCORING_INCOMPLETE（非 none 回归锁，Review Focus #5）', async () => {
+    it('未提交评分的供应商不能核对 → SCORING_INCOMPLETE（非 none 回归锁，Review Focus #5；F-3 后须 ≥1 个非 PRICE 项才拒）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', evaluationMethod: 'manual', procurementMethod: '询比采购' });
       prisma.bidExpert.findFirst.mockResolvedValue({ ...signedExpert, id: 'exp1' });
       prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup1', projectId: 'p1', decryptStatus: 'SUCCESS' }); // P2-2 活跃供应商闸门
       prisma.bidScoreRecord.findMany.mockResolvedValue([]); // 无评分
+      prisma.bidScoreItem.count.mockResolvedValue(2); // 非 PRICE 项 2 个 → 有项且 0 记录 → 仍拒
       await expect(service.verifyScoreReview('user-1', 'p1', 'sup1')).rejects.toMatchObject({ response: { code: 'SCORING_INCOMPLETE' } });
+    });
+
+    it('终审对齐（2026-10-20）：非 none + 0 个非 PRICE 项（仅 PRICE 公式标）+ 0 记录 → 放行核对落 verified（progress 已 100 的混合态消除）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', evaluationMethod: 'manual', procurementMethod: '询比采购' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...signedExpert, id: 'exp1' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup1', projectId: 'p1', decryptStatus: 'SUCCESS' });
+      prisma.bidScoreRecord.findMany.mockResolvedValue([]); // 公式标：专家无记录是设计态
+      prisma.bidScoreItem.count.mockResolvedValue(0); // 非 PRICE 项 0 个
+      prisma.bidScoreReview.upsert.mockResolvedValue({ id: 'rv1', status: 'verified' });
+      const r = await service.verifyScoreReview('user-1', 'p1', 'sup1');
+      expect(r.status).toBe('verified');
+      expect(prisma.bidScoreReview.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        where: { expertId_projectId_supplierId: { expertId: 'exp1', projectId: 'p1', supplierId: 'sup1' } },
+        update: expect.objectContaining({ status: 'verified' }),
+      }));
     });
 
     it('报告已锁定 → SCORE_LOCKED', async () => {
