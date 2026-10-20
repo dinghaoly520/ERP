@@ -2717,22 +2717,43 @@ export function ExpertExtractPage({
                       const isAlt = !!h.isAlt;
                       return (
                         <div key={hi} className="rounded-xl border border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)] overflow-hidden">
-                          <div className="flex items-center gap-2 px-3 py-2 bg-[color-mix(in_oklch,var(--accent)_4%,transparent)]">
+                          <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-[color-mix(in_oklch,var(--accent)_4%,transparent)]">
                             <span className="text-xs font-bold text-[var(--foreground)]">{isAlt ? '候补专家' : `第${h.roundNo}次补选`}</span>
                             <span className="text-[11px] text-[var(--muted-foreground)]">· {h.selected.length} 人</span>
-                            <div className="ml-auto flex items-center gap-1.5">
-                              {isAlt ? (
+                            {isAlt ? (
+                              <div className="ml-auto flex items-center gap-1.5">
                                 <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--success)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--success)]">已记录</span>
-                              ) : (
-                                <>
-                                  <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--success)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--success)]">{confirmed} 确认</span>
-                                  {experts.filter(e => e.invitationStatus === 'pending').length > 0 && <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--warning)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--warning)]">{experts.filter(e => e.invitationStatus === 'pending').length} 待回</span>}
-                                  {experts.filter(e => e.invitationStatus === 'declined').length > 0 && <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--danger)]">{experts.filter(e => e.invitationStatus === 'declined').length} 拒绝</span>}
+                              </div>
+                            ) : (
+                              <>
+                                {/* 专业进度芯片：与正选表头同款同口径（major=落库配额标签；需求方代表独立计数不入专业分布） */}
+                                {(() => {
+                                  const confirmedByMajor = new Map<string, number>();
+                                  const totalByMajor = new Map<string, number>();
+                                  let repConfirmed = 0, repTotal = 0;
+                                  experts.forEach(e => {
+                                    if (demandRepIdSet.has(e.userId)) { repTotal++; if (e.invitationStatus === 'confirmed') repConfirmed++; return; }
+                                    const m = e.major || '综合';
+                                    totalByMajor.set(m, (totalByMajor.get(m) || 0) + 1);
+                                    if (e.invitationStatus === 'confirmed') confirmedByMajor.set(m, (confirmedByMajor.get(m) || 0) + 1);
+                                  });
+                                  const chipCls = (ok: boolean) => `rounded-[6px] px-2 py-0.5 text-[10px] font-bold ${ok ? 'bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[var(--success)]' : 'bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] text-[var(--warning)]'}`;
+                                  return (
+                                    <div className="flex items-center gap-1.5">
+                                      {[...totalByMajor.keys()].map(m => { const done = confirmedByMajor.get(m) || 0; const total = totalByMajor.get(m) || 0; return (<span key={m} className={chipCls(done >= total)}>{m} {done}/{total}</span>); })}
+                                      {repTotal > 0 && <span className={chipCls(repConfirmed >= repTotal)}>业主代表 {repConfirmed}/{repTotal}</span>}
+                                    </div>
+                                  );
+                                })()}
+                                <div className="ml-auto flex items-center gap-1.5">
+                                  <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--success)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--success)]">{confirmed} 已确认</span>
+                                  <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--warning)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--warning)]">{experts.filter(e => e.invitationStatus === 'pending').length} 待回复</span>
+                                  {experts.filter(e => e.invitationStatus === 'declined').length > 0 && <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--danger)]">{experts.filter(e => e.invitationStatus === 'declined').length} 已拒绝</span>}
                                   {!h.notified && <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--muted-foreground)]">未通知</span>}
                                   {!h.notified && <button onClick={() => reopenReModal(h.roundNo)} disabled={!!reDraft} className="neu-btn-xs is-info">继续通知</button>}
-                                </>
-                              )}
-                            </div>
+                                </div>
+                              </>
+                            )}
                           </div>
                           {isAlt ? (
                             <table className="neu-table w-full table-fixed">
