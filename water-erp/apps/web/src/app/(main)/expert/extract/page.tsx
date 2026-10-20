@@ -156,6 +156,8 @@ export function ExpertExtractPage({
   const [altNotifying, setAltNotifying] = useState(false);
   // 候补池枯竭（NO_ELIGIBLE_EXPERTS / 配额全部 fallback 失败）：候补为可选席位，软空态放行，不算错误
   const [altExhausted, setAltExhausted] = useState(false);
+  // 候补配额草稿（先配额再抽取，与补选同思路——2026-10-20 用户口径）：非 null=配置态
+  const [altQuotas, setAltQuotas] = useState<SpecialtyQuota[] | null>(null);
   const [quotas, setQuotas] = useState<SpecialtyQuota[]>([{ specialties: [], count: 2 }]);
   // 需求方代表配置
   const [needDemandRep, setNeedDemandRep] = useState(false);
@@ -447,12 +449,13 @@ export function ExpertExtractPage({
     setStep(allFinal ? 5 : anyNotified ? 4 : 3);
   }, [pid, invitationData, defaultPid]);
 
-  // 步骤6：进入时自动抽取候补专家（仅首次，已抽过/池枯竭软空态时直接展示）
+  // 步骤6：进入时初始化候补配额（默认=步骤1配额行×1 席；先配额再抽取——2026-10-20 用户口径，
+  // 不再进入即自动抽取）；已抽过/池枯竭/已在配置态时不重置
   useEffect(() => {
-    if (step !== 6 || !pid || altPreview || altExhausted) return;
-    extractAlternates();
+    if (step !== 6 || !pid || altPreview || altExhausted || altQuotas) return;
+    setAltQuotas(quotas.map(q => ({ ...q, count: 1 })));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, pid, altPreview, altExhausted]);
+  }, [step, pid, altPreview, altExhausted, altQuotas]);
 
   // 状态变更时自动保存到 localStorage（页面切换后恢复）
   const stateRef = useRef({ pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified, altExhausted, needDemandRep, demandRepCount, demandRepPersons, demandRepMode, demandRepCompany, demandRepDept, demandRepDeptSpecialty, totalSeats: 5 as 3 | 5 | 7 });
@@ -1545,50 +1548,24 @@ export function ExpertExtractPage({
     });
   };
 
-  /** 步骤6：按步骤1专业配额抽候补（每配额组1人，多选组=相近专业并集池），池空自动换专业，排除所有已邀请专家 */
+  /** 步骤6：候补按配置配额抽取（先配额再抽取，与补选同思路——2026-10-20 用户口径；默认=步骤1
+   *  配额行×1 席，可调公司/专业/人数；同公司同专业不足按分层补位优先级放行），排除所有已邀请专家 */
   const extractAlternates = async () => {
     if (!pid || !invitationData) return;
+    const quotaRows = (altQuotas ?? []).filter(q => q.count > 0);
+    if (quotaRows.length === 0) { toast.warning('请至少配置一行候补配额'); return; }
     const allInvited = new Set(invitationData.experts.map(e => e.userId));
-    const quotaRows = quotas.filter(quotaFilled);
-    const quotaSpecs = quotaRows.flatMap(quotaSpecsOf); // 扁平化专业清单（fallback 换专业用）
-    if (quotaRows.length === 0) { toast.warning('无专业配额，无法抽取候补'); return; }
-    const mainExperts = invitationData.experts.filter(e => e.expertRole === '正选');
     setAltExhausted(false);
     setAltExtracting(true);
     try {
-      const manualQuotas: { specialties: string[]; count: number }[] = [];
-      const usedSpecs = new Set<string>();
-      for (const row of quotaRows) {
-        const list = quotaSpecsOf(row);
-        const pc = list.reduce((n, sp) => n + (pool.get(sp) ?? 0), 0);
-        const invited = mainExperts.filter(e => list.includes(e.major ?? '')).length;
-        let target: string[] | null = list;
-        if (pc - invited < 1) {
-          // 一级 fallback：配额表内其他专业（逐个换到有余量的专业）
-          target = null;
-          for (const s of quotaSpecs) {
-            if (!usedSpecs.has(s) && !list.includes(s)) { const sp = pool.get(s) ?? 0; const si = mainExperts.filter(e => e.major === s).length; if (sp - si > 0) { target = [s]; break; } }
-          }
-          // 二级 fallback：全库按人数降序（排除职工代表/需求方代表等非专业角色）
-          if (!target) {
-            for (const s of [...specs].sort((a, b) => (pool.get(b) ?? 0) - (pool.get(a) ?? 0))) {
-              if (!usedSpecs.has(s) && !['职工代表', '需求方代表'].includes(s)) { const sp = pool.get(s) ?? 0; const si = mainExperts.filter(e => e.major === s).length; if (sp - si > 0) { target = [s]; break; } }
-            }
-          }
-          // 两级都找不到 → 跳过（避免 previewExtraction 部分失败导致人数不对）
-          if (!target) continue;
-        }
-        target.forEach(s => usedSpecs.add(s));
-        manualQuotas.push({ specialties: target, count: 1 });
-      }
-      const totalNeeded = manualQuotas.length;
-      // 配额全部 fallback 失败 = 池枯竭：候补为可选席位，软空态放行（不调接口硬报错）
-      if (manualQuotas.length === 0) { setAltExhausted(true); toast.info('专家库已无可抽候补专家，本次不设候补（不影响评审组组建）'); setAltExtracting(false); return; }
+      const manualQuotas = quotaRows.map(q => ({ specialties: quotaSpecsOf(q), count: q.count, companyIds: q.companyIds }));
+      const totalNeeded = quotaRows.reduce((s, q) => s + q.count, 0);
       const excludedIds = [...allInvited];
       const result = await previewExtraction({ projectId: pid, totalNeeded, extractMode: extractMode as ApiExtractMode, manualQuotas, excludedUserIds: excludedIds.length > 0 ? excludedIds : undefined });
       if (!result?.selected) throw new Error('返回数据异常');
       setAltPreview(result);
       setAltSelected([...result.selected]);
+      setAltQuotas(null); // 抽出结果即离开配置态（重新抽取/重试时再回配置）
       if (result.suggestedLeaderId) setLeadExpertId(result.suggestedLeaderId);
       // 候补通知：专属文案（不含 RSVP 链接，不要求确认，仅告知准备参加；含开标时间）
       const projectName = sel?.name || pd?.name || '采购项目';
@@ -3015,7 +2992,7 @@ export function ExpertExtractPage({
               <div className="neu-table-card p-4">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">候补专家组 · {altSelected.length} 人</span>
-                  <button onClick={() => { setAltPreview(null); setAltSelected([]); setAltNotified(false); setAltExhausted(false); extractAlternates(); }} disabled={altExtracting} className="neu-btn-xs"><RefreshCw size={12} className="inline mr-0.5" />重新抽取</button>
+                  <button onClick={() => { setAltPreview(null); setAltSelected([]); setAltNotified(false); setAltExhausted(false); setAltQuotas(quotas.map(q => ({ ...q, count: 1 }))); }} disabled={altExtracting} className="neu-btn-xs"><RefreshCw size={12} className="inline mr-0.5" />重新抽取</button>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="neu-table w-full table-fixed">
@@ -3152,7 +3129,51 @@ export function ExpertExtractPage({
               <Info size={22} strokeWidth={1.9} className="mx-auto mb-3 text-[var(--muted-foreground)]" />
               <p className="text-sm font-bold text-[var(--foreground)]">专家库已无可抽候补专家，本次不设候补</p>
               <p className="mx-auto mt-1.5 max-w-[480px] text-xs leading-relaxed text-[var(--muted-foreground)]">可用专家均已被本项目占用、列入预排除或不符合配额条件。候补为可选席位，不影响评审组组建与后续流程；如需候补，可先在「专家管理」维护可用专家后重试。</p>
-              <button onClick={() => extractAlternates()} disabled={altExtracting} className="neu-btn-soft mt-4 mx-auto"><RefreshCw size={13} className={`inline mr-1 ${altExtracting ? 'animate-spin' : ''}`} />重试抽取候补</button>
+              <button onClick={() => { setAltExhausted(false); setAltQuotas(quotas.map(q => ({ ...q, count: 1 }))); }} disabled={altExtracting} className="neu-btn-soft mt-4 mx-auto"><RefreshCw size={13} className="inline mr-1" />调整配额再试</button>
+            </div>
+          ) : altQuotas ? (
+            /* 候补配额配置（先配额再抽取，与补选同思路——2026-10-20 用户口径） */
+            <div className="neu-table-card p-4">
+              <div className="flex flex-wrap items-center gap-2.5 mb-2">
+                <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">候补配额 · 共 {altQuotas.reduce((s, q) => s + q.count, 0)} 人</span>
+                <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 text-[10px] font-bold text-[color-mix(in_oklch,var(--accent)_85%,black)]">已邀请专家自动排除</span>
+              </div>
+              <div className="rounded-xl bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] px-3 py-2 text-xs text-[var(--muted-foreground)]">
+                默认沿用步骤1配额（每行 1 席），可手动调整公司/专业/人数后开始抽取；同公司同专业不足时按优先级补位（同公司其他专业 → 其他公司）
+              </div>
+              <div className="mt-3 space-y-1.5">
+                {altQuotas.map((q, qi) => (
+                <div key={qi} className="flex flex-wrap items-center gap-2">
+                  <span className="h-8 w-1 shrink-0 self-center rounded-full" style={{ backgroundColor: companyColor(companies.find(c => c.id === (q.companyIds ?? [])[0])?.name ?? '') }} title={(q.companyIds ?? []).map(id => companies.find(c => c.id === id)?.name).filter(Boolean).join('、') || '不限公司'} />
+                  <QuotaMultiSelect
+                    className="min-w-[150px] flex-1"
+                    options={companies.map(c => ({ value: c.id, label: c.id === myCompanyId ? `${c.name}（本公司）` : c.name }))}
+                    selected={q.companyIds ?? []}
+                    onChange={list => setAltQuotas(prev => prev!.map((x, i) => i === qi ? { ...x, companyIds: list } : x))}
+                    placeholder="不限公司"
+                    title="公司（可多选）：本配额从所选公司并集的专家库抽取；清空=不限公司"
+                  />
+                  <QuotaMultiSelect
+                    className="min-w-[150px] flex-1"
+                    options={rowSpecOptions(q.companyIds ?? []).map(s => { const n = rowSpecCount(q.companyIds ?? [], s); return { value: s, label: s, hint: n > 0 ? `${n}人·库内` : undefined }; })}
+                    selected={quotaSpecsOf(q)}
+                    onChange={list => setAltQuotas(prev => prev!.map((x, i) => i === qi ? { ...x, specialties: list } : x))}
+                    placeholder="专业不限"
+                    title="专业（可多选，相近专业并桶）：清空=专业不限"
+                  />
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => setAltQuotas(prev => prev!.map((x, i) => i === qi ? { ...x, count: x.count > 0 ? x.count - 1 : 0 } : x))} className="neu-btn-xs">−</button>
+                    <span className="w-8 text-center text-sm font-extrabold tabular-nums text-[var(--foreground)]">{q.count}</span>
+                    <button onClick={() => setAltQuotas(prev => prev!.map((x, i) => i === qi ? { ...x, count: x.count + 1 } : x))} className="neu-btn-xs">+</button>
+                  </div>
+                  <button onClick={() => setAltQuotas(prev => prev!.filter((_, i) => i !== qi))} className="neu-btn-xs is-danger">×</button>
+                </div>
+                ))}
+                <button onClick={() => setAltQuotas(prev => [...(prev ?? []), { specialties: [], count: 1, companyIds: [] }])} className="neu-btn-xs"><Plus size={12} />添加专业</button>
+              </div>
+              <div className="flex justify-end pt-3 mt-3 border-t border-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+                <button onClick={extractAlternates} disabled={altExtracting} className="neu-btn-soft is-info"><Search size={14} className="inline mr-1" />开始抽取候补</button>
+              </div>
             </div>
           ) : (
             <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]">候补抽取未就绪，请返回上一步重新进入</div>
