@@ -1314,7 +1314,14 @@ export function ExpertExtractPage({
     const allMain = invitationData.experts.filter(e => e.expertRole === '正选');
     // 补选人数 = 当时已拒绝(declined)的正选专家数（等额补选）；已确认参加与未确认的成员
     // 不参与本次补选人数——待回复者仍可能确认，不应提前占位补选。
-    const declined = allMain.filter(e => e.invitationStatus === 'declined');
+    // 历史轮已补位过的拒绝者仍留在列表里（append 不清旧记录）——以「总席位-已确认」缺口为
+    // 准，只取最近回复拒绝的缺口数人，避免重复计数（2026-10-20 实录：缺 3 席却配出 4 人）。
+    const confirmedMain = allMain.filter(e => e.invitationStatus === 'confirmed').length;
+    const shortfall = Math.max(0, totalSeats - confirmedMain);
+    let declined = allMain
+      .filter(e => e.invitationStatus === 'declined')
+      .sort((a, b) => new Date(b.rsvpRespondedAt ?? 0).getTime() - new Date(a.rsvpRespondedAt ?? 0).getTime());
+    if (declined.length > shortfall) declined = declined.slice(0, shortfall);
     if (declined.length <= 0) {
       toast.warning('没有需要补选的专家（已确认参加与待回复的成员不参与本次补选）'); return;
     }
@@ -1347,6 +1354,9 @@ export function ExpertExtractPage({
         ?? '';
     };
     const groups = new Map<string, { cid: string; specialties: Set<string>; count: number }>();
+    // 缺席专家的 major 可能是上一轮配额标签（顿号拼接串，如「工商管理、会计师」）——拆分并
+    // 归一到库内专业（精确→包含），避免拼接串与真实专业并列出现在专业列（2026-10-20 实录）
+    const matchSpec = mkMatchSpec(specs);
     for (const e of declinedNormal) {
       const comp = (e.employer ?? '').trim();
       const cid = cidOfEmployer(comp);
@@ -1355,7 +1365,11 @@ export function ExpertExtractPage({
       const g = groups.get(key)!;
       g.count += 1;
       const m = (e.major ?? '').trim();
-      if (m) g.specialties.add(m);
+      if (m) {
+        for (const part of m.split(/[、,，]/).map(x => x.trim()).filter(Boolean)) {
+          g.specialties.add(matchSpec(part) || part);
+        }
+      }
     }
     const reQuotas: SpecialtyQuota[] = [...groups.values()].map(g => ({
       specialties: [...g.specialties],
@@ -1380,7 +1394,8 @@ export function ExpertExtractPage({
       const list = quotaSpecsOf(q);
       if (list.length === 0) continue;
       const pc = list.reduce((n, sp) => n + (pool.get(sp) ?? 0), 0);
-      const invited = invitationData.experts.filter(e => list.includes(e.major ?? '')).length;
+      // major 可能为配额标签拼接串（如「工商管理、会计师」）——按拆分后任一部分命中计数
+      const invited = invitationData.experts.filter(e => (e.major ?? '').split(/[、,，]/).map(x => x.trim()).filter(Boolean).some(x => list.includes(x))).length;
       if (pc - invited < q.count) shortages.push(`${quotaLabel(q)}（池内${pc}人，已邀请${invited}人，需补${q.count}人）`);
     }
     if (shortages.length > 0) { setReShortfallSpecs(quotas.map(quotaLabel)); toast.warning(shortages.join('；')); return; }
