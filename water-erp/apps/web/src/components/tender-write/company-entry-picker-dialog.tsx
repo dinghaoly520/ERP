@@ -63,8 +63,9 @@ export function CompanyEntryPickerDialog({
 
   if (!isOpen) return null;
 
-  const pick = (item: { line: string; raw?: SupervisionProfileValue }) => {
-    if (kind === "place") onSelectPlace?.(item.line);
+  const pick = (item: { label: string; raw?: SupervisionProfileValue }) => {
+    // place 的完整地址在 label（line 为副行展示位、place 恒空）——勿读 line，否则回调空串
+    if (kind === "place") onSelectPlace?.(item.label);
     else if (item.raw) onSelectSupervision?.(item.raw);
     onClose();
   };
