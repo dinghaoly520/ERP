@@ -49,7 +49,10 @@ export function QuotaMultiSelect({
   const anchorRef = useRef<HTMLDivElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null);
+  // 锚定坐标：下弹=锚顶边（top=按钮底+8）；上翻=锚底边（bottom=视口底-按钮顶+8）——
+  // 面板实际高度可小于 maxHeight（需求方代表「专业」级联仅 2~5 项），上翻若按预估高度
+  // 算 top 会与按钮脱开一大截（2026-10-20 实录 ~120px），锚底边则恒紧贴按钮（92…）
+  const [rect, setRect] = useState<{ top?: number; bottom?: number; left: number; width: number } | null>(null);
 
   const text = (q || '').trim().toLowerCase();
   const filtered = options.filter(o => !text || o.label.toLowerCase().includes(text) || o.value.toLowerCase().includes(text));
@@ -101,8 +104,10 @@ export function QuotaMultiSelect({
           if (!open) {
             const r = anchorRef.current?.getBoundingClientRect();
             if (r) {
-              const flip = r.bottom + POP_H + 8 > window.innerHeight && r.top > POP_H + 16; // 下方放不下且上方够 → 向上弹
-              setRect({ top: flip ? r.top - POP_H - 8 : r.bottom + 8, left: r.left, width: Math.max(r.width, 220) });
+              const flip = r.bottom + POP_H + 8 > window.innerHeight && r.top > POP_H + 16; // 下方放不下且上方够 → 向上弹（锚底边贴按钮）
+              setRect(flip
+                ? { bottom: window.innerHeight - r.top + 8, left: r.left, width: Math.max(r.width, 220) }
+                : { top: r.bottom + 8, left: r.left, width: Math.max(r.width, 220) });
             }
           }
           setOpen(o => !o);
@@ -146,7 +151,7 @@ export function QuotaMultiSelect({
           role="listbox"
           aria-multiselectable={!single}
           style={{
-            position: 'fixed', top: rect.top, left: rect.left, width: rect.width, zIndex: 700,
+            position: 'fixed', top: rect.top, bottom: rect.bottom, left: rect.left, width: rect.width, zIndex: 700,
             maxHeight: POP_H, overflowY: 'auto', borderRadius: 16, padding: '0 6px 6px',
             background: 'linear-gradient(145deg, oklch(1 0 0) 0%, oklch(0.965 0.012 258) 100%)',
             boxShadow: '6px 6px 18px oklch(0.55 0.03 258 / 0.16), -3px -3px 10px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.9)',
