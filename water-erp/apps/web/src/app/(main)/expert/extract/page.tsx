@@ -106,6 +106,9 @@ export function ExpertExtractPage({
   const [companies, setCompanies] = useState<Array<{ id: string; name: string; shortName?: string | null }>>([]);
   const [myCompanyId, setMyCompanyId] = useState('');
   const [specs, setSpecs] = useState<string[]>([]);
+  // 公司id→该公司可选专业（懒加载缓存）：专业下拉随配额行所选公司联动（2026-10-20 用户口径，
+  // 选多公司=专业并集同名合并）；此前仅挂载时拉一次池口径列表，多选公司后专业不随之加载
+  const [companySpecs, setCompanySpecs] = useState<Map<string, string[]>>(new Map());
   const [pid, setPid] = useState(q.get('projectId') || '');
   const [pd, setPd] = useState<BidProjectDetail | null>(null);
   const [pool, setPool] = useState<Map<string, number>>(new Map());
@@ -530,6 +533,38 @@ export function ExpertExtractPage({
   }, [autoExtractResult]);
 
   useEffect(() => { listBidProjects().then(setProjects).catch(() => toast.error('加载项目列表失败')); listSpecialties().then(setSpecs).catch(() => {}); }, []);
+
+  // 专业下拉随配额行所选公司懒加载（2026-10-20）：逐公司调 listSpecialties(companyId) 缓存，
+  // 行内专业选项=所选公司专业并集（Set 去重=同名合并）。resolveScope 支持 admin 多公司；
+  // 非 admin 后端强制本公司（传参忽略防伪造），天然不出隔离边界。
+  const companySpecsPending = useRef(new Set<string>());
+  useEffect(() => {
+    const wanted = new Set<string>();
+    for (const q of quotas) {
+      for (const id of (q.companyIds?.length ? q.companyIds : (myCompanyId ? [myCompanyId] : []))) {
+        const v = id.trim();
+        if (v) wanted.add(v);
+      }
+    }
+    for (const id of wanted) {
+      if (companySpecs.has(id) || companySpecsPending.current.has(id)) continue;
+      companySpecsPending.current.add(id);
+      listSpecialties(id)
+        .then((list) => setCompanySpecs(prev => { const n = new Map(prev); n.set(id, list); return n; }))
+        .catch(() => {})
+        .finally(() => { companySpecsPending.current.delete(id); });
+    }
+  }, [quotas, myCompanyId, companySpecs]);
+
+  /** 行内专业选项：所选公司专业并集（同名合并去重，按库内人数降序）；
+   *  未选公司=池口径全量 specs；懒加载未就绪时暂以全量兜底避免空下拉 */
+  const rowSpecOptions = (ids: string[]): string[] => {
+    const byPool = (a: string, b: string) => (pool.get(b) ?? 0) - (pool.get(a) ?? 0);
+    if (ids.length === 0) return [...specs].sort(byPool);
+    const union = new Set<string>();
+    ids.forEach(id => (companySpecs.get(id) ?? []).forEach(sp => union.add(sp)));
+    return union.size > 0 ? [...union].sort(byPool) : [...specs].sort(byPool);
+  };
 
   // 从 modal 传入 defaultPid 时预选该项目（不自动抽取，由用户在步骤1配置后手动「开始抽取」）
   useEffect(() => {
@@ -2255,7 +2290,7 @@ export function ExpertExtractPage({
                             />
                             <QuotaMultiSelect
                               className="min-w-[150px] flex-1"
-                              options={[...specs].sort((a,b) => (pool.get(b)||0) - (pool.get(a)||0)).map(s => ({ value: s, label: s, hint: pool.has(s) ? `${pool.get(s)}人·库内` : undefined }))}
+                              options={rowSpecOptions(qcIds).map(s => ({ value: s, label: s, hint: pool.has(s) ? `${pool.get(s)}人·库内` : undefined }))}
                               selected={quotaSpecsOf(q)}
                               onChange={list => upQ(idx, 'specialties', list)}
                               placeholder="专业不限"
@@ -3140,7 +3175,7 @@ export function ExpertExtractPage({
                 <div key={qi} className="flex items-center gap-2">
                   <QuotaMultiSelect
                     className="flex-1"
-                    options={[...specs].sort((a,b) => (pool.get(b)??0) - (pool.get(a)??0)).map(s => ({ value: s, label: s, hint: pool.has(s) ? `${pool.get(s)}人·库内` : undefined }))}
+                    options={rowSpecOptions(q.companyIds ?? []).map(s => ({ value: s, label: s, hint: pool.has(s) ? `${pool.get(s)}人·库内` : undefined }))}
                     selected={quotaSpecsOf(q)}
                     onChange={list => updateDraft({ quotas: reDraft.quotas.map((x, i) => i === qi ? { ...x, specialties: list } : x) })}
                     placeholder="选择专业"
