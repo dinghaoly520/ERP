@@ -1170,8 +1170,15 @@ export function ExpertExtractPage({
   }, [demandRepPersons]);
   /** 格式化专家姓名：需求方代表追加「（需求方代表）」后缀 */
   const fmtExpertName = (userId: string, name: string) => demandRepIdSet.has(userId) ? `${name}（业主代表）` : name;
-  /** 取专家专业：需求方代表用配置时选取的真实专业，避免显示为"需求方代表"占位 */
-  const fmtExpertSpecialty = (userId: string, fallback: string) => demandRepIdSet.has(userId) ? (demandRepSpecialtyMap.get(userId) || fallback) : fallback;
+  /** 取专家**本人档案专业**（2026-10-20 口径）：不再透传 selected[].specialty——那是配额标签
+   *  （用户所选专业组拼串），非专家本人专业。优先候选池真实专业（preview/altPreview），快照恢复
+   *  池空时回退需求方代表目录（全库在用可用）；需求方代表用配置时选取的真实专业。 */
+  const fmtExpertSpecialty = (userId: string, fallback: string) => {
+    if (demandRepIdSet.has(userId)) return demandRepSpecialtyMap.get(userId) || fallback;
+    const poolHit = preview?.candidatePool.find(c => c.userId === userId)?.specialty
+      ?? altPreview?.candidatePool.find(c => c.userId === userId)?.specialty;
+    return poolHit || demandRepDirectory.find(d => d.userId === userId)?.specialty || fallback;
+  };
 
   // 步骤4正选专家列表（含指定需求方代表，按 userId 去重）
   const step4Experts = useMemo(() => {
@@ -1297,10 +1304,11 @@ export function ExpertExtractPage({
   // 保持 stateRef 同步最新渲染值（必须在所有 useState 之后，供 beforeunload 保存使用）
   stateRef.current = { pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified, altExhausted, needDemandRep, demandRepCount, demandRepPersons, demandRepMode, demandRepCompany, demandRepDept, demandRepDeptSpecialty, totalSeats };
 
-  /** 打开补选弹窗（2026-10-20 用户口径）：不直接抽取、不 AI 推荐——进手动配额。默认沿用
-   *  步骤1配额结构（公司选择一并保留），人数按「确认无法参加」专家的专业对应到各配额行
-   *  （对应不上的按其实际专业单列，总数=缺席数）；部门模式需求方代表缺席走 employer+
-   *  department 限定行（与初次抽取同口径）。用户调整后点「开始抽取」（extractReDraft）。 */
+  /** 打开补选弹窗（2026-10-20 用户口径）：不直接抽取、不 AI 推荐——进手动配额。默认行按
+   *  「确认无法参加」专家的公司分组：同公司缺席合并一行（席位=该公司缺席人数），不同公司
+   *  各自单列；公司列=缺席专家所属公司（不再默认不限），专业=组内缺席专业并集；部门模式
+   *  需求方代表缺席走 employer+department 限定行（与初次抽取同口径）。用户调整后点
+   *  「开始抽取」（extractReDraft）。 */
   const openReModal = () => {
     if (!invitationData || !pid) return;
     const allMain = invitationData.experts.filter(e => e.expertRole === '正选');
@@ -1328,18 +1336,32 @@ export function ExpertExtractPage({
       });
     }
 
-    // 普通专家：步骤1配额行做骨架（保留公司选择），缺席专家按专业对应计数（精确→互相包含）
-    const rows = quotas.map(q => ({ ...q, specialties: quotaSpecsOf(q), count: 0 }));
-    const unmatched = new Map<string, number>();
+    // 普通专家默认行（2026-10-20 用户口径）：按缺席专家的公司分组——同公司缺席合并为一行
+    //（席位=该公司缺席人数，如 2 席），不同公司各自单列（1 行 1 席）；专业=组内缺席专业并集；
+    // 公司列恒为缺席专家所属公司（不再默认「不限公司」），公司名对不上主数据时才退化为不限。
+    const cidOfEmployer = (name: string): string => {
+      const n = name.trim();
+      if (!n) return '';
+      return companies.find(c => c.name === n)?.id
+        ?? companies.find(c => c.name.includes(n) || n.includes(c.name))?.id
+        ?? '';
+    };
+    const groups = new Map<string, { cid: string; specialties: Set<string>; count: number }>();
     for (const e of declinedNormal) {
+      const comp = (e.employer ?? '').trim();
+      const cid = cidOfEmployer(comp);
+      const key = cid || comp || '未归属';
+      if (!groups.has(key)) groups.set(key, { cid, specialties: new Set(), count: 0 });
+      const g = groups.get(key)!;
+      g.count += 1;
       const m = (e.major ?? '').trim();
-      const idx = rows.findIndex(r => r.specialties.some(sp => sp === m || (!!m && (sp.includes(m) || m.includes(sp)))));
-      if (idx >= 0) rows[idx].count += 1;
-      else unmatched.set(m || '综合', (unmatched.get(m || '综合') ?? 0) + 1);
+      if (m) g.specialties.add(m);
     }
-    const reQuotas: SpecialtyQuota[] = rows.filter(r => r.count > 0);
-    // 对应不上任何步骤1行的缺席专业 → 按其实际专业单列（保总数=缺席人数）
-    for (const [sp, cnt] of unmatched) reQuotas.push({ specialties: sp === '综合' ? [] : [sp], count: cnt });
+    const reQuotas: SpecialtyQuota[] = [...groups.values()].map(g => ({
+      specialties: [...g.specialties],
+      count: g.count,
+      ...(g.cid ? { companyIds: [g.cid] } : {}),
+    }));
     // 兜底：全部缺席均为指定代表（无行可建）→ 一行专业不限供用户调整
     if (reQuotas.length === 0 && reEmployerQuotas.length === 0) reQuotas.push({ specialties: [], count: declined.length });
 
@@ -3093,7 +3115,7 @@ export function ExpertExtractPage({
           ) : reDraft.phase === 'configuring' ? (
             <div className="space-y-4">
               <div className="rounded-xl bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] px-3 py-2 text-xs text-[var(--muted-foreground)]">
-                缺 {totalSeats - (invitationData?.experts?.filter(e => e.expertRole === '正选' && e.invitationStatus === 'confirmed').length ?? 0)} 席，默认沿用步骤1配额、按确认无法参加的专家对应到各行，可手动调整后开始抽取
+                缺 {totalSeats - (invitationData?.experts?.filter(e => e.expertRole === '正选' && e.invitationStatus === 'confirmed').length ?? 0)} 席，默认按确认无法参加专家的公司分组（同公司合并为一行、不同公司单列），可手动调整后开始抽取
               </div>
               <div className="space-y-2">
                 {reDraft.quotas.map((q, qi) => (
