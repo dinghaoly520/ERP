@@ -2174,6 +2174,7 @@ describe('BidService — inviteSuppliers (邀请供应商)', () => {
       bidProject: { findUnique: jest.fn() },
       supplier: { findMany: jest.fn() },
       bidSupplier: { findMany: jest.fn(), createMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      supplierCompanyLink: { findMany: jest.fn() },
       auditLog: { create: jest.fn().mockResolvedValue({}) },
     };
     // 默认：项目在 DOWNLOAD，两个 APPROVED 供应商，名册为空
@@ -2228,6 +2229,19 @@ describe('BidService — inviteSuppliers (邀请供应商)', () => {
     const res = await service.inviteSuppliers('p1', ['s1', 's3'], 'actor-1');
     expect(res.added).toBe(1);
     expect(res.skipped).toBe(1);
+  });
+
+  it('跨公司邀请闸（2026-10-20）：未 APPROVED 归属项目公司的供应商 → 400 CROSS_COMPANY_INVITE 列名拒绝', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-001', name: '水库项目', stage: 'DOWNLOAD', companyId: 'co-A' });
+    // s1 归属 co-A；s2（乙公司）不归属 → 整单拒绝、不落名册
+    prisma.supplierCompanyLink.findMany.mockResolvedValue([{ supplierId: 's1' }]);
+    await expect(service.inviteSuppliers('p1', ['s1', 's2'], 'actor-1'))
+      .rejects.toMatchObject({ response: { code: 'CROSS_COMPANY_INVITE' } });
+    expect(prisma.bidSupplier.createMany).not.toHaveBeenCalled();
+    // 全员归属放行
+    prisma.supplierCompanyLink.findMany.mockResolvedValue([{ supplierId: 's1' }, { supplierId: 's2' }]);
+    const res = await service.inviteSuppliers('p1', ['s1', 's2'], 'actor-1');
+    expect(res.added).toBe(2);
   });
 
   it('对入参去重（同 id 传两次不重复建）', async () => {

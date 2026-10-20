@@ -22,8 +22,10 @@ export interface AnnouncementItem {
   viewCount?: number;
   /** 发布单位（2026-10-16）：公告必须标明公司——创建时按登录人公司落写时快照 */
   companyName?: string;
-  /** 已下线标题壳（2026-09-26 v2）：公示期满/存量下线——仅标题可见，不可点开看内容 */
+  /** 已下线标题壳（2026-09-26 v2）：公示期满/存量下线——2026-10-20 改可点，详情为提示页 */
   titleOnly?: boolean;
+  /** 已下线归因（2026-10-20）：PUBLICITY_ENDED=公示期满；OFFLINED=手动下线 */
+  offlinedReason?: 'PUBLICITY_ENDED' | 'OFFLINED';
 }
 
 /* ── 结构化元数据字段定义（与采购管理工作台 :3005 保持一致）── */
@@ -129,6 +131,7 @@ function toAnnouncementItem(a: any): AnnouncementItem {
     metadata: a.metadata || {},
     viewCount: typeof a.viewCount === 'number' ? a.viewCount : 0,
     titleOnly: a.titleOnly === true,
+    offlinedReason: a.offlinedReason,
   };
 }
 

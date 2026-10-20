@@ -450,6 +450,7 @@ In non-interactive environments, use `prisma migrate dev --create-only` → `pri
 - **操作日志排除默认值**：`operation-log.filter.ts` 新增 8 个高频轮询端点（通知角标/驾驶舱统计/审查任务轮询等，带方法限定 GET-only；2026-08-28 增 :3007 任务板 GET /bid/projects/dashboard 30s 轮询；2026-09-16 增 GET /operation-log——:3005 操作日志查询页（`/admin/operation-log`，admin only）自查询浏览不入日志防审计噪音，前缀连带 /my /archive /archive/verify，均只读）。
 - **公告直建项目（N16 A 方案，2026-08-17）**：信息发布中心独立发布 BID_NOTICE 且无既有项目时，联动创建 BidProject 的同时自动补建最小 PMI（前置阶段补记 COMPLETED、currentStage=BID_EVALUATION）并回填关联——:3005 开标确认面板对公告直建项目可用。
 - **公告删除规则**：关联项目进入 SUBMIT 及以后（SUBMIT/OPENING/EVALUATING）→ 409 `BID_IN_PROGRESS`，须先流标/归档（P0-4，办法第49条不得损毁）；DOWNLOAD/ABORTED/ARCHIVED 可删且仅解关联（不级联）；SUBMIT+ 409 禁令不变。（2026-08-21 落地，终审裁定）
+- **公告公司隔离 + 公示期满提示页（2026-10-20 用户裁定，推翻 2026-08-20「全量展示所有公司公告」契约）**：:3004 公告中心（`announcement.service.ts supplierList`）与项目机会（`supplier-portal.service.ts listBidProjects` 公开分支收口+受邀分支）只对归属公司（APPROVED `SupplierCompanyLink`）供应商开放——「全部可见」公告也不跨公司；平台级公告（companyId null）全员可见；RESTRICTED 定向白名单命中豁免公司闸（显式点名>归属）。:3002 公开门户仍全量（匿名无从判归属）。公示期满/手动下线详情不再 400 `OFFLINED`——`getPublic` 返回 200 标题壳（`titleOnly`+`offlinedReason: PUBLICITY_ENDED|OFFLINED`，附件/招标文件剥除、不计浏览），:3002/:3004 列表壳行可点进提示页（「公示期已过，不再显示公示内容」/「该公告已下线」）；项目机会侧不受公示期满影响（`resolveOwnAnnouncement` 只硬过滤 status，同日早前裁定）。邀请写闸：`inviteSuppliers`/谈判配置 `supplierIds` 禁止跨公司（400 `CROSS_COMPANY_INVITE` 列名）；AI 邀请函群发未设闸（:3005 选择器已公司隔离+读端闸门兜底）。
 
 ## 双信封新轨·生产启用前清单（2026-08 双信封落地）
 

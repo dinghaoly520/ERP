@@ -640,13 +640,18 @@ describe('AnnouncementService — 回收站体系（隐藏/下架/恢复，2026-
     expect(by.p3.titleOnly).toBeUndefined();
     expect(by.p3.content).toContain('正文');
     expect(by.p4.titleOnly).toBe(true);
+    // 2026-10-20：标题壳带归因——门户据此渲染「公示期已过」/「已下线」差异化提示
+    expect(by.p2.offlinedReason).toBe('PUBLICITY_ENDED');
+    expect(by.p4.offlinedReason).toBe('OFFLINED');
+    expect(by.p1.offlinedReason).toBeUndefined();
   });
 
-  it('getPublic：公示期满/ARCHIVED → OFFLINED 拒绝且不计浏览；公示期内正常出全文', async () => {
+  it('getPublic：公示期满/ARCHIVED → 200 标题壳（offlinedReason 归因，不计浏览）；公示期内正常出全文', async () => {
+    // 2026-10-20 用户裁定：点进去渲染「公示期已过/已下线」提示页——不再是 400 拒绝（直链也有标题元信息）
     prisma.announcement.findUnique.mockResolvedValue({ id: 'g1', title: 't', type: 'BID_NOTICE', status: 'PUBLISHED', content: 'c', publicityEnd: new Date(Date.now() - 86400000), dataClass: null, metadata: {} });
-    await expect(service.getPublic('g1')).rejects.toMatchObject({ response: { code: 'OFFLINED', error: '该公告已下线' } });
+    await expect(service.getPublic('g1')).resolves.toMatchObject({ id: 'g1', titleOnly: true, offlinedReason: 'PUBLICITY_ENDED', content: '' });
     prisma.announcement.findUnique.mockResolvedValue({ id: 'g2', title: 't', type: 'BID_NOTICE', status: 'ARCHIVED', content: 'c', dataClass: null, metadata: {} });
-    await expect(service.getPublic('g2')).rejects.toMatchObject({ response: { code: 'OFFLINED' } });
+    await expect(service.getPublic('g2')).resolves.toMatchObject({ id: 'g2', titleOnly: true, offlinedReason: 'OFFLINED' });
     expect(prisma.announcement.update).not.toHaveBeenCalled();
     prisma.announcement.findUnique.mockResolvedValue({ id: 'g3', title: 't', type: 'BID_NOTICE', status: 'PUBLISHED', content: 'c', publicityEnd: new Date(Date.now() + 86400000), dataClass: null, metadata: {} });
     prisma.announcement.update.mockResolvedValue({});
@@ -776,6 +781,8 @@ describe('AnnouncementService — supplierList 供应商视角（公开 ∪ 定�
   beforeEach(async () => {
     prisma = {
       announcement: { count: jest.fn(), findMany: jest.fn() },
+      // 公司隔离（2026-10-20）：默认归属 co-mine（APPROVED）
+      supplierCompanyLink: { findMany: jest.fn().mockResolvedValue([{ companyId: 'co-mine' }]) },
     };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -828,6 +835,41 @@ describe('AnnouncementService — supplierList 供应商视角（公开 ∪ 定�
 
     expect(res.items[0].titleOnly).toBe(true);
     expect(res.items[0].content).toBe('');
+  });
+
+  it('公司隔离（2026-10-20）：主查询 AND 注入 归属公司∪平台级∪定向白名单豁免；无 APPROVED 归属仅剩平台级', async () => {
+    prisma.supplierCompanyLink.findMany.mockResolvedValue([{ companyId: 'co-mine' }]);
+    prisma.announcement.findMany.mockImplementation((args: any) => {
+      if (args?.select?.id) return [
+        // 跨公司定向公告但白名单点名本人 → 公司闸豁免（显式点名 > 公司归属）
+        { id: 'r9', metadata: { visibility: 'RESTRICTED', restrictedSupplierIds: ['S1'] } },
+        { id: 'r8', metadata: { visibility: 'RESTRICTED', restrictedSupplierIds: ['OTHER'] } },
+      ];
+      return [];
+    });
+    prisma.announcement.count.mockResolvedValue(0);
+
+    await service.supplierList({}, 'S1');
+    const mainWhere = prisma.announcement.findMany.mock.calls[1][0].where;
+    const companyOr = (mainWhere.AND as any[]).find((c: any) => Array.isArray(c.OR))?.OR;
+    expect(companyOr).toEqual([
+      { companyId: { in: ['co-mine'] } },
+      { companyId: null },
+      { id: { in: ['r9'] } },
+    ]);
+    // 非本人的定向仍走 notIn 排除
+    expect(mainWhere.id).toEqual({ notIn: ['r8'] });
+
+    // 无 APPROVED 归属（注册必填公司但 PENDING 未批）→ 公司集为空，仅平台级 + 白名单命中
+    prisma.supplierCompanyLink.findMany.mockResolvedValue([]);
+    await service.supplierList({}, 'S1');
+    const mainWhere2 = prisma.announcement.findMany.mock.calls[3][0].where;
+    const companyOr2 = (mainWhere2.AND as any[]).find((c: any) => Array.isArray(c.OR))?.OR;
+    expect(companyOr2).toEqual([
+      { companyId: { in: [] } },
+      { companyId: null },
+      { id: { in: ['r9'] } },
+    ]);
   });
 
   it('查询闸：预取 RESTRICTED 集合判归属，主查询 notIn 排除不属于本人的定向；公开级 dataClass 口径保留', async () => {

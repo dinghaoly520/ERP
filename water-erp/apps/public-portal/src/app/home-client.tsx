@@ -159,7 +159,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
     // 标题可见、灰态不可点、正文不可查看（版式口径同「全部公告」页标题壳）
     const src = tab.types ? fetchedAnnouncements.filter(a => tab.types!.includes(a.type)) : fetchedAnnouncements;
     const items = [...src].sort((a, b) => (a.date < b.date ? 1 : -1))
-      .map(a => ({ tag: a.tag, date: a.date, urgent: a.urgent, title: a.title, desc: a.desc, content: a.content, aiSummary: a.aiSummary, code: a.code, deadline: a.deadline, id: a.id, deadlineLabel: a.deadlineLabel, titleOnly: a.titleOnly === true }));
+      .map(a => ({ tag: a.tag, date: a.date, urgent: a.urgent, title: a.title, desc: a.desc, content: a.content, aiSummary: a.aiSummary, code: a.code, deadline: a.deadline, id: a.id, deadlineLabel: a.deadlineLabel, titleOnly: a.titleOnly === true, offlinedReason: a.offlinedReason }));
     return {
       key: tab.key,
       label: tab.label,
@@ -453,7 +453,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
               <div
                 className="announce-featured lg:col-span-2 group"
                 style={{ '--card-color': currentAnnounce.color, ...(featuredItem.titleOnly ? { opacity: 0.72 } : {}) } as React.CSSProperties}
-                onClick={() => { if (featuredItem.titleOnly) return; saveHomeScroll(); router.push(`/announcements/${featuredItem.id}?from=home`); }}
+                onClick={() => { saveHomeScroll(); router.push(`/announcements/${featuredItem.id}?from=home`); }}
                 role="article">
                 <div className="announce-featured-border" />
                 <div className="announce-featured-inner">
@@ -462,7 +462,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                     <span className="announce-tag" style={{ backgroundColor: currentAnnounce.color }}>{featuredItem.tag}</span>
                     <span className="text-xs text-[#999]">{featuredItem.date}</span>
                     {featuredItem.titleOnly && (
-                      <span className="text-xs bg-[#eef1f6] text-[#8a96aa] px-2 py-0.5 rounded-full font-bold">已下线</span>
+                      <span className="text-xs bg-[#eef1f6] text-[#8a96aa] px-2 py-0.5 rounded-full font-bold">{featuredItem.offlinedReason === 'PUBLICITY_ENDED' ? '公示期满' : '已下线'}</span>
                     )}
                     {featuredItem.urgent && (
                       <span className="announce-tag-urgent">
@@ -471,22 +471,19 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                       </span>
                     )}
                   </div>
-                  {/* 标题 — 内嵌 <a> 提供真实链接（SEO + 右键新窗口）；已下线壳灰态纯文本不可点 */}
+                  {/* 标题 — 内嵌 <a> 提供真实链接（SEO + 右键新窗口）；已下线壳灰态可点（2026-10-20：详情为提示页） */}
                   <h3 key={featuredItem.id} className="announce-featured-title" style={{ animation: 'announceContentIn 0.4s ease' }}>
-                    {featuredItem.titleOnly ? (
-                      <span style={{ color: '#8a96aa', cursor: 'default' }}>{featuredItem.title}</span>
-                    ) : (
                     <a href={`/announcements/${featuredItem.id}?from=home`}
                       onClick={(e) => { e.stopPropagation(); saveHomeScroll(); }}
-                      className="announce-featured-title-link">
+                      className="announce-featured-title-link"
+                      style={featuredItem.titleOnly ? { color: '#8a96aa' } : undefined}>
                       {featuredItem.title}
                     </a>
-                    )}
                   </h3>
                   {/* 正文预览 */}
                   <p key={`content-${featuredItem.id}`} className="announce-featured-content-preview" style={{ animation: 'announceContentIn 0.4s ease 0.05s both' }}>
                     {featuredItem.titleOnly
-                      ? '该公告公示期已满，正文已下线，不可查看详情。'
+                      ? (featuredItem.offlinedReason === 'PUBLICITY_ENDED' ? '该公告公示期已过，不再显示公示内容。' : '该公告已下线。')
                       : (featuredItem.aiSummary || featuredItem.desc || featuredItem.content.replace(/<h2>.*?<\/h2>/g, '').replace(/<[^>]+>/g, '').trim().slice(0, 320))}
                   </p>
                   {/* 底部元信息 */}
@@ -498,7 +495,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                       )}
                     </div>
                     {featuredItem.titleOnly
-                      ? <span className="text-xs font-semibold text-[#8a96aa]">公示期满 · 已下线</span>
+                      ? <span className="text-xs font-semibold text-[#8a96aa]">{featuredItem.offlinedReason === 'PUBLICITY_ENDED' ? '公示期满' : '已下线'} · 查看提示</span>
                       : <span className="announce-detail-btn">查看详情</span>}
                   </div>
                   {/* 轮播进度指示器 — stopPropagation 阻止冒泡到 div onClick */}
@@ -529,15 +526,15 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                   {currentAnnounce.items.filter((_, i) => i !== featuredIndex).slice(0, 3).map((item, idx, arr) => (
                     <React.Fragment key={item.id}>
                       {item.titleOnly ? (
-                        /* 已下线标题壳：灰态不可点（2026-09-28 裁定——仍展示，仅不可看详情） */
-                        <div className="announce-side-item group" aria-disabled="true" title="该公告已下线"
-                          style={{ '--item-delay': `${idx * 60}ms`, '--rank-color': '#b6c0cf', opacity: 0.65, cursor: 'default' } as React.CSSProperties}>
+                        /* 已下线标题壳（2026-10-20 改可点）：详情为「公示期已过/已下线」提示页 */
+                        <a href={`/announcements/${item.id}?from=home`} className="announce-side-item group" onClick={saveHomeScroll}
+                          style={{ '--item-delay': `${idx * 60}ms`, '--rank-color': '#b6c0cf', opacity: 0.75 } as React.CSSProperties}>
                           <div className="announce-side-item-rank">{String(idx + 1).padStart(2, '0')}</div>
                           <div className="flex flex-col gap-1.5 flex-1 min-w-0">
                             <span className="text-[13px] text-[#aaa]">{item.date.slice(5)}</span>
                             <span className="announce-side-item-title" style={{ color: '#8a96aa' }}>{item.title}</span>
                           </div>
-                        </div>
+                        </a>
                       ) : (
                       <a href={`/announcements/${item.id}?from=home`}
                         className="announce-side-item group"

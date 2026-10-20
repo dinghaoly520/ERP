@@ -95,6 +95,8 @@ describe('SupplierPortalService', () => {
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
 
       supplier: { findUnique: jest.fn(), update: jest.fn() },
+      // 公司隔离（2026-10-20）：默认归属 co-mine（APPROVED）——listBidProjects 解析归属公司集
+      supplierCompanyLink: { findMany: jest.fn().mockResolvedValue([{ companyId: 'co-mine' }]) },
       supplierCert: { findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
       // Task6（dual-v3 回执）：getReceiptPayloadFor 新增查表——版本快照默认查空=旧轨回退
       submissionVersion: { findUnique: jest.fn().mockResolvedValue(null) },
@@ -917,6 +919,49 @@ describe('SupplierPortalService', () => {
       expect(prisma.supplier.findUnique).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: 'sup-1' } }),
       );
+    });
+
+    it('公司隔离（2026-10-20）：受邀明细与公开分支收口查询均带 companyId in 归属集', async () => {
+      prisma.supplier.findUnique.mockResolvedValueOnce({ status: 'APPROVED' });
+      prisma.bidSupplier.findMany.mockResolvedValue([{ projectId: 'bp-inv' }]);
+      prisma.bidDocument.findMany.mockResolvedValue([{ bidProjectId: 'bp-doc' }]);
+      prisma.announcement.findMany.mockResolvedValue([]);
+      prisma.projectManagementItem.findMany.mockResolvedValue([]);
+      const queries: any[] = [];
+      prisma.bidProject.findMany.mockImplementation(async ({ where }: any) => {
+        queries.push(where);
+        if (where?.id?.in?.includes('bp-inv')) return [{ id: 'bp-inv', procurementMethod: '谈判采购', projectManagementItemId: null, projectCode: 'BID-INV' }];
+        if (where?.id?.in?.includes('bp-doc')) return [{ id: 'bp-doc', procurementMethod: '询比采购' }];
+        if (where?.OR) return [{ id: 'bp-inv', projectCode: 'X', name: 'N', stage: 'SUBMIT', deadline: new Date(Date.now() + 3600_000), openTime: new Date(), createdAt: new Date() }];
+        return [];
+      });
+      prisma.bidProject.count.mockResolvedValue(1);
+      prisma.bidProject.groupBy.mockResolvedValue([]);
+      prisma.supplierBidSubmission.findMany.mockResolvedValue([]);
+
+      await service.listBidProjects(1, 20, {}, 'sup-1');
+
+      // 受邀分支：明细查询带公司闸（不允许跨公司邀请→存量越界邀请亦不可见）
+      const invitedQuery = queries.find(w => w?.id?.in?.includes('bp-inv'));
+      expect(invitedQuery.companyId).toEqual({ in: ['co-mine'] });
+      // 公开分支：公告桥接∪OPEN 文档统一收口过滤
+      const openScopeQuery = queries.find(w => w?.id?.in?.includes('bp-doc'));
+      expect(openScopeQuery.companyId).toEqual({ in: ['co-mine'] });
+    });
+
+    it('公司隔离：无 APPROVED 归属 → 公开/受邀分支皆空', async () => {
+      prisma.supplier.findUnique.mockResolvedValueOnce({ status: 'APPROVED' });
+      prisma.supplierCompanyLink.findMany.mockResolvedValueOnce([]);
+      prisma.bidSupplier.findMany.mockResolvedValue([{ projectId: 'bp-inv' }]);
+      prisma.bidDocument.findMany.mockResolvedValue([{ bidProjectId: 'bp-doc' }]);
+      prisma.announcement.findMany.mockResolvedValue([]);
+      prisma.projectManagementItem.findMany.mockResolvedValue([]);
+      prisma.bidProject.findMany.mockResolvedValue([]);
+      prisma.bidProject.count.mockResolvedValue(0);
+
+      const result = await service.listBidProjects(1, 20, {}, 'sup-1');
+      expect(result.items).toHaveLength(0);
+      expect(result.total).toBe(0);
     });
 
     it('返回招标项目列表，仅公开字段 + 投标方数量', async () => {

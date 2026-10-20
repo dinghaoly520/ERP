@@ -63,8 +63,10 @@ interface AnnouncementListItem {
   isTop?: boolean;
   publishDate?: string | null;
   createdAt: string;
-  /** 已下线标题壳（2026-09-26 v2）：仅标题可见，不可点开看内容 */
+  /** 已下线标题壳（2026-09-26 v2）：仅标题可见；2026-10-20 改可点——详情为「公示期已过/已下线」提示页 */
   titleOnly?: boolean;
+  /** 已下线归因（2026-10-20）：PUBLICITY_ENDED=公示期满；OFFLINED=手动下线 */
+  offlinedReason?: "PUBLICITY_ENDED" | "OFFLINED";
 }
 
 interface AnnouncementListResponse {
@@ -220,8 +222,9 @@ export default function AnnouncementListPage() {
       ) : items.length > 0 ? (
         <div className="announcement-list">
           {items.map((a) => a.titleOnly ? (
-            /* 已下线标题壳（v2 2026-09-26）：只留标题，灰态不可点，内容不可查看 */
-            <div key={a.id} className="announcement-row" aria-disabled="true" title="该公告已下线" style={{ cursor: 'default', opacity: 0.62 }}>
+            /* 已下线标题壳（v2 2026-09-26；2026-10-20 用户裁定改可点）：点进详情渲染
+               「公示期已过，不再显示公示内容」/「该公告已下线」提示页（保留标题等元信息） */
+            <Link key={a.id} href={`/announcements/${encodeURIComponent(a.id)}`} className="announcement-row" aria-label={`查看公告：${a.title}`}>
               <div className="ann-row-left">
                 <span className={`ann-tag ann-tag--sm ann-tag--${typeTagMap[a.type]?.type || "info"}`}>
                   {typeTagMap[a.type]?.label || a.type}
@@ -232,10 +235,13 @@ export default function AnnouncementListPage() {
               </div>
               <div className="ann-row-right">
                 {a.visibility === "RESTRICTED" ? <span className="restricted-badge">定向</span> : null}
-                <span className="top-badge" style={{ background: 'var(--muted)', color: 'var(--muted-foreground)' }}>已下线</span>
+                <span className="top-badge" style={{ background: 'var(--muted)', color: 'var(--muted-foreground)' }}>
+                  {a.offlinedReason === "PUBLICITY_ENDED" ? "公示期满" : "已下线"}
+                </span>
                 <span className="ann-row-date">{dayjs(a.publishDate || a.createdAt).format("YYYY-MM-DD")}</span>
+                <ArrowRight size={16} className="ann-arrow" strokeWidth={1.75} />
               </div>
-            </div>
+            </Link>
           ) : (
             <Link
               key={a.id}

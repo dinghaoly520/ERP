@@ -226,7 +226,7 @@ export class AnnouncementService {
   async list(
     params: { type?: string; status?: string; search?: string; page?: number; pageSize?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' },
     companyFilter: CompanyWhere = {},
-    opts: { publicVisibilityOnly?: boolean; excludeIds?: string[] } = {},
+    opts: { publicVisibilityOnly?: boolean; excludeIds?: string[]; extraWhere?: Record<string, any> } = {},
   ) {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
@@ -234,6 +234,11 @@ export class AnnouncementService {
 
     // 公司隔离：非 admin 只见本公司公告；admin 可切公司/全部
     const where: any = { ...companyFilter };
+    // 供应商公告中心公司隔离（2026-10-20）：复合过滤（归属公司∪平台级∪定向白名单）走 AND 注入
+    // ——与 publicVisibilityOnly 同理，search 分支会覆写 where.OR，不能挂 OR 顶层
+    if (opts.extraWhere) {
+      where.AND = [...(where.AND ?? []), opts.extraWhere];
+    }
     // A2（表 B.1）：公开门户仅出 应公开/宜公开（存量 null 按"已发布即可见"放行）。
     // 用 AND 组合——search 分支会覆写 where.OR，不能挂 OR 上
     if (opts.publicVisibilityOnly) {
@@ -331,8 +336,9 @@ export class AnnouncementService {
 
   /** Public listing — only published items；公开端不含招标文件（首页不泄露）；RESTRICTED 可见范围不流转到首页 */
   async publicList(params: { type?: string; search?: string; page?: number; pageSize?: number }) {
-    // 契约（2026-08-20 拍板）：公开门户（:3002）与供应商门户（:3004）**全量展示所有公司公告**——
-    // 复用 list() 但不传 companyFilter（默认空 = 无公司过滤）。切勿在此注入公司隔离。
+    // 契约（2026-08-20 拍板，2026-10-20 修订）：公开门户（:3002）**全量展示所有公司公告**——
+    // 匿名公开端无从判归属，公司隔离不适用。供应商门户（:3004）已改公司隔离
+    // （supplierList，2026-10-20 用户裁定：归属公司 ∪ 平台级 ∪ 定向白名单命中）。
     // A2（表 B.1）：查询层过滤公开级别（total 与 items 同口径）
     // v2（2026-09-26 拍板）：已下线（公示期满的 PUBLISHED / 存量 ARCHIVED）仍列标题壳——
     // 服务端剥正文/摘要 + titleOnly 标记，门户只渲染不可点标题；下架(OFFLINE)/隐藏(HIDDEN)完全不出。
@@ -345,23 +351,44 @@ export class AnnouncementService {
   /** 供应商视角列表（:3004 公告中心，2026-09-29 spec）——公开 ∪ 定向命中本供应商。
    *  与 publicList 同口径（PUBLISHED/ARCHIVED、公开级 dataClass、脱敏/标题壳、排序），
    *  但不剥离 RESTRICTED——定向公告对被选供应商可见；:3002 公开门户继续走 publicList 不受影响。
+   *  公司隔离（2026-10-20 用户裁定，推翻 2026-08-20「全量展示所有公司公告」契约）：只出
+   *  归属公司（APPROVED SupplierCompanyLink）∪ 平台级（companyId null）的公告；
+   *  定向公告白名单命中豁免公司闸——显式点名 > 公司归属。
    *  归属判定：预取 RESTRICTED 小集合（通常个位数）在 JS 判 restrictedSupplierIds 是否含本 id，
    *  不属于本人的以 id notIn 排除——分页 total 与排序在主查询内保持真实。 */
   async supplierList(
     params: { type?: string; search?: string; page?: number; pageSize?: number },
     supplierId: string,
   ) {
-    const restricted = await this.prisma.announcement.findMany({
-      where: { status: { in: ['PUBLISHED', 'ARCHIVED'] }, metadata: { path: ['visibility'], equals: 'RESTRICTED' } },
-      select: { id: true, metadata: true },
-    });
-    const notMine = restricted
-      .filter((r: any) => !Array.isArray(r.metadata?.restrictedSupplierIds) || !r.metadata.restrictedSupplierIds.includes(supplierId))
+    const [links, restricted] = await Promise.all([
+      this.prisma.supplierCompanyLink.findMany({
+        where: { supplierId, status: 'APPROVED' },
+        select: { companyId: true },
+      }),
+      this.prisma.announcement.findMany({
+        where: { status: { in: ['PUBLISHED', 'ARCHIVED'] }, metadata: { path: ['visibility'], equals: 'RESTRICTED' } },
+        select: { id: true, metadata: true },
+      }),
+    ]);
+    const companyIds = links.map(l => l.companyId);
+    const mineIds = restricted
+      .filter((r: any) => Array.isArray(r.metadata?.restrictedSupplierIds) && r.metadata.restrictedSupplierIds.includes(supplierId))
       .map((r: any) => r.id);
+    const notMine = restricted.map((r: any) => r.id).filter(id => !mineIds.includes(id));
     const res = await this.list(
       { ...params, status: 'PUBLISHED,ARCHIVED' },
       {},
-      { publicVisibilityOnly: true, ...(notMine.length ? { excludeIds: notMine } : {}) },
+      {
+        publicVisibilityOnly: true,
+        ...(notMine.length ? { excludeIds: notMine } : {}),
+        extraWhere: {
+          OR: [
+            { companyId: { in: companyIds } },
+            { companyId: null }, // 平台级公告（无归属公司）对全体供应商可见
+            ...(mineIds.length ? [{ id: { in: mineIds } }] : []), // 定向白名单命中豁免公司闸
+          ],
+        },
+      },
     );
     return { ...res, items: res.items.map((a: any) => {
       const base = this.isOfflined(a) ? this.titleOnlyStub(a) : this.stripForPublic(a);
@@ -371,15 +398,24 @@ export class AnnouncementService {
 
   /** 已下线判定：公示期满（有 publicityEnd 才会到期；政策/平台等无公示期永不过期）或存量 ARCHIVED */
   private isOfflined(a: any): boolean {
-    if (a.status !== 'PUBLISHED') return true; // ARCHIVED（存量手动下线）
-    if (!a.publicityEnd) return false;
-    return new Date(a.publicityEnd).getTime() < Date.now();
+    return this.offlinedReason(a) !== null;
   }
 
-  /** 已下线标题壳：保留标题/类型/时间等元信息，正文与摘要置空（内容不可看，v2 拍板） */
+  /** 已下线归因（2026-10-20）：PUBLICITY_ENDED=公示期满（公告渠道内容展示窗口关闭）；
+   *  OFFLINED=存量手动下线（ARCHIVED）。门户据此出差异化提示文案
+   *  （「公示期已过，不再显示公示内容」vs「该公告已下线」）。 */
+  private offlinedReason(a: any): 'PUBLICITY_ENDED' | 'OFFLINED' | null {
+    if (a.status === 'ARCHIVED') return 'OFFLINED';
+    if (a.status === 'PUBLISHED' && a.publicityEnd && new Date(a.publicityEnd).getTime() < Date.now()) return 'PUBLICITY_ENDED';
+    return null;
+  }
+
+  /** 已下线标题壳：保留标题/类型/时间等元信息，正文与摘要置空（内容不可看，v2 拍板）；
+   *  附件/招标文件一并剥除（2026-10-20：正文不可看则附件亦不可下载），
+   *  带 offlinedReason 供门户详情提示页渲染 */
   private titleOnlyStub(a: any) {
-    const base = this.stripForPublic(a);
-    return { ...base, content: '', summary: null, aiSummary: null, titleOnly: true };
+    const { attachments, ...base } = this.stripForPublic(a) as any;
+    return { ...base, content: '', summary: null, aiSummary: null, titleOnly: true, offlinedReason: this.offlinedReason(a) ?? 'OFFLINED' };
   }
 
   async get(id: string) {
@@ -397,15 +433,19 @@ export class AnnouncementService {
   async getPublic(id: string, user?: { sub?: string; role?: string }) {
     const announcement = await this.get(id);
     if (announcement.status !== 'PUBLISHED') {
-      // v2（2026-09-26）：ARCHIVED=已下线（公示期满/存量下线）——与未发布区分提示
+      // 2026-10-20 用户裁定：ARCHIVED（已下线）不再 400 拒绝——返回标题壳（offlinedReason），
+      // 门户点进去渲染「该公告已下线」提示页；未发布（DRAFT 等）仍拒绝
       if (announcement.status === 'ARCHIVED') {
-        throw new BadRequestException({ error: '该公告已下线', code: 'OFFLINED' });
+        return this.titleOnlyStub(announcement);
       }
       throw new BadRequestException({ error: '公告未发布', code: 'NOT_PUBLISHED' });
     }
-    // v2（2026-09-26）：公示期满的 PUBLISHED 同样视为已下线——直链详情阻断
+    // 2026-10-20 用户裁定：公示期满的 PUBLISHED 同样返回标题壳（PUBLICITY_ENDED）——
+    // 门户点进去渲染「公示期已过，不再显示公示内容」；不计浏览、不走 RESTRICTED 白名单
+    // 校验（壳无正文可泄）。注意：公示期满仅作用于公告渠道——供应商「项目机会」详情
+    // 须持续显示公告原文与采购文件（supplier-portal resolveOwnAnnouncement 只硬过滤 status）。
     if (announcement.publicityEnd && new Date(announcement.publicityEnd).getTime() < Date.now()) {
-      throw new BadRequestException({ error: '该公告已下线', code: 'OFFLINED' });
+      return this.titleOnlyStub(announcement);
     }
     // A2（表 B.1）：与列表同口径——应保密/可公开（未发布到公开级）的公告详情不可按 id 直取
     if (announcement.dataClass && !(PUBLIC_VISIBLE_CLASSES as readonly string[]).includes(announcement.dataClass)) {

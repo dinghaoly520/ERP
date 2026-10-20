@@ -6133,7 +6133,7 @@ export class BidService {
   async inviteSuppliers(id: string, supplierIds: string[], actorId: string): Promise<{ added: number; skipped: number }> {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { id: true, projectCode: true, name: true, stage: true },
+      select: { id: true, projectCode: true, name: true, stage: true, companyId: true },
     });
     if (!project) {
       throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
@@ -6153,6 +6153,24 @@ export class BidService {
       select: { id: true, name: true, userId: true },
     });
     const validIds = new Set(suppliers.map(s => s.id));
+
+    // 跨公司邀请闸（2026-10-20 用户裁定）：不允许邀请非本公司库的供应商——
+    // 被邀供应商须 APPROVED 归属项目公司（SupplierCompanyLink）；越界整单 400 列名拒绝。
+    // 项目无公司归属（存量空）不设闸。
+    if (project.companyId) {
+      const linked = await this.prisma.supplierCompanyLink.findMany({
+        where: { supplierId: { in: [...validIds] }, companyId: project.companyId, status: 'APPROVED' },
+        select: { supplierId: true },
+      });
+      const linkedSet = new Set(linked.map(l => l.supplierId));
+      const cross = suppliers.filter(s => !linkedSet.has(s.id));
+      if (cross.length > 0) {
+        throw new BadRequestException({
+          error: `仅可邀请本公司库内供应商：${cross.map(s => s.name).join('、')} 未归属本公司，请先在供应商库完成入库审批`,
+          code: 'CROSS_COMPANY_INVITE',
+        });
+      }
+    }
 
     const existing = await this.prisma.bidSupplier.findMany({
       where: { projectId: id, supplierId: { in: [...validIds] } },

@@ -89,8 +89,22 @@ export default function AnnouncementDetailPage() {
             {item.companyName ? <span>发布单位：{item.companyName}</span> : null}
           </div>
 
+          {/* 公示期满/已下线提示页（2026-10-20 用户裁定）：标题等元信息保留，正文不再显示 */}
+          {item.titleOnly && (
+            <div className="mb-6 rounded-2xl px-6 py-10 text-center"
+              style={{ background: 'oklch(0.5 0.16 258 / 0.06)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+              <div className="text-4xl mb-4">📭</div>
+              <p className="text-lg font-bold text-[#18243a] mb-2">
+                {item.offlinedReason === 'PUBLICITY_ENDED' ? '该公告公示期已过，不再显示公示内容' : '该公告已下线'}
+              </p>
+              <p className="text-sm text-[#8a96aa]">
+                公告标题与发布信息保留备查；公示期满不代表截标/开标时间已到，投标供应商请登录供应商门户在「项目机会」查看完整公告与采购文件。
+              </p>
+            </div>
+          )}
+
           {/* 结构化元数据（项目编号/招标方式/预算金额/时间等）—— 与采购管理工作台一致 */}
-          {(() => {
+          {!item.titleOnly && (() => {
             const meta = item.metadata || {};
             const fields = (ANNOUNCEMENT_TYPE_META[item.type] || []).filter(f => meta[f.key]);
             if (fields.length === 0) return null;
@@ -136,14 +150,16 @@ export default function AnnouncementDetailPage() {
             </div>
           )}
 
-          {/* 正文 */}
-          <div
-            className="announcement-detail-content text-[15px] text-[#18243a] leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: item.content }}
-          />
+          {/* 正文（标题壳不渲染——空 content 由上方提示页替代） */}
+          {!item.titleOnly && (
+            <div
+              className="announcement-detail-content text-[15px] text-[#18243a] leading-relaxed"
+              dangerouslySetInnerHTML={{ __html: item.content }}
+            />
+          )}
 
-          {/* 异议联系方式：发布时自澄清说明快照写入，公告阅读后单独展示 */}
-          {(() => {
+          {/* 异议联系方式：发布时自澄清说明快照写入，公告阅读后单独展示（标题壳不渲染） */}
+          {!item.titleOnly && (() => {
             const oc = String(item.metadata?.objectionContact ?? '').trim();
             if (!oc) return null;
             const isHtml = /<[a-z][\s\S]*>/i.test(oc);

@@ -4307,6 +4307,26 @@ export class SupplierService {
         where: { id: { in: dto.supplierIds } },
         select: { id: true, name: true },
       });
+      // 跨公司邀请闸（2026-10-20 用户裁定）：谈判配置的受邀名单仅限本项目公司库内
+      // （APPROVED SupplierCompanyLink）供应商——与 inviteSuppliers 同口径；项目无归属不设闸。
+      const proj = await this.prisma.bidProject.findUnique({
+        where: { id: dto.projectId },
+        select: { companyId: true },
+      });
+      if (proj?.companyId) {
+        const linked = await this.prisma.supplierCompanyLink.findMany({
+          where: { supplierId: { in: dto.supplierIds }, companyId: proj.companyId, status: 'APPROVED' },
+          select: { supplierId: true },
+        });
+        const linkedSet = new Set(linked.map(l => l.supplierId));
+        const cross = suppliers.filter(s => !linkedSet.has(s.id));
+        if (cross.length > 0) {
+          throw new BadRequestException({
+            error: `仅可邀请本公司库内供应商：${cross.map(s => s.name).join('、')} 未归属本公司，请先在供应商库完成入库审批`,
+            code: 'CROSS_COMPANY_INVITE',
+          });
+        }
+      }
       for (const s of suppliers) {
         await this.prisma.bidSupplier.upsert({
           where: { projectId_supplierName: { projectId: dto.projectId, supplierName: s.name } },

@@ -138,12 +138,12 @@ function AnnouncementsContent() {
         ) : (
           <div className="flex flex-col gap-3">
             {items.map(a => a.titleOnly ? (
-              /* 已下线标题壳（v2 2026-09-26）：只留标题，灰态不可点，内容不可查看 */
-              <div key={a.id} aria-disabled="true" title="该公告已下线"
-                className="glass rounded-2xl p-5 opacity-60 select-none">
+              /* 已下线标题壳（2026-09-26 v2；2026-10-20 改可点）：详情为「公示期已过/已下线」提示页 */
+              <div key={a.id} onClick={() => router.push(`/announcements/${a.id}`)}
+                className="glass rounded-2xl p-5 hover:shadow-md transition-all cursor-pointer opacity-80">
                 <div className="flex items-center gap-3 mb-2">
                   <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ color: a.color, backgroundColor: a.color + '18' }}>{a.tag}</span>
-                  <span className="text-xs bg-[#eef1f6] text-[#8a96aa] px-2 py-0.5 rounded-full font-bold">已下线</span>
+                  <span className="text-xs bg-[#eef1f6] text-[#8a96aa] px-2 py-0.5 rounded-full font-bold">{a.offlinedReason === 'PUBLICITY_ENDED' ? '公示期满' : '已下线'}</span>
                   <span className="text-[15px] font-bold text-[#8a96aa] flex-1 truncate">{a.title}</span>
                   <ViewsBadge count={a.viewCount ?? 0} />
                 </div>

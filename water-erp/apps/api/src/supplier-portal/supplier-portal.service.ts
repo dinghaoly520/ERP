@@ -1422,6 +1422,21 @@ export class SupplierPortalService {
         return { total: 0, page, pageSize, items: [], scopeCounts: { open: 0, invited: 0 }, blacklisted: true };
       }
     }
+
+    // 公司隔离（2026-10-20 用户裁定）：项目机会只对归属该公司（APPROVED SupplierCompanyLink）
+    // 的供应商开放——「全部可见」公告也不跨公司（与 :3004 公告中心 supplierList 同口径）；
+    // 受邀分支同闸：不允许跨公司邀请（inviteSuppliers/谈判配置已加写闸），存量越界邀请亦不可见。
+    // 注册时公司归属必填，但 PENDING 未批的供应商 companyIds 为空 → 公开/受邀分支皆空，仅剩平台级。
+    let companyIds: string[] | null = null;
+    if (supplierId) {
+      const links = await this.prisma.supplierCompanyLink.findMany({
+        where: { supplierId, status: 'APPROVED' },
+        select: { companyId: true },
+      });
+      companyIds = links.map(l => l.companyId);
+    }
+    const inMyCompanies = companyIds ? { companyId: { in: companyIds } } : {};
+
     const baseWhere: any = {
       isExtractionOnly: false, // 排除自定义抽取的影子项目（不进供应商投标机会列表）
       stage: { not: 'ARCHIVED' }, // 不展示已归档项目
@@ -1450,7 +1465,7 @@ export class SupplierPortalService {
       // 受邀项目：区分直接采购（须公告发布）与其他（确认参加即显示）
       if (rawInvitedIds.length > 0) {
         const invitedProjects = await this.prisma.bidProject.findMany({
-          where: { id: { in: rawInvitedIds } },
+          where: { id: { in: rawInvitedIds }, ...inMyCompanies },
           select: { id: true, procurementMethod: true, projectManagementItemId: true, projectCode: true },
         });
         const pmis = invitedProjects.some(p => p.projectManagementItemId)
@@ -1494,8 +1509,9 @@ export class SupplierPortalService {
       // 公开分支只承载公告公开型方式：直接采购（公告仅信息披露，只对受邀可见）与
       // 谈判采购（纯邀请）不得经 OPEN 文档或公告桥接对全体供应商开放。
       if (openIds.length > 0) {
+        // 公司隔离收口：公告桥接腿与 OPEN 文档腿在此统一按归属公司过滤（单收口点）
         const scoped = await this.prisma.bidProject.findMany({
-          where: { id: { in: openIds } },
+          where: { id: { in: openIds }, ...inMyCompanies },
           select: { id: true, procurementMethod: true },
         });
         openIds = scoped
@@ -1621,29 +1637,45 @@ export class SupplierPortalService {
       negotiation: negoConfigs[i.id] || null,
     })));
 
-    // 按 scope 分组计数：基于 BidProject（deadline > now）+ BidDocument accessScope，
-    // 保证"全部"=所有未到期项目数，与 total 一致；公告/受邀按 BidDocument 归因。
-    const allProjectIds = (
-      await this.prisma.bidProject.findMany({
-        where: { deadline: { gt: now }, isExtractionOnly: false },
-        select: { id: true },
-      })
-    ).map(p => p.id);
-    const allBidDocs = allProjectIds.length > 0
-      ? await this.prisma.bidDocument.findMany({
-          where: { bidProjectId: { in: allProjectIds } },
-          select: { bidProjectId: true, accessScope: true },
-        })
-      : [];
-    const scopeByProject: Record<string, string> = {};
-    for (const d of allBidDocs) {
-      if (d.bidProjectId) scopeByProject[d.bidProjectId] = d.accessScope;
-    }
+    // 按 scope 分组计数（2026-10-20 公司隔离改造）：open=本公司公开分支（公告桥接∪OPEN 文档，
+    // 已过采购方式闸与公司闸）、invited=本人受邀（已过公司闸）——直接数 openIds/invitedIds
+    // （deadline > now，与列表芯片语义一致），替换旧「全局所有项目按 BidDocument 归因」
+    // （隔离下全局数会大于供应商实际可见面，芯片虚高误导点击）。
     let openCount = 0, invitedCount = 0;
-    for (const pid of allProjectIds) {
-      const sc = scopeByProject[pid] || 'OPEN';
-      if (sc === 'OPEN') openCount++;
-      else invitedCount++;
+    if (companyIds) {
+      const [openCnt, invitedCnt] = await Promise.all([
+        openIds.length > 0
+          ? this.prisma.bidProject.count({ where: { id: { in: openIds }, deadline: { gt: now } } })
+          : Promise.resolve(0),
+        invitedIds.length > 0
+          ? this.prisma.bidProject.count({ where: { id: { in: invitedIds }, deadline: { gt: now } } })
+          : Promise.resolve(0),
+      ]);
+      openCount = openCnt;
+      invitedCount = invitedCnt;
+    } else {
+      // 无供应商上下文（防御）：沿用旧全局口径
+      const allProjectIds = (
+        await this.prisma.bidProject.findMany({
+          where: { deadline: { gt: now }, isExtractionOnly: false },
+          select: { id: true },
+        })
+      ).map(p => p.id);
+      const allBidDocs = allProjectIds.length > 0
+        ? await this.prisma.bidDocument.findMany({
+            where: { bidProjectId: { in: allProjectIds } },
+            select: { bidProjectId: true, accessScope: true },
+          })
+        : [];
+      const scopeByProject: Record<string, string> = {};
+      for (const d of allBidDocs) {
+        if (d.bidProjectId) scopeByProject[d.bidProjectId] = d.accessScope;
+      }
+      for (const pid of allProjectIds) {
+        const sc = scopeByProject[pid] || 'OPEN';
+        if (sc === 'OPEN') openCount++;
+        else invitedCount++;
+      }
     }
     const scopeCounts = { open: openCount, invited: invitedCount };
 

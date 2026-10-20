@@ -101,6 +101,11 @@ export default function AnnouncementDetailPage() {
   const [paymentRef, setPaymentRef] = useState("");
 
   const isBidNotice = announcement?.type === "BID_NOTICE";
+  // 已下线壳（2026-10-20）：公示期满/手动下线 → 提示页形态（标题等元信息保留，正文与采购文件不展示）
+  const offlined = announcement?.titleOnly === true;
+  const offlineText = announcement?.offlinedReason === "PUBLICITY_ENDED"
+    ? "该公告公示期已过，不再显示公示内容"
+    : "该公告已下线";
 
   const loadBidDoc = useCallback(async () => {
     if (!id || announcement?.type !== "BID_NOTICE") return;
@@ -121,7 +126,8 @@ export default function AnnouncementDetailPage() {
     try {
       const a = await announcementApi.getPublic(id);
       setAnnouncement(a);
-      if (a?.type === "BID_NOTICE") {
+      // 标题壳（2026-10-20）：公示期满/已下线——提示页形态，不再拉采购文件（项目机会侧不受影响）
+      if (a?.type === "BID_NOTICE" && !a.titleOnly) {
         setBidDocLoading(true);
         try {
           setBidDoc(await announcementApi.getBidDocument(id));
@@ -212,7 +218,7 @@ export default function AnnouncementDetailPage() {
           <hr className="ann-divider" />
 
           {/* 结构化元数据（项目编号/招标方式/预算金额/时间等）—— 与采购管理工作台一致 */}
-          {(metaFields.short.length > 0 || metaFields.area.length > 0) && (
+          {!offlined && (metaFields.short.length > 0 || metaFields.area.length > 0) && (
             <div className="meta-block">
               {metaFields.short.length > 0 && (
                 <div className="meta-chips">
@@ -234,11 +240,25 @@ export default function AnnouncementDetailPage() {
             </div>
           )}
 
-          <div className="detail-content" dangerouslySetInnerHTML={{ __html: announcement.content || "" }} />
+          {offlined ? (
+            <div className="bid-doc-section">
+              <div className="ann-alert ann-alert--info">
+                <span className="ann-alert__icon"><Info size={16} strokeWidth={2} /></span>
+                {offlineText}
+              </div>
+              {isBidNotice && (
+                <p className="bid-doc-hint">
+                  公示期满不代表截标/开标时间已到——如需公告原文与采购文件，请前往「项目机会」查看完整信息。
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="detail-content" dangerouslySetInnerHTML={{ __html: announcement.content || "" }} />
+          )}
 
           {/* 异议联系方式（2026-09-21）：发布向导快照于 metadata.objectionContact，正文后单独展示。
               含固定异议声明（致电/书面来函）——与 :3005 澄清说明配置同源。 */}
-          {((announcement.metadata || {}).objectionContact as string) && (
+          {!offlined && ((announcement.metadata || {}).objectionContact as string) && (
             <>
               <hr className="ann-divider" />
               <div className="detail-objection">
@@ -259,7 +279,7 @@ export default function AnnouncementDetailPage() {
             </>
           ) : null}
 
-          {isBidNotice && (
+          {isBidNotice && !offlined && (
             <>
               <hr className="ann-divider" />
               <div className="bid-doc-section">
