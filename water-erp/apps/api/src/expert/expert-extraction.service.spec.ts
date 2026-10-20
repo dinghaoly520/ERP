@@ -187,6 +187,16 @@ describe('ExpertExtractionService', () => {
       expect(names).not.toContain('丁');
     });
 
+    it('等额保底·池扩围（2026-10-20）：行限公司相关专业不足时放开公司、仍限本行专业补满', async () => {
+      setupMulti();
+      const res = await service.previewExtraction('p1', { mode: 'manual', manualQuotas: [
+        { specialties: ['水利水电工程'], count: 2, companyIds: ['c2'] },
+      ] } as any);
+      // c2 仅有丙 1 人 → 扩围补乙（c1，同专业水利水电工程）；甲=水利工程非本行专业、丁=造价咨询不进
+      expect(res.selected).toHaveLength(2);
+      expect(res.selected.map(s => s.name).sort()).toEqual(['丙', '乙']);
+    });
+
     it('两行专业集合相同 → reconcile 并桶累加席数（requiredSpecialties 单行、标签为专业组）', async () => {
       setupMulti();
       const res = await service.previewExtraction('p1', { mode: 'manual', manualQuotas: [

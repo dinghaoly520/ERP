@@ -86,27 +86,30 @@ export class ExpertExtractionService {
     // 重新抽取时不排除本项目已分配的专家（确认时会先清空旧记录），只排除其他项目的占用
     // 闸1（2026-09-20 spec）：排除「评标窗口未闭合」的专家（签到起→报告确认止）——
     // 同时段双活跃从源头杜绝；同日不同时段合法（开窗以签到/报告确认为界，不以日历日）。
+    const baseWhere: import('@prisma/client').Prisma.UserWhereInput = {
+      role: 'bid_expert',
+      isActive: true,
+      expertProfile: {
+        availability: '可用',
+        entryStatus: 'ACTIVE',
+        ...(dto.employer?.trim() ? { employer: dto.employer.trim() } : {}),
+        ...(regionCodes.length === 1
+          ? { regionCode: regionCodes[0] }
+          : regionCodes.length > 1 ? { regionCode: { in: regionCodes } } : {}),
+        ...(expertLevels.length ? { expertLevel: { in: expertLevels } } : {}),
+      },
+      bidExperts: {
+        none: {
+          signedIn: true,
+          reportConfirmed: false,
+          project: { stage: { in: ['OPENING', 'EVALUATING'] } },
+        },
+      },
+    };
     const experts = await this.prisma.user.findMany({
       where: {
-        role: 'bid_expert',
-        isActive: true,
+        ...baseWhere,
         ...companyFilter,
-        expertProfile: {
-          availability: '可用',
-          entryStatus: 'ACTIVE',
-          ...(dto.employer?.trim() ? { employer: dto.employer.trim() } : {}),
-          ...(regionCodes.length === 1
-            ? { regionCode: regionCodes[0] }
-            : regionCodes.length > 1 ? { regionCode: { in: regionCodes } } : {}),
-          ...(expertLevels.length ? { expertLevel: { in: expertLevels } } : {}),
-        },
-        bidExperts: {
-          none: {
-            signedIn: true,
-            reportConfirmed: false,
-            project: { stage: { in: ['OPENING', 'EVALUATING'] } },
-          },
-        },
       },
       include: {
         expertProfile: true,
@@ -120,8 +123,21 @@ export class ExpertExtractionService {
         _count: { select: { bidExperts: true } },
       },
     });
+    // 池扩围候选预取（2026-10-20 等额保底）：配额声明了公司时，候选集在查询层已被
+    // companyId in 截断，draw 层放不开——按登录视野再取一份不限配额公司的候选合并去重，
+    // 供 draw 层同公司相关专业不足时放开公司、仍限本行专业补位（实录：3 席只出 1 人）。
+    // 非 admin 视野=本公司，合并后不越出「视野 ∪ 配额声明公司」白名单。
+    let expertUniverse = experts;
+    if (quotaCompanyIds.length) {
+      const scopeRows = await this.prisma.user.findMany({
+        where: { ...baseWhere, ...this.companyScope.filter(scope) },
+        include: { expertProfile: true, department: { select: { name: true } }, bidExperts: { where: { project: { stage: { in: ['OPENING', 'EVALUATING', 'SUBMIT', 'DOWNLOAD'] } } }, select: { project: { select: { openTime: true, projectCode: true } } } }, _count: { select: { bidExperts: true } } },
+      });
+      const seen = new Set(experts.map((e) => e.id));
+      expertUniverse = [...experts, ...scopeRows.filter((e) => !seen.has(e.id))];
+    }
     const excludedIds = new Set(dto.excludedUserIds ?? []);
-    const eligible = experts.filter((u) => {
+    const eligible = expertUniverse.filter((u) => {
       if (excludedIds.has(u.id)) return false;
       const emp = u.expertProfile?.employer?.trim();
       if (emp) {
@@ -335,6 +351,12 @@ export class ExpertExtractionService {
           const fallback = candidates.filter(c => !usedIds.has(c.id) && inCompany(c) && !pool.some(p => p.id === c.id));
           pool = [...pool, ...fallback];
         }
+        // 池扩围·等额保底（2026-10-20 用户口径：必须抽满）：所选公司全库无余量时
+        // 放开公司限定（专业本就不限），从未占用候选中补齐
+        if (pool.length < q.count) {
+          const widen = candidates.filter(c => !usedIds.has(c.id) && !pool.some(p => p.id === c.id));
+          pool = [...pool, ...widen];
+        }
       } else {
         // 优先从 A/B/C 池（drawPool）抽；不够时从 D/E 补齐（凑人优先于等级门槛）
         const group = (groups.get(qi) || []).filter(c => !usedIds.has(c.id) && inCompany(c));
@@ -347,6 +369,17 @@ export class ExpertExtractionService {
             return matchQuotaIdx(fit, quotas) === qi;
           });
           pool = [...pool, ...fallback];
+        }
+        // 池扩围·等额保底（2026-10-20 用户口径：必须抽满，实录 3 席只出 1 人）：同公司
+        // 相关专业余量不足时放开公司限定、仍限本行专业——其他公司的相关专业专家补位。
+        // 需求方代表 employer 行不扩（公司/部门是其限定语义）。
+        if (pool.length < q.count) {
+          const widen = candidates.filter(c => {
+            if (usedIds.has(c.id) || pool.some(p => p.id === c.id)) return false;
+            const fit = scoreMap.get(c.id)?.fitSpecialty || c.specialty;
+            return matchQuotaIdx(fit, quotas) === qi;
+          });
+          pool = [...pool, ...widen];
         }
       }
       if (pool.length === 0) shortages.push({ specialty: quotaLabel, needed: q.count, available: 0 });
