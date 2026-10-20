@@ -819,6 +819,9 @@ export function ExpertExtractPage({
   const demandRepSeats = needDemandRep ? demandRepCount : 0;
   const expertSeats = Math.max(0, totalSeats - demandRepSeats); // 专业专家可分配席位
   const quotaSum = quotas.reduce((s, q) => s + q.count, 0); // 所有专业行的人数和（含未选专业的占位行，与 addQ/adjustQuota 调配一致）
+  // 补选配置上限（2026-10-20 用户口径）：缺口=总席位-已确认正选，配额行合计最多=缺口，不得超配
+  const reShortfall = invitationData ? Math.max(0, totalSeats - invitationData.experts.filter(e => e.expertRole === '正选' && e.invitationStatus === 'confirmed').length) : 0;
+  const reQuotaSum = reDraft?.quotas.reduce((s, q) => s + q.count, 0) ?? 0;
   const seatsBalanced = quotaSum === expertSeats && expertSeats > 0;
   // 配额适配 expertSeats（2026-10-20 双向化）：少→裁减；多→轮转均分到已有行——全行「专业不限」
   // 同样参与调配（拆自动 AI 后全不限是合法配置，旧 filled-only 口径会漏配）；空列表兜底单行专业不限。
@@ -3152,7 +3155,7 @@ export function ExpertExtractPage({
           ) : reDraft.phase === 'configuring' ? (
             <div className="space-y-4">
               <div className="rounded-xl bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] px-3 py-2 text-xs text-[var(--muted-foreground)]">
-                缺 {totalSeats - (invitationData?.experts?.filter(e => e.expertRole === '正选' && e.invitationStatus === 'confirmed').length ?? 0)} 席，默认按确认无法参加专家的公司分组（同公司合并为一行、不同公司单列），可手动调整后开始抽取
+                缺 {reShortfall} 席，默认按确认无法参加专家的公司分组（同公司合并为一行、不同公司单列），可手动调整后开始抽取 · 已配 {reQuotaSum}/{reShortfall}
               </div>
               <div className="space-y-2">
                 {reDraft.quotas.map((q, qi) => (
@@ -3183,12 +3186,12 @@ export function ExpertExtractPage({
                   <div className="flex items-center gap-1">
                     <button onClick={() => updateDraft({ quotas: reDraft.quotas.map((x, i) => i === qi ? { ...x, count: x.count > 0 ? x.count - 1 : 0 } : x) })} className="neu-btn-xs">−</button>
                     <span className="w-8 text-center text-sm font-extrabold tabular-nums text-[var(--foreground)]">{q.count}</span>
-                    <button onClick={() => updateDraft({ quotas: reDraft.quotas.map((x, i) => i === qi ? { ...x, count: x.count + 1 } : x) })} className="neu-btn-xs">+</button>
+                    <button onClick={() => updateDraft({ quotas: reDraft.quotas.map((x, i) => i === qi ? { ...x, count: x.count + 1 } : x) })} disabled={reQuotaSum >= reShortfall} title={reQuotaSum >= reShortfall ? `最多补 ${reShortfall} 席（缺口）` : undefined} className="neu-btn-xs">+</button>
                   </div>
                   <button onClick={() => updateDraft({ quotas: reDraft.quotas.filter((_, i) => i !== qi) })} className="neu-btn-xs is-danger">×</button>
                 </div>
                 ))}
-                <button onClick={() => updateDraft({ quotas: [...reDraft.quotas, { specialties: [], count: 1, companyIds: [] }] })} className="neu-btn-xs"><Plus size={12} />添加专业</button>
+                <button onClick={() => updateDraft({ quotas: [...reDraft.quotas, { specialties: [], count: 1, companyIds: [] }] })} disabled={reQuotaSum >= reShortfall} title={reQuotaSum >= reShortfall ? `最多补 ${reShortfall} 席（缺口）` : undefined} className="neu-btn-xs"><Plus size={12} />添加专业</button>
               </div>
               {reShortfallSpecs.length > 0 && (
                 <div className="rounded-xl bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-xs text-[var(--warning)] flex items-center gap-2">
