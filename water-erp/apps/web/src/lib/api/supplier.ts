@@ -235,6 +235,12 @@ export function markRsvpManual(projectId: string, supplierId: string, status: 'P
   return api.post<{ id: string; status: string }>('/supplier/rsvp/manual-mark', { projectId, supplierId, status });
 }
 
+// 邀请通知发送打戳（2026-10-20 用户口径）：一键通知点击时刻落 InvitationRsvp.notifiedAt，
+// 项目详情时间轴「供应商邀请」以此为准（仅补空不覆盖，多轮补选不撼动首轮时刻）
+export function markInvitedNotified(projectId: string, supplierIds: string[]) {
+  return api.post<{ stamped: number }>('/supplier/rsvp/mark-notified', { projectId, supplierIds });
+}
+
 // 邀请回执看板（采购端）
 export interface RsvpListItem { rsvpNo: string; supplierId: string; supplierName: string; status: 'PENDING' | 'ACCEPTED' | 'DECLINED'; tags?: string[]; note: string | null; respondedAt: string | null; expired: boolean; }
 export interface RsvpListResult { total: number; counts: { ACCEPTED: number; DECLINED: number; PENDING: number }; items: RsvpListItem[]; }

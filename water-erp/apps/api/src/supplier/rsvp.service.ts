@@ -286,4 +286,33 @@ export class RsvpService {
       select: { id: true, status: true },
     });
   }
+
+  /**
+   * 邀请通知发送打戳（2026-10-20 用户口径）：时间轴「供应商邀请」= 点击「一键通知」的时刻，
+   * 而非 token 签发时刻（进第 3 步自动生成通知内容时就已建行）。仅对 notifiedAt 为空的行写入
+   * ——多轮补选后续打戳不覆盖首轮，时间轴取最早 notifiedAt 即首次发送时刻。
+   */
+  async markNotified(projectId: string, supplierIds: string[]) {
+    if (!projectId || supplierIds.length === 0) {
+      throw new BadRequestException({ error: 'projectId 与 supplierIds 必填', code: 'BAD_INPUT' });
+    }
+    // 兼容 PMI / BidProject 两个 id 空间（与 manualMark 同口径，双向都兜）
+    const bp = await this.prisma.bidProject.findFirst({
+      where: { projectManagementItemId: projectId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    const bpRow = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { projectManagementItemId: true },
+    });
+    const spaceIds = Array.from(new Set(
+      [projectId, bp?.id, bpRow?.projectManagementItemId].filter(Boolean) as string[],
+    ));
+    const res = await this.prisma.invitationRsvp.updateMany({
+      where: { supplierId: { in: supplierIds }, projectId: { in: spaceIds }, notifiedAt: null },
+      data: { notifiedAt: new Date() },
+    });
+    return { stamped: res.count };
+  }
 }

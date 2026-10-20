@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { recommendSuppliers, suggestBusinessTags, getTagVocabulary, polishRequirement, updateSelectionShortlist, notifySuppliers, generateNotificationContent, getSupplierList, getRsvpList, sendNegotiationConfig, markRsvpManual } from '@/lib/api/supplier';
+import { recommendSuppliers, suggestBusinessTags, getTagVocabulary, polishRequirement, updateSelectionShortlist, notifySuppliers, generateNotificationContent, getSupplierList, getRsvpList, sendNegotiationConfig, markRsvpManual, markInvitedNotified } from '@/lib/api/supplier';
 import type { TagVocabularyItem, RsvpListResult, RsvpListItem } from '@/lib/api/supplier';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import { copyToClipboard } from '@/lib/copy-to-clipboard';
@@ -1270,6 +1270,12 @@ export function SupplierSelectionPage({
       const totalNotFound = notFoundSupplierIds.size;
       setNotified(true);
       setNotifyNotFound(totalNotFound);
+      // 发送打戳（2026-10-20 用户口径）：时间轴「供应商邀请」= 一键通知点击时刻——
+      // 与 rsvp 行写入同 id 空间（projectId 兜底 PMI id）；失败不阻断流程
+      const stampProjectId = projectId || (project as any)?.id;
+      if (stampProjectId && sentSupplierIds.size > 0) {
+        markInvitedNotified(stampProjectId, [...sentSupplierIds]).catch(() => {});
+      }
       setCompleted(false);
       toast.success(`已通知 ${totalSent} 家供应商${totalNotFound > 0 ? `，${totalNotFound} 家未找到关联账户` : ''}`);
       setConfirmations(new Map([...shortlist.keys()].map(sid => [sid, 'pending' as const])));
@@ -1566,22 +1572,34 @@ export function SupplierSelectionPage({
       // 站内/短信共用正文 body；电话渠道单独发简短话术 phoneScript
       const nonPhoneChannels = notifyChannels.filter(c => c !== 'phone');
       const phoneChannels = notifyChannels.filter(c => c === 'phone');
-      let totalSent = 0;
-      let totalNotFound = 0;
+      // 用 Set 去重统计：同一供应商走多个渠道只计 1 家（与正选 handleNotify 同口径；
+      // 2026-10-19 修复：补选 1 家走站内+电话两笔会被累加成「已通知 2 家」。
+      // 2026-10-20 恢复补注：stash 基点早于本修复，昨日自 stash 复原时曾本地回退，此处重套）
+      const sentSupplierIds = new Set<string>();
+      const notFoundSupplierIds = new Set<string>();
       for (const [sid, msg] of perSupplier) {
         if (!msg.title.trim() || !msg.body.trim()) continue;
         const link = notifyRsvpTokens[sid] || undefined; // 站内信点击直达回执页
         if (nonPhoneChannels.length) {
           const r = await notifySuppliers({ supplierIds: [sid], channels: nonPhoneChannels, type: 'SELECTION_NOTIFY', title: msg.title, content: msg.body, link }).catch(() => ({} as any));
-          totalSent += r.sent ?? 1; totalNotFound += r.notFound || 0;
+          if (r.sent > 0) sentSupplierIds.add(sid);
+          if (r.notFound > 0) notFoundSupplierIds.add(sid);
         }
         if (phoneChannels.length) {
           const r = await notifySuppliers({ supplierIds: [sid], channels: phoneChannels, type: 'SELECTION_NOTIFY', title: msg.title, content: msg.phoneScript || msg.body }).catch(() => ({} as any));
-          totalSent += r.sent ?? 1; totalNotFound += r.notFound || 0;
+          if (r.sent > 0) sentSupplierIds.add(sid);
+          if (r.notFound > 0) notFoundSupplierIds.add(sid);
         }
       }
+      const totalSent = sentSupplierIds.size;
+      const totalNotFound = notFoundSupplierIds.size;
       setRerunNotified(true);
       setRerunConfirmations(new Map([...rerunShortlist.keys()].map(sid => [sid, 'pending' as const])));
+      // 补选轮发送打戳（同正选口径；后端仅补空，不覆盖首轮通知时刻）
+      const stampProjectId = projectId || (project as any)?.id;
+      if (stampProjectId && sentSupplierIds.size > 0) {
+        markInvitedNotified(stampProjectId, [...sentSupplierIds]).catch(() => {});
+      }
       toast.success(`已通知 ${totalSent} 家补选供应商${totalNotFound > 0 ? `，${totalNotFound} 家未找到关联账户` : ''}`);
       setStep(finalConfirmStep);
       void loadRsvpList();

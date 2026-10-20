@@ -148,8 +148,8 @@ export class TimelineService {
     const failedNoticeIso = publishTimeOf(['FAILED_BID_NOTICE']);
 
     // 无「采购公告公示」步骤的流程（谈判采购/直接采购，阶段模板不含 PUBLIC_ANNOUNCEMENT）：
-    // 第三节点语义切换为「供应商邀请」——时间取项目 InvitationRsvp 最早一批的 createdAt
-    // （即向供应商发出邀请通知的时刻；rsvp.projectId 兼容 PMI/BidProject 两个 id 空间）
+    // 第三节点语义切换为「供应商邀请」——时间取首次「一键通知」点击时刻（notifiedAt 打戳，
+    // 见 RsvpService.markNotified；rsvp.projectId 兼容 PMI/BidProject 两个 id 空间）
     const hasPublicAnnouncementStage = await this.prisma.projectManagementStage.findFirst({
       where: { projectManagementItemId: pmiId, stageKey: 'PUBLIC_ANNOUNCEMENT' },
       select: { id: true },
@@ -160,12 +160,23 @@ export class TimelineService {
         where: { projectManagementItemId: pmiId },
         select: { id: true },
       });
-      const firstRsvp = await this.prisma.invitationRsvp.findFirst({
-        where: { projectId: { in: [pmiId, ...bpIds.map((b) => b.id)] } },
-        orderBy: { createdAt: 'asc' },
-        select: { createdAt: true },
+      // 时间口径（2026-10-20 用户裁定）：「供应商邀请」= 首次点击「一键通知」的时刻
+      // （notifiedAt 打戳，多轮补选取最早=首轮）；存量行未打戳回退 token 签发时刻 createdAt
+      const rsvpScope = { projectId: { in: [pmiId, ...bpIds.map((b) => b.id)] } };
+      const firstNotified = await this.prisma.invitationRsvp.findFirst({
+        where: { ...rsvpScope, notifiedAt: { not: null } },
+        orderBy: { notifiedAt: 'asc' },
+        select: { notifiedAt: true },
       });
-      supplierInviteIso = toIso(firstRsvp?.createdAt);
+      supplierInviteIso = toIso(firstNotified?.notifiedAt);
+      if (!supplierInviteIso) {
+        const firstRsvp = await this.prisma.invitationRsvp.findFirst({
+          where: rsvpScope,
+          orderBy: { createdAt: 'asc' },
+          select: { createdAt: true },
+        });
+        supplierInviteIso = toIso(firstRsvp?.createdAt);
+      }
     }
     // 合同签订兜底：未走合同模块登记（signedAt 空）时取 CONTRACT 阶段完成时刻
     let contractSignIso = toIso(contract?.signedAt);
