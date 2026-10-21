@@ -127,15 +127,9 @@ export const INVITED_OR_INTERNAL_BIDDING_ANNOUNCEMENT_FIELDS: AnnouncementFieldC
   {
     key: "bidOpeningTime",
     label: "开标时间",
-    placeholder: "另行通知",
-    composite: {
-      typeKey: "bidOpeningTimeType",
-      typeLabel: "时间类型",
-      typeOptions: [
-        { value: "datetime", label: "选择时间" },
-        { value: "text", label: "填入文字" },
-      ],
-    },
+    // 2026-10-21 用户口径：与采购文件模板统一——仅支持时间选择，不再允许填写文字
+    placeholder: "选择日期时间",
+    type: "datetime-local",
   },
   {
     key: "contactName",
@@ -258,15 +252,9 @@ export const FAILED_BID_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
   {
     key: "bidOpeningTime",
     label: "开标时间",
-    placeholder: "另行通知",
-    composite: {
-      typeKey: "bidOpeningTimeType",
-      typeLabel: "时间类型",
-      typeOptions: [
-        { value: "datetime", label: "选择时间" },
-        { value: "text", label: "填入文字" },
-      ],
-    },
+    // 2026-10-21 用户口径：与采购文件模板统一——仅支持时间选择，不再允许填写文字
+    placeholder: "选择日期时间",
+    type: "datetime-local",
   },
   {
     key: "resultInfo",
@@ -309,15 +297,9 @@ export const WINNING_BID_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
   {
     key: "bidOpeningTime",
     label: "开标时间",
-    placeholder: "另行通知",
-    composite: {
-      typeKey: "bidOpeningTimeType",
-      typeLabel: "时间类型",
-      typeOptions: [
-        { value: "datetime", label: "选择时间" },
-        { value: "text", label: "填入文字" },
-      ],
-    },
+    // 2026-10-21 用户口径：与采购文件模板统一——仅支持时间选择，不再允许填写文字
+    placeholder: "选择日期时间",
+    type: "datetime-local",
   },
   // Bidder fields are handled dynamically — see BidderEditor in announcement-dialog
   {
