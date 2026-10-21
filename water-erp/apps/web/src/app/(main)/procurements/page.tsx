@@ -131,6 +131,7 @@ function StatusBadge({ status, resultText, terminationReason }: { status: Result
 // Unified Page Hero: title + KPI + search toolbar
 function PageHero({
   filters,
+  searchInput,
   onFilterChange,
   methods,
   onRefresh,
@@ -148,6 +149,8 @@ function PageHero({
   departments,
 }: {
   filters: LedgerFilterState;
+  // 搜索框即时回显值（与防抖后的 filters.searchKeyword 分离，见 handleFilterChange）
+  searchInput: string;
   onFilterChange: (key: keyof LedgerFilterState, value: string | null) => void;
   methods: string[];
   onRefresh: () => void;
@@ -223,11 +226,11 @@ function PageHero({
           <input
             type="text"
             placeholder="搜索项目名称、供应商..."
-            value={filters.searchKeyword}
+            value={searchInput}
             onChange={(e) => onFilterChange("searchKeyword", e.target.value)}
             className="neu-input neu-input-sm !pl-9"
           />
-          {filters.searchKeyword && (
+          {searchInput && (
             <button onClick={() => onFilterChange("searchKeyword", null)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[var(--muted-foreground)] z-10">
               <X size={14} />
             </button>
@@ -1429,12 +1432,24 @@ export default function ProcurementsPage() {
   }, [ledgerToast]);
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 搜索框即时回显：受控输入的 value 若直接绑防抖后的 filters.searchKeyword，
+  // 300ms 窗口内任何 re-render（上一轮查询返回/loading 翻转/部门数据就绪）都会把
+  // 输入框打回旧值——打字丢字/回显错乱的根因。显示层即时落 state，仅查询条件走防抖。
+  const [searchInput, setSearchInput] = useState('');
+  useEffect(() => () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); }, []);
 
   const handleFilterChange = (key: keyof LedgerFilterState, value: string | null) => {
     if (key === 'searchKeyword') {
+      setSearchInput(value ?? ''); // 立即回显
       if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+      if (!value) {
+        // 清空（X 按钮/删尽）不等防抖，立即生效
+        setFilters(prev => ({ ...prev, searchKeyword: '' }));
+        setPagination(prev => ({ ...prev, page: 1 }));
+        return;
+      }
       searchDebounceRef.current = setTimeout(() => {
-        setFilters(prev => ({ ...prev, searchKeyword: value ?? '' }));
+        setFilters(prev => ({ ...prev, searchKeyword: value }));
         setPagination(prev => ({ ...prev, page: 1 }));
       }, 300);
       return;
@@ -1587,6 +1602,7 @@ export default function ProcurementsPage() {
         <div className="mb-4">
           <PageHero
             filters={filters}
+            searchInput={searchInput}
             onFilterChange={handleFilterChange}
             methods={methods}
             onRefresh={loadData}
