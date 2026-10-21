@@ -3312,7 +3312,7 @@ a.group:hover::after {
   z-index: 1;
   pointer-events: none;
   border-radius: inherit;
-  background: linear-gradient(180deg, oklch(1 0 0 / 0.26), oklch(1 0 0 / 0.4));
+  background: linear-gradient(180deg, oklch(1 0 0 / 0.16), oklch(1 0 0 / 0.28));
 }
 .flow-nav-label { position: relative; z-index: 2; }
 .flow-nav-pill > svg { position: relative; z-index: 2; }
@@ -3333,27 +3333,27 @@ a.group:hover::after {
 }
 .flow-nav-dance i:nth-child(1) {
   left: -40%;
-  background: radial-gradient(circle, oklch(0.9 0.075 20 / 0.9), transparent 64%);
+  background: radial-gradient(circle, oklch(0.955 0.045 20 / 0.85), transparent 64%);
   animation: nav-dance-a 9.1s ease-in-out infinite;
 }
 .flow-nav-dance i:nth-child(2) {
   left: -20%;
-  background: radial-gradient(circle, oklch(0.93 0.095 95 / 0.9), transparent 64%);
+  background: radial-gradient(circle, oklch(0.962 0.055 95 / 0.85), transparent 64%);
   animation: nav-dance-b 12.3s ease-in-out infinite;
 }
 .flow-nav-dance i:nth-child(3) {
   left: 0%;
-  background: radial-gradient(circle, oklch(0.915 0.085 150 / 0.9), transparent 64%);
+  background: radial-gradient(circle, oklch(0.958 0.05 150 / 0.85), transparent 64%);
   animation: nav-dance-c 14.7s ease-in-out infinite;
 }
 .flow-nav-dance i:nth-child(4) {
   left: 20%;
-  background: radial-gradient(circle, oklch(0.91 0.075 245 / 0.9), transparent 64%);
+  background: radial-gradient(circle, oklch(0.952 0.045 245 / 0.85), transparent 64%);
   animation: nav-dance-d 10.9s ease-in-out infinite;
 }
 .flow-nav-dance i:nth-child(5) {
   left: 40%;
-  background: radial-gradient(circle, oklch(0.895 0.08 310 / 0.9), transparent 64%);
+  background: radial-gradient(circle, oklch(0.948 0.05 310 / 0.85), transparent 64%);
   animation: nav-dance-e 16.1s ease-in-out infinite;
 }
 
