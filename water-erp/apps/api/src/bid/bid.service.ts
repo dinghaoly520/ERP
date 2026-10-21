@@ -4160,8 +4160,10 @@ export class BidService {
     this.gateway?.notifySupervisionLog(id, { role: '系统', action: '一键归档', target: project.name, result: `归档 ${result?.archiveItems?.length ?? 0} 项${scope === 'opening' ? '（开标归档）' : ''}`, riskFlag: '无' });
 
     // G1: 归档成功后自动生成中标公示草稿（事务外；幂等；不阻塞归档主流程）
+    // 2026-10-21：仅完整归档生成预成交公示——开标归档（流标/废标/ABORTED 收尾）无成交方；
+    // N4c「已生成结果后流标」的存量结果仅作废留痕，不得再派生预成交公示
     try {
-      await this.ensureWinnerNotice(id);
+      if (scope === 'full') await this.ensureWinnerNotice(id);
     } catch (e) {
       this.logger.error(`中标公示自动生成失败（不阻塞归档）: ${(e as Error).message}`);
       // 写入监督日志告警
