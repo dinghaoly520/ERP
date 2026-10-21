@@ -15,21 +15,11 @@ import {
   XCircle,
   FileEdit,
   Ban,
-  DollarSign,
-  CircleDollarSign,
   Building2,
-  Users,
   Sparkles,
   X,
   Calendar,
-  BarChart3,
-  PieChart,
-  Activity,
-  Target,
-  Lightbulb,
   AlertCircle,
-  CheckSquare,
-  Square,
   Loader2,
   Trophy,
   ChevronDown,
@@ -58,24 +48,16 @@ import { fetchCurrentUser, fetchDepartments } from "@/lib/api/auth";
 import { canAccessCockpit } from "@/lib/login/login-routing";
 import { ArchiveDetailModal } from "@/components/procurements/archive-detail-modal";
 import { ArchiveVolumeModal } from "@/components/procurements/archive-volume-modal";
+import { AnalysisSelectionModal } from "@/components/procurements/analysis-selection-modal";
+import { AnalysisResultModal } from "@/components/procurements/analysis-result-modal";
+import type { AiAnalysisResult } from "@/components/procurements/ledger-analysis";
+import { buildLedgerAnalysisSummary } from "@/components/procurements/ledger-analysis";
 import { useAssistant } from "@/components/assistant/assistant-provider";
 import { Modal } from "@/components/workbench";
 import { useConfirm } from "@/components/workbench/use-confirm";
 import { apiFetch } from '@/lib/api/api-fetch';
 import { formatWan } from '@/lib/format';
 import { toast } from "sonner";
-
-// Animation Utilities
-const easeOutQuint: [number, number, number, number] = [0.22, 1, 0.36, 1];
-
-function fadeIn(index: number, reducedMotion: boolean, baseDelay = 0.04) {
-  if (reducedMotion) return { initial: {}, animate: {}, transition: { duration: 0 } };
-  return {
-    initial: { opacity: 0, y: 18 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.5, delay: index * baseDelay, ease: easeOutQuint },
-  };
-}
 
 const accentMap = {
   blue: "rgba(96,139,239,1)",
@@ -674,381 +656,6 @@ function LedgerRow({
   );
 }
 
-// Simplified Row for Selection Modal
-function SimplifiedRow({
-  item,
-  isSelected,
-  onToggle,
-}: {
-  item: ProcurementRoundItem;
-  isSelected: boolean;
-  onToggle: () => void;
-}) {
-  // 统一金额口径（2026-09-28 审计：此前同页三处两套小数位）——走 lib/format
-  const formatAmount = (amount: number | null | string) =>
-    formatWan(amount, { digits: 2, empty: "-" });
-
-  return (
-    <div
-      onClick={onToggle}
-      className={`cursor-pointer rounded-[10px] border p-2.5 transition-all ${
-        isSelected
-          ? "border-[rgba(96,139,239,0.5)] bg-[rgba(96,139,239,0.08)]"
-          : "border-[oklch(0.55_0.08_258_/_0.2)] bg-[oklch(1_0_0_/_0.4)] hover:border-[rgba(96,139,239,0.3)] hover:bg-[oklch(1_0_0_/_0.55)]"
-      }`}
-    >
-      <div className="flex items-start gap-2">
-        {isSelected ? (
-          <CheckSquare size={16} className="text-[rgba(96,139,239,1)] shrink-0 mt-0.5" />
-        ) : (
-          <Square size={16} className="text-[color:var(--muted-foreground)] shrink-0 mt-0.5" />
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="text-[0.85rem] font-medium text-[color:var(--foreground)] leading-tight">{item.projectName}</div>
-          <div className="mt-1 flex items-center gap-2 text-[10px] text-[color:var(--muted-foreground)]">
-            <span>预算{formatAmount(item.controlAmount ?? item.budgetAmount)}</span>
-            {item.awardAmount && <span className="text-[rgba(92,181,150,0.8)]">成交{formatAmount(item.awardAmount)}</span>}
-          </div>
-        </div>
-        <StatusBadge status={item.resultStatus} resultText={item.resultText} terminationReason={item.terminationReason} />
-      </div>
-    </div>
-  );
-}
-
-// Analysis Selection Modal
-function AnalysisSelectionModal({
-  keyword,
-  items,
-  selectedIds,
-  onToggle,
-  onSelectAll,
-  onClose,
-  onConfirm,
-}: {
-  keyword: string;
-  items: ProcurementRoundItem[];
-  selectedIds: Set<string>;
-  onToggle: (id: string) => void;
-  onSelectAll: () => void;
-  onClose: () => void;
-  onConfirm: () => void;
-}) {
-  const allSelected = selectedIds.size === items.length;
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      size="lg"
-      title="选择分析对象"
-      description={`关键词「${keyword}」匹配到 ${items.length} 条记录`}
-      footer={
-        <>
-          <button
-            onClick={onSelectAll}
-            className="neu-btn-xs !text-[11px]"
-          >
-            {allSelected ? <CheckSquare size={14} className="text-[rgba(96,139,239,1)]" /> : <Square size={14} />}
-            {allSelected ? "取消全选" : "全选"}
-          </button>
-          <span className="text-[11px] text-[color:var(--muted-foreground)]">已选择 {selectedIds.size} / {items.length} 条</span>
-          <button
-            onClick={onConfirm}
-            disabled={selectedIds.size === 0}
-            className="neu-btn-primary disabled:opacity-50"
-          >
-            <BarChart3 size={15} />
-            开始分析
-          </button>
-        </>
-      }
-    >
-      <div className="grid grid-cols-1 gap-1.5 lg:grid-cols-2">
-        {items.map((item) => (
-          <SimplifiedRow
-            key={item.id}
-            item={item}
-            isSelected={selectedIds.has(item.id)}
-            onToggle={() => onToggle(item.id)}
-          />
-        ))}
-      </div>
-    </Modal>
-  );
-}
-
-// AI Analysis Result Type
-type AiAnalysisResult = {
-  overview: string;
-  highlights: string[];
-  concerns: string[];
-  suggestions: string[];
-};
-
-// Analysis Result Modal
-function AnalysisResultModal({
-  keyword,
-  items,
-  aiResult,
-  onClose,
-}: {
-  keyword: string;
-  items: ProcurementRoundItem[];
-  aiResult: AiAnalysisResult | null;
-  onClose: () => void;
-}) {
-  const reducedMotion = useReducedMotion() ?? false;
-
-  // Calculate analytics
-  const totalBudget = items.reduce((s, i) => {
-    const v = i.controlAmount ?? i.budgetAmount ?? 0;
-    return s + (typeof v === "string" ? parseFloat(v) : v);
-  }, 0);
-  const totalAward = items.reduce((s, i) => s + (typeof i.awardAmount === "string" ? parseFloat(i.awardAmount) : i.awardAmount || 0), 0);
-  const savings = totalBudget - totalAward;
-  const savingsRate = totalBudget > 0 ? ((savings / totalBudget) * 100).toFixed(1) : "0";
-
-  const awardedCount = items.filter(i => i.resultStatus === "AWARDED").length;
-  const pendingCount = items.filter(i => i.resultStatus === "PENDING").length;
-  const abnormalCount = items.filter(i => ["FAILED_REVIEW", "FILE_REVISION_REQUIRED", "INVALID_RESPONSE"].includes(i.resultStatus)).length;
-
-  const methodCounts: Record<string, number> = {};
-  items.forEach(i => { methodCounts[i.procurementMethod] = (methodCounts[i.procurementMethod] || 0) + 1; });
-
-  const deptCounts: Record<string, number> = {};
-  items.forEach(i => { deptCounts[i.departmentName] = (deptCounts[i.departmentName] || 0) + 1; });
-
-  const pieRadius = 50;
-  const pieCx = 60;
-
-  // 统一金额口径（2026-09-28 审计：此前同页三处两套小数位）——走 lib/format
-  const formatAmount = (amount: number | null | string) =>
-    formatWan(amount, { digits: 2, empty: "-" });
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      size="lg"
-      title="综合分析报告"
-      description={`关键词「${keyword}」 · ${items.length} 条记录`}
-      className="!max-w-[min(900px,94vw)]"
-      footer={
-        <>
-          <button onClick={onClose} className="neu-btn-soft">
-            关闭
-          </button>
-          <button className="neu-btn-primary is-success" onClick={() => {
-            if (!aiResult) return;
-            const lines = [
-              `采购台账 AI 综合分析报告`,
-              `关键词：${keyword} · 匹配 ${items.length} 条`,
-              `生成时间：${new Date().toLocaleString('zh-CN')}`,
-              ``,
-              `═══ 综合概述 ═══`,
-              aiResult.overview,
-              ``,
-              `═══ 亮点 ═══`,
-              ...aiResult.highlights.map((h, i) => `${i + 1}. ${h}`),
-              ``,
-              `═══ 关注点 ═══`,
-              ...aiResult.concerns.map((c, i) => `${i + 1}. ${c}`),
-              ``,
-              `═══ 建议 ═══`,
-              ...aiResult.suggestions.map((s, i) => `${i + 1}. ${s}`),
-            ];
-            const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `采购分析报告_${keyword || '全部'}_${new Date().toISOString().slice(0, 10)}.txt`;
-            a.click();
-            URL.revokeObjectURL(url);
-          }}>
-            <CircleDollarSign size={14} />
-            导出报告
-          </button>
-        </>
-      }
-    >
-      {/* Key Metrics */}
-      <motion.div {...fadeIn(0, reducedMotion)} className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <div className="rounded-[14px] bg-[rgba(96,139,239,0.06)] p-4 text-center">
-          <div className="text-[10px] uppercase tracking-wide text-[rgba(96,139,239,0.7)]">预算总额</div>
-          <div className="mt-2 text-[1.3rem] font-bold text-[rgba(96,139,239,1)]">{formatAmount(totalBudget)}</div>
-        </div>
-        <div className="rounded-[14px] bg-[rgba(92,181,150,0.06)] p-4 text-center">
-          <div className="text-[10px] uppercase tracking-wide text-[rgba(92,181,150,0.7)]">成交总额</div>
-          <div className="mt-2 text-[1.3rem] font-bold text-[rgba(92,181,150,1)]">{formatAmount(totalAward)}</div>
-        </div>
-        <div className="rounded-[14px] bg-[rgba(234,188,110,0.06)] p-4 text-center">
-          <div className="text-[10px] uppercase tracking-wide text-[rgba(234,188,110,0.7)]">节约资金</div>
-          <div className="mt-2 text-[1.3rem] font-bold text-[rgba(234,188,110,1)]">{formatAmount(savings)}</div>
-        </div>
-        <div className="rounded-[14px] bg-[rgba(119,129,219,0.06)] p-4 text-center">
-          <div className="text-[10px] uppercase tracking-wide text-[rgba(119,129,219,0.7)]">节资率</div>
-          <div className="mt-2 text-[1.3rem] font-bold text-[rgba(119,129,219,1)]">{savingsRate}%</div>
-        </div>
-      </motion.div>
-
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        {/* Status Distribution */}
-        <motion.div {...fadeIn(1, reducedMotion)} className="neu-card-static !rounded-[16px] p-4">
-          <div className="flex items-center gap-2 mb-4">
-            <PieChart size={16} style={{ color: accentMap.blue }} />
-            <h3 className="text-[0.9rem] font-semibold text-[color:var(--foreground)]">状态分布</h3>
-          </div>
-          <div className="flex items-center gap-6">
-            <div className="relative">
-              <svg width="120" height="120" viewBox="0 0 120 120">
-                {awardedCount > 0 && (
-                  <circle cx={pieCx} cy={pieCx} r={pieRadius} fill="transparent" stroke={accentMap.teal} strokeWidth="20" strokeDasharray={`${(awardedCount/items.length)*314} 314`} transform="rotate(-90 60 60)" />
-                )}
-                {pendingCount > 0 && (
-                  <circle cx={pieCx} cy={pieCx} r={pieRadius} fill="transparent" stroke={accentMap.gold} strokeWidth="20" strokeDasharray={`${(pendingCount/items.length)*314} 314`} strokeDashoffset={`${-(awardedCount/items.length)*314}`} transform="rotate(-90 60 60)" />
-                )}
-                {abnormalCount > 0 && (
-                  <circle cx={pieCx} cy={pieCx} r={pieRadius} fill="transparent" stroke={accentMap.coral} strokeWidth="20" strokeDasharray={`${(abnormalCount/items.length)*314} 314`} strokeDashoffset={`${-(awardedCount+pendingCount)/items.length*314}`} transform="rotate(-90 60 60)" />
-                )}
-              </svg>
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded-full bg-[rgba(92,181,150,1)]" />
-                <span className="text-[11px]">已成交 {awardedCount}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded-full bg-[rgba(234,188,110,1)]" />
-                <span className="text-[11px]">待处理 {pendingCount}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded-full bg-[rgba(230,129,102,1)]" />
-                <span className="text-[11px]">异常 {abnormalCount}</span>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Method Distribution */}
-        <motion.div {...fadeIn(2, reducedMotion)} className="neu-card-static !rounded-[16px] p-4">
-          <div className="flex items-center gap-2 mb-4">
-            <Activity size={16} style={{ color: accentMap.teal }} />
-            <h3 className="text-[0.9rem] font-semibold text-[color:var(--foreground)]">采购方式</h3>
-          </div>
-          <div className="space-y-2">
-            {Object.entries(methodCounts).map(([method, count], i) => {
-              const pct = Math.round((count / items.length) * 100);
-              const colors = [accentMap.blue, accentMap.teal, accentMap.gold, accentMap.indigo];
-              return (
-                <div key={method} className="flex items-center gap-3">
-                  <span className="w-[100px] text-[11px] truncate">{method}</span>
-                  <div className="flex-1 h-5 rounded-[4px] bg-[rgba(200,215,235,0.2)] overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${pct}%` }}
-                      transition={{ duration: 0.5, delay: i * 0.08 }}
-                      className="h-full rounded-[4px]"
-                      style={{ background: colors[i % colors.length] }}
-                    />
-                  </div>
-                  <span className="text-[11px] font-bold" style={{ color: colors[i % colors.length] }}>{count}</span>
-                </div>
-              );
-            })}
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Department Distribution */}
-      <motion.div {...fadeIn(3, reducedMotion)} className="neu-card-static !rounded-[16px] p-4">
-        <div className="flex items-center gap-2 mb-4">
-          <Building2 size={16} style={{ color: accentMap.indigo }} />
-          <h3 className="text-[0.9rem] font-semibold text-[color:var(--foreground)]">部门分布</h3>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {Object.entries(deptCounts).sort((a, b) => b[1] - a[1]).map(([dept, count]) => (
-            <span
-              key={dept}
-              className="rounded-[10px] px-3 py-1.5 text-[11px] font-medium bg-[rgba(119,129,219,0.08)] text-[rgba(119,129,219,0.9)]"
-            >
-              {dept} <span className="font-bold">{count}</span>
-            </span>
-          ))}
-        </div>
-      </motion.div>
-
-      {/* AI Analysis Section */}
-      <motion.div {...fadeIn(4, reducedMotion)} className="rounded-[16px] border border-[rgba(96,139,239,0.25)] bg-[linear-gradient(135deg,rgba(96,139,239,0.05),rgba(92,181,150,0.03))] p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Sparkles size={18} style={{ color: accentMap.blue }} />
-          <h3 className="text-base font-bold text-[rgba(96,139,239,1)]">AI智能分析</h3>
-        </div>
-
-        {aiResult ? (
-          <div className="space-y-3">
-            {/* Overview */}
-            <div className="p-3 rounded-[12px] bg-[oklch(1_0_0_/_0.4)]">
-              <p className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)]">{aiResult.overview}</p>
-            </div>
-
-            {/* Highlights */}
-            {aiResult.highlights.length > 0 && (
-              <div className="flex items-start gap-3 p-3 rounded-[12px] bg-[oklch(1_0_0_/_0.4)]">
-                <Target size={16} className="shrink-0 mt-0.5" style={{ color: accentMap.teal }} />
-                <div>
-                  <div className="text-[11px] font-bold uppercase tracking-wide text-[rgba(92,181,150,0.8)]">核心亮点</div>
-                  <ul className="mt-1.5 space-y-1">
-                    {aiResult.highlights.map((h, i) => (
-                      <li key={i} className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)]">• {h}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            )}
-
-            {/* Concerns */}
-            {aiResult.concerns.length > 0 && (
-              <div className="flex items-start gap-3 p-3 rounded-[12px] bg-[rgba(230,129,102,0.08)]">
-                <AlertCircle size={16} className="shrink-0 mt-0.5" style={{ color: accentMap.coral }} />
-                <div>
-                  <div className="text-[11px] font-bold uppercase tracking-wide text-[rgba(230,129,102,0.8)]">待关注项</div>
-                  <ul className="mt-1.5 space-y-1">
-                    {aiResult.concerns.map((c, i) => (
-                      <li key={i} className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)]">• {c}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            )}
-
-            {/* Suggestions */}
-            {aiResult.suggestions.length > 0 && (
-              <div className="flex items-start gap-3 p-3 rounded-[12px] bg-[rgba(234,188,110,0.08)]">
-                <Lightbulb size={16} className="shrink-0 mt-0.5" style={{ color: accentMap.gold }} />
-                <div>
-                  <div className="text-[11px] font-bold uppercase tracking-wide text-[rgba(234,188,110,0.8)]">建议方向</div>
-                  <ul className="mt-1.5 space-y-1">
-                    {aiResult.suggestions.map((s, i) => (
-                      <li key={i} className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)]">• {s}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 size={24} className="animate-spin text-[rgba(96,139,239,0.6)]" />
-            <span className="ml-3 text-[0.85rem] text-[color:var(--muted-foreground)]">AI正在分析...</span>
-          </div>
-        )}
-      </motion.div>
-    </Modal>
-  );
-}
-
 // Recycle confirmation Modal
 function RecycleConfirmModal({
   item,
@@ -1160,7 +767,6 @@ export default function ProcurementsPage() {
   const [selectedAnalysisIds, setSelectedAnalysisIds] = useState<Set<string>>(new Set());
   const [showAnalysisResult, setShowAnalysisResult] = useState(false);
   const [aiAnalysisResult, setAiAnalysisResult] = useState<AiAnalysisResult | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
 
   // Expanded card states for inline details
   const [expandedItemIds, setExpandedItemIds] = useState<Set<string>>(new Set());
@@ -1507,36 +1113,14 @@ export default function ProcurementsPage() {
     });
   };
 
-  const handleSelectAll = () => {
-    if (selectedAnalysisIds.size === matchedItems.length) {
-      setSelectedAnalysisIds(new Set());
-    } else {
-      setSelectedAnalysisIds(new Set(matchedItems.map(i => i.id)));
-    }
-  };
-
   const confirmAnalysis = async () => {
     const selectedItems = matchedItems.filter(i => selectedAnalysisIds.has(i.id));
     setShowAnalysisSelection(false);
     setShowAnalysisResult(true);
-    setAiAnalysisResult(null);
-    setAiLoading(true);
+    setAiAnalysisResult(null); // null=报告弹窗进入 AI 骨架屏加载态
 
-    // Calculate summary
-    const totalBudget = selectedItems.reduce((s, i) => {
-      const v = i.controlAmount ?? i.budgetAmount ?? 0;
-      return s + (typeof v === "string" ? parseFloat(v) : v);
-    }, 0);
-    const totalAward = selectedItems.reduce((s, i) => s + (typeof i.awardAmount === "string" ? parseFloat(i.awardAmount) : i.awardAmount || 0), 0);
-    const savings = totalBudget - totalAward;
-    const savingsRate = totalBudget > 0 ? ((savings / totalBudget) * 100).toFixed(1) : "0";
-    const awardedCount = selectedItems.filter(i => i.resultStatus === "AWARDED").length;
-    const pendingCount = selectedItems.filter(i => i.resultStatus === "PENDING").length;
-    const abnormalCount = selectedItems.filter(i => ["FAILED_REVIEW", "FILE_REVISION_REQUIRED", "INVALID_RESPONSE"].includes(i.resultStatus)).length;
-    const methodCounts: Record<string, number> = {};
-    selectedItems.forEach(i => { methodCounts[i.procurementMethod] = (methodCounts[i.procurementMethod] || 0) + 1; });
-    const deptCounts: Record<string, number> = {};
-    selectedItems.forEach(i => { deptCounts[i.departmentName] = (deptCounts[i.departmentName] || 0) + 1; });
+    // 汇总口径统一走共享工具（与选择/报告两个弹窗同源，2026-10-21 重设计收口）
+    const summary = buildLedgerAnalysisSummary(selectedItems);
 
     // Call AI API
     try {
@@ -1555,18 +1139,7 @@ export default function ProcurementsPage() {
           resultStatus: i.resultStatus,
           supplierNames: i.supplierNames,
         })),
-        summary: {
-          totalCount: selectedItems.length,
-          totalBudget,
-          totalAward,
-          savings,
-          savingsRate,
-          awardedCount,
-          pendingCount,
-          abnormalCount,
-          methodCounts,
-          deptCounts,
-        },
+        summary,
       });
       setAiAnalysisResult(result);
     } catch (err) {
@@ -1577,8 +1150,6 @@ export default function ProcurementsPage() {
         concerns: [],
         suggestions: [],
       });
-    } finally {
-      setAiLoading(false);
     }
   };
 
@@ -1727,7 +1298,6 @@ export default function ProcurementsPage() {
             items={matchedItems}
             selectedIds={selectedAnalysisIds}
             onToggle={toggleAnalysisSelection}
-            onSelectAll={handleSelectAll}
             onClose={() => setShowAnalysisSelection(false)}
             onConfirm={confirmAnalysis}
           />
