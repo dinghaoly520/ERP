@@ -153,6 +153,7 @@ role=bid_expert && 存在开窗 && User.webSessionId 非空
 | 11 | signIn 并发 TOCTOU（P2-5 2026-09-21） | 预检（冲突优先于照片闸，原行为）+ 事务内权威复查（User 行锁 FOR UPDATE）与写入原子化 | 双检消竞态，单一入口双开窗不可能 |
 | 12 | ABORTED 阶段口令闸（P2-6 2026-09-21） | 流标后闸门保持；verify 允许 ABORTED（未验者可补验）；rotate 仍限 EVALUATING | 评标终止后物料不裸奔，已验专家访问不受影响 |
 | 13 | 启动评标前资料访问（2026-10-21 修复） | 评标资料/评分工作流端点挂 `assertEvaluationStarted`（阶段集同口令闸 {EVALUATING, ABORTED}：解密标书/解密下载/辅助数据/对比/条款标注/草稿·历史·回看/报价历史/澄清件/备忘/打分定位；EVALUATING 前置镜像同步 :3006 步骤门）；签到五项与招标原文/谈判采购文件保持启动前可用 | 旧 {OPENING, EVALUATING} 通用守卫（0fd2ee5f，2026-06-17）早于启动评标正式闸门——OPENING 期专家即可取解密标书并预写评分，且 roomCode 由 startEvaluation 生成、口令闸无从拦 |
+| 14 | 启动前核验与原文（2026-10-21 收紧，用户裁定，**推翻决策 9**） | 启动评标前专家端仅项目卡片：身份核验五项（signIn/回避/AI 声明/双协议）与招标原文/谈判文件/澄清修改文件一律 403 EVALUATION_NOT_STARTED（strict EVALUATING）；主持端 manual-confirm/verify/unverify 同拦（防绕开专家端闸造出窗口）；reject/retract 异常登记（仅监督日志，到场异常仍需留痕）与 release-login-lock（解锁阀门）保持 | 启动前签到会开闸4窗口+登录锁，把主持端设备管理拖进启动前阶段（锁死陷阱：换设备须主持人解锁）；单一边界=启动评标，专家换设备走评标外后登顶替自助 |
 
 ## 8. 边界与风险
 

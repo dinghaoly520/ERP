@@ -89,7 +89,8 @@ describe('Expert room code & window isolation (e2e)', () => {
     await prisma.bidExpert.create({ data: { projectId: projectC, userId: wexpId, expertName: U.wexp, major: '造价', expertRole: '正选', invitationStatus: 'confirmed' } });
     // P2 用例夹具（2026-09-21）：D=swap 复查；E1/E2+cexp=并发签到 TOCTOU；photo=过签到照片闸
     const [d, e1, e2] = await Promise.all([
-      mkProject('RW-D-2026', 'SUBMIT'), mkProject('RW-E1-2026', 'OPENING'), mkProject('RW-E2-2026', 'OPENING'),
+      mkProject('RW-D-2026', 'SUBMIT'),
+      mkProject('RW-E1-2026', 'EVALUATING'), mkProject('RW-E2-2026', 'EVALUATING'), // 2026-10-21 收紧：签到须 EVALUATING（TOCTOU 双签到目标）
     ]);
     projectD = d.id; projectE1 = e1.id; projectE2 = e2.id;
     await prisma.bidExpert.create({ data: { projectId: projectD, userId: wexpId, expertName: U.wexp, major: '造价', expertRole: '正选', invitationStatus: 'confirmed' } });
@@ -109,13 +110,27 @@ describe('Expert room code & window isolation (e2e)', () => {
   });
 
   it('闸2：signIn 跨项目开窗 → 409 EXPERT_WINDOW_CONFLICT（错误体含冲突项目名）', async () => {
-    const cookie = await loginCookie(U.wexp, 'expert');
-    const res = await request(app.getHttpServer())
-      .post(`/api/expert/projects/${projectB}/sign-in`)
-      .set('Cookie', cookie).set('X-Portal', 'expert');
-    expect(res.status).toBe(409);
-    expect(res.body.code).toBe('EXPERT_WINDOW_CONFLICT');
-    expect(res.body.error).toContain('RW-A-2026');
+    // 2026-10-21 收紧：签到须 EVALUATING——projectB（OPENING）留给 startEvaluation 阻断用例，
+    // 冲突签到改挂自建 EVALUATING 目标项目
+    const past = new Date(Date.now() - 2 * 3600_000); // beforeAll 内同名变量不外泄，本用例自备
+    const proj = await prisma.bidProject.create({
+      data: { projectCode: 'RW-G-2026', name: '签到冲突测试-G', procurementMethod: '公开招标', openTime: past, deadline: past, stage: 'EVALUATING' },
+    });
+    await prisma.bidExpert.create({
+      data: { projectId: proj.id, userId: wexpId, expertName: U.wexp, major: '造价', expertRole: '正选', invitationStatus: 'confirmed' },
+    });
+    try {
+      const cookie = await loginCookie(U.wexp, 'expert');
+      const res = await request(app.getHttpServer())
+        .post(`/api/expert/projects/${proj.id}/sign-in`)
+        .set('Cookie', cookie).set('X-Portal', 'expert');
+      expect(res.status).toBe(409);
+      expect(res.body.code).toBe('EXPERT_WINDOW_CONFLICT');
+      expect(res.body.error).toContain('RW-A-2026');
+    } finally {
+      await prisma.bidExpert.deleteMany({ where: { projectId: proj.id } });
+      await prisma.bidProject.delete({ where: { id: proj.id } });
+    }
   });
 
   it('闸2：startEvaluation 存在冲突专家 → 409（含名单）', async () => {
@@ -330,17 +345,28 @@ describe('Expert room code & window isolation (e2e)', () => {
     const wexpRow = await prisma.bidExpert.findFirst({ where: { projectId: projectA, userId: wexpId } });
     await prisma.bidExpert.update({ where: { id: wexpRow!.id }, data: { reportConfirmed: false } });
     await prisma.user.update({ where: { id: wexpId }, data: { webSessionId: null } }); // 模拟已释放（否则首登即 409 拿不到会话）
-    // 冲突签到 → 409 + 监督日志
+    // 冲突签到 → 409 + 监督日志（2026-10-21 收紧：签到须 EVALUATING——projectB 是 OPENING，
+    // 改挂自建 EVALUATING 目标项目，监督日志断言随行）
+    const past = new Date(Date.now() - 2 * 3600_000);
+    const projH = await prisma.bidProject.create({
+      data: { projectCode: 'RW-H-2026', name: '冲突留痕测试-H', procurementMethod: '公开招标', openTime: past, deadline: past, stage: 'EVALUATING' },
+    });
+    await prisma.bidExpert.create({
+      data: { projectId: projH.id, userId: wexpId, expertName: U.wexp, major: '造价', expertRole: '正选', invitationStatus: 'confirmed' },
+    });
     const c = await loginCookie(U.wexp, 'expert');
     const si = await request(app.getHttpServer())
-      .post(`/api/expert/projects/${projectB}/sign-in`)
+      .post(`/api/expert/projects/${projH.id}/sign-in`)
       .set('Cookie', c).set('X-Portal', 'expert');
     expect(si.status).toBe(409);
     expect(si.body.code).toBe('EXPERT_WINDOW_CONFLICT');
     const conflictLog = await prisma.bidSupervisionLog.findFirst({
-      where: { projectId: projectB, action: '跨项目评标窗口冲突拦截' },
+      where: { projectId: projH.id, action: '跨项目评标窗口冲突拦截' },
     });
     expect(conflictLog).not.toBeNull();
+    // 断言完再清夹具（项目删除会级联清掉监督日志）
+    await prisma.bidExpert.deleteMany({ where: { projectId: projH.id } });
+    await prisma.bidProject.delete({ where: { id: projH.id } });
     // 登录锁定拒绝 → 409 + 监督日志高风险 + admin 通知
     const lk = await login(U.wexp, 'expert');
     expect(lk.status).toBe(409);
@@ -436,11 +462,32 @@ describe('Expert room code & window isolation (e2e)', () => {
     });
     const tCookie = await loginCookie(U.texp, 'expert');
     try {
-      // 身份核验族（spec 决策 9：口令生成晚于签到——启动前可用）
+      // 收紧口径（2026-10-21 用户裁定，推翻决策 9 前半）：身份核验五项亦须启动后——
+      // 启动前签到/回避/AI 声明全拦，杜绝「启动前签到→开窗→登录锁→主持端解锁」连锁
       const consent = await request(app.getHttpServer())
         .post(`/api/expert/projects/${proj.id}/ai-consent`)
         .set('Cookie', tCookie).set('X-Portal', 'expert');
-      expect([200, 201]).toContain(consent.status);
+      expect(consent.status).toBe(403);
+      expect(consent.body.code).toBe('EVALUATION_NOT_STARTED');
+      const signInBlocked = await request(app.getHttpServer())
+        .post(`/api/expert/projects/${proj.id}/sign-in`)
+        .set('Cookie', tCookie).set('X-Portal', 'expert');
+      expect(signInBlocked.status).toBe(403);
+      expect(signInBlocked.body.code).toBe('EVALUATION_NOT_STARTED');
+
+      // 主持端写专家状态同样拦（防绕开专家端闸在启动前造出窗口/锁死陷阱）
+      const adminCookie = await loginCookie(U.admin, 'web');
+      const tRow = await prisma.bidExpert.findFirst({ where: { projectId: proj.id, userId: texpId } });
+      const manual = await request(app.getHttpServer())
+        .post(`/api/bid/projects/${proj.id}/expert-verification/${tRow!.id}/manual-confirm`)
+        .set('Cookie', adminCookie).set('X-Portal', 'web').send({ reason: 'e2e' });
+      expect(manual.status).toBe(403);
+      expect(manual.body.code).toBe('EVALUATION_NOT_STARTED');
+      const verify = await request(app.getHttpServer())
+        .post(`/api/bid/projects/${proj.id}/expert-verification/${tRow!.id}/verify`)
+        .set('Cookie', adminCookie).set('X-Portal', 'web').send({ docType: '身份证' });
+      expect(verify.status).toBe(403);
+      expect(verify.body.code).toBe('EVALUATION_NOT_STARTED');
 
       // 评标资料/草稿：启动前一律拦（本修复核心）
       const docs = await request(app.getHttpServer())

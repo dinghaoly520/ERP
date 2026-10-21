@@ -310,7 +310,7 @@ describe('ExpertService', () => {
     });
 
     it('self 默认态无留档照 → 400 PHOTO_REQUIRED（R3 必拍），不写签到状态', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);
 
       await expect(service.signIn('user-1', 'proj-1'))
@@ -319,7 +319,7 @@ describe('ExpertService', () => {
     });
 
     it('签到成功应更新专家状态（带留档照；meta 含 method/timestamp）', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);
       prisma.fileAsset.findUnique.mockResolvedValue({ id: 'photo-1', category: 'expert_signin_photo', uploaderId: 'user-1' });
       prisma.bidExpert.update.mockResolvedValue({ ...mockExpert, signedIn: true });
@@ -345,7 +345,7 @@ describe('ExpertService', () => {
     it('off 应急态 → 无照片放行，meta.method=off_mode', async () => {
       process.env.EXPERT_IDENTITY_VERIFY = 'off';
       try {
-        prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+        prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
         prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);
         prisma.bidExpert.update.mockResolvedValue({ ...mockExpert, signedIn: true });
 
@@ -365,7 +365,7 @@ describe('ExpertService', () => {
     it('host 态未核验登记 → 403 IDENTITY_NOT_VERIFIED（P3 闸门，先于照片闸）', async () => {
       process.env.EXPERT_IDENTITY_VERIFY = 'host';
       try {
-        prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+        prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
         prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, identityVerified: false });
         prisma.fileAsset.findUnique.mockResolvedValue({ id: 'photo-1', category: 'expert_signin_photo', uploaderId: 'user-1' });
 
@@ -380,7 +380,7 @@ describe('ExpertService', () => {
     it('host 态已核验登记 + 照片 → 签到放行', async () => {
       process.env.EXPERT_IDENTITY_VERIFY = 'host';
       try {
-        prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+        prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
         prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, identityVerified: true });
         prisma.fileAsset.findUnique.mockResolvedValue({ id: 'photo-1', category: 'expert_signin_photo', uploaderId: 'user-1' });
         prisma.bidExpert.update.mockResolvedValue({ ...mockExpert, signedIn: true });
@@ -393,7 +393,7 @@ describe('ExpertService', () => {
     });
 
     it('带合法拍照留痕 → photoAssetId 并入 signInMeta', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);
       prisma.fileAsset.findUnique.mockResolvedValue({ id: 'photo-1', category: 'expert_signin_photo', uploaderId: 'user-1' });
       prisma.bidExpert.update.mockResolvedValue({ ...mockExpert, signedIn: true });
@@ -411,7 +411,7 @@ describe('ExpertService', () => {
     });
 
     it('照片不属于本人或分类不符 → 400 INVALID_SIGNIN_PHOTO', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);
       prisma.fileAsset.findUnique.mockResolvedValue({ id: 'photo-9', category: 'general', uploaderId: 'user-2' });
 
@@ -437,21 +437,21 @@ describe('ExpertService', () => {
       expect(result.aiConsentConfirmed).toBe(true);
     });
 
-    it('非活动阶段 → 403 PROJECT_NOT_ACTIVE', async () => {
+    it('非评标阶段（ARCHIVED）→ 403 EVALUATION_NOT_STARTED（2026-10-21 收紧：核验须 EVALUATING）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED' });
       await expect(service.confirmAiConsent('user-1', 'proj-1'))
-        .rejects.toMatchObject({ response: { code: 'PROJECT_NOT_ACTIVE' } });
+        .rejects.toMatchObject({ response: { code: 'EVALUATION_NOT_STARTED' } });
     });
 
     it('非本项目专家 → 403 NOT_PROJECT_EXPERT', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' }); // 2026-10-21 收紧：核验须 EVALUATING
       prisma.bidExpert.findFirst.mockResolvedValue(null);
       await expect(service.confirmAiConsent('user-1', 'proj-1'))
         .rejects.toMatchObject({ response: { code: 'NOT_PROJECT_EXPERT' } });
     });
   });
 
-  describe('启动评标前评标资料闸（2026-10-21）：OPENING 拦截——签到/身份核验不受影响', () => {
+  describe('启动评标前评标资料闸（2026-10-21）：OPENING 拦截——收紧口径：身份核验五项亦须启动后', () => {
     const fiveFlagsDone = { ...mockExpert, expertRole: '正选', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true };
 
     it('getDecryptedDocuments：OPENING → 403 EVALUATION_NOT_STARTED（即便五项核验已全齐）', async () => {
@@ -472,6 +472,36 @@ describe('ExpertService', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidExpert.findFirst.mockResolvedValue(fiveFlagsDone);
       await expect(service.saveScoreDraft('user-1', 'proj-1', { scores: { 's:i': { score: 1 } } }, 'desktop'))
+        .rejects.toMatchObject({ response: { code: 'EVALUATION_NOT_STARTED' } });
+    });
+
+    it('signIn：OPENING → 403 EVALUATION_NOT_STARTED（收紧口径：签到须待启动评标）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidExpert.findFirst.mockResolvedValue(fiveFlagsDone);
+      await expect(service.signIn('user-1', 'proj-1'))
+        .rejects.toMatchObject({ response: { code: 'EVALUATION_NOT_STARTED' } });
+    });
+
+    it('confirmAvoidance / confirmAiConsent：OPENING → 403 EVALUATION_NOT_STARTED', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidExpert.findFirst.mockResolvedValue(fiveFlagsDone);
+      await expect(service.confirmAvoidance('user-1', 'proj-1', []))
+        .rejects.toMatchObject({ response: { code: 'EVALUATION_NOT_STARTED' } });
+      await expect(service.confirmAiConsent('user-1', 'proj-1'))
+        .rejects.toMatchObject({ response: { code: 'EVALUATION_NOT_STARTED' } });
+    });
+
+    it('updateAgreements：OPENING → 403 EVALUATION_NOT_STARTED（原无阶段门，收紧补闸）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidExpert.findFirst.mockResolvedValue(fiveFlagsDone);
+      await expect(service.updateAgreements('user-1', 'proj-1', { confidentialityAgreed: true } as any))
+        .rejects.toMatchObject({ response: { code: 'EVALUATION_NOT_STARTED' } });
+    });
+
+    it('getTenderDocument：OPENING → 403 EVALUATION_NOT_STARTED（收紧口径推翻决策 9 前半：原文亦关）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidExpert.findFirst.mockResolvedValue(fiveFlagsDone);
+      await expect(service.getTenderDocument('user-1', 'proj-1'))
         .rejects.toMatchObject({ response: { code: 'EVALUATION_NOT_STARTED' } });
     });
 
@@ -2001,11 +2031,11 @@ describe('ExpertService', () => {
         .rejects.toMatchObject({ response: { code: 'VERIFICATION_REQUIRED' } });
     });
 
-    it('项目阶段不在 OPENING/EVALUATING → 403 PROJECT_NOT_ACTIVE', async () => {
+    it('项目阶段不在评标期（ARCHIVED）→ 403 EVALUATION_NOT_STARTED（2026-10-21 收紧：原文亦须启动后）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED' });
 
       await expect(service.getTenderDocument('user-1', 'proj-1'))
-        .rejects.toMatchObject({ response: { code: 'PROJECT_NOT_ACTIVE' } });
+        .rejects.toMatchObject({ response: { code: 'EVALUATION_NOT_STARTED' } });
     });
   });
 

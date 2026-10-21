@@ -283,7 +283,7 @@ export default function ExpertEvaluatePage() {
   // （evaluationStarted/fiveFlagsVerified 声明于 expert 之后——stepAccessible 系闭包惰性引用）
   const stepAccessible = (sKey: Step): boolean => {
     switch (sKey) {
-      case 'verify': return true;
+      case 'verify': return evaluationStarted; // 2026-10-21 收紧：身份核验亦须启动评标后（整页待命页兜底，此为纵深）
       // EXP-P2-05：与后端五项核验闸对齐（getDecryptedDocuments 等 403 VERIFICATION_REQUIRED 同口径）——
       // 此前只查三项（漏保密承诺/评标纪律），协议 PATCH fire-and-forget 失败时本地勾选态已真、
       // 专家可点进标书/AI/打分步，提交时才撞 403 五项清单
@@ -1268,6 +1268,25 @@ export default function ExpertEvaluatePage() {
   );
   if (loading || !project) return <div className="flex h-64 items-center justify-center text-[var(--muted-foreground)]">加载中...</div>;
 
+  // 启动闸待命页（2026-10-21 收紧口径）：主持人未启动评标（OPENING）→ 整个工作区只读待命——
+  // 身份核验五项亦不可做（用户裁定：启动前签到会开评标窗口+登录锁，把主持端设备管理拖进启动前）。
+  // 主持人启动后 WS onStageChange / 10s 轮询自动刷新 → 本页切换为核验/口令流程。后端同口径 403 EVALUATION_NOT_STARTED。
+  if (project.stage === 'OPENING') {
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center p-6">
+        <div className="neu-card-static w-full max-w-md p-8 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[oklch(0.985 0.005 258)] shadow-[inset_2.5px_2.5px_5px_oklch(0.55_0.03_258/0.14),inset_-2px_-2px_5px_oklch(1_0_0/0.75)]">
+            <Hourglass size={26} strokeWidth={1.5} className="text-[var(--accent)]" />
+          </div>
+          <h2 className="text-lg font-bold text-[var(--foreground)]">开标进行中</h2>
+          <p className="mx-auto mt-2 max-w-xs text-xs leading-relaxed text-[var(--muted-foreground)]">
+            等待主持人启动评标——启动后本页自动进入身份核验与评标室（届时需输入评标室口令），无需手动刷新。
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // 评标室口令门页（2026-09-20 spec §4）：口令启用且本人未验 → 整个工作区置入口令输入之后。
   // 冒名者即使拿到登录会话，没有口令进不了评标物料（文档/AI/评分/报告服务端同步 403 ROOM_CODE_REQUIRED）。
   if (project.roomCodeActive && !project.roomCodeVerified) {
@@ -1414,14 +1433,6 @@ export default function ExpertEvaluatePage() {
         <div className={`exp-alert mb-3 flex shrink-0 items-center justify-between gap-3 !px-4 ${_wsConn === 'reconnecting' ? 'exp-alert--warn' : ''}`}>
           <span className="inline-flex items-center gap-1.5"><AlertTriangle size={13} strokeWidth={1.5} />{_wsConn === 'reconnecting' ? '实时连接中断，正在重连…' : '实时连接已断开，数据可能不是最新'}</span>
           <button onClick={_wsReconnect} className={`neu-btn-xs ${_wsConn === 'reconnecting' ? 'is-warning' : 'is-danger'}`}>重试</button>
-        </div>
-      )}
-
-      {/* 启动闸横幅（2026-10-21）：开标中——身份核验可做，评标资料须待主持人启动评标 */}
-      {project?.stage === 'OPENING' && (
-        <div className="exp-alert exp-alert--info mb-3 flex shrink-0 items-center gap-2 !px-4">
-          <Hourglass size={13} strokeWidth={1.5} />
-          <span>开标进行中：请先完成身份核验，等待主持人启动评标后进入评标室（主持人启动后本页自动刷新，届时需输入评标室口令）</span>
         </div>
       )}
 

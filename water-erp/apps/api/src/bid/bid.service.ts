@@ -3254,9 +3254,11 @@ export class BidService {
     actor: { id: string; username: string },
     dto: { reason: string; docType?: string },
   ) {
+    // 启动闸（2026-10-21 收紧口径）：手动确认签到写 signedIn=true——启动前操作会造出评标窗口
+    // （闸4 登录锁）+锁死陷阱，与专家端 signIn 同口径拦截（OPENING 一律 403）
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
-    if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
-      throw new ForbiddenException({ error: '项目不在可确认签到阶段', code: 'PROJECT_NOT_ACTIVE' });
+    if (!project || project.stage !== 'EVALUATING') {
+      throw new ForbiddenException({ error: '评标尚未启动，请先启动评标再进行专家签到确认', code: 'EVALUATION_NOT_STARTED' });
     }
     const expert = await this.prisma.bidExpert.findFirst({
       where: { id: expertId, projectId },
@@ -3476,9 +3478,10 @@ export class BidService {
     actor: { id: string; username: string },
     dto: { docType: string; note?: string },
   ) {
+    // 启动闸（2026-10-21 收紧口径）：核验登记属身份核验族，须待启动评标（与专家端五项同口径）
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
-    if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
-      throw new ForbiddenException({ error: '项目不在可核验阶段', code: 'PROJECT_NOT_ACTIVE' });
+    if (!project || project.stage !== 'EVALUATING') {
+      throw new ForbiddenException({ error: '评标尚未启动，请先启动评标再进行身份核验登记', code: 'EVALUATION_NOT_STARTED' });
     }
     const expert = await this.prisma.bidExpert.findFirst({
       where: { id: expertId, projectId },
@@ -3527,6 +3530,13 @@ export class BidService {
     if (!expert) throw new ForbiddenException({ error: '专家不在该项目', code: 'NOT_PROJECT_EXPERT' });
     if (!expert.identityVerified) {
       return { ok: true, already: true, expertId: expert.id, expertName: expert.expertName }; // 幂等：未登记无需撤销
+    }
+    // 启动闸（2026-10-21 收紧口径）：登记已限 EVALUATING，撤销对称收口（启动前不可能有合法新登记）
+    {
+      const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
+      if (!project || project.stage !== 'EVALUATING') {
+        throw new ForbiddenException({ error: '评标尚未启动，身份核验登记须在启动评标后进行', code: 'EVALUATION_NOT_STARTED' });
+      }
     }
     if (expert.signedIn) {
       throw new ConflictException({

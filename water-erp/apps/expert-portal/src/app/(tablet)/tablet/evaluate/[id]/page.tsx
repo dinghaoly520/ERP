@@ -764,6 +764,25 @@ export default function TabletEvaluatePage() {
     );
   }
 
+  // 启动闸待命页（2026-10-21 收紧口径）：主持人未启动评标（OPENING）→ 核验与打分均不可进入——
+  // 身份核验五项亦须启动后（与桌面端/后端 403 EVALUATION_NOT_STARTED 同口径）。
+  // 主持人启动后 WS onStageChange + 10s 轮询自动刷新 → 本页切换为核验/口令流程。
+  if (project.stage === 'OPENING') {
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center p-6">
+        <div className="neu-card-static w-full max-w-md p-8 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[oklch(0.985 0.005 258)] shadow-[inset_2.5px_2.5px_5px_oklch(0.55_0.03_258/0.14),inset_-2px_-2px_5px_oklch(1_0_0/0.75)]">
+            <Hourglass size={30} strokeWidth={1.5} className="text-[var(--accent)]" />
+          </div>
+          <h2 className="text-lg font-bold text-[var(--foreground)]">开标进行中</h2>
+          <p className="mx-auto mt-2 max-w-xs text-xs leading-relaxed text-[var(--muted-foreground)]">
+            等待主持人启动评标——启动后本页自动进入身份核验与评标室（届时需输入评标室口令），无需手动刷新。
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // 身份核验门（2026-09-22 平板补齐）：签到/回避/AI 声明未齐 → 先核验（原桌面端向导第 1 步，
   // 平板此前只有一条「请先完成身份核验」横幅却无任何入口——现场平板卡死于此）。
   const verificationNeeded = !verificationComplete && !scoreLocked;
@@ -946,25 +965,6 @@ export default function TabletEvaluatePage() {
             </button>
           </div>
         )}
-      </div>
-    );
-  }
-
-  // 启动闸（2026-10-21）：主持人未启动评标（OPENING）且身份核验已完成 → 打分工作区不可进入，
-  // 待命页等 stage 翻转（WS onStageChange + 下方 10s 轮询自动解锁，口令门随后接管）。
-  // 后端同口径：资料/草稿端点 403 EVALUATION_NOT_STARTED——前端仅引导，安全边界在 API。
-  if (project.stage === 'OPENING') {
-    return (
-      <div className="flex min-h-[70vh] items-center justify-center p-6">
-        <div className="neu-card-static w-full max-w-md p-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[oklch(0.985 0.005 258)] shadow-[inset_2.5px_2.5px_5px_oklch(0.55_0.03_258/0.14),inset_-2px_-2px_5px_oklch(1_0_0/0.75)]">
-            <Hourglass size={30} strokeWidth={1.5} className="text-[var(--accent)]" />
-          </div>
-          <h2 className="text-lg font-bold text-[var(--foreground)]">等待主持人启动评标</h2>
-          <p className="mx-auto mt-2 max-w-xs text-xs leading-relaxed text-[var(--muted-foreground)]">
-            开标进行中，身份核验已完成。主持人启动评标后本页自动进入评标室（届时需输入评标室口令）。
-          </p>
-        </div>
       </div>
     );
   }
