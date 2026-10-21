@@ -498,6 +498,11 @@ export class RsvpService {
       action: 'STAFF_MARKED', actorType: 'STAFF', actorId, actorName,
       toStatus: status, reason,
     });
+    // 连拒预警（深检补齐 2026-10-21）：无行补录路径同样计连拒——电话核实代婉拒与
+    // 行内代婉拒对「连续拒绝」语义等价，漏接会造成预警段断计
+    if (status === 'DECLINED') {
+      await this.maybeAlertDeclineStreak(supplierId, supplier.name);
+    }
     return { id: created.id, status: created.status, changed: true };
   }
 

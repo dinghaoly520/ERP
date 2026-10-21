@@ -175,10 +175,10 @@ describe('RsvpService.manualMark（代回应/代变更）', () => {
         update: jest.fn().mockResolvedValue({ id: 'rsvp1', status: 'DECLINED' }),
         create: jest.fn(),
       },
-      invitationRsvpLog: { create: jest.fn().mockResolvedValue({}) },
+      invitationRsvpLog: { create: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]) },
       supplier: { findUnique: jest.fn().mockResolvedValue({ userId: 'u-supplier', name: '供应商A' }) },
     };
-    notification = { resolveByLinkToken: jest.fn(), create: jest.fn().mockResolvedValue({}) };
+    notification = { resolveByLinkToken: jest.fn(), create: jest.fn().mockResolvedValue({}), sendToRole: jest.fn().mockResolvedValue({}) };
     service = new RsvpService(prisma, {} as any, notification as any);
   });
 
@@ -390,5 +390,44 @@ describe('RsvpService.maybeAlertDeclineStreak（连续拒绝预警）', () => {
   it('预警计算失败不抛错（返回 0）', async () => {
     prisma.invitationRsvpLog.findMany.mockRejectedValue(new Error('db down'));
     await expect(service.maybeAlertDeclineStreak('s1', '供应商A')).resolves.toBe(0);
+  });
+});
+
+/** 连拒预警接线（深检补齐 2026-10-21）：无行补录路径（电话核实代婉拒，无邀请链接行）
+ *  同样计连拒——漏接会造成预警段断计。 */
+describe('RsvpService.manualMark（无行补录分支的连拒预警接线）', () => {
+  let service: RsvpService;
+  let prisma: any;
+  let notification: any;
+
+  beforeEach(() => {
+    prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue({ displayName: '王工作' }) },
+      bidProject: { findFirst: jest.fn().mockResolvedValue(null) },
+      invitationRsvp: {
+        findMany: jest.fn().mockResolvedValue([]), // 选行：无既有行 → 走补录分支
+        create: jest.fn().mockResolvedValue({ id: 'rsvp-new', status: 'DECLINED' }),
+      },
+      invitationRsvpLog: {
+        create: jest.fn().mockResolvedValue({}),
+        // 读侧模拟含本次共 3 连拒（create 不落库）
+        findMany: jest.fn().mockResolvedValue([{ toStatus: 'DECLINED' }, { toStatus: 'DECLINED' }, { toStatus: 'DECLINED' }]),
+      },
+      supplier: { findUnique: jest.fn().mockResolvedValue({ userId: 'u-supplier', name: '供应商A' }) },
+    };
+    notification = { sendToRole: jest.fn().mockResolvedValue({}) };
+    service = new RsvpService(prisma, {} as any, notification as any);
+  });
+
+  it('补录代婉拒且连拒达 3 → 预警随主流程触发', async () => {
+    const r = await service.manualMark({ projectId: 'PMI-1', supplierId: 's1', status: 'DECLINED', actorId: 'u1', reason: '电话核实档期冲突婉拒' });
+    expect(r).toEqual({ id: 'rsvp-new', status: 'DECLINED', changed: true });
+    expect(notification.sendToRole).toHaveBeenCalledWith('leader', expect.objectContaining({ type: 'SUPPLIER_DECLINE_STREAK' }));
+    expect(notification.sendToRole).toHaveBeenCalledWith('staff', expect.objectContaining({ type: 'SUPPLIER_DECLINE_STREAK' }));
+  });
+
+  it('补录代确认不触发预警', async () => {
+    await service.manualMark({ projectId: 'PMI-1', supplierId: 's1', status: 'ACCEPTED', actorId: 'u1', reason: '电话核实确认参加' });
+    expect(notification.sendToRole).not.toHaveBeenCalled();
   });
 });
