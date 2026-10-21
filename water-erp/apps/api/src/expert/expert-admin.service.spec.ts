@@ -991,7 +991,7 @@ describe('ExpertAdminService.proxyMarkInvitation（专家邀请代回应/代变�
             updateMany: jest.fn().mockResolvedValue({ count: 1 }),
           },
           bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'OPENING', name: '某项目' }) },
-          expertInvitationLog: { create: jest.fn().mockResolvedValue({}) },
+          expertInvitationLog: { create: jest.fn().mockResolvedValue({}), findFirst: jest.fn().mockResolvedValue(null) },
         } },
         { provide: NotificationService, useValue: { sendToUser: jest.fn().mockResolvedValue({}) } },
       ],
@@ -1061,13 +1061,24 @@ describe('ExpertAdminService.proxyMarkInvitation（专家邀请代回应/代变�
       .rejects.toMatchObject({ response: { code: 'EVALUATING_LOCKED' } });
   });
 
-  it('恢复闸门：席位已被其他已确认正选占用（SEAT_TAKEN）', async () => {
+  it('恢复闸门（时间序）：本行 declined 之后发生过 PROMOTED 递补 → SEAT_TAKEN', async () => {
     prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be1', userId: 'ex1', expertRole: '正选', invitationStatus: 'declined', signedIn: false });
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '某项目' });
-    prisma.bidExpert.findFirst // 第二次调用：席位占用检查
-      .mockResolvedValueOnce({ id: 'be1', userId: 'ex1', expertRole: '正选', invitationStatus: 'declined', signedIn: false })
-      .mockResolvedValueOnce({ id: 'be2' }); // 已存在的其他已确认正选
+    prisma.expertInvitationLog.findFirst // 第一次调用：本行最近 declined 轨迹
+      .mockResolvedValueOnce({ createdAt: new Date(Date.now() - 3600_000) })
+      .mockResolvedValueOnce({ id: 'log-p' }); // declined 之后存在 PROMOTED → 席位已被占用
     await expect(service.proxyMarkInvitation({ projectId: 'P1', userId: 'ex1', status: 'confirmed', actorId: 'u1', reason: '席位已被占用试试' }))
       .rejects.toMatchObject({ response: { code: 'SEAT_TAKEN' } });
+  });
+
+  it('恢复闸门（深检修正）：多席位委员会——其他正选正常确认但本行 declined 后无递补 → 恢复放行', async () => {
+    // 5 专家委员会场景：其余 4 位正选 confirmed 不构成占用（旧「存在其他已确认正选」口径会误杀）
+    prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be1', userId: 'ex1', expertRole: '正选', invitationStatus: 'declined', signedIn: false });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '某项目' });
+    prisma.expertInvitationLog.findFirst
+      .mockResolvedValueOnce({ createdAt: new Date(Date.now() - 3600_000) }) // 本行 declined 轨迹
+      .mockResolvedValueOnce(null); // 之后无 PROMOTED → 席位未被占用
+    const r = await service.proxyMarkInvitation({ projectId: 'P1', userId: 'ex1', status: 'confirmed', actorId: 'u1', reason: '多席位场景恢复确认' });
+    expect(r.changed).toBe(true);
   });
 });

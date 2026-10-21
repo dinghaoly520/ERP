@@ -1209,12 +1209,23 @@ export class ExpertAdminService {
         throw new ConflictException({ error: '评标进行中不可恢复专家确认（改变委员会组成须走异议裁决/补选）', code: 'EVALUATING_LOCKED' });
       }
       if (record.expertRole === '正选') {
-        const otherConfirmed = await this.prisma.bidExpert.findFirst({
-          where: { projectId, expertRole: '正选', invitationStatus: 'confirmed', id: { not: record.id } },
-          select: { id: true },
+        // 席位占用检测（深检修正 2026-10-21）：多席位委员会（5 专家）下「存在其他已确认正选」
+        // 恒真——其余 4 位正常确认也会误杀一切恢复。改为时间序检测：本行 declined 之后若发生过
+        // PROMOTED 递补，说明该席位已被转正候补占用，恢复会造成正选超编。
+        // 无 declined 轨迹的存量行视为未占用（不误杀；超编风险仅限无轨迹的存量数据）。
+        const declineLog = await this.prisma.expertInvitationLog.findFirst({
+          where: { bidExpertId: record.id, toStatus: 'declined' },
+          orderBy: { createdAt: 'desc' },
+          select: { createdAt: true },
         });
-        if (otherConfirmed) {
-          throw new ConflictException({ error: '该席位已被递补占用（存在其他已确认正选），不可直接恢复——请走替换流程', code: 'SEAT_TAKEN' });
+        const refillAfterDecline = declineLog
+          ? await this.prisma.expertInvitationLog.findFirst({
+              where: { projectId, action: 'PROMOTED', createdAt: { gt: declineLog.createdAt } },
+              select: { id: true },
+            })
+          : null;
+        if (refillAfterDecline) {
+          throw new ConflictException({ error: '该席位已被递补候补占用，不可直接恢复——请走替换流程或重新抽取', code: 'SEAT_TAKEN' });
         }
       }
     }

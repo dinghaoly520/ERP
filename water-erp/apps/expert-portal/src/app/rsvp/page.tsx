@@ -14,6 +14,10 @@ interface RsvpView {
   rsvpNo?: string; respondedAt?: string | null;
   /** N6：后端 rsvp/verify 已返回实际过期时间——过期态文案展示真实时刻，不再写死时长 */
   expiresAt?: string | null;
+  /** 作答方（2026-10-21 口径对齐）：代回应/代变更的行不展示回执号；自答快照供双时刻展示 */
+  invitationActorType?: 'EXPERT' | 'STAFF' | 'SYSTEM' | null;
+  expertRespondedAt?: string | null;
+  expertStatus?: 'confirmed' | 'declined' | null;
 }
 
 function ExpertRsvpPage() {
@@ -23,6 +27,8 @@ function ExpertRsvpPage() {
   const [phase, setPhase] = useState<'loading' | 'invalid' | 'ready'>('loading');
   const [errMsg, setErrMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  // ready 阶段的提交失败反馈（深检修正：与 invalid 阶段的 errMsg 分离）
+  const [actionError, setActionError] = useState('');
 
   const load = useCallback(async () => {
     if (!token) { setPhase('invalid'); setErrMsg('缺少邀请凭证，请从通知中的链接重新打开。'); return; }
@@ -35,12 +41,14 @@ function ExpertRsvpPage() {
   useEffect(() => { load(); }, [load]);
 
   const respond = async (status: 'confirmed' | 'declined') => {
-    if (busy) return; setBusy(true);
+    if (busy) return; setBusy(true); setActionError('');
     try {
       const res = await fetch(`/api/expert/rsvp/respond?t=${encodeURIComponent(token)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e?.error || '操作失败'); }
       await load();
-    } catch (e: any) { setErrMsg(e instanceof TypeError ? '网络异常，请稍后重试' : e?.message || '操作失败'); }
+    } catch (e: any) {
+      setActionError(e instanceof TypeError ? '网络异常，请稍后重试' : e?.message || '操作失败');
+    }
     setBusy(false);
   };
 
@@ -89,12 +97,25 @@ function ExpertRsvpPage() {
               {isDone ? (
                 <div className={`rv-done ${view.status === 'confirmed' ? 'rv-done--accept' : 'rv-done--decline'}`}>
                   <div className="rv-done-badge">{view.status === 'confirmed' ? '✓ 已确认参加' : '✕ 已确认无法参加'}</div>
-                  {view.rsvpNo && <p style={{ marginTop: '10px', fontSize: '12px', color: '#999' }}>回执号：<strong style={{ fontFamily: 'monospace', letterSpacing: '0.1em', color: '#666' }}>{view.rsvpNo}</strong></p>}
+                  {/* 回执号=专家自答凭证（2026-10-21 口径）：工作人员代回应/代变更的行不展示 */}
+                  {view.invitationActorType !== 'STAFF' && view.rsvpNo && (
+                    <p style={{ marginTop: '10px', fontSize: '12px', color: '#999' }}>回执号：<strong style={{ fontFamily: 'monospace', letterSpacing: '0.1em', color: '#666' }}>{view.rsvpNo}</strong></p>
+                  )}
                   {view.respondedAt && <p style={{ fontSize: '11px', color: '#bbb', marginTop: '2px' }}>{fmt(view.respondedAt)}</p>}
+                  {/* 代变更场景（2026-10-21）：本人的自答时刻与原选择 + 采购方变更时刻一并展示 */}
+                  {view.invitationActorType === 'STAFF' && view.expertRespondedAt && (
+                    <p style={{ fontSize: '11px', color: '#bbb', marginTop: '2px', lineHeight: 1.7 }}>
+                      您于 {fmt(view.expertRespondedAt)} 回执「{view.expertStatus === 'confirmed' ? '确认参加' : '无法参加'}」，
+                      采购方于 {fmt(view.respondedAt || '')} 将其变更为当前状态。如有疑问请联系采购方。
+                    </p>
+                  )}
                 </div>
               ) : view.expired ? null : (
                 <div className="rv-actions">
                   <p className="rv-prompt">{view.expertRole === '候补' ? '请确认是否愿意作为候补待命：' : '请确认是否参加本次评审：'}</p>
+                  {/* 提交失败内联反馈（深检修正：errMsg 原只在 invalid 阶段渲染，并发双击的
+                      ALREADY_RESPONDED 等错误静默无感） */}
+                  {actionError && <p className="rv-warn" style={{ marginBottom: '10px' }}>{actionError}</p>}
                   <div className="rv-btns">
                     <button className="rv-btn rv-btn--accept" disabled={busy} onClick={() => respond('confirmed')}>
                       {busy ? '提交中…' : view.expertRole === '候补' ? '愿意待命' : '确认参加'}

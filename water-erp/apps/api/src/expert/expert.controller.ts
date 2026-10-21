@@ -209,6 +209,11 @@ export class ExpertController {
       })(),
       rsvpNo: be.id.slice(-8).toUpperCase(),
       respondedAt: be.rsvpRespondedAt,
+      // 作答方口径（深检补齐 2026-10-21）：与供应商回执对齐——代回应/代变更的行不展示
+      // 回执号；专家自答快照（时刻+原选择）供链接页双时刻展示
+      invitationActorType: (be.invitationActorType as string | null) ?? (be.rsvpRespondedAt ? 'EXPERT' : null),
+      expertRespondedAt: be.expertRespondedAt ?? null,
+      expertStatus: be.expertStatus ?? null,
     };
   }
 
