@@ -174,5 +174,45 @@
     "evidenceHint": null,
     "criteriaSource": null,
     "createdAt": "2026-07-26T08:28:11.096Z"
+  },
+  {
+    "id": "cmv0qsck8002auuwjuel6l5dd",
+    "projectId": "cmv0qrxbt001wuuwjsoitbcrj",
+    "category": "QUALIFICATION",
+    "name": "资格性审查",
+    "maxScore": "0",
+    "createdAt": "2026-10-09T09:07:35.193Z"
+  },
+  {
+    "id": "cmv0qsckc002cuuwj61t1joed",
+    "projectId": "cmv0qrxbt001wuuwjsoitbcrj",
+    "category": "RESPONSIVE",
+    "name": "符合性审查",
+    "maxScore": "0",
+    "createdAt": "2026-10-09T09:07:35.196Z"
+  },
+  {
+    "id": "cmv0qscke002euuwjjqourex8",
+    "projectId": "cmv0qrxbt001wuuwjsoitbcrj",
+    "category": "BUSINESS",
+    "name": "商务评分",
+    "maxScore": "20",
+    "createdAt": "2026-10-09T09:07:35.199Z"
+  },
+  {
+    "id": "cmv0qscki002iuuwj14xud1pc",
+    "projectId": "cmv0qrxbt001wuuwjsoitbcrj",
+    "category": "TECHNICAL",
+    "name": "技术评分",
+    "maxScore": "50",
+    "createdAt": "2026-10-09T09:07:35.202Z"
+  },
+  {
+    "id": "cmv0qsckk002muuwj7simyjdc",
+    "projectId": "cmv0qrxbt001wuuwjsoitbcrj",
+    "category": "PRICE",
+    "name": "价格评分",
+    "maxScore": "30",
+    "createdAt": "2026-10-09T09:07:35.204Z"
   }
 ]

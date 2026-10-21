@@ -1,0 +1,695 @@
+[
+  {
+    "id": "cmv0p4r1u016euuq2f648jlq3",
+    "supplierId": "cmv0obbb000o8uuq254hjkkcw",
+    "action": "APPROVED",
+    "stage": "STAFF",
+    "reviewerUserId": "cmv0p1w0s011suuq27b27zvsx",
+    "reason": "资料齐全，同意入库",
+    "attachmentIds": [],
+    "snapshot": {
+      "name": "四川弘沣汽车服务有限责任公司",
+      "tags": [
+        "汽车服务",
+        "汽车销售"
+      ],
+      "region": "四川省成都市都江堰市",
+      "account": {
+        "email": null,
+        "username": "91510181MAEG9HD13G",
+        "displayName": "张丽"
+      },
+      "country": "中国",
+      "logoUrl": null,
+      "contacts": [
+        {
+          "name": "张丽",
+          "email": null,
+          "phone": "177****1386",
+          "gender": "女",
+          "idCard": "5104**********2148",
+          "position": null,
+          "isPrimary": true
+        }
+      ],
+      "industry": "零售业",
+      "creditCode": "91510181MAEG9HD13G",
+      "supplierNo": "SUP-000559",
+      "isTemporary": false,
+      "legalPerson": "吴远",
+      "bankAccounts": [
+        {
+          "id": "cmv0obbb000ocuuq2qj1dzzb6",
+          "bankName": "中信银行股份有限公司",
+          "accountNo": "8111***********0288",
+          "isDefault": true,
+          "bankBranch": "成都双楠支行",
+          "accountName": "四川弘沣汽车服务有限责任公司"
+        }
+      ],
+      "companyEmail": null,
+      "performances": [],
+      "businessScope": "一般项目：机动车修理和维护；小微型客车租赁经营服务；汽车销售；新能源汽车电附件销售；道路货物运输站经营；汽车零配件零售；汽车零配件批发；总质量4.5吨及以下普通货运车辆道路货物运输（除网络货运和危险货物）；充电桩销售；机动车充电销售；电池零配件销售；信息咨询服务（不含许可类信息咨询服务）；商务代理代办服务；汽车拖车、求援、清障服务；信息技术咨询服务；会议及展览服务；新能源汽车换电设施销售；移动通信设备销售；智能机器人销售；劳务服务（不含劳务派遣）；国内贸易代理；劳动保护用品销售；广告制作；广告设计、代理；广告发布；市场营销策划；互联网销售（除销售需要许可的商品）；日用百货销售；日用杂品销售；化妆品零售；文化用品设备出租；特种设备销售；手推车辆及牲畜牵引车辆销售；智能物料搬运装备销售。（除依法须经批准的项目外，凭营业执照依法自主开展经营活动）许可项目：道路货物运输（不含危险货物）。（依法须经批准的项目，经相关部门批准后方可开展经营活动，具体经营项目以相关部门批准文件或许可证件为准）",
+      "companyWebsite": null,
+      "enterpriseType": "有限责任公司",
+      "qualifications": [
+        {
+          "name": "吴远·身份证扫描件",
+          "type": "法定代表人身份证",
+          "fileUrl": "/api/upload/files/cmv0o85w100nfuuq2i0etfex9",
+          "validTo": null,
+          "validFrom": null,
+          "attachments": null
+        },
+        {
+          "name": "四川弘沣汽车服务有限责任公司",
+          "type": "营业执照",
+          "fileUrl": "/api/upload/files/cmv0oatxo00nxuuq2k6puxdmh",
+          "validTo": "2099-12-31T00:00:00.000Z",
+          "validFrom": "2025-04-07T00:00:00.000Z",
+          "attachments": null
+        }
+      ],
+      "detailedAddress": null,
+      "legalPersonPhone": null,
+      "organizationCode": "91510181MAEG9HD13G",
+      "legalPersonIdCard": "5138**********2011",
+      "registeredAddress": "四川省成都市都江堰市胥家镇学府路二段523号1栋1楼",
+      "registeredCapital": "贰佰万元整"
+    },
+    "createdAt": "2026-10-09T08:21:14.610Z"
+  },
+  {
+    "id": "cmv0p6gwa018muuq2ppztgwwz",
+    "supplierId": "cmv0oz3p000u0uuq2ff7aaopj",
+    "action": "APPROVED",
+    "stage": "LEADER",
+    "reviewerUserId": "cmumahxf205truuz5ud0v9gd3",
+    "reason": "统一入库",
+    "attachmentIds": [],
+    "snapshot": {
+      "name": "自贡市烨友腾隽汽车销售有限公司",
+      "tags": [
+        "汽车服务",
+        "汽车销售"
+      ],
+      "region": "四川省自贡市贡井区",
+      "account": {
+        "email": null,
+        "username": "91510303MAE4117416",
+        "displayName": "王泽超"
+      },
+      "country": "中国",
+      "logoUrl": null,
+      "contacts": [
+        {
+          "name": "王泽超",
+          "email": null,
+          "phone": "137****5407",
+          "gender": "男",
+          "idCard": "5115**********2132",
+          "position": null,
+          "isPrimary": true
+        }
+      ],
+      "industry": "零售业",
+      "creditCode": "91510303MAE4117416",
+      "supplierNo": "SUP-000561",
+      "isTemporary": false,
+      "legalPerson": "夏熙耀",
+      "bankAccounts": [
+        {
+          "id": "cmv0oz3p000u4uuq20whrzou6",
+          "bankName": "宜宾市商业银行",
+          "accountNo": "0130*********7580",
+          "isDefault": true,
+          "bankBranch": "直属支行",
+          "accountName": "自贡市烨友腾隽汽车销售有限公司"
+        }
+      ],
+      "companyEmail": null,
+      "performances": [],
+      "businessScope": "一般项目：新能源汽车整车销售；机动车鉴定评估；二手车经纪；汽车零配件零售；润滑油销售；箱包销售；眼镜销售（不含隐形眼镜）；针纺织品销售；日用品销售；办公用品销售；文具用品零售；体育用品及器材零售；电子产品销售；家用电器销售；照相器材及望远镜零售；化妆品零售；机动车修理和维护；汽车装饰用品销售；洗车服务；小微型客车租赁经营服务；社会经济咨询服务；互联网销售（除销售需要许可的商品）；汽车拖车、求援、清障服务；商务代理代办服务；票务代理服务；农副产品销售；煤炭及制品销售；家具销售；金属制品销售；塑料制品销售；日用百货销售；非电力家用器具销售；安防设备销售；制冷、空调设备销售；农业机械销售；环境保护专用设备销售；广告设计、代理；广告制作；广告发布；信息咨询服务（不含许可类信息咨询服务）；充电桩销售；机动车充电销售；汽车零配件批发；新能源汽车电附件销售；咨询策划服务；信息技术咨询服务。（除依法须经批准的项目外，凭营业执照依法自主开展经营活动）",
+      "companyWebsite": null,
+      "enterpriseType": "有限责任公司",
+      "qualifications": [
+        {
+          "name": "夏熙耀·身份证扫描件",
+          "type": "法定代表人身份证",
+          "fileUrl": "/api/upload/files/cmv0ovp3u00t7uuq20i9i6qce",
+          "validTo": null,
+          "validFrom": null,
+          "attachments": null
+        },
+        {
+          "name": "自贡市烨友腾隽汽车销售有限公司",
+          "type": "营业执照",
+          "fileUrl": "/api/upload/files/cmv0oyzik00tvuuq2yxhb7uwd",
+          "validTo": "2099-12-31T00:00:00.000Z",
+          "validFrom": "2025-04-29T00:00:00.000Z",
+          "attachments": null
+        }
+      ],
+      "detailedAddress": null,
+      "legalPersonPhone": null,
+      "organizationCode": "91510303MAE4117416",
+      "legalPersonIdCard": "5002**********8212",
+      "registeredAddress": "四川省自贡市贡井区工业开发区南环路8号附1号1层15号",
+      "registeredCapital": "壹仟万元整"
+    },
+    "createdAt": "2026-10-09T08:22:34.762Z"
+  },
+  {
+    "id": "cmv0p7v0401dkuuq2dz8qvyjr",
+    "supplierId": "cmv0oz3p000u0uuq2ff7aaopj",
+    "action": "APPROVED",
+    "stage": "ADMIN",
+    "reviewerUserId": "cmrai35gu000akodd8gzem912",
+    "reason": "1",
+    "attachmentIds": [],
+    "snapshot": {
+      "name": "自贡市烨友腾隽汽车销售有限公司",
+      "tags": [
+        "汽车服务",
+        "汽车销售"
+      ],
+      "region": "四川省自贡市贡井区",
+      "account": {
+        "email": null,
+        "username": "91510303MAE4117416",
+        "displayName": "王泽超"
+      },
+      "country": "中国",
+      "logoUrl": null,
+      "contacts": [
+        {
+          "name": "王泽超",
+          "email": null,
+          "phone": "137****5407",
+          "gender": "男",
+          "idCard": "5115**********2132",
+          "position": null,
+          "isPrimary": true
+        }
+      ],
+      "industry": "零售业",
+      "creditCode": "91510303MAE4117416",
+      "supplierNo": "SUP-000561",
+      "isTemporary": false,
+      "legalPerson": "夏熙耀",
+      "bankAccounts": [
+        {
+          "id": "cmv0oz3p000u4uuq20whrzou6",
+          "bankName": "宜宾市商业银行",
+          "accountNo": "0130*********7580",
+          "isDefault": true,
+          "bankBranch": "直属支行",
+          "accountName": "自贡市烨友腾隽汽车销售有限公司"
+        }
+      ],
+      "companyEmail": null,
+      "performances": [],
+      "businessScope": "一般项目：新能源汽车整车销售；机动车鉴定评估；二手车经纪；汽车零配件零售；润滑油销售；箱包销售；眼镜销售（不含隐形眼镜）；针纺织品销售；日用品销售；办公用品销售；文具用品零售；体育用品及器材零售；电子产品销售；家用电器销售；照相器材及望远镜零售；化妆品零售；机动车修理和维护；汽车装饰用品销售；洗车服务；小微型客车租赁经营服务；社会经济咨询服务；互联网销售（除销售需要许可的商品）；汽车拖车、求援、清障服务；商务代理代办服务；票务代理服务；农副产品销售；煤炭及制品销售；家具销售；金属制品销售；塑料制品销售；日用百货销售；非电力家用器具销售；安防设备销售；制冷、空调设备销售；农业机械销售；环境保护专用设备销售；广告设计、代理；广告制作；广告发布；信息咨询服务（不含许可类信息咨询服务）；充电桩销售；机动车充电销售；汽车零配件批发；新能源汽车电附件销售；咨询策划服务；信息技术咨询服务。（除依法须经批准的项目外，凭营业执照依法自主开展经营活动）",
+      "companyWebsite": null,
+      "enterpriseType": "有限责任公司",
+      "qualifications": [
+        {
+          "name": "夏熙耀·身份证扫描件",
+          "type": "法定代表人身份证",
+          "fileUrl": "/api/upload/files/cmv0ovp3u00t7uuq20i9i6qce",
+          "validTo": null,
+          "validFrom": null,
+          "attachments": null
+        },
+        {
+          "name": "自贡市烨友腾隽汽车销售有限公司",
+          "type": "营业执照",
+          "fileUrl": "/api/upload/files/cmv0oyzik00tvuuq2yxhb7uwd",
+          "validTo": "2099-12-31T00:00:00.000Z",
+          "validFrom": "2025-04-29T00:00:00.000Z",
+          "attachments": null
+        }
+      ],
+      "detailedAddress": null,
+      "legalPersonPhone": null,
+      "organizationCode": "91510303MAE4117416",
+      "legalPersonIdCard": "5002**********8212",
+      "registeredAddress": "四川省自贡市贡井区工业开发区南环路8号附1号1层15号",
+      "registeredCapital": "壹仟万元整"
+    },
+    "createdAt": "2026-10-09T08:23:39.700Z"
+  },
+  {
+    "id": "cmv0p3mq60150uuq2m9fugjrq",
+    "supplierId": "cmv0oz3p000u0uuq2ff7aaopj",
+    "action": "APPROVED",
+    "stage": "STAFF",
+    "reviewerUserId": "cmv0p1w0s011suuq27b27zvsx",
+    "reason": "资料齐全，同意入库",
+    "attachmentIds": [],
+    "snapshot": {
+      "name": "自贡市烨友腾隽汽车销售有限公司",
+      "tags": [
+        "汽车服务",
+        "汽车销售"
+      ],
+      "region": "四川省自贡市贡井区",
+      "account": {
+        "email": null,
+        "username": "91510303MAE4117416",
+        "displayName": "王泽超"
+      },
+      "country": "中国",
+      "logoUrl": null,
+      "contacts": [
+        {
+          "name": "王泽超",
+          "email": null,
+          "phone": "137****5407",
+          "gender": "男",
+          "idCard": "5115**********2132",
+          "position": null,
+          "isPrimary": true
+        }
+      ],
+      "industry": "零售业",
+      "creditCode": "91510303MAE4117416",
+      "supplierNo": "SUP-000561",
+      "isTemporary": false,
+      "legalPerson": "夏熙耀",
+      "bankAccounts": [
+        {
+          "id": "cmv0oz3p000u4uuq20whrzou6",
+          "bankName": "宜宾市商业银行",
+          "accountNo": "0130*********7580",
+          "isDefault": true,
+          "bankBranch": "直属支行",
+          "accountName": "自贡市烨友腾隽汽车销售有限公司"
+        }
+      ],
+      "companyEmail": null,
+      "performances": [],
+      "businessScope": "一般项目：新能源汽车整车销售；机动车鉴定评估；二手车经纪；汽车零配件零售；润滑油销售；箱包销售；眼镜销售（不含隐形眼镜）；针纺织品销售；日用品销售；办公用品销售；文具用品零售；体育用品及器材零售；电子产品销售；家用电器销售；照相器材及望远镜零售；化妆品零售；机动车修理和维护；汽车装饰用品销售；洗车服务；小微型客车租赁经营服务；社会经济咨询服务；互联网销售（除销售需要许可的商品）；汽车拖车、求援、清障服务；商务代理代办服务；票务代理服务；农副产品销售；煤炭及制品销售；家具销售；金属制品销售；塑料制品销售；日用百货销售；非电力家用器具销售；安防设备销售；制冷、空调设备销售；农业机械销售；环境保护专用设备销售；广告设计、代理；广告制作；广告发布；信息咨询服务（不含许可类信息咨询服务）；充电桩销售；机动车充电销售；汽车零配件批发；新能源汽车电附件销售；咨询策划服务；信息技术咨询服务。（除依法须经批准的项目外，凭营业执照依法自主开展经营活动）",
+      "companyWebsite": null,
+      "enterpriseType": "有限责任公司",
+      "qualifications": [
+        {
+          "name": "夏熙耀·身份证扫描件",
+          "type": "法定代表人身份证",
+          "fileUrl": "/api/upload/files/cmv0ovp3u00t7uuq20i9i6qce",
+          "validTo": null,
+          "validFrom": null,
+          "attachments": null
+        },
+        {
+          "name": "自贡市烨友腾隽汽车销售有限公司",
+          "type": "营业执照",
+          "fileUrl": "/api/upload/files/cmv0oyzik00tvuuq2yxhb7uwd",
+          "validTo": "2099-12-31T00:00:00.000Z",
+          "validFrom": "2025-04-29T00:00:00.000Z",
+          "attachments": null
+        }
+      ],
+      "detailedAddress": null,
+      "legalPersonPhone": null,
+      "organizationCode": "91510303MAE4117416",
+      "legalPersonIdCard": "5002**********8212",
+      "registeredAddress": "四川省自贡市贡井区工业开发区南环路8号附1号1层15号",
+      "registeredCapital": "壹仟万元整"
+    },
+    "createdAt": "2026-10-09T08:20:22.350Z"
+  },
+  {
+    "id": "cmv0p46fe015muuq2opxyp15m",
+    "supplierId": "cmv0oqdmm00rjuuq2kolq2r2a",
+    "action": "APPROVED",
+    "stage": "STAFF",
+    "reviewerUserId": "cmv0p1w0s011suuq27b27zvsx",
+    "reason": "资料齐全，同意入库",
+    "attachmentIds": [],
+    "snapshot": {
+      "name": "成都世纪远景汽车贸易有限公司",
+      "tags": [
+        "汽车服务",
+        "汽车销售"
+      ],
+      "region": "四川省/成都市/锦江区",
+      "account": {
+        "email": null,
+        "username": "91510104MA66XAFQ9J",
+        "displayName": "王利"
+      },
+      "country": "中国",
+      "logoUrl": null,
+      "contacts": [
+        {
+          "name": "王利",
+          "email": null,
+          "phone": "180****0804",
+          "gender": "男",
+          "idCard": "5103**********1919",
+          "position": "法人",
+          "isPrimary": true
+        }
+      ],
+      "industry": "零售业",
+      "creditCode": "91510104MA66XAFQ9J",
+      "supplierNo": "SUP-000560",
+      "isTemporary": false,
+      "legalPerson": "王利",
+      "bankAccounts": [],
+      "companyEmail": null,
+      "performances": [],
+      "businessScope": "汽车销售，汽车零配件零售",
+      "companyWebsite": null,
+      "enterpriseType": "有限责任公司",
+      "qualifications": [
+        {
+          "name": "王利·身份证扫描件",
+          "type": "法定代表人身份证",
+          "fileUrl": "/api/upload/files/cmv0o7og400nbuuq2lmtt6gex",
+          "validTo": null,
+          "validFrom": null,
+          "attachments": null
+        },
+        {
+          "name": "成都世纪远景汽车贸易有限公司",
+          "type": "营业执照",
+          "fileUrl": "/api/upload/files/cmv0ofm6l00pkuuq2hiy93b53",
+          "validTo": "2029-12-31T00:00:00.000Z",
+          "validFrom": "2024-05-08T00:00:00.000Z",
+          "attachments": null
+        }
+      ],
+      "detailedAddress": "成都市锦江区南三环路三段238号桂溪立交内侧",
+      "legalPersonPhone": "180****0804",
+      "organizationCode": "91510104MA66XAFQ9J",
+      "legalPersonIdCard": "5103**********1919",
+      "registeredAddress": "成都市锦江区琉璃科创路16号1层2层",
+      "registeredCapital": "600万元人民币"
+    },
+    "createdAt": "2026-10-09T08:20:47.882Z"
+  },
+  {
+    "id": "cmv0p6jz10191uuq2b7q4s1si",
+    "supplierId": "cmv0oqdmm00rjuuq2kolq2r2a",
+    "action": "APPROVED",
+    "stage": "LEADER",
+    "reviewerUserId": "cmumahxf205truuz5ud0v9gd3",
+    "reason": "统一入库",
+    "attachmentIds": [],
+    "snapshot": {
+      "name": "成都世纪远景汽车贸易有限公司",
+      "tags": [
+        "汽车服务",
+        "汽车销售"
+      ],
+      "region": "四川省/成都市/锦江区",
+      "account": {
+        "email": null,
+        "username": "91510104MA66XAFQ9J",
+        "displayName": "王利"
+      },
+      "country": "中国",
+      "logoUrl": null,
+      "contacts": [
+        {
+          "name": "王利",
+          "email": null,
+          "phone": "180****0804",
+          "gender": "男",
+          "idCard": "5103**********1919",
+          "position": "法人",
+          "isPrimary": true
+        }
+      ],
+      "industry": "零售业",
+      "creditCode": "91510104MA66XAFQ9J",
+      "supplierNo": "SUP-000560",
+      "isTemporary": false,
+      "legalPerson": "王利",
+      "bankAccounts": [],
+      "companyEmail": null,
+      "performances": [],
+      "businessScope": "汽车销售，汽车零配件零售",
+      "companyWebsite": null,
+      "enterpriseType": "有限责任公司",
+      "qualifications": [
+        {
+          "name": "王利·身份证扫描件",
+          "type": "法定代表人身份证",
+          "fileUrl": "/api/upload/files/cmv0o7og400nbuuq2lmtt6gex",
+          "validTo": null,
+          "validFrom": null,
+          "attachments": null
+        },
+        {
+          "name": "成都世纪远景汽车贸易有限公司",
+          "type": "营业执照",
+          "fileUrl": "/api/upload/files/cmv0ofm6l00pkuuq2hiy93b53",
+          "validTo": "2029-12-31T00:00:00.000Z",
+          "validFrom": "2024-05-08T00:00:00.000Z",
+          "attachments": null
+        }
+      ],
+      "detailedAddress": "成都市锦江区南三环路三段238号桂溪立交内侧",
+      "legalPersonPhone": "180****0804",
+      "organizationCode": "91510104MA66XAFQ9J",
+      "legalPersonIdCard": "5103**********1919",
+      "registeredAddress": "成都市锦江区琉璃科创路16号1层2层",
+      "registeredCapital": "600万元人民币"
+    },
+    "createdAt": "2026-10-09T08:22:38.749Z"
+  },
+  {
+    "id": "cmv0p6mqu019guuq2h7rm951x",
+    "supplierId": "cmv0obbb000o8uuq254hjkkcw",
+    "action": "APPROVED",
+    "stage": "LEADER",
+    "reviewerUserId": "cmumahxf205truuz5ud0v9gd3",
+    "reason": "统一入库",
+    "attachmentIds": [],
+    "snapshot": {
+      "name": "四川弘沣汽车服务有限责任公司",
+      "tags": [
+        "汽车服务",
+        "汽车销售"
+      ],
+      "region": "四川省成都市都江堰市",
+      "account": {
+        "email": null,
+        "username": "91510181MAEG9HD13G",
+        "displayName": "张丽"
+      },
+      "country": "中国",
+      "logoUrl": null,
+      "contacts": [
+        {
+          "name": "张丽",
+          "email": null,
+          "phone": "177****1386",
+          "gender": "女",
+          "idCard": "5104**********2148",
+          "position": null,
+          "isPrimary": true
+        }
+      ],
+      "industry": "零售业",
+      "creditCode": "91510181MAEG9HD13G",
+      "supplierNo": "SUP-000559",
+      "isTemporary": false,
+      "legalPerson": "吴远",
+      "bankAccounts": [
+        {
+          "id": "cmv0obbb000ocuuq2qj1dzzb6",
+          "bankName": "中信银行股份有限公司",
+          "accountNo": "8111***********0288",
+          "isDefault": true,
+          "bankBranch": "成都双楠支行",
+          "accountName": "四川弘沣汽车服务有限责任公司"
+        }
+      ],
+      "companyEmail": null,
+      "performances": [],
+      "businessScope": "一般项目：机动车修理和维护；小微型客车租赁经营服务；汽车销售；新能源汽车电附件销售；道路货物运输站经营；汽车零配件零售；汽车零配件批发；总质量4.5吨及以下普通货运车辆道路货物运输（除网络货运和危险货物）；充电桩销售；机动车充电销售；电池零配件销售；信息咨询服务（不含许可类信息咨询服务）；商务代理代办服务；汽车拖车、求援、清障服务；信息技术咨询服务；会议及展览服务；新能源汽车换电设施销售；移动通信设备销售；智能机器人销售；劳务服务（不含劳务派遣）；国内贸易代理；劳动保护用品销售；广告制作；广告设计、代理；广告发布；市场营销策划；互联网销售（除销售需要许可的商品）；日用百货销售；日用杂品销售；化妆品零售；文化用品设备出租；特种设备销售；手推车辆及牲畜牵引车辆销售；智能物料搬运装备销售。（除依法须经批准的项目外，凭营业执照依法自主开展经营活动）许可项目：道路货物运输（不含危险货物）。（依法须经批准的项目，经相关部门批准后方可开展经营活动，具体经营项目以相关部门批准文件或许可证件为准）",
+      "companyWebsite": null,
+      "enterpriseType": "有限责任公司",
+      "qualifications": [
+        {
+          "name": "吴远·身份证扫描件",
+          "type": "法定代表人身份证",
+          "fileUrl": "/api/upload/files/cmv0o85w100nfuuq2i0etfex9",
+          "validTo": null,
+          "validFrom": null,
+          "attachments": null
+        },
+        {
+          "name": "四川弘沣汽车服务有限责任公司",
+          "type": "营业执照",
+          "fileUrl": "/api/upload/files/cmv0oatxo00nxuuq2k6puxdmh",
+          "validTo": "2099-12-31T00:00:00.000Z",
+          "validFrom": "2025-04-07T00:00:00.000Z",
+          "attachments": null
+        }
+      ],
+      "detailedAddress": null,
+      "legalPersonPhone": null,
+      "organizationCode": "91510181MAEG9HD13G",
+      "legalPersonIdCard": "5138**********2011",
+      "registeredAddress": "四川省成都市都江堰市胥家镇学府路二段523号1栋1楼",
+      "registeredCapital": "贰佰万元整"
+    },
+    "createdAt": "2026-10-09T08:22:42.342Z"
+  },
+  {
+    "id": "cmv0p7x3p01e1uuq2xkp8k188",
+    "supplierId": "cmv0oqdmm00rjuuq2kolq2r2a",
+    "action": "APPROVED",
+    "stage": "ADMIN",
+    "reviewerUserId": "cmrai35gu000akodd8gzem912",
+    "reason": "1",
+    "attachmentIds": [],
+    "snapshot": {
+      "name": "成都世纪远景汽车贸易有限公司",
+      "tags": [
+        "汽车服务",
+        "汽车销售"
+      ],
+      "region": "四川省/成都市/锦江区",
+      "account": {
+        "email": null,
+        "username": "91510104MA66XAFQ9J",
+        "displayName": "王利"
+      },
+      "country": "中国",
+      "logoUrl": null,
+      "contacts": [
+        {
+          "name": "王利",
+          "email": null,
+          "phone": "180****0804",
+          "gender": "男",
+          "idCard": "5103**********1919",
+          "position": "法人",
+          "isPrimary": true
+        }
+      ],
+      "industry": "零售业",
+      "creditCode": "91510104MA66XAFQ9J",
+      "supplierNo": "SUP-000560",
+      "isTemporary": false,
+      "legalPerson": "王利",
+      "bankAccounts": [],
+      "companyEmail": null,
+      "performances": [],
+      "businessScope": "汽车销售，汽车零配件零售",
+      "companyWebsite": null,
+      "enterpriseType": "有限责任公司",
+      "qualifications": [
+        {
+          "name": "王利·身份证扫描件",
+          "type": "法定代表人身份证",
+          "fileUrl": "/api/upload/files/cmv0o7og400nbuuq2lmtt6gex",
+          "validTo": null,
+          "validFrom": null,
+          "attachments": null
+        },
+        {
+          "name": "成都世纪远景汽车贸易有限公司",
+          "type": "营业执照",
+          "fileUrl": "/api/upload/files/cmv0ofm6l00pkuuq2hiy93b53",
+          "validTo": "2029-12-31T00:00:00.000Z",
+          "validFrom": "2024-05-08T00:00:00.000Z",
+          "attachments": null
+        }
+      ],
+      "detailedAddress": "成都市锦江区南三环路三段238号桂溪立交内侧",
+      "legalPersonPhone": "180****0804",
+      "organizationCode": "91510104MA66XAFQ9J",
+      "legalPersonIdCard": "5103**********1919",
+      "registeredAddress": "成都市锦江区琉璃科创路16号1层2层",
+      "registeredCapital": "600万元人民币"
+    },
+    "createdAt": "2026-10-09T08:23:42.422Z"
+  },
+  {
+    "id": "cmv0p7zhj01eguuq2fndg6sqn",
+    "supplierId": "cmv0obbb000o8uuq254hjkkcw",
+    "action": "APPROVED",
+    "stage": "ADMIN",
+    "reviewerUserId": "cmrai35gu000akodd8gzem912",
+    "reason": "1",
+    "attachmentIds": [],
+    "snapshot": {
+      "name": "四川弘沣汽车服务有限责任公司",
+      "tags": [
+        "汽车服务",
+        "汽车销售"
+      ],
+      "region": "四川省成都市都江堰市",
+      "account": {
+        "email": null,
+        "username": "91510181MAEG9HD13G",
+        "displayName": "张丽"
+      },
+      "country": "中国",
+      "logoUrl": null,
+      "contacts": [
+        {
+          "name": "张丽",
+          "email": null,
+          "phone": "177****1386",
+          "gender": "女",
+          "idCard": "5104**********2148",
+          "position": null,
+          "isPrimary": true
+        }
+      ],
+      "industry": "零售业",
+      "creditCode": "91510181MAEG9HD13G",
+      "supplierNo": "SUP-000559",
+      "isTemporary": false,
+      "legalPerson": "吴远",
+      "bankAccounts": [
+        {
+          "id": "cmv0obbb000ocuuq2qj1dzzb6",
+          "bankName": "中信银行股份有限公司",
+          "accountNo": "8111***********0288",
+          "isDefault": true,
+          "bankBranch": "成都双楠支行",
+          "accountName": "四川弘沣汽车服务有限责任公司"
+        }
+      ],
+      "companyEmail": null,
+      "performances": [],
+      "businessScope": "一般项目：机动车修理和维护；小微型客车租赁经营服务；汽车销售；新能源汽车电附件销售；道路货物运输站经营；汽车零配件零售；汽车零配件批发；总质量4.5吨及以下普通货运车辆道路货物运输（除网络货运和危险货物）；充电桩销售；机动车充电销售；电池零配件销售；信息咨询服务（不含许可类信息咨询服务）；商务代理代办服务；汽车拖车、求援、清障服务；信息技术咨询服务；会议及展览服务；新能源汽车换电设施销售；移动通信设备销售；智能机器人销售；劳务服务（不含劳务派遣）；国内贸易代理；劳动保护用品销售；广告制作；广告设计、代理；广告发布；市场营销策划；互联网销售（除销售需要许可的商品）；日用百货销售；日用杂品销售；化妆品零售；文化用品设备出租；特种设备销售；手推车辆及牲畜牵引车辆销售；智能物料搬运装备销售。（除依法须经批准的项目外，凭营业执照依法自主开展经营活动）许可项目：道路货物运输（不含危险货物）。（依法须经批准的项目，经相关部门批准后方可开展经营活动，具体经营项目以相关部门批准文件或许可证件为准）",
+      "companyWebsite": null,
+      "enterpriseType": "有限责任公司",
+      "qualifications": [
+        {
+          "name": "吴远·身份证扫描件",
+          "type": "法定代表人身份证",
+          "fileUrl": "/api/upload/files/cmv0o85w100nfuuq2i0etfex9",
+          "validTo": null,
+          "validFrom": null,
+          "attachments": null
+        },
+        {
+          "name": "四川弘沣汽车服务有限责任公司",
+          "type": "营业执照",
+          "fileUrl": "/api/upload/files/cmv0oatxo00nxuuq2k6puxdmh",
+          "validTo": "2099-12-31T00:00:00.000Z",
+          "validFrom": "2025-04-07T00:00:00.000Z",
+          "attachments": null
+        }
+      ],
+      "detailedAddress": null,
+      "legalPersonPhone": null,
+      "organizationCode": "91510181MAEG9HD13G",
+      "legalPersonIdCard": "5138**********2011",
+      "registeredAddress": "四川省成都市都江堰市胥家镇学府路二段523号1栋1楼",
+      "registeredCapital": "贰佰万元整"
+    },
+    "createdAt": "2026-10-09T08:23:45.512Z"
+  }
+]

@@ -2780,5 +2780,84 @@
     "completedAt": null,
     "createdAt": "2026-08-20T04:31:48.512Z",
     "updatedAt": "2026-08-20T04:31:48.512Z"
+  },
+  {
+    "id": "cmv0purw801xvuuq20yxpkr5e",
+    "projectManagementItemId": "cmv0purw601xuuuq2kynhqtpa",
+    "stageKey": "INITIATION",
+    "stageName": "采购立项",
+    "stageOrder": 1,
+    "round": 1,
+    "status": "COMPLETED",
+    "completedAt": "2026-10-15T07:00:54.712Z",
+    "createdAt": "2026-10-09T08:41:28.761Z",
+    "updatedAt": "2026-10-15T07:00:54.713Z"
+  },
+  {
+    "id": "cmv0purw801xwuuq2aje755db",
+    "projectManagementItemId": "cmv0purw601xuuuq2kynhqtpa",
+    "stageKey": "TENDER_DOCUMENT",
+    "stageName": "采购文件",
+    "stageOrder": 2,
+    "round": 1,
+    "status": "COMPLETED",
+    "completedAt": "2026-10-15T07:10:06.179Z",
+    "createdAt": "2026-10-09T08:41:28.761Z",
+    "updatedAt": "2026-10-15T07:10:06.179Z"
+  },
+  {
+    "id": "cmv0purw801xyuuq2pze67ti1",
+    "projectManagementItemId": "cmv0purw601xuuuq2kynhqtpa",
+    "stageKey": "EXPERT_SELECTION",
+    "stageName": "专家选取",
+    "stageOrder": 4,
+    "round": 1,
+    "status": "NOT_STARTED",
+    "createdAt": "2026-10-09T08:41:28.761Z",
+    "updatedAt": "2026-10-15T06:58:54.162Z"
+  },
+  {
+    "id": "cmv0purw801xzuuq2mulvh3ml",
+    "projectManagementItemId": "cmv0purw601xuuuq2kynhqtpa",
+    "stageKey": "BID_EVALUATION",
+    "stageName": "开标评标",
+    "stageOrder": 5,
+    "round": 1,
+    "status": "NOT_STARTED",
+    "createdAt": "2026-10-09T08:41:28.761Z",
+    "updatedAt": "2026-10-15T06:58:54.162Z"
+  },
+  {
+    "id": "cmv0purw801y0uuq2w41lu737",
+    "projectManagementItemId": "cmv0purw601xuuuq2kynhqtpa",
+    "stageKey": "AWARD_DECISION",
+    "stageName": "定标",
+    "stageOrder": 6,
+    "round": 1,
+    "status": "NOT_STARTED",
+    "createdAt": "2026-10-09T08:41:28.761Z",
+    "updatedAt": "2026-10-15T06:58:54.162Z"
+  },
+  {
+    "id": "cmv0purw801y1uuq2eicd28wj",
+    "projectManagementItemId": "cmv0purw601xuuuq2kynhqtpa",
+    "stageKey": "CONTRACT",
+    "stageName": "合同",
+    "stageOrder": 7,
+    "round": 1,
+    "status": "NOT_STARTED",
+    "createdAt": "2026-10-09T08:41:28.761Z",
+    "updatedAt": "2026-10-15T06:58:54.162Z"
+  },
+  {
+    "id": "cmv0purw801xxuuq2o9oayf44",
+    "projectManagementItemId": "cmv0purw601xuuuq2kynhqtpa",
+    "stageKey": "PUBLIC_ANNOUNCEMENT",
+    "stageName": "采购公告公示",
+    "stageOrder": 3,
+    "round": 1,
+    "status": "IN_PROGRESS",
+    "createdAt": "2026-10-09T08:41:28.761Z",
+    "updatedAt": "2026-10-15T07:10:06.182Z"
   }
 ]

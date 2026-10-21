@@ -193,5 +193,31 @@
     "operatorId": "cmrai35g90004koddpllpmrp4",
     "operatorRole": "staff",
     "createdAt": "2026-07-26T08:28:11.097Z"
+  },
+  {
+    "id": "cmv0qsckm002puuwjt8oen7x6",
+    "projectId": "cmv0qrxbt001wuuwjsoitbcrj",
+    "time": "2026-10-09T09:07:35.206Z",
+    "role": "开标主持人",
+    "target": "四川水网大岷管业有限公司公务用车采购项目",
+    "action": "编制评分标准",
+    "result": "应用模板「通用·综合评估模板」新增 5 项",
+    "riskFlag": "无",
+    "operatorId": "cmumahxf205truuz5ud0v9gd3",
+    "operatorRole": "leader",
+    "createdAt": "2026-10-09T09:07:35.207Z"
+  },
+  {
+    "id": "cmv0s0uc100p7uuwj2hew390r",
+    "projectId": "cmv0qrxbt001wuuwjsoitbcrj",
+    "time": "2026-10-09T09:42:11.089Z",
+    "role": "开标主持人",
+    "target": "四川水网大岷管业有限公司公务用车采购项目",
+    "action": "编制评分标准",
+    "result": "发布评分标准",
+    "riskFlag": "无",
+    "operatorId": "cmumahxf205truuz5ud0v9gd3",
+    "operatorRole": "leader",
+    "createdAt": "2026-10-09T09:42:11.089Z"
   }
 ]
