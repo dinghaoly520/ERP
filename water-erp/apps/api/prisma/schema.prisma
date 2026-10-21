@@ -539,16 +539,50 @@ model InvitationRsvp {
   // 以此为准——区别于 createdAt（token 签发=进第 3 步自动生成通知内容的时刻）；null=未发送或存量
   notifiedAt   DateTime?
   respondedAt  DateTime?
+  // 回执作答方（2026-10-21 回执一次性锁定 + 代回应留痕）：SUPPLIER=供应商链接自答 |
+  // STAFF=工作人员代回应（respondedBy* 记操作人）| SYSTEM=超时自动弃权；null=未回执（存量已回执行视作 SUPPLIER）
+  respondentType    String?
+  respondedById     String?
+  respondedByName   String?
+  // 工作人员代回应/代变更理由（STAFF 必填，界面展示；供应商自答备注仍走 note）
+  staffReason       String?
   responseIp   String? // 回执存证
   responseUa   String? // 回执存证
   expiresAt    DateTime
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  @@unique([invitationId, supplierId]) // 每家每批次一条；改主意走 update
+  logs InvitationRsvpLog[]
+
+  @@unique([invitationId, supplierId]) // 每家每批次一条（回执一次性锁定，2026-10-21 起不再覆盖更新）
   @@index([supplierId])
   @@index([projectId])
   @@index([token])
+}
+
+/// 采购邀请回执轨迹（2026-10-21 回执锁定 + 代回应留痕）：每次状态流转全量落账——
+/// 通知发送 NOTIFIED / 供应商回执 RESPONDED / 工作人员代变更 STAFF_MARKED / 超时弃权 AUTO_DECLINED。
+/// 「供应商确认后被工作人员改为拒绝」等关键事件由供应商详情「邀请回执」经历视图消费（overrideAfterAccept 统计）。
+model InvitationRsvpLog {
+  id         String    @id @default(cuid())
+  rsvpId     String
+  supplierId String
+  projectId  String?
+  action     String // NOTIFIED | RESPONDED | STAFF_MARKED | AUTO_DECLINED
+  actorType  String // SUPPLIER | STAFF | SYSTEM
+  actorId    String?
+  actorName  String?
+  fromStatus String?
+  toStatus   String?
+  reason     String? // 工作人员代回应/变更理由
+  note       String? // 快照：供应商自答备注
+  createdAt  DateTime  @default(now())
+
+  rsvp InvitationRsvp @relation(fields: [rsvpId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId])
+  @@index([projectId])
+  @@index([rsvpId])
 }
 
 model BidInvalidBid {

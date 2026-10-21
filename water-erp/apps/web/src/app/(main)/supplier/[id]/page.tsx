@@ -5,7 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, getSupplierCommunications, getSupplierDocuments, uploadSupplierDocument, deleteSupplierDocument, updateSupplierTags, uploadSupplierFile, blacklistSupplier, unblacklistSupplier, addSupplierRecord, listSupplierRecords, updateContactPersonnel, revealSupplierField, companyLinksApi } from '@/lib/api/supplier';
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification } from '@/lib/types';
-import type { CommunicationRecord, SupplierDocumentRecord, CompanyLinkRow } from '@/lib/api/supplier';
+import type { CommunicationRecord, SupplierDocumentRecord, CompanyLinkRow, RsvpHistoryResult } from '@/lib/api/supplier';
+import { getRsvpHistory } from '@/lib/api/supplier';
 import { ApprovalTimeline } from '@/components/workbench/approval-timeline';
 import { AlertBanner, type AlertSeverity, StatusBadge, Modal } from '@/components/workbench';
 import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
@@ -20,7 +21,7 @@ import { PortraitTab } from '@/components/supplier/portrait-tab';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import { copyToClipboard } from '@/lib/copy-to-clipboard';
 
-type TabKey = 'info' | 'portrait' | 'contacts' | 'qualifications' | 'evaluations' | 'records' | 'changes' | 'links' | 'communications' | 'documents';
+type TabKey = 'info' | 'portrait' | 'contacts' | 'qualifications' | 'evaluations' | 'records' | 'rsvp' | 'changes' | 'links' | 'communications' | 'documents';
 
 const STATUS_LABEL: Record<string, string> = SUPPLIER_STATUS_LABEL; // 统一 shared 口径（第五处分叉，2026-09-29 收编）
 const STATUS_TONE: Record<string, 'green' | 'blue' | 'orange' | 'red' | 'gray'> = {
@@ -169,6 +170,10 @@ export default function SupplierDetailPage() {
 
   const [communications, setCommunications] = useState<CommunicationRecord[]>([]);
   const [commLoading, setCommLoading] = useState(false);
+  // 邀请回执经历（2026-10-21 回执锁定口径）：进入 tab 时懒加载——邀请统计 + 逐条回执轨迹；
+  // overrideAfterAccept（确认后被采购方改为拒绝）为经历警示核心口径
+  const [rsvpHistory, setRsvpHistory] = useState<RsvpHistoryResult | null>(null);
+  const [rsvpLoading, setRsvpLoading] = useState(false);
   const [documents, setDocuments] = useState<SupplierDocumentRecord[]>([]);
   const [docLoading, setDocLoading] = useState(false);
   const [docUploading, setDocUploading] = useState(false);
@@ -203,6 +208,15 @@ export default function SupplierDetailPage() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
   useEffect(() => { if (id) void loadRewardRecords(id); }, [id]); // CTS A-213 奖惩记录
+  const loadRsvpHistory = useCallback(() => {
+    if (!id) return;
+    setRsvpLoading(true);
+    getRsvpHistory(id)
+      .then(setRsvpHistory)
+      .catch(() => setRsvpHistory(null))
+      .finally(() => setRsvpLoading(false));
+  }, [id]);
+  useEffect(() => { if (activeTab === 'rsvp') loadRsvpHistory(); }, [activeTab, loadRsvpHistory]);
   useEffect(() => {
     if (activeTab === 'communications' && communications.length === 0) { setCommLoading(true); getSupplierCommunications(id as string).then(setCommunications).catch(() => {}).finally(() => setCommLoading(false)); }
     if (activeTab === 'documents' && documents.length === 0) { setDocLoading(true); getSupplierDocuments(id as string).then(setDocuments).catch(() => {}).finally(() => setDocLoading(false)); }
@@ -358,6 +372,7 @@ export default function SupplierDetailPage() {
     { key: 'qualifications', label: '资质材料', count: qualifications.length },
     { key: 'evaluations', label: '履约评价', count: evaluations.length },
     { key: 'records', label: '奖惩记录', count: rewardRecords.length },
+    { key: 'rsvp', label: '邀请回执', count: rsvpHistory?.stats.invited },
     { key: 'changes', label: '变更记录', count: changes.length },
     { key: 'links', label: '归属公司' },
     { key: 'communications', label: '沟通记录' },
@@ -1143,6 +1158,116 @@ export default function SupplierDetailPage() {
                       </tbody>
                     </table>
                   </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* 邀请回执经历（2026-10-21 回执锁定口径）：邀请统计 + 逐条回执轨迹 */}
+        {activeTab === 'rsvp' && (
+          <div>
+            {rsvpLoading ? (
+              <div className="neu-card-static !rounded-2xl py-10 text-center">
+                <Loader2 size={24} className="mx-auto mb-3 animate-spin text-[var(--muted-foreground)]/40" />
+                <p className="text-sm text-[var(--muted-foreground)]">正在加载邀请回执经历…</p>
+              </div>
+            ) : !rsvpHistory || rsvpHistory.items.length === 0 ? (
+              <div className="neu-card-static !rounded-2xl py-10 text-center">
+                <Calendar size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />
+                <p className="text-sm text-[var(--muted-foreground)]">暂无邀请回执记录</p>
+              </div>
+            ) : (
+              <>
+                {/* 邀请统计 */}
+                <div className="grid grid-cols-2 gap-4 mb-4 lg:grid-cols-4">
+                  <div className="neu-card-static !rounded-xl p-4 text-center">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">累计受邀</p>
+                    <p className="text-[2rem] font-black tabular-nums tracking-[-0.03em] text-[var(--accent)] leading-none">{rsvpHistory.stats.invited}</p>
+                    <p className="text-[10px] text-[var(--muted-foreground)] mt-1">次采购邀请</p>
+                  </div>
+                  <div className="neu-card-static !rounded-xl p-4 text-center">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">回执接受率</p>
+                    <p className="text-[2rem] font-black tabular-nums tracking-[-0.03em] leading-none"
+                      style={{ color: 'var(--success)' }}>{rsvpHistory.stats.acceptRate ? `${rsvpHistory.stats.acceptRate}%` : '—'}</p>
+                    <p className="text-[10px] text-[var(--muted-foreground)] mt-1">确认参加 {rsvpHistory.stats.accepted} · 无法参加 {rsvpHistory.stats.declined}</p>
+                  </div>
+                  <div className="neu-card-static !rounded-xl p-4 text-center">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">超时未回执</p>
+                    <p className="text-[2rem] font-black tabular-nums tracking-[-0.03em] leading-none text-[var(--warning)]">{rsvpHistory.stats.systemDeclined}</p>
+                    <p className="text-[10px] text-[var(--muted-foreground)] mt-1">次自动弃权（未点链接）</p>
+                  </div>
+                  <div className="neu-card-static !rounded-xl p-4 text-center" style={{ outline: rsvpHistory.stats.overrideAfterAccept > 0 ? '1px solid color-mix(in oklch, var(--warning) 35%, transparent)' : undefined }}>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">确认后被变更</p>
+                    <p className="text-[2rem] font-black tabular-nums tracking-[-0.03em] leading-none"
+                      style={{ color: rsvpHistory.stats.overrideAfterAccept > 0 ? 'var(--warning)' : 'var(--muted-foreground)' }}>{rsvpHistory.stats.overrideAfterAccept}</p>
+                    <p className="text-[10px] text-[var(--muted-foreground)] mt-1">次「确认参加」被改为拒绝</p>
+                  </div>
+                </div>
+
+                {/* 逐条回执 + 轨迹 */}
+                <div className="space-y-3">
+                  {rsvpHistory.items.map((it) => {
+                    const stCn = it.status === 'ACCEPTED' ? '确认参加' : it.status === 'DECLINED' ? '无法参加' : '待回执';
+                    const stColor = it.status === 'ACCEPTED' ? 'var(--success)' : it.status === 'DECLINED' ? 'var(--danger)' : 'var(--muted-foreground)';
+                    return (
+                      <div key={it.rsvpNo} className="neu-card-static !rounded-2xl p-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-[10px] text-[var(--muted-foreground)]">#{it.rsvpNo}</span>
+                          <span className="text-sm font-bold text-[var(--foreground)] truncate">{it.title}</span>
+                          <span className="ml-auto inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-bold"
+                            style={{ color: stColor, background: `color-mix(in oklch, ${stColor} 12%, transparent)` }}>{stCn}</span>
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--muted-foreground)]">
+                          <span className="tabular-nums">邀请发出 {it.notifiedAt ? new Date(it.notifiedAt).toLocaleString('zh-CN') : '—'}</span>
+                          {it.respondedAt && <span className="tabular-nums">回执于 {new Date(it.respondedAt).toLocaleString('zh-CN')}</span>}
+                          {it.respondentType === 'STAFF' && (
+                            <span className="inline-flex items-center gap-0.5 rounded-[4px] px-1.5 py-0.5 text-[10px] font-bold"
+                              style={{ background: 'color-mix(in oklch, var(--warning) 14%, transparent)', color: 'var(--warning)' }}>
+                              <User size={9} />工作人员代回应{it.respondedByName ? ` · ${it.respondedByName}` : ''}
+                            </span>
+                          )}
+                          {it.respondentType === 'SYSTEM' && (
+                            <span className="inline-flex items-center rounded-[4px] px-1.5 py-0.5 text-[10px] font-bold"
+                              style={{ background: 'color-mix(in oklch, var(--muted-foreground) 12%, transparent)' }}>超时自动弃权</span>
+                          )}
+                        </div>
+                        {it.note && (
+                          <div className="mt-2 rounded-[8px] px-3 py-1.5 text-[11px]"
+                            style={{ background: `color-mix(in oklch, ${it.status === 'DECLINED' ? 'var(--danger)' : 'var(--accent)'} 7%, transparent)` }}>
+                            <span className="font-bold text-[var(--muted-foreground)]">回执备注：</span>{it.note}
+                          </div>
+                        )}
+                        {it.staffReason && (
+                          <div className="mt-2 rounded-[8px] px-3 py-1.5 text-[11px]"
+                            style={{ background: 'color-mix(in oklch, var(--warning) 8%, transparent)' }}>
+                            <span className="font-bold text-[var(--muted-foreground)]">代回应理由：</span>{it.staffReason}
+                          </div>
+                        )}
+                        {it.trail.length > 0 && (
+                          <div className="mt-2 border-t pt-2 space-y-1" style={{ borderColor: 'color-mix(in oklch, var(--muted-foreground) 15%, transparent)' }}>
+                            {it.trail.map((t, i) => {
+                              const actionLabel: Record<string, string> = {
+                                NOTIFIED: '邀请通知已发送', RESPONDED: '供应商回执', STAFF_MARKED: '工作人员代变更', AUTO_DECLINED: '超时自动弃权',
+                              };
+                              const statusCn = (s: string | null) => (s === 'ACCEPTED' ? '确认参加' : s === 'DECLINED' ? '无法参加' : '待回执');
+                              const changeLabel = t.fromStatus && t.toStatus && t.fromStatus !== t.toStatus ? `：${statusCn(t.fromStatus)} → ${statusCn(t.toStatus)}` : '';
+                              const isKeyEvent = t.action === 'STAFF_MARKED' && t.fromStatus === 'ACCEPTED' && t.toStatus === 'DECLINED';
+                              return (
+                                <div key={i} className={`flex flex-wrap items-start gap-2 text-[10px] leading-4 ${isKeyEvent ? 'font-bold' : ''}`}>
+                                  <span className="shrink-0 tabular-nums text-[var(--muted-foreground)]">{new Date(t.createdAt).toLocaleString('zh-CN')}</span>
+                                  <span className={isKeyEvent ? 'text-[var(--warning)]' : 'text-[var(--foreground)]'}>
+                                    {actionLabel[t.action] ?? t.action}{t.actorType === 'STAFF' ? `（${t.actorName || '工作人员'}）` : ''}{changeLabel}
+                                  </span>
+                                  {t.reason && <span className="text-[var(--warning)]">{isKeyEvent ? '【计入经历】' : ''}理由：{t.reason}</span>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </>
             )}

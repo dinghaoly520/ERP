@@ -72,7 +72,9 @@ function RsvpInner() {
       toast.error(
         code === "RSVP_EXPIRED"
           ? "回执链接已超过24小时有效期，已自动视为放弃"
-          : err?.message || "提交失败，请稍后重试",
+          : code === "RSVP_ALREADY_RESPONDED"
+            ? "回执已提交，不可变更"
+            : err?.message || "提交失败，请稍后重试",
       );
     } finally {
       setSubmitting(false);
@@ -135,9 +137,8 @@ function RsvpInner() {
                 <p className="rv-warn">该回执链接已超过24小时有效期，已自动视为放弃。如有疑问请致电四川水发集团采购中心。</p>
               )}
 
-              {/* 已回执 / 提交后：展示结果（B2-3：与操作区解耦——此前已回执即整体隐藏
-                  按钮组，文案却承诺「可再次点击链接修改」，而再点回来还是这个无入口的
-                  结果面板；后端 respond 本就是覆盖式幂等更新，未过期应恒给修改入口） */}
+              {/* 已回执 / 提交后：展示结果（2026-10-21 回执一次性锁定：确认/拒绝仅可提交
+                  一次，供应商不可自行变更——如需调整请联系采购方，由工作人员走留痕的代变更） */}
               {(done || view.status !== "PENDING") && (
                 <div className={`rv-done ${done?.status === "DECLINED" || view.status === "DECLINED" ? "is-declined" : "is-accepted"}`}>
                   <div className="rv-done-badge">
@@ -152,12 +153,12 @@ function RsvpInner() {
                         ? new Date(view.respondedAt).toLocaleString("zh-CN")
                         : "—"}
                   </p>
-                  {!view.expired && <p className="rv-hint">如需变更，可在下方直接修改回执（响应截止前有效）。</p>}
+                  <p className="rv-hint">回执已提交，不可变更。如有疑问请联系采购方（四川水发集团采购中心）。</p>
                 </div>
               )}
-              {!view.expired && (
+              {!view.expired && view.status === "PENDING" && !done && (
                 <div className="rv-actions">
-                  <p className="rv-prompt">{done || view.status !== "PENDING" ? "变更回执——请重新确认贵司是否参加：" : "请确认贵司是否参加本次采购邀请："}</p>
+                  <p className="rv-prompt">请确认贵司是否参加本次采购邀请（确认/拒绝仅可提交一次，请谨慎选择）：</p>
                   <div className="rv-btns">
                     <button type="button" className="rv-btn rv-btn--accept" disabled={submitting} onClick={() => submit("ACCEPTED")}>确认参加</button>
                     <button type="button" className="rv-btn rv-btn--decline" disabled={submitting} onClick={() => submit("DECLINED")}>无法参加</button>

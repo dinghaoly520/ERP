@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
+import { CurrentUser } from '../auth/current-user.decorator';
 import { RsvpService } from './rsvp.service';
 
 /** 采购邀请回执（RSVP）—— 无登录签名链接的校验/回执 + 采购端看板。 */
@@ -65,12 +66,32 @@ export class RsvpController {
   @Post('manual-mark')
   @Roles('admin', 'leader', 'staff')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-  @ApiOperation({ summary: '采购端手动标记确认状态（确认页点击切换联动落库，供阶段完成核验计数）' })
-  async manualMark(@Body() body: { projectId?: string; supplierId?: string; status?: 'PENDING' | 'ACCEPTED' | 'DECLINED' }) {
+  @ApiOperation({ summary: '工作人员代回应/代变更（理由必填；确认→拒绝联动通知供应商并计入其邀请经历）' })
+  async manualMark(
+    @Body() body: { projectId?: string; supplierId?: string; status?: 'ACCEPTED' | 'DECLINED'; reason?: string },
+    @CurrentUser('sub') userId?: string,
+  ) {
     if (!body?.projectId || !body?.supplierId) {
       throw new BadRequestException({ error: 'projectId 与 supplierId 必填', code: 'BAD_INPUT' });
     }
-    return this.rsvp.manualMark(body.projectId, body.supplierId, body.status as never);
+    if (!userId) {
+      throw new BadRequestException({ error: '缺少操作人身份', code: 'BAD_INPUT' });
+    }
+    return this.rsvp.manualMark({
+      projectId: body.projectId,
+      supplierId: body.supplierId,
+      status: body.status as 'ACCEPTED' | 'DECLINED',
+      actorId: userId,
+      reason: body.reason ?? '',
+    });
+  }
+
+  @Get('history')
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: '供应商邀请回执经历（供应商详情「邀请回执」tab：全量回执+轨迹+信用统计）' })
+  async history(@Query('supplierId') supplierId?: string) {
+    if (!supplierId) throw new BadRequestException({ error: 'supplierId 必填', code: 'BAD_INPUT' });
+    return this.rsvp.supplierHistory(supplierId);
   }
 
   @Post('mark-notified')

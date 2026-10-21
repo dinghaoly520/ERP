@@ -230,9 +230,10 @@ export function sendNegotiationConfig(data: NegotiationConfigPayload) {
   return api.post<{ delivered: number }>('/supplier/negotiation-config', data);
 }
 
-// 采购端手动标记回执状态（确认页点击切换联动落库，供阶段完成核验计数）
-export function markRsvpManual(projectId: string, supplierId: string, status: 'PENDING' | 'ACCEPTED' | 'DECLINED') {
-  return api.post<{ id: string; status: string }>('/supplier/rsvp/manual-mark', { projectId, supplierId, status });
+// 工作人员代回应/代变更（2026-10-21 回执锁定口径）：理由必填（≥5 字，界面展示）；
+// 确认→拒绝联动通知供应商本人并计入其邀请回执经历
+export function markRsvpManual(projectId: string, supplierId: string, status: 'ACCEPTED' | 'DECLINED', reason: string) {
+  return api.post<{ id: string; status: string; changed: boolean }>('/supplier/rsvp/manual-mark', { projectId, supplierId, status, reason });
 }
 
 // 邀请通知发送打戳（2026-10-20 用户口径）：一键通知点击时刻落 InvitationRsvp.notifiedAt，
@@ -241,14 +242,42 @@ export function markInvitedNotified(projectId: string, supplierIds: string[]) {
   return api.post<{ stamped: number }>('/supplier/rsvp/mark-notified', { projectId, supplierIds });
 }
 
-// 邀请回执看板（采购端）
-export interface RsvpListItem { rsvpNo: string; supplierId: string; supplierName: string; status: 'PENDING' | 'ACCEPTED' | 'DECLINED'; tags?: string[]; note: string | null; respondedAt: string | null; expired: boolean; }
+// 邀请回执看板（采购端）——respondentType 区分 供应商自答 / 工作人员代回应 / 超时自动弃权
+export interface RsvpTrailItem {
+  action: string; actorType: 'SUPPLIER' | 'STAFF' | 'SYSTEM'; actorName: string | null;
+  fromStatus: string | null; toStatus: string | null; reason: string | null; note: string | null; createdAt: string;
+}
+export interface RsvpListItem {
+  rsvpNo: string; supplierId: string; supplierName: string; status: 'PENDING' | 'ACCEPTED' | 'DECLINED';
+  tags?: string[]; note: string | null; respondedAt: string | null; notifiedAt?: string | null; expired: boolean;
+  respondentType?: 'SUPPLIER' | 'STAFF' | 'SYSTEM' | null; respondedByName?: string | null; staffReason?: string | null;
+  trail?: RsvpTrailItem[];
+}
 export interface RsvpListResult { total: number; counts: { ACCEPTED: number; DECLINED: number; PENDING: number }; items: RsvpListItem[]; }
 export function getRsvpList(params: { projectId?: string; invitationId?: string }) {
   const q = new URLSearchParams();
   if (params.projectId) q.set('projectId', params.projectId);
   if (params.invitationId) q.set('invitationId', params.invitationId);
   return api.get<RsvpListResult>(`/supplier/rsvp/list?${q.toString()}`);
+}
+
+// 供应商邀请回执经历（供应商详情「邀请回执」tab）：全量回执 + 轨迹 + 信用统计
+export interface RsvpHistoryItem {
+  rsvpNo: string; title: string; projectId: string | null; status: 'PENDING' | 'ACCEPTED' | 'DECLINED';
+  note: string | null; staffReason: string | null;
+  respondentType: 'SUPPLIER' | 'STAFF' | 'SYSTEM' | null; respondedByName: string | null;
+  respondedAt: string | null; notifiedAt: string | null; createdAt: string; trail: RsvpTrailItem[];
+}
+export interface RsvpHistoryResult {
+  supplierId: string;
+  stats: {
+    invited: number; accepted: number; declined: number; pending: number; acceptRate: string | null;
+    systemDeclined: number; respondedByStaff: number; overrideAfterAccept: number;
+  };
+  items: RsvpHistoryItem[];
+}
+export function getRsvpHistory(supplierId: string) {
+  return api.get<RsvpHistoryResult>(`/supplier/rsvp/history?supplierId=${encodeURIComponent(supplierId)}`);
 }
 
 // 供应商详情

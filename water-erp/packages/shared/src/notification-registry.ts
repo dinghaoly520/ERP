@@ -480,6 +480,7 @@ const SUPPLIER_SPECS: NotificationTypeSpec[] = [
   { code: 'SUPPLIER_LINK_APPROVED', label: '加入公司通过', domain: 'supplier', icon: 'CheckCircle2', tone: 'green', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'SUPPLIER_LINK_REJECTED', label: '加入公司驳回', domain: 'supplier', icon: 'XCircle', tone: 'red', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'SUPPLIER_LINK_DISABLED', label: '加入公司停用', domain: 'supplier', icon: 'UserMinus', tone: 'orange', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP }, // 公司侧库内停用（软移出，可恢复；终审 I1 2026-10-19）——恢复不通知（供应商 myLinks 自见状态）
+  { code: 'RSVP_OVERRIDDEN', label: '回执状态变更', domain: 'supplier', icon: 'RefreshCw', tone: 'orange', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP }, // 2026-10-21 回执一次性锁定：工作人员把供应商「确认参加」改为「拒绝」时通知本人（含理由与操作人）
 ];
 
 const ACCOUNT_SPECS: NotificationTypeSpec[] = [

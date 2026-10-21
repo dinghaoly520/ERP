@@ -1663,18 +1663,48 @@ export function SupplierSelectionPage({
     }, 500);
   };
 
-  // 第 5 步：循环切换供应商确认状态（待确认 → 已确认 → 已放弃 → 待确认）
-  // 联动落库（manual-mark）：手动确认写入 InvitationRsvp，与回执同源计数——
-  // 否则确认页显示「N 已确认」而阶段完成的后端回执核验数不到（口径脱节）
-  const cycleConfirmation = (sid: string) => {
-    const cur = confirmations.get(sid) || 'pending';
-    const next: 'pending' | 'confirmed' | 'declined' =
-      cur === 'pending' ? 'confirmed' : cur === 'confirmed' ? 'declined' : 'pending';
-    setConfirmations(prev => new Map(prev).set(sid, next));
+  // 第 5 步：工作人员代回应/代变更（2026-10-21 回执锁定口径重设计）
+  // 供应商回执一次性锁定后，采购端不再「点击循环切换」——代确认/代拒绝统一走弹窗：
+  // 必填理由落 InvitationRsvp.staffReason + 轨迹 STAFF_MARKED；「确认→拒绝」由后端
+  // 联动通知供应商本人（RSVP_OVERRIDDEN）并计入其邀请回执经历。本地三套确认 Map
+  // 与回执看板同源刷新（正选/当前补选/历史轮次补选一并写）。
+  const [proxyMark, setProxyMark] = useState<{
+    sid: string; name: string;
+    target: 'ACCEPTED' | 'DECLINED';
+    current: 'pending' | 'confirmed' | 'declined';
+  } | null>(null);
+  const [proxyReason, setProxyReason] = useState('');
+  const [proxySubmitting, setProxySubmitting] = useState(false);
+  // 回执轨迹展开（按行）：点行内时钟图标查看 通知→自答→代变更 全程留痕
+  const [expandedTrailSid, setExpandedTrailSid] = useState<string | null>(null);
+
+  const openProxyMark = (sid: string, name: string, target: 'ACCEPTED' | 'DECLINED', current: 'pending' | 'confirmed' | 'declined') => {
+    setProxyReason('');
+    setProxyMark({ sid, name, target, current });
+  };
+
+  const submitProxyMark = async () => {
+    if (!proxyMark) return;
+    if (proxyReason.trim().length < 5) { toast.error('请填写理由（至少 5 个字），将展示在回执看板'); return; }
     const pid = projectId || (project as any)?.id;
-    if (pid) {
-      void markRsvpManual(pid, sid, next === 'confirmed' ? 'ACCEPTED' : next === 'declined' ? 'DECLINED' : 'PENDING')
-        .catch(() => { toast.error('确认状态未能同步到回执记录，请重试'); });
+    if (!pid) { toast.error('缺少项目上下文，无法代回应'); return; }
+    setProxySubmitting(true);
+    try {
+      await markRsvpManual(pid, proxyMark.sid, proxyMark.target, proxyReason.trim());
+      toast.success(proxyMark.target === 'ACCEPTED' ? `已代为确认：${proxyMark.name}` : `已代为拒绝：${proxyMark.name}`);
+      // 本地三套确认 Map 即时对齐；回执看板（含新轨迹/理由）由 loadRsvpList 刷新
+      const local: 'confirmed' | 'declined' = proxyMark.target === 'ACCEPTED' ? 'confirmed' : 'declined';
+      if (shortlist.has(proxyMark.sid)) setConfirmations(prev => new Map(prev).set(proxyMark.sid, local));
+      if (rerunShortlist.has(proxyMark.sid)) setRerunConfirmations(prev => new Map(prev).set(proxyMark.sid, local));
+      setRerunHistory(prev => prev.map(h => h.shortlist.has(proxyMark.sid)
+        ? { ...h, confirmations: new Map(h.confirmations).set(proxyMark.sid, local) }
+        : h));
+      setProxyMark(null);
+      void loadRsvpList();
+    } catch (e: any) {
+      toast.error(e?.message || '代回应提交失败，请重试');
+    } finally {
+      setProxySubmitting(false);
     }
   };
   // 确认状态派生统计
@@ -1682,11 +1712,11 @@ export function SupplierSelectionPage({
   const declinedCount = [...confirmations.values()].filter(s => s === 'declined').length;
   const pendingCount = shortlist.size - confirmedCount - declinedCount;
 
-  // 可复用：供应商确认行（带点击切换 + 正选/补选标记 + 联系人 + 回执码）
+  // 可复用：供应商确认行（2026-10-21 重设计）——回执号/回执时间/备注/代回应标注/理由
+  // 全量展示；操作从「点击循环切换」改为 代确认/代拒绝/代为变更（弹窗必填理由留痕）
   const renderSupplierRow = (
     sid: string, r: SupplierRecommendation, idx: number,
     status: 'pending' | 'confirmed' | 'declined',
-    onToggle: () => void,
     badge?: '正选' | '补选',
     roundLabel?: string,
     showTags?: boolean,
@@ -1695,15 +1725,25 @@ export function SupplierSelectionPage({
     const rsvpItem = filteredRsvp?.items.find(it => it.supplierId === sid);
     const isOriginal = badge === '正选';
     const tags = (r.tags || []).slice(0, 4);
+    const trailOpen = expandedTrailSid === sid;
+    const statusPill =
+      status === 'confirmed'
+        ? { label: '已确认', color: 'var(--success)', bg: 'color-mix(in oklch, var(--success) 12%, transparent)' }
+        : status === 'declined'
+          ? { label: '已放弃', color: 'var(--danger)', bg: 'color-mix(in oklch, var(--danger) 10%, transparent)' }
+          : { label: '待确认', color: 'var(--muted-foreground)', bg: 'color-mix(in oklch, var(--muted-foreground) 10%, transparent)' };
     return (
-      <div key={sid} className="flex items-center gap-3 rounded-xl px-4 py-3 transition-shadow"
+      <div key={sid} className="rounded-xl px-4 py-3 transition-shadow"
         style={{ background: 'oklch(1 0 0 / 0.42)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5), 1px 1px 2px oklch(0.55 0.03 258 / 0.05)' }}>
+        <div className="flex items-center gap-3">
         <span className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[8px] text-[10px] font-extrabold text-white tabular-nums"
           style={{ background: isOriginal ? 'linear-gradient(135deg, oklch(0.52 0.16 258), oklch(0.45 0.14 258))' : 'linear-gradient(135deg, oklch(0.55 0.14 150), oklch(0.48 0.12 150))' }}>{idx + 1}</span>
         <div className="flex-1 min-w-0">
           <div className="text-sm font-bold text-[var(--foreground)] truncate flex items-center gap-1.5">
             {r.name}
-            {rsvpItem && <span className="text-[10px] font-mono text-[var(--muted-foreground)]">#{rsvpItem.rsvpNo}</span>}
+            {rsvpItem && (
+              <span className="text-[10px] font-mono text-[var(--muted-foreground)] shrink-0" title={`回执号 #${rsvpItem.rsvpNo}`}>#{rsvpItem.rsvpNo}</span>
+            )}
           </div>
           <div className="text-[10px] text-[var(--muted-foreground)] tabular-nums">
             {showTags && tags.length > 0
@@ -1714,7 +1754,21 @@ export function SupplierSelectionPage({
               : <>匹配 <span style={{ color: scoreVar(r.matchScore) }} className="font-bold">{r.matchScore}</span></>
             }
             {contact ? ` · ${contact.name} ${contact.phone}` : ''}
-            {rsvpItem?.respondedAt && ` · 回执于 ${new Date(rsvpItem.respondedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}`}
+            {rsvpItem?.respondedAt && ` · 回执于 ${new Date(rsvpItem.respondedAt).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}`}
+            {/* 作答方标注：工作人员代回应 / 超时自动弃权（无标注=供应商链接自答） */}
+            {rsvpItem?.respondentType === 'STAFF' && (
+              <span className="ml-1 inline-flex items-center gap-0.5 rounded-[4px] px-1 py-0.5 text-[9px] font-bold"
+                style={{ background: 'color-mix(in oklch, var(--warning) 14%, transparent)', color: 'var(--warning)' }}
+                title={`工作人员代回应${rsvpItem.respondedByName ? `：${rsvpItem.respondedByName}` : ''}`}>
+                <User size={9} />工作人员代回应{rsvpItem.respondedByName ? ` · ${rsvpItem.respondedByName}` : ''}
+              </span>
+            )}
+            {rsvpItem?.respondentType === 'SYSTEM' && (
+              <span className="ml-1 inline-flex items-center rounded-[4px] px-1 py-0.5 text-[9px] font-bold"
+                style={{ background: 'color-mix(in oklch, var(--muted-foreground) 12%, transparent)', color: 'var(--muted-foreground)' }}>
+                超时自动弃权
+              </span>
+            )}
           </div>
           {/* 供应商回执备注（回执页「备注」填写内容；放弃时常见档期冲突/资质说明等） */}
           {rsvpItem?.note && (
@@ -1730,12 +1784,77 @@ export function SupplierSelectionPage({
               </span>
             </div>
           )}
+          {/* 工作人员代回应理由（必填落库；与供应商自答备注分列展示） */}
+          {rsvpItem?.staffReason && (
+            <div className="mt-1 flex items-start gap-1.5 rounded-[6px] px-2 py-1 max-w-full"
+              title={rsvpItem.staffReason}
+              style={{
+                background: 'color-mix(in oklch, var(--warning) 8%, transparent)',
+                boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.4)',
+              }}>
+              <User size={10} className="mt-[3px] shrink-0 text-[var(--warning)]" />
+              <span className="text-[10px] leading-4 truncate text-[var(--foreground)]">
+                <span className="font-bold text-[var(--muted-foreground)]">代回应理由：</span>{rsvpItem.staffReason}
+              </span>
+            </div>
+          )}
         </div>
         {badge && <span className="text-[9px] font-bold rounded px-1.5 py-0.5 shrink-0" style={{ background: isOriginal ? 'color-mix(in oklch, var(--accent) 12%, transparent)' : 'color-mix(in oklch, var(--success) 12%, transparent)', color: isOriginal ? 'var(--accent-strong)' : 'var(--success)' }}>{roundLabel ? `${badge}${roundLabel}` : badge}</span>}
-        <button onClick={onToggle} title="点击切换确认状态"
-          className={`neu-btn-xs !py-1.5 !px-3 flex-shrink-0 ${status === 'confirmed' ? 'is-success' : status === 'declined' ? 'is-danger' : ''}`}>
-          {status === 'confirmed' ? '已确认' : status === 'declined' ? '已放弃' : '待确认'}
-        </button>
+        {/* 回执轨迹开关（有留痕才显示）：通知发送 → 供应商回执 → 工作人员变更 全程可查 */}
+        {rsvpItem && (rsvpItem.trail?.length ?? 0) > 0 && (
+          <button onClick={() => setExpandedTrailSid(trailOpen ? null : sid)}
+            title="回执轨迹（通知发送 → 供应商回执 → 工作人员变更 全程留痕）"
+            className={`neu-btn-xs !p-1.5 shrink-0 ${trailOpen ? 'is-warning' : ''}`}>
+            <Clock3 size={12} />
+          </button>
+        )}
+        {/* 操作区：供应商回执一次性锁定——采购端只保留留痕的代回应/代变更通道 */}
+        {status === 'pending' ? (
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button onClick={() => openProxyMark(sid, r.name, 'ACCEPTED', status)}
+              title="电话/线下核实后代为确认参加（必填理由，留痕展示）"
+              className="neu-btn-xs !py-1.5 !px-3 is-success">代确认</button>
+            <button onClick={() => openProxyMark(sid, r.name, 'DECLINED', status)}
+              title="代为拒绝参加（必填理由，留痕展示）"
+              className="neu-btn-xs !py-1.5 !px-3 is-danger">代拒绝</button>
+          </div>
+        ) : (
+          <div className="flex shrink-0 items-center gap-1.5">
+            <span className="inline-flex items-center rounded-[8px] px-3 py-1.5 text-[11px] font-bold whitespace-nowrap"
+              style={{ color: statusPill.color, background: statusPill.bg }}>
+              {statusPill.label}
+            </span>
+            <button onClick={() => openProxyMark(sid, r.name, status === 'confirmed' ? 'DECLINED' : 'ACCEPTED', status)}
+              title="工作人员代为变更回执（必填理由；确认→拒绝将通知供应商并计入其邀请回执经历）"
+              className="neu-btn-xs !py-1.5 !px-3">代为变更</button>
+          </div>
+        )}
+        </div>
+        {/* 回执轨迹时间线（行内展开） */}
+        {trailOpen && rsvpItem && (
+          <div className="mt-2 border-t pt-2" style={{ borderColor: 'color-mix(in oklch, var(--muted-foreground) 15%, transparent)' }}>
+            <div className="text-[9px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)] mb-1.5">回执轨迹</div>
+            <div className="space-y-1">
+              {(rsvpItem.trail ?? []).map((t, i) => {
+                const actionLabel: Record<string, string> = {
+                  NOTIFIED: '邀请通知已发送', RESPONDED: '供应商回执', STAFF_MARKED: '工作人员代变更', AUTO_DECLINED: '超时自动弃权',
+                };
+                const actorLabel = t.actorType === 'STAFF' ? `（${t.actorName || '工作人员'}）` : '';
+                const statusCn = (s: string | null) => (s === 'ACCEPTED' ? '确认参加' : s === 'DECLINED' ? '无法参加' : '待回执');
+                const changeLabel = t.fromStatus && t.toStatus && t.fromStatus !== t.toStatus
+                  ? `：${statusCn(t.fromStatus)} → ${statusCn(t.toStatus)}`
+                  : '';
+                return (
+                  <div key={i} className="flex items-start gap-2 text-[10px] leading-4">
+                    <span className="shrink-0 tabular-nums text-[var(--muted-foreground)]">{new Date(t.createdAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                    <span className="font-bold text-[var(--foreground)] shrink-0">{actionLabel[t.action] ?? t.action}{actorLabel}{changeLabel}</span>
+                    {t.reason && <span className="text-[var(--warning)] truncate" title={t.reason}>理由：{t.reason}</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -2715,7 +2834,7 @@ export function SupplierSelectionPage({
                 {/* 逐供应商确认列表 */}
                 <div className="space-y-1.5">
                   {[...shortlist.entries()].map(([sid, { item: r }], idx) => (
-                    renderSupplierRow(sid, r, idx, confirmations.get(sid) || 'pending', () => cycleConfirmation(sid), '正选', undefined, true)
+                    renderSupplierRow(sid, r, idx, confirmations.get(sid) || 'pending', '正选', undefined, true)
                   ))}
                 </div>
 
@@ -2849,9 +2968,7 @@ export function SupplierSelectionPage({
                 <h2 className="text-[12px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">第{currentRerunRound + 1}轮确认</h2>
                 <div className="space-y-1.5">
                   {[...h.shortlist.entries()].map(([sid, { item: r }], idx) => (
-                    renderSupplierRow(sid, r, idx, h.confirmations.get(sid) || 'pending', () => {
-                      setRerunHistory(prev => { const n = [...prev]; const cm = new Map(n[currentRerunRound].confirmations); const cur = cm.get(sid) || 'pending'; cm.set(sid, cur === 'pending' ? 'confirmed' : cur === 'confirmed' ? 'declined' : 'pending'); n[currentRerunRound] = { ...n[currentRerunRound], confirmations: cm }; return n; });
-                    }, '补选', undefined, true)
+                    renderSupplierRow(sid, r, idx, h.confirmations.get(sid) || 'pending', '补选', undefined, true)
                   ))}
                 </div>
               </div>
@@ -3368,7 +3485,7 @@ export function SupplierSelectionPage({
             <div className="space-y-1.5">
               <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)] mb-1">正选供应商</div>
               {[...shortlist.entries()].map(([sid, { item: r }]) =>
-                renderSupplierRow(sid, r, [...allShortlist.keys()].indexOf(sid), allSupplierStatuses.get(sid) || 'pending', () => cycleConfirmation(sid), '正选', undefined, true)
+                renderSupplierRow(sid, r, [...allShortlist.keys()].indexOf(sid), allSupplierStatuses.get(sid) || 'pending', '正选', undefined, true)
               )}
             </div>
 
@@ -3377,9 +3494,7 @@ export function SupplierSelectionPage({
               <div key={roundIdx} className="space-y-1.5">
                 <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)] mb-1">补选供应商（第{roundIdx + 1}轮）</div>
                 {[...h.shortlist.entries()].map(([sid, { item: r }]) =>
-                  renderSupplierRow(sid, r, [...allShortlist.keys()].indexOf(sid), allSupplierStatuses.get(sid) || 'pending', () => {
-                    setRerunHistory(prev => { const n = [...prev]; const cm = new Map(n[roundIdx].confirmations); const cur = cm.get(sid) || 'pending'; cm.set(sid, cur === 'pending' ? 'confirmed' : cur === 'confirmed' ? 'declined' : 'pending'); n[roundIdx] = { ...n[roundIdx], confirmations: cm }; return n; });
-                  }, '补选', undefined, true)
+                  renderSupplierRow(sid, r, [...allShortlist.keys()].indexOf(sid), allSupplierStatuses.get(sid) || 'pending', '补选', undefined, true)
                 )}
               </div>
             ))}
@@ -3389,9 +3504,7 @@ export function SupplierSelectionPage({
               <div className="space-y-1.5">
                 <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)] mb-1">补选供应商（第{rerunHistory.length + 1}轮）</div>
                 {[...rerunShortlist.entries()].map(([sid, { item: r }]) =>
-                  renderSupplierRow(sid, r, [...allShortlist.keys()].indexOf(sid), allSupplierStatuses.get(sid) || 'pending', () => {
-                    setRerunConfirmations(prev => { const n = new Map(prev); const cur = n.get(sid) || 'pending'; n.set(sid, cur === 'pending' ? 'confirmed' : cur === 'confirmed' ? 'declined' : 'pending'); return n; });
-                  }, '补选', undefined, true)
+                  renderSupplierRow(sid, r, [...allShortlist.keys()].indexOf(sid), allSupplierStatuses.get(sid) || 'pending', '补选', undefined, true)
                 )}
               </div>
             )}
@@ -3734,6 +3847,75 @@ export function SupplierSelectionPage({
         }}
       />
       {dialog}
+
+      {/* 工作人员代回应/代变更弹窗（2026-10-21 回执锁定口径）：必填理由落库并展示；
+          确认→拒绝由后端联动通知供应商本人并计入其邀请回执经历 */}
+      <Modal
+        open={!!proxyMark}
+        onClose={() => { if (!proxySubmitting) setProxyMark(null); }}
+        closeOnBackdrop={!proxySubmitting}
+        closeOnEsc={!proxySubmitting}
+        size="md"
+        title={
+          <span className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border text-[var(--warning)]"
+              style={{ borderColor: 'color-mix(in oklch, var(--warning) 25%, transparent)', background: 'color-mix(in oklch, var(--warning) 10%, transparent)' }}>
+              <User size={20} strokeWidth={1.9} />
+            </span>
+            {proxyMark?.current === 'pending' ? '工作人员代回应' : '工作人员代为变更回执'}
+          </span>
+        }
+        description={proxyMark ? `${proxyMark.name} · 当前${proxyMark.current === 'pending' ? '待回执' : proxyMark.current === 'confirmed' ? '已确认参加' : '已放弃'}` : undefined}
+        footer={
+          <>
+            <button onClick={() => setProxyMark(null)} disabled={proxySubmitting} className="neu-btn-soft !h-9 !text-[13px] disabled:opacity-40">取消</button>
+            <button onClick={() => void submitProxyMark()} disabled={proxySubmitting} className="neu-btn-primary !h-9 !text-[13px] disabled:opacity-50">
+              {proxySubmitting && <Loader2 size={14} className="animate-spin" />}
+              {proxyMark?.target === 'ACCEPTED' ? '确认代为确认参加' : '确认代为拒绝'}
+            </button>
+          </>
+        }
+      >
+        {proxyMark && (
+          <div className="space-y-4">
+            {/* 状态流向预览（防误触：明确从什么变成什么） */}
+            <div className="flex items-center gap-3 rounded-[12px] px-4 py-3"
+              style={{ background: 'oklch(1 0 0 / 0.45)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+              <span className="text-[12px] font-semibold"
+                style={{ color: proxyMark.current === 'confirmed' ? 'var(--success)' : proxyMark.current === 'declined' ? 'var(--danger)' : 'var(--muted-foreground)' }}>
+                {proxyMark.current === 'pending' ? '待回执' : proxyMark.current === 'confirmed' ? '已确认参加' : '已放弃'}
+              </span>
+              <span className="text-[var(--muted-foreground)]">→</span>
+              <span className="text-[12px] font-bold" style={{ color: proxyMark.target === 'ACCEPTED' ? 'var(--success)' : 'var(--danger)' }}>
+                {proxyMark.target === 'ACCEPTED' ? '确认参加' : '无法参加'}
+              </span>
+            </div>
+            {proxyMark.current === 'confirmed' && proxyMark.target === 'DECLINED' && (
+              <div className="rounded-[12px] px-4 py-3 text-[11px] leading-5"
+                style={{ background: 'color-mix(in oklch, var(--warning) 9%, transparent)', color: 'var(--foreground)' }}>
+                该供应商已回执「确认参加」。代为变更为「拒绝」后：系统将<b>站内信通知供应商本人</b>（含理由与操作人），
+                并<b>计入该供应商的邀请回执经历</b>（供应商详情可查）。请确认已与供应商充分沟通。
+              </div>
+            )}
+            <div>
+              <label className="text-[11px] font-bold text-[var(--foreground)] mb-1.5 block">
+                代回应理由 <span className="text-[var(--danger)]">*</span>
+                <span className="ml-1.5 font-normal text-[var(--muted-foreground)]">（必填，至少 5 个字；将展示在回执看板并留痕）</span>
+              </label>
+              <textarea
+                value={proxyReason}
+                onChange={(e) => setProxyReason(e.target.value)}
+                rows={3}
+                maxLength={500}
+                disabled={proxySubmitting}
+                placeholder={proxyMark.target === 'ACCEPTED' ? '如：电话核实供应商联系人，对方口头确认参加本次采购…' : '如：电话核实档期冲突无法参与 / 核实资质不符，取消邀请…'}
+                className="neu-input w-full resize-none text-[13px]"
+              />
+              <div className="mt-1 text-right text-[10px] tabular-nums text-[var(--muted-foreground)]">{proxyReason.trim().length} / 500</div>
+            </div>
+          </div>
+        )}
+      </Modal>
 
     </div>
   );
