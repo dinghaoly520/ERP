@@ -703,13 +703,17 @@ async function main() {
     //   employer≠company（简写/变体单位）入 notes、PII（email/phone/idNumber）同 PII_SEAL_MAP 口径密封。
     {
       console.log('▶ 重建评审专家库（ExpertLibrary.json 名单；清空旧快照专家）');
-      // 子表先清（BidExpert 级联链上的评分/条款评审/备忘），User 删除再级联收尾（Profile/通知）
+      // 子表先清（BidExpert 级联链上的评分/条款评审/备忘）；ExpertProfile/Notification 须显式删——
+      // seed 会话 session_replication_role=replica 禁用 FK 触发器，User deleteMany 的级联不会生效，
+      // 不显式删会留孤儿（旧 187 档案+其通知，userId 指向已删用户）
       await prisma.bidScorePointDecision.deleteMany({});
       await prisma.bidScoreRecord.deleteMany({});
       await prisma.bidScoreReview.deleteMany({});
       await prisma.bidRequirementReview.deleteMany({});
       await prisma.expertMemo.deleteMany({});
       await prisma.bidExpert.deleteMany({});
+      await prisma.expertProfile.deleteMany({ where: { user: { role: 'bid_expert' } } });
+      await prisma.notification.deleteMany({ where: { user: { role: 'bid_expert' } } });
       const oldExperts = await prisma.user.deleteMany({ where: { role: 'bid_expert' } });
       interface ExpertLibEntry {
         seq: number; name: string; gender: string; education: string; specialty: string;
