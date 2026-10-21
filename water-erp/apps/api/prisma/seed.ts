@@ -55,7 +55,7 @@ const ALL_TABLES = [
   'BidProject', 'BidScoreItem', 'BidScorePoint', 'BidScoreRecord',
   'BidSupervisionAnnotation', 'BidSupervisionLog', 'BidSupplier',
   'BudgetItem', 'BudgetList',
-  'CatalogCategory', 'CatalogItemAttribute',
+  'CaCertificate', 'CatalogCategory', 'CatalogItemAttribute',
   'CatalogItem', 'CatalogSupplier', 'CategoryAttributeTemplate',
   'ComplianceRule', 'Contact',
   'Department', 'DocumentChunk',
@@ -69,7 +69,7 @@ const ALL_TABLES = [
   'ProjectManagementItem', 'ProjectManagementStage',
   'ReviewTask', 'RoundParticipant',
   'Supplier', 'SupplierBidSubmission', 'SupplierCatalogApplication',
-  'SupplierChangeRecord', 'SupplierClassification', 'SupplierContact',
+  'SupplierCert', 'SupplierChangeRecord', 'SupplierClassification', 'SupplierContact',
   'SupplierEvaluation', 'SupplierQualification',
   'SystemConfig',
   'TenderDocumentHistory', 'TenderFieldSample',
@@ -122,6 +122,7 @@ const ALL_TABLES = [
 const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient]> = [
   // Level 0 —— 无外键 / 独立表
   ['Department', 'department'],
+  ['CaCertificate', 'caCertificate'],
   ['SupplierClassification', 'supplierClassification'],
   ['Announcement', 'announcement'],
   ['CatalogCategory', 'catalogCategory'],
@@ -136,6 +137,7 @@ const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient
   ['ExpertProfile', 'expertProfile'],
   ['Notification', 'notification'],
   ['Supplier', 'supplier'],
+  ['SupplierCert', 'supplierCert'],
   ['BidSupplier', 'bidSupplier'],
   ['BidExpert', 'bidExpert'],
   ['BidScoreItem', 'bidScoreItem'],
@@ -419,9 +421,9 @@ async function main() {
     await prisma.$executeRaw`
       SELECT setval('supplier_no_seq',
         GREATEST(
-          (SELECT COALESCE(MAX(CAST(SUBSTRING("supplierNo" FROM 5) AS INTEGER)), 0) FROM "Supplier" WHERE "supplierNo" LIKE 'SUP-%'),
-          (SELECT last_value FROM supplier_no_seq)
-        ), true)
+          (SELECT COALESCE(MAX(CAST(SUBSTRING("supplierNo" FROM 5) AS INTEGER)), 0) FROM "Supplier" WHERE "supplierNo" LIKE 'SUP-%')::INTEGER,
+          (SELECT last_value::INTEGER FROM supplier_no_seq)
+        )::INTEGER, true)
     `;
     console.log('    供应商编号序列已对齐（supplier_no_seq）');
   } catch (e) {
@@ -671,6 +673,11 @@ async function main() {
       { id: 'co-swhi-js', name: '四川水发建设有限公司', shortName: '建设', code: 'SFJS' },
       { id: 'co-swhi-tz', name: '四川水发投资有限公司', shortName: '投资', code: 'SFTZ' },
       { id: 'co-swdg-jt', name: '四川省水利发展集团有限公司', shortName: '集团本部', code: 'SWDG' },
+      // 专家库 180 名单的后 4 家公司（2026-10-19 换血；2026-10-21 固化——1.45 专家重建依赖其 companyId）
+      { id: 'co-swhi-ny', name: '四川水发能源开发有限公司', shortName: '能源', code: 'SFNY' },
+      { id: 'co-swhi-tzk', name: '四川省亭子口灌区建设开发有限公司', shortName: '亭子口', code: 'TZK' },
+      { id: 'co-swhi-xjb', name: '四川省向家坝灌区建设开发有限责任公司', shortName: '向家坝', code: 'XJB' },
+      { id: 'co-swhi-ydm', name: '引大济岷水资源开发有限公司', shortName: '引大', code: 'YDJM' },
       // 大岷管业（2026-10-19 固化）：供应商快照 companyId 指向此 id，全新库须先 upsert
       // 否则 SupplierCompanyLink 回填 FK 违反（companies 表不在 TRUNCATE 清单、全新库为空）
       { id: 'cmumahxdp05tpuuz5nqqr75p8', name: '四川水网大岷管业有限公司', shortName: '大岷', code: 'DMGY' },
@@ -687,6 +694,74 @@ async function main() {
     for (const u of users) {
       const cid = u.company ? companyByName.get(u.company) ?? null : null;
       if (cid) { await prisma.user.update({ where: { id: u.id }, data: { companyId: cid } }); userLinked++; }
+    }
+
+    // 1.45) 评审专家库整体重建（2026-10-19 换血；2026-10-21 固化入 seed——此前仅直插 dev 库，重灌即回退）
+    //   唯一来源 seed-data/ExpertLibrary.json（180 名、8 家公司）；User.json/ExpertProfile.json 快照的
+    //   旧 187 名专家不再是专家来源（此处清空后按名单重建，勿再从快照恢复专家——CLAUDE.md 口径）：
+    //   用户名=姓名、口令=身份证号、entryStatus=ACTIVE、公司直挂 companyId、职务建 Department、
+    //   employer≠company（简写/变体单位）入 notes、PII（email/phone/idNumber）同 PII_SEAL_MAP 口径密封。
+    {
+      console.log('▶ 重建评审专家库（ExpertLibrary.json 名单；清空旧快照专家）');
+      // 子表先清（BidExpert 级联链上的评分/条款评审/备忘），User 删除再级联收尾（Profile/通知）
+      await prisma.bidScorePointDecision.deleteMany({});
+      await prisma.bidScoreRecord.deleteMany({});
+      await prisma.bidScoreReview.deleteMany({});
+      await prisma.bidRequirementReview.deleteMany({});
+      await prisma.expertMemo.deleteMany({});
+      await prisma.bidExpert.deleteMany({});
+      const oldExperts = await prisma.user.deleteMany({ where: { role: 'bid_expert' } });
+      interface ExpertLibEntry {
+        seq: number; name: string; gender: string; education: string; specialty: string;
+        title: string; employer: string; company: string; department: string;
+        phone: string; idNumber: string; email: string; entryDate: string;
+      }
+      const library = load<ExpertLibEntry[]>('ExpertLibrary');
+      const companyAll = new Map((await prisma.company.findMany({ select: { id: true, name: true } })).map((c) => [c.name, c.id]));
+      const deptByName = new Map((await prisma.department.findMany({ select: { id: true, name: true } })).map((d) => [d.name, d.id]));
+      let rebuilt = 0;
+      let notesKept = 0;
+      for (const e of library) {
+        const companyId = companyAll.get(e.company);
+        if (!companyId) throw new Error(`ExpertLibrary 公司未在 SEED_COMPANIES 建档：${e.company}`);
+        let departmentId = e.department ? deptByName.get(e.department) : undefined;
+        if (e.department && !departmentId) {
+          const d = await prisma.department.create({ data: { name: e.department } });
+          deptByName.set(d.name, d.id);
+          departmentId = d.id;
+        }
+        const u = await prisma.user.create({
+          data: {
+            username: e.name,
+            displayName: e.name,
+            role: 'bid_expert',
+            passwordHash: hashOf(e.idNumber),
+            email: e.email ? sealPii(e.email) : null,
+            company: e.company,
+            companyId,
+            departmentId: departmentId ?? null,
+            departmentName: e.department ?? null,
+            isActive: true,
+          },
+        });
+        await prisma.expertProfile.create({
+          data: {
+            userId: u.id,
+            specialty: e.specialty,
+            title: e.title,
+            employer: e.employer,
+            education: e.education,
+            phone: e.phone ? sealPii(e.phone) : null,
+            idNumber: sealPii(e.idNumber),
+            entryStatus: 'ACTIVE',
+            availability: '可用',
+            notes: e.employer && e.employer !== e.company ? `原表单位：${e.employer}` : null,
+          },
+        });
+        rebuilt++;
+        if (e.employer && e.employer !== e.company) notesKept++;
+      }
+      console.log(`    旧快照专家清空 ${oldExperts.count} 名；ExpertLibrary 重建 ${rebuilt} 名（原表单位入 notes ${notesKept} 名）`);
     }
 
     // 1.5) 专家（bid_expert）：快照无公司归属——统一归设计院本部（专家库公司隔离 2026-09-24，
