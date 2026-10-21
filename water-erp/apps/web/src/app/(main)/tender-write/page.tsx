@@ -27,7 +27,7 @@ import { NotificationHubDialog } from "@/components/tender-write/notification-hu
 import type { ImportAutofillFieldResult } from "@/lib/types/tender-write-import";
 import { createTenderHistory } from "@/lib/api/tender-history";
 import { exportTenderDocument } from "@/lib/api/tender-write";
-import { findContactByName } from "@/lib/api/contacts";
+
 import {
   getCompanyInfoOnce,
   pickDefaultPlace,
@@ -468,10 +468,12 @@ export default function TenderWritePage() {
         if (field.key === 'contactName') contactNameValue = field.value;
       }
     }
-    // If contact name was filled by AI, check existing contacts for phone/email
+    // If contact name was filled by AI, check 公司信息管理·采购人条目 for phone/email
+    //（2026-10-21 改源：独立联系人库已下线，与联系人选择器同源）
     if (contactNameValue) {
       try {
-        const contact = await findContactByName(contactNameValue);
+        const ci = await getCompanyInfoOnce();
+        const contact = ci?.purchasers?.find(p => p.name === contactNameValue.trim());
         if (contact) {
           // Only auto-fill phone/email from existing contact if the target field is currently empty
           const contactPhoneField = selectedFields.find(f => f.key === 'contactPhone');

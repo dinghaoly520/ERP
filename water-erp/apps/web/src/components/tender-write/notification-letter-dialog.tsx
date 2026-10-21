@@ -33,7 +33,7 @@ import { fetchProjectAttributions, updateProjectExtractedInfo, getPmBidProject, 
 import { aiIdentifyField } from "@/lib/api/project-management";
 import { getBidProjectDetail, getPublicityStatus, deliverAwardLetter, type PublicityStatus } from "@/lib/api/bid";
 import type { FieldCandidate, ProjectManagementItem } from "@/lib/types/project-management";
-import { ContactPickerDialog } from "./contact-picker-dialog";
+import { PurchaserPickerDialog } from "./purchaser-picker-dialog";
 import { fetchCurrentUser } from "@/lib/api/auth";
 
 /** 公示载体公告类型 → 中文名（publicity-status.announcement.type 展示用；系统实际只有中标公告一轨） */
@@ -858,9 +858,9 @@ export function NotificationLetterDialog({
         )}
       </Modal>
 
-      {/* Contact picker */}
+      {/* Contact picker（2026-10-21 改源公司信息管理·采购人条目） */}
       {contactPickerOpen && (
-        <ContactPickerDialog
+        <PurchaserPickerDialog
           isOpen={contactPickerOpen}
           onSelect={handleContactSelect}
           onClose={() => setContactPickerOpen(false)}

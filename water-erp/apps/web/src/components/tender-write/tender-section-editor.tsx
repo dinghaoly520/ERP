@@ -22,7 +22,7 @@ import {
   toggleFieldSampleFavorite,
   generateFieldContent,
 } from '@/lib/api/tender-sample';
-import { findContactByName } from '@/lib/api/contacts';
+import { getCompanyInfoOnce } from '@/lib/api/company-info';
 import { SupplierNameInput } from './supplier-name-input';
 
 // Year-Month selector for coverDate field with custom dropdown panels
@@ -449,20 +449,22 @@ export function TenderSectionEditor({
     }
   };
 
+  // 联系人手输联动（2026-10-21 改源）：命中**公司信息管理·采购人条目**（与「联系人」
+  // 选择器 PurchaserPickerDialog 同源）→ 邮箱/电话为空时自动带出；独立联系人库已下线
   const handleContactNameChange = async (value: string) => {
     onChange('contactName', value);
 
-    // Auto-fill email and phone if contact name matches existing contact
     if (value.trim()) {
       try {
-        const contact = await findContactByName(value.trim());
-        if (contact) {
+        const ci = await getCompanyInfoOnce();
+        const hit = ci?.purchasers?.find((p) => p.name === value.trim());
+        if (hit) {
           // Only fill if email/phone are empty
-          if (!draft.contactEmail?.trim() && contact.email) {
-            onChange('contactEmail', contact.email);
+          if (!draft.contactEmail?.trim() && hit.email) {
+            onChange('contactEmail', hit.email);
           }
-          if (!draft.contactPhone?.trim() && contact.phone) {
-            onChange('contactPhone', contact.phone);
+          if (!draft.contactPhone?.trim() && hit.phone) {
+            onChange('contactPhone', hit.phone);
           }
         }
       } catch {

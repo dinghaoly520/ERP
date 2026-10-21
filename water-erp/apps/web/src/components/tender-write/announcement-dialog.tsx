@@ -39,8 +39,7 @@ import {
 import { AnnouncementPreviewDocument } from "./announcement-preview-document";
 import { TenderFieldActions } from "./tender-field-actions";
 import { TenderFieldSampleDialog } from "./tender-field-sample-drawer";
-import { ContactPickerDialog } from "./contact-picker-dialog";
-import { findContactByName } from "@/lib/api/contacts";
+import { PurchaserPickerDialog } from "./purchaser-picker-dialog";
 import { CompanyEntryPickerDialog } from "./company-entry-picker-dialog";
 import { createFieldSample, generateFieldContent } from "@/lib/api/tender-sample";
 import { fetchCurrentUser } from "@/lib/api/auth";
@@ -294,26 +293,6 @@ function AnnouncementFieldEditor({
   supplierChecking?: boolean;
 }) {
   const hasValue = announcementFieldHasValue(field, displayValueForField(field, value));
-  // 联系人手输联动（2026-10-21 用户口径，与采购文件编写 handleContactNameChange 同逻辑）：
-  // 手打名字命中联系人库 → 邮箱/电话为空时自动带出（已填不覆盖）；选择器按钮整块填入不变
-  const handleContactNameInput = async (raw: string) => {
-    onChange(field.key, raw);
-    if (raw.trim()) {
-      try {
-        const contact = await findContactByName(raw.trim());
-        if (contact) {
-          if (!draftRecord.contactEmail?.trim() && contact.email) {
-            onChange("contactEmail", contact.email);
-          }
-          if (!draftRecord.contactPhone?.trim() && contact.phone) {
-            onChange("contactPhone", contact.phone);
-          }
-        }
-      } catch {
-        // 静默忽略（联系人查询失败不阻断录入）
-      }
-    }
-  };
   const shownValue = hasValue ? displayValueForField(field, value) : value;
   const dateInputRef = useRef<HTMLInputElement | null>(null);
   const textInputRef = useRef<HTMLInputElement | null>(null);
@@ -530,7 +509,7 @@ function AnnouncementFieldEditor({
         <input
           type={field.type ?? "text"}
           value={shownValue}
-          onChange={(e) => (field.key === "contactName" ? handleContactNameInput(e.target.value) : onChange(field.key, e.target.value))}
+          onChange={(e) => onChange(field.key, e.target.value)}
           onFocus={() => onFieldFocus?.(field.key)}
           placeholder={field.placeholder}
           className={`${commonInputClass} mt-2`}
@@ -1197,21 +1176,21 @@ export function AnnouncementDialog({
     }
   }, [project?.id, draft, handleFieldChange, lookupSupplierAddress]);
 
-  const handleContactNameChange = async (value: string) => {
+  // 联系人手输联动（2026-10-21 用户口径修正）：命中**公司信息管理·采购人条目**
+  // （companyInfo.purchasers，与「联系人」选择器同源）→ 邮箱/电话为空时自动带出；
+  // 此前误读独立联系人库 /contacts（findContactByName），与公司信息管理脱节
+  const handleContactNameChange = (value: string) => {
     handleFieldChange("contactName", value);
-    if (value.trim()) {
-      try {
-        const contact = await findContactByName(value.trim());
-        if (contact) {
-          const d = draft as Record<string, string> | null;
-          if (d && !d.contactEmail?.trim() && contact.email) {
-            handleFieldChange("contactEmail", contact.email);
-          }
-          if (d && !d.contactPhone?.trim() && contact.phone) {
-            handleFieldChange("contactPhone", contact.phone);
-          }
-        }
-      } catch { /* silent */ }
+    const name = value.trim();
+    if (!name) return;
+    const hit = companyInfo?.purchasers?.find((p) => p.name === name);
+    if (!hit) return;
+    const d = draft as Record<string, string> | null;
+    if (d && !d.contactEmail?.trim() && hit.email) {
+      handleFieldChange("contactEmail", hit.email);
+    }
+    if (d && !d.contactPhone?.trim() && hit.phone) {
+      handleFieldChange("contactPhone", hit.phone);
     }
   };
 
@@ -1586,9 +1565,9 @@ export function AnnouncementDialog({
         />
       )}
 
-      {/* Contact picker */}
+      {/* Contact picker（2026-10-21 改源公司信息管理·采购人条目，与采购文件编写同款） */}
       {contactPickerOpen && (
-        <ContactPickerDialog
+        <PurchaserPickerDialog
           isOpen={contactPickerOpen}
           onSelect={handleContactSelect}
           onClose={() => setContactPickerOpen(false)}
