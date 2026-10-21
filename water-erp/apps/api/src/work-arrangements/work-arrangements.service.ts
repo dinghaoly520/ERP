@@ -160,59 +160,16 @@ export class WorkArrangementsService {
 
     const promise = (async () => {
       try {
-        // --- 复用 buildDailyPlan 的核心逻辑，生成最新的 AI 排程 ---
-        const [user, items] = await Promise.all([
-          this.prisma.user.findUnique({
-            where: { id: userId },
-            select: { username: true, role: true, displayName: true },
-          }),
-          this.prisma.workArrangement.findMany({
-            where: {
-              userId,
-              status: { notIn: [WorkArrangementStatus.COMPLETED, WorkArrangementStatus.CANCELLED] },
-            },
-            orderBy: [{ urgency: 'desc' }, { dueAt: 'asc' }, { updatedAt: 'desc' }],
-            include: {
-              projectManagementItem: { select: { id: true, title: true, currentStage: true, status: true } },
-              dependencies: { include: { dependsOn: { select: { id: true, title: true, status: true } } } },
-            },
-          }),
-        ]);
-
-        // 董事长/领导模式
-        const isChairman = user?.username === 'Swhi-CGZX-00';
-        const needsProjectBrief = isChairman || user?.role === 'leader' || user?.role === 'admin';
-        // 2026-09-29 隔离修复：简报数据源改为按人隔离（非 admin/董事长仅本人项目），
-        // 原全量查询会让零项目的新账号在简报里"看到"全库活跃项目
-        const allProjects = needsProjectBrief
-          ? await this.loadBriefProjects(userId, user?.role, user?.username)
-          : undefined;
-
-        const result = await this.aiService.analyzeWorkArrangementDailyPlan({
-          date: dayStart.toISOString(),
-          currentTime: new Date(now).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }),
-          items: items.map((item) => ({
-            id: item.id, title: item.title, description: item.description ?? '',
-            type: item.type, urgency: item.urgency, status: item.status,
-            dueAt: item.dueAt?.toISOString() ?? null,
-            reminderAt: item.reminderAt?.toISOString() ?? null,
-            estimatedMinutes: item.estimatedMinutes ?? null,
-            customTags: normalizeTags(item.customTags),
-            project: item.projectManagementItem ? { id: item.projectManagementItem.id, title: item.projectManagementItem.title, currentStage: item.projectManagementItem.currentStage, status: item.projectManagementItem.status } : null,
-            dependencies: item.dependencies.map((dep) => ({ id: dep.dependsOn.id, title: dep.dependsOn.title, status: dep.dependsOn.status })),
-          })),
-          userContext: user ? { role: user.role, displayName: user.displayName, username: user.username } : undefined,
-          chairmanMode: isChairman || undefined,
-          projects: allProjects,
-        });
+        const ctx = await this.loadPlanContext(userId);
+        const result = await this.generatePlanResult(ctx, dayStart, now);
 
         // 更新内存缓存 L1
         const { headerGreeting: _, namePraise: __, date: ___, ...contentWithoutHeader } = result;
         this.headerGreetingCache.set(userId, {
           headerGreeting: result.headerGreeting, namePraise: result.namePraise,
-          itemCount: items.length, timestamp: now,
+          itemCount: ctx.items.length, timestamp: now,
         });
-        this.contentCache.set(userId, { data: { ...contentWithoutHeader }, itemCount: items.length, timestamp: now });
+        this.contentCache.set(userId, { data: { ...contentWithoutHeader }, itemCount: ctx.items.length, timestamp: now });
 
         // 持久化到 DB
         await this.saveDbCachedPlan(userId, dateStr, {
@@ -239,6 +196,78 @@ export class WorkArrangementsService {
     this.dbRefreshLocks.set(lockKey, promise);
   }
 
+  /** AI 排程的取数上下文：用户 + 未完结任务 +（董事长/领导/admin）按人隔离的项目简报。
+   *  buildDailyPlan / buildDailyPlanInternal / refreshPlanInBackground 三处共用
+   *  （2026-10-21 收敛：三份同构载荷构造曾各自漂移）。 */
+  private async loadPlanContext(userId: string) {
+    const [user, items] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { username: true, role: true, displayName: true },
+      }),
+      this.prisma.workArrangement.findMany({
+        where: {
+          userId,
+          status: { notIn: [WorkArrangementStatus.COMPLETED, WorkArrangementStatus.CANCELLED] },
+        },
+        orderBy: [{ urgency: 'desc' }, { dueAt: 'asc' }, { updatedAt: 'desc' }],
+        include: {
+          projectManagementItem: { select: { id: true, title: true, currentStage: true, status: true } },
+          dependencies: { include: { dependsOn: { select: { id: true, title: true, status: true } } } },
+        },
+      }),
+    ]);
+
+    // 董事长/领导模式；简报数据源按人隔离（2026-09-29：非 admin/董事长仅本人项目，
+    // 原全量查询会让零项目的新账号在简报里"看到"全库活跃项目）
+    const isChairman = user?.username === 'Swhi-CGZX-00';
+    const needsProjectBrief = isChairman || user?.role === 'leader' || user?.role === 'admin';
+    const allProjects = needsProjectBrief
+      ? await this.loadBriefProjects(userId, user?.role, user?.username)
+      : undefined;
+
+    return { user, items, isChairman, allProjects };
+  }
+
+  /** AI 排程生成（含失败兜底空计划）——载荷构造唯一入口，勿在调用点复制 */
+  private async generatePlanResult(
+    ctx: Awaited<ReturnType<WorkArrangementsService['loadPlanContext']>>,
+    dayStart: Date,
+    now: number,
+  ) {
+    try {
+      return await this.aiService.analyzeWorkArrangementDailyPlan({
+        date: dayStart.toISOString(),
+        currentTime: new Date(now).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }),
+        items: ctx.items.map((item) => ({
+          id: item.id, title: item.title, description: item.description ?? '',
+          type: item.type, urgency: item.urgency, status: item.status,
+          dueAt: item.dueAt?.toISOString() ?? null,
+          reminderAt: item.reminderAt?.toISOString() ?? null,
+          estimatedMinutes: item.estimatedMinutes ?? null,
+          customTags: normalizeTags(item.customTags),
+          project: item.projectManagementItem
+            ? { id: item.projectManagementItem.id, title: item.projectManagementItem.title, currentStage: item.projectManagementItem.currentStage, status: item.projectManagementItem.status }
+            : null,
+          dependencies: item.dependencies.map((dep) => ({ id: dep.dependsOn.id, title: dep.dependsOn.title, status: dep.dependsOn.status })),
+        })),
+        userContext: ctx.user
+          ? { role: ctx.user.role, displayName: ctx.user.displayName, username: ctx.user.username }
+          : undefined,
+        chairmanMode: ctx.isChairman || undefined,
+        projects: ctx.allProjects,
+      });
+    } catch (error) {
+      console.error('AI daily plan generation failed:', error);
+      return {
+        date: dayStart.toISOString(), headerGreeting: '', namePraise: '',
+        dailyGreeting: '', riskSummary: '', aiSuggestion: '', overview: '',
+        focusItems: [], timeBlocks: [], riskAlerts: [],
+        completionAdvice: '', projectBrief: '',
+      };
+    }
+  }
+
   // 刷新问候语缓存（管理员可调用）
   async refreshDailyGreeting() {
     this.headerGreetingCache.clear();
@@ -258,7 +287,7 @@ export class WorkArrangementsService {
     this.contentCache.delete(userId);
 
     // 调用完整的 buildDailyPlan（无缓存时会走 AI 生成）
-    return this.buildDailyPlanInternal(userId, today, dayStart, now, true);
+    return this.buildDailyPlanInternal(userId, today, dayStart, now);
   }
 
   async list(userId: string, query: QueryWorkArrangementsDto) {
@@ -302,10 +331,11 @@ export class WorkArrangementsService {
         query.scope === 'TODAY'
           ? { gte: startOfDay(anchor), lte: endOfDay(anchor) }
           : { gte: startOfWeek(anchor), lte: endOfWeek(anchor) };
-      where.OR = [
-        ...(Array.isArray(where.OR) ? where.OR : []),
-        { dueAt: range },
-        { reminderAt: range },
+      // 范围条件与关键词必须 AND——原实现并入 where.OR 会让关键词在
+      // scope 过滤时退化为可选（命中日期区间即出，关键词形同虚设）
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : []),
+        { OR: [{ dueAt: range }, { reminderAt: range }] },
       ];
     }
 
@@ -347,8 +377,7 @@ export class WorkArrangementsService {
     if (query.reminderState) {
       const now = query.date ? new Date(query.date) : new Date();
       return serialized.filter(
-        (item) =>
-          this.getReminderState(item.reminderAt, now) === query.reminderState,
+        (item) => this.getReminderState(item, now) === query.reminderState,
       );
     }
 
@@ -385,7 +414,7 @@ export class WorkArrangementsService {
     const riskCount = serialized.filter(
       (item) =>
         item.status === 'BLOCKED' ||
-        this.getReminderState(item.reminderAt, anchor) === 'OVERDUE',
+        this.getReminderState(item, anchor) === 'OVERDUE',
     ).length;
 
     return {
@@ -400,7 +429,7 @@ export class WorkArrangementsService {
     };
   }
 
-  async generateGreeting(userId: string, userName: string) {
+  async generateGreeting(userId: string, userName: string, role: string) {
     const now = new Date();
     const dayStart = startOfDay(now);
     const dayEnd = endOfDay(now);
@@ -443,7 +472,8 @@ export class WorkArrangementsService {
         inProgressCount,
         dueTodayCount,
         completedTodayCount,
-        isLeader: false,
+        // 按真实角色传（原硬编码 false，leader 的问候语从不带领导视角）
+        isLeader: role === 'leader',
       });
     } catch (error) {
       console.error('AI greeting generation failed:', error);
@@ -520,47 +550,8 @@ export class WorkArrangementsService {
     }
 
     // SLOW PATH: 无 DB 缓存，需要完整生成（首次访问或缓存被清理）
-    const [user, items] = await Promise.all([
-      this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { username: true, role: true, displayName: true },
-      }),
-      this.prisma.workArrangement.findMany({
-      where: {
-        userId,
-        status: {
-          notIn: [
-            WorkArrangementStatus.COMPLETED,
-            WorkArrangementStatus.CANCELLED,
-          ],
-        },
-      },
-      orderBy: [{ urgency: 'desc' }, { dueAt: 'asc' }, { updatedAt: 'desc' }],
-      include: {
-        projectManagementItem: {
-          select: {
-            id: true,
-            title: true,
-            currentStage: true,
-            status: true,
-          },
-        },
-        dependencies: {
-          include: {
-            dependsOn: {
-              select: {
-                id: true,
-                title: true,
-                status: true,
-              },
-            },
-          },
-        },
-      },
-    }),
-    ]);
-
-    const relevantItems = items;
+    const ctx = await this.loadPlanContext(userId);
+    const relevantItems = ctx.items;
     const hasItemsNow = relevantItems.length > 0;
 
     // 检查 L1 内存缓存是否有效
@@ -587,54 +578,7 @@ export class WorkArrangementsService {
     }
 
     // 至少有一个缓存过期，需要调 AI
-    let result;
-
-    // 董事长/领导/管理员：附带项目简报数据（loadBriefProjects 已按人隔离，2026-09-29）
-    const isChairman = user?.username === 'Swhi-CGZX-00';
-    const needsProjectBrief = isChairman || user?.role === 'leader' || user?.role === 'admin';
-    const allProjects = needsProjectBrief
-      ? await this.loadBriefProjects(userId, user?.role, user?.username)
-      : undefined;
-
-    try {
-      const basePayload = {
-        date: dayStart.toISOString(),
-        currentTime: new Date(now).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }),
-        userContext: user ? { role: user.role, displayName: user.displayName, username: user.username } : undefined,
-        chairmanMode: isChairman || undefined,
-        projects: allProjects,
-      };
-      if (relevantItems.length === 0) {
-        result = await this.aiService.analyzeWorkArrangementDailyPlan({ ...basePayload, items: [] });
-      } else {
-        result = await this.aiService.analyzeWorkArrangementDailyPlan({
-          ...basePayload,
-          items: relevantItems.map((item) => ({
-            id: item.id, title: item.title, description: item.description ?? '',
-            type: item.type, urgency: item.urgency, status: item.status,
-            dueAt: item.dueAt?.toISOString() ?? null,
-            reminderAt: item.reminderAt?.toISOString() ?? null,
-            estimatedMinutes: item.estimatedMinutes ?? null,
-            customTags: normalizeTags(item.customTags),
-            project: item.projectManagementItem ? {
-              id: item.projectManagementItem.id, title: item.projectManagementItem.title,
-              currentStage: item.projectManagementItem.currentStage, status: item.projectManagementItem.status,
-            } : null,
-            dependencies: item.dependencies.map((dep) => ({
-              id: dep.dependsOn.id, title: dep.dependsOn.title, status: dep.dependsOn.status,
-            })),
-          })),
-        });
-      }
-    } catch (error) {
-      console.error('AI daily plan generation failed:', error);
-      result = {
-        date: dayStart.toISOString(), headerGreeting: '', namePraise: '',
-        dailyGreeting: '', riskSummary: '', aiSuggestion: '', overview: '',
-        focusItems: [], timeBlocks: [], riskAlerts: [],
-        completionAdvice: '', projectBrief: '',
-      };
-    }
+    const result = await this.generatePlanResult(ctx, dayStart, now);
 
     // 如果 headerGreeting 缓存仍有效，保留旧的
     const finalHeaderGreeting = headerCacheValid ? headerCacheEntry!.headerGreeting : result.headerGreeting;
@@ -670,65 +614,15 @@ export class WorkArrangementsService {
    * 不检查 DB 缓存，直接走完整 AI 生成流程
    */
   private async buildDailyPlanInternal(
-    userId: string, today: string, dayStart: Date, now: number, force: boolean,
+    userId: string, today: string, dayStart: Date, now: number,
   ) {
     // 直接走完整生成（不检查任何缓存）
-    const [user, items] = await Promise.all([
-      this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { username: true, role: true, displayName: true },
-      }),
-      this.prisma.workArrangement.findMany({
-        where: { userId, status: { notIn: [WorkArrangementStatus.COMPLETED, WorkArrangementStatus.CANCELLED] } },
-        orderBy: [{ urgency: 'desc' }, { dueAt: 'asc' }, { updatedAt: 'desc' }],
-        include: {
-          projectManagementItem: { select: { id: true, title: true, currentStage: true, status: true } },
-          dependencies: { include: { dependsOn: { select: { id: true, title: true, status: true } } } },
-        },
-      }),
-    ]);
+    const ctx = await this.loadPlanContext(userId);
+    const result = await this.generatePlanResult(ctx, dayStart, now);
 
-    const isChairman = user?.username === 'Swhi-CGZX-00';
-    const needsProjectBrief = isChairman || user?.role === 'leader' || user?.role === 'admin';
-    // 2026-09-29 隔离修复：简报数据源改为按人隔离（非 admin/董事长仅本人项目）
-    const allProjects = needsProjectBrief
-      ? await this.loadBriefProjects(userId, user?.role, user?.username)
-      : undefined;
-
-    let result;
-    try {
-      const basePayload = {
-        date: dayStart.toISOString(),
-        currentTime: new Date(now).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }),
-        userContext: user ? { role: user.role, displayName: user.displayName, username: user.username } : undefined,
-        chairmanMode: isChairman || undefined,
-        projects: allProjects,
-      };
-      if (items.length === 0) {
-        result = await this.aiService.analyzeWorkArrangementDailyPlan({ ...basePayload, items: [] });
-      } else {
-        result = await this.aiService.analyzeWorkArrangementDailyPlan({
-          ...basePayload,
-          items: items.map((item) => ({
-            id: item.id, title: item.title, description: item.description ?? '',
-            type: item.type, urgency: item.urgency, status: item.status,
-            dueAt: item.dueAt?.toISOString() ?? null,
-            reminderAt: item.reminderAt?.toISOString() ?? null,
-            estimatedMinutes: item.estimatedMinutes ?? null,
-            customTags: normalizeTags(item.customTags),
-            project: item.projectManagementItem ? { id: item.projectManagementItem.id, title: item.projectManagementItem.title, currentStage: item.projectManagementItem.currentStage, status: item.projectManagementItem.status } : null,
-            dependencies: item.dependencies.map((dep) => ({ id: dep.dependsOn.id, title: dep.dependsOn.title, status: dep.dependsOn.status })),
-          })),
-        });
-      }
-    } catch (error) {
-      console.error('AI daily plan generation failed:', error);
-      result = { date: dayStart.toISOString(), headerGreeting: '', namePraise: '', dailyGreeting: '', riskSummary: '', aiSuggestion: '', overview: '', focusItems: [], timeBlocks: [], riskAlerts: [], completionAdvice: '', projectBrief: '' };
-    }
-
-    this.headerGreetingCache.set(userId, { headerGreeting: result.headerGreeting, namePraise: result.namePraise, itemCount: items.length, timestamp: now });
+    this.headerGreetingCache.set(userId, { headerGreeting: result.headerGreeting, namePraise: result.namePraise, itemCount: ctx.items.length, timestamp: now });
     const { headerGreeting: _, namePraise: ___, date: __, ...contentWithoutHeader } = result;
-    this.contentCache.set(userId, { data: { ...contentWithoutHeader }, itemCount: items.length, timestamp: now });
+    this.contentCache.set(userId, { data: { ...contentWithoutHeader }, itemCount: ctx.items.length, timestamp: now });
 
     const response = { date: dayStart.toISOString(), headerGreeting: result.headerGreeting, namePraise: result.namePraise, ...contentWithoutHeader };
     await this.saveDbCachedPlan(userId, today, response as any);
@@ -800,8 +694,8 @@ export class WorkArrangementsService {
     return { success: true };
   }
 
-  async create(userId: string, dto: CreateWorkArrangementDto) {
-    await this.validateProjectLink(dto.projectManagementItemId);
+  async create(userId: string, role: string, dto: CreateWorkArrangementDto) {
+    await this.validateProjectLink(userId, role, dto.projectManagementItemId);
     await this.validateDependencies(userId, dto.dependencyIds ?? []);
 
     const arrangement = await this.prisma.workArrangement.create({
@@ -848,9 +742,18 @@ export class WorkArrangementsService {
     return this.serializeArrangement(arrangement);
   }
 
-  async update(userId: string, id: string, dto: UpdateWorkArrangementDto) {
+  async update(
+    userId: string,
+    role: string,
+    id: string,
+    dto: UpdateWorkArrangementDto,
+  ) {
     await this.findArrangementOrThrow(userId, id);
-    await this.validateProjectLink(dto.projectManagementItemId ?? undefined);
+    await this.validateProjectLink(
+      userId,
+      role,
+      dto.projectManagementItemId ?? undefined,
+    );
     if (dto.dependencyIds) {
       await this.validateDependencies(userId, dto.dependencyIds, id);
     }
@@ -1013,19 +916,44 @@ export class WorkArrangementsService {
     return template;
   }
 
-  private async validateProjectLink(projectManagementItemId?: string) {
+  /** 项目关联合法性——与 PmiOwnershipGuard 读口径同源（2026-10-21 隔离补漏）：
+   *  创建人 / 本公司 leader / admin 可关联。此前仅查存在性，任意 staff 可把
+   *  任务挂到他人或他司项目 id 上，借 list include 与 AI 简报载荷外带项目信息。 */
+  private async validateProjectLink(
+    userId: string,
+    role: string,
+    projectManagementItemId?: string,
+  ) {
     if (!projectManagementItemId) {
       return;
     }
 
-    const linkedProject = await this.prisma.projectManagementItem.findUnique({
-      where: { id: projectManagementItemId },
-      select: { id: true },
-    });
+    const [linkedProject, requester] = await Promise.all([
+      this.prisma.projectManagementItem.findUnique({
+        where: { id: projectManagementItemId },
+        select: { createdById: true, companyId: true },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { companyId: true },
+      }),
+    ]);
 
     if (!linkedProject) {
       throw new BadRequestException('关联的项目不存在。');
     }
+
+    if (linkedProject.createdById === userId) return;
+    if (role === 'admin') return;
+    if (
+      role === 'leader' &&
+      requester?.companyId &&
+      linkedProject.companyId === requester.companyId
+    ) {
+      return;
+    }
+
+    throw new BadRequestException('关联的项目不在当前账号的可见范围内。');
   }
 
   private async validateDependencies(
@@ -1052,27 +980,33 @@ export class WorkArrangementsService {
     }
   }
 
-  private getReminderState(reminderAt: string | Date | null, now: Date) {
-    if (!reminderAt) {
+  /** 提醒状态判定——与前端 workbench.ts deriveReminderState 同口径（2026-10-21 对齐）：
+   *  已完结任务无活提醒；未到提醒时刻不进 DUE_NOW（原实现把「未来 15 分钟内」
+   *  判成 DUE_NOW，与前端同源缺陷——提醒时间没到就"已到"）；刚到 1 分钟内
+   *  DUE_NOW、超过即 OVERDUE；临近 2 小时内 UPCOMING。 */
+  private getReminderState(
+    item: { status: WorkArrangementStatus; reminderAt: string | Date | null },
+    now: Date,
+  ) {
+    if (
+      item.status === WorkArrangementStatus.COMPLETED ||
+      item.status === WorkArrangementStatus.CANCELLED
+    ) {
       return 'NONE';
     }
 
-    const reminderDate = new Date(reminderAt);
+    if (!item.reminderAt) {
+      return 'NONE';
+    }
+
+    const reminderDate = new Date(item.reminderAt);
     const deltaMs = reminderDate.getTime() - now.getTime();
 
-    if (deltaMs < 0) {
-      return 'OVERDUE';
+    if (deltaMs > 0) {
+      return deltaMs <= 2 * 60 * 60 * 1000 ? 'UPCOMING' : 'NONE';
     }
 
-    if (deltaMs <= 15 * 60 * 1000) {
-      return 'DUE_NOW';
-    }
-
-    if (deltaMs <= 2 * 60 * 60 * 1000) {
-      return 'UPCOMING';
-    }
-
-    return 'NONE';
+    return deltaMs > -60 * 1000 ? 'DUE_NOW' : 'OVERDUE';
   }
 
   private resolvePostponedReminderAt(

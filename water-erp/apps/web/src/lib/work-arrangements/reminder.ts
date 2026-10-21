@@ -1,9 +1,12 @@
 /**
  * 提醒服务模块
- * 负责检查任务提醒时间、触发浏览器通知、管理提醒状态
+ * 负责浏览器通知权限与通知发送。
+ * 提醒状态判定统一走 workbench.ts 的 deriveReminderState（单一口径），
+ * 本模块曾有一份私有的同名判定与未被引用的 checkReminders——已删（2026-10-21），
+ * 勿再在此复制时间窗口逻辑。
  */
 
-import type { WorkArrangementItem, WorkArrangementReminderState } from '@/lib/types/work-arrangements';
+import type { WorkArrangementReminderState } from '@/lib/types/work-arrangements';
 
 export type ReminderAction = 'view' | 'postpone' | 'dismiss';
 
@@ -11,6 +14,8 @@ export type ReminderInfo = {
   taskId: string;
   taskTitle: string;
   reminderState: WorkArrangementReminderState;
+  /** 触发本次提醒的提醒时刻——忽略去重键（taskId:reminderAt）用 */
+  reminderAt: string | null;
   dueAt: string | null;
 };
 
@@ -59,69 +64,5 @@ export function sendBrowserNotification(title: string, body: string, onClick?: (
 
   // 5秒后自动关闭
   setTimeout(() => notification.close(), 5000);
-}
-
-// 检查哪些任务需要提醒
-export function checkReminders(
-  items: WorkArrangementItem[],
-  now: Date,
-): ReminderInfo[] {
-  const reminders: ReminderInfo[] = [];
-
-  for (const item of items) {
-    // 跳过已完成或已取消的任务
-    if (item.status === 'COMPLETED' || item.status === 'CANCELLED') {
-      continue;
-    }
-
-    // 没有设置提醒时间
-    if (!item.reminderAt) {
-      continue;
-    }
-
-    const reminderTime = new Date(item.reminderAt).getTime();
-    const nowTime = now.getTime();
-
-    // 提醒时间在未来 60 秒内（即将提醒）
-    const diffSeconds = (reminderTime - nowTime) / 1000;
-
-    if (diffSeconds <= 60 && diffSeconds > -300) {
-      // 提醒时间在 1 分钟内到达，或者已经过了但不超过 5 分钟
-      const reminderState = deriveReminderState(item, now);
-      reminders.push({
-        taskId: item.id,
-        taskTitle: item.title,
-        reminderState,
-        dueAt: item.dueAt,
-      });
-    }
-  }
-
-  return reminders;
-}
-
-// 计算提醒状态
-function deriveReminderState(item: WorkArrangementItem, now: Date): WorkArrangementReminderState {
-  if (!item.reminderAt) {
-    return 'NONE';
-  }
-
-  const reminderTime = new Date(item.reminderAt).getTime();
-  const nowTime = now.getTime();
-  const diffMinutes = (reminderTime - nowTime) / (1000 * 60);
-
-  if (diffMinutes > 0 && diffMinutes <= 60) {
-    return 'UPCOMING';
-  }
-
-  if (diffMinutes <= 0 && diffMinutes > -1) {
-    return 'DUE_NOW';
-  }
-
-  if (diffMinutes <= -1) {
-    return 'OVERDUE';
-  }
-
-  return 'NONE';
 }
 

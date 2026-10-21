@@ -1,6 +1,6 @@
 import type { WorkArrangementItem } from '@/lib/types/work-arrangements';
 
-const STORAGE_KEY = 'workspace:overdue-dialog-shown';
+const STORAGE_KEY_PREFIX = 'workspace:overdue-dialog-shown';
 
 const URGENCY_ORDER: Record<string, number> = {
   CRITICAL: 0,
@@ -32,10 +32,10 @@ export function getOverdueTasks(
     });
 }
 
-/** 判断今天是否已经显示过逾期对话框 */
-export function hasShownOverdueDialogToday(): boolean {
+/** 判断今天是否已经显示过逾期对话框——按用户隔离（同机多账号不共享当日已读标记） */
+export function hasShownOverdueDialogToday(userId: string): boolean {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(`${STORAGE_KEY_PREFIX}:${userId}`);
     if (!stored) return false;
     const today = new Date().toISOString().slice(0, 10);
     return new Date(stored).toISOString().slice(0, 10) === today;
@@ -45,9 +45,9 @@ export function hasShownOverdueDialogToday(): boolean {
 }
 
 /** 标记今天已显示逾期对话框 */
-export function markOverdueDialogShownToday(): void {
+export function markOverdueDialogShownToday(userId: string): void {
   try {
-    localStorage.setItem(STORAGE_KEY, new Date().toISOString());
+    localStorage.setItem(`${STORAGE_KEY_PREFIX}:${userId}`, new Date().toISOString());
   } catch {
     // 静默失败（无痕模式下 localStorage 不可用）
   }

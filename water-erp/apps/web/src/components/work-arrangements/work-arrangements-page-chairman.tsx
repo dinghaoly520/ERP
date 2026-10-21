@@ -21,18 +21,14 @@ import {
   fetchWorkArrangements,
   refreshWorkArrangementDailyPlan,
   updateWorkArrangement,
-  type WorkArrangementPayload,
 } from "@/lib/api/work-arrangements";
 import type { ProjectManagementItem } from "@/lib/types/project-management";
 import {
   type WorkArrangementDailyPlan,
   type WorkArrangementItem,
   type WorkArrangementNoteType,
-  type WorkArrangementRecurrence,
   type WorkArrangementReminderState,
   type WorkArrangementStatus,
-  type WorkArrangementType,
-  type WorkArrangementUrgency,
 } from "@/lib/types/work-arrangements";
 import {
   buildWorkbenchOverview,
@@ -50,92 +46,13 @@ import {
   markOverdueDialogShownToday,
 } from "@/lib/work-arrangements/overdue";
 
-type EditorState = {
-  title: string;
-  description: string;
-  type: WorkArrangementType;
-  urgency: WorkArrangementUrgency;
-  status: WorkArrangementStatus;
-  dueAt: string;
-  reminderAt: string;
-  estimatedMinutes: string;
-  isAllDay: boolean;
-  customTags: string;
-  recurrence: WorkArrangementRecurrence;
-  projectManagementItemId: string;
-  dependencyIds: string[];
-  completionSummary: string;
-  reflectionSummary: string;
-};
-
-const DEFAULT_EDITOR_STATE: EditorState = {
-  title: "",
-  description: "",
-  type: "FOLLOW_UP",
-  urgency: "MEDIUM",
-  status: "TODO",
-  dueAt: "",
-  reminderAt: "",
-  estimatedMinutes: "",
-  isAllDay: true,
-  customTags: "",
-  recurrence: "NONE",
-  projectManagementItemId: "",
-  dependencyIds: [],
-  completionSummary: "",
-  reflectionSummary: "",
-};
-
-function blankEditor(projectManagementItemId = "") {
-  return { ...DEFAULT_EDITOR_STATE, projectManagementItemId };
-}
-
-function formatDateInputValue(value: string | null) {
-  if (!value) return "";
-  const date = new Date(value);
-  const timezoneOffset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 16);
-}
-
-function editorFromTask(task: WorkArrangementItem): EditorState {
-  return {
-    title: task.title,
-    description: task.description ?? "",
-    type: task.type,
-    urgency: task.urgency,
-    status: task.status,
-    dueAt: formatDateInputValue(task.dueAt),
-    reminderAt: formatDateInputValue(task.reminderAt),
-    estimatedMinutes: task.estimatedMinutes === null ? "" : String(task.estimatedMinutes),
-    isAllDay: task.isAllDay,
-    customTags: task.customTags.join("，"),
-    recurrence: task.recurrence,
-    projectManagementItemId: task.projectManagementItem?.id ?? "",
-    dependencyIds: task.dependencies.map((d) => d.id),
-    completionSummary: task.completionSummary ?? "",
-    reflectionSummary: task.reflectionSummary ?? "",
-  };
-}
-
-function payloadFromEditor(editor: EditorState): WorkArrangementPayload {
-  return {
-    title: editor.title.trim(),
-    description: editor.description.trim() || undefined,
-    type: editor.type,
-    urgency: editor.urgency,
-    status: editor.status,
-    dueAt: editor.dueAt ? new Date(editor.dueAt).toISOString() : null,
-    reminderAt: editor.reminderAt ? new Date(editor.reminderAt).toISOString() : null,
-    estimatedMinutes: editor.estimatedMinutes ? Number(editor.estimatedMinutes) : null,
-    isAllDay: editor.isAllDay,
-    customTags: editor.customTags.split(/[，,]/).map((t) => t.trim()).filter(Boolean),
-    recurrence: editor.recurrence,
-    projectManagementItemId: editor.projectManagementItemId || null,
-    dependencyIds: editor.dependencyIds,
-    completionSummary: editor.completionSummary.trim() || null,
-    reflectionSummary: editor.reflectionSummary.trim() || null,
-  };
-}
+// 编辑器表单状态与换算——与普通页/编辑抽屉共用（2026-10-21 抽出，防口径漂移）
+import {
+  blankEditor,
+  editorFromTask,
+  payloadFromEditor,
+  type WorkArrangementEditorState as EditorState,
+} from "@/lib/work-arrangements/editor";
 
 export function WorkArrangementsPageChairman({
   initialProjectManagementItemId,
@@ -257,16 +174,16 @@ export function WorkArrangementsPageChairman({
     void loadWorkspace();
   }, []);
 
-  // 逾期任务检查：每天首次进入页面时弹出一次
+  // 逾期任务检查：每天首次进入页面时弹出一次（标记按用户隔离，同机多账号不共享）
   useEffect(() => {
-    if (allItems.length === 0 || hasShownOverdueDialogToday()) return;
+    if (!currentUser?.id || allItems.length === 0 || hasShownOverdueDialogToday(currentUser.id)) return;
     const overdue = getOverdueTasks(allItems);
     if (overdue.length > 0) {
       setOverdueTasks(overdue);
       setShowOverdueDialog(true);
-      markOverdueDialogShownToday();
+      markOverdueDialogShownToday(currentUser.id);
     }
-  }, [allItems]);
+  }, [allItems, currentUser?.id]);
 
   // 后台静默刷新每日计划（页面打开后滞后执行）
   useEffect(() => {
@@ -376,10 +293,17 @@ export function WorkArrangementsPageChairman({
     }
   };
 
-  const handleQuickStatusUpdate = async (status: WorkArrangementStatus) => {
+  const handleQuickStatusUpdate = async (
+    status: WorkArrangementStatus,
+    completionSummary?: string,
+  ) => {
     if (!selectedItemId) return;
     try {
-      await updateWorkArrangement(selectedItemId, { status });
+      await updateWorkArrangement(selectedItemId, {
+        status,
+        // 标记完成时引导补的完成摘要（undefined=未引导/未填写，不碰存量字段）
+        ...(completionSummary === undefined ? {} : { completionSummary }),
+      });
       await refreshTasksOnly();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "更新状态失败。");
@@ -498,7 +422,6 @@ export function WorkArrangementsPageChairman({
         selectedItemTitle={selectedItem?.title ?? null}
         editor={editor}
         projects={projects}
-        availableDependencies={allItems.filter((i: any) => i.id !== selectedItemId)}
         onClose={() => { setCreating(false); setShowFullEditor(false); }}
         onSave={() => void handleSave()}
         onDelete={() => void handleDelete()}
@@ -527,7 +450,7 @@ export function WorkArrangementsPageChairman({
         refreshTasksOnly();
       }}
       onStart={() => void handleQuickStatusUpdate('IN_PROGRESS')}
-      onComplete={() => void handleQuickStatusUpdate('COMPLETED')}
+      onComplete={(completionSummary) => void handleQuickStatusUpdate('COMPLETED', completionSummary)}
       onBlock={() => void handleQuickStatusUpdate('BLOCKED')}
       onUnblock={() => void handleQuickStatusUpdate('TODO')}
       onCancel={() => void handleQuickStatusUpdate('CANCELLED')}

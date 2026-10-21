@@ -1,39 +1,21 @@
 'use client';
 
+import { useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { Save, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Save, Trash2 } from 'lucide-react';
 import { Modal } from '@/components/workbench';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 import {
-  WORK_ARRANGEMENT_RECURRENCE_LABELS,
   WORK_ARRANGEMENT_RECURRENCE_OPTIONS,
   WORK_ARRANGEMENT_STATUS_OPTIONS,
   WORK_ARRANGEMENT_TYPE_OPTIONS,
   WORK_ARRANGEMENT_URGENCY_OPTIONS,
-  type WorkArrangementItem,
   type WorkArrangementRecurrence,
   type WorkArrangementStatus,
   type WorkArrangementType,
   type WorkArrangementUrgency,
 } from '@/lib/types/work-arrangements';
-
-type EditorState = {
-  title: string;
-  description: string;
-  type: WorkArrangementType;
-  urgency: WorkArrangementUrgency;
-  status: WorkArrangementStatus;
-  dueAt: string;
-  reminderAt: string;
-  estimatedMinutes: string;
-  isAllDay: boolean;
-  customTags: string;
-  recurrence: WorkArrangementRecurrence;
-  projectManagementItemId: string;
-  dependencyIds: string[];
-  completionSummary: string;
-  reflectionSummary: string;
-};
+import type { WorkArrangementEditorState as EditorState } from '@/lib/work-arrangements/editor';
 
 type WorkTaskEditorDrawerProps = {
   open: boolean;
@@ -42,12 +24,22 @@ type WorkTaskEditorDrawerProps = {
   selectedItemTitle: string | null;
   editor: EditorState;
   projects: ProjectManagementItem[];
-  availableDependencies: WorkArrangementItem[];
   onClose: () => void;
   onSave: () => void;
   onDelete: () => void;
   onChange: Dispatch<SetStateAction<EditorState>>;
 };
+
+/** 分节标题：小标 + 提示 + 1px 发丝线（.impeccable 分节语汇，打破整列堆叠的拥挤感） */
+function EditorSection({ title, hint }: { title: string; hint?: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="shrink-0 text-xs font-semibold tracking-wide text-[color:var(--accent)]">{title}</span>
+      {hint ? <span className="shrink-0 text-[10px] text-[color:var(--muted-foreground)]">{hint}</span> : null}
+      <span className="h-px flex-1 bg-[var(--border)]" />
+    </div>
+  );
+}
 
 export function WorkTaskEditorDrawer({
   open,
@@ -56,12 +48,20 @@ export function WorkTaskEditorDrawer({
   selectedItemTitle,
   editor,
   projects,
-  availableDependencies,
   onClose,
   onSave,
   onDelete,
   onChange,
 }: WorkTaskEditorDrawerProps) {
+  // 收尾沉淀（完成摘要/心得反思）：编辑已有任务默认展开、新建默认收起；
+  // 每次重新打开按 creating 重置（组件常驻挂载，state 不会自行复位）
+  const [wrapUpOpen, setWrapUpOpen] = useState(!creating);
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) setWrapUpOpen(!creating);
+  }
+
   if (!open) return null;
 
   return (
@@ -81,199 +81,123 @@ export function WorkTaskEditorDrawer({
         </>
       }
     >
-      <div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
-              <span className="font-medium">标题 *</span>
-              <input
-                value={editor.title}
-                onChange={(event) =>
-                  onChange((current) => ({ ...current, title: event.target.value }))
-                }
-                placeholder="输入工作标题"
-                className="workbench-input"
-              />
-            </label>
-            <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
-              <span className="font-medium">关联项目</span>
-              <select
-                value={editor.projectManagementItemId}
-                onChange={(event) =>
-                  onChange((current) => ({
-                    ...current,
-                    projectManagementItemId: event.target.value,
-                  }))
-                }
-                className="workbench-input"
-              >
-                <option value="">不关联具体项目</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+      <div className="flex flex-col gap-4">
+        <EditorSection title="基本信息" />
 
-          <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
-            <span className="font-medium">任务说明</span>
-            <textarea
-              value={editor.description}
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="grid min-w-0 gap-2 text-sm text-[color:var(--foreground)]">
+            <span className="font-medium">标题 *</span>
+            <input
+              value={editor.title}
+              onChange={(event) =>
+                onChange((current) => ({ ...current, title: event.target.value }))
+              }
+              placeholder="输入工作标题"
+              className="workbench-input"
+            />
+          </label>
+          <label className="grid min-w-0 gap-2 text-sm text-[color:var(--foreground)]">
+            <span className="font-medium">项目关联</span>
+            <select
+              value={editor.projectManagementItemId}
               onChange={(event) =>
                 onChange((current) => ({
                   ...current,
-                  description: event.target.value,
+                  projectManagementItemId: event.target.value,
                 }))
               }
-              rows={3}
-              placeholder="详细描述这项工作的内容"
-              className="neu-input text-sm"
-            />
+              className="workbench-input"
+            >
+              <option value="">不关联具体项目</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.projectCode ? `${project.title}（${project.projectCode}）` : project.title}
+                </option>
+              ))}
+            </select>
+            <span className="text-[10px] text-[var(--muted-foreground)]">
+              名称 + 项目编号；列表按项目归属隔离（本人 / 本公司可见范围）
+            </span>
           </label>
+        </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
-            <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
-              <span className="font-medium">类型</span>
-              <select
-                value={editor.type}
-                onChange={(event) =>
-                  onChange((current) => ({
-                    ...current,
-                    type: event.target.value as WorkArrangementType,
-                  }))
-                }
-                className="workbench-input"
-              >
-                {WORK_ARRANGEMENT_TYPE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
-              <span className="font-medium">紧急程度</span>
-              <select
-                value={editor.urgency}
-                onChange={(event) =>
-                  onChange((current) => ({
-                    ...current,
-                    urgency: event.target.value as WorkArrangementUrgency,
-                  }))
-                }
-                className="workbench-input"
-              >
-                {WORK_ARRANGEMENT_URGENCY_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
-              <span className="font-medium">状态</span>
-              <select
-                value={editor.status}
-                onChange={(event) =>
-                  onChange((current) => ({
-                    ...current,
-                    status: event.target.value as WorkArrangementStatus,
-                  }))
-                }
-                className="workbench-input"
-              >
-                {WORK_ARRANGEMENT_STATUS_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+        <EditorSection title="任务说明" />
+        <textarea
+          value={editor.description}
+          onChange={(event) =>
+            onChange((current) => ({
+              ...current,
+              description: event.target.value,
+            }))
+          }
+          rows={3}
+          placeholder="详细描述这项工作的内容"
+          className="neu-input text-sm"
+        />
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="grid min-w-0 gap-2 text-sm text-[color:var(--foreground)]">
-              <span className="font-medium">截止时间</span>
-              <input
-                type="datetime-local"
-                value={editor.dueAt}
-                onChange={(event) =>
-                  onChange((current) => ({ ...current, dueAt: event.target.value }))
-                }
-                className="workbench-input flex-1 min-w-0"
-              />
-            </label>
-            <label className="grid min-w-0 gap-2 text-sm text-[color:var(--foreground)]">
-              <span className="font-medium">提醒时间</span>
-              <input
-                type="datetime-local"
-                value={editor.reminderAt}
-                onChange={(event) =>
-                  onChange((current) => ({
-                    ...current,
-                    reminderAt: event.target.value,
-                  }))
-                }
-                className="workbench-input flex-1 min-w-0"
-              />
-            </label>
-            <label className="grid min-w-0 gap-2 text-sm text-[color:var(--foreground)]">
-              <span className="font-medium">预计耗时（分钟）</span>
-              <input
-                type="number"
-                min="0"
-                value={editor.estimatedMinutes}
-                onChange={(event) =>
-                  onChange((current) => ({
-                    ...current,
-                    estimatedMinutes: event.target.value,
-                  }))
-                }
-                className="workbench-input flex-1 min-w-0"
-              />
-            </label>
-            <label className="grid min-w-0 gap-2 text-sm text-[color:var(--foreground)]">
-              <span className="font-medium">重复规则</span>
-              <select
-                value={editor.recurrence}
-                onChange={(event) =>
-                  onChange((current) => ({
-                    ...current,
-                    recurrence: event.target.value as WorkArrangementRecurrence,
-                  }))
-                }
-                className="workbench-input flex-1 min-w-0"
-              >
-                {WORK_ARRANGEMENT_RECURRENCE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+        <EditorSection title="分类与状态" />
+        <div className="grid gap-4 md:grid-cols-3">
+          <label className="grid min-w-0 gap-2 text-sm text-[color:var(--foreground)]">
+            <span className="font-medium">类型</span>
+            <select
+              value={editor.type}
+              onChange={(event) =>
+                onChange((current) => ({
+                  ...current,
+                  type: event.target.value as WorkArrangementType,
+                }))
+              }
+              className="workbench-input"
+            >
+              {WORK_ARRANGEMENT_TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid min-w-0 gap-2 text-sm text-[color:var(--foreground)]">
+            <span className="font-medium">紧急程度</span>
+            <select
+              value={editor.urgency}
+              onChange={(event) =>
+                onChange((current) => ({
+                  ...current,
+                  urgency: event.target.value as WorkArrangementUrgency,
+                }))
+              }
+              className="workbench-input"
+            >
+              {WORK_ARRANGEMENT_URGENCY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid min-w-0 gap-2 text-sm text-[color:var(--foreground)]">
+            <span className="font-medium">状态</span>
+            <select
+              value={editor.status}
+              onChange={(event) =>
+                onChange((current) => ({
+                  ...current,
+                  status: event.target.value as WorkArrangementStatus,
+                }))
+              }
+              className="workbench-input"
+            >
+              {WORK_ARRANGEMENT_STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
 
-          <div className="flex flex-wrap items-center gap-4">
-            <label className="inline-flex items-center gap-2 text-sm text-[color:var(--muted-foreground)]">
-              <input
-                type="checkbox"
-                checked={editor.isAllDay}
-                onChange={(event) =>
-                  onChange((current) => ({
-                    ...current,
-                    isAllDay: event.target.checked,
-                  }))
-                }
-              />
-              视为全天事项
-            </label>
-            <div className="text-xs text-[color:var(--muted-foreground)]">
-              当前重复：{WORK_ARRANGEMENT_RECURRENCE_LABELS[editor.recurrence]}
-            </div>
-          </div>
-
-          <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="grid min-w-0 gap-2 text-sm text-[color:var(--foreground)]">
             <span className="font-medium">标签</span>
             <input
               value={editor.customTags}
@@ -284,62 +208,129 @@ export function WorkTaskEditorDrawer({
               className="workbench-input"
             />
           </label>
+          <label className="flex items-center gap-2 self-end pb-2 text-sm text-[color:var(--muted-foreground)]">
+            <input
+              type="checkbox"
+              checked={editor.isAllDay}
+              onChange={(event) =>
+                onChange((current) => ({
+                  ...current,
+                  isAllDay: event.target.checked,
+                }))
+              }
+            />
+            视为全天事项
+          </label>
+        </div>
 
-          {/* R7-1①（2026-09-30 审计）：三字段贯穿类型/回填/提交、展示端齐备，
-              但全站无录入 UI——补依赖任务、完成摘要、心得反思 */}
-          {availableDependencies && availableDependencies.length > 0 && (
-            <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
-              <span className="font-medium">依赖任务</span>
-              <select
-                multiple
-                value={editor.dependencyIds}
-                onChange={(event) =>
-                  onChange((current) => ({
-                    ...current,
-                    dependencyIds: Array.from(event.target.selectedOptions, (o) => o.value),
-                  }))
-                }
-                className="workbench-input h-24"
-              >
-                {availableDependencies.map((d) => (
-                  <option key={d.id} value={d.id}>{d.title}</option>
-                ))}
-                {/* R7 终审：项目域视图下依赖项可能不在当前列表——为已选 id 渲染禁用项防静默丢失 */}
-                {editor.dependencyIds
-                  .filter((id) => !availableDependencies.some((d) => d.id === id))
-                  .map((id) => (
-                    <option key={id} value={id} disabled>（不在当前列表的依赖项 · {id.slice(0, 8)}）</option>
-                  ))}
-              </select>
-              <span className="text-[10px] text-[var(--muted-foreground)]">按住 Ctrl/Cmd 多选，标记本任务的前置任务</span>
-            </label>
+        <EditorSection title="时间安排" />
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="grid min-w-0 gap-2 text-sm text-[color:var(--foreground)]">
+            <span className="font-medium">截止时间</span>
+            <input
+              type="datetime-local"
+              value={editor.dueAt}
+              onChange={(event) =>
+                onChange((current) => ({ ...current, dueAt: event.target.value }))
+              }
+              className="workbench-input min-w-0"
+            />
+          </label>
+          <label className="grid min-w-0 gap-2 text-sm text-[color:var(--foreground)]">
+            <span className="font-medium">提醒时间</span>
+            <input
+              type="datetime-local"
+              value={editor.reminderAt}
+              onChange={(event) =>
+                onChange((current) => ({
+                  ...current,
+                  reminderAt: event.target.value,
+                }))
+              }
+              className="workbench-input min-w-0"
+            />
+          </label>
+          <label className="grid min-w-0 gap-2 text-sm text-[color:var(--foreground)]">
+            <span className="font-medium">预计耗时（分钟）</span>
+            <input
+              type="number"
+              min="0"
+              value={editor.estimatedMinutes}
+              onChange={(event) =>
+                onChange((current) => ({
+                  ...current,
+                  estimatedMinutes: event.target.value,
+                }))
+              }
+              className="workbench-input min-w-0"
+            />
+          </label>
+          <label className="grid min-w-0 gap-2 text-sm text-[color:var(--foreground)]">
+            <span className="font-medium">重复规则</span>
+            <select
+              value={editor.recurrence}
+              onChange={(event) =>
+                onChange((current) => ({
+                  ...current,
+                  recurrence: event.target.value as WorkArrangementRecurrence,
+                }))
+              }
+              className="workbench-input min-w-0"
+            >
+              {WORK_ARRANGEMENT_RECURRENCE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        {/* 收尾沉淀：完成阶段的字段，新建时默认收起（2026-10-21 拥挤度治理） */}
+        <button
+          type="button"
+          onClick={() => setWrapUpOpen((v) => !v)}
+          className="flex w-full items-center gap-3 text-left"
+        >
+          <span className="shrink-0 text-xs font-semibold tracking-wide text-[color:var(--accent)]">收尾沉淀</span>
+          <span className="shrink-0 text-[10px] text-[color:var(--muted-foreground)]">完成任务时填写，可留空</span>
+          <span className="h-px flex-1 bg-[var(--border)]" />
+          {wrapUpOpen ? (
+            <ChevronUp size={14} className="shrink-0 text-[color:var(--muted-foreground)]" />
+          ) : (
+            <ChevronDown size={14} className="shrink-0 text-[color:var(--muted-foreground)]" />
           )}
+        </button>
 
-          <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
-            <span className="font-medium">完成摘要</span>
-            <textarea
-              value={editor.completionSummary}
-              onChange={(event) =>
-                onChange((current) => ({ ...current, completionSummary: event.target.value }))
-              }
-              rows={2}
-              placeholder="完成任务时填写：成果与结论（标记完成时引导填写）"
-              className="neu-input text-sm"
-            />
-          </label>
+        {wrapUpOpen && (
+          <div className="flex flex-col gap-4">
+            <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
+              <span className="font-medium">完成摘要</span>
+              <textarea
+                value={editor.completionSummary}
+                onChange={(event) =>
+                  onChange((current) => ({ ...current, completionSummary: event.target.value }))
+                }
+                rows={2}
+                placeholder="完成任务时填写：成果与结论（标记完成时引导填写）"
+                className="neu-input text-sm"
+              />
+            </label>
 
-          <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
-            <span className="font-medium">心得反思</span>
-            <textarea
-              value={editor.reflectionSummary}
-              onChange={(event) =>
-                onChange((current) => ({ ...current, reflectionSummary: event.target.value }))
-              }
-              rows={2}
-              placeholder="可复用的经验、踩过的坑"
-              className="neu-input text-sm"
-            />
-          </label>
+            <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
+              <span className="font-medium">心得反思</span>
+              <textarea
+                value={editor.reflectionSummary}
+                onChange={(event) =>
+                  onChange((current) => ({ ...current, reflectionSummary: event.target.value }))
+                }
+                rows={2}
+                placeholder="可复用的经验、踩过的坑"
+                className="neu-input text-sm"
+              />
+            </label>
+          </div>
+        )}
       </div>
     </Modal>
   );

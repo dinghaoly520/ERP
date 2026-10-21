@@ -139,7 +139,8 @@ interface TaskDetailModalProps {
   noteSubmitting: boolean;
   onClose: () => void;
   onStart: () => void;
-  onComplete: () => void;
+  /** 标记完成：携带引导补写的完成摘要（undefined=未引导/留空，不碰存量字段） */
+  onComplete: (completionSummary?: string) => void;
   onBlock: () => void;
   onUnblock: () => void;
   onCancel: () => void;
@@ -173,6 +174,15 @@ export function TaskDetailModal({
 }: TaskDetailModalProps) {
   const [notesExpanded, setNotesExpanded] = useState(true);
   const [showReminderPicker, setShowReminderPicker] = useState(false);
+  // 标记完成的摘要引导态：null=未进入；''/文本=补摘要输入框展开（2026-10-21 落地抽屉 placeholder 承诺的引导）
+  const [completeDraft, setCompleteDraft] = useState<string | null>(null);
+  const [prevItemId, setPrevItemId] = useState<string | null>(item?.id ?? null);
+
+  // 切换任务时收起补摘要输入框（组件常驻挂载，state 不会自行复位）
+  if ((item?.id ?? null) !== prevItemId) {
+    setPrevItemId(item?.id ?? null);
+    setCompleteDraft(null);
+  }
 
   if (!open) return null;
 
@@ -302,7 +312,14 @@ export function TaskDetailModal({
                             {availableActions.includes('complete') && (
                               <button
                                 type="button"
-                                onClick={onComplete}
+                                onClick={() => {
+                                  // 已有完成摘要直接完成；没有则先引导补一句（可留空跳过）
+                                  if (item.completionSummary) {
+                                    onComplete();
+                                  } else {
+                                    setCompleteDraft(completeDraft === null ? '' : null);
+                                  }
+                                }}
                                 className="neu-btn-soft is-success"
                               >
                                 <CheckCheck size={16} />
@@ -402,6 +419,36 @@ export function TaskDetailModal({
                               编辑任务
                             </button>
                           </div>
+
+                          {/* 完成摘要引导：点「标记完成」且尚无摘要时展开 */}
+                          {completeDraft !== null && (
+                            <div className="mt-1 flex w-full flex-wrap items-center gap-2 rounded-[12px] border border-[rgba(92,181,150,0.35)] bg-[rgba(92,181,150,0.08)] px-3 py-2.5">
+                              <textarea
+                                value={completeDraft}
+                                onChange={(e) => setCompleteDraft(e.target.value)}
+                                rows={1}
+                                placeholder="一句话记录成果与结论（可留空，直接确认完成）"
+                                className="neu-input min-w-[220px] flex-1 text-sm"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onComplete(completeDraft.trim() || undefined);
+                                  setCompleteDraft(null);
+                                }}
+                                className="neu-btn-soft is-success h-9"
+                              >
+                                确认完成
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setCompleteDraft(null)}
+                                className="neu-btn-soft h-9"
+                              >
+                                取消
+                              </button>
+                            </div>
+                          )}
                         </>
                       )}
 

@@ -19,7 +19,6 @@ import {
   fetchWorkArrangements,
   refreshWorkArrangementDailyPlan,
   postponeWorkArrangementReminder,
-  type WorkArrangementPayload,
   type WorkArrangementQuery,
   updateWorkArrangement,
 } from "@/lib/api/work-arrangements";
@@ -28,10 +27,7 @@ import {
   type WorkArrangementDailyPlan,
   type WorkArrangementItem,
   type WorkArrangementNoteType,
-  type WorkArrangementRecurrence,
   type WorkArrangementStatus,
-  type WorkArrangementType,
-  type WorkArrangementUrgency,
 } from "@/lib/types/work-arrangements";
 import {
   buildWorkbenchOverview,
@@ -122,104 +118,13 @@ function loadDailyPlanFromStorage(
   }
 }
 
-type EditorState = {
-  title: string;
-  description: string;
-  type: WorkArrangementType;
-  urgency: WorkArrangementUrgency;
-  status: WorkArrangementStatus;
-  dueAt: string;
-  reminderAt: string;
-  estimatedMinutes: string;
-  isAllDay: boolean;
-  customTags: string;
-  recurrence: WorkArrangementRecurrence;
-  projectManagementItemId: string;
-  dependencyIds: string[];
-  completionSummary: string;
-  reflectionSummary: string;
-};
-
-const DEFAULT_EDITOR_STATE: EditorState = {
-  title: "",
-  description: "",
-  type: "FOLLOW_UP",
-  urgency: "MEDIUM",
-  status: "TODO",
-  dueAt: "",
-  reminderAt: "",
-  estimatedMinutes: "",
-  isAllDay: true,
-  customTags: "",
-  recurrence: "NONE",
-  projectManagementItemId: "",
-  dependencyIds: [],
-  completionSummary: "",
-  reflectionSummary: "",
-};
-
-function formatDateInputValue(value: string | null) {
-  if (!value) {
-    return "";
-  }
-
-  const date = new Date(value);
-  const timezoneOffset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 16);
-}
-
-function editorFromTask(task: WorkArrangementItem): EditorState {
-  return {
-    title: task.title,
-    description: task.description ?? "",
-    type: task.type,
-    urgency: task.urgency,
-    status: task.status,
-    dueAt: formatDateInputValue(task.dueAt),
-    reminderAt: formatDateInputValue(task.reminderAt),
-    estimatedMinutes:
-      task.estimatedMinutes === null ? "" : String(task.estimatedMinutes),
-    isAllDay: task.isAllDay,
-    customTags: task.customTags.join("，"),
-    recurrence: task.recurrence,
-    projectManagementItemId: task.projectManagementItem?.id ?? "",
-    dependencyIds: task.dependencies.map((dependency) => dependency.id),
-    completionSummary: task.completionSummary ?? "",
-    reflectionSummary: task.reflectionSummary ?? "",
-  };
-}
-
-function payloadFromEditor(editor: EditorState): WorkArrangementPayload {
-  return {
-    title: editor.title.trim(),
-    description: editor.description.trim() || undefined,
-    type: editor.type,
-    urgency: editor.urgency,
-    status: editor.status,
-    dueAt: editor.dueAt ? new Date(editor.dueAt).toISOString() : null,
-    reminderAt: editor.reminderAt ? new Date(editor.reminderAt).toISOString() : null,
-    estimatedMinutes: editor.estimatedMinutes
-      ? Number(editor.estimatedMinutes)
-      : null,
-    isAllDay: editor.isAllDay,
-    customTags: editor.customTags
-      .split(/[，,]/)
-      .map((item) => item.trim())
-      .filter(Boolean),
-    recurrence: editor.recurrence,
-    projectManagementItemId: editor.projectManagementItemId || null,
-    dependencyIds: editor.dependencyIds,
-    completionSummary: editor.completionSummary.trim() || null,
-    reflectionSummary: editor.reflectionSummary.trim() || null,
-  };
-}
-
-function blankEditor(projectManagementItemId = "") {
-  return {
-    ...DEFAULT_EDITOR_STATE,
-    projectManagementItemId,
-  };
-}
+// 编辑器表单状态与换算——与董事长页/编辑抽屉共用（2026-10-21 抽出，防口径漂移）
+import {
+  blankEditor,
+  editorFromTask,
+  payloadFromEditor,
+  type WorkArrangementEditorState as EditorState,
+} from "@/lib/work-arrangements/editor";
 
 export function WorkArrangementsPage({
   initialProjectManagementItemId = "",
@@ -326,9 +231,23 @@ export function WorkArrangementsPage({
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  // 时间心跳（60s）：「今日到期 / 需注意 / 逾期」等判定依赖当前时刻——
+  // 原实现把 now 冻结在数据变更时刻，任务跨过截止/提醒边界后计数不再推进
+  const [nowTick, setNowTick] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNowTick(new Date()), 60 * 1000);
+    return () => clearInterval(timer);
+  }, []);
+  // 同一 now 同时驱动计数与弹窗列表，保证徽章数字 == 弹窗条数
+  const workbenchNow = useMemo(
+    () => new Date(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [nowTick, allItems, dailyPlan],
+  );
+
   const overdueCount = useMemo(
-    () => getOverdueTasks(allItems).length,
-    [allItems],
+    () => getOverdueTasks(allItems, workbenchNow).length,
+    [allItems, workbenchNow],
   );
   // 是否有进行中的任务（待处理/进行中/受阻）——无任务时 AI 面板隐藏"风险提醒"
   const hasActiveTasks = useMemo(
@@ -336,6 +255,11 @@ export function WorkArrangementsPage({
     [allItems],
   );
   const [activeReminders, setActiveReminders] = useState<ReminderInfo[]>([]);
+  // 已忽略的提醒（taskId:reminderAt）——60s 轮询据此跳过。原实现 dismiss 只清数组，
+  // 去重集随之为空，下一分钟横幅连同浏览器通知原样重来（等于关不掉）
+  const dismissedReminderKeysRef = useRef<Set<string>>(new Set());
+  // 活动提醒 id 镜像：轮询闭包内判重用（直接读 state 会拿到旧闭包）
+  const activeReminderIdsRef = useRef<Set<string>>(new Set());
 
   const linkedProject =
     projects.find((project) => project.id === linkedProjectId) ?? null;
@@ -369,8 +293,6 @@ export function WorkArrangementsPage({
   const selectedItem =
     allItems.find((item) => item.id === selectedItemId) ?? null;
 
-  // 同一 now 同时驱动计数与弹窗列表，保证徽章数字 == 弹窗条数
-  const workbenchNow = useMemo(() => new Date(), [allItems, dailyPlan]);
   const workbenchSummary = useMemo(
     () => buildWorkbenchOverview(allItems, dailyPlan, workbenchNow),
     [allItems, dailyPlan, workbenchNow],
@@ -386,16 +308,8 @@ export function WorkArrangementsPage({
   );
 
   const selectedReminderState = selectedItem
-    ? deriveReminderState(selectedItem, new Date())
+    ? deriveReminderState(selectedItem, workbenchNow)
     : 'NONE';
-
-  const availableDependencies = useMemo(
-    () =>
-      allItems.filter((item) =>
-        creating ? true : item.id !== selectedItemId,
-      ),
-    [creating, allItems, selectedItemId],
-  );
 
   const buildQuery = (): WorkArrangementQuery => ({
     scope: 'ALL',
@@ -404,6 +318,8 @@ export function WorkArrangementsPage({
   });
 
   const syncEditorToTask = (task: WorkArrangementItem | null) => {
+    // 编辑/新建抽屉打开期间，后台刷新不得覆盖未保存的表单（与下方同步 effect 同守卫）
+    if (showFullEditor || creating) return;
     if (!task) {
       setEditor(blankEditor(linkedProjectId));
       // 不自动设置 creating = true，只有用户主动点击"新建"时才打开抽屉
@@ -540,16 +456,16 @@ export function WorkArrangementsPage({
     linkedProjectId,
   ]); // Only reload when linkedProjectId changes
 
-  // 逾期任务检查：每天首次进入页面时弹出一次
+  // 逾期任务检查：每天首次进入页面时弹出一次（标记按用户隔离，同机多账号不共享）
   useEffect(() => {
-    if (allItems.length === 0 || hasShownOverdueDialogToday()) return;
+    if (!currentUser?.id || allItems.length === 0 || hasShownOverdueDialogToday(currentUser.id)) return;
     const overdue = getOverdueTasks(allItems);
     if (overdue.length > 0) {
       setOverdueTasks(overdue);
       setShowOverdueDialog(true);
-      markOverdueDialogShownToday();
+      markOverdueDialogShownToday(currentUser.id);
     }
-  }, [allItems]);
+  }, [allItems, currentUser?.id]);
 
   // 后台静默刷新每日计划（页面打开后滞后执行，不阻塞首屏渲染）
   useEffect(() => {
@@ -580,6 +496,8 @@ export function WorkArrangementsPage({
         if (item.status === 'COMPLETED' || item.status === 'CANCELLED') continue;
         // 没有设置提醒时间
         if (!item.reminderAt) continue;
+        // 用户已忽略本次提醒——关掉的横幅不得在下一轮轮询中原样重来
+        if (dismissedReminderKeysRef.current.has(`${item.id}:${item.reminderAt}`)) continue;
 
         const reminderTime = new Date(item.reminderAt).getTime();
         const nowTime = now.getTime();
@@ -587,39 +505,33 @@ export function WorkArrangementsPage({
 
         // 提醒时间在未来 60 秒内，或已过但不超过 5 分钟
         if (diffSeconds <= 60 && diffSeconds > -300) {
-          const reminderState = deriveReminderState(item, now);
           newReminders.push({
             taskId: item.id,
             taskTitle: item.title,
-            reminderState,
+            reminderState: deriveReminderState(item, now),
+            reminderAt: item.reminderAt,
             dueAt: item.dueAt,
           });
         }
       }
 
-      if (newReminders.length > 0) {
-        setActiveReminders(prev => {
-          // 合并新提醒，避免重复
-          const existingIds = new Set(prev.map(r => r.taskId));
-          const merged = [...prev];
-          for (const r of newReminders) {
-            if (!existingIds.has(r.taskId)) {
-              merged.push(r);
-              // 发送浏览器通知
-              const message = r.reminderState === 'UPCOMING'
-                ? '即将到达提醒时间'
-                : r.reminderState === 'DUE_NOW'
-                  ? '提醒时间已到'
-                  : '提醒已超时';
-              sendBrowserNotification(
-                `任务提醒：${r.taskTitle}`,
-                message,
-                () => handleSelectTask(r.taskId)
-              );
-            }
-          }
-          return merged;
-        });
+      const added = newReminders.filter((r) => !activeReminderIdsRef.current.has(r.taskId));
+      if (added.length === 0) return;
+      for (const r of added) activeReminderIdsRef.current.add(r.taskId);
+      setActiveReminders((prev) => [...prev, ...added]);
+
+      // 浏览器通知在 setState 更新函数外发送——更新函数在 StrictMode 下执行两次，会重复弹通知
+      for (const r of added) {
+        const message = r.reminderState === 'UPCOMING'
+          ? '即将到达提醒时间'
+          : r.reminderState === 'DUE_NOW'
+            ? '提醒时间已到'
+            : '提醒已超时';
+        sendBrowserNotification(
+          `任务提醒：${r.taskTitle}`,
+          message,
+          () => handleSelectTask(r.taskId),
+        );
       }
     };
 
@@ -631,14 +543,18 @@ export function WorkArrangementsPage({
     return () => clearInterval(interval);
   }, [allItems]);
 
+  // 表单同步：编辑/新建抽屉打开期间跳过——后台数据刷新（提醒延后、逾期处理等
+  // 触发 refreshTasksOnly）曾把正在填写的内容静默回填成服务端旧值。
+  // 抽屉关闭时本 effect 会再跑一次，放弃的编辑自然回落到服务端状态。
   useEffect(() => {
+    if (showFullEditor || creating) return;
     if (selectedItem) {
       setEditor(editorFromTask(selectedItem));
       setCreating(false);
     } else if (!creating) {
       setEditor(blankEditor(linkedProjectId));
     }
-  }, [creating, linkedProjectId, selectedItem]);
+  }, [creating, linkedProjectId, selectedItem, showFullEditor]);
 
   const handleCreateNew = () => {
     // 记住当前选中任务，关窗时恢复
@@ -734,12 +650,19 @@ export function WorkArrangementsPage({
     }
   };
 
-  const handleQuickStatusUpdate = async (status: WorkArrangementStatus) => {
+  const handleQuickStatusUpdate = async (
+    status: WorkArrangementStatus,
+    completionSummary?: string,
+  ) => {
     if (!selectedItemId) return;
     setSaving(true);
     setErrorMessage(null);
     try {
-      await updateWorkArrangement(selectedItemId, { status });
+      await updateWorkArrangement(selectedItemId, {
+        status,
+        // 标记完成时引导补的完成摘要（undefined=未引导/未填写，不碰存量字段）
+        ...(completionSummary === undefined ? {} : { completionSummary }),
+      });
       await refreshTasksOnly(); // 状态变更：轻量级刷新（不含 AI）
       setSelectedItemId(selectedItemId);
     } catch (error) {
@@ -779,6 +702,12 @@ export function WorkArrangementsPage({
     }
   };
 
+  /** 从活动提醒中移除并同步 id 镜像（轮询判重集） */
+  const removeActiveReminder = (taskId: string) => {
+    activeReminderIdsRef.current.delete(taskId);
+    setActiveReminders((prev) => prev.filter((r) => r.taskId !== taskId));
+  };
+
   const handlePostponeReminder = async () => {
     if (!selectedItemId) return;
     setSaving(true);
@@ -790,7 +719,7 @@ export function WorkArrangementsPage({
       await refreshTasksOnly(); // 延后提醒：轻量级刷新
       setSelectedItemId(selectedItemId);
       // 从活动提醒中移除
-      setActiveReminders(prev => prev.filter(r => r.taskId !== selectedItemId));
+      removeActiveReminder(selectedItemId);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '延后提醒失败。');
     } finally {
@@ -809,7 +738,7 @@ export function WorkArrangementsPage({
       });
       await refreshTasksOnly();
       setSelectedItemId(selectedItemId);
-      setActiveReminders(prev => prev.filter(r => r.taskId !== selectedItemId));
+      removeActiveReminder(selectedItemId);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '新设提醒失败。');
     } finally {
@@ -854,9 +783,10 @@ export function WorkArrangementsPage({
   };
 
   // （已删 handleAddToCalendar：R7-1③——AiPlanningPanel 不接收 onAddToCalendar，此函数不可达）
+
   const handleReminderView = (taskId: string) => {
     handleSelectTask(taskId);
-    setActiveReminders(prev => prev.filter(r => r.taskId !== taskId));
+    removeActiveReminder(taskId);
   };
 
   const handleReminderPostpone = async (taskId: string) => {
@@ -867,7 +797,7 @@ export function WorkArrangementsPage({
         preset: 'PLUS_30_MINUTES',
       });
       await refreshTasksOnly();
-      setActiveReminders(prev => prev.filter(r => r.taskId !== taskId));
+      removeActiveReminder(taskId);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '延后提醒失败。');
     } finally {
@@ -876,21 +806,12 @@ export function WorkArrangementsPage({
   };
 
   const handleReminderDismiss = () => {
-    setActiveReminders([]);
-  };
-
-  const loadReminderSubset = async (
-    reminderState: 'UPCOMING' | 'DUE_NOW' | 'OVERDUE',
-  ) => {
-    try {
-      const subset = await fetchWorkArrangements({
-        ...buildQuery(),
-        reminderState,
-      });
-      setHighlightedTaskIds(subset.map((item) => item.id));
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : '加载提醒任务失败。');
+    // 记入已忽略集：60s 轮询跳过这些提醒，直到提醒时间本身被改动
+    for (const r of activeReminders) {
+      dismissedReminderKeysRef.current.add(`${r.taskId}:${r.reminderAt}`);
     }
+    activeReminderIdsRef.current.clear();
+    setActiveReminders([]);
   };
 
   return (
@@ -977,7 +898,7 @@ export function WorkArrangementsPage({
             <span>{errorMessage}</span>
             <button
               type="button"
-              onClick={() => setErrorMessage("")}
+              onClick={() => setErrorMessage(null)}
               className="ml-2 shrink-0 text-[color:var(--danger)] opacity-60 hover:opacity-100"
             >
               关闭
@@ -994,7 +915,6 @@ export function WorkArrangementsPage({
         selectedItemTitle={selectedItem?.title ?? null}
         editor={editor}
         projects={projects}
-        availableDependencies={availableDependencies}
         onClose={() => {
           setShowFullEditor(false);
           if (creating && lastSelectedIdRef.current) {
@@ -1020,7 +940,7 @@ export function WorkArrangementsPage({
           refreshTasksOnly(true);
         }}
         onStart={() => void handleQuickStatusUpdate('IN_PROGRESS')}
-        onComplete={() => void handleQuickStatusUpdate('COMPLETED')}
+        onComplete={(completionSummary) => void handleQuickStatusUpdate('COMPLETED', completionSummary)}
         onBlock={() => void handleQuickStatusUpdate('BLOCKED')}
         onUnblock={() => void handleUnblock()}
         onCancel={() => void handleCancel()}

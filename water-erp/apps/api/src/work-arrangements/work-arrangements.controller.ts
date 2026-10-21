@@ -68,6 +68,7 @@ export class WorkArrangementsController {
     return this.workArrangementsService.generateGreeting(
       user.sub,
       user.username,
+      user.role,
     );
   }
 
@@ -119,7 +120,7 @@ export class WorkArrangementsController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateWorkArrangementDto,
   ) {
-    return this.workArrangementsService.create(user.sub, dto);
+    return this.workArrangementsService.create(user.sub, user.role, dto);
   }
 
   @Patch(':id')
@@ -128,7 +129,7 @@ export class WorkArrangementsController {
     @Param('id') id: string,
     @Body() dto: UpdateWorkArrangementDto,
   ) {
-    return this.workArrangementsService.update(user.sub, id, dto);
+    return this.workArrangementsService.update(user.sub, user.role, id, dto);
   }
 
   @Delete(':id')
