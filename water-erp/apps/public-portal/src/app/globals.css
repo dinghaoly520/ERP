@@ -3294,81 +3294,31 @@ a.group:hover::after {
 }
 .flow-nav-pill[aria-expanded="true"] svg { color: var(--brand); }
 
-/* ── 导航瓷片·七彩流舞（2026-10-21 集团简介/联系我们，用户裁定：混沌/流动/浅色系）──
-   瓷片保持浅色玻璃态（原凸起/hover/内凹规则不动），内嵌五团浅彩柔光
-   （浅红/浅黄/浅绿/浅蓝/浅紫）以互质周期 7.3/11.1/13.7/9.4/12.1s 各自走不规则
-   多路点混沌漂移——组合永不精确重复；白雾纱隔开流彩与文字（墨色文字保持可读）。
-   仅 transform/opacity 合成器动画；prefers-reduced-motion 冻结为静态浅彩雾。 */
-.flow-nav-pill {
-  position: relative;
-  overflow: hidden;
-  isolation: isolate;
-}
-/* 白雾纱：隔开流彩与文字（z1 高于流舞 z0、低于文字 z2） */
-.flow-nav-pill::before {
+/* ── 导航瓷片低频光影（2026-10-21 用户裁定：回归纯色瓷片 + 偶发流光）──
+   瓷片恢复原纯色玻璃态（凸起→hover 抬升→内凹规则不动）；每 ~10s 掠过一道柔和高光
+   （扫过 ~1.3s，其余时间静止）——频次刻意压低，静如止水、偶有一粲。 */
+.flow-nav-pill { position: relative; overflow: hidden; }
+.flow-nav-pill::after {
   content: '';
   position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  border-radius: inherit;
-  background: linear-gradient(180deg, oklch(1 0 0 / 0.16), oklch(1 0 0 / 0.28));
-}
-.flow-nav-label { position: relative; z-index: 2; }
-.flow-nav-pill > svg { position: relative; z-index: 2; }
-
-/* 流舞层：五团浅彩（高明度低饱和浅色系）——左→右巡游水流：
-   五团排成一列随 200% 宽传送层（track）匀速右移，队尾接一份相同队列（第 6-10 团）
-   做无缝循环——任何横截面的颜色都随时间更替（红走了黄来），读感为颜色从左到右流过按钮；
-   各团再叠加轻微呼吸缩放。传送层与呼吸均为纯 transform 合成器动画；
-   prefers-reduced-motion 冻结为静态浅彩带。 */
-.flow-nav-dance { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
-.flow-nav-dance-track {
-  position: absolute;
-  top: 0;
-  bottom: 0;
+  top: -20%;
+  bottom: -20%;
   left: 0;
-  width: 200%;
+  width: 45%;
+  transform: translateX(-220%) skewX(-18deg);
+  background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.45) 50%, transparent);
+  opacity: 0.5;
+  pointer-events: none;
   will-change: transform;
-  animation: nav-flow 11s linear infinite;
+  animation: nav-pill-glint 10s cubic-bezier(0.45, 0, 0.25, 1) infinite;
 }
-.flow-nav-dance i {
-  position: absolute;
-  width: 36%;
-  height: 240%;
-  border-radius: 50%;
-  opacity: 0.8;
-  will-change: transform;
-  transform: translateY(-50%);
-  animation: nav-bob 7s ease-in-out infinite;
-}
-.flow-nav-dance i:nth-child(2n) { animation-duration: 8.4s; animation-delay: -3s; }
-.flow-nav-dance i:nth-child(5n + 3) { animation-duration: 9.6s; animation-delay: -1.5s; }
-/* 队列一（第 1-5 团）与队尾复本（第 6-10 团，左移 50% 即一个周期）：左→右 浅红/黄/绿/蓝/紫 */
-.flow-nav-dance i:nth-child(5n + 1) { left: 2%;  top: 46%; background: radial-gradient(circle, oklch(0.955 0.045 20 / 0.85),  transparent 64%); }
-.flow-nav-dance i:nth-child(5n + 2) { left: 12%; top: 58%; background: radial-gradient(circle, oklch(0.962 0.055 95 / 0.85),  transparent 64%); }
-.flow-nav-dance i:nth-child(5n + 3) { left: 22%; top: 44%; background: radial-gradient(circle, oklch(0.958 0.05 150 / 0.85),  transparent 64%); }
-.flow-nav-dance i:nth-child(5n + 4) { left: 32%; top: 60%; background: radial-gradient(circle, oklch(0.952 0.045 245 / 0.85), transparent 64%); }
-.flow-nav-dance i:nth-child(5n + 5) { left: 42%; top: 50%; background: radial-gradient(circle, oklch(0.948 0.05 310 / 0.85),  transparent 64%); }
-.flow-nav-dance i:nth-child(n + 6) { left: calc(var(--slot) + 50%); }
-.flow-nav-dance i:nth-child(6)  { --slot: 2%; }
-.flow-nav-dance i:nth-child(7)  { --slot: 12%; }
-.flow-nav-dance i:nth-child(8)  { --slot: 22%; }
-.flow-nav-dance i:nth-child(9)  { --slot: 32%; }
-.flow-nav-dance i:nth-child(10) { --slot: 42%; }
-/* 传送层：-50% → 0 匀速右移（队尾复本恰好补位，无缝循环；11s ≈ 每 4s 一种颜色流过） */
-@keyframes nav-flow {
-  from { transform: translateX(-50%); }
-  to   { transform: translateX(0); }
-}
-/* 呼吸缩放（原地，不动位移——位移全由传送层负责） */
-@keyframes nav-bob {
-  0%, 100% { transform: translateY(-50%) scale(1); }
-  50% { transform: translateY(-50%) scale(1.08); }
+/* 低频节奏：前 80% 静止 → 80-93% 扫过 → 收尾 */
+@keyframes nav-pill-glint {
+  0%, 80% { transform: translateX(-220%) skewX(-18deg); }
+  93%, 100% { transform: translateX(320%) skewX(-18deg); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .flow-nav-dance-track,
-  .flow-nav-dance i { animation: none; }
+  .flow-nav-pill::after { animation: none; opacity: 0; }
 }
 
 /* 下拉面板 — 近实底白玻璃（小文字下不透字）+ 方向性双影 */
