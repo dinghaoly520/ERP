@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { authApi } from "@/lib/api/auth";
 import { creditCodeGuidance, type CreditCodeGuidance } from "@/lib/registration-dedup-guidance";
+import { sanitizePhoneInput } from "@/lib/phone-input";
 import { RegisterAgreement } from "@/components/register-agreement";
 import { RegistrationField, RegistrationSection, RegistrationShell } from "@/components/registration/registration-shell";
 import { PasswordField } from "@/components/registration/password-field";
@@ -58,16 +59,24 @@ export default function RegisterTemporaryPage() {
   const [codeStatus, setCodeStatus] = useState<"idle" | "checking" | "ok" | "bad">("idle");
 
   async function sendRegCode() {
-    if (!/^1[3-9]\d{9}$/.test(form.phone.trim())) { toast.warning("请先输入有效的手机号"); return; }
+    // 发码前 DOM 兜底（2026-10-19 第四轮，同正式注册页）：长驻标签页跨多轮 HMR 后按钮
+    // 闭包可能停在旧渲染，以输入框实际值为最终事实源对齐后再校验
+    const el = document.getElementById("reg-temp-phone") as HTMLInputElement | null;
+    const phone = el ? sanitizePhoneInput(el.value) : form.phone.trim();
+    if (phone !== form.phone) {
+      console.warn("[register-temp] 手机号状态与输入框不一致，已按输入框对齐", { state: form.phone, dom: phone });
+      set("phone", phone);
+    }
+    if (!/^1[3-9]\d{9}$/.test(phone)) { toast.warning("请先输入有效的手机号"); return; }
     // 手机号查重前置（2026-10-16）：已绑定的手机号先拦在发码前，避免白烧一条短信
     try {
-      const res = await authApi.checkDuplicate({ phone: form.phone.trim() });
+      const res = await authApi.checkDuplicate({ phone });
       if (res.phone) { setPhoneDuplicate(true); toast.error("该手机号已绑定其他供应商账号，请更换后再获取验证码"); return; }
       setPhoneDuplicate(false);
     } catch { /* 查重失败不阻塞发码 */ }
     setCodeSending(true);
     try {
-      await authApi.sendRegistrationCode(form.phone.trim());
+      await authApi.sendRegistrationCode(phone);
       toast.success("验证码已发送");
       setCodeCooldown(60);
       const timer = setInterval(() => {
@@ -295,8 +304,14 @@ export default function RegisterTemporaryPage() {
             {item("displayName", "联系人姓名", inp(form.displayName, (s) => set("displayName", s), "请输入联系人姓名"), true)}
             {item("phone", "注册手机号", (
               <div className="reg-code-row">
-                <input id="reg-temp-phone" className="reg-inp" value={form.phone} placeholder="本人手机号，用于接收注册验证码" maxLength={11} inputMode="numeric" autoComplete="tel"
-                  onChange={(e) => { set("phone", e.target.value.replace(/\D/g, "")); if (phoneDuplicate) setPhoneDuplicate(false); }} onBlur={checkPhoneDuplicate} />
+                <input id="reg-temp-phone" className="reg-inp" value={form.phone} placeholder="本人手机号，用于接收注册验证码" inputMode="numeric" autoComplete="tel"
+                  onChange={(e) => { set("phone", sanitizePhoneInput(e.target.value)); if (phoneDuplicate) setPhoneDuplicate(false); }}
+                  onBlur={(e) => {
+                    // DOM 兜底回同步：旁路 onChange 的填充（自动填充/输入法）致状态落后于显示值，
+                    // 失焦时以 DOM 为准对齐（与正式注册页同口径，2026-10-19）
+                    set("phone", sanitizePhoneInput(e.target.value));
+                    checkPhoneDuplicate();
+                  }} />
                 <button type="button" className="reg-btn reg-btn--ghost-sm reg-code-btn" disabled={codeSending || codeCooldown > 0} onClick={sendRegCode}>
                   {codeSending ? "发送中…" : codeCooldown > 0 ? `${codeCooldown}s` : "获取验证码"}
                 </button>

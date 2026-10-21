@@ -9,6 +9,7 @@ import {
   registerUser,
   checkRegistrationCode,
 } from "@/lib/api/auth";
+import { sanitizePhoneInput } from "@/lib/phone-input";
 import { REGISTER_AGREEMENT_TITLE, REGISTER_AGREEMENT } from "./register-agreement";
 
 type RegisterDialogProps = {
@@ -400,7 +401,13 @@ export function RegisterDialog({ isOpen, onClose }: RegisterDialogProps) {
                 <input
                   type="tel"
                   value={form.phone}
-                  onChange={(e) => set("phone", e.target.value)}
+                  onChange={(e) => set("phone", sanitizePhoneInput(e.target.value))}
+                  onBlur={(e) => {
+                    // DOM 兜底回同步（2026-10-19，同供应商注册页口径）：旁路 onChange
+                    // 的填充（自动填充/输入法）会让状态落后于显示值，失焦时以 DOM 为准对齐
+                    const healed = sanitizePhoneInput(e.target.value);
+                    if (healed !== form.phone) set("phone", healed);
+                  }}
                   placeholder="请输入本人手机号"
                   className={`${inputCls} flex-1`}
                   autoComplete="tel"
