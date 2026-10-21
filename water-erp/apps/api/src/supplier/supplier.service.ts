@@ -32,6 +32,7 @@ import { sealPii, openPii, blindIndexPii } from '../common/crypto/sm-field-crypt
 import { assertContactPhonesUnique, assertContactsArrayPhonesUnique, assertPrimaryContactMatchesAccount } from './contact-phone-unique';
 import { isSealedFieldSm, openPiiForMask } from '../common/crypto/sm-field-crypto';
 import { logSensitiveAccess } from '../common/sensitive-access.util';
+import { EVALUATION_COOLDOWN_MS, reevalAllowed, latestSupplierEvals } from '../common/evaluation-dedupe.util';
 import { openChangeValue, maskChangeValue } from './change-record-pii';
 import { maskPhone, maskIdNumber, maskEmail, maskBankAccount } from '../common/pii-mask';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
@@ -1337,11 +1338,17 @@ export class SupplierService {
   private async attachAvgScores(items: any[]) {
     if (items.length === 0) return;
     const ids = items.map(i => i.id);
-    const evals = await this.prisma.supplierEvaluation.groupBy({
-      by: ['supplierId', 'finalGrade'],
+    // 统计闸（方案B 多次评价）：众数概览等级按槽位去重计算（单人刷多条只算一票）——
+    // groupBy 无法行级去重，改 findMany + latestSupplierEvals
+    const evals = latestSupplierEvals(await this.prisma.supplierEvaluation.findMany({
       where: { supplierId: { in: ids } },
-      _count: { finalGrade: true },
-    });
+      select: { supplierId: true, finalGrade: true, evaluatorId: true, projectId: true, evaluationSource: true, createdAt: true, updatedAt: true },
+    })).reduce<Array<{ supplierId: string; finalGrade: any; _count: { finalGrade: number } }>>((acc, e) => {
+      let row = acc.find(r => r.supplierId === e.supplierId && r.finalGrade === e.finalGrade);
+      if (!row) { row = { supplierId: e.supplierId, finalGrade: e.finalGrade, _count: { finalGrade: 0 } }; acc.push(row); }
+      row._count.finalGrade++;
+      return acc;
+    }, []);
     // 对每个 supplier 取出现最多的 finalGrade 作为概览等级
     const gradeMap = new Map<string, ExpertLevel>();
     const countMap = new Map<string, Map<string, number>>();
@@ -3156,13 +3163,23 @@ export class SupplierService {
       if (!bid) throw new BadRequestException({ error: '该供应商未参与此项目，不能对其发起项目关联评价', code: 'SUPPLIER_NOT_ON_PROJECT' });
     }
 
-    // 同一评价人对同一供应商（+同一项目）已评价过则拒绝，防刷分触发误淘汰。
-    const dupEval = await this.prisma.supplierEvaluation.findFirst({
-      where: { supplierId, evaluatorId, projectId: dto.projectId ?? null },
-      select: { id: true },
+    // 方案B（2026-10-21 用户裁定：工作人员可多次评价）——提交闸+频次闸：
+    // ①提交闸（防手滑）：同评价人×同供应商×同项目×同来源 7 天内已评价 → 覆盖更新（视为修改，不增条目）
+    // ②频次闸（防恶意刷）：7 天内对该供应商已有其他评价 → 须 leader/admin 或填「复评事由」
+    // ③统计闸（防失真）见 latestSupplierEvals——排名/画像/淘汰预警按槽位取最新，单人只算一票
+    const source = dto.evaluationSource === 'contract' ? 'contract' : 'procurement';
+    const recent = await this.prisma.supplierEvaluation.findMany({
+      where: { supplierId, evaluatorId, createdAt: { gte: new Date(Date.now() - EVALUATION_COOLDOWN_MS) } },
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
     });
-    if (dupEval) {
-      throw new BadRequestException({ error: '您已对该供应商提交过评价，不可重复评价', code: 'ALREADY_EVALUATED' });
+    const sameSlot = recent.find(
+      (e) => (e.projectId ?? null) === (dto.projectId ?? null) && (e.evaluationSource ?? 'procurement') === source,
+    );
+    if (!sameSlot && recent.length > 0 && !reevalAllowed(evaluatorRole, dto.reviewReason)) {
+      throw new BadRequestException({
+        error: '7 天内已评价过该供应商，再次评价须填写复评事由（或由 leader/admin 发起）',
+        code: 'EVALUATION_TOO_FREQUENT',
+      });
     }
 
     // 加权计算综合等级
@@ -3174,26 +3191,40 @@ export class SupplierService {
       dto.comprehensiveGrade,
     );
 
+    const evalData = {
+      finalGrade,
+      completenessGrade: dto.completenessGrade,
+      responsivenessGrade: dto.responsivenessGrade,
+      cooperationGrade: dto.cooperationGrade,
+      complianceGrade: dto.complianceGrade,
+      comprehensiveGrade: dto.comprehensiveGrade,
+      comment: dto.comment,
+      // A4（4.1.1.8）：区分采购过程评价与合同履约评价（C3 验收后触发后者）
+      evaluationSource: source,
+      evidence: dto.evidence ?? undefined,
+      reviewReason: dto.reviewReason?.trim() || undefined,
+    };
+
+    // 提交闸命中：覆盖更新同槽位记录（视为修改，不增条目；统计面取最新一条本就如此取数）
+    if (sameSlot) {
+      const updated = await this.prisma.supplierEvaluation.update({
+        where: { id: sameSlot.id },
+        data: evalData,
+      });
+      await this.audit(evaluatorId, 'SUPPLIER_EVALUATION_UPDATED', supplierId, {
+        finalGrade, projectId: dto.projectId ?? null, reviewReason: dto.reviewReason?.trim() || null, updated: true,
+      });
+      return updated;
+    }
+
     const created = await this.prisma.supplierEvaluation.create({
-      data: {
-        supplierId,
-        projectId: dto.projectId,
-        evaluatorId,
-        finalGrade,
-        completenessGrade: dto.completenessGrade,
-        responsivenessGrade: dto.responsivenessGrade,
-        cooperationGrade: dto.cooperationGrade,
-        complianceGrade: dto.complianceGrade,
-        comprehensiveGrade: dto.comprehensiveGrade,
-        comment: dto.comment,
-        // A4（4.1.1.8）：区分采购过程评价与合同履约评价（C3 验收后触发后者）
-        evaluationSource: dto.evaluationSource === 'contract' ? 'contract' : 'procurement',
-        evidence: dto.evidence ?? undefined,
-      },
+      data: { supplierId, projectId: dto.projectId, evaluatorId, ...evalData },
     });
 
     // 评价影响画像/淘汰，补审计。
-    await this.audit(evaluatorId, 'SUPPLIER_EVALUATION_CREATED', supplierId, { finalGrade, projectId: dto.projectId ?? null });
+    await this.audit(evaluatorId, 'SUPPLIER_EVALUATION_CREATED', supplierId, {
+      finalGrade, projectId: dto.projectId ?? null, reviewReason: dto.reviewReason?.trim() || null,
+    });
 
     // 决策 #3：不自动停用。连续低分由 reviewEliminationCandidates()（cron + 人工）产出预警，
     // 实际淘汰须经 admin 调 confirmEliminate() 确认。此处仅返回评价结果。
@@ -3350,12 +3381,12 @@ export class SupplierService {
         where: { supplierId },
         select: { id: true, projectId: true },
       }),
+      // 统计闸：画像等级走势按槽位去重后取最近 10 条（方案B 多次评价不放大单人票权）
       this.prisma.supplierEvaluation.findMany({
         where: { supplierId },
         orderBy: { createdAt: 'desc' },
-        take: 10,
-        select: { finalGrade: true, createdAt: true },
-      }),
+        select: { supplierId: true, finalGrade: true, createdAt: true, evaluatorId: true, projectId: true, evaluationSource: true, updatedAt: true },
+      }).then(rows => latestSupplierEvals(rows).slice(0, 10)),
     ]);
 
     const participations: Array<{ won: boolean }> = [];
@@ -3392,12 +3423,12 @@ export class SupplierService {
 
     const candidates: Array<{ supplierId: string; name: string; reason: string }> = [];
     for (const s of suppliers) {
-      const recent = await this.prisma.supplierEvaluation.findMany({
+      // 统计闸：淘汰预警「最近 3 次」按槽位去重判定（方案B 多次评价——单人刷 E 不再触发误淘汰）
+      const recent = latestSupplierEvals(await this.prisma.supplierEvaluation.findMany({
         where: { supplierId: s.id },
         orderBy: { createdAt: 'desc' },
-        take: 3,
-        select: { finalGrade: true },
-      });
+        select: { supplierId: true, finalGrade: true, evaluatorId: true, projectId: true, evaluationSource: true, createdAt: true, updatedAt: true },
+      })).slice(0, 3);
       if (shouldAutoDisable(recent.map(r => ({ finalGrade: r.finalGrade })))) {
         candidates.push({ supplierId: s.id, name: s.name, reason: '最近 3 次绩效综合评价均为 E 级（不合格）' });
       }
@@ -3647,10 +3678,11 @@ export class SupplierService {
   /** 评价统计（公司隔离 2026-10-15：与非 admin 视野一致，防止看板「0 供应商」旁出现全域评价数） */
   async getEvaluationStats(actor?: AuthenticatedUser, companyId?: string) {
     const f = actor ? supplierCompanyWhere(await this.companyScope.resolveScope(actor, companyId)) : {};
-    const evaluations = await this.prisma.supplierEvaluation.findMany({
-      select: { finalGrade: true },
+    // 统计闸：等级分布按槽位去重（方案B 多次评价不放大单人票权）
+    const evaluations = latestSupplierEvals(await this.prisma.supplierEvaluation.findMany({
+      select: { supplierId: true, finalGrade: true, evaluatorId: true, projectId: true, evaluationSource: true, createdAt: true, updatedAt: true },
       where: { supplier: { ...f } },
-    });
+    }));
 
     const levelCounts = {
       A: evaluations.filter(e => e.finalGrade === 'A').length,
@@ -3792,10 +3824,11 @@ export class SupplierService {
   async getBigscreenDetail() {
     const [stats, evals, classifications] = await Promise.all([
       this.getStats(),
+      // 统计闸：大屏聚合按槽位去重（方案B 多次评价不放大单人票权）
       this.prisma.supplierEvaluation.findMany({
-        select: { finalGrade: true, createdAt: true },
+        select: { supplierId: true, finalGrade: true, createdAt: true, evaluatorId: true, projectId: true, evaluationSource: true, updatedAt: true },
         orderBy: { createdAt: 'asc' },
-      }),
+      }).then(latestSupplierEvals),
       this.prisma.supplierClassification.findMany({
         select: {
           id: true,
@@ -4141,10 +4174,11 @@ export class SupplierService {
   /** 评价五维度统计（公司隔离 2026-10-15：同 getEvaluationStats 口径） */
   async getEvaluationDimensionStats(actor?: AuthenticatedUser, companyId?: string) {
     const f = actor ? supplierCompanyWhere(await this.companyScope.resolveScope(actor, companyId)) : {};
-    const evals = await this.prisma.supplierEvaluation.findMany({
-      select: { completenessGrade: true, responsivenessGrade: true, cooperationGrade: true, complianceGrade: true, comprehensiveGrade: true },
+    // 统计闸：维度分布按槽位去重（方案B 多次评价不放大单人票权）
+    const evals = latestSupplierEvals(await this.prisma.supplierEvaluation.findMany({
+      select: { supplierId: true, completenessGrade: true, responsivenessGrade: true, cooperationGrade: true, complianceGrade: true, comprehensiveGrade: true, evaluatorId: true, projectId: true, evaluationSource: true, createdAt: true, updatedAt: true },
       where: { supplier: { ...f } },
-    });
+    }));
     const gradeKeys: ExpertLevel[] = ['A', 'B', 'C', 'D', 'E'];
     const initCounts = (): Record<ExpertLevel, number> => ({ A: 0, B: 0, C: 0, D: 0, E: 0 });
     const counters = {

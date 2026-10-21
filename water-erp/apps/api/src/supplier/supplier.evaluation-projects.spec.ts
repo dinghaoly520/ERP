@@ -21,7 +21,7 @@ describe('SupplierService — 评价关联项目（真实参评）', () => {
   beforeEach(async () => {
     prisma = {
       supplier: { findUnique: jest.fn().mockResolvedValue({ id: 's1', status: 'APPROVED' }) },
-      supplierEvaluation: { findMany: jest.fn(), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'ev-new' }) },
+      supplierEvaluation: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'ev-new' }), update: jest.fn().mockResolvedValue({ id: 'ev1' }) },
       bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'p1' }), findMany: jest.fn() },
       bidSupplier: { findMany: jest.fn(), findFirst: jest.fn().mockResolvedValue({ id: 'bs1' }) },
       bidEvaluationResult: { findMany: jest.fn() },
@@ -117,6 +117,37 @@ describe('SupplierService — 评价关联项目（真实参评）', () => {
       await service.createEvaluation('s1', 'staff-1', { ...gradesDto, projectId: 'p1' }, 'staff');
       expect(prisma.supplierEvaluation.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ supplierId: 's1', projectId: 'p1', evaluatorId: 'staff-1' }) }),
+      );
+    });
+
+    it('方案B①提交闸：7 天内同槽位（人+供应商+项目+来源）→ 覆盖更新不新增', async () => {
+      prisma.supplierEvaluation.findMany.mockResolvedValue([
+        { id: 'ev1', supplierId: 's1', evaluatorId: 'staff-1', projectId: 'p1', evaluationSource: 'procurement', createdAt: new Date(), updatedAt: new Date() },
+      ]);
+      prisma.supplierEvaluation.update.mockResolvedValue({ id: 'ev1' });
+      await service.createEvaluation('s1', 'staff-1', { ...gradesDto, projectId: 'p1' }, 'staff');
+      expect(prisma.supplierEvaluation.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'ev1' } }),
+      );
+      expect(prisma.supplierEvaluation.create).not.toHaveBeenCalled();
+    });
+
+    it('方案B②频次闸：7 天内已评价（他槽位）且无事由 → 400 EVALUATION_TOO_FREQUENT', async () => {
+      prisma.supplierEvaluation.findMany.mockResolvedValue([
+        { id: 'ev0', supplierId: 's1', evaluatorId: 'staff-1', projectId: 'p9', evaluationSource: 'procurement', createdAt: new Date(), updatedAt: new Date() },
+      ]);
+      await expect(service.createEvaluation('s1', 'staff-1', { ...gradesDto, projectId: 'p1' }, 'staff'))
+        .rejects.toMatchObject({ response: { code: 'EVALUATION_TOO_FREQUENT' } });
+      expect(prisma.supplierEvaluation.create).not.toHaveBeenCalled();
+    });
+
+    it('方案B②频次闸放行：填复评事由 → 新增流水记录并落 reviewReason', async () => {
+      prisma.supplierEvaluation.findMany.mockResolvedValue([
+        { id: 'ev0', supplierId: 's1', evaluatorId: 'staff-1', projectId: 'p9', evaluationSource: 'procurement', createdAt: new Date(), updatedAt: new Date() },
+      ]);
+      await service.createEvaluation('s1', 'staff-1', { ...gradesDto, projectId: 'p1', reviewReason: '履约阶段复评' }, 'staff');
+      expect(prisma.supplierEvaluation.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ projectId: 'p1', reviewReason: '履约阶段复评' }) }),
       );
     });
 

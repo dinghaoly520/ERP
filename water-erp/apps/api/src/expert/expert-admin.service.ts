@@ -72,6 +72,38 @@ export type ExpertInvitationActor = 'EXPERT' | 'STAFF' | 'SYSTEM';
 /** 邀请信用预警阈值（2026-10-21 用户口径）：连续拒绝 ≥3 次触发一次预警（同段连拒期不重复） */
 const DECLINE_STREAK_ALERT_THRESHOLD = 3;
 
+/**
+ * 毁约归因（2026-10-21 深检修正，纯函数便于单测）：仅计「本人或代回应确认过」的
+ * confirmed 被代婉拒——递补/替换转正（PROMOTED/SWAP_IN）是系统置 confirmed，专家
+ * 并未亲口答应，随后被代婉拒不构成中途毁约。按笔归因（同一行的历史里可能既有
+ * 本人确认又有系统转正）。
+ */
+export function expertBreachEventsFromLogs(
+  logs: Array<{ bidExpertId: string; action: string; fromStatus: string | null; toStatus: string | null; reason: string | null; actorName: string | null; createdAt: Date }>,
+  projectNameByBe: Map<string, string>,
+): Array<{ projectName: string; at: string; reason: string | null; actorName: string | null }> {
+  const logsByBe = new Map<string, typeof logs>();
+  for (const l of logs) {
+    const arr = logsByBe.get(l.bidExpertId) ?? [];
+    arr.push(l);
+    logsByBe.set(l.bidExpertId, arr);
+  }
+  const out: Array<{ projectName: string; at: string; reason: string | null; actorName: string | null }> = [];
+  for (const [, arr] of logsByBe) {
+    const sorted = [...arr].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    let lastConfirmedBy: string | null = null;
+    for (const l of sorted) {
+      if (l.action === 'STAFF_MARKED' && l.fromStatus === 'confirmed' && l.toStatus === 'declined' && lastConfirmedBy === 'SELF') {
+        out.push({ projectName: projectNameByBe.get(l.bidExpertId) ?? '', at: l.createdAt.toISOString(), reason: l.reason, actorName: l.actorName });
+      }
+      if (l.toStatus === 'confirmed') {
+        lastConfirmedBy = ['PROMOTED', 'SWAP_IN'].includes(l.action) ? 'SYSTEM' : 'SELF';
+      }
+    }
+  }
+  return out.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+}
+
 /** 邀请轨迹落账（写侧统一入口——邀请状态/角色任何流转必须留痕，缺失即审计断链；失败 warn 不阻断主流程） */
 async function writeInvitationLog(
   tx: { expertInvitationLog: { create: (args: any) => Promise<unknown> } },
@@ -423,15 +455,9 @@ export class ExpertAdminService {
       if (decisionEvents[i].toStatus !== 'declined') break;
       expertConsecutiveDeclined++;
     }
-    const breachEvents = decisionEvents
-      .filter((l: any) => l.action === 'STAFF_MARKED' && l.fromStatus === 'confirmed' && l.toStatus === 'declined')
-      .sort((a: any, b: any) => b.createdAt.getTime() - a.createdAt.getTime())
-      .map((l: any) => ({
-        projectName: projectNameByBe.get(l.bidExpertId) ?? '',
-        at: l.createdAt.toISOString(),
-        reason: l.reason,
-        actorName: l.actorName,
-      }));
+    // 毁约归因（2026-10-21 深检修正，逻辑见 expertBreachEventsFromLogs 注释）：
+    // 系统转正后的代婉拒不计毁约（专家未亲口答应），本人/代回应确认过的才计
+    const breachEvents = expertBreachEventsFromLogs(assignmentLogs as any, projectNameByBe);
     const invitationSummary = {
       invited: assignmentsRaw.length,
       confirmed: assignmentsRaw.filter(a => a.invitationStatus === 'confirmed').length,

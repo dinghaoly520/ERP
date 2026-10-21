@@ -27,6 +27,10 @@ export class CreateEvaluationDto {
   @IsString() @IsOptional()
   evaluationSource?: 'procurement' | 'contract';
 
+  /** 方案B频次闸（2026-10-21）：7 天内再次评价须填复评事由（leader/admin 免填） */
+  @IsString() @IsOptional()
+  reviewReason?: string;
+
   @IsOptional()
   evidence?: Record<string, string>;
 }

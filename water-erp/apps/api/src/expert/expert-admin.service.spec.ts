@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
-import { ExpertAdminService } from './expert-admin.service';
+import { ExpertAdminService, expertBreachEventsFromLogs } from './expert-admin.service';
 import { ExpertExtractionService } from './expert-extraction.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ExpertExtractionAiService } from './expert-extraction-ai.service';
@@ -589,6 +589,31 @@ describe('ExpertAdminService', () => {
       );
       expect(prisma.expertEvaluation.create).not.toHaveBeenCalled();
     });
+
+    it('方案B②频次闸：7 天内他项目已评价且无事由 → 400 EVALUATION_TOO_FREQUENT', async () => {
+      prisma.user.findFirst.mockResolvedValue({ id: 'u1', role: 'bid_expert' });
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be1' });
+      prisma.expertEvaluation.findMany.mockResolvedValue([
+        { id: 'ev0', expertUserId: 'u1', evaluatorId: 'op1', projectId: 'p9', createdAt: new Date(), updatedAt: new Date() },
+      ]);
+      await expect(service.createEvaluation('op1', evalDto({ projectId: 'p1' })))
+        .rejects.toMatchObject({ response: { code: 'EVALUATION_TOO_FREQUENT' } });
+      expect(prisma.expertEvaluation.create).not.toHaveBeenCalled();
+    });
+
+    it('方案B②频次闸放行：填复评事由 → 新增流水并落 reviewReason', async () => {
+      prisma.user.findFirst.mockResolvedValue({ id: 'u1', role: 'bid_expert' });
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be1' });
+      prisma.expertEvaluation.findMany.mockResolvedValue([
+        { id: 'ev0', expertUserId: 'u1', evaluatorId: 'op1', projectId: 'p9', createdAt: new Date(), updatedAt: new Date() },
+      ]);
+      await service.createEvaluation('op1', evalDto({ projectId: 'p1', reviewReason: '季度复评' }));
+      expect(prisma.expertEvaluation.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ projectId: 'p1', reviewReason: '季度复评' }) }),
+      );
+    });
   });
 
   describe('unconfirmReport（谈判采购报价轮冻结闸门）', () => {
@@ -1154,5 +1179,43 @@ describe('ExpertAdminService.maybeAlertExpertDeclineStreak（专家连拒预警�
     const r = await service.proxyMarkInvitation({ projectId: 'P1', userId: 'ex1', status: 'declined', actorId: 'u1', reason: '电话核实档期冲突婉拒' });
     expect(r.changed).toBe(true);
     expect((service as any).notification.sendToRole).toHaveBeenCalledWith('leader', expect.objectContaining({ type: 'EXPERT_DECLINE_STREAK' }));
+  });
+});
+
+/** expertBreachEventsFromLogs（2026-10-21 深检修正·毁约归因纯函数）：
+ *  系统转正（PROMOTED/SWAP_IN）后的代婉拒不计毁约——专家未亲口答应；
+ *  本人/代回应确认过的才计；同一行混合历史按笔归因。 */
+describe('expertBreachEventsFromLogs（毁约归因）', () => {
+  const t0 = new Date('2026-10-21T08:00:00Z');
+  const ev = (o: Partial<Parameters<typeof expertBreachEventsFromLogs>[0][number]> & { bidExpertId: string }) =>
+    ({ action: 'STAFF_MARKED', fromStatus: null, toStatus: null, reason: null, actorName: null, createdAt: t0, ...o } as any);
+  const names = new Map([['be1', '本人确认项目'], ['be2', '递补转正项目'], ['be3', '混合历史项目']]);
+
+  it('本人确认（RESPONDED confirmed）后被代婉拒 → 计毁约', () => {
+    const out = expertBreachEventsFromLogs([
+      ev({ bidExpertId: 'be1', action: 'RESPONDED', toStatus: 'confirmed' }),
+      ev({ bidExpertId: 'be1', fromStatus: 'confirmed', toStatus: 'declined', reason: '档期冲突' }),
+    ], names);
+    expect(out).toHaveLength(1);
+    expect(out[0].projectName).toBe('本人确认项目');
+  });
+
+  it('递补转正（PROMOTED）后被代婉拒 → 不计毁约（专家未亲口答应）', () => {
+    const out = expertBreachEventsFromLogs([
+      ev({ bidExpertId: 'be2', action: 'PROMOTED', toStatus: 'confirmed' }),
+      ev({ bidExpertId: 'be2', fromStatus: 'confirmed', toStatus: 'declined', reason: '复核冲突' }),
+    ], names);
+    expect(out).toHaveLength(0);
+  });
+
+  it('同一行混合历史按笔归因：本人确认毁约后经系统转正又被代婉拒 → 仅前者计', () => {
+    const out = expertBreachEventsFromLogs([
+      ev({ bidExpertId: 'be3', action: 'RESPONDED', toStatus: 'confirmed' }),
+      ev({ bidExpertId: 'be3', fromStatus: 'confirmed', toStatus: 'declined', reason: '第一次毁约' }),
+      ev({ bidExpertId: 'be3', action: 'PROMOTED', toStatus: 'confirmed' }),
+      ev({ bidExpertId: 'be3', fromStatus: 'confirmed', toStatus: 'declined', reason: '系统转正后婉拒' }),
+    ], names);
+    expect(out).toHaveLength(1);
+    expect(out[0].reason).toBe('第一次毁约');
   });
 });

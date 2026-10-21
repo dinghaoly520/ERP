@@ -416,6 +416,8 @@ export function createEvaluation(id: string, data: {
   comprehensiveGrade: string;
   comment?: string;
   evidence?: Record<string, string>;
+  /** 方案B频次闸（2026-10-21）：7 天内再次评价须填复评事由（leader/admin 免填） */
+  reviewReason?: string;
 }) {
   return api.post<SupplierEvaluation>(`/supplier/${id}/evaluations`, data);
 }

@@ -58,6 +58,7 @@ export function ExpertEvaluationDialog({
   const [grades, setGrades] = useState({ attendanceGrade: 'B', qualityGrade: 'B', disciplineGrade: 'A' });
   const [evidence, setEvidence] = useState<Record<string, string>>({});
   const [comment, setComment] = useState('');
+  const [reviewReason, setReviewReason] = useState(''); // 方案B频次闸：7 天内复评事由
   const [saving, setSaving] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
@@ -147,6 +148,7 @@ export function ExpertEvaluationDialog({
         projectId,
         ...grades,
         comment: comment || undefined,
+        reviewReason: reviewReason.trim() || undefined,
         evidence: Object.keys(evidencePayload).length > 0 ? evidencePayload : undefined,
       });
       toast.success('评价已提交');
@@ -279,6 +281,8 @@ export function ExpertEvaluationDialog({
       {/* 评价说明 */}
       <div>
         <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">评价说明</span>
+        {/* 方案B频次闸（2026-10-21）：7 天内再次评价须填复评事由（leader/admin 免填） */}
+        <input value={reviewReason} onChange={e => setReviewReason(e.target.value)} placeholder="复评事由（7 天内再次评价时必填，如：季度复评）" className="neu-input w-full text-sm" />
         <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder={aiSuggested ? `${aiEngine === 'ai' ? 'AI' : '规则分析'}已填入参考说明，可编辑或补充...` : '评价说明（可选）'} className="neu-input w-full h-20 resize-none text-sm" />
       </div>
     </Modal>

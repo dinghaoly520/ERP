@@ -28,7 +28,7 @@ describe('SupplierService — 公司隔离 raw 路径 link 存在性翻译（多
   beforeEach(async () => {
     prisma = {
       supplier: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
-      supplierEvaluation: { groupBy: jest.fn().mockResolvedValue([]) },
+      supplierEvaluation: { groupBy: jest.fn().mockResolvedValue([]), findMany: jest.fn().mockResolvedValue([]) },
       user: { count: jest.fn().mockResolvedValue(0), findUnique: jest.fn().mockResolvedValue(null) },
       $queryRaw: jest.fn().mockResolvedValue([]),
     };

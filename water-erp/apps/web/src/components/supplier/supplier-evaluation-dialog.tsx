@@ -58,6 +58,7 @@ export function SupplierEvaluationDialog({
   const [grades, setGrades] = useState<EvalGrades>(DEFAULTS);
   const [evidence, setEvidence] = useState<Record<string, string>>({});
   const [comment, setComment] = useState('');
+  const [reviewReason, setReviewReason] = useState(''); // 方案B频次闸：7 天内复评事由
   const [saving, setSaving] = useState(false);
   const [aiResult, setAiResult] = useState<EvaluationAnalysisResult | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -123,7 +124,7 @@ export function SupplierEvaluationDialog({
     if (!hasAnyGrade) { toast.error('请至少为各维度选择等级后再提交'); return; }
     setSaving(true);
     try {
-      await createEvaluation(supplier.id, { ...grades, projectId: projectId || undefined, comment: comment || undefined, evidence });
+      await createEvaluation(supplier.id, { ...grades, projectId: projectId || undefined, comment: comment || undefined, reviewReason: reviewReason.trim() || undefined, evidence });
       toast.success('评价已提交');
       setHistory(await getSupplierEvaluations(supplier.id));
       onSubmitted?.();
@@ -266,6 +267,8 @@ export function SupplierEvaluationDialog({
         <span className="ml-auto text-[10px] text-[var(--muted-foreground)]">权重: 资料20%+响应30%+配合20%+合规20%+综合10%</span>
       </div>
 
+      {/* 方案B频次闸（2026-10-21）：7 天内再次评价须填复评事由（leader/admin 免填） */}
+      <input value={reviewReason} onChange={e => setReviewReason(e.target.value)} placeholder="复评事由（7 天内再次评价时必填，如：履约阶段复评）" className="neu-input w-full text-sm" />
       <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="总体评价说明（可选）" className="neu-input w-full h-20 resize-none text-sm" />
 
       {/* 历史评价 */}

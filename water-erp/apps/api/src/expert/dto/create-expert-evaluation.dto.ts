@@ -23,4 +23,8 @@ export class CreateExpertEvaluationDto {
   /** 三维评价依据（出勤/质量/廉洁），键为 attendanceGrade/qualityGrade/disciplineGrade，值为依据文本 */
   @IsOptional() @IsObject()
   evidence?: Record<string, string>;
+
+  /** 方案B频次闸（2026-10-21）：7 天内再次评价须填复评事由（leader/admin 免填） */
+  @IsOptional() @IsString()
+  reviewReason?: string;
 }

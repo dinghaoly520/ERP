@@ -71,7 +71,9 @@ describe('SupplierService — portrait & eliminate (Track E §3.3)', () => {
     it('连续3次E级供应商为候选，但不改 status', async () => {
       prisma.supplier.findMany.mockResolvedValue([{ id: 's1', name: '差供应商' }]);
       prisma.supplierEvaluation.findMany.mockResolvedValue([
-        { finalGrade: 'E' }, { finalGrade: 'E' }, { finalGrade: 'E' },
+        { supplierId: 's1', finalGrade: 'E', evaluatorId: 'e1', projectId: 'p1', createdAt: new Date(), updatedAt: new Date() },
+        { supplierId: 's1', finalGrade: 'E', evaluatorId: 'e2', projectId: 'p1', createdAt: new Date(), updatedAt: new Date() },
+        { supplierId: 's1', finalGrade: 'E', evaluatorId: 'e3', projectId: 'p1', createdAt: new Date(), updatedAt: new Date() },
       ]);
 
       const candidates = await service.reviewEliminationCandidates();

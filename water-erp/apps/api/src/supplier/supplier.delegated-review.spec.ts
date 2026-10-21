@@ -43,7 +43,7 @@ describe('SupplierService — admin 代审可见性（A 方案）', () => {
       supplierChangeRecord: { count: jest.fn().mockResolvedValue(0) },
       supplierCompanyLink: { count: jest.fn().mockResolvedValue(0) }, // 多公司归属 joins 角标（2026-10-16）
       passwordResetRequest: { count: jest.fn().mockResolvedValue(0) }, // 2026-10-15 resets 角标
-      supplierEvaluation: { groupBy: jest.fn().mockResolvedValue([]) },
+      supplierEvaluation: { groupBy: jest.fn().mockResolvedValue([]), findMany: jest.fn().mockResolvedValue([]) },
       user: { count: jest.fn().mockResolvedValue(0), findUnique: jest.fn().mockResolvedValue(null) },
       $queryRaw: jest.fn().mockResolvedValue([]),
     };
@@ -245,7 +245,7 @@ describe('SupplierService.list — leader 查 LEADER 级时带上本公司 STAFF
     };
     prisma = {
       supplier: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
-      supplierEvaluation: { groupBy: jest.fn().mockResolvedValue([]) },
+      supplierEvaluation: { groupBy: jest.fn().mockResolvedValue([]), findMany: jest.fn().mockResolvedValue([]) },
       user: { findUnique: jest.fn().mockResolvedValue(null), count: jest.fn().mockResolvedValue(0) },
       $queryRaw: jest.fn().mockResolvedValue([]),
     };

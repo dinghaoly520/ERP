@@ -82,8 +82,8 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
       // 最近 2 次都是 E（shouldDeactivateExpert 现在看连续 E 级）
       // 与 service 的 select 一致：仅 expertUserId + overallGrade + createdAt
       prisma.expertEvaluation.findMany.mockResolvedValue([
-        { expertUserId: 'u1', overallGrade: 'E', createdAt: new Date() },
-        { expertUserId: 'u1', overallGrade: 'E', createdAt: new Date() },
+        { expertUserId: 'u1', overallGrade: 'E', evaluatorId: 'e1', projectId: 'p1', createdAt: new Date(), updatedAt: new Date() },
+        { expertUserId: 'u1', overallGrade: 'E', evaluatorId: 'e2', projectId: 'p1', createdAt: new Date(), updatedAt: new Date() },
       ]);
       // 近期有分配（仍因连续 E 级进候选）
       prisma.bidExpert.findMany.mockResolvedValue([{ userId: 'u1', id: 'r1' }]);
