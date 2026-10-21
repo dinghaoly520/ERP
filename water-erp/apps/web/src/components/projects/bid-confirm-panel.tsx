@@ -825,9 +825,11 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                                       <div className="flex flex-col items-start gap-1">
                                         <StatusBadge tone="green">确认参加</StatusBadge>
                                         {/* 自答/代变更时刻一并记录 + 代回应标注 */}
-                                        {e.invitationActorType === 'STAFF' && e.expertRespondedAt && (
+                                        {e.invitationActorType === 'STAFF' && (
                                           <span className="text-[10px] leading-4 text-[var(--muted-foreground)] tabular-nums">
-                                            自答于 {new Date(e.expertRespondedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}（原{e.expertStatus === 'confirmed' ? '确认参加' : '婉拒'}）
+                                            {e.expertRespondedAt
+                                              ? `自答于 ${new Date(e.expertRespondedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}（原${e.expertStatus === 'confirmed' ? '确认参加' : '婉拒'}）`
+                                              : '代回应（专家未自答）'}
                                             {e.rsvpRespondedAt ? ` · 代变更于 ${new Date(e.rsvpRespondedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}
                                           </span>
                                         )}
