@@ -12,8 +12,9 @@ type AppUserActionsProps = {
   layout?: "header" | "sidebar";
 };
 
-/** 供应商审批中心右上角按钮（2026-09-29 三级审批）：仅内部审批角色可见，角标=待我审数（30s 轮询）。
- *  被 UnifiedHeader（页面顶栏常驻）与 AppUserActions（窄屏 page-header）两处复用。 */
+/** 供应商审批中心按钮（2026-09-29 三级审批）：仅内部审批角色可见，角标=待我审数（30s 轮询）。
+ *  全局右上角常驻图标已删（2026-10-21 用户裁定）——现仅窄屏用户栏渲染可见实例；
+ *  app-shell 另挂 withModal 隐藏宿主承接全局 OPEN_REVIEW_CENTER_EVENT（浮窗入口唯一宿主）。 */
 /** 全局事件：任意入口（供应商库「审批」按钮等）打开审批中心窗口 */
 export const OPEN_REVIEW_CENTER_EVENT = 'open-review-center';
 /** 打开审批中心时可携带预选 supplierId（通知直达精确预选该供应商，2026-09-30）

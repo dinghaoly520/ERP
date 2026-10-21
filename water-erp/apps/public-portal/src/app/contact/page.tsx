@@ -3,6 +3,7 @@
 import { MapPin, PhoneCall, MessageSquare } from 'lucide-react';
 import { UnifiedHeader } from '@/components/unified-header';
 import { FlowBackdrop } from '@/components/flow-stage';
+import { AuroraBackdrop } from '@/components/aurora-backdrop';
 
 /* ═══════════════════════════════════════
    联系我们 — 四川省水利发展集团有限公司采购中心
@@ -31,6 +32,8 @@ const CONTACT_INFO = [
 export default function ContactPage() {
   return (
     <div className="flow-page flex flex-col">
+      {/* 动态变色背景（2026-10-21）：品牌蓝系极光色幕，置于光晕/粒子之下 */}
+      <AuroraBackdrop />
       <FlowBackdrop />
       {/* ═══ 统一顶栏 ═══ */}
       <UnifiedHeader announcements={[]} onLoginClick={() => {}} onRegisterClick={() => {}} />

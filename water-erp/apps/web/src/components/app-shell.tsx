@@ -365,11 +365,10 @@ export function AppShell({
           </div>
         </aside>
 
-        {/* 右上角常驻入口（紧凑图标+角标）：占位最小化，避免与页面 hero 右上操作按钮（新建项目等）重叠；
-              完整文字版入口见侧栏底部 */}
-            <div className="pointer-events-none fixed right-3.5 top-3.5 z-[90]">
-              <ReviewCenterButton withModal className="pointer-events-auto relative flex h-9 w-9 items-center justify-center rounded-[12px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.92),rgba(241,246,255,0.85))] shadow-[0_8px_20px_rgba(69,99,158,0.16)] transition-all hover:-translate-y-px hover:bg-white/95 [&>span]:hidden" />
-            </div>
+        {/* 供应商审批中心全局事件宿主（隐藏渲染，2026-10-21 用户裁定：全局表面不要常驻按钮图标）。
+            浮窗入口=供应商库「审批」按钮 / /supplier/approval 深链薄壳 / 通知深链 / 窄屏用户栏，
+            均经 OPEN_REVIEW_CENTER_EVENT 打开——宿主唯一，勿随按钮删除 */}
+        <ReviewCenterButton withModal className="hidden" />
 
         <section className="min-h-0 min-w-0 flex flex-1 overflow-visible px-1 h-full">
           <main id="app-main" className="relative z-10 h-full min-h-0 min-w-0 flex flex-1 flex-col overflow-visible p-3.5 sm:p-4 lg:p-4">

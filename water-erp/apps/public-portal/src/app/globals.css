@@ -3337,3 +3337,86 @@ a.group:hover::after {
   font-family: 'Noto Serif SC', 'Songti SC', 'STZhongsong', 'SimSun', '宋体', serif;
   font-weight: 900;
 }
+
+/* ══ 动态变色背景（2026-10-21 集团简介/联系我们专用；勿全局挂 .flow-page）══
+   「极光」色幕：底色冷暖双相交叉淡入 + 三团品牌蓝系柔光漂移——页面背景色随时间缓慢变化。
+   动画仅用 transform/opacity（合成器通道，无逐帧重绘）；prefers-reduced-motion 冻结。 */
+.aurora-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.aurora-base {
+  position: absolute;
+  inset: 0;
+}
+.aurora-base--cool {
+  background: linear-gradient(165deg, oklch(0.978 0.013 258) 0%, oklch(0.966 0.02 248) 55%, oklch(0.972 0.017 262) 100%);
+  animation: aurora-crossfade 36s ease-in-out infinite;
+}
+.aurora-base--dusk {
+  background: linear-gradient(165deg, oklch(0.974 0.022 268) 0%, oklch(0.963 0.026 258) 50%, oklch(0.975 0.012 252) 100%);
+  animation: aurora-crossfade-rev 36s ease-in-out infinite;
+}
+.aurora-blob {
+  position: absolute;
+  border-radius: 50%;
+  will-change: transform;
+}
+.aurora-blob--a {
+  width: 58vw;
+  height: 58vw;
+  left: -14vw;
+  top: -20vh;
+  background: radial-gradient(circle, oklch(0.8 0.075 248 / 0.42), transparent 68%);
+  animation: aurora-drift-a 32s ease-in-out infinite alternate;
+}
+.aurora-blob--b {
+  width: 50vw;
+  height: 50vw;
+  right: -12vw;
+  top: 24vh;
+  background: radial-gradient(circle, oklch(0.83 0.065 272 / 0.38), transparent 68%);
+  animation: aurora-drift-b 40s ease-in-out infinite alternate;
+}
+.aurora-blob--c {
+  width: 44vw;
+  height: 44vw;
+  left: 26vw;
+  bottom: -24vh;
+  background: radial-gradient(circle, oklch(0.79 0.06 258 / 0.34), transparent 68%);
+  animation: aurora-drift-c 28s ease-in-out infinite alternate;
+}
+/* 底色交叉淡入：冷→暖→冷（两相位反相同拍，50% 处各半融合） */
+@keyframes aurora-crossfade {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+@keyframes aurora-crossfade-rev {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+/* 柔光漂移：缓慢往复位移 + 缩放呼吸（不同周期制造非重复感） */
+@keyframes aurora-drift-a {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(14vw, 10vh, 0) scale(1.18); }
+}
+@keyframes aurora-drift-b {
+  0% { transform: translate3d(0, 0, 0) scale(1.1); }
+  100% { transform: translate3d(-12vw, -8vh, 0) scale(0.92); }
+}
+@keyframes aurora-drift-c {
+  0% { transform: translate3d(0, 0, 0) scale(0.95); }
+  100% { transform: translate3d(10vw, -12vh, 0) scale(1.15); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aurora-base,
+  .aurora-blob {
+    animation: none;
+  }
+  /* 静态时保留两层各半融合，避免完全退化为纯静态底 */
+  .aurora-base--cool { opacity: 0.5; }
+  .aurora-base--dusk { opacity: 0.5; }
+}

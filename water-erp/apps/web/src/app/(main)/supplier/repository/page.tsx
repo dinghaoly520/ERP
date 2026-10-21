@@ -84,7 +84,7 @@ export default function SupplierRepositoryPage() {
   const STATUS_TABS: { key: string; label: string; status: string; isTemporary?: boolean; tone?: string; count?: number; badge?: 'danger' | 'warning' }[] = [
     { key: 'APPROVED', label: '已入库', status: 'APPROVED', tone: 'green' },
     { key: 'TEMPORARY', label: '临时供应商', status: 'APPROVED', isTemporary: true, tone: 'teal', count: stats.temporaryApproved, badge: 'warning' as const },
-    // 注册审批（三级）已整体迁出供应商库（2026-09-29）：入口=右上角「供应商审批」/本页右上「注册审批」按钮 → /supplier/approval
+    // 注册审批（三级）已整体迁出供应商库（2026-09-29）：入口=本页右上「审批」按钮拉起浮窗（右上角全局图标已删，2026-10-21）
     { key: 'DISABLED', label: '已停用', status: 'DISABLED', tone: 'gray' },
     { key: 'BLACKLIST', label: '黑名单', status: 'BLACKLIST', tone: 'red' },
   ];
