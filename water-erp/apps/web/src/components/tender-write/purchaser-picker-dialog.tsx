@@ -38,7 +38,7 @@ export function PurchaserPickerDialog({
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4 py-6">
       <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-md" onClick={onClose} />
-      <div className="relative z-10 flex w-full max-w-[460px] flex-col overflow-hidden rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
+      <div className="relative z-10 flex w-full max-w-[640px] flex-col overflow-hidden rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
         <div className="px-6 py-4" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
           <div className="flex items-center justify-between">
             <div className="text-sm font-semibold text-[color:var(--foreground)]">选择采购人</div>
@@ -92,16 +92,14 @@ export function PurchaserPickerDialog({
                       {p.name}
                       {p.isDefault && <span className="ml-2 text-[10px] font-medium text-[color:var(--accent)]">默认</span>}
                     </div>
-                    <div className="mt-0.5 truncate text-[11px] text-[color:var(--muted-foreground)]">
-                      电话：{p.phone || "未填"}
-                      {p.email ? <span className="mx-1.5">·</span> : null}
-                      {p.email ? <>邮箱：{p.email}</> : null}
+                    {/* 全量信息单行横排（2026-10-21 用户口径）：不换行不截断，缺项跳过 */}
+                    <div className="mt-0.5 whitespace-nowrap text-[11px] text-[color:var(--muted-foreground)]">
+                      {[
+                        `电话：${p.phone || "未填"}`,
+                        p.email ? `邮箱：${p.email}` : '',
+                        p.address ? `地址：${p.address}` : '',
+                      ].filter(Boolean).join(" · ")}
                     </div>
-                    {p.address && (
-                      <div className="mt-0.5 truncate text-[11px] text-[color:var(--muted-foreground)]" title={p.address}>
-                        地址：{p.address}
-                      </div>
-                    )}
                   </div>
                 </button>
               ))}
