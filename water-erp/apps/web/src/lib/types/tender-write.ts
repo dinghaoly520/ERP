@@ -249,8 +249,10 @@ export type TenderFieldConfig<K extends TenderFieldKey = TenderFieldKey> = {
   placeholder: string;
   multiline?: boolean;
   // "datetime" = datetime-local 选择器（存中文格式「YYYY年MM月DD日HH:MM」），
-  // 用于开标时间等只允许填时间的字段（2026-09-09 起开标时间不再支持文字）
-  type?: "text" | "date" | "month" | "datetime" | "email" | "tel";
+  // 用于开标时间等只允许填时间的字段（2026-09-09 起开标时间不再支持文字）；
+  // "datetime-range" = 起止两个 datetime-local 组成时间段（存「YYYY年MM月DD日HH:MM至YYYY年MM月DD日HH:MM」，
+  // 与 AI 生成同口径），用于文件获取时间（2026-10-21 用户口径：弃文句式录入）
+  type?: "text" | "date" | "month" | "datetime" | "datetime-range" | "email" | "tel";
   aiPrompt?: string;
   composite?: {
     typeKey: TenderFieldKey;

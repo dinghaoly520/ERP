@@ -129,7 +129,8 @@ export const COMPETITIVE_NEGOTIATION_SECTIONS: TenderSectionConfig[] = [
       {
         key: "documentAcquireTime",
         label: "文件获取时间",
-        placeholder: "请输入文件获取时间",
+        placeholder: "起止时间选择（形成时间段）",
+        type: "datetime-range",
         aiPrompt: "生成文件获取时间。规则：生成一个日期时间范围，起始为今天起往后推3-5个工作日（跳过周六日）的上午09:00，结束为起始日期往后推3-5个工作日的下午15:00。格式为'YYYY年MM月DD日HH:MM至YYYY年MM月DD日HH:MM'（如2026年03月23日09:00至2026年03月26日15:00），只输出该时间范围，不要其他说明。",
       },
       {
@@ -439,7 +440,8 @@ export const INQUIRY_PURCHASE_SECTIONS: TenderSectionConfig[] = [
       {
         key: "documentAcquireTime",
         label: "采购文件获取时间",
-        placeholder: "请输入采购文件获取时间",
+        placeholder: "起止时间选择（形成时间段）",
+        type: "datetime-range",
         aiPrompt: "生成采购文件获取时间。规则：生成一个日期时间范围，起始为今天起往后推3-5个工作日（跳过周六日）的上午09:00，结束为起始日期往后推3-5个工作日的下午15:00。格式为'YYYY年MM月DD日HH:MM至YYYY年MM月DD日HH:MM'（如2026年03月23日09:00至2026年03月26日15:00），只输出该时间范围，不要其他说明。",
       },
       {
@@ -575,7 +577,8 @@ export const INTERNAL_BIDDING_SECTIONS: TenderSectionConfig[] = [
       {
         key: "documentAcquireTime",
         label: "文件获取时间",
-        placeholder: "请输入文件获取时间",
+        placeholder: "起止时间选择（形成时间段）",
+        type: "datetime-range",
         aiPrompt: "生成文件获取时间。规则：生成一个日期时间范围，起始为今天起往后推3-5个工作日（跳过周六日）的上午09:00，结束为起始日期往后推3-5个工作日的下午15:00。格式为'YYYY年MM月DD日HH:MM至YYYY年MM月DD日HH:MM'（如2026年03月23日09:00至2026年03月26日15:00），只输出该时间范围，不要其他说明。",
       },
       { key: "documentPrice", label: "采购文件售价", placeholder: "例如 0 元", aiPrompt: "生成采购文件售价。本公司电子采购文件免费提供，只输出数字 0，不要添加元、元/份等单位或任何说明。" },

@@ -228,6 +228,24 @@ function isoDatetimeToChinese(iso: string): string {
   return `${parseInt(y, 10)}年${parseInt(mo, 10)}月${parseInt(d, 10)}日${h}:${min}`;
 }
 
+// 中文时间区间 → 起止 ISO（首段=起、末段=止；单点则止为空）——datetime-range 字段取值用
+function chineseDatetimeRangeToISO(chinese: string): { start: string; end: string } {
+  const re = /(\d{4})年(\d{1,2})月(\d{1,2})日(\d{1,2}):(\d{2})/g;
+  const parts = [...chinese.matchAll(re)];
+  if (parts.length === 0) return { start: '', end: '' };
+  const toISO = (m: RegExpMatchArray) =>
+    `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}T${m[4].padStart(2, '0')}:${m[5]}`;
+  return { start: toISO(parts[0]), end: parts.length > 1 ? toISO(parts[parts.length - 1]) : '' };
+}
+
+// 起止 ISO → 中文区间「YYYY年MM月DD日HH:MM至YYYY年MM月DD日HH:MM」（与 AI 生成格式同口径）
+function isoRangeToChinese(start: string, end: string): string {
+  const s = isoDatetimeToChinese(start);
+  const e = isoDatetimeToChinese(end);
+  if (s && e) return `${s}至${e}`;
+  return s || e || '';
+}
+
 export function TenderSectionEditor({
   section,
   draft,
@@ -1155,6 +1173,42 @@ export function TenderSectionEditor({
                     placeholder={field.placeholder}
                     className={commonClassName}
                   />
+                ) : field.type === 'datetime-range' ? (
+                  /* 文件获取时间（2026-10-21 用户口径）：弃文句式，起止两个时间选择器形成时间段；
+                      存库仍为中文区间文本（与 AI 生成「起至止」同口径，展示侧 fmtAcquireTime 归一） */
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="datetime-local"
+                      aria-label={`${field.label}（起）`}
+                      value={chineseDatetimeRangeToISO(value).start}
+                      onChange={(event) => {
+                        const r = chineseDatetimeRangeToISO(value);
+                        onChange(field.key, isoRangeToChinese(event.target.value, r.end));
+                        markFieldEdited(field.key);
+                      }}
+                      onFocus={() => {
+                        onFieldFocus?.(field.key);
+                        setActiveFieldKey(field.key);
+                      }}
+                      className={`${commonClassName} flex-1 min-w-[160px]`}
+                    />
+                    <span className="text-[0.8rem] font-semibold text-[color:var(--muted-foreground)]">至</span>
+                    <input
+                      type="datetime-local"
+                      aria-label={`${field.label}（止）`}
+                      value={chineseDatetimeRangeToISO(value).end}
+                      onChange={(event) => {
+                        const r = chineseDatetimeRangeToISO(value);
+                        onChange(field.key, isoRangeToChinese(r.start, event.target.value));
+                        markFieldEdited(field.key);
+                      }}
+                      onFocus={() => {
+                        onFieldFocus?.(field.key);
+                        setActiveFieldKey(field.key);
+                      }}
+                      className={`${commonClassName} flex-1 min-w-[160px]`}
+                    />
+                  </div>
                 ) : (
                   <input
                     ref={(el) => {
