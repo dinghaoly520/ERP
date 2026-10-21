@@ -34,7 +34,6 @@ export function PurchaserPickerDialog({
 
   if (!isOpen) return null;
 
-  const inputHint = "公司信息管理（侧栏 → 资源管理）中由负责人维护采购人条目后，此处即可选择";
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4 py-6">
@@ -62,7 +61,6 @@ export function PurchaserPickerDialog({
           ) : (entries ?? []).length === 0 ? (
             <div className="rounded-[12px] border border-dashed border-[var(--border)] px-4 py-6 text-center">
               <div className="text-sm text-[color:var(--foreground)]">本公司暂未维护采购人</div>
-              <div className="mt-1 text-xs leading-5 text-[color:var(--muted-foreground)]">{inputHint}</div>
             </div>
           ) : (
             <div className="space-y-2">
@@ -107,7 +105,6 @@ export function PurchaserPickerDialog({
                   </div>
                 </button>
               ))}
-              <p className="pt-1 text-[11px] leading-4 text-[color:var(--muted-foreground)]">{inputHint}</p>
             </div>
           )}
         </div>
