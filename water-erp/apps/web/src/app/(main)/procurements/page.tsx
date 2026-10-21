@@ -5,7 +5,7 @@ import { isGroupedCompanyView, CompanySelect, readInitialCompanyId } from "@/com
 import { SasacExtractModal } from "@/components/procurements/sasac-extract-modal";
 import { ProjectTimelineStrip } from "@/components/projects/project-timeline-strip";
 import { useRouter } from "next/navigation";
-import { motion, useReducedMotion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
   RefreshCw,
@@ -33,11 +33,10 @@ import {
 } from "lucide-react";
 import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from "@/components/company/company-tag";
 import type { ProcurementRoundItem, ResultStatusKey, LedgerFilterState } from "@/lib/types/procurement";
-import { RESULT_STATUS_CONFIG, type LedgerSummary } from "@/lib/types/procurement";
+import { RESULT_STATUS_CONFIG } from "@/lib/types/procurement";
 import {
   fetchProcurements,
   fetchProcurementMethods,
-  fetchLedgerStats,
   analyzeProcurementLedger,
   moveProcurementToRecycleBin,
   restoreProcurementFromRecycleBin,
@@ -324,7 +323,6 @@ function LedgerRow({
   onDeletePermanently,
   isAdmin,
   canManageVolume = false,
-  showCompany = false,
 }: {
   item: ProcurementRoundItem;
   onExpand: () => void;
@@ -340,8 +338,6 @@ function LedgerRow({
   isAdmin: boolean;
   /** admin 或 PMI 属主（后端 assertItemScope 同口径）——显示「归档卷」按钮 */
   canManageVolume?: boolean;
-  /** admin 全部公司视图：展示采购单位（创建人所属公司）标签 */
-  showCompany?: boolean;
 }) {
   const formatDate = (date: string | null) => {
     if (!date) return "-";
@@ -734,7 +730,6 @@ function RecycleConfirmModal({
 // Main Page
 export default function ProcurementsPage() {
   const router = useRouter();
-  const reducedMotion = useReducedMotion();
   const { confirm, dialog } = useConfirm();
   const [data, setData] = useState<ProcurementRoundItem[]>([]);
   const [pagination, setPagination] = useState({ page: 1, pageSize: 12, total: 0, totalPages: 0 });
@@ -745,7 +740,6 @@ export default function ProcurementsPage() {
   const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([]);
   useEffect(() => { fetchDepartments().then(setDepartments).catch(() => setDepartments([])); }, []);
   const [loading, setLoading] = useState(false);
-  const [ledgerStats, setLedgerStats] = useState<LedgerSummary | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [filters, setFilters] = useState<LedgerFilterState>({
@@ -781,8 +775,6 @@ export default function ProcurementsPage() {
   // 归档卷弹窗（DA/T 103：范围勾稽/四性检测/ASIP 导出）+ 深链/提示
   const [volumeItem, setVolumeItem] = useState<ProcurementRoundItem | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [pendingArchivePmi, setPendingArchivePmi] = useState<string | null>(null);
-  const [ledgerToast, setLedgerToast] = useState<string | null>(null);
   const dataLoadedOnceRef = useRef(false); // 深链匹配须等首帧数据就绪（loading 初值 false 的竞态）
 
   // Admin check + 驾驶舱权限守卫（办公权限 staff 重定向到工作台）
@@ -960,7 +952,9 @@ export default function ProcurementsPage() {
     setLoading(true);
     setLoadError(null);
     try {
-      const [listRes, methodsRes, statsRes, countsRes] = await Promise.all([
+      // 统计接口曾在此并行拉取（四审 P2「统计卡与列表同筛选」）——统计卡 UI 一直未接，
+      // ledgerStats 落 state 后无任何消费者，2026-10-21 清死请求
+      const [listRes, methodsRes, countsRes] = await Promise.all([
         fetchProcurements({
           page: pagination.page,
           pageSize: pagination.pageSize,
@@ -977,7 +971,6 @@ export default function ProcurementsPage() {
           companyId,
         }),
         fetchProcurementMethods(),
-        fetchLedgerStats(filters.startDate || undefined, filters.endDate || undefined, companyId) /* 四审 P2：统计卡与列表同筛选，防同屏口径打架 */.catch(() => null),
         (isAdmin && isGroupedCompanyView(companyId))
           ? fetchLedgerCompanyCounts({
               startDate: filters.startDate || undefined,
@@ -996,7 +989,6 @@ export default function ProcurementsPage() {
       setPagination(listRes.pagination);
       setAbnormalTotal(listRes.abnormalTotal);
       setMethods(methodsRes);
-      if (statsRes) setLedgerStats(statsRes);
       setCompanyCounts(countsRes);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : '加载采购台账失败，请稍后重试');
@@ -1004,38 +996,45 @@ export default function ProcurementsPage() {
       setLoading(false);
       dataLoadedOnceRef.current = true; // 归档深链匹配门控（首帧数据就绪）
     }
-  }, [pagination.page, pagination.pageSize, filters, sortBy, companyId]);
+    // isAdmin 入依赖（2026-10-21）：函数体分支读取它——缺列时 admin 登录态就位后
+    // 闭包仍持 false，公司分组计数被跳过，直到其他依赖变化才追平
+  }, [pagination.page, pagination.pageSize, filters, sortBy, companyId, isAdmin]);
 
   useEffect(() => { loadData(); }, [loadData]);
+  // 以下两个 mount-once URL 深链同步保留 effect 写法：改 render 期初始化会引发
+  // hydration 不匹配（服务端无 URL，select 受控值两侧不一致），抑制 set-state 警告
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setCompanyId(readInitialCompanyId()); }, []);
   // URL 深链：?category=archived|terminated 直接落到类型筛选（通知/外链直达终止列表）
   useEffect(() => {
     const c = new URLSearchParams(window.location.search).get('category');
     if (c === 'archived' || c === 'terminated') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFilters((prev) => ({ ...prev, category: c, resultStatus: null }));
     }
   }, []);
 
-  // 归档待办直达：/archive?pmi= 已重定向到本页，消费 archivePmi 自动开「归档卷」弹窗
+  // 归档待办直达：/archive?pmi= 已重定向到本页，消费 archivePmi 自动开「归档卷」弹窗。
+  // 深链参数走 ref（非渲染状态）：消费侧由 data/loading 变化驱动，无需触发重渲染，
+  // 也免去 effect 内 setState（toast 提示改 sonner，不再落本地 state）
+  const pendingArchivePmiRef = useRef<string | null>(null);
   useEffect(() => {
     const pmi = new URLSearchParams(window.location.search).get('archivePmi');
-    if (pmi) setPendingArchivePmi(pmi);
+    if (pmi) pendingArchivePmiRef.current = pmi;
   }, []);
   useEffect(() => {
-    if (!pendingArchivePmi || loading || !authChecked || !dataLoadedOnceRef.current) return;
-    const item = data.find((i) => i.projectManagementId === pendingArchivePmi);
+    const pmi = pendingArchivePmiRef.current;
+    if (!pmi || loading || !authChecked || !dataLoadedOnceRef.current) return;
+    const item = data.find((i) => i.projectManagementId === pmi);
     if (item && canManageArchive(item)) handleOpenVolume(item);
-    else if (item) setLedgerToast('该归档卷仅创建人或管理员可操作');
-    else setLedgerToast('未在当前页找到该归档卷，请清除筛选或翻页后从通知重新进入');
-    setPendingArchivePmi(null); // 一次性消费：清 state + 清 URL 参（防翻页后误开）
+    else if (item) toast.info('该归档卷仅创建人或管理员可操作');
+    else toast.info('未在当前页找到该归档卷，请清除筛选或翻页后从通知重新进入');
+    pendingArchivePmiRef.current = null; // 一次性消费：清 ref + 清 URL 参（防翻页后误开）
     const url = new URL(window.location.href);
     url.searchParams.delete('archivePmi');
     window.history.replaceState(null, '', url);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingArchivePmi, data, loading, authChecked, isAdmin, currentUserId]);
-  useEffect(() => {
-    if (ledgerToast) { const t = setTimeout(() => setLedgerToast(null), 4000); return () => clearTimeout(t); }
-  }, [ledgerToast]);
+  }, [data, loading, authChecked, isAdmin, currentUserId]);
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 搜索框即时回显：受控输入的 value 若直接绑防抖后的 filters.searchKeyword，
@@ -1352,11 +1351,6 @@ export default function ProcurementsPage() {
           />
         )}
 
-        {ledgerToast && (
-          <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-xl bg-[var(--foreground)] px-4 py-2.5 text-sm text-[var(--background)] shadow-[2px_3px_8px_oklch(0.45_0.05_258/0.25),-1px_-1px_3px_oklch(1_0_0/0.15)]">
-            {ledgerToast}
-          </div>
-        )}
         {dialog}
         <SasacExtractModal open={extractOpen} onClose={() => setExtractOpen(false)} companyId={companyId} />
       </div>
