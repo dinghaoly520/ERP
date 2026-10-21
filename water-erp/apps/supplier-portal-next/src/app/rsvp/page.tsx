@@ -145,14 +145,28 @@ function RsvpInner() {
                     {(done?.status || view.status) === "ACCEPTED" ? "✓ 已确认参加" : "✕ 已确认无法参加"}
                   </div>
                   <p className="rv-done-meta">
-                    回执号 <strong>#{done?.rsvpNo || "—"}</strong>
-                    · 回执时间{" "}
+                    {/* 回执号=供应商自答凭证（2026-10-21 用户口径）：采购方代回应/代变更的行不展示；
+                        自答后即时反馈（done）恒为 SUPPLIER，不受此条件影响 */}
+                    {(view.respondentType ?? (done ? "SUPPLIER" : null)) !== "STAFF" && (
+                      <>回执号 <strong>#{done?.rsvpNo || "—"}</strong>
+                        {" · "}</>
+                    )}
+                    回执时间{" "}
                     {done?.respondedAt
                       ? new Date(done.respondedAt).toLocaleString("zh-CN")
                       : view.respondedAt
                         ? new Date(view.respondedAt).toLocaleString("zh-CN")
                         : "—"}
                   </p>
+                  {/* 代变更场景（2026-10-21 用户口径：原回执不覆盖、一并记录）：
+                      展示本人的自答时刻与原选择 + 采购方变更时刻 */}
+                  {(view.respondentType ?? (done ? "SUPPLIER" : null)) === "STAFF" && view.supplierRespondedAt && (
+                    <p className="rv-done-meta">
+                      您于 {new Date(view.supplierRespondedAt).toLocaleString("zh-CN")} 回执
+                      「{view.supplierStatus === "ACCEPTED" ? "确认参加" : "无法参加"}」，
+                      采购方于 {view.respondedAt ? new Date(view.respondedAt).toLocaleString("zh-CN") : "—"} 将其变更为当前状态
+                    </p>
+                  )}
                   <p className="rv-hint">回执已提交，不可变更。如有疑问请联系采购方（四川水发集团采购中心）。</p>
                 </div>
               )}

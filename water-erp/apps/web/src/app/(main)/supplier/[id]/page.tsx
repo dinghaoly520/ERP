@@ -1213,14 +1213,25 @@ export default function SupplierDetailPage() {
                     return (
                       <div key={it.rsvpNo} className="neu-card-static !rounded-2xl p-4">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono text-[10px] text-[var(--muted-foreground)]">#{it.rsvpNo}</span>
+                          {/* 回执号=供应商自答凭证（2026-10-21 用户口径）：代回应/代变更的行不展示 */}
+                          {it.respondentType !== 'STAFF' && (
+                            <span className="font-mono text-[10px] text-[var(--muted-foreground)]">#{it.rsvpNo}</span>
+                          )}
                           <span className="text-sm font-bold text-[var(--foreground)] truncate">{it.title}</span>
                           <span className="ml-auto inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-bold"
                             style={{ color: stColor, background: `color-mix(in oklch, ${stColor} 12%, transparent)` }}>{stCn}</span>
                         </div>
                         <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--muted-foreground)]">
                           <span className="tabular-nums">邀请发出 {it.notifiedAt ? new Date(it.notifiedAt).toLocaleString('zh-CN') : '—'}</span>
-                          {it.respondedAt && <span className="tabular-nums">回执于 {new Date(it.respondedAt).toLocaleString('zh-CN')}</span>}
+                          {/* 回执时间（2026-10-21 用户口径：代变更不覆盖原回执——自答时刻与代变更时刻一并记录） */}
+                          {it.respondentType === 'STAFF' && it.supplierRespondedAt ? (
+                            <>
+                              <span className="tabular-nums">供应商自答于 {new Date(it.supplierRespondedAt).toLocaleString('zh-CN')}（原{it.supplierStatus === 'ACCEPTED' ? '确认参加' : '无法参加'}）</span>
+                              <span className="tabular-nums">代变更于 {it.respondedAt ? new Date(it.respondedAt).toLocaleString('zh-CN') : '—'}</span>
+                            </>
+                          ) : (
+                            it.respondedAt && <span className="tabular-nums">回执于 {new Date(it.respondedAt).toLocaleString('zh-CN')}</span>
+                          )}
                           {it.respondentType === 'STAFF' && (
                             <span className="inline-flex items-center gap-0.5 rounded-[4px] px-1.5 py-0.5 text-[10px] font-bold"
                               style={{ background: 'color-mix(in oklch, var(--warning) 14%, transparent)', color: 'var(--warning)' }}>

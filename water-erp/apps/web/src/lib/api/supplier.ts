@@ -251,6 +251,8 @@ export interface RsvpListItem {
   rsvpNo: string; supplierId: string; supplierName: string; status: 'PENDING' | 'ACCEPTED' | 'DECLINED';
   tags?: string[]; note: string | null; respondedAt: string | null; notifiedAt?: string | null; expired: boolean;
   respondentType?: 'SUPPLIER' | 'STAFF' | 'SYSTEM' | null; respondedByName?: string | null; staffReason?: string | null;
+  /** 供应商自答快照（2026-10-21 用户口径：代变更不覆盖原回执，两个时刻一并展示） */
+  supplierRespondedAt?: string | null; supplierStatus?: 'ACCEPTED' | 'DECLINED' | null;
   trail?: RsvpTrailItem[];
 }
 export interface RsvpListResult { total: number; counts: { ACCEPTED: number; DECLINED: number; PENDING: number }; items: RsvpListItem[]; }
@@ -266,7 +268,8 @@ export interface RsvpHistoryItem {
   rsvpNo: string; title: string; projectId: string | null; status: 'PENDING' | 'ACCEPTED' | 'DECLINED';
   note: string | null; staffReason: string | null;
   respondentType: 'SUPPLIER' | 'STAFF' | 'SYSTEM' | null; respondedByName: string | null;
-  respondedAt: string | null; notifiedAt: string | null; createdAt: string; trail: RsvpTrailItem[];
+  respondedAt: string | null; supplierRespondedAt?: string | null; supplierStatus?: 'ACCEPTED' | 'DECLINED' | null;
+  notifiedAt: string | null; createdAt: string; trail: RsvpTrailItem[];
 }
 export interface RsvpHistoryResult {
   supplierId: string;

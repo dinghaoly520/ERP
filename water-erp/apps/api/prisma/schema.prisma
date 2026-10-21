@@ -546,6 +546,10 @@ model InvitationRsvp {
   respondedByName   String?
   // 工作人员代回应/代变更理由（STAFF 必填，界面展示；供应商自答备注仍走 note）
   staffReason       String?
+  // 供应商自答快照（2026-10-21 用户口径）：代变更不覆盖原回执——自答时间与原选择单独
+  // 留存，与 respondedAt（当前生效状态的最后动作时刻）并列展示；全量流转另有 RsvpLog 轨迹
+  supplierRespondedAt DateTime?
+  supplierStatus      String?
   responseIp   String? // 回执存证
   responseUa   String? // 回执存证
   expiresAt    DateTime

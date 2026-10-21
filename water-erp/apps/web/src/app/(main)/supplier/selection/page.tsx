@@ -1741,7 +1741,8 @@ export function SupplierSelectionPage({
         <div className="flex-1 min-w-0">
           <div className="text-sm font-bold text-[var(--foreground)] truncate flex items-center gap-1.5">
             {r.name}
-            {rsvpItem && (
+            {/* 回执号=供应商自答凭证（2026-10-21 用户口径）：工作人员代回应/代变更的行不展示 */}
+            {rsvpItem && rsvpItem.respondentType !== 'STAFF' && (
               <span className="text-[10px] font-mono text-[var(--muted-foreground)] shrink-0" title={`回执号 #${rsvpItem.rsvpNo}`}>#{rsvpItem.rsvpNo}</span>
             )}
           </div>
@@ -1754,7 +1755,10 @@ export function SupplierSelectionPage({
               : <>匹配 <span style={{ color: scoreVar(r.matchScore) }} className="font-bold">{r.matchScore}</span></>
             }
             {contact ? ` · ${contact.name} ${contact.phone}` : ''}
-            {rsvpItem?.respondedAt && ` · 回执于 ${new Date(rsvpItem.respondedAt).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}`}
+            {/* 回执时间（2026-10-21 用户口径：代变更不覆盖原回执——供应商自答时刻与代变更时刻一并记录） */}
+            {rsvpItem?.respondentType === 'STAFF' && rsvpItem.supplierRespondedAt
+              ? ` · 供应商自答于 ${new Date(rsvpItem.supplierRespondedAt).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}（原${rsvpItem.supplierStatus === 'ACCEPTED' ? '确认参加' : '无法参加'}）· 代变更于 ${rsvpItem.respondedAt ? new Date(rsvpItem.respondedAt).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}`
+              : rsvpItem?.respondedAt ? ` · 回执于 ${new Date(rsvpItem.respondedAt).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}
             {/* 作答方标注：工作人员代回应 / 超时自动弃权（无标注=供应商链接自答） */}
             {rsvpItem?.respondentType === 'STAFF' && (
               <span className="ml-1 inline-flex items-center gap-0.5 rounded-[4px] px-1 py-0.5 text-[9px] font-bold"

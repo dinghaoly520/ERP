@@ -57,6 +57,11 @@ export interface RsvpView {
   status: RsvpStatus;
   respondedAt: string | null;
   rsvpNo: string | null;
+  /** 作答方（2026-10-21 用户口径：代回应/代变更的行不展示回执号——回执号是供应商自答凭证） */
+  respondentType: RsvpActorType | null;
+  /** 供应商自答快照（2026-10-21 用户口径：代变更不覆盖原回执，两个时刻一并展示） */
+  supplierRespondedAt: string | null;
+  supplierStatus: RsvpStatus | null;
   expired: boolean;
   expiresAt: string;
 }
@@ -79,7 +84,7 @@ export class RsvpService {
   async verify(token: string): Promise<RsvpView> {
     const row = await this.prisma.invitationRsvp.findUnique({
       where: { token },
-      select: { id: true, status: true, respondedAt: true, expiresAt: true, title: true, summary: true, supplierName: true, supplierId: true, projectId: true },
+      select: { id: true, status: true, respondedAt: true, expiresAt: true, title: true, summary: true, supplierName: true, supplierId: true, projectId: true, respondentType: true, supplierRespondedAt: true, supplierStatus: true },
     });
     if (!row) throw new NotFoundException({ error: '回执链接无效或已失效', code: 'RSVP_NOT_FOUND' });
     const expired = new Date(row.expiresAt).getTime() < Date.now();
@@ -109,6 +114,9 @@ export class RsvpService {
       status: row.status as RsvpStatus,
       respondedAt: row.respondedAt ? row.respondedAt.toISOString() : null,
       rsvpNo: row.id ? row.id.slice(-8).toUpperCase() : null,
+      respondentType: (row.respondentType as RsvpActorType | null) ?? (row.respondedAt ? 'SUPPLIER' : null),
+      supplierRespondedAt: row.supplierRespondedAt ? row.supplierRespondedAt.toISOString() : null,
+      supplierStatus: (row.supplierStatus as RsvpStatus | null) ?? null,
       expired: new Date(row.expiresAt).getTime() < Date.now(),
       expiresAt: row.expiresAt.toISOString(),
     };
@@ -141,6 +149,10 @@ export class RsvpService {
           status: body.status,
           note,
           respondedAt: new Date(),
+          // 供应商自答快照（2026-10-21 用户口径）：自答时刻与原始选择单独留存，
+          // 后续工作人员代变更只改当前生效状态，不触碰这两列
+          supplierRespondedAt: new Date(),
+          supplierStatus: body.status,
           respondentType: 'SUPPLIER',
           respondedById: null,
           respondedByName: null,
@@ -240,6 +252,7 @@ export class RsvpService {
         id: true, supplierId: true, supplierName: true, status: true, note: true,
         respondedAt: true, expiresAt: true, createdAt: true, projectId: true, notifiedAt: true,
         respondentType: true, respondedById: true, respondedByName: true, staffReason: true,
+        supplierRespondedAt: true, supplierStatus: true,
       },
     });
     // 补查供应商标签
@@ -298,6 +311,7 @@ export class RsvpService {
               status: r.status, respondedAt: r.respondedAt, note: r.note,
               respondentType: r.respondentType, respondedById: r.respondedById,
               respondedByName: r.respondedByName, staffReason: r.staffReason,
+              supplierRespondedAt: r.supplierRespondedAt, supplierStatus: r.supplierStatus,
             },
           });
           keep.status = r.status;
@@ -352,6 +366,9 @@ export class RsvpService {
         respondentType: (r.respondentType as RsvpActorType | null) ?? (r.respondedAt ? 'SUPPLIER' : null),
         respondedByName: r.respondedByName,
         staffReason: r.staffReason,
+        // 供应商自答快照（2026-10-21 用户口径：代变更不覆盖原回执，一并展示）
+        supplierRespondedAt: r.supplierRespondedAt ? r.supplierRespondedAt.toISOString() : null,
+        supplierStatus: r.supplierStatus as RsvpStatus | null,
         trail: trailByRsvp.get(r.id) ?? [],
         expired: new Date(r.expiresAt).getTime() < now,
       };
@@ -417,6 +434,9 @@ export class RsvpService {
 
     if (row) {
       const from = row.status;
+      // 【不变量】supplierRespondedAt/supplierStatus（供应商自答快照）绝不在此覆盖——
+      // 代变更只改「当前生效状态」四件套（status/respondedAt/respondentType*/staffReason），
+      // 供应商原回执时刻与原选择原样保留（2026-10-21 用户口径：一并记录）
       const updated = await this.prisma.invitationRsvp.update({
         where: { id: row.id },
         data: {
@@ -500,6 +520,7 @@ export class RsvpService {
         select: {
           id: true, title: true, projectId: true, status: true, note: true, staffReason: true,
           respondentType: true, respondedByName: true, respondedAt: true, notifiedAt: true, createdAt: true, expiresAt: true,
+          supplierRespondedAt: true, supplierStatus: true,
         },
       }),
       this.prisma.invitationRsvpLog.findMany({
@@ -547,6 +568,8 @@ export class RsvpService {
         respondentType: (r.respondentType as RsvpActorType | null) ?? (r.respondedAt ? 'SUPPLIER' : null),
         respondedByName: r.respondedByName,
         respondedAt: r.respondedAt ? r.respondedAt.toISOString() : null,
+        supplierRespondedAt: r.supplierRespondedAt ? r.supplierRespondedAt.toISOString() : null,
+        supplierStatus: r.supplierStatus as RsvpStatus | null,
         notifiedAt: r.notifiedAt ? r.notifiedAt.toISOString() : null,
         createdAt: r.createdAt.toISOString(),
         trail: trailByRsvp.get(r.id) ?? [],

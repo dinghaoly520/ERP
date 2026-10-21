@@ -8,6 +8,11 @@ export interface RsvpView {
   status: "PENDING" | "ACCEPTED" | "DECLINED";
   respondedAt: string | null;
   rsvpNo: string | null;
+  /** 作答方（2026-10-21 用户口径：代回应/代变更的行不展示回执号——回执号是供应商自答凭证） */
+  respondentType?: "SUPPLIER" | "STAFF" | "SYSTEM" | null;
+  /** 供应商自答快照（代变更不覆盖原回执——本人视角展示自己的回执时刻与原选择） */
+  supplierRespondedAt?: string | null;
+  supplierStatus?: "ACCEPTED" | "DECLINED" | null;
   expired: boolean;
   expiresAt: string;
 }

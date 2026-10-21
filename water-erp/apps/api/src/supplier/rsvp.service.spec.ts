@@ -86,7 +86,7 @@ describe('RsvpService.respond（P0-1 + 一次性锁定·原子闸）', () => {
     expect(prisma.invitationRsvp.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'rsvp1', respondedAt: null },
-        data: expect.objectContaining({ status: 'ACCEPTED', respondentType: 'SUPPLIER' }),
+        data: expect.objectContaining({ status: 'ACCEPTED', respondentType: 'SUPPLIER', supplierRespondedAt: expect.any(Date), supplierStatus: 'ACCEPTED' }),
       }),
     );
     expect(prisma.invitationRsvpLog.create).toHaveBeenCalledWith(
@@ -208,6 +208,10 @@ describe('RsvpService.manualMark（代回应/代变更）', () => {
         }),
       }),
     );
+    // 【不变量】供应商自答快照绝不随代变更覆盖（2026-10-21 用户口径：原回执一并记录）
+    const updateData = prisma.invitationRsvp.update.mock.calls[0][0].data;
+    expect(updateData).not.toHaveProperty('supplierRespondedAt');
+    expect(updateData).not.toHaveProperty('supplierStatus');
     expect(prisma.invitationRsvpLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
