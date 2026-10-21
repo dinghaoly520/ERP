@@ -1804,12 +1804,13 @@ export function SupplierSelectionPage({
           )}
         </div>
         {badge && <span className="text-[9px] font-bold rounded px-1.5 py-0.5 shrink-0" style={{ background: isOriginal ? 'color-mix(in oklch, var(--accent) 12%, transparent)' : 'color-mix(in oklch, var(--success) 12%, transparent)', color: isOriginal ? 'var(--accent-strong)' : 'var(--success)' }}>{roundLabel ? `${badge}${roundLabel}` : badge}</span>}
-        {/* 回执轨迹开关（有留痕才显示）：通知发送 → 供应商回执 → 工作人员变更 全程可查 */}
+        {/* 回执轨迹开关（2026-10-21 用户口径：理由全量记录）：代回应理由当前值会被后续
+            变更覆盖——每次的理由/时刻/操作人在轨迹里，入口必须显眼（原小时钟图标不显眼） */}
         {rsvpItem && (rsvpItem.trail?.length ?? 0) > 0 && (
           <button onClick={() => setExpandedTrailSid(trailOpen ? null : sid)}
-            title="回执轨迹（通知发送 → 供应商回执 → 工作人员变更 全程留痕）"
-            className={`neu-btn-xs !p-1.5 shrink-0 ${trailOpen ? 'is-warning' : ''}`}>
-            <Clock3 size={12} />
+            title="回执轨迹（通知发送 → 供应商回执 → 工作人员变更，每次理由全量留痕）"
+            className={`neu-btn-xs !px-2 shrink-0 gap-1 ${trailOpen ? 'is-warning' : ''}`}>
+            <Clock3 size={11} />轨迹({rsvpItem.trail!.length})
           </button>
         )}
         {/* 操作区：供应商回执一次性锁定——采购端只保留留痕的代回应/代变更通道 */}

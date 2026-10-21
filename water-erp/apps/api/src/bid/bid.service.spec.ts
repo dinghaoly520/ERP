@@ -129,6 +129,8 @@ describe('BidService — stage transitions', () => {
       // P2-2（2026-09-22）：开标文件包会场交流查询（默认空 → 存量用例零变化）
       openingHallMessage: { findMany: jest.fn().mockResolvedValue([]) },
       bidExpert: { groupBy: jest.fn(), findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      // 2026-10-21 替换留痕适配：swapExpertRole 事务内写 SWAP_OUT/SWAP_IN 轨迹
+      expertInvitationLog: { create: jest.fn().mockResolvedValue({}), findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
       bidScoreItem: { findFirst: jest.fn(), create: jest.fn(), delete: jest.fn(), count: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0), findUnique: jest.fn() },
       bidScorePoint: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn() },
@@ -5067,6 +5069,8 @@ describe('backlog C — swapExpertRole 阶段闸门（EXPERT_SWAP_LOCKED）', ()
       },
       // 92ee5a77 起换签写监督日志（留痕）——既有红修复：mock 缺 delegate（与本轮 P2-2 无关，顺手补齐）
       bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+      // 2026-10-21 替换留痕适配：swap 事务内写 SWAP_OUT/SWAP_IN 轨迹
+      expertInvitationLog: { create: jest.fn().mockResolvedValue({}) },
       // 复审 F1：SELECT ... FOR UPDATE 行锁（无 DB，空结果走通即可）
       $queryRaw: jest.fn().mockResolvedValue([]),
       $transaction: jest.fn().mockImplementation(async (fn: any) =>

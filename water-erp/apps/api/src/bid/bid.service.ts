@@ -6335,9 +6335,36 @@ export class BidService {
       }
       // 换出组长时同步摘除其 isLead，防止组长标记残留在候补行
       await tx.bidExpert.update({ where: { id: e1.id }, data: { expertRole: '候补', ...(e1.isLead ? { isLead: false } : {}) } });
+      // 替换留痕（2026-10-21 终检补齐）：SWAP_OUT/SWAP_IN 轨迹——角色流转是邀请状态机的
+      // 一部分，缺失即审计断链（被换出正选的履历、候补转正的依据均不可溯）
+      await tx.expertInvitationLog.create({
+        data: {
+          bidExpertId: e1.id, projectId, userId: e1.userId,
+          action: 'SWAP_OUT', actorType: 'SYSTEM',
+          fromStatus: e1.invitationStatus, fromRole: '正选', toRole: '候补',
+          reason: '工作人员替换：正选换出转为候补',
+        },
+      });
       // 2026-09-23 方案 A：递补即确认进场——startEvaluation 委员会校验只数 confirmed 正选，
       // 不置 confirmed 则换掉 confirmed 正选后 confirmed 数悄悄跌破法定下限；换出组长则递补者接任组长
-      await tx.bidExpert.update({ where: { id: e2.id }, data: { expertRole: '正选', invitationStatus: 'confirmed', ...(e1.isLead ? { isLead: true } : {}) } });
+      await tx.bidExpert.update({
+        where: { id: e2.id },
+        data: {
+          expertRole: '正选', invitationStatus: 'confirmed',
+          // 作答方口径（终检补齐）：替换转正是系统/采购方动作——置 SYSTEM 使向导显示
+          // 「递补转正」而非误显回执号（回执号=专家自答凭证）
+          invitationActorType: 'SYSTEM', invitationReason: null,
+          ...(e1.isLead ? { isLead: true } : {}),
+        },
+      });
+      await tx.expertInvitationLog.create({
+        data: {
+          bidExpertId: e2.id, projectId, userId: e2.userId,
+          action: 'SWAP_IN', actorType: 'SYSTEM',
+          fromStatus: e2.invitationStatus, toStatus: 'confirmed', fromRole: '候补', toRole: '正选',
+          reason: '工作人员替换：候补递补转正',
+        },
+      });
     });
     // P3（2026-09-21 审查）：委员会组成变更必须留痕——此前零日志（与延期/核验/解锁/签字留痕口径不一）
     await this.prisma.bidSupervisionLog.create({
