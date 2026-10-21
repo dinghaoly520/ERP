@@ -154,10 +154,14 @@ export function AnalysisSelectionModal({
             )}
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={onClose} className="neu-btn-soft">
+            <button onClick={onClose} className="neu-btn-soft !h-9 !text-[13px]">
               取消
             </button>
-            <button onClick={onConfirm} disabled={!hasSelection} className="neu-btn-primary disabled:opacity-50">
+            <button
+              onClick={onConfirm}
+              disabled={!hasSelection}
+              className="neu-btn-primary !h-9 !text-[13px] disabled:opacity-50"
+            >
               <BarChart3 size={15} />
               开始分析{hasSelection ? `（${selectedIds.size} 项）` : ''}
             </button>

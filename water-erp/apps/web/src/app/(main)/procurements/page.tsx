@@ -687,14 +687,14 @@ function RecycleConfirmModal({
           <button
             onClick={onCancel}
             disabled={loading}
-            className="neu-btn-soft disabled:opacity-40"
+            className="neu-btn-soft !h-9 !text-[13px] disabled:opacity-40"
           >
             取消
           </button>
           <button
             onClick={onConfirm}
             disabled={loading}
-            className="neu-btn-primary is-danger disabled:opacity-60"
+            className="neu-btn-primary is-danger !h-9 !text-[13px] disabled:opacity-60"
           >
             {loading && <Loader2 size={14} className="animate-spin" />}
             确认移至回收站

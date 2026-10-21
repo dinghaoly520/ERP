@@ -362,11 +362,15 @@ export function AnalysisResultModal({
             数据范围：<span className="font-mono tabular-nums">{items.length}</span> 条 ·「{keyword || '（空）'}」
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={exportReport} disabled={!aiResult} className="neu-btn-primary is-success disabled:opacity-50">
+            <button
+              onClick={exportReport}
+              disabled={!aiResult}
+              className="neu-btn-primary is-success !h-9 !text-[13px] disabled:opacity-50"
+            >
               <FileText size={14} />
               导出报告
             </button>
-            <button onClick={onClose} className="neu-btn-soft">
+            <button onClick={onClose} className="neu-btn-soft !h-9 !text-[13px]">
               关闭
             </button>
           </div>
