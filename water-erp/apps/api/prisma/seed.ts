@@ -55,7 +55,7 @@ const ALL_TABLES = [
   'BidProject', 'BidScoreItem', 'BidScorePoint', 'BidScoreRecord',
   'BidSupervisionAnnotation', 'BidSupervisionLog', 'BidSupplier',
   'BudgetItem', 'BudgetList',
-  'CaCertificate', 'CatalogCategory', 'CatalogItemAttribute',
+  'CaCertificate', 'CaSigningCertificateClaim', 'CatalogCategory', 'CatalogItemAttribute',
   'CatalogItem', 'CatalogSupplier', 'CategoryAttributeTemplate',
   'ComplianceRule', 'Contact',
   'Department', 'DocumentChunk',
