@@ -83,17 +83,21 @@ export class RsvpService {
     });
     if (!row) throw new NotFoundException({ error: '回执链接无效或已失效', code: 'RSVP_NOT_FOUND' });
     const expired = new Date(row.expiresAt).getTime() < Date.now();
-    // 过期且仍未回执 → 自动标记为弃权（SYSTEM 作答方，与供应商主动拒绝区分展示）
+    // 过期且仍未回执 → 自动标记为弃权（SYSTEM 作答方，与供应商主动拒绝区分展示）。
+    // 守卫式条件更新（稳健性深检 GAP-5）：并发双开同一过期链接只有一方 count=1，
+    // 轨迹只落一条，不双写
     if (expired && row.status === 'PENDING') {
-      await this.prisma.invitationRsvp.update({
-        where: { id: row.id },
+      const guard = await this.prisma.invitationRsvp.updateMany({
+        where: { id: row.id, status: 'PENDING' },
         data: { status: 'DECLINED', respondedAt: new Date(), note: '链接超时（24小时），系统自动视为弃权', respondentType: 'SYSTEM' },
       });
-      await writeRsvpLog(this.prisma, {
-        rsvpId: row.id, supplierId: row.supplierId, projectId: row.projectId,
-        action: 'AUTO_DECLINED', actorType: 'SYSTEM', toStatus: 'DECLINED',
-        note: '链接超时（24小时），系统自动视为弃权',
-      });
+      if (guard.count > 0) {
+        await writeRsvpLog(this.prisma, {
+          rsvpId: row.id, supplierId: row.supplierId, projectId: row.projectId,
+          action: 'AUTO_DECLINED', actorType: 'SYSTEM', toStatus: 'DECLINED',
+          note: '链接超时（24小时），系统自动视为弃权',
+        });
+      }
       row.status = 'DECLINED';
       row.respondedAt = new Date();
     }
@@ -129,8 +133,10 @@ export class RsvpService {
     const note = (body.note ?? '').trim().slice(0, 500) || null;
     // 回执落库 + 纳入候选 + 轨迹留痕同事务（此前分散写：状态更新成功而 upsert FK 失败 → 半成功 + 误报「被篡改」）
     const updated = await this.prisma.$transaction(async (tx) => {
-      const r = await tx.invitationRsvp.update({
-        where: { id: row.id },
+      // 原子锁定（稳健性深检 GAP-3）：以「respondedAt 为空」为闸做条件更新——并发双提交
+      // 只有一个 count=1 成功，另一个 count=0 → 409；先读后查的窗口不再存在
+      const lock = await tx.invitationRsvp.updateMany({
+        where: { id: row.id, respondedAt: null },
         data: {
           status: body.status,
           note,
@@ -143,6 +149,10 @@ export class RsvpService {
           responseUa: body.ua?.slice(0, 255) ?? null,
         },
       });
+      if (lock.count === 0) {
+        throw new ConflictException({ error: '回执已提交，不可变更。如有疑问请联系采购方工作人员。', code: 'RSVP_ALREADY_RESPONDED' });
+      }
+      const r = await tx.invitationRsvp.findUniqueOrThrow({ where: { id: row.id } });
       await writeRsvpLog(tx, {
         rsvpId: row.id, supplierId: row.supplierId, projectId: row.projectId,
         action: 'RESPONDED', actorType: 'SUPPLIER', fromStatus: row.status, toStatus: body.status, note,
@@ -243,24 +253,23 @@ export class RsvpService {
       for (const s of suppliers) supplierTags.set(s.id, s.tags as string[]);
     }
     const now = Date.now();
-    // 批量自动弃权：过期且仍为 PENDING 的行（SYSTEM 作答方 + 轨迹留痕，与 verify() 同口径）
-    const expiredIds = rows.filter(r => new Date(r.expiresAt).getTime() < now && r.status === 'PENDING').map(r => r.id);
-    if (expiredIds.length > 0) {
-      await this.prisma.invitationRsvp.updateMany({
-        where: { id: { in: expiredIds } },
+    // 批量自动弃权：过期且仍为 PENDING 的行（SYSTEM 作答方 + 轨迹留痕，与 verify() 同口径）。
+    // 逐行守卫式更新（稳健性深检 GAP-5）：并发双开看板只有一方 count=1，轨迹不双写
+    for (const r of rows) {
+      if (new Date(r.expiresAt).getTime() >= now || r.status !== 'PENDING') continue;
+      const guard = await this.prisma.invitationRsvp.updateMany({
+        where: { id: r.id, status: 'PENDING' },
         data: { status: 'DECLINED', respondedAt: new Date(), note: '链接超时（24小时），系统自动视为弃权', respondentType: 'SYSTEM' },
       });
-      for (const r of rows) {
-        if (expiredIds.includes(r.id)) {
-          await writeRsvpLog(this.prisma, {
-            rsvpId: r.id, supplierId: r.supplierId, projectId: r.projectId,
-            action: 'AUTO_DECLINED', actorType: 'SYSTEM', toStatus: 'DECLINED',
-            note: '链接超时（24小时），系统自动视为弃权',
-          });
-          r.status = 'DECLINED';
-          r.respondedAt = new Date();
-          r.respondentType = 'SYSTEM';
-        }
+      if (guard.count > 0) {
+        await writeRsvpLog(this.prisma, {
+          rsvpId: r.id, supplierId: r.supplierId, projectId: r.projectId,
+          action: 'AUTO_DECLINED', actorType: 'SYSTEM', toStatus: 'DECLINED',
+          note: '链接超时（24小时），系统自动视为弃权',
+        });
+        r.status = 'DECLINED';
+        r.respondedAt = new Date();
+        r.respondentType = 'SYSTEM';
       }
     }
 
@@ -295,6 +304,14 @@ export class RsvpService {
           keep.respondedAt = r.respondedAt;
           keep.note = r.note;
         }
+        // 轨迹随行迁移（稳健性深检 GAP-1）：InvitationRsvpLog.rsvpId FK 级联删除——
+        // 不迁移直接删行会把被删行的全部轨迹（含供应商自答记录）连带抹掉，审计断链
+        await this.prisma.invitationRsvpLog.updateMany({
+          where: { rsvpId: r.id },
+          data: { rsvpId: keep.id },
+        }).catch((err: any) => {
+          this.logger.warn(`去重时轨迹迁移失败 ${r.id}→${keep.id}: ${err?.message ?? err}`);
+        });
         deleteIds.push(r.id);
       }
     }
@@ -381,10 +398,17 @@ export class RsvpService {
       select: { id: true },
     });
     const spaceIds = Array.from(new Set([projectId, bp?.id].filter(Boolean) as string[]));
-    const row = await this.prisma.invitationRsvp.findFirst({
+    // 选行策略（稳健性深检 GAP-2）：优先作用于「供应商已回执的那条」——重发批次会产生
+    // 更新的 PENDING 行，若按「最新行」选，代变更会打到 PENDING 新行而供应商的
+    // ACCEPTED 旧行原封不动，同供应商两行状态矛盾。无已回执行才落最新行（代回应场景）。
+    const candidates = await this.prisma.invitationRsvp.findMany({
       where: { supplierId, projectId: { in: spaceIds } },
       orderBy: { createdAt: 'desc' },
     });
+    const respondedRows = candidates
+      .filter(r => r.respondedAt !== null)
+      .sort((a, b) => (b.respondedAt!.getTime() ?? 0) - (a.respondedAt!.getTime() ?? 0));
+    const row = respondedRows[0] ?? candidates[0];
 
     // 已是目标状态：幂等返回，不产生新轨迹（重复点击不刷屏）
     if (row && row.status === status) {
@@ -535,7 +559,7 @@ export class RsvpService {
    * 而非 token 签发时刻（进第 3 步自动生成通知内容时就已建行）。仅对 notifiedAt 为空的行写入
    * ——多轮补选后续打戳不覆盖首轮，时间轴取最早 notifiedAt 即首次发送时刻。
    */
-  async markNotified(projectId: string, supplierIds: string[]) {
+  async markNotified(projectId: string, supplierIds: string[], actorId?: string) {
     if (!projectId || supplierIds.length === 0) {
       throw new BadRequestException({ error: 'projectId 与 supplierIds 必填', code: 'BAD_INPUT' });
     }
@@ -552,10 +576,32 @@ export class RsvpService {
     const spaceIds = Array.from(new Set(
       [projectId, bp?.id, bpRow?.projectManagementItemId].filter(Boolean) as string[],
     ));
-    const res = await this.prisma.invitationRsvp.updateMany({
+    // 轨迹首节点（稳健性深检 GAP-4）：打戳同时落 NOTIFIED 轨迹（操作人=点击一键通知的
+    // 工作人员；无身份上下文时按 SYSTEM 记）——逐行守卫式更新防并发双写
+    let actorName: string | null = null;
+    if (actorId) {
+      const actor = await this.prisma.user.findUnique({ where: { id: actorId }, select: { displayName: true } }).catch(() => null);
+      actorName = actor?.displayName ?? null;
+    }
+    let stamped = 0;
+    const targets = await this.prisma.invitationRsvp.findMany({
       where: { supplierId: { in: supplierIds }, projectId: { in: spaceIds }, notifiedAt: null },
-      data: { notifiedAt: new Date() },
+      select: { id: true, supplierId: true, projectId: true },
     });
-    return { stamped: res.count };
+    for (const t of targets) {
+      const guard = await this.prisma.invitationRsvp.updateMany({
+        where: { id: t.id, notifiedAt: null },
+        data: { notifiedAt: new Date() },
+      });
+      if (guard.count > 0) {
+        stamped++;
+        await writeRsvpLog(this.prisma, {
+          rsvpId: t.id, supplierId: t.supplierId, projectId: t.projectId,
+          action: 'NOTIFIED', actorType: actorId ? 'STAFF' : 'SYSTEM', actorId: actorId ?? null, actorName,
+          toStatus: 'PENDING',
+        });
+      }
+    }
+    return { stamped };
   }
 }

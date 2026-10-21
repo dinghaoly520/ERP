@@ -97,11 +97,14 @@ export class RsvpController {
   @Post('mark-notified')
   @Roles('admin', 'leader', 'staff')
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @ApiOperation({ summary: '邀请通知发送打戳（一键通知点击时刻；仅补空不覆盖，时间轴「供应商邀请」数据源）' })
-  async markNotified(@Body() body: { projectId?: string; supplierIds?: string[] }) {
+  @ApiOperation({ summary: '邀请通知发送打戳（一键通知点击时刻；仅补空不覆盖，时间轴「供应商邀请」数据源；同步落 NOTIFIED 轨迹）' })
+  async markNotified(
+    @Body() body: { projectId?: string; supplierIds?: string[] },
+    @CurrentUser('sub') userId?: string,
+  ) {
     if (!body?.projectId || !Array.isArray(body?.supplierIds) || body.supplierIds.length === 0) {
       throw new BadRequestException({ error: 'projectId 与 supplierIds 必填', code: 'BAD_INPUT' });
     }
-    return this.rsvp.markNotified(body.projectId, body.supplierIds);
+    return this.rsvp.markNotified(body.projectId, body.supplierIds, userId);
   }
 }
