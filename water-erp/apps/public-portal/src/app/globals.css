@@ -3294,6 +3294,35 @@ a.group:hover::after {
 }
 .flow-nav-pill[aria-expanded="true"] svg { color: var(--brand); }
 
+/* ── 导航瓷片流光（2026-10-21 集团简介/联系我们）：动态流光扫过 ──
+   玻璃瓷片上周期性掠过一道柔和高光（~4.2s 一轮：静息→扫过→静息），hover 提速提亮、
+   菜单展开（内凹态）时收敛；仅 transform 动画（合成器通道），prefers-reduced-motion 冻结。 */
+.flow-nav-pill { position: relative; overflow: hidden; }
+.flow-nav-pill::after {
+  content: '';
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: 0;
+  width: 45%;
+  transform: translateX(-220%) skewX(-18deg);
+  background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.5) 50%, transparent);
+  opacity: 0.45;
+  pointer-events: none;
+  will-change: transform;
+  animation: nav-pill-sheen 4.2s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+}
+.flow-nav-pill:hover::after { animation-duration: 2.4s; opacity: 0.85; }
+/* 内凹按住态（菜单展开）——流光收敛为微光，避免与内凹阴影打架 */
+.flow-nav-pill[aria-expanded="true"]::after { animation: none; opacity: 0.18; }
+@keyframes nav-pill-sheen {
+  0%, 24% { transform: translateX(-220%) skewX(-18deg); }
+  55%, 100% { transform: translateX(320%) skewX(-18deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flow-nav-pill::after { animation: none; opacity: 0; }
+}
+
 /* 下拉面板 — 近实底白玻璃（小文字下不透字）+ 方向性双影 */
 .flow-nav-menu {
   min-width: 156px;
