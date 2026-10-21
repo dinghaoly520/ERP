@@ -4,6 +4,12 @@ import * as request from 'supertest';
 import * as cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+// 2026-10-21：专家库换血（2026-10-19）后口令=身份证号（ExpertLibrary.json），演示口令 111111111111111111 已失效
+const EXPERT_LIB = JSON.parse(readFileSync(join(__dirname, '../prisma/seed-data/ExpertLibrary.json'), 'utf8')) as Array<{ name: string; idNumber: string }>;
+const expertPw = (username: string) => EXPERT_LIB.find(e => e.name === username)?.idNumber;
 
 async function loginAs(app: INestApplication, username: string, password: string, portal: string): Promise<string[]> {
   const res = await request(app.getHttpServer())
@@ -19,6 +25,7 @@ describe('OperationLog (e2e)', () => {
   let prisma: PrismaService;
   let expertCookie: string[];
   let expertUsername: string;
+  let expertPassword: string;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -28,15 +35,16 @@ describe('OperationLog (e2e)', () => {
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     await app.init();
     prisma = app.get(PrismaService);
-    // 动态取一个 bid_expert 账号（口令统一 18个1（ExpertProfile 快照 idNumber），见 CLAUDE.md 种子表），避免硬编码姓名
-    const expert = await prisma.user.findFirst({ where: { role: 'bid_expert', isActive: true } });
+    // 动态取一个 bid_expert 账号（2026-10-21：限定种子名单内，口令按身份证号从 ExpertLibrary 取）
+    const expert = await prisma.user.findFirst({ where: { role: 'bid_expert', isActive: true, username: { in: EXPERT_LIB.map(e => e.name) } } });
     expect(expert).not.toBeNull();
     // 闸4 工位锁定（2026-09-20）：专家「活动会话+开放评标窗口」时新登录 409
     // ACCOUNT_EVALUATING——前置套件（opening-hall 签到等）可能留下该状态。
     // 登录前清会话解锁（窗口仍在也不锁：闸4 需两者同时成立）
     await prisma.user.update({ where: { id: expert!.id }, data: { webSessionId: null } });
     expertUsername = expert!.username;
-    expertCookie = await loginAs(app, expert!.username, '111111111111111111', 'expert');
+    expertPassword = expertPw(expert!.username)!;
+    expertCookie = await loginAs(app, expert!.username, expertPassword, 'expert');
   });
 
   afterAll(async () => {
@@ -64,7 +72,7 @@ describe('OperationLog (e2e)', () => {
     await request(app.getHttpServer())
       .post('/api/auth/login')
       .set('X-Portal', 'expert')
-      .send({ username: expertUsername, password: '111111111111111111' })
+      .send({ username: expertUsername, password: expertPassword })
       .expect(200);
     await new Promise((r) => setTimeout(r, 300));
 
@@ -80,7 +88,8 @@ describe('OperationLog (e2e)', () => {
 
     // 单设备登录（2026-09-20 expert 扩展）：上面同账号二次登录已顶掉 beforeAll 会话
     // （旧 expertCookie 后续请求将 401 SESSION_REPLACED）——重登取新 cookie 供后续用例
-    expertCookie = await loginAs(app, expertUsername, '111111111111111111', 'expert');
+    // 2026-10-21：口令按身份证号从 ExpertLibrary 取（演示口令已随换血失效——旧重登返回空串致后续 401）
+    expertCookie = await loginAs(app, expertUsername, expertPassword, 'expert');
   });
 
   it('/my 仅返回当前用户记录', async () => {

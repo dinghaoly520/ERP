@@ -1684,6 +1684,10 @@ export class SupplierPortalService {
 
   /** 项目概览：直接读预生成缓存（采购端下发谈判配置时已 AI 融合并缓存），无实时 LLM 调用 */
   async getBidProjectOverview(projectId: string, supplierId?: string) {
+    // 公司隔离读闸（2026-10-21）：先过闸再看缓存——防按 id 直连读他司项目概览（缓存命中路径同样收敛）
+    const gate = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { id: true, companyId: true } });
+    if (!gate) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (supplierId) await this.assertProjectVisibleToSupplier(gate, supplierId);
     const cached = await this.redis.get(`negotiation-overview:${projectId}`).catch(() => null);
     if (cached) {
       try { return JSON.parse(cached); } catch { /* fall through */ }
@@ -1850,11 +1854,28 @@ export class SupplierPortalService {
     return result;
   }
 
+  /** 供应商项目可见性读闸（2026-10-21 边界闭环）：项目公司 ∈ APPROVED 归属 ∪ 受邀行 ∪ 本人投递。
+   *  与 listBidProjects 列表隔离同口径——防拿到 id 的他司供应商直连读详情/概览/文件。 */
+  private async assertProjectVisibleToSupplier(project: { id: string; companyId?: string | null }, supplierId: string) {
+    if (!project.companyId) return; // 存量无归属（seed 已回填、写时快照兜底）——防御放行
+    const [links, invited, submitted] = await Promise.all([
+      this.prisma.supplierCompanyLink.findMany({
+        where: { supplierId, companyId: project.companyId, status: 'APPROVED' },
+        select: { companyId: true },
+      }),
+      this.prisma.bidSupplier.findFirst({ where: { projectId: project.id, supplierId }, select: { id: true } }),
+      this.prisma.supplierBidSubmission.findFirst({ where: { projectId: project.id, supplierId }, select: { id: true } }),
+    ]);
+    if (links.length > 0 || invited || submitted) return;
+    throw new ForbiddenException({ error: '该项目不属于贵司归属公司范围', code: 'COMPANY_SCOPE_FORBIDDEN' });
+  }
+
   async getBidProject(id: string, supplierId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
       select: {
         id: true,
+        companyId: true,
         projectCode: true,
         projectManagementItemId: true,
         name: true,
@@ -1887,6 +1908,11 @@ export class SupplierPortalService {
     // 影子项目（自定义抽取）不对供应商可见
     if (project?.isExtractionOnly) {
       throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
+    }
+    // 公司隔离读闸（2026-10-21 边界闭环）：按 id 直取不再泄露他司项目——
+    // 可见 = 项目公司 ∈ APPROVED 归属 ∪ 受邀行（存量跨公司邀请）∪ 本人投递过
+    if (project && supplierId) {
+      await this.assertProjectVisibleToSupplier(project, supplierId);
     }
     if (project) {
       // 澄清答疑记录仅本项目投标成员可见——非成员（浏览机会的供应商）剥离，
@@ -1979,9 +2005,11 @@ export class SupplierPortalService {
   async getBidProjectDocument(projectId: string, supplierId: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { projectCode: true, projectManagementItemId: true, downloadDeadline: true },
+      select: { id: true, projectCode: true, projectManagementItemId: true, downloadDeadline: true, companyId: true },
     });
     if (!project) throw new BadRequestException({ error: '招标项目不存在', code: 'PROJECT_NOT_FOUND' });
+    // 公司隔离读闸（2026-10-21）：与详情/概览同口径
+    await this.assertProjectVisibleToSupplier(project, supplierId);
 
     // 采购文件下载截止时间 gate：超时不可下载
     if (project.downloadDeadline && project.downloadDeadline.getTime() < Date.now()) {

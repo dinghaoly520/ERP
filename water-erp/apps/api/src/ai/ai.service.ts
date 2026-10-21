@@ -288,7 +288,7 @@ export class AiService {
     // 回执链接：建 PENDING 行 + 签发 token（仅当提供 supplierIds）
     const rsvpTokens: Record<string, string> = {};
     let invitationId: string | null = null;
-    const ids = (context.supplierIds || []).filter(Boolean);
+    let ids = (context.supplierIds || []).filter(Boolean);
     if (ids.length > 0) {
       const nameById = new Map<string, string>();
       const rows = await this.prisma.supplier.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
@@ -329,6 +329,27 @@ export class AiService {
           select: { id: true },
         });
         if (bp) canonicalProjectId = bp.id;
+      }
+
+      // 跨公司邀请闸（2026-10-21 边界闭环）：AI 群发邀请函只发项目公司库内（APPROVED）供应商——
+      // 越界者静默剔除并留痕（AI 流不硬失败；:3005 选择器本已公司隔离，此为兜底）。
+      // 注：LLM 正文仍按调用方给定 supplierNames 生成，仅回执行（RSVP 行）按过滤后集合签发。
+      if (canonicalProjectId) {
+        const proj = await this.prisma.bidProject.findUnique({ where: { id: canonicalProjectId }, select: { companyId: true } });
+        if (proj?.companyId) {
+          const linked = await this.prisma.supplierCompanyLink.findMany({
+            where: { supplierId: { in: ids }, companyId: proj.companyId, status: 'APPROVED' },
+            select: { supplierId: true },
+          });
+          const linkedSet = new Set(linked.map(l => l.supplierId));
+          const dropped = ids.filter(sid => !linkedSet.has(sid));
+          if (dropped.length > 0) {
+            ids = ids.filter(sid => linkedSet.has(sid));
+            this.logger.warn(
+              `[AI邀请函] 跨公司供应商剔除 ${dropped.length} 家（项目公司 ${proj.companyId}）：${dropped.map(sid => nameById.get(sid) || sid).join('、')}`,
+            );
+          }
+        }
       }
 
       // 防重复行：同一 (projectId, supplierId) 只保留一行，复用其 token

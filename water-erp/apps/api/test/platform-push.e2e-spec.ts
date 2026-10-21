@@ -445,22 +445,25 @@ describe('对接专项 platform-push 人工确认制 (e2e)', () => {
       .expect((res) => expect(res.body.code).toBe('ITEM_NOT_READY'));
   });
 
-  it('赋码闸：无码项目发布关联公告 → 400 GB_CODE_REQUIRED；有码项目 → 201 放行', async () => {
-    // 负例：relatedProjectCode 反查 BidProject.gbProcureCode 为空（WIN_NOTICE 避开招标公告时间预检，
-    //       纯验赋码闸；aiSummary 直供绕开 LLM 摘要、notifyOnPublish=false 免站内信扩散）
+  it('赋码闸（自愈版，e2cbf0c3 2026-10-20）：无码项目发布 → 现场补码放行 201；有码项目 → 201 放行', async () => {
+    // 语义变更：无码不再硬拦 400 GB_CODE_REQUIRED——GbCodeService 现场补码治愈旁路创建的缺码行
+    // （仅分配器抛错/未注入才拒绝，该路径无法在 e2e 稳定构造，交由单测覆盖）；
+    // WIN_NOTICE 避开招标公告时间预检、aiSummary 直供绕开 LLM 摘要、notifyOnPublish=false 免站内信扩散
     const body = {
       title: `${PREFIX}闸验证公告`, content: 'e2e 赋码闸',
       type: 'WIN_NOTICE', status: 'PUBLISHED', aiSummary: 'e2e', metadata: { notifyOnPublish: false },
     };
-    await request(app.getHttpServer())
+    const healed = await request(app.getHttpServer())
       .post('/api/announcements')
       .set('Cookie', staffCookie)
       .set('X-Portal', 'web')
       .send({ ...body, relatedProjectCode: codeB })
-      .expect(400)
-      .expect((res) => expect(res.body.code).toBe('GB_CODE_REQUIRED'));
-    // 闸在落库之前——无孤儿公告行
-    expect(await prisma.announcement.count({ where: { title: body.title } })).toBe(0);
+      .expect(201);
+    expect(healed.body.status).toBe('PUBLISHED');
+    createdAnnouncementIds.push(healed.body.id);
+    // 无码行被现场治愈：projB 补上 21 位国标采购编码
+    const projBAfter = await prisma.bidProject.findUnique({ where: { id: projBId }, select: { gbProcureCode: true } });
+    expect(projBAfter!.gbProcureCode).toMatch(/^\d{21}$/);
 
     // 正例：同一请求指向有码项目 → 放行
     const ok = await request(app.getHttpServer())

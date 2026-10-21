@@ -6,6 +6,12 @@ import * as request from 'supertest';
 import * as cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+// 2026-10-21：专家库换血（2026-10-19）后口令=身份证号，演示口令 111111111111111111 已失效
+const EXPERT_LIB = JSON.parse(readFileSync(join(__dirname, '../prisma/seed-data/ExpertLibrary.json'), 'utf8')) as Array<{ name: string; idNumber: string }>;
+const expertPw = (username: string) => EXPERT_LIB.find(e => e.name === username)?.idNumber;
 
 async function loginAs(
   app: INestApplication,
@@ -78,8 +84,9 @@ describe('AI Bid Analysis (e2e) — C14', () => {
       where: { project: { stage: 'EVALUATING' } },
       include: { user: { select: { username: true } } },
     });
-    if (expert?.user) {
-      expertCookie = await loginAs(app, expert.user.username, '111111111111111111', 'expert');
+    const libPassword = expert?.user ? expertPw(expert.user.username) : undefined;
+    if (expert?.user && libPassword) {
+      expertCookie = await loginAs(app, expert.user.username, libPassword, 'expert');
     }
   });
 

@@ -107,6 +107,7 @@ describe('SupplierPortalService', () => {
       supplierBidSubmission: {
         count: jest.fn(),
         findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue(null),
         findUnique: jest.fn(),
         update: jest.fn(),
         create: jest.fn(),
@@ -962,6 +963,32 @@ describe('SupplierPortalService', () => {
       const result = await service.listBidProjects(1, 20, {}, 'sup-1');
       expect(result.items).toHaveLength(0);
       expect(result.total).toBe(0);
+    });
+
+    it('公司隔离读闸（2026-10-21 边界闭环）：他司项目按 id 直取 → 403；本库/受邀/投递过/无归属放行', async () => {
+      const proj = { id: 'p1', name: '项目一', stage: 'SUBMIT', isExtractionOnly: false, companyId: 'co-other', clarifications: [] };
+      prisma.bidProject.findUnique.mockResolvedValue(proj);
+      prisma.supplierCompanyLink.findMany.mockResolvedValueOnce([]);
+      await expect(service.getBidProject('p1', 'sup-1')).rejects.toMatchObject({ response: { code: 'COMPANY_SCOPE_FORBIDDEN' } });
+
+      // 本库公司 → 放行
+      prisma.supplierCompanyLink.findMany.mockResolvedValueOnce([{ companyId: 'co-mine' }]);
+      await expect(service.getBidProject('p1', 'sup-1')).resolves.toBeTruthy();
+
+      // 他司但受邀（存量跨公司邀请）→ 放行（受邀即授权）
+      prisma.supplierCompanyLink.findMany.mockResolvedValueOnce([]);
+      prisma.bidSupplier.findFirst.mockResolvedValueOnce({ id: 'bs1' });
+      await expect(service.getBidProject('p1', 'sup-1')).resolves.toBeTruthy();
+
+      // 他司但本人投递过 → 放行
+      prisma.supplierCompanyLink.findMany.mockResolvedValueOnce([]);
+      prisma.bidSupplier.findFirst.mockResolvedValueOnce(null);
+      prisma.supplierBidSubmission.findFirst.mockResolvedValueOnce({ id: 'sub1' });
+      await expect(service.getBidProject('p1', 'sup-1')).resolves.toBeTruthy();
+
+      // 存量无归属（companyId null）→ 防御放行
+      prisma.bidProject.findUnique.mockResolvedValue({ ...proj, companyId: null });
+      await expect(service.getBidProject('p1', 'sup-1')).resolves.toBeTruthy();
     });
 
     it('返回招标项目列表，仅公开字段 + 投标方数量', async () => {

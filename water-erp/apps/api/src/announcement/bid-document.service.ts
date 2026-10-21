@@ -324,7 +324,22 @@ export class BidDocumentService {
 
   /** 校验供应商是否有资格（不含付费） */
   private async checkEligibility(doc: any, supplierId: string): Promise<{ eligible: boolean; reason: string }> {
-    if (doc.accessScope === 'OPEN') return { eligible: true, reason: '公开下载' };
+    if (doc.accessScope === 'OPEN') {
+      // 公司隔离收紧（2026-10-21 边界闭环）：OPEN=「本公司库」可下载——公告归属公司须 ∈ 供应商
+      // APPROVED 归属集；平台级公告（无归属）仍全员；存量跨公司受邀行（BidSupplier）放行（受邀即授权）。
+      const ann = await this.prisma.announcement.findUnique({ where: { id: doc.announcementId }, select: { companyId: true } });
+      if (!ann?.companyId) return { eligible: true, reason: '公开下载' };
+      const links = await this.prisma.supplierCompanyLink.findMany({
+        where: { supplierId, companyId: ann.companyId, status: 'APPROVED' },
+        select: { companyId: true },
+      });
+      if (links.length > 0) return { eligible: true, reason: '公开下载' };
+      if (doc.bidProjectId) {
+        const invited = await this.prisma.bidSupplier.findFirst({ where: { projectId: doc.bidProjectId, supplierId } });
+        if (invited) return { eligible: true, reason: '受邀参与本项目' };
+      }
+      return { eligible: false, reason: '该项目不属于贵司归属公司范围' };
+    }
     if (doc.accessScope === 'INVITED') {
       // 检查是否在白名单中（管理员手动指定）
       const whitelist = await this.prisma.bidDocumentAccess.findUnique({ where: { documentId_supplierId: { documentId: doc.id, supplierId } } });

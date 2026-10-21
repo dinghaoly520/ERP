@@ -6,6 +6,12 @@ import * as cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { hashSync } from 'bcryptjs';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+// 2026-10-21：专家库换血（2026-10-19）后口令=身份证号，演示口令 111111111111111111 已失效——
+// 从种子名单取真实口令（username=姓名 / password=身份证号）
+const EXPERT_LIB = JSON.parse(readFileSync(join(__dirname, '../prisma/seed-data/ExpertLibrary.json'), 'utf8')) as Array<{ name: string; idNumber: string }>;
 
 /** 解出 JWT 载荷（不验签），供断言 sid 是否随 token 下发 */
 function decodeJwt(token: string): Record<string, any> {
@@ -181,7 +187,7 @@ describe('Auth (e2e)', () => {
     });
 
     it('专家不能创建招标项目', async () => {
-      const cookie = await loginAs(app, '刘苡池', '111111111111111111', 'expert');
+      const cookie = await loginAs(app, EXPERT_LIB[0].name, EXPERT_LIB[0].idNumber, 'expert');
 
       await request(app.getHttpServer())
         .post('/api/bid/projects')
@@ -192,7 +198,7 @@ describe('Auth (e2e)', () => {
     });
 
     it('专家不能访问 AI 管理端接口', async () => {
-      const cookie = await loginAs(app, '刘苡池', '111111111111111111', 'expert');
+      const cookie = await loginAs(app, EXPERT_LIB[0].name, EXPERT_LIB[0].idNumber, 'expert');
 
       await request(app.getHttpServer())
         .get('/api/ai/projects/fake-id/anomalies')

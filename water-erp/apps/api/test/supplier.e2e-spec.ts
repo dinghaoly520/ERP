@@ -132,8 +132,9 @@ describe('Supplier (e2e)', () => {
         tags: ['物资供应', '工程服务'],
       })
       .expect(400);
-    // 应是信用代码重复导致的业务错误（验证码 bypass 通过后到达重复分支）
-    expect(res.body.code).toBe('DUPLICATE_CREDIT_CODE');
+    // 2026-10-16（3c54e24d）起重复信用代码分流为「他司已注册引导走加入」——业务错误码已改；
+    // 关键断言不变：失败后 user 表不留孤立记录
+    expect(res.body.code).toBe('ACCOUNT_EXISTS_JOIN_INSTEAD');
 
     // 关键：失败后 user 表不应留下孤立记录
     const orphan = await prisma.user.findUnique({ where: { username_role: { username: orphanUsername, role: 'supplier' } } });

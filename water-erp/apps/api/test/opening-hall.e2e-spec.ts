@@ -7,6 +7,13 @@ import { hashSync } from 'bcryptjs';
 import { io, Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+// 2026-10-21：专家库换血（2026-10-19，187→180）后口令=身份证号，演示口令 111111111111111111 已失效——
+// 一律从种子名单取真实口令（username=姓名 / password=身份证号，与 seed 1.45 重建段同源）
+const EXPERT_LIB = JSON.parse(readFileSync(join(__dirname, '../prisma/seed-data/ExpertLibrary.json'), 'utf8')) as Array<{ name: string; idNumber: string }>;
+const expertPw = (username: string) => EXPERT_LIB.find(e => e.name === username)?.idNumber;
 
 // socket 握手 + 登录链路较长，放宽全局超时
 jest.setTimeout(30000);
@@ -96,7 +103,12 @@ describe('Opening Hall (e2e)', () => {
     hostCookie = await loginAs(app, '陈源远', '陈源远@2026', 'bid');
     sup1Cookie = await loginAs(app, '重庆蜀通岩土工程有限公司', 'supplier@2026', 'supplier');
     sup2Cookie = await loginAs(app, '成都华西物资供应有限公司', 'supplier@2026', 'supplier');
-    expertCookie = await loginAs(app, '刘苡池', '111111111111111111', 'expert');
+    const heroExpert = await prisma.user.findFirst({
+      where: { role: 'bid_expert', isActive: true, username: { in: EXPERT_LIB.map(e => e.name) } },
+      select: { username: true },
+    });
+    expect(heroExpert).not.toBeNull();
+    expertCookie = await loginAs(app, heroExpert!.username, expertPw(heroExpert!.username)!, 'expert');
     expect(hostCookie).toContain('token_bid=');
     expect(sup1Cookie).toContain('token_supplier=');
     expect(sup2Cookie).toContain('token_supplier=');
@@ -109,19 +121,23 @@ describe('Opening Hall (e2e)', () => {
     const stray = await prisma.user.findFirst({
       where: {
         role: 'bid_expert', isActive: true,
-        // 排除本套件 L99 已登录的专家：stray 登录会轮换其 sid（单设备登录），
-        // L582 授权收口断言随即 401——findFirst 无 orderBy 顺序无保证，
-        // CI 曾两次挑中刘苡池（本地恰好挑中别人，故不可复现）
-        username: { not: '刘苡池' },
+        // 排除本套件已登录的专家：stray 登录会轮换其 sid（单设备登录），
+        // L582 授权收口断言随即 401——findFirst 无 orderBy 顺序无保证
+        username: { not: heroExpert!.username },
         ...(heroAssignedIds.length ? { id: { notIn: heroAssignedIds } } : {}),
       },
       select: { id: true, username: true },
     });
-    if (stray) {
-      strayExpertCookie = await loginAs(app, stray.username, '111111111111111111', 'expert');
+    const strayPassword = stray ? expertPw(stray.username) : undefined;
+    if (stray && strayPassword) {
+      strayExpertCookie = await loginAs(app, stray.username, strayPassword, 'expert');
     } else {
-      // 兜底：临时创建 bid_expert 用户（密码 bcrypt hash 复用现有种子行，即 18个1 的 hash）
-      const donor = await prisma.user.findFirst({ where: { role: 'bid_expert' }, select: { passwordHash: true } });
+      // 兜底：临时创建 bid_expert 用户（哈希复用库内专家行 → 口令同源可登录，非演示口令）
+      const donor = await prisma.user.findFirst({
+        where: { role: 'bid_expert', username: { in: EXPERT_LIB.map(e => e.name) } },
+        select: { username: true, passwordHash: true },
+      });
+      const donorPassword = donor ? expertPw(donor.username) : undefined;
       const tsE = Date.now();
       const created = await prisma.user.create({
         data: {
@@ -130,7 +146,7 @@ describe('Opening Hall (e2e)', () => {
         },
       });
       strayExpertUserId = created.id;
-      strayExpertCookie = await loginAs(app, created.username, '111111111111111111', 'expert');
+      if (donorPassword) strayExpertCookie = await loginAs(app, created.username, donorPassword, 'expert');
     }
     expect(strayExpertCookie).toContain('token_expert=');
 
