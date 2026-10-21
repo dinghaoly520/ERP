@@ -16,6 +16,12 @@ interface Assignment {
   id: string; expertName: string; major: string; progress: number;
   signedIn: boolean; avoidanceConfirmed: boolean; totalScore: number;
   isLead: boolean; invitationStatus: string;
+  // 邀请作答留痕（2026-10-21）：作答方/理由/自答快照（后端 include 全量返回）
+  invitationActorType?: 'EXPERT' | 'STAFF' | 'SYSTEM' | null;
+  invitationActorName?: string | null;
+  invitationReason?: string | null;
+  expertRespondedAt?: string | null;
+  expertStatus?: 'confirmed' | 'declined' | null;
   project: { id: string; projectCode: string; name: string; stage: string; procurementMethod: string; openTime: string };
   scoreRecords: ScoreRecord[];
 }
@@ -510,8 +516,30 @@ export default function ExpertDetailPage() {
                       >代为变更</button>
                     )}
                     {a.invitationStatus === 'confirmed' && <StatusBadge tone="green">已确认</StatusBadge>}
-                    {a.invitationStatus === 'declined' && <StatusBadge tone="red">已拒绝</StatusBadge>}
+                    {a.invitationStatus === 'declined' && <StatusBadge tone="red">{a.invitationActorType === 'SYSTEM' ? '已拒绝（超时弃权）' : '已拒绝'}</StatusBadge>}
+                    {a.invitationActorType === 'STAFF' && (
+                      <span className="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-bold"
+                        style={{ background: 'color-mix(in oklch, var(--warning) 14%, transparent)', color: 'var(--warning)' }}>
+                        工作人员代回应{a.invitationActorName ? ` · ${a.invitationActorName}` : ''}
+                      </span>
+                    )}
                   </div>
+                  {(a.invitationReason || (a.invitationActorType === 'STAFF' && a.expertRespondedAt)) && (
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      {a.invitationActorType === 'STAFF' && a.expertRespondedAt && (
+                        <span className="text-[11px] text-[var(--muted-foreground)] tabular-nums">
+                          专家自答于 {new Date(a.expertRespondedAt).toLocaleString('zh-CN')}（原{a.expertStatus === 'confirmed' ? '确认参加' : '婉拒'}），后经代变更
+                        </span>
+                      )}
+                      {a.invitationReason && (
+                        <span className="max-w-full truncate rounded-[6px] px-2 py-1 text-[11px] font-semibold"
+                          style={{ background: 'color-mix(in oklch, var(--warning) 9%, transparent)', color: 'var(--foreground)' }}
+                          title={`代回应理由：${a.invitationReason}`}>
+                          <span className="text-[var(--muted-foreground)] font-bold">代回应理由：</span>{a.invitationReason}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div className="grid grid-cols-4 gap-3 text-[12px] text-[var(--muted-foreground)] mb-3">
                     <span>专业：<strong className="text-[var(--foreground)]">{a.major || '—'}</strong></span>
                     <span>签到：<strong className={a.signedIn ? 'text-[var(--success)]' : 'text-[var(--muted-foreground)]'}>{a.signedIn ? '已签到' : '未签到'}</strong></span>

@@ -2731,9 +2731,17 @@ export function ExpertExtractPage({
                           <td className="text-center text-xs text-[var(--muted-foreground)]">{e.employer || '—'}</td><td className="text-center text-xs text-[var(--muted-foreground)]">{deptByUser.get(e.userId) || '—'}</td>
                           <td className="text-center text-xs font-mono text-[var(--muted-foreground)]">{phoneCell(e.userId, e.phone)}</td>
                           <td className="text-center">{e.invitationStatus==='confirmed'?<StatusBadge tone="green">确认参加</StatusBadge>:e.invitationStatus==='pending'?<StatusBadge tone="blue">待回复</StatusBadge>:(e.rsvpExpiresAt && e.rsvpRespondedAt && new Date(e.rsvpRespondedAt).getTime() >= new Date(e.rsvpExpiresAt).getTime() ? <StatusBadge tone="red">超时拒绝</StatusBadge> : <StatusBadge tone="red">无法参加</StatusBadge>)}</td>
-                          <td className="text-center text-[11px] font-mono text-[var(--muted-foreground)]" title={e.invitationReason || undefined}>{/* 回执号口径（2026-10-21 正式化，替代 rsvpRespondedAt 推导 workaround）：
-    回执号=专家自答凭证——工作人员代回应/代变更的行不展示，改显标注 */}
-              {e.invitationActorType === 'STAFF' ? '工作人员代回应' : (e.invitationActorType === 'SYSTEM' ? '超时弃权' : (e.invitationStatus !== 'pending' ? (e.rsvpNo || '—') : '—'))}</td>
+                          <td className="text-center">{/* 回执号口径（2026-10-21 正式化）：回执号=专家自答凭证——
+    代回应/代变更行不展示号，改显标注 + 代回应理由明示（title 悬停看全文） */}
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-[11px] font-mono text-[var(--muted-foreground)]">{e.invitationActorType === 'STAFF' ? (e.invitationActorName ? `代回应·${e.invitationActorName}` : '工作人员代回应') : (e.invitationActorType === 'SYSTEM' ? '超时弃权' : (e.invitationStatus !== 'pending' ? (e.rsvpNo || '—') : '—'))}</span>
+                {e.invitationReason && (
+                  <span className="inline-block max-w-[180px] truncate rounded-[4px] px-1.5 py-0.5 text-[9px] font-semibold"
+                    style={{ background: 'color-mix(in oklch, var(--warning) 10%, transparent)', color: 'var(--foreground)' }}
+                    title={`代回应理由：${e.invitationReason}`}>理由：{e.invitationReason}</span>
+                )}
+              </div>
+                          </td>
                           <td className="text-center">
                             <div className="flex justify-center gap-1">
                               {e.invitationStatus==='pending' ? (<>
@@ -2953,10 +2961,16 @@ export function ExpertExtractPage({
                           <td className="text-center text-xs text-[var(--muted-foreground)]">{e.employer || '—'}</td><td className="text-center text-xs text-[var(--muted-foreground)]">{deptByUser.get(e.userId) || '—'}</td>
                           <td className="text-center">{isOriginal ? <StatusBadge tone="green">正选</StatusBadge> : <StatusBadge tone="blue">第{roundNo || '?'}次补选</StatusBadge>}</td>
                           <td className="text-center">{e.invitationStatus === 'confirmed' ? <StatusBadge tone="green">确认参加</StatusBadge> : <StatusBadge tone="blue">待回复</StatusBadge>}</td>
-                          <td className="text-center text-[11px] font-mono text-[var(--muted-foreground)]">{/* 回复来源数据推导（2026-10-20 修复）：终态且无 rsvpRespondedAt=工作人员代为确认（代确认
-    端点只改 status 不写回复时间，专家点链接自助回复三处都写）；此前靠前端内存 Set 标记，
-    刷新/重进即丢——正选代婉拒行回执号显「—」的根因 */}
-              {e.rsvpRespondedAt ? (e.rsvpNo || '—') : (e.invitationStatus !== 'pending' ? '工作人员代为确认' : '—')}</td>
+                          <td className="text-center">{/* 回执号口径（2026-10-21 正式化）：代回应行显标注+理由，自答显回执号 */}
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-[11px] font-mono text-[var(--muted-foreground)]">{e.invitationActorType === 'STAFF' ? (e.invitationActorName ? `代回应·${e.invitationActorName}` : '工作人员代回应') : (e.invitationActorType === 'SYSTEM' ? '超时弃权' : (e.invitationStatus !== 'pending' ? (e.rsvpNo || '—') : '—'))}</span>
+                {e.invitationReason && (
+                  <span className="inline-block max-w-[180px] truncate rounded-[4px] px-1.5 py-0.5 text-[9px] font-semibold"
+                    style={{ background: 'color-mix(in oklch, var(--warning) 10%, transparent)', color: 'var(--foreground)' }}
+                    title={`代回应理由：${e.invitationReason}`}>理由：{e.invitationReason}</span>
+                )}
+              </div>
+                          </td>
                           {/* A-132：评审分组（「不设置」= 本次不提交该项；「清除」= 置空已保存分组） */}
                           <td className="text-center">
                             <select

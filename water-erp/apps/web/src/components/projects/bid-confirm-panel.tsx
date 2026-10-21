@@ -837,6 +837,11 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                                             工作人员代回应{e.invitationActorName ? ` · ${e.invitationActorName}` : ''}
                                           </span>
                                         )}
+                                        {e.invitationActorType === 'STAFF' && e.invitationReason && (
+                                          <span className="max-w-[200px] truncate rounded-[4px] px-1 py-0.5 text-[9px] font-semibold"
+                                            style={{ background: 'color-mix(in oklch, var(--warning) 9%, transparent)', color: 'var(--foreground)' }}
+                                            title={`代回应理由：${e.invitationReason}`}>理由：{e.invitationReason}</span>
+                                        )}
                                       </div>
                                     ) : (
                                       <div className="flex flex-col items-start gap-1">
