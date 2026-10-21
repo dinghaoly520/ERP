@@ -3334,64 +3334,65 @@ a.group:hover::after {
 .flow-nav-dance i:nth-child(1) {
   left: -40%;
   background: radial-gradient(circle, oklch(0.955 0.045 20 / 0.85), transparent 64%);
-  animation: nav-dance-a 9.1s ease-in-out infinite;
+  animation: nav-dance-a 6.7s ease-in-out infinite;
 }
 .flow-nav-dance i:nth-child(2) {
   left: -20%;
   background: radial-gradient(circle, oklch(0.962 0.055 95 / 0.85), transparent 64%);
-  animation: nav-dance-b 12.3s ease-in-out infinite;
+  animation: nav-dance-b 8.9s ease-in-out infinite;
 }
 .flow-nav-dance i:nth-child(3) {
   left: 0%;
   background: radial-gradient(circle, oklch(0.958 0.05 150 / 0.85), transparent 64%);
-  animation: nav-dance-c 14.7s ease-in-out infinite;
+  animation: nav-dance-c 10.3s ease-in-out infinite;
 }
 .flow-nav-dance i:nth-child(4) {
   left: 20%;
   background: radial-gradient(circle, oklch(0.952 0.045 245 / 0.85), transparent 64%);
-  animation: nav-dance-d 10.9s ease-in-out infinite;
+  animation: nav-dance-d 7.7s ease-in-out infinite;
 }
 .flow-nav-dance i:nth-child(5) {
   left: 40%;
   background: radial-gradient(circle, oklch(0.948 0.05 310 / 0.85), transparent 64%);
-  animation: nav-dance-e 16.1s ease-in-out infinite;
+  animation: nav-dance-e 11.3s ease-in-out infinite;
 }
 
 /* 悬停/按住沿用瓷片原有浅色玻璃态（凸起→hover 抬升→内凹），仅调节流舞明暗 */
 .flow-nav-pill:hover .flow-nav-dance i { opacity: 1; }
 .flow-nav-pill[aria-expanded="true"] .flow-nav-dance i { opacity: 0.45; }
 
-/* 水流路点：各团在站位附近环绕洄游（±14% 横移 / ±8% 纵摆 + 呼吸缩放，互质周期；
-   基准 translateY(-50%) 垂直居中锚定；首尾同帧无缝循环） */
+/* 水流路点：各团在站位附近大幅洄游（±22% 横移 / ±12% 纵摆 + 0.9↔1.12 呼吸缩放，
+   互质周期 6.7/8.9/10.3/7.7/11.3s——动效可感知；基准 translateY(-50%) 垂直居中锚定；
+   首尾同帧无缝循环；团心仍不横穿瓷片（excursion < 半团宽），水流感不回退成掠过） */
 @keyframes nav-dance-a {
-  0%, 100% { transform: translateY(-50%) translate(6%, -4%) scale(1); }
-  25% { transform: translateY(-50%) translate(-13%, 6%) scale(0.95); }
-  50% { transform: translateY(-50%) translate(-6%, 8%) scale(1.06); }
-  75% { transform: translateY(-50%) translate(12%, -6%) scale(0.97); }
+  0%, 100% { transform: translateY(-50%) translate(10%, -7%) scale(1); }
+  25% { transform: translateY(-50%) translate(-20%, 10%) scale(0.9); }
+  50% { transform: translateY(-50%) translate(-9%, 12%) scale(1.12); }
+  75% { transform: translateY(-50%) translate(19%, -10%) scale(0.94); }
 }
 @keyframes nav-dance-b {
-  0%, 100% { transform: translateY(-50%) translate(-8%, 5%) scale(0.96); }
-  22% { transform: translateY(-50%) translate(10%, -7%) scale(1.07); }
-  48% { transform: translateY(-50%) translate(14%, 4%) scale(0.94); }
-  74% { transform: translateY(-50%) translate(-5%, -8%) scale(1.03); }
+  0%, 100% { transform: translateY(-50%) translate(-13%, 8%) scale(0.92); }
+  22% { transform: translateY(-50%) translate(16%, -11%) scale(1.1); }
+  48% { transform: translateY(-50%) translate(22%, 6%) scale(0.9); }
+  74% { transform: translateY(-50%) translate(-8%, -12%) scale(1.06); }
 }
 @keyframes nav-dance-c {
-  0%, 100% { transform: translateY(-50%) translate(0%, 6%) scale(1.04); }
-  26% { transform: translateY(-50%) translate(-14%, -5%) scale(0.95); }
-  52% { transform: translateY(-50%) translate(6%, -8%) scale(1.08); }
-  78% { transform: translateY(-50%) translate(11%, 7%) scale(0.96); }
+  0%, 100% { transform: translateY(-50%) translate(0%, 10%) scale(1.08); }
+  26% { transform: translateY(-50%) translate(-22%, -8%) scale(0.9); }
+  52% { transform: translateY(-50%) translate(10%, -12%) scale(1.12); }
+  78% { transform: translateY(-50%) translate(18%, 11%) scale(0.93); }
 }
 @keyframes nav-dance-d {
-  0%, 100% { transform: translateY(-50%) translate(9%, 4%) scale(1.02); }
-  24% { transform: translateY(-50%) translate(-11%, -6%) scale(0.94); }
-  50% { transform: translateY(-50%) translate(-14%, 7%) scale(1.05); }
-  76% { transform: translateY(-50%) translate(4%, -5%) scale(0.97); }
+  0%, 100% { transform: translateY(-50%) translate(14%, 6%) scale(1.04); }
+  24% { transform: translateY(-50%) translate(-17%, -10%) scale(0.9); }
+  50% { transform: translateY(-50%) translate(-22%, 11%) scale(1.1); }
+  76% { transform: translateY(-50%) translate(6%, -8%) scale(0.95); }
 }
 @keyframes nav-dance-e {
-  0%, 100% { transform: translateY(-50%) translate(-5%, -6%) scale(0.98); }
-  23% { transform: translateY(-50%) translate(-12%, 7%) scale(1.06); }
-  49% { transform: translateY(-50%) translate(8%, 5%) scale(0.93); }
-  75% { transform: translateY(-50%) translate(13%, -7%) scale(1.02); }
+  0%, 100% { transform: translateY(-50%) translate(-8%, -10%) scale(0.96); }
+  23% { transform: translateY(-50%) translate(-19%, 11%) scale(1.1); }
+  49% { transform: translateY(-50%) translate(13%, 8%) scale(0.9); }
+  75% { transform: translateY(-50%) translate(21%, -11%) scale(1.06); }
 }
 @media (prefers-reduced-motion: reduce) {
   .flow-nav-dance i { animation: none; }
