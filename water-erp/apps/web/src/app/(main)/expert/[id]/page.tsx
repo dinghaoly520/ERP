@@ -5,10 +5,10 @@ import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { copyToClipboard } from '@/lib/copy-to-clipboard';
-import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getNotifyPrefs, updateNotifyPrefs, getNotifyHistory, getAiAdoptionRate, confirmInvitation, declineInvitation, updateExpertProfile, getRiskBrief, type ExpertPortrait, type ExpertRiskBrief, type NotifyHistoryItem, revealExpertField } from '@/lib/api/expert';
+import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getNotifyPrefs, updateNotifyPrefs, getNotifyHistory, getAiAdoptionRate, proxyMarkExpertInvitation, updateExpertProfile, getRiskBrief, type ExpertPortrait, type ExpertRiskBrief, type NotifyHistoryItem, revealExpertField } from '@/lib/api/expert';
 import { Modal, AlertBanner, StatusBadge } from '@/components/workbench';
 import { useExpertAlerts } from '@/lib/hooks/use-alerts';
-import { TrendingUp, Award, AlertTriangle, ShieldAlert, Bell, Phone, MessageSquare, History, Ban, Sparkles, RefreshCw, Pencil, X, User, Hash, Briefcase, GraduationCap, Mail, Building2, Calendar, FileText, IdCard, Users, MapPin } from 'lucide-react';
+import { TrendingUp, Award, AlertTriangle, ShieldAlert, Bell, Phone, MessageSquare, History, Ban, Sparkles, RefreshCw, Pencil, X, User, Hash, Briefcase, GraduationCap, Mail, Building2, Calendar, FileText, IdCard, Users, MapPin, Loader2 } from 'lucide-react';
 import { STAGE_LABEL, STAGE_COLOR, LEVEL_LABEL } from '@water-erp/shared';
 
 interface ScoreRecord { id: string; score: number; reason: string | null; scoreItem: { name: string; category: string; maxScore: number }; }
@@ -112,6 +112,22 @@ export default function ExpertDetailPage() {
   const params = useParams();
   const expertId = params.id as string;
   const [expert, setExpert] = useState<ExpertDetail | null>(null);
+  // 邀请代回应/代变更（2026-10-21 留痕通道：替代原无理由直改按钮）
+  const [inviteProxy, setInviteProxy] = useState<{ projectId: string; projectName: string; target: 'confirmed' | 'declined'; current: 'pending' | 'confirmed' | 'declined' } | null>(null);
+  const [inviteProxyReason, setInviteProxyReason] = useState('');
+  const [inviteProxyBusy, setInviteProxyBusy] = useState(false);
+  const submitInviteProxy = async () => {
+    if (!inviteProxy) return;
+    if (inviteProxyReason.trim().length < 5) { toast.error('请填写理由（至少 5 个字）'); return; }
+    setInviteProxyBusy(true);
+    try {
+      const r = await proxyMarkExpertInvitation(inviteProxy.projectId, expertId, inviteProxy.target, inviteProxyReason.trim());
+      toast.success(r.changed ? (inviteProxy.target === 'confirmed' ? '已代为确认' : '已代为婉拒') : '状态未变化（同状态幂等）');
+      setInviteProxy(null); setInviteProxyReason('');
+      reload();
+    } catch (e: any) { toast.error(e?.message || '操作失败'); }
+    finally { setInviteProxyBusy(false); }
+  };
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [tab, setTabState] = useState<Tab>(() => {
@@ -476,21 +492,23 @@ export default function ExpertDetailPage() {
                   <div className="flex flex-wrap items-center gap-2 mb-3">
                     {a.isLead && <StatusBadge tone="purple">组长</StatusBadge>}
                     {a.invitationStatus === 'pending' && <><StatusBadge tone="blue">待确认</StatusBadge>
+                      {/* 2026-10-21 口径统一：原无痕直改按钮收编为留痕代回应（必填理由） */}
                       <button
-                        onClick={async (ev) => { ev.stopPropagation();
-                          try { await confirmInvitation(a.project.id, expertId); toast.success('已确认参与'); reload(); }
-                          catch (e: any) { toast.error(e?.message || '操作失败'); }
-                        }}
+                        onClick={(ev) => { ev.stopPropagation(); setInviteProxy({ projectId: a.project.id, projectName: a.project.name, target: 'confirmed', current: 'pending' }); setInviteProxyReason(''); }}
                         className="neu-btn-xs is-success"
-                      >确认</button>
+                      >代确认</button>
                       <button
-                        onClick={async (ev) => { ev.stopPropagation();
-                          try { await declineInvitation(a.project.id, expertId); toast.success('已标记拒绝'); reload(); }
-                          catch (e: any) { toast.error(e?.message || '操作失败'); }
-                        }}
+                        onClick={(ev) => { ev.stopPropagation(); setInviteProxy({ projectId: a.project.id, projectName: a.project.name, target: 'declined', current: 'pending' }); setInviteProxyReason(''); }}
                         className="neu-btn-xs is-danger"
-                      >拒绝</button>
+                      >代婉拒</button>
                     </>}
+                    {a.invitationStatus !== 'pending' && (
+                      <button
+                        onClick={(ev) => { ev.stopPropagation(); setInviteProxy({ projectId: a.project.id, projectName: a.project.name, target: a.invitationStatus === 'confirmed' ? 'declined' : 'confirmed', current: a.invitationStatus as 'confirmed' | 'declined' }); setInviteProxyReason(''); }}
+                        className="neu-btn-xs"
+                        title="工作人员代为变更邀请（必填理由，全程留痕）"
+                      >代为变更</button>
+                    )}
                     {a.invitationStatus === 'confirmed' && <StatusBadge tone="green">已确认</StatusBadge>}
                     {a.invitationStatus === 'declined' && <StatusBadge tone="red">已拒绝</StatusBadge>}
                   </div>
@@ -858,6 +876,65 @@ export default function ExpertDetailPage() {
         </div>
       )}
 
+
+      {/* 邀请代回应/代变更弹窗（2026-10-21 留痕通道：必填理由） */}
+      {inviteProxy && (
+        <Modal
+          open
+          onClose={() => { if (!inviteProxyBusy) setInviteProxy(null); }}
+          closeOnBackdrop={!inviteProxyBusy}
+          closeOnEsc={!inviteProxyBusy}
+          size="md"
+          title={inviteProxy.current === 'pending' ? '工作人员代回应专家邀请' : '工作人员代为变更专家邀请'}
+          description={`${expert?.displayName ?? ''} · ${inviteProxy.projectName} · 当前${
+            inviteProxy.current === 'pending' ? '待回复' : inviteProxy.current === 'confirmed' ? '确认参加' : '已婉拒'
+          }`}
+          footer={
+            <>
+              <button onClick={() => setInviteProxy(null)} disabled={inviteProxyBusy} className="neu-btn-soft !h-9 !text-[13px] disabled:opacity-40">取消</button>
+              <button onClick={() => void submitInviteProxy()} disabled={inviteProxyBusy} className="neu-btn-primary !h-9 !text-[13px] disabled:opacity-50">
+                {inviteProxyBusy && <Loader2 size={14} className="animate-spin" />}
+                {inviteProxy.target === 'confirmed' ? '确认代为确认参加' : '确认代为婉拒'}
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 rounded-[12px] px-4 py-3"
+              style={{ background: 'oklch(1 0 0 / 0.45)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+              <span className="text-[12px] font-semibold"
+                style={{ color: inviteProxy.current === 'confirmed' ? 'var(--success)' : inviteProxy.current === 'declined' ? 'var(--danger)' : 'var(--muted-foreground)' }}>
+                {inviteProxy.current === 'pending' ? '待回复' : inviteProxy.current === 'confirmed' ? '确认参加' : '已婉拒'}
+              </span>
+              <span className="text-[var(--muted-foreground)]">→</span>
+              <span className="text-[12px] font-bold" style={{ color: inviteProxy.target === 'confirmed' ? 'var(--success)' : 'var(--danger)' }}>
+                {inviteProxy.target === 'confirmed' ? '确认参加' : '婉拒'}
+              </span>
+            </div>
+            {inviteProxy.current === 'confirmed' && inviteProxy.target === 'declined' && (
+              <div className="rounded-[12px] px-4 py-3 text-[11px] leading-5"
+                style={{ background: 'color-mix(in oklch, var(--warning) 9%, transparent)', color: 'var(--foreground)' }}>
+                确认→婉拒将<b>站内信通知专家本人</b>（含理由与操作人）并计入邀请轨迹；若为正选将自动递补候补。
+              </div>
+            )}
+            <div>
+              <label className="text-[11px] font-bold text-[var(--foreground)] mb-1.5 block">
+                代回应理由 <span className="text-[var(--danger)]">*</span>
+                <span className="ml-1.5 font-normal text-[var(--muted-foreground)]">（必填，至少 5 个字；留痕展示）</span>
+              </label>
+              <textarea
+                value={inviteProxyReason}
+                onChange={(ev) => setInviteProxyReason(ev.target.value)}
+                rows={3}
+                maxLength={500}
+                disabled={inviteProxyBusy}
+                placeholder="如：电话核实专家档期，对方口头确认参加评审…"
+                className="neu-input w-full resize-none text-[13px]"
+              />
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* 编辑资料弹窗（Modal 表单范式） */}
       {showEditModal && (

@@ -5,7 +5,7 @@ import { fetchCurrentUser } from '@/lib/api/auth';
 import { companyColor } from '@/components/company/company-tag';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, specialtyPoolCounts, listPoolCompanies, listExperts, getDemandRepDirectory, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, type DemandRepDirectoryItem } from '@/lib/api/expert';
+import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, specialtyPoolCounts, listPoolCompanies, listExperts, getDemandRepDirectory, getBidProjectDetail, generateNotification, getProjectInvitations, proxyMarkExpertInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, type DemandRepDirectoryItem } from '@/lib/api/expert';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { QuotaMultiSelect } from '@/components/expert/quota-multi-select';
@@ -256,6 +256,35 @@ export function ExpertExtractPage({
   const [retrospect, setRetrospect] = useState<{ loading: boolean; data: Awaited<ReturnType<typeof retrospectExtraction>> | null } | null>(null);
   // 专家确认状态
   const [invitationData, setInvitationData] = useState<Awaited<ReturnType<typeof getProjectInvitations>> | null>(null);
+  // 专家邀请代回应/代变更（2026-10-21 口径统一：原「确认参加/无法参加」直改按钮收编为
+  // 留痕通道——必填理由 + 轨迹 + 确认→婉拒联动通知/递补；已回执行补「代为变更/恢复」入口）
+  const [exProxy, setExProxy] = useState<{
+    userId: string; name: string; role: string;
+    target: 'confirmed' | 'declined';
+    current: 'pending' | 'confirmed' | 'declined';
+  } | null>(null);
+  const [exProxyReason, setExProxyReason] = useState('');
+  const [exProxyBusy, setExProxyBusy] = useState(false);
+
+  const submitExProxy = async () => {
+    if (!exProxy || !pid) return;
+    if (exProxyReason.trim().length < 5) { toast.error('请填写理由（至少 5 个字），将展示在确认面板'); return; }
+    setExProxyBusy(true);
+    try {
+      const r = await proxyMarkExpertInvitation(pid, exProxy.userId, exProxy.target, exProxyReason.trim());
+      toast.success(
+        r.changed
+          ? exProxy.target === 'confirmed' ? `已代为确认：${exProxy.name}` : `已代为婉拒：${exProxy.name}${r.promoted ? `（已递补：${r.promoted.expertName}）` : ''}`
+          : '状态未变化（同状态幂等）',
+      );
+      setExProxy(null); setExProxyReason('');
+      setInvitationData(await getProjectInvitations(pid));
+    } catch (err: any) {
+      toast.error(err?.message || '代回应提交失败，请重试');
+    } finally {
+      setExProxyBusy(false);
+    }
+  };
   // 从 DB isLead 恢复组长状态（关闭页面重进时不丢失）
   useEffect(() => {
     const leadExpert = invitationData?.experts.find(e => e.isLead);
@@ -2702,11 +2731,19 @@ export function ExpertExtractPage({
                           <td className="text-center text-xs text-[var(--muted-foreground)]">{e.employer || '—'}</td><td className="text-center text-xs text-[var(--muted-foreground)]">{deptByUser.get(e.userId) || '—'}</td>
                           <td className="text-center text-xs font-mono text-[var(--muted-foreground)]">{phoneCell(e.userId, e.phone)}</td>
                           <td className="text-center">{e.invitationStatus==='confirmed'?<StatusBadge tone="green">确认参加</StatusBadge>:e.invitationStatus==='pending'?<StatusBadge tone="blue">待回复</StatusBadge>:(e.rsvpExpiresAt && e.rsvpRespondedAt && new Date(e.rsvpRespondedAt).getTime() >= new Date(e.rsvpExpiresAt).getTime() ? <StatusBadge tone="red">超时拒绝</StatusBadge> : <StatusBadge tone="red">无法参加</StatusBadge>)}</td>
-                          <td className="text-center text-[11px] font-mono text-[var(--muted-foreground)]">{/* 回复来源数据推导（2026-10-20 修复）：终态且无 rsvpRespondedAt=工作人员代为确认（代确认
-    端点只改 status 不写回复时间，专家点链接自助回复三处都写）；此前靠前端内存 Set 标记，
-    刷新/重进即丢——正选代婉拒行回执号显「—」的根因 */}
-              {e.rsvpRespondedAt ? (e.rsvpNo || '—') : (e.invitationStatus !== 'pending' ? '工作人员代为确认' : '—')}</td>
-                          <td className="text-center">{e.invitationStatus==='pending'&&(<div className="flex justify-center gap-1"><button onClick={async()=>{try{await confirmInvitation(pid,e.userId);setInvitationData(await getProjectInvitations(pid));toast.success(e.expertName+' 已确认')}catch(err:any){toast.error(err?.message||'操作失败')}}} className="neu-btn-xs is-success">确认参加</button><button onClick={async()=>{try{const res=await declineInvitation(pid,e.userId);setInvitationData(await getProjectInvitations(pid));toast.success(e.expertName+' 已标记无法参加')}catch(err:any){toast.error(err?.message||'操作失败')}}} className="neu-btn-xs is-danger">无法参加</button></div>)}</td>
+                          <td className="text-center text-[11px] font-mono text-[var(--muted-foreground)]" title={e.invitationReason || undefined}>{/* 回执号口径（2026-10-21 正式化，替代 rsvpRespondedAt 推导 workaround）：
+    回执号=专家自答凭证——工作人员代回应/代变更的行不展示，改显标注 */}
+              {e.invitationActorType === 'STAFF' ? '工作人员代回应' : (e.invitationActorType === 'SYSTEM' ? '超时弃权' : (e.invitationStatus !== 'pending' ? (e.rsvpNo || '—') : '—'))}</td>
+                          <td className="text-center">
+                            <div className="flex justify-center gap-1">
+                              {e.invitationStatus==='pending' ? (<>
+                                <button onClick={()=>{setExProxyReason('');setExProxy({userId:e.userId,name:e.expertName,role:e.expertRole,target:'confirmed',current:'pending'})}} className="neu-btn-xs is-success" title="电话/线下核实后代为确认（必填理由，留痕展示）">代确认</button>
+                                <button onClick={()=>{setExProxyReason('');setExProxy({userId:e.userId,name:e.expertName,role:e.expertRole,target:'declined',current:'pending'})}} className="neu-btn-xs is-danger" title="代为婉拒（必填理由；正选婉拒触发递补）">代婉拒</button>
+                              </>) : (<>
+                                <button onClick={()=>{setExProxyReason('');setExProxy({userId:e.userId,name:e.expertName,role:e.expertRole,target:e.invitationStatus==='confirmed'?'declined':'confirmed',current:e.invitationStatus as 'confirmed'|'declined'})}} className="neu-btn-xs" title={e.invitationStatus==='confirmed'?'工作人员代为变更（必填理由；确认→婉拒将通知专家本人并触发递补）':'恢复该专家的确认（席位已被递补占用时后端会拒绝）'}>{e.invitationStatus==='confirmed'?'代为变更':'恢复'}</button>
+                              </>)}
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -2795,11 +2832,18 @@ export function ExpertExtractPage({
                                   <td className="text-center text-xs text-[var(--muted-foreground)]">{e.employer || '—'}</td><td className="text-center text-xs text-[var(--muted-foreground)]">{deptByUser.get(e.userId) || '—'}</td>
                                   <td className="text-center text-xs font-mono text-[var(--muted-foreground)]">{phoneCell(e.userId, e.phone)}</td>
                                   <td className="text-center">{e.invitationStatus==='confirmed'?<StatusBadge tone="green">确认参加</StatusBadge>:e.invitationStatus==='pending'?<StatusBadge tone="blue">待回复</StatusBadge>:(e.rsvpExpiresAt && e.rsvpRespondedAt && new Date(e.rsvpRespondedAt).getTime() >= new Date(e.rsvpExpiresAt).getTime() ? <StatusBadge tone="red">超时拒绝</StatusBadge> : <StatusBadge tone="red">无法参加</StatusBadge>)}</td>
-                                  <td className="text-center text-[11px] font-mono text-[var(--muted-foreground)]">{/* 回复来源数据推导（2026-10-20 修复）：终态且无 rsvpRespondedAt=工作人员代为确认（代确认
-    端点只改 status 不写回复时间，专家点链接自助回复三处都写）；此前靠前端内存 Set 标记，
-    刷新/重进即丢——正选代婉拒行回执号显「—」的根因 */}
-              {e.rsvpRespondedAt ? (e.rsvpNo || '—') : (e.invitationStatus !== 'pending' ? '工作人员代为确认' : '—')}</td>
-                                  <td className="text-center">{e.invitationStatus==='pending'&&(<div className="flex justify-center gap-1"><button onClick={async()=>{try{await confirmInvitation(pid,e.userId);setInvitationData(await getProjectInvitations(pid));toast.success(e.expertName+' 已确认')}catch(err:any){toast.error(err?.message||'操作失败')}}} className="neu-btn-xs is-success">确认参加</button><button onClick={async()=>{try{const res=await declineInvitation(pid,e.userId);setInvitationData(await getProjectInvitations(pid));toast.success(e.expertName+' 已标记无法参加')}catch(err:any){toast.error(err?.message||'操作失败')}}} className="neu-btn-xs is-danger">无法参加</button></div>)}</td>
+                                  <td className="text-center text-[11px] font-mono text-[var(--muted-foreground)]" title={e.invitationReason || undefined}>{/* 回执号口径（2026-10-21 正式化）：代回应/代变更行不展示回执号 */}
+              {e.invitationActorType === 'STAFF' ? '工作人员代回应' : (e.invitationActorType === 'SYSTEM' ? '超时弃权' : (e.invitationStatus !== 'pending' ? (e.rsvpNo || '—') : '—'))}</td>
+                                  <td className="text-center">
+                                    <div className="flex justify-center gap-1">
+                                      {e.invitationStatus==='pending' ? (<>
+                                        <button onClick={()=>{setExProxyReason('');setExProxy({userId:e.userId,name:e.expertName,role:e.expertRole,target:'confirmed',current:'pending'})}} className="neu-btn-xs is-success" title="电话/线下核实后代为确认（必填理由，留痕展示）">代确认</button>
+                                        <button onClick={()=>{setExProxyReason('');setExProxy({userId:e.userId,name:e.expertName,role:e.expertRole,target:'declined',current:'pending'})}} className="neu-btn-xs is-danger" title="代为婉拒（必填理由；正选婉拒触发递补）">代婉拒</button>
+                                      </>) : (<>
+                                        <button onClick={()=>{setExProxyReason('');setExProxy({userId:e.userId,name:e.expertName,role:e.expertRole,target:e.invitationStatus==='confirmed'?'declined':'confirmed',current:e.invitationStatus as 'confirmed'|'declined'})}} className="neu-btn-xs" title={e.invitationStatus==='confirmed'?'工作人员代为变更（必填理由；确认→婉拒将通知专家本人并触发递补）':'恢复该专家的确认（席位已被递补占用时后端会拒绝）'}>{e.invitationStatus==='confirmed'?'代为变更':'恢复'}</button>
+                                      </>)}
+                                    </div>
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>
@@ -3532,6 +3576,73 @@ export function ExpertExtractPage({
               </div>
             </div>
           )}
+        </Modal>
+      )}
+
+      {/* 专家邀请代回应/代变更弹窗（2026-10-21 口径统一：替代原「确认参加/无法参加」无痕直改） */}
+      {exProxy && (
+        <Modal
+          open
+          onClose={() => { if (!exProxyBusy) setExProxy(null); }}
+          closeOnBackdrop={!exProxyBusy}
+          closeOnEsc={!exProxyBusy}
+          size="md"
+          title={
+            <span className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border text-[var(--warning)]"
+                style={{ borderColor: 'color-mix(in oklch, var(--warning) 25%, transparent)', background: 'color-mix(in oklch, var(--warning) 10%, transparent)' }}>
+                <ShieldCheck size={16} />
+              </span>
+              {exProxy.current === 'pending' ? '工作人员代回应专家邀请' : '工作人员代为变更专家邀请'}
+            </span>
+          }
+          description={`${exProxy.name}（${exProxy.role}） · 当前${exProxy.current === 'pending' ? '待回复' : exProxy.current === 'confirmed' ? '确认参加' : '已婉拒'}`}
+          footer={
+            <>
+              <button onClick={() => setExProxy(null)} disabled={exProxyBusy} className="neu-btn-soft !h-9 !text-[13px] disabled:opacity-40">取消</button>
+              <button onClick={() => void submitExProxy()} disabled={exProxyBusy} className="neu-btn-primary !h-9 !text-[13px] disabled:opacity-50">
+                {exProxyBusy && <Loader2 size={14} className="animate-spin" />}
+                {exProxy.target === 'confirmed' ? '确认代为确认参加' : '确认代为婉拒'}
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 rounded-[12px] px-4 py-3"
+              style={{ background: 'oklch(1 0 0 / 0.45)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+              <span className="text-[12px] font-semibold"
+                style={{ color: exProxy.current === 'confirmed' ? 'var(--success)' : exProxy.current === 'declined' ? 'var(--danger)' : 'var(--muted-foreground)' }}>
+                {exProxy.current === 'pending' ? '待回复' : exProxy.current === 'confirmed' ? '确认参加' : '已婉拒'}
+              </span>
+              <span className="text-[var(--muted-foreground)]">→</span>
+              <span className="text-[12px] font-bold" style={{ color: exProxy.target === 'confirmed' ? 'var(--success)' : 'var(--danger)' }}>
+                {exProxy.target === 'confirmed' ? '确认参加' : '婉拒'}
+              </span>
+            </div>
+            {exProxy.current === 'confirmed' && exProxy.target === 'declined' && (
+              <div className="rounded-[12px] px-4 py-3 text-[11px] leading-5"
+                style={{ background: 'color-mix(in oklch, var(--warning) 9%, transparent)', color: 'var(--foreground)' }}>
+                该专家已确认参加。代为变更为「婉拒」后：系统将<b>站内信通知专家本人</b>（含理由与操作人）、
+                邀请轨迹留痕，且若为<b>正选将自动递补候补</b>。请确认已与专家充分沟通。
+              </div>
+            )}
+            <div>
+              <label className="text-[11px] font-bold text-[var(--foreground)] mb-1.5 block">
+                代回应理由 <span className="text-[var(--danger)]">*</span>
+                <span className="ml-1.5 font-normal text-[var(--muted-foreground)]">（必填，至少 5 个字；将展示在确认面板并留痕）</span>
+              </label>
+              <textarea
+                value={exProxyReason}
+                onChange={(ev) => setExProxyReason(ev.target.value)}
+                rows={3}
+                maxLength={500}
+                disabled={exProxyBusy}
+                placeholder={exProxy.target === 'confirmed' ? '如：电话核实专家档期，对方口头确认参加评审…' : '如：电话核实档期冲突无法出席 / 健康原因请假，取消邀请…'}
+                className="neu-input w-full resize-none text-[13px]"
+              />
+              <div className="mt-1 text-right text-[10px] tabular-nums text-[var(--muted-foreground)]">{exProxyReason.trim().length} / 500</div>
+            </div>
+          </div>
         </Modal>
       )}
     </div>

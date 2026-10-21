@@ -467,17 +467,14 @@ export function ignoreRetirementWarning(id: string) {
   return api.post<{ success: boolean }>(`/expert-admin/${id}/retire-ignore`, {});
 }
 
-/* 邀请确认 */
-export function confirmInvitation(projectId: string, userId: string) {
-  return api.post<{ success: boolean; status: string }>(`/expert-admin/invitations/${projectId}/${userId}/confirm`, {});
-}
-export function declineInvitation(projectId: string, userId: string) {
-  return api.post<{ success: boolean; status: string; promoted?: { userId: string; expertName: string; major: string } | null }>(`/expert-admin/invitations/${projectId}/${userId}/decline`, {});
-}
+/* 邀请确认——原 confirm/decline 两端点已收编为 proxy-mark（2026-10-21 留痕通道），见上方 proxyMarkExpertInvitation */
 
 export function getProjectInvitations(projectId: string) {
   return api.get<{
-    experts: { id: string; userId: string; expertName: string; major: string; isLead: boolean; expertRole: string; invitationStatus: string; reviewGroup?: string | null; dutyRole?: string | null; title?: string | null; employer?: string | null; phone?: string | null; rsvpRespondedAt?: string | null; rsvpExpiresAt?: string | null; rsvpNo?: string }[];
+    experts: { id: string; userId: string; expertName: string; major: string; isLead: boolean; expertRole: string; invitationStatus: string; reviewGroup?: string | null; dutyRole?: string | null; title?: string | null; employer?: string | null; phone?: string | null; rsvpRespondedAt?: string | null; rsvpExpiresAt?: string | null; rsvpNo?: string;
+      // 邀请作答留痕（2026-10-21）：作答方/理由/自答快照（后端 getProjectInvitations 已返回）
+      invitationActorType?: 'EXPERT' | 'STAFF' | 'SYSTEM' | null; invitationActorName?: string | null; invitationReason?: string | null;
+      expertRespondedAt?: string | null; expertStatus?: 'confirmed' | 'declined' | null; }[];
     summary: { total: number; confirmed: number; declined: number; pending: number; availableCandidates: number; allDeclined: boolean };
   }>(`/expert-admin/invitations/${projectId}`);
 }
