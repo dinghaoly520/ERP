@@ -3317,91 +3317,58 @@ a.group:hover::after {
 .flow-nav-label { position: relative; z-index: 2; }
 .flow-nav-pill > svg { position: relative; z-index: 2; }
 
-/* 流舞层：五团浅彩（高明度低饱和浅色系）——水流式涌动：
-   各团驻留水平站位（浅红→浅紫左至右散布）、只在站位附近小幅洄游 + 呼吸缩放，
-   团不横穿瓷片（无掠过感），相邻色在交界处交融如水流 */
+/* 流舞层：五团浅彩（高明度低饱和浅色系）——左→右巡游水流：
+   五团排成一列随 200% 宽传送层（track）匀速右移，队尾接一份相同队列（第 6-10 团）
+   做无缝循环——任何横截面的颜色都随时间更替（红走了黄来），读感为颜色从左到右流过按钮；
+   各团再叠加轻微呼吸缩放。传送层与呼吸均为纯 transform 合成器动画；
+   prefers-reduced-motion 冻结为静态浅彩带。 */
 .flow-nav-dance { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.flow-nav-dance-track {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 200%;
+  will-change: transform;
+  animation: nav-flow 11s linear infinite;
+}
 .flow-nav-dance i {
   position: absolute;
-  top: 50%;
-  width: 105%;
+  width: 36%;
   height: 240%;
   border-radius: 50%;
   opacity: 0.8;
   will-change: transform;
-  transition: opacity 0.3s ease;
+  transform: translateY(-50%);
+  animation: nav-bob 7s ease-in-out infinite;
 }
-.flow-nav-dance i:nth-child(1) {
-  left: -40%;
-  background: radial-gradient(circle, oklch(0.955 0.045 20 / 0.85), transparent 64%);
-  animation: nav-dance-a 6.7s ease-in-out infinite;
+.flow-nav-dance i:nth-child(2n) { animation-duration: 8.4s; animation-delay: -3s; }
+.flow-nav-dance i:nth-child(5n + 3) { animation-duration: 9.6s; animation-delay: -1.5s; }
+/* 队列一（第 1-5 团）与队尾复本（第 6-10 团，左移 50% 即一个周期）：左→右 浅红/黄/绿/蓝/紫 */
+.flow-nav-dance i:nth-child(5n + 1) { left: 2%;  top: 46%; background: radial-gradient(circle, oklch(0.955 0.045 20 / 0.85),  transparent 64%); }
+.flow-nav-dance i:nth-child(5n + 2) { left: 12%; top: 58%; background: radial-gradient(circle, oklch(0.962 0.055 95 / 0.85),  transparent 64%); }
+.flow-nav-dance i:nth-child(5n + 3) { left: 22%; top: 44%; background: radial-gradient(circle, oklch(0.958 0.05 150 / 0.85),  transparent 64%); }
+.flow-nav-dance i:nth-child(5n + 4) { left: 32%; top: 60%; background: radial-gradient(circle, oklch(0.952 0.045 245 / 0.85), transparent 64%); }
+.flow-nav-dance i:nth-child(5n + 5) { left: 42%; top: 50%; background: radial-gradient(circle, oklch(0.948 0.05 310 / 0.85),  transparent 64%); }
+.flow-nav-dance i:nth-child(n + 6) { left: calc(var(--slot) + 50%); }
+.flow-nav-dance i:nth-child(6)  { --slot: 2%; }
+.flow-nav-dance i:nth-child(7)  { --slot: 12%; }
+.flow-nav-dance i:nth-child(8)  { --slot: 22%; }
+.flow-nav-dance i:nth-child(9)  { --slot: 32%; }
+.flow-nav-dance i:nth-child(10) { --slot: 42%; }
+/* 传送层：-50% → 0 匀速右移（队尾复本恰好补位，无缝循环；11s ≈ 每 4s 一种颜色流过） */
+@keyframes nav-flow {
+  from { transform: translateX(-50%); }
+  to   { transform: translateX(0); }
 }
-.flow-nav-dance i:nth-child(2) {
-  left: -20%;
-  background: radial-gradient(circle, oklch(0.962 0.055 95 / 0.85), transparent 64%);
-  animation: nav-dance-b 8.9s ease-in-out infinite;
-}
-.flow-nav-dance i:nth-child(3) {
-  left: 0%;
-  background: radial-gradient(circle, oklch(0.958 0.05 150 / 0.85), transparent 64%);
-  animation: nav-dance-c 10.3s ease-in-out infinite;
-}
-.flow-nav-dance i:nth-child(4) {
-  left: 20%;
-  background: radial-gradient(circle, oklch(0.952 0.045 245 / 0.85), transparent 64%);
-  animation: nav-dance-d 7.7s ease-in-out infinite;
-}
-.flow-nav-dance i:nth-child(5) {
-  left: 40%;
-  background: radial-gradient(circle, oklch(0.948 0.05 310 / 0.85), transparent 64%);
-  animation: nav-dance-e 11.3s ease-in-out infinite;
-}
-
-/* 悬停/按住沿用瓷片原有浅色玻璃态（凸起→hover 抬升→内凹），仅调节流舞明暗 */
-.flow-nav-pill:hover .flow-nav-dance i { opacity: 1; }
-.flow-nav-pill[aria-expanded="true"] .flow-nav-dance i { opacity: 0.45; }
-
-/* 水流路点：各团在站位附近大幅洄游（±22% 横移 / ±12% 纵摆 + 0.9↔1.12 呼吸缩放，
-   互质周期 6.7/8.9/10.3/7.7/11.3s——动效可感知；基准 translateY(-50%) 垂直居中锚定；
-   首尾同帧无缝循环；团心仍不横穿瓷片（excursion < 半团宽），水流感不回退成掠过） */
-@keyframes nav-dance-a {
-  0%, 100% { transform: translateY(-50%) translate(10%, -7%) scale(1); }
-  25% { transform: translateY(-50%) translate(-20%, 10%) scale(0.9); }
-  50% { transform: translateY(-50%) translate(-9%, 12%) scale(1.12); }
-  75% { transform: translateY(-50%) translate(19%, -10%) scale(0.94); }
-}
-@keyframes nav-dance-b {
-  0%, 100% { transform: translateY(-50%) translate(-13%, 8%) scale(0.92); }
-  22% { transform: translateY(-50%) translate(16%, -11%) scale(1.1); }
-  48% { transform: translateY(-50%) translate(22%, 6%) scale(0.9); }
-  74% { transform: translateY(-50%) translate(-8%, -12%) scale(1.06); }
-}
-@keyframes nav-dance-c {
-  0%, 100% { transform: translateY(-50%) translate(0%, 10%) scale(1.08); }
-  26% { transform: translateY(-50%) translate(-22%, -8%) scale(0.9); }
-  52% { transform: translateY(-50%) translate(10%, -12%) scale(1.12); }
-  78% { transform: translateY(-50%) translate(18%, 11%) scale(0.93); }
-}
-@keyframes nav-dance-d {
-  0%, 100% { transform: translateY(-50%) translate(14%, 6%) scale(1.04); }
-  24% { transform: translateY(-50%) translate(-17%, -10%) scale(0.9); }
-  50% { transform: translateY(-50%) translate(-22%, 11%) scale(1.1); }
-  76% { transform: translateY(-50%) translate(6%, -8%) scale(0.95); }
-}
-@keyframes nav-dance-e {
-  0%, 100% { transform: translateY(-50%) translate(-8%, -10%) scale(0.96); }
-  23% { transform: translateY(-50%) translate(-19%, 11%) scale(1.1); }
-  49% { transform: translateY(-50%) translate(13%, 8%) scale(0.9); }
-  75% { transform: translateY(-50%) translate(21%, -11%) scale(1.06); }
+/* 呼吸缩放（原地，不动位移——位移全由传送层负责） */
+@keyframes nav-bob {
+  0%, 100% { transform: translateY(-50%) scale(1); }
+  50% { transform: translateY(-50%) scale(1.08); }
 }
 @media (prefers-reduced-motion: reduce) {
+  .flow-nav-dance-track,
   .flow-nav-dance i { animation: none; }
-  /* 冻结为静态浅彩雾：五团按站位定格微偏 */
-  .flow-nav-dance i:nth-child(1) { transform: translateY(-50%) translate(4%, -3%); }
-  .flow-nav-dance i:nth-child(2) { transform: translateY(-50%) translate(-6%, 4%); }
-  .flow-nav-dance i:nth-child(3) { transform: translateY(-50%) translate(5%, 3%); }
-  .flow-nav-dance i:nth-child(4) { transform: translateY(-50%) translate(-4%, -4%); }
-  .flow-nav-dance i:nth-child(5) { transform: translateY(-50%) translate(6%, 4%); }
 }
 
 /* 下拉面板 — 近实底白玻璃（小文字下不透字）+ 方向性双影 */

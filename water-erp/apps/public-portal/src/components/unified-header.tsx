@@ -448,8 +448,10 @@ export function UnifiedHeader({
               className="flow-nav-pill"
               aria-expanded={activeMenu === 'about'}
             >
-              {/* 七彩流舞层（2026-10-21）：五团七彩混沌漂移，暗纱+文字层见 .flow-nav-dance */}
-              <span className="flow-nav-dance" aria-hidden="true"><i /><i /><i /><i /><i /></span>
+              {/* 七彩流舞层（2026-10-21 左→右巡游）：五团+队尾复本随传送层匀速右移无缝循环，见 .flow-nav-dance */}
+              <span className="flow-nav-dance" aria-hidden="true">
+                <span className="flow-nav-dance-track"><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /></span>
+              </span>
               <span className="flow-nav-label">集团简介</span>
               <svg
                 width="10" height="10" viewBox="0 0 24 24" fill="none"
@@ -490,8 +492,10 @@ export function UnifiedHeader({
               className="flow-nav-pill"
               aria-expanded={activeMenu === 'contact'}
             >
-              {/* 七彩流舞层（2026-10-21）：五团七彩混沌漂移，暗纱+文字层见 .flow-nav-dance */}
-              <span className="flow-nav-dance" aria-hidden="true"><i /><i /><i /><i /><i /></span>
+              {/* 七彩流舞层（2026-10-21 左→右巡游）：五团+队尾复本随传送层匀速右移无缝循环，见 .flow-nav-dance */}
+              <span className="flow-nav-dance" aria-hidden="true">
+                <span className="flow-nav-dance-track"><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /></span>
+              </span>
               <span className="flow-nav-label">联系我们</span>
               <svg
                 width="10" height="10" viewBox="0 0 24 24" fill="none"
