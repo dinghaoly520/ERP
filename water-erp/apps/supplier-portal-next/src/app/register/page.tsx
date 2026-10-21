@@ -28,6 +28,7 @@ import { SpSwitch } from "@/components/ui";
 import { ENTERPRISE_TYPES, INDUSTRY_GROUPS, COMPANY_PROFILE_MAX, QUAL_TYPE_OPTIONS } from "@/constants/supplier";
 import { FilePreviewModal, type FilePreviewTarget } from "@/components/registration/file-preview-modal";
 import { formatCNYCaps, shiftDecimal } from "@/lib/currency-caps";
+import { sanitizePhoneInput } from "@/lib/phone-input";
 import "@/styles/pages/register2.css";
 
 interface ContactRow { name: string; gender: string; phone: string; idCard: string; email: string; position: string; isPrimary: boolean }
@@ -370,19 +371,28 @@ export default function RegisterPage() {
 
   /* 注册短信验证码 */
   async function sendRegCode() {
-    if (!/^1[3-9]\d{9]$/.test(registrationPhone.trim())) { toast.warning("请先输入有效的注册手机号"); return; }
+    // 发码前 DOM 兜底（2026-10-19 第四轮）：长驻标签页跨多轮 HMR/Fast Refresh 后，
+    // 按钮闭包可能停在旧渲染——状态读旧值而输入框显示新值（实测框内 11 位仍误报无效）。
+    // 以输入框实际值为最终事实源对齐后再校验，旧闭包无论成因均无法再误报。
+    const el = document.getElementById("register-registrationPhone") as HTMLInputElement | null;
+    const phone = el ? sanitizePhoneInput(el.value) : registrationPhone.trim();
+    if (phone !== registrationPhone) {
+      console.warn("[register] 手机号状态与输入框不一致，已按输入框对齐", { state: registrationPhone, dom: phone });
+      setRegistrationPhone(phone);
+    }
+    if (!/^1[3-9]\d{9}$/.test(phone)) { toast.warning("请先输入有效的注册手机号"); return; }
     // 手机号查重前置（2026-10-16）：已绑定的手机号先拦在发码前，避免白烧一条短信。
     // 驳回壳重开豁免（见 checkRegistrationPhoneDuplicate 注释）：壳残存 phoneIdx 自命中不拦发码。
     if (creditCodeHitStatus !== "REJECTED") {
       try {
-        const res = await authApi.checkDuplicate({ phone: registrationPhone.trim() });
+        const res = await authApi.checkDuplicate({ phone });
         if (res.phone) { setPhoneDuplicate(true); toast.error("该手机号已绑定其他供应商账号，请更换后再获取验证码"); return; }
         setPhoneDuplicate(false);
       } catch { /* 查重失败不阻塞发码 */ }
     }
     setCodeSending(true);
     try {
-      await authApi.sendRegistrationCode(registrationPhone.trim());
+      await authApi.sendRegistrationCode(phone);
       toast.success("验证码已发送");
       setCodeCooldown(60);
       const timer = setInterval(() => {
@@ -960,8 +970,15 @@ export default function RegisterPage() {
             <div className="reg-form-grid">
               {item("registrationPhone", "注册手机号", (
                 <div className="reg-code-row">
-                  <input id="register-registrationPhone" className="reg-inp" value={registrationPhone} placeholder="本人手机号，用于接收注册验证码" maxLength={11} inputMode="numeric" autoComplete="tel"
-                    onChange={(e) => setRegistrationPhone(e.target.value.replace(/\D/g, ""))} onBlur={checkRegistrationPhoneDuplicate} />
+                  <input id="register-registrationPhone" className="reg-inp" value={registrationPhone} placeholder="本人手机号，用于接收注册验证码" inputMode="numeric" autoComplete="tel"
+                    onChange={(e) => setRegistrationPhone(sanitizePhoneInput(e.target.value))}
+                    onBlur={(e) => {
+                      // DOM 兜底回同步（2026-10-19 二轮实录）：自动填充/输入法组合等旁路
+                      // onChange 时状态会落后于显示值（框里 11 位、状态空串 → 发码误报无效）。
+                      // 点击按钮必先失焦，React 保证失焦更新先于 click 提交，此处以 DOM 为准对齐。
+                      setRegistrationPhone(sanitizePhoneInput(e.target.value));
+                      checkRegistrationPhoneDuplicate();
+                    }} />
                   <button type="button" className="reg-btn reg-btn--ghost-sm reg-code-btn" disabled={codeSending || codeCooldown > 0} onClick={sendRegCode}>
                     {codeSending ? "发送中…" : codeCooldown > 0 ? `${codeCooldown}s` : "获取验证码"}
                   </button>
@@ -1117,7 +1134,7 @@ export default function RegisterPage() {
                 <div className="reg-grid-3">
                   {item("legalPerson", "法人姓名", inp(basic.legalPerson, (s) => setBasic((b) => ({ ...b, legalPerson: s })), "法定代表人姓名"), true)}
                   {item("legalPersonIdCard", "身份证号", inp(basic.legalPersonIdCard, (s) => setBasic((b) => ({ ...b, legalPersonIdCard: s })), "18位身份证号", { maxLength: 18, onBlur: checkLegalIdCard }), true)}
-                  {item("legalPersonPhone", "联系电话", inp(basic.legalPersonPhone, (s) => setBasic((b) => ({ ...b, legalPersonPhone: s })), "11位手机号", { maxLength: 11 }))}
+                  {item("legalPersonPhone", "联系电话", inp(basic.legalPersonPhone, (s) => setBasic((b) => ({ ...b, legalPersonPhone: sanitizePhoneInput(s) })), "11位手机号"))}
                 </div>
                 {/* 身份证扫描件（2026-09-29 必传）：与身份证号配套的主体核验材料，随资质列表落库 */}
                 <div className={`reg-item${errors.legalIdFront || errors.legalIdBack ? " has-error" : ""}`}>
@@ -1182,7 +1199,7 @@ export default function RegisterPage() {
                         <option value="男">男</option>
                         <option value="女">女</option>
                       </select>
-                      <input id={`contact-${i}-phone`} className={`reg-inp reg-row-input${errCls(`contact-${i}-phone`)}`} aria-label={`联系人 ${i + 1} 电话`} aria-invalid={Boolean(errors[`contact-${i}-phone`])} aria-describedby={errors[`contact-${i}-phone`] ? `contact-${i}-errors` : undefined} placeholder="联系电话" maxLength={11} inputMode="tel" value={c.phone} onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, phone: e.target.value } : x)))} />
+                      <input id={`contact-${i}-phone`} className={`reg-inp reg-row-input${errCls(`contact-${i}-phone`)}`} aria-label={`联系人 ${i + 1} 电话`} aria-invalid={Boolean(errors[`contact-${i}-phone`])} aria-describedby={errors[`contact-${i}-phone`] ? `contact-${i}-errors` : undefined} placeholder="联系电话" inputMode="tel" value={c.phone} onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, phone: sanitizePhoneInput(e.target.value) } : x)))} />
                       <input id={`contact-${i}-idCard`} className={`reg-inp reg-row-input${errCls(`contact-${i}-idCard`)}`} aria-label={`联系人 ${i + 1} 身份证号`} aria-invalid={Boolean(errors[`contact-${i}-idCard`])} aria-describedby={errors[`contact-${i}-idCard`] ? `contact-${i}-errors` : undefined} placeholder="身份证号" maxLength={18} value={c.idCard} onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, idCard: e.target.value } : x)))} />
                       <input id={`contact-${i}-email`} className={`reg-inp reg-row-input${errCls(`contact-${i}-email`)}`} aria-label={`联系人 ${i + 1} 邮箱`} aria-invalid={Boolean(errors[`contact-${i}-email`])} aria-describedby={errors[`contact-${i}-email`] ? `contact-${i}-errors` : undefined} placeholder="邮箱（选填）" type="email" value={c.email} onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))} />
                       <input className="reg-inp reg-row-input" aria-label={`联系人 ${i + 1} 部门职务`} placeholder="部门职务" value={c.position} onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, position: e.target.value } : x)))} />

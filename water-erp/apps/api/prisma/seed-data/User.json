@@ -13602,5 +13602,69 @@
     "departmentId": "seeddept008",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.424Z"
+  },
+  {
+    "id": "cmv0oz3ox00tyuuq2xya5f7ad",
+    "username": "91510303MAE4117416",
+    "displayName": "王泽超",
+    "passwordHash": "$2b$10$DF7yhxj2jfW1d7N5tTYOQuQ.dxkiW0YcqLPNptdpst8dciFyKJ8aO",
+    "role": "supplier",
+    "isActive": true,
+    "createdAt": "2026-10-09T08:16:51.057Z",
+    "updatedAt": "2026-10-09T08:23:39.690Z",
+    "email": null,
+    "phone": null
+  },
+  {
+    "id": "cmv0obbaw00o6uuq2hfg7dpzx",
+    "username": "91510181MAEG9HD13G",
+    "displayName": "张丽",
+    "passwordHash": "$2b$10$YW4olPxPbqJt23EroTr49.Aj9z0fkRj/PbEjJSWqwBjpjqOkgBqdu",
+    "role": "supplier",
+    "isActive": true,
+    "createdAt": "2026-10-09T07:58:21.176Z",
+    "updatedAt": "2026-10-09T08:23:45.501Z",
+    "email": null,
+    "phone": null
+  },
+  {
+    "id": "cmv0oqdmk00rhuuq21ufixco3",
+    "username": "91510104MA66XAFQ9J",
+    "displayName": "王利",
+    "passwordHash": "$2b$10$oL0bIa7Uhp9SEVynmm7M4uRbQKHV0jJU23bStQKMoGhDJesJv3mWG",
+    "role": "supplier",
+    "isActive": true,
+    "createdAt": "2026-10-09T08:10:04.028Z",
+    "updatedAt": "2026-10-16T09:49:58.736Z",
+    "email": null,
+    "phone": null
+  },
+  {
+    "id": "cmv0p1w0s011suuq27b27zvsx",
+    "username": "DMGY",
+    "displayName": "大岷管业",
+    "company": "四川水网大岷管业有限公司",
+    "companyId": "cmumahxdp05tpuuz5nqqr75p8",
+    "passwordHash": "$2b$10$0HIu7Aod1pFb.xc0UNqWx.ySCklz8ES34CJqkhCMbed3XbjaWyMXG",
+    "role": "staff",
+    "isActive": true,
+    "createdAt": "2026-10-09T08:19:01.084Z",
+    "updatedAt": "2026-10-14T08:37:30.674Z",
+    "email": null,
+    "phone": null
+  },
+  {
+    "id": "cmumahxf205truuz5ud0v9gd3",
+    "username": "wangziyang",
+    "displayName": "王子阳",
+    "email": null,
+    "phone": null,
+    "company": "四川水网大岷管业有限公司",
+    "companyId": "cmumahxdp05tpuuz5nqqr75p8",
+    "passwordHash": "$2b$10$4cwDwDWxCQrvmNEx7U8oHuIcMvvvk2kDvHT71JTD45C9rEJF2PvOO",
+    "role": "leader",
+    "isActive": true,
+    "createdAt": "2026-09-29T06:22:48.686Z",
+    "updatedAt": "2026-10-16T08:10:51.606Z"
   }
 ]

@@ -50,21 +50,8 @@ export function alignSignatureParagraphs(html: string): string {
   return before + alignedDate + html.slice(last.index + last.len);
 }
 
-/**
- * 词中断行合并（2026-10-20）：convertToHtml 会把 w:t 内裸 \n（draft 值来自 PDF 解析的
- * 软换行）与模板自带的软换行（表头「中标候选<br />人排序」）转成 <br/>——门户正文
- * 出现词中断行。只合并「两侧均为词字符」的断行（CJK↔CJK、数字↔数字、字母↔字母，
- * 同 token 直接拼）；句末标点/序号等边界自然不命中，合法分行保留。
- */
-export function collapseMidWordBreaks(html: string): string {
-  return html
-    .replace(/([一-鿿㐀-䶿])<br\s*\/?>([一-鿿㐀-䶿])/g, '$1$2')
-    .replace(/(\d)<br\s*\/?>(\d)/g, '$1$2')
-    .replace(/([A-Za-z])<br\s*\/?>([A-Za-z])/g, '$1$2');
-}
-
-/** 公告 docx → 正文 HTML（表格保结构 + 跨 run「采购采购」归一 + 词中断行合并 + 落款右对齐） */
+/** 公告 docx → 正文 HTML（表格保结构 + 跨 run「采购采购」归一 + 落款右对齐） */
 export async function extractAnnouncementContentHtml(buffer: Buffer): Promise<string> {
   const result = await mammoth.convertToHtml({ buffer });
-  return alignSignatureParagraphs(collapseMidWordBreaks(normalizeRepeatedCaiGou(result.value || '')));
+  return alignSignatureParagraphs(normalizeRepeatedCaiGou(result.value || ''));
 }

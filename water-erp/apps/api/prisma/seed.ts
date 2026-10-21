@@ -159,6 +159,10 @@ const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient
   ['PasswordResetRequest', 'passwordResetRequest'],
   ['SupplierContact', 'supplierContact'],
   ['SupplierQualification', 'supplierQualification'],
+  // 大岷管业固化（2026-10-19）：审批留痕/银行账户无旧快照文件，随供应商账号体系一并重灌；
+  // TRUNCATE CASCADE 经 FK(→Supplier) 会清空，须显式入序（announcement_histories 无 FK 不在 CASCADE 波及面）
+  ['SupplierApprovalRecord', 'supplierApprovalRecord'],
+  ['SupplierBankAccount', 'supplierBankAccount'],
   ['SupplierEvaluation', 'supplierEvaluation'],
   ['SupplierChangeRecord', 'supplierChangeRecord'],
   ['SupplierBidSubmission', 'supplierBidSubmission'],
@@ -668,6 +672,9 @@ async function main() {
       { id: 'co-swhi-js', name: '四川水发建设有限公司', shortName: '建设', code: 'SFJS' },
       { id: 'co-swhi-tz', name: '四川水发投资有限公司', shortName: '投资', code: 'SFTZ' },
       { id: 'co-swdg-jt', name: '四川省水利发展集团有限公司', shortName: '集团本部', code: 'SWDG' },
+      // 大岷管业（2026-10-19 固化）：供应商快照 companyId 指向此 id，全新库须先 upsert
+      // 否则 SupplierCompanyLink 回填 FK 违反（companies 表不在 TRUNCATE 清单、全新库为空）
+      { id: 'cmumahxdp05tpuuz5nqqr75p8', name: '四川水网大岷管业有限公司', shortName: '大岷', code: 'DMGY' },
     ] as const;
     for (const c of SEED_COMPANIES) {
       await prisma.company.upsert({ where: { name: c.name }, update: { shortName: c.shortName, code: c.code }, create: { ...c } });

@@ -4914,5 +4914,71 @@
     "status": "有效",
     "createdAt": "2026-08-20T07:01:56.649Z",
     "updatedAt": "2026-08-20T07:01:56.649Z"
+  },
+  {
+    "id": "cmv0obbb000oauuq2t4fmd8wu",
+    "supplierId": "cmv0obbb000o8uuq254hjkkcw",
+    "type": "法定代表人身份证",
+    "name": "吴远·身份证扫描件",
+    "fileUrl": "/api/upload/files/cmv0o85w100nfuuq2i0etfex9",
+    "status": "有效",
+    "createdAt": "2026-10-09T07:58:21.180Z",
+    "updatedAt": "2026-10-09T07:58:21.180Z"
+  },
+  {
+    "id": "cmv0obbb000obuuq2fqxtzc1v",
+    "supplierId": "cmv0obbb000o8uuq254hjkkcw",
+    "type": "营业执照",
+    "name": "四川弘沣汽车服务有限责任公司",
+    "fileUrl": "/api/upload/files/cmv0oatxo00nxuuq2k6puxdmh",
+    "validFrom": "2025-04-07T00:00:00.000Z",
+    "validTo": "2099-12-31T00:00:00.000Z",
+    "status": "有效",
+    "createdAt": "2026-10-09T07:58:21.180Z",
+    "updatedAt": "2026-10-09T07:58:21.180Z"
+  },
+  {
+    "id": "cmv0oz3p000u2uuq2leoyazon",
+    "supplierId": "cmv0oz3p000u0uuq2ff7aaopj",
+    "type": "法定代表人身份证",
+    "name": "夏熙耀·身份证扫描件",
+    "fileUrl": "/api/upload/files/cmv0ovp3u00t7uuq20i9i6qce",
+    "status": "有效",
+    "createdAt": "2026-10-09T08:16:51.060Z",
+    "updatedAt": "2026-10-09T08:16:51.060Z"
+  },
+  {
+    "id": "cmv0oz3p000u3uuq2cjz30n9u",
+    "supplierId": "cmv0oz3p000u0uuq2ff7aaopj",
+    "type": "营业执照",
+    "name": "自贡市烨友腾隽汽车销售有限公司",
+    "fileUrl": "/api/upload/files/cmv0oyzik00tvuuq2yxhb7uwd",
+    "validFrom": "2025-04-29T00:00:00.000Z",
+    "validTo": "2099-12-31T00:00:00.000Z",
+    "status": "有效",
+    "createdAt": "2026-10-09T08:16:51.060Z",
+    "updatedAt": "2026-10-09T08:16:51.060Z"
+  },
+  {
+    "id": "cmv0oqdmm00rluuq2jmjo58yr",
+    "supplierId": "cmv0oqdmm00rjuuq2kolq2r2a",
+    "type": "法定代表人身份证",
+    "name": "王利·身份证扫描件",
+    "fileUrl": "/api/upload/files/cmv0o7og400nbuuq2lmtt6gex",
+    "status": "有效",
+    "createdAt": "2026-10-09T08:10:04.031Z",
+    "updatedAt": "2026-10-09T08:10:04.031Z"
+  },
+  {
+    "id": "cmv0oqdmm00rmuuq2bdp27ern",
+    "supplierId": "cmv0oqdmm00rjuuq2kolq2r2a",
+    "type": "营业执照",
+    "name": "成都世纪远景汽车贸易有限公司",
+    "fileUrl": "/api/upload/files/cmv0ofm6l00pkuuq2hiy93b53",
+    "validFrom": "2024-05-08T00:00:00.000Z",
+    "validTo": "2029-12-31T00:00:00.000Z",
+    "status": "有效",
+    "createdAt": "2026-10-09T08:10:04.031Z",
+    "updatedAt": "2026-10-09T08:10:04.031Z"
   }
 ]

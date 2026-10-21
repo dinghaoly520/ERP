@@ -646,5 +646,32 @@
     "assignedByUserId": null,
     "createdAt": "2026-08-17T08:53:53.996Z",
     "updatedAt": "2026-08-18T02:38:15.394Z"
+  },
+  {
+    "id": "cmv0qrxbt001wuuwjsoitbcrj",
+    "projectCode": "XB-2026100901",
+    "name": "询比采购公告 — 四川水网大岷管业有限公司公务用车采购项目",
+    "procurementMethod": "询比采购",
+    "openTime": "2026-10-20T06:00:00.000Z",
+    "deadline": "2026-10-19T06:00:00.000Z",
+    "downloadDeadline": "2026-10-16T15:59:00.000Z",
+    "stage": "SUBMIT",
+    "scoreStandardPublishedAt": "2026-10-09T09:42:11.088Z",
+    "budget": "380000",
+    "ceilingPrice": "380000",
+    "evaluationMethod": "manual",
+    "scope": "为保障公司市场开拓、商务洽谈、异地出差等常态化经营工作有序开展，适配高频次、长距离公务出行需要，切实提升出行安全与工作效能，四川水网大岷管业有限公司拟对公务用车进行询比采购。本项目共计1个包，设置1名成交供应商，采购公务车1台。",
+    "companyId": "cmumahxdp05tpuuz5nqqr75p8",
+    "companyName": "四川水网大岷管业有限公司",
+    "qualification": "(一)具有独立承担民事责任的能力。(二)具有良好的商业信誉和健全的财务会计制度。(三)具有履行合同所必需的设备和专业技术能力。(四)有依法缴纳税收和社会保障资金的良好记录。(五)参加询比采购活动前三年内，在经营活动中没有重大违法记录。(六)法律、行政法规规定的其他条件。(七)本项目不接受联合体参加询比采购。(八)本项目的特定资格要求：无。",
+    "contact": "王子阳 18030627716",
+    "bondRequired": false,
+    "projectManagementItemId": "cmv0purw601xuuuq2kynhqtpa",
+    "round": 1,
+    "currentRoundNo": 1,
+    "leaderCoSigned": false,
+    "isExtractionOnly": false,
+    "createdAt": "2026-10-09T09:07:15.449Z",
+    "updatedAt": "2026-10-15T08:00:36.334Z"
   }
 ]

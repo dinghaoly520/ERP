@@ -82,5 +82,57 @@
     "downloadCount": 0,
     "createdAt": "2026-07-28T06:13:23.818Z",
     "updatedAt": "2026-07-28T08:37:11.393Z"
+  },
+  {
+    "id": "cmv98h65300i8uuhybx3du8x7",
+    "announcementId": "cmv98h5sv00i4uuhyvov80k9x",
+    "fileAssetId": "cmv98h65000i6uuhykfn30gqy",
+    "title": "（询比采购文件）四川水网大岷管业有限公司公务用车采购项目9.29.docx",
+    "accessScope": "OPEN",
+    "requirePayment": false,
+    "decryptKey": "kVOEKPa1zh2wL13l/GcUnPkVlF7jAzpAfxWM0gW8anHzVaJf8ot1J9AnrHzEIss3AZ7V3jsZDw4FkzFu1EdRIv7aHA6IXgcRQg+12kRSwFDnefjjZgEkyNXIx/f2LcF1uxIiDPUva7rFNRub//9Nm4l+rTyUREjc+ixUJzgsH7GLCx6z6Cq6KMzINFASoc40gqGyRPBX",
+    "bidProjectId": "cmv0qrxbt001wuuwjsoitbcrj",
+    "downloadCount": 0,
+    "createdAt": "2026-10-15T07:44:56.152Z",
+    "updatedAt": "2026-10-15T07:44:56.160Z"
+  },
+  {
+    "id": "cmv4rnqhy01r6uuelf8vvmpkv",
+    "announcementId": "cmv4rnq5401r2uueldh35tpal",
+    "fileAssetId": "cmv4rnqhv01r4uuel5h3fe7m6",
+    "title": "（询比采购）四川水网大岷管业有限公司公务用车采购项目询比采购文件.docx",
+    "accessScope": "OPEN",
+    "requirePayment": false,
+    "decryptKey": "1w2J5/aqawMHDmUrV4CLWV5fGCGrVNSb4hJ9/AWYk2v70EpC2z3osXjU9bxEQo47l/165j6+v25V29412vcoyGwvenmKSVuGGHMPw7jIB7Fzh4hQgGczSubY4UKaUvl7esvCC+1AFpItdZ19+kO5T96sxLNsetw8X0/bBhx9cFPYMNgmWmrqbxilNZS4ceZ772/wsLWy",
+    "bidProjectId": "cmv0qrxbt001wuuwjsoitbcrj",
+    "downloadCount": 0,
+    "createdAt": "2026-10-12T04:43:04.294Z",
+    "updatedAt": "2026-10-12T04:43:04.302Z"
+  },
+  {
+    "id": "cmv4ykwug0037uuci7o7jusix",
+    "announcementId": "cmv4ykwhj0032uuciage0xleh",
+    "fileAssetId": "cmv4ykwuc0034uuci3ued6rky",
+    "title": "（询比采购）四川水网大岷管业有限公司公务用车采购项目询比采购文件.docx",
+    "accessScope": "OPEN",
+    "requirePayment": false,
+    "decryptKey": "YAZx2nrQByWjo15XOk8aIMGvmb3DtH6xpD54IWs3NXaaxy+iS+rWW+QqtKeXsmf9LhI/qn8OA8fufa+Bz5SfrLhMDquTIYtz0pE5lxwS3b0bUHNgHWl/wLAsZrgeTMuGAHlspijg6po34Z5DSFL7Dz9bJFHKz6tvxQr/IJPZryUJfU3dEHJ0Sdq8CgNw6o/yN6oje3HZ",
+    "bidProjectId": "cmv0qrxbt001wuuwjsoitbcrj",
+    "downloadCount": 0,
+    "createdAt": "2026-10-12T07:56:49.864Z",
+    "updatedAt": "2026-10-12T07:56:49.883Z"
+  },
+  {
+    "id": "cmv991bl30026uuq2rhsxz1wh",
+    "announcementId": "cmv991b8k0022uuq2f86mg6u5",
+    "fileAssetId": "cmv991bl10024uuq295by3qgg",
+    "title": "（询比采购文件）四川水网大岷管业有限公司公务用车采购项目9.29.docx",
+    "accessScope": "OPEN",
+    "requirePayment": false,
+    "decryptKey": "Jh6Q9AU5I045I4IyIzSN1KaN/yYJCpS1aRJOUCdATK/Gq4FnyvIyAnKAAMygIvZrLAEvkCcPdq5mFlwTpD+Y0MDDXdHvTkZSB/dRfC2jK0Ho8vil3PApC6g5iZS4XVYiMRyBtTAOWhY5nibj0VonBpQqGgk7lfVrY/TfceGOm5AAfCVt6PwYXpvQ3v6roYny7YBWXSJD",
+    "bidProjectId": "cmv0qrxbt001wuuwjsoitbcrj",
+    "downloadCount": 1,
+    "createdAt": "2026-10-15T08:00:36.328Z",
+    "updatedAt": "2026-10-15T08:32:19.843Z"
   }
 ]

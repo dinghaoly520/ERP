@@ -3196,5 +3196,42 @@
     "isPrimary": false,
     "createdAt": "2026-08-20T07:01:56.649Z",
     "updatedAt": "2026-08-20T07:01:56.649Z"
+  },
+  {
+    "id": "cmv0obbb000o9uuq20sr6mdty",
+    "supplierId": "cmv0obbb000o8uuq254hjkkcw",
+    "name": "张丽",
+    "gender": "女",
+    "phone": "13700000247",
+    "idCard": null,
+    "isPrimary": true,
+    "createdAt": "2026-10-09T07:58:21.180Z",
+    "updatedAt": "2026-10-14T04:39:13.259Z",
+    "email": null
+  },
+  {
+    "id": "cmv0oqdmm00rkuuq2r7pksoa0",
+    "supplierId": "cmv0oqdmm00rjuuq2kolq2r2a",
+    "name": "王利",
+    "gender": "男",
+    "phone": "13700000248",
+    "idCard": null,
+    "position": "法人",
+    "isPrimary": true,
+    "createdAt": "2026-10-09T08:10:04.031Z",
+    "updatedAt": "2026-10-14T04:39:13.261Z",
+    "email": null
+  },
+  {
+    "id": "cmv0oz3p000u1uuq2tiy01csd",
+    "supplierId": "cmv0oz3p000u0uuq2ff7aaopj",
+    "name": "王泽超",
+    "gender": "男",
+    "phone": "13700000249",
+    "idCard": null,
+    "isPrimary": true,
+    "createdAt": "2026-10-09T08:16:51.060Z",
+    "updatedAt": "2026-10-14T04:39:13.263Z",
+    "email": null
   }
 ]

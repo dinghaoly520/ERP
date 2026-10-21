@@ -348,5 +348,65 @@
     "createdAt": "2026-08-18T06:54:07.031Z",
     "projectManagementItemId": "cmsyajube00okko4na5cagxhz",
     "projectManagementStageId": "cmsyajubi00onko4neiaxvqqs"
+  },
+  {
+    "id": "cmv0purwb01y3uuq2s9hi1fkx",
+    "attachmentType": "SUPPORTING_MATERIAL",
+    "fileName": "DOC261009-20261009110831.pdf",
+    "objectKey": "project-management/1791534356616-initiation-DOC261009-20261009110831.pdf",
+    "mimeType": "application/pdf",
+    "fileSize": 1565893,
+    "uploadedById": "cmumahxf205truuz5ud0v9gd3",
+    "createdAt": "2026-10-09T08:41:28.763Z",
+    "projectManagementItemId": "cmv0purw601xuuuq2kynhqtpa",
+    "projectManagementStageId": "cmv0purw801xvuuq20yxpkr5e"
+  },
+  {
+    "id": "cmv0qqr5v0014uuwj14o6pe4b",
+    "attachmentType": "SUPPORTING_MATERIAL",
+    "fileName": "采购文件审批表.pdf",
+    "objectKey": "project-management/1791536780801-cmv0purw601xuuuq2kynhqtpa-tender_document-采购文件审批表.pdf",
+    "mimeType": "application/pdf",
+    "fileSize": 383004,
+    "uploadedById": "cmumahxf205truuz5ud0v9gd3",
+    "createdAt": "2026-10-09T09:06:20.804Z",
+    "projectManagementItemId": "cmv0purw601xuuuq2kynhqtpa",
+    "projectManagementStageId": "cmv0purw801xwuuq2aje755db"
+  },
+  {
+    "id": "cmv96ucv803aduu77t3jx1q4o",
+    "attachmentType": "SUPPORTING_MATERIAL",
+    "fileName": "2026-07-07 川水大岷管业〔2026〕15号-四川水网大岷管业有限公司关于购置公务用车事项的请示.pdf",
+    "objectKey": "project-management/1792047552163-cmv0purw601xuuuq2kynhqtpa-initiation-2026-07-07-川水大岷管业-2026-15号-四川水网大岷管业有限公司关于购置公务用车事项的请示.pdf",
+    "mimeType": "application/pdf",
+    "fileSize": 164742,
+    "uploadedById": "cmumahxf205truuz5ud0v9gd3",
+    "createdAt": "2026-10-15T06:59:12.165Z",
+    "projectManagementItemId": "cmv0purw601xuuuq2kynhqtpa",
+    "projectManagementStageId": "cmv0purw801xvuuq20yxpkr5e"
+  },
+  {
+    "id": "cmv9734ur03hyuu77n9y0td55",
+    "attachmentType": "SUPPORTING_MATERIAL",
+    "fileName": "（询比采购文件）四川水网大岷管业有限公司公务用车采购项目9.29.docx",
+    "objectKey": "project-management/1792047931653-cmv0purw601xuuuq2kynhqtpa-tender_document--询比采购文件-四川水网大岷管业有限公司公务用车采购项目9-29.docx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "fileSize": 112430,
+    "uploadedById": "cmumahxf205truuz5ud0v9gd3",
+    "createdAt": "2026-10-15T07:06:01.684Z",
+    "projectManagementItemId": "cmv0purw601xuuuq2kynhqtpa",
+    "projectManagementStageId": "cmv0purw801xwuuq2aje755db"
+  },
+  {
+    "id": "cmv991bnw002quuq2k6x4isy2",
+    "attachmentType": "SUPPORTING_MATERIAL",
+    "fileName": "DMGY-XB-2026100901-四川水网大岷管业有限公司公务用车采购项目-询比采购公告-20261015.docx",
+    "objectKey": "project-management/1792051236427-cmv0purw601xuuuq2kynhqtpa-public_announcement-DMGY-XB-2026100901-四川水网大岷管业有限公司公务用车采购项目-询比采购公告-20261015.docx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "fileSize": 79701,
+    "uploadedById": "cmumahxf205truuz5ud0v9gd3",
+    "createdAt": "2026-10-15T08:00:36.428Z",
+    "projectManagementItemId": "cmv0purw601xuuuq2kynhqtpa",
+    "projectManagementStageId": "cmv0purw801xxuuq2o9oayf44"
   }
 ]

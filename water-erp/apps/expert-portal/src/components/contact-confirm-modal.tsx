@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Phone, Mail, ShieldCheck } from 'lucide-react';
 import { api } from '../lib/api';
+import { sanitizePhoneInput } from '../lib/phone-input';
 import { toast } from 'sonner';
 
 interface ContactConfirmModalProps {
@@ -116,9 +117,15 @@ export default function ContactConfirmModal({ initialPhone, initialEmail, displa
               <input
                 ref={phoneRef}
                 value={phone}
-                onChange={e => { setPhone(e.target.value); setPhoneError(''); }}
-                maxLength={11}
+                onChange={e => { setPhone(sanitizePhoneInput(e.target.value)); setPhoneError(''); }}
+                onBlur={e => {
+                  // DOM 兜底回同步（2026-10-19，同注册页口径）：旁路 onChange 的填充
+                  // （自动填充/输入法）会让状态落后于显示值，失焦时以 DOM 为准对齐
+                  const healed = sanitizePhoneInput(e.target.value);
+                  setPhone(prev => (prev === healed ? prev : healed));
+                }}
                 placeholder="请输入11位手机号"
+                inputMode="numeric"
                 className="neu-input has-icon"
                 aria-invalid={phoneError ? 'true' : undefined}
               />

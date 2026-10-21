@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { ArrowRight, Phone, Plus, X } from "lucide-react";
 import { supplierApi } from "@/lib/api/supplier";
+import { sanitizePhoneInput } from "@/lib/phone-input";
 import { cn } from "@/lib/utils";
 import { SpButton } from "@/components/ui";
 import { useConfirm } from "@/components/use-confirm";
@@ -157,9 +158,15 @@ export function ContactPanel({ editing, onSaved, onClose }: {
                 <input
                   className="ct-panel-input"
                   value={form.phone}
-                  onChange={(e) => { setForm((f) => ({ ...f, phone: e.target.value })); markDirty(); }}
+                  onChange={(e) => { setForm((f) => ({ ...f, phone: sanitizePhoneInput(e.target.value) })); markDirty(); }}
+                  onBlur={(e) => {
+                    // DOM 兜底回同步（2026-10-19，同注册页口径）：旁路 onChange 的填充
+                    // （自动填充/输入法）会让状态落后于显示值，失焦时以 DOM 为准对齐
+                    const healed = sanitizePhoneInput(e.target.value);
+                    setForm((f) => (f.phone === healed ? f : { ...f, phone: healed }));
+                  }}
                   placeholder="请输入11位手机号"
-                  maxLength={11}
+                  inputMode="numeric"
                 />
               </div>
             </div>

@@ -1,0 +1,24 @@
+[
+  {
+    "id": "cmv0obbb000ocuuq2qj1dzzb6",
+    "supplierId": "cmv0obbb000o8uuq254hjkkcw",
+    "accountName": "四川弘沣汽车服务有限责任公司",
+    "bankName": "中信银行股份有限公司",
+    "bankBranch": "成都双楠支行",
+    "accountNo": "sm1:d8ded1a4:T0AaC5JuD0Iw2BdONUYuovSbk9xAyld5jxfe5ocR+wt51/IEvJOjQk2efV/+VUACMaffSkttEZKu1F18YwJMBDj0SJVch36Qw35bXbyWOU8=",
+    "isDefault": true,
+    "createdAt": "2026-10-09T07:58:21.180Z",
+    "updatedAt": "2026-10-09T07:58:21.180Z"
+  },
+  {
+    "id": "cmv0oz3p000u4uuq20whrzou6",
+    "supplierId": "cmv0oz3p000u0uuq2ff7aaopj",
+    "accountName": "自贡市烨友腾隽汽车销售有限公司",
+    "bankName": "宜宾市商业银行",
+    "bankBranch": "直属支行",
+    "accountNo": "sm1:d8ded1a4:Lf7nLOOg659J1Dzn/Xn40DwjQ6wp9yTtj/X+vZefFL/7hQq8r2FdyWb8Q8vpltTMQHDQsYam6e9HNy+TJcakF9yrOXxsI9++E8TTAUeMD88=",
+    "isDefault": true,
+    "createdAt": "2026-10-09T08:16:51.060Z",
+    "updatedAt": "2026-10-09T08:16:51.060Z"
+  }
+]
