@@ -8,3 +8,4 @@ numpy
 opendataloader-pdf[hybrid]
 PyMuPDF
 python-dotenv
+socksio

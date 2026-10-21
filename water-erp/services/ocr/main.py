@@ -1,5 +1,8 @@
+import asyncio
 import io
 import logging
+import os
+import time
 import numpy as np
 import fitz  # PyMuPDF
 
@@ -21,7 +24,35 @@ from ocr_engine import (
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title="OCR Service", version="1.1.0")
+app = FastAPI(title="OCR Service", version="1.2.0")
+
+# OCR 是 CPU 密集同步操作：必须在 executor 里跑并加锁串行化——
+# ① 事件循环不再被阻塞（/health 永远可用，可区分"在处理"与"挂死"）；
+# ② 同一时刻至多一个 OCR 批次，避免跨请求 OMP/GIL 过度争用与内存叠加。
+_ocr_lock = asyncio.Lock()
+_busy = {"active": False, "since": 0.0, "detail": ""}
+# 分页渲染块大小：渲染→OCR→释放，避免整本 PDF 的像素图常驻内存（191 页原需数 GB）
+OCR_CHUNK_PAGES = int(os.environ.get("OCR_CHUNK_PAGES", "16"))
+
+
+async def _run_ocr_batch(images: list, detail: str) -> list:
+    loop = asyncio.get_running_loop()
+    async with _ocr_lock:
+        _busy.update(active=True, since=time.monotonic(), detail=detail)
+        try:
+            return await loop.run_in_executor(None, ocr_images, images)
+        finally:
+            _busy["active"] = False
+
+
+async def _run_ocr_single(img) -> str:
+    loop = asyncio.get_running_loop()
+    async with _ocr_lock:
+        _busy.update(active=True, since=time.monotonic(), detail="single image")
+        try:
+            return await loop.run_in_executor(None, ocr_image, img)
+        finally:
+            _busy["active"] = False
 
 
 @app.get("/health")
@@ -32,7 +63,17 @@ async def health():
     if pool is not None:
         hybrid_running = pool.running
         workers = pool.active_workers
-    return {"status": "ok", "engine": ENGINE_NAME, "hybrid": hybrid_running, "workers": workers}
+    payload = {
+        "status": "ok",
+        "engine": ENGINE_NAME,
+        "hybrid": hybrid_running,
+        "workers": workers,
+        "busy": _busy["active"],
+    }
+    if _busy["active"]:
+        payload["busy_seconds"] = round(time.monotonic() - _busy["since"], 1)
+        payload["busy_detail"] = _busy["detail"]
+    return payload
 
 
 @app.post("/ocr")
@@ -56,7 +97,7 @@ async def ocr_file(
     if is_pdf:
         if ENGINE_NAME == "opendataloader":
             return await _parse_pdf_opendataloader(content, max_pages, page_range)
-        return await _ocr_pdf(content, dpi, max_pages, page_range)
+        return await _ocr_pdf(content, dpi, max_pages, page_range, filename)
     else:
         return await _ocr_image(content)
 
@@ -204,7 +245,7 @@ def _is_scanned(pages: list) -> bool:
     return img_only > len(pages) * 0.5
 
 
-async def _ocr_pdf(content: bytes, dpi: int, max_pages: int, page_range: str = None) -> JSONResponse:
+async def _ocr_pdf(content: bytes, dpi: int, max_pages: int, page_range: str = None, filename: str = "pdf") -> JSONResponse:
     original_page_count, content = _prepare_pdf(content, max_pages, page_range)
     if content is None:
         return JSONResponse(
@@ -218,22 +259,32 @@ async def _ocr_pdf(content: bytes, dpi: int, max_pages: int, page_range: str = N
 
     try:
         doc = fitz.open(stream=content, filetype="pdf")
-        images = []
-        for page_idx in range(len(doc)):
-            page = doc[page_idx]
-            pix = page.get_pixmap(dpi=dpi)
-            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-            images.append(img)
-        doc.close()
+        total = len(doc)
     except Exception as e:
         logger.error(f"PDF to image conversion failed: {e}")
         raise HTTPException(status_code=422, detail=f"PDF conversion failed: {e}")
 
-    if max_pages and len(images) > max_pages:
-        images = images[:max_pages]
-        logger.warning(f"Truncated PDF batch from {len(images)} to {max_pages} pages")
+    process_count = total
+    if max_pages and total > max_pages:
+        process_count = max_pages
+        logger.warning(f"Truncated PDF batch from {total} to {max_pages} pages")
 
-    texts = ocr_images(images)
+    # 分块：渲染 OCR_CHUNK_PAGES 页 → OCR → 释放像素，峰值内存 ≈ 单块大小
+    texts: list[str] = []
+    try:
+        for start in range(0, process_count, OCR_CHUNK_PAGES):
+            end = min(start + OCR_CHUNK_PAGES, process_count)
+            images = []
+            for page_idx in range(start, end):
+                page = doc[page_idx]
+                pix = page.get_pixmap(dpi=dpi)
+                images.append(Image.frombytes("RGB", [pix.width, pix.height], pix.samples))
+            detail = f"{filename} p{start + 1}-{end}/{process_count}"
+            chunk_texts = await _run_ocr_batch(images, detail)
+            texts.extend(chunk_texts)
+            del images
+    finally:
+        doc.close()
 
     pages = [{"page": i + 1, "text": t} for i, t in enumerate(texts)]
 
@@ -241,7 +292,7 @@ async def _ocr_pdf(content: bytes, dpi: int, max_pages: int, page_range: str = N
         {
             "text": "\n\n".join(texts),
             "page_count": original_page_count,
-            "processed_pages": len(images),
+            "processed_pages": len(texts),
             "pages": pages,
         }
     )
@@ -253,7 +304,7 @@ async def _ocr_image(content: bytes) -> JSONResponse:
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Image open failed: {e}")
 
-    text = ocr_image(img)
+    text = await _run_ocr_single(img)
     return JSONResponse(
         {
             "text": text,
