@@ -14,26 +14,26 @@ export class ObjectionController {
   constructor(private objectionService: ObjectionService) {}
 
   @Get()
-  @ApiOperation({ summary: '异议/投诉工单列表（可按状态/类型/关键词筛选）' })
-  list(@Query('status') status?: string, @Query('phase') phase?: string, @Query('q') q?: string) {
-    return this.objectionService.listAdmin({ status, phase, q });
+  @ApiOperation({ summary: '异议/投诉工单列表（可按状态/类型/关键词筛选；按归属公司过滤——非 admin 仅本公司）' })
+  list(@Query('status') status?: string, @Query('phase') phase?: string, @Query('q') q?: string, @Query('companyId') companyId?: string, @Request() req: any = {}) {
+    return this.objectionService.listAdmin({ status, phase, q, companyId }, req.user);
   }
 
   @Post(':id/answer')
-  @ApiOperation({ summary: '在线答复异议（答复即通知供应商）' })
+  @ApiOperation({ summary: '在线答复异议（答复即通知供应商；非 admin 限本公司归属）' })
   answer(@Param('id') id: string, @Body() dto: { answer: string }, @Request() req: any) {
-    return this.objectionService.answer(id, dto.answer, { userId: req.user.sub, username: req.user.username });
+    return this.objectionService.answer(id, dto.answer, { userId: req.user.sub, username: req.user.username }, req.user);
   }
 
   @Post(':id/escalate')
-  @ApiOperation({ summary: '登记转投诉（移交监管处理）' })
-  escalate(@Param('id') id: string, @Body() dto: { note?: string }) {
-    return this.objectionService.escalate(id, dto.note ?? '');
+  @ApiOperation({ summary: '登记转投诉（移交监管处理；非 admin 限本公司归属）' })
+  escalate(@Param('id') id: string, @Body() dto: { note?: string }, @Request() req: any = {}) {
+    return this.objectionService.escalate(id, dto.note ?? '', req.user);
   }
 
   @Post(':id/close')
-  @ApiOperation({ summary: '登记投诉处理结果并办结' })
+  @ApiOperation({ summary: '登记投诉处理结果并办结（非 admin 限本公司归属）' })
   close(@Param('id') id: string, @Body() dto: { note?: string }, @Request() req: any) {
-    return this.objectionService.close(id, dto.note ?? '', { userId: req.user.sub, username: req.user.username });
+    return this.objectionService.close(id, dto.note ?? '', { userId: req.user.sub, username: req.user.username }, req.user);
   }
 }

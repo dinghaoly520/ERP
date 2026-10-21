@@ -7,6 +7,9 @@ export interface SupplierObjectionItem {
   announcementId?: string | null;
   projectCode?: string | null;
   supplierName: string;
+  /** 归属公司（2026-10-21）：供应商提交时自选——本板按公司过滤（非 admin 仅本公司） */
+  companyId?: string | null;
+  companyName?: string | null;
   phase: 'document' | 'prequalification' | 'result';
   title: string;
   content: string;

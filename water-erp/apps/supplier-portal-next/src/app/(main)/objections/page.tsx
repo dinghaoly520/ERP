@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { objectionApi, type SupplierObjection } from "@/lib/api/objection";
 import { bidApi } from "@/lib/api/bid";
-import { supplierApi } from "@/lib/api/supplier";
+import { supplierApi, supplierCompanyLinksApi } from "@/lib/api/supplier";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { EmptyState, LoadingBlock, SpButton, SpDialog, SpInput, SpPagination, SpSelect, SpTextarea } from "@/components/ui";
 import { toast } from "sonner";
@@ -55,9 +55,11 @@ export default function ObjectionsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | string>("all");
-  const [form, setForm] = useState({ phase: "document", projectCode: "", title: "", content: "" });
+  const [form, setForm] = useState({ phase: "document", projectCode: "", title: "", content: "", companyId: "" });
   // 关联项目下拉候选：{code,name}——datalist 显项目名称、选中回填业务编号（提交契约不变）
   const [projectOptions, setProjectOptions] = useState<{ code: string; name?: string }[]>([]);
+  // 归属公司候选（2026-10-21）：本人 APPROVED SupplierCompanyLink——异议提交到哪家公司的 leader 受理板
+  const [myCompanies, setMyCompanies] = useState<{ companyId: string; companyName: string }[]>([]);
 
   const PAGE_SIZE = 10;
 
@@ -128,12 +130,24 @@ export default function ObjectionsPage() {
     })();
   }, []);
 
+  // 归属公司候选：APPROVED 链接（多归属必选、单归属自动选中；加载失败静默——提交时后端兜底校验）
+  useEffect(() => {
+    supplierCompanyLinksApi.my().then(links => {
+      const approved = links
+        .filter(l => l.status === "APPROVED")
+        .map(l => ({ companyId: l.companyId, companyName: l.companyName }));
+      setMyCompanies(approved);
+      if (approved.length === 1) setForm(f => ({ ...f, companyId: approved[0].companyId }));
+    }).catch(() => { /* 静默 */ });
+  }, []);
+
   const retry = async () => {
     setError(false); setLoading(true);
     try { await fetchList(1); setCurrentPage(1); } catch { setError(true); } finally { setLoading(false); }
   };
 
   const submit = async () => {
+    if (myCompanies.length > 1 && !form.companyId) { toast.error("您加入了多家公司库，请选择本异议的归属公司"); return; }
     if (!form.title.trim() || !form.content.trim()) { toast.error("请填写异议标题与具体内容"); return; }
     if (!form.projectCode.trim() && ["document", "prequalification", "result", "procedure", "evaluation"].includes(form.phase)) {
       toast.error("该类异议须选择关联项目，请在下拉中选择（或选「不关联项目」改选其他类型）");
@@ -142,9 +156,9 @@ export default function ObjectionsPage() {
     setBusy(true);
     try {
       await objectionApi.create(form);
-      toast.success("异议已提交，采购人将在线答复");
+      toast.success("异议已提交，归属公司将在线答复");
       setDialogOpen(false);
-      setForm({ phase: "result", projectCode: "", title: "", content: "" });
+      setForm({ phase: "result", projectCode: "", title: "", content: "", companyId: myCompanies.length === 1 ? myCompanies[0].companyId : "" });
       await fetchList();
     } catch {
       /* 全局 toast 已提示 */
@@ -209,6 +223,7 @@ export default function ObjectionsPage() {
               <div className="obj-head">
                 <span className={`obj-status ${STATUS_LABEL[o.status]?.cls ?? ""}`}>{STATUS_LABEL[o.status]?.label ?? o.status}</span>
                 <span className="obj-phase">{PHASE_LABEL[o.phase] ?? o.phase}</span>
+                {o.companyName && <span className="obj-phase">{o.companyName}</span>}
                 <span className="obj-code">{o.projectCode || "—"}</span>
                 <span className="obj-date">{dayjs(o.createdAt).format("YYYY-MM-DD HH:mm")}</span>
               </div>
@@ -236,6 +251,19 @@ export default function ObjectionsPage() {
 
       <SpDialog open={dialogOpen} onClose={() => setDialogOpen(false)} title="提出异议" width={520}>
         <div className="obj-form">
+          <label className="obj-field">
+            <span>归属公司</span>
+            {/* 2026-10-21：异议只送达所选公司的 leader 受理板（:3005 按公司过滤）——候选限本人
+                APPROVED 归属；单归属自动锁定，多归属必选（服务端同口径兜底校验防伪造） */}
+            <SpSelect
+              value={form.companyId}
+              onChange={e => setForm({ ...form, companyId: e.target.value })}
+              disabled={myCompanies.length <= 1}
+            >
+              {myCompanies.length === 0 && <option value="">暂无已审核的公司归属</option>}
+              {myCompanies.map(c => <option key={c.companyId} value={c.companyId}>{c.companyName}</option>)}
+            </SpSelect>
+          </label>
           <label className="obj-field">
             <span>异议类型</span>
             <SpSelect value={form.phase} onChange={e => setForm({ ...form, phase: e.target.value })}>

@@ -9,6 +9,9 @@ export interface SupplierObjection {
   id: string;
   announcementId?: string | null;
   projectCode?: string | null;
+  /** 归属公司（2026-10-21）：提交时自选（限本人 APPROVED 归属），决定哪家公司的 leader 受理 */
+  companyId?: string | null;
+  companyName?: string | null;
   phase: "document" | "prequalification" | "result";
   title: string;
   content: string;
@@ -27,7 +30,7 @@ export const objectionApi = {
       `/supplier-portal/objections${qs({ page: params.page, pageSize: params.pageSize, status: params.status })}`,
     );
   },
-  create(payload: { announcementId?: string; projectCode?: string; phase: string; title: string; content: string }) {
+  create(payload: { announcementId?: string; projectCode?: string; phase: string; title: string; content: string; companyId?: string }) {
     return api.post<SupplierObjection>("/supplier-portal/objections", payload);
   },
 };

@@ -438,7 +438,9 @@ export default function SupplierRepositoryPage() {
             <button onClick={() => router.push('/supplier/dashboard')} className="neu-btn-soft"><Activity size={15} />总览</button>
             <button onClick={() => window.dispatchEvent(new Event('open-review-center'))} className="neu-btn-soft" title="供应商审批中心：注册三级审核 · 信息更新审批"><BadgeCheck size={15} />审批{myPending > 0 ? `（${myPending}）` : ''}</button>
             <button onClick={() => router.push('/supplier/qualification-alerts')} className="neu-btn-soft"><AlertTriangle size={15} />资质预警</button>
-            <button onClick={() => setShowObjections(true)} className="neu-btn-soft"><MessageSquareWarning size={15} />异议与投诉</button>
+            {/* 异议与投诉受理（2026-10-21 用户口径）：仅 leader——异议按归属公司过滤，只出现在
+                归属公司 leader 的受理板；staff/admin 不设此入口（API 层非 admin 仍限本公司只读） */}
+            {currentUser?.role === 'leader' && <button onClick={() => setShowObjections(true)} className="neu-btn-soft"><MessageSquareWarning size={15} />异议与投诉</button>}
             <button onClick={() => router.push('/supplier/elimination')} className="neu-btn-soft"><Trash2 size={15} />淘汰候选</button>
             {canManageInvitations && <button onClick={() => setInvModalOpen(true)} className="neu-btn-soft"><Key size={15} />邀请码</button>}
             <button onClick={() => setShowAuditLog(true)} className="neu-btn-soft"><History size={15} />操作历史</button>

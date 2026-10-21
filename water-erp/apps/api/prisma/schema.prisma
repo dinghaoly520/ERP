@@ -1099,11 +1099,16 @@ model SupplierObjection {
   answeredAt     DateTime?
   escalatedAt    DateTime? // 转投诉时间
   escalationNote String? // 投诉处理记录（转线下监管的登记）
+  // 归属公司（2026-10-21）：供应商提交时自选（限本人 APPROVED SupplierCompanyLink，单归属自动落）；
+  // 决定异议出现在哪家公司的 leader 受理板（:3005 按公司过滤）。存量 null=未归属，仅 admin 可见可操作
+  companyId      String?
+  companyName    String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   @@index([supplierId])
   @@index([status])
+  @@index([companyId])
 }
 
 // ── E1（GB/T 43711 第 9 章）：采购质效评价 ──

@@ -297,7 +297,7 @@ export class SupplierPortalController {
   }
 
   @Post('objections')
-  async createObjection(@Request() req: any, @Body() dto: { announcementId?: string; projectCode?: string; phase: string; title: string; content: string; attachments?: any }) {
+  async createObjection(@Request() req: any, @Body() dto: { announcementId?: string; projectCode?: string; phase: string; title: string; content: string; attachments?: any; companyId?: string }) {
     const supplier = await this.prisma.supplier.findUnique({
       where: { userId: req.user.sub },
       select: { id: true, name: true, userId: true },

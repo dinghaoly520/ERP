@@ -89,7 +89,7 @@ export function ObjectionBoardModal({ onClose }: { onClose: () => void }) {
                   <StatusBadge tone={st.tone}>{st.label}</StatusBadge>
                   <StatusBadge tone="blue">{PHASE_LABEL[o.phase] ?? o.phase}</StatusBadge>
                   <span className="text-[0.7rem] font-bold text-[var(--foreground)]">{o.title}</span>
-                  <span className="text-[0.65rem] text-[var(--muted-foreground)]">{o.supplierName} · {o.projectCode || '无编号'}</span>
+                  <span className="text-[0.65rem] text-[var(--muted-foreground)]">{o.supplierName} · {o.companyName ? `${o.companyName} · ` : ''}{o.projectCode || '无编号'}</span>
                   <span className="ml-auto text-[0.62rem] text-[var(--muted-foreground)]">{new Date(o.createdAt).toLocaleString('zh-CN')}</span>
                 </div>
                 <p className="mt-2 text-[0.78rem] leading-relaxed whitespace-pre-wrap text-[var(--foreground)]">{o.content}</p>
