@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { Loader2, MapPin, Plus, Save, Trash2, UserRound, UserRoundCheck } from 'lucide-react';
 
@@ -18,6 +18,7 @@ export function EntryListCard({
   icon: Icon,
   title,
   hint,
+  headerExtra,
   fields,
   entries,
   onReload,
@@ -29,6 +30,8 @@ export function EntryListCard({
   icon: typeof MapPin;
   title: string;
   hint: string;
+  /** 卡片头（hint 下方、条目列表上方）附加内容——公司信息管理页「采购人」卡放置公司级「采购人地址」字段（随「保存」提交） */
+  headerExtra?: ReactNode;
   fields: EntryCardField[];
   entries: EntryLike[];
   onReload: () => Promise<void>;
@@ -101,7 +104,8 @@ export function EntryListCard({
         <Icon size={14} className="text-[var(--accent)]" />
         <span className="text-sm font-semibold text-[var(--foreground)]">{title}</span>
       </div>
-      <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">{hint}</p>
+      <p className={headerExtra ? 'mb-3 text-xs leading-5 text-[var(--muted-foreground)]' : 'mb-4 text-xs leading-5 text-[var(--muted-foreground)]'}>{hint}</p>
+      {headerExtra && <div className="mb-4">{headerExtra}</div>}
 
       <div className="space-y-2">
         {entries.length === 0 && (

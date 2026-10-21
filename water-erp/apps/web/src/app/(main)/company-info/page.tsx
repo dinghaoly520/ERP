@@ -33,8 +33,8 @@ import {
 
 /* ═══════════════════════════════════════════════════════════════
    公司信息管理（2026-10-10，条目化）
-   leader 维护：基本信息（名称/简称/采购人地址）+ 三类条目列表——
-   采购人 / 开标地点 / 监督举报（均为多条目、单默认）。
+   leader 维护：基本信息（名称/简称/编码）+ 三类条目列表——
+   采购人（卡内含公司级「采购人地址」，随「保存」提交）/ 开标地点 / 监督举报（均为多条目、单默认）。
    默认条目用于采购文件编写进入预填；编写时可点对应按钮改选其他条目。
    ═══════════════════════════════════════════════════════════════ */
 
@@ -176,14 +176,14 @@ export default function CompanyInfoPage() {
         <div className="page-hero__divider" />
       </div>
 
-      {/* ══════ 基本信息（名称可改，全局唯一；采购人地址随「保存」） ══════ */}
+      {/* ══════ 基本信息（名称可改，全局唯一） ══════ */}
       <div className="neu-card p-5">
         <div className="mb-3 flex items-center gap-2">
           <Gavel size={14} className="text-[var(--accent)]" />
           <span className="text-sm font-semibold text-[var(--foreground)]">基本信息</span>
         </div>
         <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
-          公司名称用于采购文件「采购人」落款与公告发布方展示（留空沿用模板默认）；采购人地址预填「联系人地址」字段。改名即时生效于新项目归属快照。
+          公司名称用于采购文件「采购人」落款与公告发布方展示（留空沿用模板默认）。改名即时生效于新项目归属快照。
           公司编码为项目编号首段（编号格式 公司编码-方式前缀-日期序号，全局唯一，大写字母/数字，≤20 字符；留空回退 SW）——修改将同步更新本公司在办项目编号（含阶段码与公告关联码）；归档/回收项目不动，目标编号被占用时该项目保留原编号。
         </p>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -221,16 +221,6 @@ export default function CompanyInfoPage() {
             />
           </label>
         </div>
-        <label className="mt-4 block">
-          <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">采购人地址（随「保存」提交）</span>
-          <input
-            type="text"
-            value={form.purchaserAddress ?? ''}
-            onChange={(e) => set('purchaserAddress', e.target.value)}
-            placeholder="例如：四川省成都市双流区红莲街三段383号"
-            className="workbench-input w-full"
-          />
-        </label>
       </div>
 
       {/* ══════ 开标地点条目 ══════ */}
@@ -294,11 +284,23 @@ export default function CompanyInfoPage() {
         }}
       />
 
-      {/* ══════ 采购人条目 ══════ */}
+      {/* ══════ 采购人条目（卡头含公司级「采购人地址」——2026-10-21 用户裁定自基本信息迁入，仍随顶部「保存」提交） ══════ */}
       <EntryListCard
         icon={UserRound}
         title="采购人"
-        hint="可维护多位采购人、单默认——默认者进入编写时预填联系人三字段，编写时可点「联系人」按钮改选；不设默认则不预填。"
+        hint="可维护多位采购人、单默认——默认者进入编写时预填联系人三字段，编写时可点「联系人」按钮改选；不设默认则不预填。采购人地址为公司级字段，预填「联系人地址」，随顶部「保存」提交（条目增删改则为即时保存）。"
+        headerExtra={
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">采购人地址（随「保存」提交）</span>
+            <input
+              type="text"
+              value={form.purchaserAddress ?? ''}
+              onChange={(e) => set('purchaserAddress', e.target.value)}
+              placeholder="例如：四川省成都市双流区红莲街三段383号"
+              className="workbench-input w-full"
+            />
+          </label>
+        }
         fields={[
           { key: 'name', label: '姓名', placeholder: '姓名（必填）' },
           { key: 'phone', label: '联系电话', placeholder: '电话', type: 'tel' },
