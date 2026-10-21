@@ -174,7 +174,7 @@ export default function TenderWritePage() {
           fill('contactName', purchaser?.name ?? null);
           fill('contactPhone', purchaser?.phone ?? null);
           fill('contactEmail', purchaser?.email ?? null);
-          fill('contactAddress', ci.purchaserAddress);
+          fill('contactAddress', purchaser?.address ?? ci.purchaserAddress);
           fill('bidOpeningPlace', place);
           fill('supervisionDepartment', supervision?.department ?? null);
           fill('supervisionAddress', supervision?.address ?? null);

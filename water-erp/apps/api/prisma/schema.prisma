@@ -38,7 +38,6 @@ model Company {
   procurementRounds   ProcurementRound[]
   bidProjects         BidProject[]
   announcements       Announcement[]
-  contacts            Contact[]
   purchasers          CompanyPurchaser[]
   places              CompanyPlace[]
   supervisionProfiles CompanySupervision[]
@@ -87,6 +86,7 @@ model CompanyPurchaser {
   name      String
   phone     String?
   email     String?
+  address   String? // 采购人地址（2026-10-21 自公司级 Company.purchaserAddress 迁为条目级；预填取默认条目，公司列仍作存量回退）
   isDefault Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3680,24 +3680,8 @@ model TenderFieldSample {
 
 // ── 外部联系人 ──
 
-model Contact {
-  id          String   @id @default(cuid())
-  name        String
-  email       String?
-  phone       String?
-  // 2026-10-09 公司隔离：联系人按公司维护与可见（编写采购文件/公告只显示本公司联系人，
-  // 不再全平台共享一张表）；companyId=null 为存量未归属行，仅无归属公司账号（admin 管理视角）可见
-  companyId   String?
-  companyName String? // 写时快照（公司改名不扰历史）
-  company     Company? @relation(fields: [companyId], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([name])
-  @@index([companyId])
-}
-
 // ── 标书版本历史 ──
+// （Contact 独立联系人库已于 2026-10-21 下线——编写类「联系人」统一读公司信息管理·采购人条目）
 
 model TenderDocumentHistory {
   id           String   @id @default(cuid())

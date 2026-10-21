@@ -34,7 +34,7 @@ import {
 /* ═══════════════════════════════════════════════════════════════
    公司信息管理（2026-10-10，条目化）
    leader 维护：基本信息（名称/简称/编码）+ 三类条目列表——
-   采购人（卡内含公司级「采购人地址」，随「保存」提交）/ 开标地点 / 监督举报（均为多条目、单默认）。
+   采购人（四字段行：姓名/电话/邮箱/地址，地址 2026-10-21 自公司级迁为条目级）/ 开标地点 / 监督举报（均为多条目、单默认）。
    默认条目用于采购文件编写进入预填；编写时可点对应按钮改选其他条目。
    ═══════════════════════════════════════════════════════════════ */
 
@@ -64,7 +64,6 @@ export default function CompanyInfoPage() {
         name: data.name ?? '',
         shortName: data.shortName ?? '',
         code: data.code ?? '',
-        purchaserAddress: data.purchaserAddress ?? '',
       });
     } catch (e) {
       setError((e as Error).message);
@@ -87,7 +86,6 @@ export default function CompanyInfoPage() {
         name: form.name,
         shortName: form.shortName,
         code: form.code,
-        purchaserAddress: form.purchaserAddress,
       });
       setInfo(saved);
       // 改码联动报告（2026-10-12 方案2）：编码变化时后端同步重写在办项目编号链
@@ -284,35 +282,24 @@ export default function CompanyInfoPage() {
         }}
       />
 
-      {/* ══════ 采购人条目（卡头含公司级「采购人地址」——2026-10-21 用户裁定自基本信息迁入，仍随顶部「保存」提交） ══════ */}
+      {/* ══════ 采购人条目（四字段行：姓名/电话/邮箱/地址——2026-10-21 地址自公司级迁为条目级，格式同其他条目即时保存） ══════ */}
       <EntryListCard
         icon={UserRound}
         title="采购人"
-        hint="可维护多位采购人、单默认——默认者进入编写时预填联系人三字段，编写时可点「联系人」按钮改选；不设默认则不预填。采购人地址为公司级字段，预填「联系人地址」，随顶部「保存」提交（条目增删改则为即时保存）。"
-        headerExtra={
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">采购人地址（随「保存」提交）</span>
-            <input
-              type="text"
-              value={form.purchaserAddress ?? ''}
-              onChange={(e) => set('purchaserAddress', e.target.value)}
-              placeholder="例如：四川省成都市双流区红莲街三段383号"
-              className="workbench-input w-full"
-            />
-          </label>
-        }
+        hint="可维护多位采购人、单默认——默认者进入编写时预填联系人四字段（姓名/电话/邮箱/地址），编写时可点「联系人」按钮改选；不设默认则不预填。地址为条目级字段（含存量公司级地址迁移），与其他条目同格式即时保存。"
         fields={[
           { key: 'name', label: '姓名', placeholder: '姓名（必填）' },
           { key: 'phone', label: '联系电话', placeholder: '电话', type: 'tel' },
           { key: 'email', label: '电子邮箱', placeholder: '邮箱', type: 'email' },
+          { key: 'address', label: '采购人地址', placeholder: '例如：四川省成都市双流区红莲街三段383号' },
         ]}
         entries={purchasers}
         onReload={reloadEntries}
         onCreate={async (v) => {
-          await createPurchaser({ name: v.name, phone: v.phone || null, email: v.email || null });
+          await createPurchaser({ name: v.name, phone: v.phone || null, email: v.email || null, address: v.address || null });
         }}
         onUpdate={async (id, v) => {
-          await updatePurchaser(id, { name: v.name, phone: v.phone || null, email: v.email || null });
+          await updatePurchaser(id, { name: v.name, phone: v.phone || null, email: v.email || null, address: v.address || null });
         }}
         onSetDefault={async (row, isDefault) => {
           await updatePurchaser(row.id, { isDefault });

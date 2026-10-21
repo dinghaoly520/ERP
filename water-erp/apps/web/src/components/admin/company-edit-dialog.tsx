@@ -41,7 +41,7 @@ export function CompanyEditDialog({
   onCountsChanged?: () => void;
 }) {
   const [info, setInfo] = useState<CompanyInfo | null>(null);
-  const [form, setForm] = useState({ name: company.name, shortName: company.shortName ?? '', purchaserAddress: '' });
+  const [form, setForm] = useState({ name: company.name, shortName: company.shortName ?? '' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -50,8 +50,6 @@ export function CompanyEditDialog({
     try {
       const data = await fetchCompanyInfoById(company.id);
       setInfo(data);
-      // 名称/简称以打开时的公司行初值优先，地址以服务端值回填（编辑窗口内以表单为准）
-      setForm((prev) => ({ ...prev, purchaserAddress: data.purchaserAddress ?? '' }));
     } catch (e) {
       toast.error((e as Error).message || '加载公司信息失败');
     } finally {
@@ -60,7 +58,7 @@ export function CompanyEditDialog({
   }, [company.id]);
 
   useEffect(() => {
-    setForm({ name: company.name, shortName: company.shortName ?? '', purchaserAddress: '' });
+    setForm({ name: company.name, shortName: company.shortName ?? '' });
     void load();
   }, [company.id, company.name, company.shortName, load]);
 
@@ -76,7 +74,6 @@ export function CompanyEditDialog({
       await updateCompanyById(company.id, {
         name: form.name,
         shortName: form.shortName,
-        purchaserAddress: form.purchaserAddress,
       });
       toast.success('基本信息已保存');
       onChanged?.();
@@ -184,17 +181,7 @@ export function CompanyEditDialog({
                 />
               </label>
             </div>
-            <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-end">
-              <label className="block flex-1">
-                <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">采购人地址</span>
-                <input
-                  type="text"
-                  value={form.purchaserAddress}
-                  onChange={(e) => set('purchaserAddress', e.target.value)}
-                  placeholder="例如：四川省成都市双流区红莲街三段383号"
-                  className="workbench-input w-full"
-                />
-              </label>
+            <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-end">
               <button
                 type="button"
                 onClick={() => void saveBasic()}
@@ -271,19 +258,20 @@ export function CompanyEditDialog({
           <EntryListCard
             icon={UserRound}
             title="采购人"
-            hint="可维护多位采购人、单默认——默认者进入编写时预填联系人三字段，编写时可点「联系人」按钮改选；不设默认则不预填。"
+            hint="可维护多位采购人、单默认——默认者进入编写时预填联系人四字段（姓名/电话/邮箱/地址），编写时可点「联系人」按钮改选；不设默认则不预填。"
             fields={[
               { key: 'name', label: '姓名', placeholder: '姓名（必填）' },
               { key: 'phone', label: '联系电话', placeholder: '电话', type: 'tel' },
               { key: 'email', label: '电子邮箱', placeholder: '邮箱', type: 'email' },
+              { key: 'address', label: '采购人地址', placeholder: '例如：四川省成都市双流区红莲街三段383号' },
             ]}
             entries={info.purchasers ?? []}
             onReload={reloadEntries}
             onCreate={async (v) => {
-              await createCompanyPurchaser(cid, { name: v.name, phone: v.phone || null, email: v.email || null });
+              await createCompanyPurchaser(cid, { name: v.name, phone: v.phone || null, email: v.email || null, address: v.address || null });
             }}
             onUpdate={async (id, v) => {
-              await updateCompanyPurchaser(cid, id, { name: v.name, phone: v.phone || null, email: v.email || null });
+              await updateCompanyPurchaser(cid, id, { name: v.name, phone: v.phone || null, email: v.email || null, address: v.address || null });
             }}
             onSetDefault={async (row, isDefault) => {
               await updateCompanyPurchaser(cid, row.id, { isDefault });

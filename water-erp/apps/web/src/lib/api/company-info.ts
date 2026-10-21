@@ -12,6 +12,8 @@ export type CompanyPurchaserEntry = {
   name: string;
   phone: string | null;
   email: string | null;
+  /** 条目级采购人地址（2026-10-21 自公司级 Company.purchaserAddress 迁入；默认条目预填编写「联系人地址」） */
+  address: string | null;
   isDefault: boolean;
   createdAt: string;
   updatedAt: string;
@@ -133,6 +135,7 @@ export async function createPurchaser(body: {
   name: string;
   phone?: string | null;
   email?: string | null;
+  address?: string | null;
   isDefault?: boolean;
 }): Promise<CompanyPurchaserEntry> {
   const created = await request<CompanyPurchaserEntry>('/my-info/purchasers', {
@@ -146,7 +149,7 @@ export async function createPurchaser(body: {
 void 0;
 export async function updatePurchaser(
   id: string,
-  body: { name?: string; phone?: string | null; email?: string | null; isDefault?: boolean },
+  body: { name?: string; phone?: string | null; email?: string | null; address?: string | null; isDefault?: boolean },
 ): Promise<CompanyPurchaserEntry> {
   const updated = await request<CompanyPurchaserEntry>(`/my-info/purchasers/${id}`, {
     method: 'PATCH',
@@ -165,12 +168,12 @@ export async function deletePurchaser(id: string): Promise<{ id: string }> {
 /** 预填取数口径：默认条目优先（服务端排序已保证默认在前），无条目回退旧单值字段，再无则 null（不预填） */
 export function pickDefaultPurchaser(
   ci: CompanyInfo | null | undefined,
-): { name: string; phone: string; email: string } | null {
+): { name: string; phone: string; email: string; address: string } | null {
   if (!ci) return null;
   const entry = ci.purchasers?.find((p) => p.isDefault) ?? ci.purchasers?.[0];
-  if (entry) return { name: entry.name, phone: entry.phone ?? '', email: entry.email ?? '' };
+  if (entry) return { name: entry.name, phone: entry.phone ?? '', email: entry.email ?? '', address: entry.address ?? '' };
   if (ci.purchaserContact) {
-    return { name: ci.purchaserContact, phone: ci.purchaserPhone ?? '', email: ci.purchaserEmail ?? '' };
+    return { name: ci.purchaserContact, phone: ci.purchaserPhone ?? '', email: ci.purchaserEmail ?? '', address: ci.purchaserAddress ?? '' };
   }
   return null;
 }
@@ -264,7 +267,7 @@ export async function updateCompanyById(companyId: string, payload: CompanyInfoP
 
 export async function createCompanyPurchaser(
   companyId: string,
-  body: { name: string; phone?: string | null; email?: string | null; isDefault?: boolean },
+  body: { name: string; phone?: string | null; email?: string | null; address?: string | null; isDefault?: boolean },
 ): Promise<CompanyPurchaserEntry> {
   const created = await request<CompanyPurchaserEntry>(`/${companyId}/purchasers`, { method: 'POST', body: JSON.stringify(body) });
   invalidateCompanyInfoCache();
@@ -273,7 +276,7 @@ export async function createCompanyPurchaser(
 export async function updateCompanyPurchaser(
   companyId: string,
   id: string,
-  body: { name?: string; phone?: string | null; email?: string | null; isDefault?: boolean },
+  body: { name?: string; phone?: string | null; email?: string | null; address?: string | null; isDefault?: boolean },
 ): Promise<CompanyPurchaserEntry> {
   const updated = await request<CompanyPurchaserEntry>(`/${companyId}/purchasers/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
   invalidateCompanyInfoCache();

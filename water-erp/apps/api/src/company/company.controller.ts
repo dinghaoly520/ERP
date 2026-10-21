@@ -46,6 +46,12 @@ export class PurchaserBodyDto {
   @MaxLength(100)
   email?: string | null;
 
+  // 采购人地址（2026-10-21 自公司级迁为条目级，与姓名/电话/邮箱同行第四字段）
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  address?: string | null;
+
   @IsOptional()
   @IsBoolean()
   isDefault?: boolean;
@@ -496,6 +502,7 @@ export class CompanyController {
       name,
       phone: normalizeOptional(dto.phone),
       email: normalizeOptional(dto.email),
+      address: normalizeOptional(dto.address),
       isDefault: dto.isDefault ?? false,
     };
   }
@@ -510,6 +517,7 @@ export class CompanyController {
       ...(dto.name !== undefined && { name: dto.name.trim() }),
       ...(dto.phone !== undefined && { phone: normalizeOptional(dto.phone) }),
       ...(dto.email !== undefined && { email: normalizeOptional(dto.email) }),
+      ...(dto.address !== undefined && { address: normalizeOptional(dto.address) }),
       ...(dto.isDefault !== undefined && { isDefault: dto.isDefault }),
     };
   }
