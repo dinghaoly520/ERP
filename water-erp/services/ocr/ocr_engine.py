@@ -5,6 +5,7 @@ import sys
 import time
 import tempfile
 import math
+import threading
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 from typing import Optional, Protocol, runtime_checkable, List, Dict, Tuple
 from pathlib import Path
@@ -26,6 +27,11 @@ _hybrid_servers: List["HybridServer"] = []
 
 NUM_WORKERS = 2
 MAX_SIDE = int(os.environ.get("OCR_MAX_SIDE", "3000"))
+# 挂死自愈：单页 recognize 超过该秒数（onnxruntime 死角死锁，线程无法取消），
+# watchdog 守护线程直接终止进程，交由 PM2 约 5s 自动拉起、上游 BullMQ 重试。
+# 把"永久挂死需人工 kill"收敛为"≤N 秒自愈"。设 OCR_WATCHDOG=0 可禁用。
+OCR_PAGE_TIMEOUT = float(os.environ.get("OCR_PAGE_TIMEOUT", "180"))
+OCR_WATCHDOG = os.environ.get("OCR_WATCHDOG", "1") != "0"
 ENGINE_NAME = os.environ.get("OCR_ENGINE", "rapid").lower()  # "rapid" | "easy" | "opendataloader"
 HYBRID_PORT = int(os.environ.get("OCR_HYBRID_PORT", "5002"))
 HYBRID_LANG = os.environ.get("OCR_HYBRID_LANG", "ch_sim,en")
@@ -46,21 +52,45 @@ class OcrEngine(Protocol):
     def recognize(self, arr: np.ndarray) -> str: ...
 
 
-# ── RapidOCR (PP-OCRv5 server models via ONNX) ──
+# ── RapidOCR (PP-OCRv5 server models via ONNX, auto GPU) ──
+
+def _cuda_runtime_present() -> bool:
+    """onnxruntime-gpu 即使机器没有 CUDA 也会把 CUDAExecutionProvider 列进
+    get_available_providers()，运行时才在加载 libonnxruntime_providers_cuda.so
+    时报错回退（每次调用刷屏 + 慢）。用 cudart 动态库存在性做真实判据。"""
+    import ctypes.util
+    return ctypes.util.find_library("cudart") is not None
+
 
 class RapidOcrEngine:
     def __init__(self):
         from rapidocr_onnxruntime import RapidOCR
+        import onnxruntime as ort
+
+        gpu_config = str(Path(__file__).parent / "config_gpu.yaml")
+        use_gpu = (
+            "CUDAExecutionProvider" in ort.get_available_providers()
+            and Path(gpu_config).exists()
+            and _cuda_runtime_present()
+        )
+        logger.info(
+            "GPU detected, using CUDA-accelerated OCR"
+            if use_gpu else "No GPU, using CPU OCR"
+        )
+
         if V5_MODELS_AVAILABLE:
             logger.info("Using PP-OCRv5 server models")
-            self._engine = RapidOCR(
+            kwargs = dict(
                 det_model_path=os.path.join(V5_MODEL_DIR, "det_v5.onnx"),
                 rec_model_path=os.path.join(V5_MODEL_DIR, "rec_v5.onnx"),
                 rec_keys_path=os.path.join(V5_MODEL_DIR, "ppocrv5_dict.txt"),
             )
+            if use_gpu:
+                kwargs["config_path"] = gpu_config
+            self._engine = RapidOCR(**kwargs)
         else:
             logger.info("Using PP-OCRv4 default models")
-            self._engine = RapidOCR()
+            self._engine = RapidOCR(config_path=gpu_config) if use_gpu else RapidOCR()
 
     def recognize(self, arr: np.ndarray) -> str:
         result, _ = self._engine(arr)
@@ -124,19 +154,31 @@ class HybridServer:
             hybrid_cmd,
             "--port", str(self._port),
             "--force-ocr",
-            "--ocr-engine", self._ocr_engine,
             "--ocr-lang", self._lang,
-            "--device", self._device,
         ]
+
+        # PP-OCRv4 via RapidOCR backend (docling supports RapidOcrOptions natively)
+        if self._ocr_engine == "rapidocr" and not use_v5:
+            cmd.extend(["--ocr-backend", "rapidocr"])
 
         if use_v5:
             logger.info(f"[port {self._port}] Using PP-OCRv5 server models")
 
         logger.info(f"Starting hybrid server: {' '.join(cmd)}")
+
+        # Build subprocess environment: inherit from parent but fix httpx-incompatible
+        # ALL_PROXY that may come from shell rc files (e.g. socks:// → socks5://)
+        subprocess_env = os.environ.copy()
+        for key in ("ALL_PROXY", "all_proxy"):
+            val = subprocess_env.get(key, "")
+            if val.startswith("socks://"):
+                subprocess_env[key] = val.replace("socks://", "socks5://", 1)
+
         self._proc = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            env=subprocess_env,
         )
         self._wait_ready(timeout=120)
 
@@ -528,17 +570,65 @@ def _to_array(img) -> np.ndarray:
     return img
 
 
+# ── 挂死自愈 watchdog ──
+
+_wd_lock = threading.Lock()
+_wd_state = {"in_flight": False, "started": 0.0, "label": ""}
+
+
+def _wd_begin(label: str) -> None:
+    with _wd_lock:
+        _wd_state.update(in_flight=True, started=time.monotonic(), label=label)
+
+
+def _wd_end() -> None:
+    with _wd_lock:
+        _wd_state["in_flight"] = False
+
+
+def _watchdog_loop() -> None:
+    while True:
+        time.sleep(5)
+        with _wd_lock:
+            if not _wd_state["in_flight"]:
+                continue
+            elapsed = time.monotonic() - _wd_state["started"]
+        if elapsed > OCR_PAGE_TIMEOUT:
+            logger.critical(
+                f"OCR watchdog: recognize({_wd_state['label']}) 卡死 {elapsed:.0f}s"
+                f"（阈值 {OCR_PAGE_TIMEOUT:.0f}s），自杀交 PM2 重启"
+            )
+            try:
+                sys.stdout.flush()
+                sys.stderr.flush()
+            except Exception:
+                pass
+            os._exit(1)
+
+
+if OCR_WATCHDOG:
+    threading.Thread(target=_watchdog_loop, name="ocr-watchdog", daemon=True).start()
+
+
 # ── Public API ──
 
 def ocr_image(img) -> str:
     engine = get_engine()
     arr = _to_array(img)
-    return engine.recognize(arr)
+    _wd_begin("image")
+    try:
+        return engine.recognize(arr)
+    finally:
+        _wd_end()
 
 
 def _ocr_single(arr: np.ndarray) -> str:
     engine = get_engine()
-    return engine.recognize(arr)
+    _wd_begin("page")
+    try:
+        return engine.recognize(arr)
+    finally:
+        _wd_end()
 
 
 def ocr_images(images: list) -> list[str]:

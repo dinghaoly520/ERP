@@ -74,6 +74,8 @@ services:
     profiles: ["vector-sidecar"]
     image: pgvector/pgvector:pg16
     container_name: water-erp-pgvector
+    # 整机重启后随 Docker 自愈（profile 服务首次仍需手动 --profile vector-sidecar up 启动）
+    restart: unless-stopped
     environment:
       POSTGRES_USER: water_erp
       POSTGRES_PASSWORD: water_erp_dev

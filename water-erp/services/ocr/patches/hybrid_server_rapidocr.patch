@@ -1,0 +1,83 @@
+# Patch for opendataloader_pdf/hybrid_server.py to add --ocr-backend support
+# Applies to: opendataloader-pdf 1.11.2
+# Target: .venv/lib/python3.10/site-packages/opendataloader_pdf/hybrid_server.py
+#
+# Adds --ocr-backend {easyocr|rapidocr} CLI argument.
+# rapidocr uses PP-OCRv4 via ONNX Runtime (RapidOcrOptions) instead of EasyOCR.
+#
+# Apply with: patch <this_file> <target_file>
+# Or re-apply manually after pip install --upgrade.
+
+--- a/hybrid_server.py
++++ b/hybrid_server.py
+@@ -192,10 +192,13 @@
+ def create_converter(
+     force_full_page_ocr: bool = False,
+     ocr_lang: list[str] | None = None,
++    ocr_backend: str = "easyocr",
+     enrich_formula: bool = False,
+     enrich_picture_description: bool = False,
+     picture_description_prompt: str | None = None,
+ ):
++    # _EASY_TO_RAPID_LANG maps EasyOCR codes to RapidOCR codes
++    _EASY_TO_RAPID_LANG = {"ch_sim": "chinese", "en": "english"}
+     from docling.datamodel.base_models import InputFormat
+     from docling.datamodel.pipeline_options import (
+         EasyOcrOptions,
++        RapidOcrOptions,
+         PdfPipelineOptions,
+         PictureDescriptionVlmOptions,
+         TableFormerMode,
+         TableStructureOptions,
+     )
+-    ocr_options = EasyOcrOptions(force_full_page_ocr=force_full_page_ocr)
+-    if ocr_lang:
+-        ocr_options.lang = ocr_lang
++    if ocr_backend == "rapidocr":
++        ocr_options = RapidOcrOptions(force_full_page_ocr=force_full_page_ocr)
++        if ocr_lang:
++            ocr_options.lang = [_EASY_TO_RAPID_LANG.get(l, l) for l in ocr_lang]
++        ocr_options.backend = "onnxruntime"
++    else:
++        ocr_options = EasyOcrOptions(force_full_page_ocr=force_full_page_ocr)
++        if ocr_lang:
++            ocr_options.lang = ocr_lang
+
+@@ -255,6 +262,7 @@
+ def create_app(
+     force_ocr: bool = False,
+     ocr_lang: list[str] | None = None,
++    ocr_backend: str = "easyocr",
+     enrich_formula: bool = False,
+     enrich_picture_description: bool = False,
+     picture_description_prompt: str | None = None,
+@@ -289,6 +297,7 @@
+         converter = create_converter(
+             force_full_page_ocr=force_ocr,
+             ocr_lang=ocr_lang,
++            ocr_backend=ocr_backend,
+             enrich_formula=enrich_formula,
+             enrich_picture_description=enrich_picture_description,
+             picture_description_prompt=picture_description_prompt,
+@@ -458,6 +467,12 @@
+         default=None,
+         help="OCR languages (comma-separated EasyOCR codes, e.g., 'ch_sim,en'). Default: EasyOCR default",
+     )
++    parser.add_argument(
++        "--ocr-backend",
++        type=str,
++        default="easyocr",
++        choices=["easyocr", "rapidocr"],
++        help="OCR backend: easyocr (default) or rapidocr (PP-OCRv4 via ONNX Runtime)",
++    )
+     parser.add_argument(
+         "--enrich-formula",
+         action="store_true",
+@@ -524,6 +539,7 @@
+     app = create_app(
+         force_ocr=args.force_ocr,
+         ocr_lang=ocr_lang,
++        ocr_backend=args.ocr_backend,
+         enrich_formula=args.enrich_formula,
+         enrich_picture_description=args.enrich_picture_description,
+         picture_description_prompt=args.picture_description_prompt,

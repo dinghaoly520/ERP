@@ -13666,5 +13666,53 @@
     "isActive": true,
     "createdAt": "2026-09-29T06:22:48.686Z",
     "updatedAt": "2026-10-16T08:10:51.606Z"
+  },
+  {
+    "id": "cmvem6bzo000auua4gs1uhccv",
+    "username": "测试发展有限公司",
+    "displayName": "测试发展有限公司",
+    "email": null,
+    "passwordHash": "$2b$10$C9k/Z9FZqmc66QvF2sSeF.V5z5y/4bGrLi.WB8pHkfb21hv/B88wa",
+    "role": "supplier",
+    "isActive": true,
+    "departmentId": null,
+    "createdAt": "2026-10-19T02:07:16.02Z",
+    "updatedAt": "2026-10-20T04:26:36.074Z",
+    "phone": null,
+    "avatar": null,
+    "company": null,
+    "companyId": null
+  },
+  {
+    "id": "cmvem6bz20000uua43vmanar3",
+    "username": "测试机床有限公司",
+    "displayName": "测试机床有限公司",
+    "email": null,
+    "passwordHash": "$2b$10$C9k/Z9FZqmc66QvF2sSeF.V5z5y/4bGrLi.WB8pHkfb21hv/B88wa",
+    "role": "supplier",
+    "isActive": true,
+    "departmentId": null,
+    "createdAt": "2026-10-19T02:07:15.998Z",
+    "updatedAt": "2026-10-20T09:37:26.982Z",
+    "phone": null,
+    "avatar": null,
+    "company": null,
+    "companyId": null
+  },
+  {
+    "id": "cmvem6bza0005uua40vaecwia",
+    "username": "测试环保技术装备有限公司",
+    "displayName": "测试环保技术装备有限公司",
+    "email": null,
+    "passwordHash": "$2b$10$C9k/Z9FZqmc66QvF2sSeF.V5z5y/4bGrLi.WB8pHkfb21hv/B88wa",
+    "role": "supplier",
+    "isActive": true,
+    "departmentId": null,
+    "createdAt": "2026-10-19T02:07:16.006Z",
+    "updatedAt": "2026-10-20T08:24:23.432Z",
+    "phone": null,
+    "avatar": null,
+    "company": null,
+    "companyId": null
   }
 ]
