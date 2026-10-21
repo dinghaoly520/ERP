@@ -31,6 +31,7 @@ describe('Supplier (e2e)', () => {
   let prisma: PrismaService;
   let supplierCookie: string[];
   let dupCreditCode: string;
+  let joinInsteadCompanyId: string | undefined;
   /** 注册会话 token 轨 e2e 信用代码（afterAll 清理对应账号） */
   let tokenCreditA: string;
   let tokenCreditB: string;
@@ -55,6 +56,12 @@ describe('Supplier (e2e)', () => {
     const u = await prisma.user.findUnique({ where: { username_role: { username: '重庆蜀通岩土工程有限公司', role: 'supplier' } } });
     const s = u ? await prisma.supplier.findUnique({ where: { userId: u.id } }) : null;
     dupCreditCode = s?.creditCode || 'DUPLICATE00000000';
+    // 确定性 fixture（2026-10-21）：注册 dto 的公司必须与该供应商已挂 APPROVED link 的公司不同，
+    // 否则走「本公司纯重复」DUPLICATE_CREDIT_CODE 分支而非本用例要验的 JOIN_INSTEAD 引导——
+    // 此前 findFirst({}) 裸取样不确定，公司数变化后必然取到归属公司而偶发红
+    const dupS = await prisma.supplier.findUnique({ where: { userId: u!.id } });
+    const otherCo = (await prisma.company.findMany({ select: { id: true } })).find(c => c.id !== dupS?.companyId);
+    joinInsteadCompanyId = otherCo?.id;
 
     supplierCookie = await loginAs(app, '重庆蜀通岩土工程有限公司', 'supplier@2026', 'supplier');
 
@@ -113,7 +120,7 @@ describe('Supplier (e2e)', () => {
       .post('/api/supplier/register')
       .set('X-Portal', 'public')
       .send({
-        companyId: (await prisma.company.findFirst({ where: {}, select: { id: true } }))?.id,
+        companyId: joinInsteadCompanyId,
         name: 'E2E重复信用代码公司',
         creditCode: dupCreditCode,
         enterpriseType: '有限责任公司',
