@@ -55,7 +55,7 @@ export default function VisitorPage() {
   return (
     <div className="flow-page flex flex-col">
       <FlowBackdrop />
-      <UnifiedHeader announcements={[]} onLoginClick={() => {}} onRegisterClick={() => {}} />
+      <UnifiedHeader />
 
       <main className="flex-1 relative z-10 flex flex-col">
         <div className="px-[clamp(28px,4vw,72px)] pt-3">

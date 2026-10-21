@@ -251,11 +251,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
     <div className="flow-page text-[#18243a] overflow-x-hidden" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
       <FlowBackdrop />
       {/* ═══════════════════ Header · 统一顶栏 ═══════════════════ */}
-      <UnifiedHeader
-        announcements={fetchedAnnouncements}
-        onLoginClick={() => setModal('login')}
-        onRegisterClick={() => setModal('register')}
-      />
+      <UnifiedHeader />
 
       <main>
         {/* ═══════════════════ Hero ═══════════════════ */}

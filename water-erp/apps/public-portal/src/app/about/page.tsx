@@ -24,7 +24,7 @@ export default function AboutPage() {
     <div className="flow-page">
       <FlowBackdrop />
       {/* ═══ 统一顶栏 ═══ */}
-      <UnifiedHeader announcements={[]} onLoginClick={() => {}} onRegisterClick={() => {}} />
+      <UnifiedHeader />
 
       <main className="relative z-10">
         {/* ═══ Stats Bar — 全宽 ═══ */}

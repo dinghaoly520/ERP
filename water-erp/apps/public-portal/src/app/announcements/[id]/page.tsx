@@ -58,7 +58,7 @@ export default function AnnouncementDetailPage() {
     <div className="flow-page" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
       <FlowBackdrop />
       {/* 统一顶栏 */}
-      <UnifiedHeader announcements={[]} onLoginClick={() => {}} onRegisterClick={() => {}} />
+      <UnifiedHeader />
 
       {/* 内容区 */}
       <div className="relative z-10 px-[clamp(40px,4vw,72px)] pt-3 pb-10">

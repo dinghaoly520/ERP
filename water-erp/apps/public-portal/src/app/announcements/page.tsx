@@ -71,7 +71,7 @@ function AnnouncementsContent() {
     <div className="flow-page" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
       <FlowBackdrop />
       {/* ═══ 统一顶栏 ═══ */}
-      <UnifiedHeader announcements={items} onLoginClick={() => {}} onRegisterClick={() => {}} />
+      <UnifiedHeader />
 
       {/* ═══ 内容区 — 全宽与首页对齐 ═══ */}
       <div className="relative z-10 px-[clamp(40px,4vw,72px)] pt-3 pb-10">

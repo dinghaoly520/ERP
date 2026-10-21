@@ -32,7 +32,7 @@ export default function ProcurementPortalPage() {
   return (
     <div className="flow-page">
       <FlowBackdrop />
-      <UnifiedHeader announcements={[]} onLoginClick={() => {}} onRegisterClick={() => {}} />
+      <UnifiedHeader />
 
       <div className="relative z-10 px-[clamp(28px,4vw,72px)] pt-3">
         <a href="/" className="flow-back">

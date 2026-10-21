@@ -33,7 +33,7 @@ export default function ContactPage() {
     <div className="flow-page flex flex-col">
       <FlowBackdrop />
       {/* ═══ 统一顶栏 ═══ */}
-      <UnifiedHeader announcements={[]} onLoginClick={() => {}} onRegisterClick={() => {}} />
+      <UnifiedHeader />
 
       <main className="relative z-10 flex flex-1 flex-col">
         {/* ═══ Contact Cards — 三列横排 ═══ */}
