@@ -47,6 +47,7 @@ describe('ExpertAdminService', () => {
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
+      expertInvitationLog: { create: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]) },
       bidProject: {
         findUnique: jest.fn(),
         update: jest.fn().mockResolvedValue({}),
@@ -787,7 +788,11 @@ describe('ExpertAdminService', () => {
       prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be-1', invitationStatus: 'pending', expertRole: '正选' });
       (service as any).autoPromoteCandidate = jest.fn().mockResolvedValue({ userId: 'u9' });
       const res = await service.declineInvitation('p1', 'u1');
-      expect(prisma.bidExpert.update).toHaveBeenCalledWith({ where: { id: 'be-1' }, data: { invitationStatus: 'declined' } });
+      // 2026-10-21 留痕适配：婉拒改守卫式 updateMany（防并发双写轨迹）+ EXPERT 作答方 + 自答快照
+      expect(prisma.bidExpert.updateMany).toHaveBeenCalledWith({
+        where: { id: 'be-1', invitationStatus: 'pending' },
+        data: expect.objectContaining({ invitationStatus: 'declined', invitationActorType: 'EXPERT', expertStatus: 'declined' }),
+      });
       expect((service as any).autoPromoteCandidate).not.toHaveBeenCalled();
       expect(res).toEqual({ success: true, status: 'declined', promoted: null });
     });
@@ -954,3 +959,115 @@ describe('ExpertAdminService', () => {
   });
 });
 
+
+/** proxyMarkInvitation（2026-10-21 代为变更设计适配专家域）：理由必填、同态幂等、
+ *  自答快照不覆盖、确认→婉拒联动通知+递补、恢复闸门（评标中/席位占用/已签到）。 */
+describe('ExpertAdminService.proxyMarkInvitation（专家邀请代回应/代变更）', () => {
+  let service: ExpertAdminService;
+  let prisma: any;
+  let notification: any;
+
+  beforeEach(async () => {
+    const mod = await Test.createTestingModule({
+      providers: [
+        {
+          provide: ExpertAdminService,
+          useFactory: (p: any, n: any) => {
+            const svc = Object.create(ExpertAdminService.prototype);
+            (svc as any).prisma = p;
+            (svc as any).notification = n;
+            return svc;
+          },
+          inject: [PrismaService, NotificationService],
+        },
+        { provide: PrismaService, useValue: {
+          user: { findUnique: jest.fn().mockResolvedValue({ displayName: '王工作' }) },
+          bidExpert: {
+            findFirst: jest.fn().mockResolvedValue({
+              id: 'be1', userId: 'ex1', expertName: '杨睿', projectId: 'P1',
+              expertRole: '正选', invitationStatus: 'confirmed', signedIn: false, isLead: false,
+            }),
+            update: jest.fn().mockResolvedValue({ id: 'be1' }),
+            updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+          },
+          bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'OPENING', name: '某项目' }) },
+          expertInvitationLog: { create: jest.fn().mockResolvedValue({}) },
+        } },
+        { provide: NotificationService, useValue: { sendToUser: jest.fn().mockResolvedValue({}) } },
+      ],
+    })
+      // 绕过构造函数依赖（crossConflict/extractionAi/embedding/llm/ocr/extraction/companyScope/gateway）
+      .useMocker((token) => (typeof token === 'function' ? {} as any : undefined))
+      .compile();
+    service = mod.get(ExpertAdminService);
+    prisma = mod.get(PrismaService);
+    notification = mod.get(NotificationService);
+  });
+
+  it('理由必填：少于 5 字 → 400 REASON_REQUIRED，不落任何写', async () => {
+    await expect(service.proxyMarkInvitation({ projectId: 'P1', userId: 'ex1', status: 'declined', actorId: 'u1', reason: '太短' }))
+      .rejects.toMatchObject({ response: { code: 'REASON_REQUIRED' } });
+    expect(prisma.bidExpert.update).not.toHaveBeenCalled();
+    expect(prisma.expertInvitationLog.create).not.toHaveBeenCalled();
+  });
+
+  it('同状态幂等：changed=false，不写轨迹不发通知', async () => {
+    const r = await service.proxyMarkInvitation({ projectId: 'P1', userId: 'ex1', status: 'confirmed', actorId: 'u1', reason: '电话核实确认参加' });
+    expect(r).toEqual({ success: true, status: 'confirmed', changed: false, promoted: null });
+    expect(prisma.expertInvitationLog.create).not.toHaveBeenCalled();
+    expect(notification.sendToUser).not.toHaveBeenCalled();
+  });
+
+  it('确认→婉拒：作答方三件套落列 + 轨迹 STAFF_MARKED + 通知本人 + 正选触发递补', async () => {
+    const r = await service.proxyMarkInvitation({ projectId: 'P1', userId: 'ex1', status: 'declined', actorId: 'u1', reason: '电话核实健康原因请假' });
+    expect(r.changed).toBe(true);
+    expect(prisma.bidExpert.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'be1' },
+        data: expect.objectContaining({
+          invitationStatus: 'declined', invitationActorType: 'STAFF',
+          invitationActorName: '王工作', invitationReason: '电话核实健康原因请假',
+        }),
+      }),
+    );
+    // 【不变量】自答快照键绝不出现（代变更不覆盖原回执）
+    const updateData = prisma.bidExpert.update.mock.calls[0][0].data;
+    expect(updateData).not.toHaveProperty('expertRespondedAt');
+    expect(updateData).not.toHaveProperty('expertStatus');
+    expect(prisma.expertInvitationLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'STAFF_MARKED', actorType: 'STAFF', actorName: '王工作',
+          fromStatus: 'confirmed', toStatus: 'declined', reason: '电话核实健康原因请假',
+        }),
+      }),
+    );
+    expect(notification.sendToUser).toHaveBeenCalledWith(
+      'ex1', ['in_app'],
+      expect.objectContaining({ type: 'EXPERT_INVITATION_OVERRIDDEN' }),
+    );
+  });
+
+  it('已签到专家不可代为婉拒（EXPERT_SIGNED_IN）', async () => {
+    prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be1', userId: 'ex1', expertRole: '正选', invitationStatus: 'confirmed', signedIn: true });
+    await expect(service.proxyMarkInvitation({ projectId: 'P1', userId: 'ex1', status: 'declined', actorId: 'u1', reason: '试图婉拒已签到者' }))
+      .rejects.toMatchObject({ response: { code: 'EXPERT_SIGNED_IN' } });
+  });
+
+  it('恢复闸门：评标中（EVALUATING）拒绝恢复（EVALUATING_LOCKED）', async () => {
+    prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be1', userId: 'ex1', expertRole: '正选', invitationStatus: 'declined', signedIn: false });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: '某项目' });
+    await expect(service.proxyMarkInvitation({ projectId: 'P1', userId: 'ex1', status: 'confirmed', actorId: 'u1', reason: '评标中试图恢复成员' }))
+      .rejects.toMatchObject({ response: { code: 'EVALUATING_LOCKED' } });
+  });
+
+  it('恢复闸门：席位已被其他已确认正选占用（SEAT_TAKEN）', async () => {
+    prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be1', userId: 'ex1', expertRole: '正选', invitationStatus: 'declined', signedIn: false });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '某项目' });
+    prisma.bidExpert.findFirst // 第二次调用：席位占用检查
+      .mockResolvedValueOnce({ id: 'be1', userId: 'ex1', expertRole: '正选', invitationStatus: 'declined', signedIn: false })
+      .mockResolvedValueOnce({ id: 'be2' }); // 已存在的其他已确认正选
+    await expect(service.proxyMarkInvitation({ projectId: 'P1', userId: 'ex1', status: 'confirmed', actorId: 'u1', reason: '席位已被占用试试' }))
+      .rejects.toMatchObject({ response: { code: 'SEAT_TAKEN' } });
+  });
+});

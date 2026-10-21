@@ -51,6 +51,7 @@ import {
 } from '@/lib/api/bid';
 import { ApiError } from '@water-erp/client';
 import { getRsvpList, type RsvpListItem, type RsvpListResult } from '@/lib/api/supplier';
+import { proxyMarkExpertInvitation } from '@/lib/api/expert';
 import { registerArchiveTransfer, downloadRegulatoryExport } from '@/lib/api/bid';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { generateFieldContent } from '@/lib/api/tender-sample';
@@ -190,6 +191,38 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
   // 正选专家替换弹窗
   const [replaceModalOpen, setReplaceModalOpen] = useState(false);
   const [replaceModalExpert, setReplaceModalExpert] = useState<{ id: string; name: string; isLead: boolean } | null>(null);
+  // 专家邀请代回应/代变更（2026-10-21 设计适配）：必填理由弹窗——与供应商回执代变更同口径
+  const [expertProxy, setExpertProxy] = useState<{
+    userId?: string; name: string; role: string;
+    target: 'confirmed' | 'declined';
+    current: 'pending' | 'confirmed' | 'declined';
+  } | null>(null);
+  const [expertProxyReason, setExpertProxyReason] = useState('');
+  const [expertProxySubmitting, setExpertProxySubmitting] = useState(false);
+
+  const submitExpertProxy = async () => {
+    if (!expertProxy || !workspace) return;
+    if (!expertProxy.userId) { showToast('该专家记录缺少用户关联，无法代回应', 'err'); return; }
+    if (expertProxyReason.trim().length < 5) { showToast('请填写理由（至少 5 个字），将展示在专家确认面板', 'err'); return; }
+    setExpertProxySubmitting(true);
+    try {
+      const r = await proxyMarkExpertInvitation(workspace.project.id, expertProxy.userId, expertProxy.target, expertProxyReason.trim());
+      showToast(
+        r.changed
+          ? expertProxy.target === 'confirmed'
+            ? `已代为确认：${expertProxy.name}`
+            : `已代为婉拒：${expertProxy.name}${r.promoted ? `（已递补：${r.promoted.expertName}）` : ''}`
+          : '状态未变化（同状态幂等）',
+      );
+      setExpertProxy(null);
+      setExpertProxyReason('');
+      void refreshWorkspace();
+    } catch (err: any) {
+      showToast(err?.message || '代回应提交失败，请重试', 'err');
+    } finally {
+      setExpertProxySubmitting(false);
+    }
+  };
   /** 两段确认：先选候补，再确认替换（2026-09-23：此前点选即换、误触无挽回） */
   const [replaceModalAlt, setReplaceModalAlt] = useState<BidWorkspaceExpert | null>(null);
   /** FE-1（2026-09-24 全链审计）：弹窗内联错误——面板 toast(z-20) 被 Modal(z-600) 遮罩盖住，替换失败完全静默 */
@@ -732,13 +765,17 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                   <EmptyHint text="尚未组建专家组。请先在「专家抽取」步骤完成抽取并通知。" />
                 ) : (
                   (() => {
-                    // 正选（排除已拒绝）+ 候补（排除已拒绝的，其余展示）
+                    // 在册专家（未婉拒）+ 已婉拒分区（2026-10-21 代为变更适配：婉拒行保留可见——
+                    // 自答快照/弃权原因可查，且提供留痕的「恢复」通道；替代原直接过滤的消失式展示）
                     // 候补在 DB 中 invitationStatus 默认为 pending（不要求 RSVP 确认），有记录即已选定
                     const activeExperts = workspace.experts.filter(
                       e => e.invitationStatus !== 'declined',
                     );
+                    const declinedExperts = workspace.experts.filter(
+                      e => e.invitationStatus === 'declined',
+                    );
                     const hasAlts = availableAlts.length > 0;
-                    if (activeExperts.length === 0) {
+                    if (activeExperts.length === 0 && declinedExperts.length === 0) {
                       return <EmptyHint text="所有专家均已拒绝或超时，暂无确认的专家组成员。" />;
                     }
                     const roleLabel = (r: string) => r === '候补' ? '候补' : '正选';
@@ -783,18 +820,96 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                                   <td className="text-[var(--muted-foreground)]">{resolveEmployer(e) || '—'}</td>
                                   <td className="text-[var(--muted-foreground)]">{resolveTitle(e) || '—'}</td>
                                   <td><StatusBadge tone={isAlt ? 'orange' : 'blue'}>{roleLabel(e.expertRole)}</StatusBadge></td>
-                                  <td>{isAlt ? <span className="text-[11px] text-[var(--muted-foreground)]">—</span> : e.invitationStatus === 'confirmed' ? <StatusBadge tone="green">确认参加</StatusBadge> : <StatusBadge tone="blue">待回复</StatusBadge>}</td>
+                                  <td>
+                                    {isAlt ? <span className="text-[11px] text-[var(--muted-foreground)]">—</span> : e.invitationStatus === 'confirmed' ? (
+                                      <div className="flex flex-col items-start gap-1">
+                                        <StatusBadge tone="green">确认参加</StatusBadge>
+                                        {/* 自答/代变更时刻一并记录 + 代回应标注 */}
+                                        {e.invitationActorType === 'STAFF' && e.expertRespondedAt && (
+                                          <span className="text-[10px] leading-4 text-[var(--muted-foreground)] tabular-nums">
+                                            自答于 {new Date(e.expertRespondedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}（原{e.expertStatus === 'confirmed' ? '确认参加' : '婉拒'}）
+                                            {e.rsvpRespondedAt ? ` · 代变更于 ${new Date(e.rsvpRespondedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}
+                                          </span>
+                                        )}
+                                        {e.invitationActorType === 'STAFF' && (
+                                          <span className="inline-flex items-center gap-0.5 rounded-[4px] px-1 py-0.5 text-[9px] font-bold"
+                                            style={{ background: 'color-mix(in oklch, var(--warning) 14%, transparent)', color: 'var(--warning)' }}>
+                                            工作人员代回应{e.invitationActorName ? ` · ${e.invitationActorName}` : ''}
+                                          </span>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div className="flex flex-col items-start gap-1">
+                                        <StatusBadge tone="blue">待回复</StatusBadge>
+                                        {e.invitationActorType === 'STAFF' && (
+                                          <span className="inline-flex items-center gap-0.5 rounded-[4px] px-1 py-0.5 text-[9px] font-bold"
+                                            style={{ background: 'color-mix(in oklch, var(--warning) 14%, transparent)', color: 'var(--warning)' }}>
+                                            工作人员代回应{e.invitationActorName ? ` · ${e.invitationActorName}` : ''}
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </td>
                                   <td>
                                     {isAlt ? <span className="text-[11px] text-[var(--muted-foreground)]">—</span> : e.signedIn ? <StatusBadge tone="green">已签到</StatusBadge> : <StatusBadge tone="gray">未签到</StatusBadge>}
                                   </td>
                                   <td className="text-center">
-                                    {!isAlt && hasAlts && !isEvalStarted && !e.signedIn && (
-                                      <button onClick={() => { setReplaceModalExpert({ id: e.id, name: e.expertName, isLead: e.isLead ?? false }); setReplaceModalAlt(null); setReplaceModalError(null); setReplaceModalOpen(true); }} className="neu-btn-xs">替换</button>
-                                    )}
+                                    <div className="flex flex-col items-center gap-1">
+                                      {!isAlt && hasAlts && !isEvalStarted && !e.signedIn && (
+                                        <button onClick={() => { setReplaceModalExpert({ id: e.id, name: e.expertName, isLead: e.isLead ?? false }); setReplaceModalAlt(null); setReplaceModalError(null); setReplaceModalOpen(true); }} className="neu-btn-xs">替换</button>
+                                      )}
+                                      {/* 代回应/代变更通道（2026-10-21 适配）：留痕正式渠道 */}
+                                      {e.invitationStatus === 'pending' ? (
+                                        <div className="flex items-center gap-1">
+                                          <button onClick={() => { setExpertProxyReason(''); setExpertProxy({ userId: e.userId, name: e.expertName, role: e.expertRole, target: 'confirmed', current: 'pending' }); }}
+                                            className="neu-btn-xs is-success" title="电话/线下核实后代为确认（必填理由，留痕展示）">代确认</button>
+                                          <button onClick={() => { setExpertProxyReason(''); setExpertProxy({ userId: e.userId, name: e.expertName, role: e.expertRole, target: 'declined', current: 'pending' }); }}
+                                            className="neu-btn-xs is-danger" title="代为婉拒（必填理由；正选婉拒触发递补）">代婉拒</button>
+                                        </div>
+                                      ) : !e.signedIn && !isEvalStarted ? (
+                                        <button onClick={() => { setExpertProxyReason(''); setExpertProxy({ userId: e.userId, name: e.expertName, role: e.expertRole, target: e.invitationStatus === 'confirmed' ? 'declined' : 'confirmed', current: e.invitationStatus as 'confirmed' }); }}
+                                          className="neu-btn-xs" title="工作人员代为变更邀请（必填理由；确认→婉拒将通知专家本人并触发递补）">代为变更</button>
+                                      ) : null}
+                                    </div>
                                   </td>
                                 </tr>
                               );
                             })}
+                            {/* 已婉拒分区（2026-10-21 适配）：自答快照/理由可查 + 留痕恢复通道，替代消失式过滤 */}
+                            {declinedExperts.map((e, i) => (
+                              <tr key={`d-${e.id}`} className="opacity-60">
+                                <td className="text-center text-[var(--muted-foreground)] tabular-nums">{i + 1}</td>
+                                <td className="font-medium text-[var(--muted-foreground)]">{e.expertName}</td>
+                                <td className="text-[var(--muted-foreground)]">{e.major || '—'}</td>
+                                <td className="text-[var(--muted-foreground)]">{resolveEmployer(e) || '—'}</td>
+                                <td className="text-[var(--muted-foreground)]">{resolveTitle(e) || '—'}</td>
+                                <td><StatusBadge tone="gray">{roleLabel(e.expertRole)}</StatusBadge></td>
+                                <td>
+                                  <div className="flex flex-col items-start gap-1">
+                                    <StatusBadge tone="red">
+                                      {e.invitationActorType === 'SYSTEM' ? '超时弃权' : e.invitationActorType === 'STAFF' ? '已婉拒（代）' : '已婉拒'}
+                                    </StatusBadge>
+                                    {e.expertRespondedAt && (
+                                      <span className="text-[10px] leading-4 text-[var(--muted-foreground)] tabular-nums">
+                                        自答于 {new Date(e.expertRespondedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                      </span>
+                                    )}
+                                    {e.invitationReason && (
+                                      <span className="max-w-[220px] truncate rounded-[4px] px-1 py-0.5 text-[9px] font-semibold"
+                                        style={{ background: 'color-mix(in oklch, var(--warning) 8%, transparent)', color: 'var(--foreground)' }}
+                                        title={e.invitationReason}>理由：{e.invitationReason}</span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td><span className="text-[11px] text-[var(--muted-foreground)]">—</span></td>
+                                <td className="text-center">
+                                  {!isEvalStarted && (
+                                    <button onClick={() => { setExpertProxyReason(''); setExpertProxy({ userId: e.userId, name: e.expertName, role: e.expertRole, target: 'confirmed', current: 'declined' }); }}
+                                      className="neu-btn-xs" title="恢复该专家的确认（评标中/席位已被递补占用时后端会拒绝）">恢复</button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
                           </tbody>
                         </table>
                       </div>
@@ -802,6 +917,81 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                   })()
                 )}
               </SectionCard>
+
+              {/* 专家邀请代回应/代变更弹窗（2026-10-21 适配：必填理由留痕，与供应商回执代变更同口径） */}
+              {expertProxy && workspace && (
+                <Modal
+                  open
+                  onClose={() => { if (!expertProxySubmitting) setExpertProxy(null); }}
+                  closeOnBackdrop={!expertProxySubmitting}
+                  closeOnEsc={!expertProxySubmitting}
+                  size="md"
+                  title={
+                    <span className="flex items-center gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border text-[var(--warning)]"
+                        style={{ borderColor: 'color-mix(in oklch, var(--warning) 25%, transparent)', background: 'color-mix(in oklch, var(--warning) 10%, transparent)' }}>
+                        <Shield size={20} strokeWidth={1.9} />
+                      </span>
+                      {expertProxy.current === 'pending' ? '工作人员代回应专家邀请' : '工作人员代为变更专家邀请'}
+                    </span>
+                  }
+                  description={`${expertProxy.name}（${expertProxy.role}） · 当前${
+                    expertProxy.current === 'pending' ? '待回复' : expertProxy.current === 'confirmed' ? '确认参加' : '已婉拒'
+                  }`}
+                  footer={
+                    <>
+                      <button onClick={() => setExpertProxy(null)} disabled={expertProxySubmitting} className="neu-btn-soft !h-9 !text-[13px] disabled:opacity-40">取消</button>
+                      <button onClick={() => void submitExpertProxy()} disabled={expertProxySubmitting} className="neu-btn-primary !h-9 !text-[13px] disabled:opacity-50">
+                        {expertProxySubmitting && <Loader2 size={14} className="animate-spin" />}
+                        {expertProxy.target === 'confirmed' ? '确认代为确认参加' : '确认代为婉拒'}
+                      </button>
+                    </>
+                  }
+                >
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3 rounded-[12px] px-4 py-3"
+                      style={{ background: 'oklch(1 0 0 / 0.45)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+                      <span className="text-[12px] font-semibold"
+                        style={{ color: expertProxy.current === 'confirmed' ? 'var(--success)' : expertProxy.current === 'declined' ? 'var(--danger)' : 'var(--muted-foreground)' }}>
+                        {expertProxy.current === 'pending' ? '待回复' : expertProxy.current === 'confirmed' ? '确认参加' : '已婉拒'}
+                      </span>
+                      <span className="text-[var(--muted-foreground)]">→</span>
+                      <span className="text-[12px] font-bold" style={{ color: expertProxy.target === 'confirmed' ? 'var(--success)' : 'var(--danger)' }}>
+                        {expertProxy.target === 'confirmed' ? '确认参加' : '婉拒'}
+                      </span>
+                    </div>
+                    {expertProxy.current === 'confirmed' && expertProxy.target === 'declined' && (
+                      <div className="rounded-[12px] px-4 py-3 text-[11px] leading-5"
+                        style={{ background: 'color-mix(in oklch, var(--warning) 9%, transparent)', color: 'var(--foreground)' }}>
+                        该专家已确认参加。代为变更为「婉拒」后：系统将<b>站内信通知专家本人</b>（含理由与操作人）、
+                        邀请轨迹留痕，且若为<b>正选将自动递补候补</b>。请确认已与专家充分沟通。
+                      </div>
+                    )}
+                    {expertProxy.role === '正选' && expertProxy.target === 'declined' && (
+                      <div className="rounded-[12px] px-4 py-3 text-[11px] leading-5 text-[var(--muted-foreground)]"
+                        style={{ background: 'oklch(1 0 0 / 0.4)' }}>
+                        正选专家婉拒后系统将按综合评分自动递补候补（评标进行中除外——须走异议裁决/补选渠道）。
+                      </div>
+                    )}
+                    <div>
+                      <label className="text-[11px] font-bold text-[var(--foreground)] mb-1.5 block">
+                        代回应理由 <span className="text-[var(--danger)]">*</span>
+                        <span className="ml-1.5 font-normal text-[var(--muted-foreground)]">（必填，至少 5 个字；将展示在专家确认面板并留痕）</span>
+                      </label>
+                      <textarea
+                        value={expertProxyReason}
+                        onChange={(ev) => setExpertProxyReason(ev.target.value)}
+                        rows={3}
+                        maxLength={500}
+                        disabled={expertProxySubmitting}
+                        placeholder={expertProxy.target === 'confirmed' ? '如：电话核实专家档期，对方口头确认参加评审…' : '如：电话核实档期冲突无法出席 / 健康原因请假，取消邀请…'}
+                        className="neu-input w-full resize-none text-[13px]"
+                      />
+                      <div className="mt-1 text-right text-[10px] tabular-nums text-[var(--muted-foreground)]">{expertProxyReason.trim().length} / 500</div>
+                    </div>
+                  </div>
+                </Modal>
+              )}
 
               {/* 正选专家替换弹窗 */}
               {replaceModalOpen && replaceModalExpert && workspace && (

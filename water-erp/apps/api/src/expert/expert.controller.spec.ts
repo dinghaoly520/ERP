@@ -21,7 +21,9 @@ describe('ExpertController', () => {
     };
     expertAdminService = { autoPromoteCandidate: jest.fn().mockResolvedValue(null), maybeAutoPromote: jest.fn().mockResolvedValue(null) };
     prisma = {
-      bidExpert: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}) },
+      // 2026-10-21 留痕适配：rsvp 两路径改守卫式 updateMany（原子锁/防双写轨迹）+ expertInvitationLog
+      bidExpert: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      expertInvitationLog: { create: jest.fn().mockResolvedValue({}) },
       // I2（2026-09-24 全链审计）：rsvpRespond 婉拒前读项目阶段（终态拒绝写 declined）
       bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'SUBMIT' }) },
     };
@@ -153,9 +155,9 @@ describe('ExpertController', () => {
         project,
       });
       await controller.rsvpVerify('t');
-      expect(prisma.bidExpert.update).toHaveBeenCalledWith(expect.objectContaining({
-        where: { id: 'be-1' },
-        data: expect.objectContaining({ invitationStatus: 'declined' }),
+      expect(prisma.bidExpert.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 'be-1', invitationStatus: 'pending' },
+        data: expect.objectContaining({ invitationStatus: 'declined', invitationActorType: 'SYSTEM' }),
       }));
       expect(expertAdminService.maybeAutoPromote).toHaveBeenCalledTimes(1);
       expect(expertAdminService.maybeAutoPromote).toHaveBeenCalledWith('p1');
@@ -168,7 +170,7 @@ describe('ExpertController', () => {
         project,
       });
       await controller.rsvpVerify('t');
-      expect(prisma.bidExpert.update).toHaveBeenCalled();
+      expect(prisma.bidExpert.updateMany).toHaveBeenCalled();
       expect(expertAdminService.maybeAutoPromote).not.toHaveBeenCalled();
     });
   });
@@ -189,14 +191,14 @@ describe('ExpertController', () => {
     it('rsvpVerify：过期+pending+终态项目（ARCHIVED）→ 409 PROJECT_CLOSED 且不写 declined', async () => {
       prisma.bidExpert.findUnique.mockResolvedValue(mkBe({ project: { ...project, stage: 'ARCHIVED' } }));
       await expect(controller.rsvpVerify('t')).rejects.toMatchObject({ response: { code: 'PROJECT_CLOSED' } });
-      expect(prisma.bidExpert.update).not.toHaveBeenCalled();
+      expect(prisma.bidExpert.updateMany).not.toHaveBeenCalled();
       expect(expertAdminService.maybeAutoPromote).not.toHaveBeenCalled();
     });
 
     it('rsvpVerify：过期+pending+EVALUATING → declined 照写但递补抑制（maybeAutoPromote 返回 null）', async () => {
       prisma.bidExpert.findUnique.mockResolvedValue(mkBe({ project: { ...project, stage: 'EVALUATING' } }));
       await controller.rsvpVerify('t');
-      expect(prisma.bidExpert.update).toHaveBeenCalledWith(expect.objectContaining({
+      expect(prisma.bidExpert.updateMany).toHaveBeenCalledWith(expect.objectContaining({
         data: expect.objectContaining({ invitationStatus: 'declined' }),
       }));
       expect(expertAdminService.maybeAutoPromote).toHaveBeenCalledTimes(1);
@@ -206,7 +208,7 @@ describe('ExpertController', () => {
       prisma.bidExpert.findUnique.mockResolvedValue(mkBe({ rsvpExpiresAt: future }));
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ABORTED' });
       await expect(controller.rsvpRespond('t', { status: 'declined' })).rejects.toMatchObject({ response: { code: 'PROJECT_CLOSED' } });
-      expect(prisma.bidExpert.update).not.toHaveBeenCalled();
+      expect(prisma.bidExpert.updateMany).not.toHaveBeenCalled();
       expect(expertAdminService.maybeAutoPromote).not.toHaveBeenCalled();
     });
 
@@ -214,8 +216,9 @@ describe('ExpertController', () => {
       prisma.bidExpert.findUnique.mockResolvedValue(mkBe({ rsvpExpiresAt: future }));
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       const res = await controller.rsvpRespond('t', { status: 'declined' });
-      expect(prisma.bidExpert.update).toHaveBeenCalledWith(expect.objectContaining({
-        data: expect.objectContaining({ invitationStatus: 'declined' }),
+      expect(prisma.bidExpert.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 'be-1', invitationStatus: 'pending' },
+        data: expect.objectContaining({ invitationStatus: 'declined', invitationActorType: 'EXPERT', expertStatus: 'declined' }),
       }));
       expect(expertAdminService.maybeAutoPromote).toHaveBeenCalledTimes(1);
       expect(res.promoted).toBeNull();

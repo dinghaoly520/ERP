@@ -1,7 +1,9 @@
-import { Controller, Get, Post, Put, Patch, Body, Param, Query, Request } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Body, Param, Query, Request, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
+import { CurrentUser } from '../auth/current-user.decorator';
 import { ExpertAdminService } from './expert-admin.service';
 import { ExpertExtractionService } from './expert-extraction.service';
 import { ExpertMemoService } from './expert-memo.service';
@@ -218,16 +220,22 @@ export class ExpertAdminController {
     return this.expertAdminService.getProjectInvitations(projectId);
   }
 
-  @Post('invitations/:projectId/:userId/confirm')
-  @ApiOperation({ summary: '标记专家已确认参与评审邀请' })
-  confirmInvitation(@Param('projectId') projectId: string, @Param('userId') userId: string) {
-    return this.expertAdminService.confirmInvitation(projectId, userId);
-  }
-
-  @Post('invitations/:projectId/:userId/decline')
-  @ApiOperation({ summary: '标记专家已拒绝参与评审邀请' })
-  declineInvitation(@Param('projectId') projectId: string, @Param('userId') userId: string) {
-    return this.expertAdminService.declineInvitation(projectId, userId);
+  @Post('invitations/:projectId/:userId/proxy-mark')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @ApiOperation({ summary: '工作人员代回应/代变更专家邀请（理由必填；确认→婉拒联动通知本人并触发递补）' })
+  proxyMarkInvitation(
+    @Param('projectId') projectId: string,
+    @Param('userId') userId: string,
+    @Body() body: { status?: 'confirmed' | 'declined'; reason?: string },
+    @CurrentUser('sub') actorId?: string,
+  ) {
+    if (!body?.status || !['confirmed', 'declined'].includes(body.status)) {
+      throw new BadRequestException({ error: 'status 仅支持 confirmed/declined', code: 'BAD_INPUT' });
+    }
+    if (!actorId) throw new BadRequestException({ error: '缺少操作人身份', code: 'BAD_INPUT' });
+    return this.expertAdminService.proxyMarkInvitation({
+      projectId, userId, status: body.status, actorId, reason: body.reason ?? '',
+    });
   }
 
   @Get('retire-candidates')

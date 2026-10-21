@@ -65,6 +65,30 @@ export const EXPERT_AUDIT_ACTIONS = [
   'EXPERT_VIOLATION_RECORDED', // 违规记录
 ] as const;
 
+/** 专家邀请作答方（2026-10-21 代为变更设计适配，口径与供应商 RsvpActorType 对齐） */
+export type ExpertInvitationActor = 'EXPERT' | 'STAFF' | 'SYSTEM';
+
+/** 邀请轨迹落账（写侧统一入口——邀请状态/角色任何流转必须留痕，缺失即审计断链；失败 warn 不阻断主流程） */
+async function writeInvitationLog(
+  tx: { expertInvitationLog: { create: (args: any) => Promise<unknown> } },
+  data: {
+    bidExpertId: string; projectId: string; userId: string;
+    action: string; actorType: ExpertInvitationActor; actorId?: string | null; actorName?: string | null;
+    fromStatus?: string | null; toStatus?: string | null; fromRole?: string | null; toRole?: string | null; reason?: string | null;
+  },
+) {
+  await tx.expertInvitationLog.create({
+    data: {
+      bidExpertId: data.bidExpertId, projectId: data.projectId, userId: data.userId,
+      action: data.action, actorType: data.actorType, actorId: data.actorId ?? null, actorName: data.actorName ?? null,
+      fromStatus: data.fromStatus ?? null, toStatus: data.toStatus ?? null,
+      fromRole: data.fromRole ?? null, toRole: data.toRole ?? null, reason: data.reason ?? null,
+    },
+  }).catch((err: any) => {
+    Logger.warn(`专家邀请轨迹落账失败 be=${data.bidExpertId} action=${data.action}: ${err?.message ?? err}`, 'ExpertAdminService');
+  });
+}
+
 @Injectable()
 export class ExpertAdminService {
   // N6 收尾：TTL 真单源——毫秒值复用 rsvpTtlHours()（含 "abc"/"0" 等非法值回退 0.25），
@@ -791,13 +815,21 @@ export class ExpertAdminService {
     // 先清理超时未回复的 pending 邀请——与 RSVP verify 行为一致（TTL 过期自动弃权并递补）
     const expiredPending = await this.prisma.bidExpert.findMany({
       where: { projectId, invitationStatus: 'pending', rsvpExpiresAt: { lt: new Date() } },
-      select: { id: true, expertRole: true },
+      select: { id: true, expertRole: true, userId: true },
     });
     if (expiredPending.length > 0) {
       await this.prisma.bidExpert.updateMany({
         where: { id: { in: expiredPending.map(e => e.id) } },
-        data: { invitationStatus: 'declined', rsvpRespondedAt: new Date() },
+        data: { invitationStatus: 'declined', rsvpRespondedAt: new Date(), invitationActorType: 'SYSTEM' },
       });
+      // 超时弃权轨迹（2026-10-21 留痕适配）：SYSTEM 作答方与专家主动婉拒区分展示
+      for (const e of expiredPending) {
+        await writeInvitationLog(this.prisma, {
+          bidExpertId: e.id, projectId, userId: e.userId,
+          action: 'AUTO_DECLINED', actorType: 'SYSTEM', fromStatus: 'pending', toStatus: 'declined',
+          reason: '邀请链接超时未回复，系统自动视为弃权',
+        });
+      }
       // 仅正选过期才递补（候补过期不占正选席位）；失败静默，不阻塞列表返回
       if (expiredPending.some(e => e.expertRole === '正选')) {
         await this.maybeAutoPromote(projectId).catch(() => null); // I2：阶段感知递补——评标中抑制、终态拒绝
@@ -812,16 +844,45 @@ export class ExpertAdminService {
         isLead: true, expertRole: true, invitationStatus: true,
         reviewGroup: true, dutyRole: true,
         rsvpToken: true, rsvpRespondedAt: true, rsvpExpiresAt: true,
+        // 邀请作答留痕（2026-10-21）：作答方/理由/自答快照 + 行内轨迹
+        invitationActorType: true, invitationActorName: true, invitationReason: true,
+        expertRespondedAt: true, expertStatus: true,
         user: { select: { phone: true, expertProfile: { select: { title: true, employer: true, phone: true } } } },
       },
     });
+    // 邀请轨迹（按行聚合，时间正序）：面板行内可查 通知→自答→代变更→递补→替换 全程
+    const trailByExpert = new Map<string, unknown[]>();
+    {
+      const logs = await this.prisma.expertInvitationLog.findMany({
+        where: { bidExpertId: { in: records.map(r => r.id) } },
+        orderBy: { createdAt: 'asc' },
+      });
+      for (const l of logs) {
+        const arr = (trailByExpert.get(l.bidExpertId) ?? []) as unknown[];
+        arr.push({
+          action: l.action, actorType: l.actorType, actorName: l.actorName,
+          fromStatus: l.fromStatus, toStatus: l.toStatus, fromRole: l.fromRole, toRole: l.toRole,
+          reason: l.reason, createdAt: l.createdAt.toISOString(),
+        });
+        trailByExpert.set(l.bidExpertId, arr);
+      }
+    }
     const confirmed = records.filter(r => r.invitationStatus === 'confirmed').length;
     const declined = records.filter(r => r.invitationStatus === 'declined').length;
     const pending = records.filter(r => r.invitationStatus === 'pending').length;
     const candidates = records.filter(r => r.expertRole === '候补' && r.invitationStatus === 'pending');
     return {
       // 抽取通知/RSVP 跟进明文出口（2026-10-12 用户裁定）：主持人逐一致电确认到场，掩码+逐行点击揭示不便；存储仍密封
-      experts: records.map(r => ({ ...r, title: r.user?.expertProfile?.title ?? null, employer: r.user?.expertProfile?.employer ?? null, phone: openPiiForMask(r.user?.expertProfile?.phone ?? r.user?.phone ?? null), rsvpNo: r.id.slice(-8).toUpperCase() })),
+      experts: records.map(r => ({
+        ...r,
+        title: r.user?.expertProfile?.title ?? null,
+        employer: r.user?.expertProfile?.employer ?? null,
+        phone: openPiiForMask(r.user?.expertProfile?.phone ?? r.user?.phone ?? null),
+        rsvpNo: r.id.slice(-8).toUpperCase(),
+        // 作答方口径（null=存量已答行，展示层按专家自答兜底）
+        invitationActorType: (r.invitationActorType as string | null) ?? (r.rsvpRespondedAt ? 'EXPERT' : null),
+        invitationTrail: trailByExpert.get(r.id) ?? [],
+      })),
       summary: {
         total: records.length,
         confirmed,
@@ -971,10 +1032,22 @@ export class ExpertAdminService {
       if (!freshBest || freshBest.expertRole !== '候补' || freshBest.invitationStatus === 'declined') {
         return null; // 并发已被递补/已婉拒——本次放弃（调用方 promoted=null 语义已存在）
       }
-      return tx.bidExpert.update({
+      const promotedRow = await tx.bidExpert.update({
         where: { id: best.id },
-        data: { expertRole: '正选', invitationStatus: 'confirmed', ...(promotedAsLead ? { isLead: true } : {}) },
+        data: {
+          expertRole: '正选', invitationStatus: 'confirmed',
+          ...(promotedAsLead ? { isLead: true } : {}),
+          invitationActorType: 'SYSTEM', invitationReason: null,
+        },
       });
+      // 递补转正轨迹（2026-10-21 留痕适配）：角色流转与状态变更一并落账（自答快照不触碰——递补非自答）
+      await writeInvitationLog(tx, {
+        bidExpertId: best.id, projectId, userId: best.userId,
+        action: 'PROMOTED', actorType: 'SYSTEM',
+        fromStatus: freshBest.invitationStatus, toStatus: 'confirmed', fromRole: '候补', toRole: '正选',
+        reason: '正选婉拒/超时弃权，按综合评分自动递补转正',
+      });
+      return promotedRow;
     });
     if (!promoted) return null;
 
@@ -1018,7 +1091,8 @@ export class ExpertAdminService {
     }
   }
 
-  /** 标记专家已拒绝参与评审，并自动递补候补（幂等 + 阶段门控） */
+  /** 标记专家已拒绝参与评审，并自动递补候补（幂等 + 阶段门控）。
+   *  专家自助路径（登录端婉拒）：落自答快照 + EXPERT 作答方 + 轨迹（2026-10-21 留痕适配） */
   async declineInvitation(projectId: string, userId: string) {
     await this.assertInvitationActionable(projectId);
     const record = await this.prisma.bidExpert.findFirst({ where: { projectId, userId } });
@@ -1027,7 +1101,22 @@ export class ExpertAdminService {
     if (record.invitationStatus === 'confirmed') {
       throw new ConflictException({ error: '您已确认参加，如需变更请联系采购方', code: 'ALREADY_CONFIRMED' });
     }
-    await this.prisma.bidExpert.update({ where: { id: record.id }, data: { invitationStatus: 'declined' } });
+    // 守卫式更新防并发双写轨迹；自答快照一并落（代变更永不触碰）
+    const guard = await this.prisma.bidExpert.updateMany({
+      where: { id: record.id, invitationStatus: 'pending' },
+      data: {
+        invitationStatus: 'declined', rsvpRespondedAt: new Date(),
+        invitationActorType: 'EXPERT', invitationActorName: record.expertName,
+        expertRespondedAt: new Date(), expertStatus: 'declined',
+      },
+    });
+    if (guard.count > 0) {
+      await writeInvitationLog(this.prisma, {
+        bidExpertId: record.id, projectId, userId,
+        action: 'RESPONDED', actorType: 'EXPERT', actorName: record.expertName,
+        fromStatus: 'pending', toStatus: 'declined', reason: '专家登录端婉拒',
+      });
+    }
     // 婉拒 → 自动递补候补（与 RSVP 链接路径一致）；仅正选婉拒才递补——候补婉拒不产生正选空缺，
     // 无条件递补会把另一候补超编转正并徒耗候补席位（D7 审查）；递补失败静默，不影响婉拒结果。
     // I2：递补经 maybeAutoPromote 阶段感知——EVALUATING 婉拒照写但抑制递补（上面已先行拒绝终态）
@@ -1053,8 +1142,8 @@ export class ExpertAdminService {
     return { success: true, generated: false, content: null };
   }
 
-  /** 标记专家已确认参与评审（管理员手动确认或专家点链接自助确认；幂等 + 阶段门控） */
-  async confirmInvitation(projectId: string, userId: string) {
+  /** 专家登录端自助确认（幂等 + 阶段门控）：落 EXPERT 作答方 + 自答快照 + 轨迹（2026-10-21 留痕适配） */
+  async selfConfirmInvitation(projectId: string, userId: string) {
     await this.assertInvitationActionable(projectId);
     const record = await this.prisma.bidExpert.findFirst({ where: { projectId, userId } });
     if (!record) throw new NotFoundException('未找到该项目的邀请记录');
@@ -1062,8 +1151,103 @@ export class ExpertAdminService {
     if (record.invitationStatus === 'declined') {
       throw new ConflictException({ error: '您已婉拒该邀请，如需参加请联系采购方', code: 'ALREADY_DECLINED' });
     }
-    await this.prisma.bidExpert.update({ where: { id: record.id }, data: { invitationStatus: 'confirmed' } });
+    const guard = await this.prisma.bidExpert.updateMany({
+      where: { id: record.id, invitationStatus: 'pending' },
+      data: {
+        invitationStatus: 'confirmed', rsvpRespondedAt: new Date(),
+        invitationActorType: 'EXPERT', invitationActorName: record.expertName,
+        expertRespondedAt: new Date(), expertStatus: 'confirmed',
+      },
+    });
+    if (guard.count > 0) {
+      await writeInvitationLog(this.prisma, {
+        bidExpertId: record.id, projectId, userId,
+        action: 'RESPONDED', actorType: 'EXPERT', actorName: record.expertName,
+        fromStatus: 'pending', toStatus: 'confirmed', reason: '专家登录端确认',
+      });
+    }
     return { success: true, status: 'confirmed' };
+  }
+
+  /**
+   * 工作人员代回应/代变更（2026-10-21 代为变更设计适配专家域）：
+   * - 专家未回链接（电话核实）→ 代确认/代婉拒；专家已确认但需调整 → 代为变更；
+   * - 理由必填（≥5 字）落 invitationReason 展示；每次变更落 ExpertInvitationLog 轨迹；
+   * - 「确认 → 婉拒」联动站内信通知专家本人（EXPERT_INVITATION_OVERRIDDEN）并触发递补；
+   * - 「婉拒 → 确认」恢复仅限：非 EVALUATING（评标中改委员会组成须走异议裁决/补选）且
+   *   无其他已确认正选（防递补后恢复造成正选超编）；
+   * - 【不变量】expertRespondedAt/expertStatus（自答快照）绝不覆盖——原回执一并记录。
+   */
+  async proxyMarkInvitation(params: {
+    projectId: string; userId: string; status: 'confirmed' | 'declined'; actorId: string; reason: string;
+  }) {
+    const { projectId, userId, status } = params;
+    const reason = (params.reason ?? '').trim().slice(0, 500);
+    if (reason.length < 5) {
+      throw new BadRequestException({ error: '请填写代回应理由（至少 5 个字），理由将展示在专家确认面板', code: 'REASON_REQUIRED' });
+    }
+    await this.assertInvitationActionable(projectId);
+    const actor = await this.prisma.user.findUnique({ where: { id: params.actorId }, select: { displayName: true } });
+    if (!actor) throw new NotFoundException({ error: '操作人账号不存在', code: 'ACTOR_NOT_FOUND' });
+    const actorName = actor.displayName || '工作人员';
+
+    const record = await this.prisma.bidExpert.findFirst({ where: { projectId, userId } });
+    if (!record) throw new NotFoundException('未找到该项目的邀请记录');
+    if (record.signedIn && status === 'declined') {
+      throw new ConflictException({ error: '该专家已签到，不可代为婉拒（如需调整走替换/裁决渠道）', code: 'EXPERT_SIGNED_IN' });
+    }
+    // 同态幂等：不产生新轨迹不刷通知
+    if (record.invitationStatus === status) {
+      return { success: true, status, changed: false, promoted: null };
+    }
+    const from = record.invitationStatus;
+
+    // 婉拒→确认恢复：评标中禁改委员会组成 + 防递补后恢复超编正选
+    if (from === 'declined' && status === 'confirmed') {
+      const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
+      if (project?.stage === 'EVALUATING') {
+        throw new ConflictException({ error: '评标进行中不可恢复专家确认（改变委员会组成须走异议裁决/补选）', code: 'EVALUATING_LOCKED' });
+      }
+      if (record.expertRole === '正选') {
+        const otherConfirmed = await this.prisma.bidExpert.findFirst({
+          where: { projectId, expertRole: '正选', invitationStatus: 'confirmed', id: { not: record.id } },
+          select: { id: true },
+        });
+        if (otherConfirmed) {
+          throw new ConflictException({ error: '该席位已被递补占用（存在其他已确认正选），不可直接恢复——请走替换流程', code: 'SEAT_TAKEN' });
+        }
+      }
+    }
+
+    await this.prisma.bidExpert.update({
+      where: { id: record.id },
+      data: {
+        invitationStatus: status, rsvpRespondedAt: new Date(),
+        invitationActorType: 'STAFF', invitationActorName: actorName, invitationReason: reason,
+      },
+    });
+    await writeInvitationLog(this.prisma, {
+      bidExpertId: record.id, projectId, userId,
+      action: 'STAFF_MARKED', actorType: 'STAFF', actorId: params.actorId, actorName,
+      fromStatus: from, toStatus: status, reason,
+    });
+
+    // 确认→婉拒：通知本人（失败不阻断）+ 正选婉拒触发递补（maybeAutoPromote 阶段感知）
+    let promoted: { userId: string; expertName: string } | null = null;
+    if (from === 'confirmed' && status === 'declined') {
+      try {
+        const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { name: true } });
+        await this.notification.sendToUser(userId, ['in_app'], {
+          type: 'EXPERT_INVITATION_OVERRIDDEN',
+          title: '专家邀请状态变更通知',
+          content: `您对项目【${project?.name ?? ''}】评审邀请的确认已被采购方变更：确认参加 → 婉拒。理由：${reason}（操作人：${actorName}）。如有疑问请联系采购中心。`,
+        });
+      } catch { /* 通知失败不阻断 */ }
+    }
+    if (status === 'declined' && record.expertRole === '正选') {
+      promoted = await this.maybeAutoPromote(projectId).catch(() => null);
+    }
+    return { success: true, status, changed: true, promoted };
   }
 
   /** 撤销专家报告确认 — 允许专家在确认后修改评分并重新确认 */

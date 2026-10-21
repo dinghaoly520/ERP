@@ -136,7 +136,7 @@ export class ExpertController {
 
   @Post('projects/:projectId/invitation/confirm')
   confirmMyInvitation(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
-    return this.expertAdminService.confirmInvitation(projectId, userId);
+    return this.expertAdminService.selfConfirmInvitation(projectId, userId);
   }
 
   @Post('projects/:projectId/invitation/decline')
@@ -170,7 +170,20 @@ export class ExpertController {
       if (be.project.stage === 'ARCHIVED' || be.project.stage === 'ABORTED') {
         throw new ConflictException({ error: '项目已结束，无法操作邀请', code: 'PROJECT_CLOSED' });
       }
-      await this.prisma.bidExpert.update({ where: { id: be.id }, data: { invitationStatus: 'declined', rsvpRespondedAt: new Date() } });
+      // 守卫式更新防并发双写 + SYSTEM 作答方 + 轨迹（2026-10-21 留痕适配）
+      const guard = await this.prisma.bidExpert.updateMany({
+        where: { id: be.id, invitationStatus: 'pending' },
+        data: { invitationStatus: 'declined', rsvpRespondedAt: new Date(), invitationActorType: 'SYSTEM' },
+      });
+      if (guard.count > 0) {
+        await this.prisma.expertInvitationLog.create({
+          data: {
+            bidExpertId: be.id, projectId: be.projectId, userId: be.userId,
+            action: 'AUTO_DECLINED', actorType: 'SYSTEM', fromStatus: 'pending', toStatus: 'declined',
+            reason: `邀请链接超时（${rsvpTtlLabel()}），系统自动视为弃权`,
+          },
+        }).catch(() => { /* 轨迹失败不阻断 verify */ });
+      }
       be.invitationStatus = 'declined';
       if (be.expertRole === '正选') {
         await this.expertAdminService.maybeAutoPromote(be.projectId).catch(() => null);
@@ -222,10 +235,25 @@ export class ExpertController {
         throw new ConflictException({ error: '项目已结束，无法操作邀请', code: 'PROJECT_CLOSED' });
       }
     }
-    await this.prisma.bidExpert.update({
-      where: { id: be.id },
-      data: { invitationStatus: body.status, rsvpRespondedAt: new Date() },
+    // 自答落库（守卫式原子锁 + EXPERT 作答方 + 自答快照）+ 轨迹（2026-10-21 留痕适配）
+    const guard = await this.prisma.bidExpert.updateMany({
+      where: { id: be.id, invitationStatus: 'pending' },
+      data: {
+        invitationStatus: body.status, rsvpRespondedAt: new Date(),
+        invitationActorType: 'EXPERT', invitationActorName: be.expertName,
+        expertRespondedAt: new Date(), expertStatus: body.status,
+      },
     });
+    if (guard.count === 0) {
+      throw new BadRequestException({ error: '您已回复过此邀请', code: 'ALREADY_RESPONDED' });
+    }
+    await this.prisma.expertInvitationLog.create({
+      data: {
+        bidExpertId: be.id, projectId: be.projectId, userId: be.userId,
+        action: 'RESPONDED', actorType: 'EXPERT', actorName: be.expertName,
+        fromStatus: 'pending', toStatus: body.status,
+      },
+    }).catch(() => { /* 轨迹失败不阻断回执 */ });
     // 婉拒 → 自动递补候补；仅正选婉拒才递补——候补婉拒不产生正选空缺，无条件递补会超编转正另一候补（D7 审查）
     const rsvpNo = be.id.slice(-8).toUpperCase();
     const respondedAt = new Date().toISOString();

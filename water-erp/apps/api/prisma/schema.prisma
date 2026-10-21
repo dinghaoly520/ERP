@@ -717,6 +717,15 @@ model BidExpert {
   rsvpToken                 String?                 @unique
   rsvpExpiresAt             DateTime?
   rsvpRespondedAt           DateTime?
+  // ── 邀请作答留痕（2026-10-21 代为变更设计适配专家域，口径与供应商 InvitationRsvp 对齐）──
+  // 作答方：EXPERT=专家链接自答/登录端婉拒 | STAFF=工作人员代回应/代变更 | SYSTEM=超时弃权/递补；null=存量已答行按 EXPERT 兜底
+  invitationActorType       String?
+  invitationActorName       String? // 代回应人姓名快照（防改名/删号致轨迹不可读）
+  invitationReason          String? // 工作人员代回应/变更理由（STAFF 必填，界面展示）
+  // 专家自答快照：代变更不覆盖原回执——自答时刻与原始选择单独留存（用户口径：一并记录）
+  expertRespondedAt         DateTime?
+  expertStatus              String?
+  invitationLogs            ExpertInvitationLog[]
   user                      User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   project                   BidProject              @relation(fields: [projectId], references: [id], onDelete: Cascade)
   scoreRecords              BidScoreRecord[]
@@ -842,6 +851,32 @@ model BidScorePointDecision {
 }
 
 /// P5：专家手写/键盘备忘（项目/供应商/评分项级），contentText（OCR 或键盘）+ inkFileId→FileAsset（MinIO 笔迹图）
+/// 专家邀请回执轨迹（2026-10-21 代为变更设计适配专家域）：每次邀请状态/角色流转全量落账——
+/// 专家自答 RESPONDED / 超时弃权 AUTO_DECLINED / 工作人员代变更 STAFF_MARKED / 递补转正 PROMOTED /
+/// 替换互换 SWAP_OUT·SWAP_IN。「专家确认后被变更为拒绝」等关键事件供专家履职经历视图消费。
+model ExpertInvitationLog {
+  id          String    @id @default(cuid())
+  bidExpertId String
+  projectId   String
+  userId      String // 专家 userId
+  action      String // RESPONDED | AUTO_DECLINED | STAFF_MARKED | PROMOTED | SWAP_OUT | SWAP_IN
+  actorType   String // EXPERT | STAFF | SYSTEM
+  actorId     String?
+  actorName   String?
+  fromStatus  String?
+  toStatus    String?
+  fromRole    String? // 正选 | 候补（角色变更类动作填）
+  toRole      String?
+  reason      String?
+  createdAt   DateTime  @default(now())
+
+  bidExpert BidExpert @relation(fields: [bidExpertId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([userId])
+  @@index([bidExpertId])
+}
+
 model ExpertMemo {
   id           String         @id @default(cuid())
   expertId     String

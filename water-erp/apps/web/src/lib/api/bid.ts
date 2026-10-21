@@ -73,6 +73,13 @@ export interface BidWorkspaceExpert {
   major: string;
   expertRole: string; // 正选 | 候补
   invitationStatus: string; // pending | confirmed | declined
+  // ── 邀请作答留痕（2026-10-21 代为变更适配；workspace 原样返回 BidExpert 行）──
+  invitationActorType?: 'EXPERT' | 'STAFF' | 'SYSTEM' | null; // 作答方（null=存量已答行按 EXPERT 兜底）
+  invitationActorName?: string | null; // 代回应人姓名快照
+  invitationReason?: string | null; // 工作人员代回应/变更理由
+  expertRespondedAt?: string | null; // 专家自答快照时刻（代变更不覆盖）
+  expertStatus?: 'confirmed' | 'declined' | null; // 专家自答原始选择
+  rsvpRespondedAt?: string | null; // 当前生效状态的最后动作时刻（代变更后=变更时刻）
   title?: string | null; // 职称，来自 ExpertProfile
   isLead?: boolean; // 评审组长标记（专家抽取步骤第 5 步选定）
   isPurchaserRepresentative?: boolean; // 采购人代表（P1-7 不得任组长；组长替换时不可递补）

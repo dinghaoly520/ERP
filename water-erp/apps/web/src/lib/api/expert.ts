@@ -312,6 +312,20 @@ export function getEvaluationProjects(expertId: string) {
   return api.get<ExpertEvaluationProject[]>(`/expert-admin/${expertId}/evaluation-projects`);
 }
 
+// 工作人员代回应/代变更专家邀请（2026-10-21 代为变更设计适配）：理由必填（≥5 字，面板展示）；
+// 确认→婉拒联动通知专家本人并触发递补；婉拒→确认恢复受评标中/席位占用闸门保护
+export function proxyMarkExpertInvitation(
+  projectId: string,
+  userId: string,
+  status: 'confirmed' | 'declined',
+  reason: string,
+) {
+  return api.post<{ success: boolean; status: string; changed: boolean; promoted: { userId: string; expertName: string } | null }>(
+    `/expert-admin/invitations/${projectId}/${userId}/proxy-mark`,
+    { status, reason },
+  );
+}
+
 /** 关联项目评标结果窗口数据：官方结果 ∪ 该专家已评分供应商，附委员会均分对照与行为统计 */
 export interface EvaluationProjectDetail {
   project: { id: string; name: string; stage: string; procurementMethod: string; openTime: string; deadline: string; evaluationDeadline: string | null };

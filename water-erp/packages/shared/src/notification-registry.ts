@@ -432,6 +432,7 @@ const EXPERT_SPECS: NotificationTypeSpec[] = [
   { code: 'EXPERT_AUTO_PROMOTED', label: '专家自动递补', domain: 'expert', icon: 'UserCheck', tone: 'blue', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'EXPERT_SWAP_PROMOTED', label: '专家替补上岗', domain: 'expert', icon: 'UserCheck', tone: 'blue', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'EXPERT_SWAP_RELEASED', label: '专家替补释放', domain: 'expert', icon: 'UserMinus', tone: 'gray', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
+  { code: 'EXPERT_INVITATION_OVERRIDDEN', label: '专家邀请变更', domain: 'expert', icon: 'RefreshCw', tone: 'orange', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP }, // 2026-10-21 代为变更设计适配：工作人员把专家「确认参加」改为「婉拒」时通知本人（含理由与操作人），事件同步计入邀请轨迹
   { code: 'EXPERT_DISPUTE_RESOLVED', label: '专家异议结果', domain: 'expert', icon: 'CheckCircle2', tone: 'green', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'EXPERT_RETIRE_CANDIDATE', label: '专家退库预警', domain: 'expert', icon: 'UserMinus', tone: 'orange', actionable: true,
     // 2026-09-26 超界修复：专家库管理事件归 :3005（leader+staff 复核），不进 bid_host/admin；link 指 :3005 退库复核页
