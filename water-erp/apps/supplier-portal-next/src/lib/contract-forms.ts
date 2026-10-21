@@ -47,9 +47,3 @@ export function validateProofFile(file: Pick<File, "name" | "type" | "size">): s
 export function canAttachFulfillmentProof(contractStatus: string, fulfillmentStatus: string): boolean {
   return ["signed", "performing"].includes(contractStatus) && fulfillmentStatus !== "done";
 }
-
-export function validateSatisfaction(score: number): string | null {
-  return Number.isInteger(score) && score >= 1 && score <= 5
-    ? null
-    : "请选择 1 至 5 分的满意度";
-}

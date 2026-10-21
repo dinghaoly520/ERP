@@ -93,11 +93,9 @@ test("contract and framework workspaces use line tabs with linked exclusive pane
 test("contract dialogs remain mounted outside the selected data panel", () => {
   const archivePanel = contractsSource.indexOf('id="contracts-archive-panel"');
   const proofDialog = contractsSource.indexOf("<ProofUploadDialog");
-  const satisfactionDialog = contractsSource.indexOf("<SatisfactionDialog");
 
   assert.ok(archivePanel >= 0);
   assert.ok(proofDialog > archivePanel);
-  assert.ok(satisfactionDialog > proofDialog);
 });
 
 test("embedded own archives remove the outer module card and keep all archive actions", () => {

@@ -6,7 +6,6 @@ import {
   FileDown,
   FileSignature,
   Inbox,
-  MessageSquareHeart,
   RefreshCcw,
   TriangleAlert,
   Upload,
@@ -17,7 +16,6 @@ import { EmptyState, LoadingBlock, SpButton, SpTabPanel, SpTabs } from "@/compon
 import { toast } from "sonner";
 import { OwnArchivesPanel } from "@/components/own-archives-panel";
 import { ProofUploadDialog } from "@/components/contracts/proof-upload-dialog";
-import { SatisfactionDialog } from "@/components/contracts/satisfaction-dialog";
 import {
   canAttachFulfillmentProof,
   getLocalRecordsPanelVisibility,
@@ -41,7 +39,6 @@ export default function ContractsPage() {
   const [error, setError] = useState(false);
   const [items, setItems] = useState<SpContract[]>([]);
   const [proofTarget, setProofTarget] = useState<{ contract: SpContract; fulfillment: SpContractFulfillment } | null>(null);
-  const [satisfactionTarget, setSatisfactionTarget] = useState<SpContract | null>(null);
 
   const fetchList = async () => {
     setItems(await contractApi.listMine());
@@ -146,9 +143,6 @@ export default function ContractsPage() {
                               ) : (
                                 <span className="text-[var(--muted-foreground)]">该节点证据已锁定</span>
                               )}
-                              {c.status === "accepted" && f.type === "acceptance" && (
-                                <SpButton icon={MessageSquareHeart} onClick={() => setSatisfactionTarget(c)}>满意度评价</SpButton>
-                              )}
                             </div>
                           ))}
                         </div>
@@ -180,13 +174,6 @@ export default function ContractsPage() {
           toast.success("履约证明已上传并登记留痕");
           await fetchList();
         }}
-      />
-      <SatisfactionDialog
-        open={Boolean(satisfactionTarget)}
-        projectCode={satisfactionTarget?.projectCode ?? null}
-        contractCode={satisfactionTarget?.contractCode}
-        onClose={() => setSatisfactionTarget(null)}
-        onComplete={() => toast.success("感谢反馈，评价已登记")}
       />
     </>
   );

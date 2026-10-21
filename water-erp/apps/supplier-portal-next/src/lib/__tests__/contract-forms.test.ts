@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import * as contractForms from "../contract-forms";
 
-const { canAttachFulfillmentProof, validateProofFile, validateSatisfaction } = contractForms;
+const { canAttachFulfillmentProof, validateProofFile } = contractForms;
 const getLocalRecordsPanelVisibility = (
   contractForms as typeof contractForms & {
     getLocalRecordsPanelVisibility?: (view: "platform" | "archive") => {
@@ -50,10 +50,4 @@ test("supplier contract page labels approved contracts as awaiting signature", (
   );
   assert.match(source, /approved_for_signing/);
   assert.match(source, /内审已通过·待签署/);
-});
-
-test("satisfaction score must be an integer from one to five", () => {
-  assert.equal(validateSatisfaction(0), "请选择 1 至 5 分的满意度");
-  assert.equal(validateSatisfaction(3.5), "请选择 1 至 5 分的满意度");
-  assert.equal(validateSatisfaction(5), null);
 });
