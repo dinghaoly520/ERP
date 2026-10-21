@@ -2,7 +2,6 @@
 
 import { UnifiedHeader } from '@/components/unified-header';
 import { FlowBackdrop } from '@/components/flow-stage';
-import { AuroraBackdrop } from '@/components/aurora-backdrop';
 
 /* ═══════════════════════════════════════
    集团简介 — 四川省水利发展集团有限公司
@@ -23,8 +22,6 @@ const PROJECTS = ['引大济岷','长征渠','亭子口灌区','向家坝灌区'
 export default function AboutPage() {
   return (
     <div className="flow-page">
-      {/* 动态变色背景（2026-10-21）：品牌蓝系极光色幕，置于光晕/粒子之下 */}
-      <AuroraBackdrop />
       <FlowBackdrop />
       {/* ═══ 统一顶栏 ═══ */}
       <UnifiedHeader announcements={[]} onLoginClick={() => {}} onRegisterClick={() => {}} />

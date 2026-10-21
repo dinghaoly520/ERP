@@ -3294,33 +3294,137 @@ a.group:hover::after {
 }
 .flow-nav-pill[aria-expanded="true"] svg { color: var(--brand); }
 
-/* ── 导航瓷片流光（2026-10-21 集团简介/联系我们）：动态流光扫过 ──
-   玻璃瓷片上周期性掠过一道柔和高光（~4.2s 一轮：静息→扫过→静息），hover 提速提亮、
-   菜单展开（内凹态）时收敛；仅 transform 动画（合成器通道），prefers-reduced-motion 冻结。 */
-.flow-nav-pill { position: relative; overflow: hidden; }
-.flow-nav-pill::after {
+/* ── 导航瓷片·七彩流舞（2026-10-21 集团简介/联系我们，用户裁定：混沌/流动）──
+   深色玻璃瓷片为幕，五团七彩柔光（红/黄/绿/蓝/紫）以互质周期 7.3/11.1/13.7/9.4/12.1s
+   各自走不规则多路点漂移——组合永不精确重复（混沌感），screen 混光交融；
+   雾化暗纱垫在文字下保证可读。仅 transform/opacity 合成器动画；prefers-reduced-motion 冻结为静态彩雾。 */
+.flow-nav-pill {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  color: oklch(0.98 0.006 258);
+  background: linear-gradient(180deg, oklch(0.32 0.055 258 / 0.94), oklch(0.21 0.05 258 / 0.96));
+  text-shadow: 0 1px 2px oklch(0.15 0.03 258 / 0.5);
+}
+/* 雾化暗纱：隔开流光与文字（z1 高于流舞 z0、低于文字 z2） */
+.flow-nav-pill::before {
   content: '';
   position: absolute;
-  top: -20%;
-  bottom: -20%;
-  left: 0;
-  width: 45%;
-  transform: translateX(-220%) skewX(-18deg);
-  background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.5) 50%, transparent);
-  opacity: 0.45;
+  inset: 0;
+  z-index: 1;
   pointer-events: none;
-  will-change: transform;
-  animation: nav-pill-sheen 4.2s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+  border-radius: inherit;
+  background: linear-gradient(180deg, oklch(0.2 0.04 258 / 0.16), oklch(0.2 0.04 258 / 0.32));
 }
-.flow-nav-pill:hover::after { animation-duration: 2.4s; opacity: 0.85; }
-/* 内凹按住态（菜单展开）——流光收敛为微光，避免与内凹阴影打架 */
-.flow-nav-pill[aria-expanded="true"]::after { animation: none; opacity: 0.18; }
-@keyframes nav-pill-sheen {
-  0%, 24% { transform: translateX(-220%) skewX(-18deg); }
-  55%, 100% { transform: translateX(320%) skewX(-18deg); }
+.flow-nav-label { position: relative; z-index: 2; }
+.flow-nav-pill > svg { position: relative; z-index: 2; }
+.flow-nav-pill svg { color: oklch(0.82 0.025 258); }
+
+/* 流舞层：五团七彩 */
+.flow-nav-dance { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.flow-nav-dance i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 170%;
+  height: 260%;
+  border-radius: 50%;
+  opacity: 0.8;
+  mix-blend-mode: screen;
+  will-change: transform;
+  transition: opacity 0.3s ease;
+}
+.flow-nav-dance i:nth-child(1) {
+  background: radial-gradient(circle, oklch(0.72 0.185 20 / 0.9), transparent 64%);
+  animation: nav-dance-a 7.3s ease-in-out infinite;
+}
+.flow-nav-dance i:nth-child(2) {
+  background: radial-gradient(circle, oklch(0.8 0.165 95 / 0.88), transparent 64%);
+  animation: nav-dance-b 11.1s ease-in-out infinite alternate;
+}
+.flow-nav-dance i:nth-child(3) {
+  background: radial-gradient(circle, oklch(0.76 0.16 145 / 0.88), transparent 64%);
+  animation: nav-dance-c 13.7s ease-in-out infinite;
+}
+.flow-nav-dance i:nth-child(4) {
+  background: radial-gradient(circle, oklch(0.72 0.155 255 / 0.9), transparent 64%);
+  animation: nav-dance-d 9.4s ease-in-out infinite alternate-reverse;
+}
+.flow-nav-dance i:nth-child(5) {
+  background: radial-gradient(circle, oklch(0.7 0.19 305 / 0.9), transparent 64%);
+  animation: nav-dance-e 12.1s ease-in-out infinite;
+}
+
+/* 悬停：抬升 + 流舞增亮（覆盖浅色玻璃态——瓷片已改深色幕） */
+.flow-nav-pill:hover {
+  color: oklch(0.99 0.004 258);
+  background: linear-gradient(180deg, oklch(0.36 0.06 258 / 0.94), oklch(0.24 0.055 258 / 0.96));
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.22),
+    3px 3px 7px oklch(0.35 0.04 258 / 0.4),
+    -2px -2px 5px oklch(1 0 0 / 0.55);
+}
+.flow-nav-pill:hover svg { color: oklch(0.95 0.02 258); }
+.flow-nav-pill:hover .flow-nav-dance i { opacity: 1; }
+
+/* 按下 / 菜单展开：内凹按住，流舞收敛 */
+.flow-nav-pill:active,
+.flow-nav-pill[aria-expanded="true"] {
+  color: oklch(0.97 0.01 258);
+  background: linear-gradient(180deg, oklch(0.26 0.05 258 / 0.95), oklch(0.19 0.045 258 / 0.97));
+  transform: translateY(0);
+  box-shadow:
+    inset 2px 2px 5px oklch(0.1 0.03 258 / 0.5),
+    inset -2px -2px 4px oklch(1 0 0 / 0.12);
+}
+.flow-nav-pill[aria-expanded="true"] svg { color: oklch(0.9 0.03 258); }
+.flow-nav-pill[aria-expanded="true"] .flow-nav-dance i { opacity: 0.45; }
+
+/* 混沌路点：各团不规则多路点往复（基准 translate(-50%,-50%) 居中锚定） */
+@keyframes nav-dance-a {
+  0%, 100% { transform: translate(-50%, -50%) translate(-70%, 8%) scale(0.92); }
+  17% { transform: translate(-50%, -50%) translate(45%, -48%) scale(1.14); }
+  38% { transform: translate(-50%, -50%) translate(80%, 28%) scale(0.86); }
+  61% { transform: translate(-50%, -50%) translate(-8%, 52%) scale(1.06); }
+  82% { transform: translate(-50%, -50%) translate(-55%, -32%) scale(0.94); }
+}
+@keyframes nav-dance-b {
+  0% { transform: translate(-50%, -50%) translate(60%, -38%) scale(1.08); }
+  23% { transform: translate(-50%, -50%) translate(-40%, 44%) scale(0.88); }
+  47% { transform: translate(-50%, -50%) translate(-85%, -12%) scale(1.16); }
+  71% { transform: translate(-50%, -50%) translate(15%, 55%) scale(0.9); }
+  100% { transform: translate(-50%, -50%) translate(70%, -20%) scale(1.02); }
+}
+@keyframes nav-dance-c {
+  0%, 100% { transform: translate(-50%, -50%) translate(-25%, 45%) scale(1.02); }
+  19% { transform: translate(-50%, -50%) translate(70%, 15%) scale(0.84); }
+  43% { transform: translate(-50%, -50%) translate(30%, -55%) scale(1.18); }
+  66% { transform: translate(-50%, -50%) translate(-75%, -8%) scale(0.92); }
+  85% { transform: translate(-50%, -50%) translate(5%, 30%) scale(1.05); }
+}
+@keyframes nav-dance-d {
+  0% { transform: translate(-50%, -50%) translate(35%, 42%) scale(0.9); }
+  26% { transform: translate(-50%, -50%) translate(-60%, -30%) scale(1.12); }
+  52% { transform: translate(-50%, -50%) translate(-15%, -52%) scale(0.88); }
+  77% { transform: translate(-50%, -50%) translate(82%, 8%) scale(1.06); }
+  100% { transform: translate(-50%, -50%) translate(20%, 35%) scale(0.96); }
+}
+@keyframes nav-dance-e {
+  0%, 100% { transform: translate(-50%, -50%) translate(-50%, -35%) scale(1.04); }
+  21% { transform: translate(-50%, -50%) translate(20%, 48%) scale(0.86); }
+  49% { transform: translate(-50%, -50%) translate(65%, -18%) scale(1.16); }
+  74% { transform: translate(-50%, -50%) translate(-30%, 22%) scale(0.9); }
+  90% { transform: translate(-50%, -50%) translate(-70%, -8%) scale(1.0); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .flow-nav-pill::after { animation: none; opacity: 0; }
+  .flow-nav-dance i { animation: none; }
+  /* 冻结为静态彩雾：五团散布定格 */
+  .flow-nav-dance i:nth-child(1) { transform: translate(-50%, -50%) translate(-50%, 10%); }
+  .flow-nav-dance i:nth-child(2) { transform: translate(-50%, -50%) translate(45%, -20%); }
+  .flow-nav-dance i:nth-child(3) { transform: translate(-50%, -50%) translate(5%, 35%); }
+  .flow-nav-dance i:nth-child(4) { transform: translate(-50%, -50%) translate(-20%, -30%); }
+  .flow-nav-dance i:nth-child(5) { transform: translate(-50%, -50%) translate(60%, 15%); }
 }
 
 /* 下拉面板 — 近实底白玻璃（小文字下不透字）+ 方向性双影 */
@@ -3367,85 +3471,3 @@ a.group:hover::after {
   font-weight: 900;
 }
 
-/* ══ 动态变色背景（2026-10-21 集团简介/联系我们专用；勿全局挂 .flow-page）══
-   「极光」色幕：底色冷暖双相交叉淡入 + 三团品牌蓝系柔光漂移——页面背景色随时间缓慢变化。
-   动画仅用 transform/opacity（合成器通道，无逐帧重绘）；prefers-reduced-motion 冻结。 */
-.aurora-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-.aurora-base {
-  position: absolute;
-  inset: 0;
-}
-.aurora-base--cool {
-  background: linear-gradient(165deg, oklch(0.978 0.013 258) 0%, oklch(0.966 0.02 248) 55%, oklch(0.972 0.017 262) 100%);
-  animation: aurora-crossfade 36s ease-in-out infinite;
-}
-.aurora-base--dusk {
-  background: linear-gradient(165deg, oklch(0.974 0.022 268) 0%, oklch(0.963 0.026 258) 50%, oklch(0.975 0.012 252) 100%);
-  animation: aurora-crossfade-rev 36s ease-in-out infinite;
-}
-.aurora-blob {
-  position: absolute;
-  border-radius: 50%;
-  will-change: transform;
-}
-.aurora-blob--a {
-  width: 58vw;
-  height: 58vw;
-  left: -14vw;
-  top: -20vh;
-  background: radial-gradient(circle, oklch(0.8 0.075 248 / 0.42), transparent 68%);
-  animation: aurora-drift-a 32s ease-in-out infinite alternate;
-}
-.aurora-blob--b {
-  width: 50vw;
-  height: 50vw;
-  right: -12vw;
-  top: 24vh;
-  background: radial-gradient(circle, oklch(0.83 0.065 272 / 0.38), transparent 68%);
-  animation: aurora-drift-b 40s ease-in-out infinite alternate;
-}
-.aurora-blob--c {
-  width: 44vw;
-  height: 44vw;
-  left: 26vw;
-  bottom: -24vh;
-  background: radial-gradient(circle, oklch(0.79 0.06 258 / 0.34), transparent 68%);
-  animation: aurora-drift-c 28s ease-in-out infinite alternate;
-}
-/* 底色交叉淡入：冷→暖→冷（两相位反相同拍，50% 处各半融合） */
-@keyframes aurora-crossfade {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-@keyframes aurora-crossfade-rev {
-  0%, 100% { opacity: 0; }
-  50% { opacity: 1; }
-}
-/* 柔光漂移：缓慢往复位移 + 缩放呼吸（不同周期制造非重复感） */
-@keyframes aurora-drift-a {
-  0% { transform: translate3d(0, 0, 0) scale(1); }
-  100% { transform: translate3d(14vw, 10vh, 0) scale(1.18); }
-}
-@keyframes aurora-drift-b {
-  0% { transform: translate3d(0, 0, 0) scale(1.1); }
-  100% { transform: translate3d(-12vw, -8vh, 0) scale(0.92); }
-}
-@keyframes aurora-drift-c {
-  0% { transform: translate3d(0, 0, 0) scale(0.95); }
-  100% { transform: translate3d(10vw, -12vh, 0) scale(1.15); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .aurora-base,
-  .aurora-blob {
-    animation: none;
-  }
-  /* 静态时保留两层各半融合，避免完全退化为纯静态底 */
-  .aurora-base--cool { opacity: 0.5; }
-  .aurora-base--dusk { opacity: 0.5; }
-}
