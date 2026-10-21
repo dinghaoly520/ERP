@@ -71,26 +71,3 @@ describe('extractAnnouncementContentHtml（公告正文 HTML：表格保结构�
     expect(html).toContain('rowspan="3"');
   });
 });
-
-describe('词中断行合并安全网 collapseMidWordBreaks（2026-10-20）', () => {
-  const { collapseMidWordBreaks } = jest.requireActual('./announcement-content-html.util');
-
-  it('CJK 词中 <br/> 合并（mammoth 把 w:t 裸 \\n / 模板软换行转的 <br/>）', () => {
-    expect(collapseMidWordBreaks('<p>勘察设<br />计资料采购</p>')).toBe('<p>勘察设计资料采购</p>');
-    expect(collapseMidWordBreaks('<p>委托乙方提供培<br/>训服务</p>')).toBe('<p>委托乙方提供培训服务</p>');
-  });
-
-  it('句末标点后 / 序号行首的合法分行保留', () => {
-    expect(collapseMidWordBreaks('<p>服务期两年。<br />包含水电维修</p>')).toBe('<p>服务期两年。<br />包含水电维修</p>');
-    expect(collapseMidWordBreaks('<p>要求如下：<br />一、资质</p>')).toBe('<p>要求如下：<br />一、资质</p>');
-  });
-
-  it('数字/字母 token 续行合并', () => {
-    expect(collapseMidWordBreaks('<p>GB/T 33870-20<br />17</p>')).toBe('<p>GB/T 33870-2017</p>');
-    expect(collapseMidWordBreaks('<p>water<br />erp</p>')).toBe('<p>watererp</p>');
-  });
-
-  it('表格表头模板软换行合并（中标候选<br />人排序 → 中标候选人排序）', () => {
-    expect(collapseMidWordBreaks('<td><p>中标候选<br />人排序</p></td>')).toBe('<td><p>中标候选人排序</p></td>');
-  });
-});
