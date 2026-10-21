@@ -3317,88 +3317,90 @@ a.group:hover::after {
 .flow-nav-label { position: relative; z-index: 2; }
 .flow-nav-pill > svg { position: relative; z-index: 2; }
 
-/* 流舞层：五团浅彩（高明度低饱和浅色系） */
+/* 流舞层：五团浅彩（高明度低饱和浅色系）——水流式涌动：
+   各团驻留水平站位（浅红→浅紫左至右散布）、只在站位附近小幅洄游 + 呼吸缩放，
+   团不横穿瓷片（无掠过感），相邻色在交界处交融如水流 */
 .flow-nav-dance { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 .flow-nav-dance i {
   position: absolute;
   top: 50%;
-  left: 50%;
-  width: 170%;
-  height: 260%;
+  width: 105%;
+  height: 240%;
   border-radius: 50%;
   opacity: 0.8;
   will-change: transform;
   transition: opacity 0.3s ease;
 }
 .flow-nav-dance i:nth-child(1) {
+  left: -40%;
   background: radial-gradient(circle, oklch(0.9 0.075 20 / 0.9), transparent 64%);
-  animation: nav-dance-a 7.3s ease-in-out infinite;
+  animation: nav-dance-a 9.1s ease-in-out infinite;
 }
 .flow-nav-dance i:nth-child(2) {
+  left: -20%;
   background: radial-gradient(circle, oklch(0.93 0.095 95 / 0.9), transparent 64%);
-  animation: nav-dance-b 11.1s ease-in-out infinite alternate;
+  animation: nav-dance-b 12.3s ease-in-out infinite;
 }
 .flow-nav-dance i:nth-child(3) {
+  left: 0%;
   background: radial-gradient(circle, oklch(0.915 0.085 150 / 0.9), transparent 64%);
-  animation: nav-dance-c 13.7s ease-in-out infinite;
+  animation: nav-dance-c 14.7s ease-in-out infinite;
 }
 .flow-nav-dance i:nth-child(4) {
+  left: 20%;
   background: radial-gradient(circle, oklch(0.91 0.075 245 / 0.9), transparent 64%);
-  animation: nav-dance-d 9.4s ease-in-out infinite alternate-reverse;
+  animation: nav-dance-d 10.9s ease-in-out infinite;
 }
 .flow-nav-dance i:nth-child(5) {
+  left: 40%;
   background: radial-gradient(circle, oklch(0.895 0.08 310 / 0.9), transparent 64%);
-  animation: nav-dance-e 12.1s ease-in-out infinite;
+  animation: nav-dance-e 16.1s ease-in-out infinite;
 }
 
 /* 悬停/按住沿用瓷片原有浅色玻璃态（凸起→hover 抬升→内凹），仅调节流舞明暗 */
 .flow-nav-pill:hover .flow-nav-dance i { opacity: 1; }
 .flow-nav-pill[aria-expanded="true"] .flow-nav-dance i { opacity: 0.45; }
 
-/* 混沌路点：各团不规则多路点往复（基准 translate(-50%,-50%) 居中锚定） */
+/* 水流路点：各团在站位附近环绕洄游（±14% 横移 / ±8% 纵摆 + 呼吸缩放，互质周期；
+   基准 translateY(-50%) 垂直居中锚定；首尾同帧无缝循环） */
 @keyframes nav-dance-a {
-  0%, 100% { transform: translate(-50%, -50%) translate(-70%, 8%) scale(0.92); }
-  17% { transform: translate(-50%, -50%) translate(45%, -48%) scale(1.14); }
-  38% { transform: translate(-50%, -50%) translate(80%, 28%) scale(0.86); }
-  61% { transform: translate(-50%, -50%) translate(-8%, 52%) scale(1.06); }
-  82% { transform: translate(-50%, -50%) translate(-55%, -32%) scale(0.94); }
+  0%, 100% { transform: translateY(-50%) translate(6%, -4%) scale(1); }
+  25% { transform: translateY(-50%) translate(-13%, 6%) scale(0.95); }
+  50% { transform: translateY(-50%) translate(-6%, 8%) scale(1.06); }
+  75% { transform: translateY(-50%) translate(12%, -6%) scale(0.97); }
 }
 @keyframes nav-dance-b {
-  0% { transform: translate(-50%, -50%) translate(60%, -38%) scale(1.08); }
-  23% { transform: translate(-50%, -50%) translate(-40%, 44%) scale(0.88); }
-  47% { transform: translate(-50%, -50%) translate(-85%, -12%) scale(1.16); }
-  71% { transform: translate(-50%, -50%) translate(15%, 55%) scale(0.9); }
-  100% { transform: translate(-50%, -50%) translate(70%, -20%) scale(1.02); }
+  0%, 100% { transform: translateY(-50%) translate(-8%, 5%) scale(0.96); }
+  22% { transform: translateY(-50%) translate(10%, -7%) scale(1.07); }
+  48% { transform: translateY(-50%) translate(14%, 4%) scale(0.94); }
+  74% { transform: translateY(-50%) translate(-5%, -8%) scale(1.03); }
 }
 @keyframes nav-dance-c {
-  0%, 100% { transform: translate(-50%, -50%) translate(-25%, 45%) scale(1.02); }
-  19% { transform: translate(-50%, -50%) translate(70%, 15%) scale(0.84); }
-  43% { transform: translate(-50%, -50%) translate(30%, -55%) scale(1.18); }
-  66% { transform: translate(-50%, -50%) translate(-75%, -8%) scale(0.92); }
-  85% { transform: translate(-50%, -50%) translate(5%, 30%) scale(1.05); }
+  0%, 100% { transform: translateY(-50%) translate(0%, 6%) scale(1.04); }
+  26% { transform: translateY(-50%) translate(-14%, -5%) scale(0.95); }
+  52% { transform: translateY(-50%) translate(6%, -8%) scale(1.08); }
+  78% { transform: translateY(-50%) translate(11%, 7%) scale(0.96); }
 }
 @keyframes nav-dance-d {
-  0% { transform: translate(-50%, -50%) translate(35%, 42%) scale(0.9); }
-  26% { transform: translate(-50%, -50%) translate(-60%, -30%) scale(1.12); }
-  52% { transform: translate(-50%, -50%) translate(-15%, -52%) scale(0.88); }
-  77% { transform: translate(-50%, -50%) translate(82%, 8%) scale(1.06); }
-  100% { transform: translate(-50%, -50%) translate(20%, 35%) scale(0.96); }
+  0%, 100% { transform: translateY(-50%) translate(9%, 4%) scale(1.02); }
+  24% { transform: translateY(-50%) translate(-11%, -6%) scale(0.94); }
+  50% { transform: translateY(-50%) translate(-14%, 7%) scale(1.05); }
+  76% { transform: translateY(-50%) translate(4%, -5%) scale(0.97); }
 }
 @keyframes nav-dance-e {
-  0%, 100% { transform: translate(-50%, -50%) translate(-50%, -35%) scale(1.04); }
-  21% { transform: translate(-50%, -50%) translate(20%, 48%) scale(0.86); }
-  49% { transform: translate(-50%, -50%) translate(65%, -18%) scale(1.16); }
-  74% { transform: translate(-50%, -50%) translate(-30%, 22%) scale(0.9); }
-  90% { transform: translate(-50%, -50%) translate(-70%, -8%) scale(1.0); }
+  0%, 100% { transform: translateY(-50%) translate(-5%, -6%) scale(0.98); }
+  23% { transform: translateY(-50%) translate(-12%, 7%) scale(1.06); }
+  49% { transform: translateY(-50%) translate(8%, 5%) scale(0.93); }
+  75% { transform: translateY(-50%) translate(13%, -7%) scale(1.02); }
 }
 @media (prefers-reduced-motion: reduce) {
   .flow-nav-dance i { animation: none; }
-  /* 冻结为静态彩雾：五团散布定格 */
-  .flow-nav-dance i:nth-child(1) { transform: translate(-50%, -50%) translate(-50%, 10%); }
-  .flow-nav-dance i:nth-child(2) { transform: translate(-50%, -50%) translate(45%, -20%); }
-  .flow-nav-dance i:nth-child(3) { transform: translate(-50%, -50%) translate(5%, 35%); }
-  .flow-nav-dance i:nth-child(4) { transform: translate(-50%, -50%) translate(-20%, -30%); }
-  .flow-nav-dance i:nth-child(5) { transform: translate(-50%, -50%) translate(60%, 15%); }
+  /* 冻结为静态浅彩雾：五团按站位定格微偏 */
+  .flow-nav-dance i:nth-child(1) { transform: translateY(-50%) translate(4%, -3%); }
+  .flow-nav-dance i:nth-child(2) { transform: translateY(-50%) translate(-6%, 4%); }
+  .flow-nav-dance i:nth-child(3) { transform: translateY(-50%) translate(5%, 3%); }
+  .flow-nav-dance i:nth-child(4) { transform: translateY(-50%) translate(-4%, -4%); }
+  .flow-nav-dance i:nth-child(5) { transform: translateY(-50%) translate(6%, 4%); }
 }
 
 /* 下拉面板 — 近实底白玻璃（小文字下不透字）+ 方向性双影 */
