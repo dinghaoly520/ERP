@@ -99,6 +99,11 @@ export function PurchaserPickerDialog({
                       {p.email ? <span className="mx-1.5">·</span> : null}
                       {p.email || ""}
                     </div>
+                    {p.address && (
+                      <div className="mt-0.5 truncate text-[11px] text-[color:var(--muted-foreground)]" title={p.address}>
+                        地址：{p.address}
+                      </div>
+                    )}
                   </div>
                 </button>
               ))}
