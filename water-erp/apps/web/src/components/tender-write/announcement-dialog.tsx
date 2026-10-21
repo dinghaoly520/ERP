@@ -245,7 +245,7 @@ function announcementFieldHasValue(
   const v = value.trim();
   if (!v) return false;
   if (field.type === 'date') return /^\d{4}-\d{2}-\d{2}$/.test(v);
-  if (field.type === 'datetime-local') return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v);
+  if (field.type === 'datetime-local' || field.type === 'datetime-range') return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v);
   return true;
 }
 
@@ -254,7 +254,7 @@ function announcementFieldHasValue(
  *  datetime-local input 收到会判非法显空——渲染时补 23:59 升级（当日截止惯例，
  *  与向导 announcementEndDate 自愈同口径）。用户一经编辑，onChange 即写回完整值 */
 function displayValueForField(field: AnnouncementFieldConfig, value: string): string {
-  if (field.type === 'datetime-local' && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
+  if ((field.type === 'datetime-local' || field.type === 'datetime-range') && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
     return `${value.trim()}T23:59`;
   }
   return value;
@@ -472,6 +472,31 @@ function AnnouncementFieldEditor({
           placeholder={field.placeholder}
           className={`${commonInputClass} mt-2 min-h-[120px] resize-none`}
         />
+      ) : field.type === "datetime-range" ? (
+        /* 公示期限（2026-10-21 用户口径）：起/止两个时间选择器同一行形成时间段；起存
+            field.key、止存 rangeEndKey，均 ISO（date-only 存量显示时补 23:59 同口径） */
+        <div className="mt-2 flex items-center gap-2">
+          <input
+            type="datetime-local"
+            aria-label={`${field.label}（起）`}
+            value={shownValue}
+            onChange={(e) => onChange(field.key, e.target.value)}
+            onFocus={() => onFieldFocus?.(field.key)}
+            className={`${commonInputClass} min-w-0 flex-1`}
+          />
+          <span className="shrink-0 text-xs font-semibold text-[color:var(--muted-foreground)]">至</span>
+          <input
+            type="datetime-local"
+            aria-label={`${field.label}（止）`}
+            value={(() => {
+              const endRaw = (field.rangeEndKey ? draftRecord[field.rangeEndKey] : '').trim();
+              return /^\d{4}-\d{2}-\d{2}$/.test(endRaw) ? `${endRaw}T23:59` : endRaw;
+            })()}
+            onChange={(e) => field.rangeEndKey && onChange(field.rangeEndKey, e.target.value)}
+            onFocus={() => field.rangeEndKey && onFieldFocus?.(field.rangeEndKey)}
+            className={`${commonInputClass} min-w-0 flex-1`}
+          />
+        </div>
       ) : field.type === "date" ? (
         <input
           ref={dateInputRef}

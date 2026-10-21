@@ -177,7 +177,10 @@ export type AnnouncementFieldConfig<
   label: string;
   placeholder: string;
   multiline?: boolean;
-  type?: "text" | "date" | "email" | "tel" | "datetime-local";
+  type?: "text" | "date" | "email" | "tel" | "datetime-local" | "datetime-range";
+  /** datetime-range 专用：止点写入的字段 key（起=本字段 key；两键仍各自存 ISO 值，
+   *  2026-10-21 公示期限起/止两卡合并为一行两个选择器） */
+  rangeEndKey?: K;
   /** Key in the tender draft to auto-fill from, if any */
   autoFill?: string;
   select?: {
