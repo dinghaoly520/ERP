@@ -469,12 +469,20 @@ export function ignoreRetirementWarning(id: string) {
 
 /* 邀请确认——原 confirm/decline 两端点已收编为 proxy-mark（2026-10-21 留痕通道），见上方 proxyMarkExpertInvitation */
 
+/** 专家邀请全量轨迹条目（2026-10-21 用户口径：理由全量记录，非仅最后一次） */
+export interface ExpertInvitationTrailItem {
+  action: string; actorType: 'EXPERT' | 'STAFF' | 'SYSTEM'; actorName: string | null;
+  fromStatus: string | null; toStatus: string | null; fromRole: string | null; toRole: string | null;
+  reason: string | null; createdAt: string;
+}
+
 export function getProjectInvitations(projectId: string) {
   return api.get<{
     experts: { id: string; userId: string; expertName: string; major: string; isLead: boolean; expertRole: string; invitationStatus: string; reviewGroup?: string | null; dutyRole?: string | null; title?: string | null; employer?: string | null; phone?: string | null; rsvpRespondedAt?: string | null; rsvpExpiresAt?: string | null; rsvpNo?: string;
-      // 邀请作答留痕（2026-10-21）：作答方/理由/自答快照（后端 getProjectInvitations 已返回）
+      // 邀请作答留痕（2026-10-21）：作答方/理由/自答快照 + 全量轨迹（后端 getProjectInvitations 已返回）
       invitationActorType?: 'EXPERT' | 'STAFF' | 'SYSTEM' | null; invitationActorName?: string | null; invitationReason?: string | null;
-      expertRespondedAt?: string | null; expertStatus?: 'confirmed' | 'declined' | null; }[];
+      expertRespondedAt?: string | null; expertStatus?: 'confirmed' | 'declined' | null;
+      invitationTrail?: ExpertInvitationTrailItem[]; }[];
     summary: { total: number; confirmed: number; declined: number; pending: number; availableCandidates: number; allDeclined: boolean };
   }>(`/expert-admin/invitations/${projectId}`);
 }

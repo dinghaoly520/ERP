@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense, useMemo, useRef } from 'react';
+import { Fragment, useEffect, useState, Suspense, useMemo, useRef } from 'react';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { companyColor } from '@/components/company/company-tag';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -265,6 +265,38 @@ export function ExpertExtractPage({
   } | null>(null);
   const [exProxyReason, setExProxyReason] = useState('');
   const [exProxyBusy, setExProxyBusy] = useState(false);
+  // 邀请全量轨迹展开（2026-10-21 用户口径：理由须全量记录——invitationReason 是当前值，
+  // 每次变更的完整理由/时刻/操作人在 invitationTrail，逐行展开查看）+ 回执时间展示
+  const [trailOpenExpertId, setTrailOpenExpertId] = useState<string | null>(null);
+  const fmtDt = (iso: string | null | undefined) =>
+    iso ? new Date(iso).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+  const stCnLabel = (s: string | null | undefined) => (s === 'confirmed' ? '确认参加' : s === 'declined' ? '无法参加' : '待回复');
+  const TRAIL_ACTION_LABEL: Record<string, string> = {
+    RESPONDED: '专家自答', AUTO_DECLINED: '超时自动弃权', STAFF_MARKED: '工作人员代回应/变更',
+    PROMOTED: '递补转正', SWAP_OUT: '替换换出', SWAP_IN: '替换换入',
+  };
+  const renderExpertTrailRow = (e: { id: string; invitationTrail?: { action: string; actorType: string; actorName: string | null; fromStatus: string | null; toStatus: string | null; fromRole: string | null; toRole: string | null; reason: string | null; createdAt: string }[] }, colSpan: number) => (
+    <tr>
+      <td colSpan={colSpan} style={{ background: 'oklch(1 0 0 / 0.35)' }}>
+        <div className="mx-auto max-w-[680px] px-6 py-2">
+          <div className="mb-1 text-[9px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">邀请轨迹（全量留痕 · 每次理由）</div>
+          <div className="space-y-1">
+            {(e.invitationTrail ?? []).map((t, i) => (
+              <div key={i} className="flex flex-wrap items-start gap-x-2 text-[10px] leading-4">
+                <span className="shrink-0 tabular-nums text-[var(--muted-foreground)]">{fmtDt(t.createdAt)}</span>
+                <span className="shrink-0 font-bold text-[var(--foreground)]">
+                  {TRAIL_ACTION_LABEL[t.action] ?? t.action}{t.actorType === 'STAFF' ? `（${t.actorName || '工作人员'}）` : ''}
+                  {t.fromStatus && t.toStatus && t.fromStatus !== t.toStatus ? `：${stCnLabel(t.fromStatus)} → ${stCnLabel(t.toStatus)}` : ''}
+                  {t.fromRole && t.toRole && t.fromRole !== t.toRole ? ` · ${t.fromRole}→${t.toRole}` : ''}
+                </span>
+                {t.reason && <span className="min-w-0 flex-1 text-[var(--warning)]">理由：{t.reason}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      </td>
+    </tr>
+  );
 
   const submitExProxy = async () => {
     if (!exProxy || !pid) return;
@@ -2724,13 +2756,14 @@ export function ExpertExtractPage({
                     <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">公司</th><th className="text-center">部门</th><th className="text-center">联系方式</th><th className="text-center">回复状态</th><th className="text-center">回执号</th><th className="text-center">操作</th></tr></thead>
                     <tbody>
                       {invitationData.experts.filter(e=>e.expertRole==='正选' && originalConfirmedIdsRef.current.has(e.userId)).sort((a,b)=>(a.invitationStatus==='declined'?1:0)-(b.invitationStatus==='declined'?1:0)).map(e => (
-                        <tr key={e.id}>
+                        <Fragment key={e.id}>
+                        <tr>
                           <td className="text-center"><span className="text-sm font-bold text-[var(--foreground)]">{fmtExpertName(e.userId, e.expertName)}</span></td>
                           <td className="text-center text-sm text-[var(--muted-foreground)]">{fmtExpertSpecialty(e.userId, e.major)}</td>
                           <td className="text-center text-xs text-[var(--muted-foreground)]">{e.title || '—'}</td>
                           <td className="text-center text-xs text-[var(--muted-foreground)]">{e.employer || '—'}</td><td className="text-center text-xs text-[var(--muted-foreground)]">{deptByUser.get(e.userId) || '—'}</td>
                           <td className="text-center text-xs font-mono text-[var(--muted-foreground)]">{phoneCell(e.userId, e.phone)}</td>
-                          <td className="text-center">{e.invitationStatus==='confirmed'?<StatusBadge tone="green">确认参加</StatusBadge>:e.invitationStatus==='pending'?<StatusBadge tone="blue">待回复</StatusBadge>:(e.rsvpExpiresAt && e.rsvpRespondedAt && new Date(e.rsvpRespondedAt).getTime() >= new Date(e.rsvpExpiresAt).getTime() ? <StatusBadge tone="red">超时拒绝</StatusBadge> : <StatusBadge tone="red">无法参加</StatusBadge>)}</td>
+                          <td className="text-center"><div className="flex flex-col items-center gap-0.5">{e.invitationStatus==='confirmed'?<StatusBadge tone="green">确认参加</StatusBadge>:e.invitationStatus==='pending'?<StatusBadge tone="blue">待回复</StatusBadge>:(e.rsvpExpiresAt && e.rsvpRespondedAt && new Date(e.rsvpRespondedAt).getTime() >= new Date(e.rsvpExpiresAt).getTime() ? <StatusBadge tone="red">超时拒绝</StatusBadge> : <StatusBadge tone="red">无法参加</StatusBadge>)}{e.rsvpRespondedAt && (<span className="text-[10px] leading-4 text-[var(--muted-foreground)] tabular-nums">{e.invitationActorType === 'STAFF' && e.expertRespondedAt ? `自答 ${fmtDt(e.expertRespondedAt)}（原${e.expertStatus === 'confirmed' ? '确认' : '婉拒'}）→ 变更 ${fmtDt(e.rsvpRespondedAt)}` : `回执于 ${fmtDt(e.rsvpRespondedAt)}`}</span>)}</div></td>
                           <td className="text-center">{/* 回执号口径（2026-10-21 正式化）：回执号=专家自答凭证——
     代回应/代变更行不展示号，改显标注 + 代回应理由明示（title 悬停看全文） */}
               <div className="flex flex-col items-center gap-0.5">
@@ -2739,6 +2772,12 @@ export function ExpertExtractPage({
                   <span className="inline-block max-w-[180px] truncate rounded-[4px] px-1.5 py-0.5 text-[9px] font-semibold"
                     style={{ background: 'color-mix(in oklch, var(--warning) 10%, transparent)', color: 'var(--foreground)' }}
                     title={`代回应理由：${e.invitationReason}`}>理由：{e.invitationReason}</span>
+                )}
+                {(e.invitationTrail?.length ?? 0) > 0 && (
+                  <button onClick={() => setTrailOpenExpertId(trailOpenExpertId === e.id ? null : e.id)}
+                    className="text-[9px] font-bold text-[var(--accent)] underline underline-offset-2">
+                    轨迹({e.invitationTrail!.length}){trailOpenExpertId === e.id ? ' ▲' : ' ▼'}
+                  </button>
                 )}
               </div>
                           </td>
@@ -2753,6 +2792,8 @@ export function ExpertExtractPage({
                             </div>
                           </td>
                         </tr>
+                        {trailOpenExpertId === e.id && renderExpertTrailRow(e, 9)}
+                        </Fragment>
                       ))}
                     </tbody>
                   </table>
@@ -2833,15 +2874,30 @@ export function ExpertExtractPage({
                             <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">公司</th><th className="text-center">部门</th><th className="text-center">联系方式</th><th className="text-center">回复状态</th><th className="text-center">回执号</th><th className="text-center">操作</th></tr></thead>
                             <tbody>
                               {experts.map(e => (
-                                <tr key={e.id}>
+                                <Fragment key={e.id}>
+                                <tr>
                                   <td className="text-center"><span className="text-sm font-bold text-[var(--foreground)]">{e.expertName}</span></td>
                                   <td className="text-center text-sm text-[var(--muted-foreground)]">{fmtExpertSpecialty(e.userId, e.major)}</td>
                                   <td className="text-center text-xs text-[var(--muted-foreground)]">{e.title || '—'}</td>
                                   <td className="text-center text-xs text-[var(--muted-foreground)]">{e.employer || '—'}</td><td className="text-center text-xs text-[var(--muted-foreground)]">{deptByUser.get(e.userId) || '—'}</td>
                                   <td className="text-center text-xs font-mono text-[var(--muted-foreground)]">{phoneCell(e.userId, e.phone)}</td>
-                                  <td className="text-center">{e.invitationStatus==='confirmed'?<StatusBadge tone="green">确认参加</StatusBadge>:e.invitationStatus==='pending'?<StatusBadge tone="blue">待回复</StatusBadge>:(e.rsvpExpiresAt && e.rsvpRespondedAt && new Date(e.rsvpRespondedAt).getTime() >= new Date(e.rsvpExpiresAt).getTime() ? <StatusBadge tone="red">超时拒绝</StatusBadge> : <StatusBadge tone="red">无法参加</StatusBadge>)}</td>
-                                  <td className="text-center text-[11px] font-mono text-[var(--muted-foreground)]" title={e.invitationReason || undefined}>{/* 回执号口径（2026-10-21 正式化）：代回应/代变更行不展示回执号 */}
-              {e.invitationActorType === 'STAFF' ? '工作人员代回应' : (e.invitationActorType === 'SYSTEM' ? '超时弃权' : (e.invitationStatus !== 'pending' ? (e.rsvpNo || '—') : '—'))}</td>
+                                  <td className="text-center"><div className="flex flex-col items-center gap-0.5">{e.invitationStatus==='confirmed'?<StatusBadge tone="green">确认参加</StatusBadge>:e.invitationStatus==='pending'?<StatusBadge tone="blue">待回复</StatusBadge>:(e.rsvpExpiresAt && e.rsvpRespondedAt && new Date(e.rsvpRespondedAt).getTime() >= new Date(e.rsvpExpiresAt).getTime() ? <StatusBadge tone="red">超时拒绝</StatusBadge> : <StatusBadge tone="red">无法参加</StatusBadge>)}{e.rsvpRespondedAt && (<span className="text-[10px] leading-4 text-[var(--muted-foreground)] tabular-nums">{e.invitationActorType === 'STAFF' && e.expertRespondedAt ? `自答 ${fmtDt(e.expertRespondedAt)}（原${e.expertStatus === 'confirmed' ? '确认' : '婉拒'}）→ 变更 ${fmtDt(e.rsvpRespondedAt)}` : `回执于 ${fmtDt(e.rsvpRespondedAt)}`}</span>)}</div></td>
+                                  <td className="text-center">{/* 回执号口径（2026-10-21）：代回应行显标注+理由+全量轨迹入口，自答显回执号 */}
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-[11px] font-mono text-[var(--muted-foreground)]">{e.invitationActorType === 'STAFF' ? (e.invitationActorName ? `代回应·${e.invitationActorName}` : '工作人员代回应') : (e.invitationActorType === 'SYSTEM' ? '超时弃权' : (e.invitationStatus !== 'pending' ? (e.rsvpNo || '—') : '—'))}</span>
+                {e.invitationReason && (
+                  <span className="inline-block max-w-[180px] truncate rounded-[4px] px-1.5 py-0.5 text-[9px] font-semibold"
+                    style={{ background: 'color-mix(in oklch, var(--warning) 10%, transparent)', color: 'var(--foreground)' }}
+                    title={`代回应理由：${e.invitationReason}`}>理由：{e.invitationReason}</span>
+                )}
+                {(e.invitationTrail?.length ?? 0) > 0 && (
+                  <button onClick={() => setTrailOpenExpertId(trailOpenExpertId === e.id ? null : e.id)}
+                    className="text-[9px] font-bold text-[var(--accent)] underline underline-offset-2">
+                    轨迹({e.invitationTrail!.length}){trailOpenExpertId === e.id ? ' ▲' : ' ▼'}
+                  </button>
+                )}
+              </div>
+                                  </td>
                                   <td className="text-center">
                                     <div className="flex justify-center gap-1">
                                       {e.invitationStatus==='pending' ? (<>
@@ -2853,6 +2909,8 @@ export function ExpertExtractPage({
                                     </div>
                                   </td>
                                 </tr>
+                                {trailOpenExpertId === e.id && renderExpertTrailRow(e, 9)}
+                                </Fragment>
                               ))}
                             </tbody>
                           </table>
@@ -2951,7 +3009,8 @@ export function ExpertExtractPage({
                         const roundNo = reHistoryRoundMap.get(e.userId);
                         const isLeader = step5LeaderId === e.userId;
                         return (
-                        <tr key={e.id} className={isLeader ? 'bg-[color-mix(in_oklch,var(--accent)_6%,transparent)]' : ''}>
+                        <Fragment key={e.id}>
+                        <tr className={isLeader ? 'bg-[color-mix(in_oklch,var(--accent)_6%,transparent)]' : ''}>
                           <td className="text-center">
                             <span className="text-sm font-bold text-[var(--foreground)]">{fmtExpertName(e.userId, e.expertName)}</span>
                             {isLeader && <StatusBadge tone="purple">组长</StatusBadge>}
@@ -2960,14 +3019,20 @@ export function ExpertExtractPage({
                           <td className="text-center text-xs text-[var(--muted-foreground)]">{e.title || '—'}</td>
                           <td className="text-center text-xs text-[var(--muted-foreground)]">{e.employer || '—'}</td><td className="text-center text-xs text-[var(--muted-foreground)]">{deptByUser.get(e.userId) || '—'}</td>
                           <td className="text-center">{isOriginal ? <StatusBadge tone="green">正选</StatusBadge> : <StatusBadge tone="blue">第{roundNo || '?'}次补选</StatusBadge>}</td>
-                          <td className="text-center">{e.invitationStatus === 'confirmed' ? <StatusBadge tone="green">确认参加</StatusBadge> : <StatusBadge tone="blue">待回复</StatusBadge>}</td>
-                          <td className="text-center">{/* 回执号口径（2026-10-21 正式化）：代回应行显标注+理由，自答显回执号 */}
+                          <td className="text-center"><div className="flex flex-col items-center gap-0.5">{e.invitationStatus === 'confirmed' ? <StatusBadge tone="green">确认参加</StatusBadge> : e.invitationStatus === 'declined' ? <StatusBadge tone="red">无法参加</StatusBadge> : <StatusBadge tone="blue">待回复</StatusBadge>}{e.rsvpRespondedAt && (<span className="text-[10px] leading-4 text-[var(--muted-foreground)] tabular-nums">{e.invitationActorType === 'STAFF' && e.expertRespondedAt ? `自答 ${fmtDt(e.expertRespondedAt)}（原${e.expertStatus === 'confirmed' ? '确认' : '婉拒'}）→ 变更 ${fmtDt(e.rsvpRespondedAt)}` : `回执于 ${fmtDt(e.rsvpRespondedAt)}`}</span>)}</div></td>
+                          <td className="text-center">{/* 回执号口径（2026-10-21 正式化）：代回应行显标注+理由+全量轨迹入口，自答显回执号 */}
               <div className="flex flex-col items-center gap-0.5">
                 <span className="text-[11px] font-mono text-[var(--muted-foreground)]">{e.invitationActorType === 'STAFF' ? (e.invitationActorName ? `代回应·${e.invitationActorName}` : '工作人员代回应') : (e.invitationActorType === 'SYSTEM' ? '超时弃权' : (e.invitationStatus !== 'pending' ? (e.rsvpNo || '—') : '—'))}</span>
                 {e.invitationReason && (
                   <span className="inline-block max-w-[180px] truncate rounded-[4px] px-1.5 py-0.5 text-[9px] font-semibold"
                     style={{ background: 'color-mix(in oklch, var(--warning) 10%, transparent)', color: 'var(--foreground)' }}
                     title={`代回应理由：${e.invitationReason}`}>理由：{e.invitationReason}</span>
+                )}
+                {(e.invitationTrail?.length ?? 0) > 0 && (
+                  <button onClick={() => setTrailOpenExpertId(trailOpenExpertId === e.id ? null : e.id)}
+                    className="text-[9px] font-bold text-[var(--accent)] underline underline-offset-2">
+                    轨迹({e.invitationTrail!.length}){trailOpenExpertId === e.id ? ' ▲' : ' ▼'}
+                  </button>
                 )}
               </div>
                           </td>
@@ -3009,7 +3074,9 @@ export function ExpertExtractPage({
                             </td>
                           )}
                         </tr>
-                      )})}
+                        {trailOpenExpertId === e.id && renderExpertTrailRow(e, selectingLeader ? 11 : 10)}
+                        </Fragment>
+                        );})}
                     </tbody>
                   </table>
                 </div>

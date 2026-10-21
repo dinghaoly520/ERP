@@ -379,11 +379,34 @@ export class ExpertAdminService {
       this.companyScope.assertInScope(user.companyId, scope);
     }
 
-    const assignments = await this.prisma.bidExpert.findMany({
+    const assignmentsRaw = await this.prisma.bidExpert.findMany({
       where: { userId },
       include: { project: { select: { id: true, projectCode: true, name: true, stage: true, procurementMethod: true, openTime: true } }, scoreRecords: { include: { scoreItem: { select: { name: true, category: true, maxScore: true } } } } },
       orderBy: { createdAt: 'desc' },
     });
+    // 邀请全量轨迹（2026-10-21 用户口径：理由须全量记录，非仅最后一次）：按行挂载，
+    // 含每次流转的时刻/操作人/理由——详情页逐条展示
+    const assignmentLogs = assignmentsRaw.length > 0
+      ? await this.prisma.expertInvitationLog.findMany({
+          where: { bidExpertId: { in: assignmentsRaw.map(a => a.id) } },
+          orderBy: { createdAt: 'asc' },
+        }).catch(() => [])
+      : [];
+    const trailByAssignment = new Map<string, unknown[]>();
+    for (const l of assignmentLogs) {
+      const arr = (trailByAssignment.get(l.bidExpertId) ?? []) as unknown[];
+      arr.push({
+        action: l.action, actorType: l.actorType, actorName: l.actorName,
+        fromStatus: l.fromStatus, toStatus: l.toStatus, fromRole: l.fromRole, toRole: l.toRole,
+        reason: l.reason, createdAt: l.createdAt.toISOString(),
+      });
+      trailByAssignment.set(l.bidExpertId, arr);
+    }
+    const assignments = assignmentsRaw.map(a => ({
+      ...a,
+      invitationActorType: (a.invitationActorType as string | null) ?? (a.rsvpRespondedAt ? 'EXPERT' : null),
+      invitationTrail: trailByAssignment.get(a.id) ?? [],
+    }));
 
     // R6-7③（2026-09-30 审计 A1）：获评次数此前 take:10 封顶——库页 _count 显示 15、
     // 详情显示 10、分布也只按最近 10 条算，同数两页矛盾。取全量算真实计数与分布，

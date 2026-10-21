@@ -22,6 +22,7 @@ interface Assignment {
   invitationReason?: string | null;
   expertRespondedAt?: string | null;
   expertStatus?: 'confirmed' | 'declined' | null;
+  invitationTrail?: { action: string; actorType: string; actorName: string | null; fromStatus: string | null; toStatus: string | null; fromRole: string | null; toRole: string | null; reason: string | null; createdAt: string }[];
   project: { id: string; projectCode: string; name: string; stage: string; procurementMethod: string; openTime: string };
   scoreRecords: ScoreRecord[];
 }
@@ -538,6 +539,27 @@ export default function ExpertDetailPage() {
                           <span className="text-[var(--muted-foreground)] font-bold">代回应理由：</span>{a.invitationReason}
                         </span>
                       )}
+                    </div>
+                  )}
+                  {/* 邀请全量轨迹（2026-10-21 用户口径：理由全量记录——每次流转的时刻/操作人/理由逐条可查） */}
+                  {(a.invitationTrail?.length ?? 0) > 0 && (
+                    <div className="mb-3 rounded-[10px] px-3 py-2"
+                      style={{ background: 'color-mix(in oklch, var(--muted-foreground) 4%, transparent)' }}>
+                      <div className="mb-1 text-[9px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">邀请轨迹</div>
+                      <div className="space-y-0.5">
+                        {a.invitationTrail!.map((t, i) => (
+                          <div key={i} className="flex flex-wrap items-start gap-x-2 text-[11px] leading-5">
+                            <span className="shrink-0 tabular-nums text-[var(--muted-foreground)]">{new Date(t.createdAt).toLocaleString('zh-CN')}</span>
+                            <span className="shrink-0 font-bold text-[var(--foreground)]">
+                              {({ RESPONDED: '专家自答', AUTO_DECLINED: '超时自动弃权', STAFF_MARKED: '工作人员代回应/变更', PROMOTED: '递补转正', SWAP_OUT: '替换换出', SWAP_IN: '替换换入' } as Record<string, string>)[t.action] ?? t.action}
+                              {t.actorType === 'STAFF' ? `（${t.actorName || '工作人员'}）` : ''}
+                              {t.fromStatus && t.toStatus && t.fromStatus !== t.toStatus ? `：${t.fromStatus === 'confirmed' ? '确认参加' : t.fromStatus === 'declined' ? '无法参加' : '待回复'} → ${t.toStatus === 'confirmed' ? '确认参加' : '无法参加'}` : ''}
+                              {t.fromRole && t.toRole && t.fromRole !== t.toRole ? ` · ${t.fromRole}→${t.toRole}` : ''}
+                            </span>
+                            {t.reason && <span className="min-w-0 flex-1 text-[var(--warning)]">理由：{t.reason}</span>}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                   <div className="grid grid-cols-4 gap-3 text-[12px] text-[var(--muted-foreground)] mb-3">
