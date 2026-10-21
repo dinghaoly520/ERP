@@ -152,6 +152,7 @@ role=bid_expert && 存在开窗 && User.webSessionId 非空
 | 10 | swapExpertRole 进场复查（P2-4 2026-09-21） | 候补→正选前查跨项目窗口，开窗 409 | 与闸1同口径；派单在开标前、开窗可能在派单后 |
 | 11 | signIn 并发 TOCTOU（P2-5 2026-09-21） | 预检（冲突优先于照片闸，原行为）+ 事务内权威复查（User 行锁 FOR UPDATE）与写入原子化 | 双检消竞态，单一入口双开窗不可能 |
 | 12 | ABORTED 阶段口令闸（P2-6 2026-09-21） | 流标后闸门保持；verify 允许 ABORTED（未验者可补验）；rotate 仍限 EVALUATING | 评标终止后物料不裸奔，已验专家访问不受影响 |
+| 13 | 启动评标前资料访问（2026-10-21 修复） | 评标资料/评分工作流端点挂 `assertEvaluationStarted`（阶段集同口令闸 {EVALUATING, ABORTED}：解密标书/解密下载/辅助数据/对比/条款标注/草稿·历史·回看/报价历史/澄清件/备忘/打分定位；EVALUATING 前置镜像同步 :3006 步骤门）；签到五项与招标原文/谈判采购文件保持启动前可用 | 旧 {OPENING, EVALUATING} 通用守卫（0fd2ee5f，2026-06-17）早于启动评标正式闸门——OPENING 期专家即可取解密标书并预写评分，且 roomCode 由 startEvaluation 生成、口令闸无从拦 |
 
 ## 8. 边界与风险
 

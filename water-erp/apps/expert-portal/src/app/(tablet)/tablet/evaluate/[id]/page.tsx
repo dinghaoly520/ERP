@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, AlertTriangle, Clock, Lock, Check, CheckCircle, Clipboard, Gavel, Sparkles, ShieldAlert, UserRound } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Clock, Lock, Check, CheckCircle, Clipboard, Gavel, Sparkles, ShieldAlert, UserRound, Hourglass } from 'lucide-react';
 import { api, listMemos } from '@/lib/api';
 import { HelpTip } from '@/components/help-tip';
 import { SigninCamera } from '@/components/signin-camera';
@@ -658,11 +658,13 @@ export default function TabletEvaluatePage() {
   const signInPending = !meRecord?.signedIn && !scoreLocked;
   // EXP-P3-06：口令门页也纳入 10s 轮询——主持人侧停用/轮换口令后本页自动感知（桌面端已含）
   const roomGatePendingHere = !!(project as any)?.roomCodeActive && !(project as any)?.roomCodeVerified && !scoreLocked;
+  // ④ 启动前待命（2026-10-21 启动闸）：OPENING 期轮询等 stage 翻转（WS onStageChange 为主，此为断连兜底）
+  const evaluationPendingHere = project?.stage === 'OPENING';
   useEffect(() => {
-    if (!hostLocked && !signInPending && !roomGatePendingHere) return;
+    if (!hostLocked && !signInPending && !roomGatePendingHere && !evaluationPendingHere) return;
     const t = setInterval(() => loadProject(undefined, true), 10_000);
     return () => clearInterval(t);
-  }, [hostLocked, signInPending, roomGatePendingHere, loadProject]); // B9（第四波）：deps 补口令门态——停用/启用口令后轮询即时启停
+  }, [hostLocked, signInPending, roomGatePendingHere, evaluationPendingHere, loadProject]); // B9（第四波）：deps 补口令门态——停用/启用口令后轮询即时启停
 
   // ── 评标室口令门（2026-09-20 spec §4 · 2026-09-22 平板补齐）──
   // 与桌面端同源：口令启用且本人未验 → 整个打分工作位置于口令输入之后；
@@ -944,6 +946,25 @@ export default function TabletEvaluatePage() {
             </button>
           </div>
         )}
+      </div>
+    );
+  }
+
+  // 启动闸（2026-10-21）：主持人未启动评标（OPENING）且身份核验已完成 → 打分工作区不可进入，
+  // 待命页等 stage 翻转（WS onStageChange + 下方 10s 轮询自动解锁，口令门随后接管）。
+  // 后端同口径：资料/草稿端点 403 EVALUATION_NOT_STARTED——前端仅引导，安全边界在 API。
+  if (project.stage === 'OPENING') {
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center p-6">
+        <div className="neu-card-static w-full max-w-md p-8 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[oklch(0.985 0.005 258)] shadow-[inset_2.5px_2.5px_5px_oklch(0.55_0.03_258/0.14),inset_-2px_-2px_5px_oklch(1_0_0/0.75)]">
+            <Hourglass size={30} strokeWidth={1.5} className="text-[var(--accent)]" />
+          </div>
+          <h2 className="text-lg font-bold text-[var(--foreground)]">等待主持人启动评标</h2>
+          <p className="mx-auto mt-2 max-w-xs text-xs leading-relaxed text-[var(--muted-foreground)]">
+            开标进行中，身份核验已完成。主持人启动评标后本页自动进入评标室（届时需输入评标室口令）。
+          </p>
+        </div>
       </div>
     );
   }

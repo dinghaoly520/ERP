@@ -1,4 +1,4 @@
-import { assertRoomUnlocked } from './expert-room.util';
+import { assertRoomUnlocked, assertEvaluationStarted } from './expert-room.util';
 
 /**
  * P3-3（2026-09-21 全流程审查）：roomCode 非空而 roomCodeAt 为 NULL（手工改库/数据漂移——
@@ -36,5 +36,30 @@ describe('assertRoomUnlocked — roomCodeAt 空值加固', () => {
   it('roomCode 空（未启用）→ 恒放行（旧行为护栏）', async () => {
     const prisma = mkPrisma({ stage: 'EVALUATING', roomCode: null, roomCodeAt: null }, null);
     await expect(assertRoomUnlocked(prisma, 'p1', 'u1')).resolves.toBeUndefined();
+  });
+});
+
+describe('assertEvaluationStarted — 评标启动闸（2026-10-21：启动评标前评标资料不裸奔）', () => {
+  it('OPENING（开标中，主持人未启动评标）→ 403 EVALUATION_NOT_STARTED', async () => {
+    const prisma = mkPrisma({ stage: 'OPENING' }, null);
+    await expect(assertEvaluationStarted(prisma, 'p1'))
+      .rejects.toMatchObject({ response: { code: 'EVALUATION_NOT_STARTED' } });
+  });
+
+  it('EVALUATING → 放行（评标已启动）', async () => {
+    const prisma = mkPrisma({ stage: 'EVALUATING' }, null);
+    await expect(assertEvaluationStarted(prisma, 'p1')).resolves.toBeUndefined();
+  });
+
+  it('ABORTED（流标）→ 放行——镜像口令闸阶段集（P2-6：流标后已进流程专家仍可回看）', async () => {
+    const prisma = mkPrisma({ stage: 'ABORTED' }, null);
+    await expect(assertEvaluationStarted(prisma, 'p1')).resolves.toBeUndefined();
+  });
+
+  it('项目不存在 / 更早阶段（SUBMIT/DOWNLOAD）→ 同 403（未启动即未开始）', async () => {
+    await expect(assertEvaluationStarted(mkPrisma(null as any, null), 'p1'))
+      .rejects.toMatchObject({ response: { code: 'EVALUATION_NOT_STARTED' } });
+    await expect(assertEvaluationStarted(mkPrisma({ stage: 'SUBMIT' }, null), 'p1'))
+      .rejects.toMatchObject({ response: { code: 'EVALUATION_NOT_STARTED' } });
   });
 });

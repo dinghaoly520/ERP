@@ -422,4 +422,64 @@ describe('Expert room code & window isolation (e2e)', () => {
       .set('Cookie', tCookie).set('X-Portal', 'expert');
     expect(r2.body.code ?? '').not.toBe('ROOM_CODE_REQUIRED');
   });
+
+  /* ── 启动评标前评标资料闸（2026-10-21 修复回归）── */
+
+  it('启动闸：OPENING 评标资料/草稿 403 EVALUATION_NOT_STARTED；身份核验照常；启动后转口令闸', async () => {
+    // 自建项目+专家行（texp 全程无开窗，登录不受闸4影响），避免污染共享夹具
+    const past = new Date(Date.now() - 2 * 3600_000); // beforeAll 内同名变量不外泄，本用例自备
+    const proj = await prisma.bidProject.create({
+      data: { projectCode: 'RW-F-2026', name: '启动闸测试-F', procurementMethod: '公开招标', openTime: past, deadline: past, stage: 'OPENING' },
+    });
+    await prisma.bidExpert.create({
+      data: { projectId: proj.id, userId: texpId, expertName: U.texp, major: '造价', expertRole: '正选', invitationStatus: 'confirmed' },
+    });
+    const tCookie = await loginCookie(U.texp, 'expert');
+    try {
+      // 身份核验族（spec 决策 9：口令生成晚于签到——启动前可用）
+      const consent = await request(app.getHttpServer())
+        .post(`/api/expert/projects/${proj.id}/ai-consent`)
+        .set('Cookie', tCookie).set('X-Portal', 'expert');
+      expect([200, 201]).toContain(consent.status);
+
+      // 评标资料/草稿：启动前一律拦（本修复核心）
+      const docs = await request(app.getHttpServer())
+        .get(`/api/expert/projects/${proj.id}/documents/sup-x`)
+        .set('Cookie', tCookie).set('X-Portal', 'expert');
+      expect(docs.status).toBe(403);
+      expect(docs.body.code).toBe('EVALUATION_NOT_STARTED');
+      const draft = await request(app.getHttpServer())
+        .post(`/api/expert/projects/${proj.id}/score-draft`)
+        .set('Cookie', tCookie).set('X-Portal', 'expert').send({ scores: { 's:i': { score: 1 } } });
+      expect(draft.status).toBe(403);
+      expect(draft.body.code).toBe('EVALUATION_NOT_STARTED');
+
+      // 主持人启动评标（直写 stage+roomCode = startEvaluation 净效果，聚焦闸门语义）
+      await prisma.bidProject.update({
+        where: { id: proj.id },
+        data: { stage: 'EVALUATING', roomCode: 'ABCD2345', roomCodeAt: new Date() },
+      });
+
+      // 启动后：口令闸接管（未验 → ROOM_CODE_REQUIRED，即专家端口令弹窗的后端对应物）
+      const docs2 = await request(app.getHttpServer())
+        .get(`/api/expert/projects/${proj.id}/documents/sup-x`)
+        .set('Cookie', tCookie).set('X-Portal', 'expert');
+      expect(docs2.status).toBe(403);
+      expect(docs2.body.code).toBe('ROOM_CODE_REQUIRED');
+
+      // 验对口令 → 两闸全过，落到后续业务校验（供应商不存在——证明不再被两闸拦截）
+      await request(app.getHttpServer())
+        .post(`/api/expert/projects/${proj.id}/room-code/verify`)
+        .set('Cookie', tCookie).set('X-Portal', 'expert').send({ code: 'ABCD2345' })
+        .expect(201);
+      const docs3 = await request(app.getHttpServer())
+        .get(`/api/expert/projects/${proj.id}/documents/sup-x`)
+        .set('Cookie', tCookie).set('X-Portal', 'expert');
+      expect(docs3.body.code ?? '').not.toBe('EVALUATION_NOT_STARTED');
+      expect(docs3.body.code ?? '').not.toBe('ROOM_CODE_REQUIRED');
+    } finally {
+      await prisma.bidExpert.deleteMany({ where: { projectId: proj.id } });
+      await prisma.bidProject.delete({ where: { id: proj.id } });
+    }
+  });
 });

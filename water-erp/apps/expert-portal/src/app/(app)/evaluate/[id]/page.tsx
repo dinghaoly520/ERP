@@ -10,7 +10,7 @@ import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationRep
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
 import { validateSupplierScores, buildFullPoints, committedRecordFor, isCommittedEquivalent, filterScorableItems, type ScoreEntry } from '@/lib/score-validation';
 import { markTransferClaimed } from '@/lib/transfer-claimed-flag';
-import { ArrowLeft, Check, ShieldCheck, ShieldAlert, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, Clock, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History, Info, Smartphone, UserRoundCog } from 'lucide-react';
+import { ArrowLeft, Check, ShieldCheck, ShieldAlert, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, Clock, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History, Info, Smartphone, UserRoundCog, Hourglass } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
 import { SigninCamera } from '@/components/signin-camera';
 import { QRCodeSVG } from 'qrcode.react';
@@ -277,18 +277,22 @@ export default function ExpertEvaluatePage() {
   // 不进专家校验/payload/进度与汇总分母（后端 PRICE_FORMULA_ACTIVE 拒收闸保留作纵深）。
   const priceFormulaActive = !!project?.priceFormulaConfig;
   const scorableItems = project ? filterScorableItems(project.scoreItems, priceFormulaActive) : [];
+  // 启动闸镜像（2026-10-21）：步骤 2+（标书获取/辅助评标/打分/报告）须主持人启动评标后方可进入——
+  // 后端同口径 403 EVALUATION_NOT_STARTED，此处仅前端引导（安全边界在 API）。
+  // 身份核验（step 1）按 2026-09-20 spec 决策 9 保持启动前可用（口令生成晚于签到）。
+  // （evaluationStarted/fiveFlagsVerified 声明于 expert 之后——stepAccessible 系闭包惰性引用）
   const stepAccessible = (sKey: Step): boolean => {
     switch (sKey) {
       case 'verify': return true;
       // EXP-P2-05：与后端五项核验闸对齐（getDecryptedDocuments 等 403 VERIFICATION_REQUIRED 同口径）——
       // 此前只查三项（漏保密承诺/评标纪律），协议 PATCH fire-and-forget 失败时本地勾选态已真、
       // 专家可点进标书/AI/打分步，提交时才撞 403 五项清单
-      case 'documents': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && !!expert?.aiConsentConfirmed && !!expert?.confidentialityAgreed && !!expert?.disciplineAgreed;
-      case 'assist': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && !!expert?.aiConsentConfirmed && !!expert?.confidentialityAgreed && !!expert?.disciplineAgreed;
-      case 'compare': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && !!expert?.aiConsentConfirmed && !!expert?.confidentialityAgreed && !!expert?.disciplineAgreed;
-      case 'scoring': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && !!expert?.aiConsentConfirmed && !!expert?.confidentialityAgreed && !!expert?.disciplineAgreed;
-      case 'verify-score': return (expert?.progress ?? 0) >= 100;
-      case 'report': return !!expert?.reportConfirmed || (expert?.progress ?? 0) >= 100;
+      case 'documents': return evaluationStarted && fiveFlagsVerified;
+      case 'assist': return evaluationStarted && fiveFlagsVerified;
+      case 'compare': return evaluationStarted && fiveFlagsVerified;
+      case 'scoring': return evaluationStarted && fiveFlagsVerified;
+      case 'verify-score': return evaluationStarted && (expert?.progress ?? 0) >= 100;
+      case 'report': return evaluationStarted && (!!expert?.reportConfirmed || (expert?.progress ?? 0) >= 100);
     }
   };
   const stepCompleted = (sKey: Step): boolean => {
@@ -743,6 +747,9 @@ export default function ExpertEvaluatePage() {
   }, [activeSupplier, projectId]);
 
   const expert = project?.myExpertRecord;
+  // 启动闸镜像 consts（2026-10-21，见 stepAccessible 处注释；须在 expert 声明后立即求值）
+  const evaluationStarted = project?.stage === 'EVALUATING';
+  const fiveFlagsVerified = !!expert?.signedIn && !!expert?.avoidanceConfirmed && !!expert?.aiConsentConfirmed && !!expert?.confidentialityAgreed && !!expert?.disciplineAgreed;
   // none-eval（spec §4.4）：直接采购（不评分）轨道——打分步信息卡 + 核对步「定性审查确认」文案
   const noneEvaluation = !!project?.noneEvaluation;
   // F-1（终审 2026-10-19）：信息卡/定性确认轨取两因子（none 且 0 评分项），与 :3007 G9 豁免同型。
@@ -768,7 +775,10 @@ export default function ExpertEvaluatePage() {
   //   （2026-09-20 修复：原轮询仅挂 hostLocked，手动确认后 :3006 无感知、须手动刷新页面）；
   // ③ 评标室口令待验时（2026-09-20 spec §4）——主持人轮换口令后门页自动刷新状态
   const roomGatePending = !!project?.roomCodeActive && !project?.roomCodeVerified;
-  const signInPending = (!!project && !expert?.signedIn) || roomGatePending;
+  // ④ 启动前待命（2026-10-21 启动闸）：OPENING 期轮询等 stage 翻转（WS onStageChange 为主，
+  //    此为断连兜底——主持启动后 10s 内步骤自动解锁）
+  const evaluationPending = project?.stage === 'OPENING';
+  const signInPending = evaluationPending || (!!project && !expert?.signedIn) || roomGatePending;
   useEffect(() => {
     if (!signInPending) return;
     const t = setInterval(() => loadProject(undefined, true), 10_000);
@@ -809,6 +819,7 @@ export default function ExpertEvaluatePage() {
     const verifyDone = er.signedIn && er.avoidanceConfirmed && er.aiConsentConfirmed
       && er.confidentialityAgreed && er.disciplineAgreed;
     if (!verifyDone) return; // stay on 'verify'
+    if (project.stage !== 'EVALUATING') return; // 启动闸（2026-10-21）：未启动停在身份核验步
 
     const progress = er.progress ?? 0;
     if (progress >= 100) setStep('report');
@@ -1403,6 +1414,14 @@ export default function ExpertEvaluatePage() {
         <div className={`exp-alert mb-3 flex shrink-0 items-center justify-between gap-3 !px-4 ${_wsConn === 'reconnecting' ? 'exp-alert--warn' : ''}`}>
           <span className="inline-flex items-center gap-1.5"><AlertTriangle size={13} strokeWidth={1.5} />{_wsConn === 'reconnecting' ? '实时连接中断，正在重连…' : '实时连接已断开，数据可能不是最新'}</span>
           <button onClick={_wsReconnect} className={`neu-btn-xs ${_wsConn === 'reconnecting' ? 'is-warning' : 'is-danger'}`}>重试</button>
+        </div>
+      )}
+
+      {/* 启动闸横幅（2026-10-21）：开标中——身份核验可做，评标资料须待主持人启动评标 */}
+      {project?.stage === 'OPENING' && (
+        <div className="exp-alert exp-alert--info mb-3 flex shrink-0 items-center gap-2 !px-4">
+          <Hourglass size={13} strokeWidth={1.5} />
+          <span>开标进行中：请先完成身份核验，等待主持人启动评标后进入评标室（主持人启动后本页自动刷新，届时需输入评标室口令）</span>
         </div>
       )}
 
