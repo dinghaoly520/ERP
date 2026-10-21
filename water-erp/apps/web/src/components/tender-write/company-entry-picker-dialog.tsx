@@ -52,8 +52,13 @@ export function CompanyEntryPickerDialog({
               contact: p.contact ?? "",
               phone: p.phone ?? "",
             };
-            // 以监督人为条目标识（2026-10-10 用户裁定：无方案名称列）；副行展示部门与电话
-            const parts = [p.department, p.phone].filter(Boolean);
+            // 以监督人为条目标识（2026-10-10 用户裁定：无方案名称列）；副行展示全量信息
+            //（2026-10-21 用户口径：部门/电话/地址带名词标签，缺项跳过）
+            const parts = [
+              p.department ? `部门：${p.department}` : '',
+              p.phone ? `电话：${p.phone}` : '',
+              p.address ? `地址：${p.address}` : '',
+            ].filter(Boolean);
             return { id: p.id, label: p.contact || "监督举报", isDefault: p.isDefault, line: parts.join(" · "), raw: value };
           }),
         );
@@ -132,7 +137,7 @@ export function CompanyEntryPickerDialog({
                       {item.label}
                       {item.isDefault && <span className="ml-2 text-[10px] font-medium text-[color:var(--accent)]">默认</span>}
                     </div>
-                    <div className="mt-0.5 truncate text-[11px] text-[color:var(--muted-foreground)]">{item.line}</div>
+                    <div className="mt-0.5 truncate text-[11px] text-[color:var(--muted-foreground)]" title={item.line}>{item.line}</div>
                   </div>
                 </button>
               ))}

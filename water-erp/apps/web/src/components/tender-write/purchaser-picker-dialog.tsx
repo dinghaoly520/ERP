@@ -95,9 +95,9 @@ export function PurchaserPickerDialog({
                       {p.isDefault && <span className="ml-2 text-[10px] font-medium text-[color:var(--accent)]">默认</span>}
                     </div>
                     <div className="mt-0.5 truncate text-[11px] text-[color:var(--muted-foreground)]">
-                      {p.phone || "未填电话"}
+                      电话：{p.phone || "未填"}
                       {p.email ? <span className="mx-1.5">·</span> : null}
-                      {p.email || ""}
+                      {p.email ? <>邮箱：{p.email}</> : null}
                     </div>
                     {p.address && (
                       <div className="mt-0.5 truncate text-[11px] text-[color:var(--muted-foreground)]" title={p.address}>
