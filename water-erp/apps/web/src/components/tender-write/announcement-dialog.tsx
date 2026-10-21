@@ -43,7 +43,6 @@ import { ContactPickerDialog } from "./contact-picker-dialog";
 import { findContactByName } from "@/lib/api/contacts";
 import { CompanyEntryPickerDialog } from "./company-entry-picker-dialog";
 import { createFieldSample, generateFieldContent } from "@/lib/api/tender-sample";
-import { findContactByName } from "@/lib/api/contacts";
 import { fetchCurrentUser } from "@/lib/api/auth";
 import { getCompanyInfoOnce, type CompanyInfo } from "@/lib/api/company-info";
 import { exportAnnouncementDocument, importWinningBidFromPdf } from "@/lib/api/announcement";
