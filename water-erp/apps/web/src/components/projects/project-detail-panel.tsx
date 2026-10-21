@@ -1299,15 +1299,14 @@ export function ProjectDetailPanel({
                   )}
                 </div>
               </div>
-              {!actionsDisabled && (
-              <button
+                            <button
                 type="button"
                 onClick={() => { setBidConfirmRound(item.currentRound ?? 1); setBidConfirmOpen(true); }}
                 className="neu-btn-soft !h-[32px] !text-xs shrink-0"
               >
                 打开开标确认面板
               </button>
-              )}
+
             </div>
             <div className="mt-2 flex items-center gap-1.5 border-t border-[color-mix(in_oklch,var(--danger)_15%,transparent)] pt-2 text-[11px] text-[var(--muted-foreground)]">
               <span className="font-semibold">收尾路径：</span>

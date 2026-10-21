@@ -26,6 +26,7 @@ import { BID_DEADLINE_BEFORE_OPENING_MS, BID_OPENING_IMMINENT_WARNING_MS, format
 // 间隔展示标签（formatDurationCn：<1 小时显示分钟）
 const DEADLINE_GAP_LABEL = formatDurationCn(BID_DEADLINE_BEFORE_OPENING_MS);
 import type { ProjectManagementItem } from '@/lib/types/project-management';
+import { fetchPmBidProjectRefs, type PmBidProjectRefItem } from '@/lib/api/project-management';
 import {
   awardLetterDeliveryUiState,
   BID_STAGE_LABELS,
@@ -282,7 +283,13 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
     setLoading(true);
     setError(null);
     try {
-      const bp = await ensureBidProject(project.id, round);
+      // 只读优先（2026-10-21）：ensure 端点按写口径管理（PmiOwnershipGuard 将 /bid-project 划为
+      // 懒建写路径，非创建人 403 PMI_READ_ONLY）。本轮已有项目时走只读 refs 解析——leader/admin
+      // 监督视角可正常查看面板；仅本轮尚无项目（懒建场景）才回退 ensure（该分支本就仅创建人可达）。
+      const refs = await fetchPmBidProjectRefs(project.id).catch(() => [] as PmBidProjectRefItem[]);
+      const ref = refs.find((r) => r.round === (round ?? 1));
+let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefined;
+      if (!bp) bp = await ensureBidProject(project.id, round);
       setBidProject(bp);
       const [ws, dt] = await Promise.all([
         getBidWorkspace(bp.id),
