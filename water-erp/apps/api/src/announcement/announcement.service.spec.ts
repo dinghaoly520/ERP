@@ -658,6 +658,15 @@ describe('AnnouncementService — 回收站体系（隐藏/下架/恢复，2026-
     await expect(service.getPublic('g3')).resolves.toMatchObject({ id: 'g3', content: '<p>c</p>' });
   });
 
+  it('getPublic：保密级/定向非本人——公示期满也先过闸 400 NOT_PUBLIC（壳不裸出 metadata，2026-10-21 加固）', async () => {
+    const past = new Date(Date.now() - 86400000);
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'g4', title: 't', type: 'BID_NOTICE', status: 'PUBLISHED', content: 'c', publicityEnd: past, dataClass: 'confidential', metadata: {} });
+    await expect(service.getPublic('g4')).rejects.toMatchObject({ response: { code: 'NOT_PUBLIC' } });
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'g5', title: 't', type: 'BID_NOTICE', status: 'PUBLISHED', content: 'c', publicityEnd: past, dataClass: null, metadata: { visibility: 'RESTRICTED', restrictedSupplierIds: ['OTHER'] } });
+    await expect(service.getPublic('g5')).rejects.toMatchObject({ response: { code: 'NOT_PUBLIC' } });
+    expect(prisma.announcement.update).not.toHaveBeenCalled();
+  });
+
   it('restore：from 缺失/非法 → 兜底 DRAFT', async () => {
     prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'POLICY', status: 'HIDDEN', metadata: null });
     prisma.announcement.update.mockResolvedValue({ id: 'a1', title: 't', type: 'POLICY', status: 'DRAFT' });

@@ -432,27 +432,14 @@ export class AnnouncementService {
 
   async getPublic(id: string, user?: { sub?: string; role?: string }) {
     const announcement = await this.get(id);
-    if (announcement.status !== 'PUBLISHED') {
-      // 2026-10-20 用户裁定：ARCHIVED（已下线）不再 400 拒绝——返回标题壳（offlinedReason），
-      // 门户点进去渲染「该公告已下线」提示页；未发布（DRAFT 等）仍拒绝
-      if (announcement.status === 'ARCHIVED') {
-        return this.titleOnlyStub(announcement);
-      }
-      throw new BadRequestException({ error: '公告未发布', code: 'NOT_PUBLISHED' });
-    }
-    // 2026-10-20 用户裁定：公示期满的 PUBLISHED 同样返回标题壳（PUBLICITY_ENDED）——
-    // 门户点进去渲染「公示期已过，不再显示公示内容」；不计浏览、不走 RESTRICTED 白名单
-    // 校验（壳无正文可泄）。注意：公示期满仅作用于公告渠道——供应商「项目机会」详情
-    // 须持续显示公告原文与采购文件（supplier-portal resolveOwnAnnouncement 只硬过滤 status）。
-    if (announcement.publicityEnd && new Date(announcement.publicityEnd).getTime() < Date.now()) {
-      return this.titleOnlyStub(announcement);
-    }
-    // A2（表 B.1）：与列表同口径——应保密/可公开（未发布到公开级）的公告详情不可按 id 直取
+    // A2（表 B.1）：与列表同口径——应保密/未发布到公开级的公告详情不可按 id 直取。
+    // 2026-10-21 前置加固：dataClass/RESTRICTED 闸门先于「已下线标题壳」返回——否则保密级/
+    // 定向公告公示期满后，壳（含 metadata.restrictedSupplierIds）对任意直链者裸出（改壳前是 400 拒绝面）。
     if (announcement.dataClass && !(PUBLIC_VISIBLE_CLASSES as readonly string[]).includes(announcement.dataClass)) {
       throw new BadRequestException({ error: '公告不存在或不可公开', code: 'NOT_PUBLIC' });
     }
-    // P1 收口（2026-09-28 审计）：RESTRICTED（部分供应商可见）详情此前不校验 visibility——
-    // 列表过滤了、任何未登录者拿 id 却可直读全文。放行集=被选定供应商本人
+    // P1 收口（2026-09-28 审计）：RESTRICTED（部分供应商可见）详情校验 visibility——
+    // 列表过滤了、任何未登录者拿 id 却不可直读。放行集=被选定供应商本人
     // （登录 token → Supplier.userId 反查 → restrictedSupplierIds 命中）。
     const meta = (announcement.metadata ?? {}) as Record<string, unknown>;
     if (meta.visibility === 'RESTRICTED') {
@@ -470,6 +457,22 @@ export class AnnouncementService {
       if (!eligible) {
         throw new BadRequestException({ error: '公告不存在或不可公开', code: 'NOT_PUBLIC' });
       }
+    }
+    if (announcement.status !== 'PUBLISHED') {
+      // 2026-10-20 用户裁定：ARCHIVED（已下线）不再 400 拒绝——返回标题壳（offlinedReason），
+      // 门户点进去渲染「该公告已下线」提示页；未发布（DRAFT 等）仍拒绝
+      if (announcement.status === 'ARCHIVED') {
+        return this.titleOnlyStub(announcement);
+      }
+      throw new BadRequestException({ error: '公告未发布', code: 'NOT_PUBLISHED' });
+    }
+    // 2026-10-20 用户裁定：公示期满的 PUBLISHED 同样返回标题壳（PUBLICITY_ENDED）——
+    // 门户点进去渲染「公示期已过，不再显示公示内容」；不计浏览（能走到这里的都已过
+    // dataClass/RESTRICTED 闸门，壳无正文/附件可泄）。注意：公示期满仅作用于公告渠道——
+    // 供应商「项目机会」详情须持续显示公告原文与采购文件
+    // （supplier-portal resolveOwnAnnouncement 只硬过滤 status）。
+    if (announcement.publicityEnd && new Date(announcement.publicityEnd).getTime() < Date.now()) {
+      return this.titleOnlyStub(announcement);
     }
     await this.prisma.announcement.update({
       where: { id },
