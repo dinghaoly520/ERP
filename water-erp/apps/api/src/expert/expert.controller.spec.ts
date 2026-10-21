@@ -19,7 +19,8 @@ describe('ExpertController', () => {
       downloadTenderDocument: jest.fn(),
       confirmAiConsent: jest.fn(),
     };
-    expertAdminService = { autoPromoteCandidate: jest.fn().mockResolvedValue(null), maybeAutoPromote: jest.fn().mockResolvedValue(null) };
+    // 2026-10-21 连拒预警：rsvp 两路径拒绝入账后计算连拒段
+    expertAdminService = { autoPromoteCandidate: jest.fn().mockResolvedValue(null), maybeAutoPromote: jest.fn().mockResolvedValue(null), maybeAlertExpertDeclineStreak: jest.fn().mockResolvedValue(0) };
     prisma = {
       // 2026-10-21 留痕适配：rsvp 两路径改守卫式 updateMany（原子锁/防双写轨迹）+ expertInvitationLog
       bidExpert: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },

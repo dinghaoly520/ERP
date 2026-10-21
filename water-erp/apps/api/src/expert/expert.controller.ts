@@ -183,6 +183,8 @@ export class ExpertController {
             reason: `邀请链接超时（${rsvpTtlLabel()}），系统自动视为弃权`,
           },
         }).catch(() => { /* 轨迹失败不阻断 verify */ });
+        // 连拒预警（2026-10-21）：超时弃权入账后计算连拒段
+        await this.expertAdminService.maybeAlertExpertDeclineStreak(be.userId, be.expertName);
       }
       be.invitationStatus = 'declined';
       if (be.expertRole === '正选') {
@@ -259,6 +261,10 @@ export class ExpertController {
         fromStatus: 'pending', toStatus: body.status,
       },
     }).catch(() => { /* 轨迹失败不阻断回执 */ });
+    // 连拒预警（2026-10-21）：链接自答婉拒入账后计算连拒段
+    if (body.status === 'declined') {
+      await this.expertAdminService.maybeAlertExpertDeclineStreak(be.userId, be.expertName);
+    }
     // 婉拒 → 自动递补候补；仅正选婉拒才递补——候补婉拒不产生正选空缺，无条件递补会超编转正另一候补（D7 审查）
     const rsvpNo = be.id.slice(-8).toUpperCase();
     const respondedAt = new Date().toISOString();

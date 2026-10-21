@@ -433,6 +433,7 @@ const EXPERT_SPECS: NotificationTypeSpec[] = [
   { code: 'EXPERT_SWAP_PROMOTED', label: '专家替补上岗', domain: 'expert', icon: 'UserCheck', tone: 'blue', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'EXPERT_SWAP_RELEASED', label: '专家替补释放', domain: 'expert', icon: 'UserMinus', tone: 'gray', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'EXPERT_INVITATION_OVERRIDDEN', label: '专家邀请变更', domain: 'expert', icon: 'RefreshCw', tone: 'orange', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP }, // 2026-10-21 代为变更设计适配：工作人员把专家「确认参加」改为「婉拒」时通知本人（含理由与操作人），事件同步计入邀请轨迹
+  { code: 'EXPERT_DECLINE_STREAK', label: '专家连续婉拒预警', domain: 'expert', icon: 'AlertTriangle', tone: 'red', actionable: true, audiences: [{ kind: 'ROLE', roles: ['leader', 'staff'] }], channels: IN_APP, link: () => '/expert/repository' }, // 2026-10-21 邀请信用：连续 3 次拒绝评审邀请触发一次预警（同段连拒期不重复）
   { code: 'EXPERT_DISPUTE_RESOLVED', label: '专家异议结果', domain: 'expert', icon: 'CheckCircle2', tone: 'green', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'EXPERT_RETIRE_CANDIDATE', label: '专家退库预警', domain: 'expert', icon: 'UserMinus', tone: 'orange', actionable: true,
     // 2026-09-26 超界修复：专家库管理事件归 :3005（leader+staff 复核），不进 bid_host/admin；link 指 :3005 退库复核页
@@ -482,6 +483,7 @@ const SUPPLIER_SPECS: NotificationTypeSpec[] = [
   { code: 'SUPPLIER_LINK_REJECTED', label: '加入公司驳回', domain: 'supplier', icon: 'XCircle', tone: 'red', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'SUPPLIER_LINK_DISABLED', label: '加入公司停用', domain: 'supplier', icon: 'UserMinus', tone: 'orange', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP }, // 公司侧库内停用（软移出，可恢复；终审 I1 2026-10-19）——恢复不通知（供应商 myLinks 自见状态）
   { code: 'RSVP_OVERRIDDEN', label: '回执状态变更', domain: 'supplier', icon: 'RefreshCw', tone: 'orange', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP }, // 2026-10-21 回执一次性锁定：工作人员把供应商「确认参加」改为「拒绝」时通知本人（含理由与操作人）
+  { code: 'SUPPLIER_DECLINE_STREAK', label: '供应商连续婉拒预警', domain: 'supplier', icon: 'AlertTriangle', tone: 'red', actionable: true, audiences: [{ kind: 'ROLE', roles: ['leader', 'staff'] }], channels: IN_APP, link: () => '/supplier/repository' }, // 2026-10-21 邀请信用：连续 3 次拒绝采购邀请（自答婉拒/超时弃权/代婉拒均计）触发一次预警——同一段连拒期内不重复
 ];
 
 const ACCOUNT_SPECS: NotificationTypeSpec[] = [

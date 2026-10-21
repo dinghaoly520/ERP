@@ -28,7 +28,11 @@ describe('RsvpService.respond（P0-1 + 一次性锁定·原子闸）', () => {
       supplier: { findUnique: jest.fn().mockResolvedValue({ userId: 'u-supplier' }) },
       $transaction: jest.fn().mockImplementation(async (fn: any) => fn(prisma)),
     };
-    notification = { resolveByLinkToken: jest.fn().mockResolvedValue({ count: 1 }), create: jest.fn().mockResolvedValue({}) };
+    notification = {
+      resolveByLinkToken: jest.fn().mockResolvedValue({ count: 1 }),
+      create: jest.fn().mockResolvedValue({}),
+      sendToRole: jest.fn().mockResolvedValue({}),
+    };
     service = new RsvpService(prisma, { ensureBidProject: jest.fn().mockResolvedValue({}) } as any, notification as any);
   });
 
@@ -338,5 +342,53 @@ describe('RsvpService.markNotified（邀请发送打戳 + 轨迹首节点）', (
     await expect(service.markNotified('', ['s1'])).rejects.toBeInstanceOf(BadRequestException);
     await expect(service.markNotified('BP-1', [])).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.invitationRsvp.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+/** maybeAlertDeclineStreak（2026-10-21 邀请信用预警）：连拒段从最新事件回数，
+ *  任一 ACCEPTED 断段；恰跨过阈值（=3）发 leader+staff 一次，同段后续不重复。 */
+describe('RsvpService.maybeAlertDeclineStreak（连续拒绝预警）', () => {
+  let service: RsvpService;
+  let prisma: any;
+  let notification: any;
+
+  beforeEach(() => {
+    prisma = {
+      invitationRsvpLog: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    };
+    notification = { sendToRole: jest.fn().mockResolvedValue({}) };
+    service = new RsvpService(prisma, {} as any, notification as any);
+  });
+
+  const ev = (toStatus: string) => ({ toStatus });
+
+  it('连拒恰达 3 次 → leader+staff 各一条 SUPPLIER_DECLINE_STREAK', async () => {
+    prisma.invitationRsvpLog.findMany.mockResolvedValue([ev('DECLINED'), ev('DECLINED'), ev('DECLINED')]);
+    const streak = await service.maybeAlertDeclineStreak('s1', '供应商A');
+    expect(streak).toBe(3);
+    expect(notification.sendToRole).toHaveBeenCalledTimes(2);
+    expect(notification.sendToRole).toHaveBeenCalledWith('leader', expect.objectContaining({ type: 'SUPPLIER_DECLINE_STREAK' }));
+    expect(notification.sendToRole).toHaveBeenCalledWith('staff', expect.objectContaining({ type: 'SUPPLIER_DECLINE_STREAK' }));
+  });
+
+  it('连拒 4 次（跨阈值发生在更早那次）→ 不重复打扰', async () => {
+    prisma.invitationRsvpLog.findMany.mockResolvedValue([ev('DECLINED'), ev('DECLINED'), ev('DECLINED'), ev('DECLINED')]);
+    const streak = await service.maybeAlertDeclineStreak('s1', '供应商A');
+    expect(streak).toBe(4);
+    expect(notification.sendToRole).not.toHaveBeenCalled();
+  });
+
+  it('中间有确认即断段：拒-拒-确认-拒 → 连拒段 1，不预警', async () => {
+    prisma.invitationRsvpLog.findMany.mockResolvedValue([ev('DECLINED'), ev('DECLINED'), ev('ACCEPTED'), ev('DECLINED')]);
+    const streak = await service.maybeAlertDeclineStreak('s1', '供应商A');
+    expect(streak).toBe(1);
+    expect(notification.sendToRole).not.toHaveBeenCalled();
+  });
+
+  it('预警计算失败不抛错（返回 0）', async () => {
+    prisma.invitationRsvpLog.findMany.mockRejectedValue(new Error('db down'));
+    await expect(service.maybeAlertDeclineStreak('s1', '供应商A')).resolves.toBe(0);
   });
 });

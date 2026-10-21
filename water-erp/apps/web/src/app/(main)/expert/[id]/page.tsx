@@ -8,7 +8,7 @@ import { copyToClipboard } from '@/lib/copy-to-clipboard';
 import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getNotifyPrefs, updateNotifyPrefs, getNotifyHistory, getAiAdoptionRate, proxyMarkExpertInvitation, updateExpertProfile, getRiskBrief, type ExpertPortrait, type ExpertRiskBrief, type NotifyHistoryItem, revealExpertField } from '@/lib/api/expert';
 import { Modal, AlertBanner, StatusBadge } from '@/components/workbench';
 import { useExpertAlerts } from '@/lib/hooks/use-alerts';
-import { TrendingUp, Award, AlertTriangle, ShieldAlert, Bell, Phone, MessageSquare, History, Ban, Sparkles, RefreshCw, Pencil, X, User, Hash, Briefcase, GraduationCap, Mail, Building2, Calendar, FileText, IdCard, Users, MapPin, Loader2 } from 'lucide-react';
+import { TrendingUp, Award, AlertTriangle, ShieldAlert, ShieldCheck, Bell, Phone, MessageSquare, History, Ban, Sparkles, RefreshCw, Pencil, X, User, Hash, Briefcase, GraduationCap, Mail, Building2, Calendar, FileText, IdCard, Users, MapPin, Loader2 } from 'lucide-react';
 import { STAGE_LABEL, STAGE_COLOR, LEVEL_LABEL } from '@water-erp/shared';
 
 interface ScoreRecord { id: string; score: number; reason: string | null; scoreItem: { name: string; category: string; maxScore: number }; }
@@ -32,6 +32,12 @@ interface ExpertDetail {
   expertProfile?: { specialty?: string; title?: string; employer?: string; phone?: string; idNumber?: string; availability?: string; notes?: string; education?: string; ethnicity?: string; licenseNo?: string; regionCode?: string; expertLevel?: string };
   assignments: Assignment[];
   statistics: { totalProjects: number; completedProjects: number; signedInProjects: number; evalAvg: number; evalCount: number };
+  /** 邀请信用摘要（2026-10-21）：毁约记录 + 连拒段预警口径 */
+  invitationSummary?: {
+    invited: number; confirmed: number; declined: number; pending: number;
+    overrideAfterConfirm: number; consecutiveDeclined: number;
+    breachEvents: { projectName: string; at: string; reason: string | null; actorName: string | null }[];
+  };
 }
 
 const STAGE_FALLBACK_COLOR = 'var(--muted-foreground)';
@@ -477,6 +483,70 @@ export default function ExpertDetailPage() {
           </div>
         );
       })()}
+
+      {tab === 'overview' && expert.invitationSummary && (
+        <div className="neu-card-static !rounded-2xl mb-4 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <ShieldCheck size={15} className="text-[var(--accent)]" />
+            <h3 className="text-sm font-bold text-[var(--foreground)]">邀请信用</h3>
+            {(expert.invitationSummary.consecutiveDeclined ?? 0) >= 3 && (
+              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold"
+                style={{ color: '#e74c3c', background: '#fef2f2', border: '1px solid #fecaca' }}>
+                <AlertTriangle size={11} />连续婉拒预警
+              </span>
+            )}
+            {expert.invitationSummary.overrideAfterConfirm > 0 && (
+              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold"
+                style={{ color: 'var(--danger)', background: 'color-mix(in oklch, var(--danger) 10%, transparent)' }}>
+                邀请毁约 {expert.invitationSummary.overrideAfterConfirm} 次
+              </span>
+            )}
+          </div>
+          {(expert.invitationSummary.consecutiveDeclined ?? 0) >= 3 && (
+            <div className="mb-3 flex items-start gap-2.5 rounded-xl border px-4 py-3"
+              style={{ borderColor: '#fecaca', backgroundColor: '#fef2f2' }}>
+              <AlertTriangle size={15} className="mt-0.5 shrink-0 text-[#e74c3c]" />
+              <div className="min-w-0 text-[12px] leading-5 text-[var(--foreground)]">
+                该专家已连续 {expert.invitationSummary.consecutiveDeclined} 次拒绝评审邀请（阈值 3 次，含婉拒/超时弃权/代婉拒）。请复核其参评意愿与库内状态——系统已同步通知 leader 与 staff。
+              </div>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            {([
+              ['累计受邀', expert.invitationSummary.invited],
+              ['确认参加', expert.invitationSummary.confirmed],
+              ['婉拒/弃权', expert.invitationSummary.declined],
+              ['中途毁约', expert.invitationSummary.overrideAfterConfirm],
+              ['连续拒绝', expert.invitationSummary.consecutiveDeclined],
+            ] as [string, number][]).map(([label, value]) => (
+              <div key={label} className="rounded-[10px] px-3 py-2 text-center"
+                style={{
+                  background: (label === '连续拒绝' && value >= 3) || (label === '中途毁约' && value > 0)
+                    ? 'color-mix(in oklch, var(--danger) 7%, transparent)'
+                    : 'oklch(1 0 0 / 0.45)',
+                }}>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">{label}</div>
+                <div className="text-[1.3rem] font-black tabular-nums leading-tight"
+                  style={{ color: (label === '连续拒绝' && value >= 3) || (label === '中途毁约' && value > 0) ? 'var(--danger)' : 'var(--foreground)' }}>{value}</div>
+              </div>
+            ))}
+          </div>
+          {(expert.invitationSummary.breachEvents?.length ?? 0) > 0 && (
+            <div className="mt-3 space-y-2">
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">邀请毁约记录（确认参加后被改为拒绝）</div>
+              {expert.invitationSummary.breachEvents!.map((b, i) => (
+                <div key={i} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[10px] px-3 py-2"
+                  style={{ background: 'color-mix(in oklch, var(--danger) 5%, transparent)' }}>
+                  <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-[var(--foreground)]">{b.projectName || '（项目已清理）'}</span>
+                  <span className="text-[11px] text-[var(--muted-foreground)] tabular-nums">{new Date(b.at).toLocaleString('zh-CN')}</span>
+                  {b.actorName && <span className="text-[11px] text-[var(--muted-foreground)]">操作人 {b.actorName}</span>}
+                  {b.reason && <span className="w-full text-[11px] text-[var(--danger)]">理由：{b.reason}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {tab === 'overview' && (
         <div className="neu-table-card">

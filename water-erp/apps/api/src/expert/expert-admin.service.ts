@@ -30,6 +30,7 @@ import { NotificationService } from '../notification/notification.service';
 import { BidGateway } from '../bid/bid.gateway';
 import { CompanyScopeService } from '../company/company-scope';
 import type { CompanyWhere } from '../company/company-scope';
+import { EVALUATION_COOLDOWN_MS, reevalAllowed, latestExpertEvals } from '../common/evaluation-dedupe.util';
 
 /** 等级→分值（用于加权计算综合等级） */
 const GRADE_SCORE: Record<ExpertLevel, number> = { A: 5, B: 4, C: 3, D: 2, E: 1 };
@@ -67,6 +68,9 @@ export const EXPERT_AUDIT_ACTIONS = [
 
 /** 专家邀请作答方（2026-10-21 代为变更设计适配，口径与供应商 RsvpActorType 对齐） */
 export type ExpertInvitationActor = 'EXPERT' | 'STAFF' | 'SYSTEM';
+
+/** 邀请信用预警阈值（2026-10-21 用户口径）：连续拒绝 ≥3 次触发一次预警（同段连拒期不重复） */
+const DECLINE_STREAK_ALERT_THRESHOLD = 3;
 
 /** 邀请轨迹落账（写侧统一入口——邀请状态/角色任何流转必须留痕，缺失即审计断链；失败 warn 不阻断主流程） */
 async function writeInvitationLog(
@@ -184,13 +188,13 @@ export class ExpertAdminService {
       }),
     ]);
 
-    // 补最新一次评价（A-E 等级制）
+    // 补最新一次评价（A-E 等级制）；统计闸：按槽位取最新后再取专家最新（单人刷多条只算一票）
     const userIds = users.map(u => u.id);
-    const latestEvals = await this.prisma.expertEvaluation.findMany({
+    const latestEvals = latestExpertEvals(await this.prisma.expertEvaluation.findMany({
       where: { expertUserId: { in: userIds } },
       orderBy: { createdAt: 'desc' },
-      select: { id: true, expertUserId: true, overallGrade: true, createdAt: true },
-    });
+      select: { id: true, expertUserId: true, overallGrade: true, createdAt: true, evaluatorId: true, projectId: true, updatedAt: true },
+    }));
     const latestMap = new Map<string, any>();
     for (const e of latestEvals) {
       if (!latestMap.has(e.expertUserId)) latestMap.set(e.expertUserId, e);
@@ -200,11 +204,11 @@ export class ExpertAdminService {
       u.latestEval = le ? { level: le.overallGrade, createdAt: le.createdAt } : null;
     }
 
-    // 补平均等级（最常见等级，众数）
-    const allEvals = await this.prisma.expertEvaluation.findMany({
+    // 补平均等级（最常见等级，众数）——统计闸：槽位去重后计众数（方案B 多次评价不放大单人票权）
+    const allEvals = latestExpertEvals(await this.prisma.expertEvaluation.findMany({
       where: { expertUserId: { in: userIds } },
-      select: { expertUserId: true, overallGrade: true },
-    });
+      select: { expertUserId: true, overallGrade: true, evaluatorId: true, projectId: true, createdAt: true, updatedAt: true },
+    }));
     const gradeCountsByUser = new Map<string, Record<string, number>>();
     for (const e of allEvals) {
       if (!gradeCountsByUser.has(e.expertUserId)) gradeCountsByUser.set(e.expertUserId, { A: 0, B: 0, C: 0, D: 0, E: 0 });
@@ -408,6 +412,36 @@ export class ExpertAdminService {
       invitationTrail: trailByAssignment.get(a.id) ?? [],
     }));
 
+    // 邀请信用摘要（2026-10-21 用户口径：中途毁约记录在专家信息中 + 连续拒绝预警）——
+    // 从已取的全量 assignments/logs 就地聚合，不新增查询
+    const projectNameByBe = new Map(assignmentsRaw.map(a => [a.id, a.project?.name ?? '']));
+    const decisionEvents = assignmentLogs
+      .filter((l: any) => ['RESPONDED', 'STAFF_MARKED', 'AUTO_DECLINED'].includes(l.action) && ['confirmed', 'declined'].includes(l.toStatus ?? ''))
+      .sort((a: any, b: any) => a.createdAt.getTime() - b.createdAt.getTime());
+    let expertConsecutiveDeclined = 0;
+    for (let i = decisionEvents.length - 1; i >= 0; i--) {
+      if (decisionEvents[i].toStatus !== 'declined') break;
+      expertConsecutiveDeclined++;
+    }
+    const breachEvents = decisionEvents
+      .filter((l: any) => l.action === 'STAFF_MARKED' && l.fromStatus === 'confirmed' && l.toStatus === 'declined')
+      .sort((a: any, b: any) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((l: any) => ({
+        projectName: projectNameByBe.get(l.bidExpertId) ?? '',
+        at: l.createdAt.toISOString(),
+        reason: l.reason,
+        actorName: l.actorName,
+      }));
+    const invitationSummary = {
+      invited: assignmentsRaw.length,
+      confirmed: assignmentsRaw.filter(a => a.invitationStatus === 'confirmed').length,
+      declined: assignmentsRaw.filter(a => a.invitationStatus === 'declined').length,
+      pending: assignmentsRaw.filter(a => a.invitationStatus === 'pending').length,
+      overrideAfterConfirm: breachEvents.length, // 毁约次数：确认后被改为拒绝
+      consecutiveDeclined: expertConsecutiveDeclined,
+      breachEvents,
+    };
+
     // R6-7③（2026-09-30 审计 A1）：获评次数此前 take:10 封顶——库页 _count 显示 15、
     // 详情显示 10、分布也只按最近 10 条算，同数两页矛盾。取全量算真实计数与分布，
     // 明细列表另限展示条数。
@@ -437,6 +471,8 @@ export class ExpertAdminService {
       assignments,
       evaluations: evaluations.slice(0, 20),
       statistics: { totalProjects, completedProjects, signedInProjects, evalCount: evaluations.length, gradeCounts },
+      // 邀请信用摘要（2026-10-21）：毁约记录 + 连拒段预警口径
+      invitationSummary,
     };
   }
 
@@ -838,20 +874,21 @@ export class ExpertAdminService {
     // 先清理超时未回复的 pending 邀请——与 RSVP verify 行为一致（TTL 过期自动弃权并递补）
     const expiredPending = await this.prisma.bidExpert.findMany({
       where: { projectId, invitationStatus: 'pending', rsvpExpiresAt: { lt: new Date() } },
-      select: { id: true, expertRole: true, userId: true },
+      select: { id: true, expertRole: true, userId: true, expertName: true },
     });
     if (expiredPending.length > 0) {
       await this.prisma.bidExpert.updateMany({
         where: { id: { in: expiredPending.map(e => e.id) } },
         data: { invitationStatus: 'declined', rsvpRespondedAt: new Date(), invitationActorType: 'SYSTEM' },
       });
-      // 超时弃权轨迹（2026-10-21 留痕适配）：SYSTEM 作答方与专家主动婉拒区分展示
+      // 超时弃权轨迹（2026-10-21 留痕适配）：SYSTEM 作答方与专家主动婉拒区分展示 + 连拒预警
       for (const e of expiredPending) {
         await writeInvitationLog(this.prisma, {
           bidExpertId: e.id, projectId, userId: e.userId,
           action: 'AUTO_DECLINED', actorType: 'SYSTEM', fromStatus: 'pending', toStatus: 'declined',
           reason: '邀请链接超时未回复，系统自动视为弃权',
         });
+        await this.maybeAlertExpertDeclineStreak(e.userId, e.expertName ?? '');
       }
       // 仅正选过期才递补（候补过期不占正选席位）；失败静默，不阻塞列表返回
       if (expiredPending.some(e => e.expertRole === '正选')) {
@@ -1139,6 +1176,8 @@ export class ExpertAdminService {
         action: 'RESPONDED', actorType: 'EXPERT', actorName: record.expertName,
         fromStatus: 'pending', toStatus: 'declined', reason: '专家登录端婉拒',
       });
+      // 连拒预警（2026-10-21）：自答婉拒入账后计算连拒段
+      await this.maybeAlertExpertDeclineStreak(userId, record.expertName);
     }
     // 婉拒 → 自动递补候补（与 RSVP 链接路径一致）；仅正选婉拒才递补——候补婉拒不产生正选空缺，
     // 无条件递补会把另一候补超编转正并徒耗候补席位（D7 审查）；递补失败静默，不影响婉拒结果。
@@ -1190,6 +1229,44 @@ export class ExpertAdminService {
       });
     }
     return { success: true, status: 'confirmed' };
+  }
+
+  /**
+   * 连续拒绝预警（2026-10-21 用户口径，与供应商 maybeAlertDeclineStreak 同构）：
+   * 该专家全部确认/拒绝事件按时间正序，从最新往前数连续 declined（自答婉拒/超时弃权/
+   * 代婉拒均计，任一 confirmed 即断段）。恰在跨过阈值（=3）那一次发 leader+staff
+   * 站内信；同段后续不重复；恢复确认即重置。失败不阻断主流程。
+   */
+  async maybeAlertExpertDeclineStreak(userId: string, expertName: string): Promise<number> {
+    try {
+      const events = await this.prisma.expertInvitationLog.findMany({
+        where: {
+          userId,
+          action: { in: ['RESPONDED', 'STAFF_MARKED', 'AUTO_DECLINED'] },
+          toStatus: { in: ['confirmed', 'declined'] },
+        },
+        select: { toStatus: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      let streak = 0;
+      for (let i = events.length - 1; i >= 0; i--) {
+        if (events[i].toStatus !== 'declined') break;
+        streak++;
+      }
+      if (streak === DECLINE_STREAK_ALERT_THRESHOLD) {
+        const payload = {
+          type: 'EXPERT_DECLINE_STREAK',
+          title: '专家连续婉拒预警',
+          content: `专家「${expertName}」已连续 ${streak} 次拒绝评审邀请（含婉拒/超时弃权/代婉拒），请复核其参评意愿与库内状态。`,
+          link: '/expert/repository',
+        };
+        await Promise.all(['leader', 'staff'].map(r => this.notification.sendToRole(r, payload)));
+      }
+      return streak;
+    } catch (err: any) {
+      Logger.warn(`专家连拒预警计算失败 user=${userId}: ${err?.message ?? err}`, 'ExpertAdminService');
+      return 0;
+    }
   }
 
   /**
@@ -1280,6 +1357,10 @@ export class ExpertAdminService {
     }
     if (status === 'declined' && record.expertRole === '正选') {
       promoted = await this.maybeAutoPromote(projectId).catch(() => null);
+    }
+    // 连拒预警（2026-10-21）：代婉拒入账后计算连拒段
+    if (status === 'declined') {
+      await this.maybeAlertExpertDeclineStreak(userId, record.expertName);
     }
     return { success: true, status, changed: true, promoted };
   }
@@ -1496,9 +1577,10 @@ export class ExpertAdminService {
         _count: true,
         orderBy: { _count: { title: 'desc' } },
       }),
+      // 统计闸：大屏聚合按槽位去重（方案B 多次评价不放大单人票权）
       this.prisma.expertEvaluation.findMany({
-        select: { overallGrade: true, expertUserId: true, createdAt: true },
-      }),
+        select: { overallGrade: true, expertUserId: true, createdAt: true, evaluatorId: true, projectId: true, updatedAt: true },
+      }).then(latestExpertEvals),
       this.prisma.bidScoreRecord.findMany({
         select: {
           score: true, scoreItemId: true, supplierId: true,
@@ -1709,22 +1791,31 @@ export class ExpertAdminService {
         : undefined,
     };
 
-    // 去重/防刷（幂等）：同一评价者对同一专家在同一项目仅保留一条评价（可改不可刷）。
-    // 否则可对目标专家无限刷 D 级评价，配合退库预警造成错误退库。
-    // （DB 唯一约束与种子数据冲突，故用服务层 find-then-upsert）
-    const existing = await this.prisma.expertEvaluation.findFirst({
-      where: { expertUserId: dto.expertUserId, evaluatorId, projectId: dto.projectId ?? null },
+    // 方案B（2026-10-21 用户裁定：工作人员可多次评价）——提交闸+频次闸替代原「终身一条 upsert」：
+    // ①提交闸：同评价人×同专家×同项目 7 天内已评价 → 覆盖更新（视为修改，不增条目）
+    // ②频次闸：7 天内对该专家已有其他评价 → 须 leader/admin 或填「复评事由」
+    // ③统计闸见 latestExpertEvals——排名/画像/退库预警按槽位取最新，单人刷多条只算一票
+    const recent = await this.prisma.expertEvaluation.findMany({
+      where: { expertUserId: dto.expertUserId, evaluatorId, createdAt: { gte: new Date(Date.now() - EVALUATION_COOLDOWN_MS) } },
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
     });
-    if (existing) {
+    const sameSlot = recent.find((e) => (e.projectId ?? null) === (dto.projectId ?? null));
+    if (!sameSlot && recent.length > 0 && !reevalAllowed(actor?.role, dto.reviewReason)) {
+      throw new BadRequestException({
+        error: '7 天内已评价过该专家，再次评价须填写复评事由（或由 leader/admin 发起）',
+        code: 'EVALUATION_TOO_FREQUENT',
+      });
+    }
+    if (sameSlot) {
       return this.prisma.expertEvaluation.update({
-        where: { id: existing.id },
-        data,
+        where: { id: sameSlot.id },
+        data: { ...data, reviewReason: dto.reviewReason?.trim() || undefined },
         include: { evaluator: { select: { id: true, displayName: true } } },
       });
     }
 
     const created = await this.prisma.expertEvaluation.create({
-      data: { expertUserId: dto.expertUserId, projectId: dto.projectId ?? null, evaluatorId, ...data },
+      data: { expertUserId: dto.expertUserId, projectId: dto.projectId ?? null, evaluatorId, ...data, reviewReason: dto.reviewReason?.trim() || undefined },
       include: { evaluator: { select: { id: true, displayName: true } } },
     });
 
@@ -1732,7 +1823,7 @@ export class ExpertAdminService {
     // 实际退库须经 admin 调 confirmRetire() 确认。此处仅返回评价结果。
     // 审计留痕：评价（含更新）记一条，整体等级 + 关联项目入 details，评价人=操作人（evaluatorId）
     await this.auditExpert(evaluatorId, 'EXPERT_EVALUATE', dto.expertUserId, {
-      expertName: expert.displayName, overallGrade, projectId: dto.projectId ?? null, updated: !!existing,
+      expertName: expert.displayName, overallGrade, projectId: dto.projectId ?? null, updated: !!sameSlot,
     });
     return created;
   }
@@ -1741,10 +1832,11 @@ export class ExpertAdminService {
     const scope = await this.companyScope.resolveScope(user);
     const f = this.companyScope.filter(scope);
     const [evaluations, allDeviations] = await Promise.all([
+      // 统计闸：槽位去重后算等级分布/优良率（方案B 多次评价不放大单人票权）
       this.prisma.expertEvaluation.findMany({
         where: { expertUser: f },
-        select: { overallGrade: true, expertUserId: true, createdAt: true },
-      }),
+        select: { overallGrade: true, expertUserId: true, createdAt: true, evaluatorId: true, projectId: true, updatedAt: true },
+      }).then(latestExpertEvals),
       // P2：偏离度计算下推到 Postgres 窗口函数，仅返回按专家聚合的结果，避免全表 BidScoreRecord 加载入内存
       // 语义等价 computeExpertMeanDeviations：按 (scoreItemId,supplierId) 分组、组内 ≥2 人、每位专家平均绝对偏离
       this.prisma.$queryRaw<{ expertId: string; meanDeviation: string | number; sampleCount: number }[]>`
@@ -1850,11 +1942,12 @@ export class ExpertAdminService {
         where: { expert: { userId } },
         select: { score: true, scoreItemId: true, supplierId: true, expert: { select: { userId: true } } },
       }),
+      // 统计闸：画像等级分布按槽位去重（方案B 多次评价不放大单人票权）；R6-7③：全量真实分布
       this.prisma.expertEvaluation.findMany({
         where: { expertUserId: userId },
         orderBy: { createdAt: 'desc' },
-        select: { overallGrade: true, createdAt: true },
-      }), // R6-7③：去 take:10 封顶，gradeCounts 按全量真实分布
+        select: { expertUserId: true, overallGrade: true, createdAt: true, evaluatorId: true, projectId: true, updatedAt: true },
+      }).then(latestExpertEvals),
     ]);
 
     const deviations = computeExpertMeanDeviations(
@@ -1903,11 +1996,12 @@ export class ExpertAdminService {
     // Batch queries instead of N+1 per-expert queries
     const [allEvals, allRecentAssigns] = await Promise.all([
       // All recent evaluations for all experts (up to 2 per expert)
+      // 统计闸：退库预警「连续低等级」按槽位去重判定（方案B 多次评价——单人刷 D/E 不再触发误退库）
       this.prisma.expertEvaluation.findMany({
         where: { expertUserId: { in: expertIds } },
         orderBy: { createdAt: 'desc' },
-        select: { expertUserId: true, overallGrade: true, createdAt: true },
-      }),
+        select: { expertUserId: true, overallGrade: true, createdAt: true, evaluatorId: true, projectId: true, updatedAt: true },
+      }).then(latestExpertEvals),
       // All recent assignments in last 12 months
       this.prisma.bidExpert.findMany({
         where: { userId: { in: expertIds }, createdAt: { gte: cutoff } },
@@ -2134,13 +2228,14 @@ export class ExpertAdminService {
         : new Date(0);
     const f = await this.expertScopeFilter(user, companyId);
 
-    const evals = await this.prisma.expertEvaluation.findMany({
+    // 统计闸：槽位去重（方案B 多次评价——单人同对象同项目只算最新一票），排名票数=去重后条数
+    const evals = latestExpertEvals(await this.prisma.expertEvaluation.findMany({
       where: { createdAt: { gte: cutoff }, expertUser: f },
       select: {
-        expertUserId: true, overallGrade: true,
+        expertUserId: true, overallGrade: true, evaluatorId: true, projectId: true, createdAt: true, updatedAt: true,
         expertUser: { select: { displayName: true, expertProfile: { select: { specialty: true } } } },
       },
-    });
+    }));
 
     const GRADE_SCORE: Record<string, number> = { A: 5, B: 4, C: 3, D: 2, E: 1 };
     const byExpert = new Map<string, { displayName: string; specialty: string; evalCount: number; aCount: number; bCount: number; gradeCounts: Record<string, number> }>();

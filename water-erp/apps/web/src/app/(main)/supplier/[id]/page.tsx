@@ -13,7 +13,7 @@ import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
 import { LEVEL_LABEL, LEVEL_COLOR, SUPPLIER_STATUS_LABEL, getNotificationLabel, getNotificationChannelLabel } from '@water-erp/shared';
 import type { AuthUser } from '@/lib/api/auth';
 import { fetchCurrentUser } from '@/lib/api/auth';
-import { CheckCircle2, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, FileText, User, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Trash2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, Link2, AtSign } from 'lucide-react';
+import { CheckCircle2, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, FileText, User, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Trash2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, Link2, AtSign, AlertTriangle } from 'lucide-react';
 import { SupplierTimeline } from '@/components/supplier/timeline';
 import { ApprovalHistory } from '@/components/supplier/approval-history';
 import { PortraitTab } from '@/components/supplier/portrait-tab';
@@ -1164,7 +1164,46 @@ export default function SupplierDetailPage() {
           </div>
         )}
 
-        {/* 邀请回执经历（2026-10-21 回执锁定口径）：邀请统计 + 逐条回执轨迹 */}
+        {/* 邀请回执经历（2026-10-21 回执锁定口径）：邀请统计 + 毁约记录 + 逐条回执轨迹 */}
+        {activeTab === 'rsvp' && rsvpHistory && (rsvpHistory.stats.consecutiveDeclined ?? 0) >= 3 && (
+          <div className="mb-4 flex items-start gap-2.5 rounded-xl border px-4 py-3"
+            style={{ borderColor: '#fecaca', backgroundColor: '#fef2f2' }}>
+            <AlertTriangle size={15} className="mt-0.5 shrink-0 text-[#e74c3c]" />
+            <div className="min-w-0">
+              <div className="text-sm font-bold text-[#e74c3c]">连续婉拒预警（{rsvpHistory.stats.consecutiveDeclined} 次）</div>
+              <div className="mt-0.5 text-[12px] leading-5 text-[var(--foreground)]">
+                该供应商已连续 {rsvpHistory.stats.consecutiveDeclined} 次拒绝采购邀请（阈值 3 次，含婉拒/超时弃权/代婉拒）。请复核其合作意愿与库内资格——系统已同步通知 leader 与 staff。
+              </div>
+            </div>
+          </div>
+        )}
+        {activeTab === 'rsvp' && rsvpHistory && (rsvpHistory.breachEvents?.length ?? 0) > 0 && (
+          <div className="neu-card-static !rounded-2xl mb-4 p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <AlertTriangle size={15} className="text-[var(--danger)]" />
+              <h3 className="text-sm font-bold text-[var(--foreground)]">邀请毁约记录</h3>
+              <span className="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                style={{ color: 'var(--danger)', background: 'color-mix(in oklch, var(--danger) 10%, transparent)' }}>
+                {rsvpHistory.breachEvents!.length} 次
+              </span>
+              <span className="text-[11px] text-[var(--muted-foreground)]">——确认参加后被改为拒绝（中途毁约），逐条留档</span>
+            </div>
+            <div className="space-y-2">
+              {rsvpHistory.breachEvents!.map((b, i) => (
+                <div key={i} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[10px] px-3 py-2"
+                  style={{ background: 'color-mix(in oklch, var(--danger) 5%, transparent)' }}>
+                  <span className="font-mono text-[10px] text-[var(--muted-foreground)]">#{b.rsvpNo}</span>
+                  <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-[var(--foreground)]">{b.title}</span>
+                  <span className="text-[11px] text-[var(--muted-foreground)] tabular-nums">{new Date(b.at).toLocaleString('zh-CN')}</span>
+                  {b.actorName && <span className="text-[11px] text-[var(--muted-foreground)]">操作人 {b.actorName}</span>}
+                  {b.reason && (
+                    <span className="w-full text-[11px] text-[var(--danger)]">理由：{b.reason}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {activeTab === 'rsvp' && (
           <div>
             {rsvpLoading ? (

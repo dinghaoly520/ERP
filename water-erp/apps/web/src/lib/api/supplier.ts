@@ -271,12 +271,19 @@ export interface RsvpHistoryItem {
   respondedAt: string | null; supplierRespondedAt?: string | null; supplierStatus?: 'ACCEPTED' | 'DECLINED' | null;
   notifiedAt: string | null; createdAt: string; trail: RsvpTrailItem[];
 }
+export interface RsvpBreachEvent {
+  rsvpNo: string; title: string; at: string; reason: string | null; actorName: string | null;
+}
 export interface RsvpHistoryResult {
   supplierId: string;
   stats: {
     invited: number; accepted: number; declined: number; pending: number; acceptRate: string | null;
     systemDeclined: number; respondedByStaff: number; overrideAfterAccept: number;
+    /** 当前连续拒绝段（2026-10-21 预警口径：≥3 触发，任一确认即重置） */
+    consecutiveDeclined?: number;
   };
+  /** 毁约事件（2026-10-21 用户口径：确认参加后被改为拒绝，逐条记录在供应商信息中） */
+  breachEvents?: RsvpBreachEvent[];
   items: RsvpHistoryItem[];
 }
 export function getRsvpHistory(supplierId: string) {

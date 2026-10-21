@@ -66,6 +66,9 @@ export interface RsvpView {
   expiresAt: string;
 }
 
+/** 邀请信用预警阈值（2026-10-21 用户口径）：连续拒绝 ≥3 次触发一次预警（同段连拒期不重复） */
+const DECLINE_STREAK_ALERT_THRESHOLD = 3;
+
 @Injectable()
 export class RsvpService {
   private readonly logger = new Logger(RsvpService.name);
@@ -102,6 +105,7 @@ export class RsvpService {
           action: 'AUTO_DECLINED', actorType: 'SYSTEM', toStatus: 'DECLINED',
           note: '链接超时（24小时），系统自动视为弃权',
         });
+        await this.maybeAlertDeclineStreak(row.supplierId, row.supplierName);
       }
       row.status = 'DECLINED';
       row.respondedAt = new Date();
@@ -220,6 +224,11 @@ export class RsvpService {
       }
     }
 
+    // 连拒预警（2026-10-21）：拒绝事件入账后计算连拒段，跨阈值发 leader+staff
+    if (body.status === 'DECLINED') {
+      await this.maybeAlertDeclineStreak(row.supplierId, row.supplierName);
+    }
+
     // 邀请待办消音（2026-10-14 闭环）：回执即办结——按供应商账号 + SELECTION_NOTIFY +
     // link 含本 token 精确圈定该次邀请的站内通知（重发批次复用同 token 一并消音），
     // 不误伤其他项目邀请；失败不阻断回执结果（消音仅影响待办展示）
@@ -280,6 +289,7 @@ export class RsvpService {
           action: 'AUTO_DECLINED', actorType: 'SYSTEM', toStatus: 'DECLINED',
           note: '链接超时（24小时），系统自动视为弃权',
         });
+        await this.maybeAlertDeclineStreak(r.supplierId, r.supplierName);
         r.status = 'DECLINED';
         r.respondedAt = new Date();
         r.respondentType = 'SYSTEM';
@@ -454,6 +464,10 @@ export class RsvpService {
       if (from === 'ACCEPTED' && status === 'DECLINED') {
         await this.notifyOverride(row, actorName, reason);
       }
+      // 连拒预警（2026-10-21）：代婉拒入账后计算连拒段
+      if (status === 'DECLINED') {
+        await this.maybeAlertDeclineStreak(supplierId, row.supplierName);
+      }
       return { id: updated.id, status: updated.status, changed: true };
     }
 
@@ -485,6 +499,44 @@ export class RsvpService {
       toStatus: status, reason,
     });
     return { id: created.id, status: created.status, changed: true };
+  }
+
+  /**
+   * 连续拒绝预警（2026-10-21 用户口径）：每次新增拒绝事件后计算当前连拒段——
+   * 按时间正序取该供应商全部确认/拒绝事件，从最新往前数连续 DECLINED（任一 ACCEPTED 即断段；
+   * 自答婉拒/超时弃权/代婉拒均计）。恰在跨过阈值（=3）那一次发 leader+staff 站内信，
+   * 同段后续再拒不重复打扰；供应商恢复确认即重置。失败不阻断主流程。
+   */
+  async maybeAlertDeclineStreak(supplierId: string, supplierName: string): Promise<number> {
+    try {
+      const events = await this.prisma.invitationRsvpLog.findMany({
+        where: {
+          supplierId,
+          action: { in: ['RESPONDED', 'STAFF_MARKED', 'AUTO_DECLINED'] },
+          toStatus: { in: ['ACCEPTED', 'DECLINED'] },
+        },
+        select: { toStatus: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      let streak = 0;
+      for (let i = events.length - 1; i >= 0; i--) {
+        if (events[i].toStatus !== 'DECLINED') break;
+        streak++;
+      }
+      if (streak === DECLINE_STREAK_ALERT_THRESHOLD) {
+        const payload = {
+          type: 'SUPPLIER_DECLINE_STREAK',
+          title: '供应商连续婉拒预警',
+          content: `供应商「${supplierName}」已连续 ${streak} 次拒绝采购邀请（含婉拒/超时弃权/代婉拒），请复核其合作意愿与库内资格。`,
+          link: '/supplier/repository',
+        };
+        await Promise.all(['leader', 'staff'].map(r => this.notification.sendToRole(r, payload)));
+      }
+      return streak;
+    } catch (err: any) {
+      this.logger.warn(`连拒预警计算失败 supplier=${supplierId}: ${err?.message ?? err}`);
+      return 0;
+    }
   }
 
   /** 供应商「确认参加」被工作人员改为「拒绝」→ 站内信通知本人（RSVP_OVERRIDDEN） */
@@ -540,6 +592,19 @@ export class RsvpService {
       });
       trailByRsvp.set(l.rsvpId, arr);
     }
+    // 连续拒绝段（2026-10-21 预警口径）：全部确认/拒绝事件按时间正序，从最新往前数
+    // 连续 DECLINED——自答婉拒/超时弃权/代婉拒均计，任一确认即断段重置
+    let consecutiveDeclined = 0;
+    {
+      const seq = [...logs]
+        .filter(l => ['RESPONDED', 'STAFF_MARKED', 'AUTO_DECLINED'].includes(l.action) && ['ACCEPTED', 'DECLINED'].includes(l.toStatus ?? ''))
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      for (let i = seq.length - 1; i >= 0; i--) {
+        if (seq[i].toStatus !== 'DECLINED') break;
+        consecutiveDeclined++;
+      }
+    }
+    const titleById = new Map(rows.map(r => [r.id, r.title]));
     const stats = {
       invited: rows.length,
       accepted: rows.filter(r => r.status === 'ACCEPTED').length,
@@ -554,10 +619,24 @@ export class RsvpService {
       respondedByStaff: rows.filter(r => r.respondentType === 'STAFF').length,
       // 经历警示核心：确认后被工作人员改为拒绝（无论原确认来自自答还是代确认）
       overrideAfterAccept: logs.filter(l => l.action === 'STAFF_MARKED' && l.fromStatus === 'ACCEPTED' && l.toStatus === 'DECLINED').length,
+      // 当前连拒段（≥3 触发预警，与 maybeAlertDeclineStreak 同口径）
+      consecutiveDeclined,
     };
+    // 毁约事件列表（2026-10-21 用户口径：中途毁约须记录在供应商信息中——逐条可查）
+    const breachEvents = logs
+      .filter(l => l.action === 'STAFF_MARKED' && l.fromStatus === 'ACCEPTED' && l.toStatus === 'DECLINED')
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map(l => ({
+        rsvpNo: l.rsvpId.slice(-8).toUpperCase(),
+        title: titleById.get(l.rsvpId) ?? '（原邀请已清理）',
+        at: l.createdAt.toISOString(),
+        reason: l.reason,
+        actorName: l.actorName,
+      }));
     return {
       supplierId,
       stats,
+      breachEvents,
       items: rows.map(r => ({
         rsvpNo: r.id.slice(-8).toUpperCase(),
         title: r.title,

@@ -575,7 +575,7 @@ describe('ExpertAdminService', () => {
 
     it('同一评价者对同一专家重复评价应更新而非新增（防刷 E 级）', async () => {
       prisma.user.findFirst.mockResolvedValue({ id: 'u1', role: 'bid_expert' });
-      prisma.expertEvaluation.findFirst.mockResolvedValue({ id: 'ev1' });
+      prisma.expertEvaluation.findMany.mockResolvedValue([{ id: 'ev1', expertUserId: 'u1', evaluatorId: 'staff1', projectId: null, createdAt: new Date(), updatedAt: new Date() }]);
       prisma.expertEvaluation.update.mockResolvedValue({ id: 'ev1', overallGrade: 'A' });
       await service.createEvaluation('op1', evalDto({ attendanceGrade: 'A', qualityGrade: 'A', disciplineGrade: 'A' }));
       expect(prisma.expertEvaluation.update).toHaveBeenCalledWith(
@@ -991,9 +991,14 @@ describe('ExpertAdminService.proxyMarkInvitation（专家邀请代回应/代变�
             updateMany: jest.fn().mockResolvedValue({ count: 1 }),
           },
           bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'OPENING', name: '某项目' }) },
-          expertInvitationLog: { create: jest.fn().mockResolvedValue({}), findFirst: jest.fn().mockResolvedValue(null) },
+          expertInvitationLog: {
+            create: jest.fn().mockResolvedValue({}),
+            findFirst: jest.fn().mockResolvedValue(null),
+            // 连拒预警（2026-10-21）：默认空事件 → 连拒段 0 不触发
+            findMany: jest.fn().mockResolvedValue([]),
+          },
         } },
-        { provide: NotificationService, useValue: { sendToUser: jest.fn().mockResolvedValue({}) } },
+        { provide: NotificationService, useValue: { sendToUser: jest.fn().mockResolvedValue({}), sendToRole: jest.fn().mockResolvedValue({}) } },
       ],
     })
       // 绕过构造函数依赖（crossConflict/extractionAi/embedding/llm/ocr/extraction/companyScope/gateway）
@@ -1080,5 +1085,74 @@ describe('ExpertAdminService.proxyMarkInvitation（专家邀请代回应/代变�
       .mockResolvedValueOnce(null); // 之后无 PROMOTED → 席位未被占用
     const r = await service.proxyMarkInvitation({ projectId: 'P1', userId: 'ex1', status: 'confirmed', actorId: 'u1', reason: '多席位场景恢复确认' });
     expect(r.changed).toBe(true);
+  });
+});
+
+/** maybeAlertExpertDeclineStreak（2026-10-21 邀请信用预警）：与供应商同构——恰跨过
+ *  阈值（=3）发 leader+staff 一次；代婉拒路径接线后由 proxyMarkInvitation 触发。 */
+describe('ExpertAdminService.maybeAlertExpertDeclineStreak（专家连拒预警）', () => {
+  let service: ExpertAdminService;
+  let prisma: any;
+  let notification: any;
+
+  beforeEach(async () => {
+    const mod = await Test.createTestingModule({
+      providers: [
+        {
+          provide: ExpertAdminService,
+          useFactory: (p: any, n: any) => {
+            const svc = Object.create(ExpertAdminService.prototype);
+            (svc as any).prisma = p;
+            (svc as any).notification = n;
+            return svc;
+          },
+          inject: [PrismaService, NotificationService],
+        },
+        { provide: PrismaService, useValue: {
+          expertInvitationLog: { findMany: jest.fn().mockResolvedValue([]) },
+        } },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn().mockResolvedValue({}) } },
+      ],
+    }).compile();
+    service = mod.get(ExpertAdminService);
+    prisma = mod.get(PrismaService);
+    notification = mod.get(NotificationService);
+  });
+
+  const ev = (toStatus: string) => ({ toStatus });
+
+  it('连拒恰达 3 次 → leader+staff 各一条 EXPERT_DECLINE_STREAK', async () => {
+    prisma.expertInvitationLog.findMany.mockResolvedValue([ev('declined'), ev('declined'), ev('declined')]);
+    const streak = await service.maybeAlertExpertDeclineStreak('ex1', '杨睿');
+    expect(streak).toBe(3);
+    expect(notification.sendToRole).toHaveBeenCalledTimes(2);
+    expect(notification.sendToRole).toHaveBeenCalledWith('leader', expect.objectContaining({ type: 'EXPERT_DECLINE_STREAK' }));
+  });
+
+  it('连拒 4 次（更早已跨阈值）→ 不重复打扰', async () => {
+    prisma.expertInvitationLog.findMany.mockResolvedValue([ev('declined'), ev('declined'), ev('declined'), ev('declined')]);
+    const streak = await service.maybeAlertExpertDeclineStreak('ex1', '杨睿');
+    expect(streak).toBe(4);
+    expect(notification.sendToRole).not.toHaveBeenCalled();
+  });
+
+  it('代婉拒接线：proxyMark declined 且连拒达 3 → 预警随主流程触发', async () => {
+    (service as any).assertInvitationActionable = jest.fn().mockResolvedValue(undefined);
+    (service as any).maybeAutoPromote = jest.fn().mockResolvedValue(null);
+    (service as any).prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue({ displayName: '王工作' }) },
+      bidExpert: { findFirst: jest.fn().mockResolvedValue({ id: 'be1', userId: 'ex1', expertName: '杨睿', projectId: 'P1', expertRole: '候补', invitationStatus: 'pending', signedIn: false }), update: jest.fn().mockResolvedValue({ id: 'be1' }) },
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'OPENING', name: '某项目' }) },
+      expertInvitationLog: {
+        create: jest.fn().mockResolvedValue({}),
+        findFirst: jest.fn().mockResolvedValue(null),
+        // 已连拒 2 次 + 本次（mock create 不落库，读侧模拟含本次共 3 条）
+        findMany: jest.fn().mockResolvedValue([ev('declined'), ev('declined'), ev('declined')]),
+      },
+    };
+    (service as any).notification = { sendToUser: jest.fn(), sendToRole: jest.fn().mockResolvedValue({}) };
+    const r = await service.proxyMarkInvitation({ projectId: 'P1', userId: 'ex1', status: 'declined', actorId: 'u1', reason: '电话核实档期冲突婉拒' });
+    expect(r.changed).toBe(true);
+    expect((service as any).notification.sendToRole).toHaveBeenCalledWith('leader', expect.objectContaining({ type: 'EXPERT_DECLINE_STREAK' }));
   });
 });
