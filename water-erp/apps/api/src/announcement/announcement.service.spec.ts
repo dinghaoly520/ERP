@@ -1104,3 +1104,57 @@ describe('AnnouncementService — 发布向导中标公告（WIN_BID_NOTICE）�
     expect(prisma.announcement.update).not.toHaveBeenCalled();
   });
 });
+
+describe('AnnouncementService — 发布赋码闸 assertGbCodeIfLinked（自愈版 e2cbf0c3，2026-10-21 锁定）', () => {
+  const mk = async (prismaOverrides: Record<string, any> = {}, gbCode?: any) => {
+    const prisma: any = {
+      bidProject: { findUnique: jest.fn() },
+      ...prismaOverrides,
+    };
+    const { AnnouncementService } = await import('./announcement.service');
+    const svc: any = Object.create(AnnouncementService.prototype);
+    svc.prisma = prisma;
+    svc.gbCode = gbCode;
+    svc.logger = { log: jest.fn(), warn: jest.fn(), error: jest.fn() };
+    return { svc, prisma };
+  };
+
+  it('无关联项目（POLICY/PLATFORM 或编号未命中）→ 不拦', async () => {
+    const { svc, prisma } = await mk();
+    prisma.bidProject.findUnique.mockResolvedValue(null);
+    await expect(svc.assertGbCodeIfLinked(null)).resolves.toBeUndefined();
+    await expect(svc.assertGbCodeIfLinked('GK-NOT-EXIST')).resolves.toBeUndefined();
+    expect(prisma.bidProject.findUnique).toHaveBeenCalledTimes(1);
+  });
+
+  it('项目已有码 → 不拦（不触碰分配器）', async () => {
+    const gbCode = { backfillProcureCodeFor: jest.fn() };
+    const { svc, prisma } = await mk({}, gbCode);
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', gbProcureCode: '511000002026000001001' });
+    await expect(svc.assertGbCodeIfLinked('GK-1')).resolves.toBeUndefined();
+    expect(gbCode.backfillProcureCodeFor).not.toHaveBeenCalled();
+  });
+
+  it('无码 + 自愈成功（分配器现场补码）→ 放行且 warn 留痕', async () => {
+    const gbCode = { backfillProcureCodeFor: jest.fn().mockResolvedValue({ gbProcureCode: '511000002026000002001' }) };
+    const { svc, prisma } = await mk({}, gbCode);
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', gbProcureCode: null });
+    await expect(svc.assertGbCodeIfLinked('GK-2')).resolves.toBeUndefined();
+    expect(gbCode.backfillProcureCodeFor).toHaveBeenCalledWith({ id: 'p1', gbProcureCode: null });
+    expect(svc.logger.warn).toHaveBeenCalled();
+  });
+
+  it('无码 + 分配器抛错 → 硬拦 400 GB_CODE_REQUIRED（自愈失败路径，e2e 无法稳定构造故单测锁定）', async () => {
+    const gbCode = { backfillProcureCodeFor: jest.fn().mockRejectedValue(new Error('allocator down')) };
+    const { svc, prisma } = await mk({}, gbCode);
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', gbProcureCode: null });
+    await expect(svc.assertGbCodeIfLinked('GK-3')).rejects.toMatchObject({ response: { code: 'GB_CODE_REQUIRED' } });
+    expect(svc.logger.warn).toHaveBeenCalled();
+  });
+
+  it('无码 + 分配器未注入（@Optional 直构形态）→ 硬拦 400 GB_CODE_REQUIRED', async () => {
+    const { svc, prisma } = await mk();
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', gbProcureCode: null });
+    await expect(svc.assertGbCodeIfLinked('GK-4')).rejects.toMatchObject({ response: { code: 'GB_CODE_REQUIRED' } });
+  });
+});
