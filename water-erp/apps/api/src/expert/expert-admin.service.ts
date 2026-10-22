@@ -1003,6 +1003,47 @@ export class ExpertAdminService {
       if (pm?.projectCode) projectCode = pm.projectCode;
     }
 
+    // 抽取配置快照与 AI 辅助环节留痕（2026-10-22 补齐：preview 调用 body 带完整配额、
+    // ai-leader/analyze-project 调用与 AI 通知文案均在操作日志）——按 projectId 从 body 反查
+    const extractOpLogs = await this.prisma.operationLog.findMany({
+      where: {
+        method: 'POST',
+        path: {
+          in: [
+            '/api/expert-admin/extract',
+            '/api/expert-admin/extract/ai-leader',
+            '/api/expert-admin/extract/analyze-project',
+            '/api/expert-admin/extract/notify',
+          ],
+        },
+        body: { path: ['projectId'], equals: projectId },
+      },
+      orderBy: { createdAt: 'asc' },
+      select: { path: true, body: true, createdAt: true, username: true },
+    }).catch(() => [] as { path: string; body: unknown; createdAt: Date; username: string | null }[]);
+
+    // 配置快照：preview 调用按内容去重（同一配置多次预览只列一次）
+    const rawConfigs = extractOpLogs.filter(l => l.path === '/api/expert-admin/extract') as Array<{ body: any; createdAt: Date; username: string | null }>;
+    const configSnapshots: Array<{ key: string; letter: string; at: Date; body: any; username: string | null }> = [];
+    for (const l of rawConfigs) {
+      const key = JSON.stringify({ m: l.body?.extractMode, t: l.body?.totalNeeded, a: l.body?.alternatives, q: l.body?.manualQuotas, e: l.body?.excludedUserIds, em: l.body?.employer });
+      if (configSnapshots.some(c => c.key === key)) continue;
+      configSnapshots.push({ key, letter: String.fromCharCode(65 + configSnapshots.length), at: l.createdAt, body: l.body ?? {}, username: l.username ?? null });
+    }
+    // 配额里公司 id → 名称；预排除专家 id → 姓名
+    const quotaCompanyIds = [...new Set(configSnapshots.flatMap(c => (c.body?.manualQuotas ?? []).flatMap((q: any) => q?.companyIds ?? []).filter(Boolean) as string[]))];
+    const excludedIds = [...new Set(configSnapshots.flatMap(c => (c.body?.excludedUserIds ?? []) as string[]))];
+    const [quotaCompanies, excludedUsers] = await Promise.all([
+      quotaCompanyIds.length > 0
+        ? this.prisma.company.findMany({ where: { id: { in: quotaCompanyIds } }, select: { id: true, name: true } }).catch(() => [] as { id: string; name: string }[])
+        : Promise.resolve([] as { id: string; name: string }[]),
+      excludedIds.length > 0
+        ? this.prisma.user.findMany({ where: { id: { in: excludedIds } }, select: { id: true, displayName: true } }).catch(() => [] as { id: string; displayName: string }[])
+        : Promise.resolve([] as { id: string; displayName: string }[]),
+    ]);
+    const companyNameById = new Map(quotaCompanies.map(c => [c.id, c.name]));
+    const excludedNameById = new Map(excludedUsers.map(u => [u.id, u.displayName]));
+
     // 抽取事件（含补选轮次）：审计快照带 extractMode/池/命中序列
     const extractionEvents = await this.prisma.auditLog.findMany({
       where: { action: 'EXPERT_EXTRACTION_CONFIRMED', resourceId: projectId },
@@ -1064,25 +1105,93 @@ export class ExpertAdminService {
           ),
           new Paragraph({ text: '' }),
 
-          new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: '二、抽取过程', bold: true, size: 24 })] }),
+          new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: '二、抽取配置', bold: true, size: 24 })] }),
+          ...(configSnapshots.length === 0
+            ? [new Paragraph({ children: [new TextRun({ text: '未找到抽取配置留痕（操作日志未记录该项目的抽取预览调用），抽取参数以审计快照载明的抽取方式为准。', size: 21 })] })]
+            : configSnapshots.flatMap(cs => {
+                const q = (cs.body?.manualQuotas ?? []) as any[];
+                const excluded = ((cs.body?.excludedUserIds ?? []) as string[]).map(id => excludedNameById.get(id) ?? id).filter(Boolean);
+                const paragraphs: Array<Paragraph | Table> = [
+                  new Paragraph({
+                    spacing: { after: 60 },
+                    children: [
+                      new TextRun({ text: `配置 ${cs.letter}（${fmt(cs.at)}${cs.username ? `，${cs.username}` : ''}）：`, bold: true, size: 21 }),
+                      new TextRun({ text: `抽取方式 ${MODE_LABELS[cs.body?.extractMode] ?? cs.body?.extractMode ?? '—'}；拟抽正选 ${cs.body?.totalNeeded ?? '—'} 名、候补 ${cs.body?.alternatives ?? 0} 名${cs.body?.employer ? `；整体限定公司：${cs.body.employer}` : ''}${excluded.length > 0 ? `；预排除专家：${excluded.join('、')}` : ''}。`, size: 21 }),
+                    ],
+                  }),
+                ];
+                if (q.length > 0) {
+                  paragraphs.push(new Table({
+                    width: { size: 100, type: WidthType.PERCENTAGE },
+                    borders: tableBorders,
+                    rows: [
+                      headerRow(['专业要求', '人数', '公司限定', '部门限定', '库内等级', '区域', '备注']),
+                      ...q.map((row: any) => new TableRow({
+                        children: [
+                          cell((row.specialties?.length ? row.specialties.join('、') : row.specialty) || '不限专业'),
+                          cell(String(row.count ?? '—')),
+                          cell((row.companyIds?.length ? row.companyIds.map((id: string) => companyNameById.get(id) ?? id).join('、') : row.employer) || '不限'),
+                          cell(row.department || '—'),
+                          cell(row.expertLevel || '—'),
+                          cell(row.regionCode || '—'),
+                          cell(row.reason || '—'),
+                        ],
+                      })),
+                    ],
+                  }));
+                }
+                return paragraphs;
+              })),
+          new Paragraph({ children: [new TextRun({ text: '配置快照取自抽取预览调用的操作日志留痕（同一配置多次预览只记一次）；各轮抽取采用其确认时刻之前最近一次的配置。', size: 18, color: '666666' })] }),
+          new Paragraph({ text: '' }),
+
+          new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: '三、AI 辅助环节', bold: true, size: 24 })] }),
+          ...(() => {
+            const aiSpec = extractOpLogs.filter(l => l.path === '/api/expert-admin/extract/analyze-project') as Array<{ createdAt: Date }>;
+            const aiLeader = extractOpLogs.filter(l => l.path === '/api/expert-admin/extract/ai-leader') as Array<{ createdAt: Date }>;
+            const aiNotify = (extractOpLogs.filter(l => l.path === '/api/expert-admin/extract/notify') as Array<{ body: any; createdAt: Date }>)
+              .filter(l => (l.body?.message ?? '').trim().length > 0);
+            const leadName = roster.find(r => r.isLead)?.expertName;
+            const lines: Paragraph[] = [];
+            if (aiSpec.length > 0) lines.push(new Paragraph({ children: [new TextRun({ text: `· AI 专业配额建议：调用 ${aiSpec.length} 次（${aiSpec.map(l => fmt(l.createdAt)).join('、')}）——系统按项目概况 AI 分析建议专业配额，最终配额以人工确认的「抽取配置」为准。`, size: 21 })] }));
+            const leaderNote = leadName ? `；本次评审组长：${leadName}` : '';
+            if (aiLeader.length > 0) lines.push(new Paragraph({ children: [new TextRun({ text: `· AI 组长推荐：调用 ${aiLeader.length} 次（${aiLeader.map(l => fmt(l.createdAt)).join('、')}）${leaderNote}。`, size: 21 })] }));
+            if (aiNotify.length > 0) {
+              const sample = (aiNotify[0].body?.message ?? '').replace(/\s+/g, ' ').slice(0, 80);
+              lines.push(new Paragraph({ children: [new TextRun({ text: `· AI 邀请通知文案：共 ${aiNotify.length} 次发送留痕（首次 ${fmt(aiNotify[0].createdAt)}），文案示例：「${sample}…」。`, size: 21 })] }));
+            }
+            const modeUsed = configSnapshots[0]?.body?.extractMode ?? (extractionEvents[0]?.details as any)?.extractMode;
+            if (modeUsed === 'merit_best' || modeUsed === 'specialty_match') {
+              lines.push(new Paragraph({ children: [new TextRun({ text: `· 择优评分构成：${modeUsed === 'merit_best' ? '综合择优' : '专业匹配'}模式按专业匹配度、职称、历史参评项目数、履职评价等级、评分偏离度、当前负荷等维度加权评分排序（规则引擎+评分模型）。`, size: 21 })] }));
+            }
+            if (lines.length === 0) lines.push(new Paragraph({ children: [new TextRun({ text: '本次抽取未使用 AI 辅助环节（纯随机抽取，邀请通知为模板文案）。', size: 21 })] }));
+            return lines;
+          })(),
+          new Paragraph({ children: [new TextRun({ text: 'AI 环节仅作辅助建议：专业配额、专家人选与组长最终均由工作人员确认，确认动作与审计日志同事务留痕。', size: 18, color: '666666' })] }),
+          new Paragraph({ text: '' }),
+
+          new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: '四、抽取过程', bold: true, size: 24 })] }),
           ...(extractionEvents.length === 0
             ? [new Paragraph({ children: [new TextRun({ text: '未找到抽取确认审计记录（存量项目或未走抽取向导确认步骤），以下名单以系统当前名册为准。', size: 21 })] })]
             : extractionEvents.map((ev, i) => {
                 const d = (ev.details ?? {}) as any;
                 const mode = MODE_LABELS[d.extractMode] ?? (d.extractMode ? `其他方式（${d.extractMode}）` : '（快照未载明，以名单为准）');
                 const names = (d.experts ?? []).map((e: any) => e.name + (e.isLead ? '（组长）' : '')).join('、');
+                // 该轮采用的配置：确认时刻之前最近一次配置快照
+                const priorConfigs = configSnapshots.filter(cs => cs.at.getTime() <= ev.createdAt.getTime());
+                const cfg = priorConfigs.length > 0 ? priorConfigs[priorConfigs.length - 1] : null;
                 return new Paragraph({
                   spacing: { after: 120 },
                   children: [
                     new TextRun({ text: `第 ${i + 1} 轮抽取（${i > 0 ? '补选' : '初次抽取'}）：`, bold: true, size: 21 }),
-                    new TextRun({ text: `于 ${fmt(ev.createdAt)} 由 ${ev.user?.displayName ?? '工作人员'} 确认，抽取方式为${mode}；本轮确定正选 ${d.expertCount ?? (d.experts?.length ?? 0)} 名${(d.poolUserIds?.length ?? 0) > 0 ? `，候选池规模 ${d.poolUserIds.length} 人` : ''}${names ? `，命中专家：${names}` : ''}。`, size: 21 }),
+                    new TextRun({ text: `于 ${fmt(ev.createdAt)} 由 ${ev.user?.displayName ?? '工作人员'} 确认${cfg ? `（采用配置 ${cfg.letter}）` : ''}，抽取方式为${mode}；本轮确定正选 ${d.expertCount ?? (d.experts?.length ?? 0)} 名${(d.poolUserIds?.length ?? 0) > 0 ? `，候选池规模 ${d.poolUserIds.length} 人` : ''}${names ? `，命中专家：${names}` : ''}。`, size: 21 }),
                   ],
                 });
               })),
           new Paragraph({ children: [new TextRun({ text: '抽取全程在专家库管理系统中完成，候选池按回避规则（供应商关联、跨项目开窗等）过滤，抽取确认与审计日志同事务留痕，可复核。', size: 18, color: '666666' })] }),
           new Paragraph({ text: '' }),
 
-          new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: `三、评审专家名单（正选 ${regulars.length} 名）`, bold: true, size: 24 })] }),
+          new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: `五、评审专家名单（正选 ${regulars.length} 名）`, bold: true, size: 24 })] }),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             borders: tableBorders,
@@ -1107,7 +1216,7 @@ export class ExpertAdminService {
 
           ...(alternates.length > 0 ? [
             new Paragraph({ text: '' }),
-            new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: `四、候补专家名单（${alternates.length} 名）`, bold: true, size: 24 })] }),
+            new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: `六、候补专家名单（${alternates.length} 名）`, bold: true, size: 24 })] }),
             new Table({
               width: { size: 100, type: WidthType.PERCENTAGE },
               borders: tableBorders,
