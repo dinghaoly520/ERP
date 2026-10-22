@@ -13,7 +13,7 @@ import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
 import { LEVEL_LABEL, LEVEL_COLOR, SUPPLIER_STATUS_LABEL, getNotificationLabel, getNotificationChannelLabel } from '@water-erp/shared';
 import type { AuthUser } from '@/lib/api/auth';
 import { fetchCurrentUser } from '@/lib/api/auth';
-import { CheckCircle2, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, FileText, User, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Trash2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, Link2, AtSign, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, X, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, FileText, User, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Trash2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, Link2, AtSign, AlertTriangle } from 'lucide-react';
 import { SupplierTimeline } from '@/components/supplier/timeline';
 import { ApprovalHistory } from '@/components/supplier/approval-history';
 import { PortraitTab } from '@/components/supplier/portrait-tab';
@@ -1690,12 +1690,12 @@ export default function SupplierDetailPage() {
           title="编辑业务标签"
           description="使用 2-8 个词语简述业务方向，每个单独填写，保存后立即生效"
           footer={
-            <>
+            <div className="neu-btn-group">
               <button onClick={() => setTagsModal(false)} className="neu-btn-soft">取消</button>
-              <button onClick={handleSaveTags} disabled={tagsSaving} className="neu-btn-primary">
+              <button onClick={handleSaveTags} disabled={tagsSaving} className="neu-btn-primary is-water">
                 {tagsSaving ? '保存中...' : '保存'}
               </button>
-            </>
+            </div>
           }
         >
           <div className="space-y-2 max-h-[420px] overflow-y-auto">
@@ -1710,15 +1710,15 @@ export default function SupplierDetailPage() {
                   className="neu-input flex-1 text-sm h-9"
                 />
                 {editTags.length > 2 && (
-                  <button onClick={() => setEditTags(prev => prev.filter((_, j) => j !== i))} className="text-[var(--muted-foreground)] hover:text-[var(--danger)] transition-colors">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="4" y1="8" x2="20" y2="8"/></svg>
+                  <button onClick={() => setEditTags(prev => prev.filter((_, j) => j !== i))} aria-label={`删除第 ${i + 1} 个标签`} className="text-[var(--muted-foreground)] hover:text-[var(--danger)] transition-colors">
+                    <X size={15} strokeWidth={2} />
                   </button>
                 )}
               </div>
             ))}
             {editTags.length < 8 && (
               <button onClick={() => setEditTags(prev => [...prev, ''])} className="neu-btn-xs w-full justify-center py-1.5 text-[11px] !text-[var(--muted-foreground)]">
-                + 添加标签（{editTags.length}/8）
+                <Plus size={11} />添加标签（{editTags.length}/8）
               </button>
             )}
           </div>
