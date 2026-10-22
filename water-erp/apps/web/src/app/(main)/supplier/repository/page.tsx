@@ -213,9 +213,10 @@ export default function SupplierRepositoryPage() {
   // （后端 SUPPLIER_LINK_PENDING 通知 link=/supplier?tab=company-links，经 /supplier 索引页带参转跳至此）
   useEffect(() => {
     const tab = new URLSearchParams(window.location.search).get('tab');
-    if (tab === 'company-links') {
-      sessionStorage.setItem('review-center-panel', 'company-links');
-      window.dispatchEvent(new CustomEvent('open-review-center', { detail: { panel: 'company-links' } }));
+    if (tab === 'company-links' || tab === 'changes') {
+      // changes（2026-10-22）：资料变更提交通知 link=/supplier?tab=changes 深链直达信息更新审批
+      sessionStorage.setItem('review-center-panel', tab);
+      window.dispatchEvent(new CustomEvent('open-review-center', { detail: { panel: tab } }));
     }
   }, []);
   // admin 全部公司视图：拉后端全量分组计数（与列表同筛选），分组标题用全量口径不因分页失真

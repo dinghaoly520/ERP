@@ -1271,7 +1271,7 @@ export class SupplierPortalService {
     }
 
     const oldValue = supplier[dto.fieldName as keyof typeof supplier] as string;
-    return this.prisma.supplierChangeRecord.create({
+    const created = await this.prisma.supplierChangeRecord.create({
       data: {
         supplierId,
         fieldName: dto.fieldName,
@@ -1282,6 +1282,44 @@ export class SupplierPortalService {
         status: 'PENDING',
       },
     });
+    // 提交通知（2026-10-22，对齐密码重置 notifyResetReviewers 口径）：此前资料变更提交后
+    // 零通知，审批人只能靠角标被动发现。收件人=归属公司 staff+leader（无归属→admin 兜底）；
+    // PII 字段值不进通知（仅字段名+理由）；走 NotificationService 含 WS 实时推送；失败不阻断。
+    try { await this.notifyChangeReviewers(supplier, dto); } catch { /* 不阻断 */ }
+    return created;
+  }
+
+  /** 资料变更提交通知：归属公司 staff+leader（无归属公司→admin 全体兜底），深链直达信息更新审批 */
+  private async notifyChangeReviewers(
+    supplier: { id: string; name: string; companyId: string | null },
+    dto: { fieldName: string; fieldLabel?: string; reason?: string },
+  ): Promise<void> {
+    let recipientIds: string[] = [];
+    if (supplier.companyId) {
+      const approvers = await this.prisma.user.findMany({
+        where: { role: { in: ['staff', 'leader'] }, isActive: true, companyId: supplier.companyId },
+        select: { id: true },
+      });
+      recipientIds = approvers.map((u) => u.id);
+    }
+    if (recipientIds.length === 0) {
+      const admins = await this.prisma.user.findMany({ where: { role: 'admin', isActive: true }, select: { id: true } });
+      recipientIds = admins.map((u) => u.id);
+    }
+    const field = dto.fieldLabel ?? dto.fieldName;
+    const payload = {
+      type: 'SUPPLIER_CHANGE_PENDING',
+      title: '供应商资料变更待审批',
+      content: `「${supplier.name}」提交资料变更申请（字段：${field}${dto.reason?.trim() ? `；理由：${dto.reason.trim()}` : ''}），请前往供应商审批中心·信息更新审批处理。`,
+      link: '/supplier?tab=changes',
+    };
+    await Promise.allSettled(
+      recipientIds.map((userId) =>
+        this.notifications
+          ? this.notifications.create({ userId, ...payload })
+          : this.prisma.notification.create({ data: { userId, ...payload } }),
+      ),
+    );
   }
 
   // Evaluations
