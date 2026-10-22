@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { REVIEW_BADGE_REFRESH_EVENT } from '@/lib/review-badge';
 import { toast } from 'sonner';
 import {
   BadgeCheck, Building2, Check, FileClock, History, Loader2, Paperclip, RefreshCw, Upload, X,
@@ -94,6 +95,13 @@ export function ReviewCenterModal({ open, onClose }: { open: boolean; onClose: (
   const refreshBadge = useCallback(() => {
     fetchMyPendingReviewCount().then(setMyCount).catch(() => {});
   }, []);
+
+  // 审批中心内动作完成 → 广播角标刷新（顶栏/供应商库即时更新，2026-10-22）
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => window.dispatchEvent(new Event(REVIEW_BADGE_REFRESH_EVENT)), 50);
+    return () => clearTimeout(t);
+  }, [myCount, open]);
   useEffect(() => { if (open) refreshBadge(); }, [open, refreshBadge]);
 
   const myRole = currentUser?.role;
