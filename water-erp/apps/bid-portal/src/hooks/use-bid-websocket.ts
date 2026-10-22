@@ -26,6 +26,7 @@ import {
   type OpeningDisputedPayload,
   type OpeningDisputeResolvedPayload,
   type OpeningCompletedPayload,
+  type OpeningStartedPayload,
   type ExpertPresencePayload,
   type ExpertPresenceAggregatePayload,
   type RoundStatusChangePayload,
@@ -47,6 +48,8 @@ function wsUrl(): string {
 export interface BidWsHandlers {
   onDecryptStatus?: (d: DecryptStatusPayload) => void;
   onStageChange?: (d: StageChangePayload) => void;
+  /** 组建开标会话（含重新组建、按时开标联动）广播——交流抽屉据此解除 SESSION_NOT_CREATED 输入闸 */
+  onOpeningStarted?: (d: OpeningStartedPayload) => void;
   onEvaluationStarted?: (d: EvaluationStartedPayload) => void;
   onSupervisionLog?: (d: SupervisionLogPayload) => void;
   onAnomalyDetected?: (d: AnomalyDetectedPayload) => void;
@@ -178,6 +181,7 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
     };
     on(BID_EVENT.DECRYPT_STATUS, 'onDecryptStatus');
     on(BID_EVENT.STAGE_CHANGE, 'onStageChange');
+    on(BID_EVENT.OPENING_STARTED, 'onOpeningStarted');
     on(BID_EVENT.EVALUATION_STARTED, 'onEvaluationStarted');
     on(BID_EVENT.SUPERVISION_LOG, 'onSupervisionLog');
     on(BID_EVENT.ANOMALY_DETECTED, 'onAnomalyDetected');

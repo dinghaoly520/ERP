@@ -63,6 +63,25 @@ describe('OpeningHallService', () => {
     await expect(svc.sendMessage(host, 'p1', { roomType: 'PUBLIC', content: 'x' })).rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  it('未组建开标会话 → 403 SESSION_NOT_CREATED（OPENING 阶段也不得交流，主持人与供应商同拦）', async () => {
+    // 阶段已是 OPENING（:3005 按时开标后、:3007 组建会话前的窗口期），但 BidOpeningSession 尚未创建
+    prismaMock.bidOpeningSession.findUnique.mockResolvedValue(null);
+    await expect(svc.sendMessage(host, 'p1', { roomType: 'PUBLIC', content: 'x' })).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(svc.sendMessage(sup, 'p1', { roomType: 'PUBLIC', content: 'x' })).rejects.toMatchObject({
+      response: { code: 'SESSION_NOT_CREATED' },
+    });
+    expect(prismaMock.openingHallMessage.create).not.toHaveBeenCalled();
+    expect(gatewayMock.notifyHallMessage).not.toHaveBeenCalled();
+  });
+
+  it('未组建会话时切换交流控制 → 409 SESSION_NOT_CREATED（不再 P2025 500）', async () => {
+    prismaMock.bidOpeningSession.findUnique.mockResolvedValue(null);
+    await expect(svc.setExchangeControl('p1', 'MUTED', '主持人', 'u-host')).rejects.toMatchObject({
+      response: { code: 'SESSION_NOT_CREATED' },
+    });
+    expect(prismaMock.bidOpeningSession.update).not.toHaveBeenCalled();
+  });
+
   it('MUTED 时供应商发言 → 403；主持人仍可发', async () => {
     prismaMock.bidOpeningSession.findUnique.mockResolvedValue({ projectId: 'p1', exchangeControl: 'MUTED' });
     await expect(svc.sendMessage(sup, 'p1', { roomType: 'PUBLIC', content: 'x' })).rejects.toBeInstanceOf(ForbiddenException);

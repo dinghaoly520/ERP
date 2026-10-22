@@ -13,12 +13,14 @@ import { useBidWebSocket } from "@/hooks/use-bid-websocket";
  */
 type Msg = { id: string; senderId: string; senderRole: string; senderName: string; content: string; createdAt: string; roomType: string };
 
-export function ChatPanel({ projectId, supplierId, supplierName: _supplierName, userId, stage }: {
+export function ChatPanel({ projectId, supplierId, supplierName: _supplierName, userId, stage, sessionReady = true }: {
   stage?: string;
   projectId: string;
   supplierId: string;
   supplierName: string;
   userId: string;
+  /** 开标会话是否已组建（2026-10-22）：未组建时后端恒 403 SESSION_NOT_CREATED，输入同步禁用；组建经 WS 翻转 */
+  sessionReady?: boolean;
 }) {
   const [tab, setTab] = useState<"PUBLIC" | "PRIVATE">("PUBLIC");
   const [publicMsgs, setPublicMsgs] = useState<Msg[]>([]);
@@ -31,6 +33,8 @@ export function ChatPanel({ projectId, supplierId, supplierName: _supplierName, 
   // R4：stage:change 离开 OPENING 后关闭互动；B4-1（2026-09-30）：初始化即按传入 stage 判定
   // ——评标中/归档后从「开标记录」进大厅回看时不会再收到 stage:change，此前输入框可发送但必被后端 403 拒
   const [stageClosed, setStageClosed] = useState(() => !!stage && stage !== "OPENING");
+  // 会话闸：初值按传入 sessionReady 判定（页面 getProject.openingSession），组建成功经 onOpeningStarted 翻转
+  const [sessionOpen, setSessionOpen] = useState(sessionReady);
   const hydratedRef = useRef(false); // R3：首次加载完成后才在重连时做 REST 补齐
   const wasConnectedRef = useRef(false); // R3：区分首连与断线重连——首连的补齐由挂载 hydrate 覆盖，不重复拉取
   const listEl = useRef<HTMLDivElement | null>(null);
@@ -43,10 +47,12 @@ export function ChatPanel({ projectId, supplierId, supplierName: _supplierName, 
     : [...privateMsgs, ...publicMsgs.filter((m) => m.senderRole === "SYSTEM")]
         .sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
 
-  const canSend = exchangeControl === "OPEN" && !stageClosed;
+  const canSend = exchangeControl === "OPEN" && !stageClosed && sessionOpen;
   const controlHint = stageClosed
     ? "开标阶段已结束，互动已关闭"
-    : exchangeControl === "MUTED"
+    : !sessionOpen
+      ? "尚未组建开标会话，交流将在会话组建后开放"
+      : exchangeControl === "MUTED"
       ? "主持人已开启全员禁言"
       : exchangeControl === "CLOSED"
         ? "主持人已关闭聊天大厅"
@@ -73,6 +79,8 @@ export function ChatPanel({ projectId, supplierId, supplierName: _supplierName, 
     onHallExchangeControl: (d) => { setExchangeControl(d.control); },
     // R4：阶段离开 OPENING → 关闭输入（大厅互动仅在开标阶段开放）
     onStageChange: (d) => { if (d.to && d.to !== "OPENING") setStageClosed(true); },
+    // 组建开标会话 → 解除输入闸（后端 SESSION_NOT_CREATED 的前端镜像；会话只建不删，翻转只升不降）
+    onOpeningStarted: () => { setSessionOpen(true); },
   }));
 
   /** 返回本次 REST 页的最后一条消息 id（items 按时序升序），供 markRead 上报游标 */

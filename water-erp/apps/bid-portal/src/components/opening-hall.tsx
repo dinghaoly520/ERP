@@ -855,8 +855,9 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                 <Unlock size={13} /> {bulkOuterDecrypting ? '批量解外层中...' : session.pausedAt ? '开标已暂停' : `全部解外层 (${dualOuterPending.length})`}
               </button>
             )}
-            {/* Wave 5-6：阶段已离 OPENING 后才开抽屉时，initialStageClosed 让输入框初始即禁用（免首次发送撞 403） */}
-            {projectId && <ExchangeDrawer projectId={projectId} initialStageClosed={project.stage !== 'OPENING'} />}
+            {/* Wave 5-6：阶段已离 OPENING 后才开抽屉时，initialStageClosed 让输入框初始即禁用（免首次发送撞 403）；
+                sessionActive：未组建会话时交流输入禁用（后端 SESSION_NOT_CREATED 闸的前端映射） */}
+            {projectId && <ExchangeDrawer projectId={projectId} initialStageClosed={project.stage !== 'OPENING'} sessionActive={!!session} />}
           </div>
         </div>
 

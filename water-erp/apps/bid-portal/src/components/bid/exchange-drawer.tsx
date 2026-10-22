@@ -80,7 +80,7 @@ type PhraseItem = { text: string; builtin: boolean };
 /** 内凹按压态分段控件样式（与 supervision-view 共用） */
 export const SEG_ACTIVE = 'rounded-[7px] px-2 py-1 text-xs font-semibold text-[color:var(--foreground)] bg-[oklch(0.92_0.012_258)] shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258_/_0.18),inset_-2px_-2px_5px_oklch(1_0_0_/_0.6)] transition-all';
 
-export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: string; initialStageClosed?: boolean }) {
+export function ExchangeDrawer({ projectId, initialStageClosed, sessionActive = true }: { projectId: string; initialStageClosed?: boolean; sessionActive?: boolean }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC');
   const [activeSupplier, setActiveSupplier] = useState<Session | null>(null);
@@ -102,6 +102,9 @@ export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: s
   // R4：stage:change 离开 OPENING 后关闭输入；Wave 5-6：初值由页面当前项目阶段同步
   // （纯事件驱动时，阶段已离 OPENING 后才开的抽屉初始仍可输入，首次发送撞 403）
   const [stageClosed, setStageClosed] = useState(initialStageClosed ?? false);
+  // 会话未组建闸（2026-10-22）：后端 sendMessage 对无 BidOpeningSession 恒 403 SESSION_NOT_CREATED——
+  // 前端输入同步禁用；初值来自页面（project.openingSession），组建成功经 onOpeningStarted 事件 / prop 翻转
+  const [sessionReady, setSessionReady] = useState(sessionActive);
   const hydratedRef = useRef(false); // R3：本轮打开是否已首载（决定重连后是否补齐）
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -122,6 +125,9 @@ export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: s
   // tabRef：事件回调内读当前 tab（避免在 setTab 更新器里做副作用——StrictMode/并发双调会重复计数）
   const tabRef = useRef(tab);
   tabRef.current = tab;
+  // openRef：事件回调内读抽屉开合——关闭态 tab 恒为 'PUBLIC'，未读计数须按开合判定（见 onHallMessage）
+  const openRef = useRef(open);
+  openRef.current = open;
   // projectIdRef：hydrate 陈旧响应守卫（切项目后旧请求晚归时不再写回新项目的 state）
   const projectIdRef = useRef(projectId);
   projectIdRef.current = projectId;
@@ -131,15 +137,25 @@ export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: s
     onStageChange: useCallback((d: StageChangePayload) => {
       if (d.to && d.to !== 'OPENING') setStageClosed(true);
     }, []),
+    // 组建开标会话（:3007 组建/重新组建）→ 解除输入闸（与后端 SESSION_NOT_CREATED 闸对齐）
+    onOpeningStarted: useCallback(() => setSessionReady(true), []),
     onHallMessage: useCallback((d: HallMessagePayload) => {
       if (d.roomType === 'PUBLIC') {
         setPublicMsgs(prev => { const exists = prev.some(m => m.id === d.id); return exists ? prev : [...prev, toMsg(d)]; });
-        if (tabRef.current !== 'PUBLIC') setPublicUnread(n => n + 1);
+        // 抽屉关闭（tab 恒 PUBLIC）或正看私聊时才计数——旧条件只看 tab，关闭态公聊永不计数，
+        // 触发按钮红角标形同虚设（2026-10-22 修复）
+        if (!openRef.current || tabRef.current !== 'PUBLIC') setPublicUnread(n => n + 1);
       } else {
         setPrivateMsgs(prev => (d.supplierId === activeSupplierRef.current ? [...prev, toMsg(d)] : prev));
-        setSessions(prev => prev.map(s =>
-          s.supplierId === d.supplierId && d.supplierId !== activeSupplierRef.current
-            ? { ...s, unread: s.unread + 1 } : s));
+        // 私聊未读：关闭态或未选中该供应商时 +1；会话不在列表（首开前 sessions 为空）补一行占位，
+        // 否则关闭态私聊永远计不进角标（打开抽屉时 hydrate 会以服务端未读分布整表覆盖）
+        const countIt = !openRef.current || d.supplierId !== activeSupplierRef.current;
+        setSessions(prev => {
+          if (!prev.some(s => s.supplierId === d.supplierId)) {
+            return [...prev, { supplierId: d.supplierId as string, supplierName: d.senderName || (d.supplierId as string), checkInAt: null, unread: countIt ? 1 : 0 }];
+          }
+          return prev.map(s => s.supplierId === d.supplierId && countIt ? { ...s, unread: s.unread + 1 } : s);
+        });
       }
     }, []),
     onHallPresence: useCallback((d: HallPresenceUpdatePayload) => setRoster(d.onlineSuppliers), []),
@@ -226,6 +242,7 @@ export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: s
     setRoster([]);
     setStageClosed(initialStageClosed ?? false);
     setControl('OPEN'); // M1：避免 A 项目的 CLOSED 串到 B 项目（control 无 REST 来源，仅事件驱动）
+    setSessionReady(sessionActive); // 同 stageClosed：切项目以新项目会话存在性复位
     setInput('');
     setShowPhrases(false);
     setShowAddForm(false);
@@ -238,6 +255,11 @@ export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: s
   useEffect(() => {
     setStageClosed(prev => prev || (initialStageClosed ?? false));
   }, [initialStageClosed]);
+
+  // 会话闸 prop 同步：只升不降（会话一经组建不会回退；WS onOpeningStarted 亦只升）
+  useEffect(() => {
+    setSessionReady(prev => prev || sessionActive);
+  }, [sessionActive]);
 
   // 常用语定制：首载从 localStorage 恢复（effect 仅客户端执行，SSR 阶段不触碰 localStorage）
   useEffect(() => {
@@ -329,6 +351,7 @@ export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: s
   }
 
   async function changeControl(next: 'OPEN' | 'MUTED' | 'CLOSED') {
+    if (!sessionReady) return; // 后端无会话时 update → 409；按钮已禁用，防御直达调用
     try {
       await openingHallApi.setControl(projectId, next);
       setControl(next);
@@ -359,9 +382,10 @@ export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: s
   const sysMsgs = publicMsgs.filter(m => m.senderRole === 'SYSTEM');
   const msgs = tab === 'PUBLIC' ? publicMsgs : [...privateMsgs, ...sysMsgs].sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
 
-  // R4：阶段离开 OPENING 关输入；U11：control=CLOSED 关 host 输入（MUTED 不影响 host 发言）
-  const inputDisabled = (tab === 'PRIVATE' && !activeSupplier) || stageClosed || control === 'CLOSED';
-  const inputHint = stageClosed ? '开标阶段已结束，互动已关闭' : control === 'CLOSED' ? '主持人已关闭聊天大厅' : '';
+  // R4：阶段离开 OPENING 关输入；U11：control=CLOSED 关 host 输入（MUTED 不影响 host 发言）；
+  // 会话未组建关输入（后端恒 403 SESSION_NOT_CREATED，免首次发送撞墙）
+  const inputDisabled = (tab === 'PRIVATE' && !activeSupplier) || !sessionReady || stageClosed || control === 'CLOSED';
+  const inputHint = stageClosed ? '开标阶段已结束，互动已关闭' : control === 'CLOSED' ? '主持人已关闭聊天大厅' : !sessionReady ? '尚未组建开标会话，会话组建后开放交流' : '';
   const connBadge = connection === 'connected'
     ? { text: '实时已连', cls: 'text-[var(--success)]', dot: 'bg-[var(--success)]' }
     : connection === 'reconnecting'
@@ -369,6 +393,9 @@ export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: s
       : { text: '已断开', cls: 'text-[var(--danger)]', dot: 'bg-[var(--danger)]' };
 
   const segActive = SEG_ACTIVE;
+
+  // 触发按钮红角标总量 = 公聊未读 + 各私聊未读（与供应商端 cp-badge 同规格：17px 圆角胶囊、99+ 封顶）
+  const totalUnread = publicUnread + sessions.reduce((a, s) => a + s.unread, 0);
 
   return (
     <>
@@ -378,9 +405,9 @@ export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: s
         className="neu-btn-soft relative"
       >
         会场交流
-        {(publicUnread > 0 || sessions.some(s => s.unread > 0)) && (
-          <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--danger)] px-1 text-[10px] font-bold text-white">
-            {publicUnread + sessions.reduce((a, s) => a + s.unread, 0)}
+        {totalUnread > 0 && (
+          <span className="absolute -right-2 -top-1.5 flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-[var(--danger)] px-1 text-[10px] font-extrabold text-white">
+            {totalUnread > 99 ? '99+' : totalUnread}
           </span>
         )}
       </button>
@@ -404,8 +431,9 @@ export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: s
             </div>
             <div className="flex items-center gap-1 text-xs">
               {(['OPEN', 'MUTED', 'CLOSED'] as const).map(c => (
-                <button key={c} type="button" onClick={() => changeControl(c)}
-                  className={control === c ? segActive : 'neu-btn-xs'}>
+                <button key={c} type="button" onClick={() => changeControl(c)} disabled={!sessionReady}
+                  title={sessionReady ? undefined : '尚未组建开标会话'}
+                  className={`${control === c ? segActive : 'neu-btn-xs'} disabled:cursor-not-allowed disabled:opacity-50`}>
                   {c === 'OPEN' ? '开放' : c === 'MUTED' ? '禁言' : '关闭'}
                 </button>
               ))}
