@@ -364,6 +364,8 @@ export default function SupplierDetailPage() {
   const isPending = supplier.status === 'PENDING' || supplier.status === 'RETURNED';
   const isRejected = supplier.status === 'REJECTED';
   const daysSinceReg = Math.floor((Date.now() - new Date(supplier.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+  // 入库时间（2026-10-22 用户口径）：首次审批通过时刻（entryAt），无留痕回退注册时间
+  const entryDate = new Date(supplier.entryAt ?? supplier.createdAt);
 
   const tabs: { key: TabKey; label: string; count?: number }[] = [
     { key: 'info', label: '基本信息' },
@@ -436,7 +438,7 @@ export default function SupplierDetailPage() {
               <div className="page-hero__sub truncate">
                 <span className="inline-flex items-center gap-1"><Hash size={11} />{supplier.creditCode || '信用代码未登记'}</span>
                 {mostCommonGrade && <><span className="opacity-40 ml-2">·</span><span className="inline-flex items-center gap-1 ml-2">评价等级 <span className="inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[mostCommonGrade] }}>{mostCommonGrade}</span></span></>}
-                <span className="opacity-40 ml-2">·</span><span className="ml-2">注册 {daysSinceReg} 天</span>
+                <span className="opacity-40 ml-2">·</span><span className="ml-2" title={`入库时间：${entryDate.toLocaleString('zh-CN')}`}>入库 {entryDate.toLocaleDateString('zh-CN')}</span>
               </div>
               {supplier.returnReason && supplier.status === 'RETURNED' && (
                 <div className="mt-2 flex items-start gap-1.5 text-xs">
@@ -492,7 +494,7 @@ export default function SupplierDetailPage() {
         <div className="page-hero__divider">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
             {[
-              ['注册天数', daysSinceReg, '天前入驻'],
+              ['入库时间', entryDate.toLocaleDateString('zh-CN'), `注册于 ${new Date(supplier.createdAt).toLocaleDateString('zh-CN')}`],
               ['评价等级', mostCommonGrade || '暂无', mostCommonGrade ? `${LEVEL_LABEL[mostCommonGrade] || mostCommonGrade}级` : '未见评价'],
               ['资质数量', qualifications.length, '已提交资质'],
               ['变更次数', changes.length, '历史变更'],

@@ -409,6 +409,8 @@ export interface Supplier {
   /** 展示编号（2026-10-22 重编）：{归属公司编码}-{同公司入库序号}（如 SWHI-0001），详情接口计算返回；
    *  多公司挂靠以主归属 companyId 为准；无归属公司为 null → 前端回退 supplierNo */
   companyNo?: string | null;
+  /** 入库时间（2026-10-22）：首次审批通过时刻，无审批留痕回退注册提交时间；详情接口计算返回 */
+  entryAt?: string | null;
   creditCode: string | null;
   enterpriseType: string;
   legalPerson: string;

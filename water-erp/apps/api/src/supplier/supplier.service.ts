@@ -1421,6 +1421,15 @@ export class SupplierService {
     // 供应商编号（2026-10-22 用户口径·重编）：{归属公司编码}-{同公司入库序号}（如 SWHI-0001），
     // 与专家编号同体系；多公司挂靠以主归属 companyId 为准；无归属公司回退平台序列 supplierNo。
     // 序号按 (createdAt,id) 稳定排名、不滤状态（状态流转不改号）；存库 supplierNo 不动（种子/CI 序列对齐）。
+    // 入库时间（2026-10-22 用户口径）：首次审批通过（SupplierApprovalRecord 首条 APPROVED）时刻，
+    // 无审批留痕（种子直载等）回退注册提交时间 createdAt——详情页替代「注册 N 天」展示
+    let entryAt: Date = supplier.createdAt;
+    const firstApproved = await this.prisma.supplierApprovalRecord.findFirst({
+      where: { supplierId: supplier.id, action: 'APPROVED' },
+      orderBy: { createdAt: 'asc' },
+      select: { createdAt: true },
+    }).catch(() => null);
+    if (firstApproved) entryAt = firstApproved.createdAt;
     let companyNo: string | null = null;
     if (supplier.companyId) {
       const [company, rank] = await Promise.all([
@@ -1443,6 +1452,7 @@ export class SupplierService {
       return {
         ...supplier,
         companyNo,
+        entryAt: entryAt.toISOString(),
         user: supplier.user ? { ...supplier.user, email: openPii(supplier.user.email) } : supplier.user,
         legalPersonIdCard: openPii(supplier.legalPersonIdCard),
         legalPersonPhone: openPii(supplier.legalPersonPhone),
@@ -1454,6 +1464,7 @@ export class SupplierService {
     return {
       ...supplier,
       companyNo,
+      entryAt: entryAt.toISOString(),
       user: supplier.user ? { ...supplier.user, email: maskEmail(openPiiForMask(supplier.user.email)) } : supplier.user,
       legalPersonIdCard: maskIdNumber(openPiiForMask(supplier.legalPersonIdCard)),
       legalPersonPhone: maskPhone(openPiiForMask(supplier.legalPersonPhone)),
