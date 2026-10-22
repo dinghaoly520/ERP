@@ -1,4 +1,5 @@
 import { IsString, IsNotEmpty, MaxLength, IsArray, ValidateNested, IsOptional, IsBoolean, ArrayMinSize, ArrayMaxSize, Matches } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 import { Type } from 'class-transformer';
 
 class ConvertContactDto {
@@ -11,6 +12,7 @@ class ConvertContactDto {
   @IsString() @IsOptional()
   email?: string;
 
+  @EmptyAsUndefined()
   @IsBoolean() @IsOptional()
   isPrimary?: boolean;
 

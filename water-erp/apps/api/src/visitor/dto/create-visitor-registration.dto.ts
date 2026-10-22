@@ -1,4 +1,5 @@
 import { IsDateString, IsInt, IsNotEmpty, IsOptional, IsString, Matches, Max, MaxLength, Min } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 /** 供应商来访接待登记（:3002 /contact/visitor 匿名提交，@Public） */
 export class CreateVisitorRegistrationDto {
@@ -15,6 +16,7 @@ export class CreateVisitorRegistrationDto {
   @IsString() @IsNotEmpty() @MaxLength(160)
   visitUnit: string;
 
+  @EmptyAsUndefined()
   @IsOptional() @IsInt() @Min(1) @Max(99)
   visitorCount?: number;
 

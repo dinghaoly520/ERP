@@ -1,4 +1,5 @@
 import { IsString, IsNotEmpty, IsISO8601, IsOptional, IsBoolean } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 /**
  * 开标会话字段全部可选：不提供时仅推进阶段 SUBMIT→OPENING，
@@ -21,6 +22,7 @@ export class StartOpeningDto {
   decryptWindowEnd?: string;
 
   /** E4: 强制开标——仅可跳过管理性阻断（如专家未分配，高风险留痕）；有效投标家数不足为法定硬闸不可强制（记「强制开标被拒」日志并拒绝） */
+  @EmptyAsUndefined()
   @IsOptional() @IsBoolean()
   force?: boolean;
 }

@@ -11,6 +11,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 const WORK_ARRANGEMENT_TYPE = [
   'APPROVAL',
@@ -56,6 +57,7 @@ export class CreateWorkArrangementDto {
   @IsEnum(WORK_ARRANGEMENT_URGENCY)
   urgency!: (typeof WORK_ARRANGEMENT_URGENCY)[number];
 
+  @EmptyAsUndefined()
   @IsOptional()
   @IsEnum(WORK_ARRANGEMENT_STATUS)
   status?: (typeof WORK_ARRANGEMENT_STATUS)[number];
@@ -68,6 +70,7 @@ export class CreateWorkArrangementDto {
   @IsISO8601()
   reminderAt?: string;
 
+  @EmptyAsUndefined()
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -79,12 +82,14 @@ export class CreateWorkArrangementDto {
   @IsBoolean()
   isAllDay?: boolean;
 
+  @EmptyAsUndefined()
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(10)
   @IsString({ each: true })
   customTags?: string[];
 
+  @EmptyAsUndefined()
   @IsOptional()
   @IsEnum(WORK_ARRANGEMENT_RECURRENCE)
   recurrence?: (typeof WORK_ARRANGEMENT_RECURRENCE)[number];
@@ -97,6 +102,7 @@ export class CreateWorkArrangementDto {
   @IsString()
   templateId?: string;
 
+  @EmptyAsUndefined()
   @IsOptional()
   @IsArray()
   @IsString({ each: true })

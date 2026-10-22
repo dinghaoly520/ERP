@@ -1,4 +1,5 @@
 import { IsString, IsNotEmpty, IsEmail, IsOptional, IsBoolean, Matches, MaxLength } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 /** 供应商注册时的联系人入参：比通用 CreateContactDto 多一个「联系人身份证号」必填项。 */
 export class RegisterContactDto {
@@ -14,6 +15,7 @@ export class RegisterContactDto {
   @IsString() @IsNotEmpty() @Matches(/^\d{17}[\dXx]$/, { message: '联系人身份证号须为 18 位' })
   idCard: string;
 
+  @EmptyAsUndefined()
   @IsEmail() @IsOptional()
   email?: string;
 

@@ -10,6 +10,7 @@ import {
   Matches,
   MaxLength,
 } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 import { PASSWORD_PATTERN, PASSWORD_POLICY_MESSAGE } from '../../common/validators/password-strength';
 
 // 临时供应商注册：凭邀请码 + 极简字段。登录用户名强制为机构代码。
@@ -62,6 +63,7 @@ export class RegisterTemporarySupplierDto {
   @IsString() @IsNotEmpty() @Matches(/^\d{6}$/, { message: '验证码须为 6 位数字' })
   registrationCode: string;
 
+  @EmptyAsUndefined()
   @IsEmail() @IsOptional()
   email?: string; // 联系人邮箱
 

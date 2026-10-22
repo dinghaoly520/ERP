@@ -1,4 +1,5 @@
 import { IsString, IsNotEmpty, IsOptional, IsInt, IsArray, Min, Max, ValidateNested, IsIn, MaxLength, Matches } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 import { Type } from 'class-transformer';
 
 export class SpecialtyQuotaDto {
@@ -7,6 +8,7 @@ export class SpecialtyQuotaDto {
   specialty?: string;
 
   /** 多选专业（2026-10-13）：相近专业并桶，行内候选池=所选专业并集；空数组/缺省=不限专业 */
+  @EmptyAsUndefined()
   @IsOptional() @IsArray() @IsString({ each: true })
   specialties?: string[];
 
@@ -25,6 +27,7 @@ export class SpecialtyQuotaDto {
   companyId?: string;
 
   /** 多选公司（2026-10-13）：该配额从所选公司并集的专家库抽取；空=按池不限定（scope 默认） */
+  @EmptyAsUndefined()
   @IsOptional() @IsArray() @IsString({ each: true })
   companyIds?: string[];
 
@@ -34,10 +37,12 @@ export class SpecialtyQuotaDto {
 
   /** 行政区域代码（GB/T 2260 六位）：配额候选限定区域（A-129 可选过滤，未填不过滤；多配额不同值取并集）。
    *  收紧为 6 位纯数字（与档案侧对齐；超长/非 6 位值原会静默空池） */
+  @EmptyAsUndefined()
   @IsOptional() @IsString() @MaxLength(6) @Matches(/^\d{6}$/)
   regionCode?: string;
 
   /** 库内等级 A-E：单值或逗号集（'A' / 'A,B'），候选拆成 in 查询（A-129 可选过滤，未填不过滤） */
+  @EmptyAsUndefined()
   @IsOptional() @IsString() @Matches(/^[A-E](,[A-E])*$/)
   expertLevel?: string;
 }
@@ -46,9 +51,11 @@ export class ExtractPreviewDto {
   @IsString() @IsNotEmpty()
   projectId!: string;
 
+  @EmptyAsUndefined()
   @IsOptional() @IsInt() @Min(1) @Max(9)
   totalNeeded?: number;
 
+  @EmptyAsUndefined()
   @IsOptional() @IsInt() @Min(0) @Max(9)
   alternatives?: number;
 
@@ -57,14 +64,17 @@ export class ExtractPreviewDto {
   mode?: 'weighted' | 'fair';
 
   /** 抽取模式：specialty_match=专业匹配 / random=随机抽取 / merit_best=综合择优 */
+  @EmptyAsUndefined()
   @IsOptional() @IsString() @IsIn(['specialty_match', 'random', 'merit_best'])
   extractMode?: 'specialty_match' | 'random' | 'merit_best';
 
+  @EmptyAsUndefined()
   @IsOptional() @IsArray() @ValidateNested({ each: true })
   @Type(() => SpecialtyQuotaDto)
   manualQuotas?: SpecialtyQuotaDto[];
 
   /** 预排除专家 userId 列表（这些专家不参与抽取） */
+  @EmptyAsUndefined()
   @IsOptional() @IsArray()
   @IsString({ each: true })
   excludedUserIds?: string[];

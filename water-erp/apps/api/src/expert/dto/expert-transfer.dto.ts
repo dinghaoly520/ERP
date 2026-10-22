@@ -1,4 +1,5 @@
 import { IsString, IsNotEmpty, IsOptional, IsBoolean, MaxLength, IsIn } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 /** 工位迁移领取（2026-09-22 修正方案）：票据（免闸4）+ 密码重证 */
 export class ExpertTransferClaimDto {
@@ -20,10 +21,12 @@ export class TransferPhotoDto {
   @MaxLength(64)
   photoAssetId?: string | null;
 
+  @EmptyAsUndefined()
   @IsOptional()
   @IsIn(['passed', 'unchecked'])
   occlusion?: 'passed' | 'unchecked' | null;
 
+  @EmptyAsUndefined()
   @IsOptional()
   @IsBoolean()
   skipped?: boolean;

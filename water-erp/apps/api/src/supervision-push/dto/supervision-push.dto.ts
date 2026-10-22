@@ -1,6 +1,7 @@
 // apps/api/src/supervision-push/dto/supervision-push.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
 import { IsBoolean, IsIn, IsInt, IsOptional, IsString, IsUrl, Length, Max, Min } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 import { SUPERVISION_PAYLOAD_TYPES, SupervisionPayloadType } from '../supervision-push-payload';
 
 export class SaveSupervisionConfigDto {
@@ -19,6 +20,7 @@ export class SaveSupervisionConfigDto {
   @Length(0, 512)
   authToken?: string;
 
+  @EmptyAsUndefined()
   @ApiProperty({ description: '超时毫秒（1000~60000，默认 8000）', required: false })
   @IsOptional()
   @IsInt()
@@ -34,6 +36,7 @@ export class SaveSupervisionConfigDto {
 }
 
 export class SupervisionPushDto {
+  @EmptyAsUndefined()
   @ApiProperty({ description: '载荷类型（默认 EVALUATION_REPORT；其余待接入）', required: false, enum: SUPERVISION_PAYLOAD_TYPES })
   @IsOptional()
   @IsIn(SUPERVISION_PAYLOAD_TYPES as unknown as string[])

@@ -1,4 +1,5 @@
 import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 /** R9 主持人手动确认签到（2026-09-20 spec §4.6）：摄像头故障等现场降级 */
 export class ManualConfirmDto {
@@ -9,6 +10,7 @@ export class ManualConfirmDto {
   reason!: string;
 
   /** 现场核验证件类型（不存号码） */
+  @EmptyAsUndefined()
   @IsOptional()
   @IsIn(['身份证', '护照', '其他'])
   docType?: string;

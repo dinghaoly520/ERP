@@ -1,4 +1,5 @@
 import { IsString, IsNotEmpty, IsOptional, IsDateString, IsNumber } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 export class CreateProcurementDto {
   @IsString() @IsNotEmpty()
@@ -10,6 +11,7 @@ export class CreateProcurementDto {
   @IsString() @IsNotEmpty()
   procurementMethod: string; // 公开招标/邀请招标/谈判采购/单一来源
 
+  @EmptyAsUndefined()
   @IsNumber() @IsOptional()
   budget?: number;
 
@@ -30,6 +32,7 @@ export class UpdateProcurementDto {
   @IsString() @IsOptional()
   procurementMethod?: string;
 
+  @EmptyAsUndefined()
   @IsNumber() @IsOptional()
   budget?: number;
 

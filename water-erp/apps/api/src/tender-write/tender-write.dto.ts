@@ -1,4 +1,5 @@
 import { IsIn, IsObject, IsOptional, IsString } from 'class-validator';
+import { EmptyAsUndefined } from '../common/decorators/empty-as-undefined.decorator';
 
 export class ExportTenderWriteDto {
   @IsIn([
@@ -141,26 +142,32 @@ export class ExportDirectFilingDto {
   @IsOptional()
   amountChinese?: string;
 
+  @EmptyAsUndefined()
   @IsIn(['是', '否'])
   @IsOptional()
   approvalsComplete?: string;
 
+  @EmptyAsUndefined()
   @IsIn(['有', '无'])
   @IsOptional()
   hasNegotiationReport?: string;
 
+  @EmptyAsUndefined()
   @IsIn(['有', '无'])
   @IsOptional()
   hasWinnerConfirmation?: string;
 
+  @EmptyAsUndefined()
   @IsIn(['有', '无'])
   @IsOptional()
   hasNotificationLetter?: string;
 
+  @EmptyAsUndefined()
   @IsIn(['有', '无'])
   @IsOptional()
   hasContract?: string;
 
+  @EmptyAsUndefined()
   @IsIn(['同意', '不同意'])
   @IsOptional()
   filingOpinion?: string;

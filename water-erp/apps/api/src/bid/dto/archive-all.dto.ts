@@ -1,4 +1,5 @@
 import { IsIn, IsOptional } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 /**
  * 一键归档入参。
@@ -7,6 +8,7 @@ import { IsIn, IsOptional } from 'class-validator';
  * 两者均为终局操作（ARCHIVED 不可逆）。
  */
 export class ArchiveAllDto {
+  @EmptyAsUndefined()
   @IsOptional()
   @IsIn(['opening', 'full'])
   scope?: 'opening' | 'full';

@@ -1,4 +1,5 @@
 import { IsString, IsOptional, IsNotEmpty, IsEmail } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 export class UpdateExpertProfileDto {
   @IsString()
@@ -6,6 +7,7 @@ export class UpdateExpertProfileDto {
   @IsOptional()
   displayName?: string;
 
+  @EmptyAsUndefined()
   @IsEmail()
   @IsOptional()
   email?: string;

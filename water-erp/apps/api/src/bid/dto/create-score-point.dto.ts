@@ -1,4 +1,5 @@
 import { IsString, IsNotEmpty, IsNumber, IsInt, Min, Max, IsBoolean, IsOptional, IsArray } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 export class CreateScorePointDto {
   @IsString()
@@ -10,6 +11,7 @@ export class CreateScorePointDto {
   @Max(9999.9)
   fullScore: number;
 
+  @EmptyAsUndefined()
   @IsInt()
   @Min(0)
   @IsOptional()
@@ -19,11 +21,13 @@ export class CreateScorePointDto {
   @IsOptional()
   evidenceHint?: string;
 
+  @EmptyAsUndefined()
   @IsBoolean()
   @IsOptional()
   objective?: boolean;
 
   /** Phase 1：关联招标条款 requirementId 列表（N:M 指引） */
+  @EmptyAsUndefined()
   @IsArray()
   @IsString({ each: true })
   @IsOptional()

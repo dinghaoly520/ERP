@@ -1,4 +1,5 @@
 import { IsString, IsNotEmpty, IsArray, ValidateNested, IsNumber, IsOptional, IsBoolean, Min, Max, ArrayNotEmpty, ArrayMaxSize } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 import { Type } from 'class-transformer';
 
 class PointDecisionDto {
@@ -23,9 +24,11 @@ class ScoreItemDto {
   supplierId: string;
 
   // 上限与 Decimal(5,1) 域对齐（满分可 >100 的合法配置项不应被 DTO 误拒）；真实上限由服务端 score>maxScore 校验
+  @EmptyAsUndefined()
   @IsNumber() @Min(0) @Max(9999.9) @IsOptional()
   score?: number;
 
+  @EmptyAsUndefined()
   @IsBoolean() @IsOptional()
   passed?: boolean;
 
@@ -33,6 +36,7 @@ class ScoreItemDto {
   reason?: string;
 
   // 得分点裁定限流，防巨量请求拖垮单事务
+  @EmptyAsUndefined()
   @IsArray() @ArrayMaxSize(500) @ValidateNested({ each: true }) @Type(() => PointDecisionDto) @IsOptional()
   pointDecisions?: PointDecisionDto[];
 }

@@ -1,4 +1,5 @@
 import { IsArray, ValidateNested, IsString, IsNotEmpty, IsNumber, Min, Max, IsBoolean, IsOptional } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 import { Type } from 'class-transformer';
 
 export class ScorePointInputDto {
@@ -15,6 +16,7 @@ export class ScorePointInputDto {
   @IsOptional()
   evidenceHint?: string;
 
+  @EmptyAsUndefined()
   @IsBoolean()
   @IsOptional()
   objective?: boolean;
@@ -23,6 +25,7 @@ export class ScorePointInputDto {
   @IsOptional()
   evidenceSection?: string;
 
+  @EmptyAsUndefined()
   @IsNumber()
   @Min(0)
   @Max(1)
@@ -30,6 +33,7 @@ export class ScorePointInputDto {
   confidence?: number;
 
   /** Phase 1：关联招标条款 requirementId 列表（N:M 指引；管理员在评分标准编制时维护） */
+  @EmptyAsUndefined()
   @IsArray()
   @IsString({ each: true })
   @IsOptional()

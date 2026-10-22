@@ -1,4 +1,5 @@
 import { IsString, IsNotEmpty, IsOptional, IsDateString, IsArray, MaxLength } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 /** 供应商注册/变更时的主体业绩入参（证明材料必传） */
 export class RegisterPerformanceDto {
@@ -11,6 +12,7 @@ export class RegisterPerformanceDto {
   @IsString() @IsOptional() @MaxLength(50)
   contractAmount?: string;
 
+  @EmptyAsUndefined()
   @IsDateString() @IsOptional()
   signDate?: string;
 
