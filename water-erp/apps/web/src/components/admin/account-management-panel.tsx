@@ -469,7 +469,17 @@ export function AccountManagementPanel() {
       {listView === "staff" ? (
       <div className="overflow-hidden rounded-[18px] border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(248,251,255,0.72))] shadow-[0_12px_28px_rgba(59,89,143,0.06)]">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px] border-collapse text-sm">
+          {/* 列宽稳健化（2026-10-22）：table-fixed + colgroup 显式列宽——列宽由表头决定、
+              不再被长内容（手机号/公司名/操作按钮）撑爆；单元格内容截断+悬停看全文，跨浏览器一致 */}
+          <table className="w-full min-w-[960px] table-fixed border-collapse text-sm">
+            <colgroup>
+              <col style={{ width: '16%' }} />{/* 账号 */}
+              <col style={{ width: '10%' }} />{/* 姓名 */}
+              <col style={{ width: '12%' }} />{/* 权限 */}
+              <col style={{ width: '20%' }} />{/* 公司/部门 */}
+              <col style={{ width: '10%' }} />{/* 状态 */}
+              <col style={{ width: '32%' }} />{/* 操作（4 按钮） */}
+            </colgroup>
             <thead>
               <tr className="border-b border-white/70 text-center text-xs text-[color:var(--muted-foreground)]">
                 <th className="px-4 py-3 font-medium">账号</th>
@@ -497,23 +507,23 @@ export function AccountManagementPanel() {
                 return (
                   <tr key={account.id} className="border-b border-white/55 last:border-0 hover:bg-white/40">
                     <td className="px-4 py-3 text-center">
-                      <div className="font-medium text-[color:var(--foreground)]">
+                      <div className="truncate font-medium text-[color:var(--foreground)]" title={account.username}>
                         {account.username}
                         {self ? (
                           <span className="ml-1.5 text-[10px] text-[color:var(--muted-foreground)]">(我)</span>
                         ) : null}
                       </div>
-                      <div className="text-xs text-[color:var(--muted-foreground)]">{account.phone ?? "—"}</div>
+                      <div className="truncate text-xs text-[color:var(--muted-foreground)]" title={account.phone ?? ''}>{account.phone ?? "—"}</div>
                     </td>
-                    <td className="px-4 py-3 text-center text-[color:var(--foreground)]">{account.displayName}</td>
+                    <td className="px-4 py-3 text-center text-[color:var(--foreground)]"><span className="block truncate" title={account.displayName}>{account.displayName}</span></td>
                     <td className="px-4 py-3 text-center">
                       <span className="inline-flex items-center rounded-full bg-[rgba(122,168,255,0.12)] px-2.5 py-1 text-[11px] font-semibold leading-none text-[color:var(--accent)]">
                         {permissionLabel(account.role)}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center text-[color:var(--muted-foreground)]">
-                      <div>{account.company ?? "—"}</div>
-                      <div className="text-xs">{account.departmentName ?? ""}</div>
+                      <div className="truncate" title={account.company ?? ''}>{account.company ?? "—"}</div>
+                      <div className="truncate text-xs" title={account.departmentName ?? ''}>{account.departmentName ?? ""}</div>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold leading-none ${meta.cls}`}>
@@ -589,7 +599,18 @@ export function AccountManagementPanel() {
       ) : (
       <div className="overflow-hidden rounded-[18px] border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(248,251,255,0.72))] shadow-[0_12px_28px_rgba(59,89,143,0.06)]">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] border-collapse text-sm">
+          {/* 列宽稳健化（2026-10-22）：同工作人员表 table-fixed + colgroup */}
+          <table className="w-full min-w-[1080px] table-fixed border-collapse text-sm">
+            <colgroup>
+              <col style={{ width: '18%' }} />{/* 供应商 */}
+              <col style={{ width: '15%' }} />{/* 登录账号（信用代码） */}
+              <col style={{ width: '8%' }} />{/* 联系人 */}
+              <col style={{ width: '11%' }} />{/* 手机 */}
+              <col style={{ width: '9%' }} />{/* 状态 */}
+              <col style={{ width: '15%' }} />{/* 归属公司 */}
+              <col style={{ width: '11%' }} />{/* 最近登录 IP */}
+              <col style={{ width: '13%' }} />{/* 密码 */}
+            </colgroup>
             <thead>
               <tr className="border-b border-white/70 text-center text-xs text-[color:var(--muted-foreground)]">
                 <th className="px-4 py-3 font-medium">供应商</th>
@@ -615,14 +636,16 @@ export function AccountManagementPanel() {
                   {rows.map((s) => (
                     <tr key={s.id} className="border-b border-white/55 last:border-0 hover:bg-white/40">
                       <td className="px-4 py-3 text-center font-medium text-[color:var(--foreground)]">
-                        {s.supplier?.name ?? s.displayName}
-                        {s.supplier?.isTemporary ? (
-                          <span className="ml-1.5 rounded-full bg-[rgba(234,179,8,0.12)] px-2 py-0.5 text-[10px] font-semibold leading-none text-[#a16207]">临时</span>
-                        ) : null}
+                        <div className="flex min-w-0 items-center justify-center gap-1.5">
+                          <span className="min-w-0 truncate" title={s.supplier?.name ?? s.displayName ?? ''}>{s.supplier?.name ?? s.displayName}</span>
+                          {s.supplier?.isTemporary ? (
+                            <span className="shrink-0 rounded-full bg-[rgba(234,179,8,0.12)] px-2 py-0.5 text-[10px] font-semibold leading-none text-[#a16207]">临时</span>
+                          ) : null}
+                        </div>
                       </td>
-                      <td className="px-4 py-3 text-center font-mono text-xs text-[color:var(--muted-foreground)]">{s.username}</td>
-                      <td className="px-4 py-3 text-center text-[color:var(--foreground)]">{s.displayName || "—"}</td>
-                      <td className="px-4 py-3 text-center text-[color:var(--muted-foreground)]">{s.phone ?? "—"}</td>
+                      <td className="px-4 py-3 text-center font-mono text-xs text-[color:var(--muted-foreground)]"><span className="block truncate" title={s.username}>{s.username}</span></td>
+                      <td className="px-4 py-3 text-center text-[color:var(--foreground)]"><span className="block truncate" title={s.displayName || ""}>{s.displayName || "—"}</span></td>
+                      <td className="px-4 py-3 text-center text-[color:var(--muted-foreground)]"><span className="block truncate" title={s.phone ?? ""}>{s.phone ?? "—"}</span></td>
                       <td className="px-4 py-3 text-center">
                         <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold leading-none ${s.isFrozen ? "bg-[rgba(215,89,89,0.1)] text-[color:var(--danger)]" : s.isActive ? "bg-[rgba(92,181,150,0.12)] text-[#1d7a5f]" : "bg-[rgba(234,179,8,0.12)] text-[#a16207]"}`}>
                           {s.isFrozen ? "已冻结" : s.isActive ? "已激活" : "待审核"}
@@ -632,7 +655,7 @@ export function AccountManagementPanel() {
                         <select
                           value={s.supplier?.companyId ?? ""}
                           onChange={(e) => void changeSupplierCompany(s.id, e.target.value)}
-                          className="h-8 max-w-[220px] rounded-[10px] border border-white/60 bg-white/70 px-2 text-xs text-[color:var(--foreground)]"
+                          className="h-8 w-full rounded-[10px] border border-white/60 bg-white/70 px-2 text-xs text-[color:var(--foreground)]"
                           aria-label="调整归属公司"
                         >
                           <option value="" disabled>未归属</option>
@@ -649,7 +672,7 @@ export function AccountManagementPanel() {
                             className="group inline-flex flex-col items-center gap-0.5 rounded-[10px] px-2 py-1 transition hover:bg-white/70"
                             title="查看该账号登录过的所有 IP"
                           >
-                            <span className="font-mono text-xs font-medium text-[color:var(--foreground)] group-hover:text-[color:var(--accent)]">
+                            <span className="max-w-full truncate font-mono text-xs font-medium text-[color:var(--foreground)] group-hover:text-[color:var(--accent)]" title={s.lastLogin.ip}>
                               {s.lastLogin.ip}
                             </span>
                             <span className="text-[10px] leading-none text-[color:var(--muted-foreground)]">
