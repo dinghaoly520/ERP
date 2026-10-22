@@ -387,6 +387,11 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     if (!project) return 0;
     if (project.stage === 'ARCHIVED') return 3;
     if (project.stage === 'EVALUATING') return 3;
+    // 流标=开标过程终局，步进到「已完成」（与「开标已结束」横幅口径一致；原落 0 令「投递中」脉动误导）
+    if (project.stage === 'ABORTED') return 3;
+    // 会话已结束（「完成开标·移交」只写 handoverAt、不改 stage，项目停留 OPENING）——
+    // 步进条须随会话终局翻到「已完成」，不能等 :3007/:3005 推进阶段才动
+    if (project.stage === 'OPENING' && project.openingSession?.handoverAt) return 3;
     if (project.stage === 'OPENING' && project.openingSession) return 2;
     if (project.stage === 'OPENING') return 1;
     return 0;
@@ -415,6 +420,9 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
         now: now + serverTimeOffset,
       })
     : null;
+  // 会话已结束（handoverAt 已置或阶段离开开标态；与 deriveOpeningSessionStatus 终局分支同源）——
+  // 终局后解密窗口不再有意义：倒计时环/窗口警告横幅/暂停按钮一律停显，勿再呈现「窗口在跑」
+  const sessionEnded = sessionStatus === '已结束';
 
   // 待裁决清单（§5.5）：UNKNOWN 家 + 窗口关闭后的未归因候选（惰性归因将标记 UNKNOWN）
   const adjudgeRows = useMemo(() => {
@@ -627,12 +635,12 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   return (
     <div className="space-y-5">
       {/* Time warning banners — 无边框色调提示 */}
-      {timeWarning === '5min' && (
+      {timeWarning === '5min' && !sessionEnded && (
         <div className="flex animate-pulse items-center gap-2 rounded-xl bg-[oklch(0.78_0.12_83_/_0.16)] px-4 py-2.5 text-sm font-bold text-[oklch(0.46_0.11_65)]">
           <AlertTriangle size={16} /> 解密窗口将在 5 分钟内关闭，请尽快完成解密操作
         </div>
       )}
-      {timeWarning === '1min' && (
+      {timeWarning === '1min' && !sessionEnded && (
         <div className="flex items-center gap-2 rounded-xl bg-[oklch(0.66_0.175_27_/_0.14)] px-4 py-2.5 text-sm font-bold text-[var(--danger)]">
           <AlertTriangle size={16} className="animate-pulse" /> 解密窗口仅剩 1 分钟！
         </div>
@@ -761,7 +769,9 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
               <div className="mb-1 text-xs uppercase tracking-widest text-[color:var(--muted-foreground)]">状态</div>
               <div className="text-lg font-black tracking-tight text-[color:var(--foreground)]">{sessionStatus ?? session.status}</div>
             </div>
-            {remaining > 0 && <RingCountdown remaining={remaining} />}
+            {/* 会话已结束后窗口止点不再有意义——提前移交（解密/唱标/确认提前闭环）时窗口
+                可能远未到期，无闸会在「已结束」旁持续跳动倒计时环 */}
+            {remaining > 0 && !sessionEnded && <RingCountdown remaining={remaining} />}
             {/* P1-3：恢复入口不得随窗口过期消失——后端 startOpeningInternal 明确允许重组/延长已过期窗口
                 （「已过期窗口的重组=延长恢复通道，放行」），纯前端 remaining>0 门曾把延长/暂停/恢复整体藏死。
                 暂停/恢复仍限窗口期内（暂停对已过期窗口无意义）；延长在 OPENING 全程可用 */}
@@ -792,7 +802,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                   }}
                 ><Clock size={13} className="mr-1 inline" />延长 +15分钟</button>
                 )}
-                {canHost && remaining > 0 && (!session.pausedAt ? (
+                {canHost && remaining > 0 && !sessionEnded && (!session.pausedAt ? (
                   <button
                     type="button"
                     className="neu-btn-soft text-xs text-[var(--warning)]"

@@ -124,8 +124,12 @@ function WorkspaceInner() {
   // sfx 每渲染新建但仅读稳定的 audioCtxRef，行为等效，故不入依赖。视觉圆环仍在 hall（serverTimeOffset），
   // 本音效用客户端 now，精度足够。
   const decryptWindowEnd = project?.openingSession?.decryptWindowEnd;
+  // 会话已结束（移交/阶段离开开标态，与大厅 deriveOpeningSessionStatus 终局分支同口径）后
+  // 窗口止点不再有意义——提前移交时窗口远未到期，无闸会在终局后照常 tick/warning
+  const sfxSessionEnded = !!project?.openingSession?.handoverAt
+    || (!!project && !['OPENING', 'DOWNLOAD', 'SUBMIT'].includes(project.stage));
   useEffect(() => {
-    if (current !== 'open' || !decryptWindowEnd) return;
+    if (current !== 'open' || !decryptWindowEnd || sfxSessionEnded) return;
     const endMs = new Date(decryptWindowEnd).getTime();
     const timer = setInterval(() => {
       const r = Math.max(0, Math.floor((endMs - Date.now()) / 1000));
@@ -134,7 +138,7 @@ function WorkspaceInner() {
     }, 1000);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current, decryptWindowEnd]);
+  }, [current, decryptWindowEnd, sfxSessionEnded]);
 
   // 单一 WebSocket（页级持有，跨 tab 常驻；返回值仅副作用——连接 + 事件回调驱动刷新）
   useBidWebSocket(projectId ?? undefined, {
