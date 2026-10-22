@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Plus, Search } from "lucide-react";
+import { Check, Plus, Search, X } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 
 export type BusinessTagOption = {
@@ -100,7 +100,7 @@ export function BusinessTagField({
             maxLength={20}
           />
           {filter && (
-            <button type="button" className="reg-tag-search__clear" aria-label="清空搜索" onClick={() => setFilter("")}>×</button>
+            <button type="button" className="reg-tag-search__clear" aria-label="清空搜索" onClick={() => setFilter("")}><X size={12} strokeWidth={2.5} aria-hidden="true" /></button>
           )}
         </div>
       )}
