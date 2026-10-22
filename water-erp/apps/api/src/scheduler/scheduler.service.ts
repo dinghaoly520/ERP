@@ -52,6 +52,18 @@ export class SchedulerService {
     private bidService: BidService,
   ) {}
 
+  /** 幽灵待办对账（2026-10-22）：每日 04:45。可操作类通知镜像底层 pending 状态，
+   *  历史通知（种子快照/早期无消解钩子）在事项办结后未消解——角标显示有待审而
+   *  队列为空。按四类镜像型逐一对账消解（stale-sweep.ts），幂等。 */
+  @Cron('45 4 * * *')
+  async sweepStaleNotifications() {
+    const results = await this.notification.sweepStaleActionable();
+    for (const r of results) {
+      this.logger.log(`幽灵待办消解 ${r.type}（${r.rule}）：${r.resolved} 条`);
+    }
+    if (results.length === 0) this.logger.log('幽灵待办对账：无需消解');
+  }
+
   /** D2 归档时限扫描（DA/T 103-2024 §8.2/§10.1）：每日 05:00。
    *  流程终结（定标/合同阶段有件）但迟迟未导出 ASIP 的卷 → 分级提醒：
    *  - 终结满 ARCHIVE_TRANSFER_DUE_DAYS（默认 270 天，对齐「不晚于次年 3 月 31 日」）→ 提醒经办（staff+leader）

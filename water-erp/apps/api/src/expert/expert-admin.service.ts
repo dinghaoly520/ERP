@@ -2061,6 +2061,13 @@ export class ExpertAdminService {
     }
 
     if (candidates.length > 0) {
+      // 新批取代旧批（2026-10-22）：本扫描被 /expert/retirement 页面每次打开与 cron 双路
+      // 调用，旧批报留待办无限累积（leader/staff 曾积 42 条）。发新批前消解全部旧未消解，
+      // 各收件人恒只保留最新一批；真值在退库复核页实时计算。
+      await this.prisma.notification.updateMany({
+        where: { type: 'EXPERT_RETIRE_CANDIDATE', resolvedAt: null },
+        data: { resolvedAt: new Date() },
+      }).catch(() => {});
       const names = candidates.map(c => `${c.displayName}（${c.reason}）`).join('；');
       const payload = {
         type: 'EXPERT_RETIRE_CANDIDATE',

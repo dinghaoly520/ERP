@@ -8,6 +8,7 @@ import { SmsChannel } from './channels/sms.channel';
 import { PhoneChannel } from './channels/phone.channel';
 import { openPii } from '../common/crypto/sm-field-crypto';
 import { shouldDispatch } from './channels/notification-channel.interface';
+import { sweepStaleActionableNotifications } from './stale-sweep';
 
 /** 可操作（待办类）类型集合——五段状态视图的 todo/done 判定依据（注册表派生） */
 const ACTIONABLE_TYPES = NOTIFICATION_REGISTRY.filter(s => s.actionable).map(s => s.code);
@@ -297,6 +298,11 @@ export class NotificationService {
       where: { userId, type, link, resolvedAt: null },
       data: { resolvedAt: new Date() },
     });
+  }
+
+  /** 幽灵待办对账消解（见 stale-sweep.ts 头注）——Scheduler 每日 / seed 装载后调用。 */
+  async sweepStaleActionable() {
+    return sweepStaleActionableNotifications(this.prisma);
   }
 
   /**

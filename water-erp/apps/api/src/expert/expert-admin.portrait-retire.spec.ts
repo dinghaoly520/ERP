@@ -23,6 +23,8 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
       expertEvaluation: { findMany: jest.fn() },
       bidExpert: { findMany: jest.fn(), findFirst: jest.fn() },
       bidScoreRecord: { findMany: jest.fn() },
+      // 退库批报取代（2026-10-22）：发新批前消解旧未消解批报
+      notification: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       $transaction: jest.fn().mockResolvedValue([]),
     };
     notification = { create: jest.fn(), sendToRole: jest.fn() };

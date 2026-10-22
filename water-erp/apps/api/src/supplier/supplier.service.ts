@@ -2633,11 +2633,11 @@ export class SupplierService {
       return { registration: 0, changes: 0, resets: 0, joins: 0 }; // supplier 等角色无审批待办
     }
     const registration = await this.prisma.supplier.count({ where: regWhere });
+    // 资料变更角标与列表/审批动作同口径（2026-10-22 对齐修复）：变更列表
+    // （listPendingChanges）全量、approveChange 无公司闸（供应商域不隔离）——
+    // 原角标按公司过滤会漏报（他司变更待审时角标不亮、点进去却有事可办）
     const changes = await this.prisma.supplierChangeRecord.count({
-      where: {
-        status: 'PENDING',
-        ...(actor.role !== 'admin' ? { supplier: { companyId: regWhere.companyId } } : {}),
-      },
+      where: { status: 'PENDING' },
     });
     // 供应商密码重置待审（2026-10-15 并入「信息更新审批」角标——此前不计数，审批中心外无被动发现渠道）
     const resets = await this.prisma.passwordResetRequest.count({

@@ -1106,6 +1106,13 @@ export class CatalogService {
   /** 按角色向活跃用户发聚合预警站内信（一次评估一条，含多条明细）；失败不阻塞预警记录 */
   private async notifyAlertRolesAggregated(roles: string[], alerts: { message: string }[]) {
     try {
+      // 新批取代旧批（2026-10-22）：批报是「最新一次评估结果」的知会，真值在 tab=alerts
+      // 实时队列——旧批报留待办只会无限累积（admin 曾积 23 条）。发新批前消解同类型
+      // 全部旧未消解，各收件人恒只保留最新一条。
+      await this.prisma.notification.updateMany({
+        where: { type: 'CATALOG_PRICE_ALERT', resolvedAt: null },
+        data: { resolvedAt: new Date() },
+      }).catch(() => {});
       const users = await this.prisma.user.findMany({ where: { role: { in: roles }, isActive: true }, select: { id: true } });
       const lines = alerts.slice(0, 5).map((a) => `· ${a.message}`).join('\n');
       const more = alerts.length > 5 ? `\n…等 ${alerts.length} 项` : '';

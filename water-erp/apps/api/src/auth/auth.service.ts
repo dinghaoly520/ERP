@@ -258,7 +258,9 @@ export class AuthService {
   /**
    * 注册审核完成后，清除所有管理员名下该用户的待审通知（resolvedAt 打标）。
    * 处理完即自动从「任务通知/待办」消失，无需逐条点击已读。
-   * 锚点：新通知按 link?userId= 精确匹配；存量通知（link 无 userId）按 content 含 displayName 兜底。
+   * 锚点（2026-10-22 修复+加固）：创建侧 link 实为 /admin/accounts?tab=registration&userId=…，
+   * 原全等匹配 ?userId= 永远对不上（只剩 content 兜底在干活）。改 endsWith 精确边界——
+   * contains 会把「前缀相同的另一 id」（种子手工短 id 场景）误卷进来。
    */
   private async resolvePendingRegistrationNotifications(user: { id: string; displayName: string }) {
     try {
@@ -267,7 +269,7 @@ export class AuthService {
           type: 'USER_REGISTRATION_PENDING',
           resolvedAt: null,
           OR: [
-            { link: `/admin/accounts?userId=${user.id}` },
+            { link: { endsWith: `userId=${user.id}` } },
             { content: { contains: user.displayName } },
           ],
         },

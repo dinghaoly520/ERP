@@ -30,6 +30,7 @@ import { encryptPasswordVault } from '../src/auth/password-vault.util';
 import { GbCodeService } from '../src/common/gb-code.service';
 import { backfillGbCodes } from '../src/common/gb-code.backfill';
 import { sealPii, openPii, blindIndexPii } from '../src/common/crypto/sm-field-crypto';
+import { sweepStaleActionableNotifications } from '../src/notification/stale-sweep';
 import { execSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { minioClient, MINIO_BUCKET } from '../src/upload/minio.client';
@@ -852,6 +853,16 @@ async function main() {
   };
   console.log('\n✔ Seed 完成，关键表行数：');
   for (const [k, v] of Object.entries(counts)) console.log(`    ${k}: ${v}`);
+
+  // ▶ 幽灵待办对账（2026-10-22）：快照通知含大量历史"待审"（底层事项早已办结），
+  //    装载后立即消解——否则 admin 角标/「通知待办」长期显示有待审而点进去为空。
+  //    对账失败不阻断 seed 收尾（后续国标码回填等步骤不受影响，次日 cron 会兜底）
+  try {
+    const swept = await sweepStaleActionableNotifications(prisma);
+    for (const r of swept) console.log(`    幽灵待办消解 ${r.type}（${r.rule}）：${r.resolved} 条`);
+  } catch (e) {
+    console.warn('    幽灵待办对账失败（不影响 seed，次日 cron 兜底）：', e);
+  }
 
   // ▶ 国标编码回填（2026-10-19）：种子直载绕过 GbCodeService 分配，发布赋码闸
   //    （announcement.assertGbCodeIfLinked）会拦下所有关联项目公告发布——重灌后
