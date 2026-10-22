@@ -1,6 +1,8 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Request, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/auth.types';
 import { Public } from '../common/decorators/public.decorator';
 import { AiService } from './ai.service';
 import { SupplierEvaluationAnalysisService } from './supplier-evaluation-analysis.service';
@@ -9,6 +11,7 @@ import { SupplierQualificationMatchService } from './supplier-qualification-matc
 import { InvitationLetterService } from './invitation-letter.service';
 import { ShareShortlistDto } from './dto/share-shortlist.dto';
 import { DashboardAnalysisDto } from './dto/dashboard-analysis.dto';
+import { MobileGreetingService } from './mobile-greeting.service';
 import { ProcurementAnalysisDto } from './dto/procurement-analysis.dto';
 import { TenderFieldGenerateDto } from './dto/tender-field-generate.dto';
 import { ReferenceBudgetDto } from './dto/reference-budget.dto';
@@ -26,6 +29,7 @@ export class AiController {
     private supplierPortraitAnalysis: SupplierPortraitAnalysisService,
     private qualificationMatch: SupplierQualificationMatchService,
     private invitationLetter: InvitationLetterService,
+    private mobileGreeting: MobileGreetingService,
   ) {}
 
   @Public()
@@ -33,6 +37,13 @@ export class AiController {
   @ApiOperation({ summary: '大屏AI分析面板（公开，6格+跑马灯）' })
   async getBigscreenInsight() {
     return this.aiService.getBigscreenInsight();
+  }
+
+  @Get('mobile-greeting')
+  @ApiOperation({ summary: '移动驾驶舱（:3011）欢迎语——LLM 生成，按用户按日缓存' })
+  @Roles('admin', 'leader', 'staff')
+  getMobileGreeting(@CurrentUser() user: AuthenticatedUser) {
+    return this.mobileGreeting.getGreeting(user);
   }
 
   @Get('projects/:projectId/analyze/:supplierId')

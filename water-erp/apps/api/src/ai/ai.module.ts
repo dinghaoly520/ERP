@@ -9,11 +9,12 @@ import { SupplierEvaluationAnalysisService } from './supplier-evaluation-analysi
 import { SupplierPortraitAnalysisService } from './supplier-portrait-analysis.service';
 import { InvitationLetterService } from './invitation-letter.service';
 import { SupplierQualificationMatchService } from './supplier-qualification-match.service';
+import { MobileGreetingService } from './mobile-greeting.service';
 
 @Module({
   imports: [PrismaModule, NotificationModule, LocalAiModule],
   controllers: [AiController],
-  providers: [AiService, SupplierSelectionAiService, SupplierEvaluationAnalysisService, SupplierPortraitAnalysisService, InvitationLetterService, SupplierQualificationMatchService],
+  providers: [AiService, SupplierSelectionAiService, SupplierEvaluationAnalysisService, SupplierPortraitAnalysisService, InvitationLetterService, SupplierQualificationMatchService, MobileGreetingService],
   exports: [AiService],
 })
 export class AiModule {}
