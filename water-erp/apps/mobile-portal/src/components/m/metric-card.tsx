@@ -20,11 +20,11 @@ export function MetricCard({
 }) {
   return (
     <div className="m-tile rounded-[14px] px-3 py-2.5">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">{label}</div>
-      <div className="mt-1 text-[19px] font-black leading-none tabular-nums tracking-[-0.02em]" style={{ color: TONE_COLOR[tone] }}>
+      <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">{label}</div>
+      <div className="mt-1 text-[20px] font-black leading-none tabular-nums tracking-[-0.02em]" style={{ color: TONE_COLOR[tone] }}>
         {value}
       </div>
-      {sub ? <div className="mt-1 truncate text-[11px] text-[var(--muted-foreground)]">{sub}</div> : null}
+      {sub ? <div className="mt-1 truncate text-[12px] text-[var(--muted-foreground)]">{sub}</div> : null}
     </div>
   );
 }

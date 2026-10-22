@@ -150,13 +150,13 @@ function ProjectRow({
 }) {
   return (
     <div className="rounded-[10px] m-tile px-3 py-2.5">
-      <div className="line-clamp-2 text-[13px] font-semibold leading-snug text-[var(--foreground)]">{name}</div>
-      <div className="mt-1 flex items-center gap-2 text-[12px] text-[var(--muted-foreground)]">
+      <div className="line-clamp-2 text-[14px] font-semibold leading-snug text-[var(--foreground)]">{name}</div>
+      <div className="mt-1 flex items-center gap-2 text-[13px] text-[var(--muted-foreground)]">
         <span className="min-w-0 flex-1 truncate">{meta}</span>
         <span className="shrink-0 font-bold tabular-nums text-[var(--foreground)]">{amount}</span>
-        <span className={`shrink-0 text-[12px] ${statusColor(status)}`}>{status}</span>
+        <span className={`shrink-0 text-[13px] ${statusColor(status)}`}>{status}</span>
       </div>
-      {extra ? <div className="mt-0.5 text-[12px] text-[var(--danger)]">{extra}</div> : null}
+      {extra ? <div className="mt-0.5 text-[13px] text-[var(--danger)]">{extra}</div> : null}
     </div>
   );
 }
@@ -366,7 +366,7 @@ export default function DashboardPage() {
               aria-label="开始日期"
               className="m-input h-10 min-w-0 flex-1 px-2 tabular-nums"
             />
-            <span className="shrink-0 text-[13px] text-[var(--muted-foreground)]">至</span>
+            <span className="shrink-0 text-[14px] text-[var(--muted-foreground)]">至</span>
             <input
               type="date"
               value={customEnd}
@@ -377,7 +377,7 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={() => setCustomApplied({ startDate: customStart || undefined, endDate: customEnd || undefined })}
-              className="neu-btn-soft h-10 shrink-0 rounded-[9px] px-3 text-[13px]"
+              className="neu-btn-soft h-10 shrink-0 rounded-[9px] px-3 text-[14px]"
             >
               应用
             </button>
@@ -422,7 +422,7 @@ export default function DashboardPage() {
             title="AI 综合分析"
             index={0}
             right={
-              <button type="button" onClick={() => setAiOpen((v) => !v)} className="neu-btn-soft h-8 rounded-[9px] px-2.5 text-[12px]">
+              <button type="button" onClick={() => setAiOpen((v) => !v)} className="neu-btn-soft h-8 rounded-[9px] px-2.5 text-[13px]">
                 {aiOpen ? "收起" : "展开"}
               </button>
             }
@@ -430,14 +430,14 @@ export default function DashboardPage() {
             {aiOpen ? (
               <div>
                 <div className="mb-3 flex items-center justify-between gap-2">
-                  <span className="min-w-0 flex-1 text-[12px] text-[var(--muted-foreground)]">
+                  <span className="min-w-0 flex-1 text-[13px] text-[var(--muted-foreground)]">
                     {aiResult ? "以下为当前口径的分析结果" : "基于当前筛选数据生成综合研判"}
                   </span>
                   <button
                     type="button"
                     onClick={runAnalysis}
                     disabled={aiLoading || !data}
-                    className="neu-btn-primary h-9 rounded-[10px] px-3.5 text-[13px] disabled:opacity-60"
+                    className="neu-btn-primary h-9 rounded-[10px] px-3.5 text-[14px] disabled:opacity-60"
                   >
                     {aiLoading ? (
                       <>
@@ -449,55 +449,55 @@ export default function DashboardPage() {
                   </button>
                 </div>
                 {aiError ? (
-                  <div className="mb-3 flex items-center gap-2 rounded-[12px] border border-[color-mix(in_oklch,var(--danger)_25%,transparent)] bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-3 py-2.5 text-[13px] text-[var(--danger)]">
+                  <div className="mb-3 flex items-center gap-2 rounded-[12px] border border-[color-mix(in_oklch,var(--danger)_25%,transparent)] bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-3 py-2.5 text-[14px] text-[var(--danger)]">
                     <AlertCircle size={13} /> {aiError}
                   </div>
                 ) : null}
                 {aiResult ? (
                   <div className="space-y-2.5">
                     <div className="rounded-[12px] m-tile px-3.5 py-3">
-                      <div className="mb-1.5 flex items-center gap-1.5 text-[12px] font-bold tracking-[0.08em] text-[var(--accent)]">
+                      <div className="mb-1.5 flex items-center gap-1.5 text-[13px] font-bold tracking-[0.08em] text-[var(--accent)]">
                         <Target size={11} /> 综合研判
                       </div>
-                      <p className="text-[14px] font-medium leading-relaxed text-[var(--foreground)]">{aiResult.overview}</p>
+                      <p className="text-[15px] font-medium leading-relaxed text-[var(--foreground)]">{aiResult.overview}</p>
                     </div>
                     {aiResult.highlights.length ? (
                       <div className="rounded-[12px] m-tile px-3.5 py-3">
-                        <div className="mb-1.5 flex items-center gap-1.5 text-[12px] font-bold tracking-[0.08em] text-[var(--success)]">
+                        <div className="mb-1.5 flex items-center gap-1.5 text-[13px] font-bold tracking-[0.08em] text-[var(--success)]">
                           <TrendingUp size={11} /> 核心亮点
                         </div>
                         {aiResult.highlights.map((h, i) => (
                           <div key={i} className="flex items-start gap-2 py-0.5">
                             <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--success)]" />
-                            <span className="text-[13px] leading-relaxed text-[var(--foreground)]">{h}</span>
+                            <span className="text-[14px] leading-relaxed text-[var(--foreground)]">{h}</span>
                           </div>
                         ))}
                       </div>
                     ) : null}
                     {aiResult.concerns.length ? (
                       <div className="rounded-[12px] m-tile px-3.5 py-3">
-                        <div className="mb-1.5 flex items-center gap-1.5 text-[12px] font-bold tracking-[0.08em] text-[var(--warning)]">
+                        <div className="mb-1.5 flex items-center gap-1.5 text-[13px] font-bold tracking-[0.08em] text-[var(--warning)]">
                           <AlertCircle size={11} /> 待关注
                         </div>
                         {aiResult.concerns.map((c, i) => (
                           <div key={i} className="flex items-start gap-2 py-0.5">
                             <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--warning)]" />
-                            <span className="text-[13px] leading-relaxed text-[var(--foreground)]">{c}</span>
+                            <span className="text-[14px] leading-relaxed text-[var(--foreground)]">{c}</span>
                           </div>
                         ))}
                       </div>
                     ) : null}
                     {aiResult.suggestions.length ? (
                       <div className="rounded-[12px] m-tile px-3.5 py-3">
-                        <div className="mb-1.5 flex items-center gap-1.5 text-[12px] font-bold tracking-[0.08em] text-[var(--accent)]">
+                        <div className="mb-1.5 flex items-center gap-1.5 text-[13px] font-bold tracking-[0.08em] text-[var(--accent)]">
                           <Lightbulb size={11} /> 建议方向
                         </div>
                         {aiResult.suggestions.map((s, i) => (
                           <div key={i} className="flex items-start gap-2 py-0.5">
-                            <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[10px] font-bold text-[var(--accent)]">
+                            <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[11px] font-bold text-[var(--accent)]">
                               {i + 1}
                             </span>
-                            <span className="text-[13px] leading-relaxed text-[var(--foreground)]">{s}</span>
+                            <span className="text-[14px] leading-relaxed text-[var(--foreground)]">{s}</span>
                           </div>
                         ))}
                       </div>
@@ -508,7 +508,7 @@ export default function DashboardPage() {
                 )}
               </div>
             ) : (
-              <p className="px-1 text-[12px] text-[var(--muted-foreground)]">展开后可基于当前数据生成综合研判 / 亮点 / 建议方向</p>
+              <p className="px-1 text-[13px] text-[var(--muted-foreground)]">展开后可基于当前数据生成综合研判 / 亮点 / 建议方向</p>
             )}
           </SectionCard>
 
@@ -517,7 +517,7 @@ export default function DashboardPage() {
             icon={BarChart3}
             title="采购执行趋势"
             index={1}
-            right={<span className="shrink-0 text-[11px] font-semibold text-[var(--muted-foreground)]">柱=数量 · 线=金额(万)</span>}
+            right={<span className="shrink-0 text-[12px] font-semibold text-[var(--muted-foreground)]">柱=数量 · 线=金额(万)</span>}
           >
             {trend ? (
               <svg viewBox="0 0 340 150" className="w-full" role="img" aria-label="采购执行趋势图">
@@ -541,7 +541,7 @@ export default function DashboardPage() {
                   <g key={`pt-${i}`}>
                     <circle cx={trend.x(i)} cy={trend.amountY(t.amount)} r={3} fill="var(--success)" />
                     {i % trend.labelStep === 0 ? (
-                      <text x={trend.x(i)} y={148} textAnchor="middle" fontSize={9.5} fill="var(--muted-foreground)">
+                      <text x={trend.x(i)} y={148} textAnchor="middle" fontSize={10.5} fill="var(--muted-foreground)">
                         {t.label.slice(-5)}
                       </text>
                     ) : null}
@@ -600,14 +600,14 @@ export default function DashboardPage() {
                     className="w-full rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]"
                   >
                     <div className="flex items-baseline justify-between gap-2">
-                      <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-[var(--foreground)]">{d.name}</span>
-                      <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--accent)]">{d.amountLabel}</span>
+                      <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{d.name}</span>
+                      <span className="shrink-0 text-[14px] font-bold tabular-nums text-[var(--accent)]">{d.amountLabel}</span>
                     </div>
                     <div className="mt-1.5 flex items-center gap-2">
                       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
                         <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${Math.min(d.completedRate, 100)}%` }} />
                       </div>
-                      <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">完成率 {d.completedRate}%</span>
+                      <span className="shrink-0 text-[12px] font-semibold tabular-nums text-[var(--muted-foreground)]">完成率 {d.completedRate}%</span>
                     </div>
                   </button>
                 ))}
@@ -634,10 +634,10 @@ export default function DashboardPage() {
                       style={{ cursor: "pointer" }}
                     />
                   ))}
-                  <text x={75} y={71} textAnchor="middle" fontSize={18} fontWeight={700} fill="var(--foreground)">
+                  <text x={75} y={71} textAnchor="middle" fontSize={19} fontWeight={700} fill="var(--foreground)">
                     {methodDonut.total}
                   </text>
-                  <text x={75} y={86} textAnchor="middle" fontSize={10} fill="var(--muted-foreground)">
+                  <text x={75} y={86} textAnchor="middle" fontSize={11} fill="var(--muted-foreground)">
                     总项目
                   </text>
                 </svg>
@@ -645,8 +645,8 @@ export default function DashboardPage() {
                   {methodDonut.segs.slice(0, 6).map((seg, i) => (
                     <button key={i} type="button" onClick={() => setActiveMethod(seg.m)} className="flex w-full items-center gap-2 text-left">
                       <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: seg.color }} />
-                      <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-[var(--foreground)]">{seg.m.name}</span>
-                      <span className="shrink-0 text-[12px] font-bold tabular-nums text-[var(--muted-foreground)]">{seg.m.share}%</span>
+                      <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--foreground)]">{seg.m.name}</span>
+                      <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--muted-foreground)]">{seg.m.share}%</span>
                     </button>
                   ))}
                 </div>
@@ -661,7 +661,7 @@ export default function DashboardPage() {
             icon={BarChart3}
             title="项目规模分析"
             index={4}
-            right={<span className="shrink-0 text-[11px] font-bold text-[var(--warning)]">{scaleTotal} 项</span>}
+            right={<span className="shrink-0 text-[12px] font-bold text-[var(--warning)]">{scaleTotal} 项</span>}
           >
             {scaleTotal > 0 ? (
               <div className="space-y-1">
@@ -670,15 +670,15 @@ export default function DashboardPage() {
                   return scaleSegs.map((seg, i) => (
                     <button key={i} type="button" onClick={() => setActiveSeg(seg)} className="flex w-full items-center gap-2 rounded-[10px] px-1 py-1.5 text-left active:scale-[0.99]">
                       <span className="w-[4.5rem] shrink-0 leading-tight">
-                        <span className="block text-[12px] font-semibold text-[var(--foreground)]">{seg.label}</span>
-                        <span className="block text-[11px] text-[var(--muted-foreground)]">{seg.range}</span>
+                        <span className="block text-[13px] font-semibold text-[var(--foreground)]">{seg.label}</span>
+                        <span className="block text-[12px] text-[var(--muted-foreground)]">{seg.range}</span>
                       </span>
                       <span className="h-4 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
                         <span className="block h-full rounded-[5px] opacity-85" style={{ width: `${(seg.count / maxSegCount) * 100}%`, background: seg.color }} />
                       </span>
                       <span className="w-[3.25rem] shrink-0 text-right leading-tight">
-                        <span className="block text-[12px] font-bold tabular-nums" style={{ color: seg.color }}>{seg.count}项</span>
-                        <span className="block text-[11px] tabular-nums text-[var(--muted-foreground)]">{seg.share}%</span>
+                        <span className="block text-[13px] font-bold tabular-nums" style={{ color: seg.color }}>{seg.count}项</span>
+                        <span className="block text-[12px] tabular-nums text-[var(--muted-foreground)]">{seg.share}%</span>
                       </span>
                     </button>
                   ));
@@ -697,11 +697,11 @@ export default function DashboardPage() {
               <div className="grid grid-cols-3 gap-1.5 min-[360px]:gap-2">
                 {data.resultStats.map((r, i) => (
                   <div key={i} className="rounded-[12px] m-tile px-2 py-2 text-center">
-                    <div className="text-[11px] text-[var(--muted-foreground)]">{r.label}</div>
-                    <div className="mt-1 text-[16px] font-black leading-none tabular-nums" style={{ color: r.accent }}>
+                    <div className="text-[12px] text-[var(--muted-foreground)]">{r.label}</div>
+                    <div className="mt-1 text-[17px] font-black leading-none tabular-nums" style={{ color: r.accent }}>
                       {r.count}
                     </div>
-                    <div className="mt-1 truncate text-[10px] tabular-nums text-[var(--muted-foreground)]">{r.amountLabel}</div>
+                    <div className="mt-1 truncate text-[11px] tabular-nums text-[var(--muted-foreground)]">{r.amountLabel}</div>
                   </div>
                 ))}
               </div>
@@ -723,12 +723,12 @@ export default function DashboardPage() {
                     onClick={() => setActiveReason(r)}
                     className="flex w-full items-center gap-2.5 rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]"
                   >
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] text-[12px] font-black text-[var(--danger)]">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] text-[13px] font-black text-[var(--danger)]">
                       {r.count}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px] font-semibold text-[var(--foreground)]">{r.label}</span>
-                      <span className="mt-0.5 block truncate text-[12px] text-[var(--muted-foreground)]">{r.detail}</span>
+                      <span className="block truncate text-[14px] font-semibold text-[var(--foreground)]">{r.label}</span>
+                      <span className="mt-0.5 block truncate text-[13px] text-[var(--muted-foreground)]">{r.detail}</span>
                     </span>
                     <ChevronRight size={14} className="shrink-0 text-[var(--muted-foreground)]" />
                   </button>
@@ -743,7 +743,7 @@ export default function DashboardPage() {
             title="节资率项目排行"
             index={7}
             right={
-              <span className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--success)_10%,transparent)] px-2 py-0.5 text-[11px] font-bold text-[var(--success)]">
+              <span className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--success)_10%,transparent)] px-2 py-0.5 text-[12px] font-bold text-[var(--success)]">
                 Top 5
               </span>
             }
@@ -760,20 +760,20 @@ export default function DashboardPage() {
                       className="flex w-full items-start gap-2.5 rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]"
                     >
                       <span className="flex h-8 w-8 shrink-0 flex-col items-center justify-center rounded-[9px] bg-[color-mix(in_oklch,var(--success)_10%,transparent)]">
-                        <span className="text-[11px] font-black leading-none" style={{ color: rc }}>
+                        <span className="text-[12px] font-black leading-none" style={{ color: rc }}>
                           {idx + 1}
                         </span>
-                        <span className="mt-0.5 text-[10px] font-bold leading-none" style={{ color: rc }}>
+                        <span className="mt-0.5 text-[11px] font-bold leading-none" style={{ color: rc }}>
                           {item.savingsRate}%
                         </span>
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="line-clamp-2 text-[13px] font-semibold leading-snug text-[var(--foreground)]">{item.project}</span>
+                        <span className="line-clamp-2 text-[14px] font-semibold leading-snug text-[var(--foreground)]">{item.project}</span>
                         <span className="mt-1 flex items-center gap-1.5">
-                          <span className="max-w-[7rem] truncate rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 text-[11px] text-[var(--accent)]">
+                          <span className="max-w-[7rem] truncate rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 text-[12px] text-[var(--accent)]">
                             {item.department}
                           </span>
-                          <span className="truncate text-[11px] text-[var(--muted-foreground)]">节约 {item.savingsLabel}</span>
+                          <span className="truncate text-[12px] text-[var(--muted-foreground)]">节约 {item.savingsLabel}</span>
                         </span>
                       </span>
                       <ChevronRight size={14} className="shrink-0 text-[var(--muted-foreground)]" />
@@ -793,7 +793,7 @@ export default function DashboardPage() {
               title="风险项目预警"
               index={8}
               right={
-                <span className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-2 py-0.5 text-[11px] font-bold text-[var(--danger)]">
+                <span className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-2 py-0.5 text-[12px] font-bold text-[var(--danger)]">
                   {data.riskProjects.length} 项
                 </span>
               }
@@ -803,10 +803,10 @@ export default function DashboardPage() {
                   <div key={i} className="rounded-[12px] border border-[color-mix(in_oklch,var(--danger)_18%,transparent)] bg-[color-mix(in_oklch,var(--danger)_4%,transparent)] px-3 py-2.5">
                     <div className="flex items-center gap-2">
                       <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.severity === "high" ? "var(--danger)" : "var(--warning)" }} />
-                      <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-[var(--foreground)]">{p.project}</span>
-                      <span className="shrink-0 text-[11px] font-bold text-[var(--danger)]">滞留 {p.pendingDays} 天</span>
+                      <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{p.project}</span>
+                      <span className="shrink-0 text-[12px] font-bold text-[var(--danger)]">滞留 {p.pendingDays} 天</span>
                     </div>
-                    <p className="mt-1 line-clamp-2 pl-4 text-[12px] leading-snug text-[var(--muted-foreground)]">{p.reason}</p>
+                    <p className="mt-1 line-clamp-2 pl-4 text-[13px] leading-snug text-[var(--muted-foreground)]">{p.reason}</p>
                   </div>
                 ))}
               </div>
@@ -826,12 +826,12 @@ export default function DashboardPage() {
                     onClick={() => setActiveSupplier(s)}
                     className="flex w-full items-center gap-2.5 rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]"
                   >
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[12px] font-bold text-[var(--accent)]">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[13px] font-bold text-[var(--accent)]">
                       {s.name.slice(0, 2)}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px] font-semibold text-[var(--foreground)]">{s.name}</span>
-                      <span className="mt-0.5 block text-[11px] text-[var(--muted-foreground)]">
+                      <span className="block truncate text-[14px] font-semibold text-[var(--foreground)]">{s.name}</span>
+                      <span className="mt-0.5 block text-[12px] text-[var(--muted-foreground)]">
                         中标 <span className="font-bold text-[var(--success)]">{s.winCount}</span>/{s.participatedCount} · 中标率 {s.hitRate}% · {s.awardAmountLabel}
                       </span>
                     </span>
@@ -868,7 +868,7 @@ export default function DashboardPage() {
               <MetricCard label="归档" value={`${activeTrend.archived ?? 0} 项`} />
             </div>
             <div>
-              <div className="mb-2 text-[12px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">当日项目</div>
+              <div className="mb-2 text-[13px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">当日项目</div>
               <div className="space-y-1.5">
                 {(activeTrend.projects ?? []).length ? (
                   (activeTrend.projects ?? []).map((p, i) => (
@@ -901,7 +901,7 @@ export default function DashboardPage() {
               <MetricCard label="主要方式" value={activeDept.topMethod || "-"} />
             </div>
             <div>
-              <div className="mb-2 text-[12px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">采购项目</div>
+              <div className="mb-2 text-[13px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">采购项目</div>
               <div className="space-y-1.5">
                 {(activeDept.projects ?? []).length ? (
                   (activeDept.projects ?? []).map((p, i) => (
@@ -934,7 +934,7 @@ export default function DashboardPage() {
               <MetricCard label="成交金额" value={activeMethod.amountLabel} />
             </div>
             <div>
-              <div className="mb-2 text-[12px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">采购项目</div>
+              <div className="mb-2 text-[13px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">采购项目</div>
               <div className="space-y-1.5">
                 {(activeMethod.projects ?? []).length ? (
                   (activeMethod.projects ?? []).map((p, i) => (
@@ -967,7 +967,7 @@ export default function DashboardPage() {
               <MetricCard label="金额合计" value={activeSeg.amountLabel} />
             </div>
             <div>
-              <div className="mb-2 text-[12px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">项目列表</div>
+              <div className="mb-2 text-[13px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">项目列表</div>
               <div className="space-y-1.5">
                 {segmentProjects(data, activeSeg).length ? (
                   segmentProjects(data, activeSeg).map((p, i) => (
@@ -999,7 +999,7 @@ export default function DashboardPage() {
               <MetricCard label="说明" value={activeReason.detail} />
             </div>
             <div>
-              <div className="mb-2 text-[12px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">相关项目</div>
+              <div className="mb-2 text-[13px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">相关项目</div>
               <div className="space-y-1.5">
                 {(activeReason.projects ?? []).length ? (
                   (activeReason.projects ?? []).map((p, i) => (
@@ -1023,7 +1023,7 @@ export default function DashboardPage() {
               <MetricCard label="节约额" value={activeSaving.savingsLabel} tone="success" />
               <MetricCard label="节资率" value={`${activeSaving.savingsRate}%`} tone="success" />
             </div>
-            <div className="space-y-1 rounded-[12px] m-tile px-3 py-2.5 text-[13px]">
+            <div className="space-y-1 rounded-[12px] m-tile px-3 py-2.5 text-[14px]">
               <div className="flex justify-between gap-3">
                 <span className="text-[var(--muted-foreground)]">采购部门</span>
                 <span className="font-medium text-[var(--foreground)]">{activeSaving.department}</span>
@@ -1062,7 +1062,7 @@ export default function DashboardPage() {
         onClose={() => setActiveSupplier(null)}
         title={
           <span className="flex items-center gap-2.5">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[13px] font-bold text-[var(--accent)]">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[14px] font-bold text-[var(--accent)]">
               {activeSupplier?.name.slice(0, 2)}
             </span>
             <span className="min-w-0 flex-1">{activeSupplier?.name ?? ""}</span>
@@ -1074,7 +1074,7 @@ export default function DashboardPage() {
             {activeSupplier.tags.length ? (
               <div className="flex flex-wrap gap-1.5">
                 {activeSupplier.tags.map((t) => (
-                  <span key={t} className="rounded-full border border-[color-mix(in_oklch,var(--accent)_15%,transparent)] bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-2 py-0.5 text-[11px] text-[var(--accent)]">
+                  <span key={t} className="rounded-full border border-[color-mix(in_oklch,var(--accent)_15%,transparent)] bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-2 py-0.5 text-[12px] text-[var(--accent)]">
                     {t}
                   </span>
                 ))}
@@ -1091,7 +1091,7 @@ export default function DashboardPage() {
             </div>
             {activeSupplier.recentProcurements.length ? (
               <div>
-                <div className="mb-2 text-[12px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">近期参与</div>
+                <div className="mb-2 text-[13px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">近期参与</div>
                 <div className="space-y-1.5">
                   {activeSupplier.recentProcurements.slice(0, 4).map((p, i) => (
                     <ProjectRow key={i} name={p.project} meta={`${p.date} · ${p.department}`} amount={p.budgetLabel} status={p.result} />
@@ -1101,7 +1101,7 @@ export default function DashboardPage() {
             ) : null}
             {activeSupplier.winProjects.length ? (
               <div>
-                <div className="mb-2 text-[12px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">中标项目</div>
+                <div className="mb-2 text-[13px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">中标项目</div>
                 <div className="space-y-1.5">
                   {activeSupplier.winProjects.slice(0, 3).map((p, i) => (
                     <ProjectRow key={i} name={p.project} meta={`${p.date} · ${p.department}`} amount={p.awardAmountLabel} status="已成交" />

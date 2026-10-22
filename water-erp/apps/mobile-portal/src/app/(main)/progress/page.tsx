@@ -217,7 +217,7 @@ export default function ProgressPage() {
             <MetricCard label="本月新增" value={String(stats.monthlyAdded)} sub={`上月 ${stats.lastMonthAdded}`} />
             <MetricCard label="本月完成" value={String(stats.monthlyCompleted)} tone="success" sub={`上月 ${stats.lastMonthCompleted}`} />
           </div>
-          <div className="mb-3 flex items-center justify-between rounded-[12px] m-tile px-3 py-2 text-[12px]">
+          <div className="mb-3 flex items-center justify-between rounded-[12px] m-tile px-3 py-2 text-[13px]">
             <span className="text-[var(--muted-foreground)]">
               累计完成 <span className="font-bold tabular-nums text-[var(--success)]">{stats.totalCompleted}</span> 项
             </span>
@@ -234,11 +234,11 @@ export default function ProgressPage() {
                   const meta = getStageMeta(d.stage);
                   return (
                     <div key={i} className="flex items-center gap-2">
-                      <span className="w-[6.25rem] shrink-0 truncate text-[12px] font-medium text-[var(--foreground)]">{meta.label}</span>
+                      <span className="w-[6.25rem] shrink-0 truncate text-[13px] font-medium text-[var(--foreground)]">{meta.label}</span>
                       <div className="h-2 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
                         <div className="h-full rounded-full" style={{ width: `${(d.count / maxStageCount) * 100}%`, background: meta.color }} />
                       </div>
-                      <span className="w-10 shrink-0 text-right text-[12px] font-bold tabular-nums text-[var(--foreground)]">
+                      <span className="w-11 shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">
                         {d.count} <span className="font-medium text-[var(--muted-foreground)]">项</span>
                       </span>
                     </div>
@@ -256,7 +256,7 @@ export default function ProgressPage() {
             index={1}
             title="进度洞察"
             right={
-              <button type="button" onClick={() => setAiOpen((v) => !v)} className="neu-btn-soft h-8 rounded-[9px] px-2.5 text-[12px]">
+              <button type="button" onClick={() => setAiOpen((v) => !v)} className="neu-btn-soft h-8 rounded-[9px] px-2.5 text-[13px]">
                 {aiOpen ? "收起" : "展开"}
               </button>
             }
@@ -264,14 +264,14 @@ export default function ProgressPage() {
             {aiOpen ? (
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="min-w-0 flex-1 text-[12px] text-[var(--muted-foreground)]">
+                  <span className="min-w-0 flex-1 text-[13px] text-[var(--muted-foreground)]">
                     {insights ? "以下为当前口径的分析结果" : "基于当前公司口径生成进度洞察"}
                   </span>
                   <button
                     type="button"
                     onClick={runInsights}
                     disabled={aiLoading}
-                    className="neu-btn-primary h-9 shrink-0 rounded-[10px] px-3.5 text-[13px] disabled:opacity-60"
+                    className="neu-btn-primary h-9 shrink-0 rounded-[10px] px-3.5 text-[14px] disabled:opacity-60"
                   >
                     {aiLoading ? (
                       <>
@@ -283,17 +283,17 @@ export default function ProgressPage() {
                   </button>
                 </div>
                 {aiLoading ? (
-                  <div className="flex items-center justify-center gap-2 py-5 text-[13px] text-[var(--muted-foreground)]">
+                  <div className="flex items-center justify-center gap-2 py-5 text-[14px] text-[var(--muted-foreground)]">
                     <Activity size={13} className="animate-pulse" /> 正在生成进度洞察...
                   </div>
                 ) : insightsError ? (
                   <div className="flex items-center gap-2.5 rounded-[12px] bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-3 py-2.5">
                     <AlertCircle size={13} className="shrink-0 text-[var(--danger)]" />
-                    <span className="min-w-0 flex-1 text-[13px] text-[var(--danger)]">洞察生成失败，请重试</span>
+                    <span className="min-w-0 flex-1 text-[14px] text-[var(--danger)]">洞察生成失败，请重试</span>
                     <button
                       type="button"
                       onClick={runInsights}
-                      className="neu-btn-soft is-danger h-8 shrink-0 rounded-[9px] px-2.5 text-[12px] active:scale-95"
+                      className="neu-btn-soft is-danger h-8 shrink-0 rounded-[9px] px-2.5 text-[13px] active:scale-95"
                     >
                       重试
                     </button>
@@ -302,10 +302,10 @@ export default function ProgressPage() {
                   <>
                     {insights.overview ? (
                       <div className="m-tile rounded-[12px] px-3.5 py-3">
-                        <div className="mb-1.5 flex items-center gap-1.5 text-[12px] font-bold tracking-[0.08em] text-[var(--accent)]">
+                        <div className="mb-1.5 flex items-center gap-1.5 text-[13px] font-bold tracking-[0.08em] text-[var(--accent)]">
                           <Target size={11} /> 综合研判
                         </div>
-                        <p className="text-[14px] font-medium leading-relaxed text-[var(--foreground)]">{insights.overview}</p>
+                        <p className="text-[15px] font-medium leading-relaxed text-[var(--foreground)]">{insights.overview}</p>
                       </div>
                     ) : null}
                     {INSIGHT_GROUPS.map((g) => {
@@ -313,15 +313,15 @@ export default function ProgressPage() {
                       if (!items.length) return null;
                       return (
                         <div key={g.key} className="m-tile rounded-[12px] px-3.5 py-3">
-                          <div className="mb-1.5 flex items-center gap-1.5 text-[12px] font-bold tracking-[0.08em]" style={{ color: g.color }}>
+                          <div className="mb-1.5 flex items-center gap-1.5 text-[13px] font-bold tracking-[0.08em]" style={{ color: g.color }}>
                             <g.icon size={11} /> {g.label}
                           </div>
                           {items.map((it, i) => (
                             <div key={i} className="flex items-start gap-2 py-0.5">
                               <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: g.color }} />
-                              <span className="text-[13px] leading-relaxed text-[var(--foreground)]">
+                              <span className="text-[14px] leading-relaxed text-[var(--foreground)]">
                                 {it.message}
-                                <span className="ml-1.5 text-[11px] text-[var(--muted-foreground)]">[{INSIGHT_TYPE_LABELS[it.type] ?? it.type}]</span>
+                                <span className="ml-1.5 text-[12px] text-[var(--muted-foreground)]">[{INSIGHT_TYPE_LABELS[it.type] ?? it.type}]</span>
                               </span>
                             </div>
                           ))}
@@ -335,12 +335,12 @@ export default function ProgressPage() {
                 )}
               </div>
             ) : (
-              <p className="px-1 text-[12px] text-[var(--muted-foreground)]">展开后可基于当前口径生成综合研判与分级提示</p>
+              <p className="px-1 text-[13px] text-[var(--muted-foreground)]">展开后可基于当前口径生成综合研判与分级提示</p>
             )}
           </SectionCard>
 
           {/* ── 项目清单 ── */}
-          <SectionCard title="项目清单" right={<span className="shrink-0 text-[11px] font-semibold text-[var(--muted-foreground)]">{stats.projects.length} 项</span>} index={2}>
+          <SectionCard title="项目清单" right={<span className="shrink-0 text-[12px] font-semibold text-[var(--muted-foreground)]">{stats.projects.length} 项</span>} index={2}>
             {stats.projects.length ? (
               <div className="space-y-2">
                 {stats.projects.map((p) => {
@@ -353,9 +353,9 @@ export default function ProgressPage() {
                       className="w-full rounded-[14px] m-tile px-3 py-2.5 text-left active:scale-[0.99]"
                     >
                       <div className="flex items-start gap-2">
-                        <span className="min-w-0 flex-1 line-clamp-2 text-[13.5px] font-semibold leading-snug text-[var(--foreground)]">{p.title}</span>
+                        <span className="min-w-0 flex-1 line-clamp-2 text-[14.5px] font-semibold leading-snug text-[var(--foreground)]">{p.title}</span>
                         <span
-                          className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold"
+                          className="shrink-0 rounded-full px-2 py-0.5 text-[12px] font-bold"
                           style={{
                             color: meta.color,
                             background: meta.softColor,
@@ -365,8 +365,8 @@ export default function ProgressPage() {
                           {meta.label}
                         </span>
                       </div>
-                      <div className="mt-1 flex items-center gap-1.5 text-[12px] text-[var(--muted-foreground)]">
-                        <span className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 text-[11px] text-[var(--accent)]">
+                      <div className="mt-1 flex items-center gap-1.5 text-[13px] text-[var(--muted-foreground)]">
+                        <span className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 text-[12px] text-[var(--accent)]">
                           {p.procurementMethod}
                         </span>
                         <span className="min-w-0 flex-1 truncate">{p.requesterDepartment}</span>
@@ -388,7 +388,7 @@ export default function ProgressPage() {
       <BottomSheet open={!!activeProject} onClose={() => setActiveProject(null)} title={<span className="line-clamp-2">{activeProject?.title ?? ""}</span>}>
         {activeProject ? (
           <div className="space-y-3">
-            <div className="space-y-0.5 rounded-[12px] m-tile px-3 py-2.5 text-[13px]">
+            <div className="space-y-0.5 rounded-[12px] m-tile px-3 py-2.5 text-[14px]">
               {activeProject.projectName && activeProject.projectName !== activeProject.title ? (
                 <div className="flex justify-between gap-3 py-1">
                   <span className="text-[var(--muted-foreground)]">关联项目</span>
@@ -428,7 +428,7 @@ export default function ProgressPage() {
             </div>
 
             <div>
-              <div className="mb-2 text-[12px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">阶段时间线</div>
+              <div className="mb-2 text-[13px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">阶段时间线</div>
               <div className="space-y-1.5">
                 {[...(activeProject.stages ?? [])]
                   .sort((a, b) => a.stageOrder - b.stageOrder)
@@ -448,11 +448,11 @@ export default function ProgressPage() {
                                 : "color-mix(in oklch, var(--muted-foreground) 35%, transparent)",
                           }}
                         />
-                        <span className={`min-w-0 flex-1 truncate text-[13px] ${isCurrent ? "font-bold text-[var(--foreground)]" : "font-medium text-[var(--foreground)]"}`}>
+                        <span className={`min-w-0 flex-1 truncate text-[14px] ${isCurrent ? "font-bold text-[var(--foreground)]" : "font-medium text-[var(--foreground)]"}`}>
                           {s.stageName}
                           {isCurrent ? "（当前）" : ""}
                         </span>
-                        <span className="shrink-0 text-[12px] tabular-nums text-[var(--muted-foreground)]">
+                        <span className="shrink-0 text-[13px] tabular-nums text-[var(--muted-foreground)]">
                           {s.completedAt ? s.completedAt.slice(0, 10) : "未完成"}
                         </span>
                       </div>
