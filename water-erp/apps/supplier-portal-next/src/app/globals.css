@@ -10720,16 +10720,17 @@ body {
   height: 44px; padding: 0 28px;
   font: inherit; font-size: 14px; font-weight: 700; color: #fff;
   background: var(--brand); border: none; border-radius: 9px; cursor: pointer;
-  box-shadow: 3px 3px 6px oklch(0.5 0.08 258 / 0.25), -2px -2px 5px oklch(1 0 0 / 0.5);
+  /* 顶缘内高光（cgzxui 三态模板「灵魂」细节，2026-10-22 补齐）：深色实面上 0.3 白高光模拟玻璃棱边 */
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.3), 3px 3px 6px oklch(0.5 0.08 258 / 0.25), -2px -2px 5px oklch(1 0 0 / 0.5);
   transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
   white-space: nowrap;
 }
 .neu-btn-primary:hover { background: var(--brand-deep); transform: translateY(-1px);
-  box-shadow: 4px 4px 10px oklch(0.45 0.08 258 / 0.28), -2px -2px 6px oklch(1 0 0 / 0.55); }
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.35), 4px 4px 10px oklch(0.45 0.08 258 / 0.28), -2px -2px 6px oklch(1 0 0 / 0.55); }
 .neu-btn-primary:active { transform: translateY(0);
   box-shadow: inset 2px 2px 5px oklch(0.35 0.08 258 / 0.35), inset -2px -2px 5px oklch(1 0 0 / 0.25); }
 .neu-btn-primary:disabled { opacity: .55; cursor: not-allowed; transform: none;
-  box-shadow: 2px 2px 4px oklch(0.5 0.05 258 / 0.15), -1px -1px 3px oklch(1 0 0 / 0.4); }
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.2), 2px 2px 4px oklch(0.5 0.05 258 / 0.15), -1px -1px 3px oklch(1 0 0 / 0.4); }
 /* 白瓷片变体（cgzxui 2026-09-17 白瓷片语义）：纯白底 + 顶部内高光 + 方向性双影 + 品牌蓝粗体 */
 .neu-btn-primary.is-water {
   color: var(--accent-strong, var(--brand));
