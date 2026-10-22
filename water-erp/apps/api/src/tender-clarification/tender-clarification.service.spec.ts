@@ -235,6 +235,7 @@ describe('TenderClarificationService 供应商侧（A-85/A-86）', () => {
 describe('A-136 专家端澄清修改文件', () => {
   it('listDocsForExpert：仅已发布、按 version 升序', async () => {
     const prisma = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING' }) }, // 2026-10-21 收紧：启动闸取库
       bidExpert: { findFirst: jest.fn().mockResolvedValue({ expertName: '刘苡池' }) },
       tenderClarificationDoc: { findMany: jest.fn().mockResolvedValue([{ id: 'd1', version: 1 }]) },
     };
@@ -247,6 +248,7 @@ describe('A-136 专家端澄清修改文件', () => {
 
   it('listDocsForExpert：非本项目评委 → 403 NOT_PROJECT_EXPERT（与 download 对称门控）', async () => {
     const prisma = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING' }) }, // 2026-10-21 收紧：启动闸取库
       bidExpert: { findFirst: jest.fn().mockResolvedValue(null) },
       tenderClarificationDoc: { findMany: jest.fn() },
     };
@@ -255,6 +257,7 @@ describe('A-136 专家端澄清修改文件', () => {
 
   it('downloadDocForExpert：非本项目评委 → 403 NOT_PROJECT_EXPERT', async () => {
     const prisma = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING' }) }, // 2026-10-21 收紧：启动闸取库
       tenderClarificationDoc: { findUnique: jest.fn().mockResolvedValue({ id: 'd1', projectId: 'p1', status: '已发布', fileAssetId: null }) },
       bidExpert: { findFirst: jest.fn().mockResolvedValue(null) },
     };
@@ -263,6 +266,7 @@ describe('A-136 专家端澄清修改文件', () => {
 
   it('downloadDocForExpert：未发布/不存在 → 400 NOT_FOUND', async () => {
     const prisma = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING' }) }, // 2026-10-21 收紧：启动闸取库
       tenderClarificationDoc: { findUnique: jest.fn().mockResolvedValue(null) },
     };
     await expect(makeService(prisma).downloadDocForExpert('p1', 'dX', 'u1')).rejects.toThrow(BadRequestException);
@@ -271,6 +275,7 @@ describe('A-136 专家端澄清修改文件', () => {
   it('downloadDocForExpert：附件命中 → minio 直出 buffer 与元信息', async () => {
     (minioClient.getObject as jest.Mock).mockResolvedValue(Readable.from([Buffer.from('clarification-pdf')]));
     const prisma = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING' }) }, // 2026-10-21 收紧：启动闸取库
       tenderClarificationDoc: { findUnique: jest.fn().mockResolvedValue({ id: 'd1', projectId: 'p1', status: '已发布', version: 2, title: '澄清二', content: '正文', fileAssetId: 'fa-1' }) },
       bidExpert: { findFirst: jest.fn().mockResolvedValue({ expertName: '刘苡池' }) },
       fileAsset: { findUnique: jest.fn().mockResolvedValue({ key: 'clar/d1.pdf', originalName: '澄清二.pdf', mimeType: 'application/pdf' }) },
@@ -285,6 +290,7 @@ describe('A-136 专家端澄清修改文件', () => {
   it('downloadDocForExpert：下载写监督日志（评审专家 / 下载澄清修改文件 / v{version} title）', async () => {
     (minioClient.getObject as jest.Mock).mockResolvedValue(Readable.from([Buffer.from('x')]));
     const prisma = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING' }) }, // 2026-10-21 收紧：启动闸取库
       tenderClarificationDoc: { findUnique: jest.fn().mockResolvedValue({ id: 'd1', projectId: 'p1', status: '已发布', version: 2, title: '澄清二', content: '正文', fileAssetId: 'fa-1' }) },
       bidExpert: { findFirst: jest.fn().mockResolvedValue({ expertName: '刘苡池' }) },
       fileAsset: { findUnique: jest.fn().mockResolvedValue({ key: 'clar/d1.pdf', originalName: '澄清二.pdf', mimeType: 'application/pdf' }) },

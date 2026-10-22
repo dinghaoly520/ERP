@@ -98,6 +98,39 @@ export async function assertRoomUnlocked(
   throw new ForbiddenException({ error: '请先输入评标室口令进入评标室', code: 'ROOM_CODE_REQUIRED' });
 }
 
+/**
+ * 评标启动闸（2026-10-21）：评标资料与评分工作流须待主持人「启动评标」后方可访问。
+ *
+ * 背景：资料端点的旧阶段门 {OPENING, EVALUATING} 是 2026-06-17 的通用守卫，早于
+ * 「启动评标」正式闸门（分工 v3）与评标室口令（roomCode 由 startEvaluation 生成——
+ * 启动前恒空，口令闸不会拦启动前访问），导致 OPENING 阶段专家即可取解密标书并预写
+ * 评分。本闸与 assertRoomUnlocked 串联：口令管「进评标室」，本闸管「评标是否已开始」。
+ *
+ * 阶段集镜像口令闸 {EVALUATING, ABORTED}——ABORTED 放行沿用 P2-6 口径（流标后
+ * 已进流程/已验专家仍可回看）；签到/身份核验五项与招标原文/谈判采购文件不挂本闸
+ * （2026-09-20 spec 决策 9：口令生成晚于签到，招标原文=开标前物料）。
+ */
+export function assertEvaluationStage(stage: string | null | undefined): void {
+  if (stage !== 'EVALUATING' && stage !== 'ABORTED') {
+    throw new ForbiddenException({
+      error: '评标尚未启动，请等待主持人启动评标后进入评标室',
+      code: 'EVALUATION_NOT_STARTED',
+    });
+  }
+}
+
+/** assertEvaluationStage 的取库包装（调用方未持有 project 行时用）。项目不存在同判未启动。 */
+export async function assertEvaluationStarted(
+  prisma: Pick<PrismaService, 'bidProject'>,
+  projectId: string,
+): Promise<void> {
+  const project = await prisma.bidProject.findUnique({
+    where: { id: projectId },
+    select: { stage: true },
+  });
+  assertEvaluationStage(project?.stage);
+}
+
 /** 通知全部 admin（与 :3005 security-feedback 同模式：逐 userId create 站内信） */
 export async function notifyAdmins(
   prisma: Pick<PrismaService, 'user'>,

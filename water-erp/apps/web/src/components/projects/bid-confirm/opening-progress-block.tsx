@@ -4,6 +4,7 @@
  * 开标进度区块（只读）——:3005 开评标指挥中心 Phase 2 新增。
  * 展示 :3007 开标大厅的执行进度（会话信息 / 解密 / 唱标 / 确认 / 异议），
  * 数据来自父组件传入的 BidProjectDetail，实时性由父组件的 socket 刷新驱动。
+ * ABORTED（2026-10-21）：流标后只读回看——会话状态派生「阶段终止」态，无任何操作按钮。
  */
 
 import { ExternalLink, Gavel, KeyRound, FileCheck, UserCheck, AlertTriangle, Ban } from 'lucide-react';
@@ -60,7 +61,7 @@ function ProgressStat({
 export function OpeningProgressBlock({ detail, onAbort }: Props) {
   if (!detail) return null;
   const { stage, openingSession, suppliers, openingRecords } = detail;
-  if (stage !== 'OPENING' && stage !== 'EVALUATING' && stage !== 'ARCHIVED') return null;
+  if (stage !== 'OPENING' && stage !== 'EVALUATING' && stage !== 'ARCHIVED' && stage !== 'ABORTED') return null;
 
   const total = suppliers.length;
   const decrypted = suppliers.filter(s => s.decryptStatus === 'SUCCESS').length;

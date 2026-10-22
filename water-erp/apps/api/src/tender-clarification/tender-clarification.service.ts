@@ -5,6 +5,7 @@ import { AnnouncementService } from '../announcement/announcement.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { streamToBuffer } from '../announcement/bid-document.crypto';
 import { assertAskWithinWindow, assertIssueWithinWindow } from './clarification-timing.util';
+import { assertEvaluationStarted } from '../expert/expert-room.util';
 import { CreateClarificationDocDto } from './dto/create-clarification-doc.dto';
 import { AskClarificationDto } from './dto/ask-clarification.dto';
 
@@ -274,6 +275,8 @@ export class TenderClarificationService {
   /** A-136：专家视角已发布澄清/修改文件列表（评委核对招标文件澄清修改的法定输入）。
    *  门控与 downloadDocForExpert 对称——仅本项目评标专家可见。 */
   async listDocsForExpert(projectId: string, expertUserId: string) {
+    // 启动闸（2026-10-21 收紧口径）：澄清/修改文件属采购文件族，专家端须待启动评标（与招标原文同口径）
+    await assertEvaluationStarted(this.prisma, projectId);
     const expert = await this.prisma.bidExpert.findFirst({
       where: { projectId, userId: expertUserId },
       select: { expertName: true },
@@ -289,6 +292,7 @@ export class TenderClarificationService {
   /** A-136：专家下载澄清修改文件。门控=本项目 BidExpert；附件服务端流式直出（明文件，无信封，
    *  不经 /upload 下载授权链）；下载写监督日志。无附件（纯正文）同样留痕返回正文。 */
   async downloadDocForExpert(projectId: string, docId: string, expertUserId: string) {
+    await assertEvaluationStarted(this.prisma, projectId); // 启动闸（2026-10-21 收紧口径，与 listDocsForExpert 对称）
     const doc = await this.prisma.tenderClarificationDoc.findUnique({ where: { id: docId } });
     if (!doc || doc.projectId !== projectId || doc.status !== '已发布') {
       throw new BadRequestException({ error: '澄清文件不存在或未发布', code: 'NOT_FOUND' });

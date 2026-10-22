@@ -4,6 +4,7 @@
  * 归档区块——:3005 开评标指挥中心 Phase 2 新增。
  * 归档触发权归 :3005（总则：3005 负责所有流程流转）：
  * - OPENING：开标归档（scope=opening，流标/废标场景，终局不可逆）
+ * - ABORTED：开标归档（流标收尾，2026-10-21——:3007 评标中流标后在 :3005 封存投标侧，仅 scope=opening）
  * - EVALUATING：完整归档（scope=full，须已生成评标结果）
  * - ARCHIVED：只读——归档材料清单 + 档案哈希指纹 + 归档包导出
  */
@@ -63,7 +64,7 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
 
   if (!detail) return null;
   const { stage, archiveItems } = detail;
-  if (stage !== 'OPENING' && stage !== 'EVALUATING' && stage !== 'ARCHIVED') return null;
+  if (stage !== 'OPENING' && stage !== 'EVALUATING' && stage !== 'ARCHIVED' && stage !== 'ABORTED') return null;
 
   // 签字闸门三态（对齐后端 assertSignGateClosed）：未签姓名直接由 signStatus.experts 计算
   //（后端 filter 不透传 detail 数组，勿依赖 e.detail）
@@ -152,6 +153,11 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
               <Archive size={13} /> 开标归档（流标/废标）
             </button>
           )}
+          {stage === 'ABORTED' && (
+          <button type="button" disabled={busy} onClick={() => { setAckTerminate(false); setConfirmScope('opening'); }} className="neu-btn-soft !h-[32px] !text-xs">
+          <Archive size={13} /> 开标归档（流标收尾）
+          </button>
+          )}
           {stage === 'EVALUATING' && (
             <button type="button" disabled={busy || signGate.blocked} onClick={() => { setAckTerminate(false); setConfirmScope('full'); }} className="neu-btn-primary !h-[32px] !text-xs">
               <Archive size={13} /> 完整归档
@@ -205,7 +211,9 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
 
       {stage !== 'ARCHIVED' ? (
         <div className="wb-note px-4 py-3.5 text-xs leading-5 text-[var(--muted-foreground)]">
-          {stage === 'OPENING' ? (
+          {stage === 'ABORTED' ? (
+            <>项目投标流程已流标。可执行「开标归档」封存开标文件材料（不含评分明细与评标结果），<span className="font-semibold text-[var(--danger)]">归档后流程终结、不可逆。</span>归档不改动本页台账阶段——请另行发布流标公告（发布后自动发起再次采购）、终止项目或完成项目以收尾。</>
+          ) : stage === 'OPENING' ? (
             <>项目处于开标阶段。若本项目<span className="font-semibold text-[var(--foreground)]">不进入评标</span>（流标 / 废标 / 开标后终止），可执行「开标归档」——仅归档开标文件材料（不含评分明细与评标结果）。<span className="font-semibold text-[var(--danger)]">归档后流程终结，不可再启动评标。</span>需要评标请改用下方评标管理区块。</>
           ) : (detail?.evaluationResults?.length ?? 0) > 0 ? (
             <>项目处于评标阶段，评标结果已生成。当前置条件（评标签字闭环 + 评标回流包）全部满足后即可执行「完整归档」，归档全部开评标材料并生成防篡改哈希链。</>
@@ -332,6 +340,13 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
               </div>
             );
           })()}
+          {/* 2026-10-21 流标收尾软提醒：法定流标公告为人工动作（发布 failed_bid 后自动再次采购），不设硬闸 */}
+          {confirmScope === 'opening' && stage === 'ABORTED' && (
+            <div className="wb-tone-banner wb-tone-banner--warning text-xs leading-5">
+              <span className="font-bold text-[var(--foreground)]">流标公告提醒：</span>
+              <span className="text-[var(--muted-foreground)]">如尚未发布流标公告，建议先在信息发布中心发布（发布后系统自动发起再次采购）；先归档不影响后续发布公告。</span>
+            </div>
+          )}
           {confirmScope === 'opening' && openingIncomplete && (
             <label className="flex cursor-pointer items-start gap-2 rounded-[12px] bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-3.5 py-2.5 text-xs leading-5">
               <input type="checkbox" checked={ackTerminate} onChange={e => setAckTerminate(e.target.checked)} className="neu-checkbox" />

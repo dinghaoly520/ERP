@@ -156,10 +156,13 @@ describe('BidService.manualConfirmExpertVerification（R9）', () => {
       .rejects.toMatchObject({ response: { code: 'SUBSTITUTE_EXPERT' } });
   });
 
-  it('阶段不符 → 403 PROJECT_NOT_ACTIVE', async () => {
+  it('启动评标前（DOWNLOAD/OPENING）→ 403 EVALUATION_NOT_STARTED（2026-10-21 收紧）', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'DOWNLOAD' });
     await expect(svc.manualConfirmExpertVerification('proj-1', 'e1', ACTOR, { reason: 'x' }))
-      .rejects.toMatchObject({ response: { code: 'PROJECT_NOT_ACTIVE' } });
+      .rejects.toMatchObject({ response: { code: 'EVALUATION_NOT_STARTED' } });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+    await expect(svc.manualConfirmExpertVerification('proj-1', 'e1', ACTOR, { reason: 'x' }))
+      .rejects.toMatchObject({ response: { code: 'EVALUATION_NOT_STARTED' } });
   });
 
   it('专家不在项目 → 403 NOT_PROJECT_EXPERT', async () => {
@@ -286,7 +289,8 @@ describe('BidService.verify/unverifyExpertIdentity（P3 host 态）', () => {
 
   beforeEach(() => {
     prisma = {
-      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'OPENING' }) },
+      // 2026-10-21 收紧：核验登记/撤销须 EVALUATING（启动前 OPENING 一律 403）
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING' }) },
       bidExpert: {
         findFirst: jest.fn().mockResolvedValue({ id: 'e1', expertName: '刘苡池', expertRole: '正选', identityVerified: false, signedIn: false }),
         update: jest.fn().mockResolvedValue({}),

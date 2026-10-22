@@ -2370,6 +2370,14 @@ describe('BidService.archiveAll — 预成交公示自动生成 (G1/C1)', () => 
     service = module.get<BidService>(BidService);
   });
 
+  it('开标归档（scope=opening）不生成预成交公示——流标/废标收尾无成交方（2026-10-21）', async () => {
+    // N4c 场景：已生成评标结果后流标（存量结果仅作废留痕），开标归档只封存开标材料，
+    // 不得派生「预成交公示」草稿误导公示链（预成交公示只属于完整归档）
+    prisma.bidOpeningSession.findUnique.mockResolvedValue({ handoverAssetId: 'fa-handover' });
+    await service.archiveAll('p1', 'u1', 'opening');
+    expect(prisma.announcement.create).not.toHaveBeenCalled();
+  });
+
   it('归档后自动创建 PRE_WIN_NOTICE 预成交公示草稿', async () => {
     await service.archiveAll('p1', 'u1');
     expect(prisma.announcement.create).toHaveBeenCalledWith(

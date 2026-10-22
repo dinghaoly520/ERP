@@ -508,6 +508,13 @@ export function ProjectDetailPanel({
   const [bpDetails, setBpDetails] = useState<Record<string, BidProjectDetail>>({});
   const [bpScoreItems, setBpScoreItems] = useState<Record<string, BidScoreItem[]>>({});
   const [bpDataTick, setBpDataTick] = useState(0);
+  // ── 流标提示条（2026-10-21）：投标侧已流标而 PMI 仍 ACTIVE——按当前轮对齐，防 reproc 后旧轮误报 ──
+  const currentRoundBp = bpRefs.find((r) => r.round === (item.currentRound ?? 1)) ?? null;
+  const abortedRiskNote = currentRoundBp ? bpDetails[currentRoundBp.id]?.riskNote ?? '' : '';
+  const bidAborted =
+    item.status === 'ACTIVE' &&
+    (currentRoundBp?.stage === 'ABORTED' ||
+      (currentRoundBp?.stage === 'ARCHIVED' && abortedRiskNote.startsWith('流标')));
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -1271,6 +1278,42 @@ export function ProjectDetailPanel({
             </div>
           </div>
 
+          {/* 流标提示条（2026-10-21）：投标流程已流标、台账等待收尾——消除「还在开标评标」误读 */}
+          {bidAborted && currentRoundBp && (
+          <div className="rounded-[14px] px-4 py-3"
+            style={{ background: 'color-mix(in oklch, var(--danger) 6%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+            <div className="flex items-center gap-3">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-[var(--danger)]"
+                style={{ background: 'color-mix(in oklch, var(--danger) 12%, transparent)' }}>
+                <Ban size={15} strokeWidth={1.9} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[13px] font-bold text-[var(--danger)]">
+                  投标流程已流标{currentRoundBp.stage === 'ARCHIVED' ? ' · 已开标归档' : ''} · 等待收尾
+                </div>
+                <div className="mt-0.5 line-clamp-2 break-words text-[11px] leading-5 text-[var(--muted-foreground)]">
+                  {abortedRiskNote ? (
+                    <>流标记录：<span className="font-semibold text-[var(--danger)]">{abortedRiskNote}</span></>
+                  ) : (
+                    '开评标流程已终止，本页台账不再随投标侧自动推进。'
+                  )}
+                </div>
+              </div>
+                            <button
+                type="button"
+                onClick={() => { setBidConfirmRound(item.currentRound ?? 1); setBidConfirmOpen(true); }}
+                className="neu-btn-soft !h-[32px] !text-xs shrink-0"
+              >
+                打开开标确认面板
+              </button>
+
+            </div>
+            <div className="mt-2 flex items-center gap-1.5 border-t border-[color-mix(in_oklch,var(--danger)_15%,transparent)] pt-2 text-[11px] text-[var(--muted-foreground)]">
+              <span className="font-semibold">收尾路径：</span>
+              <span>发布流标公告（自动发起再次采购）· 开标归档封存投标侧 · 项目终止 · 完成项目</span>
+            </div>
+          </div>
+          )}
           {/* 已归档 / 已终止 只读横幅 */}
           {item.status === 'TERMINATED' ? (
             <div className="rounded-[14px] px-4 py-3"
