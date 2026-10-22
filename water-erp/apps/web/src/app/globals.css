@@ -11583,8 +11583,11 @@ select.workbench-input {
 }
 /* 审批中心内 segment：行内化（居左、按钮按内容限宽，不拉伸占满）；
    按钮水平内距加大拉开可选项间距（grid 均分同步于 thumb，对位不受影响）*/
-.rc-segment-inline { display: inline-flex; width: fit-content; }
-.rc-segment-inline .neu-segment-btn { width: fit-content; flex: 0 0 auto; padding-inline: 20px; }
+/* 审批中心内联分段（2026-10-22 宽度修正）：嵌套 flex 下 fit-content 会让按钮宽小于内容、
+   nowrap 文字双向溢出——尾部数字（待办计数）出现时图标被挤出白瓷按钮。改 max-content
+   真实内容宽（计数 1 位/2 位/99+ 均自适应）；外层超限时整段收缩兜底不溢出 */
+.rc-segment-inline { display: inline-flex; width: max-content; max-width: 100%; }
+.rc-segment-inline .neu-segment-btn { width: max-content; flex: 0 1 auto; padding-inline: 20px; }
 
 /* 双栏骨架 */
 /* panel 舞台：固定高度（窗口高度不随内容增减），两 panel 同高 */
