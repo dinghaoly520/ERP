@@ -68,3 +68,46 @@ describe('AuthService.login — 未激活账号状态分流', () => {
     expect(r.code).toBe('ACCOUNT_FROZEN');
   });
 });
+
+/** 供应商状态细化（2026-10-22 审计）：停用/黑名单/驳回壳/退回补正 与注册待审分流——
+ *  停用与拉黑联动 User.isActive=false（updateStatus），此前一律误报「账号待审核」。 */
+describe('AuthService.login — 供应商未激活状态分流', () => {
+  const PW = hashSync('correct-pw', 10);
+  const mkSup = (supplier: any | null) => {
+    const prisma: any = {
+      user: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'u2', username: '某供应商', role: 'supplier', isActive: false, isFrozen: false, passwordHash: PW },
+        ]),
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+      supplier: {
+        findFirst: jest.fn().mockResolvedValue(null), // 别名反查不命中
+        findUnique: jest.fn().mockResolvedValue(supplier),
+      },
+    };
+    return { prisma, svc: new (AuthService as any)(prisma) as AuthService };
+  };
+  const cases: Array<[string, any, string]> = [
+    ['停用', { status: 'DISABLED' }, 'ACCOUNT_DISABLED'],
+    ['黑名单', { status: 'BLACKLIST' }, 'ACCOUNT_BLACKLISTED'],
+    ['驳回壳', { status: 'REJECTED' }, 'SUPPLIER_REJECTED'],
+    ['退回补正', { status: 'RETURNED' }, 'SUPPLIER_RETURNED'],
+    ['注册待审', { status: 'PENDING' }, 'ACCOUNT_PENDING'],
+  ];
+  it.each(cases)('供应商 %s → %s', async (_label, supplier, code) => {
+    const { prisma, svc } = mkSup(supplier);
+    const r = (await svc.login({ username: '某供应商', password: 'correct-pw' }, 'supplier')) as any;
+    expect(r.pending).toBe(true);
+    expect(r.code).toBe(code);
+    expect(prisma.supplier.findUnique).toHaveBeenCalledWith({
+      where: { userId: 'u2' },
+      select: { status: true },
+    });
+  });
+  it('供应商无档案（异常态）→ 维持 ACCOUNT_PENDING 兜底', async () => {
+    const { svc } = mkSup(null);
+    const r = (await svc.login({ username: '某供应商', password: 'correct-pw' }, 'supplier')) as any;
+    expect(r.code).toBe('ACCOUNT_PENDING');
+  });
+});
