@@ -10,7 +10,7 @@ import { FileWarning, LoaderCircle, UploadCloud } from 'lucide-react';
 import { toast } from 'sonner';
 import { supplierApi } from '@/lib/api/supplier';
 import * as scca from '@/utils/scca-ukey';
-import { encryptAndUploadV3, unwrapSealedFields, nextRevisionContext } from '@/utils/dual-v3-client';
+import { encryptAndUploadV3, unwrapSealedFields, nextRevisionContext, pickShieldByFingerprint } from '@/utils/dual-v3-client';
 import type { V3Fields, V3Role } from '@water-erp/ukey';
 import { SpButton, SpDialog } from '@/components/ui';
 
@@ -19,7 +19,7 @@ type Stage = 'loading' | 'ready' | 'running';
 interface CtxInfo {
   baseRevision: number;
   roles: Array<{ role: V3Role; plainSha256: string; plainBytes: number }>;
-  sealedFields: { cipher: string; kself: { value: string } };
+  sealedFields: { cipher: string; kself: { recipientCertFingerprint?: string; value: string } };
   supplierId: string;
   signingBindingId: string;
   signingCertFingerprint: string;
@@ -82,12 +82,12 @@ export function CaBidReuploadCard({ projectId, onReuploaded }: {
       // ① 盾复原 fields+nonce（补传必须复用原 nonce——fieldsCommit 与原版一致）
       setNote('盾复原唱标字段（fields+nonce）…');
       const certs = await scca.listSccaCerts();
-      const first = certs[0];
-      if (!first) throw new Error('U盾内未找到证书——请插入 SCCA CA U盾');
-      const encCertPem = first.enc?.pem;
+      // 按原信封收件证书指纹选盾——错盾既解不开原 kself，重封还会把新信封封给错盾（2026-10-22 实录）
+      const shield = await pickShieldByFingerprint(certs, ctx.sealedFields.kself.recipientCertFingerprint);
+      const encCertPem = shield.enc?.pem;
       if (!encCertPem) throw new Error('U盾证书缺少加密证');
-      await scca.loginScca(first.container, pin);
-      const dekFJson = await scca.unwrapSccaKey(first.container, ctx.sealedFields.kself.value);
+      await scca.loginScca(shield.container, pin);
+      const dekFJson = await scca.unwrapSccaKey(shield.container, ctx.sealedFields.kself.value);
       const { fields, nonce } = await unwrapSealedFields(dekFJson, ctx.sealedFields);
 
       // ② 重封（reuseNonce——fieldsCommit 必然与原版一致）
@@ -111,7 +111,7 @@ export function CaBidReuploadCard({ projectId, onReuploaded }: {
       setNote('盾签名补传信封（P7）…');
       const prep = await supplierApi.caPrepare(projectId, 'reupload');
       const frozen = await supplierApi.caSigningPayload(projectId, prep.operationId, envelope);
-      const signP7 = await scca.signSccaP7(first.container, frozen.canonical);
+      const signP7 = await scca.signSccaP7(shield.container, frozen.canonical);
       setNote('提交补传（版本推进）…');
       await supplierApi.reuploadV3(projectId, {
         operationId: prep.operationId, signatureFormat: 'scca-pkcs7-base64',
