@@ -980,7 +980,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                   footer={
                     <>
                       <button onClick={() => setExpertProxy(null)} disabled={expertProxySubmitting} className="neu-btn-soft !h-9 !text-[13px] disabled:opacity-40">取消</button>
-                      <button onClick={() => void submitExpertProxy()} disabled={expertProxySubmitting} className="neu-btn-primary !h-9 !text-[13px] disabled:opacity-50">
+                      <button onClick={() => void submitExpertProxy()} disabled={expertProxySubmitting} className="neu-btn-primary is-water !h-9 !text-[13px] disabled:opacity-50">
                         {expertProxySubmitting && <Loader2 size={14} className="animate-spin" />}
                         {expertProxy.target === 'confirmed' ? '确认代为确认参加' : '确认代为婉拒'}
                       </button>
@@ -1074,7 +1074,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                         <div className="flex justify-end gap-2">
                           <button className="neu-btn-soft" onClick={() => { setReplaceModalAlt(null); setReplaceModalError(null); }} disabled={busy}>返回重选</button>
                           <button
-                            className="neu-btn-primary"
+                            className="neu-btn-primary is-water"
                             disabled={busy || !currentAlt}
                             onClick={async () => {
                               setBusy(true);
@@ -1314,7 +1314,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                         type="button"
                         onClick={() => setDecisionModal('ontime')}
                         disabled={busy || !assignedHost}
-                        className="neu-btn-primary !h-[36px]"
+                        className="neu-btn-primary is-water !h-[36px]"
                         title={!assignedHost ? '请先指派开标主持人' : undefined}
                       >
                         <CheckCircle2 size={14} /> 按时开标
@@ -1398,7 +1398,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                 但通知发送失败。通知为强制步骤——请重试通知全部投标供应商与评标专家（沿用弹窗内配置的渠道与文案）。
               </p>
               <div className="neu-btn-group">
-                <button type="button" onClick={() => void handleRetryNotify()} disabled={busy} className="neu-btn-primary !h-[36px] !text-xs">
+                <button type="button" onClick={() => void handleRetryNotify()} disabled={busy} className="neu-btn-primary is-water !h-[36px] !text-xs">
                   <BellRing size={13} /> 重试通知
                 </button>
               </div>
@@ -1464,7 +1464,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
           </div>
         )}
         <div className="neu-btn-group mt-4 justify-end">
-          <button type="button" onClick={() => setOpeningChecklist(null)} className="neu-btn-primary !h-[36px]">知道了</button>
+          <button type="button" onClick={() => setOpeningChecklist(null)} className="neu-btn-primary is-water !h-[36px]">知道了</button>
         </div>
       </Modal>
 
@@ -1680,7 +1680,7 @@ function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detai
                   aria-describedby={`award-letter-help-${bidProjectId}`}
                   className="min-w-0 flex-1 text-xs file:mr-2 file:rounded-md file:border-0 file:bg-[var(--muted)] file:px-3 file:py-2 file:text-xs file:font-semibold"
                 />
-                <button type="button" onClick={handleDeliver} disabled={delivering || !letterFile || Boolean(validateAwardLetterFile(letterFile))} className="neu-btn-primary !min-h-9 !px-3 !text-xs">
+                <button type="button" onClick={handleDeliver} disabled={delivering || !letterFile || Boolean(validateAwardLetterFile(letterFile))} className="neu-btn-primary is-water !min-h-9 !px-3 !text-xs">
                   {delivering
                     ? (deliveryUiState === 'reissue' ? '更换并重发中…' : '上传并发出中…')
                     : (deliveryUiState === 'reissue' ? '更换文件并重发' : '上传并发出')}

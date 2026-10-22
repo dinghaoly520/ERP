@@ -110,7 +110,7 @@ export default function StartOpeningDialog({ open, projectId, onClose, onStarted
           <span className="text-[11px] text-[color:var(--muted-foreground)]">组建后即可解密 / 唱标（开标时间已由采购管理工作台确认）</span>
           <div className="flex gap-3">
             <button type="button" onClick={onClose} className="neu-btn-soft h-[38px]">取消</button>
-            <button type="button" onClick={handleSubmit} disabled={submitting} className="neu-btn-primary !h-[38px] disabled:opacity-50">
+            <button type="button" onClick={handleSubmit} disabled={submitting} className="neu-btn-primary is-water !h-[38px] disabled:opacity-50">
               {submitting ? '组建中…' : '确认组建'}
             </button>
           </div>

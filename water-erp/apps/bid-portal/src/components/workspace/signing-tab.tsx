@@ -296,7 +296,7 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
             type="button"
             disabled={batchBusy}
             onClick={() => batchInputRef.current?.click()}
-            className="neu-btn-primary !h-[34px] !text-xs"
+            className="neu-btn-primary is-water !h-[34px] !text-xs"
             title="多选扫描件一次上传，按文件名自动分配去向（含主持人/监督人/专家名；主报告页须签字包生成后回传）"
           >
             {batchBusy ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} 回传签字扫描件
@@ -349,7 +349,7 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
                   type="button"
                   disabled={batchBusy}
                   onClick={() => batchInputRef.current?.click()}
-                  className="neu-btn-primary !h-[34px] !text-xs"
+                  className="neu-btn-primary is-water !h-[34px] !text-xs"
                   title="选 1 份（合并扫描 PDF）→ 自动应用到所有签字项；选多份 → 按文件名自动分配去向（含主持人/监督人/报告/专家名）"
                 >
                   {batchBusy ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} 回传签字扫描件
@@ -559,7 +559,7 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
             </div>
             <div className="flex justify-end gap-2 border-t border-[oklch(0.6_0.04_258/0.12)] px-5 py-3">
               <button type="button" onClick={() => setPendingAssign(null)} className="neu-btn-soft">取消</button>
-              <button type="button" onClick={() => void onAssignConfirm()} disabled={assignBusy} className="neu-btn-primary">
+              <button type="button" onClick={() => void onAssignConfirm()} disabled={assignBusy} className="neu-btn-primary is-water">
                 {assignBusy ? '上传中…' : '确认上传'}
               </button>
             </div>
@@ -624,7 +624,7 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
             <p className="mt-2 text-xs leading-relaxed text-[color:var(--muted-foreground)]">{confirmBox.message}</p>
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" className="neu-btn-soft !h-8 !text-xs" onClick={() => setConfirmBox(null)}>取消</button>
-              <button type="button" className="neu-btn-primary !h-8 !text-xs" onClick={() => { const ok = confirmBox.onOk; setConfirmBox(null); ok(); }}>确认</button>
+              <button type="button" className="neu-btn-primary is-water !h-8 !text-xs" onClick={() => { const ok = confirmBox.onOk; setConfirmBox(null); ok(); }}>确认</button>
             </div>
           </div>
         </div>
@@ -651,7 +651,7 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
               <button type="button" className="neu-btn-soft !h-8 !text-xs" onClick={() => setReopenOpen(false)}>取消</button>
               <button
                 type="button"
-                className="neu-btn-primary !h-8 !text-xs disabled:opacity-40"
+                className="neu-btn-primary is-water !h-8 !text-xs disabled:opacity-40"
                 disabled={!reopenReason.trim() || busy !== null}
                 onClick={() => {
                   setReopenOpen(false);
@@ -788,7 +788,7 @@ function ReportNotesDialog({ projectId, onClose }: { projectId: string; onClose:
               type="button"
               disabled={!loaded || busy}
               onClick={() => void save()}
-              className="neu-btn-primary !h-[36px] !text-xs disabled:opacity-40"
+              className="neu-btn-primary is-water !h-[36px] !text-xs disabled:opacity-40"
             >
               {busy ? <Loader2 size={13} className="animate-spin" /> : null}
               保存

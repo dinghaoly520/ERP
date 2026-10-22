@@ -765,7 +765,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
           )}
         </div>
         {stage === 'EVALUATING' && results.length === 0 && !archived && (
-          <button type="button" onClick={() => { setWizardStep(0); setWizardOpen(true); }} disabled={!canGenerate || busy} className="neu-btn-primary !h-[32px] !text-xs disabled:opacity-40">
+          <button type="button" onClick={() => { setWizardStep(0); setWizardOpen(true); }} disabled={!canGenerate || busy} className="neu-btn-primary is-water !h-[32px] !text-xs disabled:opacity-40">
             <Sparkles size={13} /> 生成评标结果
           </button>
         )}
@@ -838,7 +838,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             onClick={() => { setDurationHours(DEFAULT_EVALUATION_HOURS); setStartDialogOpen(true); }}
             disabled={busy || startBlockers.length > 0}
             title={startBlockers.length > 0 ? startBlockers.join('\n') : ''}
-            className="neu-btn-primary !h-[32px] !text-xs shrink-0 disabled:opacity-40"
+            className="neu-btn-primary is-water !h-[32px] !text-xs shrink-0 disabled:opacity-40"
           >
             <Play size={13} /> {busy ? '启动中…' : '启动评标'}
           </button>
@@ -1592,12 +1592,12 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                   type="button"
                   onClick={() => setWizardStep((wizardStep + 1) as 1 | 2)}
                   disabled={wizardStep === 0 && !step0Ready}
-                  className="neu-btn-primary !h-[36px] !text-xs disabled:opacity-40"
+                  className="neu-btn-primary is-water !h-[36px] !text-xs disabled:opacity-40"
                 >
                   下一步 <ChevronRight size={13} />
                 </button>
               ) : (
-                <button type="button" onClick={() => void handleGenerate()} disabled={busy} className="neu-btn-primary !h-[36px] !text-xs">
+                <button type="button" onClick={() => void handleGenerate()} disabled={busy} className="neu-btn-primary is-water !h-[36px] !text-xs">
                   <Sparkles size={13} /> {busy ? '生成中…' : '确认生成'}
                 </button>
               )}
@@ -1689,7 +1689,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             <hr className="wb-section-rule mx-6" />
             <div className="flex justify-end gap-2 px-6 py-4">
               <button type="button" onClick={() => setStartDialogOpen(false)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
-              <button type="button" onClick={() => void handleStartEvaluation(durationHours)} disabled={busy} className="neu-btn-primary !h-[36px] !text-xs">
+              <button type="button" onClick={() => void handleStartEvaluation(durationHours)} disabled={busy} className="neu-btn-primary is-water !h-[36px] !text-xs">
                 <Play size={13} /> {busy ? '启动中…' : '启动评标'}
               </button>
             </div>
@@ -1736,7 +1736,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 type="button"
                 onClick={() => void handleManualConfirm()}
                 disabled={manualBusy || !manualReason.trim()}
-                className="neu-btn-primary !h-[36px] !text-xs"
+                className="neu-btn-primary is-water !h-[36px] !text-xs"
               >
                 {manualBusy ? '确认中…' : '确认签到'}
               </button>
@@ -1790,7 +1790,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 type="button"
                 onClick={() => void handleReleaseLock()}
                 disabled={releaseBusy || !releaseReason.trim()}
-                className="neu-btn-primary !h-[36px] !text-xs"
+                className="neu-btn-primary is-water !h-[36px] !text-xs"
               >
                 {releaseBusy ? '解除中…' : '解除并留痕'}
               </button>
@@ -1831,7 +1831,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 type="button"
                 onClick={() => void handleTransferExempt()}
                 disabled={exemptBusy || !exemptReason.trim()}
-                className="neu-btn-primary !h-[36px] !text-xs"
+                className="neu-btn-primary is-water !h-[36px] !text-xs"
               >
                 {exemptBusy ? '豁免中…' : '确认豁免并留痕'}
               </button>
@@ -1863,7 +1863,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             <hr className="wb-section-rule mx-6" />
             <div className="flex justify-end gap-2 px-6 py-4">
               <button type="button" onClick={() => setRejectFor(null)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
-              <button type="button" onClick={() => void handleRejectVerification()} disabled={rejectBusy} className="neu-btn-primary !h-[36px] !text-xs">
+              <button type="button" onClick={() => void handleRejectVerification()} disabled={rejectBusy} className="neu-btn-primary is-water !h-[36px] !text-xs">
                 {rejectBusy ? '登记中…' : '登记异常'}
               </button>
             </div>
@@ -1898,7 +1898,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             <hr className="wb-section-rule mx-6" />
             <div className="flex justify-end gap-2 px-6 py-4">
               <button type="button" onClick={() => setVerifyFor(null)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
-              <button type="button" onClick={() => void handleVerifyIdentity()} disabled={verifyBusy} className="neu-btn-primary !h-[36px] !text-xs">
+              <button type="button" onClick={() => void handleVerifyIdentity()} disabled={verifyBusy} className="neu-btn-primary is-water !h-[36px] !text-xs">
                 {verifyBusy ? '登记中…' : '登记核验'}
               </button>
             </div>
@@ -1927,7 +1927,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             <hr className="wb-section-rule mx-6" />
             <div className="flex justify-end gap-2 px-6 py-4">
               <button type="button" onClick={() => setUnverifyFor(null)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
-              <button type="button" onClick={() => void handleUnverifyIdentity()} disabled={unverifyBusy || !unverifyReason.trim()} className="neu-btn-primary !h-[36px] !text-xs">
+              <button type="button" onClick={() => void handleUnverifyIdentity()} disabled={unverifyBusy || !unverifyReason.trim()} className="neu-btn-primary is-water !h-[36px] !text-xs">
                 {unverifyBusy ? '撤销中…' : '确认撤销'}
               </button>
             </div>
@@ -1955,7 +1955,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             <hr className="wb-section-rule mx-6" />
             <div className="flex justify-end gap-2 px-6 py-4">
               <button type="button" onClick={() => setUnrejectFor(null)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
-              <button type="button" onClick={() => void handleUnrejectVerification()} disabled={unrejectBusy || !unrejectReason.trim()} className="neu-btn-primary !h-[36px] !text-xs">
+              <button type="button" onClick={() => void handleUnrejectVerification()} disabled={unrejectBusy || !unrejectReason.trim()} className="neu-btn-primary is-water !h-[36px] !text-xs">
                 {unrejectBusy ? '撤销中…' : '确认撤销'}
               </button>
             </div>
@@ -2004,7 +2004,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             <hr className="wb-section-rule mx-6" />
             <div className="flex justify-end gap-2 px-6 py-4">
               <button type="button" onClick={() => setExtendDialogOpen(false)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
-              <button type="button" onClick={() => void handleExtendEvaluation()} disabled={extendBusy || !extendReason.trim()} className="neu-btn-primary !h-[36px] !text-xs disabled:opacity-40">
+              <button type="button" onClick={() => void handleExtendEvaluation()} disabled={extendBusy || !extendReason.trim()} className="neu-btn-primary is-water !h-[36px] !text-xs disabled:opacity-40">
                 <CalendarClock size={13} /> {extendBusy ? '审批中…' : '确认延期'}
               </button>
             </div>
@@ -2055,7 +2055,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             <hr className="wb-section-rule mx-6" />
             <div className="flex justify-end gap-2 px-6 py-4">
               <button type="button" onClick={() => setReopenDialogOpen(false)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
-              <button type="button" onClick={() => void handleReopenScoring()} disabled={reopenBusy || !reopenReason.trim()} className="neu-btn-primary !h-[36px] !text-xs disabled:opacity-40">
+              <button type="button" onClick={() => void handleReopenScoring()} disabled={reopenBusy || !reopenReason.trim()} className="neu-btn-primary is-water !h-[36px] !text-xs disabled:opacity-40">
                 <RotateCcw size={13} /> {reopenBusy ? '重开中…' : '确认重开'}
               </button>
             </div>
@@ -2074,7 +2074,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             </p>
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" className="neu-btn-soft !h-8 !text-xs" onClick={() => setRegenerateConfirmOpen(false)}>取消</button>
-              <button type="button" className="neu-btn-primary !h-8 !text-xs" onClick={() => { setRegenerateConfirmOpen(false); void handleGenerate(); }}>确认重新生成</button>
+              <button type="button" className="neu-btn-primary is-water !h-8 !text-xs" onClick={() => { setRegenerateConfirmOpen(false); void handleGenerate(); }}>确认重新生成</button>
             </div>
           </div>
         </div>

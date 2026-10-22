@@ -237,7 +237,7 @@ export function OpeningDecisionModal({
             type="button"
             onClick={() => void handleConfirm()}
             disabled={working || (mode === 'delay' && !delayTime)}
-            className="neu-btn-primary gap-1.5"
+            className="neu-btn-primary is-water gap-1.5"
           >
             {submitting ? <Loader2 size={13} className="animate-spin" /> : mode === 'ontime' ? <CheckCircle2 size={13} /> : <CalendarClock size={13} />}
             {mode === 'ontime' ? '确认开标并通知' : '确认延时并通知'}

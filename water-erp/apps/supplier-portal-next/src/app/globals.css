@@ -10757,6 +10757,10 @@ body {
     inset 2px 2px 5px oklch(0.55 0.03 258 / 0.14),
     inset -2px -2px 5px oklch(1 0 0 / 0.7);
 }
+.neu-btn-primary.is-water.is-success { color: var(--success); background: oklch(1 0 0); }
+.neu-btn-primary.is-water.is-success:hover { color: var(--success); background: oklch(1 0 0); }
+.neu-btn-primary.is-water.is-danger { color: var(--danger); background: oklch(1 0 0); }
+.neu-btn-primary.is-water.is-danger:hover { color: var(--danger); background: oklch(1 0 0); }
 
 /* 语义色变体 —— 用于发布/通过等成功语义的主按钮 */
 .neu-btn-primary.is-success {

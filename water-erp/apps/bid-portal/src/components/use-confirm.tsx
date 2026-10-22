@@ -38,7 +38,7 @@ export function useConfirm() {
         <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-[color:var(--muted-foreground)]">{state.message}</p>
         <div className="mt-4 flex justify-end gap-2">
           <button type="button" className="neu-btn-soft !h-8 !text-xs" onClick={() => close(false)}>取消</button>
-          <button type="button" autoFocus className={`neu-btn-primary !h-8 !text-xs${state.danger ? ' is-danger' : ''}`} onClick={() => close(true)}>确认</button>
+          <button type="button" autoFocus className={`neu-btn-primary is-water !h-8 !text-xs${state.danger ? ' is-danger' : ''}`} onClick={() => close(true)}>确认</button>
         </div>
       </div>
     </div>

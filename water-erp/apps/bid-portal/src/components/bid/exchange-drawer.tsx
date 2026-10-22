@@ -525,7 +525,7 @@ export function ExchangeDrawer({ projectId, initialStageClosed, sessionActive = 
                   <div className="flex-none border-y border-[oklch(0.6_0.04_258_/_0.14)] px-3.5 py-2.5">
                     <div className="mb-2 flex items-center gap-2">
                       <label className="flex-none text-[11px] font-semibold text-[color:var(--muted-foreground)]">分组</label>
-                      {/* .neu-input/.neu-btn-primary 的字号高度写在 layer 外（14px/40px），面板内统一 12px 行高须 ! 覆盖 */}
+                      {/* .neu-input/.neu-btn-primary is-water 的字号高度写在 layer 外（14px/40px），面板内统一 12px 行高须 ! 覆盖 */}
                       <select value={newLabel} onChange={e => setNewLabel(e.target.value)} className="neu-input !h-7 min-w-0 flex-1 !text-xs">
                         {HOST_PHRASES.map(g => <option key={g.label} value={g.label}>{g.label}</option>)}
                         <option value="自定义">自定义</option>
@@ -538,7 +538,7 @@ export function ExchangeDrawer({ projectId, initialStageClosed, sessionActive = 
                     <div className="mt-2.5 flex justify-end gap-1.5">
                       <button type="button" onClick={() => { setShowAddForm(false); setNewText(''); }} className="neu-btn-xs">取消</button>
                       <button type="button" onClick={addPhrase} disabled={!newText.trim()}
-                        className="neu-btn-primary !h-7 !px-3 !text-xs disabled:opacity-40">保存</button>
+                        className="neu-btn-primary is-water !h-7 !px-3 !text-xs disabled:opacity-40">保存</button>
                     </div>
                   </div>
                 )}
@@ -588,7 +588,7 @@ export function ExchangeDrawer({ projectId, initialStageClosed, sessionActive = 
                 className="neu-input flex-1"
               />
               <button type="button" onClick={send} disabled={sending || !input.trim() || inputDisabled}
-                className="neu-btn-primary !h-[40px] !px-4 text-sm disabled:opacity-40">发送</button>
+                className="neu-btn-primary is-water !h-[40px] !px-4 text-sm disabled:opacity-40">发送</button>
             </div>
           </div>
         </aside>,

@@ -51,7 +51,7 @@ export function useConfirm() {
         </div>
         <div className="gdlg-ft">
           <button type="button" className="neu-btn-soft" onClick={() => close(false)}>取消</button>
-          <button type="button" autoFocus className={`neu-btn-primary${state.danger ? ' is-danger' : ''}`} onClick={() => { state.onConfirm?.(); close(true); }}>确认</button>
+          <button type="button" autoFocus className={`neu-btn-primary is-water${state.danger ? ' is-danger' : ''}`} onClick={() => { state.onConfirm?.(); close(true); }}>确认</button>
         </div>
       </div>
     </div>

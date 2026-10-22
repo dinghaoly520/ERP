@@ -452,7 +452,7 @@ function BidDetailInner() {
                 <div className="neu-btn-group">
                   <button
                     type="button"
-                    className="neu-btn-primary"
+                    className="neu-btn-primary is-water"
                     disabled={!canSubmit}
                     onClick={goToSubmit}
                   >

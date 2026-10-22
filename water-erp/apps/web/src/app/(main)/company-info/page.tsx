@@ -164,7 +164,7 @@ export default function CompanyInfoPage() {
                 <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
                 刷新
               </button>
-              <button type="button" onClick={() => void save()} disabled={saving} className="neu-btn-primary">
+              <button type="button" onClick={() => void save()} disabled={saving} className="neu-btn-primary is-water">
                 {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                 {saving ? '保存中...' : '保存'}
               </button>

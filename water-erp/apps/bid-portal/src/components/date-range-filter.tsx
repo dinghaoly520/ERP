@@ -296,7 +296,7 @@ export default function DateRangeFilter({ value, onChange }: DateRangeFilterProp
               <button
                 type="button"
                 onClick={applyCustom}
-                className="neu-btn-primary !h-auto !rounded-[10px] !px-4 !py-1.5 text-[11px]"
+                className="neu-btn-primary is-water !h-auto !rounded-[10px] !px-4 !py-1.5 text-[11px]"
               >
                 确定
               </button>

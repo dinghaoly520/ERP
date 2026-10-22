@@ -1242,7 +1242,7 @@ export default function ProfilePage() {
                 <button type="button" className="neu-btn-soft" onClick={() => setCrDlg(false)}>取消</button>
                 <button
                   type="button"
-                  className="neu-btn-primary"
+                  className="neu-btn-primary is-water"
                   disabled={!crHasChanges || (crNeedsReason && !crReason.trim()) || crSub}
                   onClick={() => void crSubmit()}
                 >
