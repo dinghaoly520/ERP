@@ -343,8 +343,13 @@ export default function ExpertDetailPage() {
   );
   if (!expert) return <div className="py-24 text-center text-[13px] text-[var(--muted-foreground)]">专家不存在</div>;
 
-  // 编号藏在 notes 里（"编号: A001431, ..."），解析出来挂标题栏
-  const expertNo = expert.expertProfile?.notes?.match(/编号\s*[:：]\s*([^\s,，、]+)/)?.[1];
+  // 编号优先取名单带来的（藏在 notes 里 "编号: A001431, ..."）；无编号者按「入库年月+ID 尾 6 位」
+  // 派生稳定唯一展示号（2026-10-22 用户口径：详情右侧展示编号+入库时间，全量专家都有编号）
+  const parsedNo = expert.expertProfile?.notes?.match(/编号\s*[:：]\s*([^\s,，、]+)/)?.[1];
+  const entryAt = expert.expertProfile?.verifiedAt ?? expert.createdAt;
+  const entryDate = new Date(entryAt);
+  const derivedNo = `ZJ-${String(entryDate.getFullYear()).slice(2)}${String(entryDate.getMonth() + 1).padStart(2, '0')}-${expert.id.slice(-6).toUpperCase()}`;
+  const expertNo = parsedNo ?? derivedNo;
 
   return (
     <div className="flex flex-col gap-5">
@@ -366,9 +371,6 @@ export default function ExpertDetailPage() {
             <div className="min-w-0">
               <div className="page-hero__title truncate">
                 {expert.displayName}
-                {expertNo && (
-                  <span className="ml-2 inline-flex items-center rounded-md bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 align-middle text-[13px] font-bold tabular-nums text-[var(--accent)]" title="专家编号">{expertNo}</span>
-                )}
               </div>
               <div className="page-hero__sub truncate">
                 {expert.expertProfile?.specialty && <span>{expert.expertProfile.specialty}</span>}
@@ -380,6 +382,19 @@ export default function ExpertDetailPage() {
             </div>
           </div>
           <div className="page-hero__right">
+            {/* 特有编号 + 入库时间（2026-10-22 用户口径）：右侧常驻；入库取审核留痕时间，无则账号建档时间 */}
+            <span
+              className="rounded-[8px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-2 py-1 font-mono text-[11px] font-bold tracking-wide text-[var(--accent)]"
+              title={parsedNo ? `专家编号：${parsedNo}` : '系统派生编号（名单未带编号，按入库年月+ID 生成，稳定唯一）'}
+            >
+              编号 {expertNo}
+            </span>
+            <span
+              className="rounded-[8px] bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)] px-2 py-1 text-[11px] font-semibold tabular-nums text-[color:var(--muted-foreground)]"
+              title={`入库时间：${entryDate.toLocaleString('zh-CN')}`}
+            >
+              入库 {entryDate.toLocaleDateString('zh-CN')}
+            </span>
             <StatusBadge tone={expert.isActive ? 'green' : 'gray'}>{expert.isActive ? '可用' : '已停用'}</StatusBadge>
             {portrait?.isStandingExpert && <StatusBadge tone="purple">常委专家</StatusBadge>}
             <button onClick={openEditProfile} className="neu-btn-soft"><Pencil size={14} /> 编辑资料</button>
