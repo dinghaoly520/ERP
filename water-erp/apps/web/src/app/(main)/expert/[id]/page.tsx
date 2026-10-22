@@ -371,6 +371,13 @@ export default function ExpertDetailPage() {
             <div className="min-w-0">
               <div className="page-hero__title truncate">
                 {expert.displayName}
+                {/* 编号随姓名展示（2026-10-22 用户口径：回姓名旁+浅色瓷片） */}
+                <span
+                  className="ml-2 inline-flex items-center rounded-md bg-[color-mix(in_oklch,var(--muted-foreground)_9%,transparent)] px-2 py-0.5 align-middle font-mono text-[12px] font-medium tracking-wide text-[color:var(--muted-foreground)]"
+                  title={parsedNo ? `专家编号：${parsedNo}` : '系统派生编号（名单未带编号，按入库年月+ID 生成，稳定唯一）'}
+                >
+                  {expertNo}
+                </span>
               </div>
               <div className="page-hero__sub truncate">
                 {expert.expertProfile?.specialty && <span>{expert.expertProfile.specialty}</span>}
@@ -382,13 +389,7 @@ export default function ExpertDetailPage() {
             </div>
           </div>
           <div className="page-hero__right">
-            {/* 特有编号 + 入库时间（2026-10-22 用户口径）：右侧常驻；入库取审核留痕时间，无则账号建档时间 */}
-            <span
-              className="rounded-[8px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-2 py-1 font-mono text-[11px] font-bold tracking-wide text-[var(--accent)]"
-              title={parsedNo ? `专家编号：${parsedNo}` : '系统派生编号（名单未带编号，按入库年月+ID 生成，稳定唯一）'}
-            >
-              编号 {expertNo}
-            </span>
+            {/* 入库时间（2026-10-22）：右侧常驻；取审核留痕时间，无则账号建档时间（编号已随姓名展示） */}
             <span
               className="rounded-[8px] bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)] px-2 py-1 text-[11px] font-semibold tabular-nums text-[color:var(--muted-foreground)]"
               title={`入库时间：${entryDate.toLocaleString('zh-CN')}`}

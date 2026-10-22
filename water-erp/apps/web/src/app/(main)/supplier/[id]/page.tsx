@@ -427,7 +427,8 @@ export default function SupplierDetailPage() {
             <div className="min-w-0">
               <div className="page-hero__title truncate">
                 {supplier.name}
-                <span className="ml-2 inline-flex items-center rounded-md bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 align-middle text-[12px] font-bold tabular-nums text-[var(--accent)]" title="供应商编号">{supplier.supplierNo}</span>
+                {/* 编号瓷片（2026-10-22 用户口径）：浅色化 + 等宽字体，与专家详情同款 */}
+                <span className="ml-2 inline-flex items-center rounded-md bg-[color-mix(in_oklch,var(--muted-foreground)_9%,transparent)] px-2 py-0.5 align-middle font-mono text-[12px] font-medium tracking-wide text-[color:var(--muted-foreground)]" title="供应商编号">{supplier.supplierNo}</span>
               </div>
               <div className="page-hero__sub truncate">
                 <span className="inline-flex items-center gap-1"><Hash size={11} />{supplier.creditCode || '信用代码未登记'}</span>
