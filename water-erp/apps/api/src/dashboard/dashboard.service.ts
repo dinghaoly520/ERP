@@ -828,4 +828,26 @@ export class DashboardService {
       riskProjects,
     };
   }
+
+  /** :3011 Tab 角标——异常/待处理/停滞三计数（与 getDashboard abnormalCount 同口径：
+   *  异常=非 AWARDED 且非 PENDING；停滞=active PMI 当前阶段停留>30 天） */
+  async getBadges(companyFilter?: CompanyWhere) {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000);
+    const [abnormalCount, pendingCount, stalledCount] = await Promise.all([
+      this.prisma.procurementRound.count({
+        where: { ...companyFilter, resultStatus: { notIn: ['AWARDED', 'PENDING'] } },
+      }),
+      this.prisma.procurementRound.count({
+        where: { ...companyFilter, resultStatus: 'PENDING' },
+      }),
+      this.prisma.projectManagementStage.count({
+        where: {
+          status: { not: 'COMPLETED' },
+          updatedAt: { lt: thirtyDaysAgo },
+          ...(companyFilter ? { projectManagementItem: companyFilter } : {}),
+        },
+      }),
+    ]);
+    return { abnormalCount, pendingCount, stalledCount };
+  }
 }
