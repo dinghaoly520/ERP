@@ -167,6 +167,17 @@ export class AuthService {
     }
     // 密码正确但账号未激活 → 专用码，引导前端走「查询审核进度」。此时已证明知道密码，不构成枚举。
     if (!user.isActive) {
+      // 专家细化（2026-10-22 bug 修复）：退库停用与注册待审分流——前者回 ACCOUNT_RETIRED，
+      // 不得误报「账号待审核」。retiredAt 兜底兼容历史路径漏写 entryStatus（同恢复路径口径）。
+      if (user.role === 'bid_expert') {
+        const profile = await this.prisma.expertProfile.findUnique({
+          where: { userId: user.id },
+          select: { entryStatus: true, retiredAt: true },
+        });
+        if (profile?.entryStatus === 'RETIRED' || profile?.retiredAt) {
+          return { pending: true as const, role: user.role, code: 'ACCOUNT_RETIRED' };
+        }
+      }
       return { pending: true as const, role: user.role, code: 'ACCOUNT_PENDING' };
     }
     // 冻结账号（管理员在「账号管理」中冻结）→ 专用码，登录页提示「账号已被冻结」
