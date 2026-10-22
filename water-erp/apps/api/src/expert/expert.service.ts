@@ -339,7 +339,9 @@ export class ExpertService {
     });
     if (!project) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
 
-    const isActive = project.stage === 'OPENING' || project.stage === 'EVALUATING';
+    // 2026-10-22 排查收紧：OPENING 亦返回 restricted 壳——「启动前只能看到项目卡片」，
+    // 供应商/唱标记录/评分项不下发（待命页仅需 name/code/stage/myExpertRecord，壳字段齐备）
+    const isActive = project.stage === 'EVALUATING';
 
     // none（直接采购·不评分）轨道标志（2026-10-19 spec §4.4）：向导打分/核对步信息态分支（Task 7 前端消费）
     const noneEvaluation = isNoneEvaluation(project.evaluationMethod, project.procurementMethod);

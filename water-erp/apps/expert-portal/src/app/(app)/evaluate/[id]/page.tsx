@@ -380,7 +380,8 @@ export default function ExpertEvaluatePage() {
     return api.get<ExpertProjectDetail & { restricted?: boolean; noneEvaluation?: boolean }>(`/expert/projects/${projectId}`)
       .then(p => {
         // Stage gate: redirect if project is not in an active review stage
-        if (p.restricted || (p.stage !== 'OPENING' && p.stage !== 'EVALUATING')) {
+        // 2026-10-22：OPENING 返回 restricted 壳但须放行走待命页——只按阶段判（restricted 不再弹回）
+        if (p.stage !== 'OPENING' && p.stage !== 'EVALUATING') {
           toast.error('该项目尚未进入开评标阶段');
           router.replace('/projects');
           return;

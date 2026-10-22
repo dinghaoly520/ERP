@@ -462,6 +462,16 @@ describe('Expert room code & window isolation (e2e)', () => {
     });
     const tCookie = await loginCookie(U.texp, 'expert');
     try {
+      // 项目详情收紧（2026-10-22）：OPENING 期 getProject 亦返回 restricted 壳（供应商/唱标/评分项不下发）——「只能看到项目卡片」
+      const detail = await request(app.getHttpServer())
+        .get(`/api/expert/projects/${proj.id}`)
+        .set('Cookie', tCookie).set('X-Portal', 'expert');
+      expect(detail.status).toBe(200);
+      expect(detail.body.restricted).toBe(true);
+      expect(detail.body.suppliers).toEqual([]);
+      expect(detail.body.stage).toBe('OPENING');
+      expect(detail.body.name).toBeTruthy(); // 待命页所需壳字段保留
+
       // 收紧口径（2026-10-21 用户裁定，推翻决策 9 前半）：身份核验五项亦须启动后——
       // 启动前签到/回避/AI 声明全拦，杜绝「启动前签到→开窗→登录锁→主持端解锁」连锁
       const consent = await request(app.getHttpServer())
