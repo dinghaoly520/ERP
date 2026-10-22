@@ -112,14 +112,24 @@ function AnnouncementsContent() {
             ))}
           </div>
 
+          {/* ═══ 搜索框（2026-10-22 重设计）：玻璃瓷片质感，聚焦内凹（无蓝色框线）═══
+              凸起（方向性双影）→ 聚焦内凹（与 neu-segment/瓷片同语言）；图标随聚焦加深；有输入显清空钮 */}
           <div className="relative ml-auto shrink-0">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a96aa]" />
             <input value={searchInput} onChange={e => setSearchInput(e.target.value)}
-              placeholder="搜索公告标题、项目编号..."
-              className="w-[280px] h-9 pl-9 pr-3 bg-white border border-[#d0dae8] rounded-[10px] text-sm focus:outline-none focus:border-[#064ea2] placeholder:text-[#bbb]" />
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#bbb]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
+              placeholder="搜索公告标题、项目编号…"
+              aria-label="搜索公告"
+              className="peer h-10 w-[280px] rounded-xl border border-[#dbe4ef] bg-[oklch(1_0_0/0.6)] pl-10 pr-9 text-sm text-[#18243a] transition-all placeholder:text-[#b6c0cf]
+                shadow-[inset_0_1px_0_oklch(1_0_0/0.8),1px_1px_3px_oklch(0.55_0.03_258/0.08)]
+                focus:outline-none focus:border-[#cfd9e6]
+                focus:shadow-[inset_1px_1px_3px_oklch(0.55_0.03_258/0.12),inset_-1px_-1px_2px_oklch(1_0_0/0.9)]" />
+            <Search size={15} strokeWidth={1.8}
+              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9aa8ba] transition-colors peer-focus:text-[#5a6d8a]" />
+            {searchInput && (
+              <button type="button" onClick={() => setSearchInput('')} aria-label="清空搜索"
+                className="absolute right-2.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-md text-[#b0bcc9] transition-all duration-200 hover:rotate-90 hover:bg-[#eef1f6] hover:text-[#5a6d8a]">
+                <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M1 1l10 10M11 1L1 11" /></svg>
+              </button>
+            )}
           </div>
         </div>
 
