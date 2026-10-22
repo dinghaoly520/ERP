@@ -3133,6 +3133,14 @@ a.group:hover::after {
   outline-offset: 2px;
 }
 
+/* 信息公告搜索框豁免全局 focus-visible 环（2026-10-22 用户裁定）：
+   输入框鼠标点击即触发 :focus-visible（可编辑元素例外），蓝环由此而来；且全局环在无 layer
+   层、恒胜 Tailwind utilities 层的 focus:outline-none——须以同层（无 layer）更高特异性豁免。
+   聚焦反馈由瓷片内凹影表达（见 announcements/page.tsx），无障碍键盘环不受影响。 */
+.announce-search:focus-visible {
+  outline: none;
+}
+
 /* ── reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   .animate-dingdang-breathe,

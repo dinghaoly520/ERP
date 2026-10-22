@@ -118,7 +118,7 @@ function AnnouncementsContent() {
             <input value={searchInput} onChange={e => setSearchInput(e.target.value)}
               placeholder="搜索公告标题、项目编号…"
               aria-label="搜索公告"
-              className="peer h-10 w-[280px] rounded-xl border border-[#dbe4ef] bg-[oklch(1_0_0/0.6)] pl-10 pr-9 text-sm text-[#18243a] transition-all placeholder:text-[#b6c0cf]
+              className="announce-search peer h-10 w-[280px] rounded-xl border border-[#dbe4ef] bg-[oklch(1_0_0/0.6)] pl-10 pr-9 text-sm text-[#18243a] transition-all placeholder:text-[#b6c0cf]
                 shadow-[inset_0_1px_0_oklch(1_0_0/0.8),1px_1px_3px_oklch(0.55_0.03_258/0.08)]
                 focus:outline-none focus:border-[#cfd9e6]
                 focus:shadow-[inset_1px_1px_3px_oklch(0.55_0.03_258/0.12),inset_-1px_-1px_2px_oklch(1_0_0/0.9)]" />
