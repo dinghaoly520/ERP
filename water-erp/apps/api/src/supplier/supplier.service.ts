@@ -1418,11 +1418,31 @@ export class SupplierService {
       await this.assertSupplierInScope(supplier, actor);
     }
     if (!supplier) return null;
+    // 供应商编号（2026-10-22 用户口径·重编）：{归属公司编码}-{同公司入库序号}（如 SWHI-0001），
+    // 与专家编号同体系；多公司挂靠以主归属 companyId 为准；无归属公司回退平台序列 supplierNo。
+    // 序号按 (createdAt,id) 稳定排名、不滤状态（状态流转不改号）；存库 supplierNo 不动（种子/CI 序列对齐）。
+    let companyNo: string | null = null;
+    if (supplier.companyId) {
+      const [company, rank] = await Promise.all([
+        this.prisma.company.findUnique({ where: { id: supplier.companyId }, select: { code: true } }),
+        this.prisma.supplier.count({
+          where: {
+            companyId: supplier.companyId,
+            OR: [
+              { createdAt: { lt: supplier.createdAt } },
+              { createdAt: supplier.createdAt, id: { lt: supplier.id } },
+            ],
+          },
+        }),
+      ]);
+      if (company?.code) companyNo = `${company.code.toUpperCase()}-${String(rank + 1).padStart(4, '0')}`;
+    }
     // PII 出口（等保+密评）：supplier 本人自视明文（归属校验在 controller，跨企访问 403 于响应前拦截）；
     // 管理端（admin/leader/staff）默认脱敏，明文走 reveal 端点（SensitiveAccessLog 审计）。
     if (actor?.role === 'supplier') {
       return {
         ...supplier,
+        companyNo,
         user: supplier.user ? { ...supplier.user, email: openPii(supplier.user.email) } : supplier.user,
         legalPersonIdCard: openPii(supplier.legalPersonIdCard),
         legalPersonPhone: openPii(supplier.legalPersonPhone),
@@ -1433,6 +1453,7 @@ export class SupplierService {
     }
     return {
       ...supplier,
+      companyNo,
       user: supplier.user ? { ...supplier.user, email: maskEmail(openPiiForMask(supplier.user.email)) } : supplier.user,
       legalPersonIdCard: maskIdNumber(openPiiForMask(supplier.legalPersonIdCard)),
       legalPersonPhone: maskPhone(openPiiForMask(supplier.legalPersonPhone)),

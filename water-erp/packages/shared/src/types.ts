@@ -406,6 +406,9 @@ export interface Supplier {
   name: string;
   /** 供应商编号（SUP-000001，PG 序列生成，全局唯一） */
   supplierNo: string;
+  /** 展示编号（2026-10-22 重编）：{归属公司编码}-{同公司入库序号}（如 SWHI-0001），详情接口计算返回；
+   *  多公司挂靠以主归属 companyId 为准；无归属公司为 null → 前端回退 supplierNo */
+  companyNo?: string | null;
   creditCode: string | null;
   enterpriseType: string;
   legalPerson: string;

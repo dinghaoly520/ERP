@@ -465,7 +465,9 @@ export function getSupplierTimeline(id: string) {
 /** 快照内文件链接（资质 fileUrl 之外的附加材料 / 业绩证明材料） */
 export interface SnapshotFileLink { name: string; url: string; }
 export interface ApprovalSnapshot {
-  name: string; creditCode: string | null; supplierNo: string; enterpriseType: string;
+  name: string; creditCode: string | null; supplierNo: string;
+  /** 供应商编号（2026-10-22 重编）：{归属公司编码}-{入库序号}（详情接口计算返回；无归属公司为 null 回退 supplierNo） */
+  companyNo?: string | null; enterpriseType: string;
   legalPerson: string; legalPersonIdCard: string | null; registeredAddress: string; businessScope: string;
   tags: string[]; isTemporary: boolean;
   account: { username: string; displayName: string; email: string | null } | null;
