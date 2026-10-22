@@ -1,4 +1,5 @@
 import { api } from '../api';
+import { apiFetch } from './api-fetch';
 
 /* 专家管理视图模型（web 门户专属） */
 
@@ -312,6 +313,24 @@ export interface ExpertEvaluationProject {
 
 export function getEvaluationProjects(expertId: string) {
   return api.get<ExpertEvaluationProject[]>(`/expert-admin/${expertId}/evaluation-projects`);
+}
+
+// 导出专家抽取情况（Word 证明材料，2026-10-22）：抽取方式细节 + 正选/候补专家详情表
+export async function downloadExtractionExport(projectId: string, projectName?: string) {
+  const res = await apiFetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api'}/expert-admin/projects/${projectId}/extraction-export`, {
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({} as any));
+    throw new Error(e?.error || '导出失败');
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `专家抽取情况_${projectName || projectId}_${new Date().toISOString().slice(0, 10)}.docx`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // 工作人员代回应/代变更专家邀请（2026-10-21 代为变更设计适配）：理由必填（≥5 字，面板展示）；

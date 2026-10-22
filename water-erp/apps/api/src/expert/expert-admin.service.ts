@@ -1,4 +1,5 @@
 import { Injectable, Optional, NotFoundException, BadRequestException, ForbiddenException, ConflictException, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, HeadingLevel, AlignmentType, BorderStyle } from 'docx';
 import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -979,6 +980,165 @@ export class ExpertAdminService {
           && records.filter(r => r.expertRole === '候补').every(r => r.invitationStatus !== 'pending'),
       },
     };
+  }
+
+  /**
+   * 导出专家抽取情况（Word 证明材料，2026-10-22）：抽取过程细节（方式/轮次/操作人/池规模/
+   * 命中序列——来自 EXPERT_EXTRACTION_CONFIRMED 审计快照）+ 正选/候补专家详情表（含确认
+   * 状态与作答留痕）。联系电话走 openPiiForMask 明文口径（2026-10-12 裁定：staff 视野
+   * 证明材料需要逐一致电核实，掩码无意义）。
+   */
+  async buildExtractionExport(projectId: string): Promise<{ buffer: Buffer; filename: string }> {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: {
+        name: true, projectCode: true, procurementMethod: true, openTime: true, stage: true,
+        projectManagementItemId: true,
+      },
+    });
+    if (!project) throw new NotFoundException('项目不存在');
+    let projectCode = project.projectCode;
+    if (project.projectManagementItemId) {
+      const pm = await this.prisma.projectManagementItem.findUnique({ where: { id: project.projectManagementItemId }, select: { projectCode: true } });
+      if (pm?.projectCode) projectCode = pm.projectCode;
+    }
+
+    // 抽取事件（含补选轮次）：审计快照带 extractMode/池/命中序列
+    const extractionEvents = await this.prisma.auditLog.findMany({
+      where: { action: 'EXPERT_EXTRACTION_CONFIRMED', resourceId: projectId },
+      orderBy: { createdAt: 'asc' },
+      select: { details: true, createdAt: true, user: { select: { displayName: true } } },
+    });
+
+    // 当前名册（正选+候补）+ 详情 + 邀请留痕
+    const roster = await this.prisma.bidExpert.findMany({
+      where: { projectId },
+      orderBy: [{ expertRole: 'desc' }, { createdAt: 'asc' }],
+      include: { user: { select: { displayName: true, department: { select: { name: true } }, expertProfile: { select: { title: true, employer: true, phone: true } } } } },
+    });
+
+    const MODE_LABELS: Record<string, string> = {
+      specialty_match: '专业匹配（按专业配额在候选池中匹配择定）',
+      random: '随机抽取（系统在符合条件的候选池中随机抽出）',
+      merit_best: '综合择优（按履职评价/偏离度/负荷等综合评分排序择定）',
+      manual: '专家选取（工作人员按需求手动选定）',
+    };
+    const stCn = (s: string) => (s === 'confirmed' ? '已确认参加' : s === 'declined' ? '已婉拒' : '待回复');
+    const actorCn = (a: string | null) => (a === 'EXPERT' ? '专家本人回复' : a === 'STAFF' ? '工作人员代回应' : a === 'SYSTEM' ? '系统（超时/递补）' : '—');
+
+    const fmt = (d: Date | null | undefined) => (d ? new Date(d).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
+    const cell = (text: string, opts?: { bold?: boolean }) =>
+      new TableCell({
+        margins: { top: 60, bottom: 60, left: 100, right: 100 },
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: text || '—', bold: opts?.bold, size: 18 })] })],
+      });
+    const headerRow = (labels: string[]) => new TableRow({
+      tableHeader: true,
+      children: labels.map(l => cell(l, { bold: true })),
+    });
+    const tableBorders = {
+      top: { style: BorderStyle.SINGLE, size: 4 }, bottom: { style: BorderStyle.SINGLE, size: 4 },
+      left: { style: BorderStyle.SINGLE, size: 4 }, right: { style: BorderStyle.SINGLE, size: 4 },
+      insideHorizontal: { style: BorderStyle.SINGLE, size: 2 }, insideVertical: { style: BorderStyle.SINGLE, size: 2 },
+    };
+
+    const regulars = roster.filter(r => r.expertRole === '正选');
+    const alternates = roster.filter(r => r.expertRole === '候补');
+
+    const doc = new Document({
+      styles: { default: { document: { run: { font: 'SimSun', size: 21 } } } },
+      sections: [{
+        children: [
+          new Paragraph({ alignment: AlignmentType.CENTER, heading: HeadingLevel.TITLE, children: [new TextRun({ text: '专家抽取情况说明', bold: true, size: 36 })] }),
+          new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '（证明材料 · 系统自动生成）', color: '666666', size: 18 })] }),
+          new Paragraph({ text: '' }),
+          new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: '一、项目基本信息', bold: true, size: 24 })] }),
+          ...([
+            ['项目名称', project.name],
+            ['项目编号', projectCode],
+            ['采购方式', project.procurementMethod || '—'],
+            ['开标时间', fmt(project.openTime)],
+            ['材料导出时间', fmt(new Date())],
+          ] as [string, string][]).map(([k, v]) =>
+            new Paragraph({ children: [new TextRun({ text: `${k}：`, bold: true, size: 21 }), new TextRun({ text: v, size: 21 })] }),
+          ),
+          new Paragraph({ text: '' }),
+
+          new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: '二、抽取过程', bold: true, size: 24 })] }),
+          ...(extractionEvents.length === 0
+            ? [new Paragraph({ children: [new TextRun({ text: '未找到抽取确认审计记录（存量项目或未走抽取向导确认步骤），以下名单以系统当前名册为准。', size: 21 })] })]
+            : extractionEvents.map((ev, i) => {
+                const d = (ev.details ?? {}) as any;
+                const mode = MODE_LABELS[d.extractMode] ?? (d.extractMode ? `其他方式（${d.extractMode}）` : '（快照未载明，以名单为准）');
+                const names = (d.experts ?? []).map((e: any) => e.name + (e.isLead ? '（组长）' : '')).join('、');
+                return new Paragraph({
+                  spacing: { after: 120 },
+                  children: [
+                    new TextRun({ text: `第 ${i + 1} 轮抽取（${i > 0 ? '补选' : '初次抽取'}）：`, bold: true, size: 21 }),
+                    new TextRun({ text: `于 ${fmt(ev.createdAt)} 由 ${ev.user?.displayName ?? '工作人员'} 确认，抽取方式为${mode}；本轮确定正选 ${d.expertCount ?? (d.experts?.length ?? 0)} 名${(d.poolUserIds?.length ?? 0) > 0 ? `，候选池规模 ${d.poolUserIds.length} 人` : ''}${names ? `，命中专家：${names}` : ''}。`, size: 21 }),
+                  ],
+                });
+              })),
+          new Paragraph({ children: [new TextRun({ text: '抽取全程在专家库管理系统中完成，候选池按回避规则（供应商关联、跨项目开窗等）过滤，抽取确认与审计日志同事务留痕，可复核。', size: 18, color: '666666' })] }),
+          new Paragraph({ text: '' }),
+
+          new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: `三、评审专家名单（正选 ${regulars.length} 名）`, bold: true, size: 24 })] }),
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            borders: tableBorders,
+            rows: [
+              headerRow(['序号', '姓名', '评审专业', '职称', '工作单位', '联系电话', '角色', '确认状态', '确认方式', '回执时间']),
+              ...regulars.map((r, i) => new TableRow({
+                children: [
+                  cell(String(i + 1)),
+                  cell(r.expertName),
+                  cell(r.major),
+                  cell(r.user?.expertProfile?.title ?? ''),
+                  cell(r.user?.expertProfile?.employer ?? ''),
+                  cell(openPiiForMask(r.user?.expertProfile?.phone) ?? ''),
+                  cell(r.isPurchaserRepresentative ? '采购人代表' : r.isLead ? '组长' : '正选'),
+                  cell(stCn(r.invitationStatus)),
+                  cell(actorCn((r.invitationActorType as string | null) ?? (r.rsvpRespondedAt ? 'EXPERT' : null))),
+                  cell(fmt(r.rsvpRespondedAt)),
+                ],
+              })),
+            ],
+          }),
+
+          ...(alternates.length > 0 ? [
+            new Paragraph({ text: '' }),
+            new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: `四、候补专家名单（${alternates.length} 名）`, bold: true, size: 24 })] }),
+            new Table({
+              width: { size: 100, type: WidthType.PERCENTAGE },
+              borders: tableBorders,
+              rows: [
+                headerRow(['序号', '姓名', '评审专业', '职称', '工作单位', '联系电话', '确认状态', '确认方式', '回执时间']),
+                ...alternates.map((r, i) => new TableRow({
+                  children: [
+                    cell(String(i + 1)),
+                    cell(r.expertName),
+                    cell(r.major),
+                    cell(r.user?.expertProfile?.title ?? ''),
+                    cell(r.user?.expertProfile?.employer ?? ''),
+                    cell(openPiiForMask(r.user?.expertProfile?.phone) ?? ''),
+                    cell(stCn(r.invitationStatus)),
+                    cell(actorCn((r.invitationActorType as string | null) ?? (r.rsvpRespondedAt ? 'EXPERT' : null))),
+                    cell(fmt(r.rsvpRespondedAt)),
+                  ],
+                })),
+              ],
+            }),
+          ] : []),
+
+          new Paragraph({ text: '' }),
+          new Paragraph({ children: [new TextRun({ text: '说明：本材料由智慧水发·蜀水云采系统根据专家抽取审计日志与邀请回执留痕自动生成；确认方式含专家本人回复、工作人员代回应（附理由留痕）与系统超时/递补三类；专家历次邀请流转轨迹可在系统专家详情页逐条查证。', size: 18, color: '666666' })] }),
+        ],
+      }],
+    });
+
+    const buffer = await Packer.toBuffer(doc);
+    const filename = `专家抽取情况_${project.name}_${new Date().toISOString().slice(0, 10)}.docx`;
+    return { buffer, filename };
   }
 
   /** 自动递补：从待确认候补中按综合评分（extendedRuleScore）择优转正，而非简单按创建时间。

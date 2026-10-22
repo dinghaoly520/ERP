@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Patch, Body, Param, Query, Request, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Body, Param, Query, Request, Res, BadRequestException, StreamableFile } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -218,6 +218,15 @@ export class ExpertAdminController {
   @ApiOperation({ summary: '查询项目专家邀请状态（正选+候补）' })
   getProjectInvitations(@Param('projectId') projectId: string) {
     return this.expertAdminService.getProjectInvitations(projectId);
+  }
+
+  @Get('projects/:projectId/extraction-export')
+  @ApiOperation({ summary: '导出专家抽取情况（Word：抽取方式细节 + 正选/候补专家详情表证明材料）' })
+  async extractionExport(@Param('projectId') projectId: string, @Res({ passthrough: true }) res: any) {
+    const { buffer, filename } = await this.expertAdminService.buildExtractionExport(projectId);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    return new StreamableFile(buffer);
   }
 
   @Post('invitations/:projectId/:userId/proxy-mark')

@@ -52,7 +52,7 @@ import {
 } from '@/lib/api/bid';
 import { ApiError } from '@water-erp/client';
 import { getRsvpList, type RsvpListItem, type RsvpListResult } from '@/lib/api/supplier';
-import { proxyMarkExpertInvitation } from '@/lib/api/expert';
+import { proxyMarkExpertInvitation, downloadExtractionExport } from '@/lib/api/expert';
 import { registerArchiveTransfer, downloadRegulatoryExport } from '@/lib/api/bid';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { generateFieldContent } from '@/lib/api/tender-sample';
@@ -200,6 +200,8 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
   } | null>(null);
   const [expertProxyReason, setExpertProxyReason] = useState('');
   const [expertProxySubmitting, setExpertProxySubmitting] = useState(false);
+  // 专家抽取情况导出（2026-10-22 Word 证明材料）
+  const [exportBusy, setExportBusy] = useState(false);
 
   const submitExpertProxy = async () => {
     if (!expertProxy || !workspace) return;
@@ -761,11 +763,34 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                 accent="var(--stage-expert)"
                 accentSoft="var(--stage-expert-soft)"
                 action={
-                  isOpened ? (
+                  <div className="flex items-center gap-2">
+                  {/* 导出专家抽取情况（2026-10-22）：Word 证明材料——抽取方式细节 + 正选/候补详情表 */}
+                  {workspace && (
+                    <button
+                      onClick={() => {
+                        void (async () => {
+                          try {
+                            setExportBusy(true);
+                            await downloadExtractionExport(workspace.project.id, workspace.project.name);
+                            showToast('专家抽取情况已导出（Word）');
+                          } catch (e: any) { showToast(e?.message || '导出失败', 'err'); }
+                          finally { setExportBusy(false); }
+                        })();
+                      }}
+                      disabled={exportBusy}
+                      title="生成 Word 证明材料：本次专家抽取方式细节 + 正选/候补专家详情表"
+                      className="neu-btn-xs gap-1 disabled:opacity-50"
+                    >
+                      {exportBusy ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />}
+                      导出专家抽取情况
+                    </button>
+                  )}
+                  {isOpened && (
                     <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-2.5 py-1 text-[10px] font-bold text-[var(--accent)]">
                       {isEvalStarted ? '评标已启动·锁定' : '已开标·签到前可递补'}
                     </span>
-                  ) : undefined
+                  )}
+                  </div>
                 }
               >
                 {workspace.experts.length === 0 ? (
