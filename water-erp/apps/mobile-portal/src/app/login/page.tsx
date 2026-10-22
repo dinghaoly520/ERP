@@ -52,12 +52,12 @@ export default function LoginPage() {
           </div>
           <div className="text-center">
             <h1 className="text-2xl font-bold tracking-[0.05em] text-[var(--foreground)]">蜀水云采 · 专属驾驶舱</h1>
-            <p className="mt-1.5 text-[14px] text-[var(--muted-foreground)]">数据库 · 台账 · 进展，随时掌握采购全局</p>
+            <p className="mt-1.5 text-[15px] text-[var(--muted-foreground)]">数据库 · 台账 · 进展，随时掌握采购全局</p>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="neu-card-static relative rounded-[20px] p-5" noValidate>
-          <label htmlFor="login-username" className="block text-[13px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+          <label htmlFor="login-username" className="block text-[14px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
             账号
           </label>
           <div className="relative mt-2">
@@ -72,7 +72,7 @@ export default function LoginPage() {
             />
           </div>
 
-          <label htmlFor="login-password" className="mt-4 block text-[13px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+          <label htmlFor="login-password" className="mt-4 block text-[14px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
             密码
           </label>
           <div className="relative mt-2">
@@ -97,12 +97,12 @@ export default function LoginPage() {
           </div>
 
           {error ? (
-            <p className="mt-3 rounded-[10px] border border-[color-mix(in_oklch,var(--danger)_22%,transparent)] bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-3 py-2 text-[14px] font-medium text-[var(--danger)]">
+            <p className="mt-3 rounded-[10px] border border-[color-mix(in_oklch,var(--danger)_22%,transparent)] bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-3 py-2 text-[15px] font-medium text-[var(--danger)]">
               {error}
             </p>
           ) : null}
 
-          <button type="submit" disabled={loading} className="neu-btn-primary mt-5 h-12 w-full rounded-[14px] text-[17px] font-semibold disabled:opacity-60">
+          <button type="submit" disabled={loading} className="neu-btn-primary mt-5 h-12 w-full rounded-[14px] text-[18px] font-semibold disabled:opacity-60">
             {loading ? "登录中..." : "登 录"}
           </button>
         </form>

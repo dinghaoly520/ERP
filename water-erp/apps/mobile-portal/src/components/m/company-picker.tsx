@@ -71,7 +71,7 @@ export function CompanyPicker({
       >
         <Building2 size={15} className="shrink-0 text-[var(--muted-foreground)]" />
         <span className={`min-w-0 flex-1 truncate ${value.length === 0 ? "text-[var(--muted-foreground)]" : "text-[var(--foreground)]"}`}>{triggerLabel}</span>
-        {value.length > 0 ? <span className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-1.5 py-0.5 text-[12px] font-bold text-[var(--accent)]">{value.length}</span> : null}
+        {value.length > 0 ? <span className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-1.5 py-0.5 text-[13px] font-bold text-[var(--accent)]">{value.length}</span> : null}
         <ChevronDown size={15} className={`shrink-0 text-[var(--muted-foreground)] transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
@@ -82,7 +82,7 @@ export function CompanyPicker({
           <span className="flex items-center gap-2">
             <Building2 size={16} className="text-[var(--accent)]" />
             公司筛选
-            <span className="text-[13px] font-normal text-[var(--muted-foreground)]">多选 · {options.length} 家</span>
+            <span className="text-[14px] font-normal text-[var(--muted-foreground)]">多选 · {options.length} 家</span>
           </span>
         }
       >
@@ -105,8 +105,8 @@ export function CompanyPicker({
             style={draft.length === 0 ? { background: "color-mix(in oklch, var(--accent) 8%, oklch(0.985 0.005 258))" } : undefined}
           >
             <span className="min-w-0 flex-1">
-              <span className={`block truncate text-[15px] ${draft.length === 0 ? "font-bold text-[var(--accent)]" : "font-semibold text-[var(--foreground)]"}`}>全部公司</span>
-              <span className="mt-0.5 block truncate text-[13px] text-[var(--muted-foreground)]">{options.length} 家公司汇总口径</span>
+              <span className={`block truncate text-[16px] ${draft.length === 0 ? "font-bold text-[var(--accent)]" : "font-semibold text-[var(--foreground)]"}`}>全部公司</span>
+              <span className="mt-0.5 block truncate text-[14px] text-[var(--muted-foreground)]">{options.length} 家公司汇总口径</span>
             </span>
             {draft.length === 0 ? <Check size={15} className="shrink-0 text-[var(--accent)]" /> : null}
           </button>
@@ -123,8 +123,8 @@ export function CompanyPicker({
                 style={active ? { background: "color-mix(in oklch, var(--accent) 8%, oklch(0.985 0.005 258))" } : undefined}
               >
                 <span className="min-w-0 flex-1">
-                  <span className={`block truncate text-[15px] ${active ? "font-bold text-[var(--accent)]" : "font-semibold text-[var(--foreground)]"}`}>{c.shortName || c.name}</span>
-                  {c.shortName && c.name !== c.shortName ? <span className="mt-0.5 block truncate text-[13px] text-[var(--muted-foreground)]">{c.name}</span> : null}
+                  <span className={`block truncate text-[16px] ${active ? "font-bold text-[var(--accent)]" : "font-semibold text-[var(--foreground)]"}`}>{c.shortName || c.name}</span>
+                  {c.shortName && c.name !== c.shortName ? <span className="mt-0.5 block truncate text-[14px] text-[var(--muted-foreground)]">{c.name}</span> : null}
                 </span>
                 {active ? <Check size={15} className="shrink-0 text-[var(--accent)]" /> : null}
               </button>
@@ -132,14 +132,14 @@ export function CompanyPicker({
           })}
 
           {filtered.length === 0 ? (
-            <p className="py-5 text-center text-[14px] text-[var(--muted-foreground)]">无匹配「{keyword.trim()}」的公司</p>
+            <p className="py-5 text-center text-[15px] text-[var(--muted-foreground)]">无匹配「{keyword.trim()}」的公司</p>
           ) : null}
         </div>
 
         <button
           type="button"
           onClick={confirm}
-          className="neu-btn-primary mt-3 h-11 w-full rounded-[13px] text-[16px]"
+          className="neu-btn-primary mt-3 h-11 w-full rounded-[13px] text-[17px]"
         >
           确定{draft.length > 0 ? `（已选 ${draft.length} 家）` : "（全部公司）"}
         </button>

@@ -5,11 +5,11 @@ export function ErrorBanner({ message, onRetry }: { message: string; onRetry: ()
   return (
     <div className="mb-3 flex items-center gap-2.5 rounded-[14px] bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-3.5 py-2.5">
       <AlertCircle size={15} className="shrink-0 text-[var(--danger)]" />
-      <span className="min-w-0 flex-1 text-[14px] font-medium text-[var(--danger)]">{message}</span>
+      <span className="min-w-0 flex-1 text-[15px] font-medium text-[var(--danger)]">{message}</span>
       <button
         type="button"
         onClick={onRetry}
-        className="neu-btn-soft is-danger h-8 shrink-0 rounded-[9px] px-2.5 text-[13px] active:scale-95"
+        className="neu-btn-soft is-danger h-8 shrink-0 rounded-[9px] px-2.5 text-[14px] active:scale-95"
       >
         <RotateCw size={11} /> 重试
       </button>

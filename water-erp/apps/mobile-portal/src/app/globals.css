@@ -277,7 +277,7 @@ a {
   gap: 8px;
   height: 44px;
   padding: 0 28px;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--neu-brand-deep);
   background: color-mix(in oklch, var(--neu-brand) 10%, oklch(1 0 0));
@@ -322,7 +322,7 @@ a {
   justify-content: center; /* 方形图标钮（p-0 + w/h）内容居中——同 neu-btn-primary */
   gap: 6px;
   padding: 8px 18px;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--muted-foreground);
   background: var(--neu-raised-bg);
@@ -370,7 +370,7 @@ a {
   align-items: center;
   gap: 8px;
   font-family: var(--font-display);
-  font-size: 1.15rem;
+  font-size: 1.25rem;
   font-weight: 600;
   letter-spacing: -0.03em;
   color: var(--foreground);
@@ -422,7 +422,7 @@ body { overscroll-behavior-y: none; }
   align-items: center;
   justify-content: center;
   gap: 3px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--muted-foreground);
   transition: color 0.2s var(--ease-out-quart);
@@ -440,7 +440,7 @@ body { overscroll-behavior-y: none; }
   border-radius: 9999px;
   border: none;
   background: oklch(0.985 0.005 258);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--muted-foreground);
   white-space: nowrap;
@@ -497,8 +497,8 @@ button.m-tile:active,
   padding: 0 0.875rem;
   color: var(--foreground);
   /* iOS Safari：<16px 字号的输入聚焦时会触发页面自动缩放，必须 ≥16px
-     （2026-10-22 全局字号 +1：16→17px，仍满足下限） */
-  font-size: 17px;
+     （2026-10-22 全局字号 +2：16→18px，仍满足下限） */
+  font-size: 18px;
   outline: none;
   box-shadow:
     inset 2px 2px 5px oklch(0.55 0.03 258 / 0.14),

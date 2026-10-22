@@ -43,7 +43,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       <div className="flow-page flex min-h-dvh items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-[color-mix(in_oklch,var(--accent)_30%,transparent)] border-t-[var(--accent)]" />
-          <span className="text-[16px] text-[var(--muted-foreground)]">验证登录状态...</span>
+          <span className="text-[17px] text-[var(--muted-foreground)]">验证登录状态...</span>
         </div>
       </div>
     );
@@ -61,7 +61,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(238,244,255,0.86))] shadow-[0_6px_16px_rgba(69,99,158,0.15)]">
           <Image src="/procurement-brand-logo.png" alt="蜀水云采" width={24} height={24} className="rounded-[6px] object-cover" priority />
         </div>
-        <div className="min-w-0 flex-1 truncate text-[15px] font-bold tracking-[0.02em] text-[var(--foreground)]">蜀水云采 · 专属驾驶舱</div>
+        <div className="min-w-0 flex-1 truncate text-[16px] font-bold tracking-[0.02em] text-[var(--foreground)]">蜀水云采 · 专属驾驶舱</div>
         <button
           type="button"
           onClick={handleLogout}
@@ -86,10 +86,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-baseline gap-1.5">
-              <span className="shrink-0 text-[14px] font-medium text-[var(--gold)]">尊敬的</span>
-              <span className="min-w-0 truncate text-[17px] font-bold tracking-[-0.01em] text-[var(--foreground)]">{user?.displayName ?? ""}</span>
+              <span className="shrink-0 text-[15px] font-medium text-[var(--gold)]">尊敬的</span>
+              <span className="min-w-0 truncate text-[18px] font-bold tracking-[-0.01em] text-[var(--foreground)]">{user?.displayName ?? ""}</span>
             </div>
-            <div className="mt-0.5 truncate text-[13px] text-[var(--muted-foreground)]">欢迎回到专属驾驶舱 · 数据库 / 台账 / 进展 全局在握</div>
+            <div className="mt-0.5 truncate text-[14px] text-[var(--muted-foreground)]">欢迎回到专属驾驶舱 · 数据库 / 台账 / 进展 全局在握</div>
           </div>
         </div>
         <AuthProvider user={user}>{children}</AuthProvider>
