@@ -21,7 +21,9 @@ export function ContactsTab({ contacts, onAdd, onEdit, onDelete }: {
   return (
     <>
       <div className="quals-actions">
-        <SpButton variant="primary" icon={Plus} onClick={onAdd}>添加联系人</SpButton>
+        {/* 白瓷片变体 + 38px（2026-10-22 用户口径）：不用深色实心主按钮，与「提出异议」等
+            门户操作钮同款（neu-btn-primary.is-water：纯白底 + 顶缘内高光 + 品牌蓝粗体） */}
+        <SpButton variant="primary" water icon={Plus} className="!h-[38px] !px-5" onClick={onAdd}>添加联系人</SpButton>
       </div>
       {contacts.length > 0 ? (
         <div className="neu-table-card ct-table-wrap">
