@@ -30,8 +30,7 @@ export function ContactsTab({ contacts, onAdd, onEdit, onDelete }: {
           <table className="neu-table">
             <thead>
               <tr>
-                {/* 全列居中在 profile.css .ct-table-wrap 作用域内覆盖（Tailwind 工具类在
-                    @layer utilities，级联层永远盖不过 globals 未分层的 .neu-table th 左对齐） */}
+                {/* 全列居中：globals .neu-table th 默认已改居中（2026-10-22 第二次错位后基类翻转） */}
                 <th style={{ width: 160 }}>姓名</th>
                 <th style={{ width: 80 }}>性别</th>
                 <th style={{ width: 160 }}>手机号</th>
