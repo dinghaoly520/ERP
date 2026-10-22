@@ -1145,7 +1145,7 @@ export class ExpertAdminService {
                 spacing: { after: 60 },
                 children: [
                   new TextRun({ text: `初次抽取（${fmt(firstCfg.at)}${firstCfg.username ? `，${firstCfg.username}` : ''}）采用配置：`, bold: true, size: 21 }),
-                  new TextRun({ text: `抽取方式 ${MODE_LABELS[firstCfg.body?.extractMode] ?? firstCfg.body?.extractMode ?? '—'}；拟抽正选 ${firstCfg.body?.totalNeeded ?? '—'} 名、候补 ${firstCfg.body?.alternatives ?? 0} 名${firstCfg.body?.employer ? `；整体限定公司：${firstCfg.body.employer}` : ''}${excluded.length > 0 ? `；预排除专家：${excluded.join('、')}` : ''}。`, size: 21 }),
+                  new TextRun({ text: `抽取方式 ${MODE_LABELS[firstCfg.body?.extractMode] ?? firstCfg.body?.extractMode ?? '—'}；拟抽正选 ${firstCfg.body?.totalNeeded ?? '—'} 名、拟抽候补（初次流程·步骤6）${firstCfg.body?.alternatives ?? 0} 名${firstCfg.body?.employer ? `；整体限定公司：${firstCfg.body.employer}` : ''}${excluded.length > 0 ? `；预排除专家：${excluded.join('、')}` : ''}。`, size: 21 }),
                 ],
               }),
             ];
@@ -1214,22 +1214,36 @@ export class ExpertAdminService {
                 const cfg = roundCfg(i);
                 const blocks: Array<Paragraph | Table> = [];
 
+                // 轮次分类（2026-10-22 用户口径）：初次抽取（正选）→ 步骤6 候补抽取
+                // （drawn 空且选定候补非空）→ 补选轮（补正选空缺，不抽候补——
+                // 预览 body 的 alternatives 为残留状态值，补选轮不展示）
+                const isAltRound = i > 0 && drawn.length === 0 && alts.length > 0;
+
                 if (i === 0) {
-                  // 初次抽取：叙述式（配置已在第二节展示）
+                  // 初次抽取（正选）：叙述式（配置已在第二节展示）
                   blocks.push(new Paragraph({
                     spacing: { after: 120 },
                     children: [
-                      new TextRun({ text: `第 1 轮（初次抽取）：`, bold: true, size: 21 }),
-                      new TextRun({ text: `于 ${fmt(ev.createdAt)} 由 ${ev.user?.displayName ?? '工作人员'} 确认，抽取方式为${mode}；确定正选 ${drawnNames.length} 名${drawnNames.length > 0 ? `（${drawnNames.join('、')}）` : ''}${altNames.length > 0 ? `，同时选定候补 ${altNames.length} 名（${altNames.join('、')}）` : ''}。`, size: 21 }),
+                      new TextRun({ text: `第 1 轮（初次抽取·正选）：`, bold: true, size: 21 }),
+                      new TextRun({ text: `于 ${fmt(ev.createdAt)} 由 ${ev.user?.displayName ?? '工作人员'} 确认，抽取方式为${mode}；确定正选 ${drawnNames.length} 名${drawnNames.length > 0 ? `（${drawnNames.join('、')}）` : ''}。`, size: 21 }),
+                    ],
+                  }));
+                } else if (isAltRound) {
+                  // 候补抽取（初次流程·步骤6）：候补名单在此环节抽取
+                  blocks.push(new Paragraph({
+                    spacing: { before: 120, after: 120 },
+                    children: [
+                      new TextRun({ text: `候补抽取（初次流程·第 ${i + 1} 轮记录）：`, bold: true, size: 21 }),
+                      new TextRun({ text: `于 ${fmt(ev.createdAt)} 由 ${ev.user?.displayName ?? '工作人员'} 确认${cfg && cfg.body?.alternatives != null ? `，拟抽候补 ${cfg.body.alternatives} 名` : ''}；实际选定候补 ${altNames.length} 名（${altNames.join('、')}），候补当前状态见「六、候补专家名单」。`, size: 21 }),
                     ],
                   }));
                 } else {
-                  // 补选轮：该轮配置 + 本轮人员名单与当前确认状态同组呈现
+                  // 补选轮：补正选空缺——本轮配置（仅正选数与配额，不含候补）+ 本轮人员与当前确认状态
                   blocks.push(new Paragraph({
                     spacing: { before: 120, after: 60 },
                     children: [
-                      new TextRun({ text: `第 ${i + 1} 轮（补选）：`, bold: true, size: 21 }),
-                      new TextRun({ text: `于 ${fmt(ev.createdAt)} 由 ${ev.user?.displayName ?? '工作人员'} 确认，抽取方式为${mode}${cfg ? `；本轮配置：拟抽正选 ${cfg.body?.totalNeeded ?? '—'} 名、候补 ${cfg.body?.alternatives ?? 0} 名${((cfg.body?.manualQuotas ?? []) as any[]).length > 0 ? `（${((cfg.body?.manualQuotas ?? []) as any[]).map((row: any) => `${(row.specialties?.length ? row.specialties.join('、') : row.specialty) || '不限专业'}×${row.count ?? '—'}`).join('、')}）` : ''}` : '（本轮配置未单独留痕，沿用初次配置口径）'}。`, size: 21 }),
+                      new TextRun({ text: `第 ${i + 1} 轮（补选·正选）：`, bold: true, size: 21 }),
+                      new TextRun({ text: `于 ${fmt(ev.createdAt)} 由 ${ev.user?.displayName ?? '工作人员'} 确认，抽取方式为${mode}${cfg ? `；本轮配置：拟抽正选 ${cfg.body?.totalNeeded ?? '—'} 名${((cfg.body?.manualQuotas ?? []) as any[]).length > 0 ? `（${((cfg.body?.manualQuotas ?? []) as any[]).map((row: any) => `${(row.specialties?.length ? row.specialties.join('、') : row.specialty) || '不限专业'}×${row.count ?? '—'}`).join('、')}）` : ''}` : '（本轮配置未单独留痕，沿用初次配置口径）'}。`, size: 21 }),
                     ],
                   }));
                   const roundPeople = [
