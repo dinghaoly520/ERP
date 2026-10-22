@@ -12,6 +12,7 @@ import { InvitationLetterService } from './invitation-letter.service';
 import { ShareShortlistDto } from './dto/share-shortlist.dto';
 import { DashboardAnalysisDto } from './dto/dashboard-analysis.dto';
 import { MobileGreetingService } from './mobile-greeting.service';
+import { MobileBriefService } from './mobile-brief.service';
 import { ProcurementAnalysisDto } from './dto/procurement-analysis.dto';
 import { TenderFieldGenerateDto } from './dto/tender-field-generate.dto';
 import { ReferenceBudgetDto } from './dto/reference-budget.dto';
@@ -30,6 +31,7 @@ export class AiController {
     private qualificationMatch: SupplierQualificationMatchService,
     private invitationLetter: InvitationLetterService,
     private mobileGreeting: MobileGreetingService,
+    private mobileBrief: MobileBriefService,
   ) {}
 
   @Public()
@@ -44,6 +46,13 @@ export class AiController {
   @Roles('admin', 'leader', 'staff')
   getMobileGreeting(@CurrentUser() user: AuthenticatedUser) {
     return this.mobileGreeting.getGreeting(user);
+  }
+
+  @Get('mobile-brief')
+  @ApiOperation({ summary: '移动驾驶舱（:3011）今日要报——LLM 现场生成（不缓存）' })
+  @Roles('admin', 'leader', 'staff')
+  getMobileBrief(@CurrentUser() user: AuthenticatedUser, @Query('companyId') companyId?: string) {
+    return this.mobileBrief.getBrief(user, companyId);
   }
 
   @Get('projects/:projectId/analyze/:supplierId')
