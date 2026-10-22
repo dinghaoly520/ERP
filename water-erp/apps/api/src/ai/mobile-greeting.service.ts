@@ -55,7 +55,7 @@ export class MobileGreetingService {
         [
           '你是「蜀水云采」智慧采购平台的欢迎语撰写器。',
           '只输出一句简短的中文欢迎语正文：14~20 个汉字，语气温暖专业、贴合政企采购办公场景。',
-          '禁止 emoji、禁止任何引号、禁止称呼或提及用户姓名、禁止以「欢迎回到」开头、不要输出这句欢迎语以外的任何内容。',
+          '禁止 emoji、禁止任何引号、禁止称呼或提及用户姓名、禁止以「欢迎回到」开头、禁止出现「审批」一词（如需表达用「查阅」）、不要输出这句欢迎语以外的任何内容。',
         ].join(''),
         `当前时段：${period}，星期${weekday}。用户是采购管理平台的${ROLE_LABEL[user.role] ?? '成员'}。请生成一句与既往不重复的欢迎语。`,
         0.9,
@@ -74,11 +74,13 @@ export class MobileGreetingService {
     return { text: FALLBACK[period], source: 'fallback' };
   }
 
-  /** 出口净化：剥首尾引号/空白、折叠换行，超长截断（前端另有 CSS truncate 兜底） */
+  /** 出口净化：剥首尾引号/空白、折叠换行，「审批」→「查阅」（2026-10-22 用户裁定，
+   *  prompt 已禁但模型偶发不守约束，此处确定性兜底），超长截断（前端另有 CSS truncate 兜底） */
   private sanitize(raw: string): string {
     const t = raw
       .replace(/^[\s"'「」『』“”‘’]+|[\s"'「」『』“”‘’]+$/g, '')
       .replace(/\s+/g, ' ')
+      .replace(/审批/g, '查阅')
       .trim();
     return t.length > 40 ? t.slice(0, 40) : t;
   }
