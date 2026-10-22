@@ -28,6 +28,8 @@ interface Assignment {
 }
 interface ExpertDetail {
   id: string; username: string; displayName: string; email: string | null;
+  /** 专家编号（2026-10-22）：{归属公司编码}-{同公司入库序号}，后端计算 */
+  expertNo?: string;
   department: { id: string; name: string } | null; createdAt: string; isActive: boolean;
   expertProfile?: { specialty?: string; title?: string; employer?: string; phone?: string; idNumber?: string; availability?: string; notes?: string; education?: string; ethnicity?: string; licenseNo?: string; regionCode?: string; expertLevel?: string; verifiedAt?: string | null };
   assignments: Assignment[];
@@ -343,13 +345,11 @@ export default function ExpertDetailPage() {
   );
   if (!expert) return <div className="py-24 text-center text-[13px] text-[var(--muted-foreground)]">专家不存在</div>;
 
-  // 编号优先取名单带来的（藏在 notes 里 "编号: A001431, ..."）；无编号者按「入库年月+ID 尾 6 位」
-  // 派生稳定唯一展示号（2026-10-22 用户口径：详情右侧展示编号+入库时间，全量专家都有编号）
-  const parsedNo = expert.expertProfile?.notes?.match(/编号\s*[:：]\s*([^\s,，、]+)/)?.[1];
+  // 专家编号（2026-10-22 用户口径·重编）：{归属公司编码}-{同公司入库序号}（如设计院 SWHI-0001），
+  // 由后端按公司码+稳定排名计算返回；无归属公司回退 ZJ-ID 尾 6。入库时间取审核留痕，无则建档时间。
   const entryAt = expert.expertProfile?.verifiedAt ?? expert.createdAt;
   const entryDate = new Date(entryAt);
-  const derivedNo = `ZJ-${String(entryDate.getFullYear()).slice(2)}${String(entryDate.getMonth() + 1).padStart(2, '0')}-${expert.id.slice(-6).toUpperCase()}`;
-  const expertNo = parsedNo ?? derivedNo;
+  const expertNo = expert.expertNo ?? `ZJ-${expert.id.slice(-6).toUpperCase()}`;
 
   return (
     <div className="flex flex-col gap-5">
@@ -374,7 +374,7 @@ export default function ExpertDetailPage() {
                 {/* 编号随姓名展示（2026-10-22 用户口径：回姓名旁+浅色瓷片） */}
                 <span
                   className="ml-2 inline-flex items-center rounded-md bg-[color-mix(in_oklch,var(--muted-foreground)_9%,transparent)] px-2 py-0.5 align-middle font-mono text-[12px] font-medium tracking-wide text-[color:var(--muted-foreground)]"
-                  title={parsedNo ? `专家编号：${parsedNo}` : '系统派生编号（名单未带编号，按入库年月+ID 生成，稳定唯一）'}
+                  title="专家编号：归属公司编码-同公司入库序号（如设计院 SWHI-0001）"
                 >
                   {expertNo}
                 </span>

@@ -486,8 +486,29 @@ export class ExpertAdminService {
 
     // R6 终审 P2-5：计数/分布按全量算，但响应明细限最近 20 条（几百条评价时详情响应线性膨胀）
     // 管理端默认脱敏（等保+密评）：明文走 reveal 端点（入 SensitiveAccessLog 审计）
+    // 专家编号（2026-10-22 用户口径：标注归属公司编码）：{公司码}-{同公司入库序号 4 位}，
+    // 如设计院 SWHI-0001。序号按 (createdAt, id) 稳定排名（同库重算结果恒定）；无归属公司回退 ZJ。
+    let expertNo = `ZJ-${String(user.id.slice(-6)).toUpperCase()}`;
+    if (user.companyId) {
+      const [company, rank] = await Promise.all([
+        this.prisma.company.findUnique({ where: { id: user.companyId }, select: { code: true } }),
+        this.prisma.user.count({
+          where: {
+            role: 'bid_expert',
+            companyId: user.companyId,
+            OR: [
+              { createdAt: { lt: user.createdAt } },
+              { createdAt: user.createdAt, id: { lt: user.id } },
+            ],
+          },
+        }),
+      ]);
+      if (company?.code) expertNo = `${company.code.toUpperCase()}-${String(rank + 1).padStart(4, '0')}`;
+    }
+
     return {
       ...user,
+      expertNo,
       email: maskEmail(openPiiForMask(user.email)),
       expertProfile: user.expertProfile ? {
         ...user.expertProfile,
