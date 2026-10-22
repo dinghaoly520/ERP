@@ -29,7 +29,7 @@ interface Assignment {
 interface ExpertDetail {
   id: string; username: string; displayName: string; email: string | null;
   department: { id: string; name: string } | null; createdAt: string; isActive: boolean;
-  expertProfile?: { specialty?: string; title?: string; employer?: string; phone?: string; idNumber?: string; availability?: string; notes?: string; education?: string; ethnicity?: string; licenseNo?: string; regionCode?: string; expertLevel?: string };
+  expertProfile?: { specialty?: string; title?: string; employer?: string; phone?: string; idNumber?: string; availability?: string; notes?: string; education?: string; ethnicity?: string; licenseNo?: string; regionCode?: string; expertLevel?: string; verifiedAt?: string | null };
   assignments: Assignment[];
   statistics: { totalProjects: number; completedProjects: number; signedInProjects: number; evalAvg: number; evalCount: number };
   /** 邀请信用摘要（2026-10-21）：毁约记录 + 连拒段预警口径 */
