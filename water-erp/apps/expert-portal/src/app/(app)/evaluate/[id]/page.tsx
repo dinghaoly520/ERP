@@ -1281,8 +1281,15 @@ export default function ExpertEvaluatePage() {
           </div>
           <h2 className="text-lg font-bold text-[var(--foreground)]">开标进行中</h2>
           <p className="mx-auto mt-2 max-w-xs text-xs leading-relaxed text-[var(--muted-foreground)]">
-            等待主持人启动评标——启动后本页自动进入身份核验与评标室（届时需输入评标室口令），无需手动刷新。
+            评标尚未开始，请稍候。
           </p>
+          <p className="mx-auto mt-1.5 max-w-xs text-xs leading-relaxed text-[var(--muted-foreground)]">
+            主持人启动评标后，本页将自动进入身份核验，无需刷新页面。
+          </p>
+          <div className="mx-auto mt-3 flex max-w-xs items-center justify-center gap-1.5 text-[11px] font-semibold text-[var(--accent-strong)]">
+            <Key size={12} strokeWidth={1.5} />
+            <span>评标室口令请向现场主持人领取</span>
+          </div>
         </div>
       </div>
     );
