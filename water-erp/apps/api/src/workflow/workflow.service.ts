@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { maskChangeValue } from '../supplier/change-record-pii';
 
 /**
  * C1 统一流程中心（CTS-EBS01 收窄版路线图）：五源审批的**只读聚合**。
@@ -126,11 +127,12 @@ export class WorkflowService {
     }
 
     const [supChanges, catalogApps] = await Promise.all([
+      // 变更值 PII 拆封后掩码（2026-10-22：此前裸出 SM4 密文）
       this.prisma.supplierChangeRecord.findMany({
         where: { status: 'PENDING' },
         include: { supplier: { select: { name: true } } },
         orderBy: { createdAt: 'desc' }, take: 50,
-      }),
+      }).then(rows => rows.map(r => ({ ...r, oldValue: maskChangeValue(r.fieldName, r.oldValue), newValue: maskChangeValue(r.fieldName, r.newValue) }))),
       this.prisma.supplierCatalogApplication.findMany({
         where: { status: 'PENDING' },
         include: { supplier: { select: { name: true } } },
@@ -213,7 +215,7 @@ export class WorkflowService {
         where: { status: { not: 'PENDING' } },
         include: { supplier: { select: { name: true } } },
         orderBy: { reviewedAt: 'desc' }, take: limit,
-      }),
+      }).then(rows => rows.map(r => ({ ...r, oldValue: maskChangeValue(r.fieldName, r.oldValue), newValue: maskChangeValue(r.fieldName, r.newValue) }))),
       this.prisma.supplierCatalogApplication.findMany({
         where: { status: { not: 'PENDING' } },
         include: { supplier: { select: { name: true } } },

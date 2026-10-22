@@ -2682,11 +2682,18 @@ export class SupplierService {
 
   /** 审批中心：全部待审的供应商资料变更（:3004 供应商门户提交，跨供应商） */
   async listPendingChanges() {
-    return this.prisma.supplierChangeRecord.findMany({
+    const rows = await this.prisma.supplierChangeRecord.findMany({
       where: { status: 'PENDING' },
       orderBy: { createdAt: 'asc' },
       include: { supplier: { select: { id: true, name: true, supplierNo: true } } },
     });
+    // 审批场景明文出口（PII 口径 2026-10 密评裁定）：待审列表原值/新值拆封展示——
+    // 此前裸出 SM4 密文（2026-10-22 实录「审批中出现密文」），审批人无法核对
+    return rows.map(r => ({
+      ...r,
+      oldValue: openChangeValue(r.fieldName, r.oldValue),
+      newValue: openChangeValue(r.fieldName, r.newValue),
+    }));
   }
 
   async createChangeRequest(supplierId: string, userId: string, dto: CreateChangeRequestDto) {
