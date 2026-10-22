@@ -22,6 +22,7 @@ import {
   Medal,
   MessageSquareWarning,
   Phone,
+  Plus,
   TriangleAlert,
   Trophy,
 } from "lucide-react";
@@ -820,7 +821,7 @@ export default function DashboardPage() {
           <section className="cv-section">
             <div className="cv-sec-head">
               <h3 className="cv-sec-title">资质材料</h3>
-              <SpButton variant="xs" onClick={addQualification}>+ 添加资质</SpButton>
+              <SpButton variant="xs" icon={Plus} onClick={addQualification}>添加资质</SpButton>
             </div>
             {convertForm.qualifications.map((q, i) => (
               <div key={`ql${i}`} className="cv-qual-row">

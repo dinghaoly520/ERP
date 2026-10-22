@@ -227,10 +227,10 @@ export default function CatalogListPage() {
                     </button>
                   )}
                 </div>
-                <SpButton variant="primary" onClick={onSearch}>搜索</SpButton>
+                <SpButton variant="primary" water className="!h-[38px] !px-4" onClick={onSearch}>搜索</SpButton>
                 <SpButton onClick={resetFilters}>重置</SpButton>
                 <div className="cat-spacer" />
-                <SpButton variant="primary" onClick={openNewItem}>新增品类申请</SpButton>
+                <SpButton variant="primary" water className="!h-[38px] !px-5" onClick={openNewItem}>新增品类申请</SpButton>
               </div>
 
               <div className="cat-filter-bar">

@@ -1153,7 +1153,7 @@ export default function ProfilePage() {
                   {qualsLoading ? <LoadingBlock /> : (
                     <>
                       <div className="mb-3">
-                        <SpButton variant="primary" icon={Plus} onClick={() => setQualDialogOpen(true)}>添加资质</SpButton>
+                        <SpButton variant="primary" water icon={Plus} className="!h-[38px] !px-5" onClick={() => setQualDialogOpen(true)}>添加资质</SpButton>
                       </div>
                       {qualifications.length > 0 ? (
                         <div className="qual-grid-sm">
@@ -1177,7 +1177,7 @@ export default function ProfilePage() {
                   {contactsLoading ? <LoadingBlock /> : (
                     <>
                       <div className="mb-3">
-                        <SpButton variant="primary" icon={Plus} onClick={() => setCtPanel({ open: true, editing: null })}>添加联系人</SpButton>
+                        <SpButton variant="primary" water icon={Plus} className="!h-[38px] !px-5" onClick={() => setCtPanel({ open: true, editing: null })}>添加联系人</SpButton>
                       </div>
                       {contacts.length > 0 ? (
                         <div className="neu-table-card">
