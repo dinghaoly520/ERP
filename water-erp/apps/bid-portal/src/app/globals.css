@@ -389,6 +389,17 @@ select.neu-select {
   padding: 14px 16px; color: var(--foreground);
   border-top: 1px solid oklch(0.55 0.03 258 / 0.06); vertical-align: middle; text-align: center;
 }
+
+/* ── 对齐出口（2026-10-22）：显式对齐工具类的落地闸 ──
+   Tailwind v4 工具类生成于 @layer utilities，按级联层序永远盖不过本文件未分层的
+   th/td 默认对齐——th/td 上写了 text-left/right/center 会静默失效（联系人表头
+   错位实录）。此组未分层规则以更高优先级（0,2,1 > 基类 0,1,1）把「元素 className
+   里显式声明了对齐」翻译回真实样式；[class*=] 同时命中 md: 等变体前缀。
+   未显式声明的 th/td 维持基类默认，既有表格不受影响。 */
+.neu-table th[class*="text-left"],   .neu-table td[class*="text-left"]   { text-align: left; }
+.neu-table th[class*="text-right"],  .neu-table td[class*="text-right"]  { text-align: right; }
+.neu-table th[class*="text-center"], .neu-table td[class*="text-center"] { text-align: center; }
+
 /* 密集数据表修饰符 —— 左对齐（项目编号/名称等富文本列）+ padding 减半 + 12px 字号 */
 .neu-table.is-dense { font-size: 12px; }
 .neu-table.is-dense th,
