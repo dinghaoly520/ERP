@@ -30,15 +30,15 @@ export function ContactsTab({ contacts, onAdd, onEdit, onDelete }: {
           <table className="neu-table">
             <thead>
               <tr>
-                {/* th 补 text-center：neu-table 默认 th 左对齐 / td 居中——不补则表头与内容错位
-                    （2026-10-22 用户实录）；全列居中口径 */}
-                <th className="text-center" style={{ width: 160 }}>姓名</th>
-                <th className="text-center" style={{ width: 80 }}>性别</th>
-                <th className="text-center" style={{ width: 160 }}>手机号</th>
-                <th className="text-center">邮箱</th>
-                <th className="text-center" style={{ width: 120 }}>职位</th>
-                <th className="text-center" style={{ width: 120 }}>主要联系人</th>
-                <th className="text-center" style={{ width: 160 }}>操作</th>
+                {/* 全列居中在 profile.css .ct-table-wrap 作用域内覆盖（Tailwind 工具类在
+                    @layer utilities，级联层永远盖不过 globals 未分层的 .neu-table th 左对齐） */}
+                <th style={{ width: 160 }}>姓名</th>
+                <th style={{ width: 80 }}>性别</th>
+                <th style={{ width: 160 }}>手机号</th>
+                <th>邮箱</th>
+                <th style={{ width: 120 }}>职位</th>
+                <th style={{ width: 120 }}>主要联系人</th>
+                <th style={{ width: 160 }}>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -50,16 +50,16 @@ export function ContactsTab({ contacts, onAdd, onEdit, onDelete }: {
                       <span className="contact-name">{row.name}</span>
                     </div>
                   </td>
-                  <td className="text-center">{row.gender || "—"}</td>
-                  <td className="text-center">{row.phone}</td>
-                  <td className="text-center">{row.email || "—"}</td>
-                  <td className="text-center">{row.position || "—"}</td>
-                  <td className="text-center">
+                  <td>{row.gender || "—"}</td>
+                  <td>{row.phone}</td>
+                  <td>{row.email || "—"}</td>
+                  <td>{row.position || "—"}</td>
+                  <td>
                     <span className={cn("ct-tag", row.isPrimary ? "ct-tag--primary" : "ct-tag--info")}>
                       {row.isPrimary ? "主要" : "普通"}
                     </span>
                   </td>
-                  <td className="text-center">
+                  <td>
                     <div className="flex items-center justify-center gap-1.5">
                       <button type="button" className="neu-btn-xs" onClick={() => onEdit(row)}>编辑</button>
                       <button type="button" className="neu-btn-xs is-danger" onClick={() => onDelete(row.id)}>删除</button>

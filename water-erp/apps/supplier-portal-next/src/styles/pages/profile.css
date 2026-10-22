@@ -79,6 +79,11 @@
 
 /* ═══ Contacts table ═══ */
 .ct-table-wrap { margin-top: 0; }
+/* 全列居中（2026-10-22 用户实录表头错位）：globals 的 .neu-table th 左对齐是未分层规则，
+   Tailwind 工具类（@layer utilities）按级联层永远盖不过——必须 CSS 侧以更高优先级覆盖；
+   td 基类本就居中，此处一并对齐声明 */
+.ct-table-wrap .neu-table th,
+.ct-table-wrap .neu-table td { text-align: center; }
 .contact-name-cell { display: flex; align-items: center; gap: 10px; }
 .contact-avatar { background: var(--brand); font-size: 13px; }
 .contact-name { font-weight: 700; font-size: 14px; color: var(--foreground); }
