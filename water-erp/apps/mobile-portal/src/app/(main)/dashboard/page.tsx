@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   BarChart3,
@@ -16,7 +17,7 @@ import {
 } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchDashboardData, type DashboardData } from "@/lib/api/dashboard";
-import { fetchDashboardAnalysis, type DashboardAnalysisResult } from "@/lib/api/ai";
+import { fetchDashboardAnalysis, fetchMobileBrief, type DashboardAnalysisResult, type MobileBrief } from "@/lib/api/ai";
 import { useAuth } from "@/components/m/auth-context";
 import { CompanyPicker } from "@/components/m/company-picker";
 import { BottomSheet } from "@/components/m/bottom-sheet";
@@ -98,6 +99,16 @@ function parseBudgetLabel(bs: string): number {
   return 0;
 }
 
+/** 环比箭头语义配色：成交/完成/节资↑=good，异常↑=bad，预算=neutral */
+function deltaOf(cur: number, prev: number | undefined, goodWhenUp: boolean | null): { pct: number; tone: "good" | "bad" | "neutral" } | undefined {
+  if (prev == null || prev === 0) return undefined;
+  const pct = Math.round(((cur - prev) / prev) * 100);
+  if (pct === 0) return { pct: 0, tone: "neutral" };
+  const up = pct > 0;
+  const tone = goodWhenUp == null ? "neutral" : (up === goodWhenUp ? "good" : "bad");
+  return { pct: Math.max(Math.min(pct, 999), -99), tone };
+}
+
 function computeSegments(data: DashboardData | null): ScaleSegment[] {
   const segs: ScaleSegment[] = SCALE_SEGS.map((s) => ({ ...s, count: 0, amount: 0, amountLabel: "", share: 0 }));
   (data?.trendSeries ?? []).forEach((ti) =>
@@ -165,6 +176,7 @@ function ProjectRow({
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const role = user?.role ?? null;
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [companyIds, setCompanyIds] = useState<string[]>(
@@ -201,6 +213,17 @@ export default function DashboardPage() {
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiResult, setAiResult] = useState<DashboardAnalysisResult | null>(null);
 
+  // 今日要报（AI 三句，随公司口径/重试变化重取）
+  const [brief, setBrief] = useState<MobileBrief | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetchMobileBrief(companyIds.length ? companyIds.join(",") : undefined)
+      .then((b) => { if (active) setBrief(b); })
+      .catch(() => { if (active) setBrief({ available: false }); });
+    return () => { active = false; };
+  }, [companyIds, retryTick]);
+
   const effRange = rangeKey === "all" ? {} : rangeFor(rangeKey);
   const usingCustom = Boolean(customApplied.startDate || customApplied.endDate);
   const queryRange = usingCustom ? customApplied : effRange;
@@ -221,7 +244,7 @@ export default function DashboardPage() {
   const loadData = useCallback(() => {
     setLoading(true);
     setError(null);
-    return fetchDashboardData(queryRange.startDate, queryRange.endDate, companyIds.length ? companyIds.join(",") : undefined)
+    return fetchDashboardData(queryRange.startDate, queryRange.endDate, companyIds.length ? companyIds.join(",") : undefined, true)
       .then((d) => {
         setData(d);
         setAiResult(null); // 口径变化后旧分析作废
@@ -241,6 +264,7 @@ export default function DashboardPage() {
   const { pull, refreshing } = usePullToRefresh(loadData);
 
   const summary = data?.summary;
+  const cmp = data?.compare?.summary;
   const scaleSegs = useMemo(() => computeSegments(data), [data]);
   const scaleTotal = scaleSegs.reduce((s, x) => s + x.count, 0);
 
@@ -335,6 +359,33 @@ export default function DashboardPage() {
   return (
     <div>
       <PullIndicator pull={pull} refreshing={refreshing} />
+
+      {/* ── 今日要报（AI 三句）── */}
+      <div className="neu-card-static mb-3 rounded-[18px] p-3.5">
+        <div className="mb-2 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.1em] text-[var(--accent)]">
+          <Sparkles size={13} /> 今日要报
+        </div>
+        {brief === null ? (
+          <Skeleton lines={3} height={18} />
+        ) : brief.available ? (
+          <div className="space-y-1.5">
+            {([brief.focus, brief.metric, brief.reminder] as const).map((it, i) => (
+              <button key={i} type="button" onClick={() => router.push(it.jump)}
+                className="flex w-full items-center gap-2 rounded-[10px] px-1 py-1 text-left active:scale-[0.99]">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]" />
+                <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{it.text}</span>
+                <ChevronRight size={13} className="shrink-0 text-[var(--muted-foreground)]" />
+              </button>
+            ))}
+          </div>
+        ) : (
+          <button type="button" onClick={() => setRetryTick((t) => t + 1)}
+            className="w-full py-1 text-left text-[13px] text-[var(--muted-foreground)] active:scale-[0.99]">
+            今日要报生成中，点击重试
+          </button>
+        )}
+      </div>
+
       {/* ── 顶部控制行：范围 + 公司 ── */}
       <div className="mb-3 space-y-2">
         <div className="flex gap-2 overflow-x-auto pb-0.5">
@@ -408,12 +459,12 @@ export default function DashboardPage() {
         <>
           {/* ── 汇总指标 ── */}
           <div className="mb-3 grid grid-cols-2 gap-2">
-            <MetricCard label="项目总数" value={String(summary.totalCount)} tone="accent" sub={`已完成 ${summary.completedCount}`} />
-            <MetricCard label="异常项目" value={String(summary.abnormalCount)} tone="danger" />
+            <MetricCard label="项目总数" value={String(summary.totalCount)} tone="accent" sub={`已完成 ${summary.completedCount}`} delta={deltaOf(summary.totalCount, cmp?.totalCount, null)} />
+            <MetricCard label="异常项目" value={String(summary.abnormalCount)} tone="danger" delta={deltaOf(summary.abnormalCount, cmp?.abnormalCount, false)} />
             <MetricCard label="总预算" value={summary.totalBudgetLabel} />
-            <MetricCard label="已成交预算" value={summary.awardedBudgetLabel} />
-            <MetricCard label="成交总额" value={summary.totalAwardLabel} tone="success" />
-            <MetricCard label="累计节资" value={summary.totalSavingsLabel} tone="success" />
+            <MetricCard label="已成交预算" value={summary.awardedBudgetLabel} delta={deltaOf(parseBudgetLabel(summary.awardedBudgetLabel), cmp?.awardedBudget, true)} />
+            <MetricCard label="成交总额" value={summary.totalAwardLabel} tone="success" delta={deltaOf(parseBudgetLabel(summary.totalAwardLabel), cmp?.totalAward, true)} />
+            <MetricCard label="累计节资" value={summary.totalSavingsLabel} tone="success" delta={deltaOf(parseBudgetLabel(summary.totalSavingsLabel), cmp?.totalSavings, true)} />
           </div>
 
           {/* ── AI 综合分析（折叠卡）── */}

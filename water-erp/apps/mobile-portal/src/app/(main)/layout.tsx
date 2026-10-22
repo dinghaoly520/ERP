@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Crown, FolderKanban, LayoutDashboard, LogOut, TrendingUp } from "lucide-react";
 import { fetchCurrentUser, logout, type AuthUser } from "@/lib/api/auth";
 import { fetchMobileGreeting } from "@/lib/api/ai";
+import { fetchDashboardBadges, type DashboardBadges } from "@/lib/api/dashboard";
 import { AuthProvider } from "@/components/m/auth-context";
 
 const TABS = [
@@ -22,6 +23,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const [checked, setChecked] = useState(false);
   /* 顶部 AI 欢迎语——每次进入/刷新都现场生成新句（无缓存、无静态保底行，2026-10-22 用户裁定） */
   const [greeting, setGreeting] = useState<string | null>(null);
+  /* Tab 角标（数据库=异常 / 台账=待处理 / 进展=停滞）——回前台即时重取 */
+  const [badges, setBadges] = useState<DashboardBadges | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -52,6 +55,16 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     return () => {
       active = false;
     };
+  }, [checked]);
+
+  useEffect(() => {
+    if (!checked) return;
+    let active = true;
+    const load = () => fetchDashboardBadges().then((b) => { if (active) setBadges(b); }).catch(() => undefined);
+    load();
+    const onVisible = () => { if (document.visibilityState === "visible") load(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { active = false; document.removeEventListener("visibilitychange", onVisible); };
   }, [checked]);
 
   if (!checked) {
@@ -112,12 +125,18 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       </main>
 
       <nav className="m-tabbar" aria-label="主导航">
-        {TABS.map(({ href, label, icon: Icon }) => (
-          <Link key={href} href={href} data-active={pathname.startsWith(href)} className="m-tab-item">
-            <Icon size={20} strokeWidth={1.5} />
-            <span>{label}</span>
-          </Link>
-        ))}
+        {TABS.map(({ href, label, icon: Icon }) => {
+          const badge = href === "/dashboard" ? badges?.abnormalCount : href === "/ledger" ? badges?.pendingCount : href === "/progress" ? badges?.stalledCount : undefined;
+          return (
+            <Link key={href} href={href} data-active={pathname.startsWith(href)} className="m-tab-item relative">
+              <span className="relative">
+                <Icon size={20} strokeWidth={1.5} />
+                {badge ? <span className="absolute -right-2.5 -top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--danger)] px-1 text-[11px] font-bold leading-none text-white">{badge > 99 ? "99+" : badge}</span> : null}
+              </span>
+              <span>{label}</span>
+            </Link>
+          );
+        })}
       </nav>
     </div>
   );

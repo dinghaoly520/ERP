@@ -66,6 +66,16 @@ function fmtBudget(v: number): string {
     : `${v.toLocaleString("zh-CN")} 元`;
 }
 
+/** 环比箭头语义配色：成交/完成/节资↑=good，异常↑=bad，预算=neutral（数据库页同款本地一份） */
+function deltaOf(cur: number, prev: number | undefined, goodWhenUp: boolean | null): { pct: number; tone: "good" | "bad" | "neutral" } | undefined {
+  if (prev == null || prev === 0) return undefined;
+  const pct = Math.round(((cur - prev) / prev) * 100);
+  if (pct === 0) return { pct: 0, tone: "neutral" };
+  const up = pct > 0;
+  const tone = goodWhenUp == null ? "neutral" : (up === goodWhenUp ? "good" : "bad");
+  return { pct: Math.max(Math.min(pct, 999), -99), tone };
+}
+
 /* ── 紧凑阶段步进条 ── */
 
 function StageStepper({ project }: { project: ProjectProgress }) {
@@ -214,8 +224,8 @@ export default function ProgressPage() {
           <div className="mb-3 grid grid-cols-2 gap-2">
             <MetricCard label="在办项目" value={String(stats.totalActive)} tone="accent" />
             <MetricCard label="近期活跃" value={String(stats.recentlyActive)} />
-            <MetricCard label="本月新增" value={String(stats.monthlyAdded)} sub={`上月 ${stats.lastMonthAdded}`} />
-            <MetricCard label="本月完成" value={String(stats.monthlyCompleted)} tone="success" sub={`上月 ${stats.lastMonthCompleted}`} />
+            <MetricCard label="本月新增" value={String(stats.monthlyAdded)} sub={`上月 ${stats.lastMonthAdded}`} delta={deltaOf(stats.monthlyAdded, stats.lastMonthAdded, true)} />
+            <MetricCard label="本月完成" value={String(stats.monthlyCompleted)} tone="success" sub={`上月 ${stats.lastMonthCompleted}`} delta={deltaOf(stats.monthlyCompleted, stats.lastMonthCompleted, true)} />
           </div>
           <div className="mb-3 flex items-center justify-between rounded-[12px] m-tile px-3 py-2 text-[14px]">
             <span className="text-[var(--muted-foreground)]">
