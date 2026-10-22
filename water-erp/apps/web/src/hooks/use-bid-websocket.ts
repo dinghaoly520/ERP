@@ -33,6 +33,7 @@ import {
   type OpeningDisputedPayload,
   type OpeningDisputeResolvedPayload,
   type OpeningCompletedPayload,
+  type OpeningStartedPayload,
   type RoundStatusChangePayload,
 } from '@water-erp/shared';
 
@@ -44,6 +45,8 @@ function wsUrl(): string {
 export interface BidWsHandlers {
   onDecryptStatus?: (d: DecryptStatusPayload) => void;
   onStageChange?: (d: StageChangePayload) => void;
+  /** 组建开标会话（含重新组建、按时开标联动）广播——与 :3007 版 hook 双份同步新增 */
+  onOpeningStarted?: (d: OpeningStartedPayload) => void;
   onEvaluationStarted?: (d: EvaluationStartedPayload) => void;
   onExpertPresence?: (d: ExpertPresencePayload) => void;
   onExpertPresenceAggregate?: (d: ExpertPresenceAggregatePayload) => void;
@@ -176,6 +179,7 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
     };
     on(BID_EVENT.DECRYPT_STATUS, 'onDecryptStatus');
     on(BID_EVENT.STAGE_CHANGE, 'onStageChange');
+    on(BID_EVENT.OPENING_STARTED, 'onOpeningStarted');
     on(BID_EVENT.EVALUATION_STARTED, 'onEvaluationStarted');
     on(BID_EVENT.EXPERT_PRESENCE, 'onExpertPresence');
     on(BID_EVENT.EXPERT_PRESENCE_AGGREGATE, 'onExpertPresenceAggregate');

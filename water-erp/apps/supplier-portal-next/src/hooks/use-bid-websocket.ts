@@ -14,6 +14,7 @@ import {
   type HallExchangeControlPayload,
   type OpeningDisputeResolvedPayload,
   type OpeningRecordUpdatedPayload,
+  type OpeningStartedPayload,
   type RoundStatusChangePayload,
 } from "@water-erp/shared";
 
@@ -23,6 +24,8 @@ export interface BidWsHandlers {
   onReconnected?: () => void;
   onDecryptStatus?: (d: DecryptStatusPayload) => void;
   onStageChange?: (d: StageChangePayload) => void;
+  /** 组建开标会话（含重新组建、按时开标联动）广播——ChatPanel 据此解除 SESSION_NOT_CREATED 输入闸 */
+  onOpeningStarted?: (d: OpeningStartedPayload) => void;
   onHallMessage?: (d: HallMessagePayload) => void;
   onHallPresence?: (d: HallPresenceUpdatePayload) => void;
   onHallCheckin?: (d: HallCheckinPayload) => void;
@@ -139,6 +142,7 @@ export function useBidWebSocket(projectId: string | undefined, getHandlers: () =
       };
       on(BID_EVENT.DECRYPT_STATUS, "onDecryptStatus");
       on(BID_EVENT.STAGE_CHANGE, "onStageChange");
+      on(BID_EVENT.OPENING_STARTED, "onOpeningStarted");
       on(BID_EVENT.HALL_MESSAGE_NEW, "onHallMessage");
       on(BID_EVENT.HALL_PRESENCE_UPDATE, "onHallPresence");
       on(BID_EVENT.HALL_CHECKIN, "onHallCheckin");

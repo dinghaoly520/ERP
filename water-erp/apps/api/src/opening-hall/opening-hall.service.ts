@@ -1,4 +1,4 @@
-import { Injectable, Optional, Inject, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, Optional, Inject, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { BidGateway } from '../bid/bid.gateway';
 import { NotificationService } from '../notification/notification.service';
@@ -46,7 +46,10 @@ export class OpeningHallService {
 
     const { project, session } = await this.loadGate(projectId);
     if (project.stage !== 'OPENING') throw new ForbiddenException({ error: '大厅仅在开标阶段开放', code: 'HALL_CLOSED' });
-    const control = session?.exchangeControl ?? 'OPEN';
+    // 会话未组建即拦截：阶段在 :3005「按时开标」即转 OPENING，早于 :3007 组建开标会话——
+    // 此前 session?.exchangeControl ?? 'OPEN' 把无会话视为开放，窗口期内主持人/供应商均可互发
+    if (!session) throw new ForbiddenException({ error: '尚未组建开标会话，会场交流暂未开放', code: 'SESSION_NOT_CREATED' });
+    const control = session.exchangeControl;
     if (control === 'CLOSED') throw new ForbiddenException({ error: '主持人已关闭互动', code: 'EXCHANGE_CLOSED' });
     const isSupplier = actor.role === 'supplier';
     if (control === 'MUTED' && isSupplier) throw new ForbiddenException({ error: '主持人已开启全员禁言', code: 'EXCHANGE_MUTED' });
@@ -306,6 +309,9 @@ export class OpeningHallService {
   }
 
   async setExchangeControl(projectId: string, control: 'OPEN' | 'MUTED' | 'CLOSED', byName: string, actorUserId: string) {
+    // 无会话时 update where 命不中会 P2025 → 500；统一 409 引导先组建会话（与 sendMessage 同族闸）
+    const session = await this.prisma.bidOpeningSession.findUnique({ where: { projectId } });
+    if (!session) throw new ConflictException({ error: '尚未组建开标会话，无法切换交流控制', code: 'SESSION_NOT_CREATED' });
     await this.prisma.bidOpeningSession.update({ where: { projectId }, data: { exchangeControl: control } });
     await this.prisma.bidSupervisionLog.create({
       data: {
