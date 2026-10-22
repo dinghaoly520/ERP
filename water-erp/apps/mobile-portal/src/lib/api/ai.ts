@@ -72,9 +72,9 @@ export async function fetchDashboardAnalysis(
   return api.post<DashboardAnalysisResult>('/ai/dashboard-analysis', payload);
 }
 
-export type MobileGreeting = { text: string; source: 'llm' | 'cache' | 'fallback' };
+export type MobileGreeting = { text: string; source: 'llm' | 'fallback' };
 
-/** 顶部欢迎语（服务端 LLM 生成，按用户按日缓存——同日同文案） */
+/** 顶部欢迎语（服务端 LLM 每次现场生成新句，不缓存） */
 export async function fetchMobileGreeting(): Promise<MobileGreeting> {
   return api.get<MobileGreeting>('/ai/mobile-greeting');
 }

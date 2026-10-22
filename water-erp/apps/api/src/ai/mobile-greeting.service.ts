@@ -1,5 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import Redis from 'ioredis';
+import { Injectable, Logger } from '@nestjs/common';
 import { LlmService } from '../local-ai/llm.service';
 
 /** 时段标签（驱动 LLM 语境与兜底文案，按上海时区判定） */
@@ -17,7 +16,7 @@ const WEEKDAY_ZH: Record<string, string> = { Sun: '日', Mon: '一', Tue: '二',
 
 const ROLE_LABEL: Record<string, string> = { admin: '管理员', leader: '负责人', staff: '专员' };
 
-/** LLM 不可用/超时的时段兜底（欢迎语是锦上添花，绝不因 AI 故障拖挂页面） */
+/** LLM 不可用/超时的时段兜底（保证端点恒有返回；前端无静态保底行，2026-10-22 用户裁定） */
 const FALLBACK: Record<string, string> = {
   深夜: '夜深了，采购动态已守护妥当，早些休息',
   清晨: '新的一天开始了，愿采购工作顺利启程',
@@ -29,23 +28,17 @@ const FALLBACK: Record<string, string> = {
 };
 
 /**
- * 移动驾驶舱（:3011）顶部欢迎语——LLM 生成一句简短问候。
- * 按用户按日 Redis 缓存：同一天稳定展示同句，次日自然轮换；
- * 缓存层故障（Redis 不可用）时退化为直连生成，LLM 故障时退化为时段兜底。
+ * 移动驾驶舱（:3011）顶部欢迎语——LLM 现场生成。
+ * 2026-10-22 用户裁定：不做任何缓存（前端 sessionStorage 日缓存与后端 Redis 按日缓存均已撤），
+ * 每次进入/刷新页面都生成新句；LLM 故障时退化为时段兜底句，端点恒有返回。
  */
 @Injectable()
 export class MobileGreetingService {
   private readonly logger = new Logger(MobileGreetingService.name);
 
-  constructor(
-    private readonly llm: LlmService,
-    @Inject('REDIS_CLIENT') private readonly redis: Redis,
-  ) {}
+  constructor(private readonly llm: LlmService) {}
 
-  async getGreeting(user: {
-    sub: string;
-    role: string;
-  }): Promise<{ text: string; source: 'llm' | 'cache' | 'fallback' }> {
+  async getGreeting(user: { role: string }): Promise<{ text: string; source: 'llm' | 'fallback' }> {
     const now = new Date();
     const parts = new Intl.DateTimeFormat('en-US', {
       timeZone: 'Asia/Shanghai',
@@ -55,16 +48,7 @@ export class MobileGreetingService {
     }).formatToParts(now);
     const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? now.getHours());
     const weekday = WEEKDAY_ZH[parts.find((p) => p.type === 'weekday')?.value ?? ''] ?? '一';
-    const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(now); // YYYY-MM-DD
     const period = periodOf(Number.isFinite(hour) ? hour : now.getHours());
-
-    const key = `mobile-greeting:v1:${user.sub}:${day}`;
-    try {
-      const cached = await this.redis.get(key);
-      if (cached) return { text: cached, source: 'cache' };
-    } catch {
-      /* Redis 不可用 → 直接生成，不因缓存故障阻断欢迎语 */
-    }
 
     try {
       const raw = await this.llm.chat(
@@ -73,23 +57,17 @@ export class MobileGreetingService {
           '只输出一句简短的中文欢迎语正文：14~20 个汉字，语气温暖专业、贴合政企采购办公场景。',
           '禁止 emoji、禁止任何引号、禁止称呼或提及用户姓名、禁止以「欢迎回到」开头、不要输出这句欢迎语以外的任何内容。',
         ].join(''),
-        `当前时段：${period}，星期${weekday}。用户是采购管理平台的${ROLE_LABEL[user.role] ?? '成员'}。请生成今天的欢迎语。`,
+        `当前时段：${period}，星期${weekday}。用户是采购管理平台的${ROLE_LABEL[user.role] ?? '成员'}。请生成一句与既往不重复的欢迎语。`,
         0.9,
         undefined,
         Math.floor(Math.random() * 1_000_000),
-        // 延迟敏感（首屏背景请求）：短超时 + 放弃第二次重试，失败走时段兜底
-        { maxTokens: 96, timeoutMs: 15_000, retries: 1 },
+        // 延迟敏感（首屏背景请求）：短超时 + 放弃第二次重试，失败走时段兜底。
+        // maxTokens 须给足：deepseek-v4-flash 为推理型模型，思维链与正文共享预算
+        // （96 实测思维链常超支 → finish_reason=length + content 空 → 兜底），1024 稳出正文。
+        { maxTokens: 1024, timeoutMs: 15_000, retries: 1 },
       );
       const text = this.sanitize(raw);
-      if (text) {
-        try {
-          // 26h：跨过当日剩余时长即自然过期（key 本身含日期，TTL 仅作清理）
-          await this.redis.set(key, text, 'EX', 93_600);
-        } catch {
-          /* 缓存写失败不影响本次返回 */
-        }
-        return { text, source: 'llm' };
-      }
+      if (text) return { text, source: 'llm' };
     } catch (err) {
       this.logger.warn(`欢迎语生成失败，使用时段兜底：${err instanceof Error ? err.message : err}`);
     }

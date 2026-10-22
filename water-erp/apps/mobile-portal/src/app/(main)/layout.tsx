@@ -20,7 +20,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const pathname = usePathname();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [checked, setChecked] = useState(false);
-  /* 顶部 AI 欢迎语——同日同文案（sessionStorage 日缓存跨刷新免请求；生成中/失败显示静态兜底行） */
+  /* 顶部 AI 欢迎语——每次进入/刷新都现场生成新句（无缓存、无静态保底行，2026-10-22 用户裁定） */
   const [greeting, setGreeting] = useState<string | null>(null);
 
   useEffect(() => {
@@ -43,32 +43,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     if (!checked) return;
-    const day = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD（本地时区）
-    try {
-      const raw = sessionStorage.getItem("m-welcome-greeting");
-      if (raw) {
-        const saved = JSON.parse(raw) as { day?: string; text?: string };
-        if (saved.day === day && saved.text) {
-          setGreeting(saved.text);
-          return;
-        }
-      }
-    } catch {
-      /* 缓存损坏按未缓存处理 */
-    }
     let active = true;
     fetchMobileGreeting()
       .then((r) => {
-        const text = r?.text?.trim();
-        if (!active || !text) return;
-        setGreeting(text);
-        try {
-          sessionStorage.setItem("m-welcome-greeting", JSON.stringify({ day, text }));
-        } catch {
-          /* 隐私模式等写入失败可忽略 */
-        }
+        if (active && r?.text?.trim()) setGreeting(r.text.trim());
       })
-      .catch(() => undefined); // 失败保留静态文案，不打扰用户
+      .catch(() => undefined); // 失败保持空行（无静态保底，2026-10-22 用户裁定）
     return () => {
       active = false;
     };
@@ -125,9 +105,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
               <span className="shrink-0 text-[15px] font-medium text-[var(--gold)]">尊敬的</span>
               <span className="min-w-0 truncate text-[18px] font-bold tracking-[-0.01em] text-[var(--foreground)]">{user?.displayName ?? ""}</span>
             </div>
-            <div className="mt-0.5 truncate text-[14px] text-[var(--muted-foreground)]">
-              {greeting ?? "欢迎回到专属驾驶舱 · 数据库 / 台账 / 进展 全局在握"}
-            </div>
+            <div className="mt-0.5 min-h-5 truncate text-[14px] text-[var(--muted-foreground)]">{greeting}</div>
           </div>
         </div>
         <AuthProvider user={user}>{children}</AuthProvider>

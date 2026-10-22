@@ -40,7 +40,7 @@ export class AiController {
   }
 
   @Get('mobile-greeting')
-  @ApiOperation({ summary: '移动驾驶舱（:3011）欢迎语——LLM 生成，按用户按日缓存' })
+  @ApiOperation({ summary: '移动驾驶舱（:3011）欢迎语——LLM 每次现场生成（无缓存）' })
   @Roles('admin', 'leader', 'staff')
   getMobileGreeting(@CurrentUser() user: AuthenticatedUser) {
     return this.mobileGreeting.getGreeting(user);
