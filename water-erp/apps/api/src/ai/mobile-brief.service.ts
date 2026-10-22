@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { LlmService } from '../local-ai/llm.service';
 import { DashboardService } from '../dashboard/dashboard.service';
+import { ProgressService } from '../progress/progress.service';
 import { CompanyScopeService } from '../company/company-scope';
 import type { AuthenticatedUser } from '../auth/auth.types';
 
@@ -20,10 +21,12 @@ type BriefDashboardData = {
   };
   riskProjects?: Array<{ project: string; pendingDays: number; reason: string }>;
   savingsRanking?: Array<{ project: string; savingsRate: number }>;
-  stageDistribution?: Array<{ stage: string; stageName?: string; count: number }>;
 };
 
-/** 出口净化：禁词替换/剥引号/截断（与 mobile-greeting.sanitize 同规则） */
+/** 阶段分布（最堵阶段输入）条目——getDashboard 无此字段，来源 ProgressService.getProgressStats */
+type BriefStageDistribution = Array<{ stage: string; stageName?: string; count: number }>;
+
+/** 单句出口净化：禁词替换/剥引号/截断 40 字（与 mobile-greeting.sanitize 同规则） */
 export function sanitizeBriefText(raw: string): string {
   const t = raw
     .replace(/^[\s"'「」『』“”‘’]+|[\s"'「」『』“”‘’]+$/g, '')
@@ -31,6 +34,17 @@ export function sanitizeBriefText(raw: string): string {
     .replace(/审批/g, '查阅')
     .trim();
   return t.length > 40 ? t.slice(0, 40) : t;
+}
+
+/** shareText 出口净化：同禁词/剥引号/折叠空白规则，但 160 字上限——段落文案（80~120 字规格），
+ *  不共用单句 40 字截断（fix round 1：pick() 路径曾把 shareText 压到 40 字，规格永不可达） */
+export function sanitizeBriefShareText(raw: string): string {
+  const t = raw
+    .replace(/^[\s"'「」『』“”‘’]+|[\s"'「」『』“”‘’]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/审批/g, '查阅')
+    .trim();
+  return t.length > 160 ? t.slice(0, 160) : t;
 }
 
 @Injectable()
@@ -41,6 +55,7 @@ export class MobileBriefService {
     private readonly llm: LlmService,
     private readonly dashboard: DashboardService,
     private readonly companyScope: CompanyScopeService,
+    private readonly progress: ProgressService,
   ) {}
 
   async getBrief(user: AuthenticatedUser, companyId?: string): Promise<MobileBriefResult> {
@@ -49,12 +64,16 @@ export class MobileBriefService {
     const now = new Date();
     const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     const data = (await this.dashboard.getDashboard(monthStart, undefined, filter)) as BriefDashboardData;
+    // 最堵阶段输入：getDashboard 无 stageDistribution，取 ProgressService 阶段分布（同 companyFilter 隔离）
+    const progressStats = (await this.progress.getProgressStats(undefined, undefined, filter)) as {
+      stageDistribution?: BriefStageDistribution;
+    };
 
     const riskTop = (data.riskProjects ?? []).slice(0, 3)
       .map((r) => `${r.project}（滞留${r.pendingDays}天，${r.reason}）`).join('；') || '无';
     const savingsTop = (data.savingsRanking ?? []).slice(0, 3)
       .map((s) => `${s.project}（节资率${s.savingsRate}%）`).join('；') || '无';
-    const stageMax = (data.stageDistribution ?? []).slice().sort((a, b) => b.count - a.count)[0];
+    const stageMax = (progressStats.stageDistribution ?? []).slice().sort((a, b) => b.count - a.count)[0];
 
     try {
       const r = await this.llm.chatJson(
@@ -75,7 +94,7 @@ export class MobileBriefService {
       const focusText = pick((r as Record<string, unknown>).focus && ((r as any).focus.text));
       const metricText = pick((r as any).metric?.text);
       const reminderText = pick((r as any).reminder?.text);
-      const shareText = pick((r as any).shareText).slice(0, 160);
+      const shareText = sanitizeBriefShareText(String((r as any).shareText ?? ''));
       if (!focusText || !metricText || !reminderText) return { available: false };
       return {
         available: true,
