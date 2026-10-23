@@ -12,7 +12,7 @@ import { LockOpen, LoaderCircle, CircleCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { supplierApi } from '@/lib/api/supplier';
 import * as scca from '@/utils/scca-ukey';
-import { assertSecureContext, buildDecryptProofCanonical } from '@/utils/dual-v3-client';
+import { assertSecureContext, buildDecryptProofCanonical, pickShieldByFingerprint } from '@/utils/dual-v3-client';
 import { canonicalJson, computeV3FieldsCommit, sha256Hex, sm4Decrypt } from '@water-erp/ukey';
 import type { V3Fields, V3Role } from '@water-erp/ukey';
 import { SpButton, SpDialog } from '@/components/ui';
@@ -64,22 +64,22 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
 
       setNote('正在读取 U盾…');
       const certs = await scca.listSccaCerts();
-      const first = certs[0];
-      if (!first) throw new Error('U盾内未找到证书——请插入 SCCA CA U盾并启动证书助手');
-      await scca.loginScca(first.container, pin);
+      // 按信封收件证书指纹选盾——多盾并插/换错盾当场点名，不再盲取 certs[0]（2026-10-22 世纪远景实录）
+      const shield = await pickShieldByFingerprint(certs, pkg.files?.[0]?.kself?.recipientCertFingerprint);
+      await scca.loginScca(shield.container, pin);
 
       const plainByRole: Partial<Record<V3Role, Uint8Array>> = {};
       for (const f of pkg.files as PkgFile[]) {
         setNote(`正在解密 ${f.role}（${(f.innerBytes / 1024 / 1024).toFixed(1)}MB）…`);
         const cInner = await fetchCInner(f.downloadUrl);
-        const dekJson = await scca.unwrapSccaKey(first.container, f.kself.value);
+        const dekJson = await scca.unwrapSccaKey(shield.container, f.kself.value);
         const dek = JSON.parse(dekJson);
         const plainHex = sm4Decrypt(dek.k, dek.iv, bytesToHex(cInner));
         plainByRole[f.role] = hexToBytes(plainHex);
       }
 
       setNote('正在揭示唱标字段…');
-      const dekFJson = await scca.unwrapSccaKey(first.container, pkg.sealedFields.kself.value);
+      const dekFJson = await scca.unwrapSccaKey(shield.container, pkg.sealedFields.kself.value);
       const dekF = JSON.parse(dekFJson);
       const sealedPlain = new TextDecoder().decode(hexToBytes(sm4Decrypt(dekF.k, dekF.iv, pkg.sealedFields.cipher)));
       const { fields, nonce } = JSON.parse(sealedPlain) as { fields: V3Fields; nonce: string };
@@ -97,7 +97,7 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
         fieldsCommit,
       });
       const prep = await supplierApi.caPrepare(projectId, 'decrypt-upload');
-      const signP7 = await scca.signSccaP7(first.container, proofCanonical);
+      const signP7 = await scca.signSccaP7(shield.container, proofCanonical);
 
       setNote('正在上传明文与证明…');
       const fd = new FormData();

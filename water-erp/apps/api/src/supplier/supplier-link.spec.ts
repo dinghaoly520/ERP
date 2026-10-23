@@ -174,14 +174,11 @@ describe('get/revealField — link 视野越权判定（多公司归属）', () 
 
   it('get：主归属他司但存在本公司 APPROVED link → 放行', async () => {
     const prisma: any = {
-      supplier: {
-        findUnique: jest.fn().mockResolvedValue({ id: 's1', companyId: 'co-1', userId: 'u1', createdAt: new Date('2026-01-01T00:00:00Z'), user: null, contacts: [], bankAccounts: [], changeRecords: [] }),
-        count: jest.fn().mockResolvedValue(0),
-      },
+      supplier: { findUnique: jest.fn().mockResolvedValue({ id: 's1', companyId: 'co-1', userId: 'u1', user: null, contacts: [], bankAccounts: [], changeRecords: [], createdAt: new Date('2026-01-01T00:00:00Z') }), count: jest.fn().mockResolvedValue(0) },
       supplierCompanyLink: { findMany: jest.fn().mockResolvedValue([{ id: 'l1' }]) },
-      // e17da070（2026-10-22）起 get() 增查首次审批通过时刻/公司编码/计数——无此 mock 则 TypeError（2026-10-23 修复）
+      // 夹具追平 2026-10-22：get() 新增入库时刻（approvalRecord.findFirst）与编号重编（company.findUnique+supplier.count）
       supplierApprovalRecord: { findFirst: jest.fn().mockResolvedValue(null) },
-      company: { findUnique: jest.fn().mockResolvedValue({ code: 'SWHI' }) },
+      company: { findUnique: jest.fn().mockResolvedValue({ code: 'CO' }) },
     };
     const svc = newService(prisma);
     await expect(svc.get('s1', actor)).resolves.toBeTruthy();
@@ -193,14 +190,11 @@ describe('get/revealField — link 视野越权判定（多公司归属）', () 
 
   it('get（I2）：本公司 link 为 DISABLED → 放行——停用后详情可达，「恢复」按钮不悬空', async () => {
     const prisma: any = {
-      supplier: {
-        findUnique: jest.fn().mockResolvedValue({ id: 's1', companyId: 'co-1', userId: 'u1', createdAt: new Date('2026-01-01T00:00:00Z'), user: null, contacts: [], bankAccounts: [], changeRecords: [] }),
-        count: jest.fn().mockResolvedValue(0),
-      },
+      supplier: { findUnique: jest.fn().mockResolvedValue({ id: 's1', companyId: 'co-1', userId: 'u1', user: null, contacts: [], bankAccounts: [], changeRecords: [], createdAt: new Date('2026-01-01T00:00:00Z') }), count: jest.fn().mockResolvedValue(0) },
       supplierCompanyLink: { findMany: jest.fn().mockResolvedValue([{ id: 'l1', status: 'DISABLED' }]) },
-      // 同上：e17da070 起的入库时间/公司编码/计数查询
+      // 夹具追平 2026-10-22：get() 新增入库时刻（approvalRecord.findFirst）与编号重编（company.findUnique+supplier.count）
       supplierApprovalRecord: { findFirst: jest.fn().mockResolvedValue(null) },
-      company: { findUnique: jest.fn().mockResolvedValue({ code: 'SWHI' }) },
+      company: { findUnique: jest.fn().mockResolvedValue({ code: 'CO' }) },
     };
     const svc = newService(prisma);
     await expect(svc.get('s1', actor)).resolves.toBeTruthy();
@@ -221,8 +215,11 @@ describe('get/revealField — link 视野越权判定（多公司归属）', () 
 
   it('revealField：主归属他司但存在本公司 APPROVED link → 放行（同口径闸门）', async () => {
     const prisma: any = {
-      supplier: { findUnique: jest.fn().mockResolvedValue({ id: 's1', companyId: 'co-1', legalPersonIdCard: null, legalPersonPhone: null }) },
+      supplier: { findUnique: jest.fn().mockResolvedValue({ id: 's1', companyId: 'co-1', userId: 'u1', user: null, contacts: [], bankAccounts: [], changeRecords: [], createdAt: new Date('2026-01-01T00:00:00Z') }), count: jest.fn().mockResolvedValue(0) },
       supplierCompanyLink: { findMany: jest.fn().mockResolvedValue([{ id: 'l1' }]) },
+      // 夹具追平 2026-10-22：get() 新增入库时刻（approvalRecord.findFirst）与编号重编（company.findUnique+supplier.count）
+      supplierApprovalRecord: { findFirst: jest.fn().mockResolvedValue(null) },
+      company: { findUnique: jest.fn().mockResolvedValue({ code: 'CO' }) },
       sensitiveAccessLog: { create: jest.fn().mockResolvedValue({}) },
     };
     const svc = newService(prisma);

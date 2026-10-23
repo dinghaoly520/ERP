@@ -55,6 +55,36 @@ export async function pemDerSha256(pem: string): Promise<string> {
   return sha256Hex(pemToDer(pem));
 }
 
+export interface ShieldPickCandidate {
+  container: string;
+  displayName: string;
+  enc: { pem: string };
+}
+
+/**
+ * 按 kself 收件证书指纹挑选盾容器（2026-10-22 世纪远景实录：三盾混插时盲取
+ * certs[0] → SOF_DecryptData 184549377「密钥解封失败（错盾/错钥？）」——指纹随
+ * kself 下发，失配即点名当前盾，现场免查库自诊断）。指纹缺省（旧包未携带）时
+ * 回退第一个容器，保持原行为。
+ */
+export async function pickShieldByFingerprint(
+  certs: ShieldPickCandidate[],
+  recipientCertFingerprint?: string | null,
+): Promise<ShieldPickCandidate> {
+  if (!certs.length) {
+    throw new Error('U盾内未找到证书——请插入 SCCA CA U盾并启动证书助手');
+  }
+  if (!recipientCertFingerprint) return certs[0];
+  for (const c of certs) {
+    if (c.enc?.pem && (await pemDerSha256(c.enc.pem)) === recipientCertFingerprint) return c;
+  }
+  const names = certs.map((c) => c.displayName || c.container).join('、');
+  throw new Error(
+    `插错盾：本标信封收件证书指纹 ${recipientCertFingerprint.slice(0, 16)}… 与当前 U盾（${names}）不符，` +
+      '请换插投递本标时使用的原盾后重试',
+  );
+}
+
 /** hex 串 → 二进制字节（加密产物上传/哈希统一走二进制——哈希口径与服务端实算一致） */
 const hexToBytes = (h: string): Uint8Array =>
   Uint8Array.from((h.match(/.{2}/g) ?? []).map((x) => parseInt(x, 16)));

@@ -158,3 +158,39 @@ test('T3 补传契约：reuseNonce——复用原 nonce 则 fieldsCommit 与首�
   const restored = await unwrapSealedFields(captured[1]!, r.sealedFields);
   assert.deepEqual(restored, { fields: F, nonce: REUSED }, '补传方盾复原 fields+nonce 闭环');
 });
+
+/* ── pickShieldByFingerprint：错盾当场点名（2026-10-22 世纪远景三盾混插实录：
+   盲取 certs[0] → SOF_DecryptData 184549377「密钥解封失败（错盾/错钥？）」）── */
+const PEM_ENC_A = '-----BEGIN CERTIFICATE-----\nQUJDREVG\n-----END CERTIFICATE-----'; // DER="ABCDEF"
+const PEM_ENC_B = '-----BEGIN CERTIFICATE-----\nUVdFUlRZ\n-----END CERTIFICATE-----'; // DER="QWERTY"
+const mkShieldCerts = () => [
+  { container: 'USB0', displayName: '盾甲(测试机床有限公司)', enc: { pem: PEM_ENC_A } },
+  { container: 'USB1', displayName: '盾乙(测试环保技术装备有限公司)', enc: { pem: PEM_ENC_B } },
+];
+
+test('pickShieldByFingerprint：按收件证书指纹选中对应盾容器', async () => {
+  const { pickShieldByFingerprint } = await import('../dual-v3-client');
+  const fpB = await sha256Hex(new TextEncoder().encode('QWERTY'));
+  const picked = await pickShieldByFingerprint(mkShieldCerts(), fpB);
+  assert.equal(picked.container, 'USB1');
+});
+
+test('pickShieldByFingerprint：指纹全不匹配 → 抛「插错盾」并点名当前盾', async () => {
+  const { pickShieldByFingerprint } = await import('../dual-v3-client');
+  const fpOther = await sha256Hex(new TextEncoder().encode('OTHER'));
+  await assert.rejects(
+    pickShieldByFingerprint(mkShieldCerts(), fpOther),
+    /插错盾.*盾甲.*盾乙/,
+  );
+});
+
+test('pickShieldByFingerprint：指纹缺省（旧包未携带）→ 回退第一个容器', async () => {
+  const { pickShieldByFingerprint } = await import('../dual-v3-client');
+  const picked = await pickShieldByFingerprint(mkShieldCerts(), undefined);
+  assert.equal(picked.container, 'USB0');
+});
+
+test('pickShieldByFingerprint：无证书 → 保留原文案提示插盾', async () => {
+  const { pickShieldByFingerprint } = await import('../dual-v3-client');
+  await assert.rejects(pickShieldByFingerprint([], 'ab'.repeat(32)), /U盾内未找到证书/);
+});
