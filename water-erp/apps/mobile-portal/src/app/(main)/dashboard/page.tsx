@@ -11,6 +11,7 @@ import {
   Layers,
   Lightbulb,
   RefreshCw,
+  Share2,
   Sparkles,
   Target,
   TrendingUp,
@@ -29,6 +30,7 @@ import { EmptyState } from "@/components/m/empty-state";
 import { Skeleton } from "@/components/m/skeleton";
 import { PullIndicator } from "@/components/m/pull-indicator";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import { readSavedFilters, saveFilters } from "@/lib/filter-store";
 
 type DashboardSavedFilters = { rangeKey: RangeKey; companyIds: string[] };
@@ -224,6 +226,25 @@ export default function DashboardPage() {
     return () => { active = false; };
   }, [companyIds, retryTick]);
 
+  // 一键转发今日要报：navigator.share 优先，AbortError=用户取消静默返回；无 share/分享失败回落剪贴板复制
+  const [shared, setShared] = useState<"idle" | "ok" | "fail">("idle");
+  async function shareBrief() {
+    if (!brief?.available) return;
+    const text = brief.shareText;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "蜀水云采·今日要报", text });
+        return;
+      } catch (err) {
+        /* AbortError=用户取消，不打扰；其余失败回落复制 */
+        if (err instanceof Error && err.name === "AbortError") return;
+      }
+    }
+    const ok = await copyToClipboard(text);
+    setShared(ok ? "ok" : "fail");
+    window.setTimeout(() => setShared("idle"), 2000);
+  }
+
   const effRange = rangeKey === "all" ? {} : rangeFor(rangeKey);
   const usingCustom = Boolean(customApplied.startDate || customApplied.endDate);
   const queryRange = usingCustom ? customApplied : effRange;
@@ -362,8 +383,15 @@ export default function DashboardPage() {
 
       {/* ── 今日要报（AI 三句）── */}
       <div className="neu-card-static mb-3 rounded-[18px] p-3.5">
-        <div className="mb-2 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.1em] text-[var(--accent)]">
-          <Sparkles size={13} /> 今日要报
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.1em] text-[var(--accent)]">
+            <Sparkles size={13} /> 今日要报
+          </div>
+          {brief?.available ? (
+            <button type="button" onClick={shareBrief} className="neu-btn-soft h-8 shrink-0 rounded-[9px] px-2.5 text-[13px] active:scale-95">
+              <Share2 size={12} /> {shared === "ok" ? "已复制" : shared === "fail" ? "复制失败" : "转发"}
+            </button>
+          ) : null}
         </div>
         {brief === null ? (
           <Skeleton lines={3} height={18} />
