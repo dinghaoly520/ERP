@@ -281,8 +281,16 @@ describe('listBidProjectRefs（只读解析，不创建）', () => {
       { id: 'bp-2', round: 2, projectCode: 'SC-CG-2', stage: 'SUBMIT' },
     ];
     const findMany = jest.fn().mockResolvedValue(refs);
-    const svc = mkService({ bidProject: { findMany } });
-    await expect(svc.listBidProjectRefs('pmi-1')).resolves.toEqual(refs);
+    const svc = mkService({
+      bidProject: { findMany },
+      // 公告闸字段（2026-10-23 统一流）：refs 判定须查 PMI 编码与流标公告
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) },
+      announcement: { findMany: jest.fn().mockResolvedValue([]) },
+    });
+    await expect(svc.listBidProjectRefs('pmi-1')).resolves.toEqual([
+      { id: 'bp-1', round: 1, projectCode: 'SC-CG-1', stage: 'ARCHIVED', failedBidNoticePublished: false },
+      { id: 'bp-2', round: 2, projectCode: 'SC-CG-2', stage: 'SUBMIT', failedBidNoticePublished: false },
+    ]);
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { projectManagementItemId: 'pmi-1' } }),
     );
