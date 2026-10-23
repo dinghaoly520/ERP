@@ -43,7 +43,7 @@
 
 两条均为：`domain: 'bid'`、`actionable: false`、`audiences: [{ kind: 'PROJECT_CREATOR' }]`、`channels: IN_APP`。
 - `BID_OPENING_PAUSED`：label `开标暂停告警`，icon `PauseCircle`，tone `orange`；render：title `项目${ctx.projectName}开标已暂停`，content = `${ctx.reason ? `暂停原因：${ctx.reason}。` : ''}解密窗口已冻结，请关注现场处置，必要时在开标确认面板决策流标`（含注释：2026-10-23 突发触达，spec 链接）
-- `BID_ANOMALY_ESCALATED`：label `现场异常上报`，icon `ShieldAlert`，tone `red`；render：title `项目${ctx.projectName}监督上报异常：${ctx.supplierName ?? ''}`，content = `供应商${ctx.supplierName}被标记为已上报异常${ctx.notes ? `，批注：${ctx.notes}` : ''}，请核验监督视图与开标现场记录`
+- `BID_ANOMALY_ESCALATED`：label `现场异常上报`，icon `ShieldAlert`，tone `red`；render：title `项目${ctx.projectName}监督上报异常：${ctx.supplierName ?? ''}`，content = `供应商${ctx.supplierName}被标记为已上报异常${ctx.notes ? `，批注：${ctx.notes}` : ''}，请核验监督视图与开标现场记录`（**注：本行文案已被终审修复批更新，现行文案以 spec §4.2 为准**）
 
 - [ ] **Step 2: 构建 shared dist 并验证类型**
 
