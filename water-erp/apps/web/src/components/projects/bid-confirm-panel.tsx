@@ -798,16 +798,14 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                 ) : (
                   (() => {
                     // 在册专家（未婉拒）+ 已婉拒分区（2026-10-21 代为变更适配：婉拒行保留可见——
-                    // 自答快照/弃权原因可查，且提供留痕的「恢复」通道；替代原直接过滤的消失式展示）
+                    // 婉拒专家不进本表（2026-10-23 用户口径：拒绝的专家不显示在表格中、
+                    // 不计入本项目评标专家——留痕与恢复通道在专家抽取向导的各确认表）
                     // 候补在 DB 中 invitationStatus 默认为 pending（不要求 RSVP 确认），有记录即已选定
                     const activeExperts = workspace.experts.filter(
                       e => e.invitationStatus !== 'declined',
                     );
-                    const declinedExperts = workspace.experts.filter(
-                      e => e.invitationStatus === 'declined',
-                    );
                     const hasAlts = availableAlts.length > 0;
-                    if (activeExperts.length === 0 && declinedExperts.length === 0) {
+                    if (activeExperts.length === 0) {
                       return <EmptyHint text="所有专家均已拒绝或超时，暂无确认的专家组成员。" />;
                     }
                     const roleLabel = (r: string) => r === '候补' ? '候补' : '正选';
@@ -914,41 +912,6 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                                 </tr>
                               );
                             })}
-                            {/* 已婉拒分区（2026-10-21 适配）：自答快照/理由可查 + 留痕恢复通道，替代消失式过滤 */}
-                            {declinedExperts.map((e, i) => (
-                              <tr key={`d-${e.id}`} className="opacity-60">
-                                <td className="text-center text-[var(--muted-foreground)] tabular-nums">{i + 1}</td>
-                                <td className="font-medium text-[var(--muted-foreground)]">{e.expertName}</td>
-                                <td className="text-[var(--muted-foreground)]">{e.major || '—'}</td>
-                                <td className="text-[var(--muted-foreground)]">{resolveEmployer(e) || '—'}</td>
-                                <td className="text-[var(--muted-foreground)]">{resolveTitle(e) || '—'}</td>
-                                <td><StatusBadge tone="gray">{roleLabel(e.expertRole)}</StatusBadge></td>
-                                <td>
-                                  <div className="flex flex-col items-start gap-1">
-                                    <StatusBadge tone="red">
-                                      {e.invitationActorType === 'SYSTEM' ? '超时弃权' : e.invitationActorType === 'STAFF' ? '已婉拒（代）' : '已婉拒'}
-                                    </StatusBadge>
-                                    {e.expertRespondedAt && (
-                                      <span className="text-[10px] leading-4 text-[var(--muted-foreground)] tabular-nums">
-                                        自答于 {new Date(e.expertRespondedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                                      </span>
-                                    )}
-                                    {e.invitationReason && (
-                                      <span className="max-w-[220px] truncate rounded-[4px] px-1 py-0.5 text-[9px] font-semibold"
-                                        style={{ background: 'color-mix(in oklch, var(--warning) 8%, transparent)', color: 'var(--foreground)' }}
-                                        title={e.invitationReason}>理由：{e.invitationReason}</span>
-                                    )}
-                                  </div>
-                                </td>
-                                <td><span className="text-[11px] text-[var(--muted-foreground)]">—</span></td>
-                                <td className="text-center">
-                                  {!isEvalStarted && (
-                                    <button onClick={() => { setExpertProxyReason(''); setExpertProxy({ userId: e.userId, name: e.expertName, role: e.expertRole, target: 'confirmed', current: 'declined' }); }}
-                                      className="neu-btn-xs" title="恢复该专家的确认（评标中/席位已被递补占用时后端会拒绝）">恢复</button>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
                           </tbody>
                         </table>
                       </div>
