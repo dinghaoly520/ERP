@@ -21,8 +21,8 @@ describe('ukey sm-crypto layer', () => {
   it('SM4 cbc roundtrip（utf8 经 hex 透传）', () => {
     const key = randomHex(16),
       iv = randomHex(16);
-    const dataHex = Buffer.from('智慧水发·蜀水云采', 'utf8').toString('hex');
-    expect(Buffer.from(sm4Decrypt(key, iv, sm4Encrypt(key, iv, dataHex)), 'hex').toString('utf8')).toBe('智慧水发·蜀水云采');
+    const dataHex = Buffer.from('蜀水云采·智慧水发', 'utf8').toString('hex');
+    expect(Buffer.from(sm4Decrypt(key, iv, sm4Encrypt(key, iv, dataHex)), 'hex').toString('utf8')).toBe('蜀水云采·智慧水发');
   });
   it('签名与既有 SignatureService 同参互验', () => {
     const kp = sm2.generateKeyPairHex();

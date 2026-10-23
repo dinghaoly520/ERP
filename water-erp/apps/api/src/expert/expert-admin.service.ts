@@ -1359,7 +1359,7 @@ export class ExpertAdminService {
             ];
           })(),
           new Paragraph({ text: '' }),
-          new Paragraph({ children: [new TextRun({ text: '说明：本材料由智慧水发·蜀水云采系统根据专家抽取审计日志与邀请回执留痕自动生成；确认方式含专家本人回复、工作人员代回应（附理由留痕）与系统超时/递补三类；专家历次邀请流转轨迹可在系统专家详情页逐条查证。', size: 18, color: '666666' })] }),
+          new Paragraph({ children: [new TextRun({ text: '说明：本材料由蜀水云采·智慧水发系统根据专家抽取审计日志与邀请回执留痕自动生成；确认方式含专家本人回复、工作人员代回应（附理由留痕）与系统超时/递补三类；专家历次邀请流转轨迹可在系统专家详情页逐条查证。', size: 18, color: '666666' })] }),
         ],
       }],
     });

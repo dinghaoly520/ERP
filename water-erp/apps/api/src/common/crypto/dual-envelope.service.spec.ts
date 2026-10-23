@@ -142,7 +142,7 @@ describe('DualEnvelopeService', () => {
     supplierKp = sm2.generateKeyPairHex();
     // 混入无效 utf8 序列字节——钉住 hex 字节通道精确性（sm-crypto 字符串通道对无效序列 U+FFFD 有损）
     plaintext = Buffer.concat([
-      Buffer.from('技术标投标文件（正本）—智慧水发·蜀水云采', 'utf8'),
+      Buffer.from('技术标投标文件（正本）—蜀水云采·智慧水发', 'utf8'),
       Buffer.from([0xff, 0x80, 0x00, 0x42]),
     ]);
     sample = buildDualLayerSample(adminKp, supplierKp, plaintext);

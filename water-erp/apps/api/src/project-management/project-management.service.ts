@@ -1785,7 +1785,12 @@ paymentPerformance 要求：提炼 3-6 条要点，涵盖支付方式与比例�
 
 如果没有找到相关值，返回空数组 []`;
 
-    const userPrompt = `请从以下文档文本中识别"${fieldName}"字段的候选值：\n\n${documentText.slice(0, 4000)}`;
+    // 项目归属专属规则（2026-10-23 用户口径）：归属=工程/项目主体规范短名，
+    // 从全名中提炼（如「引大济岷工程在天全县xxx供水工程」→「引大济岷工程」），不照抄长名
+    const fieldRule = fieldName === 'demandProject' || fieldName === '项目归属'
+      ? `\n【字段专属规则：项目归属】\n候选值必须是工程/项目主体的规范短名，通常以「工程」「项目」「枢纽」「水库」「灌区」等结尾（例：项目全名「引大济岷工程在天全县某某段供水工程」，归属应为「引大济岷工程」）。请从文档中的项目全名/所属工程表述中提炼主体名称，剔除地点、标段、分期、具体建设内容等修饰成分；禁止把完整项目名称或采购申请事项全名作为归属候选。`
+      : '';
+    const userPrompt = `请从以下文档文本中识别"${fieldName}"字段的候选值：${fieldRule}\n\n${documentText.slice(0, 4000)}`;
 
     try {
       // chatJson 内部设 response_format: json_object 强制 LLM 返回 JSON 对象，
@@ -6791,11 +6796,12 @@ ${JSON.stringify(algorithmResult, null, 2)}
   }
 
   async getProjectAttributions() {
-    // 1. 查询所有已归档项目
+    // 1. 全量项目聚合（2026-10-23 用户口径：确认归属即入库——原只聚 ARCHIVED，
+    //    新建项目的归属永不进库，后续创建下拉里只剩「其他」）
     const archivedProjects = await this.prisma.projectManagementItem.findMany({
       where: {
-        status: 'ARCHIVED',
         demandProject: { not: null },
+        status: { not: 'RECYCLED' }, // 回收站项目不入库（已删除的归属污染选项）
       },
       select: {
         demandProject: true,

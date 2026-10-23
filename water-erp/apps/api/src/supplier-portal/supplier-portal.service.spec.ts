@@ -1670,7 +1670,7 @@ describe('SupplierPortalService', () => {
 
     // 每角色独立明文/哈希/资产，支撑 bond 与多角色用例
     const DUAL_ROLE_TEXT: Record<string, string> = {
-      technical: '技术标投标文件（dual-v2 测试）—智慧水发·蜀水云采',
+      technical: '技术标投标文件（dual-v2 测试）—蜀水云采·智慧水发',
       business: '商务标投标文件（dual-v2 测试）',
       coverLetter: '投标函（dual-v2 测试）',
       bond: '投标保证金缴纳凭证（dual-v2 测试）',

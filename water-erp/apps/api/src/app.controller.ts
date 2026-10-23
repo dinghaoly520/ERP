@@ -14,7 +14,7 @@ export class AppController {
   @Public()
   getOverview() {
     return {
-      name: '智慧水发·蜀水云采 ERP API',
+      name: '蜀水云采·智慧水发 ERP API',
       version: '1.0.0',
       docs: '/api/docs',
       health: '/api/health',

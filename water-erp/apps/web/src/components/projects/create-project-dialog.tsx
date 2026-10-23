@@ -350,6 +350,11 @@ export function CreateProjectDialog({
         c.fieldName === fieldName ? { ...c, selectedValue: value } : c,
       ),
     );
+    // 项目归属双写（2026-10-23 用户实录：比对/AI 推荐选中后创建，归属丢失——
+    // 提交读 demandFields.demandProject，仅写 selectedValue 不落库也不进归属库）
+    if (fieldName === 'demandProject') {
+      setDemandFields((prev) => ({ ...prev, demandProject: value }));
+    }
   };
 
   /** 评审页字段编辑：同时写 initiationFields 与 compare 步 selectedValue。
@@ -407,7 +412,7 @@ export function CreateProjectDialog({
         hasProcurementDemand: !!demandAttachment,
         demandAttachment: demandAttachment ?? undefined,
         initiationAttachment: initiationAttachment ?? undefined,
-        demandProject: demandFields.demandProject,
+        demandProject: String(getSelectedFieldValue('demandProject', demandFields.demandProject || '')) || undefined,
         demandContractNumber: demandFields.demandContractNumber,
         initiationDate: mergedFields.initiationDate || undefined,
         createdById: currentUser?.id,
