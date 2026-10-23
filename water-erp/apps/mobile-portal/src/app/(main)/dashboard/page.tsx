@@ -902,15 +902,14 @@ export default function DashboardPage() {
                       key={idx}
                       type="button"
                       onClick={() => setActiveSaving(item)}
-                      className="flex w-full items-start gap-2.5 rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]"
+                      className="flex w-full items-center gap-2.5 rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]"
                     >
-                      <span className="flex h-8 w-8 shrink-0 flex-col items-center justify-center rounded-[9px] bg-[color-mix(in_oklch,var(--success)_10%,transparent)]">
-                        <span className="text-[13px] font-black leading-none" style={{ color: rc }}>
-                          {idx + 1}
-                        </span>
-                        <span className="mt-0.5 text-[10px] font-bold leading-none" style={{ color: rc }}>
-                          {item.savingsRate}%
-                        </span>
+                      <span
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[14px] font-black leading-none ${
+                          idx < 3 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : "text-[var(--muted-foreground)]"
+                        }`}
+                      >
+                        {idx + 1}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="line-clamp-2 text-[15px] font-semibold leading-snug text-[var(--foreground)]">{item.project}</span>
@@ -920,6 +919,10 @@ export default function DashboardPage() {
                           </span>
                           <span className="truncate text-[13px] text-[var(--muted-foreground)]">节约 {item.savingsLabel}</span>
                         </span>
+                      </span>
+                      <span className="shrink-0 text-right leading-tight" style={{ color: rc }}>
+                        <span className="block text-[12px] font-semibold text-[var(--muted-foreground)]">节资率</span>
+                        <span className="mt-0.5 block text-[18px] font-black tabular-nums tracking-[-0.02em]">{item.savingsRate}%</span>
                       </span>
                       <ChevronRight size={14} className="shrink-0 text-[var(--muted-foreground)]" />
                     </button>
