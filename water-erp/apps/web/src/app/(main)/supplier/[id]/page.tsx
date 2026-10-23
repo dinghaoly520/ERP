@@ -94,6 +94,8 @@ export default function SupplierDetailPage() {
   const [evaluations, setEvaluations] = useState<SupplierEvaluation[]>([]);
   const [changes, setChanges] = useState<SupplierChangeRecord[]>([]);
   const [expandedChangeId, setExpandedChangeId] = useState<string | null>(null);
+  // 履约评价行展开（2026-10-23）：点击行看详情——四维等级/评语/评价人/关联项目（与变更记录同款模式）
+  const [expandedEvalId, setExpandedEvalId] = useState<string | null>(null);
   // tab 深链（2026-09-29 审批「详情」入口直达资质材料）：?tab=xxx——初值恒 info（SSR/客户端
   // 一致，防 hydration mismatch——曾用 typeof window 分支作初值，2026-10-23 随板块合并一并修正），
   // 挂载后读取并经 MERGED_TAB 归组映射（旧键 contacts/links/changes/records/documents/communications 兼容）
@@ -1095,6 +1097,7 @@ export default function SupplierDetailPage() {
                     </div>
                   );
                 })()}
+                <div className="text-right text-[10px] text-[var(--muted-foreground)] mb-1.5">点击评价行展开详情</div>
                 <div className="neu-table-card overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="neu-table w-full min-w-[850px]">
@@ -1112,7 +1115,8 @@ export default function SupplierDetailPage() {
                           const fg = e.finalGrade || (e as any).level;
                           const gradeColor = LEVEL_COLOR[fg] || 'var(--muted-foreground)';
                           return (
-                            <tr key={e.id}>
+                            <>
+                            <tr key={e.id} className="row-clickable" onClick={() => setExpandedEvalId(expandedEvalId === e.id ? null : e.id)}>
                               <td>
                                 <span className="inline-flex items-center gap-1.5">
                                   <span className="inline-flex h-6 w-6 items-center justify-center rounded text-[11px] font-extrabold text-white" style={{ backgroundColor: gradeColor }}>{fg}</span>
@@ -1127,6 +1131,45 @@ export default function SupplierDetailPage() {
                               <td className="text-[var(--muted-foreground)]">{e.evaluator?.displayName || '—'}</td>
                               <td className="text-[var(--muted-foreground)]">{new Date(e.createdAt).toLocaleDateString('zh-CN')}</td>
                             </tr>
+                            {expandedEvalId === e.id && (
+                              <tr>
+                                <td colSpan={8} className="bg-[color-mix(in_oklch,var(--foreground)_3%,transparent)] px-4 py-3">
+                                  {/* 四维等级详签（大号徽标 + 文案，与列内小徽标对应） */}
+                                  <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+                                    {([
+                                      ['资料完整性', e.completenessGrade],
+                                      ['响应及时性', e.responsivenessGrade],
+                                      ['配合协作', e.cooperationGrade],
+                                      ['合规守信', e.complianceGrade],
+                                    ] as const).map(([label, g]) => (
+                                      <div key={label} className="flex items-center gap-2.5 rounded-lg bg-[oklch(1_0_0/0.55)] px-3 py-2">
+                                        <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs font-extrabold text-white" style={{ backgroundColor: g ? (LEVEL_COLOR[g] || 'var(--muted-foreground)') : 'var(--muted-foreground)' }}>{g || '—'}</span>
+                                        <div className="leading-tight">
+                                          <p className="text-[11px] text-[var(--muted-foreground)]">{label}</p>
+                                          <p className="text-xs font-bold" style={{ color: g ? (LEVEL_COLOR[g] || 'var(--muted-foreground)') : 'var(--muted-foreground)' }}>{LEVEL_LABEL[g] || '未评'}</p>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  {/* 元信息：关联项目 / 评价人 / 完整时间 */}
+                                  <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-[var(--muted-foreground)]">
+                                    {e.project?.name && <span>关联项目：<span className="font-semibold text-[var(--foreground)]">{e.project.name}</span></span>}
+                                    <span>评价人：<span className="font-semibold text-[var(--foreground)]">{e.evaluator?.displayName || '—'}</span></span>
+                                    <span>评价时间：<span className="font-mono">{new Date(e.createdAt).toLocaleString('zh-CN')}</span></span>
+                                  </div>
+                                  {/* 综合评语 */}
+                                  {e.comment ? (
+                                    <div className="mt-2.5 rounded-lg bg-[oklch(1_0_0/0.55)] px-3.5 py-2.5">
+                                      <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">综合评语</p>
+                                      <p className="text-[13px] leading-relaxed text-[var(--foreground)]">{e.comment}</p>
+                                    </div>
+                                  ) : (
+                                    <p className="mt-2.5 text-xs text-[var(--muted-foreground)]">本次评价未填写评语</p>
+                                  )}
+                                </td>
+                              </tr>
+                            )}
+                            </>
                           );
                         })}
                       </tbody>
