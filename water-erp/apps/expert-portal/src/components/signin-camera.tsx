@@ -194,6 +194,10 @@ export function SigninCamera({ userName, identityMode = 'self', onSignIn, busy =
       setState('unavailable');
       return;
     }
+    // 成像随预览同向镜像（自拍口径：确认页与取景框所见一致）。留档照仅水平
+    // 翻转，不影响人脸辨识与核验展示；检测在拍摄前完成、跑在原始帧上不受影响
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     canvas.toBlob(
       (blob) => {
