@@ -482,9 +482,12 @@ export class SupplierPortalController {
   }
 
   @Get('bid-submissions')
-  async listBidSubmissions(@Request() req: any) {
+  @ApiOperation({ summary: '我的投标记录（默认全阶段——异议页口径；includeFinished=false 排除已归档/流标，供「进行中」视图防与已完成双列）' })
+  async listBidSubmissions(@Request() req: any, @Query('includeFinished') includeFinished?: string) {
     const supplierId = await this.getSupplierId(req.user.sub);
-    return this.portalService.getMySubmissions(supplierId);
+    return this.portalService.getMySubmissions(supplierId, {
+      includeFinished: includeFinished !== 'false',
+    });
   }
 
   @Get('bid-submissions/:projectId')

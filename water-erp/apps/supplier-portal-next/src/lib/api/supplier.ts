@@ -186,8 +186,11 @@ export const supplierApi = {
   },
 
   // Bid submissions
-  listBidSubmissions() {
-    return api.get<any[]>("/supplier-portal/bid-submissions");
+  listBidSubmissions(opts?: { includeFinished?: boolean }) {
+    // includeFinished=false：排除已归档/流标项目（「我的投标 · 进行中」专用，防与已完成双列）；
+    // 默认/异议页不传 = 全阶段（归档后仍可对结果提异议）
+    const q = opts?.includeFinished === false ? '?includeFinished=false' : '';
+    return api.get<any[]>(`/supplier-portal/bid-submissions${q}`);
   },
   getBidSubmission(projectId: string) {
     return api.get<any>(`/supplier-portal/bid-submissions/${projectId}`);

@@ -131,7 +131,9 @@ export default function MyBidsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const list = await supplierApi.listBidSubmissions();
+      // 进行中视图：排除已归档/流标项目（2026-10-23 双列修复——归档项目由「已完成/合作
+      // 历史承载」；全阶段口径留给异议页等关联场景，见 api 注释）
+      const list = await supplierApi.listBidSubmissions({ includeFinished: false });
       setSubmissions(list || []);
     } catch {
       setError(true);
