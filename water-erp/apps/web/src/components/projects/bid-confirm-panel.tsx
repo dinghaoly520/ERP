@@ -79,6 +79,8 @@ type Props = {
   onSyncProjectInfo?: (info: { invitedSuppliers: string; expertInfo: string }) => void;
   /** 流标回调（开标完成后选择流标时触发，父面板打开流标公告制作） */
   onAbort?: () => void;
+  /** AbortDialog 完成后发布流标公告入口（打开 failed_bid 向导，父级接线） */
+  onPublishNotice?: () => void;
 };
 
 /* ── 日期工具 ── */
@@ -90,7 +92,7 @@ function formatDateTime(iso: string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSyncProjectInfo }: Props) {
+export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSyncProjectInfo, onPublishNotice }: Props) {
   const [bidProject, setBidProject] = useState<BidProjectRef | null>(null);
   const [workspace, setWorkspace] = useState<BidWorkspace | null>(null);
   /** Phase 2：项目全量详情（开标进度/归档区块共用数据源；评标管理/异议裁决/澄清答疑已迁 :3007，分工 v3） */
@@ -1105,7 +1107,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                   <ArchiveBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />
                   {/* A1: 公示期状态指示（归档后显示） */}
                   {detail?.stage === 'ARCHIVED' && <PublicityBanner bidProjectId={bpId} detail={detail} />}
-                  {/* B2: 流标串联——abort + 公告 + 归档一步完成 */}
+                  {/* B2: 流标串联——abort + 归档一步完成；公告经 onPublishNotice 完成后发布 */}
                   <AbortDialog
                     bidProjectId={bpId}
                     projectName={project?.title ?? ''}
@@ -1113,6 +1115,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                     isOpen={abortDialogOpen}
                     onClose={() => setAbortDialogOpen(false)}
                     onChanged={() => { setAbortDialogOpen(false); refreshDetail(); }}
+                    onPublishNotice={onPublishNotice}
                   />
                 </>
               )}

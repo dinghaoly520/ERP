@@ -1,14 +1,13 @@
 'use client';
 
 /**
- * B2: 流标确认对话框——串联 abort + 公告 + 归档为一步流程。
+ * B2: 流标确认对话框——串联 abort + 归档为一步流程；公告在完成后经 CTA 发布。
  * 替代原来 onAbort 只打开 AnnouncementPublishWizard 的断链行为。
  */
 
 import { useEffect, useState } from 'react';
-import { Ban, Loader2, CheckCircle2, AlertTriangle, ArrowRightLeft } from 'lucide-react';
+import { Ban, Loader2, CheckCircle2, AlertTriangle, ArrowRightLeft, Megaphone } from 'lucide-react';
 import { abortBidProject, archiveAll, getNonTenderDeal, registerNonTenderDeal, type NonTenderDealRecord } from '@/lib/api/bid';
-import { createAnnouncement } from '@/lib/api/announcement';
 import { Modal } from '@/components/workbench';
 
 type Props = {
@@ -18,13 +17,15 @@ type Props = {
   isOpen: boolean;
   onClose: () => void;
   onChanged: () => void;
+  /** 完成后发布流标公告入口（打开 failed_bid 向导，父级接线） */
+  onPublishNotice?: () => void;
 };
 
 type Step = 'idle' | 'aborting' | 'archiving' | 'done' | 'error';
 
 const NON_TENDER_METHOD_OPTIONS = ['竞争性谈判', '询价', '单一来源'] as const;
 
-export function AbortDialog({ bidProjectId, projectName, projectCode, isOpen, onClose, onChanged }: Props) {
+export function AbortDialog({ bidProjectId, projectName, projectCode, isOpen, onClose, onChanged, onPublishNotice }: Props) {
   const [reason, setReason] = useState('');
   const [step, setStep] = useState<Step>('idle');
   const [error, setError] = useState('');
@@ -73,18 +74,7 @@ export function AbortDialog({ bidProjectId, projectName, projectCode, isOpen, on
       setStep('aborting');
       await abortBidProject(bidProjectId, reason.trim() || undefined);
 
-      // Step 2: 创建流标公告（failed_bid）
-      try {
-        await createAnnouncement({
-          title: `流标公告：${projectName}`,
-          content: `项目编号 ${projectCode}（${projectName}）因${reason.trim() || '有效投标不足法定家数'}流标。`,
-          type: 'PLATFORM',
-          status: 'PUBLISHED',
-          relatedProjectCode: projectCode,
-        });
-      } catch { /* 公告创建失败不阻塞流标+归档 */ }
-
-      // Step 3: 开标归档（scope=opening,终局封存）
+      // Step 2: 开标归档（scope=opening,终局封存）
       setStep('archiving');
       await archiveAll(bidProjectId, 'opening');
 
@@ -170,8 +160,12 @@ export function AbortDialog({ bidProjectId, projectName, projectCode, isOpen, on
         <div className="space-y-4">
           <div className="wb-alert wb-alert--success flex items-center gap-2">
             <CheckCircle2 size={16} strokeWidth={2} />
-            <span className="text-sm font-semibold">流标完成——已发公告并归档</span>
+            <span className="text-sm font-semibold">流标完成——已归档</span>
           </div>
+
+          <button type="button" onClick={() => onPublishNotice?.()} className="neu-btn-primary is-water w-full">
+            <Megaphone size={14} /> 发布流标公告并继续收尾
+          </button>
 
           {/* C3（A-199）：转非招标方式成交登记 */}
           {deal ? (
@@ -229,13 +223,13 @@ export function AbortDialog({ bidProjectId, projectName, projectCode, isOpen, on
           </div>
 
           <div className="wb-alert wb-alert--info !p-3 text-xs text-[var(--muted-foreground)]">
-            确认后将依次执行：① 项目置为流标 → ② 发布流标公告 → ③ 开标归档（终局封存，不可逆）
+            确认后将依次执行：① 项目置为流标 → ② 开标归档（终局封存，不可逆）——流标公告在完成后发布
           </div>
 
           {(step === 'aborting' || step === 'archiving') && (
             <div className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
               <Loader2 size={14} className="animate-spin" />
-              {step === 'aborting' ? '正在执行流标+发布公告…' : '正在归档…'}
+              {step === 'aborting' ? '正在执行流标…' : '正在归档…'}
             </div>
           )}
         </>
