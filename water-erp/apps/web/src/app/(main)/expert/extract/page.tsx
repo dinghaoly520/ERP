@@ -307,7 +307,7 @@ export function ExpertExtractPage({
       toast.success(
         r.changed
           ? exProxy.target === 'confirmed' ? `已代为确认：${exProxy.name}` : `已代为婉拒：${exProxy.name}${r.promoted ? `（已递补：${r.promoted.expertName}）` : ''}`
-          : '状态未变化（同状态幂等）',
+          : '状态未变化，无需重复操作',
       );
       setExProxy(null); setExProxyReason('');
       setInvitationData(await getProjectInvitations(pid));

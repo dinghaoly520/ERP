@@ -137,7 +137,7 @@ export default function ExpertDetailPage() {
     setInviteProxyBusy(true);
     try {
       const r = await proxyMarkExpertInvitation(inviteProxy.projectId, expertId, inviteProxy.target, inviteProxyReason.trim());
-      toast.success(r.changed ? (inviteProxy.target === 'confirmed' ? '已代为确认' : '已代为婉拒') : '状态未变化（同状态幂等）');
+      toast.success(r.changed ? (inviteProxy.target === 'confirmed' ? '已代为确认' : '已代为婉拒') : '状态未变化，无需重复操作');
       setInviteProxy(null); setInviteProxyReason('');
       reload();
     } catch (e: any) { toast.error(e?.message || '操作失败'); }

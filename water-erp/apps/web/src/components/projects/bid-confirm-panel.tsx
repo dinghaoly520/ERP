@@ -215,7 +215,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
           ? expertProxy.target === 'confirmed'
             ? `已代为确认：${expertProxy.name}`
             : `已代为婉拒：${expertProxy.name}${r.promoted ? `（已递补：${r.promoted.expertName}）` : ''}`
-          : '状态未变化（同状态幂等）',
+          : '状态未变化，无需重复操作',
       );
       setExpertProxy(null);
       setExpertProxyReason('');
