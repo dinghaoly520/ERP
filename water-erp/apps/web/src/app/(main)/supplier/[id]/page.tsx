@@ -13,7 +13,7 @@ import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
 import { LEVEL_LABEL, LEVEL_COLOR, SUPPLIER_STATUS_LABEL, getNotificationLabel, getNotificationChannelLabel } from '@water-erp/shared';
 import type { AuthUser } from '@/lib/api/auth';
 import { fetchCurrentUser } from '@/lib/api/auth';
-import { CheckCircle2, X, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, FileText, User, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Trash2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, Link2, AtSign, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, X, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, FileText, User, Users, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Trash2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, Link2, AtSign, AlertTriangle } from 'lucide-react';
 import { SupplierTimeline } from '@/components/supplier/timeline';
 import { ApprovalHistory } from '@/components/supplier/approval-history';
 import { PortraitTab } from '@/components/supplier/portrait-tab';
@@ -21,7 +21,13 @@ import { PortraitTab } from '@/components/supplier/portrait-tab';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import { copyToClipboard } from '@/lib/copy-to-clipboard';
 
-type TabKey = 'info' | 'portrait' | 'contacts' | 'qualifications' | 'evaluations' | 'records' | 'rsvp' | 'changes' | 'links' | 'communications' | 'documents';
+// 2026-10-23 板块合并（11→5）：info=基本信息+联系人+归属公司+变更记录、qualifications=资质材料+文件档案、
+// evaluations=履约评价+奖惩记录、rsvp=邀请回执+沟通记录；旧深链键经 MERGED_TAB 归组映射
+type TabKey = 'info' | 'portrait' | 'qualifications' | 'evaluations' | 'rsvp';
+const MERGED_TAB: Record<string, TabKey> = {
+  info: 'info', portrait: 'portrait', qualifications: 'qualifications', evaluations: 'evaluations', rsvp: 'rsvp',
+  contacts: 'info', links: 'info', changes: 'info', records: 'evaluations', documents: 'qualifications', communications: 'rsvp',
+};
 
 const STATUS_LABEL: Record<string, string> = SUPPLIER_STATUS_LABEL; // 统一 shared 口径（第五处分叉，2026-09-29 收编）
 const STATUS_TONE: Record<string, 'green' | 'blue' | 'orange' | 'red' | 'gray'> = {
@@ -88,11 +94,14 @@ export default function SupplierDetailPage() {
   const [evaluations, setEvaluations] = useState<SupplierEvaluation[]>([]);
   const [changes, setChanges] = useState<SupplierChangeRecord[]>([]);
   const [expandedChangeId, setExpandedChangeId] = useState<string | null>(null);
-  // tab 深链（2026-09-29 审批「详情」入口直达资质材料）：?tab=qualifications 等
-  const [activeTab, setActiveTab] = useState<TabKey>(
-    (typeof window !== 'undefined' && ['info', 'portrait', 'contacts', 'qualifications', 'evaluations', 'records', 'changes', 'links', 'communications', 'documents'].includes(new URL(window.location.href).searchParams.get('tab') || '')
-      ? new URL(window.location.href).searchParams.get('tab') as TabKey : 'info'),
-  );
+  // tab 深链（2026-09-29 审批「详情」入口直达资质材料）：?tab=xxx——初值恒 info（SSR/客户端
+  // 一致，防 hydration mismatch——曾用 typeof window 分支作初值，2026-10-23 随板块合并一并修正），
+  // 挂载后读取并经 MERGED_TAB 归组映射（旧键 contacts/links/changes/records/documents/communications 兼容）
+  const [activeTab, setActiveTab] = useState<TabKey>('info');
+  useEffect(() => {
+    const t = new URL(window.location.href).searchParams.get('tab') || '';
+    if (MERGED_TAB[t]) setActiveTab(MERGED_TAB[t]);
+  }, []);
   const [loading, setLoading] = useState(true);
 
   // 注册审批=归属公司管理账号（2026-09-26 改定；后端 @Roles + 公司域校验同步）
@@ -218,9 +227,10 @@ export default function SupplierDetailPage() {
   }, [id]);
   useEffect(() => { if (activeTab === 'rsvp') loadRsvpHistory(); }, [activeTab, loadRsvpHistory]);
   useEffect(() => {
-    if (activeTab === 'communications' && communications.length === 0) { setCommLoading(true); getSupplierCommunications(id as string).then(setCommunications).catch(() => {}).finally(() => setCommLoading(false)); }
-    if (activeTab === 'documents' && documents.length === 0) { setDocLoading(true); getSupplierDocuments(id as string).then(setDocuments).catch(() => {}).finally(() => setDocLoading(false)); }
-    if (activeTab === 'links' && companyLinks === null) loadCompanyLinks();
+    // 2026-10-23 板块合并：懒加载挂到合并后的 tab 键（邀请与沟通/资质与文件/基本信息）
+    if (activeTab === 'rsvp' && communications.length === 0) { setCommLoading(true); getSupplierCommunications(id as string).then(setCommunications).catch(() => {}).finally(() => setCommLoading(false)); }
+    if (activeTab === 'qualifications' && documents.length === 0) { setDocLoading(true); getSupplierDocuments(id as string).then(setDocuments).catch(() => {}).finally(() => setDocLoading(false)); }
+    if (activeTab === 'info' && companyLinks === null) loadCompanyLinks();
   }, [activeTab, id]);
 
   const supplierAlerts = useSupplierAlerts(id as string);
@@ -370,15 +380,10 @@ export default function SupplierDetailPage() {
   const tabs: { key: TabKey; label: string; count?: number }[] = [
     { key: 'info', label: '基本信息' },
     { key: 'portrait', label: '供应商画像' },
-    { key: 'contacts', label: '联系人', count: supplier.contacts?.length },
-    { key: 'qualifications', label: '资质材料', count: qualifications.length },
-    { key: 'evaluations', label: '履约评价', count: evaluations.length },
-    { key: 'records', label: '奖惩记录', count: rewardRecords.length },
-    { key: 'rsvp', label: '邀请回执', count: rsvpHistory?.stats.invited },
-    { key: 'changes', label: '变更记录', count: changes.length },
-    { key: 'links', label: '归属公司' },
-    { key: 'communications', label: '沟通记录' },
-    { key: 'documents', label: '文件档案' },
+    // 合并计数（2026-10-23）：资质+文件 / 评价+奖惩；邀请数沿用回执统计
+    { key: 'qualifications', label: '资质与文件', count: qualifications.length + documents.length },
+    { key: 'evaluations', label: '评价与奖惩', count: evaluations.length + rewardRecords.length },
+    { key: 'rsvp', label: '邀请与沟通', count: rsvpHistory?.stats.invited },
   ];
 
   const getQualStatus = (q: SupplierQualification) => {
@@ -895,8 +900,9 @@ export default function SupplierDetailPage() {
         )}
 
         {/* 联系人 */}
-        {activeTab === 'contacts' && (
-          <div>
+        {activeTab === 'info' && (
+          <div className="mt-8">
+          <SectionTitle icon={Users}>联系人管理</SectionTitle>
           {/* CTS A-216 人员类别标注工具条 */}
           {supplier.contacts && supplier.contacts.length > 0 && (
             <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[14px] bg-[color-mix(in_oklch,var(--muted-foreground)_6%,transparent)] px-4 py-3">
@@ -948,49 +954,10 @@ export default function SupplierDetailPage() {
         )}
 
         {/* 奖惩记录（CTS A-213） */}
-        {activeTab === 'records' && (
-          <div>
-            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[14px] bg-[color-mix(in_oklch,var(--muted-foreground)_6%,transparent)] px-4 py-3">
-              <span className="text-xs font-semibold text-[var(--foreground)]">录入奖惩</span>
-              <select value={recordForm.recordType} onChange={e => setRecordForm(f => ({ ...f, recordType: e.target.value as 'reward' | 'punishment' }))} className="neu-input !h-8 text-xs">
-                <option value="punishment">惩戒</option>
-                <option value="reward">奖励</option>
-              </select>
-              <input value={recordForm.projectName} onChange={e => setRecordForm(f => ({ ...f, projectName: e.target.value }))} placeholder="关联项目/事项名称" className="neu-input !h-8 min-w-[160px] flex-1 text-xs" />
-              <input value={recordForm.recordNote} onChange={e => setRecordForm(f => ({ ...f, recordNote: e.target.value }))} placeholder="奖惩事由/文号" className="neu-input !h-8 min-w-[160px] flex-1 text-xs" />
-              <input type="date" value={recordForm.effectiveDate} onChange={e => setRecordForm(f => ({ ...f, effectiveDate: e.target.value }))} className="neu-input !h-8 text-xs" />
-              <button onClick={handleAddRecord} className="neu-btn-xs">录入</button>
-            </div>
-            <div className="neu-table-card overflow-hidden">
-              {rewardRecords.length === 0 ? (
-                <p className="text-[var(--muted-foreground)] text-center py-10 text-sm">暂无奖惩记录</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="neu-table">
-                    <thead>
-                      <tr><th>类型</th><th>关联项目/事项</th><th>事由/文号</th><th>生效日期</th><th>录入时间</th></tr>
-                    </thead>
-                    <tbody>
-                      {rewardRecords.map(r => (
-                        <tr key={r.id}>
-                          <td>{r.recordType === 'reward' ? <StatusBadge tone="green">奖励</StatusBadge> : <StatusBadge tone="red">惩戒</StatusBadge>}</td>
-                          <td className="font-semibold text-[var(--foreground)]">{r.projectName}</td>
-                          <td className="text-[var(--muted-foreground)]">{r.recordNote}</td>
-                          <td className="text-[var(--muted-foreground)] font-mono text-xs">{r.effectiveDate ? new Date(r.effectiveDate).toLocaleDateString('zh-CN') : '—'}</td>
-                          <td className="text-[var(--muted-foreground)] font-mono text-xs">{new Date(r.createdAt).toLocaleString('zh-CN')}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* 资质材料 */}
         {activeTab === 'qualifications' && (
           <div>
+            <SectionTitle icon={FolderOpen}>资质材料</SectionTitle>
             {qualifications.length === 0 ? (
               <div className="neu-card-static !rounded-2xl py-10 text-center">
                 <FolderOpen size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />
@@ -1073,6 +1040,7 @@ export default function SupplierDetailPage() {
         {/* 履约评价 */}
         {activeTab === 'evaluations' && (
           <div>
+            <SectionTitle icon={Award}>履约评价</SectionTitle>
             {evaluations.length === 0 ? (
               <div className="neu-card-static !rounded-2xl py-10 text-center">
                 <Award size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />
@@ -1170,6 +1138,48 @@ export default function SupplierDetailPage() {
           </div>
         )}
 
+        {/* 奖惩记录（2026-10-23 并入评价与奖惩分区——置于履约评价之后，主次分明） */}
+        {activeTab === 'evaluations' && (
+          <div className="mt-8">
+            <SectionTitle icon={AlertTriangle}>奖惩记录</SectionTitle>
+            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[14px] bg-[color-mix(in_oklch,var(--muted-foreground)_6%,transparent)] px-4 py-3">
+              <span className="text-xs font-semibold text-[var(--foreground)]">录入奖惩</span>
+              <select value={recordForm.recordType} onChange={e => setRecordForm(f => ({ ...f, recordType: e.target.value as 'reward' | 'punishment' }))} className="neu-input !h-8 text-xs">
+                <option value="punishment">惩戒</option>
+                <option value="reward">奖励</option>
+              </select>
+              <input value={recordForm.projectName} onChange={e => setRecordForm(f => ({ ...f, projectName: e.target.value }))} placeholder="关联项目/事项名称" className="neu-input !h-8 min-w-[160px] flex-1 text-xs" />
+              <input value={recordForm.recordNote} onChange={e => setRecordForm(f => ({ ...f, recordNote: e.target.value }))} placeholder="奖惩事由/文号" className="neu-input !h-8 min-w-[160px] flex-1 text-xs" />
+              <input type="date" value={recordForm.effectiveDate} onChange={e => setRecordForm(f => ({ ...f, effectiveDate: e.target.value }))} className="neu-input !h-8 text-xs" />
+              <button onClick={handleAddRecord} className="neu-btn-xs">录入</button>
+            </div>
+            <div className="neu-table-card overflow-hidden">
+              {rewardRecords.length === 0 ? (
+                <p className="text-[var(--muted-foreground)] text-center py-10 text-sm">暂无奖惩记录</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="neu-table">
+                    <thead>
+                      <tr><th>类型</th><th>关联项目/事项</th><th>事由/文号</th><th>生效日期</th><th>录入时间</th></tr>
+                    </thead>
+                    <tbody>
+                      {rewardRecords.map(r => (
+                        <tr key={r.id}>
+                          <td>{r.recordType === 'reward' ? <StatusBadge tone="green">奖励</StatusBadge> : <StatusBadge tone="red">惩戒</StatusBadge>}</td>
+                          <td className="font-semibold text-[var(--foreground)]">{r.projectName}</td>
+                          <td className="text-[var(--muted-foreground)]">{r.recordNote}</td>
+                          <td className="text-[var(--muted-foreground)] font-mono text-xs">{r.effectiveDate ? new Date(r.effectiveDate).toLocaleDateString('zh-CN') : '—'}</td>
+                          <td className="text-[var(--muted-foreground)] font-mono text-xs">{new Date(r.createdAt).toLocaleString('zh-CN')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* 邀请回执经历（2026-10-21 回执锁定口径）：邀请统计 + 毁约记录 + 逐条回执轨迹 */}
         {activeTab === 'rsvp' && rsvpHistory && (rsvpHistory.stats.consecutiveDeclined ?? 0) >= 3 && (
           <div className="mb-4 flex items-start gap-2.5 rounded-xl border px-4 py-3"
@@ -1212,6 +1222,7 @@ export default function SupplierDetailPage() {
         )}
         {activeTab === 'rsvp' && (
           <div>
+            <SectionTitle icon={Mail}>邀请回执</SectionTitle>
             {rsvpLoading ? (
               <div className="neu-card-static !rounded-2xl py-10 text-center">
                 <Loader2 size={24} className="mx-auto mb-3 animate-spin text-[var(--muted-foreground)]/40" />
@@ -1331,8 +1342,9 @@ export default function SupplierDetailPage() {
         )}
 
         {/* 变更记录 */}
-        {activeTab === 'changes' && (
-          <div>
+        {activeTab === 'info' && (
+          <div className="mt-8">
+            <SectionTitle icon={Pencil}>资料变更记录</SectionTitle>
             {changes.length === 0 ? (
               <div className="neu-card-static !rounded-2xl py-10 text-center">
                 <FileText size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />
@@ -1400,9 +1412,9 @@ export default function SupplierDetailPage() {
             )}
           </div>
         )}
-      {/* 归属公司（多公司归属 2026-10-16）：本视野内该供应商的库内归属与状态 */}
-      {activeTab === 'links' && (
-        <section>
+      {/* 归属公司（多公司归属 2026-10-16）：本视野内该供应商的库内归属与状态；2026-10-23 并入基本信息分区 */}
+      {activeTab === 'info' && (
+        <section className="mt-8">
           <SectionTitle icon={Link2}>归属公司</SectionTitle>
           {linksLoading || companyLinks === null ? (
             <div className="py-8 text-center"><Loader2 size={14} className="animate-spin mx-auto mb-2" /><span className="text-sm text-[var(--muted-foreground)]">加载中...</span></div>
@@ -1473,8 +1485,10 @@ export default function SupplierDetailPage() {
       )}
 
       {/* 沟通记录 */}
-      {activeTab === 'communications' && (
-        <section>
+      {/* 沟通记录（2026-10-23 并入邀请与沟通分区） */}
+      {activeTab === 'rsvp' && (
+        <section className="mt-8">
+          <SectionTitle icon={MessageSquare}>沟通记录</SectionTitle>
           {commLoading ? (
             <div className="py-8 text-center"><Loader2 size={14} className="animate-spin mx-auto mb-2" /><span className="text-sm text-[var(--muted-foreground)]">加载中...</span></div>
           ) : communications.length === 0 ? (
@@ -1508,8 +1522,10 @@ export default function SupplierDetailPage() {
       )}
 
       {/* 文件档案 */}
-      {activeTab === 'documents' && (
-        <section>
+      {/* 文件档案（2026-10-23 并入资质与文件分区） */}
+      {activeTab === 'qualifications' && (
+        <section className="mt-8">
+          <SectionTitle icon={Paperclip}>文件档案</SectionTitle>
           {docLoading ? (
             <div className="py-8 text-center"><Loader2 size={14} className="animate-spin mx-auto mb-2" /><span className="text-sm text-[var(--muted-foreground)]">加载中...</span></div>
           ) : (
