@@ -3784,7 +3784,11 @@ ${JSON.stringify(algorithmResult, null, 2)}
    * 抽屉级轮询若误用 ensure 会在公告发布前批量误建 SUBMIT 幽灵项目（方案 v2 P0-1）。
    */
   async listBidProjectRefs(pmiId: string) {
-    return this.prisma.bidProject.findMany({
+    const pmi = await this.prisma.projectManagementItem.findUnique({
+      where: { id: pmiId },
+      select: { projectCode: true },
+    });
+    const bps = await this.prisma.bidProject.findMany({
       where: { projectManagementItemId: pmiId },
       // 列集对齐前端 BidProjectRef 类型（ScoreStandardEditor/评标办法子块入参）
       select: {
@@ -3794,13 +3798,30 @@ ${JSON.stringify(algorithmResult, null, 2)}
         name: true,
         stage: true,
         procurementMethod: true,
-        // none-eval（spec §4.7）：:3005 评分标准卡 ref 兜底路径（detail 拉取失败时）也须能判 none
+        // none-eval（spec 2026-09-24）：:3005 评分标准卡 ref 兜底路径（detail 拉取失败时）也须能判 none
         evaluationMethod: true,
         openTime: true,
         deadline: true,
+        // 公告闸判定（2026-10-23 统一流）：该轮流标公告须晚于该轮 BidProject 创建
+        createdAt: true,
       },
       orderBy: { round: 'asc' },
     });
+    // 流标公告闸：FAILED_BID_NOTICE 命中本项目编码空间（PMI 编码或该轮 BidProject 编码）且发布于该轮创建之后
+    const codes = [pmi?.projectCode, ...bps.map((b) => b.projectCode)].filter((c): c is string => !!c);
+    const notices = codes.length
+      ? await this.prisma.announcement.findMany({
+          where: { type: 'FAILED_BID_NOTICE', relatedProjectCode: { in: codes } },
+          select: { relatedProjectCode: true, publishDate: true },
+        })
+      : [];
+    return bps.map((b) => ({
+      ...b,
+      failedBidNoticePublished: notices.some((n) => {
+        if (![pmi?.projectCode, b.projectCode].includes(n.relatedProjectCode)) return false;
+        return !!n.publishDate && new Date(n.publishDate) >= b.createdAt;
+      }),
+    }));
   }
 
   /**

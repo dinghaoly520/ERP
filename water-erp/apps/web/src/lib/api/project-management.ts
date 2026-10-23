@@ -657,6 +657,8 @@ export interface PmBidProjectRefItem {
   evaluationMethod?: string | null;
   openTime: string;
   deadline: string;
+  /** 流标公告闸（2026-10-23 统一流）：该轮已发布流标公告——决策向导入口判定 */
+  failedBidNoticePublished: boolean;
 }
 
 export async function fetchPmBidProjectRefs(pmId: string): Promise<PmBidProjectRefItem[]> {

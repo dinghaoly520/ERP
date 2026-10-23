@@ -2048,4 +2048,23 @@ describe('reproc 流标重启（2026-10-23 统一流 spec）', () => {
     );
   });
 });
+
+describe('listBidProjectRefs 公告闸字段（2026-10-23 统一流）', () => {
+  it('FAILED_BID_NOTICE 按轮归属：早于该轮 BidProject 创建的公告不算该轮', async () => {
+    const { service, prisma } = makeService();
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ projectCode: 'SWHI-TP-2026102301' });
+    prisma.bidProject.findMany.mockResolvedValue([
+      { id: 'bp-1', round: 1, projectCode: 'BID-1', name: 'A', stage: 'ABORTED', procurementMethod: '询比采购', evaluationMethod: 'COMPREHENSIVE', openTime: null, deadline: null, createdAt: new Date('2026-10-01') },
+      { id: 'bp-2', round: 2, projectCode: 'BID-2', name: 'A', stage: 'EVALUATING', procurementMethod: '询比采购', evaluationMethod: 'COMPREHENSIVE', openTime: null, deadline: null, createdAt: new Date('2026-10-15') },
+    ]);
+    prisma.announcement.findMany.mockResolvedValue([
+      { relatedProjectCode: 'SWHI-TP-2026102301', publishDate: new Date('2026-10-05') },
+    ]);
+
+    const refs = await service.listBidProjectRefs('pm-1');
+
+    expect(refs.find((r: any) => r.round === 1)!.failedBidNoticePublished).toBe(true);
+    expect(refs.find((r: any) => r.round === 2)!.failedBidNoticePublished).toBe(false);
+  });
+});
 });
