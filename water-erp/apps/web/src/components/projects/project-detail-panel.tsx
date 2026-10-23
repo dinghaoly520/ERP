@@ -1448,6 +1448,8 @@ export function ProjectDetailPanel({
               onSelect={(key, round) => { setSelectedStageKey(key); setSelectedRound(round); }}
               onStageAction={actionsDisabled ? undefined : (stageKey, round) => {
                 if (actionsDisabled) { toast.info('只读模式，仅供查看'); return; }
+                // 旧轮全部只读（2026-10-23 流标统一流）：历史轮次步骤卡快捷操作全关（按被点卡片自身轮次判）
+                if ((round ?? 1) < (localItem.currentRound ?? 1)) { toast.warning('该步骤属已完成的历史轮次，仅供查看'); return; }
                 // P0-3：开标锁定只锁前置阶段——BID_EVALUATION 自身与后置（定标）入口必须可进
                 //（阶段推进后 status=IN_PROGRESS 即 isBidLocked=true，旧守卫把面板唯一入口拦死）
                 if (isLockedByBid(stageKey)) { toast.warning('开标已确认，前置步骤已锁定'); return; }
@@ -1477,6 +1479,8 @@ export function ProjectDetailPanel({
               canArchive={canArchive}
               onOpenScoreStandard={actionsDisabled ? undefined : (round) => setScorePanelRound(round)}
               onReopenStage={actionsDisabled ? undefined : async (stageKey, round) => {
+                // 旧轮全部只读（2026-10-23 流标统一流）：历史轮次不可重开扰动（后端闸不认旧轮，前端先拦）
+                if ((round ?? 1) < (localItem.currentRound ?? 1)) { toast.warning('该步骤属已完成的历史轮次，仅供查看'); return; }
                 // 开标锁定（2026-09-24）：按时开标后前置步骤不可重开（后端同款 409 硬闸，此处先拦给出友好提示）
                 if (isLockedByBid(stageKey)) { toast.warning('开标已确认，前置步骤已锁定，不可重开'); return; }
                 try {
