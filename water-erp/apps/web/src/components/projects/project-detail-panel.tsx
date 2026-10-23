@@ -2510,6 +2510,7 @@ export function ProjectDetailPanel({
         project={item}
         onPublished={() => {
           handleUpdated();
+          setBpDataTick((t) => t + 1); // 公告闸 flag 即时刷新：failedBidNoticePublished 依赖 refs 重拉，不 bump 会拿旧值重开向导
           // 流标统一流（2026-10-23）：failed_bid 发布成功 → 自动进入决策向导（是否继续/信息确认/重启）
           if (announcementCategory === 'failed_bid') setAbortRestartOpen(true);
         }}
@@ -2524,7 +2525,7 @@ export function ProjectDetailPanel({
         item={item}
         currentRoundBidProjectId={currentRoundBp?.id ?? null}
         onRequestTerminate={() => { setAbortRestartOpen(false); setTerminateOpen(true); }}
-        onRestarted={() => { handleUpdated(); }}
+        onRestarted={() => { handleUpdated(); setBpDataTick((t) => t + 1); }}
       />
 
       {/* 评分标准与评标办法面板（2026-09-24 定稿：03 卡「评分标准」按钮弹出；开标确认面板同款
