@@ -176,10 +176,11 @@ export function formatDurationCn(ms: number): string {
   return m ? `${h} 小时 ${m} 分` : `${h} 小时`;
 }
 
-/** 流标操作窗口（独立规则，与截标↔开标间隔无关，2026-10-16 常量化·行为不变）：
- *  开标前 24 小时至开标后 48 小时内可操作流标。 */
+/** 流标操作窗口（独立规则，与截标↔开标间隔无关）：
+ *  开标前 24 小时起可操作流标、无下界（开标过点滞留项目保持可流标）；
+ *  OPENING 阶段不受此窗口限制（2026-10-23 收口，原「开标后 48h」下界随
+ *  BID_ABORT_WINDOW_AFTER_OPENING_MS 退役移除）。 */
 export const BID_ABORT_WINDOW_BEFORE_OPENING_MS = 24 * 3_600_000;
-export const BID_ABORT_WINDOW_AFTER_OPENING_MS = 48 * 3_600_000;
 
 /** B-011（CTS-EBS01 附录B）：投标人对招标文件澄清提问，最迟在投标截止时间前 N 日提出 */
 export const CLARIFY_ASK_MIN_DAYS_BEFORE_DEADLINE = 10;
