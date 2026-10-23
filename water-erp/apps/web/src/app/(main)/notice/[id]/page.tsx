@@ -526,7 +526,10 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
           <div>
             <label className="block text-xs font-semibold text-[var(--muted-foreground)] mb-1.5">类型</label>
             <select value={type} onChange={e => onTypeChange(e.target.value as AnnouncementType)} className="neu-input" disabled>
-              {(Object.keys(typeLabel) as AnnouncementType[]).sort((a, b) => ANNOUNCEMENT_TYPE_ORDER.indexOf(a) - ANNOUNCEMENT_TYPE_ORDER.indexOf(b)).map(t => <option key={t} value={t}>{typeLabel[t]}</option>)}
+              {/* 2026-10-23 用户裁定：合同/履行结果公告由合同与履约流程自动生成（contract.service/
+                  project-management.service），不提供手工发布/转入入口——类型选项剔除；已是该类的
+                  存量公告保留自身选项（仅展示，防下拉值悬空），但不可被其它公告切换进去 */}
+              {((Object.keys(typeLabel) as AnnouncementType[]).filter(t => !['CONTRACT_NOTICE', 'PERFORMANCE_NOTICE'].includes(t) || t === type).sort((a, b) => ANNOUNCEMENT_TYPE_ORDER.indexOf(a) - ANNOUNCEMENT_TYPE_ORDER.indexOf(b))).map(t => <option key={t} value={t}>{typeLabel[t]}</option>)}
             </select>
           </div>
           <div>
