@@ -1494,6 +1494,12 @@ export function ProjectDetailPanel({
                 }
               }}
               isStageLocked={isLockedByBid}
+              roundMethods={(() => {
+                const m: Record<number, string> = { 1: item.procurementMethod };
+                bpRefs.forEach((r) => { m[r.round] = r.procurementMethod; });
+                m[item.currentRound ?? 1] = item.procurementMethod; // 新轮无 BidProject 时以 PMI 现方式为准
+                return m;
+              })()}
             />
 
             {/* 评分标准与评标办法（2026-09-24 定稿：常驻卡撤、改为 03 卡按钮弹出面板

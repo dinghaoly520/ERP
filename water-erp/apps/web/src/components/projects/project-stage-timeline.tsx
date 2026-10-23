@@ -100,6 +100,7 @@ export function ProjectStageTimeline({
   onOpenScoreStandard,
   onReopenStage,
   isStageLocked,
+  roundMethods,
 }: {
   stages: ProjectManagementStage[];
   activeStageKey: ProjectWorkflowStageKey;
@@ -119,6 +120,8 @@ export function ProjectStageTimeline({
   onReopenStage?: (stageKey: ProjectWorkflowStageKey, round: number) => Promise<void>;
   /** 步骤锁定判定（开标锁定）：true 时「已完成 ↺」退化为静态徽章，禁止重开入口。 */
   isStageLocked?: (stageKey: ProjectWorkflowStageKey) => boolean;
+  /** 轮次 → 采购方式（2026-10-23 流标统一流）：round ≥ 2 与首轮不同时分组头显示方式变更徽标 */
+  roundMethods?: Record<number, string>;
 }) {
   const entries: TimelineEntry[] = stages.map((stage): SelectableTimelineEntry => {
     const isCompleted = stage.status === 'COMPLETED';
@@ -257,6 +260,11 @@ export function ProjectStageTimeline({
                   {round > 1 && (
                     <span className="inline-flex items-center rounded-full px-1.5 py-0 text-[9px] font-bold" style={{ background: 'color-mix(in oklch, var(--warning) 14%, transparent)', color: 'var(--warning)' }}>
                       流标重采
+                    </span>
+                  )}
+                  {roundMethods && round > 1 && roundMethods[round] && roundMethods[1] && roundMethods[round] !== roundMethods[1] && (
+                    <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'color-mix(in oklch, var(--accent) 14%, transparent)', color: 'var(--accent)' }}>
+                      方式：{roundMethods[round]}（原 {roundMethods[1]}）
                     </span>
                   )}
                 </span>
