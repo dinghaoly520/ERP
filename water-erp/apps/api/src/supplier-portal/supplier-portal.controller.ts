@@ -440,6 +440,13 @@ export class SupplierPortalController {
     return this.portalService.getBidProjectOverview(id, supplierId);
   }
 
+  @Get('bid-projects/:id/my-outcome')
+  @ApiOperation({ summary: '已完结项目的我的结果（详情页结果卡：中标/已投递未中标/流标 + 金额；进行中 outcome=null）' })
+  async getMyProjectOutcome(@Request() req: any, @Param('id') id: string) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.getMyOutcome(supplierId, id);
+  }
+
   @Get('bid-projects/:id/bid-document')
   async getBidProjectDocument(@Request() req: any, @Param('id') id: string) {
     const supplierId = await this.getSupplierId(req.user.sub);

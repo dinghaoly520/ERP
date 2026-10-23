@@ -3911,13 +3911,9 @@ export class SupplierPortalService {
       },
     });
 
-    // 本人中标轮次（awardAmount / 轮次号）
-    const rounds = await this.prisma.procurementRound.findMany({
-      where: { awardedSupplierId: supplierId },
-      select: { projectId: true, awardAmount: true, roundNo: true },
-    });
-    const awardMap = new Map<string, { awardAmount: any; roundNo: number }>();
-    for (const r of rounds) awardMap.set(r.projectId, { awardAmount: r.awardAmount, roundNo: r.roundNo });
+    // 中标事实（2026-10-23 修复）：此前查 ProcurementRound.awardedSupplierId——该表属 legacy
+    // 采购域（projectId 外键引 Project 表），与 BidProject id 零交集，bid 项目恒不命中。
+    const outcomeFacts = await this.assembleOutcomeFacts(supplierId, rows.map((r) => r.projectId));
 
     // 本人有效投递（submitted 状态）
     const subs = await this.prisma.supplierBidSubmission.findMany({
@@ -3927,9 +3923,9 @@ export class SupplierPortalService {
     const subMap = new Map(subs.map((x) => [x.projectId, x]));
 
     return rows.map((r) => {
-      const award = awardMap.get(r.projectId);
+      const f = outcomeFacts.get(r.projectId);
       const sub = subMap.get(r.projectId);
-      const myPrice = sub?.bidPrice ? openField(sub.bidPrice, process.env.KMS_SECRET!) : null;
+      const myPrice = f?.myEvalBidPrice ?? (sub?.bidPrice ? openField(sub.bidPrice, process.env.KMS_SECRET!) : null);
       return {
         projectId: r.projectId,
         projectCode: r.project.projectCode,
@@ -3937,19 +3933,123 @@ export class SupplierPortalService {
         procurementMethod: r.project.procurementMethod,
         stage: r.project.stage, // ARCHIVED / ABORTED
         completedAt: r.project.updatedAt,
-        // 我的结果：中标（含金额/轮次）/ 已投递未中标 / 未投递
-        outcome: award
+        // 我的结果：中标 / 已投递未中标 / 未投递（口径同 getMyOutcome）
+        outcome: f?.awarded
           ? 'AWARDED'
           : r.project.stage === 'ABORTED'
             ? 'ABORTED'
-            : sub ? 'PARTICIPATED' : 'INVITED',
-        awardAmount: award?.awardAmount ?? null,
-        awardRoundNo: award?.roundNo ?? null,
+            : sub || f?.myRank ? 'PARTICIPATED' : 'INVITED',
+        awardAmount: f?.winnerBidPrice ?? null, // 中标金额 = 第一名报价（元侧）
+        awardRoundNo: null, // bid 域无轮次号（契约字段保留，恒 null）
         myBidPrice: myPrice,
         submittedAt: sub?.submittedAt ?? null,
         submitStatus: r.submitStatus,
       };
     });
+  }
+
+  /** bid 域中标事实装配（2026-10-23）：评标结果（rank/recommended/报价/得分）+ 中标通知书投递。
+   *  此前以 ProcurementRound.awardedSupplierId 判「我是否中标」——该表 projectId 外键引 legacy
+   *  Project 表，与 BidProject id 空间零交集（实测库内 7 轮全属 legacy 域、bid 模块从不建轮），
+   *  bid 项目恒不命中（已完成列表「中标」列因此恒空的潜在缺陷，本次一并修复）。
+   *  金额口径（金额链地图）：BidEvaluationResult.bidPrice 为元侧，直显不换算。 */
+  private async assembleOutcomeFacts(supplierId: string, projectIds: string[]) {
+    const empty = new Map<string, {
+      awarded: boolean; myRank: number | null; myScore: number | null;
+      myEvalBidPrice: number | null; winnerBidPrice: number | null; myDisqualified: boolean;
+    }>();
+    if (projectIds.length === 0) return empty;
+    const [results, letters] = await Promise.all([
+      this.prisma.bidEvaluationResult.findMany({
+        where: { projectId: { in: projectIds } },
+        select: {
+          projectId: true, supplierId: true, rank: true, recommended: true,
+          disqualified: true, bidPrice: true, averageScore: true,
+        },
+      }),
+      this.prisma.awardLetterDelivery.findMany({
+        where: { projectId: { in: projectIds }, supplierId },
+        select: { projectId: true },
+      }),
+    ]);
+    const letterSet = new Set(letters.map((l) => l.projectId));
+    const byProject = new Map<string, typeof results>();
+    for (const r of results) {
+      const list = byProject.get(r.projectId) ?? [];
+      list.push(r);
+      byProject.set(r.projectId, list);
+    }
+    const facts = empty;
+    for (const pid of projectIds) {
+      const rows = byProject.get(pid) ?? [];
+      const mine = rows.find((r) => r.supplierId === supplierId) ?? null;
+      const winner = rows
+        .filter((r) => !r.disqualified)
+        .slice()
+        .sort((a, b) => a.rank - b.rank)[0] ?? null;
+      facts.set(pid, {
+        awarded: letterSet.has(pid) || (!!mine && !mine.disqualified && (mine.rank === 1 || mine.recommended)),
+        myRank: mine?.rank ?? null,
+        myScore: mine ? Number(mine.averageScore) : null,
+        myEvalBidPrice: mine?.bidPrice != null ? Number(mine.bidPrice) : null,
+        winnerBidPrice: winner?.bidPrice != null ? Number(winner.bidPrice) : null,
+        myDisqualified: mine?.disqualified ?? false,
+      });
+    }
+    return facts;
+  }
+
+  /** 已完结项目「我的结果」（2026-10-23）：详情页结果卡数据源，与 listCompletedProjects 同源。
+   *  进行中项目 outcome=null——结果语义仅归档/流标后成立。 */
+  async getMyOutcome(supplierId: string, projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: {
+        id: true, projectCode: true, name: true, procurementMethod: true,
+        stage: true, updatedAt: true, companyId: true,
+      },
+    });
+    if (!project) throw new BadRequestException({ error: '招标项目不存在', code: 'PROJECT_NOT_FOUND' });
+    await this.assertProjectVisibleToSupplier(project, supplierId); // 公司隔离读闸同口径
+
+    if (project.stage !== 'ARCHIVED' && project.stage !== 'ABORTED') {
+      return { stage: project.stage, outcome: null, awardAmount: null, myRank: null, myScore: null, myBidPrice: null, submittedAt: null, submitStatus: null, completedAt: null, disqualified: false };
+    }
+
+    const [roster, sub, facts] = await Promise.all([
+      this.prisma.bidSupplier.findFirst({
+        where: { projectId, supplierId },
+        select: { submitStatus: true },
+      }),
+      this.prisma.supplierBidSubmission.findFirst({
+        where: { supplierId, projectId, status: 'submitted' },
+        select: { bidPrice: true, submittedAt: true },
+        orderBy: { submittedAt: 'desc' },
+      }),
+      this.assembleOutcomeFacts(supplierId, [project.id]),
+    ]);
+    const f = facts.get(project.id)!;
+    return {
+      stage: project.stage,
+      // 与列表同序：中标 > 流标 > 已投递（含有评标结果）> 受邀；无名册关系（直敲 URL）→ null
+      outcome: f.awarded
+        ? 'AWARDED'
+        : project.stage === 'ABORTED'
+          ? 'ABORTED'
+          : sub || f.myRank
+            ? 'PARTICIPATED'
+            : roster
+              ? 'INVITED'
+              : null,
+      awardAmount: f.winnerBidPrice, // 中标金额 = 第一名（未废标）报价，元侧
+      myRank: f.myRank,
+      myScore: f.myScore,
+      myBidPrice: f.myEvalBidPrice ?? (sub?.bidPrice ? openField(sub.bidPrice, process.env.KMS_SECRET!) : null),
+      submittedAt: sub?.submittedAt ?? null,
+      submitStatus: roster?.submitStatus ?? null,
+      completedAt: project.updatedAt,
+      disqualified: f.myDisqualified,
+    };
   }
 
   async getMySubmissions(supplierId: string) {

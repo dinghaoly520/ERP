@@ -49,6 +49,10 @@ export const bidApi = {
   getProjectBidDocument(projectId: string) {
     return api.get<any>(`/supplier-portal/bid-projects/${projectId}/bid-document`);
   },
+  // 已完结项目的我的结果（2026-10-23：详情页结果卡——outcome/金额/轮次；进行中 outcome=null）
+  getMyOutcome(projectId: string) {
+    return api.get<any>(`/supplier-portal/bid-projects/${projectId}/my-outcome`);
+  },
   // 谈判采购文件（受邀项目，获取窗口内可下载）
   getNegotiationFiles(projectId: string) {
     return api.get<any>(`/supplier-portal/bid-projects/${projectId}/negotiation-files`);

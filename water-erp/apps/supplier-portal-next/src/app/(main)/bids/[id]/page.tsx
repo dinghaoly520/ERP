@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import dayjs from "dayjs";
 import {
   FileText, TriangleAlert, Lock, Upload, Download, Sparkles, Loader2, ArrowLeft,
-  CircleX, CircleCheck, Info, KeyRound, Copy, Check, Coins,
+  CircleX, CircleCheck, Info, KeyRound, Copy, Check, Coins, Trophy,
 } from "lucide-react";
 import { bidApi } from "@/lib/api/bid";
 import { TenderClarificationCard } from "@/components/tender-clarification-card";
@@ -220,6 +220,24 @@ function BidDetailInner() {
   // SUP-P3-08：加载失败保留原因——此前一切失败折叠成「暂无采购文件」空态，
   // 截止已过/临时过期等 400 与「确实没有」不可区分
   const [bidDocError, setBidDocError] = useState<string | null>(null);
+
+  // 项目结果（2026-10-23）：已完结项目的结果卡数据——outcome 仅归档/流标后非空
+  const [outcome, setOutcome] = useState<any>(null);
+  const loadOutcome = useCallback(async () => {
+    try {
+      setOutcome(await bidApi.getMyOutcome(projectId));
+    } catch {
+      setOutcome(null); // 结果卡静默降级——详情主体不受影响（API 层已全局提示）
+    }
+  }, [projectId]);
+  const fmtAmount = (n: any) =>
+    typeof n === "number" ? (n >= 10000 ? `${(n / 10000).toFixed(2)} 万元` : `${n} 元`) : "—";
+  const OUTCOME_META: Record<string, { label: string; cls: string }> = {
+    AWARDED: { label: "已中标", cls: "var(--success)" },
+    PARTICIPATED: { label: "已投递 · 未中标", cls: "var(--warning)" },
+    INVITED: { label: "受邀 · 未投递", cls: "var(--fg-3, gray)" },
+    ABORTED: { label: "项目流标", cls: "var(--danger)" },
+  };
   const loadBidDoc = useCallback(async () => {
     setBidDocLoading(true);
     setBidDocError(null);
@@ -278,7 +296,16 @@ function BidDetailInner() {
       ]);
       setProject(p);
       setProfile(prof);
-      loadBidDoc();
+      // 已完结项目（2026-10-23）：不再请求采购文件——下载截止闸对归档/流标项目必然 400，
+      // 每次进详情弹「采购文件下载时间已截止」报错不合适；卡内改为终态说明。
+      // SUP-P3-08 的失败保留语义继续服务进行中项目（截止/临时过期仍即时反馈）。
+      if (p.stage === "ARCHIVED" || p.stage === "ABORTED") {
+        setBidDoc(null);
+        setBidDocError("项目已完结归档，采购文件获取窗口已结束");
+      } else {
+        loadBidDoc();
+      }
+      void loadOutcome();
       loadOverview();
       // A-101 回执卡：仅已入库（APPROVED）供应商拉本人递交记录——临时/待审供应商
       // 虽有 Supplier 行但尚未入库，无递交记录可展示（2026-09-28 修正注释：此前误写「临时供应商无 Supplier 行」）
@@ -620,6 +647,59 @@ function BidDetailInner() {
                     capabilities 门控（CA_SUPPLIER_V3_ENABLED + ACTIVE SCCA 绑定）内置于 Section；
                     未开 v3/未绑盾渲染 null——旧轨用户不受影响 */}
 
+
+              {/* ═══ 项目结果（2026-10-23）：已完结项目的结果卡——已完成列表此前只有行级结果，
+                  详情页无结果区块且进页必弹下载截止报错；现终态说明 + 结果（中标/未中标/流标） */}
+              {outcome?.outcome && (
+                <div className="neu-card bottom-card" style={{ gridColumn: "1 / -1" }}>
+                  <div className="bc-hd flex items-center justify-between">
+                    <span className="inline-flex items-center gap-1.5">
+                      <Trophy size={15} strokeWidth={1.85} style={{ color: OUTCOME_META[outcome.outcome]?.cls }} />
+                      项目结果
+                    </span>
+                    <span
+                      className="rounded-full px-2.5 py-1 text-xs font-semibold"
+                      style={{
+                        color: OUTCOME_META[outcome.outcome]?.cls,
+                        background: `color-mix(in oklch, ${OUTCOME_META[outcome.outcome]?.cls} 12%, transparent)`,
+                      }}
+                    >
+                      {OUTCOME_META[outcome.outcome]?.label}
+                    </span>
+                  </div>
+                  {outcome.outcome === "ABORTED" ? (
+                    <p className="cc-inv-note">该项目已流标归档，无中标结果。可前往「信息门户 → 公告」查看相关流标公示。</p>
+                  ) : (
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                      <div>
+                        <p className="ov-time-label">中标金额</p>
+                        <p className="font-mono font-semibold">{fmtAmount(outcome.awardAmount)}</p>
+                      </div>
+                      <div>
+                        <p className="ov-time-label">我的名次</p>
+                        <p className="font-mono font-semibold">
+                          {outcome.disqualified ? `${outcome.myRank ?? "—"}（废标）` : (outcome.myRank ?? "—")}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="ov-time-label">我的得分</p>
+                        <p className="font-mono font-semibold">{outcome.myScore ?? "—"}</p>
+                      </div>
+                      <div>
+                        <p className="ov-time-label">我的报价</p>
+                        <p className="font-mono font-semibold">{fmtAmount(outcome.myBidPrice)}</p>
+                      </div>
+                      <div>
+                        <p className="ov-time-label">投递 / 完结</p>
+                        <p className="font-mono font-semibold">
+                          {outcome.submittedAt ? dayjs(outcome.submittedAt).format("YYYY-MM-DD") : "—"}
+                          {outcome.completedAt ? ` / ${dayjs(outcome.completedAt).format("YYYY-MM-DD")}` : ""}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* ═══ 招标文件 + 书面交流 ═══
                   B2-1（2026-09-30）：不再按 isListMode 隐藏——「项目机会」列表与工作台均
