@@ -303,7 +303,14 @@ export default function DashboardPage() {
     loadData();
   }, [loadData]);
 
-  const { pull, refreshing } = usePullToRefresh(loadData);
+  // 下拉刷新：主数据重载之外连带 bump retryTick——今日要报（deps 含 retryTick）与
+  // 公司龙虎榜（deps [rankingRange, retryTick]）同轮重取，三卡一致
+  const { pull, refreshing } = usePullToRefresh(
+    useCallback(() => {
+      setRetryTick((t) => t + 1);
+      return loadData();
+    }, [loadData]),
+  );
 
   const summary = data?.summary;
   const cmp = data?.compare?.summary;

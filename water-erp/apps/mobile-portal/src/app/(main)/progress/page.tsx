@@ -159,7 +159,7 @@ export default function ProgressPage() {
     };
   }, [filterCompanyId, retryTick]);
 
-  /* 未来 14 天关键节点（截标/开标）：随公司口径重取；静默失败（无节点不渲染，不占错误位） */
+  /* 未来 14 天关键节点（截标/开标）：随公司口径/下拉刷新（retryTick）重取；静默失败（无节点不渲染，不占错误位） */
   useEffect(() => {
     let active = true;
     fetchUpcoming(14, filterCompanyId)
@@ -170,7 +170,7 @@ export default function ProgressPage() {
     return () => {
       active = false;
     };
-  }, [filterCompanyId]);
+  }, [filterCompanyId, retryTick]);
 
   /* 洞察手动生成（与数据库页 AI 综合分析同款：点「生成分析」才请求）；
      公司口径变化/下拉刷新使旧结果作废（置 null 后按钮态回归） */

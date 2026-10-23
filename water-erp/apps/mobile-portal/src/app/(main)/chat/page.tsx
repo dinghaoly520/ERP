@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Bot, Plus, SendHorizonal, Sparkles } from "lucide-react";
 import { useAuth } from "@/components/m/auth-context";
 import { sendChat, fetchConversation, createConversation, type ChatMessage } from "@/lib/api/assistant";
+import { readSavedFilters } from "@/lib/filter-store";
 import { ChatCardView } from "@/components/m/chat-card";
 
 const CONV_KEY = "m-shuidingdang-conversation";
@@ -17,6 +18,18 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  // admin 口径标签展示值：读数据库页当前公司选择，挂载 + 回前台（visibilitychange）时刷新；
+  // 发送提问时在 ask() 内再读一次真实值，标签只作展示不作数据源
+  const [adminScopeCount, setAdminScopeCount] = useState(0);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    const refreshScope = () =>
+      setAdminScopeCount(readSavedFilters<{ companyIds: string[] }>("dashboard").companyIds?.length ?? 0);
+    refreshScope();
+    document.addEventListener("visibilitychange", refreshScope);
+    return () => document.removeEventListener("visibilitychange", refreshScope);
+  }, [isAdmin]);
 
   useEffect(() => {
     const saved = localStorage.getItem(CONV_KEY);
@@ -44,8 +57,12 @@ export default function ChatPage() {
     setInput("");
     setSending(true);
     setMessages((prev) => [...prev, { role: "user", content: q }]);
+    // 发送时读数据库页当前公司口径（fresh 值，不用挂载期闭包）——admin 选中公司后提问按该口径作答
+    const adminCompanyIds = isAdmin
+      ? (readSavedFilters<{ companyIds: string[] }>("dashboard").companyIds ?? [])
+      : undefined;
     try {
-      const r = await sendChat(q, conversationId);
+      const r = await sendChat(q, conversationId, adminCompanyIds?.length ? adminCompanyIds : undefined);
       if (r.conversationId) { setConversationId(r.conversationId); localStorage.setItem(CONV_KEY, r.conversationId); }
       setMessages((prev) => [...prev, { role: "assistant", content: r.answer, cards: r.cards ?? [] }]);
     } catch {
@@ -72,7 +89,11 @@ export default function ChatPage() {
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-1.5 truncate text-[12px] text-[var(--muted-foreground)]">
           <Bot size={13} className="shrink-0 text-[var(--accent)]" />
-          {isAdmin ? "当前口径：全部公司（可在数据库页切换后提问）" : "当前口径：本公司数据"}
+          {isAdmin
+            ? adminScopeCount > 0
+              ? `当前口径：已选 ${adminScopeCount} 家公司（数据库页可切换）`
+              : "当前口径：全部公司（数据库页可切换）"
+            : "当前口径：本公司数据"}
         </span>
         <button type="button" onClick={newConversation} className="neu-btn-soft h-8 shrink-0 rounded-[9px] px-2.5 text-[13px] active:scale-95">
           <Plus size={12} /> 新对话
