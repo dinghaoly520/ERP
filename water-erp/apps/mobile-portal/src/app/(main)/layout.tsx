@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { Crown, FolderKanban, LayoutDashboard, LogOut, TrendingUp } from "lucide-react";
+import { Bot, Crown, FolderKanban, LayoutDashboard, LogOut, TrendingUp } from "lucide-react";
 import { fetchCurrentUser, logout, type AuthUser } from "@/lib/api/auth";
 import { fetchMobileGreeting } from "@/lib/api/ai";
 import { fetchDashboardBadges, type DashboardBadges } from "@/lib/api/dashboard";
@@ -14,6 +14,7 @@ const TABS = [
   { href: "/dashboard", label: "数据库", icon: LayoutDashboard },
   { href: "/ledger", label: "台账", icon: FolderKanban },
   { href: "/progress", label: "进展", icon: TrendingUp },
+  { href: "/chat", label: "水叮当", icon: Bot },
 ];
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
