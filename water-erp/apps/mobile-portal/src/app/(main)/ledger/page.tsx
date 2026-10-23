@@ -363,8 +363,12 @@ export default function LedgerPage() {
                 <span className="shrink-0 tabular-nums">{item.procurementDate || "—"}</span>
                 <span>·</span>
                 <span className="min-w-0 flex-1 truncate">{item.procurementMethod}</span>
-                <span>·</span>
-                <span className="max-w-[8rem] shrink-0 truncate">{item.departmentName}</span>
+                {item.departmentName ? (
+                  <>
+                    <span>·</span>
+                    <span className="max-w-[8rem] shrink-0 truncate">{item.departmentName}</span>
+                  </>
+                ) : null}
               </div>
               <div className="mt-2 flex items-baseline justify-between gap-2 border-t border-[color-mix(in_oklch,var(--border)_45%,transparent)] pt-2">
                 <span className="text-[14px] text-[var(--muted-foreground)]">

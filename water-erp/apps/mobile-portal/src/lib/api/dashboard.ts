@@ -100,6 +100,22 @@ export type DashboardData = {
       status: string;
     }>;
   }>;
+  /** 公司维度分布（2026-10-23：部门归属近乎全空，驾驶舱分布维度改用公司；与 departmentStats 同形） */
+  companyStats: Array<{
+    name: string;
+    amount: number;
+    amountLabel: string;
+    completedRate: number;
+    topMethod: string;
+    projects: Array<{
+      name: string;
+      date: string;
+      method: string;
+      budgetLabel: string;
+      awardLabel: string;
+      status: string;
+    }>;
+  }>;
   methodStats: Array<{
     name: string;
     count: number;
