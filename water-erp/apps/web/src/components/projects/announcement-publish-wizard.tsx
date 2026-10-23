@@ -1248,10 +1248,10 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       await uploadPendingFiles(id);
 
       toast.success(publishTiming === 'now' ? '已发布' : publishTiming === 'announcement_start' ? '已设定按公示期限起始时间发布' : '已保存为定时发布');
-      // 流标公告发布后：自动触发再次采购（按采购方式新增新一轮「立项后→开标评标」阶段）
+      // 流标公告发布后：自动触发再次采购（Task 5 将改为弹流标决策向导，此处临时按旧口径从采购文件步重启）
       if (category === 'failed_bid' && project?.id) {
         try {
-          await reprocProject(project.id);
+          await reprocProject(project.id, { startStageKey: 'TENDER_DOCUMENT' });
           toast.success('已开启新一轮采购');
         } catch (e) {
           toast.error('再次采购失败：' + (e instanceof Error ? e.message : '未知错误'));

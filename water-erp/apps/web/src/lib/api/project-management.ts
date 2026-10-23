@@ -96,10 +96,25 @@ export async function fetchProjectManagementList(
   return parseJsonResponse<ProjectManagementItem[]>(response);
 }
 
-/** 流标后再次采购：按采购方式在定标后插入新一轮"采购文件→定标"阶段 */
-export async function reprocProject(projectId: string) {
+/** 流标后再次采购入参（spec 2026-10-23-abort-restart-unification §4.1）——键名对齐 PMI 列名 */
+export interface ReprocBody {
+  startStageKey: 'PROCUREMENT_DEMAND' | 'INITIATION' | 'TENDER_DOCUMENT';
+  /** 不传 = 沿用当前方式 */
+  procurementMethod?: string;
+  /** 仅传有差异字段 */
+  basicInfo?: Partial<{
+    requesterName: string; requesterDepartment: string; title: string; procurementCategory: string;
+    budgetAmount: number; projectReason: string; supplierRequirements: string;
+    initiationDate: string; procurementOrganizationForm: string; isAnnualBudget: boolean;
+  }>;
+}
+
+/** 流标后再次采购：删当前轮尾部、按（新）方式模板从起点截取插入新一轮（后端单事务） */
+export async function reprocProject(projectId: string, body: ReprocBody) {
   const response = await apiFetch(`${API_BASE}/project-management/${projectId}/reproc`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
     credentials: 'include',
   });
   return parseJsonResponse<{ round: number; inserted: number }>(response);

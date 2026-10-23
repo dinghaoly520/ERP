@@ -175,6 +175,10 @@ export type ProjectManagementItem = {
   requesterDepartment: string;
   procurementMethod: ProcurementMethod;
   procurementCategory: string;
+  /** 采购组织形式（后端实体必填列，列表/详情原样返回——此处从宽可选，存量快照兼容） */
+  procurementOrganizationForm?: string | null;
+  /** 年度预算内（同上，后端实体必填列） */
+  isAnnualBudget?: boolean | null;
   budgetAmount: number;
   projectReason: string;
   supplierRequirements: string;
