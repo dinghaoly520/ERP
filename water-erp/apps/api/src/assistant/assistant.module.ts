@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
 import { BidModule } from '../bid/bid.module';
+import { DashboardModule } from '../dashboard/dashboard.module';
+import { ProgressModule } from '../progress/progress.module';
 import { AssistantController } from './assistant.controller';
 import { AssistantService } from './assistant.service';
 import { DeepSeekProvider } from './model/deepseek.provider';
@@ -13,11 +15,12 @@ import { ExpertTool } from './tools/expert.tool';
 import { AnnouncementTool } from './tools/announcement.tool';
 import { NotificationTool } from './tools/notification.tool';
 import { MallTool } from './tools/mall.tool';
+import { CockpitTool } from './tools/cockpit.tool';
 import { ActionPlannerService } from './actions/action-planner.service';
 import { ActionExecutorService } from './actions/action-executor.service';
 
 @Module({
-  imports: [PrismaModule, BidModule],
+  imports: [PrismaModule, BidModule, DashboardModule, ProgressModule],
   controllers: [AssistantController],
   providers: [
     AssistantService,
@@ -31,6 +34,7 @@ import { ActionExecutorService } from './actions/action-executor.service';
     AnnouncementTool,
     NotificationTool,
     MallTool,
+    CockpitTool,
     ActionPlannerService,
     ActionExecutorService,
   ],

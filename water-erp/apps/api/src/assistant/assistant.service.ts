@@ -11,6 +11,7 @@ import { ExpertTool } from './tools/expert.tool';
 import { AnnouncementTool } from './tools/announcement.tool';
 import { NotificationTool } from './tools/notification.tool';
 import { MallTool } from './tools/mall.tool';
+import { CockpitTool } from './tools/cockpit.tool';
 import { ActionPlannerService } from './actions/action-planner.service';
 import { ActionExecutorService } from './actions/action-executor.service';
 import { SYSTEM_KNOWLEDGE } from './knowledge/system-knowledge';
@@ -93,6 +94,7 @@ export class AssistantService {
     private readonly announcementTool: AnnouncementTool,
     private readonly notificationTool: NotificationTool,
     private readonly mallTool: MallTool,
+    private readonly cockpitTool: CockpitTool,
     private readonly actionPlanner: ActionPlannerService,
     private readonly actionExecutor: ActionExecutorService,
   ) {
@@ -108,6 +110,7 @@ export class AssistantService {
     this.toolRegistry.register(this.announcementTool);
     this.toolRegistry.register(this.notificationTool);
     this.toolRegistry.register(this.mallTool);
+    this.toolRegistry.register(this.cockpitTool);
   }
 
   async createConversation(title?: string, owner: AssistantOwner | null = null) {
