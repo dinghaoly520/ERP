@@ -82,6 +82,8 @@ export function AbortRestartDialog({
     setAnnualBudget(item.isAnnualBudget ?? true);
     setMethod(item.procurementMethod);
     setStartStage('TENDER_DOCUMENT');
+    // 先清残留禁用态（null 轮次 BidProject 不触发下方 refetch，不清会跨项目误禁）
+    setDealBlocked(false);
     // C3：当前轮已转非招标方式成交 → 不宜重启采购
     if (currentRoundBidProjectId) {
       getNonTenderDeal(currentRoundBidProjectId)
