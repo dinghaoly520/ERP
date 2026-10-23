@@ -438,7 +438,7 @@ export default function SupplierDetailPage() {
               <div className="page-hero__sub truncate">
                 <span className="inline-flex items-center gap-1"><Hash size={11} />{supplier.creditCode || '信用代码未登记'}</span>
                 {mostCommonGrade && <><span className="opacity-40 ml-2">·</span><span className="inline-flex items-center gap-1 ml-2">评价等级 <span className="inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[mostCommonGrade] }}>{mostCommonGrade}</span></span></>}
-                <span className="opacity-40 ml-2">·</span><span className="ml-2" title={`入库时间：${entryDate.toLocaleString('zh-CN')}`}>入库 {entryDate.toLocaleDateString('zh-CN')}</span>
+                <span className="opacity-40 ml-2">·</span><span className="ml-2" title={`入库时间：${entryDate.toLocaleString('zh-CN')}`}>在库 {Math.floor((Date.now() - entryDate.getTime()) / (1000 * 60 * 60 * 24))} 天</span>
               </div>
               {supplier.returnReason && supplier.status === 'RETURNED' && (
                 <div className="mt-2 flex items-start gap-1.5 text-xs">
