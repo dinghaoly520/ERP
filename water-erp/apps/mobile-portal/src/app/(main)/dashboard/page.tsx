@@ -908,7 +908,7 @@ export default function DashboardPage() {
                         <span className="text-[13px] font-black leading-none" style={{ color: rc }}>
                           {idx + 1}
                         </span>
-                        <span className="mt-0.5 text-[12px] font-bold leading-none" style={{ color: rc }}>
+                        <span className="mt-0.5 text-[10px] font-bold leading-none" style={{ color: rc }}>
                           {item.savingsRate}%
                         </span>
                       </span>
