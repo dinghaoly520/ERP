@@ -1,4 +1,5 @@
 import { IsOptional, IsString, IsNumber } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 export class UpdateExtractedInfoDto {
   @IsOptional()
@@ -25,6 +26,7 @@ export class UpdateExtractedInfoDto {
   @IsString()
   awardedSupplier?: string;
 
+  @EmptyAsUndefined()
   @IsOptional()
   @IsNumber()
   contractAmount?: number;
@@ -104,6 +106,7 @@ export class UpdateExtractedInfoDto {
   @IsString()
   procurementCategory?: string;
 
+  @EmptyAsUndefined()
   @IsOptional()
   @IsNumber()
   budgetAmount?: number;

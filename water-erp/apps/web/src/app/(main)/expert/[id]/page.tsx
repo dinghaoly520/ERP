@@ -28,8 +28,10 @@ interface Assignment {
 }
 interface ExpertDetail {
   id: string; username: string; displayName: string; email: string | null;
+  /** 专家编号（2026-10-22）：{归属公司编码}-{同公司入库序号}，后端计算 */
+  expertNo?: string;
   department: { id: string; name: string } | null; createdAt: string; isActive: boolean;
-  expertProfile?: { specialty?: string; title?: string; employer?: string; phone?: string; idNumber?: string; availability?: string; notes?: string; education?: string; ethnicity?: string; licenseNo?: string; regionCode?: string; expertLevel?: string };
+  expertProfile?: { specialty?: string; title?: string; employer?: string; phone?: string; idNumber?: string; availability?: string; notes?: string; education?: string; ethnicity?: string; licenseNo?: string; regionCode?: string; expertLevel?: string; verifiedAt?: string | null };
   assignments: Assignment[];
   statistics: { totalProjects: number; completedProjects: number; signedInProjects: number; evalAvg: number; evalCount: number };
   /** 邀请信用摘要（2026-10-21）：毁约记录 + 连拒段预警口径 */
@@ -343,8 +345,11 @@ export default function ExpertDetailPage() {
   );
   if (!expert) return <div className="py-24 text-center text-[13px] text-[var(--muted-foreground)]">专家不存在</div>;
 
-  // 编号藏在 notes 里（"编号: A001431, ..."），解析出来挂标题栏
-  const expertNo = expert.expertProfile?.notes?.match(/编号\s*[:：]\s*([^\s,，、]+)/)?.[1];
+  // 专家编号（2026-10-22 用户口径·重编）：{归属公司编码}-{同公司入库序号}（如设计院 SWHI-0001），
+  // 由后端按公司码+稳定排名计算返回；无归属公司回退 ZJ-ID 尾 6。入库时间取审核留痕，无则建档时间。
+  const entryAt = expert.expertProfile?.verifiedAt ?? expert.createdAt;
+  const entryDate = new Date(entryAt);
+  const expertNo = expert.expertNo ?? `ZJ-${expert.id.slice(-6).toUpperCase()}`;
 
   return (
     <div className="flex flex-col gap-5">
@@ -366,9 +371,13 @@ export default function ExpertDetailPage() {
             <div className="min-w-0">
               <div className="page-hero__title truncate">
                 {expert.displayName}
-                {expertNo && (
-                  <span className="ml-2 inline-flex items-center rounded-md bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 align-middle text-[13px] font-bold tabular-nums text-[var(--accent)]" title="专家编号">{expertNo}</span>
-                )}
+                {/* 编号随姓名展示（2026-10-22 用户口径：回姓名旁+浅色瓷片） */}
+                <span
+                  className="ml-2 inline-flex items-center rounded-md bg-[color-mix(in_oklch,var(--muted-foreground)_9%,transparent)] px-2 py-0.5 align-middle font-mono text-[12px] font-medium tracking-wide text-[color:var(--muted-foreground)]"
+                  title="专家编号：归属公司编码-同公司入库序号（如设计院 SWHI-0001）"
+                >
+                  {expertNo}
+                </span>
               </div>
               <div className="page-hero__sub truncate">
                 {expert.expertProfile?.specialty && <span>{expert.expertProfile.specialty}</span>}
@@ -380,6 +389,13 @@ export default function ExpertDetailPage() {
             </div>
           </div>
           <div className="page-hero__right">
+            {/* 入库时间（2026-10-22）：右侧常驻；取审核留痕时间，无则账号建档时间（编号已随姓名展示） */}
+            <span
+              className="rounded-[8px] bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)] px-2 py-1 text-[11px] font-semibold tabular-nums text-[color:var(--muted-foreground)]"
+              title={`入库时间：${entryDate.toLocaleString('zh-CN')}`}
+            >
+              入库 {entryDate.toLocaleDateString('zh-CN')}
+            </span>
             <StatusBadge tone={expert.isActive ? 'green' : 'gray'}>{expert.isActive ? '可用' : '已停用'}</StatusBadge>
             {portrait?.isStandingExpert && <StatusBadge tone="purple">常委专家</StatusBadge>}
             <button onClick={openEditProfile} className="neu-btn-soft"><Pencil size={14} /> 编辑资料</button>

@@ -288,9 +288,19 @@ export function QualAddPanel({ onAdded, onClose }: {
   const qHandleAdd = async () => {
     if (!form.type || !form.name) { toast.warning("请填写资质类型和名称"); return; }
     if (!uploadedMeta || !form.fileUrl) { toast.warning("请先上传资质文件"); return; }
+    // 有效期选填：空串不出门（直传会被后端 IsDateString 误报「该项应为有效日期 string」）；
+    // 填了起止则校验顺序（2026-10-22 报错语句优化）
+    if (form.validFrom && form.validTo && form.validFrom > form.validTo) {
+      toast.warning("有效期止不能早于有效期起，请检查填写日期");
+      return;
+    }
     setLoading(true);
     try {
-      await supplierApi.addQualification(form);
+      await supplierApi.addQualification({
+        ...form,
+        validFrom: form.validFrom || undefined,
+        validTo: form.validTo || undefined,
+      });
       toast.success("资质添加成功");
       onAdded();
     } catch {

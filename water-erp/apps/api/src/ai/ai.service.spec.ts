@@ -354,7 +354,8 @@ describe('AiService', () => {
 
 describe('AiController — 供应商名称不允许 AI 生成（2026-10-16 用户裁定）', () => {
   it('fieldKey=supplierName → 400 SUPPLIER_NAME_NO_AI，不触达 AI service', async () => {
-    const controller = new AiController({} as any, {} as any, {} as any, {} as any, {} as any);
+    // 构造 7 参（2026-10-22 补第 7 参 mobileBrief——加构造参须同步本 spec，历史实录 89d61a8c）
+    const controller = new AiController({} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
     await expect(
       controller.tenderFieldGenerate({ fieldKey: 'supplierName', fieldLabel: '供应商名称', currentValue: '', context: {} } as any),
     ).rejects.toMatchObject({ response: { code: 'SUPPLIER_NAME_NO_AI' } });

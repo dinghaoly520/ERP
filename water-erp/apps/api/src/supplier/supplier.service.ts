@@ -1418,11 +1418,41 @@ export class SupplierService {
       await this.assertSupplierInScope(supplier, actor);
     }
     if (!supplier) return null;
+    // 供应商编号（2026-10-22 用户口径·重编）：{归属公司编码}-{同公司入库序号}（如 SWHI-0001），
+    // 与专家编号同体系；多公司挂靠以主归属 companyId 为准；无归属公司回退平台序列 supplierNo。
+    // 序号按 (createdAt,id) 稳定排名、不滤状态（状态流转不改号）；存库 supplierNo 不动（种子/CI 序列对齐）。
+    // 入库时间（2026-10-22 用户口径）：首次审批通过（SupplierApprovalRecord 首条 APPROVED）时刻，
+    // 无审批留痕（种子直载等）回退注册提交时间 createdAt——详情页替代「注册 N 天」展示
+    let entryAt: Date = supplier.createdAt;
+    const firstApproved = await this.prisma.supplierApprovalRecord.findFirst({
+      where: { supplierId: supplier.id, action: 'APPROVED' },
+      orderBy: { createdAt: 'asc' },
+      select: { createdAt: true },
+    }).catch(() => null);
+    if (firstApproved) entryAt = firstApproved.createdAt;
+    let companyNo: string | null = null;
+    if (supplier.companyId) {
+      const [company, rank] = await Promise.all([
+        this.prisma.company.findUnique({ where: { id: supplier.companyId }, select: { code: true } }),
+        this.prisma.supplier.count({
+          where: {
+            companyId: supplier.companyId,
+            OR: [
+              { createdAt: { lt: supplier.createdAt } },
+              { createdAt: supplier.createdAt, id: { lt: supplier.id } },
+            ],
+          },
+        }),
+      ]);
+      if (company?.code) companyNo = `${company.code.toUpperCase()}-${String(rank + 1).padStart(4, '0')}`;
+    }
     // PII 出口（等保+密评）：supplier 本人自视明文（归属校验在 controller，跨企访问 403 于响应前拦截）；
     // 管理端（admin/leader/staff）默认脱敏，明文走 reveal 端点（SensitiveAccessLog 审计）。
     if (actor?.role === 'supplier') {
       return {
         ...supplier,
+        companyNo,
+        entryAt: entryAt.toISOString(),
         user: supplier.user ? { ...supplier.user, email: openPii(supplier.user.email) } : supplier.user,
         legalPersonIdCard: openPii(supplier.legalPersonIdCard),
         legalPersonPhone: openPii(supplier.legalPersonPhone),
@@ -1433,6 +1463,8 @@ export class SupplierService {
     }
     return {
       ...supplier,
+      companyNo,
+      entryAt: entryAt.toISOString(),
       user: supplier.user ? { ...supplier.user, email: maskEmail(openPiiForMask(supplier.user.email)) } : supplier.user,
       legalPersonIdCard: maskIdNumber(openPiiForMask(supplier.legalPersonIdCard)),
       legalPersonPhone: maskPhone(openPiiForMask(supplier.legalPersonPhone)),
@@ -2650,11 +2682,18 @@ export class SupplierService {
 
   /** 审批中心：全部待审的供应商资料变更（:3004 供应商门户提交，跨供应商） */
   async listPendingChanges() {
-    return this.prisma.supplierChangeRecord.findMany({
+    const rows = await this.prisma.supplierChangeRecord.findMany({
       where: { status: 'PENDING' },
       orderBy: { createdAt: 'asc' },
       include: { supplier: { select: { id: true, name: true, supplierNo: true } } },
     });
+    // 审批场景明文出口（PII 口径 2026-10 密评裁定）：待审列表原值/新值拆封展示——
+    // 此前裸出 SM4 密文（2026-10-22 实录「审批中出现密文」），审批人无法核对
+    return rows.map(r => ({
+      ...r,
+      oldValue: openChangeValue(r.fieldName, r.oldValue),
+      newValue: openChangeValue(r.fieldName, r.newValue),
+    }));
   }
 
   async createChangeRequest(supplierId: string, userId: string, dto: CreateChangeRequestDto) {

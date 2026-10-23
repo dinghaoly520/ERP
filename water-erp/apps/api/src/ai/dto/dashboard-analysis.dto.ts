@@ -1,4 +1,5 @@
 import { IsOptional, IsString, IsArray } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 /**
  * AI 采购仪表盘深度分析入参（2026-08 审计 E：原 @Body() payload: any）。
@@ -19,27 +20,35 @@ export class DashboardAnalysisDto {
   @IsOptional()
   summary?: unknown;
 
+  @EmptyAsUndefined()
   @IsOptional() @IsArray()
   departmentStats?: unknown[];
 
+  @EmptyAsUndefined()
   @IsOptional() @IsArray()
   methodStats?: unknown[];
 
+  @EmptyAsUndefined()
   @IsOptional() @IsArray()
   resultStats?: unknown[];
 
+  @EmptyAsUndefined()
   @IsOptional() @IsArray()
   supplierStats?: unknown[];
 
+  @EmptyAsUndefined()
   @IsOptional() @IsArray()
   nonAwardReasons?: unknown[];
 
+  @EmptyAsUndefined()
   @IsOptional() @IsArray()
   trendSeries?: unknown[];
 
+  @EmptyAsUndefined()
   @IsOptional() @IsArray()
   riskProjects?: unknown[];
 
+  @EmptyAsUndefined()
   @IsOptional() @IsArray()
   quickActions?: string[];
 }

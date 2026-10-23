@@ -1,4 +1,5 @@
 import { IsDateString, IsString, IsNotEmpty, IsEmail, IsOptional, ValidateNested, IsArray, ArrayMinSize, ArrayMaxSize, Matches, MaxLength, MinLength, Length, IsUUID } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 import { Type } from 'class-transformer';
 import { PASSWORD_PATTERN, PASSWORD_POLICY_MESSAGE } from '../../common/validators/password-strength';
 import { RegisterContactDto } from './register-contact.dto';
@@ -52,6 +53,7 @@ export class RegisterSupplierDto {
   industry?: string;
 
   /** 企业注册成立日期（营业执照登记日期，ISO 日期字符串） */
+  @EmptyAsUndefined()
   @IsDateString() @IsOptional()
   establishedDate?: string;
 
@@ -59,9 +61,11 @@ export class RegisterSupplierDto {
   @IsString() @IsOptional() @MaxLength(1000)
   companyProfile?: string;
 
+  @EmptyAsUndefined()
   @IsString() @IsOptional() @Matches(/^1[3-9]\d{9}$/, { message: '法人联系电话须为 11 位手机号' })
   legalPersonPhone?: string;
 
+  @EmptyAsUndefined()
   @IsEmail() @IsOptional()
   companyEmail?: string;
 
@@ -77,6 +81,7 @@ export class RegisterSupplierDto {
   @IsString() @IsNotEmpty() @Matches(PASSWORD_PATTERN, { message: PASSWORD_POLICY_MESSAGE })
   password: string;
 
+  @EmptyAsUndefined()
   @IsEmail() @IsOptional()
   email?: string;
 
@@ -110,10 +115,12 @@ export class RegisterSupplierDto {
   qualifications: CreateQualificationDto[];
 
   /** 银行账户（选填，可多项） */
+  @EmptyAsUndefined()
   @IsArray() @IsOptional() @ValidateNested({ each: true }) @Type(() => RegisterBankAccountDto)
   bankAccounts?: RegisterBankAccountDto[];
 
   /** 主体业绩（选填，可多项，每项须含证明材料） */
+  @EmptyAsUndefined()
   @IsArray() @IsOptional() @ValidateNested({ each: true }) @Type(() => RegisterPerformanceDto)
   performances?: RegisterPerformanceDto[];
 

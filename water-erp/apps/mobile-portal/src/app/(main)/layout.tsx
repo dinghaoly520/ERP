@@ -6,6 +6,8 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { Crown, FolderKanban, LayoutDashboard, LogOut, TrendingUp } from "lucide-react";
 import { fetchCurrentUser, logout, type AuthUser } from "@/lib/api/auth";
+import { fetchMobileGreeting } from "@/lib/api/ai";
+import { fetchDashboardBadges, type DashboardBadges } from "@/lib/api/dashboard";
 import { AuthProvider } from "@/components/m/auth-context";
 
 const TABS = [
@@ -19,6 +21,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const pathname = usePathname();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [checked, setChecked] = useState(false);
+  /* 顶部 AI 欢迎语——每次进入/刷新都现场生成新句（无缓存、无静态保底行，2026-10-22 用户裁定） */
+  const [greeting, setGreeting] = useState<string | null>(null);
+  /* Tab 角标（数据库=异常 / 台账=待处理 / 进展=停滞）——回前台即时重取 */
+  const [badges, setBadges] = useState<DashboardBadges | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -38,12 +44,35 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     };
   }, [router]);
 
+  useEffect(() => {
+    if (!checked) return;
+    let active = true;
+    fetchMobileGreeting()
+      .then((r) => {
+        if (active && r?.text?.trim()) setGreeting(r.text.trim());
+      })
+      .catch(() => undefined); // 失败保持空行（无静态保底，2026-10-22 用户裁定）
+    return () => {
+      active = false;
+    };
+  }, [checked]);
+
+  useEffect(() => {
+    if (!checked) return;
+    let active = true;
+    const load = () => fetchDashboardBadges().then((b) => { if (active) setBadges(b); }).catch(() => undefined);
+    load();
+    const onVisible = () => { if (document.visibilityState === "visible") load(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { active = false; document.removeEventListener("visibilitychange", onVisible); };
+  }, [checked]);
+
   if (!checked) {
     return (
       <div className="flow-page flex min-h-dvh items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-[color-mix(in_oklch,var(--accent)_30%,transparent)] border-t-[var(--accent)]" />
-          <span className="text-[15px] text-[var(--muted-foreground)]">验证登录状态...</span>
+          <span className="text-[17px] text-[var(--muted-foreground)]">验证登录状态...</span>
         </div>
       </div>
     );
@@ -61,7 +90,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(238,244,255,0.86))] shadow-[0_6px_16px_rgba(69,99,158,0.15)]">
           <Image src="/procurement-brand-logo.png" alt="蜀水云采" width={24} height={24} className="rounded-[6px] object-cover" priority />
         </div>
-        <div className="min-w-0 flex-1 truncate text-[14px] font-bold tracking-[0.02em] text-[var(--foreground)]">蜀水云采 · 专属驾驶舱</div>
+        <div className="min-w-0 flex-1 truncate text-[16px] font-bold tracking-[0.02em] text-[var(--foreground)]">蜀水云采 · 专属驾驶舱</div>
         <button
           type="button"
           onClick={handleLogout}
@@ -86,22 +115,28 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-baseline gap-1.5">
-              <span className="shrink-0 text-[13px] font-medium text-[var(--gold)]">尊敬的</span>
-              <span className="min-w-0 truncate text-[16px] font-bold tracking-[-0.01em] text-[var(--foreground)]">{user?.displayName ?? ""}</span>
+              <span className="shrink-0 text-[15px] font-medium text-[var(--gold)]">尊敬的</span>
+              <span className="min-w-0 truncate text-[18px] font-bold tracking-[-0.01em] text-[var(--foreground)]">{user?.displayName ?? ""}</span>
             </div>
-            <div className="mt-0.5 truncate text-[12px] text-[var(--muted-foreground)]">欢迎回到专属驾驶舱 · 数据库 / 台账 / 进展 全局在握</div>
+            <div className="mt-0.5 min-h-5 truncate text-[14px] text-[var(--muted-foreground)]">{greeting}</div>
           </div>
         </div>
         <AuthProvider user={user}>{children}</AuthProvider>
       </main>
 
       <nav className="m-tabbar" aria-label="主导航">
-        {TABS.map(({ href, label, icon: Icon }) => (
-          <Link key={href} href={href} data-active={pathname.startsWith(href)} className="m-tab-item">
-            <Icon size={20} strokeWidth={1.5} />
-            <span>{label}</span>
-          </Link>
-        ))}
+        {TABS.map(({ href, label, icon: Icon }) => {
+          const badge = href === "/dashboard" ? badges?.abnormalCount : href === "/ledger" ? badges?.pendingCount : href === "/progress" ? badges?.stalledCount : undefined;
+          return (
+            <Link key={href} href={href} data-active={pathname.startsWith(href)} className="m-tab-item relative">
+              <span className="relative">
+                <Icon size={20} strokeWidth={1.5} />
+                {badge ? <span className="absolute -right-2.5 -top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--danger)] px-1 text-[11px] font-bold leading-none text-white">{badge > 99 ? "99+" : badge}</span> : null}
+              </span>
+              <span>{label}</span>
+            </Link>
+          );
+        })}
       </nav>
     </div>
   );

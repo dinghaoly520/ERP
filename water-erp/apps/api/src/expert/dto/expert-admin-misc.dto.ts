@@ -14,6 +14,7 @@ import {
   Matches,
   ValidateIf,
 } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 /**
  * 更新专家资料：逐字段带校验装饰器（全部可选）。
@@ -36,12 +37,14 @@ export class UpdateExpertProfileDto {
   @IsOptional() @IsEmail() email?: string;
   @IsOptional() @IsString() notes?: string;
   /** A-129 行政区域代码（GB/T 2260 六位，抽取配额过滤维度）；null=清除（显式置空），undefined=不动 */
+  @EmptyAsUndefined()
   @IsOptional()
   @ValidateIf((o, v) => v !== null)
   @IsString() @MaxLength(6) @Matches(/^\d{6}$/, { message: 'regionCode 须为 6 位行政区划代码' })
   regionCode?: string | null;
 
   /** A-129 库内等级 A-E（区别于履职评价等级）；null=清除，undefined=不动 */
+  @EmptyAsUndefined()
   @IsOptional()
   @ValidateIf((o, v) => v !== null)
   @IsIn(['A', 'B', 'C', 'D', 'E'])

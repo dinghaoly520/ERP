@@ -84,7 +84,7 @@ export function HostPickerModal({ projectId, currentHostId, currentHostName, onC
       footer={
         <div className="neu-btn-group">
           <button type="button" onClick={onClose} className="neu-btn-soft">取消</button>
-          <button type="button" onClick={() => void handleSave()} disabled={busy} className="neu-btn-primary">
+          <button type="button" onClick={() => void handleSave()} disabled={busy} className="neu-btn-primary is-water">
             <UserCheck size={13} /> 确认指派
           </button>
         </div>

@@ -8,6 +8,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 export class InitiationAttachmentDto {
   @IsString()
@@ -74,6 +75,7 @@ export class DemandFieldsDto {
   @IsOptional()
   supplierRequirements?: string;
 
+  @EmptyAsUndefined()
   @Type(() => Number)
   @IsNumber()
   @Min(0)

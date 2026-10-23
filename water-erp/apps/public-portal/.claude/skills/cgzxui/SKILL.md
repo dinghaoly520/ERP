@@ -141,7 +141,8 @@ box-shadow:
 | `.announce-view-all` | "全部公告"链接 | `#f4f7fc` | 右 chevron SVG，hover 右滑 4px |
 
 > 这两个链接的箭头是 **SVG chevron**（`M15 18l-6-6 6-6` 左 / `M9 18l6-6-6-6` 右），不是文本字符——见 `references/component-specs.md` 的「箭头 SVG 源」。
-| `.neu-btn-primary` | 主要操作按钮 | `var(--brand)` | 44px 实心 |
+| `.neu-btn-primary` | **页面级唯一主行动**（流程提交/登录等） | `var(--brand)` | 44px 深色实心；**工具栏/表格行/卡片内操作禁用**（2026-10-22 铁律，见下节） |
+| `.neu-btn-primary.is-water` | 白瓷片主操作（工具栏/面板「添加 XX」类） | `oklch(1 0 0)` | 纯白底 + 顶缘内高光 + 品牌蓝粗体；配 `!h-[38px] !px-5` 用作面板级操作钮 |
 | `.neu-btn-soft` | 次要操作按钮 | `var(--surface)` | 38px 凸起，hover 抬升，active 内凹 |
 | `.neu-btn-xs` | 紧凑按钮 | `var(--surface)` | 30px，含 `.is-danger`/`.is-success`/`.is-warning` 颜色变体 |
 | `.neu-link` | 次级链接 | `#e8ecf2` | 经典 neumorphic |
@@ -151,6 +152,22 @@ box-shadow:
 | `.hero-btn-outline` | Hero 描边 CTA | transparent | 描边变体 |
 | `.flow-cta-btn` | CTA 底栏按钮 | `var(--brand)` | 54px |
 | `.flow-cta-btn.ghost` | 幽灵变体 | transparent | 次要操作 |
+
+### 按钮深色与尺寸铁律（2026-10-22 用户裁定收录）
+
+> 判例：:3004 个人资料「添加联系人」曾用深色实心 `neu-btn-primary` 44px 挤在工具栏——
+> 改白瓷片 `is-water` 38px（同款判例还有「提出异议」）。深色块在浅色 neumorphic 画面里
+> 视觉压迫极强，只配承担"一页一次"的主行动；尺寸不随场景分级则行列错乱。
+
+| 场景 | 允许的按钮 | 禁止 |
+|------|-----------|------|
+| 页面 Hero/流程 CTA（一页一次的主行动） | `hero-btn`(52) / `flow-cta-btn`(54) / `neu-btn-primary`(44) | — |
+| 工具栏 / 面板头部 / page-hero actions | 白瓷片 `is-water` 38px、`neu-btn-soft` 38px（成对须 `.neu-btn-group`） | **任何深色实心**（`neu-btn-primary` 深底、自造深底类） |
+| 表格行内 / 列表项操作 | `neu-btn-xs`(30) | 深色实心；44px 大按钮塞进行内 |
+| 弹窗 footer | `neu-btn-soft` / 白瓷片 38px 同高（`.neu-btn-group`）；危险用 `is-danger` | 高低不齐；深色实心混排 |
+
+尺寸三档对号入座：**52-54 页面级 / 38 面板级 / 30 行内**；宽度随内容
+（`!px-*` 与文本长度适配），禁止固定小宽挤压文本、也禁止超大留白。
 
 ### 卡片 / 容器
 
@@ -283,6 +300,8 @@ box-shadow:
 | 保存按钮默认 44px 高于取消 38px | 底部按钮不齐平，视觉凌乱 | "高度不一样没关系" |
 | 并排按钮不用 `.neu-btn-group` 包裹 | 高度不一致，对齐偏移 | "我手动设了 height" |
 | 给文字/标签/badge 加 neumorphic shadow | 小元素变臃肿模糊 | "让标签突出一点" |
+| 工具栏/表格行/卡片内操作用深色实心按钮（`neu-btn-primary` 深底） | 深色块视觉压迫喧宾夺主，破坏浅色 neumorphic 层次 | "主操作就该醒目" ——醒目用白瓷片 `is-water`（品牌蓝粗体已足够强调） |
+| 按钮尺寸与场景不适配（44px 塞工具栏/行内、xs 当页面主 CTA、固定窄宽挤压文本） | 行列错乱、文本截断；按钮大小本身在传递层级 | "按钮大点好点" |
 
 ### 红牌自检
 
@@ -292,6 +311,7 @@ box-shadow:
 - ❌ 文件中有 `bg-white`、`border-gray-200`、`rounded-full` 修饰的按钮/输入框
 - ❌ 文件中有 `shadow-lg`、`shadow-2xl` 或内联 `boxShadow`
 - ❌ 卡片/面板/容器组件上有 `border` 或 `border-[...]` 类名（`border-t` hairline 内部分割线除外）
+- ❌ 工具栏/表格行/卡片内出现深色实心按钮（`neu-btn-primary` 未加 `.is-water`），或按钮高度与场景三档（52-54/38/30）不符
 
 ## 反模式（为什么错）
 

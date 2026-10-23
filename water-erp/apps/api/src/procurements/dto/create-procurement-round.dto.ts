@@ -7,6 +7,7 @@ import {
   IsEnum,
   Min,
 } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 import { ResultStatus } from '@prisma/client';
 
 export class CreateProcurementRoundDto {
@@ -17,6 +18,7 @@ export class CreateProcurementRoundDto {
   @IsString()
   projectCode?: string;
 
+  @EmptyAsUndefined()
   @IsOptional()
   @IsDateString()
   procurementDate?: string;
@@ -32,21 +34,25 @@ export class CreateProcurementRoundDto {
   @IsString()
   departmentName?: string;
 
+  @EmptyAsUndefined()
   @IsOptional()
   @IsNumber()
   @Min(0)
   budgetAmount?: number;
 
+  @EmptyAsUndefined()
   @IsOptional()
   @IsNumber()
   @Min(0)
   controlAmount?: number;
 
+  @EmptyAsUndefined()
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   supplierIds?: string[];
 
+  @EmptyAsUndefined()
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
@@ -60,11 +66,13 @@ export class CreateProcurementRoundDto {
   @IsString()
   awardedSupplierName?: string;
 
+  @EmptyAsUndefined()
   @IsOptional()
   @IsNumber()
   @Min(0)
   awardAmount?: number;
 
+  @EmptyAsUndefined()
   @IsOptional()
   @IsEnum(ResultStatus)
   resultStatus?: ResultStatus;

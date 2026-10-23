@@ -57,6 +57,27 @@ function diffDays(from: Date, to: Date) {
   return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
 }
 
+/** 环比上期窗口：双边界=等长前移；仅起始日（本月口径）=「上月起同日 → 起始前一日」；无起始日（全部）无上期。
+ *  纯日期运算按 UTC 解析/序列化（与机器时区无关，结果确定）；入库边界仍走 startOfDay/endOfDay(+08:00)。 */
+export function priorWindow(
+  startDate?: string,
+  endDate?: string,
+): { startDate: string; endDate: string } | null {
+  if (!startDate) return null;
+  const start = new Date(`${startDate}T00:00:00.000Z`);
+  const prevEnd = new Date(start.getTime() - 1); // 起始前一日末
+  let prevStart: Date;
+  if (endDate) {
+    const end = new Date(`${endDate}T00:00:00.000Z`);
+    const spanMs = end.getTime() - start.getTime() + 24 * 3600 * 1000;
+    prevStart = new Date(prevEnd.getTime() + 1 - spanMs);
+  } else {
+    prevStart = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() - 1, start.getUTCDate()));
+  }
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  return { startDate: iso(prevStart), endDate: iso(prevEnd) };
+}
+
 @Injectable()
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
@@ -65,6 +86,7 @@ export class DashboardService {
     startDate?: string,
     endDate?: string,
     companyFilter?: CompanyWhere,
+    compare = false,
   ) {
     // 公司隔离：where 注入 companyId，轮次主查询与附件统计（经 procurementRound 关联）同时生效
     const where = {
@@ -797,6 +819,56 @@ export class DashboardService {
             ),
     }));
 
+    // 环比上期块（compare=true 才算）：等长前移窗口六指标，口径全部镜像主 summary
+    let compareBlock:
+      | {
+          prevRange: { startDate: string; endDate: string } | null;
+          summary: Record<string, number> | null;
+        }
+      | undefined = undefined;
+    if (compare) {
+      const prev = priorWindow(startDate, endDate);
+      if (prev) {
+        const prevRounds = await this.prisma.procurementRound.findMany({
+          where: {
+            ...companyFilter,
+            procurementDate: { gte: startOfDay(prev.startDate), lte: endOfDay(prev.endDate) },
+          },
+          select: { resultStatus: true, budgetAmount: true, awardAmount: true },
+        });
+        const prevAwarded = prevRounds.filter((r) => r.resultStatus === ResultStatus.AWARDED);
+        compareBlock = {
+          prevRange: prev,
+          summary: {
+            totalCount: prevRounds.length,
+            completedCount: prevAwarded.length,
+            // 异常口径同主 summary：非 AWARDED 且非 PENDING（PENDING=在途不算异常）
+            abnormalCount: prevRounds.filter(
+              (r) => r.resultStatus !== ResultStatus.AWARDED && r.resultStatus !== ResultStatus.PENDING,
+            ).length,
+            awardedBudget: prevAwarded.reduce((s, r) => s + decimalToNumber(r.budgetAmount), 0),
+            totalAward: prevRounds.reduce((s, r) => s + decimalToNumber(r.awardAmount), 0),
+            // 节资口径同主 summary totalSavings：仅 AWARDED 且 budget>0、award>0、budget>=award 参与
+            totalSavings: prevRounds.reduce((sum, r) => {
+              const budget = decimalToNumber(r.budgetAmount);
+              const award = decimalToNumber(r.awardAmount);
+              if (
+                r.resultStatus === ResultStatus.AWARDED &&
+                budget > 0 &&
+                award > 0 &&
+                budget >= award
+              ) {
+                return sum + (budget - award);
+              }
+              return sum;
+            }, 0),
+          },
+        };
+      } else {
+        compareBlock = { prevRange: null, summary: null };
+      }
+    }
+
     return {
       range: {
         startDate,
@@ -826,6 +898,29 @@ export class DashboardService {
       nonAwardReasons,
       savingsRanking,
       riskProjects,
+      ...(compare ? { compare: compareBlock } : {}),
     };
+  }
+
+  /** :3011 Tab 角标——异常/待处理/停滞三计数（与 getDashboard abnormalCount 同口径：
+   *  异常=非 AWARDED 且非 PENDING；停滞=active PMI 当前阶段停留>30 天） */
+  async getBadges(companyFilter?: CompanyWhere) {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000);
+    const [abnormalCount, pendingCount, stalledCount] = await Promise.all([
+      this.prisma.procurementRound.count({
+        where: { ...companyFilter, resultStatus: { notIn: ['AWARDED', 'PENDING'] } },
+      }),
+      this.prisma.procurementRound.count({
+        where: { ...companyFilter, resultStatus: 'PENDING' },
+      }),
+      this.prisma.projectManagementStage.count({
+        where: {
+          status: { not: 'COMPLETED' },
+          updatedAt: { lt: thirtyDaysAgo },
+          ...(companyFilter ? { projectManagementItem: companyFilter } : {}),
+        },
+      }),
+    ]);
+    return { abnormalCount, pendingCount, stalledCount };
   }
 }

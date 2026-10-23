@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 export class UpdateProfileDto {
   @ApiPropertyOptional({ description: '显示名称', example: '陈主任' })
@@ -9,6 +10,7 @@ export class UpdateProfileDto {
   @MaxLength(32)
   displayName?: string;
 
+  @EmptyAsUndefined()
   @ApiPropertyOptional({ description: '邮箱地址', example: 'chen@example.com', nullable: true })
   @IsOptional()
   @IsEmail()

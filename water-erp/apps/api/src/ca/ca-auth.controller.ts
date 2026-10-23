@@ -180,13 +180,27 @@ export class CaAuthController {
 
     const user = binding.supplier.user;
 
-    // 账号状态检查（在验签通过后才给具体提示）
-    if (!user.isActive) throw new UnauthorizedException({ error: '账号待审核，尚未激活', code: 'ACCOUNT_PENDING' });
+    // 账号状态检查（在验签通过后才给具体提示；2026-10-22 与主登录同口径细分——
+    // 停用/拉黑联动 isActive=false，不得误报「待审核」）
+    if (!user.isActive) {
+      if (binding.supplier.status === 'DISABLED') {
+        throw new UnauthorizedException({ error: '该供应商已被停用，如有疑问请联系采购中心', code: 'ACCOUNT_DISABLED' });
+      }
+      if (binding.supplier.status === 'BLACKLIST') {
+        throw new UnauthorizedException({ error: '该供应商已被列入黑名单，如有疑问请联系采购中心', code: 'ACCOUNT_BLACKLISTED' });
+      }
+      throw new UnauthorizedException({ error: '账号待审核，尚未激活', code: 'ACCOUNT_PENDING' });
+    }
     if (user.isFrozen) throw new UnauthorizedException({ error: '该账号已被冻结，请联系管理员', code: 'ACCOUNT_FROZEN' });
 
     const supplier = binding.supplier;
     if (supplier.status !== 'APPROVED') {
-      throw new UnauthorizedException({ error: '供应商账号未审核通过', code: 'ACCOUNT_PENDING' });
+      const msg =
+        supplier.status === 'REJECTED' ? '注册申请未通过审核，可在注册页修改资料后重新提交'
+        : supplier.status === 'RETURNED' ? '注册资料已退回补正，请在注册页完成补正后重新提交'
+        : '供应商账号未审核通过';
+      const code = supplier.status === 'REJECTED' ? 'SUPPLIER_REJECTED' : supplier.status === 'RETURNED' ? 'SUPPLIER_RETURNED' : 'ACCOUNT_PENDING';
+      throw new UnauthorizedException({ error: msg, code });
     }
     // I4 修复：临时供应商有效期检查（与绑定侧 eligibility 对齐）
     if (supplier.isTemporary && supplier.temporaryExpiresAt && supplier.temporaryExpiresAt < new Date()) {

@@ -13,7 +13,7 @@ import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
 import { LEVEL_LABEL, LEVEL_COLOR, SUPPLIER_STATUS_LABEL, getNotificationLabel, getNotificationChannelLabel } from '@water-erp/shared';
 import type { AuthUser } from '@/lib/api/auth';
 import { fetchCurrentUser } from '@/lib/api/auth';
-import { CheckCircle2, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, FileText, User, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Trash2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, Link2, AtSign, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, X, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, FileText, User, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Trash2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, Link2, AtSign, AlertTriangle } from 'lucide-react';
 import { SupplierTimeline } from '@/components/supplier/timeline';
 import { ApprovalHistory } from '@/components/supplier/approval-history';
 import { PortraitTab } from '@/components/supplier/portrait-tab';
@@ -364,6 +364,8 @@ export default function SupplierDetailPage() {
   const isPending = supplier.status === 'PENDING' || supplier.status === 'RETURNED';
   const isRejected = supplier.status === 'REJECTED';
   const daysSinceReg = Math.floor((Date.now() - new Date(supplier.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+  // 入库时间（2026-10-22 用户口径）：首次审批通过时刻（entryAt），无留痕回退注册时间
+  const entryDate = new Date(supplier.entryAt ?? supplier.createdAt);
 
   const tabs: { key: TabKey; label: string; count?: number }[] = [
     { key: 'info', label: '基本信息' },
@@ -427,12 +429,16 @@ export default function SupplierDetailPage() {
             <div className="min-w-0">
               <div className="page-hero__title truncate">
                 {supplier.name}
-                <span className="ml-2 inline-flex items-center rounded-md bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 align-middle text-[12px] font-bold tabular-nums text-[var(--accent)]" title="供应商编号">{supplier.supplierNo}</span>
+                {/* 编号瓷片（2026-10-22 重编）：{归属公司编码}-{入库序号}（后端 companyNo），无归属公司回退平台序列 */}
+                <span
+                  className="ml-2 inline-flex items-center rounded-md bg-[color-mix(in_oklch,var(--muted-foreground)_9%,transparent)] px-2 py-0.5 align-middle font-mono text-[12px] font-medium tracking-wide text-[color:var(--muted-foreground)]"
+                  title={supplier.companyNo ? `供应商编号：归属公司编码-入库序号（多公司挂靠以主归属为准）` : `供应商编号（平台序列，未归属公司）`}
+                >{supplier.companyNo ?? supplier.supplierNo}</span>
               </div>
               <div className="page-hero__sub truncate">
                 <span className="inline-flex items-center gap-1"><Hash size={11} />{supplier.creditCode || '信用代码未登记'}</span>
                 {mostCommonGrade && <><span className="opacity-40 ml-2">·</span><span className="inline-flex items-center gap-1 ml-2">评价等级 <span className="inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[mostCommonGrade] }}>{mostCommonGrade}</span></span></>}
-                <span className="opacity-40 ml-2">·</span><span className="ml-2">注册 {daysSinceReg} 天</span>
+                <span className="opacity-40 ml-2">·</span><span className="ml-2" title={`入库时间：${entryDate.toLocaleString('zh-CN')}`}>入库 {entryDate.toLocaleDateString('zh-CN')}</span>
               </div>
               {supplier.returnReason && supplier.status === 'RETURNED' && (
                 <div className="mt-2 flex items-start gap-1.5 text-xs">
@@ -488,7 +494,7 @@ export default function SupplierDetailPage() {
         <div className="page-hero__divider">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
             {[
-              ['注册天数', daysSinceReg, '天前入驻'],
+              ['入库时间', entryDate.toLocaleDateString('zh-CN'), `注册于 ${new Date(supplier.createdAt).toLocaleDateString('zh-CN')}`],
               ['评价等级', mostCommonGrade || '暂无', mostCommonGrade ? `${LEVEL_LABEL[mostCommonGrade] || mostCommonGrade}级` : '未见评价'],
               ['资质数量', qualifications.length, '已提交资质'],
               ['变更次数', changes.length, '历史变更'],
@@ -1690,12 +1696,12 @@ export default function SupplierDetailPage() {
           title="编辑业务标签"
           description="使用 2-8 个词语简述业务方向，每个单独填写，保存后立即生效"
           footer={
-            <>
+            <div className="neu-btn-group">
               <button onClick={() => setTagsModal(false)} className="neu-btn-soft">取消</button>
-              <button onClick={handleSaveTags} disabled={tagsSaving} className="neu-btn-primary">
+              <button onClick={handleSaveTags} disabled={tagsSaving} className="neu-btn-primary is-water">
                 {tagsSaving ? '保存中...' : '保存'}
               </button>
-            </>
+            </div>
           }
         >
           <div className="space-y-2 max-h-[420px] overflow-y-auto">
@@ -1710,15 +1716,15 @@ export default function SupplierDetailPage() {
                   className="neu-input flex-1 text-sm h-9"
                 />
                 {editTags.length > 2 && (
-                  <button onClick={() => setEditTags(prev => prev.filter((_, j) => j !== i))} className="text-[var(--muted-foreground)] hover:text-[var(--danger)] transition-colors">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="4" y1="8" x2="20" y2="8"/></svg>
+                  <button onClick={() => setEditTags(prev => prev.filter((_, j) => j !== i))} aria-label={`删除第 ${i + 1} 个标签`} className="text-[var(--muted-foreground)] hover:text-[var(--danger)] transition-colors">
+                    <X size={15} strokeWidth={2} />
                   </button>
                 )}
               </div>
             ))}
             {editTags.length < 8 && (
               <button onClick={() => setEditTags(prev => [...prev, ''])} className="neu-btn-xs w-full justify-center py-1.5 text-[11px] !text-[var(--muted-foreground)]">
-                + 添加标签（{editTags.length}/8）
+                <Plus size={11} />添加标签（{editTags.length}/8）
               </button>
             )}
           </div>

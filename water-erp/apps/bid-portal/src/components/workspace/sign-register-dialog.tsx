@@ -107,7 +107,7 @@ export default function SignRegisterDialog({
             type="button"
             disabled={busy !== null}
             onClick={() => void submit()}
-            className="neu-btn-primary !h-[36px] !text-xs disabled:opacity-40"
+            className="neu-btn-primary is-water !h-[36px] !text-xs disabled:opacity-40"
           >
             {busy === 'submit' ? <Loader2 size={13} className="animate-spin" /> : null}
             确认登记

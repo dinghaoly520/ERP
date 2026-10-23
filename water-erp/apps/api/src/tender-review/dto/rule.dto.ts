@@ -5,6 +5,7 @@ import {
   IsObject,
   IsIn,
 } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 
 export class CreateRuleDto {
@@ -38,6 +39,7 @@ export class CreateRuleDto {
 }
 
 export class UpdateRuleDto extends PartialType(CreateRuleDto) {
+  @EmptyAsUndefined()
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()

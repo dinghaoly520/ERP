@@ -1,4 +1,5 @@
 import { IsString, IsOptional, IsIn, MaxLength, IsArray } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 /**
  * 招标文件上传/访问配置入参（2026-08 审计 E：原 @Body() body: any）。
@@ -10,6 +11,7 @@ export class BidDocumentUploadDto {
   @IsOptional() @IsString() @MaxLength(300)
   title?: string;
 
+  @EmptyAsUndefined()
   @IsOptional() @IsIn(['OPEN', 'INVITED'])
   accessScope?: 'OPEN' | 'INVITED';
 
@@ -33,6 +35,7 @@ export class UpdateBidDocumentConfigDto {
   @IsOptional() @IsString() @MaxLength(300)
   title?: string;
 
+  @EmptyAsUndefined()
   @IsOptional() @IsIn(['OPEN', 'INVITED'])
   accessScope?: 'OPEN' | 'INVITED';
 
@@ -45,6 +48,7 @@ export class UpdateBidDocumentConfigDto {
   @IsOptional() @IsString() @MaxLength(100)
   bidProjectId?: string;
 
+  @EmptyAsUndefined()
   @IsOptional() @IsArray()
   allowedSupplierIds?: string[];
 }

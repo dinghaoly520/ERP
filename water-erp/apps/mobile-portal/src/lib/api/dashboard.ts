@@ -1,12 +1,26 @@
 import { toApiError } from '@water-erp/client';
+import { api } from '../api';
 import { apiFetch } from './api-fetch';
 const API_BASE = '/api';
+
+export type DashboardBadges = { abnormalCount: number; pendingCount: number; stalledCount: number };
+export type DashboardCompareSummary = {
+  totalCount: number; completedCount: number; abnormalCount: number;
+  awardedBudget: number; totalAward: number; totalSavings: number;
+};
+export type DashboardCompare = { prevRange: { startDate: string; endDate: string } | null; summary: DashboardCompareSummary | null };
+
+export async function fetchDashboardBadges(companyId?: string): Promise<DashboardBadges> {
+  const q = companyId && companyId !== 'all' ? `?companyId=${encodeURIComponent(companyId)}` : '';
+  return api.get<DashboardBadges>(`/dashboard/badges${q}`);
+}
 
 export type DashboardData = {
   range: {
     startDate: string | null;
     endDate: string | null;
   };
+  compare?: DashboardCompare;
   summary: {
     totalCount: number;
     completedCount: number;
@@ -151,11 +165,13 @@ export async function fetchDashboardData(
   startDate?: string,
   endDate?: string,
   companyId?: string, // 仅 admin 生效：公司选择器
+  compare?: boolean, // 'true' 时响应附带环比上期块
 ): Promise<DashboardData> {
   const params = new URLSearchParams();
   if (startDate) params.set('startDate', startDate);
   if (endDate) params.set('endDate', endDate);
   if (companyId && companyId !== 'all') params.set('companyId', companyId);
+  if (compare) params.set('compare', 'true');
 
   const url = `${API_BASE}/dashboard${params.toString() ? `?${params.toString()}` : ''}`;
 

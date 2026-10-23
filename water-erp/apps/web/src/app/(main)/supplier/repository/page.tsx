@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { sumMyPending, describeMyPending, REVIEW_BADGE_REFRESH_EVENT, type MyPendingReviewCount } from '@/lib/review-badge';
 import { toast } from 'sonner';
 import {
   getSupplierList, getSupplierStats, fetchSupplierCompanyCounts,
@@ -192,20 +193,30 @@ export default function SupplierRepositoryPage() {
   // 「待我审」注册数（2026-09-30）：角标/KPI 与审批中心同口径（按级过滤），
   // 不再用 stats.pending（全局 PENDING 总数，对 admin 等会与实际待审不符）
   const [myPending, setMyPending] = useState(0);
+  const [myPendingDetail, setMyPendingDetail] = useState<MyPendingReviewCount | null>(null);
   const refreshMeta = useCallback(() => {
     getSupplierStats(companyId).then(setStats).catch(() => {});
-    fetchMyPendingReviewCount().then(c => setMyPending(c.registration ?? 0)).catch(() => setMyPending(0));
+    // 待我审=四项之和（2026-10-22 综一口径）：注册+信息更新(变更+密码重置)+加入——此前只计注册，
+    // 「审批」按钮与 KPI 卡角标漏报另外两类；悬停 title 给分解
+    fetchMyPendingReviewCount().then(c => { setMyPendingDetail(c); setMyPending(sumMyPending(c)); }).catch(() => { setMyPendingDetail(null); setMyPending(0); });
     getFavorites().then(fs => setFavIds(new Set(fs.map(f => f.supplierId)))).catch(() => {});
   }, [companyId]);
+
+  useEffect(() => {
+    const onBadge = () => refreshMeta();
+    window.addEventListener(REVIEW_BADGE_REFRESH_EVENT, onBadge);
+    return () => window.removeEventListener(REVIEW_BADGE_REFRESH_EVENT, onBadge);
+  }, [refreshMeta]);
 
   useEffect(() => { setCompanyId(readInitialCompanyId()); }, []);
   // ?tab=company-links 深链（通知直达，2026-10-16）：拉起审批中心浮窗并预选「加入审批」panel
   // （后端 SUPPLIER_LINK_PENDING 通知 link=/supplier?tab=company-links，经 /supplier 索引页带参转跳至此）
   useEffect(() => {
     const tab = new URLSearchParams(window.location.search).get('tab');
-    if (tab === 'company-links') {
-      sessionStorage.setItem('review-center-panel', 'company-links');
-      window.dispatchEvent(new CustomEvent('open-review-center', { detail: { panel: 'company-links' } }));
+    if (tab === 'company-links' || tab === 'changes') {
+      // changes（2026-10-22）：资料变更提交通知 link=/supplier?tab=changes 深链直达信息更新审批
+      sessionStorage.setItem('review-center-panel', tab);
+      window.dispatchEvent(new CustomEvent('open-review-center', { detail: { panel: tab } }));
     }
   }, []);
   // admin 全部公司视图：拉后端全量分组计数（与列表同筛选），分组标题用全量口径不因分页失真
@@ -436,7 +447,7 @@ export default function SupplierRepositoryPage() {
           <div className="page-hero__right">
             <CompanySelect value={companyId} onChange={(v) => { setCompanyId(v); setPage(1); }} countMode="suppliers" />
             <button onClick={() => router.push('/supplier/dashboard')} className="neu-btn-soft"><Activity size={15} />总览</button>
-            <button onClick={() => window.dispatchEvent(new Event('open-review-center'))} className="neu-btn-soft" title="供应商审批中心：注册三级审核 · 信息更新审批"><BadgeCheck size={15} />审批{myPending > 0 ? `（${myPending}）` : ''}</button>
+            <button onClick={() => window.dispatchEvent(new Event('open-review-center'))} className="neu-btn-soft" title={myPendingDetail ? `供应商审批中心待办：${describeMyPending(myPendingDetail)}` : "供应商审批中心：注册三级审核 · 信息更新审批"}><BadgeCheck size={15} />审批{myPending > 0 ? `（${myPending}）` : ''}</button>
             <button onClick={() => router.push('/supplier/qualification-alerts')} className="neu-btn-soft"><AlertTriangle size={15} />资质预警</button>
             {/* 异议与投诉受理（2026-10-21 用户口径）：仅 leader——异议按归属公司过滤，只出现在
                 归属公司 leader 的受理板；staff/admin 不设此入口（API 层非 admin 仍限本公司只读） */}

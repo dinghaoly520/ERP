@@ -12,7 +12,7 @@ export default function ArchiveError({ error, reset }: { error: Error; reset: ()
       <p className="mb-6 max-w-md text-xs text-[color:var(--muted-foreground)]">
         {error.message || '发生未知错误，请重试'}
       </p>
-      <button onClick={reset} className="neu-btn-primary">
+      <button onClick={reset} className="neu-btn-primary is-water">
         <RotateCw size={12} strokeWidth={2} />
         重试
       </button>

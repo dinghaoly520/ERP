@@ -125,13 +125,13 @@ export function AbortDialog({ bidProjectId, projectName, projectCode, isOpen, on
           dealFormOpen ? (
             <div className="neu-btn-group">
               <button type="button" onClick={() => setDealFormOpen(false)} className="neu-btn-soft" disabled={dealBusy}>取消</button>
-              <button type="button" onClick={handleRegisterDeal} className="neu-btn-primary" disabled={dealBusy || !dealWinner.trim()}>
+              <button type="button" onClick={handleRegisterDeal} className="neu-btn-primary is-water" disabled={dealBusy || !dealWinner.trim()}>
                 {dealBusy ? <Loader2 size={14} className="animate-spin" /> : '登记成交'}
               </button>
             </div>
           ) : (
             <div className="neu-btn-group">
-              <button type="button" onClick={handleClose} className="neu-btn-primary">关闭</button>
+              <button type="button" onClick={handleClose} className="neu-btn-primary is-water">关闭</button>
             </div>
           )
         ) : step === 'error' ? (

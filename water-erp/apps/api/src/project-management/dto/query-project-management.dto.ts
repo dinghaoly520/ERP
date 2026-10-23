@@ -1,4 +1,5 @@
 import { IsIn, IsOptional, IsString } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 export class QueryProjectManagementDto {
   @IsOptional()
@@ -9,6 +10,7 @@ export class QueryProjectManagementDto {
   @IsString()
   requesterDepartment?: string;
 
+  @EmptyAsUndefined()
   @IsOptional()
   @IsIn(['ACTIVE', 'ARCHIVED', 'RECYCLED', 'TERMINATED'])
   status?: 'ACTIVE' | 'ARCHIVED' | 'RECYCLED' | 'TERMINATED';

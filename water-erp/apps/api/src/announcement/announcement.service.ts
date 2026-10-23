@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, ConflictException, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { assertBidNoticeTiming } from '../bid/bid-timing-rules';
 import { parseFlexibleDate } from '../common/parse-date.util';
+import { joinSoftWrappedPlainText } from '../tender-write/announcement-content-html.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { Inject, forwardRef } from '@nestjs/common';
@@ -505,7 +506,9 @@ export class AnnouncementService {
     const blockTags = text.match(/<(p|div|br|h[1-6]|table|ul|ol)[\s>]/gi) ?? [];
     if (blockTags.length >= 2) return text;
     text = text.replace(/^<p[^>]*>/i, '').replace(/<\/p>$/i, '').trim();
-    // 3. 纯文本：按「一、二、三…」章节序号与长句边界分段
+    // 3. 纯文本：先合并 PDF 软换行（句中断 \n——切段会放大成每行一段，门户词中断行，
+    //    2026-10-22 实录回归；守卫：句读/列表/标题/落款/收尾行），再按章节序号与长句边界分段
+    text = joinSoftWrappedPlainText(text);
     const sections = text
       .replace(/([一二三四五六七八九十]、)/g, '\n$1')
       .replace(/(第[一二三四五六七八九十]+名)/g, '\n$1')

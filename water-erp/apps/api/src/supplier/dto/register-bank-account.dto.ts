@@ -1,4 +1,5 @@
 import { IsString, IsNotEmpty, IsOptional, IsBoolean, MaxLength } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 /** 供应商注册/变更时的银行账户入参 */
 export class RegisterBankAccountDto {
@@ -14,6 +15,7 @@ export class RegisterBankAccountDto {
   @IsString() @IsNotEmpty() @MaxLength(40)
   accountNo: string;
 
+  @EmptyAsUndefined()
   @IsBoolean() @IsOptional()
   isDefault?: boolean;
 }

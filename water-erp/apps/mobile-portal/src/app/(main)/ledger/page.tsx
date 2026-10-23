@@ -224,7 +224,7 @@ export default function LedgerPage() {
             ].map((m) => (
               <div key={m.l}>
                 <div
-                  className="text-[19px] font-black leading-none tabular-nums"
+                  className="text-[21px] font-black leading-none tabular-nums"
                   style={{
                     color:
                       m.t === "success" ? "var(--success)" : m.t === "danger" ? "var(--danger)" : m.t === "warning" ? "var(--warning)" : "var(--accent)",
@@ -232,11 +232,11 @@ export default function LedgerPage() {
                 >
                   {m.v}
                 </div>
-                <div className="mt-1 text-[11px] text-[var(--muted-foreground)]">{m.l}</div>
+                <div className="mt-1 text-[13px] text-[var(--muted-foreground)]">{m.l}</div>
               </div>
             ))}
           </div>
-          <div className="mt-2.5 flex items-center justify-between border-t border-[color-mix(in_oklch,var(--border)_50%,transparent)] pt-2 text-[12px]">
+          <div className="mt-2.5 flex items-center justify-between border-t border-[color-mix(in_oklch,var(--border)_50%,transparent)] pt-2 text-[14px]">
             <span className="text-[var(--muted-foreground)]">
               总预算 <span className="font-bold tabular-nums text-[var(--foreground)]">{stats.totalBudgetLabel}</span>
             </span>
@@ -260,7 +260,7 @@ export default function LedgerPage() {
           <button
             type="button"
             onClick={() => setSearchInput("")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] font-semibold text-[var(--accent)] active:scale-95"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[14px] font-semibold text-[var(--accent)] active:scale-95"
           >
             清除
           </button>
@@ -351,15 +351,15 @@ export default function LedgerPage() {
               className="neu-card-static w-full rounded-[16px] p-3.5 text-left active:scale-[0.99]"
             >
               <div className="flex items-start gap-2">
-                <span className="min-w-0 flex-1 line-clamp-2 text-[14px] font-semibold leading-snug text-[var(--foreground)]">{item.projectName}</span>
+                <span className="min-w-0 flex-1 line-clamp-2 text-[16px] font-semibold leading-snug text-[var(--foreground)]">{item.projectName}</span>
                 <span
-                  className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold"
+                  className="shrink-0 rounded-full px-2 py-0.5 text-[13px] font-bold"
                   style={{ color: cfg.color, background: cfg.bgColor, border: `1px solid ${cfg.borderColor}` }}
                 >
                   {item.resultStatusLabel}
                 </span>
               </div>
-              <div className="mt-1.5 flex items-center gap-1.5 text-[12px] text-[var(--muted-foreground)]">
+              <div className="mt-1.5 flex items-center gap-1.5 text-[14px] text-[var(--muted-foreground)]">
                 <span className="shrink-0 tabular-nums">{item.procurementDate || "—"}</span>
                 <span>·</span>
                 <span className="min-w-0 flex-1 truncate">{item.procurementMethod}</span>
@@ -367,11 +367,11 @@ export default function LedgerPage() {
                 <span className="max-w-[8rem] shrink-0 truncate">{item.departmentName}</span>
               </div>
               <div className="mt-2 flex items-baseline justify-between gap-2 border-t border-[color-mix(in_oklch,var(--border)_45%,transparent)] pt-2">
-                <span className="text-[12px] text-[var(--muted-foreground)]">
+                <span className="text-[14px] text-[var(--muted-foreground)]">
                   预算 <span className="font-semibold tabular-nums text-[var(--foreground)]">{fmtAmount(item.budgetAmount)}</span>
                 </span>
                 {item.awardAmount !== null && item.awardAmount !== undefined && item.awardAmount !== "" ? (
-                  <span className="text-[12px] text-[var(--muted-foreground)]">
+                  <span className="text-[14px] text-[var(--muted-foreground)]">
                     中标 <span className="font-bold tabular-nums text-[var(--success)]">{fmtAmount(item.awardAmount)}</span>
                   </span>
                 ) : null}
@@ -384,11 +384,11 @@ export default function LedgerPage() {
       {/* 触底哨兵 / 加载态 / 末尾 */}
       <div ref={sentinelRef} className="mt-3" />
       {loadingMore ? (
-        <div className="flex items-center justify-center gap-2 py-2 text-[13px] text-[var(--muted-foreground)]">
+        <div className="flex items-center justify-center gap-2 py-2 text-[15px] text-[var(--muted-foreground)]">
           <Loader2 size={13} className="animate-spin" /> 加载中...
         </div>
       ) : items.length > 0 && page >= totalPages ? (
-        <p className="py-2 text-center text-[12px] text-[var(--muted-foreground)]">已全部加载 {total} 条</p>
+        <p className="py-2 text-center text-[14px] text-[var(--muted-foreground)]">已全部加载 {total} 条</p>
       ) : null}
 
       {/* ── 详情弹层 ── */}
@@ -397,7 +397,7 @@ export default function LedgerPage() {
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-1.5">
               <span
-                className="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                className="rounded-full px-2 py-0.5 text-[13px] font-bold"
                 style={{
                   color: RESULT_STATUS_CONFIG[activeItem.resultStatus].color,
                   background: RESULT_STATUS_CONFIG[activeItem.resultStatus].bgColor,
@@ -406,11 +406,11 @@ export default function LedgerPage() {
               >
                 {activeItem.resultStatusLabel}
               </span>
-              <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2 py-0.5 text-[11px] font-medium text-[var(--accent)]">
+              <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2 py-0.5 text-[13px] font-medium text-[var(--accent)]">
                 {activeItem.procurementMethod}
               </span>
               {activeItem.retentionPeriod ? (
-                <span className="rounded-full bg-[color-mix(in_oklch,var(--gold)_12%,transparent)] px-2 py-0.5 text-[11px] font-medium text-[var(--gold)]">
+                <span className="rounded-full bg-[color-mix(in_oklch,var(--gold)_12%,transparent)] px-2 py-0.5 text-[13px] font-medium text-[var(--gold)]">
                   归档 · {RETENTION_LABELS[activeItem.retentionPeriod] ?? activeItem.retentionPeriod}
                 </span>
               ) : null}
@@ -423,7 +423,7 @@ export default function LedgerPage() {
               {activeItem.contractAmount != null ? <MetricCard label="合同金额" value={fmtAmount(activeItem.contractAmount)} tone="accent" /> : null}
             </div>
 
-            <div className="space-y-0.5 rounded-[12px] m-tile px-3 py-2.5 text-[13px]">
+            <div className="space-y-0.5 rounded-[12px] m-tile px-3 py-2.5 text-[15px]">
               <DetailRow label="项目编号" value={activeItem.projectCode} />
               <DetailRow label="采购轮次" value={`第 ${activeItem.roundNo} 轮`} />
               {activeItem.purchaserName ? <DetailRow label="采购单位" value={activeItem.purchaserName} /> : null}
@@ -442,10 +442,10 @@ export default function LedgerPage() {
 
             {activeItem.supplierNames.length ? (
               <div>
-                <div className="mb-1.5 text-[12px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">参与供应商（{activeItem.supplierNames.length}）</div>
+                <div className="mb-1.5 text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">参与供应商（{activeItem.supplierNames.length}）</div>
                 <div className="flex flex-wrap gap-1.5">
                   {activeItem.supplierNames.map((n) => (
-                    <span key={n} className="rounded-full bg-[color-mix(in_oklch,white_55%,transparent)] px-2.5 py-1 text-[12px] text-[var(--foreground)]">
+                    <span key={n} className="rounded-full bg-[color-mix(in_oklch,white_55%,transparent)] px-2.5 py-1 text-[14px] text-[var(--foreground)]">
                       {n}
                     </span>
                   ))}

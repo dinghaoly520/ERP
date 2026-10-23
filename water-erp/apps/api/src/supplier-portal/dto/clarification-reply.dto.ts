@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { ArrayMaxSize, IsArray, IsOptional, IsString, Length } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 export class ClarificationReplyDraftDto {
   @ApiProperty({ description: '澄清答复文本' })
@@ -7,6 +8,7 @@ export class ClarificationReplyDraftDto {
   @Length(5, 5000)
   reply!: string;
 
+  @EmptyAsUndefined()
   @ApiProperty({ description: '附件 FileAsset id 列表（≤5，category=clarification_reply）', required: false })
   @IsOptional()
   @IsArray()

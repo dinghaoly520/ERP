@@ -1,7 +1,9 @@
 import { IsArray, IsOptional, IsString } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 export class RetryAiBiddersDto {
   /** 要重试的 AiBidderResult id 列表；不传 = 重试全部 FAILED + 卡住家 */
+  @EmptyAsUndefined()
   @IsArray() @IsOptional()
   @IsString({ each: true })
   bidderResultIds?: string[];

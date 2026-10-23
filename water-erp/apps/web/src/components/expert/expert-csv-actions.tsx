@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { importCsv } from '@/lib/api/expert';
+import { Workbook } from 'exceljs';
 import { Download, Upload, Loader2, Eye, ChevronDown } from 'lucide-react';
 
 const CSV_HEADERS = ['姓名', '登录账号', '初始密码', '专业领域', '职称', '工作单位', '所属部门', '联系电话', '电子邮箱', '身份证号', '民族', '学历', '执业资格证号', '备注'];
@@ -53,14 +54,48 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
     return out;
   };
 
-  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    // BOM 剥离（Excel 导出 CSV 常 带 ﻿，残留会让首个表头匹配失败）+ CRLF 行尾清理（四审加固）
-    const text = (await file.text()).replace(/^﻿/, '');
+  /** ExcelJS 单元格值归一为字符串（number 直取全位整数、公式取 result、富文本拼接、日期取日期段） */
+  const normCell = (v: unknown): string => {
+    if (v == null) return '';
+    if (typeof v === 'number') return String(v);
+    if (typeof v === 'string') return v.trim();
+    if (v instanceof Date) return v.toISOString().slice(0, 10);
+    const o = v as { result?: unknown; text?: string; richText?: Array<{ text: string }> };
+    if (Array.isArray(o.richText)) return o.richText.map(t => t.text).join('').trim();
+    if (o.result !== undefined && o.result !== null) return normCell(o.result);
+    if (typeof o.text === 'string') return o.text;
+    return String(v);
+  };
+
+  /** .xlsx 解析（2026-10-22 用户口径：不止 CSV）——首工作表、首行为表头、其余为数据行（跳过整行空） */
+  const parseXlsxRows = async (file: File): Promise<Array<Record<string, string>>> => {
+    const wb = new Workbook();
+    await wb.xlsx.load(await file.arrayBuffer());
+    const ws = wb.worksheets[0];
+    if (!ws) throw new Error('工作簿中没有工作表');
+    const matrix: Array<Array<unknown>> = [];
+    ws.eachRow((row) => { matrix.push(((row.values ?? []) as Array<unknown>).slice(1)); });
+    if (matrix.length < 2) throw new Error('Excel 至少需要表头行和一数据行');
+    const headers = matrix[0].map(normCell);
+    return matrix.slice(1)
+      .filter(vals => vals.some(v => normCell(v) !== ''))
+      .map(vals => {
+        const row: Record<string, string> = {};
+        headers.forEach((h, i) => { if (h) row[h] = normCell(vals[i]); });
+        return row;
+      });
+  };
+
+  /** CSV 文本解析（BOM 剥离 / CRLF 清理 / 跨行引号合并 / 二进制防呆 / 科学计数法展开） */
+  const parseCsvRows = async (file: File): Promise<Array<Record<string, string>>> => {
+    const text = (await file.text()).replace(/^\ufeff/, '');
+    // 非文本文件防呆（2026-10-22 实录：二进制被当文本解析，乱码行数≠名单行数、全部静默跳过）
+    const badChars = (text.match(/[\u0000-\u0008\u000e-\u001f\ufffd]/g) ?? []).length;
+    if (text.startsWith('PK') || badChars > text.length * 0.02) {
+      throw new Error('当前文件不是 CSV 文本——xlsx 可直接导入（已支持）；其他格式请转为 CSV UTF-8');
+    }
     const rawLines = text.trim().split('\n').map(l => l.replace(/\r$/, ''));
-    // 跨行引号字段合并（四审 P2）：引号内含换行的字段此前被切断、后半段成独立行静默错位——
-    // 按引号数奇偶合并（"" 转义为偶数个，奇数=未闭合）
+    // 跨行引号字段合并（四审 P2）：引号内含换行的字段此前被切断、后半段成独立行静默错位
     const lines: string[] = [];
     for (let i = 0; i < rawLines.length; i++) {
       let line = rawLines[i];
@@ -69,21 +104,50 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
       }
       lines.push(line);
     }
-    if (lines.length < 2) {
-      toast.error('CSV 至少需要表头行和一数据行');
+    if (lines.length < 2) throw new Error('CSV 至少需要表头行和一数据行');
+    const headers = splitCsvLine(lines[0]);
+    // Excel 数值化陷阱（2026-10-22 实录：手机号列被当数值存成科学计数法 1.38E+10）：尽力展开
+    const expandSci = (v: string): string => {
+      const m = v.trim().match(/^(\d)(?:\.(\d+))?[eE]\+?(\d+)$/);
+      if (!m) return v;
+      return Number(v).toFixed(0);
+    };
+    return lines.slice(1).map(line => {
+      const vals = splitCsvLine(line);
+      const row: Record<string, string> = {};
+      headers.forEach((h, i) => {
+        row[h] = (h.includes('联系电话') || h.includes('手机') || h.includes('电话') || h.includes('身份证')) ? expandSci(vals[i] || '') : (vals[i] || '');
+      });
+      return row;
+    });
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const done = () => { setImporting(false); e.target.value = ''; };
+    if (/\.xls$/i.test(file.name)) {
+      toast.error('暂不支持旧版 .xls——请另存为 .xlsx（推荐，已支持直接导入）或 CSV 后重试');
       e.target.value = '';
       return;
     }
-    const headers = splitCsvLine(lines[0]);
-    const rows = lines.slice(1).map(line => {
-      const vals = splitCsvLine(line);
-      const row: Record<string, string> = {};
-      headers.forEach((h, i) => { row[h] = vals[i] || ''; });
-      return row;
-    });
     setImporting(true);
     setImportResult(null);
     try {
+      const rows = (/\.xlsx$/i.test(file.name) ? await parseXlsxRows(file) : await parseCsvRows(file));
+      // 表头关键列校验（与后端 pick 的宽松匹配同口径）：缺关键列时逐行必然「缺少必填」全跳过
+      const sampleKeys = Object.keys(rows[0] ?? {});
+      const hasCol = (keys: string[]) => sampleKeys.some(h => keys.some(k => h.includes(k)));
+      if (rows.length === 0 || !hasCol(['姓名', '名称']) || !hasCol(['登录账号', '账号', '用户名']) || !hasCol(['专业领域', '专业'])) {
+        toast.error('表头缺少关键列（姓名 / 登录账号 / 专业领域）——请点击「模板查看与下载」获取标准模板填写');
+        done();
+        return;
+      }
+      // Excel 数值身份证失真预警：数值仅 15 位有效数字，18 位身份证尾位会被清零
+      const idLike = sampleKeys.find(h => h.includes('身份证'));
+      if (idLike && rows.some(r => /\d{15,}0{3}/.test(r[idLike] ?? ''))) {
+        toast.warning('身份证号疑似数值失真（末位多个 0）——请将该列设为「文本」格式后重填再导入');
+      }
       const result = await importCsv(rows);
       setImportResult(result);
       toast.success(`导入完成：成功 ${result.imported} 条，跳过 ${result.skipped} 条，失败 ${result.failed} 条`);
@@ -91,8 +155,7 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
     } catch (err: any) {
       toast.error(err?.message || '导入失败');
     }
-    setImporting(false);
-    e.target.value = '';
+    done();
   };
 
   return (
@@ -111,8 +174,8 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
             </button>
             <label className={`neu-btn-xs cursor-pointer ${importing ? 'opacity-60 pointer-events-none' : ''}`}>
               {importing ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
-              {importing ? '导入中...' : '导入CSV'}
-              <input type="file" accept=".csv" onChange={handleImport} disabled={importing} className="hidden" />
+              {importing ? '导入中...' : '导入 Excel/CSV'}
+              <input type="file" accept=".csv,.xlsx" onChange={handleImport} disabled={importing} className="hidden" />
             </label>
           </div>
         </div>
@@ -151,7 +214,7 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
           </div>
         )}
 
-        <p className="text-[10px] text-[var(--muted-foreground)]/70 leading-relaxed">下载 CSV 模板按格式填写后上传，可批量创建专家。模板包含姓名、登录账号、专业领域、工作单位、所属部门等字段。</p>
+        <p className="text-[10px] text-[var(--muted-foreground)]/70 leading-relaxed">支持 .xlsx 与 .csv（模板两用）；必填姓名/登录账号/初始密码/专业领域。身份证与手机号列请设为「文本」格式，避免 Excel 数值失真。</p>
       </div>
 
       {importResult && (
@@ -166,6 +229,36 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
             <span>跳过 <strong className="text-[var(--warning)]">{importResult.skipped}</strong></span>
             <span>失败 <strong className="text-[var(--danger)]">{importResult.failed}</strong></span>
           </div>
+          {/* 逐行明细（2026-10-22）：后端本就返回 per-row 结果，此前前端只显汇总——
+              「成功 0 跳过 23」却看不到原因的困惑由此而来。跳过/失败行必须给出原因 */}
+          {Array.isArray(importResult.results) && importResult.results.length > 0 && (
+            <div className="mt-2 max-h-[220px] overflow-y-auto rounded-[10px] border border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
+              <table className="w-full table-fixed border-collapse text-[11px]">
+                <colgroup><col style={{ width: '28%' }} /><col style={{ width: '14%' }} /><col /></colgroup>
+                <thead>
+                  <tr className="text-[color:var(--muted-foreground)]">
+                    <th className="px-2 py-1.5 text-left font-medium">姓名</th>
+                    <th className="px-2 py-1.5 text-center font-medium">状态</th>
+                    <th className="px-2 py-1.5 text-left font-medium">原因</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {importResult.results.map((r: { 姓名: string; 状态: string; 原因?: string }, i: number) => (
+                    <tr key={i} className="border-t border-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
+                      <td className="px-2 py-1.5 text-left text-[var(--foreground)]"><span className="block truncate" title={r.姓名}>{r.姓名}</span></td>
+                      <td className="px-2 py-1.5 text-center">
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none ${
+                          r.状态 === '成功' ? 'bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[color:var(--success)]'
+                          : r.状态 === '失败' ? 'bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] text-[color:var(--danger)]'
+                          : 'bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[color:var(--warning)]'}`}>{r.状态}</span>
+                      </td>
+                      <td className="px-2 py-1.5 text-left text-[color:var(--muted-foreground)]"><span className="block truncate" title={r.原因 ?? ''}>{r.原因 ?? '—'}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </>

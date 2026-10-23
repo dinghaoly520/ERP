@@ -131,6 +131,11 @@ export class AuthController {
       const msg =
         result.code === 'TEMPORARY_EXPIRED' ? '临时供应商有效期已过，请联系采购中心'
         : result.code === 'ACCOUNT_FROZEN' ? '该账号已被冻结，请联系管理员'
+        : result.code === 'ACCOUNT_RETIRED' ? '该专家已退库停用，如需恢复请联系管理单位'
+        : result.code === 'ACCOUNT_DISABLED' ? '该供应商已被停用，如有疑问请联系采购中心'
+        : result.code === 'ACCOUNT_BLACKLISTED' ? '该供应商已被列入黑名单，如有疑问请联系采购中心'
+        : result.code === 'SUPPLIER_REJECTED' ? '注册申请未通过审核，可在注册页修改资料后重新提交'
+        : result.code === 'SUPPLIER_RETURNED' ? '注册资料已退回补正，请在注册页完成补正后重新提交'
         : '账号待审核，尚未激活';
       throw new UnauthorizedException({ error: msg, code: result.code });
     }

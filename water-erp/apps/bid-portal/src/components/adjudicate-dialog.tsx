@@ -163,7 +163,7 @@ export default function AdjudicateDialog({ open, supplierName, mode, submitting,
               type="button"
               onClick={() => choice && onConfirm(choice, reason.trim())}
               disabled={!choice || !reason.trim() || submitting}
-              className={`neu-btn-primary !h-[38px] disabled:opacity-50 ${choice === 'BIDDER' ? 'is-danger' : ''}`}
+              className={`neu-btn-primary is-water !h-[38px] disabled:opacity-50 ${choice === 'BIDDER' ? 'is-danger' : ''}`}
             >
               {submitting && <Loader size={12} className="animate-spin" />}
               {submitting

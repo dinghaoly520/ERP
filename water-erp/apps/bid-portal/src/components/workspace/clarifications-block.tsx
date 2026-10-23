@@ -191,7 +191,7 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
           <h3 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">澄清答疑</h3>
         </div>
         {!archived && (
-          <button type="button" onClick={() => setShowForm(true)} className="neu-btn-primary !h-[32px] !text-xs">
+          <button type="button" onClick={() => setShowForm(true)} className="neu-btn-primary is-water !h-[32px] !text-xs">
             <Plus size={13} /> 发起澄清
           </button>
         )}
@@ -264,7 +264,7 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
                         />
                         <div className="flex items-center justify-end gap-2">
                           <button type="button" onClick={() => setReplying(null)} className="neu-btn-soft !h-[30px] !text-[11px]">取消</button>
-                          <button type="button" onClick={() => void handleReply(c.id)} disabled={busy} className="neu-btn-primary !h-[30px] !text-[11px]">
+                          <button type="button" onClick={() => void handleReply(c.id)} disabled={busy} className="neu-btn-primary is-water !h-[30px] !text-[11px]">
                             <Send size={12} /> {busy ? '发送中…' : '发送答复'}
                           </button>
                         </div>
@@ -456,7 +456,7 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
             <hr className="wb-section-rule mx-6" />
             <div className="flex items-center justify-end gap-2 px-6 py-4">
               <button type="button" onClick={() => setShowForm(false)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
-              <button type="button" onClick={() => void handleCreate()} disabled={busy} className="neu-btn-primary !h-[36px] !text-xs">
+              <button type="button" onClick={() => void handleCreate()} disabled={busy} className="neu-btn-primary is-water !h-[36px] !text-xs">
                 <Send size={13} /> {busy ? '发送中…' : '发起澄清'}
               </button>
             </div>
@@ -492,7 +492,7 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
             <hr className="wb-section-rule mx-6" />
             <div className="flex items-center justify-end gap-2 px-6 py-4">
               <button type="button" onClick={() => setOfflineFor(null)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
-              <button type="button" onClick={() => void handleOfflineRegister(offlineFor)} disabled={busy} className="neu-btn-primary !h-[36px] !text-xs">
+              <button type="button" onClick={() => void handleOfflineRegister(offlineFor)} disabled={busy} className="neu-btn-primary is-water !h-[36px] !text-xs">
                 {busy ? '登记中…' : '确认登记'}
               </button>
             </div>

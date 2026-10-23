@@ -672,7 +672,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           </div>
           {canGoWeb && (
             <a href={portalURL('web', '/projects')} target="_blank" rel="noopener"
-              className="neu-btn-primary !h-[38px] flex-shrink-0 text-xs">
+              className="neu-btn-primary is-water !h-[38px] flex-shrink-0 text-xs">
               前往采购管理工作台 <ExternalLink size={13} />
             </a>
           )}
@@ -691,7 +691,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           </div>
           {canGoWeb && (
             <a href={portalURL('web', '/projects')} target="_blank" rel="noopener"
-              className="neu-btn-primary is-success !h-[38px] flex-shrink-0 text-xs">
+              className="neu-btn-primary is-water is-success !h-[38px] flex-shrink-0 text-xs">
               前往采购管理工作台 <ExternalLink size={13} />
             </a>
           )}
@@ -709,7 +709,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           {/* BID-P3-01：组建会话=现场执行动作，按 canHost 收口（与同屏暂停/恢复同口径） */}
           {canHost && (
             <button type="button" onClick={() => setStartOpen(true)}
-              className="neu-btn-primary !h-[38px] flex-shrink-0 text-xs">
+              className="neu-btn-primary is-water !h-[38px] flex-shrink-0 text-xs">
               <Shield size={13} /> 组建开标会话
             </button>
           )}
@@ -726,7 +726,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           </div>
           {canGoWeb && (
             <a href={portalURL('web', `/projects`)} target="_blank" rel="noopener"
-              className="neu-btn-primary is-success !h-[38px] flex-shrink-0 text-xs">
+              className="neu-btn-primary is-water is-success !h-[38px] flex-shrink-0 text-xs">
               前往采购管理工作台 <ExternalLink size={13} />
             </a>
           )}
@@ -740,7 +740,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
             <p className="text-xs text-[color:var(--muted-foreground)]">全部解密、唱标与供应商确认已完成，无待处理异议。点击下方按钮生成开标文件包并移交采购管理工作台。</p>
           </div>
           <button type="button" onClick={handleHandover} disabled={handingOver}
-            className="neu-btn-primary is-success !h-[38px] flex-shrink-0 text-xs disabled:opacity-50">
+            className="neu-btn-primary is-water is-success !h-[38px] flex-shrink-0 text-xs disabled:opacity-50">
             {handingOver ? '移交中…' : '完成开标 · 移交'}
           </button>
         </div>
@@ -1224,7 +1224,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           </div>
           <div className="mt-3 flex justify-end">
             <button type="button" onClick={() => void handleUpsertBondLedger()} disabled={bondLedgerSubmitting}
-              className="neu-btn-primary !h-[34px] text-xs disabled:opacity-50">
+              className="neu-btn-primary is-water !h-[34px] text-xs disabled:opacity-50">
               {bondLedgerSubmitting ? '登记中…' : '登记到账'}
             </button>
           </div>
@@ -1386,7 +1386,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                                 className="neu-btn-soft is-danger h-[34px] text-xs disabled:opacity-50"
                                 disabled={!disputeHandleResult.trim() || disputeSubmitting}>{disputeSubmitting ? '处理中…' : '退回异议'}</button>
                               <button type="button" onClick={() => handleResolveDispute(r.id, disputeHandleResult, true)}
-                                className="neu-btn-primary is-success !h-[34px] text-xs disabled:opacity-50"
+                                className="neu-btn-primary is-water is-success !h-[34px] text-xs disabled:opacity-50"
                                 disabled={!disputeHandleResult.trim() || disputeSubmitting}>{disputeSubmitting ? '处理中…' : '确认受理'}</button>
                             </div>
                           </div>
@@ -1521,7 +1521,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
               <button type="button" onClick={() => setRecordEntry(null)}
                 className="neu-btn-soft h-[38px] text-xs">取消</button>
               <button type="button" onClick={() => void handleEnterRecord()}
-                className="neu-btn-primary !h-[38px] text-xs">{recordEntry.readOnly ? '保存补充信息' : '提交唱标'}</button>
+                className="neu-btn-primary is-water !h-[38px] text-xs">{recordEntry.readOnly ? '保存补充信息' : '提交唱标'}</button>
             </div>
           </div>
         </div>
@@ -1552,7 +1552,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
               <button type="button" className="neu-btn-soft !h-8 !text-xs" disabled={reasonBusy} onClick={() => { setReasonDialog(null); setReasonText(''); }}>取消</button>
               <button
                 type="button"
-                className="neu-btn-primary !h-8 !text-xs"
+                className="neu-btn-primary is-water !h-8 !text-xs"
                 disabled={reasonBusy || reasonText.trim().length < (reasonDialog.minLen ?? 0)}
                 onClick={async () => {
                   setReasonBusy(true);

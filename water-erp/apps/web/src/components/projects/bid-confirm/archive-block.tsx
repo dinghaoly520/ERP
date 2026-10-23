@@ -159,7 +159,7 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
           </button>
           )}
           {stage === 'EVALUATING' && (
-            <button type="button" disabled={busy || signGate.blocked} onClick={() => { setAckTerminate(false); setConfirmScope('full'); }} className="neu-btn-primary !h-[32px] !text-xs">
+            <button type="button" disabled={busy || signGate.blocked} onClick={() => { setAckTerminate(false); setConfirmScope('full'); }} className="neu-btn-primary is-water !h-[32px] !text-xs">
               <Archive size={13} /> 完整归档
             </button>
           )}
@@ -293,7 +293,7 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
                 type="button"
                 onClick={() => void doArchive(confirmScope)}
                 disabled={confirmScope === 'opening' && openingIncomplete && !ackTerminate}
-                className="neu-btn-primary disabled:opacity-40"
+                className="neu-btn-primary is-water disabled:opacity-40"
               >
                 <Archive size={13} /> 确认归档
               </button>

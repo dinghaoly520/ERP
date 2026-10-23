@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
 import { IsEnum, IsISO8601, IsOptional, IsString } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 const WORK_ARRANGEMENT_STATUS = [
   'TODO',
@@ -34,14 +35,17 @@ export class QueryWorkArrangementsDto {
   @IsString()
   keyword?: string;
 
+  @EmptyAsUndefined()
   @IsOptional()
   @IsEnum(WORK_ARRANGEMENT_STATUS)
   status?: (typeof WORK_ARRANGEMENT_STATUS)[number];
 
+  @EmptyAsUndefined()
   @IsOptional()
   @IsEnum(WORK_ARRANGEMENT_TYPE)
   type?: (typeof WORK_ARRANGEMENT_TYPE)[number];
 
+  @EmptyAsUndefined()
   @IsOptional()
   @IsEnum(WORK_ARRANGEMENT_URGENCY)
   urgency?: (typeof WORK_ARRANGEMENT_URGENCY)[number];
@@ -50,6 +54,7 @@ export class QueryWorkArrangementsDto {
   @IsString()
   projectManagementItemId?: string;
 
+  @EmptyAsUndefined()
   @IsOptional()
   @IsEnum(WORK_ARRANGEMENT_SCOPE)
   scope?: (typeof WORK_ARRANGEMENT_SCOPE)[number];
@@ -68,6 +73,7 @@ export class QueryWorkArrangementsDto {
   )
   includeCompleted?: boolean;
 
+  @EmptyAsUndefined()
   @IsOptional()
   @IsEnum(WORK_ARRANGEMENT_REMINDER_STATE)
   reminderState?: (typeof WORK_ARRANGEMENT_REMINDER_STATE)[number];

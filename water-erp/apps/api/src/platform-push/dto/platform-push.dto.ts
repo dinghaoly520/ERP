@@ -5,15 +5,18 @@ import {
   ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsHexadecimal, IsIn, IsNotEmpty,
   IsOptional, IsString, Length, ValidateNested,
 } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 import { PUSH_CHANNELS, PushChannelCode } from '../platform-push-payload';
 
 /** 脱敏选项（doc §七-3：限价/合同金额——预览与推送同源同规则） */
 export class PushMaskDto {
+  @EmptyAsUndefined()
   @ApiProperty({ description: '脱敏最高限价（置 null）', required: false })
   @IsOptional()
   @IsBoolean()
   ceilingPrice?: boolean;
 
+  @EmptyAsUndefined()
   @ApiProperty({ description: '脱敏合同金额（置 null）', required: false })
   @IsOptional()
   @IsBoolean()

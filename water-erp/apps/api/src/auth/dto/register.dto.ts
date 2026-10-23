@@ -1,4 +1,5 @@
 import { IsString, IsNotEmpty, IsOptional, IsEmail, IsIn, Matches, MinLength } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 import { PASSWORD_PATTERN, PASSWORD_POLICY_MESSAGE } from '../../common/validators/password-strength';
 
 export class RegisterDto {
@@ -22,6 +23,7 @@ export class RegisterDto {
   @IsNotEmpty()
   department: string; // 部门
 
+  @EmptyAsUndefined()
   @IsEmail()
   @IsOptional()
   email?: string;

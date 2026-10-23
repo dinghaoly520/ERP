@@ -71,3 +71,24 @@ export async function fetchDashboardAnalysis(
 ): Promise<DashboardAnalysisResult> {
   return api.post<DashboardAnalysisResult>('/ai/dashboard-analysis', payload);
 }
+
+export type MobileGreeting = { text: string; source: 'llm' | 'fallback' };
+
+/** 顶部欢迎语（服务端 LLM 每次现场生成新句，不缓存） */
+export async function fetchMobileGreeting(): Promise<MobileGreeting> {
+  return api.get<MobileGreeting>('/ai/mobile-greeting');
+}
+
+export type MobileBrief = {
+  available: true;
+  focus: { text: string; jump: string };
+  metric: { text: string; jump: string };
+  reminder: { text: string; jump: string };
+  shareText: string;
+} | { available: false };
+
+/** 数据库页「今日要报」三句（LLM 生成，失败时 available:false） */
+export async function fetchMobileBrief(companyId?: string): Promise<MobileBrief> {
+  const q = companyId && companyId !== 'all' ? `?companyId=${encodeURIComponent(companyId)}` : '';
+  return api.get<MobileBrief>(`/ai/mobile-brief${q}`);
+}

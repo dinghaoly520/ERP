@@ -157,7 +157,7 @@ export default function BidTaskBoard() {
                         <MiniStat icon={<UserCheck size={11} />} label="确认" done={p.confirmedCount ?? 0} total={total} tone="accent" />
                         <MiniStat icon={<AlertTriangle size={11} />} label="异议" done={disputed} total={total} tone="danger" hideTotal />
                       </div>
-                      <span className="neu-btn-primary pointer-events-none !h-[34px] !px-3.5 text-[12px]">
+                      <span className="neu-btn-primary is-water pointer-events-none !h-[34px] !px-3.5 text-[12px]">
                         进入开标大厅 <ChevronRight size={13} />
                       </span>
                     </button>
@@ -196,7 +196,7 @@ export default function BidTaskBoard() {
                       <MiniStat icon={<UserCheck size={11} />} label="专家签到" done={p.expertSignedIn} total={p.expertCount} tone="accent" />
                       <MiniStat icon={<Shield size={11} />} label="投标" done={p.supplierCount} total={p.supplierCount} tone="accent" />
                     </div>
-                    <span className="neu-btn-primary pointer-events-none !h-[34px] !px-3.5 text-[12px]">
+                    <span className="neu-btn-primary is-water pointer-events-none !h-[34px] !px-3.5 text-[12px]">
                       查看评标 <ChevronRight size={13} />
                     </span>
                   </button>

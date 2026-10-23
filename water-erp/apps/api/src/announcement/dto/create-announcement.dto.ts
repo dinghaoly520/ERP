@@ -1,4 +1,5 @@
 import { IsString, IsNotEmpty, IsOptional, IsEnum, IsBoolean, IsDateString, IsObject } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 import { Transform } from 'class-transformer';
 import { sanitizeHtmlContent } from '../../common/html-sanitize.util';
 
@@ -20,9 +21,11 @@ export class CreateAnnouncementDto {
   @IsString() @IsOptional()
   aiSummary?: string;
 
+  @EmptyAsUndefined()
   @IsDateString() @IsOptional()
   publishDate?: string;
 
+  @EmptyAsUndefined()
   @IsBoolean() @IsOptional()
   isTop?: boolean;
 
@@ -56,9 +59,11 @@ export class UpdateAnnouncementDto {
   @IsString() @IsOptional()
   status?: string;
 
+  @EmptyAsUndefined()
   @IsDateString() @IsOptional()
   publishDate?: string;
 
+  @EmptyAsUndefined()
   @IsBoolean() @IsOptional()
   isTop?: boolean;
 

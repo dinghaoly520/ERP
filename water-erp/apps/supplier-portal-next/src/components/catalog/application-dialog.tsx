@@ -399,7 +399,7 @@ export function ApplicationDialog({
         <div className="app-dlg-foot">
           <div className="neu-btn-group">
             <button type="button" className="neu-btn-soft" onClick={requestClose}>取消</button>
-            <button type="button" className="neu-btn-primary" disabled={submitting} onClick={handleSubmit}>
+            <button type="button" className="neu-btn-primary is-water" disabled={submitting} onClick={handleSubmit}>
               {submitting ? "提交中..." : (mode === "edit" ? "重新提交" : "提交申请")}
             </button>
           </div>

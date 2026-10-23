@@ -1,4 +1,5 @@
 import { IsString, IsNotEmpty, IsISO8601, IsOptional, IsBoolean, IsArray, IsIn, MaxLength } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 /**
  * 开标决策通知（按时开标 / 延时开标 确认弹窗的发送载荷）：
@@ -16,9 +17,11 @@ export class NotifyOpeningDecisionDto {
   openTime: string;
 
   // ── 供应商（名册全量）──
+  @EmptyAsUndefined()
   @IsOptional() @IsBoolean()
   notifySuppliers?: boolean;
 
+  @EmptyAsUndefined()
   @IsOptional() @IsArray() @IsIn(['in_app', 'sms'], { each: true })
   supplierChannels?: string[];
 
@@ -29,9 +32,11 @@ export class NotifyOpeningDecisionDto {
   supplierContent?: string;
 
   // ── 专家（排除已拒绝）──
+  @EmptyAsUndefined()
   @IsOptional() @IsBoolean()
   notifyExperts?: boolean;
 
+  @EmptyAsUndefined()
   @IsOptional() @IsArray() @IsIn(['in_app', 'sms'], { each: true })
   expertChannels?: string[];
 

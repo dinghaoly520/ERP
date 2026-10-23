@@ -52,7 +52,7 @@ import {
 } from '@/lib/api/bid';
 import { ApiError } from '@water-erp/client';
 import { getRsvpList, type RsvpListItem, type RsvpListResult } from '@/lib/api/supplier';
-import { proxyMarkExpertInvitation } from '@/lib/api/expert';
+import { proxyMarkExpertInvitation, downloadExtractionExport } from '@/lib/api/expert';
 import { registerArchiveTransfer, downloadRegulatoryExport } from '@/lib/api/bid';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { generateFieldContent } from '@/lib/api/tender-sample';
@@ -200,6 +200,8 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
   } | null>(null);
   const [expertProxyReason, setExpertProxyReason] = useState('');
   const [expertProxySubmitting, setExpertProxySubmitting] = useState(false);
+  // 专家抽取情况导出（2026-10-22 Word 证明材料）
+  const [exportBusy, setExportBusy] = useState(false);
 
   const submitExpertProxy = async () => {
     if (!expertProxy || !workspace) return;
@@ -761,11 +763,34 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                 accent="var(--stage-expert)"
                 accentSoft="var(--stage-expert-soft)"
                 action={
-                  isOpened ? (
+                  <div className="flex items-center gap-2">
+                  {/* 导出专家抽取情况（2026-10-22）：Word 证明材料——抽取方式细节 + 正选/候补详情表 */}
+                  {workspace && (
+                    <button
+                      onClick={() => {
+                        void (async () => {
+                          try {
+                            setExportBusy(true);
+                            await downloadExtractionExport(workspace.project.id, workspace.project.name);
+                            showToast('专家抽取情况已导出（Word）');
+                          } catch (e: any) { showToast(e?.message || '导出失败', 'err'); }
+                          finally { setExportBusy(false); }
+                        })();
+                      }}
+                      disabled={exportBusy}
+                      title="生成 Word 证明材料：本次专家抽取方式细节 + 正选/候补专家详情表"
+                      className="neu-btn-xs gap-1 disabled:opacity-50"
+                    >
+                      {exportBusy ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />}
+                      导出专家抽取情况
+                    </button>
+                  )}
+                  {isOpened && (
                     <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-2.5 py-1 text-[10px] font-bold text-[var(--accent)]">
                       {isEvalStarted ? '评标已启动·锁定' : '已开标·签到前可递补'}
                     </span>
-                  ) : undefined
+                  )}
+                  </div>
                 }
               >
                 {workspace.experts.length === 0 ? (
@@ -955,7 +980,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                   footer={
                     <>
                       <button onClick={() => setExpertProxy(null)} disabled={expertProxySubmitting} className="neu-btn-soft !h-9 !text-[13px] disabled:opacity-40">取消</button>
-                      <button onClick={() => void submitExpertProxy()} disabled={expertProxySubmitting} className="neu-btn-primary !h-9 !text-[13px] disabled:opacity-50">
+                      <button onClick={() => void submitExpertProxy()} disabled={expertProxySubmitting} className="neu-btn-primary is-water !h-9 !text-[13px] disabled:opacity-50">
                         {expertProxySubmitting && <Loader2 size={14} className="animate-spin" />}
                         {expertProxy.target === 'confirmed' ? '确认代为确认参加' : '确认代为婉拒'}
                       </button>
@@ -1049,7 +1074,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                         <div className="flex justify-end gap-2">
                           <button className="neu-btn-soft" onClick={() => { setReplaceModalAlt(null); setReplaceModalError(null); }} disabled={busy}>返回重选</button>
                           <button
-                            className="neu-btn-primary"
+                            className="neu-btn-primary is-water"
                             disabled={busy || !currentAlt}
                             onClick={async () => {
                               setBusy(true);
@@ -1289,7 +1314,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                         type="button"
                         onClick={() => setDecisionModal('ontime')}
                         disabled={busy || !assignedHost}
-                        className="neu-btn-primary !h-[36px]"
+                        className="neu-btn-primary is-water !h-[36px]"
                         title={!assignedHost ? '请先指派开标主持人' : undefined}
                       >
                         <CheckCircle2 size={14} /> 按时开标
@@ -1373,7 +1398,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                 但通知发送失败。通知为强制步骤——请重试通知全部投标供应商与评标专家（沿用弹窗内配置的渠道与文案）。
               </p>
               <div className="neu-btn-group">
-                <button type="button" onClick={() => void handleRetryNotify()} disabled={busy} className="neu-btn-primary !h-[36px] !text-xs">
+                <button type="button" onClick={() => void handleRetryNotify()} disabled={busy} className="neu-btn-primary is-water !h-[36px] !text-xs">
                   <BellRing size={13} /> 重试通知
                 </button>
               </div>
@@ -1439,7 +1464,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
           </div>
         )}
         <div className="neu-btn-group mt-4 justify-end">
-          <button type="button" onClick={() => setOpeningChecklist(null)} className="neu-btn-primary !h-[36px]">知道了</button>
+          <button type="button" onClick={() => setOpeningChecklist(null)} className="neu-btn-primary is-water !h-[36px]">知道了</button>
         </div>
       </Modal>
 
@@ -1655,7 +1680,7 @@ function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detai
                   aria-describedby={`award-letter-help-${bidProjectId}`}
                   className="min-w-0 flex-1 text-xs file:mr-2 file:rounded-md file:border-0 file:bg-[var(--muted)] file:px-3 file:py-2 file:text-xs file:font-semibold"
                 />
-                <button type="button" onClick={handleDeliver} disabled={delivering || !letterFile || Boolean(validateAwardLetterFile(letterFile))} className="neu-btn-primary !min-h-9 !px-3 !text-xs">
+                <button type="button" onClick={handleDeliver} disabled={delivering || !letterFile || Boolean(validateAwardLetterFile(letterFile))} className="neu-btn-primary is-water !min-h-9 !px-3 !text-xs">
                   {delivering
                     ? (deliveryUiState === 'reissue' ? '更换并重发中…' : '上传并发出中…')
                     : (deliveryUiState === 'reissue' ? '更换文件并重发' : '上传并发出')}

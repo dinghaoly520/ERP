@@ -69,7 +69,7 @@ export function BottomSheet({
       <div className="m-sheet-panel" data-closing={closing ? "true" : "false"} onAnimationEnd={handleAnimationEnd}>
         <div aria-hidden className="mx-auto mb-2.5 h-1 w-10 rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_28%,transparent)]" />
         <div className="mb-3 flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1 text-[16px] font-bold leading-snug tracking-[-0.02em] text-[var(--foreground)]">{title}</div>
+          <div className="min-w-0 flex-1 text-[18px] font-bold leading-snug tracking-[-0.02em] text-[var(--foreground)]">{title}</div>
           <button
             type="button"
             onClick={() => setClosing(true)}

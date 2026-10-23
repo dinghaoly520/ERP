@@ -184,7 +184,7 @@ export function SupervisionView({ projectId, project, liveLogs, anomalyEvents }:
                                 className="w-full resize-none rounded-lg bg-[oklch(0.99_0.004_258)] px-3 py-1.5 text-xs text-[color:var(--foreground)] shadow-[inset_2px_2px_4px_oklch(0.55_0.03_258_/_0.08),inset_-2px_-2px_4px_oklch(1_0_0_/_0.6)] focus:outline-none" />
                               <div className="flex items-center gap-2">
                                 <button type="button" onClick={() => { void saveAnnotation(s.id, anomalyFlags.get(s.id) || 'flagged', noteDraft); setAnnotatingId(null); }}
-                                  className="neu-btn-primary !h-[30px] !px-3 text-[11px]">保存批注</button>
+                                  className="neu-btn-primary is-water !h-[30px] !px-3 text-[11px]">保存批注</button>
                                 <button type="button" onClick={() => setAnnotatingId(null)} className="text-[11px] text-[color:var(--muted-foreground)] hover:underline">取消</button>
                               </div>
                             </div>

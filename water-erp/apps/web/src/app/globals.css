@@ -9031,6 +9031,34 @@ a {
     2px 2px 4px oklch(0.5 0.05 258 / 0.1),
     -1px -1px 3px oklch(1 0 0 / 0.6);
 }
+/* 白瓷片变体（2026-10-22 自 supplier 移植，cgzxui 白瓷片语义）：纯白底 + 顶缘内高光 +
+   方向性双影 + 品牌蓝粗体——面板/弹窗级主操作钮禁用深色实心（2026-10-22 铁律） */
+.neu-btn-primary.is-water {
+  color: var(--accent-strong);
+  background: oklch(1 0 0);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.95), 2px 2px 6px oklch(0.55 0.03 258 / 0.16), -1px -1px 2px oklch(1 0 0 / 0.95);
+}
+.neu-btn-primary.is-water:hover {
+  color: var(--accent-strong);
+  background: oklch(1 0 0);
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 oklch(1 0 0), 3px 3px 7px oklch(0.55 0.03 258 / 0.19), -2px -2px 4px oklch(1 0 0 / 0.97);
+}
+.neu-btn-primary.is-water:active {
+  color: var(--accent-strong);
+  background: oklch(1 0 0);
+  transform: translateY(0);
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5);
+}
+.neu-btn-primary.is-water:disabled {
+  color: color-mix(in oklch, var(--accent-strong) 55%, transparent);
+  background: oklch(0.985 0.004 258);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6), 1px 1px 3px oklch(0.55 0.03 258 / 0.08);
+}
+.neu-btn-primary.is-water.is-success { color: var(--success); background: oklch(1 0 0); }
+.neu-btn-primary.is-water.is-success:hover { color: var(--success); background: oklch(1 0 0); }
+.neu-btn-primary.is-water.is-danger { color: var(--danger); background: oklch(1 0 0); }
+.neu-btn-primary.is-water.is-danger:hover { color: var(--danger); background: oklch(1 0 0); }
 
 /* 语义色变体 —— 用于发布/通过等成功语义的主按钮 */
 .neu-btn-primary.is-success {
@@ -9870,13 +9898,18 @@ select.workbench-input {
 }
 .neu-tag.is-on {
   color: var(--accent-strong);
-  background: color-mix(in oklch, var(--accent) 12%, var(--neu-raised-bg));
+  font-weight: 700;
+  background: oklch(1 0 0);
   box-shadow:
-    inset 1.5px 1.5px 3px oklch(0.55 0.03 258 / 0.13),
-    inset -1.5px -1.5px 3px oklch(1 0 0 / 0.5),
-    inset 0 0 0 1.5px oklch(0.56 0.153 251 / 0.22);
+    inset 0 1px 0 oklch(1 0 0 / 0.95),
+    2px 2px 5px oklch(0.55 0.03 258 / 0.16),
+    -1px -1px 2px oklch(1 0 0 / 0.9);
 }
-.neu-tag.is-on:hover { transform: translateY(-1px); color: var(--accent-strong); }
+.neu-tag.is-on:hover {
+  transform: translateY(-1px);
+  color: var(--accent-strong);
+  box-shadow: inset 0 1px 0 oklch(1 0 0), 3px 3px 7px oklch(0.55 0.03 258 / 0.19), -2px -2px 4px oklch(1 0 0 / 0.97);
+}
 .neu-tag__count {
   font-size: 10px;
   font-weight: 700;
@@ -10044,6 +10077,17 @@ select.workbench-input {
   vertical-align: middle;
   text-align: center;
 }
+
+/* ── 对齐出口（2026-10-22）：显式对齐工具类的落地闸 ──
+   Tailwind v4 工具类生成于 @layer utilities，按级联层序永远盖不过本文件未分层的
+   th/td 默认对齐——th/td 上写了 text-left/right/center 会静默失效（联系人表头
+   错位实录）。此组未分层规则以更高优先级（0,2,1 > 基类 0,1,1）把「元素 className
+   里显式声明了对齐」翻译回真实样式；[class*=] 同时命中 md: 等变体前缀。
+   未显式声明的 th/td 维持基类默认，既有表格不受影响。 */
+.neu-table th[class*="text-left"],   .neu-table td[class*="text-left"]   { text-align: left; }
+.neu-table th[class*="text-right"],  .neu-table td[class*="text-right"]  { text-align: right; }
+.neu-table th[class*="text-center"], .neu-table td[class*="text-center"] { text-align: center; }
+
 
 /*
   行交互反馈 —— 四层递进
@@ -11274,6 +11318,7 @@ select.workbench-input {
 
 /* ══ 业务标签 chip — 高级感（oklch 渐变 + 顶缘内高光 + 菱形标记符；标签属文字级小元素，不用 neumorphic 双影）══ */
 .biz-tag {
+  /* 白瓷片（2026-10-22，同标签 chip 家族用户口径）：弃 accent 渐变底与外描边 */
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -11284,14 +11329,13 @@ select.workbench-input {
   font-weight: 700;
   letter-spacing: 0.015em;
   color: var(--accent-strong);
-  background: linear-gradient(140deg,
-    color-mix(in oklab, var(--accent) 15%, oklch(1 0 0)) 0%,
-    color-mix(in oklab, var(--accent) 6%, oklch(1 0 0)) 100%);
-  border: 1px solid color-mix(in oklab, var(--accent) 24%, transparent);
+  background: oklch(1 0 0);
+  border: none;
   box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.7),
-    0 1px 3px color-mix(in oklab, var(--accent) 12%, transparent);
-  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.28s ease;
+    inset 0 1px 0 oklch(1 0 0 / 0.95),
+    2px 2px 5px oklch(0.55 0.03 258 / 0.16),
+    -1px -1px 2px oklch(1 0 0 / 0.9);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .biz-tag::before {
   content: '';
@@ -11539,8 +11583,13 @@ select.workbench-input {
 }
 /* 审批中心内 segment：行内化（居左、按钮按内容限宽，不拉伸占满）；
    按钮水平内距加大拉开可选项间距（grid 均分同步于 thumb，对位不受影响）*/
-.rc-segment-inline { display: inline-flex; width: fit-content; }
-.rc-segment-inline .neu-segment-btn { width: fit-content; flex: 0 0 auto; padding-inline: 20px; }
+/* 审批中心内联分段（2026-10-22 两轮修正）：
+   ①宽度：flex/fit-content 会让按钮宽小于内容、nowrap 文字双向溢出（计数数字挤出图标）；
+   ②对齐：改按内容取宽后按钮宽窄不一，而滑块是等分定位 calc((100%-8px)/N)——白瓷滑块
+   落在片与片中间。根治=grid 等分列 + 总宽取最宽内容（width:max-content 时 1fr 列均分
+   即为最宽片宽）：每片等宽、内容必容纳、滑块等分定位天然回正，计数 1 位/2 位/99+ 均自适应 */
+.rc-segment-inline { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; width: max-content; max-width: 100%; }
+.rc-segment-inline .neu-segment-btn { width: auto; flex: none; padding-inline: 20px; }
 
 /* 双栏骨架 */
 /* panel 舞台：固定高度（窗口高度不随内容增减），两 panel 同高 */

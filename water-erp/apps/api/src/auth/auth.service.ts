@@ -167,6 +167,38 @@ export class AuthService {
     }
     // 密码正确但账号未激活 → 专用码，引导前端走「查询审核进度」。此时已证明知道密码，不构成枚举。
     if (!user.isActive) {
+      // 状态细化（2026-10-22 审计修复）：未激活 ≠ 一律「待审核」——按角色查权威状态源分流，
+      // 否则退库专家/停用拉黑供应商被误报「账号待审核，尚未激活」。口径先例：TEMPORARY_EXPIRED。
+      if (user.role === 'bid_expert') {
+        const profile = await this.prisma.expertProfile.findUnique({
+          where: { userId: user.id },
+          select: { entryStatus: true, retiredAt: true },
+        });
+        // retiredAt 兜底兼容历史路径漏写 entryStatus（同恢复路径口径）
+        if (profile?.entryStatus === 'RETIRED' || profile?.retiredAt) {
+          return { pending: true as const, role: user.role, code: 'ACCOUNT_RETIRED' };
+        }
+      }
+      if (user.role === 'supplier') {
+        // 停用/拉黑联动 isActive=false（updateStatus）——不得误报「待审核」；
+        // 驳回壳可在注册页重开、退回补正走注册页公开补正流程，文案须指路。
+        const supplier = await this.prisma.supplier.findUnique({
+          where: { userId: user.id },
+          select: { status: true },
+        });
+        if (supplier?.status === 'DISABLED') {
+          return { pending: true as const, role: user.role, code: 'ACCOUNT_DISABLED' };
+        }
+        if (supplier?.status === 'BLACKLIST') {
+          return { pending: true as const, role: user.role, code: 'ACCOUNT_BLACKLISTED' };
+        }
+        if (supplier?.status === 'REJECTED') {
+          return { pending: true as const, role: user.role, code: 'SUPPLIER_REJECTED' };
+        }
+        if (supplier?.status === 'RETURNED') {
+          return { pending: true as const, role: user.role, code: 'SUPPLIER_RETURNED' };
+        }
+      }
       return { pending: true as const, role: user.role, code: 'ACCOUNT_PENDING' };
     }
     // 冻结账号（管理员在「账号管理」中冻结）→ 专用码，登录页提示「账号已被冻结」

@@ -265,7 +265,7 @@ export function NudgeUnsubmittedModal({ isOpen, onClose, project, bidProjectId, 
               type="button"
               onClick={() => void handleSend()}
               disabled={sending || scheduling || !allHaveContent || channels.length === 0 || windowClosed}
-              className="neu-btn-primary gap-1.5"
+              className="neu-btn-primary is-water gap-1.5"
               title={windowClosed ? `距开标不足 ${GAP_LABEL}，催促通道已关闭` : undefined}
             >
               {sending ? <Loader2 size={13} className="animate-spin" /> : <BellRing size={13} />}

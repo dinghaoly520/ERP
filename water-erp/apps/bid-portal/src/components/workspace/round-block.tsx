@@ -108,7 +108,7 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
           </h3>
         </div>
         {showCreateEntry ? (
-          <button onClick={openCreateDialog} disabled={busy} className="neu-btn-primary !h-[32px] !text-xs">
+          <button onClick={openCreateDialog} disabled={busy} className="neu-btn-primary is-water !h-[32px] !text-xs">
             <Plus size={13} /> {rounds.length === 0 ? '创建首轮报价' : '创建下一轮'}
           </button>
         ) : noActiveRound && (
@@ -179,7 +179,7 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
                             : '最终轮报价已锁定。请在「评标管理」页签启动评标。'
                         );
                       })}
-                        disabled={busy} className="neu-btn-primary !h-[30px] !text-xs">
+                        disabled={busy} className="neu-btn-primary is-water !h-[30px] !text-xs">
                         <CheckCircle2 size={12} /> 结束报价
                       </button>
                     </>
@@ -272,7 +272,7 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
               <button
                 onClick={handleCreateFromDialog}
                 disabled={busy || selectedSupplierIds.length === 0}
-                className="neu-btn-primary !h-[34px] !text-xs"
+                className="neu-btn-primary is-water !h-[34px] !text-xs"
               >
                 创建轮次（{selectedSupplierIds.length} 家）
               </button>

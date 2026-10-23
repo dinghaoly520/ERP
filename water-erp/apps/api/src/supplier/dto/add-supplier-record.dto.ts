@@ -1,4 +1,5 @@
 import { IsDateString, IsIn, IsNumber, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 /** CTS A-213 奖惩记录录入（复用 SupplierPerformance 表） */
 export class AddSupplierRecordDto {
@@ -17,6 +18,7 @@ export class AddSupplierRecordDto {
   @MaxLength(500)
   recordNote!: string;
 
+  @EmptyAsUndefined()
   @IsOptional()
   @IsDateString()
   effectiveDate?: string;
@@ -26,6 +28,7 @@ export class AddSupplierRecordDto {
   @MaxLength(200)
   clientName?: string;
 
+  @EmptyAsUndefined()
   @IsOptional()
   @IsNumber()
   contractAmount?: number;

@@ -144,7 +144,8 @@ function BusinessTagsPicker({
         <div className="px-3 pb-2.5">
           <div className="flex items-start gap-1.5 rounded-lg px-2.5 py-2"
             style={{ background: 'color-mix(in oklch, var(--accent) 6%, transparent)', boxShadow: 'inset 0 1px 2px oklch(0.5 0.04 258 / 0.06)' }}>
-            <div className="flex flex-wrap gap-1 flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-1 flex-1 min-w-0">
+              <span className="mr-0.5 shrink-0 text-[10px] font-extrabold tabular-nums text-[var(--accent-strong)]">已选 {selectedTags.length}</span>
               {selectedTags.map(t => (
                 <span key={t} className="neu-tag is-on text-xs">
                   {t}
@@ -166,19 +167,19 @@ function BusinessTagsPicker({
       {hasVocab && (
         <div className="px-3 pb-3">
           {showCustomAdd && (
-            <button type="button" onClick={() => addCustomTag(tagQuery)} className="neu-btn-xs is-info mb-2">
-              <Plus size={11} />添加自定义标签：{q}
+            <button type="button" onClick={() => { addCustomTag(tagQuery); setTagQuery(''); }} className="neu-btn-xs is-info mb-2">
+              <Plus size={11} />添加自定义标签「{q}」
             </button>
           )}
           {filtered.length > 0 ? (
-            <div className="flex max-h-[88px] flex-wrap content-start gap-1 overflow-y-auto rounded-lg px-2.5 py-2"
+            <div className="flex max-h-[120px] flex-wrap content-start gap-1 overflow-y-auto rounded-lg px-2.5 py-2"
               style={{ background: 'oklch(0.968 0.01 258 / 0.45)', boxShadow: 'inset 1px 1px 4px oklch(0.52 0.05 258 / 0.08), inset -1px -1px 2px oklch(1 0 0 / 0.55)' }}>
               {[...filtered].sort((a, b) => b.count - a.count).map(t => {
                 const on = selectedTags.includes(t.tag);
                 return (
                   <button key={t.tag} type="button" onClick={() => toggleTag(t.tag)} title={`${t.count} 家供应商`}
                     className={`neu-tag text-xs ${on ? 'is-on' : ''}`}>
-                    {t.tag}<span className="neu-tag__count">{t.count}</span>
+                    {on && <Check size={10} strokeWidth={3} className="shrink-0" />}{t.tag}<span className="neu-tag__count">{t.count}</span>
                   </button>
                 );
               })}

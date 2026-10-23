@@ -44,7 +44,7 @@ export class PasswordRequestsService {
     }
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { passwordHash: true },
+      select: { passwordHash: true, username: true, role: true, companyId: true },
     });
     if (!user?.passwordHash || !compareSync(currentPassword, user.passwordHash)) {
       throw new UnauthorizedException({ error: '当前密码不正确', code: 'CURRENT_PASSWORD_WRONG' });
@@ -57,10 +57,32 @@ export class PasswordRequestsService {
       where: { userId, status: 'PENDING' },
       data: { status: 'REJECTED', decisionNote: '已提交新的改密申请，本条自动关闭', reviewedAt: new Date() },
     });
-    return this.prisma.passwordChangeRequest.create({
+    const created = await this.prisma.passwordChangeRequest.create({
       data: { userId, requestedPasswordHash: hashSync(newPassword, 10), requestedPasswordVault: encryptPasswordVault(newPassword) ?? null },
       select: { id: true, status: true, requestedAt: true },
     });
+    // 提交通知（2026-10-22）：改密申请落账号管理·安全审批（admin），此前零通知——
+    // 与忘记密码重置（2026-10-15 修复）不对称，审批人无被动触达。失败不阻断。
+    try { await this.notifyChangeReviewers(user); } catch { /* 不阻断 */ }
+    return created;
+  }
+
+  /** 改密申请提交通知：admin 全体（安全审批为 admin 职责页） */
+  private async notifyChangeReviewers(user: { username: string; role: string; companyId: string | null }): Promise<void> {
+    const admins = await this.prisma.user.findMany({ where: { role: 'admin', isActive: true }, select: { id: true } });
+    const payload = {
+      type: 'PASSWORD_CHANGE_PENDING',
+      title: '密码修改申请待审批',
+      content: `账号「${user.username}」提交了密码修改申请，请前往账号管理·安全审批处理。`,
+      link: '/admin/accounts',
+    };
+    await Promise.allSettled(
+      admins.map(({ id: userId }) =>
+        this.notifications
+          ? this.notifications.create({ userId, ...payload })
+          : this.prisma.notification.create({ data: { userId, ...payload } }),
+      ),
+    );
   }
 
   /** 忘记密码重置申请（登录页，匿名）：不泄露账号是否存在，统一返回成功 */

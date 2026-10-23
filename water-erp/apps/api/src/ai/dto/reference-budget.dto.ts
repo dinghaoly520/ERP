@@ -1,4 +1,5 @@
 import { IsString, IsNotEmpty, IsOptional, IsArray, MaxLength } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 /**
  * AI 参考预算生成入参（2026-08 审计 E：原 @Body() payload: any）。
@@ -20,6 +21,7 @@ export class ReferenceBudgetDto {
   @IsOptional() @IsString() @MaxLength(5000)
   projectReason?: string;
 
+  @EmptyAsUndefined()
   @IsOptional() @IsArray()
   historicalProjects?: Array<Record<string, unknown>>;
 }

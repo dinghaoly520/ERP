@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Plus, Search } from "lucide-react";
+import { Check, Plus, Search, X } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 
 export type BusinessTagOption = {
@@ -100,7 +100,7 @@ export function BusinessTagField({
             maxLength={20}
           />
           {filter && (
-            <button type="button" className="reg-tag-search__clear" aria-label="清空搜索" onClick={() => setFilter("")}>×</button>
+            <button type="button" className="reg-tag-search__clear" aria-label="清空搜索" onClick={() => setFilter("")}><X size={12} strokeWidth={2.5} aria-hidden="true" /></button>
           )}
         </div>
       )}
@@ -141,27 +141,34 @@ export function BusinessTagField({
         </div>
       )}
 
-      <div className="reg-custom-tag-row">
-        <input
-          className="reg-inp"
-          value={customValue}
-          maxLength={20}
-          aria-label="自定义业务标签"
-          placeholder="未找到合适标签？输入自定义标签"
-          onChange={(event) => {
-            setCustomValue(event.target.value);
-            setLocalError("");
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              addCustomTag();
-            }
-          }}
-        />
-        <button type="button" className="reg-btn reg-btn--ghost-sm" onClick={addCustomTag}>
-          <Plus size={14} aria-hidden="true" />添加标签
-        </button>
+      {/* 自创标签（2026-10-22 设计优化）：独立说明行 + 等高输入组合；空值禁用添加钮 */}
+      <div className="reg-custom-block">
+        <p className="reg-custom-hint">
+          <Plus size={12} strokeWidth={2.4} aria-hidden="true" />
+          没有合适的标签？输入名称自创，审核通过后进入标签库供后续选择
+        </p>
+        <div className="reg-custom-tag-row">
+          <input
+            className="reg-inp"
+            value={customValue}
+            maxLength={20}
+            aria-label="自定义业务标签"
+            placeholder="输入标签名称，回车或点击添加"
+            onChange={(event) => {
+              setCustomValue(event.target.value);
+              setLocalError("");
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                addCustomTag();
+              }
+            }}
+          />
+          <button type="button" className="reg-custom-add-btn" disabled={!customValue.trim()} onClick={addCustomTag}>
+            <Plus size={14} aria-hidden="true" />添加
+          </button>
+        </div>
       </div>
 
       {message && <span id={errorId} className="reg-error-text" role="alert">{message}</span>}

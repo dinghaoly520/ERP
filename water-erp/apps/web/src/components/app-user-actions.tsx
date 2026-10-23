@@ -6,6 +6,8 @@ import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { fetchCurrentUser, type AuthUser } from "@/lib/api/auth";
 import { fetchMyPendingReviewCount } from "@/lib/api/supplier";
 
+import { sumMyPending, describeMyPending, REVIEW_BADGE_REFRESH_EVENT, type MyPendingReviewCount } from '@/lib/review-badge';
+
 const ReviewCenterModal = lazy(() => import("@/components/supplier/review-center-modal").then(m => ({ default: m.ReviewCenterModal })));
 
 type AppUserActionsProps = {
@@ -44,19 +46,25 @@ export function ReviewCenterButton({ className, withModal = false }: { className
     fetchCurrentUser().then(u => setMyRole(u?.role ?? null)).catch(() => setMyRole(null));
   }, []);
 
+  // 待办分解（悬停提示）：注册 / 信息更新（含密码重置）/ 加入 各多少
+  const [detail, setDetail] = useState<MyPendingReviewCount | null>(null);
+
   const refresh = useCallback(() => {
-    // 总数=三 panel 角标之和：注册 + 信息更新（变更+密码重置，2026-10-15 并入）+ 加入审批（2026-10-16）
+    // 总数=三 panel 角标之和（共享口径 lib/review-badge）：注册 + 信息更新（变更+密码重置）+ 加入审批
     fetchMyPendingReviewCount()
-      .then((c) => setCount((c.registration ?? 0) + (c.changes ?? 0) + (c.resets ?? 0) + (c.joins ?? 0)))
-      .catch(() => setCount(null));
+      .then((c) => { setDetail(c); setCount(sumMyPending(c)); })
+      .catch(() => { setDetail(null); setCount(null); });
   }, []);
 
   useEffect(() => {
     refresh();
     const t = setInterval(refresh, 30_000);
     const onShow = () => document.visibilityState === "visible" && refresh();
+    // 审批中心内动作完成即时刷新（2026-10-22）：不等 30s 轮询
+    const onBadge = () => refresh();
     document.addEventListener("visibilitychange", onShow);
-    return () => { clearInterval(t); document.removeEventListener("visibilitychange", onShow); };
+    window.addEventListener(REVIEW_BADGE_REFRESH_EVENT, onBadge);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", onShow); window.removeEventListener(REVIEW_BADGE_REFRESH_EVENT, onBadge); };
   }, [refresh]);
 
   if (myRole !== 'admin' && myRole !== 'leader' && myRole !== 'staff') return null;
@@ -66,7 +74,7 @@ export function ReviewCenterButton({ className, withModal = false }: { className
     <button
       type="button"
       onClick={() => { if (withModal) setOpen(true); else window.dispatchEvent(new Event(OPEN_REVIEW_CENTER_EVENT)); }}
-      title="供应商审批中心（注册三级审核 · 信息更新审批）"
+      title={detail ? `供应商审批中心待办：${describeMyPending(detail)}` : "供应商审批中心（注册三级审核 · 信息更新审批）"}
       className={className}
     >
       <BadgeCheck size={16} strokeWidth={2} className="text-[color:var(--accent)]" />

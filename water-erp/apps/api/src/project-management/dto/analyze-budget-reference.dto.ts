@@ -9,6 +9,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 export class BudgetReferenceLineDto {
   @IsString()
@@ -25,6 +26,7 @@ export class BudgetReferenceLineDto {
   @MaxLength(40)
   unit?: string;
 
+  @EmptyAsUndefined()
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
@@ -59,6 +61,7 @@ export class AnalyzeBudgetReferenceDto {
   supplierRequirements?: string;
 
   /** 显式行项目（名称/规格/单位/数量）；优先级最高 */
+  @EmptyAsUndefined()
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(200)

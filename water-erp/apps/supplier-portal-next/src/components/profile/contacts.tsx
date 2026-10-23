@@ -21,13 +21,16 @@ export function ContactsTab({ contacts, onAdd, onEdit, onDelete }: {
   return (
     <>
       <div className="quals-actions">
-        <SpButton variant="primary" icon={Plus} onClick={onAdd}>添加联系人</SpButton>
+        {/* 白瓷片变体 + 38px（2026-10-22 用户口径）：不用深色实心主按钮，与「提出异议」等
+            门户操作钮同款（neu-btn-primary.is-water：纯白底 + 顶缘内高光 + 品牌蓝粗体） */}
+        <SpButton variant="primary" water icon={Plus} className="!h-[38px] !px-5" onClick={onAdd}>添加联系人</SpButton>
       </div>
       {contacts.length > 0 ? (
         <div className="neu-table-card ct-table-wrap">
           <table className="neu-table">
             <thead>
               <tr>
+                {/* 全列居中：globals .neu-table th 默认已改居中（2026-10-22 第二次错位后基类翻转） */}
                 <th style={{ width: 160 }}>姓名</th>
                 <th style={{ width: 80 }}>性别</th>
                 <th style={{ width: 160 }}>手机号</th>
@@ -41,7 +44,7 @@ export function ContactsTab({ contacts, onAdd, onEdit, onDelete }: {
               {contacts.map((row) => (
                 <tr key={row.id}>
                   <td>
-                    <div className="contact-name-cell">
+                    <div className="contact-name-cell justify-center">
                       <span className="contact-avatar">{row.name?.charAt(0)}</span>
                       <span className="contact-name">{row.name}</span>
                     </div>
@@ -56,8 +59,10 @@ export function ContactsTab({ contacts, onAdd, onEdit, onDelete }: {
                     </span>
                   </td>
                   <td>
-                    <button type="button" className="neu-btn-xs" onClick={() => onEdit(row)}>编辑</button>
-                    <button type="button" className="neu-btn-xs is-danger" onClick={() => onDelete(row.id)}>删除</button>
+                    <div className="flex items-center justify-center gap-1.5">
+                      <button type="button" className="neu-btn-xs" onClick={() => onEdit(row)}>编辑</button>
+                      <button type="button" className="neu-btn-xs is-danger" onClick={() => onDelete(row.id)}>删除</button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -100,15 +105,25 @@ export function ContactPanel({ editing, onSaved, onClose }: {
 
   const markDirty = () => setDirty(true);
 
+  // 全必填完整度（按钮闸门 + 底部提示共用）：六字段齐 = 可提交（格式校验在 handleSubmit 逐项精确报错）
+  const allFilled = !!form.name.trim() && !!form.phone.trim() && !!form.email.trim() && !!form.position.trim() && !!form.gender && !!form.idCard.trim();
+
   const closePanel = async () => {
     if (dirty && !(await confirm({ message: "当前有未保存的修改，关闭后会丢失。确定关闭吗？" }))) return;
     onClose();
   };
 
+  // 全字段必填（2026-10-22 用户口径）：逐字段精确报错——第一处失败即指名道姓，不再笼统提示
   const handleSubmit = async () => {
-    if (!form.name || !form.phone) { toast.warning("请填写姓名和手机号"); return; }
-    if (!/^1[3-9]\d{9}$/.test(form.phone)) { toast.warning("请输入正确的11位手机号"); return; }
-    if (form.idCard && !/^\d{17}[\dXx]$/.test(form.idCard)) { toast.warning("身份证号须为 18 位"); return; } // B4-2
+    if (!form.name.trim()) { toast.warning("请填写姓名"); return; }
+    if (!form.phone.trim()) { toast.warning("请填写手机号"); return; }
+    if (!/^1[3-9]\d{9}$/.test(form.phone)) { toast.warning("手机号格式不正确：须为 1 开头的 11 位数字"); return; }
+    if (!form.email.trim()) { toast.warning("请填写邮箱"); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) { toast.warning("邮箱格式不正确，例如 name@example.com"); return; }
+    if (!form.position.trim()) { toast.warning("请填写职位/职务"); return; }
+    if (!form.gender) { toast.warning("请选择性别"); return; }
+    if (!form.idCard.trim()) { toast.warning("请填写身份证号"); return; }
+    if (!/^\d{17}[\dXx]$/.test(form.idCard)) { toast.warning("身份证号格式不正确：须为 18 位（末位可为 X）"); return; }
     setLoading(true);
     try {
       if (isEdit) {
@@ -172,16 +187,16 @@ export function ContactPanel({ editing, onSaved, onClose }: {
             </div>
             <div className="ct-panel-row mt-3.5">
               <div className="ct-panel-field">
-                <label className="ct-panel-label ct-panel-label--opt">邮箱</label>
+                <label className="ct-panel-label">邮箱 <i>*</i></label>
                 <input
                   className="ct-panel-input"
                   value={form.email}
                   onChange={(e) => { setForm((f) => ({ ...f, email: e.target.value })); markDirty(); }}
-                  placeholder="请输入邮箱（选填）"
+                  placeholder="请输入邮箱，例如 name@example.com"
                 />
               </div>
               <div className="ct-panel-field">
-                <label className="ct-panel-label ct-panel-label--opt">职位/职务</label>
+                <label className="ct-panel-label">职位/职务 <i>*</i></label>
                 <input
                   className="ct-panel-input"
                   value={form.position}
@@ -193,24 +208,24 @@ export function ContactPanel({ editing, onSaved, onClose }: {
             </div>
             <div className="ct-panel-row mt-3.5">
               <div className="ct-panel-field">
-                <label className="ct-panel-label ct-panel-label--opt">性别</label>
+                <label className="ct-panel-label">性别 <i>*</i></label>
                 <select
                   className="ct-panel-input"
                   value={form.gender}
                   onChange={(e) => { setForm((f) => ({ ...f, gender: e.target.value })); markDirty(); }}
                 >
-                  <option value="">未选择</option>
+                  <option value="">请选择</option>
                   <option value="男">男</option>
                   <option value="女">女</option>
                 </select>
               </div>
               <div className="ct-panel-field">
-                <label className="ct-panel-label ct-panel-label--opt">身份证号</label>
+                <label className="ct-panel-label">身份证号 <i>*</i></label>
                 <input
                   className="ct-panel-input"
                   value={form.idCard}
                   onChange={(e) => { setForm((f) => ({ ...f, idCard: e.target.value.toUpperCase() })); markDirty(); }}
-                  placeholder="18 位身份证号（选填）"
+                  placeholder="请输入 18 位身份证号"
                   maxLength={18}
                 />
               </div>
@@ -230,15 +245,15 @@ export function ContactPanel({ editing, onSaved, onClose }: {
           </div>
         </div>
         <div className="ct-panel-foot">
-          {!form.name && !form.phone
-            ? <span className="ct-panel-hint">请填写联系人信息</span>
+          {!allFilled
+            ? <span className="ct-panel-hint">所有字段均为必填，请完整填写</span>
             : <span className="ct-panel-hint ready">信息已就绪</span>}
           <div className="ct-panel-foot-actions">
             <button type="button" className="ct-panel-btn-cancel" onClick={closePanel}>取消</button>
             <button
               type="button"
-              className={cn("ct-panel-btn-submit", form.name && form.phone && !loading && "ready")}
-              disabled={!form.name || !form.phone || loading}
+              className={cn("ct-panel-btn-submit", allFilled && !loading && "ready")}
+              disabled={!allFilled || loading}
               onClick={() => void handleSubmit()}
             >
               {loading ? <span>保存中…</span> : <><ArrowRight size={15} /><span>{isEdit ? "保存" : "确认添加"}</span></>}
