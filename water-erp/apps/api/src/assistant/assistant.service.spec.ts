@@ -53,6 +53,8 @@ describe('AssistantService', () => {
       supplier: { count: jest.fn() },
       expertProfile: { count: jest.fn() },
       notification: { count: jest.fn() },
+      // chat() 解析工具上下文用（AssistantToolCtx 基建，2026-10-22）
+      user: { findUnique: jest.fn().mockResolvedValue(null) },
     };
 
     model = {
