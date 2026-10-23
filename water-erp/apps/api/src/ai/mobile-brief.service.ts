@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { LlmService } from '../local-ai/llm.service';
 import { DashboardService } from '../dashboard/dashboard.service';
-import { ProgressService } from '../progress/progress.service';
+import { ProgressService, STAGE_LABELS } from '../progress/progress.service';
 import { CompanyScopeService } from '../company/company-scope';
 import type { AuthenticatedUser } from '../auth/auth.types';
 
@@ -84,7 +84,7 @@ export class MobileBriefService {
           'reminder=一个提醒（阶段拥堵/异常信号）；每句 ≤30 字、只讲需要领导知道的事、禁止 emoji、禁止出现「审批」一词、禁止编造未提供的数据。',
           'shareText=80~120 字一段话，适合发到管理群，含上述三要点，口语但专业。',
         ].join(''),
-        `本月数据：总轮次${data.summary.totalCount}，已成交${data.summary.completedCount}，异常${data.summary.abnormalCount}，成交额${data.summary.totalAwardLabel}，累计节资${data.summary.totalSavingsLabel}。风险项目：${riskTop}。节资前三：${savingsTop}。当前最堵阶段：${stageMax ? `${stageMax.stageName ?? stageMax.stage}（${stageMax.count}项）` : '无'}。`,
+        `本月数据：总轮次${data.summary.totalCount}，已成交${data.summary.completedCount}，异常${data.summary.abnormalCount}，成交额${data.summary.totalAwardLabel}，累计节资${data.summary.totalSavingsLabel}。风险项目：${riskTop}。节资前三：${savingsTop}。当前最堵阶段：${stageMax ? `${STAGE_LABELS[stageMax.stage] ?? stageMax.stageName ?? stageMax.stage}（${stageMax.count}项）` : '无'}。`,
         0.4,
         undefined,
         Math.floor(Math.random() * 1_000_000),

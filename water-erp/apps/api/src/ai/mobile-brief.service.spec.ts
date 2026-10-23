@@ -53,12 +53,13 @@ describe('MobileBriefService.getBrief', () => {
     expect(r.shareText).not.toContain('审批');
     expect(r.shareText).toContain('查阅');
   });
-  it('最堵阶段取自 ProgressService.getProgressStats（同 companyFilter），不读 dashboard', async () => {
+  it('最堵阶段取自 ProgressService.getProgressStats（同 companyFilter），不读 dashboard；prompt 用 STAGE_LABELS 中文标签', async () => {
     const svc = new MobileBriefService(llmOk, dashboard, scope as any, progress as any);
     await svc.getBrief({ sub: 'u1', role: 'admin' } as any);
     expect(progress.getProgressStats).toHaveBeenCalledWith(undefined, undefined, undefined);
     const prompt = (llmOk.chatJson as jest.Mock).mock.calls[0][1];
-    expect(prompt).toContain('CONTRACT（3项）');
+    expect(prompt).toContain('合同（3项）');
+    expect(prompt).not.toContain('CONTRACT');
   });
   it('LLM 失败 → available:false（不抛错）', async () => {
     const llmBad: any = { chatJson: jest.fn().mockRejectedValue(new Error('down')) };

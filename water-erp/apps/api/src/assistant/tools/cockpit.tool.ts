@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DashboardService } from '../../dashboard/dashboard.service';
-import { ProgressService } from '../../progress/progress.service';
+import { ProgressService, STAGE_LABELS } from '../../progress/progress.service';
 import { AssistantTool, AssistantToolCtx, ToolResult } from './assistant-tool';
 import { toolCompanyWhere } from './company-filter';
 
@@ -30,7 +30,9 @@ export class CockpitTool implements AssistantTool {
           type: 'table',
           title: '采购阶段分布（在办）',
           rows: (stats.stageDistribution ?? []).map((d: { stageName?: string; stage: string; count: number }) => ({
-            阶段: d.stageName ?? d.stage, 项目数: d.count,
+            // STAGE_LABELS 优先：stageDistribution 运行时只有 {stage,count}，stageName 恒缺——
+            // 不映射则中文表头卡里出 BID_EVALUATION 英文原键（fix round 1）；未收录键回退原键
+            阶段: STAGE_LABELS[d.stage] ?? d.stageName ?? d.stage, 项目数: d.count,
           })),
         }],
       };

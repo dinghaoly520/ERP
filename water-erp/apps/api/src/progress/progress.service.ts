@@ -50,6 +50,21 @@ export interface ProgressStats {
   lastMonthAdded: number;
 }
 
+/** 阶段键 → 中文标签（PMI 九阶段）：getAiInsights 原内联 stageNames 表提为模块级导出，
+ *  供 cockpit 工具 stages 卡片与今日要报最堵阶段共用——卡片/文案不再出英文原键（fix round 1，2026-10-23）。
+ *  键覆盖面以本表为准，未收录键由调用方 `?? d.stage` 兜底；扩表归终审裁定。 */
+export const STAGE_LABELS: Record<string, string> = {
+  PROCUREMENT_DEMAND: '采购需求',
+  INITIATION: '采购立项',
+  TENDER_DOCUMENT: '采购文件',
+  SUPPLIER_INVITATION: '供应商邀请',
+  PUBLIC_ANNOUNCEMENT: '采购公告公示',
+  EXPERT_SELECTION: '专家抽取',
+  BID_EVALUATION: '开标评标',
+  AWARD_DECISION: '定标',
+  CONTRACT: '合同',
+};
+
 // ── LLM 输出乱码清理 ──
 // DeepSeek 偶发将个别汉字（如「购」）输出为 U+FFFD 替换字符，前端渲染即出现「�」乱码。
 // 以下工具先剔除 U+FFFD 与孤立代理项，再按真实项目名回填被写坏的片段。
@@ -343,17 +358,7 @@ export class ProgressService {
   ) {
     const stats = await this.getProgressStats(userId, stage, companyFilter);
 
-    const stageNames: Record<string, string> = {
-      PROCUREMENT_DEMAND: '采购需求',
-      INITIATION: '采购立项',
-      TENDER_DOCUMENT: '采购文件',
-      SUPPLIER_INVITATION: '供应商邀请',
-      PUBLIC_ANNOUNCEMENT: '采购公告公示',
-      EXPERT_SELECTION: '专家抽取',
-      BID_EVALUATION: '开标评标',
-      AWARD_DECISION: '定标',
-      CONTRACT: '合同',
-    };
+    const stageNames = STAGE_LABELS;
 
     const projectSummaries = stats.projects.map((p) => {
       const completedStages = p.stages.filter((s) => s.status === 'COMPLETED').length;
