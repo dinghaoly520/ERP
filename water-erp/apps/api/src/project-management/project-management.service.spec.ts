@@ -415,13 +415,14 @@ describe('ProjectManagementService', () => {
       },
       projectManagementStage: {
         createMany: jest.fn(),
-        findMany: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
         findFirst: jest.fn(),
         findFirstOrThrow: jest
           .fn()
           .mockResolvedValue({ id: 'stage-initiation' }),
         update: jest.fn(),
         updateMany: jest.fn(),
+        deleteMany: jest.fn(),
       },
       attachment: {
         create: jest.fn(),
@@ -1894,6 +1895,140 @@ describe('直接采购「中标单位」收口（2026-10-16：开标评标前恒
       await expect(service.addStageAttachment('p1', 'SUPPLIER_INVITATION', ok))
         .rejects.toThrow(/未找到对应的项目阶段/);
     });
+  });
+});
+
+describe('reproc 流标重启（2026-10-23 统一流 spec）', () => {
+  const mkStage = (id: string, key: string, name: string, order: number, status: string) => ({
+    id, stageKey: key, stageName: name, stageOrder: order, round: 1,
+    status, completedAt: status === 'COMPLETED' ? new Date('2026-10-01') : null, note: null,
+  });
+  const STAGES_R1 = [
+    mkStage('st-demand', 'PROCUREMENT_DEMAND', '采购需求', 1, 'COMPLETED'),
+    mkStage('st-init', 'INITIATION', '采购立项', 2, 'COMPLETED'),
+    mkStage('st-doc', 'TENDER_DOCUMENT', '采购文件', 3, 'COMPLETED'),
+    mkStage('st-ann', 'PUBLIC_ANNOUNCEMENT', '采购公告公示', 4, 'COMPLETED'),
+    mkStage('st-expert', 'EXPERT_SELECTION', '专家选取', 5, 'COMPLETED'),
+    mkStage('st-bid', 'BID_EVALUATION', '开标评标', 6, 'IN_PROGRESS'),
+    mkStage('st-award', 'AWARD_DECISION', '定标', 7, 'NOT_STARTED'),
+    mkStage('st-contract', 'CONTRACT', '合同', 8, 'NOT_STARTED'),
+  ];
+  const ITEM_BASE = {
+    id: 'pm-1', projectCode: 'SWHI-TP-2026102301', procurementMethod: '询比采购',
+    currentRound: 1, status: 'ACTIVE',
+    requesterName: '魏雪', requesterDepartment: '人力资源部', title: '2026年教育培训服务',
+    procurementCategory: '其他', budgetAmount: 484000, projectReason: '续约',
+    supplierRequirements: '有培训资质', initiationDate: new Date('2026-03-04T00:00:00'),
+    procurementOrganizationForm: '自行招标', isAnnualBudget: true,
+  };
+  const BP_ABORTED = { stage: 'ABORTED', riskNote: '流标（询比采购，投标供应商 1 家）' };
+
+  it('起点=采购文件、方式不变：删当前轮尾部、按模板截取插第 2 轮、指针指起点', async () => {
+    const { service, prisma } = makeService();
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ ...ITEM_BASE, stages: STAGES_R1 });
+    prisma.bidProject.findFirst.mockResolvedValue(BP_ABORTED);
+
+    const res = await service.reproc('pm-1', { startStageKey: 'TENDER_DOCUMENT' });
+
+    expect(res).toEqual({ round: 2, inserted: 6 }); // 询比模板 TENDER_DOCUMENT→CONTRACT 共 6 段
+    expect(prisma.projectManagementStage.updateMany).toHaveBeenCalledWith({
+      where: { projectManagementItemId: 'pm-1', round: 1, stageKey: 'BID_EVALUATION' },
+      data: { status: 'COMPLETED', note: '已流标（重新采购）' },
+    });
+    expect(prisma.projectManagementStage.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ['st-award', 'st-contract'] } },
+    });
+    const created = prisma.projectManagementStage.createMany.mock.calls[0][0].data;
+    expect(created.map((s: any) => s.stageKey)).toEqual([
+      'TENDER_DOCUMENT', 'PUBLIC_ANNOUNCEMENT', 'EXPERT_SELECTION', 'BID_EVALUATION', 'AWARD_DECISION', 'CONTRACT',
+    ]);
+    expect(created[0].status).toBe('IN_PROGRESS');
+    expect(created.slice(1).every((s: any) => s.status === 'NOT_STARTED')).toBe(true);
+    expect(created.every((s: any) => s.round === 2)).toBe(true);
+    expect(created[0].stageOrder).toBe(7); // 删尾后接剩余末尾
+    expect(prisma.projectManagementItem.update).toHaveBeenCalledWith({
+      where: { id: 'pm-1' },
+      data: expect.objectContaining({ currentStage: 'TENDER_DOCUMENT', currentRound: 2 }),
+    });
+    expect(prisma.projectManagementItem.update.mock.calls[0][0].data.procurementMethod).toBeUndefined();
+  });
+
+  it('方式变更（询比→谈判）+ 起点=采购需求：新轮按谈判模板全段、PMI 方式更新', async () => {
+    const { service, prisma } = makeService();
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ ...ITEM_BASE, stages: STAGES_R1 });
+    prisma.bidProject.findFirst.mockResolvedValue(BP_ABORTED);
+
+    await service.reproc('pm-1', { startStageKey: 'PROCUREMENT_DEMAND', procurementMethod: '谈判采购' });
+
+    const created = prisma.projectManagementStage.createMany.mock.calls[0][0].data;
+    expect(created.map((s: any) => s.stageKey)).toEqual([
+      'PROCUREMENT_DEMAND', 'INITIATION', 'TENDER_DOCUMENT', 'SUPPLIER_INVITATION', 'EXPERT_SELECTION', 'BID_EVALUATION', 'AWARD_DECISION', 'CONTRACT',
+    ]);
+    expect(prisma.projectManagementItem.update.mock.calls[0][0].data).toEqual(
+      expect.objectContaining({ procurementMethod: '谈判采购', currentStage: 'PROCUREMENT_DEMAND', currentRound: 2 }),
+    );
+  });
+
+  it('basicInfo 仅落差异字段', async () => {
+    const { service, prisma } = makeService();
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ ...ITEM_BASE, stages: STAGES_R1 });
+    prisma.bidProject.findFirst.mockResolvedValue(BP_ABORTED);
+
+    await service.reproc('pm-1', {
+      startStageKey: 'TENDER_DOCUMENT',
+      basicInfo: { supplierRequirements: '具备一级资质且近三年无失信记录', title: ITEM_BASE.title } as any,
+    });
+
+    const data = prisma.projectManagementItem.update.mock.calls[0][0].data;
+    expect(data.supplierRequirements).toBe('具备一级资质且近三年无失信记录');
+    expect(data).not.toHaveProperty('title');
+    expect(data).not.toHaveProperty('requesterName');
+  });
+
+  it('当前轮尾部阶段挂有附件 → 409 TAIL_HAS_ATTACHMENTS 且零写入', async () => {
+    const { service, prisma } = makeService();
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ ...ITEM_BASE, stages: STAGES_R1 });
+    prisma.bidProject.findFirst.mockResolvedValue(BP_ABORTED);
+    prisma.projectManagementStage.findMany.mockResolvedValue([
+      { stageName: '定标', attachments: [{ id: 'a1' }] },
+    ]);
+
+    await expect(service.reproc('pm-1', { startStageKey: 'TENDER_DOCUMENT' }))
+      .rejects.toMatchObject({ status: 409, response: { code: 'TAIL_HAS_ATTACHMENTS' } });
+    expect(prisma.projectManagementStage.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.projectManagementStage.createMany).not.toHaveBeenCalled();
+  });
+
+  it('当前轮 BidProject 未流标 → 409 BID_NOT_ABORTED', async () => {
+    const { service, prisma } = makeService();
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ ...ITEM_BASE, stages: STAGES_R1 });
+    prisma.bidProject.findFirst.mockResolvedValue({ stage: 'EVALUATING', riskNote: null });
+
+    await expect(service.reproc('pm-1', { startStageKey: 'TENDER_DOCUMENT' }))
+      .rejects.toMatchObject({ status: 409, response: { code: 'BID_NOT_ABORTED' } });
+  });
+
+  it('开标归档流标（ARCHIVED + riskNote 流标前缀）放行重启', async () => {
+    const { service, prisma } = makeService();
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ ...ITEM_BASE, stages: STAGES_R1 });
+    prisma.bidProject.findFirst.mockResolvedValue({ stage: 'ARCHIVED', riskNote: '流标（询比采购…' });
+
+    const res = await service.reproc('pm-1', { startStageKey: 'TENDER_DOCUMENT' });
+    expect(res.round).toBe(2);
+  });
+
+  it('最新轮未推进 → 400 REPROC_ALREADY_PENDING（幂等闸保留）', async () => {
+    const { service, prisma } = makeService();
+    const stages = [
+      ...STAGES_R1.map((s) => ({ ...s, status: 'COMPLETED', completedAt: new Date('2026-10-01'), round: 1 })),
+      { ...mkStage('r2-doc', 'TENDER_DOCUMENT', '采购文件', 9, 'IN_PROGRESS'), round: 2, completedAt: null },
+      { ...mkStage('r2-ann', 'PUBLIC_ANNOUNCEMENT', '采购公告公示', 10, 'NOT_STARTED'), round: 2 },
+    ];
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ ...ITEM_BASE, currentRound: 2, stages });
+    prisma.bidProject.findFirst.mockResolvedValue(BP_ABORTED);
+
+    await expect(service.reproc('pm-1', { startStageKey: 'TENDER_DOCUMENT' }))
+      .rejects.toMatchObject({ status: 400, response: { code: 'REPROC_ALREADY_PENDING' } });
   });
 });
 });

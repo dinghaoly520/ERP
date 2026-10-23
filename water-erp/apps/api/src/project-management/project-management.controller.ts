@@ -22,6 +22,7 @@ import { AnalyzeBudgetReferenceDto } from './dto/analyze-budget-reference.dto';
 import { CompleteProjectDto } from './dto/complete-project.dto';
 import { CreateProjectFromInitiationDto } from './dto/create-project-from-initiation.dto';
 import { QueryProjectManagementDto } from './dto/query-project-management.dto';
+import { ReprocDto } from './dto/reproc.dto';
 import { UpdateExtractedInfoDto } from './dto/update-extracted-info.dto';
 import { TerminateProjectDto } from './dto/terminate-project.dto';
 import { SelectOfficialTenderDto } from './dto/select-official-tender.dto';
@@ -258,8 +259,8 @@ export class ProjectManagementController {
   }
 
   @Post(':id/reproc')
-  reproc(@Param('id') id: string) {
-    return this.projectManagementService.reproc(id);
+  reproc(@Param('id') id: string, @Body() dto: ReprocDto) {
+    return this.projectManagementService.reproc(id, dto);
   }
 
   @Get('archive/:procurementRoundId')

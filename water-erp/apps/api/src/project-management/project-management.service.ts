@@ -34,6 +34,7 @@ import { CompanyScopeService } from '../company/company-scope';
 import { CompleteProjectDto } from './dto/complete-project.dto';
 import { CreateProjectFromInitiationDto } from './dto/create-project-from-initiation.dto';
 import { QueryProjectManagementDto } from './dto/query-project-management.dto';
+import { ReprocDto } from './dto/reproc.dto';
 import { getEvaluationDefault } from '../bid/evaluation-method.config';
 import { isNoneEvaluation } from '../bid/none-evaluation.util';
 import { ScoreStandardValidator } from '../bid/score-standard-validator.service';
@@ -197,40 +198,6 @@ const METHOD_STAGE_TEMPLATES: Record<string, Array<{ key: string; label: string 
     { key: 'BID_EVALUATION', label: '开标评标' },
     { key: 'AWARD_DECISION', label: '定标' },
     { key: 'CONTRACT', label: '合同' },
-  ],
-};
-
-/** 再次采购时按采购方式插入的阶段段（与前端 PROCUREMENT_METHOD_STAGES 的 TENDER_DOCUMENT→AWARD_DECISION 一致）*/
-const REPROC_STAGE_SEGMENTS: Record<string, Array<{ key: string; label: string }>> = {
-  谈判采购: [
-    { key: 'TENDER_DOCUMENT', label: '采购文件' },
-    { key: 'SUPPLIER_INVITATION', label: '供应商邀请' },
-    { key: 'EXPERT_SELECTION', label: '专家选取' },
-    { key: 'BID_EVALUATION', label: '开标评标' },
-  ],
-  竞价采购: [
-    { key: 'TENDER_DOCUMENT', label: '采购文件' },
-    { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示' },
-    { key: 'EXPERT_SELECTION', label: '专家抽取' },
-    { key: 'BID_EVALUATION', label: '开标评标' },
-  ],
-  直接采购: [
-    { key: 'TENDER_DOCUMENT', label: '采购文件' },
-    { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示(供应商邀请)' },
-    { key: 'EXPERT_SELECTION', label: '专家选取' },
-    { key: 'BID_EVALUATION', label: '开标评标' },
-  ],
-  邀请招标: [
-    { key: 'TENDER_DOCUMENT', label: '招标文件' },
-    { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示' },
-    { key: 'EXPERT_SELECTION', label: '专家抽取' },
-    { key: 'BID_EVALUATION', label: '开标评标' },
-  ],
-  询比采购: [
-    { key: 'TENDER_DOCUMENT', label: '采购文件' },
-    { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示' },
-    { key: 'EXPERT_SELECTION', label: '专家选取' },
-    { key: 'BID_EVALUATION', label: '开标评标' },
   ],
 };
 
@@ -627,51 +594,76 @@ export class ProjectManagementService {
   }
 
   /**
-   * 流标后再次采购：在当前 AWARD_DECISION 后、CONTRACT 前插入新一轮
-   * "采购文件→定标"阶段（按 procurementMethod），round 递增。允许多次循环。
+   * 流标后再次采购（2026-10-23 统一流改造，spec 2026-10-23-abort-restart-unification）：
+   * 入参起点（采购需求/采购立项/采购文件）+ 可选采购方式变更 + 可选基本信息差异更新。
+   * 前置：当前轮 BidProject 已终局且系流标（ABORTED；或开标归档 ARCHIVED 且 riskNote 流标前缀）。
+   * 单事务：旧轮开标评标置流标终态 → 删当前轮尾部（定标/合同/备案表）→ 按方式模板从起点
+   * 截取到模板末尾插入新轮（起点激活）→ PMI 指针/方式/基本信息更新。
    */
-  async reproc(itemId: string) {
+  async reproc(itemId: string, dto: ReprocDto) {
+    const START_STAGES = ['PROCUREMENT_DEMAND', 'INITIATION', 'TENDER_DOCUMENT'];
+    const TAIL_STAGE_KEYS = ['AWARD_DECISION', 'CONTRACT', 'DIRECT_PURCHASE_FILING'];
+
     const item = await this.prisma.projectManagementItem.findUnique({
       where: { id: itemId },
-      select: { id: true, projectCode: true, procurementMethod: true, stages: { orderBy: { stageOrder: 'asc' } } },
+      select: {
+        id: true, projectCode: true, procurementMethod: true, currentRound: true, status: true,
+        requesterName: true, requesterDepartment: true, title: true, procurementCategory: true,
+        budgetAmount: true, projectReason: true, supplierRequirements: true, initiationDate: true,
+        procurementOrganizationForm: true, isAnnualBudget: true,
+        stages: { orderBy: { stageOrder: 'asc' } },
+      },
     });
     if (!item) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
-
-    const segment = REPROC_STAGE_SEGMENTS[item.procurementMethod];
-    if (!segment || segment.length === 0) {
-      throw new BadRequestException({ error: '当前采购方式不支持再次采购', code: 'UNSUPPORTED' });
+    if (item.status !== PROJECT_MANAGEMENT_STATUS.ACTIVE) {
+      throw new BadRequestException('仅进行中的项目可以发起再次采购。');
     }
 
-    const maxRound = item.stages.reduce((m, s) => Math.max(m, s.round ?? 1), 1);
+    const startStage = dto?.startStageKey;
+    if (!START_STAGES.includes(startStage)) {
+      throw new BadRequestException({ error: '重启起点须为 采购需求 / 采购立项 / 采购文件 三者之一', code: 'INVALID_START_STAGE' });
+    }
 
-    // 幂等：最新一轮（maxRound > 1）仍处"刚开轮未推进"状态 → 上次 reproc 尚未开始，拒绝重复开轮
-    // （防双击 / 多入口重复触发，避免插入 round+2、round+3… 脏数据）。
-    // 判定信号（2026-09-28 修订）：首阶段开轮即置 IN_PROGRESS（见下方 createMany——
-    // NOT_STARTED 会被前端 stageLocked 判死锁，流标重采后无法推进），故"未开始"改以
-    // 「首阶段 IN_PROGRESS 且整轮无任何 COMPLETED」识别；一旦推进过任一阶段即允许再次开轮。
+    // 前置：当前轮 BidProject 已终局且系流标
+    const currentRound = item.currentRound ?? 1;
+    const bp = await this.prisma.bidProject.findFirst({
+      where: { projectManagementItemId: itemId, round: currentRound },
+      select: { stage: true, riskNote: true },
+    });
+    const bpAborted = !!bp && (bp.stage === 'ABORTED' || (bp.stage === 'ARCHIVED' && (bp.riskNote ?? '').startsWith('流标')));
+    if (!bp || !bpAborted) {
+      throw new ConflictException({
+        error: '当前轮开评标流程尚未流标，请先发布流标公告完成流标，再发起再次采购',
+        code: 'BID_NOT_ABORTED',
+      });
+    }
+
+    // 采购方式：不传沿用；传入须有阶段模板（PMI 五种）
+    const method = dto?.procurementMethod?.trim() || item.procurementMethod;
+    const template = METHOD_STAGE_TEMPLATES[method];
+    if (!template) {
+      throw new BadRequestException({ error: `不支持的采购方式：${method}`, code: 'UNSUPPORTED' });
+    }
+    const segment = template.filter((s, i) => i >= template.findIndex((t) => t.key === startStage));
+
+    // 幂等：最新一轮（maxRound > 1）仍处「刚开轮未推进」→ 拒绝重复开轮
+    //（口径不变：首阶段 IN_PROGRESS 且整轮无 COMPLETED；首阶段按 stageOrder 取最小）
+    const maxRound = item.stages.reduce((m, s) => Math.max(m, s.round ?? 1), 1);
     if (maxRound > 1) {
       const latestRound = item.stages.filter((s) => s.round === maxRound);
-      const first = latestRound.find((s) => s.stageKey === segment[0].key);
-      const untouched =
-        !!first &&
-        first.status === PROJECT_STAGE_STATUS.IN_PROGRESS &&
-        first.completedAt === null &&
-        latestRound.every((s) => s.status !== 'COMPLETED');
+      const first = [...latestRound].sort((a, b) => a.stageOrder - b.stageOrder)[0];
+      const untouched = !!first
+        && first.status === PROJECT_STAGE_STATUS.IN_PROGRESS
+        && first.completedAt === null
+        && latestRound.every((s) => s.status !== PROJECT_STAGE_STATUS.COMPLETED);
       if (untouched) {
-        throw new BadRequestException({
-          error: '已有新一轮采购等待开始，无需重复发起',
-          code: 'REPROC_ALREADY_PENDING',
-        });
+        throw new BadRequestException({ error: '已有新一轮采购等待开始，无需重复发起', code: 'REPROC_ALREADY_PENDING' });
       }
-
-      // 存量自愈：历史 reproc 未激活首阶段（NOT_STARTED 死锁态，2026-09-28 审计 P1）
-      // 的项目，再次调用 reproc 时直接激活既有轮次，不再叠加新轮
-      const legacyStuck =
-        !!first &&
-        first.status === 'NOT_STARTED' &&
-        latestRound.every((s) => s.status !== 'COMPLETED');
+      // 存量自愈：历史 NOT_STARTED 死锁轮——激活既有轮次而非叠加新轮
+      const legacyStuck = !!first
+        && first.status === PROJECT_STAGE_STATUS.NOT_STARTED
+        && latestRound.every((s) => s.status !== PROJECT_STAGE_STATUS.COMPLETED);
       if (legacyStuck) {
-        // 自愈两步同事务（2026-09-29 二审 P2）：避免"阶段已激活但项目指针未动"的半自愈态
         await this.prisma.$transaction([
           this.prisma.projectManagementStage.update({
             where: { id: first.id },
@@ -687,54 +679,75 @@ export class ProjectManagementService {
       }
     }
 
-    const newRound = maxRound + 1;
+    // 删尾防御：当前轮尾部阶段挂有附件 → 拒绝（流标语义下不应有）
+    const tailStages = item.stages.filter(
+      (s) => (s.round ?? 1) === currentRound && TAIL_STAGE_KEYS.includes(s.stageKey),
+    );
+    if (tailStages.length) {
+      const withAttachments = await this.prisma.projectManagementStage.findMany({
+        where: { id: { in: tailStages.map((s) => s.id) } },
+        select: { stageName: true, attachments: { select: { id: true } } },
+      });
+      const dirty = withAttachments.filter((s) => s.attachments.length > 0);
+      if (dirty.length) {
+        throw new ConflictException({
+          error: `当前轮尾部阶段已挂材料（${dirty.map((s) => s.stageName).join('、')}），无法删除重排，请先人工处理`,
+          code: 'TAIL_HAS_ATTACHMENTS',
+        });
+      }
+    }
 
-    // 新一轮插在 CONTRACT 前；CONTRACT 及之后阶段 stageOrder 后移
-    const contract = item.stages.find((s) => s.stageKey === 'CONTRACT');
-    const insertAt = contract
-      ? contract.stageOrder
-      : item.stages.reduce((m, s) => Math.max(m, s.stageOrder), 0) + 1;
-    const shift = segment.length;
+    // 基本信息差异更新（仅传入且有变化的字段落库）
+    const infoData: Record<string, unknown> = {};
+    const b = dto?.basicInfo ?? {};
+    const strFields = ['requesterName', 'requesterDepartment', 'title', 'procurementCategory', 'projectReason', 'supplierRequirements', 'procurementOrganizationForm'];
+    for (const f of strFields) {
+      const v = (b as Record<string, unknown>)[f];
+      if (typeof v === 'string' && v.trim() && v !== (item as unknown as Record<string, unknown>)[f]) infoData[f] = v.trim();
+    }
+    if (typeof b.budgetAmount === 'number' && b.budgetAmount !== Number(item.budgetAmount)) infoData.budgetAmount = b.budgetAmount;
+    if (typeof b.isAnnualBudget === 'boolean' && b.isAnnualBudget !== item.isAnnualBudget) infoData.isAnnualBudget = b.isAnnualBudget;
+    if (typeof b.initiationDate === 'string' && b.initiationDate) {
+      const d = parseInitiationDateInput(b.initiationDate);
+      if (!item.initiationDate || d.getTime() !== item.initiationDate.getTime()) infoData.initiationDate = d;
+    }
+    if (method !== item.procurementMethod) infoData.procurementMethod = method;
+
+    const newRound = maxRound + 1;
+    // 追加式 stageOrder：删当前轮尾部后，新轮接在剩余阶段末尾
+    const remainingMaxOrder = item.stages
+      .filter((s) => !((s.round ?? 1) === currentRound && TAIL_STAGE_KEYS.includes(s.stageKey)))
+      .reduce((m, s) => Math.max(m, s.stageOrder), 0);
 
     await this.prisma.$transaction(async (tx) => {
-      // #2 旧轮定标清理：流标后标记当前轮开标评标/定标为已流标终态，避免时间线残留"未开始"阶段
+      // 旧轮流标终态标注（原 reproc 口径）：开标评标置 COMPLETED + 流标备注
       await tx.projectManagementStage.updateMany({
-        where: {
-          projectManagementItemId: itemId,
-          round: maxRound,
-          stageKey: { in: ['BID_EVALUATION', 'AWARD_DECISION'] },
-        },
-        data: { status: 'COMPLETED', note: '已流标（重新采购）' },
+        where: { projectManagementItemId: itemId, round: currentRound, stageKey: 'BID_EVALUATION' },
+        data: { status: PROJECT_STAGE_STATUS.COMPLETED, note: '已流标（重新采购）' },
       });
-      await tx.projectManagementStage.updateMany({
-        where: { projectManagementItemId: itemId, stageOrder: { gte: insertAt } },
-        data: { stageOrder: { increment: shift } },
-      });
+      if (tailStages.length) {
+        await tx.projectManagementStage.deleteMany({ where: { id: { in: tailStages.map((s) => s.id) } } });
+      }
       await tx.projectManagementStage.createMany({
         data: segment.map((s, i) => ({
           projectManagementItemId: itemId,
           stageKey: s.key,
           stageName: s.label,
-          stageOrder: insertAt + i,
+          stageOrder: remainingMaxOrder + 1 + i,
           round: newRound,
           stageCode: item.projectCode ? stageCodeFor(item.projectCode, s.key, newRound) : null,
-          // 首阶段开轮即激活：currentStage 指向的阶段必须 IN_PROGRESS——前端 stageLocked
-          // 把 NOT_STARTED 判为锁定（不可上传/不可完成），历史全 NOT_STARTED 导致流标
-          // 重采后新轮死锁（2026-09-28 审计 P1）。与创建期 BID_EVALUATION 激活同一口径。
-          status: i === 0
-            ? PROJECT_STAGE_STATUS.IN_PROGRESS
-            : PROJECT_STAGE_STATUS.NOT_STARTED,
+          status: i === 0 ? PROJECT_STAGE_STATUS.IN_PROGRESS : PROJECT_STAGE_STATUS.NOT_STARTED,
         })),
+      });
+      await tx.projectManagementItem.update({
+        where: { id: itemId },
+        data: { ...infoData, currentStage: segment[0].key, currentRound: newRound },
       });
     });
 
-    // 当前阶段指向新一轮首个阶段（如 TENDER_DOCUMENT / PUBLIC_ANNOUNCEMENT），currentRound 递增
-    await this.prisma.projectManagementItem.update({
-      where: { id: itemId },
-      data: { currentStage: segment[0].key, currentRound: newRound },
-    });
-
-    this.logger.log(`项目 ${itemId} 再次采购：插入第 ${newRound} 轮（${segment.length} 个阶段），currentStage → ${segment[0].key}`);
+    this.logger.log(
+      `项目 ${itemId} 再次采购：删当前轮尾部 ${tailStages.length} 个阶段，插入第 ${newRound} 轮（${segment.length} 个阶段，起点 ${segment[0].key}，方式 ${method}）`,
+    );
     return { round: newRound, inserted: segment.length };
   }
 
