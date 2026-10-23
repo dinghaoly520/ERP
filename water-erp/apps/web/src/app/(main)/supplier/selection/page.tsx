@@ -439,14 +439,20 @@ export function SupplierSelectionPage({
             }
           }
         }
-        // 按 supplierId 去重：同一供应商多行时，优先保留已回复（ACCEPTED/DECLINED）的行
+        // 按 supplierId 去重：同一供应商多行只数一次——已回复（ACCEPTED/DECLINED）优先于
+        // PENDING；均非 PENDING 取 respondedAt 最新（2026-10-23 与后端阶段完成核验同源，
+        // 此前保留先见行会造成页面计数与完成提示打架）
         const bySupplier = new Map<string, RsvpListItem>();
         for (const item of allItems) {
           const existing = bySupplier.get(item.supplierId);
-          if (!existing) {
-            bySupplier.set(item.supplierId, item);
-          } else if (existing.status === 'PENDING' && item.status !== 'PENDING') {
-            bySupplier.set(item.supplierId, item); // 用已回复行替换 PENDING 行
+          if (!existing) { bySupplier.set(item.supplierId, item); continue; }
+          const exResponded = existing.status !== 'PENDING';
+          const itResponded = item.status !== 'PENDING';
+          if (!exResponded && itResponded) { bySupplier.set(item.supplierId, item); continue; }
+          if (exResponded && itResponded) {
+            const et = existing.respondedAt ? new Date(existing.respondedAt).getTime() : 0;
+            const it = item.respondedAt ? new Date(item.respondedAt).getTime() : 0;
+            if (it > et) bySupplier.set(item.supplierId, item);
           }
         }
         const items = [...bySupplier.values()];
@@ -2805,21 +2811,23 @@ export function SupplierSelectionPage({
                       已向 {shortlist.size} 家候选供应商发出邀请通知{notifyNotFound > 0 && `（${notifyNotFound} 家未找到关联账户，需另行联系）`}
                     </p>
                     <div className="mt-3 flex items-center gap-x-4 gap-y-2 flex-wrap">
+                      {/* 回执同源口径（2026-10-23 用户口径）：与「标记本阶段完成」核验数一致——
+                          全部受邀回执按供应商去重（已回复优先/最新优先），不再用名单内手动计数 */}
                       <div className="flex items-center gap-2">
                         <div className="flex h-1.5 w-32 rounded-full overflow-hidden" style={{ background: 'color-mix(in oklch, var(--muted-foreground) 12%, transparent)' }}>
-                          {shortlist.size > 0 && confirmedCount > 0 && (
-                            <div className="h-full transition-[width] duration-500" style={{ width: `${confirmedCount / shortlist.size * 100}%`, background: 'var(--success)' }} />
+                          {(rsvpList?.total ?? 0) > 0 && (rsvpList?.counts.ACCEPTED ?? 0) > 0 && (
+                            <div className="h-full transition-[width] duration-500" style={{ width: `${(rsvpList!.counts.ACCEPTED / rsvpList!.total) * 100}%`, background: 'var(--success)' }} />
                           )}
-                          {shortlist.size > 0 && declinedCount > 0 && (
-                            <div className="h-full transition-[width] duration-500" style={{ width: `${declinedCount / shortlist.size * 100}%`, background: 'var(--danger)' }} />
+                          {(rsvpList?.total ?? 0) > 0 && (rsvpList?.counts.DECLINED ?? 0) > 0 && (
+                            <div className="h-full transition-[width] duration-500" style={{ width: `${(rsvpList!.counts.DECLINED / rsvpList!.total) * 100}%`, background: 'var(--danger)' }} />
                           )}
                         </div>
-                        <span className="text-[11px] tabular-nums font-bold text-[var(--foreground)]">{confirmedCount}/{shortlist.size}</span>
+                        <span className="text-[11px] tabular-nums font-bold text-[var(--foreground)]">{rsvpList?.counts.ACCEPTED ?? 0}/{rsvpList?.total ?? 0}</span>
                       </div>
                       <div className="flex items-center gap-3 text-[11px] tabular-nums">
-                        <span className="font-bold text-[var(--success)]">{confirmedCount} 已确认</span>
-                        <span className="text-[var(--muted-foreground)]">{pendingCount} 待确认</span>
-                        {declinedCount > 0 && <span className="font-bold text-[var(--danger)]">{declinedCount} 已放弃</span>}
+                        <span className="font-bold text-[var(--success)]">{rsvpList?.counts.ACCEPTED ?? 0} 已确认</span>
+                        <span className="text-[var(--muted-foreground)]">{rsvpList?.counts.PENDING ?? 0} 待确认</span>
+                        {(rsvpList?.counts.DECLINED ?? 0) > 0 && <span className="font-bold text-[var(--danger)]">{rsvpList!.counts.DECLINED} 已放弃</span>}
                       </div>
                     </div>
                   </div>

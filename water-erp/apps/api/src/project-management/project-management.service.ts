@@ -3589,10 +3589,23 @@ ${JSON.stringify(algorithmResult, null, 2)}
           select: { id: true },
         });
         const rsvpWhere = { OR: [{ projectId }, { projectId: { in: bpIds.map((b) => b.id) } }] };
-        const [rsvps, accepted] = await Promise.all([
-          this.prisma.invitationRsvp.count({ where: rsvpWhere }),
-          this.prisma.invitationRsvp.count({ where: { ...rsvpWhere, status: 'ACCEPTED' } }),
-        ]);
+        // 按供应商去重计数（2026-10-23 用户口径：与邀请页「已确认」同源）——同一供应商
+        // 跨批次多行只数一次：已回执行优先于 PENDING，均非 PENDING 取 respondedAt 最新
+        // （最新回执代表当前意愿）；此前裸 count 行数会把多批次重复数大、与页面显示打架
+        const allRows = await this.prisma.invitationRsvp.findMany({
+          where: rsvpWhere,
+          select: { supplierId: true, status: true, respondedAt: true },
+          orderBy: { respondedAt: 'desc' },
+        });
+        const bySupplier = new Map<string, string>();
+        for (const r of allRows) {
+          const existing = bySupplier.get(r.supplierId);
+          if (!existing || existing === 'PENDING') {
+            bySupplier.set(r.supplierId, r.status); // 无记录/PENDING → 任何状态可覆盖（desc 序即最新优先）
+          }
+        }
+        const rsvps = bySupplier.size;
+        const accepted = [...bySupplier.values()].filter((st) => st === 'ACCEPTED').length;
         if (rsvps === 0) throw new BadRequestException('请先通过供应商邀请向导发送邀请通知，再标记完成');
         if (accepted < threshold) {
           throw new BadRequestException(

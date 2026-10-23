@@ -1334,7 +1334,7 @@ describe('ProjectManagementService', () => {
     // 评分标准闸（2026-09-24）：公开招标→comprehensive，本用例聚焦阶段推进——BP 已配置
     prisma.bidProject = { findFirst: jest.fn().mockResolvedValue({ id: 'bp-1', evaluationMethod: 'comprehensive' }) };
     prisma.attachment = { count: jest.fn().mockResolvedValue(1) };
-    prisma.invitationRsvp = { count: jest.fn().mockResolvedValue(1) };
+    prisma.invitationRsvp = { count: jest.fn().mockResolvedValue(1), findMany: jest.fn().mockResolvedValue([{ supplierId: 's1', status: 'ACCEPTED', respondedAt: new Date() }]) };
     prisma.bidExpert = { count: jest.fn().mockResolvedValue(1) };
 
     prisma.projectManagementStage.findFirst.mockResolvedValue({
@@ -1540,7 +1540,7 @@ describe('ProjectManagementService', () => {
       status: 'ACTIVE', currentStage: 'SUPPLIER_INVITATION' });
       // 回执核验走 PMI/BP 两个 id 空间：先查项目关联的 BidProject id 集
       prisma.bidProject = { findMany: jest.fn().mockResolvedValue([]) };
-      prisma.invitationRsvp = { count: jest.fn().mockResolvedValue(0) };
+      prisma.invitationRsvp = { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) };
       await expect(service.updateStage('pm-01', 'SUPPLIER_INVITATION', completing)).rejects.toThrow('发送邀请通知');
     });
 
