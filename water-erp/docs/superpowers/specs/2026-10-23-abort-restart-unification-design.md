@@ -85,6 +85,8 @@ body: {
 
 `currentRoundFailedBidNoticePublished: boolean`——判定口径：类型 FAILED_BID_NOTICE + 关联本项目（relatedProjectCode）+ 属当前轮（发布时间晚于当前轮流标时点）。timeline.service 已有 FAILED_BID_NOTICE 查法可扩展。
 
+> **落点偏差（2026-10-23 实施记录）**：实现改为 `GET :id/bid-project-refs` 逐轮返回 `failedBidNoticePublished`（每轮一行，判定=公告发布于该轮 BidProject 创建之后），未落在 PMI 详情响应上——复用面板既有 refs 逐轮轮询基建，且逐轮粒度比「仅当前轮」更通用（多轮展示直接可用）。终审补刀：查询限定已发布状态（PUBLISHED/ARCHIVED/OFFLINE），DRAFT 草稿不算。
+
 ### 4.3 公告发布联动加固
 
 `announcement.service.ts:1207` 发布 FAILED_BID_NOTICE 联动 abortBidProject 前：BidProject 已 ARCHIVED/ABORTED → **跳过+日志**，不再 409（现状 ARCHIVED→ABORTED 撞单向棘轮终态守卫——来源②归档后补发公告必撞）。

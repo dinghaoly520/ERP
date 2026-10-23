@@ -3489,6 +3489,16 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new NotFoundException('未找到对应的项目阶段。');
     }
 
+    // ★ 旧轮只读闸（2026-10-23 统一流）：再次采购后历史轮次仅供查看——手工完成/补录/
+    // 回退旧轮行与「旧轮只读」口径相悖（补录通道只对当前轮内已越过阶段开放）。与
+    // reopenStage 服务端闸同源；无 dto.round 时 targetRound 缺省即当前轮，存量调用不受影响。
+    if (targetRound < (project.currentRound ?? 1)) {
+      throw new ConflictException({
+        error: '该步骤属已完成的历史轮次，仅供查看',
+        code: 'PAST_ROUND_READONLY',
+      });
+    }
+
     // 补录（2026-09-07）：目标阶段早于当前活跃阶段（流程已越过的前置）允许补完成——
     // 附件后传/历史数据补齐场景（此前一律拒绝，导致已越过阶段永远停在 NOT_STARTED，
     // 归档台账与实际不符）。后续实质闸门（归档材料 DA/T 103、邀请回执等）照常校验。
@@ -3812,11 +3822,18 @@ ${JSON.stringify(algorithmResult, null, 2)}
       },
       orderBy: { round: 'asc' },
     });
-    // 流标公告闸：FAILED_BID_NOTICE 命中本项目编码空间（PMI 编码或该轮 BidProject 编码）且发布于该轮创建之后
+    // 流标公告闸：FAILED_BID_NOTICE 命中本项目编码空间（PMI 编码或该轮 BidProject 编码）且发布于该轮创建之后。
+    // 只认「已发布过」状态（2026-10-23 终审）：PUBLISHED/ARCHIVED/OFFLINE（下架=曾发布的撤回）；
+    // DRAFT 不算——信息发布中心存草稿即翻闸会让决策向导抢在公告真正发布前打开（流标公告先行口径）；
+    // HIDDEN 不算——回收站隐藏任意状态可入（含 DRAFT 入桶），不能反推曾发布。
     const codes = [pmi?.projectCode, ...bps.map((b) => b.projectCode)].filter((c): c is string => !!c);
     const notices = codes.length
       ? await this.prisma.announcement.findMany({
-          where: { type: 'FAILED_BID_NOTICE', relatedProjectCode: { in: codes } },
+          where: {
+            type: 'FAILED_BID_NOTICE',
+            status: { in: ['PUBLISHED', 'ARCHIVED', 'OFFLINE'] },
+            relatedProjectCode: { in: codes },
+          },
           select: { relatedProjectCode: true, publishDate: true },
         })
       : [];
@@ -3844,6 +3861,20 @@ ${JSON.stringify(algorithmResult, null, 2)}
       },
     });
     if (!stage) throw new NotFoundException('未找到对应的项目阶段。');
+    // ★ 旧轮只读闸（2026-10-23 统一流）：再次采购后历史轮次仅供查看——重开旧轮步骤会
+    // 把 currentStage/currentRound 指针回拨、并连带把后续轮次全部重置为待解锁（下方事务
+    // 步骤 3/4），破坏轮次结构。前端 stageLocked 已挡（Task 6），此为服务端兜底
+    //（开标锁只拦 OPENING+ 活动态，流标 ABORTED 轮穿闸，勿依赖其代管）。
+    const currentRound = (await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+      select: { currentRound: true },
+    }))?.currentRound ?? 1;
+    if (stage.round < currentRound) {
+      throw new ConflictException({
+        error: '该步骤属已完成的历史轮次，仅供查看',
+        code: 'PAST_ROUND_READONLY',
+      });
+    }
     if (stage.status !== PROJECT_STAGE_STATUS.COMPLETED) {
       throw new BadRequestException('只有已完成的步骤才能重新设置为进行中。');
     }

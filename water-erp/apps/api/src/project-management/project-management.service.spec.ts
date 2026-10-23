@@ -2047,6 +2047,38 @@ describe('reproc 流标重启（2026-10-23 统一流 spec）', () => {
       expect.objectContaining({ where: { id: 'r2-doc' }, data: { status: 'IN_PROGRESS' } }),
     );
   });
+
+  it('重开已完成旧轮阶段 → 409 PAST_ROUND_READONLY（旧轮只读服务端闸，流标 ABORTED 轮也拦）', async () => {
+    const { service, prisma } = makeService();
+    // 再次采购后指针在第 2 轮；round-1 开标评标已流标终态（ABORTED 轮穿不过开标锁，须本闸兜底）
+    prisma.projectManagementStage.findFirst.mockResolvedValue({
+      id: 'st-init', stageKey: 'INITIATION', stageName: '采购立项', stageOrder: 2, round: 1,
+      status: 'COMPLETED', completedAt: new Date('2026-10-01'), note: null,
+    });
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ ...ITEM_BASE, currentRound: 2 });
+
+    await expect(service.reopenStage('pm-1', 'INITIATION', 1))
+      .rejects.toMatchObject({ status: 409, response: { code: 'PAST_ROUND_READONLY' } });
+    // 零写入：不回拨指针、不重置新轮
+    expect(prisma.projectManagementStage.update).not.toHaveBeenCalled();
+    expect(prisma.projectManagementStage.updateMany).not.toHaveBeenCalled();
+    expect(prisma.projectManagementItem.update).not.toHaveBeenCalled();
+  });
+
+  it('updateStage 带旧轮 round → 409 PAST_ROUND_READONLY（补录通道只对当前轮开放）', async () => {
+    const { service, prisma } = makeService();
+    prisma.projectManagementItem.findUnique.mockResolvedValue({
+      ...ITEM_BASE, currentRound: 2, currentStage: 'TENDER_DOCUMENT',
+    });
+    prisma.projectManagementStage.findFirst.mockResolvedValue({
+      id: 'st-init', stageKey: 'INITIATION', stageName: '采购立项', stageOrder: 2, round: 1,
+      status: 'COMPLETED', completedAt: new Date('2026-10-01'), note: null,
+    });
+
+    await expect(service.updateStage('pm-1', 'INITIATION', { status: 'COMPLETED', round: 1 }))
+      .rejects.toMatchObject({ status: 409, response: { code: 'PAST_ROUND_READONLY' } });
+    expect(prisma.projectManagementStage.update).not.toHaveBeenCalled();
+  });
 });
 
 describe('listBidProjectRefs 公告闸字段（2026-10-23 统一流）', () => {
@@ -2065,6 +2097,34 @@ describe('listBidProjectRefs 公告闸字段（2026-10-23 统一流）', () => {
 
     expect(refs.find((r: any) => r.round === 1)!.failedBidNoticePublished).toBe(true);
     expect(refs.find((r: any) => r.round === 2)!.failedBidNoticePublished).toBe(false);
+  });
+
+  it('DRAFT 草稿不算已发布：公告闸只认 PUBLISHED/ARCHIVED/OFFLINE（终审修复）', async () => {
+    const { service, prisma } = makeService();
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ projectCode: 'SWHI-TP-2026102301' });
+    prisma.bidProject.findMany.mockResolvedValue([
+      { id: 'bp-1', round: 1, projectCode: 'BID-1', name: 'A', stage: 'ABORTED', procurementMethod: '询比采购', evaluationMethod: 'COMPREHENSIVE', openTime: null, deadline: null, createdAt: new Date('2026-10-01') },
+      { id: 'bp-2', round: 2, projectCode: 'BID-2', name: 'A', stage: 'EVALUATING', procurementMethod: '询比采购', evaluationMethod: 'COMPREHENSIVE', openTime: null, deadline: null, createdAt: new Date('2026-10-15') },
+    ]);
+    // round-1 仅有 DRAFT 草稿（信息发布中心存稿 publishDate 缺省 now ≥ 该轮创建）；
+    // round-2 有真发布的 PUBLISHED。mock 按 where.status.in 模拟 DB 过滤
+    prisma.announcement.findMany.mockImplementation((args?: { where?: { status?: { in?: string[] } } }) => {
+      const rows = [
+        { relatedProjectCode: 'BID-1', publishDate: new Date('2026-10-05'), status: 'DRAFT' },
+        { relatedProjectCode: 'BID-2', publishDate: new Date('2026-10-20'), status: 'PUBLISHED' },
+      ];
+      const allowed = args?.where?.status?.in ?? [];
+      return Promise.resolve(rows.filter((r) => allowed.includes(r.status)));
+    });
+
+    const refs = await service.listBidProjectRefs('pm-1');
+
+    // where 契约：只查「已发布过」状态集（HIDDEN=回收站任意态可入，不算）
+    expect(prisma.announcement.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ status: { in: ['PUBLISHED', 'ARCHIVED', 'OFFLINE'] } }),
+    }));
+    expect(refs.find((r: any) => r.round === 1)!.failedBidNoticePublished).toBe(false); // 草稿不翻闸
+    expect(refs.find((r: any) => r.round === 2)!.failedBidNoticePublished).toBe(true);
   });
 });
 });
