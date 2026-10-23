@@ -5656,7 +5656,12 @@ export class BidService {
     if (!bidSupplier) {
       throw new BadRequestException({ error: '供应商不属于此项目', code: 'SUPPLIER_NOT_IN_PROJECT' });
     }
-    return this.prisma.bidSupervisionAnnotation.upsert({
+    // 2026-10-23 现场异常触达：旧值按 supplierId 唯一键另取（findFirst 是归属校验，不能顺带）
+    const old = await this.prisma.bidSupervisionAnnotation.findUnique({
+      where: { supplierId: dto.supplierId },
+      select: { status: true },
+    });
+    const result = await this.prisma.bidSupervisionAnnotation.upsert({
       where: { supplierId: dto.supplierId },
       create: {
         projectId,
@@ -5671,6 +5676,32 @@ export class BidService {
         createdBy: dto.createdBy,
       },
     });
+
+    // 仅「迁移至 escalated」时通知创建人（重复保存/仅改注不重发）；
+    // 口径同 2026-10-09：无宿主 PMI/创建人停用宁可不发；通知失败不阻塞落库
+    if (dto.status === 'escalated' && old?.status !== 'escalated') {
+      try {
+        const project = await this.prisma.bidProject.findUnique({
+          where: { id: projectId },
+          select: { name: true, projectManagementItemId: true },
+        });
+        const creatorId = project
+          ? await resolveProjectCreatorId(this.prisma, project.projectManagementItemId)
+          : null;
+        if (project && creatorId) {
+          const tpl = renderNotificationPayload('BID_ANOMALY_ESCALATED', {
+            projectName: project.name,
+            supplierName: bidSupplier.supplierName,
+            notes: dto.notes,
+            projectManagementItemId: project.projectManagementItemId ?? undefined,
+          })!;
+          await this.notificationService.sendToUser(creatorId, ['in_app'], { type: 'BID_ANOMALY_ESCALATED', ...tpl });
+        }
+      } catch (e) {
+        this.logger.warn(`监督上报通知发送失败 project=${projectId}: ${String(e)}`);
+      }
+    }
+    return result;
   }
 
   async deleteSupervisionAnnotation(projectId: string, supplierId: string) {
