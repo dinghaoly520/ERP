@@ -236,7 +236,7 @@ function ExpertLoginPage() {
           {tab === 'expert' && (
             <a
               href="/?device=tablet"
-              className="mt-4 inline-block py-2.5 text-xs text-[color:var(--muted-foreground)] underline underline-offset-4 transition-colors hover:text-[color:var(--foreground)]"
+              className="mt-4 block py-2.5 text-xs text-[color:var(--muted-foreground)] underline underline-offset-4 transition-colors hover:text-[color:var(--foreground)]"
             >
               平板设备？进入平板评分模式
             </a>
