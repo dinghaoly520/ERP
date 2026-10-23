@@ -259,7 +259,9 @@ export function SigninCamera({ userName, identityMode = 'self', onSignIn, busy =
         {state === 'preview' && (
           <>
             {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-            <video ref={attachVideo} className="h-full w-full object-cover" muted playsInline />
+            {/* 预览镜像（自拍习惯：动头与画面同向）；仅显示层翻转——检测跑在原始帧、
+                拍照 canvas.drawImage 取原始帧，留档照保持真实方向 */}
+            <video ref={attachVideo} className="h-full w-full [transform:scaleX(-1)] object-cover" muted playsInline />
             {/* 检测状态角标 */}
             <div
               className={`absolute left-2 top-2 flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-semibold ${
