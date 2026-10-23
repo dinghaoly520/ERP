@@ -1666,6 +1666,13 @@ export function ProjectDetailPanel({
                             ref={attrSearchRef}
                             value={attrQuery}
                             onChange={(e) => setAttrQuery(e.target.value)}
+                            onKeyDown={(e) => {
+                              // Enter 直接新建自定义归属（与创建弹窗 SearchSelect 同款交互）
+                              if (e.key === 'Enter' && attrQuery.trim() && !filteredAttributions.some((a) => a.name === attrQuery.trim())) {
+                                e.preventDefault();
+                                pickAttribution(attrQuery.trim());
+                              }
+                            }}
                             placeholder="搜索归属项目…"
                             className="h-[34px] w-full rounded-[10px] pl-[30px] pr-2 text-[12.5px] text-[var(--foreground)] outline-none"
                             style={{ background: 'var(--surface)', border: 'none', boxShadow: 'inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12), inset -2px -2px 5px oklch(1 0 0 / 0.85)' }}
@@ -1673,8 +1680,15 @@ export function ProjectDetailPanel({
                         </div>
                         {/* 搜索词非名单项 → 可直接采用为自定义归属（原自由输入能力的保留） */}
                         {attrQuery.trim() && !filteredAttributions.some((a) => a.name === attrQuery.trim()) && (
-                          <button type="button" onClick={() => pickAttribution(attrQuery.trim())} className="mt-1 w-full rounded-[8px] px-2 py-1.5 text-left text-xs text-[var(--accent)] hover:bg-[color-mix(in_oklch,var(--accent)_6%,transparent)]">
-                            使用自定义名称「{attrQuery.trim()}」
+                          <button
+                            type="button"
+                            onClick={() => pickAttribution(attrQuery.trim())}
+                            className="mt-1 flex w-full items-center gap-1.5 rounded-[8px] px-2 py-1.5 text-left text-xs font-bold text-[var(--accent)] transition-colors hover:bg-[color-mix(in_oklch,var(--accent)_8%,transparent)]"
+                            style={{ background: 'color-mix(in oklch, var(--accent) 4%, transparent)' }}
+                          >
+                            <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] text-[13px] font-black leading-none"
+                              style={{ background: 'color-mix(in oklch, var(--accent) 12%, transparent)' }}>+</span>
+                            新建并使用「{attrQuery.trim()}」
                           </button>
                         )}
                       </div>

@@ -142,15 +142,30 @@ export function SearchSelect({
                   ref={searchRef}
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
+                  onKeyDown={(e) => {
+                    // Enter 直接采用自定义值（allowCustom 且无精确匹配时）——
+                    // 原只能点小字链接，键入流被打断（用户实录「只能搜索无法新建」）
+                    if (e.key === 'Enter' && allowCustom && text && !filtered.some((o) => o.label === q.trim() || o.value === q.trim())) {
+                      e.preventDefault();
+                      pick({ value: q.trim(), label: q.trim() });
+                    }
+                  }}
                   placeholder={searchPlaceholder}
                   className="h-[34px] w-full rounded-[10px] pl-[30px] pr-2 text-[12.5px] text-[var(--foreground)] outline-none"
                   style={{ background: "var(--surface)", border: "none", boxShadow: "inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12), inset -2px -2px 5px oklch(1 0 0 / 0.85)" }}
                 />
               </div>
-              {/* allowCustom：搜索词非名单项 → 可直接采用 */}
-              {allowCustom && text && !filtered.some((o) => o.label === q.trim()) && (
-                <button type="button" onClick={() => pick({ value: q.trim(), label: q.trim() })} className="mt-1 w-full rounded-[8px] px-2 py-1.5 text-left text-xs text-[var(--accent)] hover:bg-[color-mix(in_oklch,var(--accent)_6%,transparent)]">
-                  使用自定义名称「{q.trim()}」
+              {/* allowCustom：搜索词非名单项 → 新建并选用（整行选项样式 + Enter 可达） */}
+              {allowCustom && text && !filtered.some((o) => o.label === q.trim() || o.value === q.trim()) && (
+                <button
+                  type="button"
+                  onClick={() => pick({ value: q.trim(), label: q.trim() })}
+                  className="mt-1 flex w-full items-center gap-1.5 rounded-[8px] px-2 py-1.5 text-left text-xs font-bold text-[var(--accent)] transition-colors hover:bg-[color-mix(in_oklch,var(--accent)_8%,transparent)]"
+                  style={{ background: 'color-mix(in oklch, var(--accent) 4%, transparent)' }}
+                >
+                  <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] text-[13px] font-black leading-none"
+                    style={{ background: 'color-mix(in oklch, var(--accent) 12%, transparent)' }}>+</span>
+                  新建并使用「{q.trim()}」
                 </button>
               )}
             </div>
