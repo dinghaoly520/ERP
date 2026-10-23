@@ -988,8 +988,8 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                   }
                 >
                   <div className="space-y-4">
-                    <div className="flex items-center gap-3 rounded-[12px] px-4 py-3"
-                      style={{ background: 'oklch(1 0 0 / 0.45)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+                    <div className="wb-note flex items-center gap-3 px-4 py-3"
+>
                       <span className="text-[12px] font-semibold"
                         style={{ color: expertProxy.current === 'confirmed' ? 'var(--success)' : expertProxy.current === 'declined' ? 'var(--danger)' : 'var(--muted-foreground)' }}>
                         {expertProxy.current === 'pending' ? '待回复' : expertProxy.current === 'confirmed' ? '确认参加' : '已婉拒'}
