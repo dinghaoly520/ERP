@@ -975,6 +975,7 @@ describe('BidService — stage transitions', () => {
       expect(pausedCalls[0][1]).toEqual(['in_app']);
       expect(pausedCalls[0][2].title).toContain('测试项目');
       expect(pausedCalls[0][2].content).toContain('供应商解密大面积失败');
+      expect(pausedCalls[0][2].content).toContain('流标等后续处理请在开标确认面板操作');
       expect(pausedCalls[0][2].link).toBe('/projects?projectId=pmi-1&panel=bid-confirm');
     });
 
@@ -995,6 +996,15 @@ describe('BidService — stage transitions', () => {
       const result = await service.pauseOpening('p1', 'host-1');
 
       expect(result.paused).toBe(true);
+    });
+
+    it('创建人停用 → 不发送（宁可不发）', async () => {
+      prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'u-off', createdBy: { isActive: false } });
+
+      const result = await service.pauseOpening('p1', 'host-1');
+
+      expect(result.paused).toBe(true);
+      expect((service as any).notificationService.sendToUser).not.toHaveBeenCalled();
     });
   });
 
@@ -1018,8 +1028,18 @@ describe('BidService — stage transitions', () => {
       expect(esc[0][0]).toBe('u-creator');
       expect(esc[0][2].title).toContain('测试供应商A');
       expect(esc[0][2].content).toContain('疑似串标');
+      expect(esc[0][2].content).toContain('在开标现场被上报为异常');
       expect(esc[0][2].link).toBe('/projects?projectId=pmi-1&panel=bid-confirm');
       expect(prisma.bidSupervisionAnnotation.upsert).toHaveBeenCalledTimes(1);
+    });
+
+    it('长批注截断（80 字），不整段进通知', async () => {
+      const longNotes = '异'.repeat(100);
+      await service.upsertSupervisionAnnotation('p1', { supplierId: 's-1', status: 'escalated', notes: longNotes } as any);
+      const esc = (service as any).notificationService.sendToUser.mock.calls.filter((c: any[]) => c[2]?.type === 'BID_ANOMALY_ESCALATED');
+      expect(esc).toHaveLength(1);
+      expect(esc[0][2].content).toContain('异'.repeat(80));
+      expect(esc[0][2].content).not.toContain('异'.repeat(81));
     });
 
     it('escalated→escalated（重复保存/仅改注）→ 不重发', async () => {

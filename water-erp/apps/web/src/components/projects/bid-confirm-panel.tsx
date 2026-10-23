@@ -1181,7 +1181,8 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                       <CheckCircle2 size={14} /> 评标进行中
                     </div>
                   )}
-                  {/* 流标按钮：仅开标前 24h 内可点击。评标中（EVALUATING）流标归 :3007
+                  {/* 流标按钮：开标前 24h 起可点，过了开标时间也能点；已进入开标阶段（OPENING）不限时间。
+                      评标中（EVALUATING）流标归 :3007
                       异议裁决（分工 v3：有效供应商不足→现场裁决流标），:3005 不再提供入口 */}
                   {onAbort && (stage === 'DOWNLOAD' || stage === 'SUBMIT' || stage === 'OPENING') && (
                     <button

@@ -184,7 +184,7 @@ const BID_SPECS: NotificationTypeSpec[] = [
     channels: IN_APP,
     render: ctx => ({
       title: `项目${ctx.projectName}开标已暂停`,
-      content: `${ctx.reason ? `暂停原因：${ctx.reason}。` : ''}解密窗口已冻结，请关注现场处置，必要时在开标确认面板决策流标`,
+      content: `${ctx.reason ? `暂停原因：${ctx.reason}。` : ''}解密窗口计时已冻结，流标等后续处理请在开标确认面板操作`,
     }),
     link: ctx =>
       ctx.projectManagementItemId
@@ -202,8 +202,9 @@ const BID_SPECS: NotificationTypeSpec[] = [
     audiences: [{ kind: 'PROJECT_CREATOR' }],
     channels: IN_APP,
     render: ctx => ({
-      title: `项目${ctx.projectName}监督上报异常：${ctx.supplierName ?? ''}`,
-      content: `供应商${ctx.supplierName}被标记为已上报异常${ctx.notes ? `，批注：${ctx.notes}` : ''}，请核验监督视图与开标现场记录`,
+      title: `项目${ctx.projectName}开标异常上报：${ctx.supplierName ?? ''}`,
+      // 长批注截断（80 字）——notes 无长度约束，整段进通知会淹没要点；落库仍为全量
+      content: `供应商${ctx.supplierName}在开标现场被上报为异常${ctx.notes ? `，批注：${String(ctx.notes).slice(0, 80)}` : ''}，请在开标确认面板关注处理`,
     }),
     link: ctx =>
       ctx.projectManagementItemId

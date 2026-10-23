@@ -52,11 +52,11 @@
 **产生点一：`pauseOpening`**（controller 已传 `userId`，bid.controller.ts:531）
 - 位置：落库成功后、return 前（现有监督日志写入之后）；
 - 通知失败不阻塞暂停（try/catch + logger.warn——同 completeOpening 惯例，bid.service.ts:1194-1197）；
-- content：项目名 + 暂停原因（可空）+ 暂停时间 + 「请关注现场处置，必要时在开标确认面板决策流标」。
+- content：项目名 + 暂停原因（可空）+「解密窗口计时已冻结，流标等后续处理请在开标确认面板操作」（时间不进正文——通知中心自带时间列；2026-10-23 终审 Minor-2 反向修措辞定案）。
 
 **产生点二：`upsertSupervisionAnnotation`**
 - 仅当状态**迁移至** escalated 时发（旧值非 escalated 且新值=escalated）；已是 escalated 的重复保存/仅改 notes 不发（防刷屏）。取旧值须按 `supplierId` 唯一键 `findUnique(bidSupervisionAnnotation)` 一次——现有 findFirst 查的是 bidSupplier 归属校验（bid.service.ts:5635），不能顺带取旧 status（评审勘误）；
-- content：项目名 + 供应商名 + 上报批注（notes 摘要截断）。
+- content：项目名 + 供应商名 + 上报批注（notes 截断 80 字，落库仍为全量——2026-10-23 终审 Minor-3 落地）；标题「项目X开标异常上报：供应商Y」（通知中心 label 仍为「现场异常上报」）。
 
 ### 4.3 :3005 流标按钮窗口放行（apps/web/src/components/projects/bid-confirm-panel.tsx）
 

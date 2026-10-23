@@ -1438,6 +1438,7 @@ export class BidService {
    * 流标：将项目标记为 ABORTED。
    * 允许从 SUBMIT 或 OPENING 阶段流转（开标确认后发现供应商不足）。
    * 直接委托（SINGLE_SOURCE）阈值 1，其余阈值 3。
+   * 本接口不限流标时间（归档后除外）——:3005 按钮上的时间提示只是前端口径，与本接口无关。
    */
   async abortBidProject(id: string, actorId?: string, reason?: string) {
     const project = await this.prisma.bidProject.findUnique({
