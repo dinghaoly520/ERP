@@ -57,7 +57,13 @@ export default function SupplierRepositoryPage() {
   const [filterStatus, setFilterStatus] = useState('APPROVED');
   // 临时供应商子视图：与 filterStatus='APPROVED' 叠加，仅看凭邀请码注册的临时入库供应商。
   const [filterIsTemporary, setFilterIsTemporary] = useState(false);
-  const [search, setSearch] = useState(() => new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('search') ?? ''); // 支持 ?search= 深链预填（业务标签审核表跳转）
+  // 初值恒空（SSR/客户端首渲染一致，防 hydration mismatch）；?search= 深链预填挂载后同步——
+  // 曾用 typeof window 分支作初值，带参进入时 server 无清空钮/client 有 → 水合失败（2026-10-23 实录）
+  const [search, setSearch] = useState('');
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('search');
+    if (q) setSearch(q);
+  }, []); // 支持 ?search= 深链预填（业务标签审核表跳转）
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [showAdvanced, setShowAdvanced] = useState(false);

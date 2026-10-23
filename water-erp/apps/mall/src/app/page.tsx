@@ -216,9 +216,11 @@ export default function MallPage() {
   const ReorderItem = Reorder.Item as React.ComponentType<any>;
   const [mounted, setMounted] = useState(false);
   const [search, setSearch] = useState('');
-  const [searchHistory, setSearchHistory] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem('mall-search-history') || '[]'); } catch { return []; }
-  });
+  // 初值恒空（SSR/客户端一致，防 hydration mismatch）；历史记录挂载后从 localStorage 恢复
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  useEffect(() => {
+    try { setSearchHistory(JSON.parse(localStorage.getItem('mall-search-history') || '[]')); } catch { /* ignore */ }
+  }, []);
   const addSearchHistory = (term: string) => {
     const trimmed = term.trim();
     if (!trimmed) return;
@@ -261,9 +263,14 @@ export default function MallPage() {
   const [view, setView] = useState<'catalog' | 'supplier'>('catalog');
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  const [density, setDensity] = useState<'compact' | 'comfortable'>(() => {
-    try { return (localStorage.getItem('mall-density') as 'compact' | 'comfortable') || 'comfortable'; } catch { return 'comfortable'; }
-  });
+  // 初值恒 comfortable（SSR/客户端一致，防 hydration mismatch）；记忆密度挂载后同步
+  const [density, setDensity] = useState<'compact' | 'comfortable'>('comfortable');
+  useEffect(() => {
+    try {
+      const d = localStorage.getItem('mall-density') as 'compact' | 'comfortable' | null;
+      if (d === 'compact' || d === 'comfortable') setDensity(d);
+    } catch { /* ignore */ }
+  }, []);
   useEffect(() => { try { localStorage.setItem('mall-density', density); } catch {} }, [density]);
   const [sort, setSort] = useState<{ col: string; dir: 'asc' | 'desc' } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());

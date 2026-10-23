@@ -40,10 +40,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
-  const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem('bid-portal.sidebar-collapsed') === '1';
-  });
+  // 初值恒 false（SSR/客户端首渲染一致，防 hydration mismatch）；localStorage 记忆挂载后同步
+  // （曾用 typeof window 分支作初值：记忆为折叠时 server 展开/client 折叠 → 水合矛盾，2026-10-23）
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    if (localStorage.getItem('bid-portal.sidebar-collapsed') === '1') setCollapsed(true);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('bid-portal.sidebar-collapsed', collapsed ? '1' : '0');
