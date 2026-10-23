@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, RefreshCcw, ScanFace, ShieldAlert, VideoOff } from 'lucide-react';
-import type { FaceDetector, FaceDetectorResult } from '@mediapipe/tasks-vision';
+import type { FaceDetector } from '@mediapipe/tasks-vision';
+import { assessFace } from '../lib/face-assess';
 import { HelpTip } from './help-tip';
 
 export interface SigninCameraProps {
@@ -31,27 +32,8 @@ type FaceStatus = 'no_face' | 'warn' | 'ok';
 /** 连续通过帧数（~1.2s @100ms 节流）——防瞬间误判 */
 const GOOD_FRAMES_REQUIRED = 12;
 const DETECT_INTERVAL_MS = 100;
-/** 眼/鼻/嘴关键点几何判定 + 检测置信度 + 人脸框占比（spec R3：检测≠识别，保证证据可用性） */
+/** 判定逻辑（关键点几何 + 置信度 + 人脸框占比）见 lib/face-assess.ts（spec R3：检测≠识别，保证证据可用性） */
 const MODEL_BASE = '/models/mediapipe';
-
-interface FaceAssessment { ok: boolean; hint?: string }
-
-/** blaze_face 关键点序：右眼/左眼/鼻尖/嘴/右耳/左耳（归一化坐标） */
-function assessFace(det: FaceDetectorResult['detections'][number]): FaceAssessment {
-  const score = det.categories?.[0]?.score ?? 0;
-  if (score < 0.5) return { ok: false, hint: '画质或光线不足，请正对摄像头' };
-  const w = det.boundingBox?.width ?? 0;
-  const h = det.boundingBox?.height ?? 0;
-  if (w < 0.15 || h < 0.15) return { ok: false, hint: '人脸太小，请靠近摄像头' };
-  const kp = det.keypoints ?? [];
-  if (kp.length < 6) return { ok: false, hint: '未检出完整面部特征点，请勿遮挡' };
-  const [rEye, lEye, nose, mouth, rEar, lEar] = kp;
-  if (Math.abs(nose.x - (rEye.x + lEye.x) / 2) > 0.08) return { ok: false, hint: '请正对摄像头' };
-  const eyeY = (rEye.y + lEye.y) / 2;
-  if (!(eyeY < nose.y && nose.y < mouth.y)) return { ok: false, hint: '口鼻区域疑似遮挡，请露出完整面部' };
-  if (rEar.x <= rEye.x || lEar.x >= lEye.x) return { ok: false, hint: '请勿侧脸，正对摄像头' };
-  return { ok: true };
-}
 
 /**
  * 专家签到留档照组件（必拍 + 客户端人脸遮挡检测，2026-09-18 身份核验设计 R3）
@@ -126,7 +108,7 @@ export function SigninCamera({ userName, identityMode = 'self', onSignIn, busy =
         setHint('未检测到人脸');
         return;
       }
-      const a = assessFace(best);
+      const a = assessFace(best, video.videoWidth, video.videoHeight);
       if (a.ok) {
         goodFramesRef.current += 1;
         if (goodFramesRef.current >= GOOD_FRAMES_REQUIRED) {
