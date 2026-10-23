@@ -11,6 +11,7 @@ import { ExpertTool } from './tools/expert.tool';
 import { AnnouncementTool } from './tools/announcement.tool';
 import { NotificationTool } from './tools/notification.tool';
 import { MallTool } from './tools/mall.tool';
+import { CockpitTool } from './tools/cockpit.tool';
 import { ActionPlannerService } from './actions/action-planner.service';
 import { ActionExecutorService } from './actions/action-executor.service';
 
@@ -77,6 +78,7 @@ describe('AssistantService', () => {
         { provide: AnnouncementTool, useValue: { name: 'announcement', description: 'mock', execute: jest.fn() } },
         { provide: NotificationTool, useValue: { name: 'notification', description: 'mock', execute: jest.fn() } },
         { provide: MallTool, useValue: { name: 'mall', description: 'mock', execute: jest.fn() } },
+        { provide: CockpitTool, useValue: { name: 'cockpit', description: 'mock', execute: jest.fn() } },
         { provide: ActionPlannerService, useValue: { createPlan: jest.fn() } },
         { provide: ActionExecutorService, useValue: { execute: jest.fn() } },
       ],
