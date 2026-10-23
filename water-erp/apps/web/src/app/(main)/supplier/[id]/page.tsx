@@ -78,6 +78,16 @@ function FieldGroup({ label }: { label: string }) {
 }
 
 /** 区块标题：小号大写 + 图标 */
+// 文件档案类型（2026-10-23）：上传可选 + 列表中文标签（兜底显原值——存量/自定义类型不炸）
+const DOC_TYPES = [
+  { v: 'contract', l: '合同文件' },
+  { v: 'qualification', l: '资质文件' },
+  { v: 'performance', l: '业绩证明' },
+  { v: 'report', l: '报告文书' },
+  { v: 'other', l: '其他' },
+] as const;
+const DOC_TYPE_LABEL: Record<string, string> = Object.fromEntries(DOC_TYPES.map(t => [t.v, t.l]));
+
 function SectionTitle({ icon: Icon, children }: { icon: React.ComponentType<{ size?: number }>; children: React.ReactNode }) {
   return (
     <h3 className="mb-4 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wider text-[var(--muted-foreground)]">
@@ -191,6 +201,8 @@ export default function SupplierDetailPage() {
   const [newDocName, setNewDocName] = useState('');
   const [newDocNote, setNewDocNote] = useState('');
   const [newDocFile, setNewDocFile] = useState<File | null>(null);
+  // 文件类型（2026-10-23 修复「类型展示异常」：此前上传硬编码 'other' 英文裸值直出且无选择器）
+  const [newDocType, setNewDocType] = useState<string>('other');
 
   // 归属公司（多公司归属 2026-10-16）：本视野内该供应商的库内归属（APPROVED/DISABLED link），
   // 列表按登录人公司隔离（staff/leader=本公司；admin=全部公司）——公司侧零检索面，仅展示归属事实
@@ -1111,7 +1123,7 @@ export default function SupplierDetailPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {evaluations.map(e => {
+                        {evaluations.map((e, idx) => {
                           const fg = e.finalGrade || (e as any).level;
                           const gradeColor = LEVEL_COLOR[fg] || 'var(--muted-foreground)';
                           return (
@@ -1134,25 +1146,57 @@ export default function SupplierDetailPage() {
                             {expandedEvalId === e.id && (
                               <tr>
                                 <td colSpan={8} className="bg-[color-mix(in_oklch,var(--foreground)_3%,transparent)] px-4 py-3">
-                                  {/* 四维等级详签（大号徽标 + 文案，与列内小徽标对应） */}
-                                  <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
-                                    {([
-                                      ['资料完整性', e.completenessGrade],
-                                      ['响应及时性', e.responsivenessGrade],
-                                      ['配合协作', e.cooperationGrade],
-                                      ['合规守信', e.complianceGrade],
-                                    ] as const).map(([label, g]) => (
-                                      <div key={label} className="flex items-center gap-2.5 rounded-lg bg-[oklch(1_0_0/0.55)] px-3 py-2">
-                                        <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs font-extrabold text-white" style={{ backgroundColor: g ? (LEVEL_COLOR[g] || 'var(--muted-foreground)') : 'var(--muted-foreground)' }}>{g || '—'}</span>
-                                        <div className="leading-tight">
-                                          <p className="text-[11px] text-[var(--muted-foreground)]">{label}</p>
-                                          <p className="text-xs font-bold" style={{ color: g ? (LEVEL_COLOR[g] || 'var(--muted-foreground)') : 'var(--muted-foreground)' }}>{LEVEL_LABEL[g] || '未评'}</p>
-                                        </div>
+                                  {/* 四维详签（2026-10-23 实用性增强）：等级徽标 + 分值条(A=4→E=0) +
+                                      与本供应商历史均值对比（▼红/▲绿/持平）——一眼看出这次比平时好还是差 */}
+                                  {(() => {
+                                    const GRADE_SCORE: Record<string, number> = { A: 4, B: 3, C: 2, D: 1, E: 0 };
+                                    type DimKey = 'completenessGrade' | 'responsivenessGrade' | 'cooperationGrade' | 'complianceGrade';
+                                    const dims: Array<[string, string | undefined, DimKey]> = [
+                                      ['资料完整性', e.completenessGrade, 'completenessGrade'],
+                                      ['响应及时性', e.responsivenessGrade, 'responsivenessGrade'],
+                                      ['配合协作', e.cooperationGrade, 'cooperationGrade'],
+                                      ['合规守信', e.complianceGrade, 'complianceGrade'],
+                                    ];
+                                    const scoreOf = (g?: string) => (g && g in GRADE_SCORE ? GRADE_SCORE[g] : null);
+                                    const avgOf = (key: DimKey) => {
+                                      const vals = evaluations.map(x => scoreOf(x[key])).filter((v): v is number => v !== null);
+                                      return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+                                    };
+                                    return (
+                                      <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+                                        {dims.map(([label, g, key]) => {
+                                          const score = scoreOf(g);
+                                          const avg = avgOf(key);
+                                          const delta = score !== null && avg !== null ? score - avg : null;
+                                          return (
+                                            <div key={label} className="rounded-lg bg-[oklch(1_0_0/0.55)] px-3 py-2.5">
+                                              <div className="flex items-center gap-2.5">
+                                                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs font-extrabold text-white" style={{ backgroundColor: g ? (LEVEL_COLOR[g] || 'var(--muted-foreground)') : 'var(--muted-foreground)' }}>{g || '—'}</span>
+                                                <div className="min-w-0 leading-tight">
+                                                  <p className="text-[11px] text-[var(--muted-foreground)]">{label}</p>
+                                                  <p className="truncate text-xs font-bold" style={{ color: g ? (LEVEL_COLOR[g] || 'var(--muted-foreground)') : 'var(--muted-foreground)' }}>{(g && LEVEL_LABEL[g]) || '未评'}</p>
+                                                </div>
+                                                {delta !== null && (
+                                                  <span className={`ml-auto shrink-0 text-[10px] font-bold tabular-nums ${delta > 0 ? 'text-[var(--success)]' : delta < 0 ? 'text-[var(--danger)]' : 'text-[var(--muted-foreground)]'}`}>
+                                                    {delta > 0 ? `▲${delta.toFixed(1)}` : delta < 0 ? `▼${Math.abs(delta).toFixed(1)}` : '持平'}
+                                                  </span>
+                                                )}
+                                              </div>
+                                              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_18%,transparent)]">
+                                                <div className="h-full rounded-full" style={{ width: score !== null ? `${(score / 4) * 100}%` : '0%', backgroundColor: g ? (LEVEL_COLOR[g] || 'var(--muted-foreground)') : 'var(--muted-foreground)' }} />
+                                              </div>
+                                              <p className="mt-1 text-[10px] tabular-nums text-[var(--muted-foreground)]">
+                                                {score !== null ? `${score} 分` : '未评分'}{avg !== null ? ` · 历史均值 ${avg.toFixed(1)}` : ''}
+                                              </p>
+                                            </div>
+                                          );
+                                        })}
                                       </div>
-                                    ))}
-                                  </div>
-                                  {/* 元信息：关联项目 / 评价人 / 完整时间 */}
+                                    );
+                                  })()}
+                                  {/* 元信息：序次 / 关联项目 / 评价人 / 完整时间 */}
                                   <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-[var(--muted-foreground)]">
+                                    <span>第 <span className="font-bold tabular-nums text-[var(--foreground)]">{evaluations.length - idx}</span> / {evaluations.length} 次评价</span>
                                     {e.project?.name && <span>关联项目：<span className="font-semibold text-[var(--foreground)]">{e.project.name}</span></span>}
                                     <span>评价人：<span className="font-semibold text-[var(--foreground)]">{e.evaluator?.displayName || '—'}</span></span>
                                     <span>评价时间：<span className="font-mono">{new Date(e.createdAt).toLocaleString('zh-CN')}</span></span>
@@ -1584,6 +1628,9 @@ export default function SupplierDetailPage() {
                     if (f && !newDocName.trim()) setNewDocName(f.name);
                   }} />
                 </label>
+                <select value={newDocType} onChange={e => setNewDocType(e.target.value)} className="neu-input !h-9 !text-xs !w-auto" aria-label="文件类型">
+                  {DOC_TYPES.map(t => <option key={t.v} value={t.v}>{t.l}</option>)}
+                </select>
                 <input value={newDocName} onChange={e => setNewDocName(e.target.value)} placeholder="文件名称" className="neu-input !h-9 !text-xs !flex-1 min-w-[140px]" />
                 <input value={newDocNote} onChange={e => setNewDocNote(e.target.value)} placeholder="备注（可选）" className="neu-input !h-9 !text-xs !w-auto" />
                 <button
@@ -1594,13 +1641,13 @@ export default function SupplierDetailPage() {
                     try {
                       const uploaded = await uploadSupplierFile(newDocFile);
                       const doc = await uploadSupplierDocument(id as string, {
-                        type: 'other',
+                        type: newDocType,
                         name: newDocName.trim(),
                         fileUrl: uploaded.url,
                         fileSize: uploaded.size,
                         note: newDocNote || undefined,
                       });
-                      setDocuments(prev => [doc, ...prev]); setNewDocName(''); setNewDocNote(''); setNewDocFile(null);
+                      setDocuments(prev => [doc, ...prev]); setNewDocName(''); setNewDocNote(''); setNewDocFile(null); setNewDocType('other');
                       toast.success('文件已上传并添加');
                     } catch (e: any) { toast.error(e?.message || '上传失败'); }
                     setDocUploading(false);
@@ -1627,7 +1674,7 @@ export default function SupplierDetailPage() {
                         {documents.map(d => (
                           <tr key={d.id}>
                             <td className="text-sm font-semibold text-[var(--foreground)]">{d.name}</td>
-                            <td className="text-sm text-[var(--muted-foreground)]">{d.type}</td>
+                            <td><span className="inline-flex items-center rounded-full bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 text-[11px] font-semibold text-[var(--accent)]">{DOC_TYPE_LABEL[d.type] || d.type}</span></td>
                             <td className="text-sm text-[var(--muted-foreground)]">{d.uploader?.displayName || '—'}</td>
                             <td className="text-sm tabular-nums text-[var(--muted-foreground)]">{new Date(d.createdAt).toLocaleDateString('zh-CN')}</td>
                             <td>

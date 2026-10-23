@@ -4304,7 +4304,7 @@ export class SupplierService {
     dto: { type: string; name: string; fileUrl: string; fileSize?: number; note?: string },
     userId: string,
   ) {
-    return this.prisma.supplierDocument.create({
+    const created = await this.prisma.supplierDocument.create({
       data: {
         supplierId,
         type: dto.type ?? 'other',
@@ -4315,6 +4315,10 @@ export class SupplierService {
         uploaderId: userId,
       },
     });
+    // 2026-10-23 修复：返回形状与 listDocuments 对齐——此前返回裸行（仅 uploaderId 裸列、
+    // 无 uploader 对象），前端把响应直接入列 → 新上传行「上传人」恒显 '—'（刷新页面才恢复）
+    const uploader = await this.prisma.user.findUnique({ where: { id: userId }, select: { displayName: true } });
+    return { ...created, uploader: { displayName: uploader?.displayName ?? '—' } };
   }
 
   async deleteDocument(supplierId: string, docId: string) {
