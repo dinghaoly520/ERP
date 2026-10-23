@@ -38,8 +38,15 @@ export interface VizDeclaration {
   topN?: number;
 }
 
+/** 工具执行上下文（2026-10-22 :3011 P1）：认证用户带公司归属；companyIds 仅 admin 经
+ *  ChatDto.context 采纳（非 admin 由服务端忽略，防伪造）。匿名访客 ctx = {} */
+export interface AssistantToolCtx {
+  user?: { sub: string; role: string; companyId: string | null };
+  companyIds?: string[];
+}
+
 export interface AssistantTool {
   name: string;
   description: string;
-  execute(args: Record<string, unknown>): Promise<ToolResult>;
+  execute(args: Record<string, unknown>, ctx?: AssistantToolCtx): Promise<ToolResult>;
 }

@@ -2,6 +2,7 @@ import { Injectable, Logger, UnauthorizedException, ForbiddenException } from '@
 import { PrismaService } from '../prisma/prisma.service';
 import { DeepSeekProvider } from './model/deepseek.provider';
 import { ToolRegistry } from './tools/tool-registry';
+import { AssistantToolCtx } from './tools/assistant-tool';
 import { GlobalOverviewTool } from './tools/global-overview.tool';
 import { ProcurementTool } from './tools/procurement.tool';
 import { BidTool } from './tools/bid.tool';
@@ -44,6 +45,28 @@ function ownedBy(
   if (owner.userId) return conv.userId === owner.userId;
   if (owner.guestKey) return conv.guestKey === owner.guestKey;
   return false;
+}
+
+export function pickAdminCompanyIds(raw: unknown, role: string): string[] | undefined {
+  if (role !== 'admin' || !Array.isArray(raw)) return undefined;
+  const ids = raw.filter((v): v is string => typeof v === 'string' && v.length > 0).slice(0, 50);
+  return ids.length ? ids : undefined;
+}
+
+export async function resolveToolCtx(
+  prisma: { user: { findUnique(args: { where: { id: string }; select: { companyId: boolean } }): Promise<{ companyId: string | null } | null> } },
+  owner: { userId?: string; guestKey?: string; role?: string } | null,
+  contextCompanyIdList: unknown,
+): Promise<import('./tools/assistant-tool').AssistantToolCtx> {
+  if (!owner?.userId) return {};
+  const u = await prisma.user.findUnique({ where: { id: owner.userId }, select: { companyId: true } });
+  const role = owner.role ?? '';
+  const ctx: import('./tools/assistant-tool').AssistantToolCtx = {
+    user: { sub: owner.userId, role, companyId: u?.companyId ?? null },
+  };
+  const ids = pickAdminCompanyIds(contextCompanyIdList, role);
+  if (ids) ctx.companyIds = ids;
+  return ctx;
 }
 
 @Injectable()
@@ -131,6 +154,8 @@ export class AssistantService {
       content: m.content,
     })) || [];
 
+    const toolCtx = await resolveToolCtx(this.prisma, owner, (dto.context as Record<string, unknown> | undefined)?.companyIds);
+
     // 工具门禁：内部管理角色全量；匿名访客与外部角色（supplier/bid_expert/mall 等）
     // 仅公开域工具（服务端按 JWT 角色裁决，不信前端 context）
     const allowedTools =
@@ -147,7 +172,9 @@ export class AssistantService {
     const roleContext = userRole
       ? `\n\n【当前用户的身份信息】\n用户的系统角色是"${userRole}"。${
           ['admin', 'bid_host', 'leader', 'staff'].includes(userRole)
-            ? '该用户属于管理层，拥有全系统数据访问权限。你可以综合分析所有模块的数据，给出全局视角的建议。'
+            ? ['admin', 'bid_host'].includes(userRole)
+              ? '该用户属于管理层，拥有全系统数据访问权限。你可以综合分析所有模块的数据，给出全局视角的建议。'
+              : '该用户属于公司管理层（leader/staff），数据权限限于其所属公司；工具会自动按公司过滤，回答时不要跨公司汇总，除非用户明确是管理员。'
             : '该用户属于业务层角色，你只应分析与其业务范围直接相关的数据。如果用户询问跨模块或全系统性的问题，应说明数据权限限制并聚焦到其可访问的范围内。'
         }\n`
       : '';
@@ -188,10 +215,10 @@ ${toolList}
     try {
       if (directToolMatch) {
         answer = await this.handleDirectToolCall(
-          directToolMatch, messages, cards, citations, allowedTools,
+          directToolMatch, messages, cards, citations, allowedTools, toolCtx,
         );
       } else {
-        answer = await this.handleNormalChat(messages, cards, citations, allowedTools);
+        answer = await this.handleNormalChat(messages, cards, citations, allowedTools, toolCtx);
       }
     } catch (e) {
       answer = '抱歉，AI 服务暂时不可用，请稍后重试。';
@@ -250,6 +277,7 @@ ${toolList}
     cards: unknown[],
     citations: unknown[],
     allowedTools: Set<string> | null = null,
+    ctx: AssistantToolCtx = {},
   ): Promise<string> {
     const toolName = match[1];
     let toolArgs: Record<string, unknown> = {};
@@ -268,7 +296,7 @@ ${toolList}
       return '抱歉，该类数据需要登录采购管理系统后才能查询。您可以询问公开的采购公告、商城目录信息，或进行采购业务知识咨询。';
     }
 
-    const result = await tool.execute(toolArgs);
+    const result = await tool.execute(toolArgs, ctx);
     this.pushCardsWithCharts(result, cards);
     if (result.citations) {
       for (const c of result.citations) citations.push(c);
@@ -348,6 +376,7 @@ ${toolList}
     cards: unknown[],
     citations: unknown[],
     allowedTools: Set<string> | null = null,
+    ctx: AssistantToolCtx = {},
   ): Promise<string> {
     const res = await this.model.chat(messages);
     let answer = res.text;
@@ -390,7 +419,7 @@ ${toolList}
         this.logger.warn(`handleNormalChat: 匿名访客请求内部工具 ${tc.tool}，已跳过`);
         continue;
       }
-      const result = await tool.execute(tc.args || {});
+      const result = await tool.execute(tc.args || {}, ctx);
       this.pushCardsWithCharts(result, cards);
       if (result.citations) {
         for (const c of result.citations) citations.push(c);

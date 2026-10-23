@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { AssistantTool, ToolResult } from './assistant-tool';
+import { AssistantTool, AssistantToolCtx, ToolResult } from './assistant-tool';
 import {
   PROCUREMENT_STATUS_LABEL,
   STAGE_LABEL,
@@ -16,7 +16,7 @@ export class GlobalOverviewTool implements AssistantTool {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async execute(): Promise<ToolResult> {
+  async execute(_args: Record<string, unknown> = {}, _ctx?: AssistantToolCtx): Promise<ToolResult> {
     const [
       procurementCount,
       bidCount,

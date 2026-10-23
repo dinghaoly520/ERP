@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PUBLIC_VISIBLE_CLASSES } from '@water-erp/shared';
 import { PrismaService } from '../../prisma/prisma.service';
-import { AssistantTool, ToolResult } from './assistant-tool';
+import { AssistantTool, AssistantToolCtx, ToolResult } from './assistant-tool';
 import { ANNOUNCEMENT_TYPE_LABEL, t as translate } from './labels';
 
 /** 公开域判定（2026-09-29 二审 P1）：AI 工具只答"已发布且公开可见"的公告——
@@ -32,7 +32,7 @@ export class AnnouncementTool implements AssistantTool {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async execute(args: Record<string, unknown> = {}): Promise<ToolResult> {
+  async execute(args: Record<string, unknown> = {}, _ctx?: AssistantToolCtx): Promise<ToolResult> {
     const action = (args.action as string) || 'list';
     const type = args.type as string | undefined;
     const announcementId = args.announcementId as string | undefined;
