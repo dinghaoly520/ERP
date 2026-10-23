@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantTool, AssistantToolCtx, ToolResult } from './assistant-tool';
+import { toolCompanyWhere } from './company-filter';
 import {
   PROCUREMENT_STATUS_LABEL,
   STAGE_LABEL,
@@ -16,7 +17,10 @@ export class GlobalOverviewTool implements AssistantTool {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async execute(_args: Record<string, unknown> = {}, _ctx?: AssistantToolCtx): Promise<ToolResult> {
+  async execute(_args: Record<string, unknown> = {}, ctx?: AssistantToolCtx): Promise<ToolResult> {
+    // 公司口径（:3011 P1）：leader/staff 只见本公司；专家经 user 关系（User.companyId）；
+    // 公告计数不过滤——平台级公告（companyId null）全员可见，naive companyId 过滤会错删
+    const companyWhere = toolCompanyWhere(ctx);
     const [
       procurementCount,
       bidCount,
@@ -24,42 +28,45 @@ export class GlobalOverviewTool implements AssistantTool {
       expertCount,
       announcementCount,
     ] = await Promise.all([
-      this.prisma.procurementProject.count(),
-      this.prisma.bidProject.count({ where: { isExtractionOnly: false } }),
-      this.prisma.supplier.count(),
-      this.prisma.expertProfile.count(),
+      this.prisma.procurementProject.count({ where: companyWhere }),
+      this.prisma.bidProject.count({ where: { ...companyWhere, isExtractionOnly: false } }),
+      this.prisma.supplier.count({ where: companyWhere }),
+      this.prisma.expertProfile.count({ where: { user: companyWhere } }),
       this.prisma.announcement.count({ where: { status: 'PUBLISHED' } }),
     ]);
 
     const procurementByStatus =
       await this.prisma.procurementProject.groupBy({
         by: ['status'],
+        where: { ...companyWhere },
         _count: true,
         _sum: { budget: true },
       });
 
     const supplierByStatus = await this.prisma.supplier.groupBy({
       by: ['status'],
+      where: { ...companyWhere },
       _count: true,
     });
 
     const bidByStage = await this.prisma.bidProject.groupBy({
       by: ['stage'],
-      where: { isExtractionOnly: false },
+      where: { ...companyWhere, isExtractionOnly: false },
       _count: true,
     });
 
     const expertBySpecialty = await this.prisma.expertProfile.groupBy({
       by: ['specialty'],
+      where: { user: companyWhere },
       _count: true,
     });
 
     // Count pending/active items
     const pendingSuppliers = await this.prisma.supplier.count({
-      where: { status: 'PENDING' },
+      where: { ...companyWhere, status: 'PENDING' },
     });
     const activeBids = await this.prisma.bidProject.count({
-      where: { stage: { in: ['OPENING', 'EVALUATING'] }, isExtractionOnly: false },
+      where: { ...companyWhere, stage: { in: ['OPENING', 'EVALUATING'] }, isExtractionOnly: false },
     });
 
     return {

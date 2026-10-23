@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantTool, AssistantToolCtx, ToolResult } from './assistant-tool';
+import { toolCompanyWhere } from './company-filter';
 
 @Injectable()
 export class ExpertTool implements AssistantTool {
@@ -10,10 +11,12 @@ export class ExpertTool implements AssistantTool {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async execute(args: Record<string, unknown> = {}, _ctx?: AssistantToolCtx): Promise<ToolResult> {
+  async execute(args: Record<string, unknown> = {}, ctx?: AssistantToolCtx): Promise<ToolResult> {
     const action = (args.action as string) || 'stats';
     const specialty = args.specialty as string | undefined;
     const limit = (args.limit as number) || 10;
+    // 专家归属不在 ExpertProfile 本表，落 User.companyId（2026-09-24）——过滤经 user 关系嵌套
+    const companyWhere = toolCompanyWhere(ctx);
 
     // 条件检索（自然语言查专家库的落点）：各条件可组合，contains 模糊匹配
     if (action === 'search') {
@@ -26,7 +29,9 @@ export class ExpertTool implements AssistantTool {
       if (title) where.title = { contains: title };
       if (employer) where.employer = { contains: employer };
       if (availability) where.availability = availability;
-      if (kw) where.user = { displayName: { contains: kw } };
+      const userWhere: Record<string, unknown> = { ...companyWhere };
+      if (kw) userWhere.displayName = { contains: kw };
+      if (Object.keys(userWhere).length > 0) where.user = userWhere;
       const experts = await this.prisma.expertProfile.findMany({
         where, take: limit, orderBy: { createdAt: 'desc' },
         select: {
@@ -61,6 +66,7 @@ export class ExpertTool implements AssistantTool {
     if (action === 'by_specialty') {
       const grouped = await this.prisma.expertProfile.groupBy({
         by: ['specialty'],
+        where: { user: companyWhere },
         _count: true,
       });
       grouped.sort((a, b) => b._count - a._count);
@@ -87,12 +93,12 @@ export class ExpertTool implements AssistantTool {
 
     if (action === 'stats') {
       const [total, available, busy] = await Promise.all([
-        this.prisma.expertProfile.count(),
-        this.prisma.expertProfile.count({ where: { availability: '可用' } }),
-        this.prisma.expertProfile.count({ where: { availability: '占用' } }),
+        this.prisma.expertProfile.count({ where: { user: companyWhere } }),
+        this.prisma.expertProfile.count({ where: { user: companyWhere, availability: '可用' } }),
+        this.prisma.expertProfile.count({ where: { user: companyWhere, availability: '占用' } }),
       ]);
       const bySpecialty = await this.prisma.expertProfile.groupBy({
-        by: ['specialty'], _count: true,
+        by: ['specialty'], where: { user: companyWhere }, _count: true,
       });
       bySpecialty.sort((a, b) => b._count - a._count);
       const expTotal = bySpecialty.reduce((s, r) => s + r._count, 0);
@@ -130,7 +136,7 @@ export class ExpertTool implements AssistantTool {
     }
 
     // list
-    const where = specialty ? { specialty } : {};
+    const where = { user: companyWhere, ...(specialty ? { specialty } : {}) };
     const experts = await this.prisma.expertProfile.findMany({
       where, take: limit, orderBy: { createdAt: 'desc' },
       select: {

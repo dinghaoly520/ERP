@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantTool, AssistantToolCtx, ToolResult } from './assistant-tool';
+import { toolCompanyWhere } from './company-filter';
 import { SUPPLIER_STATUS_LABEL, t } from './labels';
 
 @Injectable()
@@ -11,15 +12,16 @@ export class SupplierTool implements AssistantTool {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async execute(args: Record<string, unknown> = {}, _ctx?: AssistantToolCtx): Promise<ToolResult> {
+  async execute(args: Record<string, unknown> = {}, ctx?: AssistantToolCtx): Promise<ToolResult> {
     const action = (args.action as string) || 'list';
     const status = args.status as string | undefined;
     const supplierId = args.supplierId as string | undefined;
     const limit = (args.limit as number) || 10;
+    const companyWhere = toolCompanyWhere(ctx);
 
     if (action === 'detail' && supplierId) {
       const supplier = await this.prisma.supplier.findUnique({
-        where: { id: supplierId },
+        where: { ...companyWhere, id: supplierId },
         include: {
           classification: { select: { name: true } },
           contacts: { select: { name: true, phone: true, email: true, isPrimary: true } },
@@ -32,7 +34,7 @@ export class SupplierTool implements AssistantTool {
 
     if (action === 'pending') {
       const pending = await this.prisma.supplier.findMany({
-        where: { status: 'PENDING' },
+        where: { ...companyWhere, status: 'PENDING' },
         take: limit,
         orderBy: { createdAt: 'desc' },
         select: {
@@ -67,7 +69,7 @@ export class SupplierTool implements AssistantTool {
       // Top suppliers by bid participation count
       const topN = Number(args.topN) || 10;
       const suppliers = await this.prisma.supplier.findMany({
-        where: { status: 'APPROVED' },
+        where: { ...companyWhere, status: 'APPROVED' },
         take: topN,
         select: {
           id: true, name: true,
@@ -92,7 +94,7 @@ export class SupplierTool implements AssistantTool {
     if (action === 'risk') {
       // Risk: disabled, blacklisted, or suppliers with no evaluations
       const risky = await this.prisma.supplier.findMany({
-        where: { status: { in: ['DISABLED', 'BLACKLIST'] } },
+        where: { ...companyWhere, status: { in: ['DISABLED', 'BLACKLIST'] } },
         take: limit,
         select: { id: true, name: true, status: true, enterpriseType: true },
       });
@@ -113,7 +115,7 @@ export class SupplierTool implements AssistantTool {
 
     if (action === 'stats') {
       const byStatus = await this.prisma.supplier.groupBy({
-        by: ['status'], _count: true,
+        by: ['status'], where: { ...companyWhere }, _count: true,
       });
       byStatus.sort((a, b) => b._count - a._count);
       const suppTotal = byStatus.reduce((s, r) => s + r._count, 0);
@@ -137,7 +139,7 @@ export class SupplierTool implements AssistantTool {
     }
 
     // default: list
-    const where = status ? { status: status as never } : {};
+    const where = { ...companyWhere, ...(status ? { status: status as never } : {}) };
     const suppliers = await this.prisma.supplier.findMany({
       where, take: limit, orderBy: { createdAt: 'desc' },
       select: {

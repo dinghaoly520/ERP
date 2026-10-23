@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantTool, AssistantToolCtx, ToolResult } from './assistant-tool';
+import { toolCompanyWhere } from './company-filter';
 import { PROCUREMENT_STATUS_LABEL, t } from './labels';
 
 @Injectable()
@@ -11,15 +12,16 @@ export class ProcurementTool implements AssistantTool {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async execute(args: Record<string, unknown> = {}, _ctx?: AssistantToolCtx): Promise<ToolResult> {
+  async execute(args: Record<string, unknown> = {}, ctx?: AssistantToolCtx): Promise<ToolResult> {
     const action = (args.action as string) || 'list';
     const status = args.status as string | undefined;
     const projectId = args.projectId as string | undefined;
     const limit = (args.limit as number) || 10;
+    const companyWhere = toolCompanyWhere(ctx);
 
     if (action === 'detail' && projectId) {
       const project = await this.prisma.procurementProject.findUnique({
-        where: { id: projectId },
+        where: { ...companyWhere, id: projectId },
         include: {
           department: { select: { name: true } },
           bidProject: {
@@ -34,7 +36,7 @@ export class ProcurementTool implements AssistantTool {
 
     if (action === 'pending') {
       const pending = await this.prisma.procurementProject.findMany({
-        where: { status: 'PENDING_REVIEW' },
+        where: { ...companyWhere, status: 'PENDING_REVIEW' },
         take: limit,
         orderBy: { createdAt: 'desc' },
         select: {
@@ -77,6 +79,7 @@ export class ProcurementTool implements AssistantTool {
     if (action === 'stats') {
       const byStatus = await this.prisma.procurementProject.groupBy({
         by: ['status'],
+        where: { ...companyWhere },
         _count: true,
         _sum: { budget: true },
       });
@@ -107,7 +110,7 @@ export class ProcurementTool implements AssistantTool {
     }
 
     // default: list
-    const where = status ? { status: status as never } : {};
+    const where = { ...companyWhere, ...(status ? { status: status as never } : {}) };
     const projects = await this.prisma.procurementProject.findMany({
       where,
       take: limit,

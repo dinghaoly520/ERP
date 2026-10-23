@@ -326,16 +326,17 @@ ${toolList}
     cards: unknown[],
     citations: unknown[],
     allowedTools: Set<string> | null = null,
+    ctx: AssistantToolCtx = {},
   ): Promise<string> {
     // 匿名访客不允许注入内部全局概览（采购/招标/供应商/专家分布属内部运营数据）
     if (allowedTools && !allowedTools.has('global_overview')) {
       return '抱歉，该问题涉及系统内部数据，需要登录采购管理系统后才能查询。您可以询问公开的采购公告或商城目录信息。';
     }
 
-    // 执行 global_overview 获取真实统计数据
+    // 执行 global_overview 获取真实统计数据（公司口径随 ctx 穿参——漏穿即全公司卡片泄漏）
     const tool = this.toolRegistry.get('global_overview');
     if (tool) {
-      const result = await tool.execute({});
+      const result = await tool.execute({}, ctx);
       this.pushCardsWithCharts(result, cards);
     }
 
@@ -388,7 +389,7 @@ ${toolList}
       // 模型没有调用任何工具就直接回复了——这很可能是编造的数据。
       // 强行注入 global_overview 并对原回复做真实性核查。
       this.logger.warn('handleNormalChat: 模型未调用任何工具，强制注入 global_overview 并丢弃原回复');
-      return this.handleFallbackWithGlobalOverview(messages, cards, citations, allowedTools);
+      return this.handleFallbackWithGlobalOverview(messages, cards, citations, allowedTools, ctx);
     }
 
     this.logger.log(

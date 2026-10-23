@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantTool, AssistantToolCtx, ToolResult } from './assistant-tool';
+import { toolCompanyWhere } from './company-filter';
 import { STAGE_LABEL, t } from './labels';
 
 @Injectable()
@@ -11,15 +12,16 @@ export class BidTool implements AssistantTool {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async execute(args: Record<string, unknown> = {}, _ctx?: AssistantToolCtx): Promise<ToolResult> {
+  async execute(args: Record<string, unknown> = {}, ctx?: AssistantToolCtx): Promise<ToolResult> {
     const action = (args.action as string) || 'list';
     const stage = args.stage as string | undefined;
     const projectId = args.projectId as string | undefined;
     const limit = (args.limit as number) || 10;
+    const companyWhere = toolCompanyWhere(ctx);
 
     if (action === 'detail' && projectId) {
       const project = await this.prisma.bidProject.findUnique({
-        where: { id: projectId },
+        where: { ...companyWhere, id: projectId },
         include: {
           suppliers: { select: { id: true, supplierName: true, submitStatus: true, decryptStatus: true } },
           experts: { select: { id: true, expertName: true, major: true, progress: true } },
@@ -35,7 +37,9 @@ export class BidTool implements AssistantTool {
         action === 'active'
           ? { in: ['OPENING', 'EVALUATING'] }
           : undefined;
-      const where: any = stageFilter ? { stage: stageFilter, isExtractionOnly: false } : { isExtractionOnly: false };
+      const where: any = stageFilter
+        ? { ...companyWhere, stage: stageFilter, isExtractionOnly: false }
+        : { ...companyWhere, isExtractionOnly: false };
       const projects = await this.prisma.bidProject.findMany({
         where,
         take: limit,
@@ -74,7 +78,7 @@ export class BidTool implements AssistantTool {
     if (action === 'monthly') {
       // Get projects grouped by month for trend chart
       const projects = await this.prisma.bidProject.findMany({
-        where: { isExtractionOnly: false },
+        where: { ...companyWhere, isExtractionOnly: false },
         select: { createdAt: true },
         orderBy: { createdAt: 'asc' },
       });
@@ -101,7 +105,7 @@ export class BidTool implements AssistantTool {
 
     if (action === 'stats') {
       const byStage = await this.prisma.bidProject.groupBy({
-        by: ['stage'], where: { isExtractionOnly: false }, _count: true,
+        by: ['stage'], where: { ...companyWhere, isExtractionOnly: false }, _count: true,
       });
       byStage.sort((a, b) => b._count - a._count);
       const bidTotal = byStage.reduce((s, r) => s + r._count, 0);
@@ -125,7 +129,9 @@ export class BidTool implements AssistantTool {
     }
 
     // default: list
-    const where: any = stage ? { stage: stage, isExtractionOnly: false } : { isExtractionOnly: false };
+    const where: any = stage
+      ? { ...companyWhere, stage: stage, isExtractionOnly: false }
+      : { ...companyWhere, isExtractionOnly: false };
     const projects = await this.prisma.bidProject.findMany({
       where, take: limit, orderBy: { createdAt: 'desc' },
       select: {
