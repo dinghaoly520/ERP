@@ -96,6 +96,12 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // 演示/验证页（2026-10-23）：免登录实机验证签到摄像头遮挡检测（/demo/face）——
+  // 纯客户端组件，零 API 调用零写库，局域网演示机回归用
+  if (pathname.startsWith('/demo')) {
+    return NextResponse.next();
+  }
+
   // 工位迁移领取页（2026-09-22）：扫码进入时平板尚无会话——票据+密码在页内提交，
   // 成功后由 API 写 token_expert 再跳评审页；桌面 QR 短时效票据即入口凭证
   if (pathname === '/tablet/claim') {
