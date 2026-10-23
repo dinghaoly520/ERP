@@ -1,6 +1,7 @@
 import type { useRouter } from 'next/navigation';
 import { getNotificationMeta } from '@water-erp/shared';
 import { markNotificationRead } from '@/lib/api/notification';
+import { openNotificationLink } from '@/lib/notification-link';
 
 /** 通知点击所需的最小字段（与 NotificationItem 结构兼容）。 */
 export interface ClickableNotification {
@@ -32,11 +33,7 @@ export function handleNotificationClick(
       .then(() => onMarkedRead?.(n.id))
       .catch(() => {});
   }
-  const link = n.link;
-  if (!link) return;
-  if (link.startsWith('/')) {
-    router.push(link);
-  } else {
-    window.open(link, '_blank', 'noopener');
-  }
+  // 路由闸（2026-10-23）：应用内路径须命中 :3005 路由（防 404——/bid、/contracts
+  // 等其他门户/不存在路径的链接只保留通知能力）；绝对外链保持新标签打开
+  openNotificationLink(n.link, router);
 }

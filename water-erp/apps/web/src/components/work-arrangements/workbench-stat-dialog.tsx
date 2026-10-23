@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { openNotificationLink } from '@/lib/notification-link';
 import { useRouter } from 'next/navigation';
 import {
   Bell,
@@ -156,10 +157,10 @@ function NotifRow({ item }: { item: NotificationItem }) {
     setBusy(true);
     try {
       if (!item.isRead) await markNotificationRead(item.id);
-      if (item.link) router.push(item.link);
+      openNotificationLink(item.link, router); // 路由闸：未知路由不跳（防 404）
     } catch {
       /* 标记已读失败不阻塞跳转 */
-      if (item.link) router.push(item.link);
+      openNotificationLink(item.link, router); // 路由闸：未知路由不跳（防 404）
     } finally {
       setBusy(false);
     }

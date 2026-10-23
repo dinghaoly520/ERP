@@ -42,20 +42,42 @@ const KNOWN_EXACT_ROUTES = new Set([
 ]);
 
 /**
- * 校验通知链接是否为本门户可跳转路由。
- * @returns 可跳转时返回原 link（含 query）；不可跳转（外链/未知路由/空）返回 null
+ * 校验通知链接是否可跳转：
+ * - 应用内路径：须命中 :3005 已知路由（防 404）
+ * - 绝对外链（http/https）：放行——跨门户跳转是有意能力（如任务通知中心
+ *   强制以 portalURL('bid') 绝对地址跳 :3007 开评标端，新标签打开非本应用路由）
+ * @returns 可跳转时返回原 link（含 query）；不可跳转（空/占位串/未知内链）返回 null
  */
 export function resolveNotificationLink(link?: string | null): string | null {
   if (!link) return null;
   const trimmed = link.trim();
   if (!trimmed || trimmed === '链接') return null; // '链接' 为后端占位串（非路由）
-  // 外链不属于 :3005 应用内跳转（通知链接均为应用内路径）
-  if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith('//')) return null;
-  // 相对锚点/非路径串不跳
-  if (!trimmed.startsWith('/')) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed; // 绝对外链：跨门户跳转
+  if (trimmed.startsWith('//') || !trimmed.startsWith('/')) return null; // 协议相对/非路径
   const path = trimmed.split('?')[0].split('#')[0].replace(/\/+$/, '') || '/';
   const hit =
     KNOWN_EXACT_ROUTES.has(path) ||
     KNOWN_ROUTE_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
   return hit ? trimmed : null;
+}
+
+/**
+ * 通知链接统一执行器（与 resolveNotificationLink 同口径）：
+ * - 应用内合法路由 → router.push
+ * - 绝对外链 → window.open 新标签（noopener，与 notification-click 原语义一致）
+ * - 不可跳转 → no-op（仅保留通知能力）
+ * @returns 是否实际执行了跳转
+ */
+export function openNotificationLink(
+  link: string | null | undefined,
+  router: { push: (path: string) => void },
+): boolean {
+  const target = resolveNotificationLink(link);
+  if (!target) return false;
+  if (/^https?:\/\//i.test(target)) {
+    window.open(target, '_blank', 'noopener');
+  } else {
+    router.push(target);
+  }
+  return true;
 }
