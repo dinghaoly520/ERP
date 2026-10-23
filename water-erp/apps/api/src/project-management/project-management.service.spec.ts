@@ -454,8 +454,8 @@ describe('ProjectManagementService', () => {
       bidRound: { findMany: jest.fn().mockResolvedValue([]) },
       bidSupplier: { findMany: jest.fn().mockResolvedValue([]) },
       bidEvaluationResult: { findMany: jest.fn().mockResolvedValue([]) },
-      $transaction: jest.fn(async (callback: (tx: any) => unknown) =>
-        callback(prisma as any),
+      $transaction: jest.fn(async (arg: ((tx: any) => unknown) | unknown[]) =>
+        typeof arg === 'function' ? arg(prisma as any) : Promise.all(arg),
       ),
     };
 
@@ -2029,6 +2029,23 @@ describe('reproc 流标重启（2026-10-23 统一流 spec）', () => {
 
     await expect(service.reproc('pm-1', { startStageKey: 'TENDER_DOCUMENT' }))
       .rejects.toMatchObject({ status: 400, response: { code: 'REPROC_ALREADY_PENDING' } });
+  });
+
+  it('历史死锁自愈：无 BidProject 的 NOT_STARTED 卡死轮 → 激活而非 409', async () => {
+    const { service, prisma } = makeService();
+    const stages = [
+      ...STAGES_R1.map((s) => ({ ...s, status: 'COMPLETED', completedAt: new Date('2026-10-01'), round: 1 })),
+      { ...mkStage('r2-doc', 'TENDER_DOCUMENT', '采购文件', 9, 'NOT_STARTED'), round: 2 },
+    ];
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ ...ITEM_BASE, currentRound: 2, stages });
+    prisma.bidProject.findFirst.mockResolvedValue(null); // 卡死轮从未建 BidProject
+
+    const res = await service.reproc('pm-1', { startStageKey: 'TENDER_DOCUMENT' });
+
+    expect(res).toEqual({ round: 2, inserted: 0, activated: true });
+    expect(prisma.projectManagementStage.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'r2-doc' }, data: { status: 'IN_PROGRESS' } }),
+    );
   });
 });
 });

@@ -624,20 +624,6 @@ export class ProjectManagementService {
       throw new BadRequestException({ error: '重启起点须为 采购需求 / 采购立项 / 采购文件 三者之一', code: 'INVALID_START_STAGE' });
     }
 
-    // 前置：当前轮 BidProject 已终局且系流标
-    const currentRound = item.currentRound ?? 1;
-    const bp = await this.prisma.bidProject.findFirst({
-      where: { projectManagementItemId: itemId, round: currentRound },
-      select: { stage: true, riskNote: true },
-    });
-    const bpAborted = !!bp && (bp.stage === 'ABORTED' || (bp.stage === 'ARCHIVED' && (bp.riskNote ?? '').startsWith('流标')));
-    if (!bp || !bpAborted) {
-      throw new ConflictException({
-        error: '当前轮开评标流程尚未流标，请先发布流标公告完成流标，再发起再次采购',
-        code: 'BID_NOT_ABORTED',
-      });
-    }
-
     // 采购方式：不传沿用；传入须有阶段模板（PMI 五种）
     const method = dto?.procurementMethod?.trim() || item.procurementMethod;
     const template = METHOD_STAGE_TEMPLATES[method];
@@ -648,6 +634,8 @@ export class ProjectManagementService {
 
     // 幂等：最新一轮（maxRound > 1）仍处「刚开轮未推进」→ 拒绝重复开轮
     //（口径不变：首阶段 IN_PROGRESS 且整轮无 COMPLETED；首阶段按 stageOrder 取最小）
+    // 须先于下方流标前置闸（2026-10-23 修复轮 1）：历史 NOT_STARTED 卡死轮从未建
+    // BidProject，自愈若排在流标闸后会被 BID_NOT_ABORTED 挡死、不可达
     const maxRound = item.stages.reduce((m, s) => Math.max(m, s.round ?? 1), 1);
     if (maxRound > 1) {
       const latestRound = item.stages.filter((s) => s.round === maxRound);
@@ -677,6 +665,20 @@ export class ProjectManagementService {
         this.logger.log(`项目 ${itemId} 自愈激活第 ${maxRound} 轮首阶段 ${first.stageKey}（历史死锁数据）`);
         return { round: maxRound, inserted: 0, activated: true };
       }
+    }
+
+    // 前置：当前轮 BidProject 已终局且系流标
+    const currentRound = item.currentRound ?? 1;
+    const bp = await this.prisma.bidProject.findFirst({
+      where: { projectManagementItemId: itemId, round: currentRound },
+      select: { stage: true, riskNote: true },
+    });
+    const bpAborted = !!bp && (bp.stage === 'ABORTED' || (bp.stage === 'ARCHIVED' && (bp.riskNote ?? '').startsWith('流标')));
+    if (!bp || !bpAborted) {
+      throw new ConflictException({
+        error: '当前轮开评标流程尚未流标，请先发布流标公告完成流标，再发起再次采购',
+        code: 'BID_NOT_ABORTED',
+      });
     }
 
     // 删尾防御：当前轮尾部阶段挂有附件 → 拒绝（流标语义下不应有）
