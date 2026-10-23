@@ -169,6 +169,47 @@ const BID_SPECS: NotificationTypeSpec[] = [
         ? LINKS.mgmtBidConfirm(String(ctx.projectManagementItemId))
         : LINKS.mgmtProjects(),
   },
+  // 2026-10-23 开标现场异常触达（spec：docs/superpowers/specs/2026-10-23-opening-anomaly-escalation-design.md）
+  {
+    code: 'BID_OPENING_PAUSED',
+    label: '开标暂停告警',
+    domain: 'bid',
+    icon: 'PauseCircle',
+    tone: 'orange',
+    // 事件性告警非待办：escalated 类无自然消音时点，actionable 会成永滞待办
+    // （markAsRead 对 actionable 拒置已读、stale-sweep 不扫 bid 域）；WS 弹窗+通知列表+深链照常触达
+    actionable: false,
+    // 2026-10-23 用户裁定：沿用 2026-10-09 口径只发 PMI 创建人（宁可不发不回退）
+    audiences: [{ kind: 'PROJECT_CREATOR' }],
+    channels: IN_APP,
+    render: ctx => ({
+      title: `项目${ctx.projectName}开标已暂停`,
+      content: `${ctx.reason ? `暂停原因：${ctx.reason}。` : ''}解密窗口已冻结，请关注现场处置，必要时在开标确认面板决策流标`,
+    }),
+    link: ctx =>
+      ctx.projectManagementItemId
+        ? LINKS.mgmtBidConfirm(String(ctx.projectManagementItemId))
+        : LINKS.mgmtProjects(),
+  },
+  {
+    code: 'BID_ANOMALY_ESCALATED',
+    label: '现场异常上报',
+    domain: 'bid',
+    icon: 'ShieldAlert',
+    tone: 'red',
+    // 同 BID_OPENING_PAUSED：事件性告警非待办
+    actionable: false,
+    audiences: [{ kind: 'PROJECT_CREATOR' }],
+    channels: IN_APP,
+    render: ctx => ({
+      title: `项目${ctx.projectName}监督上报异常：${ctx.supplierName ?? ''}`,
+      content: `供应商${ctx.supplierName}被标记为已上报异常${ctx.notes ? `，批注：${ctx.notes}` : ''}，请核验监督视图与开标现场记录`,
+    }),
+    link: ctx =>
+      ctx.projectManagementItemId
+        ? LINKS.mgmtBidConfirm(String(ctx.projectManagementItemId))
+        : LINKS.mgmtProjects(),
+  },
   {
     code: 'BID_DECRYPT_FAILED',
     label: '解密异常',
