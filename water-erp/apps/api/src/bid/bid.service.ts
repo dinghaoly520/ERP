@@ -1438,6 +1438,7 @@ export class BidService {
    * 流标：将项目标记为 ABORTED。
    * 允许从 SUBMIT 或 OPENING 阶段流转（开标确认后发现供应商不足）。
    * 直接委托（SINGLE_SOURCE）阈值 1，其余阈值 3。
+   * 本接口不限流标时间（归档后除外）——:3005 按钮上的时间提示只是前端口径，与本接口无关。
    */
   async abortBidProject(id: string, actorId?: string, reason?: string) {
     const project = await this.prisma.bidProject.findUnique({
@@ -2821,7 +2822,7 @@ export class BidService {
   /** 暂停开标：冻结解密窗口倒计时，暂停期间拒绝解密。 */
   async pauseOpening(projectId: string, actorId?: string, reason?: string) {
     const project = await this.prisma.bidProject.findUnique({
-      where: { id: projectId }, select: { stage: true, name: true },
+      where: { id: projectId }, select: { stage: true, name: true, projectManagementItemId: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     if (project.stage !== 'OPENING') {
@@ -2850,6 +2851,24 @@ export class BidService {
     }
 
     this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '暂停开标', target: project.name, result: resultText, riskFlag: '中风险' });
+
+    // 2026-10-23 现场异常触达：暂停后通知 PMI 创建人（:3005 站内+WS 弹窗，深链开标确认面板）。
+    // 口径同 2026-10-09 裁定：只发创建人，无宿主 PMI/创建人停用 → 宁可不发不回退；
+    // 通知失败不阻塞暂停（吞错留痕，同 completeOpening 惯例）。
+    try {
+      const creatorId = await resolveProjectCreatorId(this.prisma, project.projectManagementItemId);
+      if (creatorId) {
+        const tpl = renderNotificationPayload('BID_OPENING_PAUSED', {
+          projectName: project.name,
+          reason,
+          projectManagementItemId: project.projectManagementItemId ?? undefined,
+        })!;
+        await this.notificationService.sendToUser(creatorId, ['in_app'], { type: 'BID_OPENING_PAUSED', ...tpl });
+      }
+    } catch (e) {
+      this.logger.warn(`暂停通知发送失败 project=${projectId}: ${String(e)}`);
+    }
+
     return { paused: true, pausedAt: now.toISOString() };
   }
 
@@ -5638,7 +5657,12 @@ export class BidService {
     if (!bidSupplier) {
       throw new BadRequestException({ error: '供应商不属于此项目', code: 'SUPPLIER_NOT_IN_PROJECT' });
     }
-    return this.prisma.bidSupervisionAnnotation.upsert({
+    // 2026-10-23 现场异常触达：旧值按 supplierId 唯一键另取（findFirst 是归属校验，不能顺带）
+    const old = await this.prisma.bidSupervisionAnnotation.findUnique({
+      where: { supplierId: dto.supplierId },
+      select: { status: true },
+    });
+    const result = await this.prisma.bidSupervisionAnnotation.upsert({
       where: { supplierId: dto.supplierId },
       create: {
         projectId,
@@ -5653,6 +5677,32 @@ export class BidService {
         createdBy: dto.createdBy,
       },
     });
+
+    // 仅「迁移至 escalated」时通知创建人（重复保存/仅改注不重发）；
+    // 口径同 2026-10-09：无宿主 PMI/创建人停用宁可不发；通知失败不阻塞落库
+    if (dto.status === 'escalated' && old?.status !== 'escalated') {
+      try {
+        const project = await this.prisma.bidProject.findUnique({
+          where: { id: projectId },
+          select: { name: true, projectManagementItemId: true },
+        });
+        const creatorId = project
+          ? await resolveProjectCreatorId(this.prisma, project.projectManagementItemId)
+          : null;
+        if (project && creatorId) {
+          const tpl = renderNotificationPayload('BID_ANOMALY_ESCALATED', {
+            projectName: project.name,
+            supplierName: bidSupplier.supplierName,
+            notes: dto.notes,
+            projectManagementItemId: project.projectManagementItemId ?? undefined,
+          })!;
+          await this.notificationService.sendToUser(creatorId, ['in_app'], { type: 'BID_ANOMALY_ESCALATED', ...tpl });
+        }
+      } catch (e) {
+        this.logger.warn(`监督上报通知发送失败 project=${projectId}: ${String(e)}`);
+      }
+    }
+    return result;
   }
 
   async deleteSupervisionAnnotation(projectId: string, supplierId: string) {

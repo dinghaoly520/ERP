@@ -1014,6 +1014,10 @@ export class BidController {
   @ApiOperation({ summary: '查询项目关联的中标公示（G1，草稿或已发布）' })
   getWinnerNotice(@Param('id') id: string) { return this.bidService.getWinnerNotice(id); }
 
+  // 2026-10-23 评审发现 2：escalated 通知会把该端点放大为跨公司触达向量——
+  // 与 pause/decrypt 等现场执行端点同口径挂指派闸（admin 或被指派主持人本人；
+  // :3007 读侧 L6 隔离本就只允许此二者进入监督视图，UI 零感知）
+  @UseGuards(AssignedHostGuard)
   @Post('projects/:id/supervision-annotations')
   @ApiOperation({ summary: '创建或更新监督标注' })
   upsertSupervisionAnnotation(@Param('id') id: string, @Body() dto: UpsertSupervisionAnnotationDto) {

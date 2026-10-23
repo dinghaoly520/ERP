@@ -141,6 +141,8 @@ describe('BidService — stage transitions', () => {
       supplier: { count: jest.fn() },
       announcement: { count: jest.fn(), findFirst: jest.fn() },
       bidSupplier: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
+      // 2026-10-23 监督上报通知：escalated 迁移判定需要旧标注（findUnique）+ upsert 落库
+      bidSupervisionAnnotation: { findUnique: jest.fn(), upsert: jest.fn() },
       bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), upsert: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }), findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn(), findFirst: jest.fn().mockResolvedValue({ generatedAt: new Date(Date.now() - 3600_000) }) },
       bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), create: jest.fn(), groupBy: jest.fn() },
@@ -945,6 +947,119 @@ describe('BidService — stage transitions', () => {
       // 不再有全平台 bid_host 广播
       const hostBroadcast = notification.sendToRole.mock.calls.filter((c: any[]) => c[0] === 'bid_host');
       expect(hostBroadcast).toHaveLength(0);
+    });
+  });
+
+  // ── 2026-10-23 开标现场异常触达：暂停开标通知 PMI 创建人
+  //    （spec：docs/superpowers/specs/2026-10-23-opening-anomaly-escalation-design.md；
+  //     口径同 2026-10-09 裁定：只发创建人，宁可不发不回退；失败不阻塞）──
+  describe('暂停开标通知创建人（2026-10-23 现场异常触达）', () => {
+    beforeEach(() => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', name: '测试项目', projectManagementItemId: 'pmi-1' });
+      prisma.bidOpeningSession.findUnique.mockResolvedValue({ projectId: 'p1', pausedAt: null, decryptWindowEnd: new Date(Date.now() + 600_000) });
+      prisma.bidOpeningSession.update.mockResolvedValue({});
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.auditLog.create.mockResolvedValue({});
+    });
+
+    it('暂停成功且宿主 PMI 创建人有效 → 通知创建人（含原因与深链）', async () => {
+      prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'u-creator', createdBy: { isActive: true } });
+
+      const result = await service.pauseOpening('p1', 'host-1', '供应商解密大面积失败');
+
+      expect(result).toEqual({ paused: true, pausedAt: expect.any(String) });
+      const notification = (service as any).notificationService;
+      const pausedCalls = notification.sendToUser.mock.calls.filter((c: any[]) => c[2]?.type === 'BID_OPENING_PAUSED');
+      expect(pausedCalls).toHaveLength(1);
+      expect(pausedCalls[0][0]).toBe('u-creator');
+      expect(pausedCalls[0][1]).toEqual(['in_app']);
+      expect(pausedCalls[0][2].title).toContain('测试项目');
+      expect(pausedCalls[0][2].content).toContain('供应商解密大面积失败');
+      expect(pausedCalls[0][2].content).toContain('流标等后续处理请在开标确认面板操作');
+      expect(pausedCalls[0][2].link).toBe('/projects?projectId=pmi-1&panel=bid-confirm');
+    });
+
+    it('projectManagementItemId 为 null（公告直建等无宿主 PMI）→ 不发送（宁可不发），暂停仍成功', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', name: '测试项目', projectManagementItemId: null });
+
+      const result = await service.pauseOpening('p1', 'host-1');
+
+      expect(result.paused).toBe(true);
+      const notification = (service as any).notificationService;
+      expect(notification.sendToUser).not.toHaveBeenCalled();
+    });
+
+    it('通知发送失败 → 不阻塞暂停（返回正常）', async () => {
+      prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'u-creator', createdBy: { isActive: true } });
+      (service as any).notificationService.sendToUser.mockRejectedValueOnce(new Error('notify down'));
+
+      const result = await service.pauseOpening('p1', 'host-1');
+
+      expect(result.paused).toBe(true);
+    });
+
+    it('创建人停用 → 不发送（宁可不发）', async () => {
+      prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'u-off', createdBy: { isActive: false } });
+
+      const result = await service.pauseOpening('p1', 'host-1');
+
+      expect(result.paused).toBe(true);
+      expect((service as any).notificationService.sendToUser).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── 2026-10-23 现场异常触达 2/3：监督上报迁移至 escalated 时通知创建人
+  //    （仅迁移发防重复刷屏；创建人停用/无宿主 PMI 宁可不发——同 2026-10-09 口径）──
+  describe('监督上报通知创建人（2026-10-23 现场异常触达）', () => {
+    beforeEach(() => {
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 's-1', projectId: 'p1', supplierName: '测试供应商A' });
+      prisma.bidSupervisionAnnotation.findUnique.mockResolvedValue(null);
+      prisma.bidSupervisionAnnotation.upsert.mockResolvedValue({});
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '测试项目', projectManagementItemId: 'pmi-1' });
+      prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'u-creator', createdBy: { isActive: true } });
+    });
+
+    it('null→escalated 迁移 → 通知创建人（含供应商名与批注），标注照常 upsert', async () => {
+      await service.upsertSupervisionAnnotation('p1', { supplierId: 's-1', status: 'escalated', notes: '疑似串标' } as any);
+
+      const notification = (service as any).notificationService;
+      const esc = notification.sendToUser.mock.calls.filter((c: any[]) => c[2]?.type === 'BID_ANOMALY_ESCALATED');
+      expect(esc).toHaveLength(1);
+      expect(esc[0][0]).toBe('u-creator');
+      expect(esc[0][2].title).toContain('测试供应商A');
+      expect(esc[0][2].content).toContain('疑似串标');
+      expect(esc[0][2].content).toContain('在开标现场被上报为异常');
+      expect(esc[0][2].link).toBe('/projects?projectId=pmi-1&panel=bid-confirm');
+      expect(prisma.bidSupervisionAnnotation.upsert).toHaveBeenCalledTimes(1);
+    });
+
+    it('长批注截断（80 字），不整段进通知', async () => {
+      const longNotes = '异'.repeat(100);
+      await service.upsertSupervisionAnnotation('p1', { supplierId: 's-1', status: 'escalated', notes: longNotes } as any);
+      const esc = (service as any).notificationService.sendToUser.mock.calls.filter((c: any[]) => c[2]?.type === 'BID_ANOMALY_ESCALATED');
+      expect(esc).toHaveLength(1);
+      expect(esc[0][2].content).toContain('异'.repeat(80));
+      expect(esc[0][2].content).not.toContain('异'.repeat(81));
+    });
+
+    it('escalated→escalated（重复保存/仅改注）→ 不重发', async () => {
+      prisma.bidSupervisionAnnotation.findUnique.mockResolvedValue({ supplierId: 's-1', status: 'escalated' });
+
+      await service.upsertSupervisionAnnotation('p1', { supplierId: 's-1', status: 'escalated', notes: '补充批注' } as any);
+
+      const notification = (service as any).notificationService;
+      expect(notification.sendToUser).not.toHaveBeenCalled();
+      expect(prisma.bidSupervisionAnnotation.upsert).toHaveBeenCalledTimes(1);
+    });
+
+    it('创建人停用 → 不发送（宁可不发），标注照常落库', async () => {
+      prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'u-off', createdBy: { isActive: false } });
+
+      await service.upsertSupervisionAnnotation('p1', { supplierId: 's-1', status: 'escalated' } as any);
+
+      const notification = (service as any).notificationService;
+      expect(notification.sendToUser).not.toHaveBeenCalled();
+      expect(prisma.bidSupervisionAnnotation.upsert).toHaveBeenCalledTimes(1);
     });
   });
 

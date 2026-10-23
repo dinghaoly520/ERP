@@ -22,7 +22,7 @@ import {
   Volume2,
   X,
 } from 'lucide-react';
-import { BID_DEADLINE_BEFORE_OPENING_MS, BID_OPENING_IMMINENT_WARNING_MS, formatDurationCn, BID_ABORT_WINDOW_BEFORE_OPENING_MS, BID_ABORT_WINDOW_AFTER_OPENING_MS } from '@water-erp/shared';
+import { BID_DEADLINE_BEFORE_OPENING_MS, BID_OPENING_IMMINENT_WARNING_MS, formatDurationCn, BID_ABORT_WINDOW_BEFORE_OPENING_MS } from '@water-erp/shared';
 // 间隔展示标签（formatDurationCn：<1 小时显示分钟）
 const DEADLINE_GAP_LABEL = formatDurationCn(BID_DEADLINE_BEFORE_OPENING_MS);
 import type { ProjectManagementItem } from '@/lib/types/project-management';
@@ -123,7 +123,8 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
   const [pendingNotify, setPendingNotify] = useState<OpeningDecisionNotifyPayload | null>(null);
   // B2: 流标串联对话框
   const [abortDialogOpen, setAbortDialogOpen] = useState(false);
-  // 流标按钮（底部决策栏）：仅开标前 24h 内可点击
+  // 流标按钮（底部决策栏）：DOWNLOAD/SUBMIT 自开标前 24h 起可点击（无下界——开标过点
+  // 滞留在前段的项目恰是流标高发场景，保持可用直至阶段推进）；OPENING 阶段恒可点（2026-10-23）
   const [failBidDialogOpen, setFailBidDialogOpen] = useState(false);
   const [failBidReason, setFailBidReason] = useState('');
   const [failBidAiLoading, setFailBidAiLoading] = useState(false);
@@ -140,11 +141,13 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
     const t = setInterval(() => setImminentNow(Date.now()), 30_000);
     return () => clearInterval(t);
   }, [openTimeMs]);
-  // 流标窗口（独立规则 BID_ABORT_WINDOW_*，与截标↔开标间隔无关）：仅流标按钮使用，与预警横幅互不牵连
+  // 流标窗口（独立规则 BID_ABORT_WINDOW_BEFORE_OPENING_MS，与截标↔开标间隔无关）：仅约束
+  // DOWNLOAD/SUBMIT 的流标按钮（开标前 24h 起、无下界）；OPENING 阶段不受窗口限制（后端
+  // 棘轮本就允许 OPENING→ABORTED，前端灰死只会逼用户走流标公告隐藏路径——2026-10-23）
   const isWithinAbortWindow = (() => {
     if (openTimeMs === null) return false;
     const diff = openTimeMs - Date.now();
-    return diff <= BID_ABORT_WINDOW_BEFORE_OPENING_MS && diff >= -BID_ABORT_WINDOW_AFTER_OPENING_MS;
+    return diff <= BID_ABORT_WINDOW_BEFORE_OPENING_MS;
   })();
   // D1: 专家在线状态
   const [expertOnlineCount, setExpertOnlineCount] = useState(0);
@@ -1178,15 +1181,16 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                       <CheckCircle2 size={14} /> 评标进行中
                     </div>
                   )}
-                  {/* 流标按钮：仅开标前 24h 内可点击。评标中（EVALUATING）流标归 :3007
+                  {/* 流标按钮：开标前 24h 起可点，过了开标时间也能点；已进入开标阶段（OPENING）不限时间。
+                      评标中（EVALUATING）流标归 :3007
                       异议裁决（分工 v3：有效供应商不足→现场裁决流标），:3005 不再提供入口 */}
                   {onAbort && (stage === 'DOWNLOAD' || stage === 'SUBMIT' || stage === 'OPENING') && (
                     <button
                       type="button"
                       onClick={() => void handleOpenFailBidDialog()}
-                      disabled={!isWithinAbortWindow || busy}
+                      disabled={stage === 'OPENING' ? busy : (!isWithinAbortWindow || busy)}
                       className="neu-btn-soft is-danger !h-[36px]"
-                      title={!isWithinAbortWindow ? `仅开标时间前 ${formatDurationCn(BID_ABORT_WINDOW_BEFORE_OPENING_MS)} 内可操作流标` : '确认流标并发布流标公告'}
+                      title={stage !== 'OPENING' && !isWithinAbortWindow ? `开标时间前 ${formatDurationCn(BID_ABORT_WINDOW_BEFORE_OPENING_MS)} 内可操作流标` : '确认流标并发布流标公告'}
                     >
                       <Ban size={14} /> 流标
                     </button>
