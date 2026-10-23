@@ -15,6 +15,34 @@ export async function fetchDashboardBadges(companyId?: string): Promise<Dashboar
   return api.get<DashboardBadges>(`/dashboard/badges${q}`);
 }
 
+/* ── 公司龙虎榜（:3011，跨公司榜单——admin 全榜 / leader 本公司排位+集团均值）── */
+
+export type CompanyRankingRange = "month" | "year";
+
+/** awardedCount=轮次数、abnormalCount=0 为后端简化口径（榜单主序=awardAmount，计数列 UI 标「轮」） */
+export type CompanyRankingRow = {
+  companyId: string;
+  companyName: string;
+  totalCount: number;
+  awardedCount: number;
+  awardAmount: number;
+  savings: number;
+  abnormalCount: number;
+};
+
+export type CompanyRankingView = {
+  range: string;
+  /** admin 响应携带 */
+  rows?: CompanyRankingRow[];
+  /** leader/staff 响应携带（公司不在榜为 null） */
+  self?: { rank: number; companyName: string; awardAmount: number } | null;
+  groupAvg?: { awardAmount: number; totalCount: number };
+};
+
+export async function fetchCompanyRanking(range: CompanyRankingRange): Promise<CompanyRankingView> {
+  return api.get<CompanyRankingView>(`/dashboard/company-ranking?range=${range}`);
+}
+
 export type DashboardData = {
   range: {
     startDate: string | null;

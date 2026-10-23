@@ -48,6 +48,17 @@ function startOfDay(value: string) {
   return new Date(`${value}T00:00:00+08:00`);
 }
 
+/** 公司龙虎榜行（:3011）——awardedCount/abnormalCount 为简化口径（见 getCompanyRanking 注释） */
+export interface CompanyRankingRow {
+  companyId: string;
+  companyName: string;
+  totalCount: number;
+  awardedCount: number;
+  awardAmount: number;
+  savings: number;
+  abnormalCount: number;
+}
+
 function endOfDay(value: string) {
   return new Date(`${value}T23:59:59.999+08:00`);
 }
@@ -899,6 +910,72 @@ export class DashboardService {
       savingsRanking,
       riskProjects,
       ...(compare ? { compare: compareBlock } : {}),
+    };
+  }
+
+  /** :3011 公司龙虎榜行——区间内轮次按公司聚合（无归属不计排名）。
+   *  简化口径（2026-10-23）：awardedCount=轮次数、abnormalCount=0——成交/异常细分需逐行
+   *  过滤（groupBy 只能带一档 where），榜单主序由 awardAmount 驱动，两列 UI 标注「轮次」。 */
+  async getCompanyRanking(startDate: string): Promise<{ rows: CompanyRankingRow[] }> {
+    const groups = await this.prisma.procurementRound.groupBy({
+      by: ['companyId'],
+      where: { procurementDate: { gte: startOfDay(startDate) }, companyId: { not: null } },
+      _count: { _all: true },
+      _sum: { awardAmount: true, budgetAmount: true },
+    });
+    const companies = await this.prisma.company.findMany({
+      where: { id: { in: groups.map((g) => g.companyId!).filter(Boolean) } },
+      select: { id: true, name: true },
+    });
+    const nameOf = new Map(companies.map((c) => [c.id, c.name]));
+    const rows = groups
+      .filter((g) => g.companyId)
+      .map((g) => ({
+        companyId: g.companyId!,
+        companyName: nameOf.get(g.companyId!) ?? '未知公司',
+        totalCount: g._count._all,
+        awardedCount: g._count._all,
+        awardAmount: decimalToNumber(g._sum.awardAmount),
+        savings: Math.max(decimalToNumber(g._sum.budgetAmount) - decimalToNumber(g._sum.awardAmount), 0),
+        abnormalCount: 0,
+      }))
+      .sort((a, b) => b.awardAmount - a.awardAmount);
+    return { rows };
+  }
+
+  /** :3011 公司龙虎榜视图——admin 全榜；leader/staff 本公司排位 + 集团均值。
+   *  榜单天然跨公司（比的是全集团排位），不做公司过滤；range=month|year（缺省 month）。 */
+  async getCompanyRankingView(user: { sub: string; role: string }, range?: string) {
+    const effRange = range === 'year' ? 'year' : 'month';
+    const now = new Date();
+    const startDate =
+      effRange === 'year'
+        ? `${now.getFullYear()}-01-01`
+        : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    const { rows } = await this.getCompanyRanking(startDate);
+    if (user.role === 'admin') {
+      return { range: effRange, rows };
+    }
+    const me = await this.prisma.user.findUnique({
+      where: { id: user.sub },
+      select: { companyId: true },
+    });
+    const idx = me?.companyId ? rows.findIndex((r) => r.companyId === me.companyId) : -1;
+    const avg = (pick: (r: CompanyRankingRow) => number) =>
+      rows.length === 0
+        ? 0
+        : Math.round((rows.reduce((sum, r) => sum + pick(r), 0) / rows.length) * 10) / 10;
+    return {
+      range: effRange,
+      self:
+        idx >= 0
+          ? {
+              rank: idx + 1,
+              companyName: rows[idx].companyName,
+              awardAmount: rows[idx].awardAmount,
+            }
+          : null,
+      groupAvg: { awardAmount: avg((r) => r.awardAmount), totalCount: avg((r) => r.totalCount) },
     };
   }
 

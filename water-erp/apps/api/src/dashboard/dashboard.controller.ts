@@ -47,4 +47,17 @@ export class DashboardController {
     const scope = await this.companyScope.resolveScope(user, companyId);
     return this.dashboardService.getBadges(this.companyScope.filter(scope));
   }
+
+  /** 公司龙虎榜天然跨公司（比的是全集团排位）——无 companyId 入参：admin 全榜、leader 本公司排位 */
+  @Get('company-ranking')
+  @ApiOperation({ summary: ':3011 公司龙虎榜（admin 全榜 / leader 本公司排位+集团均值）' })
+  async getCompanyRanking(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('range') range?: string,
+  ) {
+    if (!canViewGlobalBusinessData(user.role)) {
+      throw new ForbiddenException('普通账号无法查看数据库页面。');
+    }
+    return this.dashboardService.getCompanyRankingView(user, range);
+  }
 }

@@ -15,9 +15,16 @@ import {
   Sparkles,
   Target,
   TrendingUp,
+  Trophy,
 } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
-import { fetchDashboardData, type DashboardData } from "@/lib/api/dashboard";
+import {
+  fetchCompanyRanking,
+  fetchDashboardData,
+  type CompanyRankingRange,
+  type CompanyRankingView,
+  type DashboardData,
+} from "@/lib/api/dashboard";
 import { fetchDashboardAnalysis, fetchMobileBrief, type DashboardAnalysisResult, type MobileBrief } from "@/lib/api/ai";
 import { useAuth } from "@/components/m/auth-context";
 import { CompanyPicker } from "@/components/m/company-picker";
@@ -110,6 +117,9 @@ function deltaOf(cur: number, prev: number | undefined, goodWhenUp: boolean | nu
   const tone = goodWhenUp == null ? "neutral" : (up === goodWhenUp ? "good" : "bad");
   return { pct: Math.max(Math.min(pct, 999), -99), tone };
 }
+
+/** 元数值格式化：过万转「N.N万」，不足万直出「N元」（龙虎榜成交额，后端口径=元） */
+const fmtWan = (v: number) => (v >= 10000 ? `${(v / 10000).toFixed(1)}万` : `${v.toFixed(0)}元`);
 
 function computeSegments(data: DashboardData | null): ScaleSegment[] {
   const segs: ScaleSegment[] = SCALE_SEGS.map((s) => ({ ...s, count: 0, amount: 0, amountLabel: "", share: 0 }));
@@ -225,6 +235,17 @@ export default function DashboardPage() {
       .catch(() => { if (active) setBrief({ available: false }); });
     return () => { active = false; };
   }, [companyIds, retryTick]);
+
+  // 公司龙虎榜（跨公司榜单，admin 全榜/leader 排位卡；随区间/重试变化重取，失败保留旧数据）
+  const [ranking, setRanking] = useState<CompanyRankingView | null>(null);
+  const [rankingRange, setRankingRange] = useState<CompanyRankingRange>("year");
+  useEffect(() => {
+    let active = true;
+    fetchCompanyRanking(rankingRange)
+      .then((r) => { if (active) setRanking(r); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [rankingRange, retryTick]);
 
   // 一键转发今日要报：navigator.share 优先，AbortError=用户取消静默返回；无 share/分享失败回落剪贴板复制
   const [shared, setShared] = useState<"idle" | "ok" | "fail">("idle");
@@ -786,6 +807,44 @@ export default function DashboardPage() {
               </div>
             ) : (
               <EmptyState text="暂无结果数据" />
+            )}
+          </SectionCard>
+
+          {/* ── 公司龙虎榜（admin 全榜 / leader 排位卡+集团均值；跨公司榜单不受公司选择器影响）── */}
+          <SectionCard
+            icon={Trophy}
+            title="公司龙虎榜"
+            index={6.5}
+            right={
+              <div className="flex gap-1.5">
+                {(["month", "year"] as const).map((k) => (
+                  <Chip key={k} active={rankingRange === k} onClick={() => setRankingRange(k)}>
+                    {k === "month" ? "本月" : "本年"}
+                  </Chip>
+                ))}
+              </div>
+            }
+          >
+            {ranking?.rows?.length ? (
+              <div className="space-y-1.5">
+                {ranking.rows.slice(0, 8).map((r, i) => (
+                  <div key={r.companyId} className="flex items-center gap-2.5 rounded-[12px] m-tile px-3 py-2">
+                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[12px] font-black ${i < 3 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
+                    <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{r.companyName}</span>
+                    <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--accent)]">{fmtWan(r.awardAmount)}</span>
+                    <span className="shrink-0 text-[12px] tabular-nums text-[var(--muted-foreground)]">{r.totalCount} 轮</span>
+                  </div>
+                ))}
+              </div>
+            ) : ranking?.self ? (
+              <div className="rounded-[12px] m-tile px-3.5 py-3">
+                <div className="text-[14px] font-bold text-[var(--foreground)]">{ranking.self.companyName} · 集团第 {ranking.self.rank} 位</div>
+                <div className="mt-1 text-[13px] text-[var(--muted-foreground)]">
+                  本公司成交 {fmtWan(ranking.self.awardAmount)} · 集团均值 {fmtWan(ranking.groupAvg?.awardAmount ?? 0)}
+                </div>
+              </div>
+            ) : (
+              <EmptyState text="暂无可排名的公司数据" />
             )}
           </SectionCard>
 
