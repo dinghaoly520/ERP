@@ -228,8 +228,11 @@ export default function NewNoticePage() {
       if (metadata.projectCode?.trim()) meta.projectCode = metadata.projectCode.trim();
       if (metadata.relatedAnnouncementTitle?.trim()) meta.relatedAnnouncementTitle = metadata.relatedAnnouncementTitle.trim();
     }
-    // 保存草稿必须剥除定时发布字段（draft 闸）——否则 scheduler 到点把草稿自动发布
-    const finalMeta = configToMetadata(publishConfig, meta, { draft: actualStatus === 'DRAFT' });
+    // draft 闸（2026-10-23 修正）：剥除定时字段的判定须看**用户动作**（targetStatus）而非落库态
+    // （actualStatus）——定时发布落库态也是 DRAFT，此前误用 actualStatus 把 scheduledPublishDate
+    // 一并剥掉 → 草稿永无定时元数据、scheduler 永不发布（补遗定时失效实录）。保存草稿（动作=DRAFT）
+    // 仍剥除，防止草稿被误定时。
+    const finalMeta = configToMetadata(publishConfig, meta, { draft: targetStatus === 'DRAFT' });
     const payload: any = { title, content, type, summary, status: actualStatus, isTop, publishDate, metadata: finalMeta };
     // 项目绑定类公告挂项目编号：补遗公告供发布联动（补遗计数 + 供应商定向通知）；
     // 资格预审公告供项目反查与列表关联（中标/成交/合同/履行结果四类已收归项目向导，2026-10-16）

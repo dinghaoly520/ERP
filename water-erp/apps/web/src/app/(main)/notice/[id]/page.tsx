@@ -498,8 +498,9 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
         meta.winner = { ...origWinner, supplierName: (meta.winner || origWinner.supplierName)?.trim() };
       }
     }
-    // 保存草稿必须剥除定时发布字段（draft 闸）——否则 scheduler 到点把草稿自动发布
-    const finalMeta = configToMetadata(publishConfig, meta, { draft: actualStatus === 'DRAFT' });
+    // draft 闸（2026-10-23 修正，与 notice/new 同款）：按用户动作（targetStatus）判定——
+    // 定时发布落库态也是 DRAFT，此前误用 actualStatus 把 scheduledPublishDate 剥掉致定时失效。
+    const finalMeta = configToMetadata(publishConfig, meta, { draft: targetStatus === 'DRAFT' });
     const payload = { title, content, type, summary, status: actualStatus, isTop, publishDate, metadata: finalMeta, ...(type === 'BID_NOTICE' ? { relatedProjectCode: meta.projectCode || null } : {}) };
     try { return await updateAnnouncement(ann.id, payload as any); }
     catch (e: any) { toast.error(e?.message || '保存失败'); return null; }
