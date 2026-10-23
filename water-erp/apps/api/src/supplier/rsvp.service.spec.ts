@@ -24,7 +24,8 @@ describe('RsvpService.respond（P0-1 + 一次性锁定·原子闸）', () => {
       },
       invitationRsvpLog: { create: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]) },
       bidProject: { findFirst: jest.fn(), findUnique: jest.fn().mockResolvedValue(null) },
-      bidSupplier: { upsert: jest.fn().mockResolvedValue({}) },
+      bidSupplier: { upsert: jest.fn().mockResolvedValue({}), deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      supplierBidSubmission: { findFirst: jest.fn().mockResolvedValue(null) },
       supplier: { findUnique: jest.fn().mockResolvedValue({ userId: 'u-supplier' }) },
       $transaction: jest.fn().mockImplementation(async (fn: any) => fn(prisma)),
     };
@@ -166,7 +167,10 @@ describe('RsvpService.manualMark（代回应/代变更）', () => {
   beforeEach(() => {
     prisma = {
       user: { findUnique: jest.fn().mockResolvedValue({ displayName: '王工作' }) },
-      bidProject: { findFirst: jest.fn().mockResolvedValue({ id: 'BP-1' }) },
+      bidProject: { findFirst: jest.fn().mockResolvedValue({ id: 'BP-1' }), findUnique: jest.fn().mockResolvedValue(null) },
+      // 拒绝即离场（2026-10-23）：manualMark 同步名单所需 delegate
+      bidSupplier: { upsert: jest.fn().mockResolvedValue({}), deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      supplierBidSubmission: { findFirst: jest.fn().mockResolvedValue(null) },
       invitationRsvp: {
         findMany: jest.fn().mockResolvedValue([{
           id: 'rsvp1', supplierId: 's1', supplierName: '供应商A', projectId: 'BP-1',
@@ -403,7 +407,9 @@ describe('RsvpService.manualMark（无行补录分支的连拒预警接线）', 
   beforeEach(() => {
     prisma = {
       user: { findUnique: jest.fn().mockResolvedValue({ displayName: '王工作' }) },
-      bidProject: { findFirst: jest.fn().mockResolvedValue(null) },
+      bidProject: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn().mockResolvedValue(null) },
+      bidSupplier: { upsert: jest.fn().mockResolvedValue({}), deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      supplierBidSubmission: { findFirst: jest.fn().mockResolvedValue(null) },
       invitationRsvp: {
         findMany: jest.fn().mockResolvedValue([]), // 选行：无既有行 → 走补录分支
         create: jest.fn().mockResolvedValue({ id: 'rsvp-new', status: 'DECLINED' }),
@@ -429,5 +435,71 @@ describe('RsvpService.manualMark（无行补录分支的连拒预警接线）', 
   it('补录代确认不触发预警', async () => {
     await service.manualMark({ projectId: 'PMI-1', supplierId: 's1', status: 'ACCEPTED', actorId: 'u1', reason: '电话核实确认参加' });
     expect(notification.sendToRole).not.toHaveBeenCalled();
+  });
+});
+
+/** 拒绝即离场 / 接受即回场（2026-10-23 用户裁定）：回执状态与候选名单（BidSupplier）同步。 */
+describe('RsvpService 名单同步（拒绝即离场）', () => {
+  let service: RsvpService;
+  let prisma: any;
+  const futureDate = new Date(Date.now() + 3600_000);
+  const baseRow = {
+    id: 'rsvp1', token: 't1', projectId: 'PMI-ID', supplierId: 's1',
+    supplierName: '供应商A', status: 'PENDING', expiresAt: futureDate, respondedAt: null as Date | null,
+  };
+
+  beforeEach(() => {
+    prisma = {
+      invitationRsvp: {
+        findUnique: jest.fn().mockResolvedValue(baseRow),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'rsvp1', status: 'DECLINED', respondedAt: new Date() }),
+        update: jest.fn().mockResolvedValue({ id: 'rsvp1', status: 'DECLINED' }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findMany: jest.fn().mockResolvedValue([]),
+        create: jest.fn().mockResolvedValue({ id: 'rsvp-manual', status: 'DECLINED' }),
+      },
+      invitationRsvpLog: { create: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]) },
+      bidProject: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue({ id: 'BP-1' }) },
+      bidSupplier: { upsert: jest.fn().mockResolvedValue({}), deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      supplierBidSubmission: { findFirst: jest.fn().mockResolvedValue(null) },
+      supplier: { findUnique: jest.fn().mockResolvedValue({ userId: 'u-supplier', name: '供应商A' }) },
+      user: { findUnique: jest.fn().mockResolvedValue({ displayName: '工作人员' }) },
+      $transaction: jest.fn().mockImplementation(async (fn: any) => fn(prisma)),
+    };
+    const notification = { resolveByLinkToken: jest.fn().mockResolvedValue({ count: 1 }), create: jest.fn().mockResolvedValue({}), sendToRole: jest.fn().mockResolvedValue({}) };
+    service = new RsvpService(prisma, { ensureBidProject: jest.fn().mockResolvedValue({}) } as any, notification as any);
+  });
+
+  it('respond DECLINED → 移出候选名单（deleteMany 按 projectId+supplier）', async () => {
+    await service.respond('t1', { status: 'DECLINED' });
+    expect(prisma.bidSupplier.deleteMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ projectId: 'BP-1', OR: [{ supplierId: 's1' }, { supplierName: '供应商A' }] }),
+    }));
+  });
+
+  it('respond DECLINED 但已递交投标 → 不移出（评标完整性优先）', async () => {
+    prisma.supplierBidSubmission.findFirst.mockResolvedValue({ id: 'sub1' });
+    await service.respond('t1', { status: 'DECLINED' });
+    expect(prisma.bidSupplier.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('respond DECLINED 且项目未懒创建 → 静默跳过（不因移除建项目）', async () => {
+    prisma.bidProject.findFirst.mockResolvedValue(null);
+    await service.respond('t1', { status: 'DECLINED' });
+    expect(prisma.bidSupplier.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('manualMark 代婉拒 → 同步移出候选名单', async () => {
+    prisma.invitationRsvp.findMany.mockResolvedValue([{ ...baseRow, status: 'ACCEPTED', respondedAt: new Date(), projectId: 'BP-1' }]);
+    await service.manualMark({ projectId: 'BP-1', supplierId: 's1', status: 'DECLINED', actorId: 'u-staff', reason: '电话核实档期冲突' });
+    expect(prisma.bidSupplier.deleteMany).toHaveBeenCalled();
+  });
+
+  it('manualMark 代变更救回（→ACCEPTED）→ 名单幂等回补', async () => {
+    prisma.invitationRsvp.findMany.mockResolvedValue([{ ...baseRow, status: 'DECLINED', respondedAt: new Date(), projectId: 'BP-1' }]);
+    await service.manualMark({ projectId: 'BP-1', supplierId: 's1', status: 'ACCEPTED', actorId: 'u-staff', reason: '供应商改口确认参加' });
+    expect(prisma.bidSupplier.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { projectId_supplierName: { projectId: 'BP-1', supplierName: '供应商A' } },
+    }));
   });
 });
