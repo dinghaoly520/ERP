@@ -1204,10 +1204,20 @@ export class AnnouncementService {
         }
         await this.bidService.syncFromAnnouncement(existingProject.id, { title: announcement.title }, meta);
         this.logger.log(`公告已关联项目 ${existingProject.projectCode}，同步更新字段`);
-        // 流标公告：发布后自动将 BidProject 置为 ABORTED
+        // 流标公告：发布后联动 BidProject 流标——终态（ABORTED/ARCHIVED）跳过不报错
+        //（2026-10-23 统一流：开标归档流标后 :3005 补发流标公告，联动撞 ARCHIVED→ABORTED
+        //  单向棘轮终态守卫 409；ABORTED 幂等但显式跳过更清晰）
         if (meta.category === 'failed_bid') {
-          await this.bidService.abortBidProject(existingProject.id);
-          this.logger.log(`流标公告已发布，项目 ${existingProject.projectCode} 已标记为 ABORTED`);
+          const fresh = await this.prisma.bidProject.findUnique({
+            where: { id: existingProject.id },
+            select: { stage: true },
+          });
+          if (fresh && (fresh.stage === 'ABORTED' || fresh.stage === 'ARCHIVED')) {
+            this.logger.log(`流标公告已发布，项目 ${existingProject.projectCode} 已处终态（${fresh.stage}），跳过联动流标`);
+          } else {
+            await this.bidService.abortBidProject(existingProject.id);
+            this.logger.log(`流标公告已发布，项目 ${existingProject.projectCode} 已标记为 ABORTED`);
+          }
         }
         // P1b：既有项目分支同样回填招标文件关联（此前只在新项目分支做）
         const bidDoc = await this.prisma.bidDocument.findUnique({ where: { announcementId: annId } });

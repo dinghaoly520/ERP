@@ -363,6 +363,26 @@ describe('AnnouncementService — E2 category 白名单（failed_bid 死分支�
     expect(abortBidProject).toHaveBeenCalledWith('p-e2');
   });
 
+  it('流标公告发布：项目已 ARCHIVED（开标归档流标）→ 跳过联动流标不抛错（2026-10-23 统一流）', async () => {
+    const abortBidProject = jest.fn().mockResolvedValue({});
+    const { service } = await makeSvc(
+      { syncFromAnnouncement: jest.fn().mockResolvedValue({}), abortBidProject, ensureTenderAnalysis: jest.fn() },
+      {
+        bidProject: {
+          // 第一次：P1 编码空间匹配查询；第二次：联动前终态复查（select stage）
+          findUnique: jest.fn()
+            .mockResolvedValueOnce({ id: 'p-e2', projectCode: 'BID-E2' })
+            .mockResolvedValueOnce({ stage: 'ARCHIVED' }),
+          update: jest.fn(),
+        },
+      },
+    );
+    await expect(service.syncBidProject('ann1', {
+      ...ann, metadata: { ...ann.metadata, category: 'failed_bid' },
+    })).resolves.toBeUndefined();
+    expect(abortBidProject).not.toHaveBeenCalled();
+  });
+
   it('非法枚举值（category=hacker）→ validateMetadata 剥落，不走流标分支', async () => {
     // validateMetadata 为 private static，经构造器直接断言剥落语义
     const { AnnouncementService: Svc } = await import('./announcement.service');
