@@ -66,6 +66,18 @@ export interface ProgressAiInsights {
   insights: ProgressAiInsight[];
 }
 
+export interface UpcomingEvent {
+  type: 'DEADLINE' | 'OPENING';
+  projectId: string;
+  name: string;
+  time: string;
+}
+
+export interface UpcomingResult {
+  days: number;
+  items: Array<{ date: string; events: UpcomingEvent[] }>;
+}
+
 export async function fetchProgressStats(
   userId?: string,
   stage?: string,
@@ -93,6 +105,22 @@ export async function fetchProgressAiInsights(companyId?: string): Promise<Progr
   const response = await apiFetch(url, { credentials: 'include' });
   if (!response.ok) {
     throw await toApiError(response, '加载 AI 分析失败');
+  }
+
+  return response.json();
+}
+
+/** :3011 未来关键节点（截标/开标），未来 N 天按日分组 */
+export async function fetchUpcoming(days = 14, companyId?: string): Promise<UpcomingResult> {
+  const params = new URLSearchParams();
+  params.set('days', String(days));
+  if (companyId && companyId !== 'all') params.set('companyId', companyId);
+
+  const url = `${API_BASE}/progress/upcoming?${params.toString()}`;
+
+  const response = await apiFetch(url, { credentials: 'include' });
+  if (!response.ok) {
+    throw await toApiError(response, '加载关键节点失败');
   }
 
   return response.json();

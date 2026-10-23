@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, AlertCircle, BarChart3, Lightbulb, RefreshCw, Sparkles, Target, TrendingUp } from "lucide-react";
+import { Activity, AlertCircle, BarChart3, CalendarClock, Lightbulb, RefreshCw, Sparkles, Target, TrendingUp } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
-import { fetchProgressStats, fetchProgressAiInsights, type ProgressStats, type ProgressAiInsights, type ProjectProgress } from "@/lib/api/progress";
+import { fetchProgressStats, fetchProgressAiInsights, fetchUpcoming, type ProgressStats, type ProgressAiInsights, type ProjectProgress, type UpcomingResult } from "@/lib/api/progress";
 import { useAuth } from "@/components/m/auth-context";
 import { CompanyPicker } from "@/components/m/company-picker";
 import { BottomSheet } from "@/components/m/bottom-sheet";
@@ -114,6 +114,7 @@ export default function ProgressPage() {
   );
 
   const [stats, setStats] = useState<ProgressStats | null>(null);
+  const [upcoming, setUpcoming] = useState<UpcomingResult | null>(null);
   const [insights, setInsights] = useState<ProgressAiInsights | null>(null);
   const [insightsError, setInsightsError] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
@@ -157,6 +158,19 @@ export default function ProgressPage() {
       active = false;
     };
   }, [filterCompanyId, retryTick]);
+
+  /* 未来 14 天关键节点（截标/开标）：随公司口径重取；静默失败（无节点不渲染，不占错误位） */
+  useEffect(() => {
+    let active = true;
+    fetchUpcoming(14, filterCompanyId)
+      .then((u) => {
+        if (active) setUpcoming(u);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [filterCompanyId]);
 
   /* 洞察手动生成（与数据库页 AI 综合分析同款：点「生成分析」才请求）；
      公司口径变化/下拉刷新使旧结果作废（置 null 后按钮态回归） */
@@ -212,6 +226,26 @@ export default function ProgressPage() {
 
       {error ? <ErrorBanner message={error} onRetry={() => setRetryTick((t) => t + 1)} /> : null}
 
+      {/* ── 未来 14 天关键节点（截标/开标横滑日卡；无节点不渲染）── */}
+      {upcoming?.items.length ? (
+        <SectionCard icon={CalendarClock} title="未来 14 天关键节点" index={0}>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {upcoming.items.map((d) => (
+              <div key={d.date} className="w-[7.5rem] shrink-0 rounded-[12px] m-tile px-2.5 py-2">
+                <div className="text-[12px] font-bold tabular-nums text-[var(--accent)]">{d.date.slice(5)}</div>
+                {d.events.map((e, i) => (
+                  <div key={i} className="mt-1 flex items-center gap-1">
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${e.type === "OPENING" ? "bg-[var(--success)]" : "bg-[var(--warning)]"}`} />
+                    <span className="min-w-0 flex-1 truncate text-[12px] text-[var(--foreground)]">{e.name}</span>
+                    <span className="shrink-0 text-[11px] text-[var(--muted-foreground)]">{e.type === "OPENING" ? "开标" : "截标"}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      ) : null}
+
       {loading && !stats ? (
         <div className="neu-card-static rounded-[18px] p-3.5">
           <Skeleton lines={4} height={52} />
@@ -237,7 +271,7 @@ export default function ProgressPage() {
           </div>
 
           {/* ── 执行态势（阶段分布，按标准采购流程顺位）── */}
-          <SectionCard icon={BarChart3} title="执行态势 · 阶段分布" index={0}>
+          <SectionCard icon={BarChart3} title="执行态势 · 阶段分布" index={1}>
             {stats.stageDistribution.length ? (
               <div className="space-y-2">
                 {sortedStageDistribution.map((d, i) => {
@@ -263,7 +297,7 @@ export default function ProgressPage() {
           {/* ── 进度洞察（AI，与数据库页 AI 综合分析同款折叠卡；展开即自动请求）── */}
           <SectionCard
             icon={Sparkles}
-            index={1}
+            index={2}
             title="进度洞察"
             right={
               <button type="button" onClick={() => setAiOpen((v) => !v)} className="neu-btn-soft h-8 rounded-[9px] px-2.5 text-[14px]">
@@ -350,7 +384,7 @@ export default function ProgressPage() {
           </SectionCard>
 
           {/* ── 项目清单 ── */}
-          <SectionCard title="项目清单" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">{stats.projects.length} 项</span>} index={2}>
+          <SectionCard title="项目清单" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">{stats.projects.length} 项</span>} index={3}>
             {stats.projects.length ? (
               <div className="space-y-2">
                 {stats.projects.map((p) => {

@@ -351,6 +351,42 @@ export class ProgressService {
     };
   }
 
+  /** :3011 未来关键节点——BidProject 截标/开标未来 N 天，含 PMI 关联名（公司口径） */
+  async getUpcoming(days = 14, companyFilter?: CompanyWhere) {
+    const now = new Date();
+    const until = new Date(now.getTime() + days * 24 * 3600 * 1000);
+    const rows = await this.prisma.bidProject.findMany({
+      where: {
+        ...companyFilter,
+        OR: [
+          { deadline: { gte: now, lte: until } },
+          { openTime: { gte: now, lte: until } },
+        ],
+      },
+      select: {
+        id: true, name: true, deadline: true, openTime: true,
+        projectManagementItem: { select: { title: true } },
+      },
+      orderBy: { openTime: 'asc' },
+    });
+    const byDay = new Map<string, Array<{ type: 'DEADLINE' | 'OPENING'; projectId: string; name: string; time: string }>>();
+    for (const r of rows) {
+      const displayName = r.projectManagementItem?.title || r.name;
+      for (const [type, t] of [['OPENING', r.openTime], ['DEADLINE', r.deadline]] as const) {
+        if (!t || t < now || t > until) continue;
+        const date = t.toISOString().slice(0, 10);
+        if (!byDay.has(date)) byDay.set(date, []);
+        byDay.get(date)!.push({ type, projectId: r.id, name: displayName, time: t.toISOString() });
+      }
+    }
+    return {
+      days,
+      items: Array.from(byDay.entries())
+        .map(([date, events]) => ({ date, events: events.sort((a, b) => a.time.localeCompare(b.time)) }))
+        .sort((a, b) => a.date.localeCompare(b.date)),
+    };
+  }
+
   async getAiInsights(
     userId?: string,
     stage?: string,
