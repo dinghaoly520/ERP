@@ -12,7 +12,6 @@ import {
   extractTenderFields,
   fetchPmBidProjectRefs,
   reopenProjectStage,
-  reprocProject,
   fetchProjectAttributions,
   refreshProjectSummary,
   updateProjectStage,
@@ -46,6 +45,7 @@ import { SupplierExtractModal } from './supplier-extract-modal';
 import { ExpertExtractModal } from './expert-extract-modal';
 import { AnnouncementPublishWizard } from './announcement-publish-wizard';
 import { BidConfirmPanel } from './bid-confirm-panel';
+import { AbortRestartDialog } from './abort-restart-dialog';
 import { AwardFileMaker } from './award-file-maker';
 import { ContractStageModal } from '../contracts/contract-stage-modal';
 import { TenderFileEditorModal } from './tender-file-editor-modal';
@@ -477,15 +477,24 @@ export function ProjectDetailPanel({
   // ★ 开标锁定：开标确认阶段已进行（IN_PROGRESS 或 COMPLETED）→ 所有前置内容不可修改。
   // 口径修正：只锁「开标评标」之前的前置阶段——定标（中标通知书）/合同等
   // 后置阶段不受锁，否则定标入口被误锁、线下定标→扫描上传回填流程永不可达。
-  const bidEvalStage = localItem.stages.find(s => s.stageKey === 'BID_EVALUATION');
+  // 轮次对齐（2026-10-23 流标统一流）：开标评标按当前选中轮取行——多轮后不带 round 会命中第一轮
+  const bidEvalStage = localItem.stages.find(
+    (s) => s.stageKey === 'BID_EVALUATION' && (s.round ?? 1) === selectedRound,
+  );
   const isBidLocked = bidEvalStage?.status === 'IN_PROGRESS' || bidEvalStage?.status === 'COMPLETED';
+
   const isLockedByBid = (stageKey: string) => {
     if (!isBidLocked) return false;
-    const stageOrder = localItem.stages.find(s => s.stageKey === stageKey)?.stageOrder ?? Infinity;
+    const stageOrder = localItem.stages.find(
+      (s) => s.stageKey === stageKey && (s.round ?? 1) === selectedRound,
+    )?.stageOrder ?? Infinity;
     return stageOrder < (bidEvalStage?.stageOrder ?? Infinity);
   };
 
-  const stageLocked = selectedStage.status === 'NOT_STARTED' || isLockedByBid(selectedStage.stageKey);
+  // 轮次锁（2026-10-23 流标统一流）：旧轮全部只读（含已完成阶段——补传/编辑/AI 提取全关，查看与附件下载保留）
+  const isPastRound = (selectedStage.round ?? 1) < (localItem.currentRound ?? 1);
+  const stageLocked =
+    selectedStage.status === 'NOT_STARTED' || isLockedByBid(selectedStage.stageKey) || isPastRound;
   const stageProcessing = uploading || analysisLoading;
   const canCompleteStage =
     isCurrentStage && selectedStage.status !== 'COMPLETED' && !stageLocked && !stageProcessing;
@@ -607,6 +616,7 @@ export function ProjectDetailPanel({
   const [announcementPublishOpen, setAnnouncementPublishOpen] = useState(false);
   const [announcementCategory, setAnnouncementCategory] = useState<'procurement_document' | 'failed_bid' | 'winning_bid'>('procurement_document');
   const [bidConfirmOpen, setBidConfirmOpen] = useState(false);
+  const [abortRestartOpen, setAbortRestartOpen] = useState(false);
   // 深链自动弹开标确认面板（一次性：触发后即清标记，关闭后不复发）
   const autoOpenedBidConfirm = useRef(false);
   useEffect(() => {
@@ -825,6 +835,7 @@ export function ProjectDetailPanel({
 
   const markStageCompleted = async (stage: ProjectManagementStage) => {
     if (actionsDisabled) { toast.info('只读模式，仅供查看'); return; }
+    if (isPastRound) { toast.warning('该步骤属已完成的历史轮次，仅供查看'); return; }
     if (isLockedByBid(stage.stageKey)) { toast.warning('开标已确认，前置步骤已锁定'); return; }
     // 03 采购文件完成向导（2026-09-26 用户裁定：强制且不可豁免）——先选/传正式盖章版采购文件，
     // 再左预览右配置对照确认评分标准，确认后才落完成。原「评分标准 incomplete 前置拦截」
@@ -870,6 +881,7 @@ export function ProjectDetailPanel({
 
   const uploadStageFiles = async () => {
     if (actionsDisabled) return; // 只读（归档/终止/非创建人）
+    if (isPastRound) { toast.warning('该步骤属已完成的历史轮次，仅供查看'); return; }
     if (isLockedByBid(selectedStage.stageKey)) { toast.warning('开标已确认，文件不可上传'); return; }
     if (selectedFiles.length === 0) {
       setErrorMessage('请先选择要上传的文件。');
@@ -1306,11 +1318,25 @@ export function ProjectDetailPanel({
               >
                 打开开标确认面板
               </button>
+              {canModify && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    // 公告闸：当前轮无流标公告 → 先拉起 failed_bid 向导（发布后由 onPublished 链自动进决策向导）
+                    if (currentRoundBp?.failedBidNoticePublished) setAbortRestartOpen(true);
+                    else { setAnnouncementCategory('failed_bid'); setAnnouncementPublishOpen(true); }
+                  }}
+                  disabled={!currentRoundBp}
+                  className="neu-btn-soft !h-[32px] !text-xs shrink-0"
+                >
+                  收尾处理
+                </button>
+              )}
 
             </div>
             <div className="mt-2 flex items-center gap-1.5 border-t border-[color-mix(in_oklch,var(--danger)_15%,transparent)] pt-2 text-[11px] text-[var(--muted-foreground)]">
               <span className="font-semibold">收尾路径：</span>
-              <span>发布流标公告（自动发起再次采购）· 开标归档封存投标侧 · 项目终止 · 完成项目</span>
+              <span>发布流标公告 → 继续采购（新轮重启）或终止项目</span>
             </div>
           </div>
           )}
@@ -2080,7 +2106,7 @@ export function ProjectDetailPanel({
 
               {/* 阶段描述 */}
               <p className="text-sm leading-6 text-[color:var(--muted-foreground)]">
-                {stageLocked ? '当前阶段尚未解锁。请先完成上一个阶段，再继续上传当前材料。' : selectedStage.status === 'COMPLETED' ? '当前阶段已完成。仍可继续补充材料，保持归档完整。' : '请上传当前阶段所需材料，确认无误后再推进到下一阶段。'}
+                {isPastRound ? '该步骤属已完成的历史轮次，仅供查看。' : stageLocked ? '当前阶段尚未解锁。请先完成上一个阶段，再继续上传当前材料。' : selectedStage.status === 'COMPLETED' ? '当前阶段已完成。仍可继续补充材料，保持归档完整。' : '请上传当前阶段所需材料，确认无误后再推进到下一阶段。'}
               </p>
 
               {/* 上传/分析进度条 — sticky 固定，始终可见 */}
@@ -2472,9 +2498,23 @@ export function ProjectDetailPanel({
         isOpen={announcementPublishOpen}
         onClose={() => { setAnnouncementPublishOpen(false); setAnnouncementCategory('procurement_document'); }}
         project={item}
-        onPublished={handleUpdated}
+        onPublished={() => {
+          handleUpdated();
+          // 流标统一流（2026-10-23）：failed_bid 发布成功 → 自动进入决策向导（是否继续/信息确认/重启）
+          if (announcementCategory === 'failed_bid') setAbortRestartOpen(true);
+        }}
         initialCategory={announcementCategory}
         onStageAttachmentUploaded={(result) => handleStageAttachmentChanged('PUBLIC_ANNOUNCEMENT', result)}
+      />
+
+      {/* 流标决策向导（2026-10-23 统一流）：公告闸后进入；终止分支唤起既有终止对话框 */}
+      <AbortRestartDialog
+        isOpen={abortRestartOpen}
+        onClose={() => setAbortRestartOpen(false)}
+        item={item}
+        currentRoundBidProjectId={currentRoundBp?.id ?? null}
+        onRequestTerminate={() => { setAbortRestartOpen(false); setTerminateOpen(true); }}
+        onRestarted={() => { handleUpdated(); }}
       />
 
       {/* 评分标准与评标办法面板（2026-09-24 定稿：03 卡「评分标准」按钮弹出；开标确认面板同款
@@ -2579,6 +2619,11 @@ export function ProjectDetailPanel({
           }).catch(() => {});
         }}
         onAbort={() => {
+          setBidConfirmOpen(false);
+          setAnnouncementCategory('failed_bid');
+          setAnnouncementPublishOpen(true);
+        }}
+        onPublishNotice={() => {
           setBidConfirmOpen(false);
           setAnnouncementCategory('failed_bid');
           setAnnouncementPublishOpen(true);
