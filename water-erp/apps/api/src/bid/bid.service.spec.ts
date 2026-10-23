@@ -948,6 +948,54 @@ describe('BidService — stage transitions', () => {
     });
   });
 
+  // ── 2026-10-23 开标现场异常触达：暂停开标通知 PMI 创建人
+  //    （spec：docs/superpowers/specs/2026-10-23-opening-anomaly-escalation-design.md；
+  //     口径同 2026-10-09 裁定：只发创建人，宁可不发不回退；失败不阻塞）──
+  describe('暂停开标通知创建人（2026-10-23 现场异常触达）', () => {
+    beforeEach(() => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', name: '测试项目', projectManagementItemId: 'pmi-1' });
+      prisma.bidOpeningSession.findUnique.mockResolvedValue({ projectId: 'p1', pausedAt: null, decryptWindowEnd: new Date(Date.now() + 600_000) });
+      prisma.bidOpeningSession.update.mockResolvedValue({});
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.auditLog.create.mockResolvedValue({});
+    });
+
+    it('暂停成功且宿主 PMI 创建人有效 → 通知创建人（含原因与深链）', async () => {
+      prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'u-creator', createdBy: { isActive: true } });
+
+      const result = await service.pauseOpening('p1', 'host-1', '供应商解密大面积失败');
+
+      expect(result).toEqual({ paused: true, pausedAt: expect.any(String) });
+      const notification = (service as any).notificationService;
+      const pausedCalls = notification.sendToUser.mock.calls.filter((c: any[]) => c[2]?.type === 'BID_OPENING_PAUSED');
+      expect(pausedCalls).toHaveLength(1);
+      expect(pausedCalls[0][0]).toBe('u-creator');
+      expect(pausedCalls[0][1]).toEqual(['in_app']);
+      expect(pausedCalls[0][2].title).toContain('测试项目');
+      expect(pausedCalls[0][2].content).toContain('供应商解密大面积失败');
+      expect(pausedCalls[0][2].link).toBe('/projects?projectId=pmi-1&panel=bid-confirm');
+    });
+
+    it('projectManagementItemId 为 null（公告直建等无宿主 PMI）→ 不发送（宁可不发），暂停仍成功', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', name: '测试项目', projectManagementItemId: null });
+
+      const result = await service.pauseOpening('p1', 'host-1');
+
+      expect(result.paused).toBe(true);
+      const notification = (service as any).notificationService;
+      expect(notification.sendToUser).not.toHaveBeenCalled();
+    });
+
+    it('通知发送失败 → 不阻塞暂停（返回正常）', async () => {
+      prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'u-creator', createdBy: { isActive: true } });
+      (service as any).notificationService.sendToUser.mockRejectedValueOnce(new Error('notify down'));
+
+      const result = await service.pauseOpening('p1', 'host-1');
+
+      expect(result.paused).toBe(true);
+    });
+  });
+
   describe('reopenFromAborted — N5 重启时间兜底', () => {
     beforeEach(() => {
       // findUnique 双用途：按 id 查返回原项目；按 projectCode 查（generateProjectCode 查重）返回 null

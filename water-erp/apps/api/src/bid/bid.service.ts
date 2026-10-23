@@ -2821,7 +2821,7 @@ export class BidService {
   /** 暂停开标：冻结解密窗口倒计时，暂停期间拒绝解密。 */
   async pauseOpening(projectId: string, actorId?: string, reason?: string) {
     const project = await this.prisma.bidProject.findUnique({
-      where: { id: projectId }, select: { stage: true, name: true },
+      where: { id: projectId }, select: { stage: true, name: true, projectManagementItemId: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     if (project.stage !== 'OPENING') {
@@ -2850,6 +2850,24 @@ export class BidService {
     }
 
     this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '暂停开标', target: project.name, result: resultText, riskFlag: '中风险' });
+
+    // 2026-10-23 现场异常触达：暂停后通知 PMI 创建人（:3005 站内+WS 弹窗，深链开标确认面板）。
+    // 口径同 2026-10-09 裁定：只发创建人，无宿主 PMI/创建人停用 → 宁可不发不回退；
+    // 通知失败不阻塞暂停（吞错留痕，同 completeOpening 惯例）。
+    try {
+      const creatorId = await resolveProjectCreatorId(this.prisma, project.projectManagementItemId);
+      if (creatorId) {
+        const tpl = renderNotificationPayload('BID_OPENING_PAUSED', {
+          projectName: project.name,
+          reason,
+          projectManagementItemId: project.projectManagementItemId ?? undefined,
+        })!;
+        await this.notificationService.sendToUser(creatorId, ['in_app'], { type: 'BID_OPENING_PAUSED', ...tpl });
+      }
+    } catch (e) {
+      this.logger.warn(`暂停通知发送失败 project=${projectId}: ${String(e)}`);
+    }
+
     return { paused: true, pausedAt: now.toISOString() };
   }
 
