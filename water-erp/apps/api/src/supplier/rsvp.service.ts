@@ -414,34 +414,41 @@ export class RsvpService {
     supplierId: string,
     supplierName: string,
     status: 'ACCEPTED' | 'DECLINED',
-  ) {
-    const bp = (await this.prisma.bidProject.findUnique({ where: { id: projectIdRaw }, select: { id: true } })) ||
-      (await this.prisma.bidProject.findFirst({
-        where: { projectManagementItemId: projectIdRaw },
-        orderBy: { createdAt: 'desc' },
+  ): Promise<void> {
+    // 名单同步是回执主流程的副作用——失败降级留痕、不向上抛：RSVP 事务先于此提交且回执
+    // 一次性锁定，若同步抖错还抛错，供应商重试只会撞 409 RSVP_ALREADY_RESPONDED
+    // （拒绝已记录却永远看到报错）。名单失同步可由工作人员代变更/重邀补救，可恢复。
+    try {
+      const bp = (await this.prisma.bidProject.findUnique({ where: { id: projectIdRaw }, select: { id: true } })) ||
+        (await this.prisma.bidProject.findFirst({
+          where: { projectManagementItemId: projectIdRaw },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true },
+        }));
+      if (!bp) return; // 项目尚未懒创建——无可同步（接受路径的懒创建归 respond() 事务后段管）
+      if (status === 'ACCEPTED') {
+        await this.prisma.bidSupplier.upsert({
+          where: { projectId_supplierName: { projectId: bp.id, supplierName } },
+          create: { projectId: bp.id, supplierId, supplierName },
+          update: { supplierId },
+        });
+        return;
+      }
+      const submitted = await this.prisma.supplierBidSubmission.findFirst({
+        where: { projectId: bp.id, supplierId },
         select: { id: true },
-      }));
-    if (!bp) return; // 项目尚未懒创建——无可同步（接受路径的懒创建归 respond() 事务后段管）
-    if (status === 'ACCEPTED') {
-      await this.prisma.bidSupplier.upsert({
-        where: { projectId_supplierName: { projectId: bp.id, supplierName } },
-        create: { projectId: bp.id, supplierId, supplierName },
-        update: { supplierId },
-      }).catch(() => { /* 名单回补失败不阻断回执主流程；缺失行由 ensureBidProject 回填兜底 */ });
-      return;
+      });
+      if (submitted) {
+        this.logger.warn(`拒绝不移出候选（已递交投标）：supplier=${supplierName} project=${bp.id}`);
+        return;
+      }
+      const removed = await this.prisma.bidSupplier.deleteMany({
+        where: { projectId: bp.id, OR: [{ supplierId }, { supplierName }] },
+      });
+      if (removed.count > 0) this.logger.log(`拒绝移出候选名单：supplier=${supplierName} project=${bp.id}`);
+    } catch (err: any) {
+      this.logger.error(`候选名单同步失败（可由代变更/重邀补救）supplier=${supplierName} project=${projectIdRaw} status=${status}: ${err?.message ?? err}`);
     }
-    const submitted = await this.prisma.supplierBidSubmission.findFirst({
-      where: { projectId: bp.id, supplierId },
-      select: { id: true },
-    });
-    if (submitted) {
-      this.logger.warn(`拒绝不移出候选（已递交投标）：supplier=${supplierName} project=${bp.id}`);
-      return;
-    }
-    const removed = await this.prisma.bidSupplier.deleteMany({
-      where: { projectId: bp.id, OR: [{ supplierId }, { supplierName }] },
-    });
-    if (removed.count > 0) this.logger.log(`拒绝移出候选名单：supplier=${supplierName} project=${bp.id}`);
   }
 
   async manualMark(params: {

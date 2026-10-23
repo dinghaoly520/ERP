@@ -503,3 +503,28 @@ describe('RsvpService 名单同步（拒绝即离场）', () => {
     }));
   });
 });
+
+/** 名单同步降级（2026-10-23 稳健性审计）：同步是回执副流程——DB 抖错不得向供应商抛错
+ *  （回执已锁定，重试只会 409）；失同步留 error 日志，可由代变更/重邀补救。 */
+describe('RsvpService 名单同步降级', () => {
+  it('respond DECLINED 时名单同步抛错 → 回执仍成功（非致命副作用）', async () => {
+    const futureDate = new Date(Date.now() + 3600_000);
+    const prisma: any = {
+      invitationRsvp: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'rsvp1', token: 't1', projectId: 'BP-1', supplierId: 's1', supplierName: '供应商A', status: 'PENDING', expiresAt: futureDate, respondedAt: null }),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'rsvp1', status: 'DECLINED', respondedAt: new Date() }),
+        update: jest.fn().mockResolvedValue({ id: 'rsvp1', status: 'DECLINED' }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      invitationRsvpLog: { create: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]) },
+      bidProject: { findUnique: jest.fn().mockRejectedValue(new Error('db down')), findFirst: jest.fn() },
+      bidSupplier: { upsert: jest.fn(), deleteMany: jest.fn() },
+      supplierBidSubmission: { findFirst: jest.fn() },
+      supplier: { findUnique: jest.fn().mockResolvedValue({ userId: 'u-supplier' }) },
+      $transaction: jest.fn().mockImplementation(async (fn: any) => fn(prisma)),
+    };
+    const notification = { resolveByLinkToken: jest.fn().mockResolvedValue({ count: 1 }), create: jest.fn().mockResolvedValue({}), sendToRole: jest.fn().mockResolvedValue({}) };
+    const service = new RsvpService(prisma, { ensureBidProject: jest.fn().mockResolvedValue({}) } as any, notification as any);
+    await expect(service.respond('t1', { status: 'DECLINED' })).resolves.toMatchObject({ success: true });
+  });
+});
