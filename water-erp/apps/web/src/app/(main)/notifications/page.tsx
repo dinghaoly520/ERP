@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { resolveNotificationLink, openNotificationLink } from '@/lib/notification-link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { getNotificationMeta, getNotificationLabel } from '@water-erp/shared';
@@ -345,11 +346,11 @@ export default function NotificationsPage() {
                 <CheckCheck size={14} /> 标为已阅
               </button>
             )}
-            {detail?.link && itemState(detail) !== 'done' && (
-              <button className="neu-btn-soft" onClick={() => { const n = detail; setDetail(null); router.push(n.link!); }}>
+            {(() => { if (!detail) return null; const target = resolveNotificationLink(detail.link); return target && itemState(detail) !== 'done' && (
+              <button className="neu-btn-soft" onClick={() => { setDetail(null); openNotificationLink(target, router); }}>
                 跳转页面
               </button>
-            )}
+            ); })()}
             <button className="neu-btn-soft" onClick={() => setDetail(null)}>关闭</button>
           </>
         }
@@ -569,13 +570,13 @@ function HandleModal({ item, onClose, onDone }: { item: NotificationItem; onClos
               {isSupplier && <button className="neu-btn-soft" disabled={busy || !cur} onClick={doReturn}><RotateCcw size={14} /> 退回补正</button>}
               <button className="neu-btn-soft is-danger" disabled={busy || !cur} onClick={doReject}><XCircle size={14} /> 拒绝</button>
               <button className="neu-btn-soft is-success !h-[38px]" disabled={busy || !cur} onClick={doApprove}><CheckCircle2 size={14} /> 通过</button>
-              {item.link && <button className="neu-btn-soft !h-[38px]" onClick={() => { onClose(); router.push(item.link!); }}>前往审批中心</button>}
+              {resolveNotificationLink(item.link) && <button className="neu-btn-soft !h-[38px]" onClick={() => { onClose(); openNotificationLink(item.link, router); }}>前往审批中心</button>}
             </>
           ) : (
             <>
               <button className="neu-btn-soft" onClick={onClose}>关闭</button>
-              {item.link && (
-                <button className="neu-btn-soft !h-[38px]" onClick={() => { onClose(); router.push(item.link!); }}>跳转页面</button>
+              {resolveNotificationLink(item.link) && (
+                <button className="neu-btn-soft !h-[38px]" onClick={() => { onClose(); openNotificationLink(item.link, router); }}>跳转页面</button>
               )}
             </>
           )}

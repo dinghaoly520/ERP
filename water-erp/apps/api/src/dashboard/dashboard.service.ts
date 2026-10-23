@@ -122,6 +122,7 @@ export class DashboardService {
       include: {
         project: true,
         department: true,
+        company: true,
         awardedSupplier: true,
         participants: {
           include: {
@@ -196,6 +197,25 @@ export class DashboardService {
       }
     >();
     const departmentMap = new Map<
+      string,
+      {
+        amount: number;
+        total: number;
+        done: number;
+        methodCount: Map<string, number>;
+        projects: Array<{
+          name: string;
+          date: string;
+          method: string;
+          budgetLabel: string;
+          awardLabel: string;
+          status: string;
+        }>;
+      }
+    >();
+    // 公司维度分布（2026-10-23：部门归属在业务数据中近乎全空——7 轮仅 1 轮挂部门，
+    // 部门分布退化成「未归属部门」大桶；公司归属 7/7 全满，领导驾驶舱的分布维度改用公司）
+    const companyMap = new Map<
       string,
       {
         amount: number;
@@ -385,6 +405,45 @@ export class DashboardService {
               : '未成交',
       });
       departmentMap.set(departmentName, departmentItem);
+
+      // 公司维度同口径聚合（镜像上方部门块）
+      const companyName = round.company?.name ?? '未归属公司';
+      if (!companyMap.has(companyName)) {
+        companyMap.set(companyName, {
+          amount: 0,
+          total: 0,
+          done: 0,
+          methodCount: new Map(),
+          projects: [],
+        });
+      }
+      const companyItem = companyMap.get(companyName)!;
+      companyItem.amount += budgetValue;
+      companyItem.total += 1;
+      if (round.resultStatus === ResultStatus.AWARDED) {
+        companyItem.done += 1;
+      }
+      if (round.procurementMethod) {
+        const cmc = companyItem.methodCount.get(round.procurementMethod) ?? 0;
+        companyItem.methodCount.set(round.procurementMethod, cmc + 1);
+      }
+      companyItem.projects.push({
+        name: round.project.name,
+        date: procurementDateLabel(round),
+        method: round.procurementMethod ?? '未填',
+        budgetLabel: formatWan(decimalToNumber(round.budgetAmount)),
+        awardLabel:
+          round.resultStatus === ResultStatus.AWARDED
+            ? formatWan(decimalToNumber(round.awardAmount))
+            : '-',
+        status:
+          round.resultStatus === ResultStatus.AWARDED
+            ? '已成交'
+            : round.resultStatus === ResultStatus.PENDING
+              ? '待定'
+              : '未成交',
+      });
+      companyMap.set(companyName, companyItem);
 
       // Collect method stats with projects
       const methodName = round.procurementMethod ?? '未填';
@@ -668,6 +727,24 @@ export class DashboardService {
       .sort((left, right) => right.amount - left.amount)
       .slice(0, 6);
 
+    const companyStats = [...companyMap.entries()]
+      .map(([name, item]) => {
+        const topMethod =
+          [...item.methodCount.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ??
+          '未知';
+        return {
+          name,
+          amount: item.amount,
+          amountLabel: formatWan(item.amount),
+          completedRate:
+            item.total === 0 ? 0 : Math.round((item.done / item.total) * 100),
+          topMethod,
+          projects: item.projects.slice(-8),
+        };
+      })
+      .sort((left, right) => right.amount - left.amount)
+      .slice(0, 6);
+
     const methodStats = [...methodMap.entries()]
       .map(([name, item]) => ({
         name,
@@ -902,6 +979,7 @@ export class DashboardService {
       },
       trendSeries,
       departmentStats,
+      companyStats,
       methodStats,
       attachmentProgress,
       supplierStats,

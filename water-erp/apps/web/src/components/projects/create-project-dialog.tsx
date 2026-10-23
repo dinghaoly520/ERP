@@ -89,6 +89,11 @@ export function CreateProjectDialog({
 
   // Field comparison
   const [fieldComparisons, setFieldComparisons] = useState<FieldComparison[]>([]);
+  // 用户已编辑字段锁（2026-10-23 输入稳定性根治）：编辑过的字段恒以 initiationFields 为准
+  // （含空串——可正常清空）——不再被 selectedValue 空值守卫 / demand 提取值回退链弹回。
+  // 同病第三落点：e798639a（budgetAmount 单修）、363 行注释（预选值弹回推广修）均未断根，
+  // 此处以「编辑权归用户」语义收口全部评审字段。
+  const [editedFields, setEditedFields] = useState<Set<string>>(new Set());
   const [aiCandidates, setAiCandidates] = useState<Record<string, FieldCandidate[]>>({});
   const [aiLoading, setAiLoading] = useState<string | null>(null);
 
@@ -122,12 +127,16 @@ export function CreateProjectDialog({
       if ((hasDemand && hasInitiation) || (hasInitiation && !demandFile)) {
         const comparisons = compareFields(demandFields, initiationFields);
         setFieldComparisons(comparisons);
+        // 新一轮对比生成 = 新文档数据，编辑锁随 comparisons 一同重置
+        setEditedFields(new Set());
         setStep('compare');
       }
       // If only demand is extracted and no initiation file selected, go to compare (single doc mode)
       else if (hasDemand && !initiationFile) {
         const comparisons = compareFields(demandFields, {});
         setFieldComparisons(comparisons);
+        // 新一轮对比生成 = 新文档数据，编辑锁随 comparisons 一同重置
+        setEditedFields(new Set());
         setStep('compare');
       }
     }
@@ -196,6 +205,7 @@ export function CreateProjectDialog({
     setInitiationExtractedText('');
     setProcurementMethod('');
     setFieldComparisons([]);
+    setEditedFields(new Set());
     setAiCandidates({});
     setAiLoading(null);
     setPolishing({ projectReason: false, supplierRequirements: false });
@@ -367,6 +377,8 @@ export function CreateProjectDialog({
     setFieldComparisons((prev) =>
       prev.map((c) => (c.fieldName === fieldName ? { ...c, selectedValue: value } : c)),
     );
+    // 编辑权锁定：自此该字段显示/提交均以用户输入为准
+    setEditedFields((prev) => { const n = new Set(prev); n.add(fieldName); return n; });
   };
 
   const handleCreate = async () => {
@@ -412,7 +424,7 @@ export function CreateProjectDialog({
         hasProcurementDemand: !!demandAttachment,
         demandAttachment: demandAttachment ?? undefined,
         initiationAttachment: initiationAttachment ?? undefined,
-        demandProject: String(getSelectedFieldValue('demandProject', demandFields.demandProject || '')) || undefined,
+        demandProject: String(resolveFieldValue('demandProject', demandFields.demandProject || '')) || undefined,
         demandContractNumber: demandFields.demandContractNumber,
         initiationDate: mergedFields.initiationDate || undefined,
         createdById: currentUser?.id,
@@ -682,9 +694,19 @@ export function CreateProjectDialog({
     return fallbackValue;
   };
 
+  /** 评审字段取值（2026-10-23）：用户编辑过 → 恒显用户值（initiationFields，空串亦然）；
+   *  未编辑 → 原预填语义（对比选中值 → 回退链）。显示/提交/AI 上下文统一走此口，所见即所提交。 */
+  const resolveFieldValue = (fieldName: string, fallbackValue: string | number): string | number => {
+    if (editedFields.has(fieldName)) {
+      // 编辑锁字段集恒为文本/数字字段（isAnnualBudget 等布尔项不经此口），经 unknown 中转窄化
+      return (initiationFields as unknown as Record<string, string | number | undefined>)[fieldName] ?? '';
+    }
+    return getSelectedFieldValue(fieldName, fallbackValue);
+  };
+
   const handlePolishField = async (field: 'projectReason' | 'supplierRequirements') => {
     const currentValue = String(
-      getSelectedFieldValue(field, initiationFields[field] || demandFields[field] || ''),
+      resolveFieldValue(field, initiationFields[field] || demandFields[field] || ''),
     ).trim();
     if (!currentValue) {
       setErrorMessage(`请先填写${field === 'projectReason' ? '立项事由' : '供方要求'}的初步内容，再进行 AI 优化。`);
@@ -699,8 +721,8 @@ export function CreateProjectDialog({
         demandDocText: demandExtractedText || undefined,
         initiationDocText: initiationExtractedText || undefined,
         projectContext: {
-          title: String(getSelectedFieldValue('procurementTitle', initiationFields.procurementTitle || '')) || undefined,
-          category: String(getSelectedFieldValue('procurementCategory', initiationFields.procurementCategory || '')) || undefined,
+          title: String(resolveFieldValue('procurementTitle', initiationFields.procurementTitle || '')) || undefined,
+          category: String(resolveFieldValue('procurementCategory', initiationFields.procurementCategory || '')) || undefined,
           method: procurementMethod || undefined,
         },
       });
@@ -723,7 +745,7 @@ export function CreateProjectDialog({
           <label className="text-xs font-semibold text-[color:var(--foreground)]">需求申请人</label>
           <input
             type="text"
-            value={getSelectedFieldValue('requesterName', initiationFields.requesterName || demandFields.requesterName || '')}
+            value={resolveFieldValue('requesterName', initiationFields.requesterName || demandFields.requesterName || '')}
             onChange={(e) => handleReviewFieldChange('requesterName', e.target.value)}
             className="workbench-input w-full"
           />
@@ -732,7 +754,7 @@ export function CreateProjectDialog({
           <label className="text-xs font-semibold text-[color:var(--foreground)]">需求部门</label>
           <input
             type="text"
-            value={getSelectedFieldValue('requesterDepartment', initiationFields.requesterDepartment || demandFields.requesterDepartment || '')}
+            value={resolveFieldValue('requesterDepartment', initiationFields.requesterDepartment || demandFields.requesterDepartment || '')}
             onChange={(e) => handleReviewFieldChange('requesterDepartment', e.target.value)}
             className="workbench-input w-full"
           />
@@ -741,7 +763,7 @@ export function CreateProjectDialog({
           <label className="text-xs font-semibold text-[color:var(--foreground)]">立项日期</label>
           <input
             type="date"
-            value={getSelectedFieldValue('initiationDate', initiationFields.initiationDate || demandFields.initiationDate || '')}
+            value={resolveFieldValue('initiationDate', initiationFields.initiationDate || demandFields.initiationDate || '')}
             onChange={(e) => handleReviewFieldChange('initiationDate', e.target.value)}
             className="workbench-input w-full"
           />
@@ -750,7 +772,7 @@ export function CreateProjectDialog({
           <label className="text-xs font-semibold text-[color:var(--foreground)]">采购事项名称</label>
           <input
             type="text"
-            value={getSelectedFieldValue('procurementTitle', initiationFields.procurementTitle || demandFields.procurementTitle || '')}
+            value={resolveFieldValue('procurementTitle', initiationFields.procurementTitle || demandFields.procurementTitle || '')}
             onChange={(e) => handleReviewFieldChange('procurementTitle', e.target.value)}
             className="workbench-input w-full"
           />
@@ -758,7 +780,7 @@ export function CreateProjectDialog({
         <div className="space-y-2">
           <label className="text-xs font-semibold text-[color:var(--foreground)]">采购类别</label>
           <select
-            value={getSelectedFieldValue('procurementCategory', initiationFields.procurementCategory || demandFields.procurementCategory || '')}
+            value={resolveFieldValue('procurementCategory', initiationFields.procurementCategory || demandFields.procurementCategory || '')}
             onChange={(e) => handleReviewFieldChange('procurementCategory', e.target.value)}
             className="workbench-input w-full"
           >
@@ -795,7 +817,7 @@ export function CreateProjectDialog({
               })),
               ...(projectAttributions.some((a) => a.name === '其他') ? [] : [{ value: '其他', label: '其他', sub: '通用' }]),
             ]}
-            value={String(getSelectedFieldValue('demandProject', demandFields.demandProject || ''))}
+            value={String(resolveFieldValue('demandProject', demandFields.demandProject || ''))}
             onPick={(o) => handlePickAttribution(o.value, o.meta)}
             placeholder="选择或搜索项目归属"
             searchPlaceholder="搜索归属项目…"
@@ -808,7 +830,7 @@ export function CreateProjectDialog({
             <label className="text-xs font-semibold text-[color:var(--foreground)]">预算金额（元）</label>
             <input
               type="number"
-              value={getSelectedFieldValue('budgetAmount', initiationFields.budgetAmount || demandFields.budgetAmount || 0)}
+              value={resolveFieldValue('budgetAmount', initiationFields.budgetAmount || demandFields.budgetAmount || 0)}
               onChange={(e) => {
                 const v = Number(e.target.value);
                 setInitiationFields((prev) => ({ ...prev, budgetAmount: v }));
@@ -816,6 +838,8 @@ export function CreateProjectDialog({
                 setFieldComparisons((prev) =>
                   prev.map((c) => (c.fieldName === 'budgetAmount' ? { ...c, selectedValue: String(v) } : c)),
                 );
+                // 编辑权锁定（2026-10-23）：与 handleReviewFieldChange 同语义——此输入框绕过统一入口，单独补锁
+                setEditedFields((prev) => (prev.has('budgetAmount') ? prev : new Set(prev).add('budgetAmount')));
               }}
               className="workbench-input w-full"
             />
@@ -1073,7 +1097,7 @@ export function CreateProjectDialog({
             </button>
           </div>
           <textarea
-            value={getSelectedFieldValue('projectReason', initiationFields.projectReason || demandFields.projectReason || '')}
+            value={resolveFieldValue('projectReason', initiationFields.projectReason || demandFields.projectReason || '')}
             onChange={(e) => handleReviewFieldChange('projectReason', e.target.value)}
             rows={3}
             className="neu-input text-sm min-h-[80px] resize-y"
@@ -1097,7 +1121,7 @@ export function CreateProjectDialog({
             </button>
           </div>
           <textarea
-            value={getSelectedFieldValue('supplierRequirements', initiationFields.supplierRequirements || demandFields.supplierRequirements || '')}
+            value={resolveFieldValue('supplierRequirements', initiationFields.supplierRequirements || demandFields.supplierRequirements || '')}
             onChange={(e) => handleReviewFieldChange('supplierRequirements', e.target.value)}
             rows={3}
             className="neu-input text-sm min-h-[80px] resize-y"
@@ -1216,6 +1240,7 @@ export function CreateProjectDialog({
                     setDemandExtracted(false);
                     setInitiationExtracted(false);
                     setFieldComparisons([]);
+                    setEditedFields(new Set());
                   }}
                   className="neu-btn-soft h-[38px]"
                 >

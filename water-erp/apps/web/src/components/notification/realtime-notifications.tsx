@@ -5,6 +5,7 @@ import { notificationWsUrl } from '@water-erp/config';
 import { getNotificationMeta, getNotificationLabel } from '@water-erp/shared';
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { openNotificationLink } from '@/lib/notification-link';
 import { useRouter } from "next/navigation";
 import { io, type Socket } from "socket.io-client";
 import { Bell, CheckCheck, X } from "lucide-react";
@@ -103,8 +104,8 @@ export function RealtimeNotifications() {
 
   const handleClick = (n: PushNotification) => {
     dismiss(n.id);
-    if (n.link) {
-      router.push(n.link);
+    // 路由闸（2026-10-23）：目标不在本门户路由内不跳转（防 404），仅消通知
+    if (openNotificationLink(n.link, router)) {
       window.dispatchEvent(new CustomEvent("notification:received"));
     }
   };

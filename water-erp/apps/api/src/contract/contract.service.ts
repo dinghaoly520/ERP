@@ -596,45 +596,12 @@ export class ContractService {
   }
 
   /** 合同公告（7.5.4.5 宜公开） */
-  async publishContractNotice(id: string, companyFilter: CompanyFilter) {
-    const contract = await this.get(id, this.companyWhere(companyFilter));
-    if (contract.status !== 'signed' && contract.status !== 'performing' && contract.status !== 'accepted') {
-      throw new BadRequestException({ error: '合同签署后方可发布合同公告', code: 'BAD_STATUS' });
-    }
-    this.assertSignedEvidence(contract.signedAssetId);
-    const existing = await this.prisma.announcement.findFirst({
-      where: {
-        relatedProjectCode: contract.projectCode,
-        type: 'CONTRACT_NOTICE',
-        companyId: contract.companyId,
-      },
-      select: { id: true },
+  /** 合同公告发布已下线（2026-10-23 用户裁定）——保留端点返回明确错误，防旧入口/脚本误触 */
+  async publishContractNotice(_id: string, _companyFilter: CompanyFilter) {
+    throw new BadRequestException({
+      error: '合同公告已下线：合同/履行结果信息不再通过公告发布（2026-10-23 用户裁定）',
+      code: 'CONTRACT_NOTICE_DISABLED',
     });
-    if (existing) return { announcementId: existing.id, created: false };
-
-    const amount = contract.amount ? `合同价款：¥${Number(contract.amount).toLocaleString('zh-CN')}元。` : '';
-    const announcement = await this.prisma.announcement.create({
-      data: {
-        title: `合同公告：${contract.projectCode}`,
-        content: `项目编号 ${contract.projectCode} 的采购合同已订立。当事人：${contract.supplierName}。${amount}`
-          + `签约时间：${contract.signedAt ? new Date(contract.signedAt).toLocaleDateString('zh-CN') : '—'}。`
-          + `合同编号：${contract.contractCode}。（GB/T 43711 7.5.4.5）`,
-        type: 'CONTRACT_NOTICE',
-        status: 'PUBLISHED',
-        publishDate: new Date(),
-        relatedProjectCode: contract.projectCode,
-        companyId: contract.companyId,
-        companyName: contract.companyName,
-        metadata: {
-          projectCode: contract.projectCode,
-          contractCode: contract.contractCode,
-          supplierName: contract.supplierName,
-          amount: contract.amount ? Number(contract.amount) : null,
-          signedAt: contract.signedAt?.toISOString() ?? null,
-        },
-      },
-    });
-    return { announcementId: announcement.id, created: true };
   }
 
   /** 合同文本草稿 DOCX（keyTerms → HTML → docx，复用 project-management 转换器） */
@@ -987,37 +954,9 @@ export class ContractService {
         },
       });
 
-      // 履行结果公告（默认发布，dto 可关）
-      let announcementId: string | null = null;
-      if (dto.publishNotice !== false) {
-        const dup = await tx.announcement.findFirst({
-          where: {
-            relatedProjectCode: contract.projectCode,
-            type: 'PERFORMANCE_NOTICE',
-            companyId: contract.companyId,
-          },
-          select: { id: true },
-        });
-        if (!dup) {
-          const ann = await tx.announcement.create({
-            data: {
-              title: `履行结果公告：${contract.projectCode}`,
-              content: `项目编号 ${contract.projectCode} 的采购合同已按约定完成履行并通过验收。`
-                + `成交供应商：${contract.supplierName}。${dto.note ? `验收情况：${dto.note.trim()}。` : ''}（GB/T 43711 7.6.2.2）`,
-              type: 'PERFORMANCE_NOTICE',
-              status: 'PUBLISHED',
-              publishDate: new Date(),
-              relatedProjectCode: contract.projectCode,
-              companyId: contract.companyId,
-              companyName: contract.companyName,
-              metadata: { projectCode: contract.projectCode, supplierName: contract.supplierName, result: '验收通过' },
-            },
-          });
-          announcementId = ann.id;
-        } else {
-          announcementId = dup.id;
-        }
-      }
+      // 履行结果公告生成已下线（2026-10-23 用户裁定：公告中心不再发布合同/履行结果公告，
+      // 项目流程亦不自动生成发表）——announcementId 恒 null 保持返回结构兼容
+      const announcementId: string | null = null;
 
       const updated = await tx.contract.findUnique({ where: { id } });
       if (!updated) throw new NotFoundException({ error: '合同不存在', code: 'NOT_FOUND' });

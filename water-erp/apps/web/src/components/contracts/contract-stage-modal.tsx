@@ -2,7 +2,8 @@
 
 /**
  * C2/C3/C4（GB/T 43711 7.5.4/7.6/7.5.4.4）：项目管理·合同阶段结构化管理。
- * 状态流：草拟 →（一致性校验）→ 内审 → 签署 → 履行台账 → 验收办结（自动履行结果公告）+ 保证金退还登记。
+ * 状态流：草拟 →（一致性校验）→ 内审 → 签署 → 履行台账 → 验收办结 + 保证金退还登记。
+ * （2026-10-23 用户裁定：合同/履行结果公告全线下线——项目流程不再自动生成发表，按钮已移除）
  * 替代原"合同阶段仅上传文件"的纯文本口径——合同编号/金额快照仍写 PMI 概览卡，此处管全流程。
  */
 import { useCallback, useEffect, useState } from 'react';
@@ -12,7 +13,7 @@ import { Modal } from '@/components/workbench';
 import { StatusBadge } from '@/components/workbench';
 import {
   listContractsByProject, createContract, runContractConsistency, submitContractReview, reviewContract,
-  signContract, publishContractNotice, generateContractDraftDocx, addContractFulfillment,
+  signContract, generateContractDraftDocx, addContractFulfillment,
   updateContractFulfillment, acceptContract, terminateContract, listBondReturns, markSupplierBondReturned,
   canAcceptContract, canCompleteContractFulfillment, contractProofAssetUrl,
   canRegisterContractSigning, formatContractProofMetadata, uploadContractProof,
@@ -206,7 +207,7 @@ export function ContractStageModal({ open, onClose, item, onUpdated }: Props) {
         delete next[contract.id];
         return next;
       });
-    }, '验收办结，履行结果公告已发布');
+    }, '验收办结');
   };
 
   const registerSigning = (contract: Contract) => {
@@ -227,7 +228,7 @@ export function ContractStageModal({ open, onClose, item, onUpdated }: Props) {
   };
 
   return (
-    <Modal open={open} onClose={closeModal} title="合同订立与履行" description="订立（一致性校验→内审→签署→合同公告）· 履行台账 · 验收办结" size="xl">
+    <Modal open={open} onClose={closeModal} title="合同订立与履行" description="订立（一致性校验→内审→签署）· 履行台账 · 验收办结" size="xl">
       {/* ── 新建入口 ── */}
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs text-[var(--muted-foreground)]">项目编号 {item.projectCode}</span>
@@ -336,9 +337,6 @@ export function ContractStageModal({ open, onClose, item, onUpdated }: Props) {
                       </span>
                     )}
                   </>
-                )}
-                {['signed', 'performing', 'accepted'].includes(c.status) && (
-                  <button onClick={() => act(() => publishContractNotice(c.id), '合同公告已发布（重复点击无影响）')} disabled={busy} className="neu-btn-soft !h-[26px] !px-2.5 !text-[11px]"><Megaphone size={11} /> 合同公告</button>
                 )}
                 {['signed', 'performing'].includes(c.status) && (
                   <>

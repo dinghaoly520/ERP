@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   Clock,
   Info,
+  Download,
 } from "lucide-react";
 import type { ReadyTenderDraft, ReadyTenderDocumentType } from "@/lib/types/tender-write";
 import { Modal } from "@/components/workbench";
@@ -172,6 +173,21 @@ export function NotificationLetterDialog({
   const [aiLoading, setAiLoading] = useState<string | null>(null);
   const [aiCandidates, setAiCandidates] = useState<Record<string, FieldCandidate[]>>({});
   const [storedExtractedText, setStoredExtractedText] = useState<string>("");
+
+  // ── 独立编制入口（无项目关联）：终点动作 = 导出落盘——不经发布链（发布须项目定标锚点；
+  //    2026-10-23 用户裁定：该入口下「下一步：发布配置」改为「导出通知书」）──
+  const handleExportOnly = async () => {
+    setExporting(true);
+    setErrorMessage(null);
+    try {
+      const { blob, fileName } = await exportNotificationLetter(draft);
+      await saveFileWithPicker(blob, fileName, ["docx"]);
+    } catch (e) {
+      setErrorMessage(e instanceof Error ? e.message : "导出失败，请稍后重试");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // ── 模式1 自动填入：从项目数据 + 评标结果直接填入（无 PDF 也可发通知书）──
   const [autoFilling, setAutoFilling] = useState(false);
@@ -504,18 +520,34 @@ export function NotificationLetterDialog({
               >
                 ← 返回上传
               </button>
-              <button
-                type="button"
-                onClick={() => { setStep("publish"); setPublishError(null); }}
-                disabled={!draft.winnerName?.trim() || !project?.id}
-                title={!draft.winnerName?.trim() ? '请先填写中标单位名称' : !project?.id ? '独立编制入口未关联项目，请从项目定标步骤发起' : undefined}
-                className="tender-btn tender-btn--export disabled:cursor-not-allowed"
-              >
-                <span className="tb-icon tb-anim-bob">
-                  <Send size={13} />
-                </span>
-                下一步：发布配置
-              </button>
+              {project?.id ? (
+                <button
+                  type="button"
+                  onClick={() => { setStep("publish"); setPublishError(null); }}
+                  disabled={!draft.winnerName?.trim()}
+                  title={!draft.winnerName?.trim() ? '请先填写中标单位名称' : undefined}
+                  className="tender-btn tender-btn--export disabled:cursor-not-allowed"
+                >
+                  <span className="tb-icon tb-anim-bob">
+                    <Send size={13} />
+                  </span>
+                  下一步：发布配置
+                </button>
+              ) : (
+                /* 独立编制入口（采购文件编写 → 通知书中心）：无项目锚点不可发布——终点改为导出 docx 落盘 */
+                <button
+                  type="button"
+                  onClick={() => void handleExportOnly()}
+                  disabled={!draft.winnerName?.trim() || exporting}
+                  title={!draft.winnerName?.trim() ? '请先填写中标单位名称' : '导出通知书 docx 到本地（独立编制不发布）'}
+                  className="tender-btn tender-btn--export disabled:cursor-not-allowed"
+                >
+                  <span className="tb-icon tb-anim-bob">
+                    <Download size={13} />
+                  </span>
+                  {exporting ? '导出中…' : '导出通知书'}
+                </button>
+              )}
             </>
           ) : undefined
         }

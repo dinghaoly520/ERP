@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { openNotificationLink } from '@/lib/notification-link';
 import { useRouter } from 'next/navigation';
 import { Search, Loader2, Building2, FileText, User, Package } from 'lucide-react';
 import { globalSearch } from '@/lib/api/supplier';
@@ -45,7 +46,10 @@ export function GlobalSearch() {
     else { setQuery(''); setResults([]); }
   }, [open]);
 
-  const go = (r: SearchResult) => { router.push(r.link); setOpen(false); };
+  const go = (r: SearchResult) => {
+    // 路由闸同口径：搜索结果链接未命中 :3005 路由时不跳（防 404）
+    if (openNotificationLink(r.link, router)) setOpen(false);
+  };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, results.length - 1)); }

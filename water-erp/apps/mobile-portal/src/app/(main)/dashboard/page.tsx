@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   BarChart3,
+  Building2,
   CalendarRange,
   ChevronRight,
   FolderKanban,
@@ -376,7 +377,11 @@ export default function DashboardPage() {
           totalSavings: data.summary.totalSavingsLabel,
         },
         trendSeries: data.trendSeries.map((t) => ({ label: t.label, count: t.count, amount: t.amount })),
-        departmentStats: data.departmentStats.map((d) => ({ name: d.name, amount: d.amountLabel })),
+        // 分布维度与页面实际展示同口径：admin=公司分布；leader=过滤掉未归属的部门分布（2026-10-23）
+        departmentStats:
+          role === "admin"
+            ? data.companyStats.map((d) => ({ name: d.name, amount: d.amountLabel }))
+            : data.departmentStats.filter((d) => d.name !== "未归属部门").map((d) => ({ name: d.name, amount: d.amountLabel })),
         methodStats: data.methodStats.map((m) => ({ name: m.name, share: String(m.share) })),
         attachmentProgress: data.attachmentProgress.map((a) => ({ label: a.label, rate: String(a.rate) })),
         supplierStats: data.supplierStats.slice(0, 5).map((s) => ({
@@ -693,13 +698,14 @@ export default function DashboardPage() {
             )}
           </SectionCard>
 
-          {/* ── 各部门采购分布 ── */}
-          <SectionCard icon={FolderKanban} title="各部门采购分布"
+          {/* ── 各公司采购分布（2026-10-23：部门归属数据近乎全空，分布维度改用公司；非 admin 公司单一不展示） ── */}
+          {role === "admin" ? (
+          <SectionCard icon={Building2} title="各公司采购分布"
             index={2}
           >
-            {data.departmentStats.length ? (
+            {data.companyStats.length ? (
               <div className="space-y-2">
-                {data.departmentStats.map((d, idx) => (
+                {data.companyStats.map((d, idx) => (
                   <button
                     key={idx}
                     type="button"
@@ -720,9 +726,10 @@ export default function DashboardPage() {
                 ))}
               </div>
             ) : (
-              <EmptyState text="暂无部门数据" />
+              <EmptyState text="暂无公司数据" />
             )}
           </SectionCard>
+          ) : null}
 
           {/* ── 采购方式分布（环形图）── */}
           <SectionCard icon={Layers} title="采购方式分布"
@@ -914,9 +921,11 @@ export default function DashboardPage() {
                       <span className="min-w-0 flex-1">
                         <span className="line-clamp-2 text-[15px] font-semibold leading-snug text-[var(--foreground)]">{item.project}</span>
                         <span className="mt-1 flex items-center gap-1.5">
-                          <span className="max-w-[7rem] truncate rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 text-[13px] text-[var(--accent)]">
-                            {item.department}
-                          </span>
+                          {item.department && item.department !== "未归属部门" ? (
+                            <span className="max-w-[7rem] truncate rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 text-[13px] text-[var(--accent)]">
+                              {item.department}
+                            </span>
+                          ) : null}
                           <span className="truncate text-[13px] text-[var(--muted-foreground)]">节约 {item.savingsLabel}</span>
                         </span>
                       </span>

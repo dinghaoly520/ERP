@@ -101,7 +101,15 @@ export class AccountAdminController {
     const [registrations, passwordChanges, passwordResets, profileChanges, securityFeedback] = await Promise.all([
       this.prisma.user.count({ where: { role: 'internal_user', isActive: false } }),
       this.prisma.passwordChangeRequest.count({ where: { status: 'PENDING' } }),
-      this.prisma.passwordResetRequest.count({ where: { status: 'PENDING' } }),
+      // 忘记密码计数与账号管理「忘记密码」段同口径（internal scope，2026-10-23 修复角标虚高）：
+      // 供应商账号的重置申请归供应商审批中心处理（其角标已计 myCount.resets），此处计入会让
+      // 安全审批角标=1 而下方三段全 0（用户实录）——排除 matchedUser.role=supplier 的申请
+      this.prisma.passwordResetRequest.count({
+        where: {
+          status: 'PENDING',
+          OR: [{ matchedUser: { is: { role: { not: 'supplier' } } } }, { matchedUserId: null }],
+        },
+      }),
       this.prisma.profileChangeRequest.count({ where: { status: 'PENDING' } }),
       Promise.resolve(0), // 安全反馈暂无独立表（通知随重置密码自动消），占位 0
     ]);

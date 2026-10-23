@@ -4052,7 +4052,7 @@ export class SupplierPortalService {
     };
   }
 
-  async getMySubmissions(supplierId: string) {
+  async getMySubmissions(supplierId: string, opts?: { includeFinished?: boolean }) {
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: supplierId },
       select: { name: true },
@@ -4061,7 +4061,14 @@ export class SupplierPortalService {
       // B2-2（2026-09-30）：草稿一并返回——草稿仅在供应商显式「保存草稿」时创建（有截止
       // 闸门），此前全滤导致「我的投标」看不到已保存草稿（前端草稿徽标/提示是死代码，
       // 页面显示「暂无投标记录」误导用户以为保存失败）。
-      where: { supplierId },
+      //
+      // 阶段口径（2026-10-23 重叠修复）：默认全阶段（异议页依赖归档后仍能关联项目提
+      // 异议——objections/page.tsx 注释明示）；「我的投标 · 进行中」视图传
+      // includeFinished=false 排除 ARCHIVED/ABORTED（归口「已完成/合作历史」，防双列）。
+      where: {
+        supplierId,
+        ...(opts?.includeFinished === false ? { project: { stage: { notIn: ['ARCHIVED', 'ABORTED'] } } } : {}),
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         project: {
