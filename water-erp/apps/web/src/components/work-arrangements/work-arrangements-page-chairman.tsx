@@ -33,6 +33,7 @@ import {
 import {
   buildWorkbenchOverview,
   deriveReminderState,
+  reminderRelativeHint,
   selectWorkbenchOverviewItems,
   type WorkbenchStatKey,
 } from "@/lib/work-arrangements/workbench";
@@ -126,12 +127,26 @@ export function WorkArrangementsPageChairman({
     [allItems, selectedItemId],
   );
 
-  const selectedReminderState = useMemo(
-    () => (selectedItem ? deriveReminderState(selectedItem, new Date()) : null),
-    [selectedItem],
+  // 分钟钟（2026-10-26 与主页面同款）：详情弹窗提醒副文案随时间跳动；此前两处 memo
+  // 闭死在挂载时刻的 new Date()，弹窗开着跨过提醒时刻也不会翻转
+  const [nowTick, setNowTick] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNowTick(new Date()), 60 * 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const workbenchNow = useMemo(
+    () => new Date(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [nowTick, allItems, dailyPlan],
   );
-
-  const workbenchNow = useMemo(() => new Date(), [allItems, dailyPlan]);
+  const selectedReminderState = useMemo(
+    () => (selectedItem ? deriveReminderState(selectedItem, workbenchNow) : null),
+    [selectedItem, workbenchNow],
+  );
+  const selectedReminderHint = useMemo(
+    () => (selectedItem ? reminderRelativeHint(selectedItem, workbenchNow) : '未设置'),
+    [selectedItem, workbenchNow],
+  );
   const workbenchSummary = useMemo(
     () => buildWorkbenchOverview(allItems, dailyPlan, workbenchNow),
     [allItems, dailyPlan, workbenchNow],
@@ -442,6 +457,7 @@ export function WorkArrangementsPageChairman({
       open={showTaskModal}
       item={selectedItem}
       reminderState={selectedReminderState ?? ('NONE' as WorkArrangementReminderState)}
+      reminderHint={selectedReminderHint}
       noteType={noteType}
       noteDraft={noteDraft}
       noteSubmitting={noteSubmitting}

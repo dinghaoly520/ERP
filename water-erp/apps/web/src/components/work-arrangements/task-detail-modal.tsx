@@ -37,19 +37,6 @@ function formatDateTimeLabel(value: string | null) {
   }).format(new Date(value));
 }
 
-function reminderStateLabel(state: WorkArrangementReminderState) {
-  switch (state) {
-    case 'UPCOMING':
-      return '即将提醒';
-    case 'DUE_NOW':
-      return '提醒已到';
-    case 'OVERDUE':
-      return '提醒超时';
-    default:
-      return '未设置提醒';
-  }
-}
-
 const statusAccentMap: Record<
   WorkArrangementStatus,
   { bg: string; border: string; dot: string }
@@ -133,7 +120,10 @@ function getAvailableActions(
 interface TaskDetailModalProps {
   open: boolean;
   item: WorkArrangementItem | null;
+  /** 状态机值：仅驱动操作按钮分支（角标/横幅口径不变） */
   reminderState: WorkArrangementReminderState;
+  /** 提醒卡副文案：相对时刻活描述（2026-10-26 提醒状态不再作独立展示位，时间为主值） */
+  reminderHint: string;
   noteType: WorkArrangementNoteType;
   noteDraft: string;
   noteSubmitting: boolean;
@@ -156,6 +146,7 @@ export function TaskDetailModal({
   open,
   item,
   reminderState,
+  reminderHint,
   noteType,
   noteDraft,
   noteSubmitting,
@@ -259,10 +250,13 @@ export function TaskDetailModal({
                         <div className="neu-content-block px-3 py-3">
                           <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[color:var(--accent)]">
                             <Bell size={12} />
-                            提醒状态
+                            提醒时间
                           </div>
-                          <div className="mt-1.5 text-sm font-semibold text-[color:var(--foreground)]">
-                            {reminderStateLabel(reminderState)}
+                          <div className="mt-1.5 text-sm tabular-nums font-semibold text-[color:var(--foreground)]">
+                            {item.reminderAt ? formatDateTimeLabel(item.reminderAt) : '未设置'}
+                          </div>
+                          <div className="mt-0.5 text-[11px] text-[color:var(--muted-foreground)]">
+                            {reminderHint}
                           </div>
                         </div>
                         <div className="neu-content-block px-3 py-3">
@@ -356,7 +350,7 @@ export function TaskDetailModal({
                                 取消任务
                               </button>
                             )}
-                            {(reminderState === 'NONE' || reminderState === 'OVERDUE') && (
+                            {(!item.reminderAt || reminderState === 'OVERDUE') && (
                               <>
                                 <button
                                   type="button"
@@ -364,7 +358,7 @@ export function TaskDetailModal({
                                   className={`neu-btn-soft ${reminderState === 'OVERDUE' ? 'is-warning' : ''}`}
                                 >
                                   <Clock3 size={16} />
-                                  {reminderState === 'NONE' ? '设置提醒' : '新设提醒'}
+                                  {!item.reminderAt ? '设置提醒' : '新设提醒'}
                                 </button>
                                 {showReminderPicker && (
                                   <div className="flex items-center gap-2">
@@ -400,7 +394,7 @@ export function TaskDetailModal({
                                 )}
                               </>
                             )}
-                            {reminderState !== 'NONE' && reminderState !== 'OVERDUE' && (
+                            {!!item.reminderAt && reminderState !== 'OVERDUE' && (
                               <button
                                 type="button"
                                 onClick={onPostponeReminder}
