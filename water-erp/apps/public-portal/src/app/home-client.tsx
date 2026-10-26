@@ -619,7 +619,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
               <span className="footer-legal-meta">
                 <span className="footer-legal-owner">四川省水利发展集团有限公司 版权所有</span>
                 <span className="footer-legal-divider" aria-hidden="true" />
-                <span className="footer-legal-icp">蜀ICP备2020033056号-1</span>
+                <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" className="footer-legal-icp">蜀ICP备2020033056号-1</a>
               </span>
             </div>
           </div>
