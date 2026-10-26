@@ -86,13 +86,62 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
       });
   };
 
-  /** CSV 文本解析（BOM 剥离 / CRLF 清理 / 跨行引号合并 / 二进制防呆 / 科学计数法展开） */
+  /** 控制字符/替换符计数（二进制防呆口径：\t\n\r 以外的 C0 控制符 + UTF-8 解码失败替换符）。
+   *  写法刻意不用正则转义序列：控制字符字面量一旦经传输层转写，git 会判文件为二进制（25bf02a3 实录）。 */
+  const countBadChars = (s: string): number => {
+    let n = 0;
+    for (let i = 0; i < s.length; i++) {
+      const c = s.charCodeAt(i);
+      if (c <= 8 || (c >= 14 && c <= 31) || c === 0xfffd) n++;
+    }
+    return n;
+  };
+
+  /** CSV 文本解析（编码自动识别 UTF-8/UTF-16/GB18030 / BOM 剥离 / CRLF 清理 / 跨行引号合并 / 二进制防呆 / 科学计数法展开） */
   const parseCsvRows = async (file: File): Promise<Array<Record<string, string>>> => {
-    const text = (await file.text()).replace(/^\ufeff/, '');
-    // 非文本文件防呆（2026-10-22 实录：二进制被当文本解析，乱码行数≠名单行数、全部静默跳过）
-    const badChars = (text.match(/[\u0000-\u0008\u000e-\u001f\ufffd]/g) ?? []).length;
-    if (text.startsWith('PK') || badChars > text.length * 0.02) {
-      throw new Error('当前文件不是 CSV 文本——xlsx 可直接导入（已支持）；其他格式请转为 CSV UTF-8');
+    // 格式魔数先行，命中即给可操作指引（2026-10-26：GBK 中文 CSV 曾被「不是 CSV 文本」笼统
+    // 误杀——先判真实格式再谈编码，见下方编码识别）
+    const buf = new Uint8Array(await file.arrayBuffer());
+    if (buf[0] === 0x50 && buf[1] === 0x4b) {
+      throw new Error('该文件是 xlsx（zip）格式——无需转 CSV，直接选择该 .xlsx 文件导入即可（已支持）');
+    }
+    if (buf[0] === 0xd0 && buf[1] === 0xcf && buf[2] === 0x11 && buf[3] === 0xe0) {
+      throw new Error('该文件是旧版 .xls 格式——暂不支持，请在 Excel 中另存为 .xlsx（推荐）或 CSV 后重试');
+    }
+    // 编码识别：BOM 优先（UTF-16LE/BE）；无 BOM 先按 UTF-8 解码，无效字节占比高则回退 GB18030
+    // （Excel「CSV(逗号分隔)」默认 ANSI/GBK 口径——中文双字节在 UTF-8 下全是替换符，旧版 2%
+    // 阈值必误杀，2026-10-26 根治）
+    let text: string;
+    let encodingNote = '';
+    if (buf.length >= 2 && buf[0] === 0xff && buf[1] === 0xfe) {
+      text = new TextDecoder('utf-16le').decode(buf.subarray(2));
+      encodingNote = 'UTF-16LE';
+    } else if (buf.length >= 2 && buf[0] === 0xfe && buf[1] === 0xff) {
+      text = new TextDecoder('utf-16be').decode(buf.subarray(2));
+      encodingNote = 'UTF-16BE';
+    } else {
+      const utf8 = new TextDecoder('utf-8').decode(buf);
+      const badUtf8 = countBadChars(utf8);
+      if (badUtf8 > 3 && badUtf8 > buf.length * 0.01) {
+        const gb = new TextDecoder('gb18030').decode(buf);
+        if (countBadChars(gb) <= gb.length * 0.02) {
+          text = gb;
+          encodingNote = 'GB18030';
+        } else {
+          throw new Error('文件内容无法按文本解析——不是有效的 UTF-8 / GBK 编码 CSV，疑似二进制。请用 Excel 打开确认后另存为 .xlsx（推荐）或「CSV UTF-8」再导入');
+        }
+      } else {
+        text = utf8;
+      }
+    }
+    if (encodingNote) {
+      toast.info(`已按 ${encodingNote} 编码自动识别读取——建议日后另存为「CSV UTF-8」更稳妥`);
+    }
+    if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+    // 兜底防呆（2026-10-22 实录：二进制被当文本解析，乱码行数≠名单行数、全部静默跳过；
+    // 魔数未命中的 rar/7z 等压缩包在此拦截）
+    if (countBadChars(text) > text.length * 0.02) {
+      throw new Error('当前文件疑似二进制/压缩包，不是 CSV 文本——xlsx 可直接导入；压缩包请先解压，其他格式请转为 xlsx 或 CSV UTF-8');
     }
     const rawLines = text.trim().split('\n').map(l => l.replace(/\r$/, ''));
     // 跨行引号字段合并（四审 P2）：引号内含换行的字段此前被切断、后半段成独立行静默错位
