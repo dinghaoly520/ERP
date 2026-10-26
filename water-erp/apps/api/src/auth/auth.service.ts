@@ -170,14 +170,22 @@ export class AuthService {
       // 状态细化（2026-10-22 审计修复）：未激活 ≠ 一律「待审核」——按角色查权威状态源分流，
       // 否则退库专家/停用拉黑供应商被误报「账号待审核，尚未激活」。口径先例：TEMPORARY_EXPIRED。
       if (user.role === 'bid_expert') {
+        // 专家分支终局三分（2026-10-26 用户口径：专家入库无需审核——建档即 isActive=true，
+        // 不存在「待审核未激活」态）：退库/停用各回专属码，残缺态兜底也不得说「账号待审核」。
         const profile = await this.prisma.expertProfile.findUnique({
           where: { userId: user.id },
-          select: { entryStatus: true, retiredAt: true },
+          select: { entryStatus: true, retiredAt: true, availability: true },
         });
         // retiredAt 兜底兼容历史路径漏写 entryStatus（同恢复路径口径）
         if (profile?.entryStatus === 'RETIRED' || profile?.retiredAt) {
           return { pending: true as const, role: user.role, code: 'ACCOUNT_RETIRED' };
         }
+        // 停用（非退库）：setAvailability/批量停用置 isActive=false + availability=停用，
+        // 不写退库字段（entryStatus 仍 ACTIVE）——曾漏网落 ACCOUNT_PENDING 误报「待审核」
+        if (profile?.availability === '停用') {
+          return { pending: true as const, role: user.role, code: 'EXPERT_DISABLED' };
+        }
+        return { pending: true as const, role: user.role, code: 'EXPERT_INACTIVE' };
       }
       if (user.role === 'supplier') {
         // 停用/拉黑联动 isActive=false（updateStatus）——不得误报「待审核」；

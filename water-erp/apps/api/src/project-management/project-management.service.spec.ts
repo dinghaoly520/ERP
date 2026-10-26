@@ -417,6 +417,7 @@ describe('ProjectManagementService', () => {
         createMany: jest.fn(),
         findMany: jest.fn().mockResolvedValue([]),
         findFirst: jest.fn(),
+        findUnique: jest.fn(),
         findFirstOrThrow: jest
           .fn()
           .mockResolvedValue({ id: 'stage-initiation' }),
@@ -1305,6 +1306,73 @@ describe('ProjectManagementService', () => {
 
     expect(prisma.projectManagementStage.update).not.toHaveBeenCalled();
     expect(prisma.attachment.delete).not.toHaveBeenCalled();
+  });
+
+  describe('旧轮内容只读闸 PAST_ROUND_READONLY（2026-10-26 补漏：内容级写端点服务端兜底）', () => {
+    const setup = (prisma: Record<string, any>, opts?: { stageId?: string | null; itemId?: string }) => {
+      // PMI 第 2 轮进行中；附件挂第 1 轮（旧轮）阶段
+      prisma.projectManagementItem.findUnique.mockResolvedValue({
+        id: 'pm-01', status: 'ACTIVE', currentRound: 2,
+      });
+      prisma.projectManagementStage.findUnique.mockResolvedValue({ id: 's-old', round: 1 });
+      prisma.attachment.findUnique.mockResolvedValue({
+        id: 'a1', fileName: '采购文件.docx', objectKey: 'k1',
+        projectManagementItemId: opts?.itemId ?? 'pm-01',
+        projectManagementStageId: opts?.stageId === undefined ? 's-old' : opts.stageId,
+      });
+    };
+
+    it('deleteAttachment：旧轮附件拒绝删除（409），附件零删除', async () => {
+      const { service, prisma } = makeService();
+      setup(prisma);
+      await expect(service.deleteAttachment('pm-01', 'a1'))
+        .rejects.toMatchObject({ response: { code: 'PAST_ROUND_READONLY' } });
+      expect(prisma.attachment.delete).not.toHaveBeenCalled();
+    });
+
+    it('saveAttachmentParagraphs / saveAttachmentHtml / replaceAttachmentWithText：旧轮附件正文不可写（409）', async () => {
+      const { service, prisma } = makeService();
+      setup(prisma);
+      await expect(service.saveAttachmentParagraphs('pm-01', { attachmentId: 'a1', paragraphs: [] }))
+        .rejects.toMatchObject({ response: { code: 'PAST_ROUND_READONLY' } });
+      await expect(service.saveAttachmentHtml('pm-01', { attachmentId: 'a1', html: '<p>x</p>' }))
+        .rejects.toMatchObject({ response: { code: 'PAST_ROUND_READONLY' } });
+      await expect(service.replaceAttachmentWithText('pm-01', 'a1', '新文本', '新文件.docx'))
+        .rejects.toMatchObject({ response: { code: 'PAST_ROUND_READONLY' } });
+    });
+
+    it('addStageAttachment：显式传旧轮 round 直传被拒（409）——此前唯一穿透路径', async () => {
+      const { service, prisma } = makeService();
+      setup(prisma);
+      prisma.projectManagementStage.findFirst.mockResolvedValue({ id: 's-old', round: 1, attachments: [] });
+      await expect(
+        service.addStageAttachment('pm-01', 'TENDER_DOCUMENT', {
+          originalname: 'x.pdf', mimetype: 'application/pdf', buffer: Buffer.from('x'), size: 1,
+        } as Express.Multer.File, 'u1', 1),
+      ).rejects.toMatchObject({ response: { code: 'PAST_ROUND_READONLY' } });
+      expect(prisma.attachment.create).not.toHaveBeenCalled();
+    });
+
+    it('属主校验补漏：附件属他项目 → 拒绝（段落/HTML/文本替换三端点此前裸按 id 取行无属主查）', async () => {
+      const { service, prisma } = makeService();
+      setup(prisma, { itemId: 'pm-other' });
+      await expect(service.saveAttachmentParagraphs('pm-01', { attachmentId: 'a1', paragraphs: [] }))
+        .rejects.toThrow('该附件不属于当前项目。');
+      await expect(service.saveAttachmentHtml('pm-01', { attachmentId: 'a1', html: '<p>x</p>' }))
+        .rejects.toThrow('该附件不属于当前项目。');
+      await expect(service.replaceAttachmentWithText('pm-01', 'a1', 't', 'f.docx'))
+        .rejects.toThrow('该附件不属于当前项目。');
+    });
+
+    it('当前轮附件不受影响：deleteAttachment 放行到删除（回归）', async () => {
+      const { service, prisma } = makeService();
+      setup(prisma);
+      prisma.projectManagementStage.findUnique.mockResolvedValue({
+        id: 's-cur', round: 2, stageKey: 'TENDER_DOCUMENT', status: 'IN_PROGRESS', officialTenderAttachmentId: null,
+      });
+      await expect(service.deleteAttachment('pm-01', 'a1')).resolves.toBeTruthy();
+      expect(prisma.attachment.delete).toHaveBeenCalledWith({ where: { id: 'a1' } });
+    });
   });
 
   it('rejects marking a later stage complete before the current stage finishes', async () => {

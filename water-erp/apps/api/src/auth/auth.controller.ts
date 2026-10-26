@@ -24,13 +24,18 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 // secure 标志环境门控：仅 production 生效，保证 dev/e2e（NODE_ENV=test）在 http 下仍可登录。
 // path 固定 '/'，登出 clearCookie 须传同样 opts 才能匹配删除浏览器 cookie。
+// cookie domain：默认不设（host-only）——dev localhost/192.168.x.x 各端口 cookie 天然共享
+// （RFC 6265 不区分端口），指定 domain='localhost' 平板经 IP 访问时浏览器会拒存。
+// 生产域名部署（*.scsfjt.com）必须设 COOKIE_DOMAIN=.scsfjt.com：各门户子域是不同 host，
+// 跨子域 cookie 是 :3006 分流写 token_bid 跳 :3007、WS 直连 api-ssyc 带凭据的前提
+// （dev 靠端口共享，域名模式无此天然共享）。登出 clearCookie 引用同一常量，镜像一致。
+const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN?.trim() || undefined;
+
 const COOKIE_OPTS = {
   httpOnly: true,
   sameSite: 'lax' as const,
   secure: IS_PRODUCTION,
-  // 不设 domain：cookie 自动限定为当前请求来源 host。
-  // 开发环境可通过 localhost 或 192.168.x.x 访问，各端口 cookie 天然共享（RFC 6265 不区分端口）。
-  // 若指定 domain='localhost'，平板通过 192.168.1.111 访问时浏览器会拒绝存储 cookie。
+  domain: COOKIE_DOMAIN,
   path: '/',
   maxAge: 7 * 24 * 3600 * 1000,
 };
@@ -132,6 +137,8 @@ export class AuthController {
         result.code === 'TEMPORARY_EXPIRED' ? '临时供应商有效期已过，请联系采购中心'
         : result.code === 'ACCOUNT_FROZEN' ? '该账号已被冻结，请联系管理员'
         : result.code === 'ACCOUNT_RETIRED' ? '该专家已退库停用，如需恢复请联系管理单位'
+        : result.code === 'EXPERT_DISABLED' ? '该专家已被停用，如需恢复请联系管理单位'
+        : result.code === 'EXPERT_INACTIVE' ? '该专家账号未启用，请联系管理单位'
         : result.code === 'ACCOUNT_DISABLED' ? '该供应商已被停用，如有疑问请联系采购中心'
         : result.code === 'ACCOUNT_BLACKLISTED' ? '该供应商已被列入黑名单，如有疑问请联系采购中心'
         : result.code === 'SUPPLIER_REJECTED' ? '注册申请未通过审核，可在注册页修改资料后重新提交'

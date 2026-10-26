@@ -291,6 +291,25 @@ describe('tokenFromHandshake 门户判定（多 cookie 共存）', () => {
   it('专家门户无 token_expert 时不再回退 token_web', () => {
     expect(tokenFromHandshake(mk(WEB, { 'x-portal': 'expert' }))).toBeUndefined();
   });
+
+  // ── 域名家族 Origin（无端口，2026-10-26 *.scsfjt.com 部署）：按子域反查门户 ──
+
+  it('域名 Origin 按子域判门户——bid 读 token_bid、supplier/expert 各归各命名空间', () => {
+    const BID = 'token_bid=bid-jwt';
+    expect(tokenFromHandshake(mk(`${WEB}; ${BID}`, { origin: 'https://bid-ssyc.scsfjt.com' }))).toBe('bid-jwt');
+    expect(tokenFromHandshake(mk(`${WEB}; ${SUP}`, { origin: 'https://supplier-ssyc.scsfjt.com' }))).toBe('sup-jwt');
+    expect(tokenFromHandshake(mk(`${WEB}; ${EXP}`, { origin: 'https://expert-ssyc.scsfjt.com' }))).toBe('exp-jwt');
+    expect(tokenFromHandshake(mk(WEB, { origin: 'https://procurement-ssyc.scsfjt.com' }))).toBe('web-jwt');
+  });
+
+  it('域名 Origin 非四门户（信息门户 ssyc 子域）→ 默认 web 口径（token_web 优先）', () => {
+    expect(tokenFromHandshake(mk(`${WEB}; ${SUP}`, { origin: 'https://ssyc.scsfjt.com' }))).toBe('web-jwt');
+  });
+
+  it('域名家族 Origin 无对应 token 时不跨命名空间回退（纵深防御语义保持）', () => {
+    expect(tokenFromHandshake(mk(WEB, { origin: 'https://supplier-ssyc.scsfjt.com' }))).toBeUndefined();
+    expect(tokenFromHandshake(mk(WEB, { origin: 'https://bid-ssyc.scsfjt.com' }))).toBeUndefined();
+  });
 });
 
 describe('BidGateway join:project 认证兜底 + 角色白名单（C1/S1 回归防护）', () => {

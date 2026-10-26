@@ -28,6 +28,10 @@ const IconEye = (
 const IconEyeOff = (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
 );
+// 平板入口图标（Lucide tablet 同源，16px/1.8 描边对齐字段图标词汇）
+const IconTablet = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M10.5 18.25h3" /></svg>
+);
 
 type Tab = 'expert' | 'admin';
 
@@ -220,7 +224,7 @@ function ExpertLoginPage() {
         {/* 底部署名（:3005 同款 TrueFocus 逐字聚焦；reduced-motion 回退静态文本）。
             .login-credit 是 inline-block——外层块级容器 + text-center 负责居中
             （:3005 靠 form 的 flex items-center，本页结构不同，故显式包一层） */}
-        <div className="login-rise login-rise--4 mt-7 text-center">
+        <div className="login-rise login-rise--4 mt-7 flex flex-col items-center">
           <div className="login-credit">
             {prefersReducedMotion ? (
               <span className="login-credit__static">四川水利发展集团有限公司　制</span>
@@ -242,13 +246,14 @@ function ExpertLoginPage() {
               主路径是桌面评审页扫码迁移（/tablet/claim）；此处为确定性兜底（平板会话中断重登等）。
               文案与去向随 device_mode cookie 翻转：未声明/桌面态→「进平板」，tablet 态→「回桌面」——
               点击 307 回弹本页后链接即变，作为切换已生效的可见反馈。
-              ?device=tablet|desktop 由 proxy 写 7 天 cookie 后 302 对应首页（未登录则再弹回本页并带 redirect） */}
+              ?device=tablet|desktop 由 proxy 写 7 天 cookie 后 302 对应首页（未登录则再弹回本页并带 redirect）
+                    次级玻璃药丸（login-tablet-entry）：主登录键的安静变体，勿做成第二主按钮 */}
           {tab === 'expert' && (
-            <a
-              href={isTabletMode ? '/?device=desktop' : '/?device=tablet'}
-              className="mt-4 block py-2.5 text-xs text-[color:var(--muted-foreground)] underline underline-offset-4 transition-colors hover:text-[color:var(--foreground)]"
-            >
-              {isTabletMode ? '桌面设备？进入桌面评分模式' : '平板设备？进入平板评分模式'}
+            // eslint-disable-next-line @next/next/no-html-link-for-pages -- 须整页导航经 proxy 写 device_mode cookie 后 302 /tablet，Link 软导航不等价
+            <a href={isTabletMode ? '/?device=desktop' : '/?device=tablet'} className="login-tablet-entry">
+              <span aria-hidden className="login-tablet-entry__icon">{IconTablet}</span>
+              <span>{isTabletMode ? '桌面设备？进入桌面评分模式' : '平板设备？进入平板评分模式'}</span>
+              <span aria-hidden className="login-tablet-entry__chevron">{IconArrow}</span>
             </a>
           )}
         </div>

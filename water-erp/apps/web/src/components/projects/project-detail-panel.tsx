@@ -1049,6 +1049,7 @@ export function ProjectDetailPanel({
 
   const handleStartEdit = (field: string, currentValue: string | number | null | undefined) => {
     if (actionsDisabled) return; // 只读（归档/终止/非创建人）
+    if (isPastRound) { toast.warning('该步骤属已完成的历史轮次，仅供查看'); return; } // 2026-10-26 补：字段编辑入口未过旧轮闸
     if (isBidLocked) { toast.warning('开标已确认，项目基本信息不可修改'); return; }
     setEditingField(field);
     let value = currentValue != null ? String(currentValue) : '';
@@ -1074,6 +1075,9 @@ export function ProjectDetailPanel({
   };
 
   const handleSaveField = async (field: string) => {
+    // 与 handleStartEdit 同闸（2026-10-26 稳健补）：兜底编辑态跨阶段残留——
+    // 切换到旧轮/锁定阶段时旧编辑器未关，Save 不应绕过只读语义
+    if (actionsDisabled || isPastRound) { setEditingField(null); return; }
     const value = editValues[field as keyof typeof editValues];
     const payload: Record<string, unknown> = {};
 
@@ -1445,7 +1449,7 @@ export function ProjectDetailPanel({
                 : localItem.stages}
               activeStageKey={selectedStage.stageKey}
               activeRound={selectedRound}
-              onSelect={(key, round) => { setSelectedStageKey(key); setSelectedRound(round); }}
+              onSelect={(key, round) => { setSelectedStageKey(key); setSelectedRound(round); setEditingField(null); }}
               onStageAction={actionsDisabled ? undefined : (stageKey, round) => {
                 if (actionsDisabled) { toast.info('只读模式，仅供查看'); return; }
                 // 旧轮全部只读（2026-10-23 流标统一流）：历史轮次步骤卡快捷操作全关（按被点卡片自身轮次判）
@@ -1486,7 +1490,7 @@ export function ProjectDetailPanel({
                 try {
                   await reopenProjectStage(item.id, stageKey, round);
                   // 重开后选中该步骤并回到编辑视图；分析缓存按 stageKey 键控、附件未动——分析内容保留
-                  setSelectedStageKey(stageKey);
+                  setSelectedStageKey(stageKey); setEditingField(null);
                   setSelectedRound(round);
                   await handleUpdated();
                 } catch (e) {
@@ -2149,7 +2153,7 @@ export function ProjectDetailPanel({
                     ? [selectedStage.officialTenderAttachmentId]
                     : undefined
                 }
-                readOnly={actionsDisabled}
+                readOnly={actionsDisabled || isPastRound} /* 2026-10-26：旧轮附件只读——删除/编辑入口一并收口（后端 PAST_ROUND_READONLY 硬闸同步） */
                 onDeleted={async (deletedObjectKey) => {
                   // 判断被删文件是否"采购文件"（信息来源），而非审批表/公告/合同等附件
                   const deletedFile = selectedStage.attachments.find((a) => a.objectKey === deletedObjectKey);
@@ -2187,7 +2191,7 @@ export function ProjectDetailPanel({
                     setAnalysis({ ...analysis, fileAnalyses: analysis.fileAnalyses.filter((fa) => fa.objectKey !== deletedObjectKey) });
                   }
                 }}
-                onEdit={actionsDisabled ? undefined : (attachmentId, fileName) => setEditingFile({ attachmentId, fileName, stageKey: selectedStage.stageKey })}
+                onEdit={actionsDisabled || isPastRound ? undefined : (attachmentId, fileName) => setEditingFile({ attachmentId, fileName, stageKey: selectedStage.stageKey })}
               />
 
               {/* 上传区 —— cgzxui 内凹底（已归档：整体禁用） */}

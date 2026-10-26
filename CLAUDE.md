@@ -269,6 +269,13 @@ api: 4001, public: 3002, mall: 3003, supplier: 3004,
 web: 3005, expert: 3006, bid: 3007, assistant: 3008
 ```
 
+**生产域名双轨（2026-10-26，《子域名申请单》已处理·新终版）**：`packages/config/src/domains.ts`（`PORTAL_DOMAINS` + `inDomainFamily` + `portalFromHostname` + `portalOriginForHost`）——`*.scsfjt.com` 家族 7 业务（ssyc/api-/supplier-/expert-/procurement-/bid-/mobile-ssyc）。四个消费面同口径「域名访问跳域名、端口/IP 访问跳端口」：
+1. **浏览器互跳** `portalURL()`/`landingURL()`：当前页经域名家族访问 → 目标门户子域（无端口、协议随当前页）；端口/IP 访问 → 端口互跳不变。
+2. **后端外发链接** `apps/api/src/common/portal-link-origin.ts`（RSVP 回执等）：请求 Origin/X-Forwarded-Host 判家族 + X-Forwarded-Proto 定协议（缺省 https）。
+3. **Next middleware**（expert/bid-portal `proxy.ts`）：服务端无 window，`portalURL` 恒落 localhost 占位不可用——登录跳转与 `/api/auth/me` 回源一律走 `portalOriginForHost(app, Host头, X-Forwarded-Proto)`（`API_ORIGIN` env 对 api 最高优先）。
+4. **WS 握手门户判定** `bid.gateway.ts` `portalFromHandshake`/`tokenFromHandshake`（notification.gateway 复用同函数）：X-Portal 头 → Origin 端口 → **Origin 子域反查**（`portalFromHostname`）——域名 Origin 无端口，无此分支则全部误读 token_web（bid 端 token_bid 拿不到、开标大厅 WS 401）。chat.gateway 故意跨命名空间读全 token，不走此链。
+**申请单未列业务（mall :3003 / assistant :3008 / bigscreen :3010）无子域**，域名模式下回退端口口径。**跨子域 cookie 是第 5 个消费面（2026-10-26 补）**：各门户子域是不同 host，dev「cookie 不分端口」的天然共享不存在——`auth.controller.ts`/`ca-auth.controller.ts` 的 `COOKIE_OPTS` 经 `COOKIE_DOMAIN` env 注入 `domain=.scsfjt.com`（登出 clearCookie 引用同常量镜像一致），否则 :3006 分流写 token_bid 跳 :3007 登录死循环、WS 直连 api-ssyc 无凭据。生产部署 env 四件套：`COOKIE_DOMAIN=.scsfjt.com`、`API_ORIGIN=https://api-ssyc.scsfjt.com`、`CORS_ORIGINS` 列全部门户子域、`TRUST_PROXY=1`；nginx 须传 `X-Forwarded-Proto/Host` 与 WS `Upgrade/Connection` 头。各门户 `PORTAL_*_URL` env 覆盖仍最高优先。注意（既有行为非新引入）：`NODE_ENV=production` 下 cookie 恒 `Secure`，`http://公网IP:端口` 直连登录会被浏览器丢 cookie——生产统一走域名 https。
+
 ### Auth & Cookie Isolation
 
 Each portal uses an independent login session via named httpOnly cookies:
@@ -372,10 +379,11 @@ JWT_SECRET=...                     # 生产 ≥32 字符，否则拒绝启动（
 SMS_DEBUG_BYPASS=true              # Skip real SMS; auto-verify with code "123456"
 CORS_ORIGINS=https://erp.example.com,https://supplier.example.com  # 生产真实域名；未设→仅 localhost
 TRUST_PROXY=1                      # 生产反代后信任一跳；默认 'loopback'
+COOKIE_DOMAIN=.scsfjt.com          # 生产域名部署必设：跨子域 cookie（:3006 分流写 token_bid 跳 :3007、WS 直连 api-ssyc 带凭据的前提）；未设=host-only（dev/IP 端口访问语义不变）
 
 # ── 基础设施 ──
 REDIS_URL=redis://localhost:6380   # BullMQ + ioredis；API 与 ai-bid worker 都读它（缺省回退 localhost:6380）
-OCR_SERVICE_URL=http://localhost:8100  # OCR 微服务（services/ocr），local-ai/OcrService 消费
+OCR_SERVICE_URL=http://localhost:8100  # OCR 微服务（services/ocr），local-ai/OcrService 消费（后端内部依赖，浏览器零直连，无需域名）；生产分机部署（2026-10-26）：http://10.60.14.14:8100（生产 .env 设此项；本机开发不设=默认 localhost 配 pnpm dev:ocr）
 KMS_SECRET=...                     # 信封加密主密钥：见下方「投标文件密钥信封加密」；生产必填，空则抛错
 FIELD_ENC_SECRET=...               # 敏感字段国密加密主密钥（PII sm1: SM4-CBC+HMAC-SM3，等保+密评 2026-10；生产缺失/<32 拒绝启动；dev 回退固定钥；FIELD_ENC_SECRET_OLD 轮转旧钥）
 BID_DUAL_ENVELOPE=true            # 双信封新轨总开关（=false 全局退回旧轨 KMS 信封投递；默认开，灰度/应急双向可退）

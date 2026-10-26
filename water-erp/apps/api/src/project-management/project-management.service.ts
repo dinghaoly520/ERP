@@ -1367,12 +1367,11 @@ ${shortlist}
     // 校验 projectManagementStageId 必拒"该文件不属于本步骤"→流标重采后 03 无法完成。
     // 显式 round 优先；缺省回退 item.currentRound（兼容不带 round 的存量调用方）。
     // （对照 updateStage :3347 同款修复早已有注释警示，唯独此处漏网。）
-    const targetRound = round ?? (
-      await this.prisma.projectManagementItem.findUnique({
-        where: { id: projectId },
-        select: { currentRound: true },
-      })
-    )?.currentRound ?? 1;
+    const roundItem = await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+      select: { currentRound: true },
+    });
+    const targetRound = round ?? roundItem?.currentRound ?? 1;
 
     const stage = await this.prisma.projectManagementStage.findFirst({
       where: { projectManagementItemId: projectId, stageKey, round: targetRound },
@@ -1381,6 +1380,16 @@ ${shortlist}
 
     if (!stage) {
       throw new NotFoundException('未找到对应的项目阶段。');
+    }
+
+    // ★ 旧轮内容只读闸（2026-10-26 补漏）：与 updateStage/reopenStage 的 PAST_ROUND_READONLY
+    // 同源——再次采购后历史轮次仅供查看。前端 stageLocked 已挡，此处防 API 显式传旧轮
+    // round 直传（此前显式 round=1 可穿透写旧轮附件）。
+    if (targetRound < (roundItem?.currentRound ?? 1)) {
+      throw new ConflictException({
+        error: '该步骤属已完成的历史轮次，仅供查看',
+        code: 'PAST_ROUND_READONLY',
+      });
     }
 
     // 同名文件覆盖：先删除旧版本再上传新版本（采购文件只需保留最新一份）
@@ -3457,6 +3466,40 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new ConflictException({
         error: `项目${PMI_STATUS_MUTABLE_LABEL[item.status] ?? item.status}，不可变更（归档数据不可扰动；更正请走重新归档流程）`,
         code: 'PMI_NOT_ACTIVE',
+      });
+    }
+  }
+
+  /**
+   * ★ 附件属主 + 旧轮内容只读闸（2026-10-26 补漏）：阶段内容写端点（附件删/段落/HTML/
+   * 文本替换）统一前置。属主校验对齐 deleteAttachment 既有口径（附件须属本项目——
+   * saveAttachmentParagraphs / replaceAttachmentWithText / saveAttachmentHtml 三处此前
+   * 裸按附件 id 取行、无属主校验）；旧轮闸与 updateStage / reopenStage 的
+   * PAST_ROUND_READONLY 同源——再次采购后历史轮次仅供查看，防 API 直写（前端
+   * stageLocked 已挡，2026-10-23 统一流漏了内容级端点的服务端兜底）。
+   * 项目级附件（未挂阶段）只过属主闸。
+   */
+  private async assertStageAttachmentMutable(
+    projectId: string,
+    attachment: { projectManagementItemId: string | null; projectManagementStageId: string | null },
+  ): Promise<void> {
+    if (attachment.projectManagementItemId !== projectId) {
+      throw new BadRequestException('该附件不属于当前项目。');
+    }
+    if (!attachment.projectManagementStageId) return;
+    const stage = await this.prisma.projectManagementStage.findUnique({
+      where: { id: attachment.projectManagementStageId },
+      select: { round: true },
+    });
+    if (!stage) return;
+    const item = await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+      select: { currentRound: true },
+    });
+    if ((stage.round ?? 1) < (item?.currentRound ?? 1)) {
+      throw new ConflictException({
+        error: '该步骤属已完成的历史轮次，仅供查看',
+        code: 'PAST_ROUND_READONLY',
       });
     }
   }
@@ -6040,9 +6083,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new NotFoundException('未找到对应的附件。');
     }
 
-    if (attachment.projectManagementItemId !== projectId) {
-      throw new BadRequestException('该附件不属于当前项目。');
-    }
+    // 属主校验 + 旧轮内容只读闸（2026-10-26 补漏——旧轮附件不可删，见 helper 注释）
+    await this.assertStageAttachmentMutable(projectId, attachment);
 
     // 冻结锁（2026-09-27）：已完成的 03 正式盖章版不可删除（防归档断链）
     await this.assertAttachmentNotFrozen(attachment);
@@ -7152,9 +7194,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
     await this.assertPmiMutable(projectId);
     const oldAttachment = await this.prisma.attachment.findUnique({
       where: { id: dto.attachmentId },
-      select: { id: true, fileName: true, objectKey: true, projectManagementStageId: true },
+      select: { id: true, fileName: true, objectKey: true, projectManagementItemId: true, projectManagementStageId: true },
     });
     if (!oldAttachment) throw new NotFoundException('未找到对应附件');
+    await this.assertStageAttachmentMutable(projectId, oldAttachment); // 属主+旧轮闸（2026-10-26 补漏，此前两查皆无）
 
     const filePath = resolve(process.cwd(), 'uploads', oldAttachment.objectKey);
     const buffer = await readFile(filePath);
@@ -7356,9 +7399,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
     await this.assertPmiMutable(projectId);
     const oldAttachment = await this.prisma.attachment.findUnique({
       where: { id: attachmentId },
-      select: { id: true, fileName: true, objectKey: true, projectManagementStageId: true },
+      select: { id: true, fileName: true, objectKey: true, projectManagementItemId: true, projectManagementStageId: true },
     });
     if (!oldAttachment) throw new NotFoundException('未找到对应附件');
+    await this.assertStageAttachmentMutable(projectId, oldAttachment); // 属主+旧轮闸（2026-10-26 补漏，此前两查皆无）
 
     // 构造 Multer-like file 对象并持久化
     const { attachment: newAttachment } = await this.persistUploadedFile(
@@ -7632,9 +7676,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
     await this.assertPmiMutable(projectId);
     const oldAttachment = await this.prisma.attachment.findUnique({
       where: { id: dto.attachmentId },
-      select: { id: true, fileName: true, objectKey: true, projectManagementStageId: true },
+      select: { id: true, fileName: true, objectKey: true, projectManagementItemId: true, projectManagementStageId: true },
     });
     if (!oldAttachment) throw new NotFoundException('未找到对应附件');
+    await this.assertStageAttachmentMutable(projectId, oldAttachment); // 属主+旧轮闸（2026-10-26 补漏，此前两查皆无）
 
     // 冻结锁（2026-09-27）：已完成的 03 正式盖章版不可替换内容
     await this.assertAttachmentNotFrozen(oldAttachment);

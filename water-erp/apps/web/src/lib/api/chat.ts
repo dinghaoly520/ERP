@@ -1,7 +1,7 @@
 'use client';
 
 import { io, type Socket } from 'socket.io-client';
-import { PORTS } from '@water-erp/config';
+import { PORTS, PORTAL_DOMAINS, inDomainFamily } from '@water-erp/config';
 import { api } from '../api';
 
 // ── 类型 ──
@@ -89,6 +89,12 @@ function resolveWsBaseUrl(): string {
   const env = process.env.NEXT_PUBLIC_CHAT_WS_URL;
   if (env) return env.replace(/\/+$/, '');
   if (typeof window === 'undefined') return `http://localhost:${PORTS.api}`;
+  // 域名家族访问（*.scsfjt.com，2026-10-26）→ API 子域直连（无端口，协议随当前页）；
+  // IP/端口访问 → 同主机 + API 端口（与 portalURL 双轨同口径）。
+  const domain = PORTAL_DOMAINS.api;
+  if (domain && inDomainFamily(window.location.hostname)) {
+    return `${window.location.protocol}//${domain}`;
+  }
   return `${window.location.protocol}//${window.location.hostname}:${PORTS.api}`;
 }
 

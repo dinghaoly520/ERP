@@ -63,10 +63,14 @@ function caCookieName(portal: string): string { return `${CA_COOKIE_PREFIX}${por
 function caCookieHash(cookieValue: string): string {
   return createHash('sha256').update(cookieValue).digest('hex');
 }
+// COOKIE_DOMAIN 同 auth.controller（生产域名部署 .scsfjt.com；默认不设=host-only，dev 语义不变）
+const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN?.trim() || undefined;
+
 const CA_COOKIE_OPTS = {
   httpOnly: true,
   sameSite: 'lax' as const,
   secure: process.env.NODE_ENV === 'production',
+  domain: COOKIE_DOMAIN,
   path: '/api/auth/ca/',
   maxAge: 10 * 60 * 1000, // 10 分钟
 };
@@ -216,7 +220,8 @@ export class CaAuthController {
     // 写 cookie + 清匿名 cookie
     const cookiePortal = portalForRole(user.role) || 'supplier';
     res.cookie(cookieNameForPortal(cookiePortal), result.access_token, {
-      httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/',
+      httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production',
+      domain: COOKIE_DOMAIN, path: '/',
     });
     res.clearCookie(caCookieName(portal), CA_COOKIE_OPTS);
 

@@ -54,4 +54,44 @@ describe('resolvePortalLinkOrigin', () => {
     mockLan('192.168.1.5');
     expect(resolvePortalLinkOrigin('expert', { origin: 'http://192.168.1.9:3005' })).toBe('http://192.168.1.9:3006');
   });
+
+  // ── 域名家族双轨（2026-10-26，*.scsfjt.com 子域名申请单）：域名访问 → 域名互跳 ──
+
+  it('域名家族访问（Origin https）→ 目标门户子域，无端口，协议随 Origin', () => {
+    mockLan('192.168.1.5');
+    expect(
+      resolvePortalLinkOrigin('supplier', { origin: 'https://procurement-ssyc.scsfjt.com' }),
+    ).toBe('https://supplier-ssyc.scsfjt.com');
+  });
+
+  it('域名家族但仅 X-Forwarded-Host（无协议头）→ 缺省 https（公网家族恒 TLS）', () => {
+    mockLan('192.168.1.5');
+    expect(
+      resolvePortalLinkOrigin('expert', { 'x-forwarded-host': 'ssyc.scsfjt.com' }),
+    ).toBe('https://expert-ssyc.scsfjt.com');
+  });
+
+  it('X-Forwarded-Proto 优先于 Origin scheme（反代 http 回源场景）', () => {
+    mockLan('192.168.1.5');
+    expect(
+      resolvePortalLinkOrigin('web', { origin: 'http://ssyc.scsfjt.com', 'x-forwarded-proto': 'https' }),
+    ).toBe('https://procurement-ssyc.scsfjt.com');
+  });
+
+  it('域名家族访问但目标门户无子域（mall 未申请）→ 回退端口口径', () => {
+    mockLan('192.168.1.5');
+    expect(
+      resolvePortalLinkOrigin('mall', { origin: 'https://ssyc.scsfjt.com' }),
+    ).toBe('http://ssyc.scsfjt.com:3003');
+  });
+
+  it('仿冒家族后缀不触发域名分支（scsfjt.com.cn / evil-scsfjt.com）', () => {
+    mockLan('192.168.1.5');
+    expect(
+      resolvePortalLinkOrigin('supplier', { origin: 'https://x.scsfjt.com.cn' }),
+    ).toBe('http://x.scsfjt.com.cn:3004');
+    expect(
+      resolvePortalLinkOrigin('supplier', { origin: 'https://evil-scsfjt.com' }),
+    ).toBe('http://evil-scsfjt.com:3004');
+  });
 });

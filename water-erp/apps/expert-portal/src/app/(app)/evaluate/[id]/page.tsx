@@ -1706,7 +1706,7 @@ export default function ExpertEvaluatePage() {
                           <UserRoundCog size={22} strokeWidth={1.5} className="mx-auto mb-2 text-[var(--accent-strong)]" />
                           <p className="text-sm font-semibold">候补评审专家 · 待命中</p>
                           <p className="mt-1 text-xs opacity-80 leading-relaxed">
-                            您当前为本项目候补专家，正选专家缺席时将按程序递补。递补转正后本页自动刷新，即可开始身份核验与签到；请保持页面开启或留意站内通知。
+                            您当前为本项目候补专家，正选专家缺席时将按程序递补。递补转正后本页自动刷新，即可开始身份核验与签到；请保持页面开启。
                           </p>
                         </div>
                       ) : (

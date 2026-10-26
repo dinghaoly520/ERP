@@ -9,7 +9,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
-import { PORTS } from '@water-erp/config';
+import { PORTS, portalFromHostname } from '@water-erp/config';
 import {
   BID_EVENT,
   type DecryptStatusPayload,
@@ -59,7 +59,8 @@ export const SUPPLIER_BLOCKED_EVENTS = new Set<string>([
  * Parse the auth token from the raw handshake cookie header.
  *
  * 同源多门户 cookie 可能共存（localhost 各门户跨端口共享 cookie；同域部署同理）：
- * 优先按 X-Portal 头、其次 Origin 端口判定门户归属（与 HTTP 侧 portal-cookie.ts 的
+ * 优先按 X-Portal 头、其次 Origin 端口、再次 Origin 域名子域（*.scsfjt.com 家族，
+ * 2026-10-26 域名部署——Origin 无端口）判定门户归属（与 HTTP 侧 portal-cookie.ts 的
  * 解析链一致），避免 token_web 永远压过 token_supplier 导致供应商 socket 被误判为主持人。
  * bid（:3007）自 2026-08-14 起为独立门户（token_bid），必须显式分支，
  * 否则现场端 socket 拿不到 token、join:project 被硬门控 UNAUTHORIZED。
@@ -69,14 +70,30 @@ export const SUPPLIER_BLOCKED_EVENTS = new Set<string>([
  * 会让残留 token_web 的供应商浏览器被识别为主持人角色——虽 join:project 房间隔离兜底，
  * 但纵深防御失效。各门户现严格只读对应命名空间的 cookie。
  */
-/** P2-1：握手门户判定（与 tokenFromHandshake 同链：X-Portal 头优先，回退 Origin 端口）——host 域隔离用。 */
+/** Origin 头解析（"scheme://host[:port]"）→ hostname + port。
+ *  域名部署（*.scsfjt.com）Origin 无端口——门户判定回退 hostname 子域反查（portalFromHostname）。 */
+function parseOrigin(origin: string | undefined): { hostname?: string; port?: string } {
+  const rest = (origin ?? '').split('://')[1];
+  if (!rest) return {};
+  const [hostPart] = rest.split('/');
+  const [hostname, port] = hostPart.split(':');
+  return { hostname: hostname || undefined, port };
+}
+
+/** P2-1：握手门户判定（与 tokenFromHandshake 同链：X-Portal 头优先 → Origin 端口 →
+ *  域名家族子域反查）——host 域隔离用。 */
 export function portalFromHandshake(socket: Socket): 'bid' | 'supplier' | 'expert' | 'web' | undefined {
   const xPortal = (socket.handshake.headers['x-portal'] as string | undefined)?.toLowerCase();
   if (xPortal === 'bid' || xPortal === 'supplier' || xPortal === 'expert' || xPortal === 'web') return xPortal;
-  const originPort = (socket.handshake.headers.origin ?? '').split(':')[2]?.split('/')[0];
+  const { hostname, port: originPort } = parseOrigin(socket.handshake.headers.origin as string | undefined);
   if (originPort === String(PORTS.bid)) return 'bid';
   if (originPort === String(PORTS.supplier) || originPort === String(PORTS.supplierNext)) return 'supplier';
   if (originPort === String(PORTS.expert)) return 'expert';
+  // 域名家族（*.scsfjt.com，2026-10-26）：Origin 无端口，按子域反查门户归属
+  const familyPortal = hostname ? portalFromHostname(hostname) : undefined;
+  if (familyPortal === 'bid' || familyPortal === 'supplier' || familyPortal === 'expert' || familyPortal === 'web') {
+    return familyPortal;
+  }
   if (originPort) return 'web';
   return undefined;
 }
@@ -89,27 +106,21 @@ export function tokenFromHandshake(socket: Socket): string | undefined {
     const idx = part.indexOf('=');
     if (idx > 0) map.set(part.slice(0, idx).trim(), part.slice(idx + 1).trim());
   }
-  const xPortal = (socket.handshake.headers['x-portal'] as string | undefined)?.toLowerCase();
-  const originPort = (socket.handshake.headers.origin ?? '').split(':')[2]?.split('/')[0];
-  if (xPortal === 'bid' || originPort === String(PORTS.bid)) {
-    // :3007 独立门户：严格只读 token_bid——token_web/token 回退已随 X-P1-01（2026-09-29）
-    // 一并收口：admin 经非 web 门户登录现已写 token_bid，无 token_web 兼容场景；
-    // 保留回退会让残留 token_web 的浏览器在 WS 层被识别成 :3005 身份（纵深防御失效）。
-    return map.get('token_bid');
+  switch (portalFromHandshake(socket)) {
+    case 'bid':
+      // :3007 独立门户：严格只读 token_bid——token_web/token 回退已随 X-P1-01（2026-09-29）
+      // 一并收口：admin 经非 web 门户登录现已写 token_bid，无 token_web 兼容场景；
+      // 保留回退会让残留 token_web 的浏览器在 WS 层被识别成 :3005 身份（纵深防御失效）。
+      return map.get('token_bid');
+    case 'supplier':
+      return map.get('token_supplier');
+    case 'expert':
+      return map.get('token_expert');
+    default:
+      // 默认分支：web（:3005）读 token_web；保留 legacy `token` 兜底仅用于直接访问
+      // API（如 Swagger）的场景，与 HTTP 侧 portal-cookie.ts 一致。
+      return map.get('token_web') || map.get('token');
   }
-  if (
-    xPortal === 'supplier' ||
-    originPort === String(PORTS.supplier) ||
-    originPort === String(PORTS.supplierNext) // :3020 supplier-portal-next（迁移期与 :3004 并行，同一 token_supplier 命名空间）
-  ) {
-    return map.get('token_supplier');
-  }
-  if (xPortal === 'expert' || originPort === String(PORTS.expert)) {
-    return map.get('token_expert');
-  }
-  // 默认分支：web（:3005）读 token_web；保留 legacy `token` 兜底仅用于直接访问
-  // API（如 Swagger）的场景，与 HTTP 侧 portal-cookie.ts 一致。
-  return map.get('token_web') || map.get('token');
 }
 
 /**
