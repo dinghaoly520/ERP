@@ -132,6 +132,8 @@ export class AuthController {
         result.code === 'TEMPORARY_EXPIRED' ? '临时供应商有效期已过，请联系采购中心'
         : result.code === 'ACCOUNT_FROZEN' ? '该账号已被冻结，请联系管理员'
         : result.code === 'ACCOUNT_RETIRED' ? '该专家已退库停用，如需恢复请联系管理单位'
+        : result.code === 'EXPERT_DISABLED' ? '该专家已被停用，如需恢复请联系管理单位'
+        : result.code === 'EXPERT_INACTIVE' ? '该专家账号未启用，请联系管理单位'
         : result.code === 'ACCOUNT_DISABLED' ? '该供应商已被停用，如有疑问请联系采购中心'
         : result.code === 'ACCOUNT_BLACKLISTED' ? '该供应商已被列入黑名单，如有疑问请联系采购中心'
         : result.code === 'SUPPLIER_REJECTED' ? '注册申请未通过审核，可在注册页修改资料后重新提交'
