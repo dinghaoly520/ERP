@@ -618,3 +618,5 @@ select.m-input { appearance: auto; }
     transition: none;
   }
 }
+
+/* cache-bust 2026-10-26: 触发 Turbopack 重发 CSS */
