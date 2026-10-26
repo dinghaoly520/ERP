@@ -1,19 +1,22 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { PORTS, portalURL } from '@water-erp/config';
+import { portalOriginForHost } from '@water-erp/config';
 
 const PORTAL = 'expert';
 const COOKIE = `token_${PORTAL}`;
 const DEVICE_COOKIE = 'device_mode';
 // 登录跳转不能用模块级 portalURL：middleware 在服务端求值恒为 localhost，
 // 平板/局域网客户端被 307 到打不开的 localhost 地址（2026-09-22 平板实测）。
-// 一律以 request.url 为基准相对构建。
+// 一律以请求 Host 头推导（2026-10-26 双轨：*.scsfjt.com 家族访问 → 子域跳转；IP/端口访问 → 同主机+端口）。
+const requestHost = (request: NextRequest) =>
+  (request.headers.get('x-forwarded-host') || request.headers.get('host') || '')
+    .split(',')[0]
+    .trim() || request.nextUrl.hostname;
+const requestProto = (request: NextRequest) =>
+  (request.headers.get('x-forwarded-proto') || '').split(',')[0].trim();
 const loginUrlFor = (request: NextRequest, pathname: string) => {
-  // request.url 的 origin 在 middleware 内是 dev 绑定地址（0.0.0.0），不可直接用；
-  // 取 Host 头保真实访问主机名（平板经 LAN IP 访问时才能跳对）。
-  const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || '';
-  const hostname = host.split(',')[0].trim().split(':')[0] || request.nextUrl.hostname;
-  const u = new URL(`http://${hostname}:${PORTS.expert}/login?forceLogin=1`);
+  const origin = portalOriginForHost('expert', requestHost(request), requestProto(request));
+  const u = new URL(`${origin}/login?forceLogin=1`);
   u.searchParams.set('redirect', pathname);
   return u;
 };
@@ -76,9 +79,12 @@ export default async function proxy(request: NextRequest) {
     }
     if (token) {
       try {
-        const res = await fetch(portalURL('api', '/api/auth/me'), {
-          headers: { Cookie: `${COOKIE}=${token}`, 'X-Portal': PORTAL },
-        });
+        const res = await fetch(
+          `${portalOriginForHost('api', requestHost(request), requestProto(request))}/api/auth/me`,
+          {
+            headers: { Cookie: `${COOKIE}=${token}`, 'X-Portal': PORTAL },
+          },
+        );
         if (res.ok) {
           const me = await res.json();
           if (me?.role === 'bid_expert') {
@@ -118,9 +124,14 @@ export default async function proxy(request: NextRequest) {
   // token 失效/角色不符时回登录页，保留 redirect 以便登录后回到原页面（如邀请确认页）
   const loginWithRedirect = () => NextResponse.redirect(loginUrlFor(request, pathname));
   try {
-    const res = await fetch(portalURL('api', '/api/auth/me'), {
-      headers: { Cookie: `${COOKIE}=${token}`, 'X-Portal': PORTAL },
-    });
+    // 鉴权回源：portalURL 在 middleware（无 window）恒落 localhost 占位——改按请求 Host
+    // 双轨推导（域名家族 → API 子域；IP/端口 → 同主机:4001；API_ORIGIN env 最高优先）。
+    const res = await fetch(
+      `${portalOriginForHost('api', requestHost(request), requestProto(request))}/api/auth/me`,
+      {
+        headers: { Cookie: `${COOKIE}=${token}`, 'X-Portal': PORTAL },
+      },
+    );
     if (!res.ok) {
       return loginWithRedirect();
     }
