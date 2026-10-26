@@ -24,13 +24,18 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 // secure 标志环境门控：仅 production 生效，保证 dev/e2e（NODE_ENV=test）在 http 下仍可登录。
 // path 固定 '/'，登出 clearCookie 须传同样 opts 才能匹配删除浏览器 cookie。
+// cookie domain：默认不设（host-only）——dev localhost/192.168.x.x 各端口 cookie 天然共享
+// （RFC 6265 不区分端口），指定 domain='localhost' 平板经 IP 访问时浏览器会拒存。
+// 生产域名部署（*.scsfjt.com）必须设 COOKIE_DOMAIN=.scsfjt.com：各门户子域是不同 host，
+// 跨子域 cookie 是 :3006 分流写 token_bid 跳 :3007、WS 直连 api-ssyc 带凭据的前提
+// （dev 靠端口共享，域名模式无此天然共享）。登出 clearCookie 引用同一常量，镜像一致。
+const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN?.trim() || undefined;
+
 const COOKIE_OPTS = {
   httpOnly: true,
   sameSite: 'lax' as const,
   secure: IS_PRODUCTION,
-  // 不设 domain：cookie 自动限定为当前请求来源 host。
-  // 开发环境可通过 localhost 或 192.168.x.x 访问，各端口 cookie 天然共享（RFC 6265 不区分端口）。
-  // 若指定 domain='localhost'，平板通过 192.168.1.111 访问时浏览器会拒绝存储 cookie。
+  domain: COOKIE_DOMAIN,
   path: '/',
   maxAge: 7 * 24 * 3600 * 1000,
 };

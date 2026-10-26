@@ -274,7 +274,7 @@ web: 3005, expert: 3006, bid: 3007, assistant: 3008
 2. **后端外发链接** `apps/api/src/common/portal-link-origin.ts`（RSVP 回执等）：请求 Origin/X-Forwarded-Host 判家族 + X-Forwarded-Proto 定协议（缺省 https）。
 3. **Next middleware**（expert/bid-portal `proxy.ts`）：服务端无 window，`portalURL` 恒落 localhost 占位不可用——登录跳转与 `/api/auth/me` 回源一律走 `portalOriginForHost(app, Host头, X-Forwarded-Proto)`（`API_ORIGIN` env 对 api 最高优先）。
 4. **WS 握手门户判定** `bid.gateway.ts` `portalFromHandshake`/`tokenFromHandshake`（notification.gateway 复用同函数）：X-Portal 头 → Origin 端口 → **Origin 子域反查**（`portalFromHostname`）——域名 Origin 无端口，无此分支则全部误读 token_web（bid 端 token_bid 拿不到、开标大厅 WS 401）。chat.gateway 故意跨命名空间读全 token，不走此链。
-**申请单未列业务（mall :3003 / assistant :3008 / bigscreen :3010）无子域**，域名模式下回退端口口径。生产部署 API 侧另需 env：`API_ORIGIN=https://api-ssyc.scsfjt.com`、`CORS_ORIGINS` 列全部门户子域、`TRUST_PROXY=1`；各门户 `PORTAL_*_URL` env 覆盖仍最高优先。
+**申请单未列业务（mall :3003 / assistant :3008 / bigscreen :3010）无子域**，域名模式下回退端口口径。**跨子域 cookie 是第 5 个消费面（2026-10-26 补）**：各门户子域是不同 host，dev「cookie 不分端口」的天然共享不存在——`auth.controller.ts`/`ca-auth.controller.ts` 的 `COOKIE_OPTS` 经 `COOKIE_DOMAIN` env 注入 `domain=.scsfjt.com`（登出 clearCookie 引用同常量镜像一致），否则 :3006 分流写 token_bid 跳 :3007 登录死循环、WS 直连 api-ssyc 无凭据。生产部署 env 四件套：`COOKIE_DOMAIN=.scsfjt.com`、`API_ORIGIN=https://api-ssyc.scsfjt.com`、`CORS_ORIGINS` 列全部门户子域、`TRUST_PROXY=1`；nginx 须传 `X-Forwarded-Proto/Host` 与 WS `Upgrade/Connection` 头。各门户 `PORTAL_*_URL` env 覆盖仍最高优先。注意（既有行为非新引入）：`NODE_ENV=production` 下 cookie 恒 `Secure`，`http://公网IP:端口` 直连登录会被浏览器丢 cookie——生产统一走域名 https。
 
 ### Auth & Cookie Isolation
 
@@ -379,6 +379,7 @@ JWT_SECRET=...                     # 生产 ≥32 字符，否则拒绝启动（
 SMS_DEBUG_BYPASS=true              # Skip real SMS; auto-verify with code "123456"
 CORS_ORIGINS=https://erp.example.com,https://supplier.example.com  # 生产真实域名；未设→仅 localhost
 TRUST_PROXY=1                      # 生产反代后信任一跳；默认 'loopback'
+COOKIE_DOMAIN=.scsfjt.com          # 生产域名部署必设：跨子域 cookie（:3006 分流写 token_bid 跳 :3007、WS 直连 api-ssyc 带凭据的前提）；未设=host-only（dev/IP 端口访问语义不变）
 
 # ── 基础设施 ──
 REDIS_URL=redis://localhost:6380   # BullMQ + ioredis；API 与 ai-bid worker 都读它（缺省回退 localhost:6380）
