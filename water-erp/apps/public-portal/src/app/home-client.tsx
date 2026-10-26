@@ -616,7 +616,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
             {/* ── 底部信息带 ── */}
             <div className="border-t border-[#e5ecf4] py-3 flex items-center justify-between text-[11px] text-[#8a96aa] max-sm:flex-col max-sm:gap-1">
               <span>© 2026 蜀水云采·智慧水发</span>
-              <span>蜀ICP备XXXXXXXX号</span>
+              <span>蜀ICP备2020033056号-1</span>
             </div>
           </div>
         </footer>
