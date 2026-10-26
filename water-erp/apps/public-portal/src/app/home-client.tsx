@@ -617,7 +617,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
             <div className="footer-legal">
               <span className="footer-legal-brand">© 2026 蜀水云采·智慧水发</span>
               <span className="footer-legal-meta">
-                <span className="footer-legal-owner">四川省水利发展集团有限公司 版权所有</span>
+                <span className="footer-legal-owner">Copyright ® 2026 四川省水利发展集团有限公司 版权所有</span>
                 <span className="footer-legal-divider" aria-hidden="true" />
                 <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" className="footer-legal-icp">蜀ICP备2020033056号-1</a>
               </span>

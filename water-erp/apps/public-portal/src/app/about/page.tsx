@@ -151,7 +151,7 @@ export default function AboutPage() {
       <footer className="footer-glass">
         <div className="flex items-center justify-between gap-3 px-[clamp(28px,4vw,72px)] py-4 max-sm:flex-col max-sm:gap-3">
           <span className="text-[11px] text-[#8a96aa] flex items-center gap-2 flex-wrap justify-center">
-            © 2026 四川省水利发展集团有限公司 版权所有
+            Copyright ® 2026 四川省水利发展集团有限公司 版权所有
             <span className="footer-legal-divider" aria-hidden="true" />
             <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" className="footer-legal-icp">蜀ICP备2020033056号-1</a>
           </span>
