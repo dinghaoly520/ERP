@@ -7,8 +7,13 @@
  * onConfirm 可选同步回调：在确认按钮 click 事件内同步执行，保留用户手势上下文（供 window.open 等
  * 受弹窗拦截策略约束的 API 使用）。
  * 内联 z-10001 盖过门户最高层级（水叮当浮层 z-10000）。
+ * createPortal 到 document.body（2026-10-26）：原地渲染会被壳层 .sp-content
+ * （position:relative + z-index:0 堆叠上下文）困住——z-10001 只在该上下文内生效，
+ * 压不过 body 级弹窗 portal（crp-overlay/ct-overlay 等 z-2000，根上下文），confirm
+ * 不可见不可点、await 永不返回（申请资料变更提交卡死、弹窗不关闭的根因）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 type ConfirmOptions = { title?: string; message: string; danger?: boolean; onConfirm?: () => void };
@@ -33,7 +38,8 @@ export function useConfirm() {
     return () => window.removeEventListener('keydown', onKey);
   }, [state, close]);
 
-  const dialog = state ? (
+  const dialog = state
+    ? createPortal(
     <div
       className="gdlg-ov"
       style={{ zIndex: 10001 }}
@@ -54,8 +60,10 @@ export function useConfirm() {
           <button type="button" autoFocus className={`neu-btn-primary is-water${state.danger ? ' is-danger' : ''}`} onClick={() => { state.onConfirm?.(); close(true); }}>确认</button>
         </div>
       </div>
-    </div>
-  ) : null;
+    </div>,
+    document.body,
+  )
+    : null;
 
   return { confirm, dialog };
 }
