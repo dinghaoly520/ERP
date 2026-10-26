@@ -6,7 +6,15 @@
 import { api } from "../api";
 
 export type ChatCard =
-  | { type: "metric" | "table"; title: string; metrics?: Array<{ label: string; value: string }>; rows?: Array<Record<string, string>>; [k: string]: unknown }
+  | {
+      type: "metric" | "table";
+      title: string;
+      metrics?: Array<{ label: string; value: string }>;
+      /** 表格列定义（后端工具给中文 label；表头必须用它而非行键，防英文键漏出） */
+      columns?: Array<{ key: string; label: string }>;
+      rows?: Array<Record<string, string>>;
+      [k: string]: unknown;
+    }
   | { type: "chart"; title: string; chartType: string; caption?: string; [k: string]: unknown };
 
 export type ChatMessage = {

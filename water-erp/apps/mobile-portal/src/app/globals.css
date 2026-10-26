@@ -632,3 +632,12 @@ body.m-kb-open .m-tabbar {
 body.m-kb-open .m-chat-shell {
   bottom: 0;
 }
+
+/* 输入条与键盘上沿的呼吸间距（2026-10-26 遮挡实录）：压缩型内核壳底≈键盘上沿、
+ * 零间距时输入条被啃一截——dock 恒定垫 12px；覆盖型内核 translateY 抬升后同样受益，
+ * 键盘关闭时即为输入条与 tabbar 的间距，两态视觉一致 */
+.m-chat-dock {
+  padding-bottom: 0.75rem;
+}
+
+/* cache-bust 2026-10-26b */
