@@ -3089,6 +3089,58 @@ a.group:hover::after {
   .footer-link, .footer-link .footer-link-arrow { transition: none; }
 }
 
+/* ── 底部法律信息带（2026-10-26）：渐变发丝分隔线 + 品牌青点© + 集团版权竖线 + 备案凸起瓷片 ──
+   与上方友情链接轨道同语言：瓷片微凸、发丝线两端隐没、青色唯一强调色、数字 tabular。 */
+.footer-legal {
+  position: relative;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px 16px;
+  padding: 13px 0 15px;
+  font-size: 11px; letter-spacing: 0.02em;
+  color: #5a6d8a;
+}
+.footer-legal::before {          /* 渐变发丝线 — 替原通栏实线，两端隐没入玻璃 */
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, oklch(0.50 0.04 258 / 0.25) 15%, oklch(0.50 0.04 258 / 0.25) 85%, transparent);
+}
+.footer-legal-brand {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-weight: 700; color: #43536e;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.footer-legal-brand::before {    /* 品牌青点 — 与友情链接标签圆点同源 */
+  content: ""; width: 5px; height: 5px; border-radius: 999px;
+  background: #0891a0;
+  box-shadow: 0 0 0 3px oklch(0.66 0.11 200 / 0.16);
+}
+.footer-legal-meta {
+  display: inline-flex; align-items: center; gap: 12px;
+  white-space: nowrap;
+}
+.footer-legal-divider {          /* 版权与备案间的竖发丝 */
+  width: 1px; height: 11px;
+  background: oklch(0.55 0.03 258 / 0.28);
+}
+.footer-legal-icp {              /* 备案号瓷片 — footer-link 瓷片的微缩版（不可点） */
+  display: inline-flex; align-items: center;
+  padding: 3px 10px;
+  border-radius: 8px;
+  font-weight: 600; color: #43536e;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+  background: oklch(1 0 0 / 0.55);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    1px 1px 3px oklch(0.55 0.03 258 / 0.10),
+    -1px -1px 2px oklch(1 0 0 / 0.8);
+}
+@media (max-width: 639px) {      /* 窄屏：居中堆叠，去竖线 */
+  .footer-legal { flex-direction: column; justify-content: center; gap: 8px; padding: 12px 0 14px; }
+  .footer-legal-divider { display: none; }
+  .footer-legal-meta { flex-wrap: wrap; justify-content: center; gap: 6px 10px; }
+}
+
 /* Subtle breathing glow for the search icon when idle */
 @keyframes search-icon-breathe {
   0%, 100% { opacity: 0.55; transform: scale(1); }

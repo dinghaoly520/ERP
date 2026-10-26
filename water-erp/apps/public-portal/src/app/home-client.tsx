@@ -613,10 +613,14 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
               </div>
             </div>
 
-            {/* ── 底部信息带 ── */}
-            <div className="border-t border-[#e5ecf4] py-3 flex items-center justify-between text-[11px] text-[#8a96aa] max-sm:flex-col max-sm:gap-1">
-              <span>© 2026 蜀水云采·智慧水发</span>
-              <span>蜀ICP备2020033056号-1</span>
+            {/* ── 底部信息带（2026-10-26）：品牌©版权 + 集团版权所有·备案瓷片，样式见 globals.css .footer-legal ── */}
+            <div className="footer-legal">
+              <span className="footer-legal-brand">© 2026 蜀水云采·智慧水发</span>
+              <span className="footer-legal-meta">
+                <span className="footer-legal-owner">四川省水利发展集团有限公司 版权所有</span>
+                <span className="footer-legal-divider" aria-hidden="true" />
+                <span className="footer-legal-icp">蜀ICP备2020033056号-1</span>
+              </span>
             </div>
           </div>
         </footer>
