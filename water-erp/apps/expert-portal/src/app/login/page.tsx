@@ -64,6 +64,14 @@ function ExpertLoginPage() {
     return () => mq.removeEventListener('change', update);
   }, []);
 
+  // 设备形态开关（登录页入口互切）：读 proxy 写入的 device_mode cookie（非 httpOnly）。
+  // 点击链接 307 回弹本页后整页重载、此处重读——tablet 态把入口翻转为「回桌面」
+  const [isTabletMode, setIsTabletMode] = useState(false);
+  useEffect(() => {
+    const m = document.cookie.match(/(?:^|;\s*)device_mode=(tablet|desktop)\b/);
+    setIsTabletMode(m?.[1] === 'tablet');
+  }, []);
+
   const switchTab = (next: Tab) => {
     setTab(next);
     setForm({ username: '', password: '' });
@@ -230,15 +238,17 @@ function ExpertLoginPage() {
             )}
           </div>
 
-          {/* 平板模式显式入口：仅专家 tab——平板路由只对 bid_expert 有意义，管理员登录直跳 :3007。
-              主路径是桌面评审页扫码迁移（/tablet/claim）；此处为确定性兜底（平板会话中断重登等），
-              ?device=tablet 由 proxy 写 7 天 cookie 后 302 /tablet（未登录则再弹回本页并带 redirect=/tablet） */}
+          {/* 设备模式显式入口（仅专家 tab——平板路由只对 bid_expert 有意义，管理员登录直跳 :3007）。
+              主路径是桌面评审页扫码迁移（/tablet/claim）；此处为确定性兜底（平板会话中断重登等）。
+              文案与去向随 device_mode cookie 翻转：未声明/桌面态→「进平板」，tablet 态→「回桌面」——
+              点击 307 回弹本页后链接即变，作为切换已生效的可见反馈。
+              ?device=tablet|desktop 由 proxy 写 7 天 cookie 后 302 对应首页（未登录则再弹回本页并带 redirect） */}
           {tab === 'expert' && (
             <a
-              href="/?device=tablet"
+              href={isTabletMode ? '/?device=desktop' : '/?device=tablet'}
               className="mt-4 block py-2.5 text-xs text-[color:var(--muted-foreground)] underline underline-offset-4 transition-colors hover:text-[color:var(--foreground)]"
             >
-              平板设备？进入平板评分模式
+              {isTabletMode ? '桌面设备？进入桌面评分模式' : '平板设备？进入平板评分模式'}
             </a>
           )}
         </div>
