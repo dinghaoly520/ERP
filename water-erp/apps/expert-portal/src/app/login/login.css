@@ -277,6 +277,76 @@
 .login-submit-button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 .login-submit-label { letter-spacing: 0.2em; }
 
+/* ── 平板模式入口（次级玻璃药丸：主登录键的安静变体——同款发丝边框玻璃底/凸起-按下
+   阴影对/品牌蓝 hover 环/箭头徽章右滑，2026-10-26 替换原下划线文字链）── */
+.login-tablet-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 1.1rem;
+  padding: 10px 18px 10px 16px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  letter-spacing: 0.05em;
+  color: var(--muted-foreground);
+  text-decoration: none;
+  background: oklch(1 0 0 / 0.5);
+  border: 1px solid oklch(0.78 0.03 258 / 0.42);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 3px 9px oklch(0.46 0.07 258 / 0.1),
+    -1px -1px 5px oklch(1 0 0 / 0.72);
+  transition:
+    transform 240ms var(--ease-out-quint),
+    border-color 240ms var(--ease-out-quint),
+    color 240ms var(--ease-out-quint),
+    box-shadow 240ms var(--ease-out-quint);
+}
+.login-tablet-entry:hover,
+.login-tablet-entry:focus-visible {
+  color: oklch(0.5 0.1 252 / 0.95);
+  border-color: oklch(0.62 0.128 247 / 0.55);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    3px 4px 12px oklch(0.46 0.07 258 / 0.13),
+    -1px -1px 5px oklch(1 0 0 / 0.78),
+    0 0 0 3px color-mix(in oklch, var(--accent) 12%, transparent);
+  outline: none;
+}
+.login-tablet-entry:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12),
+    inset -1px -1px 4px oklch(1 0 0 / 0.65);
+}
+.login-tablet-entry__icon {
+  display: inline-flex;
+  transition: color 240ms var(--ease-out-quint);
+}
+.login-tablet-entry:hover .login-tablet-entry__icon,
+.login-tablet-entry:focus-visible .login-tablet-entry__icon { color: var(--accent); }
+.login-tablet-entry__chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 1.5px;
+  border-radius: 50%;
+  opacity: 0.7;
+  transition:
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.3s ease,
+    opacity 240ms ease;
+}
+.login-tablet-entry:hover .login-tablet-entry__chevron,
+.login-tablet-entry:focus-visible .login-tablet-entry__chevron {
+  transform: translateX(3px);
+  background: rgba(6, 78, 162, 0.08);
+  opacity: 1;
+}
+
 /* ── 底部署名（:3005 同款 TrueFocus 逐字聚焦，2026-09-20 移植自 web globals.css）── */
 .login-credit {
   position: relative;
@@ -385,6 +455,7 @@
   .login-stage__rays::before, .login-stage__rays::after, .login-stage__ray, .login-stage__veil,
   .login-mark__halo--soft, .login-mark__halo--rich, .login-mark__ring, .login-slogan { animation: none !important; }
   .login-submit-button { transition: none !important; }
+  .login-tablet-entry { transition: none !important; }
 }
 
 /* =============================================================================
@@ -474,5 +545,6 @@
   .login-mark--float { animation: none !important; }
   .login-rise { animation: none !important; opacity: 1; }
   .login-arrow-badge { transition: none !important; }
+  .login-tablet-entry__chevron { transition: none !important; }
   .login-credit .focus-frame { display: none !important; }
 }
