@@ -579,3 +579,42 @@ select.m-input { appearance: auto; }
   .m-tab-item { transition: none; }
 }
 }
+
+/* ══ 水叮当聊天壳（2026-10-26 重构）══
+ * 有界 fixed 壳：消息区为唯一滚动容器——旧结构 min-h+主容器滚动，13.5rem 魔法高差
+ * 在字体调级后失准（消息多时 wrapper 撑高、内部滚动永不触发、输入条被顶出屏）。
+ * 键盘：VirtualKeyboard.overlaysContent 保布局不被压缩（tabbar 留在屏底，不再被键盘
+ * 顶起）；--kb-h 由 visualViewport 实时驱动，输入条抬升至键盘上方、消息区垫高避让。 */
+.m-chat-shell {
+  --kb-h: 0px;
+  --m-tabbar-h: calc(55px + env(safe-area-inset-bottom)); /* 54 内容 + 1 描边 */
+  position: fixed;
+  inset-inline: 0;
+  top: 2.75rem; /* header h-11 */
+  bottom: var(--m-tabbar-h);
+  z-index: 20; /* tabbar 30 < header 40 < sheet 50 之下 */
+  display: flex;
+  flex-direction: column;
+  margin-inline: auto;
+  width: 100%;
+  max-width: 32rem; /* 对齐 main max-w-lg */
+  background: var(--background); /* 不透明底：遮住 (main) 内的欢迎卡等层叠内容 */
+  padding-inline: max(0.875rem, env(safe-area-inset-left)) max(0.875rem, env(safe-area-inset-right));
+  padding-top: 0.875rem; /* 对齐 main pt-3.5 */
+}
+.m-chat-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: calc(0.5rem + var(--kb-h)); /* 键盘抬升输入条时，末条消息不被遮挡 */
+}
+.m-chat-dock {
+  transform: translateY(calc(-1 * var(--kb-h)));
+  transition: transform 0.18s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .m-chat-dock {
+    transition: none;
+  }
+}

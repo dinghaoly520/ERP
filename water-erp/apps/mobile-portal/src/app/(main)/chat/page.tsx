@@ -51,6 +51,30 @@ export default function ChatPage() {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, sending]);
 
+  /* 键盘协同（2026-10-26）：VirtualKeyboard.overlaysContent 让键盘覆盖而非压缩布局——
+   * tabbar 留在屏幕底部（用户裁定：不随键盘抬升）；--kb-h 由 visualViewport 实时驱动，
+   * 输入条（.m-chat-dock）抬到键盘上方、消息区（.m-chat-scroll）垫高避让。
+   * iOS 无 VirtualKeyboard——键盘本就不压缩布局，visualViewport 通道同样生效。 */
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const vk = (navigator as Navigator & { keyboard?: { overlaysContent?: boolean } }).keyboard;
+    if (vk) vk.overlaysContent = true;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const sync = () => {
+      const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      shellRef.current?.style.setProperty("--kb-h", kb > 60 ? `${Math.round(kb)}px` : "0px");
+    };
+    vv.addEventListener("resize", sync);
+    vv.addEventListener("scroll", sync);
+    sync();
+    return () => {
+      vv.removeEventListener("resize", sync);
+      vv.removeEventListener("scroll", sync);
+      if (vk) vk.overlaysContent = false;
+    };
+  }, []);
+
   async function ask(text: string) {
     const q = text.trim();
     if (!q || sending) return;
@@ -82,9 +106,9 @@ export default function ChatPage() {
   }
 
   return (
-    // 外层 (main) 是滚动容器且上方还有欢迎卡——固定视口高差（header 44 + pt 14 + 欢迎卡 ~85 + pb 16 + tabbar ~55 ≈ 214px ≈ 13.5rem，
-    // 另减 iOS 底部安全区——tabbar padding-bottom 随刘海屏增高），让消息区在自身内部滚动、输入条钉底，父容器不出现第二根滚动条
-    <div className="flex min-h-[calc(100dvh-13.5rem-env(safe-area-inset-bottom))] flex-col">
+    /* 有界 fixed 壳（.m-chat-shell，见 globals.css）：top=header 44px、bottom=tabbar——消息区
+     * 成唯一滚动容器，输入条钉在 tabbar 上方；不再依赖 min-h+主容器滚动的魔法高差 */
+    <div ref={shellRef} className="m-chat-shell">
       {/* 顶部：口径标签 + 新对话 */}
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-1.5 truncate text-[12px] text-[var(--muted-foreground)]">
@@ -100,8 +124,8 @@ export default function ChatPage() {
         </button>
       </div>
 
-      {/* 消息流 */}
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain pb-2">
+      {/* 消息流（唯一滚动容器；底部垫 --kb-h 避让抬升后的输入条） */}
+      <div className="m-chat-scroll space-y-3">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center gap-3 px-4 py-10">
             <div className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)]">
@@ -143,10 +167,10 @@ export default function ChatPage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* 输入条 */}
+      {/* 输入条（键盘开启时 .m-chat-dock 抬至键盘上方，tabbar 不动） */}
       <form
         onSubmit={(e) => { e.preventDefault(); ask(input); }}
-        className="flex items-center gap-2 pt-1"
+        className="m-chat-dock flex items-center gap-2 pt-1"
       >
         <input
           value={input}
