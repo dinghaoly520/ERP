@@ -165,6 +165,8 @@ export function TaskDetailModal({
 }: TaskDetailModalProps) {
   const [notesExpanded, setNotesExpanded] = useState(true);
   const [showReminderPicker, setShowReminderPicker] = useState(false);
+  // picker 默认值（now+30min）在打开事件里预计算——渲染期调 Date.now() 属 impure render（eslint RQ）
+  const [reminderPickerDefault, setReminderPickerDefault] = useState('');
   // 标记完成的摘要引导态：null=未进入；''/文本=补摘要输入框展开（2026-10-21 落地抽屉 placeholder 承诺的引导）
   const [completeDraft, setCompleteDraft] = useState<string | null>(null);
   const [prevItemId, setPrevItemId] = useState<string | null>(item?.id ?? null);
@@ -173,6 +175,7 @@ export function TaskDetailModal({
   if ((item?.id ?? null) !== prevItemId) {
     setPrevItemId(item?.id ?? null);
     setCompleteDraft(null);
+    setShowReminderPicker(false);
   }
 
   if (!open) return null;
@@ -255,9 +258,11 @@ export function TaskDetailModal({
                           <div className="mt-1.5 text-sm tabular-nums font-semibold text-[color:var(--foreground)]">
                             {item.reminderAt ? formatDateTimeLabel(item.reminderAt) : '未设置'}
                           </div>
-                          <div className="mt-0.5 text-[11px] text-[color:var(--muted-foreground)]">
-                            {reminderHint}
-                          </div>
+                          {item.reminderAt && (
+                            <div className="mt-0.5 text-[11px] text-[color:var(--muted-foreground)]">
+                              {reminderHint}
+                            </div>
+                          )}
                         </div>
                         <div className="neu-content-block px-3 py-3">
                           <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[color:var(--accent)]">
@@ -354,7 +359,14 @@ export function TaskDetailModal({
                               <>
                                 <button
                                   type="button"
-                                  onClick={() => setShowReminderPicker((v) => !v)}
+                                  onClick={() => {
+                                    if (!showReminderPicker) {
+                                      setReminderPickerDefault(
+                                        new Date(Date.now() + 30 * 60 * 1000).toISOString().slice(0, 16),
+                                      );
+                                    }
+                                    setShowReminderPicker((v) => !v);
+                                  }}
                                   className={`neu-btn-soft ${reminderState === 'OVERDUE' ? 'is-warning' : ''}`}
                                 >
                                   <Clock3 size={16} />
@@ -364,9 +376,7 @@ export function TaskDetailModal({
                                   <div className="flex items-center gap-2">
                                     <input
                                       type="datetime-local"
-                                      defaultValue={new Date(Date.now() + 30 * 60 * 1000)
-                                        .toISOString()
-                                        .slice(0, 16)}
+                                      defaultValue={reminderPickerDefault}
                                       className="neu-input text-sm h-9"
                                       id="reset-reminder-time"
                                     />
