@@ -32,6 +32,7 @@ import {
 import {
   buildWorkbenchOverview,
   deriveReminderState,
+  reminderRelativeHint,
   selectWorkbenchOverviewItems,
   type WorkbenchStatKey,
 } from "@/lib/work-arrangements/workbench";
@@ -310,6 +311,10 @@ export function WorkArrangementsPage({
   const selectedReminderState = selectedItem
     ? deriveReminderState(selectedItem, workbenchNow)
     : 'NONE';
+  // 提醒卡副文案与状态同源同钟（workbenchNow 每分钟跳动，副文案随之刷新）
+  const selectedReminderHint = selectedItem
+    ? reminderRelativeHint(selectedItem, workbenchNow)
+    : '未设置';
 
   const buildQuery = (): WorkArrangementQuery => ({
     scope: 'ALL',
@@ -932,6 +937,7 @@ export function WorkArrangementsPage({
         open={showTaskModal}
         item={selectedItem}
         reminderState={selectedReminderState}
+        reminderHint={selectedReminderHint}
         noteType={noteType}
         noteDraft={noteDraft}
         noteSubmitting={noteSubmitting}
