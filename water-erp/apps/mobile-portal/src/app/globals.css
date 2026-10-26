@@ -620,3 +620,15 @@ select.m-input { appearance: auto; }
 }
 
 /* cache-bust 2026-10-26: 触发 Turbopack 重发 CSS */
+
+/* ══ 键盘开启：隐藏底部工具栏（2026-10-26 用户裁定）══
+ * webview 仍会把 tabbar 抬到键盘上方（VirtualKeyboard.overlaysContent 部分内核不生效），
+ * 改为聚焦聊天输入时 body 挂 .m-kb-open 隐藏 tabbar、聊天壳下探补位；失焦即恢复。
+ * 兼容两类内核：压缩型（布局缩到键盘上方）壳底=可见底=键盘上沿；覆盖型壳底=屏底，
+ * 输入条再由 --kb-h（visualViewport）抬到键盘上方。 */
+body.m-kb-open .m-tabbar {
+  display: none;
+}
+body.m-kb-open .m-chat-shell {
+  bottom: 0;
+}

@@ -72,6 +72,7 @@ export default function ChatPage() {
       vv.removeEventListener("resize", sync);
       vv.removeEventListener("scroll", sync);
       if (vk) vk.overlaysContent = false;
+      document.body.classList.remove("m-kb-open");
     };
   }, []);
 
@@ -177,6 +178,10 @@ export default function ChatPage() {
           onChange={(e) => setInput(e.target.value)}
           placeholder="问点什么…"
           className="m-input h-11 min-w-0 flex-1 rounded-[14px]"
+          /* 键盘开启隐藏 tabbar（用户裁定 2026-10-26）：body 挂类驱动 CSS（globals.css
+           * body.m-kb-open），失焦/卸载即恢复——不依赖键盘 API，两类 webview 行为均成立 */
+          onFocus={() => document.body.classList.add("m-kb-open")}
+          onBlur={() => document.body.classList.remove("m-kb-open")}
         />
         <button type="submit" disabled={!input.trim() || sending} aria-label="发送"
           className="neu-btn-primary h-11 w-11 shrink-0 rounded-[14px] p-0 disabled:opacity-50">
