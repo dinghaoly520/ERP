@@ -13,6 +13,8 @@ export interface ProjectProgress {
   requesterDepartment: string;
   procurementMethod: string;
   currentStage: string;
+  /** 当前采购轮次（流标再次采购 +1；后端全量展开已含，1=首轮/存量） */
+  currentRound?: number | null;
   status: string;
   budgetAmount: number;
   createdAt: string;
@@ -27,6 +29,8 @@ export interface ProjectProgress {
     stageKey: string;
     stageName: string;
     stageOrder: number;
+    /** 所属轮次（流标再次采购分轮；null=存量无轮次数据视作第 1 轮） */
+    round?: number | null;
     status: string;
     completedAt: string | null;
   }>;

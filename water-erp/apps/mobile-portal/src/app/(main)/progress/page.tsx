@@ -34,6 +34,14 @@ const STAGE_META: Record<string, StageMeta> = {
 
 const DEFAULT_STAGE_META: StageMeta = { label: "未设置阶段", color: "var(--stage-default)", softColor: "var(--stage-default-soft)" };
 
+/** 当前轮阶段（流标再采适配 2026-10-26，与 :3005 卡片/进展页同口径）：
+ *  多轮项目每轮各有一行同 stageKey，展示只看当前轮；轮数据缺失兜底全量 */
+function currentRoundStages(project: ProjectProgress) {
+  const round = project.currentRound ?? 1;
+  const scoped = (project.stages ?? []).filter((s) => (s.round ?? 1) === round);
+  return { round, stages: scoped.length > 0 ? scoped : (project.stages ?? []) };
+}
+
 function getStageMeta(stageKey?: string | null): StageMeta {
   if (!stageKey) return DEFAULT_STAGE_META;
   return STAGE_META[stageKey] ?? { ...DEFAULT_STAGE_META, label: stageKey };
@@ -79,13 +87,17 @@ function deltaOf(cur: number, prev: number | undefined, goodWhenUp: boolean | nu
 /* ── 紧凑阶段步进条 ── */
 
 function StageStepper({ project }: { project: ProjectProgress }) {
-  const stages = useMemo(
-    () => [...(project.stages ?? [])].sort((a, b) => a.stageOrder - b.stageOrder),
-    [project.stages],
-  );
+  const { round, stages: scoped } = useMemo(() => currentRoundStages(project), [project]);
+  const stages = useMemo(() => [...scoped].sort((a, b) => a.stageOrder - b.stageOrder), [scoped]);
   if (!stages.length) return null;
   return (
     <div className="mt-2.5 flex items-center gap-1" aria-label="阶段进度">
+      {round > 1 && (
+        <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[11px] font-bold"
+          style={{ background: "color-mix(in oklch, var(--warning) 14%, transparent)", color: "var(--warning)" }}>
+          第 {round} 轮
+        </span>
+      )}
       {stages.map((s) => {
         const isCurrent = s.stageKey === project.currentStage;
         const done = s.status === "COMPLETED" || s.completedAt;
@@ -389,6 +401,8 @@ export default function ProgressPage() {
               <div className="space-y-2">
                 {stats.projects.map((p) => {
                   const meta = getStageMeta(p.currentStage);
+                  const { round } = currentRoundStages(p);
+                  const scopedName = currentRoundStages(p).stages.find((s) => s.stageKey === p.currentStage)?.stageName;
                   return (
                     <button
                       key={p.id}
@@ -406,7 +420,7 @@ export default function ProgressPage() {
                             border: `1px solid color-mix(in oklch, ${meta.color} 30%, transparent)`,
                           }}
                         >
-                          {meta.label}
+                          {round > 1 ? `第 ${round} 轮 · ${scopedName ?? meta.label}` : (scopedName ?? meta.label)}
                         </span>
                       </div>
                       <div className="mt-1 flex items-center gap-1.5 text-[14px] text-[var(--muted-foreground)]">
@@ -472,9 +486,12 @@ export default function ProgressPage() {
             </div>
 
             <div>
-              <div className="mb-2 text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">阶段时间线</div>
+              <div className="mb-2 text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">
+                阶段时间线{(currentRoundStages(activeProject).round > 1) ? `（第 ${currentRoundStages(activeProject).round} 轮）` : ''}
+              </div>
               <div className="space-y-1.5">
-                {[...(activeProject.stages ?? [])]
+                {currentRoundStages(activeProject).stages
+                  .slice()
                   .sort((a, b) => a.stageOrder - b.stageOrder)
                   .map((s) => {
                     const meta = getStageMeta(s.stageKey);
