@@ -25,11 +25,19 @@ export function ProjectCard({
   onOpen: () => void;
   variant?: 'active' | 'archived' | 'terminated';
 }) {
-  const completedCount = item.stages.filter(
+  // 轮次口径（2026-10-26 流标再采适配）：进度与阶段行一律限当前轮——两轮平铺会把
+  // 第 1 轮的完成数灌进第 2 轮分母，阶段行不带 round 还会命中第 1 轮旧行（方式变更
+  // 时阶段名都是旧的）。round>1 在卡面明示轮次，与详情时间线「流标重采」徽标同语言。
+  const round = item.currentRound ?? 1;
+  const roundStages = item.stages.filter((stage) => (stage.round ?? 1) === round);
+  const progressStages = roundStages.length > 0 ? roundStages : item.stages; // 存量无轮数据兜底
+  const completedCount = progressStages.filter(
     (stage) => stage.status === 'COMPLETED',
   ).length;
   const currentStage =
-    item.stages.find((stage) => stage.stageKey === item.currentStage) ?? item.stages[0];
+    progressStages.find((stage) => stage.stageKey === item.currentStage)
+    ?? item.stages.find((stage) => stage.stageKey === item.currentStage)
+    ?? item.stages[0];
   const currentStageColor = STAGE_COLOR[currentStage?.stageKey ?? ''] ?? 'var(--accent)';
 
   return (
@@ -58,6 +66,18 @@ export function ProjectCard({
                 <span className="font-bold text-[color:var(--foreground)]">{item.createdByName}</span>
               </span>
             )}
+            {round > 1 && (
+              <span
+                className="inline-flex items-center rounded-[6px] px-2 py-0.5 text-[10px] font-bold"
+                style={{
+                  background: 'color-mix(in oklch, var(--warning) 14%, transparent)',
+                  color: 'var(--warning)',
+                }}
+                title={`前轮已流标，当前为第 ${round} 轮再次采购`}
+              >
+                第 {round} 轮 · 再次采购
+              </span>
+            )}
 
           </div>
           <div className="mt-2 text-sm text-[color:var(--muted-foreground)]">
@@ -75,7 +95,7 @@ export function ProjectCard({
         <div>采购类别：{item.procurementCategory || '待补充'}</div>
         <div>预算金额：{item.budgetAmount.toLocaleString('zh-CN')}</div>
         <div>
-          当前阶段：<span className="font-semibold" style={{ color: currentStageColor }}>{currentStage?.stageName ?? item.currentStage}</span>
+          当前阶段：<span className="font-semibold" style={{ color: currentStageColor }}>{round > 1 ? `第 ${round} 轮 · ` : ''}{currentStage?.stageName ?? item.currentStage}</span>
         </div>
       </div>
       {variant === 'archived' ? (
@@ -103,13 +123,13 @@ export function ProjectCard({
       ) : (
         <div className="mt-4 space-y-2">
           <div className="flex items-center justify-between text-xs text-[color:var(--muted-foreground)]">
-            <span>流程进度</span>
+            <span>{round > 1 ? `第 ${round} 轮进度` : '流程进度'}</span>
             <span>
-              {completedCount}/{item.stages.length}
+              {completedCount}/{progressStages.length}
             </span>
           </div>
           <div className="flex gap-2">
-            {item.stages.map((stage, idx) => {
+            {progressStages.map((stage, idx) => {
               const status = stage.status;
               return (
                 <div

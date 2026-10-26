@@ -130,7 +130,7 @@ export function RecycleBinDrawer({
                             当前阶段
                           </div>
                           <div className="mt-1 text-sm text-[color:var(--foreground)]">
-                            {getStageLabel(item.currentStage)}
+                            {(item.currentRound ?? 1) > 1 ? `第 ${item.currentRound} 轮 · ` : ''}{getStageLabel(item.currentStage)}
                           </div>
                         </div>
                         <div className="sm:col-span-2">

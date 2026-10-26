@@ -28,10 +28,12 @@ function stageTone(stage: string): 'accent' | 'success' | 'neutral' {
   return 'neutral';
 }
 
-/** 展示阶段：已归档项目（status=ARCHIVED）语义上是流程终结，统一显示「已归档」而非末段阶段名 */
-function displayStage(i: Pick<ProjectManagementItem, 'currentStage' | 'status'>): string {
+/** 展示阶段：已归档项目（status=ARCHIVED）语义上是流程终结，统一显示「已归档」而非末段阶段名；
+ * 流标再采项目（currentRound>1）带轮次前缀，与项目管理卡片/进展页同口径（2026-10-26） */
+function displayStage(i: Pick<ProjectManagementItem, 'currentStage' | 'status' | 'currentRound'>): string {
   if (i.status === 'ARCHIVED') return '已归档';
-  return STAGE_LABELS[i.currentStage] ?? i.currentStage;
+  const roundPrefix = (i.currentRound ?? 1) > 1 ? `第 ${i.currentRound} 轮 · ` : '';
+  return roundPrefix + (STAGE_LABELS[i.currentStage] ?? i.currentStage);
 }
 
 const TONE_CLS: Record<string, string> = {
