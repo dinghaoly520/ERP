@@ -1049,6 +1049,7 @@ export function ProjectDetailPanel({
 
   const handleStartEdit = (field: string, currentValue: string | number | null | undefined) => {
     if (actionsDisabled) return; // 只读（归档/终止/非创建人）
+    if (isPastRound) { toast.warning('该步骤属已完成的历史轮次，仅供查看'); return; } // 2026-10-26 补：字段编辑入口未过旧轮闸
     if (isBidLocked) { toast.warning('开标已确认，项目基本信息不可修改'); return; }
     setEditingField(field);
     let value = currentValue != null ? String(currentValue) : '';
@@ -2149,7 +2150,7 @@ export function ProjectDetailPanel({
                     ? [selectedStage.officialTenderAttachmentId]
                     : undefined
                 }
-                readOnly={actionsDisabled}
+                readOnly={actionsDisabled || isPastRound} /* 2026-10-26：旧轮附件只读——删除/编辑入口一并收口（后端 PAST_ROUND_READONLY 硬闸同步） */
                 onDeleted={async (deletedObjectKey) => {
                   // 判断被删文件是否"采购文件"（信息来源），而非审批表/公告/合同等附件
                   const deletedFile = selectedStage.attachments.find((a) => a.objectKey === deletedObjectKey);
@@ -2187,7 +2188,7 @@ export function ProjectDetailPanel({
                     setAnalysis({ ...analysis, fileAnalyses: analysis.fileAnalyses.filter((fa) => fa.objectKey !== deletedObjectKey) });
                   }
                 }}
-                onEdit={actionsDisabled ? undefined : (attachmentId, fileName) => setEditingFile({ attachmentId, fileName, stageKey: selectedStage.stageKey })}
+                onEdit={actionsDisabled || isPastRound ? undefined : (attachmentId, fileName) => setEditingFile({ attachmentId, fileName, stageKey: selectedStage.stageKey })}
               />
 
               {/* 上传区 —— cgzxui 内凹底（已归档：整体禁用） */}
