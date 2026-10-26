@@ -269,6 +269,8 @@ api: 4001, public: 3002, mall: 3003, supplier: 3004,
 web: 3005, expert: 3006, bid: 3007, assistant: 3008
 ```
 
+**生产域名双轨（2026-10-26，《子域名申请单》已处理·新终版）**：`packages/config/src/domains.ts`（`PORTAL_DOMAINS` + `inDomainFamily`）——`*.scsfjt.com` 家族 7 业务（ssyc/api-/supplier-/expert-/procurement-/bid-/mobile-ssyc）。`portalURL()`/`landingURL()` 运行时自适应：当前页经域名家族访问 → 跳转目标门户子域（无端口、协议随当前页）；端口/IP 访问（localhost、LAN/公网 IP）→ 端口互跳不变。**申请单未列业务（mall :3003 / assistant :3008 / bigscreen :3010）无子域**，域名模式下回退端口口径。后端外发链接（RSVP 回执等）`apps/api/src/common/portal-link-origin.ts` 同口径：请求 Origin/X-Forwarded-Host 判家族 + X-Forwarded-Proto 定协议（缺省 https）。生产部署 API 侧另需 env：`API_ORIGIN=https://api-ssyc.scsfjt.com`、`CORS_ORIGINS` 列全部门户子域、`TRUST_PROXY=1`；各门户 `PORTAL_*_URL` env 覆盖仍最高优先。
+
 ### Auth & Cookie Isolation
 
 Each portal uses an independent login session via named httpOnly cookies:

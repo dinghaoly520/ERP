@@ -1,4 +1,5 @@
 import { PORTS, type AppName } from './ports';
+import { PORTAL_DOMAINS, inDomainFamily } from './domains';
 
 /** API 服务 origin —— 各门户 next.config rewrites / middleware 代理目标的唯一来源。
  *  环境变量 API_ORIGIN 可覆盖（生产指向真实后端域名）；默认本地端口（PORTS.api）。
@@ -13,16 +14,23 @@ export function portalOrigin(app: AppName, envOverride?: string): string {
   return (envOverride || `http://localhost:${PORTS[app]}`).replace(/\/+$/, '');
 }
 
-/** 构建门户完整 URL（浏览器端使用） */
+/** 构建门户完整 URL（浏览器端使用）。
+ *  双轨自适应（2026-10-26，子域名申请单 2026-10-14 新终版）：当前页经 *.scsfjt.com
+ *  域名访问且目标门户有子域 → 同协议域名跳转（不带端口）；端口/IP 访问（localhost、
+ *  局域网/公网 IP）或目标无子域（mall/assistant/bigscreen）→ 端口口径不变。 */
 export function portalURL(app: AppName, path = '/'): string {
-  const port = PORTS[app];
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
   if (typeof window !== 'undefined') {
+    const domain = PORTAL_DOMAINS[app];
+    if (domain && inDomainFamily(window.location.hostname)) {
+      return `${window.location.protocol}//${domain}${cleanPath}`;
+    }
+    const port = PORTS[app];
     return `http://${window.location.hostname}:${port}${cleanPath}`;
   }
   // SSR: 返回占位值，实际 href 由客户端 hydrate 后覆盖。
   // 避免 SSR/客户端 hostname 不一致（localhost vs LAN IP）触发 hydration mismatch。
-  return `http://localhost:${port}${cleanPath}`;
+  return `http://localhost:${PORTS[app]}${cleanPath}`;
 }
 
 /** 角色 → 登陆后跳转路径 */
