@@ -585,7 +585,6 @@ const ANNOUNCEMENT_SPECS: NotificationTypeSpec[] = [
 
 const CATALOG_SPECS: NotificationTypeSpec[] = [
   { code: 'CATALOG_APPLICATION', label: '目录申请', domain: 'catalog', icon: 'ShoppingBag', tone: 'gray', actionable: false, audiences: LEGACY('挂起待议'), channels: IN_APP },
-  { code: 'CATALOG_PRICE_ALERT', label: '目录价格预警', domain: 'catalog', icon: 'Tag', tone: 'orange', actionable: true, audiences: LEGACY('挂起待议'), channels: IN_APP },
 ];
 
 const SYSTEM_SPECS: NotificationTypeSpec[] = [

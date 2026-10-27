@@ -188,15 +188,15 @@ describe('sweepStaleActionableNotifications', () => {
     const t = (h: number) => new Date(Date.now() - h * 3600_000);
     const prisma = makePrisma({
       notifications: [
-        { id: 'p-old-a', type: 'CATALOG_PRICE_ALERT', link: '/mall-management/catalog?tab=alerts', content: '', resolvedAt: null, userId: 'u1', createdAt: t(48) },
-        { id: 'p-new-a', type: 'CATALOG_PRICE_ALERT', link: '/mall-management/catalog?tab=alerts', content: '', resolvedAt: null, userId: 'u1', createdAt: t(1) },
-        { id: 'p-old-b', type: 'CATALOG_PRICE_ALERT', link: '/mall-management/catalog?tab=alerts', content: '', resolvedAt: null, userId: 'u2', createdAt: t(24) },
-        { id: 'r-old', type: 'EXPERT_RETIRE_CANDIDATE', link: '/expert/retirement', content: '', resolvedAt: null, userId: 'u1', createdAt: t(24) },
-        { id: 'r-new', type: 'EXPERT_RETIRE_CANDIDATE', link: '/expert/retirement', content: '', resolvedAt: null, userId: 'u1', createdAt: t(2) },
+        // CATALOG_PRICE_ALERT 已随功能移除（2026-10-26），夹具改用 EXPERT_RETIRE_CANDIDATE
+        // 双用户覆盖同一规则语义（每用户仅留最新一批）
+        { id: 'r-old-a', type: 'EXPERT_RETIRE_CANDIDATE', link: '/expert/retirement', content: '', resolvedAt: null, userId: 'u1', createdAt: t(48) },
+        { id: 'r-new-a', type: 'EXPERT_RETIRE_CANDIDATE', link: '/expert/retirement', content: '', resolvedAt: null, userId: 'u1', createdAt: t(1) },
+        { id: 'r-old-b', type: 'EXPERT_RETIRE_CANDIDATE', link: '/expert/retirement', content: '', resolvedAt: null, userId: 'u2', createdAt: t(24) },
       ],
     });
     await sweepStaleActionableNotifications(prisma as any);
-    expect(prisma._unresolved().sort()).toEqual(['p-new-a', 'p-old-b', 'r-new']);
+    expect(prisma._unresolved().sort()).toEqual(['r-new-a', 'r-old-b']);
   });
 
   it('幂等：复跑第二轮零消解', async () => {

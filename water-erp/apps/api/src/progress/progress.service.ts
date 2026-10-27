@@ -12,6 +12,8 @@ export interface ProjectWithCreator {
   requesterDepartment: string;
   procurementMethod: string;
   currentStage: string;
+  /** 当前采购轮次（流标再次采购 +1；DB 行全量展开已含） */
+  currentRound: number | null;
   status: ProjectManagementStatus;
   budgetAmount: number;
   createdAt: string;
@@ -26,6 +28,8 @@ export interface ProjectWithCreator {
     stageKey: string;
     stageName: string;
     stageOrder: number;
+    /** 所属轮次（流标再采分轮；null=存量视作 1） */
+    round: number | null;
     status: string;
     completedAt: Date | null;
   }>;
@@ -396,26 +400,43 @@ export class ProgressService {
 
     const stageNames = STAGE_LABELS;
 
+    // 轮次口径（2026-10-26 流标再采适配，与 :3005 卡片/进展页同源）：进度只算当前轮
+    // ——两轮平铺会把第 1 轮完成数灌进第 2 轮分母；阶段名优先取当前轮阶段行
+    // （方式变更后新轮阶段名与首轮可能不同，如 招标文件→采购文件）
+    const roundScoped = (p: (typeof stats.projects)[number]) => {
+      const round = p.currentRound ?? 1;
+      const roundStages = p.stages.filter((s) => (s.round ?? 1) === round);
+      const effStages = roundStages.length > 0 ? roundStages : p.stages;
+      const completed = effStages.filter((s) => s.status === 'COMPLETED').length;
+      return {
+        round,
+        completed,
+        total: effStages.length,
+        percent: effStages.length > 0 ? Math.round((completed / effStages.length) * 100) : 0,
+        scopedStage: roundStages.find((s) => s.stageKey === p.currentStage),
+      };
+    };
+
     const projectSummaries = stats.projects.map((p) => {
-      const completedStages = p.stages.filter((s) => s.status === 'COMPLETED').length;
-      const totalStages = p.stages.length;
-      const progressPercent = totalStages > 0 ? Math.round((completedStages / totalStages) * 100) : 0;
+      const sc = roundScoped(p);
       const daysSinceUpdate = Math.max(
         0,
         Math.floor((Date.now() - new Date(p.updatedAt).getTime()) / (1000 * 60 * 60 * 24)),
       );
+      const stageLabel =
+        sc.scopedStage?.stageName ?? stageNames[p.currentStage] ?? p.currentStage ?? '未设置';
 
       return {
         title: p.title,
         requesterName: p.requesterName || p.createdBy?.displayName || '未登记',
         department: p.requesterDepartment || '未设置',
         procurementMethod: p.procurementMethod || '未设置',
-        currentStage: stageNames[p.currentStage] || p.currentStage || '未设置',
-        progress: `${progressPercent}%`,
+        currentStage: sc.round > 1 ? `第 ${sc.round} 轮 · ${stageLabel}` : stageLabel,
+        progress: `${sc.percent}%`,
         budget: p.budgetAmount ? `${(p.budgetAmount / 10000).toFixed(1)}万` : '未设置',
         daysSinceUpdate,
-        completedStages,
-        totalStages,
+        completedStages: sc.completed,
+        totalStages: sc.total,
       };
     });
 
@@ -426,11 +447,7 @@ export class ProgressService {
     const avgCompletion =
       stats.projects.length > 0
         ? Math.round(
-            stats.projects.reduce((sum, p) => {
-              const completed = p.stages.filter((s) => s.status === 'COMPLETED').length;
-              const total = p.stages.length;
-              return sum + (total > 0 ? (completed / total) * 100 : 0);
-            }, 0) / stats.projects.length,
+            stats.projects.reduce((sum, p) => sum + roundScoped(p).percent, 0) / stats.projects.length,
           )
         : 0;
 

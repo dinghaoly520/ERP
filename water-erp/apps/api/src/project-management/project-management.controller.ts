@@ -274,12 +274,14 @@ export class ProjectManagementController {
     @Param('stageKey') stageKey: string,
     @Param('fileIndex') fileIndex: string,
     @Res() res: Response,
+    @Query('round') round?: string,
   ) {
     return this.projectManagementService.serveArchiveFile(
       procurementRoundId,
       stageKey,
       parseInt(fileIndex, 10),
       res,
+      round != null && Number.isFinite(Number(round)) ? Number(round) : undefined,
     );
   }
 

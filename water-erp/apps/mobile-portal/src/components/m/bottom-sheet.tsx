@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
@@ -25,9 +25,16 @@ export function BottomSheet({
   children: ReactNode;
 }) {
   const [closing, setClosing] = useState(false);
+  /* 幽灵点击防护（2026-10-26「一闪就消失」实录）：移动 WebKit 的 click 按派发时刻
+   * 重新命中测试——pointerup 开层后手指处已被蒙层覆盖，同一次点按的 click 命中蒙层
+   * 立即触发关闭。开层后 320ms 内的蒙层点击一律忽略（用户刚开层不会立刻想关）。 */
+  const openedAtRef = useRef(0);
 
   useEffect(() => {
-    if (open) setClosing(false);
+    if (open) {
+      setClosing(false);
+      openedAtRef.current = Date.now();
+    }
   }, [open]);
 
   useEffect(() => {
@@ -65,7 +72,13 @@ export function BottomSheet({
   if (!open) return null;
   return createPortal(
     <div className="fixed inset-0 z-50" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-[color-mix(in_oklch,var(--background)_62%,transparent)] backdrop-blur-[2px]" onClick={() => setClosing(true)} />
+      <div
+        className="absolute inset-0 bg-[color-mix(in_oklch,var(--background)_62%,transparent)] backdrop-blur-[2px]"
+        onClick={() => {
+          if (Date.now() - openedAtRef.current < 320) return; // 开层同拍的幽灵点击
+          setClosing(true);
+        }}
+      />
       <div className="m-sheet-panel" data-closing={closing ? "true" : "false"} onAnimationEnd={handleAnimationEnd}>
         <div aria-hidden className="mx-auto mb-2.5 h-1 w-10 rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_28%,transparent)]" />
         <div className="mb-3 flex items-start justify-between gap-3">

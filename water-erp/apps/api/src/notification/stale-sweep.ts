@@ -198,10 +198,11 @@ export async function sweepStaleActionableNotifications(prisma: SweepPrisma): Pr
     }
   }
 
-  // ── 5) 批量报告型（CATALOG_PRICE_ALERT / EXPERT_RETIRE_CANDIDATE）：批报镜像
-  //    「最新一次评估」的结果，真值在目标页实时队列——每用户只保留最新一条未消解，
-  //    历史批报全部消解（创建点已同步上闸取代，本规则收敛存量）
-  for (const type of ['CATALOG_PRICE_ALERT', 'EXPERT_RETIRE_CANDIDATE'] as const) {
+  // ── 5) 批量报告型（EXPERT_RETIRE_CANDIDATE）：批报镜像「最新一次评估」的结果，
+  //    真值在目标页实时队列——每用户只保留最新一条未消解，历史批报全部消解
+  //    （创建点已同步上闸取代，本规则收敛存量。CATALOG_PRICE_ALERT 已随功能移除，
+  //    2026-10-26 用户裁定：目录价格预警非系统功能，发送源与种子一并清除）
+  for (const type of ['EXPERT_RETIRE_CANDIDATE'] as const) {
     const rows = await prisma.notification.findMany({
       where: { type, resolvedAt: null },
       select: { id: true, userId: true, createdAt: true },

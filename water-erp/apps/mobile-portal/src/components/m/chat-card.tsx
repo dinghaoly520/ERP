@@ -28,7 +28,14 @@ export function ChatCardView({ card }: { card: ChatCard }) {
   }
   const rows = (card.rows ?? []) as Array<Record<string, string>>;
   if (!rows.length) return <FallbackCard card={card} />;
-  const cols = Object.keys(rows[0]).slice(0, 4);
+  /* 表头优先用后端 columns 的中文 label（用户口径：表格不允许出现英文——2026-10-26）；
+   * 无 columns 的卡（cockpit 中文行键风格）回退行键 */
+  const colDefs = ((card.columns ?? []) as Array<{ key: string; label: string }>).filter((c) =>
+    rows.some((r) => c.key in r),
+  );
+  const cols = colDefs.length
+    ? colDefs.slice(0, 4)
+    : Object.keys(rows[0]).slice(0, 4).map((k) => ({ key: k, label: k }));
   return (
     <div className="mt-1.5 overflow-hidden rounded-[12px] m-tile">
       <div className="px-3 pt-2.5 text-[13px] font-bold text-[var(--foreground)]">{card.title}</div>
@@ -36,13 +43,13 @@ export function ChatCardView({ card }: { card: ChatCard }) {
         <table className="w-full text-[12px]">
           <thead>
             <tr className="text-left text-[var(--muted-foreground)]">
-              {cols.map((c) => <th key={c} className="whitespace-nowrap py-1 pr-3 font-semibold">{c}</th>)}
+              {cols.map((c) => <th key={c.key} className="whitespace-nowrap py-1 pr-3 font-semibold">{c.label}</th>)}
             </tr>
           </thead>
           <tbody className="tabular-nums text-[var(--foreground)]">
             {rows.slice(0, 8).map((r, i) => (
               <tr key={i} className="border-t border-[color-mix(in_oklch,var(--border)_45%,transparent)]">
-                {cols.map((c) => <td key={c} className="max-w-[10rem] truncate py-1 pr-3">{String(r[c] ?? "")}</td>)}
+                {cols.map((c) => <td key={c.key} className="max-w-[10rem] truncate py-1 pr-3">{String(r[c.key] ?? "")}</td>)}
               </tr>
             ))}
           </tbody>

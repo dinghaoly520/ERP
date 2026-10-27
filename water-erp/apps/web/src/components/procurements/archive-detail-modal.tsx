@@ -41,12 +41,17 @@ type ArchiveDetailData = {
   archiveDir: string | null;
   /** terminated = 项目终止详情（复用本弹窗；附件无归档物理路径，不可预览） */
   kind?: 'archived' | 'terminated';
+  /** 归档/终止时轮次（流标再采项目=末轮）；旧载荷缺省视作 1 */
+  archivedRound?: number | null;
+  terminatedRound?: number | null;
   basicInfo: Record<string, string>;
   extractedInfo: Record<string, string>;
   stages: Array<{
     stageKey: string;
     stageName: string;
     stageDirName: string;
+    /** 所属轮次（旧载荷缺省视作 1） */
+    round?: number | null;
     status: string;
     attachments: Array<{
       id: string;
@@ -200,8 +205,8 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
     mimeType: string;
   } | null>(null);
 
-  const handlePreviewFile = (stageKey: string, fileIndex: number, fileName: string, mimeType: string) => {
-    const url = `${process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api'}/project-management/archive-file/${procurementRoundId}/${stageKey}/${fileIndex}`;
+  const handlePreviewFile = (stageKey: string, fileIndex: number, fileName: string, mimeType: string, round?: number) => {
+    const url = `${process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api'}/project-management/archive-file/${procurementRoundId}/${stageKey}/${fileIndex}${round != null ? `?round=${round}` : ''}`;
     setPreviewFile({ url, fileName, mimeType });
   };
 
@@ -248,7 +253,7 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
         // Select first stage with files
         const firstStageWithFiles = result.stages.find((s: ArchiveDetailData['stages'][number]) => s.attachments.length > 0);
         if (firstStageWithFiles) {
-          setSelectedStageKey(firstStageWithFiles.stageKey);
+          setSelectedStageKey(`${firstStageWithFiles.stageKey}@${firstStageWithFiles.round ?? 1}`);
         }
         // 重置步骤分析视图（新弹窗实例）
         setStageTab('files');
@@ -275,7 +280,10 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
     return <Clock size={14} className="text-[var(--muted-foreground)]" />;
   };
 
-  const selectedStage = data?.stages.find((s) => s.stageKey === selectedStageKey);
+  // 复合键（stageKey@round）：多轮同 stageKey 两行，裸 stageKey 会双命中（tab 键冲突、选中恒取第 1 轮）
+  const stageKeyOf = (st: { stageKey: string; round?: number | null }) => `${st.stageKey}@${st.round ?? 1}`;
+  const selectedStage = data?.stages.find((s) => stageKeyOf(s) === selectedStageKey);
+  const hasMultiRounds = !!data && new Set(data.stages.map((st) => st.round ?? 1)).size > 1;
   const experts = data?.extractedInfo['专家信息']
     ? data.extractedInfo['专家信息'].split('\n').filter(Boolean).map((line) => {
         const normalizedLine = line.replace(/^\s*\d+[、.．]\s*/, '');
@@ -288,8 +296,15 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
     ? data.extractedInfo['投标单位'].split(/[、,\n]/).map((unit) => unit.trim()).filter(Boolean)
     : [];
   const totalFiles = data?.stages.reduce((sum, stage) => sum + stage.attachments.length, 0) ?? 0;
-  // 兼容归档（英文枚举原值）与终止（中文标签）两种 status 取值
-  const completedStages = data?.stages.filter((stage) => stage.status === '已完成' || stage.status === 'COMPLETED').length ?? 0;
+  // 轮次口径（2026-10-26 流标再采适配）：只数归档/终止轮——多轮平铺会把第 1 轮
+  // 完成数灌进末轮分母；兼容归档（英文枚举原值）与终止（中文标签）两种 status 取值
+  const finalRound = data ? (data.archivedRound ?? data.terminatedRound ?? 1) : 1;
+  const roundStages = data
+    ? (data.stages.filter((st) => (st.round ?? 1) === finalRound).length > 0
+        ? data.stages.filter((st) => (st.round ?? 1) === finalRound)
+        : data.stages)
+    : [];
+  const completedStages = roundStages.filter((stage) => stage.status === '已完成' || stage.status === 'COMPLETED').length;
   const savingsLabel = data?.basicInfo['预算金额'] && data?.extractedInfo['合同金额']
     ? (() => {
         const budget = parseFloat(data.basicInfo['预算金额'].replace(/[^\d.]/g, ''));
@@ -378,16 +393,16 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                 <div className="neu-tab-bar shrink-0">
                   {data.stages.map((stage) => (
                     <button
-                      key={stage.stageKey}
+                      key={stageKeyOf(stage)}
                       type="button"
                       onClick={() => {
-                        setSelectedStageKey(stage.stageKey);
+                        setSelectedStageKey(stageKeyOf(stage));
                         setStageTab('files'); // 切阶段回到文件 tab，分析按需重新拉取
                       }}
-                      className={`neu-tab ${selectedStageKey === stage.stageKey ? 'is-active' : ''}`}
+                      className={`neu-tab ${selectedStageKey === stageKeyOf(stage) ? 'is-active' : ''}`}
                     >
                       {getStatusIcon(stage.status)}
-                      <span>{stage.stageName}</span>
+                      <span>{hasMultiRounds ? `R${stage.round ?? 1}·` : ''}{stage.stageName}</span>
                       {stage.attachments.length > 0 && (
                         <span className="neu-tab-count">{stage.attachments.length}</span>
                       )}
@@ -658,7 +673,7 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                                 <span className="text-[0.8rem] font-medium truncate flex-1">{file.fileName}</span>
                                 {data.kind !== 'terminated' && data.archiveDir && (
                                   <button
-                                    onClick={() => handlePreviewFile(selectedStage.stageKey, i, file.fileName, file.mimeType)}
+                                    onClick={() => handlePreviewFile(selectedStage.stageKey, i, file.fileName, file.mimeType, selectedStage.round ?? 1)}
                                     className="neu-btn-xs"
                                     title="预览文件"
                                   >

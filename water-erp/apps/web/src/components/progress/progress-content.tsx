@@ -47,6 +47,8 @@ const PAGE_SIZE = 20;
 type RiskLevel = "normal" | "warning" | "danger";
 
 type DerivedProject = ProjectProgress & {
+  /** 归一化轮次（null→1），当前阶段标签/计数均按此轮 */
+  currentRound: number;
   daysSinceUpdate: number;
   completedStages: number;
   totalStages: number;
@@ -234,7 +236,10 @@ function PieChartBlock({ icon, label, items, accent }: { icon: ReactNode; label:
 
 function ProjectCard({ project, index, reducedMotion }: { project: DerivedProject; index: number; reducedMotion: boolean }) {
   const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.03);
-  const stageMap = new Map(project.stages.map((s) => [s.stageKey, s]));
+  // 限当前轮：多轮同 stageKey 各一行，键值 map 不分轮会串行（轮次口径 2026-10-26）
+  const round = project.currentRound ?? 1;
+  const roundScoped = project.stages.filter((s) => (s.round ?? 1) === round);
+  const stageMap = new Map((roundScoped.length > 0 ? roundScoped : project.stages).map((s) => [s.stageKey, s]));
 
   const riskColor = project.riskLevel === "danger"
     ? "var(--danger)"
@@ -256,7 +261,7 @@ function ProjectCard({ project, index, reducedMotion }: { project: DerivedProjec
                 className="meta-tag"
                 style={{ borderColor: project.currentStageMeta.color, backgroundColor: project.currentStageMeta.softColor, color: project.currentStageMeta.color } as React.CSSProperties}
               >
-                当前阶段 · {project.currentStageMeta.label}
+                当前阶段 · {round > 1 ? `第 ${round} 轮 · ` : ''}{project.currentStageMeta.label}
               </span>
               <span
                 className="meta-tag"
@@ -332,7 +337,7 @@ function ProjectCard({ project, index, reducedMotion }: { project: DerivedProjec
           </div>
           <div className="mt-1.5 flex items-center justify-between px-1">
             <span className="text-xs text-[color:var(--muted-foreground)]">
-              已推进 {project.completedStages}/{project.totalStages} 阶段
+              {round > 1 ? `第 ${round} 轮` : '累计'}已推进 {project.completedStages}/{project.totalStages} 阶段
             </span>
             <span className="text-xs font-semibold" style={{ color: project.currentStageMeta.color }}>
               {formatPercent(project.progressPercent)}
@@ -460,9 +465,16 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
     const threshold = budgets[Math.max(0, Math.floor(budgets.length * 0.7) - 1)] ?? 0;
     return stats.projects.map((project) => {
       const days = getDaysSince(project.updatedAt);
-      const done = project.stages.filter((s) => s.status === "COMPLETED").length;
-      const total = project.stages.length;
+      // 轮次口径（2026-10-26 流标再采适配）：进度只算当前轮；阶段标签优先取当前轮
+      // 阶段行的 stageName（方式变更后新轮阶段名与首轮可能不同，如 招标文件→采购文件）
+      const round = project.currentRound ?? 1;
+      const roundStages = project.stages.filter((s) => (s.round ?? 1) === round);
+      const effStages = roundStages.length > 0 ? roundStages : project.stages;
+      const done = effStages.filter((s) => s.status === "COMPLETED").length;
+      const total = effStages.length;
       const meta = getStageMeta(project.currentStage);
+      const scopedStage = roundStages.find((s) => s.stageKey === project.currentStage);
+      const scopedMeta = scopedStage ? { ...meta, label: scopedStage.stageName } : meta;
       const isHigh = (project.budgetAmount || 0) >= threshold && threshold > 0;
       const isEarly = ["PROCUREMENT_DEMAND", "INITIATION", "TENDER_DOCUMENT"].includes(project.currentStage);
       const needsAttn = days > 7 || (isHigh && isEarly);
@@ -472,7 +484,8 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
         completedStages: done,
         totalStages: total,
         progressPercent: total > 0 ? Math.round((done / total) * 100) : 0,
-        currentStageMeta: meta,
+        currentRound: round,
+        currentStageMeta: scopedMeta,
         riskLevel: getRiskLevel(days),
         needsAttention: needsAttn,
         isHighBudget: isHigh,

@@ -5607,6 +5607,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
       archivedAt: terminatedAt ? terminatedAt.toISOString().split('T')[0] : null,
       archiveHook: null,
       archiveDir: null,
+      /** 终止时轮次（流标再采项目可能在第 N 轮终止） */
+      terminatedRound: pmItem.currentRound ?? 1,
       kind: 'terminated' as const,
       basicInfo: {
         '项目编号': pmItem.projectCode ?? '',
@@ -5631,6 +5633,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         stageKey: stage.stageKey,
         stageName: stage.stageName,
         stageDirName: `${idx + 1}.${stage.stageName}`,
+        round: stage.round ?? 1, // 轮次透出（流标再采适配，与 TXT 路径同构）
         status: stageStatusLabel(stage.status),
         attachments: stage.attachments.map((att: any) => ({
           id: att.id,
@@ -5659,6 +5662,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       archivedAt: pmItem.archivedAt ? pmItem.archivedAt.toISOString().split('T')[0] : null,
       archiveHook: pmItem.archiveHook ?? null,
       archiveDir: null,
+      archivedRound: pmItem.currentRound ?? 1,
       kind: 'archived' as const,
       basicInfo: {
         '项目编号': pmItem.projectCode ?? '',
@@ -5681,6 +5685,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         stageKey: stage.stageKey,
         stageName: stage.stageName,
         stageDirName: `${idx + 1}.${stage.stageName}`,
+        round: stage.round ?? 1, // 轮次透出（流标再采适配，与 TXT 路径同构）
         status: stageStatusLabel(stage.status),
         attachments: stage.attachments.map((att: any) => ({
           id: att.id,
@@ -5828,6 +5833,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
         stageKey: stage.stageKey,
         stageName: stage.stageName,
         stageDirName: stageDir,
+        // 轮次透出（2026-10-26 流标再采适配）：多轮归档项目同 stageKey 两轮各一行，
+        // 前端按 round 限定 tab 唯一键/标签；目录匹配仍按 stageDirName 不受影响
+        round: stage.round ?? 1,
         status: stage.status,
         attachments: stage.attachments.map((att, index) => ({
           id: att.id,
@@ -5856,6 +5864,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
       archivedAt: archivedAt.toISOString().split('T')[0],
       archiveHook: parsed.archiveHook || pmItem.archiveHook || null,
       archiveDir: projectDir,
+      /** 归档时轮次（流标再采项目=末轮；前端进度计数/标签口径） */
+      archivedRound: pmItem.currentRound ?? 1,
       basicInfo: parsed.basicInfo,
       extractedInfo: parsed.extractedInfo,
       stages: stagesWithFiles,
@@ -5871,13 +5881,16 @@ ${JSON.stringify(algorithmResult, null, 2)}
     stageKey: string,
     fileIndex: number,
     res: Response,
+    round?: number,
   ) {
     // Find the project management item
     const pmItem = await this.prisma.projectManagementItem.findFirst({
       where: { archivedProcurementRoundId: procurementRoundId },
       include: {
+        // round 消歧（2026-10-26 流标再采适配）：多轮项目同 stageKey 两轮各一行，
+        // 不传 round 时 stages[0] 恒命中第 1 轮（旧行为兼容单轮）
         stages: {
-          where: { stageKey },
+          where: { stageKey, ...(round != null ? { round } : {}) },
           include: { attachments: true },
         },
       },

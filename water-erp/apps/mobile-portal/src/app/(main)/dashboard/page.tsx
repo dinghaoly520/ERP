@@ -324,11 +324,11 @@ export default function DashboardPage() {
     const n = series.length;
     if (n === 0) return null;
     const W = 340;
-    const H = 150;
-    const padL = 6;
-    const padR = 6;
-    const padT = 14;
-    const padB = 22;
+    const H = 190;
+    const padL = 34; // 左侧金额刻度留位
+    const padR = 8;
+    const padT = 24; // 顶部留位给高亮值签
+    const padB = 24;
     const plotW = W - padL - padR;
     const plotH = H - padT - padB;
     const maxAmount = Math.max(...series.map((t) => t.amount), 1);
@@ -336,12 +336,16 @@ export default function DashboardPage() {
     const x = (i: number) => padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
     const colW = n > 0 ? plotW / n : plotW;
     const colX = (i: number) => padL + i * colW;
-    const amountY = (v: number) => padT + plotH - (v / maxAmount) * plotH * 0.86;
-    const linePath = series
-      .map((t, i) => `${i === 0 ? "M" : "L"} ${x(i).toFixed(1)} ${amountY(t.amount).toFixed(1)}`)
-      .join(" ");
+    const barW = Math.min(Math.round(colW * 0.42), 26);
+    const amountY = (v: number) => padT + plotH - (v / maxAmount) * plotH * 0.88;
+    const pts = series.map((t, i) => [x(i), amountY(t.amount)] as const);
+    const linePath = pts.map(([px, py], i) => `${i === 0 ? "M" : "L"} ${px.toFixed(1)} ${py.toFixed(1)}`).join(" ");
+    const baseline = padT + plotH;
+    const areaPath = `${linePath} L ${pts[pts.length - 1][0].toFixed(1)} ${baseline} L ${pts[0][0].toFixed(1)} ${baseline} Z`;
+    // 金额刻度两档（满值/半值）——横向发丝线 + 左侧小字
+    const ticks = [maxAmount, maxAmount / 2].map((v) => ({ v, y: amountY(v) }));
     const labelStep = Math.max(1, Math.ceil(n / 5));
-    return { W, H, padT, plotH, x, colW, colX, amountY, maxCount, linePath, series, labelStep };
+    return { W, H, padL, padT, baseline, plotH, x, colW, colX, barW, amountY, maxCount, maxAmount, linePath, areaPath, ticks, series, labelStep };
   }, [data]);
 
   /* 环形图分段（采购方式） */
@@ -632,65 +636,105 @@ export default function DashboardPage() {
             right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">柱=数量 · 线=金额(万)</span>}
           >
             {trend ? (
-              <svg viewBox="0 0 340 150" className="w-full" role="img" aria-label="采购执行趋势图">
+              <svg viewBox={`0 0 ${trend.W} ${trend.H}`} className="w-full" role="img" aria-label="采购执行趋势图">
+                <defs>
+                  <linearGradient id="trendBarFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.32" />
+                    <stop offset="100%" stopColor="var(--accent)" stopOpacity="0.07" />
+                  </linearGradient>
+                  <linearGradient id="trendAreaFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--success)" stopOpacity="0.15" />
+                    <stop offset="100%" stopColor="var(--success)" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                {/* 金额刻度线（发丝线）+ 左侧刻度小字 */}
+                {trend.ticks.map((tk, i) => (
+                  <g key={`tick-${i}`}>
+                    <line x1={trend.padL} y1={tk.y} x2={trend.W - 8} y2={tk.y} stroke="var(--muted-foreground)" strokeOpacity={0.16} strokeWidth={0.8} />
+                    <text x={trend.padL - 5} y={tk.y + 3} textAnchor="end" fontSize={8.5} fill="var(--muted-foreground)">
+                      {tk.v >= 100 ? Math.round(tk.v) : Math.round(tk.v * 10) / 10}
+                    </text>
+                  </g>
+                ))}
+                {/* 基线 */}
+                <line x1={trend.padL} y1={trend.baseline} x2={trend.W - 8} y2={trend.baseline} stroke="var(--muted-foreground)" strokeOpacity={0.3} strokeWidth={1} />
+                {/* 数量柱（渐变圆角柱）+ 高亮列淡染 */}
                 {trend.series.map((t, i) => {
                   const barH = (t.count / trend.maxCount) * (trend.plotH * 0.55);
                   return (
-                    <rect
-                      key={`bar-${i}`}
-                      x={trend.x(i) - 6}
-                      y={trend.padT + trend.plotH - barH}
-                      width={12}
-                      height={Math.max(barH, t.count > 0 ? 2 : 0)}
-                      rx={2}
-                      fill="var(--accent)"
-                      opacity={0.22}
-                    />
+                    <g key={`bar-${i}`}>
+                      {activeIdx === i ? (
+                        <rect x={trend.colX(i)} y={trend.padT - 6} width={trend.colW} height={trend.plotH + 6} rx={6} fill="var(--accent)" opacity={0.06} />
+                      ) : null}
+                      {barH > 0 ? (
+                        <rect
+                          x={trend.x(i) - trend.barW / 2}
+                          y={trend.baseline - barH}
+                          width={trend.barW}
+                          height={Math.max(barH, 2)}
+                          rx={3}
+                          fill="url(#trendBarFill)"
+                        />
+                      ) : null}
+                    </g>
                   );
                 })}
-                <path d={trend.linePath} fill="none" stroke="var(--success)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+                {/* 金额面积 + 折线 */}
+                <path d={trend.areaPath} fill="url(#trendAreaFill)" />
+                <path d={trend.linePath} fill="none" stroke="var(--success)" strokeWidth={2.2} strokeLinejoin="round" strokeLinecap="round" />
+                {/* 数据点 + 月份标签（高亮月加重） */}
                 {trend.series.map((t, i) => (
                   <g key={`pt-${i}`}>
-                    <circle cx={trend.x(i)} cy={trend.amountY(t.amount)} r={3} fill="var(--success)" />
+                    <circle cx={trend.x(i)} cy={trend.amountY(t.amount)} r={activeIdx === i ? 5.2 : 3.2} fill="var(--success)" stroke="white" strokeWidth={activeIdx === i ? 2 : 1.2} />
                     {i % trend.labelStep === 0 ? (
-                      <text x={trend.x(i)} y={148} textAnchor="middle" fontSize={11.5} fill="var(--muted-foreground)">
+                      <text
+                        x={trend.x(i)}
+                        y={trend.H - 6}
+                        textAnchor="middle"
+                        fontSize={10.5}
+                        fontWeight={activeIdx === i ? 700 : 400}
+                        fill={activeIdx === i ? "var(--accent-strong)" : "var(--muted-foreground)"}
+                      >
                         {t.label.slice(-5)}
                       </text>
                     ) : null}
                   </g>
                 ))}
+                {/* 高亮值签：柱列上方的当期金额小胶囊 */}
+                {activeIdx != null
+                  ? (() => {
+                      const t = trend.series[activeIdx];
+                      const chip = `${t.amount.toFixed(1)}万`;
+                      const cw = chip.length * 7.5 + 12;
+                      const cx = Math.min(Math.max(trend.x(activeIdx), trend.padL + cw / 2), trend.W - 8 - cw / 2);
+                      const cy = Math.max(trend.amountY(t.amount) - 34, 1);
+                      return (
+                        <g>
+                          <rect x={cx - cw / 2} y={cy} width={cw} height={18} rx={9} fill="var(--foreground)" />
+                          <text x={cx} y={cy + 12.5} textAnchor="middle" fontSize={10} fontWeight={700} fill="var(--background)">
+                            {chip}
+                          </text>
+                        </g>
+                      );
+                    })()
+                  : null}
+                {/* 命中区：按下高亮、点按开下钻（click 开层——同拍 click 不会再打蒙层，见 BottomSheet 幽灵点击防护） */}
                 {trend.series.map((t, i) => (
-                  <g key={`hit-${i}`}>
-                    {activeIdx === i ? (
-                      <>
-                        <line
-                          x1={trend.x(i)}
-                          y1={trend.padT}
-                          x2={trend.x(i)}
-                          y2={trend.padT + trend.plotH}
-                          stroke="var(--accent)"
-                          strokeWidth={1}
-                          strokeDasharray="3 3"
-                          opacity={0.6}
-                        />
-                        <circle cx={trend.x(i)} cy={trend.amountY(t.amount)} r={5} fill="var(--success)" stroke="white" strokeWidth={1.5} />
-                      </>
-                    ) : null}
-                    <rect
-                      x={trend.colX(i)}
-                      y={trend.padT}
-                      width={trend.colW}
-                      height={trend.plotH}
-                      fill="transparent"
-                      style={{ cursor: "pointer" }}
-                      onPointerDown={() => setActiveIdx(i)}
-                      onPointerUp={() => {
-                        setActiveIdx(null);
-                        setActiveTrend(t);
-                      }}
-                      onPointerCancel={() => setActiveIdx(null)}
-                    />
-                  </g>
+                  <rect
+                    key={`hit-${i}`}
+                    x={trend.colX(i)}
+                    y={trend.padT - 6}
+                    width={trend.colW}
+                    height={trend.plotH + 6}
+                    fill="transparent"
+                    style={{ cursor: "pointer" }}
+                    onPointerDown={() => setActiveIdx(i)}
+                    onPointerCancel={() => setActiveIdx(null)}
+                    onClick={() => {
+                      setActiveIdx(null);
+                      setActiveTrend(t);
+                    }}
+                  />
                 ))}
               </svg>
             ) : (

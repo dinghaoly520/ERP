@@ -1058,24 +1058,37 @@ export class DashboardService {
   }
 
   /** :3011 Tab 角标——异常/待处理/停滞三计数（与 getDashboard abnormalCount 同口径：
-   *  异常=非 AWARDED 且非 PENDING；停滞=active PMI 当前阶段停留>30 天） */
+   *  异常=非 AWARDED 且非 PENDING；停滞=ACTIVE 项目【当前阶段】停留>30 天） */
   async getBadges(companyFilter?: CompanyWhere) {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000);
-    const [abnormalCount, pendingCount, stalledCount] = await Promise.all([
+    // 停滞旧口径数「全部非 COMPLETED 阶段行」——回收/归档项目与历史未完阶段全计入
+    // （2026-10-26 实录：131 行显 99+）。规格口径=ACTIVE 项目 × currentStage 指针定位的
+    // 当前阶段行；Prisma where 不能跨表比对列（stageKey = currentStage），ACTIVE 集
+    // 本就小，两步查 + JS 配对（勿走 raw SQL——CompanyScope 盲区）
+    const [abnormalCount, pendingCount, activeItems] = await Promise.all([
       this.prisma.procurementRound.count({
         where: { ...companyFilter, resultStatus: { notIn: ['AWARDED', 'PENDING'] } },
       }),
       this.prisma.procurementRound.count({
         where: { ...companyFilter, resultStatus: 'PENDING' },
       }),
-      this.prisma.projectManagementStage.count({
-        where: {
-          status: { not: 'COMPLETED' },
-          updatedAt: { lt: thirtyDaysAgo },
-          ...(companyFilter ? { projectManagementItem: companyFilter } : {}),
-        },
+      this.prisma.projectManagementItem.findMany({
+        where: { status: 'ACTIVE', ...(companyFilter ?? {}) },
+        select: { id: true, currentStage: true },
       }),
     ]);
+    let stalledCount = 0;
+    if (activeItems.length) {
+      const stages = await this.prisma.projectManagementStage.findMany({
+        where: {
+          projectManagementItemId: { in: activeItems.map((it) => it.id) },
+          updatedAt: { lt: thirtyDaysAgo },
+        },
+        select: { projectManagementItemId: true, stageKey: true },
+      });
+      const curByItem = new Map(activeItems.map((it) => [it.id, it.currentStage]));
+      stalledCount = stages.filter((s) => s.stageKey === curByItem.get(s.projectManagementItemId)).length;
+    }
     return { abnormalCount, pendingCount, stalledCount };
   }
 }

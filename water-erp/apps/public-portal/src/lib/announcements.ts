@@ -51,6 +51,11 @@ export const ANNOUNCEMENT_TYPE_META: Record<string, MetaField[]> = {
     { key: 'projectCode', label: '项目编号' }, { key: 'winner', label: '预成交供应商' }, { key: 'amount', label: '预成交价格' },
     { key: 'period', label: '工期/交货期/服务期限' }, { key: 'publicityPeriod', label: '公示期' }, { key: 'objection', label: '异议渠道', area: true },
   ],
+  WIN_BID_NOTICE: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '采购方式' }, { key: 'budget', label: '最高限价' },
+    { key: 'openTime', label: '开标时间', date: true }, { key: 'bidder1Name', label: '中标供应商' }, { key: 'bidder1Price', label: '中标价格' },
+    { key: 'remark', label: '备注' },
+  ],
   WIN_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'winner', label: '成交供应商' }, { key: 'amount', label: '成交金额' },
     { key: 'period', label: '工期/交货期' }, { key: 'quality', label: '质量标准' }, { key: 'experts', label: '评审专家' },
@@ -99,6 +104,8 @@ const TYPE_META: Record<string, { tag: string; color: string }> = {
   CLARIFY_NOTICE: { tag: '澄清与修改', color: '#e08a00' },
   PREQUAL_NOTICE: { tag: '资格预审公告', color: '#0b63ce' },
   PRE_WIN_NOTICE: { tag: '中标公告', color: '#18a56c' },
+  WIN_BID_NOTICE: { tag: '中标公告', color: '#18a56c' },
+  FAILED_BID_NOTICE: { tag: '流标公告', color: '#e08a00' },
   WIN_NOTICE: { tag: '成交公告', color: '#18a56c' },
   CONTRACT_NOTICE: { tag: '合同公告', color: '#064ea2' },
   PERFORMANCE_NOTICE: { tag: '履行结果公告', color: '#4c9a7a' },
@@ -123,7 +130,7 @@ function toAnnouncementItem(a: any): AnnouncementItem {
     title: a.title,
     desc: a.aiSummary || a.summary || a.content?.slice(0, 120) || '',
     code: a.relatedProjectCode || '',
-    deadlineLabel: a.type === 'WIN_NOTICE' || a.type === 'PRE_WIN_NOTICE' ? '公示截止' : '报名截止',
+    deadlineLabel: a.type === 'WIN_NOTICE' || a.type === 'PRE_WIN_NOTICE' || a.type === 'WIN_BID_NOTICE' ? '公示截止' : '报名截止',
     deadline: '',
     companyName: a.companyName ?? '',
     content: a.titleOnly ? '' : (a.content || ''),
@@ -174,7 +181,7 @@ export async function fetchPublicAnnouncement(id: string): Promise<AnnouncementI
    直接请求 API 绝对地址（服务端无法用相对 /api），按类型各取 5 条，
    失败返回空数组，绝不抛错以免阻塞首屏渲染。 */
 export async function fetchAnnouncementsServer(apiBase: string): Promise<AnnouncementItem[]> {
-  const types = ['BID_NOTICE', 'ADDENDUM', 'PREQUAL_NOTICE', 'PRE_WIN_NOTICE', 'WIN_NOTICE', 'CONTRACT_NOTICE', 'PERFORMANCE_NOTICE', 'POLICY', 'PLATFORM'];
+  const types = ['BID_NOTICE', 'ADDENDUM', 'PREQUAL_NOTICE', 'PRE_WIN_NOTICE', 'WIN_BID_NOTICE', 'FAILED_BID_NOTICE', 'CLARIFY_NOTICE', 'WIN_NOTICE', 'CONTRACT_NOTICE', 'PERFORMANCE_NOTICE', 'POLICY', 'PLATFORM'];
   const settled = await Promise.all(
     types.map(type =>
       fetch(`${apiBase}/api/announcements/public?type=${type}&pageSize=5`, { cache: 'no-store' })
