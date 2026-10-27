@@ -8,7 +8,7 @@
 
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { RefreshCw, Search, ChevronRight, ExternalLink, Ban, AlertTriangle, Archive } from 'lucide-react';
+import { RefreshCw, Search, ChevronRight, ExternalLink, Ban, AlertTriangle, XCircle, Archive } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
 import { getProjectsDashboard, type DashboardProject } from '@/lib/api/bid';
 import DateRangeFilter from '@/components/date-range-filter';
@@ -110,7 +110,7 @@ export default function BidArchivePage() {
             <div className="page-hero__icon"><Archive size={17} strokeWidth={1.9} /></div>
             <div>
               <div className="page-hero__title">归档端</div>
-              <div className="page-hero__sub">已归档 / 流标项目的查阅、归档材料回看与开评标数据追溯</div>
+              <div className="page-hero__sub">已归档 / 已流标 / 已终止项目的查阅、归档材料回看与开评标数据追溯</div>
             </div>
           </div>
           <div className="page-hero__right">
@@ -165,7 +165,7 @@ export default function BidArchivePage() {
         </div>
       ) : !error && filtered.length === 0 ? (
         <div className="neu-card-static flex min-h-[200px] items-center justify-center text-[13px] text-[color:var(--muted-foreground)]">
-          {search || dateRange.start || dateRange.end ? '没有匹配的项目，请调整筛选条件' : '暂无已归档或已流标的项目'}
+          {search || dateRange.start || dateRange.end ? '没有匹配的项目，请调整筛选条件' : '暂无已归档、已流标或已终止的项目'}
         </div>
       ) : filtered.length === 0 ? null : (
         <>
@@ -173,7 +173,11 @@ export default function BidArchivePage() {
           <div className="neu-card-static overflow-hidden p-0">
             <div className="divide-y divide-[oklch(0.6_0.04_258_/_0.1)]">
               {paged.map(p => {
+                // 终态三分（2026-10-27 用户口径）：点「流标」→已流标（红）；PMI「终止」
+                // 下游联动置 ABORTED（riskNote 前缀「项目终止联动流标」）→已终止（灰）——
+                // 终止不一定是流标原因，独立标记；其余 ARCHIVED →已归档（绿）
                 const aborted = p.stage === 'ABORTED';
+                const terminated = aborted && (p.riskNote ?? '').startsWith('项目终止联动流标');
                 return (
                   <button
                     key={p.id}
@@ -187,11 +191,17 @@ export default function BidArchivePage() {
                           {p.projectCode}
                         </span>
                         <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                          aborted
-                            ? 'bg-[oklch(0.66_0.175_27_/_0.14)] text-[var(--danger)]'
-                            : 'bg-[oklch(0.71_0.11_164_/_0.14)] text-[var(--success)]'
+                          terminated
+                            ? 'bg-[oklch(0.62_0.012_258_/_0.12)] text-[var(--muted-foreground)]'
+                            : aborted
+                              ? 'bg-[oklch(0.66_0.175_27_/_0.14)] text-[var(--danger)]'
+                              : 'bg-[oklch(0.71_0.11_164_/_0.14)] text-[var(--success)]'
                         }`}>
-                          {aborted ? <><Ban size={9} /> 已流标</> : '已归档'}
+                          {terminated
+                            ? <><XCircle size={9} /> 已终止</>
+                            : aborted
+                              ? <><Ban size={9} /> 已流标</>
+                              : '已归档'}
                         </span>
                       </div>
                       <div className="mt-1 truncate text-sm font-bold tracking-tight text-[color:var(--foreground)]">{p.name}</div>
