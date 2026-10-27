@@ -1916,9 +1916,10 @@ export function ExpertExtractPage({
         current={step}
         onStepClick={(s) => setStep(s)}
         reachable={(s) => {
-          // 始终允许回步骤1重新配置/重抽（2026-10-20 用户裁定，推翻 2026-09-24「结果即定」拍板）——
-          // 重走步骤3确认时后端非追加 confirm 本就先清空再写入；评标/归档/流标项目的硬闸仍在
+          // 进入步骤2（已出抽取结果）后不再允许返回步骤1（2026-10-27 用户裁定，推翻 2026-10-20「始终允许回1重抽」）——
+          // 结果既出配置即冻结；需换人走后续步骤的补选/候补机制；评标/归档/流标项目的硬闸仍在
           // 后端 RE_EXTRACTION_LOCKED，前端不重复设卡
+          if (s === 1) return step === 1;
           if (s <= step) return true;
           if (s === 2 && !!preview) return true;
           if (s === 3 && confirmedExpertIds.length > 0) return true;
