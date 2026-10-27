@@ -1164,6 +1164,29 @@ export function SupplierSelectionPage({
     return miss;
   };
 
+  /** 固定语句实时预览（正选/补选共用）：关键词实时取值蓝色加粗；示例取首家供应商与其真实回执链接。未填槽位显示槽位名，链接未签发显示生成中标记。 */
+  const renderInvitePreview = (list: Map<string, { item: SupplierRecommendation; note: string }>) => {
+    const [firstSid, first] = [...list.entries()][0] ?? [];
+    const name = first?.item.name || '（供应商名称）';
+    const link = (firstSid ? notifyRsvpTokens[firstSid] : '') || '确认链接（生成中…）';
+    return (
+      <p className="rounded-lg px-3 py-2.5 text-xs leading-relaxed break-all text-[var(--foreground)]" style={{ background: 'oklch(0.972 0.012 258 / 0.55)' }}>
+        <b className="font-semibold text-[var(--accent-strong)]">{name}</b>
+        {' 您好！'}
+        <b className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.company || '归属公司'}</b>
+        {'现邀请贵公司参与'}
+        <b className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.projectName ? projectPhrase(notifyKeywords.projectName) : '项目名称'}</b>
+        {'采购项目（项目编号：'}
+        <b className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.projectCode || '项目编号'}</b>
+        {'），采购方式为'}
+        <b className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.method || '采购方式'}</b>
+        {'。请在24小时内登录供应商门户或直接点击 '}
+        <b className="font-semibold text-[var(--accent-strong)]">{link}</b>
+        {' 确认是否参加本次采购邀请，若超时则视为自动放弃；'}
+      </p>
+    );
+  };
+
   // 签发/补齐逐家 RSVP 回执链接（contentMode:'template'——无 LLM 毫秒级；后端幂等，PENDING 行复用同 token）
   const tokenFetchRef = useRef(false);
   const ensureRsvpTokens = async (entries: Array<[string, { item: SupplierRecommendation }]>): Promise<Record<string, string>> => {
@@ -2426,8 +2449,7 @@ export function SupplierSelectionPage({
                             <tr>
                               <td colSpan={6} className="!p-0">
                                 <div className="px-4 py-3" style={{ background: 'oklch(1 0 0 / 0.45)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
-                                  <div className="text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">发送内容（站内 + 短信同文，固定语句按关键词逐家拼接）</div>
-                                  <p className="mt-1.5 text-xs leading-relaxed break-all text-[var(--foreground)]">
+                                  <p className="text-xs leading-relaxed break-all text-[var(--foreground)]">
                                     {msg.body || '（回执链接生成中…）'}
                                   </p>
                                 </div>
@@ -2477,23 +2499,10 @@ export function SupplierSelectionPage({
               {/* 短信内容 · 关键词设计（固定语句外仅这些变量可改） */}
               <div className="space-y-3 rounded-[14px] p-4" style={{ background: 'oklch(1 0 0 / 0.5)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 1px 1px 3px oklch(0.55 0.03 258 / 0.06), -1px -1px 2px oklch(1 0 0 / 0.7)' }}>
                 <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
-                  <MessageSquare size={11} /><span>短信内容 · 关键词设计</span>
+                  <MessageSquare size={11} /><span>短信内容</span>
                 </div>
-                <p className="text-xs text-[var(--muted-foreground)]">除关键词外均为固定语句；蓝色加粗为关键词名称（同「确认链接」），具体取值见下方输入项与供应商表逐家预览：</p>
-                <p className="rounded-lg px-3 py-2.5 text-xs leading-relaxed break-all text-[var(--foreground)]" style={{ background: 'oklch(0.972 0.012 258 / 0.55)' }}>
-                  <span className="font-semibold text-[var(--accent-strong)]">受邀供应商名称</span>
-                  {' 您好！'}
-                  <span className="font-semibold text-[var(--accent-strong)]">归属公司</span>
-                  {'现邀请贵公司参与'}
-                  <span className="font-semibold text-[var(--accent-strong)]">项目名称</span>
-                  {'采购项目（项目编号：'}
-                  <span className="font-semibold text-[var(--accent-strong)]">项目编号</span>
-                  {'），采购方式为'}
-                  <span className="font-semibold text-[var(--accent-strong)]">采购方式</span>
-                  {'。请在24小时内登录供应商门户或直接点击'}
-                  <span className="font-semibold text-[var(--accent-strong)]">确认链接</span>
-                  {'确认是否参加本次采购邀请，若超时则视为自动放弃；'}
-                </p>
+                <p className="text-xs text-[var(--muted-foreground)]">除关键词外均为固定语句；蓝色加粗为关键词实时取值（示例取首家供应商，逐家内容见上表预览）：</p>
+                {renderInvitePreview(shortlist)}
                 <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                   {([
                     { key: 'company', label: '归属公司', ph: '四川省水利发展集团有限公司' },
@@ -3311,8 +3320,7 @@ export function SupplierSelectionPage({
                             <tr>
                               <td colSpan={6} className="!p-0">
                                 <div className="px-4 py-3" style={{ background: 'oklch(1 0 0 / 0.45)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
-                                  <div className="text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">发送内容（站内 + 短信同文，与正选共用关键词）</div>
-                                  <p className="mt-1.5 text-xs leading-relaxed break-all text-[var(--foreground)]">
+                                  <p className="text-xs leading-relaxed break-all text-[var(--foreground)]">
                                     {msg?.body || '（回执链接生成中…）'}
                                   </p>
                                 </div>
@@ -3360,22 +3368,9 @@ export function SupplierSelectionPage({
             {/* 短信内容预览：与正选共用关键词（固定语句同款，此处只读展示） */}
             <div className="space-y-3 rounded-[14px] p-4" style={{ background: 'oklch(1 0 0 / 0.5)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 1px 1px 3px oklch(0.55 0.03 258 / 0.06), -1px -1px 2px oklch(1 0 0 / 0.7)' }}>
               <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
-                <MessageSquare size={11} /><span>短信内容 · 固定语句（关键词与正选步骤共用）</span>
+                <MessageSquare size={11} /><span>短信内容（关键词与正选步骤共用）</span>
               </div>
-              <p className="rounded-lg px-3 py-2.5 text-xs leading-relaxed break-all text-[var(--foreground)]" style={{ background: 'oklch(0.972 0.012 258 / 0.55)' }}>
-                <span className="font-semibold text-[var(--accent-strong)]">受邀供应商名称</span>
-                {' 您好！'}
-                <span className="font-semibold text-[var(--accent-strong)]">归属公司</span>
-                {'现邀请贵公司参与'}
-                <span className="font-semibold text-[var(--accent-strong)]">项目名称</span>
-                {'采购项目（项目编号：'}
-                <span className="font-semibold text-[var(--accent-strong)]">项目编号</span>
-                {'），采购方式为'}
-                <span className="font-semibold text-[var(--accent-strong)]">采购方式</span>
-                {'。请在24小时内登录供应商门户或直接点击'}
-                <span className="font-semibold text-[var(--accent-strong)]">确认链接</span>
-                {'确认是否参加本次采购邀请，若超时则视为自动放弃；'}
-              </p>
+              {renderInvitePreview(rerunShortlist)}
             </div>
 
           </div>
