@@ -5,6 +5,7 @@ import { companyColor } from '@/components/company/company-tag';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { fetchCurrentUser } from '@/lib/api/auth';
+import { useCompanyInfo, pickDefaultPlace } from '@/lib/api/company-info';
 import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, specialtyPoolCounts, listPoolCompanies, listExperts, getDemandRepDirectory, getBidProjectDetail, getProjectInvitations, proxyMarkExpertInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, type DemandRepDirectoryItem } from '@/lib/api/expert';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
@@ -1366,6 +1367,13 @@ export function ExpertExtractPage({
       .catch(() => {});
     return () => { alive = false; };
   }, []);
+  // 开标地点=该公司信息管理维护的默认开标地点（2026-10-27 用户口径）——自动带出可改；仅空值时填入
+  const companyInfo = useCompanyInfo();
+  const defaultPlace = pickDefaultPlace(companyInfo);
+  useEffect(() => {
+    if (!defaultPlace) return;
+    setExpertNotifyKeywords(prev => (prev.openLocation === '' ? { ...prev, openLocation: defaultPlace } : prev));
+  }, [defaultPlace]);
   // 固定语句拼装（composeExpertMessage 同款策略）：关键词外全部固定；专家姓名与确认链接逐人自动
   const composeExpertMessage = (expertName: string, link: string) =>
     `${expertName}专家您好！${expertNotifyKeywords.company}现有采购项目定于${openTimeFormatted}在${expertNotifyKeywords.openLocation}开标评审。您被选为评审专家，请务必于收到通知后15分钟内点击链接确认是否参加：${link}，超时则自动视为放弃。`;
@@ -2519,16 +2527,16 @@ export function ExpertExtractPage({
                 <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">
                   开标时间 <span className="text-[var(--danger)]">*</span>
                 </span>
-                <div className="flex gap-2">
-                  <div className="w-[150px]">
-                    <span className="text-[10px] font-semibold text-[var(--muted-foreground)] block mb-0.5">日期</span>
-                    <input type="date" value={openTimeDate} onChange={e => setOpenTimeDate(e.target.value)} className="neu-input text-sm w-full" />
-                  </div>
-                  <div className="w-[100px]">
-                    <span className="text-[10px] font-semibold text-[var(--muted-foreground)] block mb-0.5">时间</span>
-                    <input type="time" value={openTimeTime} onChange={e => setOpenTimeTime(e.target.value)} className="neu-input text-sm w-full" />
-                  </div>
-                </div>
+                <input
+                  type="datetime-local"
+                  value={openTimeDate && openTimeTime ? `${openTimeDate}T${openTimeTime}` : ''}
+                  onChange={e => {
+                    const [d, t] = e.target.value.split('T');
+                    setOpenTimeDate(d || '');
+                    setOpenTimeTime(t || '');
+                  }}
+                  className="neu-input text-sm w-full max-w-[280px]"
+                />
                 {openTimeFormatted && <p className="text-[10px] text-[var(--accent)]/70 mt-1">已设置：{openTimeFormatted}</p>}
               </div>
 
