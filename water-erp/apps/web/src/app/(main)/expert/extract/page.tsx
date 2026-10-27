@@ -2602,7 +2602,7 @@ export function ExpertExtractPage({
               </div>
 
               {/* 正选通知内容 */}
-              <div className="rounded-xl bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] p-4 space-y-2">
+              <div className="rounded-xl bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-[var(--accent)]">正选专家组通知 · {step4Experts.length} 人</span>
                   <button
@@ -2637,35 +2637,50 @@ export function ExpertExtractPage({
                   <b className="font-semibold text-[var(--accent-strong)]">确认链接</b>
                   {'，超时则自动视为放弃。'}
                 </p>
-                <div className="flex flex-wrap gap-2">
-                  {step4Experts.map(e => (
-                    <button
-                      key={e.userId}
-                      onClick={() => setNotifyActiveExpert(e.userId)}
-                      className={`flex flex-col items-start gap-0.5 rounded-lg px-3 py-1.5 text-sm font-bold shadow-[inset_0_1px_0_oklch(1_0_0/0.6),1px_1px_3px_oklch(0.55_0.03_258/0.1)] transition-colors ${e.userId === notifyActiveExpert ? 'bg-[var(--accent)] text-white' : 'bg-[var(--neu-raised-bg)] text-[var(--foreground)] hover:bg-[color-mix(in_oklch,var(--accent)_8%,var(--neu-raised-bg))]'}`}
-                    >
-                      <span className="flex items-center gap-1.5">
-                        {fmtExpertName(e.userId, e.name || '未知')}
-                        <span className="text-xs font-normal opacity-70">{fmtExpertSpecialty(e.userId, e.specialty)}</span>
-                      </span>
-                      {/* 通知对象电话（2026-10-27 用户要求标注）：短信将发往此号码 */}
-                      <span className="font-mono text-[10px] font-normal opacity-75">{e.phone || preview?.candidatePool.find(c => c.userId === e.userId)?.phone || '（档案无电话）'}</span>
-                    </button>
-                  ))}
-                </div>
-                {/* 当前预览的专家 id（取选中或首位）——只读逐人内容（关键词+专属链接实时拼装） */}
                 {(() => {
-                  const editId = notifyActiveExpert && step4Experts.some(e => e.userId === notifyActiveExpert) ? notifyActiveExpert : step4Experts[0]?.userId || '';
-                  const e = step4Experts.find(x => x.userId === editId);
+                  const activeId = notifyActiveExpert && step4Experts.some(x => x.userId === notifyActiveExpert) ? notifyActiveExpert : step4Experts[0]?.userId || '';
+                  const active = step4Experts.find(x => x.userId === activeId);
                   return (
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
-                        <Bell size={11} /><MessageSquare size={11} /><span>发送内容</span>
+                    <>
+                      {/* 专家名单（点击行切换预览）：三列对齐替代宽窄不一的双行 chips（2026-10-27 拥挤优化） */}
+                      <div className="overflow-hidden rounded-[12px]" style={{ background: 'oklch(1 0 0 / 0.55)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6)' }}>
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]" style={{ boxShadow: 'inset 0 -1px 0 oklch(0.6 0.04 258 / 0.12)' }}>
+                              <th className="px-3 py-1.5 text-left w-[80px]">姓名</th>
+                              <th className="px-3 py-1.5 text-left">专业</th>
+                              <th className="px-3 py-1.5 text-left w-[120px]">联系电话</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {step4Experts.map(e => {
+                              const on = e.userId === activeId;
+                              return (
+                                <tr
+                                  key={e.userId}
+                                  onClick={() => setNotifyActiveExpert(e.userId)}
+                                  className={`cursor-pointer transition-colors hover:bg-[oklch(0.985_0.006_258)] ${on ? 'bg-[color-mix(in_oklch,var(--accent)_8%,transparent)]' : ''}`}
+                                  style={{ boxShadow: 'inset 0 -1px 0 oklch(0.6 0.04 258 / 0.08)' }}
+                                >
+                                  <td className="px-3 py-2 font-bold whitespace-nowrap text-[var(--foreground)]">{fmtExpertName(e.userId, e.name || '未知')}{on && <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle" style={{ background: 'var(--accent)' }} />}</td>
+                                  <td className="px-3 py-2 text-[var(--muted-foreground)]">{fmtExpertSpecialty(e.userId, e.specialty)}</td>
+                                  <td className="px-3 py-2 font-mono tabular-nums text-[var(--muted-foreground)]">{e.phone || preview?.candidatePool.find(c => c.userId === e.userId)?.phone || '—'}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
                       </div>
-                      <p className="rounded-lg px-3 py-2.5 text-xs leading-relaxed break-all" style={{ background: 'oklch(1 0 0 / 0.55)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
-                        {e ? composeExpertMessage(e.name || '未知', rsvpLinks[editId] || '') : '（暂无专家）'}
-                      </p>
-                    </div>
+                      {/* 只读逐人预览（关键词+专属链接实时拼装；行点击切换） */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
+                          <Bell size={11} /><MessageSquare size={11} /><span>发送内容{active ? ` · ${active.name}` : ''}</span>
+                        </div>
+                        <p className="rounded-lg px-3 py-2.5 text-xs leading-relaxed break-all" style={{ background: 'oklch(1 0 0 / 0.55)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+                          {active ? composeExpertMessage(active.name || '未知', rsvpLinks[active.userId] || '') : '（暂无专家）'}
+                        </p>
+                      </div>
+                    </>
                   );
                 })()}
               </div>
