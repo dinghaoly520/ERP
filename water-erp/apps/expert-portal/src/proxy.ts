@@ -21,22 +21,6 @@ const loginUrlFor = (request: NextRequest, pathname: string) => {
   return u;
 };
 
-/**
- * 平板形态判定（2026-10-19 收窄为显式信号）：只认 cookie / 反代头，不再 UA/触摸猜测——
- * maxTouchPoints>1 命中触摸屏笔记本、UA 含 CrOS 命中 Chromebook，误判后 7 天 cookie 把
- * 台式机锁进平板模式（平板端无法提交评分）。发现平板的唯一主动机制 = 桌面端扫码迁移
- * （/tablet/claim），本判定只负责「已显式声明为平板」的设备保持平板形态。
- *
- * 1. device_mode cookie：登录页「平板设备入口」链接 / ?device=tablet|desktop 手动切换写入（7 天）
- * 2. X-Forwarded-Device 头：生产环境由反向代理根据无线子网注入
- */
-function isTabletMode(request: NextRequest): boolean {
-  const cookie = request.cookies.get(DEVICE_COOKIE)?.value;
-  if (cookie === 'tablet') return true;
-  if (cookie === 'desktop') return false;
-  return request.headers.get('x-forwarded-device') === 'tablet';
-}
-
 export default async function proxy(request: NextRequest) {
   const token = request.cookies.get(COOKIE)?.value;
   const { pathname } = request.nextUrl;
@@ -58,6 +42,9 @@ export default async function proxy(request: NextRequest) {
   // 必须在鉴权闸门之前：未登录的平板从登录页「平板设备入口」点进来时，先落 cookie 再由
   // /tablet 闸门弹回 /login?redirect=/tablet，登录后直达平板工作台；若放在闸门后，匿名
   // 请求先被弹回登录页、device 参数丢失（2026-10-19 实测）。
+  // 2026-10-26 起自动改道已删（isTabletMode/平板隔离/X-Forwarded-Device 头判定全部移除）：
+  // cookie 不再驱动任何路由决策，仅由登录页读作链接文案翻转（进平板↔回桌面互切）；
+  // /tablet 与桌面路由互为直接入口，不再按设备形态强制弹转。
   const queryDevice = request.nextUrl.searchParams.get('device'); // ?device=tablet|desktop
   if (queryDevice === 'tablet' || queryDevice === 'desktop') {
     const res = NextResponse.redirect(
@@ -88,8 +75,7 @@ export default async function proxy(request: NextRequest) {
         if (res.ok) {
           const me = await res.json();
           if (me?.role === 'bid_expert') {
-            const target = isTabletMode(request) ? '/tablet' : '/';
-            return NextResponse.redirect(new URL(target, request.url));
+            return NextResponse.redirect(new URL('/', request.url));
           }
         }
       } catch { /* token validation failed — allow login page */ }
@@ -141,22 +127,6 @@ export default async function proxy(request: NextRequest) {
     }
   } catch {
     return loginWithRedirect();
-  }
-
-  // ── 平板形态隔离（cookie / X-Forwarded-Device 显式声明；?device= 手动切换已在闸门前处理）──
-  // 平板设备只允许访问 tablet 路由和 login/assets，桌面端路由一律重定向
-  if (isTabletMode(request)) {
-    // 已在 tablet 子路由 → 放行
-    if (pathname.startsWith('/tablet')) {
-      return NextResponse.next();
-    }
-    // 桌面端 evaluate/[id] → 映射到 tablet evaluate/[id]
-    const evalMatch = pathname.match(/^\/evaluate\/(.+)/);
-    if (evalMatch) {
-      return NextResponse.redirect(new URL(`/tablet/evaluate/${evalMatch[1]}`, request.url));
-    }
-    // 其余所有桌面端路由 → tablet 落地页（仅展示项目列表 + 平板评标按钮）
-    return NextResponse.redirect(new URL('/tablet', request.url));
   }
 
   return NextResponse.next();

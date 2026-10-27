@@ -5,8 +5,9 @@ import { ServiceWorkerRegister } from '@/components/sw-register';
 import './globals.css';
 
 // 平板 UA/触摸自动检测已删（2026-10-19）：maxTouchPoints 兜底命中触摸屏笔记本、CrOS 命中
-// Chromebook，误判写 7 天 device_mode cookie 把台式机锁进平板模式。平板进入改显式信号——
-// 桌面扫码迁移（/tablet/claim）或登录页「平板设备入口」（?device=tablet，proxy 写 cookie）。
+// Chromebook，误判写 7 天 device_mode cookie 把台式机锁进平板模式。2026-10-26 自动改道亦删
+//（proxy isTabletMode/平板隔离/X-Forwarded-Device 头判定移除）——/tablet 与桌面路由互为直接
+// 入口，cookie 仅翻转登录页链接文案；进入平板 = 扫码迁移（/tablet/claim）或登录页链接/直链。
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: '--font-body',
   subsets: ['latin'],

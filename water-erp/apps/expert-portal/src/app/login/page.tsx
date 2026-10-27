@@ -68,6 +68,14 @@ function ExpertLoginPage() {
     return () => mq.removeEventListener('change', update);
   }, []);
 
+  // 设备形态开关（登录页入口互切）：读 proxy 写入的 device_mode cookie（非 httpOnly）。
+  // 点击链接 307 回弹本页后整页重载、此处重读——tablet 态把入口翻转为「回桌面」
+  const [isTabletMode, setIsTabletMode] = useState(false);
+  useEffect(() => {
+    const m = document.cookie.match(/(?:^|;\s*)device_mode=(tablet|desktop)\b/);
+    setIsTabletMode(m?.[1] === 'tablet');
+  }, []);
+
   const switchTab = (next: Tab) => {
     setTab(next);
     setForm({ username: '', password: '' });
@@ -234,15 +242,17 @@ function ExpertLoginPage() {
             )}
           </div>
 
-          {/* 平板模式显式入口：仅专家 tab——平板路由只对 bid_expert 有意义，管理员登录直跳 :3007。
-              主路径是桌面评审页扫码迁移（/tablet/claim）；此处为确定性兜底（平板会话中断重登等），
-              ?device=tablet 由 proxy 写 7 天 cookie 后 302 /tablet（未登录则再弹回本页并带 redirect=/tablet）。
-              次级玻璃药丸（login-tablet-entry）：主登录键的安静变体，勿做成第二主按钮 */}
+          {/* 设备模式显式入口（仅专家 tab——平板路由只对 bid_expert 有意义，管理员登录直跳 :3007）。
+              主路径是桌面评审页扫码迁移（/tablet/claim）；此处为确定性兜底（平板会话中断重登等）。
+              文案与去向随 device_mode cookie 翻转：未声明/桌面态→「进平板」，tablet 态→「回桌面」——
+              点击 307 回弹本页后链接即变，作为切换已生效的可见反馈。
+              ?device=tablet|desktop 由 proxy 写 7 天 cookie 后 302 对应首页（未登录则再弹回本页并带 redirect）
+                    次级玻璃药丸（login-tablet-entry）：主登录键的安静变体，勿做成第二主按钮 */}
           {tab === 'expert' && (
             // eslint-disable-next-line @next/next/no-html-link-for-pages -- 须整页导航经 proxy 写 device_mode cookie 后 302 /tablet，Link 软导航不等价
-            <a href="/?device=tablet" className="login-tablet-entry">
+            <a href={isTabletMode ? '/?device=desktop' : '/?device=tablet'} className="login-tablet-entry">
               <span aria-hidden className="login-tablet-entry__icon">{IconTablet}</span>
-              <span>平板设备？进入平板评分模式</span>
+              <span>{isTabletMode ? '桌面设备？进入桌面评分模式' : '平板设备？进入平板评分模式'}</span>
               <span aria-hidden className="login-tablet-entry__chevron">{IconArrow}</span>
             </a>
           )}
