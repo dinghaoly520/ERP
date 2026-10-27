@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bot, History, Plus, SendHorizonal, Sparkles, Trash2 } from "lucide-react";
+import { Bot, History, Plus, RefreshCw, SendHorizonal, Sparkles, Trash2 } from "lucide-react";
 import { useAuth } from "@/components/m/auth-context";
 import { sendChat, fetchConversation, createConversation, fetchConversationList, removeConversation, type ChatMessage, type ConversationSummary } from "@/lib/api/assistant";
 import { Skeleton } from "@/components/m/skeleton";
@@ -16,7 +16,7 @@ const QUICK_QUESTIONS = ["本月成交额多少", "当前最大风险是什么",
 export default function ChatPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<Array<ChatMessage & { failedQ?: string }>>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -61,6 +61,8 @@ export default function ChatPage() {
     askedRef.current = true;
     const q = new URLSearchParams(window.location.search).get("q");
     if (q?.trim()) setInput(q.trim());
+    // 读后清 ?q=（replaceState 不留历史）：防刷新/回退重复预填（R1-1）
+    if (q !== null) window.history.replaceState(null, "", window.location.pathname);
   }, []);
 
   /* 历史会话回看（2026-10-27）：服务端按属主隔离存档，换机/隔天可找回；删除当前会话自动开新 */
@@ -125,8 +127,13 @@ export default function ChatPage() {
     const q = text.trim();
     if (!q || sending) return;
     setInput("");
-    setSending(true);
     setMessages((prev) => [...prev, { role: "user", content: q }]);
+    await doAsk(q);
+  }
+
+  /* 发送核心（ask 与失败重试共用——重试不重复追加用户气泡，R1-2） */
+  async function doAsk(q: string) {
+    setSending(true);
     // 发送时读数据库页当前公司口径（fresh 值，不用挂载期闭包）——admin 选中公司后提问按该口径作答
     const adminCompanyIds = isAdmin
       ? (readSavedFilters<{ companyIds: string[] }>("dashboard").companyIds ?? [])
@@ -136,10 +143,16 @@ export default function ChatPage() {
       if (r.conversationId) { setConversationId(r.conversationId); localStorage.setItem(CONV_KEY, r.conversationId); }
       setMessages((prev) => [...prev, { role: "assistant", content: r.answer, cards: r.cards ?? [] }]);
     } catch {
-      setMessages((prev) => [...prev, { role: "assistant", content: "抱歉，水叮当暂时开小差了，请稍后再试。" }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: "网络开小差，这条没发出去", failedQ: q }]);
     } finally {
       setSending(false);
     }
+  }
+
+  async function retryAsk(q: string) {
+    if (sending) return;
+    setMessages((prev) => prev.filter((m) => !(m.role === "assistant" && m.failedQ === q)));
+    await doAsk(q);
   }
 
   async function newConversation() {
@@ -197,6 +210,11 @@ export default function ChatPage() {
                 {m.role === "assistant" ? (
                   <div className="rounded-[14px] neu-card-static px-3.5 py-2.5 text-[14px] leading-relaxed text-[var(--foreground)]">
                     {m.content}
+                    {m.failedQ ? (
+                      <button type="button" onClick={() => retryAsk(m.failedQ as string)} className="m-chip mt-1.5">
+                        <RefreshCw size={11} /> 重试
+                      </button>
+                    ) : null}
                     {(m.cards ?? []).map((c, j) => <ChatCardView key={j} card={c} />)}
                   </div>
                 ) : m.content}

@@ -298,8 +298,10 @@ export default function DashboardPage() {
         setError(err instanceof Error ? err.message : "加载仪表盘数据失败");
       })
       .finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queryRange.startDate, queryRange.endDate, companyIds, retryTick]);
+    /* retryTick 不入 deps（R1-3）：下拉回调已直接调 loadData()，若 deps 含 retryTick，
+       bump 会重建 loadData 身份 → mount effect 二次触发 → 同轮双取。
+       retryTick 仍驱动今日要报/龙虎榜两 effect 的重取。 */
+  }, [queryRange.startDate, queryRange.endDate, companyIds]);
 
   useEffect(() => {
     loadData();
