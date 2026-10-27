@@ -2438,7 +2438,6 @@ export function SupplierSelectionPage({
                   </thead>
                   <tbody>
                     {[...shortlist.entries()].map(([sid, { item: r }], idx) => {
-                      const contact = r.contacts?.find(c => c.isPrimary) ?? r.contacts?.[0];
                       const isExpanded = notifyActiveSupplier === sid;
                       return (
                         <Fragment key={sid}>
@@ -2449,8 +2448,23 @@ export function SupplierSelectionPage({
                           >
                             <td className="tabular-nums font-semibold text-[var(--muted-foreground)]">{idx + 1}</td>
                             <td className="font-semibold text-[var(--foreground)]">{r.name}</td>
-                            <td>{contact?.name || <span className="text-[var(--muted-foreground)]">—</span>}</td>
-                            <td className="tabular-nums">{contact?.phone || <span className="text-[var(--muted-foreground)]">—</span>}</td>
+                            <td>
+                              {r.contacts?.length
+                                ? r.contacts.map((c, i) => (
+                                    <div key={i} className="flex items-center gap-1.5 leading-relaxed">
+                                      {c.isPrimary && (
+                                        <span className="rounded-[4px] px-1 text-[9px] font-bold text-white" style={{ background: 'var(--accent)' }}>主</span>
+                                      )}
+                                      <span>{c.name}</span>
+                                    </div>
+                                  ))
+                                : <span className="text-[var(--muted-foreground)]">—</span>}
+                            </td>
+                            <td className="tabular-nums">
+                              {r.contacts?.length
+                                ? r.contacts.map((c, i) => <div key={i} className="leading-relaxed">{c.phone}</div>)
+                                : <span className="text-[var(--muted-foreground)]">—</span>}
+                            </td>
                             <td className="tabular-nums font-bold" style={{ color: scoreVar(r.matchScore) }}>{r.matchScore}</td>
                             <td>
                               <button
@@ -3305,7 +3319,6 @@ export function SupplierSelectionPage({
                   </thead>
                   <tbody>
                     {[...rerunShortlist.entries()].map(([sid, { item: r }], idx) => {
-                      const contact = r.contacts?.find(c => c.isPrimary) ?? r.contacts?.[0];
                       const isExpanded = notifyActiveSupplier === sid;
                       return (
                         <Fragment key={sid}>
@@ -3316,8 +3329,23 @@ export function SupplierSelectionPage({
                           >
                             <td className="tabular-nums font-semibold text-[var(--muted-foreground)]">{idx + 1}</td>
                             <td className="font-semibold text-[var(--foreground)]">{r.name}</td>
-                            <td>{contact?.name || <span className="text-[var(--muted-foreground)]">—</span>}</td>
-                            <td className="tabular-nums">{contact?.phone || <span className="text-[var(--muted-foreground)]">—</span>}</td>
+                            <td>
+                              {r.contacts?.length
+                                ? r.contacts.map((c, i) => (
+                                    <div key={i} className="flex items-center gap-1.5 leading-relaxed">
+                                      {c.isPrimary && (
+                                        <span className="rounded-[4px] px-1 text-[9px] font-bold text-white" style={{ background: 'var(--accent)' }}>主</span>
+                                      )}
+                                      <span>{c.name}</span>
+                                    </div>
+                                  ))
+                                : <span className="text-[var(--muted-foreground)]">—</span>}
+                            </td>
+                            <td className="tabular-nums">
+                              {r.contacts?.length
+                                ? r.contacts.map((c, i) => <div key={i} className="leading-relaxed">{c.phone}</div>)
+                                : <span className="text-[var(--muted-foreground)]">—</span>}
+                            </td>
                             <td className="tabular-nums font-bold" style={{ color: scoreVar(r.matchScore) }}>{r.matchScore}</td>
                             <td>
                               <button

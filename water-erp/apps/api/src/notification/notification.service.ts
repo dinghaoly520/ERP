@@ -54,21 +54,36 @@ export class NotificationService {
     }).catch(() => {});
   }
 
-  /** 站内信创建后，按用户联系方式异步分发到 Email/SMS/Phone（失败不阻断主流程）。 */
-  private async dispatchExternal(userId: string, notificationId: string, payload: { type: string; title: string; content: string; link?: string | null }) {
-    // 2026-09-27 修复：phone 原先恒为 null → sms/phone 渠道永远 skipped。
-    // 与 sendToUser 同口径：专家取 ExpertProfile.phone，供应商取主联系人电话。
-    const [user, profile, supplier] = await Promise.all([
-      this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } }).catch(() => null),
+  /** 解析用户全部可用手机号（2026-10-27 用户口径：短信逐联系人各发一条）：
+   *  专家=ExpertProfile.phone 单值；供应商=全部联系人电话（密文拆封，去重，主联系人排序在前）。
+   *  无联系人 → 空数组（短信不投递，仅站内）。 */
+  private async resolvePhones(userId: string): Promise<string[]> {
+    const [profile, supplier] = await Promise.all([
       this.prisma.expertProfile.findUnique({ where: { userId }, select: { phone: true } }).catch(() => null),
       this.prisma.supplier.findUnique({
         where: { userId },
-        select: { contacts: { where: { isPrimary: true }, select: { phone: true }, take: 1 } },
+        select: { contacts: { orderBy: { isPrimary: 'desc' }, select: { phone: true } } },
       }).catch(() => null),
+    ]);
+    const raw = profile?.phone ? [profile.phone] : (supplier?.contacts ?? []).map(c => c.phone);
+    const out: string[] = [];
+    for (const p of raw) {
+      const v = openPii(p);
+      if (v && !out.includes(v)) out.push(v);
+    }
+    return out;
+  }
+
+  /** 站内信创建后，按用户联系方式异步分发到 Email/SMS/Phone（失败不阻断主流程）。 */
+  private async dispatchExternal(userId: string, notificationId: string, payload: { type: string; title: string; content: string; link?: string | null }) {
+    // 2026-10-27：供应商短信改全联系人各发一条（resolvePhones）；email/电话渠道仍用主联系人（phones[0]）
+    const [user, phones] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } }).catch(() => null),
+      this.resolvePhones(userId),
     ]);
     const contact = {
       email: openPii(user?.email ?? null), // 密文列拆封（内部链路，非人视不入揭示审计）
-      phone: openPii(profile?.phone ?? supplier?.contacts?.[0]?.phone ?? null),
+      phone: phones[0] ?? null,
     };
     const tasks: Promise<unknown>[] = [];
     if (shouldDispatch('email', contact)) {
@@ -77,11 +92,16 @@ export class NotificationService {
           .then(r => this.logDelivery(userId, notificationId, 'email', r)),
       );
     }
-    if (shouldDispatch('sms', contact)) {
-      tasks.push(
-        this.smsChannel.send({ userId, ...contact, ...payload })
-          .then(r => this.logDelivery(userId, notificationId, 'sms', r)),
-      );
+    if (phones.length === 0) {
+      // 无联系人手机号：仅站内，留痕一条 skipped 便于核查（2026-10-27 用户口径）
+      tasks.push(this.logDelivery(userId, notificationId, 'sms', { status: 'skipped', error: '无联系人手机号' }));
+    } else {
+      for (const phone of phones) {
+        tasks.push(
+          this.smsChannel.send({ userId, phone, email: contact.email, ...payload })
+            .then(r => this.logDelivery(userId, notificationId, 'sms', r)),
+        );
+      }
     }
     if (shouldDispatch('phone', contact)) {
       tasks.push(
@@ -99,18 +119,14 @@ export class NotificationService {
     payload: { type: string; title: string; content: string; link?: string | null },
   ): Promise<{ userId: string; results: Record<string, string> }> {
     this.assertRegisteredType(payload.type);
-    const [user, profile, supplier] = await Promise.all([
+    // 2026-10-27：供应商短信改全联系人各发一条（resolvePhones）；email/电话渠道仍用主联系人（phones[0]）
+    const [user, phones] = await Promise.all([
       this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } }).catch(() => null),
-      this.prisma.expertProfile.findUnique({ where: { userId }, select: { phone: true } }).catch(() => null),
-      // #20 供应商无 ExpertProfile，回退取其主联系人电话，否则 sms/phone 恒空投却报 success。
-      this.prisma.supplier.findUnique({
-        where: { userId },
-        select: { contacts: { where: { isPrimary: true }, select: { phone: true }, take: 1 } },
-      }).catch(() => null),
+      this.resolvePhones(userId),
     ]);
     const contact = {
       email: openPii(user?.email ?? null), // 密文列拆封（内部链路，非人视不入揭示审计）
-      phone: openPii(profile?.phone ?? supplier?.contacts?.[0]?.phone ?? null),
+      phone: phones[0] ?? null, // 主联系人优先（resolvePhones 已按 isPrimary 排序）
     };
 
     // 站内信
@@ -135,13 +151,24 @@ export class NotificationService {
         }),
       );
     }
-    if (channels.includes('sms') && shouldDispatch('sms', contact)) {
-      tasks.push(
-        this.smsChannel.send({ userId, ...contact, ...payload }).then(r => {
-          results.sms = r.status;
-          return this.logDelivery(userId, notificationId, 'sms', r);
-        }),
-      );
+    if (channels.includes('sms')) {
+      if (phones.length === 0) {
+        // 无联系人手机号：仅站内，留痕一条 skipped（2026-10-27 用户口径）
+        results.sms = 'skipped';
+        tasks.push(
+          this.logDelivery(userId, notificationId, 'sms', { status: 'skipped', error: '无联系人手机号' }),
+        );
+      } else {
+        // 逐联系人各发一条；聚合口径：任一 failed 即 failed，否则 sent
+        for (const phone of phones) {
+          tasks.push(
+            this.smsChannel.send({ userId, phone, email: contact.email, ...payload }).then(r => {
+              results.sms = results.sms === 'failed' || r.status === 'failed' ? 'failed' : r.status;
+              return this.logDelivery(userId, notificationId, 'sms', r);
+            }),
+          );
+        }
+      }
     }
     if (channels.includes('phone') && shouldDispatch('phone', contact)) {
       tasks.push(

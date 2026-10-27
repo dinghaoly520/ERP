@@ -37,6 +37,35 @@ describe('NotificationService', () => {
     service = mod.get(NotificationService);
   });
 
+  it('sendToUser 供应商短信逐联系人各发一条（2026-10-27）：多联系人多次投递+逐条留痕+聚合 sent', async () => {
+    smsChannel.send.mockReset().mockResolvedValue({ status: 'sent' });
+    (prisma.notification.create as jest.Mock).mockResolvedValue({ id: 'n1' });
+    jest.spyOn(service as any, 'pushRealtime').mockImplementation(() => {});
+    // resolvePhones 已按联系人拆封去重排序（其行为由独立用例锁），此处直接注入结果：3 联系人含 1 重复号 → 2 号码
+    jest.spyOn(service as any, 'resolvePhones').mockResolvedValue(['13800000001', '13800000002']);
+
+    const r = await service.sendToUser('u1', ['in_app', 'sms'], { type: 'SELECTION_NOTIFY', title: 't', content: 'c' });
+
+    expect(smsChannel.send).toHaveBeenCalledTimes(2);
+    expect((smsChannel.send as jest.Mock).mock.calls.map(c => c[0].phone)).toEqual(['13800000001', '13800000002']);
+    expect(prisma.notificationDeliveryLog.create).toHaveBeenCalledTimes(3); // in_app 1 + sms 2
+    expect(r.results.sms).toBe('sent');
+  });
+
+  it('sendToUser 无联系人仅发站内：短信零投递 + 留痕一条 skipped（2026-10-27 用户口径）', async () => {
+    jest.spyOn(service as any, 'resolvePhones').mockResolvedValue([]);
+    smsChannel.send.mockReset();
+    (prisma.notification.create as jest.Mock).mockResolvedValue({ id: 'n2' });
+    jest.spyOn(service as any, 'pushRealtime').mockImplementation(() => {});
+
+    const r = await service.sendToUser('u2', ['in_app', 'sms'], { type: 'SELECTION_NOTIFY', title: 't', content: 'c' });
+
+    expect(smsChannel.send).not.toHaveBeenCalled();
+    const logs = (prisma.notificationDeliveryLog.create as jest.Mock).mock.calls.map(c => c[0].data);
+    expect(logs).toContainEqual(expect.objectContaining({ channel: 'sms', status: 'skipped' }));
+    expect(r.results.sms).toBe('skipped');
+  });
+
   it('list tab=todo 只返回未 resolve 的通知（where 含 resolvedAt: null）', async () => {
     prisma.notification.count.mockResolvedValue(1);
     prisma.notification.findMany.mockResolvedValue([{ id: 'n1' }]);

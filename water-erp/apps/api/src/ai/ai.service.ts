@@ -1219,7 +1219,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       where,
       include: {
         classification: true,
-        contacts: { where: { isPrimary: true }, take: 2 },
+        contacts: { orderBy: { isPrimary: 'desc' }, take: 10 }, // 全联系人（主优先，2026-10-27 邀请表格全列展示+逐联系人短信）
         qualifications: { select: { name: true }, take: 5 },
         evaluations: { select: { finalGrade: true } },
         bidSuppliers: { where: { project: { stage: { notIn: ['ARCHIVED'] } } }, select: { id: true } },
