@@ -162,6 +162,20 @@ describe('AiService', () => {
       expect(res.rsvpTokens['sup-1']).toMatch(/\/rsvp\?t=/);
       expect(prisma.invitationRsvp.createMany).toHaveBeenCalledTimes(1);
     });
+
+    it('必要字段缺失直接 400 报错，不占位兜底（2026-10-27 用户口径）', async () => {
+      prisma.invitationRsvp = { findMany: jest.fn().mockResolvedValue([]), createMany: jest.fn(), deleteMany: jest.fn(), update: jest.fn() };
+      await expect(
+        service.generateNotificationContent({
+          contentMode: 'template',
+          projectName: '水利信息化设备采购',
+          supplierNames: ['四川川水建设工程有限公司'],
+          supplierIds: ['sup-1'],
+          projectId: null, validityDays: 1,
+        }),
+      ).rejects.toThrow(/模板模式缺少必要字段：projectCode（项目编号）、procurementMethod（采购方式）/);
+      expect(prisma.invitationRsvp.createMany).not.toHaveBeenCalled();
+    });
   });
 
   describe('analyzeBid', () => {

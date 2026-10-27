@@ -1149,9 +1149,18 @@ export function SupplierSelectionPage({
   }, [fileAnalysisContext, selectedProject, project]);
 
   // ── 固定语句模板（2026-10-27 用户口径）：关键词外全部固定；供应商名称与确认链接逐家自动填充 ──
+  // 不做任何占位兜底：关键词缺失由发送前校验直接报错（missingKeywordLabels），拼装只吃合格输入。
   const composeInviteMessage = (supplierName: string, kw: { company: string; projectName: string; projectCode: string; method: string }, link: string) =>
-    `${supplierName} 您好！${kw.company}现就${kw.projectName || '采购'}采购项目（项目编号：${kw.projectCode || '——'}）使用${kw.method || '邀请采购'}。请在24小时内登录供应商门户或直接点击 ${link} 确认是否参加本次采购邀请；`;
-  const inviteTitle = (kw: { projectName: string }) => `关于${kw.projectName || '采购项目'}采购项目候选供应商邀请的通知`;
+    `${supplierName} 您好！${kw.company}现就${kw.projectName}采购项目（项目编号：${kw.projectCode}）使用${kw.method}。请在24小时内登录供应商门户或直接点击 ${link} 确认是否参加本次采购邀请；`;
+  const inviteTitle = (kw: { projectName: string }) => `关于${kw.projectName}采购项目候选供应商邀请的通知`;
+  const missingKeywordLabels = (): string[] => {
+    const miss: string[] = [];
+    if (!notifyKeywords.company.trim()) miss.push('归属公司');
+    if (!notifyKeywords.projectName.trim()) miss.push('项目名称');
+    if (!notifyKeywords.projectCode.trim()) miss.push('项目编号');
+    if (!notifyKeywords.method.trim()) miss.push('采购方式');
+    return miss;
+  };
 
   // 签发/补齐逐家 RSVP 回执链接（contentMode:'template'——无 LLM 毫秒级；后端幂等，PENDING 行复用同 token）
   const tokenFetchRef = useRef(false);
@@ -1162,8 +1171,14 @@ export function SupplierSelectionPage({
     tokenFetchRef.current = true;
     setNotifyLinksLoading(true);
     try {
+      // 关键词透传（用户手改优先，未填回退项目数据）——RSVP 概要与后端模板校验与界面所见一致
+      const ctx = buildNotifyContext();
       const res = await generateNotificationContent({
-        ...buildNotifyContext(),
+        ...ctx,
+        projectName: notifyKeywords.projectName || ctx.projectName,
+        projectCode: notifyKeywords.projectCode || ctx.projectCode,
+        procurementMethod: notifyKeywords.method || ctx.procurementMethod,
+        requesterName: notifyKeywords.company || undefined,
         contentMode: 'template',
         supplierNames: missing.map(([, v]) => v.item.name),
         supplierIds: missing.map(([sid]) => sid),
@@ -1218,17 +1233,14 @@ export function SupplierSelectionPage({
   }, [rerunNotified, rerunShortlist, notifyKeywords, notifyRsvpTokens]);
 
   const handleNotify = async () => {
-    if (notifyPerSupplier.size === 0) { toast.error('通知内容尚未就绪（关键词或回执链接缺失）'); return; }
-    // 回执链接由模板端点签发——未就绪时二次确认（无链接供应商将无法在线回执）
-    if (Object.keys(notifyRsvpTokens || {}).length === 0) {
-      const proceed = await confirm({ message: '回执链接尚未生成（仍在生成或已失败）。此时发送的通知不含「点击确认参加」链接，供应商将无法在线回执。\n\n建议稍候生成完成后发送；仍要现在发送吗？' });
-      if (!proceed) return;
-    }
+    // 前置硬校验（2026-10-27 用户口径：不做兜底，失败直接报告失败）
+    const missingKw = missingKeywordLabels();
+    if (missingKw.length > 0) { toast.error(`短信关键词未填写：${missingKw.join('、')}——请补全后再发送`); return; }
+    const noToken = [...shortlist.entries()].filter(([sid]) => !notifyRsvpTokens[sid]).map(([, v]) => v.item.name);
+    if (noToken.length > 0) { toast.error(`回执链接未生成：${noToken.join('、')}——请点击「重新生成回执链接」后重试`); return; }
     setNotifySending(true);
     try {
-      // 为尚未签发 RSVP token 的供应商自动补签（异常态兜底）；发送内容按关键词+token 现场拼装
-      const extraTokens = await ensureRsvpTokens([...shortlist.entries()]);
-      const tokens = { ...notifyRsvpTokens, ...extraTokens };
+      const tokens = { ...notifyRsvpTokens };
       const ids = [...shortlist.keys()];
       // ★ 兜底：将虚构 direct- ID 解析为供应商库中的真实 ID（历史会话可能缓存了旧虚构 ID）
       const idMap = new Map<string, string>();
@@ -1253,9 +1265,8 @@ export function SupplierSelectionPage({
       const notFoundSupplierIds = new Set<string>();
       for (const sid of ids) {
         const realId = idMap.get(sid) || sid; // 用真实 ID 发送
-        const supplierName = shortlist.get(sid)?.item.name || '';
-        const link = tokens[sid] || ''; // 站内信点击直达该供应商专属回执页
-        if (!supplierName || !link) continue; // 固定语句中链接为必备槽——缺链接的邀请不完整，跳过不发
+        const supplierName = shortlist.get(sid)!.item.name;
+        const link = tokens[sid]!; // 站内信点击直达该供应商专属回执页（前置校验已确保非空）
         const content = composeInviteMessage(supplierName, notifyKeywords, link);
         const r = await notifySuppliers({ supplierIds: [realId], channels, type: 'SELECTION_NOTIFY', title: inviteTitle(notifyKeywords), content, link });
         if (r.sent > 0) sentSupplierIds.add(realId);
@@ -1495,19 +1506,21 @@ export function SupplierSelectionPage({
 
   const handleRerunNotify = async () => {
     if (rerunShortlist.size === 0) { toast.error('补选名单为空'); return; }
+    // 前置硬校验（与正选同口径：不做兜底，失败直接报告失败）
+    const missingKw = missingKeywordLabels();
+    if (missingKw.length > 0) { toast.error(`短信关键词未填写：${missingKw.join('、')}——请补全后再发送`); return; }
+    const noToken = [...rerunShortlist.entries()].filter(([sid]) => !notifyRsvpTokens[sid]).map(([, v]) => v.item.name);
+    if (noToken.length > 0) { toast.error(`回执链接未生成：${noToken.join('、')}——请点击「重新生成回执链接」后重试`); return; }
     setRerunNotifySending(true);
     try {
-      // 为尚未签发 RSVP token 的补选供应商补签（与正选 handleNotify 一致）
-      const extraTokens = await ensureRsvpTokens([...rerunShortlist.entries()]);
-      const tokens = { ...notifyRsvpTokens, ...extraTokens };
+      const tokens = { ...notifyRsvpTokens };
       // 渠道即所选（电话渠道已下线，filter 防御旧会话异常态）
       const channels = notifyChannels.filter(c => c !== 'phone');
       // 用 Set 去重统计：同一供应商走多个渠道只计 1 家（与正选 handleNotify 同口径）
       const sentSupplierIds = new Set<string>();
       const notFoundSupplierIds = new Set<string>();
       for (const [sid, { item: r }] of rerunShortlist) {
-        const link = tokens[sid] || ''; // 站内信点击直达回执页
-        if (!link) continue; // 固定语句中链接为必备槽——缺链接的邀请不完整，跳过不发
+        const link = tokens[sid]!; // 站内信点击直达回执页（前置校验已确保非空）
         const content = composeInviteMessage(r.name, notifyKeywords, link);
         const res = await notifySuppliers({ supplierIds: [sid], channels, type: 'SELECTION_NOTIFY', title: inviteTitle(notifyKeywords), content, link }).catch(() => ({} as any));
         if (res.sent > 0) sentSupplierIds.add(sid);

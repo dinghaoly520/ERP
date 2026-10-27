@@ -1,4 +1,4 @@
-import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createId } from '@paralleldrive/cuid2';
 import { randomBytes } from 'node:crypto';
@@ -266,6 +266,17 @@ export class AiService {
     requestHeaders?: PortalLinkHeaders; // 请求头透传：RSVP 链接按「当前访问主机」生成（局域网自适应）
     contentMode?: 'ai' | 'template';    // 'template'（2026-10-27）：跳过 LLM，正文=固定语句骨架（{rsvpLink} 占位符保留）——RSVP 签发机器照常
   }): Promise<{ title: string; body: string; rsvpTokens: Record<string, string>; invitationId: string | null }> {
+    // 模板模式前置校验（2026-10-27）：必要字段缺失直接 400——置于 RSVP 签发之前，失败不产生任何副作用
+    if (context.contentMode === 'template') {
+      const missing = [
+        !context.projectName && 'projectName（项目名称）',
+        !context.projectCode && 'projectCode（项目编号）',
+        !context.procurementMethod && 'procurementMethod（采购方式）',
+      ].filter(Boolean) as string[];
+      if (missing.length > 0) {
+        throw new BadRequestException(`模板模式缺少必要字段：${missing.join('、')}`);
+      }
+    }
     const ctxParts: string[] = [];
     if (context.projectName) ctxParts.push(`项目名称：${context.projectName}`);
     if (context.projectCode) ctxParts.push(`项目编号：${context.projectCode}`);
@@ -457,12 +468,11 @@ export class AiService {
     const hasRsvp = Object.keys(rsvpTokens).length > 0;
 
     // 模板模式（2026-10-27 :3005 邀请第三步改版）：跳过 LLM——正文为固定语句骨架，
-    // 供应商名称/归属公司等关键词由前端逐家拼装；RSVP 行与 token 已在上文照常签发。
+    // 供应商名称等关键词由前端逐家拼装；RSVP 行与 token 已在上文照常签发（字段校验已前置）。
     if (context.contentMode === 'template') {
-      const projectName = context.projectName || '采购项目';
       const company = context.requesterName || context.requesterDepartment || '四川省水利发展集团有限公司';
-      const body = `${company}现就${projectName}采购项目（项目编号：${context.projectCode || '——'}）使用${context.procurementMethod || '邀请采购'}。请在24小时内登录供应商门户或直接点击 {rsvpLink} 确认是否参加本次采购邀请；`;
-      return { title: `关于${projectName}采购项目候选供应商邀请的通知`, body, rsvpTokens, invitationId };
+      const body = `${company}现就${context.projectName}采购项目（项目编号：${context.projectCode}）使用${context.procurementMethod}。请在24小时内登录供应商门户或直接点击 {rsvpLink} 确认是否参加本次采购邀请；`;
+      return { title: `关于${context.projectName}采购项目候选供应商邀请的通知`, body, rsvpTokens, invitationId };
     }
 
     const system = `你是四川省水利发展集团有限公司的正式通知撰写人。请为候选供应商撰写通知正文段落。
