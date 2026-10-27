@@ -1,10 +1,10 @@
 'use client';
 
 import { Fragment, useEffect, useState, Suspense, useMemo, useRef } from 'react';
-import { fetchCurrentUser } from '@/lib/api/auth';
 import { companyColor } from '@/components/company/company-tag';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
+import { fetchCurrentUser } from '@/lib/api/auth';
 import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, specialtyPoolCounts, listPoolCompanies, listExperts, getDemandRepDirectory, getBidProjectDetail, getProjectInvitations, proxyMarkExpertInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, type DemandRepDirectoryItem } from '@/lib/api/expert';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
@@ -195,10 +195,10 @@ export function ExpertExtractPage({
   // 统一切换通知渠道（适用于全部专家）——站内+短信（电话渠道 2026-10-27 已下线，与供应商邀请同口径）
   const toggleExpertChannel = (chKey: string) => {
     const allExperts = step4Experts;
-    const current = new Set(notifyChannelsByExpert.get(allExperts[0]?.userId || '') || ['in_app', 'sms']);
+    const current = new Set(notifyChannelsByExpert.get(allExperts[0]?.userId || '') || ['sms']);
     const updated = current.has(chKey) ? [...current].filter(c => c !== chKey) : [...current, chKey];
     const newMap = new Map(notifyChannelsByExpert);
-    for (const e of allExperts) newMap.set(e.userId, updated.length > 0 ? updated : ['in_app']);
+    for (const e of allExperts) newMap.set(e.userId, updated.length > 0 ? updated : ['sms']);
     setNotifyChannelsByExpert(newMap);
     if (!notifyActiveExpert && step4Experts[0]) setNotifyActiveExpert(step4Experts[0].userId);
   };
@@ -1354,6 +1354,18 @@ export function ExpertExtractPage({
   const [rsvpLinks, setRsvpLinks] = useState<Record<string, string>>({});
   // 通知关键词（2026-10-27 与供应商邀请同口径：固定语句+关键词——无 AI 文案、无标题输入、无电话话术）
   const [expertNotifyKeywords, setExpertNotifyKeywords] = useState({ company: '四川省水利发展集团', openLocation: '' });
+  // 归属公司=当前登录采购人员账号的归属公司（2026-10-27 用户口径）：自动带出，仍可手改；仅初始默认值时覆盖
+  useEffect(() => {
+    let alive = true;
+    fetchCurrentUser()
+      .then(u => {
+        if (!alive || !u?.company?.trim()) return;
+        const company = u.company.trim();
+        setExpertNotifyKeywords(prev => (prev.company === '四川省水利发展集团' ? { ...prev, company } : prev));
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
   // 固定语句拼装（composeExpertMessage 同款策略）：关键词外全部固定；专家姓名与确认链接逐人自动
   const composeExpertMessage = (expertName: string, link: string) =>
     `${expertName}专家您好！${expertNotifyKeywords.company}现有采购项目定于${openTimeFormatted}在${expertNotifyKeywords.openLocation}开标评审。您被选为评审专家，请务必于收到通知后15分钟内点击链接确认是否参加：${link}，超时则自动视为放弃。`;
@@ -1556,7 +1568,7 @@ export function ExpertExtractPage({
       const tasks = reDraft.selected.map(e => {
         const link = links[e.userId] || rsvpLinks[e.userId] || '';
         if (!link) return null;
-        const channels = (notifyChannelsByExpert.get(e.userId) || ['in_app', 'sms']).filter(c => c !== 'phone');
+        const channels = (notifyChannelsByExpert.get(e.userId) || ['sms']).filter(c => c !== 'phone');
         if (channels.length === 0) return null;
         return { eid: e.userId, msg: composeExpertMessage(e.name || '未知', link), channels };
       }).filter((x): x is { eid: string; msg: string; channels: string[] } => x !== null);
@@ -1700,7 +1712,7 @@ export function ExpertExtractPage({
           const name = step4Experts.find(x => x.userId === eid)?.name || '未知';
           const msg = composeExpertMessage(name, rsvpLinks[eid]);
           msgMap.set(eid, msg);
-          const channels = (notifyChannelsByExpert.get(eid) || ['in_app', 'sms']).filter(c => c !== 'phone');
+          const channels = (notifyChannelsByExpert.get(eid) || ['sms']).filter(c => c !== 'phone');
           if (channels.length === 0) return null;
           return { eid, msg, channels };
         })
@@ -1745,12 +1757,12 @@ export function ExpertExtractPage({
 
   const toggleChannelForExpert = (expertId: string, ch: string) => {
     setNotifyChannelsByExpert(prev => {
-      const current = prev.get(expertId) || ['in_app', 'sms'];
+      const current = prev.get(expertId) || ['sms'];
       const updated = current.includes(ch) ? current.filter(c => c !== ch) : [...current, ch];
       return new Map(prev).set(expertId, updated);
     });
   };
-  const getChannelsForExpert = (expertId: string) => notifyChannelsByExpert.get(expertId) || ['in_app', 'sms'];
+  const getChannelsForExpert = (expertId: string) => notifyChannelsByExpert.get(expertId) || ['sms'];
 
   // 抽取历史
   const openHistory = async (page = 1) => {
@@ -2550,7 +2562,6 @@ export function ExpertExtractPage({
                   {/* 站内 + 短信：内容一致，归为一组（电话渠道 2026-10-27 已下线） */}
                   <div className="flex gap-1 rounded-[8px] p-0.5" style={{ background: 'oklch(1 0 0 / 0.45)' }}>
                     {[
-                      { key: 'in_app', icon: Bell, label: 'OA站内信' },
                       { key: 'sms', icon: MessageSquare, label: '短信通知' },
                     ].map(ch => {
                       const active = getChannelsForExpert(notifyActiveExpert || step4Experts[0]?.userId || '').includes(ch.key);
@@ -2604,10 +2615,14 @@ export function ExpertExtractPage({
                     <button
                       key={e.userId}
                       onClick={() => setNotifyActiveExpert(e.userId)}
-                      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-bold shadow-[inset_0_1px_0_oklch(1_0_0/0.6),1px_1px_3px_oklch(0.55_0.03_258/0.1)] transition-colors ${e.userId === notifyActiveExpert ? 'bg-[var(--accent)] text-white' : 'bg-[var(--neu-raised-bg)] text-[var(--foreground)] hover:bg-[color-mix(in_oklch,var(--accent)_8%,var(--neu-raised-bg))]'}`}
+                      className={`flex flex-col items-start gap-0.5 rounded-lg px-3 py-1.5 text-sm font-bold shadow-[inset_0_1px_0_oklch(1_0_0/0.6),1px_1px_3px_oklch(0.55_0.03_258/0.1)] transition-colors ${e.userId === notifyActiveExpert ? 'bg-[var(--accent)] text-white' : 'bg-[var(--neu-raised-bg)] text-[var(--foreground)] hover:bg-[color-mix(in_oklch,var(--accent)_8%,var(--neu-raised-bg))]'}`}
                     >
-                      <span>{fmtExpertName(e.userId, e.name || '未知')}</span>
-                      <span className="text-xs font-normal opacity-70">{fmtExpertSpecialty(e.userId, e.specialty)}</span>
+                      <span className="flex items-center gap-1.5">
+                        {fmtExpertName(e.userId, e.name || '未知')}
+                        <span className="text-xs font-normal opacity-70">{fmtExpertSpecialty(e.userId, e.specialty)}</span>
+                      </span>
+                      {/* 通知对象电话（2026-10-27 用户要求标注）：短信将发往此号码 */}
+                      <span className="font-mono text-[10px] font-normal opacity-75">{e.phone || preview?.candidatePool.find(c => c.userId === e.userId)?.phone || '（档案无电话）'}</span>
                     </button>
                   ))}
                 </div>
@@ -3120,15 +3135,15 @@ export function ExpertExtractPage({
               <div className="space-y-2">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)] block">通知渠道</span>
                 <div className="flex flex-wrap gap-2">
-                  {([{ key: 'in_app', icon: Bell, label: 'OA站内信' }, { key: 'sms', icon: MessageSquare, label: '短信通知' }] as const).map(ch => {
-                    const active = (notifyChannelsByExpert.get(altSelected[0]?.userId || '') || ['in_app', 'sms']).includes(ch.key);
+                  {([{ key: 'sms', icon: MessageSquare, label: '短信通知' }] as const).map(ch => {
+                    const active = (notifyChannelsByExpert.get(altSelected[0]?.userId || '') || ['sms']).includes(ch.key);
                     return (
                       <button key={ch.key} onClick={() => {
-                        const current = new Set(notifyChannelsByExpert.get(altSelected[0]?.userId || '') || ['in_app', 'sms']);
+                        const current = new Set(notifyChannelsByExpert.get(altSelected[0]?.userId || '') || ['sms']);
                         if (current.has(ch.key)) current.delete(ch.key); else current.add(ch.key);
                         const updated = [...current];
                         const newMap = new Map(notifyChannelsByExpert);
-                        for (const e of altSelected) newMap.set(e.userId, updated.length > 0 ? updated : ['in_app']);
+                        for (const e of altSelected) newMap.set(e.userId, updated.length > 0 ? updated : ['sms']);
                         setNotifyChannelsByExpert(newMap);
                       }} className={`neu-tab px-3 py-1.5 text-xs font-bold ${active ? 'is-active' : ''}`}>
                         <ch.icon size={12} className="inline mr-1" />{ch.label}
@@ -3181,7 +3196,7 @@ export function ExpertExtractPage({
                         const tasks = altSelected.map(e => {
                           const link = links[e.userId] || rsvpLinks[e.userId] || '';
                           if (!link) return null;
-                          const channels = (notifyChannelsByExpert.get(e.userId) || ['in_app', 'sms']).filter(c => c !== 'phone');
+                          const channels = (notifyChannelsByExpert.get(e.userId) || ['sms']).filter(c => c !== 'phone');
                           if (channels.length === 0) return null;
                           const msg = composeExpertMessage(e.name || '未知', link);
                           m.set(e.userId, msg);

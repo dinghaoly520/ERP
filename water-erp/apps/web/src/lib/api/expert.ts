@@ -54,6 +54,7 @@ export interface ExtractionSelected {
   specialty: string;
   title?: string | null;
   employer?: string | null;
+  phone?: string | null;
   evaluationLevel?: string | null;
   matchScore: number;
   reason: string;

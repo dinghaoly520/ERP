@@ -692,6 +692,7 @@ export class ExpertExtractionService {
       specialty,
       title: c.title,
       employer: c.employer,
+      phone: c.phone, // 2026-10-27：正选/候补随行电话（明文出口口径同候选池——主持人通知场景）
       evaluationLevel: c.evaluationLevel || null,
       matchScore: s?.matchScore ?? 0,
       reason: s?.reason || '',
