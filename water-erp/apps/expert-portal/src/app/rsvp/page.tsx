@@ -9,6 +9,9 @@ const fmt = (iso: string) => iso ? new Date(iso).toLocaleString('zh-CN', { year:
 interface RsvpView {
   expertName: string; major: string; expertRole: string;
   projectName: string; projectCode: string; procurementMethod: string;
+  /** 2026-10-27 用户裁定：信息卡四项=所属公司/开标时间/开标地点/采购方式（删名称/编号/角色/专业/概况） */
+  companyName?: string | null;
+  openLocation?: string | null;
   openTime: string; status: string; expired: boolean; isLead: boolean;
   projectScope?: string | null;
   rsvpNo?: string; respondedAt?: string | null;
@@ -54,8 +57,8 @@ function ExpertRsvpPage() {
 
   const isDone = view && (view.status === 'confirmed' || view.status === 'declined');
   const INFO = view ? [
-    ['采购方式', view.procurementMethod], ['开标时间', fmt(view.openTime)],
-    ['评审专业', view.major], ['专家角色', view.expertRole === '正选' ? '正选评审专家' : '候补评审专家'],
+    ['项目所属公司', view.companyName || '—'], ['开标时间', fmt(view.openTime)],
+    ['开标地点', view.openLocation || '—'], ['采购方式', view.procurementMethod],
   ] : [];
 
   return (
@@ -77,16 +80,7 @@ function ExpertRsvpPage() {
           {phase === 'ready' && view && (
             <>
               <div className="rv-to"><span className="rv-to-label">本邀请致</span><strong className="rv-to-name">{view.expertName}</strong></div>
-              <h2 className="rv-subject">{view.projectName}</h2>
-              <p className="rv-code">编号：{view.projectCode}</p>
               <dl className="rv-info">{INFO.map(([k, v]) => <div className="rv-info-row" key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
-
-              {view.projectScope && (
-                <div style={{ marginBottom: '16px', padding: '12px 14px', borderRadius: '10px', background: 'oklch(0.97 0.01 252)', fontSize: '13px', lineHeight: '1.6', color: '#555' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#999', marginBottom: '4px' }}>项目概况及采购内容</div>
-                  {view.projectScope}
-                </div>
-              )}
 
               {view.expired && !isDone && (
                 <p className="rv-warn">

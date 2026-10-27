@@ -153,7 +153,7 @@ export class ExpertController {
     if (!t) throw new BadRequestException({ error: '缺少邀请凭证', code: 'MISSING_TOKEN' });
     const be = await this.prisma.bidExpert.findUnique({
       where: { rsvpToken: t },
-      include: { project: { select: { name: true, projectCode: true, procurementMethod: true, openTime: true, projectManagementItemId: true, scope: true, qualification: true, riskNote: true, stage: true } } },
+      include: { project: { select: { name: true, projectCode: true, procurementMethod: true, openTime: true, projectManagementItemId: true, scope: true, qualification: true, riskNote: true, stage: true, companyId: true, company: { select: { name: true } } } } },
     });
     if (!be) throw new BadRequestException({ error: '邀请链接无效', code: 'RSVP_NOT_FOUND' });
     // 用项目管理编号覆盖 BidProject 的自动生成编号
@@ -203,6 +203,16 @@ export class ExpertController {
       expired,
       expiresAt: be.rsvpExpiresAt,
       isLead: be.isLead,
+      // 2026-10-27 用户裁定：回执页信息卡四项=所属公司/开标时间/开标地点/采购方式
+      // （删项目名称/编号/专家角色/专业/概况）；开标地点=该公司信息管理维护的开标地点（默认条目优先）
+      companyName: be.project.company?.name ?? null,
+      openLocation: be.project.companyId
+        ? ((await this.prisma.companyPlace.findFirst({
+            where: { companyId: be.project.companyId },
+            orderBy: { isDefault: 'desc' },
+            select: { address: true },
+          }))?.address ?? null)
+        : null,
       projectScope: (() => {
         const raw = [be.project.scope, be.project.qualification, be.project.riskNote].filter(Boolean).join('；');
         // 剔除"见附件"等引用语句
