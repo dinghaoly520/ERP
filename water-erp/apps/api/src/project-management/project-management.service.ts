@@ -201,6 +201,12 @@ const METHOD_STAGE_TEMPLATES: Record<string, Array<{ key: string; label: string 
   ],
 };
 
+/** 留痕时间戳：本地时区可读格式（YYYY-MM-DD HH:mm）——裸 ISO 对用户即串码观感（2026-10-27） */
+function formatNoteTimestamp(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 @Injectable()
 export class ProjectManagementService {
   private readonly logger = new Logger(ProjectManagementService.name);
@@ -4301,10 +4307,16 @@ ${JSON.stringify(algorithmResult, null, 2)}
       });
 
       // 下游联动①：关联招标项目流标（2026-09-21 拍板：终止必须闭环下游）
+      const terminator = userId
+        ? await tx.user.findUnique({ where: { id: userId }, select: { displayName: true, username: true } })
+        : null;
+      const terminatorLabel = terminator ? (terminator.displayName?.trim() || terminator.username) : null;
       // ABORTED 后供应商端「可投标项目」（stage∈DOWNLOAD/SUBMIT）自动排除；
       // ARCHIVED 终态跳过（归档数据不可扰动）；监督时间线留痕联动原因。
       for (const bp of activeBidProjects) {
-        const note = `项目终止联动流标（${terminatedAt.toISOString()}${userId ? `，操作人 ${userId}` : ''}，终止原因：${reason}）`;
+        // 2026-10-27 串码修复：操作人此前嵌裸 userId、时间裸 ISO——改姓名快照+本地可读时间
+        // （前缀「项目终止联动流标（」勿动：:3007 归档端「已终止」判定依赖此前缀）
+        const note = `项目终止联动流标（${formatNoteTimestamp(terminatedAt)}${terminatorLabel ? `，操作人 ${terminatorLabel}` : ''}，终止原因：${reason}）`;
         await tx.bidProject.update({
           where: { id: bp.id },
           data: { stage: 'ABORTED', riskNote: note },

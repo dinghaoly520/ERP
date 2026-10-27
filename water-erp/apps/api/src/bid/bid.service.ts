@@ -76,6 +76,12 @@ const AWARD_LETTER_MIME_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]);
 
+/** 留痕时间戳：本地时区可读格式（YYYY-MM-DD HH:mm）——裸 ISO 对用户即串码观感 */
+function formatNoteTime(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 @Injectable()
 export class BidService {
   /** P2-5（第四波）：开标主持人操作权 TTL——超时未刷新即可被他人接管（惰性判定） */
@@ -1443,6 +1449,16 @@ export class BidService {
    * 直接委托（SINGLE_SOURCE）阈值 1，其余阈值 3。
    * 本接口不限流标时间（归档后除外）——:3005 按钮上的时间提示只是前端口径，与本接口无关。
    */
+  /** 留痕用操作人姓名快照：displayName 优先、username 兜底；查无/未传返回 null（省略字段而非嵌 id） */
+  private async resolveActorLabel(actorId?: string): Promise<string | null> {
+    if (!actorId) return null;
+    const u = await this.prisma.user.findUnique({
+      where: { id: actorId },
+      select: { displayName: true, username: true },
+    });
+    return u ? (u.displayName?.trim() || u.username) : null;
+  }
+
   async abortBidProject(id: string, actorId?: string, reason?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
@@ -1460,10 +1476,13 @@ export class BidService {
 
     // #16 流标业务留痕：riskNote 记录采购方式 + 投标供应商数 + 时间 + 操作人
     // （请求级留痕含操作人 userId 由全局 OperationLogInterceptor 自动记录）
+    // 2026-10-27 串码修复：操作人此前嵌裸 userId（cuid），:3005 流标提示条直接显示
+    // 24 位串码——改为姓名快照（displayName 优先）；时间戳同步改本地可读格式不再裸 ISO
     const supplierCount = project._count.suppliers;
-    const abortAt = new Date().toISOString();
+    const actorLabel = await this.resolveActorLabel(actorId);
+    const abortAt = formatNoteTime(new Date());
     const reasonPart = reason ? `，原因：${reason}` : '';
-    const riskNote = `流标（${project.procurementMethod}，投标供应商 ${supplierCount} 家，${abortAt}${actorId ? `，操作人 ${actorId}` : ''}${reasonPart}）`;
+    const riskNote = `流标（${project.procurementMethod}，投标供应商 ${supplierCount} 家，${abortAt}${actorLabel ? `，操作人 ${actorLabel}` : ''}${reasonPart}）`;
 
     const updated = await this.prisma.$transaction(async (tx) => {
       await lockAndReassertStage(tx, id, 'ABORTED');
