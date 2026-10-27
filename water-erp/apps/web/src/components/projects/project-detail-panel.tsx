@@ -122,6 +122,19 @@ function ExpertInfoField({
     syncEditValue(editExperts.filter((_, i) => i !== index));
   };
 
+  // 多值字段稳健显示（2026-10-27）：括号组展开 → 顿号/逗号拆分 → 去空去重 → 顿号重连——
+  // 抽取链路写入的专业/职称常含「(A、B)」分组与逐字重复（工程建设、工程建设），直出会撑破行视觉
+  const cleanMulti = (v?: string | null): string => {
+    if (!v?.trim()) return '—';
+    const seen = new Set<string>();
+    const items: string[] = [];
+    for (const raw of v.replace(/[（）()]/g, '').split(/[、，,;；]/)) {
+      const t = raw.trim();
+      if (t && !seen.has(t)) { seen.add(t); items.push(t); }
+    }
+    return items.length ? items.join('、') : '—';
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3 mb-2">
@@ -168,14 +181,15 @@ function ExpertInfoField({
             <tbody>
               {experts.map((expert, i) => (
                 <tr key={i}>
-                  <td className="text-center tabular-nums" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)' }}>{i + 1}</td>
-                  <td className="font-medium" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--foreground)' }}>
+                  <td className="text-center tabular-nums align-top" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)' }}>{i + 1}</td>
+                  <td className="font-medium align-top" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--foreground)' }}>
                       <span className="inline-flex items-center gap-1">{expert.name}{(expert as any).role?.includes('组长') ? <span title="评审组长"><Crown size={12} className="text-[#7c3aed]" aria-label="评审组长" /></span> : null}</span>
                     </td>
-                  <td style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)' }}>{expert.department}</td>
-                  <td style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)' }}>{expert.specialty}</td>
-                  <td style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)' }}>{expert.title}</td>
-                  <td className="text-center" style={{ paddingTop: 6, paddingBottom: 6 }}>{((expert as any).role === '候补' || (expert as any).role === '补选') ? <StatusBadge tone="orange">候补</StatusBadge> : ((expert as any).role ? <StatusBadge tone="blue">正选</StatusBadge> : null)}</td>
+
+                  <td className="align-top" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)' }}>{cleanMulti(expert.department)}</td>
+                  <td className="align-top" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)' }}>{cleanMulti(expert.specialty)}</td>
+                  <td className="align-top" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)' }}>{cleanMulti(expert.title)}</td>
+                  <td className="text-center align-top" style={{ paddingTop: 6, paddingBottom: 6 }}>{((expert as any).role === '候补' || (expert as any).role === '补选') ? <StatusBadge tone="orange">候补</StatusBadge> : ((expert as any).role ? <StatusBadge tone="blue">正选</StatusBadge> : null)}</td>
                 </tr>
               ))}
             </tbody>
