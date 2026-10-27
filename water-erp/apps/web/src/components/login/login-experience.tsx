@@ -406,7 +406,7 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
               <span className="login-credit__static">四川省水利发展集团有限公司　制</span>
             ) : (
               <TrueFocus
-                sentence="四|川|水|利|发|展|集|团|有|限|公|司| |制"
+                sentence="四|川|省|水|利|发|展|集|团|有|限|公|司| |制"
                 separator="|"
                 manualMode={false}
                 blurAmount={3}
