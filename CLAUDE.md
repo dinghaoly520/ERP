@@ -377,7 +377,7 @@ pnpm --filter api start:worker:ai-bid-analysis # run the pre-built worker
 DATABASE_URL=postgresql://water_erp:water_erp_dev@localhost:5432/water_erp
 JWT_SECRET=...                     # 生产 ≥32 字符，否则拒绝启动（common/jwt-secret.helper.ts）
 SMS_DEBUG_BYPASS=true              # Skip real SMS; auto-verify with code "123456"
-SMS_PROVIDER=rongyida              # 验证码短信现役通道=融易达（2026-10-27 切换）：无模板自拼全文、sign=md5(appid+mobile+msg+appkey) msg 原文；RYD_APPID/RYD_APPKEY/RYD_SIGN_NAME 三件套（签名=四川省水利发展集团，平台报备口径无「有限公司」后缀，以 -11 回执可用签名列表为准）；**阿里云通道当日整体退役**（AliyunSmsProvider/env 注入脚本/ALIYUN_SMS_* 配置全删，无回退）；env 改动须重启 API（provider 构造时解析）；排障 -3 IP 未绑/-4 sign 错/-11 签名未报备/-13 条数用尽；业务通知轨 sms.channel.ts 仍为桩（二期接融易达）
+SMS_PROVIDER=rongyida              # 验证码短信现役通道=融易达（2026-10-27 切换并真发验证通过）：无模板自拼全文、sign=md5(appid+mobile+msg+appkey) msg 原文；签名=四川省水利发展集团（平台报备口径无「有限公司」后缀，以 -11 回执可用签名列表为准）；**阿里云通道当日整体退役**（AliyunSmsProvider/ALIYUN_SMS_* 全删，无回退）；新机器密钥分发：`bash env/apply-sms-env.sh`（RYD_APPID/APPKEY 在 env/sms-rongyida-keys.enc AES-256-CBC 加密件，口令非 git 渠道）；env 改动须重启 API（provider 构造时解析）；排障 -3 IP 未绑/-4 sign 错/-11 签名未报备/-13 条数用尽；业务通知轨 sms.channel.ts 仍为桩（二期接融易达）
 CORS_ORIGINS=https://erp.example.com,https://supplier.example.com  # 生产真实域名；未设→仅 localhost
 TRUST_PROXY=1                      # 生产反代后信任一跳；默认 'loopback'
 COOKIE_DOMAIN=.scsfjt.com          # 生产域名部署必设：跨子域 cookie（:3006 分流写 token_bid 跳 :3007、WS 直连 api-ssyc 带凭据的前提）；未设=host-only（dev/IP 端口访问语义不变）

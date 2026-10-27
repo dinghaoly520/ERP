@@ -116,6 +116,16 @@ describe('RongyidaSmsProvider', () => {
     await expect(provider.send('13800138000', '482913', 'supplier_registration')).rejects.toThrow(/HTTP 500/);
   });
 
+  it('resultCode 为字符串 "0" 亦按成功（防御性归一）', async () => {
+    mockFetchOnce({ resultCode: '0', taskId: 'I-str-code', restNum: 100, resultMsg: '成功' }, true);
+    await expect(provider.send('13800138000', '482913', 'supplier_registration')).resolves.toEqual({ requestId: 'I-str-code' });
+  });
+
+  it('HTTP 200 但 resultCode 缺失/非数值按失败兜底（网关异常响应形态）', async () => {
+    mockFetchOnce({ resultMsg: 'gateway hiccup' }, true);
+    await expect(provider.send('13800138000', '482913', 'supplier_registration')).rejects.toThrow(/融易达短信发送失败/);
+  });
+
   it('env 缺失时 send 抛配置不完整', async () => {
     delete process.env.RYD_APPKEY;
     await expect(provider.send('13800138000', '482913', 'supplier_registration')).rejects.toThrow('配置不完整');

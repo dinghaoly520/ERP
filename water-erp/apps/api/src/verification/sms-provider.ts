@@ -113,8 +113,10 @@ export class RongyidaSmsProvider implements SmsProvider {
       resultMsg?: string;
     };
 
-    if (!res.ok || data.resultCode !== 0) {
-      const meaning = RongyidaSmsProvider.ERROR_MEANINGS[Number(data.resultCode)] ?? '';
+    // resultCode 防御性归一：文档口径为 Int；网关若某日返回字符串 "0" 亦按成功，缺失/非数值按失败兜底
+    const resultCode = Number(data.resultCode);
+    if (!res.ok || !Number.isFinite(resultCode) || resultCode !== 0) {
+      const meaning = RongyidaSmsProvider.ERROR_MEANINGS[resultCode] ?? '';
       throw new Error(`融易达短信发送失败：${data.resultCode ?? `HTTP ${res.status}`} ${data.resultMsg ?? ''} ${meaning}`.trim());
     }
     // restNum=-1 表示不限条数；仅在有限余量时随日志透出（运维信号）
