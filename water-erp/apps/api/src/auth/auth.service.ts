@@ -135,14 +135,18 @@ export class AuthService {
     //  - 企业全称 → Supplier.name（精确匹配）反查 userId 命中用户
     // 关键：必须先校验密码，密码正确后才判断是否待审核——否则「错密码+存在未激活用户名」与
     // 「错密码+用户名不存在」响应不同，会构成用户名枚举。passwordHash 仅在此函数内使用，不外泄。
+    // 用户名先去前后空格（2026-10-27）：复制粘贴常带空格，不 trim 会查无此人、
+    // 回误导性「用户名或密码错误」（:3006 专家门户 8 连 401 实录）。密码不 trim——
+    // 空格是口令的一部分。供应商别名分支本就 trim，主查询补齐同口径。
+    const usernameInput = (dto.username ?? '').trim();
     const candidates = await this.prisma.user.findMany({
-      where: { username: dto.username },
+      where: { username: usernameInput },
       select: { id: true, username: true, role: true, isActive: true, isFrozen: true, passwordHash: true },
     });
 
     // 供应商别名解析：按信用代码或企业全称反查（仅当按用户名未命中供应商角色时启用）
     if (!candidates.some((u) => u.role === 'supplier')) {
-      const trimmed = dto.username.trim();
+      const trimmed = usernameInput;
       if (trimmed) {
         const supplier = await this.prisma.supplier.findFirst({
           where: { OR: [{ creditCode: trimmed }, { name: trimmed }] },
