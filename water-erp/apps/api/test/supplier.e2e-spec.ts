@@ -21,7 +21,7 @@ async function loginAs(
 }
 
 // 补正全链（文件末尾 describe）会真正触发发码端点 POST /supplier/register/correction/request。
-// 本机 .env 可能是 SMS_PROVIDER=aliyun（真短信）或未配 http 网关 endpoint（发送必失败）——
+// 本机 .env 现役 SMS_PROVIDER=rongyida（真短信真计费）——
 // 测试进程显式切 console stub（同 setup-throttle.ts「测试进程自洽」思路，Prisma .env 加载不覆盖已有值）。
 // 仅影响本测试进程；生产 ConsoleSmsProvider 对 NODE_ENV=production 双保险拒用。
 process.env.SMS_PROVIDER = 'console';
