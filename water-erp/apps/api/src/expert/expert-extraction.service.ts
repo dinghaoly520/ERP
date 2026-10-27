@@ -282,7 +282,7 @@ export class ExpertExtractionService {
         scoreMap.set(c.id, {
           matchScore: this.extendedRuleScore(c),
           fitSpecialty: c.specialty,
-          reason: this.fitReason(c, extractMode),
+          reason: this.fitReason(extractMode),
         });
       }
     }
@@ -292,7 +292,7 @@ export class ExpertExtractionService {
         scoreMap.set(c.id, {
           matchScore: extractMode === 'merit_best' ? this.extendedRuleScore(c) : 50,
           fitSpecialty: c.specialty,
-          reason: llmReasons.get(c.id) || this.fitReason(c, extractMode),
+          reason: llmReasons.get(c.id) || this.fitReason(extractMode),
         });
       }
     }
@@ -806,18 +806,13 @@ export class ExpertExtractionService {
     return Math.max(0, Math.round(s));
   }
 
-  /** 确定性契合理由（2026-10-27 选用理由改版·LLM 不可用/漏配兜底）：按模式说明「为什么选它」，
-   *  全部取自真实数据（专业配额/职称/评审经验/履职/负荷），不编造项目关联。 */
-  private fitReason(
-    c: { specialty: string; title?: string | null; evaluationLevel?: string | null; currentLoadStatus?: string | null; recentProjects12m?: number; pastProjects?: number },
-    mode: 'specialty_match' | 'random' | 'merit_best',
-  ): string {
-    const exp = (c.recentProjects12m ?? 0) > 0 ? `近12月参评${c.recentProjects12m}次` : (c.pastProjects ?? 0) > 0 ? `累计参评${c.pastProjects}次` : '首次受邀参评';
+  /** 确定性选用理由（2026-10-27 选用理由改版二轮·LLM 不可用/漏配兜底）：只说明录取机制，
+   *  不复述结果表已展示的属性值（专业/职称/履职/偏离/负荷/参评次数）；契合分析属语义判断，规则模式不编造。 */
+  private fitReason(mode: 'specialty_match' | 'random' | 'merit_best'): string {
     if (mode === 'random') {
-      return `「${c.specialty}」专业配额内随机抽定（公平回避原则）；${c.title || '工程技术岗'}，${exp}，当前${c.currentLoadStatus || '状态未知'}可参评。`;
+      return '随机抽定：专业配额池内等概率抽取，符合公平与回避要求。';
     }
-    const lv = c.evaluationLevel ? `履职评价${c.evaluationLevel}` : '暂无履职评价';
-    return `「${c.specialty}」专业对口本项目评审需求${c.title ? `，${c.title}` : ''}；${exp}，${lv}，当前${c.currentLoadStatus || '状态未知'}——综合评分择优录取。`;
+    return 'AI 契合分析暂缺：按专业配额与综合评分规则（履职/偏离/经验/负荷加权）录取，待 AI 可用后可重抽获取契合说明。';
   }
 
   /** 组长推荐评分：职称(40)+履职等级(30)+偏离度(15)+经验(10)+负荷(5)，从正选中选最高分者 */

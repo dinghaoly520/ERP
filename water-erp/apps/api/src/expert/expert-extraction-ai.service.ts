@@ -240,8 +240,9 @@ export class ExpertExtractionAiService {
     const base = [
       '你是评标专家组组建助手。本次需抽 ' + totalNeeded + ' 人。',
       'requiredSpecialties：推荐专业构成（各专业人数合计≈' + totalNeeded + '），含 specialty/count/reason(≤15字)。',
-      // 2026-10-27 选用理由改版：逐人写「与本项目评审工作的契合点」（matchScore 仍由规则引擎评分，LLM 恒填 0）
-      'scoredExperts：为每位候选写一句 reason——结合项目概况/范围与该候选的专业、职称、评审经验，说明其为什么适合本项目评审工作（≤50字；写契合点本身，禁止罗列「职称、履职等级、负荷」属性清单）；matchScore 恒填 0、fitSpecialty 填其专业。',
+      // 2026-10-27 选用理由改版（二轮）：理由=「项目评审要点 ↔ 专家专业方向」的关联判断；
+      // 专业/职称/履职/偏离/负荷/经验等字段值已在结果表展示——reason 中复述即无效，明令禁止
+      'scoredExperts：为每位候选写一句 reason——落到本项目具体评审要点（设备/工艺/技术内容，取自项目概况范围）与该候选专业方向的关联判断，说明其评审能力恰好覆盖本项目需要审什么（≤50字）；禁止罗列或复述表格字段值（专业名原样、职称、履职等级、偏离、负荷、参评次数）；matchScore 恒填 0、fitSpecialty 填其专业。',
       '只输出 JSON：{"analysis":"≤60字","requiredSpecialties":[...],"scoredExperts":[{"id":"e0","matchScore":0,"fitSpecialty":"...","reason":"..."}]}',
     ];
 
