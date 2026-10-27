@@ -22,7 +22,7 @@ import type {
 import { computeRiskFactors, riskLevel, predictDefaultRisk } from './risk-score.compute';
 import { buildCalibration } from '../ai-bid-analysis/utils/calibration';
 import { openField } from '../common/crypto/field-crypto';
-import { resolvePortalLinkOrigin, type PortalLinkHeaders } from '../common/portal-link-origin';
+import { resolveRsvpLinkOrigin, type PortalLinkHeaders } from '../common/portal-link-origin';
 import { openPiiForMask } from '../common/crypto/sm-field-crypto';
 
 /*
@@ -325,8 +325,8 @@ export class AiService {
       // 此 URL 用于生成「供应商邀请」链接，应指向供应商门户（:3004），而非公众门户（:3002）。
       // 旧 env 名 PUBLIC_PORTAL_URL 实易误读为「公众门户」——保留作为向后兼容别名。
       // origin 解析（2026-10-16 局域网缺口）：链接会被供应商的机器点开，localhost 不可达——
-      // 生产域名 env > 请求访问主机（LAN 自适应）> 本机 LAN IP > localhost 兜底，见 resolvePortalLinkOrigin。
-      const base = resolvePortalLinkOrigin(
+      // 生产域名 env > 请求访问主机（LAN 自适应）> 本机 LAN IP > localhost 兜底，见 resolveRsvpLinkOrigin。
+      const base = resolveRsvpLinkOrigin(
         'supplier',
         context.requestHeaders,
         this.config.get<string>('SUPPLIER_PORTAL_URL') || this.config.get<string>('PUBLIC_PORTAL_URL'),

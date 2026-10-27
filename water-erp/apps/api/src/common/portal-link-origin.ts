@@ -50,6 +50,22 @@ export function resolvePortalLinkOrigin(
   return portalOrigin(app, configured);
 }
 
+/** 邀请回执链接专用 origin（2026-10-27 用户裁定）：域名模式统一挂根域 ssyc.scsfjt.com——
+ *  对外短信只暴露一个域名，不按门户拆子域；端口/IP/localhost 模式与 resolvePortalLinkOrigin 完全一致。 */
+export function resolveRsvpLinkOrigin(
+  app: AppName,
+  headers: PortalLinkHeaders | undefined,
+  envOverride?: string,
+): string {
+  const resolved = resolvePortalLinkOrigin(app, headers, envOverride);
+  const host = hostnameOfUrl(resolved);
+  if (host && inDomainFamily(host)) {
+    const pub = PORTAL_DOMAINS.public;
+    if (pub) return `https://${pub}`;
+  }
+  return resolved;
+}
+
 /** URL 字符串 → hostname；解析失败返回 undefined */
 function hostnameOfUrl(raw: string): string | undefined {
   try {

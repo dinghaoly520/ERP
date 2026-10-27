@@ -1,5 +1,5 @@
 import os = require('node:os');
-import { resolvePortalLinkOrigin } from './portal-link-origin';
+import { resolvePortalLinkOrigin, resolveRsvpLinkOrigin } from './portal-link-origin';
 
 /** 局域网自适应 origin 解析——发给供应商/专家的链接必须能被**别的机器**点开（RSVP 回执链路） */
 describe('resolvePortalLinkOrigin', () => {
@@ -93,5 +93,17 @@ describe('resolvePortalLinkOrigin', () => {
     expect(
       resolvePortalLinkOrigin('supplier', { origin: 'https://evil-scsfjt.com' }),
     ).toBe('http://evil-scsfjt.com:3004');
+  });
+});
+
+describe('resolveRsvpLinkOrigin（邀请回执链接·2026-10-27 用户裁定：域名模式统一根域）', () => {
+  it('域名模式 → 恒 https://ssyc.scsfjt.com（不按门户拆子域）', () => {
+    expect(resolveRsvpLinkOrigin('supplier', { origin: 'https://procurement-ssyc.scsfjt.com' } as never)).toBe('https://ssyc.scsfjt.com');
+    expect(resolveRsvpLinkOrigin('expert', { origin: 'https://procurement-ssyc.scsfjt.com' } as never)).toBe('https://ssyc.scsfjt.com');
+  });
+  it('IP:端口 与 localhost 模式与 resolvePortalLinkOrigin 一致（不收口根域）', () => {
+    expect(resolveRsvpLinkOrigin('expert', { origin: 'http://192.168.1.107:3005' } as never)).toBe('http://192.168.1.107:3006');
+    const lan = resolveRsvpLinkOrigin('expert', undefined);
+    expect(lan).toMatch(/^http:\/\/\d+\.\d+\.\d+\.\d+:3006$/);
   });
 });
