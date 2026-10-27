@@ -208,6 +208,7 @@ export class AiController {
       budgetAmount?: string; requesterDepartment?: string; requesterName?: string;
       projectReason?: string; supplierRequirements?: string; projectOverview?: string;
       fileAnalysisContext?: string; validityDays?: number;
+      contentMode?: 'ai' | 'template'; // 'template'（2026-10-27）：跳过 LLM，返回固定语句骨架（:3005 邀请第三步关键词设计）
     },
     @Request() req: any = {},
   ) {

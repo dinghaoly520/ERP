@@ -264,6 +264,7 @@ export class AiService {
     fileAnalysisContext?: string;
     validityDays?: number;         // 回执链接有效期（天），默认 1（24小时）
     requestHeaders?: PortalLinkHeaders; // 请求头透传：RSVP 链接按「当前访问主机」生成（局域网自适应）
+    contentMode?: 'ai' | 'template';    // 'template'（2026-10-27）：跳过 LLM，正文=固定语句骨架（{rsvpLink} 占位符保留）——RSVP 签发机器照常
   }): Promise<{ title: string; body: string; rsvpTokens: Record<string, string>; invitationId: string | null }> {
     const ctxParts: string[] = [];
     if (context.projectName) ctxParts.push(`项目名称：${context.projectName}`);
@@ -454,6 +455,15 @@ export class AiService {
       } catch { /* 快照同步失败不阻断通知发送 */ }
     }
     const hasRsvp = Object.keys(rsvpTokens).length > 0;
+
+    // 模板模式（2026-10-27 :3005 邀请第三步改版）：跳过 LLM——正文为固定语句骨架，
+    // 供应商名称/归属公司等关键词由前端逐家拼装；RSVP 行与 token 已在上文照常签发。
+    if (context.contentMode === 'template') {
+      const projectName = context.projectName || '采购项目';
+      const company = context.requesterName || context.requesterDepartment || '四川省水利发展集团有限公司';
+      const body = `${company}现就${projectName}采购项目（项目编号：${context.projectCode || '——'}）使用${context.procurementMethod || '邀请采购'}。请在24小时内登录供应商门户或直接点击 {rsvpLink} 确认是否参加本次采购邀请；`;
+      return { title: `关于${projectName}采购项目候选供应商邀请的通知`, body, rsvpTokens, invitationId };
+    }
 
     const system = `你是四川省水利发展集团有限公司的正式通知撰写人。请为候选供应商撰写通知正文段落。
 

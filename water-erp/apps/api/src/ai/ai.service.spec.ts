@@ -135,6 +135,35 @@ describe('AiService', () => {
     });
   });
 
+  describe('generateNotificationContent（contentMode=template，2026-10-27 :3005 邀请第三步改版）', () => {
+    it('跳过 LLM：固定语句骨架 + {rsvpLink} 占位符保留 + RSVP 行照常签发', async () => {
+      prisma.invitationRsvp = { findMany: jest.fn().mockResolvedValue([]), createMany: jest.fn().mockResolvedValue({ count: 2 }), deleteMany: jest.fn(), update: jest.fn() };
+      prisma.supplier.findMany.mockResolvedValue([{ id: 'sup-1', name: '四川川水建设工程有限公司' }, { id: 'sup-2', name: '中科院成都信息技术股份有限公司' }]);
+      const llm = (service as any).llm;
+
+      const res = await service.generateNotificationContent({
+        contentMode: 'template',
+        projectName: '水利信息化设备采购', projectCode: 'SWHI-TP-2026102701',
+        procurementMethod: '竞争性谈判',
+        supplierNames: ['四川川水建设工程有限公司', '中科院成都信息技术股份有限公司'],
+        supplierIds: ['sup-1', 'sup-2'],
+        projectId: null, validityDays: 1,
+      });
+
+      // LLM 零调用（模板模式核心诉求：确定性、无等待）
+      expect(llm.chatJson).not.toHaveBeenCalled();
+      expect(llm.chat).not.toHaveBeenCalled();
+      // 固定语句骨架：归属公司兜底 + 项目要素 + {rsvpLink} 占位符原样保留（前端逐家替换）
+      expect(res.body).toContain('四川省水利发展集团有限公司现就水利信息化设备采购采购项目（项目编号：SWHI-TP-2026102701）使用竞争性谈判。');
+      expect(res.body).toContain('{rsvpLink}');
+      expect(res.title).toBe('关于水利信息化设备采购采购项目候选供应商邀请的通知');
+      // RSVP 签发机器照常：两家的 token 均返回且指向 /rsvp?t=
+      expect(Object.keys(res.rsvpTokens).sort()).toEqual(['sup-1', 'sup-2']);
+      expect(res.rsvpTokens['sup-1']).toMatch(/\/rsvp\?t=/);
+      expect(prisma.invitationRsvp.createMany).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('analyzeBid', () => {
     it('应返回完整的 AI 分析结构', async () => {
       prisma.bidProject.findUnique.mockResolvedValue(mockProject);
