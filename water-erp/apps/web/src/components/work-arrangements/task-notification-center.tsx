@@ -50,7 +50,6 @@ const TYPE_LINKS: Record<string, string> = {
   SUPPLIER_PENDING: '/supplier/approval',
   QUALIFICATION_EXPIRING: '/supplier/qualification-alerts',
   CATALOG_APPLICATION: '/mall-management/catalog?tab=approval',
-  CATALOG_PRICE_ALERT: '/mall-management/catalog?tab=alerts',
   USER_REGISTRATION_PENDING: '/admin/accounts',
   ACCOUNT_SECURITY_FEEDBACK: '/admin/accounts',
 };

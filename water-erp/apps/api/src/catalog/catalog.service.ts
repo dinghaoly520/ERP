@@ -1078,55 +1078,21 @@ export class CatalogService {
     }
 
     let created = 0;
-    const newAlerts: { message: string }[] = [];
-    const notifyRoleSet = new Set<string>();
     for (const c of candidates) {
       const exists = await this.prisma.priceAlert.findFirst({ where: { ruleId: c.ruleId, catalogItemId: c.catalogItemId, isResolved: false } });
       if (exists) continue;
       try {
-        const saved = await this.prisma.priceAlert.create({ data: c });
+        await this.prisma.priceAlert.create({ data: c });
         created += 1;
-        newAlerts.push({ message: saved.message });
       } catch (e: any) {
-        // 并发进程已建（唯一索引冲突 P2002）→ skip，不重复计入、不重复通知
+        // 并发进程已建（唯一索引冲突 P2002）→ skip，不重复计入
         if (e?.code === 'P2002') continue;
         throw e;
       }
-      const rule = rules.find(r => r.id === c.ruleId);
-      const roles = rule?.notifyRoles?.length ? rule.notifyRoles : ['admin', 'leader'];
-      roles.forEach((r) => notifyRoleSet.add(r));
     }
-    // 聚合通知：一次评估只发一条（按角色，content 含多条预警明细），避免 N×M 通知洪水
-    if (newAlerts.length > 0) {
-      await this.notifyAlertRolesAggregated([...notifyRoleSet], newAlerts);
-    }
+    // 站内通知已移除（2026-10-26 用户裁定：目录价格预警非系统功能，通知管理不再出现；
+    // 预警记录仍落 PriceAlert 供电子商城管理「价格预警」tab 查看）
     return { scanned: items.length, created };
-  }
-
-  /** 按角色向活跃用户发聚合预警站内信（一次评估一条，含多条明细）；失败不阻塞预警记录 */
-  private async notifyAlertRolesAggregated(roles: string[], alerts: { message: string }[]) {
-    try {
-      // 新批取代旧批（2026-10-22）：批报是「最新一次评估结果」的知会，真值在 tab=alerts
-      // 实时队列——旧批报留待办只会无限累积（admin 曾积 23 条）。发新批前消解同类型
-      // 全部旧未消解，各收件人恒只保留最新一条。
-      await this.prisma.notification.updateMany({
-        where: { type: 'CATALOG_PRICE_ALERT', resolvedAt: null },
-        data: { resolvedAt: new Date() },
-      }).catch(() => {});
-      const users = await this.prisma.user.findMany({ where: { role: { in: roles }, isActive: true }, select: { id: true } });
-      const lines = alerts.slice(0, 5).map((a) => `· ${a.message}`).join('\n');
-      const more = alerts.length > 5 ? `\n…等 ${alerts.length} 项` : '';
-      const content = `本次评估新增 ${alerts.length} 项预警：\n${lines}${more}`;
-      for (const u of users) {
-        await this.notification.create({
-          userId: u.id,
-          type: 'CATALOG_PRICE_ALERT',
-          title: `目录价格预警 · ${alerts.length} 项待处理`,
-          content,
-          link: '/mall-management/catalog?tab=alerts',
-        });
-      }
-    } catch { /* 通知失败不阻塞预警记录 */ }
   }
 
   // ── 目录版本 ──
