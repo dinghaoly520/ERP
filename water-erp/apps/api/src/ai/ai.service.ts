@@ -474,7 +474,7 @@ export class AiService {
       const pn = context.projectName as string; // 前置校验已确保非空
       const projectPhrase = pn.endsWith('采购项目') ? pn : pn.endsWith('采购') ? `${pn}项目` : `${pn}采购项目`;
       const company = context.requesterName || context.requesterDepartment || '四川省水利发展集团有限公司';
-      const body = `${company}现邀请贵公司参与${projectPhrase}（项目编号：${context.projectCode}），采购方式为${context.procurementMethod}。请在24小时内登录供应商门户或直接点击 {rsvpLink} 确认是否参加本次采购邀请，若超时则视为自动放弃；`;
+      const body = `${company}现邀请贵公司参与${projectPhrase}（项目编号：${context.projectCode}），采购方式为${context.procurementMethod}。请在24小时内登录供应商门户或直接点击 {rsvpLink} 确认是否参加本次采购邀请，若超时则视为自动放弃。`;
       return { title: `关于${projectPhrase}候选供应商邀请的通知`, body, rsvpTokens, invitationId };
     }
 

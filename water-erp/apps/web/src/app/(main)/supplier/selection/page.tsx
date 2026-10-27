@@ -1181,7 +1181,7 @@ export function SupplierSelectionPage({
       <b className="font-semibold text-[var(--accent-strong)]">采购方式</b>
       {'。请在24小时内登录供应商门户或直接点击 '}
       <b className="font-semibold text-[var(--accent-strong)]">确认链接</b>
-      {' 确认是否参加本次采购邀请，若超时则视为自动放弃；'}
+      {' 确认是否参加本次采购邀请，若超时则视为自动放弃。'}
     </p>
   );
 
@@ -1201,7 +1201,7 @@ export function SupplierSelectionPage({
         <b className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.method}</b>
         {'。请在24小时内登录供应商门户或直接点击 '}
         <b className="font-semibold text-[var(--accent-strong)]">{link || '（回执链接生成中…）'}</b>
-        {' 确认是否参加本次采购邀请，若超时则视为自动放弃；'}
+        {' 确认是否参加本次采购邀请，若超时则视为自动放弃。'}
       </p>
     );
   };
