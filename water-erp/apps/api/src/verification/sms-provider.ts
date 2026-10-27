@@ -49,7 +49,8 @@ export class HttpSmsProvider implements SmsProvider {
 }
 
 /** 生产形态：融易达短信平台（接口文档 V2.3，JSON 端点 POST /http/send）。env：
- * RYD_APPID / RYD_APPKEY（融易达 WEB 控制台自助生成）、RYD_SIGN_NAME（平台已报备签名，须与 msg 内【签名】一致）。
+ * RYD_APPID / RYD_APPKEY（融易达 WEB 控制台自助生成）、RYD_SIGN_NAME（平台已报备签名，须与 msg 内【签名】一致；
+ * 本账号报备签名=「四川省水利发展集团」，无「有限公司」后缀——2026-10-27 -11 回执「可用签名列表」口径）。
  * 与阿里云模板制的关键差异：融易达无模板 API/无占位符——msg 即成品全文（含【签名】），文案在本类按场景拼装；
  * 签名算法 sign = md5(appid+mobile+msg+appkey)（32 位小写，msg 以原文参与运算，仅传输时 urlencode——URLSearchParams 代办）。
  * 应答 JSON：成功 { resultCode:0, taskId, restNum, sumSize }；失败 { resultCode:<非0>, resultMsg }。 */
