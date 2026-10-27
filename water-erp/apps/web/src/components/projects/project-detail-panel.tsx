@@ -78,10 +78,21 @@ function ExpertInfoField({
 }) {
   const hasValue = value !== null && value !== undefined && value !== '';
 
-  // Parse experts from a pipe-delimited string: "姓名|部门|专业|职称" per line
+  // Parse experts from a pipe-delimited string: "姓名|部门|专业|职称|角色" per line.
+  // 续行合并（2026-10-27 实录）：存量串里多值专业含换行，把一条记录拆成两个假行
+  //（「罗卫…工程建设、⏎设备物资…」被读成两行）——不足 4 个竖线的行与下一行以顿号续接，
+  // 凑齐 5 字段（或到末行）才出一条记录。写入侧已同步清杀字段内换行，此为存量兜底。
   const parseExperts = (raw: string | null | undefined) => {
     if (!raw || !raw.trim()) return [];
-    return raw.split('\n').filter(line => line.trim()).map(line => {
+    const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+    const records: string[] = [];
+    let buf = '';
+    for (let i = 0; i < lines.length; i++) {
+      buf = buf ? `${buf}、${lines[i]}` : lines[i];
+      if ((buf.match(/\|/g) || []).length >= 4 || i === lines.length - 1) { records.push(buf); buf = ''; }
+    }
+    if (buf) records.push(buf);
+    return records.map(line => {
       const parts = line.split('|');
       return {
         name: (parts[0] ?? '').trim(),

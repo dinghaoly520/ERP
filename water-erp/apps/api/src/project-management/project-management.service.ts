@@ -4128,7 +4128,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
           const byId = new Map(profs.map(u => [u.id, u]));
           const expertInfo = bidExperts.map(e => {
             const u = byId.get(e.userId);
-            return [e.expertName, u?.department?.name ?? '', e.major ?? '', u?.expertProfile?.title ?? '', e.expertRole].join('|');
+            // 字段内换行清杀（2026-10-27 实录）：e.major 多专业串可能带 \n——join('|') 后记录内藏换行，
+            // 前端按行拆分即碎成假行；字段内一律折为顿号
+            const cell = (v: unknown) => String(v ?? '').replace(/\r?\n+/g, '、').trim();
+            return [cell(e.expertName), cell(u?.department?.name), cell(e.major), cell(u?.expertProfile?.title), cell(e.expertRole)].join('|');
           }).join('\n');
           await tx.projectManagementItem.update({ where: { id: projectId }, data: { expertInfo } });
         }
