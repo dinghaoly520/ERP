@@ -158,6 +158,86 @@ export class AliyunSmsProvider implements SmsProvider {
   }
 }
 
+/** 生产形态：融易达短信平台（接口文档 V2.3，JSON 端点 POST /http/send）。env：
+ * RYD_APPID / RYD_APPKEY（融易达 WEB 控制台自助生成）、RYD_SIGN_NAME（平台已报备签名，须与 msg 内【签名】一致）。
+ * 与阿里云模板制的关键差异：融易达无模板 API/无占位符——msg 即成品全文（含【签名】），文案在本类按场景拼装；
+ * 签名算法 sign = md5(appid+mobile+msg+appkey)（32 位小写，msg 以原文参与运算，仅传输时 urlencode——URLSearchParams 代办）。
+ * 应答 JSON：成功 { resultCode:0, taskId, restNum, sumSize }；失败 { resultCode:<非0>, resultMsg }。 */
+@Injectable()
+export class RongyidaSmsProvider implements SmsProvider {
+  readonly id = 'rongyida';
+  private readonly logger = new Logger(RongyidaSmsProvider.name);
+
+  /** 已知错误码→排障提示（文档第十八章；未知码原样透出）。 */
+  private static readonly ERROR_MEANINGS: Record<number, string> = {
+    [-1]: '手机号码不正确',
+    [-2]: 'appid 对应商户信息不存在',
+    [-3]: '来源 IP 未在平台绑定',
+    [-4]: 'sign 校验失败（核对 appkey 与拼接顺序，md5 须用 msg 原文）',
+    [-9]: '提交失败',
+    [-10]: '手机号码为空',
+    [-11]: '未设置短信签名（msg 内【签名】须与平台报备一致）',
+    [-12]: '短信内容超长',
+    [-13]: '可用条数已用尽',
+    [-1000]: '系统异常',
+  };
+
+  /** 场景→文案（验证码由本系统生成，融易达只投递成品全文；全部 ≤70 字单条计费；勿写「登录」——系统无短信登录场景）。 */
+  private renderMsg(code: string, scene: string): string {
+    const prefix = `【${process.env.RYD_SIGN_NAME ?? ''}】`;
+    if (scene === 'supplier_registration') {
+      return `${prefix}您正在注册蜀水云采供应商门户，验证码${code}，5分钟内有效。`;
+    }
+    if (scene === 'management_registration') {
+      return `${prefix}您正在注册蜀水云采采购管理工作台，验证码${code}，5分钟内有效。`;
+    }
+    if (scene === 'management_password_reset' || scene === 'supplier_password_reset') {
+      return `${prefix}您正在重置登录密码，验证码${code}，5分钟内有效。如非本人操作请忽略。`;
+    }
+    // 中性兜底（专家核验等无门户措辞场景）
+    return `${prefix}您的验证码为${code}，5分钟内有效。请勿告知他人。`;
+  }
+
+  async send(phone: string, code: string, scene: string): Promise<{ requestId?: string } | undefined> {
+    const appid = process.env.RYD_APPID;
+    const appkey = process.env.RYD_APPKEY;
+    const signName = process.env.RYD_SIGN_NAME;
+    if (!appid || !appkey || !signName) {
+      throw new Error('融易达短信配置不完整（需 RYD_APPID/RYD_APPKEY/RYD_SIGN_NAME）');
+    }
+
+    const msg = this.renderMsg(code, scene);
+    const sign = createHash('md5').update(`${appid}${phone}${msg}${appkey}`).digest('hex');
+    const res = await fetch('https://ryd.189si.com/http/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      // URLSearchParams 传输时自动 urlencode（UTF-8）；sign 已按原文算好，不受编码影响
+      body: new URLSearchParams({ appid, mobile: phone, msg, sign }),
+      signal: AbortSignal.timeout(8_000),
+    });
+    const data = (await res.json().catch(() => ({}))) as {
+      resultCode?: number;
+      taskId?: string;
+      restNum?: number;
+      resultMsg?: string;
+    };
+
+    if (!res.ok || data.resultCode !== 0) {
+      const meaning = RongyidaSmsProvider.ERROR_MEANINGS[Number(data.resultCode)] ?? '';
+      throw new Error(`融易达短信发送失败：${data.resultCode ?? `HTTP ${res.status}`} ${data.resultMsg ?? ''} ${meaning}`.trim());
+    }
+    // restNum=-1 表示不限条数；仅在有限余量时随日志透出（运维信号）
+    const restHint =
+      typeof data.restNum === 'number' && data.restNum >= 0 ? `，余量 ${data.restNum}` : '';
+    this.logger.log(`SMS 已发送：${scene} → ${this.mask(phone)}（taskId ${String(data.taskId ?? '')}${restHint}）`);
+    return data.taskId ? { requestId: String(data.taskId) } : undefined;
+  }
+
+  private mask(phone: string): string {
+    return phone.length >= 7 ? `${phone.slice(0, 3)}****${phone.slice(-4)}` : '***';
+  }
+}
+
 /** 本地控制台实现：仅非生产 + SMS_DEBUG_BYPASS=true 可用（把原 console.log stub 收进 provider）。 */
 @Injectable()
 export class ConsoleSmsProvider implements SmsProvider {
@@ -173,7 +253,7 @@ export class ConsoleSmsProvider implements SmsProvider {
   }
 }
 
-/** 按 env SMS_PROVIDER 解析 provider：'aliyun' → 阿里云直连；'http'（默认）→ 泛型网关；'console' → 本地控制台（仅非生产）。 */
+/** 按 env SMS_PROVIDER 解析 provider：'rongyida' → 融易达（验证码现役）；'aliyun' → 阿里云直连（回退通道）；'http'（默认）→ 泛型网关；'console' → 本地控制台（仅非生产）。 */
 export function resolveSmsProvider(): SmsProvider {
   const mode = (process.env.SMS_PROVIDER ?? 'http').toLowerCase();
   if (mode === 'console') {
@@ -187,6 +267,9 @@ export function resolveSmsProvider(): SmsProvider {
   }
   if (mode === 'aliyun') {
     return new AliyunSmsProvider();
+  }
+  if (mode === 'rongyida') {
+    return new RongyidaSmsProvider();
   }
   throw new Error(`未知 SMS_PROVIDER: ${mode}`);
 }
