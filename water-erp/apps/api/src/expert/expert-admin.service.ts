@@ -1928,10 +1928,13 @@ export class ExpertAdminService {
           });
           rsvpLink = `${expertPortalUrl}/rsvp?t=${be.rsvpToken}`;
         }
-        // 替换模板中的 {RSVP_LINK} 占位符；无占位符时追加链接
+        // 替换模板中的 {RSVP_LINK} 占位符；正文已内嵌确认链接（固定语句拼装，2026-10-27）则原样直发——
+        // 不再追加「确认链接（…内有效）」尾段（实录：同链双发，短信冗余且多计费段）
         const contentWithLink = body.includes('{RSVP_LINK}')
           ? body.replace(/\{RSVP_LINK\}/g, rsvpLink)
-          : `${body}\n确认链接（${rsvpTtlLabel()}内有效）：${rsvpLink}`;
+          : /\/rsvp\?t=/.test(body)
+            ? body
+            : `${body}\n确认链接（${rsvpTtlLabel()}内有效）：${rsvpLink}`;
         return this.notification.sendToUser(expert.id, channels, {
           type: 'EXPERT_ASSIGNED',
           title: `评审任务通知 - ${project.name}`,
