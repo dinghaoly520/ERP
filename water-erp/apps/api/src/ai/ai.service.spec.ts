@@ -165,19 +165,25 @@ describe('AiService', () => {
       expect(prisma.invitationRsvp.createMany).toHaveBeenCalledTimes(1);
     });
 
-    it('拼接去重矩阵：名尾=「采购」去重一个；名尾≠「采购」保留「采购项目」', async () => {
+    it('拼接去重矩阵：名尾=「采购项目」直接用 / 名尾=「采购」接「项目」 / 其余接「采购项目」', async () => {
       prisma.invitationRsvp = { findMany: jest.fn().mockResolvedValue([]), createMany: jest.fn(), deleteMany: jest.fn(), update: jest.fn() };
       const a = await service.generateNotificationContent({
+        contentMode: 'template', projectName: '便携式全液压岩心钻机（800型）采购项目', projectCode: 'X-0', procurementMethod: '谈判采购',
+        supplierNames: ['甲公司'],
+      });
+      expect(a.body).toContain('参与便携式全液压岩心钻机（800型）采购项目（');
+      expect(a.body).not.toContain('采购项目采购项目');
+      const b = await service.generateNotificationContent({
         contentMode: 'template', projectName: '办公设备采购', projectCode: 'X-1', procurementMethod: '询比价',
         supplierNames: ['甲公司'],
       });
-      expect(a.body).toContain('参与办公设备采购项目（');
-      expect(a.body).not.toContain('采购采购');
-      const b = await service.generateNotificationContent({
+      expect(b.body).toContain('参与办公设备采购项目（');
+      expect(b.body).not.toContain('采购采购');
+      const c = await service.generateNotificationContent({
         contentMode: 'template', projectName: '水利枢纽除险加固', projectCode: 'X-2', procurementMethod: '竞争性谈判',
         supplierNames: ['乙公司'],
       });
-      expect(b.body).toContain('参与水利枢纽除险加固采购项目（');
+      expect(c.body).toContain('参与水利枢纽除险加固采购项目（');
     });
 
     it('必要字段缺失直接 400 报错，不占位兜底（2026-10-27 用户口径）', async () => {

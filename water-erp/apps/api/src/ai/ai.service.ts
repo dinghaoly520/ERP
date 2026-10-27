@@ -469,10 +469,10 @@ export class AiService {
 
     // 模板模式（2026-10-27 :3005 邀请第三步改版·同日文段修订）：跳过 LLM——正文为固定语句骨架，
     // 供应商名称等关键词由前端逐家拼装；RSVP 行与 token 已在上文照常签发（字段校验已前置）。
-    // 拼接计算（与 :3005 composeInviteMessage 同口径）：项目名以「采购」结尾时与「采购项目」相接去重一个「采购」。
+    // 拼接计算（与 :3005 composeInviteMessage 同口径）：项目名尾与「采购项目」重叠时去重（采购项目/采购两档）。
     if (context.contentMode === 'template') {
       const pn = context.projectName as string; // 前置校验已确保非空
-      const projectPhrase = pn.endsWith('采购') ? `${pn}项目` : `${pn}采购项目`;
+      const projectPhrase = pn.endsWith('采购项目') ? pn : pn.endsWith('采购') ? `${pn}项目` : `${pn}采购项目`;
       const company = context.requesterName || context.requesterDepartment || '四川省水利发展集团有限公司';
       const body = `${company}现邀请贵公司参与${projectPhrase}（项目编号：${context.projectCode}），采购方式为${context.procurementMethod}。请在24小时内登录供应商门户或直接点击 {rsvpLink} 确认是否参加本次采购邀请，若超时则视为自动放弃；`;
       return { title: `关于${projectPhrase}候选供应商邀请的通知`, body, rsvpTokens, invitationId };

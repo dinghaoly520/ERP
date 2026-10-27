@@ -1150,8 +1150,11 @@ export function SupplierSelectionPage({
 
   // ── 固定语句模板（2026-10-27 用户口径·同日修订）：关键词外全部固定；供应商名称与确认链接逐家自动填充 ──
   // 不做任何占位兜底：关键词缺失由发送前校验直接报错（missingKeywordLabels），拼装只吃合格输入。
-  // 拼接计算：项目名以「采购」结尾时与固定语「采购项目」相接会出现「采购采购」重合——自动去重一个（仅拼接处，与后端 template 分支同口径）。
-  const projectPhrase = (projectName: string): string => (projectName.endsWith('采购') ? `${projectName}项目` : `${projectName}采购项目`);
+  // 拼接计算：项目名尾部与固定语「采购项目」重叠时去重——名尾=「采购项目」直接用、名尾=「采购」接「项目」、其余接「采购项目」（仅拼接处，与后端 template 分支同口径）。
+  const projectPhrase = (projectName: string): string =>
+    projectName.endsWith('采购项目') ? projectName
+      : projectName.endsWith('采购') ? `${projectName}项目`
+        : `${projectName}采购项目`;
   const composeInviteMessage = (supplierName: string, kw: { company: string; projectName: string; projectCode: string; method: string }, link: string) =>
     `${supplierName} 您好！${kw.company}现邀请贵公司参与${projectPhrase(kw.projectName)}（项目编号：${kw.projectCode}），采购方式为${kw.method}。请在24小时内登录供应商门户或直接点击 ${link} 确认是否参加本次采购邀请，若超时则视为自动放弃；`;
   const inviteTitle = (kw: { projectName: string }) => `关于${projectPhrase(kw.projectName)}候选供应商邀请的通知`;
@@ -1164,24 +1167,40 @@ export function SupplierSelectionPage({
     return miss;
   };
 
-  /** 固定语句实时预览（正选/补选共用）：关键词实时取值蓝色加粗；示例取首家供应商与其真实回执链接。未填槽位显示槽位名，链接未签发显示生成中标记。 */
-  const renderInvitePreview = (list: Map<string, { item: SupplierRecommendation; note: string }>) => {
-    const [firstSid, first] = [...list.entries()][0] ?? [];
-    const name = first?.item.name || '（供应商名称）';
-    const link = (firstSid ? notifyRsvpTokens[firstSid] : '') || '确认链接（生成中…）';
+  /** 固定语句模板视图（正选/补选共用）：蓝色加粗=关键词名称（同「确认链接」形态），不随取值变化；逐家实际内容见供应商表行展开预览。 */
+  const renderInviteTemplate = () => (
+    <p className="rounded-lg px-3 py-2.5 text-xs leading-relaxed break-all text-[var(--foreground)]" style={{ background: 'oklch(0.972 0.012 258 / 0.55)' }}>
+      <b className="font-semibold text-[var(--accent-strong)]">受邀供应商名称</b>
+      {' 您好！'}
+      <b className="font-semibold text-[var(--accent-strong)]">归属公司</b>
+      {'现邀请贵公司参与'}
+      <b className="font-semibold text-[var(--accent-strong)]">项目名称</b>
+      {'采购项目（项目编号：'}
+      <b className="font-semibold text-[var(--accent-strong)]">项目编号</b>
+      {'），采购方式为'}
+      <b className="font-semibold text-[var(--accent-strong)]">采购方式</b>
+      {'。请在24小时内登录供应商门户或直接点击 '}
+      <b className="font-semibold text-[var(--accent-strong)]">确认链接</b>
+      {' 确认是否参加本次采购邀请，若超时则视为自动放弃；'}
+    </p>
+  );
+
+  /** 表格行展开·逐家实际发送内容：关键词实时取值蓝色加粗（结构须与 composeInviteMessage 同文同序）。 */
+  const renderSupplierMessage = (supplierName: string, sid: string) => {
+    const link = notifyRsvpTokens[sid] || '';
     return (
-      <p className="rounded-lg px-3 py-2.5 text-xs leading-relaxed break-all text-[var(--foreground)]" style={{ background: 'oklch(0.972 0.012 258 / 0.55)' }}>
-        <b className="font-semibold text-[var(--accent-strong)]">{name}</b>
+      <p className="text-xs leading-relaxed break-all text-[var(--foreground)]">
+        <b className="font-semibold text-[var(--accent-strong)]">{supplierName}</b>
         {' 您好！'}
-        <b className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.company || '归属公司'}</b>
+        <b className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.company}</b>
         {'现邀请贵公司参与'}
-        <b className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.projectName ? projectPhrase(notifyKeywords.projectName) : '项目名称'}</b>
-        {'采购项目（项目编号：'}
-        <b className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.projectCode || '项目编号'}</b>
+        <b className="font-semibold text-[var(--accent-strong)]">{projectPhrase(notifyKeywords.projectName)}</b>
+        {'（项目编号：'}
+        <b className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.projectCode}</b>
         {'），采购方式为'}
-        <b className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.method || '采购方式'}</b>
+        <b className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.method}</b>
         {'。请在24小时内登录供应商门户或直接点击 '}
-        <b className="font-semibold text-[var(--accent-strong)]">{link}</b>
+        <b className="font-semibold text-[var(--accent-strong)]">{link || '（回执链接生成中…）'}</b>
         {' 确认是否参加本次采购邀请，若超时则视为自动放弃；'}
       </p>
     );
@@ -1316,12 +1335,11 @@ export function SupplierSelectionPage({
     setNotifySending(false);
   };
 
-  // 取某供应商的实际通知内容（由关键词+固定语句自动拼装；预览用）
+  // 取某供应商的实际通知内容（由关键词+固定语句自动拼装；发送用，展示走 renderSupplierMessage）
   const getSupplierMessage = (sid: string): { title: string; body: string } => {
     const m = notifyPerSupplier.get(sid);
     return m ?? { title: '', body: '' };
   };
-
   const handleBatchAdd = (count?: number) => {
     if (!result) return;
     const merge = new Map(shortlist);
@@ -2421,7 +2439,6 @@ export function SupplierSelectionPage({
                   <tbody>
                     {[...shortlist.entries()].map(([sid, { item: r }], idx) => {
                       const contact = r.contacts?.find(c => c.isPrimary) ?? r.contacts?.[0];
-                      const msg = getSupplierMessage(sid);
                       const isExpanded = notifyActiveSupplier === sid;
                       return (
                         <Fragment key={sid}>
@@ -2449,9 +2466,7 @@ export function SupplierSelectionPage({
                             <tr>
                               <td colSpan={6} className="!p-0">
                                 <div className="px-4 py-3" style={{ background: 'oklch(1 0 0 / 0.45)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
-                                  <p className="text-xs leading-relaxed break-all text-[var(--foreground)]">
-                                    {msg.body || '（回执链接生成中…）'}
-                                  </p>
+                                  {renderSupplierMessage(r.name, sid)}
                                 </div>
                               </td>
                             </tr>
@@ -2501,7 +2516,7 @@ export function SupplierSelectionPage({
                 <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
                   <MessageSquare size={11} /><span>短信内容</span>
                 </div>
-                {renderInvitePreview(shortlist)}
+                {renderInviteTemplate()}
                 <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                   {([
                     { key: 'company', label: '归属公司', ph: '四川省水利发展集团有限公司' },
@@ -3291,7 +3306,6 @@ export function SupplierSelectionPage({
                   <tbody>
                     {[...rerunShortlist.entries()].map(([sid, { item: r }], idx) => {
                       const contact = r.contacts?.find(c => c.isPrimary) ?? r.contacts?.[0];
-                      const msg = rerunNotifyPerSupplier.get(sid);
                       const isExpanded = notifyActiveSupplier === sid;
                       return (
                         <Fragment key={sid}>
@@ -3319,9 +3333,7 @@ export function SupplierSelectionPage({
                             <tr>
                               <td colSpan={6} className="!p-0">
                                 <div className="px-4 py-3" style={{ background: 'oklch(1 0 0 / 0.45)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
-                                  <p className="text-xs leading-relaxed break-all text-[var(--foreground)]">
-                                    {msg?.body || '（回执链接生成中…）'}
-                                  </p>
+                                  {renderSupplierMessage(r.name, sid)}
                                 </div>
                               </td>
                             </tr>
@@ -3369,7 +3381,7 @@ export function SupplierSelectionPage({
               <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
                 <MessageSquare size={11} /><span>短信内容（关键词与正选步骤共用）</span>
               </div>
-              {renderInvitePreview(rerunShortlist)}
+              {renderInviteTemplate()}
             </div>
 
           </div>
