@@ -165,8 +165,10 @@ export function polishRequirement(data: { text: string; projectName?: string; pr
 
 // AI 生成通知文案（含逐家无登录回执链接 RSVP）
 // contentMode:'template'（2026-10-27）：跳过 LLM，返回固定语句骨架正文（{rsvpLink} 占位符保留）——RSVP token 照常签发
+// forceNewRsvpToken：强制换发确认链接（未回复行换新 token 重置有效期；已回复行保持原链接）
 export function generateNotificationContent(data: {
   contentMode?: 'ai' | 'template';
+  forceNewRsvpToken?: boolean;
   projectName?: string; projectCode?: string; supplierNames: string[];
   supplierIds?: string[]; projectId?: string | null; deadline?: string;
   procurementMethod?: string; procurementCategory?: string;

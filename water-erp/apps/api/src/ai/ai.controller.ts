@@ -209,6 +209,7 @@ export class AiController {
       projectReason?: string; supplierRequirements?: string; projectOverview?: string;
       fileAnalysisContext?: string; validityDays?: number;
       contentMode?: 'ai' | 'template'; // 'template'（2026-10-27）：跳过 LLM，返回固定语句骨架（:3005 邀请第三步关键词设计）
+      forceNewRsvpToken?: boolean; // 强制换发确认链接（未回复行换新 token；已回复行保持原链接）
     },
     @Request() req: any = {},
   ) {

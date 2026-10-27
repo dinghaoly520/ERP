@@ -1860,25 +1860,30 @@ export class ExpertAdminService {
   /** 预生成 RSVP 确认链接（进入通知页时调用，写入通知模板）。
    *  已存在未过期 token 的专家直接复用，不对全部记录重新生成——避免步骤 3→6 切换时，
    *  补选刷新覆盖已发给正选专家的有效链接，导致旧链接失效。 */
-  async prersvpLinks(projectId: string, headers?: PortalLinkHeaders) {
-    // 三态自适应（2026-10-27 与供应商邀请 RSVP 同设计）：域名访问→expert-ssyc 子域 https、IP:端口→同 IP 换 :3006、localhost→本机 LAN IP
+  async prersvpLinks(projectId: string, headers?: PortalLinkHeaders, force = false) {
+    // 三态自适应（2026-10-27 与供应商邀请 RSVP 同设计）：域名访问→恒根域 ssyc.scsfjt.com、IP:端口→同 IP 换 :3006、localhost→本机 LAN IP
     const expertPortalUrl = resolveRsvpLinkOrigin('expert', headers, process.env.EXPERT_PORTAL_URL || process.env.PUBLIC_PORTAL_URL);
     const now = new Date();
     const bes = await this.prisma.bidExpert.findMany({
       where: { projectId },
-      select: { id: true, userId: true, rsvpToken: true, rsvpExpiresAt: true },
+      select: { id: true, userId: true, rsvpToken: true, rsvpExpiresAt: true, invitationStatus: true, invitationActorType: true },
     });
     const links: Record<string, string> = {};
     for (const be of bes) {
-      // 已有未过期 token → 直接复用，避免覆盖已分享给专家的有效链接
-      if (be.rsvpToken && be.rsvpExpiresAt && new Date(be.rsvpExpiresAt) > now) {
-        links[be.userId] = `${expertPortalUrl}/rsvp?t=${be.rsvpToken}`;
+      // 人工回复（EXPERT 自答/STAFF 代答）→ 恒复用既有 token（其回执凭证不因刷新失效）；
+      // SYSTEM=超时自动弃权——不算已回复，可强制换发重新邀（2026-10-27 实录：五专家全被 15 分钟扫成 declined，刷新必须能救回）
+      const humanResponded = be.invitationActorType === 'EXPERT' || be.invitationActorType === 'STAFF';
+      // 强制换发（2026-10-27「刷新须有实质作用」）：非人工回复行无视未过期复用，换新 token 重置有效期
+      const reuse = humanResponded || (!force && be.rsvpToken && be.rsvpExpiresAt && new Date(be.rsvpExpiresAt) > now);
+      if (reuse) {
+        if (be.rsvpToken) links[be.userId] = `${expertPortalUrl}/rsvp?t=${be.rsvpToken}`;
         continue;
       }
       const token = randomBytes(9).toString('base64url').slice(0, 12);
       await this.prisma.bidExpert.update({
         where: { id: be.id },
-        data: { rsvpToken: token, rsvpExpiresAt: new Date(now.getTime() + this.rsvpTtlMs) },
+        // 换发即重邀：状态回 pending、清作答痕迹（仅非人工回复行走至此，人工婉拒/确认不受影响）
+        data: { rsvpToken: token, rsvpExpiresAt: new Date(now.getTime() + this.rsvpTtlMs), invitationStatus: 'pending', rsvpRespondedAt: null, invitationActorType: null },
       });
       links[be.userId] = `${expertPortalUrl}/rsvp?t=${token}`;
     }

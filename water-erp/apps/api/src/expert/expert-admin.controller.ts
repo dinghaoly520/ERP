@@ -175,12 +175,12 @@ export class ExpertAdminController {
   }
 
   @Post('projects/:projectId/rsvp-links')
-  @ApiOperation({ summary: '预生成 RSVP 确认链接（进入通知页时调用，写入通知模板）' })
-  prersvpLinks(@Param('projectId') projectId: string, @Request() req: any = {}) {
+  @ApiOperation({ summary: '预生成 RSVP 确认链接（进入通知页时调用，写入通知模板）；body.force=强制换发（未回复行换新 token）' })
+  prersvpLinks(@Param('projectId') projectId: string, @Request() req: any = {}, @Body() dto: { force?: boolean } = {}) {
     const h = (req.headers || {}) as Record<string, string>;
     return this.expertAdminService.prersvpLinks(projectId, {
       origin: h.origin, referer: h.referer, 'x-forwarded-host': h['x-forwarded-host'], 'x-forwarded-proto': h['x-forwarded-proto'],
-    });
+    }, dto.force === true);
   }
 
   @Post('extract/analyze-project')

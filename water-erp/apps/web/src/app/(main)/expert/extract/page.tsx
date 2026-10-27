@@ -2593,11 +2593,12 @@ export function ExpertExtractPage({
                     onClick={async () => {
                       if (!pid) { toast.error('缺少项目 ID'); return; }
                       try {
-                        const data = await prepRsvpLinks(pid);
+                        // force=true 强制换发（2026-10-27：刷新须有实质作用）——未回复行换新 token 重置 15 分钟有效期
+                        const data = await prepRsvpLinks(pid, true);
                         const links = data.links || {};
                         if (!Object.keys(links).length) { toast.error('未找到专家记录，请先确认专家组组建'); return; }
                         setRsvpLinks(links);
-                        toast.success('确认链接已刷新');
+                        toast.success('确认链接已重新生成（未回复专家换新链接，已回复者保持原链接）');
                       } catch (e: any) { toast.error(e?.message || '确认链接获取失败'); }
                     }}
                     className="neu-btn-xs is-info"

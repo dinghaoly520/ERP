@@ -1214,10 +1214,14 @@ export function SupplierSelectionPage({
 
   // 签发/补齐逐家 RSVP 回执链接（contentMode:'template'——无 LLM 毫秒级；后端幂等，PENDING 行复用同 token）
   const tokenFetchRef = useRef(false);
-  const ensureRsvpTokens = async (entries: Array<[string, { item: SupplierRecommendation }]>): Promise<Record<string, string>> => {
+  const ensureRsvpTokens = async (
+    entries: Array<[string, { item: SupplierRecommendation }]>,
+    force = false,
+  ): Promise<Record<string, string>> => {
     if (tokenFetchRef.current) return {};
-    const missing = entries.filter(([sid]) => !notifyRsvpTokens[sid]);
-    if (missing.length === 0) return {};
+    // force（2026-10-27「刷新须有实质作用」）：对全部名单强制换发新链接（后端仅未回复行换新 token）；否则只补缺失
+    const target = force ? entries : entries.filter(([sid]) => !notifyRsvpTokens[sid]);
+    if (target.length === 0) return {};
     tokenFetchRef.current = true;
     setNotifyLinksLoading(true);
     try {
@@ -1230,8 +1234,9 @@ export function SupplierSelectionPage({
         procurementMethod: notifyKeywords.method || ctx.procurementMethod,
         requesterName: notifyKeywords.company || undefined,
         contentMode: 'template',
-        supplierNames: missing.map(([, v]) => v.item.name),
-        supplierIds: missing.map(([sid]) => sid),
+        forceNewRsvpToken: force || undefined,
+        supplierNames: target.map(([, v]) => v.item.name),
+        supplierIds: target.map(([sid]) => sid),
         projectId: projectId || (project as any)?.id || null,
         validityDays: 1,
       });
@@ -2526,7 +2531,7 @@ export function SupplierSelectionPage({
                 </div>
                 {notifyLinksLoading && <span className="text-[11px] italic text-[var(--muted-foreground)]">回执链接生成中…</span>}
                 <span className="flex-1" />
-                <button onClick={() => void ensureRsvpTokens([...shortlist.entries()])} disabled={notifyLinksLoading || shortlist.size === 0} className="neu-btn-xs gap-1">
+                <button onClick={() => { void ensureRsvpTokens([...shortlist.entries()], true).then(r => { if (Object.keys(r).length) toast.success('确认链接已重新生成（未回复供应商换新链接，已回复者保持原链接）'); }); }} disabled={notifyLinksLoading || shortlist.size === 0} className="neu-btn-xs gap-1">
                   <RefreshCw size={10} className={notifyLinksLoading ? 'animate-spin' : ''} />重新生成回执链接
                 </button>
               </div>
@@ -3405,7 +3410,7 @@ export function SupplierSelectionPage({
               </div>
               {notifyLinksLoading && <span className="text-[11px] italic text-[var(--muted-foreground)]">回执链接生成中…</span>}
               <span className="flex-1" />
-              <button onClick={() => void ensureRsvpTokens([...rerunShortlist.entries()])} disabled={notifyLinksLoading || rerunShortlist.size === 0} className="neu-btn-xs gap-1">
+              <button onClick={() => { void ensureRsvpTokens([...rerunShortlist.entries()], true).then(r => { if (Object.keys(r).length) toast.success('确认链接已重新生成（未回复供应商换新链接，已回复者保持原链接）'); }); }} disabled={notifyLinksLoading || rerunShortlist.size === 0} className="neu-btn-xs gap-1">
                 <RefreshCw size={10} className={notifyLinksLoading ? 'animate-spin' : ''} />重新生成回执链接
               </button>
             </div>

@@ -186,6 +186,38 @@ describe('AiService', () => {
       expect(c.body).toContain('参与水利枢纽除险加固采购项目（');
     });
 
+    it('forceNewRsvpToken 强制换发：未回复（PENDING）行换新 token，已回复（ACCEPTED）行保持原链接（2026-10-27 刷新实质作用裁定）', async () => {
+      prisma.invitationRsvp = {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'r1', token: 'OLDPENDING1', supplierId: 'sup-1', status: 'PENDING', expiresAt: new Date(Date.now() + 3600_000) },
+          { id: 'r2', token: 'OLDACCEPT2', supplierId: 'sup-2', status: 'ACCEPTED', expiresAt: new Date(Date.now() + 3600_000) },
+        ]),
+        createMany: jest.fn().mockResolvedValue({ count: 0 }),
+        deleteMany: jest.fn(),
+        update: jest.fn().mockResolvedValue({}),
+      };
+      // projectId 规范化与公司闸查询（返回 null → canonical 保持原值、跳过公司过滤）
+      (prisma.bidProject as any).findFirst = jest.fn().mockResolvedValue(null);
+      prisma.supplier.findMany.mockResolvedValue([{ id: 'sup-1', name: '甲公司' }, { id: 'sup-2', name: '乙公司' }]);
+
+      const res = await service.generateNotificationContent({
+        contentMode: 'template', forceNewRsvpToken: true,
+        projectName: '办公设备采购', projectCode: 'X-9', procurementMethod: '询比价',
+        supplierNames: ['甲公司', '乙公司'], supplierIds: ['sup-1', 'sup-2'], projectId: 'bp-1', validityDays: 1,
+      });
+
+      // PENDING 行换新 token（不等于旧值、仍为 /rsvp?t= 形态）
+      expect(res.rsvpTokens['sup-1']).toMatch(/\/rsvp\?t=/);
+      expect(res.rsvpTokens['sup-1']).not.toContain('OLDPENDING1');
+      // ACCEPTED 行保持原链接
+      expect(res.rsvpTokens['sup-2']).toContain('OLDACCEPT2');
+      // 换发走 update 且写入新 token
+      const upd = (prisma.invitationRsvp.update as jest.Mock).mock.calls[0][0];
+      expect(upd.where.id).toBe('r1');
+      expect(upd.data.token).not.toBe('OLDPENDING1');
+      expect(prisma.invitationRsvp.createMany).not.toHaveBeenCalled();
+    });
+
     it('必要字段缺失直接 400 报错，不占位兜底（2026-10-27 用户口径）', async () => {
       prisma.invitationRsvp = { findMany: jest.fn().mockResolvedValue([]), createMany: jest.fn(), deleteMany: jest.fn(), update: jest.fn() };
       await expect(

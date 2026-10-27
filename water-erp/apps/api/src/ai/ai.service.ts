@@ -265,6 +265,7 @@ export class AiService {
     validityDays?: number;         // 回执链接有效期（天），默认 1（24小时）
     requestHeaders?: PortalLinkHeaders; // 请求头透传：RSVP 链接按「当前访问主机」生成（局域网自适应）
     contentMode?: 'ai' | 'template';    // 'template'（2026-10-27）：跳过 LLM，正文=固定语句骨架（{rsvpLink} 占位符保留）——RSVP 签发机器照常
+    forceNewRsvpToken?: boolean;        // 强制换发（2026-10-27）：未回复（PENDING）行换新 token 重置有效期；已回复行不动
   }): Promise<{ title: string; body: string; rsvpTokens: Record<string, string>; invitationId: string | null }> {
     // 模板模式前置校验（2026-10-27）：必要字段缺失直接 400——置于 RSVP 签发之前，失败不产生任何副作用
     if (context.contentMode === 'template') {
@@ -410,14 +411,27 @@ export class AiService {
         const sname = nameById.get(sid) || '';
         const existing = existingBySupplier.get(sid);
         if (existing) {
-          // 复用已有行的 token —— rsvpNo 不变，通知链接与确认页面始终一致
-          rsvpTokens[sid] = `${base}/rsvp?t=${existing.token}`;
-          reuseUpdates.push(
-            this.prisma.invitationRsvp.update({
-              where: { id: existing.id },
-              data: { expiresAt: effectiveExpiry, title: title0, summary, invitationId },
-            }),
-          );
+          // 强制换发（2026-10-27「刷新确认链接须有实质作用」裁定）：仅对未回复（PENDING）行换新 token 并重置有效期；
+          // 已回复行保持原 token（其回执号/凭证不因刷新失效）。非强制路径维持复用语义。
+          if (context.forceNewRsvpToken && existing.status === 'PENDING') {
+            const newToken = randomBytes(6).toString('base64url').slice(0, 10);
+            rsvpTokens[sid] = `${base}/rsvp?t=${newToken}`;
+            reuseUpdates.push(
+              this.prisma.invitationRsvp.update({
+                where: { id: existing.id },
+                data: { token: newToken, expiresAt: expiresAt, title: title0, summary, invitationId },
+              }),
+            );
+          } else {
+            // 复用已有行的 token —— rsvpNo 不变，通知链接与确认页面始终一致
+            rsvpTokens[sid] = `${base}/rsvp?t=${existing.token}`;
+            reuseUpdates.push(
+              this.prisma.invitationRsvp.update({
+                where: { id: existing.id },
+                data: { expiresAt: effectiveExpiry, title: title0, summary, invitationId },
+              }),
+            );
+          }
         } else {
           const rid = createId();
           // 10 位短随机码替代加密 token，URL 从 400+ 字符缩到 ~40 字符，适合短信
