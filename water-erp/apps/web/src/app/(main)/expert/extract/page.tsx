@@ -1354,7 +1354,7 @@ export function ExpertExtractPage({
 
   const [rsvpLinks, setRsvpLinks] = useState<Record<string, string>>({});
   // 通知关键词（2026-10-27 与供应商邀请同口径：固定语句+关键词——无 AI 文案、无标题输入、无电话话术）
-  const [expertNotifyKeywords, setExpertNotifyKeywords] = useState({ company: '四川省水利发展集团', openLocation: '' });
+  const [expertNotifyKeywords, setExpertNotifyKeywords] = useState({ company: '四川省水利发展集团', openLocation: '', method: '' });
   // 归属公司=当前登录采购人员账号的归属公司（2026-10-27 用户口径）：自动带出，仍可手改；仅初始默认值时覆盖
   useEffect(() => {
     let alive = true;
@@ -1374,9 +1374,16 @@ export function ExpertExtractPage({
     if (!defaultPlace) return;
     setExpertNotifyKeywords(prev => (prev.openLocation === '' ? { ...prev, openLocation: defaultPlace } : prev));
   }, [defaultPlace]);
+  // 采购方式自动带出：项目档案 procurementMethod（仅空值填入，可手改）
+  useEffect(() => {
+    const m = sel?.procurementMethod?.trim();
+    if (!m) return;
+    setExpertNotifyKeywords(prev => (prev.method === '' ? { ...prev, method: m } : prev));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sel?.procurementMethod]);
   // 固定语句拼装（composeExpertMessage 同款策略）：关键词外全部固定；专家姓名与确认链接逐人自动
   const composeExpertMessage = (expertName: string, link: string) =>
-    `${expertName}专家您好！${expertNotifyKeywords.company}现有采购项目定于${openTimeFormatted}在${expertNotifyKeywords.openLocation}开标评审。您被选为评审专家，请务必于收到通知后15分钟内点击链接确认是否参加：${link}，超时则自动视为放弃。`;
+    `${expertName}专家您好！${expertNotifyKeywords.company}现有采购项目定于${openTimeFormatted}在${expertNotifyKeywords.openLocation}开标评审，采购方式为${expertNotifyKeywords.method}。您被选为评审专家，请务必于收到通知后15分钟内点击链接确认是否参加：${link}，超时则自动视为放弃。`;
   // 关键词/开标时间/确认链接变化 → 重算正选逐人内容（合并写，保留补选/候补条目）；已发送冻结。
   // ★ 变更闸（2026-10-27 修死循环）：内容无变化时原样返回 prev——绝不无条件造新 Map，
   //   否则与步骤3拉链 effect 经 rsvpLinks/notifyVersion 身份变化互触形成 Maximum update depth。
@@ -1566,6 +1573,7 @@ export function ExpertExtractPage({
     if (!openTimeDate || !openTimeTime) { toast.error('请先填写开标日期与时间'); return; }
     if (!expertNotifyKeywords.company.trim()) { toast.error('请填写归属公司'); return; }
     if (!expertNotifyKeywords.openLocation.trim()) { toast.error('请填写开标地点'); return; }
+    if (!expertNotifyKeywords.method.trim()) { toast.error('请填写采购方式'); return; }
     updateDraft({ phase: 'sending' });
     setNotifying(true);
     try {
@@ -1709,6 +1717,7 @@ export function ExpertExtractPage({
     if (!openTimeDate || !openTimeTime) { toast.error('请先填写开标日期与时间'); return; }
     if (!expertNotifyKeywords.company.trim()) { toast.error('请填写归属公司'); return; }
     if (!expertNotifyKeywords.openLocation.trim()) { toast.error('请填写开标地点'); return; }
+    if (!expertNotifyKeywords.method.trim()) { toast.error('请填写采购方式'); return; }
     const noLinkIds = confirmedExpertIds.filter(eid => !rsvpLinks[eid]);
     if (noLinkIds.length > 0) { toast.error(`确认链接未生成（${noLinkIds.length} 名专家）——请点击「刷新确认链接」后重试`); return; }
     setNotifying(true);
@@ -2522,26 +2531,25 @@ export function ExpertExtractPage({
                 <span className="text-sm font-bold text-[var(--foreground)]">发送通知 · {confirmedExpertIds.length} 名专家</span>
               </div>
 
-              {/* 开标时间 */}
-              <div>
-                <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">
-                  开标时间 <span className="text-[var(--danger)]">*</span>
-                </span>
-                <input
-                  type="datetime-local"
-                  value={openTimeDate && openTimeTime ? `${openTimeDate}T${openTimeTime}` : ''}
-                  onChange={e => {
-                    const [d, t] = e.target.value.split('T');
-                    setOpenTimeDate(d || '');
-                    setOpenTimeTime(t || '');
-                  }}
-                  className="neu-input text-sm w-full max-w-[280px]"
-                />
-                {openTimeFormatted && <p className="text-[10px] text-[var(--accent)]/70 mt-1">已设置：{openTimeFormatted}</p>}
-              </div>
 
-              {/* 通知关键词（2026-10-27 与供应商邀请同口径）：固定语句外仅这些变量可改 */}
+
+              {/* 通知关键词（2026-10-27 终版·四项 2×2 排布）：开标时间/归属公司/开标地点/采购方式——自动带出可改，格式化结果见预览 */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">
+                    开标时间 <span className="text-[var(--danger)]">*</span>
+                  </span>
+                  <input
+                    type="datetime-local"
+                    value={openTimeDate && openTimeTime ? `${openTimeDate}T${openTimeTime}` : ''}
+                    onChange={e => {
+                      const [d, t] = e.target.value.split('T');
+                      setOpenTimeDate(d || '');
+                      setOpenTimeTime(t || '');
+                    }}
+                    className="neu-input text-sm w-full"
+                  />
+                </div>
                 <div>
                   <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">
                     归属公司 <span className="text-[var(--danger)]">*</span>
@@ -2556,7 +2564,15 @@ export function ExpertExtractPage({
                   </span>
                   <input value={expertNotifyKeywords.openLocation}
                     onChange={e => setExpertNotifyKeywords(prev => ({ ...prev, openLocation: e.target.value }))}
-                    placeholder="如：成都市高新区××大厦×楼开标室" className="neu-input text-sm w-full" />
+                    placeholder="如：成都市双流区红莲街" className="neu-input text-sm w-full" />
+                </div>
+                <div>
+                  <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">
+                    采购方式 <span className="text-[var(--danger)]">*</span>
+                  </span>
+                  <input value={expertNotifyKeywords.method}
+                    onChange={e => setExpertNotifyKeywords(prev => ({ ...prev, method: e.target.value }))}
+                    placeholder="如：谈判采购" className="neu-input text-sm w-full" />
                 </div>
               </div>
 
@@ -2615,7 +2631,9 @@ export function ExpertExtractPage({
                   <b className="font-semibold text-[var(--accent-strong)]">开标时间</b>
                   {'在'}
                   <b className="font-semibold text-[var(--accent-strong)]">开标地点</b>
-                  {'开标评审。您被选为评审专家，请务必于收到通知后15分钟内点击链接确认是否参加：'}
+                  {'开标评审，采购方式为'}
+                  <b className="font-semibold text-[var(--accent-strong)]">采购方式</b>
+                  {'。您被选为评审专家，请务必于收到通知后15分钟内点击链接确认是否参加：'}
                   <b className="font-semibold text-[var(--accent-strong)]">确认链接</b>
                   {'，超时则自动视为放弃。'}
                 </p>
@@ -2642,7 +2660,7 @@ export function ExpertExtractPage({
                   return (
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
-                        <Bell size={11} /><MessageSquare size={11} /><span>发送内容（站内 + 短信同文）</span>
+                        <Bell size={11} /><MessageSquare size={11} /><span>发送内容</span>
                       </div>
                       <p className="rounded-lg px-3 py-2.5 text-xs leading-relaxed break-all" style={{ background: 'oklch(1 0 0 / 0.55)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
                         {e ? composeExpertMessage(e.name || '未知', rsvpLinks[editId] || '') : '（暂无专家）'}
@@ -3198,6 +3216,7 @@ export function ExpertExtractPage({
                         // 前置校验同正选口径；内容按关键词+逐人链接现场拼装（固定语句）
                         if (!openTimeDate || !openTimeTime) { toast.error('请先填写开标日期与时间'); return; }
                         if (!expertNotifyKeywords.openLocation.trim()) { toast.error('请填写开标地点'); return; }
+                        if (!expertNotifyKeywords.method.trim()) { toast.error('请填写采购方式'); return; }
                         const links = (await prepRsvpLinks(pid)).links || {};
                         if (!Object.keys(links).length) { toast.error('确认链接获取失败（未找到专家记录）'); return; }
                         setRsvpLinks(prev => ({ ...prev, ...links }));
