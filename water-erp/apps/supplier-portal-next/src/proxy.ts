@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { apiOrigin } from '@water-erp/config';
+import { portalOriginForHost } from '@water-erp/config';
 
 // 供应商门户（supplier-portal-next）API 代理 + 登录门禁
 // 方案移植自 apps/web/src/proxy.ts；差异点：cookie 名 token_supplier、门户头 supplier，
 // 以及游客路由（login / register / register-temporary / 公开回执页 rsvp）。
 const AUTH_COOKIE_NAME = 'token_supplier';
-const API_TARGET = process.env.API_SERVER_URL ?? apiOrigin();
 // 登录/注册页随机背景池 + cookie 名：随机结果持久化到 cookie（SSR 可读），首帧即最终图，无切换闪烁
 const BG_POOL = ['login-bg-1.jpg', 'login-bg-2.jpg', 'login-bg-3.jpg'];
 const BG_COOKIE = 'supplier_bg';
@@ -27,10 +26,25 @@ function isInFlowNavigation(request: NextRequest): boolean {
   }
 }
 
+// API 目标请求级双轨（2026-10-26 域名部署，与 expert/bid proxy 同口径）：
+// API_SERVER_URL 显式覆盖（旧别名）> portalOriginForHost（API_ORIGIN env > 请求 Host
+// 家族判定：*.scsfjt.com → api 子域 https；IP/端口访问 → 同主机:4001）。
+// 弃模块级 API_TARGET——middleware 边缘运行时 process.env 是构建期内联，构建时未设
+// 则永久烘焙 localhost:4001（事后改 env 无效）；Host 推导是运行时通道，恒新鲜。
+const requestHost = (request: NextRequest) =>
+  (request.headers.get('x-forwarded-host') || request.headers.get('host') || '')
+    .split(',')[0]
+    .trim() || request.nextUrl.hostname;
+const requestProto = (request: NextRequest) =>
+  (request.headers.get('x-forwarded-proto') || '').split(',')[0].trim();
+const apiTargetFor = (request: NextRequest): string =>
+  (process.env.API_SERVER_URL || '').replace(/\/+$/, '') ||
+  portalOriginForHost('api', requestHost(request), requestProto(request));
+
 export async function proxy(request: NextRequest) {
   // ★ API proxy: forward /api/* to NestJS with full cookie passthrough
   if (request.nextUrl.pathname.startsWith('/api/')) {
-    const targetUrl = `${API_TARGET}${request.nextUrl.pathname}${request.nextUrl.search}`;
+    const targetUrl = `${apiTargetFor(request)}${request.nextUrl.pathname}${request.nextUrl.search}`;
 
     const headers = new Headers();
     request.headers.forEach((value, key) => {
