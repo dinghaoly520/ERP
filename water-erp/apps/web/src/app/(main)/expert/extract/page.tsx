@@ -468,7 +468,7 @@ export function ExpertExtractPage({
     const toSelected = (e: typeof invitationData.experts[number]): ExtractionSelected => ({
       userId: e.userId, name: e.expertName,
       specialty: e.major,
-      title: e.title, employer: e.employer,
+      title: e.title, employer: e.employer, phone: e.phone,
       matchScore: 100,
       reason: '已有专家',
       role: e.expertRole as '正选' | '候补',
@@ -493,7 +493,7 @@ export function ExpertExtractPage({
     // 全部终态（已确认/已拒绝）→ 步骤5 专家组确认；部分已通知 → 步骤4 查看回复；否则 → 步骤3 确认通知
     setConfirmedExpertIds(main.map(e => e.userId));
     setStep3Confirmed(true);
-    const anyNotified = invitationData.experts.some(e => e.invitationStatus !== 'pending');
+    const anyNotified = invitationData.experts.some(e => e.notified || e.invitationStatus !== 'pending');
     const allFinal = invitationData.experts.length > 0 && invitationData.experts.every(e => e.invitationStatus !== 'pending');
     setStep(allFinal ? 5 : anyNotified ? 4 : 3);
   }, [pid, invitationData, defaultPid]);
@@ -1381,6 +1381,11 @@ export function ExpertExtractPage({
     setExpertNotifyKeywords(prev => (prev.method === '' ? { ...prev, method: m } : prev));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sel?.procurementMethod]);
+  // 服务端已通知真值（2026-10-27）：正选全员 NOTIFIED 留痕（或已作答）→ 已通知徽章/下一步兜底放行；
+  // 强制换发链接=显式重邀意图（reInviteArmed），换发后允许再发一次
+  const mainInvitedRows = invitationData?.experts?.filter(e => e.expertRole === '正选') ?? [];
+  const serverAllNotified = mainInvitedRows.length > 0 && mainInvitedRows.every(e => !!e.notified || e.invitationStatus !== 'pending');
+  const [reInviteArmed, setReInviteArmed] = useState(false);
   // 固定语句拼装（composeExpertMessage 同款策略）：关键词外全部固定；专家姓名与确认链接逐人自动
   const composeExpertMessage = (expertName: string, link: string) =>
     `${expertName}专家您好！${expertNotifyKeywords.company}现有采购项目定于${openTimeFormatted}在${expertNotifyKeywords.openLocation}开标评审，采购方式为${expertNotifyKeywords.method}。您被选为评审专家，请务必于收到通知后15分钟内点击链接确认是否参加：${link}，超时则自动视为放弃。`;
@@ -1760,6 +1765,7 @@ export function ExpertExtractPage({
 
       setNotifyResults(allResults);
       setDone(true);
+      setReInviteArmed(false);
       notifySentRef.current = true;
       setStep(4);
       if (failCount === 0) {
@@ -2613,6 +2619,7 @@ export function ExpertExtractPage({
                         const links = data.links || {};
                         if (!Object.keys(links).length) { toast.error('未找到专家记录，请先确认专家组组建'); return; }
                         setRsvpLinks(links);
+                        setReInviteArmed(true); // 换发即重邀：允许再发一轮通知
                         toast.success('确认链接已重新生成（未回复专家换新链接，已回复者保持原链接）');
                       } catch (e: any) { toast.error(e?.message || '确认链接获取失败'); }
                     }}
@@ -2663,7 +2670,7 @@ export function ExpertExtractPage({
                                 >
                                   <td className="px-3 py-2 font-bold whitespace-nowrap text-[var(--foreground)]">{fmtExpertName(e.userId, e.name || '未知')}{on && <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle" style={{ background: 'var(--accent)' }} />}</td>
                                   <td className="px-3 py-2 text-[var(--muted-foreground)]">{fmtExpertSpecialty(e.userId, e.specialty)}</td>
-                                  <td className="px-3 py-2 font-mono tabular-nums text-[var(--muted-foreground)]">{e.phone || preview?.candidatePool.find(c => c.userId === e.userId)?.phone || '—'}</td>
+                                  <td className="px-3 py-2 font-mono tabular-nums text-[var(--muted-foreground)]">{e.phone || invitationData?.experts.find(x => x.userId === e.userId)?.phone || preview?.candidatePool.find(c => c.userId === e.userId)?.phone || '—'}</td>
                                 </tr>
                               );
                             })}
@@ -2691,7 +2698,7 @@ export function ExpertExtractPage({
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg> 上一步：抽取结果
             </button>
             <div className="flex items-center gap-3">
-              {done || (notifyResults && notifyResults.length > 0) || notifySentRef.current ? (
+              {done || (notifyResults && notifyResults.length > 0) || notifySentRef.current || (serverAllNotified && !reInviteArmed) ? (
                 <span className="inline-flex items-center gap-1.5 rounded-xl bg-[color-mix(in_oklch,var(--success)_12%,transparent)] px-4 py-2 text-sm font-bold text-[var(--success)] shadow-[inset_0_1px_0_oklch(1_0_0/0.5)]">
                   <Check size={15} strokeWidth={2.5} />已通知
                 </span>
@@ -2700,7 +2707,7 @@ export function ExpertExtractPage({
                   {notifying ? '发送中...' : '发送通知并邀请确认'}
                 </button>
               )}
-              <button onClick={() => setStep(4)} disabled={!done && !(notifyResults && notifyResults.length > 0)} className="neu-btn-soft is-info">
+              <button onClick={() => setStep(4)} disabled={!done && !(notifyResults && notifyResults.length > 0) && !serverAllNotified} className="neu-btn-soft is-info">
                 下一步：专家确认与补选<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
               </button>
             </div>

@@ -502,7 +502,7 @@ export interface ExpertInvitationTrailItem {
 
 export function getProjectInvitations(projectId: string) {
   return api.get<{
-    experts: { id: string; userId: string; expertName: string; major: string; isLead: boolean; expertRole: string; invitationStatus: string; reviewGroup?: string | null; dutyRole?: string | null; title?: string | null; employer?: string | null; phone?: string | null; rsvpRespondedAt?: string | null; rsvpExpiresAt?: string | null; rsvpNo?: string;
+    experts: { id: string; userId: string; expertName: string; major: string; isLead: boolean; expertRole: string; invitationStatus: string; reviewGroup?: string | null; dutyRole?: string | null; title?: string | null; employer?: string | null; phone?: string | null; rsvpRespondedAt?: string | null; rsvpExpiresAt?: string | null; rsvpNo?: string; notified?: boolean;
       // 邀请作答留痕（2026-10-21）：作答方/理由/自答快照 + 全量轨迹（后端 getProjectInvitations 已返回）
       invitationActorType?: 'EXPERT' | 'STAFF' | 'SYSTEM' | null; invitationActorName?: string | null; invitationReason?: string | null;
       expertRespondedAt?: string | null; expertStatus?: 'confirmed' | 'declined' | null;

@@ -960,12 +960,14 @@ export class ExpertAdminService {
     });
     // 邀请轨迹（按行聚合，时间正序）：面板行内可查 通知→自答→代变更→递补→替换 全程
     const trailByExpert = new Map<string, unknown[]>();
+    const notifiedByExpert = new Set<string>();
     {
       const logs = await this.prisma.expertInvitationLog.findMany({
         where: { bidExpertId: { in: records.map(r => r.id) } },
         orderBy: { createdAt: 'asc' },
       });
       for (const l of logs) {
+        if (l.action === 'NOTIFIED') notifiedByExpert.add(l.bidExpertId); // 2026-10-27：发送留痕=已通知真值
         const arr = (trailByExpert.get(l.bidExpertId) ?? []) as unknown[];
         arr.push({
           action: l.action, actorType: l.actorType, actorName: l.actorName,
@@ -987,6 +989,7 @@ export class ExpertAdminService {
         employer: r.user?.expertProfile?.employer ?? null,
         phone: openPiiForMask(r.user?.expertProfile?.phone ?? r.user?.phone ?? null),
         rsvpNo: r.id.slice(-8).toUpperCase(),
+        notified: notifiedByExpert.has(r.id), // 2026-10-27：NOTIFIED 留痕派生——刷新后按钮态/兜底还原/落步共用
         // 作答方口径（null=存量已答行，展示层按专家自答兜底）
         invitationActorType: (r.invitationActorType as string | null) ?? (r.rsvpRespondedAt ? 'EXPERT' : null),
         invitationTrail: trailByExpert.get(r.id) ?? [],
@@ -1916,18 +1919,24 @@ export class ExpertAdminService {
     // 发送时刷新 RSVP 过期时间（token 已在预生成时创建，这里不重新生成）
     const results = await Promise.all(
       experts.map(async expert => {
-        // 候补文案（noRsvpLink，2026-10-27）：正文原样直发——不查 token、不刷过期、不追加链接
-        if (noRsvpLink) {
-          return this.notification.sendToUser(expert.id, channels, {
-            type: 'EXPERT_ASSIGNED',
-            title: `评审任务通知 - ${project.name}`,
-            content: body,
-          });
-        }
         const be = await this.prisma.bidExpert.findFirst({
           where: { projectId, userId: expert.id },
           select: { id: true, rsvpToken: true },
         });
+        // 发送留痕（2026-10-27）：NOTIFIED 日志=服务端「已通知」真值
+        const logNotified = this.prisma.expertInvitationLog.create({
+          data: { bidExpertId: be?.id ?? '', projectId, userId: expert.id, action: 'NOTIFIED', actorType: 'SYSTEM', reason: noRsvpLink ? '发送候补专家通知（无确认链接）' : '发送评审邀请通知' },
+        }).catch(() => {});
+        // 候补文案（noRsvpLink，2026-10-27）：正文原样直发——不刷过期、不追加链接
+        if (noRsvpLink) {
+          const r = await this.notification.sendToUser(expert.id, channels, {
+            type: 'EXPERT_ASSIGNED',
+            title: `评审任务通知 - ${project.name}`,
+            content: body,
+          });
+          await logNotified;
+          return r;
+        }
         let rsvpLink = `${expertPortalUrl}/invitation/${projectId}`;
         if (be?.rsvpToken) {
           // 刷新过期时间（从发送时刻重新计时 RSVP TTL——EXPERT_RSVP_TTL_HOURS，默认 0.25 小时=15 分钟）
@@ -1944,12 +1953,14 @@ export class ExpertAdminService {
           : /\/rsvp\?t=/.test(body)
             ? body
             : `${body}\n确认链接（${rsvpTtlLabel()}内有效）：${rsvpLink}`;
-        return this.notification.sendToUser(expert.id, channels, {
+        const sent = await this.notification.sendToUser(expert.id, channels, {
           type: 'EXPERT_ASSIGNED',
           title: `评审任务通知 - ${project.name}`,
           content: contentWithLink,
           link: rsvpLink,
         });
+        await logNotified;
+        return sent;
       }),
     );
 
