@@ -1584,6 +1584,8 @@ export class BidService {
       return null;
     });
     const now = new Date();
+    // 重启留痕操作人姓名快照（2026-10-27 串码修复：绝不嵌裸 userId/裸 ISO）
+    const restartActorLabel = await this.resolveActorLabel(actorId);
     const newProject = await this.prisma.bidProject.create({
       data: {
         name: original.name,
@@ -1606,14 +1608,14 @@ export class BidService {
         companyId: original.companyId ?? null,
         companyName: original.companyName ?? null,
         stage: 'DOWNLOAD',
-        riskNote: `（从流标项目 ${original.name} 重启，原项目编号 ${original.projectCode ?? id}，操作时间 ${now.toISOString()}${actorId ? `，操作人 ${actorId}` : ''}；重启默认时间 截标 ${fallbackDeadline.toISOString()} / 开标 ${fallbackOpenTime.toISOString()}（请在项目编辑中重新设定））`,
+        riskNote: `（从流标项目 ${original.name} 重启，原项目编号 ${original.projectCode ?? id}，操作时间 ${formatNoteTime(now)}${restartActorLabel ? `，操作人 ${restartActorLabel}` : ''}；重启默认时间 截标 ${formatNoteTime(fallbackDeadline)} / 开标 ${formatNoteTime(fallbackOpenTime)}（请在项目编辑中重新设定））`,
       },
     });
 
     // 原项目 riskNote 追加重启记录
     await this.prisma.bidProject.update({
       where: { id },
-      data: { riskNote: `${original.riskNote || ''}｜已于 ${now.toISOString()} 由 ${actorId || '系统'} 重启为新项目 ${newCode}` },
+      data: { riskNote: `${original.riskNote || ''}｜已于 ${formatNoteTime(now)} 由 ${(await this.resolveActorLabel(actorId)) ?? '系统'} 重启为新项目 ${newCode}` },
     });
 
     await this.prisma.bidSupervisionLog.create({

@@ -812,6 +812,37 @@ describe('BidService — stage transitions', () => {
     });
   });
 
+  describe('abortBidProject — 留痕串码修复（2026-10-27：操作人姓名快照+时间本地可读）', () => {
+    it('riskNote 嵌 displayName 快照而非裸 userId；时间非裸 ISO', async () => {
+      prisma.user.findUnique.mockResolvedValue({ displayName: '张采购', username: 'zhangc' });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: 'P', procurementMethod: '谈判采购', _count: { suppliers: 2 } });
+      prisma.bidEvaluationResult.count.mockResolvedValue(0);
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'ABORTED' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      await service.abortBidProject('p1', 'u-actor-id-cuid', '冒烟');
+
+      const upd = prisma.bidProject.update.mock.calls[0][0].data;
+      expect(upd.riskNote).toContain('操作人 张采购');
+      expect(upd.riskNote).not.toContain('u-actor-id-cuid');
+      expect(upd.riskNote).not.toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/); // 不再裸 ISO
+    });
+
+    it('操作人查无对应用户 → 省略操作人字段（绝不嵌 id）', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: 'P', procurementMethod: '谈判采购', _count: { suppliers: 2 } });
+      prisma.bidEvaluationResult.count.mockResolvedValue(0);
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'ABORTED' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      await service.abortBidProject('p1', 'u-gone');
+
+      const upd = prisma.bidProject.update.mock.calls[0][0].data;
+      expect(upd.riskNote).not.toContain('操作人');
+      expect(upd.riskNote).not.toContain('u-gone');
+    });
+  });
+
   describe('abortBidProject — N4c 有官方结果须书面理由', () => {
     it('N4：已存在官方评标结果时流标须书面理由（ABORT_REASON_REQUIRED）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: 'P', procurementMethod: '谈判采购', _count: { suppliers: 2 } });
@@ -2584,6 +2615,7 @@ describe('截标↔开标间隔（P0-2；间隔=共享常量）', () => {
       },
       bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
       auditLog: { create: jest.fn().mockResolvedValue({}) },
+      user: { findUnique: jest.fn().mockResolvedValue(null) }, // 重启留痕姓名快照（2026-10-27）——null=省略操作人字段
     };
     const module: TestingModule = await Test.createTestingModule({
       providers: [

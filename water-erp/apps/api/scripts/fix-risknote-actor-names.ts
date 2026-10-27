@@ -7,6 +7,28 @@
  * 运行：cd apps/api && npx tsx scripts/fix-risknote-actor-names.ts [--dry]
  */
 import { PrismaClient } from '@prisma/client';
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
+
+// ── .env 加载（DATABASE_URL 必需；tsconfig 排除 scripts/，本文件独立类型检查）──
+function loadEnvFile(candidates: string[]): string | null {
+  for (const p of candidates) {
+    if (!existsSync(p)) continue;
+    for (const line of readFileSync(p, 'utf8').split(/\r?\n/)) {
+      const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+      if (!m) continue;
+      const value = m[2].replace(/^(['"])(.*)\1$/, '$2');
+      if (process.env[m[1]] === undefined) process.env[m[1]] = value; // dotenv 语义：不覆盖已有
+    }
+    return p;
+  }
+  return null;
+}
+const scriptDir = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
+if (!loadEnvFile([join(process.cwd(), 'apps', 'api', '.env'), join(scriptDir, '..', '.env')])) {
+  console.error('未找到 apps/api/.env（DATABASE_URL 必需）');
+  process.exit(1);
+}
 
 const prisma = new PrismaClient();
 const dry = process.argv.includes('--dry');
