@@ -397,6 +397,12 @@ export function SupplierSelectionPage({
   const [invitationOpen, setInvitationOpen] = useState(false);
   // 引用采购文件（勾选项目各阶段已上传的附件）
   const [refFileKeys, setRefFileKeys] = useState<Set<string>>(new Set());
+  // 默认全选（2026-10-27 用户口径）：引用文件就绪即全勾；用户手动改动一次后不再自动改
+  const refFilesTouchedRef = useRef(false);
+  useEffect(() => {
+    if (refFilesTouchedRef.current || refFileKeys.size > 0 || projectTenderFiles.length === 0) return;
+    setRefFileKeys(new Set(projectTenderFiles.map(f => f.objectKey)));
+  }, [refFileKeys, projectTenderFiles]);
   // 采购文件下载方式：免费 / 解密密码 / 付费
   const [downloadMode, setDownloadMode] = useState<'free' | 'encrypted' | 'paid'>('free');
   const [downloadPassword, setDownloadPassword] = useState('');
@@ -2645,7 +2651,7 @@ export function SupplierSelectionPage({
                       className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 cursor-pointer transition ${refFileKeys.has(f.objectKey) ? 'ring-1 ring-[var(--accent)]/30' : ''}`}
                       style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
                       <input type="checkbox" checked={refFileKeys.has(f.objectKey)}
-                        onChange={() => setRefFileKeys(prev => { const n = new Set(prev); n.has(f.objectKey) ? n.delete(f.objectKey) : n.add(f.objectKey); return n; })}
+                        onChange={() => { refFilesTouchedRef.current = true; setRefFileKeys(prev => { const n = new Set(prev); n.has(f.objectKey) ? n.delete(f.objectKey) : n.add(f.objectKey); return n; }); }}
                         className="w-3.5 h-3.5 accent-[var(--accent)] rounded shrink-0" />
                       <span className="flex-1 min-w-0 truncate text-xs font-semibold text-[var(--foreground)]">{f.fileName}</span>
                       <span className="text-[10px] text-[var(--muted-foreground)] shrink-0 tabular-nums">{(f.fileSize / 1024).toFixed(0)} KB</span>
@@ -2662,7 +2668,7 @@ export function SupplierSelectionPage({
                 <Upload size={15} className="text-[var(--accent)]" />
                 <h2 className="text-[12px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">上传附件</h2>
                 <button type="button" onClick={() => setInvitationOpen(true)} disabled={!projectId && !(project as any)?.id}
-                  className="neu-btn-xs gap-1.5 text-[var(--accent)]" title={projectId || project?.id ? 'AI 起草采购邀请书并导出 Word（自动加入附件）' : '请先选择项目'}>
+                  className="neu-btn-xs is-danger gap-1.5 font-bold" title={projectId || project?.id ? 'AI 起草采购邀请书并导出 Word（自动加入附件）——建议先生成' : '请先选择项目'}>
                   <FileSignature size={13} />
                   采购邀请书
                 </button>
