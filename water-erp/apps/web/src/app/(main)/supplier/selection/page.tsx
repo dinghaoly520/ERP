@@ -1148,11 +1148,13 @@ export function SupplierSelectionPage({
     };
   }, [fileAnalysisContext, selectedProject, project]);
 
-  // ── 固定语句模板（2026-10-27 用户口径）：关键词外全部固定；供应商名称与确认链接逐家自动填充 ──
+  // ── 固定语句模板（2026-10-27 用户口径·同日修订）：关键词外全部固定；供应商名称与确认链接逐家自动填充 ──
   // 不做任何占位兜底：关键词缺失由发送前校验直接报错（missingKeywordLabels），拼装只吃合格输入。
+  // 拼接计算：项目名以「采购」结尾时与固定语「采购项目」相接会出现「采购采购」重合——自动去重一个（仅拼接处，与后端 template 分支同口径）。
+  const projectPhrase = (projectName: string): string => (projectName.endsWith('采购') ? `${projectName}项目` : `${projectName}采购项目`);
   const composeInviteMessage = (supplierName: string, kw: { company: string; projectName: string; projectCode: string; method: string }, link: string) =>
-    `${supplierName} 您好！${kw.company}现就${kw.projectName}采购项目（项目编号：${kw.projectCode}）使用${kw.method}。请在24小时内登录供应商门户或直接点击 ${link} 确认是否参加本次采购邀请；`;
-  const inviteTitle = (kw: { projectName: string }) => `关于${kw.projectName}采购项目候选供应商邀请的通知`;
+    `${supplierName} 您好！${kw.company}现邀请贵公司参与${projectPhrase(kw.projectName)}（项目编号：${kw.projectCode}），采购方式为${kw.method}。请在24小时内登录供应商门户或直接点击 ${link} 确认是否参加本次采购邀请，若超时则视为自动放弃；`;
+  const inviteTitle = (kw: { projectName: string }) => `关于${projectPhrase(kw.projectName)}候选供应商邀请的通知`;
   const missingKeywordLabels = (): string[] => {
     const miss: string[] = [];
     if (!notifyKeywords.company.trim()) miss.push('归属公司');
@@ -2482,15 +2484,15 @@ export function SupplierSelectionPage({
                   <span className="font-semibold text-[var(--accent-strong)]">{[...shortlist.values()][0]?.item.name || '（供应商名称）'}</span>
                   {' 您好！'}
                   <span className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.company}</span>
-                  {'现就'}
-                  <span className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.projectName || '（项目名称）'}</span>
-                  {'采购项目（项目编号：'}
-                  <span className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.projectCode || '——'}</span>
-                  {'）使用'}
+                  {'现邀请贵公司参与'}
+                  <span className="font-semibold text-[var(--accent-strong)]">{projectPhrase(notifyKeywords.projectName || '（项目名称）')}</span>
+                  {'（项目编号：'}
+                  <span className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.projectCode || '（项目编号）'}</span>
+                  {'），采购方式为'}
                   <span className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.method || '（采购方式）'}</span>
                   {'。请在24小时内登录供应商门户或直接点击'}
                   <span className="font-semibold text-[var(--accent-strong)]">确认链接</span>
-                  {'确认是否参加本次采购邀请；'}
+                  {'确认是否参加本次采购邀请，若超时则视为自动放弃；'}
                 </p>
                 <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                   {([
@@ -3364,15 +3366,15 @@ export function SupplierSelectionPage({
                 <span className="font-semibold text-[var(--accent-strong)]">{[...rerunShortlist.values()][0]?.item.name || '（供应商名称）'}</span>
                 {' 您好！'}
                 <span className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.company}</span>
-                {'现就'}
-                <span className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.projectName || '（项目名称）'}</span>
-                {'采购项目（项目编号：'}
-                <span className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.projectCode || '——'}</span>
-                {'）使用'}
+                {'现邀请贵公司参与'}
+                <span className="font-semibold text-[var(--accent-strong)]">{projectPhrase(notifyKeywords.projectName || '（项目名称）')}</span>
+                {'（项目编号：'}
+                <span className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.projectCode || '（项目编号）'}</span>
+                {'），采购方式为'}
                 <span className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.method || '（采购方式）'}</span>
                 {'。请在24小时内登录供应商门户或直接点击'}
                 <span className="font-semibold text-[var(--accent-strong)]">确认链接</span>
-                {'确认是否参加本次采购邀请；'}
+                {'确认是否参加本次采购邀请，若超时则视为自动放弃；'}
               </p>
             </div>
 

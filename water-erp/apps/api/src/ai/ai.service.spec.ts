@@ -153,14 +153,31 @@ describe('AiService', () => {
       // LLM 零调用（模板模式核心诉求：确定性、无等待）
       expect(llm.chatJson).not.toHaveBeenCalled();
       expect(llm.chat).not.toHaveBeenCalled();
-      // 固定语句骨架：归属公司兜底 + 项目要素 + {rsvpLink} 占位符原样保留（前端逐家替换）
-      expect(res.body).toContain('四川省水利发展集团有限公司现就水利信息化设备采购采购项目（项目编号：SWHI-TP-2026102701）使用竞争性谈判。');
+      // 固定语句骨架（2026-10-27 文段修订版）+ 「采购采购」拼接去重（项目名以「采购」结尾）+ {rsvpLink} 占位符保留
+      expect(res.body).toContain('四川省水利发展集团有限公司现邀请贵公司参与水利信息化设备采购项目（项目编号：SWHI-TP-2026102701），采购方式为竞争性谈判。');
+      expect(res.body).not.toContain('采购采购');
+      expect(res.body).toContain('若超时则视为自动放弃');
       expect(res.body).toContain('{rsvpLink}');
-      expect(res.title).toBe('关于水利信息化设备采购采购项目候选供应商邀请的通知');
+      expect(res.title).toBe('关于水利信息化设备采购项目候选供应商邀请的通知');
       // RSVP 签发机器照常：两家的 token 均返回且指向 /rsvp?t=
       expect(Object.keys(res.rsvpTokens).sort()).toEqual(['sup-1', 'sup-2']);
       expect(res.rsvpTokens['sup-1']).toMatch(/\/rsvp\?t=/);
       expect(prisma.invitationRsvp.createMany).toHaveBeenCalledTimes(1);
+    });
+
+    it('拼接去重矩阵：名尾=「采购」去重一个；名尾≠「采购」保留「采购项目」', async () => {
+      prisma.invitationRsvp = { findMany: jest.fn().mockResolvedValue([]), createMany: jest.fn(), deleteMany: jest.fn(), update: jest.fn() };
+      const a = await service.generateNotificationContent({
+        contentMode: 'template', projectName: '办公设备采购', projectCode: 'X-1', procurementMethod: '询比价',
+        supplierNames: ['甲公司'],
+      });
+      expect(a.body).toContain('参与办公设备采购项目（');
+      expect(a.body).not.toContain('采购采购');
+      const b = await service.generateNotificationContent({
+        contentMode: 'template', projectName: '水利枢纽除险加固', projectCode: 'X-2', procurementMethod: '竞争性谈判',
+        supplierNames: ['乙公司'],
+      });
+      expect(b.body).toContain('参与水利枢纽除险加固采购项目（');
     });
 
     it('必要字段缺失直接 400 报错，不占位兜底（2026-10-27 用户口径）', async () => {
