@@ -643,7 +643,10 @@ export class BidService {
         orderBy: { createdAt: 'asc' },
       }),
       this.prisma.bidExpert.findMany({
-        where: { projectId: id },
+        // 名册除名口径（2026-10-27 用户裁定）：婉拒=不属于本项目评标专家——源头过滤，
+        // :3007 全部视图（评标管理/核验矩阵/签字）与 :3005 面板拿到的名单里不再存在该行；
+        // 留痕与恢复通道在专家抽取向导的确认表（expert-admin 域），不经本端点
+        where: { projectId: id, invitationStatus: { not: 'declined' } },
         include: { user: { select: { expertProfile: { select: { title: true, employer: true } } } } },
         orderBy: [{ expertRole: 'desc' }, { createdAt: 'asc' }],
       }),
@@ -2932,7 +2935,8 @@ export class BidService {
         });
       }
     }
-    return this.prisma.bidExpert.findMany({ where: { projectId }, include: { scoreRecords: true } });
+    // 名册除名口径（2026-10-27）：已婉拒专家不在本项目名册中，同 getBidProjectDetail 源头过滤
+    return this.prisma.bidExpert.findMany({ where: { projectId, invitationStatus: { not: 'declined' } }, include: { scoreRecords: true } });
   }
 
   /**
@@ -3202,7 +3206,8 @@ export class BidService {
   async getExpertVerification(projectId: string) {
     const [experts, anomalyLogs] = await Promise.all([
       this.prisma.bidExpert.findMany({
-        where: { projectId },
+        // 已婉拒专家不进核验矩阵（2026-10-27 用户裁定：拒绝的专家不属于本项目评标专家）
+        where: { projectId, invitationStatus: { not: 'declined' } },
         orderBy: [{ signedIn: 'desc' }, { expertRole: 'asc' }, { expertName: 'asc' }],
         select: {
           id: true, userId: true, expertName: true, major: true, expertRole: true, isLead: true, isPurchaserRepresentative: true,
@@ -4081,7 +4086,8 @@ export class BidService {
         });
         const pendingExperts = signPacket && !signPacket.closedAt
           ? await tx.bidExpert.findMany({
-              where: { projectId: id, expertRole: '正选', signStatus: 'PENDING' },
+              // 名册除名口径（2026-10-27）：婉拒正选不算未签字——否则归档闸永久卡死
+              where: { projectId: id, expertRole: '正选', signStatus: 'PENDING', invitationStatus: { not: 'declined' } },
               select: { expertName: true },
             })
           : [];
@@ -5976,7 +5982,8 @@ export class BidService {
     }
 
     const experts = await this.prisma.bidExpert.findMany({
-      where: { projectId: id },
+      // 已婉拒专家不催（2026-10-27）：婉拒即退出评审，催促名单与其无关
+      where: { projectId: id, invitationStatus: { not: 'declined' } },
       select: { userId: true, signedIn: true, progress: true },
     });
 

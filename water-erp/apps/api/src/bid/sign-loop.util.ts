@@ -21,7 +21,9 @@ export async function closeSignLoopIfDone(
   closedById: string,
   opts: CloseSignLoopOptions = {},
 ): Promise<boolean> {
-  const pendingCount = await tx.bidExpert.count({ where: { projectId, expertRole: '正选', signStatus: 'PENDING' } });
+  // 名册除名口径（2026-10-27）：婉拒正选不计入闭环分母——其 signStatus 恒为默认 PENDING，
+  // 不过滤会让签字闭环永不可达、完整归档永久阻塞
+  const pendingCount = await tx.bidExpert.count({ where: { projectId, expertRole: '正选', signStatus: 'PENDING', invitationStatus: { not: 'declined' } } });
   if (pendingCount > 0) return false;
 
   await tx.bidSignPacket.update({ where: { projectId }, data: { closedAt: new Date(), closedById } });

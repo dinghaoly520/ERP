@@ -34,7 +34,8 @@ describe('BidService.getExpertVerification（核验矩阵）', () => {
 
     const r = await svc.getExpertVerification('proj-1');
 
-    expect(prisma.bidExpert.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { projectId: 'proj-1' } }));
+    // 已婉拒专家不进核验矩阵（2026-10-27 用户口径：婉拒=名册除名，:3007 不出现）
+    expect(prisma.bidExpert.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { projectId: 'proj-1', invitationStatus: { not: 'declined' } } }));
     expect(r.mode).toBe('self'); // 无 env 时默认 self
     expect(r.experts[0]).toMatchObject({
       signedIn: true, signedInAt: '2026-09-18T09:12:00.000Z', method: 'self_password_photo',

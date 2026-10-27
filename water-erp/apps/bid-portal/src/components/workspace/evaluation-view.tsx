@@ -581,8 +581,11 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   // F4：生成门槛与统计仅计正选专家——候补不参与评分/报告确认/签字
   // （后端 assertRegularExpert 拦截，生成闸门也只查正选）。此前把候补计入分母，
   // 有候补的项目「可生成结果」恒为否、生成按钮永久禁用。
-  const regularExperts = experts.filter(e => e.expertRole === EXPERT_ROLE.REGULAR);
-  const alternateExperts = experts.filter(e => e.expertRole !== EXPERT_ROLE.REGULAR);
+  // 已婉拒专家不进本视图任何列表/统计（2026-10-27 用户口径：拒绝的专家不属于本项目评标专家，
+  // 与 :3005 开标确认面板、WS 房间门控、后端签到/评分/报告闸同口径）——两条派生线是
+  // 本页 KPI 卡/评分矩阵/催促计数/候补名单的唯一总源，在此过滤即全页生效。
+  const regularExperts = experts.filter(e => e.expertRole === EXPERT_ROLE.REGULAR && e.invitationStatus !== 'declined');
+  const alternateExperts = experts.filter(e => e.expertRole !== EXPERT_ROLE.REGULAR && e.invitationStatus !== 'declined');
   const signedIn = regularExperts.filter(e => e.signedIn).length;
   const reportsDone = regularExperts.filter(e => e.reportConfirmed).length;
   const unconfirmed = regularExperts.filter(e => !e.reportConfirmed);

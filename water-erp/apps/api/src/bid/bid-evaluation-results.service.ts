@@ -34,8 +34,9 @@ export class BidEvaluationResultsService {
   /** 评标完整性快照：评审结果生成后、归档前的独立证据包（SHA-256 签名）。 */
   public async buildEvaluationPackage(projectId: string) {
     // BidScoreRecordHistory 无 expert 关系字段，先取项目专家 ID 再过滤
+    // 名册除名口径（2026-10-27）：婉拒专家不进交接包名册与分数域（写闸已拦，此处源头对齐）
     const expertIds = await this.prisma.bidExpert.findMany({
-      where: { projectId },
+      where: { projectId, invitationStatus: { not: 'declined' } },
       select: { id: true },
     });
     const expertIdSet = new Set(expertIds.map(e => e.id));
@@ -55,7 +56,7 @@ export class BidEvaluationResultsService {
         select: { expertId: true, pointId: true, supplierId: true, checked: true, awardedScore: true, note: true }, // note：得分点裁定备注（2026-09-18 完整性扩展）
       }),
       this.prisma.bidExpert.findMany({
-        where: { projectId },
+        where: { projectId, invitationStatus: { not: 'declined' } },
         select: { expertName: true, expertRole: true, reportConfirmed: true, reportConfirmedAt: true, progress: true, totalScore: true },
       }),
       this.prisma.bidScoreItem.findMany({

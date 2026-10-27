@@ -326,7 +326,8 @@ export class ExpertService {
         openingRecords: true,
         // P1-9（2026-09-21 审查）：聚合口径只算正选——候补未递补前非评标委员会成员（招标投标法第37条），
         // 否则有候补的项目 allMembersConfirmed/reportConfirmedCount===totalExperts 永假、组长末签按钮永不渲染
-        experts: { where: { expertRole: '正选' }, select: { id: true, expertName: true, major: true, signedIn: true, avoidanceConfirmed: true, progress: true, reportConfirmed: true } },
+        // 已婉拒正选不计数（2026-10-27：婉拒即退出评审，与 :3005 面板/WS 门控同口径）
+        experts: { where: { expertRole: '正选', invitationStatus: { not: 'declined' } }, select: { id: true, expertName: true, major: true, signedIn: true, avoidanceConfirmed: true, progress: true, reportConfirmed: true } },
         scoreItems: {
           orderBy: [{ category: 'asc' }, { createdAt: 'asc' }],
           include: { points: { orderBy: [{ seq: 'asc' }, { createdAt: 'asc' }] } },
@@ -527,6 +528,16 @@ export class ExpertService {
     }
   }
 
+  // 已婉拒专家禁入（2026-10-27 用户裁定：已拒绝专家不得再进入该项目评审——签到/评分/报告全链拦）。
+  // 三条婉拒路径（RSVP/超时/admin 代婉拒）只写 invitationStatus 不腾席不动角色，此前所有写闸
+  // 只查 expertRole → declined 正选可照常签到评分。pending 放行（英雄项目种子=正选 pending+已签到，
+  // 历史流不破坏；候补 pending 同理）。WS 房间门控（bid.gateway）同口径既有先例。
+  private assertInvitationActive(expert: { invitationStatus?: string | null }, action = '参与评标'): void {
+    if (expert.invitationStatus === 'declined') {
+      throw new ForbiddenException({ error: `您已婉拒该项目的评审邀请，不可${action}`, code: 'EXPERT_DECLINED' });
+    }
+  }
+
 
   async signIn(
     userId: string,
@@ -547,6 +558,7 @@ export class ExpertService {
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
     this.assertRegularExpert(expert, '签到');
+    this.assertInvitationActive(expert, '签到');
     // 闸2（2026-09-20 spec §3）：跨项目评标窗口冲突——签到即开窗，同时段双活跃在此硬拦。
     // 窗口=签到起→本人确认报告止；同日不同时段合法（上午标确认报告后即可签下午标）。
     // 拒绝同时落监督日志+admin 告警（spec §3 四路之一）。
@@ -614,9 +626,13 @@ export class ExpertService {
       await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
       // I4（2026-09-24 全链审计）：swap 锁 BidExpert 行、signIn 锁 User 行——锁域不相交，
       // 夹缝中被互换降为候补仍会写入签到（候补+signedIn=永不闭窗）。锁内重读角色堵死。
-      const fresh = await tx.bidExpert.findUnique({ where: { id: expert.id }, select: { expertRole: true } });
+      const fresh = await tx.bidExpert.findUnique({ where: { id: expert.id }, select: { expertRole: true, invitationStatus: true } });
       if (!fresh || fresh.expertRole !== '正选') {
         throw new ForbiddenException({ error: '您是候补专家，正式递补前不可签到', code: 'SUBSTITUTE_EXPERT' });
+      }
+      // 预检后夹缝婉拒（admin 代婉拒并发）：锁内重读兜底，拒绝写入签到（婉拒专家不得开评标窗口）
+      if (fresh.invitationStatus === 'declined') {
+        throw new ForbiddenException({ error: '您已婉拒该项目的评审邀请，不可签到', code: 'EXPERT_DECLINED' });
       }
       txWindows = await findOpenEvaluationWindows(tx, userId, projectId);
       if (txWindows.length > 0) return null;
@@ -1545,6 +1561,7 @@ export class ExpertService {
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
     this.assertRegularExpert(expert, '提交评分');
+    this.assertInvitationActive(expert, '提交评分');
     if (expert.reportConfirmed) {
       throw new BadRequestException({ error: '评审报告已确认，评分已锁定', code: 'SCORE_LOCKED' });
     }
@@ -2458,6 +2475,7 @@ export class ExpertService {
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
     this.assertRegularExpert(expert, '确认评审报告');
+    this.assertInvitationActive(expert, '确认评审报告');
     if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed || !expert.confidentialityAgreed || !expert.disciplineAgreed) {
       throw new ForbiddenException({ error: '请先完成身份核验、回避确认、AI 辅助评标声明、保密承诺与评标纪律确认', code: 'VERIFICATION_REQUIRED' });
     }

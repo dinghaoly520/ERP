@@ -309,6 +309,39 @@ describe('ExpertService', () => {
       prisma.bidExpert.findUnique.mockResolvedValue({ expertRole: '正选' });
     });
 
+    describe('已婉拒专家禁入（2026-10-27 用户裁定：declined 不得再进入项目评审）', () => {
+      it('declined 正选 → 403 EXPERT_DECLINED，不写签到', async () => {
+        prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+        prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, invitationStatus: 'declined' });
+
+        await expect(service.signIn('user-1', 'proj-1', undefined, 'photo-1'))
+          .rejects.toMatchObject({ response: { code: 'EXPERT_DECLINED' } });
+        expect(prisma.bidExpert.update).not.toHaveBeenCalled();
+      });
+
+      it('预检后夹缝婉拒（事务内重读 declined）→ 403 EXPERT_DECLINED，不写签到', async () => {
+        prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+        prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, invitationStatus: 'confirmed' });
+        prisma.fileAsset.findUnique.mockResolvedValue({ id: 'photo-1', category: 'expert_signin_photo', uploaderId: 'user-1' });
+        prisma.bidExpert.findUnique.mockResolvedValue({ expertRole: '正选', invitationStatus: 'declined' });
+
+        await expect(service.signIn('user-1', 'proj-1', undefined, 'photo-1'))
+          .rejects.toMatchObject({ response: { code: 'EXPERT_DECLINED' } });
+        expect(prisma.bidExpert.update).not.toHaveBeenCalled();
+      });
+
+      it('declined 正选提交评分 → 403 EXPERT_DECLINED', async () => {
+        prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+        prisma.bidExpert.findFirst.mockResolvedValue({
+          ...mockExpert, invitationStatus: 'declined', signedIn: true, avoidanceConfirmed: true,
+          aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true,
+        });
+
+        await expect(service.submitScores('user-1', 'proj-1', { scores: [] } as any))
+          .rejects.toMatchObject({ response: { code: 'EXPERT_DECLINED' } });
+      });
+    });
+
     it('self 默认态无留档照 → 400 PHOTO_REQUIRED（R3 必拍），不写签到状态', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);

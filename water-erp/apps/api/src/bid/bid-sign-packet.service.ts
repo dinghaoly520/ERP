@@ -87,7 +87,8 @@ export class BidSignPacketService {
       this.prisma.bidSignPacket.findUnique({ where: { projectId } }),
       this.prisma.bidEvaluationResult.count({ where: { projectId } }),
       this.prisma.bidExpert.findMany({
-        where: { projectId },
+        // 名册除名口径（2026-10-27）：婉拒专家不入签字包——其非委员会成员，无签字义务
+        where: { projectId, invitationStatus: { not: 'declined' } },
         orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }],
         select: {
           id: true, expertName: true, major: true, expertRole: true, isLead: true,
@@ -356,7 +357,8 @@ export class BidSignPacketService {
       this.prisma.bidMotion.findMany({ where: { projectId }, include: { votes: true } }),
       this.prisma.bidClarification.findMany({ where: { projectId } }),
       this.prisma.bidExpert.findMany({
-        where: { projectId },
+        // 名册除名口径（2026-10-27）：婉拒专家不出现在签字状态列表（同生成口径）
+        where: { projectId, invitationStatus: { not: 'declined' } },
         select: {
           id: true, expertName: true, expertRole: true, signStatus: true, signStatusAt: true, signScanFileId: true,
           dissentingOpinion: true, dissentingReason: true, esignature: true, esignatureAt: true,
@@ -648,7 +650,8 @@ export class BidSignPacketService {
           select: { name: true, projectCode: true, procurementMethod: true, evaluationMethod: true, openTime: true, deadline: true, scope: true, qualification: true, budget: true, leaderCoSignedAt: true, reportNotes: true },
         }),
         this.prisma.bidExpert.findMany({
-          where: { projectId, expertRole: '正选' },
+          // 名册除名口径（2026-10-27）：婉拒正选不进签字页/确认表
+          where: { projectId, expertRole: '正选', invitationStatus: { not: 'declined' } },
           orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }],
           select: { id: true, expertName: true, major: true, expertRole: true, isLead: true, reviewGroup: true, dutyRole: true, isPurchaserRepresentative: true, signInIp: true, signInMeta: true, confidentialityAgreedAt: true, disciplineAgreedAt: true, reportConfirmedAt: true, signedIn: true, aiConsentConfirmed: true, aiConsentAt: true, avoidanceConfirmed: true },
         }),
