@@ -227,7 +227,7 @@ function ExpertLoginPage() {
         <div className="login-rise login-rise--4 mt-7 flex flex-col items-center">
           <div className="login-credit">
             {prefersReducedMotion ? (
-              <span className="login-credit__static">四川水利发展集团有限公司　制</span>
+              <span className="login-credit__static">四川省水利发展集团有限公司　制</span>
             ) : (
               <TrueFocus
                 sentence="四|川|水|利|发|展|集|团|有|限|公|司| |制"

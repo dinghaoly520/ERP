@@ -403,7 +403,7 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
             className="login-credit pt-2 text-center"
           >
             {reducedMotion ? (
-              <span className="login-credit__static">四川水利发展集团有限公司　制</span>
+              <span className="login-credit__static">四川省水利发展集团有限公司　制</span>
             ) : (
               <TrueFocus
                 sentence="四|川|水|利|发|展|集|团|有|限|公|司| |制"
