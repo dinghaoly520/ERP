@@ -2501,7 +2501,6 @@ export function SupplierSelectionPage({
                 <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
                   <MessageSquare size={11} /><span>短信内容</span>
                 </div>
-                <p className="text-xs text-[var(--muted-foreground)]">除关键词外均为固定语句；蓝色加粗为关键词实时取值（示例取首家供应商，逐家内容见上表预览）：</p>
                 {renderInvitePreview(shortlist)}
                 <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                   {([
