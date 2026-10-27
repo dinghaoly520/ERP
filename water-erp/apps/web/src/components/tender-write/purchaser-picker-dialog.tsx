@@ -16,7 +16,7 @@ export function PurchaserPickerDialog({
   onClose,
 }: {
   isOpen: boolean;
-  onSelect: (purchaser: { name: string; email: string; phone: string }) => void;
+  onSelect: (purchaser: { name: string; email: string; phone: string; address: string }) => void;
   onClose: () => void;
 }) {
   const [entries, setEntries] = useState<CompanyPurchaserEntry[] | null>(null);
@@ -69,7 +69,7 @@ export function PurchaserPickerDialog({
                   key={p.id}
                   type="button"
                   onClick={() => {
-                    onSelect({ name: p.name, email: p.email ?? "", phone: p.phone ?? "" });
+                    onSelect({ name: p.name, email: p.email ?? "", phone: p.phone ?? "", address: p.address ?? "" });
                     onClose();
                   }}
                   className="flex w-full items-center gap-3 rounded-[14px] border border-[var(--border)] px-4 py-3 text-left transition-colors hover:border-[rgba(76,111,189,0.5)] hover:bg-[rgba(96,139,239,0.06)]"

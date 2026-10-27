@@ -409,10 +409,15 @@ export function TenderSectionEditor({
     }
   };
 
-  const handleContactSelect = (contact: { name: string; email: string; phone: string }) => {
+  const handleContactSelect = (contact: { name: string; email: string; phone: string; address?: string }) => {
     onChange('contactName', contact.name);
     onChange('contactEmail', contact.email);
     onChange('contactPhone', contact.phone);
+    // 条目地址非空才写（2026-10-27：选择器一直展示地址却没带出——根因是 onSelect 未传出；
+    // 无地址条目不清用户已填地址）
+    if (contact.address?.trim()) {
+      onChange('contactAddress', contact.address);
+    }
   };
 
   // 开标地点条目选择（2026-10-10）：整地址写入「开标地点」

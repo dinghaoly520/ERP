@@ -48,22 +48,22 @@ export const SUPERVISION_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
     // 监督人置顶（2026-10-21 用户口径，与采购文件编写同序）：先选人再补部门/地址/电话
     key: "supervisionContact",
     label: "监督人",
-    placeholder: "点右侧「监督人」按钮从本公司联系人多选，或直接输入",
+    placeholder: "请填写监督人",
   },
   {
     key: "supervisionDepartment",
     label: "监督部门",
-    placeholder: "留空默认「当前公司名 + 纪检监察部」",
+    placeholder: "请填写监督部门",
   },
   {
     key: "supervisionAddress",
     label: "监督地址",
-    placeholder: "留空使用模板默认地址",
+    placeholder: "请填写监督地址",
   },
   {
     key: "supervisionPhone",
     label: "监督电话",
-    placeholder: "留空使用模板默认电话",
+    placeholder: "请填写监督电话",
     type: "tel",
   },
 ];
@@ -135,20 +135,20 @@ export const INVITED_OR_INTERNAL_BIDDING_ANNOUNCEMENT_FIELDS: AnnouncementFieldC
   {
     key: "contactName",
     label: "联系人",
-    placeholder: "请输入联系人",
+    placeholder: "请填写联系人",
     autoFill: "contactName",
   },
   {
     key: "contactPhone",
     label: "联系电话",
-    placeholder: "请输入联系电话",
+    placeholder: "请填写联系电话",
     type: "tel",
     autoFill: "contactPhone",
   },
   {
     key: "contactEmail",
     label: "联系邮箱",
-    placeholder: "请输入联系邮箱",
+    placeholder: "请填写联系邮箱",
     type: "email",
     autoFill: "contactEmail",
   },
