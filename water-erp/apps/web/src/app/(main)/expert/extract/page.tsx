@@ -3352,7 +3352,7 @@ export function ExpertExtractPage({
       {reDraft && reModalOpen && (
         <Modal open onClose={() => { if (reDraft.phase !== 'extracting' && reDraft.phase !== 'sending') closeReModal(); }} size="lg"
           title={<span className="flex items-center gap-2"><RefreshCw size={15} className="text-[var(--accent)]" />第{reDraft.roundNo}次补选</span>}
-          description="补选专家抽取 · 审核 · 一键通知（默认复用步骤3通知模板）"
+          description="补选专家抽取 · 审核 · 一键通知"
         >
           {reDraft.phase === 'extracting' ? (
             <div className="flex flex-col items-center justify-center gap-3 py-16">
