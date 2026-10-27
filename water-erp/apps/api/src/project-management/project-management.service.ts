@@ -6894,13 +6894,20 @@ ${JSON.stringify(algorithmResult, null, 2)}
     };
   }
 
-  async getProjectAttributions() {
+  async getProjectAttributions(user?: AuthenticatedUser, requestedCompanyId?: string) {
+    // 0. 公司隔离（2026-10-27 用户裁定：项目归属不同公司不互通）——归属库由 PMI 聚合
+    //    派生，隔离在聚合源上注入（数据库层过滤，非全量算完再减）；admin 默认全量、
+    //    ?companyId= 过滤，非 admin 强制本人公司（写侧天然隔离：归属随 PMI.companyId 落快照）
+    const scopeWhere = this.companyScope.filter(
+      await this.companyScope.resolveScope(user, requestedCompanyId),
+    );
     // 1. 全量项目聚合（2026-10-23 用户口径：确认归属即入库——原只聚 ARCHIVED，
     //    新建项目的归属永不进库，后续创建下拉里只剩「其他」）
     const archivedProjects = await this.prisma.projectManagementItem.findMany({
       where: {
         demandProject: { not: null },
         status: { not: 'RECYCLED' }, // 回收站项目不入库（已删除的归属污染选项）
+        ...scopeWhere,
       },
       select: {
         demandProject: true,

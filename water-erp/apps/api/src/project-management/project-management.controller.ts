@@ -56,8 +56,12 @@ export class ProjectManagementController {
   }
 
   @Get('project-attributions')
-  getProjectAttributions() {
-    return this.projectManagementService.getProjectAttributions();
+  getProjectAttributions(
+    @Query('companyId') companyId?: string,
+    @CurrentUser() user?: AuthenticatedUser,
+  ) {
+    // 公司隔离（2026-10-27 用户裁定：归属库不同公司不互通）——admin 全量+?companyId= 过滤，非 admin 强制本公司
+    return this.projectManagementService.getProjectAttributions(user, companyId);
   }
 
   /** 按公司分组项目计数（公司下拉语境化计数：数据库/台账=已完成 ARCHIVED、进度=进行中 ACTIVE） */

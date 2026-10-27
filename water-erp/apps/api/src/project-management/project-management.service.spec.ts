@@ -1861,6 +1861,19 @@ describe('ProjectManagementService', () => {
       expect(where.createdById).toBeUndefined();
     });
 
+    it('项目归属库公司隔离（2026-10-27：不同公司归属不互通）——聚合源注入 companyId 过滤', async () => {
+      const { service, prisma } = makeService();
+      prisma.projectManagementItem.findMany.mockResolvedValue([
+        { demandProject: '引大济岷工程', demandContractNumber: null, contractNumber: 'HT-1' },
+      ]);
+      const res = await service.getProjectAttributions({ sub: 'staff-1', username: 's', role: 'staff' });
+      const where = prisma.projectManagementItem.findMany.mock.calls[0][0].where;
+      expect(where.companyId).toEqual({ in: ['co-test'] }); // 数据库层过滤，非全量算完再减
+      expect(where.status).toEqual({ not: 'RECYCLED' }); // 既有口径不回归
+      expect(res).toHaveLength(1);
+      expect(res[0]).toMatchObject({ name: '引大济岷工程', contractNumber: 'HT-1', usageCount: 1 });
+    });
+
     it('staff → where.createdById = 本人（个人隔离不变）', async () => {
       const { service, prisma } = makeService();
       prisma.projectManagementItem.findMany.mockResolvedValue([]);
