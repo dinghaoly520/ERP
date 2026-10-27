@@ -249,6 +249,8 @@ export class ExpertExtractionService {
     let analysis: string;
     let requiredSpecialties: LlmSpecialtyQuota[];
     const scoreMap = new Map<string, { matchScore: number; fitSpecialty: string; reason: string }>();
+    // LLM 逐人契合理由（2026-10-27 选用理由改版）：matchScore 恒 0，评分仍由规则引擎做，此处只收 reason
+    const llmReasons = new Map<string, string>();
     let engine: 'deepseek' | 'rules' = 'deepseek';
 
     try {
@@ -263,7 +265,7 @@ export class ExpertExtractionService {
       requiredSpecialties = quotaRows.length
         ? quotaRows.map(q => ({ ...q, reason: q.reason ?? '' }))
         : llm.requiredSpecialties;
-      for (const s of llm.scoredExperts) scoreMap.set(s.id, { matchScore: s.matchScore, fitSpecialty: s.fitSpecialty, reason: s.reason });
+      for (const s of llm.scoredExperts) llmReasons.set(s.id, s.reason);
     } catch (err) {
       // 规则降级：AI 不可用时如实告知原因，用规则引擎兜底
       engine = 'rules';
@@ -280,7 +282,7 @@ export class ExpertExtractionService {
         scoreMap.set(c.id, {
           matchScore: this.extendedRuleScore(c),
           fitSpecialty: c.specialty,
-          reason: `${c.title || ''}，履职等级 ${c.evaluationLevel ?? '—'}、负荷 ${c.currentLoadStatus || '-'}。`,
+          reason: this.fitReason(c, extractMode),
         });
       }
     }
@@ -290,7 +292,7 @@ export class ExpertExtractionService {
         scoreMap.set(c.id, {
           matchScore: extractMode === 'merit_best' ? this.extendedRuleScore(c) : 50,
           fitSpecialty: c.specialty,
-          reason: `${c.title || ''}，履职等级 ${c.evaluationLevel ?? '—'}、负荷 ${c.currentLoadStatus || '-'}。`,
+          reason: llmReasons.get(c.id) || this.fitReason(c, extractMode),
         });
       }
     }
@@ -802,6 +804,20 @@ export class ExpertExtractionService {
     // if (c.recentProjects12m != null && c.recentProjects12m > 0) s += Math.min(5, c.recentProjects12m);
 
     return Math.max(0, Math.round(s));
+  }
+
+  /** 确定性契合理由（2026-10-27 选用理由改版·LLM 不可用/漏配兜底）：按模式说明「为什么选它」，
+   *  全部取自真实数据（专业配额/职称/评审经验/履职/负荷），不编造项目关联。 */
+  private fitReason(
+    c: { specialty: string; title?: string | null; evaluationLevel?: string | null; currentLoadStatus?: string | null; recentProjects12m?: number; pastProjects?: number },
+    mode: 'specialty_match' | 'random' | 'merit_best',
+  ): string {
+    const exp = (c.recentProjects12m ?? 0) > 0 ? `近12月参评${c.recentProjects12m}次` : (c.pastProjects ?? 0) > 0 ? `累计参评${c.pastProjects}次` : '首次受邀参评';
+    if (mode === 'random') {
+      return `「${c.specialty}」专业配额内随机抽定（公平回避原则）；${c.title || '工程技术岗'}，${exp}，当前${c.currentLoadStatus || '状态未知'}可参评。`;
+    }
+    const lv = c.evaluationLevel ? `履职评价${c.evaluationLevel}` : '暂无履职评价';
+    return `「${c.specialty}」专业对口本项目评审需求${c.title ? `，${c.title}` : ''}；${exp}，${lv}，当前${c.currentLoadStatus || '状态未知'}——综合评分择优录取。`;
   }
 
   /** 组长推荐评分：职称(40)+履职等级(30)+偏离度(15)+经验(10)+负荷(5)，从正选中选最高分者 */
