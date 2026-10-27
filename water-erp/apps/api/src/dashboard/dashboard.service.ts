@@ -68,23 +68,32 @@ function diffDays(from: Date, to: Date) {
   return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
 }
 
-/** 环比上期窗口：双边界=等长前移；仅起始日（本月口径）=「上月起同日 → 起始前一日」；无起始日（全部）无上期。
+/** 环比上期窗口：一律「紧邻等长前移」——上期 = [起始-L 天, 起始前一日]，L=当前区间天数。
+ *  双边界（自定义区间）L=end-start+1；仅起始日（本月/季/年至今口径）L=起始..今天（服务器日期），
+ *  上期终点恒为起始前一日、起点随今日推进逐日回退——与自定义区间同语义（R2-1，2026-10-27：
+ *  旧实现「上月整月」违反 spec P0-2 等长前移，月内环比系统性偏差）。
+ *  起始日在未来（L≤0）或无起始日（"全部"）无上期。
  *  纯日期运算按 UTC 解析/序列化（与机器时区无关，结果确定）；入库边界仍走 startOfDay/endOfDay(+08:00)。 */
 export function priorWindow(
   startDate?: string,
   endDate?: string,
+  now: Date = new Date(),
 ): { startDate: string; endDate: string } | null {
   if (!startDate) return null;
+  const DAY = 24 * 3600 * 1000;
   const start = new Date(`${startDate}T00:00:00.000Z`);
-  const prevEnd = new Date(start.getTime() - 1); // 起始前一日末
-  let prevStart: Date;
+  let spanDays: number;
   if (endDate) {
     const end = new Date(`${endDate}T00:00:00.000Z`);
-    const spanMs = end.getTime() - start.getTime() + 24 * 3600 * 1000;
-    prevStart = new Date(prevEnd.getTime() + 1 - spanMs);
+    spanDays = Math.round((end.getTime() - start.getTime()) / DAY) + 1;
   } else {
-    prevStart = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() - 1, start.getUTCDate()));
+    // 月/季/年至今：L = 起始..今天（含头尾），按服务器本地日历日
+    const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    spanDays = Math.round((today.getTime() - start.getTime()) / DAY) + 1;
   }
+  if (spanDays <= 0) return null;
+  const prevEnd = new Date(start.getTime() - 1); // 起始前一日末
+  const prevStart = new Date(prevEnd.getTime() + 1 - spanDays * DAY);
   const iso = (d: Date) => d.toISOString().slice(0, 10);
   return { startDate: iso(prevStart), endDate: iso(prevEnd) };
 }
