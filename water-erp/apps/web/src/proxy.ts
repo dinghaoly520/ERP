@@ -1,28 +1,13 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { portalOriginForHost } from '@water-erp/config';
+import { apiLoopbackOrigin } from '@water-erp/config';
 
 const AUTH_COOKIE_NAME = 'token_web';
-
-// API 目标请求级双轨（2026-10-26 域名部署，与 expert/bid proxy 同口径）：
-// API_SERVER_URL 显式覆盖（旧别名）> portalOriginForHost（API_ORIGIN env > 请求 Host
-// 家族判定：*.scsfjt.com → api 子域 https；IP/端口访问 → 同主机:4001）。
-// 弃模块级 API_TARGET——middleware 边缘运行时 process.env 是构建期内联，构建时未设
-// 则永久烘焙 localhost:4001（事后改 env 无效）；Host 推导是运行时通道，恒新鲜。
-const requestHost = (request: NextRequest) =>
-  (request.headers.get('x-forwarded-host') || request.headers.get('host') || '')
-    .split(',')[0]
-    .trim() || request.nextUrl.hostname;
-const requestProto = (request: NextRequest) =>
-  (request.headers.get('x-forwarded-proto') || '').split(',')[0].trim();
-const apiTargetFor = (request: NextRequest): string =>
-  (process.env.API_SERVER_URL || '').replace(/\/+$/, '') ||
-  portalOriginForHost('api', requestHost(request), requestProto(request));
 
 export async function proxy(request: NextRequest) {
   // ★ API proxy: forward /api/* to NestJS with full cookie passthrough
   if (request.nextUrl.pathname.startsWith('/api/')) {
-    const targetUrl = `${apiTargetFor(request)}${request.nextUrl.pathname}${request.nextUrl.search}`;
+    const targetUrl = `${apiLoopbackOrigin()}${request.nextUrl.pathname}${request.nextUrl.search}`;
 
     const headers = new Headers();
     request.headers.forEach((value, key) => {

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { portalOriginForHost } from '@water-erp/config';
+import { apiLoopbackOrigin, portalOriginForHost } from '@water-erp/config';
 
 const PORTAL = 'expert';
 const COOKIE = `token_${PORTAL}`;
@@ -67,7 +67,7 @@ export default async function proxy(request: NextRequest) {
     if (token) {
       try {
         const res = await fetch(
-          `${portalOriginForHost('api', requestHost(request), requestProto(request))}/api/auth/me`,
+          `${apiLoopbackOrigin()}/api/auth/me`,
           {
             headers: { Cookie: `${COOKIE}=${token}`, 'X-Portal': PORTAL },
           },
@@ -110,10 +110,11 @@ export default async function proxy(request: NextRequest) {
   // token 失效/角色不符时回登录页，保留 redirect 以便登录后回到原页面（如邀请确认页）
   const loginWithRedirect = () => NextResponse.redirect(loginUrlFor(request, pathname));
   try {
-    // 鉴权回源：portalURL 在 middleware（无 window）恒落 localhost 占位——改按请求 Host
-    // 双轨推导（域名家族 → API 子域；IP/端口 → 同主机:4001；API_ORIGIN env 最高优先）。
+    // 鉴权回源：portalURL 在 middleware（无 window）恒落 localhost 占位不可用。server-internal
+    // 跳直达本机回环（apiLoopbackOrigin：env 覆盖 > 127.0.0.1:4001）——勿按请求域名推导公网
+    // api 子域（hairpin NAT 风险，2026-10-27 复盘）。
     const res = await fetch(
-      `${portalOriginForHost('api', requestHost(request), requestProto(request))}/api/auth/me`,
+      `${apiLoopbackOrigin()}/api/auth/me`,
       {
         headers: { Cookie: `${COOKIE}=${token}`, 'X-Portal': PORTAL },
       },

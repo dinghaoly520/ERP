@@ -48,3 +48,14 @@ export function portalOriginForHost(app: AppName, hostname: string, proto?: stri
   }
   return `http://${h || 'localhost'}:${PORTS[app]}`;
 }
+
+/** 服务端（Next middleware / Node）回源 API 的 origin——server-internal 跳，浏览器不可见。
+ *  env 覆盖（API_SERVER_URL 旧别名 > API_ORIGIN；middleware 边缘运行时为构建期内联，
+ *  分机部署须在构建时设置）> 本机回环（申请单 2026-10-14 全业务同机 10.10.7.20）。
+ *  勿按请求域名家族推导到公网 api 子域——middleware→API 不出机器，绕公网域名会引入
+ *  回环 NAT(hairpin)/二次 TLS/二次反代三重风险（2026-10-27 复盘）；浏览器直连面
+ *  （WS 等）仍走 portalURL('api') 公网子域，两者勿混。 */
+export function apiLoopbackOrigin(): string {
+  const ovr = (process.env.API_SERVER_URL || process.env.API_ORIGIN || '').trim().replace(/\/+$/, '');
+  return ovr || `http://127.0.0.1:${PORTS.api}`;
+}
