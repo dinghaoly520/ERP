@@ -69,13 +69,18 @@ export default function ChatPage() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyList, setHistoryList] = useState<ConversationSummary[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState(false); // R3-1：失败≠空，须可重试
 
   function openHistory() {
     setHistoryOpen(true);
     setHistoryLoading(true);
+    setHistoryError(false);
     fetchConversationList()
       .then((list) => setHistoryList(list ?? []))
-      .catch(() => setHistoryList([]))
+      .catch(() => {
+        setHistoryList([]);
+        setHistoryError(true);
+      })
       .finally(() => setHistoryLoading(false));
   }
 
@@ -268,6 +273,13 @@ export default function ChatPage() {
       >
         {historyLoading ? (
           <Skeleton lines={4} height={20} />
+        ) : historyError ? (
+          <div className="flex flex-col items-center gap-2 py-4">
+            <EmptyState text="历史会话加载失败" />
+            <button type="button" onClick={openHistory} className="m-chip">
+              <RefreshCw size={11} /> 重试
+            </button>
+          </div>
         ) : historyList.length ? (
           <div className="space-y-1.5">
             {historyList.map((c) => (
