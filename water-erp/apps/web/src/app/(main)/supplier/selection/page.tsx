@@ -2479,17 +2479,17 @@ export function SupplierSelectionPage({
                 <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
                   <MessageSquare size={11} /><span>短信内容 · 关键词设计</span>
                 </div>
-                <p className="text-xs text-[var(--muted-foreground)]">除关键词外均为固定语句，发送时按供应商逐家自动拼接：</p>
+                <p className="text-xs text-[var(--muted-foreground)]">除关键词外均为固定语句；蓝色加粗为关键词名称（同「确认链接」），具体取值见下方输入项与供应商表逐家预览：</p>
                 <p className="rounded-lg px-3 py-2.5 text-xs leading-relaxed break-all text-[var(--foreground)]" style={{ background: 'oklch(0.972 0.012 258 / 0.55)' }}>
-                  <span className="font-semibold text-[var(--accent-strong)]">{[...shortlist.values()][0]?.item.name || '（供应商名称）'}</span>
+                  <span className="font-semibold text-[var(--accent-strong)]">受邀供应商名称</span>
                   {' 您好！'}
-                  <span className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.company}</span>
+                  <span className="font-semibold text-[var(--accent-strong)]">归属公司</span>
                   {'现邀请贵公司参与'}
-                  <span className="font-semibold text-[var(--accent-strong)]">{projectPhrase(notifyKeywords.projectName || '（项目名称）')}</span>
-                  {'（项目编号：'}
-                  <span className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.projectCode || '（项目编号）'}</span>
+                  <span className="font-semibold text-[var(--accent-strong)]">项目名称</span>
+                  {'采购项目（项目编号：'}
+                  <span className="font-semibold text-[var(--accent-strong)]">项目编号</span>
                   {'），采购方式为'}
-                  <span className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.method || '（采购方式）'}</span>
+                  <span className="font-semibold text-[var(--accent-strong)]">采购方式</span>
                   {'。请在24小时内登录供应商门户或直接点击'}
                   <span className="font-semibold text-[var(--accent-strong)]">确认链接</span>
                   {'确认是否参加本次采购邀请，若超时则视为自动放弃；'}
@@ -3363,15 +3363,15 @@ export function SupplierSelectionPage({
                 <MessageSquare size={11} /><span>短信内容 · 固定语句（关键词与正选步骤共用）</span>
               </div>
               <p className="rounded-lg px-3 py-2.5 text-xs leading-relaxed break-all text-[var(--foreground)]" style={{ background: 'oklch(0.972 0.012 258 / 0.55)' }}>
-                <span className="font-semibold text-[var(--accent-strong)]">{[...rerunShortlist.values()][0]?.item.name || '（供应商名称）'}</span>
+                <span className="font-semibold text-[var(--accent-strong)]">受邀供应商名称</span>
                 {' 您好！'}
-                <span className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.company}</span>
+                <span className="font-semibold text-[var(--accent-strong)]">归属公司</span>
                 {'现邀请贵公司参与'}
-                <span className="font-semibold text-[var(--accent-strong)]">{projectPhrase(notifyKeywords.projectName || '（项目名称）')}</span>
-                {'（项目编号：'}
-                <span className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.projectCode || '（项目编号）'}</span>
+                <span className="font-semibold text-[var(--accent-strong)]">项目名称</span>
+                {'采购项目（项目编号：'}
+                <span className="font-semibold text-[var(--accent-strong)]">项目编号</span>
                 {'），采购方式为'}
-                <span className="font-semibold text-[var(--accent-strong)]">{notifyKeywords.method || '（采购方式）'}</span>
+                <span className="font-semibold text-[var(--accent-strong)]">采购方式</span>
                 {'。请在24小时内登录供应商门户或直接点击'}
                 <span className="font-semibold text-[var(--accent-strong)]">确认链接</span>
                 {'确认是否参加本次采购邀请，若超时则视为自动放弃；'}
