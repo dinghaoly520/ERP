@@ -359,28 +359,21 @@ export function ExpertExtractPage({
   const storageKey = 'expert-extract-session';
   const LAST_PID_KEY = 'expert-extract-last-pid';
 
-  // 步骤3 渲染时：拉 RSVP 链接、替换占位符、查服务端通知状态（补选已无独立通知步，一键发送时即时拉取）
+  // 步骤3 渲染时：拉 RSVP 链接 + 查服务端通知状态（{RSVP_LINK} 占位符替换已随固定语句拼装下线，2026-10-27）
+  // 空 links 结果不 set（防身份变化触发派生 effect 乒乓）；同 pid 只自动拉一次，手动刷新走「刷新确认链接」
+  const rsvpAutoFetchedRef = useRef('');
   useEffect(() => {
     if (step !== 3 || !pid) return;
-    (async () => {
-      let links = rsvpLinks;
-      if (!Object.keys(links).length) {
-        try { const d = await prepRsvpLinks(pid); links = d.links || {}; setRsvpLinks(links); } catch { return; }
-      }
-      // 替换已有通知内容中的 {RSVP_LINK} 占位符
-      const updated = new Map(notifyMessages);
-      let changed = false;
-      for (const [uid, msg] of updated) {
-        if (msg.includes('{RSVP_LINK}') && links[uid]) {
-          updated.set(uid, msg.replace(/\{RSVP_LINK\}/g, links[uid]));
-          changed = true;
-        }
-      }
-      if (changed) updateMessages(updated);
-    })();
+    if (!Object.keys(rsvpLinks).length && rsvpAutoFetchedRef.current !== pid) {
+      rsvpAutoFetchedRef.current = pid;
+      prepRsvpLinks(pid)
+        .then(d => { const l = d.links || {}; if (Object.keys(l).length) setRsvpLinks(l); })
+        .catch(() => {});
+    }
     // 并行查询服务端专家通知状态（BidExpert 表有 token 即已通知）
     getProjectInvitations(pid).then(setInvitationData).catch(() => {});
-  }, [step, pid, notifyVersion]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, pid]);
   useEffect(() => {
     // 步骤4/5 + 补选弹窗打开时：轮询服务端回复状态（实时反映专家确认/拒绝）
     if ((step !== 4 && step !== 5 && !reDraft) || !pid) return;
@@ -1364,16 +1357,21 @@ export function ExpertExtractPage({
   // 固定语句拼装（composeExpertMessage 同款策略）：关键词外全部固定；专家姓名与确认链接逐人自动
   const composeExpertMessage = (expertName: string, link: string) =>
     `${expertName}专家您好！${expertNotifyKeywords.company}现有采购项目定于${openTimeFormatted}在${expertNotifyKeywords.openLocation}开标评审。您被选为评审专家，请务必于收到通知后15分钟内点击链接确认是否参加：${link}，超时则自动视为放弃。`;
-  // 关键词/开标时间/确认链接变化 → 重算正选逐人内容（合并写，保留补选/候补条目）；已发送冻结
+  // 关键词/开标时间/确认链接变化 → 重算正选逐人内容（合并写，保留补选/候补条目）；已发送冻结。
+  // ★ 变更闸（2026-10-27 修死循环）：内容无变化时原样返回 prev——绝不无条件造新 Map，
+  //   否则与步骤3拉链 effect 经 rsvpLinks/notifyVersion 身份变化互触形成 Maximum update depth。
   useEffect(() => {
     if (notifySentRef.current || (notifyResults?.length ?? 0) > 0) return;
     if (step4Experts.length === 0) return;
     setNotifyMessages(prev => {
       const m = new Map(prev);
-      for (const e of step4Experts) m.set(e.userId, composeExpertMessage(e.name || '未知', rsvpLinks[e.userId] || ''));
-      return m;
+      let changed = false;
+      for (const e of step4Experts) {
+        const next = composeExpertMessage(e.name || '未知', rsvpLinks[e.userId] || '');
+        if (m.get(e.userId) !== next) { m.set(e.userId, next); changed = true; }
+      }
+      return changed ? m : prev;
     });
-    setNotifyVersion(v => v + 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step4Experts, expertNotifyKeywords, openTimeFormatted, rsvpLinks]);
 
