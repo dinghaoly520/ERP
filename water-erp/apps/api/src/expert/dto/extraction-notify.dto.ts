@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsArray, IsIn, ArrayMinSize } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsArray, IsIn, ArrayMinSize, IsBoolean } from 'class-validator';
 
 export class ExtractionNotifyDto {
   @IsString() @IsNotEmpty()
@@ -14,4 +14,8 @@ export class ExtractionNotifyDto {
   // 前端「发送通知」在话术未生成时提交空串，原 @IsNotEmpty 会把 5 家专家通知全部 400。
   @IsString() @IsOptional()
   message?: string;
+
+  /** 候补文案（无确认链接）：true=正文原样直发——不追加回执链接尾段、不刷新 RSVP token（2026-10-27） */
+  @IsBoolean() @IsOptional()
+  noRsvpLink?: boolean;
 }

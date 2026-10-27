@@ -261,6 +261,7 @@ export function sendExtractionNotify(data: {
   expertIds: string[];
   channels: string[];
   message: string;
+  noRsvpLink?: boolean; // 候补文案无确认链接——抑制后端追加链接/刷新 token
 }) {
   return api.post<{ projectId: string; projectName: string; results: NotifyResult[] }>('/expert-admin/extract/notify', data);
 }

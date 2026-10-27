@@ -1384,6 +1384,9 @@ export function ExpertExtractPage({
   // 固定语句拼装（composeExpertMessage 同款策略）：关键词外全部固定；专家姓名与确认链接逐人自动
   const composeExpertMessage = (expertName: string, link: string) =>
     `${expertName}专家您好！${expertNotifyKeywords.company}现有采购项目定于${openTimeFormatted}在${expertNotifyKeywords.openLocation}开标评审，采购方式为${expertNotifyKeywords.method}。您被选为评审专家，请务必于收到通知后15分钟内点击链接确认是否参加：${link}，超时则自动视为放弃。`;
+  // 候补专用（2026-10-27 用户口径）：同款开头，结尾「您被选为评审候补专家，请保持联络。」——无确认链接无时限（候补不确认，递补转正后另走通知）
+  const composeAltExpertMessage = (expertName: string) =>
+    `${expertName}专家您好！${expertNotifyKeywords.company}现有采购项目定于${openTimeFormatted}在${expertNotifyKeywords.openLocation}开标评审，采购方式为${expertNotifyKeywords.method}。您被选为评审候补专家，请保持联络。`;
   // 关键词/开标时间/确认链接变化 → 重算正选逐人内容（合并写，保留补选/候补条目）；已发送冻结。
   // ★ 变更闸（2026-10-27 修死循环）：内容无变化时原样返回 prev——绝不无条件造新 Map，
   //   否则与步骤3拉链 effect 经 rsvpLinks/notifyVersion 身份变化互触形成 Maximum update depth。
@@ -3161,7 +3164,7 @@ export function ExpertExtractPage({
                           <td className="text-center text-sm text-[var(--muted-foreground)]">{fmtExpertSpecialty(s.userId, s.specialty)}</td>
                           <td className="text-center text-xs text-[var(--muted-foreground)]">{s.title || '—'}</td>
                           <td className="text-center text-xs text-[var(--muted-foreground)]">{s.employer || '—'}</td><td className="text-center text-xs text-[var(--muted-foreground)]">{deptByUser.get(s.userId) || '—'}</td>
-                          <td className="text-center text-xs text-[var(--muted-foreground)] max-w-[180px] truncate">{s.reason}</td>
+                          <td className="max-w-[240px] text-left text-xs leading-5 text-[var(--muted-foreground)]" title={s.reason}>{s.reason || "—"}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -3195,7 +3198,7 @@ export function ExpertExtractPage({
               <div className="neu-table-card p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <MessageSquare size={14} className="text-[var(--accent)]" />
-                  <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">候补通知内容</span>
+                  <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">候补专家通知内容</span>
                 </div>
                 <div className="space-y-2 max-h-[400px] overflow-y-auto">
                   {altSelected.map(e => (
@@ -3205,7 +3208,7 @@ export function ExpertExtractPage({
                         <StatusBadge tone="blue">{e.specialty}</StatusBadge>
                       </div>
                       <p className="rounded-lg px-3 py-2 text-xs leading-relaxed break-all" style={{ background: 'oklch(1 0 0 / 0.5)' }}>
-                        {composeExpertMessage(e.name || '未知', rsvpLinks[e.userId] || '')}
+                        {composeAltExpertMessage(e.name || '未知')}
                       </p>
                     </div>
                   ))}
@@ -3228,26 +3231,21 @@ export function ExpertExtractPage({
                         if (!openTimeDate || !openTimeTime) { toast.error('请先填写开标日期与时间'); return; }
                         if (!expertNotifyKeywords.openLocation.trim()) { toast.error('请填写开标地点'); return; }
                         if (!expertNotifyKeywords.method.trim()) { toast.error('请填写采购方式'); return; }
-                        const links = (await prepRsvpLinks(pid)).links || {};
-                        if (!Object.keys(links).length) { toast.error('确认链接获取失败（未找到专家记录）'); return; }
-                        setRsvpLinks(prev => ({ ...prev, ...links }));
                         const m = new Map(notifyMessages);
                         const tasks = altSelected.map(e => {
-                          const link = links[e.userId] || rsvpLinks[e.userId] || '';
-                          if (!link) return null;
                           const channels = (notifyChannelsByExpert.get(e.userId) || ['sms']).filter(c => c !== 'phone');
                           if (channels.length === 0) return null;
-                          const msg = composeExpertMessage(e.name || '未知', link);
+                          const msg = composeAltExpertMessage(e.name || '未知');
                           m.set(e.userId, msg);
                           return { eid: e.userId, msg, channels };
                         }).filter((x): x is { eid: string; msg: string; channels: string[] } => x !== null);
-                        if (tasks.length === 0) { toast.warning('候补专家确认链接或通知渠道未就绪'); return; }
+                        if (tasks.length === 0) { toast.warning('候补专家通知渠道未就绪'); return; }
                         updateMessages(m);
                         // 1. 写入 BidExpert 表（expertRole='候补'），开源确认面板/开标端可读
                         const altCandidates = altSelected.map(e => ({ userId: e.userId, expertName: e.name, major: e.specialty }));
                         await confirmExtraction({ projectId: pid, experts: [], candidates: altCandidates, append: true });
-                        // 2. 发送通知
-                        await Promise.allSettled(tasks.map(t => sendExtractionNotify({ projectId: pid, expertIds: [t.eid], channels: t.channels, message: t.msg })));
+                        // 2. 发送通知（候补文案无确认链接——noRsvpLink 抑制后端追加链接/刷新 token）
+                        await Promise.allSettled(tasks.map(t => sendExtractionNotify({ projectId: pid, expertIds: [t.eid], channels: t.channels, message: t.msg, noRsvpLink: true })));
                         setAltNotified(true);
                         // 3. 写入补选历史
                         const altRoundNo = reHistory.length + 1;

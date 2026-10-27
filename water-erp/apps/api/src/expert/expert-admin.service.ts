@@ -1896,6 +1896,7 @@ export class ExpertAdminService {
     channels: string[],
     message?: string,
     headers?: PortalLinkHeaders,
+    noRsvpLink = false,
   ) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
@@ -1915,6 +1916,14 @@ export class ExpertAdminService {
     // 发送时刷新 RSVP 过期时间（token 已在预生成时创建，这里不重新生成）
     const results = await Promise.all(
       experts.map(async expert => {
+        // 候补文案（noRsvpLink，2026-10-27）：正文原样直发——不查 token、不刷过期、不追加链接
+        if (noRsvpLink) {
+          return this.notification.sendToUser(expert.id, channels, {
+            type: 'EXPERT_ASSIGNED',
+            title: `评审任务通知 - ${project.name}`,
+            content: body,
+          });
+        }
         const be = await this.prisma.bidExpert.findFirst({
           where: { projectId, userId: expert.id },
           select: { id: true, rsvpToken: true },
