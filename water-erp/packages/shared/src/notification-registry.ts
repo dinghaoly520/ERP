@@ -237,6 +237,16 @@ const BID_SPECS: NotificationTypeSpec[] = [
     link: ctx => LINKS.supplierOpeningHall(String(ctx.projectId)),
   },
   {
+    code: 'BID_DISPUTE_RESOLVED',
+    label: '开标异议处理结果',
+    domain: 'bid',
+    icon: 'MessageCircle',
+    tone: 'purple',
+    actionable: true,
+    audiences: [{ kind: 'SUBJECT_USER' }],
+    channels: IN_APP,
+  },
+  {
     code: 'BID_DISPUTE_TIMEOUT',
     label: '异议超时',
     domain: 'bid',
@@ -526,6 +536,10 @@ const SUPPLIER_SPECS: NotificationTypeSpec[] = [
   { code: 'SUPPLIER_LINK_DISABLED', label: '加入公司停用', domain: 'supplier', icon: 'UserMinus', tone: 'orange', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP }, // 公司侧库内停用（软移出，可恢复；终审 I1 2026-10-19）——恢复不通知（供应商 myLinks 自见状态）
   { code: 'RSVP_OVERRIDDEN', label: '回执状态变更', domain: 'supplier', icon: 'RefreshCw', tone: 'orange', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP }, // 2026-10-21 回执一次性锁定：工作人员把供应商「确认参加」改为「拒绝」时通知本人（含理由与操作人）
   { code: 'SUPPLIER_DECLINE_STREAK', label: '供应商连续婉拒预警', domain: 'supplier', icon: 'AlertTriangle', tone: 'red', actionable: true, audiences: [{ kind: 'ROLE', roles: ['leader', 'staff'] }], channels: IN_APP, link: () => '/supplier/repository' }, // 2026-10-21 邀请信用：连续 3 次拒绝采购邀请（自答婉拒/超时弃权/代婉拒均计）触发一次预警——同一段连拒期内不重复
+  // 2026-10-27 补登记（全量产生点↔注册表对齐扫描）：三处产生点此前未注册，标签退化「其他通知」
+  { code: 'SUPPLIER_CHANGE_PENDING', label: '资料变更待审批', domain: 'supplier', icon: 'FilePenLine', tone: 'orange', actionable: true, audiences: [{ kind: 'COMPANY_LEADER_STAFF' }], channels: IN_APP, link: () => '/supplier?tab=changes' }, // supplier-portal.service：供应商档案字段变更申请 → 审批中心·信息更新审批
+  { code: 'CERT_EXPIRY_REMINDER', label: 'CA 证书到期提醒', domain: 'supplier', icon: 'CreditCard', tone: 'orange', actionable: true, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP, link: () => '/profile/ukey' }, // scheduler buildCertExpiryNotification（A-13 到期提醒 30/7 天两档+过期补发）
+  { code: 'CA_CERT_EXPIRY', label: '资质证照到期提醒', domain: 'supplier', icon: 'AlertTriangle', tone: 'orange', actionable: true, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP, link: () => '/profile/ukey' }, // scheduler 资质证照扫描（SupplierCert 有效期）
 ];
 
 const ACCOUNT_SPECS: NotificationTypeSpec[] = [
@@ -535,6 +549,9 @@ const ACCOUNT_SPECS: NotificationTypeSpec[] = [
   { code: 'PASSWORD_CHANGE_REVIEWED', label: '密码变更审批', domain: 'account', icon: 'KeyRound', tone: 'blue', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'PASSWORD_RESET_APPROVED', label: '密码重置审批', domain: 'account', icon: 'KeyRound', tone: 'green', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'ACCOUNT_SECURITY_FEEDBACK', label: '账号安全反馈', domain: 'account', icon: 'ShieldAlert', tone: 'red', actionable: true, audiences: [{ kind: 'ROLE', roles: ['admin'] }], channels: IN_APP },
+  // 2026-10-27 补登记（产生点 auth/password-requests.service——此前未注册，标签退化「其他通知」）
+  { code: 'PASSWORD_CHANGE_PENDING', label: '密码修改待审批', domain: 'account', icon: 'KeyRound', tone: 'orange', actionable: true, audiences: [{ kind: 'ROLE', roles: ['admin'] }], channels: IN_APP },
+  { code: 'PASSWORD_RESET_PENDING', label: '密码重置待审批', domain: 'account', icon: 'KeyRound', tone: 'orange', actionable: true, audiences: [{ kind: 'ROLE', roles: ['admin'] }], channels: IN_APP },
 ];
 
 const ARCHIVE_SPECS: NotificationTypeSpec[] = [
@@ -590,7 +607,6 @@ const CATALOG_SPECS: NotificationTypeSpec[] = [
 const SYSTEM_SPECS: NotificationTypeSpec[] = [
   // legacy 垃圾桶：5 处产生点语义各异（资格预审结果/定时任务/bid），拆解归入具体类型待其余域解冻
   { code: 'SYSTEM', label: '系统通知', domain: 'system', icon: 'Bell', tone: 'gray', actionable: false, audiences: LEGACY('catch-all，待拆解'), channels: IN_APP },
-  { code: 'security', label: '安全预警', domain: 'system', icon: 'ShieldAlert', tone: 'red', actionable: false, audiences: LEGACY('bid/expert 现场安全预警（开标专家冲突/评标室口令连续错误）→ admin，事件性知会，已读归档'), channels: IN_APP }, // 2026-10-22 补登记：存量创建点从未登记，启动告警+落未注册桶
   // 历史类型：代码已不产生，仅为存量数据显示
   { code: 'SELECTION_NOTIFY', label: '候选名单通知', domain: 'supplier', icon: 'Share2', tone: 'blue', actionable: true, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP }, // 2026-10-14 更正：供应商邀请向导（:3005 /supplier/selection → POST /supplier/notify）活跃产生中，此前误标 deprecated；收件=逐家选定供应商账号。actionable：待回执的邀请进待办段，RSVP 回执后 resolveByLinkToken 消音
   { code: 'CLARIFICATION', label: '澄清答疑', domain: 'bid', icon: 'MessageCircle', tone: 'purple', actionable: true, audiences: LEGACY('历史类型'), channels: IN_APP, deprecated: true },
