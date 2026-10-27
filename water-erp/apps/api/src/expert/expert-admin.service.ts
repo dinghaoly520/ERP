@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { hashSync } from 'bcryptjs';
 import { Prisma, ExpertLevel } from '@prisma/client';
-import { portalOrigin } from '@water-erp/config';
+import { resolvePortalLinkOrigin, type PortalLinkHeaders } from '../common/portal-link-origin';
 import { PrismaService } from '../prisma/prisma.service';
 import { sealPii, openPii, openPiiForMask } from '../common/crypto/sm-field-crypto';
 import { logSensitiveAccess } from '../common/sensitive-access.util';
@@ -1860,8 +1860,9 @@ export class ExpertAdminService {
   /** 预生成 RSVP 确认链接（进入通知页时调用，写入通知模板）。
    *  已存在未过期 token 的专家直接复用，不对全部记录重新生成——避免步骤 3→6 切换时，
    *  补选刷新覆盖已发给正选专家的有效链接，导致旧链接失效。 */
-  async prersvpLinks(projectId: string) {
-    const expertPortalUrl = portalOrigin('expert', process.env.EXPERT_PORTAL_URL);
+  async prersvpLinks(projectId: string, headers?: PortalLinkHeaders) {
+    // 三态自适应（2026-10-27 与供应商邀请 RSVP 同设计）：域名访问→expert-ssyc 子域 https、IP:端口→同 IP 换 :3006、localhost→本机 LAN IP
+    const expertPortalUrl = resolvePortalLinkOrigin('expert', headers, process.env.EXPERT_PORTAL_URL || process.env.PUBLIC_PORTAL_URL);
     const now = new Date();
     const bes = await this.prisma.bidExpert.findMany({
       where: { projectId },
@@ -1889,6 +1890,7 @@ export class ExpertAdminService {
     expertIds: string[],
     channels: string[],
     message?: string,
+    headers?: PortalLinkHeaders,
   ) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
@@ -1901,7 +1903,7 @@ export class ExpertAdminService {
       select: { id: true, displayName: true, expertProfile: { select: { phone: true } } },
     });
 
-    const expertPortalUrl = portalOrigin('expert', process.env.EXPERT_PORTAL_URL);
+    const expertPortalUrl = resolvePortalLinkOrigin('expert', headers, process.env.EXPERT_PORTAL_URL || process.env.PUBLIC_PORTAL_URL);
     const body = message || `您已被选为「${project.name}（${project.projectCode}）」评审专家。`;
     const expiresAt = new Date(Date.now() + this.rsvpTtlMs);
 

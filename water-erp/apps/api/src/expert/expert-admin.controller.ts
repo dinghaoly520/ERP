@@ -165,15 +165,22 @@ export class ExpertAdminController {
   }
 
   @Post('extract/notify')
-  @ApiOperation({ summary: '抽取确认后发送通知（OA/短信/电话多渠道）' })
-  sendExtractionNotify(@Body() dto: ExtractionNotifyDto) {
-    return this.expertAdminService.sendExtractionNotify(dto.projectId, dto.expertIds, dto.channels, dto.message);
+  @ApiOperation({ summary: '抽取确认后发送通知（短信渠道）' })
+  sendExtractionNotify(@Body() dto: ExtractionNotifyDto, @Request() req: any = {}) {
+    // 请求头透传：RSVP 链接按「当前访问主机」三态生成（域名→expert-ssyc 子域 https、IP:端口→同 IP 换 :3006、localhost→本机 LAN IP）
+    const h = (req.headers || {}) as Record<string, string>;
+    return this.expertAdminService.sendExtractionNotify(dto.projectId, dto.expertIds, dto.channels, dto.message, {
+      origin: h.origin, referer: h.referer, 'x-forwarded-host': h['x-forwarded-host'], 'x-forwarded-proto': h['x-forwarded-proto'],
+    });
   }
 
   @Post('projects/:projectId/rsvp-links')
   @ApiOperation({ summary: '预生成 RSVP 确认链接（进入通知页时调用，写入通知模板）' })
-  prersvpLinks(@Param('projectId') projectId: string) {
-    return this.expertAdminService.prersvpLinks(projectId);
+  prersvpLinks(@Param('projectId') projectId: string, @Request() req: any = {}) {
+    const h = (req.headers || {}) as Record<string, string>;
+    return this.expertAdminService.prersvpLinks(projectId, {
+      origin: h.origin, referer: h.referer, 'x-forwarded-host': h['x-forwarded-host'], 'x-forwarded-proto': h['x-forwarded-proto'],
+    });
   }
 
   @Post('extract/analyze-project')
