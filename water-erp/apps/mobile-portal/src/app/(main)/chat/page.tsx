@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bot, Plus, SendHorizonal, Sparkles } from "lucide-react";
+import { Bot, History, Plus, SendHorizonal, Sparkles, Trash2 } from "lucide-react";
 import { useAuth } from "@/components/m/auth-context";
-import { sendChat, fetchConversation, createConversation, type ChatMessage } from "@/lib/api/assistant";
+import { sendChat, fetchConversation, createConversation, fetchConversationList, removeConversation, type ChatMessage, type ConversationSummary } from "@/lib/api/assistant";
+import { Skeleton } from "@/components/m/skeleton";
+import { EmptyState } from "@/components/m/empty-state";
 import { readSavedFilters } from "@/lib/filter-store";
 import { ChatCardView } from "@/components/m/chat-card";
+import { BottomSheet } from "@/components/m/bottom-sheet";
 
 const CONV_KEY = "m-shuidingdang-conversation";
 const QUICK_QUESTIONS = ["本月成交额多少", "当前最大风险是什么", "节资排名前三", "哪个阶段最堵"];
@@ -50,6 +53,48 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, sending]);
+
+  /* 要报「问水叮当」携问预填（?q=，只预填不自动发送；ref 防严格模式双执行，2026-10-27） */
+  const askedRef = useRef(false);
+  useEffect(() => {
+    if (askedRef.current) return;
+    askedRef.current = true;
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q?.trim()) setInput(q.trim());
+  }, []);
+
+  /* 历史会话回看（2026-10-27）：服务端按属主隔离存档，换机/隔天可找回；删除当前会话自动开新 */
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyList, setHistoryList] = useState<ConversationSummary[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  function openHistory() {
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    fetchConversationList()
+      .then((list) => setHistoryList(list ?? []))
+      .catch(() => setHistoryList([]))
+      .finally(() => setHistoryLoading(false));
+  }
+
+  async function loadHistory(id: string) {
+    try {
+      const c = await fetchConversation(id);
+      if (!c) return;
+      setConversationId(id);
+      setMessages(
+        (c.messages ?? []).slice(-20).map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.content, cards: m.cardsJson ?? [] })),
+      );
+      localStorage.setItem(CONV_KEY, id);
+      setHistoryOpen(false);
+    } catch { /* 载入失败留在列表 */ }
+  }
+
+  async function deleteHistory(id: string) {
+    try { await removeConversation(id); } catch { /* 删除失败不阻塞列表刷新 */ }
+    if (id === conversationId) newConversation();
+    setHistoryList((prev) => prev.filter((c) => c.id !== id));
+  }
 
   /* 键盘协同（2026-10-26）：VirtualKeyboard.overlaysContent 让键盘覆盖而非压缩布局——
    * tabbar 留在屏幕底部（用户裁定：不随键盘抬升）；--kb-h 由 visualViewport 实时驱动，
@@ -120,6 +165,9 @@ export default function ChatPage() {
               : "当前口径：全部公司（数据库页可切换）"
             : "当前口径：本公司数据"}
         </span>
+        <button type="button" onClick={openHistory} className="neu-btn-soft h-8 shrink-0 rounded-[9px] px-2.5 text-[13px] active:scale-95">
+          <History size={12} /> 历史
+        </button>
         <button type="button" onClick={newConversation} className="neu-btn-soft h-8 shrink-0 rounded-[9px] px-2.5 text-[13px] active:scale-95">
           <Plus size={12} /> 新对话
         </button>
@@ -188,6 +236,38 @@ export default function ChatPage() {
           <SendHorizonal size={16} />
         </button>
       </form>
+
+      {/* 历史会话回看弹层 */}
+      <BottomSheet
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        title={
+          <span className="flex items-center gap-2">
+            <History size={16} className="text-[var(--accent)]" />
+            历史会话
+          </span>
+        }
+      >
+        {historyLoading ? (
+          <Skeleton lines={4} height={20} />
+        ) : historyList.length ? (
+          <div className="space-y-1.5">
+            {historyList.map((c) => (
+              <div key={c.id} className="flex items-center gap-2 rounded-[10px] m-tile px-3 py-2.5">
+                <button type="button" onClick={() => loadHistory(c.id)} className="flex min-w-0 flex-1 flex-col text-left active:scale-[0.99]">
+                  <span className="truncate text-[14px] font-medium text-[var(--foreground)]">{c.messages?.[0]?.content ?? "（无标题）"}</span>
+                  <span className="mt-0.5 text-[12px] text-[var(--muted-foreground)]">{(c.updatedAt ?? "").slice(0, 10)} · {c.id === conversationId ? "当前会话" : "点击载入"}</span>
+                </button>
+                <button type="button" aria-label="删除会话" onClick={() => deleteHistory(c.id)} className="neu-btn-soft h-8 w-8 shrink-0 rounded-[10px] p-0 active:scale-95">
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState text="暂无历史会话" />
+        )}
+      </BottomSheet>
     </div>
   );
 }

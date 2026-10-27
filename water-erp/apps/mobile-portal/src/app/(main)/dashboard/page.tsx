@@ -11,6 +11,7 @@ import {
   FolderKanban,
   Layers,
   Lightbulb,
+  Bot,
   RefreshCw,
   Share2,
   Sparkles,
@@ -435,12 +436,20 @@ export default function DashboardPage() {
         ) : brief.available ? (
           <div className="space-y-1.5">
             {([brief.focus, brief.metric, brief.reminder] as const).map((it, i) => (
-              <button key={i} type="button" onClick={() => router.push(it.jump)}
-                className="flex w-full items-center gap-2 rounded-[10px] px-1 py-1 text-left active:scale-[0.99]">
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]" />
-                <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{it.text}</span>
-                <ChevronRight size={13} className="shrink-0 text-[var(--muted-foreground)]" />
-              </button>
+              <div key={i} className="flex items-center gap-1">
+                <button type="button" onClick={() => router.push(it.jump)}
+                  className="flex min-w-0 flex-1 items-center gap-2 rounded-[10px] px-1 py-1 text-left active:scale-[0.99]">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]" />
+                  <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{it.text}</span>
+                  <ChevronRight size={13} className="shrink-0 text-[var(--muted-foreground)]" />
+                </button>
+                {/* 追问水叮当：携该句预填提问（chat 页读 ?q= 只预填不自动发送，2026-10-27） */}
+                <button type="button" aria-label="问水叮当"
+                  onClick={() => router.push(`/chat?q=${encodeURIComponent(`针对今日要报这条，展开讲讲：${it.text}`)}`)}
+                  className="neu-btn-soft h-8 w-8 shrink-0 rounded-[10px] p-0 active:scale-95">
+                  <Bot size={13} />
+                </button>
+              </div>
             ))}
           </div>
         ) : (

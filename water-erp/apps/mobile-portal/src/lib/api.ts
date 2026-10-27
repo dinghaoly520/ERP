@@ -28,4 +28,5 @@ const client = createApiClient({
 export const api = {
   get: <T>(path: string) => client.get<T>(path),
   post: <T>(path: string, body?: unknown, init?: RequestInit) => client.post<T>(path, body, init),
+  delete: <T>(path: string) => client.delete<T>(path),
 };

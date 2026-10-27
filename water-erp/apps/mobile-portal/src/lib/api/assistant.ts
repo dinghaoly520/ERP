@@ -47,3 +47,18 @@ export async function fetchConversation(id: string): Promise<{ messages?: Array<
 export async function createConversation(): Promise<{ id: string }> {
   return api.post<{ id: string }>("/assistant/conversations", { title: "移动驾驶舱对话" });
 }
+
+/** 历史会话摘要（属主隔离；title 取首条用户消息） */
+export type ConversationSummary = {
+  id: string;
+  updatedAt: string;
+  messages?: Array<{ content: string }>;
+};
+
+export async function fetchConversationList(): Promise<ConversationSummary[]> {
+  return api.get<ConversationSummary[]>("/assistant/conversations");
+}
+
+export async function removeConversation(id: string): Promise<void> {
+  await api.delete(`/assistant/conversations/${id}`);
+}
