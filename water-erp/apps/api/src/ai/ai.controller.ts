@@ -217,7 +217,7 @@ export class AiController {
     const h = (req.headers || {}) as Record<string, string>;
     return this.aiService.generateNotificationContent({
       ...context,
-      requestHeaders: { origin: h.origin, referer: h.referer, 'x-forwarded-host': h['x-forwarded-host'] },
+      requestHeaders: { origin: h.origin, referer: h.referer, 'x-forwarded-host': h['x-forwarded-host'], 'x-forwarded-proto': h['x-forwarded-proto'] },
     });
   }
 
