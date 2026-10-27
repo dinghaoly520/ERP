@@ -1416,13 +1416,9 @@ export function ExpertExtractPage({
     // 到该结果（或配置中途态），不重进配置重建默认行；已确认且已通知的完结轮才开新一轮。
     if (reDraft && !(reDraft.confirmed && reDraft.notified)) { setReModalOpen(true); return; }
     const allMain = invitationData.experts.filter(e => e.expertRole === '正选');
-    // 有待回复的正选成员时不开新轮（待回复者仍可能确认，不应提前占位补选——与步骤4横幅同口径；
-    // 否则会把历史轮已补位过的旧拒绝者重复计数）
-    if (allMain.some(e => e.invitationStatus === 'pending')) {
-      toast.warning('有待回复的成员，请等待其确认或拒绝后再补选'); return;
-    }
-    // 补选人数 = 当时已拒绝(declined)的正选专家数（等额补选）；已确认参加与未确认的成员
-    // 不参与本次补选人数——待回复者仍可能确认，不应提前占位补选。
+    // 补选人数 = 当时已拒绝(declined)的正选专家数（等额补选）——不要求全员回复完毕即可发起
+    // （2026-10-27 用户裁定：有待回复成员不挡补选；等额补 declined 不占 pending 席位，
+    //   总数不会超编：席位数 = 已确认 + 待回复 + 补选数）。已确认参加的成员不参与本次补选。
     // 历史轮已补位过的拒绝者仍留在列表里（append 不清旧记录）——以「总席位-已确认」缺口为
     // 准，只取最近回复拒绝的缺口数人，避免重复计数（2026-10-20 实录：缺 3 席却配出 4 人）。
     const confirmedMain = allMain.filter(e => e.invitationStatus === 'confirmed').length;
@@ -1432,7 +1428,7 @@ export function ExpertExtractPage({
       .sort((a, b) => new Date(b.rsvpRespondedAt ?? 0).getTime() - new Date(a.rsvpRespondedAt ?? 0).getTime());
     if (declined.length > shortfall) declined = declined.slice(0, shortfall);
     if (declined.length <= 0) {
-      toast.warning('没有需要补选的专家（已确认参加与待回复的成员不参与本次补选）'); return;
+      toast.warning('暂无「无法参加」的成员，无需补选'); return;
     }
     const roundNo = reHistory.length + 1;
 
