@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Activity, AlertTriangle, Cpu, Database, HardDrive, RefreshCw, ScanText, Server } from 'lucide-react';
+import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api/api-fetch';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { Modal, TableSkeleton } from '@/components/workbench';
@@ -78,7 +79,7 @@ function ProbeTile({ icon, name, probe, sub, pill }: {
         )}
       </div>
       <span className="text-xs font-medium text-[var(--foreground)]" title={probe && !probe.ok ? probe.error : undefined}>
-        {probe?.ok ? (sub ?? '运行正常') : (probe?.error ?? '检测中…')}
+        {probe ? (probe.ok ? (sub ?? '运行正常') : (probe.error ?? sub ?? '不可用')) : '检测中…'}
       </span>
     </div>
   );
@@ -168,7 +169,9 @@ export default function HealthPage() {
       const r = await api<{ retried?: number; skipped?: number; cleaned?: number }>(`/queue/${queue}/${kind === 'retry' ? 'retry-failed' : 'clear-failed'}`, { method: 'POST' });
       setConfirmAct(null);
       void reload();
-      window.alert(kind === 'retry' ? `已重新排队 ${r.retried ?? 0} 个任务${r.skipped ? `，${r.skipped} 个未能重试` : ''}` : `已清除 ${r.cleaned ?? 0} 条失败记录`);
+      toast.success(kind === 'retry'
+        ? `已重新排队 ${r.retried ?? 0} 个任务${r.skipped ? `，${r.skipped} 个未能重试` : ''}`
+        : `已清除 ${r.cleaned ?? 0} 条失败记录`);
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   };
@@ -364,7 +367,14 @@ export default function HealthPage() {
         ) : (
           <div className="max-h-[50vh] space-y-1.5 overflow-y-auto">
             {errDetail.rows.map((r, i) => {
-              const hit = errDetail.route === `${r.method} ${r.path}`;
+              // 所点行是路由模式（/:id），明细行是原始路径——模式化匹配才能命中
+              const hit = (() => {
+                if (!errDetail.route) return false;
+                const sp = errDetail.route.indexOf(' ');
+                if (sp < 0 || r.method !== errDetail.route.slice(0, sp)) return false;
+                const re = new RegExp(`^${errDetail.route.slice(sp + 1).replace(/:[^/]+/g, '[^/]+')}$`);
+                return re.test(r.path);
+              })();
               return (
                 <div key={i} className={`flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-[10px] px-3 py-2 text-xs ${hit ? 'bg-[color-mix(in_oklch,var(--warning)_10%,transparent)]' : 'bg-[oklch(0.975_0.012_258_/_0.6)]'}`}>
                   <span className={`font-mono font-semibold ${r.statusCode >= 500 ? 'text-[var(--danger)]' : 'text-[var(--warning)]'}`}>{r.statusCode}</span>

@@ -93,4 +93,13 @@ describe('HealthAggregateService.read', () => {
     expect(arg.take).toBe(100);
     expect(arg.where.statusCode.gte).toBe(400);
   });
+
+  it('recentErrors：limit 非法值（NaN/小数）兜底 20 取整——不触发 Prisma 校验错 500', async () => {
+    const prisma: any = { operationLog: { findMany: jest.fn().mockResolvedValue([]) }, $queryRaw: jest.fn().mockResolvedValue([]) };
+    const svc = mkSvc({ prisma });
+    await svc.recentErrors(NaN);
+    await svc.recentErrors(20.7);
+    const takes = (prisma.operationLog.findMany as jest.Mock).mock.calls.map((c: any[]) => c[0].take);
+    expect(takes).toEqual([20, 20]);
+  });
 });

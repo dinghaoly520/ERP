@@ -3,16 +3,22 @@ import { BadRequestException } from '@nestjs/common';
 import { MetricsInterceptor } from './metrics.interceptor';
 import { METRICS_KEYS, dayKey } from './metrics-keys.util';
 
-/** 最小 redis mock：记录 hincrby/hset/expire 调用 */
+/** 最小 redis mock：直连与 pipeline 命令都记入同一 calls（pipeline 各方法共享记录器） */
 function mkRedis() {
   const calls: Array<{ op: string; args: unknown[] }> = [];
   const rec = (op: string) => (...args: unknown[]) => {
     calls.push({ op, args });
     return Promise.resolve(1);
   };
+  const mkPipe = () => {
+    const p: Record<string, unknown> = { exec: async () => [] };
+    for (const op of ['hincrby', 'hset', 'expire']) p[op] = rec(op);
+    return p;
+  };
   return {
     calls,
     hincrby: rec('hincrby'), hset: rec('hset'), expire: rec('expire'),
+    pipeline: mkPipe,
   } as any;
 }
 
@@ -73,11 +79,30 @@ describe('MetricsInterceptor', () => {
       hincrby: () => Promise.reject(new Error('down')),
       hset: () => Promise.reject(new Error('down')),
       expire: () => Promise.reject(new Error('down')),
+      pipeline: () => ({ hincrby: () => {}, hset: () => {}, expire: () => {}, exec: () => Promise.reject(new Error('down')) }),
     };
     const i = new MetricsInterceptor(redis);
     i.intercept(mkCtx('GET', '/api/foo'), { handle: () => of('ok') }).subscribe({
       complete: () => done(), // 能正常 complete 即未影响响应
       error: (e) => done(e as Error),
+    });
+  });
+
+  it('命令走单次 pipeline；EXPIRE 每键仅首次发送（不随请求反复刷新）', (done) => {
+    const redis = mkRedis();
+    const i = new MetricsInterceptor(redis);
+    i.intercept(mkCtx('GET', '/api/a'), { handle: () => of(1) }).subscribe({
+      complete: () => {
+        i.intercept(mkCtx('GET', '/api/b'), { handle: () => of(1) }).subscribe({
+          complete: () => {
+            const tIncs = redis.calls.filter(c => c.op === 'hincrby' && String(c.args[1]).startsWith('t:'));
+            expect(tIncs).toHaveLength(2); // 两次请求各计一次
+            const ttlMin = redis.calls.filter(c => c.op === 'expire' && c.args[0] === METRICS_KEYS.minutesHash);
+            expect(ttlMin).toHaveLength(1); // TTL 只发一次
+            done();
+          },
+        });
+      },
     });
   });
 });

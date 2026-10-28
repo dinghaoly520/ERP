@@ -12,6 +12,8 @@ import { dayKey, METRICS_KEYS, minuteKey } from './metrics-keys.util';
 @Injectable()
 export class MetricsInterceptor {
   private readonly logger = new Logger(MetricsInterceptor.name);
+  /** EXPIRE 每键每进程只发一次——TTL 只需建立（键持续有写入即不过期），不随每请求无效刷新 */
+  private readonly expireSent = new Set<string>();
 
   constructor(@Inject('REDIS_CLIENT') private readonly redis: Redis) {}
 
@@ -34,18 +36,27 @@ export class MetricsInterceptor {
         const min = minuteKey(now);
         const day = dayKey(now);
         const route = this.routeField(req);
-        const sw = (op: Promise<unknown>) => op.catch((e) => this.logger.warn(`metrics 写入失败: ${e?.message ?? e}`));
-        sw(this.redis.hincrby(METRICS_KEYS.minutesHash, `t:${min}`, 1));
-        sw(this.redis.hincrby(METRICS_KEYS.routesDay(day), route, 1));
-        sw(this.redis.expire(METRICS_KEYS.minutesHash, 48 * 3600));
-        sw(this.redis.expire(METRICS_KEYS.routesDay(day), 25 * 3600));
+        const minutesHash = METRICS_KEYS.minutesHash;
+        const routesDay = METRICS_KEYS.routesDay(day);
+        // 单请求全部命令合并为一次 pipeline 往返（挂全站每个请求，命令量随请求线性放大）
+        const pipe = this.redis.pipeline();
+        pipe.hincrby(minutesHash, `t:${min}`, 1);
+        pipe.hincrby(routesDay, route, 1);
+        const withTtl = (key: string, ttlSec: number) => {
+          if (!this.expireSent.has(key)) { pipe.expire(key, ttlSec); this.expireSent.add(key); }
+        };
+        withTtl(minutesHash, 48 * 3600);
+        withTtl(routesDay, 25 * 3600);
         if (statusCode >= 400) {
-          sw(this.redis.hincrby(METRICS_KEYS.minutesHash, `e:${min}`, 1));
-          sw(this.redis.hincrby(METRICS_KEYS.routesErrDay(day), route, 1));
-          sw(this.redis.hset(METRICS_KEYS.routesLastDay(day), route, now.toISOString()));
-          sw(this.redis.expire(METRICS_KEYS.routesErrDay(day), 25 * 3600));
-          sw(this.redis.expire(METRICS_KEYS.routesLastDay(day), 25 * 3600));
+          const errDay = METRICS_KEYS.routesErrDay(day);
+          const lastDay = METRICS_KEYS.routesLastDay(day);
+          pipe.hincrby(minutesHash, `e:${min}`, 1);
+          pipe.hincrby(errDay, route, 1);
+          pipe.hset(lastDay, route, now.toISOString());
+          withTtl(errDay, 25 * 3600);
+          withTtl(lastDay, 25 * 3600);
         }
+        pipe.exec().catch((e) => this.logger.warn(`metrics 写入失败: ${e?.message ?? e}`));
       } catch { /* 指标失败绝不影响响应 */ }
     };
 

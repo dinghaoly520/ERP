@@ -198,9 +198,10 @@ export class HealthAggregateService {
     return { cleaned: cleaned.length };
   }
 
-  /** 最近错误样例（OperationLog ≥400，倒序） */
+  /** 最近错误样例（OperationLog ≥400，倒序）；limit 非法值（NaN/非整数）兜底 20 */
   async recentErrors(limit = 20) {
-    const take = Math.min(100, Math.max(1, limit));
+    const n = Number.isFinite(limit) ? Math.floor(limit) : 20;
+    const take = Math.min(100, Math.max(1, n));
     return this.prisma.operationLog.findMany({
       where: { statusCode: { gte: 400 }, createdAt: { gt: new Date(Date.now() - 24 * 3600 * 1000) } },
       orderBy: { createdAt: 'desc' },
