@@ -159,14 +159,33 @@ function ExpertInfoField({
 
       {isEditing ? (
         <div className="space-y-2">
-          {/* 纵向堆叠卡片（2026-10-28 修复：六列网格塞窄侧栏 → 输入框溢出不可编辑）；专业占整行（最长），删除钮悬浮右上 */}
+          {/* 编辑卡片（2026-10-28 二改）：每字段带列标签（placeholder 填写后即消失，不足以标识列）；
+              序号徽标 + 2 列布局、专业占整行、删除钮右上——与只读表列名一一对应 */}
           {editExperts.map((expert, i) => (
-            <div key={i} className="relative grid grid-cols-2 gap-1.5 rounded-lg p-2 pr-9" style={{ background: 'oklch(1 0 0 / 0.45)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
-              <input type="text" value={expert.name} onChange={(e) => updateExpertField(i, 'name', e.target.value)} className="workbench-input !h-[32px] !text-xs" placeholder="姓名" />
-              <input type="text" value={expert.department} onChange={(e) => updateExpertField(i, 'department', e.target.value)} className="workbench-input !h-[32px] !text-xs" placeholder="部门" />
-              <input type="text" value={expert.specialty} onChange={(e) => updateExpertField(i, 'specialty', e.target.value)} className="workbench-input !h-[32px] !text-xs col-span-2" placeholder="专业" />
-              <input type="text" value={expert.title} onChange={(e) => updateExpertField(i, 'title', e.target.value)} className="workbench-input !h-[32px] !text-xs" placeholder="职称" />
-              <input type="text" value={(expert as any).role || ''} onChange={(e) => updateExpertField(i, 'role', e.target.value)} className="workbench-input !h-[32px] !text-xs" placeholder="角色" />
+            <div key={i} className="relative rounded-lg p-2.5 pr-9" style={{ background: 'oklch(1 0 0 / 0.45)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+              <div className="mb-1.5 flex items-center gap-1.5">
+                <span className="flex h-4 w-4 items-center justify-center rounded-[5px] text-[9px] font-extrabold text-white" style={{ background: 'linear-gradient(135deg, oklch(0.52 0.16 258), oklch(0.45 0.14 258))' }}>{i + 1}</span>
+                <span className="text-[10px] font-bold text-[var(--muted-foreground)]">评审专家</span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
+                {([
+                  ['姓名', 'name', expert.name],
+                  ['部门', 'department', expert.department],
+                  ['专业', 'specialty', expert.specialty, true],
+                  ['职称', 'title', expert.title],
+                  ['角色', 'role', (expert as any).role || ''],
+                ] as const).map(([label, key, value, full]) => (
+                  <label key={key} className={full ? 'col-span-2 flex flex-col gap-0.5' : 'flex flex-col gap-0.5'}>
+                    <span className="text-[9px] font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">{label}</span>
+                    <input
+                      type="text"
+                      value={value as string}
+                      onChange={(e) => updateExpertField(i, key as 'name', e.target.value)}
+                      className="workbench-input !h-[30px] !text-xs"
+                    />
+                  </label>
+                ))}
+              </div>
               <button type="button" onClick={() => removeExpertRow(i)} className="neu-btn-xs !absolute !right-1.5 !top-1.5 !h-6 !w-6 !p-0 justify-center" aria-label="删除该专家"><X size={12} /></button>
             </div>
           ))}
