@@ -5,7 +5,7 @@
   "packageManager": "pnpm@10.33.0",
   "scripts": {
     "dev:kill": "bash scripts/dev-kill.sh",
-    "dev": "pnpm dev:kill && concurrently -n mall,supplier,web,expert,public,bid,api,assistant,bigscreen,mobile,ai-worker,ukey-mw -c magenta,green,blue,purple,cyan,red,yellow,white,gray,#5bc0de,#ff8f00,#41b883 \"pnpm dev:mall\" \"pnpm dev:supplier\" \"pnpm dev:web\" \"pnpm dev:expert\" \"pnpm dev:public\" \"pnpm dev:bid\" \"pnpm dev:api\" \"pnpm dev:assistant\" \"pnpm dev:bigscreen\" \"pnpm dev:mobile\" \"pnpm dev:ai-worker\" \"pnpm dev:ukey-mw-guard\"",
+    "dev": "pnpm dev:kill && concurrently -n mall,supplier,web,expert,public,bid,api,assistant,bigscreen,mobile,ai-worker -c magenta,green,blue,purple,cyan,red,yellow,white,gray,#5bc0de,#ff8f00 \"pnpm dev:mall\" \"pnpm dev:supplier\" \"pnpm dev:web\" \"pnpm dev:expert\" \"pnpm dev:public\" \"pnpm dev:bid\" \"pnpm dev:api\" \"pnpm dev:assistant\" \"pnpm dev:bigscreen\" \"pnpm dev:mobile\" \"pnpm dev:ai-worker\"",
     "dev:api": "pnpm --filter api start:dev",
     "dev:ai-worker": "sleep 20 && pnpm --filter api dev:worker:ai-bid-analysis",
     "dev:assistant": "pnpm --filter assistant dev",

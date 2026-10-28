@@ -193,6 +193,7 @@ pnpm --filter api dev:worker:ai-bid-analysis   # = nest build && node dist/ai-bi
 # 命令保留但不应再启动：
 # pnpm dev:ukey-mw          # :17999（已退役）
 # pnpm dev:ukey-mw-guard    # :17999（已退役，guard 会因 systemd 不在而尝试拉起——生产不应启用）
+# （2026-10-28 已从 pnpm dev 链移除 guard——dev 不再复活 :17999）
 
 # OCR 微服务（Python，:8100）
 pnpm dev:ocr
