@@ -204,7 +204,9 @@ function ExpertInfoField({
                     type="text"
                     value={value as string}
                     onChange={(e) => updateExpertField(i, key as 'name', e.target.value)}
-                    className="workbench-input !h-[30px] !min-w-0 !text-xs"
+                    placeholder={label === '姓名' ? '姓名' : ''}
+                    className="!h-[30px] !min-w-0 !rounded-[9px] !border-0 !text-xs !text-[var(--foreground)] focus:!ring-2 focus:!ring-[color-mix(in_oklch,var(--accent)_35%,transparent)]"
+                    style={{ background: 'oklch(0.972 0.012 258 / 0.65)', boxShadow: 'inset 1px 1px 3px oklch(0.55 0.03 258 / 0.08), inset -1px -1px 2px oklch(1 0 0 / 0.7)' }}
                   />
                 </label>
               ))}
@@ -268,6 +270,7 @@ function BiddingUnitsField({
   onEditValueChange,
   onStartEdit,
   onSave,
+  onCancel,
   readOnly = false,
 }: {
   label: string;
@@ -277,8 +280,16 @@ function BiddingUnitsField({
   onEditValueChange: (value: string) => void;
   onStartEdit: () => void;
   onSave: () => void;
+  onCancel?: () => void;
   readOnly?: boolean;
 }) {
+  // 弹窗编辑（2026-10-28 四改·与专家信息同款）：开窗快照，取消回滚草稿
+  const [unitSnapshot, setUnitSnapshot] = useState<string | null>(null);
+  useEffect(() => {
+    if (isEditing) setUnitSnapshot(editValue);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing]);
+  const cancelUnits = () => { if (unitSnapshot !== null) onEditValueChange(unitSnapshot); onCancel?.(); };
   const hasValue = value !== null && value !== undefined && value !== '';
   // 解析投标单位（用顿号、逗号或换行分隔）
   const units = hasValue ? String(value).split(/[、,\n]/).filter(u => u.trim()) : [];
@@ -318,23 +329,51 @@ function BiddingUnitsField({
         )}
       </div>
 
-      {isEditing ? (
-        <div className="space-y-2">
-          {editUnits.map((unit, i) => (
-            <div key={i} className="flex items-center gap-1.5">
-              <span className="w-5 text-center text-[11px] font-semibold text-[color:var(--muted-foreground)]">{i + 1}</span>
-              <input type="text" value={unit} onChange={(e) => updateUnit(i, e.target.value)} className="workbench-input !h-[32px] !text-xs flex-1" placeholder={`输入${unitName}名称`} />
-              <button type="button" onClick={() => removeUnitRow(i)} className="neu-btn-xs !px-2"><X size={13} /></button>
+      {/* 弹窗编辑（2026-10-28 四改·与专家信息同款弹窗）：信息栏恒显只读名单 */}
+      {isEditing && (
+        <div className="fixed inset-0 z-[600] flex items-center justify-center">
+          <div className="absolute inset-0" style={{ background: 'oklch(0.1 0.02 258 / 0.42)', backdropFilter: 'blur(4px)' }} onClick={cancelUnits} />
+          <div className="relative z-10 flex max-h-[82vh] w-full max-w-[620px] flex-col overflow-hidden rounded-[24px]"
+            style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 4px 5px 18px oklch(0.45 0.07 258 / 0.2), -2px -2px 8px oklch(1 0 0 / 0.9)' }}>
+            <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-4" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px]" style={{ background: 'color-mix(in oklch, var(--stage-announce-soft, var(--accent-soft)) 45%, transparent)' }}>
+                  <UserPlus size={17} style={{ color: 'var(--stage-announce, var(--accent))' }} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[0.92rem] font-semibold text-[var(--foreground)]">编辑{label}</div>
+                  <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">{editUnits.filter(u => u.trim()).length} 家 · 保存后写入项目基本信息</div>
+                </div>
+              </div>
+              <button type="button" onClick={cancelUnits} className="neu-btn-xs"><X size={16} /></button>
             </div>
-          ))}
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={addUnitRow} className="text-[11px] font-medium text-[color:var(--accent)] hover:underline">+ 添加{unitName}</button>
-            <span className="text-[10px] text-[color:var(--muted-foreground)]">{editUnits.length} 家</span>
-            <div className="flex-1" />
-            <button type="button" onClick={onSave} className="neu-btn-xs"><Save size={13} />保存</button>
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-6 py-4">
+              {editUnits.map((unit, i) => (
+                <div key={i} className="flex items-center gap-1.5 rounded-lg px-2.5 py-2" style={{ background: 'oklch(1 0 0 / 0.45)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] text-[9px] font-extrabold text-white" style={{ background: 'linear-gradient(135deg, oklch(0.52 0.16 258), oklch(0.45 0.14 258))' }}>{i + 1}</span>
+                  <input
+                    type="text"
+                    value={unit}
+                    onChange={(e) => updateUnit(i, e.target.value)}
+                    placeholder={`输入${unitName}名称`}
+                    className="!h-[30px] !min-w-0 !flex-1 !rounded-[9px] !border-0 !text-xs !text-[var(--foreground)] focus:!ring-2 focus:!ring-[color-mix(in_oklch,var(--accent)_35%,transparent)]"
+                    style={{ background: 'oklch(0.972 0.012 258 / 0.65)', boxShadow: 'inset 1px 1px 3px oklch(0.55 0.03 258 / 0.08), inset -1px -1px 2px oklch(1 0 0 / 0.7)' }}
+                  />
+                  <button type="button" onClick={() => removeUnitRow(i)} className="neu-btn-xs !h-6 !w-6 shrink-0 !p-0 justify-center" aria-label={`删除该${unitName}`}><X size={12} /></button>
+                </div>
+              ))}
+            </div>
+            <div className="flex shrink-0 items-center gap-2 px-6 py-3.5" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
+              <button type="button" onClick={addUnitRow} className="neu-btn-xs gap-1"><Plus size={12} />添加{unitName}</button>
+              <span className="text-[10px] text-[var(--muted-foreground)]">{editUnits.filter(u => u.trim()).length} 家</span>
+              <div className="flex-1" />
+              <button type="button" onClick={cancelUnits} className="neu-btn-soft !h-[34px]">取消</button>
+              <button type="button" onClick={onSave} className="neu-btn-primary !h-[34px]"><Save size={13} />保存</button>
+            </div>
           </div>
         </div>
-      ) : hasValue && units.length > 0 ? (
+      )}
+      {hasValue && units.length > 0 ? (
         <div className="space-y-1.5">
           {units.map((unit, i) => (
             <div
@@ -1978,6 +2017,7 @@ export function ProjectDetailPanel({
                   onEditValueChange={(v) => setEditValues((prev) => ({ ...prev, invitedSuppliers: v }))}
                   onStartEdit={() => handleStartEdit('invitedSuppliers', extractedInfoOverride?.invitedSuppliers ?? item.invitedSuppliers ?? null)}
                   onSave={() => void handleSaveField('invitedSuppliers')}
+                  onCancel={() => setEditingField(null)}
                 />
               </div>
               )}
