@@ -414,6 +414,15 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       throw new ForbiddenException('无权使用该知识库');
     }
 
+    // 项目关联（spec §6.2）：软关联不建外键，仅校验存在
+    if (dto.projectId) {
+      const project = await this.prisma.projectManagementItem.findUnique({
+        where: { id: dto.projectId },
+        select: { id: true },
+      });
+      if (!project) throw new NotFoundException('项目不存在');
+    }
+
     const task = await this.prisma.reviewTask.create({
       data: {
         documentName: documentName ?? 'unknown',
@@ -423,8 +432,21 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
         userId: user?.sub,
         reviewMode: dto.reviewMode,
         status: 'running',
+        projectId: dto.projectId ?? null,
+        draftFingerprint: dto.fingerprint ?? null,
       },
     });
+
+    // 自动记忆默认知识库（spec §2 裁定 3）——仅项目场景，失败不阻塞审查
+    if (dto.projectId && user?.sub) {
+      await this.prisma.userSettings
+        .upsert({
+          where: { userId: user.sub },
+          create: { userId: user.sub, theme: 'light', defaultReviewKbId: dto.knowledgeBaseId },
+          update: { defaultReviewKbId: dto.knowledgeBaseId },
+        })
+        .catch(() => undefined);
+    }
 
     // Execute review asynchronously (fire and forget for now)
     const ac = new AbortController();
