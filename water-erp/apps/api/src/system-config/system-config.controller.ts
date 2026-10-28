@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Body, Request } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Query, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { SystemConfigService } from './system-config.service';
 import { HealthAggregateService } from './health-aggregate.service';
@@ -20,6 +20,27 @@ export class SystemConfigController {
   @ApiOperation({ summary: '系统健康聚合读' })
   async health() {
     return this.healthService.read();
+  }
+
+  @Get('recent-errors')
+  @Roles('admin', 'leader')
+  @ApiOperation({ summary: '最近 24h 错误样例（下钻）' })
+  async recentErrors(@Query('limit') limit?: string) {
+    return this.healthService.recentErrors(limit ? Number(limit) : 20);
+  }
+
+  @Post('queue/:name/retry-failed')
+  @Roles('admin')
+  @ApiOperation({ summary: '重试失败的分析任务（≤500）' })
+  async retryFailed(@Param('name') name: string) {
+    return this.healthService.retryFailed(name);
+  }
+
+  @Post('queue/:name/clear-failed')
+  @Roles('admin')
+  @ApiOperation({ summary: '清除失败记录（不可恢复）' })
+  async clearFailed(@Param('name') name: string) {
+    return this.healthService.clearFailed(name);
   }
 
   // 澄清说明文案：供应商端公开读取（非敏感信息，与公告 public 端点一致）

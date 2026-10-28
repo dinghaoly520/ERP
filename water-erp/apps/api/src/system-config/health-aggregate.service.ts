@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import Redis from 'ioredis';
@@ -171,5 +171,41 @@ export class HealthAggregateService {
       queues: { tenderProcessing: tender, bidderProcessing: bidder },
       worker,
     };
+  }
+
+  /** 队列名白名单（防任意队列名注入） */
+  private queueByName(name: string): Queue {
+    if (name === 'tender') return this.tenderQueue;
+    if (name === 'bidder') return this.bidderQueue;
+    throw new BadRequestException({ error: '未知队列', code: 'UNKNOWN_QUEUE' });
+  }
+
+  /** 重试失败任务：单次至多最新 500 个；重试失败计入 skipped */
+  async retryFailed(name: string): Promise<{ retried: number; skipped: number }> {
+    const q = this.queueByName(name);
+    const jobs = await q.getJobs('failed', 0, 499);
+    let retried = 0, skipped = 0;
+    for (const j of jobs) {
+      try { await j.retry(); retried++; } catch { skipped++; }
+    }
+    return { retried, skipped };
+  }
+
+  /** 清除失败记录（不可恢复——前端确认弹窗警示） */
+  async clearFailed(name: string): Promise<{ cleaned: number }> {
+    const q = this.queueByName(name);
+    const cleaned = await q.clean(0, 10_000, 'failed');
+    return { cleaned: cleaned.length };
+  }
+
+  /** 最近错误样例（OperationLog ≥400，倒序） */
+  async recentErrors(limit = 20) {
+    const take = Math.min(100, Math.max(1, limit));
+    return this.prisma.operationLog.findMany({
+      where: { statusCode: { gte: 400 }, createdAt: { gt: new Date(Date.now() - 24 * 3600 * 1000) } },
+      orderBy: { createdAt: 'desc' },
+      take,
+      select: { method: true, path: true, statusCode: true, durationMs: true, createdAt: true, ipAddress: true },
+    });
   }
 }

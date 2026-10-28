@@ -64,4 +64,33 @@ describe('HealthAggregateService.read', () => {
     expect(r.queues.tenderProcessing!.lastFinishedAt).toBeTruthy();
     expect(r.worker).toEqual({ alive: false, count: 0, lastBeatAgoSec: null });
   });
+
+  it('retryFailed：逐 job retry、失败计入 skipped；未知队列名抛 400', async () => {
+    const retried: string[] = [];
+    const queue: any = {
+      getJobs: async () =>
+        Array.from({ length: 3 }, (_, i) => ({ id: `j${i}`, retry: async () => { retried.push(`j${i}`); } })),
+    };
+    const svc = mkSvc({ tender: queue });
+    const r = await svc.retryFailed('tender');
+    expect(r).toEqual({ retried: 3, skipped: 0 });
+    await expect(svc.retryFailed('nope')).rejects.toThrow();
+  });
+
+  it('clearFailed：clean 全部 failed 并返回数量', async () => {
+    const queue: any = { clean: async () => ['a', 'b', 'c'] };
+    const svc = mkSvc({ tender: queue });
+    expect(await svc.clearFailed('tender')).toEqual({ cleaned: 3 });
+  });
+
+  it('recentErrors：只取 ≥400、按时间倒序、limit 钳制 1..100', async () => {
+    const rows = [{ method: 'GET', path: '/api/x', statusCode: 500, durationMs: 10, createdAt: new Date() }];
+    const prisma: any = { operationLog: { findMany: jest.fn().mockResolvedValue(rows) }, $queryRaw: jest.fn().mockResolvedValue([]) };
+    const svc = mkSvc({ prisma });
+    const r = await svc.recentErrors(500);
+    expect(r).toEqual(rows);
+    const arg = (prisma.operationLog.findMany as jest.Mock).mock.calls[0][0];
+    expect(arg.take).toBe(100);
+    expect(arg.where.statusCode.gte).toBe(400);
+  });
 });
