@@ -2542,6 +2542,7 @@ model UserSettings {
   defaultHomePage   String   @default("work-arrangements")
   compactMode       Boolean  @default(false)
   notificationPrefs Json?
+  defaultReviewKbId String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -3313,6 +3314,8 @@ model ReviewTask {
   knowledgeBaseId         String?
   reviewMode              String
   status                  String         @default("pending")
+  projectId               String?
+  draftFingerprint        String?
   totalChecks             Int            @default(0)
   passedCount             Int            @default(0)
   failedCount             Int            @default(0)
@@ -3328,6 +3331,7 @@ model ReviewTask {
   @@index([knowledgeBaseId])
   @@index([status])
   @@index([userId])
+  @@index([projectId])
 }
 
 // ── 标书字段样本 ──
