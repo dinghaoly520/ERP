@@ -55,9 +55,9 @@ const ALL_TABLES = [
   'BidEvaluationResult', 'BidExpert', 'BidOpeningRecord', 'BidOpeningSession',
   'BidProject', 'BidScoreItem', 'BidScorePoint', 'BidScoreRecord',
   'BidSupervisionAnnotation', 'BidSupervisionLog', 'BidSupplier',
-  'BudgetItem', 'BudgetList',
-  'CaCertificate', 'CaSigningCertificateClaim', 'CatalogCategory', 'CatalogItemAttribute',
-  'CatalogItem', 'CatalogSupplier', 'CategoryAttributeTemplate',
+
+  'CaCertificate', 'CaSigningCertificateClaim',
+
   'ComplianceRule', 'Contact',
   'Department', 'DocumentChunk',
   'ExpertEvaluation', 'ExpertProfile', 'ExtractionTask',
@@ -65,16 +65,16 @@ const ALL_TABLES = [
   'KnowledgeBase', 'KnowledgeFile',
   'Notification', 'NotificationDeliveryLog',
   'PasswordChangeRequest', 'PasswordResetRequest',
-  'PriceAlert', 'PriceAlertRule', 'PriceHistory',
+
   'ProcurementProject', 'ProcurementRound', 'Project',
   'ProjectManagementItem', 'ProjectManagementStage',
   'ReviewTask', 'RoundParticipant',
-  'Supplier', 'SupplierBidSubmission', 'SupplierCatalogApplication',
+  'Supplier', 'SupplierBidSubmission',
   'SupplierCert', 'SupplierChangeRecord', 'SupplierClassification', 'SupplierContact',
   'SupplierEvaluation', 'SupplierQualification',
   'SystemConfig',
   'TenderDocumentHistory', 'TenderFieldSample',
-  'User', 'UserFavorite', 'UserSettings',
+  'User', 'UserSettings',
   'WorkArrangement', 'WorkArrangementDailyPlanCache',
   'WorkArrangementDependency', 'WorkArrangementNote', 'WorkArrangementTemplate',
   // @@map 表名（与模型名不同，TRUNCATE 需要实际 DB 表名）
@@ -99,14 +99,7 @@ const ALL_TABLES = [
   'BidSignPacket',
   'BidSupplierNudge',
   'BidVote',
-  'CatalogInquiry',
-  'CatalogItemAttachment',
-  'CatalogItemRelation',
-  'CatalogSearchLog',
-  'CatalogSubscription',
-  'CatalogVersion',
   'ChatMessage',
-  'ContractPrice',
   'ExpertDispute',
   'ExpertMemo',
   'InvitationRsvp',
@@ -126,12 +119,9 @@ const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient
   ['CaCertificate', 'caCertificate'],
   ['SupplierClassification', 'supplierClassification'],
   ['Announcement', 'announcement'],
-  ['CatalogCategory', 'catalogCategory'],
-  ['CatalogItem', 'catalogItem'],
   ['ScoreTemplate', 'scoreTemplate'],
   ['SystemConfig', 'systemConfig'],
   // Level 1 —— 依赖 Level 0
-  ['CategoryAttributeTemplate', 'categoryAttributeTemplate'],
   ['User', 'user'],
   ['ProcurementProject', 'procurementProject'],
   ['FileAsset', 'fileAsset'],
@@ -145,16 +135,13 @@ const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient
   ['BidScorePoint', 'bidScorePoint'],
   ['BidOpeningSession', 'bidOpeningSession'],
   ['BidArchiveItem', 'bidArchiveItem'],
-  ['PriceHistory', 'priceHistory'],
   ['ImportBatch', 'importBatch'],
-  ['PriceAlertRule', 'priceAlertRule'],
   ['Project', 'project'],
   ['ProjectManagementItem', 'projectManagementItem'],
   // BidProject 依赖 ProjectManagementItem（projectManagementItemId）+ User（leaderUserId），须在其后
   ['BidProject', 'bidProject'],
   ['ProcurementRound', 'procurementRound'],
   ['KnowledgeBase', 'knowledgeBase'],
-  ['BudgetList', 'budgetList'],
   // Level 2 —— 依赖 Level 1
   ['UserSettings', 'userSettings'],
   ['PasswordChangeRequest', 'passwordChangeRequest'],
@@ -180,15 +167,9 @@ const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient
   ['BidDocumentAccess', 'bidDocumentAccess'],
   ['BidRequirementReview', 'bidRequirementReview'],
   ['BidEvaluationResult', 'bidEvaluationResult'],
-  ['BudgetItem', 'budgetItem'],
   ['AnnouncementAttachment', 'announcementAttachment'],
   ['NotificationDeliveryLog', 'notificationDeliveryLog'],
-  ['UserFavorite', 'userFavorite'],
   ['AuditLog', 'auditLog'],
-  ['CatalogSupplier', 'catalogSupplier'],
-  ['SupplierCatalogApplication', 'supplierCatalogApplication'],
-  ['CatalogItemAttribute', 'catalogItemAttribute'],
-  ['PriceAlert', 'priceAlert'],
   ['AssistantConversation', 'assistantConversation'],
   ['AssistantAlert', 'assistantAlert'],
   ['AssistantMessage', 'assistantMessage'],
@@ -347,16 +328,6 @@ async function main() {
     if (!existingNames.has(tableName.toLowerCase())) {
       const rows = load(tableName) as Record<string, unknown>[];
       if (rows.length > 0) console.log(`    跳过 ${tableName}: ${rows.length} 行（表未建）`);
-      continue;
-    }
-    // SELF-REF: CatalogCategory 根节点先写，子节点后写（避开自引用 FK 约束）
-    if (tableName === 'CatalogCategory') {
-      const rows = load(tableName) as Record<string, unknown>[];
-      const roots = rows.filter((r: any) => r.parentId == null);
-      const children = rows.filter((r: any) => r.parentId != null);
-      sealSeedRows(tableName, roots); sealSeedRows(tableName, children);
-      if (roots.length > 0) { await (prisma[delegate] as any).createMany({ data: roots }); console.log(`    ${tableName} (roots): ${roots.length}`); }
-      if (children.length > 0) { await (prisma[delegate] as any).createMany({ data: children }); console.log(`    ${tableName} (children): ${children.length}`); }
       continue;
     }
     const rows = sealSeedRows(tableName, load(tableName) as Record<string, unknown>[]);
@@ -844,12 +815,10 @@ async function main() {
     供应商联系人: await prisma.supplierContact.count(),
     供应商资质: await prisma.supplierQualification.count(),
     供应商分类: await prisma.supplierClassification.count(),
-    采购目录: await prisma.catalogItem.count(),
     公告: await prisma.announcement.count(),
     招标项目: await prisma.bidProject.count(),
     通知: await prisma.notification.count(),
     专家档案: await prisma.expertProfile.count(),
-    预算清单: await prisma.budgetList.count(),
   };
   console.log('\n✔ Seed 完成，关键表行数：');
   for (const [k, v] of Object.entries(counts)) console.log(`    ${k}: ${v}`);
@@ -877,7 +846,6 @@ async function main() {
 
   console.log('\n  各门户独立账号（每端口需单独登录，口令沿用 <用户名>@2026）：');
   console.log('    [信息门户   :3002]  公开访问，无需登录');
-  console.log('    [电子商城   :3003]  陈源远 / 陈源远@2026');
   console.log('    [供应商端   :3004]  公司名登录 / 口令 supplier@2026（例：四川水发建设有限公司 / supplier@2026）');
   console.log('    [采购管理端 :3005]  陈源远 / 陈源远@2026');
   console.log('    [专家评标   :3006]  专家库任意专家（用户名=专家姓名）/ 口令=身份证号（档案缺失者 expert@2026）');
