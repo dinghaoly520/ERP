@@ -43,6 +43,11 @@ export function getAnnouncementLabel(
 }
 
 
+/** 异议渠道标准口径（2026-10-28）：对齐 AI 邀请函既定固定表述（书面异议+平台异议通道+行政监督投诉），
+ *  GB/T 43711 7.2.2.5 要求采购公告载明异议渠道——向导未填写时按此预填，可改 */
+export const DEFAULT_OBJECTION_CHANNEL =
+  "供应商或其他利害关系人认为采购文件、采购过程及成交结果使自身权益受到损害的，可以书面形式向采购人提出异议，也可通过本平台异议通道提交；对答复不满意的，可依法向有关行政监督部门投诉。";
+
 export const SUPERVISION_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
   {
     // 监督人置顶（2026-10-21 用户口径，与采购文件编写同序）：先选人再补部门/地址/电话
@@ -65,6 +70,15 @@ export const SUPERVISION_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
     label: "监督电话",
     placeholder: "请填写监督电话",
     type: "tel",
+  },
+  {
+    // 异议渠道（2026-10-28 归入监督组四处统一）：此前仅中标公告有该字段，采购/直接/流标公告
+    // 无从填写 → 发布时 checklist 必报「异议渠道要素缺失」；现四类公告统一获得 + 标准口径预填
+    key: "objection",
+    label: "异议渠道",
+    multiline: true,
+    placeholder: "未填写时按标准口径自动生成，可修改",
+    autoFill: "objection",
   },
 ];
 
@@ -325,13 +339,6 @@ export const WINNING_BID_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
     label: "公示期（异议期）",
     placeholder: "发布后自动生成（顺延 3 天）",
     autoFill: "publicityPeriod",
-  },
-  {
-    key: "objection",
-    label: "异议受理",
-    multiline: true,
-    placeholder: "发布后自动生成",
-    autoFill: "objection",
   },
   ...SUPERVISION_ANNOUNCEMENT_FIELDS,
   {

@@ -33,6 +33,7 @@ const TYPE_META: Record<AnnouncementType, MetaField[]> = {
     { key: 'scope', label: '采购内容/范围', area: true }, { key: 'qualification', label: '投标人资格要求', area: true },
     { key: 'downloadDeadline', label: '采购文件下载时间' },
     { key: 'deadline', label: '报名/投标截止', date: true }, { key: 'openTime', label: '开标时间', date: true }, { key: 'contact', label: '联系方式' },
+    { key: 'objection', label: '异议渠道', area: true },
   ],
   PRE_WIN_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'winner', label: '预成交供应商' }, { key: 'amount', label: '预成交价格' },
