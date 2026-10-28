@@ -12,6 +12,7 @@ export type UserSettings = {
   defaultHomePage: 'dashboard' | 'procurements' | 'projects' | 'work-arrangements';
   compactMode: boolean;
   notificationPrefs?: NotificationPrefs | null;
+  defaultReviewKbId?: string | null;
   createdAt: string;
   updatedAt: string;
 };

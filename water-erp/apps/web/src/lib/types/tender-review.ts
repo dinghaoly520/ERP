@@ -43,6 +43,8 @@ export interface ReviewTask {
   id: string;
   documentName: string;
   objectKey: string;
+  projectId?: string | null;
+  draftFingerprint?: string | null;
   documentContent: string | null;
   modifiedDocumentContent: string | null;
   knowledgeBaseId: string;
