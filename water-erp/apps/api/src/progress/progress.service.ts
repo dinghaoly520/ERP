@@ -302,6 +302,9 @@ export class ProgressService {
     const totalCompleted = await this.prisma.projectManagementItem.count({
       where: {
         currentStage: 'CONTRACT',
+        // 2026-10-28 口径收口：同面板 monthlyAdded/monthlyCompleted 等兄弟计数均带公司视野，
+        // 此前唯一裸全局——「累计完成」在 admin 选单公司/非 admin 视角下跨公司计数
+        ...companyFilter,
         ...(userId && { createdById: userId }),
       },
     });

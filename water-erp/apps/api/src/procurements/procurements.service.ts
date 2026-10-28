@@ -803,6 +803,9 @@ export class ProcurementsService {
 
     // 公司隔离：统计聚合在隔离后的数据集上计算
     Object.assign(where, companyFilter);
+    // 2026-10-28 口径收口：排除回收站轮次——与台账列表 buildListWhere 默认 ACTIVE 同口径
+    //（此前统计含已回收轮次，回收站非空时汇总条总数 > 同页列表「共 N」）
+    where.isRecycled = false;
 
     const [
       totalCount,

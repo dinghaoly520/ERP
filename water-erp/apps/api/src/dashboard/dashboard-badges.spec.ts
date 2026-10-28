@@ -43,7 +43,8 @@ describe('DashboardService.getBadges', () => {
     const r = await svc.getBadges({ companyId: 'co-1' });
     expect(r).toEqual({ abnormalCount: 3, pendingCount: 7, stalledCount: 2 });
     expect(prisma.procurementRound.count).toHaveBeenNthCalledWith(1, {
-      where: { companyId: 'co-1', resultStatus: { notIn: ['AWARDED', 'PENDING'] } },
+      // 2026-10-28：角标计数排除回收站轮次（与台账列表默认 ACTIVE 同口径）
+      where: { companyId: 'co-1', isRecycled: false, resultStatus: { notIn: ['AWARDED', 'PENDING'] } },
     });
     // ACTIVE + 公司过滤注入到 item 查询（回收/归档项目从源头排除）
     const { lastItemWhere } = (prisma as any).calls();
@@ -56,7 +57,7 @@ describe('DashboardService.getBadges', () => {
     const r = await svc.getBadges(undefined);
     expect(r).toEqual({ abnormalCount: 3, pendingCount: 7, stalledCount: 1 });
     expect(prisma.procurementRound.count).toHaveBeenCalledWith({
-      where: { resultStatus: { notIn: ['AWARDED', 'PENDING'] } },
+      where: { isRecycled: false, resultStatus: { notIn: ['AWARDED', 'PENDING'] } },
     });
     const { lastItemWhere } = (prisma as any).calls();
     expect(lastItemWhere).toEqual({ status: 'ACTIVE' });

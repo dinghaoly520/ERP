@@ -99,7 +99,9 @@ export function TaskNotificationCenter({
     <section className="wb-panel flex-1">
       <div className="wb-panel-header flex items-center justify-between">
         <span className="text-[15px] font-bold text-[#18243a]">任务通知</span>
-        <span className="text-[11px] tabular-nums text-[color:var(--muted-foreground)]">共 {segmentCounts.all} 条</span>
+        {/* 头部计数跟随当前分段（2026-10-28）：原恒显 all 总数，切到待办/已办等 tab 时
+            与分段角标和下方列表行数矛盾 */}
+        <span className="text-[11px] tabular-nums text-[color:var(--muted-foreground)]">共 {segmentCounts[tab as keyof typeof segmentCounts] ?? segmentCounts.all} 条</span>
       </div>
 
       {/* 五段状态分段器（与通知中心一致） */}

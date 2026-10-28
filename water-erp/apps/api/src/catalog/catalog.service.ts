@@ -322,7 +322,9 @@ export class CatalogService {
       this.prisma.catalogItem.count(),
       this.prisma.catalogItem.count({ where: { status: '有效' } }),
       this.prisma.catalogItem.count({ where: { status: { in: ['下架', '停用'] } } }),
-      this.prisma.catalogItem.count({ where: { status: { in: ['待复核', '价格波动', '即将过期'] } } }),
+      // 2026-10-28 口径收口：KPI 卡标签即「待复核」（tooltip：待复核状态的目录项）——原把
+      // 价格波动/即将过期混入同一计数，与下方单状态 tab 列表（共 14 条）同屏矛盾（43）
+      this.prisma.catalogItem.count({ where: { status: '待复核' } }),
       this.prisma.catalogItem.count({ where: { updatedAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } } }),
       this.prisma.supplierCatalogApplication.count({ where: { status: 'PENDING' } }),
     ]);
