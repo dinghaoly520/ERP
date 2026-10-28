@@ -54,6 +54,9 @@ const fmtAgo = (iso: string | null): string => {
   const h = Math.floor(min / 60);
   return h < 24 ? `${h} 小时前` : `${Math.floor(h / 24)} 天前`;
 };
+/** 秒距 → 人话（渲染期纯算术，不取当前时刻） */
+const fmtSecAgo = (s: number): string =>
+  s < 90 ? `${s} 秒前` : s < 5400 ? `${Math.round(s / 60)} 分钟前` : `${Math.round(s / 3600)} 小时前`;
 
 /** 探活瓷片：label + 状态徽标（pill 可覆盖）+ 实质指标副行 */
 function ProbeTile({ icon, name, probe, sub, pill }: {
@@ -222,7 +225,7 @@ export default function HealthPage() {
             pill={data ? (data.worker.alive ? `心跳 ${data.worker.lastBeatAgoSec ?? 0} 秒前` : '未运行') : undefined}
             sub={data ? (data.worker.alive
               ? `共 ${data.worker.count} 个进程在消费任务`
-              : `最后心跳 ${data.worker.lastBeatAgoSec != null ? fmtAgo(new Date(Date.now() - (data.worker.lastBeatAgoSec ?? 0) * 1000).toISOString()) : '无记录'}，任务将积压`) : undefined} />
+              : `最后心跳 ${data.worker.lastBeatAgoSec != null ? fmtSecAgo(data.worker.lastBeatAgoSec) : '无记录'}，任务将积压`) : undefined} />
         </div>
       </div>
 
