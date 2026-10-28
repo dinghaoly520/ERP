@@ -293,9 +293,9 @@ export function AccountManagementPanel() {
   }
 
   const SUBTITLE: Record<typeof tab, string> = {
-    list: "账号增删 · 改密 · 权限 · 冻结",
-    registration: "注册申请的准入审核（管理/办公权限分配）",
-    password: "改密 · 忘记密码重置 · 资料变更审批",
+    list: "账号的新增、删除、权限与冻结管理",
+    registration: "审核新账号的注册申请并分配权限",
+    password: "处理修改密码、忘记密码与资料变更的审批",
   };
 
   return (

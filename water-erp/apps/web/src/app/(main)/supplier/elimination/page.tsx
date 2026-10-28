@@ -80,7 +80,7 @@ export default function EliminationPage() {
             <div className="page-hero__icon"><Trash2 size={17} /></div>
             <div>
               <div className="page-hero__title">淘汰候选</div>
-              <div className="page-hero__sub">系统自动扫描连续 3 次评价为 E 级（不合格）的供应商，需人工确认淘汰</div>
+              <div className="page-hero__sub">自动筛出连续三次评价不合格的供应商，由人工确认淘汰</div>
             </div>
           </div>
           <div className="page-hero__right">

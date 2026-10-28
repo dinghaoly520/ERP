@@ -129,7 +129,7 @@ export default function WorkflowPage() {
             <div className="page-hero__icon"><ClipboardList size={17} /></div>
             <div>
               <div className="page-hero__title">流程中心</div>
-              <div className="page-hero__sub">审批统一收件箱：注册审核（供应商/管理端账号） · 安全审批 · 资料变更 · 供应商变更 · 商城审批</div>
+              <div className="page-hero__sub">集中处理各类审批事项，包括注册审核、密码与资料变更、供应商及商城业务</div>
             </div>
           </div>
           <div className="page-hero__right">

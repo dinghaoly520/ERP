@@ -597,7 +597,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
             <div className="page-hero__icon"><BarChart3 size={20} strokeWidth={1.8}/></div>
             <div className="min-w-0">
               <div className="page-hero__title">采购中心仪表盘</div>
-              <div className="page-hero__sub">采购运营全局概览与数据驾驶舱</div>
+              <div className="page-hero__sub">汇总采购业务核心指标与近期动态</div>
             </div>
           </div>
           <div className="page-hero__right">

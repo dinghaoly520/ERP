@@ -2022,7 +2022,7 @@ export function SupplierSelectionPage({
               <div className="page-hero__icon"><Building2 size={17} /></div>
               <div>
                 <div className="page-hero__title">供应商智能选取</div>
-                <div className="page-hero__sub">基于采购需求多维度分析，AI 从供应商库中智能匹配并推荐最优候选</div>
+                <div className="page-hero__sub">根据采购需求从供应商库中匹配并推荐候选供应商</div>
               </div>
             </div>
             <div className="page-hero__right">

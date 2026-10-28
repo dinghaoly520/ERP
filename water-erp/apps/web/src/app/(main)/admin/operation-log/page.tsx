@@ -125,7 +125,7 @@ export default function OperationLogPage() {
             <div className="page-hero__icon"><ScrollText size={17} strokeWidth={1.9} /></div>
             <div>
               <div className="page-hero__title">操作日志</div>
-              <div className="page-hero__sub">全站 API 操作审计查询 · 法定留存（办法第42条 ≥15 年，过期月分区归档 MinIO）</div>
+              <div className="page-hero__sub">查询全站操作记录，按监管要求留存不少于 15 年</div>
             </div>
           </div>
           <div className="page-hero__right">

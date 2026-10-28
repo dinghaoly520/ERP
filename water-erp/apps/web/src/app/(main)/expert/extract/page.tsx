@@ -1913,7 +1913,7 @@ export function ExpertExtractPage({
         <div className="page-hero__row">
           <div className="page-hero__left">
             <div className="page-hero__icon"><UsersRound size={17} /></div>
-            <div><div className="page-hero__title">专家智能抽取</div><div className="page-hero__sub">按专业配额抽取，随机或综合择优组建专家组</div></div>
+            <div><div className="page-hero__title">专家智能抽取</div><div className="page-hero__sub">按评审所需专业从专家库中抽取并组建评审专家组</div></div>
           </div>
           <div className="page-hero__right">
             <button onClick={() => openHistory()} className="neu-btn-soft gap-1.5">

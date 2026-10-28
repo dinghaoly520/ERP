@@ -80,7 +80,7 @@ export default function QualificationAlertsPage() {
             <div className="page-hero__icon"><AlertTriangle size={17} /></div>
             <div>
               <div className="page-hero__title">资质到期预警</div>
-              <div className="page-hero__sub">监控供应商资质有效期，发送提醒通知供应商维护；供应商更新后预警自动消失</div>
+              <div className="page-hero__sub">监测供应商资质有效期并提醒其更新，供应商更新后预警自动解除</div>
             </div>
           </div>
           <div className="page-hero__right">

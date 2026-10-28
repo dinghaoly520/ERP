@@ -309,7 +309,7 @@ export function ProjectManagementPage() {
                 </div>
                 <div>
                   <div className="page-hero__title">项目管理</div>
-                  <div className="page-hero__sub">项目全生命周期管理与追踪</div>
+                  <div className="page-hero__sub">管理采购项目从立项到归档的全过程</div>
                 </div>
               </div>
               <div className="page-hero__right">

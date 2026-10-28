@@ -352,7 +352,7 @@ export default function SupplierDashboardPage() {
             <div className="page-hero__icon"><Building2 size={17} /></div>
             <div>
               <div className="page-hero__title">供应商总览</div>
-              <div className="page-hero__sub">资源池全景 · 供应结构分析</div>
+              <div className="page-hero__sub">汇总供应商库的整体规模、结构与评价情况</div>
             </div>
           </div>
           <div className="page-hero__right">

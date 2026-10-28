@@ -227,7 +227,7 @@ export default function NotificationsPage() {
             <div className="page-hero__icon"><Bell size={17} /></div>
             <div>
               <div className="page-hero__title">通知中心</div>
-              <div className="page-hero__sub">待办与已办按处理进度区分 · 待阅与已阅按查阅进度区分</div>
+              <div className="page-hero__sub">集中查看待办与已办事项、待阅与已阅消息</div>
             </div>
           </div>
           <div className="page-hero__right">

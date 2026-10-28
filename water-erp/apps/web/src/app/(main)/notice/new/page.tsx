@@ -278,7 +278,7 @@ export default function NewNoticePage() {
             </div>
             <div>
               <div className="page-hero__title">新建公告</div>
-              <div className="page-hero__sub">{typeLabel[type]} — 填写基本信息后保存草稿，配齐附件后发布</div>
+              <div className="page-hero__sub">填写{typeLabel[type]}的基本信息，可先存草稿，配齐附件后发布</div>
             </div>
           </div>
           <div className="page-hero__right">

@@ -34,7 +34,7 @@ export default function CentralCatalogPage() {
             <div className="page-hero__icon"><ShoppingCart size={17} strokeWidth={1.5} /></div>
             <div>
               <div className="page-hero__title">集中采购目录</div>
-              <div className="page-hero__sub">品类浏览与采购在采购商城进行 · 管理操作请进入「目录管理」</div>
+              <div className="page-hero__sub">浏览集中采购目录的品类与商品，维护操作请前往「目录管理」</div>
             </div>
           </div>
           <div className="page-hero__right" />

@@ -65,8 +65,8 @@ export default function ClarificationNoticePage() {
             </div>
             <div>
               <div className="page-hero__title">澄清说明</div>
-              <div className="page-hero__sub">（全平台生效，非公司维度）
-                编辑供应商门户「澄清答疑」区块展示的说明文案与异议联系方式；保存即发布
+              <div className="page-hero__sub">
+                维护供应商门户「澄清答疑」栏的说明文字与异议联系方式，保存后立即对全平台生效
               </div>
             </div>
           </div>

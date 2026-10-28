@@ -590,7 +590,7 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
             </div>
             <div className="min-w-0">
               <div className="page-hero__title">采购进度总览</div>
-              <div className="page-hero__sub">项目阶段推进与健康监测</div>
+              <div className="page-hero__sub">跟踪各采购项目的阶段推进情况</div>
             </div>
           </div>
 

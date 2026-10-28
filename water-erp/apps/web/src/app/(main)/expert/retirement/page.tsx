@@ -64,7 +64,7 @@ export default function RetirementPage() {
         <div className="page-hero__row">
           <div className="page-hero__left">
             <div className="page-hero__icon"><UserX size={17} /></div>
-            <div><div className="page-hero__title">退库管理</div><div className="page-hero__sub">扫描连续 E 级评价或 12 个月无分配的专家，人工复核确认退库</div></div>
+            <div><div className="page-hero__title">退库管理</div><div className="page-hero__sub">自动筛出连续评价不合格或 12 个月未参评的专家，人工复核后办理退库</div></div>
           </div>
           <div className="page-hero__right">
             <button onClick={load} disabled={loading} className="neu-btn-xs" aria-label="刷新"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /></button>

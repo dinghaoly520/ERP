@@ -87,7 +87,7 @@ export default function TenderReviewPage() {
               </div>
               <div>
                 <div className="page-hero__title">采购文件审查</div>
-                <div className="page-hero__sub">基于知识库规则引擎 + AI 语义分析，对采购文件进行合规性智能审查</div>
+                <div className="page-hero__sub">上传采购文件，自动比对合规规则并生成审查意见</div>
               </div>
             </div>
             <HeroStats />

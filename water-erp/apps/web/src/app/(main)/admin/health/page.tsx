@@ -96,7 +96,7 @@ export default function HealthPage() {
             <div className="page-hero__icon"><Activity size={17} strokeWidth={1.9} /></div>
             <div>
               <div className="page-hero__title">系统健康</div>
-              <div className="page-hero__sub">组件探活 · 近 24h 接口指标 · AI 队列深度（CTS 4.7~4.11 自我声明支撑）</div>
+              <div className="page-hero__sub">查看各服务组件运行状态、近 24 小时接口表现与 AI 分析任务积压情况</div>
             </div>
           </div>
           <div className="page-hero__right">

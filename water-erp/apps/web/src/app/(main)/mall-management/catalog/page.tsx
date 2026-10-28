@@ -2022,7 +2022,7 @@ function CatalogManagementPageInner() {
             <div className="page-hero__icon"><ShoppingCart size={17} /></div>
             <div>
               <div className="page-hero__title">目录管理</div>
-              <div className="page-hero__sub">集中管理采购目录的品类树、目录项、价格审批、趋势分析、预警、版本、供应商维度及操作日志</div>
+              <div className="page-hero__sub">管理采购商城的目录品类与商品条目，处理价格审批与预警</div>
             </div>
           </div>
           <div className="page-hero__right">

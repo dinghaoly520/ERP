@@ -49,7 +49,7 @@ export default function ExpertStatisticsPage() {
         <div className="page-hero__row">
           <div className="page-hero__left">
             <div className="page-hero__icon"><BarChart3 size={17} /></div>
-            <div><div className="page-hero__title">专家统计</div><div className="page-hero__sub">专家库整体态势、专业分布、评价趋势与活跃度分析</div></div>
+            <div><div className="page-hero__title">专家统计</div><div className="page-hero__sub">从规模、专业分布、评价与活跃度看专家库整体情况</div></div>
           </div>
           <div className="page-hero__right">
             <button onClick={() => router.push('/expert/repository')} className="neu-btn-soft is-porcelain">

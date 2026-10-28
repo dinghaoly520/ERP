@@ -116,13 +116,13 @@ export default function ComplianceRulesPage() {
             <div className="page-hero__icon"><ListChecks size={17} strokeWidth={1.9} /></div>
             <div>
               <div className="page-hero__title">合规规则</div>
-              <div className="page-hero__sub">阶段合规审查要点在线维护 · DB 覆盖层，空阶段回退内置规则表（C4）</div>
+              <div className="page-hero__sub">在线维护各采购阶段的合规审查要点，未维护的阶段沿用系统内置规则</div>
             </div>
           </div>
           <div className="page-hero__right">
-            <span className={`page-hero__stat ${data?.source === 'builtin' ? '' : 'page-hero__stat--info'}`}>
-              {data ? (data.source === 'db' ? '数据库（生效中）' : '内置表（回退）') : '…'}
-            </span>
+            {data?.source === 'db' && (
+              <span className="page-hero__stat page-hero__stat--info">数据库（生效中）</span>
+            )}
             {data?.source === 'builtin' && (
               <button onClick={() => void initFromBuiltin()} className="neu-btn-xs" disabled={busy} title="将内置规则快照导入数据库后方可编辑">
                 <Sparkles size={13} /> 从内置初始化

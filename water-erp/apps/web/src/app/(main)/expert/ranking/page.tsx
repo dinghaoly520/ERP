@@ -52,7 +52,7 @@ export default function ExpertRankingPage() {
         <div className="page-hero__row">
           <div className="page-hero__left">
             <div className="page-hero__icon"><Trophy size={17} /></div>
-            <div><div className="page-hero__title">专家排名</div><div className="page-hero__sub">按评价表现排名，激励专家提升评审质量，辅助抽取决策参考</div></div>
+            <div><div className="page-hero__title">专家排名</div><div className="page-hero__sub">按评审表现对专家排名，供抽取专家时参考</div></div>
           </div>
           <div className="page-hero__right">
             <button onClick={load} disabled={loading} className="neu-btn-xs" aria-label="刷新"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /></button>

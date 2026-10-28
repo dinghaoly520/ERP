@@ -154,7 +154,7 @@ export default function CompanyInfoPage() {
             <div>
               <div className="page-hero__title">公司信息管理</div>
               <div className="page-hero__sub">
-                维护本公司的开标地点、监督举报与采购人条目——采购文件编写自动带入默认条目，编写时可改选
+                维护本公司的开标地点、监督举报与采购人信息，编写采购文件时自动带入
               </div>
             </div>
           </div>

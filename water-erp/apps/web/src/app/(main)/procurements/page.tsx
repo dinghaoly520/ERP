@@ -168,7 +168,7 @@ function PageHero({
           </div>
           <div>
             <div className="page-hero__title">采购台账</div>
-            <div className="page-hero__sub">事项追踪与采购记录管理</div>
+            <div className="page-hero__sub">登记与跟踪采购事项的办理记录</div>
           </div>
         </div>
 

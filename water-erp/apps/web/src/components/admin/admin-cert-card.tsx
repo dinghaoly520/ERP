@@ -79,7 +79,7 @@ export function AdminCertPage() {
             </div>
             <div>
               <div className="page-hero__title">加密管理</div>
-              <div className="page-hero__sub">投标文件加密所用的管理方证书——当前状态与更换</div>
+              <div className="page-hero__sub">管理投标文件加密所用的平台证书，可查看状态或更换</div>
             </div>
           </div>
           <div className="page-hero__right">
