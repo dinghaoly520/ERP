@@ -369,6 +369,14 @@ export class BidService {
     //    StatTile/签字包同口径，declined 与候补不入（此前 _count.experts 全名册计数）。
     type CountRow = { projectId: string; _count: { projectId: number } };
     const expertRosterFilter = { expertRole: '正选', invitationStatus: { not: 'declined' } };
+    // 已投递供应商 id 集：供唱标记录按裸 FK bidSupplierId 过滤（BidOpeningRecord 无 Prisma 关系字段）
+    const submittedSupplierRows = projectIds.length > 0
+      ? await this.prisma.bidSupplier.findMany({
+          where: { projectId: { in: projectIds }, submitStatus: '已提交' },
+          select: { id: true },
+        })
+      : [];
+    const submittedSupplierIds = submittedSupplierRows.map(r => r.id);
     const [submissionCounts, expertRosterCounts, expertSignInCounts, decryptedCounts, confirmedCounts, disputedCounts, openingRecordCounts] = await Promise.all([
       projectIds.length > 0
         ? this.prisma.supplierBidSubmission.groupBy({
@@ -415,7 +423,9 @@ export class BidService {
       projectIds.length > 0
         ? this.prisma.bidOpeningRecord.groupBy({
             by: ['projectId'],
-            where: { projectId: { in: projectIds }, bidSupplier: { submitStatus: '已提交' } },
+            // 唱标记录经裸 FK bidSupplierId 关联（无 Prisma 关系字段）——先取已投递供应商
+            // id 集（submittedSupplierIds，见 Promise.all 后段）再过滤
+            where: { projectId: { in: projectIds }, bidSupplierId: { in: submittedSupplierIds } },
             _count: { projectId: true },
           })
         : ([] as CountRow[]),

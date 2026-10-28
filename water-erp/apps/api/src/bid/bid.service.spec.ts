@@ -206,7 +206,9 @@ describe('BidService — stage transitions', () => {
       const supCalls = prisma.bidSupplier.groupBy.mock.calls.map(c => c[0]);
       expect(supCalls).toHaveLength(3);
       for (const c of supCalls) expect(c.where.submitStatus).toBe('已提交');
-      expect(prisma.bidOpeningRecord.groupBy.mock.calls[0][0].where.bidSupplier).toEqual({ submitStatus: '已提交' });
+      expect(prisma.bidSupplier.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: { projectId: { in: ['p1'] }, submitStatus: '已提交' },
+      }));
       expect(res.projects[0].decryptedCount).toBe(3);
       expect(res.projects[0].confirmedCount).toBe(2);
       expect(res.projects[0].supplierSubmitted).toBe(3);
