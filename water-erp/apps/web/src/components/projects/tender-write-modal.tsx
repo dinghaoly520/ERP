@@ -29,10 +29,9 @@ import {
   buildAiGenerationContext,
 } from '@/lib/tender-write/prefill-from-project';
 import { TenderReviewProvider } from '@/components/tender-review/tender-review-provider';
-import TenderReviewWorkspace from '@/components/tender-review/tender-review-workspace';
-import { uploadReviewDocument, executeReview, getDownloadUrl } from '@/lib/api/review';
+import ProjectReviewFlow from '@/components/tender-review/project-review-flow';
+import { getDownloadUrl } from '@/lib/api/review';
 import type { ReviewTask } from '@/lib/types/tender-review';
-import { fetchKnowledgeBases } from '@/lib/api/knowledge';
 import {
   uploadProjectStageAttachment,
   updateProjectExtractedInfo,
@@ -131,9 +130,6 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
   const [showWorkspace, setShowWorkspace] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [showExportDialog, setShowExportDialog] = useState(false);
-  const [reviewLoading, setReviewLoading] = useState(false);
-  // 审查完成后：等待用户选择是否上传到项目阶段
   const [showReviewUploadDialog, setShowReviewUploadDialog] = useState(false);
   const [supplierSelectOpen, setSupplierSelectOpen] = useState(false);
   const reviewPendingFileRef = useRef<{ blob: Blob; fileName: string } | null>(null);
@@ -504,14 +500,6 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
 
   // ---------- 导出 / 审查 ----------
 
-  const handleExport = useCallback(() => {
-    if (!selectedType || !isDraftComplete) {
-      toast.error('请先完成所有章节的填写，再导出采购文件。');
-      return;
-    }
-    setShowExportDialog(true);
-  }, [selectedType, isDraftComplete]);
-
   /** 直接导出：下载文件 + 上传至项目采购文件阶段。 */
   const handleDirectExport = useCallback(async () => {
     if (!selectedType || !project) return;
@@ -561,54 +549,8 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       setErrorMessage(err instanceof Error ? err.message : '导出失败');
     } finally {
       setExporting(false);
-      setShowExportDialog(false);
     }
   }, [selectedType, currentDraft, project, onAttachmentUploaded, onUpdated]);
-
-  /** 导出并导入审查：生成 DOCX → 上传审查服务 → 启动审查 → 打开审查窗口。 */
-  const handleExportAndReview = useCallback(async () => {
-    if (!selectedType) return;
-    setReviewLoading(true);
-    setErrorMessage(null);
-    try {
-      // 1. 生成 DOCX
-      const result = await exportTenderDocument({ documentType: selectedType, answers: currentDraft, projectCode: project?.projectCode || undefined });
-      const file = new File([result.blob], result.fileName, {
-        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      });
-
-      // 2. 上传至审查服务
-      const uploadResult = await uploadReviewDocument(file);
-
-      // 3. 取知识库
-      const kbs = await fetchKnowledgeBases();
-      const activeKb = kbs.find((kb) => kb.isActive);
-      if (!activeKb) {
-        toast.error('未找到可用的知识库，请先在审查模块中创建知识库。');
-        return;
-      }
-
-      // 4. 启动审查
-      await executeReview({
-        knowledgeBaseId: activeKb.id,
-        reviewMode: 'general',
-        documentContent: uploadResult.content,
-        documentName: uploadResult.documentName,
-        objectKey: uploadResult.objectKey,
-      });
-      toast.success('已导入审查并启动分析');
-
-      // 5. 打开审查窗口
-      setShowReview(true);
-      setShowExportDialog(false);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : '导入审查失败';
-      setErrorMessage(msg);
-      toast.error(msg);
-    } finally {
-      setReviewLoading(false);
-    }
-  }, [selectedType, currentDraft]);
 
   /** 审查完成 → 取「已应用接受修改」的审查任务文件，由用户决定是否上传至项目采购文件阶段。
    *  闭环修复（2026-09-28 审计 #15）：审查中逐条"接受"的修改由后端写入审查任务自己的
@@ -840,17 +782,16 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                   toast.error('请先完成所有章节的填写，再进行审查。');
                   return;
                 }
-                handleExportAndReview();
+                setShowReview(true);
               }}
-              disabled={reviewLoading}
               className="neu-btn-soft gap-2 h-9 text-xs"
             >
-              {reviewLoading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+              <Search size={14} />
               采购文件审查
             </button>
             <button
               type="button"
-              onClick={handleExport}
+              onClick={() => void handleDirectExport()}
               disabled={exporting}
               className="neu-btn-soft gap-2 h-9 text-xs"
             >
@@ -918,63 +859,6 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
         </div>
       </div>
 
-      {/* 导出前确认对话框 */}
-      {showExportDialog && (
-        <div className="fixed inset-0 z-[650] flex items-center justify-center">
-          <div
-            className="absolute inset-0"
-            style={{ background: 'oklch(0.1 0.02 258 / 0.42)', backdropFilter: 'blur(4px)' }}
-            onClick={() => setShowExportDialog(false)}
-          />
-          <div
-            className="relative z-10 mx-4 w-full max-w-[380px] rounded-[22px] p-6"
-            style={{
-              background: 'linear-gradient(170deg, oklch(1 0 0 / 0.95), oklch(0.985 0.005 258 / 0.65))',
-              boxShadow:
-                'inset 0 1px 0 oklch(1 0 0 / 0.9), 4px 5px 18px oklch(0.45 0.07 258 / 0.2), -2px -2px 8px oklch(1 0 0 / 0.9)',
-            }}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <h2 className="text-[0.95rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
-                导出采购文件
-              </h2>
-              <button type="button" onClick={() => setShowExportDialog(false)} className="neu-btn-xs"><X size={16} /></button>
-            </div>
-            <p className="mt-2.5 text-sm leading-[1.6] text-[color:var(--muted-foreground)]">
-              文件已生成，是否直接进行合规审查？
-            </p>
-            <div className="mt-5 flex gap-3">
-              <button
-                type="button"
-                onClick={handleDirectExport}
-                disabled={exporting}
-                className="neu-btn-soft flex-1 gap-2 !h-10 text-sm"
-              >
-                {exporting ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <FileDown size={14} />
-                )}
-                否，直接导出
-              </button>
-              <button
-                type="button"
-                onClick={handleExportAndReview}
-                disabled={reviewLoading}
-                className="neu-btn-primary flex-1 gap-2 !h-10 text-sm"
-              >
-                {reviewLoading ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Search size={14} />
-                )}
-                是，导出并审查
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* 采购文件审查弹窗 */}
       {showReview && (
         <div className="fixed inset-0 z-[600] flex flex-col">
@@ -1033,7 +917,14 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
             >
               <TenderReviewProvider onReviewComplete={handleReviewComplete}>
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden h-full">
-                  <TenderReviewWorkspace />
+                  {project && selectedType && (
+                    <ProjectReviewFlow
+                      projectId={project.id}
+                      documentType={selectedType}
+                      answers={currentDraft}
+                      projectCode={project?.projectCode || undefined}
+                    />
+                  )}
                 </div>
               </TenderReviewProvider>
             </div>

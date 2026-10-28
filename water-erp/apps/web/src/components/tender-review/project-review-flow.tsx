@@ -39,6 +39,7 @@ export default function ProjectReviewFlow({ projectId, documentType, answers, pr
   const [fingerprint, setFingerprint] = useState('');
   const [staleSource, setStaleSource] = useState(false); // 结果来自过期草稿
   const [task, setTask] = useState<ReviewTask | null>(null);
+  const [pollTaskId, setPollTaskId] = useState<string | null>(null);
   const [kbId, setKbId] = useState('');
   const [kbResolved, setKbResolved] = useState(false);
   const [mode, setMode] = useState<ReviewMode>('general');
@@ -59,6 +60,7 @@ export default function ProjectReviewFlow({ projectId, documentType, answers, pr
         setFingerprint(st.fingerprint);
         if (st.state === 'running' && st.task) {
           setTask(st.task);
+          setPollTaskId(st.task.id);
           setPhase('running');
         } else if (st.state === 'matching' && st.task) {
           setTask(st.task);
@@ -104,17 +106,17 @@ export default function ProjectReviewFlow({ projectId, documentType, answers, pr
 
   // ---------- 运行中轮询 ----------
   useEffect(() => {
-    if (phase !== 'running' || !task?.id) return;
+    if (phase !== 'running' || !pollTaskId) return;
     const timer = setInterval(async () => {
       try {
-        const fresh = await fetchReviewTask(task.id);
-        if (fresh.status === 'completed') { setTask(fresh); setPhase('result'); }
-        else if (fresh.status === 'failed') { setTask(fresh); setPhase('failed'); }
+        const fresh = await fetchReviewTask(pollTaskId);
+        if (fresh.status === 'completed') { setTask(fresh); setPollTaskId(null); setPhase('result'); }
+        else if (fresh.status === 'failed') { setTask(fresh); setPollTaskId(null); setPhase('failed'); }
         else setTask(fresh);
       } catch { /* 单次轮询失败忽略，下轮重试 */ }
     }, 2000);
     return () => clearInterval(timer);
-  }, [phase, task?.id]);
+  }, [phase, pollTaskId]);
 
   // ---------- 开始审查（导出 → 上传 → execute） ----------
   const handleStart = useCallback(async () => {
@@ -136,6 +138,7 @@ export default function ProjectReviewFlow({ projectId, documentType, answers, pr
         fingerprint,
       });
       setTask({ id: exec.taskId, status: 'running', documentName: uploaded.documentName, reviewMode: mode } as ReviewTask);
+      setPollTaskId(exec.taskId);
       setPhase('running');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '启动审查失败');
@@ -144,14 +147,15 @@ export default function ProjectReviewFlow({ projectId, documentType, answers, pr
   }, [kbId, mode, documentType, answers, projectCode, projectId, fingerprint]);
 
   const handleStop = useCallback(async () => {
-    if (!task?.id) return;
+    const id = pollTaskId ?? task?.id;
+    if (!id) return;
     try {
-      await stopReviewTask(task.id);
+      await stopReviewTask(id);
       setPhase('failed');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '停止失败');
     }
-  }, [task?.id]);
+  }, [pollTaskId, task?.id]);
 
   const backToConfig = useCallback((prefill?: ReviewTask) => {
     if (prefill?.knowledgeBaseId) setKbId(prefill.knowledgeBaseId);
