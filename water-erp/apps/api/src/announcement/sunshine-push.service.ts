@@ -75,6 +75,13 @@ interface SunshineSnapshot {
   };
 }
 
+/** 当前时刻 → 文档时间格式 yyyy-MM-dd HH:mm:ss（本地时区） */
+function localApiNow(): string {
+  const d = new Date();
+  const p = (x: number) => String(x).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
 /** datetime-local（YYYY-MM-DDTHH:mm）→ 文档时间格式 yyyy-MM-dd HH:mm:ss（与弹窗 toApiTime 同口径） */
 function apiTime(v: string | undefined | null): string {
   if (!v) return '';
@@ -118,7 +125,9 @@ export class SunshinePushService {
         organizationUnique: c.organizationUnique, parentOrganization: c.parentOrganization,
         handUserName: c.handUserName, handOrganizationName: c.handOrganizationName,
         contacts: c.contacts, phone: c.phone, email: c.email,
-        tenderAmount: c.tenderAmount, centralized: c.centralized,
+        tenderAmount: c.tenderAmount,
+        createTime: localApiNow(), // 文档必传（联调实录：漏此字段 → status=1 must not be null）
+        centralized: c.centralized,
         procuringentity: c.procuringentity,
         standardQuota: c.standardQuota, publicQuota: c.publicQuota,
         tenderPackage: [{ unique, name: c.packageName }],

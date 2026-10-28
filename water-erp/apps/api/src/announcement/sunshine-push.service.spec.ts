@@ -62,6 +62,7 @@ describe('SunshinePushService', () => {
     expect(p1.identity).toBe('test-identity-0001');
     expect(p1.unique).toBe('proj-1'); // projectId 溯源
     expect(p1.phase).toBe(4); // 采购公告 → 公告已发布
+    expect(p1.createTime).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/); // 文档必传（联调实录漏字段）
     expect(p2.planUnique).toBe('proj-1');
     expect(p2.publishTime).toBe('2026-10-28 10:00:00'); // datetime-local → 文档格式
     expect(p2.content).toBe('<p>正文</p>');
