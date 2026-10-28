@@ -2461,7 +2461,18 @@ export class BidService {
     // 只判 findUnique 命中分支——N8 补建路径自建的 task 即为 PENDING，不能挡自己；
     // 极窄的补建竞态窗（对手在途而我方早读 null）由认领守卫兜底。
     if (task && ['PENDING', 'TENDER_PROCESSING', 'ANALYZING'].includes(task.status)) {
-      throw new ConflictException({ error: 'AI 分析进行中，禁止重跑（会清空在途分析）；如个别供应商异常请用单家重试', code: 'TASK_IN_PROGRESS' });
+      // F19（2026-10-28）：停摆豁免——全部 bidderResult PENDING（含 0 家）且队列探测确认无人消费
+      // （F14 probeWorkerIdle 同款探测）= 无在途可铲，放行重跑；worker 死亡窗口内卡片「重新分析」
+      // 不再被本闸 409 死锁。有 bidder 已启动（非 PENDING）不豁免；probe 异常保守 409。
+      const rows = await this.prisma.aiBidderResult.findMany({
+        where: { taskId: task.id },
+        select: { id: true, status: true },
+      });
+      const provablyIdle = rows.every((r) => r.status === 'PENDING')
+        && await this.probeWorkerIdle(task.status, task.id, rows[0]?.id ?? '');
+      if (!provablyIdle) {
+        throw new ConflictException({ error: 'AI 分析进行中，禁止重跑（会清空在途分析）；如个别供应商异常请用单家重试', code: 'TASK_IN_PROGRESS' });
+      }
     }
     if (!task) {
       // N8：存量项目（先于该特性创建）无任务——与 startEvaluation 同构补建，rerun 即恢复入口。
