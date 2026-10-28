@@ -27,17 +27,21 @@ export function ContactsTab({ contacts, onAdd, onEdit, onDelete }: {
       </div>
       {contacts.length > 0 ? (
         <div className="neu-table-card ct-table-wrap">
+          <div className="overflow-x-auto">
           <table className="neu-table">
             <thead>
               <tr>
-                {/* 全列居中：globals .neu-table th 默认已改居中（2026-10-22 第二次错位后基类翻转） */}
-                <th style={{ width: 160 }}>姓名</th>
-                <th style={{ width: 80 }}>性别</th>
-                <th style={{ width: 160 }}>手机号</th>
-                <th>邮箱</th>
-                <th style={{ width: 120 }}>职位</th>
-                <th style={{ width: 120 }}>主要联系人</th>
-                <th style={{ width: 160 }}>操作</th>
+                {/* 全列居中：globals .neu-table th 默认已改居中（2026-10-22 第二次错位后基类翻转）。
+                    列宽（2026-10-28 用户实录「邮箱列过宽」）：全列显式定宽——此前邮箱是唯一
+                    auto 列，table-layout:auto 下独占全部剩余宽度；定宽后剩余空间按各列比例
+                    摊开，宽屏不再单列拉肥。 */}
+                <th style={{ width: 150 }}>姓名</th>
+                <th style={{ width: 70 }}>性别</th>
+                <th style={{ width: 150 }}>手机号</th>
+                <th style={{ width: 230 }}>邮箱</th>
+                <th style={{ width: 130 }}>职位</th>
+                <th style={{ width: 110 }}>主要联系人</th>
+                <th style={{ width: 150 }}>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -51,8 +55,8 @@ export function ContactsTab({ contacts, onAdd, onEdit, onDelete }: {
                   </td>
                   <td>{row.gender || "—"}</td>
                   <td>{row.phone}</td>
-                  <td>{row.email || "—"}</td>
-                  <td>{row.position || "—"}</td>
+                  <td><span className="ct-cell-ellipsis" title={row.email || undefined}>{row.email || "—"}</span></td>
+                  <td><span className="ct-cell-ellipsis" title={row.position || undefined}>{row.position || "—"}</span></td>
                   <td>
                     <span className={cn("ct-tag", row.isPrimary ? "ct-tag--primary" : "ct-tag--info")}>
                       {row.isPrimary ? "主要" : "普通"}
@@ -68,6 +72,7 @@ export function ContactsTab({ contacts, onAdd, onEdit, onDelete }: {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       ) : (
         <div className="prof-card ct-empty">

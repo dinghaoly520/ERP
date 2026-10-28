@@ -117,29 +117,46 @@ export function QualsTab({ qualifications, onDelete }: {
   return (
     <>
       {qHealth.total > 0 && (
+        /* 健康面板（2026-10-28 重构）：环 + 状态语引导块 ‖ 四枚 KPI 瓷片（:3005 page-hero
+           同语言）——此前「小环 + 一排 21px chips + 一行小字」在大横条里信息密度失衡 */
         <div className="qual-health-dashboard">
-          <div className="qual-health-ring">
-            <svg width="80" height="80" viewBox="0 0 80 80">
-              <circle cx="40" cy="40" r="34" fill="none" stroke="var(--hairline)" strokeWidth="6" />
-              <circle
-                cx="40" cy="40" r="34" fill="none"
-                stroke={qTone.color} strokeWidth="6" strokeLinecap="round"
-                strokeDasharray={qualRingDash(qualifications)}
-                transform="rotate(-90 40 40)"
-                className="qual-health-ring-arc"
-              />
-            </svg>
-            <span className="qual-health-score">{qHealth.healthScore}%</span>
-          </div>
-          <div className="qual-health-body">
-            <div className="qual-health-chips">
-              <span className="qual-health-chip valid"><span className="chip-dot" /> {qHealth.valid} 有效</span>
-              <span className="qual-health-chip long-term"><span className="chip-dot" /> {qHealth.longTerm} 长期</span>
-              <span className="qual-health-chip expiring"><span className="chip-dot" /> {qHealth.expiring} 即将过期</span>
-              <span className="qual-health-chip expired"><span className="chip-dot" /> {qHealth.expired} 已过期</span>
+          <div className="qual-health-lead">
+            <div className="qual-health-ring">
+              <svg width="80" height="80" viewBox="0 0 80 80">
+                <circle cx="40" cy="40" r="34" fill="none" stroke="var(--hairline)" strokeWidth="6" />
+                <circle
+                  cx="40" cy="40" r="34" fill="none"
+                  stroke={qTone.color} strokeWidth="6" strokeLinecap="round"
+                  strokeDasharray={qualRingDash(qualifications)}
+                  transform="rotate(-90 40 40)"
+                  className="qual-health-ring-arc"
+                />
+              </svg>
+              <span className="qual-health-score">{qHealth.healthScore}%</span>
             </div>
-            <div className="qual-health-message" style={{ "--c": qTone.color } as React.CSSProperties}>
-              <span>{qTone.label}</span>
+            <div className="qual-health-lead-text">
+              <span className="qual-health-lead-label">证照健康</span>
+              <span className="qual-health-message" style={{ "--c": qTone.color } as React.CSSProperties}>
+                {qTone.label}
+              </span>
+            </div>
+          </div>
+          <div className="qual-health-kpis">
+            <div className="kpi-card qual-kpi">
+              <span className="kpi-card__label"><i className="qual-kpi-dot qual-kpi-dot--success" />有效</span>
+              <span className="kpi-card__value qual-kpi__value--success">{qHealth.valid}</span>
+            </div>
+            <div className="kpi-card qual-kpi">
+              <span className="kpi-card__label"><i className="qual-kpi-dot qual-kpi-dot--brand" />长期</span>
+              <span className="kpi-card__value qual-kpi__value--brand">{qHealth.longTerm}</span>
+            </div>
+            <div className="kpi-card qual-kpi">
+              <span className="kpi-card__label"><i className="qual-kpi-dot qual-kpi-dot--warning" />即将过期</span>
+              <span className="kpi-card__value qual-kpi__value--warning">{qHealth.expiring}</span>
+            </div>
+            <div className="kpi-card qual-kpi">
+              <span className="kpi-card__label"><i className="qual-kpi-dot qual-kpi-dot--danger" />已过期</span>
+              <span className="kpi-card__value qual-kpi__value--danger">{qHealth.expired}</span>
             </div>
           </div>
         </div>

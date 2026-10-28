@@ -79,6 +79,8 @@
 
 /* ═══ Contacts table ═══ */
 .ct-table-wrap { margin-top: 0; }
+/* 单元格内容截断（2026-10-28 联系人表列宽收口）：邮箱/职位长文本省略号 + title 悬停全文 */
+.ct-cell-ellipsis { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
 .contact-name-cell { display: flex; align-items: center; gap: 10px; }
 .contact-avatar { background: var(--brand); font-size: 13px; }
 .contact-name { font-weight: 700; font-size: 14px; color: var(--foreground); }
@@ -121,23 +123,33 @@
 .qual-file-name--muted { color: var(--muted-foreground); font-weight: 400; }
 .qual-file-cta { font-size: 11px; font-weight: 700; color: var(--brand); flex-shrink: 0; opacity: 0; transform: translateX(-4px); transition: opacity .15s ease, transform .15s ease; }
 .qual-file-row:hover .qual-file-cta { opacity: 1; transform: translateX(0); }
-.qual-health-dashboard { position: relative; display: flex; align-items: center; gap: 20px; padding: 18px 22px; margin-bottom: 14px; border-radius: 16px; background: linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 35%, oklch(1 0 0 / 0.16) 72%); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 2px 2px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.9); }
+/* ── 证照健康面板（2026-10-28 重构）：环+状态语引导块 ‖ 四枚 KPI 瓷片（globals .kpi-card）
+      ——替代旧「小环+一排 21px chips+一行小字」（1112px 横条里信息密度失衡）── */
+.qual-health-dashboard { position: relative; display: flex; align-items: stretch; gap: 18px; padding: 16px 18px; margin-bottom: 14px; border-radius: 16px; background: linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 35%, oklch(1 0 0 / 0.16) 72%); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 2px 2px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.9); }
+.qual-health-lead { display: flex; align-items: center; gap: 14px; flex: 0 0 auto; padding-right: 18px; box-shadow: inset -1px 0 0 oklch(0.6 0.04 258 / 0.16); }
+.qual-health-lead-text { display: flex; flex-direction: column; gap: 4px; min-width: 96px; }
+.qual-health-lead-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; color: var(--muted-foreground); }
+.qual-health-kpis { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.qual-kpi { padding: 10px 12px; gap: 4px; }
+.qual-kpi .kpi-card__value { font-size: 1.3rem; }
+.qual-kpi__value--success { color: var(--success); }
+.qual-kpi__value--brand { color: var(--brand); }
+.qual-kpi__value--warning { color: var(--warning); }
+.qual-kpi__value--danger { color: var(--danger); }
+.qual-kpi-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
+.qual-kpi-dot--success { background: var(--success); }
+.qual-kpi-dot--brand { background: var(--brand); }
+.qual-kpi-dot--warning { background: var(--warning); }
+.qual-kpi-dot--danger { background: var(--danger); }
+@media (max-width: 880px) {
+  .qual-health-dashboard { flex-direction: column; gap: 14px; }
+  .qual-health-lead { padding-right: 0; box-shadow: none; }
+  .qual-health-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .qual-health-ring { position: relative; width: 80px; height: 80px; flex-shrink: 0; }
 .qual-health-ring-arc { transition: stroke-dasharray .8s ease; }
 .qual-health-score { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 900; color: var(--foreground); }
-.qual-health-body { flex: 1; min-width: 0; }
-.qual-health-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
-.qual-health-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
-.qual-health-chip .chip-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-.qual-health-chip.valid     { background: color-mix(in oklab, var(--success) 12%, transparent); color: var(--success); }
-.qual-health-chip.valid .chip-dot     { background: var(--success); }
-.qual-health-chip.long-term { background: color-mix(in oklab, var(--brand) 12%, transparent); color: var(--brand); }
-.qual-health-chip.long-term .chip-dot { background: var(--brand); }
-.qual-health-chip.expiring  { background: color-mix(in oklab, var(--warning) 12%, transparent); color: var(--warning); }
-.qual-health-chip.expiring .chip-dot  { background: var(--warning); }
-.qual-health-chip.expired   { background: color-mix(in oklab, var(--danger) 12%, transparent); color: var(--danger); }
-.qual-health-chip.expired .chip-dot   { background: var(--danger); }
-.qual-health-message { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--c, var(--muted-foreground)); }
+.qual-health-message { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 800; color: var(--c, var(--muted-foreground)); }
 .qual-empty { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 64px 24px; border-radius: 16px; background: linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 35%, oklch(1 0 0 / 0.16) 72%); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 2px 2px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.9); }
 .qual-empty-title { font-size: 15px; font-weight: 700; color: var(--muted-foreground); margin: 12px 0 4px; }
 .qual-empty-desc  { font-size: 13px; color: var(--muted-foreground); margin: 0; }
@@ -604,9 +616,9 @@ select.qpn-inp { padding: 0 36px 0 14px; appearance: none; cursor: pointer; }
 .sp-file-hidden { display: none; }
 
 /* el-row/el-col 响应式栅格等价（:xs=24 :sm=12 :lg=8 / :xs=24 :sm=12 — Element 断点 768/1200） */
-.qual-grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
-@media (min-width: 768px)  { .qual-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (min-width: 1200px) { .qual-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* 资质卡网格（2026-10-28 收口）：auto-fill 自适应 + 卡片上限 560px——单卡不再拉满整行空洞 */
+.qual-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); align-items: stretch; }
+.qual-card { max-width: 560px; }
 .qual-grid-sm { display: grid; gap: 12px; grid-template-columns: 1fr; }
 @media (min-width: 768px) { .qual-grid-sm { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
