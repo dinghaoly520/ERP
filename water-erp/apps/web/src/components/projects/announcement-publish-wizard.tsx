@@ -51,6 +51,7 @@ import type {
 import type {
   ReadyTenderDocumentType,
   ReadyTenderDraft,
+  TenderDocumentType,
   TenderDocumentTypeMeta,
 } from '@/lib/types/tender-write';
 import type {
@@ -58,6 +59,41 @@ import type {
   ProjectManagementAttachment,
 } from '@/lib/types/project-management';
 import { FilePreviewPane } from './file-preview-pane';
+import { openingTimeFromSources } from '@/lib/tender-write/opening-time';
+
+/** 各采购方式「采购文件编写草稿」中承载开标时间的字段键（localStorage tender-write 草稿段） */
+const TENDER_OPENING_KEY: Record<TenderDocumentType, string> = {
+  COMPETITIVE_NEGOTIATION: 'responseDeadline',
+  SINGLE_SOURCE: 'submissionAndNegotiationTime',
+  INQUIRY_PURCHASE: 'bidOpeningTime',
+  INTERNAL_BIDDING: 'responseSubmissionTime',
+  INVITED_BIDDING: 'responseSubmissionTime',
+};
+
+/** 读取采购文件编写草稿里的开标时间原文（草稿不存在/损坏返回 ''） */
+function readTenderDraftOpening(projectId: string, tt: TenderDocumentType): string {
+  try {
+    const raw = localStorage.getItem(`tender-write:project-drafts:v1:${projectId}`);
+    const v = raw ? (JSON.parse(raw)?.[tt] as Record<string, string> | undefined)?.[TENDER_OPENING_KEY[tt]] : '';
+    return (v ?? '').trim();
+  } catch { return ''; }
+}
+
+/** 开标时间稳健获取（2026-10-28）：来源链 = 采购文件编写草稿 → 项目基本信息，只补空、
+ *  归一为 datetime-local（中文原文/仅日期都会被 datetime-local 输入框静默丢弃，见 lib/tender-write/opening-time）。
+ *  直接采购落到 procurementTime（采购时间语义字段），其余采购方式落到 bidOpeningTime。 */
+function fillOpeningTime(fd: Record<string, string>, project: ProjectManagementItem, tt: TenderDocumentType): void {
+  const draftOpening = readTenderDraftOpening(project.id, tt);
+  if (tt === 'SINGLE_SOURCE') {
+    fd.procurementTime = openingTimeFromSources(fd.procurementTime, project.bidOpeningTime, draftOpening);
+  } else {
+    const v = openingTimeFromSources(fd.bidOpeningTime, project.bidOpeningTime, draftOpening);
+    if (v) {
+      fd.bidOpeningTime = v;
+      if (!fd.bidOpeningTimeType?.trim()) fd.bidOpeningTimeType = 'datetime';
+    }
+  }
+}
 
 type Props = {
   isOpen: boolean;
@@ -538,6 +574,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       // 恢复时回到编辑页（step 1），让用户看到之前填写的内容
       setStep(1);
       setCategory((cachedWiz.category as AnnouncementCategory) ?? initialCategory);
+      // 缓存草稿同样只补空：上次会话源未就绪而空着的开标时间，现在（基本信息/采购文件已补值）照样补上
+      fillOpeningTime(cachedWiz.draft as Record<string, string>, project, tt);
       setDraft(cachedWiz.draft as AnnouncementDraft);
       setVisibility(cachedWiz.visibility ?? 'PUBLIC');
       setRestrictedSupplierIds(cachedWiz.restrictedSupplierIds ?? []);
@@ -592,8 +630,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       if (!fd.projectOverview?.trim() && project.projectOverview?.trim()) fd.projectOverview = project.projectOverview;
       if (!fd.qualificationRequirements?.trim() && project.supplierRequirements?.trim()) fd.qualificationRequirements = project.supplierRequirements;
 
-      // 采购时间 = 开标时间（转 datetime-local ISO 格式）
-      if (!fd.procurementTime?.trim() && project.bidOpeningTime?.trim()) fd.procurementTime = toDatetimeLocalValue(project.bidOpeningTime);
+      // 开标/采购时间：采购文件草稿 → 基本信息链（2026-10-28 起 bidOpeningTime 同链补齐，此前该字段无任何预填）
+      fillOpeningTime(fd, project, tt);
 
       // 落款日期 = 当前日期
       if (!fd.signatureDate?.trim()) {
@@ -1492,7 +1530,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                       </div>
                       <p className="mt-2.5 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
                         请核对左侧门户发布效果与内容；「确认发布」后按上述配置发布，公告 docx 归档至项目「采购公告公示」阶段。
-                        公告附件为公开可下载材料，发布后经附件接口提供下载、不在门户公告详情页单独展示。
+                        公告附件为公开可下载材料，发布后在信息门户、供应商公告中心及「项目机会」的公告详情页提供下载（采购文件仍仅在「项目机会」获取）。
                       </p>
                     </div>
 
