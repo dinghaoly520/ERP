@@ -64,9 +64,9 @@ export function AwardResultPanel({ startDate, endDate, companyId }: { startDate?
 
   // R6-6④（2026-09-30 审计 B1）：随页头日期筛选联动——此前零参全量拉，
   // 切日期/公司后其余面板全变、这两块不变。companyId 接上（2026-10-28）：后端 2026-10-14
-  // 起 list 支持 admin companyId 多选，页头选单公司后本面板不再恒全量；staff 视角
-  // PmiOwnershipGuard 恒本人项目（2026-10-10 裁定），传参无效——其与页头公司级 KPI 的
-  // 口径差源于 PMI 可见性裁定与驾驶舱公司口径（2026-08-20）两条裁定并存，属待裁定项。
+  // 起 list 支持 admin companyId 多选，页头选单公司后本面板不再恒全量。leader 后端强制本人
+  // 公司、staff 无驾驶舱入口（app-shell 驾驶舱整组 roles=[admin,leader]）——页面可达人群
+  // （leader/admin）自此与页头 KPI 同公司视野，双源口径差消除。
   useEffect(() => {
     fetchProjectManagementList(undefined, companyId && companyId !== 'all' ? companyId : undefined)
       .then((all) => {
