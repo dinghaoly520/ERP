@@ -14,7 +14,7 @@ description: Use when building or restyling ANY visual element in the five porta
 ✅ 新建页面/按钮/卡片/输入框/弹窗/抽屉
 ✅ 被要求"和首页一致"
 
-❌ `apps/mall`（未移植）与 `apps/web` 中 tender-review/admin 等**范围外区域**的存量旧风格（不主动重制；新代码仍须合规）
+❌ `apps/web` 中 tender-review/admin 等**范围外区域**的存量旧风格（不主动重制；新代码仍须合规）
 ❌ 纯逻辑/数据工作（无 UI 改动）
 ❌ 装饰性小元素的状态点/标签/badge — neumorphism 不用于文字级元素
 
