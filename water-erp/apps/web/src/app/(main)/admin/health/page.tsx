@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api/api-fetch';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { Modal, TableSkeleton } from '@/components/workbench';
+import { Skeleton } from '@/components/workbench/skeleton';
 
 /* ═══════════════════════════════════════════════════════════════
    系统健康——巡检 + 排查工作台（2026-10-28 重设计）
@@ -247,12 +248,13 @@ export default function HealthPage() {
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm font-semibold tracking-wide">近 24 小时请求与错误趋势</span>
               {data && (
-                <span className="text-xs text-[var(--muted-foreground)]" title="登录会话的业务请求全量（含高频轮询）；未登录/无权限的拒绝不在此列">
-                  共 {data.api24h.total.toLocaleString()} 次 · 错误 {data.api24h.errors} 次（{data.api24h.errorRate}%） · P95 耗时 {data.api24h.p95ms} ms（95% 的请求耗时低于此值）
+                <span className="text-xs text-[var(--muted-foreground)]"
+                  title="登录会话的业务请求全量（含高频轮询），未登录/无权限的拒绝不在此列；P95=95% 的请求耗时低于此值（操作日志口径）">
+                  共 {data.api24h.total.toLocaleString()} 次 · 错误 {data.api24h.errors}（{data.api24h.errorRate}%） · P95 {data.api24h.p95ms}ms
                 </span>
               )}
             </div>
-            {loading ? <TableSkeleton cols={6} rows={2} /> : (
+            {loading ? <Skeleton className="h-[190px] w-full" /> : (
               data && data.api24h.total === 0
                 ? <p className="py-6 text-center text-xs text-[var(--muted-foreground)]">全量计数自功能上线起累积，暂无数据</p>
                 : <TrendChart series={data!.api24h.series} />
@@ -285,8 +287,7 @@ export default function HealthPage() {
             </div>
             <div className="neu-table-card">
               <div className="neu-table-card-header flex flex-wrap items-center justify-between gap-3">
-                <span className="text-sm font-semibold tracking-wide">耗时最长的接口</span>
-                <span className="text-xs text-[var(--muted-foreground)]">近 24 小时 · 操作日志口径</span>
+                <span className="text-sm font-semibold tracking-wide" title="近 24 小时，操作日志口径">耗时最长的接口</span>
               </div>
               <div className="overflow-x-auto">
                 <table className="neu-table w-full min-w-[480px]">
@@ -312,7 +313,6 @@ export default function HealthPage() {
           <div className="neu-table-card">
             <div className="neu-table-card-header flex flex-wrap items-center justify-between gap-3">
               <span className="text-sm font-semibold tracking-wide">AI 分析任务队列</span>
-              {isAdmin && <span className="text-xs text-[var(--muted-foreground)]">失败任务可重试或清除记录</span>}
             </div>
             {data && !data.worker.alive && waitingTotal > 0 && (
               <div className="wb-alert wb-alert--warning mx-4 mt-3">分析服务未运行，{waitingTotal} 个任务正在等待——请到部署机上启动分析服务进程</div>
@@ -360,9 +360,13 @@ export default function HealthPage() {
       )}
 
       {/* 错误样例弹层 */}
-      <Modal open={errDetail.open} onClose={() => setErrDetail((s) => ({ ...s, open: false }))} title="最近错误明细" description="近 24 小时内最近 20 条错误记录（状态码 400 及以上）">
+      <Modal open={errDetail.open} onClose={() => setErrDetail((s) => ({ ...s, open: false }))} title="最近错误明细" description="近 24 小时 · 最多 20 条">
         {errDetail.route && <p className="mb-2 text-xs text-[var(--muted-foreground)]">高亮行与所点接口匹配：{errDetail.route}</p>}
-        {errDetail.loading ? <TableSkeleton cols={4} rows={4} /> : errDetail.rows.length === 0 ? (
+        {errDetail.loading ? (
+          <div className="space-y-1.5">
+            {[0, 1, 2].map((i) => <Skeleton key={i} className="h-9 w-full rounded-[10px]" />)}
+          </div>
+        ) : errDetail.rows.length === 0 ? (
           <p className="py-6 text-center text-xs text-[var(--muted-foreground)]">暂无错误记录</p>
         ) : (
           <div className="max-h-[50vh] space-y-1.5 overflow-y-auto">
