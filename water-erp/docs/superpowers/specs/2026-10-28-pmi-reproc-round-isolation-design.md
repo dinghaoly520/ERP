@@ -48,17 +48,18 @@ PMI `bidOpeningTime`/`documentAcquireTime` 语义收窄为**当前轮值**（轮
 - 当前轮：读 PMI 字段（可编辑，空显示待填占位）；
 - 历史轮：读该轮 BidProject 快照列（只读，空显示「—」）。数据源：bp 引用接口带上两快照列。
 
-### 5. 草稿键轮次化 + 存量兼容
+### 5. 草稿轮次化（服务端 + 本地缓存）+ 存量兼容
 
-- 键改 `tender-write:project-drafts:v1:{pmiId}:R{n}`；
-- 读：`R{n}` 新键 miss 且 n===1 → 回退旧键（存量不丢）；写：始终写新键；
-- `readTenderDraftOpening`（公告向导预填链）同步按当前轮取键。
+实施时发现草稿主存是**服务端** `ProjectTenderDraft`（localStorage 仅离线缓存，2026-09-09 跨设备同步），故轮次化落在两层：
+
+- **服务端**：`ProjectTenderDraft` unique 从 `projectId` 收紧为 `(projectId, round)`（迁移 `20261028151000`，存量行 round=1）；`ProjectTenderDraftVersion` 同步加 round 列与索引；`tender-draft.service` 六方法带可选 round（缺省=PMI currentRound，存量调用等价）；controller 六端点加 `?round=`。
+- **本地缓存**：键 `tender-write:project-drafts:v1:{pmiId}:R{n}`（R1 沿用旧键=存量不迁移不丢），共享实现 `lib/tender-write/storage.ts#tenderDraftStorageKey`，消费方：编写弹窗、公告向导（开标时间预填链 + 直接采购供应商名兜底）、邀请选取页、通知书弹窗。
+- PMI 侧一对一关系随 unique 收紧改为一对多（`tenderDrafts ProjectTenderDraft[]`）。
 
 ### 6. 「参考上一轮」入口（A 方案）
 
-- 采购文件编写弹窗 + 公告向导：`currentRound≥2` 且上一轮草稿存在时，头部显示「参考上一轮」按钮；
-- 点击：以上一轮草稿为底稿带入编辑器；**开标时间/获取时间字段置空**强制重填；
-- 不点击：按第二轮 PMI 信息全新生成（生成链本就以 PMI 为底）。
+- 采购文件编写弹窗：`currentRound≥2` 且上一轮草稿存在时，工具栏显示「参考上一轮」按钮；点击以上一轮**同采购方式**草稿为底稿带入，**开标时间/获取时间字段置空**强制重填；不点击则按第二轮 PMI 信息全新生成。
+- 公告向导（实施偏差说明）：不设参考按钮——向导表单本就从 PMI 确认过的基本信息全新生成，轮次敏感字段（开标/获取时间）经第 1/2/5 节改造后已不带旧值；硬引上一轮公告稿反而会导入过期时间。
 
 ## 测试
 

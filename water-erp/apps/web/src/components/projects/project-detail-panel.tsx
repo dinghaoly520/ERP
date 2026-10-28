@@ -631,6 +631,11 @@ export function ProjectDetailPanel({
   // ── 流标提示条（2026-10-21）：投标侧已流标而 PMI 仍 ACTIVE——按当前轮对齐，防 reproc 后旧轮误报 ──
   const currentRoundBp = bpRefs.find((r) => r.round === (item.currentRound ?? 1)) ?? null;
   const abortedRiskNote = currentRoundBp ? bpDetails[currentRoundBp.id]?.riskNote ?? '' : '';
+  // 2026-10-28 二轮隔离：历史轮的开标/获取时间改读该轮 BidProject 快照（轮次切换时自 PMI 迁入）；
+  // 当前轮读 PMI 字段（轮次切换已清空，逐步重填）
+  const pastRoundBpRef = isPastRound ? bpRefs.find((r) => r.round === selectedRound) ?? null : null;
+  const roundTimeDisplay = (iso: string | null | undefined) =>
+    iso ? new Date(iso).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '—';
   const bidAborted =
     item.status === 'ACTIVE' &&
     (currentRoundBp?.stage === 'ABORTED' ||
@@ -876,7 +881,8 @@ export function ProjectDetailPanel({
     const seq = ++stepAnalysisSeqRef.current;
     setStepAnalysisLoading(true);
     setStepAnalysisError(null);
-    analyzeProjectStep(item.id, selectedStage.stageKey, refresh)
+    // 2026-10-28 二轮隔离：按选中轮取该轮步骤数据（历史轮查看不混入当前轮产物）
+    analyzeProjectStep(item.id, selectedStage.stageKey, refresh, selectedStage.round ?? undefined)
       .then((res) => {
         if (seq !== stepAnalysisSeqRef.current) return; // 已切换步骤：旧响应丢弃
         setStepAnalysisContent(res.content);
@@ -892,7 +898,7 @@ export function ProjectDetailPanel({
         if (seq !== stepAnalysisSeqRef.current) return;
         setStepAnalysisLoading(false);
       });
-  }, [item.id, selectedStage.stageKey, selectedStage.status]);
+  }, [item.id, selectedStage.stageKey, selectedStage.status, selectedStage.round]);
 
   useEffect(() => {
     setStepAnalysisContent('');
@@ -1966,12 +1972,14 @@ export function ProjectDetailPanel({
                     )}
                   </div>
                   <div>
-                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">开标时间</span><button type="button" onClick={() => void handleAiExtractTender('bidOpeningTime')} disabled={aiExtracting === 'bidOpeningTime' || actionsDisabled} className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'bidOpeningTime' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button></div>
+                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">开标时间</span>{!isPastRound && <button type="button" onClick={() => void handleAiExtractTender('bidOpeningTime')} disabled={aiExtracting === 'bidOpeningTime' || actionsDisabled} className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'bidOpeningTime' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button>}</div>
                     {editingField === 'bidOpeningTime' ? (
                       <div className="mt-1 flex items-center gap-1.5">
                         <input type="datetime-local" value={editValues.bidOpeningTime} onChange={(e) => setEditValues((prev) => ({ ...prev, bidOpeningTime: e.target.value }))} className="workbench-input !h-[28px] !text-xs flex-1" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveField('bidOpeningTime'); if (e.key === 'Escape') setEditingField(null); }} />
                         <button type="button" onClick={() => void handleSaveField('bidOpeningTime')} className="neu-btn-xs"><Save size={13} /></button>
                       </div>
+                    ) : isPastRound ? (
+                      <span className="mt-0.5 block text-sm text-[color:var(--foreground)]">{roundTimeDisplay(pastRoundBpRef?.roundOpeningTime)}</span>
                     ) : (
                       <button type="button" onClick={() => handleStartEdit('bidOpeningTime', extractedInfoOverride?.bidOpeningTime ?? localItem.bidOpeningTime ?? null)} className="group mt-0.5 flex items-center gap-1">
                         <span className={`text-sm ${(extractedInfoOverride?.bidOpeningTime ?? localItem.bidOpeningTime) ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{(extractedInfoOverride?.bidOpeningTime ?? localItem.bidOpeningTime) || '待补充'}</span>
@@ -1980,7 +1988,7 @@ export function ProjectDetailPanel({
                     )}
                   </div>
                   <div>
-                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">采购文件获取时间</span><button type="button" onClick={() => void handleAiExtractTender('documentAcquireTime')} disabled={aiExtracting === 'documentAcquireTime' || actionsDisabled} className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'documentAcquireTime' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button></div>
+                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">采购文件获取时间</span>{!isPastRound && <button type="button" onClick={() => void handleAiExtractTender('documentAcquireTime')} disabled={aiExtracting === 'documentAcquireTime' || actionsDisabled} className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'documentAcquireTime' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button>}</div>
                     {editingField === 'documentAcquireTime' ? (
                       <div className="mt-1 flex items-center gap-1.5">
                         <input type="datetime-local" value={(editValues.documentAcquireTime || '').split('~')[0] ?? ''} onChange={(e) => setEditValues((prev) => { const parts = (prev.documentAcquireTime || '').split('~'); return { ...prev, documentAcquireTime: `${e.target.value}~${parts[1] ?? ''}` }; })} className="workbench-input !h-[28px] !text-xs flex-1" autoFocus onKeyDown={(e) => { if (e.key === 'Escape') setEditingField(null); }} />
@@ -1988,6 +1996,8 @@ export function ProjectDetailPanel({
                         <input type="datetime-local" value={(editValues.documentAcquireTime || '').split('~')[1] ?? ''} onChange={(e) => setEditValues((prev) => { const parts = (prev.documentAcquireTime || '').split('~'); return { ...prev, documentAcquireTime: `${parts[0] ?? ''}~${e.target.value}` }; })} className="workbench-input !h-[28px] !text-xs flex-1" onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveField('documentAcquireTime'); if (e.key === 'Escape') setEditingField(null); }} />
                         <button type="button" onClick={() => void handleSaveField('documentAcquireTime')} className="neu-btn-xs"><Save size={13} /></button>
                       </div>
+                    ) : isPastRound ? (
+                      <span className="mt-0.5 block text-sm text-[color:var(--foreground)]">{roundTimeDisplay(pastRoundBpRef?.roundDocAcquireTime)}</span>
                     ) : (
                       <button type="button" onClick={() => handleStartEdit('documentAcquireTime', extractedInfoOverride?.documentAcquireTime ?? localItem.documentAcquireTime ?? null)} className="group mt-0.5 flex items-center gap-1">
                         <span className={`text-sm ${(extractedInfoOverride?.documentAcquireTime ?? localItem.documentAcquireTime) ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{fmtAcquireTime(extractedInfoOverride?.documentAcquireTime ?? localItem.documentAcquireTime) || '待补充'}</span>

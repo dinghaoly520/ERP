@@ -1607,8 +1607,8 @@ describe('ProjectManagementService', () => {
       prisma.projectManagementStage.findFirst.mockResolvedValue({ id: 'st-1', stageKey: 'SUPPLIER_INVITATION' });
       prisma.projectManagementItem.findUnique.mockResolvedValue({
       status: 'ACTIVE', currentStage: 'SUPPLIER_INVITATION' });
-      // 回执核验走 PMI/BP 两个 id 空间：先查项目关联的 BidProject id 集
-      prisma.bidProject = { findMany: jest.fn().mockResolvedValue([]) };
+      // 回执核验（2026-10-28 二轮隔离）：本轮 BidProject 未建 → 回退数 PMI id 存量行，仍 0 回执
+      prisma.bidProject = { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) };
       prisma.invitationRsvp = { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) };
       await expect(service.updateStage('pm-01', 'SUPPLIER_INVITATION', completing)).rejects.toThrow('发送邀请通知');
     });

@@ -61,7 +61,6 @@ import type {
 import { FilePreviewPane } from './file-preview-pane';
 import { openingTimeFromSources } from '@/lib/tender-write/opening-time';
 import { tenderDraftStorageKey } from '@/lib/tender-write/storage';
-import { DEFAULT_OBJECTION_CHANNEL } from '@/lib/tender-write/announcement-templates';
 
 /** 各采购方式「采购文件编写草稿」中承载开标时间的字段键（localStorage tender-write 草稿段） */
 const TENDER_OPENING_KEY: Record<TenderDocumentType, string> = {
@@ -212,7 +211,6 @@ function buildCanonicalMeta(
     }
   }
   put('contact', contact);
-  put('objection', d.objection); // 异议渠道（GB/T 43711 7.2.2.5）：发布 meta 与详情页芯片统一消费
   return out;
 }
 
@@ -579,11 +577,6 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       setCategory((cachedWiz.category as AnnouncementCategory) ?? initialCategory);
       // 缓存草稿同样只补空：上次会话源未就绪而空着的开标时间，现在（基本信息/采购文件已补值）照样补上
       fillOpeningTime(cachedWiz.draft as Record<string, string>, project, tt);
-      // 异议渠道标准口径同样只补空（缓存恢复的旧草稿多为空——此前采购公告表单根本没有该字段）
-      if (((cachedWiz.category as string) ?? initialCategory) !== 'winning_bid') {
-        const cd = cachedWiz.draft as Record<string, string>;
-        if (!cd.objection?.trim()) cd.objection = DEFAULT_OBJECTION_CHANNEL;
-      }
       setDraft(cachedWiz.draft as AnnouncementDraft);
       setVisibility(cachedWiz.visibility ?? 'PUBLIC');
       setRestrictedSupplierIds(cachedWiz.restrictedSupplierIds ?? []);
@@ -640,11 +633,6 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
 
       // 开标/采购时间：采购文件草稿 → 基本信息链（2026-10-28 起 bidOpeningTime 同链补齐，此前该字段无任何预填）
       fillOpeningTime(fd, project, tt);
-
-      // 异议渠道标准口径预填（GB/T 43711 7.2.2.5；中标公告下方分支有更精准的结果异议默认，优先生效）
-      if (procCat !== 'winning_bid' && !fd.objection?.trim()) {
-        fd.objection = DEFAULT_OBJECTION_CHANNEL;
-      }
 
       // 落款日期 = 当前日期
       if (!fd.signatureDate?.trim()) {
@@ -1233,12 +1221,6 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         }
         const draftObjection = (draft as Record<string, string>).objection?.trim();
         if (draftObjection) meta.objection = draftObjection;
-      }
-      // 异议渠道随公告冻结（GB/T 43711 7.2.2.5，详情页异议渠道芯片消费）——全类别生效：
-      // 此前仅中标分支写入，采购/直接/流标公告即使填写也在发布时丢弃，导致 checklist 报「异议渠道要素缺失」。
-      // 草稿有值用草稿值，无值兜底标准口径（预填被手动清空仍保证要素齐备）
-      if (!meta.objection) {
-        meta.objection = (draft as Record<string, string>).objection?.trim() || DEFAULT_OBJECTION_CHANNEL;
       }
       // 发布前查重：同标题或同项目同类型已发布公告 → 提示确认（流标重发等场景可确认后继续）
       try {

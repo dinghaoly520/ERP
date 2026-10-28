@@ -48,6 +48,7 @@ import { exportAnnouncementDocument, importWinningBidFromPdf } from "@/lib/api/a
 import { checkSupplierChange } from "@/lib/api/project-management";
 import { getSupplierList } from "@/lib/api/supplier";
 import { confirmDialog } from "@/components/catalog/confirm-dialog";
+import { tenderDraftStorageKey } from "@/lib/tender-write/storage";
 
 function downloadBlobFile(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob);
@@ -898,7 +899,7 @@ export function AnnouncementDialog({
         let sn = project.awardedSupplier?.trim();
         if (!sn) {
           try {
-            const raw = localStorage.getItem(`tender-write:project-drafts:v1:${project.id}`);
+            const raw = localStorage.getItem(tenderDraftStorageKey(project.id, project.currentRound ?? 1));
             if (raw) sn = (JSON.parse(raw)?.SINGLE_SOURCE as Record<string, string>)?.supplierName?.trim();
           } catch {}
         }

@@ -429,6 +429,28 @@ export class ProjectManagementService {
     return { id: item.id, projectCode };
   }
 
+  /** 2026-10-28 二轮隔离：按轮解析 PMI 宿主 BidProject（round 缺省=当前轮）——替代裸 projectManagementItemId 查找，
+   *  防止多轮项目误读旧轮（BidProject 无该轮行时返回 null，调用方自行兜底）。 */
+  private async resolveRoundBidProject<Select extends Prisma.BidProjectSelect>(
+    pmiId: string,
+    round: number | undefined,
+    select: Select,
+  ) {
+    let targetRound = round;
+    if (targetRound == null) {
+      const pmi = await this.prisma.projectManagementItem.findUnique({
+        where: { id: pmiId },
+        select: { currentRound: true },
+      });
+      targetRound = pmi?.currentRound ?? 1;
+    }
+    return this.prisma.bidProject.findFirst({
+      where: { projectManagementItemId: pmiId, round: targetRound },
+      select,
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async ensureBidProject(itemId: string, round?: number) {
     const item = await this.prisma.projectManagementItem.findUnique({
       where: { id: itemId },
@@ -626,6 +648,7 @@ export class ProjectManagementService {
         requesterName: true, requesterDepartment: true, title: true, procurementCategory: true,
         budgetAmount: true, projectReason: true, supplierRequirements: true, initiationDate: true,
         procurementOrganizationForm: true, isAnnualBudget: true,
+        bidOpeningTime: true, documentAcquireTime: true,
         stages: { orderBy: { stageOrder: 'asc' } },
       },
     });
@@ -756,9 +779,17 @@ export class ProjectManagementService {
           status: i === 0 ? PROJECT_STAGE_STATUS.IN_PROGRESS : PROJECT_STAGE_STATUS.NOT_STARTED,
         })),
       });
+      // 2026-10-28 二轮隔离：旧轮 PMI 层开标/获取时间快照到旧轮 BidProject，PMI 字段清空——
+      // 两字段语义收窄为「当前轮值」，新轮基本信息不带旧轮时间（历史轮展示改读快照列）
+      if (item.bidOpeningTime || item.documentAcquireTime) {
+        await tx.bidProject.updateMany({
+          where: { projectManagementItemId: itemId, round: currentRound },
+          data: { roundOpeningTime: item.bidOpeningTime, roundDocAcquireTime: item.documentAcquireTime },
+        });
+      }
       await tx.projectManagementItem.update({
         where: { id: itemId },
-        data: { ...infoData, currentStage: segment[0].key, currentRound: newRound },
+        data: { ...infoData, currentStage: segment[0].key, currentRound: newRound, bidOpeningTime: null, documentAcquireTime: null },
       });
     });
 
@@ -3623,13 +3654,12 @@ ${JSON.stringify(algorithmResult, null, 2)}
       if (stageKey === 'SUPPLIER_INVITATION') {
         // 完成门槛：确认参加的回执数量达到用户设定的满足数量（默认 3）即可标记完成。
         // 数量以 InvitationRsvp 实数核验（不信任前端计数）；达标蕴含通知已发出，原"须先发送邀请通知"核查被覆盖。
-        // id 空间：回执的 projectId 为 BidProject id（邀请发起方），阶段接口收到的是 PMI id——两个空间都要数。
+        // id 空间：回执的 projectId 为 BidProject id（邀请发起方），阶段接口收到的是 PMI id。
+        // 2026-10-28 二轮隔离：完成闸只数本轮 BidProject 名下回执——旧轮回执不再计入新轮完成判定；
+        // 本轮 BidProject 尚未懒建时回退数 PMI id 存量行（旧数据空间）
         const threshold = Math.min(Math.max(dto.confirmedThreshold ?? 3, 1), 50);
-        const bpIds = await this.prisma.bidProject.findMany({
-          where: { projectManagementItemId: projectId },
-          select: { id: true },
-        });
-        const rsvpWhere = { OR: [{ projectId }, { projectId: { in: bpIds.map((b) => b.id) } }] };
+        const roundBpForGate = await this.resolveRoundBidProject(projectId, targetRound, { id: true });
+        const rsvpWhere = roundBpForGate ? { projectId: roundBpForGate.id } : { projectId };
         // 按供应商去重计数（2026-10-23 用户口径：与邀请页「已确认」同源）——同一供应商
         // 跨批次多行只数一次：已回执行优先于 PENDING，均非 PENDING 取 respondedAt 最新
         // （最新回执代表当前意愿）；此前裸 count 行数会把多批次重复数大、与页面显示打架
@@ -3655,7 +3685,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
         }
       }
       if (stageKey === 'EXPERT_SELECTION') {
-        const bp = await this.prisma.bidProject.findFirst({ where: { projectManagementItemId: projectId }, select: { id: true } });
+        // 2026-10-28 二轮隔离：按本轮项目数专家——第一轮抽过不能让第二轮免抽直接标完成
+        const bp = await this.resolveRoundBidProject(projectId, targetRound, { id: true });
         if (bp) {
           const experts = await this.prisma.bidExpert.count({ where: { projectId: bp.id } });
           if (experts === 0) throw new BadRequestException('请先完成专家抽取，再标记完成');
@@ -3873,6 +3904,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
         deadline: true,
         // 公告闸判定（2026-10-23 统一流）：该轮流标公告须晚于该轮 BidProject 创建
         createdAt: true,
+        // 2026-10-28 二轮隔离：该轮 PMI 层开标/获取时间快照（历史轮基本信息展示源）
+        roundOpeningTime: true,
+        roundDocAcquireTime: true,
       },
       orderBy: { round: 'asc' },
     });
@@ -5051,7 +5085,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     DIRECT_PURCHASE_FILING: { label: '直接采购备案表', focus: '直接采购备案（直接采购理由、备案要件与审批齐全性）' },
   };
 
-  async analyzeStep(projectId: string, stageKey: string, forceRefresh = false): Promise<{ content: string; empty: boolean }> {
+  async analyzeStep(projectId: string, stageKey: string, forceRefresh = false, round?: number): Promise<{ content: string; empty: boolean }> {
     const meta = ProjectManagementService.STAGE_ANALYSIS_META[stageKey];
     if (!meta) {
       throw new BadRequestException('未知的项目阶段。');
@@ -5077,7 +5111,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new NotFoundException('未找到对应项目。');
     }
     const stageRows = project.stages;
-    const stageRow = stageRows[stageRows.length - 1]; // 最新轮次行为完成判定行
+    // 2026-10-28 二轮隔离：前端按选中轮传 round（查看历史轮步骤时分析该轮）；缺省仍取最新轮
+    const stageRow = (round != null ? stageRows.find((s) => s.round === round) : undefined)
+      ?? stageRows[stageRows.length - 1];
     // 步骤分析仅对已完成阶段开放（与前端闸门一致，防直调 API 绕过）：进行中/待解锁数据未定型
     if (!stageRow || stageRow.status !== 'COMPLETED') {
       return { content: '', empty: true };
@@ -5107,10 +5143,14 @@ ${JSON.stringify(algorithmResult, null, 2)}
     if (isExpert) {
       expertRosterRaw = (project.expertInfo ?? '').trim();
       // 抽取行为留痕：最近一次确认审计（方式/候选池/命中数；resourceId 是 BidProject id 空间）
-      const bpIds = await this.prisma.bidProject.findMany({
-        where: { projectManagementItemId: projectId },
-        select: { id: true },
-      });
+      // 2026-10-28 二轮隔离：round 指定时只看该轮的抽取留痕
+      const roundBpForAudit = round != null ? await this.resolveRoundBidProject(projectId, round, { id: true }) : null;
+      const bpIds = roundBpForAudit
+        ? [roundBpForAudit]
+        : await this.prisma.bidProject.findMany({
+            where: { projectManagementItemId: projectId },
+            select: { id: true },
+          });
       const audit = bpIds.length > 0
         ? await this.prisma.auditLog.findFirst({
             where: { action: 'EXPERT_EXTRACTION_CONFIRMED', resourceId: { in: bpIds.map((b) => b.id) } },
@@ -5131,8 +5171,12 @@ ${JSON.stringify(algorithmResult, null, 2)}
         where: { projectManagementItemId: projectId },
         select: { id: true },
       });
+      // 2026-10-28 二轮隔离：round 指定时只读该轮回执（bpIds 全轮列表仅作缺省/存量兜底）
+      const roundBpForRsvp = round != null ? await this.resolveRoundBidProject(projectId, round, { id: true }) : null;
       const rsvps = await this.prisma.invitationRsvp.findMany({
-        where: { OR: [{ projectId }, { projectId: { in: bpIds.map((b) => b.id) } }] },
+        where: roundBpForRsvp
+          ? { projectId: roundBpForRsvp.id }
+          : { OR: [{ projectId }, { projectId: { in: bpIds.map((b) => b.id) } }] },
         orderBy: { createdAt: 'asc' },
         select: { supplierName: true, status: true, note: true },
       });
@@ -5143,13 +5187,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
         parts.push(`邀请名单（快照）：${project.invitedSuppliers.trim().slice(0, 300)}`);
       }
     } else if (stageKey === 'BID_EVALUATION' || stageKey === 'AWARD_DECISION') {
-      // 开评标/定标：BidProject 及其评审/成交数据
-      const bp = await this.prisma.bidProject.findFirst({
-        where: { projectManagementItemId: projectId },
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true, stage: true, openTime: true, deadline: true, evaluationMethod: true,
-        },
+      // 开评标/定标：BidProject 及其评审/成交数据（2026-10-28 二轮隔离：按轮解析）
+      const bp = await this.resolveRoundBidProject(projectId, round, {
+        id: true, stage: true, openTime: true, deadline: true, evaluationMethod: true,
       });
       if (bp) {
         const stageLabel: Record<string, string> = { DOWNLOAD: '标书下载', SUBMIT: '投标递交', OPENING: '开标中', EVALUATING: '评标中', ARCHIVED: '已归档' };
@@ -5232,11 +5272,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         if (project.awardedSupplier) parts.push(`签约供应商：${project.awardedSupplier}`);
       }
       if (stageKey === 'DIRECT_PURCHASE_FILING') {
-        const bp = await this.prisma.bidProject.findFirst({
-          where: { projectManagementItemId: projectId },
-          orderBy: { createdAt: 'desc' },
-          select: { directSourcingReason: true },
-        });
+        const bp = await this.resolveRoundBidProject(projectId, round, { directSourcingReason: true });
         if (bp?.directSourcingReason) parts.push(`直接采购理由：${bp.directSourcingReason.slice(0, 300)}`);
       }
       if (project.budgetAmount && stageKey !== 'PROCUREMENT_DEMAND') parts.push(`预算金额：${Number(project.budgetAmount).toLocaleString('zh-CN')} 元`);

@@ -1642,6 +1642,25 @@ export class BidService {
       data: { riskNote: `${original.riskNote || ''}｜已于 ${formatNoteTime(now)} 由 ${(await this.resolveActorLabel(actorId)) ?? '系统'} 重启为新项目 ${newCode}` },
     });
 
+    // 2026-10-28 二轮隔离（与 PMI reproc 同口径）：旧轮 PMI 层开标/获取时间快照到旧轮项目行，
+    // PMI 两字段清空——新轮基本信息不带旧轮时间（历史轮展示改读快照列）
+    if (original.projectManagementItemId) {
+      const host = await this.prisma.projectManagementItem.findUnique({
+        where: { id: original.projectManagementItemId },
+        select: { bidOpeningTime: true, documentAcquireTime: true },
+      });
+      if (host && (host.bidOpeningTime || host.documentAcquireTime)) {
+        await this.prisma.bidProject.update({
+          where: { id },
+          data: { roundOpeningTime: host.bidOpeningTime, roundDocAcquireTime: host.documentAcquireTime },
+        });
+        await this.prisma.projectManagementItem.update({
+          where: { id: original.projectManagementItemId },
+          data: { bidOpeningTime: null, documentAcquireTime: null },
+        });
+      }
+    }
+
     await this.prisma.bidSupervisionLog.create({
       data: { projectId: id, time: now, role: '系统', target: original.name,
         action: '流标项目重启', result: `创建新项目 ${newCode}（第 ${(original.round ?? 1) + 1} 轮）`, riskFlag: '无' },

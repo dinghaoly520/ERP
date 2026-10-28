@@ -211,8 +211,10 @@ export class ProjectManagementController {
     @Param('id') id: string,
     @Query('stageKey') stageKey: string,
     @Query('refresh') refresh?: string,
+    @Query('round') round?: string,
   ) {
-    return this.projectManagementService.analyzeStep(id, stageKey, refresh === 'true');
+    // 2026-10-28 二轮隔离：前端按选中轮传参，步骤分析只看该轮；缺省=当前轮（存量调用不受影响）
+    return this.projectManagementService.analyzeStep(id, stageKey, refresh === 'true', round ? Number(round) : undefined);
   }
 
   @Post(':id/parse-announcement-fields')
@@ -298,10 +300,14 @@ export class ProjectManagementController {
   // 采购文件编写·项目草稿（跨设备同步，2026-09-09）
   // 草稿从 localStorage 迁至服务器：同一账号在任何设备打开均一致；
   // 越权由类级 PmiOwnershipGuard 拦截（与项目其余 :id 端点同语义）。
+  // 2026-10-28 二轮隔离：六端点带可选 round（缺省=当前轮）——新一轮编写不回读旧轮草稿。
 
   @Get(':id/tender-draft')
-  getTenderDraft(@Param('id') id: string) {
-    return this.tenderDraftService.getDraft(id);
+  getTenderDraft(
+    @Param('id') id: string,
+    @Query('round') round?: string,
+  ) {
+    return this.tenderDraftService.getDraft(id, round ? Number(round) : undefined);
   }
 
   @Put(':id/tender-draft')
@@ -309,31 +315,42 @@ export class ProjectManagementController {
     @Param('id') id: string,
     @Body() dto: SaveTenderDraftDto,
     @CurrentUser() user: AuthenticatedUser | undefined,
+    @Query('round') round?: string,
   ) {
-    return this.tenderDraftService.saveDraft(id, dto, user);
+    return this.tenderDraftService.saveDraft(id, dto, user, round ? Number(round) : undefined);
   }
 
   @Delete(':id/tender-draft')
-  clearTenderDraft(@Param('id') id: string) {
-    return this.tenderDraftService.clearDraft(id);
+  clearTenderDraft(
+    @Param('id') id: string,
+    @Query('round') round?: string,
+  ) {
+    return this.tenderDraftService.clearDraft(id, round ? Number(round) : undefined);
   }
 
   @Get(':id/tender-draft/versions')
-  listTenderDraftVersions(@Param('id') id: string) {
-    return this.tenderDraftService.listVersions(id);
+  listTenderDraftVersions(
+    @Param('id') id: string,
+    @Query('round') round?: string,
+  ) {
+    return this.tenderDraftService.listVersions(id, round ? Number(round) : undefined);
   }
 
   @Post(':id/tender-draft/versions')
   addTenderDraftVersion(
     @Param('id') id: string,
     @Body() dto: CreateTenderDraftVersionDto,
+    @Query('round') round?: string,
   ) {
-    return this.tenderDraftService.addVersion(id, dto);
+    return this.tenderDraftService.addVersion(id, dto, round ? Number(round) : undefined);
   }
 
   @Delete(':id/tender-draft/versions')
-  clearTenderDraftVersions(@Param('id') id: string) {
-    return this.tenderDraftService.clearVersions(id);
+  clearTenderDraftVersions(
+    @Param('id') id: string,
+    @Query('round') round?: string,
+  ) {
+    return this.tenderDraftService.clearVersions(id, round ? Number(round) : undefined);
   }
 
   @Post(':id/refresh-summary')

@@ -28,6 +28,7 @@ import { exportShortlistToExcel } from '@/lib/excel-export';
 import { StepTrack } from '@/components/step-track';
 import { apiFetch } from '@/lib/api/api-fetch';
 import { SUPPLIER_STATUS_LABEL } from '@water-erp/shared';
+import { tenderDraftStorageKey } from '@/lib/tender-write/storage';
 
 const scoreVar = (s: number): string => (s >= 85 ? 'var(--success)' : s >= 70 ? 'var(--accent)' : s >= 55 ? 'var(--warning)' : 'var(--danger)');
 const scoreLabel = (s: number) => (s >= 85 ? '强匹配' : s >= 70 ? '较匹配' : s >= 55 ? '可考虑' : '弱匹配');
@@ -735,10 +736,10 @@ export function SupplierSelectionPage({
       // 来源 1：DB 已提取的 awardedSupplier
       let supplierName = project.awardedSupplier?.trim();
 
-      // 来源 2：采购文件编写草稿（localStorage）
+      // 来源 2：采购文件编写草稿（localStorage，按当前轮取键——2026-10-28 二轮隔离）
       if (!supplierName) {
         try {
-          const raw = localStorage.getItem(`tender-write:project-drafts:v1:${project.id}`);
+          const raw = localStorage.getItem(tenderDraftStorageKey(project.id, project.currentRound ?? 1));
           if (raw) {
             supplierName = (JSON.parse(raw)?.SINGLE_SOURCE as Record<string, string>)?.supplierName?.trim();
           }
