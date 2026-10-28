@@ -166,10 +166,10 @@ export default function ComplianceRulesPage() {
           <span className="text-xs text-[var(--muted-foreground)]">消费方：项目管理「阶段合规审查」（audit-compliance）</span>
         </div>
         <div className="overflow-x-auto">
-          <table className="neu-table w-full min-w-[860px]">
+          <table className="neu-table w-full min-w-[960px]">
             <thead>
-              <tr className="text-left">
-                <th>审查项</th><th>维度</th><th>审查要点（AI 判据）</th><th>法规依据</th><th>状态</th><th className="text-right">操作</th>
+              <tr>
+                <th className="text-left">审查项</th><th className="text-left">维度</th><th className="text-left">审查要点（AI 判据）</th><th className="text-left">法规依据</th><th className="text-left">状态</th><th className="text-right">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -192,12 +192,12 @@ export default function ComplianceRulesPage() {
               {!error && !loading && (data?.rows ?? []).map(r =>
                 editing?.id === r.id ? (
                   <tr key={r.id} data-selected="true">
-                    <td className="font-medium">{r.name}</td>
-                    <td>{r.dimension}</td>
-                    <td><textarea value={editing.criteria} onChange={e => setEditing({ ...editing, criteria: e.target.value })} rows={3} className="neu-input w-full min-w-[280px] text-xs" /></td>
-                    <td><textarea value={editing.regulationRef} onChange={e => setEditing({ ...editing, regulationRef: e.target.value })} rows={3} className="neu-input w-full min-w-[200px] text-xs" /></td>
-                    <td>编辑中</td>
-                    <td className="text-right">
+                    <td className="align-top text-left font-medium">{r.name}</td>
+                    <td className="align-top text-left">{r.dimension}</td>
+                    <td className="align-top"><textarea value={editing.criteria} onChange={e => setEditing({ ...editing, criteria: e.target.value })} rows={4} className="neu-input w-full min-w-[280px] text-xs leading-relaxed" /></td>
+                    <td className="align-top"><textarea value={editing.regulationRef} onChange={e => setEditing({ ...editing, regulationRef: e.target.value })} rows={4} className="neu-input w-full min-w-[200px] text-xs leading-relaxed" /></td>
+                    <td className="align-top text-left">编辑中</td>
+                    <td className="align-top text-right">
                       <div className="flex justify-end gap-1.5">
                         <button onClick={() => setEditing(null)} className="neu-btn-xs" disabled={busy}><X size={12} /></button>
                         <button onClick={() => void save()} className="neu-btn-xs is-success" disabled={busy}><Check size={12} /> 保存</button>
@@ -206,16 +206,17 @@ export default function ComplianceRulesPage() {
                   </tr>
                 ) : (
                   <tr key={r.id} className="row-clickable">
-                    <td className="font-medium">{r.name}</td>
-                    <td className="whitespace-nowrap text-[var(--muted-foreground)]">{r.dimension}</td>
-                    <td className="max-w-[340px] truncate text-xs" title={r.criteria}>{r.criteria}</td>
-                    <td className="max-w-[220px] truncate text-xs text-[var(--muted-foreground)]" title={r.regulationRef}>{r.regulationRef}</td>
-                    <td>
+                    <td className="align-top text-left font-medium">{r.name}</td>
+                    <td className="align-top text-left whitespace-nowrap text-[var(--muted-foreground)]">{r.dimension}</td>
+                    {/* 长文列全文换行（2026-10-28：原 truncate 单行截断显示不全）——max-w 控制阅读宽度，align-top 走 globals 对齐出口 */}
+                    <td className="align-top max-w-[520px] text-left text-xs leading-relaxed">{r.criteria}</td>
+                    <td className="align-top max-w-[320px] text-left text-xs leading-relaxed text-[var(--muted-foreground)]">{r.regulationRef}</td>
+                    <td className="align-top text-left">
                       <span className={`text-xs font-medium ${r.enabled ? 'text-emerald-700' : 'text-[var(--muted-foreground)]'}`}>
                         {r.enabled ? '生效' : '已停用'}
                       </span>
                     </td>
-                    <td className="text-right">
+                    <td className="align-top text-right">
                       {data?.source === 'db' && (
                         <div className="flex justify-end gap-1.5">
                           <button onClick={() => setEditing({ id: r.id, criteria: r.criteria, regulationRef: r.regulationRef })} className="neu-btn-xs" disabled={busy}>

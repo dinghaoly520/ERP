@@ -10081,12 +10081,14 @@ select.workbench-input {
 /* ── 对齐出口（2026-10-22）：显式对齐工具类的落地闸 ──
    Tailwind v4 工具类生成于 @layer utilities，按级联层序永远盖不过本文件未分层的
    th/td 默认对齐——th/td 上写了 text-left/right/center 会静默失效（联系人表头
-   错位实录）。此组未分层规则以更高优先级（0,2,1 > 基类 0,1,1）把「元素 className
-   里显式声明了对齐」翻译回真实样式；[class*=] 同时命中 md: 等变体前缀。
-   未显式声明的 th/td 维持基类默认，既有表格不受影响。 */
+   错位实录）；align-top 同理（vertical-align: middle 基类盖过，曾逼出内联
+   verticalAlign 旁路）。此组未分层规则以更高优先级（0,2,1 > 基类 0,1,1）把
+   「元素 className 里显式声明了对齐」翻译回真实样式；[class*=] 同时命中
+   md: 等变体前缀。未显式声明的 th/td 维持基类默认，既有表格不受影响。 */
 .neu-table th[class*="text-left"],   .neu-table td[class*="text-left"]   { text-align: left; }
 .neu-table th[class*="text-right"],  .neu-table td[class*="text-right"]  { text-align: right; }
 .neu-table th[class*="text-center"], .neu-table td[class*="text-center"] { text-align: center; }
+.neu-table th[class*="align-top"],   .neu-table td[class*="align-top"]   { vertical-align: top; }
 
 
 /*
