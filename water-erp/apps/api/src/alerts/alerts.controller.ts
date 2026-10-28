@@ -1,4 +1,4 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
 import { INTERNAL_ROLES } from '../auth/auth-scope';
@@ -12,8 +12,8 @@ export class AlertsController {
   constructor(private alerts: AlertsService) {}
 
   @Get('overview')
-  @ApiOperation({ summary: '仪表盘告警总览（临期资质/过载专家）' })
-  overview() { return this.alerts.overview(); }
+  @ApiOperation({ summary: '仪表盘告警总览（临期资质/过载专家；公司视野+库内四态口径，2026-10-28 收口）' })
+  overview(@Request() req: any = {}) { return this.alerts.overview(req.user); }
 
   @Get('supplier/:id')
   @ApiOperation({ summary: '某供应商告警（临期资质）' })
