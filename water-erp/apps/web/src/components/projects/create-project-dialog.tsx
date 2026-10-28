@@ -10,12 +10,10 @@ import {
   extractDemandFields,
   aiIdentifyField,
   compareFields,
-  analyzeBudgetReference,
   fetchProjectAttributions,
   polishInitiationField,
   type InitiationFields,
   type DemandFields,
-  type BudgetReferenceResult,
   type ProjectAttribution,
 } from '@/lib/api/project-management';
 import {
@@ -102,9 +100,6 @@ export function CreateProjectDialog({
   const [initiationExtracted, setInitiationExtracted] = useState(false);
 
   // Budget reference analysis
-  const [budgetReference, setBudgetReference] = useState<BudgetReferenceResult | null>(null);
-  const [analyzingBudget, setAnalyzingBudget] = useState(false);
-  const [showBudgetRationale, setShowBudgetRationale] = useState(false);
 
   // AI polish for 立项事由 / 供方要求
   const [polishing, setPolishing] = useState<{ projectReason: boolean; supplierRequirements: boolean }>({
@@ -160,19 +155,6 @@ export function CreateProjectDialog({
   }, [isOpen]);
 
   // Budget rationale floats above the form — dismiss on outside click
-  const budgetRationaleBarRef = useRef<HTMLDivElement>(null);
-  const budgetRationalePanelRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!showBudgetRationale) return;
-    const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (budgetRationalePanelRef.current?.contains(target)) return;
-      if (budgetRationaleBarRef.current?.contains(target)) return; // summary bar toggles itself
-      setShowBudgetRationale(false);
-    };
-    document.addEventListener('mousedown', handlePointerDown);
-    return () => document.removeEventListener('mousedown', handlePointerDown);
-  }, [showBudgetRationale]);
 
   if (!isOpen) {
     return null;
@@ -210,10 +192,6 @@ export function CreateProjectDialog({
     setAiLoading(null);
     setPolishing({ projectReason: false, supplierRequirements: false });
     setDemandExtracted(false);
-    setInitiationExtracted(false);
-    setBudgetReference(null);
-    setAnalyzingBudget(false);
-    setShowBudgetRationale(false);
     setProjectAttributions([]);
   };
 
@@ -239,29 +217,6 @@ export function CreateProjectDialog({
     };
   };
 
-  const handleAnalyzeBudgetReference = async () => {
-    const fields = getCurrentProjectFields();
-    const title = String(fields.procurementTitle || '').trim();
-    if (!title) return;
-
-    setAnalyzingBudget(true);
-    try {
-      const result = await analyzeBudgetReference({
-        procurementTitle: title,
-        procurementCategory: String(fields.procurementCategory || ''),
-        procurementType: String((fields as Record<string, unknown>).procurementType || ''),
-        projectReason: String(fields.projectReason || ''),
-        supplierRequirements: String(fields.supplierRequirements || ''),
-        // 行项目/预算清单：当前新建对话框尚无结构化清单，留空由服务端用“标题=单行 qty=1”兜底；
-        // 后续接入 BudgetList/抽取行项目时在此透传 lines / budgetListId 即可启用 Tier 1 单价×数量。
-      });
-      setBudgetReference(result);
-    } catch {
-      // Silently fail - budget reference is optional
-    } finally {
-      setAnalyzingBudget(false);
-    }
-  };
 
   const handleExtractDemand = async () => {
     if (!demandFile) return;
@@ -844,240 +799,6 @@ export function CreateProjectDialog({
               className="workbench-input w-full"
             />
           </div>
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-[var(--success)]">预算参考（元）</label>
-            {analyzingBudget && (
-              <div className="neu-surface flex h-[40px] items-center justify-center">
-                <span className="inline-flex items-center gap-2 text-xs text-[color:var(--muted-foreground)]">
-                  <Loader2 size={14} className="animate-spin" />
-                  分析中...
-                </span>
-              </div>
-            )}
-            {!analyzingBudget && budgetReference && budgetReference.hasReference && (
-              <div className="space-y-2">
-                {(() => {
-                  const tier = budgetReference.tier ?? (budgetReference.suggestedBudget ? 1 : 3);
-                  const hasPoint = tier <= 2 && budgetReference.suggestedBudget != null;
-                  const hasRange = budgetReference.rangeLow != null && budgetReference.rangeHigh != null;
-                  return (
-                    <>
-                      {/* Tier 1/2：单价×数量点估计 —— 可点击填入 */}
-                      {hasPoint && (
-                        <div
-                          onClick={() => setInitiationFields((prev) => ({ ...prev, budgetAmount: budgetReference.suggestedBudget! }))}
-                          className="neu-opt flex h-[53px] cursor-pointer items-center justify-between px-3 font-semibold text-[var(--success)]"
-                        >
-                          <span className="tabular-nums">{budgetReference.suggestedBudget!.toLocaleString()}</span>
-                          <span className="text-[10px] font-medium text-[color:var(--muted-foreground)]">点击填入</span>
-                        </div>
-                      )}
-                      {/* Tier 3：仅历史参考区间，规模未核实，不可作单点填入 */}
-                      {!hasPoint && hasRange && (
-                        <div className="neu-surface flex h-[53px] flex-col items-center justify-center gap-0.5 px-3 text-center">
-                          <span className="text-[10px] font-medium text-[color:var(--muted-foreground)]">{budgetReference.tierLabel ?? '历史参考区间'}</span>
-                          <span className="tabular-nums text-sm font-semibold text-[color:var(--foreground)]">
-                            {budgetReference.rangeLow!.toLocaleString()} – {budgetReference.rangeHigh!.toLocaleString()}
-                          </span>
-                        </div>
-                      )}
-                      {!hasPoint && !hasRange && (
-                        <div className="neu-surface flex h-[53px] items-center justify-center px-3">
-                          <span className="text-[10px] text-[color:var(--muted-foreground)]">{budgetReference.tierLabel ?? '数据不足'}：{budgetReference.confidenceReason}</span>
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-
-                {/* 价格依据卡 —— 摘要条常驻占位，明细悬浮展示，不挤压下方表单 */}
-                {budgetReference.hasReference && (budgetReference.tier ?? 1) <= 3 && (
-                  <div className="relative">
-                    <div ref={budgetRationaleBarRef} className="neu-surface overflow-hidden">
-                    <button
-                      type="button"
-                      onClick={() => setShowBudgetRationale((v) => !v)}
-                      className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] text-[color:var(--muted-foreground)] hover:bg-[var(--success-soft)] transition-colors"
-                    >
-                      {(() => {
-                        const tier = budgetReference.tier ?? (budgetReference.pricing ? 1 : 3);
-                        const p = budgetReference.pricing;
-                        return (
-                          <>
-                            <span className="rounded bg-[var(--success-soft)] px-1 py-px font-semibold text-[var(--success)]">T{tier}</span>
-                            <span className="font-medium">{budgetReference.tierLabel ?? (p?.anchor === 'contract' ? '合同价加权' : '预算价加权')}</span>
-                            {p ? (
-                              <>
-                                <span className="tabular-nums">{p.anchorPrice.toLocaleString()}</span>
-                                <span className="text-[var(--success)] font-semibold">× {p.adjustmentFactor.toFixed(2)}</span>
-                                {p.clamped && (<span className="text-[9px] px-1 rounded bg-[var(--warning-soft)] text-[color:var(--warning)]">已夹紧</span>)}
-                              </>
-                            ) : budgetReference.rangeLow != null ? (
-                              <span className="tabular-nums">{budgetReference.rangeLow.toLocaleString()} – {budgetReference.rangeHigh!.toLocaleString()}</span>
-                            ) : null}
-                            <span className="ml-auto tabular-nums text-[9px]">{Math.round(budgetReference.confidence * 100)}%</span>
-                            <ChevronDown size={12} className={`transition-transform ${showBudgetRationale ? 'rotate-180' : ''}`} />
-                          </>
-                        );
-                      })()}
-                    </button>
-                    </div>
-
-                    {showBudgetRationale && (
-                      <div
-                        ref={budgetRationalePanelRef}
-                        className="absolute left-0 right-0 top-full z-30 mt-1.5 max-h-80 space-y-2.5 overflow-y-auto rounded-lg bg-[var(--background)] px-2.5 py-2 text-[10px] shadow-[inset_0_1px_0_oklch(1_0_0/0.75),4px_4px_10px_oklch(0.55_0.03_258/0.16),-2px_-2px_8px_oklch(1_0_0/0.9)]"
-                      >
-                        {/* ⓪ 行项目明细（方法 C 核心：单价×数量，避免历史总价加权失真）*/}
-                        {(budgetReference.lines ?? []).filter((l) => l.unitPrice && l.lineTotal != null).length > 0 && (
-                          <div className="space-y-1">
-                            <div className="font-medium text-[color:var(--foreground)]">行项目（单价 × 数量）</div>
-                            {(budgetReference.lines ?? []).filter((l) => l.unitPrice && l.lineTotal != null).map((l, i) => (
-                              <div key={i} className="neu-surface px-2 py-1.5">
-                                <div className="flex items-center justify-between gap-1.5">
-                                  <span className="min-w-0 flex-1 truncate font-medium text-[color:var(--foreground)]">{l.catalogName ?? l.name}</span>
-                                  <span className="shrink-0 rounded-full bg-[var(--success-soft)] px-1.5 py-px text-[9px] font-semibold text-[var(--success)]">{l.match === 'exact' ? '精确' : l.match === 'contained' ? '近似' : '预算'}</span>
-                                </div>
-                                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[9px] tabular-nums text-[color:var(--muted-foreground)]">
-                                  <span>{l.unitPrice!.toLocaleString()}/{l.unit ?? '单位'}</span>
-                                  <span>× {l.qty}</span>
-                                  <span className="font-semibold text-[var(--success)]">= {l.lineTotal!.toLocaleString()}</span>
-                                  {l.lineLow != null && l.lineHigh != null && (<span className="text-[color:var(--muted-foreground)]">区间 {l.lineLow.toLocaleString()}–{l.lineHigh.toLocaleString()}</span>)}
-                                </div>
-                                {l.specWarning && (<div className="mt-0.5 text-[9px] text-[color:var(--warning)] leading-snug">{l.specWarning}</div>)}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* ① 价格调整项 */}
-                        {(budgetReference.pricing?.adjustments ?? []).length > 0 && (
-                          <div className="pt-2 space-y-1">
-                            <div className="font-medium text-[color:var(--foreground)]">价格调整</div>
-                            {(budgetReference.pricing?.adjustments ?? []).map((adj, i) => {
-                              const neutral = adj.factor === 0;
-                              const positive = adj.factor > 0;
-                              return (
-                                <div key={i} className="flex items-start gap-1.5">
-                                  <span
-                                    className={[
-                                      'shrink-0 rounded px-1 py-px font-semibold tabular-nums',
-                                      neutral
-                                        ? 'bg-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)] text-[color:var(--muted-foreground)]'
-                                        : positive
-                                          ? 'bg-[var(--warning-soft)] text-[color:var(--warning)]'
-                                          : 'bg-[var(--success-soft)] text-[var(--success)]',
-                                    ].join(' ')}
-                                  >
-                                    {neutral ? '持平' : `${positive ? '+' : ''}${(adj.factor * 100).toFixed(0)}%`}
-                                  </span>
-                                  <span className="text-[color:var(--muted-foreground)] leading-relaxed">{adj.reason}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {/* ② 参考项目（相关度进度条 + 贡献额 + AI 理由）*/}
-                        {budgetReference.references.length > 0 && (
-                          <div className="space-y-1">
-                            <div className="font-medium text-[color:var(--foreground)]">
-                              参考项目（{budgetReference.statistics?.count ?? budgetReference.references.length}）
-                            </div>
-                            <div className="space-y-1.5">
-                              {budgetReference.references.map((ref, idx) => {
-                                const isLedger = ref.source === '采购台账';
-                                const relPct = Math.round(ref.relevance * 100);
-                                const relTone =
-                                  ref.relevance >= 0.6
-                                    ? 'bg-[var(--success)]'
-                                    : ref.relevance >= 0.4
-                                      ? 'bg-[var(--warning)]'
-                                      : 'bg-[color:var(--muted-foreground)]';
-                                return (
-                                  <div key={idx} className="neu-surface px-2 py-1.5">
-                                    <div className="flex items-center gap-1.5">
-                                      <span
-                                        className={[
-                                          'inline-flex h-1.5 w-1.5 shrink-0 rounded-full',
-                                          isLedger ? 'bg-[var(--success)]' : 'bg-[var(--accent)]',
-                                        ].join(' ')}
-                                      />
-                                      <span className="min-w-0 flex-1 truncate font-medium text-[color:var(--foreground)]">{ref.title}</span>
-                                      <span
-                                        className={[
-                                          'shrink-0 rounded-full px-1.5 py-px text-[9px] font-semibold',
-                                          isLedger
-                                            ? 'bg-[var(--success-soft)] text-[var(--success)]'
-                                            : 'bg-[var(--accent-tint-strong)] text-[color:var(--accent)]',
-                                        ].join(' ')}
-                                      >
-                                        {ref.source}
-                                      </span>
-                                    </div>
-                                    {/* 相关度进度条 */}
-                                    <div className="mt-1 flex items-center gap-1.5">
-                                      <div className="relative h-1 flex-1 rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)] overflow-hidden">
-                                        <div className={`h-full ${relTone} rounded-full`} style={{ width: `${relPct}%` }} />
-                                      </div>
-                                      <span className="shrink-0 tabular-nums text-[9px] text-[color:var(--muted-foreground)]">{relPct}%</span>
-                                    </div>
-                                    {/* 价格 + 对主锚点贡献额 */}
-                                    <div className="mt-1 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[9px] text-[color:var(--muted-foreground)]">
-                                      <span>预算 {ref.amount ? ref.amount.toLocaleString() : '--'}</span>
-                                      <span>合同 {ref.contractAmount ? ref.contractAmount.toLocaleString() : '--'}</span>
-                                      <span className="font-semibold text-[var(--success)]">贡献 {ref.contribution.toLocaleString()}</span>
-                                    </div>
-                                    {/* AI 相关度理由 */}
-                                    {ref.aiReason && (
-                                      <div className="mt-1 text-[9px] text-[color:var(--muted-foreground)] italic leading-snug">
-                                        {ref.aiReason}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* ③ AI 分析报告（引用真实锚点数字）*/}
-                        {budgetReference.analysis && (
-                          <div className="pt-1.5 border-t border-[color-mix(in_oklch,var(--success)_22%,transparent)]">
-                            <div className="font-medium text-[color:var(--foreground)] mb-1">分析</div>
-                            <p className="text-[10px] leading-relaxed text-[color:var(--foreground)]">{budgetReference.analysis}</p>
-                          </div>
-                        )}
-
-                        {/* ④ 置信度 + 理由 */}
-                        <div className="flex items-center gap-2 pt-1.5 border-t border-[color-mix(in_oklch,var(--success)_22%,transparent)]">
-                          <div className="flex items-center gap-1 shrink-0">
-                            <span className="text-[9px] text-[color:var(--muted-foreground)]">置信度</span>
-                            <span className="font-semibold tabular-nums text-[10px] text-[color:var(--foreground)]">
-                              {Math.round(budgetReference.confidence * 100)}%
-                            </span>
-                          </div>
-                          {budgetReference.confidenceReason && (
-                            <span className="text-[9px] text-[color:var(--muted-foreground)] leading-snug">— {budgetReference.confidenceReason}</span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-            {!analyzingBudget && budgetReference && !budgetReference.hasReference && (
-              <div className="neu-surface flex h-[40px] items-center justify-center">
-                <span className="text-xs text-[color:var(--muted-foreground)]">{budgetReference.message}</span>
-              </div>
-            )}
-            {!analyzingBudget && !budgetReference && (
-              <div className="neu-surface flex h-[40px] items-center justify-center">
-                <span className="text-xs text-[color:var(--muted-foreground)]">点击"确认并继续"获取参考</span>
-              </div>
-            )}
-          </div>
         </div>
         <div className="col-span-3 space-y-2">
           <div className="flex items-center justify-between">
@@ -1211,7 +932,7 @@ export function CreateProjectDialog({
               <div className="flex justify-between">
                 <button
                   type="button"
-                  onClick={() => { setStep('review'); void handleAnalyzeBudgetReference(); }}
+                  onClick={() => setStep('review')}
                   className="neu-btn-soft h-[38px]"
                 >
                   跳过，手动填写
@@ -1249,10 +970,7 @@ export function CreateProjectDialog({
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setStep('review');
-                    void handleAnalyzeBudgetReference();
-                  }}
+                  onClick={() => setStep('review')}
                   className="neu-btn-primary !h-[38px]"
                 >
                   确认并继续

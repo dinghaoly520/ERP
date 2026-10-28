@@ -18,7 +18,6 @@
 const KNOWN_ROUTE_PREFIXES = [
   '/admin',
   '/expert',
-  '/mall-management',
   '/notice',
   '/supplier',
 ] as const;

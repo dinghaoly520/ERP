@@ -49,7 +49,6 @@ const SEGMENT: { key: NotificationTab; label: string; icon: any }[] = [
 const TYPE_LINKS: Record<string, string> = {
   SUPPLIER_PENDING: '/supplier/approval',
   QUALIFICATION_EXPIRING: '/supplier/qualification-alerts',
-  CATALOG_APPLICATION: '/mall-management/catalog?tab=approval',
   USER_REGISTRATION_PENDING: '/admin/accounts',
   ACCOUNT_SECURITY_FEEDBACK: '/admin/accounts',
 };
