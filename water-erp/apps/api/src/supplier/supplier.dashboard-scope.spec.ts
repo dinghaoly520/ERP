@@ -31,7 +31,7 @@ describe('SupplierService — 总览旁路端点公司隔离', () => {
       supplierFavorite: { findMany: jest.fn().mockResolvedValue([]) },
       supplierClassification: { findMany: jest.fn().mockResolvedValue([]) },
       supplierEvaluation: { findMany: jest.fn().mockResolvedValue([]) },
-      supplierQualification: { findUnique: jest.fn().mockResolvedValue(null) },
+      supplierQualification: { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
       supplierCompanyLink: { findMany: jest.fn().mockResolvedValue([]) },
       auditLog: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
       user: { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
@@ -206,6 +206,34 @@ describe('SupplierService — 总览旁路端点公司隔离', () => {
       await service.listSupplierAuditLogs({ page: 1, pageSize: 10 });
       const where = prisma.auditLog.findMany.mock.calls[0][0].where;
       expect(where.resourceId).toBeUndefined();
+    });
+  });
+
+  describe('getQualificationAlerts（资质预警统计口径）', () => {
+    it('只统计库内四态供应商——PENDING/RETURNED/REJECTED 审批流转件的资质不入库 KPI（与 getStats 总数口径一致）', async () => {
+      await service.getQualificationAlerts(ACTOR_LEADER as any);
+      const where = prisma.supplierQualification.findMany.mock.calls[0][0].where;
+      expect(where.supplier.status).toEqual({ in: ['APPROVED', 'DISABLED', 'BLACKLIST'] });
+      // 公司视野过滤仍在（叠加不互斥）
+      expect(where.supplier.companyLinks).toEqual({ some: { companyId: { in: ['co-js'] }, status: 'APPROVED' } });
+    });
+
+    it('无 actor（内部调用）：状态口径同样生效（库人口径定义，非权限闸）', async () => {
+      await service.getQualificationAlerts();
+      const where = prisma.supplierQualification.findMany.mock.calls[0][0].where;
+      expect(where.supplier.status).toEqual({ in: ['APPROVED', 'DISABLED', 'BLACKLIST'] });
+    });
+
+    it('计数派生不受影响：expired/expiring/affected 按返回项计算', async () => {
+      prisma.supplierQualification.findMany.mockResolvedValue([
+        { id: 'q1', supplierId: 's1', supplier: { id: 's1', name: '甲' }, type: '资质证书', name: 'A', validTo: new Date(Date.now() - 86400000) },
+        { id: 'q2', supplierId: 's1', supplier: { id: 's1', name: '甲' }, type: '资质证书', name: 'B', validTo: new Date(Date.now() + 30 * 86400000) },
+        { id: 'q3', supplierId: 's2', supplier: { id: 's2', name: '乙' }, type: '资质证书', name: 'C', validTo: new Date(Date.now() + 60 * 86400000) },
+      ]);
+      const res = await service.getQualificationAlerts(ACTOR_LEADER as any);
+      expect(res.expiredCount).toBe(1);
+      expect(res.expiringCount).toBe(2);
+      expect(res.affectedSupplierCount).toBe(2);
     });
   });
 
