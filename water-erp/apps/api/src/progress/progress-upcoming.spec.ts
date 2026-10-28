@@ -27,3 +27,25 @@ describe('ProgressService.getUpcoming', () => {
     expect(r.items[2].events[0].name).toBe('R项目');
   });
 });
+
+/** getProgressStats 口径（2026-10-28 收口）：totalCompleted 注入公司视野——
+ *  原为同面板唯一裸全局的计数（monthlyAdded/monthlyCompleted 等兄弟计数均带 companyFilter）。 */
+describe('ProgressService.getProgressStats — totalCompleted 公司视野', () => {
+  it('totalCompleted 查询带 companyFilter（admin 选单公司/非 admin 视角不跨公司计数）', async () => {
+    const prisma: any = {
+      projectManagementItem: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
+      bidProject: { findMany: jest.fn().mockResolvedValue([]) },
+      auditLog: { count: jest.fn().mockResolvedValue(0) },
+      user: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const svc = new ProgressService(prisma, {} as any);
+    await svc.getProgressStats(undefined, undefined, { companyId: 'co-1' });
+    // 所有 CONTRACT 阶段计数（totalCompleted 与 monthly* 兄弟）都须带公司视野——
+    // 旧实现 totalCompleted 是唯一裸全局（monthlyCompleted 先命中会掩盖，故全量断言）
+    const contractWheres = prisma.projectManagementItem.count.mock.calls
+      .map((c: any[]) => c[0]?.where)
+      .filter((w: any) => w?.currentStage === 'CONTRACT');
+    expect(contractWheres.length).toBeGreaterThan(0);
+    for (const w of contractWheres) expect(w.companyId).toBe('co-1');
+  });
+});
