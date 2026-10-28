@@ -326,6 +326,7 @@ The NestJS API (`apps/api`, :4001):
 | `Ai` | AI-assisted bid analysis, anomaly detection, risk scoring (LLM-powered + hardcoded fallback) |
 | `AiBidAnalysis` | Per-item LLM bid analysis via BullMQ queues (tender + bidder processors); jobs run in the **separate worker process** (see below), not the main API |
 | `LocalAi` | **Global** foundation: `LlmService` (DeepSeek / vLLM), `OcrService`, `EmbeddingService` (RAG), `LlmOutputValidator`, `VllmMonitorService` |
+| `Metrics` | **Global** 全量请求指标拦截器（Redis 分钟桶+按日接口计数，无排除表）+ worker 心跳读侧；供系统健康页真实总量/趋势/Top 榜（system-config health 端点聚合） |
 | `Storage` | **Global** MinIO object-storage wrapper (`StorageService`) — shared by `Upload` and `AiBidAnalysis`; distinct from the HTTP-facing `Upload` module |
 | `Announcement` | Announcements CRUD, publish/archive, bid documents (encrypted, access-controlled) |
 | `Notification` | In-app notifications + `NotificationDeliveryLog` (Track A: multi-channel delivery) |
