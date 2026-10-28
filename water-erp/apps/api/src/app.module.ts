@@ -31,6 +31,7 @@ import { CatalogModule } from './catalog/catalog.module';
 import { BudgetModule } from './budget/budget.module';
 import { AuditModule } from './audit/audit.module';
 import { OperationLogModule } from './operation-log/operation-log.module';
+import { MetricsModule } from './metrics/metrics.module';
 import { AssistantModule } from './assistant/assistant.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { AlertsModule } from './alerts/alerts.module';
@@ -102,6 +103,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     BudgetModule,
     AuditModule,
     OperationLogModule,
+    MetricsModule,
     AssistantModule,
     SchedulerModule,
     AlertsModule,
