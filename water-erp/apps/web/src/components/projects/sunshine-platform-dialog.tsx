@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { useCompanyInfo } from '@/lib/api/company-info';
 import { CloudUpload, X, FileText, Building2, ClipboardCheck, Trophy, Ban } from 'lucide-react';
 import type { AnnouncementCategory, AnnouncementDraft } from '@/lib/types/announcement';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
@@ -121,6 +122,57 @@ export type SunshinePublishConfig = {
   candidates: SunshineCandidate[];
 };
 
+/** 必传要素自检（文档「必传=是」且不由系统自动携带的字段）——弹窗内提示与发布前拦截共用
+ *  （2026-10-28 抽出）。返回缺失项中文标签清单；空数组=要素齐全，可通过平台侧校验。 */
+export function validateSunshineConfig(config: SunshinePublishConfig, category: AnnouncementCategory): string[] {
+  const missingFields: string[] = [];
+  const reqText = (label: string, v: string) => { if (!v.trim()) missingFields.push(label); };
+  const reqNum = (label: string, v: number | null) => { if (v == null) missingFields.push(label); };
+  reqText('招标计划编码', config.planCode);
+  reqText('招标计划名称', config.planName);
+  reqText('项目编码', config.projectCode);
+  reqText('项目名称', config.projectName);
+  reqText('组织编码', config.organizationCode);
+  reqText('组织名称', config.organizationName);
+  reqText('组织唯一标识', config.organizationUnique);
+  reqText('父级组织', config.parentOrganization);
+  reqText('招标经办人', config.handUserName);
+  reqText('招标组织名称', config.handOrganizationName);
+  reqText('联系人', config.contacts);
+  reqText('联系电话', config.phone);
+  reqText('邮箱', config.email);
+  reqNum('招标金额（万元）', config.tenderAmount);
+  reqNum('招标采购限额（万元）', config.standardQuota);
+  reqNum('公开采购限额（万元）', config.publicQuota);
+  reqText('采购主体id', config.procuringentity);
+  reqText('标包名称', config.packageName);
+  if (category === 'procurement_document') {
+    reqText('公告发布时间', config.publishTime);
+    reqText('公告截止时间', config.deadline);
+  } else {
+    reqText('公示发布时间', config.publishTime);
+    reqText('发布人', config.issueUserName);
+    reqText('公示期起', config.startTime);
+    reqText('公示期止', config.endTime);
+    if (category === 'winning_bid') {
+      if (config.candidates.length === 0) missingFields.push('中标候选单位');
+      // 候选单位子字段：supplierName/companyUnique/bidAmount 文档均标必传
+      config.candidates.forEach((c, i) => {
+        if (!c.supplierName.trim()) missingFields.push(`候选单位${i + 1}名称`);
+        if (!c.companyUnique.trim()) missingFields.push(`候选单位${i + 1}供应商标识`);
+        if (c.bidAmount == null) missingFields.push(`候选单位${i + 1}投标金额`);
+      });
+    }
+  }
+  return missingFields;
+}
+
+/** 限额字段（字符串存档）→ 数值（万元）；空/非法 → null（必传自检会点名） */
+function num(v?: string | null): number | null {
+  const x = parseFloat(v ?? '');
+  return Number.isFinite(x) ? x : null;
+}
+
 /** datetime-local（YYYY-MM-DDTHH:mm）→ 文档时间格式 yyyy-MM-dd HH:mm:ss */
 function toApiTime(v: string): string {
   const m = v.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
@@ -150,6 +202,15 @@ function buildDefaultConfig(
   draft: AnnouncementDraft,
   category: AnnouncementCategory,
   operatorName: string,
+  /** 阳光采购对接档案（2026-10-28）：公司信息管理维护，平台侧组织档案自动带出 */
+  sunshine?: {
+    sunshineOrganizationCode?: string | null;
+    sunshineOrganizationUnique?: string | null;
+    sunshineParentOrganization?: string | null;
+    sunshineProcuringEntity?: string | null;
+    sunshineStandardQuota?: string | null;
+    sunshinePublicQuota?: string | null;
+  } | null,
 ): SunshinePublishConfig {
   const d = draft as Record<string, string>;
   // 中标候选人：公告草稿 bidderN 行（评审报价元 → 万元）
@@ -183,13 +244,13 @@ function buildDefaultConfig(
     contacts: d.contactName || project.requesterName || '',
     phone: d.contactPhone || '',
     email: d.contactEmail || '',
-    organizationCode: '',
+    organizationCode: sunshine?.sunshineOrganizationCode?.trim() || '',
     organizationName: project.requesterDepartment || '',
-    organizationUnique: '',
-    parentOrganization: '',
-    standardQuota: null,
-    publicQuota: null,
-    procuringentity: '',
+    organizationUnique: sunshine?.sunshineOrganizationUnique?.trim() || '',
+    parentOrganization: sunshine?.sunshineParentOrganization?.trim() || '',
+    standardQuota: num(sunshine?.sunshineStandardQuota),
+    publicQuota: num(sunshine?.sunshinePublicQuota),
+    procuringentity: sunshine?.sunshineProcuringEntity?.trim() || '',
     packageName: project.title,
     // SCM0004/0006 的 publishTime 必传：中标/流标公告草稿无公示起字段，兜底当前时刻（发布时仍可改）
     publishTime: d.announcementStart || (category === 'procurement_document' ? '' : daysFromNow(0)),
@@ -273,11 +334,13 @@ export function SunshinePlatformDialog({
   initialConfig?: SunshinePublishConfig | null;
 }) {
   const [config, setConfig] = useState<SunshinePublishConfig | null>(null);
+  // 阳光采购对接档案（2026-10-28）：公司信息管理维护 → 组织档案六字段自动带出
+  const companyInfo = useCompanyInfo();
   // 打开时一次性预填（已有配置则沿用，不重复覆盖用户改过的值）
   /* eslint-disable react-hooks/set-state-in-effect -- 弹窗打开时的表单初始化，符合模态惯例 */
   useEffect(() => {
     if (isOpen) {
-      setConfig(initialConfig ?? buildDefaultConfig(project, draft, category, operatorName ?? ''));
+      setConfig(initialConfig ?? buildDefaultConfig(project, draft, category, operatorName ?? '', companyInfo));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -378,47 +441,8 @@ export function SunshinePlatformDialog({
   const set = <K extends keyof SunshinePublishConfig>(key: K, value: SunshinePublishConfig[K]) =>
     setConfig((prev) => (prev ? { ...prev, [key]: value } : prev));
 
-  /* 必传要素自检（文档「必传=是」且不由系统自动携带的字段）——当前为测试阶段不外发，
-     此清单回答「要素是否齐全」：接入真实推送前按此补全即可通过平台侧校验 */
-  const missingFields: string[] = [];
-  const reqText = (label: string, v: string) => { if (!v.trim()) missingFields.push(label); };
-  const reqNum = (label: string, v: number | null) => { if (v == null) missingFields.push(label); };
-  reqText('招标计划编码', config.planCode);
-  reqText('招标计划名称', config.planName);
-  reqText('项目编码', config.projectCode);
-  reqText('项目名称', config.projectName);
-  reqText('组织编码', config.organizationCode);
-  reqText('组织名称', config.organizationName);
-  reqText('组织唯一标识', config.organizationUnique);
-  reqText('父级组织', config.parentOrganization);
-  reqText('招标经办人', config.handUserName);
-  reqText('招标组织名称', config.handOrganizationName);
-  reqText('联系人', config.contacts);
-  reqText('联系电话', config.phone);
-  reqText('邮箱', config.email);
-  reqNum('招标金额（万元）', config.tenderAmount);
-  reqNum('招标采购限额（万元）', config.standardQuota);
-  reqNum('公开采购限额（万元）', config.publicQuota);
-  reqText('采购主体id', config.procuringentity);
-  reqText('标包名称', config.packageName);
-  if (category === 'procurement_document') {
-    reqText('公告发布时间', config.publishTime);
-    reqText('公告截止时间', config.deadline);
-  } else {
-    reqText('公示发布时间', config.publishTime);
-    reqText('发布人', config.issueUserName);
-    reqText('公示期起', config.startTime);
-    reqText('公示期止', config.endTime);
-    if (category === 'winning_bid') {
-      if (config.candidates.length === 0) missingFields.push('中标候选单位');
-      // 候选单位子字段：supplierName/companyUnique/bidAmount 文档均标必传
-      config.candidates.forEach((c, i) => {
-        if (!c.supplierName.trim()) missingFields.push(`候选单位${i + 1}名称`);
-        if (!c.companyUnique.trim()) missingFields.push(`候选单位${i + 1}供应商标识`);
-        if (c.bidAmount == null) missingFields.push(`候选单位${i + 1}投标金额`);
-      });
-    }
-  }
+  /* 必传要素自检（2026-10-28 抽出为 validateSunshineConfig）：弹窗提示与发布前拦截共用 */
+  const missingFields = validateSunshineConfig(config, category);
 
   return (
     <div className="fixed inset-0 z-[600] flex items-center justify-center">

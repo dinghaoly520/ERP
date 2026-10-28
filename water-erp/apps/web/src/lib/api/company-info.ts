@@ -34,6 +34,15 @@ export type CompanyInfo = {
   purchaserContact: string | null;
   purchaserPhone: string | null;
   purchaserEmail: string | null;
+  /** 阳光采购对接档案（2026-10-28）：平台侧组织档案——公告发布「同步至阳光采购平台」弹窗自动带出 */
+  sunshineOrganizationCode: string | null;
+  sunshineOrganizationUnique: string | null;
+  sunshineParentOrganization: string | null;
+  sunshineProcuringEntity: string | null;
+  /** 万元（SCM0001.standardQuota） */
+  sunshineStandardQuota: string | null;
+  /** 万元（SCM0001.publicQuota） */
+  sunshinePublicQuota: string | null;
     /** 多人版采购人条目（默认在前；无人维护时为空数组） */
   purchasers: CompanyPurchaserEntry[];
   /** 开标地点条目（2026-10-10 多条目版；默认在前） */

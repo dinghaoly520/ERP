@@ -7,6 +7,7 @@ import {
   Gavel,
   Loader2,
   MapPin,
+  CloudSun,
   RefreshCw,
   Save,
   ShieldAlert,
@@ -64,6 +65,12 @@ export default function CompanyInfoPage() {
         name: data.name ?? '',
         shortName: data.shortName ?? '',
         code: data.code ?? '',
+        sunshineOrganizationCode: data.sunshineOrganizationCode ?? '',
+        sunshineOrganizationUnique: data.sunshineOrganizationUnique ?? '',
+        sunshineParentOrganization: data.sunshineParentOrganization ?? '',
+        sunshineProcuringEntity: data.sunshineProcuringEntity ?? '',
+        sunshineStandardQuota: data.sunshineStandardQuota ?? '',
+        sunshinePublicQuota: data.sunshinePublicQuota ?? '',
       });
     } catch (e) {
       setError((e as Error).message);
@@ -86,6 +93,12 @@ export default function CompanyInfoPage() {
         name: form.name,
         shortName: form.shortName,
         code: form.code,
+        sunshineOrganizationCode: form.sunshineOrganizationCode ?? '',
+        sunshineOrganizationUnique: form.sunshineOrganizationUnique ?? '',
+        sunshineParentOrganization: form.sunshineParentOrganization ?? '',
+        sunshineProcuringEntity: form.sunshineProcuringEntity ?? '',
+        sunshineStandardQuota: form.sunshineStandardQuota ?? '',
+        sunshinePublicQuota: form.sunshinePublicQuota ?? '',
       });
       setInfo(saved);
       // 改码联动报告（2026-10-12 方案2）：编码变化时后端同步重写在办项目编号链
@@ -213,12 +226,52 @@ export default function CompanyInfoPage() {
               type="text"
               value={form.code ?? ''}
               onChange={(e) => set('code', e.target.value)}
-              placeholder="例如：SWHI（留空回退 SW）"
+              placeholder="例如：SWHI（留空则用 SW）"
               className="workbench-input w-full font-mono"
               title="项目编号首段（编号格式：公司编码-方式前缀-日期序号，全局唯一）；修改将同步更新本公司在办项目编号，归档/回收项目不动。大写字母/数字，≤20 字符"
             />
           </label>
         </div>
+      </div>
+
+      {/* ══════ 阳光采购对接档案（2026-10-28）：平台侧组织档案，公告发布弹窗自动带出 ══════ */}
+      <div className="neu-card p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <CloudSun size={14} className="text-[var(--accent)]" />
+          <span className="text-sm font-semibold text-[var(--foreground)]">阳光采购对接档案</span>
+        </div>
+        <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
+          天府阳光采购平台（接口文档 V2.0.5）的组织档案字段。公告发布勾选「同步至阳光采购平台」时，
+          以下档案将自动带入发布配置，无需每次手抄；字段值向阳光采购服务团队获取。身份标识（identity）
+          与访问 IP 白名单由平台方分配，不在此维护。
+        </p>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">组织编码</span>
+            <input type="text" value={form.sunshineOrganizationCode ?? ''} onChange={(e) => set('sunshineOrganizationCode', e.target.value)} placeholder="平台分配的组织编码" className="workbench-input w-full font-mono" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">组织唯一标识</span>
+            <input type="text" value={form.sunshineOrganizationUnique ?? ''} onChange={(e) => set('sunshineOrganizationUnique', e.target.value)} placeholder="平台分配的唯一标识" className="workbench-input w-full font-mono" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">父级组织</span>
+            <input type="text" value={form.sunshineParentOrganization ?? ''} onChange={(e) => set('sunshineParentOrganization', e.target.value)} placeholder="上级组织名称" className="workbench-input w-full" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">采购主体 ID</span>
+            <input type="text" value={form.sunshineProcuringEntity ?? ''} onChange={(e) => set('sunshineProcuringEntity', e.target.value)} placeholder="平台侧采购主体标识" className="workbench-input w-full font-mono" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">招标采购限额（万元）</span>
+            <input type="text" value={form.sunshineStandardQuota ?? ''} onChange={(e) => set('sunshineStandardQuota', e.target.value)} placeholder="如：400" className="workbench-input w-full font-mono" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">公开采购限额（万元）</span>
+            <input type="text" value={form.sunshinePublicQuota ?? ''} onChange={(e) => set('sunshinePublicQuota', e.target.value)} placeholder="如：200" className="workbench-input w-full font-mono" />
+          </label>
+        </div>
+        <p className="mt-3 text-[11px] text-[var(--muted-foreground)]">随上方「保存」一并生效。</p>
       </div>
 
       {/* ══════ 开标地点条目 ══════ */}

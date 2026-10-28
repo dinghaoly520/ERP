@@ -29,6 +29,7 @@ import { AnnouncementDialog } from '@/components/tender-write/announcement-dialo
 import {
   SunshinePlatformDialog,
   SUNSHINE_CATEGORY_INTERFACE,
+  validateSunshineConfig,
   type SunshinePublishConfig,
 } from '@/components/projects/sunshine-platform-dialog';
 import { confirmDialog } from '@/components/catalog/confirm-dialog';
@@ -1068,6 +1069,16 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       setSunshineModalOpen(true);
       toast.error('请先完成阳光采购平台发布配置，或取消勾选「同步发布至阳光采购平台」');
       return;
+    }
+    // 阳光采购平台（2026-10-28）：勾选且已配置 → 必传要素拦截——缺项发布必致平台侧校验失败，
+    // 提前点名（前 3 项）并拉起弹窗补全；取消勾选可跳过
+    if (sunshineOn && sunshineConfig) {
+      const missing = validateSunshineConfig(sunshineConfig, category);
+      if (missing.length > 0) {
+        setSunshineModalOpen(true);
+        toast.error(`阳光采购发布配置缺少必传项：${missing.slice(0, 3).join('、')}${missing.length > 3 ? ` 等 ${missing.length} 项` : ''}——请补全或取消勾选`);
+        return;
+      }
     }
     const title = `${getAnnouncementLabel(tenderType, category)} — ${project?.title || ''}`;
     // 公告类型：流标/中标类目落独立类型（列表可区分筛选），其余为采购公告

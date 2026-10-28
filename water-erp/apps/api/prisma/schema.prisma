@@ -30,6 +30,15 @@ model Company {
   purchaserPhone     String? // 采购人电话
   purchaserEmail     String? // 采购人邮箱
 
+  // ── 阳光采购对接档案（2026-10-28）：平台侧组织档案，公司信息管理维护——
+  //    公告发布「同步至阳光采购平台」弹窗自动带出（identity/IP 白名单由平台方分配，不在此列）──
+  sunshineOrganizationCode   String? // 组织编码（SCM0001.organizationCode）
+  sunshineOrganizationUnique String? // 组织唯一标识（SCM0001.organizationUnique）
+  sunshineParentOrganization String? // 父级组织（SCM0001.parentOrganization）
+  sunshineProcuringEntity    String? // 采购主体 ID（SCM0001.procuringentity）
+  sunshineStandardQuota      String? // 招标采购限额·万元（SCM0001.standardQuota）
+  sunshinePublicQuota        String? // 公开采购限额·万元（SCM0001.publicQuota）
+
   users               User[]
   suppliers           Supplier[]              @relation("SupplierCompany")
   supplierLinks       SupplierCompanyLink[]    @relation("CompanySupplierLinks")
