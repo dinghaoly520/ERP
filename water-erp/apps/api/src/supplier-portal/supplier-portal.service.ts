@@ -1973,10 +1973,29 @@ export class SupplierPortalService {
 
       // 富化：查找关联的招标公告内容（relatedProjectCode + type=BID_NOTICE）。
       // 公告存业务编号（ZJ-xxx）、项目内部是 BID-时间戳——两个编号都试；撞号时按 metadata.projectCode 校正。
+      // attachments（2026-10-28）：公告附件随公告正文一并提供——:3004 项目机会详情页附件下载入口，
+      // 与公告中心/信息门户同源（公开下载端点按公告可见性闸门；本项目机会侧不受公示期满影响，
+      // 与 resolveOwnAnnouncement 只硬过滤 status 的既有裁定一致）。
       const announcement = await this.resolveOwnAnnouncement(project, {
         title: true, content: true, summary: true, publishDate: true, metadata: true,
+        attachments: {
+          select: {
+            id: true, title: true, createdAt: true,
+            fileAsset: { select: { id: true, originalName: true, size: true, mimeType: true } },
+          },
+        },
       });
-      (project as any).announcement = announcement;
+      (project as any).announcement = announcement && {
+        ...announcement,
+        attachments: ((announcement as any).attachments ?? []).map((a: any) => ({
+          id: a.id,
+          title: a.title || a.fileAsset?.originalName,
+          name: a.fileAsset?.originalName,
+          size: a.fileAsset?.size ?? null,
+          mimeType: a.fileAsset?.mimeType ?? null,
+          url: `/api/announcements/attachments/${a.id}/download`,
+        })),
+      };
 
       // 无关联公告时（谈判/邀请采购以邀请书代替公告）：优先挂采购邀请书 DOCX（:3005 邀请流程
       // 导出落 MinIO 的公文，key=general/invitation/{业务编号}/{ts}.docx），详情页在线预览原文；

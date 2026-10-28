@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import dayjs from "dayjs";
 import {
   FileText, TriangleAlert, Lock, Upload, Download, Sparkles, Loader2, ArrowLeft,
-  CircleX, CircleCheck, Info, KeyRound, Copy, Check, Coins, Trophy,
+  CircleX, CircleCheck, Info, KeyRound, Copy, Check, Coins, Trophy, Paperclip,
 } from "lucide-react";
 import { bidApi } from "@/lib/api/bid";
 import { TenderClarificationCard } from "@/components/tender-clarification-card";
@@ -62,6 +62,13 @@ function fmtBudget(raw: any): string {
   if (isNaN(n)) return String(raw);
   if (n >= 10000) return `${(n / 10000).toFixed(0)} 万元`;
   return `${n} 元`;
+}
+function fmtAttSize(raw: unknown): string {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  if (n >= 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + " MB";
+  if (n >= 1024) return (n / 1024).toFixed(0) + " KB";
+  return n + " B";
 }
 function fmtMetaDate(raw: any): string {
   if (!raw) return "";
@@ -639,6 +646,35 @@ function BidDetailInner() {
                     <FileText size={20} strokeWidth={1.75} />
                     {/* 谈判采购以邀请书代替公告——空态口径区分（2026-10-19 用户裁定） */}
                     <p>{project.roundMode === "negotiation" || project.procurementMethod === "谈判采购" ? "暂无邀请书" : "暂无公告正文"}</p>
+                  </div>
+                )}
+
+                {/* 公告附件（2026-10-28 用户裁定）：项目机会侧公告附件下载入口——与公告中心/
+                    信息门户三端同源；后端 getBidProject 富化（url 由服务端拼公开下载端点，
+                    下载闸门按公告可见性；本项目机会侧不受公示期满影响的裁定同样适用附件） */}
+                {project.announcement?.attachments?.length > 0 && (
+                  <div className="cc-att">
+                    <div className="cc-att-hd">
+                      <Paperclip size={14} strokeWidth={1.85} className="cc-att-ico" />
+                      公告附件
+                      <span className="cc-att-count">{project.announcement.attachments.length} 个</span>
+                    </div>
+                    <div className="cc-att-list">
+                      {project.announcement.attachments.map((att: any) => (
+                        <button
+                          key={att.id}
+                          type="button"
+                          className="cc-att-item"
+                          onClick={() => authedFileAction(att.url, "download", att.name || att.title || "附件")}
+                          title={`下载 ${att.title || att.name || ""}`}
+                        >
+                          <FileText size={14} strokeWidth={1.75} className="cc-att-file" />
+                          <span className="cc-att-name">{att.title || att.name}</span>
+                          {fmtAttSize(att.size) && <span className="cc-att-size">{fmtAttSize(att.size)}</span>}
+                          <Download size={14} strokeWidth={1.75} className="cc-att-dl" />
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

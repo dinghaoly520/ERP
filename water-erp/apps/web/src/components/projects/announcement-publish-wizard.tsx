@@ -1456,7 +1456,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                 summaryRows.push(['引用采购文件', officialTender ? officialTender.fileName : '不引用（03 步骤未标记正式盖章版）']);
               }
               // 公告附件：芯片清单可点预览（2026-09-27 用户反馈：只显计数看不到传了什么，
-              // 再反馈要能预览）——附件为公开下载材料，门户详情页不单独展示（左栏保真无此区块）
+              // 再反馈要能预览）——附件为公开下载材料，发布后信息门户/公告中心/项目机会
+              // 详情页均有附件下载区块（2026-10-28 口径；左栏发布效果预览保真不镜像该区块）
               summaryRows.push([
                 '公告附件',
                 pendingFiles.length > 0 ? (

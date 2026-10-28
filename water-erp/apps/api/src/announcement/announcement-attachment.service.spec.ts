@@ -1,7 +1,7 @@
 import { mkdir, writeFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AnnouncementAttachmentService } from './announcement-attachment.service';
 
@@ -99,5 +99,123 @@ describe('AnnouncementAttachmentService.attachFromObject', () => {
       include: { fileAsset: { select: { id: true, originalName: true, size: true, mimeType: true } } },
     });
     expect(result).toEqual({ id: 'att-1', fileAssetId: 'fa-1' });
+  });
+});
+
+describe('AnnouncementAttachmentService.stream 可见性闸门（2026-10-28：正文不可看则附件亦不可下载）', () => {
+  let service: AnnouncementAttachmentService;
+  let prisma: any;
+  let res: any;
+
+  const makeAtt = (announcement: Record<string, unknown>) => ({
+    id: 'att-1',
+    fileAssetId: 'fa-1',
+    fileAsset: { id: 'fa-1', key: 'uploads/x.pdf', originalName: '附件.pdf', mimeType: 'application/pdf', size: 9 },
+    announcement: { id: 'ann-1', ...announcement },
+  });
+
+  const published = { status: 'PUBLISHED', publicityEnd: null, dataClass: null, metadata: {} };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    prisma = {
+      announcementAttachment: { findUnique: jest.fn() },
+      announcement: { findUnique: jest.fn() },
+      supplier: { findUnique: jest.fn() },
+      fileAsset: { create: jest.fn() },
+    };
+    service = new AnnouncementAttachmentService(prisma as PrismaService);
+    res = { setHeader: jest.fn() };
+  });
+
+  it('公开已发布公告：匿名放行并流式输出', async () => {
+    prisma.announcementAttachment.findUnique.mockResolvedValue(makeAtt(published));
+    const fakeStream = { pipe: jest.fn() };
+    (minioClient.getObject as jest.Mock).mockResolvedValue(fakeStream);
+
+    const stream = await service.stream('att-1', res);
+
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/pdf');
+    expect(stream).toBe(fakeStream);
+    expect(fakeStream.pipe).toHaveBeenCalledWith(res);
+    expect(prisma.supplier.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('公示期满（PUBLISHED 但 publicityEnd 已过）：拒绝下载', async () => {
+    prisma.announcementAttachment.findUnique.mockResolvedValue(
+      makeAtt({ ...published, publicityEnd: new Date(Date.now() - 86_400_000) }),
+    );
+
+    const err = await service.stream('att-1', res).catch((e) => e);
+
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect(err.getResponse()).toMatchObject({ code: 'PUBLICITY_ENDED' });
+    expect(minioClient.getObject).not.toHaveBeenCalled();
+  });
+
+  it('已下线（ARCHIVED）：拒绝下载', async () => {
+    prisma.announcementAttachment.findUnique.mockResolvedValue(makeAtt({ ...published, status: 'ARCHIVED' }));
+
+    const err = await service.stream('att-1', res).catch((e) => e);
+
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect(err.getResponse()).toMatchObject({ code: 'OFFLINED' });
+  });
+
+  it('未发布（DRAFT）：拒绝下载', async () => {
+    prisma.announcementAttachment.findUnique.mockResolvedValue(makeAtt({ ...published, status: 'DRAFT' }));
+
+    const err = await service.stream('att-1', res).catch((e) => e);
+
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect(err.getResponse()).toMatchObject({ code: 'NOT_PUBLISHED' });
+  });
+
+  it('保密级 dataClass：拒绝下载（与 getPublic 同口径）', async () => {
+    prisma.announcementAttachment.findUnique.mockResolvedValue(makeAtt({ ...published, dataClass: 'confidential' }));
+
+    const err = await service.stream('att-1', res).catch((e) => e);
+
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect(err.getResponse()).toMatchObject({ code: 'NOT_PUBLIC' });
+  });
+
+  it('RESTRICTED 定向公告：匿名拒绝下载', async () => {
+    prisma.announcementAttachment.findUnique.mockResolvedValue(
+      makeAtt({ ...published, metadata: { visibility: 'RESTRICTED', restrictedSupplierIds: ['sup-1'] } }),
+    );
+
+    const err = await service.stream('att-1', res).catch((e) => e);
+
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect(err.getResponse()).toMatchObject({ code: 'NOT_PUBLIC' });
+  });
+
+  it('RESTRICTED 定向公告：非白名单供应商拒绝下载', async () => {
+    prisma.announcementAttachment.findUnique.mockResolvedValue(
+      makeAtt({ ...published, metadata: { visibility: 'RESTRICTED', restrictedSupplierIds: ['sup-1'] } }),
+    );
+    prisma.supplier.findUnique.mockResolvedValue({ id: 'sup-other' });
+
+    const err = await service.stream('att-1', res, { sub: 'user-2' }).catch((e) => e);
+
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect(err.getResponse()).toMatchObject({ code: 'NOT_PUBLIC' });
+  });
+
+  it('RESTRICTED 定向公告：白名单命中供应商放行', async () => {
+    prisma.announcementAttachment.findUnique.mockResolvedValue(
+      makeAtt({ ...published, metadata: { visibility: 'RESTRICTED', restrictedSupplierIds: ['sup-1'] } }),
+    );
+    prisma.supplier.findUnique.mockResolvedValue({ id: 'sup-1' });
+    const fakeStream = { pipe: jest.fn() };
+    (minioClient.getObject as jest.Mock).mockResolvedValue(fakeStream);
+
+    const stream = await service.stream('att-1', res, { sub: 'user-1' });
+
+    expect(prisma.supplier.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: 'user-1' } }),
+    );
+    expect(stream).toBe(fakeStream);
   });
 });

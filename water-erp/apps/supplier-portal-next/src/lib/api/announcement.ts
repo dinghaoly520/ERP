@@ -11,10 +11,8 @@ export const announcementApi = {
   supplierList(params?: { type?: string; search?: string; page?: number; pageSize?: number }) {
     return api.get<any>(`/supplier-portal/announcements${qs(params)}`);
   },
-  // 招标文件（供应商视角：权限/付费/下载）
-  getBidDocument(announcementId: string) {
-    return api.get<any>(`/supplier-portal/bid-documents/${announcementId}`);
-  },
+  // 招标文件付费/下载（供应商视角）——获取元信息走 bidApi.getProjectBidDocument（项目维度）；
+  // 公告中心详情页自 2026-10-28 起不再发放采购文件（仅「项目机会」），此组仅项目机会详情页在用
   payBidDocument(announcementId: string, paymentRef?: string) {
     return api.post<any>(`/supplier-portal/bid-documents/${announcementId}/pay`, { paymentRef });
   },
