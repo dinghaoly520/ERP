@@ -2456,8 +2456,10 @@ export class BidService {
 
     let task = await this.prisma.aiBidAnalysisTask.findUnique({ where: { projectId } });
     // F15：进行中禁重跑——旧实现 task 处于 PENDING/TENDER_PROCESSING/ANALYZING 时照样
-    // 清空重跑，在途分析直接被铲（tender/bidder job 撞到已删/非 PENDING 行被认领守卫跳过），
-    // 连点两次即两次全量重跑。非终态闸门天然兼作频控（rerun 后 task 复位 PENDING，二次即被挡）。
+    // 清空重跑，在途分析直接被铲（tender/bidder job 撞到已删/非 PENDING 行被认领守卫跳过）。
+    // 频控语义（F19 后终审核定）：worker 存活时非终态闸兼作频控（job 被消费 → probe active>0 → 409）；
+    // worker 已死场景（F19 豁免域）可重复触发——后果良性：全 PENDING/0 家无可铲数据、确定性 jobId
+    // + remove-first 使重复入队收敛为单 job、认领守卫防双写行，仅监督时间线逐次追加一条，可接受。
     // 只判 findUnique 命中分支——N8 补建路径自建的 task 即为 PENDING，不能挡自己；
     // 极窄的补建竞态窗（对手在途而我方早读 null）由认领守卫兜底。
     if (task && ['PENDING', 'TENDER_PROCESSING', 'ANALYZING'].includes(task.status)) {

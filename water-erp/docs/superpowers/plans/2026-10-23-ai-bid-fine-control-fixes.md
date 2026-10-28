@@ -31,7 +31,7 @@
 
 ## Review Focus
 
-1. **rerun 豁免被当作频控旁路连点**——全部 PENDING + 队列空转时连点两次 rerun：第二次因 task 复位 PENDING 且 tender job 已入队、probe 探得 waiting>0/active>0 而仍被 F15 挡；即使竞态穿透，F7 remove-first + 认领守卫兜底。→ Task 2 测试 4 锁「worker 忙时仍 409」。
+1. **rerun 豁免被当作频控旁路连点**——worker 存活时非终态闸兼作频控（job 被消费 → probe active>0 → 409，Task 2 测试 4 锁定）；worker 已死时（F19 豁免域）**可重复放行**——2026-10-28 终审评审核实为良性：全 PENDING/0 家无可铲数据、确定性 jobId + remove-first 单 job 收敛、认领守卫防双写，仅监督时间线逐次追加一条。语义钉子测试「F19 频控语义钉子」锁定。
 2. **chips 选择态被 3s 轮询冲掉**——retryable 集合签名变化时须重置选择，否则选中 id 指向已失效行（后端 `ids` 过滤后可能空 → 400 `NO_RETRYABLE_BIDDERS`）。→ Task 3 以 ids-join 签名 useEffect 重置。
 3. **0 家停摆文案在非评标阶段误报**——公告发布即建 task（A-87），SUBMIT 前的 ANALYZING+0 家是合法等待态，不得显示停摆警告。→ Task 3 文案与按钮均以 `stage==='EVALUATING'` 门控（与既有 `actionsEnabled` 同口径）。
 4. **probeWorkerIdle 异常时的语义**——队列探测 throw 时返回 false（保守 → 仍 409），不得把「探测失败」当「无人消费」放行。→ Task 2 沿用 probe 现有 catch-false，测试 5 显式锁。

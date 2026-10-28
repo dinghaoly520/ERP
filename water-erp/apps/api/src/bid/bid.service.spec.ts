@@ -3894,6 +3894,15 @@ describe('BidService — rerunAiAnalysis F15/F19 停摆豁免', () => {
     });
     expect(prisma.aiBidderResult.deleteMany).not.toHaveBeenCalled();
   });
+
+  it('F19 频控语义钉子（终审 I1）：worker 已死时（task PENDING、tender job waiting 无人消费）rerun 仍放行——非终态闸在豁免域不构成频控，良性=无可铲数据+确定性 jobId 单 job 收敛', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue({ id: 't1', projectId: 'p1', status: 'PENDING', requirements: null, completedAt: null });
+    (tenderQueue as any).getJobCounts = jest.fn().mockResolvedValue({ active: 0, waiting: 1, delayed: 0 });
+    (tenderQueue as any).getJob = jest.fn();
+    await expect(service.rerunAiAnalysis('p1', 'u1')).resolves.toEqual({ taskId: 't1' });
+    expect(prisma.aiBidderResult.deleteMany).toHaveBeenCalledWith({ where: { taskId: 't1' } });
+    expect(tenderQueue.add).toHaveBeenCalled();
+  });
 });
 
 
