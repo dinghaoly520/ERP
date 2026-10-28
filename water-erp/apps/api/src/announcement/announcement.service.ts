@@ -7,6 +7,7 @@ import { NotificationService } from '../notification/notification.service';
 import { Inject, forwardRef } from '@nestjs/common';
 import { CreateAnnouncementDto, UpdateAnnouncementDto } from './dto/create-announcement.dto';
 import { AnnouncementAiService } from './announcement-ai.service';
+import { SunshinePushService } from './sunshine-push.service';
 import { BidService } from '../bid/bid.service';
 import { ProjectManagementService } from '../project-management/project-management.service';
 import { BidDocumentService } from './bid-document.service';
@@ -32,6 +33,8 @@ export class AnnouncementService {
     private readonly notifications?: NotificationService,
     /** 发布赋码闸自愈用（@Optional：无注入时缺码仍硬拦，兼容测试直构） */
     @Optional() private readonly gbCode?: GbCodeService,
+    /** 阳光采购平台推送（2026-10-28 测试联调）——置末位不动既有位置构造（测试直构按位传参） */
+    @Optional() private readonly sunshinePush?: SunshinePushService,
   ) {}
 
   /** 公告类型→中文名称（AI 摘要 prompt 期望中文类型名；两段式公示语义收口 shared） */
@@ -202,6 +205,8 @@ export class AnnouncementService {
       void this.notifySuppliersOnPublish(result.id, result.title, { ...meta, __type: result.type }).catch(e =>
         this.logger.warn(`公告发布通知发送失败 (create): ${(e as Error).message}`),
       );
+      // 阳光采购平台推送（2026-10-28 测试联调）：metadata.sunshinePublish 快照外发，结果留痕同字段
+      void this.sunshinePush?.onPublish({ id: result.id, content: result.content, metadata: result.metadata });
     }
     // C5（7.2.6）：补遗公告发布 → 补遗计数 + 已获取文件供应商定向通知（不阻塞发布）
     if (dto.type === 'ADDENDUM' && status === 'PUBLISHED') {

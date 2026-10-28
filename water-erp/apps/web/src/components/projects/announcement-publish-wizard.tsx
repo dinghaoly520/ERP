@@ -1121,6 +1121,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         meta.sunshinePublish = {
           enabled: true,
           interfaceCode: SUNSHINE_CATEGORY_INTERFACE[category].code,
+          projectId: project?.id, // unique/planUnique 溯源键（后端推送与报文预览同源）
           config: sunshineConfig,
           issueType: visibility === 'PUBLIC' ? 1 : 2,
           isExternal: visibility === 'PUBLIC' ? 1 : 0,

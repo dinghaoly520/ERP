@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { SunshinePushService } from './sunshine-push.service';
 import { AnnouncementService } from './announcement.service';
 import { AnnouncementAiService } from './announcement-ai.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -34,6 +35,7 @@ describe('AnnouncementService — P0-4 删除闸门（进行中项目禁删公�
         AnnouncementService,
         { provide: PrismaService, useValue: prisma },
         { provide: AnnouncementAiService, useValue: {} },
+        { provide: SunshinePushService, useValue: { onPublish: jest.fn() } },
       ],
     }).compile();
     service = module.get(AnnouncementService);
@@ -146,6 +148,7 @@ describe('AnnouncementService — getParticipants 报价解密门控', () => {
         AnnouncementService,
         { provide: PrismaService, useValue: prisma },
         { provide: AnnouncementAiService, useValue: {} },
+        { provide: SunshinePushService, useValue: { onPublish: jest.fn() } },
       ],
     }).compile();
     service = module.get(AnnouncementService);
@@ -578,6 +581,7 @@ describe('AnnouncementService — 回收站体系（隐藏/下架/恢复，2026-
         AnnouncementService,
         { provide: PrismaService, useValue: prisma },
         { provide: AnnouncementAiService, useValue: {} },
+        { provide: SunshinePushService, useValue: { onPublish: jest.fn() } },
       ],
     }).compile();
     service = module.get(AnnouncementService);
@@ -818,6 +822,7 @@ describe('AnnouncementService — supplierList 供应商视角（公开 ∪ 定�
         AnnouncementService,
         { provide: PrismaService, useValue: prisma },
         { provide: AnnouncementAiService, useValue: {} },
+        { provide: SunshinePushService, useValue: { onPublish: jest.fn() } },
       ],
     }).compile();
     service = module.get(AnnouncementService);
@@ -939,6 +944,7 @@ describe('AnnouncementService — search 字段覆盖 relatedProjectCode（2026-
         AnnouncementService,
         { provide: PrismaService, useValue: prisma },
         { provide: AnnouncementAiService, useValue: {} },
+        { provide: SunshinePushService, useValue: { onPublish: jest.fn() } },
       ],
     }).compile();
     service = module.get(AnnouncementService);
