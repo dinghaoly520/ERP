@@ -27,6 +27,7 @@
   - 错误时间：`HSET sys:metrics:routes:last:<yyyyMMdd> <route> <ISO>`（仅错误时写，供 Top 错误表显示「最近发生」）
 - `sys:metrics:24h` 两个 hash 均 TTL 48h 随写滚动刷新；查询侧忽略 >24h 的分钟字段
 - 代价：每请求 2~3 条 Redis 命令（本机 ioredis 无感），比 OperationLog 落库轻一个量级
+- **口径边界（2026-10-28 实测补注）**：Nest 生命周期守卫先于拦截器——未登录/无权限的 401/403 守卫拒绝不经本层（总量与错误均不含，利于信号纯度）；过守卫后的业务 4xx/5xx 全计
 
 ### 2. worker 心跳
 

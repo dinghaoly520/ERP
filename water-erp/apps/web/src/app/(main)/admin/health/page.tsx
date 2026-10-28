@@ -244,7 +244,7 @@ export default function HealthPage() {
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm font-semibold tracking-wide">近 24 小时请求与错误趋势</span>
               {data && (
-                <span className="text-xs text-[var(--muted-foreground)]">
+                <span className="text-xs text-[var(--muted-foreground)]" title="登录会话的业务请求全量（含高频轮询）；未登录/无权限的拒绝不在此列">
                   共 {data.api24h.total.toLocaleString()} 次 · 错误 {data.api24h.errors} 次（{data.api24h.errorRate}%） · P95 耗时 {data.api24h.p95ms} ms（95% 的请求耗时低于此值）
                 </span>
               )}
