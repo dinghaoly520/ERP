@@ -38,14 +38,8 @@ const LEGACY_ROUTE_CASES = [
   { path: "/announcements", workspaceTitle: "公告中心" },
   { path: "/objections", workspaceTitle: "异议投诉" },
 ] as const;
-
-/** 供货管理工作区已侧栏隐藏（2026-09-17，页面/路由保留）——菜单解析应为 null */
-const HIDDEN_SUPPLY_ROUTES = ["/catalog", "/catalog-applications", "/supply"] as const;
-
 const REGULAR_ONLY_ROUTES = [
-  "/catalog",
-  "/catalog-applications",
-  "/supply",
+
   "/profile",
   "/change-records",
   "/profile/company-links",
@@ -88,7 +82,7 @@ test("regular suppliers see the ten task-oriented workspaces in order", () => {
   );
 });
 
-test("temporary suppliers keep ukey access while omitting supply and company workspaces", () => {
+test("temporary suppliers keep ukey access while omitting company workspaces", () => {
   assert.deepEqual(
     workspaces(buildMenuItems(true)).map((item) => item.title),
     ["工作台", "项目机会", "我的投标", "成交履约", "证书与U盾", "消息中心", "公告中心", "异议投诉"],
@@ -215,8 +209,3 @@ for (const path of REGULAR_ONLY_ROUTES) {
   });
 }
 
-for (const path of HIDDEN_SUPPLY_ROUTES) {
-  test(`hidden supply workspace does not surface ${path} in menus`, () => {
-    assert.equal(findWorkspaceForPath(path, buildMenuItems(false)), null);
-  });
-}
