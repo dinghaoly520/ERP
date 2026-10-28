@@ -115,7 +115,7 @@ export class BadgeService {
         return this.prisma.auditLog.count({
           where: {
             userId,
-            action: { in: ['SUPPLIER_APPROVED', 'SUPPLIER_APPROVE', 'CATALOG_APPROVE'] },
+            action: { in: ['SUPPLIER_APPROVED', 'SUPPLIER_APPROVE'] },
           },
         });
 

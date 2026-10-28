@@ -54,7 +54,6 @@ export type AuditAction =
   // ── 其他 ──
   | 'CATALOG_IMPORT'
   | 'CATALOG_EXPORT'
-  | 'CATALOG_APPROVE'
   | 'CATALOG_REJECT';
 
 export type CreateAuditLogInput = {

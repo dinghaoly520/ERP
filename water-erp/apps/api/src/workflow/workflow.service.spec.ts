@@ -1,6 +1,6 @@
 import { WorkflowService, type WorkflowItem } from './workflow.service';
 
-/** C1 流程中心：五源审批只读聚合（注册/密码×2/资料变更/供应商变更/目录申请） */
+/** C1 流程中心：五源审批只读聚合（注册/密码×2/资料变更/供应商变更） */
 describe('WorkflowService（C1 统一流程中心）', () => {
   const mk = (prisma: any) => new WorkflowService(prisma);
 
@@ -23,7 +23,7 @@ describe('WorkflowService（C1 统一流程中心）', () => {
     expect(items.every(i => i.deepLink && i.category && i.status === 'PENDING')).toBe(true);
   });
 
-  it('staff 不见 admin 专属源（注册/密码/资料变更），仍见供应商变更与目录申请', async () => {
+  it('staff 不见 admin 专属源（注册/密码/资料变更），仍见供应商变更', async () => {
     const prisma = {
       supplier: { findMany: jest.fn() },
       user: { findMany: jest.fn() },
