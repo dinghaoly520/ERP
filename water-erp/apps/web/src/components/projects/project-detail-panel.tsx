@@ -159,14 +159,15 @@ function ExpertInfoField({
 
       {isEditing ? (
         <div className="space-y-2">
+          {/* 纵向堆叠卡片（2026-10-28 修复：六列网格塞窄侧栏 → 输入框溢出不可编辑）；专业占整行（最长），删除钮悬浮右上 */}
           {editExperts.map((expert, i) => (
-            <div key={i} className="grid grid-cols-[1fr_1fr_1fr_1fr_80px_auto] gap-1.5 items-center">
+            <div key={i} className="relative grid grid-cols-2 gap-1.5 rounded-lg p-2 pr-9" style={{ background: 'oklch(1 0 0 / 0.45)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
               <input type="text" value={expert.name} onChange={(e) => updateExpertField(i, 'name', e.target.value)} className="workbench-input !h-[32px] !text-xs" placeholder="姓名" />
               <input type="text" value={expert.department} onChange={(e) => updateExpertField(i, 'department', e.target.value)} className="workbench-input !h-[32px] !text-xs" placeholder="部门" />
-              <input type="text" value={expert.specialty} onChange={(e) => updateExpertField(i, 'specialty', e.target.value)} className="workbench-input !h-[32px] !text-xs" placeholder="专业" />
+              <input type="text" value={expert.specialty} onChange={(e) => updateExpertField(i, 'specialty', e.target.value)} className="workbench-input !h-[32px] !text-xs col-span-2" placeholder="专业" />
               <input type="text" value={expert.title} onChange={(e) => updateExpertField(i, 'title', e.target.value)} className="workbench-input !h-[32px] !text-xs" placeholder="职称" />
               <input type="text" value={(expert as any).role || ''} onChange={(e) => updateExpertField(i, 'role', e.target.value)} className="workbench-input !h-[32px] !text-xs" placeholder="角色" />
-              <button type="button" onClick={() => removeExpertRow(i)} className="neu-btn-xs !px-2"><X size={13} /></button>
+              <button type="button" onClick={() => removeExpertRow(i)} className="neu-btn-xs !absolute !right-1.5 !top-1.5 !h-6 !w-6 !p-0 justify-center" aria-label="删除该专家"><X size={12} /></button>
             </div>
           ))}
           <div className="flex items-center gap-2">
