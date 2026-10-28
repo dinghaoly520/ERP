@@ -33,6 +33,7 @@ import { LlmFreeReviewerService } from './services/llm-free-reviewer.service';
 import { ReportGeneratorService } from './services/report-generator.service';
 import { ExecuteReviewDto, ExtractRulesDto, ProjectStatusDto } from './dto/review.dto';
 import { computeDraftFingerprint } from './services/draft-fingerprint.util';
+import { ReviewReportPdfService } from './services/review-report-pdf.service';
 import { toStructuredSuggestion } from './services/text-operations';
 import {
   addDocxCommentBuffer,
@@ -187,6 +188,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     private generalReviewer: GeneralReviewerService,
     private llmFreeReviewer: LlmFreeReviewerService,
     private reportGenerator: ReportGeneratorService,
+    private reviewReportPdf: ReviewReportPdfService,
   ) {}
 
   // 知识库属主校验（rules / execute 复用）
@@ -913,6 +915,39 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       this.logger.error(`Download failed for task ${id}:`, err);
       throw err;
     }
+  }
+
+  @Get('review/tasks/:id/report.pdf')
+  @Roles('leader', 'admin', 'staff')
+  @ApiOperation({ summary: '下载审查报告 PDF（含处置留痕）' })
+  async downloadReportPdf(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser | undefined,
+    @Res() res: Response,
+  ) {
+    const task = await this.prisma.reviewTask.findUnique({ where: { id } });
+    if (!task) throw new NotFoundException('任务不存在或已被删除');
+    if (task.userId && task.userId !== user?.sub && user?.role !== 'admin') {
+      throw new ForbiddenException('无权下载该审查报告');
+    }
+    if (task.status !== 'completed') {
+      throw new BadRequestException('任务未完成，暂无报告');
+    }
+    const [kb, project] = await Promise.all([
+      task.knowledgeBaseId
+        ? this.prisma.knowledgeBase.findUnique({ where: { id: task.knowledgeBaseId }, select: { name: true } })
+        : Promise.resolve(null),
+      task.projectId
+        ? this.prisma.projectManagementItem.findUnique({ where: { id: task.projectId }, select: { title: true } })
+        : Promise.resolve(null),
+    ]);
+    const { buffer, fileName } = await this.reviewReportPdf.generate(task, {
+      kbName: kb?.name ?? null,
+      projectTitle: project?.title ?? null,
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`);
+    res.send(buffer);
   }
 
   // Internal Extraction Logic

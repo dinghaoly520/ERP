@@ -2,10 +2,10 @@ import { NotFoundException } from '@nestjs/common';
 import { TenderReviewController } from './tender-review.controller';
 import { computeDraftFingerprint } from './services/draft-fingerprint.util';
 
-function buildController(prisma: any) {
+function buildController(prisma: any, pdfSvc: any = {} as any) {
   const controller = new TenderReviewController(
     prisma, {} as any, {} as any, {} as any, {} as any, {} as any,
-    {} as any, {} as any, {} as any, {} as any,
+    {} as any, {} as any, {} as any, {} as any, pdfSvc,
   );
   jest.spyOn(controller as any, 'runReview').mockResolvedValue(undefined);
   return controller;
@@ -111,5 +111,29 @@ describe('TenderReviewController.projectStatus（四态）', () => {
     const prisma2: any = { reviewTask: { findFirst: jest.fn().mockResolvedValue(failed) } };
     const controller2 = buildController(prisma2);
     expect((await controller2.projectStatus({ projectId: 'p-1', documentType: 'OPEN', answers: ANSWERS } as any)).state).toBe('stale');
+  });
+});
+
+describe('TenderReviewController.downloadReportPdf', () => {
+  it('未完成任务 → 400；非属主 → 403；成功 → PDF 响应头', async () => {
+    const { BadRequestException, ForbiddenException } = await import('@nestjs/common');
+    const task: any = { id: 't-1', userId: 'u1', status: 'running', knowledgeBaseId: null, projectId: null };
+    const prisma: any = {
+      reviewTask: { findUnique: jest.fn().mockResolvedValue(task) },
+    };
+    const pdfSvc = { generate: jest.fn().mockResolvedValue({ buffer: Buffer.from('pdf'), fileName: 'a.pdf' }) };
+    const controller = buildController(prisma, pdfSvc);
+    const res = { setHeader: jest.fn(), send: jest.fn() } as any;
+
+    await expect(controller.downloadReportPdf('t-1', USER, res)).rejects.toBeInstanceOf(BadRequestException);
+
+    task.status = 'completed';
+    task.userId = 'someone-else';
+    await expect(controller.downloadReportPdf('t-1', USER, res)).rejects.toBeInstanceOf(ForbiddenException);
+
+    task.userId = 'u1';
+    await controller.downloadReportPdf('t-1', USER, res);
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/pdf');
+    expect(res.send).toHaveBeenCalledWith(Buffer.from('pdf'));
   });
 });

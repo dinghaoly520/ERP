@@ -11,6 +11,7 @@ import { SemanticReviewerService } from './services/semantic-reviewer.service';
 import { GeneralReviewerService } from './services/general-reviewer.service';
 import { LlmFreeReviewerService } from './services/llm-free-reviewer.service';
 import { ReportGeneratorService } from './services/report-generator.service';
+import { ReviewReportPdfService } from './services/review-report-pdf.service';
 
 @Module({
   imports: [KnowledgeModule, LocalAiModule, AuthModule],
@@ -24,6 +25,7 @@ import { ReportGeneratorService } from './services/report-generator.service';
     GeneralReviewerService,
     LlmFreeReviewerService,
     ReportGeneratorService,
+    ReviewReportPdfService,
   ],
 })
 export class TenderReviewModule {}
