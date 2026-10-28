@@ -260,7 +260,12 @@ export class AnnouncementService {
       const types = params.type.split(',').map((t: string) => t.trim()).filter(Boolean);
       where.type = types.length > 1 ? { in: types } : params.type;
     }
-    if (params.status) {
+    if (params.status === 'OFFLINED') {
+      // 衍生态筛选（2026-10-28）：「已下线」=公示期满的 PUBLISHED（与 displayStatus 徽标同集）——
+      // 此前下拉「已下线」映射 ARCHIVED（其徽标实为「已公示」，09-26 已移除下线→ARCHIVED 动作）
+      where.status = 'PUBLISHED';
+      where.publicityEnd = { lte: new Date() };
+    } else if (params.status) {
       // 2026-09-26 回收站体系：status 支持逗号分隔（回收站传 HIDDEN,OFFLINE），与 type 逗号语义一致
       const statuses = params.status.split(',').map((s: string) => s.trim()).filter(Boolean);
       where.status = statuses.length > 1 ? { in: statuses } : params.status;
@@ -319,7 +324,11 @@ export class AnnouncementService {
       const types = params.type.split(',').map((t: string) => t.trim()).filter(Boolean);
       where.type = types.length > 1 ? { in: types } : params.type;
     }
-    if (params.status) {
+    if (params.status === 'OFFLINED') {
+      // 衍生态同 list()（2026-10-28）：OFFLINED 筛选下分组计数与列表同集，否则分组归零
+      where.status = 'PUBLISHED';
+      where.publicityEnd = { lte: new Date() };
+    } else if (params.status) {
       const statuses = params.status.split(',').map((s: string) => s.trim()).filter(Boolean);
       where.status = statuses.length > 1 ? { in: statuses } : params.status;
     } else {
@@ -1406,9 +1415,17 @@ export class AnnouncementService {
     const monthStart = new Date(
       Date.UTC(nowBeijing.getUTCFullYear(), nowBeijing.getUTCMonth(), 1) - 8 * 3600_000,
     );
-    const [total, published, bidNotice, winNotice, policy, drafts, publishedThisMonth, viewsAgg] = await Promise.all([
+    // 已发布 KPI 口径（2026-10-28 收口）：副标签「已生效可见」+ 展示层 displayStatus v2
+    // （2026-09-26）——公示期满（publicityEnd 已过）的 PUBLISHED 行展示为「已下线」，不入
+    // 「已发布」计数（原全量 PUBLISHED 使 KPI 与同屏徽标矛盾）；无公示期字段的类型
+    // （政策/平台等）永不下线，保持计入。公示期满单列 publicityEnded。
+    const now = new Date();
+    const [total, published, publicityEnded, bidNotice, winNotice, policy, drafts, publishedThisMonth, viewsAgg] = await Promise.all([
       this.prisma.announcement.count({ where }),
-      this.prisma.announcement.count({ where: { ...where, status: 'PUBLISHED' } }),
+      this.prisma.announcement.count({
+        where: { ...where, status: 'PUBLISHED', OR: [{ publicityEnd: null }, { publicityEnd: { gt: now } }] },
+      }),
+      this.prisma.announcement.count({ where: { ...where, status: 'PUBLISHED', publicityEnd: { lte: now } } }),
       this.prisma.announcement.count({ where: { ...where, type: 'BID_NOTICE', status: 'PUBLISHED' } }),
       this.prisma.announcement.count({ where: { ...where, type: 'WIN_NOTICE', status: 'PUBLISHED' } }),
       this.prisma.announcement.count({ where: { ...where, type: 'POLICY', status: 'PUBLISHED' } }),
@@ -1417,7 +1434,7 @@ export class AnnouncementService {
       this.prisma.announcement.aggregate({ where: { ...where, status: 'PUBLISHED' }, _sum: { viewCount: true } }),
     ]);
     return {
-      total, published, bidNotice, winNotice, policy,
+      total, published, publicityEnded, bidNotice, winNotice, policy,
       drafts, publishedThisMonth,
       totalViews: viewsAgg._sum.viewCount ?? 0,
     };

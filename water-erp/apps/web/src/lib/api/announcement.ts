@@ -113,7 +113,7 @@ export function getAnnouncement(id: string) {
 export function getAnnouncementStats(companyId?: string) {
   const qs = companyId && companyId !== 'all' ? `?companyId=${encodeURIComponent(companyId)}` : '';
   return api.get<{
-    total: number; published: number; bidNotice: number; winNotice: number; policy: number;
+    total: number; published: number; publicityEnded: number; bidNotice: number; winNotice: number; policy: number;
     drafts: number; publishedThisMonth: number; totalViews: number;
   }>(`/announcements/stats${qs}`);
 }

@@ -87,12 +87,13 @@ export default function NoticePage() {
   const router = useRouter();
   const { confirm, dialog } = useConfirm();
   const [data, setData] = useState<{ total: number; items: AnnouncementListItem[] }>({ total: 0, items: [] });
-  const [stats, setStats] = useState<{ drafts: number; published: number; publishedThisMonth: number; totalViews: number }>({ drafts: 0, published: 0, publishedThisMonth: 0, totalViews: 0 });
+  const [stats, setStats] = useState<{ drafts: number; published: number; publicityEnded: number; publishedThisMonth: number; totalViews: number }>({ drafts: 0, published: 0, publicityEnded: 0, publishedThisMonth: 0, totalViews: 0 });
   const [loading, setLoading] = useState(true);
   const loadReqIdRef = useRef(0);
   // 默认「全部」（2026-10-16 用户裁定）：手工公告类型分散（政策/平台/补遗/预审），默认采购公告首屏易空
   const [filterType, setFilterType] = useState<string>('ALL');
-  const [filterStatus, setFilterStatus] = useState<AnnouncementStatus | ''>('');
+  // OFFLINED=衍生态（公示期满的 PUBLISHED，与「已下线」徽标同集，后端 2026-10-28 支持）
+  const [filterStatus, setFilterStatus] = useState<AnnouncementStatus | 'OFFLINED' | ''>('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [partAnn, setPartAnn] = useState<AnnouncementListItem | null>(null);
@@ -375,7 +376,7 @@ export default function NoticePage() {
                 {/* hairline 分割线 + KPI 行 — 合并为单一容器，间距与项目管理统一 */}
         <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 items-stretch">
-          <HeroStat label="已发布" value={published} sub="已生效可见" />
+          <HeroStat label="已发布" value={published} sub={stats.publicityEnded > 0 ? `已生效可见 · 另已下线 ${stats.publicityEnded}` : '已生效可见'} />
           {/* 点击开窗速览草稿（不动列表筛选）——行点击跳详情页继续编辑/发布 */}
           <HeroStat label="待处理草稿" value={drafts} signal={drafts > 0 ? "warning" : undefined} sub={drafts > 0 ? "尽快发布 · 点击查看" : "全部已发布"}
             onClick={() => void openDrafts()} />
@@ -424,12 +425,13 @@ export default function NoticePage() {
         </div>
         <select
           value={filterStatus}
-          onChange={e => { setFilterStatus(e.target.value as AnnouncementStatus | ''); setPage(1); }}
+          onChange={e => { setFilterStatus(e.target.value as AnnouncementStatus | 'OFFLINED' | ''); setPage(1); }}
           className="workbench-input !w-auto min-w-[110px] shrink-0"
         >
           <option value="">全部状态</option>
           <option value="PUBLISHED">已发布</option>
-          <option value="ARCHIVED">已下线</option>
+          <option value="OFFLINED">已下线</option>
+          <option value="ARCHIVED">已公示</option>
         </select>
       </div>
 
