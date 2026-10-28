@@ -39,7 +39,7 @@ export default function FaceDemoPage() {
           <span className="text-sm font-bold text-[var(--foreground)]">签到留档照·遮挡检测验证</span>
         </div>
         <p className="mb-5 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
-          演示页：与 :3006 真实签到同一组件与判定逻辑，不登录、不上传、不写库。
+          演示页：与专家门户真实签到同一组件与判定逻辑，不登录、不上传、不写库。
           正对摄像头保持约 1 秒，角标变「面部完整，可拍照」即通过。
         </p>
 
