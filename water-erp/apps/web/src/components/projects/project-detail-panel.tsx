@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Archive, Award, Ban, Building2, Check, ChevronDown, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileCheck2, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Search, Shield, Sparkles, UploadCloud, UserPlus, X } from 'lucide-react';
+import { AlertTriangle, Archive, Award, Ban, Building2, Check, ChevronDown, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileCheck2, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, Plus, Recycle, RefreshCw, Save, ScrollText, Search, Shield, Sparkles, UploadCloud, UserPlus, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
@@ -66,6 +66,7 @@ function ExpertInfoField({
   onEditValueChange,
   onStartEdit,
   onSave,
+  onCancel,
   readOnly = false,
 }: {
   value: string | null | undefined;
@@ -74,8 +75,15 @@ function ExpertInfoField({
   onEditValueChange: (value: string) => void;
   onStartEdit: () => void;
   onSave: () => void;
+  onCancel?: () => void;
   readOnly?: boolean;
 }) {
+  // 弹窗编辑（2026-10-28 用户口径：侧栏内联编辑既挤又乱，改独立弹窗；信息栏恒显只读表）
+  const [snapshot, setSnapshot] = useState<string | null>(null);
+  useEffect(() => {
+    if (isEditing) setSnapshot(editValue); // 开窗快照：取消时回滚未保存的草稿
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing]);
   const hasValue = value !== null && value !== undefined && value !== '';
 
   // Parse experts from a pipe-delimited string: "姓名|部门|专业|职称|角色" per line.
@@ -157,8 +165,27 @@ function ExpertInfoField({
         )}
       </div>
 
-      {isEditing ? (
-        <div className="space-y-2">
+      {/* 弹窗编辑（2026-10-28）：信息栏恒显只读表；编辑在独立弹窗内进行（窄侧栏内联编辑实录弃用） */}
+      {isEditing && (
+        <div className="fixed inset-0 z-[600] flex items-center justify-center">
+          <div className="absolute inset-0" style={{ background: 'oklch(0.1 0.02 258 / 0.42)', backdropFilter: 'blur(4px)' }} onClick={() => { if (snapshot !== null) onEditValueChange(snapshot); onCancel?.(); }} />
+          <div className="relative z-10 flex max-h-[82vh] w-full max-w-[560px] flex-col overflow-hidden rounded-[24px]"
+            style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 4px 5px 18px oklch(0.45 0.07 258 / 0.2), -2px -2px 8px oklch(1 0 0 / 0.9)' }}>
+            {/* 弹窗头 */}
+            <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-4" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px]" style={{ background: 'color-mix(in oklch, var(--stage-expert-soft, var(--accent-soft)) 45%, transparent)' }}>
+                  <Shield size={17} style={{ color: 'var(--stage-expert, var(--accent))' }} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[0.92rem] font-semibold text-[var(--foreground)]">编辑评审专家</div>
+                  <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">{editExperts.length} 人 · 保存后写入项目基本信息</div>
+                </div>
+              </div>
+              <button type="button" onClick={() => { if (snapshot !== null) onEditValueChange(snapshot); onCancel?.(); }} className="neu-btn-xs"><X size={16} /></button>
+            </div>
+            {/* 弹窗体 */}
+            <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-6 py-4">
           {/* 编辑卡片（2026-10-28 二改）：每字段带列标签（placeholder 填写后即消失，不足以标识列）；
               序号徽标 + 2 列布局、专业占整行、删除钮右上——与只读表列名一一对应 */}
           {editExperts.map((expert, i) => (
@@ -189,14 +216,19 @@ function ExpertInfoField({
               <button type="button" onClick={() => removeExpertRow(i)} className="neu-btn-xs !absolute !right-1.5 !top-1.5 !h-6 !w-6 !p-0 justify-center" aria-label="删除该专家"><X size={12} /></button>
             </div>
           ))}
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={addExpertRow} className="text-[11px] font-medium text-[color:var(--accent)] hover:underline">+ 添加专家</button>
-            <span className="text-[10px] text-[color:var(--muted-foreground)]">{editExperts.length} 人</span>
-            <div className="flex-1" />
-            <button type="button" onClick={onSave} className="neu-btn-xs"><Save size={13} />保存</button>
+            </div>
+            {/* 弹窗脚 */}
+            <div className="flex shrink-0 items-center gap-2 px-6 py-3.5" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
+              <button type="button" onClick={addExpertRow} className="neu-btn-xs gap-1"><Plus size={12} />添加专家</button>
+              <span className="text-[10px] text-[var(--muted-foreground)]">{editExperts.length} 人</span>
+              <div className="flex-1" />
+              <button type="button" onClick={() => { if (snapshot !== null) onEditValueChange(snapshot); onCancel?.(); }} className="neu-btn-soft !h-[34px]">取消</button>
+              <button type="button" onClick={onSave} className="neu-btn-primary !h-[34px]"><Save size={13} />保存</button>
+            </div>
           </div>
         </div>
-      ) : hasValue && experts.length > 0 ? (
+      )}
+      {hasValue && experts.length > 0 ? (
         <div className="overflow-x-auto rounded-[10px]" style={{ background: 'oklch(1 0 0 / 0.3)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
           <table className="neu-table w-full min-w-[500px]">
             <thead>
@@ -1972,6 +2004,7 @@ export function ProjectDetailPanel({
                   onEditValueChange={(v) => setEditValues((prev) => ({ ...prev, expertInfo: v }))}
                   onStartEdit={() => handleStartEdit('expertInfo', extractedInfoOverride?.expertInfo ?? item.expertInfo)}
                   onSave={() => void handleSaveField('expertInfo')}
+                  onCancel={() => setEditingField(null)}
                 />
               </div>
 
