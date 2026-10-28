@@ -125,7 +125,7 @@ describe('项目管理采购文件审查流 (e2e)', () => {
     createdTaskIds = createdTaskIds.filter((id) => id !== running.id);
   });
 
-  it('完成且指纹一致 → matching；报告 PDF 可下载或明确失败', async () => {
+  it('完成且指纹一致 → matching；报告 Word 可下载', async () => {
     const taskId = createdTaskIds[0];
     await prisma.reviewTask.update({
       where: { id: taskId },
@@ -142,16 +142,12 @@ describe('项目管理采购文件审查流 (e2e)', () => {
       .send({ projectId, documentType: 'OPEN', answers });
     expect(st.body.state).toBe('matching');
 
-    const pdf = await request(app.getHttpServer())
-      .get(`/api/tender-review/review/tasks/${taskId}/report.pdf`)
+    const docx = await request(app.getHttpServer())
+      .get(`/api/tender-review/review/tasks/${taskId}/report.docx`)
       .set('Cookie', cookie)
       .set('X-Portal', 'web');
-    // 本机装了 LibreOffice → 200 + pdf；CI 无 LibreOffice → 500 + 明确 message（spec §10）
-    if (pdf.status === 200) {
-      expect(pdf.headers['content-type']).toBe('application/pdf');
-    } else {
-      expect(pdf.status).toBe(500);
-    }
+    expect(docx.status).toBe(200);
+    expect(docx.headers['content-type']).toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
   });
 
   it('草稿变更 → stale', async () => {
@@ -174,7 +170,7 @@ describe('项目管理采购文件审查流 (e2e)', () => {
     });
     createdTaskIds.push(pending.id);
     const bad = await request(app.getHttpServer())
-      .get(`/api/tender-review/review/tasks/${pending.id}/report.pdf`)
+      .get(`/api/tender-review/review/tasks/${pending.id}/report.docx`)
       .set('Cookie', cookie)
       .set('X-Portal', 'web');
     expect(bad.status).toBe(400);

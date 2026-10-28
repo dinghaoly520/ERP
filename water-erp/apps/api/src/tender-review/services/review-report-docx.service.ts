@@ -1,9 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Document, Packer } from 'docx';
 import { htmlToDocxChildren } from '../../project-management/docx/html-to-docx.converter';
-import { convertOfficeToPdf } from '../../common/office-to-pdf.util';
 
-export interface PdfIssueRow {
+export interface ReportIssueRow {
   sectionName: string;
   severity: string;
   title: string;
@@ -18,8 +17,8 @@ const SEVERITY_LABEL: Record<string, string> = { critical: '严重', warning: '�
 const STATUS_LABEL: Record<string, string> = { accepted: '已接受', rejected: '已拒绝', pending: '未处置' };
 
 /** 三类来源（规则/智能章节/基础检查）统一展开——与前端 flattenReport 同口径（spec §8 处置留痕） */
-export function flattenIssuesForPdf(report: any): PdfIssueRow[] {
-  const rows: PdfIssueRow[] = [];
+export function flattenIssuesForReport(report: any): ReportIssueRow[] {
+  const rows: ReportIssueRow[] = [];
   const push = (
     r: any,
     defaults: { sectionName?: string; title?: string },
@@ -52,8 +51,12 @@ export function flattenIssuesForPdf(report: any): PdfIssueRow[] {
   return rows;
 }
 
+/**
+ * 审查报告 Word 生成（2026-10-28 用户裁定：撤 LibreOffice 直转 PDF，直接出 docx——
+ * 服务端确定性、无外部进程依赖；需要 PDF 时由用户在 Word/浏览器侧另存）。
+ */
 @Injectable()
-export class ReviewReportPdfService {
+export class ReviewReportDocxService {
   /** 组装报告 HTML（h1-h3/p/strong/table——htmlToDocxChildren 支持的标签集） */
   buildReportHtml(
     task: {
@@ -67,7 +70,7 @@ export class ReviewReportPdfService {
     meta: { kbName: string | null; projectTitle: string | null },
   ): string {
     const report: any = task.results || { summary: { totalChecks: 0, passed: 0, failed: 0, warnings: 0 } };
-    const rows = flattenIssuesForPdf(report);
+    const rows = flattenIssuesForReport(report);
     const modeLabel = task.reviewMode === 'strict' ? '规则审查' : '智能审查';
     const fmt = (d: Date | null) => (d ? new Date(d).toLocaleString('zh-CN', { hour12: false }) : '—');
     const esc = (s: string) =>
@@ -110,16 +113,8 @@ export class ReviewReportPdfService {
   ): Promise<{ buffer: Buffer; fileName: string }> {
     const html = this.buildReportHtml(task, meta);
     const doc = new Document({ sections: [{ properties: {}, children: htmlToDocxChildren(html) }] });
-    const docxBuffer = Buffer.from(await Packer.toBuffer(doc));
-    const docxName = task.documentName.replace(/\.docx?$/i, '') + '-审查报告.docx';
-    const pdf = convertOfficeToPdf(
-      docxBuffer,
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      docxName,
-    );
-    if (!pdf) {
-      throw new Error('PDF 转换失败（LibreOffice 不可用），请稍后重试或联系管理员');
-    }
-    return { buffer: pdf.buffer, fileName: docxName.replace(/\.docx$/, '.pdf') };
+    const buffer = Buffer.from(await Packer.toBuffer(doc));
+    const fileName = task.documentName.replace(/\.docx?$/i, '') + '-审查报告.docx';
+    return { buffer, fileName };
   }
 }

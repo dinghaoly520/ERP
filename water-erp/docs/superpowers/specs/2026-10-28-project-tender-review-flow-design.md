@@ -22,6 +22,7 @@
 | 2 | 审查模式 | **单选二选一（A）**：智能审查（general，默认）/ 规则审查（strict）；后端零改动；将来需要再考虑综合模式 |
 | 3 | 默认知识库 | **自动记忆（A）**：启动审查时把所选库写入 `UserSettings.defaultReviewKbId`，下次默认选中；零额外设置 UI |
 | 4 | PDF 报告 | **后端生成（A）**：`docx@9` 组装 → `convertOfficeToPdf`（LibreOffice，评标签字包同款链路）→ 端点下载 |
+| 4 修订 | 2026-10-28 当日用户裁定：**撤 LibreOffice 直转 PDF，报告直接下载 Word（docx）**——本机无 LibreOffice（PDF 恒 500），docx 服务端确定性产物；需要 PDF 时用户在 Word/浏览器侧另存。端点改 `GET /review/tasks/:id/report.docx`，按钮文案「审查报告 Word」 |
 | 5 | 附带改进 | 独立页保持现状仅加 PDF 按钮；导出确认框移除「是，导出并审查」；防重复任务；失败重试；误关自愈；「提交至项目阶段」闭环不动 |
 
 ## 3. 总体思路
@@ -89,12 +90,11 @@ DTO 加可选 `projectId` + `fingerprint`：
 - 落库到 ReviewTask；
 - 顺带 upsert `UserSettings.defaultReviewKbId = dto.knowledgeBaseId`（自动记忆）。
 
-### 6.3 `GET /tender-review/review/tasks/:id/report.pdf`
+### 6.3 `GET /tender-review/review/tasks/:id/report.docx`（2026-10-28 修订：Word 直出，去 LibreOffice）
 
 - 任务须 completed，否则 400「任务未完成，暂无报告」；属主校验（本人或 admin，同 listTasks 口径）。
-- 按需生成：`docx@9` 组装报告 → `convertOfficeToPdf` → `Content-Type: application/pdf` 流式返回，`Content-Disposition` 文件名 `<documentName去掉扩展名>-审查报告.pdf`。
-- 每次请求现生成（单次 <10s，LibreOffice 同步转换，签字包同款），不做缓存。
-- LibreOffice 缺失/转换失败：500 带明确 message（不吞错、不降级 docx——用户要的是 PDF）。
+- 按需生成：`docx@9` 组装报告（`ReviewReportDocxService`），`Content-Type` docx 流式返回，`Content-Disposition` 文件名 `<documentName去掉扩展名>-审查报告.docx`。
+- 每次请求现生成，不做缓存；无外部进程依赖（LibreOffice 链路已撤）。
 
 ### 6.4 user-settings 扩展
 
@@ -126,7 +126,7 @@ DTO 加可选 `projectId` + `fingerprint`：
 
 保持现状。仅 `ReportViewCombined` 加 PDF 下载按钮（对独立页无 onReviewComplete 场景同样可用，纯任务级能力）。
 
-## 8. PDF 报告内容清单
+## 8. 审查报告（Word）内容清单
 
 - 报告头：系统名「智慧水发·蜀水云采」、项目名/编号（task.projectId 反查 PMI，无则略）、文档名、审查模式（智能/规则）、知识库名、审查时间、报告生成时间
 - 概览统计：总检查项 / 通过 / 警告 / 不通过（按严重度分布，与在线报告一致口径）

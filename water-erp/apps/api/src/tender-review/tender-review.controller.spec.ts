@@ -114,7 +114,7 @@ describe('TenderReviewController.projectStatus（四态）', () => {
   });
 });
 
-describe('TenderReviewController.downloadReportPdf', () => {
+describe('TenderReviewController.downloadReportDocx', () => {
   it('未完成任务 → 400；非属主 → 403；成功 → PDF 响应头', async () => {
     const { BadRequestException, ForbiddenException } = await import('@nestjs/common');
     const task: any = { id: 't-1', userId: 'u1', status: 'running', knowledgeBaseId: null, projectId: null };
@@ -125,15 +125,15 @@ describe('TenderReviewController.downloadReportPdf', () => {
     const controller = buildController(prisma, pdfSvc);
     const res = { setHeader: jest.fn(), send: jest.fn() } as any;
 
-    await expect(controller.downloadReportPdf('t-1', USER, res)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.downloadReportDocx('t-1', USER, res)).rejects.toBeInstanceOf(BadRequestException);
 
     task.status = 'completed';
     task.userId = 'someone-else';
-    await expect(controller.downloadReportPdf('t-1', USER, res)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(controller.downloadReportDocx('t-1', USER, res)).rejects.toBeInstanceOf(ForbiddenException);
 
     task.userId = 'u1';
-    await controller.downloadReportPdf('t-1', USER, res);
-    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/pdf');
+    await controller.downloadReportDocx('t-1', USER, res);
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     expect(res.send).toHaveBeenCalledWith(Buffer.from('pdf'));
   });
 });

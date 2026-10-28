@@ -1,8 +1,4 @@
-jest.mock('../../common/office-to-pdf.util', () => ({
-  convertOfficeToPdf: jest.fn(() => ({ buffer: Buffer.from('%PDF-mock'), fileName: 'x.pdf' })),
-}));
-import { convertOfficeToPdf } from '../../common/office-to-pdf.util';
-import { ReviewReportPdfService, flattenIssuesForPdf } from './review-report-pdf.service';
+import { ReviewReportDocxService, flattenIssuesForReport } from './review-report-docx.service';
 
 const REPORT = {
   summary: { totalChecks: 3, passed: 1, failed: 1, warnings: 1 },
@@ -30,23 +26,22 @@ const TASK: any = {
   projectId: 'p-1',
 };
 
-describe('flattenIssuesForPdf', () => {
+describe('flattenIssuesForReport', () => {
   it('三类来源全展开并统一字段', () => {
-    const rows = flattenIssuesForPdf(REPORT);
+    const rows = flattenIssuesForReport(REPORT);
     expect(rows).toHaveLength(4);
     expect(rows[0]).toMatchObject({ title: '资质要求', status: '已接受' });
     expect(rows[3]).toMatchObject({ sectionName: '合同条款', status: '未处置' });
   });
 });
 
-describe('ReviewReportPdfService', () => {
-  const svc = new ReviewReportPdfService();
+describe('ReviewReportDocxService', () => {
+  const svc = new ReviewReportDocxService();
 
-  it('generate 产出 PDF buffer 与文件名', async () => {
+  it('generate 产出 docx buffer（zip 魔数 PK）与文件名', async () => {
     const { buffer, fileName } = await svc.generate(TASK, { kbName: '水利制度库', projectTitle: '测试项目' });
-    expect(buffer.toString()).toBe('%PDF-mock');
-    expect(fileName).toBe('采购文件-测试-审查报告.pdf');
-    expect(convertOfficeToPdf).toHaveBeenCalled();
+    expect(buffer.subarray(0, 2).toString()).toBe('PK'); // docx = zip
+    expect(fileName).toBe('采购文件-测试-审查报告.docx');
   });
 
   it('报告 HTML 含项目名/模式/统计/处置留痕', async () => {
@@ -57,10 +52,5 @@ describe('ReviewReportPdfService', () => {
     expect(html).toContain('已接受');
     expect(html).toContain('已拒绝');
     expect(html).toContain('未处置');
-  });
-
-  it('转换失败（LibreOffice 缺失）抛明确错误', async () => {
-    (convertOfficeToPdf as jest.Mock).mockReturnValueOnce(null);
-    await expect(svc.generate(TASK, { kbName: null, projectTitle: null })).rejects.toThrow('PDF');
   });
 });

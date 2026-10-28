@@ -110,8 +110,8 @@ export async function checkProjectStatus(params: {
   return handleResponse(res);
 }
 
-export function getReportPdfUrl(taskId: string): string {
-  return `${API_BASE}/review/tasks/${taskId}/report.pdf`;
+export function getReportDocxUrl(taskId: string): string {
+  return `${API_BASE}/review/tasks/${taskId}/report.docx`;
 }
 
 export async function resolveIssue(

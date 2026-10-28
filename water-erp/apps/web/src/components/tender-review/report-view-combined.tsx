@@ -19,7 +19,7 @@ import {
 import { toast } from 'sonner';
 import type { ReviewTask, Issue, ReviewReport, LlmFreeIssue } from '@/lib/types/tender-review';
 import { SEVERITY_COLORS, SEVERITY_LABELS } from '@/lib/types/tender-review';
-import { getDownloadUrl, getReportPdfUrl, resolveIssue } from '@/lib/api/review';
+import { getDownloadUrl, getReportDocxUrl, resolveIssue } from '@/lib/api/review';
 import { apiFetch } from '@/lib/api/api-fetch';
 import { useTenderReview } from './tender-review-context';
 import OriginalTextCompare from './original-text-compare';
@@ -250,20 +250,20 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
     }
   }
 
-  // 审查报告 PDF（含处置留痕）——项目管理流与独立审查页共用
+  // 审查报告 Word（含处置留痕）——项目管理流与独立审查页共用；需 PDF 时在 Word 侧另存
   async function handleDownloadPdf() {
     try {
-      const res = await apiFetch(getReportPdfUrl(task.id), { credentials: 'include' });
+      const res = await apiFetch(getReportDocxUrl(task.id), { credentials: 'include' });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.message || '报告生成失败，请稍后重试');
+        throw new Error(data?.message || '报告下载失败，请稍后重试');
       }
       const blob = await res.blob();
       const disp = res.headers.get('content-disposition') || '';
       const m = /filename\*=UTF-8''([^;]+)/i.exec(disp);
       const fileName = m
         ? decodeURIComponent(m[1])
-        : `${task.documentName.replace(/\.docx?$/i, '')}-审查报告.pdf`;
+        : `${task.documentName.replace(/\.docx?$/i, '')}-审查报告.docx`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -271,7 +271,7 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '报告生成失败');
+      toast.error(e instanceof Error ? e.message : '报告下载失败');
     }
   }
 
@@ -329,7 +329,7 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
             className="flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-xs font-medium transition-colors bg-[color-mix(in_oklch,var(--accent-soft)_45%,transparent)] text-[color:var(--accent)] hover:bg-[color-mix(in_oklch,var(--accent-soft)_65%,transparent)]"
           >
             <FileDown className="h-3 w-3" />
-            审查报告 PDF
+            审查报告 Word
           </button>
           {allResolved && onReviewComplete && (
             <button

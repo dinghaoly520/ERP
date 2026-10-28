@@ -33,7 +33,7 @@ import { LlmFreeReviewerService } from './services/llm-free-reviewer.service';
 import { ReportGeneratorService } from './services/report-generator.service';
 import { ExecuteReviewDto, ExtractRulesDto, ProjectStatusDto } from './dto/review.dto';
 import { computeDraftFingerprint } from './services/draft-fingerprint.util';
-import { ReviewReportPdfService } from './services/review-report-pdf.service';
+import { ReviewReportDocxService } from './services/review-report-docx.service';
 import { toStructuredSuggestion } from './services/text-operations';
 import {
   addDocxCommentBuffer,
@@ -188,7 +188,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     private generalReviewer: GeneralReviewerService,
     private llmFreeReviewer: LlmFreeReviewerService,
     private reportGenerator: ReportGeneratorService,
-    private reviewReportPdf: ReviewReportPdfService,
+    private reviewReportDocx: ReviewReportDocxService,
   ) {}
 
   // 知识库属主校验（rules / execute 复用）
@@ -917,10 +917,10 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  @Get('review/tasks/:id/report.pdf')
+  @Get('review/tasks/:id/report.docx')
   @Roles('leader', 'admin', 'staff')
-  @ApiOperation({ summary: '下载审查报告 PDF（含处置留痕）' })
-  async downloadReportPdf(
+  @ApiOperation({ summary: '下载审查报告 Word（含处置留痕）' })
+  async downloadReportDocx(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser | undefined,
     @Res() res: Response,
@@ -941,11 +941,11 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
         ? this.prisma.projectManagementItem.findUnique({ where: { id: task.projectId }, select: { title: true } })
         : Promise.resolve(null),
     ]);
-    const { buffer, fileName } = await this.reviewReportPdf.generate(task, {
+    const { buffer, fileName } = await this.reviewReportDocx.generate(task, {
       kbName: kb?.name ?? null,
       projectTitle: project?.title ?? null,
     });
-    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`);
     res.send(buffer);
   }
