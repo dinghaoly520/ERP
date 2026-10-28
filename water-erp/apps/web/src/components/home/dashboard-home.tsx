@@ -657,7 +657,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
         <div className="min-h-[280px]"><MethodPieChartPanel profile={data} index={11} reducedMotion={reducedMotion}/></div>
         <div className="min-h-[280px]"><NonAwardDonutPanel profile={data} index={12} reducedMotion={reducedMotion}/></div>
       </div>
-      <AwardResultPanel startDate={startDate || undefined} endDate={endDate || undefined}/>
+      <AwardResultPanel startDate={startDate || undefined} endDate={endDate || undefined} companyId={companyId}/>
       <PerformancePanel/>
       <TrendChartPanel profile={data} index={15} reducedMotion={reducedMotion}/>
     </motion.div>
