@@ -10,7 +10,6 @@ import { SupplierTool } from './tools/supplier.tool';
 import { ExpertTool } from './tools/expert.tool';
 import { AnnouncementTool } from './tools/announcement.tool';
 import { NotificationTool } from './tools/notification.tool';
-import { MallTool } from './tools/mall.tool';
 import { CockpitTool } from './tools/cockpit.tool';
 import { ActionPlannerService } from './actions/action-planner.service';
 import { ActionExecutorService } from './actions/action-executor.service';
@@ -73,12 +72,12 @@ export async function resolveToolCtx(
 @Injectable()
 export class AssistantService {
   /**
-   * 匿名/外部角色可用的工具：仅公开域数据（已发布公告/商城目录）。
+   * 匿名/外部角色可用的工具：仅公开域数据（已发布公告）。
    * 供应商联系人、专家库、项目/通知等内部数据工具仅内部管理角色可用
    * （P0 收口 2026-09-28；2026-09-29 二审收紧：认证≠授权——supplier/bid_expert/mall
    * 等外部角色登录后同样不得经 AI 拉供应商联系人/专家证件等 PII）。
    */
-  private static readonly PUBLIC_TOOLS = new Set(['announcement', 'mall']);
+  private static readonly PUBLIC_TOOLS = new Set(['announcement']);
   private static readonly INTERNAL_ROLES = ['admin', 'leader', 'staff', 'bid_host'];
   private readonly logger = new Logger(AssistantService.name);
 
@@ -93,7 +92,6 @@ export class AssistantService {
     private readonly expertTool: ExpertTool,
     private readonly announcementTool: AnnouncementTool,
     private readonly notificationTool: NotificationTool,
-    private readonly mallTool: MallTool,
     private readonly cockpitTool: CockpitTool,
     private readonly actionPlanner: ActionPlannerService,
     private readonly actionExecutor: ActionExecutorService,
@@ -109,7 +107,6 @@ export class AssistantService {
     this.toolRegistry.register(this.expertTool);
     this.toolRegistry.register(this.announcementTool);
     this.toolRegistry.register(this.notificationTool);
-    this.toolRegistry.register(this.mallTool);
     this.toolRegistry.register(this.cockpitTool);
   }
 
@@ -296,7 +293,7 @@ ${toolList}
 
     if (allowedTools && !allowedTools.has(toolName)) {
       this.logger.warn(`handleDirectToolCall: 匿名访客请求内部工具 ${toolName}，已拒绝`);
-      return '抱歉，该类数据需要登录采购管理系统后才能查询。您可以询问公开的采购公告、商城目录信息，或进行采购业务知识咨询。';
+      return '抱歉，该类数据需要登录采购管理系统后才能查询。您可以询问公开的采购公告信息，或进行采购业务知识咨询。';
     }
 
     const result = await tool.execute(toolArgs, ctx);
@@ -333,7 +330,7 @@ ${toolList}
   ): Promise<string> {
     // 匿名访客不允许注入内部全局概览（采购/招标/供应商/专家分布属内部运营数据）
     if (allowedTools && !allowedTools.has('global_overview')) {
-      return '抱歉，该问题涉及系统内部数据，需要登录采购管理系统后才能查询。您可以询问公开的采购公告或商城目录信息。';
+      return '抱歉，该问题涉及系统内部数据，需要登录采购管理系统后才能查询。您可以询问公开的采购公告信息。';
     }
 
     // 执行 global_overview 获取真实统计数据（公司口径随 ctx 穿参——漏穿即全公司卡片泄漏）
@@ -706,9 +703,8 @@ ${toolList}
 
   async getQuickStats(authenticated = false) {
     // 公共域聚合（两类调用方都要）
-    const [announcementPublished, catalogItemCount] = await Promise.all([
+    const [announcementPublished] = await Promise.all([
       this.prisma.announcement.count({ where: { status: 'PUBLISHED' } }),
-      this.prisma.catalogItem.count(),
     ]);
 
     // 匿名访客（:3008 公共助手）只返回公开域数字——内部审批/风险/未读等运营
@@ -720,7 +716,6 @@ ${toolList}
         supplier: { total: 0, approved: 0, pending: 0, risk: 0 },
         expert: { total: 0, available: 0 },
         announcement: { published: announcementPublished },
-        catalog: { items: catalogItemCount },
         notification: { unread: 0 },
         focusAreas: [],
         generatedAt: new Date().toISOString(),
@@ -768,7 +763,6 @@ ${toolList}
       supplier: { total: supplierTotal, approved: supplierApproved, pending: supplierPending, risk: supplierRisk },
       expert: { total: expertTotal, available: expertAvailable },
       announcement: { published: announcementPublished },
-      catalog: { items: catalogItemCount },
       notification: { unread: notificationUnread },
       focusAreas: focusAreas.slice(0, 4),
       generatedAt: new Date().toISOString(),

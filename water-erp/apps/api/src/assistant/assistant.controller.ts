@@ -12,7 +12,7 @@ import { ChatDto } from './dto/chat.dto';
  * 未登录可读/删全体用户会话、经 chat 触发内部数据工具（供应商联系人等 PII）。
  * 现按认证态分层：认证用户（任意门户 token）按 JWT 属主隔离会话、可用全量工具；
  * 匿名访客按 X-Assistant-Guest 头（:3008 localStorage 生成的访客键）隔离会话、
- * 仅可用公开域工具（公告/商城目录）。
+ * 仅可用公开域工具（公告）。
  */
 @ApiTags('水叮当智能助手')
 @Controller('assistant')

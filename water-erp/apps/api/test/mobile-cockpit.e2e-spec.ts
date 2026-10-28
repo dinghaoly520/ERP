@@ -14,7 +14,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
  * 2. 非 admin 伪造 ChatDto.context.companyIds 被服务端忽略（pickAdminCompanyIds 仅 admin 采纳），
  *    与 dashboard 非 admin 忽略 ?companyId= 同语义——两口径仍等值；
  * 3. 匿名访客（X-Assistant-Guest）直调 cockpit 被公开域门禁拒绝——
- *    PUBLIC_TOOLS={announcement, mall}，cockpit 不在其中，拒答且不产卡片。
+ *    PUBLIC_TOOLS={announcement}，cockpit 不在其中，拒答且不产卡片。
  *
  * 直调消息格式须与 assistant.service.ts directToolMatch 正则一致：
  *   /请调用\s+(\w+)\s+工具[，,]\s*参数\s+(\{[\s\S]*?\})/

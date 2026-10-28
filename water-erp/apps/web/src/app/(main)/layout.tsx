@@ -46,10 +46,6 @@ const routeToKey: Record<string, string> = {
   "/expert/repository": "expert-repo",
   "/expert/extract": "expert-extract",
   "/expert": "expert-entry",
-  // 集中目录管理：catalog=管理主页(9页签)、central-catalog=只读健康度概览，各自独立侧边键。
-  // central-catalog 前缀更长，必须放在 /mall-management 之前，否则被通配吃到 mall-catalog（高亮跑偏到「目录管理」）。
-  "/mall-management/central-catalog": "mall-central-catalog",
-  "/mall-management": "mall-catalog",
 };
 
 const routeToModule: Record<string, string> = {
@@ -74,7 +70,6 @@ const routeToModule: Record<string, string> = {
   "/company-info": "公司信息管理",
   "/supplier": "供应商管理",
   "/expert": "专家管理",
-  "/mall-management": "集中目录管理",
 };
 
 // 这些路由是「整页占满 + 内部自滚动」的工作区型页面：page 根用 flex-1 撑高，

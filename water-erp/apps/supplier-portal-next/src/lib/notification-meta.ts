@@ -48,7 +48,6 @@ const META: Record<string, NotificationMeta> = {
   CONTRACT_NOTICE: { label: "合同通知", group: "contract", tone: "info", actionable: true, actionLabel: "查看合同" },
   PERFORMANCE_NOTICE: { label: "履约结果", group: "contract", tone: "success" },
   PREQUAL_NOTICE: { label: "资格预审", group: "approval", tone: "info" },
-  CATALOG_APPLICATION: { label: "供货申请", group: "approval", tone: "info" },
   SUPPLIER_PENDING: { label: "入库待审", group: "approval", tone: "info" },
   SUPPLIER_APPROVED: { label: "入库通过", group: "approval", tone: "success" },
   SUPPLIER_REJECTED: { label: "入库驳回", group: "approval", tone: "danger" },

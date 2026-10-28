@@ -7,13 +7,6 @@
 
 无需登录，公开访问。
 
-## 电子商城 — http://localhost:3003
-
-| 用户名 | 密码 | 角色(role) | 姓名 |
-|--------|------|------------|------|
-| `陈源远` | `陈源远@2026` | `mall` · 商城采购员 | 陈源远 |
-
-## 供应商门户 — http://localhost:3004
 
 > **登录用户名 = 统一社会信用代码（机构代码）**（2026-08-24 起注册强制；下表存量种子账号仍为企业名用户名，可继续用企业名登录）。注册 2.0 演示完整数据账号：`91511500MA6CMJ0004` / `supplier@2026`（宜宾岷江水电设备工程有限公司）。
 
@@ -100,5 +93,5 @@ pnpm dev:ukey-mw
 
 ## 说明
 - **`admin` 账号**：种子有 `Swhi-CGZX-admin`（口令 `Swhi-CGZX-admin@2026`）。`tender-review` 规则提取/CRUD 走 `AdminGuard`（仅 admin），无此账号则规则管理对所有人 403——故 `seed.ts` 已把它纳入 `<用户名>@2026` 规整循环。
-- **每门户独立登录**：cookie 按门户命名（`token_public`/`token_web`/`token_expert`/`token_supplier`/`token_mall`），切换门户需重新登录。
+- **每门户独立登录**：cookie 按门户命名（`token_public`/`token_web`/`token_expert`/`token_supplier`），切换门户需重新登录。
 - **会话共享例外**：开评标管理端 :3007 读取 `token_web` cookie，与 web :3005 共享同一会话（后端按角色命名 cookie，`admin`/`bid_host` 都落到 `web` 命名空间，无 `token_bid`）。

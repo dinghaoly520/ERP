@@ -60,7 +60,7 @@ const PERMISSION_OPTIONS = [
 
 const PERMISSION_ROLE: Record<string, AuthRole> = { management: "leader", office: "staff" };
 
-/** 内部角色 → 权限档位；特殊角色（admin/供应商/专家/商城/开标主持）返回 null 不可改 */
+/** 内部角色 → 权限档位；特殊角色（admin/供应商/专家/开标主持）返回 null 不可改 */
 function roleToPermission(role: AuthRole): "management" | "office" | null {
   if (role === "leader") return "management";
   if (role === "staff") return "office";
@@ -852,7 +852,7 @@ function AccountFormModal({
       } else if (account) {
         await updateAccount(account.id, {
           displayName: displayName.trim(),
-          // 特殊角色（管理员/供应商/专家/商城/开标主持）不改权限
+          // 特殊角色（管理员/供应商/专家/开标主持）不改权限
           ...(permissionEditable ? { role: PERMISSION_ROLE[permission] } : {}),
           company: company.trim() || null,
           departmentName: departmentName.trim() || null,

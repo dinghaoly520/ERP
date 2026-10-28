@@ -7,7 +7,7 @@ export const BADGE_DEFINITIONS = [
     code: 'approval_master',
     name: '审批能手',
     category: 'quantity',
-    description: '累计审批供应商入库与目录申请',
+    description: '累计审批供应商入库',
     iconKey: 'CheckCircle2',
     unit: '项',
     levelThresholds: { bronze: 50, silver: 200, gold: 500, platinum: 1000 },

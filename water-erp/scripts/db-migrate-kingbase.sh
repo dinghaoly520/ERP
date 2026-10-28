@@ -8,6 +8,9 @@
 #   DATABASE_URL='postgresql://system:PWD@HOST:54321/water_erp?schema=public' \
 #   DIRECT_URL='postgresql://system:PWD@HOST:54321/water_erp' \
 #   ./scripts/db-migrate-kingbase.sh
+# ⚠ Prisma CLI 加载 apps/api/.env 会覆盖 shell 环境变量（2026-10-26 实测）——
+#   跑本脚本前必须先让 apps/api/.env 的 DATABASE_URL/DIRECT_URL 实际指向目标库；
+#   下方 shell 传参仅为脚本闸门要求，值须与 .env 一致否则不生效。
 set -uo pipefail
 cd "$(dirname "$0")/../apps/api"
 

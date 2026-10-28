@@ -168,20 +168,16 @@ describe('sweepStaleActionableNotifications', () => {
     expect(b._unresolved()).toEqual([]);
   });
 
-  it('目录申请：appId 非 PENDING 消解；供应商侧结果通知（无 appId）不动', async () => {
+  it('目录申请（mall 下线 2026-10-28）：带 appId 的全部按实体已删消解；供应商侧结果通知（无 appId）不动', async () => {
     const prisma = makePrisma({
       notifications: [
         N('c1', 'CATALOG_APPLICATION', '/mall-management/catalog?tab=approval&appId=app-done'),
         N('c2', 'CATALOG_APPLICATION', '/mall-management/catalog?tab=approval&appId=app-wait'),
         N('c3', 'CATALOG_APPLICATION', '/catalog-applications'),
       ],
-      apps: [
-        { id: 'app-done', status: 'APPROVED' },
-        { id: 'app-wait', status: 'PENDING' },
-      ],
     });
     await sweepStaleActionableNotifications(prisma as any);
-    expect(prisma._unresolved().sort()).toEqual(['c2', 'c3']);
+    expect(prisma._unresolved().sort()).toEqual(['c3']);
   });
 
   it('批量报告型：每用户仅保留最新一批（含同毫秒并列按 id 决出）', async () => {

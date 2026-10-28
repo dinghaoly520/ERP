@@ -10,7 +10,6 @@ import { SupplierTool } from './tools/supplier.tool';
 import { ExpertTool } from './tools/expert.tool';
 import { AnnouncementTool } from './tools/announcement.tool';
 import { NotificationTool } from './tools/notification.tool';
-import { MallTool } from './tools/mall.tool';
 import { CockpitTool } from './tools/cockpit.tool';
 import { ActionPlannerService } from './actions/action-planner.service';
 import { ActionExecutorService } from './actions/action-executor.service';
@@ -48,7 +47,6 @@ describe('AssistantService', () => {
         create: jest.fn(),
       },
       announcement: { count: jest.fn() },
-      catalogItem: { count: jest.fn() },
       procurementProject: { count: jest.fn() },
       bidProject: { count: jest.fn() },
       supplier: { count: jest.fn() },
@@ -77,7 +75,6 @@ describe('AssistantService', () => {
         { provide: ExpertTool, useValue: { name: 'expert', description: 'mock', execute: jest.fn() } },
         { provide: AnnouncementTool, useValue: { name: 'announcement', description: 'mock', execute: jest.fn() } },
         { provide: NotificationTool, useValue: { name: 'notification', description: 'mock', execute: jest.fn() } },
-        { provide: MallTool, useValue: { name: 'mall', description: 'mock', execute: jest.fn() } },
         { provide: CockpitTool, useValue: { name: 'cockpit', description: 'mock', execute: jest.fn() } },
         { provide: ActionPlannerService, useValue: { createPlan: jest.fn() } },
         { provide: ActionExecutorService, useValue: { execute: jest.fn() } },
@@ -349,12 +346,10 @@ describe('AssistantService', () => {
   describe('getQuickStats 分层', () => {
     it('匿名访客只返回公开域数字（内部维度置 0）', async () => {
       prisma.announcement.count.mockResolvedValue(12);
-      prisma.catalogItem.count.mockResolvedValue(34);
 
       const result = await service.getQuickStats(false);
 
       expect(result.announcement.published).toBe(12);
-      expect(result.catalog.items).toBe(34);
       expect(result.supplier.risk).toBe(0);
       expect(result.focusAreas).toEqual([]);
       expect(prisma.supplier.count).not.toHaveBeenCalled();
@@ -362,7 +357,6 @@ describe('AssistantService', () => {
 
     it('认证用户返回全量统计', async () => {
       prisma.announcement.count.mockResolvedValue(12);
-      prisma.catalogItem.count.mockResolvedValue(34);
       prisma.procurementProject.count.mockResolvedValue(5);
       prisma.bidProject.count.mockResolvedValue(3);
       prisma.supplier.count.mockResolvedValue(10);
@@ -441,5 +435,16 @@ describe('AssistantService', () => {
         data: { status: 'cancelled' },
       });
     });
+  });
+});
+
+// 商城下线（2026-10-28）：知识库/兜底文案不得再向用户或 LLM 宣传已删除的商城线
+import { SYSTEM_KNOWLEDGE } from './knowledge/system-knowledge';
+
+describe('系统知识库·商城下线后口径', () => {
+  it('知识库不得包含商城角色/门户端口/商城模块描述（final review I-1 回归锁）', () => {
+    expect(SYSTEM_KNOWLEDGE).not.toContain('商城');
+    expect(SYSTEM_KNOWLEDGE).not.toContain('3003');
+    expect(SYSTEM_KNOWLEDGE).not.toContain('mall');
   });
 });

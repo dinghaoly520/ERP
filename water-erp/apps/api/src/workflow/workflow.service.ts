@@ -13,7 +13,6 @@ import { maskChangeValue } from '../supplier/change-record-pii';
  * - password_reset      忘记密码重置（admin）           → /admin/accounts
  * - profile_change      资料变更申请（admin）           → /admin/accounts
  * - supplier_change     供应商资料变更（staff/leader/admin）→ /supplier/approval
- * - catalog_application 目录供货申请（staff/leader/admin） → /mall-management
  */
 
 export type WorkflowSource =
@@ -22,8 +21,7 @@ export type WorkflowSource =
   | 'password_change'
   | 'password_reset'
   | 'profile_change'
-  | 'supplier_change'
-  | 'catalog_application';
+  | 'supplier_change';
 
 export interface WorkflowItem {
   source: WorkflowSource;
@@ -126,18 +124,13 @@ export class WorkflowService {
       }
     }
 
-    const [supChanges, catalogApps] = await Promise.all([
+    const [supChanges] = await Promise.all([
       // 变更值 PII 拆封后掩码（2026-10-22：此前裸出 SM4 密文）
       this.prisma.supplierChangeRecord.findMany({
         where: { status: 'PENDING' },
         include: { supplier: { select: { name: true } } },
         orderBy: { createdAt: 'desc' }, take: 50,
       }).then(rows => rows.map(r => ({ ...r, oldValue: maskChangeValue(r.fieldName, r.oldValue), newValue: maskChangeValue(r.fieldName, r.newValue) }))),
-      this.prisma.supplierCatalogApplication.findMany({
-        where: { status: 'PENDING' },
-        include: { supplier: { select: { name: true } } },
-        orderBy: { createdAt: 'desc' }, take: 50,
-      }),
     ]);
 
     for (const r of supChanges) {
@@ -146,15 +139,6 @@ export class WorkflowService {
         title: `${r.supplier?.name ?? '供应商'}申请变更「${r.fieldLabel ?? r.fieldName}」`,
         applicant: r.supplier?.name ?? null,
         submittedAt: r.createdAt, deepLink: '/supplier/approval', status: 'PENDING',
-      });
-    }
-    for (const r of catalogApps) {
-      const typeLabel = r.type === 'NEW_ITEM' ? '新增品类' : r.type === 'JOIN_EXISTING' ? '加入供货' : '调整报价';
-      items.push({
-        source: 'catalog_application', sourceId: r.id, category: '商城审批',
-        title: `目录申请（${typeLabel}）：${r.supplier?.name ?? '供应商'}`,
-        applicant: r.supplier?.name ?? null,
-        submittedAt: r.createdAt, deepLink: '/mall-management', status: 'PENDING',
       });
     }
 
@@ -195,7 +179,7 @@ export class WorkflowService {
 
   /** 最近已办：各源已处理记录按处理时间倒序（默认 20 条）。 */
   async done(limit = 20): Promise<WorkflowItem[]> {
-    const [regReviews, pwChanges, pwResets, profileChanges, supChanges, catalogApps] = await Promise.all([
+    const [regReviews, pwChanges, pwResets, profileChanges, supChanges] = await Promise.all([
       this.prisma.registrationReview.findMany({ orderBy: { reviewedAt: 'desc' }, take: limit }),
       this.prisma.passwordChangeRequest.findMany({
         where: { status: { not: 'PENDING' } },
@@ -216,11 +200,6 @@ export class WorkflowService {
         include: { supplier: { select: { name: true } } },
         orderBy: { reviewedAt: 'desc' }, take: limit,
       }).then(rows => rows.map(r => ({ ...r, oldValue: maskChangeValue(r.fieldName, r.oldValue), newValue: maskChangeValue(r.fieldName, r.newValue) }))),
-      this.prisma.supplierCatalogApplication.findMany({
-        where: { status: { not: 'PENDING' } },
-        include: { supplier: { select: { name: true } } },
-        orderBy: { updatedAt: 'desc' }, take: limit,
-      }),
     ]);
 
     const items: WorkflowItem[] = [];
@@ -258,14 +237,6 @@ export class WorkflowService {
         title: `${r.supplier?.name ?? '供应商'}变更「${r.fieldLabel ?? r.fieldName}」`,
         applicant: r.supplier?.name ?? null,
         submittedAt: r.reviewedAt ?? r.createdAt, deepLink: '/supplier/approval', status: r.status,
-      });
-    }
-    for (const r of catalogApps) {
-      items.push({
-        source: 'catalog_application', sourceId: r.id, category: '商城审批',
-        title: `目录申请：${r.supplier?.name ?? '供应商'}`,
-        applicant: r.supplier?.name ?? null,
-        submittedAt: r.updatedAt, deepLink: '/mall-management', status: r.status,
       });
     }
     return items.sort(byTimeDesc).slice(0, limit);

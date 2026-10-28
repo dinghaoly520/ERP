@@ -18,7 +18,6 @@ import { memoryStorage } from 'multer';
 import type { Response } from 'express';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
-import { AnalyzeBudgetReferenceDto } from './dto/analyze-budget-reference.dto';
 import { CompleteProjectDto } from './dto/complete-project.dto';
 import { CreateProjectFromInitiationDto } from './dto/create-project-from-initiation.dto';
 import { QueryProjectManagementDto } from './dto/query-project-management.dto';
@@ -129,11 +128,6 @@ export class ProjectManagementController {
   @Post('ai-identify-field')
   aiIdentifyField(@Body() dto: { fieldName: string; documentText: string; topK?: number }) {
     return this.projectManagementService.aiIdentifyField(dto);
-  }
-
-  @Post('analyze-budget-reference')
-  analyzeBudgetReference(@Body() dto: AnalyzeBudgetReferenceDto) {
-    return this.projectManagementService.analyzeBudgetReference(dto);
   }
 
   @Patch(':id/stages/:stageKey')

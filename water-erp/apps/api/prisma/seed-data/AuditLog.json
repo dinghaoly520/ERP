@@ -65,30 +65,6 @@
     "createdAt": "2026-07-07T10:36:15.760Z"
   },
   {
-    "id": "cmrbvx62t001nkohchcove807",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "action": "LOGOUT",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0001koddvbs7wm0a",
-    "details": {},
-    "ipAddress": "127.0.0.1",
-    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
-    "createdAt": "2026-07-08T09:37:56.741Z"
-  },
-  {
-    "id": "cmrbvx6ux001pkohceny44g7n",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0001koddvbs7wm0a",
-    "details": {
-      "role": "mall"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
-    "createdAt": "2026-07-08T09:37:57.753Z"
-  },
-  {
     "id": "cmrbzbljd000dkogpocupvvm7",
     "userId": "cmqc8r60200dnkoeksr6tg079",
     "action": "LOGOUT",
@@ -1454,19 +1430,6 @@
     "ipAddress": null,
     "userAgent": null,
     "createdAt": "2026-07-26T02:58:06.164Z"
-  },
-  {
-    "id": "cms17kbhe003ouu3jz3qvmpbb",
-    "userId": "cmrai35fr0001koddvbs7wm0a",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0001koddvbs7wm0a",
-    "details": {
-      "role": "mall"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": null,
-    "createdAt": "2026-07-26T02:58:07.011Z"
   },
   {
     "id": "cms17yvpl002yuu86wh6dxd3u",

@@ -1,0 +1,164 @@
+# =============================================================================
+# 新增文件（第二套·后端独立部署）—— water-erp API + 基础设施（全离线镜像版 v2）
+#
+# v2 变更：去掉源码快照 —— 构建上下文直接用仓库根（与前端同一 context，
+#   由仓库根 .dockerignore 负责排除 node_modules/.next/zhishiku 等，
+#   快照只是仓库根的复制品，纯多余）。本目录只需 3 个文件：
+#   /data/water-erp/backend/
+#   ├── docker-compose.backend.yml   ← 本文件
+#   ├── .env.backend                 ← 业务密钥（setup 脚本从 apps/api/.env 派生，可手改）
+#   └── setup_backend.sh             ← 一键脚本（会把 Dockerfile.api 放进仓库 docker/backend/）
+#
+# 用法（root）：
+#   cd /data/water-erp/backend && bash setup_backend.sh
+# 手动等价步骤：
+#   docker compose -f docker-compose.backend.yml build api
+#   docker compose -f docker-compose.backend.yml up -d postgres redis minio
+#   docker compose -f docker-compose.backend.yml --profile tools run --rm migrate   # 幂等
+#   docker compose -f docker-compose.backend.yml up -d api
+#
+# 端口避让（本机 5432/6379/9000/9001 已被 dify 等占用）：
+#   postgres 15432 | redis 16380 | minio 19000/19001 | api 4001
+# pgbouncer 已移除（该机 docker.io/apk 不可达；208 核主机 API 直连 PG 足够）。
+# 数据卷 water-erp-be-* 持久：容器/镜像删了数据还在，重建后无需再 seed。
+# =============================================================================
+
+x-infra-common: &infra-common
+  restart: unless-stopped
+  networks: [backend]
+
+# 一次性任务（migrate/seed）共用的容器内连接串：直连服务名，不依赖宿主端口
+x-task-env: &task-env
+  environment:
+    DATABASE_URL: postgresql://water_erp:water_erp_dev@postgres:5432/water_erp
+    DIRECT_URL: postgresql://water_erp:water_erp_dev@postgres:5432/water_erp
+    REDIS_URL: redis://redis:6379
+    MINIO_ENDPOINT: minio
+    MINIO_PORT: "9000"
+
+services:
+  # ── PostgreSQL 16 + pgvector（schema 用 vector 列，必须带扩展的镜像；离线 tar 导入）──
+  postgres:
+    <<: *infra-common
+    image: pgvector/pgvector:pg16
+    container_name: water-erp-be-postgres
+    environment:
+      POSTGRES_USER: water_erp
+      POSTGRES_PASSWORD: water_erp_dev
+      POSTGRES_DB: water_erp
+    command: ["postgres", "-c", "max_connections=200"]
+    ports:
+      - "5432:5432"
+    volumes:
+      - water-erp-be-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U water_erp -d water_erp"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    <<: *infra-common
+    image: redis:7-alpine
+    container_name: water-erp-be-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6380:6379"
+    volumes:
+      - water-erp-be-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    <<: *infra-common
+    image: minio/minio:latest
+    container_name: water-erp-be-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: water_erp_minio
+      MINIO_ROOT_PASSWORD: water_erp_minio_dev
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - water-erp-be-minio-data:/data
+
+  # ── 一次性任务：Prisma 迁移（幂等，已应用过的不会重复执行）──
+  migrate:
+    <<: [ *infra-common, *task-env ]
+    image: water-erp-api:1.0.0
+    container_name: water-erp-be-migrate
+    profiles: ["tools"]
+    restart: "no"
+    working_dir: /app/apps/api
+    command: ["npx", "prisma", "migrate", "deploy"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── 一次性任务：种子数据（会 TRUNCATE 重载，仅全新库首次执行！setup 脚本已自动判空跳过）──
+  seed:
+    <<: [ *infra-common, *task-env ]
+    image: water-erp-api:1.0.0
+    container_name: water-erp-be-seed
+    profiles: ["tools"]
+    restart: "no"
+    working_dir: /app/apps/api
+    env_file: .env.backend
+    command: ["npx", "tsx", "prisma/seed.ts"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── NestJS API：宿主机 4001，前端门户固化的 host.docker.internal:4001 自动打通 ──
+  api:
+    <<: *infra-common
+    build:
+      # v2：直接用仓库根做构建上下文（不再快照）。REPO_DIR 可用环境变量覆盖。
+      context: ${REPO_DIR:-/home/asus/桌面/water-erp}
+      dockerfile: backend/Dockerfile.api
+      # 构建容器内 DNS 解析失败（EAI_AGAIN），用宿主机网络栈构建（与前端同因同修）。
+      network: host
+    image: water-erp-api:1.0.0
+    container_name: water-erp-be-api
+    working_dir: /app/apps/api
+    env_file: .env.backend
+    environment:
+      # development：CORS 全放行 + /api/docs 可用，适合内网联调；转生产前在 .env.backend 配 CORS_ORIGINS。
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: "4001"
+      DATABASE_URL: postgresql://water_erp:water_erp_dev@postgres:5432/water_erp?connection_limit=20
+      DIRECT_URL: postgresql://water_erp:water_erp_dev@postgres:5432/water_erp
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "4001:4001"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4001/api/health',{redirect:'manual'}).then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 8s
+      retries: 8
+      start_period: 90s
+
+networks:
+  backend:
+    name: water-erp-backend
+
+volumes:
+  water-erp-be-postgres-data:
+    name: water-erp-be-postgres-data
+  water-erp-be-redis-data:
+    name: water-erp-be-redis-data
+  water-erp-be-minio-data:
+    name: water-erp-be-minio-data

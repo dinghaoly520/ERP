@@ -7,10 +7,8 @@
 import type { ComponentType } from "react";
 import {
   Bell,
-  Boxes,
   Briefcase,
   Building2,
-  ClipboardCheck,
   FileCheck,
   FileText,
   History,
@@ -18,10 +16,8 @@ import {
   IdCard,
   Inbox,
   KeyRound,
-  LayoutGrid,
   ListChecks,
   MessageSquareWarning,
-  Package,
   Rss,
   ScrollText,
   Trophy,
@@ -107,24 +103,7 @@ export function findWorkspaceTabForPath(
       (extra) => pathname === extra || pathname.startsWith(`${extra}/`),
     );
   return workspaceMatches ? { path: workspace.path, title: workspace.title } : null;
-}
 
-/** 隐藏供货管理工作区的菜单入口，保留页面路由供直链与任务跳转使用。 */
-
-const SUPPLY_WORKSPACE_HIDDEN = true;
-
-function supplyWorkspaceEntry(): MenuEntry {
-  return {
-    path: "/catalog",
-    title: "供货管理",
-    icon: Package,
-    desc: "目录、供货申请与报价",
-    tabs: [
-      { path: "/catalog", title: "品类目录", icon: LayoutGrid },
-      { path: "/catalog-applications", title: "申请进度", icon: ClipboardCheck },
-      { path: "/supply", title: "供货关系", icon: Boxes },
-    ],
-  };
 }
 
 export function buildMenuItems(isTemporary: boolean | null | undefined): MenuItem[] {
@@ -166,7 +145,6 @@ export function buildMenuItems(isTemporary: boolean | null | undefined): MenuIte
   // 「证书与U盾」对临时供应商同样开放（2026-09-28 修正矛盾）——后端只拦有效期
   // 过期的临时供应商、不过期即可投标，而投标强依赖 U盾证书，管理入口必须可达。
   items.push({ divider: true, label: "信息维护", icon: Wrench });
-  if (!SUPPLY_WORKSPACE_HIDDEN) items.push(supplyWorkspaceEntry());
   if (canAccessRegularSupplierWorkspaces(isTemporary)) {
     items.push({
       path: "/profile",

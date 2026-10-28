@@ -41,8 +41,6 @@ import { ScoreStandardValidator } from '../bid/score-standard-validator.service'
 import { resolveActiveUserId } from '../bid/bid-project-notify.util';
 import { SelectOfficialTenderDto } from './dto/select-official-tender.dto';
 import { UpdateProjectStageDto } from './dto/update-project-stage.dto';
-import { AnalyzeBudgetReferenceDto } from './dto/analyze-budget-reference.dto';
-import { estimateBudgetReference } from './budget-reference-estimator';
 import { BID_TAIL_STAGE_KEYS, LOCKED_STAGES, PROJECT_WORKFLOW_STAGES } from './project-management.types';
 import { getStageComplianceRules } from './stage-compliance-rules';
 import { stripAnnouncementTitlePrefix } from '../common/announcement-title.util';
@@ -1838,23 +1836,6 @@ paymentPerformance 要求：提炼 3-6 条要点，涵盖支付方式与比例�
    * Scan all uploaded files in a project and extract missing info.
    * Called when project detail opens to handle files uploaded before extraction code existed.
    */
-  /**
-   * 预算参考：置信分层估算（方法 C）。在单价层归一，按数据质量分 Tier 1–4，
-   * 修复旧算法“按历史项目总价×业务相关度加权”在数量/质量/规模不一致时的失真。
-   * 详见 docs/superpowers/specs/2026-07-21-budget-reference-tiered-pricing-design.md
-   */
-  async analyzeBudgetReference(dto: AnalyzeBudgetReferenceDto) {
-    return estimateBudgetReference(this.prisma, {
-      procurementTitle: dto.procurementTitle,
-      procurementCategory: dto.procurementCategory ?? null,
-      procurementType: dto.procurementType ?? null,
-      projectReason: dto.projectReason ?? null,
-      supplierRequirements: dto.supplierRequirements ?? null,
-      lines: dto.lines,
-      budgetListId: dto.budgetListId ?? null,
-    });
-  }
-
   async refreshExtractedInfo(projectId: string) {
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },

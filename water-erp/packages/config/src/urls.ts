@@ -17,7 +17,7 @@ export function portalOrigin(app: AppName, envOverride?: string): string {
 /** 构建门户完整 URL（浏览器端使用）。
  *  双轨自适应（2026-10-26，子域名申请单 2026-10-14 新终版）：当前页经 *.scsfjt.com
  *  域名访问且目标门户有子域 → 同协议域名跳转（不带端口）；端口/IP 访问（localhost、
- *  局域网/公网 IP）或目标无子域（mall/assistant/bigscreen）→ 端口口径不变。 */
+ *  局域网/公网 IP）或目标无子域（assistant/bigscreen）→ 端口口径不变。 */
 export function portalURL(app: AppName, path = '/'): string {
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
   if (typeof window !== 'undefined') {
@@ -47,7 +47,6 @@ export const ROLE_PORTAL: Record<string, AppName> = {
   bid_host: 'bid',
   supplier: 'supplier',
   bid_expert: 'expert',
-  mall: 'mall',
 };
 
 /**

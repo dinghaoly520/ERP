@@ -25,8 +25,6 @@ type SweepPrisma = Pick<
   | 'user'
   | 'supplier'
   | 'supplierCompanyLink'
-  | 'supplierCatalogApplication'
-  | 'businessTag'
 >;
 
 export type SweepResult = { type: string; rule: string; resolved: number };
@@ -152,12 +150,10 @@ export async function sweepStaleActionableNotifications(prisma: SweepPrisma): Pr
       await resolveIds('SUPPLIER_PENDING', '按 supplierId：status≠PENDING', stale);
     }
     if (noId.length > 0) {
-      const [pendingSup, pendingTags] = await Promise.all([
-        prisma.supplier.count({ where: { status: 'PENDING' } }),
-        prisma.businessTag.count({ where: { status: 'PENDING' } }),
-      ]);
-      if (pendingSup === 0 && pendingTags === 0) {
-        await resolveIds('SUPPLIER_PENDING', '无 id 存量·注册与标签队列双空', noId);
+      // mall 下线（2026-10-28）：businessTag（标签队列）模型已删，仅按注册队列判空兜底
+      const pendingSup = await prisma.supplier.count({ where: { status: 'PENDING' } });
+      if (pendingSup === 0) {
+        await resolveIds('SUPPLIER_PENDING', '无 id 存量·注册队列已空', noId);
       }
     }
   }
@@ -185,16 +181,9 @@ export async function sweepStaleActionableNotifications(prisma: SweepPrisma): Pr
       byApp.set(appId, arr);
     }
     if (byApp.size > 0) {
-      const apps = await prisma.supplierCatalogApplication.findMany({
-        where: { id: { in: [...byApp.keys()] } },
-        select: { id: true, status: true },
-      });
-      const statusById = new Map(apps.map((a) => [a.id, a.status]));
-      const stale: string[] = [];
-      for (const [appId, ids] of byApp) {
-        if (statusById.get(appId) !== 'PENDING') stale.push(...ids);
-      }
-      await resolveIds('CATALOG_APPLICATION', '按 appId：status≠PENDING', stale);
+      // mall 下线（2026-10-28）：supplierCatalogApplication 模型已删，实体无从对账——
+      // 未决 CATALOG_APPLICATION 通知所指向的申请均已不存在，全部视为过期（stale）
+      await resolveIds('CATALOG_APPLICATION', '申请实体已随商城下线移除', [...byApp.values()].flat());
     }
   }
 

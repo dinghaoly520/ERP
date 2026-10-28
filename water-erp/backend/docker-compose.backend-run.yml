@@ -1,0 +1,142 @@
+# =============================================================================
+# B 机（运行机）专用编排 —— 后端 + 基础设施，只跑镜像，不构建
+# 与 docker-compose.backend.yml 的唯一区别：去掉 api 的 build 段。
+#
+# 流程：
+#   A 机：cd /data/water-erp/backend
+#         docker compose -f docker-compose.backend.yml build api
+#         docker save water-erp-api:1.0.0 -o water-erp-api.tar
+#         （另需 pgvector/pg16、redis:7-alpine、minio/minio 四个基础镜像 tar）
+#   B 机：docker load 全部 tar → 改 .env.backend 的 MINIO_ENDPOINT 为 B 机 IP
+#         → 起 pg/redis/minio → migrate → seed → up api（全部无需源码，见 backend/README）
+# =============================================================================
+
+x-infra-common: &infra-common
+  restart: unless-stopped
+  networks: [backend]
+
+x-task-env: &task-env
+  environment:
+    DATABASE_URL: postgresql://water_erp:water_erp_dev@postgres:5432/water_erp
+    DIRECT_URL: postgresql://water_erp:water_erp_dev@postgres:5432/water_erp
+    REDIS_URL: redis://redis:6379
+    MINIO_ENDPOINT: minio
+    MINIO_PORT: "9000"
+
+services:
+  postgres:
+    <<: *infra-common
+    image: pgvector/pgvector:pg16
+    container_name: water-erp-be-postgres
+    environment:
+      POSTGRES_USER: water_erp
+      POSTGRES_PASSWORD: water_erp_dev
+      POSTGRES_DB: water_erp
+    command: ["postgres", "-c", "max_connections=200"]
+    ports:
+      - "5432:5432"
+    volumes:
+      - water-erp-be-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U water_erp -d water_erp"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    <<: *infra-common
+    image: redis:7-alpine
+    container_name: water-erp-be-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6380:6379"
+    volumes:
+      - water-erp-be-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    <<: *infra-common
+    image: minio/minio:latest
+    container_name: water-erp-be-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: water_erp_minio
+      MINIO_ROOT_PASSWORD: water_erp_minio_dev
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - water-erp-be-minio-data:/data
+
+  # 一次性任务：建表迁移（镜像内含 prisma schema，无需源码；幂等）
+  migrate:
+    <<: [ *infra-common, *task-env ]
+    image: water-erp-api:1.0.0
+    container_name: water-erp-be-migrate
+    profiles: ["tools"]
+    restart: "no"
+    working_dir: /app/apps/api
+    command: ["npx", "prisma", "migrate", "deploy"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # 一次性任务：种子数据（镜像内含 seed.ts/seed-data；⚠ 会 TRUNCATE，仅空库执行）
+  seed:
+    <<: [ *infra-common, *task-env ]
+    image: water-erp-api:1.0.0
+    container_name: water-erp-be-seed
+    profiles: ["tools"]
+    restart: "no"
+    working_dir: /app/apps/api
+    env_file: .env.backend
+    command: ["npx", "tsx", "prisma/seed.ts"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *infra-common
+    image: water-erp-api:1.0.0
+    container_name: water-erp-be-api
+    working_dir: /app/apps/api
+    env_file: .env.backend
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: "4001"
+      DATABASE_URL: postgresql://water_erp:water_erp_dev@postgres:5432/water_erp?connection_limit=20
+      DIRECT_URL: postgresql://water_erp:water_erp_dev@postgres:5432/water_erp
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "4001:4001"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4001/api/health',{redirect:'manual'}).then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 8s
+      retries: 8
+      start_period: 90s
+
+networks:
+  backend:
+    name: water-erp-backend
+
+volumes:
+  water-erp-be-postgres-data:
+    name: water-erp-be-postgres-data
+  water-erp-be-redis-data:
+    name: water-erp-be-redis-data
+  water-erp-be-minio-data:
+    name: water-erp-be-minio-data

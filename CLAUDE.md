@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**智慧水发·蜀水云采 ERP 系统** — a Chinese-language procurement and bidding ERP system for Sichuan Water Development Group（四川省水利发展集团有限公司）. It covers bid/project lifecycle, supplier lifecycle, expert evaluation/scoring, AI-assisted review, announcements/notifications, file uploads, and a public procurement mall.
+**智慧水发·蜀水云采 ERP 系统** — a Chinese-language procurement and bidding ERP system for Sichuan Water Development Group（四川省水利发展集团有限公司）. It covers bid/project lifecycle, supplier lifecycle, expert evaluation/scoring, AI-assisted review, announcements/notifications, file uploads
 
 The active codebase is the pnpm workspace in `water-erp/`.
 
-> `AGENTS.md` is stale — it documents an old port layout and is missing `bid-portal`/`mall`. This `CLAUDE.md` is the source of truth. `water-erp/ACCOUNTS.md` lists seed accounts grouped by portal. `water-erp/.impeccable.md` defines the design system.
+> `AGENTS.md` is stale — it documents an old port layout and is missing `bid-portal`. This `CLAUDE.md` is the source of truth. `water-erp/ACCOUNTS.md` lists seed accounts grouped by portal. `water-erp/.impeccable.md` defines the design system.
 
 ## Monorepo Structure
 
@@ -20,9 +20,8 @@ Run workspace commands from `water-erp/`.
 |-----|-----------|------|------|-------------|
 | **API** | `apps/api` | NestJS 11 + Prisma | 4001 | REST API backend; Swagger at `/api/docs` |
 | **信息门户** | `apps/public-portal` | Next.js 16 App Router | 3002 | Public landing page, announcements, policies, login entry for all roles |
-| **采购商城** | `apps/mall` | Next.js 16 App Router | 3003 | E-commerce procurement mall — catalog browsing, procurement, favorites |
 | **供应商门户** | `apps/supplier-portal-next` | Next.js 16 App Router | 3004 | Supplier self-service — registration 2.0（六部分向导）, bidding（dual-v2 双信封）, U盾管理, qualifications, profile |
-| **采购管理工作台** | `apps/web` | Next.js 16 App Router | 3005 | Admin/internal staff — announcements, supplier management, expert admin, mall management |
+| **采购管理工作台** | `apps/web` | Next.js 16 App Router | 3005 | Admin/internal staff — announcements, supplier management, expert admin |
 | **专家门户** | `apps/expert-portal` | Next.js 16 App Router | 3006 | Bid expert workstation — project review, identity verification, scoring, reports |
 | **开评标管理端** | `apps/bid-portal` | Next.js 16 App Router | 3007 | **开标+评标全过程执行终端（现场）**：开标任务板 + 开标大厅（组建会话/解密/唱标/异议/监督视图）+ 评标管理（启动评标/评分矩阵/生成结果/异议裁决/澄清答疑）+ 评标签字包（打印·手写签字·回传登记）+ 评标回流包。评标前准备与评标后归档归 :3005 |
 | **水叮当助手** | `apps/assistant` | Next.js 16 App Router | 3008 | AI assistant chatbot — public, no login required |
@@ -54,15 +53,6 @@ The public-facing landing page. Features a hero banner with water-themed imagery
 **Login:** Uses `X-Portal: public` header.  
 **Target audience:** All users — login entry point for the entire system.
 
-### 采购商城 (`mall`, :3003)
-
-The e-commerce procurement platform for browsing and purchasing from the centralized procurement catalog. Supports catalog item search, favorites, application submission, and price management.
-
-**Access:** Requires login as `mall` role.  
-**Login cookie:** `token_mall`.  
-**Target audience:** Mall procurement staff.
-
-### 供应商门户 (`supplier-portal-next`, :3004)
 
 **Migration note (2026-08-25):** fully rewritten from Vue 3 to Next.js 16 + React 19 + Tailwind v4 (same stack as all other portals); the old `apps/supplier-portal` Vue directory has been deleted.
 
@@ -81,7 +71,6 @@ The admin/internal staff management console for procurement users (login roles `
 - **信息发布中心** (`/notice`) — manage announcements (CRUD + publish)
 - **供应商管理中心** (`/supplier`) — supplier approval, repository, selection, evaluation
 - **专家管理中心** (`/expert`) — expert entry, repository, extraction, performance evaluation
-- **电子商城管理** (`/mall-management`) — price approval/entry, catalog management, sync & operation logs
 - **AI 投标分析** — per-item LLM 投标分析：前端入口已随分工 v3 迁至 :3007 评标管理 tab（「AI 辅助评标进度」卡片：rerun-ai-analysis / retry-ai-bidders / ai-analysis-progress）；:3005 旧版 job 式页面（`/bid-analysis` 等）为死代码已删除（2026-08-14）。分析任务由 **separate worker process** 执行（见 Architecture → AI Bid Analysis Worker），不开 worker 不出队
 - **招投标文档** (`/tender-write` · `/tender-review`) — tender-document authoring + AI review
 - **项目 / 进度 / 工作安排** (`/procurements` · `/projects` · `/progress` · `/work-arrangements`) — procurement-project lifecycle, milestones, work assignments
@@ -143,7 +132,6 @@ Standalone AI chat assistant powered by DeepSeek LLM. Provides procurement domai
 | `bid_host` | bid (:3007) | `/bid` |
 | `supplier` | supplier (:3004) | `/dashboard` |
 | `bid_expert` | expert (:3006) | `/` |
-| `mall` | mall (:3003) | `/` |
 | unknown | public (:3002) | `/` |
 
 ## Development Commands
@@ -170,13 +158,12 @@ pnpm db:migrate      # Run migrations
 pnpm db:seed         # Seed data (idempotent + destructive — see Seed Data)
 pnpm db:studio       # Open Prisma Studio
 
-# Start all (10 portals — includes bigscreen + mobile-portal + ai-bid worker)
+# Start all (9 portals — includes bigscreen + mobile-portal + ai-bid worker)
 pnpm dev
 
 # Start individual apps
 pnpm dev:api         # :4001
 pnpm dev:public      # :3002 信息门户
-pnpm dev:mall        # :3003 采购商城
 pnpm dev:supplier    # :3004 供应商门户
 pnpm dev:web         # :3005 采购管理工作台
 pnpm dev:expert      # :3006 专家门户
@@ -193,13 +180,14 @@ pnpm --filter api dev:worker:ai-bid-analysis   # = nest build && node dist/ai-bi
 # 命令保留但不应再启动：
 # pnpm dev:ukey-mw          # :17999（已退役）
 # pnpm dev:ukey-mw-guard    # :17999（已退役，guard 会因 systemd 不在而尝试拉起——生产不应启用）
+# （2026-10-28 已从 pnpm dev 链移除 guard——dev 不再复活 :17999）
 
 # OCR 微服务（Python，:8100）
 pnpm dev:ocr
 
 # Build
 pnpm build
-pnpm build:api | build:mall | build:supplier | build:web | build:expert | build:public | build:bid
+pnpm build:api | build:supplier | build:web | build:expert | build:public | build:bid
 
 # Lint
 pnpm lint
@@ -223,7 +211,7 @@ pnpm --filter api test -- <pattern> # Single spec
 pnpm --filter api test:e2e          # E2E tests (uses seed data + cookie auth)
 ```
 
-E2E suites (`apps/api/test/`): `auth`, `bid`, `catalog`, `supplier`, `upload` — each logs in via seeded accounts, makes authenticated requests, and verifies response contracts. Unit tests live co-located with source (`*.spec.ts` in `src/`).
+E2E suites (`apps/api/test/`): `auth`, `bid`, `supplier`, `upload` — each logs in via seeded accounts, makes authenticated requests, and verifies response contracts. Unit tests live co-located with source (`*.spec.ts` in `src/`).
 
 > **jest + ESM-only deps (pnpm):** `jest.config.js` 与 `test/jest-e2e.json` 用两条互补的 `transformIgnorePatterns`（pnpm 的 `.pnpm/<pkg>@<ver>/node_modules/<pkg>/` 含两段 `node_modules`，单正则会回溯误判）+ ts-jest `allowJs`，转译 ESM-only 依赖（`htmlparser2` / `@paralleldrive/cuid2` / `@noble/hashes`）。**新增 ESM-only 依赖导致测试报 `Cannot use import statement` → 加进两份 allowlist。** `test:e2e` 带 `--forceExit`（Nest 留有 Redis/BullMQ handle）。
 
@@ -235,7 +223,6 @@ Passwords follow `<username>@2026` convention:
 
 | Account | Password | Role | Portal |
 |---------|----------|------|--------|
-| `陈源远` | `陈源远@2026` | mall | 采购商城 (:3003) |
 | `重庆蜀通岩土工程有限公司` | `supplier@2026` | supplier (approved) · 原 `supplier1` | 供应商门户 (:3004) |
 | `四川水发建设有限公司` | `supplier@2026` | supplier (approved) · 英雄项目 3 家之一 | 供应商门户 (:3004) |
 | `中科院成都信息技术股份有限公司` | `supplier@2026` | supplier (approved) · 英雄项目评标第 1 名 | 供应商门户 (:3004) |
@@ -249,7 +236,7 @@ Passwords follow `<username>@2026` convention:
 | 专家姓名（如 `杨睿`） | `<其身份证号，见 ExpertLibrary.json>` | bid_expert | 专家门户 (:3006) |
 | `陈源远` | `陈源远@2026` | bid_host | 开评标管理端 (:3007) |
 
-> **「陈源远」同名账号**：username 不再全局唯一（改为 `[username, role]` 复合唯一），两个 role 不同的账号共用登录名「陈源远」/ `陈源远@2026`。登录时按来源门户（`X-Portal` 头）区分：电子商城→mall、开标端（专家门户 admin tab）→bid_host。注意 `PORTAL_ROLE_PRIORITY.web` = `[leader, staff, bid_host, admin]` （原 `procurement_staff` 幽灵账户已于 2026-08-20 删除），故「陈源远」从采购管理端 :3005 登录会解析为 `bid_host`、采购功能 403——**:3005 请用 `Swhi-CGZX-*` leader/staff 账号**（口令 `<用户名>@2026`，见上表与 `water-erp/ACCOUNTS.md`）。详见 `auth.service.ts`。
+> **「陈源远」账号**：username 复合唯一 `[username, role]` 机制的存量注记——原 mall 同名账号已随采购商城下线（2026-10-28）删除，现存唯一「陈源远」为 bid_host（开标端登录：专家门户 admin tab / :3007）。注意 `PORTAL_ROLE_PRIORITY.web` = `[leader, staff, bid_host, admin]`（原 `procurement_staff` 幽灵账户已于 2026-08-20 删除），故「陈源远」从采购管理端 :3005 登录会解析为 `bid_host`、采购功能 403——**:3005 请用 `Swhi-CGZX-*` leader/staff 账号**（口令 `<用户名>@2026`，见上表与 `water-erp/ACCOUNTS.md`）。详见 `auth.service.ts`。
 详见 `auth.service.ts`。另：专家门户 (:3006) 登录页原 dev 演示账号预填/填充按钮（`DEMO_ACCOUNTS`）已于 2026-09-18 删除——登录表单初始为空，请直接用种子账号（专家 `111111111111111111`、管理员 `Swhi-CGZX-admin@2026`）。
 
 > `admin` role 已有种子账号 `Swhi-CGZX-admin`（密码审批等管理功能；登录口令 `<用户名>@2026`）。开评标管理端 (:3007) 演示请用 `陈源远` (bid_host)。
@@ -265,7 +252,7 @@ Passwords follow `<username>@2026` convention:
 `packages/config/src/ports.ts` is the **single source of truth** for all port numbers:
 
 ```
-api: 4001, public: 3002, mall: 3003, supplier: 3004,
+api: 4001, public: 3002, supplier: 3004,
 web: 3005, expert: 3006, bid: 3007, assistant: 3008
 ```
 
@@ -274,7 +261,7 @@ web: 3005, expert: 3006, bid: 3007, assistant: 3008
 2. **后端外发链接** `apps/api/src/common/portal-link-origin.ts`（RSVP 回执等）：请求 Origin/X-Forwarded-Host 判家族 + X-Forwarded-Proto 定协议（缺省 https）。**邀请回执链接（2026-10-27 用户裁定）域名模式恒根域 `https://ssyc.scsfjt.com/rsvp?t=…`（供应商/专家统一，`resolveRsvpLinkOrigin`）**——根域 `/rsvp` 是信息门户桥接页（token 双探询 expert/supplier 公开校验端点后跳对应门户子域）；IP:端口→同 IP 换端口、localhost→本机 LAN IP（与 resolvePortalLinkOrigin 一致）；游客回执页首跳 307 是 proxy.ts 随机背景 cookie 重投，浏览器一跳渲染。生产确定性可选 `SUPPLIER_PORTAL_URL`/`EXPERT_PORTAL_URL` 显式覆盖（dev .env 勿设，会杀 LAN 自适应）。
 3. **Next middleware API 回源（server-internal 跳）**：五门户 proxy（web/supplier/mobile 转发 `/api/*`、expert/bid 鉴权 fetch）一律 `apiLoopbackOrigin()`——env 覆盖（`API_SERVER_URL` 旧别名 > `API_ORIGIN`；middleware 边缘运行时为**构建期内联**，分机部署须构建时设）> 本机回环 `127.0.0.1:4001`。**勿按请求域名家族推导公网 api 子域**——middleware→API 不出机器，绕公网会引入 hairpin NAT/二次 TLS/二次反代三重风险（2026-10-27 复盘）；expert/bid 的**登录跳转**（浏览器面门户跳）仍走 `portalOriginForHost('expert', Host头, X-Forwarded-Proto)` 双轨。浏览器直连面（bid WS `portalURL('api')` → api 子域）与本条勿混。
 4. **WS 握手门户判定** `bid.gateway.ts` `portalFromHandshake`/`tokenFromHandshake`（notification.gateway 复用同函数）：X-Portal 头 → Origin 端口 → **Origin 子域反查**（`portalFromHostname`）——域名 Origin 无端口，无此分支则全部误读 token_web（bid 端 token_bid 拿不到、开标大厅 WS 401）。chat.gateway 故意跨命名空间读全 token，不走此链。
-**申请单未列业务（mall :3003 / assistant :3008 / bigscreen :3010）无子域**，域名模式下回退端口口径。**跨子域 cookie 是第 5 个消费面（2026-10-26 补）**：各门户子域是不同 host，dev「cookie 不分端口」的天然共享不存在——`auth.controller.ts`/`ca-auth.controller.ts` 的 `COOKIE_OPTS` 经 `COOKIE_DOMAIN` env 注入 `domain=.scsfjt.com`（登出 clearCookie 引用同常量镜像一致），否则 :3006 分流写 token_bid 跳 :3007 登录死循环、WS 直连 api-ssyc 无凭据。生产部署 env 四件套：`COOKIE_DOMAIN=.scsfjt.com`、`API_ORIGIN=https://api-ssyc.scsfjt.com`、`CORS_ORIGINS` 列全部门户子域、`TRUST_PROXY=1`；nginx 须传 `X-Forwarded-Proto/Host` 与 WS `Upgrade/Connection` 头。各门户 `PORTAL_*_URL` env 覆盖仍最高优先。注意（既有行为非新引入）：`NODE_ENV=production` 下 cookie 恒 `Secure`，`http://公网IP:端口` 直连登录会被浏览器丢 cookie——生产统一走域名 https。
+**申请单未列业务（assistant :3008 / bigscreen :3010）无子域**，域名模式下回退端口口径。**跨子域 cookie 是第 5 个消费面（2026-10-26 补）**：各门户子域是不同 host，dev「cookie 不分端口」的天然共享不存在——`auth.controller.ts`/`ca-auth.controller.ts` 的 `COOKIE_OPTS` 经 `COOKIE_DOMAIN` env 注入 `domain=.scsfjt.com`（登出 clearCookie 引用同常量镜像一致），否则 :3006 分流写 token_bid 跳 :3007 登录死循环、WS 直连 api-ssyc 无凭据。生产部署 env 四件套：`COOKIE_DOMAIN=.scsfjt.com`、`API_ORIGIN=https://api-ssyc.scsfjt.com`、`CORS_ORIGINS` 列全部门户子域、`TRUST_PROXY=1`；nginx 须传 `X-Forwarded-Proto/Host` 与 WS `Upgrade/Connection` 头。各门户 `PORTAL_*_URL` env 覆盖仍最高优先。注意（既有行为非新引入）：`NODE_ENV=production` 下 cookie 恒 `Secure`，`http://公网IP:端口` 直连登录会被浏览器丢 cookie——生产统一走域名 https。
 
 ### Auth & Cookie Isolation
 
@@ -282,7 +269,6 @@ Each portal uses an independent login session via named httpOnly cookies:
 
 | Portal | Cookie Name | X-Portal Header | Notes |
 |--------|-------------|-----------------|-------|
-| 采购商城 | `token_mall` | `mall` | — |
 | 供应商门户 | `token_supplier` | `supplier` | — |
 | 采购管理工作台 | `token_web` | `web` | — |
 | 专家门户 | `token_expert` | `expert` | — |
@@ -296,7 +282,7 @@ The auth chain is `AuthGuard (global) → RolesGuard (global)`, registered via `
 
 **Cookie resolution** is handled by `apps/api/src/auth/portal-cookie.ts`: portal is detected from `X-Portal` header → `Origin`/`Referer` port → falls back to legacy `token` cookie. This allows the API to serve multiple portals with independent sessions on `localhost` (where cookies are shared across ports).
 
-**:3005 单设备登录（2026-08-21）**：同一账号同一时间只允许一台设备在线（同账号才互踢，同浏览器不同账号可并存）。机制 = `User.webSessionId` + JWT `sid` + tab 级 `X-Web-Token` 头：凡最终写 `token_web` cookie 的登录都轮换 webSessionId 并重签带 sid 的 token（`AuthService.rotateWebSession`）。**token_web cookie 同浏览器全局一份**——多标签页登录不同账号会互相覆盖，故前端登录后把 access_token 存 sessionStorage（`session-store.ts`），请求经 `@water-erp/client` 的 `extraHeaders` 带 `X-Web-Token`（`tokenFromRequest` 头优先、cookie 回退），各标签页携带自己的 token 互不覆盖。`AuthGuard` 校验 JWT 内 `sid === User.webSessionId`（依据在 token 内、不可靠省略头绕过），不符返 401 `SESSION_REPLACED`；无 sid 的旧 web token（来自 token_web cookie）统一失效重登。前端 `SessionWatchdog`（15s 心跳 `GET /auth/heartbeat`，已入操作日志排除）让空闲页 15s 内被踢；`session-kick.ts` 弹「是否向管理员反馈」双按钮（`.neu-btn-group` 等高）——点是 `POST /auth/security-feedback`（带本 tab 旧 token 确认反馈人身份）通知所有 admin（link 指向 `/admin/accounts`），再回登录页并预填账号密码（prefill，手动登出即清）。`token_bid`/`token_mall` 等其他命名空间不受影响（supplier 2026-09-18、expert 2026-09-20 已先后纳入，见下）。
+**:3005 单设备登录（2026-08-21）**：同一账号同一时间只允许一台设备在线（同账号才互踢，同浏览器不同账号可并存）。机制 = `User.webSessionId` + JWT `sid` + tab 级 `X-Web-Token` 头：凡最终写 `token_web` cookie 的登录都轮换 webSessionId 并重签带 sid 的 token（`AuthService.rotateWebSession`）。**token_web cookie 同浏览器全局一份**——多标签页登录不同账号会互相覆盖，故前端登录后把 access_token 存 sessionStorage（`session-store.ts`），请求经 `@water-erp/client` 的 `extraHeaders` 带 `X-Web-Token`（`tokenFromRequest` 头优先、cookie 回退），各标签页携带自己的 token 互不覆盖。`AuthGuard` 校验 JWT 内 `sid === User.webSessionId`（依据在 token 内、不可靠省略头绕过），不符返 401 `SESSION_REPLACED`；无 sid 的旧 web token（来自 token_web cookie）统一失效重登。前端 `SessionWatchdog`（15s 心跳 `GET /auth/heartbeat`，已入操作日志排除）让空闲页 15s 内被踢；`session-kick.ts` 弹「是否向管理员反馈」双按钮（`.neu-btn-group` 等高）——点是 `POST /auth/security-feedback`（带本 tab 旧 token 确认反馈人身份）通知所有 admin（link 指向 `/admin/accounts`），再回登录页并预填账号密码（prefill，手动登出即清）。`token_bid` 命名空间不受影响（supplier 2026-09-18、expert 2026-09-20 已先后纳入，见下）。
 
 **:3004 供应商门户单设备登录（2026-09-18）**：同一机制扩展到 supplier 命名空间（`rotatePortalSession`，角色↔门户互斥故与 web 共用 `User.webSessionId` 一列、零迁移）。差异：**纯 cookie，无 `X-Supplier-Token`**——同浏览器第二账号登录直接覆盖前者（用户裁定不做多账号并存）；无 sid 存量 supplier 会话同样失效重登；被踢/冻结遮罩（`session-kick.ts`）与 15s 心跳 `SessionWatchdog` 从 :3005 同款移植（反馈走 cookie 旧 token；心跳门禁用认证上下文登录态，因 cookie httpOnly JS 读不到；无 prefill）。e2e：`test/auth.e2e-spec.ts`「单设备登录」describe（自建用户不依赖 seed）。spec：`docs/superpowers/specs/2026-09-18-supplier-portal-single-session-design.md`
 
@@ -336,8 +322,6 @@ The NestJS API (`apps/api`, :4001):
 | `ProjectManagement` | Project management endpoints |
 | `TenderWrite` / `TenderReview` / `TenderSample` / `TenderHistory` | Tender-document authoring, AI review, sample library, historical-tender search. **`TenderReview` 硬依赖基础设施**（移植自 procurement，缺一即"无法使用"）：postgres 须为 `pgvector/pgvector:pg16` + `PGVECTOR_ENABLED=true`（语义/通用审查走 pgvector RAG）；`EMBEDDING_BASE_URL` 须指本机在跑的 vLLM bge-m3 `http://localhost:8003/v1` 且 `EMBEDDING_MODEL=/home/asus/models/bge-m3`（全路径，无 `--served-model-name`）；规则提取/CRUD 走 `@Roles('leader','admin','staff')`（与 upload/execute 对齐；原 `AdminGuard` 仅 admin 在 :3005 不可用——admin 登录后被 `portalURL` 弹去 :3007，故已放宽）。详见 memory `tender-review-infra-gotchas` |
 | `Knowledge` | Knowledge base / RAG corpus backing AI features |
-| `Catalog` | Mall catalog items, price history, favorites, supplier applications/catalog-suppliers |
-| `Budget` | Budget lists with items linked to catalog; convert to procurement project |
 | `Audit` | Operation audit logs (`AuditLog` model) |
 | `Assistant` | AI chatbot conversations & messages (DeepSeek LLM); action logs |
 | `Scheduler` | Cron-only scheduled tasks |
@@ -347,7 +331,7 @@ The NestJS API (`apps/api`, :4001):
 | `Prisma` | Infrastructure: global `PrismaService` singleton |
 | `Common` | Shared: `HttpExceptionFilter` (normalized errors), guards, decorators (`@CurrentUser`, `@Public`, `@Roles`) |
 
-> **LLM 调用已收口（2026-07）：** 所有 DeepSeek/vLLM 调用统一走 `local-ai/LlmService`（`chat`/`chatJson`/`chatMessages`）。`LLM_MAX_CONCURRENCY`（默认 10，进程内信号量）、`LLM_MAX_RETRIES`（默认 2，429/5xx/网络/超时指数退避，遵守 Retry-After≤8s）。历史曾散落于 `announcement-ai`、`ai/supplier-selection-ai`、`ai/ai.service`、`expert/expert-extraction-ai`、`assistant/deepseek.provider` 的直连 `process.env.DEEPSEEK_API_URL + fetch` 均已迁移。残留：`apps/mall` 的 AI 路由（待整合）。
+> **LLM 调用已收口（2026-07）：** 所有 DeepSeek/vLLM 调用统一走 `local-ai/LlmService`（`chat`/`chatJson`/`chatMessages`）。`LLM_MAX_CONCURRENCY`（默认 10，进程内信号量）、`LLM_MAX_RETRIES`（默认 2，429/5xx/网络/超时指数退避，遵守 Retry-After≤8s）。历史曾散落于 `announcement-ai`、`ai/supplier-selection-ai`、`ai/ai.service`、`expert/expert-extraction-ai`、`assistant/deepseek.provider` 的直连 `process.env.DEEPSEEK_API_URL + fetch` 均已迁移
 
 ### Security Hardening (API)
 
@@ -437,7 +421,7 @@ DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED
 ### Frontend Conventions
 
 - 门户无共享组件包（见 Shared Packages 表末注）——workbench 组件、`cn`、小工具在各门户 `src/components`/`src/lib` 本地维护；跨门户通用小工具（如剪贴板）按门户自包含各放一份，勿抽进 `@water-erp/shared`。
-- 剪贴板复制一律用各门户 `src/lib/copy-to-clipboard.ts`（web/bid-portal/supplier-portal-next/mall）：`navigator.clipboard` 仅 https/localhost 可用，http 演示环境直用=点击无反应或谎报「已复制」；util 带 `execCommand` 降级返回布尔，调用方必须按真实结果反馈。
+- 剪贴板复制一律用各门户 `src/lib/copy-to-clipboard.ts`（web/bid-portal/supplier-portal-next）：`navigator.clipboard` 仅 https/localhost 可用，http 演示环境直用=点击无反应或谎报「已复制」；util 带 `execCommand` 降级返回布尔，调用方必须按真实结果反馈。
 - All portals (incl. supplier) use Next.js 16 + React 19 + Tailwind CSS v4.
 - **Design system** (see `.impeccable.md`): industrial precision aesthetic — 1px hairline dividers, monospace numerals, layered navy→ice blue palette, Lucide 1.5px-stroke icons, `rounded-2xl` cards, `rounded-xl` buttons. The signature component treatment is a **neumorphic raised-border system** (directional light/dark shadow pairs derived from the page BG `oklch(0.975 0.012 258)`; never flat omnidirectional `box-shadow`) — buttons raise on hover, inset on active. Anti-patterns: no gradient buttons, no emoji-as-icons, no Material-style elevation shadows, no generic admin-template look. (`docs/glass-morphism-design-system.md` is an earlier, superseded direction; `.impeccable.md` is current.)
 - No mock data fallbacks — show real DB data, loading, or empty states.
@@ -454,7 +438,7 @@ In non-interactive environments, use `prisma migrate dev --create-only` → `pri
 - **prisma studio** 不读 `directUrl`，需 `DATABASE_URL="$DIRECT_URL" pnpm db:studio`。
 - **OperationLog**：20260723000000 起为按月 RANGE 分区表，PK=`(id, createdAt)`。@Cron 04:00 预建未来 `OPERATION_LOG_PARTITION_MONTHS_AHEAD`（默认 2）个月分区 + DROP 整月过期分区（O(1)），保留期默认 180 天。**禁止 migrate diff 重生成该表 DDL**（diff 会试图改回单列 PK）。
 - **pnpm db:backup / db:restore**：`scripts/db-backup.sh`（docker exec pg_dump → gzip），`BACKUP_KEEP_DAYS` 默认 14，输出 `backups/`（gitignored）。host cron 见 `docs/db-backup.md`。
-- **LLM 收口**：全部 DeepSeek 调用统一走 `local-ai/LlmService`（chat/chatJson/chatMessages）。`LLM_MAX_CONCURRENCY`（默认 10，进程内信号量）、`LLM_MAX_RETRIES`（默认 2，429/5xx/网络/超时指数退避，遵守 Retry-After≤8s）。`tender-review/services/llm.service.ts` 已删除（死代码）。`apps/mall` 的 AI 路由待整合（残留）。
+- **LLM 收口**：全部 DeepSeek 调用统一走 `local-ai/LlmService`（chat/chatJson/chatMessages）。`LLM_MAX_CONCURRENCY`（默认 10，进程内信号量）、`LLM_MAX_RETRIES`（默认 2，429/5xx/网络/超时指数退避，遵守 Retry-After≤8s）。`tender-review/services/llm.service.ts` 已删除（死代码）。
 - **OCR 多副本**：`services/ocr/start.sh` 支持 `OCR_PORT`/`OCR_HOST` 参数化。副本间 `OCR_HYBRID_PORT` 段不可重叠。API 侧 `OCR_SERVICE_URL` 支持逗号列表 round-robin（`ocr.service.ts`）。
 - **ai-bid worker 扩容**：`AI_BID_WORKER_CONCURRENCY`（默认 2）；水平扩容=多开 worker 进程，BullMQ 天然安全（job ID 去重）。见 `docs/ops-scaling.md`。
 - **操作日志排除默认值**：`operation-log.filter.ts` 新增 8 个高频轮询端点（通知角标/驾驶舱统计/审查任务轮询等，带方法限定 GET-only；2026-08-28 增 :3007 任务板 GET /bid/projects/dashboard 30s 轮询；2026-09-16 增 GET /operation-log——:3005 操作日志查询页（`/admin/operation-log`，admin only）自查询浏览不入日志防审计噪音，前缀连带 /my /archive /archive/verify，均只读）。

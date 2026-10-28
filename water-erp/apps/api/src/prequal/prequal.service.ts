@@ -49,7 +49,7 @@ export class PrequalService {
   /** 发起资格预审（可选同步发布 PREQUAL_NOTICE 公告） */
   async create(dto: {
     title: string; mode?: string; method?: string; limitedCount?: number;
-    catalogCategoryId?: number; validUntil?: string; projectId?: string;
+    validUntil?: string; projectId?: string;
     content?: string; publishAnnouncement?: boolean;
   }, stamp: { companyId?: string; companyName?: string }) {
     if (!dto.title?.trim()) throw new BadRequestException({ error: '请填写预审名称', code: 'BAD_PARAMS' });
@@ -84,7 +84,6 @@ export class PrequalService {
         title: dto.title.trim(),
         announcementId,
         projectId: dto.projectId ?? null,
-        catalogCategoryId: dto.catalogCategoryId ?? null,
         mode: dto.mode ?? 'single',
         method: dto.method ?? 'qualified',
         limitedCount: dto.limitedCount ?? null,
@@ -100,31 +99,6 @@ export class PrequalService {
     const prequal = await this.prisma.prequalification.findUnique({ where: { id: prequalId } });
     if (!prequal) throw new NotFoundException({ error: '资格预审不存在', code: 'NOT_FOUND' });
     if (prequal.status !== 'open') throw new BadRequestException({ error: '该预审已停止接受申请', code: 'NOT_OPEN' });
-
-    // 7.2.3.2：集中资格预审——同品类有效期内已合格 → 免重复审查自动通过
-    if (prequal.mode === 'centralized' && prequal.catalogCategoryId) {
-      const existingPass = await this.prisma.prequalApplication.findFirst({
-        where: {
-          supplierId: supplier.id,
-          status: 'passed',
-          prequal: {
-            catalogCategoryId: prequal.catalogCategoryId,
-            validUntil: { gt: new Date() },
-          },
-        },
-        select: { id: true },
-      });
-      if (existingPass) {
-        return this.prisma.prequalApplication.upsert({
-          where: { prequalId_supplierId: { prequalId, supplierId: supplier.id } },
-          update: { status: 'passed', note: note?.trim() || null, notifiedAt: new Date() },
-          create: {
-            prequalId, supplierId: supplier.id, supplierName: supplier.name, userId: supplier.userId,
-            note: note?.trim() || null, status: 'passed', notifiedAt: new Date(),
-          },
-        });
-      }
-    }
 
     return this.prisma.prequalApplication.upsert({
       where: { prequalId_supplierId: { prequalId, supplierId: supplier.id } },

@@ -27,8 +27,6 @@ import { ExpertModule } from './expert/expert.module';
 import { AiModule } from './ai';
 import { ProcurementModule } from './procurement/procurement.module';
 import { ProcurementsModule } from './procurements/procurements.module';
-import { CatalogModule } from './catalog/catalog.module';
-import { BudgetModule } from './budget/budget.module';
 import { AuditModule } from './audit/audit.module';
 import { OperationLogModule } from './operation-log/operation-log.module';
 import { MetricsModule } from './metrics/metrics.module';
@@ -99,8 +97,6 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     AiModule,
     ProcurementModule,
     ProcurementsModule,
-    CatalogModule,
-    BudgetModule,
     AuditModule,
     OperationLogModule,
     MetricsModule,

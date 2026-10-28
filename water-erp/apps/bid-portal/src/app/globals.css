@@ -1183,3 +1183,26 @@ select.neu-select {
   to { opacity: 1; transform: translateX(-50%); }
 }
 @media (prefers-reduced-motion: reduce) { .help-tip__bubble { animation: none; } }
+
+/* ── 单家重试选择 chips .ai-retry-chip（AI 卡片失败/卡住家多选，aria-pressed 驱动；
+      选中=accent 染 + 轻凸起（bid-pill 12% color-mix 语言），未选=按入内凹 ── */
+.ai-retry-chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px;
+  font-size: 11px; font-weight: 700; line-height: 1.5; border: none; border-radius: 999px; cursor: pointer;
+  color: var(--accent-strong);
+  background: color-mix(in oklch, var(--accent) 12%, transparent);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.55),
+    1px 1px 3px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 2px oklch(1 0 0 / 0.75);
+  transition: all 0.2s ease; white-space: nowrap;
+}
+.ai-retry-chip:hover { background: color-mix(in oklch, var(--accent) 18%, transparent); }
+.ai-retry-chip:active { box-shadow: inset 1px 1px 3px oklch(0.55 0.03 258 / 0.15), inset -1px -1px 3px oklch(1 0 0 / 0.5); }
+.ai-retry-chip[aria-pressed="false"] {
+  color: oklch(0.6 0.03 258);
+  background: oklch(0.975 0.008 258);
+  box-shadow: inset 1px 1px 3px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 3px oklch(1 0 0 / 0.5);
+}
+.ai-retry-chip[aria-pressed="false"]:hover { color: var(--accent-strong); }
+@media (prefers-reduced-motion: reduce) { .ai-retry-chip { transition: none; } }

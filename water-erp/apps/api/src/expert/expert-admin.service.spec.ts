@@ -749,7 +749,10 @@ describe('ExpertAdminService', () => {
       expect(notification.sendToUser).toHaveBeenCalledTimes(1);
       const content = notification.sendToUser.mock.calls[0][2].content;
       expect(content).toContain('确认链接（15分钟内有效）');
-      expect(content).not.toContain('0.25'); // 标签已按分钟归一，不得露出小时小数
+      // 标签已按分钟归一，不得露出小时小数——只断言标签段等值：
+      // 整段 not.toContain('0.25') 会被 URL host 子串撞车（CI 实录 10.1.0.25）
+      const label = content.match(/确认链接（[^）]*内有效）/) ?? [];
+      expect(label[0]).toBe('确认链接（15分钟内有效）');
       expect(content).not.toContain('2小时');
     });
 

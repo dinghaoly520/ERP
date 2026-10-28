@@ -73,7 +73,7 @@ export class FrameworkService {
 
   async create(dto: {
     title: string; entryMode?: string; variant?: string;
-    catalogCategoryId?: number; projectManagementItemId?: string;
+    projectManagementItemId?: string;
     validFrom: string; validUntil: string;
     priceRule?: any; quotaRule?: any; secondStageRule?: string;
   }, stamp: { companyId?: string; companyName?: string }) {
@@ -97,7 +97,6 @@ export class FrameworkService {
         title: dto.title.trim(),
         entryMode: dto.entryMode === 'open' ? 'open' : 'closed',
         variant: dto.variant ?? 'supplier_price',
-        catalogCategoryId: dto.catalogCategoryId ?? null,
         projectManagementItemId: dto.projectManagementItemId ?? null,
         validFrom, validUntil,
         priceRule: dto.priceRule ?? null,

@@ -3573,7 +3573,7 @@ describe('BidService — retryAiBidders', () => {
 
   it('无可重试对象（bidder 全正常）→ 拒绝', async () => {
     prisma.aiBidAnalysisTask.findUnique.mockResolvedValue({ id: 't1', projectId: 'p1', status: 'ANALYZING', bidderResults: [mkBidder({ status: 'COMPLETED' }), mkBidder({ id: 'br2', status: 'SCORING', bidSupplierId: 'bs2', bidSupplier: { supplierName: '乙公司' } })] });
-    await expect(service.retryAiBidders('p1', undefined, 'u1')).rejects.toMatchObject({ message: expect.stringContaining('无可重试') });
+    await expect(service.retryAiBidders('p1', undefined, 'u1')).rejects.toMatchObject({ response: { code: 'NO_RETRYABLE_BIDDERS' }, message: expect.stringContaining('可重试') });
   });
 
   it('指定 ids → 仅重置并入队该 bidder；task 置回 ANALYZING', async () => {
@@ -3642,6 +3642,34 @@ describe('BidService — retryAiBidders', () => {
     expect(prisma.aiBidderResult.updateMany).not.toHaveBeenCalled();
     expect(prisma.aiBidAnalysisTask.update).not.toHaveBeenCalled();
   });
+  /* ── M1（2026-10-28 终审遗留修复）：PENDING 停摆行纳入可重试——部分完成+剩余 PENDING 的
+     worker 死亡停摆此前无任何恢复入口（job 丢失行永不离开 PENDING）── */
+  it('M1：ANALYZING 且 COMPLETED+PENDING 混合、PENDING 行超 30 分钟停摆 → 该 PENDING 家可单家重试', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue({
+      id: 't1', projectId: 'p1', status: 'ANALYZING',
+      bidderResults: [
+        mkBidder({ id: 'br1', status: 'COMPLETED', bidSupplier: { supplierName: '甲公司' }, updatedAt: new Date(NOW - 60 * 60_000) }),
+        mkBidder({ id: 'br2', status: 'PENDING', bidSupplier: { supplierName: '乙公司' }, updatedAt: new Date(NOW - 45 * 60_000) }),
+      ],
+    });
+    const res = await service.retryAiBidders('p1', undefined, 'u1');
+    expect(res.retried).toHaveLength(1);
+    expect(res.retried[0]).toMatchObject({ id: 'br2', name: '乙公司' });
+  });
+
+  it('M1 反向锁：PENDING 行未超阈值（正常排队）→ 不可重试，400 NO_RETRYABLE_BIDDERS', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue({
+      id: 't1', projectId: 'p1', status: 'ANALYZING',
+      bidderResults: [
+        mkBidder({ id: 'br1', status: 'COMPLETED', bidSupplier: { supplierName: '甲公司' } }),
+        mkBidder({ id: 'br2', status: 'PENDING', bidSupplier: { supplierName: '乙公司' }, updatedAt: new Date(NOW - 2 * 60_000) }),
+      ],
+    });
+    await expect(service.retryAiBidders('p1', undefined, 'u1')).rejects.toMatchObject({
+      response: { code: 'NO_RETRYABLE_BIDDERS' },
+    });
+  });
+
 });
 
 /* ── N8：rerunAiAnalysis 存量项目补建任务 ── */
@@ -3663,7 +3691,7 @@ describe('BidService — rerunAiAnalysis (N8 存量补建)', () => {
       },
       aiBidReport: { deleteMany: jest.fn(async () => ({ count: 0 })) },
       aiConcordanceResult: { deleteMany: jest.fn(async () => ({ count: 0 })) },
-      aiBidderResult: { deleteMany: jest.fn(async () => ({ count: 0 })), createMany: jest.fn(async () => ({ count: 1 })) },
+      aiBidderResult: { findMany: jest.fn(async () => [{ id: 'br1', status: 'PENDING' }]), deleteMany: jest.fn(async () => ({ count: 0 })), createMany: jest.fn(async () => ({ count: 1 })) },
       bidSupplier: { findMany: jest.fn(async () => [{ id: 'bs-1' }]) },
       bidSupervisionLog: { create: jest.fn(async () => ({})) },
       auditLog: { create: jest.fn(async () => ({})) }, // F15：rerun 补审计
@@ -3830,6 +3858,128 @@ describe('BidService — rerunAiAnalysis (N8 存量补建)', () => {
     );
   });
 });
+
+/* ── F19（2026-10-28）：F15 停摆豁免——全 PENDING（含 0 家）且队列探测确认无人消费时放行重跑；
+     worker 死亡窗口内卡片「重新分析」不再被 409 死锁 ── */
+describe('BidService — rerunAiAnalysis F15/F19 停摆豁免', () => {
+  let service: BidService;
+  let prisma: any;
+  let tenderQueue: { add: jest.Mock; remove: jest.Mock };
+  let bidderQueue: { getJobCounts: jest.Mock; getJob: jest.Mock };
+
+  beforeEach(async () => {
+    tenderQueue = { add: jest.fn().mockResolvedValue({}), remove: jest.fn().mockResolvedValue(undefined) };
+    // 默认「worker 活着」（active=1）——probeWorkerIdle 即时 false，F15 维持原语义
+    bidderQueue = { getJobCounts: jest.fn().mockResolvedValue({ active: 1, waiting: 0, delayed: 0 }), getJob: jest.fn() };
+    prisma = {
+      bidProject: { findUnique: jest.fn(async () => ({ stage: 'EVALUATING', name: 'P' })) },
+      aiBidAnalysisTask: {
+        findUnique: jest.fn(async () => ({ id: 't1', projectId: 'p1', status: 'ANALYZING', requirements: null, completedAt: null })),
+        upsert: jest.fn(async () => ({ id: 't1' })),
+        update: jest.fn(async () => ({})),
+      },
+      aiBidReport: { deleteMany: jest.fn(async () => ({ count: 0 })) },
+      aiConcordanceResult: { deleteMany: jest.fn(async () => ({ count: 0 })) },
+      aiBidderResult: {
+        findMany: jest.fn(async () => [{ id: 'br1', status: 'PENDING' }]),
+        deleteMany: jest.fn(async () => ({ count: 0 })),
+        createMany: jest.fn(async () => ({ count: 1 })),
+      },
+      bidSupplier: { findMany: jest.fn(async () => [{ id: 'bs-1' }]) },
+      bidSupervisionLog: { create: jest.fn(async () => ({})) },
+      auditLog: { create: jest.fn(async () => ({})) },
+      bidRequirementReview: { count: jest.fn(async () => 0) },
+      bidScoreRecord: { count: jest.fn(async () => 0) },
+      bidScorePointDecision: { count: jest.fn(async () => 0) },
+      $transaction: jest.fn(async (cb: any) => cb(prisma)),
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn(), sendToUser: jest.fn() } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMaxScore: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
+        BidService,
+        BidOpeningRecordService,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        BidScoreStandardService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
+        { provide: getQueueToken(QUEUE_NAMES.TENDER_PROCESSING), useValue: tenderQueue },
+        { provide: getQueueToken(QUEUE_NAMES.BIDDER_PROCESSING), useValue: bidderQueue },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('F19 在途保护：ANALYZING 且有 bidder 推进中（PROCESSING）→ 409 TASK_IN_PROGRESS，不 probe 不清空', async () => {
+    prisma.aiBidderResult.findMany.mockResolvedValue([{ id: 'br1', status: 'PROCESSING' }]);
+    const err = await service.rerunAiAnalysis('p1', 'u1').catch((e: any) => e);
+    expect(err).toBeInstanceOf(ConflictException);
+    expect(err.response.code).toBe('TASK_IN_PROGRESS');
+    expect(bidderQueue.getJobCounts).not.toHaveBeenCalled();
+    expect(prisma.aiBidderResult.deleteMany).not.toHaveBeenCalled();
+    expect(tenderQueue.add).not.toHaveBeenCalled();
+  });
+
+  it('F19 放行：ANALYZING 全 PENDING + 队列 active=0/waiting=1（无人消费）→ 清空重建入队放行', async () => {
+    bidderQueue.getJobCounts.mockResolvedValue({ active: 0, waiting: 1, delayed: 0 });
+    await expect(service.rerunAiAnalysis('p1', 'u1')).resolves.toEqual({ taskId: 't1' });
+    expect(prisma.aiBidderResult.findMany).toHaveBeenCalledWith({ where: { taskId: 't1' }, select: { id: true, status: true } });
+    expect(prisma.aiBidderResult.deleteMany).toHaveBeenCalledWith({ where: { taskId: 't1' } });
+    expect(prisma.aiBidAnalysisTask.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 't1' }, data: expect.objectContaining({ status: 'PENDING' }) }),
+    );
+    expect(tenderQueue.add).toHaveBeenCalled();
+  });
+
+  it('F19 放行（0 家）：ANALYZING 且无 bidder 行 + 队列零任务无 job → 放行并按解密成功供应商重建', async () => {
+    prisma.aiBidderResult.findMany.mockResolvedValue([]);
+    bidderQueue.getJobCounts.mockResolvedValue({ active: 0, waiting: 0, delayed: 0 });
+    bidderQueue.getJob.mockResolvedValue(undefined);
+    prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'bs-1' }, { id: 'bs-2' }]);
+    await expect(service.rerunAiAnalysis('p1', 'u1')).resolves.toEqual({ taskId: 't1' });
+    expect(prisma.aiBidderResult.createMany).toHaveBeenCalledWith(expect.objectContaining({ skipDuplicates: true }));
+    const arg = prisma.aiBidderResult.createMany.mock.calls.at(-1)![0];
+    expect(arg.data).toHaveLength(2);
+    expect(tenderQueue.add).toHaveBeenCalled();
+  });
+
+  it('F19 worker 忙（active>0，本项目排队属正常）→ 仍 409 TASK_IN_PROGRESS', async () => {
+    bidderQueue.getJobCounts.mockResolvedValue({ active: 1, waiting: 1, delayed: 0 });
+    await expect(service.rerunAiAnalysis('p1', 'u1')).rejects.toMatchObject({
+      response: { code: 'TASK_IN_PROGRESS' },
+    });
+    expect(prisma.aiBidderResult.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('F19 probe 异常（队列探测 reject）→ 保守 409，不放行', async () => {
+    bidderQueue.getJobCounts.mockRejectedValue(new Error('redis down'));
+    await expect(service.rerunAiAnalysis('p1', 'u1')).rejects.toMatchObject({
+      response: { code: 'TASK_IN_PROGRESS' },
+    });
+    expect(prisma.aiBidderResult.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('F19 频控语义钉子（终审 I1）：worker 已死时（task PENDING、tender job waiting 无人消费）rerun 仍放行——非终态闸在豁免域不构成频控，良性=无可铲数据+确定性 jobId 单 job 收敛', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue({ id: 't1', projectId: 'p1', status: 'PENDING', requirements: null, completedAt: null });
+    (tenderQueue as any).getJobCounts = jest.fn().mockResolvedValue({ active: 0, waiting: 1, delayed: 0 });
+    (tenderQueue as any).getJob = jest.fn();
+    await expect(service.rerunAiAnalysis('p1', 'u1')).resolves.toEqual({ taskId: 't1' });
+    expect(prisma.aiBidderResult.deleteMany).toHaveBeenCalledWith({ where: { taskId: 't1' } });
+    expect(tenderQueue.add).toHaveBeenCalled();
+  });
+
+  it('M2：0 家停摆 + worker 忙别家（probe active>0）→ 409 文案不误导「单家重试」而引导队列繁忙稍后再试', async () => {
+    prisma.aiBidderResult.findMany.mockResolvedValue([]);
+    bidderQueue.getJobCounts.mockResolvedValue({ active: 1, waiting: 0, delayed: 0 });
+    const err = await service.rerunAiAnalysis('p1', 'u1').catch((e: any) => e);
+    expect(err).toBeInstanceOf(ConflictException);
+    expect(err.response.code).toBe('TASK_IN_PROGRESS');
+    expect(err.response.error).not.toContain('单家重试');
+    expect(err.response.error).toContain('稍后再试');
+  });
+});
+
 
 /* ── Task 2: completeOpening TOCTOU 收窄 —— 事务内复查 opening-done ── */
 

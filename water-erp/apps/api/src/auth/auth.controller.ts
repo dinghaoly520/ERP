@@ -18,7 +18,7 @@ import { getClientIp } from '../common/client-ip.util';
 import { buildSessionMeta } from '../common/session-device.util';
 import { cookieNameForPortal, portalForRole, portalFromRequest, tokenFromRequest, LEGACY_COOKIE } from './portal-cookie';
 import { checkPortRole } from './port-roles';
-import { PORTS, ROLE_PORTAL } from '@water-erp/config';
+import { ROLE_PORTAL } from '@water-erp/config';
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
@@ -189,7 +189,7 @@ export class AuthController {
 
     // 单设备登录（web 2026-08-21；supplier 2026-09-18；expert 2026-09-20）：凡是最终写入
     // token_web / token_supplier / token_expert 命名空间的登录（无论从本门户还是 :3002 入口）
-    // 都轮换会话 ID 并重签带 sid 的 token——后登录者顶掉先登录者。写 token_bid/token_mall
+    // 都轮换会话 ID 并重签带 sid 的 token——后登录者顶掉先登录者。写 token_bid
     // 等其他门户的登录不轮换、不互踢（bid_expert 角色↔expert 门户互斥，:3006 分流写
     // token_bid 的仅限非 bid_expert 角色，不会误伤 :3007 主持人/管理员会话）。
     if (cookiePortal === 'web' || cookiePortal === 'supplier' || cookiePortal === 'expert') {
@@ -363,62 +363,6 @@ export class AuthController {
       orderBy: { createdAt: 'desc' },
       take: 20,
     });
-  }
-
-  @Get('sso/mall')
-  @Public()
-  @ApiOperation({ summary: '从管理端 SSO 免登录进入采购商城（新标签页）' })
-  async ssoToMall(
-    @Req() req: Request,
-    @Query('redirect_uri') redirectUri: string,
-    @Res() res: Response,
-  ) {
-    // 手动解析 token_web cookie（不依赖 AuthGuard，新标签页跨端口时 cookie domain=localhost 携带但 AuthGuard 不适用）
-    let currentUserId: string | undefined;
-    const tokenWeb = req.cookies?.token_web;
-    if (tokenWeb) {
-      try {
-        const payload = this.jwt.verify(tokenWeb) as { sub: string };
-        if (payload?.sub) currentUserId = payload.sub;
-      } catch { /* token 无效则降级，直接跳转不做 SSO */ }
-    }
-
-    // 白名单校验 redirect_uri，防止开放重定向
-    // （SSO_ALLOWED_REDIRECTS：环境追加的可信商城地址，逗号分隔）
-    // mall 门户 origin 由 @water-erp/config 的 PORTS 派生（审计 D：原硬编码 :3003）；
-    // 生产经 MALL_URL 环境变量补充真实域名。
-    const mallOrigin = `http://localhost:${PORTS.mall}`;
-    const ALLOWED_REDIRECTS = new Set([
-      mallOrigin,
-      ...(process.env.MALL_URL ? [process.env.MALL_URL] : []),
-      ...(process.env.SSO_ALLOWED_REDIRECTS?.split(',').map((s) => s.trim()).filter(Boolean) ?? []),
-    ]);
-    if (redirectUri && !ALLOWED_REDIRECTS.has(redirectUri)) {
-      throw new BadRequestException({ error: '非法重定向地址', code: 'INVALID_REDIRECT' });
-    }
-    const mallRedirect = redirectUri || mallOrigin;
-
-    if (currentUserId) {
-      const currentUser = await this.prisma.user.findUnique({
-        where: { id: currentUserId },
-        select: { username: true },
-      });
-      if (currentUser) {
-        const mallUser = await this.prisma.user.findFirst({
-          where: { username: currentUser.username, role: 'mall', isActive: true },
-          select: { id: true, username: true },
-        });
-        if (mallUser) {
-          const token = this.authService.issueToken(mallUser.id, mallUser.username, 'mall');
-          const mallCookieName = cookieNameForPortal('mall') || 'token_mall';
-          res.cookie(mallCookieName, token.access_token, COOKIE_OPTS);
-          return res.redirect(mallRedirect);
-        }
-      }
-    }
-
-    // 降级：无 token / 无 mall 账户 → 直接跳转商城首页，用户在商城自行登录
-    return res.redirect(mallRedirect);
   }
 
   @Get('departments')

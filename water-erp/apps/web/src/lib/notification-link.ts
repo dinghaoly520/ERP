@@ -30,7 +30,6 @@ const CROSS_PORTAL_SEGMENTS: Partial<Record<string, AppName>> = {
 const KNOWN_ROUTE_PREFIXES = [
   '/admin',
   '/expert',
-  '/mall-management',
   '/notice',
   '/supplier',
 ] as const;

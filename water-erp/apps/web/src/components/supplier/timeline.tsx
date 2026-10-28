@@ -34,8 +34,6 @@ const typeConfig: Record<string, TypeConfig> = {
   evaluation:      { color: 'var(--accent)', bg: 'var(--accent)', icon: Award },
   SUPPLIER_EVALUATION_CREATED: { color: 'var(--accent)', bg: 'var(--accent)', icon: Award },
   bid:             { color: 'oklch(0.5 0.12 220)', bg: 'oklch(0.5 0.12 220)', icon: Briefcase },
-  catalog_apply:   { color: 'oklch(0.55 0.1 170)', bg: 'oklch(0.55 0.1 170)', icon: Package },
-  contract:        { color: 'oklch(0.55 0.12 110)', bg: 'oklch(0.55 0.12 110)', icon: Star },
 };
 
 const fallback: TypeConfig = { color: 'var(--muted-foreground)', bg: 'var(--muted-foreground)', icon: FileText };

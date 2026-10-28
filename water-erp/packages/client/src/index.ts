@@ -2,8 +2,8 @@
  * @water-erp/client — 统一 API fetch 客户端（全部门户共用）。
  *
  * 背景（2026-08 审计）：fetchApi 封装曾在 6 个 app 各复制一份（web/bid-portal/
- * expert-portal/public-portal/assistant/web-erp-old），mall 完全没有封装（裸 fetch
- * 手写 X-Portal 头）。本包收敛为一份实现，各门户只保留 2-10 行的门户配置。
+ * expert-portal/public-portal/assistant/web-erp-old）。本包收敛为一份实现，
+ * 各门户只保留 2-10 行的门户配置。
  *
  * 设计约束：
  *  - 纯 fetch，无框架依赖（Next.js React 门户与 Vue supplier-portal 均可用）；
@@ -16,8 +16,8 @@
  *
  * 用法（app 内建一个 lib/api.ts）：
  *   import { createApiClient } from '@water-erp/client';
- *   export const api = createApiClient({ portal: 'mall' });
- *   await api.get<CatalogItem[]>('/catalog');
+ *   export const api = createApiClient({ portal: 'web' });
+ *   await api.get('/auth/heartbeat');
  */
 
 /** 后端规范化错误体：{ statusCode, code, error, timestamp, path } */

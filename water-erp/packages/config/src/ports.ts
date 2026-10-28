@@ -2,7 +2,6 @@
 export const PORTS = {
   api: 4001,
   public: 3002,   // 信息门户 — 前端入口，公告/政策
-  mall: 3003,      // 采购商城
   supplier: 3004,  // 供应商门户
   supplierNext: 3020, // 迁移兼容别名：API websocket/origin 校验仍接受；当前 supplier-portal-next 使用 :3004
   web: 3005,       // 统一采购管理工作台（合并 procurement 采购中心 + ERP 管理端）

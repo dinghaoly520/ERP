@@ -135,7 +135,7 @@ describe('NotificationGateway 会话轮换防护（2026-10-14 单设备互踢配
     expect(disconnected).toEqual([true]);
   });
 
-  it('无 sid（token_bid/token_mall 等不轮换命名空间）→ 不校验、正常入房', async () => {
+  it('无 sid（token_bid 等不轮换命名空间）→ 不校验、正常入房', async () => {
     const { gw, client } = makeSidGateway('whatever', { sub: 'u-host' });
     await gw.handleConnection(client);
     expect(client.join).toHaveBeenCalledWith('user:u-host');

@@ -1538,22 +1538,17 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     supplier?: { total: number; approved: number; pending: number; risk: number };
     announcement?: { total: number; published: number; draftLike: number };
     expert?: { total: number; active: number; unfinished: number };
-    catalog?: { total: number; active: number; alerts: number };
-    applications?: { pending: number };
   }) {
     const s = context.supplier || { total: 0, approved: 0, pending: 0, risk: 0 };
     const a = context.announcement || { total: 0, published: 0, draftLike: 0 };
     const e = context.expert || { total: 0, active: 0, unfinished: 0 };
-    const c = context.catalog || { total: 0, active: 0, alerts: 0 };
-    const apps = context.applications || { pending: 0 };
 
     if (!this.llm.getModel()) {
-      return this.fallbackInsight(s, a, e, c, apps);
+      return this.fallbackInsight(s, a, e);
     }
 
     const supplierApprovalPct = s.total > 0 ? Math.round((s.approved / s.total) * 100) : 0;
     const announcementPubPct = a.total > 0 ? Math.round((a.published / a.total) * 100) : 0;
-    const catalogActivePct = c.total > 0 ? Math.round((c.active / c.total) * 100) : 0;
     const expertCompletionRate = (e.active + Math.max(e.unfinished || 0, 0)) > 0
       ? Math.round(((e.active || 0) / ((e.active || 0) + (e.unfinished || 0))) * 100) : 0;
 
@@ -1586,16 +1581,10 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       '   - 未完成事项数反映专家履职的及时性。',
       '   - 专家参与项目数反映专家资源的利用效率。',
       '',
-      '4. 电子商城管理（/mall-management）：管理集中采购目录、价格审批、价格录入。',
-      '   - 有效目录占比直接影响价格参考体系的可用性。',
-      '   - 待处理预警数反映价格数据的时效性风险。',
-      '   - 供货审批积压意味着供应商无法及时获得供货资格。',
-      '',
       '# 跨模块关联分析原则',
       '- 供应商待审积压 + 投标项目少 → 招标市场竞争不充分。',
       '- 公告发布率低 + 供应商已入库多 → 信息触达不足，供应商有资源但无机会。',
       '- 专家总量充足但履职完成率低 → 可能存在分配不合理或回避关系过多。',
-      '- 商城目录有效率高 + 供货审批少 → 商城供给侧稳定，可扩大目录覆盖。',
       '',
       '# 输出格式（必须严格返回JSON，无任何其他文字）',
       '{',
@@ -1619,11 +1608,10 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       '',
       '# 关键路径映射',
       '信息发布中心→/notice  供应商审批→/supplier/approval  供应商库→/supplier/repository',
-      '专家库→/expert/repository  专家评价→/expert/evaluation  商城目录→/mall-management/catalog',
-      '价格审批→/mall-management/approval  价格录入→/mall-management/price-entry',
+      '专家库→/expert/repository  专家评价→/expert/evaluation',
       '',
-      '# tone 规则：积压/异常→orange，健康→green，信息→blue，专家→purple，商城→cyan',
-      'moduleInsights 必须覆盖4个模块，不要遗漏。metrics 字段放2个最有意义的数字。',
+      '# tone 规则：积压/异常→orange，健康→green，信息→blue，专家→purple',
+      'moduleInsights 必须覆盖3个模块，不要遗漏。metrics 字段放2个最有意义的数字。',
     ].join('\n');
 
     const userPrompt = [
@@ -1642,13 +1630,8 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       `总量 ${e.total} 名 | 进行中项目 ${e.active} 项 | 未完成事项 ${e.unfinished} 项 | 履职完成率 ${expertCompletionRate}%`,
       e.unfinished > 0 ? `→ ${e.unfinished} 项专家事项待完成，可能影响评审进度。` : '→ 专家履职情况良好。',
       '',
-      '## 电子商城管理',
-      `目录总量 ${c.total} 条 | 有效 ${c.active} 条（占比 ${catalogActivePct}%）| 待处理/预警 ${c.alerts} 条 | 供货审批待办 ${apps.pending} 条`,
-      c.alerts > 0 ? `→ ${c.alerts} 条目录存在价格波动、临期或待复核状态，影响价格参考准确性。` : '',
-      apps.pending > 0 ? `→ ${apps.pending} 条供应商供货申请等待审批。` : '→ 无待审批供货申请。',
-      '',
       '# 分析要求',
-      '请以采购运营总监的视角，对上述四个模块进行逐一分析和跨模块关联洞察。',
+      '请以采购运营总监的视角，对上述三个模块进行逐一分析和跨模块关联洞察。',
       '每个模块的分析需要引用具体数字，说明业务含义和潜在影响。',
       '跨模块洞察需要找到两个以上模块之间的关联性问题。',
       '建议需要按优先级排列，每条附上预期影响（高/中/低）。',
@@ -1682,15 +1665,14 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       };
     } catch (err: any) {
       this.logger.warn(`DeepSeek dashboard-summary error: ${err.message}`);
-      return this.fallbackInsight(s, a, e, c, apps);
+      return this.fallbackInsight(s, a, e);
     }
   }
 
-  private fallbackInsight(s: any, a: any, e: any, c: any, apps: any) {
+  private fallbackInsight(s: any, a: any, e: any) {
     const approvalPct = s.total > 0 ? Math.round((s.approved / s.total) * 100) : 0;
     const pubPct = a.total > 0 ? Math.round((a.published / a.total) * 100) : 0;
-    const catalogPct = c.total > 0 ? Math.round((c.active / c.total) * 100) : 0;
-    const totalIssues = s.pending + a.draftLike + e.unfinished + c.alerts + apps.pending;
+    const totalIssues = s.pending + a.draftLike + e.unfinished;
     const hasSupplierRisk = s.risk > 0;
 
     const moduleInsights: any[] = [
@@ -1738,20 +1720,6 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
         tone: e.unfinished > 2 ? 'orange' : e.unfinished > 0 ? 'purple' : 'green',
         metrics: [`${e.total}名专家`, `${e.active}项进行中`],
       },
-      {
-        module: '电子商城管理',
-        status: c.alerts > 3 || apps.pending > 2 ? '待处理' : c.alerts > 0 || apps.pending > 0 ? '关注' : '健康',
-        analysis: c.total === 0
-          ? '电子商城目录暂无数据。集中采购目录是价格参考体系的核心，建议尽快通过价格录入或批量导入方式建立目录数据库。'
-          : c.alerts > 3
-            ? `目录总量${c.total}条，有效${c.active}条（有效率${catalogPct}%），但有${c.alerts}条存在价格波动、临期或待复核预警。价格数据时效性不足将影响预算编制的准确性。`
-            : c.alerts > 0 || apps.pending > 0
-              ? `目录总量${c.total}条，有效${c.active}条。${c.alerts > 0 ? `${c.alerts}条待复核，` : ''}${apps.pending > 0 ? `${apps.pending}条供货审批待处理，` : ''}建议及时维护价格数据。`
-              : `目录总量${c.total}条，有效${c.active}条（有效率${catalogPct}%）。价格数据时效性良好，可支撑预算编制和价格参考。`,
-        path: c.alerts > 0 ? '/mall-management/catalog' : apps.pending > 0 ? '/mall-management/approval' : '/mall-management/catalog',
-        tone: c.alerts > 3 || apps.pending > 2 ? 'orange' : c.alerts > 0 || apps.pending > 0 ? 'cyan' : 'green',
-        metrics: [`有效${c.active}条`, catalogPct > 0 ? `有效率${catalogPct}%` : '暂无数据'],
-      },
     ];
 
     const crossParts: string[] = [];
@@ -1764,9 +1732,6 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     if (e.active > 0 && e.unfinished > 0) {
       crossParts.push(`专家${e.active}项评审进行中但${e.unfinished}项未完成，建议排查是否存在分配不均或回避流程过长的问题`);
     }
-    if (c.active > 0 && apps.pending > 0) {
-      crossParts.push(`商城目录${c.active}条有效，${apps.pending}条供货申请待审，应尽快完成审批以扩大有效供应商覆盖面`);
-    }
     const crossInsight = crossParts.length > 0
       ? crossParts.join('。')
       : '各模块间暂无明显的关联性问题，建议按常规流程推进各项业务';
@@ -1774,12 +1739,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     const suggestions: any[] = [];
     if (s.pending > 0) suggestions.push({ priority: 1, text: `处理${s.pending}家待审批供应商的入库审核，确保新供应商能及时参与招标`, path: '/supplier/approval', impact: '高' });
     if (a.draftLike > 0) suggestions.push({ priority: suggestions.length + 1, text: `完成${a.draftLike}条待完善公告的编辑和发布，提高信息透明度`, path: '/notice', impact: '高' });
-    if (apps.pending > 0) suggestions.push({ priority: suggestions.length + 1, text: `审核${apps.pending}条商城供货申请，扩大目录供应商覆盖范围`, path: '/mall-management/approval', impact: '中' });
-    if (c.alerts > 0) suggestions.push({ priority: suggestions.length + 1, text: `复核${c.alerts}条目录的价格波动或临期状态，确保价格参考体系可靠`, path: '/mall-management/catalog', impact: '中' });
     if (e.unfinished > 0) suggestions.push({ priority: suggestions.length + 1, text: `跟进${e.unfinished}项专家未完成事项，保障评审工作的完整性和及时性`, path: '/expert/evaluation', impact: '中' });
-    if (c.total > 0 && c.active / Math.max(c.total, 1) > 0.8 && suggestions.length < 3) {
-      suggestions.push({ priority: suggestions.length + 1, text: '考虑扩大商城目录品类覆盖范围，丰富价格参考数据维度', path: '/mall-management/price-entry', impact: '低' });
-    }
     if (s.approved > 0 && s.pending === 0 && suggestions.length < 3) {
       suggestions.push({ priority: suggestions.length + 1, text: '对已入库供应商进行分类梳理和绩效评价，优化资源池结构', path: '/supplier/evaluation', impact: '低' });
     }
@@ -1788,10 +1748,9 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     if (s.total > 0) overviewParts.push(`供应商库${s.total}家（入库率${approvalPct}%）`);
     if (a.total > 0) overviewParts.push(`信息发布${a.total}条（发布率${pubPct}%）`);
     if (e.total > 0) overviewParts.push(`专家${e.total}名（${e.active}项进行中）`);
-    if (c.total > 0) overviewParts.push(`商城目录${c.total}条（有效率${catalogPct}%）`);
     const overview = overviewParts.length > 0
       ? `各中心运行概况：${overviewParts.join('，')}。` + (totalIssues > 0 ? `当前共有${totalIssues}项待处理事项需要关注。` : '各模块运行平稳，无积压事项。')
-      : '各业务中心暂无活跃数据。建议按实际业务需求逐步初始化：信息发布中心录入首条公告、供应商管理中心注册首批供应商、专家管理中心建立专家库、电子商城导入目录数据。';
+      : '各业务中心暂无活跃数据。建议按实际业务需求逐步初始化：信息发布中心录入首条公告、供应商管理中心注册首批供应商、专家管理中心建立专家库。';
 
     return { overview, moduleInsights, crossInsight, highlights: [], suggestions: suggestions.slice(0, 4) };
   }
@@ -2096,7 +2055,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     const tasks = context.taskSummary || { total: 0, completed: 0, byType: {} };
 
     const approvalActs = activities.filter(a =>
-      ['SUPPLIER_APPROVE','SUPPLIER_REJECT','SUPPLIER_RETURN','PRICE_APPROVE','PRICE_REJECT','CATALOG_APPROVE','PASSWORD_REQUEST_APPROVE'].includes(a.action)
+      ['SUPPLIER_APPROVE','SUPPLIER_REJECT','SUPPLIER_RETURN','PASSWORD_REQUEST_APPROVE'].includes(a.action)
     );
 
     // Compute simple stats for AI context (not for display — AI generates the narrative)

@@ -112,14 +112,6 @@ const ACTION_LABEL: Record<string, string> = {
   CONTRACT_FULFILLMENT_ADDED: '登记合同履约节点',
   CONTRACT_FULFILLMENT_UPDATED: '更新合同履约节点',
   CONTRACT_FULFILLMENT_PROOF_ATTACHED: '上传合同履约凭证',
-  // ── 目录 ──
-  CATALOG_APPLICATION_APPROVED: '目录供货申请 · 通过',
-  CATALOG_APPLICATION_REJECTED: '目录供货申请 · 拒绝',
-  CATALOG_APPLICATION_RETURNED: '目录供货申请 · 退回',
-  CATALOG_CREATED: '新增目录条目',
-  CATALOG_IMPORTED: '导入目录',
-  CATALOG_EXPORTED: '导出目录',
-  CATEGORY_CREATED: '新增目录品类',
   CATEGORY_UPDATED: '更新目录品类',
   CATEGORY_DELETED: '删除目录品类',
   // ── 预算 ──

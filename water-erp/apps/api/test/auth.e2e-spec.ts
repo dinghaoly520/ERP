@@ -71,7 +71,6 @@ describe('Auth (e2e)', () => {
     for (const [username, role] of [
       ['e2e-single-supplier', 'supplier'],
       ['e2e-single-staff', 'staff'],
-      ['e2e-single-mall', 'mall'],
       ['e2e-single-expert', 'bid_expert'],
       ['e2e-admin-bid', 'admin'],
     ] as const) {
@@ -91,7 +90,7 @@ describe('Auth (e2e)', () => {
 
   afterAll(async () => {
     await prisma.user.deleteMany({
-      where: { username: { in: ['e2e-disabled-user', 'e2e-single-supplier', 'e2e-single-staff', 'e2e-single-mall', 'e2e-single-expert', 'e2e-admin-bid'] } },
+      where: { username: { in: ['e2e-disabled-user', 'e2e-single-supplier', 'e2e-single-staff', 'e2e-single-expert', 'e2e-admin-bid'] } },
     });
     await app.close();
   });
@@ -363,20 +362,20 @@ describe('Auth (e2e)', () => {
         .expect(200);
     });
 
-    it('mall 登录不互踢（行为不变量：token 可带 sid 但 AuthGuard 不校验该命名空间，两份 token 并存可用）', async () => {
-      // 93f4eaf8 起 login() 对全部角色无条件 rotatePortalSession（注释明言 bid/mall 轮换
+    it('bid 命名空间登录不互踢（行为不变量：AuthGuard 不校验该命名空间 sid，两份 token 并存可用；mall 下线后 token_bid 为唯一非互踢命名空间）', async () => {
+      // 93f4eaf8 起 login() 对全部角色无条件 rotatePortalSession（注释明言 bid 轮换
       // 无副作用）——真不变量是「重复登录不顶掉旧会话」，而非 token 形状（无 sid）。
-      const first = await loginWith('e2e-single-mall', 'mall').expect(200);
-      const second = await loginWith('e2e-single-mall', 'mall').expect(200);
+      const first = await loginWith('e2e-admin-bid', 'bid').expect(200);
+      const second = await loginWith('e2e-admin-bid', 'bid').expect(200);
       await request(app.getHttpServer())
         .get('/api/auth/me')
-        .set('Cookie', `token_mall=${first.body.access_token}`)
-        .set('X-Portal', 'mall')
+        .set('Cookie', `token_bid=${first.body.access_token}`)
+        .set('X-Portal', 'bid')
         .expect(200);
       await request(app.getHttpServer())
         .get('/api/auth/me')
-        .set('Cookie', `token_mall=${second.body.access_token}`)
-        .set('X-Portal', 'mall')
+        .set('Cookie', `token_bid=${second.body.access_token}`)
+        .set('X-Portal', 'bid')
         .expect(200);
     });
 

@@ -3,7 +3,7 @@ import { PORTS, type AppName } from '@water-erp/config';
 
 /**
  * 每个门户独立登录会话 —— 浏览器在 localhost 上跨端口共享 cookie，
- * 因此用「按门户命名」的 cookie（token_web / token_supplier / token_expert / token_mall）
+ * 因此用「按门户命名」的 cookie（token_web / token_supplier / token_expert 等）
  * 来隔离各门户的登录态。
  */
 
@@ -25,7 +25,6 @@ export const ROLE_COOKIE_PORTAL: Record<string, string> = {
   staff: 'web',
   supplier: 'supplier',
   bid_expert: 'expert',
-  mall: 'mall',
 };
 
 /**
@@ -35,7 +34,7 @@ export const ROLE_COOKIE_PORTAL: Record<string, string> = {
  * bid-portal(:3007) 使用独立的 token_bid 命名空间（auth port-roles 体系：
  * :3006 登录分流时非 bid_expert 角色写 token_bid 后跳 :3007）。
  */
-const COOKIE_PORTALS: AppName[] = ['public', 'mall', 'supplier', 'web', 'expert', 'bid'];
+const COOKIE_PORTALS: AppName[] = ['public', 'supplier', 'web', 'expert', 'bid'];
 const PORT_TO_PORTAL: Record<string, string> = (() => {
   const map: Record<string, string> = {};
   for (const name of COOKIE_PORTALS) map[String(PORTS[name])] = name;

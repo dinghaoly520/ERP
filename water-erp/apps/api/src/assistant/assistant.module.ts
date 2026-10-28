@@ -14,7 +14,6 @@ import { SupplierTool } from './tools/supplier.tool';
 import { ExpertTool } from './tools/expert.tool';
 import { AnnouncementTool } from './tools/announcement.tool';
 import { NotificationTool } from './tools/notification.tool';
-import { MallTool } from './tools/mall.tool';
 import { CockpitTool } from './tools/cockpit.tool';
 import { ActionPlannerService } from './actions/action-planner.service';
 import { ActionExecutorService } from './actions/action-executor.service';
@@ -33,7 +32,6 @@ import { ActionExecutorService } from './actions/action-executor.service';
     ExpertTool,
     AnnouncementTool,
     NotificationTool,
-    MallTool,
     CockpitTool,
     ActionPlannerService,
     ActionExecutorService,

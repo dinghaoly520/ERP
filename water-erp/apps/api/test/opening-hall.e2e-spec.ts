@@ -671,7 +671,7 @@ describe('Opening Hall (e2e)', () => {
       .set('Cookie', sup1Cookie).set('X-Portal', 'supplier').send({ roomKey: `supplier:${sup1Id}` }).expect(201);
   });
 
-  it('角色分级（2026-08-20 退役后）：procurement_staff 幽灵角色不可登录；mall 门户 socket 拒连', async () => {
+  it('角色分级（2026-08-20 退役后）：procurement_staff 幽灵角色不可登录', async () => {
     // procurement_staff 幽灵账号 2026-08-20 已从体系退役（种子删除、port-roles 白名单不含）——
     // 历史「放行公开流但 REST 敏感操作拒绝」的中间态不复存在，登录在 L3 即 403
     const ts = Date.now();
@@ -689,17 +689,6 @@ describe('Opening Hall (e2e)', () => {
         .send({ username: staffUser.username, password: 'e2e@2026' })
         .expect(403)
         .expect((res) => expect(res.body).toMatchObject({ code: 'PORT_ROLE_MISMATCH' }));
-
-      // mall 门户完全拒绝：token_mall 不在 WS 网关命名空间解析集（mall 无开标业务），
-      // 严格握手鉴权下无可用 token → 连接在握手层被服务端断开
-      const mallCookie = await loginAs(app, '陈源远', '陈源远@2026', 'mall');
-      expect(mallCookie).toContain('token_mall=');
-      const m = track(connectBid(base, mallCookie));
-      await new Promise<void>((res, rej) => {
-        const t = setTimeout(() => rej(new Error('timeout waiting mall socket rejection')), 5000);
-        m.on('disconnect', () => { clearTimeout(t); res(); });
-        m.on('connect_error', () => { clearTimeout(t); res(); });
-      });
     } finally {
       if (staffUserId) await prisma.user.delete({ where: { id: staffUserId } }).catch(() => {});
     }

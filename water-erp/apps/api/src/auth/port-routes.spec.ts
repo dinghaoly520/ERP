@@ -100,8 +100,8 @@ describe('checkPortRouteAccess', () => {
   });
 
   describe('其他门户不受端口互斥影响', () => {
-    it('expert / supplier / mall / public 调 bid 与 web 独占路径均放行', () => {
-      for (const portal of ['expert', 'supplier', 'mall', 'public']) {
+    it('expert / supplier / public 调 bid 与 web 独占路径均放行', () => {
+      for (const portal of ['expert', 'supplier', 'public']) {
         expect(checkPortRouteAccess('GET', '/api/expert-admin/experts', portal)).toBeNull();
         expect(checkPortRouteAccess('GET', '/api/bid/projects/p1/scores', portal)).toBeNull();
       }

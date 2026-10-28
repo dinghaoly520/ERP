@@ -275,50 +275,6 @@
     "createdAt": "2026-07-16T03:04:08.780Z"
   },
   {
-    "id": "cmrvhq1d8000cko4qq1wgakoa",
-    "userId": "cmqbysdk0001gkoh1gx2342d6",
-    "type": "CATALOG_APPLICATION",
-    "title": "供货申请进入议价",
-    "content": "“重庆蜀通岩土工程有限公司”的供货申请（P.O42.5 普通硅酸盐水泥）待审核，请处理。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/mall-management/catalog?tab=approval&appId=cmqcatapp01pending0000000001",
-    "createdAt": "2026-07-22T02:55:52.940Z"
-  },
-  {
-    "id": "cmrvhq1ew000oko4qpv5ks5x1",
-    "userId": "cmqbysdk0001gkoh1gx2342d6",
-    "type": "CATALOG_APPLICATION",
-    "title": "供货申请已通过",
-    "content": "“重庆蜀通岩土工程有限公司”的供货申请（HDPE 双壁波纹管）待审核，请处理。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/mall-management/catalog?tab=approval&appId=cmqcatapp04updqte0000000004",
-    "createdAt": "2026-07-22T02:55:53.001Z"
-  },
-  {
-    "id": "cmrvhq1fz000xko4qer2gmf8u",
-    "userId": "cmqbysdk0001gkoh1gx2342d6",
-    "type": "CATALOG_APPLICATION",
-    "title": "供货申请已通过",
-    "content": "“成都卓成有为科技有限公司”的供货申请（电磁流量计）待审核，请处理。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/mall-management/catalog?tab=approval&appId=c1d530f7221227cb50c3836",
-    "createdAt": "2026-07-22T02:55:53.039Z"
-  },
-  {
-    "id": "cmrvhq1gw0019ko4q0n8axg3m",
-    "userId": "cmqbysdk0001gkoh1gx2342d6",
-    "type": "CATALOG_APPLICATION",
-    "title": "供货申请已通过",
-    "content": "“河北聚源水利机械有限公司”的供货申请（变频控制柜）待审核，请处理。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/mall-management/catalog?tab=approval&appId=c3622fc21271abfede96cfb",
-    "createdAt": "2026-07-22T02:55:53.073Z"
-  },
-  {
     "id": "cm44088723aa7c4d66823aa1",
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "SUPPLIER_PENDING",
@@ -371,72 +327,6 @@
     "isRead": false,
     "resolvedAt": null,
     "link": "/supplier/ce3a956466cb5b10e626ce5",
-    "createdAt": "2026-07-13T10:00:00.000Z"
-  },
-  {
-    "id": "cm041fc6c3330d4b69a0b66c",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "PRICE_REVIEW",
-    "title": "采购目录报价调整待审批",
-    "content": "“四川国森中新建设工程有限公司”的“预制混凝土检查井”报价调整申请待复核，请审批。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/mall-management/catalog?tab=approval&appId=c0ea1ccbd83bde8e243eab2",
-    "createdAt": "2026-07-13T08:00:00.000Z"
-  },
-  {
-    "id": "cm8f974b299c234ff695425b",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "PRICE_REVIEW",
-    "title": "新增品类报价待审批",
-    "content": "“成都卓成有为科技有限公司”的“电力电缆”报价调整申请待复核，请审批。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/mall-management/catalog?tab=approval&appId=c6cd7afd590fe4eb29acae3",
-    "createdAt": "2026-07-13T05:00:00.000Z"
-  },
-  {
-    "id": "cma0a9a8d5bdc547979da5d0",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "PRICE_REVIEW",
-    "title": "供应商报价调整待审批",
-    "content": "“重庆蜀通岩土工程有限公司”的“P.O42.5 普通硅酸盐水泥”报价调整申请待复核，请审批。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/mall-management/catalog?tab=approval&appId=cmqcatapp01pending0000000001",
-    "createdAt": "2026-07-13T07:00:00.000Z"
-  },
-  {
-    "id": "cmd170eb10049a4fecb95256",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "PRICE_REVIEW",
-    "title": "采购目录报价调整待审批",
-    "content": "“重庆蜀通岩土工程有限公司”的“HDPE 双壁波纹管”报价调整申请待复核，请审批。",
-    "isRead": true,
-    "resolvedAt": "2026-07-12T23:00:00.000Z",
-    "link": "/mall-management/catalog?tab=approval&appId=cmqcatapp04updqte0000000004",
-    "createdAt": "2026-07-12T15:00:00.000Z"
-  },
-  {
-    "id": "cm252dd279a78b412c805cd6",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "PRICE_REVIEW",
-    "title": "新增品类报价待审批",
-    "content": "“成都卓成有为科技有限公司”的“电磁流量计”报价调整申请待复核，请审批。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/mall-management/catalog?tab=approval&appId=c1d530f7221227cb50c3836",
-    "createdAt": "2026-07-13T09:00:00.000Z"
-  },
-  {
-    "id": "cm3c5b26e5a5e84a01819595",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "PRICE_REVIEW",
-    "title": "供应商报价调整待审批",
-    "content": "“河北聚源水利机械有限公司”的“变频控制柜”报价调整申请待复核，请审批。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/mall-management/catalog?tab=approval&appId=c3622fc21271abfede96cfb",
     "createdAt": "2026-07-13T10:00:00.000Z"
   },
   {
@@ -603,17 +493,6 @@
     "resolvedAt": null,
     "link": "/projects?projectId=cmrbvege000022b9e8ab294bf",
     "createdAt": "2026-07-12T01:00:00.000Z"
-  },
-  {
-    "id": "cmrvhq1dy000hko4q8204n2ny",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "CATALOG_APPLICATION",
-    "title": "供应商已接受议价",
-    "content": "“四川国森中新建设工程有限公司”的供货申请（预制混凝土检查井）待审核，请处理。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/mall-management/catalog?tab=approval&appId=c0ea1ccbd83bde8e243eab2",
-    "createdAt": "2026-07-22T02:55:52.967Z"
   },
   {
     "id": "cms17k9ve000ruu35jmz0rsm5",

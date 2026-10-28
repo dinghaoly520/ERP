@@ -2480,12 +2480,32 @@ export class BidService {
 
     let task = await this.prisma.aiBidAnalysisTask.findUnique({ where: { projectId } });
     // F15：进行中禁重跑——旧实现 task 处于 PENDING/TENDER_PROCESSING/ANALYZING 时照样
-    // 清空重跑，在途分析直接被铲（tender/bidder job 撞到已删/非 PENDING 行被认领守卫跳过），
-    // 连点两次即两次全量重跑。非终态闸门天然兼作频控（rerun 后 task 复位 PENDING，二次即被挡）。
+    // 清空重跑，在途分析直接被铲（tender/bidder job 撞到已删/非 PENDING 行被认领守卫跳过）。
+    // 频控语义（F19 后终审核定）：worker 存活时非终态闸兼作频控（job 被消费 → probe active>0 → 409）；
+    // worker 已死场景（F19 豁免域）可重复触发——后果良性：全 PENDING/0 家无可铲数据、确定性 jobId
+    // + remove-first 使重复入队收敛为单 job、认领守卫防双写行，仅监督时间线逐次追加一条，可接受。
     // 只判 findUnique 命中分支——N8 补建路径自建的 task 即为 PENDING，不能挡自己；
     // 极窄的补建竞态窗（对手在途而我方早读 null）由认领守卫兜底。
     if (task && ['PENDING', 'TENDER_PROCESSING', 'ANALYZING'].includes(task.status)) {
-      throw new ConflictException({ error: 'AI 分析进行中，禁止重跑（会清空在途分析）；如个别供应商异常请用单家重试', code: 'TASK_IN_PROGRESS' });
+      // F19（2026-10-28）：停摆豁免——全部 bidderResult PENDING（含 0 家）且队列探测确认无人消费
+      // （F14 probeWorkerIdle 同款探测）= 无在途可铲，放行重跑；worker 死亡窗口内卡片「重新分析」
+      // 不再被本闸 409 死锁。有 bidder 已启动（非 PENDING）不豁免；probe 异常保守 409。
+      const rows = await this.prisma.aiBidderResult.findMany({
+        where: { taskId: task.id },
+        select: { id: true, status: true },
+      });
+      const provablyIdle = rows.every((r) => r.status === 'PENDING')
+        && await this.probeWorkerIdle(task.status, task.id, rows[0]?.id ?? '');
+      if (!provablyIdle) {
+        // M2（2026-10-28）：0 家时无可重试家，文案不得引导「单家重试」——该分支=队列繁忙
+        // （worker 忙别家，probe active>0），引导稍后再试
+        throw new ConflictException({
+          error: rows.length === 0
+            ? '分析服务繁忙，请稍后再试；持续失败请联系管理员'
+            : '分析正在进行，重新分析会清空已有结果；个别供应商异常请点单家重试',
+          code: 'TASK_IN_PROGRESS',
+        });
+      }
     }
     if (!task) {
       // N8：存量项目（先于该特性创建）无任务——与 startEvaluation 同构补建，rerun 即恢复入口。
@@ -2576,15 +2596,18 @@ export class BidService {
       throw new ConflictException({ error: `当前任务状态（${task.status}）不支持单家重试`, message: `当前任务状态（${task.status}）不支持单家重试`, code: 'TASK_STATE_NOT_RETRYABLE' });
     }
     const nowMs = Date.now();
+    // M1（2026-10-28 终审遗留修复）：非 COMPLETED（含 PENDING）超卡住阈值均纳入可重试——
+    // 部分完成+剩余 PENDING 的 worker 死亡停摆（job 丢失/重试耗尽未落行）此前无任何恢复入口；
+    // 正常排队误纳无害：重置 PENDING + remove-first 确定性 jobId 重入队，幂等收敛单 job。
     const retryable = task.bidderResults.filter((b) =>
       b.status === 'FAILED'
-      || (b.status !== 'PENDING' && b.status !== 'COMPLETED' && nowMs - new Date(b.updatedAt).getTime() > AI_STUCK_THRESHOLD_MS),
+      || (b.status !== 'COMPLETED' && nowMs - new Date(b.updatedAt).getTime() > AI_STUCK_THRESHOLD_MS),
     );
     const targets = bidderResultIds && bidderResultIds.length > 0
       ? retryable.filter((b) => bidderResultIds.includes(b.id))
       : retryable;
     if (targets.length === 0) {
-      throw new BadRequestException({ error: '无可重试的分析项（仅失败或卡住的可重试）', message: '无可重试的分析项（仅失败或卡住的可重试）', code: 'NO_RETRYABLE_BIDDERS' });
+      throw new BadRequestException({ error: '没有可重试的供应商（仅失败或卡住的能重试）', message: '没有可重试的供应商（仅失败或卡住的能重试）', code: 'NO_RETRYABLE_BIDDERS' });
     }
 
     // F7：队列缺失显式 503——旧实现仅 warn 后照常返回成功，DB 已重置 PENDING/ANALYZING
@@ -2664,7 +2687,9 @@ export class BidService {
     const isStuck = (d: Date | null) => !!d && now.getTime() - new Date(d).getTime() > AI_STUCK_THRESHOLD_MS;
     const TERMINAL = new Set(['COMPLETED', 'FAILED']);
     const failed = task.bidderResults.filter((b) => b.status === 'FAILED');
-    const stuck = task.bidderResults.filter((b) => b.status !== 'PENDING' && !TERMINAL.has(b.status) && isStuck(b.updatedAt));
+    // M1 同步：stuck 判定放开 PENDING（超阈值）——混合态（COMPLETED+PENDING 停摆）须能报
+    // stuckNames 驱动卡片异常文案与 chips 入口；全 PENDING 场景 allPending 文案优先级在前不受扰
+    const stuck = task.bidderResults.filter((b) => !TERMINAL.has(b.status) && isStuck(b.updatedAt));
     const taskFailed = task.status === 'FAILED';
     const allPending = !taskFailed
       && ['PENDING', 'TENDER_PROCESSING', 'ANALYZING'].includes(task.status)

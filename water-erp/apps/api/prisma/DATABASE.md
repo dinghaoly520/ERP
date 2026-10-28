@@ -29,7 +29,7 @@
 | `Department` | 部门 / 单位 | `name`、`code` |
 | `User` | 系统账号（所有门户统一） | `username`(唯一)、`passwordHash`(bcrypt)、`role`、`isActive`、`departmentId→Department` |
 
-`User.role` 取值：`admin`、`bid_host`、`bid_expert`、`supplier`、`procurement_staff`、`mall`。
+`User.role` 取值：`admin`、`leader`、`staff`、`bid_host`、`bid_expert`、`supplier`（另有注册期 `internal_user`）。
 > `admin` 角色在 RBAC 中仍存在，但 seed 不再创建 `admin` 账号；各门户使用独立业务账号。
 
 ### 2. 招标全生命周期（Bid）
@@ -89,15 +89,7 @@ DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED
 | `BidDocument` | 招标文件 | `announcementId→Announcement`、`fileAssetId→FileAsset`、`name`、`decryptDeadline` |
 | `BidDocumentAccess` | 供应商文件访问授权 | `documentId→BidDocument`、`supplierId→Supplier`、`grantedAt` |
 
-### 7. 电子商城（Mall）
-
-| 表（model） | 用途 | 关键字段 / 关系 |
-| --- | --- | --- |
-| `CatalogItem` | 采购目录 / 商品 | `code`(唯一)、`name`、`specification`、`category`、`group`、`referencePrice`、`priceMin/priceMax`、`supplier`、`status`、`validUntil` |
-| `BudgetList` | 采购预算清单（购物车） | `userId→User`、`procurementProjectId→ProcurementProject`(可空)、`totalAmount`、`itemCount`、`status`(ACTIVE/CONVERTED/ARCHIVED) |
-| `BudgetItem` | 预算清单明细 | `budgetListId→BudgetList`、`catalogItemId→CatalogItem`(可空)、`qty`、`referencePrice`、`sortOrder` |
-
-### 8. 通用
+### 7. 通用
 
 | 表（model） | 用途 | 关键字段 / 关系 |
 | --- | --- | --- |
@@ -136,12 +128,11 @@ DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED
 | `Supplier` | 494 | | `BidSupplier` | 5 |
 | `SupplierQualification` | 338 | | `BidExpert` | 3 |
 | `SupplierContact` | 228 | | `BidScoreItem` | 5 |
-| `CatalogItem` | 80 | | `BidOpeningSession` | 1 |
 | `Announcement` | 48 | | `BidOpeningRecord` | 3 |
 | `SupplierClassification` | 13 | | `BidClarification` | 1 |
 | `Notification` | 8 | | `BidSupervisionLog` | 4 |
-| `BidArchiveItem` | 7 | | `BudgetList` | 2 |
-| `ExpertProfile` | 3 | | `BudgetItem` | 3 |
+| `BidArchiveItem` | 7 |
+| `ExpertProfile` | 3 |
 | `Department` | 1 | | `SupplierEvaluation` | 3 |
 | 其余 13 张 | 0 | | | |
 
@@ -149,7 +140,6 @@ DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED
 
 | 账号 | 角色 | 门户 |
 | --- | --- | --- |
-| `mall` | mall | 电子商城 :3003 |
 | `supplier1` | supplier | 供应商端 :3004 |
 | `caigou` | procurement_staff | 采购管理端 :3005 |
 | `wangjg` / `liuxm` / `chenzq` | bid_expert | 专家评标 :3006 |

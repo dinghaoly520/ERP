@@ -23,6 +23,13 @@ import { Ring } from './shared';
 const POLL_MS = 3000;
 /** F13：异常终态降频间隔（用户点重试/重新分析后状态复位，下一 tick 拉到进行中态即回 POLL_MS） */
 const POLL_SLOW_MS = 15000;
+/** 卡住阈值与后端 AI_STUCK_THRESHOLD_MS（apps/api/src/bid/bid.service.ts）同口径——改动须双向同步 */
+const STUCK_MS = 30 * 60 * 1000;
+/** F19 配套：EVALUATING 下 task ANALYZING 且 0 家 bidder 停摆——公告发布即建 task 的合法等待态
+ *  只存在于评标启动前；进入评标后仍 0 家（超卡住阈值无进展）即停摆，须给出文案与重跑入口 */
+const isZeroBidderStalled = (p: AiAnalysisProgress, stage: string): boolean =>
+  stage === 'EVALUATING' && p.taskStatus === 'ANALYZING' && p.total === 0
+  && !!p.updatedAt && Date.now() - new Date(p.updatedAt).getTime() > STUCK_MS;
 /** 进行中（非终态）任务状态集合——轮询控制与 :147 inProgress 计算共用，防两处口径漂移 */
 const IN_PROGRESS_TASK_STATUSES: readonly string[] = ['PENDING', 'TENDER_PROCESSING', 'ANALYZING'];
 
@@ -42,6 +49,24 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
   const [busy, setBusy] = useState<'retry' | 'rerun' | null>(null);
   const [rerunConfirm, setRerunConfirm] = useState(false);
   const stoppedRef = useRef(false);
+  // 单家重试选择：deselected 记被取消家（默认全选）；retryable 与后端谓词镜像（M1 后：
+  // FAILED 或非 COMPLETED 卡住超阈值——PENDING 停摆行也纳入，双向同步注释见 bid.service.ts
+  // retryable 谓词）；签名变化时按交集保留仍存在的取消选择（M3：不清空，仅剔除失效 id）
+  const [deselected, setDeselected] = useState<Set<string>>(new Set());
+  const retryable = (progress?.bidders ?? []).filter(
+    (b) => b.status === 'FAILED'
+      || (b.status !== 'COMPLETED' && Date.now() - new Date(b.updatedAt).getTime() > STUCK_MS),
+  );
+  const retryableSig = retryable.map((b) => b.id).join();
+  useEffect(() => {
+    setDeselected((prev) => {
+      const live = new Set(retryableSig.split(',').filter(Boolean));
+      const kept = new Set([...prev].filter((id) => live.has(id)));
+      return kept.size === prev.size ? prev : kept;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryableSig]);
+  const selectedRetry = retryable.filter((b) => !deselected.has(b.id));
 
   const load = useCallback(async (): Promise<AiAnalysisProgress | null> => {
     try {
@@ -74,10 +99,11 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
       // F13（2026-08-28）三停一降（旧实现只认「终态且无异常」，异常终态与无任务会 3s 永续轮询）：
       // ① 无 AI 任务 → 拉一次即停（无进度可看；补救入口在 exists=false 分支一次性给出）
       if (!p?.exists) { stop(); return; }
-      const inProgress = !!p.taskStatus && IN_PROGRESS_TASK_STATUSES.includes(p.taskStatus);
-      // ② 终态且无异常 → 停止
-      if (!inProgress && !p.anomaly.hasAnomaly) { stop(); return; }
-      // ③ 异常终态 → 降频 15s（用户重试/重新分析后状态复位为进行中，下一 tick 即回 3s）
+      const stalled0 = isZeroBidderStalled(p, stage); // 0 家停摆当非进行中：降频观察，不停止
+      const inProgress = !stalled0 && !!p.taskStatus && IN_PROGRESS_TASK_STATUSES.includes(p.taskStatus);
+      // ② 终态且无异常（且非 0 家停摆）→ 停止
+      if (!inProgress && !p.anomaly.hasAnomaly && !stalled0) { stop(); return; }
+      // ③ 异常终态/0 家停摆 → 降频 15s（用户重试/重新分析后状态复位为进行中，下一 tick 即回 3s）
       //    进行中态（即使已有失败家）保持 3s——其余 bidder 仍在推进
       if (!inProgress) { if (intervalMs !== POLL_SLOW_MS) start(POLL_SLOW_MS); }
       else if (intervalMs !== POLL_MS) { start(POLL_MS); }
@@ -104,7 +130,7 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
   const doRetry = async () => {
     setBusy('retry');
     try {
-      const res = await retryAiBidders(projectId);
+      const res = await retryAiBidders(projectId, selectedRetry.map((b) => b.id));
       toast.success(`已重新入队 ${res.retried.length} 家：${res.retried.map((r) => r.name).join('、')}`);
       await load();
     } catch (e: any) {
@@ -138,7 +164,7 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
         <Bot size={16} strokeWidth={1.5} className="shrink-0 text-[color:var(--muted-foreground)]" />
         <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">AI辅助评标</span>
         <span className="min-w-0 flex-1 text-[12px] text-[color:var(--muted-foreground)]">
-          {stage === 'EVALUATING' ? '未创建 AI 分析任务（存量项目）——点击重新分析可补建并启动' : '启动评标后自动开始 AI 辅助分析'}
+          {stage === 'EVALUATING' ? '尚未创建分析任务——点击重新分析即可创建并启动' : '评标启动后自动开始分析'}
         </span>
         {stage === 'EVALUATING' && (
           <button onClick={doRerun} disabled={busy !== null}
@@ -155,11 +181,13 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
 
   const { total, completed, failed, anomaly, taskStatus } = progress;
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
-  const inProgress = IN_PROGRESS_TASK_STATUSES.includes(taskStatus ?? '');
+  // 0 家停摆（EVALUATING·ANALYZING·0 家·超阈值）当非进行中——不转圈、并入重跑入口
+  const zeroStalled = isZeroBidderStalled(progress, stage);
+  const inProgress = !zeroStalled && IN_PROGRESS_TASK_STATUSES.includes(taskStatus ?? '');
   // 补救按钮仅在 EVALUATING 阶段可用（ARCHIVED/ABORTED 回看为只读快照）
   const actionsEnabled = stage === 'EVALUATING';
-  const showRetry = actionsEnabled && (anomaly.failedNames.length > 0 || anomaly.stuckNames.length > 0);
-  const showRerun = actionsEnabled && (anomaly.taskFailed || anomaly.allPending || anomaly.workerIdle || anomaly.failedNames.length > 0 || anomaly.stuckNames.length > 0);
+  const showRetry = actionsEnabled && retryable.length > 0;
+  const showRerun = actionsEnabled && (anomaly.taskFailed || anomaly.allPending || anomaly.workerIdle || zeroStalled || anomaly.failedNames.length > 0 || anomaly.stuckNames.length > 0);
 
   return (
     <div className={`neu-card-static p-4 ${anomaly.hasAnomaly ? 'bg-[oklch(0.97_0.03_83_/_0.35)]' : ''}`}>
@@ -181,20 +209,39 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
           </div>
         </div>
 
-        {/* 中：状态文案（卡住判定阈值与后端 AI_STUCK_THRESHOLD_MS 同口径，改动须双向同步） */}
-        <div className="min-w-0 flex-1 text-[12px] leading-relaxed text-[color:var(--muted-foreground)]">
+        {/* 中：状态文案（卡住判定阈值与后端 AI_STUCK_THRESHOLD_MS 同口径，改动须双向同步）+ 单家重试 chips */}
+        <div className="min-w-0 flex-1 space-y-1.5 text-[12px] leading-relaxed text-[color:var(--muted-foreground)]">
+          <div>
           {anomaly.taskFailed ? (
             <span className="font-semibold text-[var(--danger)]">招标文件处理失败——需重新分析</span>
           ) : anomaly.workerIdle ? (
-            <span className="font-semibold text-[oklch(0.64_0.16_82)]">AI 分析服务暂未响应，分析任务已在等待——请联系系统管理员检查分析服务；服务恢复后任务将自动继续</span>
+            <span className="font-semibold text-[oklch(0.64_0.16_82)]">分析服务未响应——请联系管理员重启；恢复后点击重试或重新分析</span>
+          ) : zeroStalled ? (
+            <span className="font-semibold text-[oklch(0.64_0.16_82)]">招标文件已解析，无投标可分析（0 家）——请确认解密是否完成；确认后可重新分析，无投标则走流标</span>
           ) : anomaly.allPending ? (
-            <span className="font-semibold text-[oklch(0.64_0.16_82)]">分析尚未启动——请联系系统管理员确认 AI 分析服务已就绪；就绪后任务将自动开始</span>
+            <span className="font-semibold text-[oklch(0.64_0.16_82)]">分析尚未启动——请联系管理员检查分析服务；恢复后点击重新分析</span>
           ) : anomaly.failedNames.length > 0 ? (
             <span><span className="font-semibold text-[var(--danger)]">{failed} 家分析失败：</span>{anomaly.failedNames.join('、')}</span>
           ) : anomaly.stuckNames.length > 0 ? (
-            <span><span className="font-semibold text-[oklch(0.64_0.16_82)]">疑似卡住：</span>{anomaly.stuckNames.join('、')}（超过 30 分钟无进展，可重新分析或联系系统管理员）</span>
+            <span><span className="font-semibold text-[oklch(0.64_0.16_82)]">卡住无进展：</span>{anomaly.stuckNames.join('、')}（超过 30 分钟，可重新分析或联系管理员）</span>
           ) : (
             <span>{TASK_STATUS_LABEL[taskStatus ?? ''] ?? '分析中'}</span>
+          )}
+          </div>
+          {showRetry && retryable.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {retryable.map((b) => (
+                <button key={b.id} type="button" className="ai-retry-chip"
+                  aria-pressed={!deselected.has(b.id)}
+                  onClick={() => setDeselected((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(b.id)) next.delete(b.id); else next.add(b.id);
+                    return next;
+                  })}>
+                  {b.name}·{b.status === 'FAILED' ? '失败' : '卡住'}
+                </button>
+              ))}
+            </div>
           )}
         </div>
 
@@ -202,10 +249,10 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
         {showRerun && (
           <div className="flex shrink-0 items-center gap-2">
             {showRetry && (
-              <button onClick={doRetry} disabled={busy !== null}
+              <button onClick={doRetry} disabled={busy !== null || selectedRetry.length === 0}
                 className="neu-btn-xs inline-flex items-center gap-1.5 text-[11px] font-semibold text-[oklch(0.56_0.153_251)] disabled:opacity-50">
                 {busy === 'retry' ? <Loader size={11} className="animate-spin" /> : <RefreshCw size={11} />}
-                重试失败项
+                重试所选（{selectedRetry.length}/{retryable.length} 家）
               </button>
             )}
             <button onClick={() => setRerunConfirm(true)} disabled={busy !== null}
@@ -234,8 +281,8 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
               <div className="flex items-start gap-2.5 rounded-xl bg-[oklch(0.78_0.12_83_/_0.16)] p-3">
                 <AlertTriangle size={16} className="mt-0.5 shrink-0 text-[oklch(0.46_0.11_65)]" />
                 <div className="space-y-1 text-[12px] leading-relaxed tracking-tight text-[oklch(0.46_0.11_65)]">
-                  <p className="font-bold">将清空全部已完成的 AI 分析结果并重新分析所有供应商</p>
-                  <p>已生成的评分、一致性与报告数据将被删除，分析需重新 OCR 全部标书，耗时较长。</p>
+                  <p className="font-bold">将清空全部分析结果，重新分析所有供应商</p>
+                  <p>已生成的评分和报告会被删除，全部标书需重新识别，耗时较长。</p>
                 </div>
               </div>
               <div className="flex justify-end gap-2">

@@ -343,9 +343,9 @@ describe('BidGateway join:project 认证兜底 + 角色白名单（C1/S1 回归�
     expect(j2).toEqual([]);
   });
 
-  it('C1：mall 等非白名单角色 join → FORBIDDEN，不进 project 房', async () => {
+  it('C1：非白名单角色 join → FORBIDDEN，不进 project 房', async () => {
     const gw = makeGateway();
-    for (const role of ['mall', 'internal_user']) {
+    for (const role of ['internal_user']) {
       const { client, joined } = makeClient({ role, userId: `u-${role}` });
       expect(await gw.handleJoinProject(client, 'p1')).toEqual({ error: 'FORBIDDEN' });
       expect(joined).toEqual([]);
