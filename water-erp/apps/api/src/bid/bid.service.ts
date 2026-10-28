@@ -2473,7 +2473,14 @@ export class BidService {
       const provablyIdle = rows.every((r) => r.status === 'PENDING')
         && await this.probeWorkerIdle(task.status, task.id, rows[0]?.id ?? '');
       if (!provablyIdle) {
-        throw new ConflictException({ error: 'AI 分析进行中，禁止重跑（会清空在途分析）；如个别供应商异常请用单家重试', code: 'TASK_IN_PROGRESS' });
+        // M2（2026-10-28）：0 家时无可重试家，文案不得引导「单家重试」——该分支=队列繁忙
+        // （worker 忙别家，probe active>0），引导稍后再试
+        throw new ConflictException({
+          error: rows.length === 0
+            ? 'AI 分析暂不可重跑（分析队列繁忙或服务未响应），请稍后再试；持续失败请联系系统管理员检查分析服务'
+            : 'AI 分析进行中，禁止重跑（会清空在途分析）；如个别供应商异常请用单家重试',
+          code: 'TASK_IN_PROGRESS',
+        });
       }
     }
     if (!task) {
@@ -2565,9 +2572,12 @@ export class BidService {
       throw new ConflictException({ error: `当前任务状态（${task.status}）不支持单家重试`, message: `当前任务状态（${task.status}）不支持单家重试`, code: 'TASK_STATE_NOT_RETRYABLE' });
     }
     const nowMs = Date.now();
+    // M1（2026-10-28 终审遗留修复）：非 COMPLETED（含 PENDING）超卡住阈值均纳入可重试——
+    // 部分完成+剩余 PENDING 的 worker 死亡停摆（job 丢失/重试耗尽未落行）此前无任何恢复入口；
+    // 正常排队误纳无害：重置 PENDING + remove-first 确定性 jobId 重入队，幂等收敛单 job。
     const retryable = task.bidderResults.filter((b) =>
       b.status === 'FAILED'
-      || (b.status !== 'PENDING' && b.status !== 'COMPLETED' && nowMs - new Date(b.updatedAt).getTime() > AI_STUCK_THRESHOLD_MS),
+      || (b.status !== 'COMPLETED' && nowMs - new Date(b.updatedAt).getTime() > AI_STUCK_THRESHOLD_MS),
     );
     const targets = bidderResultIds && bidderResultIds.length > 0
       ? retryable.filter((b) => bidderResultIds.includes(b.id))
@@ -2653,7 +2663,9 @@ export class BidService {
     const isStuck = (d: Date | null) => !!d && now.getTime() - new Date(d).getTime() > AI_STUCK_THRESHOLD_MS;
     const TERMINAL = new Set(['COMPLETED', 'FAILED']);
     const failed = task.bidderResults.filter((b) => b.status === 'FAILED');
-    const stuck = task.bidderResults.filter((b) => b.status !== 'PENDING' && !TERMINAL.has(b.status) && isStuck(b.updatedAt));
+    // M1 同步：stuck 判定放开 PENDING（超阈值）——混合态（COMPLETED+PENDING 停摆）须能报
+    // stuckNames 驱动卡片异常文案与 chips 入口；全 PENDING 场景 allPending 文案优先级在前不受扰
+    const stuck = task.bidderResults.filter((b) => !TERMINAL.has(b.status) && isStuck(b.updatedAt));
     const taskFailed = task.status === 'FAILED';
     const allPending = !taskFailed
       && ['PENDING', 'TENDER_PROCESSING', 'ANALYZING'].includes(task.status)

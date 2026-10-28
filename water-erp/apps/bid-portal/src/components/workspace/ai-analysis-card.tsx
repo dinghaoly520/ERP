@@ -49,15 +49,23 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
   const [busy, setBusy] = useState<'retry' | 'rerun' | null>(null);
   const [rerunConfirm, setRerunConfirm] = useState(false);
   const stoppedRef = useRef(false);
-  // 单家重试选择：deselected 记被取消家（默认全选，与后端 retryable 口径一致：FAILED +
-  // 非 PENDING/COMPLETED 卡住超阈值）；retryable 集合签名变化（状态推进/重试复位）时整体重置
+  // 单家重试选择：deselected 记被取消家（默认全选）；retryable 与后端谓词镜像（M1 后：
+  // FAILED 或非 COMPLETED 卡住超阈值——PENDING 停摆行也纳入，双向同步注释见 bid.service.ts
+  // retryable 谓词）；签名变化时按交集保留仍存在的取消选择（M3：不清空，仅剔除失效 id）
   const [deselected, setDeselected] = useState<Set<string>>(new Set());
   const retryable = (progress?.bidders ?? []).filter(
     (b) => b.status === 'FAILED'
-      || (b.status !== 'PENDING' && b.status !== 'COMPLETED' && Date.now() - new Date(b.updatedAt).getTime() > STUCK_MS),
+      || (b.status !== 'COMPLETED' && Date.now() - new Date(b.updatedAt).getTime() > STUCK_MS),
   );
   const retryableSig = retryable.map((b) => b.id).join();
-  useEffect(() => { setDeselected(new Set()); }, [retryableSig]);
+  useEffect(() => {
+    setDeselected((prev) => {
+      const live = new Set(retryableSig.split(',').filter(Boolean));
+      const kept = new Set([...prev].filter((id) => live.has(id)));
+      return kept.size === prev.size ? prev : kept;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryableSig]);
   const selectedRetry = retryable.filter((b) => !deselected.has(b.id));
 
   const load = useCallback(async (): Promise<AiAnalysisProgress | null> => {

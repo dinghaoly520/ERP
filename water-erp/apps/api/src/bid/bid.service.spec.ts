@@ -3605,6 +3605,34 @@ describe('BidService — retryAiBidders', () => {
     expect(prisma.aiBidderResult.updateMany).not.toHaveBeenCalled();
     expect(prisma.aiBidAnalysisTask.update).not.toHaveBeenCalled();
   });
+  /* ── M1（2026-10-28 终审遗留修复）：PENDING 停摆行纳入可重试——部分完成+剩余 PENDING 的
+     worker 死亡停摆此前无任何恢复入口（job 丢失行永不离开 PENDING）── */
+  it('M1：ANALYZING 且 COMPLETED+PENDING 混合、PENDING 行超 30 分钟停摆 → 该 PENDING 家可单家重试', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue({
+      id: 't1', projectId: 'p1', status: 'ANALYZING',
+      bidderResults: [
+        mkBidder({ id: 'br1', status: 'COMPLETED', bidSupplier: { supplierName: '甲公司' }, updatedAt: new Date(NOW - 60 * 60_000) }),
+        mkBidder({ id: 'br2', status: 'PENDING', bidSupplier: { supplierName: '乙公司' }, updatedAt: new Date(NOW - 45 * 60_000) }),
+      ],
+    });
+    const res = await service.retryAiBidders('p1', undefined, 'u1');
+    expect(res.retried).toHaveLength(1);
+    expect(res.retried[0]).toMatchObject({ id: 'br2', name: '乙公司' });
+  });
+
+  it('M1 反向锁：PENDING 行未超阈值（正常排队）→ 不可重试，400 NO_RETRYABLE_BIDDERS', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue({
+      id: 't1', projectId: 'p1', status: 'ANALYZING',
+      bidderResults: [
+        mkBidder({ id: 'br1', status: 'COMPLETED', bidSupplier: { supplierName: '甲公司' } }),
+        mkBidder({ id: 'br2', status: 'PENDING', bidSupplier: { supplierName: '乙公司' }, updatedAt: new Date(NOW - 2 * 60_000) }),
+      ],
+    });
+    await expect(service.retryAiBidders('p1', undefined, 'u1')).rejects.toMatchObject({
+      response: { code: 'NO_RETRYABLE_BIDDERS' },
+    });
+  });
+
 });
 
 /* ── N8：rerunAiAnalysis 存量项目补建任务 ── */
@@ -3902,6 +3930,16 @@ describe('BidService — rerunAiAnalysis F15/F19 停摆豁免', () => {
     await expect(service.rerunAiAnalysis('p1', 'u1')).resolves.toEqual({ taskId: 't1' });
     expect(prisma.aiBidderResult.deleteMany).toHaveBeenCalledWith({ where: { taskId: 't1' } });
     expect(tenderQueue.add).toHaveBeenCalled();
+  });
+
+  it('M2：0 家停摆 + worker 忙别家（probe active>0）→ 409 文案不误导「单家重试」而引导队列繁忙稍后再试', async () => {
+    prisma.aiBidderResult.findMany.mockResolvedValue([]);
+    bidderQueue.getJobCounts.mockResolvedValue({ active: 1, waiting: 0, delayed: 0 });
+    const err = await service.rerunAiAnalysis('p1', 'u1').catch((e: any) => e);
+    expect(err).toBeInstanceOf(ConflictException);
+    expect(err.response.code).toBe('TASK_IN_PROGRESS');
+    expect(err.response.error).not.toContain('单家重试');
+    expect(err.response.error).toContain('稍后再试');
   });
 });
 
