@@ -22,7 +22,6 @@ export type NotificationDomain =
   | 'archive' // 归档
   | 'announcement' // 公告
   | 'contract' // 合同履约
-  | 'catalog' // 集中目录
   | 'system'; // 系统兜底（legacy）
 
 export type NotificationChannelKind = 'in_app' | 'email' | 'sms' | 'phone';
@@ -600,10 +599,6 @@ const ANNOUNCEMENT_SPECS: NotificationTypeSpec[] = [
   { code: 'PRE_WIN_CONFIRM_DUE', label: '成交公告待确认', domain: 'announcement', icon: 'ClipboardCheck', tone: 'orange', actionable: true, audiences: [{ kind: 'ROLE', roles: ['staff'] }], channels: IN_APP, link: () => '/notice' }, // 2026-09-27 从 SYSTEM 拆分
 ];
 
-const CATALOG_SPECS: NotificationTypeSpec[] = [
-  { code: 'CATALOG_APPLICATION', label: '目录申请', domain: 'catalog', icon: 'ShoppingBag', tone: 'gray', actionable: false, audiences: LEGACY('挂起待议'), channels: IN_APP },
-];
-
 const SYSTEM_SPECS: NotificationTypeSpec[] = [
   // legacy 垃圾桶：5 处产生点语义各异（资格预审结果/定时任务/bid），拆解归入具体类型待其余域解冻
   { code: 'SYSTEM', label: '系统通知', domain: 'system', icon: 'Bell', tone: 'gray', actionable: false, audiences: LEGACY('catch-all，待拆解'), channels: IN_APP },
@@ -618,10 +613,9 @@ const SYSTEM_SPECS: NotificationTypeSpec[] = [
   { code: 'BID_EVALUATION_RESULT', label: '评标结果', domain: 'bid', icon: 'ClipboardCheck', tone: 'green', actionable: false, audiences: LEGACY('历史类型'), channels: IN_APP, deprecated: true },
   { code: 'BID_OPENING', label: '开标通知', domain: 'bid', icon: 'Gavel', tone: 'blue', actionable: false, audiences: LEGACY('历史类型'), channels: IN_APP, deprecated: true },
   { code: 'BID_REMINDER', label: '投标提醒', domain: 'bid', icon: 'Clock', tone: 'orange', actionable: false, audiences: LEGACY('历史类型'), channels: IN_APP, deprecated: true },
-  { code: 'PRICE_REVIEW', label: '价格审批', domain: 'catalog', icon: 'Tag', tone: 'orange', actionable: false, audiences: LEGACY('历史类型'), channels: IN_APP, deprecated: true },
 ];
 
-/** 全量注册表（代码顺序 = 域顺序：bid → expert → supplier → account → archive → announcement → catalog → system） */
+/** 全量注册表（代码顺序 = 域顺序：bid → expert → supplier → account → archive → announcement → contract → system） */
 export const NOTIFICATION_REGISTRY: NotificationTypeSpec[] = [
   ...BID_SPECS,
   ...EXPERT_SPECS,
@@ -630,7 +624,6 @@ export const NOTIFICATION_REGISTRY: NotificationTypeSpec[] = [
   ...ARCHIVE_SPECS,
   ...ANNOUNCEMENT_SPECS,
   ...CONTRACT_SPECS,
-  ...CATALOG_SPECS,
   ...SYSTEM_SPECS,
 ];
 

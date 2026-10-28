@@ -18,7 +18,6 @@ import { SubmitQuoteDto } from './dto/submit-quote.dto';
 import type { EnvelopeRole } from '@water-erp/ukey';
 import { ReactivateDto } from './dto/reactivate.dto';
 import { ClarificationReplyDraftDto, SubmitClarificationReplyDto } from './dto/clarification-reply.dto';
-import { CreateCatalogApplicationDto, UpdateCatalogApplicationDto } from './dto/catalog-application.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { ObjectionService } from './objection.service';
@@ -759,73 +758,6 @@ export class SupplierPortalController {
     res.setHeader('Content-Length', String(buffer.length));
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
     res.end(buffer);
-  }
-
-  // 集中采购目录（脱敏浏览：仅品类，不含价格）
-
-  @Get('catalog/categories')
-  async listCatalogCategories() {
-    return this.portalService.listCatalogCategories();
-  }
-
-  @Get('catalog/items')
-  async listCatalogItems(
-    @Query('category') category?: string,
-    @Query('group') group?: string,
-    @Query('search') search?: string,
-  ) {
-    return this.portalService.listCatalogItems({ category, group, search });
-  }
-
-  @Get('catalog/items/:id')
-  async getCatalogItem(@Param('id') id: string) {
-    return this.portalService.getCatalogItem(id);
-  }
-
-  @Get('catalog/items/:id/supply-status')
-  async getCatalogItemSupplyStatus(@Request() req: any, @Param('id') id: string) {
-    const supplierId = await this.getSupplierId(req.user.sub);
-    return this.portalService.getCatalogItemSupplyStatus(supplierId, id);
-  }
-
-  // 目录供货申请
-
-  @Get('catalog-applications')
-  async listMyCatalogApplications(@Request() req: any) {
-    const supplierId = await this.getSupplierId(req.user.sub);
-    return this.portalService.listMyCatalogApplications(supplierId);
-  }
-
-  @Post('catalog-applications')
-  async createCatalogApplication(@Request() req: any, @Body() body: CreateCatalogApplicationDto) {
-    const supplierId = await this.getSupplierId(req.user.sub);
-    return this.portalService.createCatalogApplication(supplierId, body);
-  }
-
-  @Patch('catalog-applications/:id')
-  async updateCatalogApplication(@Request() req: any, @Param('id') id: string, @Body() body: UpdateCatalogApplicationDto) {
-    const supplierId = await this.getSupplierId(req.user.sub);
-    return this.portalService.updateMyCatalogApplication(supplierId, req.user.sub, id, body);
-  }
-
-  @Post('catalog-applications/:id/accept-counter')
-  async acceptCatalogCounter(@Request() req: any, @Param('id') id: string) {
-    const supplierId = await this.getSupplierId(req.user.sub);
-    return this.portalService.acceptCatalogCounter(supplierId, req.user.sub, id);
-  }
-
-  @Post('catalog-applications/:id/withdraw')
-  async withdrawCatalogApplication(@Request() req: any, @Param('id') id: string) {
-    const supplierId = await this.getSupplierId(req.user.sub);
-    return this.portalService.withdrawCatalogApplication(supplierId, req.user.sub, id);
-  }
-
-  // 我的已准入供货关系
-
-  @Get('catalog-supply')
-  async listMyCatalogSupply(@Request() req: any) {
-    const supplierId = await this.getSupplierId(req.user.sub);
-    return this.portalService.listMyCatalogSupply(supplierId);
   }
 
   // A3: 中标通知书签收

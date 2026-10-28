@@ -25,7 +25,7 @@ import { PrismaService } from '../prisma/prisma.service';
  * 会话轮换防护（2026-10-14）：带 sid 的单设备会话（web/supplier/expert）握手时与库中
  * webSessionId 对账（AuthGuard 同口径），被互踢的旧 token 拒绝入房；rotatePortalSession
  * 轮换时调 evictUser 驱逐旧订阅——否则旧页签 REST 全 401 却仍收推送弹窗，
- * 出现「通知弹窗可见、消息中心拉不到」悖论。无 sid 会话（token_bid/token_mall 等
+ * 出现「通知弹窗可见、消息中心拉不到」悖论。无 sid 会话（token_bid 等
  * 不轮换命名空间）不校验此列。
  */
 

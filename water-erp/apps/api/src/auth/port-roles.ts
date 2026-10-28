@@ -9,7 +9,7 @@
 export const PORT_ALLOWED_ROLES: Record<string, ReadonlySet<string>> = {
   // 公开门户：所有角色都能登录后跳转
   public: new Set([
-    'admin', 'leader', 'staff', 'bid_host', 'bid_expert', 'supplier', 'mall',
+    'admin', 'leader', 'staff', 'bid_host', 'bid_expert', 'supplier',
   ]),
   // 采购管理端 :3005
   web: new Set(['leader', 'staff', 'admin']),
@@ -17,8 +17,6 @@ export const PORT_ALLOWED_ROLES: Record<string, ReadonlySet<string>> = {
   expert: new Set(['bid_expert', 'bid_host', 'admin', 'leader', 'staff']),
   // 开评标端 :3007——允许所有内部角色（注册审批后即可在两端登录）
   bid: new Set(['leader', 'staff', 'bid_host', 'admin']),
-  // 采购商城 :3003
-  mall: new Set(['mall']),
   // 供应商门户 :3004
   supplier: new Set(['supplier']),
 };
@@ -28,7 +26,6 @@ const PORT_LABEL: Record<string, string> = {
   web: '采购管理端(:3005)',
   bid: '开评标管理端(:3007)',
   expert: '专家门户(:3006)',
-  mall: '采购商城(:3003)',
   supplier: '供应商门户(:3004)',
   public: '信息门户(:3002)',
 };
@@ -40,7 +37,6 @@ const ROLE_PREFERRED_PORT: Record<string, string> = {
   admin: 'web',
   bid_host: 'bid',
   bid_expert: 'expert',
-  mall: 'mall',
   supplier: 'supplier',
 };
 

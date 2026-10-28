@@ -58,19 +58,6 @@ export class SupplierPortraitAnalysisService {
     });
     if (!supplier) throw new Error('供应商不存在');
 
-    const [catalogApps, contractPrices] = await Promise.all([
-      this.prisma.supplierCatalogApplication.findMany({
-        where: { supplierId },
-        select: { catalogItem: { select: { name: true } }, proposedName: true, status: true, createdAt: true },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.contractPrice.findMany({
-        where: { supplierId },
-        select: { catalogItem: { select: { name: true } }, agreedPrice: true, contractNo: true, validFrom: true, validUntil: true, status: true, createdAt: true },
-        orderBy: { createdAt: 'desc' },
-      }),
-    ]);
-
     const now = new Date();
     const qualValid = supplier.qualifications.filter(q => !q.validTo || new Date(q.validTo) >= now).length;
     const qualExpiring = supplier.qualifications.filter(q => q.validTo && new Date(q.validTo) >= now && new Date(q.validTo).getTime() - now.getTime() < 90 * 86400000).length;
@@ -125,10 +112,6 @@ export class SupplierPortraitAnalysisService {
         投标状态: bs.submitStatus,
         参与时间: new Date(bs.createdAt).toLocaleDateString('zh-CN'),
       })),
-      供货申请统计: { 总数: catalogApps.length, 已通过: catalogApps.filter(c => c.status === 'APPROVED').length, 审核中: catalogApps.filter(c => c.status === 'PENDING').length },
-      近期供货申请: catalogApps.slice(0, 5).map(c => ({ 品类: c.catalogItem?.name || c.proposedName, 状态: c.status })),
-      合同统计: { 总数: contractPrices.length, 有效: contractPrices.filter(c => c.status === 'ACTIVE').length },
-      近期合同: contractPrices.slice(0, 5).map(c => ({ 品类: c.catalogItem?.name, 合同号: c.contractNo, 金额: c.agreedPrice, 状态: c.status, 有效期: c.validUntil ? new Date(c.validUntil).toLocaleDateString('zh-CN') : '—' })),
     };
 
     try {
@@ -194,13 +177,6 @@ export class SupplierPortraitAnalysisService {
     const wonCount = supplier.bidSuppliers.filter((bs: any) => bs.submitStatus === '已提交').length;
     if (wonCount > 0) p3 += `，已投标${wonCount}个`;
     p3 += '。';
-    if (supplier.catalogApps?.length > 0) {
-      const approved = supplier.catalogApps.filter((c: any) => c.status === 'APPROVED').length;
-      p3 += `供货申请${supplier.catalogApps.length}次（通过${approved}次）。`;
-    }
-    if (supplier.contracts?.length > 0) {
-      p3 += `合同${supplier.contracts.length}份（有效${supplier.contracts.filter((c: any) => c.status === 'ACTIVE').length}份）。`;
-    }
     parts.push(p3);
 
     const overview = parts.join('\n\n');
@@ -214,7 +190,6 @@ export class SupplierPortraitAnalysisService {
     if (evalCount > 0 && (mostRecentGrade === 'A' || mostRecentGrade === 'B')) strengths.push('近期评价等级优良，履约质量可靠');
     if (supplier.bidSuppliers.length >= 3) strengths.push('项目参与经验丰富，响应积极');
     if (supplier.bidSuppliers.length >= 5) strengths.push('活跃供应商，合作基础扎实');
-    if (supplier.catalogApps?.filter((c: any) => c.status === 'APPROVED').length >= 2) strengths.push('供货申请通过率较高，品类拓展积极');
     if (strengths.length === 0) strengths.push('具备基本资质，可参与一般性项目');
 
     if (qualExpired > 0) { risks.push(`${qualExpired}项资质已过期，影响投标资格`); suggestions.push('立即更新已过期资质，恢复投标资格'); }

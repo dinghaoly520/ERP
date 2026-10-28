@@ -78,13 +78,6 @@ describe('resolvePortalLinkOrigin', () => {
     ).toBe('https://procurement-ssyc.scsfjt.com');
   });
 
-  it('域名家族访问但目标门户无子域（mall 未申请）→ 回退端口口径', () => {
-    mockLan('192.168.1.5');
-    expect(
-      resolvePortalLinkOrigin('mall', { origin: 'https://ssyc.scsfjt.com' }),
-    ).toBe('http://ssyc.scsfjt.com:3003');
-  });
-
   it('仿冒家族后缀不触发域名分支（scsfjt.com.cn / evil-scsfjt.com）', () => {
     mockLan('192.168.1.5');
     expect(

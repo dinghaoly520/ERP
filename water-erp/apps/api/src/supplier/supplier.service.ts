@@ -3608,7 +3608,7 @@ export class SupplierService {
   }
 
   async getSupplierTimeline(supplierId: string) {
-    const [supplier, auditLogs, evaluations, bidSuppliers, catalogApps, contractPrices] = await Promise.all([
+    const [supplier, auditLogs, evaluations, bidSuppliers] = await Promise.all([
       this.prisma.supplier.findUnique({
         where: { id: supplierId },
         select: { id: true, name: true, status: true, createdAt: true, updatedAt: true, isTemporary: true, classification: { select: { name: true } } },
@@ -3626,16 +3626,6 @@ export class SupplierService {
       this.prisma.bidSupplier.findMany({
         where: { supplierId },
         select: { project: { select: { name: true, projectCode: true } }, submitStatus: true, createdAt: true },
-        orderBy: { createdAt: 'asc' },
-      }),
-      this.prisma.supplierCatalogApplication.findMany({
-        where: { supplierId },
-        select: { catalogItem: { select: { name: true } }, proposedName: true, status: true, createdAt: true },
-        orderBy: { createdAt: 'asc' },
-      }),
-      this.prisma.contractPrice.findMany({
-        where: { supplierId },
-        select: { catalogItem: { select: { name: true } }, agreedPrice: true, contractNo: true, createdAt: true },
         orderBy: { createdAt: 'asc' },
       }),
     ]);
@@ -3696,18 +3686,6 @@ export class SupplierService {
       const statusText = bs.submitStatus === '已提交' ? ' · 已投标' : bs.submitStatus !== '待提交' ? ` · ${bs.submitStatus}` : '';
       const detail = `${bs.project.name}（${bs.project.projectCode}）${statusText}`;
       events.push({ type: 'bid', label: '参与项目', detail, at: bs.createdAt.toISOString() });
-    }
-
-    // #5 供货申请
-    const catalogStatusLabel: Record<string, string> = { APPROVED: '已通过', REJECTED: '未通过', PENDING: '审核中', COUNTERED: '已议价', RETURNED: '退回' };
-    for (const ca of catalogApps) {
-      const itemName = ca.catalogItem?.name || ca.proposedName || '未知品类';
-      events.push({ type: 'catalog_apply', label: '供货申请', detail: `${itemName}（${catalogStatusLabel[ca.status] || ca.status}）`, at: ca.createdAt.toISOString() });
-    }
-
-    // #6 合同/报价
-    for (const cp of contractPrices) {
-      events.push({ type: 'contract', label: '合同报价', detail: `${cp.catalogItem?.name || '未知品类'} · ¥${cp.agreedPrice.toFixed(2)}${cp.contractNo ? ' · ' + cp.contractNo : ''}`, at: cp.createdAt.toISOString() });
     }
 
     events.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());

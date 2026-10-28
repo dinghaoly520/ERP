@@ -14,10 +14,9 @@ describe('WorkflowService（C1 统一流程中心）', () => {
       passwordResetRequest: { findMany: jest.fn().mockResolvedValue([]) },
       profileChangeRequest: { findMany: jest.fn().mockResolvedValue([]) },
       supplierChangeRecord: { findMany: jest.fn().mockResolvedValue([{ id: 'c1', fieldName: 'legalPerson', fieldLabel: '法定代表人', createdAt: t1, supplier: { name: '华西物资' } }]) },
-      supplierCatalogApplication: { findMany: jest.fn().mockResolvedValue([{ id: 'a1', type: 'NEW_ITEM', createdAt: t0, supplier: { name: '中科院成都' } }]) },
     };
     const items = await mk(prisma).pending('admin');
-    expect(items.map(i => i.source)).toEqual(['supplier_registration', 'supplier_change', 'internal_registration', 'password_change', 'catalog_application']); // 时间倒序稳定排序：t1 组在前
+    expect(items.map(i => i.source)).toEqual(['supplier_registration', 'supplier_change', 'internal_registration', 'password_change']); // 时间倒序稳定排序：t1 组在前
     // 供应商注册 deepLink 指向审批中心（R6-3：原 /admin/accounts 死胡同）
     expect(items[0].deepLink).toBe('/supplier/approval');
     expect(items[1].title).toContain('法定代表人');
@@ -32,7 +31,6 @@ describe('WorkflowService（C1 统一流程中心）', () => {
       passwordResetRequest: { findMany: jest.fn() },
       profileChangeRequest: { findMany: jest.fn() },
       supplierChangeRecord: { findMany: jest.fn().mockResolvedValue([{ id: 'c1', fieldName: 'bank', fieldLabel: '开户行', createdAt: new Date(), supplier: { name: '华西物资' } }]) },
-      supplierCatalogApplication: { findMany: jest.fn().mockResolvedValue([]) },
     };
     const items = await mk(prisma).pending('staff');
     expect(items.map(i => i.source)).toEqual(['supplier_change']);
@@ -60,7 +58,6 @@ describe('WorkflowService（C1 统一流程中心）', () => {
       passwordResetRequest: { findMany: jest.fn().mockResolvedValue([]) },
       profileChangeRequest: { findMany: jest.fn().mockResolvedValue([]) },
       supplierChangeRecord: { findMany: jest.fn().mockResolvedValue([{ id: 'c1', fieldName: 'bank', fieldLabel: '开户行', createdAt: d0, reviewedAt: d0, status: 'APPROVED', supplier: { name: '华西' } }]) },
-      supplierCatalogApplication: { findMany: jest.fn().mockResolvedValue([]) },
     };
     const items = await mk(prisma).done();
     expect(items[0].source).toBe('internal_registration'); // RegistrationReview=管理端账号注册（R6-3 语义修正）

@@ -1,4 +1,4 @@
-export type AuthRole = 'admin' | 'leader' | 'staff' | 'bid_host' | 'supplier' | 'bid_expert' | 'mall';
+export type AuthRole = 'admin' | 'leader' | 'staff' | 'bid_host' | 'supplier' | 'bid_expert';
 
 /**
  * 所有「已登录即合法」的角色全集。
@@ -8,7 +8,7 @@ export type AuthRole = 'admin' | 'leader' | 'staff' | 'bid_host' | 'supplier' | 
  * 并为将来 RolesGuard 改为默认拒绝时无需再补装饰器。
  */
 export const AUTHENTICATED_ROLES: readonly AuthRole[] = [
-  'admin', 'leader', 'staff', 'bid_host', 'supplier', 'bid_expert', 'mall',
+  'admin', 'leader', 'staff', 'bid_host', 'supplier', 'bid_expert',
 ];
 
 /** 内部角色（采购办/开标现场）—— 可查看全局业务数据。 */

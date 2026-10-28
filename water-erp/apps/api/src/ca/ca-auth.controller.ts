@@ -339,7 +339,7 @@ function verificationErrorMessage(code?: string): string {
 
 function portalForRole(role: string): string {
   const map: Record<string, string> = {
-    supplier: 'supplier', bid_expert: 'expert', admin: 'bid', bid_host: 'bid', leader: 'web', staff: 'web', mall: 'mall',
+    supplier: 'supplier', bid_expert: 'expert', admin: 'bid', bid_host: 'bid', leader: 'web', staff: 'web',
   };
   return map[role] ?? 'public';
 }

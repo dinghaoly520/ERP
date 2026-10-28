@@ -28,7 +28,6 @@ function tokenFromHandshake(socket: Socket): string | undefined {
     map.get('token_web') ||
     map.get('token_expert') ||
     map.get('token_supplier') ||
-    map.get('token_mall') ||
     map.get('token')
   );
 }

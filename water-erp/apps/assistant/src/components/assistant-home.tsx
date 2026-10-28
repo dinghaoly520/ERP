@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import styles from './assistant-home.module.css';
-import { Send, Loader2, Gauge, Search, ShieldAlert, Users, ShoppingBag, CalendarClock, ScrollText, Wrench } from 'lucide-react';
+import { Send, Loader2, Gauge, Search, ShieldAlert, Users, CalendarClock, ScrollText, Wrench } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
 import GradientText from './GradientText';
@@ -13,7 +13,6 @@ type QuickStats = {
   supplier: { total: number; approved: number; pending: number; risk: number };
   expert: { total: number; available: number };
   announcement: { published: number };
-  catalog: { items: number };
   notification: { unread: number };
   focusAreas: string[];
 };
@@ -25,13 +24,13 @@ type Card = {
 };
 
 function buildCards(s: QuickStats | null): Card[] {
-  const LOADING: Card[] = Array.from({ length: 8 }, () => ({
+  const LOADING: Card[] = Array.from({ length: 7 }, () => ({
     icon: Gauge, label: '加载中...', subtitle: '',
   }));
 
   if (!s) return LOADING;
 
-  const { procurement, bid, supplier, catalog, notification, focusAreas } = s;
+  const { procurement, bid, supplier, notification, focusAreas } = s;
 
   return [
     {
@@ -65,13 +64,6 @@ function buildCards(s: QuickStats | null): Card[] {
       subtitle: supplier.pending > 0
         ? `${supplier.approved} 家已入库 · ${supplier.pending} 家待审核`
         : `${supplier.approved} 家已入库 · 状态良好`,
-    },
-    {
-      icon: ShoppingBag,
-      label: '商城经营分析',
-      subtitle: catalog.items > 0
-        ? `${catalog.items} 个目录商品 · 可查看价格趋势`
-        : '暂无目录数据',
     },
     {
       icon: CalendarClock,
@@ -138,7 +130,6 @@ const promptKits: PromptKit[] = [
       '招标板块的活跃度和各阶段分布是否均衡，有没有进度异常的项目',
       '供应商库的规模与质量表现，入库审核通过率和近期评价趋势',
       '专家资源的可用率及与当前招标项目的专业匹配度',
-      '商城目录的丰富程度与交易活跃度',
       '近期是否有异常指标波动或值得关注的变化信号',
       '与上月/上季度相比，哪些指标在改善，哪些在恶化',
     ],
@@ -154,14 +145,13 @@ const promptKits: PromptKit[] = [
       '请帮我做一次集团招采系统各模块的全面体检。',
       '帮我逐模块扫描一下招采系统的运行状态，看看哪里有问题。',
       '我想对集团招采系统做一轮深度巡检，请逐一分析各模块。',
-      '请系统性地审查采购、招标、供应商、专家、商城、公告六大模块的当前状态。',
+      '请系统性地审查采购、招标、供应商、专家、公告五大模块的当前状态。',
     ],
     aspects: [
       '采购管理模块的数据表现和运行状态',
       '招标管理各阶段的项目分布和流程效率',
       '供应商库的规模、活跃度和审核流转情况',
       '专家资源的可用性和参与评标的频次分布',
-      '商城目录的品类覆盖和交易活跃度',
       '通知公告的发布频率和覆盖范围',
       '各模块之间的数据联动是否正常，有没有信息断层',
       '近期系统整体的变化趋势——是向好还是需要警惕',
@@ -219,31 +209,7 @@ const promptKits: PromptKit[] = [
       '请基于数据给出供应商管理的优先级建议——哪些问题需要优先解决，哪些可以徐徐图之。',
     ],
   },
-  // 4: 商城经营分析
-  {
-    openings: [
-      '请帮我全面分析采购商城的经营状况。',
-      '帮我深入了解一下商城当前的运营数据和存在问题。',
-      '请从商品、交易、用户三个维度对商城经营做一次全面诊断。',
-      '我想了解采购商城运行的整体表现和优化空间。',
-    ],
-    aspects: [
-      '目录商品的品类结构和数量规模，是否有品类空白需要补充',
-      '近期的价格波动趋势和异常价格预警情况',
-      '哪些品类和商品是采购热点，采购频次和金额分布如何',
-      '供应商的上架积极性和产品质量表现',
-      '商城整体的交易活跃度和同比增长情况',
-      '用户端的使用体验反馈和满意度趋势',
-      '订单履约效率和退换货率等服务质量指标',
-      '与外部电商平台相比，商城的价格竞争力和服务差异化如何',
-    ],
-    closings: [
-      '最后请指出商城经营中存在的短板和优化方向，给出切实可行的改进建议。',
-      '请帮我把问题按"紧急且重要"矩阵排列，并给出下阶段的重点运营策略。',
-      '最后请给出一个商城健康度评分，说明主要扣分项和具体的提升路径。',
-    ],
-  },
-  // 5: 今日重点事项
+  // 4: 今日重点事项
   {
     openings: [
       '请帮我梳理今天需要重点关注和处理的全部事项。',
@@ -267,7 +233,7 @@ const promptKits: PromptKit[] = [
       '最后请标注每件事的紧急程度和重要程度，帮我做一个四象限分类。',
     ],
   },
-  // 6: 汇报材料生成
+  // 5: 汇报材料生成
   {
     openings: [
       '请帮我起草一份集团招采业务运行情况汇报材料，用于向上级领导汇报近期工作。',
@@ -290,7 +256,7 @@ const promptKits: PromptKit[] = [
       '请突出亮点和进步，同时不回避问题，做到客观全面、重点突出。',
     ],
   },
-  // 7: 业务操作助手
+  // 6: 业务操作助手
   {
     openings: [
       '请帮我系统地梳理当前需要我处理的所有业务操作事项。',

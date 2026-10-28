@@ -97,5 +97,5 @@ export function isUploadCategoryAllowedForRole(category: string, role?: string):
   if (['admin', 'leader', 'staff', 'bid_host'].includes(role ?? '')) return true;
   if (role === 'supplier') return SUPPLIER_UPLOAD_CATEGORIES.has(category);
   if (role === 'bid_expert') return EXPERT_UPLOAD_CATEGORIES.has(category);
-  return role === 'mall' && ['general', 'profile'].includes(category);
+  return false;
 }
