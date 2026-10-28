@@ -2477,8 +2477,8 @@ export class BidService {
         // （worker 忙别家，probe active>0），引导稍后再试
         throw new ConflictException({
           error: rows.length === 0
-            ? 'AI 分析暂不可重跑（分析队列繁忙或服务未响应），请稍后再试；持续失败请联系系统管理员检查分析服务'
-            : 'AI 分析进行中，禁止重跑（会清空在途分析）；如个别供应商异常请用单家重试',
+            ? '分析服务繁忙，请稍后再试；持续失败请联系管理员'
+            : '分析正在进行，重新分析会清空已有结果；个别供应商异常请点单家重试',
           code: 'TASK_IN_PROGRESS',
         });
       }
@@ -2583,7 +2583,7 @@ export class BidService {
       ? retryable.filter((b) => bidderResultIds.includes(b.id))
       : retryable;
     if (targets.length === 0) {
-      throw new BadRequestException({ error: '无可重试的分析项（仅失败或卡住的可重试）', message: '无可重试的分析项（仅失败或卡住的可重试）', code: 'NO_RETRYABLE_BIDDERS' });
+      throw new BadRequestException({ error: '没有可重试的供应商（仅失败或卡住的能重试）', message: '没有可重试的供应商（仅失败或卡住的能重试）', code: 'NO_RETRYABLE_BIDDERS' });
     }
 
     // F7：队列缺失显式 503——旧实现仅 warn 后照常返回成功，DB 已重置 PENDING/ANALYZING

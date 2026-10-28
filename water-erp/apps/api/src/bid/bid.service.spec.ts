@@ -3536,7 +3536,7 @@ describe('BidService — retryAiBidders', () => {
 
   it('无可重试对象（bidder 全正常）→ 拒绝', async () => {
     prisma.aiBidAnalysisTask.findUnique.mockResolvedValue({ id: 't1', projectId: 'p1', status: 'ANALYZING', bidderResults: [mkBidder({ status: 'COMPLETED' }), mkBidder({ id: 'br2', status: 'SCORING', bidSupplierId: 'bs2', bidSupplier: { supplierName: '乙公司' } })] });
-    await expect(service.retryAiBidders('p1', undefined, 'u1')).rejects.toMatchObject({ message: expect.stringContaining('无可重试') });
+    await expect(service.retryAiBidders('p1', undefined, 'u1')).rejects.toMatchObject({ response: { code: 'NO_RETRYABLE_BIDDERS' }, message: expect.stringContaining('可重试') });
   });
 
   it('指定 ids → 仅重置并入队该 bidder；task 置回 ANALYZING', async () => {

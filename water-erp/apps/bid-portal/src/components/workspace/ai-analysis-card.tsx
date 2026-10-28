@@ -164,7 +164,7 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
         <Bot size={16} strokeWidth={1.5} className="shrink-0 text-[color:var(--muted-foreground)]" />
         <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">AI辅助评标</span>
         <span className="min-w-0 flex-1 text-[12px] text-[color:var(--muted-foreground)]">
-          {stage === 'EVALUATING' ? '未创建 AI 分析任务（存量项目）——点击重新分析可补建并启动' : '启动评标后自动开始 AI 辅助分析'}
+          {stage === 'EVALUATING' ? '尚未创建分析任务——点击重新分析即可创建并启动' : '评标启动后自动开始分析'}
         </span>
         {stage === 'EVALUATING' && (
           <button onClick={doRerun} disabled={busy !== null}
@@ -215,15 +215,15 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
           {anomaly.taskFailed ? (
             <span className="font-semibold text-[var(--danger)]">招标文件处理失败——需重新分析</span>
           ) : anomaly.workerIdle ? (
-            <span className="font-semibold text-[oklch(0.64_0.16_82)]">AI 分析服务暂未响应——请联系系统管理员重启分析服务；服务恢复后请点击重试或重新分析</span>
+            <span className="font-semibold text-[oklch(0.64_0.16_82)]">分析服务未响应——请联系管理员重启；恢复后点击重试或重新分析</span>
           ) : zeroStalled ? (
-            <span className="font-semibold text-[oklch(0.64_0.16_82)]">招标文件已解析完成，但暂无可分析的投标记录（0 家）——请确认开标解密是否完成；确认无误后可点击重新分析重建，若无有效投标请走流标流程</span>
+            <span className="font-semibold text-[oklch(0.64_0.16_82)]">招标文件已解析，无投标可分析（0 家）——请确认解密是否完成；确认后可重新分析，无投标则走流标</span>
           ) : anomaly.allPending ? (
-            <span className="font-semibold text-[oklch(0.64_0.16_82)]">分析尚未启动——请联系系统管理员确认 AI 分析服务已就绪；服务恢复后请点击重新分析</span>
+            <span className="font-semibold text-[oklch(0.64_0.16_82)]">分析尚未启动——请联系管理员检查分析服务；恢复后点击重新分析</span>
           ) : anomaly.failedNames.length > 0 ? (
             <span><span className="font-semibold text-[var(--danger)]">{failed} 家分析失败：</span>{anomaly.failedNames.join('、')}</span>
           ) : anomaly.stuckNames.length > 0 ? (
-            <span><span className="font-semibold text-[oklch(0.64_0.16_82)]">疑似卡住：</span>{anomaly.stuckNames.join('、')}（超过 30 分钟无进展，可重新分析或联系系统管理员）</span>
+            <span><span className="font-semibold text-[oklch(0.64_0.16_82)]">卡住无进展：</span>{anomaly.stuckNames.join('、')}（超过 30 分钟，可重新分析或联系管理员）</span>
           ) : (
             <span>{TASK_STATUS_LABEL[taskStatus ?? ''] ?? '分析中'}</span>
           )}
@@ -281,8 +281,8 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
               <div className="flex items-start gap-2.5 rounded-xl bg-[oklch(0.78_0.12_83_/_0.16)] p-3">
                 <AlertTriangle size={16} className="mt-0.5 shrink-0 text-[oklch(0.46_0.11_65)]" />
                 <div className="space-y-1 text-[12px] leading-relaxed tracking-tight text-[oklch(0.46_0.11_65)]">
-                  <p className="font-bold">将清空全部已完成的 AI 分析结果并重新分析所有供应商</p>
-                  <p>已生成的评分、一致性与报告数据将被删除，分析需重新 OCR 全部标书，耗时较长。</p>
+                  <p className="font-bold">将清空全部分析结果，重新分析所有供应商</p>
+                  <p>已生成的评分和报告会被删除，全部标书需重新识别，耗时较长。</p>
                 </div>
               </div>
               <div className="flex justify-end gap-2">
