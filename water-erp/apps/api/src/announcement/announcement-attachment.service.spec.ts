@@ -111,7 +111,7 @@ describe('AnnouncementAttachmentService.stream 可见性闸门（2026-10-28：�
     id: 'att-1',
     fileAssetId: 'fa-1',
     fileAsset: { id: 'fa-1', key: 'uploads/x.pdf', originalName: '附件.pdf', mimeType: 'application/pdf', size: 9 },
-    announcement: { id: 'ann-1', ...announcement },
+    announcement: { id: 'ann-1', relatedProjectCode: null, ...announcement },
   });
 
   const published = { status: 'PUBLISHED', publicityEnd: null, dataClass: null, metadata: {} };
@@ -122,6 +122,8 @@ describe('AnnouncementAttachmentService.stream 可见性闸门（2026-10-28：�
       announcementAttachment: { findUnique: jest.fn() },
       announcement: { findUnique: jest.fn() },
       supplier: { findUnique: jest.fn() },
+      bidProject: { findFirst: jest.fn().mockResolvedValue(null) },
+      bidSupplier: { findFirst: jest.fn().mockResolvedValue(null) },
       fileAsset: { create: jest.fn() },
     };
     service = new AnnouncementAttachmentService(prisma as PrismaService);
@@ -217,5 +219,63 @@ describe('AnnouncementAttachmentService.stream 可见性闸门（2026-10-28：�
       expect.objectContaining({ where: { userId: 'user-1' } }),
     );
     expect(stream).toBe(fakeStream);
+  });
+
+  it('RESTRICTED 定向公告：白名单未命中但受邀参与关联项目的供应商放行（对齐采购文件「受邀即授权」口径）', async () => {
+    // 邀请步骤后补的供应商只写 BidSupplier、不回写公告 restrictedSupplierIds——
+    // 不得出现「项目机会正文可见、采购文件可下、附件却 400」的口径分叉
+    prisma.announcementAttachment.findUnique.mockResolvedValue(
+      makeAtt({
+        ...published,
+        relatedProjectCode: 'ZJ-TEST-1',
+        metadata: { visibility: 'RESTRICTED', restrictedSupplierIds: ['sup-1'] },
+      }),
+    );
+    prisma.supplier.findUnique.mockResolvedValue({ id: 'sup-other' });
+    prisma.bidProject.findFirst.mockResolvedValue({ id: 'proj-1' });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1' });
+    const fakeStream = { pipe: jest.fn() };
+    (minioClient.getObject as jest.Mock).mockResolvedValue(fakeStream);
+
+    const stream = await service.stream('att-1', res, { sub: 'user-2' });
+
+    expect(prisma.bidProject.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { projectCode: { in: ['ZJ-TEST-1'] } } }),
+    );
+    expect(prisma.bidSupplier.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { projectId: 'proj-1', supplierId: 'sup-other' } }),
+    );
+    expect(stream).toBe(fakeStream);
+  });
+
+  it('RESTRICTED 定向公告：白名单外、且未受邀参与关联项目（无关联项目）仍拒绝', async () => {
+    prisma.announcementAttachment.findUnique.mockResolvedValue(
+      makeAtt({ ...published, metadata: { visibility: 'RESTRICTED', restrictedSupplierIds: ['sup-1'] } }),
+    );
+    prisma.supplier.findUnique.mockResolvedValue({ id: 'sup-other' });
+    // bidProject.findFirst 默认 null（无关联项目）
+
+    const err = await service.stream('att-1', res, { sub: 'user-2' }).catch((e) => e);
+
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect(err.getResponse()).toMatchObject({ code: 'NOT_PUBLIC' });
+  });
+
+  it('RESTRICTED 定向公告：白名单外、受邀反查也未命中仍拒绝', async () => {
+    prisma.announcementAttachment.findUnique.mockResolvedValue(
+      makeAtt({
+        ...published,
+        relatedProjectCode: 'ZJ-TEST-1',
+        metadata: { visibility: 'RESTRICTED', restrictedSupplierIds: ['sup-1'] },
+      }),
+    );
+    prisma.supplier.findUnique.mockResolvedValue({ id: 'sup-other' });
+    prisma.bidProject.findFirst.mockResolvedValue({ id: 'proj-1' });
+    // bidSupplier.findFirst 默认 null（未受邀）
+
+    const err = await service.stream('att-1', res, { sub: 'user-2' }).catch((e) => e);
+
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect(err.getResponse()).toMatchObject({ code: 'NOT_PUBLIC' });
   });
 });

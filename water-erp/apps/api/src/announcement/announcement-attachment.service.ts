@@ -119,7 +119,10 @@ export class AnnouncementAttachmentService {
     if (ann.dataClass && !(PUBLIC_VISIBLE_CLASSES as readonly string[]).includes(ann.dataClass)) {
       throw new BadRequestException({ error: '公告不存在或不可公开', code: 'NOT_PUBLIC' });
     }
-    // P1 收口（同 getPublic）：RESTRICTED 定向公告附件仅被选定供应商可下
+    // P1 收口（同 getPublic）+「受邀即授权」（2026-10-21 既有裁定口径，对齐采购文件
+    // checkEligibility）：RESTRICTED 定向公告附件放行集 = 被选定供应商（restrictedSupplierIds
+    // 命中）∪ 公告关联项目的受邀供应商（BidSupplier）。邀请步骤后补的供应商只写 BidSupplier、
+    // 不回写公告白名单——不得出现「项目机会正文可见、采购文件可下、附件却 400」的口径分叉。
     const meta = (ann.metadata ?? {}) as Record<string, unknown>;
     if (meta.visibility === 'RESTRICTED') {
       let eligible = false;
@@ -132,6 +135,19 @@ export class AnnouncementAttachmentService {
           !!supplier &&
           Array.isArray(meta.restrictedSupplierIds) &&
           (meta.restrictedSupplierIds as string[]).includes(supplier.id);
+        if (!eligible && supplier) {
+          const codes = [ann.relatedProjectCode, typeof meta.projectCode === 'string' ? meta.projectCode : null]
+            .filter((c): c is string => !!c);
+          const project = codes.length > 0
+            ? await this.prisma.bidProject.findFirst({ where: { projectCode: { in: codes } }, select: { id: true } })
+            : null;
+          if (project) {
+            eligible = !!(await this.prisma.bidSupplier.findFirst({
+              where: { projectId: project.id, supplierId: supplier.id },
+              select: { id: true },
+            }));
+          }
+        }
       }
       if (!eligible) {
         throw new BadRequestException({ error: '公告不存在或不可公开', code: 'NOT_PUBLIC' });
@@ -154,7 +170,7 @@ export class AnnouncementAttachmentService {
       where: { id: attachmentId },
       include: {
         fileAsset: true,
-        announcement: { select: { id: true, status: true, publicityEnd: true, dataClass: true, metadata: true } },
+        announcement: { select: { id: true, status: true, publicityEnd: true, dataClass: true, relatedProjectCode: true, metadata: true } },
       },
     });
     if (!att) throw new NotFoundException({ error: '附件不存在', code: 'NOT_FOUND' });
