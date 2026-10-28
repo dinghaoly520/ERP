@@ -814,6 +814,7 @@ export class ProcurementsService {
       abnormalCount,
       budgetSum,
       awardSum,
+      awardedRounds,
     ] = await Promise.all([
       this.prisma.procurementRound.count({ where }),
       this.prisma.procurementRound.count({
@@ -843,11 +844,23 @@ export class ProcurementsService {
         where: { ...where, awardAmount: { not: null } },
         _sum: { awardAmount: true },
       }),
+      // 节资口径（2026-10-28 收口）：与 dashboard getDashboard/环比同源（dashboard.service
+      // 「节资口径同主 summary」注释）——仅 AWARDED 且 budget>0、award>0、budget>=award 参与。
+      this.prisma.procurementRound.findMany({
+        where: { ...where, resultStatus: ResultStatus.AWARDED },
+        select: { budgetAmount: true, awardAmount: true },
+      }),
     ]);
 
     const totalBudget = Number(budgetSum._sum.budgetAmount || 0);
     const totalAward = Number(awardSum._sum.awardAmount || 0);
-    const totalSavings = totalBudget - totalAward;
+    // 原「总预算−总中标」把 PENDING/CANCELLED 轮的预算虚增为「节资」（移动端台账与
+    // 驾驶舱同 App 同标签「累计节资」两数矛盾）；超预算中标（负节资）与缺金额轮不计。
+    const totalSavings = awardedRounds.reduce((sum, r) => {
+      const budget = Number(r.budgetAmount ?? 0);
+      const award = Number(r.awardAmount ?? 0);
+      return budget > 0 && award > 0 && budget >= award ? sum + (budget - award) : sum;
+    }, 0);
 
     return {
       totalCount,
