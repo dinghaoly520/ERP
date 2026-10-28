@@ -66,8 +66,9 @@ export class ProjectManagementController {
 
   /** 按公司分组项目计数（公司下拉语境化计数：数据库/台账=已完成 ARCHIVED、进度=进行中 ACTIVE） */
   @Get('company-counts')
-  getCompanyCounts(@Query('status') status?: 'ACTIVE' | 'ARCHIVED') {
-    return this.projectManagementService.companyCounts(status);
+  getCompanyCounts(@Query('status') status?: 'ACTIVE' | 'ARCHIVED', @CurrentUser() user?: AuthenticatedUser) {
+    // 可见性收口（2026-10-28）：与 list() 同口径（leader/admin 公司视野、staff 本人）
+    return this.projectManagementService.companyCounts(status, user);
   }
 
   @Post('extract-initiation')

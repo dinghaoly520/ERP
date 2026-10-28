@@ -227,10 +227,21 @@ export class ProjectManagementService {
   ) {}
 
   /** 按公司分组项目计数（2026-09-26 公司下拉语境化）：ARCHIVED=已完成、ACTIVE=进行中（RECYCLED/TERMINATED 不计） */
-  async companyCounts(status?: 'ACTIVE' | 'ARCHIVED') {
+  /** 按公司分组项目计数（公司下拉语境化计数：数据库/台账=已完成 ARCHIVED、进度=进行中 ACTIVE）。
+   *  可见性收口（2026-10-28）：与 list() 同口径——此前同族四个 company-counts 端点中唯一
+   *  无视野的（admin 全量恰巧合、leader/staff 可拉到平台全量分组计数）。 */
+  async companyCounts(status?: 'ACTIVE' | 'ARCHIVED', user?: AuthenticatedUser) {
+    const where: Record<string, unknown> = { status: status ?? 'ACTIVE' };
+    if (user?.role === 'leader' || user?.role === 'admin') {
+      // leader/admin：公司视野（admin 不传参=全部，与下拉「全部公司」一致）
+      Object.assign(where, this.companyScope.filter(await this.companyScope.resolveScope(user)));
+    } else {
+      // staff（同 list 可见性）：仅本人项目，分组计数=列表行
+      where.createdById = user?.sub ?? '__no_user__';
+    }
     const groups = await this.prisma.projectManagementItem.groupBy({
       by: ['companyName'],
-      where: { status: status ?? 'ACTIVE' },
+      where,
       _count: { _all: true },
     });
     return groups
