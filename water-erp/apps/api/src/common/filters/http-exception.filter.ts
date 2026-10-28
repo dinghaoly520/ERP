@@ -77,9 +77,8 @@ const UNIQUE_COLUMN_LABEL_ZH: Record<string, string> = {
   // 编号类
   contractCode: '合同编号', penaltyDocNo: '处罚文书编号', faCode: '框架协议编码',
   badgeCode: '徽章编码', month: '月份', date: '日期',
-  // 目录与流程杂项
-  categoryId: '分类', fieldKey: '字段标识', catalogItemId: '商品目录项',
-  relatedItemId: '关联目录项', relationType: '关联类型',
+  // 流程杂项
+  categoryId: '分类',
   requirementId: '要求项', bidderResultId: '中标结果', motionId: '动议',
   prequalId: '资格预审', invitationId: '邀请记录', requestId: '申请记录',
   taskId: '任务', kind: '类型', token: '令牌', rsvpToken: '回执令牌',

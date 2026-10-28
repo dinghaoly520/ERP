@@ -7,5 +7,4 @@ export const ROLE_LABELS: Record<AuthRole, string> = {
   bid_host: '开标主持',
   bid_expert: '评审专家',
   supplier: '供应商',
-  mall: '商城用户',
 };

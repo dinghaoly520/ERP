@@ -2,7 +2,7 @@
 -- 手写迁移：金仓影子库无法重放旧迁移链（gen_random_uuid 缺失），migrate dev 不可用，
 -- 走 db execute + migrate resolve 轨道。drop 前已有双库备份（Task 1）。
 
--- 1) 商城模型家族 18 张表（CASCADE 清理相互外键）
+-- 1) 商城模型家族 19 张表（CASCADE 清理相互外键）
 DROP TABLE IF EXISTS "CatalogCategory" CASCADE;
 DROP TABLE IF EXISTS "CategoryAttributeTemplate" CASCADE;
 DROP TABLE IF EXISTS "CatalogItemAttribute" CASCADE;

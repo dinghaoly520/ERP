@@ -2055,7 +2055,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     const tasks = context.taskSummary || { total: 0, completed: 0, byType: {} };
 
     const approvalActs = activities.filter(a =>
-      ['SUPPLIER_APPROVE','SUPPLIER_REJECT','SUPPLIER_RETURN','PRICE_APPROVE','PRICE_REJECT','CATALOG_APPROVE','PASSWORD_REQUEST_APPROVE'].includes(a.action)
+      ['SUPPLIER_APPROVE','SUPPLIER_REJECT','SUPPLIER_RETURN','PASSWORD_REQUEST_APPROVE'].includes(a.action)
     );
 
     // Compute simple stats for AI context (not for display — AI generates the narrative)

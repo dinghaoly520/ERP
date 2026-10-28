@@ -99,7 +99,6 @@ export function CreateProjectDialog({
   const [demandExtracted, setDemandExtracted] = useState(false);
   const [initiationExtracted, setInitiationExtracted] = useState(false);
 
-  // Budget reference analysis
 
   // AI polish for 立项事由 / 供方要求
   const [polishing, setPolishing] = useState<{ projectReason: boolean; supplierRequirements: boolean }>({
@@ -154,7 +153,6 @@ export function CreateProjectDialog({
     }
   }, [isOpen]);
 
-  // Budget rationale floats above the form — dismiss on outside click
 
   if (!isOpen) {
     return null;

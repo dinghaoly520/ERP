@@ -112,7 +112,6 @@ const ACTION_LABEL: Record<string, string> = {
   CONTRACT_FULFILLMENT_ADDED: '登记合同履约节点',
   CONTRACT_FULFILLMENT_UPDATED: '更新合同履约节点',
   CONTRACT_FULFILLMENT_PROOF_ATTACHED: '上传合同履约凭证',
-  CATEGORY_CREATED: '新增目录品类',
   CATEGORY_UPDATED: '更新目录品类',
   CATEGORY_DELETED: '删除目录品类',
   // ── 预算 ──

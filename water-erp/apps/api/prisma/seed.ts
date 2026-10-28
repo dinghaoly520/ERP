@@ -16,7 +16,7 @@
  *
  * 注意
  *   `ProcurementProject.json` 为空——导出快照前该表数据已被一次失败的 seed 清空且未能恢复，
- *   故 BudgetList 的 procurementProjectId 一并被置空。如需采购立项演示数据，请重新创建后重跑 dump。
+ *   如需采购立项演示数据，请重新创建后重跑 dump。
  *
  * 生产保护
  *   NODE_ENV=production 下默认拒绝执行（避免再次误清生产数据）；

@@ -18,7 +18,7 @@ import { AUTHENTICATED_ROLES, INTERNAL_ROLES } from './auth-scope';
  * 冻结账号登录提示「账号已被冻结」，存量会话被 AuthGuard 即时 401。
  *
  * 范围（2026-08-24 收紧）：仅 :3005 采购中心人员账号（INTERNAL_ROLES =
- * admin/leader/staff/bid_host）。专家/商城等其他门户账号不在此管理（专家归专家管理中心）。
+ * admin/leader/staff/bid_host）。专家等其他门户账号不在此管理（专家归专家管理中心）。
  *
  * 2026-09-14 扩展：供应商账号纳入只读视图（按公司分组）——列表 / 密码查看
  * （passwordVault AES 解密+审计留痕）/ 归属公司调整；密码修改仍归供应商门户自助。
