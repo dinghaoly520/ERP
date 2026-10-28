@@ -437,3 +437,14 @@ describe('AssistantService', () => {
     });
   });
 });
+
+// 商城下线（2026-10-28）：知识库/兜底文案不得再向用户或 LLM 宣传已删除的商城线
+import { SYSTEM_KNOWLEDGE } from './knowledge/system-knowledge';
+
+describe('系统知识库·商城下线后口径', () => {
+  it('知识库不得包含商城角色/门户端口/商城模块描述（final review I-1 回归锁）', () => {
+    expect(SYSTEM_KNOWLEDGE).not.toContain('商城');
+    expect(SYSTEM_KNOWLEDGE).not.toContain('3003');
+    expect(SYSTEM_KNOWLEDGE).not.toContain('mall');
+  });
+});

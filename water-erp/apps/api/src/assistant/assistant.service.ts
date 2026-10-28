@@ -72,7 +72,7 @@ export async function resolveToolCtx(
 @Injectable()
 export class AssistantService {
   /**
-   * 匿名/外部角色可用的工具：仅公开域数据（已发布公告/商城目录）。
+   * 匿名/外部角色可用的工具：仅公开域数据（已发布公告）。
    * 供应商联系人、专家库、项目/通知等内部数据工具仅内部管理角色可用
    * （P0 收口 2026-09-28；2026-09-29 二审收紧：认证≠授权——supplier/bid_expert/mall
    * 等外部角色登录后同样不得经 AI 拉供应商联系人/专家证件等 PII）。
@@ -293,7 +293,7 @@ ${toolList}
 
     if (allowedTools && !allowedTools.has(toolName)) {
       this.logger.warn(`handleDirectToolCall: 匿名访客请求内部工具 ${toolName}，已拒绝`);
-      return '抱歉，该类数据需要登录采购管理系统后才能查询。您可以询问公开的采购公告、商城目录信息，或进行采购业务知识咨询。';
+      return '抱歉，该类数据需要登录采购管理系统后才能查询。您可以询问公开的采购公告信息，或进行采购业务知识咨询。';
     }
 
     const result = await tool.execute(toolArgs, ctx);
@@ -330,7 +330,7 @@ ${toolList}
   ): Promise<string> {
     // 匿名访客不允许注入内部全局概览（采购/招标/供应商/专家分布属内部运营数据）
     if (allowedTools && !allowedTools.has('global_overview')) {
-      return '抱歉，该问题涉及系统内部数据，需要登录采购管理系统后才能查询。您可以询问公开的采购公告或商城目录信息。';
+      return '抱歉，该问题涉及系统内部数据，需要登录采购管理系统后才能查询。您可以询问公开的采购公告信息。';
     }
 
     // 执行 global_overview 获取真实统计数据（公司口径随 ctx 穿参——漏穿即全公司卡片泄漏）
