@@ -140,14 +140,14 @@ describe('BidService — stage transitions', () => {
       aiBidderResult: { createMany: jest.fn().mockResolvedValue({ count: 0 }) },
       supplier: { count: jest.fn() },
       announcement: { count: jest.fn(), findFirst: jest.fn() },
-      bidSupplier: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn(), groupBy: jest.fn().mockResolvedValue([]) },
       // 2026-10-23 监督上报通知：escalated 迁移判定需要旧标注（findUnique）+ upsert 落库
       bidSupervisionAnnotation: { findUnique: jest.fn(), upsert: jest.fn() },
-      bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), upsert: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }), findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+      bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), upsert: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }), findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue([]) },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn(), findFirst: jest.fn().mockResolvedValue({ generatedAt: new Date(Date.now() - 3600_000) }) },
       bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), create: jest.fn(), groupBy: jest.fn() },
       // T17：getProject 派生下发 envelopeVersion/outerDecryptedAt/packageFetchedAt 需要 findMany（默认空）
-      supplierBidSubmission: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+      supplierBidSubmission: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue([]) },
       bidOpeningSession: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
       // 签字闸门默认放行（闭环+回流齐）：full 归档用例不逐个 mock；单测闸门本身见 bid-sign-packet.service.spec
       bidSignPacket: { findUnique: jest.fn().mockResolvedValue({ fileAssetId: 'fa-sign', sha256: 'sha-sign', signPageScanFileId: null, closedAt: new Date(), handoverFileAssetId: 'fa-handover' }), delete: jest.fn().mockResolvedValue({}) },
@@ -192,6 +192,41 @@ describe('BidService — stage transitions', () => {
     }).compile();
 
     service = module.get<BidService>(BidService);
+  });
+
+  describe('getProjectsDashboard 计数口径（2026-10-28 收口：与开标大厅/评标管理同人口）', () => {
+    it('解密/确认/异议分子限已投递（submitStatus=已提交）；唱标记录限已投递供应商的记录', async () => {
+      prisma.bidProject.findMany.mockResolvedValue([{ id: 'p1', stage: 'OPENING', createdAt: new Date(), _count: { suppliers: 5 } }]);
+      prisma.supplierBidSubmission.groupBy.mockResolvedValue([{ projectId: 'p1', _count: { projectId: 3 } }]);
+      prisma.bidExpert.groupBy.mockResolvedValue([{ projectId: 'p1', _count: { projectId: 2 } }]);
+      prisma.bidSupplier.groupBy.mockImplementation(({ where }: any) =>
+        Promise.resolve([{ projectId: 'p1', _count: { projectId: where?.decryptStatus === 'SUCCESS' ? 3 : where?.confirmStatus === 'CONFIRMED' ? 2 : 1 } }]));
+      prisma.bidOpeningRecord.groupBy.mockResolvedValue([{ projectId: 'p1', _count: { projectId: 3 } }]);
+      const res = await service.getProjectsDashboard({ id: 'a', role: 'admin' }, 'bid');
+      const supCalls = prisma.bidSupplier.groupBy.mock.calls.map(c => c[0]);
+      expect(supCalls).toHaveLength(3);
+      for (const c of supCalls) expect(c.where.submitStatus).toBe('已提交');
+      expect(prisma.bidOpeningRecord.groupBy.mock.calls[0][0].where.bidSupplier).toEqual({ submitStatus: '已提交' });
+      expect(res.projects[0].decryptedCount).toBe(3);
+      expect(res.projects[0].confirmedCount).toBe(2);
+      expect(res.projects[0].supplierSubmitted).toBe(3);
+    });
+
+    it('专家签到分母/分子=正选且未婉拒（2026-10-27 名册除名口径），候补与 declined 不入', async () => {
+      prisma.bidProject.findMany.mockResolvedValue([{ id: 'p1', stage: 'EVALUATING', createdAt: new Date(), _count: { suppliers: 3 } }]);
+      prisma.supplierBidSubmission.groupBy.mockResolvedValue([{ projectId: 'p1', _count: { projectId: 3 } }]);
+      prisma.bidExpert.groupBy.mockImplementation(({ where }: any) =>
+        Promise.resolve([{ projectId: 'p1', _count: { projectId: where?.signedIn ? 2 : 4 } }]));
+      prisma.bidSupplier.groupBy.mockResolvedValue([]);
+      prisma.bidOpeningRecord.groupBy.mockResolvedValue([]);
+      const res = await service.getProjectsDashboard({ id: 'a', role: 'admin' }, 'bid');
+      for (const c of prisma.bidExpert.groupBy.mock.calls.map(c => c[0])) {
+        expect(c.where.expertRole).toBe('正选');
+        expect(c.where.invitationStatus).toEqual({ not: 'declined' });
+      }
+      expect(res.projects[0].expertCount).toBe(4);
+      expect(res.projects[0].expertSignedIn).toBe(2);
+    });
   });
 
   describe('legalMandatory 录入口（P1-4 补录入口，2026-09-09）', () => {

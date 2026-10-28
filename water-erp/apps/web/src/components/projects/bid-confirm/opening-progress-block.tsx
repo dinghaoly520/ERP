@@ -63,14 +63,17 @@ export function OpeningProgressBlock({ detail, onAbort }: Props) {
   const { stage, openingSession, suppliers, openingRecords } = detail;
   if (stage !== 'OPENING' && stage !== 'EVALUATING' && stage !== 'ARCHIVED' && stage !== 'ABORTED') return null;
 
-  const total = suppliers.length;
-  const decrypted = suppliers.filter(s => s.decryptStatus === 'SUCCESS').length;
+  // 口径收口（2026-10-28，对齐 :3007 开标大厅与后端 H4 权威口径 bid.service.ts isSubmittedRow）：
+  // 开标四联计数与完成判定的分母=已投递家（submitStatus='已提交'）——原「非撤回」含受邀未投
+  // 的「待提交」家，受邀未投满时「开标已完成」横幅永不出现（P1-4 同根，:3007 大厅已修此口径）。
+  // 解密已处理 = SUCCESS/DANGER；唱标覆盖全部解密成功供应商；确认闭环含 EXCEPTION（异议处理
+  // 完成的终态，展示计数与完成判定同集）；无 DISPUTED 悬置。
+  const activeSuppliers = suppliers.filter(s => s.submitStatus === '已提交');
+  const total = activeSuppliers.length;
+  const decrypted = activeSuppliers.filter(s => s.decryptStatus === 'SUCCESS').length;
   const recorded = openingRecords.length;
-  const confirmed = suppliers.filter(s => s.confirmStatus === 'CONFIRMED').length;
-  const disputed = suppliers.filter(s => s.confirmStatus === 'DISPUTED').length;
-  // 开标完成判定（口径对齐后端可评供应商过滤集）：已撤回排除；解密已处理 = SUCCESS/DANGER；
-  // 唱标覆盖全部解密成功供应商；确认闭环仅对 SUCCESS 供应商要求 CONFIRMED/EXCEPTION；无 DISPUTED 悬置
-  const activeSuppliers = suppliers.filter(s => s.submitStatus !== '已撤回');
+  const confirmed = activeSuppliers.filter(s => s.confirmStatus === 'CONFIRMED' || s.confirmStatus === 'EXCEPTION').length;
+  const disputed = activeSuppliers.filter(s => s.confirmStatus === 'DISPUTED').length;
   const successSuppliers = activeSuppliers.filter(s => s.decryptStatus === 'SUCCESS');
   const openingDone = activeSuppliers.length > 0
     && activeSuppliers.every(s => s.decryptStatus === 'SUCCESS' || s.decryptStatus === 'DANGER')

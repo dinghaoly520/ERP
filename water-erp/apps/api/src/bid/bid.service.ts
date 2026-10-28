@@ -355,15 +355,21 @@ export class BidService {
       where: { ...actorFilter, ...companyFilter, isExtractionOnly: false },
       orderBy: { createdAt: 'desc' },
       include: {
-        _count: { select: { suppliers: true, experts: true } },
+        _count: { select: { suppliers: true } },
       },
     });
 
     const projectIds = projects.map(p => p.id);
 
     // 批量获取各项目的供应商提交数/专家签到数/开标就绪度计数（单次 groupBy，避免 N+1）
+    // 计数口径收口（2026-10-28，与开标大厅/评标管理同人口）：
+    //  - 解密/确认/异议/唱标四计数限「已投递」供应商（submitStatus=已提交）——此前按全受邀
+    //    名册计分子，受邀未投满时任务板显示「解密 3/5」而大厅按 3/3 已完成（A1 第四波同根）；
+    //  - 专家签到分母=正选且未婉拒（2026-10-27 名册除名裁定）——与 getWorkspace/评标管理
+    //    StatTile/签字包同口径，declined 与候补不入（此前 _count.experts 全名册计数）。
     type CountRow = { projectId: string; _count: { projectId: number } };
-    const [submissionCounts, expertSignInCounts, decryptedCounts, confirmedCounts, disputedCounts, openingRecordCounts] = await Promise.all([
+    const expertRosterFilter = { expertRole: '正选', invitationStatus: { not: 'declined' } };
+    const [submissionCounts, expertRosterCounts, expertSignInCounts, decryptedCounts, confirmedCounts, disputedCounts, openingRecordCounts] = await Promise.all([
       projectIds.length > 0
         ? this.prisma.supplierBidSubmission.groupBy({
             by: ['projectId'],
@@ -374,41 +380,49 @@ export class BidService {
       projectIds.length > 0
         ? this.prisma.bidExpert.groupBy({
             by: ['projectId'],
-            where: { projectId: { in: projectIds }, signedIn: true },
+            where: { projectId: { in: projectIds }, ...expertRosterFilter },
+            _count: { projectId: true },
+          })
+        : ([] as CountRow[]),
+      projectIds.length > 0
+        ? this.prisma.bidExpert.groupBy({
+            by: ['projectId'],
+            where: { projectId: { in: projectIds }, ...expertRosterFilter, signedIn: true },
             _count: { projectId: true },
           })
         : ([] as CountRow[]),
       projectIds.length > 0
         ? this.prisma.bidSupplier.groupBy({
             by: ['projectId'],
-            where: { projectId: { in: projectIds }, decryptStatus: 'SUCCESS' },
+            where: { projectId: { in: projectIds }, submitStatus: '已提交', decryptStatus: 'SUCCESS' },
             _count: { projectId: true },
           })
         : ([] as CountRow[]),
       projectIds.length > 0
         ? this.prisma.bidSupplier.groupBy({
             by: ['projectId'],
-            where: { projectId: { in: projectIds }, confirmStatus: 'CONFIRMED' },
+            where: { projectId: { in: projectIds }, submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
             _count: { projectId: true },
           })
         : ([] as CountRow[]),
       projectIds.length > 0
         ? this.prisma.bidSupplier.groupBy({
             by: ['projectId'],
-            where: { projectId: { in: projectIds }, confirmStatus: 'DISPUTED' },
+            where: { projectId: { in: projectIds }, submitStatus: '已提交', confirmStatus: 'DISPUTED' },
             _count: { projectId: true },
           })
         : ([] as CountRow[]),
       projectIds.length > 0
         ? this.prisma.bidOpeningRecord.groupBy({
             by: ['projectId'],
-            where: { projectId: { in: projectIds } },
+            where: { projectId: { in: projectIds }, bidSupplier: { submitStatus: '已提交' } },
             _count: { projectId: true },
           })
         : ([] as CountRow[]),
     ]);
 
     const submittedMap = new Map(submissionCounts.map(s => [s.projectId, s._count.projectId] as [string, number]));
+    const expertRosterMap = new Map(expertRosterCounts.map(e => [e.projectId, e._count.projectId] as [string, number]));
     const signedInMap = new Map(expertSignInCounts.map(e => [e.projectId, e._count.projectId] as [string, number]));
     const decryptedMap = new Map(decryptedCounts.map(r => [r.projectId, r._count.projectId] as [string, number]));
     const confirmedMap = new Map(confirmedCounts.map(r => [r.projectId, r._count.projectId] as [string, number]));
@@ -418,7 +432,7 @@ export class BidService {
     const projectRows = projects.map(p => {
       const supplierCount = p._count.suppliers;
       const supplierSubmitted = submittedMap.get(p.id) ?? 0;
-      const expertCount = p._count.experts;
+      const expertCount = expertRosterMap.get(p.id) ?? 0;
       const expertSignedIn = signedInMap.get(p.id) ?? 0;
 
       let readiness: 'ready' | 'partial' | 'not-ready' | 'archived';

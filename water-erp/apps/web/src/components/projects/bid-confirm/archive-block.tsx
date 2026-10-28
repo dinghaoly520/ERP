@@ -82,11 +82,13 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
     : { blocked: false, reason: '' };
 
   // H5: 开标完成度——开标未完成时归档确认需勾选「已知晓终止」（增强摩擦，流标/废标仍可归档）
-  const archActive = (detail.suppliers ?? []).filter(s => s.submitStatus !== '已撤回');
+  // 口径收口（2026-10-28，对齐 H4/开标大厅）：分母=已投递家（submitStatus='已提交'）——原「非撤回」
+  // 含受邀未投的「待提交」家，受邀未投满时恒判未完成；确认闭环含 EXCEPTION（异议处理终态）
+  const archActive = (detail.suppliers ?? []).filter(s => s.submitStatus === '已提交');
   const archTotal = archActive.length;
   const archDecrypted = archActive.filter(s => s.decryptStatus === 'SUCCESS').length;
   const archDanger = archActive.filter(s => s.decryptStatus === 'DANGER').length;
-  const archConfirmed = archActive.filter(s => s.confirmStatus === 'CONFIRMED').length;
+  const archConfirmed = archActive.filter(s => s.confirmStatus === 'CONFIRMED' || s.confirmStatus === 'EXCEPTION').length;
   const openingIncomplete = archTotal > 0 && (archConfirmed < archTotal || archDanger > 0);
 
   const showToast = (text: string, tone: 'ok' | 'err' = 'ok') => {
@@ -324,11 +326,12 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
           </p>
           {/* F15：开标归档确认框动态展示当前开标进度，避免开标进行中误终局 */}
           {confirmScope === 'opening' && (() => {
-            const active = (detail?.suppliers ?? []).filter(s => s.submitStatus !== '已撤回');
+            // 口径同 H5 闸（2026-10-28）：分母=已投递家；确认含 EXCEPTION 终态
+            const active = (detail?.suppliers ?? []).filter(s => s.submitStatus === '已提交');
             const total = active.length;
             const decrypted = active.filter(s => s.decryptStatus === 'SUCCESS').length;
             const danger = active.filter(s => s.decryptStatus === 'DANGER').length;
-            const confirmed = active.filter(s => s.confirmStatus === 'CONFIRMED').length;
+            const confirmed = active.filter(s => s.confirmStatus === 'CONFIRMED' || s.confirmStatus === 'EXCEPTION').length;
             if (total === 0) return null;
             return (
               <div className="wb-tone-banner wb-tone-banner--warning text-xs leading-5">
