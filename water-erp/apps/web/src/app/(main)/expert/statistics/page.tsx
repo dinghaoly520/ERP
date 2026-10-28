@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { getExpertStatistics, type ExpertStatistics } from '@/lib/api/expert';
+import { readInitialCompanyId } from '@/components/company/company-select';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { BarChart3, RefreshCw, AlertTriangle, Layers, Award, TrendingUp, Activity } from 'lucide-react';
@@ -13,13 +14,17 @@ export default function ExpertStatisticsPage() {
   const [loading, setLoading] = useState(true);
   const [errored, setErrored] = useState(false);
 
+  // 公司视野（2026-10-28）：跟随与专家库共用的公司选择器记忆——admin 在库页选单公司后
+  // 进统计页同视野（此前恒全公司，与库页 KPI 口径漂移）；非 admin 后端强制本公司，传参无副作用
+  const [companyId, setCompanyId] = useState('all');
+  useEffect(() => { setCompanyId(readInitialCompanyId()); }, []);
   const load = async () => {
     setLoading(true); setErrored(false);
-    try { setData(await getExpertStatistics()); }
+    try { setData(await getExpertStatistics(companyId)); }
     catch (e: any) { setErrored(true); toast.error(e?.message || '加载统计数据失败'); }
     setLoading(false);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [companyId]);
 
   if (loading) return (
     <div className="space-y-5 animate-pulse">
