@@ -19,5 +19,5 @@ test("logo upload trigger uses a native keyboard-operable button", () => {
     registerSource,
     /<button type="button" className="reg-logo-drop"[\s\S]{0,100}?onClick=\{\(\) => logoInputRef\.current\?\.click\(\)\}/,
   );
-  assert.match(registerSource, /aria-label=\{basic\.logoUrl \? "更换公司 logo" : "上传公司 logo"\}/);
+  assert.match(registerSource, /aria-label=\{basic\.logoUrl \? "更换公司标志" : "上传公司标志"\}/);
 });

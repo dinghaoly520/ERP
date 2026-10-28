@@ -67,7 +67,7 @@ const CR_FIELDS = [
 ] as const;
 const CR_FIELD_LABELS: Record<string, string> = {
   name: "企业名称", enterpriseType: "企业类型", legalPerson: "法定代表人", legalPersonIdCard: "法定代表人身份证号", registeredAddress: "注册地址", businessScope: "主要经营业务范围", tags: "业务标签",
-  logoUrl: "公司logo", country: "国别", region: "所属行政区域", detailedAddress: "详细地址",
+  logoUrl: "公司标志", country: "国别", region: "所属行政区域", detailedAddress: "详细地址",
   registeredCapital: "注册资金", industry: "所属的国民经济行业", legalPersonPhone: "法人联系电话", companyEmail: "公司邮箱", companyWebsite: "公司官网",
   establishedDate: "企业注册成立日期", companyProfile: "企业简介",
 };
@@ -362,8 +362,8 @@ export default function ProfilePage() {
     if (!f) return;
     // B3-3（2026-09-30）：与注册 logo 口径一致（5MB JPG/PNG）——原 image/* + 50MB 连 svg
     // 都放行，同源直开 SVG 有脚本执行面，且与注册通道（5MB png/jpg）两套规则互相矛盾
-    if (!/\.(jpe?g|png)$/i.test(f.name) || !f.type.startsWith("image/")) { toast.error("logo 仅支持 JPG 或 PNG 图片"); return; }
-    if (f.size > 5 * 1024 * 1024) { toast.error("logo 不能超过5MB"); return; }
+    if (!/\.(jpe?g|png)$/i.test(f.name) || !f.type.startsWith("image/")) { toast.error("公司标志仅支持 JPG 或 PNG 图片"); return; }
+    if (f.size > 5 * 1024 * 1024) { toast.error("公司标志不能超过5MB"); return; }
     setLogoUploading(true);
     try {
       const res = await uploadFile(f, "profile");

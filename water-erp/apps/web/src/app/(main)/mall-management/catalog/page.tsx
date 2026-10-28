@@ -36,6 +36,7 @@ import {
 } from '@/lib/api/catalog-admin';
 import { ConfirmHost, confirmDialog } from '@/components/catalog/confirm-dialog';
 import { useSort, SortableTh } from '@/lib/hooks/use-sort';
+import { localDateInputValue } from '@/lib/local-date';
 import { useFormAutosave, useUnsavedGuard } from '@/lib/hooks/use-form-autosave';
 import { useCategoryTree } from '@/lib/hooks/use-category-tree';
 import { findNode, type CategoryNode } from '@/lib/category-tree-utils';
@@ -1399,7 +1400,7 @@ function TrendsTab() {
           const lastDate = new Date();
           setPredictionData(pred.predictions.map((p, i) => {
             const d = new Date(lastDate); d.setMonth(d.getMonth() + i + 1);
-            return { date: d.toISOString().slice(0, 10), price: p.price };
+            return { date: localDateInputValue(d), price: p.price };
           }));
         }
       }

@@ -160,7 +160,7 @@ export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }:
             onClick={handleAbort}
             disabled={busyId === '__abort__'}
             className="neu-btn-soft is-danger !h-[28px] !text-xs shrink-0"
-            title="评标中通用流标（不可逆，须书面理由留痕；家数不足时上方横幅另有建议）"
+            title="评标期间流标（不可恢复，须填写书面理由；家数不足时上方横幅另有建议）"
           >
             {busyId === '__abort__' ? '流标中…' : '流标…'}
           </button>

@@ -58,7 +58,7 @@ export function CaClarificationSignDialog({ open, onClose, projectId, clarificat
       if (!first) throw new Error('U盾内未找到证书——请插入 SCCA CA U盾');
       await scca.loginScca(first.container, pin);
       // ② prepare → 盾签 → ③ 提交（v3 分支要求 operationId+signP7）
-      setNote('盾签名澄清答复（P7）…');
+      setNote('正在用 U盾签名澄清答复…');
       const prep = await supplierApi.caPrepare(projectId, 'clarification');
       const signP7 = await scca.signSccaP7(first.container, pl.payload);
       setNote('提交澄清答复…');
@@ -69,7 +69,7 @@ export function CaClarificationSignDialog({ open, onClose, projectId, clarificat
         signatureFormat: 'scca-pkcs7-base64',
         signP7,
       });
-      toast.success('澄清答复已提交（P7 电子签名）');
+      toast.success('澄清答复已提交');
       onClose();
       onSubmitted?.();
     } catch (e: any) {
@@ -97,7 +97,7 @@ export function CaClarificationSignDialog({ open, onClose, projectId, clarificat
       }
     >
       <p className="text-sm leading-relaxed text-[var(--fg-2)]">
-        澄清答复将以 SCCA CA P7 电子签名提交（含答复内容与附件哈希），提交后不可修改。
+        澄清答复将使用贵司 U盾数字签名提交（答复与附件一并纳入签名），提交后不可修改。
       </p>
       <div className="mt-3">
         <label className="mb-1 block text-sm font-medium" htmlFor="ca-clar-pin">U盾 PIN</label>

@@ -5,6 +5,7 @@ import { companyColor } from '@/components/company/company-tag';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { fetchCurrentUser } from '@/lib/api/auth';
+import { localDateInputValue, localTimeInputValue } from '@/lib/local-date';
 import { useCompanyInfo, pickDefaultPlace } from '@/lib/api/company-info';
 import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, specialtyPoolCounts, listPoolCompanies, listExperts, getDemandRepDirectory, getBidProjectDetail, getProjectInvitations, proxyMarkExpertInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, type DemandRepDirectoryItem } from '@/lib/api/expert';
 import { StatusBadge, Modal } from '@/components/workbench';
@@ -1338,9 +1339,11 @@ export function ExpertExtractPage({
       originalConfirmedIdsRef.current = new Set(ids);
 
       if (pd?.openTime) {
+        // 日期/时间统一本地取值（2026-10-28）：此前 UTC 日期 + 本地时间混取，UTC≥16:00 的
+        // 开标（本地已是次日）在通知「开标时间」里整体早一天
         const d = new Date(pd.openTime);
-        setOpenTimeDate(d.toISOString().slice(0, 10));
-        setOpenTimeTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+        setOpenTimeDate(localDateInputValue(d));
+        setOpenTimeTime(localTimeInputValue(d));
       }
 
       setNotifyActiveExpert(exps[0]?.userId || '');

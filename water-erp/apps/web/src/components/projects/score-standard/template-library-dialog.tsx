@@ -199,7 +199,7 @@ export function TemplateLibraryDialog({
                             {t.procurementMethod && (
                               <span
                                 className="shrink-0 rounded-full border border-[#dce6f3] bg-[#f0f5fb] px-2 py-0.5 text-xs font-bold text-[#4a6fa5]"
-                                title="保存时快照的采购方式"
+                                title="保存模板时的采购方式"
                               >
                                 {t.procurementMethod}
                               </span>
@@ -207,7 +207,7 @@ export function TemplateLibraryDialog({
                             {t.projectCategory && (
                               <span
                                 className="shrink-0 rounded-full border border-[#dce6f3] bg-[#f0f5fb] px-2 py-0.5 text-xs font-bold text-[#4a6fa5]"
-                                title="保存时快照的项目类型"
+                                title="保存模板时的项目类型"
                               >
                                 {t.projectCategory}
                               </span>

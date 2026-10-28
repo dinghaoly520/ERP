@@ -115,7 +115,7 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
     } catch (err: any) {
       const msg = err?.message || '';
       if (msg.includes('OCR 服务不可用') || msg.includes('OCR_UNAVAILABLE')) {
-        toast.error('OCR 服务未启动，请手动填写或启动 OCR 微服务（pnpm dev:ocr）');
+        toast.error('文字识别服务未启动，请手动填写信息');
       } else if (msg.includes('未识别到文字') || msg.includes('OCR_EMPTY')) {
         toast.error('未识别到文字：请确认图片清晰、完整且为证件/证书照');
       } else if (msg.includes('识别失败') || msg.includes('OCR_FAILED')) {

@@ -177,17 +177,10 @@ export default function ComplianceRulesPage() {
         </span>
       </div>
 
-      {data?.source === 'builtin' && (
-        <p className="text-xs text-[var(--muted-foreground)]">
-          当前展示内置规则快照（只读）——点「从内置初始化」入库后即可在线编辑/停用。
-        </p>
-      )}
-
       {/* ═══ 数据表 ═══ */}
       <div className="neu-table-card">
         <div className="neu-table-card-header flex flex-wrap items-center justify-between gap-3">
           <span className="text-sm font-semibold tracking-wide">审查要点清单</span>
-          <span className="text-xs text-[var(--muted-foreground)]">消费方：项目管理「阶段合规审查」（audit-compliance）</span>
         </div>
         <div className="overflow-x-auto">
           <table className="neu-table w-full min-w-[960px]">

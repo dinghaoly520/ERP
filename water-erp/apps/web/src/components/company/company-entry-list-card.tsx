@@ -106,7 +106,7 @@ export function EntryListCard({
       <div className="space-y-2">
         {entries.length === 0 && (
           <div className="rounded-[12px] border border-dashed border-[var(--border)] px-4 py-5 text-center text-xs text-[var(--muted-foreground)]">
-            暂无条目——未维护时编写页不预填，可先在下方添加
+            暂无条目，可先在下方添加
           </div>
         )}
         {entries.map((entry) => {

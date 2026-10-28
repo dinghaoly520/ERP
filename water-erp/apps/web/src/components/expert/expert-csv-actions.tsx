@@ -129,7 +129,7 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
     // 误杀——先判真实格式再谈编码，见下方编码识别）
     const buf = new Uint8Array(await file.arrayBuffer());
     if (buf[0] === 0x50 && buf[1] === 0x4b) {
-      throw new Error('该文件是 xlsx（zip）格式——无需转 CSV，直接选择该 .xlsx 文件导入即可（已支持）');
+      throw new Error('该文件是 xlsx 格式——无需转 CSV，直接选择该 .xlsx 文件导入即可（已支持）');
     }
     if (buf[0] === 0xd0 && buf[1] === 0xcf && buf[2] === 0x11 && buf[3] === 0xe0) {
       throw new Error('该文件是旧版 .xls 格式——暂不支持，请在 Excel 中另存为 .xlsx（推荐）或 CSV 后重试');

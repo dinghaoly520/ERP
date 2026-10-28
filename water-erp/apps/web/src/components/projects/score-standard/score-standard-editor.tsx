@@ -447,7 +447,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
         {items.length > 0 && (
           <span
             className="inline-flex items-center gap-1 text-xs text-[var(--muted-foreground)]"
-            title={`打分项满分合计（硬闸口径：Σ=100 且每打分项得分点配满——Σ得分点满分=项满分；未配满行见名称列「合计 x/y」标示）。共 ${items.length} 项，含 ${passFailCount} 项通过性审查（不计分）`}
+            title={`打分项满分合计须为 100，且每个打分项的得分点满分之和等于该项满分（未达标项见名称列「合计 x/y」）。共 ${items.length} 项，其中 ${passFailCount} 项为通过性审查不计分`}
           >
             打分合计
             <span

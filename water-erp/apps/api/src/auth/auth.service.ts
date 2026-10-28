@@ -403,16 +403,24 @@ export class AuthService {
    * 冒名者反复撞登录时，监督日志高风险 + admin 站内信主动唤醒（而非事后翻 OperationLog）。
    */
   async alertSeatLockRejection(
+    userId: string,
     username: string,
     windows: Array<{ projectId: string; projectName: string }>,
     ip?: string | null,
     userAgent?: string | null,
   ) {
     try {
+      // 专家名显示（2026-10-28）：username ≠ 姓名的专家（CSV 导入显式「登录账号」列/录入自定义
+      // 用户名）此前在告警里只看到账号串——按 userId 取 displayName 展示「姓名（账号 xxx）」，
+      // 查不到回退 username；监督日志 target 同步用展示名（与 expert.service 的 target=
+      // expertName 口径一致，target 是核验异常等读端的检索键）。
+      const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { displayName: true } });
+      const display = (u?.displayName ?? '').trim() || username;
+      const who = display === username ? display : `${display}（账号 ${username}）`;
       for (const w of windows) {
         await this.prisma.bidSupervisionLog.create({
           data: {
-            projectId: w.projectId, time: new Date(), role: '评审专家', target: username,
+            projectId: w.projectId, time: new Date(), role: '评审专家', target: display,
             action: '评标期登录锁定拒绝',
             result: `评标窗口内的新登录被拒（IP ${ip ?? '未知'}；UA ${(userAgent ?? '').slice(0, 80)}）——如非本人换设备，疑似冒名登录（项目 ${w.projectName}）`,
             riskFlag: '高风险',
@@ -428,13 +436,13 @@ export class AuthService {
             userId: admin.id,
             type: 'ACCOUNT_SECURITY_FEEDBACK',
             title: '专家账号评标期登录被拒',
-            content: `「${username}」在评标期间尝试登录被工位锁定拒绝（IP：${ip ?? '未知'}）——若非本人换设备，疑似冒名，请在开评标端核实。`,
+            content: `「${who}」在评标期间尝试登录被工位锁定拒绝（IP：${ip ?? '未知'}）——若非本人换设备，疑似冒名，请在开评标端核实。`,
             link: '/bid',
           }) : this.prisma.notification.create({ data: {
             userId: admin.id,
             type: 'ACCOUNT_SECURITY_FEEDBACK',
             title: '专家账号评标期登录被拒',
-            content: `「${username}」在评标期间尝试登录被工位锁定拒绝（IP：${ip ?? '未知'}）——若非本人换设备，疑似冒名，请在开评标端核实。`,
+            content: `「${who}」在评标期间尝试登录被工位锁定拒绝（IP：${ip ?? '未知'}）——若非本人换设备，疑似冒名，请在开评标端核实。`,
             link: '/bid',
           } })).catch(() => {});
       }

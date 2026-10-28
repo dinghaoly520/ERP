@@ -870,8 +870,8 @@ function BidDetailInner() {
                               <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 !whitespace-normal">
                                 <span className="opacity-[0.72]">
                                   {submission.receiptSignature
-                                    ? "以下为投递回执的存档原文（已由贵司 U盾 SM2/SM3 签名存档，任何字段改动都会导致验签失败），供完整性核验："
-                                    : "以下为按服务端记录重建的待签回执负载原文（尚未签署），供核对："}
+                                    ? "以下为投递回执的存档原文（已由贵司 U盾签名存档，任何改动都会导致验签失败），供完整性核验："
+                                    : "以下为按平台记录重建的回执内容（尚未签署），供核对："}
                                 </span>
                               </div>
                               <div className="mb-1.5 flex flex-wrap items-center gap-2 !whitespace-normal">
@@ -919,7 +919,7 @@ function BidDetailInner() {
                                 </SpButton>
                               </div>
                               <div className="mt-1 !whitespace-normal opacity-[0.62]">
-                                字段对照：projectId＝本项目 · supplierId＝贵司平台标识 · filesCommit＝投标文件集承诺哈希（SHA-256）· submissionId＝对应回执编号 {submission.receiptNo || "—"}
+                                字段对照：projectId 是本项目编号，supplierId 是贵司的平台标识，filesCommit 是投标文件集的校验值（SHA-256），submissionId 对应回执编号 {submission.receiptNo || "—"}
                               </div>
                             </>
                           )}

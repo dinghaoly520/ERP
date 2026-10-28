@@ -70,7 +70,7 @@ const FORMULA_HIDDEN_METHODS = new Set(["qualified_lowest_price", "none"]);
 const LEGAL_FORMULA_TYPES = ["lowest_price", "benchmark_deviation", "ratio"];
 
 const LOCKED_NOTICE =
-  "项目已进入评标/归档阶段——评标办法、最高限价与价格分公式已锁定（评标口径确定性）。如需更正请按法定程序办理。";
+  "项目已进入评标/归档阶段——评标办法、最高限价与价格分公式已锁定。如需更正请按法定程序办理。";
 
 type PriceConfigSource = Pick<BidProjectDetail, 'id' | 'stage'> & Partial<Pick<BidProjectDetail, 'ceilingPrice' | 'evaluationMethod' | 'priceFormulaConfig' | 'procurementMethod' | 'scoreTrimEnabled'>>;
 

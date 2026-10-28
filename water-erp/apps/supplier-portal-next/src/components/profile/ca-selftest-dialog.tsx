@@ -30,8 +30,8 @@ export function CaSelftestDialog({ trigger, onRefresh }: {
   const [items, setItems] = useState<SelftestItem[]>([
     { key: 'connect', label: '本机连接（证书助手）', status: 'pending', detail: 'wss://localhost:36171' },
     { key: 'enumerate', label: '双证枚举', status: 'pending', detail: '签名证 + 加密证' },
-    { key: 'sign', label: '盾内 P7 签名', status: 'pending', detail: 'SM2/SM3 attached 签名' },
-    { key: 'wrap', label: '密钥封装往返', status: 'pending', detail: 'GM/T 0010 信封 wrap/unwrap 比对' },
+    { key: 'sign', label: '盾内数字签名', status: 'pending', detail: 'SM2/SM3 附加式签名' },
+    { key: 'wrap', label: '密钥封装往返', status: 'pending', detail: 'GM/T 0010 数字信封加解封比对' },
   ]);
   const actionIdRef = useRef(0);
 

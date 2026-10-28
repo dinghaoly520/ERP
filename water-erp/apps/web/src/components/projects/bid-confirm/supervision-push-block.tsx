@@ -244,7 +244,7 @@ export function SupervisionPushBlock({ bidProjectId, isAdmin }: Props) {
         open={showConfig}
         onClose={() => setShowConfig(false)}
         title="监督推送配置"
-        description="公共服务平台监督通道对接参数（保存为全量替换；Bearer Token 留空 = 保持现有）"
+        description="公共服务平台监督通道对接参数（保存时整体覆盖；令牌留空则保持现有值）"
         footer={
           <>
             <button type="button" className="neu-btn-soft !h-[36px] !text-xs" onClick={() => setShowConfig(false)}>取消</button>
@@ -267,7 +267,7 @@ export function SupervisionPushBlock({ bidProjectId, isAdmin }: Props) {
           <div className="mb-1.5 text-xs font-semibold text-[var(--foreground)]">推送端点 URL</div>
           <input
             className="workbench-input w-full"
-            placeholder="https://psvp.sc.gov.cn/api/supervision（留空 = 服务端 SUPERVISION_PUSH_URL 缺省）"
+            placeholder="https://psvp.sc.gov.cn/api/supervision（留空则使用系统默认地址）"
             value={cfgForm.endpoint}
             onChange={(e) => setCfgForm({ ...cfgForm, endpoint: e.target.value })}
           />
@@ -309,7 +309,7 @@ export function SupervisionPushBlock({ bidProjectId, isAdmin }: Props) {
         open={showLogs}
         onClose={() => setShowLogs(false)}
         title="监督推送日志"
-        description="每次推送/凭证导出各记一行（含 HTTP 状态与错误信息）；最近 100 条"
+        description="每次推送与凭证导出各记一行，含推送结果与错误信息，最多保留最近 100 条"
         size="lg"
       >
         <div className="neu-table-card overflow-hidden">
