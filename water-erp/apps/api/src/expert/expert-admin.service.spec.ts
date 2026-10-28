@@ -40,6 +40,7 @@ describe('ExpertAdminService', () => {
       },
       bidExpert: {
         findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
         findFirst: jest.fn(),
         findUnique: jest.fn(),
         upsert: jest.fn().mockResolvedValue({}),
@@ -69,6 +70,8 @@ describe('ExpertAdminService', () => {
       },
       expertProfile: {
         findMany: jest.fn().mockResolvedValue([]),
+        findUnique: jest.fn(),
+        count: jest.fn().mockResolvedValue(0),
         groupBy: jest.fn().mockResolvedValue([]),
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         upsert: jest.fn().mockResolvedValue({}),
@@ -78,6 +81,7 @@ describe('ExpertAdminService', () => {
       },
       auditLog: {
         create: jest.fn().mockResolvedValue({}),
+        count: jest.fn().mockResolvedValue(0),
       },
       // 同时支持数组式（Promise.all）与函数式（执行回调）事务，使事务内逻辑真实运行
       $transaction: jest.fn().mockImplementation(async (arg: any) =>
@@ -178,7 +182,7 @@ describe('ExpertAdminService', () => {
   });
 
   describe('specialtyPoolCounts（全库各专业人数）', () => {
-    it('一次 groupBy 返回 specialty/count（按人数降序），不带公司过滤', async () => {
+    it('一次 groupBy 返回 specialty/count（按人数降序），限定可抽取人口（2026-10-28 口径收口：ACTIVE+可用，与 getDemandRepDirectory 同口径）', async () => {
       prisma.expertProfile.groupBy.mockResolvedValue([
         { specialty: '水利工程', _count: { _all: 3 } },
         { specialty: '测绘工程', _count: { _all: 5 } },
@@ -186,12 +190,71 @@ describe('ExpertAdminService', () => {
       ]);
       const res = await service.specialtyPoolCounts();
       expect(prisma.expertProfile.groupBy).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { user: { isActive: true, role: 'bid_expert' } } }),
+        expect.objectContaining({
+          where: { entryStatus: 'ACTIVE', availability: '可用', user: { isActive: true, role: 'bid_expert' } },
+        }),
       );
       expect(res).toEqual([
         { specialty: '测绘工程', count: 5 },
         { specialty: '水利工程', count: 3 },
       ]);
+    });
+  });
+
+  describe('统计口径收口（2026-10-28：可用=可抽取人口、停用=退库、统计闸去重）', () => {
+    const ACTOR = { sub: 'u-1', role: 'leader', username: 'S-01' } as any;
+
+    it('getStatistics：availGroups 限库内 ACTIVE+账号在编；disabled=RETIRED 计数（entryStatus 为准）', async () => {
+      prisma.user.count.mockResolvedValue(10);
+      prisma.expertProfile.groupBy.mockImplementation(({ by }: any) =>
+        by[0] === 'availability'
+          ? Promise.resolve([{ availability: '可用', _count: 3 }, { availability: '占用', _count: 2 }])
+          : Promise.resolve([]));
+      prisma.expertProfile.count.mockResolvedValue(1);
+      const res = await service.getStatistics(ACTOR);
+      const availCall = prisma.expertProfile.groupBy.mock.calls.find((c: any[]) => c[0].by?.[0] === 'availability')![0];
+      expect(availCall.where.entryStatus).toBe('ACTIVE');
+      expect(availCall.where.user.isActive).toBe(true);
+      expect(res.available).toBe(3);
+      expect(res.occupied).toBe(2);
+      expect(res.disabled).toBe(1);
+      expect(prisma.expertProfile.count).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ entryStatus: 'RETIRED' }),
+      }));
+    });
+
+    it('getStatistics：评价统计按槽位去重（2026-10-21 统计闸裁定，此前本端点为唯一漏网）', async () => {
+      prisma.user.count.mockResolvedValue(5);
+      prisma.expertProfile.groupBy.mockResolvedValue([]);
+      prisma.expertEvaluation.findMany.mockResolvedValue([
+        { overallGrade: 'A', expertUserId: 'e1', evaluatorId: 'v1', projectId: 'p1', createdAt: new Date('2026-01-01'), updatedAt: new Date('2026-01-01'), expertUser: { displayName: '甲' } },
+        { overallGrade: 'C', expertUserId: 'e1', evaluatorId: 'v1', projectId: 'p1', createdAt: new Date('2026-02-01'), updatedAt: new Date('2026-02-01'), expertUser: { displayName: '甲' } },
+        { overallGrade: 'B', expertUserId: 'e2', evaluatorId: 'v1', projectId: null, createdAt: new Date('2026-03-01'), updatedAt: new Date('2026-03-01'), expertUser: { displayName: '乙' } },
+      ]);
+      const res = await service.getStatistics(ACTOR);
+      expect(res.evaluationStats.total).toBe(2); // 同槽位两条只计最新一票
+      expect(res.evaluationStats.levelCounts.A).toBe(0);
+      expect(res.evaluationStats.levelCounts.C).toBe(1);
+      expect(res.evaluationStats.levelCounts.B).toBe(1);
+    });
+
+    it('getLoadDistribution：活跃专家/分配均限库内 ACTIVE（PENDING/SUSPENDED 不入负荷分母）', async () => {
+      prisma.user.count.mockResolvedValue(4);
+      prisma.bidExpert.findMany.mockResolvedValue([]);
+      const res = await service.getLoadDistribution(ACTOR);
+      const countWhere = prisma.user.count.mock.calls[0][0].where;
+      expect(countWhere.expertProfile).toEqual({ entryStatus: 'ACTIVE' });
+      const assignWhere = prisma.bidExpert.findMany.mock.calls[0][0].where;
+      expect(assignWhere.user.expertProfile).toEqual({ entryStatus: 'ACTIVE' });
+      expect(res.totalActiveExperts).toBe(4);
+      expect(res.loadDistribution['空闲']).toBe(4);
+    });
+
+    it('reviewRetirementCandidates：待审核(PENDING)专家不入退库候选扫描', async () => {
+      prisma.user.findMany.mockResolvedValue([]);
+      await service.reviewRetirementCandidates(ACTOR);
+      const where = prisma.user.findMany.mock.calls[0][0].where;
+      expect(where.expertProfile.entryStatus).toEqual({ in: ['ACTIVE', 'SUSPENDED'] });
     });
   });
 
