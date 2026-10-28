@@ -1,12 +1,7 @@
-import { Controller, Get, Put, Body, Inject, Request } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
+import { Controller, Get, Put, Body, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { PrismaService } from '../prisma/prisma.service';
-import { StorageService } from '../storage/storage.service';
-import { OcrService } from '../local-ai/ocr.service';
-import { QUEUE_NAMES } from '../ai-bid-analysis/queues/queue.module';
 import { SystemConfigService } from './system-config.service';
+import { HealthAggregateService } from './health-aggregate.service';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { UpdateConfigDto } from './dto/update-config.dto';
@@ -16,52 +11,15 @@ import { UpdateConfigDto } from './dto/update-config.dto';
 export class SystemConfigController {
   constructor(
     private configService: SystemConfigService,
-    private prisma: PrismaService,
-    @Inject('REDIS_CLIENT') private redis: { ping(): Promise<string> },
-    private storage: StorageService,
-    private ocr: OcrService,
-    @InjectQueue(QUEUE_NAMES.TENDER_PROCESSING) private tenderQueue: Queue,
-    @InjectQueue(QUEUE_NAMES.BIDDER_PROCESSING) private bidderQueue: Queue,
+    private readonly healthService: HealthAggregateService,
   ) {}
 
-  /** D6（CTS 4.7~4.11 自我声明支撑）：组件探活 + 24h 接口指标 + AI 队列深度 */
+  /** 系统健康：组件实质指标 + 全量 24h 接口口径 + Top 榜 + 队列快照 + 分析服务心跳 */
   @Get('health')
   @Roles('admin', 'leader')
-  @ApiOperation({ summary: '系统健康：DB/Redis/MinIO/OCR 探活 + 接口 P95/错误率 + 队列深度' })
+  @ApiOperation({ summary: '系统健康聚合读' })
   async health() {
-    const probe = async (fn: () => Promise<unknown>) => {
-      const t0 = Date.now();
-      try { await fn(); return { ok: true, latencyMs: Date.now() - t0 }; }
-      catch (e) { return { ok: false, latencyMs: Date.now() - t0, error: (e as Error).message }; }
-    };
-    const [db, redis, minio, ocr] = await Promise.all([
-      probe(() => this.prisma.$queryRaw`SELECT 1`),
-      probe(() => this.redis.ping()),
-      probe(() => this.storage.ensureBucket()),
-      probe(() => this.ocr.isAvailable()),
-    ]);
-    const [api24h, tenderCounts, bidderCounts] = await Promise.all([
-      this.prisma.$queryRaw<Array<{ total: number; errors: number; p95ms: number }>>`
-        SELECT COUNT(*)::int AS total,
-               COUNT(*) FILTER (WHERE "statusCode" >= 400)::int AS errors,
-               COALESCE(percentile_cont(0.95) WITHIN GROUP (ORDER BY "durationMs"), 0)::int AS p95ms
-        FROM "OperationLog" WHERE "createdAt" > now() - interval '24 hours'`,
-      this.tenderQueue.getJobCounts('waiting', 'active', 'failed').catch(() => null),
-      this.bidderQueue.getJobCounts('waiting', 'active', 'failed').catch(() => null),
-    ]);
-    const agg = api24h[0] ?? { total: 0, errors: 0, p95ms: 0 };
-    return {
-      checkedAt: new Date().toISOString(),
-      components: { db, redis, minio, ocr: { ...ocr, label: 'OCR(:8100)' } },
-      api24h: {
-        ...agg,
-        errorRate: agg.total > 0 ? Math.round((agg.errors / agg.total) * 10000) / 100 : 0,
-      },
-      queues: {
-        tenderProcessing: tenderCounts,
-        bidderProcessing: bidderCounts,
-      },
-    };
+    return this.healthService.read();
   }
 
   // 澄清说明文案：供应商端公开读取（非敏感信息，与公告 public 端点一致）
