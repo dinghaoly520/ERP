@@ -29,6 +29,9 @@ export class UserSettingsService {
         }),
         ...(dto.compactMode !== undefined && { compactMode: dto.compactMode }),
         ...(dto.notificationPrefs !== undefined && { notificationPrefs: dto.notificationPrefs }),
+        ...(dto.defaultReviewKbId !== undefined && {
+          defaultReviewKbId: dto.defaultReviewKbId,
+        }),
       },
     });
 
