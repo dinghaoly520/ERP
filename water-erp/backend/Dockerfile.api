@@ -1,0 +1,72 @@
+# =============================================================================
+# 新增文件（第二套·后端）—— water-erp API 镜像（NestJS 11 + Prisma 6）
+# 构建上下文 = 仓库根目录（v2：不再做源码快照，与前端共用同一 context，
+#   仓库根 .dockerignore 已排除 node_modules/.next/zhishiku 等，上下文仅数百 MB）
+# 用法：docker compose -f docker-compose.backend.yml build api
+#
+# 与前端 Dockerfile 同源的环境修复（该机 docker.io 直连超时、容器 DNS 失败）：
+#   1. compose 里 build 段已配 network: host（本文件内不再重复）
+#   2. corepack 垫片与 npm -g 安装冲突 → 先 rm -f
+#   3. pnpm-workspace.yaml 的 onlyBuilt/ignoredBuilt 两段与 pnpm11 互斥 → sed 删副本
+#   4. 锁文件缺 ukey devDeps → --no-frozen-lockfile
+#   5. npmmirror 偶发超时 → fetch-timeout/重试/降并发 + store 缓存挂载
+# =============================================================================
+FROM node:24.16.0-bookworm-slim
+
+# ---- 依赖源（构建机需能访问该 registry；纯内网改成 http://<内网registry>）----
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+ENV COREPACK_NPM_REGISTRY=${NPM_REGISTRY}
+# 版本对齐构建机：node 24.16.0 / npm 11.13.0 / pnpm 11.6.0（仓库 package.json 声明 10.33.0，
+# 由 corepack 垫片删除 + npm -g 显式覆盖；pnpm11 与仓库配置的兼容处理见下方 RUN）
+ARG PNPM_VERSION=11.6.0
+ARG NPM_VERSION=11.13.0
+
+RUN corepack enable
+
+WORKDIR /app
+
+# ---- 只拷贝 workspace 成员清单（利用层缓存：源码变更不触发重装依赖）----
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY apps/api/package.json            apps/api/
+COPY apps/web/package.json             apps/web/
+COPY apps/public-portal/package.json   apps/public-portal/
+COPY apps/supplier-portal-next/package.json apps/supplier-portal-next/
+COPY apps/expert-portal/package.json   apps/expert-portal/
+COPY apps/bid-portal/package.json      apps/bid-portal/
+COPY apps/assistant/package.json       apps/assistant/
+COPY apps/bigscreen/package.json       apps/bigscreen/
+COPY packages/config/package.json      packages/config/
+COPY packages/shared/package.json      packages/shared/
+COPY packages/client/package.json      packages/client/
+COPY packages/ukey/package.json        packages/ukey/
+
+# ---- 安装依赖（只装 api 构建所需子树 + 其 workspace 依赖）----
+# pnpm store 用 BuildKit 缓存挂载：重跑构建命中缓存，npmmirror 偶发超时不再致命
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    sed -i '/^onlyBuiltDependencies:/,$d' pnpm-workspace.yaml \
+ && rm -f /usr/local/bin/pnpm /usr/local/bin/pnpx /usr/local/bin/yarn /usr/local/bin/yarnpkg \
+ && npm install -g npm@${NPM_VERSION} pnpm@${PNPM_VERSION} \
+ && pnpm -v \
+ && pnpm install --no-frozen-lockfile --dangerously-allow-all-builds \
+      --fetch-timeout=600000 --fetch-retries=5 --network-concurrency=4 \
+      --filter api...
+
+# ---- 拷贝源码并构建 ----
+COPY apps/api/     apps/api/
+COPY packages/     packages/
+# packages/ukey/src/index.ts 导出 zip 中缺失的 scca-transport/scca-ukey（仅后端 UkeyModule
+# 的验签子功能引用，api 主链路不依赖其运行期实现）。构建期删掉这两行导出，使 nest build 通过；
+# 需要真实 UKey 验签时补齐源文件后重新构建。
+RUN sed -i '/scca-transport/d; /scca-ukey/d' packages/ukey/src/index.ts \
+ && pnpm --filter @water-erp/config --filter @water-erp/shared --filter @water-erp/ukey run build \
+ && cd apps/api \
+ && npx prisma generate \
+ && npm run build \
+ && rm -rf node_modules/.cache
+
+# ---- 运行层（同镜像瘦身：只留生产依赖 + 构建产物）----
+ENV NODE_ENV=production \
+    PORT=4001
+EXPOSE 4001
+# 生产以编译产物启动（绝对路径，兼容 compose 内 working_dir）
+CMD ["node", "/app/apps/api/dist/main.js"]

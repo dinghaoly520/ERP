@@ -1,0 +1,63 @@
+# ---------------------------------------------------------------------------
+# 新增文件（不改原仓库结构）：把 ~33GB 的构建上下文压到数百 MB
+# 原理：Docker 只需要源码 + 锁文件，依赖在镜像内用 pnpm 重装
+# 注意：不要排除 apps/* 与 packages/*，pnpm 需要读到全部 workspace 成员清单
+#       才能通过 --frozen-lockfile 校验（见根 pnpm-workspace.yaml 的 apps/*）
+# ---------------------------------------------------------------------------
+
+# 依赖与构建缓存（镜像内重新安装 / 重新构建）
+node_modules
+**/node_modules
+.next
+**/.next
+out
+**/out
+*.tsbuildinfo
+**/*.tsbuildinfo
+dist
+**/dist
+
+# 本地工具 / 编辑器状态
+.git
+.gitignore
+.serena
+**/.serena
+.claude
+**/.claude
+.superpowers
+.impeccable.md
+
+# 与构建无关的顶层重目录（zip 里体积主要都在这里）
+# ⚠ 必须带前导 / 锚定为仓库根目录：否则 services 会误伤 apps/api/src/**/services/*.ts，
+#    uploads 会误伤后端上传模块源码，导致 nest build 报 Cannot find module。
+/services
+/backups
+/uploads
+/outputs
+/zhishiku
+
+# 环境与凭据：绝不进镜像
+.env
+.env.*
+**/.env
+**/.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+
+# 运行时数据/日志目录（常由容器以 root 写入，非 root 构建者无读权限会中断上下文扫描；也不应进镜像）
+.data
+**/.data
+.tmp
+**/.tmp
+*.log
+**/*.log
+
+# Docker 产物与文档
+# ⚠ 不要排除 **/Dockerfile —— compose 需要在上下文内找到 docker/frontend/Dockerfile
+# ⚠ 不要排除 docker-compose*.yml —— portal.sh 与宿主机 up --no-build 都依赖它
+.dockerignore
+**/.dockerignore
+README*.md
+docs
