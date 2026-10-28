@@ -23,6 +23,7 @@ import {
   wrapDekJson,
 } from '@water-erp/ukey';
 import type { DualEnvelope, EnvelopeFileEntry, SealedFields } from '@water-erp/ukey';
+import { sealPii } from '../common/crypto/sm-field-crypto';
 
 jest.mock('../announcement/bid-document.crypto', () => ({
   encryptBuffer: jest.fn().mockReturnValue({
@@ -3512,6 +3513,54 @@ describe('SupplierPortalService — getNegotiationFiles / downloadNegotiationFil
     await expect(svc.downloadNegotiationFile('bp-1', 'att-1', 'sup-1', res)).rejects.toMatchObject({
       status: 400,
       response: { code: 'ACQUIRE_NOT_STARTED' },
+    });
+  });
+
+  describe('updateContact 空 DTO 显性拒绝（2026-10-28 联系人「假成功」纵深）', () => {
+    // 根因是供应商门户 api.put 漏 Content-Type → 后端收空 DTO → 条件更新全跳过 →
+    // 200「成功」零字段落库。前端已修（jsonWriteInit）；此处把空 DTO 从静默无操作
+    // 改为显性 400，未来任何同类客户端缺陷立即显形而非假成功。
+    let ctSvc: any;
+    let ctPrisma: any;
+
+    beforeEach(() => {
+      ctPrisma = {
+        supplier: { findUnique: jest.fn().mockResolvedValue({ id: 'supplier-1' }) },
+        supplierContact: {
+          findUnique: jest.fn().mockResolvedValue({
+            id: 'ct-1', supplierId: 'supplier-1', isPrimary: false,
+            phone: sealPii('13800138001') as string,
+          }),
+          update: jest.fn(),
+        },
+      };
+      ctSvc = Object.create(SupplierPortalService.prototype) as any;
+      ctSvc.prisma = ctPrisma;
+      ctSvc.logger = { log: jest.fn(), warn: jest.fn(), error: jest.fn() };
+    });
+
+    it('空对象 → 400 EMPTY_UPDATE，不触达 prisma.update', async () => {
+      await expect(ctSvc.updateContact('supplier-1', 'ct-1', {})).rejects.toMatchObject({
+        status: 400,
+        response: { code: 'EMPTY_UPDATE' },
+      });
+      expect(ctPrisma.supplierContact.update).not.toHaveBeenCalled();
+    });
+
+    it('仅含 undefined 字段的对象 → 同样 400 EMPTY_UPDATE', async () => {
+      await expect(
+        ctSvc.updateContact('supplier-1', 'ct-1', { name: undefined, phone: undefined }),
+      ).rejects.toMatchObject({ status: 400, response: { code: 'EMPTY_UPDATE' } });
+    });
+
+    it('任一字段有值 → 正常放行（回归保护）', async () => {
+      ctPrisma.supplierContact.update.mockResolvedValue({
+        id: 'ct-1', supplierId: 'supplier-1', name: '张三', isPrimary: false,
+        phone: sealPii('13800138001') as string,
+      });
+      const r = await ctSvc.updateContact('supplier-1', 'ct-1', { name: '张三' });
+      expect(ctPrisma.supplierContact.update).toHaveBeenCalled();
+      expect(r.name).toBe('张三');
     });
   });
 });

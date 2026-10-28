@@ -55,9 +55,9 @@ export interface ApiClient {
   get<T>(path: string, init?: RequestInit): Promise<T>;
   post<T>(path: string, body?: unknown, init?: RequestInit): Promise<T>;
   postForm<T>(path: string, body: FormData): Promise<T>;
-  put<T>(path: string, body?: unknown): Promise<T>;
-  patch<T>(path: string, body?: unknown): Promise<T>;
-  delete<T>(path: string): Promise<T>;
+  put<T>(path: string, body?: unknown, init?: RequestInit): Promise<T>;
+  patch<T>(path: string, body?: unknown, init?: RequestInit): Promise<T>;
+  delete<T>(path: string, init?: RequestInit): Promise<T>;
 }
 
 function mergeHeaders(init: RequestInit | undefined, extra: Record<string, string>): Record<string, string> {
@@ -151,14 +151,29 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     },
     postForm: <T>(path: string, body: FormData) =>
       fetchApi<T>(path, { method: 'POST', body }),
-    put: <T>(path: string, body?: unknown) => {
+    // put/patch/delete 支持可选 init（2026-10-28）：调用方需要传 signal/timeout 等
+    // RequestInit 时不必再退回 raw——raw 返回 Response 且 fetch 对 4xx/5xx 是 resolve，
+    // 绕过 fetchApi 的 !ok → toApiError 通道（供应商门户 api.put 曾因此吞掉一切非 2xx
+    // 错误并漏发 Content-Type，后端收空 DTO 返回 200 假成功）。
+    put: <T>(path: string, body?: unknown, init?: RequestInit) => {
       const { headers, body: bodyInit } = jsonBody(body);
-      return fetchApi<T>(path, { method: 'PUT', headers, body: bodyInit });
+      return fetchApi<T>(path, {
+        ...init,
+        method: 'PUT',
+        headers: mergeHeaders(init, headers),
+        body: bodyInit,
+      });
     },
-    patch: <T>(path: string, body?: unknown) => {
+    patch: <T>(path: string, body?: unknown, init?: RequestInit) => {
       const { headers, body: bodyInit } = jsonBody(body);
-      return fetchApi<T>(path, { method: 'PATCH', headers, body: bodyInit });
+      return fetchApi<T>(path, {
+        ...init,
+        method: 'PATCH',
+        headers: mergeHeaders(init, headers),
+        body: bodyInit,
+      });
     },
-    delete: <T>(path: string) => fetchApi<T>(path, { method: 'DELETE' }),
+    delete: <T>(path: string, init?: RequestInit) =>
+      fetchApi<T>(path, { ...init, method: 'DELETE' }),
   };
 }

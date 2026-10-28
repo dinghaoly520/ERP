@@ -1160,6 +1160,14 @@ export class SupplierPortalService {
 
   async updateContact(supplierId: string, contactId: string, dto: Partial<CreateContactDto>) {
     await this.assertNotTemporary(supplierId); // B3-2
+    // 空 DTO 显性拒绝（2026-10-28 联系人「假成功」纵深）：全字段 optional 的条件更新
+    // 遇空载荷会静默无操作并返回 200——此前供应商门户 api.put 漏 Content-Type 致后端
+    // 恒收空 DTO，用户侧「提示更新成功但数据未变」。前端已修；此处保证同类缺陷显形为 400。
+    const hasAnyField = [dto.name, dto.phone, dto.email, dto.isPrimary, dto.position, dto.gender, dto.idCard]
+      .some((v) => v !== undefined);
+    if (!hasAnyField) {
+      throw new BadRequestException({ error: '未提供任何要更新的字段', code: 'EMPTY_UPDATE' });
+    }
     const contact = await this.prisma.supplierContact.findUnique({ where: { id: contactId } });
     if (!contact || contact.supplierId !== supplierId) {
       throw new BadRequestException({ error: '联系人不存在', code: 'NOT_FOUND' });

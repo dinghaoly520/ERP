@@ -102,14 +102,16 @@ export const api = {
     guard<T>(client.post<T>(path, body, withTimeout(opts)), path, opts),
   postForm: <T>(path: string, body: FormData, opts: ReqOpts = {}) =>
     guard<T>(client.postForm<T>(path, body), path, opts),
-  // X-P3-06：put/patch/delete 走 raw + withTimeout ——client 三方法签名不带 init/signal，
-  // 此前沿用默认 fetch 超时语义（挂起请求无超时保护）；行为等价（同 method + JSON body）
+  // 写请求（2026-10-28 联系人「假成功」修复）：走 client.put/patch/delete（fetchApi 通道，
+  // !ok → toApiError、JSON 解析、401 on401 全通）+ init 传 withTimeout——此前 X-P3-06 走
+  // client.raw 手动 stringify：漏 Content-Type → 后端收空 DTO 200 假成功；且 raw 对 4xx/5xx
+  // 是 resolve（fetch 语义），guard 只 catch reject → 非 2xx 全被静默吞掉。勿再退回 raw。
   put: <T>(path: string, body?: unknown, opts: ReqOpts = {}) =>
-    guard<T>(client.raw(path, { method: 'PUT', body: body === undefined ? undefined : JSON.stringify(body) }) as Promise<T>, path, opts),
+    guard<T>(client.put<T>(path, body, withTimeout(opts)), path, opts),
   patch: <T>(path: string, body?: unknown, opts: ReqOpts = {}) =>
-    guard<T>(client.raw(path, { method: 'PATCH', body: body === undefined ? undefined : JSON.stringify(body) }) as Promise<T>, path, opts),
+    guard<T>(client.patch<T>(path, body, withTimeout(opts)), path, opts),
   delete: <T>(path: string, opts: ReqOpts = {}) =>
-    guard<T>(client.raw(path, { method: 'DELETE' }) as Promise<T>, path, opts),
+    guard<T>(client.delete<T>(path, withTimeout(opts)), path, opts),
   /** 原始 fetch（blob 下载等），返回 Response，调用方自行处理 */
   raw: (path: string, opts: ReqOpts = {}) => client.raw(path, withTimeout(opts)),
 };
