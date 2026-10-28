@@ -6,7 +6,7 @@ import { api } from "../api";
 import { rememberWebSession, clearWebToken } from "../session-store";
 
 /** 系统实际角色（与后端 Prisma schema 保持一致，同 web 口径） */
-export type AuthRole = "admin" | "leader" | "staff" | "bid_host" | "bid_expert" | "supplier" | "mall";
+export type AuthRole = "admin" | "leader" | "staff" | "bid_host" | "bid_expert" | "supplier";
 
 export type AuthUser = {
   id: string;

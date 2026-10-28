@@ -442,52 +442,6 @@ importers:
         specifier: ^5
         version: 5.9.3
 
-  apps/mall:
-    dependencies:
-      '@water-erp/client':
-        specifier: workspace:*
-        version: link:../../packages/client
-      '@water-erp/config':
-        specifier: workspace:*
-        version: link:../../packages/config
-      framer-motion:
-        specifier: ^12.40.0
-        version: 12.40.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      lucide-react:
-        specifier: ^1.8.0
-        version: 1.17.0(react@19.2.4)
-      next:
-        specifier: 16.2.3
-        version: 16.2.3(@babel/core@7.29.7)(@playwright/test@1.61.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      react:
-        specifier: 19.2.4
-        version: 19.2.4
-      react-dom:
-        specifier: 19.2.4
-        version: 19.2.4(react@19.2.4)
-      sonner:
-        specifier: ^2.0.7
-        version: 2.0.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-    devDependencies:
-      '@tailwindcss/postcss':
-        specifier: ^4
-        version: 4.3.0
-      '@types/node':
-        specifier: ^24.0.0
-        version: 24.13.1
-      '@types/react':
-        specifier: ^19.2.4
-        version: 19.2.4
-      '@types/react-dom':
-        specifier: ^19
-        version: 19.2.3(@types/react@19.2.4)
-      tailwindcss:
-        specifier: ^4
-        version: 4.3.0
-      typescript:
-        specifier: ^5
-        version: 5.9.3
-
   apps/mobile-portal:
     dependencies:
       '@water-erp/client':
@@ -3161,9 +3115,6 @@ packages:
 
   '@types/react@19.2.17':
     resolution: {integrity: sha512-MXfmqaVPEVgkBT/aY0aGCkRWWtByiYQXo3xdQ8r5RzuFrPiRn8Gar2tQdXSUQ2GKV3bkXckek89V8wQBY2Q/Aw==}
-
-  '@types/react@19.2.4':
-    resolution: {integrity: sha512-tBFxBp9Nfyy5rsmefN+WXc1JeW/j2BpBHFdLZbEVfs9wn3E3NRFxwV0pJg8M1qQAexFpvz73hJXFofV0ZAu92A==}
 
   '@types/sanitize-html@2.16.1':
     resolution: {integrity: sha512-n9wjs8bCOTyN/ynwD8s/nTcTreIHB1vf31vhLMGqUPNHaweKC4/fAl4Dj+hUlCTKYgm4P3k83fmiFfzkZ6sgMA==}
@@ -10427,10 +10378,6 @@ snapshots:
     dependencies:
       '@types/react': 19.2.17
 
-  '@types/react-dom@19.2.3(@types/react@19.2.4)':
-    dependencies:
-      '@types/react': 19.2.4
-
   '@types/react-native@0.49.5':
     dependencies:
       '@types/react': 19.2.17
@@ -10442,10 +10389,6 @@ snapshots:
       csstype: 3.2.3
 
   '@types/react@19.2.17':
-    dependencies:
-      csstype: 3.2.3
-
-  '@types/react@19.2.4':
     dependencies:
       csstype: 3.2.3
 

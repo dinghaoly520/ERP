@@ -33,7 +33,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-FRONTEND=(apps/public-portal apps/mall apps/supplier-portal-next apps/web \
+FRONTEND=(apps/public-portal apps/supplier-portal-next apps/web \
   apps/expert-portal apps/bid-portal apps/assistant apps/bigscreen apps/mobile-portal)
 
 ARGS=("$@")

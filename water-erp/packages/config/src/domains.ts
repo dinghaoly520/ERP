@@ -2,7 +2,7 @@ import { PORTS, type AppName } from './ports';
 
 /** 生产子域映射 —— 《子域名申请单》（已处理·2026-10-14 新终版）定稿。
  *  家族 *.scsfjt.com（公网 182.148.52.110 / 223.85.98.164 → 内网 10.10.7.20，HTTPS）。
- *  申请单未列业务（mall :3003 / assistant :3008 / bigscreen :3010）无子域——
+ *  申请单未列业务（assistant :3008 / bigscreen :3010）无子域——
  *  域名模式下跳转回退端口口径（见 urls.ts portalURL）。 */
 export const PORTAL_DOMAINS: Partial<Record<AppName, string>> = {
   public: 'ssyc.scsfjt.com',
