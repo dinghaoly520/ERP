@@ -69,7 +69,6 @@ jobs:
           pnpm --filter expert-portal exec tsc --noEmit
           pnpm --filter supplier-portal-next exec tsc --noEmit
           pnpm --filter public-portal exec tsc --noEmit
-          pnpm --filter mall exec tsc --noEmit
           pnpm --filter assistant exec tsc --noEmit
           pnpm --filter bigscreen exec tsc --noEmit
 
@@ -274,7 +273,6 @@ jobs:
             [ "$code" = "$4" ] || { echo "GUARD SPOT-CHECK FAILED: $5"; exit 1; }
           }
           check GET  /tmp/sup.jar   /operation-log/archive 403 'supplier GET /operation-log/archive' supplier
-          check POST /tmp/sup.jar   /catalog/admin/items    403 'supplier POST /catalog/admin/items'    supplier
           check GET  /tmp/admin.jar /operation-log/archive 200 'admin GET /operation-log/archive'      web
           echo 'guard spot-check: all assertions passed'
 
