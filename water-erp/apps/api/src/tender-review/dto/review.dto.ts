@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsIn } from 'class-validator';
+import { IsString, IsOptional, IsIn, IsObject } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class ExecuteReviewDto {
@@ -31,6 +31,20 @@ export class ExecuteReviewDto {
   @IsOptional()
   @IsString()
   fingerprint?: string;
+}
+
+export class ProjectStatusDto {
+  @ApiProperty()
+  @IsString()
+  projectId: string;
+
+  @ApiProperty()
+  @IsString()
+  documentType: string;
+
+  @ApiProperty({ type: Object })
+  @IsObject()
+  answers: Record<string, unknown>;
 }
 
 export class ExtractRulesDto {

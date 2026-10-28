@@ -31,7 +31,8 @@ import { SemanticReviewerService } from './services/semantic-reviewer.service';
 import { GeneralReviewerService } from './services/general-reviewer.service';
 import { LlmFreeReviewerService } from './services/llm-free-reviewer.service';
 import { ReportGeneratorService } from './services/report-generator.service';
-import { ExecuteReviewDto, ExtractRulesDto } from './dto/review.dto';
+import { ExecuteReviewDto, ExtractRulesDto, ProjectStatusDto } from './dto/review.dto';
+import { computeDraftFingerprint } from './services/draft-fingerprint.util';
 import { toStructuredSuggestion } from './services/text-operations';
 import {
   addDocxCommentBuffer,
@@ -471,6 +472,26 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       .finally(() => this.activeReviews.delete(task.id));
 
     return { taskId: task.id, status: 'running' };
+  }
+
+  @Post('review/project-status')
+  @Roles('leader', 'admin', 'staff')
+  @ApiOperation({ summary: '项目管理场景：判定该项目草稿的审查状态' })
+  async projectStatus(@Body() dto: ProjectStatusDto) {
+    const fingerprint = computeDraftFingerprint(dto.documentType, dto.answers);
+    const latest = await this.prisma.reviewTask.findFirst({
+      where: { projectId: dto.projectId },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!latest) return { fingerprint, state: 'none' as const };
+    if (latest.status === 'pending' || latest.status === 'running') {
+      return { fingerprint, state: 'running' as const, task: latest };
+    }
+    if (latest.status === 'completed' && latest.draftFingerprint === fingerprint) {
+      return { fingerprint, state: 'matching' as const, task: latest };
+    }
+    // completed 但指纹不符，或最新为 failed——task 照常携带，前端按 task.status 细分（spec §6.1）
+    return { fingerprint, state: 'stale' as const, task: latest };
   }
 
   @Post('review/tasks/:id/stop')
