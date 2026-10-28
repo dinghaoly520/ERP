@@ -169,7 +169,7 @@ function ExpertInfoField({
       {isEditing && (
         <div className="fixed inset-0 z-[600] flex items-center justify-center">
           <div className="absolute inset-0" style={{ background: 'oklch(0.1 0.02 258 / 0.42)', backdropFilter: 'blur(4px)' }} onClick={() => { if (snapshot !== null) onEditValueChange(snapshot); onCancel?.(); }} />
-          <div className="relative z-10 flex max-h-[82vh] w-full max-w-[560px] flex-col overflow-hidden rounded-[24px]"
+          <div className="relative z-10 flex max-h-[82vh] w-full max-w-[860px] flex-col overflow-hidden rounded-[24px]"
             style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 4px 5px 18px oklch(0.45 0.07 258 / 0.2), -2px -2px 8px oklch(1 0 0 / 0.9)' }}>
             {/* 弹窗头 */}
             <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-4" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
@@ -186,34 +186,29 @@ function ExpertInfoField({
             </div>
             {/* 弹窗体 */}
             <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-6 py-4">
-          {/* 编辑卡片（2026-10-28 二改）：每字段带列标签（placeholder 填写后即消失，不足以标识列）；
-              序号徽标 + 2 列布局、专业占整行、删除钮右上——与只读表列名一一对应 */}
+          {/* 专家行（2026-10-28 三改）：单行五字段与只读表同构（姓名/部门/专业/职称/角色各一列，专业弹性占宽），
+              序号徽标行首 + 删除钮行尾；弹窗加宽 860px 承载 */}
           {editExperts.map((expert, i) => (
-            <div key={i} className="relative rounded-lg p-2.5 pr-9" style={{ background: 'oklch(1 0 0 / 0.45)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
-              <div className="mb-1.5 flex items-center gap-1.5">
-                <span className="flex h-4 w-4 items-center justify-center rounded-[5px] text-[9px] font-extrabold text-white" style={{ background: 'linear-gradient(135deg, oklch(0.52 0.16 258), oklch(0.45 0.14 258))' }}>{i + 1}</span>
-                <span className="text-[10px] font-bold text-[var(--muted-foreground)]">评审专家</span>
-              </div>
-              <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
-                {([
-                  ['姓名', 'name', expert.name],
-                  ['部门', 'department', expert.department],
-                  ['专业', 'specialty', expert.specialty, true],
-                  ['职称', 'title', expert.title],
-                  ['角色', 'role', (expert as any).role || ''],
-                ] as const).map(([label, key, value, full]) => (
-                  <label key={key} className={full ? 'col-span-2 flex flex-col gap-0.5' : 'flex flex-col gap-0.5'}>
-                    <span className="text-[9px] font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">{label}</span>
-                    <input
-                      type="text"
-                      value={value as string}
-                      onChange={(e) => updateExpertField(i, key as 'name', e.target.value)}
-                      className="workbench-input !h-[30px] !text-xs"
-                    />
-                  </label>
-                ))}
-              </div>
-              <button type="button" onClick={() => removeExpertRow(i)} className="neu-btn-xs !absolute !right-1.5 !top-1.5 !h-6 !w-6 !p-0 justify-center" aria-label="删除该专家"><X size={12} /></button>
+            <div key={i} className="flex items-end gap-1.5 rounded-lg px-2.5 py-2" style={{ background: 'oklch(1 0 0 / 0.45)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+              <span className="mb-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] text-[9px] font-extrabold text-white" style={{ background: 'linear-gradient(135deg, oklch(0.52 0.16 258), oklch(0.45 0.14 258))' }}>{i + 1}</span>
+              {([
+                ['姓名', 'name', expert.name, 'w-[11%] min-w-[64px]'],
+                ['部门', 'department', expert.department, 'w-[17%] min-w-[96px]'],
+                ['专业', 'specialty', expert.specialty, 'min-w-0 flex-1'],
+                ['职称', 'title', expert.title, 'w-[15%] min-w-[88px]'],
+                ['角色', 'role', (expert as any).role || '', 'w-[10%] min-w-[60px]'],
+              ] as const).map(([label, key, value, wCls]) => (
+                <label key={key} className={`flex min-w-0 flex-col gap-0.5 ${wCls}`}>
+                  <span className="text-[9px] font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">{label}</span>
+                  <input
+                    type="text"
+                    value={value as string}
+                    onChange={(e) => updateExpertField(i, key as 'name', e.target.value)}
+                    className="workbench-input !h-[30px] !min-w-0 !text-xs"
+                  />
+                </label>
+              ))}
+              <button type="button" onClick={() => removeExpertRow(i)} className="neu-btn-xs mb-0.5 !h-6 !w-6 shrink-0 !p-0 justify-center" aria-label="删除该专家"><X size={12} /></button>
             </div>
           ))}
             </div>
