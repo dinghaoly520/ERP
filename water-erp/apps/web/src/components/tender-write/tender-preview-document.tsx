@@ -1519,7 +1519,7 @@ function InquiryPurchasePreview({
         >
           <div className="tender-preview-subsection">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
-              6. 报价表
+              7. 报价表
             </div>
             <div className="mt-3 text-sm leading-7 text-[color:var(--foreground)]">
               {isQuotationTableMode(draft) ? (

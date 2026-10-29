@@ -600,13 +600,18 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
         // 不同模板的字段名不同：projectOverview/projectIntroduction、documentAcquireTime 等
         const draftRecord = currentDraft as Record<string, string>;
         const infoUpdate: Record<string, string> = {};
-        const overviewKey = selectedType === 'INQUIRY_PURCHASE' ? 'projectIntroduction' : 'projectOverview';
-        const overviewVal = draftRecord[overviewKey]?.trim();
+        // 2026-10-29 询比 v2：草稿字段与其他类型统一为 projectOverview（旧 projectIntroduction 已废）
+        const overviewVal = draftRecord['projectOverview']?.trim();
         if (overviewVal) infoUpdate.projectOverview = overviewVal;
         const acquireVal = draftRecord['documentAcquireTime']?.trim();
         if (acquireVal) infoUpdate.documentAcquireTime = acquireVal;
-        const evalVal = draftRecord['evaluationMethod']?.trim();
-        if (evalVal) { infoUpdate.evaluationMethod = evalVal /* 非ExtractedInfo字段但DB接受 */; }
+        // 询比评审方法固定综合评分法（草稿无 evaluationMethod 字段）；其余类型读草稿值
+        if (selectedType === 'INQUIRY_PURCHASE') {
+          infoUpdate.evaluationMethod = '综合评分法';
+        } else {
+          const evalVal = draftRecord['evaluationMethod']?.trim();
+          if (evalVal) { infoUpdate.evaluationMethod = evalVal /* 非ExtractedInfo字段但DB接受 */; }
+        }
         if (Object.keys(infoUpdate).length > 0) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           try { await updateProjectExtractedInfo(project.id, infoUpdate as any); } catch { /* 同步失败不阻塞 */ }
