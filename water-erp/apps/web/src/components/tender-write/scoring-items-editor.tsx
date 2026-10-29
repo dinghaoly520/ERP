@@ -18,12 +18,15 @@ export function hasValidScoringRows(items?: ScoringItem[] | null): boolean {
   return !!items?.some((it) => it.factor.trim() || it.criteria.trim());
 }
 
-/** 分值合计（可解析数字求和，两位小数；无可解析值返回 null） */
+/** 分值合计（可解析数字求和，两位小数；无可解析值返回 null）。
+ * 口径与导出一致：只累计有效行（评分因素或评分标准非空）——幽灵行
+ * （仅填了分值）不计入，避免屏上合计与 docx 合计分叉。 */
 export function scoringTotal(items?: ScoringItem[] | null): number | null {
   if (!items?.length) return null;
   let sum = 0;
   let any = false;
   for (const it of items) {
+    if (!(it.factor.trim() || it.criteria.trim())) continue;
     const n = parseFloat(it.score);
     if (!Number.isNaN(n)) {
       sum += n;
@@ -42,18 +45,37 @@ export function parseScoringTextToItems(text: string): ScoringItem[] | null {
   if (!lines.length) return null;
   const items: ScoringItem[] = [];
   for (const line of lines) {
+    // Tab 分列最可靠；无 Tab 的逗号兜底只信任前两列（因素、纯数字分值），
+    // 其余整段拼回评分标准——含逗号的打分公式不会被拦腰截进说明列
     const parts = line.includes("\t")
       ? line.split("\t")
-      : line.includes("，") || line.includes(",")
-        ? line.split(/[，,]/)
-        : line.split(/\s{2,}/);
+      : line.split(/[，,]/);
     if (!parts[0]?.trim()) continue;
+    let factor = parts[0].trim();
+    let score = "";
+    let criteria = "";
+    let note = "/";
+    if (line.includes("\t")) {
+      score = (parts[1] ?? "").replace(/[^0-9.]/g, "");
+      criteria = (parts[2] ?? "").trim();
+      note = (parts[3] ?? "").trim() || "/";
+    } else {
+      const rest = parts.slice(1);
+      const numericIdx = rest.findIndex((seg) => /^\s*[0-9]+(\.[0-9]+)?\s*$/.test(seg));
+      if (numericIdx === 0) {
+        score = rest[0].trim();
+        criteria = rest.slice(1).join("，");
+      } else {
+        // 无数字分值列：整行进因素，其余留空由用户补
+        factor = line.trim();
+      }
+    }
     items.push({
       id: Math.random().toString(36).slice(2, 10),
-      factor: (parts[0] ?? "").trim(),
-      score: (parts[1] ?? "").replace(/[^0-9.]/g, ""),
-      criteria: (parts[2] ?? "").trim(),
-      note: (parts[3] ?? "").trim() || "/",
+      factor,
+      score,
+      criteria,
+      note,
     });
   }
   return items.length ? items : null;

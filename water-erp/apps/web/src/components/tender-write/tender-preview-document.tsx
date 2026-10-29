@@ -13,6 +13,7 @@ import type {
 import type { TableData, TableCell } from './quotation-table-editor';
 import { createDefaultQuotationTable } from './quotation-table-editor';
 import { hasValidScoringRows, scoringTotal } from './scoring-items-editor';
+import { numberToChineseAmount } from '@/lib/tender-write/announcement-templates';
 import { fmtAcquireTime } from '@/lib/utils/format-acquire-time';
 import { useCompanyInfo } from '@/lib/api/company-info';
 
@@ -1282,7 +1283,7 @@ function InquiryPurchasePreview({
                         <span>
                           ☐不收取
                           <br />☑收取，具体要求：
-                          <br />（1）{T.file}保证金的金额：<PreviewValue value={draft.responseDepositAmount} placeholder="{{{T.file}保证金金额}}" fieldKey="responseDepositAmount" onValueChange={onValueChange} />元（小写），<PreviewValue value={draft.responseDepositAmount} placeholder="{{{T.file}保证金金额大写}}" />元（大写）。
+                          <br />（1）{T.file}保证金的金额：<PreviewValue value={draft.responseDepositAmount} placeholder="{{{T.file}保证金金额}}" fieldKey="responseDepositAmount" onValueChange={onValueChange} />元（小写），<PreviewValue value={numberToChineseAmount(draft.responseDepositAmount)} placeholder="{{{T.file}保证金金额大写}}" />元（大写）。
                           <br />（2）{T.file}保证金的形式：
                           <br />{draft.responseDepositForm === 'cash' ? '☑' : '☐'}现金（电汇、银行转账、汇票、支票）
                           <br />采用现金形式的，收取{T.file}保证金的账号名称、开户银行及账号：

@@ -154,7 +154,6 @@ export type InquiryPurchaseFieldKey =
   | "projectName"
   | "coverDate"
   | "projectOverview"
-  | "procurementContent"
   | "maxPrice"
   | "submissionRequirements"
   | "submissionRequirementsType"

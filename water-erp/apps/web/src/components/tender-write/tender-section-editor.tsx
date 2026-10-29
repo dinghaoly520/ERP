@@ -401,33 +401,14 @@ export function TenderSectionEditor({
         }
       }
 
-      // 后端瞬时不可达（watch 重编译/守护恢复窗口）：代理层已快重试，这里再做耐心重试
-      // （3 次 × 10s）桥接恢复窗口——2026-10-29 用户裁定，不允许「后端服务未启动」直抛用户
-      const isTransportError = (e: unknown) => {
-        const err = e as { status?: number; code?: string };
-        return err?.status === 502 || err?.code === 'PROXY_ERROR';
-      };
-      let result: { content: string };
-      for (let attempt = 0; ; attempt++) {
-        try {
-          result = await generateFieldContent({
-            fieldKey,
-            fieldLabel,
-            currentValue,
-            aiPrompt,
-            context,
-          });
-          break;
-        } catch (e) {
-          if (!isTransportError(e)) throw e;
-          if (attempt >= 3) {
-            // 传输层最终失败：换可行动文案，不裸抛「后端服务未启动」
-            throw new Error('后端服务暂不可达（可能正在自动恢复），请稍后重试');
-          }
-          console.warn(`[AI 生成] 后端暂不可达，10s 后自动重试（第 ${attempt + 1}/3 次）`);
-          await new Promise((resolve) => setTimeout(resolve, 10_000));
-        }
-      }
+      // 传输层耐心重试（3 次 × 10s）统一走模块级助手——与评分标准 AI 生成同一条路径
+      const result = await generateFieldContentWithRetry({
+        fieldKey,
+        fieldLabel,
+        currentValue,
+        aiPrompt,
+        context,
+      });
 
       console.log('AI generation result:', result);
 

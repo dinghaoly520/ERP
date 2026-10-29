@@ -70,9 +70,6 @@ const SUPERVISION_TENDER_FIELDS: TenderSectionConfig["fields"] = [
 const PROJECT_OVERVIEW_AI_PROMPT =
   "根据项目名称生成项目概况和采购内容，行文只围绕三点：项目背景（因何立项、现状与需求）、采购缘由（为何此时采购）、采购内容（采购标的清单）。篇幅从简：全文不超过200字，一至两个自然段，无需编号；采购内容一句带过，只罗列标的名称、规格/型号、数量，用顿号和逗号连接，不逐项展开描述。禁止长篇大论和「提升管理水平」类空泛套话。不要使用#、*等符号，不要出现空行，不要在开头重复字段名称，必须以自然段落形式输出，绝对不能使用表格（Tab分隔符）形式。";
 
-const PROJECT_INTRODUCTION_AI_PROMPT =
-  "根据项目名称生成简短的项目介绍，重点写项目背景与采购缘由：因何立项、现状与需求、为何此时组织采购，末尾可用一句话概述采购内容。篇幅从简：200字以内，一至两个自然段，无需编号。禁止长篇大论和空泛套话。不要使用#、*等符号，不要出现空行，不要在开头重复字段名称，必须以自然段落形式输出，绝对不能使用表格（Tab分隔符）形式。";
-
 const PROCUREMENT_CONTENT_AI_PROMPT =
   "根据项目信息生成简明的采购内容：只罗列采购标的的名称、规格/型号、数量等必要要素，品目之间用顿号和逗号自然连接成句，不写背景、意义、要求等其他内容。篇幅从简：200字以内、一两句话即可，不逐项展开描述，不堆砌修饰词。不要使用#、*等符号，不要出现空行，不要在开头重复字段名称，必须以自然段落形式输出，绝对不能使用表格（Tab分隔符）形式。";
 
@@ -695,7 +692,6 @@ export function createEmptyInquiryPurchaseDraft(): InquiryPurchaseDraft {
     projectName: "",
     coverDate: currentYearMonth(),
     projectOverview: "",
-    procurementContent: "",
     maxPrice: "",
     submissionRequirements: "",
     submissionRequirementsType: "",
@@ -736,6 +732,33 @@ export function createEmptyInquiryPurchaseDraft(): InquiryPurchaseDraft {
     quotationLetter: "",
     quotationLetterType: "table", // 报价表优先表格模式
   };
+}
+
+/**
+ * 存量询比草稿迁移（2026-10-29 模板 v2 字段改名）：旧键值搬入新键，只搬「新键为空
+ * 且旧键有值」的项（用户在 v2 上新填的值优先）；旧键从草稿中剔除不再回写存储。
+ * 迁移映射：projectIntroduction→projectOverview、priceLimit→maxPrice、
+ * bidOpeningTime→responseSubmissionTime、evaluationMethod 弃（评审方法已固定）。
+ */
+export function migrateInquiryDraft(
+  draft: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...draft };
+  const moves: Array<[string, string]> = [
+    ['projectIntroduction', 'projectOverview'],
+    ['priceLimit', 'maxPrice'],
+    ['bidOpeningTime', 'responseSubmissionTime'],
+  ];
+  for (const [from, to] of moves) {
+    const oldVal = typeof out[from] === 'string' ? (out[from] as string).trim() : '';
+    const newVal = typeof out[to] === 'string' ? (out[to] as string).trim() : '';
+    if (oldVal && !newVal) out[to] = out[from];
+    delete out[from];
+  }
+  delete out.evaluationMethod;
+  delete out.requiredDocuments;
+  delete out.procurementContent;
+  return out;
 }
 
 export function createEmptyTenderDrafts(): TenderDraftsState {

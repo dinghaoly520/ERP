@@ -47,6 +47,7 @@ import {
   INTERNAL_BIDDING_SECTIONS,
   INVITED_BIDDING_SECTIONS,
   TENDER_DOCUMENT_TYPES,
+  migrateInquiryDraft,
 } from "@/lib/tender-write/templates";
 import { hasValidScoringRows } from "@/components/tender-write/scoring-items-editor";
 import {
@@ -252,10 +253,11 @@ export default function TenderWritePage() {
       };
     }
     if (selectedType === "INQUIRY_PURCHASE") {
+      // 存量草稿迁移：v2 前旧键（项目介绍/限价/开标时间）搬入新键后合并
       return {
         ...createEmptyInquiryPurchaseDraft(),
-        ...(drafts.INQUIRY_PURCHASE ?? {}),
-      };
+        ...migrateInquiryDraft((drafts.INQUIRY_PURCHASE ?? {}) as Record<string, unknown>),
+      } as InquiryPurchaseDraft;
     }
     if (selectedType === "INTERNAL_BIDDING") {
       return {

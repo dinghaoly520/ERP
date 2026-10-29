@@ -16,6 +16,7 @@ import {
   createEmptyTenderDrafts,
   SINGLE_SOURCE_SECTIONS,
   INQUIRY_PURCHASE_SECTIONS,
+  migrateInquiryDraft,
   INTERNAL_BIDDING_SECTIONS,
   INVITED_BIDDING_SECTIONS,
   TENDER_DOCUMENT_TYPES,
@@ -374,7 +375,8 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       return { ...createEmptySingleSourceDraft(), ...(drafts.SINGLE_SOURCE ?? {}) };
     }
     if (selectedType === 'INQUIRY_PURCHASE') {
-      return { ...createEmptyInquiryPurchaseDraft(), ...(drafts.INQUIRY_PURCHASE ?? {}) };
+      // 存量草稿迁移：v2 前旧键搬入新键后合并（与 /tender-write 同口径）
+      return { ...createEmptyInquiryPurchaseDraft(), ...migrateInquiryDraft((drafts.INQUIRY_PURCHASE ?? {}) as Record<string, unknown>) };
     }
     if (selectedType === 'INTERNAL_BIDDING') {
       return { ...createEmptyInternalBiddingDraft(), ...(drafts.INTERNAL_BIDDING ?? {}) };
@@ -655,6 +657,14 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
         }
       } catch { /* 任务文件不可得 → 回退重导出 */ }
       if (!blob) {
+        // 询比 v2：回退重导出同样过评分标准闸门（与直接导出同口径）
+        if (
+          selectedType === 'INQUIRY_PURCHASE' &&
+          !hasValidScoringRows((currentDraft as { scoringItems?: ScoringItem[] }).scoringItems)
+        ) {
+          toast.error('综合评分法评审标准未填写：请在「评审程序和评定成交的标准」章节填写评分标准后再导出');
+          return;
+        }
         // 回退必须显式告知——静默回退时提交稿不含已接受的修改，而弹窗文案承诺包含（二审 P1）
         toast.warning('审查文件获取失败，本次提交的将是当前编辑草稿（不含审查中接受的修改建议）');
         const result = await exportTenderDocument({ documentType: selectedType, answers: currentDraft, projectCode: project?.projectCode || undefined });
@@ -682,13 +692,18 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       // 同步 tender-write draft 中的字段到项目基本信息（绕过 PDF 解析）
       const draftRecord2 = currentDraft as Record<string, string>;
       const infoUpdate2: Record<string, string> = {};
-      const overviewKey2 = selectedType === 'INQUIRY_PURCHASE' ? 'projectIntroduction' : 'projectOverview';
-      const overviewVal2 = draftRecord2[overviewKey2]?.trim();
+      // 2026-10-29 询比 v2：与其他类型统一读 projectOverview（旧 projectIntroduction 已废）
+      const overviewVal2 = draftRecord2['projectOverview']?.trim();
       if (overviewVal2) infoUpdate2.projectOverview = overviewVal2;
       const acquireVal2 = draftRecord2['documentAcquireTime']?.trim();
       if (acquireVal2) infoUpdate2.documentAcquireTime = acquireVal2;
-      const evalVal2 = draftRecord2['evaluationMethod']?.trim();
-      if (evalVal2) { infoUpdate2.evaluationMethod = evalVal2; }
+      // 询比评审方法固定综合评分法；其余类型读草稿值（与直接导出同步同口径）
+      if (selectedType === 'INQUIRY_PURCHASE') {
+        infoUpdate2.evaluationMethod = '综合评分法';
+      } else {
+        const evalVal2 = draftRecord2['evaluationMethod']?.trim();
+        if (evalVal2) { infoUpdate2.evaluationMethod = evalVal2; }
+      }
       if (Object.keys(infoUpdate2).length > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         try { await updateProjectExtractedInfo(project.id, infoUpdate2 as any); } catch { /* 同步失败不阻塞 */ }
