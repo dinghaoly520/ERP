@@ -76,6 +76,7 @@ import type {
   TenderSectionConfig,
   TenderSectionKey,
 } from "@/lib/types/tender-write";
+import { tenderSectionPrereq } from "@/lib/tender-write/progress";
 
 const easeOutQuint: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -273,6 +274,12 @@ export default function TenderWritePage() {
     }
     return createEmptyCompetitiveNegotiationDraft();
   }, [selectedType, drafts]);
+
+  // 前置章节闸（询比 v2，2026-10-29 裁定）：评审标准章节待前四章填完才开放填写
+  const sectionGate = useMemo(() => {
+    if (selectedType !== "INQUIRY_PURCHASE") return undefined;
+    return { key: "evaluation" as const, ...tenderSectionPrereq(INQUIRY_PURCHASE_SECTIONS, currentDraft, "evaluation") };
+  }, [selectedType, currentDraft]);
 
   const updateDraft = (key: CompetitiveNegotiationFieldKey | SingleSourceFieldKey | InquiryPurchaseFieldKey | InternalBiddingFieldKey | InvitedBiddingFieldKey | "scoringItems", value: string) => {
     // 2026-10-29 追加裁定：保证金选「收取」时，其他要求输入框默认直接落「/」
@@ -610,6 +617,7 @@ export default function TenderWritePage() {
             onChange={updateDraft}
             onTableChange={updateDraftTable}
             onScoringItemsChange={updateDraftScoringItems}
+            sectionGate={sectionGate}
           />) : (
             <div className="flex flex-1 items-center justify-center wb-panel">
               <div className="flex flex-col items-center gap-3">

@@ -290,8 +290,11 @@ export function TenderSectionEditor({
   onFieldFocus,
   onSampleOpen,
   onOpenSupplierSelect,
+  fieldLabelMap,
 }: {
   section: TenderSectionConfig;
+  /** 全部章节的字段键→标签映射（评分标准 AI 生成上下文用跨章节中文名） */
+  fieldLabelMap?: Record<string, string>;
   draft: ReadyTenderDraft;
   onChange: (key: TenderFieldKey, value: string) => void;
   onTableChange?: (tableData: TableDataType | undefined) => void;
@@ -462,7 +465,7 @@ export function TenderSectionEditor({
       for (const [key, v] of Object.entries(draft)) {
         if (typeof v === 'string' && v.trim() && key !== 'scoringItems') {
           const cfg = section?.fields.find((f) => String(f.key) === key);
-          context[cfg?.label ?? key] = v;
+          context[cfg?.label ?? fieldLabelMap?.[key] ?? key] = v;
         }
       }
       const result = await generateFieldContentWithRetry({

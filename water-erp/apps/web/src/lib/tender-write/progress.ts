@@ -269,6 +269,29 @@ export function buildTenderSectionProgress(
   });
 }
 
+/**
+ * 章节填写前置闸（询比 v2，2026-10-29 用户裁定）：评分标准章节须待其前所有
+ * 章节（含采购需求）字段填完才开放——AI 生成评分标准时前四章内容均可作参考。
+ * 字段判定复用 buildTenderSectionProgress 同一口径。
+ */
+export function tenderSectionPrereq(
+  sections: TenderSectionConfig[],
+  draft: ReadyTenderDraft,
+  unlockKey: TenderSectionKey,
+): {
+  locked: boolean;
+  missing: Array<{ key: TenderSectionKey; title: string; missingFields: number }>;
+} {
+  const idx = sections.findIndex((s) => s.key === unlockKey);
+  if (idx <= 0) return { locked: false, missing: [] };
+  const progress = buildTenderSectionProgress(sections, draft, unlockKey);
+  const missing = progress
+    .slice(0, idx)
+    .filter((p) => p.missingFields > 0)
+    .map((p) => ({ key: p.key, title: p.title, missingFields: p.missingFields }));
+  return { locked: missing.length > 0, missing };
+}
+
 export function getAdjacentTenderSectionKey(
   sections: TenderSectionConfig[],
   currentKey: TenderSectionKey,

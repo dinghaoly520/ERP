@@ -18,7 +18,10 @@ export function TenderQuestionnaire({
   onFieldFocus,
   onSampleOpen,
   onOpenSupplierSelect,
+  fieldLabelMap,
 }: {
+  /** 全部章节的字段键→标签映射（评分标准 AI 生成上下文用跨章节中文名） */
+  fieldLabelMap?: Record<string, string>;
   draft: ReadyTenderDraft;
   sections: TenderSectionConfig[];
   activeSectionKey: TenderSectionKey;
@@ -36,6 +39,7 @@ export function TenderQuestionnaire({
     <div className="min-h-full tender-section-enter">
       <TenderSectionEditor
         section={section}
+        fieldLabelMap={fieldLabelMap}
         draft={draft}
         onChange={onChange}
         onTableChange={onTableChange}

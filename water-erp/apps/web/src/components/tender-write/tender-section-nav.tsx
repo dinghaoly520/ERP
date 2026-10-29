@@ -1,3 +1,4 @@
+import { Lock } from 'lucide-react';
 import type { TenderSectionProgress, TenderSectionKey } from '@/lib/types/tender-write';
 
 const sectionStateCopy = {
@@ -96,6 +97,11 @@ export function TenderSectionNav({
                 </span>
               </div>
               <div className="mt-2 flex items-center justify-between gap-2">
+                {section.locked ? (
+                  <span className="flex items-center gap-1 rounded-[5px] border border-[oklch(0.6_0.04_258_/_0.22)] bg-[oklch(1_0_0_/_0.35)] px-1.5 py-0.5 text-[10px] font-semibold text-[color:var(--muted-foreground)]">
+                    <Lock size={10} /> 未解锁 · 待前四章填完
+                  </span>
+                ) : (
                 <span
                   className={[
                     'rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold',
@@ -104,6 +110,7 @@ export function TenderSectionNav({
                 >
                   {sectionStateCopy[section.state]}
                 </span>
+                )}
                 <span className="text-[10px] text-[color:var(--muted-foreground)]">
                   {section.missingFields === 0
                     ? '✓'

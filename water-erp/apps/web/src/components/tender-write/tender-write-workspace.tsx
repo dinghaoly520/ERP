@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Lock } from 'lucide-react';
 import {
   getAdjacentTenderSectionKey,
   buildTenderSectionProgress,
@@ -38,6 +39,7 @@ export function TenderWriteWorkspace({
   onOpenSupplierSelect,
   onAutoFillAll,
   batchFilling,
+  sectionGate,
 }: {
   documentType: ReadyTenderDocumentType;
   draft: ReadyTenderDraft;
@@ -51,6 +53,12 @@ export function TenderWriteWorkspace({
   onOpenSupplierSelect?: () => void;
   onAutoFillAll?: () => void;
   batchFilling?: boolean;
+  /** 前置章节闸（询比评分标准章节）：未满足时该节可进入但只渲染解锁提示 */
+  sectionGate?: {
+    key: TenderSectionKey;
+    locked: boolean;
+    missing: Array<{ key: TenderSectionKey; title: string; missingFields: number }>;
+  };
 }) {
   const [scrollToCenter, setScrollToCenter] = useState(false);
   const [focusedFieldKey, setFocusedFieldKey] = useState<string | undefined>(undefined);
@@ -117,9 +125,24 @@ export function TenderWriteWorkspace({
   };
 
   const progress = useMemo(
-    () => buildTenderSectionProgress(sections, draft, activeSectionKey),
-    [sections, draft, activeSectionKey],
+    () =>
+      buildTenderSectionProgress(sections, draft, activeSectionKey).map((item) =>
+        sectionGate && item.key === sectionGate.key && sectionGate.locked
+          ? { ...item, locked: true }
+          : item,
+      ),
+    [sections, draft, activeSectionKey, sectionGate],
   );
+
+  // 全章节字段键→标签映射：评分标准 AI 生成上下文跨章节取中文名（避免英文键弱化参考效果）
+  const fieldLabelMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const sec of sections) for (const f of sec.fields) m[String(f.key)] = f.label;
+    return m;
+  }, [sections]);
+
+  // 前置闸生效中的当前节：不渲染表单，渲染解锁提示面板
+  const gateActive = !!sectionGate && sectionGate.key === activeSectionKey && sectionGate.locked;
 
   const currentSection =
     progress.find((item) => item.key === activeSectionKey) ?? progress[0];
@@ -177,9 +200,38 @@ export function TenderWriteWorkspace({
                 />
               </div>
               <div className="pt-2 pb-5">
+                {gateActive ? (
+                  <div className="mx-auto max-w-[64ch] rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.22)] bg-[oklch(1_0_0_/_0.4)] p-6">
+                    <div className="flex items-center gap-2 text-[color:var(--foreground)]">
+                      <Lock size={16} className="text-[color:var(--muted-foreground)]" />
+                      <span className="text-[0.95rem] font-semibold">评分标准填写尚未开放</span>
+                    </div>
+                    <p className="mt-2 text-sm leading-relaxed text-[color:var(--muted-foreground)]">
+                      评审方法固定为综合评分法，请先完成前四章的全部字段（含采购需求的商务、技术要求）——
+                      填写完整后，AI 生成评分标准时将以这些内容为参考，产出更贴合项目的打分规则。
+                    </p>
+                    <div className="mt-4 space-y-2">
+                      {sectionGate!.missing.map((m) => (
+                        <button
+                          key={m.key}
+                          type="button"
+                          onClick={() => handleSectionSelect(m.key)}
+                          className="flex w-full items-center justify-between rounded-[12px] border border-[oklch(0.6_0.04_258_/_0.22)] bg-[oklch(1_0_0_/_0.5)] px-4 py-2.5 text-left transition-all hover:bg-[oklch(1_0_0_/_0.7)]"
+                        >
+                          <span className="text-sm font-medium text-[color:var(--foreground)]">{m.title}</span>
+                          <span className="flex items-center gap-2 text-xs text-[rgba(191,142,52,1)]">
+                            待补充 {m.missingFields} 项
+                            <span className="text-[color:var(--muted-foreground)]">去填写 →</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
                 <TenderQuestionnaire
                   draft={draft}
                   sections={sections}
+                  fieldLabelMap={fieldLabelMap}
                   activeSectionKey={activeSectionKey}
                   onChange={onChange}
                   onTableChange={onTableChange}
@@ -188,6 +240,7 @@ export function TenderWriteWorkspace({
                   onSampleOpen={handleSampleOpen}
                   onOpenSupplierSelect={onOpenSupplierSelect}
                 />
+                )}
               </div>
             </div>
           </div>

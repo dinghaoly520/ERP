@@ -59,6 +59,8 @@ export type TenderSectionProgress = {
   filledFields: number;
   missingFields: number;
   state: TenderSectionState;
+  /** 前置闸未满足（询比评分标准章节）：可进入查看解锁条件，不可填写 */
+  locked?: boolean;
 };
 
 export type TenderDocumentType =

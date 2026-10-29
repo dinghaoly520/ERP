@@ -23,6 +23,7 @@ import {
 } from '@/lib/tender-write/templates';
 import { exportTenderDocument } from '@/lib/api/tender-write';
 import { hasValidScoringRows } from '@/components/tender-write/scoring-items-editor';
+import { tenderSectionPrereq } from '@/lib/tender-write/progress';
 import { generateFieldContent } from '@/lib/api/tender-sample';
 import { parseQuotationTextToTable } from '@/components/tender-write/quotation-table-editor';
 import {
@@ -418,6 +419,13 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     },
     [selectedType],
   );
+
+  // 前置章节闸（询比 v2）：评审标准章节待前四章填完才开放（与 /tender-write 同口径）
+  const sectionGate = useMemo(() => {
+    if (selectedType !== 'INQUIRY_PURCHASE') return undefined;
+    return { key: 'evaluation' as const, ...tenderSectionPrereq(INQUIRY_PURCHASE_SECTIONS, currentDraft, 'evaluation') };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedType, currentDraft]);
 
   // 综合评分法评审标准（询比 v2）：结构化评分行写入询比草稿
   const updateDraftScoringItems = useCallback(
@@ -929,6 +937,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
               onChange={updateDraft}
               onTableChange={updateDraftTable}
               onScoringItemsChange={updateDraftScoringItems}
+              sectionGate={sectionGate}
               onOpenSupplierSelect={() => setSupplierSelectOpen(true)}
               onAutoFillAll={handleAutoFillAll}
               batchFilling={batchFilling}
