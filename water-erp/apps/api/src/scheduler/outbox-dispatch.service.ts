@@ -81,13 +81,23 @@ export class OutboxDispatchService {
       const projectId = String(payload.projectId ?? '');
       const project = await this.prisma.bidProject.findUnique({
         where: { id: projectId },
-        select: { assignedHostUserId: true },
+        select: { name: true, assignedHostUserId: true },
       });
       if (!project?.assignedHostUserId) return { skipped: 'no host' };
+      // 文案口径（2026-10-29 治理）：通知中心对 title/content 原文透传，模板即用户所见——
+      // 项目名替代裸主键、去 dual-v3/revision 黑话、带供应商名与版次让多次投递可区分
+      const submission = payload.submissionId
+        ? await this.prisma.supplierBidSubmission.findUnique({
+            where: { id: String(payload.submissionId) },
+            select: { supplier: { select: { name: true } } },
+          })
+        : null;
+      const supplierName = submission?.supplier?.name;
+      const revision = Number(payload.revision ?? 1) || 1;
       await this.notificationService.sendToUser(project.assignedHostUserId, ['in_app'], {
         type: 'BID_SUBMITTED_V3',
-        title: '新投标递交（dual-v3）',
-        content: `项目 ${projectId} 有新的 dual-v3 投标递交（revision ${payload.revision ?? '-'}），请进入开标任务板关注。`,
+        title: `新投标递交：${project.name}`,
+        content: `您主持的项目「${project.name}」收到${supplierName ? `「${supplierName}」` : '新的'}投标递交${revision >= 2 ? `（第 ${revision} 版）` : ''}，请进入开标任务板关注。`,
         link: '/bid',
       });
       return {};

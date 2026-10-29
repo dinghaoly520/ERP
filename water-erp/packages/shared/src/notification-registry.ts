@@ -473,6 +473,19 @@ const BID_SPECS: NotificationTypeSpec[] = [
     audiences: [{ kind: 'INVITED_SUPPLIERS' }],
     channels: IN_APP,
   },
+  // 2026-10-29 补登记（outbox-dispatch bid.submitted.v3——此前未注册，标签退化「其他通知」）：
+  // dual-v3 投标递交知会指派主持人；文案在产生点（项目名+供应商名+版次），链接=主持端开标任务板
+  {
+    code: 'BID_SUBMITTED_V3',
+    label: '投标递交',
+    domain: 'bid',
+    icon: 'FileUp',
+    tone: 'blue',
+    actionable: false,
+    audiences: [{ kind: 'ASSIGNED_HOST' }],
+    channels: IN_APP,
+    link: () => '/bid',
+  },
 ];
 
 /* ═══════════════════════════════════════════════════════════

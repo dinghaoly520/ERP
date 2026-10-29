@@ -27,7 +27,8 @@ const mkPrisma = (over: Record<string, any> = {}) => {
         return { count };
       }),
     },
-    bidProject: { findUnique: jest.fn().mockResolvedValue(over.host ?? { assignedHostUserId: 'host-1' }) },
+    bidProject: { findUnique: jest.fn().mockResolvedValue(over.host ?? { assignedHostUserId: 'host-1', name: '智慧水务平台建设项目' }) },
+    supplierBidSubmission: { findUnique: jest.fn().mockResolvedValue(over.submission ?? { supplier: { name: '四川水发建设有限公司' } }) },
   };
   return { prisma, state };
 };
@@ -47,6 +48,30 @@ describe('OutboxDispatchService（T6）', () => {
     expect(mockSend).toHaveBeenCalledWith('host-1', ['in_app'], expect.objectContaining({ type: 'BID_SUBMITTED_V3', link: '/bid' }));
     expect(state.rows[0].status).toBe('SENT');
     expect(state.rows[0].publishedAt).toBeTruthy();
+  });
+
+  // 2026-10-29 文案治理锁定：项目名/供应商名入文，裸主键与 dual-v3/revision 黑话永不回潮
+  test('文案：项目名+供应商名入文，不含裸 projectId/黑话', async () => {
+    const { prisma } = mkPrisma();
+    await mkSvc(prisma).dispatchOnce();
+    const payload = mockSend.mock.calls[0][2] as { title: string; content: string };
+    expect(payload.title).toBe('新投标递交：智慧水务平台建设项目');
+    expect(payload.content).toContain('「智慧水务平台建设项目」');
+    expect(payload.content).toContain('「四川水发建设有限公司」');
+    expect(payload.content).not.toContain('proj-1'); // 裸主键
+    expect(payload.title + payload.content).not.toMatch(/dual-v\d|revision/i); // 黑话
+  });
+
+  test('文案：revision≥2 标注版次；供应商查不到时兜底不露主键', async () => {
+    const rows = mkRows(2); // revision 1 / 2（dispatchOnce 单轮处理两行）
+    const { prisma } = mkPrisma({ rows });
+    (prisma.supplierBidSubmission.findUnique as jest.Mock).mockResolvedValue(null);
+    await mkSvc(prisma).dispatchOnce();
+    const first = mockSend.mock.calls[0][2] as { content: string };
+    const second = mockSend.mock.calls[1][2] as { content: string };
+    expect(first.content).toContain('收到新的投标递交，'); // 首投无版次后缀
+    expect(second.content).toContain('（第 2 版）'); // 修订标注版次
+    expect(first.content + second.content).not.toContain('sub-1'); // 兜底不露主键
   });
 
   test('并发抢占失败（count=0）→ 跳过不通知不误标', async () => {
@@ -105,7 +130,8 @@ describe('终审 I-2：DISPATCHING 崩溃残留恢复', () => {
             return { count: 0 };
           }),
         },
-        bidProject: { findUnique: jest.fn().mockResolvedValue({ assignedHostUserId: 'host-1' }) },
+        bidProject: { findUnique: jest.fn().mockResolvedValue({ assignedHostUserId: 'host-1', name: '测试项目' }) },
+        supplierBidSubmission: { findUnique: jest.fn().mockResolvedValue({ supplier: { name: '测试供应商' } }) },
       };
       return { prisma: p, state: s };
     })();
