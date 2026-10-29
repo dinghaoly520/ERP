@@ -1453,12 +1453,31 @@ export function ExpertExtractPage({
   const mainInvitedRows = invitationData?.experts?.filter(e => e.expertRole === '正选') ?? [];
   const serverAllNotified = mainInvitedRows.length > 0 && mainInvitedRows.every(e => !!e.notified || e.invitationStatus !== 'pending');
   const [reInviteArmed, setReInviteArmed] = useState(false);
-  // 固定语句拼装（composeExpertMessage 同款策略）：关键词外全部固定；专家姓名与确认链接逐人自动
-  const composeExpertMessage = (expertName: string, link: string) =>
-    `${expertName}专家您好！${expertNotifyKeywords.company}现有采购项目定于${openTimeFormatted}在${expertNotifyKeywords.openLocation}开标评审，采购方式为${expertNotifyKeywords.method}。您被选为评审专家，请务必于收到通知后15分钟内点击链接确认是否参加：${link}，超时则自动视为放弃。`;
+  // 固定语句拼装（composeExpertMessage 同款策略）：关键词外全部固定；专家姓名与确认链接逐人自动。
+  // 分段同源（2026-10-29 关键词高亮）：同一段定义同时驱动纯文本（发送）与 JSX 预览
+  // （关键词蓝色加粗，步骤3/6 预览同供应商邀请模板形态）——两形态永不漂移。
+  const expertMessageSegments = (expertName: string, link: string | null): Array<{ t: string } | { kw: string }> => [
+    { kw: expertName },
+    { t: '专家您好！' },
+    { kw: expertNotifyKeywords.company },
+    { t: '现有采购项目定于' },
+    { kw: openTimeFormatted },
+    { t: '在' },
+    { kw: expertNotifyKeywords.openLocation },
+    { t: '开标评审，采购方式为' },
+    { kw: expertNotifyKeywords.method },
+    { t: '。' },
+    ...(link !== null
+      ? [{ t: '您被选为评审专家，请务必于收到通知后15分钟内点击链接确认是否参加：' } as const, { kw: link }, { t: '，超时则自动视为放弃。' } as const]
+      : [{ t: '您被选为评审候补专家，请保持联络。' } as const]),
+  ];
+  const segmentsToText = (segs: Array<{ t: string } | { kw: string }>) => segs.map(s => ('t' in s ? s.t : s.kw)).join('');
+  /** 预览渲染：关键词蓝色加粗（font-semibold + accent-strong，同供应商邀请模板） */
+  const renderMessageSegments = (segs: Array<{ t: string } | { kw: string }>) =>
+    segs.map((s, i) => ('t' in s ? <span key={i}>{s.t}</span> : <b key={i} className="font-semibold text-[var(--accent-strong)]">{s.kw}</b>));
+  const composeExpertMessage = (expertName: string, link: string) => segmentsToText(expertMessageSegments(expertName, link));
   // 候补专用（2026-10-27 用户口径）：同款开头，结尾「您被选为评审候补专家，请保持联络。」——无确认链接无时限（候补不确认，递补转正后另走通知）
-  const composeAltExpertMessage = (expertName: string) =>
-    `${expertName}专家您好！${expertNotifyKeywords.company}现有采购项目定于${openTimeFormatted}在${expertNotifyKeywords.openLocation}开标评审，采购方式为${expertNotifyKeywords.method}。您被选为评审候补专家，请保持联络。`;
+  const composeAltExpertMessage = (expertName: string) => segmentsToText(expertMessageSegments(expertName, null));
   // 关键词/开标时间/确认链接变化 → 重算正选逐人内容（合并写，保留补选/候补条目）；已发送冻结。
   // ★ 变更闸（2026-10-27 修死循环）：内容无变化时原样返回 prev——绝不无条件造新 Map，
   //   否则与步骤3拉链 effect 经 rsvpLinks/notifyVersion 身份变化互触形成 Maximum update depth。
@@ -2716,7 +2735,7 @@ export function ExpertExtractPage({
                           <Bell size={11} /><MessageSquare size={11} /><span>发送内容{active ? ` · ${active.name}` : ''}</span>
                         </div>
                         <p className="rounded-lg px-3 py-2.5 text-xs leading-relaxed break-all" style={{ background: 'oklch(1 0 0 / 0.55)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
-                          {active ? composeExpertMessage(active.name || '未知', rsvpLinks[active.userId] || '') : '（暂无专家）'}
+                          {active ? renderMessageSegments(expertMessageSegments(active.name || '未知', rsvpLinks[active.userId] || '')) : '（暂无专家）'}
                         </p>
                       </div>
                     </>
@@ -3251,7 +3270,7 @@ export function ExpertExtractPage({
                         <StatusBadge tone="blue">{e.specialty}</StatusBadge>
                       </div>
                       <p className="rounded-lg px-3 py-2 text-xs leading-relaxed break-all" style={{ background: 'oklch(1 0 0 / 0.5)' }}>
-                        {composeAltExpertMessage(e.name || '未知')}
+                        {renderMessageSegments(expertMessageSegments(e.name || '未知', null))}
                       </p>
                     </div>
                   ))}
