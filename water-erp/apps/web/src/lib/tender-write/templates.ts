@@ -39,7 +39,7 @@ export const TENDER_DOCUMENT_TYPES: TenderDocumentTypeMeta[] = [
     type: "INQUIRY_PURCHASE",
     label: "询比采购",
     availability: "ready",
-    description: "规格标准统一、货源充足的项目，通过询价比价选择报价最优的供应商。",
+    description: "规格标准统一、货源充足的项目，通过综合评分找到最优性价比的供应商。",
   },
   {
     type: "SINGLE_SOURCE",
