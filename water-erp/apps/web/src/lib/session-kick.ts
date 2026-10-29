@@ -10,9 +10,33 @@
  */
 
 let shown = false;
+// 2026-10-29：页面加载时 N 个并行请求同时 401（会话被顶/过期）会调度 N 个 goToLogin
+// （20s 兜底定时器 + overlay 按钮回调），毫秒级连发 location.href 赋值形成「机关枪导航风暴」，
+// 用户看到登录后无限闪跳/重复登录。一次性守卫：本页面生命周期内只允许发起一次跳转。
+let redirecting = false;
+// 待触发的兜底跳转定时器（重复调度时去重，防止 N 个 401 排 N 个定时器）
+let fallbackTimer: number | undefined;
 
 function goToLogin() {
-  if (window.location.pathname !== "/login") window.location.href = "/login";
+  if (redirecting) return;
+  if (window.location.pathname === "/login") return;
+  redirecting = true;
+  // 会话已被顶/失效：清掉本 tab 的陈旧 token，否则 SessionWatchdog/页面数据请求
+  // 会继续带着死 token 轰 401，形成新一轮 overlay/定时器堆积
+  try {
+    window.sessionStorage.removeItem("webToken");
+  } catch {
+    /* 存储不可用忽略 */
+  }
+  window.location.href = "/login";
+}
+
+function scheduleFallbackRedirect() {
+  if (fallbackTimer !== undefined) return;
+  fallbackTimer = window.setTimeout(() => {
+    fallbackTimer = undefined;
+    goToLogin();
+  }, 20000);
 }
 
 /** 反馈给管理员：携带本 tab 自己的旧 token（cookie 可能已是其他账号的），后端用其 JWT 确认反馈人身份 */
@@ -113,8 +137,8 @@ export function showSessionReplacedOverlay(message?: string) {
     secondaryText: "直接重新登录",
     onSecondary: goToLogin,
   });
-  // 长时间无操作也强制回登录页（被顶下线 = 会话已不可用）
-  window.setTimeout(goToLogin, 20000);
+  // 长时间无操作也强制回登录页（被顶下线 = 会话已不可用；重复调度自动去重）
+  scheduleFallbackRedirect();
 }
 
 /** 账号被冻结：仅提示，回登录页 */
@@ -125,5 +149,5 @@ export function showFrozenOverlay(message?: string) {
     primaryText: "知道了",
     onPrimary: goToLogin,
   });
-  window.setTimeout(goToLogin, 20000);
+  scheduleFallbackRedirect();
 }
