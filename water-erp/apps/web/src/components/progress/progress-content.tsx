@@ -79,6 +79,8 @@ const STAGE_META: Record<ProjectWorkflowStageKey, StageMeta> = {
   BID_EVALUATION:       { label: "开标评标",   color: "var(--stage-evaluation)",  softColor: "var(--stage-evaluation-soft)" },
   AWARD_DECISION:       { label: "定标",       color: "var(--stage-award)",       softColor: "var(--stage-award-soft)" },
   CONTRACT:             { label: "合同",       color: "var(--stage-contract)",    softColor: "var(--stage-contract-soft)" },
+  // 直接采购专属尾段（09 备案表）：getStagesForMethod('直接采购') 会产出，漏配则兜底渲染原始键
+  DIRECT_PURCHASE_FILING: { label: "直接采购备案表", color: "var(--stage-filing)",   softColor: "var(--stage-filing-soft)" },
 };
 
 const DEFAULT_STAGE_META: StageMeta = {
