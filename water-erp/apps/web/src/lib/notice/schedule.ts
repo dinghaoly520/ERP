@@ -13,9 +13,13 @@ export function scheduledPublishDue(raw: unknown): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-/** 草稿的定时时刻已过却仍是 DRAFT → 定时发布未生效（被发布闸拒绝或服务异常滞留） */
+/** 草稿的定时时刻已过却仍是 DRAFT → 定时发布未生效（被发布闸拒绝或服务异常滞留）。
+ *  90 秒宽限：scheduler 每分钟 :00 扫一次，定时刚到的最长 60 秒空窗内草稿仍合法待发，
+ *  不宽限会闪报假「定时未生效」（2026-10-29 复验补）。 */
+export const SCHEDULED_PUBLISH_GRACE_MS = 90_000;
+
 export function isOverdueScheduledDraft(ann: { status: string; metadata?: Record<string, any> | null }): boolean {
   if (ann.status !== 'DRAFT') return false;
   const due = scheduledPublishDue(ann.metadata?.scheduledPublishDate);
-  return !!due && due.getTime() < Date.now();
+  return !!due && due.getTime() < Date.now() - SCHEDULED_PUBLISH_GRACE_MS;
 }
