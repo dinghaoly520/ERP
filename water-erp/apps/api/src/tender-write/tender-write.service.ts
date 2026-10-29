@@ -166,6 +166,30 @@ export class TenderWriteService {
   }
 
   async exportDocument(dto: ExportTenderWriteDto, user?: { sub?: string }) {
+    // 询比 v2（2026-10-29 裁定「导出前拦截」）：评审方法固定综合评分法，评分标准为
+    // 法定必备内容——有效行（评分因素或评分标准非空）为 0 时拒绝导出。
+    // 前端 /tender-write、项目管理内嵌导出与审查流三处均有同口径闸门与友好提示，
+    // 此处为兜底（API 直调 / 审查链路漏改时也拦得住），防止空表法定文件流出。
+    if (dto.documentType === 'INQUIRY_PURCHASE') {
+      const items = (dto.answers as Record<string, unknown>).scoringItems;
+      const hasValidRow = Array.isArray(items)
+        ? items.some(
+            (it) =>
+              it &&
+              typeof it === 'object' &&
+              (String((it as Record<string, unknown>).factor ?? '').trim() ||
+                String((it as Record<string, unknown>).criteria ?? '').trim()),
+          )
+        : false;
+      if (!hasValidRow) {
+        throw new BadRequestException({
+          error:
+            '综合评分法评审标准未填写：请在「评审程序和评定成交的标准」章节填写评分标准后再导出',
+          code: 'SCORING_NOT_FILLED',
+        });
+      }
+    }
+
     const templatePath = this.resolveTemplatePath(dto.documentType);
     const exists = await fs
       .access(templatePath)

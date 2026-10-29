@@ -1,6 +1,7 @@
 import type {
   CompetitiveNegotiationAnswers,
   InquiryPurchaseAnswers,
+  ScoringItem,
   SingleSourceAnswers,
   InternalBiddingAnswers,
   TableData,
@@ -992,12 +993,6 @@ export function buildInquiryPurchaseReplacementPlan(
     isHierarchicalText: true,
   };
 
-  const procurementContentReplacement: TemplateReplacement = {
-    targetText: '采购内容',
-    ...buildReplacement('采购内容', answers.procurementContent),
-    isHierarchicalText: true,
-  };
-
   const qualificationRequirementsReplacement: TemplateReplacement = {
     targetText: '特定资质要求',
     ...buildReplacement('特定资质要求', answers.qualificationRequirements),
@@ -1018,13 +1013,22 @@ export function buildInquiryPurchaseReplacementPlan(
 
   // 综合评分法评审标准（2026-10-29 模板 v2：评审方法固定综合评分法）——
   // 评分行注入 docx「六、综合评分法评审标准」表；空行不注入（表格原样，前端闸门负责拦截）
+  // 防御遍历：DTO 对 answers 内部字段零校验，畸形行（缺字段/非对象）跳过而非 500
   const scoringRows = (answers.scoringItems ?? [])
-    .filter((it) => it.factor.trim() || it.criteria.trim())
+    .filter(
+      (it): it is Required<ScoringItem> =>
+        !!it && typeof it === 'object' && typeof it.factor === 'string',
+    )
+    .filter(
+      (it) =>
+        it.factor.trim() ||
+        (typeof it.criteria === 'string' && it.criteria.trim()),
+    )
     .map((it) => ({
       factor: it.factor.trim(),
-      score: it.score.trim(),
-      criteria: it.criteria.trim(),
-      note: it.note.trim(),
+      score: (typeof it.score === 'string' ? it.score : '').trim(),
+      criteria: (typeof it.criteria === 'string' ? it.criteria : '').trim(),
+      note: (typeof it.note === 'string' ? it.note : '').trim(),
     }));
   const scoringReplacement: TemplateReplacement = {
     targetText: '综合评分法评审标准',
@@ -1043,7 +1047,6 @@ export function buildInquiryPurchaseReplacementPlan(
       ...buildReplacement('封面时间', formatDateToChinese(answers.coverDate)),
     },
     projectOverviewReplacement,
-    procurementContentReplacement,
     {
       targetText: '最高限价',
       ...buildReplacement('最高限价', answers.maxPrice),

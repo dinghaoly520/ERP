@@ -123,6 +123,34 @@ const items: ScoringItem[] = [
 ];
 
 describe('询比采购文件模板 v2（综合评分法评审标准）', () => {
+  it('畸形评分行不抛异常（DTO answers 内部字段零校验的防御约定）', () => {
+    expect(() =>
+      buildInquiryPurchaseReplacementPlan(
+        fixture({
+          scoringItems: [
+            { factor: '价格' } as ScoringItem,
+            'not-an-object' as unknown as ScoringItem,
+          ],
+        }),
+      ),
+    ).not.toThrow();
+  });
+
+  it('后端闸门：询比空评分行导出 400 SCORING_NOT_FILLED（审查流/API 直调兜底）', async () => {
+    const { TenderWriteService } = await import('./tender-write.service');
+    const svc = new TenderWriteService(
+      {} as never,
+      {} as never,
+      { user: { findUnique: async () => null } } as never,
+    );
+    await expect(
+      svc.exportDocument({
+        documentType: 'INQUIRY_PURCHASE',
+        answers: fixture({ scoringItems: [] }),
+      } as never),
+    ).rejects.toMatchObject({ status: 400, response: { code: 'SCORING_NOT_FILLED' } });
+  });
+
   it('占位符全覆盖：替换计划+租户替换后零残留', async () => {
     const xml = await loadTemplateXml();
     const rendered = renderTemplateXml(xml, [

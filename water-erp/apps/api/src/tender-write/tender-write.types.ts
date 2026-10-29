@@ -96,7 +96,6 @@ export type InquiryPurchaseAnswers = {
   projectName: string;
   coverDate: string;
   projectOverview: string;
-  procurementContent: string;
   maxPrice: string;
   submissionRequirements: string;
   submissionRequirementsType: string;
