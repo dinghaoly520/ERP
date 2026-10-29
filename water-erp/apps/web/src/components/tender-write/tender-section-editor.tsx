@@ -604,13 +604,9 @@ export function TenderSectionEditor({
               return null;
             }
 
-            // Skip other requirement detail if type is none
-            if (
-              draftAny.responseDepositOtherRequirementType !== 'have' &&
-              field.key === 'responseDepositOtherRequirement'
-            ) {
-              return null;
-            }
+            // 其他要求（2026-10-29 裁定）：去「无/有」选择器改纯输入框——
+            // 不再按 responseDepositOtherRequirementType 隐藏（原逻辑整行永不显示=死字段），
+            // 随「收取」常显，默认值 "/" 由初始草稿带入
 
             // Skip non-refund content field if type is none or not collecting
             if (

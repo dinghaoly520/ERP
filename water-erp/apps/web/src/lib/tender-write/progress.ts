@@ -124,11 +124,8 @@ export function buildTenderSectionProgress(
         if (field.composite.typeKey === 'responseDepositType' && typeValue === 'none') {
           return true;
         }
-
-        // For responseDepositOtherRequirementType: if type is "none", field is considered filled
-        if (field.composite.typeKey === 'responseDepositOtherRequirementType' && typeValue === 'none') {
-          return true;
-        }
+        // responseDepositOtherRequirementType 分支已删（2026-10-29 裁定：字段去「无/有」
+        // 选择器改纯输入框，typeKey 不复存在）——该字段走通用「值非空=已填」（默认 "/"）
       }
 
       // For response deposit related fields - only check after type is explicitly selected
@@ -165,16 +162,8 @@ export function buildTenderSectionProgress(
             return true;
           }
         }
-        // For other requirement - only required when type is have
-        if (field.key === 'responseDepositOtherRequirement') {
-          const reqType = draft['responseDepositOtherRequirementType' as keyof ReadyTenderDraft] as string;
-          if (!reqType) {
-            return false; // Requirement type not selected yet
-          }
-          if (reqType !== 'have') {
-            return true;
-          }
-        }
+        // responseDepositOtherRequirement 的 type 前置判定已删（2026-10-29，同上）：
+        // 纯输入框默认 "/" → 通用「值非空=已填」
         // For non-refund content - only required when type is have and collecting deposit
         if (field.key === 'responseDepositNonRefundContent') {
           const nonRefundType = draft['responseDepositNonRefundType' as keyof ReadyTenderDraft] as string;

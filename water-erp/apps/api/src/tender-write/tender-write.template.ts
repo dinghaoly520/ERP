@@ -1021,11 +1021,11 @@ export function buildInternalBiddingReplacementPlan(
       ? answers.responseDepositOtherForm
       : '/';
 
-  // Other requirement
-  const deposit12 =
-    answers.responseDepositOtherRequirementType === 'have'
-      ? answers.responseDepositOtherRequirement
-      : '/';
+  // Other requirement（2026-10-29 裁定：前端去「无/有」选择器、纯输入框默认 "/"）——
+  // 值非空用值，否则 "/"；responseDepositOtherRequirementType 不再消费（存量草稿兼容保留字段）
+  const deposit12 = answers.responseDepositOtherRequirement?.trim()
+    ? answers.responseDepositOtherRequirement
+    : '/';
 
   // Non-refund situation
   // If not collecting deposit: deposit13=☑, deposit14=☐, deposit15=/

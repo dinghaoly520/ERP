@@ -654,18 +654,12 @@ export const INTERNAL_BIDDING_SECTIONS: TenderSectionConfig[] = [
         placeholder: "请输入其他形式说明",
       },
       {
+        // 2026-10-29 用户裁定：去「无/有」选择器（原 composite 整行永不显示=死字段），
+        // 纯输入框、默认值 "/"（初始草稿置 "/"，无其他要求保留、有则改写）
         key: "responseDepositOtherRequirement",
         label: "响应保证金其他要求",
-        placeholder: "请输入其他要求",
+        placeholder: "请输入其他要求（无则保留 /）",
         multiline: true,
-        composite: {
-          typeKey: "responseDepositOtherRequirementType",
-          typeLabel: "是否有其他要求",
-          typeOptions: [
-            { value: "none", label: "无" },
-            { value: "have", label: "有" },
-          ],
-        },
       },
       {
         key: "responseDepositNonRefundType",
@@ -852,7 +846,7 @@ export function createEmptyInternalBiddingDraft(): InternalBiddingDraft {
     responseDepositForm: "",
     responseDepositBankInfo: "",
     responseDepositOtherForm: "",
-    responseDepositOtherRequirement: "",
+    responseDepositOtherRequirement: "/",
     responseDepositOtherRequirementType: "",
     responseDepositNonRefundType: "",
     responseDepositNonRefundContent: "",
