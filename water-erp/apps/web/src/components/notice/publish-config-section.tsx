@@ -5,63 +5,11 @@ import { Eye, Clock, Users, Search, X, Check } from 'lucide-react';
 import { getSupplierList } from '@/lib/api/supplier';
 import type { Supplier } from '@water-erp/shared';
 
-export type Visibility = 'PUBLIC' | 'RESTRICTED';
-export type ScheduleMode = 'immediate' | 'scheduled';
-
-export interface PublishConfig {
-  visibility: Visibility;
-  restrictedSupplierIds: string[];
-  notifyOnPublish: boolean;
-  scheduleMode: ScheduleMode;
-  scheduledPublishDate: string; // ISO datetime-local format: 2026-08-04T12:00
-}
-
-export const DEFAULT_PUBLISH_CONFIG: PublishConfig = {
-  visibility: 'PUBLIC',
-  restrictedSupplierIds: [],
-  notifyOnPublish: true,
-  scheduleMode: 'immediate',
-  scheduledPublishDate: '',
-};
-
-/** 从公告 metadata 恢复发布配置 */
-export function configFromMetadata(meta: Record<string, any> | null | undefined): PublishConfig {
-  if (!meta) return { ...DEFAULT_PUBLISH_CONFIG };
-  return {
-    visibility: meta.visibility === 'RESTRICTED' ? 'RESTRICTED' : 'PUBLIC',
-    restrictedSupplierIds: Array.isArray(meta.restrictedSupplierIds) ? meta.restrictedSupplierIds : [],
-    notifyOnPublish: meta.notifyOnPublish !== false,
-    scheduleMode: meta.scheduledPublishDate ? 'scheduled' : 'immediate',
-    scheduledPublishDate: meta.scheduledPublishDate ? meta.scheduledPublishDate.slice(0, 16) : '',
-  };
-}
-
-/** 将发布配置写入 metadata（供 create/update payload 使用）。
- *  opts.draft：保存草稿场景——定时发布语义只属于「发布」动作（发布按钮在 scheduled 模式下
- *  才存 DRAFT+scheduledPublishDate 等调度）。若「保存草稿」也带上定时字段，scheduler 每分钟
- *  扫 DRAFT+scheduledPublishDate 到期即发（含已过期），草稿会在保存后被自动发布——
- *  2026-10-16「点保存草稿公告自动发布」bug 根因。draft=true 时强制剥除。 */
-export function configToMetadata(
-  config: PublishConfig,
-  base: Record<string, any> = {},
-  opts: { draft?: boolean } = {},
-): Record<string, any> {
-  const meta: Record<string, any> = { ...base };
-  meta.visibility = config.visibility;
-  if (config.visibility === 'RESTRICTED') {
-    meta.restrictedSupplierIds = config.restrictedSupplierIds;
-  } else {
-    delete meta.restrictedSupplierIds;
-  }
-  // 通知设置 UI 已删（2026-10-16）：恒按可见范围通知，meta 钉 true 保持后端既有默认语义
-  meta.notifyOnPublish = true;
-  if (!opts.draft && config.scheduleMode === 'scheduled' && config.scheduledPublishDate) {
-    meta.scheduledPublishDate = config.scheduledPublishDate;
-  } else {
-    delete meta.scheduledPublishDate;
-  }
-  return meta;
-}
+// 纯逻辑层拆至 publish-config.ts（2026-10-29：.tsx 无法被 Node 原生 type-stripping 测试加载）；
+// 此处重导出，既有消费方 `@/components/notice/publish-config-section` 导入路径不变。
+export type { Visibility, ScheduleMode, PublishConfig } from './publish-config';
+export { DEFAULT_PUBLISH_CONFIG, configFromMetadata, configToMetadata } from './publish-config';
+import type { PublishConfig } from './publish-config';
 
 /* ════════════ 组件 ════════════ */
 
