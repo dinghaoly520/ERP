@@ -59,7 +59,7 @@ import type {
   ProjectManagementAttachment,
 } from '@/lib/types/project-management';
 import { FilePreviewPane } from './file-preview-pane';
-import { openingTimeFromSources } from '@/lib/tender-write/opening-time';
+import { openingTimeFromSources, toDatetimeLocalValue as toDatetimeLocal, toDateInputValue as toDateInput } from '@/lib/tender-write/opening-time';
 import { tenderDraftStorageKey } from '@/lib/tender-write/storage';
 
 /** 各采购方式「采购文件编写草稿」中承载开标时间的字段键（localStorage tender-write 草稿段） */
@@ -94,6 +94,30 @@ function fillOpeningTime(fd: Record<string, string>, project: ProjectManagementI
       if (!fd.bidOpeningTimeType?.trim()) fd.bidOpeningTimeType = 'datetime';
     }
   }
+}
+
+/** docx 解析字段的日期类归一（2026-10-29）：.docx 解析出的开标/采购时间是中文原文
+ *  （"2026年11月15日14:00"），直接并入草稿会覆盖 datetime-local 字段刚预填好的 ISO 值——
+ *  原文被浏览器静默丢弃，表现为「初始生成总是引不进开标时间」（fillOpeningTime 先生效、
+ *  异步解析合并后到覆盖，2026-10-29 实录）。归一成功才写入；失败跳过该键不覆盖已有值。 */
+function normalizeParsedDateFields<T extends Record<string, any>>(parsed: T, tt: TenderDocumentType, category: AnnouncementCategory | null): T {
+  if (!category) return parsed;
+  const out: Record<string, any> = { ...parsed };
+  for (const f of getAnnouncementFields(tt, category)) {
+    const keys = [f.key, ...(f.type === 'datetime-range' && f.rangeEndKey ? [f.rangeEndKey] : [])];
+    for (const k of keys) {
+      const raw = out[k];
+      if (typeof raw !== 'string' || !raw.trim()) continue;
+      if (f.type === 'date') {
+        const norm = toDateInput(raw);
+        if (norm) out[k] = norm; else delete out[k];
+      } else if (f.type === 'datetime-local' || f.type === 'datetime-range') {
+        const norm = toDatetimeLocal(raw);
+        if (norm) out[k] = norm; else delete out[k];
+      }
+    }
+  }
+  return out as T;
 }
 
 type Props = {
@@ -380,8 +404,9 @@ function toDatetimeLocalValue(text: string): string {
   if (m) {
     return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}T${m[4].padStart(2, '0')}:${m[5]}`;
   }
-  // fallback: date-only
-  return toDateInputValue(text);
+  // fallback: date-only 补 T00:00（2026-10-29 对齐共享 util——半截日期值 datetime-local 会静默丢弃）
+  const d = toDateInputValue(text);
+  return d ? `${d}T00:00` : '';
 }
 
 /** sessionStorage key per project */
@@ -594,11 +619,12 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         if (sn) setAutoMatchName(sn);
       }
       setLoading(false);
-      // 后台 .docx 解析仅作增量
+      // 后台 .docx 解析仅作增量（日期类字段归一——中文原文并入 datetime-local 会被浏览器静默丢弃）
       parseAnnouncementFields(project.id)
         .then((parsed) => {
           if (!parsed?.fields) return;
-          setDraft((prev) => prev ? ({ ...(prev as any), ...parsed.fields }) : prev);
+          const nf = normalizeParsedDateFields(parsed.fields, tt, (cachedWiz.category as AnnouncementCategory) ?? initialCategory);
+          setDraft((prev) => prev ? ({ ...(prev as any), ...nf }) : prev);
         }).catch(() => {});
       return;
     }
@@ -908,14 +934,15 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       return;
     }
 
-    // ★ Async: .docx 解析仅作额外字段叠加（采购公告路径）
+    // ★ Async: .docx 解析仅作额外字段叠加（采购公告路径；日期类归一防中文原文静默覆盖 ISO 预填）
     parseAnnouncementFields(project.id)
       .then((parsed) => {
         if (!parsed?.fields) return;
-        const merged = { ...preTender, ...parsed.fields } as ReadyTenderDraft;
+        const nf = normalizeParsedDateFields(parsed.fields, tt, procCat);
+        const merged = { ...preTender, ...nf } as ReadyTenderDraft;
         setTenderDraftForDialog(merged);
         setDraft((prev) =>
-          prev ? ({ ...prev, ...parsed.fields } as AnnouncementDraft) : prev,
+          prev ? ({ ...prev, ...nf } as AnnouncementDraft) : prev,
         );
       })
       .catch(() => {})
