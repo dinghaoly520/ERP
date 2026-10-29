@@ -3212,22 +3212,8 @@ export function ExpertExtractPage({
                 </div>
               </div>
 
-              {/* 通知关键词（2026-10-29）：与正选通知共用同一组 state——候补通知校验同款四项，
-                  此前本步骤无输入框，开标地点未自动带出时「确认」报错且当前屏无字段可填（死局实录） */}
-              {!altNotified && (
-                <div className="neu-table-card p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <MapPin size={14} className="text-[var(--accent)]" />
-                    <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">通知关键词（与正选通知共用，缺失项在此补齐）</span>
-                  </div>
-                  <NotifyKeywordsEditor
-                    openTimeDate={openTimeDate} openTimeTime={openTimeTime}
-                    onOpenTimeChange={(d, t) => { setOpenTimeDate(d); setOpenTimeTime(t); }}
-                    keywords={expertNotifyKeywords}
-                    onKeywordsChange={setExpertNotifyKeywords}
-                  />
-                </div>
-              )}
+              {/* 通知关键词（2026-10-29 用户裁定）：不在步骤 6 重复渲染编辑卡——直接沿用步骤 3
+                  正选通知已填的同一组 state（续存修复后全程跟随不丢）；缺失时回步骤 3 补齐 */}
 
               {/* 通知渠道（适用于全部候补专家；电话渠道 2026-10-27 已下线） */}
               <div className="space-y-2">
