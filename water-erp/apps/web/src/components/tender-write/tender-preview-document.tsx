@@ -1524,6 +1524,16 @@ function InternalBiddingPreview({
                           <br />（3）其他要求：
                           {/* 2026-10-29 裁定：纯输入框默认 "/"；空值兜底「/」（与导出 deposit12 同口径），保持可编辑 */}
                           <PreviewValue value={draft.responseDepositOtherRequirement || '/'} placeholder="{{其他要求}}" fieldKey="responseDepositOtherRequirement" onValueChange={onValueChange} />
+                          <br />（4）{T.file}保证金不予退还其他情形：
+                          {/* 2026-10-29 排查补齐：导出模板 8.7.5 有此行（deposit13/14/15），预览此前整行缺失；
+                              选「无」→ 不可编辑「/」（与导出 deposit15 同口径）；未选保持占位符 */}
+                          {!draft.responseDepositNonRefundType ? (
+                            <>☐无 ☐有，具体情形：<span className="rounded-[6px] bg-[rgba(234,188,110,0.12)] px-1 text-[rgba(178,124,42,1)]">{"{{不予退还情形}}"}</span>。</>
+                          ) : draft.responseDepositNonRefundType === 'none' ? (
+                            <>☑无 ☐有，具体情形：<PreviewValue value="/" placeholder="{{不予退还情形}}" />。</>
+                          ) : (
+                            <>☐无 ☑有，具体情形：<PreviewValue value={draft.responseDepositNonRefundContent} placeholder="{{不予退还情形}}" fieldKey="responseDepositNonRefundContent" onValueChange={onValueChange} />。</>
+                          )}
                         </span>
                       )}
                     </td>
