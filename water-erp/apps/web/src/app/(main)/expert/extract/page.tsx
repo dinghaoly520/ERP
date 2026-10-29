@@ -666,7 +666,7 @@ export function ExpertExtractPage({
   useEffect(() => {
     const wanted = new Set<string>();
     for (const q of quotas) {
-      for (const id of q.companyIds ?? []) { // 空=不限公司（2026-10-20 用户口径）：不回填本公司，无公司则不预取（下拉兜底全量 specs）
+      for (const id of q.companyIds ?? []) { // 空=不限公司=全库（2026-10-29 裁定）；无公司则不预取（下拉兜底全量 specs）
         const v = id.trim();
         if (v) wanted.add(v);
       }
@@ -790,7 +790,7 @@ export function ExpertExtractPage({
 
   // 陈旧公司清洗（一次性，2026-10-20）：配额行 companyIds 里不在 pool-companies 的 ID（旧会话快照/
   // 历史回填带出的 0 可抽取专家公司，如大岷管业）——chip 查不到名称回落显原始 ID 且抽取恒 0 候选；
-  // 剔除后行自然回到「不限公司」（空=按池 scope，2026-10-20 用户口径）
+  // 剔除后行自然回到「不限公司」（空=全库，2026-10-29 裁定）
   const companySanitizedRef = useRef(false);
   useEffect(() => {
     if (companySanitizedRef.current || companies.length === 0) return;
@@ -1003,7 +1003,7 @@ export function ExpertExtractPage({
   // 专业配额增删改：始终在专业间调配席位，总和恒 = expertSeats（"一定要分配满"）
   const addQ = () => setQuotas(p => {
     const sum = p.reduce((s, q) => s + q.count, 0);
-    const next = [...p, { specialties: [], count: 1, companyIds: [] } as SpecialtyQuota]; // 新配额默认不限公司（2026-10-20 用户口径：不强制选公司，空=按池 scope）
+    const next = [...p, { specialties: [], count: 1, companyIds: [] } as SpecialtyQuota]; // 新配额默认不限公司（不强制选公司；空=全库，2026-10-29 裁定）
     // 总和已满 → 从 count 最大的现有专业借 1 席给新专业；未满 → 直接占 1 席（向 expertSeats 靠拢）
     if (sum >= expertSeats) {
       let donor = 0; for (let i = 1; i < p.length; i++) if (p[i].count > p[donor].count) donor = i;
@@ -1208,7 +1208,7 @@ export function ExpertExtractPage({
     const manualQuotas: { specialties: string[]; count: number; companyIds?: string[] }[] = [];
     for (const qq of quotas) manualQuotas.push({
       specialties: quotaSpecsOf(qq), count: qq.count, // 空=专业不限（不限专业桶）
-      companyIds: qq.companyIds ?? [], // 空=不限公司（按池 scope；2026-10-20 用户口径：不回填本公司）
+      companyIds: qq.companyIds ?? [], // 空=不限公司=全库所有专家（2026-10-29 用户裁定，推翻旧「按登录人公司收窄」口径）
     });
     const regularQuotaCount = manualQuotas.length; // 候补 = 每个配额组 1 位
     const demandRepCompanyId = companyIdOfName(demandRepCompany);
@@ -2401,7 +2401,7 @@ export function ExpertExtractPage({
                         return cb - ca; // 库内人数降序，未选专业排末尾
                       })
                       .map(({ q, idx }) => {
-                        const qcIds = q.companyIds ?? []; // 空=不限公司（2026-10-20 用户口径），不回填本公司
+                        const qcIds = q.companyIds ?? []; // 空=不限公司=全库（2026-10-29 裁定），不回填本公司
                         const qc = companies.find(c => c.id === qcIds[0]);
                         const qcNames = qcIds.map(id => companies.find(c => c.id === id)?.name).filter(Boolean).join('、');
                         return (

@@ -32,7 +32,8 @@ export class ExpertExtractionService {
    * 三种模式：specialty_match（专业匹配）/ random（随机抽取）/ merit_best（综合择优）
    */
   async previewExtraction(projectId: string, dto: ExtractPreviewDto, operator?: AuthenticatedUser) {
-    // 公司级数据隔离（2026-09-24）：候选池默认收窄到操作人视野（admin 全库、非 admin 本公司库）；
+    // 公司口径（2026-10-29 用户裁定）：配额「不限公司」=全库；2026-09-24「默认收窄到操作人视野」
+    // 的旧口径已废——同日 scope 仍解析，供配额声明公司时的池扩围与 confirm 白名单闸使用。
     // 抽取配置「公司」下拉显式选了公司时按所选公司取池（默认本公司，用户拍板可跨公司选其他公司专家）
     const scope = await this.companyScope.resolveScope(operator);
     // 多选配额归一化（2026-10-13）：specialties/companyIds 数组优先，旧单值 specialty/companyId
@@ -50,9 +51,12 @@ export class ExpertExtractionService {
       return { ...q, specialty: specs[0] ?? '', specialties: specs, companyId: cids[0] ?? '', companyIds: cids, reason: q.reason ?? '' };
     });
     const quotaCompanyIds = [...new Set(quotaRows.flatMap(q => q.companyIds))];
+    // 公司口径（2026-10-29 用户裁定，推翻 2026-09-24「空=登录人公司收窄」）：配额「不限公司」
+    // （companyIds 空）= 全库所有专家；显式选了公司才按所选公司白名单取池。专家库列表/档案
+    // 端点的公司隔离不受影响（同 2026-09-24 需求方代表目录先例——工作集跨公司、全量档案隔离）。
     const companyFilter = quotaCompanyIds.length
       ? { companyId: { in: quotaCompanyIds } }
-      : this.companyScope.filter(scope);
+      : {};
     const totalNeeded = Math.min(Math.max(dto.totalNeeded ?? 5, 1), 9);
     const alternatives = Math.min(Math.max(dto.alternatives ?? 2, 0), 9);
     const extractMode: 'specialty_match' | 'random' | 'merit_best' =
@@ -550,8 +554,11 @@ export class ExpertExtractionService {
         if (u.role !== 'bid_expert' || !u.isActive || u.expertProfile?.availability !== '可用' || u.expertProfile?.entryStatus !== 'ACTIVE') {
           throw new BadRequestException({ error: `专家 ${e.expertName} 不符合抽取资格（须为在用评标专家）`, code: 'EXPERT_INELIGIBLE' });
         }
-        if (!scope.all && (u.companyId == null || !scope.companyIds.includes(u.companyId)) && !allowedCompanyIds.has(u.companyId ?? '')) {
-          throw new ForbiddenException({ error: `专家 ${e.expertName} 不属于本公司，且未在抽取配置公司白名单内`, code: 'COMPANY_SCOPE_FORBIDDEN' });
+        // 公司闸（2026-10-29 与 preview 同口径）：配额「不限公司」（companyIds 空）=全库语义，
+        // 不再按登录人公司拦截——否则全库抽出的跨公司专家在确认时被误拒；
+        // 显式声明了公司白名单时仍强制（声明集∪登录人视野）。
+        if ((dto.companyIds ?? []).length > 0 && !scope.all && (u.companyId == null || !scope.companyIds.includes(u.companyId)) && !allowedCompanyIds.has(u.companyId ?? '')) {
+          throw new ForbiddenException({ error: `专家 ${e.expertName} 不在抽取配置公司白名单及本公司范围内`, code: 'COMPANY_SCOPE_FORBIDDEN' });
         }
         const emp = u.expertProfile?.employer?.trim();
         if (emp) {
