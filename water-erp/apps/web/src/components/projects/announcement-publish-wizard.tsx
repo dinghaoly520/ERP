@@ -29,6 +29,7 @@ import { AnnouncementDialog } from '@/components/tender-write/announcement-dialo
 import {
   SunshinePlatformDialog,
   SUNSHINE_CATEGORY_INTERFACE,
+  validateSunshineConfig,
   type SunshinePublishConfig,
 } from '@/components/projects/sunshine-platform-dialog';
 import { confirmDialog } from '@/components/catalog/confirm-dialog';
@@ -50,6 +51,7 @@ import type {
 import type {
   ReadyTenderDocumentType,
   ReadyTenderDraft,
+  TenderDocumentType,
   TenderDocumentTypeMeta,
 } from '@/lib/types/tender-write';
 import type {
@@ -57,6 +59,42 @@ import type {
   ProjectManagementAttachment,
 } from '@/lib/types/project-management';
 import { FilePreviewPane } from './file-preview-pane';
+import { openingTimeFromSources } from '@/lib/tender-write/opening-time';
+import { tenderDraftStorageKey } from '@/lib/tender-write/storage';
+
+/** 各采购方式「采购文件编写草稿」中承载开标时间的字段键（localStorage tender-write 草稿段） */
+const TENDER_OPENING_KEY: Record<TenderDocumentType, string> = {
+  COMPETITIVE_NEGOTIATION: 'responseDeadline',
+  SINGLE_SOURCE: 'submissionAndNegotiationTime',
+  INQUIRY_PURCHASE: 'bidOpeningTime',
+  INTERNAL_BIDDING: 'responseSubmissionTime',
+  INVITED_BIDDING: 'responseSubmissionTime',
+};
+
+/** 读取采购文件编写草稿里的开标时间原文（草稿不存在/损坏返回 ''）——按当前轮取键 */
+function readTenderDraftOpening(projectId: string, tt: TenderDocumentType, round: number): string {
+  try {
+    const raw = localStorage.getItem(tenderDraftStorageKey(projectId, round));
+    const v = raw ? (JSON.parse(raw)?.[tt] as Record<string, string> | undefined)?.[TENDER_OPENING_KEY[tt]] : '';
+    return (v ?? '').trim();
+  } catch { return ''; }
+}
+
+/** 开标时间稳健获取（2026-10-28）：来源链 = 采购文件编写草稿 → 项目基本信息，只补空、
+ *  归一为 datetime-local（中文原文/仅日期都会被 datetime-local 输入框静默丢弃，见 lib/tender-write/opening-time）。
+ *  直接采购落到 procurementTime（采购时间语义字段），其余采购方式落到 bidOpeningTime。 */
+function fillOpeningTime(fd: Record<string, string>, project: ProjectManagementItem, tt: TenderDocumentType): void {
+  const draftOpening = readTenderDraftOpening(project.id, tt, project.currentRound ?? 1);
+  if (tt === 'SINGLE_SOURCE') {
+    fd.procurementTime = openingTimeFromSources(fd.procurementTime, project.bidOpeningTime, draftOpening);
+  } else {
+    const v = openingTimeFromSources(fd.bidOpeningTime, project.bidOpeningTime, draftOpening);
+    if (v) {
+      fd.bidOpeningTime = v;
+      if (!fd.bidOpeningTimeType?.trim()) fd.bidOpeningTimeType = 'datetime';
+    }
+  }
+}
 
 type Props = {
   isOpen: boolean;
@@ -537,6 +575,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       // 恢复时回到编辑页（step 1），让用户看到之前填写的内容
       setStep(1);
       setCategory((cachedWiz.category as AnnouncementCategory) ?? initialCategory);
+      // 缓存草稿同样只补空：上次会话源未就绪而空着的开标时间，现在（基本信息/采购文件已补值）照样补上
+      fillOpeningTime(cachedWiz.draft as Record<string, string>, project, tt);
       setDraft(cachedWiz.draft as AnnouncementDraft);
       setVisibility(cachedWiz.visibility ?? 'PUBLIC');
       setRestrictedSupplierIds(cachedWiz.restrictedSupplierIds ?? []);
@@ -591,8 +631,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       if (!fd.projectOverview?.trim() && project.projectOverview?.trim()) fd.projectOverview = project.projectOverview;
       if (!fd.qualificationRequirements?.trim() && project.supplierRequirements?.trim()) fd.qualificationRequirements = project.supplierRequirements;
 
-      // 采购时间 = 开标时间（转 datetime-local ISO 格式）
-      if (!fd.procurementTime?.trim() && project.bidOpeningTime?.trim()) fd.procurementTime = toDatetimeLocalValue(project.bidOpeningTime);
+      // 开标/采购时间：采购文件草稿 → 基本信息链（2026-10-28 起 bidOpeningTime 同链补齐，此前该字段无任何预填）
+      fillOpeningTime(fd, project, tt);
 
       // 落款日期 = 当前日期
       if (!fd.signatureDate?.trim()) {
@@ -611,7 +651,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         let sn = project.awardedSupplier?.trim();
         if (!sn) {
           try {
-            const raw = localStorage.getItem(`tender-write:project-drafts:v1:${project.id}`);
+            const raw = localStorage.getItem(tenderDraftStorageKey(project.id, project.currentRound ?? 1));
             if (raw) sn = (JSON.parse(raw)?.SINGLE_SOURCE as Record<string, string>)?.supplierName?.trim();
           } catch {}
         }
@@ -1069,6 +1109,16 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       toast.error('请先完成阳光采购平台发布配置，或取消勾选「同步发布至阳光采购平台」');
       return;
     }
+    // 阳光采购平台（2026-10-28）：勾选且已配置 → 必传要素拦截——缺项发布必致平台侧校验失败，
+    // 提前点名（前 3 项）并拉起弹窗补全；取消勾选可跳过
+    if (sunshineOn && sunshineConfig) {
+      const missing = validateSunshineConfig(sunshineConfig, category);
+      if (missing.length > 0) {
+        setSunshineModalOpen(true);
+        toast.error(`阳光采购发布配置缺少必传项：${missing.slice(0, 3).join('、')}${missing.length > 3 ? ` 等 ${missing.length} 项` : ''}——请补全或取消勾选`);
+        return;
+      }
+    }
     const title = `${getAnnouncementLabel(tenderType, category)} — ${project?.title || ''}`;
     // 公告类型：流标/中标类目落独立类型（列表可区分筛选），其余为采购公告
     const announcementType: AnnouncementType =
@@ -1110,6 +1160,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         meta.sunshinePublish = {
           enabled: true,
           interfaceCode: SUNSHINE_CATEGORY_INTERFACE[category].code,
+          projectId: project?.id, // unique/planUnique 溯源键（后端推送与报文预览同源）
           config: sunshineConfig,
           issueType: visibility === 'PUBLIC' ? 1 : 2,
           isExternal: visibility === 'PUBLIC' ? 1 : 0,
@@ -1406,7 +1457,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                 summaryRows.push(['引用采购文件', officialTender ? officialTender.fileName : '不引用（03 步骤未标记正式盖章版）']);
               }
               // 公告附件：芯片清单可点预览（2026-09-27 用户反馈：只显计数看不到传了什么，
-              // 再反馈要能预览）——附件为公开下载材料，门户详情页不单独展示（左栏保真无此区块）
+              // 再反馈要能预览）——附件为公开下载材料，发布后信息门户/公告中心/项目机会
+              // 详情页均有附件下载区块（2026-10-28 口径；左栏发布效果预览保真不镜像该区块）
               summaryRows.push([
                 '公告附件',
                 pendingFiles.length > 0 ? (
@@ -1480,7 +1532,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                       </div>
                       <p className="mt-2.5 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
                         请核对左侧门户发布效果与内容；「确认发布」后按上述配置发布，公告 docx 归档至项目「采购公告公示」阶段。
-                        公告附件为公开可下载材料，发布后经附件接口提供下载、不在门户公告详情页单独展示。
+                        公告附件为公开可下载材料，发布后在信息门户、供应商公告中心及「项目机会」的公告详情页提供下载（采购文件仍仅在「项目机会」获取）。
                       </p>
                     </div>
 

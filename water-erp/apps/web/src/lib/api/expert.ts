@@ -520,11 +520,11 @@ export function setCommitteeAssignment(projectId: string, data: { assignments: {
 export function getAiAdoptionRate(expertId?: string) {
   return api.get<any>(`/expert-admin/ai-adoption${expertId ? `?expertId=${expertId}` : ''}`);
 }
-export function getExpertRanking(period: 'month' | 'quarter' | 'all' = 'month') {
-  return api.get<any[]>(`/expert-admin/ranking?period=${period}`);
+export function getExpertRanking(period: 'month' | 'quarter' | 'all' = 'month', companyId?: string) {
+  return api.get<any[]>(`/expert-admin/ranking?period=${period}${companyId && companyId !== 'all' ? `&companyId=${companyId}` : ''}`);
 }
-export function getLoadDistribution() {
-  return api.get<any>('/expert-admin/load-distribution');
+export function getLoadDistribution(companyId?: string) {
+  return api.get<any>(`/expert-admin/load-distribution${companyId && companyId !== 'all' ? `?companyId=${companyId}` : ''}`);
 }
 
 /* 批量导入 */

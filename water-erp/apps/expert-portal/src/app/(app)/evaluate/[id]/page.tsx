@@ -613,8 +613,8 @@ export default function ExpertEvaluatePage() {
       localStorage.setItem(draftStorageKey, JSON.stringify({ scores: pending, savedAt: Date.now() }));
     } catch { /* quota — ignore */ }
     api.post(`/expert/projects/${projectId}/score-draft?device=desktop`, { scores: pending, savedAt: Date.now() })
-      .then(() => toast.success('草稿已保存（已同步到服务端）'))
-      .catch(() => toast.success('草稿已保存（本地）'));
+      .then(() => toast.success('草稿已保存，可换设备继续评审'))
+      .catch(() => toast.success('草稿已保存在本机（未同步）'));
   };
 
   // D：条款核对就地打分（仅草稿，写入 scores + 立即落库；supplierId 隐含 activeSupplier）

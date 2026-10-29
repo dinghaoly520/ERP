@@ -3,12 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dayjs from "dayjs";
-import { toast } from "sonner";
-import { CircleX, Download, FileText, Info, Link as LinkIcon, Lock, TriangleAlert } from "lucide-react";
+import { Download, FileText, Info, Link as LinkIcon, Lock, Paperclip, TriangleAlert } from "lucide-react";
 import { announcementApi } from "@/lib/api/announcement";
-import { saveBlob } from "@/lib/authed-file";
+import { authedFileAction } from "@/lib/authed-file";
 import { SpPageHero } from "@/components/sp-page-hero";
-import { EmptyState, LoadingBlock, SpButton, SpDialog, SpInput } from "@/components/ui";
+import { LoadingBlock, SpButton } from "@/components/ui";
 import "@/styles/pages/announcements.css";
 
 // B4-4（2026-09-30）：与列表页 typeTagMap 全量对齐——此前缺 PREQUAL_NOTICE（详情徽标渲染
@@ -74,13 +73,12 @@ function metaLabelColor(f: MetaField): string {
   if (f.date) return "var(--warning)";
   return "var(--muted-foreground)";
 }
-function scopeHint(scope: string): string {
-  // B4-4（2026-09-30）：DESIGNATED+密码下载链路前后端均为半成品（详情页无密码 UI、后端无
-  // eligible 分支，一旦出现该类文档恒「未知访问模式」且不可下载）——文案改为线下发放指引，
-  // 待链路补全（前端密码框 + checkEligibility 分支）后再恢复在线口径
-  if (scope === "DESIGNATED") return "指定供应商专供：请通过采购中心线下渠道获取文件";
-  if (scope === "INVITED") return "仅受邀供应商可下载";
-  return "全库供应商可下载";
+function fmtAttSize(raw: unknown): string {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  if (n >= 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + " MB";
+  if (n >= 1024) return (n / 1024).toFixed(0) + " KB";
+  return n + " B";
 }
 
 export default function AnnouncementDetailPage() {
@@ -93,30 +91,12 @@ export default function AnnouncementDetailPage() {
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState<any>(null);
 
-  const [bidDoc, setBidDoc] = useState<any>(null);
-  const [bidDocLoading, setBidDocLoading] = useState(false);
-  const [paying, setPaying] = useState(false);
-  const [downloading, setDownloading] = useState(false);
-  const [payDialog, setPayDialog] = useState(false);
-  const [paymentRef, setPaymentRef] = useState("");
-
   const isBidNotice = announcement?.type === "BID_NOTICE";
   // 已下线壳（2026-10-20）：公示期满/手动下线 → 提示页形态（标题等元信息保留，正文与采购文件不展示）
   const offlined = announcement?.titleOnly === true;
   const offlineText = announcement?.offlinedReason === "PUBLICITY_ENDED"
     ? "该公告公示期已过，不再显示公示内容"
     : "该公告已下线";
-
-  const loadBidDoc = useCallback(async () => {
-    if (!id || announcement?.type !== "BID_NOTICE") return;
-    setBidDocLoading(true);
-    try {
-      setBidDoc(await announcementApi.getBidDocument(id));
-    } catch {
-      setBidDoc(null);
-    }
-    setBidDocLoading(false);
-  }, [id, announcement?.type]);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -126,16 +106,6 @@ export default function AnnouncementDetailPage() {
     try {
       const a = await announcementApi.getPublic(id);
       setAnnouncement(a);
-      // 标题壳（2026-10-20）：公示期满/已下线——提示页形态，不再拉采购文件（项目机会侧不受影响）
-      if (a?.type === "BID_NOTICE" && !a.titleOnly) {
-        setBidDocLoading(true);
-        try {
-          setBidDoc(await announcementApi.getBidDocument(id));
-        } catch {
-          setBidDoc(null);
-        }
-        setBidDocLoading(false);
-      }
     } catch (e: any) {
       setError(true);
       // v2（2026-09-26）：透出后端业务文案（如「该公告已下线」）
@@ -149,33 +119,11 @@ export default function AnnouncementDetailPage() {
     load();
   }, [load]);
 
-  async function doPay() {
-    if (!id) return;
-    setPaying(true);
-    try {
-      await announcementApi.payBidDocument(id, paymentRef || undefined);
-      toast.success("付款凭证已提交");
-      setPayDialog(false);
-      setPaymentRef("");
-      await loadBidDoc();
-    } catch (e: any) {
-      toast.error(e?.message || "提交失败");
-    }
-    setPaying(false);
-  }
-
-  async function doDownload() {
-    if (!id) return;
-    setDownloading(true);
-    try {
-      const { blob, fileName } = await announcementApi.downloadBidDocument(id);
-      // 2026-10-19：落盘收口 saveBlob（旧内联「立即 revokeObjectURL」竞态致真实浏览器下载静默失败）
-      await saveBlob(blob, fileName);
-      await loadBidDoc();
-    } catch (e: any) {
-      toast.error(e?.message || "下载失败");
-    }
-    setDownloading(false);
+  // 公告附件下载（2026-10-28）：公开下载端点按公告可见性闸门（定向公告命中本司白名单才可下），
+  // 走 authedFileAction 携带本 tab 凭据——单设备登录下他 tab 覆盖 cookie 时不误伤
+  function downloadAttachment(att: any) {
+    const name = att?.fileAsset?.originalName || att?.title || "附件";
+    authedFileAction(`/api/announcements/attachments/${att.id}/download`, "download", name);
   }
 
   const metaFields = useMemo(() => {
@@ -279,82 +227,58 @@ export default function AnnouncementDetailPage() {
             </>
           ) : null}
 
+          {/* 公告附件（2026-10-28 用户裁定）：公告附件=公告组成部分，公告中心/信息门户/项目机会
+              三端可下载；下载走公开端点，后端按公告可见性闸门（标题壳不渲染——服务端已剥除） */}
+          {!offlined && (announcement.attachments?.length ?? 0) > 0 && (
+            <>
+              <hr className="ann-divider" />
+              <div className="bid-doc-section">
+                <div className="bid-doc-head">
+                  <Paperclip size={16} className="bid-doc-lock" strokeWidth={1.75} />
+                  <strong>公告附件</strong>
+                  <span className="ann-tag ann-tag--sm ann-tag--info">{announcement.attachments.length} 个</span>
+                </div>
+                <div className="ann-att-list">
+                  {announcement.attachments.map((att: any) => (
+                    <button
+                      key={att.id}
+                      type="button"
+                      className="ann-att-item"
+                      onClick={() => downloadAttachment(att)}
+                      title={`下载 ${att.title || att.fileAsset?.originalName || ""}`}
+                    >
+                      <FileText size={14} strokeWidth={1.75} className="ann-att-ico" />
+                      <span className="ann-att-name">{att.title || att.fileAsset?.originalName}</span>
+                      {fmtAttSize(att.fileAsset?.size) && <span className="ann-att-size">{fmtAttSize(att.fileAsset?.size)}</span>}
+                      <Download size={14} strokeWidth={1.75} className="ann-att-dl" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* 采购文件获取指引（2026-10-28 用户裁定）：采购文件仅在「项目机会」提供下载——
+              获取窗口/资格/付费/补遗等状态机都在项目详情侧，公告中心不再直接发放 */}
           {isBidNotice && !offlined && (
             <>
               <hr className="ann-divider" />
               <div className="bid-doc-section">
-                {bidDocLoading ? (
-                  <LoadingBlock />
-                ) : bidDoc ? (
-                  <>
-                    <div className="bid-doc-head">
-                      <Lock size={16} className="bid-doc-lock" strokeWidth={1.75} />
-                      <strong>招标文件</strong>
-                      <span className="bid-doc-title">{bidDoc.title}</span>
-                      {bidDoc.requirePayment ? (
-                        <span className="ann-tag ann-tag--sm ann-tag--warning">付费 ¥{bidDoc.price}</span>
-                      ) : (
-                        <span className="ann-tag ann-tag--sm ann-tag--success">免费</span>
-                      )}
-                    </div>
-                    <p className="bid-doc-hint">{scopeHint(bidDoc.accessScope)}</p>
-                    <div className="bid-doc-actions">
-                      {!bidDoc.eligible ? (
-                        <div className="ann-alert ann-alert--error">
-                          <span className="ann-alert__icon"><CircleX size={16} strokeWidth={2} /></span>
-                          无法下载：{bidDoc.reason}
-                        </div>
-                      ) : (
-                        <>
-                          {bidDoc.needPayment ? (
-                            <>
-                              <div className="ann-alert ann-alert--warning">
-                                <span className="ann-alert__icon"><TriangleAlert size={16} strokeWidth={2} /></span>
-                                该招标文件需付费下载
-                              </div>
-                              <SpButton variant="primary" onClick={() => setPayDialog(true)}>提交付款凭证</SpButton>
-                            </>
-                          ) : bidDoc.requirePayment && !bidDoc.paid ? (
-                            <div className="ann-alert ann-alert--info">
-                              <span className="ann-alert__icon"><Info size={16} strokeWidth={2} /></span>
-                              付款凭证已提交，等待确认到账
-                            </div>
-                          ) : null}
-                          {bidDoc.canDownload && (
-                            <SpButton variant="primary" icon={Download} loading={downloading} onClick={doDownload}>
-                              下载招标文件
-                            </SpButton>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <EmptyState icon={FileText} title="暂无招标文件" />
-                )}
+                <div className="bid-doc-head">
+                  <Lock size={16} className="bid-doc-lock" strokeWidth={1.75} />
+                  <strong>采购文件</strong>
+                </div>
+                <p className="bid-doc-hint">
+                  采购文件获取请前往「项目机会」对应项目详情页——获取窗口、资格校验与付费状态以该处为准。
+                </p>
+                <div className="bid-doc-actions">
+                  <SpButton variant="soft" onClick={() => router.push("/bids")}>前往项目机会</SpButton>
+                </div>
               </div>
             </>
           )}
         </div>
       ) : null}
-
-      <SpDialog
-        open={payDialog}
-        onClose={() => setPayDialog(false)}
-        title="提交付款凭证"
-        width={420}
-        footer={
-          <>
-            <SpButton onClick={() => setPayDialog(false)}>取消</SpButton>
-            <SpButton variant="primary" loading={paying} onClick={doPay}>提交</SpButton>
-          </>
-        }
-      >
-        <div className="ann-form-item">
-          <label className="ann-form-item__label" htmlFor="ann-payment-ref">付款凭证/流水号</label>
-          <SpInput id="ann-payment-ref" value={paymentRef} placeholder="如：银行流水号" onChange={(e) => setPaymentRef(e.target.value)} />
-        </div>
-      </SpDialog>
     </>
   );
 }

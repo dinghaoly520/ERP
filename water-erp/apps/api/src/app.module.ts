@@ -29,6 +29,7 @@ import { ProcurementModule } from './procurement/procurement.module';
 import { ProcurementsModule } from './procurements/procurements.module';
 import { AuditModule } from './audit/audit.module';
 import { OperationLogModule } from './operation-log/operation-log.module';
+import { MetricsModule } from './metrics/metrics.module';
 import { AssistantModule } from './assistant/assistant.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { AlertsModule } from './alerts/alerts.module';
@@ -98,6 +99,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     ProcurementsModule,
     AuditModule,
     OperationLogModule,
+    MetricsModule,
     AssistantModule,
     SchedulerModule,
     AlertsModule,

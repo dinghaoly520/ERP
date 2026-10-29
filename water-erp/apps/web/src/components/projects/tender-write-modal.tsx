@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FileDown, FileText, FileUp, History, Loader2, Save, Search, Sparkles, Trash2, Upload, X } from 'lucide-react';
+import { FileDown, FileText, FileUp, FolderInput, History, Loader2, Save, Search, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api/api-fetch';
 import { TenderWriteWorkspace } from '@/components/tender-write/tender-write-workspace';
@@ -29,10 +29,9 @@ import {
   buildAiGenerationContext,
 } from '@/lib/tender-write/prefill-from-project';
 import { TenderReviewProvider } from '@/components/tender-review/tender-review-provider';
-import TenderReviewWorkspace from '@/components/tender-review/tender-review-workspace';
-import { uploadReviewDocument, executeReview, getDownloadUrl } from '@/lib/api/review';
+import ProjectReviewFlow from '@/components/tender-review/project-review-flow';
+import { getDownloadUrl } from '@/lib/api/review';
 import type { ReviewTask } from '@/lib/types/tender-review';
-import { fetchKnowledgeBases } from '@/lib/api/knowledge';
 import {
   uploadProjectStageAttachment,
   updateProjectExtractedInfo,
@@ -48,6 +47,7 @@ import { SupplierSelectModal } from '@/components/tender-write/supplier-select-m
 import { ImportAutofillDialog } from '@/components/tender-write/import-autofill-dialog';
 import type { ImportAutofillFieldResult } from '@/lib/types/tender-write-import';
 import { buildTenderSectionProgress } from '@/lib/tender-write/progress';
+import { tenderDraftStorageKey } from '@/lib/tender-write/storage';
 import type {
   ReadyTenderDocumentType,
   ReadyTenderDraft,
@@ -71,42 +71,54 @@ const MAX_HISTORY = 20;
 /** 编辑期服务器推送防抖间隔：AI 批量生成/连续键入时合并为一次请求。 */
 const SERVER_SYNC_DEBOUNCE_MS = 800;
 
-const getDraftsStorageKey = (projectId: string) => `${DRAFTS_STORAGE_PREFIX}${projectId}`;
-const getDraftsHistoryKey = (projectId: string) => `${DRAFTS_HISTORY_PREFIX}${projectId}`;
+// 2026-10-28 二轮隔离：本地缓存键按轮后缀（R1 沿用旧键=存量不迁移不丢），与服务器 (projectId, round) 同构；
+// drafts 键复用 lib/tender-write/storage 的共享实现（公告向导/邀请预填同源）
+const getDraftsStorageKey = (projectId: string, round: number) => tenderDraftStorageKey(projectId, round);
+const getDraftsHistoryKey = (projectId: string, round: number) =>
+  round > 1 ? `${DRAFTS_HISTORY_PREFIX}${projectId}:R${round}` : `${DRAFTS_HISTORY_PREFIX}${projectId}`;
+
+/** 各采购方式草稿中承载开标时间的字段键（与公告向导同源口径）——「参考上一轮」带入时须剥离重填 */
+const TENDER_OPENING_KEY: Record<string, string> = {
+  COMPETITIVE_NEGOTIATION: 'responseDeadline',
+  SINGLE_SOURCE: 'submissionAndNegotiationTime',
+  INQUIRY_PURCHASE: 'bidOpeningTime',
+  INTERNAL_BIDDING: 'responseSubmissionTime',
+  INVITED_BIDDING: 'responseSubmissionTime',
+};
 
 const asDraftPayload = (d: TenderDraftsState) => d as unknown as Record<string, unknown>;
 
 type DraftHistoryEntry = { timestamp: string; label: string; drafts: TenderDraftsState };
 
-function loadDraftHistory(projectId: string): DraftHistoryEntry[] {
+function loadDraftHistory(projectId: string, round: number): DraftHistoryEntry[] {
   try {
-    const raw = localStorage.getItem(getDraftsHistoryKey(projectId));
+    const raw = localStorage.getItem(getDraftsHistoryKey(projectId, round));
     return raw ? JSON.parse(raw) as DraftHistoryEntry[] : [];
   } catch { return []; }
 }
-function saveDraftHistory(projectId: string, entries: DraftHistoryEntry[]) {
-  try { localStorage.setItem(getDraftsHistoryKey(projectId), JSON.stringify(entries.slice(0, MAX_HISTORY))); } catch {}
+function saveDraftHistory(projectId: string, round: number, entries: DraftHistoryEntry[]) {
+  try { localStorage.setItem(getDraftsHistoryKey(projectId, round), JSON.stringify(entries.slice(0, MAX_HISTORY))); } catch {}
 }
-function addDraftToHistory(projectId: string, drafts: TenderDraftsState) {
-  const entries = loadDraftHistory(projectId);
+function addDraftToHistory(projectId: string, round: number, drafts: TenderDraftsState) {
+  const entries = loadDraftHistory(projectId, round);
   const now = new Date();
   const label = `${now.toLocaleDateString('zh-CN')} ${now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`;
   entries.unshift({ timestamp: now.toISOString(), label, drafts: JSON.parse(JSON.stringify(drafts)) });
-  saveDraftHistory(projectId, entries);
+  saveDraftHistory(projectId, round, entries);
 }
 
-const loadDraftsFromStorage = (projectId: string): TenderDraftsState | null => {
+const loadDraftsFromStorage = (projectId: string, round: number): TenderDraftsState | null => {
   try {
-    const raw = localStorage.getItem(getDraftsStorageKey(projectId));
+    const raw = localStorage.getItem(getDraftsStorageKey(projectId, round));
     if (!raw) return null;
     return JSON.parse(raw) as TenderDraftsState;
   } catch { return null; }
 };
-const saveDraftsToStorage = (projectId: string, d: TenderDraftsState) => {
-  try { localStorage.setItem(getDraftsStorageKey(projectId), JSON.stringify(d)); } catch {}
+const saveDraftsToStorage = (projectId: string, round: number, d: TenderDraftsState) => {
+  try { localStorage.setItem(getDraftsStorageKey(projectId, round), JSON.stringify(d)); } catch {}
 };
-const clearDraftsStorage = (projectId: string) => {
-  try { localStorage.removeItem(getDraftsStorageKey(projectId)); } catch {}
+const clearDraftsStorage = (projectId: string, round: number) => {
+  try { localStorage.removeItem(getDraftsStorageKey(projectId, round)); } catch {}
 };
 
 type Props = {
@@ -131,9 +143,6 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
   const [showWorkspace, setShowWorkspace] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [showExportDialog, setShowExportDialog] = useState(false);
-  const [reviewLoading, setReviewLoading] = useState(false);
-  // 审查完成后：等待用户选择是否上传到项目阶段
   const [showReviewUploadDialog, setShowReviewUploadDialog] = useState(false);
   const [supplierSelectOpen, setSupplierSelectOpen] = useState(false);
   const reviewPendingFileRef = useRef<{ blob: Blob; fileName: string } | null>(null);
@@ -141,6 +150,8 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
 
   const tenderType = mapProcurementMethodToTenderType(procurementMethod);
   const selectedType: TenderDocumentType | null = tenderType;
+  // 2026-10-28 二轮隔离：草稿按轮读写（服务器/本地缓存同构）——新一轮不回读旧轮
+  const round = project?.currentRound ?? 1;
 
   const [drafts, setDrafts] = useState<TenderDraftsState>(createEmptyTenderDrafts());
   const draftRestoredFromStorageRef = useRef(false);
@@ -153,12 +164,12 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
   useEffect(() => {
     if (!project?.id || !draftRestoredFromStorageRef.current) return;
     const projectId = project.id;
-    saveDraftsToStorage(projectId, drafts);
+    saveDraftsToStorage(projectId, round, drafts);
     if (serverSyncTimerRef.current) clearTimeout(serverSyncTimerRef.current);
     serverSyncTimerRef.current = setTimeout(() => {
-      void saveProjectTenderDraft(projectId, asDraftPayload(draftsRef.current)).catch(() => {});
+      void saveProjectTenderDraft(projectId, asDraftPayload(draftsRef.current), round).catch(() => {});
     }, SERVER_SYNC_DEBOUNCE_MS);
-  }, [drafts, project?.id]);
+  }, [drafts, project?.id, round]);
 
   // 组件卸载时保存草稿（父组件通过条件渲染直接卸载弹窗，isOpen 始终为 true）；
   // 同时冲刷服务器——防抖中的最后一次变更不能丢，否则另一台设备看到的是旧内容
@@ -166,14 +177,45 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     const projectId = project?.id;
     return () => {
       if (projectId) {
-        saveDraftsToStorage(projectId, draftsRef.current);
+        saveDraftsToStorage(projectId, round, draftsRef.current);
         if (draftRestoredFromStorageRef.current) {
           if (serverSyncTimerRef.current) clearTimeout(serverSyncTimerRef.current);
-          void saveProjectTenderDraft(projectId, asDraftPayload(draftsRef.current)).catch(() => {});
+          void saveProjectTenderDraft(projectId, asDraftPayload(draftsRef.current), round).catch(() => {});
         }
       }
     };
-  }, [project?.id]);
+  }, [project?.id, round]);
+
+  // ── 2026-10-28 二轮隔离·「参考上一轮」：非首轮探测上一轮服务器草稿（只读，不自动带入）──
+  const prevRoundDraftRef = useRef<TenderDraftsState | null>(null);
+  const [prevRoundAvailable, setPrevRoundAvailable] = useState(false);
+  useEffect(() => {
+    if (!isOpen || !project?.id || round <= 1) { prevRoundDraftRef.current = null; setPrevRoundAvailable(false); return; }
+    let cancelled = false;
+    void fetchProjectTenderDraft(project.id, round - 1)
+      .then((r) => {
+        if (cancelled) return;
+        prevRoundDraftRef.current = r?.drafts ? (r.drafts as TenderDraftsState) : null;
+        setPrevRoundAvailable(!!prevRoundDraftRef.current);
+      })
+      .catch(() => { if (!cancelled) setPrevRoundAvailable(false); });
+    return () => { cancelled = true; };
+  }, [isOpen, project?.id, round]);
+
+  const handleImportPrevRound = useCallback(() => {
+    if (!selectedType || round <= 1) return;
+    const typeKey = selectedType as keyof TenderDraftsState;
+    const prev = prevRoundDraftRef.current?.[typeKey] as Record<string, unknown> | undefined;
+    if (!prev || Object.keys(prev).length === 0) { toast.info('上一轮没有当前采购方式的草稿'); return; }
+    // 轮次敏感字段剥离：开标时间（按方式映射）+ 文件获取时间（含类型伴生字段）——必须按本轮重填
+    const stripped = { ...prev };
+    const openingKey = TENDER_OPENING_KEY[selectedType];
+    delete stripped[openingKey];
+    delete stripped[`${openingKey}Type`];
+    delete stripped.documentAcquireTime;
+    setDrafts((cur) => ({ ...cur, [typeKey]: stripped }));
+    toast.success(`已带入第 ${round - 1} 轮草稿；开标时间与文件获取时间已清空，请按本轮重新填写`);
+  }, [selectedType, round]);
 
   // ======== 打开流程：restore + prefill + AI 决策 = 原子 effect ========
   const openFlowRanRef = useRef(false);
@@ -191,17 +233,17 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     const runOpenFlow = async () => {
     // Step 1: 服务器草稿优先（跨设备同步）；服务器不可用/无记录回落 localStorage 缓存，
     // 并将本地遗留草稿回传服务器（旧数据一次性上云迁移）
-    let saved: TenderDraftsState | null = loadDraftsFromStorage(project.id);
+    let saved: TenderDraftsState | null = loadDraftsFromStorage(project.id, round);
     let hadServerDraft = false;
     try {
-      const remote = await fetchProjectTenderDraft(project.id);
+      const remote = await fetchProjectTenderDraft(project.id, round);
       if (remote?.drafts) {
         saved = remote.drafts as TenderDraftsState;
         hadServerDraft = true;
       }
     } catch { /* 服务器不可用 → 本地缓存离线兜底 */ }
     if (!hadServerDraft && saved) {
-      void saveProjectTenderDraft(project.id, asDraftPayload(saved)).catch(() => {});
+      void saveProjectTenderDraft(project.id, asDraftPayload(saved), round).catch(() => {});
     }
 
     const hasSavedAiContent = saved
@@ -456,14 +498,14 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     const projectId = project.id;
     const now = new Date();
     const label = `${now.toLocaleDateString('zh-CN')} ${now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`;
-    saveDraftsToStorage(projectId, draftsRef.current);
-    void saveProjectTenderDraft(projectId, asDraftPayload(draftsRef.current)).catch(() => {
+    saveDraftsToStorage(projectId, round, draftsRef.current);
+    void saveProjectTenderDraft(projectId, asDraftPayload(draftsRef.current), round).catch(() => {
       toast.error('已保存到本机，但同步服务器失败');
     });
-    void addProjectTenderDraftVersion(projectId, asDraftPayload(draftsRef.current), label).catch(() => {});
-    addDraftToHistory(projectId, draftsRef.current); // 本地历史缓存（离线兜底）
+    void addProjectTenderDraftVersion(projectId, asDraftPayload(draftsRef.current), label, round).catch(() => {});
+    addDraftToHistory(projectId, round, draftsRef.current); // 本地历史缓存（离线兜底）
     toast.success('已保存当前草稿（已同步服务器，任意设备可恢复）');
-  }, [project?.id]);
+  }, [project?.id, round]);
 
   // ── 历史记录 ──
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -473,12 +515,12 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     // 服务器版本列表优先；失败回落本地缓存（离线兜底）
     let entries: DraftHistoryEntry[] | null = null;
     try {
-      const versions = await fetchProjectTenderDraftVersions(projectId);
+      const versions = await fetchProjectTenderDraftVersions(projectId, round);
       entries = versions.map((v) => ({ timestamp: v.timestamp, label: v.label, drafts: v.drafts as TenderDraftsState }));
     } catch { entries = null; }
-    setHistoryEntries(entries ?? loadDraftHistory(projectId));
+    setHistoryEntries(entries ?? loadDraftHistory(projectId, round));
     setHistoryOpen(true);
-  }, [project?.id]);
+  }, [project?.id, round]);
 
   // ── 一键清除 ──
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
@@ -494,23 +536,15 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     }[selectedType];
     setDrafts((prev) => ({ ...prev, [typeKey]: emptyFn?.() ?? {} }));
     if (project.id) {
-      clearDraftsStorage(project.id);
-      saveDraftHistory(project.id, []);
-      void clearProjectTenderDraft(project.id).catch(() => {}); // 服务器当前草稿+历史版本同清
+      clearDraftsStorage(project.id, round);
+      saveDraftHistory(project.id, round, []);
+      void clearProjectTenderDraft(project.id, round).catch(() => {}); // 服务器该轮草稿+历史版本同清（不影响其他轮）
     }
     setClearConfirmOpen(false);
     toast.success('已清除所有内容');
   }, [selectedType, project]);
 
   // ---------- 导出 / 审查 ----------
-
-  const handleExport = useCallback(() => {
-    if (!selectedType || !isDraftComplete) {
-      toast.error('请先完成所有章节的填写，再导出采购文件。');
-      return;
-    }
-    setShowExportDialog(true);
-  }, [selectedType, isDraftComplete]);
 
   /** 直接导出：下载文件 + 上传至项目采购文件阶段。 */
   const handleDirectExport = useCallback(async () => {
@@ -561,54 +595,8 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       setErrorMessage(err instanceof Error ? err.message : '导出失败');
     } finally {
       setExporting(false);
-      setShowExportDialog(false);
     }
   }, [selectedType, currentDraft, project, onAttachmentUploaded, onUpdated]);
-
-  /** 导出并导入审查：生成 DOCX → 上传审查服务 → 启动审查 → 打开审查窗口。 */
-  const handleExportAndReview = useCallback(async () => {
-    if (!selectedType) return;
-    setReviewLoading(true);
-    setErrorMessage(null);
-    try {
-      // 1. 生成 DOCX
-      const result = await exportTenderDocument({ documentType: selectedType, answers: currentDraft, projectCode: project?.projectCode || undefined });
-      const file = new File([result.blob], result.fileName, {
-        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      });
-
-      // 2. 上传至审查服务
-      const uploadResult = await uploadReviewDocument(file);
-
-      // 3. 取知识库
-      const kbs = await fetchKnowledgeBases();
-      const activeKb = kbs.find((kb) => kb.isActive);
-      if (!activeKb) {
-        toast.error('未找到可用的知识库，请先在审查模块中创建知识库。');
-        return;
-      }
-
-      // 4. 启动审查
-      await executeReview({
-        knowledgeBaseId: activeKb.id,
-        reviewMode: 'general',
-        documentContent: uploadResult.content,
-        documentName: uploadResult.documentName,
-        objectKey: uploadResult.objectKey,
-      });
-      toast.success('已导入审查并启动分析');
-
-      // 5. 打开审查窗口
-      setShowReview(true);
-      setShowExportDialog(false);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : '导入审查失败';
-      setErrorMessage(msg);
-      toast.error(msg);
-    } finally {
-      setReviewLoading(false);
-    }
-  }, [selectedType, currentDraft]);
 
   /** 审查完成 → 取「已应用接受修改」的审查任务文件，由用户决定是否上传至项目采购文件阶段。
    *  闭环修复（2026-09-28 审计 #15）：审查中逐条"接受"的修改由后端写入审查任务自己的
@@ -819,6 +807,17 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
             <button type="button" onClick={() => { void openHistory(); }} className="neu-btn-xs gap-1" title="查看并恢复草稿历史版本">
               <History size={13} />历史记录
             </button>
+            {round > 1 && (
+              <button
+                type="button"
+                onClick={handleImportPrevRound}
+                disabled={!prevRoundAvailable}
+                className="neu-btn-xs gap-1"
+                title={prevRoundAvailable ? `以第 ${round - 1} 轮草稿为底稿带入（开标时间与文件获取时间会清空，须按本轮重填）` : '上一轮无草稿'}
+              >
+                <FolderInput size={13} />参考上一轮
+              </button>
+            )}
 
             {/* 一键清除 */}
             <button type="button" onClick={() => setClearConfirmOpen(true)} className="neu-btn-xs is-danger gap-1" title="清除所有已填写内容">
@@ -840,17 +839,16 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                   toast.error('请先完成所有章节的填写，再进行审查。');
                   return;
                 }
-                handleExportAndReview();
+                setShowReview(true);
               }}
-              disabled={reviewLoading}
               className="neu-btn-soft gap-2 h-9 text-xs"
             >
-              {reviewLoading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+              <Search size={14} />
               采购文件审查
             </button>
             <button
               type="button"
-              onClick={handleExport}
+              onClick={() => void handleDirectExport()}
               disabled={exporting}
               className="neu-btn-soft gap-2 h-9 text-xs"
             >
@@ -918,63 +916,6 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
         </div>
       </div>
 
-      {/* 导出前确认对话框 */}
-      {showExportDialog && (
-        <div className="fixed inset-0 z-[650] flex items-center justify-center">
-          <div
-            className="absolute inset-0"
-            style={{ background: 'oklch(0.1 0.02 258 / 0.42)', backdropFilter: 'blur(4px)' }}
-            onClick={() => setShowExportDialog(false)}
-          />
-          <div
-            className="relative z-10 mx-4 w-full max-w-[380px] rounded-[22px] p-6"
-            style={{
-              background: 'linear-gradient(170deg, oklch(1 0 0 / 0.95), oklch(0.985 0.005 258 / 0.65))',
-              boxShadow:
-                'inset 0 1px 0 oklch(1 0 0 / 0.9), 4px 5px 18px oklch(0.45 0.07 258 / 0.2), -2px -2px 8px oklch(1 0 0 / 0.9)',
-            }}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <h2 className="text-[0.95rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
-                导出采购文件
-              </h2>
-              <button type="button" onClick={() => setShowExportDialog(false)} className="neu-btn-xs"><X size={16} /></button>
-            </div>
-            <p className="mt-2.5 text-sm leading-[1.6] text-[color:var(--muted-foreground)]">
-              文件已生成，是否直接进行合规审查？
-            </p>
-            <div className="mt-5 flex gap-3">
-              <button
-                type="button"
-                onClick={handleDirectExport}
-                disabled={exporting}
-                className="neu-btn-soft flex-1 gap-2 !h-10 text-sm"
-              >
-                {exporting ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <FileDown size={14} />
-                )}
-                否，直接导出
-              </button>
-              <button
-                type="button"
-                onClick={handleExportAndReview}
-                disabled={reviewLoading}
-                className="neu-btn-primary flex-1 gap-2 !h-10 text-sm"
-              >
-                {reviewLoading ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Search size={14} />
-                )}
-                是，导出并审查
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* 采购文件审查弹窗 */}
       {showReview && (
         <div className="fixed inset-0 z-[600] flex flex-col">
@@ -1033,7 +974,14 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
             >
               <TenderReviewProvider onReviewComplete={handleReviewComplete}>
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden h-full">
-                  <TenderReviewWorkspace />
+                  {project && selectedType && (
+                    <ProjectReviewFlow
+                      projectId={project.id}
+                      documentType={selectedType}
+                      answers={currentDraft}
+                      projectCode={project?.projectCode || undefined}
+                    />
+                  )}
                 </div>
               </TenderReviewProvider>
             </div>
@@ -1144,7 +1092,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
             <p className="text-[11px] text-[color:var(--muted-foreground)] mb-3">点击任意版本即可恢复草稿内容。草稿与历史版本已同步至服务器，同一账号在任何设备登录均保持一致。</p>
             <div className="flex justify-end gap-2">
               {historyEntries.length > 0 && (
-                <button type="button" onClick={() => { const pid = project?.id; if (pid) { void clearProjectTenderDraftVersions(pid).catch(() => {}); saveDraftHistory(pid, []); setHistoryEntries([]); toast.success('已清空历史记录'); } }} className="neu-btn-xs is-danger">清空历史</button>
+                <button type="button" onClick={() => { const pid = project?.id; if (pid) { void clearProjectTenderDraftVersions(pid, round).catch(() => {}); saveDraftHistory(pid, round, []); setHistoryEntries([]); toast.success('已清空历史记录'); } }} className="neu-btn-xs is-danger">清空历史</button>
               )}
               <button type="button" onClick={() => setHistoryOpen(false)} className="neu-btn-soft">关闭</button>
             </div>

@@ -11,6 +11,7 @@ import { ReminderBanner } from "@/components/work-arrangements/reminder-banner";
 import { ProjectBriefCard } from "@/components/work-arrangements/project-brief-card";
 import { fetchCurrentUser, type AuthUser } from "@/lib/api/auth";
 import { fetchProjectManagementList } from "@/lib/api/project-management";
+import { localDateInputValue } from "@/lib/local-date";
 import {
   addWorkArrangementNote,
   createWorkArrangement,
@@ -143,7 +144,7 @@ export function WorkArrangementsPage({
     if (workspaceCache.dailyPlan) return workspaceCache.dailyPlan;
     // Fallback: try localStorage for an instant render while AI loads
     if (workspaceCache.user) {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = localDateInputValue(); // 本地日历日（与后端 plan.date 同口径；UTC 切片在东八区 0-8 点会早一天）
       return loadDailyPlanFromStorage(workspaceCache.user.id, today);
     }
     return null;
@@ -443,7 +444,7 @@ export function WorkArrangementsPage({
   // module cache was valid so loadWorkspace returned early without AI fetch)
   useEffect(() => {
     if (dailyPlan || !currentUser) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateInputValue(); // 本地日历日（与后端 plan.date 同口径；UTC 切片在东八区 0-8 点会早一天）
     const cached = loadDailyPlanFromStorage(currentUser.id, today);
     if (cached) {
       workspaceCache.dailyPlan = cached;

@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
-import { PhoneCall } from 'lucide-react';
-import { fetchPublicAnnouncement, ANNOUNCEMENTS, type AnnouncementItem, ANNOUNCEMENT_TYPE_META, formatMetaValue, type MetaField } from '@/lib/announcements';
+import { toast } from 'sonner';
+import { Download, FileText, Paperclip, PhoneCall } from 'lucide-react';
+import { fetchPublicAnnouncement, downloadAnnouncementAttachment, ANNOUNCEMENTS, type AnnouncementItem, ANNOUNCEMENT_TYPE_META, formatMetaValue, type MetaField } from '@/lib/announcements';
 import { UnifiedHeader } from '@/components/unified-header';
 import { FlowBackdrop } from '@/components/flow-stage';
 
@@ -156,6 +157,40 @@ export default function AnnouncementDetailPage() {
               className="announcement-detail-content text-[15px] text-[#18243a] leading-relaxed"
               dangerouslySetInnerHTML={{ __html: item.content }}
             />
+          )}
+
+          {/* 公告附件（2026-10-28 用户裁定）：公告组成部分，信息门户/公告中心/项目机会三端可下载；
+              公开下载端点按公告可见性闸门（定向/保密公告匿名读不到详情，附件天然不渲染） */}
+          {!item.titleOnly && (item.attachments?.length ?? 0) > 0 && (
+            <div className="neu-card mt-8 p-5">
+              <div className="mb-3 flex items-center gap-2">
+                <Paperclip size={14} style={{ color: '#064ea2' }} />
+                <span className="text-sm font-bold" style={{ color: '#064ea2' }}>公告附件</span>
+                <span className="ml-1 rounded-full px-2 py-0.5 text-[11px] font-bold text-[#8a96aa]"
+                  style={{ background: 'oklch(0.5 0.16 258 / 0.08)' }}>
+                  {item.attachments!.length} 个
+                </span>
+              </div>
+              <div className="flex flex-col gap-2">
+                {item.attachments!.map(att => (
+                  <button
+                    key={att.id}
+                    type="button"
+                    onClick={() => {
+                      downloadAnnouncementAttachment(att)
+                        .catch(e => toast.error(e instanceof Error ? e.message : '附件下载失败'));
+                    }}
+                    className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-[oklch(0.5_0.16_258/0.06)] active:bg-[oklch(0.5_0.16_258/0.1)]"
+                  >
+                    <FileText size={14} className="shrink-0" style={{ color: '#064ea2' }} />
+                    <span className="min-w-0 flex-1 truncate text-[14px] font-semibold" style={{ color: '#064ea2' }}>
+                      {att.title || att.fileAsset?.originalName || '附件'}
+                    </span>
+                    <Download size={14} className="shrink-0 text-[#8a96aa]" />
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
 
           {/* 异议联系方式：发布时自澄清说明快照写入，公告阅读后单独展示（标题壳不渲染） */}

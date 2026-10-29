@@ -42,6 +42,8 @@ export async function executeReview(params: {
   documentContent: string;
   documentName: string;
   objectKey: string;
+  projectId?: string;
+  fingerprint?: string;
 }): Promise<{ taskId: string; status: string }> {
   const res = await apiFetch(`${API_BASE}/review/execute`, {
     method: 'POST',
@@ -86,6 +88,30 @@ export async function deleteReviewTask(id: string): Promise<void> {
 
 export function getDownloadUrl(taskId: string): string {
   return `${API_BASE}/review/tasks/${taskId}/download`;
+}
+
+export interface ProjectReviewStatus {
+  fingerprint: string;
+  state: 'none' | 'running' | 'matching' | 'stale';
+  task?: ReviewTask;
+}
+
+export async function checkProjectStatus(params: {
+  projectId: string;
+  documentType: string;
+  answers: Record<string, unknown>;
+}): Promise<ProjectReviewStatus> {
+  const res = await apiFetch(`${API_BASE}/review/project-status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(params),
+  });
+  return handleResponse(res);
+}
+
+export function getReportDocxUrl(taskId: string): string {
+  return `${API_BASE}/review/tasks/${taskId}/report.docx`;
 }
 
 export async function resolveIssue(

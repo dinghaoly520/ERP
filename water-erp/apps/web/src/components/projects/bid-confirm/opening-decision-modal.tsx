@@ -274,7 +274,7 @@ export function OpeningDecisionModal({
                 </span>
               ) : (
                 <span className="rounded-full bg-[color-mix(in_oklch,var(--warning)_12%,transparent)] px-2.5 py-1 text-[11px] font-semibold text-[var(--warning)]">
-                  截标未过：将随开标联动顺延（保持 24h 间隔）
+                  截标时间未到，将随开标时间自动顺延
                 </span>
               )}
               <span className="text-[var(--muted-foreground)]">原 {fmtDateTime(bidProject.openTime)}</span>

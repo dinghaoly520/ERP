@@ -1471,21 +1471,25 @@
       });
 
       // 入库进度 — 由公开计数派生：已入库 / 待审核 / 其他
+      // 口径修正（2026-10-28）：d.total 是库内四态（不含 PENDING，2026-10-16 裁定）——原
+      // rest=total-approved-pending 把不在 total 里的 pending 再扣一遍（停用/黑名单被吃掉、
+      // 分段和可超 100%）。分母改全体=total+pending，rest=停用/黑名单=total-approved。
       var total = d.total || 0, approved = d.approved || 0, pending = d.pending || 0;
-      var rest = Math.max(total - approved - pending, 0);
+      var whole = total + pending;
+      var rest = Math.max(total - approved, 0);
       function seg(id, pct){
         var el = document.getElementById(id);
         if (el) el.style.flex = '0 0 ' + pct + '%';
       }
-      seg('suProgApproved', total > 0 ? (approved/total*100).toFixed(1) : '0');
-      seg('suProgPending', total > 0 ? (pending/total*100).toFixed(1) : '0');
+      seg('suProgApproved', whole > 0 ? (approved/whole*100).toFixed(1) : '0');
+      seg('suProgPending', whole > 0 ? (pending/whole*100).toFixed(1) : '0');
       var cntMap = { suApprovedCnt: approved, suPendingCnt: pending, suRestCnt: rest };
       Object.keys(cntMap).forEach(function(id){
         var el = document.getElementById(id);
         if (el) el.textContent = cntMap[id];
       });
       var rate = document.getElementById('suApprovedRate');
-      if (rate) rate.textContent = total > 0 ? (approved/total*100).toFixed(1) + '%' : '…';
+      if (rate) rate.textContent = whole > 0 ? (approved/whole*100).toFixed(1) + '%' : '…';
 
       if (animate) triggerAnimations();
     }

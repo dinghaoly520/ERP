@@ -22,10 +22,10 @@ function render(props = {}) {
   return renderToStaticMarkup(createElement(CaClarificationSignDialog, { ...PROPS, ...props }));
 }
 
-test('打开态：标题 + P7 说明 + PIN 掩码输入 + 底部按钮组', () => {
+test('打开态：标题 + 签名说明 + PIN 掩码输入 + 底部按钮组', () => {
   const html = render();
   assert.ok(html.includes('澄清答复签署'), '弹窗标题');
-  assert.ok(html.includes('P7'), '说明含 P7 签名语义');
+  assert.ok(html.includes('数字签名'), '说明含数字签名语义');
   assert.ok(html.includes('data-testid="ca-clar-pin"'), 'PIN 输入框');
   assert.ok(html.includes('type="password"'), 'PIN 掩码');
   assert.ok(/autocomplete="off"/i.test(html), 'PIN 不回填');

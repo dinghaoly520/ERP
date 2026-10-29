@@ -37,7 +37,7 @@ export function CaReceiptSignButton({ projectId, submissionId, onSigned }: {
       if (!first) throw new Error('U盾内未找到证书——请插入 SCCA CA U盾');
       await scca.loginScca(first.container, pin);
       // ③ prepare → 盾签 → 提交（回执 v3 分支要求 operationId+signP7）
-      setNote('盾签名回执（P7）…');
+      setNote('正在用 U盾签署回执…');
       const prep = await supplierApi.caPrepare(projectId, 'receipt');
       const signP7 = await scca.signSccaP7(first.container, canonical);
       setNote('提交回执签名…');
@@ -46,7 +46,7 @@ export function CaReceiptSignButton({ projectId, submissionId, onSigned }: {
         signatureFormat: 'scca-pkcs7-base64',
         signP7,
       });
-      toast.success('回执已签署（P7 电子签名）');
+      toast.success('回执已签署');
       setOpen(false);
       setPin('');
       onSigned?.();

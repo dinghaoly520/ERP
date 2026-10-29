@@ -31,7 +31,9 @@ import { SemanticReviewerService } from './services/semantic-reviewer.service';
 import { GeneralReviewerService } from './services/general-reviewer.service';
 import { LlmFreeReviewerService } from './services/llm-free-reviewer.service';
 import { ReportGeneratorService } from './services/report-generator.service';
-import { ExecuteReviewDto, ExtractRulesDto } from './dto/review.dto';
+import { ExecuteReviewDto, ExtractRulesDto, ProjectStatusDto } from './dto/review.dto';
+import { computeDraftFingerprint } from './services/draft-fingerprint.util';
+import { ReviewReportDocxService } from './services/review-report-docx.service';
 import { toStructuredSuggestion } from './services/text-operations';
 import {
   addDocxCommentBuffer,
@@ -186,6 +188,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     private generalReviewer: GeneralReviewerService,
     private llmFreeReviewer: LlmFreeReviewerService,
     private reportGenerator: ReportGeneratorService,
+    private reviewReportDocx: ReviewReportDocxService,
   ) {}
 
   // 知识库属主校验（rules / execute 复用）
@@ -414,6 +417,15 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       throw new ForbiddenException('无权使用该知识库');
     }
 
+    // 项目关联（spec §6.2）：软关联不建外键，仅校验存在
+    if (dto.projectId) {
+      const project = await this.prisma.projectManagementItem.findUnique({
+        where: { id: dto.projectId },
+        select: { id: true },
+      });
+      if (!project) throw new NotFoundException('项目不存在');
+    }
+
     const task = await this.prisma.reviewTask.create({
       data: {
         documentName: documentName ?? 'unknown',
@@ -423,8 +435,21 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
         userId: user?.sub,
         reviewMode: dto.reviewMode,
         status: 'running',
+        projectId: dto.projectId ?? null,
+        draftFingerprint: dto.fingerprint ?? null,
       },
     });
+
+    // 自动记忆默认知识库（spec §2 裁定 3）——仅项目场景，失败不阻塞审查
+    if (dto.projectId && user?.sub) {
+      await this.prisma.userSettings
+        .upsert({
+          where: { userId: user.sub },
+          create: { userId: user.sub, theme: 'light', defaultReviewKbId: dto.knowledgeBaseId },
+          update: { defaultReviewKbId: dto.knowledgeBaseId },
+        })
+        .catch(() => undefined);
+    }
 
     // Execute review asynchronously (fire and forget for now)
     const ac = new AbortController();
@@ -449,6 +474,26 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       .finally(() => this.activeReviews.delete(task.id));
 
     return { taskId: task.id, status: 'running' };
+  }
+
+  @Post('review/project-status')
+  @Roles('leader', 'admin', 'staff')
+  @ApiOperation({ summary: '项目管理场景：判定该项目草稿的审查状态' })
+  async projectStatus(@Body() dto: ProjectStatusDto) {
+    const fingerprint = computeDraftFingerprint(dto.documentType, dto.answers);
+    const latest = await this.prisma.reviewTask.findFirst({
+      where: { projectId: dto.projectId },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!latest) return { fingerprint, state: 'none' as const };
+    if (latest.status === 'pending' || latest.status === 'running') {
+      return { fingerprint, state: 'running' as const, task: latest };
+    }
+    if (latest.status === 'completed' && latest.draftFingerprint === fingerprint) {
+      return { fingerprint, state: 'matching' as const, task: latest };
+    }
+    // completed 但指纹不符，或最新为 failed——task 照常携带，前端按 task.status 细分（spec §6.1）
+    return { fingerprint, state: 'stale' as const, task: latest };
   }
 
   @Post('review/tasks/:id/stop')
@@ -870,6 +915,39 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       this.logger.error(`Download failed for task ${id}:`, err);
       throw err;
     }
+  }
+
+  @Get('review/tasks/:id/report.docx')
+  @Roles('leader', 'admin', 'staff')
+  @ApiOperation({ summary: '下载审查报告 Word（含处置留痕）' })
+  async downloadReportDocx(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser | undefined,
+    @Res() res: Response,
+  ) {
+    const task = await this.prisma.reviewTask.findUnique({ where: { id } });
+    if (!task) throw new NotFoundException('任务不存在或已被删除');
+    if (task.userId && task.userId !== user?.sub && user?.role !== 'admin') {
+      throw new ForbiddenException('无权下载该审查报告');
+    }
+    if (task.status !== 'completed') {
+      throw new BadRequestException('任务未完成，暂无报告');
+    }
+    const [kb, project] = await Promise.all([
+      task.knowledgeBaseId
+        ? this.prisma.knowledgeBase.findUnique({ where: { id: task.knowledgeBaseId }, select: { name: true } })
+        : Promise.resolve(null),
+      task.projectId
+        ? this.prisma.projectManagementItem.findUnique({ where: { id: task.projectId }, select: { title: true } })
+        : Promise.resolve(null),
+    ]);
+    const { buffer, fileName } = await this.reviewReportDocx.generate(task, {
+      kbName: kb?.name ?? null,
+      projectTitle: project?.title ?? null,
+    });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`);
+    res.send(buffer);
   }
 
   // Internal Extraction Logic

@@ -513,10 +513,13 @@ export async function analyzeProjectStep(
   projectId: string,
   stageKey: string,
   refresh = false,
+  /** 2026-10-28 二轮隔离：按选中轮取该轮步骤数据（缺省=当前轮） */
+  round?: number,
 ): Promise<{ content: string; empty: boolean }> {
   const params = new URLSearchParams();
   params.set('stageKey', stageKey);
   if (refresh) params.set('refresh', 'true');
+  if (round != null) params.set('round', String(round));
   const response = await apiFetch(`${API_BASE}/project-management/${projectId}/analyze-step?${params.toString()}`, {
     method: 'POST',
     credentials: 'include',
@@ -572,6 +575,9 @@ export interface PmBidProjectRefItem {
   evaluationMethod?: string | null;
   openTime: string;
   deadline: string;
+  /** 2026-10-28 二轮隔离：该轮 PMI 层开标/获取时间快照（历史轮基本信息展示源） */
+  roundOpeningTime?: string | null;
+  roundDocAcquireTime?: string | null;
   /** 流标公告闸（2026-10-23 统一流）：该轮已发布流标公告——决策向导入口判定 */
   failedBidNoticePublished: boolean;
 }
@@ -588,11 +594,15 @@ export async function fetchPmBidProjectRefs(pmId: string): Promise<PmBidProjectR
 // 草稿以服务器为准（同账号任意设备一致），localStorage 仅作离线缓存；
 // 详见 tender-write-modal.tsx 同步逻辑。
 
+// 2026-10-28 二轮隔离：六端点带可选 round（缺省=当前轮）——新一轮编写不回读旧轮草稿
+const roundQuery = (round?: number) => (round != null ? `?round=${round}` : '');
+
 /** 服务器当前草稿；无记录时后端返回 null（body 为 "null"，parse 后亦为 null）。 */
 export async function fetchProjectTenderDraft(
   projectId: string,
+  round?: number,
 ): Promise<{ drafts: Record<string, unknown>; updatedAt: string } | null> {
-  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/tender-draft`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/tender-draft${roundQuery(round)}`, {
     credentials: 'include',
     cache: 'no-store',
   });
@@ -604,8 +614,9 @@ export async function fetchProjectTenderDraft(
 export async function saveProjectTenderDraft(
   projectId: string,
   drafts: Record<string, unknown>,
+  round?: number,
 ): Promise<{ projectId: string; updatedAt: string }> {
-  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/tender-draft`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/tender-draft${roundQuery(round)}`, {
     method: 'PUT',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -614,19 +625,20 @@ export async function saveProjectTenderDraft(
   return parseJsonResponse(response);
 }
 
-/** 一键清除：删除服务器当前草稿与全部历史版本。 */
-export async function clearProjectTenderDraft(projectId: string): Promise<void> {
-  await apiFetch(`${API_BASE}/project-management/${projectId}/tender-draft`, {
+/** 一键清除：删除该轮服务器草稿与该轮全部历史版本。 */
+export async function clearProjectTenderDraft(projectId: string, round?: number): Promise<void> {
+  await apiFetch(`${API_BASE}/project-management/${projectId}/tender-draft${roundQuery(round)}`, {
     method: 'DELETE',
     credentials: 'include',
   });
 }
 
-/** 历史版本列表（新→旧，含草稿全文供恢复）。 */
+/** 该轮历史版本列表（新→旧，含草稿全文供恢复）。 */
 export async function fetchProjectTenderDraftVersions(
   projectId: string,
+  round?: number,
 ): Promise<{ id: string; label: string; timestamp: string; drafts: Record<string, unknown> }[]> {
-  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/tender-draft/versions`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/tender-draft/versions${roundQuery(round)}`, {
     credentials: 'include',
     cache: 'no-store',
   });
@@ -638,8 +650,9 @@ export async function addProjectTenderDraftVersion(
   projectId: string,
   drafts: Record<string, unknown>,
   label?: string,
+  round?: number,
 ): Promise<{ id: string; label: string; createdAt: string }> {
-  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/tender-draft/versions`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/tender-draft/versions${roundQuery(round)}`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -648,9 +661,9 @@ export async function addProjectTenderDraftVersion(
   return parseJsonResponse(response);
 }
 
-/** 清空历史版本（保留当前草稿）。 */
-export async function clearProjectTenderDraftVersions(projectId: string): Promise<void> {
-  await apiFetch(`${API_BASE}/project-management/${projectId}/tender-draft/versions`, {
+/** 清空该轮历史版本（保留当前草稿）。 */
+export async function clearProjectTenderDraftVersions(projectId: string, round?: number): Promise<void> {
+  await apiFetch(`${API_BASE}/project-management/${projectId}/tender-draft/versions${roundQuery(round)}`, {
     method: 'DELETE',
     credentials: 'include',
   });

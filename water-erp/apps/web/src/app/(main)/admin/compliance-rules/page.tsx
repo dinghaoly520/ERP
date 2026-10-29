@@ -81,10 +81,34 @@ export default function ComplianceRulesPage() {
     }
   };
 
+  /* builtin 快照行 id 是合成的（后端 PATCH 拒绝 BUILTIN_NOT_IMPORTED）——首次操作先把
+     该阶段内置规则幂等入库，再按 name 对回 DB 行（init upsert 键=stageKey+name，稳定） */
+  const ensureEditable = async (): Promise<RuleRow[] | null> => {
+    if (data?.source === 'db') return data.rows;
+    await api(`/init?stageKey=${stage}`, { method: 'POST' });
+    const fresh = await api<StageData>(`/rules?stageKey=${stage}`);
+    setData(fresh);
+    return fresh.rows;
+  };
+
+  const startEdit = async (r: RuleRow) => {
+    setBusy(true);
+    try {
+      const row = (await ensureEditable())?.find(x => x.name === r.name);
+      if (row) setEditing({ id: row.id, criteria: row.criteria, regulationRef: row.regulationRef });
+      else setError('未找到对应规则行，请刷新重试');
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const toggle = async (row: RuleRow) => {
     setBusy(true);
     try {
-      await api(`/rules/${row.id}`, { method: 'PATCH', body: JSON.stringify({ enabled: !row.enabled }) });
+      const dbRow = (await ensureEditable())?.find(x => x.name === row.name) ?? row;
+      await api(`/rules/${dbRow.id}`, { method: 'PATCH', body: JSON.stringify({ enabled: !dbRow.enabled }) });
       void reload();
     } catch (e) {
       setError((e as Error).message);
@@ -124,7 +148,7 @@ export default function ComplianceRulesPage() {
               <span className="page-hero__stat page-hero__stat--info">数据库（生效中）</span>
             )}
             {data?.source === 'builtin' && (
-              <button onClick={() => void initFromBuiltin()} className="neu-btn-xs" disabled={busy} title="将内置规则快照导入数据库后方可编辑">
+              <button onClick={() => void initFromBuiltin()} className="neu-btn-xs" disabled={busy} title="将内置规则快照显式导入数据库（行内编辑/停用时也会自动入库）">
                 <Sparkles size={13} /> 从内置初始化
               </button>
             )}
@@ -153,23 +177,16 @@ export default function ComplianceRulesPage() {
         </span>
       </div>
 
-      {data?.source === 'builtin' && (
-        <p className="text-xs text-[var(--muted-foreground)]">
-          当前展示内置规则快照（只读）——点「从内置初始化」入库后即可在线编辑/停用。
-        </p>
-      )}
-
       {/* ═══ 数据表 ═══ */}
       <div className="neu-table-card">
         <div className="neu-table-card-header flex flex-wrap items-center justify-between gap-3">
           <span className="text-sm font-semibold tracking-wide">审查要点清单</span>
-          <span className="text-xs text-[var(--muted-foreground)]">消费方：项目管理「阶段合规审查」（audit-compliance）</span>
         </div>
         <div className="overflow-x-auto">
-          <table className="neu-table w-full min-w-[860px]">
+          <table className="neu-table w-full min-w-[960px]">
             <thead>
-              <tr className="text-left">
-                <th>审查项</th><th>维度</th><th>审查要点（AI 判据）</th><th>法规依据</th><th>状态</th><th className="text-right">操作</th>
+              <tr>
+                <th>审查项</th><th>维度</th><th>审查要点（AI 判据）</th><th>法规依据</th><th>状态</th><th>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -192,13 +209,13 @@ export default function ComplianceRulesPage() {
               {!error && !loading && (data?.rows ?? []).map(r =>
                 editing?.id === r.id ? (
                   <tr key={r.id} data-selected="true">
-                    <td className="font-medium">{r.name}</td>
-                    <td>{r.dimension}</td>
-                    <td><textarea value={editing.criteria} onChange={e => setEditing({ ...editing, criteria: e.target.value })} rows={3} className="neu-input w-full min-w-[280px] text-xs" /></td>
-                    <td><textarea value={editing.regulationRef} onChange={e => setEditing({ ...editing, regulationRef: e.target.value })} rows={3} className="neu-input w-full min-w-[200px] text-xs" /></td>
-                    <td>编辑中</td>
-                    <td className="text-right">
-                      <div className="flex justify-end gap-1.5">
+                    <td className="align-top font-medium">{r.name}</td>
+                    <td className="align-top">{r.dimension}</td>
+                    <td className="align-top"><textarea value={editing.criteria} onChange={e => setEditing({ ...editing, criteria: e.target.value })} rows={4} className="neu-input w-full min-w-[280px] text-xs leading-relaxed" /></td>
+                    <td className="align-top"><textarea value={editing.regulationRef} onChange={e => setEditing({ ...editing, regulationRef: e.target.value })} rows={4} className="neu-input w-full min-w-[200px] text-xs leading-relaxed" /></td>
+                    <td className="align-top">编辑中</td>
+                    <td className="align-top">
+                      <div className="flex justify-center gap-1.5">
                         <button onClick={() => setEditing(null)} className="neu-btn-xs" disabled={busy}><X size={12} /></button>
                         <button onClick={() => void save()} className="neu-btn-xs is-success" disabled={busy}><Check size={12} /> 保存</button>
                       </div>
@@ -206,26 +223,26 @@ export default function ComplianceRulesPage() {
                   </tr>
                 ) : (
                   <tr key={r.id} className="row-clickable">
-                    <td className="font-medium">{r.name}</td>
-                    <td className="whitespace-nowrap text-[var(--muted-foreground)]">{r.dimension}</td>
-                    <td className="max-w-[340px] truncate text-xs" title={r.criteria}>{r.criteria}</td>
-                    <td className="max-w-[220px] truncate text-xs text-[var(--muted-foreground)]" title={r.regulationRef}>{r.regulationRef}</td>
-                    <td>
+                    <td className="align-top font-medium">{r.name}</td>
+                    <td className="align-top whitespace-nowrap text-[var(--muted-foreground)]">{r.dimension}</td>
+                    {/* 长文列全文换行（2026-10-28：原 truncate 单行截断显示不全）——max-w 控制阅读宽度，align-top 走 globals 对齐出口 */}
+                    <td className="align-top max-w-[520px] text-left text-xs leading-relaxed">{r.criteria}</td>
+                    <td className="align-top max-w-[320px] text-left text-xs leading-relaxed text-[var(--muted-foreground)]">{r.regulationRef}</td>
+                    <td className="align-top">
                       <span className={`text-xs font-medium ${r.enabled ? 'text-emerald-700' : 'text-[var(--muted-foreground)]'}`}>
                         {r.enabled ? '生效' : '已停用'}
                       </span>
                     </td>
-                    <td className="text-right">
-                      {data?.source === 'db' && (
-                        <div className="flex justify-end gap-1.5">
-                          <button onClick={() => setEditing({ id: r.id, criteria: r.criteria, regulationRef: r.regulationRef })} className="neu-btn-xs" disabled={busy}>
-                            <Pencil size={12} /> 编辑
-                          </button>
-                          <button onClick={() => void toggle(r)} className={`neu-btn-xs ${r.enabled ? 'is-warning' : 'is-success'}`} disabled={busy}>
-                            {r.enabled ? '停用' : '启用'}
-                          </button>
-                        </div>
-                      )}
+                    {/* 操作按钮恒渲染（2026-10-28）：builtin 阶段（DB 无记录）原为空列，现首次操作自动入库 */}
+                    <td className="align-top">
+                      <div className="flex justify-center gap-1.5" title={data?.source === 'db' ? undefined : '内置规则快照：首次操作将自动入库后执行'}>
+                        <button onClick={() => void startEdit(r)} className="neu-btn-xs" disabled={busy}>
+                          <Pencil size={12} /> 编辑
+                        </button>
+                        <button onClick={() => void toggle(r)} className={`neu-btn-xs ${r.enabled ? 'is-warning' : 'is-success'}`} disabled={busy}>
+                          {r.enabled ? '停用' : '启用'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ),

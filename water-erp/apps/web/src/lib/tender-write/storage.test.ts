@@ -8,6 +8,7 @@ import {
   beginTenderWriteSession,
   createTenderWriteSessionId,
   readTenderWriteState,
+  tenderDraftStorageKey,
   writeTenderWriteState,
 } from "./storage";
 
@@ -88,4 +89,13 @@ test("new tender-write login session starts from type selection", () => {
   assert.equal(restored.drafts.COMPETITIVE_NEGOTIATION.projectName, "");
 
   delete (globalThis as { window?: unknown }).window;
+});
+
+// 2026-10-28 二轮隔离：项目草稿缓存键按轮后缀（R1 沿用旧键=存量不迁移不丢）
+test("tenderDraftStorageKey: round 1 keeps legacy key, round>1 gets :R{n} suffix", () => {
+  assert.equal(tenderDraftStorageKey("pm-1", 1), "tender-write:project-drafts:v1:pm-1");
+  assert.equal(tenderDraftStorageKey("pm-1", 2), "tender-write:project-drafts:v1:pm-1:R2");
+  assert.equal(tenderDraftStorageKey("pm-1", 3), "tender-write:project-drafts:v1:pm-1:R3");
+  // 轮键互不串读：R2 键不覆盖 R1 旧键
+  assert.notEqual(tenderDraftStorageKey("pm-1", 2), tenderDraftStorageKey("pm-1", 1));
 });

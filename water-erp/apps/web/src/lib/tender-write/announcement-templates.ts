@@ -43,6 +43,10 @@ export function getAnnouncementLabel(
 }
 
 
+/** 异议渠道（2026-10-28 用户裁定撤销表单字段方案）：异议渠道的载体是发布时澄清说明的
+ *  「异议」部分——冻结为 metadata.objectionContact，详情页单独展示；公告文段/表单不再要求填写。
+ *  checklist（bid-notice-checklist.ts）已同步接受 objectionContact 作为要素齐备的判据。 */
+
 export const SUPERVISION_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
   {
     // 监督人置顶（2026-10-21 用户口径，与采购文件编写同序）：先选人再补部门/地址/电话

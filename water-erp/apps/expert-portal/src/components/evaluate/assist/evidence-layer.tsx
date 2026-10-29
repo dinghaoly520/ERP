@@ -311,7 +311,7 @@ function ConcordanceSection({ concordance, concordanceStatus }: { concordance: C
 export function EvidenceLayer({ assistData, supplierName }: { assistData: AssistData; supplierName: string }) {
   return (
     <section>
-      <SectionHeader number={2} title="证据" subtitle="· OCR 提取的结构化数据" />
+      <SectionHeader number={2} title="证据" subtitle="文字识别提取的结构化数据" />
       <div className="mt-3 space-y-3">
         <KeyInfoSection keyInfo={assistData.keyInfo} supplierName={supplierName} />
         <div>

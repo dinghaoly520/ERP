@@ -70,10 +70,11 @@ export default function ClarificationNoticePage() {
               </div>
             </div>
           </div>
+          {/* 白瓷片主操作（2026-10-22 铁律：page-hero 操作区禁 44px 深色实心） */}
           <button
             onClick={publish}
             disabled={saving || loading}
-            className="neu-btn-primary disabled:opacity-50"
+            className="neu-btn-primary is-water !h-[38px] !px-5 disabled:opacity-50"
           >
             <Save size={14} />
             {saving ? '发布中...' : '保存并发布'}

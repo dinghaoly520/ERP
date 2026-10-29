@@ -225,7 +225,7 @@ export default function ExpertRepositoryPage() {
                 <SortableTh label="评价次数" field="_count.expertEvaluations" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
                 <th className="text-center">平均等级</th>
                 <th className="text-center">最近评价</th>
-                <th className="text-center" title="入库状态为主（待审核/在库/暂停/退库，CTS A-218/222）；在库时副示可用性（可用/评审中/已停用）">状态</th>
+                <th className="text-center" title="入库状态（待审核/在库/暂停/退库）；在库时同时显示可用性（可用/评审中/已停用）">状态</th>
                 <th className="text-center">操作</th>
               </tr>
             </thead>

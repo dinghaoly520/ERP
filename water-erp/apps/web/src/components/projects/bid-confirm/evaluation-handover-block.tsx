@@ -68,8 +68,8 @@ export function EvaluationHandoverBlock({ bidProjectId, detail }: Props) {
                   <th className="!text-left">名次</th>
                   <th className="!text-left">供应商</th>
                   <th className="!text-right" title={trimOn
-                    ? '排名依据：专家组 ≥5 人去 1 高 1 低后的均分（总分为全体原始分之和，两者口径不同）'
-                    : '排名依据：全部正选专家评分的均分（本项目已关闭去极值；总分为全体原始分之和，两者口径不同）'}>
+                    ? '排名依据：专家组满 5 人时去掉 1 个最高分和 1 个最低分后的平均分；总分为全体原始分之和，两者算法不同'
+                    : '排名依据：全部正选专家评分的平均分（本项目未启用去极值）；总分为全体原始分之和，两者算法不同'}>
                     {trimOn ? '去极值均分' : '均分'}
                   </th>
                   <th className="!text-right">报价</th>

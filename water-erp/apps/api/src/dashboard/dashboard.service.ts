@@ -111,6 +111,9 @@ export class DashboardService {
     // 公司隔离：where 注入 companyId，轮次主查询与附件统计（经 procurementRound 关联）同时生效
     const where = {
       ...companyFilter,
+      // 2026-10-28 口径收口：排除回收站轮次（与台账 buildListWhere 默认 ACTIVE 同口径——
+      // 此前驾驶舱/移动端统计含已回收轮次，列表页不可见的行计入 KPI）
+      isRecycled: false,
       // R6-6②（2026-09-30 审计 A1）：单边日期也生效（与台账 buildListWhere 对齐）——
       // 此前 && 才拼过滤，用户只填起始日点"应用"→后端完全不过滤，按钮却显示已过滤区间。
       // 日期口径注明：此过滤只作用于 procurementDate；趋势分桶宣称"缺省回退立项日"
@@ -1076,10 +1079,10 @@ export class DashboardService {
     // 本就小，两步查 + JS 配对（勿走 raw SQL——CompanyScope 盲区）
     const [abnormalCount, pendingCount, activeItems] = await Promise.all([
       this.prisma.procurementRound.count({
-        where: { ...companyFilter, resultStatus: { notIn: ['AWARDED', 'PENDING'] } },
+        where: { ...companyFilter, isRecycled: false, resultStatus: { notIn: ['AWARDED', 'PENDING'] } },
       }),
       this.prisma.procurementRound.count({
-        where: { ...companyFilter, resultStatus: 'PENDING' },
+        where: { ...companyFilter, isRecycled: false, resultStatus: 'PENDING' },
       }),
       this.prisma.projectManagementItem.findMany({
         where: { status: 'ACTIVE', ...(companyFilter ?? {}) },

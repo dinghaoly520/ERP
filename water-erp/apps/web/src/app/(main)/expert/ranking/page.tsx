@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getExpertRanking, getLoadDistribution } from '@/lib/api/expert';
+import { readInitialCompanyId } from '@/components/company/company-select';
 import { StatusBadge, TableSkeleton } from '@/components/workbench';
 import { Crown, Medal, RefreshCw, Trophy, AlertTriangle, Activity } from 'lucide-react';
 import { toast } from 'sonner';
@@ -28,10 +29,13 @@ export default function ExpertRankingPage() {
   const [loading, setLoading] = useState(true);
   const [errored, setErrored] = useState(false);
 
+  // 公司视野（2026-10-28）：跟随与专家库共用的公司选择器记忆（同统计页口径）
+  const [companyId, setCompanyId] = useState('all');
+  useEffect(() => { setCompanyId(readInitialCompanyId()); }, []);
   const load = async () => {
     setLoading(true); setErrored(false);
     try {
-      const [r, l] = await Promise.all([getExpertRanking(period), getLoadDistribution()]);
+      const [r, l] = await Promise.all([getExpertRanking(period, companyId), getLoadDistribution(companyId)]);
       setRanking(r);
       setLoadData(l);
     } catch (e: any) {
@@ -40,7 +44,7 @@ export default function ExpertRankingPage() {
     }
     setLoading(false);
   };
-  useEffect(() => { load(); }, [period]);
+  useEffect(() => { load(); }, [period, companyId]);
 
   const top3 = ranking.slice(0, 3);
   const rest = ranking.slice(3);

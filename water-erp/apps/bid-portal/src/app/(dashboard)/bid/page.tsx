@@ -88,7 +88,7 @@ export default function BidTaskBoard() {
             <div className="page-hero__icon"><LayoutDashboard size={17} strokeWidth={1.9} /></div>
             <div>
               <div className="page-hero__title">开标任务板</div>
-              <div className="page-hero__sub">开评标现场执行终端 · 解密 / 唱标 / 异议实时计数，30 秒自动刷新</div>
+              <div className="page-hero__sub">开评标现场的工作台，实时跟进解密、唱标与异议处理，每 30 秒自动刷新</div>
             </div>
           </div>
           <div className="page-hero__right">

@@ -10,6 +10,7 @@ import {
   generateSummary, confirmWinnerNotice, getParticipants,
 } from '@/lib/api/announcement';
 import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, AnnouncementAttachment, BidDocumentManage, ParticipantsResult } from '@/lib/api/announcement';
+import { localDateInputValue } from '@/lib/local-date';
 import { ATTACHMENT_ACCEPT, ATTACHMENT_HINT, validateAttachmentFile } from '@/lib/upload-rules';
 import { getSupplierList } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
@@ -449,7 +450,7 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
   const [summary, setSummary] = useState(ann.summary || '');
   const [status, setStatus] = useState<AnnouncementStatus>(ann.status);
   const [isTop, setIsTop] = useState(ann.isTop);
-  const [publishDate, setPublishDate] = useState(ann.publishDate ? ann.publishDate.slice(0, 10) : new Date().toISOString().slice(0, 10));
+  const [publishDate, setPublishDate] = useState(ann.publishDate ? ann.publishDate.slice(0, 10) : localDateInputValue());
   const buildMeta = (t: AnnouncementType) => {
     const out: Record<string, string> = {};
     const m = (ann.metadata || {}) as Record<string, any>;

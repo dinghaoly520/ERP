@@ -913,3 +913,23 @@ a.cq-att-item:active { opacity: 0.65; box-shadow: inset 1px 1px 2px oklch(0.55 0
 }
 .bid-act-note strong { font-weight: 800; color: var(--foreground); }
 .bid-act-note .sp-countdown { font-size: 13px; }
+
+/* ── 公告附件（2026-10-28）：项目机会侧公告附件下载入口——与公告中心 ann-att 行同语言 ── */
+.cc-att-hd { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; font-weight: 700; color: var(--foreground); }
+.cc-att-hd .cc-att-ico { color: var(--brand); }
+.cc-att-count { font-size: 10px; font-weight: 800; letter-spacing: 0.04em; padding: 1px 7px; border-radius: 6px; color: var(--muted-foreground); background: color-mix(in oklab, var(--brand) 8%, transparent); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); }
+.cc-att-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.cc-att-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 10px 12px; border: none; border-radius: 8px; font-size: 13px; cursor: pointer;
+  color: var(--foreground); background: var(--surface);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.5), 1px 1px 3px oklch(0.55 0.03 258 / 0.06), -1px -1px 2px oklch(1 0 0 / 0.6);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.cc-att-item:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 5px oklch(0.55 0.03 258 / 0.1), -1px -1px 3px oklch(1 0 0 / 0.7); }
+.cc-att-item:active { box-shadow: inset 1px 1px 2px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.5); }
+.cc-att-name { flex: 1; min-width: 0; font-weight: 600; color: var(--brand); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-att-size { font-size: 11px; color: var(--muted-foreground); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.cc-att-file { color: var(--brand); flex-shrink: 0; }
+.cc-att-dl { color: var(--muted-foreground); flex-shrink: 0; }
+@media (prefers-reduced-motion: reduce) { .cc-att-item { transition: none; } .cc-att-item:hover { transform: none; } }

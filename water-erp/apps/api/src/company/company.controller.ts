@@ -19,6 +19,13 @@ const COMPANY_INFO_FIELDS = [
   'purchaserContact',
   'purchaserPhone',
   'purchaserEmail',
+  // 阳光采购对接档案（2026-10-28）：平台侧组织档案——公司信息管理维护，公告发布弹窗自动带出
+  'sunshineOrganizationCode',
+  'sunshineOrganizationUnique',
+  'sunshineParentOrganization',
+  'sunshineProcuringEntity',
+  'sunshineStandardQuota',
+  'sunshinePublicQuota',
 ] as const;
 
 type CompanyInfoBody = {

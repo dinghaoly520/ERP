@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import dayjs from "dayjs";
 import {
   FileText, TriangleAlert, Lock, Upload, Download, Sparkles, Loader2, ArrowLeft,
-  CircleX, CircleCheck, Info, KeyRound, Copy, Check, Coins, Trophy,
+  CircleX, CircleCheck, Info, KeyRound, Copy, Check, Coins, Trophy, Paperclip,
 } from "lucide-react";
 import { bidApi } from "@/lib/api/bid";
 import { TenderClarificationCard } from "@/components/tender-clarification-card";
@@ -62,6 +62,13 @@ function fmtBudget(raw: any): string {
   if (isNaN(n)) return String(raw);
   if (n >= 10000) return `${(n / 10000).toFixed(0)} 万元`;
   return `${n} 元`;
+}
+function fmtAttSize(raw: unknown): string {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  if (n >= 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + " MB";
+  if (n >= 1024) return (n / 1024).toFixed(0) + " KB";
+  return n + " B";
 }
 function fmtMetaDate(raw: any): string {
   if (!raw) return "";
@@ -641,6 +648,35 @@ function BidDetailInner() {
                     <p>{project.roundMode === "negotiation" || project.procurementMethod === "谈判采购" ? "暂无邀请书" : "暂无公告正文"}</p>
                   </div>
                 )}
+
+                {/* 公告附件（2026-10-28 用户裁定）：项目机会侧公告附件下载入口——与公告中心/
+                    信息门户三端同源；后端 getBidProject 富化（url 由服务端拼公开下载端点，
+                    下载闸门按公告可见性；本项目机会侧不受公示期满影响的裁定同样适用附件） */}
+                {project.announcement?.attachments?.length > 0 && (
+                  <div className="cc-att">
+                    <div className="cc-att-hd">
+                      <Paperclip size={14} strokeWidth={1.85} className="cc-att-ico" />
+                      公告附件
+                      <span className="cc-att-count">{project.announcement.attachments.length} 个</span>
+                    </div>
+                    <div className="cc-att-list">
+                      {project.announcement.attachments.map((att: any) => (
+                        <button
+                          key={att.id}
+                          type="button"
+                          className="cc-att-item"
+                          onClick={() => authedFileAction(att.url, "download", att.name || att.title || "附件")}
+                          title={`下载 ${att.title || att.name || ""}`}
+                        >
+                          <FileText size={14} strokeWidth={1.75} className="cc-att-file" />
+                          <span className="cc-att-name">{att.title || att.name}</span>
+                          {fmtAttSize(att.size) && <span className="cc-att-size">{fmtAttSize(att.size)}</span>}
+                          <Download size={14} strokeWidth={1.75} className="cc-att-dl" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* ═══ dual-v3 投递卡（阶段2 · I5 评审修复：挂载点）═══
@@ -870,8 +906,8 @@ function BidDetailInner() {
                               <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 !whitespace-normal">
                                 <span className="opacity-[0.72]">
                                   {submission.receiptSignature
-                                    ? "以下为投递回执的存档原文（已由贵司 U盾 SM2/SM3 签名存档，任何字段改动都会导致验签失败），供完整性核验："
-                                    : "以下为按服务端记录重建的待签回执负载原文（尚未签署），供核对："}
+                                    ? "以下为投递回执的存档原文（已由贵司 U盾签名存档，任何改动都会导致验签失败），供完整性核验："
+                                    : "以下为按平台记录重建的回执内容（尚未签署），供核对："}
                                 </span>
                               </div>
                               <div className="mb-1.5 flex flex-wrap items-center gap-2 !whitespace-normal">
@@ -919,7 +955,7 @@ function BidDetailInner() {
                                 </SpButton>
                               </div>
                               <div className="mt-1 !whitespace-normal opacity-[0.62]">
-                                字段对照：projectId＝本项目 · supplierId＝贵司平台标识 · filesCommit＝投标文件集承诺哈希（SHA-256）· submissionId＝对应回执编号 {submission.receiptNo || "—"}
+                                字段对照：projectId 是本项目编号，supplierId 是贵司的平台标识，filesCommit 是投标文件集的校验值（SHA-256），submissionId 对应回执编号 {submission.receiptNo || "—"}
                               </div>
                             </>
                           )}

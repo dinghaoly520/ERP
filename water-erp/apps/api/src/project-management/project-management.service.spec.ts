@@ -412,6 +412,7 @@ describe('ProjectManagementService', () => {
         findUnique: jest.fn(),
         update: jest.fn(),
         count: jest.fn().mockResolvedValue(0),
+        groupBy: jest.fn().mockResolvedValue([]),
       },
       projectManagementStage: {
         createMany: jest.fn(),
@@ -1606,8 +1607,8 @@ describe('ProjectManagementService', () => {
       prisma.projectManagementStage.findFirst.mockResolvedValue({ id: 'st-1', stageKey: 'SUPPLIER_INVITATION' });
       prisma.projectManagementItem.findUnique.mockResolvedValue({
       status: 'ACTIVE', currentStage: 'SUPPLIER_INVITATION' });
-      // 回执核验走 PMI/BP 两个 id 空间：先查项目关联的 BidProject id 集
-      prisma.bidProject = { findMany: jest.fn().mockResolvedValue([]) };
+      // 回执核验（2026-10-28 二轮隔离）：本轮 BidProject 未建 → 回退数 PMI id 存量行，仍 0 回执
+      prisma.bidProject = { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) };
       prisma.invitationRsvp = { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) };
       await expect(service.updateStage('pm-01', 'SUPPLIER_INVITATION', completing)).rejects.toThrow('发送邀请通知');
     });
@@ -1859,6 +1860,34 @@ describe('ProjectManagementService', () => {
       const where = prisma.projectManagementItem.findMany.mock.calls[0][0].where;
       expect(where.companyId).toEqual({ in: ['co-test'] }); // makeService 的 companyScope mock 固定本人公司（2026-10-14 多选口径：filter 恒 in 子句）
       expect(where.createdById).toBeUndefined();
+    });
+
+    describe('companyCounts 公司下拉计数（2026-10-28：同族四个 company-counts 端点中唯一无视野的，收口到与 list 同口径）', () => {
+      it('leader → 注入公司视野，分组计数=列表行', async () => {
+        const { service, prisma } = makeService();
+        prisma.projectManagementItem.groupBy.mockResolvedValue([]);
+        await service.companyCounts('ACTIVE', { sub: 'leader-1', username: 'l', role: 'leader' } as never);
+        const where = prisma.projectManagementItem.groupBy.mock.calls[0][0].where;
+        expect(where.status).toBe('ACTIVE');
+        expect(where.companyId).toEqual({ in: ['co-test'] });
+      });
+
+      it('staff → 仅本人项目（createdById），不再平台全量分组', async () => {
+        const { service, prisma } = makeService();
+        prisma.projectManagementItem.groupBy.mockResolvedValue([]);
+        await service.companyCounts('ARCHIVED', { sub: 'staff-1', username: 's', role: 'staff' } as never);
+        const where = prisma.projectManagementItem.groupBy.mock.calls[0][0].where;
+        expect(where.status).toBe('ARCHIVED');
+        expect(where.companyId).toBeUndefined();
+        expect(where.createdById).toBe('staff-1');
+      });
+
+      it('user 缺失（鉴权异常）→ 空集谓词，不泄露全量', async () => {
+        const { service, prisma } = makeService();
+        prisma.projectManagementItem.groupBy.mockResolvedValue([]);
+        await service.companyCounts('ACTIVE');
+        expect(prisma.projectManagementItem.groupBy.mock.calls[0][0].where.createdById).toBe('__no_user__');
+      });
     });
 
     it('项目归属库公司隔离（2026-10-27：不同公司归属不互通）——聚合源注入 companyId 过滤', async () => {

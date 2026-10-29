@@ -110,7 +110,7 @@ export default function BidArchivePage() {
             <div className="page-hero__icon"><Archive size={17} strokeWidth={1.9} /></div>
             <div>
               <div className="page-hero__title">归档端</div>
-              <div className="page-hero__sub">已归档 / 已流标 / 已终止项目的查阅、归档材料回看与开评标数据追溯</div>
+              <div className="page-hero__sub">查阅已归档、已流标与已终止的项目，回看归档材料和开评标记录</div>
             </div>
           </div>
           <div className="page-hero__right">

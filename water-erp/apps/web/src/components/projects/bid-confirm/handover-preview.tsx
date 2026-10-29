@@ -995,7 +995,7 @@ export function HandoverPreview({ downloadUrl }: { downloadUrl: string }) {
               className="neu-btn-xs"
               onClick={() => load(true)}
               disabled={loading}
-              title="回流包重生成后同 URL 覆盖，强制重拉最新内容"
+              title="回流包重新生成后会覆盖原下载地址，请重新加载获取最新内容"
             >
               <RefreshCw size={12} className={loading ? 'animate-spin' : ''} /> 重新加载
             </button>
@@ -1004,9 +1004,9 @@ export function HandoverPreview({ downloadUrl }: { downloadUrl: string }) {
               target="_blank"
               rel="noopener"
               className="neu-btn-xs"
-              title="下载原始 JSON（与上方下载链接同一对象）"
+              title="下载原始数据文件（与上方下载链接指向同一文件）"
             >
-              <Download size={12} /> 原始 JSON
+              <Download size={12} /> 原始数据
             </a>
           </div>
         )}
@@ -1016,7 +1016,7 @@ export function HandoverPreview({ downloadUrl }: { downloadUrl: string }) {
         <div className="mt-2.5 space-y-2.5">
           {loading && !pkg && (
             <div className="wb-note px-3.5 py-4 text-center text-xs text-[var(--muted-foreground)]">
-              正在拉取评标回流包（~220KB）…
+              正在拉取评标回流包…
             </div>
           )}
           {error && (
@@ -1033,16 +1033,16 @@ export function HandoverPreview({ downloadUrl }: { downloadUrl: string }) {
               {pkg.packageType !== undefined && pkg.packageType !== 'BID_EVALUATION_SIGN_HANDOVER' && (
                 <div className="wb-tone-banner wb-tone-banner--warning text-xs">
                   <AlertTriangle size={13} />
-                  <span>包类型为 {pkg.packageType ?? '未知'}（预期 BID_EVALUATION_SIGN_HANDOVER），以下为兼容渲染</span>
+                  <span>回流包类型与预期不符，以下内容按兼容方式展示</span>
                 </div>
               )}
-              <Section icon={<ClipboardCheck size={14} />} title="概要与排名" hint="包内快照，核卷基准">
+              <Section icon={<ClipboardCheck size={14} />} title="概要与排名" hint="以移交时的数据为准">
                 <SummarySection pkg={pkg} />
               </Section>
               <Section icon={<PenLine size={14} />} title="签字与身份核验" hint={`${(pkg.expertSignStatuses ?? []).length} 人`}>
                 <SignSection pkg={pkg} />
               </Section>
-              <Section icon={<Sigma size={14} />} title="评分快照" hint="evaluationSnapshot v2">
+              <Section icon={<Sigma size={14} />} title="评分明细">
                 <ScoreSnapshotSection pkg={pkg} />
               </Section>
               <Section icon={<MessagesSquare size={14} />} title="澄清 · 异议 · 动议 · 条款裁定">

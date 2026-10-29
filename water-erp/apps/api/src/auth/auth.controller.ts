@@ -178,7 +178,7 @@ export class AuthController {
       if (seat.locked) {
         // P1-3（2026-09-21 审查修复）：拒绝同时四路告警（监督日志高风险 + admin 站内信）
         await this.authService.alertSeatLockRejection(
-          result.username, seat.windows, getClientIp(req), (req.headers['user-agent'] as string) ?? null,
+          result.userId, result.username, seat.windows, getClientIp(req), (req.headers['user-agent'] as string) ?? null,
         );
         throw new ConflictException({
           error: `评标期间账号已锁定（项目【${seat.projectNames.join('、')}】评标未结束），如需更换设备请联系主持人解除锁定`,

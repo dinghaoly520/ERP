@@ -54,8 +54,11 @@ export function checkBidNoticeElements(input: BidNoticeChecklistInput): Checklis
   }
 
   // 6. 异议渠道（7.2.2.5 / 4.1.4.1）
-  if (!meta.objection && !/异议/.test(content)) {
-    warnings.push({ item: '异议渠道', clause: '7.2.2.5', message: '公告未载明供应商提出异议的渠道和方式' });
+  // 载体口径（2026-10-28 用户裁定）：异议渠道的正式载体是发布时澄清说明的「异议」部分——
+  // 发布时冻结为 metadata.objectionContact、详情页单独展示；公告文段不要求重复载明。
+  // 判据三选一：metadata.objection（中标公告正文式）或 objectionContact（澄清说明式）或正文含「异议」。
+  if (!meta.objection && !meta.objectionContact && !/异议/.test(content)) {
+    warnings.push({ item: '异议渠道', clause: '7.2.2.5', message: '公告未载明供应商提出异议的渠道和方式（metadata.objection / objectionContact）' });
   }
 
   // 7. 采购人签章（7.2.2.5；公告模板页脚一般含章，正文/元数据均无则提示）

@@ -1,10 +1,11 @@
 import { NotFoundException } from '@nestjs/common';
 import { TenderDraftService } from './tender-draft.service';
 
-/** 采购文件编写·项目草稿跨设备同步（2026-09-09）：服务器为准，localStorage 降级缓存 */
+/** 采购文件编写·项目草稿跨设备同步（2026-09-09）：服务器为准，localStorage 降级缓存。
+ *  2026-10-28 二轮隔离：草稿按 (projectId, round) 存取，round 缺省=PMI currentRound。 */
 describe('TenderDraftService', () => {
-  const mk = (exists = true) => ({
-    projectManagementItem: { findUnique: jest.fn().mockResolvedValue(exists ? { id: 'pm-1' } : null) },
+  const mk = (exists = true, currentRound = 1) => ({
+    projectManagementItem: { findUnique: jest.fn().mockResolvedValue(exists ? { id: 'pm-1', currentRound } : null) },
     projectTenderDraft: {
       findUnique: jest.fn(),
       upsert: jest.fn(),
@@ -26,24 +27,39 @@ describe('TenderDraftService', () => {
     await expect(new TenderDraftService(prisma as any).getDraft('pm-1')).resolves.toBeNull();
   });
 
-  it('getDraft：有记录返回 drafts + 更新时间', async () => {
-    const prisma = mk();
+  it('getDraft：有记录返回 drafts + 更新时间（缺省轮=PMI currentRound）', async () => {
+    const prisma = mk(true, 2);
     const rec = { drafts: draft, updatedAt: new Date('2026-09-09T08:00:00Z'), updatedById: 'u1' };
     prisma.projectTenderDraft.findUnique.mockResolvedValue(rec);
     const r = await new TenderDraftService(prisma as any).getDraft('pm-1');
     expect(r?.drafts).toEqual(draft);
-    expect(prisma.projectTenderDraft.findUnique).toHaveBeenCalledWith({ where: { projectId: 'pm-1' } });
+    expect(prisma.projectTenderDraft.findUnique).toHaveBeenCalledWith({ where: { projectId_round: { projectId: 'pm-1', round: 2 } } });
   });
 
-  it('saveDraft：upsert 且记录保存人', async () => {
+  it('saveDraft：upsert（复合键 projectId+round）且记录保存人', async () => {
     const prisma = mk();
     prisma.projectTenderDraft.upsert.mockResolvedValue({ projectId: 'pm-1', updatedAt: new Date() });
-    await new TenderDraftService(prisma as any).saveDraft('pm-1', { drafts: draft } as never, { sub: 'u1' } as never);
+    await new TenderDraftService(prisma as any).saveDraft('pm-1', { drafts: draft } as never, { sub: 'u1' } as never, 2);
     const arg = prisma.projectTenderDraft.upsert.mock.calls[0][0];
-    expect(arg.where).toEqual({ projectId: 'pm-1' });
+    expect(arg.where).toEqual({ projectId_round: { projectId: 'pm-1', round: 2 } });
+    expect(arg.create.round).toBe(2);
     expect(arg.create.updatedById).toBe('u1');
     expect(arg.create.createdById).toBe('u1');
     expect(arg.update.drafts).toEqual(draft);
+  });
+
+  it('二轮隔离：第二轮 getDraft 不回读第一轮草稿（按 (projectId, round) 取行）', async () => {
+    const prisma = mk(true, 2);
+    prisma.projectTenderDraft.findUnique.mockResolvedValue(null); // 第二轮无草稿（第一轮有也不查）
+    await expect(new TenderDraftService(prisma as any).getDraft('pm-1', 2)).resolves.toBeNull();
+    expect(prisma.projectTenderDraft.findUnique).toHaveBeenCalledWith({ where: { projectId_round: { projectId: 'pm-1', round: 2 } } });
+  });
+
+  it('clearDraft：只清该轮草稿与版本（不影响其他轮）', async () => {
+    const prisma = mk();
+    await new TenderDraftService(prisma as any).clearDraft('pm-1', 2);
+    expect(prisma.projectTenderDraft.deleteMany).toHaveBeenCalledWith({ where: { projectId: 'pm-1', round: 2 } });
+    expect(prisma.projectTenderDraftVersion.deleteMany).toHaveBeenCalledWith({ where: { projectId: 'pm-1', round: 2 } });
   });
 
   it('addVersion：超限裁剪只保留最近 20 条', async () => {

@@ -1041,7 +1041,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       type="button"
                       onClick={() => setManualFor({ id: row.id, expertName: row.expertName })}
                       className="neu-btn-xs"
-                      title="摄像头故障等降级时，主持人现场确认签到（需登记理由，留痕）"
+                      title="摄像头故障等情况下，主持人可现场确认签到（需登记理由备查）"
                     >
                       手动确认
                     </button>
@@ -1061,7 +1061,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       type="button"
                       onClick={() => { setExemptFor({ id: row.id, expertName: row.expertName }); setExemptReason(''); }}
                       className="neu-btn-xs"
-                      title="该专家迁移后待补拍留档照——摄像头不可用等现场确认后可豁免（留痕）"
+                      title="该专家迁移工位后需补拍留档照；摄像头不可用等情形经现场确认可豁免（登记理由）"
                     >
                       豁免迁移照
                     </button>
@@ -1101,7 +1101,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       type="button"
                       onClick={() => { setUnverifyFor({ id: row.id, expertName: row.expertName }); setUnverifyReason(''); }}
                       className="neu-btn-xs"
-                      title="撤销误登记（原因必填；已签到专家将拒绝撤销——防证据回退）"
+                      title="撤销误登记（原因必填；已签到的专家不可撤销）"
                     >
                       撤销核验
                     </button>
@@ -2047,7 +2047,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 value={reopenReason}
                 onChange={(e) => setReopenReason(e.target.value)}
                 rows={3}
-                placeholder="请填写数据更正理由（必填，入监督日志留痕）…"
+                placeholder="请填写数据更正理由（必填，将记入监督日志）…"
                 className="workbench-input w-full resize-none"
               />
               <p className="mt-3 flex items-center gap-1.5 text-[11px] leading-4 text-[var(--muted-foreground)]">

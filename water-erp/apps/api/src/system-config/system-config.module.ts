@@ -6,6 +6,7 @@ import { LocalAiModule } from '../local-ai/local-ai.module';
 import { QUEUE_NAMES } from '../ai-bid-analysis/queues/queue.module';
 import { SystemConfigController } from './system-config.controller';
 import { SystemConfigService } from './system-config.service';
+import { HealthAggregateService } from './health-aggregate.service';
 
 @Module({
   imports: [
@@ -18,7 +19,7 @@ import { SystemConfigService } from './system-config.service';
     ),
   ],
   controllers: [SystemConfigController],
-  providers: [SystemConfigService],
+  providers: [SystemConfigService, HealthAggregateService],
   exports: [SystemConfigService],
 })
 export class SystemConfigModule {}

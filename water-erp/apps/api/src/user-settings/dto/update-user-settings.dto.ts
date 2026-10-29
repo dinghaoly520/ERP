@@ -26,4 +26,9 @@ export class UpdateUserSettingsDto {
   @IsOptional()
   @IsObject()
   notificationPrefs?: Record<string, boolean>;
+
+  @EmptyAsUndefined()
+  @IsOptional()
+  @IsString()
+  defaultReviewKbId?: string;
 }

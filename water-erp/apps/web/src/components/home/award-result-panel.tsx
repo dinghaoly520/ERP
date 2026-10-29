@@ -56,25 +56,26 @@ const fmtDate = (v: string | null | undefined) => {
 
 
 /** CTS-EBS01 A-203：标段（包）与中标信息关联查询（项目 → 中标供应商/合同金额 明细） */
-export function AwardResultPanel({ startDate, endDate }: { startDate?: string; endDate?: string }) {
+export function AwardResultPanel({ startDate, endDate, companyId }: { startDate?: string; endDate?: string; companyId?: string }) {
   const [items, setItems] = useState<ProjectManagementItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [allOpen, setAllOpen] = useState(false);
   const [detail, setDetail] = useState<ProjectManagementItem | null>(null);
 
   // R6-6④（2026-09-30 审计 B1）：随页头日期筛选联动——此前零参全量拉，
-  // 切日期/公司后其余面板全变、这两块不变；companyId 暂不传（staff 视角该接口按创建人隔离，
-  // 与页头公司视野语义不同，传了反而更矛盾——待后端支持公司过滤后再接；
-  // leader 视角 2026-10-10 起后端已强制本人公司，天然与页头一致）
+  // 切日期/公司后其余面板全变、这两块不变。companyId 接上（2026-10-28）：后端 2026-10-14
+  // 起 list 支持 admin companyId 多选，页头选单公司后本面板不再恒全量。leader 后端强制本人
+  // 公司、staff 无驾驶舱入口（app-shell 驾驶舱整组 roles=[admin,leader]）——页面可达人群
+  // （leader/admin）自此与页头 KPI 同公司视野，双源口径差消除。
   useEffect(() => {
-    fetchProjectManagementList()
+    fetchProjectManagementList(undefined, companyId && companyId !== 'all' ? companyId : undefined)
       .then((all) => {
         // R6-6④：按页头日期区间客户端过滤（定标时点 archivedAt 口径，缺省回退 createdAt）——
         // 该接口无日期参数，全量拉一次后本地过滤；切换区间只重算 memo 不重发请求
         setItems(all.filter((i) => i.awardedSupplier));
       })
       .catch((e) => setError(e instanceof Error ? e.message : '加载失败'));
-  }, []);
+  }, [companyId]);
 
   // 日期区间过滤（定标时点口径；单边生效）
   const filtered = useMemo(() => {

@@ -77,3 +77,29 @@ describe('ProcurementsService recycle bin', () => {
     });
   });
 });
+
+/** getStats 节资口径（2026-10-28 收口）：与 dashboard getDashboard/环比同源——
+ *  仅 AWARDED 且 budget>0、award>0、budget>=award 参与合计。
+ *  原「总预算−总中标」把 PENDING/CANCELLED 轮的预算全部虚增为「节资」
+ *  （移动端台账与驾驶舱同 App 同标签「累计节资」两数矛盾）。 */
+describe('ProcurementsService.getStats — totalSavings 口径', () => {
+  it('仅 AWARDED 且 budget>=award>0 的轮次计入（PENDING 预算/超预算中标/缺金额均不计）', async () => {
+    const calls: any = {
+      count: jest.fn().mockResolvedValue(1),
+      aggregate: jest.fn()
+        .mockResolvedValueOnce({ _sum: { budgetAmount: 1_000_000 } })  // budgetSum（含 PENDING 轮）
+        .mockResolvedValueOnce({ _sum: { awardAmount: 500_000 } }),      // awardSum
+      findMany: jest.fn().mockResolvedValue([
+        { budgetAmount: 100, awardAmount: 80 },   // AWARDED 正常 → +20
+        { budgetAmount: 100, awardAmount: 120 },  // 超预算中标 → 不计
+        { budgetAmount: 100, awardAmount: null }, // 缺中标额 → 不计
+        { budgetAmount: 50, awardAmount: 30 },    // AWARDED 正常 → +20
+      ]),
+    };
+    const prisma = { procurementRound: calls };
+    const { ProcurementsService } = require('./procurements.service');
+    const svc = new (ProcurementsService as any)(prisma);
+    const res = await svc.getStats(undefined, undefined, undefined, {});
+    expect(res.totalSavings).toBe(40); // 旧口径会是 500,000（1M−0.5M）
+  });
+});

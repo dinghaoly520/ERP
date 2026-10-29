@@ -1055,9 +1055,9 @@ export default function RegisterPage() {
           )}
           <RegistrationSection icon={Building2} title="企业信息" hint="请按营业执照如实填写">
                 <div className="reg-item">
-                  <label className="reg-label">公司 logo</label>
+                  <label className="reg-label">公司标志</label>
                   <button type="button" className="reg-logo-drop" onClick={() => logoInputRef.current?.click()}
-                    aria-label={basic.logoUrl ? "更换公司 logo" : "上传公司 logo"}>
+                    aria-label={basic.logoUrl ? "更换公司标志" : "上传公司标志"}>
                     {logoPreviewUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={logoPreviewUrl} alt="公司 logo 本地预览" className="reg-logo-preview" />
@@ -1065,8 +1065,8 @@ export default function RegisterPage() {
                       <span className="reg-logo-ph"><ImagePlus size={22} strokeWidth={1.75} /></span>
                     )}
                     <span className="reg-logo-meta">
-                      <strong>{basic.logoUrl ? "已上传，点击更换" : "点击上传公司 logo"}</strong>
-                      <span>支持 png / jpg，≤5MB</span>
+                      <strong>{basic.logoUrl ? "已上传，点击更换" : "点击上传公司标志"}</strong>
+                      <span>支持 JPG / PNG，≤5MB</span>
                     </span>
                   </button>
                   <input ref={logoInputRef} type="file" hidden accept=".png,.jpg,.jpeg" onChange={pickLogo} />

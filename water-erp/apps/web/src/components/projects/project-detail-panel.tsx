@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Archive, Award, Ban, Building2, Check, ChevronDown, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileCheck2, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Search, Shield, Sparkles, UploadCloud, UserPlus, X } from 'lucide-react';
+import { AlertTriangle, Archive, Award, Ban, Building2, Check, ChevronDown, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileCheck2, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, Plus, Recycle, RefreshCw, Save, ScrollText, Search, Shield, Sparkles, UploadCloud, UserPlus, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
@@ -66,6 +66,7 @@ function ExpertInfoField({
   onEditValueChange,
   onStartEdit,
   onSave,
+  onCancel,
   readOnly = false,
 }: {
   value: string | null | undefined;
@@ -74,8 +75,15 @@ function ExpertInfoField({
   onEditValueChange: (value: string) => void;
   onStartEdit: () => void;
   onSave: () => void;
+  onCancel?: () => void;
   readOnly?: boolean;
 }) {
+  // 弹窗编辑（2026-10-28 用户口径：侧栏内联编辑既挤又乱，改独立弹窗；信息栏恒显只读表）
+  const [snapshot, setSnapshot] = useState<string | null>(null);
+  useEffect(() => {
+    if (isEditing) setSnapshot(editValue); // 开窗快照：取消时回滚未保存的草稿
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing]);
   const hasValue = value !== null && value !== undefined && value !== '';
 
   // Parse experts from a pipe-delimited string: "姓名|部门|专业|职称|角色" per line.
@@ -157,26 +165,67 @@ function ExpertInfoField({
         )}
       </div>
 
-      {isEditing ? (
-        <div className="space-y-2">
+      {/* 弹窗编辑（2026-10-28）：信息栏恒显只读表；编辑在独立弹窗内进行（窄侧栏内联编辑实录弃用） */}
+      {isEditing && (
+        <div className="fixed inset-0 z-[600] flex items-center justify-center">
+          <div className="absolute inset-0" style={{ background: 'oklch(0.1 0.02 258 / 0.42)', backdropFilter: 'blur(4px)' }} onClick={() => { if (snapshot !== null) onEditValueChange(snapshot); onCancel?.(); }} />
+          <div className="relative z-10 flex max-h-[82vh] w-full max-w-[860px] flex-col overflow-hidden rounded-[24px]"
+            style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 4px 5px 18px oklch(0.45 0.07 258 / 0.2), -2px -2px 8px oklch(1 0 0 / 0.9)' }}>
+            {/* 弹窗头 */}
+            <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-4" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px]" style={{ background: 'color-mix(in oklch, var(--stage-expert-soft, var(--accent-soft)) 45%, transparent)' }}>
+                  <Shield size={17} style={{ color: 'var(--stage-expert, var(--accent))' }} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[0.92rem] font-semibold text-[var(--foreground)]">编辑评审专家</div>
+                  <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">{editExperts.length} 人 · 保存后写入项目基本信息</div>
+                </div>
+              </div>
+              <button type="button" onClick={() => { if (snapshot !== null) onEditValueChange(snapshot); onCancel?.(); }} className="neu-btn-xs"><X size={16} /></button>
+            </div>
+            {/* 弹窗体 */}
+            <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-6 py-4">
+          {/* 专家行（2026-10-28 三改）：单行五字段与只读表同构（姓名/部门/专业/职称/角色各一列，专业弹性占宽），
+              序号徽标行首 + 删除钮行尾；弹窗加宽 860px 承载 */}
           {editExperts.map((expert, i) => (
-            <div key={i} className="grid grid-cols-[1fr_1fr_1fr_1fr_80px_auto] gap-1.5 items-center">
-              <input type="text" value={expert.name} onChange={(e) => updateExpertField(i, 'name', e.target.value)} className="workbench-input !h-[32px] !text-xs" placeholder="姓名" />
-              <input type="text" value={expert.department} onChange={(e) => updateExpertField(i, 'department', e.target.value)} className="workbench-input !h-[32px] !text-xs" placeholder="部门" />
-              <input type="text" value={expert.specialty} onChange={(e) => updateExpertField(i, 'specialty', e.target.value)} className="workbench-input !h-[32px] !text-xs" placeholder="专业" />
-              <input type="text" value={expert.title} onChange={(e) => updateExpertField(i, 'title', e.target.value)} className="workbench-input !h-[32px] !text-xs" placeholder="职称" />
-              <input type="text" value={(expert as any).role || ''} onChange={(e) => updateExpertField(i, 'role', e.target.value)} className="workbench-input !h-[32px] !text-xs" placeholder="角色" />
-              <button type="button" onClick={() => removeExpertRow(i)} className="neu-btn-xs !px-2"><X size={13} /></button>
+            <div key={i} className="flex items-end gap-1.5 rounded-lg px-2.5 py-2" style={{ background: 'oklch(1 0 0 / 0.45)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+              <span className="mb-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] text-[9px] font-extrabold text-white" style={{ background: 'linear-gradient(135deg, oklch(0.52 0.16 258), oklch(0.45 0.14 258))' }}>{i + 1}</span>
+              {([
+                ['姓名', 'name', expert.name, 'w-[11%] min-w-[64px]'],
+                ['部门', 'department', expert.department, 'w-[17%] min-w-[96px]'],
+                ['专业', 'specialty', expert.specialty, 'min-w-0 flex-1'],
+                ['职称', 'title', expert.title, 'w-[15%] min-w-[88px]'],
+                ['角色', 'role', (expert as any).role || '', 'w-[10%] min-w-[60px]'],
+              ] as const).map(([label, key, value, wCls]) => (
+                <label key={key} className={`flex min-w-0 flex-col gap-0.5 ${wCls}`}>
+                  <span className="text-[9px] font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">{label}</span>
+                  <input
+                    type="text"
+                    value={value as string}
+                    onChange={(e) => updateExpertField(i, key as 'name', e.target.value)}
+                    placeholder={label === '姓名' ? '姓名' : ''}
+                    className="!h-[30px] !min-w-0 !rounded-[9px] !border-0 !text-xs !text-[var(--foreground)] focus:!ring-2 focus:!ring-[color-mix(in_oklch,var(--accent)_35%,transparent)]"
+                    style={{ background: 'oklch(0.972 0.012 258 / 0.65)', boxShadow: 'inset 1px 1px 3px oklch(0.55 0.03 258 / 0.08), inset -1px -1px 2px oklch(1 0 0 / 0.7)' }}
+                  />
+                </label>
+              ))}
+              <button type="button" onClick={() => removeExpertRow(i)} className="neu-btn-xs mb-0.5 !h-6 !w-6 shrink-0 !p-0 justify-center" aria-label="删除该专家"><X size={12} /></button>
             </div>
           ))}
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={addExpertRow} className="text-[11px] font-medium text-[color:var(--accent)] hover:underline">+ 添加专家</button>
-            <span className="text-[10px] text-[color:var(--muted-foreground)]">{editExperts.length} 人</span>
-            <div className="flex-1" />
-            <button type="button" onClick={onSave} className="neu-btn-xs"><Save size={13} />保存</button>
+            </div>
+            {/* 弹窗脚 */}
+            <div className="flex shrink-0 items-center gap-2 px-6 py-3.5" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
+              <button type="button" onClick={addExpertRow} className="neu-btn-xs gap-1"><Plus size={12} />添加专家</button>
+              <span className="text-[10px] text-[var(--muted-foreground)]">{editExperts.length} 人</span>
+              <div className="flex-1" />
+              <button type="button" onClick={() => { if (snapshot !== null) onEditValueChange(snapshot); onCancel?.(); }} className="neu-btn-soft !h-[34px]">取消</button>
+              <button type="button" onClick={onSave} className="neu-btn-primary !h-[34px]"><Save size={13} />保存</button>
+            </div>
           </div>
         </div>
-      ) : hasValue && experts.length > 0 ? (
+      )}
+      {hasValue && experts.length > 0 ? (
         <div className="overflow-x-auto rounded-[10px]" style={{ background: 'oklch(1 0 0 / 0.3)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
           <table className="neu-table w-full min-w-[500px]">
             <thead>
@@ -221,6 +270,7 @@ function BiddingUnitsField({
   onEditValueChange,
   onStartEdit,
   onSave,
+  onCancel,
   readOnly = false,
 }: {
   label: string;
@@ -230,8 +280,16 @@ function BiddingUnitsField({
   onEditValueChange: (value: string) => void;
   onStartEdit: () => void;
   onSave: () => void;
+  onCancel?: () => void;
   readOnly?: boolean;
 }) {
+  // 弹窗编辑（2026-10-28 四改·与专家信息同款）：开窗快照，取消回滚草稿
+  const [unitSnapshot, setUnitSnapshot] = useState<string | null>(null);
+  useEffect(() => {
+    if (isEditing) setUnitSnapshot(editValue);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing]);
+  const cancelUnits = () => { if (unitSnapshot !== null) onEditValueChange(unitSnapshot); onCancel?.(); };
   const hasValue = value !== null && value !== undefined && value !== '';
   // 解析投标单位（用顿号、逗号或换行分隔）
   const units = hasValue ? String(value).split(/[、,\n]/).filter(u => u.trim()) : [];
@@ -271,23 +329,51 @@ function BiddingUnitsField({
         )}
       </div>
 
-      {isEditing ? (
-        <div className="space-y-2">
-          {editUnits.map((unit, i) => (
-            <div key={i} className="flex items-center gap-1.5">
-              <span className="w-5 text-center text-[11px] font-semibold text-[color:var(--muted-foreground)]">{i + 1}</span>
-              <input type="text" value={unit} onChange={(e) => updateUnit(i, e.target.value)} className="workbench-input !h-[32px] !text-xs flex-1" placeholder={`输入${unitName}名称`} />
-              <button type="button" onClick={() => removeUnitRow(i)} className="neu-btn-xs !px-2"><X size={13} /></button>
+      {/* 弹窗编辑（2026-10-28 四改·与专家信息同款弹窗）：信息栏恒显只读名单 */}
+      {isEditing && (
+        <div className="fixed inset-0 z-[600] flex items-center justify-center">
+          <div className="absolute inset-0" style={{ background: 'oklch(0.1 0.02 258 / 0.42)', backdropFilter: 'blur(4px)' }} onClick={cancelUnits} />
+          <div className="relative z-10 flex max-h-[82vh] w-full max-w-[620px] flex-col overflow-hidden rounded-[24px]"
+            style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 4px 5px 18px oklch(0.45 0.07 258 / 0.2), -2px -2px 8px oklch(1 0 0 / 0.9)' }}>
+            <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-4" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px]" style={{ background: 'color-mix(in oklch, var(--stage-announce-soft, var(--accent-soft)) 45%, transparent)' }}>
+                  <UserPlus size={17} style={{ color: 'var(--stage-announce, var(--accent))' }} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[0.92rem] font-semibold text-[var(--foreground)]">编辑{label}</div>
+                  <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">{editUnits.filter(u => u.trim()).length} 家 · 保存后写入项目基本信息</div>
+                </div>
+              </div>
+              <button type="button" onClick={cancelUnits} className="neu-btn-xs"><X size={16} /></button>
             </div>
-          ))}
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={addUnitRow} className="text-[11px] font-medium text-[color:var(--accent)] hover:underline">+ 添加{unitName}</button>
-            <span className="text-[10px] text-[color:var(--muted-foreground)]">{editUnits.length} 家</span>
-            <div className="flex-1" />
-            <button type="button" onClick={onSave} className="neu-btn-xs"><Save size={13} />保存</button>
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-6 py-4">
+              {editUnits.map((unit, i) => (
+                <div key={i} className="flex items-center gap-1.5 rounded-lg px-2.5 py-2" style={{ background: 'oklch(1 0 0 / 0.45)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] text-[9px] font-extrabold text-white" style={{ background: 'linear-gradient(135deg, oklch(0.52 0.16 258), oklch(0.45 0.14 258))' }}>{i + 1}</span>
+                  <input
+                    type="text"
+                    value={unit}
+                    onChange={(e) => updateUnit(i, e.target.value)}
+                    placeholder={`输入${unitName}名称`}
+                    className="!h-[30px] !min-w-0 !flex-1 !rounded-[9px] !border-0 !text-xs !text-[var(--foreground)] focus:!ring-2 focus:!ring-[color-mix(in_oklch,var(--accent)_35%,transparent)]"
+                    style={{ background: 'oklch(0.972 0.012 258 / 0.65)', boxShadow: 'inset 1px 1px 3px oklch(0.55 0.03 258 / 0.08), inset -1px -1px 2px oklch(1 0 0 / 0.7)' }}
+                  />
+                  <button type="button" onClick={() => removeUnitRow(i)} className="neu-btn-xs !h-6 !w-6 shrink-0 !p-0 justify-center" aria-label={`删除该${unitName}`}><X size={12} /></button>
+                </div>
+              ))}
+            </div>
+            <div className="flex shrink-0 items-center gap-2 px-6 py-3.5" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
+              <button type="button" onClick={addUnitRow} className="neu-btn-xs gap-1"><Plus size={12} />添加{unitName}</button>
+              <span className="text-[10px] text-[var(--muted-foreground)]">{editUnits.filter(u => u.trim()).length} 家</span>
+              <div className="flex-1" />
+              <button type="button" onClick={cancelUnits} className="neu-btn-soft !h-[34px]">取消</button>
+              <button type="button" onClick={onSave} className="neu-btn-primary !h-[34px]"><Save size={13} />保存</button>
+            </div>
           </div>
         </div>
-      ) : hasValue && units.length > 0 ? (
+      )}
+      {hasValue && units.length > 0 ? (
         <div className="space-y-1.5">
           {units.map((unit, i) => (
             <div
@@ -545,6 +631,11 @@ export function ProjectDetailPanel({
   // ── 流标提示条（2026-10-21）：投标侧已流标而 PMI 仍 ACTIVE——按当前轮对齐，防 reproc 后旧轮误报 ──
   const currentRoundBp = bpRefs.find((r) => r.round === (item.currentRound ?? 1)) ?? null;
   const abortedRiskNote = currentRoundBp ? bpDetails[currentRoundBp.id]?.riskNote ?? '' : '';
+  // 2026-10-28 二轮隔离：历史轮的开标/获取时间改读该轮 BidProject 快照（轮次切换时自 PMI 迁入）；
+  // 当前轮读 PMI 字段（轮次切换已清空，逐步重填）
+  const pastRoundBpRef = isPastRound ? bpRefs.find((r) => r.round === selectedRound) ?? null : null;
+  const roundTimeDisplay = (iso: string | null | undefined) =>
+    iso ? new Date(iso).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '—';
   const bidAborted =
     item.status === 'ACTIVE' &&
     (currentRoundBp?.stage === 'ABORTED' ||
@@ -790,7 +881,8 @@ export function ProjectDetailPanel({
     const seq = ++stepAnalysisSeqRef.current;
     setStepAnalysisLoading(true);
     setStepAnalysisError(null);
-    analyzeProjectStep(item.id, selectedStage.stageKey, refresh)
+    // 2026-10-28 二轮隔离：按选中轮取该轮步骤数据（历史轮查看不混入当前轮产物）
+    analyzeProjectStep(item.id, selectedStage.stageKey, refresh, selectedStage.round ?? undefined)
       .then((res) => {
         if (seq !== stepAnalysisSeqRef.current) return; // 已切换步骤：旧响应丢弃
         setStepAnalysisContent(res.content);
@@ -806,7 +898,7 @@ export function ProjectDetailPanel({
         if (seq !== stepAnalysisSeqRef.current) return;
         setStepAnalysisLoading(false);
       });
-  }, [item.id, selectedStage.stageKey, selectedStage.status]);
+  }, [item.id, selectedStage.stageKey, selectedStage.status, selectedStage.round]);
 
   useEffect(() => {
     setStepAnalysisContent('');
@@ -1880,12 +1972,14 @@ export function ProjectDetailPanel({
                     )}
                   </div>
                   <div>
-                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">开标时间</span><button type="button" onClick={() => void handleAiExtractTender('bidOpeningTime')} disabled={aiExtracting === 'bidOpeningTime' || actionsDisabled} className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'bidOpeningTime' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button></div>
+                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">开标时间</span>{!isPastRound && <button type="button" onClick={() => void handleAiExtractTender('bidOpeningTime')} disabled={aiExtracting === 'bidOpeningTime' || actionsDisabled} className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'bidOpeningTime' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button>}</div>
                     {editingField === 'bidOpeningTime' ? (
                       <div className="mt-1 flex items-center gap-1.5">
                         <input type="datetime-local" value={editValues.bidOpeningTime} onChange={(e) => setEditValues((prev) => ({ ...prev, bidOpeningTime: e.target.value }))} className="workbench-input !h-[28px] !text-xs flex-1" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveField('bidOpeningTime'); if (e.key === 'Escape') setEditingField(null); }} />
                         <button type="button" onClick={() => void handleSaveField('bidOpeningTime')} className="neu-btn-xs"><Save size={13} /></button>
                       </div>
+                    ) : isPastRound ? (
+                      <span className="mt-0.5 block text-sm text-[color:var(--foreground)]">{roundTimeDisplay(pastRoundBpRef?.roundOpeningTime)}</span>
                     ) : (
                       <button type="button" onClick={() => handleStartEdit('bidOpeningTime', extractedInfoOverride?.bidOpeningTime ?? localItem.bidOpeningTime ?? null)} className="group mt-0.5 flex items-center gap-1">
                         <span className={`text-sm ${(extractedInfoOverride?.bidOpeningTime ?? localItem.bidOpeningTime) ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{(extractedInfoOverride?.bidOpeningTime ?? localItem.bidOpeningTime) || '待补充'}</span>
@@ -1894,7 +1988,7 @@ export function ProjectDetailPanel({
                     )}
                   </div>
                   <div>
-                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">采购文件获取时间</span><button type="button" onClick={() => void handleAiExtractTender('documentAcquireTime')} disabled={aiExtracting === 'documentAcquireTime' || actionsDisabled} className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'documentAcquireTime' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button></div>
+                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">采购文件获取时间</span>{!isPastRound && <button type="button" onClick={() => void handleAiExtractTender('documentAcquireTime')} disabled={aiExtracting === 'documentAcquireTime' || actionsDisabled} className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'documentAcquireTime' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button>}</div>
                     {editingField === 'documentAcquireTime' ? (
                       <div className="mt-1 flex items-center gap-1.5">
                         <input type="datetime-local" value={(editValues.documentAcquireTime || '').split('~')[0] ?? ''} onChange={(e) => setEditValues((prev) => { const parts = (prev.documentAcquireTime || '').split('~'); return { ...prev, documentAcquireTime: `${e.target.value}~${parts[1] ?? ''}` }; })} className="workbench-input !h-[28px] !text-xs flex-1" autoFocus onKeyDown={(e) => { if (e.key === 'Escape') setEditingField(null); }} />
@@ -1902,6 +1996,8 @@ export function ProjectDetailPanel({
                         <input type="datetime-local" value={(editValues.documentAcquireTime || '').split('~')[1] ?? ''} onChange={(e) => setEditValues((prev) => { const parts = (prev.documentAcquireTime || '').split('~'); return { ...prev, documentAcquireTime: `${parts[0] ?? ''}~${e.target.value}` }; })} className="workbench-input !h-[28px] !text-xs flex-1" onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveField('documentAcquireTime'); if (e.key === 'Escape') setEditingField(null); }} />
                         <button type="button" onClick={() => void handleSaveField('documentAcquireTime')} className="neu-btn-xs"><Save size={13} /></button>
                       </div>
+                    ) : isPastRound ? (
+                      <span className="mt-0.5 block text-sm text-[color:var(--foreground)]">{roundTimeDisplay(pastRoundBpRef?.roundDocAcquireTime)}</span>
                     ) : (
                       <button type="button" onClick={() => handleStartEdit('documentAcquireTime', extractedInfoOverride?.documentAcquireTime ?? localItem.documentAcquireTime ?? null)} className="group mt-0.5 flex items-center gap-1">
                         <span className={`text-sm ${(extractedInfoOverride?.documentAcquireTime ?? localItem.documentAcquireTime) ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{fmtAcquireTime(extractedInfoOverride?.documentAcquireTime ?? localItem.documentAcquireTime) || '待补充'}</span>
@@ -1931,6 +2027,7 @@ export function ProjectDetailPanel({
                   onEditValueChange={(v) => setEditValues((prev) => ({ ...prev, invitedSuppliers: v }))}
                   onStartEdit={() => handleStartEdit('invitedSuppliers', extractedInfoOverride?.invitedSuppliers ?? item.invitedSuppliers ?? null)}
                   onSave={() => void handleSaveField('invitedSuppliers')}
+                  onCancel={() => setEditingField(null)}
                 />
               </div>
               )}
@@ -1952,6 +2049,7 @@ export function ProjectDetailPanel({
                   onEditValueChange={(v) => setEditValues((prev) => ({ ...prev, expertInfo: v }))}
                   onStartEdit={() => handleStartEdit('expertInfo', extractedInfoOverride?.expertInfo ?? item.expertInfo)}
                   onSave={() => void handleSaveField('expertInfo')}
+                  onCancel={() => setEditingField(null)}
                 />
               </div>
 

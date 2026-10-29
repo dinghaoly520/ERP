@@ -106,6 +106,9 @@ describe('Expert room code & window isolation (e2e)', () => {
     await prisma.bidProject.deleteMany({ where: { id: { in: [projectA, projectB, projectC, projectD, projectE1, projectE2] } } });
     await prisma.fileAsset.deleteMany({ where: { id: cexpPhotoId } });
     await prisma.user.deleteMany({ where: { username: { in: Object.values(U) } } });
+    // 用例触发的 admin 安全通知是快照文案（内容嵌 e2e 用户名/项目名），随用例清掉——
+    // 否则 :3005 通知管理残留 e2e 账号串（bid.e2e-spec.ts 同款先例）
+    await prisma.notification.deleteMany({ where: { content: { contains: 'e2e-rw-' } } }).catch(() => {});
     await app.close();
   });
 

@@ -30,6 +30,15 @@ model Company {
   purchaserPhone     String? // 采购人电话
   purchaserEmail     String? // 采购人邮箱
 
+  // ── 阳光采购对接档案（2026-10-28）：平台侧组织档案，公司信息管理维护——
+  //    公告发布「同步至阳光采购平台」弹窗自动带出（identity/IP 白名单由平台方分配，不在此列）──
+  sunshineOrganizationCode   String? // 组织编码（SCM0001.organizationCode）
+  sunshineOrganizationUnique String? // 组织唯一标识（SCM0001.organizationUnique）
+  sunshineParentOrganization String? // 父级组织（SCM0001.parentOrganization）
+  sunshineProcuringEntity    String? // 采购主体 ID（SCM0001.procuringentity）
+  sunshineStandardQuota      String? // 招标采购限额·万元（SCM0001.standardQuota）
+  sunshinePublicQuota        String? // 公开采购限额·万元（SCM0001.publicQuota）
+
   users               User[]
   suppliers           Supplier[]              @relation("SupplierCompany")
   supplierLinks       SupplierCompanyLink[]    @relation("CompanySupplierLinks")
@@ -412,6 +421,8 @@ model BidProject {
   gbProcureCode             String? // A1（B.4.3.3）：国标采购项目编码（21 位组合码；不动业务 projectCode 唯一键）
   gbSectionCode             String? // A1（B.4.3.4）：标段（标包/份额）编码（24 位；单标段=采购项目编码+001）
   round                     Int                        @default(1) // 采购轮次（再次采购递增）
+  roundOpeningTime          DateTime? // 2026-10-28 二轮隔离：该轮 PMI 层「开标时间」历史快照（轮次切换时从 PMI 迁入；PMI 字段=当前轮值）
+  roundDocAcquireTime       DateTime? // 2026-10-28 二轮隔离：该轮 PMI 层「采购文件获取时间」历史快照
   currentRoundNo            Int                        @default(1) // P2c: 当前报价轮次(多轮报价)
   roundMode                 String? // P2c: null=单轮 | 'negotiation'=谈判 | 'sealed_auction'=竞价
   leaderCoSigned            Boolean                    @default(false) // C2: 组长末签
@@ -2533,6 +2544,7 @@ model UserSettings {
   defaultHomePage   String   @default("work-arrangements")
   compactMode       Boolean  @default(false)
   notificationPrefs Json?
+  defaultReviewKbId String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -2746,7 +2758,7 @@ model ProjectManagementItem {
   bidProjects                  BidProject[]
   planItems                    ProjectPlanItem[]
   teamMembers                  ProjectTeamMember[]
-  tenderDraft                  ProjectTenderDraft?
+  tenderDrafts                 ProjectTenderDraft[]
   tenderDraftVersions          ProjectTenderDraftVersion[]
 
   // ── DA/T 103-2024 归档（一卷单元）──
@@ -3001,10 +3013,12 @@ model ProjectManagementStage {
 // 草稿此前仅存浏览器 localStorage（按设备隔离），换设备登录同账号不可见；
 // 现以服务器为准（last-write-wins），localStorage 降级为离线缓存。
 
-/// 每项目一份「当前草稿」（全部模板类型合并存储，键 = TenderDraftsState）
+/// 每项目每轮一份「当前草稿」（全部模板类型合并存储，键 = TenderDraftsState）
+/// 2026-10-28 二轮隔离：unique 从 projectId 收紧为 (projectId, round)——新一轮编写不回读旧轮草稿
 model ProjectTenderDraft {
   id          String                @id @default(cuid())
-  projectId   String                @unique
+  projectId   String
+  round       Int                    @default(1) // 采购轮次（草稿按轮隔离；存量行=1）
   drafts      Json
   createdById String? // 首次创建人
   updatedById String? // 最近保存人（同账号多设备可追溯）
@@ -3012,19 +3026,21 @@ model ProjectTenderDraft {
   updatedAt   DateTime              @updatedAt
   project     ProjectManagementItem @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
+  @@unique([projectId, round])
   @@index([updatedAt])
 }
 
-/// 「保存当前」产生的历史版本（恢复点），每项目保留最近 20 条
+/// 「保存当前」产生的历史版本（恢复点），每项目每轮保留最近 20 条
 model ProjectTenderDraftVersion {
   id        String                @id @default(cuid())
   projectId String
+  round     Int                    @default(1) // 采购轮次（版本随轮隔离）
   label     String // 展示用时间标签（前端生成）
   drafts    Json
   createdAt DateTime              @default(now())
   project   ProjectManagementItem @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  @@index([projectId, createdAt])
+  @@index([projectId, round, createdAt])
 }
 
 // ── Excel 导入批次 ──
@@ -3304,6 +3320,8 @@ model ReviewTask {
   knowledgeBaseId         String?
   reviewMode              String
   status                  String         @default("pending")
+  projectId               String?
+  draftFingerprint        String?
   totalChecks             Int            @default(0)
   passedCount             Int            @default(0)
   failedCount             Int            @default(0)
@@ -3319,6 +3337,7 @@ model ReviewTask {
   @@index([knowledgeBaseId])
   @@index([status])
   @@index([userId])
+  @@index([projectId])
 }
 
 // ── 标书字段样本 ──

@@ -7,9 +7,18 @@ describe('AlertsService', () => {
     bidExpert: { findMany: jest.fn(), count: jest.fn() },
     expertEvaluation: { findMany: jest.fn() },
   };
+  const companyScope = {
+    resolveScope: jest.fn().mockResolvedValue({ all: false, companyIds: ['co-1'] }),
+  };
+  const ACTOR_STAFF = { sub: 'u-1', role: 'staff', username: 'S-01' } as any;
 
   beforeEach(() => {
-    service = new AlertsService(prisma as any);
+    prisma.supplierQualification.count.mockReset().mockResolvedValue(0);
+    prisma.supplierQualification.findMany.mockReset().mockResolvedValue([]);
+    prisma.bidExpert.findMany.mockReset().mockResolvedValue([]);
+    prisma.bidExpert.count.mockReset().mockResolvedValue(0);
+    prisma.expertEvaluation.findMany.mockReset().mockResolvedValue([]);
+    service = new AlertsService(prisma as any, companyScope as any);
   });
 
   describe('overview', () => {
@@ -31,6 +40,26 @@ describe('AlertsService', () => {
       prisma.bidExpert.findMany.mockResolvedValue([{ userId: 'e1' }, { userId: 'e1' }]);
       const res = await service.overview();
       expect(res.overloadedExperts).toBe(0);
+    });
+
+    it('口径收口（2026-10-28）：临期资质=库内四态+公司视野，过载专家限在编评标专家+按归属公司过滤', async () => {
+      await service.overview(ACTOR_STAFF);
+      // 临期资质：与供应商总览 getStats/资质预警同口径（库内四态 + link 视野）
+      const qualWhere = prisma.supplierQualification.count.mock.calls[0][0].where;
+      expect(qualWhere.supplier.status).toEqual({ in: ['APPROVED', 'DISABLED', 'BLACKLIST'] });
+      expect(qualWhere.supplier.companyLinks).toEqual({ some: { companyId: { in: ['co-1'] }, status: 'APPROVED' } });
+      // 过载专家：限在编评标专家（role+isActive），专家库已公司隔离（User.companyId）不跨视野计数
+      const expertWhere = prisma.bidExpert.findMany.mock.calls[0][0].where;
+      expect(expertWhere.user).toEqual({ role: 'bid_expert', isActive: true, companyId: { in: ['co-1'] } });
+    });
+
+    it('无 actor（内部调用）：人口口径同样生效，公司过滤不注入', async () => {
+      await service.overview();
+      const qualWhere = prisma.supplierQualification.count.mock.calls[0][0].where;
+      expect(qualWhere.supplier.status).toEqual({ in: ['APPROVED', 'DISABLED', 'BLACKLIST'] });
+      expect(qualWhere.supplier.companyLinks).toBeUndefined();
+      const expertWhere = prisma.bidExpert.findMany.mock.calls[0][0].where;
+      expect(expertWhere.user).toEqual({ role: 'bid_expert', isActive: true });
     });
   });
 

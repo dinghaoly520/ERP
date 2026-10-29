@@ -174,10 +174,10 @@ export class AnnouncementController {
   }
 
   @Get('attachments/:aid/download')
-  @Public()
-  @ApiOperation({ summary: '公开下载公告附件' })
-  async downloadAttachment(@Param('aid') aid: string, @Res() res: any) {
-    return this.attachmentService.stream(aid, res);
+  @OptionalAuth() // 匿名可下公开公告附件；RESTRICTED 定向公告附件需登录且为被选定供应商（service 内闸门，与 getPublic 同口径）
+  @ApiOperation({ summary: '公开下载公告附件（按公告可见性闸门）' })
+  async downloadAttachment(@Param('aid') aid: string, @Request() req: any, @Res() res: any) {
+    return this.attachmentService.stream(aid, res, req?.user);
   }
 
   // 招标文件（加密 + 受控分发）

@@ -1160,6 +1160,14 @@ export class SupplierPortalService {
 
   async updateContact(supplierId: string, contactId: string, dto: Partial<CreateContactDto>) {
     await this.assertNotTemporary(supplierId); // B3-2
+    // 空 DTO 显性拒绝（2026-10-28 联系人「假成功」纵深）：全字段 optional 的条件更新
+    // 遇空载荷会静默无操作并返回 200——此前供应商门户 api.put 漏 Content-Type 致后端
+    // 恒收空 DTO，用户侧「提示更新成功但数据未变」。前端已修；此处保证同类缺陷显形为 400。
+    const hasAnyField = [dto.name, dto.phone, dto.email, dto.isPrimary, dto.position, dto.gender, dto.idCard]
+      .some((v) => v !== undefined);
+    if (!hasAnyField) {
+      throw new BadRequestException({ error: '未提供任何要更新的字段', code: 'EMPTY_UPDATE' });
+    }
     const contact = await this.prisma.supplierContact.findUnique({ where: { id: contactId } });
     if (!contact || contact.supplierId !== supplierId) {
       throw new BadRequestException({ error: '联系人不存在', code: 'NOT_FOUND' });
@@ -1973,10 +1981,29 @@ export class SupplierPortalService {
 
       // 富化：查找关联的招标公告内容（relatedProjectCode + type=BID_NOTICE）。
       // 公告存业务编号（ZJ-xxx）、项目内部是 BID-时间戳——两个编号都试；撞号时按 metadata.projectCode 校正。
+      // attachments（2026-10-28）：公告附件随公告正文一并提供——:3004 项目机会详情页附件下载入口，
+      // 与公告中心/信息门户同源（公开下载端点按公告可见性闸门；本项目机会侧不受公示期满影响，
+      // 与 resolveOwnAnnouncement 只硬过滤 status 的既有裁定一致）。
       const announcement = await this.resolveOwnAnnouncement(project, {
         title: true, content: true, summary: true, publishDate: true, metadata: true,
+        attachments: {
+          select: {
+            id: true, title: true, createdAt: true,
+            fileAsset: { select: { id: true, originalName: true, size: true, mimeType: true } },
+          },
+        },
       });
-      (project as any).announcement = announcement;
+      (project as any).announcement = announcement && {
+        ...announcement,
+        attachments: ((announcement as any).attachments ?? []).map((a: any) => ({
+          id: a.id,
+          title: a.title || a.fileAsset?.originalName,
+          name: a.fileAsset?.originalName,
+          size: a.fileAsset?.size ?? null,
+          mimeType: a.fileAsset?.mimeType ?? null,
+          url: `/api/announcements/attachments/${a.id}/download`,
+        })),
+      };
 
       // 无关联公告时（谈判/邀请采购以邀请书代替公告）：优先挂采购邀请书 DOCX（:3005 邀请流程
       // 导出落 MinIO 的公文，key=general/invitation/{业务编号}/{ts}.docx），详情页在线预览原文；

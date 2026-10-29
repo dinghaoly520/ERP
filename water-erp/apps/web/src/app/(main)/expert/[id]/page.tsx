@@ -374,7 +374,7 @@ export default function ExpertDetailPage() {
                 {/* 编号随姓名展示（2026-10-22 用户口径：回姓名旁+浅色瓷片） */}
                 <span
                   className="ml-2 inline-flex items-center rounded-md bg-[color-mix(in_oklch,var(--muted-foreground)_9%,transparent)] px-2 py-0.5 align-middle font-mono text-[12px] font-medium tracking-wide text-[color:var(--muted-foreground)]"
-                  title="专家编号：归属公司编码-同公司入库序号（如设计院 SWHI-0001）"
+                  title="专家编号：公司编码-入库序号（如设计院 SWHI-0001）"
                 >
                   {expertNo}
                 </span>

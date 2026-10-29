@@ -374,7 +374,7 @@ export default function TabletEvaluatePage() {
     if (serverDraft) {
       const norm = normalizeDraftScores(serverDraft);
       setScores((prev) => ({ ...prev, ...norm }));
-      toast.success(`已恢复 ${Object.keys(norm).length} 项评分（来自服务端草稿）`);
+      toast.success(`已恢复 ${Object.keys(norm).length} 项评分（来自已保存的草稿）`);
     }
     setDraftAvailable(null); setDraftDismissed(true); setServerDraft(null);
   }, [draftStorageKey, serverDraft, normalizeDraftScores]);

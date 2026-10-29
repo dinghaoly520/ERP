@@ -15,6 +15,7 @@ import { ANNOUNCEMENT_TYPE_ORDER, announcementTypeGroupIndex } from '@water-erp/
 import { PublishConfigSection, DEFAULT_PUBLISH_CONFIG, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
 import { Modal } from '@/components/workbench';
 import { fetchProjectManagementList } from '@/lib/api/project-management';
+import { localDateInputValue } from '@/lib/local-date';
 import { ATTACHMENT_ACCEPT, ATTACHMENT_HINT, validateAttachmentFile } from '@/lib/upload-rules';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 import { fetchCurrentUser } from '@/lib/api/auth';
@@ -127,7 +128,7 @@ export default function NewNoticePage() {
   const [content, setContent] = useState('');
   const [summary, setSummary] = useState('');
   const [isTop, setIsTop] = useState(false);
-  const [publishDate, setPublishDate] = useState(new Date().toISOString().slice(0, 10));
+  const [publishDate, setPublishDate] = useState(localDateInputValue());
   const [metadata, setMetadata] = useState<Record<string, string>>({});
   const [publishConfig, setPublishConfig] = useState<PublishConfig>({ ...DEFAULT_PUBLISH_CONFIG });
   const [busy, setBusy] = useState(false);

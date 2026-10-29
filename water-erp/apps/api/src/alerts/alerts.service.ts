@@ -1,23 +1,36 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CompanyScopeService, scopeCompanyIds } from '../company/company-scope';
+import type { AuthenticatedUser } from '../auth/auth.types';
+import { supplierCompanyWhere } from '../supplier/supplier-company-filter';
 
 @Injectable()
 export class AlertsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private companyScope: CompanyScopeService,
+  ) {}
 
-  /** 仪表盘总览：临期资质数 + 过载专家数。 */
-  async overview() {
+  /** 仪表盘总览：临期资质数 + 过载专家数。
+   *  口径收口（2026-10-28）：与供应商总览/资质预警同口径——临期资质=库内四态
+   *  （APPROVED/DISABLED/BLACKLIST）+ 公司视野；过载专家按专家归属公司过滤
+   *  （专家库 2026-09-24 已公司隔离，总览不得跨视野计数）。 */
+  async overview(actor?: AuthenticatedUser) {
+    const scope = actor ? await this.companyScope.resolveScope(actor) : null;
+    const ids = scope ? scopeCompanyIds(scope) : null;
     const horizon = new Date(Date.now() + 90 * 86400000);
     const expiringQualifications = await this.prisma.supplierQualification.count({
       where: {
         validTo: { lte: horizon, gt: new Date() }, // 未过期但 90 天内
-        supplier: { status: 'APPROVED' },
+        supplier: { status: { in: ['APPROVED', 'DISABLED', 'BLACKLIST'] }, ...(scope ? supplierCompanyWhere(scope) : {}) },
       },
     });
 
     // 过载专家：同时参与 > 3 个未归档项目（内存聚合，避免 groupBy having 类型复杂度）
+    // 2026-10-28：人口限在编评标专家（role+isActive）——与负荷分布 getLoadDistribution 同口径，
+    // 退库/停用账号的存量分配不再计入过载
     const activeAssignments = await this.prisma.bidExpert.findMany({
-      where: { project: { stage: { not: 'ARCHIVED' } } },
+      where: { project: { stage: { not: 'ARCHIVED' } }, user: { role: 'bid_expert', isActive: true, ...(ids !== null ? { companyId: { in: ids } } : {}) } },
       select: { userId: true },
     });
     const perExpert = new Map<string, number>();

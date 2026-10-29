@@ -26,6 +26,14 @@ export interface AnnouncementItem {
   titleOnly?: boolean;
   /** 已下线归因（2026-10-20）：PUBLICITY_ENDED=公示期满；OFFLINED=手动下线 */
   offlinedReason?: 'PUBLICITY_ENDED' | 'OFFLINED';
+  /** 公告附件（2026-10-28）：公告组成部分，公告中心/信息门户/项目机会三端可下载；标题壳服务端已剥除 */
+  attachments?: AnnouncementAttachmentInfo[];
+}
+
+export interface AnnouncementAttachmentInfo {
+  id: string;
+  title?: string;
+  fileAsset?: { id?: string; originalName?: string; size?: number; mimeType?: string };
 }
 
 /* ── 结构化元数据字段定义（与采购管理工作台 :3005 保持一致）── */
@@ -139,7 +147,31 @@ function toAnnouncementItem(a: any): AnnouncementItem {
     viewCount: typeof a.viewCount === 'number' ? a.viewCount : 0,
     titleOnly: a.titleOnly === true,
     offlinedReason: a.offlinedReason,
+    attachments: a.titleOnly ? [] : Array.isArray(a.attachments) ? a.attachments : [],
   };
+}
+
+/* ── 公告附件下载（2026-10-28）：公开端点（匿名可下公开公告附件），失败透出后端业务文案 ── */
+export async function downloadAnnouncementAttachment(att: AnnouncementAttachmentInfo): Promise<void> {
+  const res = await fetch(`/api/announcements/attachments/${att.id}/download`);
+  if (!res.ok) {
+    let msg = `附件下载失败 (${res.status})`;
+    try { const b = await res.json(); if (b?.error) msg = String(b.error); } catch { /* 非 JSON 错误体 */ }
+    throw new Error(msg);
+  }
+  const disposition = res.headers.get('content-disposition') || '';
+  const m = disposition.match(/filename="?([^";]+)"?/);
+  const fileName = m ? decodeURIComponent(m[1]) : (att.fileAsset?.originalName || att.title || '附件');
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = objectUrl;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // 与供应商门户 saveBlob 同口径：延迟回收，避免 revoke 抢在浏览器读取 blob URL 之前
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
 }
 
 /* ── API 获取公告列表 ── */

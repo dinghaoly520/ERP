@@ -108,7 +108,7 @@ export function CaBidReuploadCard({ projectId, onReuploaded }: {
       );
 
       // ③ 冻结 → 盾签 → 提交
-      setNote('盾签名补传信封（P7）…');
+      setNote('正在用 U盾签名补传文件…');
       const prep = await supplierApi.caPrepare(projectId, 'reupload');
       const frozen = await supplierApi.caSigningPayload(projectId, prep.operationId, envelope);
       const signP7 = await scca.signSccaP7(shield.container, frozen.canonical);

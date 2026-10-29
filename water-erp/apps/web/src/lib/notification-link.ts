@@ -6,9 +6,21 @@
  * 在 :3005 点击即 404。本模块按 :3005 app/(main) 实际路由做前缀校验：
  * 未命中 → 调用方不渲染跳转按钮、不 push，仅展示通知内容。
  *
+ * 例外（2026-10-28）：指向其他门户的 link 不是「不存在的页面」而是跨门户意图——
+ * 安全告警类（专家工位锁定/口令错误/跨项目冲突预警）文案明确要求「请在开评标端核实」，
+ * 此前一律拦截导致处理/查看窗无任何跳转（点击处理=无反应）。按本模块既有的
+ * 「绝对外链=跨门户跳转」口径，把跨门户相对路径转为对应门户绝对地址放行。
+ *
  * 维护约定：新增 (main) 路由时同步补 PREFIXES；动态段（/supplier/[id] 等）
  * 按父前缀匹配天然覆盖。
  */
+
+import { portalURL, type AppName } from '@water-erp/config';
+
+/** 跨门户相对路径（首段精确匹配）→ 目标门户。'/bids' 是供应商门户路径、不在此列。 */
+const CROSS_PORTAL_SEGMENTS: Partial<Record<string, AppName>> = {
+  '/bid': 'bid',
+};
 
 /**
  * :3005 已知路由（app/(main) 目录树口径，2026-10-23 盘点）：
@@ -54,6 +66,10 @@ export function resolveNotificationLink(link?: string | null): string | null {
   if (/^https?:\/\//i.test(trimmed)) return trimmed; // 绝对外链：跨门户跳转
   if (trimmed.startsWith('//') || !trimmed.startsWith('/')) return null; // 协议相对/非路径
   const path = trimmed.split('?')[0].split('#')[0].replace(/\/+$/, '') || '/';
+  // 跨门户相对路径 → 目标门户绝对地址（域名双轨由 portalURL 处理），query 原样保留
+  const seg1 = `/${path.slice(1).split('/')[0] ?? ''}`;
+  const crossPortal = CROSS_PORTAL_SEGMENTS[seg1];
+  if (crossPortal) return portalURL(crossPortal, trimmed);
   const hit =
     KNOWN_EXACT_ROUTES.has(path) ||
     KNOWN_ROUTE_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));

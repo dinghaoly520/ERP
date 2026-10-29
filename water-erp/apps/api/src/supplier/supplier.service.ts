@@ -3527,8 +3527,10 @@ export class SupplierService {
     const f = actor ? supplierCompanyWhere(await this.companyScope.resolveScope(actor, companyId)) : {};
     // 取「已过期 或 90 天内到期」的资质（覆盖过期+即将过期两态，避免 status 字段未同步导致漏报）。
     // 预警是否展示完全由 validTo 决定：供应商维护更新资质后（validTo 移出 90 天窗口）自动从看板消失。
+    // 统计口径（2026-10-28）：只数库内四态供应商（与 getStats 总数同口径）——PENDING/RETURNED/
+    // REJECTED 审批流转件的资质不入库 KPI（注册审批详情页仍可见其过期资质，入库后自动进预警）。
     const items = await this.prisma.supplierQualification.findMany({
-      where: { validTo: { not: null, lte: in90 }, supplier: { ...f } },
+      where: { validTo: { not: null, lte: in90 }, supplier: { status: { in: ['APPROVED', 'DISABLED', 'BLACKLIST'] }, ...f } },
       include: {
         supplier: { select: { id: true, name: true } },
       },

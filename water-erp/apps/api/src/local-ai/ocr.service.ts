@@ -68,6 +68,19 @@ export class OcrService {
     return false;
   }
 
+  /** 逐副本 healthz 探活（系统健康页用）：每副本可用性与延迟 */
+  async probeReplicas(): Promise<Array<{ url: string; ok: boolean; latencyMs: number }>> {
+    return Promise.all(this.baseUrls.map(async (base) => {
+      const t0 = Date.now();
+      try {
+        const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(3000) });
+        return { url: base, ok: res.ok, latencyMs: Date.now() - t0 };
+      } catch {
+        return { url: base, ok: false, latencyMs: Date.now() - t0 };
+      }
+    }));
+  }
+
   /**
    * OCR 处理 PDF - 支持分批处理大文件
    *

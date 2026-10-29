@@ -308,7 +308,7 @@ function HallExchangeReadonly({ projectId }: { projectId: string }) {
   );
 
   return (
-    <Panel title="大厅交流（只读留痕）">
+    <Panel title="大厅交流（只读）">
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="neu-card-static p-4">
           <h4 className="mb-2 text-sm font-semibold text-[color:var(--foreground)]">公聊记录</h4>

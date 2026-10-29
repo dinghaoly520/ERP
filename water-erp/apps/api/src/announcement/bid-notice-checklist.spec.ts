@@ -42,6 +42,15 @@ describe('checkBidNoticeElements（GB/T 43711 7.2.2.5）', () => {
     expect(warnings.map(w => w.item)).not.toContain('采购人签名签章');
   });
 
+  it('异议渠道载体口径（2026-10-28 用户裁定）：澄清说明冻结的 objectionContact 即要素齐备，正文无需重复载明', () => {
+    const warnings = checkBidNoticeElements({
+      title: '公告',
+      content: '', // 正文不含「异议」字样
+      metadata: { projectCode: 'X1', method: '询比采购', qualification: '有', deadline: '2026-09-12', objectionContact: '书面异议：采购人综合部；电话 028-12345678' },
+    });
+    expect(warnings.map(w => w.item)).not.toContain('异议渠道');
+  });
+
   it('直接采购：无资格条件不算缺项，但缺理由必告警；给了理由则通过', () => {
     const base = { ...COMPLETE_META, method: '直接采购' };
     delete (base as Record<string, unknown>).qualification;

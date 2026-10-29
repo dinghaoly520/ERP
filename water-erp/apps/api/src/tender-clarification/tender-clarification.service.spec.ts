@@ -143,6 +143,20 @@ describe('TenderClarificationService 版本化澄清文件（A-82/A-83/B-012）'
     expect(again.id).toBe('d1');
   });
 
+  it('updateDoc：空载荷 → 400 EMPTY_UPDATE（2026-10-28 与 updateContact 同款纵深：全 optional 条件更新遇空 DTO 不得静默「成功」）', async () => {
+    const prisma = {
+      tenderClarificationDoc: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'd1', projectId: 'p1', status: '草稿' }),
+        update: jest.fn(),
+      },
+    };
+    const svc = makeService(prisma);
+    await expect(svc.updateDoc('p1', 'd1', {})).rejects.toMatchObject({
+      response: { code: 'EMPTY_UPDATE' },
+    });
+    expect(prisma.tenderClarificationDoc.update).not.toHaveBeenCalled();
+  });
+
   it('updateDoc/deleteDoc：草稿可改删、已发布 DOC_LOCKED', async () => {
     const prisma = {
       tenderClarificationDoc: {

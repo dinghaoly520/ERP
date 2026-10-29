@@ -141,6 +141,12 @@ export class TenderClarificationService {
 
   /** A-82：修改澄清文件（仅草稿；已发布锁定防篡改）。 */
   async updateDoc(projectId: string, docId: string, dto: Partial<CreateClarificationDocDto>) {
+    // 空 DTO 显性拒绝（2026-10-28，与 updateContact 同款纵深）：全 optional 条件更新遇空
+    // 载荷 prisma.update({data:{}}) 合法并返回原行 = 200「成功」零字段落库——同类客户端
+    // 缺陷（漏 Content-Type 等）必须显形为 400 而非假成功。
+    if ([dto.title, dto.content, dto.fileAssetId].every((v) => v === undefined)) {
+      throw new BadRequestException({ error: '未提供任何要更新的字段', code: 'EMPTY_UPDATE' });
+    }
     const doc = await this.prisma.tenderClarificationDoc.findUnique({ where: { id: docId } });
     if (!doc || doc.projectId !== projectId) {
       throw new BadRequestException({ error: '澄清文件不存在', code: 'NOT_FOUND' });

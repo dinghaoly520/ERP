@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { SunshinePushService } from './sunshine-push.service';
 import { AnnouncementService } from './announcement.service';
 import { AnnouncementAiService } from './announcement-ai.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -17,7 +18,7 @@ describe('AnnouncementService — P0-4 删除闸门（进行中项目禁删公�
 
   beforeEach(async () => {
     prisma = {
-      announcement: { findUnique: jest.fn(), delete: jest.fn() },
+      announcement: { findUnique: jest.fn(), delete: jest.fn(), count: jest.fn().mockResolvedValue(0), aggregate: jest.fn().mockResolvedValue({ _sum: { viewCount: 0 } }), findMany: jest.fn().mockResolvedValue([]) },
       bidProject: { findUnique: jest.fn(), update: jest.fn() },
       bidDocument: { updateMany: jest.fn() },
       bidOpeningSession: { deleteMany: jest.fn() },
@@ -34,9 +35,44 @@ describe('AnnouncementService — P0-4 删除闸门（进行中项目禁删公�
         AnnouncementService,
         { provide: PrismaService, useValue: prisma },
         { provide: AnnouncementAiService, useValue: {} },
+        { provide: SunshinePushService, useValue: { onPublish: jest.fn() } },
       ],
     }).compile();
     service = module.get(AnnouncementService);
+  });
+
+
+  describe('已发布口径收口（2026-10-28：live-only + OFFLINED 衍生态筛选）', () => {
+    it('getStats.published 只数公示期内的 PUBLISHED（publicityEnd null 或未到期），公示期满单列 publicityEnded', async () => {
+      prisma.announcement.count.mockImplementation(({ where }: any) =>
+        where.OR ? Promise.resolve(8) : where.publicityEnd ? Promise.resolve(5) : Promise.resolve(13));
+      const res = await service.getStats();
+      expect(res.published).toBe(8);
+      expect(res.publicityEnded).toBe(5);
+      const publishedWhere = prisma.announcement.count.mock.calls
+        .map((c: any[]) => c[0].where)
+        .find((w: any) => Array.isArray(w.OR));
+      expect(publishedWhere.status).toBe('PUBLISHED');
+      expect(publishedWhere.OR).toEqual([
+        { publicityEnd: null },
+        { publicityEnd: { gt: expect.any(Date) } },
+      ]);
+    });
+
+    it('list 支持 OFFLINED 衍生态：= PUBLISHED 且 publicityEnd 已过（与展示层「已下线」徽标同集）', async () => {
+      await service.list({ status: 'OFFLINED', page: 1, pageSize: 10 });
+      const where = prisma.announcement.findMany.mock.calls[0][0].where;
+      expect(where.status).toBe('PUBLISHED');
+      expect(where.publicityEnd).toEqual({ lte: expect.any(Date) });
+    });
+
+    it('companyCounts 同款 OFFLINED 翻译（admin 分组计数与列表同集，不归零）', async () => {
+      prisma.announcement.groupBy = jest.fn().mockResolvedValue([]);
+      await service.companyCounts({ status: 'OFFLINED' });
+      const where = prisma.announcement.groupBy.mock.calls[0][0].where;
+      expect(where.status).toBe('PUBLISHED');
+      expect(where.publicityEnd).toEqual({ lte: expect.any(Date) });
+    });
   });
 
   afterEach(() => {
@@ -146,6 +182,7 @@ describe('AnnouncementService — getParticipants 报价解密门控', () => {
         AnnouncementService,
         { provide: PrismaService, useValue: prisma },
         { provide: AnnouncementAiService, useValue: {} },
+        { provide: SunshinePushService, useValue: { onPublish: jest.fn() } },
       ],
     }).compile();
     service = module.get(AnnouncementService);
@@ -578,6 +615,7 @@ describe('AnnouncementService — 回收站体系（隐藏/下架/恢复，2026-
         AnnouncementService,
         { provide: PrismaService, useValue: prisma },
         { provide: AnnouncementAiService, useValue: {} },
+        { provide: SunshinePushService, useValue: { onPublish: jest.fn() } },
       ],
     }).compile();
     service = module.get(AnnouncementService);
@@ -818,6 +856,7 @@ describe('AnnouncementService — supplierList 供应商视角（公开 ∪ 定�
         AnnouncementService,
         { provide: PrismaService, useValue: prisma },
         { provide: AnnouncementAiService, useValue: {} },
+        { provide: SunshinePushService, useValue: { onPublish: jest.fn() } },
       ],
     }).compile();
     service = module.get(AnnouncementService);
@@ -939,6 +978,7 @@ describe('AnnouncementService — search 字段覆盖 relatedProjectCode（2026-
         AnnouncementService,
         { provide: PrismaService, useValue: prisma },
         { provide: AnnouncementAiService, useValue: {} },
+        { provide: SunshinePushService, useValue: { onPublish: jest.fn() } },
       ],
     }).compile();
     service = module.get(AnnouncementService);
