@@ -11,9 +11,10 @@ import { nudgeWindowOpen } from '../bid/opening-deadline.util';
 import { pendingBondReturnWhere } from '../bid/bond-pending.util';
 import { resolveProjectCreatorId } from '../bid/bid-project-notify.util';
 import { BID_DEADLINE_BEFORE_OPENING_MS, renderNotificationPayload } from '@water-erp/shared';
+import { formatLocalDate, formatLocalDateTime } from '../common/local-date-format.util';
 
 export function buildExpiryNotification(input: { qualificationName: string; validTo: Date; daysLeft: number }) {
-  const date = input.validTo.toISOString().slice(0, 10);
+  const date = formatLocalDate(input.validTo);
   return {
     type: 'QUALIFICATION_EXPIRING',
     title: '资质即将到期提醒',
@@ -24,7 +25,7 @@ export function buildExpiryNotification(input: { qualificationName: string; vali
 
 /** A-13（CTS）：供应商 CA 证书到期提醒文案——两态（即将到期/已过期），certSn 与剩余天数入文。 */
 export function buildCertExpiryNotification(input: { certSn: string; expiresAt: Date; daysLeft: number; expired: boolean }) {
-  const date = input.expiresAt.toISOString().slice(0, 10);
+  const date = formatLocalDate(input.expiresAt);
   return input.expired
     ? {
         type: 'CERT_EXPIRY_REMINDER',
@@ -727,14 +728,14 @@ export class SchedulerService {
             role: '系统',
             target: p.name,
             action: '评标超时告警',
-            result: `评标截止时间 ${p.evaluationDeadline?.toISOString()} 已过`,
+            result: `评标截止时间 ${p.evaluationDeadline ? formatLocalDateTime(p.evaluationDeadline) : '未设置'} 已过`,
             riskFlag: '中',
           },
         });
         await this.notification.sendToRole('leader', {
           type: 'EVAL_DEADLINE_EXPIRED',
           title: `评标超时：${p.name}`,
-          content: `项目「${p.name}」评标已超时（截止 ${p.evaluationDeadline?.toISOString().slice(0, 16)}），请及时跟进。`,
+          content: `项目「${p.name}」评标已超时（截止 ${p.evaluationDeadline ? formatLocalDateTime(p.evaluationDeadline) : '未设置'}），请及时跟进。`,
           link: '/projects',
         }).catch(() => {});
         this.logger.log(`评标超时告警: ${p.name}`);

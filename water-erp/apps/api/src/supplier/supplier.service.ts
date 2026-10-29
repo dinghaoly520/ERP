@@ -18,12 +18,13 @@ import { CreateQualificationDto } from './dto/create-qualification.dto';
 import { CreateEvaluationDto } from './dto/create-evaluation.dto';
 import { CreateClassificationDto, UpdateClassificationDto } from './dto/create-classification.dto';
 import { NegotiationConfigDto } from './dto/negotiation-config.dto';
-import { isSupplierChangeAllowedField } from './supplier-change-fields';
+import { isSupplierChangeAllowedField, supplierChangeFieldLabel } from './supplier-change-fields';
 import { shouldAutoDisable } from './supplier-performance';
 import { buildSupplierPortrait } from './supplier-portrait.util';
 import { generateBusinessTags, TAG_MAX, TAG_MIN } from './business-tags';
 import { LlmService } from '../local-ai/llm.service';
 import { CompanyScopeService, scopeCompanyIds } from '../company/company-scope';
+import { formatLocalDate } from '../common/local-date-format.util';
 import { supplierCompanyWhere } from './supplier-company-filter';
 import * as XLSX from 'xlsx';
 import { createHash } from 'crypto';
@@ -2747,7 +2748,7 @@ export class SupplierService {
     void this.notifyCompanyApprovers(supplier.companyId, {
       type: 'SUPPLIER_PENDING',
       title: '供应商变更申请待审核',
-      content: `${supplier.name} 提交了变更申请（${dto.fieldLabel}），请前往审核。`,
+      content: `${supplier.name} 提交了变更申请（${supplierChangeFieldLabel(dto.fieldName, dto.fieldLabel)}），请前往审核。`,
       link: `/supplier/${supplierId}`,
     });
 
@@ -3576,7 +3577,7 @@ export class SupplierService {
     }
 
     const now = new Date();
-    const date = qual.validTo ? new Date(qual.validTo).toISOString().slice(0, 10) : '';
+    const date = qual.validTo ? formatLocalDate(new Date(qual.validTo)) : '';
     const daysLeft = qual.validTo ? Math.ceil((new Date(qual.validTo).getTime() - now.getTime()) / 86400000) : null;
     const expired = daysLeft !== null && daysLeft < 0;
     const content = expired

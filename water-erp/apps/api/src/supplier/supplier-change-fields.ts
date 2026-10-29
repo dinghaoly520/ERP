@@ -39,6 +39,39 @@ export const SUPPLIER_CHANGE_ALLOWED_FIELDS = [
 export type SupplierChangeAllowedField =
   (typeof SUPPLIER_CHANGE_ALLOWED_FIELDS)[number];
 
+/** 字段中文名（通知摘要用，2026-10-29 文案治理）：此前通知文案直接回退裸英文字段名
+ *  （如 legalPerson）， DTO 的 fieldLabel 缺失时黑话直达审批人通知。 */
+export const SUPPLIER_CHANGE_FIELD_LABELS: Record<SupplierChangeAllowedField, string> = {
+  name: '企业名称',
+  enterpriseType: '企业类型',
+  legalPerson: '法定代表人',
+  legalPersonIdCard: '法定代表人身份证号',
+  registeredAddress: '注册地址',
+  businessScope: '经营范围',
+  tags: '业务标签',
+  logoUrl: '企业标志',
+  country: '国家/地区',
+  region: '所在地区',
+  detailedAddress: '详细地址',
+  registeredCapital: '注册资本',
+  industry: '所属行业',
+  legalPersonPhone: '法定代表人电话',
+  companyEmail: '企业邮箱',
+  companyWebsite: '企业网站',
+  establishedDate: '成立日期',
+  companyProfile: '企业简介',
+  bankAccounts: '银行账户',
+  performances: '业绩信息',
+};
+
+/** 通知文案取字段名：DTO label 优先 → 词表回退 → 通用兜底（永不露裸英文字段名） */
+export function supplierChangeFieldLabel(
+  fieldName: string,
+  fieldLabel?: string,
+): string {
+  return fieldLabel ?? SUPPLIER_CHANGE_FIELD_LABELS[fieldName as SupplierChangeAllowedField] ?? '资料信息';
+}
+
 export function isSupplierChangeAllowedField(
   fieldName: string,
 ): fieldName is SupplierChangeAllowedField {

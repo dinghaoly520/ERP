@@ -445,7 +445,8 @@ export class PasswordRequestsService {
       approverIds = (await this.prisma.user.findMany({ where: { role: 'admin', isActive: true }, select: { id: true } })).map(u => u.id);
     }
     const summary = Object.keys(changes)
-      .map((f) => PasswordRequestsService.PROFILE_FIELD_LABELS[f] ?? f)
+      // 词表兜底「资料信息」——存量/未知字段永不以裸英文字段名（departmentId 等）进通知
+      .map((f) => PasswordRequestsService.PROFILE_FIELD_LABELS[f] ?? '资料信息')
       .join('、');
     for (const a of approverIds.map(id => ({ id }))) {
       const body = {

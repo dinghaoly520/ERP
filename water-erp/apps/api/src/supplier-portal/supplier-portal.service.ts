@@ -17,7 +17,7 @@ import { ConvertToRegularDto } from './dto/convert-to-regular.dto';
 import { buildClarificationReplyCanonical, buildClarificationReplyCanonicalV2 } from './clarification-reply.util';
 import { buildOpeningConfirmCanonical, buildOpeningConfirmCanonicalV2, computeOpeningRecordHash } from './opening-confirm-signature.util';
 import { ClarificationReplyDraftDto, SubmitClarificationReplyDto } from './dto/clarification-reply.dto';
-import { isSupplierChangeAllowedField } from '../supplier/supplier-change-fields';
+import { isSupplierChangeAllowedField, supplierChangeFieldLabel } from '../supplier/supplier-change-fields';
 import { resolveEnvelopeVersion } from './envelope-version.util';
 import { resolveOpeningAmountUnitMap } from '../bid/opening-amount-unit.util';
 import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
@@ -1314,7 +1314,7 @@ export class SupplierPortalService {
       const admins = await this.prisma.user.findMany({ where: { role: 'admin', isActive: true }, select: { id: true } });
       recipientIds = admins.map((u) => u.id);
     }
-    const field = dto.fieldLabel ?? dto.fieldName;
+    const field = supplierChangeFieldLabel(dto.fieldName, dto.fieldLabel);
     const payload = {
       type: 'SUPPLIER_CHANGE_PENDING',
       title: '供应商资料变更待审批',
@@ -3900,15 +3900,23 @@ export class SupplierPortalService {
   ) {
     if (!supplierId) return;
     try {
-      const supplier = await this.prisma.supplier.findUnique({
-        where: { id: supplierId },
-        select: { userId: true },
-      });
+      const [supplier, project] = await Promise.all([
+        this.prisma.supplier.findUnique({
+          where: { id: supplierId },
+          select: { userId: true },
+        }),
+        this.prisma.bidProject.findUnique({
+          where: { id: projectId },
+          select: { name: true },
+        }),
+      ]);
       if (supplier?.userId) {
+        // 文案口径（2026-10-29 治理）：项目名入文（此前「您在项目中的」不指名项目），
+        // 项目查不到时整段兜底、不内插裸主键
         await this.notificationService.sendToUser(supplier.userId, ['in_app'], {
           type: 'BID_DECRYPT_FAILED',
-          title: `投标文件解密异常：${supplierName}`,
-          content: `您在项目中的投标文件解密失败：${reason}。请联系开标主持人处理或等待重新解密。`,
+          title: `投标文件解密异常${project ? `：${project.name}` : ''}`,
+          content: `您${project ? `在项目「${project.name}」中` : ''}的投标文件解密失败：${reason}。请联系开标主持人处理或等待重新解密。`,
           link: `/my-bids/${projectId}/opening-hall`,
         });
       }
