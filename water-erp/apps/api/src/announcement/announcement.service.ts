@@ -8,6 +8,7 @@ import { Inject, forwardRef } from '@nestjs/common';
 import { CreateAnnouncementDto, UpdateAnnouncementDto } from './dto/create-announcement.dto';
 import { AnnouncementAiService } from './announcement-ai.service';
 import { SunshinePushService } from './sunshine-push.service';
+import { normalizeScheduledPublishMetadata, parseScheduledPublishDate } from './scheduled-publish.util';
 import { BidService } from '../bid/bid.service';
 import { ProjectManagementService } from '../project-management/project-management.service';
 import { BidDocumentService } from './bid-document.service';
@@ -139,7 +140,7 @@ export class AnnouncementService {
         status,
         dataClass,
         dataDomain: 'trade',
-        ...(dto.metadata !== undefined && { metadata: dto.metadata as any }),
+        ...(dto.metadata !== undefined && { metadata: normalizeScheduledPublishMetadata(dto.metadata) as any }),
       },
       include: { attachments: { include: { fileAsset: { select: { id: true, originalName: true, size: true, mimeType: true } } } } },
     });
@@ -604,7 +605,7 @@ export class AnnouncementService {
         ...(dto.publishDate !== undefined && { publishDate: new Date(dto.publishDate) }),
         ...(dto.isTop !== undefined && { isTop: dto.isTop }),
         ...(dto.relatedProjectCode !== undefined && { relatedProjectCode: dto.relatedProjectCode }),
-        ...(dto.metadata !== undefined && { metadata: dto.metadata as any }),
+        ...(dto.metadata !== undefined && { metadata: normalizeScheduledPublishMetadata(dto.metadata) as any }),
       },
     });
     } catch (e: any) {
@@ -617,6 +618,11 @@ export class AnnouncementService {
         this.logger.warn(
           `公告发布竞争：公告已由其他请求发布，跳过联动 (announcementId=${id})`,
         );
+        // 竞态早退（2026-10-29 审计 B）：此前 fall-through 会把发布联动再执行一遍——
+        // 供应商通知双发、补遗计数（addendumNo）双加。赢家已执行全部联动，输家直接
+        // 返回已发布版本，不再触碰任何发布副作用。
+        if (!result) throw new BadRequestException({ error: '公告不存在或已删除', code: 'NOT_FOUND' });
+        return Object.assign(result, { checklistWarnings: [] });
       } else {
         throw e;
       }
@@ -992,6 +998,16 @@ export class AnnouncementService {
     const meta = (ann.metadata as Record<string, any>) ?? {};
     const from = ['DRAFT', 'PUBLISHED', 'ARCHIVED'].includes(meta.recycle?.from) ? meta.recycle.from : 'DRAFT';
     const { recycle: _dropped, ...rest } = meta;
+    // 定时拆弹（2026-10-29 审计 E）：草稿在回收站期间定时时刻已过的，恢复后若保留
+    // scheduledPublishDate 会被 scheduler 在 60 秒内突然发布——恢复语义是「拿回草稿」而非
+    // 「补发」。过期定时一律剥除；未到期的保留（隐藏只是暂停，恢复后按原时刻照常发布）。
+    if (from === 'DRAFT' && rest.scheduledPublishDate) {
+      const due = parseScheduledPublishDate(rest.scheduledPublishDate);
+      if (due && due <= new Date()) {
+        delete rest.scheduledPublishDate;
+        this.logger.log(`公告 ${id} 恢复：定时时刻已过，剥除 scheduledPublishDate（不自动补发，需手动重新发布）`);
+      }
+    }
     const result = await this.prisma.announcement.update({ where: { id }, data: { status: from, metadata: rest as any } });
     await this.prisma.announcementHistory.create({
       data: {

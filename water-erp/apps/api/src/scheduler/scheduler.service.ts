@@ -5,6 +5,7 @@ import { NotificationService } from '../notification/notification.service';
 import { ExpertAdminService } from '../expert/expert-admin.service';
 import { SupplierService } from '../supplier/supplier.service';
 import { AnnouncementService } from '../announcement/announcement.service';
+import { parseScheduledPublishDate } from '../announcement/scheduled-publish.util';
 import { BidService } from '../bid/bid.service';
 import { nudgeWindowOpen } from '../bid/opening-deadline.util';
 import { pendingBondReturnWhere } from '../bid/bond-pending.util';
@@ -452,8 +453,12 @@ export class SchedulerService {
     });
     for (const a of drafts) {
       const meta = (a.metadata as Record<string, any>) || {};
-      if (!meta.scheduledPublishDate) continue;
-      if (new Date(meta.scheduledPublishDate) <= new Date()) {
+      // 解析走 scheduled-publish.util（2026-10-29 审计 C）：无时区 datetime-local 值按
+      // 东八区解释（裸 new Date 依赖服务器时区，生产容器跑 UTC 会整体晚 8 小时）；
+      // 非法值返回 null 按「无定时」跳过（此前 NaN 比较恒 false，行为一致但不再依赖巧合）。
+      const due = parseScheduledPublishDate(meta.scheduledPublishDate);
+      if (!due) continue;
+      if (due <= new Date()) {
         try {
           await this.announcementService.update(a.id, {
             status: 'PUBLISHED',
