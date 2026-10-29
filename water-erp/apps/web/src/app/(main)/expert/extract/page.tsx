@@ -12,7 +12,7 @@ import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { QuotaMultiSelect } from '@/components/expert/quota-multi-select';
 import { StepTrack } from '@/components/step-track';
-import { Sparkles, ShieldCheck, AlertTriangle, Check, X, RefreshCw, UsersRound, Info, MessageSquare, Bell, Pencil, Plus, Clock, FileText, UserCircle, Search, ClipboardList, Upload, Loader2, Brain, Send } from 'lucide-react';
+import { Sparkles, ShieldCheck, AlertTriangle, Check, X, RefreshCw, UsersRound, Info, MessageSquare, Bell, Pencil, Plus, Clock, FileText, UserCircle, Search, ClipboardList, Upload, Loader2, Brain, Send, MapPin } from 'lucide-react';
 import { STAGE_LABEL } from '@water-erp/shared';
 
 /** 兼容新旧 API：新版返回 { total, items }，旧版返回数组 */
@@ -83,6 +83,61 @@ const MODE_DESCS: Record<ExtractMode, string> = {
   merit_best: '在各专业配额内按履职等级+偏离度+负荷+经验综合打分，择优录取',
   manual: '直接搜索专家姓名/专业/单位，人工精确指定评审组成员',
 };
+
+/** 通知关键词编辑器（开标时间/归属公司/开标地点/采购方式四项，2026-10-29 抽共享）：
+ *  正选通知（步骤3/4）、候补通知（步骤6）、补选弹窗通知共用同一组 state。此前输入框只在
+ *  正选通知卡片渲染，候补/补选在无输入框的界面硬校验「请填写开标地点」即报错死局
+ *  （2026-10-29 步骤6 候补「重新抽取→确认」实录）——本组件在所有校验点就地可改。 */
+function NotifyKeywordsEditor({ openTimeDate, openTimeTime, onOpenTimeChange, keywords, onKeywordsChange }: {
+  openTimeDate: string;
+  openTimeTime: string;
+  onOpenTimeChange: (date: string, time: string) => void;
+  keywords: { company: string; openLocation: string; method: string };
+  onKeywordsChange: (next: { company: string; openLocation: string; method: string }) => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div>
+        <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">
+          开标时间 <span className="text-[var(--danger)]">*</span>
+        </span>
+        <input
+          type="datetime-local"
+          value={openTimeDate && openTimeTime ? `${openTimeDate}T${openTimeTime}` : ''}
+          onChange={e => {
+            const [d, t] = e.target.value.split('T');
+            onOpenTimeChange(d || '', t || '');
+          }}
+          className="neu-input text-sm w-full"
+        />
+      </div>
+      <div>
+        <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">
+          归属公司 <span className="text-[var(--danger)]">*</span>
+        </span>
+        <input value={keywords.company}
+          onChange={e => onKeywordsChange({ ...keywords, company: e.target.value })}
+          placeholder="四川省水利发展集团" className="neu-input text-sm w-full" />
+      </div>
+      <div>
+        <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">
+          开标地点 <span className="text-[var(--danger)]">*</span>
+        </span>
+        <input value={keywords.openLocation}
+          onChange={e => onKeywordsChange({ ...keywords, openLocation: e.target.value })}
+          placeholder="如：成都市双流区红莲街" className="neu-input text-sm w-full" />
+      </div>
+      <div>
+        <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">
+          采购方式 <span className="text-[var(--danger)]">*</span>
+        </span>
+        <input value={keywords.method}
+          onChange={e => onKeywordsChange({ ...keywords, method: e.target.value })}
+          placeholder="如：谈判采购" className="neu-input text-sm w-full" />
+      </div>
+    </div>
+  );
+}
 
 export function ExpertExtractPage({
   hideHeader,
@@ -207,6 +262,9 @@ export function ExpertExtractPage({
   const [notifyActiveExpert, setNotifyActiveExpert] = useState<string>('');
   const [openTimeDate, setOpenTimeDate] = useState('');
   const [openTimeTime, setOpenTimeTime] = useState('');
+  // 通知关键词（2026-10-27 与供应商邀请同口径：固定语句+关键词——无 AI 文案、无标题输入、无电话话术）
+  // 声明前置（2026-10-29）：localStorage 存/读与 stateRef 快照在组件更早处引用，勿下移
+  const [expertNotifyKeywords, setExpertNotifyKeywords] = useState({ company: '四川省水利发展集团', openLocation: '', method: '' });
   const openTimeFormatted = openTimeDate
     ? `${openTimeDate.replace(/-/g, '年').replace(/^(\d{4})年(\d{2})年(\d{2})$/, '$1年$2月$3日')} ${openTimeTime || '00:00'}`
     : '';
@@ -444,6 +502,11 @@ export function ExpertExtractPage({
       if (snap.altExhausted) setAltExhausted(true);
       if (snap.altSelected?.length) setAltSelected(snap.altSelected);
       if (snap.altNotified) setAltNotified(snap.altNotified);
+      // 开标时间/通知关键词（2026-10-29 补）：modal 重开此前不恢复——通知硬校验项随会话丢失，
+      // 且关键词无自动带出兜底时步骤4/6 报错死局（步骤6 候补确认实录）
+      if (snap.openTimeDate) setOpenTimeDate(snap.openTimeDate);
+      if (snap.openTimeTime) setOpenTimeTime(snap.openTimeTime);
+      if (snap.expertNotifyKeywords) setExpertNotifyKeywords(snap.expertNotifyKeywords);
     } catch { localStorage.removeItem(lskeyForPid); }
   }, [pid, lskeyForPid, defaultPid]);
 
@@ -509,7 +572,7 @@ export function ExpertExtractPage({
   }, [step, pid, altPreview, altExhausted, altQuotas]);
 
   // 状态变更时自动保存到 localStorage（页面切换后恢复）
-  const stateRef = useRef({ pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified, altExhausted, needDemandRep, demandRepCount, demandRepPersons, demandRepMode, demandRepCompany, demandRepDept, demandRepDeptSpecialty, totalSeats: 5 as 3 | 5 | 7 });
+  const stateRef = useRef({ pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, expertNotifyKeywords, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified, altExhausted, needDemandRep, demandRepCount, demandRepPersons, demandRepMode, demandRepCompany, demandRepDept, demandRepDeptSpecialty, totalSeats: 5 as 3 | 5 | 7 });
   useEffect(() => {
     const save = () => {
       const s = stateRef.current;
@@ -564,6 +627,9 @@ export function ExpertExtractPage({
       if (snap.phoneScriptsArr?.length) { /* 电话话术已下线（2026-10-27），旧快照字段忽略 */ }
       if (snap.openTimeDate) setOpenTimeDate(snap.openTimeDate);
       if (snap.openTimeTime) setOpenTimeTime(snap.openTimeTime);
+      // 通知关键词（2026-10-29 补）：存档侧早已随 stateRef 落盘但恢复侧漏读——重进向导后
+      // 开标地点/采购方式只剩自动带出兜底，公司未维护默认开标地点即步骤4/6 报错
+      if (snap.expertNotifyKeywords) setExpertNotifyKeywords(snap.expertNotifyKeywords);
       if (snap.tn != null) setTn(snap.tn);
       if (snap.alt != null) setAlt(snap.alt);
       if (snap.error) setError(snap.error);
@@ -1356,8 +1422,6 @@ export function ExpertExtractPage({
   };
 
   const [rsvpLinks, setRsvpLinks] = useState<Record<string, string>>({});
-  // 通知关键词（2026-10-27 与供应商邀请同口径：固定语句+关键词——无 AI 文案、无标题输入、无电话话术）
-  const [expertNotifyKeywords, setExpertNotifyKeywords] = useState({ company: '四川省水利发展集团', openLocation: '', method: '' });
   // 归属公司=当前登录采购人员账号的归属公司（2026-10-27 用户口径）：自动带出，仍可手改；仅初始默认值时覆盖
   useEffect(() => {
     let alive = true;
@@ -1414,7 +1478,7 @@ export function ExpertExtractPage({
   }, [step4Experts, expertNotifyKeywords, openTimeFormatted, rsvpLinks]);
 
   // 保持 stateRef 同步最新渲染值（必须在所有 useState 之后，供 beforeunload 保存使用）
-  stateRef.current = { pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified, altExhausted, needDemandRep, demandRepCount, demandRepPersons, demandRepMode, demandRepCompany, demandRepDept, demandRepDeptSpecialty, totalSeats };
+  stateRef.current = { pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, expertNotifyKeywords, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified, altExhausted, needDemandRep, demandRepCount, demandRepPersons, demandRepMode, demandRepCompany, demandRepDept, demandRepDeptSpecialty, totalSeats };
 
   /** 打开补选弹窗（2026-10-20 用户口径）：不直接抽取、不 AI 推荐——进手动配额。默认行按
    *  「确认无法参加」专家的公司分组：同公司缺席合并一行（席位=该公司缺席人数），不同公司
@@ -2541,48 +2605,14 @@ export function ExpertExtractPage({
 
 
 
-              {/* 通知关键词（2026-10-27 终版·四项 2×2 排布）：开标时间/归属公司/开标地点/采购方式——自动带出可改，格式化结果见预览 */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">
-                    开标时间 <span className="text-[var(--danger)]">*</span>
-                  </span>
-                  <input
-                    type="datetime-local"
-                    value={openTimeDate && openTimeTime ? `${openTimeDate}T${openTimeTime}` : ''}
-                    onChange={e => {
-                      const [d, t] = e.target.value.split('T');
-                      setOpenTimeDate(d || '');
-                      setOpenTimeTime(t || '');
-                    }}
-                    className="neu-input text-sm w-full"
-                  />
-                </div>
-                <div>
-                  <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">
-                    归属公司 <span className="text-[var(--danger)]">*</span>
-                  </span>
-                  <input value={expertNotifyKeywords.company}
-                    onChange={e => setExpertNotifyKeywords(prev => ({ ...prev, company: e.target.value }))}
-                    placeholder="四川省水利发展集团" className="neu-input text-sm w-full" />
-                </div>
-                <div>
-                  <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">
-                    开标地点 <span className="text-[var(--danger)]">*</span>
-                  </span>
-                  <input value={expertNotifyKeywords.openLocation}
-                    onChange={e => setExpertNotifyKeywords(prev => ({ ...prev, openLocation: e.target.value }))}
-                    placeholder="如：成都市双流区红莲街" className="neu-input text-sm w-full" />
-                </div>
-                <div>
-                  <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">
-                    采购方式 <span className="text-[var(--danger)]">*</span>
-                  </span>
-                  <input value={expertNotifyKeywords.method}
-                    onChange={e => setExpertNotifyKeywords(prev => ({ ...prev, method: e.target.value }))}
-                    placeholder="如：谈判采购" className="neu-input text-sm w-full" />
-                </div>
-              </div>
+              {/* 通知关键词（2026-10-27 终版·四项 2×2 排布；2026-10-29 抽 NotifyKeywordsEditor 共享组件）：
+                  开标时间/归属公司/开标地点/采购方式——自动带出可改，格式化结果见预览 */}
+              <NotifyKeywordsEditor
+                openTimeDate={openTimeDate} openTimeTime={openTimeTime}
+                onOpenTimeChange={(d, t) => { setOpenTimeDate(d); setOpenTimeTime(t); }}
+                keywords={expertNotifyKeywords}
+                onKeywordsChange={setExpertNotifyKeywords}
+              />
 
               {/* 通知渠道（统一，适用于全部专家）—— 标签 + 分组按钮同一行 */}
               <div className="flex items-center gap-3 flex-wrap rounded-xl p-3" style={{ background: 'color-mix(in oklch, var(--accent) 5%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6)' }}>
@@ -3182,6 +3212,23 @@ export function ExpertExtractPage({
                 </div>
               </div>
 
+              {/* 通知关键词（2026-10-29）：与正选通知共用同一组 state——候补通知校验同款四项，
+                  此前本步骤无输入框，开标地点未自动带出时「确认」报错且当前屏无字段可填（死局实录） */}
+              {!altNotified && (
+                <div className="neu-table-card p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <MapPin size={14} className="text-[var(--accent)]" />
+                    <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">通知关键词（与正选通知共用，缺失项在此补齐）</span>
+                  </div>
+                  <NotifyKeywordsEditor
+                    openTimeDate={openTimeDate} openTimeTime={openTimeTime}
+                    onOpenTimeChange={(d, t) => { setOpenTimeDate(d); setOpenTimeTime(t); }}
+                    keywords={expertNotifyKeywords}
+                    onKeywordsChange={setExpertNotifyKeywords}
+                  />
+                </div>
+              )}
+
               {/* 通知渠道（适用于全部候补专家；电话渠道 2026-10-27 已下线） */}
               <div className="space-y-2">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)] block">通知渠道</span>
@@ -3237,8 +3284,9 @@ export function ExpertExtractPage({
                     <button onClick={async () => {
                       setAltNotifying(true);
                       try {
-                        // 前置校验同正选口径；内容按关键词+逐人链接现场拼装（固定语句）
+                        // 前置校验同正选口径（2026-10-29 补归属公司项——候补文案同样使用，此前漏检）
                         if (!openTimeDate || !openTimeTime) { toast.error('请先填写开标日期与时间'); return; }
+                        if (!expertNotifyKeywords.company.trim()) { toast.error('请填写归属公司'); return; }
                         if (!expertNotifyKeywords.openLocation.trim()) { toast.error('请填写开标地点'); return; }
                         if (!expertNotifyKeywords.method.trim()) { toast.error('请填写采购方式'); return; }
                         const m = new Map(notifyMessages);
@@ -3450,6 +3498,22 @@ export function ExpertExtractPage({
               {reDraft.confirmed && reDraft.notified && (
                 <div className="rounded-xl bg-[color-mix(in_oklch,var(--success)_10%,transparent)] px-3 py-2 text-xs font-bold text-[var(--success)] flex items-center gap-2">
                   <Check size={14} />已确认入库并通知 {reDraft.expertIds.length} 名专家，专家回复可在步骤4「补选历史」查看
+                </div>
+              )}
+
+              {/* 通知关键词（2026-10-29）：一键通知的硬校验四项在弹窗内就地可改——与正选/候补共用 state */}
+              {reDraft.confirmed && !reDraft.notified && (
+                <div className="rounded-xl bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] p-3">
+                  <div className="flex items-center gap-2 mb-3">
+                    <MapPin size={13} className="text-[var(--accent)]" />
+                    <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">通知关键词（与正选通知共用，缺失项在此补齐）</span>
+                  </div>
+                  <NotifyKeywordsEditor
+                    openTimeDate={openTimeDate} openTimeTime={openTimeTime}
+                    onOpenTimeChange={(d, t) => { setOpenTimeDate(d); setOpenTimeTime(t); }}
+                    keywords={expertNotifyKeywords}
+                    onKeywordsChange={setExpertNotifyKeywords}
+                  />
                 </div>
               )}
 
