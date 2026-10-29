@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+// dev fetch 守护须在登录请求前安装（/api GET 超时自救）
+import "@/lib/dev-fetch-guard";
 import { LoginExperience } from "@/components/login/login-experience";
 
 export const metadata: Metadata = {

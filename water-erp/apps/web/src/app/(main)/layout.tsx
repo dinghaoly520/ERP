@@ -1,5 +1,8 @@
 "use client";
 
+// dev fetch 守护须在一切数据请求前安装（/api GET 超时自救，详见模块注释）
+import "@/lib/dev-fetch-guard";
+
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect } from "react";

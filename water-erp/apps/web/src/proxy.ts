@@ -4,6 +4,38 @@ import { apiLoopbackOrigin } from '@water-erp/config';
 
 const AUTH_COOKIE_NAME = 'token_web';
 
+// 2026-10-29：Turbopack dev 沙箱里 middleware 的流式转发偶发「响应丢失」——后端已 200（OperationLog
+// 有记录、个位数 ms），浏览器却永远 pending（客户端重试洪流 auth/me 每秒 8-16 次，用户侧升级为
+// 整页重载风暴）。改为：手动 AbortController 超时（AbortSignal.timeout 在该沙箱不可用，实测致全挂）
+// + 响应体 arrayBuffer 缓冲后回传（不走 upstream.body 流管道）。幂等请求超时自动重试一次。
+// 注意：大文件下载经此代理会整包缓冲（dev 可接受；生产走域名/直连轨道）。
+const UPSTREAM_TIMEOUT_MS = 15_000;
+
+interface UpstreamResult {
+  status: number;
+  statusText: string;
+  headers: Headers;
+  body: ArrayBuffer;
+}
+
+async function fetchUpstreamBuffered(targetUrl: string, init: RequestInit): Promise<UpstreamResult> {
+  const retryable = init.method === 'GET' || init.method === 'HEAD';
+  for (let attempt = 0; ; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+    try {
+      const res = await fetch(targetUrl, { ...init, signal: controller.signal });
+      const body = await res.arrayBuffer();
+      return { status: res.status, statusText: res.statusText, headers: res.headers, body };
+    } catch (err) {
+      if (!retryable || attempt >= 1) throw err;
+      console.warn(`[proxy] upstream 挂起/失败，重试 GET ${targetUrl}`);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+}
+
 export async function proxy(request: NextRequest) {
   // ★ API proxy: forward /api/* to NestJS with full cookie passthrough
   if (request.nextUrl.pathname.startsWith('/api/')) {
@@ -30,7 +62,7 @@ export async function proxy(request: NextRequest) {
     }
 
     try {
-      const upstream = await fetch(targetUrl, init);
+      const upstream = await fetchUpstreamBuffered(targetUrl, init);
       const resHeaders = new Headers();
       upstream.headers.forEach((value, key) => {
         if (!['content-encoding', 'transfer-encoding'].includes(key.toLowerCase())) {
