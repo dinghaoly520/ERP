@@ -77,23 +77,63 @@ export type SingleSourceAnswers = {
   quotationLetterTable?: TableData; // 表格模式时使用
 };
 
+/** 综合评分法评审标准行（询比固定综合评分法）——id 仅供前端列表 key，后端忽略 */
+export type ScoringItem = {
+  id: string;
+  factor: string; // 评分因素
+  score: string; // 分值
+  criteria: string; // 评分标准
+  note: string; // 说明
+};
+
+/**
+ * 询比采购答案（2026-10-29 模板 v2）：与 InternalBiddingAnswers 同构，
+ * 去掉 evaluationMethod（评审方法固定综合评分法，模板无勾选占位符）与
+ * evaluationCommitteeCount（模板固定「询比小组 3 人以上单数」，无占位符），
+ * 新增 scoringItems（注入「六、综合评分法评审标准」表）。
+ */
 export type InquiryPurchaseAnswers = {
   projectName: string;
   coverDate: string;
-  projectIntroduction: string;
+  projectOverview: string;
   procurementContent: string;
-  requiredDocuments: string;
-  evaluationMethod: string;
-  priceLimit: string;
+  maxPrice: string;
+  submissionRequirements: string;
+  submissionRequirementsType: string;
+  qualificationRequirements: string;
+  consortiumForm: string;
+  consortiumFormType: string;
   documentAcquireTime: string;
-  bidOpeningTime: string;
+  documentPrice: string;
+  responseSubmissionTime: string;
+  bidOpeningPlace?: string;
   contactAddress?: string;
   contactName: string;
-  contactEmail: string;
   contactPhone: string;
+  contactEmail: string;
+  responseDepositType: string;
+  responseDepositAmount: string;
+  responseDepositForm: string;
+  responseDepositBankInfo: string;
+  responseDepositOtherForm: string;
+  responseDepositOtherRequirement: string;
+  responseDepositNonRefundType: string;
+  responseDepositNonRefundContent: string;
+  performanceDepositType: string;
+  performanceDepositAmount: string;
+  performanceDepositForm: string;
+  performanceDepositOtherForm: string;
+  contractSubcontracting: string;
+  contractSubcontractingType: string;
+  siteSurvey: string;
+  siteSurveyType: string;
+  copyCount: string;
+  businessRequirements: string;
+  technicalRequirements: string;
   quotationLetterType: 'text' | 'table';
   quotationLetter: string; // 文本模式时使用
   quotationLetterTable?: TableData; // 表格模式时使用
+  scoringItems?: ScoringItem[]; // 综合评分法评审标准行
 };
 
 export type InternalBiddingAnswers = {

@@ -517,6 +517,14 @@ export type TemplateReplacement = {
   isHierarchicalText?: boolean; // 标记含分级编号的文本（商务要求、技术要求等），导出时 \n 转为换行
   shouldDeleteLine?: boolean; // 标记需要删除整行（如服务内容选择"不包含"）
   shouldDeleteComprehensiveScoringTable?: boolean;
+  // 综合评分法评审标准表注入（询比 v2：评审方法固定综合评分法）——
+  // 克隆模板空行生成数据行并写合计，空数组/缺省=不注入
+  scoringRows?: Array<{
+    factor: string;
+    score: string;
+    criteria: string;
+    note: string;
+  }>;
 };
 
 
@@ -884,10 +892,103 @@ export function buildInquiryPurchaseReplacementPlan(
     };
   }
 
-  // 项目介绍、采购内容、需提供的资料：内容替换，保留模板格式
-  const projectIntroductionReplacement: TemplateReplacement = {
-    targetText: '项目介绍',
-    ...buildReplacement('项目介绍', answers.projectIntroduction),
+  // Handle consortium form - checkbox format
+  // ☐ = empty checkbox, ☑ = checked checkbox
+  const consortiumForm1 = answers.consortiumFormType === 'accept' ? '☑' : '☐';
+  const consortiumForm2 = answers.consortiumFormType === 'reject' ? '☑' : '☐';
+  const consortiumFormValue =
+    answers.consortiumFormType === 'accept' ? answers.consortiumForm : '/';
+
+  // Handle contract subcontracting - checkbox format
+  const contractSubcontracting1 =
+    answers.contractSubcontractingType === 'none' ? '☑' : '☐';
+  const contractSubcontracting2 =
+    answers.contractSubcontractingType === 'allow' ? '☑' : '☐';
+  const contractSubcontracting3 =
+    answers.contractSubcontractingType === 'allow'
+      ? answers.contractSubcontracting
+      : '/';
+
+  // Handle response deposit
+  const isCollectingDeposit = answers.responseDepositType === 'collect';
+  const deposit1 = isCollectingDeposit ? '☐' : '☑';
+  const deposit2 = isCollectingDeposit ? '☑' : '☐';
+  const deposit3 = isCollectingDeposit ? answers.responseDepositAmount : '';
+  const deposit4 = isCollectingDeposit
+    ? numberToChineseUppercase(answers.responseDepositAmount)
+    : '';
+
+  // Deposit form checkboxes
+  const deposit5 = answers.responseDepositForm === 'cash' ? '☑' : '☐';
+  const deposit6 =
+    answers.responseDepositForm === 'cash'
+      ? answers.responseDepositBankInfo
+      : '/';
+  const deposit7 = answers.responseDepositForm === 'bank_guarantee' ? '☑' : '☐';
+  const deposit8 =
+    answers.responseDepositForm === 'guarantee_institution' ? '☑' : '☐';
+  const deposit9 = answers.responseDepositForm === 'insurance' ? '☑' : '☐';
+  const deposit10 = answers.responseDepositForm === 'other' ? '☑' : '☐';
+  const deposit11 =
+    answers.responseDepositForm === 'other'
+      ? answers.responseDepositOtherForm
+      : '/';
+
+  // Other requirement（2026-10-29 裁定：前端去「无/有」选择器、纯输入框默认 "/"）——
+  // 值非空用值，否则 "/"（与竞价同口径）
+  const deposit12 = answers.responseDepositOtherRequirement?.trim()
+    ? answers.responseDepositOtherRequirement
+    : '/';
+
+  // Non-refund situation
+  const deposit13 =
+    !isCollectingDeposit || answers.responseDepositNonRefundType === 'none'
+      ? '☑'
+      : '☐';
+  const deposit14 =
+    isCollectingDeposit && answers.responseDepositNonRefundType === 'have'
+      ? '☑'
+      : '☐';
+  const deposit15 =
+    isCollectingDeposit && answers.responseDepositNonRefundType === 'have'
+      ? answers.responseDepositNonRefundContent
+      : '/';
+
+  // Handle performance deposit
+  const isCollectingPerformanceDeposit =
+    answers.performanceDepositType === 'collect';
+  const perf1 = isCollectingPerformanceDeposit ? '☐' : '☑';
+  const perf2 = isCollectingPerformanceDeposit ? '☑' : '☐';
+  const perf3 = isCollectingPerformanceDeposit
+    ? answers.performanceDepositAmount
+    : '';
+
+  // Performance deposit form checkboxes
+  const perf4 = answers.performanceDepositForm === 'cash' ? '☑' : '☐';
+  const perf5 = answers.performanceDepositForm === 'bank_guarantee' ? '☑' : '☐';
+  const perf6 =
+    answers.performanceDepositForm === 'guarantee_institution' ? '☑' : '☐';
+  const perf7 = answers.performanceDepositForm === 'insurance' ? '☑' : '☐';
+  const perf8 = answers.performanceDepositForm === 'other' ? '☑' : '☐';
+  const perf9 =
+    answers.performanceDepositForm === 'other'
+      ? answers.performanceDepositOtherForm
+      : '/';
+
+  // Handle submission requirements - empty if type is "none"
+  const submissionRequirementsValue =
+    answers.submissionRequirementsType === 'none'
+      ? ''
+      : normalizeSubmissionRequirements(answers.submissionRequirements);
+  const submissionRequirementsReplacement: TemplateReplacement = {
+    targetText: '提交成果要求',
+    ...buildReplacement('提交成果要求', submissionRequirementsValue, true),
+    shouldDeleteLine: answers.submissionRequirementsType === 'none',
+  };
+
+  const projectOverviewReplacement: TemplateReplacement = {
+    targetText: '项目概况和采购内容',
+    ...buildReplacement('项目概况和采购内容', answers.projectOverview),
     isHierarchicalText: true,
   };
 
@@ -897,9 +998,39 @@ export function buildInquiryPurchaseReplacementPlan(
     isHierarchicalText: true,
   };
 
-  const requiredDocumentsReplacement: TemplateReplacement = {
-    targetText: '需提供的资料',
-    ...buildReplacement('需提供的资料', answers.requiredDocuments),
+  const qualificationRequirementsReplacement: TemplateReplacement = {
+    targetText: '特定资质要求',
+    ...buildReplacement('特定资质要求', answers.qualificationRequirements),
+    isHierarchicalText: true,
+  };
+
+  const businessRequirementsReplacement: TemplateReplacement = {
+    targetText: '商务要求',
+    ...buildReplacement('商务要求', answers.businessRequirements),
+    isHierarchicalText: true,
+  };
+
+  const technicalRequirementsReplacement: TemplateReplacement = {
+    targetText: '技术要求',
+    ...buildReplacement('技术要求', answers.technicalRequirements),
+    isHierarchicalText: true,
+  };
+
+  // 综合评分法评审标准（2026-10-29 模板 v2：评审方法固定综合评分法）——
+  // 评分行注入 docx「六、综合评分法评审标准」表；空行不注入（表格原样，前端闸门负责拦截）
+  const scoringRows = (answers.scoringItems ?? [])
+    .filter((it) => it.factor.trim() || it.criteria.trim())
+    .map((it) => ({
+      factor: it.factor.trim(),
+      score: it.score.trim(),
+      criteria: it.criteria.trim(),
+      note: it.note.trim(),
+    }));
+  const scoringReplacement: TemplateReplacement = {
+    targetText: '综合评分法评审标准',
+    replacementText: '',
+    highlight: false,
+    ...(scoringRows.length ? { scoringRows } : {}),
   };
 
   return [
@@ -911,39 +1042,139 @@ export function buildInquiryPurchaseReplacementPlan(
       targetText: '封面时间',
       ...buildReplacement('封面时间', formatDateToChinese(answers.coverDate)),
     },
-    projectIntroductionReplacement,
+    projectOverviewReplacement,
     procurementContentReplacement,
-    requiredDocumentsReplacement,
-    {
-      targetText: '评标方法',
-      ...buildReplacement('评标方法', answers.evaluationMethod),
-    },
     {
       targetText: '最高限价',
-      ...buildReplacement('最高限价', answers.priceLimit),
+      ...buildReplacement('最高限价', answers.maxPrice),
+    },
+    submissionRequirementsReplacement,
+    qualificationRequirementsReplacement,
+    {
+      targetText: '特定资格要求',
+      ...buildReplacement('特定资格要求', answers.qualificationRequirements),
+      isHierarchicalText: true,
     },
     {
-      targetText: '采购文件获取时间',
-      ...buildReplacement('采购文件获取时间', answers.documentAcquireTime),
+      targetText: '联合体形式1',
+      replacementText: consortiumForm1,
+      highlight: false,
     },
     {
+      targetText: '联合体形式2',
+      replacementText: consortiumForm2,
+      highlight: false,
+    },
+    {
+      targetText: '联合体形式要求',
+      replacementText: consortiumFormValue,
+      highlight: false,
+    },
+    {
+      targetText: '文件获取时间',
+      ...buildReplacement('文件获取时间', answers.documentAcquireTime),
+    },
+    {
+      targetText: '采购文件售价',
+      // 电子采购文件免费提供：售价缺失时兜底 0（与竞价同口径）
+      ...buildReplacement('采购文件售价', answers.documentPrice || '0'),
+    },
+    {
+      // 开标时间（与竞价同口径：datetime 选择，存中文格式）
       targetText: '开标时间',
-      ...buildReplacement('开标时间', answers.bidOpeningTime),
+      ...buildReplacement('开标时间', answers.responseSubmissionTime),
     },
-    // 联系人地址（占位符化）：留空即空（询比无开标地点占位符）
+    { targetText: '开标地点', ...buildReplacement('开标地点', answers.bidOpeningPlace ?? '', true) },
     { targetText: '联系人地址', ...buildReplacement('联系人地址', answers.contactAddress ?? '', true) },
     {
       targetText: '联系人',
       ...buildReplacement('联系人', answers.contactName),
     },
     {
-      targetText: '联系邮箱',
-      ...buildReplacement('联系邮箱', answers.contactEmail),
-    },
-    {
       targetText: '联系电话',
       ...buildReplacement('联系电话', answers.contactPhone),
     },
+    {
+      targetText: '联系邮箱',
+      ...buildReplacement('联系邮箱', answers.contactEmail),
+    },
+    // Response deposit placeholders
+    { targetText: '响应保证金1', replacementText: deposit1, highlight: false },
+    { targetText: '响应保证金2', replacementText: deposit2, highlight: false },
+    { targetText: '响应保证金3', replacementText: deposit3, highlight: false },
+    { targetText: '响应保证金4', replacementText: deposit4, highlight: false },
+    { targetText: '响应保证金5', replacementText: deposit5, highlight: false },
+    { targetText: '响应保证金6', replacementText: deposit6, highlight: false },
+    { targetText: '响应保证金7', replacementText: deposit7, highlight: false },
+    { targetText: '响应保证金8', replacementText: deposit8, highlight: false },
+    { targetText: '响应保证金9', replacementText: deposit9, highlight: false },
+    {
+      targetText: '响应保证金10',
+      replacementText: deposit10,
+      highlight: false,
+    },
+    {
+      targetText: '响应保证金11',
+      replacementText: deposit11,
+      highlight: false,
+    },
+    {
+      targetText: '响应保证金12',
+      replacementText: deposit12,
+      highlight: false,
+    },
+    {
+      targetText: '响应保证金13',
+      replacementText: deposit13,
+      highlight: false,
+    },
+    {
+      targetText: '响应保证金14',
+      replacementText: deposit14,
+      highlight: false,
+    },
+    {
+      targetText: '响应保证金15',
+      replacementText: deposit15,
+      highlight: false,
+    },
+    // Performance deposit placeholders
+    { targetText: '履约保证金1', replacementText: perf1, highlight: false },
+    { targetText: '履约保证金2', replacementText: perf2, highlight: false },
+    { targetText: '履约保证金3', replacementText: perf3, highlight: false },
+    { targetText: '履约保证金4', replacementText: perf4, highlight: false },
+    { targetText: '履约保证金5', replacementText: perf5, highlight: false },
+    { targetText: '履约保证金6', replacementText: perf6, highlight: false },
+    { targetText: '履约保证金7', replacementText: perf7, highlight: false },
+    { targetText: '履约保证金8', replacementText: perf8, highlight: false },
+    { targetText: '履约保证金9', replacementText: perf9, highlight: false },
+    // 合同分包
+    {
+      targetText: '合同分包1',
+      replacementText: contractSubcontracting1,
+      highlight: false,
+    },
+    {
+      targetText: '合同分包2',
+      replacementText: contractSubcontracting2,
+      highlight: false,
+    },
+    {
+      targetText: '合同分包3',
+      replacementText: contractSubcontracting3,
+      highlight: false,
+    },
+    {
+      targetText: '是否组织现场踏勘',
+      ...buildReplacement('是否组织现场踏勘', answers.siteSurvey),
+    },
+    {
+      targetText: '副本份数',
+      ...buildReplacement('副本份数', answers.copyCount),
+    },
+    scoringReplacement,
+    businessRequirementsReplacement,
+    technicalRequirementsReplacement,
     quotationReplacement,
   ];
 }
@@ -1272,6 +1503,134 @@ export function buildInternalBiddingReplacementPlan(
     technicalRequirementsReplacement,
     quotationReplacement,
   ];
+}
+
+// ── 综合评分法评审标准表注入（询比 v2，2026-10-29）─────────────────────────
+// 手法与 deleteComprehensiveScoringTable / adjustWinningBidTableRows 同源：
+// 跨 run 拼接定位标题段 → 定位其后 <w:tbl> → 以模板自带空行为样板克隆数据行，
+// 完整保留模板列宽（841/1460/912/3973/1228）、边框与字体（Times New Roman/宋体）。
+
+const SCORING_ROW_RPR =
+  '<w:rPr><w:rFonts w:ascii="Times New Roman" w:eastAsia="宋体" w:hAnsi="Times New Roman" w:cs="Times New Roman"/><w:color w:val="000000" w:themeColor="text1"/></w:rPr>';
+
+function scoringRunXml(text: string): string {
+  if (!text) return '';
+  const segments = text.split('\n').map((s) => s.trimEnd());
+  const body = segments
+    .map((seg) => `<w:t xml:space="preserve">${escapeXml(seg)}</w:t>`)
+    .join('<w:br/>');
+  return `<w:r>${SCORING_ROW_RPR}${body}</w:r>`;
+}
+
+/**
+ * 向行 XML 的第 i 个段落 </w:p> 前插入文本 run。
+ * cells[i] 为 null 表示跳过该段落（如合计行首格已有「合计」run）；空串=不插 run。
+ */
+function injectRunsIntoRow(rowXml: string, cells: Array<string | null>): string {
+  let out = rowXml;
+  let searchFrom = 0;
+  for (const cell of cells) {
+    const pEnd = out.indexOf('</w:p>', searchFrom);
+    if (pEnd === -1) break;
+    if (cell === null) {
+      searchFrom = pEnd + 6;
+      continue;
+    }
+    const run = scoringRunXml(cell);
+    out = out.substring(0, pEnd) + run + out.substring(pEnd);
+    searchFrom = pEnd + run.length + 6;
+  }
+  return out;
+}
+
+function fillScoringStandardTable(
+  xml: string,
+  rows: Array<{ factor: string; score: string; criteria: string; note: string }>,
+): string {
+  if (!rows.length) return xml;
+
+  // 1. 跨 run 定位标题段（「六、」与正文常分属不同 run，raw grep 不可靠）
+  const pStarts: number[] = [];
+  const psRe = /<w:p\b/g;
+  let pm: RegExpExecArray | null;
+  while ((pm = psRe.exec(xml)) !== null) pStarts.push(pm.index);
+  let headingEnd = -1;
+  for (const pStart of pStarts) {
+    const pEnd = xml.indexOf('</w:p>', pStart);
+    if (pEnd === -1) break;
+    const plain = [
+      ...xml.substring(pStart, pEnd + 6).matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g),
+    ]
+      .map((x) => x[1])
+      .join('');
+    if (/六、\s*综合评分法评[审标]标准/.test(plain)) {
+      headingEnd = pEnd + 6;
+      break;
+    }
+  }
+  if (headingEnd < 0) return xml;
+
+  // 2. 标题后、第四章前的评分表
+  const tableStart = xml.indexOf('<w:tbl', headingEnd);
+  const ch4 = xml.indexOf('第四章', headingEnd);
+  if (tableStart === -1 || (ch4 !== -1 && ch4 < tableStart)) return xml;
+  const tableEnd = xml.indexOf('</w:tbl>', tableStart);
+  if (tableEnd === -1) return xml;
+  const tbl = xml.substring(tableStart, tableEnd + 8);
+
+  // 3. 行拆分：首行=表头；含「合计」行应为末行；中间无文本、无 gridSpan 的 5 格行=空行样板
+  const rowRe = /<w:tr[ >][\s\S]*?<\/w:tr>/g;
+  const rowMatches = [...tbl.matchAll(rowRe)];
+  if (rowMatches.length < 3) return xml;
+  const rowXmls = rowMatches.map((m) => m[0]);
+  const plainOfRow = (r: string) =>
+    [...r.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((x) => x[1]).join('');
+  const totalIdx = rowXmls.findIndex((r) => plainOfRow(r).includes('合计'));
+  if (totalIdx !== rowXmls.length - 1) return xml;
+  let templateIdx = -1;
+  for (let i = 1; i < rowXmls.length - 1; i++) {
+    if (
+      !plainOfRow(rowXmls[i]).trim() &&
+      (rowXmls[i].match(/<w:tc>/g) ?? []).length === 5
+    ) {
+      templateIdx = i;
+      break;
+    }
+  }
+  if (templateIdx === -1) return xml;
+
+  // 4. 生成数据行（序号自动 1..N）+ 合计（可解析分值求和，两位小数）
+  const dataRows = rows.map((r, i) =>
+    injectRunsIntoRow(rowXmls[templateIdx], [
+      String(i + 1),
+      r.factor,
+      r.score,
+      r.criteria,
+      r.note,
+    ]),
+  );
+  const sum = rows.reduce((acc, r) => {
+    const n = parseFloat(r.score);
+    return Number.isNaN(n) ? acc : acc + n;
+  }, 0);
+  const hasSum = rows.some((r) => !Number.isNaN(parseFloat(r.score)));
+  const sumText = hasSum
+    ? Number.isInteger(sum)
+      ? String(sum)
+      : String(Math.round(sum * 100) / 100)
+    : '';
+  const totalRow = sumText
+    ? injectRunsIntoRow(rowXmls[totalIdx], [null, sumText, null])
+    : rowXmls[totalIdx];
+
+  // 5. 重组：tblPr/tblGrid + 表头 + 数据行 + 合计（模板空行全部丢弃）
+  const prefix = tbl.substring(0, rowMatches[0].index);
+  const suffix = tbl.substring(
+    rowMatches[rowMatches.length - 1].index +
+      rowMatches[rowMatches.length - 1][0].length,
+  );
+  const newTbl = prefix + rowXmls[0] + dataRows.join('') + totalRow + suffix;
+  return xml.substring(0, tableStart) + newTbl + xml.substring(tableEnd + 8);
 }
 
 function deleteComprehensiveScoringTable(xml: string): string {
@@ -1617,6 +1976,11 @@ export function renderTemplateXml(
   output = mergeAdjacentTextTags(output);
 
   const replaced = replacements.reduce((result, replacement) => {
+    // 综合评分法评审标准表注入（询比 v2）：置于删表分支之前（二者互斥：固定法不删表）
+    if (replacement.scoringRows && replacement.scoringRows.length > 0) {
+      return fillScoringStandardTable(result, replacement.scoringRows);
+    }
+
     if (replacement.shouldDeleteComprehensiveScoringTable) {
       return deleteComprehensiveScoringTable(result);
     }
