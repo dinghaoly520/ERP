@@ -611,23 +611,32 @@ export class ExpertExtractionService {
     });
 
     // 项目基本信息「专家信息」快照回写（此前从不写入 → 详情页专家评审恒"待补充"）：
-    // 从 User/ExpertProfile 补部门与职称，格式 `姓名|部门|专业|职称|角色` 每行一人（parseExperts 同格式）
+    // 从 User/ExpertProfile 补部门与职称，格式 `姓名|部门|专业|职称|角色` 每行一人（parseExperts 同格式）。
+    // 全量名册重建（2026-10-29 修复）：此前按「本次 dto」整体重写——候补/补选追加
+    // （experts:[]）会把既有正选从快照抹掉（SWHI-JJ-2026102101 实录：库有正选、
+    // 基本信息只剩候补）。改为从 BidExpert 全量名册重建，追加/整体替换两种路径均与
+    // 库内真实组成恒一致；需求方代表/组长标记从持久化列推导（不再依赖瞬时 dto 标志）。
     try {
       const pmiId = project.projectManagementItemId;
       if (pmiId) {
-        const all = [...(dto.experts ?? []).map(e => ({ ...e, role: (e as any).isPurchaserRepresentative ? '需求方代表' : (e.isLead ? '正选·组长' : '正选') })),
-                    ...(dto.candidates ?? []).map(c => ({ ...c, role: '候补' }))];
-        if (all.length > 0) {
-          const userIds = all.map(e => e.userId);
-          const profiles = await this.prisma.user.findMany({
-            where: { id: { in: userIds } },
-            select: { id: true, department: { select: { name: true } }, expertProfile: { select: { title: true } } },
-          });
-          const infoById = new Map(profiles.map(u => [u.id, u]));
-          const lines = all.map(e => {
-            const u = infoById.get(e.userId);
-            return [e.expertName, u?.department?.name ?? '', e.major ?? '', u?.expertProfile?.title ?? '', e.role ?? '正选'].join('|');
-          });
+        const roster = await this.prisma.bidExpert.findMany({
+          where: { projectId },
+          select: {
+            expertName: true, major: true, expertRole: true, isLead: true, isPurchaserRepresentative: true,
+            user: { select: { department: { select: { name: true } }, expertProfile: { select: { title: true } } } },
+          },
+        });
+        if (roster.length > 0) {
+          // 字段内换行净化（2026-10-29 实录：库内 major 存在「水利电力工程\n(…)」多行值）——
+          // pipe 格式以换行分人，字段内换行会把一行拆成两行、角色列错位成姓名
+          const flat = (v: string | null | undefined) => (v ?? '').replace(/[\r\n]+/g, ' ').trim();
+          const lines = roster.map(e => [
+            flat(e.expertName),
+            flat(e.user?.department?.name),
+            flat(e.major),
+            flat(e.user?.expertProfile?.title),
+            e.isPurchaserRepresentative ? '需求方代表' : e.expertRole === '候补' ? '候补' : e.isLead ? '正选·组长' : '正选',
+          ].join('|'));
           await this.prisma.projectManagementItem.update({
             where: { id: pmiId },
             data: { expertInfo: lines.join('\n') },
