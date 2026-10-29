@@ -721,7 +721,10 @@ export function TenderSectionEditor({
               return null;
             }
 
-            const value = draft[field.key as keyof ReadyTenderDraft] as string;
+            // 值归一为字符串：scoringItems 等非字符串草稿键（数组/未初始化）不得
+            // 依赖 `as string` 强转——undefined/array 在下方 .trim() 直接崩渲染
+            const rawDraftValue = draft[field.key as keyof ReadyTenderDraft];
+            const value = typeof rawDraftValue === 'string' ? rawDraftValue : '';
             const hasValue = value.trim().length > 0;
             const isFavorite = favoriteStates[field.key] ?? false;
             const isGenerating = generatingStates[field.key] ?? false;
