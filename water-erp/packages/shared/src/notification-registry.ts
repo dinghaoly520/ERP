@@ -617,7 +617,9 @@ const SYSTEM_SPECS: NotificationTypeSpec[] = [
   { code: 'SYSTEM', label: '系统通知', domain: 'system', icon: 'Bell', tone: 'gray', actionable: false, audiences: LEGACY('catch-all，待拆解'), channels: IN_APP },
   // 历史类型：代码已不产生，仅为存量数据显示
   { code: 'SELECTION_NOTIFY', label: '候选名单通知', domain: 'supplier', icon: 'Share2', tone: 'blue', actionable: true, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP }, // 2026-10-14 更正：供应商邀请向导（:3005 /supplier/selection → POST /supplier/notify）活跃产生中，此前误标 deprecated；收件=逐家选定供应商账号。actionable：待回执的邀请进待办段，RSVP 回执后 resolveByLinkToken 消音
-  { code: 'CLARIFICATION', label: '澄清答疑', domain: 'bid', icon: 'MessageCircle', tone: 'purple', actionable: true, audiences: LEGACY('历史类型'), channels: IN_APP, deprecated: true },
+  // 2026-10-29 更正：tender-clarification.service 澄清文件发布仍活跃产生（本项目已下载供应商），
+  // 此前误标 deprecated（同 SELECTION_NOTIFY 先例）；收件策略词表无「已下载供应商」kind，挂起待议
+  { code: 'CLARIFICATION', label: '澄清答疑', domain: 'bid', icon: 'MessageCircle', tone: 'purple', actionable: true, audiences: LEGACY('tender-clarification 产生：本项目已下载供应商'), channels: IN_APP },
   // 评标现场安全预警（2026-10-13 补登记：产生点直写小写 'security'——口令连错锁定/
   // 跨项目双活跃拦截/冒名登录线索，notifyAdmins 发平台 admin 核实；处置=查看后线下核实，
   // 不设 actionable 维持既有待阅分段）

@@ -39,6 +39,7 @@ import { formatAmountWithUnit, resolveOpeningAmountUnitMap } from '../bid/openin
 import { parseAmountToWan } from '@water-erp/shared';
 import { closeSignLoopIfDone } from '../bid/sign-loop.util';
 import { isNoneEvaluation } from '../bid/none-evaluation.util';
+import { buildClarificationNotice } from '../bid/clarification-notify.util';
 import { buildExpertEsignCanonical } from './expert-esign.util';
 import type { ExpertEsignatureRecord } from './expert-esign.util';
 import { BindExpertCertDto } from './dto/expert-cert.dto';
@@ -2279,8 +2280,11 @@ export class ExpertService {
         if (supplier?.userId) {
           await this.notificationService?.sendToUser(supplier.userId, ['in_app'], {
             type: 'BID_CLARIFICATION_CREATED',
-            title: `收到澄清要求：${project.name}`,
-            content: '评标委员会已发起澄清，请在规定时间内查看并提交答复。',
+            ...buildClarificationNotice({
+              projectName: project.name,
+              issuerLabel: '评标委员会',
+              evaluationDeadline: project.evaluationDeadline,
+            }),
             link: `/bids/${projectId}/clarifications`,
           });
         }

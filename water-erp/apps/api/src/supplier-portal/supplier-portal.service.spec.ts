@@ -2563,14 +2563,18 @@ describe('SupplierPortalService', () => {
     });
 
     it('decrypt-upload：DANGER 后供应商本人收到失败站内信（T15 硬前置——重试/联系主持人路径）', async () => {
+      // 2026-10-29 文案治理锁定：项目名入标题与正文（此前「您在项目中的」不指名项目）
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'project-1', name: '岷江流域防洪治理工程', stage: 'OPENING' });
       const tampered = Buffer.from('被调包的技术标明文', 'utf8');
       await service.decryptUpload('supplier-1', 'project-1',
         { technical: tampered, business: plainB }, JSON.stringify(FIELDS), NONCE);
+      // 通知为 fire-and-forget（不阻塞解密主流程）——刷微任务后再断言
+      await new Promise(setImmediate);
 
       expect(notification.sendToUser).toHaveBeenCalledWith('user-1', ['in_app'], expect.objectContaining({
         type: 'BID_DECRYPT_FAILED',
-        title: expect.stringContaining('四川水发建设有限公司'),
-        content: expect.stringContaining('解密失败'),
+        title: expect.stringContaining('岷江流域防洪治理工程'),
+        content: expect.stringContaining('「岷江流域防洪治理工程」'),
         link: '/my-bids/project-1/opening-hall',
       }));
     });

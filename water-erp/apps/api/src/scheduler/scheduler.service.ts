@@ -17,7 +17,9 @@ export function buildExpiryNotification(input: { qualificationName: string; vali
   const date = formatLocalDate(input.validTo);
   return {
     type: 'QUALIFICATION_EXPIRING',
-    title: '资质即将到期提醒',
+    // 标题与手动维护通道（supplier.service notifyQualificationExpiry）统一为「资质到期提醒」
+    // ——2026-10-29 文案治理：同类型双通道此前两标题、已漂移
+    title: '资质到期提醒',
     content: `您的资质材料「${input.qualificationName}」将于 ${date} 到期（剩 ${input.daysLeft} 天），请及时更新以免影响投标资格。`,
     link: '/profile',
   };
@@ -409,6 +411,7 @@ export class SchedulerService {
       try {
         await this.notification.sendToUser(creatorId, ['in_app'], {
           type: 'BOND_REFUND_DUE',
+          // 标题与定标即时通道（bid.service A-105 hook）统一——2026-10-29 文案治理防漂移
           title: '响应担保待退还提醒',
           content: `项目${p.name}（${p.projectCode}）尚有 ${pendingCount} 家供应商响应担保未登记逐家退还（GB/T 43711 7.5.4.4 按约定及时退还）：${names}${pendingCount > 5 ? '…' : ''}。请在项目管理-合同或归档面板逐家登记退还。`,
           link: '/projects',

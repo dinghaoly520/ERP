@@ -60,6 +60,7 @@ import { AdminKeyService } from '../common/crypto/admin-keystore.service';
 import { DualEnvelopeService } from '../common/crypto/dual-envelope.service';
 import { SignatureService } from '../common/crypto/signature.service';
 import { buildClarificationReplyCanonical } from '../supplier-portal/clarification-reply.util';
+import { buildClarificationNotice } from './clarification-notify.util';
 import { findCrossWindowExperts, findOpenEvaluationWindows, generateRoomCode, notifyAdmins } from '../expert/expert-room.util';
 
 /** AI 分析「卡住」判定阈值：bidder 处于中间态且 updatedAt 停摆超过该时长（单家 OCR+LLM 约 5-15 分钟，30 分钟留足余量） */
@@ -3278,10 +3279,11 @@ export class BidService {
         if (supplier?.userId) {
           await this.notificationService.sendToUser(supplier.userId, ['in_app'], {
             type: 'BID_CLARIFICATION_CREATED',
-            title: `收到澄清要求：${project?.name ?? dto.supplierName}`,
-            content: project?.evaluationDeadline
-              ? `采购人已发起澄清，请在评标结束前查看并提交答复（评标截止：${new Date(project.evaluationDeadline).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}）。`
-              : '采购人已发起澄清，请在规定时间内查看并提交答复。',
+            ...buildClarificationNotice({
+              projectName: project?.name ?? dto.supplierName,
+              issuerLabel: '采购人',
+              evaluationDeadline: project?.evaluationDeadline,
+            }),
             link: `/bids/${projectId}/clarifications`,
           });
         }
@@ -4824,7 +4826,9 @@ export class BidService {
             if (creatorId) {
               await this.notificationService.sendToUser(creatorId, ['in_app'], {
                 type: 'BOND_REFUND_DUE',
-                title: '响应担保待逐家退还提醒',
+                // 标题与日调度扫描通道（scheduler scanBondReturns）统一为「响应担保待退还提醒」
+                // ——2026-10-29 文案治理：双通道（定标即时+每日兜底）此前标题各一词、已漂移
+                title: '响应担保待退还提醒',
                 content: `${project.name}已发出中标通知书，尚有 ${pending.length} 家未中标供应商的响应担保未登记退还（实施条例第57条：合同签订后5日内退还）：${names}${pending.length > 5 ? '…' : ''}。请在项目管理-合同面板逐家登记退还。`,
                 // 深链 ID 空间修正（2026-10-09 复核）：/projects?projectId= 按 PMI id 匹配，
                 // 原传 BidProject id 面板永不定位（旧广播同病，现唯一收件人恰是点击人，必须修）

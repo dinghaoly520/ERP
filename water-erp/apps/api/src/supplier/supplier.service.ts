@@ -104,6 +104,17 @@ export class SupplierService {
     ADMIN: '终审',
   };
 
+  /** 补正重提待办通知（两处产生点共用——2026-10-29 文案治理收口防漂移；
+   *  name=提交人企业名（临时补正用 dto.name 快照），note=补正说明（可选）） */
+  static buildResubmitNotice(name: string, stage: string, note?: string | null) {
+    return {
+      type: 'SUPPLIER_PENDING' as const,
+      title: '供应商补正后重新提交',
+      content: `${name} 已补正资料重新提交${note?.trim() ? `（说明：${note.trim()}）` : ''}，请继续${SupplierService.REVIEW_STAGE_LABELS[stage] ?? '本级'}。`,
+      link: '', // 由调用方覆写（两处均为审批中心深链）
+    };
+  }
+
   /** 公司内是否有指定角色的在编账号（IsActive）——用于无 staff/leader 公司的代审放行 */
   private async companyHasActiveRole(role: 'staff' | 'leader', companyId: string | null): Promise<boolean> {
     if (!companyId) return false;
@@ -1928,9 +1939,7 @@ export class SupplierService {
     // 待办也须发新公司（旧 supplier.companyId 是改名/改归属前的快照）；文案用提交名 dto.name
     //（补正中改名后 supplier.name 是旧名，避免通知/审计回退旧名快照）。
     await this.notifyStageApprovers(stage, companyRef.id, {
-      type: 'SUPPLIER_PENDING',
-      title: '供应商补正后重新提交',
-      content: `${dto.name} 已补正资料重新提交，请继续${SupplierService.REVIEW_STAGE_LABELS[stage]}。`,
+      ...SupplierService.buildResubmitNotice(dto.name, stage),
       link: `/supplier/approval?supplierId=${supplier.id}`,
     });
     await this.audit(supplier.userId, 'SUPPLIER_RESUBMITTED', supplier.id, { name: dto.name, note: '补正提交' });
@@ -2553,9 +2562,7 @@ export class SupplierService {
     // 重新提交回到退回的那一级继续（reviewStage 未重置）；通知该级审批人
     const stage = supplier.reviewStage ?? 'STAFF';
     void this.notifyStageApprovers(stage, supplier.companyId, {
-      type: 'SUPPLIER_PENDING',
-      title: '供应商补正后重新提交',
-      content: `${supplier.name} 已补正资料重新提交${note ? `（说明：${note}）` : ''}，请继续${SupplierService.REVIEW_STAGE_LABELS[stage]}。`,
+      ...SupplierService.buildResubmitNotice(supplier.name, stage, note),
       link: `/supplier/approval?supplierId=${supplierId}`,
     });
     await this.audit(userId, 'SUPPLIER_RESUBMITTED', supplierId, { name: supplier.name, note: note ?? null });
@@ -3587,7 +3594,8 @@ export class SupplierService {
     await this.notificationService.create({
       userId: qual.supplier.userId,
       type: 'QUALIFICATION_EXPIRING',
-      title: '资质到期维护提醒',
+      // 标题与自动扫描通道（scheduler buildExpiryNotification）统一——2026-10-29 文案治理
+      title: '资质到期提醒',
       content,
       link: '/profile',
     });
