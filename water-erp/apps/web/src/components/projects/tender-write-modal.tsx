@@ -21,6 +21,7 @@ import {
   TENDER_DOCUMENT_TYPES,
 } from '@/lib/tender-write/templates';
 import { exportTenderDocument } from '@/lib/api/tender-write';
+import { hasValidScoringRows } from '@/components/tender-write/scoring-items-editor';
 import { generateFieldContent } from '@/lib/api/tender-sample';
 import { parseQuotationTextToTable } from '@/components/tender-write/quotation-table-editor';
 import {
@@ -56,6 +57,7 @@ import type {
   TenderFieldKey,
   TenderSectionConfig,
   TenderSectionKey,
+  ScoringItem,
   TableData,
 } from '@/lib/types/tender-write';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
@@ -81,7 +83,8 @@ const getDraftsHistoryKey = (projectId: string, round: number) =>
 const TENDER_OPENING_KEY: Record<string, string> = {
   COMPETITIVE_NEGOTIATION: 'responseDeadline',
   SINGLE_SOURCE: 'submissionAndNegotiationTime',
-  INQUIRY_PURCHASE: 'bidOpeningTime',
+  // 2026-10-29 模板 v2：询比开标时间字段键与竞价对齐
+  INQUIRY_PURCHASE: 'responseSubmissionTime',
   INTERNAL_BIDDING: 'responseSubmissionTime',
   INVITED_BIDDING: 'responseSubmissionTime',
 };
@@ -414,6 +417,22 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     [selectedType],
   );
 
+  // 综合评分法评审标准（询比 v2）：结构化评分行写入询比草稿
+  const updateDraftScoringItems = useCallback(
+    (items: ScoringItem[] | undefined) => {
+      if (selectedType !== 'INQUIRY_PURCHASE') return;
+      setDrafts((prev) => ({
+        ...prev,
+        INQUIRY_PURCHASE: {
+          ...createEmptyInquiryPurchaseDraft(),
+          ...(prev.INQUIRY_PURCHASE ?? {}),
+          scoringItems: items,
+        },
+      }));
+    },
+    [],
+  );
+
   const updateDraftTable = useCallback(
     (tableData: TableData | undefined) => {
       if (!selectedType) return;
@@ -549,6 +568,14 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
   /** 直接导出：下载文件 + 上传至项目采购文件阶段。 */
   const handleDirectExport = useCallback(async () => {
     if (!selectedType || !project) return;
+    // 询比 v2：评审方法固定综合评分法——评分标准未填有效行阻止导出（与 /tender-write 同闸门）
+    if (
+      selectedType === 'INQUIRY_PURCHASE' &&
+      !hasValidScoringRows((currentDraft as { scoringItems?: ScoringItem[] }).scoringItems)
+    ) {
+      setErrorMessage('综合评分法评审标准未填写：请在「评审程序和评定成交的标准」章节填写评分标准后再导出');
+      return;
+    }
     setExporting(true);
     setErrorMessage(null);
     try {
@@ -881,6 +908,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
               onSectionSelect={setActiveSectionKey}
               onChange={updateDraft}
               onTableChange={updateDraftTable}
+              onScoringItemsChange={updateDraftScoringItems}
               onOpenSupplierSelect={() => setSupplierSelectOpen(true)}
               onAutoFillAll={handleAutoFillAll}
               batchFilling={batchFilling}

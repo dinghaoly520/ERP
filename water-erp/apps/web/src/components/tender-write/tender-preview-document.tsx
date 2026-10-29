@@ -4,6 +4,7 @@ import type {
   InquiryPurchaseDraft,
   ReadyTenderDocumentType,
   ReadyTenderDraft,
+  ScoringItem,
   SingleSourceDraft,
   InternalBiddingDraft,
   TenderSectionKey,
@@ -11,6 +12,7 @@ import type {
 } from '../../lib/types/tender-write';
 import type { TableData, TableCell } from './quotation-table-editor';
 import { createDefaultQuotationTable } from './quotation-table-editor';
+import { hasValidScoringRows, scoringTotal } from './scoring-items-editor';
 import { fmtAcquireTime } from '@/lib/utils/format-acquire-time';
 import { useCompanyInfo } from '@/lib/api/company-info';
 
@@ -1103,6 +1105,13 @@ function InquiryPurchasePreview({
   onSectionClick?: (key: TenderSectionKey) => void;
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
 }) {
+  // 询比 v2（2026-10-29 模板）：与竞价预览同构的五章制；术语恒为询比口径
+  const T = { docTitle: '询比采购文件', party: '供应商', file: '响应文件', chapter: '采购邀请', buyer: '采购人' };
+  const scoringItems = (draft as { scoringItems?: ScoringItem[] }).scoringItems;
+  const validScoringRows = (scoringItems ?? []).filter(
+    (it) => it.factor.trim() || it.criteria.trim(),
+  );
+
   return (
     <div className="pb-4">
       <div className="mx-auto max-w-[72ch] space-y-5">
@@ -1110,7 +1119,7 @@ function InquiryPurchasePreview({
         <PreviewSection
           sectionKey="cover"
           chapterLabel="封面"
-          title="询比采购文件"
+          title={T.docTitle}
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
         >
@@ -1119,10 +1128,10 @@ function InquiryPurchasePreview({
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
             <div className="mt-4 text-sm font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">
-              询比采购文件
+              {T.docTitle}
             </div>
             <div className="mt-6 text-sm text-[color:var(--foreground)]">
-              采 购 人：<OwnerCompanyName />
+              {T.buyer}：<OwnerCompanyName />
             </div>
             <div className="mt-2 text-sm text-[color:var(--foreground)]">
               日　　期：<PreviewValue value={formatDateToChinese(draft.coverDate)} placeholder="{{封面时间}}" fieldKey="coverDate" onValueChange={onValueChange} />
@@ -1130,141 +1139,387 @@ function InquiryPurchasePreview({
           </div>
         </PreviewSection>
 
-        {/* 第一部分 询价须知 */}
+        {/* 第一章 采购邀请 */}
         <PreviewSection
-          sectionKey="instructions"
-          chapterLabel="第一部分"
-          title="询价须知"
-          activeSectionKey={activeSectionKey}
-          onSectionClick={onSectionClick}
-        >
-          {/* 询价须知表格 */}
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse border border-[oklch(0.55_0.05_258_/_0.2)]">
-              <tbody>
-                <tr>
-                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm w-[20%]">
-                    询价单位
-                  </td>
-                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">
-                    <OwnerCompanyName />
-                  </td>
-                </tr>
-                <tr>
-                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm">
-                    项目名称
-                  </td>
-                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">
-                    <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
-                  </td>
-                </tr>
-                <tr>
-                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm">
-                    项目介绍
-                  </td>
-                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
-                    <PreviewValue value={draft.projectIntroduction} placeholder="{{项目介绍}}" multiline fieldKey="projectIntroduction" onValueChange={onValueChange} />
-                  </td>
-                </tr>
-                <tr>
-                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm">
-                    采购内容
-                  </td>
-                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
-                    <PreviewValue value={draft.procurementContent} placeholder="{{采购内容}}" multiline fieldKey="procurementContent" onValueChange={onValueChange} />
-                  </td>
-                </tr>
-                <tr>
-                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm">
-                    报价要求
-                  </td>
-                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
-                    报价函格式按照附件一要求
-                  </td>
-                </tr>
-                <tr>
-                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm">
-                    需提供资料
-                  </td>
-                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
-                    <PreviewValue value={draft.requiredDocuments} placeholder="{{需提供的资料}}" fieldKey="requiredDocuments" onValueChange={onValueChange} />
-                  </td>
-                </tr>
-                <tr>
-                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm">
-                    评标方法
-                  </td>
-                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
-                    采用最低价中标法，如遇相同报价以{draft.evaluationMethod ? draft.evaluationMethod : <span className="rounded-[6px] bg-[rgba(234,188,110,0.12)] px-1 text-[rgba(178,124,42,1)]">{"{{评标方法}}"}</span>}。
-                  </td>
-                </tr>
-                <tr>
-                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm">
-                    限价要求
-                  </td>
-                  <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
-                    最高限价：<PreviewValue value={draft.priceLimit} placeholder="{{最高限价}}" fieldKey="priceLimit" onValueChange={onValueChange} />元（含税）。超过最高限价的报价为无效报价
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div className="mt-4 pt-3">
-            <div className="text-sm leading-7 text-[color:var(--foreground)]">
-              <span className="font-semibold">一、采购文件获取时间：</span>
-              <PreviewValue value={fmtAcquireTime(draft.documentAcquireTime) ?? ''} placeholder="{{采购文件获取时间}}" fieldKey="documentAcquireTime" onValueChange={onValueChange} />
-              ；
-            </div>
-            <div className="pl-8 text-sm leading-7 text-[color:var(--foreground)]">
-              <span className="font-semibold">开标时间：</span>
-              <PreviewValue value={draft.bidOpeningTime} placeholder="{{开标时间}}" fieldKey="bidOpeningTime" onValueChange={onValueChange} />
-              。
-            </div>
-          </div>
-          <div className="tender-preview-subsection">
-            <div className="text-sm leading-7 text-[color:var(--foreground)]">
-              <span className="font-semibold">二、递交报价函地址及联系方式</span>
-            </div>
-            <div className="mt-3 space-y-2 pl-4 text-sm leading-7 text-[color:var(--foreground)]">
-              <p>
-                地　　址：<PreviewValue value={draft.contactAddress} placeholder="{{联系人地址}}" fieldKey="contactAddress" onValueChange={onValueChange} />
-              </p>
-              <p>
-                联 系 人：<PreviewValue value={draft.contactName} placeholder="{{联系人}}" fieldKey="contactName" onValueChange={onValueChange} />
-              </p>
-              <p>
-                邮　　箱：<PreviewValue value={draft.contactEmail} placeholder="{{联系邮箱}}" fieldKey="contactEmail" onValueChange={onValueChange} />
-              </p>
-              <p>
-                电　　话：<PreviewValue value={draft.contactPhone} placeholder="{{联系电话}}" fieldKey="contactPhone" onValueChange={onValueChange} />
-              </p>
-            </div>
-          </div>
-        </PreviewSection>
-
-        {/* 第二部分 附件一 报价函 */}
-        <PreviewSection
-          sectionKey="quotation"
-          chapterLabel="附件一"
-          title="报价函"
+          sectionKey="invitation"
+          chapterLabel="第一章"
+          title={T.chapter}
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
         >
           <div className="tender-preview-subsection">
-            <div className="text-center text-base font-semibold text-[color:var(--foreground)]">
-              报价函
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
+              一、项目基本情况
             </div>
-            <div className="mt-4 text-sm leading-7 text-[color:var(--foreground)]">
-              <p className="indent-8"><OwnerCompanyName />：</p>
-              <p className="mt-3 indent-8">根据<PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />询价文件要求，现郑重承诺如下：</p>
-              <p className="mt-3 indent-8">我方已认真阅读并接受本询价文件的所有要求。</p>
-              <p className="mt-3 indent-8">我方对上述承诺的内容事项真实性负责。如经查实上述承诺的内容事项存在虚假，我方愿意接受以提供虚假材料的法律责任。</p>
-              <p className="mt-3 indent-8">我公司仔细研究了询价文件和项目的基本情况，根据本公司的实际情况，我方愿意以人民币（大写）　　　　　　（¥　　　　）的响应总报价（其中，增值税税率为　　　　），按合同约定履行义务。</p>
+            <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
+              <p>1.项目名称：<PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} /></p>
+              <p>2.项目概况和采购内容：<PreviewValue value={draft.projectOverview} placeholder="{{项目概况和采购内容}}" fieldKey="projectOverview" onValueChange={onValueChange} /></p>
+              <p>3.项目最高限价（含税）：最高限价<PreviewValue value={draft.maxPrice} placeholder="{{最高限价}}" fieldKey="maxPrice" onValueChange={onValueChange} />元。</p>
+              <p>4.合同履行期限：双方履行完合同约定的义务后，本合同终止。</p>
+              {draft.submissionRequirementsType !== 'none' && (
+                <PreviewValue value={normalizeSubmissionRequirements(draft.submissionRequirements)} placeholder="{{提交成果要求}}" multiline fieldKey="submissionRequirements" onValueChange={onValueChange} />
+              )}
             </div>
           </div>
           <div className="tender-preview-subsection">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
-              报价表
+              二、{T.party}的资格要求（须同时满足）
+            </div>
+            <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
+              <p>1.{T.party}基本资格要求：</p>
+              <p className="ml-4">1.1 提供有效营业执照或事业单位法人证书；</p>
+              <p className="ml-4">1.2 未被市场监督管理机关在"国家企业信用信息公示系统"网站（www.gsxt.gov.cn）列入严重违法失信名单；</p>
+              <p className="ml-4">1.3 未被最高人民法院在"信用中国"网站（www.creditchina.gov.cn）列入严重失信名单；</p>
+              <p className="ml-4">1.4 符合法律、行政法规规定的其他条件。</p>
+              <p className="mt-2">2.本项目特定资格要求：<PreviewValue value={draft.qualificationRequirements} placeholder="{{特定资质要求}}" multiline fieldKey="qualificationRequirements" onValueChange={onValueChange} />。</p>
+              <p className="mt-2">3.本项目{!draft.consortiumFormType ? '☐' : (draft.consortiumFormType === 'accept' ? '☑' : '☐')}接受/{!draft.consortiumFormType ? '☐' : (draft.consortiumFormType === 'reject' ? '☑' : '☐')}不接受被邀请的{T.party}以联合体形式参加响应。
+              {!draft.consortiumFormType ? (
+                <span><br />联合体还应满足下列要求：<span className="rounded-[6px] bg-[rgba(234,188,110,0.12)] px-1 text-[rgba(178,124,42,1)]">{"{{联合体形式}}"}</span>。</span>
+              ) : draft.consortiumFormType === 'accept' ? (
+                <span><br />联合体还应满足下列要求：<PreviewValue value={draft.consortiumForm} placeholder="{{联合体形式要求}}" fieldKey="consortiumForm" onValueChange={onValueChange} />。</span>
+              ) : (
+                <span><br />联合体还应满足下列要求：/。</span>
+              )}
+            </p>
+            </div>
+          </div>
+          <div className="tender-preview-subsection">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
+              三、{T.file}获取
+            </div>
+            <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
+              <p>1.时　　间：<PreviewValue value={fmtAcquireTime(draft.documentAcquireTime) ?? ''} placeholder="{{文件获取时间}}" fieldKey="documentAcquireTime" onValueChange={onValueChange} />。</p>
+              <p>2.地　　点：<PreviewValue value={draft.contactAddress} placeholder="{{联系人地址}}" fieldKey="contactAddress" onValueChange={onValueChange} /></p>
+              <p>3.方　　式：邮箱发送/现场获取。</p>
+              <p>4.售　　价：<PreviewValue value={draft.documentPrice} placeholder="{{采购文件售价}}" fieldKey="documentPrice" onValueChange={onValueChange} />元/份</p>
+            </div>
+          </div>
+          <div className="tender-preview-subsection">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
+              四、{T.file}提交、开标
+            </div>
+            <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
+              <p>开标时间：<PreviewValue value={draft.responseSubmissionTime} placeholder="{{开标时间}}" fieldKey="responseSubmissionTime" onValueChange={onValueChange} />。</p>
+              <p className="mt-2">地　　点：<PreviewValue value={draft.bidOpeningPlace} placeholder="{{开标地点}}" fieldKey="bidOpeningPlace" onValueChange={onValueChange} />。</p>
+            </div>
+          </div>
+          <div className="tender-preview-subsection">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
+              五、发布公告的媒介
+            </div>
+            <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
+              <OwnerCompanyName />官网(https://www.scswhi.com.cn/)。
+            </div>
+          </div>
+          <div className="tender-preview-subsection">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
+              六、监督举报
+            </div>
+            <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
+              <p>监督部门：<PreviewValue value={draft.supervisionDepartment} placeholder="{{监督部门}}" fieldKey="supervisionDepartment" onValueChange={onValueChange} /></p>
+              <p>地　　址：<PreviewValue value={draft.supervisionAddress} placeholder="{{监督地址}}" fieldKey="supervisionAddress" onValueChange={onValueChange} /></p>
+              <p>联 系 人：<PreviewValue value={draft.supervisionContact} placeholder="{{监督人}}" fieldKey="supervisionContact" onValueChange={onValueChange} /></p>
+              <p>电　　话：<PreviewValue value={draft.supervisionPhone} placeholder="{{监督电话}}" fieldKey="supervisionPhone" onValueChange={onValueChange} /></p>
+            </div>
+          </div>
+          <div className="tender-preview-subsection">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
+              七、联系人及联系电话
+            </div>
+            <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
+              <p>{T.buyer}：<OwnerCompanyName /></p>
+              <p>地　　址：<PreviewValue value={draft.contactAddress} placeholder="{{联系人地址}}" fieldKey="contactAddress" onValueChange={onValueChange} /></p>
+              <p>联 系 人：<PreviewValue value={draft.contactName} placeholder="{{联系人}}" fieldKey="contactName" onValueChange={onValueChange} /></p>
+              <p>电　　话：<PreviewValue value={draft.contactPhone} placeholder="{{联系电话}}" fieldKey="contactPhone" onValueChange={onValueChange} /></p>
+              <p>邮　　箱：<PreviewValue value={draft.contactEmail} placeholder="{{联系邮箱}}" fieldKey="contactEmail" onValueChange={onValueChange} /></p>
+            </div>
+          </div>
+        </PreviewSection>
+
+        {/* 第二章 供应商须知 */}
+        <PreviewSection
+          sectionKey="supplier"
+          chapterLabel="第二章"
+          title={`${T.party}须知`}
+          activeSectionKey={activeSectionKey}
+          onSectionClick={onSectionClick}
+        >
+          <div className="tender-preview-subsection">
+            <div className="text-center font-semibold text-[color:var(--foreground)]">
+              {T.party}须知前附表
+            </div>
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full border-collapse border border-[oklch(0.55_0.05_258_/_0.2)]">
+                <tbody>
+                  <tr>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm w-[15%]">
+                      条款号
+                    </td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm w-[25%]">
+                      条目
+                    </td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center font-semibold text-sm">
+                      内容
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">7.2</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">报价</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
+                      最高限价：<PreviewValue value={draft.maxPrice} placeholder="{{最高限价}}" fieldKey="maxPrice" onValueChange={onValueChange} />元（含税）。超过最高限价的报价为无效报价。
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">8.1</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">{T.file}保证金</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
+                      本项目是否收取{T.file}保证金：
+                      {!draft.responseDepositType ? (
+                        <span className="rounded-[6px] bg-[rgba(234,188,110,0.12)] px-1 text-[rgba(178,124,42,1)]">{"{{{T.file}保证金}}"}</span>
+                      ) : draft.responseDepositType === 'none' ? (
+                        <span>☑不收取</span>
+                      ) : (
+                        <span>
+                          ☐不收取
+                          <br />☑收取，具体要求：
+                          <br />（1）{T.file}保证金的金额：<PreviewValue value={draft.responseDepositAmount} placeholder="{{{T.file}保证金金额}}" fieldKey="responseDepositAmount" onValueChange={onValueChange} />元（小写），<PreviewValue value={draft.responseDepositAmount} placeholder="{{{T.file}保证金金额大写}}" />元（大写）。
+                          <br />（2）{T.file}保证金的形式：
+                          <br />{draft.responseDepositForm === 'cash' ? '☑' : '☐'}现金（电汇、银行转账、汇票、支票）
+                          <br />采用现金形式的，收取{T.file}保证金的账号名称、开户银行及账号：
+                          {!draft.responseDepositForm || draft.responseDepositForm === 'cash' ? (
+                            <PreviewValue value={draft.responseDepositBankInfo} placeholder="{{账号信息}}" fieldKey="responseDepositBankInfo" onValueChange={onValueChange} />
+                          ) : (
+                            <PreviewValue value="/" placeholder="{{账号信息}}" />
+                          )}。
+                          <br />{draft.responseDepositForm === 'bank_guarantee' ? '☑' : '☐'}银行保函
+                          <br />{draft.responseDepositForm === 'guarantee_institution' ? '☑' : '☐'}担保机构保函
+                          <br />{draft.responseDepositForm === 'insurance' ? '☑' : '☐'}保险公司保证保险
+                          <br />{draft.responseDepositForm === 'other' ? '☑' : '☐'}其他：
+                          {!draft.responseDepositForm || draft.responseDepositForm === 'other' ? (
+                            <PreviewValue value={draft.responseDepositOtherForm} placeholder="{{其他形式}}" fieldKey="responseDepositOtherForm" onValueChange={onValueChange} />
+                          ) : (
+                            <PreviewValue value="/" placeholder="{{其他形式}}" />
+                          )}
+                          <br />（3）其他要求：
+                          <PreviewValue value={draft.responseDepositOtherRequirement || '/'} placeholder="{{其他要求}}" fieldKey="responseDepositOtherRequirement" onValueChange={onValueChange} />
+                          <br />（4）{T.file}保证金不予退还其他情形：
+                          {!draft.responseDepositNonRefundType ? (
+                            <>☐无 ☐有，具体情形：<span className="rounded-[6px] bg-[rgba(234,188,110,0.12)] px-1 text-[rgba(178,124,42,1)]">{"{{不予退还情形}}"}</span>。</>
+                          ) : draft.responseDepositNonRefundType === 'none' ? (
+                            <>☑无 ☐有，具体情形：<PreviewValue value="/" placeholder="{{不予退还情形}}" />。</>
+                          ) : (
+                            <>☐无 ☑有，具体情形：<PreviewValue value={draft.responseDepositNonRefundContent} placeholder="{{不予退还情形}}" fieldKey="responseDepositNonRefundContent" onValueChange={onValueChange} />。</>
+                          )}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">9</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">{T.file}有效期</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
+                      自{T.file}提交截止日期起算90日历天。
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">12.2</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">{T.file}份数</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
+                      纸质版正本一份，副本<PreviewValue value={draft.copyCount} placeholder="{{副本份数}}" fieldKey="copyCount" onValueChange={onValueChange} />份，1份电子文档（U盘，电子文档为{T.file}正本PDF扫描件）
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">16.1</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">确定成交人</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
+                      按评审得分由高到低顺序确定；得分相同的，按报价由低到高顺序确定；得分且报价相同的，由询比小组推荐成交候选人。
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">19.1</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">履约保证金</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
+                      本项目是否收取履约保证金：
+                      {!draft.performanceDepositType ? (
+                        <span className="rounded-[6px] bg-[rgba(234,188,110,0.12)] px-1 text-[rgba(178,124,42,1)]">{"{{履约保证金}}"}</span>
+                      ) : draft.performanceDepositType === 'none' ? (
+                        <span>☑不收取</span>
+                      ) : (
+                        <span>
+                          ☐不收取
+                          <br />☑收取，具体要求：
+                          <br />（1）履约保证金的金额：<PreviewValue value={draft.performanceDepositAmount} placeholder="{{履约保证金金额}}" fieldKey="performanceDepositAmount" onValueChange={onValueChange} />
+                          <br />（2）履约保证金的形式：
+                          <br />{draft.performanceDepositForm === 'cash' ? '☑' : '☐'}现金（电汇、银行转账、汇票、支票）
+                          <br />{draft.performanceDepositForm === 'bank_guarantee' ? '☑' : '☐'}银行保函
+                          <br />{draft.performanceDepositForm === 'guarantee_institution' ? '☑' : '☐'}担保机构保函
+                          <br />{draft.performanceDepositForm === 'insurance' ? '☑' : '☐'}保险公司保证保险
+                          <br />{draft.performanceDepositForm === 'other' ? '☑' : '☐'}其他：
+                          {!draft.performanceDepositForm || draft.performanceDepositForm === 'other' ? (
+                            <PreviewValue value={draft.performanceDepositOtherForm} placeholder="{{其他形式}}" fieldKey="performanceDepositOtherForm" onValueChange={onValueChange} />
+                          ) : (
+                            <PreviewValue value="/" placeholder="{{其他形式}}" />
+                          )}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">19.5</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">合同分包</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
+                      本项目是否允许分包：
+                      {!draft.contractSubcontractingType ? (
+                        <span className="rounded-[6px] bg-[rgba(234,188,110,0.12)] px-1 text-[rgba(178,124,42,1)]">{"{{合同分包}}"}</span>
+                      ) : draft.contractSubcontractingType === 'none' ? (
+                        <span>☑不允许 ☐允许，具体要求：/；分包应征得{T.buyer}同意</span>
+                      ) : (
+                        <span>☐不允许 ☑允许，具体要求：<PreviewValue value={draft.contractSubcontracting} placeholder="{{合同分包}}" fieldKey="contractSubcontracting" onValueChange={onValueChange} />；分包应征得{T.buyer}同意</span>
+                      )}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">20.1.1</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">询问</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
+                      询问的送达形式：邮箱方式。
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm" colSpan={2}>是否组织现场踏勘</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
+                      <PreviewValue value={draft.siteSurvey} placeholder="{{是否组织现场踏勘}}" fieldKey="siteSurvey" onValueChange={onValueChange} />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm" colSpan={2}>联系方式</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
+                      接受询问和异议的联系方式：
+                      <br />联系部门：<OwnerCompanyName />采购中心
+                      <br />联系电话：<PreviewValue value={draft.contactPhone} placeholder="{{联系电话}}" fieldKey="contactPhone" onValueChange={onValueChange} />
+                      <br />通讯地址：<PreviewValue value={draft.contactAddress} placeholder="{{联系人地址}}" fieldKey="contactAddress" onValueChange={onValueChange} />
+                      <br />电子邮箱：<PreviewValue value={draft.contactEmail} placeholder="{{联系邮箱}}" fieldKey="contactEmail" onValueChange={onValueChange} />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </PreviewSection>
+
+        {/* 第三章 评审程序和评定成交的标准 */}
+        <PreviewSection
+          sectionKey="evaluation"
+          chapterLabel="第三章"
+          title="评审程序和评定成交的标准"
+          activeSectionKey={activeSectionKey}
+          onSectionClick={onSectionClick}
+        >
+          <div className="tender-preview-subsection">
+            <div className="text-sm leading-7 text-[color:var(--foreground)]">
+              <p>8.1 本项目采用的评审办法为：</p>
+              <p className="ml-4 mt-2">☑综合评分法，见《综合评分法评审标准》，采购文件中没有规定的评审标准不得作为评审的依据。</p>
+              <p className="mt-4 text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">六、综合评分法评审标准</p>
+            </div>
+            {hasValidScoringRows(scoringItems) ? (
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full border-collapse border border-[oklch(0.55_0.05_258_/_0.2)]">
+                  <tbody>
+                    <tr className="bg-[oklch(0.55_0.05_258_/_0.06)] font-semibold text-sm">
+                      <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-2 py-2 text-center w-[8%]">序号</td>
+                      <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-2 py-2 text-center w-[18%]">评分因素</td>
+                      <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-2 py-2 text-center w-[10%]">分值</td>
+                      <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-2 py-2 text-center">评分标准</td>
+                      <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-2 py-2 text-center w-[16%]">说明</td>
+                    </tr>
+                    {validScoringRows.map((item, i) => (
+                      <tr key={item.id} className="text-sm">
+                        <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-2 py-2 text-center">{i + 1}</td>
+                        <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-2 py-2 text-center">{item.factor}</td>
+                        <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-2 py-2 text-center tabular-nums">{item.score}</td>
+                        <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-2 py-2 whitespace-pre-wrap">{item.criteria}</td>
+                        <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-2 py-2">{item.note}</td>
+                      </tr>
+                    ))}
+                    <tr className="bg-[oklch(0.55_0.05_258_/_0.04)] text-sm font-semibold">
+                      <td colSpan={2} className="border border-[oklch(0.55_0.05_258_/_0.2)] px-2 py-2 text-center">合计</td>
+                      <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-2 py-2 text-center tabular-nums">{scoringTotal(scoringItems) ?? "—"}</td>
+                      <td colSpan={2} className="border border-[oklch(0.55_0.05_258_/_0.2)] px-2 py-2" />
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="mt-3 ml-4">
+                <span className="rounded-[10px] bg-[rgba(234,188,110,0.12)] px-2 py-1 text-[rgba(178,124,42,1)]">评分标准待填写（在左侧「评审程序和评定成交的标准」中填写）</span>
+              </p>
+            )}
+          </div>
+        </PreviewSection>
+
+        {/* 第四章 采购需求 */}
+        <PreviewSection
+          sectionKey="requirements"
+          chapterLabel="第四章"
+          title="采购需求"
+          activeSectionKey={activeSectionKey}
+          onSectionClick={onSectionClick}
+        >
+          <div className="tender-preview-subsection">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
+              一、采购项目概述
+            </div>
+            <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
+              <PreviewValue
+                value={draft.projectOverview}
+                placeholder="{{项目概况和采购内容}}"
+                multiline
+                fieldKey="projectOverview"
+                onValueChange={onValueChange}
+              />
+            </div>
+          </div>
+          <div className="mt-4 pt-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
+              二、商务要求
+            </div>
+            <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
+              <PreviewValue
+                value={draft.businessRequirements}
+                placeholder="{{商务要求}}"
+                multiline
+                fieldKey="businessRequirements"
+                onValueChange={onValueChange}
+              />
+            </div>
+          </div>
+          <div className="mt-4 pt-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
+              三、技术要求
+            </div>
+            <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
+              <PreviewValue
+                value={draft.technicalRequirements}
+                placeholder="{{技术要求}}"
+                multiline
+                fieldKey="technicalRequirements"
+                onValueChange={onValueChange}
+              />
+            </div>
+          </div>
+        </PreviewSection>
+
+        {/* 第五章 响应文件格式 */}
+        <PreviewSection
+          sectionKey="quotation"
+          chapterLabel="第五章"
+          title={`${T.file}格式`}
+          activeSectionKey={activeSectionKey}
+          onSectionClick={onSectionClick}
+        >
+          <div className="tender-preview-subsection">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
+              6. 报价表
             </div>
             <div className="mt-3 text-sm leading-7 text-[color:var(--foreground)]">
               {isQuotationTableMode(draft) ? (
@@ -1291,20 +1546,6 @@ function InquiryPurchasePreview({
                   </span>
                 )
               )}
-            </div>
-          </div>
-          <div className="tender-preview-subsection">
-            <div className="text-sm leading-7 text-[color:var(--foreground)]">
-              <div className="flex justify-between">
-                <div>
-                  <p>供 应 商：　　　　　　　　　　（盖单位章）</p>
-                  <p className="mt-2">联 系 人：　　　　　　　　　　</p>
-                  <p className="mt-2">电　　话：　　　　　　　　　　</p>
-                </div>
-                <div className="text-right">
-                  <p>　　　　　　年　　　　月　　　　日</p>
-                </div>
-              </div>
             </div>
           </div>
         </PreviewSection>

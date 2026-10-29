@@ -15,7 +15,10 @@ export type SingleSourceSectionKey =
 
 export type InquiryPurchaseSectionKey =
   | "cover"
-  | "instructions"
+  | "invitation"
+  | "supplier"
+  | "evaluation"
+  | "requirements"
   | "quotation";
 
 export type InternalBiddingSectionKey =
@@ -134,20 +137,61 @@ export type SingleSourceFieldKey =
   | "quotationLetter"
   | "quotationLetterType";
 
+/** 综合评分法评审标准行（询比 v2：评审方法固定综合评分法）——id 仅供列表 key */
+export type ScoringItem = {
+  id: string;
+  factor: string; // 评分因素
+  score: string; // 分值
+  criteria: string; // 评分标准
+  note: string; // 说明
+};
+
+/**
+ * 询比字段键（2026-10-29 模板 v2）：与 InternalBiddingFieldKey 同构，
+ * 去 evaluationMethod/evaluationCommitteeCount；scoringItems 走 Draft 附加属性。
+ */
 export type InquiryPurchaseFieldKey =
   | "projectName"
   | "coverDate"
-  | "projectIntroduction"
+  | "projectOverview"
   | "procurementContent"
-  | "requiredDocuments"
-  | "evaluationMethod"
-  | "priceLimit"
+  | "maxPrice"
+  | "submissionRequirements"
+  | "submissionRequirementsType"
+  | "qualificationRequirements"
+  | "consortiumForm"
+  | "consortiumFormType"
   | "documentAcquireTime"
-  | "bidOpeningTime"
+  | "documentPrice"
+  | "responseSubmissionTime"
+  | "bidOpeningPlace"
   | "contactAddress"
   | "contactName"
   | "contactEmail"
   | "contactPhone"
+  | "supervisionDepartment"
+  | "supervisionAddress"
+  | "supervisionContact"
+  | "supervisionPhone"
+  | "responseDepositType"
+  | "responseDepositAmount"
+  | "responseDepositForm"
+  | "responseDepositBankInfo"
+  | "responseDepositOtherForm"
+  | "responseDepositOtherRequirement"
+  | "responseDepositNonRefundType"
+  | "responseDepositNonRefundContent"
+  | "performanceDepositType"
+  | "performanceDepositAmount"
+  | "performanceDepositForm"
+  | "performanceDepositOtherForm"
+  | "contractSubcontracting"
+  | "contractSubcontractingType"
+  | "siteSurvey"
+  | "siteSurveyType"
+  | "copyCount"
+  | "businessRequirements"
+  | "technicalRequirements"
   | "quotationLetter"
   | "quotationLetterType";
 
@@ -206,7 +250,8 @@ export type TenderFieldKey =
   | SingleSourceFieldKey
   | InquiryPurchaseFieldKey
   | InternalBiddingFieldKey
-  | InvitedBiddingFieldKey;
+  | InvitedBiddingFieldKey
+  | "scoringItems"; // 询比综合评分法评审标准（结构化行编辑器，值走 Draft.scoringItems）
 
 export type CompetitiveNegotiationDraft = Record<
   CompetitiveNegotiationFieldKey,
@@ -221,6 +266,7 @@ export type SingleSourceDraft = Record<SingleSourceFieldKey, string> & {
 
 export type InquiryPurchaseDraft = Record<InquiryPurchaseFieldKey, string> & {
   quotationLetterTable?: TableData;
+  scoringItems?: ScoringItem[];
 };
 
 export type InternalBiddingDraft = Record<InternalBiddingFieldKey, string> & {
@@ -272,6 +318,8 @@ export type TenderFieldConfig<K extends TenderFieldKey = TenderFieldKey> = {
   quotationType?: {
     options: { value: string; label: string }[];
   };
+  // 综合评分法评审标准（询比 v2）：专用结构化评分行编辑器，值存 Draft.scoringItems
+  scoring?: boolean;
 };
 
 export type TenderSectionConfig<

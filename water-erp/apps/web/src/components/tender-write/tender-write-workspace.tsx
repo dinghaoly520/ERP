@@ -6,6 +6,7 @@ import {
 import type {
   ReadyTenderDraft,
   ReadyTenderDocumentType,
+  ScoringItem,
   TableData,
   TenderDocumentTypeMeta,
   TenderFieldKey,
@@ -33,6 +34,7 @@ export function TenderWriteWorkspace({
   onSectionSelect,
   onChange,
   onTableChange,
+  onScoringItemsChange,
   onOpenSupplierSelect,
   onAutoFillAll,
   batchFilling,
@@ -45,6 +47,7 @@ export function TenderWriteWorkspace({
   onSectionSelect: (key: TenderSectionKey) => void;
   onChange: (key: TenderFieldKey, value: string) => void;
   onTableChange?: (tableData: TableData | undefined) => void;
+  onScoringItemsChange?: (items: ScoringItem[] | undefined) => void;
   onOpenSupplierSelect?: () => void;
   onAutoFillAll?: () => void;
   batchFilling?: boolean;
@@ -180,6 +183,7 @@ export function TenderWriteWorkspace({
                   activeSectionKey={activeSectionKey}
                   onChange={onChange}
                   onTableChange={onTableChange}
+                  onScoringItemsChange={onScoringItemsChange}
                   onFieldFocus={handleFieldFocus}
                   onSampleOpen={handleSampleOpen}
                   onOpenSupplierSelect={onOpenSupplierSelect}

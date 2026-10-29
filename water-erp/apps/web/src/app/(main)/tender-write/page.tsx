@@ -48,6 +48,7 @@ import {
   INVITED_BIDDING_SECTIONS,
   TENDER_DOCUMENT_TYPES,
 } from "@/lib/tender-write/templates";
+import { hasValidScoringRows } from "@/components/tender-write/scoring-items-editor";
 import {
   readTenderWriteState,
   resetTenderDraftByType,
@@ -66,6 +67,7 @@ import type {
   InternalBiddingFieldKey,
   InvitedBiddingDraft,
   InvitedBiddingFieldKey,
+  ScoringItem,
   TableData,
   TenderDocumentType,
   TenderDraftsState,
@@ -270,7 +272,7 @@ export default function TenderWritePage() {
     return createEmptyCompetitiveNegotiationDraft();
   }, [selectedType, drafts]);
 
-  const updateDraft = (key: CompetitiveNegotiationFieldKey | SingleSourceFieldKey | InquiryPurchaseFieldKey | InternalBiddingFieldKey | InvitedBiddingFieldKey, value: string) => {
+  const updateDraft = (key: CompetitiveNegotiationFieldKey | SingleSourceFieldKey | InquiryPurchaseFieldKey | InternalBiddingFieldKey | InvitedBiddingFieldKey | "scoringItems", value: string) => {
     // 2026-10-29 追加裁定：保证金选「收取」时，其他要求输入框默认直接落「/」
     // （清空后重选会补回；已有内容不覆盖；仅 INTERNAL/INVITED 分支消费此标记）
     const seedOtherRequirementSlash =
@@ -376,6 +378,19 @@ export default function TenderWritePage() {
     }
   };
 
+  // 综合评分法评审标准（询比 v2）：结构化评分行写入询比草稿（其他类型无此字段）
+  const updateDraftScoringItems = (items: ScoringItem[] | undefined) => {
+    if (selectedType !== "INQUIRY_PURCHASE") return;
+    setDrafts((previous) => ({
+      ...previous,
+      INQUIRY_PURCHASE: {
+        ...createEmptyInquiryPurchaseDraft(),
+        ...previous.INQUIRY_PURCHASE,
+        scoringItems: items,
+      },
+    }));
+  };
+
   const handleSelectType = (type: TenderDocumentType) => {
     setSelectedType(type);
     setActiveSectionKey("cover");
@@ -445,6 +460,16 @@ export default function TenderWritePage() {
   const handleExport = async () => {
     if (!isReadyType || !selectedMeta) {
       setErrorMessage("当前模板尚未配置导出。");
+      return;
+    }
+
+    // 询比 v2：评审方法固定综合评分法，评分标准是法定必备内容——未填有效行阻止导出
+    if (
+      selectedType === "INQUIRY_PURCHASE" &&
+      !hasValidScoringRows((currentDraft as { scoringItems?: ScoringItem[] }).scoringItems)
+    ) {
+      setErrorMessage("综合评分法评审标准未填写：请在「评审程序和评定成交的标准」章节填写评分标准后再导出");
+      setTimeout(() => setErrorMessage(null), 4000);
       return;
     }
 
@@ -582,6 +607,7 @@ export default function TenderWritePage() {
             onSectionSelect={setActiveSectionKey}
             onChange={updateDraft}
             onTableChange={updateDraftTable}
+            onScoringItemsChange={updateDraftScoringItems}
           />) : (
             <div className="flex flex-1 items-center justify-center wb-panel">
               <div className="flex flex-col items-center gap-3">

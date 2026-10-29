@@ -64,11 +64,13 @@ export function buildPrefillFromProject(
     }
 
     case 'INQUIRY_PURCHASE': {
+      // 2026-10-29 模板 v2：与竞价同口径（限价→maxPrice、供方要求→特定资质要求）
       const draft = createEmptyInquiryPurchaseDraft();
       return {
         ...draft,
         projectName: project.title || draft.projectName,
-        priceLimit: budgetStr,
+        maxPrice: budgetStr,
+        qualificationRequirements: project.supplierRequirements || '',
         contactName: project.requesterName || draft.contactName,
       };
     }
@@ -160,17 +162,28 @@ export function getAiGenerationFields(tenderType: TenderDocumentType): Array<{
       ]);
 
     case 'INQUIRY_PURCHASE':
+      // 2026-10-29 模板 v2：六章制字段与竞价同构（去评标方法/评标委员会人数，
+      // 评审标准为结构化评分行编辑器不走批量文本生成）
       return withPrompts([
         ...cover,
-        { fieldKey: 'projectIntroduction', label: '项目介绍' },
-        { fieldKey: 'procurementContent', label: '采购内容' },
-        { fieldKey: 'requiredDocuments', label: '需提供的资料' },
-        { fieldKey: 'evaluationMethod', label: '评标方法' },
-        { fieldKey: 'documentAcquireTime', label: '采购文件获取时间' },
-        { fieldKey: 'bidOpeningTime', label: '开标时间' },
+        { fieldKey: 'projectOverview', label: '项目概况和采购内容' },
+        { fieldKey: 'submissionRequirements', label: '提交成果要求' },
+        { fieldKey: 'consortiumForm', label: '联合体形式' },
+        { fieldKey: 'documentAcquireTime', label: '文件获取时间' },
+        { fieldKey: 'documentPrice', label: '采购文件售价' },
+        { fieldKey: 'responseSubmissionTime', label: '开标时间' },
         { fieldKey: 'contactPhone', label: '联系电话' },
         { fieldKey: 'contactEmail', label: '联系邮箱' },
-        { fieldKey: 'quotationLetter', label: '报价函' },
+        { fieldKey: 'responseDepositAmount', label: '响应保证金金额' },
+        { fieldKey: 'responseDepositForm', label: '响应保证金形式' },
+        { fieldKey: 'performanceDepositAmount', label: '履约保证金金额' },
+        { fieldKey: 'performanceDepositForm', label: '履约保证金形式' },
+        { fieldKey: 'contractSubcontracting', label: '合同分包' },
+        { fieldKey: 'siteSurvey', label: '现场踏勘' },
+        { fieldKey: 'copyCount', label: '副本份数' },
+        { fieldKey: 'businessRequirements', label: '商务要求' },
+        { fieldKey: 'technicalRequirements', label: '技术要求' },
+        { fieldKey: 'quotationLetter', label: '报价表' },
       ]);
 
     case 'INTERNAL_BIDDING':

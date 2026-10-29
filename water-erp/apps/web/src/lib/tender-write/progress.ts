@@ -1,5 +1,6 @@
 import type {
   ReadyTenderDraft,
+  ScoringItem,
   TenderSectionConfig,
   TenderSectionKey,
   TenderSectionProgress,
@@ -45,6 +46,13 @@ export function buildTenderSectionProgress(
         if (depositType === 'none') {
           return true;
         }
+      }
+
+      // 综合评分法评审标准（询比 v2）：任一行评分因素或评分标准非空即视为已填写
+      // （与导出闸门 hasValidScoringRows 同口径）
+      if (field.scoring) {
+        const items = (draft as { scoringItems?: ScoringItem[] }).scoringItems;
+        return !!items?.some((it) => it.factor.trim() || it.criteria.trim());
       }
 
       // For select fields, check if value matches any option

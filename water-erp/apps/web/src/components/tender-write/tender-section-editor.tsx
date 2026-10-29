@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type {
   ReadyTenderDraft,
+  ScoringItem,
   TableData as TableDataType,
   TenderFieldKey,
   TenderSectionConfig,
@@ -18,12 +19,46 @@ import {
   type TableData,
 } from './quotation-table-editor';
 import {
+  ScoringItemsEditor,
+  hasValidScoringRows,
+  parseScoringTextToItems,
+} from './scoring-items-editor';
+import {
   createFieldSample,
   toggleFieldSampleFavorite,
   generateFieldContent,
 } from '@/lib/api/tender-sample';
 import { getCompanyInfoOnce } from '@/lib/api/company-info';
 import { SupplierNameInput } from './supplier-name-input';
+
+// 后端瞬时不可达（watch 重编译/守护恢复窗口）：代理层已快重试，此处再做耐心重试
+// （3 次 × 10s）桥接恢复窗口——2026-10-29 用户裁定，不允许「后端服务未启动」直抛用户
+// （handleAiGenerate 内为同款内联实现；此提出来供评分标准 AI 生成复用）
+const isTransportError = (e: unknown) => {
+  const err = e as { status?: number; code?: string };
+  return err?.status === 502 || err?.code === 'PROXY_ERROR';
+};
+
+async function generateFieldContentWithRetry(payload: {
+  fieldKey: string;
+  fieldLabel: string;
+  currentValue: string;
+  aiPrompt?: string;
+  context: Record<string, string>;
+}): Promise<{ content: string }> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await generateFieldContent(payload);
+    } catch (e) {
+      if (!isTransportError(e)) throw e;
+      if (attempt >= 3) {
+        throw new Error('后端服务暂不可达（可能正在自动恢复），请稍后重试');
+      }
+      console.warn(`[AI 生成] 后端暂不可达，10s 后自动重试（第 ${attempt + 1}/3 次）`);
+      await new Promise((resolve) => setTimeout(resolve, 10_000));
+    }
+  }
+}
 
 // Year-Month selector for coverDate field with custom dropdown panels
 function CoverDateSelector({
@@ -251,6 +286,7 @@ export function TenderSectionEditor({
   draft,
   onChange,
   onTableChange,
+  onScoringItemsChange,
   onFieldFocus,
   onSampleOpen,
   onOpenSupplierSelect,
@@ -259,6 +295,7 @@ export function TenderSectionEditor({
   draft: ReadyTenderDraft;
   onChange: (key: TenderFieldKey, value: string) => void;
   onTableChange?: (tableData: TableDataType | undefined) => void;
+  onScoringItemsChange?: (items: ScoringItem[] | undefined) => void;
   onFieldFocus?: (fieldKey: TenderFieldKey) => void;
   onSampleOpen?: (fieldKey: TenderFieldKey, fieldLabel: string) => void;
   onOpenSupplierSelect?: () => void;
@@ -426,6 +463,49 @@ export function TenderSectionEditor({
       setTimeout(() => setAiError(null), 5000);
     } finally {
       setGeneratingStates((prev) => ({ ...prev, [fieldKey]: false }));
+    }
+  };
+
+  // ── 综合评分法评审标准 AI 生成（询比 v2）──
+  // 结构化行不走 handleAiGenerate 的字符串通路：取字段配置 aiPrompt 产出
+  // Tab 分隔行 → parseScoringTextToItems 解析入表（与报价表 AI 转表同模式）
+  const [scoringGenerating, setScoringGenerating] = useState(false);
+  const [scoringError, setScoringError] = useState<string | null>(null);
+  const handleScoringAiGenerate = async () => {
+    if (!onScoringItemsChange) return;
+    const scoringField = section?.fields.find((f) => f.scoring);
+    setScoringGenerating(true);
+    setScoringError(null);
+    try {
+      const context: Record<string, string> = {};
+      for (const [key, v] of Object.entries(draft)) {
+        if (typeof v === 'string' && v.trim() && key !== 'scoringItems') {
+          const cfg = section?.fields.find((f) => String(f.key) === key);
+          context[cfg?.label ?? key] = v;
+        }
+      }
+      const result = await generateFieldContentWithRetry({
+        fieldKey: 'scoringItems',
+        fieldLabel: '综合评分法评审标准',
+        currentValue: '',
+        aiPrompt: scoringField?.aiPrompt,
+        context,
+      });
+      const items = parseScoringTextToItems(result.content ?? '');
+      if (!items) throw new Error('AI 返回内容无法解析为评分标准行，请重试或手工填写');
+      onScoringItemsChange(items);
+      await createFieldSample({
+        fieldKey: 'scoringItems',
+        content: result.content,
+        sourceType: 'ai_generated',
+        context: { generatedAt: new Date().toISOString(), prompt: scoringField?.aiPrompt },
+      });
+    } catch (error) {
+      console.error('Failed to generate scoring items:', error);
+      setScoringError(error instanceof Error ? error.message : 'AI 生成失败，请稍后重试');
+      setTimeout(() => setScoringError(null), 6000);
+    } finally {
+      setScoringGenerating(false);
     }
   };
 
@@ -954,6 +1034,43 @@ export function TenderSectionEditor({
                       </button>
                     ))}
                   </div>
+                </div>
+              );
+            }
+
+            // 综合评分法评审标准（询比 v2）：专用结构化评分行编辑器
+            if (field.scoring) {
+              const items = (draft as { scoringItems?: ScoringItem[] }).scoringItems ?? [];
+              const scoringValid = hasValidScoringRows(items);
+              return (
+                <div key={field.key} className={getFieldCardClassName(field.key, scoringValid)}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[0.82rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
+                        {field.label}
+                      </span>
+                    </div>
+                    <span
+                      className={[
+                        'rounded-[5px] px-2.5 py-1 text-[10px] font-semibold transition-all duration-200',
+                        scoringValid
+                          ? 'bg-[rgba(92,181,150,0.1)] text-[rgba(78,150,124,1)]'
+                          : 'bg-[rgba(230,129,102,0.1)] text-[rgba(199,108,83,1)]',
+                      ].join(' ')}
+                    >
+                      {scoringValid ? '已填写' : '待填写'}
+                    </span>
+                  </div>
+                  <ScoringItemsEditor
+                    value={items}
+                    onChange={(next) => onScoringItemsChange?.(next)}
+                    onAiGenerate={handleScoringAiGenerate}
+                    isGenerating={scoringGenerating}
+                    aiError={scoringError}
+                  />
+                  <p className="px-1 text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">
+                    评审方法已固定为综合评分法；各行分值合计应为 100，评分标准将写入采购文件第三章「六、综合评分法评审标准」表。
+                  </p>
                 </div>
               );
             }

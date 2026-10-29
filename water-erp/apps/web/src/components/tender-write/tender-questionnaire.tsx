@@ -1,5 +1,6 @@
 import type {
   ReadyTenderDraft,
+  ScoringItem,
   TableData,
   TenderFieldKey,
   TenderSectionConfig,
@@ -13,6 +14,7 @@ export function TenderQuestionnaire({
   activeSectionKey,
   onChange,
   onTableChange,
+  onScoringItemsChange,
   onFieldFocus,
   onSampleOpen,
   onOpenSupplierSelect,
@@ -22,6 +24,7 @@ export function TenderQuestionnaire({
   activeSectionKey: TenderSectionKey;
   onChange: (key: TenderFieldKey, value: string) => void;
   onTableChange?: (tableData: TableData | undefined) => void;
+  onScoringItemsChange?: (items: ScoringItem[] | undefined) => void;
   onFieldFocus?: (fieldKey: TenderFieldKey) => void;
   onSampleOpen?: (fieldKey: TenderFieldKey, fieldLabel: string) => void;
   onOpenSupplierSelect?: () => void;
@@ -36,6 +39,7 @@ export function TenderQuestionnaire({
         draft={draft}
         onChange={onChange}
         onTableChange={onTableChange}
+        onScoringItemsChange={onScoringItemsChange}
         onFieldFocus={onFieldFocus}
         onSampleOpen={onSampleOpen}
         onOpenSupplierSelect={onOpenSupplierSelect}
