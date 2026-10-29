@@ -1233,8 +1233,9 @@ describe('定时发布稳健性（2026-10-29 审计 B/C/E）', () => {
     supplier: { findMany: jest.fn().mockResolvedValue([]) },
     supplierCompanyLink: { findMany: jest.fn().mockResolvedValue([]) },
   });
-  const makeSvc = (prisma: any) =>
-    new (AnnouncementService as any)(prisma, { summarize: async () => '摘要', looksLikePromptLeak: () => false }, undefined, undefined, undefined, undefined);
+  // 构造器按位传参（gbCode 第 7、sunshinePush 第 8——置末位不动既有位置，测试直构须对齐）
+  const makeSvc = (prisma: any, sunshine?: any) =>
+    new (AnnouncementService as any)(prisma, { summarize: async () => '摘要', looksLikePromptLeak: () => false }, undefined, undefined, undefined, undefined, undefined, sunshine);
 
   it('B：发布竞态（P2025）早退——不重放发布副作用（防双通知/补遗双计数/publicityEnd 补写）', async () => {
     const prisma = makePrisma();
@@ -1302,5 +1303,36 @@ describe('定时发布稳健性（2026-10-29 审计 B/C/E）', () => {
     await svc.restore('ann-e2', {});
 
     expect(prisma.announcement.update.mock.calls[0][0].data.metadata.scheduledPublishDate).toBe('2099-01-01T00:00+08:00');
+  });
+
+  it('A：update 草稿转发布（定时发布/手动转发布/批量发布的共同路径）→ 触发阳光推送（与 create 同口径）', async () => {
+    const prisma = makePrisma();
+    const meta = { sunshinePublish: { enabled: true, interfaceCode: 'SCM0002', config: {} } };
+    prisma.announcement.findUnique.mockResolvedValue({
+      id: 'ann-a1', title: '采购公告', type: 'BID_NOTICE', content: '正文', status: 'DRAFT',
+      publishDate: new Date(), metadata: meta, authorId: 'u1', relatedProjectCode: null,
+    });
+    prisma.announcement.update.mockImplementation(async (args: any) => ({ id: 'ann-a1', type: 'BID_NOTICE', status: 'PUBLISHED', content: '正文', metadata: meta, publishDate: new Date(), relatedProjectCode: null, ...args.data }));
+    const sunshine = { onPublish: jest.fn().mockResolvedValue(undefined) };
+    const svc = makeSvc(prisma, sunshine);
+
+    await svc.update('ann-a1', { status: 'PUBLISHED', publishDate: new Date().toISOString() });
+
+    expect(sunshine.onPublish).toHaveBeenCalledTimes(1);
+    expect(sunshine.onPublish).toHaveBeenCalledWith(expect.objectContaining({ id: 'ann-a1', metadata: meta }));
+  });
+
+  it('A：竞态早退分支不重放阳光推送（赢家独推）', async () => {
+    const prisma = makePrisma();
+    prisma.announcement.findUnique
+      .mockResolvedValueOnce({ id: 'ann-a2', title: '公告', type: 'POLICY', content: 'x', status: 'DRAFT', publishDate: new Date(), metadata: { sunshinePublish: { enabled: true } } })
+      .mockResolvedValueOnce({ id: 'ann-a2', status: 'PUBLISHED', type: 'POLICY', metadata: { sunshinePublish: { enabled: true } } });
+    prisma.announcement.update.mockRejectedValueOnce(Object.assign(new Error('record not found'), { code: 'P2025' }));
+    const sunshine = { onPublish: jest.fn().mockResolvedValue(undefined) };
+    const svc = makeSvc(prisma, sunshine);
+
+    await svc.update('ann-a2', { status: 'PUBLISHED' });
+
+    expect(sunshine.onPublish).not.toHaveBeenCalled();
   });
 });

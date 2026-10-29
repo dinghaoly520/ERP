@@ -682,6 +682,12 @@ export class AnnouncementService {
       void this.notifySuppliersOnPublish(result.id, result.title, { ...meta, __type: result.type }).catch(e =>
         this.logger.warn(`公告发布通知发送失败 (update): ${(e as Error).message}`),
       );
+      // 阳光采购平台推送（2026-10-29 流程侧接线，与 create 即时发布同口径）：发布向导的
+      // 「定时发布/按公示期起始」走 DRAFT+scheduledPublishDate → cron → 本 update 路径，
+      // 编辑页手动转发布与列表批量发布亦汇于此——此前只挂在 create（:209），定时发布的
+      // sunshinePublish 快照无人消费、推送静默丢失。onPublish 内部全捕获，无快照即跳过。
+      // （P2025 竞态分支已早退，赢家独推、无双发。）
+      void this.sunshinePush?.onPublish({ id: result.id, content: result.content, metadata: result.metadata });
     }
     // C5（7.2.6）：update 路径发布补遗公告同样联动
     if (result.type === 'ADDENDUM' && isPublishTransition) {
