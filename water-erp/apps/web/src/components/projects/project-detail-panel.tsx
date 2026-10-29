@@ -134,7 +134,8 @@ function ExpertInfoField({
   };
 
   const addExpertRow = () => {
-    syncEditValue([...editExperts, { name: '', department: '', specialty: '', title: '', role: '' }]);
+    // 角色限选正选/候补（2026-10-29）：新增行默认正选，免得空角色行保存后只读表无徽标
+    syncEditValue([...editExperts, { name: '', department: '', specialty: '', title: '', role: '正选' }]);
   };
 
   const removeExpertRow = (index: number) => {
@@ -200,14 +201,29 @@ function ExpertInfoField({
               ] as const).map(([label, key, value, wCls]) => (
                 <label key={key} className={`flex min-w-0 flex-col gap-0.5 ${wCls}`}>
                   <span className="text-[9px] font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">{label}</span>
-                  <input
-                    type="text"
-                    value={value as string}
-                    onChange={(e) => updateExpertField(i, key as 'name', e.target.value)}
-                    placeholder={label === '姓名' ? '姓名' : ''}
-                    className="!h-[30px] !min-w-0 !rounded-[9px] !border-0 !text-xs !text-[var(--foreground)] focus:!ring-2 focus:!ring-[color-mix(in_oklch,var(--accent)_35%,transparent)]"
-                    style={{ background: 'oklch(0.972 0.012 258 / 0.65)', boxShadow: 'inset 1px 1px 3px oklch(0.55 0.03 258 / 0.08), inset -1px -1px 2px oklch(1 0 0 / 0.7)' }}
-                  />
+                  {/* 角色限选正选/候补（2026-10-29 用户裁定）：显示值按「含候补/补选→候补，否则→正选」
+                      映射；未改选不回写——存量「正选·组长」「需求方代表」（抽取回写值）不被静默抹平，
+                      组长皇冠/需求方代表标记随原值保留 */}
+                  {key === 'role' ? (
+                    <select
+                      value={(() => { const r = (expert as any).role || ''; return r.includes('候补') || r === '补选' ? '候补' : '正选'; })()}
+                      onChange={(e) => updateExpertField(i, 'role', e.target.value)}
+                      className="!h-[30px] !min-w-0 !rounded-[9px] !border-0 !text-xs !text-[var(--foreground)] focus:!ring-2 focus:!ring-[color-mix(in_oklch,var(--accent)_35%,transparent)]"
+                      style={{ background: 'oklch(0.972 0.012 258 / 0.65)', boxShadow: 'inset 1px 1px 3px oklch(0.55 0.03 258 / 0.08), inset -1px -1px 2px oklch(1 0 0 / 0.7)' }}
+                    >
+                      <option value="正选">正选</option>
+                      <option value="候补">候补</option>
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={value as string}
+                      onChange={(e) => updateExpertField(i, key as 'name', e.target.value)}
+                      placeholder={label === '姓名' ? '姓名' : ''}
+                      className="!h-[30px] !min-w-0 !rounded-[9px] !border-0 !text-xs !text-[var(--foreground)] focus:!ring-2 focus:!ring-[color-mix(in_oklch,var(--accent)_35%,transparent)]"
+                      style={{ background: 'oklch(0.972 0.012 258 / 0.65)', boxShadow: 'inset 1px 1px 3px oklch(0.55 0.03 258 / 0.08), inset -1px -1px 2px oklch(1 0 0 / 0.7)' }}
+                    />
+                  )}
                 </label>
               ))}
               <button type="button" onClick={() => removeExpertRow(i)} className="neu-btn-xs mb-0.5 !h-6 !w-6 shrink-0 !p-0 justify-center" aria-label="删除该专家"><X size={12} /></button>
