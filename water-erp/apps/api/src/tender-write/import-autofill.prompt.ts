@@ -282,6 +282,8 @@ const SINGLE_SOURCE_SECTIONS: TenderSectionDef[] = [
   },
 ];
 
+// 2026-10-29 模板 v2：六章制与竞价同构（去评标方法/评标委员会人数；评审标准为
+// 结构化评分行编辑器，不入 AI 导入识别清单）
 const INQUIRY_PURCHASE_SECTIONS: TenderSectionDef[] = [
   {
     key: 'cover',
@@ -292,25 +294,55 @@ const INQUIRY_PURCHASE_SECTIONS: TenderSectionDef[] = [
     ],
   },
   {
-    key: 'instructions',
-    title: '询价须知',
+    key: 'invitation',
+    title: '采购邀请',
     fields: [
-      { key: 'projectIntroduction', label: '项目简介' },
+      { key: 'projectOverview', label: '项目概况和采购内容' },
       { key: 'procurementContent', label: '采购内容' },
-      { key: 'requiredDocuments', label: '所需文件' },
-      { key: 'evaluationMethod', label: '评审方法' },
-      { key: 'priceLimit', label: '最高限价' },
-      { key: 'documentAcquireTime', label: '采购文件获取时间' },
-      { key: 'bidOpeningTime', label: '开标时间' },
+      { key: 'maxPrice', label: '最高限价' },
+      { key: 'submissionRequirements', label: '提交成果要求' },
+      { key: 'qualificationRequirements', label: '特定资质要求' },
+      { key: 'consortiumForm', label: '联合体形式' },
+      { key: 'documentAcquireTime', label: '文件获取时间' },
+      { key: 'documentPrice', label: '文件售价' },
+      { key: 'responseSubmissionTime', label: '响应文件递交时间' },
       { key: 'contactName', label: '联系人' },
-      { key: 'contactEmail', label: '联系邮箱' },
       { key: 'contactPhone', label: '联系电话' },
+      { key: 'contactEmail', label: '联系邮箱' },
+      { key: 'responseDepositType', label: '响应保证金类型' },
+      { key: 'responseDepositAmount', label: '响应保证金金额' },
+      { key: 'responseDepositForm', label: '响应保证金形式' },
+      { key: 'responseDepositBankInfo', label: '响应保证金开户银行信息' },
+      { key: 'performanceDepositType', label: '履约保证金类型' },
+      { key: 'performanceDepositAmount', label: '履约保证金金额' },
+      { key: 'performanceDepositForm', label: '履约保证金形式' },
+      { key: 'contractSubcontracting', label: '合同分包' },
+      { key: 'siteSurvey', label: '是否组织现场踏勘' },
+      { key: 'copyCount', label: '响应文件份数' },
+    ],
+  },
+  {
+    key: 'supplier',
+    title: '供应商须知',
+    fields: [],
+  },
+  {
+    key: 'evaluation',
+    title: '评审程序和评定成交的标准',
+    fields: [],
+  },
+  {
+    key: 'requirements',
+    title: '采购需求',
+    fields: [
+      { key: 'businessRequirements', label: '商务要求' },
+      { key: 'technicalRequirements', label: '技术要求' },
     ],
   },
   {
     key: 'quotation',
-    title: '报价函',
-    fields: [{ key: 'quotationLetter', label: '报价函' }],
+    title: '响应文件格式',
+    fields: [{ key: 'quotationLetter', label: '报价表' }],
   },
 ];
 
