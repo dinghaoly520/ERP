@@ -30,6 +30,10 @@ import { openPiiForMask } from '../common/crypto/sm-field-crypto';
    — 基于规则 + 统计分析，模拟 AI 对投标文件的智能审查
  */
 
+/** 保证金金额字段（2026-10-29 用户裁定）：AI 只能产出纯数字（单位元，预览模板自带「元」后缀）。
+ *  硬校验在 generateTenderFieldContent；前端 templates.ts 的 aiPrompt 是软约束（首次即合规引导）。 */
+const TENDER_NUMERIC_AMOUNT_FIELDS = new Set(['responseDepositAmount', 'performanceDepositAmount']);
+
 @Injectable()
 export class AiService {
   constructor(
@@ -2638,16 +2642,29 @@ stageMatch 字段需要输出两部分判断结果：
   }
 
   /** 招标字段 AI 生成 */
+  /** 金额字段结果规整：去空白/全半角千分位逗号/货币符/结尾「元」；非纯数字（至多两位小数）返回 null */
+  private normalizeNumericAmountField(content: string): string | null {
+    const cleaned = content
+      .replace(/[\s,，]/g, '')
+      .replace(/^[¥￥]/, '')
+      .replace(/元$/, '');
+    return /^\d+(\.\d{1,2})?$/.test(cleaned) ? cleaned : null;
+  }
+
   async generateTenderFieldContent(payload: {
     fieldKey: string; fieldLabel: string; currentValue: string;
     aiPrompt?: string; context?: any;
   }) {
+    const isNumericAmountField = TENDER_NUMERIC_AMOUNT_FIELDS.has(payload.fieldKey);
     const systemPrompt =
       `你是招标/采购文件编写专家。默认以采购方（招标方）立场行文，向供应商提出要求、规范其投标与报价行为；` +
       `若字段要求中明确指定以供应商口吻填写（如供应商填报的报价清单），则按该字段指定口吻生成。` +
       `涉及天数、百分比、期限、比例、数量、技术参数等可量化指标时，必须根据项目类型、规模、行业惯例直接填入合理具体的数值，禁止使用 ____ 下划线、空格、括号等占位符，也禁止「待定」「另行约定」等模糊表述；唯有最终投标报价金额（供应商需填报的分项报价、总报价）以 ____ 留空供供应商填写。` +
       `只输出正文：不写标题、抬头（如 致：××）或落款签字栏（如 投标人盖章、法定代表人签字、日期）。` +
       `严禁在正文开头重复字段名称作为前缀（例如字段是"项目完成期限"，正文直接写"自合同签订之日起 60 日内完成"，不得写成"项目完成期限：自合同签订之日起 60 日内完成"）。` +
+      (isNumericAmountField
+        ? `本字段为金额数字字段：只输出一个纯阿拉伯数字（单位为元，如 50000），严禁任何单位（元/万元/人民币/¥）、大写金额、标点与说明文字。`
+        : '') +
       `现为"${payload.fieldLabel}"字段生成内容。只返回 JSON: {"content": "正文"}，content 字段不得为空字符串。`;
     const userPrompt =
       `字段: ${payload.fieldKey}\n当前值: ${payload.currentValue}\n` +
@@ -2656,13 +2673,23 @@ stageMatch 字段需要输出两部分判断结果：
     // LLM 调用可能因限流/网络/解析偶发失败，重试 3 次以提升稳定性
     let lastError: unknown;
     let emptyCount = 0;
+    let nonNumericCount = 0;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const result = await this.llm.chatJson<{ content: string }>(systemPrompt, userPrompt);
         const content = await this.sanitizeAiText((result.content || '').trim());
-        if (content) return { content };
-        // chatJson 成功但 content 为空 —— 记录以便区分错误类型
-        emptyCount++;
+        if (isNumericAmountField) {
+          // 金额字段：纯数字全匹配才算成功——「50,000元」规整为 50000；
+          // 「伍万元整」「保证金5万元」等计失败重试，不做正则提取（防「5万→5」错值）
+          const numeric = content ? this.normalizeNumericAmountField(content) : null;
+          if (numeric) return { content: numeric };
+          nonNumericCount++;
+        } else if (content) {
+          return { content };
+        } else {
+          // chatJson 成功但 content 为空 —— 记录以便区分错误类型
+          emptyCount++;
+        }
       } catch (err) {
         lastError = err;
       }
@@ -2672,6 +2699,11 @@ stageMatch 字段需要输出两部分判断结果：
     }
     // 全部重试失败 —— 区分错误类型，便于前端诊断（避免笼统的"AI 生成失败"）
     if (lastError instanceof Error) throw toFriendlyLlmError(lastError);
+    if (nonNumericCount > 0) {
+      throw new Error(
+        `AI 连续 ${nonNumericCount} 次未返回纯数字金额（应为以元为单位的小写数字，如 50000），请重试或手动填写`,
+      );
+    }
     if (emptyCount > 0) {
       throw new Error(
         `AI 连续 ${emptyCount} 次返回空内容，可能为字段"${payload.fieldLabel}"配置不当或模型异常，请调整提示词后重试`,
