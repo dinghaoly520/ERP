@@ -618,6 +618,7 @@ export const INTERNAL_BIDDING_SECTIONS: TenderSectionConfig[] = [
         key: "responseDepositAmount",
         label: "响应保证金金额",
         placeholder: "请输入金额（小写数字）",
+        aiPrompt: "生成响应保证金金额。只输出一个纯阿拉伯数字（单位为元，如 50000），不要包含元、万元、人民币等任何单位，不要大写金额，不要标点、空格或任何说明文字。金额为具体数值，原则上不超过项目预算金额的2%。",
         composite: {
           typeKey: "responseDepositType",
           typeLabel: "",
@@ -653,18 +654,12 @@ export const INTERNAL_BIDDING_SECTIONS: TenderSectionConfig[] = [
         placeholder: "请输入其他形式说明",
       },
       {
+        // 2026-10-29 用户裁定：去「无/有」选择器（原 composite 整行永不显示=死字段），
+        // 纯输入框、默认值 "/"（初始草稿置 "/"，无其他要求保留、有则改写）
         key: "responseDepositOtherRequirement",
         label: "响应保证金其他要求",
-        placeholder: "请输入其他要求",
+        placeholder: "请输入其他要求（无则保留 /）",
         multiline: true,
-        composite: {
-          typeKey: "responseDepositOtherRequirementType",
-          typeLabel: "是否有其他要求",
-          typeOptions: [
-            { value: "none", label: "无" },
-            { value: "have", label: "有" },
-          ],
-        },
       },
       {
         key: "responseDepositNonRefundType",
@@ -697,7 +692,8 @@ export const INTERNAL_BIDDING_SECTIONS: TenderSectionConfig[] = [
       {
         key: "performanceDepositAmount",
         label: "履约保证金金额",
-        placeholder: "请输入金额及比例，例如：合同金额的10%",
+        placeholder: "请输入金额（小写数字）",
+        aiPrompt: "生成履约保证金金额。只输出一个纯阿拉伯数字（单位为元，如 50000），不要包含元、万元、人民币等任何单位，不要大写金额，不要标点、空格或任何说明文字。金额为具体数值，原则上不超过合同金额的10%折算所得金额。",
       },
       {
         key: "performanceDepositForm",
@@ -850,7 +846,7 @@ export function createEmptyInternalBiddingDraft(): InternalBiddingDraft {
     responseDepositForm: "",
     responseDepositBankInfo: "",
     responseDepositOtherForm: "",
-    responseDepositOtherRequirement: "",
+    responseDepositOtherRequirement: "/",
     responseDepositOtherRequirementType: "",
     responseDepositNonRefundType: "",
     responseDepositNonRefundContent: "",

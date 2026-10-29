@@ -1504,12 +1504,36 @@ function InternalBiddingPreview({
                           <br />（1）{T.file}保证金的金额：<PreviewValue value={draft.responseDepositAmount} placeholder="{{{T.file}保证金金额}}" fieldKey="responseDepositAmount" onValueChange={onValueChange} />元（小写），<PreviewValue value={draft.responseDepositAmount} placeholder="{{{T.file}保证金金额大写}}" />元（大写）。
                           <br />（2）{T.file}保证金的形式：
                           <br />{draft.responseDepositForm === 'cash' ? '☑' : '☐'}现金（电汇、银行转账、汇票、支票）
-                          <br />采用现金形式的，收取{T.file}保证金的账号名称、开户银行及账号：<PreviewValue value={draft.responseDepositBankInfo} placeholder="{{账号信息}}" fieldKey="responseDepositBankInfo" onValueChange={onValueChange} />。
+                          <br />采用现金形式的，收取{T.file}保证金的账号名称、开户银行及账号：
+                          {/* 2026-10-29 裁定：非现金形式渲染不可编辑「/」（与导出 deposit6 同口径）；形式未选保持占位符 */}
+                          {!draft.responseDepositForm || draft.responseDepositForm === 'cash' ? (
+                            <PreviewValue value={draft.responseDepositBankInfo} placeholder="{{账号信息}}" fieldKey="responseDepositBankInfo" onValueChange={onValueChange} />
+                          ) : (
+                            <PreviewValue value="/" placeholder="{{账号信息}}" />
+                          )}。
                           <br />{draft.responseDepositForm === 'bank_guarantee' ? '☑' : '☐'}银行保函
                           <br />{draft.responseDepositForm === 'guarantee_institution' ? '☑' : '☐'}担保机构保函
                           <br />{draft.responseDepositForm === 'insurance' ? '☑' : '☐'}保险公司保证保险
-                          <br />{draft.responseDepositForm === 'other' ? '☑' : '☐'}其他：<PreviewValue value={draft.responseDepositOtherForm} placeholder="{{其他形式}}" fieldKey="responseDepositOtherForm" onValueChange={onValueChange} />
-                          <br />（3）其他要求：<PreviewValue value={draft.responseDepositOtherRequirement} placeholder="{{其他要求}}" fieldKey="responseDepositOtherRequirement" onValueChange={onValueChange} />
+                          <br />{draft.responseDepositForm === 'other' ? '☑' : '☐'}其他：
+                          {/* 2026-10-29 裁定：非「其他」形式渲染不可编辑「/」（与导出 deposit11 同口径） */}
+                          {!draft.responseDepositForm || draft.responseDepositForm === 'other' ? (
+                            <PreviewValue value={draft.responseDepositOtherForm} placeholder="{{其他形式}}" fieldKey="responseDepositOtherForm" onValueChange={onValueChange} />
+                          ) : (
+                            <PreviewValue value="/" placeholder="{{其他形式}}" />
+                          )}
+                          <br />（3）其他要求：
+                          {/* 2026-10-29 裁定：纯输入框默认 "/"；空值兜底「/」（与导出 deposit12 同口径），保持可编辑 */}
+                          <PreviewValue value={draft.responseDepositOtherRequirement || '/'} placeholder="{{其他要求}}" fieldKey="responseDepositOtherRequirement" onValueChange={onValueChange} />
+                          <br />（4）{T.file}保证金不予退还其他情形：
+                          {/* 2026-10-29 排查补齐：导出模板 8.7.5 有此行（deposit13/14/15），预览此前整行缺失；
+                              选「无」→ 不可编辑「/」（与导出 deposit15 同口径）；未选保持占位符 */}
+                          {!draft.responseDepositNonRefundType ? (
+                            <>☐无 ☐有，具体情形：<span className="rounded-[6px] bg-[rgba(234,188,110,0.12)] px-1 text-[rgba(178,124,42,1)]">{"{{不予退还情形}}"}</span>。</>
+                          ) : draft.responseDepositNonRefundType === 'none' ? (
+                            <>☑无 ☐有，具体情形：<PreviewValue value="/" placeholder="{{不予退还情形}}" />。</>
+                          ) : (
+                            <>☐无 ☑有，具体情形：<PreviewValue value={draft.responseDepositNonRefundContent} placeholder="{{不予退还情形}}" fieldKey="responseDepositNonRefundContent" onValueChange={onValueChange} />。</>
+                          )}
                         </span>
                       )}
                     </td>
@@ -1554,7 +1578,13 @@ function InternalBiddingPreview({
                           <br />{draft.performanceDepositForm === 'bank_guarantee' ? '☑' : '☐'}银行保函
                           <br />{draft.performanceDepositForm === 'guarantee_institution' ? '☑' : '☐'}担保机构保函
                           <br />{draft.performanceDepositForm === 'insurance' ? '☑' : '☐'}保险公司保证保险
-                          <br />{draft.performanceDepositForm === 'other' ? '☑' : '☐'}其他：<PreviewValue value={draft.performanceDepositOtherForm} placeholder="{{其他形式}}" fieldKey="performanceDepositOtherForm" onValueChange={onValueChange} />
+                          <br />{draft.performanceDepositForm === 'other' ? '☑' : '☐'}其他：
+                          {/* 2026-10-29 裁定：履约同口径——非「其他」形式渲染不可编辑「/」（与导出 perf9 同口径） */}
+                          {!draft.performanceDepositForm || draft.performanceDepositForm === 'other' ? (
+                            <PreviewValue value={draft.performanceDepositOtherForm} placeholder="{{其他形式}}" fieldKey="performanceDepositOtherForm" onValueChange={onValueChange} />
+                          ) : (
+                            <PreviewValue value="/" placeholder="{{其他形式}}" />
+                          )}
                         </span>
                       )}
                     </td>

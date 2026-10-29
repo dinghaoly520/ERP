@@ -152,7 +152,20 @@ export default function TenderWritePage() {
 
   useEffect(() => {
     const cached = readTenderWriteState();
-    setDrafts(cached.drafts);
+    // 2026-10-29 追加裁定：保证金其他要求默认「/」直接落输入框——存量草稿在「收取」
+    // 状态下的空值，恢复时补种（无该字段的采购方式自然跳过）
+    const seedDepositSlash = <T extends object>(d: T): T => {
+      const next = { ...(d as Record<string, string>) };
+      if (next.responseDepositType === "collect" && !next.responseDepositOtherRequirement?.trim()) {
+        next.responseDepositOtherRequirement = "/";
+      }
+      return next as T;
+    };
+    setDrafts({
+      ...cached.drafts,
+      INTERNAL_BIDDING: seedDepositSlash(cached.drafts.INTERNAL_BIDDING),
+      INVITED_BIDDING: seedDepositSlash(cached.drafts.INVITED_BIDDING),
+    });
     // 默认进入谈判采购，有缓存则恢复
     setSelectedType(cached.selectedType || "COMPETITIVE_NEGOTIATION");
     // 公司信息联动（2026-10-10，多人版）：进入采购文件编写时，「联系方式/监督举报/开标地点」
@@ -258,6 +271,12 @@ export default function TenderWritePage() {
   }, [selectedType, drafts]);
 
   const updateDraft = (key: CompetitiveNegotiationFieldKey | SingleSourceFieldKey | InquiryPurchaseFieldKey | InternalBiddingFieldKey | InvitedBiddingFieldKey, value: string) => {
+    // 2026-10-29 追加裁定：保证金选「收取」时，其他要求输入框默认直接落「/」
+    // （清空后重选会补回；已有内容不覆盖；仅 INTERNAL/INVITED 分支消费此标记）
+    const seedOtherRequirementSlash =
+      key === "responseDepositType" &&
+      value === "collect" &&
+      !(currentDraft as Record<string, string>).responseDepositOtherRequirement?.trim();
     if (selectedType === "COMPETITIVE_NEGOTIATION") {
       setDrafts((previous) => ({
         ...previous,
@@ -292,6 +311,7 @@ export default function TenderWritePage() {
           ...createEmptyInternalBiddingDraft(),
           ...previous.INTERNAL_BIDDING,
           [key]: value,
+          ...(seedOtherRequirementSlash ? { responseDepositOtherRequirement: "/" } : {}),
         },
       }));
     } else if (selectedType === "INVITED_BIDDING") {
@@ -301,6 +321,7 @@ export default function TenderWritePage() {
           ...createEmptyInvitedBiddingDraft(),
           ...previous.INVITED_BIDDING,
           [key]: value,
+          ...(seedOtherRequirementSlash ? { responseDepositOtherRequirement: "/" } : {}),
         },
       }));
     }

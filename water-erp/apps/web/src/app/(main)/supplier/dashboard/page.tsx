@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
-  Building2, TrendingUp, AlertTriangle, Activity, Star, Ban,
+  Building2, TrendingUp, AlertTriangle, Activity, Star, Ban, Clock3,
   Target, Layers, Lightbulb, ChevronDown, ChevronUp, RefreshCw,
 } from 'lucide-react';
 import { getSupplierStats, getClassifications, getEvaluationStats, getQualificationAlerts, getRecentActivities, getFavorites, getEvaluationDimensionStats, getEnterpriseTypeDistribution, getSupplierList } from '@/lib/api/supplier';
@@ -207,6 +207,9 @@ const GRADE_COLORS: Record<string, string> = { A: 'var(--success)', B: 'var(--ac
 const BOTTOM_CARD_HEIGHT = 'h-[460px]';
 const ACTIVITY_PREVIEW_COUNT = 5;
 
+/* 三级注册审批级标签（与审批中心 review-center-modal STAGE_META 同口径） */
+const REVIEW_STAGE_LABEL: Record<string, string> = { STAFF: '待初审', LEADER: '待复审', ADMIN: '待终审' };
+
 function EvalColumn({
   evalStats,
   dimStats,
@@ -258,22 +261,25 @@ function EvalColumn({
       {/* Five-dimension grade distribution mini bars */}
       {dimStats && dimStats.total > 0 && (
         <div className="flex flex-col gap-1">
+          <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]/50">五维等级分布</span>
           {DIM_META.map(([key, label]) => {
             const grades = dimStats[key] as Record<string, number>;
-            const dimTotal = Object.values(grades).reduce((a, b) => a + b, 0) || 1;
+            const dimTotal = Object.values(grades).reduce((a, b) => a + b, 0);
+            // 右列不重复展示总次（五维恒等于评价总数，信息量为零）——改示随行变化的 A 级占比，原始次数进 title
+            const aRate = dimTotal > 0 ? Math.round(((grades.A || 0) / dimTotal) * 100) : 0;
             return (
               <div key={key} className="flex items-center gap-2">
                 <span className="text-[10px] font-semibold text-[var(--muted-foreground)] w-[68px] flex-shrink-0 truncate">{label}</span>
                 <div className="flex-1 h-3 rounded-full bg-[var(--muted)]/25 overflow-hidden flex gap-px">
                   {(['A', 'B', 'C', 'D', 'E'] as const).map(g => {
                     const count = grades[g] || 0;
-                    const pct = (count / dimTotal) * 100;
+                    const pct = dimTotal > 0 ? (count / dimTotal) * 100 : 0;
                     return pct > 0 ? (
                       <div key={g} className="h-full transition-all duration-700" style={{ width: `${pct}%`, backgroundColor: GRADE_COLORS[g], opacity: 0.55 }} title={`${g}级: ${count}`} />
                     ) : null;
                   })}
                 </div>
-                <span className="text-[9px] tabular-nums font-semibold text-[var(--muted-foreground)] w-8 text-right flex-shrink-0">{dimTotal}次</span>
+                <span className="text-[9px] tabular-nums font-semibold text-[var(--muted-foreground)] w-10 text-right flex-shrink-0" title={`A 级 ${grades.A || 0} / 共 ${dimTotal} 次`}>A {aRate}%</span>
               </div>
             );
           })}
@@ -315,6 +321,12 @@ export default function SupplierDashboardPage() {
   const [frozenOpen, setFrozenOpen] = useState(false);
   const [frozenLoading, setFrozenLoading] = useState(false);
   const [frozenList, setFrozenList] = useState<{ disabled: Supplier[]; blacklist: Supplier[] }>({ disabled: [], blacklist: [] });
+  // 待审核构成窗口（2026-10-29 用户裁定：总览是信息汇总不是业务——点击罗列在途审批与阶段，不再拉起审批中心）
+  const [approvalOpen, setApprovalOpen] = useState(false);
+  const [approvalLoading, setApprovalLoading] = useState(false);
+  const [approvalList, setApprovalList] = useState<{ pending: Supplier[]; returned: Supplier[] }>({ pending: [], returned: [] });
+  // 资质预警明细窗口（同日裁定：窗口展示，不再跳资质预警页）
+  const [alertsOpen, setAlertsOpen] = useState(false);
   const [loadError, setLoadError] = useState(false); // B13：任一面板加载失败即提示，避免静默空面板
   // 公司视野（admin 选择器，与供应商库共用 localStorage 记忆；非 admin 后端强制本公司）
   const [companyId, setCompanyId] = useState('all');
@@ -357,6 +369,21 @@ export default function SupplierDashboardPage() {
     return () => { active = false; };
   }, [frozenOpen, companyId]);
 
+  // 待审核构成：打开窗口时拉在途审批件（PENDING+RETURNED，双谓词口径与 KPI 计数一致）
+  useEffect(() => {
+    if (!approvalOpen) return;
+    let active = true;
+    const scope = companyId === 'all' ? undefined : companyId;
+    Promise.all([
+      getSupplierList({ status: 'PENDING', pageSize: 200, companyId: scope }),
+      getSupplierList({ status: 'RETURNED', pageSize: 200, companyId: scope }),
+    ])
+      .then(([p, r]) => { if (active) setApprovalList({ pending: p.items, returned: r.items }); })
+      .catch(() => { if (active) setApprovalList({ pending: [], returned: [] }); })
+      .finally(() => { if (active) setApprovalLoading(false); });
+    return () => { active = false; };
+  }, [approvalOpen, companyId]);
+
   const insights = useMemo(() => deriveInsights(classifications, stats, evalStats, alerts), [classifications, stats, evalStats, alerts]);
   const actionLabels: Record<string, string> = {
     SUPPLIER_APPROVED: '审核通过', SUPPLIER_REJECTED: '审核不通过', SUPPLIER_RETURNED: '退回补正',
@@ -367,6 +394,13 @@ export default function SupplierDashboardPage() {
     SUPPLIER_TAGS_UPDATED: '业务标签更新', SUPPLIER_TAGS_BACKFILL: '业务标签回填',
   };
   const maxCatCount = Math.max(1, ...classifications.map(c => c._count?.suppliers ?? 0));
+  // 待审核构成：PENDING 按当前审批级分组（三级全列含 0，回答「数字怎么构成」）；异常级兜底「未分级」
+  const approvalStageGroups = (() => {
+    const groups = (['STAFF', 'LEADER', 'ADMIN'] as const).map(stage => ({ label: REVIEW_STAGE_LABEL[stage], list: approvalList.pending.filter(s => s.reviewStage === stage) }));
+    const rest = approvalList.pending.filter(s => !(s.reviewStage && s.reviewStage in REVIEW_STAGE_LABEL));
+    if (rest.length > 0) groups.push({ label: '未分级', list: rest });
+    return groups;
+  })();
 
   return (
     <div className="flex flex-col gap-4">
@@ -396,17 +430,17 @@ export default function SupplierDashboardPage() {
             <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats?.total ?? '—'}</span>
             <span className="text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">在库 / 临时 / 停用 / 黑名单</span>
           </div>
-          <Link href="/supplier/approval?return=/supplier/dashboard" className="kpi-card group flex h-full flex-col gap-1.5 p-3">
+          <button type="button" onClick={() => { setApprovalLoading(true); setApprovalOpen(true); }} className="kpi-card group flex h-full flex-col gap-1.5 p-3 text-left cursor-pointer w-full">
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">待审核</span>
             <span className={`text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums ${stats && stats.pending > 0 ? 'text-[var(--warning)]' : 'text-[var(--foreground)]'}`}>{stats?.pending ?? '—'}</span>
-            <span className="text-[10px] font-medium text-[var(--muted-foreground)] leading-tight group-hover:text-[var(--accent)]">新注册申请 · 前往审批</span>
-          </Link>
+            <span className="text-[10px] font-medium text-[var(--muted-foreground)] leading-tight group-hover:text-[var(--accent)]">在途注册审批 · 查看构成</span>
+          </button>
           <button type="button" onClick={() => { setFrozenLoading(true); setFrozenOpen(true); }} className="kpi-card group flex h-full flex-col gap-1.5 p-3 text-left cursor-pointer w-full">
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">停用/黑名单</span>
             <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats ? (stats.disabled ?? 0) + (stats.blacklist ?? 0) : '—'}</span>
             <span className="text-[10px] font-medium text-[var(--muted-foreground)] leading-tight group-hover:text-[var(--accent)]">状态冻结 · 查看名单</span>
           </button>
-          <Link href="/supplier/qualification-alerts" className="kpi-card group flex h-full flex-col gap-1.5 p-3">
+          <button type="button" onClick={() => setAlertsOpen(true)} className="kpi-card group flex h-full flex-col gap-1.5 p-3 text-left cursor-pointer w-full">
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">资质预警</span>
             <span className={`text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums ${alerts && alerts.expiredCount > 0 ? 'text-[var(--danger)]' : alerts && alerts.expiringCount > 0 ? 'text-[var(--warning)]' : 'text-[var(--foreground)]'}`}>
               {alerts ? (alerts.expiredCount ?? 0) + (alerts.expiringCount ?? 0) : '—'}
@@ -414,7 +448,7 @@ export default function SupplierDashboardPage() {
             <span className="text-[10px] font-medium text-[var(--muted-foreground)] leading-tight group-hover:text-[var(--accent)]">
               {alerts ? ((alerts.expiredCount ?? 0) + (alerts.expiringCount ?? 0) > 0 ? `已过期 ${alerts.expiredCount} 项 · 即将过期 ${alerts.expiringCount} 项` : '暂无到期风险') : '资质到期情况'}
             </span>
-          </Link>
+          </button>
         </div>
         </div>
       </div>
@@ -609,6 +643,135 @@ export default function SupplierDashboardPage() {
                 )}
               </section>
             ))}
+          </div>
+        )}
+      </Modal>
+
+      {/* ══════ 待审核构成窗口（总览=信息汇总：罗列在途审批与阶段，不拉起审批中心） ══════ */}
+      <Modal
+        open={approvalOpen}
+        onClose={() => setApprovalOpen(false)}
+        title="待审核构成"
+        description="在途注册审批按当前审批级罗列，随公司视野过滤"
+        size="lg"
+        footer={
+          <div className="flex w-full items-center gap-2">
+            <span className="flex-1 text-xs text-[var(--muted-foreground)]">「待审核」只计待审件；退回补正为独立口径，不并入计数</span>
+            <Link href="/supplier/approval?return=/supplier/dashboard" onClick={() => setApprovalOpen(false)} className="neu-btn-xs">前往审批中心</Link>
+          </div>
+        }
+      >
+        {approvalLoading ? (
+          <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">正在加载在途审批…</p>
+        ) : approvalList.pending.length === 0 && approvalList.returned.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-10">
+            <span className="neu-icon-well flex h-10 w-10 items-center justify-center rounded-[12px]"><Clock3 size={16} className="text-[var(--muted-foreground)]" /></span>
+            <p className="text-sm text-[var(--muted-foreground)]">当前视野下没有在途注册审批</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {approvalStageGroups.map(group => (
+              <section key={group.label} className="flex flex-col gap-2">
+                <h4 className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
+                  {group.label} <span className="tabular-nums">（{group.list.length}）</span>
+                </h4>
+                {group.list.length === 0 ? (
+                  <p className="px-1 text-xs text-[var(--muted-foreground)]/70">无</p>
+                ) : (
+                  <div className="flex flex-col gap-1.5">
+                    {group.list.map(s => (
+                      <Link key={s.id} href={`/supplier/${s.id}`} onClick={() => setApprovalOpen(false)} className="flex items-center gap-3 neu-card-static !rounded-xl !p-3 hover:ring-1 hover:ring-[var(--accent)]/20 transition">
+                        <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--accent)]/10 text-[var(--accent)]">
+                          <Clock3 size={13} />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-semibold text-[var(--foreground)] truncate">{s.name}</div>
+                          <div className="mt-0.5 text-[10px] font-mono text-[var(--muted-foreground)]/70">{s.companyNo || s.supplierNo} · {normalizeEnterpriseType(s.enterpriseType)}</div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </section>
+            ))}
+            <section className="flex flex-col gap-2">
+              <h4 className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
+                退回补正 <span className="tabular-nums">（{approvalList.returned.length}）</span>
+              </h4>
+              {approvalList.returned.length === 0 ? (
+                <p className="px-1 text-xs text-[var(--muted-foreground)]/70">无</p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {approvalList.returned.map(s => (
+                    <Link key={s.id} href={`/supplier/${s.id}`} onClick={() => setApprovalOpen(false)} className="flex items-center gap-3 neu-card-static !rounded-xl !p-3 hover:ring-1 hover:ring-[var(--accent)]/20 transition">
+                      <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--warning)]/10 text-[var(--warning)]">
+                        <RefreshCw size={13} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-semibold text-[var(--foreground)] truncate">{s.name}</div>
+                        <div className="mt-0.5 text-[10px] font-mono text-[var(--muted-foreground)]/70">{s.companyNo || s.supplierNo} · {normalizeEnterpriseType(s.enterpriseType)}</div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+      </Modal>
+
+      {/* ══════ 资质预警明细窗口（窗口展示，不跳资质预警页） ══════ */}
+      <Modal
+        open={alertsOpen}
+        onClose={() => setAlertsOpen(false)}
+        title="资质预警明细"
+        description={alerts ? `已过期 ${alerts.expiredCount} 项 · 即将过期 ${alerts.expiringCount} 项 · 影响 ${alerts.affectedSupplierCount} 家供应商` : undefined}
+        size="lg"
+        footer={
+          <div className="flex w-full items-center gap-2">
+            <span className="flex-1 text-xs text-[var(--muted-foreground)]">发送维护提醒等操作在资质预警页进行</span>
+            <Link href="/supplier/qualification-alerts" onClick={() => setAlertsOpen(false)} className="neu-btn-xs">前往资质预警页</Link>
+          </div>
+        }
+      >
+        {!alerts ? (
+          <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">资质到期情况加载中…</p>
+        ) : alerts.items.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-10">
+            <span className="neu-icon-well flex h-10 w-10 items-center justify-center rounded-[12px]"><AlertTriangle size={16} className="text-[var(--success)]" /></span>
+            <p className="text-sm text-[var(--muted-foreground)]">当前视野下无资质到期预警</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {([['已过期', 'var(--danger)'], ['即将过期', 'var(--warning)']] as [string, string][]).map(([label, tone]) => {
+              const list = alerts.items.filter(q => q.status === label);
+              return (
+                <section key={label} className="flex flex-col gap-2">
+                  <h4 className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
+                    {label} <span className="tabular-nums">（{list.length} 项）</span>
+                  </h4>
+                  {list.length === 0 ? (
+                    <p className="px-1 text-xs text-[var(--muted-foreground)]/70">无</p>
+                  ) : (
+                    <div className="flex flex-col gap-1.5">
+                      {list.map(q => (
+                        <Link key={q.id} href={`/supplier/${q.supplierId}`} onClick={() => setAlertsOpen(false)} className="flex items-center gap-3 neu-card-static !rounded-xl !p-3 hover:ring-1 hover:ring-[var(--accent)]/20 transition">
+                          <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: `color-mix(in oklch, ${tone} 12%, transparent)`, color: tone }}>
+                            <AlertTriangle size={13} />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs font-semibold text-[var(--foreground)] truncate">{q.supplierName}</div>
+                            <div className="mt-0.5 truncate text-[10px] text-[var(--muted-foreground)]/70">
+                              {q.name}（{q.type}）· 到期 {q.validTo ? new Date(q.validTo).toLocaleDateString('zh-CN') : '—'} · <span className="font-semibold tabular-nums" style={{ color: tone }}>{q.daysRemaining !== null ? `${q.daysRemaining} 天` : '—'}</span>
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              );
+            })}
           </div>
         )}
       </Modal>

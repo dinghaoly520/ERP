@@ -448,6 +448,51 @@ describe('AiService', () => {
       expect(result[0].confidence).toBeGreaterThan(50);
     });
   });
+
+  describe('generateTenderFieldContent（保证金金额纯数字硬校验，2026-10-29）', () => {
+    it('金额字段：纯数字原样透传', async () => {
+      (service as any).llm.chatJson.mockResolvedValue({ content: '50000' });
+      const res = await service.generateTenderFieldContent({
+        fieldKey: 'responseDepositAmount', fieldLabel: '响应保证金金额', currentValue: '', context: {},
+      });
+      expect(res.content).toBe('50000');
+    });
+
+    it('金额字段：千分位逗号与结尾「元」规整为纯数字', async () => {
+      (service as any).llm.chatJson.mockResolvedValue({ content: '50,000元' });
+      const res = await service.generateTenderFieldContent({
+        fieldKey: 'performanceDepositAmount', fieldLabel: '履约保证金金额', currentValue: '', context: {},
+      });
+      expect(res.content).toBe('50000');
+    });
+
+    it('金额字段：无阿拉伯数字的文本（伍万元整）→ 3 次重试后明确报错', async () => {
+      (service as any).llm.chatJson.mockResolvedValue({ content: '伍万元整' });
+      await expect(
+        service.generateTenderFieldContent({
+          fieldKey: 'responseDepositAmount', fieldLabel: '响应保证金金额', currentValue: '', context: {},
+        }),
+      ).rejects.toThrow('未返回纯数字金额');
+      expect((service as any).llm.chatJson).toHaveBeenCalledTimes(3);
+    });
+
+    it('金额字段：数字+文本混杂（保证金5万元）不做提取 → 重试后报错（防「5万→5」错值）', async () => {
+      (service as any).llm.chatJson.mockResolvedValue({ content: '保证金5万元' });
+      await expect(
+        service.generateTenderFieldContent({
+          fieldKey: 'performanceDepositAmount', fieldLabel: '履约保证金金额', currentValue: '', context: {},
+        }),
+      ).rejects.toThrow('未返回纯数字金额');
+    });
+
+    it('非金额字段不受校验：文本照常返回', async () => {
+      (service as any).llm.chatJson.mockResolvedValue({ content: '自合同签订之日起60日内完成供货' });
+      const res = await service.generateTenderFieldContent({
+        fieldKey: 'projectDuration', fieldLabel: '项目完成期限', currentValue: '', context: {},
+      });
+      expect(res.content).toBe('自合同签订之日起60日内完成供货');
+    });
+  });
 });
 
 describe('AiController — 供应商名称不允许 AI 生成（2026-10-16 用户裁定）', () => {

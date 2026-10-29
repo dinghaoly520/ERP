@@ -65,6 +65,14 @@ const RERUN_EXTRA_STEPS = [
   { label: '供应商确认', desc: '全部供应商确认状态一览' },
 ] as const;
 
+/** 邀请短信关键词字段配置（正选通知/补选重邀两步共用输入） */
+const INVITE_KEYWORD_FIELDS = [
+  { key: 'company', label: '归属公司', ph: '四川省水利发展集团有限公司' },
+  { key: 'projectName', label: '项目名称', ph: '项目名称' },
+  { key: 'projectCode', label: '项目编号', ph: '项目编号' },
+  { key: 'method', label: '采购方式', ph: '如：竞争性谈判' },
+] as const;
+
 /** 自动撑高的 textarea，高度随内容变化 */
 function AutoTextarea({ value, onChange, placeholder, minRows = 2 }: {
   value: string;
@@ -1173,6 +1181,23 @@ export function SupplierSelectionPage({
     if (!notifyKeywords.method.trim()) miss.push('采购方式');
     return miss;
   };
+
+  /** 邀请短信关键词输入行（正选通知/补选重邀两步共用——handleRerunNotify 与正选同款硬校验，
+   *  重邀步此前只读展示、校验失败时当前步无输入框可补（2026-10-29 与专家抽取候补同病，就地可改） */
+  const renderKeywordInputs = () => (
+    <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+      {INVITE_KEYWORD_FIELDS.map(f => (
+        <label key={f.key} className="flex items-center gap-2.5">
+          <span className="w-[76px] shrink-0 text-[11px] font-bold text-[var(--muted-foreground)]">{f.label}</span>
+          <input
+            value={notifyKeywords[f.key]}
+            onChange={e => setNotifyKeywords(prev => ({ ...prev, [f.key]: e.target.value }))}
+            placeholder={f.ph}
+            className="workbench-input flex-1 text-xs !h-8" />
+        </label>
+      ))}
+    </div>
+  );
 
   /** 固定语句模板视图（正选/补选共用）：蓝色加粗=关键词名称（同「确认链接」形态），不随取值变化；逐家实际内容见供应商表行展开预览。 */
   const renderInviteTemplate = () => (
@@ -2543,22 +2568,8 @@ export function SupplierSelectionPage({
                   <MessageSquare size={11} /><span>短信内容</span>
                 </div>
                 {renderInviteTemplate()}
+                {renderKeywordInputs()}
                 <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
-                  {([
-                    { key: 'company', label: '归属公司', ph: '四川省水利发展集团有限公司' },
-                    { key: 'projectName', label: '项目名称', ph: '项目名称' },
-                    { key: 'projectCode', label: '项目编号', ph: '项目编号' },
-                    { key: 'method', label: '采购方式', ph: '如：竞争性谈判' },
-                  ] as const).map(f => (
-                    <label key={f.key} className="flex items-center gap-2.5">
-                      <span className="w-[76px] shrink-0 text-[11px] font-bold text-[var(--muted-foreground)]">{f.label}</span>
-                      <input
-                        value={notifyKeywords[f.key]}
-                        onChange={e => setNotifyKeywords(prev => ({ ...prev, [f.key]: e.target.value }))}
-                        placeholder={f.ph}
-                        className="workbench-input flex-1 text-xs !h-8" />
-                    </label>
-                  ))}
                   <div className="flex items-center gap-2.5">
                     <span className="w-[76px] shrink-0 text-[11px] font-bold text-[var(--muted-foreground)]">供应商名称</span>
                     <span className="text-[11px] italic text-[var(--muted-foreground)]">按供应商自动填充（见上表）</span>
@@ -3416,12 +3427,14 @@ export function SupplierSelectionPage({
               </button>
             </div>
 
-            {/* 短信内容预览：与正选共用关键词（固定语句同款，此处只读展示） */}
+            {/* 短信内容预览 + 关键词就地可改（2026-10-29：此前只读展示，handleRerunNotify 硬校验
+                四项关键词而本步无输入框——与专家抽取候补确认同病，校验失败即死局） */}
             <div className="space-y-3 rounded-[14px] p-4" style={{ background: 'oklch(1 0 0 / 0.5)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 1px 1px 3px oklch(0.55 0.03 258 / 0.06), -1px -1px 2px oklch(1 0 0 / 0.7)' }}>
               <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
                 <MessageSquare size={11} /><span>短信内容（关键词与正选步骤共用）</span>
               </div>
               {renderInviteTemplate()}
+              {renderKeywordInputs()}
             </div>
 
           </div>

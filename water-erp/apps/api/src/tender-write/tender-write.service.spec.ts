@@ -6,6 +6,7 @@ import {
   buildSingleSourceReplacementPlan,
   renderTemplateXml,
 } from './tender-write.template';
+import type { InternalBiddingAnswers } from './tender-write.types';
 
 describe('tender-write template helpers', () => {
   it('normalizes malformed placeholder closers before rendering', () => {
@@ -430,6 +431,68 @@ describe('single-source tender template helpers', () => {
       expect(replacement?.isFormattedText).toBeUndefined();
       expect(replacement?.formattedTextXml).toBeUndefined();
     }
+  });
+
+  it('保证金不适用分支渲染 /：账号信息非现金、其他形式非「其他」；其他要求值非空用值否则 /（2026-10-29）', () => {
+    const baseAnswers: InternalBiddingAnswers = {
+      projectName: '测试项目',
+      coverDate: '2026-06-02',
+      projectOverview: '',
+      procurementContent: '',
+      maxPrice: '1000元',
+      qualificationRequirements: '',
+      consortiumForm: '',
+      consortiumFormType: 'reject',
+      documentAcquireTime: '2026-06-03',
+      documentPrice: '0元',
+      responseSubmissionTime: '2026-06-04',
+      contactName: '张三',
+      contactPhone: '13800000000',
+      contactEmail: 'test@example.com',
+      responseDepositType: 'collect',
+      responseDepositAmount: '50000',
+      // 形式=银行保函：账号信息/其他形式说明均为不适用分支（值存在也须被 / 覆盖）
+      responseDepositForm: 'bank_guarantee',
+      responseDepositBankInfo: '某银行某账号',
+      responseDepositOtherForm: '应当被斜杠覆盖',
+      responseDepositOtherRequirement: '',
+      // type 已死字段（前端选择器已删）：即使存量草稿残留 'have'，空值仍应出 /
+      responseDepositOtherRequirementType: 'have',
+      responseDepositNonRefundType: 'none',
+      responseDepositNonRefundContent: '',
+      performanceDepositType: 'collect',
+      performanceDepositAmount: '50000',
+      performanceDepositForm: 'bank_guarantee',
+      performanceDepositOtherForm: '',
+      evaluationMethod: '综合评分法',
+      contractSubcontracting: '',
+      contractSubcontractingType: 'none',
+      siteSurvey: '',
+      siteSurveyType: 'none',
+      copyCount: '1',
+      businessRequirements: '',
+      technicalRequirements: '',
+      submissionRequirements: '',
+      submissionRequirementsType: 'none',
+      quotationLetterType: 'text',
+      quotationLetter: '',
+    };
+    const plan = buildInternalBiddingReplacementPlan(baseAnswers);
+    const by = (target: string) =>
+      plan.find((item) => item.targetText === target)?.replacementText;
+    expect(by('响应保证金6')).toBe('/');
+    expect(by('响应保证金11')).toBe('/');
+    expect(by('响应保证金12')).toBe('/');
+
+    // 其他要求有值 → 原文透传
+    const withRequirement = buildInternalBiddingReplacementPlan({
+      ...baseAnswers,
+      responseDepositOtherRequirement: '保证金须在到账后 3 个工作日内确认',
+    });
+    expect(
+      withRequirement.find((item) => item.targetText === '响应保证金12')
+        ?.replacementText,
+    ).toBe('保证金须在到账后 3 个工作日内确认');
   });
 
   it('removes internal bidding comprehensive scoring table for lowest price evaluation', () => {
