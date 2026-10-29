@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
-  Building2, TrendingUp, Clock3, AlertTriangle, Activity, Star,
-  Target, Layers, Lightbulb, ChevronDown, RefreshCw,
+  Building2, TrendingUp, AlertTriangle, Activity, Star, Ban,
+  Target, Layers, Lightbulb, ChevronDown, ChevronUp, RefreshCw,
 } from 'lucide-react';
-import { getSupplierStats, getClassifications, getEvaluationStats, getQualificationAlerts, getRecentActivities, getFavorites, getEvaluationDimensionStats, getEnterpriseTypeDistribution } from '@/lib/api/supplier';
+import { getSupplierStats, getClassifications, getEvaluationStats, getQualificationAlerts, getRecentActivities, getFavorites, getEvaluationDimensionStats, getEnterpriseTypeDistribution, getSupplierList } from '@/lib/api/supplier';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import type { SupplierStats, QualificationAlerts, ActivityItem, SupplierFavoriteRecord, DimensionStats } from '@/lib/api/supplier';
-import type { SupplierClassification } from '@/lib/types';
+import type { Supplier, SupplierClassification } from '@/lib/types';
+import { Modal } from '@/components/workbench';
 import { CompanySelect, readInitialCompanyId } from '@/components/company/company-select';
 import Link from 'next/link';
 
@@ -202,6 +203,10 @@ const DIM_META: [keyof Omit<DimensionStats, 'total'>, string][] = [
 const GRADES = ['A', 'B', 'C', 'D', 'E'] as const;
 const GRADE_COLORS: Record<string, string> = { A: 'var(--success)', B: 'var(--accent)', C: 'var(--warning)', D: '#ca8a04', E: 'var(--danger)' };
 
+/* 底部两卡固定同高对齐；近期动态默认折叠只展示前 N 条 */
+const BOTTOM_CARD_HEIGHT = 'h-[460px]';
+const ACTIVITY_PREVIEW_COUNT = 5;
+
 function EvalColumn({
   evalStats,
   dimStats,
@@ -305,6 +310,11 @@ export default function SupplierDashboardPage() {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [favorites, setFavorites] = useState<SupplierFavoriteRecord[]>([]);
   const [insightsExpanded, setInsightsExpanded] = useState(true);
+  const [activitiesExpanded, setActivitiesExpanded] = useState(false); // 近期动态默认折叠：预览 5 条，展开后在固定高度内滚动
+  // 停用/黑名单名单窗口（2026-10-29）：KPI 卡点击原地弹窗展示，不再跳转供应商库
+  const [frozenOpen, setFrozenOpen] = useState(false);
+  const [frozenLoading, setFrozenLoading] = useState(false);
+  const [frozenList, setFrozenList] = useState<{ disabled: Supplier[]; blacklist: Supplier[] }>({ disabled: [], blacklist: [] });
   const [loadError, setLoadError] = useState(false); // B13：任一面板加载失败即提示，避免静默空面板
   // 公司视野（admin 选择器，与供应商库共用 localStorage 记忆；非 admin 后端强制本公司）
   const [companyId, setCompanyId] = useState('all');
@@ -331,6 +341,21 @@ export default function SupplierDashboardPage() {
   }, [companyId]);
 
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
+
+  // 停用/黑名单名单：打开窗口时按当前公司视野拉取（口径同 KPI 计数：disabled + blacklist）
+  useEffect(() => {
+    if (!frozenOpen) return;
+    let active = true;
+    const scope = companyId === 'all' ? undefined : companyId;
+    Promise.all([
+      getSupplierList({ status: 'DISABLED', pageSize: 200, companyId: scope }),
+      getSupplierList({ status: 'BLACKLIST', pageSize: 200, companyId: scope }),
+    ])
+      .then(([d, b]) => { if (active) setFrozenList({ disabled: d.items, blacklist: b.items }); })
+      .catch(() => { if (active) setFrozenList({ disabled: [], blacklist: [] }); })
+      .finally(() => { if (active) setFrozenLoading(false); });
+    return () => { active = false; };
+  }, [frozenOpen, companyId]);
 
   const insights = useMemo(() => deriveInsights(classifications, stats, evalStats, alerts), [classifications, stats, evalStats, alerts]);
   const actionLabels: Record<string, string> = {
@@ -364,19 +389,32 @@ export default function SupplierDashboardPage() {
           </div>
         </div>
         <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
+        {/* 待审核 / 停用黑名单 / 资质预警三卡可点击直达详情（2026-10-29 合并原「待处理指引」与「资质预警」分区） */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 items-stretch">
-          {[
-            ['供应商总数', stats?.total ?? '—', '在库 / 临时 / 停用 / 黑名单'],
-            ['已入库',     stats?.approved ?? '—', '正常运营'],
-            ['待审核',     stats?.pending ?? '—', '新注册申请'],
-            ['停用/黑名单', stats ? (stats.disabled ?? 0) + (stats.blacklist ?? 0) : '—', '状态冻结'],
-          ].map(([l, v, sub]) => (
-            <div key={l} className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">{l}</span>
-              <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{v}</span>
-              <span className="text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">{sub}</span>
-            </div>
-          ))}
+          <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">供应商总数</span>
+            <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats?.total ?? '—'}</span>
+            <span className="text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">在库 / 临时 / 停用 / 黑名单</span>
+          </div>
+          <Link href="/supplier/approval?return=/supplier/dashboard" className="kpi-card group flex h-full flex-col gap-1.5 p-3">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">待审核</span>
+            <span className={`text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums ${stats && stats.pending > 0 ? 'text-[var(--warning)]' : 'text-[var(--foreground)]'}`}>{stats?.pending ?? '—'}</span>
+            <span className="text-[10px] font-medium text-[var(--muted-foreground)] leading-tight group-hover:text-[var(--accent)]">新注册申请 · 前往审批</span>
+          </Link>
+          <button type="button" onClick={() => { setFrozenLoading(true); setFrozenOpen(true); }} className="kpi-card group flex h-full flex-col gap-1.5 p-3 text-left cursor-pointer w-full">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">停用/黑名单</span>
+            <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats ? (stats.disabled ?? 0) + (stats.blacklist ?? 0) : '—'}</span>
+            <span className="text-[10px] font-medium text-[var(--muted-foreground)] leading-tight group-hover:text-[var(--accent)]">状态冻结 · 查看名单</span>
+          </button>
+          <Link href="/supplier/qualification-alerts" className="kpi-card group flex h-full flex-col gap-1.5 p-3">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">资质预警</span>
+            <span className={`text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums ${alerts && alerts.expiredCount > 0 ? 'text-[var(--danger)]' : alerts && alerts.expiringCount > 0 ? 'text-[var(--warning)]' : 'text-[var(--foreground)]'}`}>
+              {alerts ? (alerts.expiredCount ?? 0) + (alerts.expiringCount ?? 0) : '—'}
+            </span>
+            <span className="text-[10px] font-medium text-[var(--muted-foreground)] leading-tight group-hover:text-[var(--accent)]">
+              {alerts ? ((alerts.expiredCount ?? 0) + (alerts.expiringCount ?? 0) > 0 ? `已过期 ${alerts.expiredCount} 项 · 即将过期 ${alerts.expiringCount} 项` : '暂无到期风险') : '资质到期情况'}
+            </span>
+          </Link>
         </div>
         </div>
       </div>
@@ -387,61 +425,6 @@ export default function SupplierDashboardPage() {
           <AlertTriangle size={16} className="text-[var(--danger)] shrink-0" />
           <span className="text-sm text-[var(--foreground)] flex-1">部分数据加载失败，当前展示可能不完整</span>
           <button onClick={loadDashboard} className="neu-btn-xs gap-1"><RefreshCw size={12} />重试</button>
-        </div>
-      )}
-
-      {/* ══════ 待处理指引 ══════ */}
-      {((stats && (stats.pending > 0 || (stats.disabled ?? 0) + (stats.blacklist ?? 0) > 0)) || (alerts && (alerts.expiredCount > 0 || alerts.expiringCount > 0))) && (
-        <div className="flex flex-wrap gap-2">
-          {stats && stats.pending > 0 && (
-            <Link href="/supplier/approval" className="kpi-card group flex items-center gap-3 p-3 rounded-xl flex-1 min-w-[180px]">
-              <div className="neu-icon-well flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]">
-                <Clock3 size={15} className="text-[var(--warning)]" />
-              </div>
-              <div>
-                <div className="text-xs font-bold text-[var(--foreground)]">待审核</div>
-                <div className="text-[1.35rem] font-black tabular-nums text-[var(--warning)] leading-none">{stats.pending}</div>
-                <div className="text-[9px] text-[var(--muted-foreground)]">前往审批 →</div>
-              </div>
-            </Link>
-          )}
-          {alerts && alerts.expiredCount > 0 && (
-            <Link href="/supplier/qualification-alerts" className="kpi-card group flex items-center gap-3 p-3 rounded-xl flex-1 min-w-[180px]">
-              <div className="neu-icon-well flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]">
-                <AlertTriangle size={15} className="text-[var(--danger)]" />
-              </div>
-              <div>
-                <div className="text-xs font-bold text-[var(--foreground)]">资质过期</div>
-                <div className="text-[1.35rem] font-black tabular-nums text-[var(--danger)] leading-none">{alerts.expiredCount}</div>
-                <div className="text-[9px] text-[var(--muted-foreground)]">前往预警 →</div>
-              </div>
-            </Link>
-          )}
-          {alerts && alerts.expiringCount > 0 && (
-            <Link href="/supplier/qualification-alerts" className="kpi-card group flex items-center gap-3 p-3 rounded-xl flex-1 min-w-[180px]">
-              <div className="neu-icon-well flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]">
-                <Clock3 size={15} className="text-[var(--warning)]" />
-              </div>
-              <div>
-                <div className="text-xs font-bold text-[var(--foreground)]">即将到期</div>
-                <div className="text-[1.35rem] font-black tabular-nums text-[var(--warning)] leading-none">{alerts.expiringCount}</div>
-                <div className="text-[9px] text-[var(--muted-foreground)]">前往预警 →</div>
-              </div>
-            </Link>
-          )}
-        </div>
-      )}
-
-      {/* ══════ 资质预警 ══════ */}
-      {alerts && (alerts.expiredCount > 0 || alerts.expiringCount > 0) && (
-        <div className="neu-table-card p-4">
-          <div className="flex flex-wrap gap-3 items-center">
-            <AlertTriangle size={13} className="text-[var(--warning)]" />
-            {alerts.expiredCount > 0 && <span className="rounded-lg bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-3 py-1.5 text-xs font-semibold text-[var(--danger)]">已过期 {alerts.expiredCount} 项</span>}
-            {alerts.expiringCount > 0 && <span className="rounded-lg bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] px-3 py-1.5 text-xs font-semibold text-[var(--warning)]">即将过期 {alerts.expiringCount} 项</span>}
-            <span className="text-xs text-[var(--muted-foreground)]">影响 {alerts.affectedSupplierCount} 家</span>
-            <Link href="/supplier/qualification-alerts" className="neu-btn-xs is-warning ml-auto">查看详情</Link>
-          </div>
         </div>
       )}
 
@@ -529,29 +512,37 @@ export default function SupplierDashboardPage() {
 
       {/* ══════ 底部两列 ══════ */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="neu-table-card p-5 flex flex-col">
+        <div className={`neu-table-card p-5 ${BOTTOM_CARD_HEIGHT} flex flex-col`}>
           <h3 className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-4 flex-shrink-0 flex items-center gap-2"><Activity size={13} />近期动态</h3>
           {activities.length === 0 ? (
             <p className="text-sm text-[var(--muted-foreground)] py-4 text-center flex-1 flex items-center justify-center">暂无动态</p>
           ) : (
-            <div className="space-y-2 flex-1 min-h-0 overflow-y-auto">
-              {activities.map(a => (
-                <div key={a.id} className="flex items-start gap-3 neu-card-static !rounded-xl !p-3">
-                  <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--accent)]/10 text-[10px] font-extrabold text-[var(--accent)]">
-                    {actionLabels[a.action]?.[0] || a.action[0]}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-semibold text-[var(--foreground)] truncate">{actionLabels[a.action] || a.action}</div>
-                    <div className="text-[10px] text-[var(--muted-foreground)]/70 mt-0.5">{a.actorName} · {new Date(a.at).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
-                    {a.details?.name && <div className="text-[11px] text-[var(--muted-foreground)] italic mt-0.5">{a.details.name}</div>}
+            <>
+              <div className="space-y-2 flex-1 min-h-0 overflow-y-auto">
+                {(activitiesExpanded ? activities : activities.slice(0, ACTIVITY_PREVIEW_COUNT)).map(a => (
+                  <div key={a.id} className="flex items-start gap-3 neu-card-static !rounded-xl !p-3">
+                    <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--accent)]/10 text-[10px] font-extrabold text-[var(--accent)]">
+                      {actionLabels[a.action]?.[0] || a.action[0]}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-semibold text-[var(--foreground)] truncate">{actionLabels[a.action] || a.action}</div>
+                      <div className="text-[10px] text-[var(--muted-foreground)]/70 mt-0.5">{a.actorName} · {new Date(a.at).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
+                      {a.details?.name && <div className="text-[11px] text-[var(--muted-foreground)] italic mt-0.5">{a.details.name}</div>}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+              {activities.length > ACTIVITY_PREVIEW_COUNT && (
+                <button type="button" onClick={() => setActivitiesExpanded(v => !v)} className="neu-btn-xs mx-auto mt-3 flex-shrink-0 gap-1">
+                  {activitiesExpanded ? '收起' : `展开全部 ${activities.length} 条`}
+                  {activitiesExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                </button>
+              )}
+            </>
           )}
         </div>
 
-        <div className="neu-table-card p-5 flex flex-col">
+        <div className={`neu-table-card p-5 ${BOTTOM_CARD_HEIGHT} flex flex-col`}>
           <h3 className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-4 flex-shrink-0 flex items-center gap-2"><Star size={13} />我的关注</h3>
           {favorites.length === 0 ? (
             <p className="text-sm text-[var(--muted-foreground)] py-4 text-center flex-1 flex items-center justify-center">暂无关注供应商，在供应商库中点击星标即可关注</p>
@@ -570,6 +561,57 @@ export default function SupplierDashboardPage() {
           )}
         </div>
       </div>
+
+      {/* ══════ 停用/黑名单名单窗口（KPI 卡原地弹窗，不跳转） ══════ */}
+      <Modal
+        open={frozenOpen}
+        onClose={() => setFrozenOpen(false)}
+        title="停用/黑名单供应商"
+        description="状态冻结的供应商名单，随当前公司视野过滤"
+        size="lg"
+        footer={
+          <div className="flex w-full items-center gap-2">
+            <span className="flex-1 text-xs text-[var(--muted-foreground)]">恢复供应商、移出黑名单等操作在供应商库进行</span>
+            <Link href="/supplier/repository?status=DISABLED" onClick={() => setFrozenOpen(false)} className="neu-btn-xs">在供应商库查看</Link>
+          </div>
+        }
+      >
+        {frozenLoading ? (
+          <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">正在加载名单…</p>
+        ) : frozenList.disabled.length === 0 && frozenList.blacklist.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-10">
+            <span className="neu-icon-well flex h-10 w-10 items-center justify-center rounded-[12px]"><Ban size={16} className="text-[var(--muted-foreground)]" /></span>
+            <p className="text-sm text-[var(--muted-foreground)]">当前视野下没有停用或黑名单供应商</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {([['已停用', frozenList.disabled], ['黑名单', frozenList.blacklist]] as [string, Supplier[]][]).map(([label, list]) => (
+              <section key={label} className="flex flex-col gap-2">
+                <h4 className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
+                  {label} <span className="tabular-nums">（{list.length}）</span>
+                </h4>
+                {list.length === 0 ? (
+                  <p className="text-xs text-[var(--muted-foreground)]/70 px-1">无</p>
+                ) : (
+                  <div className="flex flex-col gap-1.5">
+                    {list.map(s => (
+                      <Link key={s.id} href={`/supplier/${s.id}`} onClick={() => setFrozenOpen(false)} className="flex items-center gap-3 neu-card-static !rounded-xl !p-3 hover:ring-1 hover:ring-[var(--accent)]/20 transition">
+                        <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--muted)]/30 text-[var(--muted-foreground)]">
+                          <Ban size={13} />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-semibold text-[var(--foreground)] truncate">{s.name}</div>
+                          <div className="mt-0.5 text-[10px] font-mono text-[var(--muted-foreground)]/70">{s.companyNo || s.supplierNo} · {normalizeEnterpriseType(s.enterpriseType)}</div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </section>
+            ))}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

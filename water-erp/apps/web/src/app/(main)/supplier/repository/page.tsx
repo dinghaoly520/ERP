@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { sumMyPending, describeMyPending, REVIEW_BADGE_REFRESH_EVENT, type MyPendingReviewCount } from '@/lib/review-badge';
 import { toast } from 'sonner';
 import {
@@ -31,8 +31,9 @@ import { LEVEL_LABEL, LEVEL_COLOR, SUPPLIER_STATUS_LABEL } from '@water-erp/shar
 import type { AuthUser } from '@/lib/api/auth';
 import { fetchCurrentUser } from '@/lib/api/auth';
 
-export default function SupplierRepositoryPage() {
+function SupplierRepositoryPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { confirm, dialog } = useConfirm();
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const isAdmin = currentUser?.role === 'admin';
@@ -54,7 +55,11 @@ export default function SupplierRepositoryPage() {
   const [companyId, setCompanyId] = useState('all');
   const [companyCounts, setCompanyCounts] = useState<Array<{ name: string; count: number }> | null>(null);
   const selectedCompanyName = useCompanyName(companyId);
-  const [filterStatus, setFilterStatus] = useState('APPROVED');
+  // 深链初始状态：供应商总览 KPI「停用/黑名单」卡经 ?status=DISABLED|BLACKLIST 直达对应 tab；非法值回退 APPROVED
+  const [filterStatus, setFilterStatus] = useState(() => {
+    const s = searchParams.get('status');
+    return s === 'DISABLED' || s === 'BLACKLIST' ? s : 'APPROVED';
+  });
   // 临时供应商子视图：与 filterStatus='APPROVED' 叠加，仅看凭邀请码注册的临时入库供应商。
   const [filterIsTemporary, setFilterIsTemporary] = useState(false);
   // 初值恒空（SSR/客户端首渲染一致，防 hydration mismatch）；?search= 深链预填挂载后同步——
@@ -738,5 +743,14 @@ export default function SupplierRepositoryPage() {
       <ClassificationManagerDialog open={showClassMgr} onClose={() => setShowClassMgr(false)} />
       {dialog}
     </div>
+  );
+}
+
+// useSearchParams 须包 Suspense（与 work-arrangements 同款范式），否则静态渲染整体 de-opt
+export default function SupplierRepositoryPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-[300px] items-center justify-center text-sm text-[var(--muted-foreground)]">加载供应商库…</div>}>
+      <SupplierRepositoryPageInner />
+    </Suspense>
   );
 }
