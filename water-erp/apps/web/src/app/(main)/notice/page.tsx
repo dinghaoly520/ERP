@@ -12,6 +12,7 @@ import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, Partic
 import { toast } from 'sonner';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
+import { isOverdueScheduledDraft } from '@/lib/notice/schedule';
 import { useConfirm } from '@/components/workbench/use-confirm';
 import { ANNOUNCEMENT_TYPE_ORDER } from '@water-erp/shared';
 import {
@@ -243,7 +244,17 @@ export default function NoticePage() {
                     </div>
                   </td>
                   <td><StatusBadge tone={tm.tone}>{typeLabel}</StatusBadge></td>
-                  <td><StatusBadge tone={sm.tone}>{sm.label}</StatusBadge></td>
+                  <td>
+                    {/* 定时未生效（2026-10-29 审计 F）：定时时刻已过却仍是草稿——发布被闸拒绝或服务异常滞留，管理端此前零感知 */}
+                    {isOverdueScheduledDraft(a) ? (
+                      <div className="flex flex-col items-center gap-1">
+                        <StatusBadge tone="red">定时未生效</StatusBadge>
+                        <span className="text-[10px] leading-tight text-[var(--muted-foreground)]">发布被拒/滞留，请检查</span>
+                      </div>
+                    ) : (
+                      <StatusBadge tone={sm.tone}>{sm.label}</StatusBadge>
+                    )}
+                  </td>
                   <td>
                     <div className="flex flex-wrap items-center justify-center gap-1.5">
                       {!hasAttachments && !a.bidDocument ? (<span className="text-[var(--muted-foreground)]">—</span>) : (<>
@@ -515,7 +526,11 @@ export default function NoticePage() {
                   className="flex items-center gap-3 px-1 py-3 text-left transition-colors hover:bg-[color-mix(in_oklch,var(--accent)_6%,transparent)]"
                 >
                   <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--foreground)]">{a.title}</span>
-                  {(() => { const sm = displayStatus(a); return <StatusBadge tone={sm.tone}>{sm.label}</StatusBadge>; })()}
+                  {(() => {
+                    // 草稿速览同款红标（审计 F）：定时已过未发布一眼可见
+                    if (isOverdueScheduledDraft(a)) return <StatusBadge tone="red">定时未生效</StatusBadge>;
+                    const sm = displayStatus(a); return <StatusBadge tone={sm.tone}>{sm.label}</StatusBadge>;
+                  })()}
                   <span className="shrink-0 font-mono text-[11px] text-[var(--muted-foreground)]">
                     {a.publishDate ? new Date(a.publishDate).toLocaleDateString('zh-CN') : '—'}
                   </span>

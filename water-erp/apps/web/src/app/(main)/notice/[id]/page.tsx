@@ -16,11 +16,12 @@ import { getSupplierList } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
 import { StatusBadge } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
-import { ArrowLeft, Pencil, X, EyeOff, PackageX, Megaphone, Upload, Sparkles } from 'lucide-react';
+import { ArrowLeft, Pencil, X, EyeOff, PackageX, Megaphone, Upload, Sparkles, Clock } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { PublishConfigSection, configFromMetadata, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
 import { DATA_CLASS_LABELS, ANNOUNCEMENT_TYPE_ORDER } from '@water-erp/shared';
 import { ANN_TYPE_LABEL, ANN_STATUS_LABEL, ANN_STATUS_TONE } from '@/lib/announcement-meta';
+import { isOverdueScheduledDraft } from '@/lib/notice/schedule';
 
 /* 类型/状态标签 */
 const typeTone: Record<AnnouncementType, 'blue' | 'green' | 'orange' | 'gray'> = {
@@ -508,7 +509,19 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
     finally { setBusy(false); }
   };
 
-  const saveDraft = async () => { const s = await save('DRAFT'); if (s) { toast.success('草稿已保存'); onSaved(s); } };
+  // 定时保留提示（2026-10-29 裁定，审计 D）：保存草稿不再静默剥定时——配置区仍是定时态时
+  // 明确告知定时照常生效，取消定时须切回「立即发布」再存。
+  const saveDraft = async () => {
+    const s = await save('DRAFT');
+    if (s) {
+      if (publishConfig.scheduleMode === 'scheduled' && publishConfig.scheduledPublishDate) {
+        toast.info(`草稿已保存，定时发布仍生效（${publishConfig.scheduledPublishDate.replace('T', ' ')}）`);
+      } else {
+        toast.success('草稿已保存');
+      }
+      onSaved(s);
+    }
+  };
   const publish = async () => {
     if (publishConfig.scheduleMode === 'scheduled' && !publishConfig.scheduledPublishDate) { toast.error('请设置定时发布时间'); return; }
     if (type === 'BID_NOTICE' && !bidDoc && publishConfig.scheduleMode === 'immediate' && !(await confirm({ message: '该采购公告尚未上传采购文件，确认直接发布？' }))) return;
@@ -596,6 +609,13 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
       {/* 发布配置 — 全宽，在双列网格下方 */}
       <div className="neu-table-card p-5">
         <div className="text-xs font-bold text-[var(--accent-strong)] mb-4">发布配置</div>
+        {/* 定时未生效警示（2026-10-29 审计 F）：定时时刻已过仍是草稿——发布被闸拒绝或服务异常滞留 */}
+        {isOverdueScheduledDraft(ann) && (
+          <div className="mb-4 flex items-start gap-2 rounded-[10px] bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] px-3 py-2.5 text-xs leading-5 text-[var(--foreground)]">
+            <Clock size={13} className="mt-0.5 shrink-0 text-[var(--warning)]" />
+            <span>定时发布时刻已过，但公告仍是草稿——定时发布被发布校验拒绝或服务异常滞留。请检查公告要素（项目编码/时间等）后重新点「发布」，或切回「立即发布」。</span>
+          </div>
+        )}
         <PublishConfigSection config={publishConfig} onChange={setPublishConfig} />
       </div>
       {dialog}

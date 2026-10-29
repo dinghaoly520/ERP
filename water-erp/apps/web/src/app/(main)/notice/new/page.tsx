@@ -253,7 +253,16 @@ export default function NewNoticePage() {
 
   const saveDraft = async () => {
     if (publishedRef.current) { toast.error('公告已发布，如需调整请从详情页操作'); return; }
-    const id = await saveNew('DRAFT'); if (id) { toast.success('草稿已保存，可上传附件'); loadExtras(); }
+    const id = await saveNew('DRAFT');
+    if (id) {
+      // 定时保留提示（2026-10-29 裁定，审计 D）：保存草稿不再静默剥定时——定时态明确告知照常生效
+      if (publishConfig.scheduleMode === 'scheduled' && publishConfig.scheduledPublishDate) {
+        toast.info(`草稿已保存，定时发布仍生效（${publishConfig.scheduledPublishDate.replace('T', ' ')}）`);
+      } else {
+        toast.success('草稿已保存，可上传附件');
+      }
+      loadExtras();
+    }
   };
   const publish = async () => {
     if (publishConfig.scheduleMode === 'scheduled' && !publishConfig.scheduledPublishDate) {
