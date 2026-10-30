@@ -95,6 +95,11 @@ describe('流标再采第二轮隔离', () => {
     expect(pmiUpdate.data.bidOpeningTime).toBeNull();
     expect(pmiUpdate.data.documentAcquireTime).toBeNull();
     expect(pmiUpdate.data.currentRound).toBe(2);
+    // 2026-10-30 用户裁定补齐：同轮次作用域的三个展示字段一并清空
+    //（项目概况=旧轮采购文件提取物；专家评审=新轮重新抽取；供应商邀请=新轮重新邀请）
+    expect(pmiUpdate.data.projectOverview).toBeNull();
+    expect(pmiUpdate.data.expertInfo).toBeNull();
+    expect(pmiUpdate.data.invitedSuppliers).toBeNull();
   });
 
   it('reproc：时间文本不可解析（如「另行通知」）→ 快照置 null 不炸、流程照常开新轮', async () => {

@@ -1662,7 +1662,14 @@ export class BidService {
         });
         await this.prisma.projectManagementItem.update({
           where: { id: original.projectManagementItemId },
-          data: { bidOpeningTime: null, documentAcquireTime: null },
+          data: {
+            bidOpeningTime: null,
+            documentAcquireTime: null,
+            // 2026-10-30 用户裁定补齐（与 reproc 同口径）：轮次作用域三字段一并清空
+            projectOverview: null,
+            expertInfo: null,
+            invitedSuppliers: null,
+          },
         });
       }
     }

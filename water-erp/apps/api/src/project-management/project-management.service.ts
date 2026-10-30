@@ -798,7 +798,20 @@ export class ProjectManagementService {
       }
       await tx.projectManagementItem.update({
         where: { id: itemId },
-        data: { ...infoData, currentStage: segment[0].key, currentRound: newRound, bidOpeningTime: null, documentAcquireTime: null },
+        data: {
+          ...infoData,
+          currentStage: segment[0].key,
+          currentRound: newRound,
+          // 2026-10-28 二轮隔离：两时间字段语义收窄为「当前轮值」（旧值已快照到旧轮 BidProject）
+          bidOpeningTime: null,
+          documentAcquireTime: null,
+          // 2026-10-30 用户裁定补齐：同轮次作用域的三个展示字段一并清空——项目概况
+          //（旧轮采购文件提取物，新轮重编文件重新提取）、专家评审（新轮重新抽取）、
+          // 供应商邀请/参与手动名单（新轮重新邀请；公告自动收集名单由参与端点轮界收口）
+          projectOverview: null,
+          expertInfo: null,
+          invitedSuppliers: null,
+        },
       });
     });
 

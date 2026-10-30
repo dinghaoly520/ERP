@@ -1213,27 +1213,33 @@ export class AnnouncementService {
       //   b) 回退按 BidProject 编码直接找（公告直建项目后 relatedProjectCode 被回写为
       //      BidProject 编码，二次发布走此路径）
       let existingProject: Awaited<ReturnType<typeof this.prisma.bidProject.findFirst>> = null;
-      let linkedPmi: { id: string; projectCode: string | null } | null = null;
+      let linkedPmi: { id: string; projectCode: string | null; currentRound?: number | null } | null = null;
       if (announcement.relatedProjectCode) {
         const pmi = await this.prisma.projectManagementItem.findUnique({
           where: { projectCode: announcement.relatedProjectCode },
-          select: { id: true, projectCode: true },
+          select: { id: true, projectCode: true, currentRound: true },
         });
         if (pmi) {
           linkedPmi = pmi;
+          // 轮次收口（2026-10-30）：只认 PMI 当前轮的项目——流标重启后新轮公告发布时，
+          // 倒序取最新会命中旧轮 ABORTED 项目（syncFromAnnouncement 改写终态项目、
+          // 新轮项目永不创建）。当前轮无项目 → 走直建分支建当前轮新项目。
           existingProject = await this.prisma.bidProject.findFirst({
-            where: { projectManagementItemId: pmi.id },
+            where: { projectManagementItemId: pmi.id, round: pmi.currentRound ?? 1 },
             orderBy: { createdAt: 'desc' },
           });
         }
-        if (!existingProject) {
+        // 回退按 BidProject 编码直找——仅当编码不是 PMI 编码时（公告直建项目后
+        // relatedProjectCode 回写为 BidProject 编码，二次发布走此路径）。PMI 命中时
+        // 禁用回退：基础码被首轮项目持有，回退必命中旧轮项目、架空上方轮次收口。
+        if (!existingProject && !linkedPmi) {
           existingProject = await this.prisma.bidProject.findUnique({
             where: { projectCode: announcement.relatedProjectCode },
           });
-          if (existingProject?.projectManagementItemId && !linkedPmi) {
+          if (existingProject?.projectManagementItemId) {
             linkedPmi = await this.prisma.projectManagementItem.findUnique({
               where: { id: existingProject.projectManagementItemId },
-              select: { id: true, projectCode: true },
+              select: { id: true, projectCode: true, currentRound: true },
             });
           }
         }
@@ -1309,10 +1315,13 @@ export class AnnouncementService {
             where: { id: project.id },
             data: {
               projectManagementItemId: linkedPmi.id,
+              // 轮次收口（2026-10-30）：新轮公告建项挂宿主 PMI 当前轮（createFromAnnouncement
+              // 的 round 缺省 1——流标重启后的第 2 轮公告若不回填会建成 round=1）
+              round: linkedPmi.currentRound ?? 1,
               riskNote: `${project.riskNote || ''}；PMI ${linkedPmi.projectCode}`,
             },
           });
-          this.logger.log(`公告发布关联既有立项 ${linkedPmi.projectCode} → BidProject ${project.projectCode}（未另建 PMI）`);
+          this.logger.log(`公告发布关联既有立项 ${linkedPmi.projectCode}（第 ${linkedPmi.currentRound ?? 1} 轮）→ BidProject ${project.projectCode}（未另建 PMI）`);
         } else if (this.projectManagementService) {
           const pmi = await this.prisma.$transaction(async (tx) => {
             const created = await this.projectManagementService!.createItemFromAnnouncement(
@@ -1691,8 +1700,28 @@ export class AnnouncementService {
   /** 按项目编号查参与供应商（项目基本信息「供应商参与」数据源）：
    *  取该项目最新一条采购/资格预审公告的投标情况（下载者 ∪ 项目供应商，去重）。 */
   async getProjectParticipants(projectCode: string) {
+    // 轮界收口（2026-10-30 用户裁定：新轮基本信息不带旧轮供应商参与）：流标重启后
+    // relatedProjectCode 仍是同一 PMI 编码，倒序取最新采购公告会命中旧轮公告、把旧轮
+    // 下载/参与供应商冒充本轮名单。以 PMI 当前轮首阶段创建时间为轮界——只统计本轮
+    // 起始之后创建的采购公告；无本轮公告（重启后尚未发布）→ 返回空。单轮项目轮界
+    // 早于一切公告，行为不变。
+    const pmi = await this.prisma.projectManagementItem.findUnique({
+      where: { projectCode },
+      select: { id: true, currentRound: true },
+    });
+    const roundStart = pmi
+      ? (await this.prisma.projectManagementStage.findFirst({
+          where: { projectManagementItemId: pmi.id, round: pmi.currentRound ?? 1 },
+          orderBy: { stageOrder: 'asc' },
+          select: { createdAt: true },
+        }))?.createdAt ?? null
+      : null;
     const ann = await this.prisma.announcement.findFirst({
-      where: { relatedProjectCode: projectCode, type: { in: ['BID_NOTICE', 'PREQUAL_NOTICE'] } },
+      where: {
+        relatedProjectCode: projectCode,
+        type: { in: ['BID_NOTICE', 'PREQUAL_NOTICE'] },
+        ...(roundStart ? { createdAt: { gte: roundStart } } : {}),
+      },
       orderBy: { createdAt: 'desc' },
       select: { id: true },
     });

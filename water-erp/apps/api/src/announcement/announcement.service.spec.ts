@@ -1344,6 +1344,143 @@ describe('定时发布稳健性（2026-10-29 审计 B/C/E）', () => {
   });
 });
 
+describe('AnnouncementService — getProjectParticipants 轮界收口（2026-10-30 新轮不带旧轮参与名单）', () => {
+  const mkSvc = async (prisma: any) => {
+    const { AnnouncementService: Svc } = await import('./announcement.service');
+    return new (Svc as any)(prisma, {}, undefined, undefined) as any;
+  };
+
+  const mkPrisma = (opts: {
+    currentRound?: number;
+    roundStart?: Date | null;
+    anns?: Array<{ id: string; createdAt: Date }>;
+  }) => ({
+    projectManagementItem: {
+      findUnique: jest.fn().mockResolvedValue({ id: 'pmi-1', currentRound: opts.currentRound ?? 2 }),
+    },
+    projectManagementStage: {
+      findFirst: jest.fn().mockResolvedValue({ createdAt: opts.roundStart ?? null }),
+    },
+    announcement: {
+      findFirst: jest.fn().mockImplementation(({ where }: any) =>
+        Promise.resolve(
+          (opts.anns ?? []).filter((a) => !where.createdAt || a.createdAt >= where.createdAt.gte)
+            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ?? null,
+        ),
+      ),
+    },
+  });
+
+  it('流标重启后（轮 2）：旧轮采购公告在轮界之前 → 不命中，返回空名单', async () => {
+    const roundStart = new Date('2026-10-30T06:00:00Z');
+    const service = await mkSvc(mkPrisma({
+      currentRound: 2,
+      roundStart,
+      anns: [{ id: 'ann-r1', createdAt: new Date('2026-10-20T02:00:00Z') }], // 仅旧轮公告
+    }));
+    const r = await service.getProjectParticipants('SWHI-XX');
+    expect(r).toEqual({ announcementId: null, suppliers: [], stats: { total: 0, submitted: 0 } });
+  });
+
+  it('本轮公告已发布（轮界之后）→ 命中本轮公告；单轮项目（无轮界）行为不变', async () => {
+    const roundStart = new Date('2026-10-30T06:00:00Z');
+    const base = {
+      projectManagementItem: { findUnique: jest.fn() },
+      projectManagementStage: { findFirst: jest.fn() },
+      announcement: { findFirst: jest.fn() },
+    };
+    // getParticipants 内部查询最小 mock（命中即返回）
+    const annDetail = { type: 'BID_NOTICE', relatedProjectCode: 'SWHI-XX' };
+    const svcPrisma = {
+      ...base,
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'p-r2', projectCode: 'SWHI-XX-R2', stage: 'DOWNLOAD', deadline: new Date() }) },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([]) },
+      supplierBidSubmission: { findMany: jest.fn().mockResolvedValue([]) },
+      bidDocument: { findUnique: jest.fn().mockResolvedValue(null) },
+      bidDocumentAccess: { findMany: jest.fn().mockResolvedValue([]) },
+      $transaction: jest.fn(async (cb: any) => cb(svcPrisma)),
+      announcement: {
+        findFirst: jest.fn()
+          // 第一次调用：轮界公告查找（getProjectParticipants）
+          .mockResolvedValueOnce({ id: 'ann-r2' })
+          // getParticipants(ann.id) 首查：公告详情
+          .mockResolvedValueOnce(annDetail),
+        findUnique: jest.fn().mockResolvedValue(annDetail),
+      },
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue({ id: 'pmi-1', currentRound: 2 }) },
+      projectManagementStage: { findFirst: jest.fn().mockResolvedValue({ createdAt: roundStart }) },
+    };
+    const service = await mkSvc(svcPrisma);
+    const r = await service.getProjectParticipants('SWHI-XX');
+    expect(r.announcementId).toBe('ann-r2');
+    // 轮界过滤条件确实下发（createdAt gte 轮界）
+    const lookupArgs = svcPrisma.announcement.findFirst.mock.calls[0][0];
+    expect(lookupArgs.where.createdAt).toEqual({ gte: roundStart });
+  });
+});
+
+describe('AnnouncementService — syncBidProject 轮次收口（2026-10-30 新轮公告建新轮项目）', () => {
+  const ann = {
+    id: 'ann1', title: 'T', publishDate: new Date(), authorId: 'u1', relatedProjectCode: 'PM-1',
+    metadata: { method: '邀请招标', openTime: '2099-01-01T10:00:00', deadline: '2099-01-05T17:00:00' },
+  };
+
+  const makeSvc = async (bidService: any, prismaOverrides: Record<string, any> = {}) => {
+    const prisma: any = {
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue({ id: 'pm-1', projectCode: 'PM-1', currentRound: 2 }) },
+      bidProject: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null), update: jest.fn().mockResolvedValue({}) },
+      announcement: { update: jest.fn().mockResolvedValue({}) },
+      bidDocument: { findUnique: jest.fn().mockResolvedValue(null) },
+      $transaction: jest.fn(async (cb: any) => cb(prisma)),
+      ...prismaOverrides,
+    };
+    const { AnnouncementService: Svc } = await import('./announcement.service');
+    const service: any = new (Svc as any)(prisma, {}, bidService, undefined);
+    return { service, prisma };
+  };
+
+  it('PMI 第 2 轮无项目 → 建新轮项目并回填 round=2（不倒序命中旧轮 ABORTED 项目）', async () => {
+    const bidService = {
+      syncFromAnnouncement: jest.fn().mockResolvedValue({}),
+      createFromAnnouncement: jest.fn().mockResolvedValue({ id: 'p-r2', projectCode: 'PM-1-R2', riskNote: '' }),
+      ensureTenderAnalysis: jest.fn().mockResolvedValue(true),
+    };
+    const { service, prisma } = await makeSvc(bidService);
+    await service.syncBidProject('ann1', { ...ann, type: 'BID_NOTICE' });
+    // 解析只查当前轮
+    expect(prisma.bidProject.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { projectManagementItemId: 'pm-1', round: 2 },
+    }));
+    // PMI 已命中 → 不按编码回退（基础码被旧轮项目持有，回退必命中终态项目）
+    expect(prisma.bidProject.findUnique).not.toHaveBeenCalled();
+    // 建新项目 + 回填关联与轮次
+    expect(bidService.createFromAnnouncement).toHaveBeenCalledTimes(1);
+    expect(prisma.bidProject.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'p-r2' },
+      data: expect.objectContaining({ projectManagementItemId: 'pm-1', round: 2 }),
+    }));
+    expect(bidService.syncFromAnnouncement).not.toHaveBeenCalled();
+  });
+
+  it('当前轮已有项目 → 走关联既有分支（syncFromAnnouncement），不建新项目', async () => {
+    const bidService = {
+      syncFromAnnouncement: jest.fn().mockResolvedValue({}),
+      createFromAnnouncement: jest.fn(),
+      ensureTenderAnalysis: jest.fn().mockResolvedValue(true),
+    };
+    const { service } = await makeSvc(bidService, {
+      bidProject: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'p-r2', projectCode: 'PM-1-R2', projectManagementItemId: 'pm-1' }),
+        findUnique: jest.fn().mockResolvedValue(null),
+        update: jest.fn().mockResolvedValue({}),
+      },
+    });
+    await service.syncBidProject('ann1', { ...ann, type: 'BID_NOTICE' });
+    expect(bidService.syncFromAnnouncement).toHaveBeenCalledWith('p-r2', expect.anything(), expect.anything());
+    expect(bidService.createFromAnnouncement).not.toHaveBeenCalled();
+  });
+});
+
 describe('AnnouncementService — 流标公告发布联动流标（create/update 发布路径，2026-10-30 死代码修复）', () => {
   // 实录：failed_bid 联动此前只活在 syncBidProject 内，而两条发布路径仅 BID_NOTICE 调它——
   // 流标公告（FAILED_BID_NOTICE）发布永不联动，BidProject 停留活动态，reproc 撞
