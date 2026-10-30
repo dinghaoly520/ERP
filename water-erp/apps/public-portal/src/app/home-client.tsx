@@ -232,11 +232,14 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
   const SUPPLIER_URL = process.env.NEXT_PUBLIC_SUPPLIER_PORTAL_URL ?? portalURL('supplier', '/login');
   const WEB_URL = process.env.NEXT_PUBLIC_WEB_PORTAL_URL ?? portalURL('web', '/login');
 
+  // 入口 href 兜底用 undefined 而非 '#'（2026-10-30 用户实录）：dev 重建后旧标签 JS
+  // 失效（Next stale）会掉回服务端 DOM——'#' + target=_blank 点击=新标签复制当前页；
+  // 无 href 的 <a> 点击不导航，JS 恢复（挂载/刷新）后自动换真地址
   const features = [
     { icon: 'cart', title: '电子商城', desc: '办公集采、员工内购、大宗商品', href: 'https://j.youzan.com/-khlqe?shopAutoEnter=1&kdt_id=157422811' },
-    { icon: 'share', title: '供应商门户', desc: '供应商注册、投标、反馈', href: mounted ? SUPPLIER_URL : '#' },
-    { icon: 'users', title: '采购管理端', desc: '信息发布、供应商管理、专家管理', href: mounted ? WEB_URL : '#' },
-    { icon: 'safe', title: '在线开评标系统', desc: '在线开标、专家评审、监督归档', href: mounted ? portalURL('expert', '/login?forceLogin=1') : '#' },
+    { icon: 'share', title: '供应商门户', desc: '供应商注册、投标、反馈', href: mounted ? SUPPLIER_URL : undefined },
+    { icon: 'users', title: '采购管理端', desc: '信息发布、供应商管理、专家管理', href: mounted ? WEB_URL : undefined },
+    { icon: 'safe', title: '在线开评标系统', desc: '在线开标、专家评审、监督归档', href: mounted ? portalURL('expert', '/login?forceLogin=1') : undefined },
   ];
 
 

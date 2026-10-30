@@ -63,7 +63,7 @@ export default function ProcurementPortalPage() {
             <h3>开启阳光采购</h3>
             <p>登录采购管理平台，发起项目、编制文件、组织开评标。</p>
           </div>
-          <a href={mounted ? WEB_URL : '#'} className="flow-cta-btn no-underline text-white">
+          <a href={mounted ? WEB_URL : undefined} className="flow-cta-btn no-underline text-white">
             登录采购管理平台
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flow-cta-arrow"><path d="M9 18l6-6-6-6"/></svg>
           </a>

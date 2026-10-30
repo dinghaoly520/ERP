@@ -64,11 +64,11 @@ export default function BiddingHallPage() {
             <p>注册入驻供应商库，参与四川省水利发展集团有限公司全量采购项目投标。</p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <a href={mounted ? SUPPLIER_REGISTER_URL : '#'} className="flow-cta-btn no-underline text-white">
+            <a href={mounted ? SUPPLIER_REGISTER_URL : undefined} className="flow-cta-btn no-underline text-white">
               立即注册供应商
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flow-cta-arrow"><path d="M9 18l6-6-6-6"/></svg>
             </a>
-            <a href={mounted ? SUPPLIER_LOGIN_URL : '#'} className="flow-cta-btn ghost no-underline">已有账号 · 登录投标</a>
+            <a href={mounted ? SUPPLIER_LOGIN_URL : undefined} className="flow-cta-btn ghost no-underline">已有账号 · 登录投标</a>
           </div>
         </div>
       </div>
