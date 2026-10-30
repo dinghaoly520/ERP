@@ -239,3 +239,21 @@ export function buildAiGenerationContext(project: ProjectManagementItem): Record
     bidOpeningTime: project.bidOpeningTime || '',
   };
 }
+
+/**
+ * 项目预填合并（只填空缺，2026-10-30 直采供应商名污染实录）：已保存草稿的非空
+ * 字段一律保留，预填值只进空缺——与 /tender-write 页 fillCompany 同口径。
+ * 此前 modal 打开流程把 prefill 非空字段整体铺在已存草稿之后，用户在供应商抽选
+ * 弹窗选好的名称会被 project.awardedSupplier（可能被上游写成长文本）顶掉。
+ * 供应商名称另加形态守卫：>40 字符显然不是公司名，拒绝预填。
+ */
+export function mergePrefillFillingGaps<T extends object>(draft: T, prefill: Record<string, unknown>): T {
+  const out = { ...(draft as Record<string, unknown>) };
+  for (const [k, v] of Object.entries(prefill)) {
+    if (v == null || v === '') continue;
+    if (k === 'supplierName' && String(v).trim().length > 40) continue;
+    const cur = out[k];
+    if (cur == null || (typeof cur === 'string' && cur.trim() === '')) out[k] = v;
+  }
+  return out as T;
+}

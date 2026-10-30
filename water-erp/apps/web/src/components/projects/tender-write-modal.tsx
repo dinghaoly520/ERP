@@ -24,6 +24,8 @@ import {
 import { exportTenderDocument } from '@/lib/api/tender-write';
 import { hasValidScoringRows } from '@/components/tender-write/scoring-items-editor';
 import { tenderSectionPrereq } from '@/lib/tender-write/progress';
+import { sanitizeTenderDraftsState } from '@/lib/tender-write/storage';
+import { mergePrefillFillingGaps } from '@/lib/tender-write/prefill-from-project';
 import { generateFieldContent } from '@/lib/api/tender-sample';
 import { parseQuotationTextToTable } from '@/components/tender-write/quotation-table-editor';
 import {
@@ -116,7 +118,7 @@ const loadDraftsFromStorage = (projectId: string, round: number): TenderDraftsSt
   try {
     const raw = localStorage.getItem(getDraftsStorageKey(projectId, round));
     if (!raw) return null;
-    return JSON.parse(raw) as TenderDraftsState;
+    return sanitizeTenderDraftsState(JSON.parse(raw) as TenderDraftsState);
   } catch { return null; }
 };
 const saveDraftsToStorage = (projectId: string, round: number, d: TenderDraftsState) => {
@@ -243,7 +245,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     try {
       const remote = await fetchProjectTenderDraft(project.id, round);
       if (remote?.drafts) {
-        saved = remote.drafts as TenderDraftsState;
+        saved = sanitizeTenderDraftsState(remote.drafts as TenderDraftsState);
         hadServerDraft = true;
       }
     } catch { /* 服务器不可用 → 本地缓存离线兜底 */ }
@@ -256,12 +258,15 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       : false;
 
     if (saved && hasSavedAiContent) {
-      // 已有完整草稿 → 合并 prefill（仅非空字段），直接进工作区
-      const filtered: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(prefill)) {
-        if (v != null && v !== '') filtered[k] = v;
-      }
-      const merged = { ...saved, [typeKey]: { ...(saved[typeKey] ?? {}), ...filtered } };
+      // 已有完整草稿 → prefill 只填空缺（2026-10-30 修正：此前非空 prefill 整体
+      // 覆盖已存草稿，用户选定的供应商名被 project.awardedSupplier 顶掉）
+      const merged = {
+        ...saved,
+        [typeKey]: mergePrefillFillingGaps(
+          (saved[typeKey] ?? {}) as Record<string, unknown>,
+          prefill as Record<string, unknown>,
+        ),
+      };
       setDrafts(merged);
       draftRestoredFromStorageRef.current = true;
       setShowWorkspace(true);
@@ -273,14 +278,14 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       // 有保存记录但无 AI 内容（可能是首次打开后意外关闭）→ 合并后继续生成
       setDrafts(saved);
     }
-    // 延迟一帧合并 prefill（确保 saved 的状态已落盘）
-    setDrafts((prev) => {
-      const filtered: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(prefill)) {
-        if (v != null && v !== '') filtered[k] = v;
-      }
-      return { ...prev, [typeKey]: { ...(prev[typeKey] ?? {}), ...filtered } };
-    });
+    // 延迟一帧合并 prefill（确保 saved 的状态已落盘）——只填空缺（同 Step 1 口径）
+    setDrafts((prev) => ({
+      ...prev,
+      [typeKey]: mergePrefillFillingGaps(
+        (prev[typeKey] ?? {}) as Record<string, unknown>,
+        prefill as Record<string, unknown>,
+      ),
+    }));
 
     // Step 3: 触发 AI 逐字段生成
     if (aiFields.length === 0) {
