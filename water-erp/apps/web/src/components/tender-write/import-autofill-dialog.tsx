@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X, FileUp, Check, AlertTriangle, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateFileSize } from '@/lib/upload-rules';
@@ -156,10 +156,17 @@ export function ImportAutofillDialog({
   documentType,
   onConfirm,
   onClose,
+  initialFiles,
+  initialFilesNote,
 }: {
   documentType: ReadyTenderDocumentType;
   onConfirm: (selectedFields: ImportAutofillFieldResult[]) => void;
   onClose: () => void;
+  /** 预载文件（2026-10-30「参考上一轮」）：打开即自动分析，跳过手动选文件——
+   *  上一轮采购文件本体识别回填的入口 */
+  initialFiles?: File[];
+  /** 预载来源说明（显示在标题下方，如「正在识别第 1 轮采购文件…」） */
+  initialFilesNote?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [result, setResult] = useState<ImportAutofillResult | null>(null);
@@ -171,12 +178,7 @@ export function ImportAutofillDialog({
     inputRef.current?.click();
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    const selectedFiles = Array.from(files);
-    e.target.value = '';
-
+  const runAnalysis = async (selectedFiles: File[]) => {
     // Check for .doc files
     const docFiles = selectedFiles.filter(
       (f) =>
@@ -213,6 +215,23 @@ export function ImportAutofillDialog({
     }
   };
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const selectedFiles = Array.from(files);
+    e.target.value = '';
+    await runAnalysis(selectedFiles);
+  };
+
+  // 预载文件：挂载即自动分析（一次性，ref 防重放）
+  const initialRanRef = useRef(false);
+  useEffect(() => {
+    if (initialRanRef.current || !initialFiles?.length) return;
+    initialRanRef.current = true;
+    void runAnalysis(initialFiles);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFiles]);
+
   const toggleKey = (key: string) => {
     setCheckedKeys((prev) => {
       const next = new Set(prev);
@@ -243,6 +262,9 @@ export function ImportAutofillDialog({
               <h2 className="text-base font-semibold text-slate-800">
                 导入文件自动填写
               </h2>
+              {initialFilesNote && !result && (
+                <p className="mt-1 text-xs text-slate-500">{initialFilesNote}</p>
+              )}
               {result && (
                 <p className="mt-1 text-xs text-slate-500">
                   {result.files.length} 个文件 · {recognizedCount} 个识别成功 ·{' '}

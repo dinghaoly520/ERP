@@ -193,17 +193,33 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     };
   }, [project?.id, round]);
 
-  // ── 2026-10-28 二轮隔离·「参考上一轮」：非首轮探测上一轮草稿（只读，不自动带入）──
-  // 2026-10-30 修正：探测补本地缓存兜底（与打开流程同链）——2026-10-28 之前编辑的草稿
-  // 只在 localStorage（服务器无行），此前只查服务器致按钮恒灰不可点。
+  // ── 2026-10-28 二轮隔离·「参考上一轮」：非首轮探测上一轮可参考素材（只读，不自动带入）──
+  // 素材两级（2026-10-30 修正）：
+  //   ① 上一轮编辑器草稿（服务器优先、本地缓存兜底——与打开流程同链；此前只查服务器，
+  //      10-28 草稿上云前编辑的只在本地，按钮恒灰不可点）；
+  //   ② 上一轮 03「采购文件」阶段的正式盖章版附件（本项目的常见形态：轮 1 直接上传
+  //      成品 PDF、从未走过编辑器——哪都没有草稿。点按钮走「导入识别」对文件本体
+  //      AI 识别回填，即「填入上一轮的采购文件填入的内容」）。
   const prevRoundDraftRef = useRef<TenderDraftsState | null>(null);
   const [prevRoundAvailable, setPrevRoundAvailable] = useState(false);
+  /** 上一轮 03 阶段的正式采购文件附件（正式盖章版指针优先，回退按文件名主文件判定） */
+  const prevTenderFile = useMemo(() => {
+    if (!project || round <= 1) return null;
+    const stage = (project.stages ?? []).find(
+      (s) => (s.round ?? 1) === round - 1 && s.stageKey === 'TENDER_DOCUMENT',
+    );
+    if (!stage) return null;
+    const attachments = stage.attachments ?? [];
+    const official = attachments.find((a) => a.id && a.id === stage.officialTenderAttachmentId)
+      ?? attachments.find((a) => /采购文件|招标文件/.test(a.fileName));
+    return official && official.id ? official : null;
+  }, [project, round]);
   useEffect(() => {
     if (!isOpen || !project?.id || round <= 1) { prevRoundDraftRef.current = null; setPrevRoundAvailable(false); return; }
     let cancelled = false;
     const projectId = project.id;
     const prevRound = round - 1;
-    /** 任一方式草稿有实质内容（非空字符串或结构化表）才可参考——全空骨架不点亮按钮 */
+    /** 任一方式草稿有实质内容（非空字符串或结构化表）才算草稿素材——全空骨架不算 */
     const hasContent = (ds: TenderDraftsState | null | undefined) =>
       !!ds && (Object.keys(ds) as Array<keyof TenderDraftsState>).some((k) =>
         Object.values(ds[k] ?? {}).some((v) => (typeof v === 'string' && v.trim()) || (v != null && typeof v === 'object')));
@@ -212,18 +228,21 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
         if (cancelled) return;
         const server = r?.drafts ? (r.drafts as TenderDraftsState) : null;
         prevRoundDraftRef.current = server ?? loadDraftsFromStorage(projectId, prevRound);
-        setPrevRoundAvailable(hasContent(prevRoundDraftRef.current));
+        setPrevRoundAvailable(hasContent(prevRoundDraftRef.current) || !!prevTenderFile);
       })
       .catch(() => {
         if (cancelled) return;
         prevRoundDraftRef.current = loadDraftsFromStorage(projectId, prevRound);
-        setPrevRoundAvailable(hasContent(prevRoundDraftRef.current));
+        setPrevRoundAvailable(hasContent(prevRoundDraftRef.current) || !!prevTenderFile);
       });
     return () => { cancelled = true; };
-  }, [isOpen, project?.id, round]);
+  }, [isOpen, project?.id, round, prevTenderFile]);
 
-  const handleImportPrevRound = useCallback(() => {
-    if (!selectedType || round <= 1) return;
+  /** 「参考上一轮」的文件识别轨：拉上一轮正式采购文件 → 导入识别弹窗预载自动分析 */
+  const [prevRoundImportFiles, setPrevRoundImportFiles] = useState<File[] | null>(null);
+  const [prevRoundFetching, setPrevRoundFetching] = useState(false);
+  const handleImportPrevRound = useCallback(async () => {
+    if (!selectedType || round <= 1 || !project) return;
     const typeKey = selectedType as keyof TenderDraftsState;
     const prevAll = prevRoundDraftRef.current;
     /** 轮次敏感字段剥离：开标时间（按方式映射）+ 文件获取时间（含类型伴生字段）——必须按本轮重填 */
@@ -242,8 +261,27 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       toast.success(`已带入第 ${round - 1} 轮草稿；开标时间与文件获取时间已清空，请按本轮重新填写`);
       return;
     }
-    // 2026-10-30 修正：采购方式变更后无同方式草稿（如直接采购→邀请招标）——回退带入
-    // 上一轮其他方式草稿的通用字段（同键交集：联系方式/文件售价/报价表等），方式专属内容重新编写
+    // ② 文件识别轨（2026-10-30 用户口径「填入上一轮的采购文件填入的内容」）：上一轮
+    // 正式采购文件拉流成 File → 导入识别弹窗预载自动 AI 分析，勾选确认回填
+    if (prevTenderFile?.id) {
+      setPrevRoundFetching(true);
+      try {
+        const res = await apiFetch(`/api/project-management/${project.id}/attachment-file/${prevTenderFile.id}`, { credentials: 'include' });
+        if (!res.ok) throw new Error(`上一轮采购文件下载失败（${res.status}）`);
+        const blob = await res.blob();
+        if (blob.size === 0) throw new Error('上一轮采购文件为空');
+        const file = new File([blob], prevTenderFile.fileName || '上一轮采购文件.pdf', { type: prevTenderFile.mimeType || 'application/pdf' });
+        setPrevRoundImportFiles([file]);
+        setImportDialogOpen(true);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : '获取上一轮采购文件失败');
+      } finally {
+        setPrevRoundFetching(false);
+      }
+      return;
+    }
+    // ③ 跨方式草稿通用字段轨：采购方式变更后无同方式草稿也无正式文件——带入上一轮
+    // 其他方式草稿的同键通用字段（联系方式/文件售价/报价表等），方式专属内容重新编写
     const sourceType = prevAll
       ? (Object.keys(prevAll) as Array<keyof TenderDraftsState>).find((k) =>
           Object.values(prevAll[k] ?? {}).some((v) => (typeof v === 'string' && v.trim()) || (v != null && typeof v === 'object')))
@@ -263,7 +301,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     setDrafts((cur) => ({ ...cur, [typeKey]: { ...(createEmptyTenderDrafts()[typeKey] as Record<string, unknown>), ...(cur[typeKey] as Record<string, unknown>), ...stripped } }));
     const sourceLabel = TENDER_DOCUMENT_TYPES.find((t) => t.type === sourceType)?.label ?? String(sourceType);
     toast.success(`已带入第 ${round - 1} 轮「${sourceLabel}」草稿的 ${brought.length} 个通用字段（开标/获取时间已清空）；采购方式已变更，方式专属内容请重新编写`);
-  }, [selectedType, round]);
+  }, [selectedType, round, project, prevTenderFile]);
 
   // ======== 打开流程：restore + prefill + AI 决策 = 原子 effect ========
   const openFlowRanRef = useRef(false);
@@ -916,12 +954,12 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
             {round > 1 && (
               <button
                 type="button"
-                onClick={handleImportPrevRound}
-                disabled={!prevRoundAvailable}
+                onClick={() => void handleImportPrevRound()}
+                disabled={!prevRoundAvailable || prevRoundFetching}
                 className="neu-btn-xs gap-1"
-                title={prevRoundAvailable ? `以第 ${round - 1} 轮草稿带入（同方式整稿带入；方式变更时带入通用字段；开标/获取时间清空须按本轮重填）` : '上一轮无草稿'}
+                title={prevRoundAvailable ? `带入第 ${round - 1} 轮内容（同方式草稿整稿带入；无草稿时 AI 识别上一轮正式采购文件回填；开标/获取时间清空须按本轮重填）` : '上一轮无草稿/采购文件'}
               >
-                <FolderInput size={13} />参考上一轮
+                <FolderInput size={13} />{prevRoundFetching ? '获取上一轮文件…' : '参考上一轮'}
               </button>
             )}
 
@@ -1231,12 +1269,16 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
         </div>
       )}
 
-      {/* 导入识别：多文件 AI 识别回填 */}
+      {/* 导入识别：多文件 AI 识别回填（「参考上一轮」文件轨预载上一轮正式采购文件） */}
       {importDialogOpen && selectedType && (
         <ImportAutofillDialog
           documentType={selectedType as ReadyTenderDocumentType}
           onConfirm={handleImportConfirm}
-          onClose={() => setImportDialogOpen(false)}
+          onClose={() => { setImportDialogOpen(false); setPrevRoundImportFiles(null); }}
+          {...(prevRoundImportFiles ? {
+            initialFiles: prevRoundImportFiles,
+            initialFilesNote: `正在 AI 识别第 ${round - 1} 轮采购文件《${prevRoundImportFiles[0]?.name ?? ''}》，识别完成后勾选要带入的字段`,
+          } : {})}
         />
       )}
     </div>
