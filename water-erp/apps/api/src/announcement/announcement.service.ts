@@ -162,9 +162,11 @@ export class AnnouncementService {
       await this.linkWinBidCandidates(result.id, result.relatedProjectCode);
     }
 
-    // create 端点也触发联动（status=PUBLISHED + BID_NOTICE）
+    // create 端点也触发联动（status=PUBLISHED + BID_NOTICE / FAILED_BID_NOTICE——后者走
+    // syncBidProject 内流标联动分支，2026-10-30 死代码修复）
     const isBidNoticePublish = dto.type === 'BID_NOTICE' && status === 'PUBLISHED';
-    if (isBidNoticePublish) {
+    const isFailedBidPublish = dto.type === 'FAILED_BID_NOTICE' && status === 'PUBLISHED';
+    if (isBidNoticePublish || isFailedBidPublish) {
       // 引用采购文件发布时，自动生成加密 BidDocument。
       // 前端把 PMI 阶段采购文件的 MinIO objectKey 放进 metadata.selectedTenderObjectKey，
       // 此前无人消费导致招标文件断链（供应商下载/专家获取/AI 提取得分点全挂）。
@@ -191,7 +193,7 @@ export class AnnouncementService {
         await this.syncBidProject(result.id, {
           id: result.id, title: result.title, publishDate: result.publishDate,
           metadata: result.metadata, relatedProjectCode: result.relatedProjectCode, authorId: result.authorId,
-          companyId: result.companyId, companyName: result.companyName,
+          companyId: result.companyId, companyName: result.companyName, type: result.type,
         });
       } catch (e) {
         // backlog §2.1：公告直建项目失败此前仅 error log——发布人不知情、公告却已发布。
@@ -564,6 +566,11 @@ export class AnnouncementService {
     const isBidNoticePublish =
       isPublishTransition &&
       (dto.type ?? announcement.type) === 'BID_NOTICE';
+    // 流标公告（FAILED_BID_NOTICE）转发布 → 走 syncBidProject 内流标联动分支
+    //（2026-10-30 死代码修复：此前仅 BID_NOTICE 触发联动，流标公告发布永不置 ABORTED）
+    const isFailedBidPublish =
+      isPublishTransition &&
+      (dto.type ?? announcement.type) === 'FAILED_BID_NOTICE';
 
     // W2（B-004/B-009）：发布转换预检（依法必招强制；update 路径用库中字段+dto 覆盖取数）
     if (isBidNoticePublish) {
@@ -647,13 +654,14 @@ export class AnnouncementService {
       await this.linkWinBidCandidates(result.id, result.relatedProjectCode);
     }
 
-    // 联动：BID_NOTICE 首次发布 → 创建 BidProject
-    if (isBidNoticePublish) {
+    // 联动：BID_NOTICE 首次发布 → 创建 BidProject；FAILED_BID_NOTICE 首次发布 → 联动流标
+    //（syncBidProject 内对 failed_bid 早分支：只置 ABORTED，不 syncFromAnnouncement/不直建）
+    if (isBidNoticePublish || isFailedBidPublish) {
       // P1b（与 create 路径一致）：「引用采购文件」发布时自动生成加密 BidDocument。
       // 定时发布（草稿→发布）走本 update 路径，此前缺失导致招标文件断链。attachFromObject 幂等（已存在则跳过）。
       const meta = (result.metadata as Record<string, any>) || {};
       const sourceKey: string | undefined = meta.selectedTenderObjectKey;
-      if (sourceKey && this.bidDocumentService) {
+      if (isBidNoticePublish && sourceKey && this.bidDocumentService) {
         try {
           await this.bidDocumentService.attachFromObject(id, {
             objectKey: sourceKey,
@@ -669,7 +677,7 @@ export class AnnouncementService {
         }
       }
       try {
-        await this.syncBidProject(id, { id: result.id, title: result.title, publishDate: result.publishDate, metadata: result.metadata, relatedProjectCode: result.relatedProjectCode, authorId: result.authorId, companyId: result.companyId, companyName: result.companyName });
+        await this.syncBidProject(id, { id: result.id, title: result.title, publishDate: result.publishDate, metadata: result.metadata, relatedProjectCode: result.relatedProjectCode, authorId: result.authorId, companyId: result.companyId, companyName: result.companyName, type: result.type });
       } catch (e) {
         // backlog §2.1：与 create 路径同款——发布成功但响应带 projectSyncWarning
         this.logger.error(`公告发布联动创建项目失败 (announcementId=${id}): ${(e as Error).message}`);
@@ -1189,7 +1197,7 @@ export class AnnouncementService {
     }
   }
 
-  private async syncBidProject(annId: string, announcement: { id: string; title: string; publishDate: Date | null; metadata?: any; relatedProjectCode?: string | null; authorId?: string | null; companyId?: string | null; companyName?: string | null }) {
+  private async syncBidProject(annId: string, announcement: { id: string; title: string; publishDate: Date | null; metadata?: any; relatedProjectCode?: string | null; authorId?: string | null; companyId?: string | null; companyName?: string | null; type?: string | null }) {
     if (!this.bidService) return;
     try {
       const meta = AnnouncementService.validateMetadata(announcement.metadata);
@@ -1230,6 +1238,29 @@ export class AnnouncementService {
       // A-87：发布联动命中的项目 id——两分支（关联既有/直建新项）收敛后触发要点提取前移
       let linkedProjectId: string | null = null;
 
+      // 流标公告发布联动（2026-10-30 死代码修复）：FAILED_BID_NOTICE 只做流标联动后返回——
+      // 不 syncFromAnnouncement（公告标题「流标公告 — …」会覆盖项目名）、不直建项目
+      //（未命中=公告发错对象，仅告警）、不入队分析（下方 rawCategory 闸本就排除）。
+      // 此前该联动活在 syncBidProject 内部，而两条发布路径仅 BID_NOTICE 调它——
+      // 流标公告发布永不联动，BidProject 停留活动态，reproc 撞 BID_NOT_ABORTED。
+      if (announcement.type === 'FAILED_BID_NOTICE' || meta.category === 'failed_bid') {
+        if (!existingProject) {
+          this.logger.warn(`流标公告未命中任何招标项目（relatedProjectCode=${announcement.relatedProjectCode ?? '未填'}），BidProject 未联动流标`);
+          return;
+        }
+        const fresh = await this.prisma.bidProject.findUnique({
+          where: { id: existingProject.id },
+          select: { stage: true },
+        });
+        if (fresh && (fresh.stage === 'ABORTED' || fresh.stage === 'ARCHIVED')) {
+          this.logger.log(`流标公告已发布，项目 ${existingProject.projectCode} 已处终态（${fresh.stage}），跳过联动流标`);
+        } else {
+          await this.bidService.abortBidProject(existingProject.id, announcement.authorId ?? undefined);
+          this.logger.log(`流标公告已发布，项目 ${existingProject.projectCode} 已标记为 ABORTED`);
+        }
+        return;
+      }
+
       if (existingProject) {
         linkedProjectId = existingProject.id;
         // 旧数据 BidProject 可能缺 PMI 关联（发布匹配失败的历史遗留）——命中 PMI 时回填
@@ -1243,21 +1274,6 @@ export class AnnouncementService {
         }
         await this.bidService.syncFromAnnouncement(existingProject.id, { title: announcement.title }, meta);
         this.logger.log(`公告已关联项目 ${existingProject.projectCode}，同步更新字段`);
-        // 流标公告：发布后联动 BidProject 流标——终态（ABORTED/ARCHIVED）跳过不报错
-        //（2026-10-23 统一流：开标归档流标后 :3005 补发流标公告，联动撞 ARCHIVED→ABORTED
-        //  单向棘轮终态守卫 409；ABORTED 幂等但显式跳过更清晰）
-        if (meta.category === 'failed_bid') {
-          const fresh = await this.prisma.bidProject.findUnique({
-            where: { id: existingProject.id },
-            select: { stage: true },
-          });
-          if (fresh && (fresh.stage === 'ABORTED' || fresh.stage === 'ARCHIVED')) {
-            this.logger.log(`流标公告已发布，项目 ${existingProject.projectCode} 已处终态（${fresh.stage}），跳过联动流标`);
-          } else {
-            await this.bidService.abortBidProject(existingProject.id);
-            this.logger.log(`流标公告已发布，项目 ${existingProject.projectCode} 已标记为 ABORTED`);
-          }
-        }
         // P1b：既有项目分支同样回填招标文件关联（此前只在新项目分支做）
         const bidDoc = await this.prisma.bidDocument.findUnique({ where: { announcementId: annId } });
         if (bidDoc && !bidDoc.bidProjectId) {

@@ -397,7 +397,8 @@ describe('AnnouncementService — E2 category 白名单（failed_bid 死分支�
       ...ann, metadata: { ...ann.metadata, category: 'failed_bid' },
     });
     // 白名单化前 validateMetadata 剥落 category，meta.category 恒 undefined（死分支）——此断言红即复现
-    expect(abortBidProject).toHaveBeenCalledWith('p-e2');
+    //（2026-10-30 起 actorId=公告作者随联动传入，流标留痕有操作人）
+    expect(abortBidProject).toHaveBeenCalledWith('p-e2', 'u1');
   });
 
   it('流标公告发布：项目已 ARCHIVED（开标归档流标）→ 跳过联动流标不抛错（2026-10-23 统一流）', async () => {
@@ -1334,6 +1335,106 @@ describe('定时发布稳健性（2026-10-29 审计 B/C/E）', () => {
     await svc.update('ann-a2', { status: 'PUBLISHED' });
 
     expect(sunshine.onPublish).not.toHaveBeenCalled();
+  });
+});
+
+describe('AnnouncementService — 流标公告发布联动流标（create/update 发布路径，2026-10-30 死代码修复）', () => {
+  // 实录：failed_bid 联动此前只活在 syncBidProject 内，而两条发布路径仅 BID_NOTICE 调它——
+  // 流标公告（FAILED_BID_NOTICE）发布永不联动，BidProject 停留活动态，reproc 撞
+  // BID_NOT_ABORTED（SWHI-ZJ-2026102002 两条已发布流标公告、stage 仍 SUBMIT）。
+  // 本组用例必须走 create/update 真实发布路径——直调 syncBidProject 测不出闸门漏调。
+  const makePublishSvc = async (bidService: any, prismaOverrides: Record<string, any> = {}) => {
+    const prisma: any = {
+      announcement: {
+        create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'ann-fb', publicityEnd: null, ...data })),
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'ann-fb', type: 'FAILED_BID_NOTICE', status: 'DRAFT', title: '流标公告 — X',
+          content: '<p>流标</p>', publishDate: null, publicityEnd: null,
+          metadata: { category: 'failed_bid' }, relatedProjectCode: 'PM-1', authorId: 'author-1',
+          companyId: null, companyName: null,
+        }),
+        update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({
+          id: 'ann-fb', type: 'FAILED_BID_NOTICE', title: '流标公告 — X', content: '<p>流标</p>',
+          publishDate: new Date(), publicityEnd: null, metadata: { category: 'failed_bid' },
+          relatedProjectCode: 'PM-1', authorId: 'author-1', companyId: null, companyName: null,
+          status: 'PUBLISHED', ...data,
+        })),
+      },
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue({ id: 'pm-1', projectCode: 'PM-1' }) },
+      bidProject: {
+        // by projectCode（GB 赋码闸）→ null 放行；by id（联动前终态复查）→ 活动态
+        findUnique: jest.fn().mockImplementation(({ where }: any) =>
+          Promise.resolve(where.id === 'bp-1' ? { id: 'bp-1', stage: 'SUBMIT' } : null)),
+        findFirst: jest.fn().mockResolvedValue({ id: 'bp-1', projectCode: 'BID-1', projectManagementItemId: 'pm-1' }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      bidDocument: { findUnique: jest.fn().mockResolvedValue(null) },
+      $transaction: jest.fn(async (cb: any) => cb(prisma)),
+      ...prismaOverrides,
+    };
+    const announcementAi: any = { looksLikePromptLeak: () => false, summarize: jest.fn().mockResolvedValue('AI 摘要') };
+    const { AnnouncementService: Svc } = await import('./announcement.service');
+    const service: any = new (Svc as any)(prisma, announcementAi, bidService, undefined, undefined);
+    return { service, prisma };
+  };
+
+  const bidServiceBase = () => ({
+    syncFromAnnouncement: jest.fn().mockResolvedValue({}),
+    abortBidProject: jest.fn().mockResolvedValue({}),
+    createFromAnnouncement: jest.fn(),
+    ensureTenderAnalysis: jest.fn(),
+  });
+
+  const failedBidDto: any = {
+    title: '流标公告 — X', type: 'FAILED_BID_NOTICE', status: 'PUBLISHED', content: '<p>流标</p>',
+    aiSummary: '流标摘要', relatedProjectCode: 'PM-1', metadata: { category: 'failed_bid' },
+  };
+
+  it('create：FAILED_BID_NOTICE 即时发布 → 联动置 ABORTED（不 syncFromAnnouncement / 不直建项目 / 不入队分析）', async () => {
+    const bidService = bidServiceBase();
+    const { service } = await makePublishSvc(bidService);
+    await service.create(failedBidDto, 'author-1', {});
+    await new Promise(r => setImmediate(r));
+    expect(bidService.abortBidProject).toHaveBeenCalledWith('bp-1', 'author-1');
+    expect(bidService.syncFromAnnouncement).not.toHaveBeenCalled();
+    expect(bidService.createFromAnnouncement).not.toHaveBeenCalled();
+    expect(bidService.ensureTenderAnalysis).not.toHaveBeenCalled();
+  });
+
+  it('update：FAILED_BID_NOTICE 草稿转发布 → 同样联动置 ABORTED', async () => {
+    const bidService = bidServiceBase();
+    const { service } = await makePublishSvc(bidService);
+    await service.update('ann-fb', { status: 'PUBLISHED' } as any);
+    await new Promise(r => setImmediate(r));
+    expect(bidService.abortBidProject).toHaveBeenCalledWith('bp-1', 'author-1');
+    expect(bidService.createFromAnnouncement).not.toHaveBeenCalled();
+  });
+
+  it('项目已终态（ABORTED）→ 幂等跳过不报错', async () => {
+    const bidService = bidServiceBase();
+    const { service } = await makePublishSvc(bidService, {
+      bidProject: {
+        findUnique: jest.fn().mockImplementation(({ where }: any) =>
+          Promise.resolve(where.id === 'bp-1' ? { id: 'bp-1', stage: 'ABORTED' } : null)),
+        findFirst: jest.fn().mockResolvedValue({ id: 'bp-1', projectCode: 'BID-1', projectManagementItemId: 'pm-1' }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+    });
+    await expect(service.create(failedBidDto, 'author-1', {})).resolves.toBeTruthy();
+    await new Promise(r => setImmediate(r));
+    expect(bidService.abortBidProject).not.toHaveBeenCalled();
+  });
+
+  it('未命中任何招标项目 → 不直建项目（流标公告发错对象仅告警）', async () => {
+    const bidService = bidServiceBase();
+    const { service } = await makePublishSvc(bidService, {
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) },
+      bidProject: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null), update: jest.fn() },
+    });
+    await service.create(failedBidDto, 'author-1', {});
+    await new Promise(r => setImmediate(r));
+    expect(bidService.abortBidProject).not.toHaveBeenCalled();
+    expect(bidService.createFromAnnouncement).not.toHaveBeenCalled();
   });
 });
 
