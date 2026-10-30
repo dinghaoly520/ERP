@@ -173,7 +173,7 @@ docker stats --no-stream                                                        
 
 ## 六、ERP 侧改动设计
 
-### 6.1 代码（P0，一个小 PR）
+### 6.1 代码（P0，一个小 PR）——✅ 已落地（2026-10-30，本机验证 25/25 + 全量 3509 绿）
 
 1. `local-ai/llm.service.ts`：按 §3.2 修复（协议/端口/`/v1` 保留，抽纯函数）。
 2. `local-ai/llm.service.spec.ts`：新增 URL 构造用例（本地 http + 自定义端口 + /v1 保留；云端 `https://api.deepseek.com` 与 `.../v1` 两写法回归）。
