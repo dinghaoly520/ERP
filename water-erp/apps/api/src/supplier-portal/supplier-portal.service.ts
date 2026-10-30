@@ -1261,8 +1261,14 @@ export class SupplierPortalService {
       where: { supplierId },
       orderBy: { createdAt: 'desc' },
     });
-    // 本人自视明文（PII 值密封落库，展示时拆封；等保+密评）
-    return rows.map(r => ({ ...r, oldValue: openChangeValue(r.fieldName, r.oldValue), newValue: openChangeValue(r.fieldName, r.newValue) }));
+    // 本人自视明文（PII 值密封落库，展示时拆封；等保+密评）；字段名归一（2026-10-29）：
+    // 存量/异构客户端把英文键当 label 落库直达 :3004 变更记录页——读出统一走词表
+    return rows.map(r => ({
+      ...r,
+      fieldLabel: supplierChangeFieldLabel(r.fieldName, r.fieldLabel),
+      oldValue: openChangeValue(r.fieldName, r.oldValue),
+      newValue: openChangeValue(r.fieldName, r.newValue),
+    }));
   }
 
   async createChangeRequest(supplierId: string, userId: string, dto: CreateChangeRequestDto) {
@@ -1283,7 +1289,8 @@ export class SupplierPortalService {
       data: {
         supplierId,
         fieldName: dto.fieldName,
-        fieldLabel: dto.fieldLabel,
+        // 字段中文名服务端归一（2026-10-29）：不信任客户端透传——词表命中恒中文
+        fieldLabel: supplierChangeFieldLabel(dto.fieldName, dto.fieldLabel),
         oldValue, // PII 字段列值本身已密封（与 newValue 同态落库）
         newValue: sealChangeValue(dto.fieldName, dto.newValue) as string,
         reason: dto.reason,

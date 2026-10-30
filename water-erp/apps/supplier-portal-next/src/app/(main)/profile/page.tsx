@@ -1277,7 +1277,7 @@ export default function ProfilePage() {
                   <div className="cr-rail" />
                   <div className="cr-body">
                     <div className="cr-top">
-                      <span className="cr-badge">{r.fieldLabel}</span>
+                      <span className="cr-badge">{r.fieldLabel || "资料信息"}</span>
                       <span className="cr-pill"><PillIcon size={13} />{stMeta.label}</span>
                     </div>
                     <div className="cr-diff">

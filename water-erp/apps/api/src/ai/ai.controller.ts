@@ -84,7 +84,7 @@ export class AiController {
   @ApiOperation({ summary: 'AI智能推荐供应商（按采购需求）' })
   @Roles('admin', 'bid_expert', 'bid_host', 'leader', 'staff')
   async recommendSuppliers(
-    @Body() body: { requirement?: string; classificationId?: string; tags?: string[]; maxCount?: number; excludedSupplierIds?: string[]; projectContext?: Record<string, string>; companyId?: string },
+    @Body() body: { requirement?: string; tags?: string[]; maxCount?: number; excludedSupplierIds?: string[]; projectContext?: Record<string, string>; companyId?: string },
     @Request() req: any = {},
   ) {
     const requirement = (body?.requirement ?? '').trim();
@@ -94,7 +94,6 @@ export class AiController {
     const tags = Array.isArray(body?.tags) ? body.tags.map((t) => String(t).trim()).filter(Boolean).slice(0, 20) : undefined;
     try {
       return await this.aiService.recommendSuppliers(requirement, {
-        classificationId: body.classificationId,
         tags: tags && tags.length > 0 ? tags : undefined,
         maxCount: body.maxCount,
         excludedSupplierIds: Array.isArray(body.excludedSupplierIds) ? body.excludedSupplierIds.filter(Boolean) : undefined,

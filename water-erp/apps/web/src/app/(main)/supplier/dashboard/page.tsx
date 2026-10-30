@@ -22,7 +22,7 @@ interface PortfolioInsight {
 }
 
 function deriveInsights(
-  classifications: SupplierClassification[],
+  industries: SupplierClassification[],
   stats: SupplierStats | null,
   evalStats: { levelCounts: { A: number; B: number; C: number; D: number; E: number }; excellentRatio: number; total: number } | null,
   alerts: QualificationAlerts | null,
@@ -34,12 +34,12 @@ function deriveInsights(
   const approved = stats.approved || 0;
   const pending = stats.pending || 0;
   const inactive = (stats.disabled || 0) + (stats.blacklist || 0);
-  // 多分类场景下_sum可能超total（同一供应商归属多个分类），取min防溢出
+  // 多行业桶求和恒等于库内总数（每家一个行业），min 防御保留
   const classified = Math.min(
-    classifications.reduce((s, c) => s + (c._count?.suppliers ?? 0), 0),
+    industries.reduce((s, c) => s + (c._count?.suppliers ?? 0), 0),
     total,
   );
-  const sortedByCount = [...classifications].sort((a, b) => (b._count?.suppliers ?? 0) - (a._count?.suppliers ?? 0));
+  const sortedByCount = [...industries].sort((a, b) => (b._count?.suppliers ?? 0) - (a._count?.suppliers ?? 0));
 
   /* ── 1. 资源池活力 ── */
   const approvedPct = total > 0 ? (approved / total) * 100 : 0;
@@ -55,7 +55,7 @@ function deriveInsights(
     list.push({
       type: 'warning',
       title: `非活跃供应商占比 ${inactivePct.toFixed(0)}%（${inactive} 家），资源池活性偏低`,
-      body: `每 5 家入库供应商中有超过 1 家处于停用或黑名单状态，有效可调用的供应商仅为 ${approved} 家。${classified !== total ? `分类统计仅覆盖 ${classified} 家（${((classified/total)*100).toFixed(0)}%），${total - classified} 家尚未归入任何分类。` : ''}`,
+      body: `每 5 家入库供应商中有超过 1 家处于停用或黑名单状态，有效可调用的供应商仅为 ${approved} 家。${classified !== total ? `行业统计仅覆盖 ${classified} 家（${((classified/total)*100).toFixed(0)}%），${total - classified} 家尚未填写行业。` : ''}`,
       suggestion: `审核停用名单中可恢复资质的供应商；对长期停用的执行淘汰清理；加大新供应商准入招募。`,
     });
   } else {
@@ -105,8 +105,8 @@ function deriveInsights(
     });
   }
 
-  /* ── 3. 分类结构 ── */
-  if (classified > 0 && classifications.length >= 2) {
+  /* ── 3. 行业结构 ── */
+  if (classified > 0 && industries.length >= 2) {
     const top = sortedByCount[0];
     const second = sortedByCount[1];
     const topPct = (top._count?.suppliers ?? 0) / classified * 100;
@@ -116,30 +116,30 @@ function deriveInsights(
     if (topPct > 50) {
       list.push({
         type: 'warning',
-        title: `分类「${top.name}」集中度 ${topPct.toFixed(0)}%（${top._count?.suppliers} 家），前 2 类占 ${top2Pct.toFixed(0)}%`,
-        body: `该分类单独占据超过一半的供应商资源，需求波动将直接冲击供应链稳定。${thin.length ? `同时 ${thin.length} 个分类（${thin.map(c => c.name).join('、')}）仅 1 家或 0 家，属单一来源风险。` : ''}`,
-        suggestion: `向 ${thin.length ? thin.map(c => c.name).join('、') : '薄弱分类'} 定向招募；将「${top.name}」占比目标降至 40% 以下。`,
+        title: `行业「${top.name}」集中度 ${topPct.toFixed(0)}%（${top._count?.suppliers} 家），前 2 类占 ${top2Pct.toFixed(0)}%`,
+        body: `该行业单独占据超过一半的供应商资源，需求波动将直接冲击供应链稳定。${thin.length ? `同时 ${thin.length} 个行业（${thin.map(c => c.name).join('、')}）仅 1 家或 0 家，属单一来源风险。` : ''}`,
+        suggestion: `向 ${thin.length ? thin.map(c => c.name).join('、') : '薄弱行业'} 定向招募；将「${top.name}」占比目标降至 40% 以下。`,
       });
     } else if (top2Pct > 70) {
       list.push({
         type: 'info',
-        title: `前 2 大分类（${top.name}、${second.name}）合计 ${top2Pct.toFixed(0)}%，供给偏集中`,
-        body: `虽未出现单一过半的极端情况，但前二合计覆盖七成以上资源。${thin.length ? `${thin.length} 个分类仅 1 家或 0 家（${thin.map(c => c.name).join('、')}）。` : ''}`,
-        suggestion: `在选取与准入中有意识地偏向占比低的分类；为每分类设定最低 3 家供给底线。`,
+        title: `前 2 大行业（${top.name}、${second.name}）合计 ${top2Pct.toFixed(0)}%，供给偏集中`,
+        body: `虽未出现单一过半的极端情况，但前二合计覆盖七成以上资源。${thin.length ? `${thin.length} 个行业仅 1 家或 0 家（${thin.map(c => c.name).join('、')}）。` : ''}`,
+        suggestion: `在选取与准入中有意识地偏向占比低的行业；为每行业设定最低 3 家供给底线。`,
       });
     } else if (thin.length > 0) {
       list.push({
         type: 'info',
-        title: `${thin.length} 个薄弱分类待补充（${thin.map(c => `${c.name}(${c._count?.suppliers ?? 0}家)`).join('、')}）`,
-        body: `整体结构合理，但上述分类供应商数过少，选取时可选范围极为有限，一旦供应商无法履约则无替代。`,
-        suggestion: `定向招募以上分类的供应商，每分类至少补充至 3 家，确保选取有冗余选项。`,
+        title: `${thin.length} 个薄弱行业待补充（${thin.map(c => `${c.name}(${c._count?.suppliers ?? 0}家)`).join('、')}）`,
+        body: `整体结构合理，但上述行业供应商数过少，选取时可选范围极为有限，一旦供应商无法履约则无替代。`,
+        suggestion: `定向招募以上行业的供应商，每行业至少补充至 3 家，确保选取有冗余选项。`,
       });
     } else {
       list.push({
         type: 'success',
-        title: `分类结构均衡（${classifications.length} 类，最高 ${topPct.toFixed(0)}%，均 ${(classified / classifications.length).toFixed(1)} 家/类）`,
-        body: `各分类供应商数量分布合理，无过度集中的单点风险，也无严重薄弱分类。`,
-        suggestion: `保持当前分类管理策略，定期复核各分类供应商活跃度与履约质量。`,
+        title: `行业结构均衡（${industries.length} 个行业，最高 ${topPct.toFixed(0)}%，均 ${(classified / industries.length).toFixed(1)} 家/类）`,
+        body: `各行业供应商数量分布合理，无过度集中的单点风险，也无严重薄弱行业。`,
+        suggestion: `保持当前行业结构管理策略，定期复核各行业供应商活跃度与履约质量。`,
       });
     }
   }
@@ -308,7 +308,7 @@ function EvalColumn({
 /* ─────────────── 主页面 ─────────────── */
 export default function SupplierDashboardPage() {
   const [stats, setStats] = useState<SupplierStats | null>(null);
-  const [classifications, setClassifications] = useState<SupplierClassification[]>([]);
+  const [industries, setIndustries] = useState<SupplierClassification[]>([]);
   const [evalStats, setEvalStats] = useState<{ levelCounts: { A: number; B: number; C: number; D: number; E: number }; excellentRatio: number; total: number } | null>(null);
   const [dimStats, setDimStats] = useState<DimensionStats | null>(null);
   const [enterpriseTypeCounts, setEnterpriseTypeCounts] = useState<Record<string, number>>({});
@@ -336,7 +336,7 @@ export default function SupplierDashboardPage() {
     setLoadError(false);
     const fail = () => setLoadError(true);
     getSupplierStats(companyId).then(setStats).catch(fail);
-    getClassifications(companyId).then(setClassifications).catch(fail);
+    getClassifications(companyId).then(setIndustries).catch(fail);
     getEvaluationStats(companyId).then(setEvalStats).catch(fail);
     getEvaluationDimensionStats(companyId).then(setDimStats).catch(fail);
     getQualificationAlerts(companyId).then(setAlerts).catch(fail);
@@ -384,7 +384,7 @@ export default function SupplierDashboardPage() {
     return () => { active = false; };
   }, [approvalOpen, companyId]);
 
-  const insights = useMemo(() => deriveInsights(classifications, stats, evalStats, alerts), [classifications, stats, evalStats, alerts]);
+  const insights = useMemo(() => deriveInsights(industries, stats, evalStats, alerts), [industries, stats, evalStats, alerts]);
   const actionLabels: Record<string, string> = {
     SUPPLIER_APPROVED: '审核通过', SUPPLIER_REJECTED: '审核不通过', SUPPLIER_RETURNED: '退回补正',
     SUPPLIER_DISABLED: '停用', SUPPLIER_BLACKLIST: '拉黑', SUPPLIER_ELIMINATED: '淘汰',
@@ -393,7 +393,7 @@ export default function SupplierDashboardPage() {
     SUPPLIER_CONVERTED_REGULAR: '转正式供应商', SUPPLIER_EVALUATION_CREATED: '履约评价',
     SUPPLIER_TAGS_UPDATED: '业务标签更新', SUPPLIER_TAGS_BACKFILL: '业务标签回填',
   };
-  const maxCatCount = Math.max(1, ...classifications.map(c => c._count?.suppliers ?? 0));
+  const maxCatCount = Math.max(1, ...industries.map(c => c._count?.suppliers ?? 0));
   // 待审核构成：PENDING 按当前审批级分组（三级全列含 0，回答「数字怎么构成」）；异常级兜底「未分级」
   const approvalStageGroups = (() => {
     const groups = (['STAFF', 'LEADER', 'ADMIN'] as const).map(stage => ({ label: REVIEW_STAGE_LABEL[stage], list: approvalList.pending.filter(s => s.reviewStage === stage) }));
@@ -465,16 +465,16 @@ export default function SupplierDashboardPage() {
       {/* ══════ 三列中间区域 ══════ */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-        {/* 列 1 | 分类分布 */}
+        {/* 列 1 | 行业分布 */}
         <div className="neu-table-card p-5 flex flex-col">
           <h3 className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-4 flex-shrink-0 flex items-center gap-2">
-            <Layers size={13} />分类分布
+            <Layers size={13} />行业分布
           </h3>
-          {classifications.length === 0 ? (
-            <p className="text-sm text-[var(--muted-foreground)] py-8 text-center flex-1 flex items-center justify-center">暂无分类数据</p>
+          {industries.length === 0 ? (
+            <p className="text-sm text-[var(--muted-foreground)] py-8 text-center flex-1 flex items-center justify-center">暂无行业数据</p>
           ) : (
             <div className="space-y-3 flex-1 min-h-0 overflow-y-auto">
-              {classifications.map(c => {
+              {industries.map(c => {
                 const count = c._count?.suppliers ?? 0;
                 const pct = maxCatCount > 0 ? (count / maxCatCount) * 100 : 0;
                 return (
@@ -587,7 +587,7 @@ export default function SupplierDashboardPage() {
                   <Star size={13} fill="var(--warning)" stroke="var(--warning)" className="flex-shrink-0" />
                   <div className="min-w-0 flex-1">
                     <div className="text-xs font-semibold text-[var(--foreground)] truncate">{f.supplier.name}</div>
-                    <div className="text-[10px] text-[var(--muted-foreground)]/70 mt-0.5">{normalizeEnterpriseType(f.supplier.enterpriseType)} · {f.supplier.classification?.name || '未分类'}</div>
+                    <div className="text-[10px] text-[var(--muted-foreground)]/70 mt-0.5">{normalizeEnterpriseType(f.supplier.enterpriseType)} · {f.supplier.industry || '未填写行业'}</div>
                   </div>
                 </Link>
               ))}

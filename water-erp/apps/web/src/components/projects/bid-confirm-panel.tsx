@@ -542,7 +542,6 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
   type SupplierRow = {
     key: string;
     supplierName: string;
-    classification: string;
     tags: string[];
     rsvpStatus?: string;
     submitted: boolean;
@@ -561,7 +560,6 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
         return {
           key: `rsvp-${it.rsvpNo}`,
           supplierName: it.supplierName,
-          classification: sub?.classification || '—',
           tags: it.tags ?? sub?.tags ?? [],
           rsvpStatus: it.status,
           submitted: !!sub?.submitted,
@@ -573,7 +571,6 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
     : wsSuppliers.map((s) => ({
         key: s.id,
         supplierName: s.supplierName,
-        classification: s.classification || '—',
         tags: s.tags ?? [],
         rsvpStatus: s.supplierId ? rsvpMap.get(s.supplierId) : undefined,
         submitted: s.submitted,

@@ -64,12 +64,23 @@ export const SUPPLIER_CHANGE_FIELD_LABELS: Record<SupplierChangeAllowedField, st
   performances: '业绩信息',
 };
 
-/** 通知文案取字段名：DTO label 优先 → 词表回退 → 通用兜底（永不露裸英文字段名） */
+/** 裸英文标识符形态判定（^[A-Za-z][A-Za-z0-9_]*$）：存量/异构客户端曾把原始字段键
+ *  （如 legalRepresentative）直接当 fieldLabel 落库直达界面（2026-10-29 异构环境实录），
+ *  该形态的 label 视为未翻译，不得透出。 */
+function looksLikeBareIdentifier(label: string): boolean {
+  return /^[A-Za-z][A-Za-z0-9_]*$/.test(label);
+}
+
+/** 取字段中文名：服务端词表优先（白名单内字段恒中文）→ 存量中文 label（非裸标识符才可信）
+ *  → 通用兜底。写侧落库与读侧归一共用此函数，永不露裸英文字段名。 */
 export function supplierChangeFieldLabel(
   fieldName: string,
   fieldLabel?: string,
 ): string {
-  return fieldLabel ?? SUPPLIER_CHANGE_FIELD_LABELS[fieldName as SupplierChangeAllowedField] ?? '资料信息';
+  const canonical = SUPPLIER_CHANGE_FIELD_LABELS[fieldName as SupplierChangeAllowedField];
+  if (canonical) return canonical;
+  if (fieldLabel && !looksLikeBareIdentifier(fieldLabel)) return fieldLabel;
+  return '资料信息';
 }
 
 export function isSupplierChangeAllowedField(

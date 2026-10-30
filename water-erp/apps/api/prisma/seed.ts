@@ -117,7 +117,6 @@ const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient
   // Level 0 —— 无外键 / 独立表
   ['Department', 'department'],
   ['CaCertificate', 'caCertificate'],
-  ['SupplierClassification', 'supplierClassification'],
   ['Announcement', 'announcement'],
   ['ScoreTemplate', 'scoreTemplate'],
   ['SystemConfig', 'systemConfig'],
@@ -814,7 +813,6 @@ async function main() {
     供应商: await prisma.supplier.count(),
     供应商联系人: await prisma.supplierContact.count(),
     供应商资质: await prisma.supplierQualification.count(),
-    供应商分类: await prisma.supplierClassification.count(),
     公告: await prisma.announcement.count(),
     招标项目: await prisma.bidProject.count(),
     通知: await prisma.notification.count(),

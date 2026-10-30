@@ -47,7 +47,7 @@ export interface BidWorkspaceSupplier {
   id: string;
   supplierId: string | null;
   supplierName: string;
-  classification?: string | null;
+  industry?: string | null;
   tags?: string[] | null;
   downloadStatus: string;
   submitStatus: string;

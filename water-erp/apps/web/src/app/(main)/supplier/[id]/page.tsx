@@ -1454,7 +1454,7 @@ export default function SupplierDetailPage() {
                         <>
                         <tr key={c.id} className="row-clickable" onClick={() => setExpandedChangeId(expandedChangeId === c.id ? null : c.id)}>
                           <td className="font-semibold text-[var(--foreground)]">
-                            {c.fieldLabel}
+                            {c.fieldLabel || '资料信息'}
                             {c.fieldName === 'convertToRegular' && (
                               <span className="ml-1 inline-flex items-center rounded-full bg-[color-mix(in_oklch,var(--accent)_15%,transparent)] px-1.5 py-0.5 text-[9px] font-bold text-[var(--accent)]">转正</span>
                             )}

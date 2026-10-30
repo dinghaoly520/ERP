@@ -20,10 +20,9 @@ import { BadgeCheck } from 'lucide-react';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
 import { SupplierEvaluationDialog } from '@/components/supplier/supplier-evaluation-dialog';
-import { ClassificationManagerDialog } from '@/components/supplier/classification-manager-dialog';
 import { ObjectionBoardModal } from '@/components/notice/objection-board-modal';
 import { SupplierAuditLogModal } from '@/components/supplier/supplier-audit-log-modal';
-import { Building2, MessageSquareWarning, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban, Tags, History } from 'lucide-react';
+import { Building2, MessageSquareWarning, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban, History } from 'lucide-react';
 import { copyToClipboard } from '@/lib/copy-to-clipboard';
 import { exportAllFilteredSuppliersToExcel } from '@/lib/excel-export';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
@@ -128,8 +127,6 @@ function SupplierRepositoryPageInner() {
   const [statusLoading, setStatusLoading] = useState(false);
   // 评价弹窗（由操作列「评价」按钮触发）
   const [evalTarget, setEvalTarget] = useState<Supplier | null>(null);
-  // 分类管理弹窗
-  const [showClassMgr, setShowClassMgr] = useState(false);
 
   // 临时供应商邀请码（采购端生成，有效期 30/180/360 天）
   const [invitations, setInvitations] = useState<SupplierInvitation[]>([]);
@@ -621,7 +618,6 @@ function SupplierRepositoryPageInner() {
           <Star size={12} fill={favFilter ? 'var(--warning)' : 'none'} stroke={favFilter ? 'var(--warning)' : 'currentColor'} />
           {favFilter ? '收藏中' : '收藏'}
         </button>
-        <button onClick={() => setShowClassMgr(true)} className="neu-btn-xs gap-1"><Tags size={12} />分类管理</button>
         <button onClick={() => setShowAdvanced(!showAdvanced)} className="neu-btn-xs gap-1 text-[var(--muted-foreground)]">{showAdvanced ? <ChevronUp size={12} /> : <ChevronDown size={12} />}高级筛选</button>
         <button
           onClick={handleExport}
@@ -740,7 +736,6 @@ function SupplierRepositoryPageInner() {
 
       {/* 评价弹窗 */}
       <SupplierEvaluationDialog supplier={evalTarget} onClose={() => setEvalTarget(null)} onSubmitted={loadData} />
-      <ClassificationManagerDialog open={showClassMgr} onClose={() => setShowClassMgr(false)} />
       {dialog}
     </div>
   );

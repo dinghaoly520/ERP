@@ -27,9 +27,8 @@ describe('SupplierService — 总览旁路端点公司隔离', () => {
 
   beforeEach(async () => {
     prisma = {
-      supplier: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn().mockResolvedValue(null) },
+      supplier: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn().mockResolvedValue(null), groupBy: jest.fn().mockResolvedValue([]) },
       supplierFavorite: { findMany: jest.fn().mockResolvedValue([]) },
-      supplierClassification: { findMany: jest.fn().mockResolvedValue([]) },
       supplierEvaluation: { findMany: jest.fn().mockResolvedValue([]) },
       supplierQualification: { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
       supplierCompanyLink: { findMany: jest.fn().mockResolvedValue([]) },
@@ -62,18 +61,29 @@ describe('SupplierService — 总览旁路端点公司隔离', () => {
   });
 
   describe('listClassifications', () => {
-    it('有 actor：_count.suppliers 带 link 过滤（公司内计数，非全量）', async () => {
-      await service.listClassifications(ACTOR_LEADER as any);
-      const arg = prisma.supplierClassification.findMany.mock.calls[0][0];
-      expect(arg.include._count.select.suppliers.where).toEqual({
+    it('有 actor：行业分桶带公司视野 + 库内四态口径；空行业归「未填写」置尾', async () => {
+      prisma.supplier.groupBy.mockResolvedValue([
+        { industry: '土木工程建筑业', _count: { _all: 12 } },
+        { industry: null, _count: { _all: 3 } },
+      ]);
+      const res = await service.listClassifications(ACTOR_LEADER as any);
+      const arg = prisma.supplier.groupBy.mock.calls[0][0];
+      // 分类退役（2026-10-29）：按注册「所属国民经济行业」聚合，视野=库内四态 link-only（与 getStats 同口径）
+      expect(arg.where).toEqual({
+        status: { in: ['APPROVED', 'DISABLED', 'BLACKLIST'] },
         companyLinks: { some: { companyId: { in: ['co-js'] }, status: 'APPROVED' } },
       });
+      expect(res.map((r: any) => [r.id, r.name, r._count.suppliers])).toEqual([
+        ['土木工程建筑业', '土木工程建筑业', 12],
+        ['__unset__', '未填写', 3],
+      ]);
     });
 
-    it('无 actor（大屏等内部调用）：保持全量计数不变', async () => {
+    it('无 actor（大屏等内部调用）：全库视野（仅四态口径）', async () => {
+      prisma.supplier.groupBy.mockResolvedValue([]);
       await service.listClassifications();
-      const arg = prisma.supplierClassification.findMany.mock.calls[0][0];
-      expect(arg.include._count.select.suppliers).toEqual(true);
+      const arg = prisma.supplier.groupBy.mock.calls[0][0];
+      expect(arg.where).toEqual({ status: { in: ['APPROVED', 'DISABLED', 'BLACKLIST'] } });
     });
   });
 

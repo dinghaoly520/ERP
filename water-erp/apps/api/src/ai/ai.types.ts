@@ -49,7 +49,6 @@ export interface AiAnalysisResult {
 export interface SupplierRecommendation {
   supplierId: string;
   name: string;
-  classification?: string;
   matchScore: number;
   reason: string;
   legalPerson?: string;

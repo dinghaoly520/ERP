@@ -21,7 +21,7 @@ export interface SupplierStats {
 export interface SupplierRecommendation {
   supplierId: string;
   name: string;
-  classification?: string;
+  industry?: string | null;
   matchScore: number;
   reason: string;
   legalPerson?: string;
@@ -36,7 +36,6 @@ export interface SupplierRecommendation {
   qualifications?: string[];
   registeredCapital?: string;
   region?: string;
-  industry?: string;
   registeredAddress?: string;
 }
 
@@ -46,12 +45,11 @@ export interface SupplierCompareProfile {
   supplierId: string;
   name: string;
   supplierNo?: string;
-  classification?: string;
+  industry?: string | null;
   enterpriseType?: string;
   legalPerson?: string;
   registeredCapital?: string;
   region?: string;
-  industry?: string;
   businessScope?: string;
   registeredAddress?: string;
   tags?: string[];
@@ -76,10 +74,9 @@ export interface SupplierSelectionResult {
 }
 
 // 供应商列表
-export function getSupplierList(params?: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt'; enterpriseTypes?: string; dateFrom?: string; dateTo?: string; evalLevel?: string; qualificationStatus?: string; isTemporary?: boolean; reviewStage?: string; companyId?: string }) {
+export function getSupplierList(params?: { status?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt'; enterpriseTypes?: string; dateFrom?: string; dateTo?: string; evalLevel?: string; qualificationStatus?: string; isTemporary?: boolean; reviewStage?: string; companyId?: string }) {
   const query = new URLSearchParams();
   if (params?.status) query.set('status', params.status);
-  if (params?.classificationId) query.set('classificationId', params.classificationId);
   if (params?.search) query.set('search', params.search);
   if (params?.page) query.set('page', String(params.page));
   if (params?.pageSize) query.set('pageSize', String(params.pageSize));
@@ -141,7 +138,7 @@ export function getSupplierStats(companyId?: string) {
 }
 
 // AI 智能推荐供应商（按采购需求 + 项目上下文；候选池公司隔离——companyId=项目归属公司，非 admin 由后端强制本人公司）
-export function recommendSuppliers(data: { requirement: string; classificationId?: string; tags?: string[]; maxCount?: number; excludedSupplierIds?: string[]; projectContext?: Record<string, string>; companyId?: string }) {
+export function recommendSuppliers(data: { requirement: string; tags?: string[]; maxCount?: number; excludedSupplierIds?: string[]; projectContext?: Record<string, string>; companyId?: string }) {
   return api.post<SupplierSelectionResult>('/ai/supplier-selection', data);
 }
 
@@ -183,8 +180,8 @@ export function generateNotificationContent(data: {
 export interface SupplierSelectionHistoryRecord {
   id: string;
   requirement: string;
-  classificationId?: string;
-  classificationName?: string;
+  /** 分类退役（2026-10-29）前的历史快照字段：旧选取记录可能带值，新记录恒空，仅历史弹窗回显 */
+  classificationName?: string | null;
   resultSummary: string;
   recommendationCount: number;
   candidatePool: number;
@@ -442,21 +439,6 @@ export function getTagVocabulary(limit = 60) {
   return api.get<{ items: TagVocabularyItem[]; totalDistinct: number }>(`/supplier/tag-vocabulary?limit=${limit}`);
 }
 
-// 创建分类
-export function createClassification(data: { name: string; code: string; description?: string }) {
-  return api.post<SupplierClassification>('/supplier/classifications', data);
-}
-
-// 更新分类
-export function updateClassification(id: string, data: { name?: string; code?: string; description?: string }) {
-  return api.patch<SupplierClassification>(`/supplier/classifications/${id}`, data);
-}
-
-// 删除分类
-export function deleteClassification(id: string) {
-  return api.delete<SupplierClassification>(`/supplier/classifications/${id}`);
-}
-
 // 供应商画像
 // 生命周期时间线
 export interface TimelineEvent { type: string; label: string; detail: string; at: string; }
@@ -545,16 +527,6 @@ export function confirmEliminate(id: string, reason: string) {
   return api.post<{ success: boolean }>(`/supplier/${id}/eliminate`, { reason });
 }
 
-// 多分类标签管理
-export interface SupplierClassificationLink {
-  supplierId: string; classificationId: string;
-  classification: SupplierClassification;
-  assignedAt: string;
-}
-export function setSupplierClassifications(supplierId: string, classificationIds: string[]) {
-  return api.put<SupplierClassificationLink[]>(`/supplier/${supplierId}/classifications`, { classificationIds });
-}
-
 /** 管理员直接修改供应商业务标签（2-8 个，不走审批） */
 export function updateSupplierTags(supplierId: string, tags: string[]) {
   return api.patch<{ tags: string[] }>(`/supplier/${supplierId}/tags`, { tags });
@@ -564,7 +536,7 @@ export function updateSupplierTags(supplierId: string, tags: string[]) {
 export function toggleFavorite(supplierId: string) {
   return api.post<{ favorited: boolean }>(`/supplier/${supplierId}/favorite`, {});
 }
-export interface SupplierFavoriteRecord { id: string; supplierId: string; createdAt: string; supplier: { id: string; name: string; enterpriseType: string; classification?: { name: string }; createdAt: string }; }
+export interface SupplierFavoriteRecord { id: string; supplierId: string; createdAt: string; supplier: { id: string; name: string; enterpriseType: string; industry?: string | null }; }
 export function getFavorites(companyId?: string) {
   return api.get<SupplierFavoriteRecord[]>(`/supplier/favorites/list${companyQuery(companyId)}`);
 }

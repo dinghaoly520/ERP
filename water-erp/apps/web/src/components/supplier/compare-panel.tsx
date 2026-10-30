@@ -36,7 +36,7 @@ const DIMENSION_GROUPS: { title: string; dims: Dimension[] }[] = [
     dims: [
       { key: "matchScore", label: "匹配度", type: "score" },
       { key: "tags", label: "业务标签", type: "tags" },
-      { key: "classification", label: "供应商分类", type: "text" },
+      { key: "industry", label: "国民经济行业", type: "text" },
       { key: "enterpriseType", label: "企业类型", type: "text" },
       { key: "reason", label: "匹配说明", type: "long" },
     ],
@@ -69,7 +69,7 @@ const DIMENSION_GROUPS: { title: string; dims: Dimension[] }[] = [
 
 const textOf = (c: ComparedSupplier, key: string): string => {
   switch (key) {
-    case "classification": return c.classification || "";
+    case "industry": return c.industry || "";
     case "enterpriseType": return normalizeEnterpriseType(c.enterpriseType);
     case "legalPerson": return c.legalPerson || "";
     case "registeredCapital": return c.registeredCapital || "";

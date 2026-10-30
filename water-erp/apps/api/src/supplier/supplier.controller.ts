@@ -22,10 +22,9 @@ import { CreateChangeRequestDto } from './dto/create-change-request.dto';
 import { ApproveChangeDto } from './dto/approve-change.dto';
 import { CreateQualificationDto } from './dto/create-qualification.dto';
 import { CreateEvaluationDto } from './dto/create-evaluation.dto';
-import { CreateClassificationDto, UpdateClassificationDto } from './dto/create-classification.dto';
 import { NotifySuppliersDto } from './dto/notify-suppliers.dto';
 import { NegotiationConfigDto } from './dto/negotiation-config.dto';
-import { SetClassificationsDto } from './dto/set-classifications.dto';
+
 import { PrismaService } from '../prisma/prisma.service';
 import { SupplierLinkService } from './supplier-link.service';
 import { ApproveLinkDto, RejectLinkDto } from './dto/company-link.dto';
@@ -357,7 +356,6 @@ export class SupplierController {
   async list(
     @Request() req: any,
     @Query('status') status?: string,
-    @Query('classificationId') classificationId?: string,
     @Query('search') search?: string,
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
@@ -380,7 +378,7 @@ export class SupplierController {
       }
     }
     return this.supplierService.list({
-      status, classificationId, search, page, pageSize, sort,
+      status, search, page, pageSize, sort,
       enterpriseTypes: enterpriseTypes ? enterpriseTypes.split(',').filter(Boolean) : undefined,
       dateFrom, dateTo, evalLevel, qualificationStatus,
       // 临时供应商筛选：仅 'true' 视为真，其余（'false'/缺省）均不加该过滤，避免误判。
@@ -417,50 +415,9 @@ export class SupplierController {
 
   @Get('classifications')
   @Roles('admin', 'leader', 'staff')
-  @ApiOperation({ summary: '分类列表（公司隔离，admin 可 ?companyId= 切公司）' })
+  @ApiOperation({ summary: '行业分布（派生自注册「所属国民经济行业」，公司隔离，admin 可 ?companyId= 切公司）' })
   async listClassifications(@Query('companyId') companyId?: string, @Request() req: any = {}) {
     return this.supplierService.listClassifications(req.user, companyId);
-  }
-
-  @Post('classifications')
-  @Roles('admin', 'leader', 'staff')
-  @ApiOperation({ summary: '创建分类' })
-  async createClassification(@Body() dto: CreateClassificationDto) {
-    return this.supplierService.createClassification(dto);
-  }
-
-  @Patch('classifications/:id')
-  @Roles('admin', 'leader', 'staff')
-  @ApiOperation({ summary: '更新分类' })
-  async updateClassification(@Param('id') id: string, @Body() dto: UpdateClassificationDto) {
-    return this.supplierService.updateClassification(id, dto);
-  }
-
-  @Delete('classifications/:id')
-  @Roles('admin', 'leader', 'staff')
-  @ApiOperation({ summary: '删除分类' })
-  async deleteClassification(@Param('id') id: string) {
-    return this.supplierService.deleteClassification(id);
-  }
-
-  // 供应商多分类标签
-  @Get(':id/classifications')
-  @UseGuards(SupplierScopeGuard)
-  @Roles('admin', 'leader', 'staff')
-  @ApiOperation({ summary: '获取供应商的分类标签列表' })
-  async getSupplierClassifications(@Param('id') id: string) {
-    return this.supplierService.getSupplierClassifications(id);
-  }
-
-  @Put(':id/classifications')
-  @UseGuards(SupplierScopeGuard)
-  @Roles('admin', 'leader', 'staff')
-  @ApiOperation({ summary: '设置供应商的分类标签（替换全部，仅采购侧角色）' })
-  async setSupplierClassifications(
-    @Param('id') id: string,
-    @Body() dto: SetClassificationsDto,
-  ) {
-    return this.supplierService.setSupplierClassifications(id, dto.classificationIds);
   }
 
   @Post('notify')

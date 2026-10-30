@@ -16,7 +16,8 @@ export const TAG_MAX = 8;
 export interface TagSource {
   name: string;
   businessScope?: string | null;
-  classificationName?: string | null;
+  /** 行业锚点（2026-10-29 分类退役）：原手工分类名，现喂注册「所属国民经济行业」大类 */
+  industryName?: string | null;
 }
 
 /** 经营范围里的法律/许可套话括号，整段剔除（噪声，非业务关键词）。 */
@@ -108,11 +109,11 @@ function dedupeKeepOrder(arr: string[]): string[] {
   return out;
 }
 
-/** 由经营范围+名称+分类生成 2~8 个业务标签。纯函数。 */
+/** 由经营范围+名称+行业生成 2~8 个业务标签。纯函数。 */
 export function generateBusinessTags(s: TagSource): string[] {
   const scopeTags = extractScopeTags(s.businessScope || '');
   const nameTags = extractNameTags(s.name || '');
-  const cls = (s.classificationName || '').trim();
+  const cls = (s.industryName || '').trim();
   const clsTag = cls.length >= 2 && cls.length <= 14 && !USELESS_CLASS.has(cls) ? cls : '';
 
   // 优先级：经营范围关键词（最具体）> 名称行业词 > 分类锚点（兜底）。

@@ -670,7 +670,7 @@ export class BidService {
     const [suppliers, experts, submissions, openingRecordCount] = await Promise.all([
       this.prisma.bidSupplier.findMany({
         where: { projectId: id },
-        include: { supplier: { select: { id: true, name: true, tags: true, classification: { select: { name: true } } } } },
+        include: { supplier: { select: { id: true, name: true, tags: true, industry: true } } },
         orderBy: { createdAt: 'asc' },
       }),
       this.prisma.bidExpert.findMany({
@@ -710,7 +710,7 @@ export class BidService {
         id: s.id,
         supplierId: s.supplierId,
         supplierName: s.supplierName,
-        classification: s.supplier?.classification?.name,
+        industry: s.supplier?.industry ?? null,
         tags: s.supplier?.tags ?? [],
         downloadStatus: s.downloadStatus,
         submitStatus: s.submitStatus,

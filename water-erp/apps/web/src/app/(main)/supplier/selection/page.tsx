@@ -1551,7 +1551,7 @@ export function SupplierSelectionPage({
     setRerunShortlist(prev => {
       const n = new Map(prev);
       if (n.has(sid)) { n.delete(sid); return n; }
-      n.set(sid, { item: { supplierId: sid, name: s.name, matchScore: 0, reason: '手动补选', enterpriseType: (s as any).enterpriseType, contacts: (s as any).contacts || [], activeProjects: 0, classification: (s as any).classification?.name }, note: '' });
+      n.set(sid, { item: { supplierId: sid, name: s.name, matchScore: 0, reason: '手动补选', enterpriseType: (s as any).enterpriseType, industry: (s as any).industry ?? null, contacts: (s as any).contacts || [], activeProjects: 0 }, note: '' });
       return n;
     });
   };
@@ -1647,10 +1647,10 @@ export function SupplierSelectionPage({
       const r: SupplierRecommendation = {
         supplierId: sid,
         name: s.name,
-        classification: (s as any).classification?.name,
         matchScore: 0,
         reason: '手动选取',
         enterpriseType: (s as any).enterpriseType,
+        industry: (s as any).industry ?? null,
         contacts: (s as any).contacts || [],
         activeProjects: 0,
       };
@@ -3633,8 +3633,8 @@ export function SupplierSelectionPage({
                           状态：{SUPPLIER_STATUS_LABEL[String(detailData.status)] ?? String(detailData.status)}
                         </span>
                       )}
-                      {detailData.classification?.name && (
-                        <span className="inline-flex items-center rounded-[6px] px-2.5 py-1 text-[10px] font-bold" style={{ background: 'color-mix(in oklch, var(--muted-foreground) 8%, transparent)', color: 'var(--muted-foreground)' }}>分类：{detailData.classification.name}</span>
+                      {detailData.industry && (
+                        <span className="inline-flex items-center rounded-[6px] px-2.5 py-1 text-[10px] font-bold" style={{ background: 'color-mix(in oklch, var(--muted-foreground) 8%, transparent)', color: 'var(--muted-foreground)' }}>行业：{detailData.industry}</span>
                       )}
                       {detailData.isTemporary && (
                         <span className="inline-flex items-center rounded-[6px] px-2.5 py-1 text-[10px] font-bold" style={{ background: 'color-mix(in oklch, var(--warning) 12%, transparent)', color: 'var(--warning)' }}>
@@ -3813,7 +3813,7 @@ export function SupplierSelectionPage({
                       <h4 className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">资料变更记录（近 {detailData.changeRecords.length} 条）</h4>
                       {detailData.changeRecords.map((c: any, i: number) => (
                         <div key={i} className="text-[11px] text-[var(--muted-foreground)]">
-                          <span className="font-semibold text-[var(--foreground)]">{c.fieldLabel || c.fieldName}</span>：{c.oldValue || '（空）'} → {c.newValue || '（空）'}
+                          <span className="font-semibold text-[var(--foreground)]">{c.fieldLabel || '资料信息'}</span>：{c.oldValue || '（空）'} → {c.newValue || '（空）'}
                           <span className="ml-1.5">{c.status === 'APPROVED' ? '已通过' : c.status === 'REJECTED' ? '已拒绝' : '待审核'}</span>
                           {c.createdAt && <span className="tabular-nums"> · {c.createdAt.slice(0, 10)}</span>}
                         </div>

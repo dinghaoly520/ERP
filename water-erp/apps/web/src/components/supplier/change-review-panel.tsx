@@ -106,7 +106,7 @@ export function ChangeReviewPanel() {
                       <span className="ml-1.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'color-mix(in oklch, var(--warning) 12%, transparent)', color: 'var(--warning)' }}>临时转正</span>
                     )}
                   </td>
-                  <td style={{ textAlign: 'center' }}>{row.fieldLabel || row.fieldName}</td>
+                  <td style={{ textAlign: 'center' }}>{row.fieldLabel || '资料信息'}</td>
                   <td>
                     <div className="flex items-center gap-1.5 min-w-0 max-w-[320px]">
                       <span className="truncate text-[var(--muted-foreground)]" title={row.oldValue ?? ''}>{row.oldValue || '（空）'}</span>
@@ -137,7 +137,7 @@ export function ChangeReviewPanel() {
         open={rejecting !== null}
         onClose={() => setRejecting(null)}
         title="拒绝资料变更"
-        description={<>供应商：<strong className="text-[var(--foreground)]">{rejecting?.supplier?.name}</strong>（{rejecting?.fieldLabel || rejecting?.fieldName}）</>}
+        description={<>供应商：<strong className="text-[var(--foreground)]">{rejecting?.supplier?.name}</strong>（{rejecting?.fieldLabel || '资料信息'}）</>}
         footer={
           <>
             <button onClick={() => setRejecting(null)} className="neu-btn-soft">取消</button>

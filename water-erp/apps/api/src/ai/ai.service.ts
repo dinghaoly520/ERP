@@ -1210,7 +1210,6 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
   async recommendSuppliers(
     requirement: string,
     opts: {
-      classificationId?: string;
       tags?: string[];
       maxCount?: number;
       excludedSupplierIds?: string[];
@@ -1224,7 +1223,6 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
 
     // 1. 检索：已入库供应商，可选分类 / 业务标签过滤
     const where: any = { status: 'APPROVED' };
-    if (opts.classificationId) where.classificationId = opts.classificationId;
     // 业务标签多选：候选池收敛到「命中任一标签」的供应商，使标签缺失者不再淹没匹配。
     if (opts.tags && opts.tags.length > 0) where.tags = { hasSome: opts.tags };
     // 排除已选供应商（重新选取时不重复推荐）
@@ -1236,7 +1234,6 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     const suppliers = await this.prisma.supplier.findMany({
       where,
       include: {
-        classification: true,
         contacts: { orderBy: { isPrimary: 'desc' }, take: 10 }, // 全联系人（主优先，2026-10-27 邀请表格全列展示+逐联系人短信）
         qualifications: { select: { name: true }, take: 5 },
         evaluations: { select: { finalGrade: true } },
@@ -1357,7 +1354,6 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     const candidates = pool.map(({ supplier: s }) => ({
       id: s.id,
       name: s.name,
-      classification: s.classification?.name,
       businessScope: s.businessScope || '',
       tags: (s.tags || []) as string[],
       qualificationText: (s.qualifications || []).map((q) => q.name).join('；'),
@@ -1392,7 +1388,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       );
     } else {
       engine = 'rules';
-      summary = this.fallbackSummary(pool.length, !!opts.classificationId, maxCount);
+      summary = this.fallbackSummary(pool.length, maxCount);
       // 规则引擎分数区间抬高到 40-80（原 20-60），使降级结果更接近 LLM 评分范围，减少用户体验落差
       recommendations = pool
         .slice(0, maxCount)
@@ -1428,7 +1424,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
   private supplierText(s: any): string {
     return [
       s.name,
-      s.classification?.name,
+      s.industry,
       s.enterpriseType,
       s.businessScope,
       (s.tags || []).join(' '), // 业务标签纳入 n-gram 重叠评分：标签是浓缩关键词，显著提升规则阶段命中。
@@ -1469,7 +1465,6 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     return {
       supplierId: s.id,
       name: s.name,
-      classification: s.classification?.name,
       matchScore: score,
       reason,
       legalPerson: s.legalPerson,
@@ -1496,15 +1491,15 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     };
   }
 
-  private fallbackSummary(poolSize: number, classified: boolean, maxCount: number): string {
-    if (poolSize === 0) return '未在供应商库中找到与采购需求匹配的候选供应商，请调整需求描述或分类后重试。';
-    const scope = classified ? '指定分类内' : '全库';
+  private fallbackSummary(poolSize: number, maxCount: number): string {
+    if (poolSize === 0) return '未在供应商库中找到与采购需求匹配的候选供应商，请调整需求描述或筛选条件后重试。';
+    const scope = '全库';
     return `基于关键词与经营范围匹配，从${scope}候选中筛选出最多 ${maxCount} 家相关供应商（规则引擎；如需更精准的语义推荐，请确保已配置 DeepSeek AI 服务）。`;
   }
 
   private fallbackReason(s: any, overlap: number): string {
     const parts: string[] = [];
-    if (s.classification?.name) parts.push(`属「${s.classification.name}」分类`);
+    if (s.industry) parts.push(`属「${s.industry}」行业`);
     const tags: string[] = (s.tags || []).slice(0, 3);
     if (tags.length > 0) parts.push(`业务标签含「${tags.join('、')}」`);
     if (overlap > 0.3) parts.push('经营范围与需求高度相关');

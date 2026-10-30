@@ -16,7 +16,6 @@ import { UpdateContactPersonnelDto } from './dto/update-contact-personnel.dto';
 import { CreateChangeRequestDto } from './dto/create-change-request.dto';
 import { CreateQualificationDto } from './dto/create-qualification.dto';
 import { CreateEvaluationDto } from './dto/create-evaluation.dto';
-import { CreateClassificationDto, UpdateClassificationDto } from './dto/create-classification.dto';
 import { NegotiationConfigDto } from './dto/negotiation-config.dto';
 import { isSupplierChangeAllowedField, supplierChangeFieldLabel } from './supplier-change-fields';
 import { shouldAutoDisable } from './supplier-performance';
@@ -953,7 +952,6 @@ export class SupplierService {
     const suppliers = await this.prisma.supplier.findMany({
       where: { id: { in: cleaned }, ...f },
       include: {
-        classification: true,
         contacts: { where: { isPrimary: true }, take: 2 },
         qualifications: { select: { name: true, type: true, status: true, validTo: true }, take: 5, orderBy: { createdAt: 'asc' } },
         evaluations: { select: { finalGrade: true }, orderBy: { createdAt: 'desc' } },
@@ -968,7 +966,6 @@ export class SupplierService {
         supplierId: s.id,
         name: s.name,
         supplierNo: s.supplierNo,
-        classification: s.classification?.name ?? undefined,
         enterpriseType: s.enterpriseType,
         legalPerson: s.legalPerson,
         registeredCapital: s.registeredCapital || undefined,
@@ -999,7 +996,7 @@ export class SupplierService {
     return result;
   }
 
-  async list(params: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt'; enterpriseTypes?: string[]; dateFrom?: string; dateTo?: string; evalLevel?: string; qualificationStatus?: string; isTemporary?: boolean; reviewStage?: string; scopeUserId?: string; companyId?: string; actor?: AuthenticatedUser }) {
+  async list(params: { status?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt'; enterpriseTypes?: string[]; dateFrom?: string; dateTo?: string; evalLevel?: string; qualificationStatus?: string; isTemporary?: boolean; reviewStage?: string; scopeUserId?: string; companyId?: string; actor?: AuthenticatedUser }) {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
     const skip = (page - 1) * pageSize;
@@ -1053,7 +1050,6 @@ export class SupplierService {
         where.status = params.status;
       }
     }
-    if (params.classificationId) where.classificationId = params.classificationId;
     if (params.enterpriseTypes?.length) where.enterpriseType = { in: params.enterpriseTypes };
     if (params.dateFrom || params.dateTo) {
       where.createdAt = {};
@@ -1150,7 +1146,6 @@ export class SupplierService {
         take: pageSize,
         orderBy: { createdAt: 'desc' },
         include: {
-          classification: true,
           contacts: { where: { isPrimary: true } },
           _count: { select: { evaluations: true, qualifications: true, contacts: true } },
           evaluations: {
@@ -1255,7 +1250,6 @@ export class SupplierService {
         const ar = where.approvalRecords.some;
         conditions.push(Prisma.sql`EXISTS (SELECT 1 FROM "SupplierApprovalRecord" r WHERE r."supplierId" = s.id AND r."action" = ${ar.action} AND r."reviewerUserId" = ${ar.reviewerUserId})`);
       }
-    if (where.classificationId) conditions.push(Prisma.sql`"classificationId" = ${where.classificationId}`);
     if (where.OR) {
       // search: name ILIKE or creditCode contains
       const search = where.OR[0].name.contains;
@@ -1312,7 +1306,7 @@ export class SupplierService {
         CASE WHEN s."creditCode" IS NOT NULL AND s."creditCode" != '' THEN 1 ELSE 0 END +
         CASE WHEN s."businessScope" IS NOT NULL AND s."businessScope" != '' THEN 1 ELSE 0 END +
         CASE WHEN s."registeredAddress" IS NOT NULL AND s."registeredAddress" != '' THEN 1 ELSE 0 END +
-        CASE WHEN s."classificationId" IS NOT NULL THEN 1 ELSE 0 END
+        CASE WHEN s."industry" IS NOT NULL AND s."industry" != '' THEN 1 ELSE 0 END
       ) DESC, s."createdAt" DESC
       LIMIT ${pageSize} OFFSET ${skip}
     `;
@@ -1327,7 +1321,6 @@ export class SupplierService {
     const items = await this.prisma.supplier.findMany({
       where: { id: { in: ids } },
       include: {
-        classification: true,
         contacts: { where: { isPrimary: true } },
         _count: { select: { evaluations: true, qualifications: true, contacts: true } },
         evaluations: {
@@ -1407,7 +1400,6 @@ export class SupplierService {
       where: { id },
       include: {
         user: { select: { id: true, username: true, displayName: true, email: true, role: true, isActive: true } },
-        classification: true,
         contacts: true,
         qualifications: true,
         bankAccounts: { orderBy: { createdAt: 'asc' } },
@@ -1470,7 +1462,7 @@ export class SupplierService {
         legalPersonPhone: openPii(supplier.legalPersonPhone),
         contacts: supplier.contacts.map(c => ({ ...c, phone: openPii(c.phone), idCard: openPii(c.idCard), email: openPii(c.email) })),
         bankAccounts: supplier.bankAccounts.map(b => ({ ...b, accountNo: openPii(b.accountNo) })),
-        changeRecords: supplier.changeRecords.map(r => ({ ...r, oldValue: openChangeValue(r.fieldName, r.oldValue), newValue: openChangeValue(r.fieldName, r.newValue) })),
+        changeRecords: supplier.changeRecords.map(r => ({ ...r, fieldLabel: supplierChangeFieldLabel(r.fieldName, r.fieldLabel), oldValue: openChangeValue(r.fieldName, r.oldValue), newValue: openChangeValue(r.fieldName, r.newValue) })),
       };
     }
     return {
@@ -1482,7 +1474,7 @@ export class SupplierService {
       legalPersonPhone: maskPhone(openPiiForMask(supplier.legalPersonPhone)),
       contacts: supplier.contacts.map(c => ({ ...c, phone: maskPhone(openPiiForMask(c.phone)), idCard: maskIdNumber(openPiiForMask(c.idCard)), email: maskEmail(openPiiForMask(c.email)) })),
       bankAccounts: supplier.bankAccounts.map(b => ({ ...b, accountNo: maskBankAccount(openPiiForMask(b.accountNo)) })),
-      changeRecords: supplier.changeRecords.map(r => ({ ...r, oldValue: maskChangeValue(r.fieldName, r.oldValue), newValue: maskChangeValue(r.fieldName, r.newValue) })),
+      changeRecords: supplier.changeRecords.map(r => ({ ...r, fieldLabel: supplierChangeFieldLabel(r.fieldName, r.fieldLabel), oldValue: maskChangeValue(r.fieldName, r.oldValue), newValue: maskChangeValue(r.fieldName, r.newValue) })),
     };
   }
 
@@ -2605,15 +2597,17 @@ export class SupplierService {
     // enrich 审批人姓名（S10 终稿，2026-09-29）：reviewedBy 存 user id（标量列），
     // 此前前端直出 cuid UUID——此处反查补 reviewedByName
     const reviewerIds = [...new Set(rows.map(r => r.reviewedBy).filter((v): v is string => !!v))];
-    if (reviewerIds.length === 0) return rows;
-    const users = await this.prisma.user.findMany({
-      where: { id: { in: reviewerIds } },
-      select: { id: true, displayName: true, username: true },
-    });
+    const users = reviewerIds.length
+      ? await this.prisma.user.findMany({
+        where: { id: { in: reviewerIds } },
+        select: { id: true, displayName: true, username: true },
+      })
+      : [];
     const nameOf = new Map(users.map(u => [u.id, u.displayName || u.username]));
-    // 管理端展示脱敏（等保+密评）：变更值 PII 拆封后掩码
+    // 管理端展示脱敏（等保+密评）：变更值 PII 拆封后掩码；字段名归一（存量英文键不透出）
     return rows.map(r => ({
       ...r,
+      fieldLabel: supplierChangeFieldLabel(r.fieldName, r.fieldLabel),
       oldValue: maskChangeValue(r.fieldName, r.oldValue),
       newValue: maskChangeValue(r.fieldName, r.newValue),
       reviewedByName: r.reviewedBy ? nameOf.get(r.reviewedBy) ?? null : null,
@@ -2696,9 +2690,11 @@ export class SupplierService {
       include: { supplier: { select: { id: true, name: true, supplierNo: true } } },
     });
     // 审批场景明文出口（PII 口径 2026-10 密评裁定）：待审列表原值/新值拆封展示——
-    // 此前裸出 SM4 密文（2026-10-22 实录「审批中出现密文」），审批人无法核对
+    // 此前裸出 SM4 密文（2026-10-22 实录「审批中出现密文」），审批人无法核对；
+    // 字段名归一（2026-10-29）：存量/异构英文键 label 不透出
     return rows.map(r => ({
       ...r,
+      fieldLabel: supplierChangeFieldLabel(r.fieldName, r.fieldLabel),
       oldValue: openChangeValue(r.fieldName, r.oldValue),
       newValue: openChangeValue(r.fieldName, r.newValue),
     }));
@@ -2742,7 +2738,8 @@ export class SupplierService {
       data: {
         supplierId,
         fieldName: dto.fieldName,
-        fieldLabel: dto.fieldLabel,
+        // 字段中文名服务端归一（2026-10-29）：不信任客户端透传——词表命中恒中文
+        fieldLabel: supplierChangeFieldLabel(dto.fieldName, dto.fieldLabel),
         oldValue,
         newValue: dto.newValue,
         reason: dto.reason,
@@ -3622,7 +3619,7 @@ export class SupplierService {
     const [supplier, auditLogs, evaluations, bidSuppliers] = await Promise.all([
       this.prisma.supplier.findUnique({
         where: { id: supplierId },
-        select: { id: true, name: true, status: true, createdAt: true, updatedAt: true, isTemporary: true, classification: { select: { name: true } } },
+        select: { id: true, name: true, status: true, createdAt: true, updatedAt: true, isTemporary: true, industry: true },
       }),
       this.prisma.auditLog.findMany({
         where: { resourceType: 'supplier', resourceId: supplierId },
@@ -3671,8 +3668,8 @@ export class SupplierService {
       let detail = label;
       const deets = log.details as any;
       if (deets?.field) {
-        const fieldLabels: Record<string, string> = { name: '企业名称', enterpriseType: '企业类型', legalPerson: '法定代表人', registeredAddress: '注册地址', businessScope: '经营范围', tags: '业务标签' };
-        detail = `${label}：${fieldLabels[deets.field] || deets.field}`;
+        // 字段中文名归一（2026-10-29）：复用供应商变更词表——旧局部词表缺白名单新字段且裸英文兜底直达时间线
+        detail = `${label}：${supplierChangeFieldLabel(deets.field)}`;
       }
       if (deets?.reason) detail += `（${deets.reason}）`;
       if (deets?.finalGrade) detail = `绩效评价：${deets.finalGrade} 级`;
@@ -3806,7 +3803,7 @@ export class SupplierService {
    *  纯 CPU/字符串运算 + 逐行 update，无网络调用，500+ 行可同步完成，无超时风险。 */
   async backfillBusinessTags(opts: { force?: boolean; userId?: string } = {}) {
     const rows = await this.prisma.supplier.findMany({
-      select: { id: true, name: true, businessScope: true, tags: true, classification: { select: { name: true } } },
+      select: { id: true, name: true, businessScope: true, tags: true, industry: true },
     });
     let processed = 0, updated = 0, skipped = 0, belowMin = 0;
     const sample: Array<{ name: string; tags: string[] }> = [];
@@ -3814,7 +3811,7 @@ export class SupplierService {
       processed++;
       const hasTags = Array.isArray(r.tags) && r.tags.length > 0;
       if (hasTags && !opts.force) { skipped++; continue; }
-      const tags = generateBusinessTags({ name: r.name, businessScope: r.businessScope, classificationName: r.classification?.name });
+      const tags = generateBusinessTags({ name: r.name, businessScope: r.businessScope, industryName: r.industry });
       if (tags.length < TAG_MIN) belowMin++; // 仅统计，便于核对覆盖率；极端稀疏数据不强造标签
       // 标签未变化则不写库（force 模式下也跳过无变化的，减少无效写与审计噪声）。
       if (hasTags && JSON.stringify(tags) === JSON.stringify(r.tags)) { skipped++; continue; }
@@ -3850,21 +3847,15 @@ export class SupplierService {
   }
 
   async getBigscreenDetail() {
-    const [stats, evals, classifications] = await Promise.all([
+    const [stats, evals, industryBuckets] = await Promise.all([
       this.getStats(),
       // 统计闸：大屏聚合按槽位去重（方案B 多次评价不放大单人票权）
       this.prisma.supplierEvaluation.findMany({
         select: { supplierId: true, finalGrade: true, createdAt: true, evaluatorId: true, projectId: true, evaluationSource: true, updatedAt: true },
         orderBy: { createdAt: 'asc' },
       }).then(latestSupplierEvals),
-      this.prisma.supplierClassification.findMany({
-        select: {
-          id: true,
-          name: true,
-          _count: { select: { suppliers: true } },
-        },
-        orderBy: { suppliers: { _count: 'desc' } },
-      }),
+      // 分类退役（2026-10-29）：大屏 cats 同口径改行业分桶（无 actor=全库视野）
+      this.industryBuckets(),
     ]);
 
     const levelCounts = { A: 0, B: 0, C: 0, D: 0, E: 0 };
@@ -3891,10 +3882,10 @@ export class SupplierService {
       else if (secondAvg < firstAvg - 0.5) trend = 'declining';
     }
 
-    const cats = classifications.map(c => ({
-      id: c.id,
+    const cats = industryBuckets.map(c => ({
+      id: c.name === '未填写' ? '__unset__' : c.name,
       name: c.name,
-      count: c._count.suppliers,
+      count: c.count,
     }));
 
     return { ...stats, levelCounts, avgGradeScore, evalTotal: total, trend, cats };
@@ -3902,107 +3893,30 @@ export class SupplierService {
 
   /** 分类列表（公司隔离 2026-10-19）：_count 过滤计数（视野内供应商数，库口径=APPROVED link-only），
    *  总览「分类分布」曾全量计数跨视野；无 actor（内部调用）保持全量。 */
+  /** 行业分桶（2026-10-29 分类退役）：库内四态（APPROVED/DISABLED/BLACKLIST，与 getStats 总数同口径）
+   *  按注册「所属国民经济行业」（GB/T 4754 大类）聚合；空行业归「未填写」桶置尾，其余按家数降序。 */
+  private async industryBuckets(extraWhere: Prisma.SupplierWhereInput = {}) {
+    const rows = await this.prisma.supplier.groupBy({
+      by: ['industry'],
+      where: { status: { in: ['APPROVED', 'DISABLED', 'BLACKLIST'] }, ...extraWhere },
+      _count: { _all: true },
+    });
+    return rows
+      .map(r => ({ name: !r.industry || !r.industry.trim() ? '未填写' : r.industry, count: r._count._all }))
+      .sort((a, b) => (a.name === '未填写' ? 1 : b.name === '未填写' ? -1 : b.count - a.count));
+  }
+
   async listClassifications(actor?: AuthenticatedUser, companyId?: string) {
+    // 2026-10-29 用户裁定：分类不再手工维护税则，直接取注册「所属国民经济行业」派生分布；
+    // 手工分类（SupplierClassification）就此退役。id=行业名（未填写为 __unset__），供下游筛选直用。
     const f = actor ? supplierCompanyWhere(await this.companyScope.resolveScope(actor, companyId)) : {};
-    return this.prisma.supplierClassification.findMany({
-      orderBy: { createdAt: 'asc' },
-      include: {
-        _count: { select: { suppliers: f.companyLinks ? { where: f } : true } },
-      },
-    });
-  }
-
-  async createClassification(dto: CreateClassificationDto) {
-    // 检查名称和代码是否重复
-    const existingName = await this.prisma.supplierClassification.findUnique({
-      where: { name: dto.name },
-    });
-    if (existingName) {
-      throw new BadRequestException({ error: '分类名称已存在', code: 'DUPLICATE_NAME' });
-    }
-
-    const existingCode = await this.prisma.supplierClassification.findUnique({
-      where: { code: dto.code },
-    });
-    if (existingCode) {
-      throw new BadRequestException({ error: '分类代码已存在', code: 'DUPLICATE_CODE' });
-    }
-
-    return this.prisma.supplierClassification.create({
-      data: {
-        name: dto.name,
-        code: dto.code,
-        description: dto.description,
-      },
-    });
-  }
-
-  async updateClassification(id: string, dto: UpdateClassificationDto) {
-    return this.prisma.supplierClassification.update({
-      where: { id },
-      data: {
-        name: dto.name,
-        code: dto.code,
-        description: dto.description,
-      },
-    });
-  }
-
-  async deleteClassification(id: string) {
-    // 检查是否有供应商使用此分类
-    const suppliersCount = await this.prisma.supplier.count({
-      where: { classificationId: id },
-    });
-    if (suppliersCount > 0) {
-      throw new BadRequestException({ error: '此分类下有供应商，无法删除', code: 'HAS_SUPPLIERS' });
-    }
-
-    return this.prisma.supplierClassification.delete({
-      where: { id },
-    });
-  }
-
-  /* 供应商多分类管理 */
-
-  async getSupplierClassifications(supplierId: string) {
-    return this.prisma.supplierClassificationLink.findMany({
-      where: { supplierId },
-      include: { classification: true },
-    });
-  }
-
-  async setSupplierClassifications(supplierId: string, classificationIds: string[]) {
-    // 校验供应商存在
-    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId } });
-    if (!supplier) throw new NotFoundException('供应商不存在');
-
-    // #19 存在性+去重校验：非法/不存在的 classificationId 此前会撞 FK P2003 → 裸 500；重复 id 会撞 P2002。
-    const uniqueIds = Array.from(new Set(classificationIds ?? []));
-    if (uniqueIds.length > 0) {
-      const existing = await this.prisma.supplierClassification.findMany({
-        where: { id: { in: uniqueIds } },
-        select: { id: true },
-      });
-      if (existing.length !== uniqueIds.length) {
-        const found = new Set(existing.map(e => e.id));
-        const missing = uniqueIds.filter(id => !found.has(id));
-        throw new BadRequestException({ error: `分类不存在：${missing.join(', ')}`, code: 'INVALID_CLASSIFICATION' });
-      }
-    }
-
-    // 事务：先删后插 + 同步旧 classificationId 字段（全部并入同一事务，避免半同步态）。
-    await this.prisma.$transaction(async (tx) => {
-      await tx.supplierClassificationLink.deleteMany({ where: { supplierId } });
-      await Promise.all(uniqueIds.map(cid =>
-        tx.supplierClassificationLink.create({ data: { supplierId, classificationId: cid } }),
-      ));
-      await tx.supplier.update({
-        where: { id: supplierId },
-        data: { classificationId: uniqueIds[0] || null },
-      });
-    });
-
-    return this.getSupplierClassifications(supplierId);
+    const buckets = await this.industryBuckets(f);
+    return buckets.map(b => ({
+      id: b.name === '未填写' ? '__unset__' : b.name,
+      name: b.name,
+      code: null,
+      _count: { suppliers: b.count },
+    }));
   }
 
   /* 通知供应商 */
@@ -4068,7 +3982,6 @@ export class SupplierService {
     const f = actor ? supplierCompanyWhere(await this.companyScope.resolveScope(actor, companyId)) : {};
     const suppliers = await this.prisma.supplier.findMany({
       where: { id: { in: supplierIds }, ...f },
-      include: { classification: { select: { id: true, name: true } } },
     });
     const sMap = new Map(suppliers.map(s => [s.id, s]));
     return favs.map(f => {
@@ -4076,7 +3989,8 @@ export class SupplierService {
       return {
         id: f.id,
         supplierId: f.supplierId,
-        supplier: s ? { id: s.id, name: s.name, enterpriseType: s.enterpriseType, classification: s.classification } : null,
+        // 2026-10-29：分类退役改取注册行业（classification 字段下线）
+        supplier: s ? { id: s.id, name: s.name, enterpriseType: s.enterpriseType, industry: s.industry } : null,
       };
     }).filter(f => f.supplier);
   }

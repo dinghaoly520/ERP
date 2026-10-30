@@ -168,9 +168,9 @@ export function SupplierNameInput({
                   <div className="truncate text-[13px] font-semibold text-[color:var(--foreground)]">
                     {s.name}
                   </div>
-                  {s.classification?.name && (
+                  {s.industry && (
                     <div className="truncate text-[11px] text-[color:var(--muted-foreground)]">
-                      {s.classification.name}
+                      {s.industry}
                     </div>
                   )}
                 </div>
