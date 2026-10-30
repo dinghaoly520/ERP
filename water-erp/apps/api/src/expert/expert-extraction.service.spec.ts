@@ -11,6 +11,7 @@ describe('ExpertExtractionService', () => {
   let service: ExpertExtractionService;
   let prisma: any;
   let extractionAi: any;
+  let scopeMock: any;
 
   beforeEach(async () => {
     prisma = {
@@ -77,6 +78,7 @@ describe('ExpertExtractionService', () => {
     }).compile();
 
     service = module.get<ExpertExtractionService>(ExpertExtractionService);
+    scopeMock = module.get(CompanyScopeService);
   });
 
   describe('previewExtraction（AI 规则降级回归）', () => {
@@ -279,6 +281,29 @@ describe('ExpertExtractionService', () => {
       expect(res.success).toBe(true);
       expect(prisma.bidExpert.deleteMany).toHaveBeenCalledWith({ where: { projectId: 'p1' } });
       expect(prisma.bidExpert.upsert).toHaveBeenCalled();
+    });
+
+    it('2026-10-30 裁定：公司闸改留痕放行——非 admin 视野+白名单外跨公司专家不再 403，审计记 outOfCompanyWhitelist（配额符合即放行，防死局）', async () => {
+      // 复现：配额「不限公司」全库抽取 + 需求方代表公司注入白名单（companyIds 非空）→
+      // 旧闸对整组跨公司专家 403 COMPANY_SCOPE_FORBIDDEN，叠加「进步骤2禁回1」成死局
+      scopeMock.resolveScope.mockResolvedValue({ all: false, companyIds: ['c-own'] });
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', stage: 'SUBMIT', suppliers: [] });
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u1', role: 'bid_expert', isActive: true, companyId: 'c-other', expertProfile: { availability: '可用', entryStatus: 'ACTIVE' }, bidExperts: [] },
+      ]);
+      const res = await service.confirmExtraction('p1', {
+        projectId: 'p1', companyIds: ['c-rep'],
+        experts: [{ userId: 'u1', expertName: '甲', major: '地质' }], candidates: [],
+      } as any, 'op1');
+      expect(res.success).toBe(true);
+      expect(prisma.bidExpert.upsert).toHaveBeenCalled();
+      expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          details: expect.objectContaining({
+            outOfCompanyWhitelist: [{ userId: 'u1', name: '甲', companyId: 'c-other' }],
+          }),
+        }),
+      }));
     });
 
     it('工作单位关联投标供应商被回避拒绝（EXPERT_CONFLICT）', async () => {

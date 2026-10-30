@@ -1251,10 +1251,12 @@ export function ExpertExtractPage({
 
   /** 抽取配置公司白名单：各配额所选公司（默认本公司）∪ 需求方代表所选公司/人员所属公司的去重集合，
    *  确认抽取时随 payload 递交（跨公司放行依据）——部门模式=所选公司；指定模式=代表所属公司
-   *  （2026-10-20 前缺此段，指定/抽取跨公司代表在 confirm 被 COMPANY_SCOPE_FORBIDDEN 拦） */
+   *  （2026-10-20 前缺此段，指定/抽取跨公司代表在 confirm 被 COMPANY_SCOPE_FORBIDDEN 拦）。
+   *  2026-10-30 裁定：配额未声明公司（不限公司=全库）时不注入代表公司——曾使白名单非空、
+   *  确认公司闸被激活，全库抽出的跨公司专家整组被拒（组建死局根因；后端闸已同步改留痕放行） */
   const extractionCompanyIds = (extraQuotas: SpecialtyQuota[] = []): string[] | undefined => {
     const ids = new Set([...quotas, ...extraQuotas].flatMap(q => (q.companyIds ?? []).map(c => c.trim())).filter(Boolean)); // 空配额行不注入本公司（2026-10-20 用户口径）
-    if (needDemandRep) {
+    if (ids.size > 0 && needDemandRep) {
       if (demandRepMode === 'department') {
         const cid = companyIdOfName(demandRepCompany);
         if (cid) ids.add(cid);
@@ -2033,10 +2035,10 @@ export function ExpertExtractPage({
         current={step}
         onStepClick={(s) => setStep(s)}
         reachable={(s) => {
-          // 进入步骤2（已出抽取结果）后不再允许返回步骤1（2026-10-27 用户裁定，推翻 2026-10-20「始终允许回1重抽」）——
-          // 结果既出配置即冻结；需换人走后续步骤的补选/候补机制；评标/归档/流标项目的硬闸仍在
-          // 后端 RE_EXTRACTION_LOCKED，前端不重复设卡
-          if (s === 1) return step === 1;
+          // 任意步骤均可回「抽取配置」重抽（2026-10-30 用户裁定，推翻 2026-10-27「进步骤2禁回1」）——
+          // 确认失败（如公司闸历史误拦整组专家）时若无退路即死局；重走确认=整体替换原专家组，
+          // 评标/归档/流标项目的硬闸仍由后端 RE_EXTRACTION_LOCKED 把守，前端不重复设卡
+          if (s === 1) return true;
           if (s <= step) return true;
           if (s === 2 && !!preview) return true;
           if (s === 3 && confirmedExpertIds.length > 0) return true;

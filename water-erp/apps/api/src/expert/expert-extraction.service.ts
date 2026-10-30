@@ -1,6 +1,6 @@
 /** 专家抽取引擎（F2）——自 expert-admin.service.ts 迁出（P1 审查 F 簇拆分，纯移动）。索引：previewExtraction / confirmExtraction（+12 算法族；extendedRuleScore 供 autoPromoteCandidate 跨实例调用转 public） */
 
-import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { randomInt } from 'node:crypto';
 import { ExpertLevel } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -548,17 +548,20 @@ export class ExpertExtractionService {
         where: { id: { in: (dto.experts ?? []).map(e => e.userId) } },
         include: { expertProfile: true },
       });
+      // 公司闸留痕名单（2026-10-30 用户裁定：配额符合即放行，不硬拦）
+      const outOfCompanyWhitelist: { userId: string; name: string; companyId: string | null }[] = [];
       for (const e of (dto.experts ?? [])) {
         const u = users.find(x => x.id === e.userId);
         if (!u) throw new BadRequestException({ error: `专家 ${e.expertName} 不存在`, code: 'EXPERT_NOT_FOUND' });
         if (u.role !== 'bid_expert' || !u.isActive || u.expertProfile?.availability !== '可用' || u.expertProfile?.entryStatus !== 'ACTIVE') {
           throw new BadRequestException({ error: `专家 ${e.expertName} 不符合抽取资格（须为在用评标专家）`, code: 'EXPERT_INELIGIBLE' });
         }
-        // 公司闸（2026-10-29 与 preview 同口径）：配额「不限公司」（companyIds 空）=全库语义，
-        // 不再按登录人公司拦截——否则全库抽出的跨公司专家在确认时被误拒；
-        // 显式声明了公司白名单时仍强制（声明集∪登录人视野）。
+        // 公司闸（2026-10-30 用户裁定改留痕放行，推翻 2026-09-24/10-29 硬 403）：「配额不限公司
+        // =全库」抽出的跨公司专家，曾因确认侧白名单口径漂移（典型：配额全不限公司时需求方
+        // 代表公司仍注入白名单使其非空）整组被拒，叠加前端「进步骤2禁回1」成死局。配额池在
+        // 抽取侧已按配置收口（preview companyFilter），确认侧不再拦截、改审计留痕供事后复核。
         if ((dto.companyIds ?? []).length > 0 && !scope.all && (u.companyId == null || !scope.companyIds.includes(u.companyId)) && !allowedCompanyIds.has(u.companyId ?? '')) {
-          throw new ForbiddenException({ error: `专家 ${e.expertName} 不在抽取配置公司白名单及本公司范围内`, code: 'COMPANY_SCOPE_FORBIDDEN' });
+          outOfCompanyWhitelist.push({ userId: u.id, name: e.expertName, companyId: u.companyId ?? null });
         }
         const emp = u.expertProfile?.employer?.trim();
         if (emp) {
@@ -590,6 +593,13 @@ export class ExpertExtractionService {
         });
       }
 
+      // 白名单外专家放行留痕（2026-10-30 裁定）：告警日志 + 审计明细，不阻塞抽取
+      if (outOfCompanyWhitelist.length > 0) {
+        new Logger(ExpertExtractionService.name).warn(
+          `抽取确认放行白名单外专家 ${outOfCompanyWhitelist.length} 名（2026-10-30 裁定留痕不拦）: ${outOfCompanyWhitelist.map(x => x.name).join('、')}`,
+        );
+      }
+
       // 审计日志与抽取写入同事务：要么连同抽取一起成功，要么一起回滚，绝不静默丢审计
       await tx.auditLog.create({
         data: {
@@ -605,6 +615,7 @@ export class ExpertExtractionService {
             extractMode: (dto as any).extractMode ?? null,
             poolUserIds: (dto.candidates ?? []).map(c => c.userId),
             drawnUserIds: (dto.experts ?? []).map(e => e.userId),
+            ...(outOfCompanyWhitelist.length ? { outOfCompanyWhitelist } : {}),
           },
         },
       });
