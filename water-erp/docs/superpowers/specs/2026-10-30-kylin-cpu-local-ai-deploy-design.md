@@ -114,6 +114,7 @@
 ### 5.2 两容器运行
 
 > 双轨交付（2026-10-30 补）：`emd_llm/docker-compose.yml` 为等价编排（`docker compose config` 校验，command token 与 run 脚本逐一对齐；`pull_policy: never` 只认离线 load 进来的镜像）。目标机有 compose 插件走 compose，没有则 run 脚本兜底——**不把 compose 当硬依赖**（麒麟 docker-engine 发行包不一定带 v2 插件，内网机装插件麻烦）。
+> 同日再修订：模型挂载默认改为**交付目录自带 `./models`**（目录即部署单元、零拷贝；`MODEL_DIR` 可覆盖至 `/data/models` 等持久路径），本文所有 `/data/models` 表述按此理解。
 
 ```bash
 # ① 向量服务 bge-m3（:8003，呼应开发机端口习惯）——flags 已本机实测（见 §5.5）
