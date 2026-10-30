@@ -2935,7 +2935,8 @@ a.group:hover::after {
   font-size: 15px;
   line-height: 2;
   color: #26364e;
-  text-align: justify;
+  /* 2026-10-30 用户裁定：正文居左（justify 会把长数字/ASCII 串两端拉伸出大空隙） */
+  text-align: left;
 }
 
 .announcement-detail-content ul,

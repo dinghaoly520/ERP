@@ -8,6 +8,41 @@ import { fetchPublicAnnouncement, downloadAnnouncementAttachment, ANNOUNCEMENTS,
 import { UnifiedHeader } from '@/components/unified-header';
 import { FlowBackdrop } from '@/components/flow-stage';
 
+/* ── 公告正文展示归一（2026-10-30）：存量公告监督块曾被生成端粘连成一段
+      （监督举报四行串行）。生成端已根治（软换行合并守卫）；此处兜存量数据——
+      与后端 announcement-content-html.util 同口径：≥2 个监督标签同段时在非段首
+      标签前断行 + 剔除 docx 空格撑行的纯空白段。 ── */
+const SUPERVISION_LABELS = ['监督部门：', '地址：', '联系人：', '监督电话：'];
+
+function breakGluedSupervisionLabels(html: string): string {
+  if (!html.includes('<p')) return html;
+  return html.replace(/<p([^>]*)>([^<]*)<\/p>/g, (para, attrs: string, text: string) => {
+    const hits = SUPERVISION_LABELS.filter((l) => text.includes(l));
+    if (hits.length < 2) return para;
+    let out = text;
+    for (const label of SUPERVISION_LABELS) {
+      const parts = out.split(label);
+      if (parts.length < 2) continue;
+      const firstAtParaStart = parts[0].trim() === '';
+      out = parts.reduce((acc, part, i) => {
+        if (i === 0) return part;
+        const br = i === 1 && firstAtParaStart ? '' : '<br/>';
+        return `${acc}${br}${label}${part}`;
+      }, '');
+    }
+    return `<p${attrs}>${out}</p>`;
+  });
+}
+
+function stripBlankParagraphs(html: string): string {
+  if (!html.includes('<p')) return html;
+  return html.replace(/<p[^>]*>[\s 　]*<\/p>/g, '');
+}
+
+function normalizeAnnouncementContentHtml(html: string): string {
+  return stripBlankParagraphs(breakGluedSupervisionLabels(html));
+}
+
 export default function AnnouncementDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -155,7 +190,7 @@ export default function AnnouncementDetailPage() {
           {!item.titleOnly && (
             <div
               className="announcement-detail-content text-[15px] text-[#18243a] leading-relaxed"
-              dangerouslySetInnerHTML={{ __html: item.content }}
+              dangerouslySetInnerHTML={{ __html: normalizeAnnouncementContentHtml(item.content) }}
             />
           )}
 

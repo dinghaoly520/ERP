@@ -10,6 +10,41 @@ import { SpPageHero } from "@/components/sp-page-hero";
 import { LoadingBlock, SpButton } from "@/components/ui";
 import "@/styles/pages/announcements.css";
 
+/* ── 公告正文展示归一（2026-10-30）：存量公告监督块曾被生成端粘连成一段
+      （监督举报四行串行）。生成端已根治；此处兜存量数据——与后端
+      announcement-content-html.util 同口径：≥2 个监督标签同段时在非段首
+      标签前断行 + 剔除 docx 空格撑行的纯空白段。 ── */
+const SUPERVISION_LABELS = ["监督部门：", "地址：", "联系人：", "监督电话："];
+
+function breakGluedSupervisionLabels(html: string): string {
+  if (!html.includes("<p")) return html;
+  return html.replace(/<p([^>]*)>([^<]*)<\/p>/g, (para, attrs: string, text: string) => {
+    const hits = SUPERVISION_LABELS.filter((l) => text.includes(l));
+    if (hits.length < 2) return para;
+    let out = text;
+    for (const label of SUPERVISION_LABELS) {
+      const parts = out.split(label);
+      if (parts.length < 2) continue;
+      const firstAtParaStart = parts[0].trim() === "";
+      out = parts.reduce((acc, part, i) => {
+        if (i === 0) return part;
+        const br = i === 1 && firstAtParaStart ? "" : "<br/>";
+        return `${acc}${br}${label}${part}`;
+      }, "");
+    }
+    return `<p${attrs}>${out}</p>`;
+  });
+}
+
+function stripBlankParagraphs(html: string): string {
+  if (!html.includes("<p")) return html;
+  return html.replace(/<p[^>]*>[\s 　]*<\/p>/g, "");
+}
+
+function normalizeAnnouncementContentHtml(html: string): string {
+  return stripBlankParagraphs(breakGluedSupervisionLabels(html));
+}
+
 // B4-4（2026-09-30）：与列表页 typeTagMap 全量对齐——此前缺 PREQUAL_NOTICE（详情徽标渲染
 // 英文枚举）且 ADDENDUM/CONTRACT_NOTICE/PERFORMANCE_NOTICE 无配色（降级 info，与列表不一致）
 const typeLabel: Record<string, string> = {
@@ -201,7 +236,7 @@ export default function AnnouncementDetailPage() {
               )}
             </div>
           ) : (
-            <div className="detail-content" dangerouslySetInnerHTML={{ __html: announcement.content || "" }} />
+            <div className="detail-content" dangerouslySetInnerHTML={{ __html: normalizeAnnouncementContentHtml(announcement.content || "") }} />
           )}
 
           {/* 异议联系方式（2026-09-21）：发布向导快照于 metadata.objectionContact，正文后单独展示。

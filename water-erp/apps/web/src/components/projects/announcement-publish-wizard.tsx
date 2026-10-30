@@ -318,7 +318,7 @@ const PORTAL_PREVIEW_CONTENT_CSS = `
 .portal-announce-preview h2 { margin: 0 0 18px; font-size: 24px; font-weight: 900; color: #18243a; line-height: 1.45; }
 .portal-announce-preview h3 { margin: 28px 0 12px; padding-left: 12px; border-left: 4px solid #064ea2; font-size: 17px; font-weight: 800; color: #123a6e; line-height: 1.5; }
 .portal-announce-preview h4 { margin: 18px 0 8px; font-size: 15px; font-weight: 800; color: #26364e; }
-.portal-announce-preview p { margin: 0 0 14px; font-size: 15px; line-height: 2; color: #26364e; text-align: justify; }
+.portal-announce-preview p { margin: 0 0 14px; font-size: 15px; line-height: 2; color: #26364e; text-align: left; }
 .portal-announce-preview ul, .portal-announce-preview ol { margin: 0 0 16px 1.2em; line-height: 2; color: #26364e; }
 .portal-announce-preview table { width: 100%; border-collapse: collapse; margin: 4px 0 18px; }
 .portal-announce-preview td, .portal-announce-preview th { border: 1px solid #dbe4ef; padding: 8px 12px; font-size: 14px; line-height: 1.7; color: #26364e; }
