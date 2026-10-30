@@ -109,7 +109,7 @@
 | `llamacpp-server-image.tar`（数百 MB） | 能出网机器：`docker pull ghcr.io/ggml-org/llama.cpp:server`（2026-10-30 实测核实：**官方不发布 avx2/avx512 变体 tag**，CPU 镜像即 `server`，内含多内核运行时分发）→ 验证通过后以 **digest 锁定**（`docker inspect` 取 RepoDigests）→ `docker save` | `docker load -i` |
 | `bge-m3-f16.gguf`（~1.1G，实测 2026-10-30） | **开发机本地转换**：`/home/asus/models/bge-m3`（已有，HF 格式）→ `convert_hf_to_gguf.py` 转 F16 | 放 `/data/models/`（只读挂载） |
 | `qwen3-4b-instruct-2507-Q4_K_M.gguf`（~2.33G） | ModelScope unsloth 镜像直连下载 | 同上 |
-| runbook + 编排脚本（dev.sh/prod.sh/verify×2/parity） | **交付暂存区 `/home/asus/桌面/ERP/emd_llm/`（已 gitignore，不入库）**；脚本内含全套参数，README 即 runbook | — |
+| runbook + 编排脚本（prod.sh/verify×2；dev/parity 等本机验证件 2026-10-30 应用户要求清出交付物，验证记录见 §5.5） | **交付暂存区 `/home/asus/桌面/ERP/emd_llm/`（已 gitignore，不入库）**；脚本内含全套参数，README 即 runbook | — |
 
 ### 5.2 两容器运行
 
