@@ -193,35 +193,76 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     };
   }, [project?.id, round]);
 
-  // ── 2026-10-28 二轮隔离·「参考上一轮」：非首轮探测上一轮服务器草稿（只读，不自动带入）──
+  // ── 2026-10-28 二轮隔离·「参考上一轮」：非首轮探测上一轮草稿（只读，不自动带入）──
+  // 2026-10-30 修正：探测补本地缓存兜底（与打开流程同链）——2026-10-28 之前编辑的草稿
+  // 只在 localStorage（服务器无行），此前只查服务器致按钮恒灰不可点。
   const prevRoundDraftRef = useRef<TenderDraftsState | null>(null);
   const [prevRoundAvailable, setPrevRoundAvailable] = useState(false);
   useEffect(() => {
     if (!isOpen || !project?.id || round <= 1) { prevRoundDraftRef.current = null; setPrevRoundAvailable(false); return; }
     let cancelled = false;
-    void fetchProjectTenderDraft(project.id, round - 1)
+    const projectId = project.id;
+    const prevRound = round - 1;
+    /** 任一方式草稿有实质内容（非空字符串或结构化表）才可参考——全空骨架不点亮按钮 */
+    const hasContent = (ds: TenderDraftsState | null | undefined) =>
+      !!ds && (Object.keys(ds) as Array<keyof TenderDraftsState>).some((k) =>
+        Object.values(ds[k] ?? {}).some((v) => (typeof v === 'string' && v.trim()) || (v != null && typeof v === 'object')));
+    void fetchProjectTenderDraft(projectId, prevRound)
       .then((r) => {
         if (cancelled) return;
-        prevRoundDraftRef.current = r?.drafts ? (r.drafts as TenderDraftsState) : null;
-        setPrevRoundAvailable(!!prevRoundDraftRef.current);
+        const server = r?.drafts ? (r.drafts as TenderDraftsState) : null;
+        prevRoundDraftRef.current = server ?? loadDraftsFromStorage(projectId, prevRound);
+        setPrevRoundAvailable(hasContent(prevRoundDraftRef.current));
       })
-      .catch(() => { if (!cancelled) setPrevRoundAvailable(false); });
+      .catch(() => {
+        if (cancelled) return;
+        prevRoundDraftRef.current = loadDraftsFromStorage(projectId, prevRound);
+        setPrevRoundAvailable(hasContent(prevRoundDraftRef.current));
+      });
     return () => { cancelled = true; };
   }, [isOpen, project?.id, round]);
 
   const handleImportPrevRound = useCallback(() => {
     if (!selectedType || round <= 1) return;
     const typeKey = selectedType as keyof TenderDraftsState;
-    const prev = prevRoundDraftRef.current?.[typeKey] as Record<string, unknown> | undefined;
-    if (!prev || Object.keys(prev).length === 0) { toast.info('上一轮没有当前采购方式的草稿'); return; }
-    // 轮次敏感字段剥离：开标时间（按方式映射）+ 文件获取时间（含类型伴生字段）——必须按本轮重填
-    const stripped = { ...prev };
-    const openingKey = TENDER_OPENING_KEY[selectedType];
-    delete stripped[openingKey];
-    delete stripped[`${openingKey}Type`];
-    delete stripped.documentAcquireTime;
-    setDrafts((cur) => ({ ...cur, [typeKey]: stripped }));
-    toast.success(`已带入第 ${round - 1} 轮草稿；开标时间与文件获取时间已清空，请按本轮重新填写`);
+    const prevAll = prevRoundDraftRef.current;
+    /** 轮次敏感字段剥离：开标时间（按方式映射）+ 文件获取时间（含类型伴生字段）——必须按本轮重填 */
+    const stripRoundSensitive = (obj: Record<string, unknown>) => {
+      const stripped = { ...obj };
+      const openingKey = TENDER_OPENING_KEY[selectedType];
+      delete stripped[openingKey];
+      delete stripped[`${openingKey}Type`];
+      delete stripped.documentAcquireTime;
+      delete stripped.documentAcquireTimeType;
+      return stripped;
+    };
+    const prev = prevAll?.[typeKey] as Record<string, unknown> | undefined;
+    if (prev && Object.keys(prev).length > 0) {
+      setDrafts((cur) => ({ ...cur, [typeKey]: stripRoundSensitive(prev) }));
+      toast.success(`已带入第 ${round - 1} 轮草稿；开标时间与文件获取时间已清空，请按本轮重新填写`);
+      return;
+    }
+    // 2026-10-30 修正：采购方式变更后无同方式草稿（如直接采购→邀请招标）——回退带入
+    // 上一轮其他方式草稿的通用字段（同键交集：联系方式/文件售价/报价表等），方式专属内容重新编写
+    const sourceType = prevAll
+      ? (Object.keys(prevAll) as Array<keyof TenderDraftsState>).find((k) =>
+          Object.values(prevAll[k] ?? {}).some((v) => (typeof v === 'string' && v.trim()) || (v != null && typeof v === 'object')))
+      : undefined;
+    if (!sourceType) { toast.info('上一轮没有可带入的草稿'); return; }
+    const source = prevAll![sourceType] as Record<string, unknown>;
+    const currentKeys = Object.keys(createEmptyTenderDrafts()[typeKey] as Record<string, unknown>);
+    const common: Record<string, unknown> = {};
+    for (const k of currentKeys) {
+      const v = source[k];
+      if (typeof v === 'string' && v.trim()) common[k] = v;
+      else if (k === 'quotationLetterTable' && v && typeof v === 'object') common[k] = v;
+    }
+    const stripped = stripRoundSensitive(common);
+    const brought = Object.keys(stripped).filter((k) => String(stripped[k] ?? '').length > 0 || typeof stripped[k] === 'object');
+    if (brought.length === 0) { toast.info('上一轮草稿没有可与当前采购方式通用的字段'); return; }
+    setDrafts((cur) => ({ ...cur, [typeKey]: { ...(createEmptyTenderDrafts()[typeKey] as Record<string, unknown>), ...(cur[typeKey] as Record<string, unknown>), ...stripped } }));
+    const sourceLabel = TENDER_DOCUMENT_TYPES.find((t) => t.type === sourceType)?.label ?? String(sourceType);
+    toast.success(`已带入第 ${round - 1} 轮「${sourceLabel}」草稿的 ${brought.length} 个通用字段（开标/获取时间已清空）；采购方式已变更，方式专属内容请重新编写`);
   }, [selectedType, round]);
 
   // ======== 打开流程：restore + prefill + AI 决策 = 原子 effect ========
@@ -878,7 +919,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                 onClick={handleImportPrevRound}
                 disabled={!prevRoundAvailable}
                 className="neu-btn-xs gap-1"
-                title={prevRoundAvailable ? `以第 ${round - 1} 轮草稿为底稿带入（开标时间与文件获取时间会清空，须按本轮重填）` : '上一轮无草稿'}
+                title={prevRoundAvailable ? `以第 ${round - 1} 轮草稿带入（同方式整稿带入；方式变更时带入通用字段；开标/获取时间清空须按本轮重填）` : '上一轮无草稿'}
               >
                 <FolderInput size={13} />参考上一轮
               </button>
