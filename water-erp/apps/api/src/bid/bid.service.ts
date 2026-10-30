@@ -1644,7 +1644,9 @@ export class BidService {
     });
 
     // 2026-10-28 二轮隔离（与 PMI reproc 同口径）：旧轮 PMI 层开标/获取时间快照到旧轮项目行，
-    // PMI 两字段清空——新轮基本信息不带旧轮时间（历史轮展示改读快照列）
+    // PMI 两字段清空——新轮基本信息不带旧轮时间（历史轮展示改读快照列）。
+    // 2026-10-30 类型闸修复（与 reproc 同源）：PMI 两列是自由文本（String?），快照列是
+    // DateTime?——直赋字符串必炸 PrismaClientValidationError。parseFlexibleDate 尽力解析。
     if (original.projectManagementItemId) {
       const host = await this.prisma.projectManagementItem.findUnique({
         where: { id: original.projectManagementItemId },
@@ -1653,7 +1655,10 @@ export class BidService {
       if (host && (host.bidOpeningTime || host.documentAcquireTime)) {
         await this.prisma.bidProject.update({
           where: { id },
-          data: { roundOpeningTime: host.bidOpeningTime, roundDocAcquireTime: host.documentAcquireTime },
+          data: {
+            roundOpeningTime: parseFlexibleDate(host.bidOpeningTime),
+            roundDocAcquireTime: parseFlexibleDate(host.documentAcquireTime),
+          },
         });
         await this.prisma.projectManagementItem.update({
           where: { id: original.projectManagementItemId },

@@ -782,11 +782,18 @@ export class ProjectManagementService {
         })),
       });
       // 2026-10-28 二轮隔离：旧轮 PMI 层开标/获取时间快照到旧轮 BidProject，PMI 字段清空——
-      // 两字段语义收窄为「当前轮值」，新轮基本信息不带旧轮时间（历史轮展示改读快照列）
+      // 两字段语义收窄为「当前轮值」，新轮基本信息不带旧轮时间（历史轮展示改读快照列）。
+      // 2026-10-30 类型闸修复：PMI 两列是自由文本（String?，中文格式「2026年4月17日9:00」），
+      // 快照列是 DateTime?——直赋字符串必炸 PrismaClientValidationError（此前流标联动死代码
+      // 挡住 reproc 两月未触发，首次可达即踩雷，SWHI-ZJ-2026102002 实录）。parseFlexibleDate
+      // 尽力解析（获取时间区间文本取首时刻），不可解析置 null。
       if (item.bidOpeningTime || item.documentAcquireTime) {
         await tx.bidProject.updateMany({
           where: { projectManagementItemId: itemId, round: currentRound },
-          data: { roundOpeningTime: item.bidOpeningTime, roundDocAcquireTime: item.documentAcquireTime },
+          data: {
+            roundOpeningTime: parseFlexibleDate(item.bidOpeningTime),
+            roundDocAcquireTime: parseFlexibleDate(item.documentAcquireTime),
+          },
         });
       }
       await tx.projectManagementItem.update({

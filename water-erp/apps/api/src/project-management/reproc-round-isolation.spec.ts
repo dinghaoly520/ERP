@@ -56,7 +56,7 @@ describe('流标再采第二轮隔离', () => {
           requesterName: '张三', requesterDepartment: '采购中心', title: '二轮隔离测试项目',
           procurementCategory: '服务', budgetAmount: null, projectReason: '', supplierRequirements: '',
           initiationDate: null, procurementOrganizationForm: '', isAnnualBudget: false,
-          bidOpeningTime: opts.timesAlreadyCleared ? null : new Date('2026-10-20T06:00:00Z'),
+          bidOpeningTime: opts.timesAlreadyCleared ? null : '2026年10月20日14:00',
           documentAcquireTime: opts.timesAlreadyCleared ? null : '2026年10月10日09:00至2026年10月15日15:00',
           stages: R1_STAGES,
         }),
@@ -79,12 +79,15 @@ describe('流标再采第二轮隔离', () => {
     const prisma = mkReprocPrisma();
     const svc = mkService(prisma);
     await expect(svc.reproc('pmi-1', { startStageKey: 'TENDER_DOCUMENT' } as never)).resolves.toMatchObject({ round: 2 });
-    // 快照：写到旧轮（round:1）项目行
+    // 快照：写到旧轮（round:1）项目行。2026-10-30 类型闸修复：PMI 两列是自由文本
+    // （String?，中文格式「2026年10月20日14:00」），快照列是 DateTime?——直赋字符串在
+    // 真实 Prisma 必炸 PrismaClientValidationError（此前 mock prisma + Date 形状测不出）。
+    // parseFlexibleDate 尽力解析；获取时间是区间文本时取首时刻。
     expect(prisma.__tx.bidProject.updateMany).toHaveBeenCalledWith({
       where: { projectManagementItemId: 'pmi-1', round: 1 },
       data: {
-        roundOpeningTime: new Date('2026-10-20T06:00:00Z'),
-        roundDocAcquireTime: '2026年10月10日09:00至2026年10月15日15:00',
+        roundOpeningTime: new Date(2026, 9, 20, 14, 0),
+        roundDocAcquireTime: new Date(2026, 9, 10, 9, 0),
       },
     });
     // 清空：PMI 更新包含两字段置 null（信息不含旧值，仅供合并进 infoData 的确认字段）
@@ -92,6 +95,21 @@ describe('流标再采第二轮隔离', () => {
     expect(pmiUpdate.data.bidOpeningTime).toBeNull();
     expect(pmiUpdate.data.documentAcquireTime).toBeNull();
     expect(pmiUpdate.data.currentRound).toBe(2);
+  });
+
+  it('reproc：时间文本不可解析（如「另行通知」）→ 快照置 null 不炸、流程照常开新轮', async () => {
+    const prisma = mkReprocPrisma();
+    prisma.projectManagementItem.findUnique.mockResolvedValue({
+      ...await prisma.projectManagementItem.findUnique(),
+      bidOpeningTime: '开标时间另行通知',
+      documentAcquireTime: null,
+    });
+    const svc = mkService(prisma);
+    await expect(svc.reproc('pmi-1', { startStageKey: 'TENDER_DOCUMENT' } as never)).resolves.toMatchObject({ round: 2 });
+    expect(prisma.__tx.bidProject.updateMany).toHaveBeenCalledWith({
+      where: { projectManagementItemId: 'pmi-1', round: 1 },
+      data: { roundOpeningTime: null, roundDocAcquireTime: null },
+    });
   });
 
   it('reproc：两时间本就为空 → 跳过快照（不产生空写），PMI 更新仍含清空值幂等无害', async () => {
