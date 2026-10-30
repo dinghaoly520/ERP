@@ -306,6 +306,11 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
 
         const current = String((draftsRef.current[typeKey] as Record<string, string>)?.[f.fieldKey] ?? '');
         if (current.trim()) continue;
+        // 预填值参与判空（2026-10-30 竞态实录）：Step 2 的 setState 异步合并，循环首轮
+        // 读到的 draftsRef 可能未含预填——只看 ref 会把「预填已有值」误判为空并对它发起
+        // AI 生成，结果回写无条件覆盖（projectName 被整段综述顶掉即此链）
+        const prefillVal = String((prefill as Record<string, unknown>)?.[f.fieldKey] ?? '');
+        if (prefillVal.trim()) continue;
 
         try {
           const result = await generateFieldContent({

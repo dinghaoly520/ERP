@@ -183,6 +183,11 @@ export class AiController {
     if (payload.fieldKey === 'supplierName') {
       throw new BadRequestException({ error: '供应商名称不支持 AI 生成', code: 'SUPPLIER_NAME_NO_AI' });
     }
+    // 项目名称不允许 AI 生成（2026-10-30 实录）：名称的权威来源是 PMI 标题（打开弹窗
+    // 即预填），LLM 拿到全套项目素材只会写出整段项目综述盖掉名称——与供应商名同款纵深拦截
+    if (payload.fieldKey === 'projectName') {
+      throw new BadRequestException({ error: '项目名称不支持 AI 生成——已按项目信息预填，如需调整请在编辑器中直接修改', code: 'PROJECT_NAME_NO_AI' });
+    }
     return this.aiService.generateTenderFieldContent(payload);
   }
 

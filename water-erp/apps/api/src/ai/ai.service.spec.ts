@@ -503,4 +503,11 @@ describe('AiController — 供应商名称不允许 AI 生成（2026-10-16 用�
       controller.tenderFieldGenerate({ fieldKey: 'supplierName', fieldLabel: '供应商名称', currentValue: '', context: {} } as any),
     ).rejects.toMatchObject({ response: { code: 'SUPPLIER_NAME_NO_AI' } });
   });
+
+  it('fieldKey=projectName → 400 PROJECT_NAME_NO_AI（2026-10-30 实录：综述段落盖掉项目名称）', async () => {
+    const controller = new AiController({} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
+    await expect(
+      controller.tenderFieldGenerate({ fieldKey: 'projectName', fieldLabel: '项目名称', currentValue: '', context: {} } as any),
+    ).rejects.toMatchObject({ response: { code: 'PROJECT_NAME_NO_AI' } });
+  });
 });

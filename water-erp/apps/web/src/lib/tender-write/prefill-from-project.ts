@@ -126,13 +126,16 @@ export function getAiGenerationFields(tenderType: TenderDocumentType): Array<{
   const withPrompts = (fields: Array<{ fieldKey: string; label: string }>) =>
     fields.map((f) => ({ ...f, aiPrompt: resolveAiPrompt(tenderType, f.fieldKey) }));
 
-  // 所有类型共有的封面字段
-  const cover = [{ fieldKey: 'projectName', label: '项目名称' }];
-
+  // 注意：封面字段 projectName 不在 AI 生成清单（2026-10-30 实录）——名称权威来源是
+  // PMI 标题（buildPrefillFromProject 预填），LLM 拿全套素材只会写出整段项目综述盖掉
+  // 名称；服务端 tender-field-generate 亦纵深拦截 PROJECT_NAME_NO_AI。
+  // 同批移除的结构化控件（2026-10-30 盘点）：siteSurvey/serviceContent 是 toggle
+  //（开关即得法定固定文案）、responseDepositForm/performanceDepositForm/
+  // evaluationMethod 是 select（下拉选定）——AI 生成的自由文本与控件形态不匹配，
+  // 此前它们混在清单里且无 aiPrompt，服务端以「生成专业内容」兜底 prompt 带偏内容。
   switch (tenderType) {
     case 'COMPETITIVE_NEGOTIATION':
       return withPrompts([
-        ...cover,
         { fieldKey: 'projectOverview', label: '项目概况和采购内容' },
         { fieldKey: 'submissionRequirements', label: '提交成果要求' },
         { fieldKey: 'documentAcquireTime', label: '文件获取时间' },
@@ -140,7 +143,6 @@ export function getAiGenerationFields(tenderType: TenderDocumentType): Array<{
         { fieldKey: 'contactPhone', label: '联系电话' },
         { fieldKey: 'contactEmail', label: '联系邮箱' },
         { fieldKey: 'contractSubcontracting', label: '合同分包' },
-        { fieldKey: 'siteSurvey', label: '现场踏勘' },
         { fieldKey: 'businessRequirements', label: '商务要求' },
         { fieldKey: 'technicalRequirements', label: '技术要求' },
         { fieldKey: 'quotationLetter', label: '报价表' },
@@ -148,14 +150,12 @@ export function getAiGenerationFields(tenderType: TenderDocumentType): Array<{
 
     case 'SINGLE_SOURCE':
       return withPrompts([
-        ...cover,
         { fieldKey: 'projectDuration', label: '项目完成期限' },
         { fieldKey: 'documentAcquireTime', label: '采购文件获取时间' },
         { fieldKey: 'documentPrice', label: '采购文件售价' },
         { fieldKey: 'submissionAndNegotiationTime', label: '开标时间' },
         { fieldKey: 'contactPhone', label: '联系电话' },
         { fieldKey: 'contactEmail', label: '联系邮箱' },
-        { fieldKey: 'serviceContent', label: '服务内容' },
         { fieldKey: 'procurementContent', label: '采购内容' },
         { fieldKey: 'procurementRequirements', label: '采购要求' },
         { fieldKey: 'quotationLetter', label: '报价函' },
@@ -165,7 +165,6 @@ export function getAiGenerationFields(tenderType: TenderDocumentType): Array<{
       // 2026-10-29 模板 v2：六章制字段与竞价同构（去评标方法/评标委员会人数，
       // 评审标准为结构化评分行编辑器不走批量文本生成）
       return withPrompts([
-        ...cover,
         { fieldKey: 'projectOverview', label: '项目概况和采购内容' },
         { fieldKey: 'submissionRequirements', label: '提交成果要求' },
         { fieldKey: 'consortiumForm', label: '联合体形式' },
@@ -175,11 +174,8 @@ export function getAiGenerationFields(tenderType: TenderDocumentType): Array<{
         { fieldKey: 'contactPhone', label: '联系电话' },
         { fieldKey: 'contactEmail', label: '联系邮箱' },
         { fieldKey: 'responseDepositAmount', label: '响应保证金金额' },
-        { fieldKey: 'responseDepositForm', label: '响应保证金形式' },
         { fieldKey: 'performanceDepositAmount', label: '履约保证金金额' },
-        { fieldKey: 'performanceDepositForm', label: '履约保证金形式' },
         { fieldKey: 'contractSubcontracting', label: '合同分包' },
-        { fieldKey: 'siteSurvey', label: '现场踏勘' },
         { fieldKey: 'copyCount', label: '副本份数' },
         { fieldKey: 'businessRequirements', label: '商务要求' },
         { fieldKey: 'technicalRequirements', label: '技术要求' },
@@ -189,7 +185,6 @@ export function getAiGenerationFields(tenderType: TenderDocumentType): Array<{
     case 'INTERNAL_BIDDING':
     case 'INVITED_BIDDING':
       return withPrompts([
-        ...cover,
         { fieldKey: 'projectOverview', label: '项目概况和采购内容' },
         { fieldKey: 'submissionRequirements', label: '提交成果要求' },
         { fieldKey: 'consortiumForm', label: '联合体形式' },
@@ -199,14 +194,10 @@ export function getAiGenerationFields(tenderType: TenderDocumentType): Array<{
         { fieldKey: 'contactPhone', label: '联系电话' },
         { fieldKey: 'contactEmail', label: '联系邮箱' },
         { fieldKey: 'responseDepositAmount', label: '响应保证金金额' },
-        { fieldKey: 'responseDepositForm', label: '响应保证金形式' },
         { fieldKey: 'performanceDepositAmount', label: '履约保证金金额' },
-        { fieldKey: 'performanceDepositForm', label: '履约保证金形式' },
         { fieldKey: 'contractSubcontracting', label: '合同分包' },
-        { fieldKey: 'siteSurvey', label: '现场踏勘' },
         { fieldKey: 'copyCount', label: '副本份数' },
         { fieldKey: 'evaluationCommitteeCount', label: '评标委员会人数' },
-        { fieldKey: 'evaluationMethod', label: '评标方法' },
         { fieldKey: 'businessRequirements', label: '商务要求' },
         { fieldKey: 'technicalRequirements', label: '技术要求' },
         { fieldKey: 'quotationLetter', label: '报价表' },
