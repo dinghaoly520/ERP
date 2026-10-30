@@ -127,6 +127,31 @@ describe('流标再采第二轮隔离', () => {
     expect(pmiUpdate.data.documentAcquireTime).toBeNull();
   });
 
+  // ── 1b) 确认信息落库（2026-10-30 用户口径：采购需求/立项部分采用向导新确认的信息）──
+  it('reproc：向导确认页改动字段（需求/立项信息+预算+方式）→ 差异落库到 PMI 基本信息', async () => {
+    const prisma = mkReprocPrisma();
+    const svc = mkService(prisma);
+    await expect(svc.reproc('pmi-1', {
+      startStageKey: 'TENDER_DOCUMENT',
+      procurementMethod: '邀请招标',
+      basicInfo: {
+        requesterName: '李新确认',          // 申请人改动
+        title: '便携式全液压岩心钻机采购（二代）', // 事项名改动
+        projectReason: '新事由',              // 事由改动
+        budgetAmount: 990000,                // 预算改动（原 null）
+      },
+    } as never)).resolves.toMatchObject({ round: 2 });
+    const pmiUpdate = prisma.__tx.projectManagementItem.update.mock.calls[0][0];
+    expect(pmiUpdate.data.requesterName).toBe('李新确认');
+    expect(pmiUpdate.data.title).toBe('便携式全液压岩心钻机采购（二代）');
+    expect(pmiUpdate.data.projectReason).toBe('新事由');
+    expect(pmiUpdate.data.budgetAmount).toBe(990000);
+    expect(pmiUpdate.data.procurementMethod).toBe('邀请招标');
+    // 未改动字段不下发不覆盖（需求部门/类别/立项日期保持原值）
+    expect(pmiUpdate.data.requesterDepartment).toBeUndefined();
+    expect(pmiUpdate.data.procurementCategory).toBeUndefined();
+  });
+
   // ── 2) EXPERT_SELECTION 完成闸分轮 ──
   const mkGatePrisma = (opts: { round2Experts: number }) => {
     const bpByRound: Record<number, { id: string }> = { 1: { id: 'bp-r1' }, 2: { id: 'bp-r2' } };
