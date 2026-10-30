@@ -242,6 +242,10 @@ describe('AnnouncementService — syncBidProject 公告直建补 PMI (N16-A)', (
       bidProject: { findUnique: jest.fn().mockResolvedValue(null), update: jest.fn().mockResolvedValue({}) },
       announcement: { update: jest.fn().mockResolvedValue({}) },
       bidDocument: { findUnique: jest.fn().mockResolvedValue(null) },
+      // P1 编码空间次序：syncBidProject 先按 PMI 编码 findUnique（BID-1 非 PMI → null 回退
+      // BidProject 直查）——此前缺此 mock 靠 syncBidProject 吞错静默绿（2026-10-30 吞错
+      // 移除后暴露）
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) },
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
       ...prismaOverrides,
     };
@@ -282,7 +286,9 @@ describe('AnnouncementService — syncBidProject 公告直建补 PMI (N16-A)', (
 
   it('已有既有项目（幂等分支）→ 不再补建 PMI', async () => {
     const createItemFromAnnouncement = jest.fn();
-    const { service } = await makeSvc({}, { createItemFromAnnouncement }, {
+    // syncFromAnnouncement mock 必给（既有项目分支必经；此前缺 mock 靠 syncBidProject
+    // 吞错静默绿，2026-10-30 吞错移除后暴露）
+    const { service } = await makeSvc({ syncFromAnnouncement: jest.fn().mockResolvedValue({}) }, { createItemFromAnnouncement }, {
       bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'p-existing', projectCode: 'BID-1' }), update: jest.fn() },
     });
 
@@ -1435,6 +1441,18 @@ describe('AnnouncementService — 流标公告发布联动流标（create/update
     await new Promise(r => setImmediate(r));
     expect(bidService.abortBidProject).not.toHaveBeenCalled();
     expect(bidService.createFromAnnouncement).not.toHaveBeenCalled();
+  });
+
+  it('联动流标抛错（如已生成评标结果须书面理由）→ 发布不回滚，响应带流标专属警示', async () => {
+    const bidService = bidServiceBase();
+    bidService.abortBidProject = jest.fn().mockRejectedValue(
+      Object.assign(new Error('本项目已生成官方评标结果，流标须填写书面理由'), { getStatus: () => 400 }),
+    );
+    const { service } = await makePublishSvc(bidService);
+    const res = await service.create(failedBidDto, 'author-1', {});
+    await new Promise(r => setImmediate(r));
+    expect((res as any).projectSyncWarning).toContain('联动流标未完成');
+    expect((res as any).projectSyncWarning).toContain('官方评标结果');
   });
 });
 

@@ -705,11 +705,13 @@ export class ProjectManagementService {
       }
     }
 
-    // 前置：当前轮 BidProject 已终局且系流标
+    // 前置：当前轮 BidProject 已终局且系流标（createdAt desc 与全库当前轮解析口径
+    // 一致——同轮多行时取最新，防 findFirst 任意取行误判未流标）
     const currentRound = item.currentRound ?? 1;
     const bp = await this.prisma.bidProject.findFirst({
       where: { projectManagementItemId: itemId, round: currentRound },
       select: { stage: true, riskNote: true },
+      orderBy: { createdAt: 'desc' },
     });
     const bpAborted = !!bp && (bp.stage === 'ABORTED' || (bp.stage === 'ARCHIVED' && (bp.riskNote ?? '').startsWith('流标')));
     if (!bp || !bpAborted) {

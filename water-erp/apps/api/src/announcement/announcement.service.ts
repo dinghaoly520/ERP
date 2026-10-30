@@ -197,9 +197,11 @@ export class AnnouncementService {
         });
       } catch (e) {
         // backlog §2.1：公告直建项目失败此前仅 error log——发布人不知情、公告却已发布。
-        // 发布仍成功（不回滚），但响应带警示供 :3005 展示。
+        // 发布仍成功（不回滚），但响应带警示供 :3005 展示（前端三消费面：发布向导/编辑页/批量发布）。
         this.logger.error(`公告发布联动创建项目失败 (announcementId=${result.id}): ${(e as Error).message}`);
-        (result as any).projectSyncWarning = `公告已发布，但联动创建招标项目失败（${(e as Error).message}）——请检查元数据时间并重试或联系管理员`;
+        (result as any).projectSyncWarning = isFailedBidPublish
+          ? `流标公告已发布，但联动流标未完成（${(e as Error).message}）——项目仍为活动态，收尾决策与再次采购将受阻，请联系管理员处理`
+          : `公告已发布，但联动创建招标项目失败（${(e as Error).message}）——请检查元数据时间并重试或联系管理员`;
       }
     }
     // 发布即通知（所有类型，不仅 BID_NOTICE）：按可见范围向供应商发站内信
@@ -681,7 +683,9 @@ export class AnnouncementService {
       } catch (e) {
         // backlog §2.1：与 create 路径同款——发布成功但响应带 projectSyncWarning
         this.logger.error(`公告发布联动创建项目失败 (announcementId=${id}): ${(e as Error).message}`);
-        (result as any).projectSyncWarning = `公告已发布，但联动创建招标项目失败（${(e as Error).message}）——请检查元数据时间并重试或联系管理员`;
+        (result as any).projectSyncWarning = isFailedBidPublish
+          ? `流标公告已发布，但联动流标未完成（${(e as Error).message}）——项目仍为活动态，收尾决策与再次采购将受阻，请联系管理员处理`
+          : `公告已发布，但联动创建招标项目失败（${(e as Error).message}）——请检查元数据时间并重试或联系管理员`;
       }
     }
     // 发布即通知（所有类型）：按可见范围向供应商发站内信
@@ -1374,7 +1378,11 @@ export class AnnouncementService {
         }
       }
     } catch (e) {
+      // 只 log 不抛曾使 create/update 外层的 projectSyncWarning（backlog §2.1「发布人
+      // 不知情」修复）永不可达——联动失败被静默吞掉（2026-10-30 流标联动警示实录）。
+      // 保留带堆栈日志后上抛，由两条发布路径的 catch 落警示给发布人。
       this.logger.error(`公告发布联动创建项目失败 (announcementId=${annId}): ${(e as Error).message}`, (e as Error).stack);
+      throw e;
     }
   }
 

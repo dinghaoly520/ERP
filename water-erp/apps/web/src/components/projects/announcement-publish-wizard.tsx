@@ -1345,6 +1345,9 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         metadata: meta,
         relatedProjectCode: project?.projectCode || undefined,
       });
+      // 联动失败不静默（2026-10-30）：流标公告发布但置 ABORTED 未完成时，收尾决策向导
+      // 会撞 BID_NOT_ABORTED——发布时刻就把服务端警示亮出来
+      if (saved.projectSyncWarning) toast.error(saved.projectSyncWarning);
       const id = saved.id;
       setAnnId(id);
 

@@ -327,6 +327,11 @@ export default function NoticePage() {
     if (fail === 0) toast.success(`${label}成功 ${ok} 条`);
     else if (ok === 0) toast.error(`${label}失败 ${fail} 条`);
     else toast(`${label}完成：成功 ${ok} / 失败 ${fail}`);
+    // 联动失败不静默（2026-10-30）：批量发布中联动（建项/流标置 ABORTED）失败的服务端警示逐条亮出
+    for (const r of results) {
+      const w = r.status === 'fulfilled' ? (r.value as { projectSyncWarning?: string })?.projectSyncWarning : undefined;
+      if (w) toast.error(w);
+    }
     load();
   };
 

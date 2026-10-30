@@ -9,7 +9,7 @@ import {
   getBidDocument, uploadBidDocument, updateBidDocumentConfig, confirmBidDocPayment, removeBidDocument,
   generateSummary, confirmWinnerNotice, getParticipants,
 } from '@/lib/api/announcement';
-import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, AnnouncementAttachment, BidDocumentManage, ParticipantsResult } from '@/lib/api/announcement';
+import type { AnnouncementListItem, AnnouncementPublishResult, AnnouncementType, AnnouncementStatus, AnnouncementAttachment, BidDocumentManage, ParticipantsResult } from '@/lib/api/announcement';
 import { localDateInputValue } from '@/lib/local-date';
 import { ATTACHMENT_ACCEPT, ATTACHMENT_HINT, validateAttachmentFile } from '@/lib/upload-rules';
 import { getSupplierList } from '@/lib/api/supplier';
@@ -477,7 +477,7 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
 
   const onTypeChange = (t: AnnouncementType) => { setType(t); setMetadata(buildMeta(t)); };
 
-  const save = async (targetStatus: AnnouncementStatus): Promise<AnnouncementListItem | null> => {
+  const save = async (targetStatus: AnnouncementStatus): Promise<AnnouncementPublishResult | null> => {
     if (!title.trim()) { toast.error('请填写标题'); return null; }
     if (targetStatus === 'PUBLISHED' && publishConfig.visibility === 'RESTRICTED' && publishConfig.restrictedSupplierIds.length === 0) {
       toast.error('部分供应商可见模式下请至少选择一家供应商');
@@ -528,6 +528,8 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
     const s = await save('PUBLISHED');
     if (s) {
       toast.success(publishConfig.scheduleMode === 'scheduled' ? `已设定定时发布（${publishConfig.scheduledPublishDate.replace('T', ' ')}）` : '已发布');
+      // 联动失败不静默（2026-10-30）：流标/采购公告发布但联动未完成时亮出服务端警示
+      if (s.projectSyncWarning) toast.error(s.projectSyncWarning);
       onSaved(s);
     }
   };

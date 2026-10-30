@@ -158,11 +158,19 @@ export function fetchAllAnnouncementHistories(params?: { page?: number; pageSize
   return api.get<{ items: AnnouncementHistoryItem[]; total: number; page: number; pageSize: number }>(`/announcements/histories/all?${q.toString()}`);
 }
 
+/** 发布结果：checklistWarnings=采购公告要素缺失提醒；projectSyncWarning=发布联动
+ *（建项/流标置 ABORTED）失败的服务端警示——前端须展示，否则联动失败对发布人静默
+ *（2026-10-30 流标联动死代码修复的配套消费面） */
+export type AnnouncementPublishResult = AnnouncementListItem & {
+  checklistWarnings?: Array<{ item: string; clause: string; message: string }>;
+  projectSyncWarning?: string;
+};
+
 export function createAnnouncement(data: {
   title: string; content: string; type: AnnouncementType;
   summary?: string; publishDate?: string; isTop?: boolean; relatedProjectCode?: string; metadata?: Record<string, any>; status?: AnnouncementStatus;
 }) {
-  return api.post<AnnouncementListItem & { checklistWarnings?: Array<{ item: string; clause: string; message: string }> }>('/announcements', data);
+  return api.post<AnnouncementPublishResult>('/announcements', data);
 }
 
 /** A3（GB/T 43711 7.2.2.5）：采购公告发布前要素预检（dry-run，警告不阻断；仅 BID_NOTICE，其余类型后端返回空） */
@@ -181,7 +189,7 @@ export function updateAnnouncement(id: string, data: Partial<{
   title: string; content: string; type: AnnouncementType; summary: string; status: AnnouncementStatus;
   publishDate: string; isTop: boolean; relatedProjectCode: string; metadata: Record<string, any>;
 }>) {
-  return api.put<AnnouncementListItem>(`/announcements/${id}`, data);
+  return api.put<AnnouncementPublishResult>(`/announcements/${id}`, data);
 }
 
 export function deleteAnnouncement(id: string) {
