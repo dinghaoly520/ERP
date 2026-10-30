@@ -176,9 +176,10 @@ export class ExpertExtractionAiService {
       // 改用 options.timeoutMs 控制单次 HTTP 请求超时
       const start = Date.now();
       this.metrics.llmCalls += 1;
-      // 90s/次：长 prompt（全候选列表+多维评分）生成耗时长于普通调用（实测 DeepSeek 可达但 30s 不够）；
+      // 240s/次：长 prompt（全候选列表+多维评分）生成耗时长于普通调用（实测 DeepSeek 可达但 30s 不够）；
+      // 内网 CPU 小模型更慢一个量级（10K token prefill ≈ 3 分钟），故 90s→240s（设计 §6.3，2026-10-30）；
       // 低频操作可等待，超时仍有规则引擎兜底。前端直连 :4001 绕过代理超时。
-      const raw = await this.llm.chat(system, userPrompt, temperature, undefined, undefined, { timeoutMs: 90_000, retries: 1 });
+      const raw = await this.llm.chat(system, userPrompt, temperature, undefined, undefined, { timeoutMs: 240_000, retries: 1 });
       this.metrics.lastLatencyMs = Date.now() - start;
       this.metrics.lastModel = this.llm.getModel();
       // 防御性 JSON 提取：优先匹配完整 JSON 块，失败则尝试去掉代码围栏重试
