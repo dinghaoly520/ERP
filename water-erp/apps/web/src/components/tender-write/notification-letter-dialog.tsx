@@ -30,7 +30,7 @@ import {
   uploadFile,
   type NotificationLetterDraft,
 } from "@/lib/api/announcement";
-import { fetchProjectAttributions, updateProjectExtractedInfo, getPmBidProject, type ProjectAttribution } from "@/lib/api/project-management";
+import { fetchProjectAttributions, updateProjectExtractedInfo, getPmBidProject, uploadProjectStageAttachment, type ProjectAttribution } from "@/lib/api/project-management";
 import { aiIdentifyField } from "@/lib/api/project-management";
 import { getBidProjectDetail, getPublicityStatus, deliverAwardLetter, type PublicityStatus } from "@/lib/api/bid";
 import type { FieldCandidate, ProjectManagementItem } from "@/lib/types/project-management";
@@ -276,6 +276,14 @@ export function NotificationLetterDialog({
           ...(draft.winnerPrice ? { winnerPrice: draft.winnerPrice } : {}),
         },
       });
+      // 3.5 回传本步骤（2026-10-30）：通知书 docx 自动挂到定标阶段附件——此前只发供应商门户，
+      //     定标步骤的附件列表空缺需手动补传（与公告向导 PUBLIC_ANNOUNCEMENT 回传同款）。
+      //     非阻塞：门户发出已成事实，回传失败仅提示、不回滚不发。
+      try {
+        await uploadProjectStageAttachment(project.id, 'AWARD_DECISION', file, p.currentRound ?? 1);
+      } catch (e) {
+        toast.error(`通知书已发出供应商门户，但回传「定标」阶段附件失败：${e instanceof Error ? e.message : '请手动补传'}`);
+      }
       // 4. 台账导出留档（R6-8②：后端仅内存加工模板返回下载流、不回写——此前此处
       // 连返回的 blob 都丢弃，是纯浪费调用且"写入台账"承诺失实；真持久化待产品拍板后做）
       try { await exportNotificationLedger(draft); } catch {}
