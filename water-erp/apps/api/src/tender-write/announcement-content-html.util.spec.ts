@@ -188,6 +188,11 @@ describe('纯文本软换行合并 joinSoftWrappedPlainText（纯文本→HTML �
     expect(joinSoftWrappedPlainText('采用 Deep\nSeek 模型')).toBe('采用 Deep Seek 模型');
     expect(joinSoftWrappedPlainText('总价 1,234\n567.89 元')).toBe('总价 1,234567.89 元');
   });
+
+  it('监督块各行（标签起始、无句读收尾）不被合并（2026-10-30 根因同款守卫）', () => {
+    const text = ['六、监督举报', '监督部门：监察部', '地址：四川省成都市双流区红莲街', '联系人：杨戬', '监督电话：02868686868'].join('\n');
+    expect(joinSoftWrappedPlainText(text)).toBe(text);
+  });
 });
 
 describe('breakGluedSupervisionLabels（监督块粘连标签断行，2026-10-30）', () => {
@@ -218,6 +223,13 @@ describe('breakGluedSupervisionLabels（监督块粘连标签断行，2026-10-30
   it('段内含内联标签（非纯文本）时不动——防误切格式段', () => {
     const html = '<p>地址：<strong>甲</strong>联系人：乙</p>';
     expect(breakGluedSupervisionLabels(html)).toBe(html);
+  });
+
+  it('幂等：已断行段（含 <br/>）复跑不再命中、不重复插 <br/>', () => {
+    const once = breakGluedSupervisionLabels(
+      '<p>监督部门：监察部地址：双流区联系人：王先生监督电话：028</p>',
+    );
+    expect(breakGluedSupervisionLabels(once)).toBe(once);
   });
 });
 

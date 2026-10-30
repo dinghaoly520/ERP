@@ -326,6 +326,40 @@ const PORTAL_PREVIEW_CONTENT_CSS = `
 .portal-announce-preview td p { margin: 0; line-height: 1.7; text-align: inherit; }
 `;
 
+/* ── 正文展示归一（2026-10-30 纵深）：生成端已根治监督块粘连，此处兜底——
+      与后端 announcement-content-html.util / 两门户详情页同口径：≥2 个监督
+      标签同段时非段首标签前断行 + 剔除纯空白段。幂等（含 <br/> 的段不再命中）。 ── */
+const SUPERVISION_LABELS = ['监督部门：', '地址：', '联系人：', '监督电话：'];
+
+function breakGluedSupervisionLabels(html: string): string {
+  if (!html.includes('<p')) return html;
+  return html.replace(/<p([^>]*)>([^<]*)<\/p>/g, (para, attrs: string, text: string) => {
+    const hits = SUPERVISION_LABELS.filter((l) => text.includes(l));
+    if (hits.length < 2) return para;
+    let out = text;
+    for (const label of SUPERVISION_LABELS) {
+      const parts = out.split(label);
+      if (parts.length < 2) continue;
+      const firstAtParaStart = parts[0].trim() === '';
+      out = parts.reduce((acc, part, i) => {
+        if (i === 0) return part;
+        const br = i === 1 && firstAtParaStart ? '' : '<br/>';
+        return `${acc}${br}${label}${part}`;
+      }, '');
+    }
+    return `<p${attrs}>${out}</p>`;
+  });
+}
+
+function stripBlankParagraphs(html: string): string {
+  if (!html.includes('<p')) return html;
+  return html.replace(/<p[^>]*>[\s 　]*<\/p>/g, '');
+}
+
+function normalizePortalContentHtml(html: string): string {
+  return stripBlankParagraphs(breakGluedSupervisionLabels(html));
+}
+
 /** 今天 + n 天后的截止时刻（YYYY-MM-DDTHH:MM），时分默认 23:59
  *  （datetime-local 时分上限为 23:59，无法表示 24:00，以 23:59 表示当天截止） */
 function deadlineAfterDays(n: number): string {
@@ -2360,10 +2394,10 @@ function PortalAnnouncementPreview({
             <p className="text-[15px] leading-8 text-[#8a96aa]">发布后由 AI 自动生成，此处为占位预览。</p>
           </div>
 
-          {/* 正文 */}
+          {/* 正文（渲染前归一——2026-10-30 纵深：兜生成端旧码/异常形态） */}
           <div
             className="announcement-detail-content text-[15px] leading-relaxed text-[#18243a]"
-            dangerouslySetInnerHTML={{ __html: contentHtml }}
+            dangerouslySetInnerHTML={{ __html: normalizePortalContentHtml(contentHtml) }}
           />
 
           {/* 异议联系方式（发布时自澄清说明快照，门户详情页同款展示） */}
