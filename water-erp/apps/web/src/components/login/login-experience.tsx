@@ -218,7 +218,7 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
             <div className="login-mark__ring" />
             <Image
               src="/procurement-brand-logo.png"
-              alt="蜀水云采 · 采购中心"
+              alt="蜀水云采 · 采购管理端"
               width={60}
               height={60}
               className="relative z-10 h-[60px] w-[60px] object-contain"
@@ -226,7 +226,7 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
             />
           </motion.div>
           <h1 className="login-title login-title--gradient mt-4 max-w-[16.5rem] text-[clamp(1.78rem,4.8vw,2.42rem)] font-black leading-[1.15] tracking-[0.08em] sm:max-w-none">
-            蜀水云采·采购中心
+            蜀水云采·采购管理端
           </h1>
           <p className="login-slogan mt-5 text-[0.82rem] tracking-[0.28em]">
             坚持原则，坚定立场，坚决执行

@@ -272,7 +272,7 @@ export function AppShell({
 
             <div className="w-full text-center">
               <div className="sidebar-brand-title truncate text-[1rem] font-semibold tracking-[0.07em]">
-                蜀水云采·采购中心
+                蜀水云采·采购管理端
               </div>
             </div>
           </header>
