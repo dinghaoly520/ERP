@@ -25,6 +25,7 @@ import {
   extractInitiationFields,
   polishInitiationField,
   reprocProject,
+  uploadProjectStageAttachment,
   type ReprocBody,
 } from '@/lib/api/project-management';
 import {
@@ -88,6 +89,9 @@ export function AbortRestartDialog({
   // Step3 上传新文件（需求/立项起点必经）：解析字段覆盖进信息确认表单；extractedText 供 AI 识别
   const [uploading, setUploading] = useState(false);
   const [uploadedName, setUploadedName] = useState('');
+  // 上传的原文件留存（2026-10-30 闭环）：重启成功后自动挂到新一轮起点阶段——
+  // extract-* 端点纯解析零落库，文件本体若不回传，新轮起点阶段还需手动再传一次
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [extractedText, setExtractedText] = useState('');
   const [extractedCount, setExtractedCount] = useState(0);
 
@@ -115,7 +119,7 @@ export function AbortRestartDialog({
     setAnnualBudget(item.isAnnualBudget ?? true);
     setMethod(item.procurementMethod);
     setStartStage('TENDER_DOCUMENT');
-    setUploading(false); setUploadedName(''); setExtractedText(''); setExtractedCount(0);
+    setUploading(false); setUploadedName(''); setUploadedFile(null); setExtractedText(''); setExtractedCount(0);
     setAiLoadingField(null); setAiCandidates({}); setPolishing({});
     // 先清残留禁用态（null 轮次 BidProject 不触发下方 refetch，不清会跨项目误禁）
     setDealBlocked(false);
@@ -166,6 +170,7 @@ export function AbortRestartDialog({
       }
       if (typeof f.isAnnualBudget === 'boolean') setAnnualBudget(f.isAnnualBudget);
       setUploadedName(file.name);
+      setUploadedFile(file);
       setExtractedText(result.extractedText ?? '');
       setExtractedCount(count);
       setAiCandidates({}); // 新文档 → 旧 AI 推荐作废
@@ -247,6 +252,15 @@ export function AbortRestartDialog({
         ...(methodChanged ? { procurementMethod: method } : {}),
         ...(Object.keys(basicInfo).length ? { basicInfo } : {}),
       });
+      // 上传的新文件自动挂到新一轮起点阶段（2026-10-30 闭环）：extract 只做解析不落库，
+      // 文件本体在此回传——非阻塞，失败仅提示手动补传，不回滚重启。
+      if (uploadedFile && needsUpload) {
+        try {
+          await uploadProjectStageAttachment(item.id, startStage, uploadedFile, res.round);
+        } catch (e) {
+          toast.error(`新轮阶段已生成，但文件回传「${START_OPTIONS.find((o) => o.key === startStage)?.label}」阶段失败：${e instanceof Error ? e.message : '请手动补传'}`);
+        }
+      }
       toast.success(`已开启第 ${res.round} 轮采购（${res.inserted} 个阶段），当前步骤：${START_OPTIONS.find((o) => o.key === startStage)?.label ?? ''}`);
       onRestarted();
       onClose();
