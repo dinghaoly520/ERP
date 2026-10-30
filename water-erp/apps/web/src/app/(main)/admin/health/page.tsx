@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Activity, AlertTriangle, Cpu, Database, HardDrive, RefreshCw, ScanText, ScrollText, Server } from 'lucide-react';
+import { Activity, AlertTriangle, Cpu, Database, Gauge, HardDrive, RefreshCw, ScanText, ScrollText, Server } from 'lucide-react';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { fmtBytes, fmtSecAgo, healthApi, type HealthReport } from '@/components/admin/health/health-api';
 import { OverviewTab } from '@/components/admin/health/overview-tab';
@@ -137,7 +137,7 @@ function HealthPageInner() {
           <div className="flex items-center gap-4" role="tablist" aria-label="系统健康视图">
             <button type="button" role="tab" aria-selected={effectiveTab === 'overview'}
               className={`page-tab ${effectiveTab === 'overview' ? 'is-active' : ''}`} onClick={() => switchTab('overview')}>
-              运行总览
+              <span className="inline-flex items-center gap-1.5">运行总览 <Gauge size={13} /></span>
             </button>
             {isAdmin && (
               <button type="button" role="tab" aria-selected={effectiveTab === 'log'}
