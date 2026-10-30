@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { VerificationService } from '../verification/verification.service';
 import { SupplierService } from './supplier.service';
 import { CompanyScopeService } from '../company/company-scope';
+import { sealPii } from '../common/crypto/sm-field-crypto';
 
 /**
  * 公司隔离 × completeness raw 路径（raw 盲区回归锁）：
@@ -159,5 +160,61 @@ describe('SupplierService — 公司隔离 raw 路径 link 存在性翻译（多
       expect(calls[idx][0].where.companyLinks).toEqual({ some: { companyId: { in: ['co-1'] }, status: 'APPROVED' } });
       expect(calls[idx][0].where.OR).toBeUndefined();
     }
+  });
+});
+
+/** 联系人电话明文出口（openContactsPhone，2026-10-30）：list() 双路径统一拆封——
+ *  操作面（审批中心/选取邀请确认页/Excel 导出）密文直出即不可用；损坏密文置 null 不炸整页。 */
+describe('SupplierService — list() 联系人电话明文出口', () => {
+  let service: SupplierService;
+  let prisma: any;
+  let companyScope: { resolveScope: jest.Mock; filter: jest.Mock };
+  const ACTOR_LEADER = { sub: 'leader-1', role: 'leader', username: 'Swhi-CGZX-01' };
+
+  beforeEach(async () => {
+    prisma = {
+      supplier: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
+      supplierEvaluation: { groupBy: jest.fn().mockResolvedValue([]), findMany: jest.fn().mockResolvedValue([]) },
+      user: { count: jest.fn().mockResolvedValue(0), findUnique: jest.fn().mockResolvedValue(null) },
+      $queryRaw: jest.fn().mockResolvedValue([]),
+    };
+    companyScope = { resolveScope: jest.fn().mockResolvedValue({ all: false, companyIds: ['co-1'] }), filter: jest.fn() };
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: CompanyScopeService, useValue: companyScope },
+        SupplierService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: {} },
+        { provide: 'REDIS_CLIENT', useValue: {} },
+        { provide: LlmService, useValue: {} },
+        { provide: VerificationService, useValue: {} },
+      ],
+    }).compile();
+    service = module.get(SupplierService);
+  });
+
+  const CONTACTS = () => [
+    { name: '密封', phone: sealPii('13800001111') as string },
+    { name: '存量明文', phone: '13900002222' },
+    { name: '损坏密文', phone: 'sm1:deadbeef:c2hvcnQ=' }, // 格式合法（8位hex keyId+base64）但无对应钥 → openFieldSm 抛错
+    { name: '空值', phone: null },
+  ];
+  const expectOpened = (res: any) => {
+    const phones = res.items[0].contacts.map((c: any) => c.phone);
+    expect(phones).toEqual(['13800001111', '13900002222', null, null]);
+    expect(JSON.stringify(res)).not.toContain('sm1:'); // 响应体零密文残留
+  };
+
+  it('raw 路径（缺省 completeness 排序）：密封拆封明文、明文直通、损坏密文置 null 不 500', async () => {
+    prisma.$queryRaw.mockResolvedValue([{ id: 'sup-1', total_count: BigInt(1) }]);
+    prisma.supplier.findMany.mockResolvedValue([{ id: 'sup-1', contacts: CONTACTS() }]);
+    const res = await service.list({ status: 'APPROVED', actor: ACTOR_LEADER as any });
+    expectOpened(res);
+  });
+
+  it('ORM 路径（sort=createdAt）：同口径拆封', async () => {
+    prisma.supplier.findMany.mockResolvedValue([{ id: 'sup-1', contacts: CONTACTS() }]);
+    const res = await service.list({ status: 'APPROVED', sort: 'createdAt', actor: ACTOR_LEADER as any });
+    expectOpened(res);
   });
 });

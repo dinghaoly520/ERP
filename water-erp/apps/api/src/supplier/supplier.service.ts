@@ -1114,6 +1114,7 @@ export class SupplierService {
       const res = await this.listByCompleteness(where, { page, pageSize });
       if (delegatedExpand) this.markDelegatedReview(res.items);
       else if (leaderExpand) this.markDelegatedReview(res.items, ['STAFF']);
+      this.openContactsPhone(res.items);
       return res;
     }
 
@@ -1159,10 +1160,29 @@ export class SupplierService {
 
     // 批量附平均评分
     await this.attachAvgScores(items);
+    this.openContactsPhone(items);
     if (delegatedExpand) this.markDelegatedReview(items);
     else if (leaderExpand) this.markDelegatedReview(items, ['STAFF']);
 
     return { total, page, pageSize, items };
+  }
+
+  /** 联系人电话明文出口（2026-10-30 修）：list() 消费方全为操作面——审批中心、选取/邀请补选
+   *  （确认通知页直接展示供人工联系）、Excel 导出——密文（sm1:...）直出即不可用（口径同遴选视图
+   *  getSupplierSummaries / AI toRecommendation 的 openPiiForMask 先例，2026-10-12 用户裁定：
+   *  操作场景无点击揭示机制，掩码/密文即不可见→明文）。浏览面（供应商库列表）不展示电话，无回归；
+   *  身份证/邮箱仍保持密文不在操作面展示，需要时走详情端点的掩码+揭示链路。 */
+  private openContactsPhone(items: any[]) {
+    for (const it of items) {
+      if (Array.isArray(it?.contacts)) {
+        it.contacts = it.contacts.map((c: any) => ({ ...c, phone: this.safeOpenPii(c.phone) }));
+      }
+    }
+  }
+
+  /** 宽容拆封：损坏密文/钥不匹配返回 null（显示为空）——批量出口不得因单条坏数据 500，也不回吐密文 */
+  private safeOpenPii(v: string | null | undefined): string | null {
+    try { return openPiiForMask(v); } catch { return null; }
   }
 
   /** 代审件标记（A 方案 2026-10-08；2026-10-09 扩 STAFF 孤儿/leader 代初审）：

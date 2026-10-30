@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantTool, AssistantToolCtx, ToolResult } from './assistant-tool';
 import { toolCompanyWhere } from './company-filter';
 import { SUPPLIER_STATUS_LABEL, t } from './labels';
+import { openPiiForMask } from '../../common/crypto/sm-field-crypto';
 
 @Injectable()
 export class SupplierTool implements AssistantTool {
@@ -23,13 +24,20 @@ export class SupplierTool implements AssistantTool {
       const supplier = await this.prisma.supplier.findUnique({
         where: { ...companyWhere, id: supplierId },
         include: {
-          classification: { select: { name: true } },
           contacts: { select: { name: true, phone: true, email: true, isPrimary: true } },
           _count: { select: { evaluations: true, bidSuppliers: true, changeRecords: true } },
         },
       });
       if (!supplier) return { success: false, error: '供应商不存在' };
-      return { success: true, data: supplier };
+      // 联系人电话/邮箱明文出口（2026-10-30 口径同 list()/遴选视图：助手=员工操作辅助面，密文即不可用）
+      return {
+        success: true,
+        data: {
+          ...supplier,
+          industry: supplier.industry,
+          contacts: supplier.contacts.map(c => ({ ...c, phone: openPiiForMask(c.phone), email: openPiiForMask(c.email) })),
+        },
+      };
     }
 
     if (action === 'pending') {
@@ -39,8 +47,7 @@ export class SupplierTool implements AssistantTool {
         orderBy: { createdAt: 'desc' },
         select: {
           id: true, name: true, enterpriseType: true,
-          creditCode: true, createdAt: true,
-          classification: { select: { name: true } },
+          creditCode: true, createdAt: true, industry: true,
         },
       });
       return {
@@ -51,13 +58,13 @@ export class SupplierTool implements AssistantTool {
           columns: [
             { key: 'name', label: '名称' },
             { key: 'enterpriseType', label: '企业类型' },
-            { key: 'classification', label: '分类' },
+            { key: 'industry', label: '行业' },
             { key: 'creditCode', label: '信用代码' },
           ],
           rows: pending.map((s) => ({
             name: s.name,
             enterpriseType: s.enterpriseType,
-            classification: s.classification?.name || '-',
+            industry: s.industry || '-',
             creditCode: s.creditCode || '-',
           })),
         }],
@@ -144,8 +151,7 @@ export class SupplierTool implements AssistantTool {
       where, take: limit, orderBy: { createdAt: 'desc' },
       select: {
         id: true, name: true, enterpriseType: true, status: true,
-        legalPerson: true, createdAt: true,
-        classification: { select: { name: true } },
+        legalPerson: true, createdAt: true, industry: true,
       },
     });
     return { success: true, data: suppliers };
