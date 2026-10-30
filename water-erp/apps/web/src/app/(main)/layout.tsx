@@ -28,7 +28,7 @@ const routeToKey: Record<string, string> = {
   "/admin/accounts": "accounts",
   "/admin/registration-review": "accounts",
   "/admin/crypto": "crypto",
-  "/admin/operation-log": "operation-log",
+  // 操作日志已并入系统健康（2026-10-30），旧路由重定向 /admin/health?tab=log
   "/admin/compliance-rules": "compliance-rules",
   "/admin/health": "health",
   // 公告管理
@@ -64,7 +64,6 @@ const routeToModule: Record<string, string> = {
   "/admin/password-requests": "密码审批",
   "/admin/accounts": "账号管理",
   "/admin/crypto": "加密管理",
-  "/admin/operation-log": "操作日志",
   "/admin/compliance-rules": "合规规则",
   "/admin/health": "系统健康",
   "/notice": "公告发布中心",
