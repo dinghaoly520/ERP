@@ -51,6 +51,9 @@ export function sanitizeTenderDraft(
   for (const [k, v] of Object.entries(draft)) {
     if (v == null) continue;
     if (typeof v === 'string') {
+      // 字段级兜底：供应商名称不可能是长文本（公司名普遍 <40 字）——历史污染值
+      // （2026-10-30 直采实录）超长即清空，让用户再进入时脏值自动消失重选
+      if (k === 'supplierName' && v.trim().length > 40) continue;
       out[k] = v;
     } else if (typeof v === 'number' || typeof v === 'boolean') {
       out[k] = String(v);
