@@ -10,6 +10,8 @@ export interface SpContractFulfillment {
   amount?: number | null;
   status: "pending" | "done" | "exception";
   proofAssetId?: string | null;
+  /** 履约证明元数据（转主体业绩用）：url 由前端按 /api/upload/files/{id} 构造 */
+  proofAsset?: { id: string; originalName: string | null } | null;
   note?: string | null;
 }
 
@@ -17,6 +19,7 @@ export interface SpContract {
   id: string;
   contractCode: string;
   projectCode: string;
+  companyName?: string | null;
   contractType: "standard" | "order";
   status: "approved_for_signing" | "signed" | "performing" | "accepted" | "terminated";
   amount?: number | null;

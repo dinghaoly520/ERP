@@ -8,6 +8,7 @@ import {
   Inbox,
   RefreshCcw,
   TriangleAlert,
+  Trophy,
   Upload,
 } from "lucide-react";;
 import { contractApi, contractAssetUrl, type SpContract, type SpContractFulfillment } from "@/lib/api/contract";
@@ -15,6 +16,7 @@ import { authedFileAction } from "@/lib/authed-file";
 import { EmptyState, LoadingBlock, SpButton, SpTabPanel, SpTabs } from "@/components/ui";
 import { toast } from "sonner";
 import { OwnArchivesPanel } from "@/components/own-archives-panel";
+import { PerformanceTransferDialog, type PerformanceTransferSeed } from "@/components/performance-transfer-dialog";
 import { ProofUploadDialog } from "@/components/contracts/proof-upload-dialog";
 import {
   canAttachFulfillmentProof,
@@ -39,6 +41,8 @@ export default function ContractsPage() {
   const [error, setError] = useState(false);
   const [items, setItems] = useState<SpContract[]>([]);
   const [proofTarget, setProofTarget] = useState<{ contract: SpContract; fulfillment: SpContractFulfillment } | null>(null);
+  // 转主体业绩（完成节点）：seed 非空即弹窗打开
+  const [perfSeed, setPerfSeed] = useState<PerformanceTransferSeed | null>(null);
 
   const fetchList = async () => {
     setItems(await contractApi.listMine());
@@ -137,6 +141,23 @@ export default function ContractsPage() {
                                   {canAttachFulfillmentProof(c.status, f.status) && (
                                     <SpButton icon={RefreshCcw} onClick={() => setProofTarget({ contract: c, fulfillment: f })}>替换证明</SpButton>
                                   )}
+                                  {/* 完成节点的履约证明可转主体业绩（审批后投标可用）——异常/待办节点不算已履约 */}
+                                  {f.status === "done" && (
+                                    <SpButton
+                                      icon={Trophy}
+                                      title="将该节点履约信息作为业绩行提交变更申请（审批后计入企业资料）"
+                                      onClick={() => setPerfSeed({
+                                        projectName: f.title || c.projectCode,
+                                        clientName: c.companyName || "",
+                                        contractAmount: f.amount != null ? `${f.amount}` : (c.amount != null ? `${c.amount}` : ""),
+                                        signDate: f.doneDate ? dayjs(f.doneDate).format("YYYY-MM-DD") : (c.signedAt ? dayjs(c.signedAt).format("YYYY-MM-DD") : ""),
+                                        description: [c.projectCode ? `项目 ${c.projectCode}` : "", f.note].filter(Boolean).join("；"),
+                                        proofFiles: f.proofAsset?.originalName
+                                          ? [{ name: f.proofAsset.originalName, url: `/api/upload/files/${encodeURIComponent(f.proofAsset.id)}` }]
+                                          : [],
+                                      })}
+                                    >转入业绩</SpButton>
+                                  )}
                                 </>
                               ) : canAttachFulfillmentProof(c.status, f.status) ? (
                                 <SpButton icon={Upload} onClick={() => setProofTarget({ contract: c, fulfillment: f })}>上传证明</SpButton>
@@ -164,6 +185,7 @@ export default function ContractsPage() {
         <OwnArchivesPanel category="contract" noun="合同" embedded />
       </SpTabPanel>
 
+      <PerformanceTransferDialog seed={perfSeed} onClose={() => setPerfSeed(null)} />
       <ProofUploadDialog
         open={Boolean(proofTarget)}
         contractId={proofTarget?.contract.id ?? null}

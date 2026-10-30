@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import dayjs, { type Dayjs } from "dayjs";
 import { toast } from "sonner";
-import { Archive, Paperclip, Pencil, Plus, Trash2, TriangleAlert, X } from "lucide-react";
+import { Archive, Paperclip, Pencil, Plus, Trash2, TriangleAlert, Trophy, X } from "lucide-react";
 import { api, qs } from "@/lib/api";
 import { uploadFile } from "@/lib/api/upload";
-import { EmptyState, SpButton, SpDateInput, SpDialog, SpTextarea } from "@/components/ui";
+import { EmptyState, SpButton, SpDateInput, SpDialog, SpInput, SpTextarea } from "@/components/ui";
 import { useConfirm } from "@/components/use-confirm";
+import { PerformanceTransferDialog, type PerformanceTransferSeed } from "@/components/performance-transfer-dialog";
 
 /**
  * 供应商自有档案面板（:3004 我的合同 / 框架协议页）——供应商自己上传留存的资料：
@@ -139,6 +140,8 @@ export function OwnArchivesPanel({
   const [editing, setEditing] = useState<OwnArchive | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [busy, setBusy] = useState(false);
+  // 转主体业绩（仅合同类）：seed 非空即弹窗打开
+  const [perfSeed, setPerfSeed] = useState<PerformanceTransferSeed | null>(null);
   const { confirm, dialog } = useConfirm();
   const formId = useId();
   const fieldIds = {
@@ -278,6 +281,21 @@ export function OwnArchivesPanel({
                   )}
                 </div>
                 <div className="oa-card-acts">
+                  {category === "contract" && (
+                    <SpButton
+                      variant="xs"
+                      icon={Trophy}
+                      title="将该合同的履约信息作为业绩行提交变更申请（审批后计入企业资料）"
+                      onClick={() => setPerfSeed({
+                        projectName: row.title,
+                        clientName: row.counterparty || "",
+                        contractAmount: row.amount || "",
+                        signDate: row.signDate ? dayjs(row.signDate).format("YYYY-MM-DD") : "",
+                        description: [row.scope, row.note].filter(Boolean).join("；"),
+                        proofFiles: Array.isArray(row.files) ? row.files : [],
+                      })}
+                    >转入业绩</SpButton>
+                  )}
                   <SpButton variant="xs" icon={Pencil} onClick={() => openEdit(row)}>编辑</SpButton>
                   <SpButton variant="xs" danger icon={Trash2} onClick={() => remove(row)}>删除</SpButton>
                 </div>
@@ -305,19 +323,19 @@ export function OwnArchivesPanel({
           <div className="oa-form-grid">
             <div className="reg-item">
               <label className="reg-label" htmlFor={fieldIds.title}>{noun}名称 <i className="not-italic text-danger">*</i></label>
-              <input id={fieldIds.title} className="reg-inp" required value={form.title} placeholder={`如：XX项目${noun}`} onChange={(e) => set("title", e.target.value)} />
+              <SpInput id={fieldIds.title} required value={form.title} placeholder={`如：XX项目${noun}`} onChange={(e) => set("title", e.target.value)} />
             </div>
             <div className="reg-item">
               <label className="reg-label" htmlFor={fieldIds.refCode}>{noun}编号</label>
-              <input id={fieldIds.refCode} className="reg-inp" value={form.refCode} placeholder="合同/协议编号" onChange={(e) => set("refCode", e.target.value)} />
+              <SpInput id={fieldIds.refCode} value={form.refCode} placeholder="合同/协议编号" onChange={(e) => set("refCode", e.target.value)} />
             </div>
             <div className="reg-item">
               <label className="reg-label" htmlFor={fieldIds.counterparty}>采购人/对方单位</label>
-              <input id={fieldIds.counterparty} className="reg-inp" value={form.counterparty} placeholder="如：四川水发集团" onChange={(e) => set("counterparty", e.target.value)} />
+              <SpInput id={fieldIds.counterparty} value={form.counterparty} placeholder="如：四川水发集团" onChange={(e) => set("counterparty", e.target.value)} />
             </div>
             <div className="reg-item">
               <label className="reg-label" htmlFor={fieldIds.amount}>金额</label>
-              <input id={fieldIds.amount} className="reg-inp" value={form.amount} placeholder="如：86 万元" onChange={(e) => set("amount", e.target.value)} />
+              <SpInput id={fieldIds.amount} value={form.amount} placeholder="如：86 万元" onChange={(e) => set("amount", e.target.value)} />
             </div>
             <div className="reg-item">
               <label className="reg-label" htmlFor={fieldIds.signDate}>签订日期</label>
@@ -334,7 +352,7 @@ export function OwnArchivesPanel({
           </div>
           <div className="reg-item">
             <label className="reg-label" htmlFor={fieldIds.scope}>{category === "framework" ? "入围范围/标的简述" : "标的/工作内容简述"}</label>
-            <input id={fieldIds.scope} className="reg-inp" value={form.scope} placeholder="选填" onChange={(e) => set("scope", e.target.value)} />
+            <SpInput id={fieldIds.scope} value={form.scope} placeholder="选填" onChange={(e) => set("scope", e.target.value)} />
           </div>
           <div className="reg-item">
             <label className="reg-label" htmlFor={fieldIds.note}>备注</label>
@@ -346,6 +364,7 @@ export function OwnArchivesPanel({
           </div>
         </div>
       </SpDialog>
+      <PerformanceTransferDialog seed={perfSeed} onClose={() => setPerfSeed(null)} />
       {dialog}
     </div>
   );

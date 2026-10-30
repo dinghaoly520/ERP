@@ -358,6 +358,7 @@ export class SupplierPortalController {
         id: true,
         contractCode: true,
         projectCode: true,
+        companyName: true, // 转主体业绩预填客户名（采购人=归属公司）
         contractType: true,
         status: true,
         amount: true,
@@ -383,10 +384,26 @@ export class SupplierPortalController {
         },
       },
     });
+    // 履约证明文件名（2026-10-30 转主体业绩用）：ContractFulfillment 无 proofAsset 关系
+    // （裸 proofAssetId 列），此处批量反查补 proofAsset 元数据——业绩证明文件列表需真实文件名
+    const proofIds = [...new Set(contracts.flatMap(c => c.fulfillments.map(f => f.proofAssetId).filter((v): v is string => !!v)))];
+    const proofAssets = proofIds.length
+      ? await this.prisma.fileAsset.findMany({
+        where: { id: { in: proofIds } },
+        select: { id: true, originalName: true },
+      })
+      : [];
+    const proofNameOf = new Map(proofAssets.map(a => [a.id, a.originalName]));
     // 防存量脏数据：待签署状态绝不暴露已预挂的签署件/签署时间。
     return contracts.map((contract) => contract.status === 'approved_for_signing'
       ? { ...contract, signedAt: null, signedAssetId: null, fulfillments: [] }
-      : contract);
+      : {
+        ...contract,
+        fulfillments: contract.fulfillments.map(f => ({
+          ...f,
+          proofAsset: f.proofAssetId ? { id: f.proofAssetId, originalName: proofNameOf.get(f.proofAssetId) ?? null } : null,
+        })),
+      });
   }
 
   /** 供应商上传履约/验收证明（先走 /upload 拿 fileAssetId，再挂到履行节点） */
