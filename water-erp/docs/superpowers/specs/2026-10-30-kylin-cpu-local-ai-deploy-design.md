@@ -109,11 +109,12 @@
 | `llamacpp-server-image.tar`（数百 MB） | 能出网机器：`docker pull ghcr.io/ggml-org/llama.cpp:server`（2026-10-30 实测核实：**官方不发布 avx2/avx512 变体 tag**，CPU 镜像即 `server`，内含多内核运行时分发）→ 验证通过后以 **digest 锁定**（`docker inspect` 取 RepoDigests）→ `docker save` | `docker load -i` |
 | `bge-m3-f16.gguf`（~1.1G，实测 2026-10-30） | **开发机本地转换**：`/home/asus/models/bge-m3`（已有，HF 格式）→ `convert_hf_to_gguf.py` 转 F16 | 放 `/data/models/`（只读挂载） |
 | `qwen3-4b-instruct-2507-Q4_K_M.gguf`（~2.33G） | ModelScope unsloth 镜像直连下载 | 同上 |
-| runbook + 两条启动脚本 | **入库** `water-erp/deploy/ai-kylin/`（版本管理） | — |
+| runbook + 编排脚本（prod.sh/verify×2；dev/parity 等本机验证件 2026-10-30 应用户要求清出交付物，验证记录见 §5.5） | **交付暂存区 `/home/asus/桌面/ERP/emd_llm/`（已 gitignore，不入库）**；脚本内含全套参数，README 即 runbook | — |
 
 ### 5.2 两容器运行
 
 > 双轨交付（2026-10-30 补）：`emd_llm/docker-compose.yml` 为等价编排（`docker compose config` 校验，command token 与 run 脚本逐一对齐；`pull_policy: never` 只认离线 load 进来的镜像）。目标机有 compose 插件走 compose，没有则 run 脚本兜底——**不把 compose 当硬依赖**（麒麟 docker-engine 发行包不一定带 v2 插件，内网机装插件麻烦）。
+> 同日再修订：模型挂载默认改为**交付目录自带 `./models`**（目录即部署单元、零拷贝；`MODEL_DIR` 可覆盖至 `/data/models` 等持久路径），本文所有 `/data/models` 表述按此理解。
 
 ```bash
 # ① 向量服务 bge-m3（:8003，呼应开发机端口习惯）——flags 已本机实测（见 §5.5）
