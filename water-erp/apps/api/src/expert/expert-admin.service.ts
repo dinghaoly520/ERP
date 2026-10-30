@@ -826,7 +826,9 @@ export class ExpertAdminService {
     let leaderId: string | null = null;
     let reason = '';
     try {
-      const raw = await this.llm.chat(system, userPrompt, 0.2, undefined, undefined, { timeoutMs: 15_000, retries: 1 });
+      // 120s：内网 CPU 小模型（qwen3-4b · llama-server）prefill+生成远慢于云 API，15s 必超时；
+      // 失败仍有 leaderId=null 兜底（手动指定组长）， retries=1 限制最坏等待（设计 §6.3，2026-10-30）
+      const raw = await this.llm.chat(system, userPrompt, 0.2, undefined, undefined, { timeoutMs: 120_000, retries: 1 });
       const json = raw?.match(/\{[\s\S]*\}/);
       if (json) {
         const parsed = JSON.parse(json[0]);

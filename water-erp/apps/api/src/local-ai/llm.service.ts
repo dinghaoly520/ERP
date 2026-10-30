@@ -3,6 +3,7 @@ import {
   Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import * as http from 'http';
 import * as https from 'https';
 import { ConfigService } from '@nestjs/config';
 import { stripMojibake, stripMojibakeDeep } from '../common/text-clean.util';
@@ -52,6 +53,34 @@ export class LlmHttpError extends ServiceUnavailableException {
     this.retryable = status === 429 || status >= 500;
     this.retryAfterMs = retryAfterMs;
   }
+}
+
+/** 请求目标：base URL + API 路径解析出的协议/主机/端口/路径 */
+export interface LlmRequestTarget {
+  secure: boolean;
+  hostname: string;
+  port: number;
+  path: string;
+}
+
+/**
+ * base URL → 实际请求目标解析（纯函数，P0 内网化 2026-10-30）。
+ * 旧实现按 DeepSeek 云定制：https.request + 硬编码 port 443 + 构造器剥 /v1——
+ * 本地 OpenAI 兼容端点（llama-server 等，http + 自定义端口 + /v1 前缀）三者皆撞。
+ * 现按 URL 本身取协议/端口并保留 /v1（云端有无 /v1 均兼容：DeepSeek 双挂）。
+ */
+export function resolveLlmRequestTarget(
+  baseUrl: string,
+  apiPath: string,
+): LlmRequestTarget {
+  const url = new URL(`${baseUrl.replace(/\/+$/, '')}${apiPath}`);
+  const secure = url.protocol === 'https:';
+  return {
+    secure,
+    hostname: url.hostname,
+    port: url.port ? Number(url.port) : secure ? 443 : 80,
+    path: url.pathname + url.search,
+  };
 }
 
 function intEnv(
@@ -175,8 +204,8 @@ export class LlmService {
       : '';
     this.deepseek = apiKey
       ? {
-          // 规范化：去尾斜杠与 /v1，统一 `${baseUrl}/chat/completions`（DeepSeek 两种约定都兼容）
-          baseUrl: rawBaseUrl.replace(/\/+$/, '').replace(/\/v1$/, ''),
+          // 原样保留（含 /v1 前缀）：协议/端口/路径统一由 resolveLlmRequestTarget 按 URL 解析
+          baseUrl: rawBaseUrl,
           // ★ v4.1：原 procurement 硬编码 'deepseek-v4-pro'，改为 env 驱动（.env DEEPSEEK_MODEL）
           model: config.get<string>('DEEPSEEK_MODEL', 'deepseek-v4-pro'),
           apiKey,
@@ -373,7 +402,7 @@ export class LlmService {
     return this.retryBaseMs * 2 ** (attempt - 1) + Math.random() * this.retryBaseMs;
   }
 
-  /** 使用 Node 原生 https 模块直连（绕过 undici IPv6 超时问题） */
+  /** 使用 Node 原生 http(s) 模块直连（绕过 undici IPv6 超时问题）；协议/端口按 URL 解析（P0 内网化） */
   private deepseekRequest(
     baseUrl: string,
     apiKey: string,
@@ -389,12 +418,12 @@ export class LlmService {
     retryAfter: string | null;
   }> {
     return new Promise((resolve, reject) => {
-      const url = new URL(`${baseUrl}/chat/completions`);
+      const target = resolveLlmRequestTarget(baseUrl, '/chat/completions');
       const payload = JSON.stringify(body);
-      const req = https.request({
-        hostname: url.hostname,
-        port: 443,
-        path: url.pathname + url.search,
+      const req = (target.secure ? https : http).request({
+        hostname: target.hostname,
+        port: target.port,
+        path: target.path,
         method: 'POST',
         family: 4, // 强制 IPv4，绕过 undici/IPv6 DNS 超时
         headers: {

@@ -2,11 +2,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter } from 'events';
 import * as https from 'https';
-import { LlmService } from './llm.service';
+import * as http from 'http';
+import { LlmService, resolveLlmRequestTarget } from './llm.service';
 
 /* =====================================================================
-   https mock 基础设施：LlmService 经 node:https 直连 DeepSeek
-   （不用 global.fetch——那批 mock 对原生 https.request 完全失效）。
+   传输 mock 基础设施：LlmService 经 node:http(s) 直连 OpenAI 兼容端点
+   （不用 global.fetch——那批 mock 对原生 http(s).request 完全失效）。
    假 ClientRequest 是 EventEmitter：实现方挂 error/timeout 监听，
    end() 时经 responder 决定响应/挂起/网络错误。
    ===================================================================== */
@@ -39,12 +40,14 @@ interface CapturedRequest {
 }
 
 const origHttpsRequest = https.request;
+const origHttpRequest = http.request;
 
-class HttpsMock {
+class TransportMock {
   request = jest.fn();
   calls: CapturedRequest[] = [];
 
   constructor(
+    private mod: typeof https | typeof http,
     private responder: (
       callIndex: number,
       payload: any,
@@ -65,7 +68,7 @@ class HttpsMock {
       req.respond = (spec: ResponseSpec) => this.deliver(req, cb, spec);
       return req;
     });
-    (https as any).request = this.request;
+    (this.mod as any).request = this.request;
   }
 
   private deliver(req: any, cb: (res: any) => void, spec: ResponseSpec) {
@@ -111,15 +114,16 @@ async function makeService(envOverrides: Record<string, string> = {}): Promise<L
 
 describe('LlmService', () => {
   let service: LlmService;
-  let httpsMock: HttpsMock;
+  let httpsMock: TransportMock;
 
   beforeEach(async () => {
     service = await makeService();
-    httpsMock = new HttpsMock(() => okRes('hello'));
+    httpsMock = new TransportMock(https, () => okRes('hello'));
   });
 
   afterEach(() => {
     (https as any).request = origHttpsRequest;
+    (http as any).request = origHttpRequest;
   });
 
   const lastPayload = () => httpsMock.calls[httpsMock.calls.length - 1].payload;
@@ -147,37 +151,37 @@ describe('LlmService', () => {
   });
 
   it('429 → 200：重试一次后成功', async () => {
-    httpsMock = new HttpsMock((i) => (i === 0 ? errRes(429, '0') : okRes('x')));
+    httpsMock = new TransportMock(https, (i) => (i === 0 ? errRes(429, '0') : okRes('x')));
     await expect(service.chat('s', 'u')).resolves.toBe('x');
     expect(httpsMock.request).toHaveBeenCalledTimes(2);
   });
 
   it('500 → 502 → 200：两次重试后成功', async () => {
-    httpsMock = new HttpsMock((i) => (i === 0 ? errRes(500) : i === 1 ? errRes(502) : okRes('x')));
+    httpsMock = new TransportMock(https, (i) => (i === 0 ? errRes(500) : i === 1 ? errRes(502) : okRes('x')));
     await expect(service.chat('s', 'u')).resolves.toBe('x');
     expect(httpsMock.request).toHaveBeenCalledTimes(3);
   });
 
   it('400 不重试，抛含状态码的错误', async () => {
-    httpsMock = new HttpsMock(() => errRes(400));
+    httpsMock = new TransportMock(https, () => errRes(400));
     await expect(service.chat('s', 'u')).rejects.toThrow('DeepSeek LLM request failed: 400');
     expect(httpsMock.request).toHaveBeenCalledTimes(1);
   });
 
   it('chatJson 解析失败重试耗尽后抛（1+2 次）', async () => {
-    httpsMock = new HttpsMock(() => okRes('不是 JSON'));
+    httpsMock = new TransportMock(https, () => okRes('不是 JSON'));
     await expect(service.chatJson('s', 'u')).rejects.toThrow('无法解析为 JSON');
     expect(httpsMock.request).toHaveBeenCalledTimes(3);
   });
 
   it('chatJson 解析失败重试后成功', async () => {
-    httpsMock = new HttpsMock((i) => (i === 0 ? okRes('不是 JSON') : okRes('{"a":1}')));
+    httpsMock = new TransportMock(https, (i) => (i === 0 ? okRes('不是 JSON') : okRes('{"a":1}')));
     await expect(service.chatJson<{ a: number }>('s', 'u')).resolves.toEqual({ a: 1 });
     expect(httpsMock.request).toHaveBeenCalledTimes(2);
   });
 
   it('chatJson 空 content + reasoning_content：不吞思维链散文，按空内容重试', async () => {
-    httpsMock = new HttpsMock((i) =>
+    httpsMock = new TransportMock(https, (i) =>
       i === 0
         ? { status: 200, content: '', reasoningContent: '这是一段思维链散文，不是 JSON' }
         : okRes('{"a":1}'),
@@ -187,7 +191,7 @@ describe('LlmService', () => {
   });
 
   it('chat（散文模式）空 content + reasoning_content 仍回退思维链文本', async () => {
-    httpsMock = new HttpsMock(() => ({
+    httpsMock = new TransportMock(https, () => ({
       status: 200,
       content: '',
       reasoningContent: 'fallback prose',
@@ -197,7 +201,7 @@ describe('LlmService', () => {
   });
 
   it('chatJson 成功时走 response_format json_object', async () => {
-    httpsMock = new HttpsMock(() => okRes('{"a":1}'));
+    httpsMock = new TransportMock(https, () => okRes('{"a":1}'));
     await expect(service.chatJson<{ a: number }>('s', 'u')).resolves.toEqual({ a: 1 });
     expect(lastPayload().response_format).toEqual({ type: 'json_object' });
   });
@@ -210,7 +214,7 @@ describe('LlmService', () => {
   });
 
   it('retries: 0 时 429 只尝试一次', async () => {
-    httpsMock = new HttpsMock(() => errRes(429));
+    httpsMock = new TransportMock(https, () => errRes(429));
     await expect(
       service.chat('s', 'u', 0.3, undefined, undefined, { retries: 0 }),
     ).rejects.toThrow(/429/);
@@ -218,13 +222,13 @@ describe('LlmService', () => {
   });
 
   it('网络错误可重试', async () => {
-    httpsMock = new HttpsMock((i) => (i === 0 ? NETWORK_ERROR : okRes('recovered')));
+    httpsMock = new TransportMock(https, (i) => (i === 0 ? NETWORK_ERROR : okRes('recovered')));
     await expect(service.chat('s', 'u')).resolves.toBe('recovered');
     expect(httpsMock.request).toHaveBeenCalledTimes(2);
   });
 
   it('超时重试耗尽后抛 timed out', async () => {
-    httpsMock = new HttpsMock(() => HANG);
+    httpsMock = new TransportMock(https, () => HANG);
     await expect(
       service.chat('s', 'u', 0.3, undefined, undefined, { timeoutMs: 10, retries: 1 }),
     ).rejects.toThrow(/timed out/);
@@ -232,7 +236,7 @@ describe('LlmService', () => {
   });
 
   it('chatMessages 透传多轮 messages，默认 max_tokens=8192', async () => {
-    httpsMock = new HttpsMock(() => okRes('hi'));
+    httpsMock = new TransportMock(https, () => okRes('hi'));
     const messages = [
       { role: 'system', content: 's1' },
       { role: 'user', content: 'u1' },
@@ -253,20 +257,72 @@ describe('LlmService', () => {
     expect(noKey.getModel()).toBeNull();
     await expect(noKey.chat('s', 'u')).rejects.toThrow('not configured');
   });
+
+  it('内网 http 端点：经 http 模块发往自定义端口，/v1 前缀保留（P0 内网化回归）', async () => {
+    const local = await makeService({ DEEPSEEK_BASE_URL: 'http://127.0.0.1:8080/v1' });
+    const httpMock = new TransportMock(http, () => okRes('local-ok'));
+    await expect(local.chat('s', 'u')).resolves.toBe('local-ok');
+    expect(httpMock.request).toHaveBeenCalledTimes(1);
+    expect(httpsMock.request).toHaveBeenCalledTimes(0); // 不许再走 https
+    const opts = httpMock.calls[0].opts;
+    expect(opts.hostname).toBe('127.0.0.1');
+    expect(opts.port).toBe(8080); // 旧实现硬编码 443
+    expect(opts.path).toBe('/v1/chat/completions'); // 旧实现构造器剥 /v1 → 404
+  });
+});
+
+describe('resolveLlmRequestTarget（base URL → 请求目标解析）', () => {
+  it('https 云端默认：443 + 根路径（无 /v1 前缀）', () => {
+    expect(resolveLlmRequestTarget('https://api.deepseek.com', '/chat/completions')).toEqual({
+      secure: true,
+      hostname: 'api.deepseek.com',
+      port: 443,
+      path: '/chat/completions',
+    });
+  });
+
+  it('https 云端带 /v1 写法：前缀保留（DeepSeek 双挂均兼容）', () => {
+    expect(resolveLlmRequestTarget('https://api.deepseek.com/v1', '/chat/completions')).toMatchObject({
+      secure: true,
+      port: 443,
+      path: '/v1/chat/completions',
+    });
+  });
+
+  it('http 本地端点：http 协议 + 自定义端口 + /v1 前缀（llama-server 形态）', () => {
+    expect(resolveLlmRequestTarget('http://10.60.14.20:8080/v1', '/chat/completions')).toEqual({
+      secure: false,
+      hostname: '10.60.14.20',
+      port: 8080,
+      path: '/v1/chat/completions',
+    });
+  });
+
+  it('尾斜杠被归一，不影响路径拼接', () => {
+    expect(resolveLlmRequestTarget('http://10.60.14.20:8080/v1/', '/chat/completions').path).toBe(
+      '/v1/chat/completions',
+    );
+  });
+
+  it('无显式端口时按协议默认 80/443，自定义端口原样透传', () => {
+    expect(resolveLlmRequestTarget('http://host', '/x').port).toBe(80);
+    expect(resolveLlmRequestTarget('https://host:8443/v1', '/x').port).toBe(8443);
+  });
 });
 
 describe('LlmSemaphore', () => {
-  let httpsMock: HttpsMock;
+  let httpsMock: TransportMock;
 
   afterEach(() => {
     (https as any).request = origHttpsRequest;
+    (http as any).request = origHttpRequest;
   });
 
   it('并发封顶：4 个任务、上限 2 → 同时在飞 ≤ 2', async () => {
     const service = await makeService({ LLM_MAX_CONCURRENCY: '2' });
     let inFlight = 0;
     let maxInFlight = 0;
-    httpsMock = new HttpsMock((_i, _payload, req) => {
+    httpsMock = new TransportMock(https, (_i, _payload, req) => {
       inFlight++;
       maxInFlight = Math.max(maxInFlight, inFlight);
       setTimeout(() => {
@@ -282,7 +338,7 @@ describe('LlmSemaphore', () => {
 
   it('出错必释放，后续调用不死锁', async () => {
     const service = await makeService({ LLM_MAX_CONCURRENCY: '2' });
-    httpsMock = new HttpsMock((i) => (i < 2 ? errRes(400) : okRes('ok')));
+    httpsMock = new TransportMock(https, (i) => (i < 2 ? errRes(400) : okRes('ok')));
     await expect(service.chat('s', 'u')).rejects.toThrow(/400/);
     await expect(service.chat('s', 'u')).rejects.toThrow(/400/);
     await expect(service.chat('s', 'u')).resolves.toBe('ok');
@@ -290,7 +346,7 @@ describe('LlmSemaphore', () => {
 
   it('排队中 abort：拒绝且不占槽位', async () => {
     const service = await makeService({ LLM_MAX_CONCURRENCY: '1' });
-    httpsMock = new HttpsMock(() => HANG);
+    httpsMock = new TransportMock(https, () => HANG);
 
     const p1 = service.chat('s', 'u'); // 占住唯一槽位
     await new Promise((r) => setImmediate(r));
