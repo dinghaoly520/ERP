@@ -67,3 +67,11 @@ describe('checkBidNoticeElements（GB/T 43711 7.2.2.5）', () => {
     expect(withReason.map(w => w.item)).not.toContain('直接采购理由');
   });
 });
+
+  it('提示文案无英文键名（2026-10-30 用户裁定）：全部消息纯中文业务指引', () => {
+    const warnings = checkBidNoticeElements({ title: '', content: '', metadata: {} });
+    expect(warnings.length).toBeGreaterThan(0);
+    for (const w of warnings) {
+      expect(/^[^a-zA-Z]*$/.test(w.message)).toBe(true); // 不再泄漏 metadata.xxx 等开发键名
+    }
+  });

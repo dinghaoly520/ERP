@@ -410,8 +410,8 @@ export class AnnouncementController {
 
   @Post('bid-notice-checklist')
   @Roles('admin', 'bid_host', 'leader', 'staff')
-  @ApiOperation({ summary: '采购公告要素完整性预检（GB/T 43711 7.2.2.5，dry-run，警告不阻断）' })
-  previewChecklist(@Body() dto: Pick<CreateAnnouncementDto, 'title' | 'content' | 'metadata' | 'relatedProjectCode'>) {
+  @ApiOperation({ summary: '采购公告要素完整性预检（GB/T 43711 7.2.2.5，dry-run，警告不阻断；仅采购公告，流标/中标公告不检）' })
+  previewChecklist(@Body() dto: Pick<CreateAnnouncementDto, 'type' | 'title' | 'content' | 'metadata' | 'relatedProjectCode'>) {
     return this.announcementService.previewBidNoticeChecklist(dto);
   }
 

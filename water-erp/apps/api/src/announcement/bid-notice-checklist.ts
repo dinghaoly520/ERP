@@ -30,17 +30,17 @@ export function checkBidNoticeElements(input: BidNoticeChecklistInput): Checklis
 
   // 1. 采购项目名称和编码（7.2.2.5）
   if (!title.trim() || !(meta.projectCode || input.relatedProjectCode)) {
-    warnings.push({ item: '项目名称和编码', clause: '7.2.2.5', message: '缺少项目编号（metadata.projectCode 或 relatedProjectCode）' });
+    warnings.push({ item: '项目名称和编码', clause: '7.2.2.5', message: '缺少项目编号——请在「关联信息」中选择关联项目，或补填项目编号' });
   }
 
   // 2. 采购交易方式（7.2.2.5）
   if (!meta.method) {
-    warnings.push({ item: '采购交易方式', clause: '7.2.2.5', message: '未填写采购交易方式（metadata.method）' });
+    warnings.push({ item: '采购交易方式', clause: '7.2.2.5', message: '未填写采购交易方式——请在公告制作中核对采购方式' });
   }
 
   // 3. 供应商资格条件（7.2.2.5；直接采购类无投标竞争，向导有意省略，跳过）
   if (!isDirectProcurementMethod(meta.method) && !meta.qualification && !/资格|资质/.test(content)) {
-    warnings.push({ item: '供应商资格条件', clause: '7.2.2.5', message: '未填写供应商资格条件（metadata.qualification）' });
+    warnings.push({ item: '供应商资格条件', clause: '7.2.2.5', message: '未填写供应商资格条件——请在公告制作的报名方式及条件中补充' });
   }
 
   // 4. 采购文件获取方法（7.2.2.5）
@@ -50,7 +50,7 @@ export function checkBidNoticeElements(input: BidNoticeChecklistInput): Checklis
 
   // 5. 响应文件递交截止时间（竞价采购为报价开始时间）（7.2.2.5）
   if (!meta.deadline) {
-    warnings.push({ item: '递交截止时间', clause: '7.2.2.5', message: '未填写响应文件递交截止/竞价开始时间（metadata.deadline）' });
+    warnings.push({ item: '递交截止时间', clause: '7.2.2.5', message: '未填写响应文件递交截止/竞价开始时间——填写开标时间后自动推导' });
   }
 
   // 6. 异议渠道（7.2.2.5 / 4.1.4.1）
@@ -58,17 +58,17 @@ export function checkBidNoticeElements(input: BidNoticeChecklistInput): Checklis
   // 发布时冻结为 metadata.objectionContact、详情页单独展示；公告文段不要求重复载明。
   // 判据三选一：metadata.objection（中标公告正文式）或 objectionContact（澄清说明式）或正文含「异议」。
   if (!meta.objection && !meta.objectionContact && !/异议/.test(content)) {
-    warnings.push({ item: '异议渠道', clause: '7.2.2.5', message: '公告未载明供应商提出异议的渠道和方式（metadata.objection / objectionContact）' });
+    warnings.push({ item: '异议渠道', clause: '7.2.2.5', message: '公告未载明供应商提出异议的渠道和方式——请先在「澄清说明」中维护异议联系方式' });
   }
 
   // 7. 采购人签章（7.2.2.5；公告模板页脚一般含章，正文/元数据均无则提示）
   if (!/章|签章|盖章/.test(content) && !meta.contact) {
-    warnings.push({ item: '采购人签名签章', clause: '7.2.2.5', message: '未检出签章或联系方式（metadata.contact）' });
+    warnings.push({ item: '采购人签名签章', clause: '7.2.2.5', message: '未检出签章或联系方式——请核对公告落款与联系人信息' });
   }
 
   // 8. 直接采购方式理由（7.2.2.3：公布选择理由及拟邀请供应商）
   if (isDirectProcurementMethod(meta.method) && !meta.directSourcingReason && !/论证|唯一|理由/.test(content)) {
-    warnings.push({ item: '直接采购理由', clause: '7.2.2.3', message: '直接采购项目须公布采购方式选择理由及拟邀请供应商（metadata.directSourcingReason）' });
+    warnings.push({ item: '直接采购理由', clause: '7.2.2.3', message: '直接采购项目须公布采购方式选择理由及拟邀请供应商——请在公告制作的论证意见中补充' });
   }
 
   return warnings;

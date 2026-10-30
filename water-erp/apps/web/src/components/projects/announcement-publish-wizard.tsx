@@ -1273,11 +1273,14 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       } catch {
         /* 查重失败不阻断发布 */
       }
-      // A3（GB/T 43711 7.2.2.5）：即时发布前做公告要素预检——警告不阻断，由经办确认放行
+      // A3（GB/T 43711 7.2.2.5）：即时发布前做公告要素预检——警告不阻断，由经办确认放行。
+      // 类型闸（2026-10-30）：要素清单是**采购公告**的法定要素，流标/中标公告不检
+      // （实录：流标公告发布被误报「直接采购理由缺失」——要素语义错配的无效提醒）
       const status: AnnouncementStatus = publishTiming !== 'now' ? 'DRAFT' : 'PUBLISHED';
-      if (status === 'PUBLISHED') {
+      if (status === 'PUBLISHED' && announcementType === 'BID_NOTICE') {
         try {
           const { warnings } = await previewBidNoticeChecklist({
+            type: announcementType,
             title,
             content: textContent.trim() || title,
             metadata: meta as Record<string, any>,

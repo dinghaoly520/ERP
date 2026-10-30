@@ -1336,3 +1336,17 @@ describe('定时发布稳健性（2026-10-29 审计 B/C/E）', () => {
     expect(sunshine.onPublish).not.toHaveBeenCalled();
   });
 });
+
+describe('previewBidNoticeChecklist 类型闸（2026-10-30 流标公告误报实录）', () => {
+  it('流标/中标公告不检（要素清单是采购公告的法定要素）；不带 type 的旧调用维持原检', async () => {
+    const svc = new (AnnouncementService as any)({}, {});
+    const failed = await svc.previewBidNoticeChecklist({ type: 'FAILED_BID_NOTICE', title: '', content: '', metadata: {} });
+    expect(failed.warnings).toEqual([]);
+    const win = await svc.previewBidNoticeChecklist({ type: 'WIN_BID_NOTICE', title: '', content: '', metadata: {} });
+    expect(win.warnings).toEqual([]);
+    const bid = await svc.previewBidNoticeChecklist({ type: 'BID_NOTICE', title: '', content: '', metadata: {} });
+    expect(bid.warnings.length).toBeGreaterThan(0);
+    const legacy = await svc.previewBidNoticeChecklist({ title: '', content: '', metadata: {} });
+    expect(legacy.warnings.length).toBeGreaterThan(0);
+  });
+});

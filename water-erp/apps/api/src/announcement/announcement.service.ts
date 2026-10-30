@@ -717,8 +717,11 @@ export class AnnouncementService {
   /**
    * A3（GB/T 43711 7.2.2.5）：采购公告要素预检（dry-run）。
    * 前端在提交发布前调用，弹窗展示缺失要素，确认后照常提交。
+   * 类型闸（2026-10-30）：与发布路径同口径——要素清单是**采购公告**（BID_NOTICE）的法定
+   * 要素，流标/中标公告不检（实录：流标公告发布被误报「直接采购理由缺失」，要素语义错配）。
    */
-  previewBidNoticeChecklist(dto: Pick<CreateAnnouncementDto, 'title' | 'content' | 'metadata' | 'relatedProjectCode'>) {
+  previewBidNoticeChecklist(dto: Pick<CreateAnnouncementDto, 'type' | 'title' | 'content' | 'metadata' | 'relatedProjectCode'>) {
+    if (dto.type && dto.type !== 'BID_NOTICE') return { warnings: [] };
     return { warnings: checkBidNoticeElements(dto) };
   }
 

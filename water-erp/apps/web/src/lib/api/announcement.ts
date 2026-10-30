@@ -165,9 +165,9 @@ export function createAnnouncement(data: {
   return api.post<AnnouncementListItem & { checklistWarnings?: Array<{ item: string; clause: string; message: string }> }>('/announcements', data);
 }
 
-/** A3（GB/T 43711 7.2.2.5）：采购公告发布前要素预检（dry-run，警告不阻断） */
+/** A3（GB/T 43711 7.2.2.5）：采购公告发布前要素预检（dry-run，警告不阻断；仅 BID_NOTICE，其余类型后端返回空） */
 export function previewBidNoticeChecklist(payload: {
-  title: string; content: string; metadata?: Record<string, any>; relatedProjectCode?: string;
+  type?: AnnouncementType; title: string; content: string; metadata?: Record<string, any>; relatedProjectCode?: string;
 }) {
   return api.post<{ warnings: Array<{ item: string; clause: string; message: string }> }>('/announcements/bid-notice-checklist', payload);
 }
