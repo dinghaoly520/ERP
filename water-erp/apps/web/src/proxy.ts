@@ -18,9 +18,17 @@ const AUTH_COOKIE_NAME = 'token_web';
 const UPSTREAM_TIMEOUT_MS = 15_000;
 const UPSTREAM_TIMEOUT_SLOW_MS = 120_000;
 const TRANSPORT_RETRY_DELAYS_MS = [400, 1_000, 3_000, 8_000];
+/** LLM 慢路径：后端内部另有重试退避，合法耗时可达分钟级。除 /api/ai/* 外还包括
+ *  文件导入 AI 识别（解析 PDF/docx + LLM 全字段分析，同步慢路径）——2026-10-30 实录：
+ *  import-autofill 未列入时吃 15s 硬超时，被误杀成 502「后端服务未启动」。 */
+const UPSTREAM_SLOW_PATH_PREFIXES = ['/api/ai/'];
+const UPSTREAM_SLOW_PATH_EXACT = ['/api/tender-write/import-autofill'];
 
 function upstreamTimeoutFor(pathname: string): number {
-  return pathname.startsWith('/api/ai/') ? UPSTREAM_TIMEOUT_SLOW_MS : UPSTREAM_TIMEOUT_MS;
+  return UPSTREAM_SLOW_PATH_PREFIXES.some((p) => pathname.startsWith(p))
+    || UPSTREAM_SLOW_PATH_EXACT.includes(pathname)
+    ? UPSTREAM_TIMEOUT_SLOW_MS
+    : UPSTREAM_TIMEOUT_MS;
 }
 
 interface UpstreamResult {
@@ -104,9 +112,24 @@ export async function proxy(request: NextRequest) {
         statusText: upstream.statusText,
         headers: resHeaders,
       });
-    } catch {
+    } catch (err) {
+      // 分型报真实原因（2026-10-30 用户裁定：不允许「后端服务未启动」假错误直抛）——
+      // 超时（AbortError）≠ 后端未启动；传输层失败报底层信息供定位
+      const isTimeout = err instanceof Error && (err.name === 'AbortError' || err.name === 'TimeoutError');
+      if (isTimeout) {
+        return new NextResponse(
+          JSON.stringify({
+            statusCode: 504,
+            code: 'UPSTREAM_TIMEOUT',
+            error: `后端响应超时：${request.nextUrl.pathname} 超过 ${upstreamTimeoutFor(request.nextUrl.pathname) / 1000} 秒代理时限（AI 分析类请求耗时较长，请稍后重试）`,
+          }),
+          { status: 504, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      const detail = err instanceof Error ? err.message : String(err);
+      console.error(`[proxy] upstream 失败 ${request.method} ${targetUrl}:`, detail);
       return new NextResponse(
-        JSON.stringify({ statusCode: 502, code: 'PROXY_ERROR', error: '后端服务未启动' }),
+        JSON.stringify({ statusCode: 502, code: 'PROXY_ERROR', error: `后端请求失败：${detail}` }),
         { status: 502, headers: { 'Content-Type': 'application/json' } },
       );
     }
