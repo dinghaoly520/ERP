@@ -10,6 +10,8 @@
  * 信息确认设计（2026-10-30 用户口径）：与新建项目弹窗大致一致——字段行 + 逐项 AI 识别
  * （读上传文档原文，aiIdentifyField）+ AI 推荐 + 采购事由/供方要求 AI 优化
  * （polishInitiationField）；采购方式红标强调（chip 格栅）。
+ * 2026-10-30 二次裁定：删「采购组织形式」「年度预算内」两项；「采购类别」由自由文本
+ * 改为与新建弹窗一致的固定选项下拉。
  * 入口：流标公告发布后自动弹（向导 onPublished 链）/ 流标提示条「收尾处理」（公告闸后）。
  * 终止分支不在本组件内做——onRequestTerminate 唤起面板既有终止对话框。
  */
@@ -29,6 +31,7 @@ import {
   type ReprocBody,
 } from '@/lib/api/project-management';
 import {
+  PROCUREMENT_CATEGORY_OPTIONS,
   PROCUREMENT_METHODS,
   PROCUREMENT_METHOD_STAGES,
   type FieldCandidate,
@@ -43,13 +46,14 @@ const START_OPTIONS: Array<{ key: ReprocBody['startStageKey']; label: string; hi
   { key: 'TENDER_DOCUMENT', label: '采购文件', hint: '需求立项沿用，重编采购文件' },
 ];
 
-/** 信息确认字段：formKey（本表单）/ aiKey（AI 识别与解析端点的业务键）/ label */
+/** 信息确认字段：formKey（本表单）/ aiKey（AI 识别与解析端点的业务键）/ label
+ *（2026-10-30 用户裁定：删「采购组织形式」「年度预算内」；「采购类别」对齐新建弹窗——
+ *  固定选项下拉（PROCUREMENT_CATEGORY_OPTIONS），不再自由文本） */
 const FIELD_DEFS = [
   { formKey: 'requesterName', aiKey: 'requesterName', label: '需求申请人' },
   { formKey: 'requesterDepartment', aiKey: 'requesterDepartment', label: '需求部门' },
   { formKey: 'title', aiKey: 'procurementTitle', label: '采购事项名称' },
-  { formKey: 'procurementCategory', aiKey: 'procurementCategory', label: '采购品类' },
-  { formKey: 'procurementOrganizationForm', aiKey: 'procurementOrganizationForm', label: '采购组织形式' },
+  { formKey: 'procurementCategory', aiKey: 'procurementCategory', label: '采购类别' },
 ] as const;
 
 /** 多行长文本字段：支持 AI 优化（同新建弹窗） */
@@ -82,7 +86,6 @@ export function AbortRestartDialog({
   // 信息确认表单（预填 PMI 当前值；需求/立项起点按新上传文件解析结果覆盖）
   const [form, setForm] = useState<Record<string, string>>({});
   const [budgetInput, setBudgetInput] = useState('');
-  const [annualBudget, setAnnualBudget] = useState(true);
   const [method, setMethod] = useState<string>(item.procurementMethod);
   const [startStage, setStartStage] = useState<ReprocBody['startStageKey']>('TENDER_DOCUMENT');
 
@@ -112,11 +115,9 @@ export function AbortRestartDialog({
       procurementCategory: item.procurementCategory ?? '',
       projectReason: item.projectReason ?? '',
       supplierRequirements: item.supplierRequirements ?? '',
-      procurementOrganizationForm: item.procurementOrganizationForm ?? '',
       initiationDate: item.initiationDate ? new Date(item.initiationDate).toISOString().slice(0, 10) : '',
     });
     setBudgetInput(item.budgetAmount != null ? String(item.budgetAmount) : '');
-    setAnnualBudget(item.isAnnualBudget ?? true);
     setMethod(item.procurementMethod);
     setStartStage('TENDER_DOCUMENT');
     setUploading(false); setUploadedName(''); setUploadedFile(null); setExtractedText(''); setExtractedCount(0);
@@ -137,6 +138,14 @@ export function AbortRestartDialog({
     const idx = tpl.findIndex((s) => s.key === startStage);
     return idx >= 0 ? tpl.slice(idx) : [];
   }, [method, startStage]);
+
+  // 采购类别选项（对齐新建弹窗固定选项；存量/AI 识别值不在列表时附加显示，避免下拉静默丢值）
+  const categoryOptions = useMemo(() => {
+    const cur = (form.procurementCategory ?? '').trim();
+    return cur && !PROCUREMENT_CATEGORY_OPTIONS.includes(cur)
+      ? [...PROCUREMENT_CATEGORY_OPTIONS, cur]
+      : PROCUREMENT_CATEGORY_OPTIONS;
+  }, [form.procurementCategory]);
 
   const methodChanged = method !== item.procurementMethod;
 
@@ -162,13 +171,11 @@ export function AbortRestartDialog({
       put('procurementCategory', f.procurementCategory, item.procurementCategory);
       put('projectReason', f.projectReason, item.projectReason);
       put('supplierRequirements', f.supplierRequirements, item.supplierRequirements);
-      put('procurementOrganizationForm', f.procurementOrganizationForm, item.procurementOrganizationForm);
       if (f.initiationDate) put('initiationDate', f.initiationDate, item.initiationDate ? new Date(item.initiationDate).toISOString().slice(0, 10) : '');
       if (f.budgetAmount != null && Number.isFinite(Number(f.budgetAmount))) {
         setBudgetInput(String(f.budgetAmount));
         if (Number(f.budgetAmount) !== item.budgetAmount) count++;
       }
-      if (typeof f.isAnnualBudget === 'boolean') setAnnualBudget(f.isAnnualBudget);
       setUploadedName(file.name);
       setUploadedFile(file);
       setExtractedText(result.extractedText ?? '');
@@ -227,13 +234,12 @@ export function AbortRestartDialog({
   const handleConfirm = async () => {
     setBusy(true);
     try {
-      // 差异收集：字符串字段 + 预算 + 年度预算 + 立项日期
+      // 差异收集：字符串字段 + 预算 + 立项日期（组织形式/年度预算已随 2026-10-30 裁定移出本页，保持原值）
       const basicInfo: NonNullable<ReprocBody['basicInfo']> = {};
       const origin: Record<string, unknown> = {
         requesterName: item.requesterName, requesterDepartment: item.requesterDepartment,
         title: item.title, procurementCategory: item.procurementCategory,
         projectReason: item.projectReason, supplierRequirements: item.supplierRequirements,
-        procurementOrganizationForm: item.procurementOrganizationForm,
       };
       for (const f of [...FIELD_DEFS, ...LONG_FIELD_DEFS]) {
         const v = (form[f.formKey] ?? '').trim();
@@ -241,7 +247,6 @@ export function AbortRestartDialog({
       }
       const budget = Number(budgetInput);
       if (budgetInput.trim() && Number.isFinite(budget) && budget !== item.budgetAmount) basicInfo.budgetAmount = budget;
-      if (annualBudget !== item.isAnnualBudget) basicInfo.isAnnualBudget = annualBudget;
       const dateStr = (form.initiationDate ?? '').trim();
       if (dateStr && (!item.initiationDate || dateStr !== new Date(item.initiationDate).toISOString().slice(0, 10))) {
         basicInfo.initiationDate = dateStr;
@@ -279,8 +284,8 @@ export function AbortRestartDialog({
     : step === 'upload' ? `继续采购 · 上传${startStage === 'PROCUREMENT_DEMAND' ? '采购需求表' : '立项文件'}`
     : '继续采购 · 确认项目信息';
 
-  /** 字段行（与新建弹窗评审页同款）：标签 + AI 识别钮 + 输入 + AI 推荐候选 */
-  const renderAiField = (def: { formKey: string; aiKey: string; label: string }, long = false) => (
+  /** 字段行（与新建弹窗评审页同款）：标签 + AI 识别钮 + 输入（options 存在时为下拉）+ AI 推荐候选 */
+  const renderAiField = (def: { formKey: string; aiKey: string; label: string; options?: string[]; placeholder?: string }, long = false) => (
     <div key={def.formKey} className={long ? 'sm:col-span-2' : ''}>
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-xs font-semibold text-[color:var(--foreground)]">{def.label}</span>
@@ -315,6 +320,17 @@ export function AbortRestartDialog({
             {polishing[def.formKey] ? <Loader2 size={13} className="animate-spin" /> : <><Wand2 size={13} className="inline mr-0.5" />AI 优化</>}
           </button>
         </div>
+      ) : def.options ? (
+        <select
+          value={form[def.formKey] ?? ''}
+          onChange={(e) => setForm((prev) => ({ ...prev, [def.formKey]: e.target.value }))}
+          className="workbench-input w-full text-sm"
+        >
+          <option value="">{def.placeholder ?? '请选择'}</option>
+          {def.options.map((o) => (
+            <option key={o} value={o}>{o}</option>
+          ))}
+        </select>
       ) : (
         <input
           value={form[def.formKey] ?? ''}
@@ -544,9 +560,14 @@ export function AbortRestartDialog({
 
           <div className="wb-section-rule" />
 
-          {/* 字段区：与新建弹窗评审页同款（标签 + AI 识别 + 输入 + AI 推荐） */}
+          {/* 字段区：与新建弹窗评审页同款（标签 + AI 识别 + 输入 + AI 推荐）；
+              采购类别为固定选项下拉（2026-10-30 对齐新建弹窗） */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {FIELD_DEFS.map((f) => renderAiField(f))}
+            {FIELD_DEFS.map((f) => renderAiField(
+              f.formKey === 'procurementCategory'
+                ? { ...f, options: categoryOptions, placeholder: '请选择采购类别' }
+                : f,
+            ))}
             <div>
               <span className="block mb-1.5 text-xs font-semibold text-[color:var(--foreground)]">采购预算（元）</span>
               <input value={budgetInput} onChange={(e) => setBudgetInput(e.target.value)} inputMode="decimal" className="workbench-input w-full text-sm" />
@@ -560,10 +581,6 @@ export function AbortRestartDialog({
                 className="workbench-input w-full text-sm"
               />
             </div>
-            <label className="flex items-center gap-2 text-sm self-end pb-1.5">
-              <input type="checkbox" checked={annualBudget} onChange={(e) => setAnnualBudget(e.target.checked)} />
-              年度预算内
-            </label>
             {LONG_FIELD_DEFS.map((f) => renderAiField(f, true))}
           </div>
           <p className="text-xs text-[var(--muted-foreground)]">有修改的字段将更新到项目基本信息；未修改的保持原值。</p>
