@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dayjs from "dayjs";
 import { Paperclip, Trophy } from "lucide-react";
 import { toast } from "sonner";
 import { SpButton, SpDateInput, SpDialog, SpInput, SpTextarea } from "@/components/ui";
@@ -50,11 +51,32 @@ export function PerformanceTransferDialog({
 
   async function submit() {
     if (!cur.projectName.trim()) { toast.warning("请填写项目名称"); return; }
+    if (cur.proofFiles.length === 0) {
+      toast.warning("业绩须包含证明材料——请先在来源处上传证明文件后再转入");
+      return;
+    }
     setBusy(true);
     try {
-      // 提交时即时拉当前业绩，防陈旧覆盖（整表替换语义下必须基于最新行 append）
+      // 提交时即时拉当前业绩，防陈旧覆盖（业绩行整表替换语义下必须基于最新行 append）。
+      // getProfile 返回 SupplierPerformance 库行（含 id/recordType/ISO 日期）——须映射为
+      // 提交草稿形状，且滤掉 A-213 奖惩行（recordType=reward/punishment 归 :3005 管理端
+      // 维护，混入会被复制成业绩行）
       const profile = await supplierApi.getProfile();
-      const rows: unknown[] = Array.isArray(profile?.performances) ? profile.performances : [];
+      type DbRow = {
+        projectName: string; recordType?: string; clientName?: string | null;
+        contractAmount?: string | null; signDate?: string | null; description?: string | null;
+        proofFiles?: unknown;
+      };
+      const rows = (Array.isArray(profile?.performances) ? profile.performances : [] as DbRow[])
+        .filter((r: DbRow) => !r.recordType || r.recordType === "performance")
+        .map((r: DbRow) => ({
+          projectName: r.projectName,
+          clientName: r.clientName ?? "",
+          contractAmount: r.contractAmount ?? "",
+          signDate: r.signDate ? dayjs(r.signDate).format("YYYY-MM-DD") : "",
+          description: r.description ?? "",
+          proofFiles: Array.isArray(r.proofFiles) ? r.proofFiles : [],
+        }));
       await supplierApi.createChangeRequest({
         fieldName: "performances",
         fieldLabel: "主体业绩",

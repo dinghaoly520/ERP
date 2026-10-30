@@ -223,7 +223,12 @@ export default function ProfilePage() {
     return Array.isArray(tags) && tags.length > 0 ? tags : [];
   }, [profile]);
   const bankAccounts = useMemo<any[]>(() => (Array.isArray(profile?.bankAccounts) ? profile.bankAccounts : []), [profile]);
-  const performances = useMemo<any[]>(() => (Array.isArray(profile?.performances) ? profile.performances : []), [profile]);
+  // A-213 奖惩行（recordType=reward/punishment，:3005 管理端录入）不算「我的业绩」——
+  // 展示与业绩编辑草稿都只取业绩行（2026-10-30：混入会被业绩变更审批复制成业绩行）
+  const performances = useMemo<any[]>(
+    () => (Array.isArray(profile?.performances) ? profile.performances : []).filter((x: any) => !x.recordType || x.recordType === "performance"),
+    [profile],
+  );
 
   /* 资质删除 */
   const qHandleDelete = async (id: string) => {
@@ -325,7 +330,9 @@ export default function ProfilePage() {
     }));
     setCrBanks(banks);
     setCrBanksOrig(JSON.stringify(banks.map(normBank)));
-    const perfs: PerfDraft[] = (Array.isArray(p.performances) ? p.performances : []).map((x: any) => ({
+    const perfs: PerfDraft[] = (Array.isArray(p.performances) ? p.performances : [])
+      .filter((x: any) => !x.recordType || x.recordType === "performance") // 奖惩行不入业绩草稿（见上方 performances memo 注）
+      .map((x: any) => ({
       projectName: x.projectName ?? "", clientName: x.clientName ?? "", contractAmount: x.contractAmount ?? "",
       signDate: x.signDate ? dayjs(x.signDate).format("YYYY-MM-DD") : "", description: x.description ?? "",
       // kind 随行保留（2026-09-29）：汇款凭证与证明材料在展示端按 kind 区分，编辑回读不丢标记

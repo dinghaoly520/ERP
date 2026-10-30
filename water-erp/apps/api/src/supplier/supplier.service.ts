@@ -2868,7 +2868,9 @@ export class SupplierService {
         let parsed: any[];
         try { parsed = JSON.parse(change.newValue || '[]'); if (!Array.isArray(parsed)) throw new Error(); }
         catch { throw new BadRequestException({ error: '业绩格式不正确', code: 'INVALID_PERFORMANCES' }); }
-        await tx.supplierPerformance.deleteMany({ where: { supplierId: change.supplierId } });
+        // 只替换供应商自报业绩行（A-213 奖惩记录 recordType=reward/punishment 同表共存，
+        // :3005 管理端录入）——此前 deleteMany 全表会把奖惩行随一次业绩变更审批静默抹掉
+        await tx.supplierPerformance.deleteMany({ where: { supplierId: change.supplierId, recordType: 'performance' } });
         for (const p of parsed) {
           if (!p?.projectName) {
             throw new BadRequestException({ error: '业绩项目名称必填', code: 'INVALID_PERFORMANCES' });
