@@ -2,9 +2,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {
   alignSignatureParagraphs,
+  breakGluedSupervisionLabels,
   extractAnnouncementContentHtml,
   normalizeAnnouncementHtml,
   joinSoftWrappedPlainText,
+  stripBlankParagraphs,
 } from './announcement-content-html.util';
 
 describe('alignSignatureParagraphs（落款右对齐）', () => {
@@ -127,6 +129,22 @@ describe('软换行安全网 normalizeAnnouncementHtml（2026-10-22 重立，仅
     expect(normalizeAnnouncementHtml(html)).toBe(html);
   });
 
+  it('监督块各行（标签起始、无句读收尾）不被软换行合并吞掉（2026-10-30 根因：模板本各占一段，合并安全网粘回）', () => {
+    const html =
+      '<p>六、监督举报</p><p>监督部门：监察部</p><p>地址：四川省成都市双流区红莲街</p><p>联系人：杨戬</p><p>监督电话：02868686868</p>';
+    expect(normalizeAnnouncementHtml(html)).toBe(html);
+  });
+
+  it('监督电话行（数字收尾）不与其后落款段合并', () => {
+    const html =
+      '<p>监督电话：02868686868</p><p>四川水发勘测设计研究有限公司</p><p>2026年10月30日</p>';
+    const out = alignSignatureParagraphs(normalizeAnnouncementHtml(html));
+    expect(out).toContain('<p>监督电话：02868686868</p>');
+    expect(out).toContain(
+      '<p style="text-align:right">四川水发勘测设计研究有限公司</p>',
+    );
+  });
+
   it('表格结构不跨界合并：单元格间隔含 </td><td> 非空白', () => {
     const html =
       '<table><tr><td><p>勘察设</p></td><td><p>计咨询</p></td></tr></table>';
@@ -169,5 +187,48 @@ describe('纯文本软换行合并 joinSoftWrappedPlainText（纯文本→HTML �
   it('拉丁词跨行补空格、数字直连', () => {
     expect(joinSoftWrappedPlainText('采用 Deep\nSeek 模型')).toBe('采用 Deep Seek 模型');
     expect(joinSoftWrappedPlainText('总价 1,234\n567.89 元')).toBe('总价 1,234567.89 元');
+  });
+});
+
+describe('breakGluedSupervisionLabels（监督块粘连标签断行，2026-10-30）', () => {
+  it('四标签粘连一段 → 每个非段首标签前插 <br/>（5 公告模板监督块实录形态）', () => {
+    const html = '<p>监督部门：监察部地址：四川省成都市双流区红莲街联系人：杨戬监督电话：02868686868</p>';
+    expect(breakGluedSupervisionLabels(html)).toBe(
+      '<p>监督部门：监察部<br/>地址：四川省成都市双流区红莲街<br/>联系人：杨戬<br/>监督电话：02868686868</p>',
+    );
+  });
+
+  it('段首标签不插（首个标签位于段首时保持原位）', () => {
+    const html = '<p>地址：双流区联系人：王先生</p>';
+    expect(breakGluedSupervisionLabels(html)).toBe('<p>地址：双流区<br/>联系人：王先生</p>');
+  });
+
+  it('单标签段不触发（正常正文中的孤立「联系人：」零扰动）', () => {
+    const html = '<p>联系人：张三</p><p>如有疑问请与我方联系。</p>';
+    expect(breakGluedSupervisionLabels(html)).toBe(html);
+  });
+
+  it('带样式属性的段落（mammoth 输出右对齐落款等）同样处理纯文本段', () => {
+    const html = '<p style="text-align:right">监督部门：A地址：B联系人：C监督电话：D</p>';
+    expect(breakGluedSupervisionLabels(html)).toBe(
+      '<p style="text-align:right">监督部门：A<br/>地址：B<br/>联系人：C<br/>监督电话：D</p>',
+    );
+  });
+
+  it('段内含内联标签（非纯文本）时不动——防误切格式段', () => {
+    const html = '<p>地址：<strong>甲</strong>联系人：乙</p>';
+    expect(breakGluedSupervisionLabels(html)).toBe(html);
+  });
+});
+
+describe('stripBlankParagraphs（纯空白段剔除，2026-10-30）', () => {
+  it('空格/全角空格/nbsp 纯空白段移除，有内容段保留', () => {
+    const html = '<p>正文一</p><p>   </p><p>　</p><p> </p><p>正文二</p>';
+    expect(stripBlankParagraphs(html)).toBe('<p>正文一</p><p>正文二</p>');
+  });
+
+  it('无空白段时原样返回', () => {
+    const html = '<p>正文</p>';
+    expect(stripBlankParagraphs(html)).toBe(html);
   });
 });

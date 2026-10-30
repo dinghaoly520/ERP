@@ -65,6 +65,10 @@ export function collapseMidWordBreaks(html: string): string {
 /** 纯日期段（落款）与惯用收尾行——保持独立段，防合并破坏落款右对齐/公告套话结构 */
 const PURE_DATE_RE = /^\d{4}年\d{1,2}月\d{1,2}日$/;
 const CLOSING_LINE_RE = /^(特此公告|特此公示|特此通知|特此说明)$/;
+/** 监督块标签起始行（2026-10-30 根因修复）：公告 docx 模板监督四行各占一段且均无
+ *  句读收尾——软换行合并安全网曾把它们粘回一段（门户/预览「监督举报不换行」实录）。
+ *  前侧守卫防其吞并后段（监督电话行数字收尾 + 落款段），后侧守卫防其被前段吞并。 */
+const SUPERVISION_LABEL_START_RE = /^(监督部门|地址|联系人|监督电话)：/;
 
 export function collapseSoftWrappedParagraphs(html: string): string {
   if (!html.includes('<p')) return html;
@@ -96,7 +100,9 @@ export function collapseSoftWrappedParagraphs(html: string): string {
         !PURE_DATE_RE.test(prevText) &&
         !PURE_DATE_RE.test(curText) &&
         !CLOSING_LINE_RE.test(prevText) &&
-        !CLOSING_LINE_RE.test(curText);
+        !CLOSING_LINE_RE.test(curText) &&
+        !SUPERVISION_LABEL_START_RE.test(curText) &&
+        !SUPERVISION_LABEL_START_RE.test(prevText);
       if (mergeable) {
         const merged = joinLineTokens(
           out[prevIdx].replace(/<\/p>\s*$/i, ''),
@@ -143,7 +149,9 @@ export function joinSoftWrappedPlainText(text: string): string {
       !PURE_DATE_RE.test(prevText) &&
       !PURE_DATE_RE.test(curText) &&
       !CLOSING_LINE_RE.test(prevText) &&
-      !CLOSING_LINE_RE.test(curText);
+      !CLOSING_LINE_RE.test(curText) &&
+      !SUPERVISION_LABEL_START_RE.test(curText) &&
+      !SUPERVISION_LABEL_START_RE.test(prevText);
     if (mergeable) {
       out[out.length - 1] = joinLineTokens(prev!, line);
     } else {
@@ -191,10 +199,51 @@ export function alignSignatureParagraphs(html: string): string {
   return before + alignedDate + html.slice(last.index + last.len);
 }
 
-/** 公告 docx → 正文 HTML（表格保结构 + 跨 run「采购采购」归一 + 软换行安全网 + 落款右对齐） */
+/** 公告 docx → 正文 HTML（表格保结构 + 跨 run「采购采购」归一 + 软换行安全网 + 监督块断行 + 落款右对齐） */
 export async function extractAnnouncementContentHtml(buffer: Buffer): Promise<string> {
   const result = await mammoth.convertToHtml({ buffer });
+  // 顺序：软换行安全网先跑（其段合并条件「前段无句末标点」会把刚断行的监督段
+  // 重新粘回——断行必须在其后）；空白段剔除放在落款对齐前，别让空白段
+  // 隔断「采购人段+日期段」的紧邻判定
   return alignSignatureParagraphs(
-    normalizeAnnouncementHtml(normalizeRepeatedCaiGou(result.value || '')),
+    stripBlankParagraphs(
+      breakGluedSupervisionLabels(
+        normalizeAnnouncementHtml(normalizeRepeatedCaiGou(result.value || '')),
+      ),
+    ),
   );
+}
+
+/* ── 监督举报块粘连断行 + 空白段剔除（2026-10-30 用户实录：5 个公告 docx 模板的
+      监督块整块一段，mammoth 转出单 <p> 粘连「监督部门：X地址：Y联系人：Z监督电话：W」，
+      门户与发布预览全部串行。模板层已同步拆段根治；此处为生成侧安全网——模板若被
+      旧文件重导入仍兜底。仅纯文本段处理，≥2 个监督标签同段才触发，正常正文零扰动）── */
+
+const SUPERVISION_LABELS = ['监督部门：', '地址：', '联系人：', '监督电话：'];
+
+/** 监督块粘连标签断行：段文本含 ≥2 个监督标签时，每个非段首标签前插 <br/> */
+export function breakGluedSupervisionLabels(html: string): string {
+  if (!html.includes('<p')) return html;
+  return html.replace(/<p([^>]*)>([^<]*)<\/p>/g, (para, attrs: string, text: string) => {
+    const hits = SUPERVISION_LABELS.filter((l) => text.includes(l));
+    if (hits.length < 2) return para;
+    let out = text;
+    for (const label of SUPERVISION_LABELS) {
+      const parts = out.split(label);
+      if (parts.length < 2) continue;
+      const firstAtParaStart = parts[0].trim() === '';
+      out = parts.reduce((acc, part, i) => {
+        if (i === 0) return part;
+        const br = i === 1 && firstAtParaStart ? '' : '<br/>';
+        return `${acc}${br}${label}${part}`;
+      }, '');
+    }
+    return `<p${attrs}>${out}</p>`;
+  });
+}
+
+/** 纯空白段剔除：docx 里用空格段撑间距（`<p>     </p>`），HTML 折叠空格后成空行 */
+export function stripBlankParagraphs(html: string): string {
+  if (!html.includes('<p')) return html;
+  return html.replace(/<p[^>]*>[\s 　]*<\/p>/g, '');
 }
