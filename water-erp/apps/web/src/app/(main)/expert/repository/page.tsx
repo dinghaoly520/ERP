@@ -231,12 +231,12 @@ export default function ExpertRepositoryPage() {
                     </button>
                   </th>
                 )}
-                <SortableTh label="专家" field="displayName" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
-                <SortableTh label="专业" field="expertProfile.specialty" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
-                <SortableTh label="职称" field="expertProfile.title" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
+                <SortableTh label="专家" field="displayName" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} center />
+                <SortableTh label="专业" field="expertProfile.specialty" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} center />
+                <SortableTh label="职称" field="expertProfile.title" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} center />
                 <th className="text-center">部门</th>
                 <th className="text-center" title="参评次数（签到出席）/ 受邀次数（分配项目总数）">参评/受邀</th>
-                <SortableTh label="评价次数" field="_count.expertEvaluations" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
+                <SortableTh label="评价次数" field="_count.expertEvaluations" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} center />
                 <th className="text-center">平均等级</th>
                 <th className="text-center">最近评价</th>
                 <th className="text-center" title="入库状态（待审核/在库/暂停/退库）；在库时同时显示可用性（可用/评审中/已停用）">状态</th>
@@ -267,12 +267,12 @@ export default function ExpertRepositoryPage() {
                 return (
                   <tr key={e.id} className="row-clickable" onClick={() => !batchMode && router.push(`/expert/${e.id}`)}>
                     {batchMode && (
-                      <td onClick={ev => ev.stopPropagation()} className="pl-3">
+                      <td onClick={ev => ev.stopPropagation()} className="text-center">
                         <input type="checkbox" className="neu-checkbox" checked={selectedIds.has(e.id)} onChange={() => toggleSelect(e.id)} aria-label={`选择 ${e.displayName}`} />
                       </td>
                     )}
-                    <td>
-                      <div className="flex items-center gap-2.5">
+                    <td className="text-center">
+                      <div className="flex items-center justify-center gap-2.5">
                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_oklch,var(--accent)_9%,transparent)] text-xs font-extrabold text-[var(--accent)]">{e.displayName[0]}</div>
                         <span className="text-sm font-bold text-[var(--foreground)] truncate hover:text-[var(--accent)] transition-colors">{e.displayName}</span>
                       </div>

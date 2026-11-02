@@ -33,14 +33,16 @@ export function useSort<T>(defaultKey: string, defaultDir: SortDir = 'desc') {
 }
 
 /** Renders sortable table header using .neu-table th + .neu-th-sort classes. */
-export function SortableTh({ label, field, sortKey, sortDir, onToggle }: {
+export function SortableTh({ label, field, sortKey, sortDir, onToggle, center }: {
   label: string; field: string; sortKey: string; sortDir: SortDir; onToggle: (f: string) => void;
+  /** 表头居中（与内容列对齐；缺省左对齐保持既有页面行为） */
+  center?: boolean;
 }) {
   const active = sortKey === field;
   const Indicator = active ? (sortDir === 'asc' ? ChevronUp : ChevronDown) : ChevronsUpDown;
   return (
-    <th data-sortable="true" data-sort={active ? sortDir : undefined}>
-      <button type="button" className="neu-th-sort" onClick={() => onToggle(field)}>
+    <th data-sortable="true" data-sort={active ? sortDir : undefined} className={center ? 'text-center' : undefined}>
+      <button type="button" className={`neu-th-sort${center ? ' mx-auto' : ''}`} onClick={() => onToggle(field)}>
         <span>{label}</span>
         <span className="neu-sort-indicator"><Indicator size={12} /></span>
       </button>
