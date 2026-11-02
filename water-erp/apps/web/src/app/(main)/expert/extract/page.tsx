@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { localDateInputValue, localTimeInputValue } from '@/lib/local-date';
-import { useCompanyInfo, pickDefaultPlace } from '@/lib/api/company-info';
+import { useCompanyInfo } from '@/lib/api/company-info';
 import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, specialtyPoolCounts, listPoolCompanies, listExperts, getDemandRepDirectory, getBidProjectDetail, getProjectInvitations, proxyMarkExpertInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, type DemandRepDirectoryItem } from '@/lib/api/expert';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
@@ -1463,9 +1463,11 @@ export function ExpertExtractPage({
       .catch(() => {});
     return () => { alive = false; };
   }, []);
-  // 开标地点=该公司信息管理维护的默认开标地点（2026-10-27 用户口径）——自动带出可改；仅空值时填入
+  // 开标地点=该公司信息管理维护的开标地点（2026-10-27 口径；2026-11-02 用户裁定放宽）——
+  // 直接填入默认：显式默认条目 → 首条（未设默认也预填，不再空着等手填）→ 旧单值字段兜底；仍仅空值时填入、可手改/下拉换
   const companyInfo = useCompanyInfo();
-  const defaultPlace = pickDefaultPlace(companyInfo);
+  const placeList = companyInfo?.places ?? [];
+  const defaultPlace = placeList.find(p => p.isDefault)?.address ?? placeList[0]?.address ?? companyInfo?.bidOpeningAddress ?? null;
   // 公司信息管理维护的开标地点列表（2026-11-02 用户裁定）：≥2 个时通知关键词「开标地点」改下拉选择
   const openPlaceOptions = (companyInfo?.places ?? []).map(p => p.address ?? '').map(a => a.trim()).filter(Boolean);
   useEffect(() => {
