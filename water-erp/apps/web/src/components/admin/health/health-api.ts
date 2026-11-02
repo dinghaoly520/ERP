@@ -9,7 +9,7 @@ export type Probe = { ok: boolean; latencyMs: number; error?: string };
 export type HealthReport = {
   checkedAt: string;
   components: {
-    db: Probe & { activeConns: number; maxConns: number; sizeBytes: number };
+    db: Probe & { activeConns: number; maxConns: number; sizeBytes: number; product: string; versionRaw: string };
     redis: Probe & { usedMemoryBytes: number; clients: number; uptimeSec: number };
     minio: Probe;
     ocr: { ok: boolean; upCount: number; total: number; replicas: Array<{ url: string; ok: boolean; latencyMs: number }> };

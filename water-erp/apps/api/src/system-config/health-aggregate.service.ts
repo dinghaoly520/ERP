@@ -18,7 +18,7 @@ export type QueueSnapshot = {
 export type HealthReport = {
   checkedAt: string;
   components: {
-    db: { ok: boolean; latencyMs: number; error?: string; activeConns: number; maxConns: number; sizeBytes: number };
+    db: { ok: boolean; latencyMs: number; error?: string; activeConns: number; maxConns: number; sizeBytes: number; product: string; versionRaw: string };
     redis: { ok: boolean; latencyMs: number; error?: string; usedMemoryBytes: number; clients: number; uptimeSec: number };
     minio: { ok: boolean; latencyMs: number; error?: string };
     ocr: { ok: boolean; upCount: number; total: number; replicas: Array<{ url: string; ok: boolean; latencyMs: number }> };
@@ -53,6 +53,16 @@ export class HealthAggregateService {
   private static infoLine(info: string, key: string): number {
     const m = info.match(new RegExp(`^${key}:(.*)$`, 'm'));
     return m ? Number(m[1].trim()) || 0 : 0;
+  }
+
+  /** version() 串 → 展示标签。金仓 PG 模式 version() 带 KingbaseES 标识（主栈 :54321 已切金仓），
+   *  PG 原生取主版本号；探不出（探针失败/非 PG 协议）退「数据库」——标签只陈述已验证的事实。 */
+  private static dbProductLabel(version: string | null | undefined): { product: string; versionRaw: string } {
+    const v = (version ?? '').trim();
+    if (!v) return { product: '数据库', versionRaw: '' };
+    if (/kingbase/i.test(v)) return { product: '金仓 KingbaseES', versionRaw: v };
+    const pg = v.match(/PostgreSQL\s+(\d+)/i);
+    return { product: pg ? `PostgreSQL ${pg[1]}` : v.split(',')[0], versionRaw: v };
   }
 
   private async apiMetrics() {
@@ -132,10 +142,11 @@ export class HealthAggregateService {
 
   async read(): Promise<HealthReport> {
     const [dbP, redisP, minioP, replicas, api, errs, slow, tender, bidder, worker] = await Promise.all([
-      this.timed(() => this.prisma.$queryRaw<Array<{ activeConns: number; maxConns: number; sizeBytes: bigint }>>`
+      this.timed(() => this.prisma.$queryRaw<Array<{ activeConns: number; maxConns: number; sizeBytes: bigint; version: string }>>`
         SELECT (SELECT numbackends::int FROM pg_stat_database WHERE datname = current_database()) AS "activeConns",
                (SELECT setting::int FROM pg_settings WHERE name = 'max_connections') AS "maxConns",
-               pg_database_size(current_database())::bigint AS "sizeBytes"`),
+               pg_database_size(current_database())::bigint AS "sizeBytes",
+               (SELECT version()) AS "version"`),
       this.timed(() => this.redis.ping().then(() => this.redis.info())),
       this.timed(() => this.storage.ensureBucket()),
       this.ocr.probeReplicas().catch(() => [] as Array<{ url: string; ok: boolean; latencyMs: number }>),
@@ -144,6 +155,7 @@ export class HealthAggregateService {
       readWorkerHeartbeat(this.redis).catch(() => ({ alive: false, count: 0, lastBeatAgoSec: null })),
     ]);
     const dbStats = dbP.value?.[0];
+    const { product, versionRaw } = HealthAggregateService.dbProductLabel(dbStats?.version);
     const info = redisP.value ?? '';
     return {
       checkedAt: new Date().toISOString(),
@@ -152,6 +164,7 @@ export class HealthAggregateService {
           ok: dbP.ok, latencyMs: dbP.latencyMs, error: dbP.error,
           activeConns: dbStats?.activeConns ?? 0, maxConns: dbStats?.maxConns ?? 0,
           sizeBytes: Number(dbStats?.sizeBytes ?? 0),
+          product, versionRaw,
         },
         redis: {
           ok: redisP.ok, latencyMs: redisP.latencyMs, error: redisP.error,

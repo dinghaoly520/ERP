@@ -20,7 +20,7 @@ function mkMinutesHash() {
 function mkSvc(over: { prisma?: any; redis?: any; storage?: any; ocr?: any; tender?: any; bidder?: any } = {}) {
   const prisma: any = over.prisma ?? {
     $queryRaw: jest.fn().mockResolvedValue([
-      { activeConns: 3, maxConns: 200, sizeBytes: 1234567890n },
+      { activeConns: 3, maxConns: 200, sizeBytes: 1234567890n, version: 'PostgreSQL 16.4 (Debian 16.4-1) x86_64' },
     ]),
     operationLog: { findMany: jest.fn().mockResolvedValue([]) },
   };
@@ -50,7 +50,7 @@ function mkSvc(over: { prisma?: any; redis?: any; storage?: any; ocr?: any; tend
 describe('HealthAggregateService.read', () => {
   it('聚合形状：组件实质指标 + 全量口径 api24h（窗口过滤）+ 小时序列 + Top 榜 + 队列快照 + worker', async () => {
     const r = await mkSvc().read();
-    expect(r.components.db).toMatchObject({ activeConns: 3, maxConns: 200 });
+    expect(r.components.db).toMatchObject({ activeConns: 3, maxConns: 200, product: 'PostgreSQL 16' });
     expect(r.components.redis).toMatchObject({ usedMemoryBytes: 1048576, clients: 8, uptimeSec: 3600 });
     expect(r.components.ocr).toMatchObject({ upCount: 1, total: 1 });
     // 窗口外 999 被忽略：total = 5+10+20 = 35，errors = 1+2 = 3
@@ -101,5 +101,29 @@ describe('HealthAggregateService.read', () => {
     await svc.recentErrors(20.7);
     const takes = (prisma.operationLog.findMany as jest.Mock).mock.calls.map((c: any[]) => c[0].take);
     expect(takes).toEqual([20, 20]);
+  });
+
+  // ── db product 标签（2026-11-02：健康页「PostgreSQL」硬编码失实——主栈已切金仓）──
+  it('db product：金仓 version 串 → 「金仓 KingbaseES」+ 完整串透传', async () => {
+    const prisma: any = {
+      $queryRaw: jest.fn().mockResolvedValue([
+        { activeConns: 1, maxConns: 100, sizeBytes: 1n, version: 'PostgreSQL 12.6 (KingbaseES V008R006C009B0014 Single Server) x86_64' },
+      ]),
+      operationLog: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const r = await mkSvc({ prisma }).read();
+    expect(r.components.db.product).toBe('金仓 KingbaseES');
+    expect(r.components.db.versionRaw).toContain('KingbaseES V008');
+  });
+
+  it('db product：探针失败/无 version → 退「数据库」，不虚构厂商', async () => {
+    const prisma: any = {
+      $queryRaw: jest.fn().mockRejectedValue(new Error('connect ECONNREFUSED')),
+      operationLog: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const r = await mkSvc({ prisma }).read();
+    expect(r.components.db.ok).toBe(false);
+    expect(r.components.db.product).toBe('数据库');
+    expect(r.components.db.versionRaw).toBe('');
   });
 });

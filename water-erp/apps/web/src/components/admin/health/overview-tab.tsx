@@ -151,7 +151,7 @@ export function OverviewTab({ data, loading, isAdmin, reload }: {
         </div>
         <div className="neu-table-card">
           <div className="neu-table-card-header flex flex-wrap items-center justify-between gap-3">
-            <span className="text-sm font-semibold tracking-wide" title="近 24 小时，操作日志口径">耗时最长的接口</span>
+            <span className="text-sm font-semibold tracking-wide" title="近 24 小时，操作日志口径">P95 耗时最高的接口</span>
           </div>
           <div className="overflow-x-auto">
             <table className="neu-table w-full min-w-[480px]">

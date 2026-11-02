@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Activity, AlertTriangle, Cpu, Database, Gauge, HardDrive, RefreshCw, ScanText, ScrollText, Server } from 'lucide-react';
 import { fetchCurrentUser } from '@/lib/api/auth';
-import { fmtBytes, fmtSecAgo, healthApi, type HealthReport } from '@/components/admin/health/health-api';
+import { fmtAgo, fmtBytes, fmtSecAgo, healthApi, type HealthReport } from '@/components/admin/health/health-api';
 import { OverviewTab } from '@/components/admin/health/overview-tab';
 import { OperationLogTab } from '@/components/admin/health/operation-log-tab';
 
@@ -17,15 +17,15 @@ import { OperationLogTab } from '@/components/admin/health/operation-log-tab';
    ═══════════════════════════════════════════════════════════════ */
 
 /** 探活瓷片：label + 状态徽标（pill 可覆盖）+ 实质指标副行 */
-function ProbeTile({ icon, name, probe, sub, pill }: {
-  icon: React.ReactNode; name: string;
+function ProbeTile({ icon, name, nameTitle, probe, sub, pill }: {
+  icon: React.ReactNode; name: string; nameTitle?: string;
   probe?: { ok: boolean; latencyMs: number; error?: string };
   sub?: string; pill?: string;
 }) {
   return (
     <div className="kpi-card flex h-full flex-col gap-1.5 p-3">
       <div className="flex items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+        <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]" title={nameTitle}>
           {icon} {name}
         </span>
         {probe && (
@@ -43,6 +43,21 @@ function ProbeTile({ icon, name, probe, sub, pill }: {
 }
 
 type TabKey = 'overview' | 'log';
+
+/** 分析服务副行三态（2026-11-02 文案修正）：心跳只证明进程存活、不证明在消费——
+ *  消费态看队列快照（active/waiting），快照不可用时只陈述「在线」，不虚构消费。 */
+function workerSub(data: HealthReport): string {
+  const known = [data.queues.tenderProcessing, data.queues.bidderProcessing].filter((q): q is NonNullable<typeof q> => q != null);
+  if (known.length === 0) return `共 ${data.worker.count} 个进程在线`;
+  const active = known.reduce((s, q) => s + q.active, 0);
+  const waiting = known.reduce((s, q) => s + q.waiting, 0);
+  if (active > 0) return `共 ${data.worker.count} 个进程 · 正在处理 ${active} 个（等待 ${waiting} 个）`;
+  const lastFin = known.reduce<string | null>((m, q) => {
+    if (!q.lastFinishedAt) return m;
+    return !m || Date.parse(q.lastFinishedAt) > Date.parse(m) ? q.lastFinishedAt : m;
+  }, null);
+  return `共 ${data.worker.count} 个进程在线 · 队列空闲${lastFin ? ` · 最近完成 ${fmtAgo(lastFin)}` : ''}`;
+}
 
 function HealthPageInner() {
   const router = useRouter();
@@ -106,7 +121,7 @@ function HealthPageInner() {
         </div>
         <div className="page-hero__divider" />
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-          <ProbeTile icon={<Database size={11} />} name="PostgreSQL" probe={data?.components.db}
+          <ProbeTile icon={<Database size={11} />} name={data?.components.db.product ?? '数据库'} nameTitle={data?.components.db.versionRaw || undefined} probe={data?.components.db}
             sub={data ? `连接 ${data.components.db.activeConns}/${data.components.db.maxConns} · 数据 ${fmtBytes(data.components.db.sizeBytes)}` : undefined} />
           <ProbeTile icon={<Server size={11} />} name="Redis" probe={data?.components.redis}
             sub={data ? `内存 ${fmtBytes(data.components.redis.usedMemoryBytes)} · 连接 ${data.components.redis.clients}` : undefined} />
@@ -118,7 +133,7 @@ function HealthPageInner() {
           <ProbeTile icon={<Cpu size={11} />} name="分析服务" probe={data ? { ok: data.worker.alive, latencyMs: 0 } : undefined}
             pill={data ? (data.worker.alive ? `心跳 ${data.worker.lastBeatAgoSec ?? 0} 秒前` : '未运行') : undefined}
             sub={data ? (data.worker.alive
-              ? `共 ${data.worker.count} 个进程在消费任务`
+              ? workerSub(data)
               : `最后心跳 ${data.worker.lastBeatAgoSec != null ? fmtSecAgo(data.worker.lastBeatAgoSec) : '无记录'}，任务将积压`) : undefined} />
         </div>
       </div>
