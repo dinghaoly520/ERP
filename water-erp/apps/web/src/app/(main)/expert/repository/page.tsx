@@ -211,8 +211,8 @@ export default function ExpertRepositoryPage() {
                 让所有分组表同名列严格对齐（此前各组自适应宽，组间列错位） */}
             <colgroup>
               {batchMode && <col style={{ width: 44 }} />}
-              <col style={{ width: 140 }} />
-              <col style={{ width: 115 }} />
+              <col style={{ width: 120 }} />
+              <col style={{ width: 135 }} />
               <col style={{ width: 130 }} />
               <col style={{ width: 150 }} />
               <col style={{ width: 95 }} />
