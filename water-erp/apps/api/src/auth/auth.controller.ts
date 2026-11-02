@@ -368,14 +368,19 @@ export class AuthController {
   @Get('departments')
   @AnyRole()
   @ApiOperation({ summary: '获取部门列表（下拉选择用，公司隔离）' })
-  async listDepartments(@Req() req: any) {
+  async listDepartments(@Query('scope') scope: string | undefined, @Req() req: any) {
     // 2026-11-02 公司隔离：只返回当前用户本公司的部门——此前全量返回专家库导入的
     // 101 条跨公司杂糅部门（部门+职务混编），他司组织信息不应出现在个人资料下拉。
-    // 例外：admin 平台级视野（密码审批面板需映射全平台申请人部门名）返回全量。
+    // admin 亦按本人公司过滤（个人资料下拉同口径——全量例外曾致 admin 见 102 条
+    // 且同名跨公司行撞下拉 key）；平台级全量（密码审批面板的申请人部门名映射）走
+    // 显式 ?scope=platform，仅 admin 可用。
     const u = req?.user?.sub
       ? await this.prisma.user.findUnique({ where: { id: req.user.sub }, select: { companyId: true, role: true } })
       : null;
-    if (u?.role === 'admin') {
+    if (scope === 'platform') {
+      if (u?.role !== 'admin') {
+        throw new ForbiddenException({ error: '仅管理员可使用平台级视野', code: 'FORBIDDEN' });
+      }
       return this.prisma.department.findMany({
         select: { id: true, name: true, code: true },
         orderBy: { name: 'asc' },

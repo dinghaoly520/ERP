@@ -187,7 +187,7 @@ export function PasswordRequestsPanel() {
       setResetRequests(pendingReset);
       setProfileRequests(pendingProfile);
       // 部门表独立拉取（失败时降级显示原 id）
-      fetchDepartments()
+      fetchDepartments('platform')
         .then((ds) => setDepartmentMap(Object.fromEntries(ds.map((d) => [d.id, d.name]))))
         .catch(() => setDepartmentMap({}));
     } catch {

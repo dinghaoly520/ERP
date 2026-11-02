@@ -435,8 +435,10 @@ export async function findOrCreateDepartment(name: string): Promise<DepartmentIt
   });
 }
 
-export async function fetchDepartments(): Promise<DepartmentItem[]> {
-  return requestJson<DepartmentItem[]>(`${API_BASE}/auth/departments`, {
+/** scope=platform：admin 平台级全量（密码审批面板映射申请人部门名用；非 admin 403） */
+export async function fetchDepartments(scope?: 'platform'): Promise<DepartmentItem[]> {
+  const qs = scope ? '?scope=platform' : '';
+  return requestJson<DepartmentItem[]>(`${API_BASE}/auth/departments${qs}`, {
     credentials: 'include',
     cache: 'no-store',
   });
