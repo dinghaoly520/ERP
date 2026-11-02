@@ -18,6 +18,7 @@ function makePrisma(tables: {
   apps?: Array<{ id: string; status: string }>;
   tags?: Array<{ id: string; status: string }>;
   changeRecords?: Array<{ supplierId: string; status: string }>;
+  bidProjects?: Array<{ id: string; stage: string; projectManagementItemId: string | null }>;
   pwChanges?: Array<{ id: string; status: string }>;
   pwResets?: Array<{ id: string; status: string }>;
   profileChanges?: Array<{ id: string; status: string }>;
@@ -29,6 +30,7 @@ function makePrisma(tables: {
   const apps = tables.apps ?? [];
   const tags = tables.tags ?? [];
   const changeRecords = tables.changeRecords ?? []; // SupplierChangeRecord（含 supplierId）
+  const bidProjects = tables.bidProjects ?? [];     // BidProject（stage 镜像）
   const pwChanges = tables.pwChanges ?? [];         // PasswordChangeRequest
   const pwResets = tables.pwResets ?? [];           // PasswordResetRequest
   const profileChanges = tables.profileChanges ?? []; // ProfileChangeRequest
@@ -90,6 +92,15 @@ function makePrisma(tables: {
     },
     businessTag: {
       count: jest.fn(async ({ where }: any) => tags.filter((t) => t.status === where.status).length),
+    },
+    bidProject: {
+      findMany: jest.fn(async ({ where }: any) =>
+        bidProjects.filter((x) =>
+          where.id?.in ? where.id.in.includes(x.id)
+            : where.projectManagementItemId?.in ? where.projectManagementItemId.in.includes(x.projectManagementItemId)
+              : where.stage === undefined || x.stage === where.stage)),
+      count: jest.fn(async ({ where }: any) =>
+        bidProjects.filter((x) => where.stage === undefined || x.stage === where.stage).length),
     },
     supplierChangeRecord: {
       findMany: jest.fn(async ({ where }: any) =>
@@ -315,5 +326,63 @@ describe('sweepStaleActionableNotifications', () => {
     });
     await sweepStaleActionableNotifications(prisma as any);
     expect(prisma._unresolved()).toEqual(['n3']);
+  });
+
+  it('开标移交·带 PMI 精确对账：项目已启动评标/归档/流标消解，仍在开标中保留', async () => {
+    const link = (pmi: string) => `/projects?projectId=${pmi}&panel=bid-confirm`;
+    const prisma = makePrisma({
+      notifications: [
+        N('h1', 'BID_OPENING_HANDED_OVER', link('pmi-eval'), ''),
+        N('h2', 'BID_OPENING_HANDED_OVER', link('pmi-archived'), ''),
+        N('h3', 'BID_OPENING_HANDED_OVER', link('pmi-aborted'), ''),
+        N('h4', 'BID_OPENING_HANDED_OVER', link('pmi-opening'), ''),
+        N('h5', 'BID_OPENING_HANDED_OVER', link('pmi-gone'), ''),
+      ],
+      bidProjects: [
+        { id: 'b1', stage: 'EVALUATING', projectManagementItemId: 'pmi-eval' },
+        { id: 'b2', stage: 'ARCHIVED', projectManagementItemId: 'pmi-archived' },
+        { id: 'b3', stage: 'ABORTED', projectManagementItemId: 'pmi-aborted' },
+        { id: 'b4', stage: 'OPENING', projectManagementItemId: 'pmi-opening' },
+      ],
+    });
+    await sweepStaleActionableNotifications(prisma as any);
+    // 启动评标/归档/流标=移交待办已办结；PMI 消失（项目删除）同消；仍在开标中保留
+    expect(prisma._unresolved()).toEqual(['h4']);
+  });
+
+  it('开标移交·无 PMI 形态（link=/projects）：全库仍有开标中项目时保守保留，否则全清', async () => {
+    // 场景 A：仍有 OPENING 项目（可能已移交未处理）→ 不清（宁留勿杀）
+    const a = makePrisma({
+      notifications: [N('h1', 'BID_OPENING_HANDED_OVER', '/projects', '')],
+      bidProjects: [{ id: 'b1', stage: 'OPENING', projectManagementItemId: null }],
+    });
+    await sweepStaleActionableNotifications(a as any);
+    expect(a._unresolved()).toEqual(['h1']);
+
+    // 场景 B：无任何 OPENING 项目 → 无 id 形态全部办结，清
+    const b = makePrisma({
+      notifications: [N('h1', 'BID_OPENING_HANDED_OVER', '/projects', '')],
+      bidProjects: [{ id: 'b2', stage: 'ARCHIVED', projectManagementItemId: null }],
+    });
+    await sweepStaleActionableNotifications(b as any);
+    expect(b._unresolved()).toEqual([]);
+  });
+
+  it('解密异常·供应商待办随项目终局消解：归档/流标消，评标中（裁决窗口）保留', async () => {
+    const link = (bid: string) => `/my-bids/${bid}/opening-hall`;
+    const prisma = makePrisma({
+      notifications: [
+        N('d1', 'BID_DECRYPT_FAILED', link('b-archived'), ''),
+        N('d2', 'BID_DECRYPT_FAILED', link('b-aborted'), ''),
+        N('d3', 'BID_DECRYPT_FAILED', link('b-evaluating'), ''),
+      ],
+      bidProjects: [
+        { id: 'b-archived', stage: 'ARCHIVED', projectManagementItemId: null },
+        { id: 'b-aborted', stage: 'ABORTED', projectManagementItemId: null },
+        { id: 'b-evaluating', stage: 'EVALUATING', projectManagementItemId: null },
+      ],
+    });
+    await sweepStaleActionableNotifications(prisma as any);
+    expect(prisma._unresolved()).toEqual(['d3']);
   });
 });

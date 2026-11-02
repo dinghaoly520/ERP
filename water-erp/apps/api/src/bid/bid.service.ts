@@ -1487,7 +1487,7 @@ export class BidService {
   async abortBidProject(id: string, actorId?: string, reason?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { id: true, name: true, stage: true, procurementMethod: true, assignedHostUserId: true, _count: { select: { suppliers: true } } },
+      select: { id: true, name: true, stage: true, procurementMethod: true, assignedHostUserId: true, projectManagementItemId: true, _count: { select: { suppliers: true } } },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
 
@@ -1563,6 +1563,9 @@ export class BidService {
         });
       } catch { /* 审计失败不阻断 */ }
     }
+
+    // 流标=开标移交待办办结（即时消解，sweep 兜底存量）
+    this.resolveHandoverTodo(project.projectManagementItemId);
 
     return updated;
   }
@@ -2396,6 +2399,9 @@ export class BidService {
         }).catch(() => {});
       }
     } catch { /* 通知失败不阻塞评标启动 */ }
+
+    // 启动评标=开标移交待办办结（即时消解，sweep 兜底存量）
+    this.resolveHandoverTodo(project.projectManagementItemId);
 
     return updated;
   }
@@ -4313,6 +4319,9 @@ export class BidService {
       );
     }
 
+    // 归档=开标移交待办办结（即时消解，sweep 兜底存量）
+    this.resolveHandoverTodo(project.projectManagementItemId);
+
     return result;
   }
 
@@ -5292,6 +5301,31 @@ export class BidService {
     this.gateway?.notifyRoundStatusChange(projectId, { projectId, roundId: round.id, roundNo, status: 'open', timestamp: Date.now() });
 
     return round;
+  }
+
+  /**
+   * 开标移交待办消解（2026-11-02 他端待办对账）：BID_OPENING_HANDED_OVER 产生于
+   * completeOpening（:3007），办结动作=启动评标/归档/流标（stage 离开 OPENING）。
+   * link 与创建点同源 render（带 PMI 精确到项目）；无 PMI 形态（/projects）跨项目
+   * 不可精确归因，交给 stale-sweep 队列兜底（全库无开标中项目时清）。
+   */
+  private resolveHandoverTodo(projectManagementItemId: string | null | undefined) {
+    if (!projectManagementItemId) return;
+    try {
+      const tpl = renderNotificationPayload('BID_OPENING_HANDED_OVER', {
+        projectName: '',
+        auto: 0,
+        projectManagementItemId,
+      });
+      const link = (tpl as unknown as { link?: string } | undefined)?.link;
+      if (link) {
+        this.notificationService
+          .resolveActionable('BID_OPENING_HANDED_OVER', link)
+          .catch(() => {});
+      }
+    } catch {
+      // 消解失败不阻塞办结主流程（sweep 兜底）
+    }
   }
 
   /** 截止报价(密封) */

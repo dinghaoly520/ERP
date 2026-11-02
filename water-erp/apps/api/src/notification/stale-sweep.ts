@@ -21,6 +21,10 @@ import type { PrismaClient } from '@prisma/client';
  *  - PROFILE_CHANGE/PASSWORD_CHANGE/PASSWORD_RESET_PENDING（防御对账）：带 requestId 按
  *    请求实态消解；无 id 通用形态在对应队列空时兜底全消——动作侧消解钩子
  *    （password-requests.service）漏形态/换入口时由此兜底
+ *  - 开标移交/解密异常（2026-11-02 他端待办对账）：BID_OPENING_HANDED_OVER 产生于 :3007
+ *    完成开标、办结在 :3005 启动评标/归档/流标——带 PMI 按项目 stage 精确对账；无 PMI
+ *    形态（link=/projects）在全库无开标中项目时兜底全清。BID_DECRYPT_FAILED（供应商
+ *    DANGER 待办，裁决在 :3007）随项目终局（ARCHIVED/ABORTED）消解
  *
  * 事件性通知（资质到期 / 专家退库预警 / CA 到期等）的真值是"事件发生过"，不由本扫
  * 清除——已读兜底归档即可。调用方：Scheduler 每日、seed 装载后、scripts 手动补扫。
@@ -33,6 +37,7 @@ type SweepPrisma = Pick<
   | 'supplier'
   | 'supplierCompanyLink'
   | 'supplierChangeRecord'
+  | 'bidProject'
   | 'passwordChangeRequest'
   | 'passwordResetRequest'
   | 'profileChangeRequest'
@@ -304,6 +309,79 @@ export async function sweepStaleActionableNotifications(prisma: SweepPrisma): Pr
         if (pending === 0) {
           await resolveIds(type, '无 id 通用形态·请求队列已空', noId);
         }
+      }
+    }
+  }
+
+  // ── 4d) 开标域他端待办对账 ──
+  {
+    // a) 开标移交：带 PMI 精确——项目已启动评标/归档/流标（离开 OPENING）即办结；
+    //    PMI 指不到项目（已删）同样办结。无 PMI 形态（link=/projects）保守：
+    //    全库仍有 OPENING 项目时不清（可能已移交待处理），否则全清
+    const rows = await prisma.notification.findMany({
+      where: { type: 'BID_OPENING_HANDED_OVER', resolvedAt: null },
+      select: { id: true, link: true },
+    });
+    if (rows.length > 0) {
+      const byPmi = new Map<string, string[]>();
+      const noPmi: string[] = [];
+      for (const n of rows) {
+        const pmi = extractParam(n.link, 'projectId');
+        if (pmi) {
+          const arr = byPmi.get(pmi) ?? [];
+          arr.push(n.id);
+          byPmi.set(pmi, arr);
+        } else {
+          noPmi.push(n.id);
+        }
+      }
+      if (byPmi.size > 0) {
+        const projects = await prisma.bidProject.findMany({
+          where: { projectManagementItemId: { in: [...byPmi.keys()] } },
+          select: { stage: true, projectManagementItemId: true },
+        });
+        const stageByPmi = new Map(projects.map((x) => [x.projectManagementItemId!, x.stage]));
+        const stale: string[] = [];
+        for (const [pmi, ids] of byPmi) {
+          const stage = stageByPmi.get(pmi);
+          if (stage === undefined || stage !== 'OPENING') stale.push(...ids);
+        }
+        await resolveIds('BID_OPENING_HANDED_OVER', '按 PMI：项目已离开开标阶段/已删除', stale);
+      }
+      if (noPmi.length > 0) {
+        const openingCount = await prisma.bidProject.count({ where: { stage: 'OPENING' } });
+        if (openingCount === 0) {
+          await resolveIds('BID_OPENING_HANDED_OVER', '无 PMI 形态·全库已无开标中项目', noPmi);
+        }
+      }
+    }
+
+    // b) 解密异常（供应商 DANGER 待办）：项目终局后无处理意义
+    const decryptRows = await prisma.notification.findMany({
+      where: { type: 'BID_DECRYPT_FAILED', resolvedAt: null, link: { contains: '/my-bids/' } },
+      select: { id: true, link: true },
+    });
+    if (decryptRows.length > 0) {
+      const byProject = new Map<string, string[]>();
+      for (const n of decryptRows) {
+        const m = /\/my-bids\/([A-Za-z0-9_-]+)/.exec(n.link ?? '');
+        if (!m) continue;
+        const arr = byProject.get(m[1]) ?? [];
+        arr.push(n.id);
+        byProject.set(m[1], arr);
+      }
+      if (byProject.size > 0) {
+        const projects = await prisma.bidProject.findMany({
+          where: { id: { in: [...byProject.keys()] } },
+          select: { id: true, stage: true },
+        });
+        const stageById = new Map(projects.map((x) => [x.id, x.stage]));
+        const stale: string[] = [];
+        for (const [bid, ids] of byProject) {
+          const stage = stageById.get(bid);
+          if (stage === 'ARCHIVED' || stage === 'ABORTED' || stage === undefined) stale.push(...ids);
+        }
+        await resolveIds('BID_DECRYPT_FAILED', '项目已终局（归档/流标/删除）', stale);
       }
     }
   }
