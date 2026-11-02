@@ -2532,21 +2532,18 @@ export function ExpertExtractPage({
           {preview && !loading && (
               <div className="space-y-4">
                 {/* 第一步配置摘要（2026-11-02 用户口径：步骤2 可见专业配额；同日二次口径
-                    删「不可返回修改」提示与「委员会 N 席」chip——只留配额/方式本体） */}
+                    删「不可返回修改」提示与「委员会 N 席」chip；三次修正：配额与抽取方式
+                    是正交配置——manualQuotas 恒随请求发送（方式只决定池内选人规则），
+                    配额 chips 不得绑 specialty_match 分支，随机/择优方式下同样展示） */}
                 <div className="neu-table-card p-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">第一步配置 · 专业配额（已冻结）</span>
                     {demandRepItems.length > 0 && <span className="neu-tab-count">需求方（业主）代表 {demandRepItems.length} 人</span>}
-                    {extractMode === 'specialty_match' ? (
-                      <>
-                        {quotas.filter(quotaFilled).map((q, i) => (
-                          <span key={i} className="neu-tab-count">{quotaLabel(q)} × {q.count}</span>
-                        ))}
-                        {qt > 0 && <span className="neu-tab-count">按专业配额合计 {qt} 人</span>}
-                      </>
-                    ) : (
-                      <span className="neu-tab-count">{MODE_LABELS[extractMode as ExtractMode] ?? extractMode}</span>
-                    )}
+                    {quotas.map((q, i) => (
+                      <span key={i} className="neu-tab-count">{quotaLabel(q)} × {q.count}</span>
+                    ))}
+                    <span className="neu-tab-count">配额合计 {quotaSum} 人</span>
+                    <span className="neu-tab-count">{MODE_LABELS[extractMode as ExtractMode] ?? extractMode}</span>
                   </div>
                 </div>
 
