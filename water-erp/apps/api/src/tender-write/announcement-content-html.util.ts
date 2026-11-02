@@ -69,6 +69,11 @@ const CLOSING_LINE_RE = /^(特此公告|特此公示|特此通知|特此说明)$
  *  句读收尾——软换行合并安全网曾把它们粘回一段（门户/预览「监督举报不换行」实录）。
  *  前侧守卫防其吞并后段（监督电话行数字收尾 + 落款段），后侧守卫防其被前段吞并。 */
 const SUPERVISION_LABEL_START_RE = /^(监督部门|地址|联系人|监督电话)：/;
+/** 字段标签起始行（2026-11-02 根因修复）：「联系电话：028-xxx」（数字收尾无句读）
+ *  与「联系邮箱：xx@yy」等字段行各占一段——后段以「2-6 汉字+冒号」起始即字段标签行，
+ *  不是软换行续行，不得并入前段（发布预览「电子邮箱紧跟联系电话不换行」实录）。
+ *  仅守卫后段侧：前段是字段行、后段为普通文本时仍可能是该字段长值的换行延续，照常合并。 */
+const FIELD_LABEL_START_RE = /^[㐀-鿿]{2,6}：/;
 
 export function collapseSoftWrappedParagraphs(html: string): string {
   if (!html.includes('<p')) return html;
@@ -102,7 +107,8 @@ export function collapseSoftWrappedParagraphs(html: string): string {
         !CLOSING_LINE_RE.test(prevText) &&
         !CLOSING_LINE_RE.test(curText) &&
         !SUPERVISION_LABEL_START_RE.test(curText) &&
-        !SUPERVISION_LABEL_START_RE.test(prevText);
+        !SUPERVISION_LABEL_START_RE.test(prevText) &&
+        !FIELD_LABEL_START_RE.test(curText);
       if (mergeable) {
         const merged = joinLineTokens(
           out[prevIdx].replace(/<\/p>\s*$/i, ''),
@@ -151,7 +157,8 @@ export function joinSoftWrappedPlainText(text: string): string {
       !CLOSING_LINE_RE.test(prevText) &&
       !CLOSING_LINE_RE.test(curText) &&
       !SUPERVISION_LABEL_START_RE.test(curText) &&
-      !SUPERVISION_LABEL_START_RE.test(prevText);
+      !SUPERVISION_LABEL_START_RE.test(prevText) &&
+      !FIELD_LABEL_START_RE.test(curText);
     if (mergeable) {
       out[out.length - 1] = joinLineTokens(prev!, line);
     } else {

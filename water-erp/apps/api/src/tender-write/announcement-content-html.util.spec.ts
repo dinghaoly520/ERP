@@ -145,6 +145,17 @@ describe('软换行安全网 normalizeAnnouncementHtml（2026-10-22 重立，仅
     );
   });
 
+  it('字段标签行（2-6 汉字+冒号起始）不被前段吞并——联系电话（数字收尾）与联系邮箱各占一行（2026-11-02 实录：发布预览电子邮箱紧跟联系电话无换行）', () => {
+    const html =
+      '<p>联系人：张维刚</p><p>联系电话：028-87654321</p><p>联系邮箱：zhang@swsd.cn</p><p>开标地点：成都市高新区天府大道北段1号</p>';
+    expect(normalizeAnnouncementHtml(html)).toBe(html);
+  });
+
+  it('纯文本轨同口径：联系电话行与联系邮箱行不被软换行合并', () => {
+    const text = '联系人：张维刚\n联系电话：028-87654321\n联系邮箱：zhang@swsd.cn';
+    expect(joinSoftWrappedPlainText(text)).toBe(text);
+  });
+
   it('表格结构不跨界合并：单元格间隔含 </td><td> 非空白', () => {
     const html =
       '<table><tr><td><p>勘察设</p></td><td><p>计咨询</p></td></tr></table>';
