@@ -739,6 +739,33 @@ async function main() {
       console.log(`    旧快照专家清空 ${oldExperts.count} 名；ExpertLibrary 重建 ${rebuilt} 名（原表单位入 notes ${notesKept} 名）`);
     }
 
+    // 1.45b) 内部员工部门按专家归属分发（2026-11-02 部门公司隔离初始数据）：
+    //   专家名录携带的组织部门（原表单位/部门列）是各公司唯一可得的真实部门来源——
+    //   按专家归属公司分发出 companyId 部门行（专家引用的 null 行保持不动，专家域自治）；
+    //   职务杂糅名（以 部长/副部长/主任/副主任/岗 等结尾）不是部门，跳过。
+    {
+      const POSITION_SUFFIX = /(部长|副部长|主任|副主任|岗|总经理|经理|书记|主席|总工程师)$/;
+      const expertDepts = await prisma.user.findMany({
+        where: { role: 'bid_expert', companyId: { not: null }, departmentId: { not: null } },
+        select: { companyId: true, department: { select: { name: true } } },
+      });
+      const pairs = new Set<string>();
+      for (const e of expertDepts) {
+        const name = e.department?.name?.trim();
+        if (!name || !e.companyId || POSITION_SUFFIX.test(name)) continue;
+        pairs.add(`${e.companyId}\u0000${name}`);
+      }
+      let distributed = 0;
+      for (const pair of pairs) {
+        const [companyId, name] = pair.split('\u0000');
+        const existing = await prisma.department.findFirst({ where: { companyId, name }, select: { id: true } });
+        if (existing) continue;
+        await prisma.department.create({ data: { name, companyId } });
+        distributed++;
+      }
+      console.log(`    内部员工部门按专家归属分发：${distributed} 条（职务杂糅名已过滤）`);
+    }
+
     // 1.5) 专家（bid_expert）：快照无公司归属——统一归设计院本部（专家库公司隔离 2026-09-24，
     //      与存量回填脚本 scripts/backfill-expert-company.ts 同口径；后续新增专家由录入链路自操作人快照）
     const expertBackfill = await prisma.user.updateMany({
