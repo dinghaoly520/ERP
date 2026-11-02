@@ -272,6 +272,8 @@ export function ExpertExtractPage({
   const [showReplaceModal, setShowReplaceModal] = useState(false);
   const [replaceTarget, setReplaceTarget] = useState<{ userId: string; role: 'selected' | 'alternative' } | null>(null);
   const [replaceSearch, setReplaceSearch] = useState('');
+  // 选用理由查看弹窗（2026-11-02 用户口径：理由不内联进表——长文撑坏表格，改按钮+弹窗查看）
+  const [reasonView, setReasonView] = useState<{ name: string; reason: string } | null>(null);
   const [notifyChannelsByExpert, setNotifyChannelsByExpert] = useState<Map<string, string[]>>(new Map());
   const [notifyMessages, setNotifyMessages] = useState<Map<string, string>>(new Map());
   const [notifyVersion, setNotifyVersion] = useState(0);
@@ -2603,7 +2605,20 @@ export function ExpertExtractPage({
                                 <td className="text-center">
                                   <span className="inline-flex items-baseline gap-0.5 text-sm font-bold tabular-nums text-[var(--accent)]">{s.matchScore ?? c?.matchScore ?? '—'}<span className="text-[10px] font-semibold text-[var(--muted-foreground)]">分</span></span>
                                 </td>
-                                <td className="max-w-[260px] text-xs leading-5 text-[var(--muted-foreground)]" title={reason}>{reason ? reason.slice(0, 80) + (reason.length > 80 ? '…' : '') : '—'}</td>
+                                <td className="whitespace-nowrap">
+                                  {reason ? (
+                                    <button
+                                      type="button"
+                                      className="neu-btn-xs"
+                                      title="查看完整选用理由"
+                                      onClick={(e) => { e.stopPropagation(); setReasonView({ name: s.name, reason }); }}
+                                    >
+                                      查看
+                                    </button>
+                                  ) : (
+                                    <span className="text-xs text-[var(--muted-foreground)]">—</span>
+                                  )}
+                                </td>
                               </tr>
                             );
                           });
@@ -3855,6 +3870,21 @@ export function ExpertExtractPage({
               />
               <div className="mt-1 text-right text-[10px] tabular-nums text-[var(--muted-foreground)]">{exProxyReason.trim().length} / 500</div>
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* 选用理由查看弹窗（确认表「选用理由」列按钮唤起——理由长文不入表） */}
+      {reasonView && (
+        <Modal open onClose={() => setReasonView(null)} size="md">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-base font-bold text-[color:var(--foreground)]">选用理由</h3>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">{reasonView.name}</p>
+            </div>
+          </div>
+          <div className="mt-4 rounded-[14px] px-4 py-3.5" style={{ background: 'oklch(1 0 0 / 0.32)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)' }}>
+            <p className="text-sm leading-7 whitespace-pre-wrap break-words text-[color:var(--foreground)]">{reasonView.reason}</p>
           </div>
         </Modal>
       )}
