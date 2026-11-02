@@ -325,56 +325,81 @@ export async function sweepStaleActionableNotifications(prisma: SweepPrisma): Pr
     }
   }
 
-  // ── 4c2) 专家连拒预警跨公司错发清理（2026-11-02 实录：投资公司专家的预警发到了
-  // 设计公司 leader/staff——发送侧已修为按专家归属公司收窄，本规则清存量错发行。
-  // 按 content 提取「专家名」→ 反查专家归属公司，与接收人公司均明确且不等 → 删除
-  // （错发通知不该存在于历史；专家查不到/无归属/同名歧义 → 跳过，保守不动）。
+  // ── 4c2) 连拒预警跨公司错发清理（专家+供应商同构，2026-11-02 实录：投资公司专家的
+  // 预警发到了设计公司 leader/staff——发送侧已修为按归属公司收窄，本规则清存量错发。
+  // 按 content 提取「实体名」→ 反查归属公司，与接收人公司均明确且不等 → 删除
+  // （错发通知不该存在于历史；查不到/无归属/同名歧义 → 跳过，保守不动）。
   {
     const rows = await prisma.notification.findMany({
-      where: { type: 'EXPERT_DECLINE_STREAK' },
-      select: { id: true, content: true, userId: true },
+      where: { type: { in: ['EXPERT_DECLINE_STREAK', 'SUPPLIER_DECLINE_STREAK'] } },
+      select: { id: true, type: true, content: true, userId: true },
     });
     if (rows.length > 0) {
-      const names = new Set<string>();
+      const expertNames = new Set<string>();
+      const supplierNames = new Set<string>();
       for (const n of rows) {
         const m = /「(.+?)」/.exec(n.content ?? '');
-        if (m?.[1]) names.add(m[1]);
+        if (!m?.[1]) continue;
+        if (n.type === 'EXPERT_DECLINE_STREAK') expertNames.add(m[1]);
+        else supplierNames.add(m[1]);
       }
-      const experts = names.size
+      // 同名多公司歧义 → 该名不参与清理（唯一归属才采信）
+      const buildUniqueCompanyMap = (
+        pairs: Array<{ name: string; companyId: string | null }>,
+      ): Map<string, string> => {
+        const map = new Map<string, string>();
+        for (const e of pairs) {
+          if (!e.companyId) continue;
+          if (map.has(e.name) && map.get(e.name) !== e.companyId) {
+            map.delete(e.name);
+            continue;
+          }
+          map.set(e.name, e.companyId);
+        }
+        return map;
+      };
+      const experts = expertNames.size
         ? await prisma.user.findMany({
-            where: { displayName: { in: [...names] }, role: 'bid_expert' },
+            where: { displayName: { in: [...expertNames] }, role: 'bid_expert' },
             select: { displayName: true, companyId: true },
           })
         : [];
-      // 同名多公司歧义 → 该名不参与清理
-      const companyByExpertName = new Map<string, string>();
-      for (const e of experts) {
-        if (!e.companyId) continue;
-        if (companyByExpertName.has(e.displayName) && companyByExpertName.get(e.displayName) !== e.companyId) {
-          companyByExpertName.delete(e.displayName);
-          continue;
-        }
-        companyByExpertName.set(e.displayName, e.companyId);
-      }
+      const suppliersNamed = supplierNames.size
+        ? await prisma.supplier.findMany({
+            where: { name: { in: [...supplierNames] } },
+            select: { name: true, companyId: true },
+          })
+        : [];
+      const companyByExpertName = buildUniqueCompanyMap(
+        experts.map((e) => ({ name: e.displayName, companyId: e.companyId })),
+      );
+      const companyBySupplierName = buildUniqueCompanyMap(
+        suppliersNamed.map((x) => ({ name: x.name, companyId: x.companyId })),
+      );
       const recipientIds = [...new Set(rows.map((n) => n.userId))];
       const recipients = await prisma.user.findMany({
         where: { id: { in: recipientIds } },
         select: { id: true, companyId: true },
       });
       const companyByUser = new Map(recipients.map((u) => [u.id, u.companyId]));
-      const wrongIds: string[] = [];
+      const wrongByType = new Map<string, string[]>();
       for (const n of rows) {
         const m = /「(.+?)」/.exec(n.content ?? '');
-        const expertCompany = m?.[1] ? companyByExpertName.get(m[1]) : undefined;
+        if (!m?.[1]) continue;
+        const entityCompany = n.type === 'EXPERT_DECLINE_STREAK'
+          ? companyByExpertName.get(m[1])
+          : companyBySupplierName.get(m[1]);
         const userCompany = companyByUser.get(n.userId) ?? null;
-        if (expertCompany && userCompany && expertCompany !== userCompany) {
-          wrongIds.push(n.id);
+        if (entityCompany && userCompany && entityCompany !== userCompany) {
+          const arr = wrongByType.get(n.type) ?? [];
+          arr.push(n.id);
+          wrongByType.set(n.type, arr);
         }
       }
-      if (wrongIds.length > 0) {
-        const r = await prisma.notification.deleteMany({ where: { id: { in: wrongIds } } });
+      for (const [type, ids] of wrongByType) {
+        const r = await prisma.notification.deleteMany({ where: { id: { in: ids } } });
         if (r.count > 0) {
-          results.push({ type: 'EXPERT_DECLINE_STREAK', rule: '跨公司错发删除', resolved: r.count });
+          results.push({ type, rule: '跨公司错发删除', resolved: r.count });
         }
       }
     }

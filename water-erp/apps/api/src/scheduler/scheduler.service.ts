@@ -91,7 +91,7 @@ export class SchedulerService {
           },
         },
       },
-      select: {
+      select: { companyId: true,
         id: true, title: true, projectCode: true,
         stages: {
           where: { stageKey: { in: ['AWARD_DECISION', 'CONTRACT'] }, attachments: { some: {} } },
@@ -125,12 +125,11 @@ export class SchedulerService {
         content: `「${item.title}」流程终结已 ${days} 天仍未导出归档信息包（DA/T 103-2024 §8.2 要求不晚于次年 3 月 31 日移交），请尽快完成四性检测与 ASIP 导出。`,
         link,
       };
-      if (isOverdue) {
-        await this.notification.sendToRole('leader', dto).catch(() => {}); // 2026-09-26：逾期升级不再抄送 admin
-      } else {
-        await this.notification.sendToRole('staff', dto).catch(() => {});
-        await this.notification.sendToRole('leader', dto).catch(() => {});
-      }
+      // 接收人=项目归属公司（2026-11-02 跨公司错发系统修复：全平台广播他司也收到
+      // 项目归档提醒；公司有人不进 admin，无人/无归属兜底 admin）
+      await this.notification
+        .sendToCompanyRoles(item.companyId, isOverdue ? ['leader'] : ['staff', 'leader'], dto)
+        .catch(() => {});
       reminded += 1;
     }
     if (reminded > 0) this.logger.warn(`[D2] 归档时限提醒已发 ${reminded} 卷`);
@@ -308,7 +307,7 @@ export class SchedulerService {
   async remindConfirmableWinnerNotices() {
     const pres = await this.prisma.announcement.findMany({
       where: { type: 'PRE_WIN_NOTICE', status: 'PUBLISHED', publicityEnd: { lt: new Date() } },
-      select: { id: true, title: true, relatedProjectCode: true, metadata: true },
+      select: { id: true, title: true, relatedProjectCode: true, companyId: true, metadata: true },
       take: 50,
     });
 
@@ -323,7 +322,8 @@ export class SchedulerService {
         });
         if (win) continue;
       }
-      void this.notification.sendToRole('staff', {
+      // 接收人=发布公告的公司（2026-11-02 跨公司错发系统修复；公司有人不进 admin）
+      void this.notification.sendToCompanyRoles(pre.companyId, ['staff'], {
         type: 'PRE_WIN_CONFIRM_DUE',
         title: '预成交公示期满待确认',
         content: `「${pre.title}」公示期已满且无未决异议，请在公告管理中确认发布成交公告（GB/T 43711 7.5.2.5）`,

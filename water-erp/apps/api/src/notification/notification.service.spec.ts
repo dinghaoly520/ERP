@@ -172,4 +172,23 @@ describe('NotificationService', () => {
       data: { resolvedAt: expect.any(Date) },
     });
   });
+
+  it('sendToCompanyRoles：本公司角色定向，无归属/无人兜底 admin（2026-11-02 跨公司错发系统修复）', async () => {
+    prisma.user.findMany.mockImplementation(async ({ where }: any) => {
+      if (where.companyId === 'co-x') return [{ id: 'u-x1' }, { id: 'u-x2' }];
+      if (where.role === 'admin') return [{ id: 'u-admin' }];
+      return [];
+    });
+    prisma.notification.create.mockResolvedValue({});
+
+    const r1 = await service.sendToCompanyRoles('co-x', ['leader', 'staff'], { type: 'T', title: 't', content: 'c', link: '/x' });
+    expect(r1).toEqual({ sent: 2, fallbackAdmin: false });
+    expect(prisma.notification.create).toHaveBeenCalledTimes(2);
+    expect(prisma.notification.create).toHaveBeenCalledWith(expect.objectContaining({ userId: 'u-x1', type: 'T' }));
+
+    prisma.notification.create.mockClear();
+    const r2 = await service.sendToCompanyRoles(null, ['leader'], { type: 'T', title: 't', content: 'c' });
+    expect(r2).toEqual({ sent: 1, fallbackAdmin: true });
+    expect(prisma.notification.create).toHaveBeenCalledWith(expect.objectContaining({ userId: 'u-admin' }));
+  });
 });

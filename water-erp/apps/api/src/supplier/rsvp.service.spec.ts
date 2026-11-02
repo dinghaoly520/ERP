@@ -361,20 +361,28 @@ describe('RsvpService.maybeAlertDeclineStreak（连续拒绝预警）', () => {
       invitationRsvpLog: {
         findMany: jest.fn().mockResolvedValue([]),
       },
+      supplier: { findUnique: jest.fn().mockResolvedValue({ companyId: 'co-x' }) },
     };
-    notification = { sendToRole: jest.fn().mockResolvedValue({}) };
+    notification = {
+      sendToRole: jest.fn().mockResolvedValue({}),
+      // 2026-11-02 跨公司错发修复：改走公司定向入口
+      sendToCompanyRoles: jest.fn().mockResolvedValue({ sent: 2, fallbackAdmin: false }),
+    };
     service = new RsvpService(prisma, {} as any, notification as any);
   });
 
   const ev = (toStatus: string) => ({ toStatus });
 
-  it('连拒恰达 3 次 → leader+staff 各一条 SUPPLIER_DECLINE_STREAK', async () => {
+  it('连拒恰达 3 次 → 供应商归属公司的 leader+staff 定向预警（不跨公司广播）', async () => {
     prisma.invitationRsvpLog.findMany.mockResolvedValue([ev('DECLINED'), ev('DECLINED'), ev('DECLINED')]);
     const streak = await service.maybeAlertDeclineStreak('s1', '供应商A');
     expect(streak).toBe(3);
-    expect(notification.sendToRole).toHaveBeenCalledTimes(2);
-    expect(notification.sendToRole).toHaveBeenCalledWith('leader', expect.objectContaining({ type: 'SUPPLIER_DECLINE_STREAK' }));
-    expect(notification.sendToRole).toHaveBeenCalledWith('staff', expect.objectContaining({ type: 'SUPPLIER_DECLINE_STREAK' }));
+    expect(notification.sendToRole).not.toHaveBeenCalled();
+    expect(notification.sendToCompanyRoles).toHaveBeenCalledWith(
+      'co-x',
+      ['leader', 'staff'],
+      expect.objectContaining({ type: 'SUPPLIER_DECLINE_STREAK' }),
+    );
   });
 
   it('连拒 4 次（跨阈值发生在更早那次）→ 不重复打扰', async () => {
@@ -419,17 +427,19 @@ describe('RsvpService.manualMark（无行补录分支的连拒预警接线）', 
         // 读侧模拟含本次共 3 连拒（create 不落库）
         findMany: jest.fn().mockResolvedValue([{ toStatus: 'DECLINED' }, { toStatus: 'DECLINED' }, { toStatus: 'DECLINED' }]),
       },
-      supplier: { findUnique: jest.fn().mockResolvedValue({ userId: 'u-supplier', name: '供应商A' }) },
+      supplier: { findUnique: jest.fn().mockResolvedValue({ userId: 'u-supplier', name: '供应商A', companyId: 'co-x' }) },
     };
-    notification = { sendToRole: jest.fn().mockResolvedValue({}) };
+    notification = {
+      sendToRole: jest.fn().mockResolvedValue({}),
+      sendToCompanyRoles: jest.fn().mockResolvedValue({ sent: 1, fallbackAdmin: false }),
+    };
     service = new RsvpService(prisma, {} as any, notification as any);
   });
 
   it('补录代婉拒且连拒达 3 → 预警随主流程触发', async () => {
     const r = await service.manualMark({ projectId: 'PMI-1', supplierId: 's1', status: 'DECLINED', actorId: 'u1', reason: '电话核实档期冲突婉拒' });
     expect(r).toEqual({ id: 'rsvp-new', status: 'DECLINED', changed: true });
-    expect(notification.sendToRole).toHaveBeenCalledWith('leader', expect.objectContaining({ type: 'SUPPLIER_DECLINE_STREAK' }));
-    expect(notification.sendToRole).toHaveBeenCalledWith('staff', expect.objectContaining({ type: 'SUPPLIER_DECLINE_STREAK' }));
+    expect(notification.sendToCompanyRoles).toHaveBeenCalledWith('co-x', ['leader', 'staff'], expect.objectContaining({ type: 'SUPPLIER_DECLINE_STREAK' }));
   });
 
   it('补录代确认不触发预警', async () => {

@@ -597,7 +597,14 @@ export class RsvpService {
           content: `供应商「${supplierName}」已连续 ${streak} 次拒绝采购邀请（含婉拒/超时弃权/代婉拒），请复核其合作意愿与库内资格。`,
           link: '/supplier/repository',
         };
-        await Promise.all(['leader', 'staff'].map(r => this.notification.sendToRole(r, payload)));
+        // 接收人=供应商归属公司的 leader/staff（2026-11-02 跨公司错发系统修复：
+        // sendToRole 全平台广播会让设计公司收到投资公司供应商的预警——与专家
+        // 连拒预警同族；归属缺失/无人兜底 admin，不跨公司扩散）
+        const sup = await this.prisma.supplier.findUnique({
+          where: { id: supplierId },
+          select: { companyId: true },
+        }).catch(() => null);
+        await this.notification.sendToCompanyRoles(sup?.companyId, ['leader', 'staff'], payload);
       }
       return streak;
     } catch (err: any) {

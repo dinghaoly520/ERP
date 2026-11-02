@@ -512,4 +512,20 @@ describe('sweepStaleActionableNotifications', () => {
     await sweepStaleActionableNotifications(p2 as any);
     expect(p2._unresolved().sort()).toEqual(['w2', 'w3']);
   });
+
+  it('供应商连拒预警·跨公司错发删除（与专家版同构）', async () => {
+    const p2 = makePrisma({
+      notifications: [
+        { id: 'v1', type: 'SUPPLIER_DECLINE_STREAK', link: '/supplier/repository', content: '供应商「甲公司」已连续 3 次拒绝采购邀请', resolvedAt: null, userId: 'u-design' },
+        { id: 'v2', type: 'SUPPLIER_DECLINE_STREAK', link: '/supplier/repository', content: '供应商「甲公司」已连续 3 次拒绝采购邀请', resolvedAt: null, userId: 'u-invest' },
+      ],
+      users: [
+        { id: 'u-design', isActive: true, role: 'leader', displayName: '设计师', companyId: 'co-design' },
+        { id: 'u-invest', isActive: true, role: 'leader', displayName: '投资员', companyId: 'co-invest' },
+      ],
+      suppliers: [{ id: 's1', status: 'APPROVED', name: '甲公司', companyId: 'co-invest' }],
+    });
+    await sweepStaleActionableNotifications(p2 as any);
+    expect(p2._unresolved()).toEqual(['v2']);
+  });
 });

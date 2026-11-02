@@ -328,6 +328,38 @@ export class NotificationService {
   }
 
   /**
+   * 按业务实体归属公司发送站内信（2026-11-02 跨公司错发系统修复）：
+   * 发该公司的指定角色；实体无归属/该公司无人 → 兜底平台 admin（不跨公司扩散）。
+   * 业务实体有公司归属的通知一律走此入口，禁用 sendToRole 全平台广播
+   * （专家/供应商连拒预警、归档提醒、评标超时等同族错发实录见各调用点注释）。
+   */
+  async sendToCompanyRoles(
+    companyId: string | null | undefined,
+    roles: Array<'leader' | 'staff'>,
+    payload: { type: string; title: string; content: string; link?: string | null },
+  ): Promise<{ sent: number; fallbackAdmin: boolean }> {
+    let userIds: string[] = [];
+    if (companyId) {
+      const users = await this.prisma.user.findMany({
+        where: { role: { in: roles }, isActive: true, companyId },
+        select: { id: true },
+      });
+      userIds = users.map((u) => u.id);
+    }
+    let fallbackAdmin = false;
+    if (userIds.length === 0) {
+      fallbackAdmin = true;
+      const admins = await this.prisma.user.findMany({
+        where: { role: 'admin', isActive: true },
+        select: { id: true },
+      });
+      userIds = admins.map((u) => u.id);
+    }
+    await Promise.allSettled(userIds.map((id) => this.sendToUser(id, ['in_app'], payload)));
+    return { sent: userIds.length, fallbackAdmin };
+  }
+
+  /**
    * 仅消解 content 含指定供应商名的广播型待办（2026-11-02 评审 P2）：
    * 变更审批通知按供应商名精确归因——甲办结只清甲的待办，并行在审的乙不受牵连
    * （与 stale-sweep 按 content 名单放行同口径；supplierName 缺失时不动，宁留勿杀）。

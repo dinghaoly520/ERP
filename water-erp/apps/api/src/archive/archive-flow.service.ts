@@ -20,7 +20,7 @@ export class ArchiveFlowService {
       const item = await this.prisma.projectManagementItem.findUnique({
         where: { id: pmiId },
         select: {
-          title: true, projectCode: true, id: true,
+          title: true, projectCode: true, id: true, companyId: true,
           archiveExportedAt: true,
           stages: { where: { stageKey: { in: ['AWARD_DECISION', 'CONTRACT'] } }, select: { stageKey: true, attachments: { select: { id: true } } } },
         },
@@ -44,7 +44,9 @@ export class ArchiveFlowService {
         content: `「${item.title}」已到定标/合同节点（DA/T 103-2024 §8.1），请前往采购台账该项目卡片完成四性检测并导出归档信息包。`,
         link,
       };
-      await this.notification.sendToRole('leader', dto); // 2026-09-26：业务通知不进 admin（admin 只收账号域）
+      // 接收人=项目归属公司的 leader（2026-11-02 跨公司错发系统修复：sendToRole 全平台
+      // 广播他司也收到；项目有归属公司——公司有人不进 admin，无人/无归属兜底 admin）
+      await this.notification.sendToCompanyRoles(item.companyId, ['leader'], dto);
     } catch (err) {
       this.logger.warn(`归档待派发失败（不阻塞上传）: ${err}`);
     }
