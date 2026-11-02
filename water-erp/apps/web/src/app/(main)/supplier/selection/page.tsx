@@ -58,6 +58,9 @@ const DIRECT_STEPS = [
   { num: 1, label: '确认通知', desc: '发送通知给候选供应商' },
   { num: 2, label: '供应商确认', desc: '跟踪候选供应商确认参与意向' },
 ] as const;
+/** 智能匹配 0 推荐时的提示（2026-11-02 排障定案）：仅属步骤1-2 的获取阶段问题——
+ *  获取完成后（手动补选入列/已发通知）即为陈旧信息，不得跟随到后续步骤（曾在步骤4 误导排障）。 */
+const NO_MATCH_ERROR = '未找到匹配的候选供应商，请调整需求描述或筛选条件';
 // 补选模式下追加的步骤
 const RERUN_EXTRA_STEPS = [
   { label: '补选候选', desc: '智能推荐或手动搜索补选供应商' },
@@ -275,7 +278,9 @@ export function SupplierSelectionPage({
   const [error, setError] = useState('');
   const [result, setResult] = useState<SupplierSelectionResult | null>(null);
   const [shortlist, setShortlist] = useState<Map<string, { item: SupplierRecommendation; note: string }>>(new Map());
-  const [step, setStepInner] = useState(project?.procurementMethod === '直接采购' ? 3 : 1);
+
+  // 「未找到匹配」在供应商已入列（手动补选/AI 选用）后即为陈旧信息，自动清除（2026-11-02 排障定案）
+  useEffect(() => { if (error === NO_MATCH_ERROR && shortlist.size > 0) setError(''); }, [error, shortlist.size]);  const [step, setStepInner] = useState(project?.procurementMethod === '直接采购' ? 3 : 1);
   const [maxStepReached, setMaxStepReached] = useState(project?.procurementMethod === '直接采购' ? 3 : 1); // 历史最大步骤（允许回看后仍点击前进）
   const setStep = (s: number) => { setStepInner(s); setMaxStepReached(prev => Math.max(prev, s)); };
   // 谈判采购（从项目管理进入）在确认通知后增加附件选择步骤
@@ -971,7 +976,7 @@ export function SupplierSelectionPage({
       setResult(res);
       setShortlist(new Map());
       setStep(2); // 自动跳转到审核候选步骤
-      if (res.recommendations.length === 0) setError('未找到匹配的候选供应商，请调整需求描述或筛选条件');
+      if (res.recommendations.length === 0) setError(NO_MATCH_ERROR);
       // Capture history ID for later shortlist save
       const { getSelectionHistory } = await import('@/lib/api/supplier');
       const history = await getSelectionHistory().catch(() => []);
@@ -2088,7 +2093,7 @@ export function SupplierSelectionPage({
         }}
       />
 
-      {error && step !== 3 && <div className="rounded-xl bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-4 py-3 text-sm font-semibold text-[var(--danger)] shadow-[inset_0_1px_0_oklch(1_0_0/0.3)]">{error}</div>}
+      {error && step < 3 && <div className="rounded-xl bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-4 py-3 text-sm font-semibold text-[var(--danger)] shadow-[inset_0_1px_0_oklch(1_0_0/0.3)]">{error}</div>}
 
       {/* 步骤 1：选择项目 + 业务标签 */}
       {step === 1 && (

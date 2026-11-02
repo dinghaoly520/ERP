@@ -87,14 +87,21 @@ const MODE_DESCS: Record<ExtractMode, string> = {
 /** 通知关键词编辑器（开标时间/归属公司/开标地点/采购方式四项，2026-10-29 抽共享）：
  *  正选通知（步骤3/4）、候补通知（步骤6）、补选弹窗通知共用同一组 state。此前输入框只在
  *  正选通知卡片渲染，候补/补选在无输入框的界面硬校验「请填写开标地点」即报错死局
- *  （2026-10-29 步骤6 候补「重新抽取→确认」实录）——本组件在所有校验点就地可改。 */
-function NotifyKeywordsEditor({ openTimeDate, openTimeTime, onOpenTimeChange, keywords, onKeywordsChange }: {
+ *  （2026-10-29 步骤6 候补「重新抽取→确认」实录）——本组件在所有校验点就地可改。
+ *  开标地点（2026-11-02 用户裁定）与公司信息管理关联：维护了多个开标地点时改下拉选择
+ *  （默认条目由外层自动带出预选），保留「自定义地点…」逃生口应对未维护的特殊场地。 */
+function NotifyKeywordsEditor({ openTimeDate, openTimeTime, onOpenTimeChange, keywords, onKeywordsChange, placeOptions = [] }: {
   openTimeDate: string;
   openTimeTime: string;
   onOpenTimeChange: (date: string, time: string) => void;
   keywords: { company: string; openLocation: string; method: string };
   onKeywordsChange: (next: { company: string; openLocation: string; method: string }) => void;
+  /** 公司信息管理维护的开标地点地址列表（默认在前）；≥2 个时启用下拉 */
+  placeOptions?: string[];
 }) {
+  const placeChoices = [...new Set(placeOptions.map(p => p.trim()).filter(Boolean))];
+  const usePlaceDropdown = placeChoices.length >= 2;
+  const placeInList = placeChoices.includes(keywords.openLocation.trim());
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div>
@@ -123,9 +130,29 @@ function NotifyKeywordsEditor({ openTimeDate, openTimeTime, onOpenTimeChange, ke
         <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">
           开标地点 <span className="text-[var(--danger)]">*</span>
         </span>
-        <input value={keywords.openLocation}
-          onChange={e => onKeywordsChange({ ...keywords, openLocation: e.target.value })}
-          placeholder="如：成都市双流区红莲街" className="neu-input text-sm w-full" />
+        {usePlaceDropdown ? (
+          <div className="flex flex-col gap-1.5">
+            <select
+              value={placeInList ? keywords.openLocation.trim() : '__custom__'}
+              onChange={e => onKeywordsChange({ ...keywords, openLocation: e.target.value === '__custom__' ? '' : e.target.value })}
+              className="neu-input text-sm w-full"
+            >
+              {placeChoices.map(p => <option key={p} value={p}>{p}</option>)}
+              <option value="__custom__">
+                {placeInList ? '自定义地点…' : keywords.openLocation.trim() ? `自定义：${keywords.openLocation.trim().slice(0, 18)}${keywords.openLocation.trim().length > 18 ? '…' : ''}` : '自定义地点…'}
+              </option>
+            </select>
+            {!placeInList && (
+              <input value={keywords.openLocation}
+                onChange={e => onKeywordsChange({ ...keywords, openLocation: e.target.value })}
+                placeholder="输入自定义开标地点" className="neu-input text-sm w-full" />
+            )}
+          </div>
+        ) : (
+          <input value={keywords.openLocation}
+            onChange={e => onKeywordsChange({ ...keywords, openLocation: e.target.value })}
+            placeholder="如：成都市双流区红莲街" className="neu-input text-sm w-full" />
+        )}
       </div>
       <div>
         <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">
@@ -1439,6 +1466,8 @@ export function ExpertExtractPage({
   // 开标地点=该公司信息管理维护的默认开标地点（2026-10-27 用户口径）——自动带出可改；仅空值时填入
   const companyInfo = useCompanyInfo();
   const defaultPlace = pickDefaultPlace(companyInfo);
+  // 公司信息管理维护的开标地点列表（2026-11-02 用户裁定）：≥2 个时通知关键词「开标地点」改下拉选择
+  const openPlaceOptions = (companyInfo?.places ?? []).map(p => p.address ?? '').map(a => a.trim()).filter(Boolean);
   useEffect(() => {
     if (!defaultPlace) return;
     setExpertNotifyKeywords(prev => (prev.openLocation === '' ? { ...prev, openLocation: defaultPlace } : prev));
@@ -2633,6 +2662,7 @@ export function ExpertExtractPage({
                 onOpenTimeChange={(d, t) => { setOpenTimeDate(d); setOpenTimeTime(t); }}
                 keywords={expertNotifyKeywords}
                 onKeywordsChange={setExpertNotifyKeywords}
+                placeOptions={openPlaceOptions}
               />
 
               {/* 通知渠道（统一，适用于全部专家）—— 标签 + 分组按钮同一行 */}
@@ -3520,6 +3550,7 @@ export function ExpertExtractPage({
                     onOpenTimeChange={(d, t) => { setOpenTimeDate(d); setOpenTimeTime(t); }}
                     keywords={expertNotifyKeywords}
                     onKeywordsChange={setExpertNotifyKeywords}
+                    placeOptions={openPlaceOptions}
                   />
                 </div>
               )}
