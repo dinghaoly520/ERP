@@ -5924,7 +5924,8 @@ export class BidService {
       type: 'BID_NUDGE_SUPPLIER',
       title: `投标提醒：${project.name}`,
       content: `项目 ${project.projectCode}（${project.name}）正在进行中，请尽快完成投标提交。`,
-      link: `/dashboard`,
+      // 带 projectId：开标推进后 stale-sweep 阶段窗口可精确消解该催办待办
+      link: `/dashboard?projectId=${project.id}`,
     });
 
     await this.prisma.auditLog.create({
@@ -6051,7 +6052,8 @@ export class BidService {
       if (!t.userId) { notFound++; continue; }
       try {
         await this.notificationService.sendToUser(t.userId, input.channels, {
-          type: 'BID_NUDGE_SUPPLIER', title: msg.title, content: msg.body, link: null,
+          // 带 projectId：开标推进后 stale-sweep 阶段窗口可精确消解
+          type: 'BID_NUDGE_SUPPLIER', title: msg.title, content: msg.body, link: `/dashboard?projectId=${bidProjectId}`,
         });
         sent++;
       } catch (e) {
@@ -6198,7 +6200,7 @@ export class BidService {
       projectName: project.name, projectCode: project.projectCode, openTime: fmt,
     })!;
     // 链接按收件端分流：供应商→:3004 工作台，专家→:3006 项目列表（同一文案，两个门户各有去处）
-    await this.notifyParticipants(supplierUserIds, { type: 'BID_SCHEDULE_CHANGE', ...schedTpl, link: '/dashboard' });
+    await this.notifyParticipants(supplierUserIds, { type: 'BID_SCHEDULE_CHANGE', ...schedTpl, link: `/dashboard?projectId=${project.id}` });
     await this.notifyParticipants(expertUserIds, { type: 'BID_SCHEDULE_CHANGE', ...schedTpl, link: '/projects' });
 
     if (actorId) {
@@ -6402,7 +6404,8 @@ export class BidService {
         type: 'BID_INVITED',
         title: `新采购项目邀请：${project.name}`,
         content: `您已被邀请参与采购项目 ${project.projectCode}（${project.name}），请尽快查看采购文件并投标。`,
-        link: '/dashboard',
+        // 带 projectId：截标窗口过后 stale-sweep 阶段窗口可精确消解
+        link: `/dashboard?projectId=${project.id}`,
       },
     );
 

@@ -502,7 +502,7 @@ export class ContractService {
         select: { userId: true },
       }).catch(() => null);
       if (supplierUser?.userId) {
-        const tpl = renderNotificationPayload('CONTRACT_READY_TO_SIGN', { projectName: contract.contractCode })!;
+        const tpl = renderNotificationPayload('CONTRACT_READY_TO_SIGN', { projectName: contract.contractCode, projectId: contract.projectId ?? undefined })!;
         void this.notifications?.create({ userId: supplierUser.userId, type: 'CONTRACT_READY_TO_SIGN', ...tpl }).catch(() => {});
       }
     }
@@ -582,6 +582,12 @@ export class ContractService {
       if (!updated) throw new NotFoundException({ error: '合同不存在', code: 'NOT_FOUND' });
       return updated;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }).then(async updated => {
+      // 签署完成=「待签署」待办办结（带 projectId 形态精确消解，2026-11-02 他端待办对账）
+      if (updated.projectId) {
+        this.notifications
+          ?.resolveActionable('CONTRACT_READY_TO_SIGN', `/contracts?projectId=${updated.projectId}`)
+          .catch(() => {});
+      }
       // 签署登记完成 → 知会供应商合同生效（fire-and-forget，不阻塞主流程）
       const supplierUser = await this.prisma.supplier?.findUnique({
         where: { id: updated.supplierId },

@@ -36,7 +36,11 @@ function makePrisma(tables: {
   const profileChanges = tables.profileChanges ?? []; // ProfileChangeRequest
 
   const notifMatches = (n: NotifRow, where: any) => {
-    if (where.type !== undefined && n.type !== where.type) return false;
+    if (where.type?.in) {
+      if (!where.type.in.includes(n.type)) return false;
+    } else if (where.type !== undefined && n.type !== where.type) {
+      return false;
+    }
     if (where.resolvedAt === null && n.resolvedAt !== null) return false;
     if (where.id?.in && !where.id.in.includes(n.id)) return false;
     if (where.link?.contains && !(n.link ?? '').includes(where.link.contains)) return false;
@@ -384,5 +388,39 @@ describe('sweepStaleActionableNotifications', () => {
     });
     await sweepStaleActionableNotifications(prisma as any);
     expect(prisma._unresolved()).toEqual(['d3']);
+  });
+
+  it('开标域阶段窗口·统一规则：三类窗口按项目 stage 消解、窗口内保留、多 link 形态识别', async () => {
+    const prisma = makePrisma({
+      notifications: [
+        // 截标窗口类：离开 DOWNLOAD/SUBMIT 即失效
+        N('c1', 'BID_INVITED', '/dashboard?projectId=b-eval', ''),
+        N('c2', 'BID_DEADLINE_NUDGE', '/dashboard?projectId=b-submit', ''),
+        N('c3', 'BID_NUDGE_SUPPLIER', '/dashboard?projectId=b-gone', ''),
+        N('c4', 'BID_SCHEDULE_CHANGE', '/dashboard?projectId=b-download', ''),
+        // 开标窗口类：评标启动/终局即失效
+        N('c5', 'BID_OPENING_SOON', '/my-bids/b-eval/opening-hall', ''),
+        N('c6', 'DECRYPT_WINDOW_CLOSING', '/my-bids/b-opening/opening-hall', ''),
+        N('c7', 'HALL_MESSAGE', '/my-bids/b-opening/opening-hall', ''),
+        N('c8', 'BID_DISPUTE_TIMEOUT', '/bid/project/b-eval', ''),
+        // 评标窗口类：终局即失效
+        N('c9', 'EVAL_DEADLINE_EXPIRED', '/bid/project/b-archived', ''),
+        N('c10', 'EXPERT_ASSIGNED', '/expert/evaluate?projectId=b-evaluating', ''),
+        N('c11', 'BID_NUDGE_EXPERT', '/?projectId=b-archived', ''),
+        // 无 id 存量：不动（自然已读兜底）
+        N('c12', 'BID_DEADLINE_NUDGE', '/dashboard', ''),
+      ],
+      bidProjects: [
+        { id: 'b-eval', stage: 'EVALUATING', projectManagementItemId: null },
+        { id: 'b-submit', stage: 'SUBMIT', projectManagementItemId: null },
+        { id: 'b-download', stage: 'DOWNLOAD', projectManagementItemId: null },
+        { id: 'b-opening', stage: 'OPENING', projectManagementItemId: null },
+        { id: 'b-archived', stage: 'ARCHIVED', projectManagementItemId: null },
+        { id: 'b-evaluating', stage: 'EVALUATING', projectManagementItemId: null },
+      ],
+    });
+    await sweepStaleActionableNotifications(prisma as any);
+    // 保留：截标窗口内的 b-submit/b-download、开标窗口内的 b-opening、评标中的 b-evaluating、无 id 存量
+    expect(prisma._unresolved().sort()).toEqual(['c10', 'c12', 'c2', 'c4', 'c6', 'c7']);
   });
 });

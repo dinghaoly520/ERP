@@ -241,7 +241,7 @@ const BID_SPECS: NotificationTypeSpec[] = [
     domain: 'bid',
     icon: 'MessageCircle',
     tone: 'purple',
-    actionable: true,
+    actionable: false,
     audiences: [{ kind: 'SUBJECT_USER' }],
     channels: IN_APP,
   },
@@ -534,12 +534,12 @@ const SUPPLIER_SPECS: NotificationTypeSpec[] = [
   { code: 'SUPPLIER_BLACKLISTED', label: '供应商拉黑', domain: 'supplier', icon: 'Ban', tone: 'red', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'SUPPLIER_UNBLACKLISTED', label: '供应商解除拉黑', domain: 'supplier', icon: 'CircleCheck', tone: 'green', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'SUPPLIER_ELIMINATE_CANDIDATE', label: '供应商淘汰预警', domain: 'supplier', icon: 'UserMinus', tone: 'orange', actionable: true, audiences: [{ kind: 'ROLE', roles: ['leader', 'staff'] }], channels: IN_APP }, // 2026-09-26 已去 admin
-  { code: 'SUPPLIER_VISIT_REGISTERED', label: '供应商来访登记', domain: 'supplier', icon: 'CalendarCheck', tone: 'blue', actionable: true, audiences: [{ kind: 'ROLE', roles: ['staff'] }], channels: IN_APP }, // 门户来访登记表单（:3002 /contact/visitor，@Public 匿名提交）：实际投递=访问单位（Company.name 精确匹配）归属公司 staff，无人回退平台 admin
+  { code: 'SUPPLIER_VISIT_REGISTERED', label: '供应商来访登记', domain: 'supplier', icon: 'CalendarCheck', tone: 'blue', actionable: false, audiences: [{ kind: 'ROLE', roles: ['staff'] }], channels: IN_APP }, // 门户来访登记表单（:3002 /contact/visitor，@Public 匿名提交）：实际投递=访问单位（Company.name 精确匹配）归属公司 staff，无人回退平台 admin
   { code: 'SUPPLIER_REVIEW_URGE', label: '供应商催审', domain: 'supplier', icon: 'Clock', tone: 'orange', actionable: true, audiences: LEGACY('现按归属公司工作人员+回退全体，挂起待议'), channels: IN_APP },
   { code: 'PREQUAL_RESULT', label: '资格预审结果', domain: 'supplier', icon: 'FileCheck2', tone: 'blue', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'QUALIFICATION_EXPIRING', label: '资质到期', domain: 'supplier', icon: 'AlertTriangle', tone: 'orange', actionable: true, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'OBJECTION_ANSWERED', label: '异议答复', domain: 'bid', icon: 'MessageCircle', tone: 'blue', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP }, // 2026-09-27 从 SYSTEM 拆分（供应商收）
-  { code: 'SELECTION_SHARED', label: '候选名单分享', domain: 'supplier', icon: 'Share2', tone: 'blue', actionable: true, audiences: [{ kind: 'ROLE', roles: ['leader'] }], channels: IN_APP },
+  { code: 'SELECTION_SHARED', label: '候选名单分享', domain: 'supplier', icon: 'Share2', tone: 'blue', actionable: false, audiences: [{ kind: 'ROLE', roles: ['leader'] }], channels: IN_APP },
   { code: 'SUPPLIER_CLEANUP_DUE', label: '临时供应商清理', domain: 'supplier', icon: 'UserMinus', tone: 'orange', actionable: true, audiences: [{ kind: 'ROLE', roles: ['staff'] }], channels: IN_APP, link: () => '/supplier/repository' }, // 2026-09-27 从 SYSTEM 拆分
   // 供应商多公司归属（2026-10-16）：加入申请三级审批链（SupplierLinkService）
   { code: 'SUPPLIER_LINK_PENDING', label: '供应商加入申请', domain: 'supplier', icon: 'UserPlus', tone: 'blue', actionable: true, audiences: [{ kind: 'COMPANY_LEADER_STAFF' }], channels: IN_APP, link: () => '/supplier?tab=company-links' }, // 实际投递按 notifyStageApprovers 逐级（staff→leader→admin 上浮），audience 为类型快照；入口=审批中心 company-links
@@ -588,7 +588,7 @@ const CONTRACT_SPECS: NotificationTypeSpec[] = [
       title: `合同已通过内审，待签署：${ctx.projectName}`,
       content: '合同文本已定稿并通过内审（一致性校验 7.5.4.3），请查看合同条款并配合完成签署。',
     }),
-    link: () => '/contracts',
+    link: (ctx) => (ctx as { projectId?: string }).projectId ? `/contracts?projectId=${(ctx as { projectId?: string }).projectId}` : '/contracts',
   },
   {
     code: 'CONTRACT_SIGNED',
@@ -616,10 +616,11 @@ const SYSTEM_SPECS: NotificationTypeSpec[] = [
   // legacy 垃圾桶：5 处产生点语义各异（资格预审结果/定时任务/bid），拆解归入具体类型待其余域解冻
   { code: 'SYSTEM', label: '系统通知', domain: 'system', icon: 'Bell', tone: 'gray', actionable: false, audiences: LEGACY('catch-all，待拆解'), channels: IN_APP },
   // 历史类型：代码已不产生，仅为存量数据显示
-  { code: 'SELECTION_NOTIFY', label: '候选名单通知', domain: 'supplier', icon: 'Share2', tone: 'blue', actionable: true, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP }, // 2026-10-14 更正：供应商邀请向导（:3005 /supplier/selection → POST /supplier/notify）活跃产生中，此前误标 deprecated；收件=逐家选定供应商账号。actionable：待回执的邀请进待办段，RSVP 回执后 resolveByLinkToken 消音
+  { code: 'SELECTION_NOTIFY', label: '候选名单通知', domain: 'supplier', icon: 'Share2', tone: 'blue', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP }, // 2026-10-14 更正：供应商邀请向导（:3005 /supplier/selection → POST /supplier/notify）活跃产生中，此前误标 deprecated；收件=逐家选定供应商账号。actionable：待回执的邀请进待办段，RSVP 回执后 resolveByLinkToken 消音
   // 2026-10-29 更正：tender-clarification.service 澄清文件发布仍活跃产生（本项目已下载供应商），
   // 此前误标 deprecated（同 SELECTION_NOTIFY 先例）；收件策略词表无「已下载供应商」kind，挂起待议
-  { code: 'CLARIFICATION', label: '澄清答疑', domain: 'bid', icon: 'MessageCircle', tone: 'purple', actionable: true, audiences: LEGACY('tender-clarification 产生：本项目已下载供应商'), channels: IN_APP },
+  // 2026-11-02 降待阅：查看下载型知会，无处理动作
+  { code: 'CLARIFICATION', label: '澄清答疑', domain: 'bid', icon: 'MessageCircle', tone: 'purple', actionable: false, audiences: LEGACY('tender-clarification 产生：本项目已下载供应商'), channels: IN_APP },
   // 评标现场安全预警（2026-10-13 补登记：产生点直写小写 'security'——口令连错锁定/
   // 跨项目双活跃拦截/冒名登录线索，notifyAdmins 发平台 admin 核实；处置=查看后线下核实，
   // 不设 actionable 维持既有待阅分段）

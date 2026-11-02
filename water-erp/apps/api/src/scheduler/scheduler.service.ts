@@ -517,7 +517,8 @@ export class SchedulerService {
           if (!t.userId) continue;
           try {
             await this.notification.sendToUser(t.userId, channels, {
-              type: 'BID_NUDGE_SUPPLIER', title: msg.title, content: msg.body, link: null,
+              // 带 projectId：开标推进后 stale-sweep 阶段窗口可精确消解
+              type: 'BID_NUDGE_SUPPLIER', title: msg.title, content: msg.body, link: `/dashboard?projectId=${nudge.bidProjectId}`,
             });
             sent++;
           } catch (e) {
@@ -611,7 +612,8 @@ export class SchedulerService {
       if (!userId) continue;
       try {
         const tpl = renderNotificationPayload('BID_DEADLINE_NUDGE', { projectName, deadline: fmt })!;
-        await this.notification.create({ userId, type: 'BID_DEADLINE_NUDGE', ...tpl });
+        // 带 projectId：截标窗口过后 stale-sweep 阶段窗口可精确消解
+        await this.notification.create({ userId, type: 'BID_DEADLINE_NUDGE', ...tpl, link: `/dashboard?projectId=${projectId}` });
         sent += 1;
       } catch (e) {
         this.logger.warn(`催促通知失败 userId=${userId}: ${(e as Error).message}`);
@@ -739,7 +741,8 @@ export class SchedulerService {
           type: 'EVAL_DEADLINE_EXPIRED',
           title: `评标超时：${p.name}`,
           content: `项目「${p.name}」评标已超时（截止 ${p.evaluationDeadline ? formatLocalDateTime(p.evaluationDeadline) : '未设置'}），请及时跟进。`,
-          link: '/projects',
+          // 带 projectId：项目终局后 stale-sweep 阶段窗口可精确消解
+          link: `/projects?projectId=${p.id}`,
         }).catch(() => {});
         this.logger.log(`评标超时告警: ${p.name}`);
       } catch (e) {

@@ -386,6 +386,72 @@ export async function sweepStaleActionableNotifications(prisma: SweepPrisma): Pr
     }
   }
 
+  // ── 4e) 开标域阶段窗口统一对账（2026-11-02 全量矩阵审计）──
+  // 三类窗口 × link 含项目 id（/my-bids/{id}、/bid/project/{id}、?projectId=）：
+  //  - 截标窗口（受邀/催投/催供应商/时间变更）：项目离开 DOWNLOAD/SUBMIT 即失效
+  //  - 开标窗口（临近开标/解密临期/会场交流/异议超时）：评标启动或终局即失效
+  //  - 评标窗口（评标超时/专家指派/催专家）：项目终局即失效
+  // 项目删除同样消解；无 id 存量（/dashboard 等）不动——已读兜底。
+  {
+    const BID_STAGE_WINDOWS: Array<{ types: string[]; stale: (stage: string | undefined) => boolean }> = [
+      {
+        types: ['BID_INVITED', 'BID_DEADLINE_NUDGE', 'BID_NUDGE_SUPPLIER', 'BID_SCHEDULE_CHANGE'],
+        stale: (st) => st === undefined || !['DOWNLOAD', 'SUBMIT'].includes(st),
+      },
+      {
+        types: ['BID_OPENING_SOON', 'DECRYPT_WINDOW_CLOSING', 'HALL_MESSAGE', 'BID_DISPUTE_TIMEOUT'],
+        stale: (st) => st === undefined || ['EVALUATING', 'ARCHIVED', 'ABORTED'].includes(st),
+      },
+      {
+        types: ['EVAL_DEADLINE_EXPIRED', 'EXPERT_ASSIGNED', 'BID_NUDGE_EXPERT'],
+        stale: (st) => st === undefined || st === 'ARCHIVED' || st === 'ABORTED',
+      },
+    ];
+    const extractBidProjectId = (link: string | null): string | null => {
+      if (!link) return null;
+      const m1 = /\/my-bids\/([A-Za-z0-9_-]+)/.exec(link);
+      if (m1) return m1[1];
+      const m2 = /\/bid\/project\/([A-Za-z0-9_-]+)/.exec(link);
+      if (m2) return m2[1];
+      return extractParam(link, 'projectId');
+    };
+    for (const { types, stale } of BID_STAGE_WINDOWS) {
+      const rows = await prisma.notification.findMany({
+        where: { type: { in: types }, resolvedAt: null },
+        select: { id: true, type: true, link: true },
+      });
+      if (rows.length === 0) continue;
+      const byProject = new Map<string, Array<{ id: string; type: string }>>();
+      for (const n of rows) {
+        const pid = extractBidProjectId(n.link);
+        if (!pid) continue;
+        const arr = byProject.get(pid) ?? [];
+        arr.push({ id: n.id, type: n.type });
+        byProject.set(pid, arr);
+      }
+      if (byProject.size === 0) continue;
+      const projects = await prisma.bidProject.findMany({
+        where: { id: { in: [...byProject.keys()] } },
+        select: { id: true, stage: true },
+      });
+      const stageById = new Map(projects.map((x) => [x.id, x.stage]));
+      // 按类型分别归集（updateMany 一次一型）
+      const staleByType = new Map<string, string[]>();
+      for (const [pid, items] of byProject) {
+        if (stale(stageById.get(pid))) {
+          for (const item of items) {
+            const arr = staleByType.get(item.type) ?? [];
+            arr.push(item.id);
+            staleByType.set(item.type, arr);
+          }
+        }
+      }
+      for (const [type, ids] of staleByType) {
+        await resolveIds(type, '阶段窗口已过（项目推进/终局/删除）', ids);
+      }
+    }
+  }
+
   // ── 5) 批量报告型（EXPERT_RETIRE_CANDIDATE）：批报镜像「最新一次评估」的结果，
   //    真值在目标页实时队列——每用户只保留最新一条未消解，历史批报全部消解
   //    （创建点已同步上闸取代，本规则收敛存量。CATALOG_PRICE_ALERT 已随功能移除，
