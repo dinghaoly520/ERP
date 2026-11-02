@@ -206,13 +206,13 @@ export default function ExpertRepositoryPage() {
   const renderExpertTable = (rows: ExpertListItem[]) => (
       <div className="neu-table-card">
         <div className="overflow-x-auto">
-          <table className="neu-table w-full min-w-[1200px] table-fixed">
+          <table className="neu-table w-full min-w-[1290px] table-fixed">
             {/* 固定列宽（2026-11-02）：全部公司视图每组一张表，table-fixed+colgroup
                 让所有分组表同名列严格对齐（此前各组自适应宽，组间列错位） */}
             <colgroup>
               {batchMode && <col style={{ width: 44 }} />}
-              <col style={{ width: 170 }} />
               <col style={{ width: 140 }} />
+              <col style={{ width: 115 }} />
               <col style={{ width: 130 }} />
               <col style={{ width: 150 }} />
               <col style={{ width: 95 }} />
@@ -220,7 +220,7 @@ export default function ExpertRepositoryPage() {
               <col style={{ width: 85 }} />
               <col style={{ width: 110 }} />
               <col style={{ width: 130 }} />
-              <col style={{ width: 130 }} />
+              <col style={{ width: 205 }} />
             </colgroup>
             <thead>
               <tr>
