@@ -491,8 +491,8 @@ export function SunshinePlatformDialog({
                   <span className="pm-help-dot" aria-label="阳光采购平台发布配置说明" role="img">?</span>
                   <span className="pm-help-tip" role="tooltip">
                     字段已按项目与公告草稿预填，核对补全后保存。组织编码、组织唯一标识、采购主体 ID
-                    等平台侧档案字段如暂无，可联系阳光采购服务团队获取后补填。实际推送需平台分配
-                    identity 身份标识并配置 IP 白名单——接入完成前，本配置仅随公告存档、不实际外发。
+                    等平台侧档案字段如暂无，可联系阳光采购服务团队获取后补填。保存后随公告发布
+                    自动推送至阳光采购平台，推送结果记录在公告档案中。
                   </span>
                 </span>
               </div>
@@ -637,8 +637,8 @@ export function SunshinePlatformDialog({
             }`}
           >
             {missingFields.length
-              ? `要素待补全 ${missingFields.length} 项（接口必传字段，接入推送前需补全）：${missingFields.join('、')}`
-              : '接口必传要素已齐全 ✓（当前为测试存档，未向阳光采购平台发送任何数据）'}
+              ? `要素待补全 ${missingFields.length} 项（接口必传字段，发布前需补全）：${missingFields.join('、')}`
+              : '接口必传要素已齐全 ✓'}
           </div>
 
           {/* 报文预览 */}
