@@ -1201,8 +1201,20 @@ describe('ExpertAdminService.maybeAlertExpertDeclineStreak（专家连拒预警�
         },
         { provide: PrismaService, useValue: {
           expertInvitationLog: { findMany: jest.fn().mockResolvedValue([]) },
+          user: {
+            findUnique: jest.fn().mockResolvedValue({ companyId: 'co-invest' }),
+            findMany: jest.fn().mockImplementation(async ({ where }: any) => {
+              if (where.role?.in?.includes('leader') || where.role?.in?.includes('staff')) {
+                return where.companyId === 'co-invest'
+                  ? [{ id: 'u-invest-leader' }, { id: 'u-invest-staff' }]
+                  : [];
+              }
+              if (where.role === 'admin') return [{ id: 'u-admin' }];
+              return [];
+            }),
+          },
         } },
-        { provide: NotificationService, useValue: { sendToRole: jest.fn().mockResolvedValue({}) } },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn().mockResolvedValue({}), sendToUser: jest.fn().mockResolvedValue({}) } },
       ],
     }).compile();
     service = mod.get(ExpertAdminService);
@@ -1212,12 +1224,25 @@ describe('ExpertAdminService.maybeAlertExpertDeclineStreak（专家连拒预警�
 
   const ev = (toStatus: string) => ({ toStatus });
 
-  it('连拒恰达 3 次 → leader+staff 各一条 EXPERT_DECLINE_STREAK', async () => {
+  it('连拒恰达 3 次 → 仅专家归属公司 leader+staff 收到（2026-11-02 跨公司错发修复）', async () => {
     prisma.expertInvitationLog.findMany.mockResolvedValue([ev('declined'), ev('declined'), ev('declined')]);
     const streak = await service.maybeAlertExpertDeclineStreak('ex1', '杨睿');
     expect(streak).toBe(3);
-    expect(notification.sendToRole).toHaveBeenCalledTimes(2);
-    expect(notification.sendToRole).toHaveBeenCalledWith('leader', expect.objectContaining({ type: 'EXPERT_DECLINE_STREAK' }));
+    // 按公司逐用户发送——投资公司专家只发投资公司 approvers，全平台广播（sendToRole）不再使用
+    expect(notification.sendToRole).not.toHaveBeenCalled();
+    expect(notification.sendToUser).toHaveBeenCalledTimes(2);
+    const recipients = notification.sendToUser.mock.calls.map((c: any[]) => c[0]).sort();
+    expect(recipients).toEqual(['u-invest-leader', 'u-invest-staff']);
+    expect(notification.sendToUser).toHaveBeenCalledWith('u-invest-leader', ['in_app'], expect.objectContaining({ type: 'EXPERT_DECLINE_STREAK' }));
+  });
+
+  it('专家无公司归属或该公司无人 → 兜底 admin（不跨公司扩散）', async () => {
+    prisma.expertInvitationLog.findMany.mockResolvedValue([ev('declined'), ev('declined'), ev('declined')]);
+    prisma.user.findUnique.mockResolvedValueOnce({ companyId: null });
+    const streak = await service.maybeAlertExpertDeclineStreak('ex1', '杨睿');
+    expect(streak).toBe(3);
+    expect(notification.sendToUser).toHaveBeenCalledTimes(1);
+    expect(notification.sendToUser).toHaveBeenCalledWith('u-admin', ['in_app'], expect.objectContaining({ type: 'EXPERT_DECLINE_STREAK' }));
   });
 
   it('连拒 4 次（更早已跨阈值）→ 不重复打扰', async () => {
@@ -1231,7 +1256,12 @@ describe('ExpertAdminService.maybeAlertExpertDeclineStreak（专家连拒预警�
     (service as any).assertInvitationActionable = jest.fn().mockResolvedValue(undefined);
     (service as any).maybeAutoPromote = jest.fn().mockResolvedValue(null);
     (service as any).prisma = {
-      user: { findUnique: jest.fn().mockResolvedValue({ displayName: '王工作' }) },
+      user: {
+        findUnique: jest.fn().mockImplementation(async ({ where }: any) =>
+          where?.id === 'ex1' ? { companyId: 'co-x' } : { displayName: '王工作' }),
+        findMany: jest.fn().mockImplementation(async ({ where }: any) =>
+          where.role?.in ? [{ id: 'u-co-leader' }] : []),
+      },
       bidExpert: { findFirst: jest.fn().mockResolvedValue({ id: 'be1', userId: 'ex1', expertName: '杨睿', projectId: 'P1', expertRole: '候补', invitationStatus: 'pending', signedIn: false }), update: jest.fn().mockResolvedValue({ id: 'be1' }) },
       bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'OPENING', name: '某项目' }) },
       expertInvitationLog: {
@@ -1241,10 +1271,10 @@ describe('ExpertAdminService.maybeAlertExpertDeclineStreak（专家连拒预警�
         findMany: jest.fn().mockResolvedValue([ev('declined'), ev('declined'), ev('declined')]),
       },
     };
-    (service as any).notification = { sendToUser: jest.fn(), sendToRole: jest.fn().mockResolvedValue({}) };
+    (service as any).notification = { sendToUser: jest.fn().mockResolvedValue({}), sendToRole: jest.fn().mockResolvedValue({}) };
     const r = await service.proxyMarkInvitation({ projectId: 'P1', userId: 'ex1', status: 'declined', actorId: 'u1', reason: '电话核实档期冲突婉拒' });
     expect(r.changed).toBe(true);
-    expect((service as any).notification.sendToRole).toHaveBeenCalledWith('leader', expect.objectContaining({ type: 'EXPERT_DECLINE_STREAK' }));
+    expect((service as any).notification.sendToUser).toHaveBeenCalledWith('u-co-leader', ['in_app'], expect.objectContaining({ type: 'EXPERT_DECLINE_STREAK' }));
   });
 });
 

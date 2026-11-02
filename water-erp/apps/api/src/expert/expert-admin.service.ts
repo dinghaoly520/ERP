@@ -1681,7 +1681,31 @@ export class ExpertAdminService {
           content: `专家「${expertName}」已连续 ${streak} 次拒绝评审邀请（含婉拒/超时弃权/代婉拒），请复核其参评意愿与库内状态。`,
           link: '/expert/repository',
         };
-        await Promise.all(['leader', 'staff'].map(r => this.notification.sendToRole(r, payload)));
+        // 接收人=专家归属公司的 leader/staff（2026-11-02 跨公司错发实录：投资公司专家的
+        // 预警发到了设计公司 leader/staff——专家库公司隔离口径下他司不该看到本公司专家）。
+        // 无归属/该公司无人 → 兜底 admin（不跨公司扩散）。与供应商淘汰预警同构（2026-10-19）。
+        const expert = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { companyId: true },
+        });
+        let recipientIds: string[] = [];
+        if (expert?.companyId) {
+          const approvers = await this.prisma.user.findMany({
+            where: { role: { in: ['leader', 'staff'] }, isActive: true, companyId: expert.companyId },
+            select: { id: true },
+          });
+          recipientIds = approvers.map((u) => u.id);
+        }
+        if (recipientIds.length === 0) {
+          const admins = await this.prisma.user.findMany({
+            where: { role: 'admin', isActive: true },
+            select: { id: true },
+          });
+          recipientIds = admins.map((u) => u.id);
+        }
+        await Promise.allSettled(
+          recipientIds.map((id) => this.notification.sendToUser(id, ['in_app'], payload)),
+        );
       }
       return streak;
     } catch (err: any) {

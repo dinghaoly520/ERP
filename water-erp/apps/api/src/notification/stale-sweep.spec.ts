@@ -8,7 +8,7 @@ import { sweepStaleActionableNotifications } from './stale-sweep';
  */
 
 type NotifRow = { id: string; type: string; link: string | null; content: string; resolvedAt: Date | null; userId?: string; createdAt?: Date };
-type UserRow = { id: string; isActive: boolean; role: string; displayName: string };
+type UserRow = { id: string; isActive: boolean; role: string; displayName: string; companyId?: string | null };
 
 function makePrisma(tables: {
   notifications?: NotifRow[];
@@ -63,6 +63,16 @@ function makePrisma(tables: {
     notification: {
       findMany: jest.fn(async ({ where, orderBy }: any) =>
         notifSort(notifications.filter((n) => notifMatches(n, where)), orderBy).map((n) => ({ ...n }))),
+      deleteMany: jest.fn(async ({ where }: any) => {
+        let count = 0;
+        for (const n of notifications) {
+          if (where.id?.in?.includes(n.id)) {
+            notifications.splice(notifications.indexOf(n), 1);
+            count += 1;
+          }
+        }
+        return { count };
+      }),
       updateMany: jest.fn(async ({ where, data }: any) => {
         let count = 0;
         for (const n of notifications) {
@@ -78,8 +88,10 @@ function makePrisma(tables: {
       findMany: jest.fn(async ({ where }: any) => {
         if (where.id?.in) return users.filter((u) => where.id.in.includes(u.id));
         return users.filter(
-          (u) => (where.role === undefined || u.role === where.role) &&
-            (where.isActive === undefined || u.isActive === where.isActive),
+          (u) =>
+            (where.role === undefined || u.role === where.role) &&
+            (where.isActive === undefined || u.isActive === where.isActive) &&
+            (where.displayName?.in === undefined || where.displayName.in.includes(u.displayName)),
         );
       }),
     },
@@ -483,5 +495,21 @@ describe('sweepStaleActionableNotifications', () => {
     });
     await sweepStaleActionableNotifications(b as any);
     expect(b._unresolved()).toEqual([]);
+  });
+
+  it('专家连拒预警·跨公司错发删除：他司接收人删除、本公司保留、归属不明跳过', async () => {
+    // w1=设计公司 leader 收投资公司专家预警（错发）；w2=投资公司 leader（正确）；w3=专家查无（跳过）
+    const rows = [
+      { id: 'w1', type: 'EXPERT_DECLINE_STREAK', link: '/expert/repository', content: '专家「冯杰」已连续 3 次拒绝评审邀请', resolvedAt: null, userId: 'u-design' },
+      { id: 'w2', type: 'EXPERT_DECLINE_STREAK', link: '/expert/repository', content: '专家「冯杰」已连续 3 次拒绝评审邀请', resolvedAt: null, userId: 'u-invest' },
+      { id: 'w3', type: 'EXPERT_DECLINE_STREAK', link: '/expert/repository', content: '专家「无名氏」已连续 3 次拒绝评审邀请', resolvedAt: null, userId: 'u-design' },
+    ];
+    const p2 = makePrisma({ notifications: rows, users: [
+      { id: 'u-design', isActive: true, role: 'leader', displayName: '设计师', companyId: 'co-design' },
+      { id: 'u-invest', isActive: true, role: 'leader', displayName: '投资员', companyId: 'co-invest' },
+      { id: 'ex-fengjie', isActive: true, role: 'bid_expert', displayName: '冯杰', companyId: 'co-invest' },
+    ] });
+    await sweepStaleActionableNotifications(p2 as any);
+    expect(p2._unresolved().sort()).toEqual(['w2', 'w3']);
   });
 });

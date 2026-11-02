@@ -715,7 +715,7 @@ export class SchedulerService {
     const now = new Date();
     const projects = await this.prisma.bidProject.findMany({
       where: { stage: 'EVALUATING', evaluationDeadline: { lt: now } },
-      select: { id: true, name: true, evaluationDeadline: true },
+      select: { id: true, name: true, evaluationDeadline: true, projectManagementItemId: true },
     });
     for (const p of projects) {
       // 去重：同一项目每天只通知一次（查当天是否已有超时日志）
@@ -737,13 +737,19 @@ export class SchedulerService {
             riskFlag: '中',
           },
         });
-        await this.notification.sendToRole('leader', {
-          type: 'EVAL_DEADLINE_EXPIRED',
-          title: `评标超时：${p.name}`,
-          content: `项目「${p.name}」评标已超时（截止 ${p.evaluationDeadline ? formatLocalDateTime(p.evaluationDeadline) : '未设置'}），请及时跟进。`,
-          // 带 projectId：项目终局后 stale-sweep 阶段窗口可精确消解
-          link: `/projects?projectId=${p.id}`,
-        }).catch(() => {});
+        // 接收人=项目创建人（2026-11-02 跨公司错发同族修复：sendToRole('leader') 全平台
+        // 广播，他司 leader 收到却点不开个人隔离的 /projects——与开标移交 2026-10-09
+        // 串号修复同口径；解析失败不发送，宁缺勿滥）
+        const creatorId = await resolveProjectCreatorId(this.prisma, p.projectManagementItemId).catch(() => null);
+        if (creatorId) {
+          await this.notification.sendToUser(creatorId, ['in_app'], {
+            type: 'EVAL_DEADLINE_EXPIRED',
+            title: `评标超时：${p.name}`,
+            content: `项目「${p.name}」评标已超时（截止 ${p.evaluationDeadline ? formatLocalDateTime(p.evaluationDeadline) : '未设置'}），请及时跟进。`,
+            // 带 projectId：项目终局后 stale-sweep 阶段窗口可精确消解
+            link: `/projects?projectId=${p.id}`,
+          }).catch(() => {});
+        }
         this.logger.log(`评标超时告警: ${p.name}`);
       } catch (e) {
         this.logger.warn(`评标超时告警失败 ${p.id}: ${(e as Error).message}`);
