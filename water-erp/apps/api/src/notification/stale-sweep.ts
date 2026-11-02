@@ -14,6 +14,13 @@ import type { PrismaClient } from '@prisma/client';
  *  - SUPPLIER_LINK_PENDING：link 无实体 id，加入审批队列整体为空时全量消解
  *  - CATALOG_APPLICATION：审核人通知（link 含 appId=）按申请单消解（status≠PENDING）；
  *    供应商侧结果通知（/catalog-applications）为事件性，不属待办镜像、不消解
+ *  - SUPPLIER_CHANGE_PENDING（2026-11-02 直采实录补）：link 恒无 id（/supplier?tab=changes）
+ *    广播型——按在审变更记录的供应商名对账（队列空全消，与注册审核 content 规则对称）
+ *  - SUPPLIER_PENDING 无 id 存量：按 PENDING 供应商名对账（原先仅队列空才清，非空队列
+ *    下无 id 幽灵永挂）
+ *  - PROFILE_CHANGE/PASSWORD_CHANGE/PASSWORD_RESET_PENDING（防御对账）：带 requestId 按
+ *    请求实态消解；无 id 通用形态在对应队列空时兜底全消——动作侧消解钩子
+ *    （password-requests.service）漏形态/换入口时由此兜底
  *
  * 事件性通知（资质到期 / 专家退库预警 / CA 到期等）的真值是"事件发生过"，不由本扫
  * 清除——已读兜底归档即可。调用方：Scheduler 每日、seed 装载后、scripts 手动补扫。
@@ -25,6 +32,10 @@ type SweepPrisma = Pick<
   | 'user'
   | 'supplier'
   | 'supplierCompanyLink'
+  | 'supplierChangeRecord'
+  | 'passwordChangeRequest'
+  | 'passwordResetRequest'
+  | 'profileChangeRequest'
 >;
 
 export type SweepResult = { type: string; rule: string; resolved: number };
@@ -123,7 +134,7 @@ export async function sweepStaleActionableNotifications(prisma: SweepPrisma): Pr
   {
     const rows = await prisma.notification.findMany({
       where: { type: 'SUPPLIER_PENDING', resolvedAt: null },
-      select: { id: true, link: true },
+      select: { id: true, link: true, content: true },
     });
     const bySupplier = new Map<string, string[]>();
     const noId: string[] = [];
@@ -150,11 +161,25 @@ export async function sweepStaleActionableNotifications(prisma: SweepPrisma): Pr
       await resolveIds('SUPPLIER_PENDING', '按 supplierId：status≠PENDING', stale);
     }
     if (noId.length > 0) {
-      // mall 下线（2026-10-28）：businessTag（标签队列）模型已删，仅按注册队列判空兜底
-      const pendingSup = await prisma.supplier.count({ where: { status: 'PENDING' } });
-      if (pendingSup === 0) {
-        await resolveIds('SUPPLIER_PENDING', '无 id 存量·注册队列已空', noId);
-      }
+      // mall 下线（2026-10-28）：businessTag（标签队列）模型已删。2026-11-02 起：
+      // 队列空全消；非空按 PENDING 供应商名对账（与注册审核 content 规则对称——
+      // 注册/补正文案恒以企业名开头，名单不含即早已办结）
+      const pendingSuppliers = await prisma.supplier.findMany({
+        where: { status: 'PENDING' },
+        select: { name: true },
+      });
+      const pendingNames = pendingSuppliers.map((x) => x.name).filter(Boolean);
+      const stale = pendingNames.length === 0
+        ? noId
+        : noId.filter((id) => {
+            const row = rows.find((r) => r.id === id);
+            return !pendingNames.some((name) => row?.content?.includes(name));
+          });
+      await resolveIds(
+        'SUPPLIER_PENDING',
+        pendingNames.length === 0 ? '无 id 存量·注册队列已空' : '无 id 存量·content 不含任何在审供应商名',
+        stale,
+      );
     }
   }
 
@@ -184,6 +209,102 @@ export async function sweepStaleActionableNotifications(prisma: SweepPrisma): Pr
       // mall 下线（2026-10-28）：supplierCatalogApplication 模型已删，实体无从对账——
       // 未决 CATALOG_APPLICATION 通知所指向的申请均已不存在，全部视为过期（stale）
       await resolveIds('CATALOG_APPLICATION', '申请实体已随商城下线移除', [...byApp.values()].flat());
+    }
+  }
+
+  // ── 4b) 供应商资料变更审批（广播型：link 恒 /supplier?tab=changes，无实体 id）──
+  // 2026-11-02 直采实录：审批动作侧长期无消解钩子 + 单据办结/清理后通知永挂待办。
+  // 按在审 SupplierChangeRecord 的供应商名对账：队列空全消；非空按 content 放行在审者。
+  {
+    const rows = await prisma.notification.findMany({
+      where: { type: 'SUPPLIER_CHANGE_PENDING', resolvedAt: null },
+      select: { id: true, content: true },
+    });
+    if (rows.length > 0) {
+      const pendingRecords = await prisma.supplierChangeRecord.findMany({
+        where: { status: 'PENDING' },
+        select: { supplierId: true },
+      });
+      let pendingNames: string[] = [];
+      if (pendingRecords.length > 0) {
+        const suppliers = await prisma.supplier.findMany({
+          where: { id: { in: pendingRecords.map((r) => r.supplierId) } },
+          select: { name: true },
+        });
+        pendingNames = suppliers.map((x) => x.name).filter(Boolean);
+      }
+      const stale = pendingNames.length === 0
+        ? rows.map((n) => n.id)
+        : rows.filter((n) => !pendingNames.some((name) => n.content?.includes(name))).map((n) => n.id);
+      await resolveIds(
+        'SUPPLIER_CHANGE_PENDING',
+        pendingNames.length === 0 ? '变更审批队列已空' : 'content 不含任何在审变更供应商名',
+        stale,
+      );
+    }
+  }
+
+  // ── 4c) 安全审批防御对账（资料变更/改密申请/忘记密码重置）──
+  // 动作侧消解钩子在 password-requests.service（approve/reject 时按多种 link 形态穷举），
+  // 此处按请求实态兜底：带 requestId 精确对账；无 id 通用形态队列空才全消（保守）。
+  {
+    // 三表 findMany/count 签名互不兼容（union 不可直调）——lambda 包装为统一形状
+    const securityRules: Array<{
+      type: string;
+      find: (ids: string[]) => Promise<Array<{ id: string; status: string }>>;
+      countPending: () => Promise<number>;
+    }> = [
+      {
+        type: 'PROFILE_CHANGE_PENDING',
+        find: (ids) => prisma.profileChangeRequest.findMany({ where: { id: { in: ids } }, select: { id: true, status: true } }),
+        countPending: () => prisma.profileChangeRequest.count({ where: { status: 'PENDING' } }),
+      },
+      {
+        type: 'PASSWORD_CHANGE_PENDING',
+        find: (ids) => prisma.passwordChangeRequest.findMany({ where: { id: { in: ids } }, select: { id: true, status: true } }),
+        countPending: () => prisma.passwordChangeRequest.count({ where: { status: 'PENDING' } }),
+      },
+      {
+        type: 'PASSWORD_RESET_PENDING',
+        find: (ids) => prisma.passwordResetRequest.findMany({ where: { id: { in: ids } }, select: { id: true, status: true } }),
+        countPending: () => prisma.passwordResetRequest.count({ where: { status: 'PENDING' } }),
+      },
+    ];
+    for (const { type, find, countPending } of securityRules) {
+      const rows = await prisma.notification.findMany({
+        where: { type, resolvedAt: null },
+        select: { id: true, link: true },
+      });
+      if (rows.length === 0) continue;
+      const byRequest = new Map<string, string[]>();
+      const noId: string[] = [];
+      for (const n of rows) {
+        const rid = extractParam(n.link, 'requestId');
+        if (rid) {
+          const arr = byRequest.get(rid) ?? [];
+          arr.push(n.id);
+          byRequest.set(rid, arr);
+        } else {
+          noId.push(n.id);
+        }
+      }
+      if (byRequest.size > 0) {
+        const reqs = await find([...byRequest.keys()]);
+        const statusById = new Map(reqs.map((r) => [r.id, r.status]));
+        const stale: string[] = [];
+        for (const [rid, ids] of byRequest) {
+          // 请求不存在（已清理）或已办结（status≠PENDING）→ 待审事实消失
+          const st = statusById.get(rid);
+          if (st === undefined || st !== 'PENDING') stale.push(...ids);
+        }
+        await resolveIds(type, '按 requestId：已办结/不存在', stale);
+      }
+      if (noId.length > 0) {
+        const pending = await countPending();
+        if (pending === 0) {
+          await resolveIds(type, '无 id 通用形态·请求队列已空', noId);
+        }
+      }
     }
   }
 

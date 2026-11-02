@@ -3049,8 +3049,12 @@ export class SupplierService {
       }
     });
 
-    // resolve 待办 + 站内通知供应商转正成功
-    await this.notificationService.resolveActionable('SUPPLIER_PENDING', `/supplier/${change.supplierId}`);
+    // resolve 待办（转正亦为变更审批：广播型 SUPPLIER_CHANGE_PENDING 全员消解，
+    // 同 approveChange 口径——2026-11-02 修正：原句 SUPPLIER_PENDING 为类型笔误从未生效）
+    // + 站内通知供应商转正成功
+    await this.notificationService
+      .resolveActionable('SUPPLIER_CHANGE_PENDING', '/supplier?tab=changes')
+      .catch(() => {});
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: change.supplierId },
       select: { userId: true, name: true },

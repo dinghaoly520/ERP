@@ -13,10 +13,14 @@ type UserRow = { id: string; isActive: boolean; role: string; displayName: strin
 function makePrisma(tables: {
   notifications?: NotifRow[];
   users?: UserRow[];
-  suppliers?: Array<{ id: string; status: string }>;
+  suppliers?: Array<{ id: string; status: string; name?: string }>;
   links?: Array<{ id: string; status: string }>;
   apps?: Array<{ id: string; status: string }>;
   tags?: Array<{ id: string; status: string }>;
+  changeRecords?: Array<{ supplierId: string; status: string }>;
+  pwChanges?: Array<{ id: string; status: string }>;
+  pwResets?: Array<{ id: string; status: string }>;
+  profileChanges?: Array<{ id: string; status: string }>;
 }) {
   const notifications = (tables.notifications ?? []).map((n) => ({ ...n }));
   const users = tables.users ?? [];
@@ -24,6 +28,10 @@ function makePrisma(tables: {
   const links = tables.links ?? [];
   const apps = tables.apps ?? [];
   const tags = tables.tags ?? [];
+  const changeRecords = tables.changeRecords ?? []; // SupplierChangeRecord（含 supplierId）
+  const pwChanges = tables.pwChanges ?? [];         // PasswordChangeRequest
+  const pwResets = tables.pwResets ?? [];           // PasswordResetRequest
+  const profileChanges = tables.profileChanges ?? []; // ProfileChangeRequest
 
   const notifMatches = (n: NotifRow, where: any) => {
     if (where.type !== undefined && n.type !== where.type) return false;
@@ -68,7 +76,10 @@ function makePrisma(tables: {
       }),
     },
     supplier: {
-      findMany: jest.fn(async ({ where }: any) => suppliers.filter((s) => where.id.in.includes(s.id))),
+      findMany: jest.fn(async ({ where }: any) =>
+        suppliers.filter((s) =>
+          where.id?.in ? where.id.in.includes(s.id)
+            : where.status === undefined || s.status === where.status)),
       count: jest.fn(async ({ where }: any) => suppliers.filter((s) => s.status === where.status).length),
     },
     supplierCompanyLink: {
@@ -79,6 +90,22 @@ function makePrisma(tables: {
     },
     businessTag: {
       count: jest.fn(async ({ where }: any) => tags.filter((t) => t.status === where.status).length),
+    },
+    supplierChangeRecord: {
+      findMany: jest.fn(async ({ where }: any) =>
+        changeRecords.filter((r) => where.status === undefined || r.status === where.status)),
+    },
+    passwordChangeRequest: {
+      findMany: jest.fn(async ({ where }: any) => pwChanges.filter((r) => where.id?.in ? where.id.in.includes(r.id) : r.status === where.status)),
+      count: jest.fn(async ({ where }: any) => pwChanges.filter((r) => r.status === where.status).length),
+    },
+    passwordResetRequest: {
+      findMany: jest.fn(async ({ where }: any) => pwResets.filter((r) => where.id?.in ? where.id.in.includes(r.id) : r.status === where.status)),
+      count: jest.fn(async ({ where }: any) => pwResets.filter((r) => r.status === where.status).length),
+    },
+    profileChangeRequest: {
+      findMany: jest.fn(async ({ where }: any) => profileChanges.filter((r) => where.id?.in ? where.id.in.includes(r.id) : r.status === where.status)),
+      count: jest.fn(async ({ where }: any) => profileChanges.filter((r) => r.status === where.status).length),
     },
     // 检视用：取当前未消解通知 id 集
     _unresolved: () => notifications.filter((n) => n.resolvedAt === null).map((n) => n.id),
@@ -126,33 +153,34 @@ describe('sweepStaleActionableNotifications', () => {
     expect(b._unresolved()).toEqual(['nB1']); // 李四在审 → 他的通知保留；王五的消解
   });
 
-  it('供应商·双链接格式按 supplierId 对账，页面段不误杀', async () => {
+  it('供应商·双链接格式按 supplierId 对账；无 id 按 PENDING 供应商名对账（2026-11-02 语义升级）', async () => {
     const pathId = 'cmsup000111222333444555'; // 21 字符含数字（旧路径段格式）
-    const pageSeg = 'selection'; // 页面段：无数字 → 归保守桶
+    const pageSeg = 'selection'; // 页面段：无数字 → 归无 id 桶
     const prisma = makePrisma({
       notifications: [
         N('s1', 'SUPPLIER_PENDING', `/supplier/approval?supplierId=${pathId}`), // 已审结
         N('s2', 'SUPPLIER_PENDING', `/supplier/${pathId}x`), // 旧路径段格式，已审结
         N('s3', 'SUPPLIER_PENDING', '/supplier/approval?supplierId=sup-wait'), // 在审
-        N('s4', 'SUPPLIER_PENDING', `/supplier/${pageSeg}`), // 页面段：队列非空 → 保留（防误杀）
+        N('s4', 'SUPPLIER_PENDING', `/supplier/${pageSeg}`), // 页面段无 id：content 空不含在审者名 → 幽灵消解
+        N('s5', 'SUPPLIER_PENDING', `/supplier/${pageSeg}`, '在审公司 提交了注册申请'), // 页面段含在审者名 → 保留
       ],
       suppliers: [
-        { id: pathId, status: 'APPROVED' },
-        { id: `${pathId}x`, status: 'REJECTED' },
-        { id: 'sup-wait', status: 'PENDING' },
+        { id: pathId, status: 'APPROVED', name: '已审公司' },
+        { id: `${pathId}x`, status: 'REJECTED', name: '驳回公司' },
+        { id: 'sup-wait', status: 'PENDING', name: '在审公司' },
       ],
     });
     await sweepStaleActionableNotifications(prisma as any);
-    expect(prisma._unresolved().sort()).toEqual(['s3', 's4']);
+    expect(prisma._unresolved().sort()).toEqual(['s3', 's5']);
   });
 
-  it('供应商·自创标签通知（无 id）仅在注册与标签队列双空时消解', async () => {
+  it('供应商·无 id 通知按在审者名对账：在审者保留、队列空消解', async () => {
     const tagNotif = [N('t1', 'SUPPLIER_PENDING', '/supplier', '甲司 注册时自创标签：x')];
-    // 有在审供应商 → 保留
-    const a = makePrisma({ notifications: tagNotif.map((n) => ({ ...n })), suppliers: [{ id: 's', status: 'PENDING' }], tags: [] });
+    // 有在审供应商（具名）→ content 含其名保留
+    const a = makePrisma({ notifications: tagNotif.map((n) => ({ ...n })), suppliers: [{ id: 's', status: 'PENDING', name: '甲司' }], tags: [] });
     await sweepStaleActionableNotifications(a as any);
     expect(a._unresolved()).toEqual(['t1']);
-    // 双空 → 消解
+    // 队列空 → 消解
     const b = makePrisma({ notifications: tagNotif.map((n) => ({ ...n })), suppliers: [], tags: [] });
     await sweepStaleActionableNotifications(b as any);
     expect(b._unresolved()).toEqual([]);
@@ -209,5 +237,83 @@ describe('sweepStaleActionableNotifications', () => {
     const second = await sweepStaleActionableNotifications(prisma as any);
     expect(second).toEqual([]);
     expect(prisma._unresolved()).toEqual([]);
+  });
+
+  it('资料变更·SUPPLIER_CHANGE_PENDING：队列空全消；队列非空按在审供应商名放行', async () => {
+    // 场景 A：变更记录已全部办结（本库实况：表空）→ 幽灵通知全消
+    const a = makePrisma({
+      notifications: [
+        N('nA1', 'SUPPLIER_CHANGE_PENDING', '/supplier?tab=changes', '「甲公司」提交资料变更申请（字段：联系人）'),
+        N('nA2', 'SUPPLIER_CHANGE_PENDING', '/supplier?tab=changes', '「乙公司」提交资料变更申请（字段：地址）'),
+      ],
+      changeRecords: [],
+    });
+    await sweepStaleActionableNotifications(a as any);
+    expect(a._unresolved()).toEqual([]);
+
+    // 场景 B：仍有在审变更 → content 含在审供应商名的保留、不含的消解
+    const bPrisma = makePrisma({
+      notifications: [
+        N('nB1', 'SUPPLIER_CHANGE_PENDING', '/supplier?tab=changes', '「甲公司」提交资料变更申请（字段：联系人）'),
+        N('nB2', 'SUPPLIER_CHANGE_PENDING', '/supplier?tab=changes', '「乙公司」提交资料变更申请（字段：地址）'),
+      ],
+      changeRecords: [{ supplierId: 's1', status: 'PENDING' }],
+      suppliers: [{ id: 's1', status: 'PENDING', name: '甲公司' }],
+    });
+    await sweepStaleActionableNotifications(bPrisma as any);
+    expect(bPrisma._unresolved()).toEqual(['nB1']);
+  });
+
+  it('供应商注册·无 id 幽灵：队列非空按 PENDING 供应商名对账（与注册审核对称）', async () => {
+    const prisma = makePrisma({
+      notifications: [
+        N('n1', 'SUPPLIER_PENDING', '/supplier', '甲公司 提交了注册申请，信用代码 X，请前往初审。'),
+        N('n2', 'SUPPLIER_PENDING', '/supplier', '丙公司 提交了注册申请，信用代码 Y，请前往初审。'),
+      ],
+      suppliers: [
+        { id: 's1', status: 'PENDING', name: '甲公司' },
+        { id: 's2', status: 'APPROVED', name: '乙公司' },
+      ],
+    });
+    await sweepStaleActionableNotifications(prisma as any);
+    // 甲公司在审保留；丙公司不在 PENDING 名单（其通知早已办结）消解
+    expect(prisma._unresolved()).toEqual(['n1']);
+  });
+
+  it('安全审批·带 requestId 精确对账：请求已办结/不存在消解，仍 PENDING 保留', async () => {
+    const link = (id: string) => `/admin/accounts?tab=password&section=profile&requestId=${id}`;
+    const prisma = makePrisma({
+      notifications: [
+        N('n1', 'PROFILE_CHANGE_PENDING', link('r-approved'), ''),
+        N('n2', 'PROFILE_CHANGE_PENDING', link('r-pending'), ''),
+        N('n3', 'PROFILE_CHANGE_PENDING', link('r-gone'), ''),
+        N('n4', 'PASSWORD_CHANGE_PENDING', link('c-approved'), ''),
+        N('n5', 'PASSWORD_RESET_PENDING', link('z-gone'), ''),
+      ],
+      profileChanges: [
+        { id: 'r-approved', status: 'APPROVED' },
+        { id: 'r-pending', status: 'PENDING' },
+      ],
+      pwChanges: [{ id: 'c-approved', status: 'APPROVED' }],
+      pwResets: [],
+    });
+    await sweepStaleActionableNotifications(prisma as any);
+    expect(prisma._unresolved()).toEqual(['n2']);
+  });
+
+  it('安全审批·无 id 通用形态：对应请求队列空时兜底全消', async () => {
+    const prisma = makePrisma({
+      notifications: [
+        N('n1', 'PROFILE_CHANGE_PENDING', '/admin/accounts?tab=password&section=profile', ''),
+        N('n2', 'PASSWORD_CHANGE_PENDING', '/admin/accounts', ''),
+        // 密码重置队列非空 → 其通用通知保留
+        N('n3', 'PASSWORD_RESET_PENDING', '/admin/accounts', ''),
+      ],
+      profileChanges: [],
+      pwChanges: [],
+      pwResets: [{ id: 'r1', status: 'PENDING' }],
+    });
+    await sweepStaleActionableNotifications(prisma as any);
+    expect(prisma._unresolved()).toEqual(['n3']);
   });
 });
