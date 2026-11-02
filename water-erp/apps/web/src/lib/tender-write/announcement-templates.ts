@@ -118,7 +118,7 @@ export const INVITED_OR_INTERNAL_BIDDING_ANNOUNCEMENT_FIELDS: AnnouncementFieldC
     label: "报名方式及条件",
     placeholder: "请输入报名方式及条件",
     multiline: true,
-    aiPrompt: "根据招标文件中的供应商资格要求和采购内容，生成公告中的报名方式及条件。包含报名时间、报名方式（邮件/现场/网上）、所需材料、资格条件等。不要使用#、*等符号，不要出现空行。",
+    aiPrompt: "根据招标文件中的供应商资格要求和采购内容，生成公告中的报名方式及条件。包含报名时间、报名方式（邮件/现场/网上）、所需材料、资格条件等。篇幅从简：全文不超过300字，资格条件只列关键项不逐条展开。不要使用#、*等符号，不要出现空行。",
   },
   {
     // 2026-10-21 合并单行（用户口径）：起/止两个时间选择器形成时间段。键仍为 announcementStart/
