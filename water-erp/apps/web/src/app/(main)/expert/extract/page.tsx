@@ -2537,7 +2537,7 @@ export function ExpertExtractPage({
                     配额 chips 不得绑 specialty_match 分支，随机/择优方式下同样展示） */}
                 <div className="neu-table-card p-4">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">第一步配置 · 专业配额（已冻结）</span>
+                    <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">抽取配置：</span>
                     {demandRepItems.length > 0 && <span className="neu-tab-count">需求方（业主）代表 {demandRepItems.length} 人</span>}
                     {quotas.map((q, i) => (
                       <span key={i} className="neu-tab-count">{quotaLabel(q)} × {q.count}</span>
