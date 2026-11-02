@@ -189,6 +189,29 @@ describe('HttpExceptionFilter — 报错信息中文化（2026-10-10 禁英文�
     expect(bodyOf(host).error).toBe('服务器内部错误，请稍后重试或联系管理员');
   });
 
+  // ── http-errors 形态状态码透传（2026-11-02 OCR ocr-intake 500 事故）──
+  // body-parser 的 PayloadTooLargeError 不是 HttpException，但按 http-errors 约定带
+  // statusCode=413/status=413 属性——原实现一律裸 500，把「请求体超限」伪装成服务器故障。
+  it('非 HttpException 但带 statusCode（body-parser 413）→ 按原状态码响应 + 中文兜底，不裸 500', () => {
+    const host = makeHost({ method: 'POST', url: '/api/expert-admin/ocr-intake' });
+    const err: any = new Error('request entity too large');
+    err.statusCode = 413;
+    err.status = 413;
+    filter.catch(err, host);
+    expect(bodyOf(host).statusCode).toBe(413);
+    expect(bodyOf(host).error).toBe('上传内容超出大小限制');
+    // 操作日志补记同口径（原固定 500，超限请求在日志里伪装成服务器错误）
+    expect(oplog.create.mock.calls[0][0].statusCode).toBe(413);
+  });
+
+  it('带 statusCode 但取值非法（0/字符串/越界）→ 忽略，维持 500', () => {
+    const host = makeHost();
+    const err: any = new Error('weird');
+    err.statusCode = 'teapot';
+    filter.catch(err, host);
+    expect(bodyOf(host).statusCode).toBe(500);
+  });
+
   it('中文业务消息原样透传（不误伤）', () => {
     const host = makeHost();
     filter.catch(new BadRequestException({ code: 'X', error: '名称不能为空' }), host);

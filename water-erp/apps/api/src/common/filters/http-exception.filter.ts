@@ -113,6 +113,17 @@ const FRAMEWORK_DEFAULT_ZH: Record<string, string> = {
   'Internal Server Error': '服务器内部错误，请稍后重试',
 };
 
+/** http-errors/body-parser 约定：非 HttpException 的异常可能带 statusCode/status 数值属性
+ *  （如 body-parser 的 PayloadTooLargeError=413）。提取之，避免「请求体超限」被伪装成裸 500
+ *  （2026-11-02 OCR ocr-intake 500 事故：>10MB base64 证件 PDF → 前端只见「请求失败 (500)」）。
+ *  取值非法（非整数/越界）返回 null，维持 500 语义。 */
+function numStatusOf(exception: unknown): number | null {
+  const e = exception as { statusCode?: unknown; status?: unknown } | null | undefined;
+  if (!e) return null;
+  const v = typeof e.statusCode === 'number' ? e.statusCode : typeof e.status === 'number' ? e.status : NaN;
+  return Number.isInteger(v) && v >= 400 && v < 600 ? v : null;
+}
+
 /** 消息既非中文、又无框架默认映射时按状态码兜底中文——英文外露的最后闸门 */
 function statusFallbackZh(status: number): string {
   if (status === 401) return '未登录或登录已过期，请重新登录';
@@ -233,7 +244,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (this.oplogEnabled && !(request as any).__oplogRecorded && !shouldExclude(request.method, request.path, this.exclude)) {
       try {
         const oplogStatus =
-          exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
+          exception instanceof HttpException
+            ? exception.getStatus()
+            : numStatusOf(exception) ?? HttpStatus.INTERNAL_SERVER_ERROR;
         const entry = buildLogEntry(request, oplogStatus, 0, exception, this.bodyMaxBytes);
         this.operationLog
           .create(entry)
@@ -323,6 +336,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
       code = 'DB_ERROR';
       this.logger.error(`${request.method} ${request.url} PrismaInit ${exception.message}`, exception.stack);
     } else if (exception instanceof Error) {
+      // http-errors 形态（body-parser 413 等）：按异常自带状态码响应，别一律裸 500
+      const st = numStatusOf(exception);
+      if (st) status = st;
       message = exception.message;
       this.logger.error(`${request.method} ${request.url} ${status}`, exception.stack);
     }

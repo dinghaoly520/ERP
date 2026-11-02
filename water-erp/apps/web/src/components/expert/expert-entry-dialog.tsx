@@ -93,7 +93,10 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/') && file.type !== 'application/pdf') { toast.error('请选择图片文件或 PDF（证件/证书扫描件）'); e.target.value = ''; return; }
-    const maxSize = file.type === 'application/pdf' ? 10 * 1024 * 1024 : 4 * 1024 * 1024;
+    // PDF 上限 7MB：base64 膨胀 ×4/3 后约 9.3MB，须低于 API JSON body 上限 10mb
+    // （main.ts HTTP_BODY_LIMIT）——原 10MB 上限会产生 13.3MB 请求体，被 body-parser
+    // 拒收报 413/500（2026-11-02 生产实录：证件 PDF >7.5MB → 「请求失败 (500)」）
+    const maxSize = file.type === 'application/pdf' ? 7 * 1024 * 1024 : 4 * 1024 * 1024;
     if (file.size > maxSize) { toast.error(`文件过大，请压缩至 ${maxSize / 1024 / 1024}MB 以内后再识别`); e.target.value = ''; return; }
     setOcrLoading(true);
     try {
