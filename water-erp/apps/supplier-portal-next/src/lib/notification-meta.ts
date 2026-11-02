@@ -15,7 +15,7 @@ const META: Record<string, NotificationMeta> = {
   BID_NUDGE_SUPPLIER: { label: "投标提醒", group: "project", tone: "warning", actionable: true, actionLabel: "查看项目" },
   BID_DEADLINE_NUDGE: { label: "截止提醒", group: "project", tone: "danger", actionable: true, actionLabel: "查看项目" },
   QUALIFICATION_EXPIRING: { label: "资质到期", group: "approval", tone: "warning", actionable: true, actionLabel: "更新资质" },
-  CLARIFICATION: { label: "澄清文件", group: "project", tone: "info", actionable: true, actionLabel: "查看澄清" },
+  CLARIFICATION: { label: "澄清文件", group: "project", tone: "info", actionable: false, actionLabel: "查看澄清" }, // 2026-11-02 降待阅：查看下载型知会，无处理动作（与 shared registry 同步）
   BID_CLARIFICATION_CREATED: { label: "评标澄清", group: "todo", tone: "warning", actionable: true, actionLabel: "提交答复" },
   CLARIFY_NOTICE: { label: "澄清公告", group: "project", tone: "info" },
   BID_PUBLISHED: { label: "采购项目发布", group: "project", tone: "info" },
