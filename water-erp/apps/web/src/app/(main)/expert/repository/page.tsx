@@ -206,7 +206,22 @@ export default function ExpertRepositoryPage() {
   const renderExpertTable = (rows: ExpertListItem[]) => (
       <div className="neu-table-card">
         <div className="overflow-x-auto">
-          <table className="neu-table w-full min-w-[880px]">
+          <table className="neu-table w-full min-w-[1200px] table-fixed">
+            {/* 固定列宽（2026-11-02）：全部公司视图每组一张表，table-fixed+colgroup
+                让所有分组表同名列严格对齐（此前各组自适应宽，组间列错位） */}
+            <colgroup>
+              {batchMode && <col style={{ width: 44 }} />}
+              <col style={{ width: 170 }} />
+              <col style={{ width: 140 }} />
+              <col style={{ width: 130 }} />
+              <col style={{ width: 150 }} />
+              <col style={{ width: 95 }} />
+              <col style={{ width: 85 }} />
+              <col style={{ width: 85 }} />
+              <col style={{ width: 110 }} />
+              <col style={{ width: 130 }} />
+              <col style={{ width: 130 }} />
+            </colgroup>
             <thead>
               <tr>
                 {batchMode && (
@@ -263,8 +278,8 @@ export default function ExpertRepositoryPage() {
                       </div>
                     </td>
                     <td className="text-center">{e.expertProfile?.specialty && <StatusBadge tone={specialtyTone(e.expertProfile.specialty)}>{e.expertProfile.specialty}</StatusBadge>}</td>
-                    <td className="text-center text-sm text-[var(--muted-foreground)]">{e.expertProfile?.title || '—'}</td>
-                    <td className="text-center text-sm text-[var(--muted-foreground)]">{e.department?.name || '—'}</td>
+                    <td className="truncate px-2 text-center text-sm text-[var(--muted-foreground)]" title={e.expertProfile?.title || ''}>{e.expertProfile?.title || '—'}</td>
+                    <td className="truncate px-2 text-center text-sm text-[var(--muted-foreground)]" title={e.department?.name || ''}>{e.department?.name || '—'}</td>
                     <td className="text-center">
                       {(() => {
                         const invited = e.bidExperts.length;
