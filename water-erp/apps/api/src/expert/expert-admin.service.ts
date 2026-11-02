@@ -547,7 +547,9 @@ export class ExpertAdminService {
     let departmentId: string | undefined;
     if (dto.departmentName?.trim()) {
       const name = dto.departmentName.trim();
-      const existing = await this.prisma.department.findUnique({ where: { name }, select: { id: true } });
+      // name 全局唯一已改公司内唯一（2026-11-02）——按名首个匹配（专家域部门多为
+      // 遗留 companyId=null 行），无则建 null 行（专家域部门不入公司隔离下拉）
+      const existing = await this.prisma.department.findFirst({ where: { name }, select: { id: true } });
       if (existing) {
         departmentId = existing.id;
       } else {
@@ -758,7 +760,8 @@ export class ExpertAdminService {
     if (dto.departmentName !== undefined) {
       if (dto.departmentName.trim()) {
         const name = dto.departmentName.trim();
-        const existing = await this.prisma.department.findUnique({ where: { name }, select: { id: true } });
+        // name 唯一性改公司内（2026-11-02）——findUnique 改 findFirst
+        const existing = await this.prisma.department.findFirst({ where: { name }, select: { id: true } });
         if (existing) {
           departmentId = existing.id;
         } else {

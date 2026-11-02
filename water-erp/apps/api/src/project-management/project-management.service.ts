@@ -1155,11 +1155,9 @@ ${shortlist}
     dto: CreateProjectFromInitiationDto,
     companyStamp: { companyId?: string; companyName?: string } = {},
   ) {
-    await this.prisma.department.upsert({
-      where: { name: dto.requesterDepartment },
-      update: {},
-      create: { name: dto.requesterDepartment },
-    });
+    // name 唯一性改公司内（2026-11-02）——upsert by name 改 findFirst+create
+    const foundDept = await this.prisma.department.findFirst({ where: { name: dto.requesterDepartment }, select: { id: true } });
+    if (!foundDept) await this.prisma.department.create({ data: { name: dto.requesterDepartment } });
 
     // Determine stages based on procurement method, then adjust for uploaded documents
     const isSmallPurchase = dto.procurementMethod === '小额采购';
@@ -4114,11 +4112,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const archivedAt = new Date();
 
     const result = await this.prisma.$transaction(async (tx) => {
-      const department = await tx.department.upsert({
-        where: { name: project.requesterDepartment },
-        update: {},
-        create: { name: project.requesterDepartment },
-      });
+      const deptFound = await tx.department.findFirst({ where: { name: project.requesterDepartment }, select: { id: true } });
+      const department = deptFound
+        ? deptFound
+        : await tx.department.create({ data: { name: project.requesterDepartment } });
 
       const createdProject = await tx.project.create({
         data: {
@@ -4292,11 +4289,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const linkedProjectCodes = linkedBidProjects.map((bp) => bp.projectCode).filter((pc): pc is string => !!pc);
 
     return this.prisma.$transaction(async (tx) => {
-      const department = await tx.department.upsert({
-        where: { name: project.requesterDepartment },
-        update: {},
-        create: { name: project.requesterDepartment },
-      });
+      const deptFound = await tx.department.findFirst({ where: { name: project.requesterDepartment }, select: { id: true } });
+      const department = deptFound
+        ? deptFound
+        : await tx.department.create({ data: { name: project.requesterDepartment } });
 
       // 台账：项目编号承继 PMI 三段式编号（与归档同口径，修复历史 cuid 内码）。
       // 用 upsert 幂等：公告直建等路径可能已为同一 projectCode 在 Project 表建过记录，避免撞 @unique。

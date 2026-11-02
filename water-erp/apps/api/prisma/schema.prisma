@@ -54,6 +54,7 @@ model Company {
   supervisionProfiles CompanySupervision[]
 
   @@map("companies")
+  departments Department[]
 }
 
 /// 开标地点条目（2026-10-10 多条目版）：公司信息管理维护多个地点、单默认——
@@ -107,14 +108,21 @@ model CompanyPurchaser {
 
 model Department {
   id                  String               @id @default(cuid())
-  name                String               @unique
+  // 公司内唯一（2026-11-02 公司隔离）：跨公司同名不再互斥；null（专家遗留）不受约束
+  name                String
   code                String?              @unique
+  /// 归属公司（2026-11-02 个人中心部门公司隔离）：null=专家域遗留/平台级——
+  /// 不进 :3005 下拉；内部员工部门由用户手输时按本公司创建
+  companyId           String?
+  company             Company?             @relation(fields: [companyId], references: [id])
   users               User[]
   procurementProjects ProcurementProject[]
   procurementRounds   ProcurementRound[]   @relation("RoundDepartment")
   requestedProjects   Project[]            @relation("ProjectRequestingDepartment")
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
+
+  @@unique([companyId, name])
 }
 
 model User {

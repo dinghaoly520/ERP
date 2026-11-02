@@ -5,7 +5,7 @@ import {
   AlertTriangle, Check, Camera, Upload, KeyRound, Clock, Eye, EyeOff, X,
 } from 'lucide-react';
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { submitProfileChange, requestPasswordChange } from '@/lib/api/auth';
+import { submitProfileChange, requestPasswordChange, findOrCreateDepartment } from '@/lib/api/auth';
 import { UnitSearchSelect } from '@/components/login/unit-search-select';
 import type { AuthUser, DepartmentItem, ProfileChangePayload } from '@/lib/api/auth';
 import { api } from '@/lib/api';
@@ -59,7 +59,8 @@ export function TabBasicInfo({ user, departments }: TabBasicInfoProps) {
   const [phone, setPhone] = useState(user.phone ?? '');
   const [officeLocation, setOfficeLocation] = useState(user.officeLocation ?? '');
   const [company, setCompany] = useState(user.company ?? '');
-  const [departmentId, setDepartmentId] = useState(user.department?.id ?? '');
+  // 部门走名字轨（2026-11-02 公司隔离 combobox）：输入名字，提交时找/建本公司部门
+  const [departmentInput, setDepartmentInput] = useState(user.department?.name ?? '');
   const [avatar, setAvatar] = useState(user.avatar ?? '');
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -90,7 +91,7 @@ export function TabBasicInfo({ user, departments }: TabBasicInfoProps) {
   const hasChanges = displayName !== user.displayName || email !== (user.email ?? '') ||
     phone !== (user.phone ?? '') || officeLocation !== (user.officeLocation ?? '') ||
     company !== (user.company ?? '') ||
-    departmentId !== (user.department?.id ?? '') || avatar !== (user.avatar ?? '');
+    departmentInput.trim() !== (user.department?.name ?? '') || avatar !== (user.avatar ?? '');
 
   // 所有资料修改一律提交审批，审批通过前当前资料保持不变
   const handleSave = async () => {
@@ -109,7 +110,16 @@ export function TabBasicInfo({ user, departments }: TabBasicInfoProps) {
       if (phone !== (user.phone ?? '')) payload.phone = phone.trim() || null;
       if (officeLocation !== (user.officeLocation ?? '')) payload.officeLocation = officeLocation.trim() || null;
       if (company !== (user.company ?? '')) payload.company = company.trim() || null;
-      if (departmentId !== (user.department?.id ?? '')) payload.departmentId = departmentId || null;
+      // 部门：名字有变化 → 找/建本公司部门拿 id（公司隔离下拉 + 手输自建，2026-11-02）
+      if (departmentInput.trim() !== (user.department?.name ?? '')) {
+        const trimmed = departmentInput.trim();
+        if (!trimmed) {
+          payload.departmentId = null;
+        } else {
+          const dept = await findOrCreateDepartment(trimmed);
+          payload.departmentId = dept.id;
+        }
+      }
       if (avatar !== (user.avatar ?? '')) payload.avatar = avatar.trim() || null;
       await submitProfileChange(payload);
       // 未生效：表单回滚到当前资料，避免误以为已保存
@@ -118,7 +128,7 @@ export function TabBasicInfo({ user, departments }: TabBasicInfoProps) {
       setPhone(user.phone ?? '');
       setOfficeLocation(user.officeLocation ?? '');
       setCompany(user.company ?? '');
-      setDepartmentId(user.department?.id ?? '');
+      setDepartmentInput(user.department?.name ?? '');
       setAvatar(user.avatar ?? '');
       setSuccess('资料变更申请已提交，等待管理员审批后生效'); setTimeout(() => setSuccess(null), 4000);
     } catch (err) { setError(err instanceof Error ? err.message : '提交失败'); }
@@ -146,7 +156,7 @@ export function TabBasicInfo({ user, departments }: TabBasicInfoProps) {
   const profileFields = [
     { label: '姓名', icon: UserRound, val: displayName, set: setDisplayName, type: 'text', placeholder: '请输入姓名', maxLen: 32 },
     { label: '公司', icon: Building, val: company, set: setCompany, type: 'company', placeholder: '请选择或输入公司名称' },
-    { label: '部门', icon: Building2, val: departmentId, set: setDepartmentId, type: 'select', placeholder: '', options: departments },
+    { label: '部门', icon: Building2, val: departmentInput, set: setDepartmentInput, type: 'department', placeholder: '输入或选择部门', options: departments },
     { label: '邮箱', icon: Mail, val: email, set: setEmail, type: 'email', placeholder: '请输入邮箱' },
     { label: '手机', icon: Phone, val: phone, set: setPhone, type: 'tel', placeholder: '请输入手机号' },
     { label: '办公位置', icon: MapPin, val: officeLocation, set: setOfficeLocation, type: 'text', placeholder: '如：12楼1205室' },
@@ -207,6 +217,21 @@ export function TabBasicInfo({ user, departments }: TabBasicInfoProps) {
                   <div className="flex-1">
                     <UnitSearchSelect value={f.val} onChange={f.set} placeholder={f.placeholder} />
                   </div>
+                ) : f.type === 'department' ? (
+                  // 可输可选（2026-11-02）：datalist 本公司部门下拉 + 自由输入，提交时找/建
+                  <>
+                    <input
+                      list="profile-department-options"
+                      value={f.val}
+                      onChange={e => f.set(e.target.value)}
+                      placeholder={f.placeholder}
+                      maxLength={64}
+                      className="neu-input h-[36px] flex-1 py-0 text-[13px]"
+                    />
+                    <datalist id="profile-department-options">
+                      {f.options.map((d: any) => <option key={d.id} value={d.name} />)}
+                    </datalist>
+                  </>
                 ) : f.type === 'select' ? (
                   <select value={f.val} onChange={e => f.set(e.target.value)} className="workbench-input h-[36px] flex-1 text-[13px]">
                     <option value="">未设置</option>

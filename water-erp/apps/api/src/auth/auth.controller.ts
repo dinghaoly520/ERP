@@ -367,11 +367,48 @@ export class AuthController {
 
   @Get('departments')
   @AnyRole()
-  @ApiOperation({ summary: '获取部门列表（下拉选择用）' })
-  async listDepartments() {
+  @ApiOperation({ summary: '获取部门列表（下拉选择用，公司隔离）' })
+  async listDepartments(@Req() req: any) {
+    // 2026-11-02 公司隔离：只返回当前用户本公司的部门——此前全量返回专家库导入的
+    // 101 条跨公司杂糅部门（部门+职务混编），他司组织信息不应出现在个人资料下拉。
+    // 例外：admin 平台级视野（密码审批面板需映射全平台申请人部门名）返回全量。
+    const u = req?.user?.sub
+      ? await this.prisma.user.findUnique({ where: { id: req.user.sub }, select: { companyId: true, role: true } })
+      : null;
+    if (u?.role === 'admin') {
+      return this.prisma.department.findMany({
+        select: { id: true, name: true, code: true },
+        orderBy: { name: 'asc' },
+      });
+    }
+    if (!u?.companyId) return [];
     return this.prisma.department.findMany({
+      where: { companyId: u.companyId },
       select: { id: true, name: true, code: true },
       orderBy: { name: 'asc' },
+    });
+  }
+
+  @Post('departments')
+  @AnyRole()
+  @ApiOperation({ summary: '按名找/建本公司部门（个人资料手输部门时用，幂等）' })
+  async findOrCreateDepartment(@Body() dto: { name: string }, @Req() req: any) {
+    const name = dto?.name?.trim();
+    if (!name) throw new BadRequestException({ error: '部门名称不能为空', code: 'NAME_REQUIRED' });
+    const u = req?.user?.sub
+      ? await this.prisma.user.findUnique({ where: { id: req.user.sub }, select: { companyId: true } })
+      : null;
+    if (!u?.companyId) {
+      throw new BadRequestException({ error: '账号未归属公司，无法创建部门，请联系管理员', code: 'NO_COMPANY' });
+    }
+    const existing = await this.prisma.department.findFirst({
+      where: { companyId: u.companyId, name },
+      select: { id: true, name: true, code: true },
+    });
+    if (existing) return existing;
+    return this.prisma.department.create({
+      data: { name, companyId: u.companyId },
+      select: { id: true, name: true, code: true },
     });
   }
 }

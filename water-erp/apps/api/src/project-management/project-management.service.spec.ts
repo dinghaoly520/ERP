@@ -405,6 +405,8 @@ describe('ProjectManagementService', () => {
     const prisma: Record<string, any> = {
       department: {
         upsert: jest.fn(),
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 'dept-1', name: 'x' }),
       },
       projectManagementItem: {
         create: jest.fn(),

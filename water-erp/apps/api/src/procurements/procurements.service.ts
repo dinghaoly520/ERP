@@ -564,12 +564,14 @@ export class ProcurementsService {
     if (dto.departmentId) {
       departmentId = dto.departmentId;
     } else if (dto.departmentName) {
-      const dept = await this.prisma.department.upsert({
-        where: { name: dto.departmentName },
-        update: {},
-        create: { name: dto.departmentName },
-      });
-      departmentId = dept.id;
+      // name 唯一性改公司内（2026-11-02）——upsert by name 改 findFirst+create
+      const found = await this.prisma.department.findFirst({ where: { name: dto.departmentName }, select: { id: true } });
+      if (found) {
+        departmentId = found.id;
+      } else {
+        const created = await this.prisma.department.create({ data: { name: dto.departmentName } });
+        departmentId = created.id;
+      }
     }
 
     // Handle project
@@ -685,12 +687,10 @@ export class ProcurementsService {
     if (dto.departmentId) {
       departmentId = dto.departmentId;
     } else if (dto.departmentName) {
-      const dept = await this.prisma.department.upsert({
-        where: { name: dto.departmentName },
-        update: {},
-        create: { name: dto.departmentName },
-      });
-      departmentId = dept.id;
+      const found = await this.prisma.department.findFirst({ where: { name: dto.departmentName }, select: { id: true } });
+      departmentId = found
+        ? found.id
+        : (await this.prisma.department.create({ data: { name: dto.departmentName } })).id;
     }
 
     // Handle awarded supplier update

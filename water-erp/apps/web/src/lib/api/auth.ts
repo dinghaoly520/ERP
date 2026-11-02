@@ -426,6 +426,15 @@ export async function logout() {
   return result;
 }
 
+/** 按名找/建本公司部门（个人资料手输部门用，公司隔离+幂等，2026-11-02） */
+export async function findOrCreateDepartment(name: string): Promise<DepartmentItem> {
+  return requestJson<DepartmentItem>(`${API_BASE}/auth/departments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+}
+
 export async function fetchDepartments(): Promise<DepartmentItem[]> {
   return requestJson<DepartmentItem[]>(`${API_BASE}/auth/departments`, {
     credentials: 'include',
