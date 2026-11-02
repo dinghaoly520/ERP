@@ -2046,7 +2046,7 @@ export function ExpertExtractPage({
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">1.</span>合规过滤：仅「可用」状态专家，工作单位与供应商无关联，未被重复分配至同一项目，自动回避利益相关方</li>
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">2.</span>席位规则：可选择 3 / 5 / 7 人委员会；需求方（业主）代表可选 0-2 人（指定人员或按部门抽取）；其余席位按专业配额抽取，每专业候补 1 位</li>
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">3.</span>多维评估：AI 综合专家履职评价等级(A/B/C/D)、出勤/质量/廉洁三维度评分、评分偏离度、历史经验与当前负荷</li>
-                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">4.</span>可返可补：任意步骤均可回「抽取配置」重新抽取（重走确认即整体替换原专家组）；如只换个别人员，在后续步骤补选更轻量</li>
+                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">4.</span>配额冻结：开始抽取进入「抽取结果」后不可返回「抽取配置」（顶部步骤按钮同样锁定）；如需调整个别人员，请在后续步骤使用补选/替换</li>
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">5.</span>通知送达：确认后支持 OA站内信 / 短信 / 电话 多渠道通知被选专家</li>
               </ol>
             </RulesPopover>
@@ -2068,10 +2068,11 @@ export function ExpertExtractPage({
         current={step}
         onStepClick={(s) => setStep(s)}
         reachable={(s) => {
-          // 任意步骤均可回「抽取配置」重抽（2026-10-30 用户裁定，推翻 2026-10-27「进步骤2禁回1」）——
-          // 确认失败（如公司闸历史误拦整组专家）时若无退路即死局；重走确认=整体替换原专家组，
-          // 评标/归档/流标项目的硬闸仍由后端 RE_EXTRACTION_LOCKED 把守，前端不重复设卡
-          if (s === 1) return true;
+          // 进入步骤2（抽取结果既出）后配置冻结、禁回步骤1（2026-11-02 用户裁定；
+          // 2026-10-27 首次设锁、2026-10-30 曾短暂解锁）——顶部步骤按钮与一切回退
+          // 入口同口径。个别人员调整走后续步骤补选/替换；服务端 RE_EXTRACTION_LOCKED
+          // 硬闸（评标/归档/流标项目）不变
+          if (s === 1) return step === 1;
           if (s <= step) return true;
           if (s === 2 && !!preview) return true;
           if (s === 3 && confirmedExpertIds.length > 0) return true;
@@ -2530,6 +2531,29 @@ export function ExpertExtractPage({
 
           {preview && !loading && (
               <div className="space-y-4">
+                {/* 第一步配置摘要（2026-11-02 用户口径：步骤2 可见专业配额）——
+                    进入抽取结果后配置冻结不可回改，此处为配置快照 */}
+                <div className="neu-table-card p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">第一步配置 · 专业配额（已冻结）</span>
+                    <span className="text-[10px] text-[var(--muted-foreground)]">进入抽取结果后不可返回修改；个别人员调整请用后续步骤的补选/替换</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="neu-tab-count">委员会 {totalSeats} 席</span>
+                    {demandRepItems.length > 0 && <span className="neu-tab-count">需求方（业主）代表 {demandRepItems.length} 人</span>}
+                    {extractMode === 'specialty_match' ? (
+                      <>
+                        {quotas.filter(quotaFilled).map((q, i) => (
+                          <span key={i} className="neu-tab-count">{quotaLabel(q)} × {q.count}</span>
+                        ))}
+                        {qt > 0 && <span className="neu-tab-count">按专业配额合计 {qt} 人</span>}
+                      </>
+                    ) : (
+                      <span className="neu-tab-count">{MODE_LABELS[extractMode as ExtractMode] ?? extractMode}</span>
+                    )}
+                  </div>
+                </div>
+
                 {/* AI 分析 */}
                 <div className="neu-table-card p-4">
                   <div className="flex items-center gap-2 mb-3">
@@ -2544,7 +2568,7 @@ export function ExpertExtractPage({
 
                 {preview.shortages.length > 0 && <div className="rounded-xl bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] px-4 py-3 text-sm text-[var(--warning)]"><AlertTriangle size={16} className="inline mr-2" />专业候选人不足{preview.shortages.map(s => `：${s.specialty} 需${s.needed}人/仅${s.available}人`).join('')}</div>}
 
-                {/* 抽取结果全信息表（2026-09-24 改版：表格式全量信息；结果可经回步骤1重抽整体替换，表内不提供单项添加/替换/移除） */}
+                {/* 抽取结果全信息表（2026-09-24 改版：表格式全量信息；配置已冻结不可回步骤1重抽（2026-11-02），个别调整走后续步骤补选，表内不提供单项添加/替换/移除） */}
                 <div className="neu-table-card p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                     <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">抽取结果 · 专家组 {selectedExperts.length + demandRepItems.length} 人（正选 {selectedExperts.filter(s => !demandRepIdSet.has(s.userId)).length} · 需求方（业主）代表 {demandRepItems.length}）</span>
