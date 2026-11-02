@@ -327,6 +327,20 @@ export class NotificationService {
     });
   }
 
+  /**
+   * 仅消解 content 含指定供应商名的广播型待办（2026-11-02 评审 P2）：
+   * 变更审批通知按供应商名精确归因——甲办结只清甲的待办，并行在审的乙不受牵连
+   * （与 stale-sweep 按 content 名单放行同口径；supplierName 缺失时不动，宁留勿杀）。
+   */
+  async resolveActionableBySupplierName(type: string, link: string, supplierName: string | null | undefined) {
+    const name = supplierName?.trim();
+    if (!name) return { count: 0 };
+    return this.prisma.notification.updateMany({
+      where: { type, link, resolvedAt: null, content: { contains: name } },
+      data: { resolvedAt: new Date() },
+    });
+  }
+
   /** 幽灵待办对账消解（见 stale-sweep.ts 头注）——Scheduler 每日 / seed 装载后调用。 */
   async sweepStaleActionable() {
     return sweepStaleActionableNotifications(this.prisma);

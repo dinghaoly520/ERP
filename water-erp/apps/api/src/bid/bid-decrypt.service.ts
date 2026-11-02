@@ -574,6 +574,11 @@ export class BidDecryptService {
     });
     this.gateway?.notifyDecryptStatus(projectId, supplierId, supplierName, 'DANGER');
     if (bidSupplier.supplierId) notifySupplierDecryptAttribution(this.prisma, this.notificationService, bidSupplier.supplierId, supplierName, projectId, attribution);
+    // 裁决完成=该供应商 DANGER 待办的「联系主持人」指引失效（2026-11-02 评审采纳：
+    // 提前从事项自然终点消解，不必等项目终局；link 与创建点全等）
+    this.notificationService
+      .resolveActionable('BID_DECRYPT_FAILED', `/my-bids/${projectId}/opening-hall`)
+      .catch(() => {});
     // 终局即固化（A）：归因裁决为终局态写入，若全体已终局则自动固化开标文件包（幂等、不阻塞）
     void this.bidService.autoHandoverIfDone(projectId, '解密归因裁决');
     return { adjudged: true, supplierId, supplierName, attribution };

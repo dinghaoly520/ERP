@@ -16,9 +16,10 @@ function makePrisma(tables: {
   suppliers?: Array<{ id: string; status: string; name?: string }>;
   links?: Array<{ id: string; status: string }>;
   apps?: Array<{ id: string; status: string }>;
-  tags?: Array<{ id: string; status: string }>;
+  tags?: Array<{ id: string; status: string; createdBySupplierId?: string | null }>;
   changeRecords?: Array<{ supplierId: string; status: string }>;
   bidProjects?: Array<{ id: string; stage: string; projectManagementItemId: string | null }>;
+
   pwChanges?: Array<{ id: string; status: string }>;
   pwResets?: Array<{ id: string; status: string }>;
   profileChanges?: Array<{ id: string; status: string }>;
@@ -31,6 +32,7 @@ function makePrisma(tables: {
   const tags = tables.tags ?? [];
   const changeRecords = tables.changeRecords ?? []; // SupplierChangeRecord（含 supplierId）
   const bidProjects = tables.bidProjects ?? [];     // BidProject（stage 镜像）
+
   const pwChanges = tables.pwChanges ?? [];         // PasswordChangeRequest
   const pwResets = tables.pwResets ?? [];           // PasswordResetRequest
   const profileChanges = tables.profileChanges ?? []; // ProfileChangeRequest
@@ -96,6 +98,10 @@ function makePrisma(tables: {
     },
     businessTag: {
       count: jest.fn(async ({ where }: any) => tags.filter((t) => t.status === where.status).length),
+      findMany: jest.fn(async ({ where }: any) =>
+        tags.filter((t) =>
+          (where.status === undefined || t.status === where.status) &&
+          (where.createdBySupplierId?.not === undefined ? t.createdBySupplierId !== null : true))),
     },
     bidProject: {
       findMany: jest.fn(async ({ where }: any) =>
@@ -434,5 +440,48 @@ describe('sweepStaleActionableNotifications', () => {
     });
     await sweepStaleActionableNotifications(prisma as any);
     expect(prisma._unresolved()).toEqual(['u2']);
+  });
+
+  it('供应商·无 id：注册已审但自创标签在审时，标签待办保留（2026-11-02 评审 P2b）', async () => {
+    const prisma = makePrisma({
+      notifications: [N('t1', 'SUPPLIER_PENDING', '/supplier', '甲司 注册时自创标签：x')],
+      // 供应商已 APPROVED（注册审毕）但其标签 PENDING
+      suppliers: [{ id: 's1', status: 'APPROVED', name: '甲司' }],
+      tags: [{ id: 'tag1', status: 'PENDING', createdBySupplierId: 's1' }],
+    });
+    await sweepStaleActionableNotifications(prisma as any);
+    expect(prisma._unresolved()).toEqual(['t1']);
+    // 标签队列也空（审毕）→ 允许消解
+    const b = makePrisma({
+      notifications: [N('t1', 'SUPPLIER_PENDING', '/supplier', '甲司 注册时自创标签：x')],
+      suppliers: [{ id: 's1', status: 'APPROVED', name: '甲司' }],
+      tags: [{ id: 'tag1', status: 'APPROVED', createdBySupplierId: 's1' }],
+    });
+    await sweepStaleActionableNotifications(b as any);
+    expect(b._unresolved()).toEqual([]);
+  });
+
+  it('开标移交·共享 PMI 多轮次：任一轮仍在 OPENING 即保留全部（2026-11-02 评审 P3）', async () => {
+    const link = (pmi: string) => `/projects?projectId=${pmi}&panel=bid-confirm`;
+    const prisma = makePrisma({
+      notifications: [N('h1', 'BID_OPENING_HANDED_OVER', link('pmi-shared'), '')],
+      // 同一 PMI 两轮：R1 已流标 + R2 开标中——Map 顺序不定也不得误清 R2 的活动待办
+      bidProjects: [
+        { id: 'r1', stage: 'ABORTED', projectManagementItemId: 'pmi-shared' },
+        { id: 'r2', stage: 'OPENING', projectManagementItemId: 'pmi-shared' },
+      ],
+    });
+    await sweepStaleActionableNotifications(prisma as any);
+    expect(prisma._unresolved()).toEqual(['h1']);
+    // 两轮都离开 OPENING → 消解
+    const b = makePrisma({
+      notifications: [N('h1', 'BID_OPENING_HANDED_OVER', link('pmi-shared'), '')],
+      bidProjects: [
+        { id: 'r1', stage: 'ABORTED', projectManagementItemId: 'pmi-shared' },
+        { id: 'r2', stage: 'EVALUATING', projectManagementItemId: 'pmi-shared' },
+      ],
+    });
+    await sweepStaleActionableNotifications(b as any);
+    expect(b._unresolved()).toEqual([]);
   });
 });

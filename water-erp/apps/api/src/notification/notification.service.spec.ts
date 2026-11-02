@@ -135,6 +135,26 @@ describe('NotificationService', () => {
     });
   });
 
+  it('resolveActionableBySupplierName 按供应商名过滤（广播待办不牵连并行在审者），空名不动', async () => {
+    prisma.notification.updateMany.mockResolvedValue({ count: 1 });
+    await service.resolveActionableBySupplierName(
+      'SUPPLIER_CHANGE_PENDING', '/supplier?tab=changes', '甲公司',
+    );
+    expect(prisma.notification.updateMany).toHaveBeenCalledWith({
+      where: {
+        type: 'SUPPLIER_CHANGE_PENDING',
+        link: '/supplier?tab=changes',
+        resolvedAt: null,
+        content: { contains: '甲公司' },
+      },
+      data: { resolvedAt: expect.any(Date) },
+    });
+    // 空名（供应商查不到）→ 宁留勿杀，零调用
+    prisma.notification.updateMany.mockClear();
+    await service.resolveActionableBySupplierName('SUPPLIER_CHANGE_PENDING', '/supplier?tab=changes', '  ');
+    expect(prisma.notification.updateMany).not.toHaveBeenCalled();
+  });
+
   it('resolveActionableForUser 仅处理指定用户和业务关联链接的通知', async () => {
     prisma.notification.updateMany.mockResolvedValue({ count: 1 });
 

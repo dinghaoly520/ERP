@@ -37,6 +37,7 @@ type SweepPrisma = Pick<
   | 'supplier'
   | 'supplierCompanyLink'
   | 'supplierChangeRecord'
+  | 'businessTag'
   | 'bidProject'
   | 'passwordChangeRequest'
   | 'passwordResetRequest'
@@ -166,14 +167,25 @@ export async function sweepStaleActionableNotifications(prisma: SweepPrisma): Pr
       await resolveIds('SUPPLIER_PENDING', '按 supplierId：status≠PENDING', stale);
     }
     if (noId.length > 0) {
-      // mall 下线（2026-10-28）：businessTag（标签队列）模型已删。2026-11-02 起：
-      // 队列空全消；非空按 PENDING 供应商名对账（与注册审核 content 规则对称——
-      // 注册/补正文案恒以企业名开头，名单不含即早已办结）
+      // 2026-11-02 评审修正：businessTag 模型仍在、注册自创标签待办（type=SUPPLIER_PENDING、
+      // link=/supplier）仍在产生——在审名单须并入「有 PENDING 标签的供应商名」，否则
+      // 注册审批通过而标签未审时标签待办会被误杀。名单空全消；非空按 content 对账
+      // （与注册审核 content 规则对称——注册/标签文案恒以企业名开头，名单不含即早已办结）
       const pendingSuppliers = await prisma.supplier.findMany({
         where: { status: 'PENDING' },
         select: { name: true },
       });
-      const pendingNames = pendingSuppliers.map((x) => x.name).filter(Boolean);
+      const pendingTagSupplierIds = await prisma.businessTag.findMany({
+        where: { status: 'PENDING', createdBySupplierId: { not: null } },
+        select: { createdBySupplierId: true },
+      });
+      const tagSupplierNames = pendingTagSupplierIds.length
+        ? (await prisma.supplier.findMany({
+            where: { id: { in: pendingTagSupplierIds.map((t) => t.createdBySupplierId!) } },
+            select: { name: true },
+          })).map((x) => x.name).filter(Boolean)
+        : [];
+      const pendingNames = [...new Set([...pendingSuppliers.map((x) => x.name).filter(Boolean), ...tagSupplierNames])];
       const stale = pendingNames.length === 0
         ? noId
         : noId.filter((id) => {
@@ -365,17 +377,26 @@ export async function sweepStaleActionableNotifications(prisma: SweepPrisma): Pr
         }
       }
       if (byPmi.size > 0) {
+        // 同一 PMI 可挂多项目（流标重招继承 PMI）——按 PMI 聚合 stage 集合，
+        // 任一轮次仍在 OPENING 即保留该 PMI 的全部待办（2026-11-02 评审 P3：
+        // 此前 Map last-wins 由 DB 返回顺序决定，活动轮次待办可能被误清）
         const projects = await prisma.bidProject.findMany({
           where: { projectManagementItemId: { in: [...byPmi.keys()] } },
           select: { stage: true, projectManagementItemId: true },
         });
-        const stageByPmi = new Map(projects.map((x) => [x.projectManagementItemId!, x.stage]));
+        const stagesByPmi = new Map<string, Set<string>>();
+        for (const x of projects) {
+          if (!x.projectManagementItemId) continue;
+          const set = stagesByPmi.get(x.projectManagementItemId) ?? new Set<string>();
+          set.add(x.stage);
+          stagesByPmi.set(x.projectManagementItemId, set);
+        }
         const stale: string[] = [];
         for (const [pmi, ids] of byPmi) {
-          const stage = stageByPmi.get(pmi);
-          if (stage === undefined || stage !== 'OPENING') stale.push(...ids);
+          const stages = stagesByPmi.get(pmi);
+          if (stages === undefined || !stages.has('OPENING')) stale.push(...ids);
         }
-        await resolveIds('BID_OPENING_HANDED_OVER', '按 PMI：项目已离开开标阶段/已删除', stale);
+        await resolveIds('BID_OPENING_HANDED_OVER', '按 PMI：各轮次均已离开开标阶段/已删除', stale);
       }
       if (noPmi.length > 0) {
         const openingCount = await prisma.bidProject.count({ where: { stage: 'OPENING' } });

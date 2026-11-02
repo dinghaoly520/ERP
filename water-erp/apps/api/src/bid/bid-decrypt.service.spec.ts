@@ -70,7 +70,7 @@ describe('BidDecryptService — acceptSupplierDanger（解密窗口到期定性�
     const module = await Test.createTestingModule({
       providers: [
         { provide: PrismaService, useValue: prisma },
-        { provide: NotificationService, useValue: { create: jest.fn() } },
+        { provide: NotificationService, useValue: { create: jest.fn(), resolveActionable: jest.fn().mockResolvedValue({ count: 0 }) } },
         BidDecryptService,
         ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
         { provide: BidService, useValue: BID_SERVICE_STUB },
@@ -152,7 +152,7 @@ describe('BidDecryptService — 解密失败归因裁决（Task 15, §5.5）', (
         BidDecryptService,
         ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
         { provide: PrismaService, useValue: prisma },
-        { provide: NotificationService, useValue: { sendToUser } },
+        { provide: NotificationService, useValue: { sendToUser, resolveActionable: jest.fn().mockResolvedValue({ count: 0 }) } },
         { provide: BidService, useValue: BID_SERVICE_STUB },
       ],
     }).compile();
@@ -438,7 +438,7 @@ describe('BidDecryptService — decryptOuter 主持端解外层 (dual-v2 · Task
         SignatureService, // DualEnvelopeService 依赖（无构造依赖的真实实现）
         { provide: AdminKeyService, useValue: adminKeyMock },
         { provide: PrismaService, useValue: prisma },
-        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn(), resolveActionable: jest.fn().mockResolvedValue({ count: 0 }) } },
         { provide: BidService, useValue: BID_SERVICE_STUB },
       ],
     }).compile();

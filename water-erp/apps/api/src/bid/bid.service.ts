@@ -5323,8 +5323,9 @@ export class BidService {
           .resolveActionable('BID_OPENING_HANDED_OVER', link)
           .catch(() => {});
       }
-    } catch {
-      // 消解失败不阻塞办结主流程（sweep 兜底）
+    } catch (e) {
+      // 消解失败不阻塞办结主流程（sweep 兜底）——但留痕供排障（同文件通知失败口径）
+      this.logger.warn(`开标移交待办消解失败 pmi=${projectManagementItemId}: ${String(e)}`);
     }
   }
 
