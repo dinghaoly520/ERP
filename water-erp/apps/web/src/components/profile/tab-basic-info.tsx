@@ -7,6 +7,7 @@ import {
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { submitProfileChange, requestPasswordChange, findOrCreateDepartment } from '@/lib/api/auth';
 import { UnitSearchSelect } from '@/components/login/unit-search-select';
+import { SearchSelect } from '@/components/workbench/search-select';
 import type { AuthUser, DepartmentItem, ProfileChangePayload } from '@/lib/api/auth';
 import { api } from '@/lib/api';
 
@@ -218,20 +219,21 @@ export function TabBasicInfo({ user, departments }: TabBasicInfoProps) {
                     <UnitSearchSelect value={f.val} onChange={f.set} placeholder={f.placeholder} />
                   </div>
                 ) : f.type === 'department' ? (
-                  // 可输可选（2026-11-02）：datalist 本公司部门下拉 + 自由输入，提交时找/建
-                  <>
-                    <input
-                      list="profile-department-options"
+                  // 可输可选（2026-11-02）：本公司部门下拉 + 自由输入（SearchSelect，
+                  // 不用 datalist——Safari 下 datalist 基本不出下拉），提交时找/建
+                  <div className="flex-1">
+                    <SearchSelect
+                      options={f.options.map((d: any) => ({ value: d.name, label: d.name }))}
                       value={f.val}
-                      onChange={e => f.set(e.target.value)}
-                      placeholder={f.placeholder}
-                      maxLength={64}
-                      className="neu-input h-[36px] flex-1 py-0 text-[13px]"
+                      onPick={(o) => f.set(o.value)}
+                      placeholder="选择或输入部门"
+                      searchPlaceholder="搜索部门…"
+                      emptyText="无匹配部门，可直接输入新建"
+                      allowCustom
+                      triggerClassName="neu-input h-[36px] flex-1 py-0 text-[13px] w-full"
+                      panelMinWidth={240}
                     />
-                    <datalist id="profile-department-options">
-                      {f.options.map((d: any) => <option key={d.id} value={d.name} />)}
-                    </datalist>
-                  </>
+                  </div>
                 ) : f.type === 'select' ? (
                   <select value={f.val} onChange={e => f.set(e.target.value)} className="workbench-input h-[36px] flex-1 text-[13px]">
                     <option value="">未设置</option>
