@@ -423,4 +423,16 @@ describe('sweepStaleActionableNotifications', () => {
     // 保留：截标窗口内的 b-submit/b-download、开标窗口内的 b-opening、评标中的 b-evaluating、无 id 存量
     expect(prisma._unresolved().sort()).toEqual(['c10', 'c12', 'c2', 'c4', 'c6', 'c7']);
   });
+
+  it('供应商催审·按 supplierId：审结/删除消解，仍在审保留', async () => {
+    const prisma = makePrisma({
+      notifications: [
+        N('u1', 'SUPPLIER_REVIEW_URGE', '/supplier/repository?id=s-approved', ''),
+        N('u2', 'SUPPLIER_REVIEW_URGE', '/supplier/repository?id=s-pending', ''),
+      ],
+      suppliers: [{ id: 's-approved', status: 'APPROVED' }, { id: 's-pending', status: 'PENDING' }],
+    });
+    await sweepStaleActionableNotifications(prisma as any);
+    expect(prisma._unresolved()).toEqual(['u2']);
+  });
 });

@@ -313,6 +313,35 @@ export async function sweepStaleActionableNotifications(prisma: SweepPrisma): Pr
     }
   }
 
+  // ── 4d0) 供应商催审：link 带 supplierId——该供应商审结（status≠PENDING/删除）即失效
+  {
+    const rows = await prisma.notification.findMany({
+      where: { type: 'SUPPLIER_REVIEW_URGE', resolvedAt: null },
+      select: { id: true, link: true },
+    });
+    const bySupplier = new Map<string, string[]>();
+    for (const n of rows) {
+      // 催审链接参数名为 id（/supplier/repository?id=X），与注册通知的 supplierId= 不同
+      const sid = extractParam(n.link, 'id') ?? extractSupplierId(n.link);
+      if (!sid) continue;
+      const arr = bySupplier.get(sid) ?? [];
+      arr.push(n.id);
+      bySupplier.set(sid, arr);
+    }
+    if (bySupplier.size > 0) {
+      const suppliers = await prisma.supplier.findMany({
+        where: { id: { in: [...bySupplier.keys()] } },
+        select: { id: true, status: true },
+      });
+      const statusById = new Map(suppliers.map((x) => [x.id, x.status]));
+      const stale: string[] = [];
+      for (const [sid, ids] of bySupplier) {
+        if (statusById.get(sid) !== 'PENDING') stale.push(...ids);
+      }
+      await resolveIds('SUPPLIER_REVIEW_URGE', '按供应商 id：已审结/删除', stale);
+    }
+  }
+
   // ── 4d) 开标域他端待办对账 ──
   {
     // a) 开标移交：带 PMI 精确——项目已启动评标/归档/流标（离开 OPENING）即办结；
