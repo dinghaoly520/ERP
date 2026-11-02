@@ -34,7 +34,9 @@ export type CompanyInfo = {
   purchaserContact: string | null;
   purchaserPhone: string | null;
   purchaserEmail: string | null;
-  /** 阳光采购对接档案（2026-10-28）：平台侧组织档案——公告发布「同步至阳光采购平台」弹窗自动带出 */
+  /** 阳光采购对接档案（2026-10-28）：平台侧组织档案——公告发布「同步至阳光采购平台」弹窗自动带出。
+   *  2026-11-02 集团代发口径：组织身份七字段为集团级常量（各公司行同值），公告内容仍按各公司项目自带 */
+  sunshineOrganizationName: string | null;
   sunshineOrganizationCode: string | null;
   sunshineOrganizationUnique: string | null;
   sunshineParentOrganization: string | null;

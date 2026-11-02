@@ -31,7 +31,9 @@ model Company {
   purchaserEmail     String? // 采购人邮箱
 
   // ── 阳光采购对接档案（2026-10-28）：平台侧组织档案，公司信息管理维护——
-  //    公告发布「同步至阳光采购平台」弹窗自动带出（identity/IP 白名单由平台方分配，不在此列）──
+  //    公告发布「同步至阳光采购平台」弹窗自动带出（identity/IP 白名单由平台方分配，不在此列）。
+  //    2026-11-02 集团代发口径：组织身份七字段为集团级常量（各公司行同值），公告内容仍按各公司项目自带 ──
+  sunshineOrganizationName   String? // 组织名称（SCM0001.organizationName）——集团代发主体名（2026-11-02）
   sunshineOrganizationCode   String? // 组织编码（SCM0001.organizationCode）
   sunshineOrganizationUnique String? // 组织唯一标识（SCM0001.organizationUnique）
   sunshineParentOrganization String? // 父级组织（SCM0001.parentOrganization）

@@ -188,6 +188,15 @@ function isoToApiTime(v?: string): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
+/** ISO 时间串 → datetime-local 输入值（YYYY-MM-DDTHH:mm，本地时区）；空/非法 → 空串 */
+function isoToLocalInput(v?: string | null): string {
+  if (!v) return '';
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = (x: number) => String(x).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 /** 今日 + n 天的 datetime-local 值 */
 function daysFromNow(n: number): string {
   const d = new Date();
@@ -196,23 +205,27 @@ function daysFromNow(n: number): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-/** 打开弹窗时的全量预填：项目/草稿数据 → 接口字段 */
+/** 打开弹窗时的全量预填：项目/草稿/公司档案数据 → 接口字段（2026-11-02 预填增强：采购人默认条目、
+ *  开标时刻兜底、发布时刻兜底——弹窗内均可改） */
 function buildDefaultConfig(
   project: ProjectManagementItem,
   draft: AnnouncementDraft,
-  category: AnnouncementCategory,
   operatorName: string,
-  /** 阳光采购对接档案（2026-10-28）：公司信息管理维护，平台侧组织档案自动带出 */
-  sunshine?: {
+  /** 公司档案：阳光组织七字段（2026-11-02 集团代发口径=集团级常量）+ 采购人默认条目——
+   *  结构兼容 useCompanyInfo() 返回值 */
+  company?: {
+    sunshineOrganizationName?: string | null;
     sunshineOrganizationCode?: string | null;
     sunshineOrganizationUnique?: string | null;
     sunshineParentOrganization?: string | null;
     sunshineProcuringEntity?: string | null;
     sunshineStandardQuota?: string | null;
     sunshinePublicQuota?: string | null;
+    purchasers?: Array<{ name: string | null; phone: string | null; email: string | null; isDefault: boolean }> | null;
   } | null,
 ): SunshinePublishConfig {
   const d = draft as Record<string, string>;
+  const purchaser = company?.purchasers?.find((p) => p.isDefault) ?? company?.purchasers?.[0] ?? null;
   // 中标候选人：公告草稿 bidderN 行（评审报价元 → 万元）
   const candidates: SunshineCandidate[] = [];
   const count = parseInt(d.bidderCount || '0', 10) || 0;
@@ -239,27 +252,29 @@ function buildDefaultConfig(
     type: PLAN_TYPE_BY_CATEGORY[project.procurementCategory ?? ''] ?? 7,
     tenderAmount: Number.isFinite(budgetYuan) ? +(budgetYuan / 10000).toFixed(4) : null,
     centralized: 1,
-    handUserName: operatorName || project.requesterName || '',
-    handOrganizationName: project.requesterDepartment || '',
-    contacts: d.contactName || project.requesterName || '',
-    phone: d.contactPhone || '',
-    email: d.contactEmail || '',
-    organizationCode: sunshine?.sunshineOrganizationCode?.trim() || '',
-    organizationName: project.requesterDepartment || '',
-    organizationUnique: sunshine?.sunshineOrganizationUnique?.trim() || '',
-    parentOrganization: sunshine?.sunshineParentOrganization?.trim() || '',
-    standardQuota: num(sunshine?.sunshineStandardQuota),
-    publicQuota: num(sunshine?.sunshinePublicQuota),
-    procuringentity: sunshine?.sunshineProcuringEntity?.trim() || '',
+    handUserName: operatorName || project.requesterName || purchaser?.name || '',
+    handOrganizationName: project.requesterDepartment || company?.sunshineOrganizationName || '',
+    contacts: d.contactName || project.requesterName || purchaser?.name || '',
+    phone: d.contactPhone || purchaser?.phone || '',
+    email: d.contactEmail || purchaser?.email || '',
+    organizationCode: company?.sunshineOrganizationCode?.trim() || '',
+    // 集团代发口径（2026-11-02）：组织身份=集团主体，档案名优先、存量行未填时回退经办部门
+    organizationName: company?.sunshineOrganizationName?.trim() || project.requesterDepartment || '',
+    organizationUnique: company?.sunshineOrganizationUnique?.trim() || '',
+    parentOrganization: company?.sunshineParentOrganization?.trim() || '',
+    standardQuota: num(company?.sunshineStandardQuota),
+    publicQuota: num(company?.sunshinePublicQuota),
+    procuringentity: company?.sunshineProcuringEntity?.trim() || '',
     packageName: project.title,
-    // SCM0004/0006 的 publishTime 必传：中标/流标公告草稿无公示起字段，兜底当前时刻（发布时仍可改）
-    publishTime: d.announcementStart || (category === 'procurement_document' ? '' : daysFromNow(0)),
-    deadline: d.announcementEnd || '',
+    // publishTime 必传：草稿公示起缺失时兜底当前时刻（中标/流标草稿无该字段；采购公告发布时仍可改）
+    publishTime: d.announcementStart || daysFromNow(0),
+    // deadline 必传：草稿公示止缺失时兜底项目开标时刻（投标截止=开标）
+    deadline: d.announcementEnd || isoToLocalInput(project.bidOpeningTime),
     annrequire: 1,
     annreason: '',
     startTime: daysFromNow(0),
     endTime: daysFromNow(3),
-    issueUserName: operatorName || '',
+    issueUserName: operatorName || project.requesterName || '',
     content: '',
     candidates,
   };
@@ -334,16 +349,17 @@ export function SunshinePlatformDialog({
   initialConfig?: SunshinePublishConfig | null;
 }) {
   const [config, setConfig] = useState<SunshinePublishConfig | null>(null);
-  // 阳光采购对接档案（2026-10-28）：公司信息管理维护 → 组织档案六字段自动带出
+  // 阳光采购对接档案（2026-10-28）：公司信息管理维护 → 组织档案七字段自动带出
   const companyInfo = useCompanyInfo();
-  // 打开时一次性预填（已有配置则沿用，不重复覆盖用户改过的值）
+  // 自动预填：无既有配置时构建默认值。公司档案异步加载（null→数据）须重建一次——否则首开竞态下
+  // 组织档案恒空；已有配置（向导缓存）沿用，不重复覆盖用户改过的值
   /* eslint-disable react-hooks/set-state-in-effect -- 弹窗打开时的表单初始化，符合模态惯例 */
   useEffect(() => {
-    if (isOpen) {
-      setConfig(initialConfig ?? buildDefaultConfig(project, draft, category, operatorName ?? '', companyInfo));
+    if (isOpen && !initialConfig) {
+      setConfig(buildDefaultConfig(project, draft, operatorName ?? '', companyInfo));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [isOpen, companyInfo]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   /** 推送报文预览（文档字段组织，供核对）——须在早退 return 之前调用（hooks 顺序稳定） */
@@ -479,9 +495,6 @@ export function SunshinePlatformDialog({
                     identity 身份标识并配置 IP 白名单——接入完成前，本配置仅随公告存档、不实际外发。
                   </span>
                 </span>
-              </div>
-              <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">
-                天府阳光采购平台 · 接口文档 V2.0.5 · 本公告走 {iface.code} {iface.name}（前置推送 SCM0001 招标基础信息）
               </div>
             </div>
           </div>

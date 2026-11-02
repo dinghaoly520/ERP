@@ -65,6 +65,7 @@ export default function CompanyInfoPage() {
         name: data.name ?? '',
         shortName: data.shortName ?? '',
         code: data.code ?? '',
+        sunshineOrganizationName: data.sunshineOrganizationName ?? '',
         sunshineOrganizationCode: data.sunshineOrganizationCode ?? '',
         sunshineOrganizationUnique: data.sunshineOrganizationUnique ?? '',
         sunshineParentOrganization: data.sunshineParentOrganization ?? '',
@@ -93,6 +94,7 @@ export default function CompanyInfoPage() {
         name: form.name,
         shortName: form.shortName,
         code: form.code,
+        sunshineOrganizationName: form.sunshineOrganizationName ?? '',
         sunshineOrganizationCode: form.sunshineOrganizationCode ?? '',
         sunshineOrganizationUnique: form.sunshineOrganizationUnique ?? '',
         sunshineParentOrganization: form.sunshineParentOrganization ?? '',
@@ -241,11 +243,14 @@ export default function CompanyInfoPage() {
           <span className="text-sm font-semibold text-[var(--foreground)]">阳光采购对接档案</span>
         </div>
         <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
-          天府阳光采购平台（接口文档 V2.0.5）的组织档案字段。公告发布勾选「同步至阳光采购平台」时，
-          以下档案将自动带入发布配置，无需每次手抄；字段值向阳光采购服务团队获取。身份标识（identity）
-          与访问 IP 白名单由平台方分配，不在此维护。
+          天府阳光采购平台的组织档案字段。集团及各子公司公告均以集团主体代发——组织身份各公司取同一份档案；
+          公告内容仍按各公司项目自动带入。身份标识与访问 IP 白名单由平台方分配，不在此维护。
         </p>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">组织名称</span>
+            <input type="text" value={form.sunshineOrganizationName ?? ''} onChange={(e) => set('sunshineOrganizationName', e.target.value)} placeholder="集团代发主体名称" className="workbench-input w-full" />
+          </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">组织编码</span>
             <input type="text" value={form.sunshineOrganizationCode ?? ''} onChange={(e) => set('sunshineOrganizationCode', e.target.value)} placeholder="平台分配的组织编码" className="workbench-input w-full font-mono" />
