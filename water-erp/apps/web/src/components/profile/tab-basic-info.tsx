@@ -7,7 +7,7 @@ import {
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { submitProfileChange, requestPasswordChange, findOrCreateDepartment } from '@/lib/api/auth';
 import { UnitSearchSelect } from '@/components/login/unit-search-select';
-import { SearchSelect } from '@/components/workbench/search-select';
+import { DepartmentCombobox } from '@/components/profile/department-combobox';
 import type { AuthUser, DepartmentItem, ProfileChangePayload } from '@/lib/api/auth';
 import { api } from '@/lib/api';
 
@@ -219,21 +219,15 @@ export function TabBasicInfo({ user, departments }: TabBasicInfoProps) {
                     <UnitSearchSelect value={f.val} onChange={f.set} placeholder={f.placeholder} />
                   </div>
                 ) : f.type === 'department' ? (
-                  // 可输可选（2026-11-02）：本公司部门下拉 + 自由输入（SearchSelect，
-                  // 不用 datalist——Safari 下 datalist 基本不出下拉），提交时找/建
-                  <div className="flex-1">
-                    <SearchSelect
-                      options={f.options.map((d: any) => ({ value: d.name, label: d.name }))}
-                      value={f.val}
-                      onPick={(o) => f.set(o.value)}
-                      placeholder="选择或输入部门"
-                      searchPlaceholder="搜索部门…"
-                      emptyText="无匹配部门，可直接输入新建"
-                      allowCustom
-                      triggerClassName="neu-input h-[36px] flex-1 py-0 text-[13px] w-full"
-                      panelMinWidth={240}
-                    />
-                  </div>
+                  // 部门联想输入（2026-11-02 typeahead）：触发器即输入框——workbench-input
+                  // 单框与表单其他字段一致（用户裁定去框内嵌套）；聚焦浮出本公司部门
+                  // 候选面板，可打字过滤/键盘选/自由输入新部门（提交时找/建）
+                  <DepartmentCombobox
+                    value={f.val}
+                    onChange={f.set}
+                    options={f.options}
+                    placeholder={f.placeholder}
+                  />
                 ) : f.type === 'select' ? (
                   <select value={f.val} onChange={e => f.set(e.target.value)} className="workbench-input h-[36px] flex-1 text-[13px]">
                     <option value="">未设置</option>
