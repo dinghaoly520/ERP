@@ -219,7 +219,6 @@ export default function ExpertRepositoryPage() {
                 <SortableTh label="专家" field="displayName" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
                 <SortableTh label="专业" field="expertProfile.specialty" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
                 <SortableTh label="职称" field="expertProfile.title" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
-                <th className="text-center">工作单位</th>
                 <th className="text-center">部门</th>
                 <th className="text-center" title="参评次数（签到出席）/ 受邀次数（分配项目总数）">参评/受邀</th>
                 <SortableTh label="评价次数" field="_count.expertEvaluations" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
@@ -265,7 +264,6 @@ export default function ExpertRepositoryPage() {
                     </td>
                     <td className="text-center">{e.expertProfile?.specialty && <StatusBadge tone={specialtyTone(e.expertProfile.specialty)}>{e.expertProfile.specialty}</StatusBadge>}</td>
                     <td className="text-center text-sm text-[var(--muted-foreground)]">{e.expertProfile?.title || '—'}</td>
-                    <td className="text-center text-sm text-[var(--muted-foreground)]">{e.expertProfile?.employer || '—'}</td>
                     <td className="text-center text-sm text-[var(--muted-foreground)]">{e.department?.name || '—'}</td>
                     <td className="text-center">
                       {(() => {
