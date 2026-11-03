@@ -18,6 +18,7 @@ import { AssistantRagService } from './knowledge/rag-retrieval.service';
 import { ChatMessage } from './model/assistant-model-provider';
 import { ChatDto } from './dto/chat.dto';
 import { mapToChart } from './chart.mapper';
+import { applyCardGate } from './card-gate';
 
 /** 会话属主：认证用户（JWT）或匿名访客（X-Assistant-Guest 头） */
 export interface AssistantOwner {
@@ -311,20 +312,27 @@ ${toolList}
     }
 
     const result = await tool.execute(toolArgs, ctx);
-    this.pushCardsWithCharts(result, cards);
+    const { attachedCount, droppedData } = this.pushCardsWithCharts(result, cards);
     if (result.citations) {
       for (const c of result.citations) citations.push(c);
     }
 
+    /* 提示词随挂载结果自适应（2026-11-03 回答跟随提问）：挂了卡→现文案；
+       规则闸全弃（一句话可答）→ 关键数字写进正文，不再假装「卡片已渲染」 */
     const toolSummary = result.success
-      ? `查询成功，已生成 ${(result.cards || []).length} 张数据卡片。请基于这些卡片中的数据，按照系统提示词中的回答格式规范，给董事长一份针对性的分析与建议。`
+      ? attachedCount > 0
+        ? `查询成功，已生成 ${attachedCount} 张数据卡片。请基于这些卡片中的数据，按照系统提示词中的回答格式规范，给董事长一份针对性的分析与建议。`
+        : `查询成功。本次不展示数据卡片，查询结果：${droppedData.join('；')}。请把这些关键数字自然地写进正文回答（原样引用，一个不能改），不要罗列元描述。`
       : `工具调用失败: ${result.error}`;
 
     const directMessages = [
       ...messages,
       {
         role: 'user' as const,
-        content: `（系统消息）工具 ${toolName} 已执行完毕。${toolSummary}\n\n请基于卡片中的真实数据，用自然段落给出你的判断和建议。不要罗列数字，卡片已在前端渲染。`,
+        content:
+          attachedCount > 0
+            ? `（系统消息）工具 ${toolName} 已执行完毕。${toolSummary}\n\n请基于卡片中的真实数据，用自然段落给出你的判断和建议。不要罗列数字，卡片已在前端渲染。`
+            : `（系统消息）工具 ${toolName} 已执行完毕。${toolSummary}\n\n请把上述关键数字写进自然段落正文。`,
       },
     ];
     const res = await this.model.chat(directMessages);
@@ -413,17 +421,14 @@ ${toolList}
     // Strip every TOOL_CALL line from the narrative upfront
     answer = this.stripAllToolCalls(answer);
 
-    // 保证每次数据查询都产出图表：若模型未调用 global_overview，自动补一个
-    // global_overview 产出采购/招标/供应商/专家四张分布表 → 自动生成图表
-    const toolNames = new Set(toolCalls.map((t) => t.tool));
-    if (!toolNames.has('global_overview') && (!allowedTools || allowedTools.has('global_overview'))) {
-      toolCalls.unshift({ tool: 'global_overview', args: {} });
-      this.logger.log('handleNormalChat: 自动补充 global_overview 调用以保证图表产出');
-    }
+    // （2026-11-03 删除）「保证每次产出图表」的强制 global_overview 补挂——与
+    // 「回答跟随提问」新口径相反：模型自己的工具选择决定挂什么卡；无工具调用的
+    // 真实性兜底仍由 handleFallbackWithGlobalOverview 承担，此处不再画蛇添足。
 
     // Execute each tool, aggregate cards for LLM summary
     let successCount = 0;
     const dataSnippets: string[] = [];
+    const droppedAll: string[] = []; // 规则闸丢弃的小表数据——数字进正文（2026-11-03）
     for (const tc of toolCalls) {
       const tool = this.toolRegistry.get(tc.tool);
       if (!tool) {
@@ -435,7 +440,8 @@ ${toolList}
         continue;
       }
       const result = await tool.execute(tc.args || {}, ctx);
-      this.pushCardsWithCharts(result, cards);
+      const gate = this.pushCardsWithCharts(result, cards);
+      droppedAll.push(...gate.droppedData);
       if (result.citations) {
         for (const c of result.citations) citations.push(c);
       }
@@ -453,7 +459,9 @@ ${toolList}
       `handleNormalChat: 生成 ${cards.length} 张卡片（含 ${cards.filter((c) => (c as any).type === 'chart').length} 张图表），${successCount} 个工具成功返回数据`,
     );
 
-    if (cards.length === 0) {
+    /* 早退仅当工具全部失败（2026-11-03）：规则闸可能把小结果卡全弃——此时走
+       第二轮 LLM 把 droppedAll 数字写进正文，而不是误报「查询失败」 */
+    if (cards.length === 0 && successCount === 0) {
       return answer.trim() ||
         '抱歉，数据查询失败，请稍后重试或换一种方式提问。';
     }
@@ -469,7 +477,7 @@ ${toolList}
       overviewText = '【数据库实时查询结果 —— 这些就是你回答时必须使用的数字，一个字不能改】\n' + items.join('\n') + '\n\n';
     }
 
-    const toolSummary = `${overviewText}${dataSnippets.length ? '【实体清单/详情 —— 数据库查到的真实记录，回答必须引用其中的名称、编号等具体信息，不得泛泛而谈】\n' + dataSnippets.join('\n') + '\n\n' : ''}以下是各模块状态分布表——用于支撑你展开分析，丰富细节：\n${JSON.stringify(
+    const toolSummary = `${droppedAll.length ? '【不挂卡片的小结果 —— 关键数字必须原样写进正文】\n' + droppedAll.join('\n') + '\n\n' : ''}${overviewText}${dataSnippets.length ? '【实体清单/详情 —— 数据库查到的真实记录，回答必须引用其中的名称、编号等具体信息，不得泛泛而谈】\n' + dataSnippets.join('\n') + '\n\n' : ''}以下是各模块状态分布表——用于支撑你展开分析，丰富细节：\n${JSON.stringify(
       (cards as Array<Record<string, unknown>>)
         .filter((c) => c.type === 'table' && !(c.title as string || '').includes('全局概览'))
         .slice(0, 4)
@@ -692,10 +700,18 @@ ${toolList}
   private pushCardsWithCharts(
     result: { success: boolean; cards?: unknown[] },
     cards: unknown[],
-  ): void {
-    if (!result.success || !result.cards) return;
+  ): { attachedCount: number; droppedData: string[] } {
+    const droppedData: string[] = [];
+    if (!result.success || !result.cards) return { attachedCount: 0, droppedData };
+    let attachedCount = 0;
     for (const c of result.cards) {
       const ct = c as Record<string, unknown>;
+      // 规则闸（2026-11-03 回答跟随提问）：一句话可答的小表不挂卡，数字转正文
+      const gate = applyCardGate(ct);
+      if (!gate.keep) {
+        droppedData.push(gate.droppedText ?? '');
+        continue;
+      }
       const cardKey = `${ct.type}:${ct.title}`;
       // 跳过完全重复的卡片（同类型+同标题=真重复，如 global_overview 和 bid stats 都产出"招标项目阶段分布"）
       if (cards.some((existing) => {
@@ -703,6 +719,7 @@ ${toolList}
         return `${et.type}:${et.title || ''}` === cardKey;
       })) continue;
       cards.push(c);
+      attachedCount++;
       if (ct.type !== 'table' || !ct.viz) continue;
       // 图表标题加"图表："前缀以区分同名的表格卡片
       const chartCard = mapToChart({
@@ -711,8 +728,12 @@ ${toolList}
         rows: ct.rows as Array<Record<string, unknown>>,
         viz: ct.viz as Parameters<typeof mapToChart>[0]['viz'],
       });
-      if (chartCard) cards.push(chartCard);
+      if (chartCard) {
+        cards.push(chartCard);
+        attachedCount++;
+      }
     }
+    return { attachedCount, droppedData };
   }
 
   async getQuickStats(authenticated = false) {
