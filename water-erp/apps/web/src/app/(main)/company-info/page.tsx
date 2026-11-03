@@ -196,8 +196,7 @@ export default function CompanyInfoPage() {
           <span className="text-sm font-semibold text-[var(--foreground)]">基本信息</span>
         </div>
         <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
-          公司名称用于采购文件「采购人」落款与公告发布方展示（留空沿用模板默认）。改名即时生效于新项目归属快照。
-          公司编码为项目编号首段（编号格式 公司编码-方式前缀-日期序号，全局唯一，大写字母/数字，≤20 字符；留空回退 SW）——修改将同步更新本公司在办项目编号（含阶段码与公告关联码）；归档/回收项目不动，目标编号被占用时该项目保留原编号。
+          公司名称用于采购文件落款和公告发布方展示。公司编码是项目编号的开头段（大写字母或数字，不超过 20 位），修改后本公司在办项目的编号会同步更新；已归档和回收站中的项目不变。
         </p>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <label className="block">

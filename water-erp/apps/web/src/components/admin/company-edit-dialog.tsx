@@ -144,7 +144,7 @@ export function CompanyEditDialog({
               <span className="text-sm font-semibold text-[var(--foreground)]">基本信息</span>
             </div>
             <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
-              公司名称用于采购文件「采购人」落款与公告发布方展示；采购人地址预填「联系人地址」字段。改名即时生效于新项目归属快照。
+              公司名称用于采购文件落款和公告发布方展示；采购人地址会预填到采购文件的「联系人地址」。
             </p>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <label className="block">
