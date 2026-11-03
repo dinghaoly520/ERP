@@ -19,6 +19,7 @@ export const STAGE_LABEL: Record<string, string> = {
   OPENING: '在线开标',
   EVALUATING: '专家评标',
   ARCHIVED: '资料归档',
+  ABORTED: '已流标', // 2026-11-03：此前无映射——bid 阶段卡漏出英文原键（用户实录）
 };
 
 export const SUPPLIER_STATUS_LABEL: Record<string, string> = {

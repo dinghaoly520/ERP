@@ -727,7 +727,7 @@ ${toolList}
         continue;
       }
       const cardKey = `${ct.type}:${ct.title}`;
-      // 跳过完全重复的卡片（同类型+同标题=真重复，如 global_overview 和 bid stats 都产出"招标项目阶段分布"）
+      // 跳过完全重复的卡片（同类型+同标题=真重复，如 global_overview 和 cockpit 都产出"采购阶段分布（在办）"）
       if (cards.some((existing) => {
         const et = existing as Record<string, unknown>;
         return `${et.type}:${et.title || ''}` === cardKey;

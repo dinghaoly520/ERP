@@ -4,16 +4,18 @@ import { AssistantTool, AssistantToolCtx, ToolResult } from './assistant-tool';
 import { announcementCompanyWhere, toolCompanyWhere } from './company-filter';
 import {
   PROCUREMENT_STATUS_LABEL,
-  STAGE_LABEL,
   SUPPLIER_STATUS_LABEL,
   t,
 } from './labels';
+/** 采购流程阶段（PMI currentStage）标签——与驾驶舱/进展页同源（2026-11-03 用户裁定：
+ *  阶段分布以采购步骤为准，BidProject 投标执行阶段不再冒充全局阶段） */
+import { STAGE_LABELS as PM_STAGE_LABELS } from '../../progress/progress.service';
 
 @Injectable()
 export class GlobalOverviewTool implements AssistantTool {
   name = 'global_overview';
   description =
-    '获取 ERP 系统全局概览统计，包括采购/招标/供应商/专家/公告数量与状态分布';
+    '获取 ERP 系统全局概览统计，包括采购/投标/供应商/专家/公告数量与状态分布（阶段=采购流程步骤）';
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -51,9 +53,11 @@ export class GlobalOverviewTool implements AssistantTool {
       _count: true,
     });
 
-    const bidByStage = await this.prisma.bidProject.groupBy({
-      by: ['stage'],
-      where: { ...companyWhere, isExtractionOnly: false },
+    /* 阶段分布数据源改为 PMI 采购流程（2026-11-03 用户裁定「以采购的步骤为准」）：
+     * 在办项目按 currentStage 聚合，与 ProgressService.getProgressStats/cockpit stages 同口径 */
+    const pmStageByStage = await this.prisma.projectManagementItem.groupBy({
+      by: ['currentStage'],
+      where: { status: 'ACTIVE', ...companyWhere },
       _count: true,
     });
 
@@ -84,7 +88,7 @@ export class GlobalOverviewTool implements AssistantTool {
           ],
           rows: [
             { item: '采购项目', value: procurementCount, note: '全部状态' },
-            { item: '招标项目', value: bidCount, note: `其中 ${activeBids} 个进行中` },
+            { item: '投标项目', value: bidCount, note: `其中 ${activeBids} 个进行中` },
             { item: '在库供应商', value: supplierCount, note: `其中 ${pendingSuppliers} 家待审核` },
             { item: '评审专家', value: expertCount, note: '全专业方向' },
             { item: '已发布公告', value: announcementCount, note: '当前在线' },
@@ -122,24 +126,25 @@ export class GlobalOverviewTool implements AssistantTool {
         },
         {
           type: 'table',
-          title: '招标项目阶段分布',
+          /* 与 cockpit stages 卡同名——pushCardsWithCharts 按标题去重，两工具同轮执行时自然收敛 */
+          title: '采购阶段分布（在办）',
           columns: [
-            { key: 'stage', label: '阶段' },
-            { key: 'count', label: '数量' },
-            { key: 'pct', label: '占比' },
+            { key: '阶段', label: '阶段' },
+            { key: '项目数', label: '项目数' },
+            { key: '占比', label: '占比' },
           ],
           rows: (() => {
-            bidByStage.sort((a, b) => b._count - a._count);
-            const bidTotal = bidByStage.reduce((s, r) => s + r._count, 0);
-            const rows: Record<string, unknown>[] = bidByStage.map((s) => ({
-              stage: t(STAGE_LABEL, s.stage),
-              count: s._count,
-              pct: bidTotal > 0 ? ((s._count / bidTotal) * 100).toFixed(1) + '%' : '-',
+            pmStageByStage.sort((a, b) => b._count - a._count);
+            const pmTotal = pmStageByStage.reduce((s, r) => s + r._count, 0);
+            const rows: Record<string, unknown>[] = pmStageByStage.map((s) => ({
+              阶段: PM_STAGE_LABELS[s.currentStage ?? ''] || '未设置',
+              项目数: s._count,
+              占比: pmTotal > 0 ? ((s._count / pmTotal) * 100).toFixed(1) + '%' : '-',
             }));
-            rows.push({ _total: true, stage: '合计', count: bidTotal, pct: '100%' });
+            rows.push({ _total: true, 阶段: '合计', 项目数: pmTotal, 占比: '100%' });
             return rows;
           })(),
-          viz: { kind: 'distribution', category: 'stage', value: 'count' },
+          viz: { kind: 'distribution', category: '阶段', value: '项目数' },
         },
         {
           type: 'table',

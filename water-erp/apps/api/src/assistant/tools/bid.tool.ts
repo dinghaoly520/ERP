@@ -112,7 +112,9 @@ export class BidTool implements AssistantTool {
       return {
         success: true,
         cards: [{
-          type: 'table', title: '招标项目阶段分布',
+          /* 2026-11-03 用户裁定：采购语境不称「招标」——本卡只在投标/开评标类提问出现，
+             标题改「投标项目阶段分布」与采购阶段（PMI）区分 */
+          type: 'table', title: '投标项目阶段分布',
           columns: [
             { key: 'stage', label: '阶段' },
             { key: 'count', label: '数量' },

@@ -44,7 +44,7 @@ describe('卡片规则闸（回答跟随提问，2026-11-03）', () => {
       viz: { kind: 'distribution', category: 'status', value: 'count' },
       rows: [{ status: 'A', count: 1 }, { status: 'B', count: 2 }],
     });
-    for (const c of ['采购项目状态分布', '招标项目阶段分布', '供应商状态分布', '专家专业分布'].map(mk)) {
+    for (const c of ['采购项目状态分布', '采购阶段分布（在办）', '供应商状态分布', '专家专业分布'].map(mk)) {
       expect(applyCardGate(c).keep).toBe(true);
     }
   });
