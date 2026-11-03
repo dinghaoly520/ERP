@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Minimize2, Maximize2, X, Plus } from "lucide-react";
+import { Minimize2, Maximize2, X, Plus, BookOpen } from "lucide-react";
 import { useAssistant } from "./assistant-provider";
 import { ChatMessage } from "./chat-message";
 import { ChatInput } from "./chat-input";
 import { ConversationTabs } from "./conversation-tabs";
+import { KnowledgePanel } from "./knowledge-panel";
 import type { Message } from "./types";
 import { MiniSprite } from "./mini-sprite";
 
@@ -124,6 +125,7 @@ export function ChatPanel({ variant }: ChatPanelProps) {
   const router = useRouter();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [pageInputEmpty, setPageInputEmpty] = useState(true);
+  const [kbOpen, setKbOpen] = useState(false); // 知识库面板（2026-11-03：上传资料为水叮当回答赋能）
 
   useEffect(() => { void loadConversations(); }, [loadConversations]);
   useEffect(() => {
@@ -167,6 +169,9 @@ export function ChatPanel({ variant }: ChatPanelProps) {
             </span>
           )}
           <div className="flex-1" />
+          <button onClick={() => setKbOpen(true)} title="知识库" className="asst-page-header-btn">
+            <BookOpen size={15} strokeWidth={1.5} />
+          </button>
           <button onClick={() => void startNewConversation()} title="新对话" className="asst-page-header-btn">
             <Plus size={16} strokeWidth={1.5} />
           </button>
@@ -239,6 +244,9 @@ export function ChatPanel({ variant }: ChatPanelProps) {
             </button>
           </div>
         </div>
+
+        {/* 知识库管理面板（2026-11-03）：上传资料为水叮当回答赋能 */}
+        <KnowledgePanel open={kbOpen} onClose={() => setKbOpen(false)} />
       </div>
     );
   }
