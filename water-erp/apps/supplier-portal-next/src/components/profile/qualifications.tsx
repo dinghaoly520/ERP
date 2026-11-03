@@ -400,7 +400,7 @@ export function QualAddPanel({ onAdded, onClose }: {
                 <div className="add-panel-upload-drop">
                   <span className="add-panel-upload-drop-icon"><CloudUpload size={28} /></span>
                   <p className="add-panel-upload-drop-text">拖拽文件到此处，或点击下方按钮</p>
-                  <p className="add-panel-upload-drop-hint">支持 PDF、JPG、PNG 格式，不超过 10MB（与注册材料口径一致）</p>
+                  <p className="add-panel-upload-drop-hint">支持 PDF、JPG、PNG 格式，不超过 10MB（与注册材料的要求一致）</p>
                   <input
                     ref={fileInputRef}
                     type="file"

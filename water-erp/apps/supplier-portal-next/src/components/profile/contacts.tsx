@@ -251,7 +251,7 @@ export function ContactPanel({ editing, onSaved, onClose }: {
         </div>
         <div className="ct-panel-foot">
           {!allFilled
-            ? <span className="ct-panel-hint">所有字段均为必填，请完整填写</span>
+            ? <span className="ct-panel-hint">以下内容均为必填，请完整填写</span>
             : <span className="ct-panel-hint ready">信息已就绪</span>}
           <div className="ct-panel-foot-actions">
             <button type="button" className="ct-panel-btn-cancel" onClick={closePanel}>取消</button>

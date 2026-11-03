@@ -289,7 +289,7 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
         <div className="neu-card-static flex flex-wrap items-center gap-3 p-4">
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-[var(--foreground)]">尚未生成签字包</p>
-            <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">将快照当前评标数据，生成《评标报告》+ 专家声明签字页 + 个人评分确认表等全套证据包 PDF。</p>
+            <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">将当前评标数据生成《评标报告》及专家声明签字页、个人评分确认表等全套证据包 PDF。</p>
           </div>
           {canHost && (
           <button
@@ -594,7 +594,7 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
                 type="button"
                 disabled={busy !== null}
                 onClick={() => { setReopenReason(''); setReopenOpen(true); }}
-                title="数据修正流程：解除闭环并全员回待签（高风险，入监督日志）"
+                title="数据修正流程：解除签字确认并让全员重新签字（慎用，操作将记入监督日志）"
                 className="neu-btn-soft !h-[30px] !text-[11px]"
               >
                 <LockOpen size={12} /> 重开签字包

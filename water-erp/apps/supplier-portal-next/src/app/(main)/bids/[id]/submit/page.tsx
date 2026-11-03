@@ -802,7 +802,7 @@ function BidSubmitInner() {
         </div>
         {!canConfirm
           ? <BAlert type="error" className="mt-4" title="存在未通过的必填项，请完善后重新提交" />
-          : <BAlert type="success" className="mt-4" title="检查通过——确认后开始双层加密与盾签名（请勿关闭页面）" />}
+          : <BAlert type="success" className="mt-4" title="检查通过。确认后开始双层加密与盾签名，期间请勿关闭页面" />}
       </SpDialog>
 
       {/* A-88：删除草稿确认 */}

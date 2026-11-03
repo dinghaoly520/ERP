@@ -83,7 +83,7 @@ export function AssistPanel({
       <div className="p-5">
         <div className="neu-card-static p-8 text-center">
           <AlertCircle size={32} strokeWidth={1} className="mx-auto mb-3 text-[var(--warning)]" />
-          <p className="text-sm text-[var(--muted-foreground)]">AI 深度分析尚未完成，当前使用规则引擎降级结果</p>
+          <p className="text-sm text-[var(--muted-foreground)]">AI 深度分析尚未完成，当前显示按规则计算的结果</p>
           <p className="mt-1 text-xs text-[var(--muted-foreground)]">
             请等待 AI 分析完成或联系管理员触发分析任务
           </p>

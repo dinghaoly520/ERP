@@ -519,7 +519,7 @@ export default function RegisterPage() {
       // 清除进入补正前失焦查重留下的自身命中标志，避免 nextStep 误拦
       setCreditCodeDuplicate(false);
       setLegalIdCardDuplicate(false);
-      toast.success("已回填此前填写的资料，请核对后修改并重新提交");
+      toast.success("已填入此前填写的资料，请核对后修改并重新提交");
     } catch (e) {
       toast.error(getErrorMessage(e, "验证失败，请核对验证码"));
     } finally {

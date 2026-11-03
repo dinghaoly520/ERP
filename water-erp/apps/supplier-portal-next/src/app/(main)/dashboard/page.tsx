@@ -317,7 +317,7 @@ export default function DashboardPage() {
     if (f.contacts.some((c) => !c.name.trim() || !c.phone.trim())) { toast.warning("请填写完整联系人信息"); return; }
     if (f.qualifications.length === 0) { toast.warning("请至少添加一项资质材料"); return; }
     if (f.qualifications.some((q) => !q.type || !q.name.trim())) { toast.warning("请填写完所有资质信息（类型与名称必填）"); return; }
-    if (f.qualifications.some((q) => !q.fileUrl)) { toast.warning("每项资质材料均须上传文件（与注册口径一致）"); return; } // 审计自查：转正曾允许无文件资质入库
+    if (f.qualifications.some((q) => !q.fileUrl)) { toast.warning("每项资质材料均须上传文件（与注册时的要求一致）"); return; } // 审计自查：转正曾允许无文件资质入库
     const filledTags = f.tags.filter((t) => t.trim());
     if (filledTags.length < 2) { toast.warning("请至少填写 2 个业务标签"); return; }
     setConvertLoading(true);

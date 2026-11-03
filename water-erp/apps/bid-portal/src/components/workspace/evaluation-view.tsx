@@ -778,7 +778,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             onClick={() => void handleRegenerate()}
             disabled={!canGenerate || busy}
             className="neu-btn-soft !h-[32px] !text-xs disabled:opacity-40"
-            title="重新生成将覆盖现有结果；未闭环签字包随之作废"
+            title="重新生成将覆盖现有结果，已生成的签字包将作废"
           >
             <Sparkles size={13} /> 重新生成
           </button>
@@ -1449,7 +1449,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                         （该态排序键），绝不显示均分×专家数的近似总分 */}
                     <span className="font-mono text-xs font-bold tabular-nums text-[var(--accent-strong)]">
                       {official ? Number(official.totalScore).toFixed(2) : live ? live.totalScore.toFixed(2) : avg.toFixed(1)}
-                      <span className="ml-1 text-[9px] font-normal text-[var(--muted-foreground)]">{official ? '官方总分' : live ? '预览总分' : '均分(排序口径)'}</span>
+                      <span className="ml-1 text-[9px] font-normal text-[var(--muted-foreground)]">{official ? '官方总分' : live ? '预览总分' : '均分(用于排序)'}</span>
                     </span>
                     {!official && live && (
                       <span className="font-mono text-[10px] tabular-nums text-[var(--muted-foreground)]">

@@ -111,7 +111,7 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
       fd.append('signP7', signP7);
       const result = await supplierApi.caDecryptUpload(projectId, fd);
 
-      toast.success('开标解密完成（明文与 P7 解密证明已提交）——请查看唱标表并确认');
+      toast.success('开标解密完成，明文与解密证明已提交。请查看唱标表并确认');
       setOpen(false);
       setPin('');
       onDecrypted?.({ decryptStatus: result?.decryptStatus ?? 'SUCCESS' });

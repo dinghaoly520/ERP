@@ -52,7 +52,7 @@ export function PerformanceTransferDialog({
   async function submit() {
     if (!cur.projectName.trim()) { toast.warning("请填写项目名称"); return; }
     if (cur.proofFiles.length === 0) {
-      toast.warning("业绩须包含证明材料——请先在来源处上传证明文件后再转入");
+      toast.warning("业绩须包含证明材料，请先在来源处上传证明文件后再转入");
       return;
     }
     setBusy(true);
