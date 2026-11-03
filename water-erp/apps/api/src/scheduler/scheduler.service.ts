@@ -414,7 +414,8 @@ export class SchedulerService {
           // 标题与定标即时通道（bid.service A-105 hook）统一——2026-10-29 文案治理防漂移
           title: '响应担保待退还提醒',
           content: `项目${p.name}（${p.projectCode}）尚有 ${pendingCount} 家供应商响应担保未登记逐家退还（GB/T 43711 7.5.4.4 按约定及时退还）：${names}${pendingCount > 5 ? '…' : ''}。请在项目管理-合同或归档面板逐家登记退还。`,
-          link: '/projects',
+          // 直达该项目（2026-11-03：与定标即时通道同款深链，按 PMI id 定位面板）
+          link: p.projectManagementItemId ? `/projects?projectId=${p.projectManagementItemId}` : '/projects',
         });
         await this.prisma.systemConfig.upsert({
           where: { key: `bond_return_reminded:${p.id}` },

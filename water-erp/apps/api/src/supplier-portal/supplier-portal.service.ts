@@ -1326,7 +1326,8 @@ export class SupplierPortalService {
       type: 'SUPPLIER_CHANGE_PENDING',
       title: '供应商资料变更待审批',
       content: `「${supplier.name}」提交资料变更申请（字段：${field}${dto.reason?.trim() ? `；理由：${dto.reason.trim()}` : ''}），请前往供应商审批中心·信息更新审批处理。`,
-      link: '/supplier?tab=changes',
+      // 直达该供应商详情页并展开信息更新审批（2026-11-03：点通知落在对应事实页）
+      link: `/supplier/${supplier.id}?tab=changes`,
     };
     await Promise.allSettled(
       recipientIds.map((userId) =>

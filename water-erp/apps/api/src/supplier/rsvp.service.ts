@@ -595,7 +595,8 @@ export class RsvpService {
           type: 'SUPPLIER_DECLINE_STREAK',
           title: '供应商连续婉拒预警',
           content: `供应商「${supplierName}」已连续 ${streak} 次拒绝采购邀请（含婉拒/超时弃权/代婉拒），请复核其合作意愿与库内资格。`,
-          link: '/supplier/repository',
+          // 直达该供应商详情页（2026-11-03 用户裁定：点通知落在对应事实页，而非供应商库首页）
+          link: `/supplier/${supplierId}`,
         };
         // 接收人=供应商归属公司的 leader/staff（2026-11-02 跨公司错发系统修复：
         // sendToRole 全平台广播会让设计公司收到投资公司供应商的预警——与专家
