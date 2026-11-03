@@ -274,6 +274,26 @@ export default function DashboardPage() {
     window.setTimeout(() => setShared("idle"), 2000);
   }
 
+  /* 风险项目一键转发（2026-11-03 用户裁定：允许转发类——领导看得见也能推动）；
+     与要报转发同轨：share 优先、AbortError 静默、剪贴板降级 */
+  const [riskShared, setRiskShared] = useState<"idle" | "ok" | "shared" | "fail">("idle");
+  async function shareRisk(p: { project: string; pendingDays: number; reason: string }) {
+    const text = `【风险提示】${p.project}已滞留 ${p.pendingDays} 天：${p.reason}——来自蜀水云采驾驶舱`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "蜀水云采·风险项目", text });
+        setRiskShared("shared");
+        window.setTimeout(() => setRiskShared("idle"), 2000);
+        return;
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") return;
+      }
+    }
+    const ok = await copyToClipboard(text);
+    setRiskShared(ok ? "ok" : "fail");
+    window.setTimeout(() => setRiskShared("idle"), 2000);
+  }
+
   const effRange = rangeKey === "all" ? {} : rangeFor(rangeKey);
   const usingCustom = Boolean(customApplied.startDate || customApplied.endDate);
   const queryRange = usingCustom ? customApplied : effRange;
@@ -1082,21 +1102,36 @@ export default function DashboardPage() {
             >
               <div className="space-y-2">
                 {data.riskProjects.map((p, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => router.push(`/ledger?q=${encodeURIComponent(p.project)}`)}
-                    aria-label={`查看 ${p.project} 台账`}
-                    className="w-full rounded-[12px] border border-[color-mix(in_oklch,var(--danger)_18%,transparent)] bg-[color-mix(in_oklch,var(--danger)_4%,transparent)] px-3 py-2.5 text-left active:scale-[0.99]"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.severity === "high" ? "var(--danger)" : "var(--warning)" }} />
-                      <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-[var(--foreground)]">{p.project}</span>
-                      <span className="shrink-0 text-[13px] font-bold text-[var(--danger)]">滞留 {p.pendingDays} 天</span>
-                    </div>
-                    <p className="mt-1 line-clamp-2 pl-4 text-[14px] leading-snug text-[var(--muted-foreground)]">{p.reason}</p>
-                  </button>
+                  <div key={i} className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/ledger?q=${encodeURIComponent(p.project)}`)}
+                      aria-label={`查看 ${p.project} 台账`}
+                      className="min-w-0 flex-1 rounded-[12px] border border-[color-mix(in_oklch,var(--danger)_18%,transparent)] bg-[color-mix(in_oklch,var(--danger)_4%,transparent)] px-3 py-2.5 text-left active:scale-[0.99]"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.severity === "high" ? "var(--danger)" : "var(--warning)" }} />
+                        <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-[var(--foreground)]">{p.project}</span>
+                        <span className="shrink-0 text-[13px] font-bold text-[var(--danger)]">滞留 {p.pendingDays} 天</span>
+                      </div>
+                      <p className="mt-1 line-clamp-2 pl-4 text-[14px] leading-snug text-[var(--muted-foreground)]">{p.reason}</p>
+                    </button>
+                    {/* 一键转发（2026-11-03 用户裁定：允许转发类）：riskShared 状态与要报转发同款反馈 */}
+                    <button
+                      type="button"
+                      aria-label={`转发 ${p.project} 风险提示`}
+                      onClick={() => shareRisk(p)}
+                      className="neu-btn-soft h-10 w-10 shrink-0 rounded-[10px] p-0 active:scale-95"
+                    >
+                      <Share2 size={13} />
+                    </button>
+                  </div>
                 ))}
+                {riskShared !== "idle" ? (
+                  <div className="px-1 text-[12px] text-[var(--muted-foreground)]">
+                    {riskShared === "ok" ? "已复制转发文案" : riskShared === "shared" ? "已调起系统分享" : "复制失败"}
+                  </div>
+                ) : null}
               </div>
             </SectionCard>
           ) : null}
