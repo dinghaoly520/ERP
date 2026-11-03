@@ -1,4 +1,5 @@
 import { ChevronRight } from "lucide-react";
+import { useCountUp } from "@/hooks/use-count-up";
 
 const TONE_COLOR: Record<string, string> = {
   default: "var(--foreground)",
@@ -27,12 +28,13 @@ export function MetricCard({
   delta?: { pct: number; tone: "good" | "bad" | "neutral" };
   onClick?: () => void;
 }) {
+  const shown = useCountUp(value);
   const body = (
     <>
       <div className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">{label}</div>
       <div className="mt-1 flex items-baseline justify-between gap-1.5">
         <div className="text-[21px] font-black leading-none tabular-nums tracking-[-0.02em]" style={{ color: TONE_COLOR[tone] }}>
-          {value}
+          {shown}
         </div>
         {delta ? (
           <span
