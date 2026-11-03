@@ -133,14 +133,18 @@ export class KnowledgeService {
     }
 
     let embeddings: number[][] = [];
+    let indexed = true;
     if (textChunks.length > 0) {
       try {
         embeddings = await this.embedding.embed(
           textChunks.map((c) => c.content),
         );
       } catch (err) {
-        console.error('Embedding error:', err);
-        throw new Error('文本嵌入失败，请检查嵌入服务是否正常运行');
+        // 2026-11-03 水叮当知识库设计 §4.2：嵌入服务不可用不再整体失败——
+        // 文件与分块照存（embedding 列空），响应 indexed:false，恢复后走 reindex
+        console.error('Embedding error (degraded):', err);
+        embeddings = [];
+        indexed = false;
       }
     }
 
@@ -181,7 +185,7 @@ export class KnowledgeService {
       }
     }
 
-    return kbFile;
+    return { ...kbFile, indexed };
   }
 
   async deleteFile(kbId: string, fileId: string, user: User) {
