@@ -8,18 +8,26 @@ import { useEffect, useRef, useState } from "react";
  */
 export function useCountUp(raw: string, durationMs = 600): string {
   const [display, setDisplay] = useState(raw);
-  const fromRef = useRef(0);
+  const fromRef = useRef<number | null>(null);
   useEffect(() => {
     // 非纯数字（"—"/"1,200万"/百分比带号）不做滚动
     if (!/^-?\d+(\.\d+)?$/.test(raw)) {
       setDisplay(raw);
       return;
     }
-    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const target = parseFloat(raw);
+    // 首个值直达不动画（fromRef 置目标）——避免「闪现终值→归零→再滚上来」的首帧跳变；
+    // 后续值变化才从旧值滚到新值（2026-11-03 稳健性修订）
+    if (fromRef.current === null) {
+      fromRef.current = target;
       setDisplay(raw);
       return;
     }
-    const target = parseFloat(raw);
+    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      fromRef.current = target;
+      setDisplay(raw);
+      return;
+    }
     const decimals = raw.includes(".") ? raw.split(".")[1].length : 0;
     const from = fromRef.current;
     const t0 = performance.now();

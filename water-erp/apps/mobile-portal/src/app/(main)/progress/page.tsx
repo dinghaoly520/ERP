@@ -300,7 +300,7 @@ export default function ProgressPage() {
           right={
             openingNow.length + evaluatingNow.length > 0 ? (
               <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden>
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--danger)] opacity-60" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--danger)] opacity-60 motion-reduce:animate-none" />
                 <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--danger)]" />
               </span>
             ) : null
@@ -572,10 +572,17 @@ export default function ProgressPage() {
               </div>
             </div>
 
-            {/* 台账↔进展互跳桥（2026-11-03）：两页各持同一项目半张信息，此处直达台账轮次明细 */}
+            {/* 台账↔进展互跳桥（2026-11-03）：两页各持同一项目半张信息，此处直达台账轮次明细；
+                携 q=项目名兜底——目标轮次不在台账第 1 页时至少列表已按项目过滤可见（2026-11-03 稳健性） */}
             <button
               type="button"
-              onClick={() => router.push(`/ledger?focusPmi=${activeProject.id}`)}
+              onClick={() =>
+                router.push(
+                  `/ledger?focusPmi=${activeProject.id}${
+                    activeProject.projectName ? `&q=${encodeURIComponent(activeProject.projectName)}` : ""
+                  }`,
+                )
+              }
               className="neu-btn-soft h-9 w-full rounded-[10px] px-3 text-[14px] active:scale-95"
             >
               <FolderKanban size={13} /> 查看台账

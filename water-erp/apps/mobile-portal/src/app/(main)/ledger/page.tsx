@@ -134,9 +134,14 @@ export default function LedgerPage() {
     const q = searchParams.get("q");
     const abnormal = searchParams.get("abnormal");
     const pmi = searchParams.get("focusPmi");
+    /* URL 显式异常筛选优先：清掉本地记忆的状态 chip——否则 UI 双活而服务端
+       abnormalOnly 覆盖 resultStatus，界面与数据口径打架（2026-11-03 稳健性） */
     if (st && RESULT_STATUS_CONFIG[st as ResultStatusKey]) setStatusFilter(st as ResultStatusKey);
     if (q) setSearchInput(q);
-    if (abnormal === "1") setAbnormalFilter(true);
+    if (abnormal === "1") {
+      setAbnormalFilter(true);
+      setStatusFilter(null);
+    }
     if (pmi) setFocusPmi(pmi);
   }, [searchParams, urlConsumed]);
 

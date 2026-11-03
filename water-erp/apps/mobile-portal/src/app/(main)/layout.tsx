@@ -38,6 +38,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const [notifTab, setNotifTab] = useState<"all" | "todo">("todo");
   const [notifItems, setNotifItems] = useState<NotificationItem[] | null>(null);
   const [notifLoading, setNotifLoading] = useState(false);
+  const [notifError, setNotifError] = useState(false);
+  const [notifRetry, setNotifRetry] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -85,17 +87,18 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     if (b) setBadges(b);
   }, 60_000);
 
-  /* 通知列表：开弹层/切 tab 时拉取（不轮询——铃铛角标已随回前台刷新） */
+  /* 通知列表：开弹层/切 tab 时拉取（不轮询——铃铛角标已随回前台刷新）；
+     失败≠空数据——显式错误态可重试（与龙虎榜同口径，2026-11-03 稳健性收口） */
   useEffect(() => {
     if (!notifOpen) return;
     let active = true;
     setNotifLoading(true);
     fetchNotifications(notifTab)
-      .then((r) => { if (active) setNotifItems(r.items); })
-      .catch(() => { if (active) setNotifItems([]); })
+      .then((r) => { if (active) { setNotifItems(r.items); setNotifError(false); } })
+      .catch(() => { if (active) setNotifError(true); })
       .finally(() => { if (active) setNotifLoading(false); });
     return () => { active = false; };
-  }, [notifOpen, notifTab]);
+  }, [notifOpen, notifTab, notifRetry]);
 
   if (!checked) {
     return (
@@ -175,6 +178,14 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         </div>
         {notifLoading && !notifItems ? (
           <Skeleton lines={4} height={16} />
+        ) : notifError && !notifItems ? (
+          <button
+            type="button"
+            onClick={() => setNotifRetry((n) => n + 1)}
+            className="w-full py-1 text-left text-[13px] text-[var(--danger)] active:scale-[0.99]"
+          >
+            通知加载失败，点击重试
+          </button>
         ) : !notifItems || notifItems.length === 0 ? (
           <div className="py-6 text-center text-[14px] text-[var(--muted-foreground)]">
             {notifTab === "todo" ? "暂无待办通知" : "暂无通知"}
