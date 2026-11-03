@@ -217,8 +217,9 @@ export default function ProgressPage() {
 
   const { pull, refreshing } = usePullToRefresh(
     useCallback(async () => {
+      /* 下拉刷新只重取主数据——已生成的 AI 洞察保留（P2，2026-11-03：此前每次下拉
+         丢弃洞察，领导刷个数据分析就没了还得手动重新生成）；口径变化才作废 */
       setRetryTick((t) => t + 1);
-      setInsights(null); // 下拉刷新使旧洞察作废（展开态自动重取）
       await new Promise((r) => window.setTimeout(r, 300));
     }, []),
   );
@@ -308,7 +309,7 @@ export default function ProgressPage() {
             )}
           </SectionCard>
 
-          {/* ── 进度洞察（AI，与数据库页 AI 综合分析同款折叠卡；展开即自动请求）── */}
+          {/* ── 进度洞察（AI，与数据库页 AI 综合分析同款折叠卡；手动点「生成分析」请求）── */}
           <SectionCard
             icon={Sparkles}
             index={2}

@@ -202,6 +202,7 @@ export default function DashboardPage() {
   );
   const [showCustom, setShowCustom] = useState(false);
   const [customStart, setCustomStart] = useState("");
+  const [customError, setCustomError] = useState<string | null>(null);
   const [customEnd, setCustomEnd] = useState("");
   const [customApplied, setCustomApplied] = useState<{ startDate?: string; endDate?: string }>({});
 
@@ -240,12 +241,14 @@ export default function DashboardPage() {
 
   // 公司龙虎榜（跨公司榜单，admin 全榜/leader 排位卡；随区间/重试变化重取，失败保留旧数据）
   const [ranking, setRanking] = useState<CompanyRankingView | null>(null);
+  /* 龙虎榜失败≠空数据（P2，2026-11-03）：失败保留旧数据 + 显式重试入口，不再伪装成空态 */
+  const [rankingError, setRankingError] = useState(false);
   const [rankingRange, setRankingRange] = useState<CompanyRankingRange>("year");
   useEffect(() => {
     let active = true;
     fetchCompanyRanking(rankingRange)
-      .then((r) => { if (active) setRanking(r); })
-      .catch(() => undefined);
+      .then((r) => { if (active) { setRanking(r); setRankingError(false); } })
+      .catch(() => { if (active) setRankingError(true); }); // 失败≠空数据——区分重试态（P2，2026-11-03）
     return () => { active = false; };
   }, [rankingRange, retryTick]);
 
@@ -457,7 +460,7 @@ export default function DashboardPage() {
         ) : (
           <button type="button" onClick={() => setRetryTick((t) => t + 1)}
             className="w-full py-1 text-left text-[13px] text-[var(--muted-foreground)] active:scale-[0.99]">
-            今日要报生成中，点击重试
+            今日要报生成失败，点击重试
           </button>
         )}
       </div>
@@ -485,29 +488,40 @@ export default function DashboardPage() {
           </Chip>
         </div>
         {showCustom ? (
-          <div className="neu-card-static flex items-center gap-2 rounded-[14px] p-2.5">
-            <input
-              type="date"
-              value={customStart}
-              onChange={(e) => setCustomStart(e.target.value)}
-              aria-label="开始日期"
-              className="m-input h-10 min-w-0 flex-1 px-2 tabular-nums"
-            />
-            <span className="shrink-0 text-[15px] text-[var(--muted-foreground)]">至</span>
-            <input
-              type="date"
-              value={customEnd}
-              onChange={(e) => setCustomEnd(e.target.value)}
-              aria-label="结束日期"
-              className="m-input h-10 min-w-0 flex-1 px-2 tabular-nums"
-            />
-            <button
-              type="button"
-              onClick={() => setCustomApplied({ startDate: customStart || undefined, endDate: customEnd || undefined })}
-              className="neu-btn-soft h-10 shrink-0 rounded-[9px] px-3 text-[15px]"
-            >
-              应用
-            </button>
+          <div className="neu-card-static rounded-[14px] p-2.5">
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={customStart}
+                onChange={(e) => { setCustomStart(e.target.value); setCustomError(null); }}
+                aria-label="开始日期"
+                className="m-input h-10 min-w-0 flex-1 px-2 tabular-nums"
+              />
+              <span className="shrink-0 text-[15px] text-[var(--muted-foreground)]">至</span>
+              <input
+                type="date"
+                value={customEnd}
+                onChange={(e) => { setCustomEnd(e.target.value); setCustomError(null); }}
+                aria-label="结束日期"
+                className="m-input h-10 min-w-0 flex-1 px-2 tabular-nums"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  /* 防错（P2，2026-11-03）：开始晚于结束直接发请求只会得到空数据集 */
+                  if (customStart && customEnd && customStart > customEnd) {
+                    setCustomError("开始日期不能晚于结束日期");
+                    return;
+                  }
+                  setCustomError(null);
+                  setCustomApplied({ startDate: customStart || undefined, endDate: customEnd || undefined });
+                }}
+                className="neu-btn-soft h-10 shrink-0 rounded-[9px] px-3 text-[15px]"
+              >
+                应用
+              </button>
+            </div>
+            {customError ? <div className="mt-1.5 px-1 text-[12px] text-[var(--danger)]">{customError}</div> : null}
           </div>
         ) : null}
         {role === "admin" ? (
@@ -912,6 +926,14 @@ export default function DashboardPage() {
                   本公司成交 {fmtWan(ranking.self.awardAmount)} · 集团均值 {fmtWan(ranking.groupAvg?.awardAmount ?? 0)}
                 </div>
               </div>
+            ) : rankingError ? (
+              <button
+                type="button"
+                onClick={() => setRetryTick((t) => t + 1)}
+                className="w-full py-1 text-left text-[13px] text-[var(--danger)] active:scale-[0.99]"
+              >
+                龙虎榜加载失败，点击重试
+              </button>
             ) : (
               <EmptyState text="暂无可排名的公司数据" />
             )}

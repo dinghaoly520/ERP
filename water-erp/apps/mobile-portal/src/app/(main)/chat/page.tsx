@@ -98,6 +98,8 @@ export default function ChatPage() {
   }
 
   async function deleteHistory(id: string) {
+    /* 破坏性操作防误触（P2，2026-11-03）：一触即删且不可恢复，先确认 */
+    if (!window.confirm("删除该会话？删除后不可恢复。")) return;
     try { await removeConversation(id); } catch { /* 删除失败不阻塞列表刷新 */ }
     if (id === conversationId) newConversation();
     setHistoryList((prev) => prev.filter((c) => c.id !== id));
