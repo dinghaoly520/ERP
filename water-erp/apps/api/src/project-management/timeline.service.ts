@@ -74,68 +74,60 @@ function toIso(d: Date | null | undefined): string | null {
   return d.toISOString();
 }
 
+export interface TimelineRound {
+  round: number;
+  nodes: TimelineNode[];
+}
+
 @Injectable()
 export class TimelineService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getTimeline(pmiId: string): Promise<TimelineNode[]> {
+  /**
+   * 按轮次输出（2026-11-03 用户裁定：流标后再次采购不得清掉第一轮时间轴——
+   * 每轮一条完整十节点轴，公告/截止/开标/评标结束按轮归属解析；项目级节点归位：
+   * 采购立项=首轮、合同签订/归档=末轮、采购文件获取（PMI 单值反映当前轮）=末轮）。
+   */
+  async getTimeline(pmiId: string): Promise<{ rounds: TimelineRound[]; currentRound: number }> {
     const item = await this.prisma.projectManagementItem.findUnique({
       where: { id: pmiId },
-      select: { id: true, projectCode: true, createdAt: true, initiationDate: true, documentAcquireTime: true, bidOpeningTime: true, archivedAt: true },
+      select: { id: true, projectCode: true, createdAt: true, initiationDate: true, documentAcquireTime: true, bidOpeningTime: true, archivedAt: true, currentRound: true },
     });
     if (!item) throw new NotFoundException('未找到对应项目');
 
-    // BidProject 取最新轮次（多轮采购以末轮开标/截标为准）
-    const bp = await this.prisma.bidProject.findFirst({
+    const allBps = await this.prisma.bidProject.findMany({
       where: { projectManagementItemId: pmiId },
-      select: { deadline: true, openTime: true },
-      orderBy: { round: 'desc' },
-    });
-    const contract = await this.prisma.contract.findFirst({
-      where: { projectManagementItemId: pmiId },
-      select: { signedAt: true },
+      select: { id: true, round: true, projectCode: true, deadline: true, openTime: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
     });
+    const bpRound = (r: number) => allBps.filter((b) => (b.round ?? 1) === r);
+    const roundList = [...new Set(allBps.map((b) => b.round ?? 1))].sort((a, b) => a - b);
+    if (roundList.length === 0) roundList.push(1);
+    const maxRound = roundList[roundList.length - 1];
+    const currentRound = item.currentRound ?? maxRound;
+    // 稳健性（2026-11-03）：reproc 已推进 PMI 指针但新轮 BidProject 尚未创建的窗口期——
+    // currentRound 不在 BP 轮次集内时仍列出该轮（空轴），避免"第二轮凭空消失"被误读为未开轮
+    if (currentRound > maxRound) roundList.push(currentRound);
 
-    // 评标结束 = :3007 回流包生成时刻（handoverFileAssetId → FileAsset.createdAt）
-    const handoverPacket = await this.prisma.bidSignPacket.findFirst({
-      where: { project: { projectManagementItemId: pmiId }, handoverFileAssetId: { not: null } },
-      orderBy: { generatedAt: 'desc' },
-      select: { handoverFileAssetId: true },
-    });
-    let evaluationEndIso: string | null = null;
-    if (handoverPacket?.handoverFileAssetId) {
-      const handoverAsset = await this.prisma.fileAsset.findUnique({
-        where: { id: handoverPacket.handoverFileAssetId },
-        select: { createdAt: true },
-      });
-      evaluationEndIso = toIso(handoverAsset?.createdAt ?? null);
-    }
-
-    // 公告发布时间：采购公告/中标公告的发布时刻记录进时间轴。
-    // 关联口径与 announcement.syncBidProject 一致——relatedProjectCode 既可能是
-    // PMI 编码，也可能是 BidProject 编码（公告直建项目后回写），两侧都查；
-    // PMI 编码还需兼容旧两段式（2026-09-16 编码迁移为三段式，存量公告 relatedProjectCode
-    // 仍存旧码，如 SWHI-YQ-2026090703 的旧码 YQ-2026090703——实测 miss 即此因）。
-    const bpCodes = await this.prisma.bidProject.findMany({
-      where: { projectManagementItemId: pmiId },
-      select: { projectCode: true },
-    });
+    // 公告按轮归属：轮内 BidProject 编码 → 本轮；PMI 编码（含旧两段式）→ 首轮（公告直建发生在首轮，
+    // 与 syncBidProject 关联口径一致；末次发布生效的既有裁定在轮内保持）
     const legacyPmiCode = item.projectCode?.includes('-')
       ? item.projectCode.split('-').slice(1).join('-')
       : null;
-    const relatedCodes = [item.projectCode, legacyPmiCode, ...bpCodes.map((b) => b.projectCode)]
-      .filter((c): c is string => !!c);
-    const published = relatedCodes.length
+    const roundCodes = (r: number) => [
+      ...(r === 1 ? [item.projectCode, legacyPmiCode] : []),
+      ...bpRound(r).map((b) => b.projectCode),
+    ].filter((c): c is string => !!c);
+    const allCodes = [...new Set(roundList.flatMap(roundCodes))];
+    const published = allCodes.length
       ? await this.prisma.announcement.findMany({
-          where: { status: 'PUBLISHED', relatedProjectCode: { in: relatedCodes } },
-          select: { type: true, publishDate: true, createdAt: true },
+          where: { status: 'PUBLISHED', relatedProjectCode: { in: allCodes } },
+          select: { type: true, publishDate: true, createdAt: true, relatedProjectCode: true },
         })
       : [];
-    // 发布时刻取「最后一次」（2026-10-13 用户裁定）：多次发布/重发时，末次才是当前
-    // 生效公告的时点（此前取最早，重发后时间轴仍停在首发布）。采购/中标公告同口径。
-    const publishTimeOf = (types: string[]): string | null => {
-      const hits = published.filter((a) => types.includes(a.type));
+    const publishTimeOf = (r: number, types: string[]): string | null => {
+      const codes = new Set(roundCodes(r));
+      const hits = published.filter((a) => types.includes(a.type) && a.relatedProjectCode != null && codes.has(a.relatedProjectCode));
       if (hits.length === 0) return null;
       const latest = hits.reduce((max, a) => {
         const t = a.publishDate ?? a.createdAt;
@@ -143,42 +135,63 @@ export class TimelineService {
       }, hits[0].publishDate ?? hits[0].createdAt);
       return toIso(latest);
     };
-    const bidNoticeIso = publishTimeOf(['BID_NOTICE', 'PREQUAL_NOTICE']);
-    const winNoticeIso = publishTimeOf(['WIN_BID_NOTICE', 'PRE_WIN_NOTICE', 'WIN_NOTICE']);
-    const failedNoticeIso = publishTimeOf(['FAILED_BID_NOTICE']);
 
-    // 无「采购公告公示」步骤的流程（谈判采购/直接采购，阶段模板不含 PUBLIC_ANNOUNCEMENT）：
-    // 第三节点语义切换为「供应商邀请」——时间取首次「一键通知」点击时刻（notifiedAt 打戳，
-    // 见 RsvpService.markNotified；rsvp.projectId 兼容 PMI/BidProject 两个 id 空间）
+    // 评标结束按轮：各轮回流包（handover 置位）generatedAt 最新者的 FileAsset.createdAt
+    const packets = await this.prisma.bidSignPacket.findMany({
+      where: { project: { projectManagementItemId: pmiId }, handoverFileAssetId: { not: null } },
+      select: { handoverFileAssetId: true, generatedAt: true, project: { select: { round: true } } },
+      orderBy: { generatedAt: 'desc' },
+    });
+    // 稳健性（2026-11-03）：同轮按 generatedAt 降序逐包回退——最新包的 FileAsset 被清理时
+    // 用同轮更早的已回流包，而非直接判未登记
+    const packetsByRound = new Map<number, typeof packets>();
+    for (const pk of packets) {
+      const r = pk.project.round ?? 1;
+      if (!packetsByRound.has(r)) packetsByRound.set(r, []);
+      packetsByRound.get(r)!.push(pk);
+    }
+    const assetIds = [...new Set(packets.map((pk) => pk.handoverFileAssetId as string))];
+    const assetMap = assetIds.length
+      ? new Map((await this.prisma.fileAsset.findMany({
+          where: { id: { in: assetIds } },
+          select: { id: true, createdAt: true },
+        })).map((a) => [a.id, a]))
+      : new Map<string, { id: string; createdAt: Date }>();
+    const evalEndByRound = new Map<number, string>();
+    for (const [r, list] of packetsByRound) {
+      const hit = list.map((pk) => assetMap.get(pk.handoverFileAssetId as string)?.createdAt)
+        .find((t) => !!t);
+      evalEndByRound.set(r, toIso(hit ?? null) ?? '');
+    }
+
+    // 供应商邀请（无公示流程）按轮：PMI-id 行归首轮、BidProject-id 行归其轮；首次一键通知时刻
     const hasPublicAnnouncementStage = await this.prisma.projectManagementStage.findFirst({
       where: { projectManagementItemId: pmiId, stageKey: 'PUBLIC_ANNOUNCEMENT' },
       select: { id: true },
     });
-    let supplierInviteIso: string | null = null;
+    let rsvpRows: Array<{ projectId: string | null; notifiedAt: Date | null; createdAt: Date }> = [];
     if (!hasPublicAnnouncementStage) {
-      const bpIds = await this.prisma.bidProject.findMany({
-        where: { projectManagementItemId: pmiId },
-        select: { id: true },
+      rsvpRows = await this.prisma.invitationRsvp.findMany({
+        where: { projectId: { in: [pmiId, ...allBps.map((b) => b.id)] } },
+        select: { projectId: true, notifiedAt: true, createdAt: true },
+        orderBy: { createdAt: 'asc' },
       });
-      // 时间口径（2026-10-20 用户裁定）：「供应商邀请」= 首次点击「一键通知」的时刻
-      // （notifiedAt 打戳，多轮补选取最早=首轮）；存量行未打戳回退 token 签发时刻 createdAt
-      const rsvpScope = { projectId: { in: [pmiId, ...bpIds.map((b) => b.id)] } };
-      const firstNotified = await this.prisma.invitationRsvp.findFirst({
-        where: { ...rsvpScope, notifiedAt: { not: null } },
-        orderBy: { notifiedAt: 'asc' },
-        select: { notifiedAt: true },
-      });
-      supplierInviteIso = toIso(firstNotified?.notifiedAt);
-      if (!supplierInviteIso) {
-        const firstRsvp = await this.prisma.invitationRsvp.findFirst({
-          where: rsvpScope,
-          orderBy: { createdAt: 'asc' },
-          select: { createdAt: true },
-        });
-        supplierInviteIso = toIso(firstRsvp?.createdAt);
-      }
     }
-    // 合同签订兜底：未走合同模块登记（signedAt 空）时取 CONTRACT 阶段完成时刻
+    const bpIdRound = new Map(allBps.map((b) => [b.id, b.round ?? 1]));
+    const supplierInviteOf = (r: number): string | null => {
+      const rows = rsvpRows.filter((x) => (x.projectId === pmiId ? 1 : (x.projectId ? (bpIdRound.get(x.projectId) ?? 1) : 1)) === r);
+      if (rows.length === 0) return null;
+      const notified = rows.filter((x) => x.notifiedAt).sort((a, b) => (a.notifiedAt as Date).getTime() - (b.notifiedAt as Date).getTime());
+      if (notified.length) return toIso(notified[0].notifiedAt);
+      return toIso(rows[0].createdAt);
+    };
+
+    // 合同签订：合同登记优先，缺则 CONTRACT 阶段完成兜底（均为项目级 → 末轮）
+    const contract = await this.prisma.contract.findFirst({
+      where: { projectManagementItemId: pmiId },
+      select: { signedAt: true },
+      orderBy: { createdAt: 'desc' },
+    });
     let contractSignIso = toIso(contract?.signedAt);
     let contractSignSource = '合同';
     if (!contractSignIso) {
@@ -193,39 +206,44 @@ export class TimelineService {
       }
     }
 
-    // 采购文件获取是时段（AI 提取的起止区间；上传同步的单点值 → 无终点）
     const acquireRange = parseDateRange(item.documentAcquireTime);
+    const initiationIso = toIso(item.initiationDate) ?? toIso(item.createdAt);
 
-    // 投标截止 = 开标前间隔时长（口径常量 BID_DEADLINE_BEFORE_OPENING_MS）：
-    // BP.deadline 未登记时按开标时间自动推算展示，不再显示「未登记」
-    const openingIso = toIso(bp?.openTime) ?? normalizeMaybeDate(item.bidOpeningTime);
-    const deadlineRaw = toIso(bp?.deadline);
-    const deadlineIso = deadlineRaw ?? (openingIso
-      ? new Date(new Date(openingIso).getTime() - BID_DEADLINE_BEFORE_OPENING_MS).toISOString()
-      : null);
-    const deadlineSource = deadlineRaw ? '招标项目' : openingIso ? `按开标时间推算（前${formatDurationCn(BID_DEADLINE_BEFORE_OPENING_MS)}）` : '招标项目';
+    const rounds: TimelineRound[] = roundList.map((r) => {
+      const bp = bpRound(r)[0]; // 同轮多行取最新（与全库当前轮解析口径一致）
+      const openingIso = toIso(bp?.openTime) ?? (r === currentRound ? normalizeMaybeDate(item.bidOpeningTime) : null);
+      const deadlineRaw = toIso(bp?.deadline);
+      const deadlineIso = deadlineRaw ?? (openingIso
+        ? new Date(new Date(openingIso).getTime() - BID_DEADLINE_BEFORE_OPENING_MS).toISOString()
+        : null);
+      const deadlineSource = deadlineRaw ? '招标项目' : openingIso ? `按开标时间推算（前${formatDurationCn(BID_DEADLINE_BEFORE_OPENING_MS)}）` : '招标项目';
+      const isLast = r === maxRound;
 
-    const nodes: TimelineNode[] = [
-      // initiationDate 未登记（直建/AI 提取缺失）→ 建档时刻兜底，避免「采购立项 未登记」
-      { key: 'initiation', label: '采购立项', time: toIso(item.initiationDate) ?? toIso(item.createdAt), source: item.initiationDate ? '项目管理' : '项目建档' },
-      // 公告发布/供应商邀请前置于文件获取（业务时序：先发布公告再获取文件）
-      hasPublicAnnouncementStage
-        ? { key: 'bidNoticePublish', label: '采购公告发布', time: bidNoticeIso, source: '公告' }
-        : { key: 'supplierInvitation', label: '供应商邀请', time: supplierInviteIso, source: '邀请通知' },
-      { key: 'documentAcquire', label: '采购文件获取', time: acquireRange.start, timeEnd: acquireRange.end, source: '项目管理' },
-      { key: 'bidDeadline', label: '投标截止', time: deadlineIso, source: deadlineSource },
-      { key: 'bidOpening', label: '开标', time: openingIso, source: '招标项目' },
-      // 评标结束：取 :3007 评标回流包生成（发回）时刻；未回流（评标中/未启动）→ 未登记
-      { key: 'evaluationEnd', label: '评标结束', time: evaluationEndIso, source: '评标回流包' },
-      { key: 'winNoticePublish', label: '中标公告发布', time: winNoticeIso, source: '公告' },
-      // 流标公告发布：与中标公告互斥的结果公告分支（发布后 BidProject 置 ABORTED）
-      { key: 'failedNoticePublish', label: '流标公告发布', time: failedNoticeIso, source: '公告' },
-      { key: 'contractSign', label: '合同签订', time: contractSignIso, source: contractSignSource },
-      { key: 'archived', label: '归档', time: toIso(item.archivedAt), source: '归档' },
-    ];
+      const nodes: TimelineNode[] = [
+        ...(r === 1
+          ? [{ key: 'initiation', label: '采购立项', time: initiationIso, source: item.initiationDate ? '项目管理' : '项目建档' } as TimelineNode]
+          : []),
+        hasPublicAnnouncementStage
+          ? { key: 'bidNoticePublish', label: '采购公告发布', time: publishTimeOf(r, ['BID_NOTICE', 'PREQUAL_NOTICE']), source: '公告' }
+          : { key: 'supplierInvitation', label: '供应商邀请', time: supplierInviteOf(r), source: '邀请通知' },
+        ...(isLast
+          ? [{ key: 'documentAcquire', label: '采购文件获取', time: acquireRange.start, timeEnd: acquireRange.end, source: '项目管理' } as TimelineNode]
+          : []),
+        { key: 'bidDeadline', label: '投标截止', time: deadlineIso, source: deadlineSource },
+        { key: 'bidOpening', label: '开标', time: openingIso, source: '招标项目' },
+        { key: 'evaluationEnd', label: '评标结束', time: evalEndByRound.get(r) || null, source: '评标回流包' },
+        { key: 'winNoticePublish', label: '中标公告发布', time: publishTimeOf(r, ['WIN_BID_NOTICE', 'PRE_WIN_NOTICE', 'WIN_NOTICE']), source: '公告' },
+        { key: 'failedNoticePublish', label: '流标公告发布', time: publishTimeOf(r, ['FAILED_BID_NOTICE']), source: '公告' },
+        ...(isLast
+          ? [
+              { key: 'contractSign', label: '合同签订', time: contractSignIso, source: contractSignSource } as TimelineNode,
+              { key: 'archived', label: '归档', time: toIso(item.archivedAt), source: '归档' } as TimelineNode,
+            ]
+          : []),
+      ];
+      return { round: r, nodes };
+    });
 
-    // 固定业务顺序：立项→获取→截止→开标→签约→归档，与流程阅读习惯一致；
-    // 缺值节点原位保留（前端灰显「未登记」），不再按时间重排
-    return nodes;
+    return { rounds, currentRound };
   }
 }
