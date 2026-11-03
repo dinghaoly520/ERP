@@ -19,7 +19,7 @@ const COMPANY_INFO_FIELDS = [
   'purchaserContact',
   'purchaserPhone',
   'purchaserEmail',
-  // 阳光采购对接档案（2026-10-28）：平台侧组织档案——公司信息管理维护，公告发布弹窗自动带出；
+  // 阳光采购对接档案（2026-10-28）：平台侧组织档案——公告发布弹窗自动带出；
   // 2026-11-02 集团代发口径：七字段为集团级常量（各公司行同值），organizationName=代发主体名
   'sunshineOrganizationName',
   'sunshineOrganizationCode',
@@ -29,6 +29,13 @@ const COMPANY_INFO_FIELDS = [
   'sunshineStandardQuota',
   'sunshinePublicQuota',
 ] as const;
+
+// 2026-11-03 用户裁定：阳光采购对接档案在公司信息管理中只读展示——本清单是写侧白名单
+// （读取 select 仍用完整 COMPANY_INFO_FIELDS 以便前端展示），七字段移出后 API 直改不再生效，
+// 变更需走管理员/DB 侧维护。
+const WRITABLE_COMPANY_INFO_FIELDS = COMPANY_INFO_FIELDS.filter(
+  (f) => !f.startsWith('sunshine'),
+);
 
 type CompanyInfoBody = {
   name?: string;
@@ -627,7 +634,7 @@ export class CompanyController {
       if (dup) throw new BadRequestException({ error: '已存在同编码单位（编码全局唯一）', code: 'DUPLICATE_CODE' });
     }
     const info: Record<string, string | null> = {};
-    for (const f of COMPANY_INFO_FIELDS) {
+    for (const f of WRITABLE_COMPANY_INFO_FIELDS) {
       const v = body[f];
       if (v !== undefined) info[f] = typeof v === 'string' ? v.trim() || null : null;
     }

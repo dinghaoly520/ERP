@@ -243,40 +243,38 @@ export default function CompanyInfoPage() {
           <span className="text-sm font-semibold text-[var(--foreground)]">阳光采购对接档案</span>
         </div>
         <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
-          天府阳光采购平台的组织档案字段。集团及各子公司公告均以集团主体代发——组织身份各公司取同一份档案；
-          公告内容仍按各公司项目自动带入。身份标识与访问 IP 白名单由平台方分配，不在此维护。
+          天府阳光采购平台的组织档案，公告发布时自动带出，此处仅供查看，不可修改。
         </p>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">组织名称</span>
-            <input type="text" value={form.sunshineOrganizationName ?? ''} onChange={(e) => set('sunshineOrganizationName', e.target.value)} placeholder="集团代发主体名称" className="workbench-input w-full" />
+            <input type="text" value={form.sunshineOrganizationName ?? ''} readOnly placeholder="集团代发主体名称" className="workbench-input w-full" />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">组织编码</span>
-            <input type="text" value={form.sunshineOrganizationCode ?? ''} onChange={(e) => set('sunshineOrganizationCode', e.target.value)} placeholder="平台分配的组织编码" className="workbench-input w-full font-mono" />
+            <input type="text" value={form.sunshineOrganizationCode ?? ''} readOnly placeholder="平台分配的组织编码" className="workbench-input w-full font-mono" />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">组织唯一标识</span>
-            <input type="text" value={form.sunshineOrganizationUnique ?? ''} onChange={(e) => set('sunshineOrganizationUnique', e.target.value)} placeholder="平台分配的唯一标识" className="workbench-input w-full font-mono" />
+            <input type="text" value={form.sunshineOrganizationUnique ?? ''} readOnly placeholder="平台分配的唯一标识" className="workbench-input w-full font-mono" />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">父级组织</span>
-            <input type="text" value={form.sunshineParentOrganization ?? ''} onChange={(e) => set('sunshineParentOrganization', e.target.value)} placeholder="上级组织名称" className="workbench-input w-full" />
+            <input type="text" value={form.sunshineParentOrganization ?? ''} readOnly placeholder="上级组织名称" className="workbench-input w-full" />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">采购主体 ID</span>
-            <input type="text" value={form.sunshineProcuringEntity ?? ''} onChange={(e) => set('sunshineProcuringEntity', e.target.value)} placeholder="平台侧采购主体标识" className="workbench-input w-full font-mono" />
+            <input type="text" value={form.sunshineProcuringEntity ?? ''} readOnly placeholder="平台侧采购主体标识" className="workbench-input w-full font-mono" />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">招标采购限额（万元）</span>
-            <input type="text" value={form.sunshineStandardQuota ?? ''} onChange={(e) => set('sunshineStandardQuota', e.target.value)} placeholder="如：400" className="workbench-input w-full font-mono" />
+            <input type="text" value={form.sunshineStandardQuota ?? ''} readOnly placeholder="如：400" className="workbench-input w-full font-mono" />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">公开采购限额（万元）</span>
-            <input type="text" value={form.sunshinePublicQuota ?? ''} onChange={(e) => set('sunshinePublicQuota', e.target.value)} placeholder="如：200" className="workbench-input w-full font-mono" />
+            <input type="text" value={form.sunshinePublicQuota ?? ''} readOnly placeholder="如：200" className="workbench-input w-full font-mono" />
           </label>
         </div>
-        <p className="mt-3 text-[11px] text-[var(--muted-foreground)]">随上方「保存」一并生效。</p>
       </div>
 
       {/* ══════ 开标地点条目 ══════ */}
