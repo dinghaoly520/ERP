@@ -11,6 +11,7 @@ import { fetchDashboardBadges, type DashboardBadges } from "@/lib/api/dashboard"
 import { fetchNotifications, fetchUnreadCount, type NotificationItem } from "@/lib/api/notifications";
 import { readSavedFilters } from "@/lib/filter-store";
 import { AuthProvider } from "@/components/m/auth-context";
+import { usePolling } from "@/hooks/use-polling";
 import { BottomSheet } from "@/components/m/bottom-sheet";
 import { Chip } from "@/components/m/chip";
 import { Skeleton } from "@/components/m/skeleton";
@@ -69,23 +70,20 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     };
   }, [checked]);
 
-  useEffect(() => {
+  /* 角标+铃铛未读（2026-11-03 实时层）：usePolling 60s 自动刷新——挂载即取、
+     页面隐藏暂停、回前台补取（替代原 visibilitychange 手动挂载模式）；
+     公司口径随数据库页筛选记忆（P1-3）；未过登录校验前不轮询（fn 每渲染
+     重建经 latest-ref 生效，checked 闭包取新值） */
+  usePolling(async () => {
     if (!checked) return;
-    let active = true;
-    /* 角标随数据库页公司口径（P1-3，2026-11-03）：admin 选定公司后异常/待处理/停滞
-       不再显示全公司计数——与页面 hero 数字同口径 */
-    const load = () => {
-      const companyIds = (readSavedFilters<{ companyIds: string[] }>("dashboard").companyIds ?? []).join(",");
-      fetchUnreadCount().then((n) => { if (active) setUnread(n); }).catch(() => undefined);
-      return fetchDashboardBadges(companyIds || undefined)
-        .then((b) => { if (active) setBadges(b); })
-        .catch(() => undefined);
-    };
-    load();
-    const onVisible = () => { if (document.visibilityState === "visible") load(); };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => { active = false; document.removeEventListener("visibilitychange", onVisible); };
-  }, [checked]);
+    const companyIds = (readSavedFilters<{ companyIds: string[] }>("dashboard").companyIds ?? []).join(",");
+    const [n, b] = await Promise.all([
+      fetchUnreadCount().catch(() => null),
+      fetchDashboardBadges(companyIds || undefined).catch(() => null),
+    ]);
+    if (n != null) setUnread(n);
+    if (b) setBadges(b);
+  }, 60_000);
 
   /* 通知列表：开弹层/切 tab 时拉取（不轮询——铃铛角标已随回前台刷新） */
   useEffect(() => {
