@@ -200,11 +200,6 @@ export function CompaniesModal({
             </tbody>
           </table>
         </div>
-        <div className="neu-table-card-footer">
-          <span className="text-xs text-[var(--muted-foreground)]">
-            统计口径：在编人员 = 管理/办公/开标主持账号，评审专家单列（专家库公司归属）；在办项目 = 项目管理进行中；已归档项目/合同额合计 = 采购台账已成交轮次（不含回收站与已终止）
-          </span>
-        </div>
       </section>
 
       {/* 编辑窗口（2026-10-12）：嵌套 Modal——ESC 只关顶层；基本信息保存联动台账+账号表单，条目操作仅联动台账计数 */}
