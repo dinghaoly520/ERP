@@ -39,12 +39,13 @@ export async function fetchProcurements(params: {
   return api.get<ProcurementsListResponse>(`/procurements?${query.toString()}`);
 }
 
-/** 汇总条与列表同参（P1-2 口径漂移修复，2026-11-03）——筛选生效时两套数字必须可互相复现 */
+/** 汇总条与列表同参（P1-2 口径漂移修复，2026-11-03；方式筛选评审 F3 补齐） */
 export async function fetchLedgerStats(filter: {
   startDate?: string;
   endDate?: string;
   companyId?: string;
   searchKeyword?: string;
+  procurementMethod?: string;
   resultStatus?: ResultStatusKey;
   abnormalOnly?: boolean;
 }): Promise<LedgerSummary> {
@@ -53,6 +54,7 @@ export async function fetchLedgerStats(filter: {
   if (filter.endDate) query.set('endDate', filter.endDate);
   if (filter.companyId && filter.companyId !== 'all') query.set('companyId', filter.companyId);
   if (filter.searchKeyword) query.set('searchKeyword', filter.searchKeyword);
+  if (filter.procurementMethod) query.set('procurementMethod', filter.procurementMethod);
   if (filter.resultStatus) query.set('resultStatus', filter.resultStatus);
   if (filter.abnormalOnly) query.set('abnormalOnly', 'true');
   return api.get<LedgerSummary>(`/procurements/stats?${query.toString()}`);

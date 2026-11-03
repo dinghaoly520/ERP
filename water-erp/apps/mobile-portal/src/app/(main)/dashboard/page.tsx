@@ -308,11 +308,13 @@ export default function DashboardPage() {
     fetchMobileBrief(companyIds.length ? companyIds.join(",") : undefined, {
       startDate: queryRange.startDate,
       endDate: queryRange.endDate,
+      /* 快捷档显式携带语义（自定义/全部不传——服务端缺省本月） */
+      rangeKey: !usingCustom && rangeKey !== "all" ? rangeKey : undefined,
     })
       .then((b) => { if (active) setBrief(b); })
       .catch(() => { if (active) setBrief({ available: false }); });
     return () => { active = false; };
-  }, [companyIds, queryRange.startDate, queryRange.endDate, retryTick]);
+  }, [companyIds, queryRange.startDate, queryRange.endDate, rangeKey, usingCustom, retryTick]);
 
   useEffect(() => {
     if (role !== "admin") return;
@@ -698,7 +700,7 @@ export default function DashboardPage() {
               icon={Gauge}
               title="项目质效"
               index={0.5}
-              right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">近一年</span>}
+              right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">近一年 · 集团口径</span>}
             >
               <div className="grid grid-cols-2 gap-2">
                 <MetricCard label="项目数" value={String(perf.projectCount)} tone="accent" />
@@ -1136,9 +1138,15 @@ export default function DashboardPage() {
             </SectionCard>
           ) : null}
 
-          {/* ── 资源告警（/alerts/overview——项目风险之外的第二雷达：资质临期/专家过载）── */}
+          {/* ── 资源告警（/alerts/overview——项目风险之外的第二雷达：资质临期/专家过载；
+              口径=登录人视野，不随公司选择器——副注明示防误读（评审 F4）── */}
           {alerts ? (
-            <SectionCard icon={Radar} title="资源告警" index={8.5}>
+            <SectionCard
+              icon={Radar}
+              title="资源告警"
+              index={8.5}
+              right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">不随公司筛选</span>}
+            >
               <div className="space-y-2">
                 {[
                   { label: "供应商资质 90 天内到期", n: alerts.expiringQualifications },

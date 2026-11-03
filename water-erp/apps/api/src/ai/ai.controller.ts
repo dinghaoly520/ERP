@@ -49,15 +49,27 @@ export class AiController {
   }
 
   @Get('mobile-brief')
-  @ApiOperation({ summary: '移动驾驶舱（:3011）今日要报——LLM 现场生成（不缓存；区间随页面 startDate/endDate，缺省本月）' })
+  @ApiOperation({ summary: '移动驾驶舱（:3011）今日要报——LLM 现场生成（不缓存；区间随页面 startDate/endDate+rangeKey，缺省本月）' })
   @Roles('admin', 'leader', 'staff')
   getMobileBrief(
     @CurrentUser() user: AuthenticatedUser,
     @Query('companyId') companyId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('rangeKey') rangeKey?: string,
   ) {
-    return this.mobileBrief.getBrief(user, companyId, startDate, endDate);
+    // 日期裸 string 直入 new Date() 会产出 Invalid Date → Prisma 校验错 500；
+    // 形状（ISO）+ 日历有效性双校验——「2026-13-45」形状合法但 Invalid Date（评审 F9）
+    const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+    const assertValidDate = (name: string, v?: string) => {
+      if (v == null || v === '') return;
+      if (!ISO_DATE.test(v) || Number.isNaN(new Date(v).getTime())) {
+        throw new BadRequestException(`${name} 须为合法的 yyyy-mm-dd 日期`);
+      }
+    };
+    assertValidDate('startDate', startDate);
+    assertValidDate('endDate', endDate);
+    return this.mobileBrief.getBrief(user, companyId, startDate, endDate, rangeKey);
   }
 
   @Get('projects/:projectId/analyze/:supplierId')

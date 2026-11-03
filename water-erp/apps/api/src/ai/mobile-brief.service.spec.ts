@@ -116,4 +116,12 @@ describe('MobileBriefService.getBrief', () => {
     const prompt = (llmOk.chatJson as jest.Mock).mock.calls[llmOk.chatJson.mock.calls.length - 1][1];
     expect(prompt).toContain('本月数据');
   });
+  it('rangeKey 显式语义优先于日期启发式（评审 F10：跨时区月/年边界零歧义）', async () => {
+    const svc = new MobileBriefService(llmOk, dashboard, scope as any, progress as any);
+    // 服务端时钟停在 11 月，页面传「本季」起止——启发式会误判，rangeKey 必须赢
+    await svc.getBrief({ sub: 'u1', role: 'admin' } as any, undefined, '2026-10-01', '2026-12-31', 'quarter');
+    const prompt = (llmOk.chatJson as jest.Mock).mock.calls[llmOk.chatJson.mock.calls.length - 1][1];
+    expect(prompt).toContain('本季数据');
+    expect(prompt).not.toContain('2026-10-01 至');
+  });
 });

@@ -30,6 +30,7 @@ export async function fetchUnreadCount(): Promise<number> {
   return r.count;
 }
 
+/** 单页 20 条——弹层浏览最近通知；total 供「共 N 条」尾注（评审 F8：截断不可无提示） */
 export async function fetchNotifications(tab: "all" | "todo", page = 1, pageSize = 20): Promise<NotificationListResult> {
   return api.get<NotificationListResult>(`/notifications?tab=${tab}&page=${page}&pageSize=${pageSize}`);
 }

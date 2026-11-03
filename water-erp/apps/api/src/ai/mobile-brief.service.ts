@@ -47,9 +47,12 @@ export function sanitizeBriefShareText(raw: string): string {
   return t.length > 160 ? t.slice(0, 160) : t;
 }
 
-/** 区间标签（2026-11-03 口径对齐）：brief 区间随页面——本年/本月按自然边界识别，
- *  其余显式「起 至 止」；缺省维持本月（向后兼容，页面「全部」档无区间） */
-export function briefRangeLabel(startDate?: string, endDate?: string): string {
+/** 区间标签（2026-11-03 口径对齐）：优先采信页面显式 rangeKey（月/季边界跨时区
+ *  无歧义——评审 F10），缺省回退按服务端本地时钟的自然边界启发式，再退显式区间；
+ *  无区间维持本月（向后兼容，页面「全部」档无区间） */
+export function briefRangeLabel(rangeKey?: string, startDate?: string, endDate?: string): string {
+  const byKey: Record<string, string> = { month: '本月', quarter: '本季', year: '本年' };
+  if (rangeKey && byKey[rangeKey]) return byKey[rangeKey];
   if (!startDate) return '本月';
   const now = new Date();
   const y = now.getFullYear();
@@ -76,6 +79,7 @@ export class MobileBriefService {
     companyId?: string,
     startDate?: string,
     endDate?: string,
+    rangeKey?: string,
   ): Promise<MobileBriefResult> {
     const scope = await this.companyScope.resolveScope(user, companyId);
     const filter = this.companyScope.filter(scope);
@@ -83,7 +87,7 @@ export class MobileBriefService {
     const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     // 区间随页面（2026-11-03）：缺省回退本月；prompt 标签同源——「本月 0 万 vs 本年数百万」同屏打架根治
     const rangeStart = startDate ?? monthStart;
-    const rangeLabel = briefRangeLabel(startDate, endDate);
+    const rangeLabel = briefRangeLabel(rangeKey, startDate, endDate);
     const data = (await this.dashboard.getDashboard(rangeStart, endDate, filter)) as BriefDashboardData;
     // 最堵阶段输入：getDashboard 无 stageDistribution，取 ProgressService 阶段分布（同 companyFilter 隔离）
     const progressStats = (await this.progress.getProgressStats(undefined, undefined, filter)) as {

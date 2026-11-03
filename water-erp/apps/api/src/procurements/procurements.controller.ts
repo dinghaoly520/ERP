@@ -7,6 +7,7 @@ import {
   Query,
   Param,
   Body,
+  BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
 import { ResultStatus } from '@prisma/client';
@@ -63,18 +64,25 @@ export class ProcurementsController {
     @Query('endDate') endDate?: string,
     @Query('companyId') companyId?: string, // 仅 admin 生效：切换查看单公司
     @Query('searchKeyword') searchKeyword?: string,
-    @Query('resultStatus') resultStatus?: ResultStatus,
+    @Query('procurementMethod') procurementMethod?: string,
+    @Query('resultStatus') resultStatus?: string,
     @Query('abnormalOnly') abnormalOnly?: string,
     @CurrentUser() user?: AuthenticatedUser,
   ) {
     if (!canViewGlobalBusinessData(user?.role ?? '')) {
       throw new ForbiddenException('普通账号无法查看采购台账。');
     }
+    // resultStatus 裸 string 直入 Prisma where 会抛校验错 500——对齐 list 端点
+    // DTO 的 @IsEnum 语义，非法值 400（评审 F7，2026-11-03）
+    if (resultStatus != null && resultStatus !== '' && !Object.values(ResultStatus).includes(resultStatus as ResultStatus)) {
+      throw new BadRequestException('无效的结果状态筛选值');
+    }
     const scope = await this.companyScope.resolveScope(user, companyId);
-    // 汇总与列表同参（P1-2 口径漂移修复，2026-11-03）
+    // 汇总与列表同参（P1-2 口径漂移修复，2026-11-03；方式筛选 2026-11-03 评审 F3 补齐）
     return this.procurementsService.getStats(startDate, endDate, user, this.companyScope.filter(scope), {
       searchKeyword,
-      resultStatus,
+      procurementMethod,
+      resultStatus: (resultStatus as ResultStatus) || undefined,
       abnormalOnly: abnormalOnly === 'true',
     });
   }

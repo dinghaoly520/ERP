@@ -134,14 +134,16 @@ export default function LedgerPage() {
     const q = searchParams.get("q");
     const abnormal = searchParams.get("abnormal");
     const pmi = searchParams.get("focusPmi");
-    /* URL 显式异常筛选优先：清掉本地记忆的状态 chip——否则 UI 双活而服务端
-       abnormalOnly 覆盖 resultStatus，界面与数据口径打架（2026-11-03 稳健性） */
-    if (st && RESULT_STATUS_CONFIG[st as ResultStatusKey]) setStatusFilter(st as ResultStatusKey);
-    if (q) setSearchInput(q);
-    if (abnormal === "1") {
-      setAbnormalFilter(true);
-      setStatusFilter(null);
+    /* URL 显式筛选优先且保证确定性落地：清掉本地记忆的状态/方式 chip——否则记忆
+     * 筛选可能把 focusPmi 目标轮次挡在列表外（静默 miss），或 UI 双活而服务端
+     * abnormalOnly 覆盖 resultStatus 口径打架（评审 F5/F6，2026-11-03） */
+    const urlDriven = Boolean(st || q || abnormal === "1" || pmi);
+    if (urlDriven) {
+      setStatusFilter(st && RESULT_STATUS_CONFIG[st as ResultStatusKey] ? (st as ResultStatusKey) : null);
+      setMethodFilter(null);
     }
+    if (q) setSearchInput(q);
+    if (abnormal === "1") setAbnormalFilter(true);
     if (pmi) setFocusPmi(pmi);
   }, [searchParams, urlConsumed]);
 
@@ -194,12 +196,13 @@ export default function LedgerPage() {
     };
   }, [page, searchKeyword, statusFilter, methodFilter, abnormalFilter, filterCompanyId, retryTick]);
 
-  /* 汇总（与列表同筛选，不含分页——P1-2 修复：搜索/状态/异常筛选全部同参） */
+  /* 汇总（与列表同筛选，不含分页——P1-2 修复：搜索/方式/状态/异常筛选全部同参） */
   useEffect(() => {
     let active = true;
     fetchLedgerStats({
       companyId: filterCompanyId,
       searchKeyword: searchKeyword || undefined,
+      procurementMethod: methodFilter ?? undefined,
       resultStatus: statusFilter ?? undefined,
       abnormalOnly: abnormalFilter || undefined,
     })
@@ -210,7 +213,7 @@ export default function LedgerPage() {
     return () => {
       active = false;
     };
-  }, [filterCompanyId, searchKeyword, statusFilter, abnormalFilter, retryTick]);
+  }, [filterCompanyId, searchKeyword, methodFilter, statusFilter, abnormalFilter, retryTick]);
 
   /* 触底自动加载 */
   const loadMore = useCallback(() => {
@@ -316,7 +319,21 @@ export default function LedgerPage() {
 
       {/* ── 筛选 chips ── */}
       <div className="mb-2 flex gap-2 overflow-x-auto pb-0.5">
-        <Chip active={abnormalFilter} onClick={() => changeFilter(() => setAbnormalFilter((v) => !v))}>
+        <Chip
+          active={abnormalFilter}
+          onClick={() =>
+            changeFilter(() => {
+              const next = !abnormalFilter;
+              setAbnormalFilter(next);
+              /* 互斥（评审 F6）：服务端 abnormalOnly 覆盖 resultStatus——开启异常时清
+                 状态 chip，避免「已成交」chip 亮着而数据是异常四态 */
+              if (next) {
+                setStatusFilter(null);
+                persistLedger({ statusFilter: null });
+              }
+            })
+          }
+        >
           异常
         </Chip>
         <Chip active={!statusFilter} onClick={() => changeFilter(() => { setStatusFilter(null); persistLedger({ statusFilter: null }); })}>
@@ -331,6 +348,8 @@ export default function LedgerPage() {
                 const next = statusFilter === c.key ? null : c.key;
                 setStatusFilter(next);
                 persistLedger({ statusFilter: next });
+                /* 互斥另一侧：显式选状态即退出异常视图 */
+                if (next) setAbnormalFilter(false);
               })
             }
           >

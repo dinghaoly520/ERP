@@ -87,15 +87,18 @@ export type MobileBrief = {
   shareText: string;
 } | { available: false };
 
-/** 数据库页「今日要报」三句（LLM 生成，失败时 available:false；区间随页面，缺省本月） */
+/** 数据库页「今日要报」三句（LLM 生成，失败时 available:false；区间随页面，缺省本月）。
+ *  rangeKey（month/quarter/year）显式携带区间语义——服务端标签零歧义，
+ *  自定义/全部档不传（评审 F10：时区跨界时日期启发式会误标「本月/本年」） */
 export async function fetchMobileBrief(
   companyId?: string,
-  range?: { startDate?: string; endDate?: string },
+  range?: { startDate?: string; endDate?: string; rangeKey?: string },
 ): Promise<MobileBrief> {
   const params = new URLSearchParams();
   if (companyId && companyId !== 'all') params.set('companyId', companyId);
   if (range?.startDate) params.set('startDate', range.startDate);
   if (range?.endDate) params.set('endDate', range.endDate);
+  if (range?.rangeKey) params.set('rangeKey', range.rangeKey);
   const q = params.toString();
   return api.get<MobileBrief>(`/ai/mobile-brief${q ? `?${q}` : ''}`);
 }

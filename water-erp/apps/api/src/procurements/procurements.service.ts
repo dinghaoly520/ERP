@@ -58,12 +58,15 @@ export class ProcurementsService {
     this.timeline = new TimelineService(prisma);
   }
 
-  /** PMI 采购日期（时间轴口径）：公告发布节点优先，无公告流程取供应商邀请节点；均无则 null。 */
+  /** PMI 采购日期（时间轴口径，2026-11-03 起时间轴按轮分组）：公告发布节点优先，无公告流程取
+   *  供应商邀请节点；多轮项目取当前轮节点，当前轮未登记回退最近有值轮；均无则 null。 */
   private async procurementDateOfPmi(pmiId: string): Promise<string | null> {
-    const nodes: TimelineNode[] = await this.timeline
-      .getTimeline(pmiId)
-      .catch(() => [] as TimelineNode[]);
-    const node = nodes.find((n) => n.key === 'bidNoticePublish' || n.key === 'supplierInvitation');
+    const tl = await this.timeline.getTimeline(pmiId).catch(() => null);
+    if (!tl) return null;
+    const pick = (nodes: TimelineNode[]) => nodes.find((n) => n.key === 'bidNoticePublish' || n.key === 'supplierInvitation');
+    const desc = [...tl.rounds].sort((a, b) => b.round - a.round);
+    const node = pick(desc.find((r) => r.round === tl.currentRound)?.nodes ?? [])
+      ?? desc.map((r) => pick(r.nodes)).find((n) => !!n?.time);
     return node?.time ? node.time.slice(0, 10) : null;
   }
 
@@ -806,8 +809,8 @@ export class ProcurementsService {
     endDate?: string,
     user?: AuthenticatedUser,
     companyFilter: CompanyWhere = {},
-    /** 与列表同参的筛选（2026-11-03 P1-2：汇总条与列表口径漂移修复）——搜索词/状态/异常四态 */
-    filters: { searchKeyword?: string; resultStatus?: ResultStatus; abnormalOnly?: boolean } = {},
+    /** 与列表同参的筛选（2026-11-03 P1-2：汇总条与列表口径漂移修复）——搜索词/方式/状态/异常四态 */
+    filters: { searchKeyword?: string; procurementMethod?: string; resultStatus?: ResultStatus; abnormalOnly?: boolean } = {},
   ) {
     // 与台账列表同一 where 构造器（回收站排除/日期/搜索/状态/异常四态/公司隔离全同构）——
     // 汇总条数字必须与同筛选列表可互相复现（2026-10-28 回收站口径 + 2026-11-03 筛选同参收口）
@@ -816,6 +819,7 @@ export class ProcurementsService {
         startDate,
         endDate,
         searchKeyword: filters.searchKeyword,
+        procurementMethod: filters.procurementMethod,
         resultStatus: filters.resultStatus,
         abnormalOnly: filters.abnormalOnly,
       },

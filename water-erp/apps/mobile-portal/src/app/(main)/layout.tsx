@@ -37,6 +37,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifTab, setNotifTab] = useState<"all" | "todo">("todo");
   const [notifItems, setNotifItems] = useState<NotificationItem[] | null>(null);
+  const [notifTotal, setNotifTotal] = useState(0);
   const [notifLoading, setNotifLoading] = useState(false);
   const [notifError, setNotifError] = useState(false);
   const [notifRetry, setNotifRetry] = useState(0);
@@ -72,20 +73,21 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     };
   }, [checked]);
 
-  /* 角标+铃铛未读（2026-11-03 实时层）：usePolling 60s 自动刷新——挂载即取、
-     页面隐藏暂停、回前台补取（替代原 visibilitychange 手动挂载模式）；
-     公司口径随数据库页筛选记忆（P1-3）；未过登录校验前不轮询（fn 每渲染
-     重建经 latest-ref 生效，checked 闭包取新值） */
-  usePolling(async () => {
-    if (!checked) return;
-    const companyIds = (readSavedFilters<{ companyIds: string[] }>("dashboard").companyIds ?? []).join(",");
-    const [n, b] = await Promise.all([
-      fetchUnreadCount().catch(() => null),
-      fetchDashboardBadges(companyIds || undefined).catch(() => null),
-    ]);
-    if (n != null) setUnread(n);
-    if (b) setBadges(b);
-  }, 60_000);
+  /* 角标+铃铛未读（2026-11-03 实时层）：usePolling 60s 自动刷新；enabled=checked——
+     登录校验通过瞬间立即首拉（F2：此前挂载即取撞上 checked=false 白等 60s） */
+  usePolling(
+    async () => {
+      const companyIds = (readSavedFilters<{ companyIds: string[] }>("dashboard").companyIds ?? []).join(",");
+      const [n, b] = await Promise.all([
+        fetchUnreadCount().catch(() => null),
+        fetchDashboardBadges(companyIds || undefined).catch(() => null),
+      ]);
+      if (n != null) setUnread(n);
+      if (b) setBadges(b);
+    },
+    60_000,
+    checked,
+  );
 
   /* 通知列表：开弹层/切 tab 时拉取（不轮询——铃铛角标已随回前台刷新）；
      失败≠空数据——显式错误态可重试（与龙虎榜同口径，2026-11-03 稳健性收口） */
@@ -94,7 +96,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     let active = true;
     setNotifLoading(true);
     fetchNotifications(notifTab)
-      .then((r) => { if (active) { setNotifItems(r.items); setNotifError(false); } })
+      .then((r) => { if (active) { setNotifItems(r.items); setNotifTotal(r.total); setNotifError(false); } })
       .catch(() => { if (active) setNotifError(true); })
       .finally(() => { if (active) setNotifLoading(false); });
     return () => { active = false; };
@@ -202,6 +204,11 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 {n.content ? <p className="mt-1 line-clamp-2 text-[13px] leading-snug text-[var(--muted-foreground)]">{n.content}</p> : null}
               </div>
             ))}
+            {notifTotal > notifItems.length ? (
+              <div className="pt-1 text-center text-[12px] text-[var(--muted-foreground)]">
+                已显示最近 {notifItems.length} 条 · 共 {notifTotal} 条
+              </div>
+            ) : null}
             <div className="pt-1 text-center text-[12px] text-[var(--muted-foreground)]">处理操作请前往电脑端工作台</div>
           </div>
         )}

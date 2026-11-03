@@ -298,12 +298,15 @@ export default function ProgressPage() {
           title="开评标进行时"
           index={0.5}
           right={
-            openingNow.length + evaluatingNow.length > 0 ? (
-              <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden>
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--danger)] opacity-60 motion-reduce:animate-none" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--danger)]" />
-              </span>
-            ) : null
+            <>
+              <span className="shrink-0 text-[12px] font-semibold text-[var(--muted-foreground)]">不随公司筛选</span>
+              {openingNow.length + evaluatingNow.length > 0 ? (
+                <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden>
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--danger)] opacity-60 motion-reduce:animate-none" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--danger)]" />
+                </span>
+              ) : null}
+            </>
           }
         >
           <div className="space-y-2">
