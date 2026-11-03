@@ -67,7 +67,6 @@ export default function RetirementPage() {
             <div><div className="page-hero__title">退库管理</div><div className="page-hero__sub">自动筛出连续评价不合格或 12 个月未参评的专家，人工复核后办理退库</div></div>
           </div>
           <div className="page-hero__right">
-            <button onClick={load} disabled={loading} className="neu-btn-xs" aria-label="刷新"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /></button>
             <button onClick={() => router.push('/expert/repository')} className="neu-btn-soft is-porcelain">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
               返回专家库</button>

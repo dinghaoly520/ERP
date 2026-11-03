@@ -82,9 +82,6 @@ export function SupplierPasswordResetPanel() {
             <span className="neu-tab-count !static">{pending.length}</span>
           )}
         </div>
-        <button onClick={load} className="neu-btn-xs" aria-label="刷新密码重置申请">
-          <RefreshCw size={12} />
-        </button>
       </div>
 
       {items === null ? (

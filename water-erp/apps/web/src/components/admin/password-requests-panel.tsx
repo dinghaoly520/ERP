@@ -6,7 +6,6 @@ import {
   KeyRound,
   LifeBuoy,
   Loader2,
-  RefreshCw,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useState, useTransition } from "react";
@@ -342,9 +341,6 @@ export function PasswordRequestsPanel() {
             <span className="neu-tab-count">{profileRequests.length}</span>
           </button>
         </div>
-        <button type="button" onClick={handleRefresh} disabled={isPending} className="neu-btn-xs" aria-label="刷新">
-          <RefreshCw size={14} className={isPending ? "animate-spin" : ""} />
-        </button>
       </div>
 
       {/* --- Feedback banner --- */}

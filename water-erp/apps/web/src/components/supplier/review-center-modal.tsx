@@ -289,9 +289,6 @@ function CompanyLinksPanel({ myRole, onChanged }: { myRole?: string; onChanged: 
             </div>
             {pending.length > 0 && <span className="neu-tab-count !static">{pending.length}</span>}
           </div>
-          <button type="button" onClick={load} className="neu-btn-xs" aria-label="刷新加入审批列表">
-            <RefreshCw size={12} />
-          </button>
         </div>
 
         {items === null ? (

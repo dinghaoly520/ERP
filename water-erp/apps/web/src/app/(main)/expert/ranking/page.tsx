@@ -59,7 +59,6 @@ export default function ExpertRankingPage() {
             <div><div className="page-hero__title">专家排名</div><div className="page-hero__sub">按评审表现对专家排名，供抽取专家时参考</div></div>
           </div>
           <div className="page-hero__right">
-            <button onClick={load} disabled={loading} className="neu-btn-xs" aria-label="刷新"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /></button>
             <button onClick={() => router.push('/expert/repository')} className="neu-btn-soft is-porcelain">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
               返回专家库</button>

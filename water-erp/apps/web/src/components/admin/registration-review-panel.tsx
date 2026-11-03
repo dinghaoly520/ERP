@@ -4,7 +4,6 @@ import {
   Check,
   History,
   Loader2,
-  RefreshCw,
   ShieldCheck,
   UserPlus,
   X,
@@ -338,9 +337,6 @@ export function RegistrationReviewPanel({
             <span className="neu-tab-count">{reviews.length}</span>
           </button>
         </div>
-        <button type="button" onClick={handleRefresh} disabled={isPending} className="neu-btn-xs" aria-label="刷新">
-          <RefreshCw size={14} className={isPending ? "animate-spin" : ""} />
-        </button>
       </div>
 
       {actionMessage && (

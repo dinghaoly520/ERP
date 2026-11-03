@@ -152,9 +152,6 @@ export default function ComplianceRulesPage() {
                 <Sparkles size={13} /> 从内置初始化
               </button>
             )}
-            <button onClick={() => void reload()} disabled={loading} className="neu-btn-xs" aria-label="刷新">
-              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            </button>
           </div>
         </div>
         <div className="page-hero__divider" />

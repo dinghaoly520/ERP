@@ -114,9 +114,6 @@ function HealthPageInner() {
                 {data.worker.alive ? `分析服务运行中（${data.worker.count} 个）` : '分析服务未运行'}
               </span>
             )}
-            <button onClick={() => void reload()} disabled={loading} className="neu-btn-xs" aria-label="刷新">
-              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            </button>
           </div>
         </div>
         <div className="page-hero__divider" />

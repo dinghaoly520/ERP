@@ -621,9 +621,6 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button type="button" onClick={() => void load()} disabled={loading || busy} className="neu-btn-soft !p-2" title="刷新">
-              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-            </button>
             <button type="button" onClick={onClose} className="neu-btn-soft !p-2" title="关闭">
               <X size={16} />
             </button>

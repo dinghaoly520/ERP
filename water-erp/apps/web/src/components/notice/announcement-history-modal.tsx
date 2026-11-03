@@ -276,10 +276,6 @@ export function AllAnnouncementHistoriesModal({ onClose }: { onClose: () => void
                 className="workbench-input !h-7 !text-[11px] !pl-8"
               />
             </div>
-
-            <button onClick={() => doLoad(page, actionFilter, dateFrom, dateTo, search)} disabled={loading} className="neu-btn-xs gap-1" aria-label="刷新">
-              <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
-            </button>
           </div>
 
           {/* 列表（按天分组） */}

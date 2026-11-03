@@ -123,11 +123,6 @@ export function CompaniesModal({
       }
       description="全部公司主数据与业绩 · 开标/监督/采购人信息维护（采购文件与公告编写自动带入）"
       size="2xl"
-      headerExtra={
-        <button onClick={() => void reload()} className="neu-btn-xs" title="刷新">
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-        </button>
-      }
       footer={
         <button type="button" onClick={onClose} className="neu-btn-soft !h-9 !text-xs">
           关闭

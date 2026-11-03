@@ -139,9 +139,6 @@ export default function WorkflowPage() {
                 待办 {pending.length}
               </span>
             )}
-            <button onClick={() => void reload()} className="neu-btn-xs" title="刷新">
-              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            </button>
           </div>
         </div>
 

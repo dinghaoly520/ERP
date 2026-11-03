@@ -463,7 +463,6 @@ function SupplierRepositoryPageInner() {
             <button onClick={() => router.push('/supplier/elimination')} className="neu-btn-soft"><Trash2 size={15} />淘汰候选</button>
             {canManageInvitations && <button onClick={() => setInvModalOpen(true)} className="neu-btn-soft"><Key size={15} />邀请码</button>}
             <button onClick={() => setShowAuditLog(true)} className="neu-btn-soft"><History size={15} />操作历史</button>
-            <button onClick={loadData} disabled={loading} className="neu-btn-xs" aria-label="刷新"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></button>
           </div>
         </div>
         <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
@@ -519,9 +518,6 @@ function SupplierRepositoryPageInner() {
           </div>
           <button onClick={handleCreateInvitation} disabled={invCreating} className="neu-btn-primary !h-[40px]">
             <Plus size={14} />{invCreating ? '生成中…' : '生成邀请码'}
-          </button>
-          <button onClick={loadInvitations} disabled={invLoading} className="neu-btn-xs mb-[2px]" title="刷新列表">
-            <RefreshCw size={13} className={invLoading ? 'animate-spin' : ''} />
           </button>
         </div>
         {/* 列表 */}

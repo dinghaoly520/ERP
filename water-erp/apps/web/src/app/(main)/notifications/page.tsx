@@ -17,8 +17,7 @@ import {
 import { getSupplier, getSupplierList, approveSupplier, rejectSupplier, returnSupplier } from '@/lib/api/supplier';
 import { Modal } from '@/components/workbench';
 import {
-  Bell, CheckCheck, Clock, History, Inbox, ClipboardList, CircleCheck, BookOpen,
-  RefreshCw, Loader2, CheckCircle2, XCircle, RotateCcw, UserPlus, IdCard,
+  Bell, CheckCheck, Clock, History, Inbox, ClipboardList, CircleCheck, BookOpen, Loader2, CheckCircle2, XCircle, RotateCcw, UserPlus, IdCard,
   ChevronLeft, ChevronRight,
 } from 'lucide-react';
 
@@ -229,7 +228,6 @@ export default function NotificationsPage() {
             <button className="neu-btn-soft" onClick={() => { setHistoryOpen(true); fetchMyActivities(50, ['LOGIN', 'LOGOUT']).then(r => setActivities(r.items)).catch(() => setActivities([])); }}>
               <History size={14} /> 操作历史
             </button>
-            <button className="neu-btn-xs" onClick={load} aria-label="刷新"><RefreshCw size={13} className={loading ? 'animate-spin' : ''} /></button>
           </div>
         </div>
         {/* hairline 下横线（cgzxui 规定：标题行与下方内容之间必有分割线，与其他页面高度一致） */}

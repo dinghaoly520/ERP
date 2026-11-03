@@ -203,9 +203,6 @@ export function SupplierAuditLogModal({ onClose, companyId }: { onClose: () => v
           />
 
           <div className="flex-1" />
-          <button onClick={() => doLoad(page, actionFilter, dateFrom, dateTo)} disabled={loading} className="neu-btn-xs gap-1" aria-label="刷新">
-            <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-          </button>
         </div>
 
         {/* 列表（按天分组） */}

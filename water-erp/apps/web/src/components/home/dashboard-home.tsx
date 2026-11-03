@@ -77,7 +77,6 @@ function IntelligencePanel({ analysis, loading, error, onRefresh, index, reduced
           <div className="flex items-center gap-2.5"><Sparkles size={15} className="text-[var(--accent)]" /><h2 className="text-[0.92rem] font-semibold tracking-[-0.025em] text-[var(--foreground)]">综合分析报告</h2></div>
           <div className="flex items-center gap-2">
             {loading && <div className="flex items-center gap-1.5 text-[11px] text-[var(--muted-foreground)]"><RefreshCw size={12} className="animate-spin" />分析中...</div>}
-            <button onClick={onRefresh} className="neu-btn-xs" title="刷新分析"><RefreshCw size={12} /></button>
           </div>
         </div>
         {error && !analysis ? <div className="mx-4 mb-4 mt-1 flex items-center gap-2 rounded-[12px] border border-[color-mix(in_oklch,var(--danger)_25%,transparent)] bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-3 py-2.5 text-xs text-[var(--danger)]"><AlertCircle size={13} />{error}</div> : null}

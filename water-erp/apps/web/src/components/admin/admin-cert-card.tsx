@@ -96,9 +96,6 @@ export function AdminCertPage() {
                 未配置
               </span>
             )}
-            <button type="button" onClick={load} disabled={loading} className="neu-btn-xs" aria-label="刷新" title="刷新">
-              <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-            </button>
           </div>
         </div>
 
