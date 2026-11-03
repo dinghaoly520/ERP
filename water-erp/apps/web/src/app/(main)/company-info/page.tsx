@@ -7,7 +7,6 @@ import {
   Gavel,
   Loader2,
   MapPin,
-  CloudSun,
   RefreshCw,
   Save,
   ShieldAlert,
@@ -65,13 +64,6 @@ export default function CompanyInfoPage() {
         name: data.name ?? '',
         shortName: data.shortName ?? '',
         code: data.code ?? '',
-        sunshineOrganizationName: data.sunshineOrganizationName ?? '',
-        sunshineOrganizationCode: data.sunshineOrganizationCode ?? '',
-        sunshineOrganizationUnique: data.sunshineOrganizationUnique ?? '',
-        sunshineParentOrganization: data.sunshineParentOrganization ?? '',
-        sunshineProcuringEntity: data.sunshineProcuringEntity ?? '',
-        sunshineStandardQuota: data.sunshineStandardQuota ?? '',
-        sunshinePublicQuota: data.sunshinePublicQuota ?? '',
       });
     } catch (e) {
       setError((e as Error).message);
@@ -94,13 +86,6 @@ export default function CompanyInfoPage() {
         name: form.name,
         shortName: form.shortName,
         code: form.code,
-        sunshineOrganizationName: form.sunshineOrganizationName ?? '',
-        sunshineOrganizationCode: form.sunshineOrganizationCode ?? '',
-        sunshineOrganizationUnique: form.sunshineOrganizationUnique ?? '',
-        sunshineParentOrganization: form.sunshineParentOrganization ?? '',
-        sunshineProcuringEntity: form.sunshineProcuringEntity ?? '',
-        sunshineStandardQuota: form.sunshineStandardQuota ?? '',
-        sunshinePublicQuota: form.sunshinePublicQuota ?? '',
       });
       setInfo(saved);
       // 改码联动报告（2026-10-12 方案2）：编码变化时后端同步重写在办项目编号链
@@ -231,47 +216,6 @@ export default function CompanyInfoPage() {
               className="workbench-input w-full font-mono"
               title="项目编号首段（编号格式：公司编码-方式前缀-日期序号，全局唯一）；修改将同步更新本公司在办项目编号，归档/回收项目不动。大写字母/数字，≤20 字符"
             />
-          </label>
-        </div>
-      </div>
-
-      {/* ══════ 阳光采购对接档案（2026-10-28）：平台侧组织档案，公告发布弹窗自动带出 ══════ */}
-      <div className="neu-card p-5">
-        <div className="mb-3 flex items-center gap-2">
-          <CloudSun size={14} className="text-[var(--accent)]" />
-          <span className="text-sm font-semibold text-[var(--foreground)]">阳光采购对接档案</span>
-        </div>
-        <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
-          天府阳光采购平台的组织档案，公告发布时自动带出，此处仅供查看，不可修改。
-        </p>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">组织名称</span>
-            <input type="text" value={form.sunshineOrganizationName ?? ''} readOnly placeholder="集团代发主体名称" className="workbench-input w-full" />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">组织编码</span>
-            <input type="text" value={form.sunshineOrganizationCode ?? ''} readOnly placeholder="平台分配的组织编码" className="workbench-input w-full font-mono" />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">组织唯一标识</span>
-            <input type="text" value={form.sunshineOrganizationUnique ?? ''} readOnly placeholder="平台分配的唯一标识" className="workbench-input w-full font-mono" />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">父级组织</span>
-            <input type="text" value={form.sunshineParentOrganization ?? ''} readOnly placeholder="上级组织名称" className="workbench-input w-full" />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">采购主体 ID</span>
-            <input type="text" value={form.sunshineProcuringEntity ?? ''} readOnly placeholder="平台侧采购主体标识" className="workbench-input w-full font-mono" />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">招标采购限额（万元）</span>
-            <input type="text" value={form.sunshineStandardQuota ?? ''} readOnly placeholder="如：400" className="workbench-input w-full font-mono" />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">公开采购限额（万元）</span>
-            <input type="text" value={form.sunshinePublicQuota ?? ''} readOnly placeholder="如：200" className="workbench-input w-full font-mono" />
           </label>
         </div>
       </div>
