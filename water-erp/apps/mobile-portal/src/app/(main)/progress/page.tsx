@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Activity, AlertCircle, BarChart3, CalendarClock, FolderKanban, Lightbulb, RefreshCw, Sparkles, Target, TrendingUp } from "lucide-react";
+import { Activity, AlertCircle, BarChart3, CalendarClock, FolderKanban, Lightbulb, Radio, RefreshCw, Sparkles, Target, TrendingUp } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProgressStats, fetchProgressAiInsights, fetchUpcoming, type ProgressStats, type ProgressAiInsights, type ProjectProgress, type UpcomingResult } from "@/lib/api/progress";
 import { useAuth } from "@/components/m/auth-context";
@@ -15,6 +15,8 @@ import { EmptyState } from "@/components/m/empty-state";
 import { Skeleton } from "@/components/m/skeleton";
 import { PullIndicator } from "@/components/m/pull-indicator";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import { usePolling } from "@/hooks/use-polling";
+import { fetchBidLiveProjects, type BidLiveProject } from "@/lib/api/cockpit";
 import { readSavedFilters, saveFilters } from "@/lib/filter-store";
 
 /* ── 阶段元数据（移植自 web progress-content STAGE_META——oklch 阶段色令牌）── */
@@ -140,6 +142,19 @@ export default function ProgressPage() {
 
   const [activeProject, setActiveProject] = useState<ProjectProgress | null>(null);
   const router = useRouter();
+
+  /* 开评标进行时（2026-11-03）：30s 轮询——「现在正在发生什么」是驾驶舱此前完全
+     缺席的时效维度；失败保旧数据，页面隐藏暂停 */
+  const [live, setLive] = useState<{ projects: BidLiveProject[] } | null>(null);
+  usePolling(
+    useCallback(async () => {
+      setLive(await fetchBidLiveProjects());
+    }, []),
+    30_000,
+  );
+  const openingNow = live?.projects.filter((p) => p.stage === "OPENING") ?? [];
+  const evaluatingNow = live?.projects.filter((p) => p.stage === "EVALUATING") ?? [];
+  const submittingNow = live?.projects.filter((p) => p.stage === "SUBMIT") ?? [];
 
   /* URL 预置（:3011 两步铁律桥，2026-11-03）：?focusPmi=<PMI id> 直开项目弹层——
      台账详情「查看进展」的落地端 */
@@ -270,6 +285,60 @@ export default function ProgressPage() {
                     <span className="shrink-0 text-[11px] text-[var(--muted-foreground)]">{e.type === "OPENING" ? "开标" : "截标"}</span>
                   </div>
                 ))}
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      ) : null}
+
+      {/* ── 开评标进行时（30s 轮询 + 呼吸点——驾驶舱的「现在时」）── */}
+      {live && openingNow.length + evaluatingNow.length + submittingNow.length > 0 ? (
+        <SectionCard
+          icon={Radio}
+          title="开评标进行时"
+          index={0.5}
+          right={
+            openingNow.length + evaluatingNow.length > 0 ? (
+              <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden>
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--danger)] opacity-60" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--danger)]" />
+              </span>
+            ) : null
+          }
+        >
+          <div className="space-y-2">
+            {[
+              { label: "截标进行中", n: submittingNow.length, tone: "accent" },
+              { label: "开标现场", n: openingNow.length, tone: "danger" },
+              { label: "评标进行", n: evaluatingNow.length, tone: "warning" },
+            ].map((r) => (
+              <div key={r.label} className="flex items-center justify-between rounded-[12px] m-tile px-3 py-2.5">
+                <span className="text-[14px] text-[var(--foreground)]">{r.label}</span>
+                <span
+                  className={`text-[16px] font-black tabular-nums ${
+                    r.n > 0
+                      ? r.tone === "danger"
+                        ? "text-[var(--danger)]"
+                        : r.tone === "warning"
+                          ? "text-[var(--warning)]"
+                          : "text-[var(--accent)]"
+                      : "text-[var(--muted-foreground)]"
+                  }`}
+                >
+                  {r.n} 场
+                </span>
+              </div>
+            ))}
+            {[...openingNow, ...evaluatingNow].slice(0, 3).map((p) => (
+              <div key={p.id} className="flex items-center gap-2 px-1 text-[13px] text-[var(--muted-foreground)]">
+                <span
+                  className="h-1.5 w-1.5 shrink-0 rounded-full"
+                  style={{ background: p.stage === "OPENING" ? "var(--danger)" : "var(--warning)" }}
+                />
+                <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                <span className="shrink-0 tabular-nums">
+                  已投 {p.supplierSubmitted}/{p.supplierCount} · 专家 {p.expertCount}
+                </span>
               </div>
             ))}
           </div>
