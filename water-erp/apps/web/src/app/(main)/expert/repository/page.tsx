@@ -404,7 +404,6 @@ export default function ExpertRepositoryPage() {
             <Link href="/expert/statistics" className="neu-btn-soft"><TrendingUp size={15} />统计</Link>
             {canManageStatus && <Link href="/expert/retirement" className="neu-btn-soft"><UserX size={15} />退库</Link>}
             <button onClick={() => setShowHistory(true)} className="neu-btn-soft"><History size={15} />操作历史</button>
-            <button onClick={load} disabled={loading} className="neu-btn-xs"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></button>
           </div>
         </div>
         <div className="page-hero__divider">

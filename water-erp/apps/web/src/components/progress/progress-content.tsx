@@ -14,7 +14,6 @@ import {
   Gavel,
   LayoutGrid,
   Lightbulb,
-  RefreshCw,
   Search,
   ShieldAlert,
   Sparkles,
@@ -611,9 +610,6 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
                 待推进 {attnCount}
               </span>
             )}
-            <button onClick={() => void loadData()} className="neu-btn-xs">
-              <RefreshCw size={14} />
-            </button>
           </div>
         </div>
 
@@ -659,9 +655,6 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
                 <Sparkles size={15} className="text-[oklch(0.5_0.16_258)]" />
                 <h2 className="neu-section-heading">进度洞察</h2>
               </div>
-              <button onClick={() => void loadAiInsights(true)} disabled={aiLoading} className="neu-btn-xs">
-                <RefreshCw size={12} className={aiLoading ? "animate-spin" : ""} />
-              </button>
             </div>
             <div className="wb-panel-body">
               {aiLoading && !aiInsights ? (
@@ -737,7 +730,6 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
             </div>
             <div className="flex items-center gap-2">
               {lastRefreshedAt && <span className="text-xs text-[color:var(--muted-foreground)]">{lastRefreshedAt}</span>}
-              <button onClick={() => void loadData()} className="neu-btn-xs"><RefreshCw size={13} /></button>
             </div>
           </div>
           <div className="wb-panel-body space-y-3">

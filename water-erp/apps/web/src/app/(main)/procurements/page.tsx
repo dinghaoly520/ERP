@@ -194,9 +194,6 @@ function PageHero({
               异常 {abnormalCount}
             </span>
           )}
-          <button onClick={onRefresh} disabled={loading} className="neu-btn-xs">
-            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          </button>
         </div>
       </div>
 

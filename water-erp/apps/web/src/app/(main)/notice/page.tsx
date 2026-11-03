@@ -383,9 +383,6 @@ export default function NoticePage() {
             <button onClick={() => router.push('/notice/new')} className="neu-btn-soft">
               <PlusCircle size={15} /> 新建公告
             </button>
-            <button onClick={load} disabled={loading} className="neu-btn-xs">
-              <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-            </button>
           </div>
         </div>
 
