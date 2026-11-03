@@ -10549,17 +10549,24 @@ select.workbench-input {
 
 /* ── 右侧：统计标签 + 操作 ── */
 .page-hero__right { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+/* 统计瓷片（2026-11-03 用户裁定：白瓷片凸起，去描边）——与纯白按钮同语言：
+   纯白底 + 顶部内高光 + 方向性双影；数字用 tabular-nums 全粗（标签级小字）；
+   info=品牌蓝字、warn=红字（色义只走文字色，底色统一纯白） */
 .page-hero__stat {
   display: flex; align-items: center; gap: 0.35rem;
-  font-size: 0.688rem; font-weight: 600; white-space: nowrap;
-  padding: 0.25rem 0.6rem;
+  font-size: 0.688rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap;
+  padding: 0.25rem 0.65rem;
   border-radius: 999px;
-  border: 1px solid oklch(0.6 0.04 258 / 0.22);
-  background: oklch(0.99 0.004 258);
+  border: none;
+  background: oklch(1 0 0);
   line-height: 1.4;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.9),
+    1.5px 1.5px 3.5px oklch(0.55 0.03 258 / 0.12),
+    -1px -1px 2.5px oklch(1 0 0 / 0.85);
 }
-.page-hero__stat--warn  { color: var(--danger); border-color: color-mix(in oklch, var(--danger) 28%, transparent); background: color-mix(in oklch, var(--danger) 6%, transparent); }
-.page-hero__stat--info  { color: var(--accent); border-color: color-mix(in oklch, var(--accent) 25%, transparent); background: color-mix(in oklch, var(--accent) 6%, transparent); }
+.page-hero__stat--warn  { color: var(--danger); }
+.page-hero__stat--info  { color: var(--accent); }
 
 /* ══════════════════════════════════════════════════════════════════
    阶段流 Pill — 项目卡内阶段时间线
