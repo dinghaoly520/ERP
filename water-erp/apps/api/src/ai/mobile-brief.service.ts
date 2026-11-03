@@ -88,14 +88,24 @@ export class MobileBriefService {
         0.4,
         undefined,
         Math.floor(Math.random() * 1_000_000),
-        { maxTokens: 2048, timeoutMs: 20_000, retries: 1 },
+        // maxTokens 4096（2026-11-03 实录）：deepseek-v4-flash 思维链与正文共享预算，
+        // 2048 时 reasoning_tokens 可独占全部预算（finish=length、content 空），直连探测
+        // 12 发 2 中；4096 覆盖实测思维链峰值（~2.4k token）+正文余量
+        { maxTokens: 4096, timeoutMs: 20_000, retries: 1 },
       );
-      const pick = (v: unknown): string => sanitizeBriefText(String(v ?? ''));
-      const focusText = pick((r as Record<string, unknown>).focus && ((r as any).focus.text));
-      const metricText = pick((r as any).metric?.text);
-      const reminderText = pick((r as any).reminder?.text);
+      // 形状归一（2026-11-03 实录）：模型间歇性把 {"focus":{"text":…}} 拍平成
+      // {"focus":"…"}（直连探测 12 发 2 中），两种形状都接受——只认嵌套会把合法
+      // 返回静默降级成 available:false
+      const pickText = (v: unknown): string =>
+        sanitizeBriefText(String((v && typeof v === 'object' ? (v as { text?: unknown }).text : v) ?? ''));
+      const focusText = pickText((r as any).focus);
+      const metricText = pickText((r as any).metric);
+      const reminderText = pickText((r as any).reminder);
       const shareText = sanitizeBriefShareText(String((r as any).shareText ?? ''));
-      if (!focusText || !metricText || !reminderText) return { available: false };
+      if (!focusText || !metricText || !reminderText) {
+        this.logger.warn(`今日要报字段为空，LLM 原始返回：${JSON.stringify(r).slice(0, 800)}`);
+        return { available: false };
+      }
       return {
         available: true,
         focus: { text: focusText, jump: '/dashboard' },

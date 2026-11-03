@@ -66,4 +66,37 @@ describe('MobileBriefService.getBrief', () => {
     const svc = new MobileBriefService(llmBad, dashboard, scope as any, progress as any);
     await expect(svc.getBrief({ sub: 'u1', role: 'admin' } as any)).resolves.toEqual({ available: false });
   });
+  // 2026-11-03 实录：deepseek-v4-flash 间歇性把 {"focus":{"text":…}} 拍平成
+  // {"focus":"…"}（直连探测 12 发 2 中）——解析只认嵌套形状时该路径静默 available:false
+  // 零日志，是 :3011 今日要报生成失败的主犯。两种形状都必须接受。
+  it('LLM 返回扁平字符串形状（focus:"…" 而非 {focus:{text}}）→ 仍成功生成', async () => {
+    const llmFlat: any = { chatJson: jest.fn().mockResolvedValue({
+      focus: 'X项目评标滞留15天，需关注',
+      metric: '本月成交1,200万，节资80万',
+      reminder: '合同阶段3项待推进',
+      shareText: longShare,
+    }) };
+    const svc = new MobileBriefService(llmFlat, dashboard, scope as any, progress as any);
+    const r = await svc.getBrief({ sub: 'u1', role: 'admin' } as any);
+    expect(r.available).toBe(true);
+    if (r.available) {
+      expect(r.focus.text).toBe('X项目评标滞留15天，需关注');
+      expect(r.metric.text).toBe('本月成交1,200万，节资80万');
+      expect(r.reminder.text).toBe('合同阶段3项待推进');
+    }
+  });
+  it('三句全空时 available:false 且必须留 warn 日志（静默路径可观测，2026-11-03 教训）', async () => {
+    const llmGarbage: any = { chatJson: jest.fn().mockResolvedValue({ unrelated: true }) };
+    const svc = new MobileBriefService(llmGarbage, dashboard, scope as any, progress as any);
+    const svcWarn = jest.spyOn((svc as any).logger, 'warn').mockImplementation(() => undefined);
+    await expect(svc.getBrief({ sub: 'u1', role: 'admin' } as any)).resolves.toEqual({ available: false });
+    expect(svcWarn).toHaveBeenCalled();
+    svcWarn.mockRestore();
+  });
+  it('chatJson 预算 maxTokens=4096（2048 时思维链可独占预算致 content 空，直连探测 reasoning_tokens=2048 实录）', async () => {
+    const svc = new MobileBriefService(llmOk, dashboard, scope as any, progress as any);
+    await svc.getBrief({ sub: 'u1', role: 'admin' } as any);
+    const opts = (llmOk.chatJson as jest.Mock).mock.calls[0][5];
+    expect(opts.maxTokens).toBe(4096);
+  });
 });
