@@ -570,6 +570,12 @@ function HandleModal({ item, onClose, onDone }: { item: NotificationItem; onClos
               {resolveNotificationLink(item.link) && (
                 <button className="neu-btn-soft !h-[38px]" onClick={() => { onClose(); openNotificationLink(item.link, router); }}>跳转页面</button>
               )}
+              {/* 复核型待办（2026-11-03 用户实录）：无审批动作，复核完成即点此归档——
+                  此前无任何消解路径（预警类待办点了也永不消失） */}
+              <button className="neu-btn-soft is-success !h-[38px]" disabled={busy}
+                onClick={() => act(() => markNotificationRead(item.id), '已标记为已办')}>
+                <CheckCircle2 size={14} /> 标记已办
+              </button>
             </>
           )}
         </>
