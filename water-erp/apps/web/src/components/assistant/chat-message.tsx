@@ -173,21 +173,25 @@ export function ChatMessage({
           <FollowUpButtons items={followUps} onSend={onSendFollowUp} />
         )}
 
-        {/* 图表弹窗 — 点击「查看图表」按钮后展开 */}
+        {/* 图表弹窗 — 点击「查看图表」按钮后展开。
+            头部（标题+关闭）固定不随内容滚动（2026-11-03）：外壳只约束高度做 flex 列，
+            滚动收敛到内容区——多张图表超出 85vh 时关闭钮不再被滚走 */}
         {chartModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="absolute inset-0 bg-[var(--background)]/70 backdrop-blur-sm" onClick={() => setChartModalOpen(false)} />
-            <div className="relative w-full max-w-[min(720px,92vw)] max-h-[85vh] overflow-y-auto rounded-[20px] bg-[var(--background)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.12)]" role="dialog" aria-modal="true">
-              <div className="mb-5 flex items-center justify-between">
+            <div className="relative flex max-h-[85vh] w-full max-w-[min(720px,92vw)] flex-col rounded-[20px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]" role="dialog" aria-modal="true">
+              <div className="flex shrink-0 items-center justify-between px-6 pb-3 pt-5">
                 <span className="text-sm font-bold text-[var(--foreground)]">数据图表</span>
                 <button onClick={() => setChartModalOpen(false)} className="neu-btn-xs"><X size={14} /></button>
               </div>
-              {chartActions.map((a, i) => (
-                <div key={`cht-${i}`} className="mb-4">
-                  <InlineChart action={a as ChartAction} />
-                </div>
-              ))}
-              {richCards.length > 0 && <DataCards cards={richCards} />}
+              <div className="overflow-y-auto px-6 pb-6">
+                {chartActions.map((a, i) => (
+                  <div key={`cht-${i}`} className="mb-4">
+                    <InlineChart action={a as ChartAction} />
+                  </div>
+                ))}
+                {richCards.length > 0 && <DataCards cards={richCards} />}
+              </div>
             </div>
           </div>
         )}
