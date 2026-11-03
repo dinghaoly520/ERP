@@ -223,8 +223,8 @@ export default function NotificationsPage() {
             </div>
           </div>
           <div className="page-hero__right">
-            <button className="neu-btn-xs" onClick={() => { void markAllNotificationsRead().then(() => load()); }}>
-              <CheckCheck size={13} /> 全部标已阅
+            <button className="neu-btn-soft" onClick={() => { void markAllNotificationsRead().then(() => load()); }}>
+              <CheckCheck size={14} /> 全部标已阅
             </button>
             <button className="neu-btn-soft" onClick={() => { setHistoryOpen(true); fetchMyActivities(50, ['LOGIN', 'LOGOUT']).then(r => setActivities(r.items)).catch(() => setActivities([])); }}>
               <History size={14} /> 操作历史
