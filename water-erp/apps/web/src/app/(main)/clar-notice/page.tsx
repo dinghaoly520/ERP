@@ -74,7 +74,7 @@ export default function ClarificationNoticePage() {
           <button
             onClick={publish}
             disabled={saving || loading}
-            className="neu-btn-primary is-water !h-[38px] !px-5 disabled:opacity-50"
+            className="neu-btn-soft !h-[38px] !px-5 disabled:opacity-50"
           >
             <Save size={14} />
             {saving ? '发布中...' : '保存并发布'}
