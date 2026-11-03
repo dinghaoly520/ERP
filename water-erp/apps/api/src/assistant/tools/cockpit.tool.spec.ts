@@ -25,3 +25,27 @@ it('stages 走 ProgressService，行键映射 STAGE_LABELS 中文标签（未收
     { 阶段: 'NOT_IN_LABELS', 项目数: 1 },
   ]);
 });
+
+describe('cockpit 出图声明（2026-11-03 表下真图）', () => {
+  it('stages 卡带 distribution viz（阶段分布→柱图）', async () => {
+    const tool = new CockpitTool(dashboard, progress);
+    const r = await tool.execute({ action: 'stages' }, { user: { sub: 'u', role: 'admin', companyId: null } });
+    expect((r.cards?.[0] as any).viz).toEqual({ kind: 'distribution', category: '阶段', value: '项目数' });
+  });
+
+  it('savings 卡带 ranking viz + columns 隐藏数值键（节资率数值不进表列）', async () => {
+    const tool = new CockpitTool(dashboard, progress);
+    const r = await tool.execute({ action: 'savings' }, { user: { sub: 'u', role: 'admin', companyId: null } });
+    const card = r.cards?.[0] as any;
+    expect(card.viz).toEqual({ kind: 'ranking', category: '项目', value: '节资率数值' });
+    expect(card.columns.map((c: any) => c.key)).toEqual(['项目', '节资率', '节约额']);
+    expect(typeof card.rows[0].节资率数值).toBe('number');
+    expect(card.rows[0].节资率数值).toBe(15);
+  });
+
+  it('risk 卡不配 viz（明细列表图无增益，spec 裁定）', async () => {
+    const tool = new CockpitTool(dashboard, progress);
+    const r = await tool.execute({ action: 'risk' }, { user: { sub: 'u', role: 'admin', companyId: null } });
+    expect((r.cards?.[0] as any).viz).toBeUndefined();
+  });
+});

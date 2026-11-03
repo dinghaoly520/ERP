@@ -29,6 +29,8 @@ export class CockpitTool implements AssistantTool {
         cards: [{
           type: 'table',
           title: '采购阶段分布（在办）',
+          // 出图声明（2026-11-03）：阶段分布→柱图，「哪个阶段最堵」图即答案
+          viz: { kind: 'distribution', category: '阶段', value: '项目数' },
           rows: (stats.stageDistribution ?? []).map((d: { stageName?: string; stage: string; count: number }) => ({
             // STAGE_LABELS 优先：stageDistribution 运行时只有 {stage,count}，stageName 恒缺——
             // 不映射则中文表头卡里出 BID_EVALUATION 英文原键（fix round 1）；未收录键回退原键
@@ -57,8 +59,17 @@ export class CockpitTool implements AssistantTool {
         cards: [{
           type: 'table',
           title: '节资率排行',
+          // 出图声明（2026-11-03）：排行→横柱图。节资率/节约额展示列是格式化字符串
+          // （"15%"/"30万"），viz 数值须走隐藏数值键「节资率数值」（number，columns
+          // 定义表列故不显示）——裸引展示列会 NaN→0
+          columns: [
+            { key: '项目', label: '项目' },
+            { key: '节资率', label: '节资率' },
+            { key: '节约额', label: '节约额' },
+          ],
+          viz: { kind: 'ranking', category: '项目', value: '节资率数值' },
           rows: (data.savingsRanking ?? []).slice(0, 5).map((s: { project: string; savingsRate: number; savingsLabel: string }) => ({
-            项目: s.project, 节资率: `${s.savingsRate}%`, 节约额: s.savingsLabel,
+            项目: s.project, 节资率: `${s.savingsRate}%`, 节约额: s.savingsLabel, 节资率数值: s.savingsRate,
           })),
         }],
       };
