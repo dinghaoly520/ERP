@@ -402,7 +402,7 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                       className={`neu-tab ${selectedStageKey === stageKeyOf(stage) ? 'is-active' : ''}`}
                     >
                       {getStatusIcon(stage.status)}
-                      <span>{hasMultiRounds ? `R${stage.round ?? 1}·` : ''}{stage.stageName}</span>
+                      <span>{hasMultiRounds ? `第${stage.round ?? 1}轮·` : ''}{stage.stageName}</span>
                       {stage.attachments.length > 0 && (
                         <span className="neu-tab-count">{stage.attachments.length}</span>
                       )}

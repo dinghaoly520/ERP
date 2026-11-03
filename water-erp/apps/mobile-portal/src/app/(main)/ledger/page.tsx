@@ -515,7 +515,7 @@ export default function LedgerPage() {
               {activeItem.initiationDate ? <DetailRow label="立项日期" value={activeItem.initiationDate} /> : null}
               {activeItem.awardedSupplierName ? <DetailRow label="中标供应商" value={activeItem.awardedSupplierName} tone="accent" /> : null}
               {activeItem.expertInfo ? <DetailRow label="评审专家" value={activeItem.expertInfo} /> : null}
-              {activeItem.biddingUnits ? <DetailRow label="招标单位" value={activeItem.biddingUnits} /> : null}
+              {activeItem.biddingUnits ? <DetailRow label="投标单位" value={activeItem.biddingUnits} /> : null}
               {activeItem.contractNumber ? <DetailRow label="合同编号" value={activeItem.contractNumber} /> : null}
               {activeItem.archivedAt ? <DetailRow label="归档时间" value={activeItem.archivedAt.slice(0, 10)} /> : null}
               {activeItem.terminationReason ? <DetailRow label="终止原因" value={activeItem.terminationReason} tone="danger" /> : null}

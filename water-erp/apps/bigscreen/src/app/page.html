@@ -337,12 +337,13 @@
   .s-b6 .s-dot{background:#e11d48;box-shadow:0 0 10px rgba(225,29,72,.5)}
   .s-b7 .s-dot{background:#f5a623;box-shadow:0 0 10px rgba(245,166,35,.5)}
   .s-b8 .s-dot{background:#11a874;box-shadow:0 0 10px rgba(17,168,116,.5)}
+  .s-b9 .s-dot{background:#2dd4bf;box-shadow:0 0 10px rgba(45,212,191,.5)}
   .s-badge small{font-size:12px;font-weight:600;color:#90b8cc;white-space:nowrap}
   .s-badge.s-hi .s-dot{animation:dotPop .6s ease-out}
   @keyframes dotPop{0%,100%{transform:scale(1)}50%{transform:scale(1.3);box-shadow:0 0 18px currentColor}}
   /* Connecting line across all badges — drawn on container */
   .stage-badges{position:relative}
-  .stage-badges::after{content:"";position:absolute;left:6.25%;right:calc(6.25% + 6px);top:14px;height:3px;z-index:0;pointer-events:none;
+  .stage-badges::after{content:"";position:absolute;left:5.56%;right:calc(5.56% + 6px);top:14px;height:3px;z-index:0;pointer-events:none;
     background:
       repeating-linear-gradient(90deg,rgba(80,200,230,.30) 0,rgba(80,200,230,.30) 12px,transparent 12px,transparent 20px),
       linear-gradient(90deg,rgba(56,160,210,.14),rgba(56,160,210,.28) 30%,rgba(80,200,230,.14) 70%,rgba(56,160,210,.28));
@@ -351,7 +352,7 @@
     animation:trailFlow 12s linear infinite}
   @keyframes trailFlow{to{background-position:-20px 0,0 0}}
   /* Chase light on the container itself */
-  .stage-badges::before{content:"";position:absolute;left:6.25%;right:calc(6.25% + 6px);top:14px;height:3px;z-index:1;pointer-events:none;border:0 none;
+  .stage-badges::before{content:"";position:absolute;left:5.56%;right:calc(5.56% + 6px);top:14px;height:3px;z-index:1;pointer-events:none;border:0 none;
     background:linear-gradient(90deg,transparent 0%,rgba(200,240,255,.0) 20%,rgba(200,240,255,.85) 35%,rgba(255,255,255,.65) 42%,rgba(200,240,255,.25) 50%,rgba(200,240,255,.0) 65%,transparent 100%);
     background-size:250% 100%;background-position:100% 0;
     filter:drop-shadow(0 0 8px rgba(180,230,255,.7));mix-blend-mode:screen;
@@ -359,7 +360,7 @@
   @keyframes chaseLight{to{background-position:-100% 0}}
   /* Bridge bar */
   .stage-bridge{height:8px;background:rgba(28,80,130,.16);border-radius:4px;position:relative;margin:0 2px;overflow:visible}
-  .stage-bridge-fill{height:100%;width:var(--p);border-radius:4px;background:linear-gradient(90deg,#0284c7 0%,#0ea5e9 17%,#0891b2 33%,#f97316 50%,#7c3aed 64%,#e11d48 78%,#f5a623 90%,#11a874 100%);transition:width 1s ease-in-out}
+  .stage-bridge-fill{height:100%;width:var(--p);border-radius:4px;background:linear-gradient(90deg,#0284c7 0%,#0ea5e9 12.5%,#0891b2 25%,#f97316 37.5%,#7c3aed 50%,#e11d48 62.5%,#f5a623 75%,#11a874 87.5%,#2dd4bf 100%);transition:width 1s ease-in-out}
   .stage-bridge-dot{position:absolute;top:-5px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 0 14px rgba(200,230,255,.8);transform:translateX(-50%);transition:left 1s ease-in-out}
   /* Stat cards row */
   .stage-cards{display:flex;gap:5px}
@@ -378,6 +379,7 @@
   .s-c6 .sc-bar i{background:linear-gradient(90deg,rgba(225,29,72,.65),rgba(225,29,72,.20))}.s-c6{border-top:2px solid #e11d48}
   .s-c7 .sc-bar i{background:linear-gradient(90deg,rgba(245,166,35,.65),rgba(245,166,35,.20))}.s-c7{border-top:2px solid #f5a623}
   .s-c8 .sc-bar i{background:linear-gradient(90deg,rgba(17,168,116,.65),rgba(17,168,116,.20))}.s-c8{border-top:2px solid #11a874}
+  .s-c9 .sc-bar i{background:linear-gradient(90deg,rgba(45,212,191,.65),rgba(45,212,191,.20))}.s-c9{border-top:2px solid #2dd4bf}
   .s-card.s-hi{transform:translateY(-4px)!important;box-shadow:0 8px 24px rgba(0,0,0,.4)}
   .s-card.s-hi .sc-bar{width:100%}
   /* ── Number pop when card activates ── */
@@ -402,6 +404,7 @@
   .s-c6.s-hi{background:linear-gradient(180deg,rgba(225,29,72,.35),rgba(225,29,72,.08))!important;border-color:rgba(225,29,72,.55)!important;box-shadow:0 8px 24px rgba(225,29,72,.25)}.s-c6.s-hi .sc-num,.s-c6.s-hi .sc-pct{color:#fda4af}
   .s-c7.s-hi{background:linear-gradient(180deg,rgba(245,166,35,.35),rgba(245,166,35,.08))!important;border-color:rgba(245,166,35,.55)!important;box-shadow:0 8px 24px rgba(245,166,35,.25)}.s-c7.s-hi .sc-num,.s-c7.s-hi .sc-pct{color:#fde68a}
   .s-c8.s-hi{background:linear-gradient(180deg,rgba(17,168,116,.35),rgba(17,168,116,.08))!important;border-color:rgba(17,168,116,.55)!important;box-shadow:0 8px 24px rgba(17,168,116,.25)}.s-c8.s-hi .sc-num,.s-c8.s-hi .sc-pct{color:#5eead4}
+  .s-c9.s-hi{background:linear-gradient(180deg,rgba(45,212,191,.35),rgba(45,212,191,.08))!important;border-color:rgba(45,212,191,.55)!important;box-shadow:0 8px 24px rgba(45,212,191,.25)}.s-c9.s-hi .sc-num,.s-c9.s-hi .sc-pct{color:#99f6e4}
   .proj-table tr{transition:background .2s}
   .proj-table tbody tr:hover{background:rgba(40,120,200,.08)}
   /* multi panels */
@@ -846,7 +849,7 @@
   </header>
 
   <section class="kpi-row">
-    <div class="kpi"><div class="ico">◉</div><div class="name">总预算</div><div class="val">￥<span class="count" data-to="2.38">0</span> <small>亿</small></div><div class="up" style="color:#7dd3fc">17个招标项目</div></div>
+    <div class="kpi"><div class="ico">◉</div><div class="name">总预算</div><div class="val">￥<span class="count" data-to="2.38">0</span> <small>亿</small></div><div class="up" style="color:#7dd3fc">17个采购项目</div></div>
     <div class="kpi"><div class="ico">▣</div><div class="name">合同额</div><div class="val">￥<span class="count" data-to="1.85">0</span> <small>亿</small></div><div class="up" style="color:#5eead4">已签约项目</div></div>
     <div class="kpi"><div class="ico">◔</div><div class="name">节资率</div><div class="val"><span class="count" data-to="22.3">0</span> <small>%</small></div><div class="up" style="color:#fde68a">▲ 节约¥0.53亿</div></div>
     <div class="kpi"><div class="ico">👥</div><div class="name">供应商</div><div class="val"><span class="count" data-to="504" data-int="1">0</span> <small>家</small></div><div class="up" style="color:#c4b5fd">已批准452家</div></div>
@@ -951,10 +954,10 @@
   </section>
 
   <section id="donutPanel" class="panel"><div class="panel-title">采购方式分布 <span class="unit">（项目数占比）</span></div><div class="chart" style="display:flex;flex-direction:column;justify-content:center;gap:8px;padding:0 12px">
-    <div class="proc-bar"><span style="color:#38bdf8">公开招标</span><div class="proc-bar-fill" style="background:#38bdf8;--pct:41"><em>7 个</em></div><b>41%</b></div>
+    <div class="proc-bar"><span style="color:#38bdf8">竞价采购</span><div class="proc-bar-fill" style="background:#38bdf8;--pct:41"><em>7 个</em></div><b>41%</b></div>
     <div class="proc-bar"><span style="color:#22d3ee">邀请招标</span><div class="proc-bar-fill" style="background:#22d3ee;--pct:18"><em>3 个</em></div><b>18%</b></div>
     <div class="proc-bar"><span style="color:#34d399">谈判采购</span><div class="proc-bar-fill" style="background:#34d399;--pct:18"><em>3 个</em></div><b>18%</b></div>
-    <div class="proc-bar"><span style="color:#facc15">单一来源</span><div class="proc-bar-fill" style="background:#facc15;--pct:12"><em>2 个</em></div><b>12%</b></div>
+    <div class="proc-bar"><span style="color:#facc15">直接采购</span><div class="proc-bar-fill" style="background:#facc15;--pct:12"><em>2 个</em></div><b>12%</b></div>
     <div class="proc-bar"><span style="color:#fb923c">询比采购</span><div class="proc-bar-fill" style="background:#fb923c;--pct:6"><em>1 个</em></div><b>6%</b></div>
     <div class="proc-bar"><span style="color:#a78bfa">其他</span><div class="proc-bar-fill" style="background:#a78bfa;--pct:6"><em>1 个</em></div><b>6%</b></div>
     <div class="proc-foot">总计 17 个项目 · 覆盖 6 种采购方式</div>
@@ -1007,34 +1010,36 @@
     </div>
   </section>
 
-  <section id="stage" class="panel"><div class="panel-title">项目阶段分布 <span class="unit">（17 个项目 · 8 阶段）</span></div>
+  <section id="stage" class="panel"><div class="panel-title">项目阶段分布 <span class="unit">（17 个项目 · 采购流程 9 阶段）</span></div>
     <div class="chart" style="top:34px;display:flex;flex-direction:column;gap:14px;padding:0 8px">
-      <!-- Row 1: Badges -->
+      <!-- Row 1: Badges —— PMI 采购流程九阶段 canon（2026-11-03 口径审计：原自造八阶段名称/数量/顺位全漂移） -->
       <div class="stage-badges">
-        <div class="s-badge s-b1"><span class="s-dot">1</span><small>项目立项</small></div>
-        <div class="s-badge s-b2"><span class="s-dot">2</span><small>文件编制</small></div>
-        <div class="s-badge s-b3"><span class="s-dot">3</span><small>公告发布</small></div>
-        <div class="s-badge s-b4"><span class="s-dot">4</span><small>标书投递</small></div>
-        <div class="s-badge s-b5"><span class="s-dot">5</span><small>专家抽取</small></div>
-        <div class="s-badge s-b6"><span class="s-dot">6</span><small>线上评标</small></div>
-        <div class="s-badge s-b7"><span class="s-dot">7</span><small>合同签订</small></div>
-        <div class="s-badge s-b8"><span class="s-dot">8</span><small>已归档</small></div>
+        <div class="s-badge s-b1"><span class="s-dot">1</span><small>采购需求</small></div>
+        <div class="s-badge s-b2"><span class="s-dot">2</span><small>采购立项</small></div>
+        <div class="s-badge s-b3"><span class="s-dot">3</span><small>采购文件</small></div>
+        <div class="s-badge s-b4"><span class="s-dot">4</span><small>供应商邀请</small></div>
+        <div class="s-badge s-b5"><span class="s-dot">5</span><small>采购公告</small></div>
+        <div class="s-badge s-b6"><span class="s-dot">6</span><small>专家抽取</small></div>
+        <div class="s-badge s-b7"><span class="s-dot">7</span><small>开标评标</small></div>
+        <div class="s-badge s-b8"><span class="s-dot">8</span><small>定标</small></div>
+        <div class="s-badge s-b9"><span class="s-dot">9</span><small>合同</small></div>
       </div>
       <!-- Bridge -->
       <div class="stage-bridge" style="margin-bottom:6px">
-        <div class="stage-bridge-fill" id="stageBridgeFill" style="--p:6.25%"></div>
-        <div class="stage-bridge-dot" id="stageBridgeDot" style="left:6.25%"></div>
+        <div class="stage-bridge-fill" id="stageBridgeFill" style="--p:5.56%"></div>
+        <div class="stage-bridge-dot" id="stageBridgeDot" style="left:5.56%"></div>
       </div>
-      <!-- Row 3: Stat cards -->
+      <!-- Row 3: Stat cards（演示口径：17 项在办，重心底文件/评标段） -->
       <div class="stage-cards">
-        <div class="s-card s-c1"><div class="sc-num">17<span>个</span></div><div class="sc-bar"><i style="--w:24%"></i></div><div class="sc-pct">24%</div></div>
-        <div class="s-card s-c2"><div class="sc-num">14<span>个</span></div><div class="sc-bar"><i style="--w:20%"></i></div><div class="sc-pct">20%</div></div>
-        <div class="s-card s-c3"><div class="sc-num">12<span>个</span></div><div class="sc-bar"><i style="--w:17%"></i></div><div class="sc-pct">17%</div></div>
-        <div class="s-card s-c4"><div class="sc-num">9<span>个</span></div><div class="sc-bar"><i style="--w:13%"></i></div><div class="sc-pct">13%</div></div>
-        <div class="s-card s-c5"><div class="sc-num">7<span>个</span></div><div class="sc-bar"><i style="--w:10%"></i></div><div class="sc-pct">10%</div></div>
-        <div class="s-card s-c6"><div class="sc-num">5<span>个</span></div><div class="sc-bar"><i style="--w:7%"></i></div><div class="sc-pct">7%</div></div>
-        <div class="s-card s-c7"><div class="sc-num">4<span>个</span></div><div class="sc-bar"><i style="--w:6%"></i></div><div class="sc-pct">6%</div></div>
-        <div class="s-card s-c8"><div class="sc-num">3<span>个</span></div><div class="sc-bar"><i style="--w:4%"></i></div><div class="sc-pct">4%</div></div>
+        <div class="s-card s-c1"><div class="sc-num">2<span>个</span></div><div class="sc-bar"><i style="--w:12%"></i></div><div class="sc-pct">12%</div></div>
+        <div class="s-card s-c2"><div class="sc-num">2<span>个</span></div><div class="sc-bar"><i style="--w:12%"></i></div><div class="sc-pct">12%</div></div>
+        <div class="s-card s-c3"><div class="sc-num">4<span>个</span></div><div class="sc-bar"><i style="--w:24%"></i></div><div class="sc-pct">24%</div></div>
+        <div class="s-card s-c4"><div class="sc-num">1<span>个</span></div><div class="sc-bar"><i style="--w:6%"></i></div><div class="sc-pct">6%</div></div>
+        <div class="s-card s-c5"><div class="sc-num">2<span>个</span></div><div class="sc-bar"><i style="--w:12%"></i></div><div class="sc-pct">12%</div></div>
+        <div class="s-card s-c6"><div class="sc-num">1<span>个</span></div><div class="sc-bar"><i style="--w:6%"></i></div><div class="sc-pct">6%</div></div>
+        <div class="s-card s-c7"><div class="sc-num">3<span>个</span></div><div class="sc-bar"><i style="--w:18%"></i></div><div class="sc-pct">18%</div></div>
+        <div class="s-card s-c8"><div class="sc-num">1<span>个</span></div><div class="sc-bar"><i style="--w:6%"></i></div><div class="sc-pct">6%</div></div>
+        <div class="s-card s-c9"><div class="sc-num">1<span>个</span></div><div class="sc-bar"><i style="--w:6%"></i></div><div class="sc-pct">6%</div></div>
       </div>
     </div>
   </section>
@@ -1170,7 +1175,7 @@
       <div class="ai-terminal" id="aiTerminal">
         <div class="ai-term-line"><span class="ai-tag tag-live">实时</span>系统运行正常 · 采购项目 <span class="ai-num info">17</span> 个（预算 <span class="ai-num up">¥2.38亿</span> · 签约 <span class="ai-num up">¥1.85亿</span> · 签约率 <span class="ai-num up">77.7%</span>） · 供应商 <span class="ai-num info">504</span> 家（批准 <span class="ai-num up">452</span> · 待审 <span class="ai-num warn">32</span> · A+B级 <span class="ai-num up">68%</span>） · 专家 <span class="ai-num info">186</span> 人（可用 <span class="ai-num up">167</span> · 可用率 <span class="ai-num up">90%</span>）</div>
         <div class="ai-term-line"><span class="ai-tag tag-alert">异常</span>资质临期 <span class="ai-num down">3</span> 家（物料/工程/勘测 · <span class="ai-num warn">30</span>天到期） · 待审核 <span class="ai-num warn">32</span> 家积压超 <span class="ai-num warn">7</span> 个工作日 · 黑名单 <span class="ai-num down">8</span> 家未清理 · 解密异常 <span class="ai-num down">1</span> 起待核查 · 项目阶段停滞 <span class="ai-num warn">2</span> 项（超7天未推进） · 签到率 <span class="ai-num warn"><90%</span> 需重点关注</div>
-        <div class="ai-term-line"><span class="ai-tag tag-trend">趋势</span>节资率 <span class="ai-num up">22.3%</span>（环比 <span class="ai-num up">↑4.2</span> 个百分点 · 英雄项目领跑 <span class="ai-num up">31.5%</span>） · 签约 <span class="ai-num up">¥1.85亿</span>（签约率 <span class="ai-num up">77.7%</span> · 同比 <span class="ai-num up">↑6.8%</span>） · 年度预测 <span class="ai-num up">24.5%</span> · 均价 <span class="ai-num down">↓2.3%</span>（待复核 <span class="ai-num warn">12</span> 条） · 招标量走势 <span class="ai-num up">上行</span></div>
+        <div class="ai-term-line"><span class="ai-tag tag-trend">趋势</span>节资率 <span class="ai-num up">22.3%</span>（环比 <span class="ai-num up">↑4.2</span> 个百分点 · 英雄项目领跑 <span class="ai-num up">31.5%</span>） · 签约 <span class="ai-num up">¥1.85亿</span>（签约率 <span class="ai-num up">77.7%</span> · 同比 <span class="ai-num up">↑6.8%</span>） · 年度预测 <span class="ai-num up">24.5%</span> · 均价 <span class="ai-num down">↓2.3%</span>（待复核 <span class="ai-num warn">12</span> 条） · 采购量走势 <span class="ai-num up">上行</span></div>
         <div class="ai-term-line"><span class="ai-tag tag-action">建议</span>优先级一：催办 <span class="ai-num down">3</span> 家资质年审（物料/工程/勘测类 · <span class="ai-num warn">30</span>天到期 · 涉 <span class="ai-num warn">5</span> 个在建项目供方资质保障） · 优先级二：协调 <span class="ai-num info">5</span> 项目专家排期（亭子口引水 · 英雄项目 · 水泥采购 · 材料采购 · 引大济岷）避免开标时间冲突与专家超负荷</div>
         <div class="ai-term-line"><span class="ai-tag tag-info">数据</span>开标中 <span class="ai-num info">5</span> 项（英雄签到 <span class="ai-num warn">5/7</span> · 水泥到位 <span class="ai-num warn">3/5</span> · 材料解密中 · 灌区改造待解密 · 泵站改造报名中） · 评标中 <span class="ai-num info">7</span> 项（亭子口引水 · 引大济岷 · 水库加固 · 防洪治理等） · 待归档 <span class="ai-num warn">3</span> 项 · 合同履约 <span class="ai-num info">85</span> 项（总额 <span class="ai-num up">¥865亿</span> · 异常 <span class="ai-num down">8</span>）</div>
       </div>
