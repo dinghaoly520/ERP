@@ -559,6 +559,24 @@ select.m-input { appearance: auto; }
 }
 .m-rise { animation: m-rise 0.36s var(--ease-out-quint) both; }
 
+/* ══ 图表入场（2026-11-03 科技感）：趋势线描画 + 环形分段展开——reduced-motion 直通 ══ */
+@keyframes m-draw-line {
+  from { stroke-dashoffset: var(--m-path-len, 1200); }
+  to { stroke-dashoffset: 0; }
+}
+.m-draw-line {
+  stroke-dasharray: var(--m-path-len, 1200);
+  animation: m-draw-line 0.9s var(--ease-out-quint) both;
+}
+@keyframes m-seg-in {
+  from { opacity: 0; transform: rotate(-8deg) scale(0.92); }
+  to { opacity: 1; transform: rotate(0deg) scale(1); }
+}
+.m-seg-in {
+  transform-origin: center;
+  animation: m-seg-in 0.5s var(--ease-out-quint) both;
+}
+
 @keyframes m-sheet-down {
   from { transform: translateY(0); }
   to { transform: translateY(100%); }
@@ -570,7 +588,9 @@ select.m-input { appearance: auto; }
 @media (prefers-reduced-motion: reduce) {
   .m-rise,
   .m-sheet-panel,
-  .m-sheet-panel[data-closing="true"] { animation: none; }
+  .m-sheet-panel[data-closing="true"],
+  .m-draw-line,
+  .m-seg-in { animation: none; }
   /* cgzxui 原则 5：装饰性过渡降级（加载 spinner 属功能性反馈，保留） */
   .m-tile,
   .m-chip,

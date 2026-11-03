@@ -744,7 +744,16 @@ export default function DashboardPage() {
                 })}
                 {/* 金额面积 + 折线 */}
                 <path d={trend.areaPath} fill="url(#trendAreaFill)" />
-                <path d={trend.linePath} fill="none" stroke="var(--success)" strokeWidth={2.2} strokeLinejoin="round" strokeLinecap="round" />
+                <path
+                  d={trend.linePath}
+                  fill="none"
+                  stroke="var(--success)"
+                  strokeWidth={2.2}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  className="m-draw-line"
+                  style={{ ["--m-path-len" as string]: "1200" }}
+                />
                 {/* 数据点 + 月份标签（高亮月加重） */}
                 {trend.series.map((t, i) => (
                   <g key={`pt-${i}`}>
@@ -852,7 +861,8 @@ export default function DashboardPage() {
                       fill={seg.color}
                       opacity={0.88}
                       onClick={() => setActiveMethod(seg.m)}
-                      style={{ cursor: "pointer" }}
+                      className="m-seg-in"
+                      style={{ cursor: "pointer", animationDelay: `${i * 60}ms` }}
                     />
                   ))}
                   <text x={75} y={71} textAnchor="middle" fontSize={20} fontWeight={700} fill="var(--foreground)">
