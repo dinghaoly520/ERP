@@ -88,10 +88,33 @@ export async function deleteKnowledgeFile(
   }
 }
 
-export async function reindexKnowledgeBase(kbId: string): Promise<void> {
+/* ── 水叮当知识库面板（2026-11-03）：取数聚合 / 重建索引 / indexed 标志 ── */
+
+export type KbFile = { id: string; fileName: string; fileSize: number; chunkCount: number; createdAt: string };
+export type KbCard = { id: string; name: string; isShared: boolean; ownerId: string; ownerName: string; files: KbFile[] };
+
+/** 面板取数（mine=本人库；shared=他人共享库）——后端 assistant-overview 聚合端点 */
+export async function fetchAssistantKnowledge(): Promise<{ mine: KbCard[]; shared: KbCard[] }> {
+  const res = await apiFetch(`${API_BASE}/knowledge/assistant-overview`, { credentials: 'include' });
+  if (!res.ok) throw await toApiError(res, '知识库加载失败');
+  return res.json();
+}
+
+/** 上传并携带嵌入降级标志（indexed=false=嵌入服务未运行，待重建索引） */
+export async function uploadKnowledgeFileWithStatus(
+  kbId: string,
+  file: File,
+): Promise<{ id: string; indexed: boolean }> {
+  const r = (await uploadKnowledgeFile(kbId, file)) as KnowledgeFile & { indexed?: boolean };
+  return { id: r.id, indexed: r.indexed !== false };
+}
+
+/** 重建向量索引（嵌入服务恢复后补建） */
+export async function reindexKnowledgeBase(kbId: string): Promise<{ reindexed: boolean }> {
   const res = await apiFetch(`${API_BASE}/knowledge/${kbId}/reindex`, {
     method: 'POST',
     credentials: 'include',
   });
-  if (!res.ok) throw await toApiError(res, '重建知识库索引失败，请稍后重试');
+  if (!res.ok) throw await toApiError(res, '重建索引失败');
+  return res.json();
 }
