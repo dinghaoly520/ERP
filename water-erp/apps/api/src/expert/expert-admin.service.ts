@@ -1683,7 +1683,7 @@ export class ExpertAdminService {
           title: '专家连续婉拒预警',
           content: `专家「${expertName}」已连续 ${streak} 次拒绝评审邀请（含婉拒/超时弃权/代婉拒），请复核其参评意愿与库内状态。`,
           // 直达该专家详情页（2026-11-03 用户裁定：点通知应落在涉事专家的页面，而非专家库首页）
-          link: `/expert/${userId}`,
+          link: `/expert/${userId}?tab=overview`, // 评审项目页签——连拒记录与历次邀请在此复核
         };
         // 接收人=专家归属公司的 leader/staff（2026-11-02 跨公司错发实录：投资公司专家的
         // 预警发到了设计公司 leader/staff——专家库公司隔离口径下他司不该看到本公司专家）。

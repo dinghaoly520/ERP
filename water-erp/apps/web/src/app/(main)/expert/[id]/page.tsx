@@ -147,6 +147,9 @@ export default function ExpertDetailPage() {
   const [loadError, setLoadError] = useState(false);
   const [tab, setTabState] = useState<Tab>(() => {
     if (typeof window !== 'undefined') {
+      // ?tab= 深链优先（2026-11-03 通知直达评审项目 tab），回退上次会话页签
+      const fromUrl = new URL(window.location.href).searchParams.get('tab') as Tab | null;
+      if (fromUrl && TABS.some((t) => t.key === fromUrl)) return fromUrl;
       return (sessionStorage.getItem('expert-detail-tab') as Tab) || 'info';
     }
     return 'info';
