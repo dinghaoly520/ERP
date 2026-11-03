@@ -99,4 +99,21 @@ describe('MobileBriefService.getBrief', () => {
     const opts = (llmOk.chatJson as jest.Mock).mock.calls[0][5];
     expect(opts.maxTokens).toBe(4096);
   });
+  // 2026-11-03 口径对齐：brief 固定「本月」而页面默认「本年」——admin 本月全 0 时 AI
+  // 天天说「成交额 0.0 万」、下方指标卡显示本年数百万，同屏打架。brief 区间随页面。
+  it('传 startDate/endDate（本年）时 prompt 用该区间数据与「本年」标签，不再固定「本月」', async () => {
+    const svc = new MobileBriefService(llmOk, dashboard, scope as any, progress as any);
+    await svc.getBrief({ sub: 'u1', role: 'admin' } as any, undefined, '2026-01-01', '2026-12-31');
+    expect(dashboard.getDashboard).toHaveBeenCalledWith('2026-01-01', '2026-12-31', undefined);
+    /* llmOk 为 describe 级共享 mock（calls 跨用例累积）——取本次（最后一次）调用 */
+    const prompt = (llmOk.chatJson as jest.Mock).mock.calls[(llmOk.chatJson as jest.Mock).mock.calls.length - 1][1];
+    expect(prompt).toContain('本年数据');
+    expect(prompt).not.toContain('本月数据');
+  });
+  it('不传区间时维持本月口径（向后兼容，页面「全部」档无区间）', async () => {
+    const svc = new MobileBriefService(llmOk, dashboard, scope as any, progress as any);
+    await svc.getBrief({ sub: 'u1', role: 'admin' } as any);
+    const prompt = (llmOk.chatJson as jest.Mock).mock.calls[llmOk.chatJson.mock.calls.length - 1][1];
+    expect(prompt).toContain('本月数据');
+  });
 });

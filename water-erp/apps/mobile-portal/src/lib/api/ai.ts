@@ -87,8 +87,15 @@ export type MobileBrief = {
   shareText: string;
 } | { available: false };
 
-/** 数据库页「今日要报」三句（LLM 生成，失败时 available:false） */
-export async function fetchMobileBrief(companyId?: string): Promise<MobileBrief> {
-  const q = companyId && companyId !== 'all' ? `?companyId=${encodeURIComponent(companyId)}` : '';
-  return api.get<MobileBrief>(`/ai/mobile-brief${q}`);
+/** 数据库页「今日要报」三句（LLM 生成，失败时 available:false；区间随页面，缺省本月） */
+export async function fetchMobileBrief(
+  companyId?: string,
+  range?: { startDate?: string; endDate?: string },
+): Promise<MobileBrief> {
+  const params = new URLSearchParams();
+  if (companyId && companyId !== 'all') params.set('companyId', companyId);
+  if (range?.startDate) params.set('startDate', range.startDate);
+  if (range?.endDate) params.set('endDate', range.endDate);
+  const q = params.toString();
+  return api.get<MobileBrief>(`/ai/mobile-brief${q ? `?${q}` : ''}`);
 }

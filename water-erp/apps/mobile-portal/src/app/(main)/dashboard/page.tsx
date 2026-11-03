@@ -228,17 +228,6 @@ export default function DashboardPage() {
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiResult, setAiResult] = useState<DashboardAnalysisResult | null>(null);
 
-  // 今日要报（AI 三句，随公司口径/重试变化重取）
-  const [brief, setBrief] = useState<MobileBrief | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    fetchMobileBrief(companyIds.length ? companyIds.join(",") : undefined)
-      .then((b) => { if (active) setBrief(b); })
-      .catch(() => { if (active) setBrief({ available: false }); });
-    return () => { active = false; };
-  }, [companyIds, retryTick]);
-
   // 公司龙虎榜（跨公司榜单，admin 全榜/leader 排位卡；随区间/重试变化重取，失败保留旧数据）
   const [ranking, setRanking] = useState<CompanyRankingView | null>(null);
   /* 龙虎榜失败≠空数据（P2，2026-11-03）：失败保留旧数据 + 显式重试入口，不再伪装成空态 */
@@ -274,6 +263,22 @@ export default function DashboardPage() {
   const effRange = rangeKey === "all" ? {} : rangeFor(rangeKey);
   const usingCustom = Boolean(customApplied.startDate || customApplied.endDate);
   const queryRange = usingCustom ? customApplied : effRange;
+
+  // 今日要报（AI 三句，随公司口径/页面区间/重试变化重取——区间对齐 2026-11-03：
+  // brief 与 hero 指标同区间，消灭「本月 0 万 vs 本年数百万」同屏打架；effect 置于
+  // queryRange 定义之后——依赖数组渲染期取值不可前向引用）
+  const [brief, setBrief] = useState<MobileBrief | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetchMobileBrief(companyIds.length ? companyIds.join(",") : undefined, {
+      startDate: queryRange.startDate,
+      endDate: queryRange.endDate,
+    })
+      .then((b) => { if (active) setBrief(b); })
+      .catch(() => { if (active) setBrief({ available: false }); });
+    return () => { active = false; };
+  }, [companyIds, queryRange.startDate, queryRange.endDate, retryTick]);
 
   useEffect(() => {
     if (role !== "admin") return;

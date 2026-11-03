@@ -49,10 +49,15 @@ export class AiController {
   }
 
   @Get('mobile-brief')
-  @ApiOperation({ summary: '移动驾驶舱（:3011）今日要报——LLM 现场生成（不缓存）' })
+  @ApiOperation({ summary: '移动驾驶舱（:3011）今日要报——LLM 现场生成（不缓存；区间随页面 startDate/endDate，缺省本月）' })
   @Roles('admin', 'leader', 'staff')
-  getMobileBrief(@CurrentUser() user: AuthenticatedUser, @Query('companyId') companyId?: string) {
-    return this.mobileBrief.getBrief(user, companyId);
+  getMobileBrief(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('companyId') companyId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.mobileBrief.getBrief(user, companyId, startDate, endDate);
   }
 
   @Get('projects/:projectId/analyze/:supplierId')

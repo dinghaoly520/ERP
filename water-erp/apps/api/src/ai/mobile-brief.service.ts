@@ -47,6 +47,19 @@ export function sanitizeBriefShareText(raw: string): string {
   return t.length > 160 ? t.slice(0, 160) : t;
 }
 
+/** 区间标签（2026-11-03 口径对齐）：brief 区间随页面——本年/本月按自然边界识别，
+ *  其余显式「起 至 止」；缺省维持本月（向后兼容，页面「全部」档无区间） */
+export function briefRangeLabel(startDate?: string, endDate?: string): string {
+  if (!startDate) return '本月';
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  if (startDate === `${y}-01-01` && (endDate ?? `${y}-12-31`) === `${y}-12-31`) return '本年';
+  if (startDate === `${y}-${m}-01` && (endDate ?? `${y}-${m}-${lastDay}`) === `${y}-${m}-${lastDay}`) return '本月';
+  return `${startDate} 至 ${endDate ?? '今天'}`;
+}
+
 @Injectable()
 export class MobileBriefService {
   private readonly logger = new Logger(MobileBriefService.name);
@@ -58,12 +71,20 @@ export class MobileBriefService {
     private readonly progress: ProgressService,
   ) {}
 
-  async getBrief(user: AuthenticatedUser, companyId?: string): Promise<MobileBriefResult> {
+  async getBrief(
+    user: AuthenticatedUser,
+    companyId?: string,
+    startDate?: string,
+    endDate?: string,
+  ): Promise<MobileBriefResult> {
     const scope = await this.companyScope.resolveScope(user, companyId);
     const filter = this.companyScope.filter(scope);
     const now = new Date();
     const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-    const data = (await this.dashboard.getDashboard(monthStart, undefined, filter)) as BriefDashboardData;
+    // 区间随页面（2026-11-03）：缺省回退本月；prompt 标签同源——「本月 0 万 vs 本年数百万」同屏打架根治
+    const rangeStart = startDate ?? monthStart;
+    const rangeLabel = briefRangeLabel(startDate, endDate);
+    const data = (await this.dashboard.getDashboard(rangeStart, endDate, filter)) as BriefDashboardData;
     // 最堵阶段输入：getDashboard 无 stageDistribution，取 ProgressService 阶段分布（同 companyFilter 隔离）
     const progressStats = (await this.progress.getProgressStats(undefined, undefined, filter)) as {
       stageDistribution?: BriefStageDistribution;
@@ -84,7 +105,7 @@ export class MobileBriefService {
           'reminder=一个提醒（阶段拥堵/异常信号）；每句 ≤30 字、只讲需要领导知道的事、禁止 emoji、禁止出现「审批」一词、禁止编造未提供的数据。',
           'shareText=80~120 字一段话，适合发到管理群，含上述三要点，口语但专业。',
         ].join(''),
-        `本月数据：总轮次${data.summary.totalCount}，已成交${data.summary.completedCount}，异常${data.summary.abnormalCount}，成交额${data.summary.totalAwardLabel}，累计节资${data.summary.totalSavingsLabel}。风险项目：${riskTop}。节资前三：${savingsTop}。当前最堵阶段：${stageMax ? `${STAGE_LABELS[stageMax.stage] ?? stageMax.stageName ?? stageMax.stage}（${stageMax.count}项）` : '无'}。`,
+        `${rangeLabel}数据：总轮次${data.summary.totalCount}，已成交${data.summary.completedCount}，异常${data.summary.abnormalCount}，成交额${data.summary.totalAwardLabel}，累计节资${data.summary.totalSavingsLabel}。风险项目：${riskTop}。节资前三：${savingsTop}。当前最堵阶段：${stageMax ? `${STAGE_LABELS[stageMax.stage] ?? stageMax.stageName ?? stageMax.stage}（${stageMax.count}项）` : '无'}。`,
         0.4,
         undefined,
         Math.floor(Math.random() * 1_000_000),
