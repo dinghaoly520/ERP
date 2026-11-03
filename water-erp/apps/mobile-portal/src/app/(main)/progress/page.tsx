@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, AlertCircle, BarChart3, CalendarClock, Lightbulb, RefreshCw, Sparkles, Target, TrendingUp } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Activity, AlertCircle, BarChart3, CalendarClock, FolderKanban, Lightbulb, RefreshCw, Sparkles, Target, TrendingUp } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProgressStats, fetchProgressAiInsights, fetchUpcoming, type ProgressStats, type ProgressAiInsights, type ProjectProgress, type UpcomingResult } from "@/lib/api/progress";
 import { useAuth } from "@/components/m/auth-context";
@@ -138,6 +139,20 @@ export default function ProgressPage() {
   const [retryTick, setRetryTick] = useState(0);
 
   const [activeProject, setActiveProject] = useState<ProjectProgress | null>(null);
+  const router = useRouter();
+
+  /* URL 预置（:3011 两步铁律桥，2026-11-03）：?focusPmi=<PMI id> 直开项目弹层——
+     台账详情「查看进展」的落地端 */
+  const searchParams = useSearchParams();
+  const [focusConsumed, setFocusConsumed] = useState(false);
+  useEffect(() => {
+    if (focusConsumed || !stats) return;
+    const pmi = searchParams.get("focusPmi");
+    if (!pmi) { setFocusConsumed(true); return; }
+    const target = stats.projects.find((p) => p.id === pmi);
+    setFocusConsumed(true);
+    if (target) setActiveProject(target);
+  }, [stats, searchParams, focusConsumed]);
 
   useEffect(() => {
     if (role !== "admin") return;
@@ -487,6 +502,15 @@ export default function ProgressPage() {
                 </span>
               </div>
             </div>
+
+            {/* 台账↔进展互跳桥（2026-11-03）：两页各持同一项目半张信息，此处直达台账轮次明细 */}
+            <button
+              type="button"
+              onClick={() => router.push(`/ledger?focusPmi=${activeProject.id}`)}
+              className="neu-btn-soft h-9 w-full rounded-[10px] px-3 text-[14px] active:scale-95"
+            >
+              <FolderKanban size={13} /> 查看台账
+            </button>
 
             <div>
               <div className="mb-2 text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">

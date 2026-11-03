@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { Loader2, Search } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Loader2, Search, TrendingUp } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProcurements, fetchLedgerStats, fetchProcurementMethods } from "@/lib/api/procurements";
 import { RESULT_STATUS_CONFIG, type LedgerSummary, type ProcurementRoundItem, type ResultStatusKey } from "@/lib/types/procurement";
@@ -124,6 +124,7 @@ export default function LedgerPage() {
   /* URL 预置筛选（:3011 两步铁律，2026-11-03）——brief jump/异常卡/风险行经
      ?abnormal=1 / ?status=<key> / ?q=<词> 直达预置；?focusPmi=<id> 直开详情弹层 */
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [urlConsumed, setUrlConsumed] = useState(false);
   const [focusPmi, setFocusPmi] = useState<string | null>(null);
   useEffect(() => {
@@ -443,6 +444,16 @@ export default function LedgerPage() {
       <BottomSheet open={!!activeItem} onClose={() => setActiveItem(null)} title={<span className="line-clamp-2">{activeItem?.projectName ?? ""}</span>}>
         {activeItem ? (
           <div className="space-y-3">
+            {activeItem.projectManagementId ? (
+              /* 台账↔进展互跳桥（2026-11-03）：直达该项目阶段时间线（projectManagementId 桥） */
+              <button
+                type="button"
+                onClick={() => router.push(`/progress?focusPmi=${activeItem.projectManagementId}`)}
+                className="neu-btn-soft h-9 w-full rounded-[10px] px-3 text-[14px] active:scale-95"
+              >
+                <TrendingUp size={13} /> 查看进展
+              </button>
+            ) : null}
             <div className="flex flex-wrap items-center gap-1.5">
               <span
                 className="rounded-full px-2 py-0.5 text-[13px] font-bold"
