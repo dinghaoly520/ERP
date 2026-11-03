@@ -14,6 +14,19 @@ export interface ChartCard {
   chartType: 'bar' | 'line' | 'pie' | 'hbar' | 'grouped_bar';
   option: Record<string, unknown>;
   caption?: string;
+  /** 自包含派生数据（2026-11-03）：:3011 等无 ECharts 消费端脱离表卡直接渲染；
+   *  与 option 同源派生（排序/取Top 与 ECharts 视图严格一致） */
+  data?: {
+    rows: Array<Record<string, unknown>>;
+    /** pie/bar/hbar：降序；line：时间升序 */
+    points?: Array<{ name: string; value: number }>;
+    /** line/grouped_bar 的 x 轴标签 */
+    labels?: string[];
+    /** grouped_bar 各系（干净数值，无 ECharts 样式） */
+    series?: Array<{ name: string; values: number[] }>;
+    /** pie 中心总计 */
+    total?: number;
+  };
 }
 
 interface TableLike {
@@ -81,6 +94,7 @@ function mapDistribution(
       title,
       chartType: 'pie',
       caption: `共 ${fmtNum(sum)}，最大占比"${sorted[0].name}"`,
+      data: { rows, points: sorted, total: sum },
       option: {
         tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
         legend: { bottom: 0, itemWidth: 8, itemHeight: 8, itemGap: 16, textStyle: { fontSize: 12 } },
@@ -119,6 +133,7 @@ function mapDistribution(
       title,
       chartType: 'bar',
       caption: `${sorted.length} 个类别，最高"${sorted[0].name}"（${fmtNum(sorted[0].value)}）`,
+      data: { rows, points: sorted },
       option: {
         tooltip: { trigger: 'axis' },
         grid: { left: '2%', right: '5%', bottom: '2%', top: '8%', containLabel: true },
@@ -164,6 +179,7 @@ function mapDistribution(
     title,
     chartType: 'hbar',
     caption: `前 10 名（共 ${n} 项），最高"${shown[0].name}"（${fmtNum(shown[0].value)}）`,
+    data: { rows, points: shown },
     option: {
       tooltip: { trigger: 'axis' },
       grid: { left: '2%', right: '10%', bottom: '2%', top: '4%', containLabel: true },
@@ -209,6 +225,7 @@ function mapComposition(
     title,
     chartType: 'pie',
     caption: `共 ${fmtNum(total)}，最大占比"${sorted[0].name}"（${((sorted[0].value / total) * 100).toFixed(0)}%）`,
+    data: { rows, points: sorted, total },
     option: {
       tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
       legend: { bottom: 0, itemWidth: 8, itemHeight: 8, itemGap: 16, textStyle: { fontSize: 12 } },
@@ -254,6 +271,11 @@ function mapTrend(
     title,
     chartType: 'line',
     caption: `${sorted.length} 个时间点，最高 ${fmtNum(maxVal)}`,
+    data: {
+      rows,
+      labels: sorted.map((r) => String(r[timeKey] ?? '-')),
+      points: sorted.map((r) => ({ name: String(r[timeKey] ?? '-'), value: num(r[viz.value]) })),
+    },
     option: {
       tooltip: { trigger: 'axis' },
       grid: { left: '2%', right: '5%', bottom: '2%', top: '8%', containLabel: true },
@@ -327,6 +349,7 @@ function mapRanking(
     title,
     chartType: 'hbar',
     caption: `Top ${sorted.length}，最高"${sorted[0].name}"（${fmtNum(sorted[0].value)}）`,
+    data: { rows, points: sorted },
     option: {
       tooltip: { trigger: 'axis' },
       grid: { left: '2%', right: '10%', bottom: '2%', top: '4%', containLabel: true },
@@ -367,10 +390,10 @@ function mapComparison(
   const seriesNames = [...new Set(rows.map((r) => String(r[seriesKey] ?? '-')))];
   if (categories.length < 2 || seriesNames.length < 2) return null;
 
-  const series = seriesNames.map((sName, idx) => ({
+  /* 干净数值系（自包含 data 用）：与 option 系同源派生，无 ECharts 样式 */
+  const cleanSeries = seriesNames.map((sName) => ({
     name: sName,
-    type: 'bar' as const,
-    data: categories.map((cat) => {
+    values: categories.map((cat) => {
       const row = rows.find(
         (r) =>
           String(r[catKey] ?? '-') === cat &&
@@ -378,6 +401,12 @@ function mapComparison(
       );
       return row ? num(row[viz.value]) : 0;
     }),
+  }));
+
+  const series = seriesNames.map((sName, idx) => ({
+    name: sName,
+    type: 'bar' as const,
+    data: cleanSeries[idx].values,
     itemStyle: {
       borderRadius: [5, 5, 0, 0],
       color: idx % 2 === 0
@@ -401,6 +430,7 @@ function mapComparison(
     title,
     chartType: 'grouped_bar',
     caption: `${categories.length} × ${seriesNames.length} 维度对比`,
+    data: { rows, labels: categories, series: cleanSeries },
     option: {
       tooltip: { trigger: 'axis' },
       legend: { bottom: 0, itemWidth: 10, itemHeight: 10, itemGap: 18, textStyle: { fontSize: 12 } },

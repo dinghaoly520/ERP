@@ -155,3 +155,78 @@ describe('mapToChart', () => {
     expect(result?.caption).toContain('货物');
   });
 });
+
+describe('图卡自包含 data（:3011 脱离表卡渲染，2026-11-03）', () => {
+  const cols = [
+    { key: '阶段', label: '阶段' },
+    { key: '项目数', label: '项目数' },
+  ];
+
+  it('distribution 饼分支携带 points（降序）与 total', () => {
+    const card = mapToChart({
+      title: '阶段分布',
+      columns: cols,
+      rows: [{ 阶段: 'A', 项目数: 3 }, { 阶段: 'B', 项目数: 7 }],
+      viz: { kind: 'distribution', category: '阶段', value: '项目数' },
+    });
+    expect(card).toBeTruthy();
+    expect(card!.data?.points).toEqual([{ name: 'B', value: 7 }, { name: 'A', value: 3 }]);
+    expect(card!.data?.total).toBe(10);
+    expect(card!.data?.rows).toHaveLength(2);
+  });
+
+  it('distribution 柱分支（6-12 类）携带降序 points', () => {
+    const rows = 'ABCDEFGH'.split('').map((n, i) => ({ 阶段: n, 项目数: i + 1 }));
+    const card = mapToChart({
+      title: '分布',
+      columns: cols,
+      rows,
+      viz: { kind: 'distribution', category: '阶段', value: '项目数' },
+    });
+    expect(card!.chartType).toBe('bar');
+    expect(card!.data?.points?.[0]).toEqual({ name: 'H', value: 8 });
+  });
+
+  it('trend 携带时间升序 labels 与 points', () => {
+    const card = mapToChart({
+      title: '趋势',
+      columns: [{ key: 'month', label: '月份' }, { key: 'count', label: '数量' }],
+      rows: [{ month: '2026-03', count: 2 }, { month: '2026-01', count: 5 }, { month: '2026-02', count: 1 }],
+      viz: { kind: 'trend', value: 'count', timeField: 'month' },
+    });
+    expect(card!.chartType).toBe('line');
+    expect(card!.data?.labels).toEqual(['2026-01', '2026-02', '2026-03']);
+    expect(card!.data?.points?.map((p) => p.value)).toEqual([5, 1, 2]);
+  });
+
+  it('ranking 携带降序 points', () => {
+    const card = mapToChart({
+      title: '排行',
+      columns: [{ key: '项目', label: '项目' }, { key: '节资率数值', label: '节资率' }],
+      rows: [{ 项目: '甲', 节资率数值: 5.4 }, { 项目: '乙', 节资率数值: 12.8 }, { 项目: '丙', 节资率数值: 8 }],
+      viz: { kind: 'ranking', category: '项目', value: '节资率数值' },
+    });
+    expect(card!.chartType).toBe('hbar');
+    expect(card!.data?.points?.[0]).toEqual({ name: '乙', value: 12.8 });
+  });
+
+  it('comparison 携带 labels 与 series', () => {
+    const card = mapToChart({
+      title: '对比',
+      columns: [],
+      rows: [
+        { 公司: '甲', 指标: '成交', 值: 3 },
+        { 公司: '甲', 指标: '节资', 值: 1 },
+        { 公司: '乙', 指标: '成交', 值: 5 },
+        { 公司: '乙', 指标: '节资', 值: 2 },
+      ],
+      viz: { kind: 'comparison', category: '公司', value: '值', seriesField: '指标' },
+    });
+    expect(card!.chartType).toBe('grouped_bar');
+    expect(card!.data?.labels).toEqual(['甲', '乙']);
+    expect(card!.data?.series).toEqual([
+      { name: '成交', values: [3, 5] },
+      { name: '节资', values: [1, 2] },
+    ]);
+  });
+});
