@@ -835,7 +835,7 @@ ${toolList}
       where: { id },
       data: { status: 'confirmed', confirmedAt: new Date() },
     });
-    return this.actionExecutor.execute(id);
+    return this.actionExecutor.execute(id, user);
   }
 
   async cancelAction(id: string, user?: { sub?: string; role?: string }) {
