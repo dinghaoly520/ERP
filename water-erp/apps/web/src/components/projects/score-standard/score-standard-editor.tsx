@@ -265,7 +265,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 读 e?.name 判 AbortError + e?.message 回退（与单项提取一致）
     } catch (e: any) {
       if (e?.name === 'AbortError') {
-        toast.error('AI 提取超时（600s）——正式盖章版扫描件 OCR 较慢，请稍后重试（重复提取会命中已缓存的识别文本）');
+        toast.error('AI 提取超时（600 秒）：盖章版扫描件识别较慢，请稍后重试；重复提取会直接使用已识别的内容，不会重新识别');
       } else {
         toast.error(e?.message ?? 'AI 提取暂时不可用，请稍后重试或逐项提取。');
       }

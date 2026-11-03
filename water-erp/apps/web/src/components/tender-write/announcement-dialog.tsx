@@ -1062,7 +1062,7 @@ export function AnnouncementDialog({
     });
 
     if (directCount > 0) {
-      toast.success(`已直接填入 ${directCount} 个字段${aiFields.length > 0 ? '，正在 AI 生成剩余…' : ''}`);
+      toast.success(`已直接填入 ${directCount} 项${aiFields.length > 0 ? '，其余正在 AI 生成…' : ''}`);
     }
 
     if (aiFields.length === 0) {
@@ -1079,7 +1079,7 @@ export function AnnouncementDialog({
       await new Promise((r) => setTimeout(r, 200));
     }
     setBatchFilling(false);
-    if (aiFields.length > 0) toast.success(`AI 已生成 ${aiFields.length} 个字段`);
+    if (aiFields.length > 0) toast.success(`AI 已生成 ${aiFields.length} 项内容`);
   }, [draft, fields, hiddenFields, tenderDraft, project, category]);
 
   const handleContactSelect = (contact: { name: string; email: string; phone: string }) => {

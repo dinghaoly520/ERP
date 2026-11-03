@@ -199,7 +199,7 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
         <div className="wb-tone-banner wb-tone-banner--warning mt-3 flex flex-wrap text-xs">
           <PenLine size={13} className="shrink-0" />
           <span className="font-semibold text-[var(--foreground)]">{signGate.reason}</span>
-          <span className="text-[var(--muted-foreground)]">——请在开评标管理端「评标签字」标签页完成后重试（完整归档条件：签字包 + 全员闭环 + 评标回流包）。</span>
+          <span className="text-[var(--muted-foreground)]">。请在开评标管理端「评标签字」标签页完成后重试（归档需要：签字包已生成、全部人员签字确认、评标回流包已接收）。</span>
         </div>
       )}
 

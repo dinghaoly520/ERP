@@ -330,7 +330,7 @@ export function OpeningFieldConfigCard({ bidProject, onChanged }: Props) {
           <button type="button" className="neu-btn-soft" onClick={() => setResetConfirmOpen(false)}>取消</button>
           <button type="button" className="neu-btn-primary !h-[38px] !text-xs" onClick={() => { setResetConfirmOpen(false); doReset(); }}>确认恢复</button>
         </>}>
-        <p className="text-sm text-[var(--muted-foreground)]">恢复为内置默认四字段（报价/工期/质量承诺/保证金）？当前列表将被替换，保存前可反悔。</p>
+        <p className="text-sm text-[var(--muted-foreground)]">恢复为内置默认四字段（报价/工期/质量承诺/保证金）？当前列表将被替换，保存前可撤销。</p>
       </Modal>
 
       <OpeningTemplateLibraryDialog

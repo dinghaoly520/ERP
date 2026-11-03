@@ -2060,7 +2060,7 @@ export function ExpertExtractPage({
               <ol className="space-y-2 text-xs text-[var(--muted-foreground)] leading-relaxed">
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">1.</span>合规过滤：仅「可用」状态专家，工作单位与供应商无关联，未被重复分配至同一项目，自动回避利益相关方</li>
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">2.</span>席位规则：可选择 3 / 5 / 7 人委员会；需求方（业主）代表可选 0-2 人（指定人员或按部门抽取）；其余席位按专业配额抽取，每专业候补 1 位</li>
-                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">3.</span>多维评估：AI 综合专家履职评价等级(A/B/C/D)、出勤/质量/廉洁三维度评分、评分偏离度、历史经验与当前负荷</li>
+                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">3.</span>多维评估：AI 综合专家履职评价等级（A/B/C/D）、出勤/质量/廉洁三方面评分、评分偏离度、历史经验与当前负荷</li>
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">4.</span>配额冻结：开始抽取进入「抽取结果」后不可返回「抽取配置」（顶部步骤按钮同样锁定）；如需调整个别人员，请在后续步骤使用补选/替换</li>
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">5.</span>通知送达：确认后支持 OA站内信 / 短信 / 电话 多渠道通知被选专家</li>
               </ol>

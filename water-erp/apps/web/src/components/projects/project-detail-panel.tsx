@@ -967,7 +967,7 @@ export function ProjectDetailPanel({
   };
 
   const markStageCompleted = async (stage: ProjectManagementStage) => {
-    if (actionsDisabled) { toast.info('只读模式，仅供查看'); return; }
+    if (actionsDisabled) { toast.info('当前为查看模式，不能修改'); return; }
     if (isPastRound) { toast.warning('该步骤属已完成的历史轮次，仅供查看'); return; }
     if (isLockedByBid(stage.stageKey)) { toast.warning('开标已确认，前置步骤已锁定'); return; }
     // 03 采购文件完成向导（2026-09-26 用户裁定：强制且不可豁免）——先选/传正式盖章版采购文件，
@@ -1584,7 +1584,7 @@ export function ProjectDetailPanel({
               activeRound={selectedRound}
               onSelect={(key, round) => { setSelectedStageKey(key); setSelectedRound(round); setEditingField(null); }}
               onStageAction={actionsDisabled ? undefined : (stageKey, round) => {
-                if (actionsDisabled) { toast.info('只读模式，仅供查看'); return; }
+                if (actionsDisabled) { toast.info('当前为查看模式，不能修改'); return; }
                 // 旧轮全部只读（2026-10-23 流标统一流）：历史轮次步骤卡快捷操作全关（按被点卡片自身轮次判）
                 if ((round ?? 1) < (localItem.currentRound ?? 1)) { toast.warning('该步骤属已完成的历史轮次，仅供查看'); return; }
                 // P0-3：开标锁定只锁前置阶段——BID_EVALUATION 自身与后置（定标）入口必须可进

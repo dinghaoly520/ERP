@@ -177,7 +177,7 @@ export function CompanyEditDialog({
                   disabled
                   placeholder="—"
                   className="workbench-input w-full font-mono disabled:opacity-60"
-                  title="公司编码（项目编号前缀段）由主数据维护，此处只读"
+                  title="公司编码（用于项目编号开头）由系统统一维护，此处不可修改"
                 />
               </label>
             </div>

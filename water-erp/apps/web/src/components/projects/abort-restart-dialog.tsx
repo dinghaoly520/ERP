@@ -583,7 +583,7 @@ export function AbortRestartDialog({
             </div>
             {LONG_FIELD_DEFS.map((f) => renderAiField(f, true))}
           </div>
-          <p className="text-xs text-[var(--muted-foreground)]">有修改的字段将更新到项目基本信息；未修改的保持原值。</p>
+          <p className="text-xs text-[var(--muted-foreground)]">修改过的内容会更新到项目基本信息，未修改的保持原样。</p>
         </div>
       )}
     </Modal>

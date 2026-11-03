@@ -190,7 +190,7 @@ export default function ExpertDetailPage() {
       const r = await revealExpertField(expertId, field);
       const v = r.value;
       if (v) { setRevealedPii(prev => ({ ...prev, [field]: v })); toast.success('已揭示（本次揭示已留审计日志）'); }
-      else toast.error('该字段暂无值');
+      else toast.error('该项暂无内容');
     } catch (e: any) { toast.error(e?.message || '揭示失败'); }
     setRevealingPii(null);
   };

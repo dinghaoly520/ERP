@@ -158,7 +158,7 @@ export default function SupplierDetailPage() {
       const r = await revealSupplierField(id, { entity, targetId, field });
       const v = r.value;
       if (v) { setRevealedPii(prev => ({ ...prev, [key]: v })); toast.success('已揭示（本次揭示已留审计日志）'); }
-      else toast.error('该字段暂无值');
+      else toast.error('该项暂无内容');
     } catch (e: any) { toast.error(e?.message || '揭示失败'); }
     setRevealingPii(null);
   };
@@ -1509,7 +1509,7 @@ export default function SupplierDetailPage() {
             <div className="neu-card-static !rounded-2xl py-10 text-center">
               <Building2 size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />
               <p className="text-sm text-[var(--muted-foreground)]">本视野内暂无该供应商的库内归属关系</p>
-              <p className="mt-1 text-xs text-[var(--muted-foreground)]/70">供应商自主申请加入并经三级审核通过后出现在此处（列表按登录人公司隔离）</p>
+              <p className="mt-1 text-xs text-[var(--muted-foreground)]/70">供应商自主申请加入并经三级审核通过后出现在此处（仅显示本公司记录）</p>
             </div>
           ) : (
             <div className="neu-table-card overflow-hidden">

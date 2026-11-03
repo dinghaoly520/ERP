@@ -191,7 +191,7 @@ export function EvaluationBasisFields({
     const data: { ceilingPrice?: number; evaluationMethod?: string; priceFormulaConfig?: Record<string, unknown> | null; scoreTrimEnabled?: boolean } = {};
     const cp = ceilingPrice.trim();
     if (cp !== (detail.ceilingPrice != null ? String(detail.ceilingPrice) : "")) {
-      if (cp === "") { toast.error("清空最高限价请填 0 或联系管理员（后端未定义清除语义）"); return; }
+      if (cp === "") { toast.error("清空最高限价请填 0；如需删除该数值请联系管理员"); return; }
       const n = Number(cp);
       if (!isFinite(n) || n < 0) { toast.error("最高限价须为非负数字"); return; }
       data.ceilingPrice = n;

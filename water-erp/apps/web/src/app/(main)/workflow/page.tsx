@@ -169,7 +169,7 @@ export default function WorkflowPage() {
             <div className="flex items-center justify-between gap-2">
               <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">最近已办</span>
               <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold text-[var(--success)]">
-                <span className="h-1 w-1 rounded-full bg-[var(--success)]" />已闭环
+                <span className="h-1 w-1 rounded-full bg-[var(--success)]" />已完成
               </span>
             </div>
             <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{done.length}</span>

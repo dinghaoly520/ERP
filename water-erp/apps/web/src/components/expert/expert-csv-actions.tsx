@@ -175,7 +175,7 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
       }
     }
     if (encodingNote) {
-      toast.info(`已按 ${encodingNote} 编码自动识别读取——建议日后另存为「CSV UTF-8」更稳妥`);
+      toast.info(`已按 ${encodingNote} 编码读取。建议以后保存为「CSV UTF-8」格式`);
     }
     if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
     // 兜底防呆（2026-10-22 实录：二进制被当文本解析，乱码行数≠名单行数、全部静默跳过；
@@ -225,7 +225,7 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
     if (!file) return;
     const done = () => { setImporting(false); e.target.value = ''; };
     if (/\.xls$/i.test(file.name)) {
-      toast.error('暂不支持旧版 .xls——请另存为 .xlsx（推荐，已支持直接导入）或 CSV 后重试');
+      toast.error('暂不支持旧版 .xls，请另存为 .xlsx 或 CSV 后重试');
       e.target.value = '';
       return;
     }
@@ -244,7 +244,7 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
       // Excel 数值身份证失真预警：数值仅 15 位有效数字，18 位身份证尾位会被清零
       const idLike = sampleKeys.find(h => h.includes('身份证'));
       if (idLike && rows.some(r => /\d{15,}0{3}/.test(r[idLike] ?? ''))) {
-        toast.warning('身份证号疑似数值失真（末位多个 0）——请将该列设为「文本」格式后重填再导入');
+        toast.warning('身份证号末位出现多个 0，可能是表格把它当成了数字。请将该列设为「文本」格式后重填再导入');
       }
       const result = await importCsv(rows);
       setImportResult(result);

@@ -455,7 +455,7 @@ export function AccountManagementPanel() {
               <span
                 className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold text-[var(--warning)]"
                 style={{ backgroundColor: "color-mix(in oklch, var(--warning) 10%, transparent)" }}
-                title="这些账号未归属公司，按公司隔离的页面默认看不到其数据——请在「修改」中补填公司"
+                title="这些账号未归属公司，在按公司展示的页面中不会出现——请在「修改」中补填公司"
               >
                 <AlertTriangle size={10} strokeWidth={2.2} />
                 {unassignedCount} 个账号未归属公司
