@@ -4,12 +4,16 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { Bot, Crown, FolderKanban, LayoutDashboard, LogOut, TrendingUp } from "lucide-react";
+import { Bot, Bell, Crown, FolderKanban, LayoutDashboard, LogOut, TrendingUp } from "lucide-react";
 import { fetchCurrentUser, logout, type AuthUser } from "@/lib/api/auth";
 import { fetchMobileGreeting } from "@/lib/api/ai";
 import { fetchDashboardBadges, type DashboardBadges } from "@/lib/api/dashboard";
+import { fetchNotifications, fetchUnreadCount, type NotificationItem } from "@/lib/api/notifications";
 import { readSavedFilters } from "@/lib/filter-store";
 import { AuthProvider } from "@/components/m/auth-context";
+import { BottomSheet } from "@/components/m/bottom-sheet";
+import { Chip } from "@/components/m/chip";
+import { Skeleton } from "@/components/m/skeleton";
 
 const TABS = [
   { href: "/dashboard", label: "数据库", icon: LayoutDashboard },
@@ -27,6 +31,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const [greeting, setGreeting] = useState<string | null>(null);
   /* Tab 角标（数据库=异常 / 台账=待处理 / 进展=停滞）——回前台即时重取 */
   const [badges, setBadges] = useState<DashboardBadges | null>(null);
+  /* 通知铃铛（2026-11-03）：未读角标 + 待办/全部列表弹层——只读浏览，已读标记留 :3005 */
+  const [unread, setUnread] = useState(0);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifTab, setNotifTab] = useState<"all" | "todo">("todo");
+  const [notifItems, setNotifItems] = useState<NotificationItem[] | null>(null);
+  const [notifLoading, setNotifLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -66,6 +76,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
        不再显示全公司计数——与页面 hero 数字同口径 */
     const load = () => {
       const companyIds = (readSavedFilters<{ companyIds: string[] }>("dashboard").companyIds ?? []).join(",");
+      fetchUnreadCount().then((n) => { if (active) setUnread(n); }).catch(() => undefined);
       return fetchDashboardBadges(companyIds || undefined)
         .then((b) => { if (active) setBadges(b); })
         .catch(() => undefined);
@@ -75,6 +86,18 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     document.addEventListener("visibilitychange", onVisible);
     return () => { active = false; document.removeEventListener("visibilitychange", onVisible); };
   }, [checked]);
+
+  /* 通知列表：开弹层/切 tab 时拉取（不轮询——铃铛角标已随回前台刷新） */
+  useEffect(() => {
+    if (!notifOpen) return;
+    let active = true;
+    setNotifLoading(true);
+    fetchNotifications(notifTab)
+      .then((r) => { if (active) setNotifItems(r.items); })
+      .catch(() => { if (active) setNotifItems([]); })
+      .finally(() => { if (active) setNotifLoading(false); });
+    return () => { active = false; };
+  }, [notifOpen, notifTab]);
 
   if (!checked) {
     return (
@@ -100,6 +123,19 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           <Image src="/procurement-brand-logo.png" alt="蜀水云采" width={24} height={24} className="rounded-[6px] object-cover" priority />
         </div>
         <div className="min-w-0 flex-1 truncate text-[16px] font-bold tracking-[0.02em] text-[var(--foreground)]">蜀水云采 · 专属驾驶舱</div>
+        <button
+          type="button"
+          onClick={() => setNotifOpen(true)}
+          aria-label={`站内通知，未读 ${unread} 条`}
+          className="neu-btn-soft relative mr-1.5 h-7 w-7 shrink-0 rounded-[9px] p-0 active:scale-95"
+        >
+          <Bell size={13} />
+          {unread > 0 ? (
+            <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--danger)] px-1 text-[10px] font-bold leading-none text-white">
+              {unread > 99 ? "99+" : unread}
+            </span>
+          ) : null}
+        </button>
         <button
           type="button"
           onClick={handleLogout}
@@ -132,6 +168,35 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         </div>
         <AuthProvider user={user}>{children}</AuthProvider>
       </main>
+
+      {/* 通知弹层（2026-11-03）：待办/全部两段浏览——只读铁律，不提供已读标记 */}
+      <BottomSheet open={notifOpen} onClose={() => setNotifOpen(false)} title="站内通知">
+        <div className="mb-3 flex gap-2">
+          <Chip active={notifTab === "todo"} onClick={() => setNotifTab("todo")}>待办</Chip>
+          <Chip active={notifTab === "all"} onClick={() => setNotifTab("all")}>全部</Chip>
+        </div>
+        {notifLoading && !notifItems ? (
+          <Skeleton lines={4} height={16} />
+        ) : !notifItems || notifItems.length === 0 ? (
+          <div className="py-6 text-center text-[14px] text-[var(--muted-foreground)]">
+            {notifTab === "todo" ? "暂无待办通知" : "暂无通知"}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {notifItems.map((n) => (
+              <div key={n.id} className="rounded-[12px] m-tile px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  {!n.isRead ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--danger)]" /> : null}
+                  <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{n.title}</span>
+                  <span className="shrink-0 text-[12px] tabular-nums text-[var(--muted-foreground)]">{n.createdAt.slice(5, 10)}</span>
+                </div>
+                {n.content ? <p className="mt-1 line-clamp-2 text-[13px] leading-snug text-[var(--muted-foreground)]">{n.content}</p> : null}
+              </div>
+            ))}
+            <div className="pt-1 text-center text-[12px] text-[var(--muted-foreground)]">处理操作请前往电脑端工作台</div>
+          </div>
+        )}
+      </BottomSheet>
 
       <nav className="m-tabbar" aria-label="主导航">
         {TABS.map(({ href, label, icon: Icon }) => {
