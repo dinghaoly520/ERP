@@ -15,6 +15,8 @@ export async function createKnowledgeBase(data: {
   name: string;
   description?: string;
   isShared?: boolean;
+  /** 所属域：水叮当面板传 'assistant'（审查端不传=默认 tender_review，两域互不可见） */
+  domain?: 'tender_review' | 'assistant';
 }): Promise<KnowledgeBase> {
   const res = await apiFetch(`${API_BASE}/knowledge`, {
     method: 'POST',

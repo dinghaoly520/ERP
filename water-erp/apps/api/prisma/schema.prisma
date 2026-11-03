@@ -3266,6 +3266,7 @@ model KnowledgeBase {
   ownerId     String // 创建者；私有的按 ownerId 隔离，isShared=true 则全员可用
   isShared    Boolean          @default(false) // 共享：全员可「使用」，维护仅创建者(+admin)
   isActive    Boolean          @default(true)
+  domain      String           @default("tender_review") // 域隔离（2026-11-03 用户裁定）：tender_review=采购文件审查 / assistant=水叮当知识库——两域列表与检索互不可见；存量行默认审查域
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
   rules       ComplianceRule[]

@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsIn } from 'class-validator';
 import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -17,6 +17,11 @@ export class CreateKnowledgeBaseDto {
   @IsOptional()
   @IsBoolean()
   isShared?: boolean;
+
+  @ApiPropertyOptional({ description: '所属域：tender_review=采购文件审查（默认） / assistant=水叮当知识库——两域互不可见（2026-11-03 用户裁定）' })
+  @IsOptional()
+  @IsIn(['tender_review', 'assistant'])
+  domain?: 'tender_review' | 'assistant';
 }
 
 export class UpdateKnowledgeBaseDto {

@@ -287,11 +287,12 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       where = { knowledgeBaseId, isActive: true };
     } else {
       // 仅返回当前用户可见 KB（自己创建的 + 共享的；admin 全部）的规则
+      // 域隔离（2026-11-03）：恒审查域——水叮当知识库的规则不出现在审查规则列表
       const visible = await this.prisma.knowledgeBase.findMany({
         where:
           user?.role === 'admin'
-            ? {}
-            : { OR: [{ ownerId: user?.sub }, { isShared: true }] },
+            ? { domain: 'tender_review' }
+            : { domain: 'tender_review', OR: [{ ownerId: user?.sub }, { isShared: true }] },
         select: { id: true },
       });
       where = {

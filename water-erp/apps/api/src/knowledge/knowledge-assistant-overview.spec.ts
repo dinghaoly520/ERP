@@ -3,17 +3,19 @@ import { KnowledgeService } from './knowledge.service';
 /** 2026-11-03 设计 §4.3：水叮当知识库面板取数——mine=本人库、shared=他人共享库；
  *  他人私有库与停用库不得进入任何一组（findMany where 语义由 mock 模拟）。 */
 describe('KnowledgeService.assistantOverview（水叮当知识库面板取数）', () => {
-  const mineKb = { id: 'kb-m', name: '我的库', isShared: false, ownerId: 'u-1', isActive: true, files: [] };
-  const mySharedKb = { id: 'kb-ms', name: '我的公开库', isShared: true, ownerId: 'u-1', isActive: true, files: [] };
-  const sharedKb = { id: 'kb-s', name: '同事共享', isShared: true, ownerId: 'u-2', isActive: true, files: [] };
-  const privateOther = { id: 'kb-x', name: '他人私有', isShared: false, ownerId: 'u-2', isActive: true };
-  const inactive = { id: 'kb-i', name: '停用', isShared: true, ownerId: 'u-2', isActive: false };
+  const mineKb = { id: 'kb-m', name: '我的库', isShared: false, ownerId: 'u-1', isActive: true, domain: 'assistant', files: [] };
+  const mySharedKb = { id: 'kb-ms', name: '我的公开库', isShared: true, ownerId: 'u-1', isActive: true, domain: 'assistant', files: [] };
+  const sharedKb = { id: 'kb-s', name: '同事共享', isShared: true, ownerId: 'u-2', isActive: true, domain: 'assistant', files: [] };
+  const privateOther = { id: 'kb-x', name: '他人私有', isShared: false, ownerId: 'u-2', isActive: true, domain: 'assistant' };
+  const inactive = { id: 'kb-i', name: '停用', isShared: true, ownerId: 'u-2', isActive: false, domain: 'assistant' };
+  const tenderReviewKb = { id: 'kb-tr', name: '采购管理办法（审查域）', isShared: true, ownerId: 'u-3', isActive: true, domain: 'tender_review' };
 
   const mk = () => {
     const findMany = jest.fn().mockImplementation(({ where }: any) =>
       Promise.resolve(
-        [mineKb, mySharedKb, sharedKb, privateOther, inactive].filter((kb: any) =>
+        [mineKb, mySharedKb, sharedKb, privateOther, inactive, tenderReviewKb].filter((kb: any) =>
           kb.isActive === where.isActive &&
+          kb.domain === where.domain &&
           where.OR.some((o: any) => (o.ownerId ? o.ownerId === kb.ownerId : kb.isShared === true)),
         ),
       ));
@@ -25,11 +27,11 @@ describe('KnowledgeService.assistantOverview（水叮当知识库面板取数）
     return { svc, findMany };
   };
 
-  it('where 恒为 isActive +（自己的 ∪ 共享）——他人私有库与停用库不入', async () => {
+  it('where 恒为 assistant 域 + isActive +（自己的 ∪ 共享）——他人私有库、停用库、审查域库均不入（2026-11-03 域隔离）', async () => {
     const { svc, findMany } = mk();
     await svc.assistantOverview({ sub: 'u-1', role: 'leader' });
     expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { isActive: true, OR: [{ ownerId: 'u-1' }, { isShared: true }] },
+      where: { isActive: true, domain: 'assistant', OR: [{ ownerId: 'u-1' }, { isShared: true }] },
     }));
   });
 

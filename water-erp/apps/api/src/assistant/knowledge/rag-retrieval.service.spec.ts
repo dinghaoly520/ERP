@@ -17,11 +17,11 @@ describe('AssistantRagService（水叮当 RAG 检索，2026-11-03 设计 §4.1�
   };
   const me = { sub: 'u-1', role: 'leader' };
 
-  it('检索集只含 自己∪共享（isActive）——where 断言，他人私有库不进', async () => {
+  it('检索集只含 assistant 域 自己∪共享（isActive）——where 断言，他人私有库与审查域库不进（2026-11-03 域隔离）', async () => {
     const { svc, prisma } = mk({ kbs: [{ id: 'kb-1' }] });
     await svc.buildContext('问句', me);
     expect(prisma.knowledgeBase.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { isActive: true, OR: [{ ownerId: 'u-1' }, { isShared: true }] },
+      where: { isActive: true, domain: 'assistant', OR: [{ ownerId: 'u-1' }, { isShared: true }] },
     }));
   });
 

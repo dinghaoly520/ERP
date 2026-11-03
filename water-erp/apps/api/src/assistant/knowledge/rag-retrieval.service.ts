@@ -24,7 +24,8 @@ export class AssistantRagService {
   ): Promise<{ block: string; fileNames: string[] } | null> {
     try {
       const bases = await this.prisma.knowledgeBase.findMany({
-        where: { isActive: true, OR: [{ ownerId: user.sub }, { isShared: true }] },
+        // 域隔离（2026-11-03 用户裁定）：水叮当只检索 assistant 域——与采购文件审查知识库互不互通
+        where: { isActive: true, domain: 'assistant', OR: [{ ownerId: user.sub }, { isShared: true }] },
         select: { id: true, name: true },
       });
       if (bases.length === 0) return null;

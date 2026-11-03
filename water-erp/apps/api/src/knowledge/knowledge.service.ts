@@ -51,15 +51,19 @@ export class KnowledgeService {
         description: dto.description,
         ownerId: user.sub,
         isShared: dto.isShared ?? false,
+        // 域隔离（2026-11-03 用户裁定）：审查端建库不带 domain（默认审查域）；
+        // 水叮当面板建库显式传 assistant
+        domain: dto.domain ?? 'tender_review',
       },
     });
   }
 
   async findAll(user: User) {
+    // 审查域列表（2026-11-03 域隔离）：恒 domain=tender_review——水叮当知识库不在审查页出现
     const where =
       user?.role === 'admin'
-        ? { isActive: true }
-        : { isActive: true, OR: [{ ownerId: user?.sub }, { isShared: true }] };
+        ? { isActive: true, domain: 'tender_review' as const }
+        : { isActive: true, domain: 'tender_review' as const, OR: [{ ownerId: user?.sub }, { isShared: true }] };
     return this.prisma.knowledgeBase.findMany({
       where,
       include: {
@@ -264,7 +268,8 @@ export class KnowledgeService {
   async assistantOverview(user: User) {
     if (!user?.sub) throw new ForbiddenException('请登录后使用知识库');
     const rows = await this.prisma.knowledgeBase.findMany({
-      where: { isActive: true, OR: [{ ownerId: user.sub }, { isShared: true }] },
+      // 域隔离（2026-11-03）：水叮当面只取 assistant 域——审查知识库不互通
+      where: { isActive: true, domain: 'assistant', OR: [{ ownerId: user.sub }, { isShared: true }] },
       select: {
         id: true, name: true, isShared: true, ownerId: true,
         files: {

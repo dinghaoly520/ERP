@@ -50,7 +50,7 @@ export function KnowledgePanel({ open, onClose }: { open: boolean; onClose: () =
     if (!newName.trim()) { toast.error('请填写知识库名称'); return; }
     setCreating(true);
     try {
-      await createKnowledgeBase({ name: newName.trim(), isShared: newShared });
+      await createKnowledgeBase({ name: newName.trim(), isShared: newShared, domain: 'assistant' });
       toast.success('知识库已创建，可上传资料');
       setNewName('');
       setNewShared(false);
