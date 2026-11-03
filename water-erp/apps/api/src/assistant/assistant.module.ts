@@ -3,6 +3,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { BidModule } from '../bid/bid.module';
 import { DashboardModule } from '../dashboard/dashboard.module';
 import { ProgressModule } from '../progress/progress.module';
+import { KnowledgeModule } from '../knowledge/knowledge.module';
 import { AssistantController } from './assistant.controller';
 import { AssistantService } from './assistant.service';
 import { DeepSeekProvider } from './model/deepseek.provider';
@@ -17,9 +18,10 @@ import { NotificationTool } from './tools/notification.tool';
 import { CockpitTool } from './tools/cockpit.tool';
 import { ActionPlannerService } from './actions/action-planner.service';
 import { ActionExecutorService } from './actions/action-executor.service';
+import { AssistantRagService } from './knowledge/rag-retrieval.service';
 
 @Module({
-  imports: [PrismaModule, BidModule, DashboardModule, ProgressModule],
+  imports: [PrismaModule, BidModule, DashboardModule, ProgressModule, KnowledgeModule],
   controllers: [AssistantController],
   providers: [
     AssistantService,
@@ -35,6 +37,7 @@ import { ActionExecutorService } from './actions/action-executor.service';
     CockpitTool,
     ActionPlannerService,
     ActionExecutorService,
+    AssistantRagService,
   ],
   exports: [AssistantService],
 })
