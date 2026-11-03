@@ -656,7 +656,7 @@ export default function SupplierDashboardPage() {
         size="lg"
         footer={
           <div className="flex w-full items-center gap-2">
-            <span className="flex-1 text-xs text-[var(--muted-foreground)]">「待审核」只计待审件；退回补正为独立口径，不并入计数</span>
+            <span className="flex-1 text-xs text-[var(--muted-foreground)]">待审核仅统计待审件，退回补正的单独统计</span>
             <Link href="/supplier/approval?return=/supplier/dashboard" onClick={() => setApprovalOpen(false)} className="neu-btn-xs">前往审批中心</Link>
           </div>
         }

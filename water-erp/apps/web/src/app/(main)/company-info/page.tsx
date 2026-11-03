@@ -107,7 +107,7 @@ export default function CompanyInfoPage() {
       const renamed = saved.codeCascade?.renamed?.length ?? 0;
       const skipped = saved.codeCascade?.skipped?.length ?? 0;
       if (renamed > 0 || skipped > 0) {
-        toast.success(`公司信息已保存，已联动更新 ${renamed} 个在办项目编号`);
+        toast.success(`公司信息已保存，${renamed} 个在办项目的编号已同步更新`);
         if (skipped > 0) {
           toast.warning(`另有 ${skipped} 个在办项目因目标编号被占用未跟随，已保留原编号`);
         }

@@ -607,7 +607,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       }
     }
     setImportDialogOpen(false);
-    toast.success(`已回填 ${selectedFields.length} 个字段`);
+    toast.success(`已填入 ${selectedFields.length} 个字段`);
   }, [updateDraft, updateDraftTable]);
 
   // ── 保存当前：本地缓存 + 服务器当前草稿 + 服务器历史版本（三处一致）──
@@ -957,7 +957,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                 onClick={() => void handleImportPrevRound()}
                 disabled={!prevRoundAvailable || prevRoundFetching}
                 className="neu-btn-xs gap-1"
-                title={prevRoundAvailable ? `带入第 ${round - 1} 轮内容（同方式草稿整稿带入；无草稿时 AI 识别上一轮正式采购文件回填；开标/获取时间清空须按本轮重填）` : '上一轮无草稿/采购文件'}
+                title={prevRoundAvailable ? `填入上一轮（第 ${round - 1} 轮）的内容；没有草稿时改为识别上一轮的正式采购文件；开标时间和文件获取时间需按本轮重新填写` : '上一轮没有草稿或采购文件'}
               >
                 <FolderInput size={13} />{prevRoundFetching ? '获取上一轮文件…' : '参考上一轮'}
               </button>

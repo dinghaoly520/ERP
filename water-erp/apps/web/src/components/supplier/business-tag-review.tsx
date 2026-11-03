@@ -57,13 +57,13 @@ export function BusinessTagReview({ onChanged }: { onChanged?: () => void }) {
       /* 来源区分（2026-10-15）：无来源供应商时按 source 细分——migration=存量标签回填入池
          （2026-10-14 脚本），非「未归属供应商」误导口径 */
       const key = s?.id ?? s?.name ?? (t.source === 'migration' ? 'migration' : '未归属');
-      const label = s?.name?.trim() || (t.source === 'migration' ? '历史标签回填（存量公共词入池）' : '未归属供应商');
+      const label = s?.name?.trim() || (t.source === 'migration' ? '历史标签' : '未归属供应商');
       const g = map.get(key) ?? { key, label, supplierNo: s?.supplierNo, tags: [] };
       g.tags.push(t);
       map.set(key, g);
     }
     return [...map.values()].sort((a, b) =>
-      (/^(未归属供应商|历史标签回填)/.test(a.label) ? 1 : /^(未归属供应商|历史标签回填)/.test(b.label) ? -1 : b.tags.length - a.tags.length) || a.label.localeCompare(b.label, 'zh'),
+      (/^(未归属供应商|历史标签)/.test(a.label) ? 1 : /^(未归属供应商|历史标签)/.test(b.label) ? -1 : b.tags.length - a.tags.length) || a.label.localeCompare(b.label, 'zh'),
     );
   }, [rows]);
 

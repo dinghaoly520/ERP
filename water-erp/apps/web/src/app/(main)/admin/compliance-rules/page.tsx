@@ -148,7 +148,7 @@ export default function ComplianceRulesPage() {
               <span className="page-hero__stat page-hero__stat--info">数据库（生效中）</span>
             )}
             {data?.source === 'builtin' && (
-              <button onClick={() => void initFromBuiltin()} className="neu-btn-xs" disabled={busy} title="将内置规则快照显式导入数据库（行内编辑/停用时也会自动入库）">
+              <button onClick={() => void initFromBuiltin()} className="neu-btn-xs" disabled={busy} title="将内置规则导入数据库（行内编辑或停用规则时也会自动保存）">
                 <Sparkles size={13} /> 从内置初始化
               </button>
             )}
@@ -235,7 +235,7 @@ export default function ComplianceRulesPage() {
                     </td>
                     {/* 操作按钮恒渲染（2026-10-28）：builtin 阶段（DB 无记录）原为空列，现首次操作自动入库 */}
                     <td className="align-top">
-                      <div className="flex justify-center gap-1.5" title={data?.source === 'db' ? undefined : '内置规则快照：首次操作将自动入库后执行'}>
+                      <div className="flex justify-center gap-1.5" title={data?.source === 'db' ? undefined : '内置规则：首次操作时会自动保存后执行'}>
                         <button onClick={() => void startEdit(r)} className="neu-btn-xs" disabled={busy}>
                           <Pencil size={12} /> 编辑
                         </button>

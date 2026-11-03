@@ -2384,7 +2384,7 @@ export function ExpertExtractPage({
                           selected={demandRepDeptSpecialty ? [demandRepDeptSpecialty] : []}
                           onChange={list => setDemandRepDeptSpecialty(list[0] ?? '')}
                           placeholder="专业不限"
-                          title="在所选部门内进一步按专业收窄；再点当前项=回专业不限"
+                          title="在所选部门内按专业进一步筛选；再点当前项则恢复专业不限"
                         />
                       </div>
                       {demandRepCompany && (
@@ -2472,7 +2472,7 @@ export function ExpertExtractPage({
                               selected={quotaSpecsOf(q)}
                               onChange={list => upQ(idx, 'specialties', list)}
                               placeholder="专业不限"
-                              title="专业（可多选，相近专业并桶）：候选池=所选专业并集，命中任一即入池；清空=专业不限"
+                              title="专业可多选：候选专家来自所选专业的合并范围，清空则不限专业"
                             />
                             <div className="ml-auto flex shrink-0 items-center gap-1">
                               <button onClick={() => adjustQuota(idx, -1)} className="neu-btn-xs" aria-label="减 1 席">−</button>

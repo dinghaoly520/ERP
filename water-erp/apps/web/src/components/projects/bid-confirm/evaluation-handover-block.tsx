@@ -81,7 +81,7 @@ export function EvaluationHandoverBlock({ bidProjectId, detail }: Props) {
                   <tr key={r.id}>
                     <td className="!text-left font-mono font-bold tabular-nums text-[var(--foreground)]">{r.rank}</td>
                     <td className="!text-left font-medium text-[var(--foreground)]">{r.supplierName}</td>
-                    <td className="!text-right font-mono tabular-nums" title={`总得分（原始口径）：${Number(r.totalScore).toFixed(2)}`}>{Number(r.averageScore).toFixed(1)}</td>
+                    <td className="!text-right font-mono tabular-nums" title={`原始总得分：${Number(r.totalScore).toFixed(2)}`}>{Number(r.averageScore).toFixed(1)}</td>
                     <td className="!text-right font-mono tabular-nums text-[var(--foreground)]">
                       {r.bidPrice != null ? `¥${Number(r.bidPrice).toLocaleString('zh-CN')}` : '—'}
                     </td>

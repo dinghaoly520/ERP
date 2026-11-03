@@ -297,7 +297,7 @@ export function SupervisionPushBlock({ bidProjectId, isAdmin }: Props) {
           <div className="mb-1.5 text-xs font-semibold text-[var(--foreground)]">平台代码</div>
           <input
             className="workbench-input w-full"
-            placeholder="请填写公共服务平台分配的平台代码（暂无自动联动缺省）"
+            placeholder="请填写公共服务平台分配的平台代码（暂无默认值，请手动填写）"
             value={cfgForm.platformCode}
             onChange={(e) => setCfgForm({ ...cfgForm, platformCode: e.target.value })}
           />

@@ -151,7 +151,6 @@ export function CompaniesModal({
           <div className="flex items-center gap-2.5">
             <span className="text-sm font-semibold tracking-wide">公司台账</span>
           </div>
-          <span className="text-xs text-[var(--muted-foreground)]">点「编辑」打开窗口维护该公司信息（与 leader 公司信息管理页同口径）；改名即时生效于新项目归属快照，历史快照不受影响</span>
         </div>
         <div className="overflow-x-auto">
           <table className="neu-table w-full min-w-[820px]">

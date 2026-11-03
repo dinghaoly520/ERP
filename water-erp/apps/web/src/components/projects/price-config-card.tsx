@@ -347,7 +347,7 @@ export function EvaluationBasisFields({
       </div>
       {!softLocked && !evalMethodDirty && detail?.evaluationMethod == null && (
         <p className="text-[11px] leading-relaxed text-[var(--muted-foreground)]">
-          未显式设置——当前按采购方式默认执行「{EVAL_METHOD_OPTIONS.find(o => o.value === evaluationMethod)?.label}」，保存后落为显式值。
+          未单独设置——当前按采购方式默认「{EVAL_METHOD_OPTIONS.find(o => o.value === evaluationMethod)?.label}」执行，保存后按所填的执行。
         </p>
       )}
       {!softLocked && ceilingMissingForFormula && (

@@ -174,7 +174,7 @@ function BusinessTagsPicker({
 
       {/* 第三层：可选词表（内凹滚动区） */}
       {!hasVocab && (
-        <p className="px-3 pb-3 text-[10px] leading-5 text-[var(--muted-foreground)]">暂无可选业务标签——供应商标签词表为空，请在「供应商管理」中先回填业务标签。</p>
+        <p className="px-3 pb-3 text-[10px] leading-5 text-[var(--muted-foreground)]">暂无可选业务标签——请先在「供应商管理」中维护业务标签。</p>
       )}
       {hasVocab && (
         <div className="px-3 pb-3">
@@ -884,7 +884,7 @@ export function SupplierSelectionPage({
       if (!tagsUserEditedRef.current) setSelectedTags(tags);
       // 空/失败此前完全静默（实测「点击运行但无结果」无从判断）——给出可行动提示
       if (tags.length === 0) {
-        toast.info('词表中暂无与本项目匹配的业务标签——可手动选择标签，或先在供应商库补充该领域供应商及其业务标签');
+        toast.info('暂无与本项目匹配的业务标签——可手动选择，或先在供应商库中补充该领域的供应商及业务标签');
       }
     } catch {
       // 预填失败不阻断选取流程，用户仍可手动选择

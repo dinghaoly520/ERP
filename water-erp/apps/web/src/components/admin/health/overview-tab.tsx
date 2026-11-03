@@ -113,7 +113,7 @@ export function OverviewTab({ data, loading, isAdmin, reload }: {
           <span className="text-sm font-semibold tracking-wide">近 24 小时请求与错误趋势</span>
           {data && (
             <span className="text-xs text-[var(--muted-foreground)]"
-              title="登录会话的业务请求全量（含高频轮询），未登录/无权限的拒绝不在此列；P95=95% 的请求耗时低于此值（操作日志口径）">
+              title="登录会话的业务请求全量（含高频轮询），未登录/无权限的拒绝不在此列；P95=95% 的请求耗时低于此值（按操作日志统计）">
               共 {data.api24h.total.toLocaleString()} 次 · 错误 {data.api24h.errors}（{data.api24h.errorRate}%） · P95 {data.api24h.p95ms}ms
             </span>
           )}
@@ -151,7 +151,7 @@ export function OverviewTab({ data, loading, isAdmin, reload }: {
         </div>
         <div className="neu-table-card">
           <div className="neu-table-card-header flex flex-wrap items-center justify-between gap-3">
-            <span className="text-sm font-semibold tracking-wide" title="近 24 小时，操作日志口径">P95 耗时最高的接口</span>
+            <span className="text-sm font-semibold tracking-wide" title="近 24 小时（按操作日志统计）">P95 耗时最高的接口</span>
           </div>
           <div className="overflow-x-auto">
             <table className="neu-table w-full min-w-[480px]">

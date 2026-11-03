@@ -1093,7 +1093,7 @@ export default function ProcurementsPage() {
       });
       setMatchedItems(res.data);
       if (res.data.length >= 100) {
-        toast.info('匹配结果超过 100 条，仅载入前 100 条参与分析；可收窄筛选后重试');
+        toast.info('匹配结果超过 100 条，仅载入前 100 条参与分析；可缩小筛选范围后重试');
       }
       setSelectedAnalysisIds(new Set());
       setShowAnalysisSelection(true);
