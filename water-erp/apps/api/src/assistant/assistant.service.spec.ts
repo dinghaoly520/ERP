@@ -13,11 +13,13 @@ import { NotificationTool } from './tools/notification.tool';
 import { CockpitTool } from './tools/cockpit.tool';
 import { ActionPlannerService } from './actions/action-planner.service';
 import { ActionExecutorService } from './actions/action-executor.service';
+import { AssistantRagService } from './knowledge/rag-retrieval.service';
 
 describe('AssistantService', () => {
   let service: AssistantService;
   let prisma: any;
   let model: any;
+  let moduleRef: TestingModule;
 
   const mockConversation = {
     id: 'conv-1',
@@ -62,7 +64,7 @@ describe('AssistantService', () => {
       }),
     };
 
-    const module: TestingModule = await Test.createTestingModule({
+    moduleRef = await Test.createTestingModule({
       providers: [
         AssistantService,
         { provide: PrismaService, useValue: prisma },
@@ -78,10 +80,11 @@ describe('AssistantService', () => {
         { provide: CockpitTool, useValue: { name: 'cockpit', description: 'mock', execute: jest.fn() } },
         { provide: ActionPlannerService, useValue: { createPlan: jest.fn() } },
         { provide: ActionExecutorService, useValue: { execute: jest.fn() } },
+        { provide: AssistantRagService, useValue: { buildContext: jest.fn().mockResolvedValue(null) } },
       ],
     }).compile();
 
-    service = module.get<AssistantService>(AssistantService);
+    service = moduleRef.get<AssistantService>(AssistantService);
   });
 
   describe('chat', () => {
@@ -117,6 +120,40 @@ describe('AssistantService', () => {
         include: { messages: { orderBy: { createdAt: 'asc' }, take: 20 } },
       });
       expect(result.conversationId).toBe('conv-1');
+    });
+
+    it('RAG 命中 → 系统提示注入知识片段，回答尾部标注来源文件（2026-11-03 水叮当知识库）', async () => {
+      const rag = moduleRef.get(AssistantRagService) as any;
+      rag.buildContext.mockResolvedValue({
+        block: '【用户知识库资料——回答时优先参考以下片段，引用时注明来源文件】\n【制度.pdf】报销标准…',
+        fileNames: ['制度.pdf'],
+      });
+      prisma.assistantConversation.create.mockResolvedValue({ ...mockConversation, messages: [] });
+      prisma.assistantMessage.create.mockResolvedValue({ id: 'msg-1' });
+      prisma.user.findUnique.mockResolvedValue({ companyId: 'co-1' });
+
+      const result = await service.chat(
+        { message: '报销标准是什么' },
+        { userId: 'u-1', role: 'leader' },
+      );
+
+      expect(rag.buildContext).toHaveBeenCalledWith(
+        '报销标准是什么',
+        { sub: 'u-1', role: 'leader', companyId: 'co-1' },
+      );
+      expect(model.chat).toHaveBeenCalledWith(expect.arrayContaining([
+        expect.objectContaining({ role: 'system', content: expect.stringContaining('【用户知识库资料') }),
+      ]));
+      expect(result.answer).toContain('（参考知识库：制度.pdf）');
+    });
+
+    it('RAG 降级（null）→ 系统提示无知识片段，回答无标注', async () => {
+      prisma.assistantConversation.create.mockResolvedValue({ ...mockConversation, messages: [] });
+      prisma.assistantMessage.create.mockResolvedValue({ id: 'msg-1' });
+      prisma.user.findUnique.mockResolvedValue({ companyId: 'co-1' });
+
+      const result = await service.chat({ message: '你好' }, { userId: 'u-1', role: 'leader' });
+      expect(result.answer).not.toContain('参考知识库');
     });
 
     it('P0 会话隔离：他人的会话（userId 不匹配）应按"会话不存在"拒绝且不落消息', async () => {

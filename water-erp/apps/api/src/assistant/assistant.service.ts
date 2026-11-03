@@ -14,6 +14,7 @@ import { CockpitTool } from './tools/cockpit.tool';
 import { ActionPlannerService } from './actions/action-planner.service';
 import { ActionExecutorService } from './actions/action-executor.service';
 import { SYSTEM_KNOWLEDGE } from './knowledge/system-knowledge';
+import { AssistantRagService } from './knowledge/rag-retrieval.service';
 import { ChatMessage } from './model/assistant-model-provider';
 import { ChatDto } from './dto/chat.dto';
 import { mapToChart } from './chart.mapper';
@@ -95,6 +96,7 @@ export class AssistantService {
     private readonly cockpitTool: CockpitTool,
     private readonly actionPlanner: ActionPlannerService,
     private readonly actionExecutor: ActionExecutorService,
+    private readonly rag: AssistantRagService,
   ) {
     this.registerTools();
   }
@@ -196,8 +198,15 @@ ${toolList}
 - 禁止使用任何 emoji 表情符号。
 - 涉及修改/审批/删除/禁用/退回时，说明操作预案和风险，不要直接执行。`;
 
+    // RAG 注入（2026-11-03 水叮当知识库设计 §4.1）：登录用户从「自己的∪共享」知识库
+    // 检索 top5；降级铁律——null/异常一律按普通流程，对话永不因 RAG 失败报错
+    let ragContext: { block: string; fileNames: string[] } | null = null;
+    if (toolCtx.user) {
+      ragContext = await this.rag.buildContext(dto.message, toolCtx.user).catch(() => null);
+    }
+
     const messages = [
-      { role: 'system' as const, content: fullSystemPrompt },
+      { role: 'system' as const, content: fullSystemPrompt + (ragContext ? `\n\n${ragContext.block}` : '') },
       ...history,
       { role: 'user' as const, content: dto.message },
     ];
@@ -268,6 +277,11 @@ ${toolList}
     }
 
     this.logger.log(`chat() 返回响应: conversationId=${conversation.id}, answerLen=${answer.length}, cards=${cards.length}`);
+    // RAG 来源标注（仅命中时）：回答尾部注明参考的知识库文件
+    if (ragContext && ragContext.fileNames.length && answer) {
+      answer += `\n\n（参考知识库：${ragContext.fileNames.join('、')}）`;
+    }
+
     return { conversationId: conversation.id, answer, cards, citations, pendingActions };
   }
 
