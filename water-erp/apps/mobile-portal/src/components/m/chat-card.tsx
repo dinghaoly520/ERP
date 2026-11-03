@@ -1,14 +1,10 @@
 import type { ChatCard } from "@/lib/api/assistant";
+import { ChartCardSvg } from "@/components/m/chart-card-svg";
 
-/** 聊天卡片——metric=指标瓷片网格 / table=迷你表 / chart=标题+说明降级（移动端不画图） */
+/** 聊天卡片——metric=指标瓷片网格 / table=迷你表 / chart=五类 SVG 真图（2026-11-03） */
 export function ChatCardView({ card }: { card: ChatCard }) {
   if (card.type === "chart") {
-    return (
-      <div className="mt-1.5 rounded-[12px] m-tile px-3 py-2.5">
-        <div className="text-[13px] font-bold text-[var(--foreground)]">{card.title}</div>
-        <div className="mt-0.5 text-[12px] text-[var(--muted-foreground)]">{card.caption ?? "图表详见电脑端"}</div>
-      </div>
-    );
+    return <ChartCardSvg card={card} />;
   }
   if (card.type === "metric") {
     const items = (card.metrics ?? []) as Array<{ label: string; value: string }>;

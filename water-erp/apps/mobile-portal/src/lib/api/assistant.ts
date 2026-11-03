@@ -15,7 +15,16 @@ export type ChatCard =
       rows?: Array<Record<string, string>>;
       [k: string]: unknown;
     }
-  | { type: "chart"; title: string; chartType: string; caption?: string; [k: string]: unknown };
+  | { type: "chart"; title: string; chartType: string; caption?: string;
+      /** 自包含派生数据（2026-11-03）：与 :3005 ECharts option 同源；缺省=存量历史卡（回退占位） */
+      data?: {
+        rows?: Array<Record<string, unknown>>;
+        points?: Array<{ name: string; value: number }>;
+        labels?: string[];
+        series?: Array<{ name: string; values: number[] }>;
+        total?: number;
+      };
+      [k: string]: unknown };
 
 export type ChatMessage = {
   role: "user" | "assistant";
