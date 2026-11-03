@@ -247,7 +247,7 @@ function ProjectScalePanel({ profile, index, reducedMotion }: { profile: Dashboa
   const tal = totalAmount>=10000?`${(totalAmount/10000).toFixed(1)}万`:`${totalAmount.toFixed(0)}元`;
 
   const gp = (seg:ScaleSegment) => { const p:Array<{name:string;date:string;department:string;budgetLabel:string;status:string}>=[]; profile.trendSeries.forEach(ti=>ti.projects.forEach(proj=>{const bs=proj.budgetLabel;let b=0;if(bs.includes("万"))b=parseFloat(bs.replace("万","").replace(",","").trim())*10000;else if(bs.includes("元"))b=parseFloat(bs.replace("元","").replace(/,/g,""));if(b>=seg.min&&b<seg.max)p.push(proj);}));return p;};
-  const sc = (s:string)=>s==="已成交"?"text-[var(--success)]":s==="待定"?"text-[var(--warning)]":"text-[var(--danger)]";
+  const sc = (s:string)=>s==="已成交"?"text-[var(--success)]":s==="待处理"?"text-[var(--warning)]":"text-[var(--danger)]";
 
   return (
     <>
@@ -277,7 +277,7 @@ function MethodPieChartPanel({ profile, index, reducedMotion }: { profile: Dashb
   const total = profile.methodStats.reduce((s,m)=>s+m.count,0);
   const cx=100,cy=100,r=70,ir=45;
   const segs = (()=>{let a=0;return profile.methodStats.map((m,i)=>{const ang=(m.share/100)*360;const s={sa:a,ea:a+ang,c:PC[i%PC.length],m};a+=ang;return s;});})();
-  const sc=(s:string)=>s==="已成交"?"text-[var(--success)]":s==="待定"?"text-[var(--warning)]":"text-[var(--danger)]";
+  const sc=(s:string)=>s==="已成交"?"text-[var(--success)]":s==="待处理"?"text-[var(--warning)]":"text-[var(--danger)]";
 
   return (
     <>
@@ -386,7 +386,7 @@ function TrendChartPanel({ profile, index, reducedMotion }: { profile: Dashboard
   const amtY=(v:number)=>tp+(1-v/ma)*mh;
   const initH=(v:number)=>Math.max(v>0?3:0,(v/mi)*bandHalf);
   const actY=(v:number)=>cy-(v/mAct)*(bandHalf-8)-4;
-  const sc=(s:string)=>s==="已成交"?"text-[var(--success)]":s==="待定"?"text-[var(--warning)]":"text-[var(--danger)]";
+  const sc=(s:string)=>s==="已成交"?"text-[var(--success)]":s==="待处理"?"text-[var(--warning)]":"text-[var(--danger)]";
 
   // 金额平滑曲线（Catmull-Rom 近似）
   const pts=S.map((item,i)=>({x:xc(i),y:amtY(item.amount)}));
@@ -484,7 +484,7 @@ function DepartmentPanel({ profile, index, reducedMotion }: { profile: Dashboard
   const totalAmt = profile.departmentStats.reduce((s,d)=>s+d.amount,0);
   const [ad, setAd] = useState<DepartmentDetail|null>(null);
   const depts = profile.departmentStats.slice(0,6);
-  const sc=(s:string)=>s==="已成交"?"text-[var(--success)]":s==="待定"?"text-[var(--warning)]":"text-[var(--danger)]";
+  const sc=(s:string)=>s==="已成交"?"text-[var(--success)]":s==="待处理"?"text-[var(--warning)]":"text-[var(--danger)]";
 
   return (
     <>
@@ -634,7 +634,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
           <KpiCard label="预算总金额" value={data.summary.totalBudgetLabel} signal="normal" index={1} reducedMotion={reducedMotion}/>
           <KpiCard label="未成交预算" value={data.summary.pendingBudgetLabel} signal={data.summary.pendingBudget>0?"warning":"normal"} index={2} reducedMotion={reducedMotion}/>
           <KpiCard label="已成交预算" value={data.summary.awardedBudgetLabel} signal="success" index={3} reducedMotion={reducedMotion}/>
-          <KpiCard label="合同金额" value={data.summary.totalAwardLabel} signal="normal" index={4} reducedMotion={reducedMotion} showDivider="right"/>
+          <KpiCard label="成交总额" value={data.summary.totalAwardLabel} signal="normal" index={4} reducedMotion={reducedMotion} showDivider="right"/>
           <KpiCard label="节约资金" value={data.summary.totalSavingsLabel} signal={data.summary.totalSavings>0?"success":"normal"} index={5} reducedMotion={reducedMotion}/>
           <KpiCard label="节资率" value={`${sr.toFixed(1)}%`} signal={sr>5?"success":"warning"} index={6} reducedMotion={reducedMotion} showDivider="right"/>
           <KpiCard label="已成交项目" value={`${data.summary.completedCount}/${data.summary.totalCount}`} index={7} reducedMotion={reducedMotion}/>

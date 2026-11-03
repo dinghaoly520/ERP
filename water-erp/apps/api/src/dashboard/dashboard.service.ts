@@ -149,7 +149,7 @@ export class DashboardService {
       (item) => item.resultStatus === ResultStatus.AWARDED,
     ).length;
     // 异常口径（2026-09-28 审计 P1）：非 AWARDED 即异常会把正常在途（PENDING）项目全算进
-    // "异常/风险/未成交"——与同页 resultStats 的 已成交/待定/未成交 三分类互相矛盾。
+    // "异常/风险/未成交"——与同页 resultStats 的 已成交/待处理/未成交 三分类互相矛盾。
     // 现剔除 PENDING：异常=真实异常态（审核未过/需修改文件/无效响应/取消/终止等）。
     const abnormalCount = rounds.filter(
       (item) => item.resultStatus !== ResultStatus.AWARDED && item.resultStatus !== ResultStatus.PENDING,
@@ -287,7 +287,7 @@ export class DashboardService {
     >();
     const resultStatusMap = new Map<string, { count: number; amount: number }>([
       ['已成交', { count: 0, amount: 0 }],
-      ['待定', { count: 0, amount: 0 }],
+      ['待处理', { count: 0, amount: 0 }],
       ['未成交', { count: 0, amount: 0 }],
     ]);
     const reasonMap = new Map<
@@ -368,7 +368,7 @@ export class DashboardService {
           round.resultStatus === ResultStatus.AWARDED
             ? '已成交'
             : round.resultStatus === ResultStatus.PENDING
-              ? '待定'
+              ? '待处理'
               : '未成交',
       });
       trendMap.set(dateKey, trendItem);
@@ -413,7 +413,7 @@ export class DashboardService {
           round.resultStatus === ResultStatus.AWARDED
             ? '已成交'
             : round.resultStatus === ResultStatus.PENDING
-              ? '待定'
+              ? '待处理'
               : '未成交',
       });
       departmentMap.set(departmentName, departmentItem);
@@ -452,7 +452,7 @@ export class DashboardService {
           round.resultStatus === ResultStatus.AWARDED
             ? '已成交'
             : round.resultStatus === ResultStatus.PENDING
-              ? '待定'
+              ? '待处理'
               : '未成交',
       });
       companyMap.set(companyName, companyItem);
@@ -485,7 +485,7 @@ export class DashboardService {
           round.resultStatus === ResultStatus.AWARDED
             ? '已成交'
             : round.resultStatus === ResultStatus.PENDING
-              ? '待定'
+              ? '待处理'
               : '未成交',
       });
       methodMap.set(methodName, methodItem);
@@ -664,7 +664,7 @@ export class DashboardService {
           result.amount += decimalToNumber(round.awardAmount);
         }
       } else if (round.resultStatus === ResultStatus.PENDING) {
-        const result = resultStatusMap.get('待定');
+        const result = resultStatusMap.get('待处理');
         if (result) {
           result.count += 1;
           result.amount += decimalToNumber(round.budgetAmount);
@@ -820,7 +820,7 @@ export class DashboardService {
       count: item.count,
       amount: item.amount,
       amountLabel: formatWan(item.amount),
-      accent: label === '已成交' ? 'blue' : label === '待定' ? 'gold' : 'coral',
+      accent: label === '已成交' ? 'blue' : label === '待处理' ? 'gold' : 'coral',
     }));
 
     const nonAwardReasons = [...reasonMap.entries()]
