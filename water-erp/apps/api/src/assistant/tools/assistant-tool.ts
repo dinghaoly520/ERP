@@ -43,6 +43,9 @@ export interface VizDeclaration {
 export interface AssistantToolCtx {
   user?: { sub: string; role: string; companyId: string | null };
   companyIds?: string[];
+  /** :3011 总数据裁定（2026-11-03 用户）：移动驾驶舱不做公司隔离——短路全部
+   *  公司过滤，leader/staff/bid_host 提问同取全库口径（:3005/:3008 不带此标记） */
+  totalData?: boolean;
 }
 
 export interface AssistantTool {

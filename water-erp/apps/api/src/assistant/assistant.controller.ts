@@ -75,6 +75,6 @@ export class AssistantController {
   @Get('quick-stats')
   @ApiOperation({ summary: '首页快捷入口实时状态（匿名仅公开域聚合）' })
   async getQuickStats(@Req() req: Request) {
-    return this.assistantService.getQuickStats(!!this.ownerFrom(req)?.userId);
+    return this.assistantService.getQuickStats(this.ownerFrom(req)?.userId ?? null);
   }
 }

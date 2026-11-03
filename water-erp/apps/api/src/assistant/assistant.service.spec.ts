@@ -384,7 +384,7 @@ describe('AssistantService', () => {
     it('匿名访客只返回公开域数字（内部维度置 0）', async () => {
       prisma.announcement.count.mockResolvedValue(12);
 
-      const result = await service.getQuickStats(false);
+      const result = await service.getQuickStats(null);
 
       expect(result.announcement.published).toBe(12);
       expect(result.supplier.risk).toBe(0);
@@ -392,18 +392,40 @@ describe('AssistantService', () => {
       expect(prisma.supplier.count).not.toHaveBeenCalled();
     });
 
-    it('认证用户返回全量统计', async () => {
+    it('认证 admin 返回全量统计（无公司过滤）', async () => {
       prisma.announcement.count.mockResolvedValue(12);
+      prisma.user.findUnique.mockResolvedValue({ role: 'admin', companyId: null });
       prisma.procurementProject.count.mockResolvedValue(5);
       prisma.bidProject.count.mockResolvedValue(3);
       prisma.supplier.count.mockResolvedValue(10);
       prisma.expertProfile.count.mockResolvedValue(7);
       prisma.notification.count.mockResolvedValue(2);
 
-      const result = await service.getQuickStats(true);
+      const result = await service.getQuickStats('admin-1');
 
       expect(result.procurement.total).toBe(5);
       expect(result.notification.unread).toBe(2);
+      // admin 无公司过滤（空 where）
+      expect(prisma.procurementProject.count).toHaveBeenCalledWith({ where: {} });
+    });
+
+    it('认证 leader 公司隔离（2026-11-03 审计 F16）——计数注入本公司 + 未读数只数本人', async () => {
+      prisma.announcement.count.mockResolvedValue(12);
+      prisma.user.findUnique.mockResolvedValue({ role: 'leader', companyId: 'co-1' });
+      prisma.procurementProject.count.mockResolvedValue(5);
+      prisma.bidProject.count.mockResolvedValue(3);
+      prisma.supplier.count.mockResolvedValue(10);
+      prisma.expertProfile.count.mockResolvedValue(7);
+      prisma.notification.count.mockResolvedValue(1);
+
+      await service.getQuickStats('leader-1');
+
+      expect(prisma.procurementProject.count).toHaveBeenCalledWith({ where: { companyId: 'co-1' } });
+      expect(prisma.bidProject.count).toHaveBeenCalledWith({ where: { companyId: 'co-1', isExtractionOnly: false } });
+      expect(prisma.supplier.count).toHaveBeenCalledWith({ where: { companyId: 'co-1', status: 'APPROVED' } });
+      expect(prisma.expertProfile.count).toHaveBeenCalledWith({ where: { user: { companyId: 'co-1' } } });
+      // 未读通知从「全平台所有人」收口为本人
+      expect(prisma.notification.count).toHaveBeenCalledWith({ where: { userId: 'leader-1', isRead: false } });
     });
   });
 

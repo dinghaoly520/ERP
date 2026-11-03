@@ -6,6 +6,7 @@ import type { AssistantToolCtx } from './assistant-tool';
  *  admin：默认全部，companyIds（ChatDto.context 服务端采纳）多选；
  *  其他角色/匿名：不加过滤——外层 allowedTools 门禁已限制其只能用公开域工具。 */
 export function toolCompanyWhere(ctx?: AssistantToolCtx): { companyId?: string | { in: string[] } } {
+  if (ctx?.totalData) return {}; // :3011 总数据裁定（2026-11-03）：短路公司过滤
   if (!ctx?.user) return {};
   const { role, companyId } = ctx.user;
   if (role === 'admin') {
@@ -23,6 +24,7 @@ export function toolCompanyWhere(ctx?: AssistantToolCtx): { companyId?: string |
  *  （可见性由公开域 where 把关）。返回 where 片段，与 toolCompanyWhere 的差异仅在
  *  平台级 null 恒放行。 */
 export function announcementCompanyWhere(ctx?: AssistantToolCtx): Record<string, unknown> {
+  if (ctx?.totalData) return {}; // :3011 总数据裁定（2026-11-03）：短路公司过滤
   if (!ctx?.user) return {};
   const { role, companyId } = ctx.user;
   if (role === 'admin') {

@@ -19,6 +19,7 @@ import { ChatMessage } from './model/assistant-model-provider';
 import { ChatDto } from './dto/chat.dto';
 import { mapToChart } from './chart.mapper';
 import { applyCardGate } from './card-gate';
+import { toolCompanyWhere } from './tools/company-filter';
 
 /** 会话属主：认证用户（JWT）或匿名访客（X-Assistant-Guest 头） */
 export interface AssistantOwner {
@@ -59,6 +60,7 @@ export async function resolveToolCtx(
   prisma: { user: { findUnique(args: { where: { id: string }; select: { companyId: boolean } }): Promise<{ companyId: string | null } | null> } },
   owner: { userId?: string; guestKey?: string; role?: string } | null,
   contextCompanyIdList: unknown,
+  contextPortal?: unknown,
 ): Promise<import('./tools/assistant-tool').AssistantToolCtx> {
   if (!owner?.userId) return {};
   const u = await prisma.user.findUnique({ where: { id: owner.userId }, select: { companyId: true } });
@@ -66,6 +68,12 @@ export async function resolveToolCtx(
   const ctx: import('./tools/assistant-tool').AssistantToolCtx = {
     user: { sub: owner.userId, role, companyId: u?.companyId ?? null },
   };
+  /* :3011 总数据裁定（2026-11-03 用户）：移动驾驶舱不做公司隔离——leader/staff/
+   * bid_host 在 :3011 提问同样取全库口径（ctx.totalData 短路公司过滤）。
+   * :3005/:3008 不带 portal 标记，维持 2026-10-22 公司隔离语义与 e2e 闸 */
+  if (contextPortal === 'mobile-3011' && ['leader', 'staff', 'bid_host'].includes(role)) {
+    ctx.totalData = true;
+  }
   const ids = pickAdminCompanyIds(contextCompanyIdList, role);
   if (ids) ctx.companyIds = ids;
   return ctx;
@@ -157,7 +165,12 @@ export class AssistantService {
       content: m.content,
     })) || [];
 
-    const toolCtx = await resolveToolCtx(this.prisma, owner, (dto.context as Record<string, unknown> | undefined)?.companyIds);
+    const toolCtx = await resolveToolCtx(
+      this.prisma,
+      owner,
+      (dto.context as Record<string, unknown> | undefined)?.companyIds,
+      (dto.context as Record<string, unknown> | undefined)?.portal,
+    );
 
     // 工具门禁：内部管理角色全量；匿名访客与外部角色（supplier/bid_expert/mall 等）
     // 仅公开域工具（服务端按 JWT 角色裁决，不信前端 context）
@@ -750,7 +763,7 @@ ${toolList}
     return { attachedCount, droppedData };
   }
 
-  async getQuickStats(authenticated = false) {
+  async getQuickStats(ownerUserId?: string | null) {
     // 公共域聚合（两类调用方都要）
     const [announcementPublished] = await Promise.all([
       this.prisma.announcement.count({ where: { status: 'PUBLISHED' } }),
@@ -758,7 +771,7 @@ ${toolList}
 
     // 匿名访客（:3008 公共助手）只返回公开域数字——内部审批/风险/未读等运营
     // 数字不对未认证方暴露（P0 收口）；字段保形置 0，避免 :3008 前端解构缺键
-    if (!authenticated) {
+    if (!ownerUserId) {
       return {
         procurement: { total: 0, pending: 0 },
         bid: { total: 0, active: 0 },
@@ -770,6 +783,16 @@ ${toolList}
         generatedAt: new Date().toISOString(),
       };
     }
+
+    /* 公司隔离（2026-11-03 审计 F16）：leader/staff 计数注入本公司（与工具层
+     * toolCompanyWhere 同口径）；未读通知此前数的是全平台所有人的未读——收口本人 */
+    const user = await this.prisma.user.findUnique({
+      where: { id: ownerUserId },
+      select: { role: true, companyId: true },
+    });
+    const companyWhere = toolCompanyWhere({
+      user: user ? { sub: ownerUserId, role: user.role, companyId: user.companyId } : undefined,
+    });
 
     const [
       procurementTotal,
@@ -784,17 +807,17 @@ ${toolList}
       expertAvailable,
       notificationUnread,
     ] = await Promise.all([
-      this.prisma.procurementProject.count(),
-      this.prisma.procurementProject.count({ where: { status: 'PENDING_REVIEW' } }),
-      this.prisma.bidProject.count({ where: { isExtractionOnly: false } }),
-      this.prisma.bidProject.count({ where: { stage: { in: ['OPENING', 'EVALUATING'] }, isExtractionOnly: false } }),
-      this.prisma.supplier.count(),
-      this.prisma.supplier.count({ where: { status: 'APPROVED' } }),
-      this.prisma.supplier.count({ where: { status: 'PENDING' } }),
-      this.prisma.supplier.count({ where: { status: { in: ['DISABLED', 'BLACKLIST'] } } }),
-      this.prisma.expertProfile.count(),
-      this.prisma.expertProfile.count({ where: { availability: '可用' } }),
-      this.prisma.notification.count({ where: { isRead: false } }),
+      this.prisma.procurementProject.count({ where: { ...companyWhere } }),
+      this.prisma.procurementProject.count({ where: { ...companyWhere, status: 'PENDING_REVIEW' } }),
+      this.prisma.bidProject.count({ where: { ...companyWhere, isExtractionOnly: false } }),
+      this.prisma.bidProject.count({ where: { ...companyWhere, stage: { in: ['OPENING', 'EVALUATING'] }, isExtractionOnly: false } }),
+      this.prisma.supplier.count({ where: { ...companyWhere } }),
+      this.prisma.supplier.count({ where: { ...companyWhere, status: 'APPROVED' } }),
+      this.prisma.supplier.count({ where: { ...companyWhere, status: 'PENDING' } }),
+      this.prisma.supplier.count({ where: { ...companyWhere, status: { in: ['DISABLED', 'BLACKLIST'] } } }),
+      this.prisma.expertProfile.count({ where: { user: { ...companyWhere } } }),
+      this.prisma.expertProfile.count({ where: { user: { ...companyWhere }, availability: '可用' } }),
+      this.prisma.notification.count({ where: { userId: ownerUserId, isRead: false } }),
     ]);
 
     // Detect the most notable system state for each dimension
