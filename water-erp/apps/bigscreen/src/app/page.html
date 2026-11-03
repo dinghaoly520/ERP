@@ -338,7 +338,7 @@
   .s-b7 .s-dot{background:#f5a623;box-shadow:0 0 10px rgba(245,166,35,.5)}
   .s-b8 .s-dot{background:#11a874;box-shadow:0 0 10px rgba(17,168,116,.5)}
   .s-b9 .s-dot{background:#2dd4bf;box-shadow:0 0 10px rgba(45,212,191,.5)}
-  .s-badge small{font-size:12px;font-weight:600;color:#90b8cc;white-space:nowrap}
+  .s-badge small{font-size:11px;font-weight:600;color:#90b8cc;line-height:1.25;/* 评审F5：canon 全名允许两行，防九格挤压 */}
   .s-badge.s-hi .s-dot{animation:dotPop .6s ease-out}
   @keyframes dotPop{0%,100%{transform:scale(1)}50%{transform:scale(1.3);box-shadow:0 0 18px currentColor}}
   /* Connecting line across all badges — drawn on container */
@@ -1018,7 +1018,7 @@
         <div class="s-badge s-b2"><span class="s-dot">2</span><small>采购立项</small></div>
         <div class="s-badge s-b3"><span class="s-dot">3</span><small>采购文件</small></div>
         <div class="s-badge s-b4"><span class="s-dot">4</span><small>供应商邀请</small></div>
-        <div class="s-badge s-b5"><span class="s-dot">5</span><small>采购公告</small></div>
+        <div class="s-badge s-b5"><span class="s-dot">5</span><small>采购公告公示</small></div>
         <div class="s-badge s-b6"><span class="s-dot">6</span><small>专家抽取</small></div>
         <div class="s-badge s-b7"><span class="s-dot">7</span><small>开标评标</small></div>
         <div class="s-badge s-b8"><span class="s-dot">8</span><small>定标</small></div>
@@ -1029,7 +1029,7 @@
         <div class="stage-bridge-fill" id="stageBridgeFill" style="--p:5.56%"></div>
         <div class="stage-bridge-dot" id="stageBridgeDot" style="left:5.56%"></div>
       </div>
-      <!-- Row 3: Stat cards（演示口径：17 项在办，重心底文件/评标段） -->
+      <!-- Row 3: Stat cards（演示口径：17 项在办，重心文件/评标段；第 10 阶段「直接采购备案表」仅直接采购项目终段取值，本演示集无此类项目故九格呈现） -->
       <div class="stage-cards">
         <div class="s-card s-c1"><div class="sc-num">2<span>个</span></div><div class="sc-bar"><i style="--w:12%"></i></div><div class="sc-pct">12%</div></div>
         <div class="s-card s-c2"><div class="sc-num">2<span>个</span></div><div class="sc-bar"><i style="--w:12%"></i></div><div class="sc-pct">12%</div></div>

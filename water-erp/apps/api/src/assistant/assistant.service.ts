@@ -70,7 +70,9 @@ export async function resolveToolCtx(
   };
   /* :3011 总数据裁定（2026-11-03 用户）：移动驾驶舱不做公司隔离——leader/staff/
    * bid_host 在 :3011 提问同样取全库口径（ctx.totalData 短路公司过滤）。
-   * :3005/:3008 不带 portal 标记，维持 2026-10-22 公司隔离语义与 e2e 闸 */
+   * 判据=代理注入头 x-portal-source: mobile-3011（评审 F1：不信 body 自报——
+   * 浏览器层不可伪造；持 token 直连 :4001 自设头属内部信任域，数据为内部统计）。
+   * :3005/:3008 不带该头，维持 2026-10-22 公司隔离语义与 e2e 闸 */
   if (contextPortal === 'mobile-3011' && ['leader', 'staff', 'bid_host'].includes(role)) {
     ctx.totalData = true;
   }
@@ -133,7 +135,7 @@ export class AssistantService {
     };
   }
 
-  async chat(dto: ChatDto, owner: AssistantOwner | null = null) {
+  async chat(dto: ChatDto, owner: AssistantOwner | null = null, portalSource?: unknown) {
     const conversation = dto.conversationId
       ? await this.prisma.assistantConversation.findUnique({
           where: { id: dto.conversationId },
@@ -169,7 +171,9 @@ export class AssistantService {
       this.prisma,
       owner,
       (dto.context as Record<string, unknown> | undefined)?.companyIds,
-      (dto.context as Record<string, unknown> | undefined)?.portal,
+      /* 来源头（评审 F1 加固）：由 :3011 代理注入（x-portal-source），浏览器 JS
+       * 不可伪造——body 自报 portal 已弃用（任意客户端可冒充破公司隔离） */
+      portalSource,
     );
 
     // 工具门禁：内部管理角色全量；匿名访客与外部角色（supplier/bid_expert/mall 等）
@@ -769,9 +773,17 @@ ${toolList}
       this.prisma.announcement.count({ where: { status: 'PUBLISHED' } }),
     ]);
 
-    // 匿名访客（:3008 公共助手）只返回公开域数字——内部审批/风险/未读等运营
-    // 数字不对未认证方暴露（P0 收口）；字段保形置 0，避免 :3008 前端解构缺键
-    if (!ownerUserId) {
+    /* 认证≠授权（2026-09-29 口径，评审 F2 补全）：匿名访客与外部角色
+     * （supplier/bid_expert 等）都只返回公开域数字——内部审批/风险/未读等
+     * 运营数字不对未授权方暴露；字段保形置 0，避免前端解构缺键 */
+    const user = ownerUserId
+      ? await this.prisma.user.findUnique({
+          where: { id: ownerUserId },
+          select: { role: true, companyId: true },
+        })
+      : null;
+    const role = user?.role ?? '';
+    if (!ownerUserId || !['admin', 'leader', 'staff', 'bid_host'].includes(role)) {
       return {
         procurement: { total: 0, pending: 0 },
         bid: { total: 0, active: 0 },
@@ -786,10 +798,6 @@ ${toolList}
 
     /* 公司隔离（2026-11-03 审计 F16）：leader/staff 计数注入本公司（与工具层
      * toolCompanyWhere 同口径）；未读通知此前数的是全平台所有人的未读——收口本人 */
-    const user = await this.prisma.user.findUnique({
-      where: { id: ownerUserId },
-      select: { role: true, companyId: true },
-    });
     const companyWhere = toolCompanyWhere({
       user: user ? { sub: ownerUserId, role: user.role, companyId: user.companyId } : undefined,
     });

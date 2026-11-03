@@ -409,6 +409,17 @@ describe('AssistantService', () => {
       expect(prisma.procurementProject.count).toHaveBeenCalledWith({ where: {} });
     });
 
+    it('外部角色（supplier）认证后仍只返回公开域（认证≠授权，评审 F2）', async () => {
+      prisma.announcement.count.mockResolvedValue(12);
+      prisma.user.findUnique.mockResolvedValue({ role: 'supplier', companyId: 'co-9' });
+
+      const result = await service.getQuickStats('sup-1');
+
+      expect(result.procurement.total).toBe(0);
+      expect(result.announcement.published).toBe(12);
+      expect(prisma.supplier.count).not.toHaveBeenCalled();
+    });
+
     it('认证 leader 公司隔离（2026-11-03 审计 F16）——计数注入本公司 + 未读数只数本人', async () => {
       prisma.announcement.count.mockResolvedValue(12);
       prisma.user.findUnique.mockResolvedValue({ role: 'leader', companyId: 'co-1' });

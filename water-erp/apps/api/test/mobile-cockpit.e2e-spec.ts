@@ -145,6 +145,34 @@ describe('移动驾驶舱水叮当（:3011）e2e', () => {
     expect(roundMetric).toBe(String(dash.body.summary.totalCount));
   });
 
+  it(':3011 来源头（x-portal-source: mobile-3011）→ leader 也取集团总数据（2026-11-03 裁定）', async () => {
+    const chat = await request(app.getHttpServer())
+      .post('/api/assistant/chat')
+      .set('X-Portal', 'web')
+      .set('X-Web-Token', leaderToken)
+      .set('x-portal-source', 'mobile-3011')
+      .send({ message: DIRECT_COCKPIT_MSG })
+      .expect(201);
+
+    // 总数据期望值用种子常量（本公司 1 + 他司 2 = 3）；leader 自身 dashboard 仍本公司口径不可作期望源
+    const metrics = cockpitMetrics(chat.body);
+    const roundMetric = metrics.find((m) => m.label === '采购轮次')?.value;
+    expect(roundMetric).toBe('3'); // 1(本公司) + 2(他司) = 全库本月轮次
+  });
+
+  it('伪造 body context.portal 不再生效（评审 F1：判据是代理注入头，非 body 自报）', async () => {
+    const chat = await request(app.getHttpServer())
+      .post('/api/assistant/chat')
+      .set('X-Portal', 'web')
+      .set('X-Web-Token', leaderToken)
+      .send({ message: DIRECT_COCKPIT_MSG, context: { portal: 'mobile-3011' } })
+      .expect(201);
+
+    const metrics = cockpitMetrics(chat.body);
+    const roundMetric = metrics.find((m) => m.label === '采购轮次')?.value;
+    expect(roundMetric).toBe('1'); // body 自报被无视——仍是本公司口径
+  });
+
   it('非 admin 伪造 context.companyIds 被忽略', async () => {
     const chat = await request(app.getHttpServer())
       .post('/api/assistant/chat')

@@ -23,6 +23,10 @@ export async function proxy(request: NextRequest) {
       headers.set('cookie', allCookies.map((c) => `${c.name}=${c.value}`).join('; '));
     }
     if (!headers.has('x-portal')) headers.set('x-portal', 'web');
+    /* :3011 总数据裁定（2026-11-03）：代理注入来源头并覆盖任何传入值——浏览器
+     * JS 无法伪造本头（评审 F1：body 自报 portal 可被任意客户端冒充）。API 侧
+     * assistant chat 据此对内部角色置 ctx.totalData（集团总数据口径） */
+    headers.set('x-portal-source', 'mobile-3011');
 
     const init: RequestInit = { method: request.method, headers };
     if (!['GET', 'HEAD'].includes(request.method)) {

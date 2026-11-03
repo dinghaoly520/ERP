@@ -45,9 +45,9 @@ export async function sendChat(message: string, conversationId?: string | null, 
   return api.post<ChatResult>("/assistant/chat", {
     message,
     ...(conversationId ? { conversationId } : {}),
-    /* portal 标记（2026-11-03 用户裁定）：:3011 无公司隔离、总数据——服务端据此
-     * 对 leader/staff/bid_host 置 ctx.totalData 短路公司过滤（admin 本就全量） */
-    context: { portal: "mobile-3011", ...(companyIds?.length ? { companyIds } : {}) },
+    /* 总数据口径（2026-11-03 用户裁定）经 :3011 代理注入的 x-portal-source 头
+     * 服务端判定（评审 F1：body 自报可冒充，已弃用）——此处只带 admin 公司多选 */
+    ...(companyIds?.length ? { context: { companyIds } } : {}),
   });
 }
 

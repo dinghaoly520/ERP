@@ -42,6 +42,7 @@ export function announcementCompanyWhere(ctx?: AssistantToolCtx): Record<string,
 
 /** 公告 detail（findUnique 直查旁路收口）：JS 侧公司归属判定，与 announcementCompanyWhere 同口径 */
 export function announcementCompanyAllows(ctx: AssistantToolCtx | undefined, annCompanyId: string | null): boolean {
+  if (ctx?.totalData) return true; // :3011 总数据裁定：与 sibling 判定同步短路（评审 F3——漏加致列表全量/详情拒绝自相矛盾）
   if (!ctx?.user) return true;
   const { role, companyId } = ctx.user;
   if (role === 'admin') {

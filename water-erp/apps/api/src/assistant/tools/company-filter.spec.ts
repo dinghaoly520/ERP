@@ -48,3 +48,17 @@ describe('announcementCompanyWhere / announcementCompanyAllows', () => {
     expect(announcementCompanyAllows(undefined, 'co-any')).toBe(true);
   });
 });
+
+describe(':3011 总数据短路（2026-11-03 裁定，评审 F3 补全）', () => {
+  const leaderCtx = { user: { sub: 'u1', role: 'leader', companyId: 'co-1' } };
+  it('totalData 短路三个判定面——数据 where/公告 where/公告 JS 判定一致', () => {
+    const ctx = { ...leaderCtx, totalData: true };
+    expect(toolCompanyWhere(ctx)).toEqual({});
+    expect(announcementCompanyWhere(ctx)).toEqual({});
+    expect(announcementCompanyAllows(ctx, 'other-co')).toBe(true); // 此前漏加：列表能看详情拒绝
+  });
+  it('不带 totalData 的 leader 维持三面隔离', () => {
+    expect(toolCompanyWhere(leaderCtx)).toEqual({ companyId: 'co-1' });
+    expect(announcementCompanyAllows(leaderCtx, 'other-co')).toBe(false);
+  });
+});

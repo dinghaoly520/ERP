@@ -33,7 +33,9 @@ export class AssistantController {
   @Post('chat')
   @ApiOperation({ summary: '发送对话消息' })
   async chat(@Body() dto: ChatDto, @Req() req: Request) {
-    return this.assistantService.chat(dto, this.ownerFrom(req));
+    /* :3011 来源头透传（评审 F1）：代理注入的 x-portal-source 服务端判定总数据口径，
+     * body 自报 portal 已弃用 */
+    return this.assistantService.chat(dto, this.ownerFrom(req), req.headers['x-portal-source']);
   }
 
   @Get('conversations')
