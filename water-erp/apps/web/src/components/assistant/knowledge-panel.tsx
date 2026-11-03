@@ -188,7 +188,7 @@ export function KnowledgePanel({ open, onClose }: { open: boolean; onClose: () =
         <input
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
-          placeholder="新知识库名称（如：财务制度）"
+          placeholder="新知识库名称（如：采购管理制度）"
           className="workbench-input flex-1 min-w-[200px] text-sm"
         />
         <select
