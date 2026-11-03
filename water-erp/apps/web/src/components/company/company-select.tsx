@@ -241,7 +241,7 @@ export function CompanySelect({
         }}
         className={`inline-flex h-9 items-center gap-2 rounded-[12px] px-2.5 transition-all ${
           isAll
-            ? "bg-[var(--surface)] shadow-[inset_0_1px_0_oklch(1_0_0/0.6),1px_1px_3px_oklch(0.55_0.03_258/0.1),-1px_-1px_2px_oklch(1_0_0/0.85)]"
+            ? "bg-oklch(1_0_0) shadow-[inset_0_1px_0_oklch(1_0_0/0.9),1.5px_1.5px_3.5px_oklch(0.55_0.03_258/0.12),-1px_-1px_2.5px_oklch(1_0_0/0.85)]"
             : "bg-[color-mix(in_oklch,var(--accent)_8%,white)] shadow-[inset_0_1px_0_oklch(1_0_0/0.7),1px_1px_3px_oklch(0.45_0.1_258/0.14),-1px_-1px_2px_oklch(1_0_0/0.9)]"
         } hover:-translate-y-px focus-visible:outline-2 focus-visible:outline-[var(--accent)] focus-visible:outline-offset-1`}
       >
