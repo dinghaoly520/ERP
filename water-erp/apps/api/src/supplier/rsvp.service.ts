@@ -627,6 +627,8 @@ export class RsvpService {
         type: 'RSVP_OVERRIDDEN',
         title: '回执状态变更通知',
         content: `您对「${row.title}」的参加回执已被采购方变更：确认参加 → 无法参加。理由：${reason}（操作人：${actorName}）。如有疑问请联系采购中心。`,
+        // 直达投标项目列表（2026-11-03 通知链接针对性：此前空链接不可点）
+        link: '/my-bids',
       });
     } catch (err: any) {
       this.logger.warn(`RSVP 代变更通知发送失败 supplier=${row.supplierId}: ${err?.message ?? err}`);
