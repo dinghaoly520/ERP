@@ -103,3 +103,55 @@ describe('ProcurementsService.getStats — totalSavings 口径', () => {
     expect(res.totalSavings).toBe(40); // 旧口径会是 500,000（1M−0.5M）
   });
 });
+
+describe('台账 abnormalOnly 口径（:3011 两步铁律，2026-11-03）', () => {
+  const ABNORMAL_FOUR = ['FAILED_REVIEW', 'FILE_REVISION_REQUIRED', 'INVALID_RESPONSE', 'CANCELLED'];
+  const makeService = () => {
+    const prisma = {
+      procurementRound: {
+        count: jest.fn().mockResolvedValue(0),
+        findMany: jest.fn().mockResolvedValue([]),
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        aggregate: jest.fn().mockResolvedValue({ _sum: {} }),
+      },
+    };
+    return { prisma, service: new ProcurementsService(prisma as any) };
+  };
+
+  it('findAll abnormalOnly=true → 列表 where.resultStatus 收敛为异常四态', async () => {
+    const { prisma, service } = makeService();
+    await service.findAll({ page: 1, pageSize: 12, abnormalOnly: true } as any, mockAdminUser);
+    expect(prisma.procurementRound.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ resultStatus: { in: ABNORMAL_FOUR }, isRecycled: false }),
+      }),
+    );
+  });
+
+  it('getStats 带 searchKeyword/abnormalOnly → 聚合与列表同 where（汇总条同口径 P1-2）', async () => {
+    const { prisma, service } = makeService();
+    await service.getStats(undefined, undefined, mockAdminUser, {}, {
+      searchKeyword: '水利',
+      abnormalOnly: true,
+    });
+    expect(prisma.procurementRound.count).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.any(Array),
+          resultStatus: { in: ABNORMAL_FOUR },
+          isRecycled: false,
+        }),
+      }),
+    );
+  });
+
+  it('getStats 不带 filters → where 维持旧行为（isRecycled=false，无 OR/resultStatus）', async () => {
+    const { prisma, service } = makeService();
+    await service.getStats(undefined, undefined, mockAdminUser, {});
+    const call: any = (prisma.procurementRound.count as jest.Mock).mock.calls[0][0];
+    expect(call.where.isRecycled).toBe(false);
+    expect(call.where.OR).toBeUndefined();
+    expect(call.where.resultStatus).toBeUndefined();
+  });
+});

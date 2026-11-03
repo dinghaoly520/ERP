@@ -1,6 +1,6 @@
-import { IsOptional, IsInt, IsString, IsEnum, Min, IsIn } from 'class-validator';
+import { IsOptional, IsInt, IsString, IsEnum, Min, IsIn, IsBoolean } from 'class-validator';
 import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { ResultStatus } from '@prisma/client';
 
 export class QueryProcurementsDto {
@@ -42,6 +42,12 @@ export class QueryProcurementsDto {
   @IsOptional()
   @IsString()
   searchKeyword?: string;
+
+  /** 仅看异常四态（:3011 异常卡→台账两步链路，2026-11-03）——query string 'true'/'1' 归一 */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true' || value === '1')
+  @IsBoolean()
+  abnormalOnly?: boolean;
 
   @EmptyAsUndefined()
   @IsOptional()

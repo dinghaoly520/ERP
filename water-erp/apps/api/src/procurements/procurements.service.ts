@@ -15,6 +15,14 @@ import type { AuthenticatedUser } from '../auth/auth.types';
 import { createHash } from 'node:crypto';
 import type { CompanyWhere } from '../company/company-scope';
 
+/** 台账「异常」四态（hero/汇总条/异常筛选三处共用口径；2026-11-03 提升为模块级导出） */
+export const ABNORMAL_RESULT_STATES = [
+  ResultStatus.FAILED_REVIEW,
+  ResultStatus.FILE_REVISION_REQUIRED,
+  ResultStatus.INVALID_RESPONSE,
+  ResultStatus.CANCELLED,
+] as const;
+
 @Injectable()
 export class ProcurementsService {
   private readonly logger = new Logger(ProcurementsService.name);
@@ -358,6 +366,12 @@ export class ProcurementsService {
       where.terminationReason = { not: null };
     }
 
+    // 异常筛选（:3011 两步铁律，2026-11-03）：头条数字「异常 N」一键收敛到异常四态明细；
+    // 置于 resultStatus/category 之后——显式异常筛选优先于单一状态与快捷筛选
+    if (query.abnormalOnly) {
+      where.resultStatus = { in: [...ABNORMAL_RESULT_STATES] };
+    }
+
     // 公司隔离：按公司划归取代原个人/全局分野——非 admin 只见本公司
     Object.assign(where, companyFilter);
 
@@ -439,7 +453,7 @@ export class ProcurementsService {
     // "共 total 条"（全量）并列口径打架。四态与前端 hero 定义一致，同一 where（含回收站视图）。
     // 状态筛选交集语义（2026-09-29 三审修订）：用户显式筛某状态时，异常数 = 该筛选 ∩ 异常四态
     // ——筛 AWARDED 则异常为 0（不可能既成交又异常），筛 FAILED_REVIEW 则只数该状态。
-    const ABNORMAL_STATES = ['FAILED_REVIEW', 'FILE_REVISION_REQUIRED', 'INVALID_RESPONSE', 'CANCELLED'];
+    const ABNORMAL_STATES = [...ABNORMAL_RESULT_STATES] as string[];
     const userStatus = typeof where.resultStatus === 'string' ? where.resultStatus : undefined;
     const abnormalStates = userStatus
       ? ABNORMAL_STATES.filter((s) => s === userStatus)
@@ -792,20 +806,21 @@ export class ProcurementsService {
     endDate?: string,
     user?: AuthenticatedUser,
     companyFilter: CompanyWhere = {},
+    /** 与列表同参的筛选（2026-11-03 P1-2：汇总条与列表口径漂移修复）——搜索词/状态/异常四态 */
+    filters: { searchKeyword?: string; resultStatus?: ResultStatus; abnormalOnly?: boolean } = {},
   ) {
-    const where: any = {};
-
-    if (startDate || endDate) {
-      where.procurementDate = {};
-      if (startDate) where.procurementDate.gte = new Date(startDate);
-      if (endDate) where.procurementDate.lte = new Date(endDate);
-    }
-
-    // 公司隔离：统计聚合在隔离后的数据集上计算
-    Object.assign(where, companyFilter);
-    // 2026-10-28 口径收口：排除回收站轮次——与台账列表 buildListWhere 默认 ACTIVE 同口径
-    //（此前统计含已回收轮次，回收站非空时汇总条总数 > 同页列表「共 N」）
-    where.isRecycled = false;
+    // 与台账列表同一 where 构造器（回收站排除/日期/搜索/状态/异常四态/公司隔离全同构）——
+    // 汇总条数字必须与同筛选列表可互相复现（2026-10-28 回收站口径 + 2026-11-03 筛选同参收口）
+    const where = this.buildListWhere(
+      {
+        startDate,
+        endDate,
+        searchKeyword: filters.searchKeyword,
+        resultStatus: filters.resultStatus,
+        abnormalOnly: filters.abnormalOnly,
+      },
+      companyFilter,
+    );
 
     const [
       totalCount,

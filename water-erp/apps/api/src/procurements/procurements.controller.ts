@@ -9,6 +9,7 @@ import {
   Body,
   ForbiddenException,
 } from '@nestjs/common';
+import { ResultStatus } from '@prisma/client';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
@@ -61,13 +62,21 @@ export class ProcurementsController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('companyId') companyId?: string, // 仅 admin 生效：切换查看单公司
+    @Query('searchKeyword') searchKeyword?: string,
+    @Query('resultStatus') resultStatus?: ResultStatus,
+    @Query('abnormalOnly') abnormalOnly?: string,
     @CurrentUser() user?: AuthenticatedUser,
   ) {
     if (!canViewGlobalBusinessData(user?.role ?? '')) {
       throw new ForbiddenException('普通账号无法查看采购台账。');
     }
     const scope = await this.companyScope.resolveScope(user, companyId);
-    return this.procurementsService.getStats(startDate, endDate, user, this.companyScope.filter(scope));
+    // 汇总与列表同参（P1-2 口径漂移修复，2026-11-03）
+    return this.procurementsService.getStats(startDate, endDate, user, this.companyScope.filter(scope), {
+      searchKeyword,
+      resultStatus,
+      abnormalOnly: abnormalOnly === 'true',
+    });
   }
 
   @Get('methods')
