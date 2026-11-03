@@ -535,8 +535,8 @@ export default function DashboardPage() {
         <>
           {/* ── 汇总指标 ── */}
           <div className="mb-3 grid grid-cols-2 gap-2">
-            <MetricCard label="项目总数" value={String(summary.totalCount)} tone="accent" sub={`已完成 ${summary.completedCount}`} delta={deltaOf(summary.totalCount, cmp?.totalCount, null)} />
-            <MetricCard label="异常项目" value={String(summary.abnormalCount)} tone="danger" delta={deltaOf(summary.abnormalCount, cmp?.abnormalCount, false)} />
+            <MetricCard label="项目总数" value={String(summary.totalCount)} tone="accent" sub={`已完成 ${summary.completedCount}`} delta={deltaOf(summary.totalCount, cmp?.totalCount, null)} onClick={() => router.push("/ledger")} />
+            <MetricCard label="异常项目" value={String(summary.abnormalCount)} tone="danger" delta={deltaOf(summary.abnormalCount, cmp?.abnormalCount, false)} onClick={() => router.push("/ledger?abnormal=1")} />
             <MetricCard label="总预算" value={summary.totalBudgetLabel} />
             <MetricCard label="已成交预算" value={summary.awardedBudgetLabel} delta={deltaOf(parseBudgetLabel(summary.awardedBudgetLabel), cmp?.awardedBudget, true)} />
             <MetricCard label="成交总额" value={summary.totalAwardLabel} tone="success" delta={deltaOf(parseBudgetLabel(summary.totalAwardLabel), cmp?.totalAward, true)} />
@@ -1012,14 +1012,20 @@ export default function DashboardPage() {
             >
               <div className="space-y-2">
                 {data.riskProjects.map((p, i) => (
-                  <div key={i} className="rounded-[12px] border border-[color-mix(in_oklch,var(--danger)_18%,transparent)] bg-[color-mix(in_oklch,var(--danger)_4%,transparent)] px-3 py-2.5">
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => router.push(`/ledger?q=${encodeURIComponent(p.project)}`)}
+                    aria-label={`查看 ${p.project} 台账`}
+                    className="w-full rounded-[12px] border border-[color-mix(in_oklch,var(--danger)_18%,transparent)] bg-[color-mix(in_oklch,var(--danger)_4%,transparent)] px-3 py-2.5 text-left active:scale-[0.99]"
+                  >
                     <div className="flex items-center gap-2">
                       <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.severity === "high" ? "var(--danger)" : "var(--warning)" }} />
                       <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-[var(--foreground)]">{p.project}</span>
                       <span className="shrink-0 text-[13px] font-bold text-[var(--danger)]">滞留 {p.pendingDays} 天</span>
                     </div>
                     <p className="mt-1 line-clamp-2 pl-4 text-[14px] leading-snug text-[var(--muted-foreground)]">{p.reason}</p>
-                  </div>
+                  </button>
                 ))}
               </div>
             </SectionCard>

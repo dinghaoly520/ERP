@@ -8,6 +8,7 @@ import { Bot, Crown, FolderKanban, LayoutDashboard, LogOut, TrendingUp } from "l
 import { fetchCurrentUser, logout, type AuthUser } from "@/lib/api/auth";
 import { fetchMobileGreeting } from "@/lib/api/ai";
 import { fetchDashboardBadges, type DashboardBadges } from "@/lib/api/dashboard";
+import { readSavedFilters } from "@/lib/filter-store";
 import { AuthProvider } from "@/components/m/auth-context";
 
 const TABS = [
@@ -61,7 +62,14 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     if (!checked) return;
     let active = true;
-    const load = () => fetchDashboardBadges().then((b) => { if (active) setBadges(b); }).catch(() => undefined);
+    /* 角标随数据库页公司口径（P1-3，2026-11-03）：admin 选定公司后异常/待处理/停滞
+       不再显示全公司计数——与页面 hero 数字同口径 */
+    const load = () => {
+      const companyIds = (readSavedFilters<{ companyIds: string[] }>("dashboard").companyIds ?? []).join(",");
+      return fetchDashboardBadges(companyIds || undefined)
+        .then((b) => { if (active) setBadges(b); })
+        .catch(() => undefined);
+    };
     load();
     const onVisible = () => { if (document.visibilityState === "visible") load(); };
     document.addEventListener("visibilitychange", onVisible);
