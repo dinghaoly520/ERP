@@ -34,13 +34,6 @@ export class AiController {
     private mobileBrief: MobileBriefService,
   ) {}
 
-  @Public()
-  @Get('bigscreen-insight')
-  @ApiOperation({ summary: '大屏AI分析面板（公开，6格+跑马灯）' })
-  async getBigscreenInsight() {
-    return this.aiService.getBigscreenInsight();
-  }
-
   @Get('mobile-greeting')
   @ApiOperation({ summary: '移动驾驶舱（:3011）欢迎语——LLM 每次现场生成（无缓存）' })
   @Roles('admin', 'leader', 'staff')
