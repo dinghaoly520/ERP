@@ -194,7 +194,7 @@ ${toolList}
   TOOL_CALL: {"tool": "<工具名>", "args": {"action": "<action>", ...}}
 - 每次回答调用一个或者多个工具。先获取数据，再基于数据提炼洞察。
 - 优先调用能产出"统计/分布"数据的 action（如 global_overview、各工具的 stats 动作），这些数据会自动生成可视化图表。
-- 对于综合概览类问题（如"整体运行状况""全面梳理""体检"），必须首先调用 global_overview 工具，它会返回采购/招标/供应商/专家的状态分布统计。
+- 对于综合概览类问题（如"整体运行状况""全面梳理""体检"），必须首先调用 global_overview 工具，它会返回采购/投标/供应商/专家的状态分布统计（阶段=采购流程步骤）。
 - 回答必须遵循系统提示词中的总-分结构和数据引用原则，直接引用工具返回的项目名称、金额、日期等具体信息，不写空洞的概括。
 - 禁止使用任何 emoji 表情符号。
 - 涉及修改/审批/删除/禁用/退回时，说明操作预案和风险，不要直接执行。`;
@@ -350,7 +350,7 @@ ${toolList}
     allowedTools: Set<string> | null = null,
     ctx: AssistantToolCtx = {},
   ): Promise<string> {
-    // 匿名访客不允许注入内部全局概览（采购/招标/供应商/专家分布属内部运营数据）
+    // 匿名访客不允许注入内部全局概览（采购/投标/供应商/专家分布属内部运营数据）
     if (allowedTools && !allowedTools.has('global_overview')) {
       return '抱歉，该问题涉及系统内部数据，需要登录采购管理系统后才能查询。您可以询问公开的采购公告信息。';
     }
@@ -488,7 +488,7 @@ ${toolList}
             return rest;
           }),
         })),
-    ).slice(0, 3000)}\n\n【严格写作要求 —— 违反即为编造数据】\n0. 所有工具已执行完毕、上述即全部数据——你的回复中【禁止出现任何 TOOL_CALL 指令】，直接给出面向用户的最终中文回答（2026-11-03 实录：第二轮再发 TOOL_CALL 被剥离后正文为空，用户拿到「未能生成有效回复」）。\n1. 若用户问"有哪些项目/供应商/专家"等清单类问题，必须逐条列出实体清单中的名称，不得只给汇总数字。\n2. 涉及统计/数量时，必须原样引用上面的关键数字，例如"系统共有 1 个采购项目、24 个招标项目"——数字一个不能改。\n3. 后续每段也必须引用上面的具体数字，不能只说"有多条记录"。\n4. 英文状态码（OPENING、PENDING等）在回答中必须译为中文。`;
+    ).slice(0, 3000)}\n\n【严格写作要求 —— 违反即为编造数据】\n0. 所有工具已执行完毕、上述即全部数据——你的回复中【禁止出现任何 TOOL_CALL 指令】，直接给出面向用户的最终中文回答（2026-11-03 实录：第二轮再发 TOOL_CALL 被剥离后正文为空，用户拿到「未能生成有效回复」）。\n1. 若用户问"有哪些项目/供应商/专家"等清单类问题，必须逐条列出实体清单中的名称，不得只给汇总数字。\n2. 涉及统计/数量时，必须原样引用上面的关键数字，例如"系统共有 1 个采购项目、24 个投标项目"——数字一个不能改。\n3. 后续每段也必须引用上面的具体数字，不能只说"有多条记录"。\n4. 英文状态码（OPENING、PENDING等）在回答中必须译为中文。`;
 
     try {
       // 若剥离 TOOL_CALL 后 answer 为空，不传空 assistant 消息（DeepSeek 会拒绝空 content）
@@ -801,7 +801,7 @@ ${toolList}
     const focusAreas: string[] = [];
     if (procurementTotal === 0) focusAreas.push('采购立项为空');
     if (procurementPending > 0) focusAreas.push(`${procurementPending}个项目待审批`);
-    if (bidActive > 0) focusAreas.push(`${bidActive}个招标进行中`);
+    if (bidActive > 0) focusAreas.push(`${bidActive}个开评标项目进行中`);
     if (supplierPending > 0) focusAreas.push(`${supplierPending}家供应商待审核`);
     if (supplierRisk > 0) focusAreas.push(`${supplierRisk}家供应商有风险`);
     if (notificationUnread > 0) focusAreas.push(`${notificationUnread}条未读通知`);

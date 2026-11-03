@@ -8,7 +8,7 @@ import { PROCUREMENT_STATUS_LABEL, t } from './labels';
 export class ProcurementTool implements AssistantTool {
   name = 'procurement';
   description =
-    '查询采购项目列表/详情/统计/待审批项。args: { action: "list"|"detail"|"stats"|"pending", status?, projectId?, limit? }';
+    '查询采购项目列表/详情/统计/待审批项/采购月度趋势（台账轮次按采购日期计）。args: { action: "list"|"detail"|"stats"|"pending"|"monthly", status?, projectId?, limit? }';
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -73,6 +73,38 @@ export class ProcurementTool implements AssistantTool {
             })),
           },
         ],
+      };
+    }
+
+    /* 采购月度趋势（2026-11-03 口径审计 F14）：此前全链只有 bid monthly（BidProject
+     * 计数）可拿——问「采购趋势/月度采购量」时投标项目数冒充采购趋势。本 action 以
+     * 台账轮次 procurementDate（真实采购成交/执行日期）月度计数。 */
+    if (action === 'monthly') {
+      const rounds = await this.prisma.procurementRound.findMany({
+        where: { isRecycled: false, procurementDate: { not: null }, ...companyWhere },
+        select: { procurementDate: true },
+      });
+      const monthMap = new Map<string, number>();
+      for (const r of rounds) {
+        if (!r.procurementDate) continue; // 防御：where 已滤 not null，双保险
+        const m = (r.procurementDate as Date).toISOString().slice(0, 7);
+        monthMap.set(m, (monthMap.get(m) ?? 0) + 1);
+      }
+      const rows = Array.from(monthMap.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([月份, 轮次]) => ({ 月份, 轮次 }));
+      return {
+        success: true,
+        cards: [{
+          type: 'table',
+          title: '采购月度趋势（台账轮次）',
+          columns: [
+            { key: '月份', label: '月份' },
+            { key: '轮次', label: '轮次' },
+          ],
+          rows,
+          viz: { kind: 'trend', value: '轮次', timeField: '月份' },
+        }],
       };
     }
 

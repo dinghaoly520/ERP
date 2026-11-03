@@ -8,7 +8,7 @@ import { STAGE_LABEL, t } from './labels';
 export class BidTool implements AssistantTool {
   name = 'bid';
   description =
-    '查询招标项目列表/详情/阶段统计/月度趋势/风险项目/进行中项目。args: { action: "list"|"detail"|"stats"|"monthly"|"risks"|"active", stage?, projectId?, limit? }';
+    '查询投标项目（开评标执行）列表/详情/阶段统计/月度趋势/风险项目/进行中项目。注意：本工具的阶段=投标执行阶段（文件下载/加密投递/开标/评标/归档）；采购流程阶段（采购文件→合同）请用 cockpit 或 global_overview；采购活动的月度量请用 procurement。args: { action: "list"|"detail"|"stats"|"monthly"|"risks"|"active", stage?, projectId?, limit? }';
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -55,7 +55,7 @@ export class BidTool implements AssistantTool {
         cards: [
           {
             type: 'table',
-            title: action === 'active' ? '进行中的招标项目' : '招标项目风险概览',
+            title: action === 'active' ? '进行中的投标项目' : '投标项目风险概览',
             columns: [
               { key: 'projectCode', label: '编号' },
               { key: 'name', label: '名称' },
@@ -92,7 +92,7 @@ export class BidTool implements AssistantTool {
       return {
         success: true,
         cards: [{
-          type: 'table', title: '月度招标项目数量趋势',
+          type: 'table', title: '月度投标项目数量趋势',
           columns: [
             { key: 'month', label: '月份' },
             { key: 'count', label: '数量' },
@@ -143,14 +143,14 @@ export class BidTool implements AssistantTool {
       },
     });
     // 必须产出 cards：AssistantService.handleNormalChat 只消费 result.cards，data 会被丢弃。
-    // 无 cards 则真实招标项目名到不了第二轮 LLM，助手只能拿汇总数字写宏观散文。
+    // 无 cards 则真实投标项目名到不了第二轮 LLM，助手只能拿汇总数字写宏观散文。
     return {
       success: true,
       data: projects,
       cards: [
         {
           type: 'table',
-          title: `招标项目清单（${projects.length}个）`,
+          title: `投标项目清单（${projects.length}个）`,
           columns: [
             { key: 'projectCode', label: '编号' },
             { key: 'name', label: '名称' },

@@ -67,6 +67,10 @@ export const STAGE_LABELS: Record<string, string> = {
   BID_EVALUATION: '开标评标',
   AWARD_DECISION: '定标',
   CONTRACT: '合同',
+  // 2026-11-03 补齐：PROJECT_WORKFLOW_STAGES 第 10 键（直接采购项目终段）——此前无映射，
+  // cockpit 阶段卡漏英文原键、global_overview 误标「未设置」；「直接采购备案表」为
+  // PM types/service 与 web progress-content 三处一致的既定词汇
+  DIRECT_PURCHASE_FILING: '直接采购备案表',
 };
 
 // ── LLM 输出乱码清理 ──
