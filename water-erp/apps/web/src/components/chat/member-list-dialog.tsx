@@ -114,7 +114,7 @@ export function MemberListDialog({ onClose, onSelectPeer }: MemberListDialogProp
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-[15px] font-bold tracking-[-0.02em] text-[color:var(--foreground)]">
-              人员列表
+              通讯联络
             </div>
             <div className="text-[11px] text-[color:var(--muted-foreground)]">
               共 {users.length} 人 · 在线 {onlineCount} 人 · 双击进入聊天

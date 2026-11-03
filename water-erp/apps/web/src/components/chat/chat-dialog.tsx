@@ -246,7 +246,7 @@ export function ChatDialog({ peerId, onClose, onBack }: ChatDialogProps) {
       >
         {/* Header */}
         <div className="chat-header">
-          <button type="button" onClick={onBack} className="neu-btn-xs" title="返回人员列表">
+          <button type="button" onClick={onBack} className="neu-btn-xs" title="返回通讯联络">
             <ArrowLeft size={15} />
           </button>
           <div className="relative">

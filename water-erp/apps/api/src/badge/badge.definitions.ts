@@ -25,7 +25,7 @@ export const BADGE_DEFINITIONS = [
     code: 'project_master',
     name: '项目操盘',
     category: 'quantity',
-    description: '累计参与采购项目',
+    description: '累计创建采购项目',
     iconKey: 'FolderKanban',
     unit: '个',
     levelThresholds: { bronze: 10, silver: 30, gold: 80, platinum: 200 },
@@ -40,13 +40,15 @@ export const BADGE_DEFINITIONS = [
     levelThresholds: { bronze: 100, silver: 365, gold: 730, platinum: 1825 },
   },
   {
-    code: 'no_return',
-    name: '零退回',
+    // 2026-11-03 用户裁定替换「零退回」（原口径=连续审批无退回，系统无对应审批语义）：
+    // 改为真实数据口径——本人完成的供应商履约评价次数（SupplierEvaluation.evaluatorId）
+    code: 'evaluation_master',
+    name: '评价官',
     category: 'quality',
-    description: '连续审批无退回记录',
-    iconKey: 'ShieldCheck',
+    description: '累计完成供应商履约评价',
+    iconKey: 'ClipboardCheck',
     unit: '次',
-    levelThresholds: { bronze: 30, silver: 100, gold: 300, platinum: 800 },
+    levelThresholds: { bronze: 10, silver: 50, gold: 200, platinum: 500 },
   },
 ] as const;
 

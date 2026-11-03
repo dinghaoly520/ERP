@@ -1,8 +1,10 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import {
   ProjectManagementStatus,
   WorkArrangementNoteType,
@@ -73,6 +75,7 @@ function sameDay(left: Date, right: Date) {
 
 @Injectable()
 export class WorkArrangementsService {
+  private readonly logger = new Logger(WorkArrangementsService.name);
   // 服务端缓存：headerGreeting 每30分钟刷新，内容部分每10分钟刷新
   // 按用户ID分别缓存，避免董事长和普通员工提示词互相污染
   private headerGreetingCache = new Map<string, {
@@ -481,6 +484,49 @@ export class WorkArrangementsService {
         greeting: '欢迎来到工作台，祝你今天工作顺利。',
       };
     }
+  }
+
+  /** 画像读取（2026-11-03 用户裁定）：唯一数据源=WorkPortraitCache，读取端零生成；
+   *  无画像（新账号/周一 12:00 批量任务尚未跑过）返回 available:false，前端出「每周一更新」提示。 */
+  async getPortrait(userId: string) {
+    const row = await this.prisma.workPortraitCache.findUnique({ where: { userId } });
+    if (!row) return { available: false as const, generatedAt: null as string | null };
+    return { available: true as const, generatedAt: row.generatedAt.toISOString(), ...(row.portrait as object) };
+  }
+
+  /** 每周一 12:00 为全体管理端账号批量重生成画像（2026-11-03 用户裁定）——
+   *  画像更新的唯一时机：读取端、刷新入口（已删）及其余任何时间都不再触发生成。 */
+  @Cron('0 12 * * 1')
+  async scheduledPortraitRefresh() {
+    try {
+      const r = await this.regenerateAllPortraits();
+      this.logger.log(`[portrait] 周一批量完成：${r.ok}/${r.total} 成功，${r.fail} 失败`);
+    } catch (err) {
+      this.logger.error(`[portrait] 周一批量失败: ${err}`);
+    }
+  }
+
+  async regenerateAllPortraits() {
+    const users = await this.prisma.user.findMany({
+      where: { role: { in: ['staff', 'leader', 'admin'] }, isActive: true },
+      select: { id: true },
+    });
+    let ok = 0;
+    let fail = 0;
+    for (const u of users) {
+      try {
+        const portrait = await this.buildPortrait(u.id);
+        await this.prisma.workPortraitCache.upsert({
+          where: { userId: u.id },
+          update: { portrait: portrait as any, generatedAt: new Date() },
+          create: { userId: u.id, portrait: portrait as any },
+        });
+        ok++;
+      } catch {
+        fail++; // 单账号失败不阻断批次（LLM 抖动等）
+      }
+    }
+    return { total: users.length, ok, fail };
   }
 
   async buildPortrait(userId: string) {

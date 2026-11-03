@@ -2104,33 +2104,58 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       .slice(0, 3)
       .map(([type,count]) => ({ label: typeLabels[type] || type, pct: totalTyped > 0 ? Math.round((count/totalTyped)*100) : 0 }));
 
-    // Let AI generate the narrative
-    const systemPrompt = `你是${userName}的私人工作分析师。根据提供的审计日志和任务数据，用温暖、有洞察力的语言写一篇约500字的"工作画像"叙事，分为2-3个自然段。
+    // 本周（近 7 天）活动统计：第 2 段"本周工作梳理"的数据底座
+    const ACTION_LABELS: Record<string, string> = {
+      SUPPLIER_APPROVED: '审批通过', SUPPLIER_REJECTED: '审核退回', SUPPLIER_RETURNED: '退回补正',
+      ANNOUNCEMENT_PUBLISHED: '发布公告', PASSWORD_REQUEST_APPROVE: '密码审批',
+      SUPPLIER_DISABLED: '停用供应商', SUPPLIER_EVALUATION_CREATED: '履约评价',
+    };
+    const weekAgo = Date.now() - 7 * 86400000;
+    const weekActs = activities.filter(a => new Date(a.createdAt).getTime() >= weekAgo && !['LOGIN', 'LOGOUT'].includes(a.action));
+    const weekByAction = new Map<string, number>();
+    const weekDays = new Set<string>();
+    for (const a of weekActs) {
+      weekByAction.set(a.action, (weekByAction.get(a.action) ?? 0) + 1);
+      weekDays.add(new Date(a.createdAt).toISOString().slice(0, 10));
+    }
+    const weekStats = {
+      total: weekActs.length,
+      activeDays: weekDays.size,
+      top: [...weekByAction.entries()].sort((x, y) => y[1] - x[1]).slice(0, 5)
+        .map(([action, count]) => ({ label: ACTION_LABELS[action] || action, count })),
+    };
 
-把以下主题自然地融入这 2-3 个段落（不要逐条罗列，也不要加标题或序号）：
-- 工作节奏：高峰日/时段、连续活跃、响应间隔等数据刻画的工作习惯
-- 核心领域：从任务类型分布看出的深耕方向与背后能力
-- 协作与风格：执行/思考/关系导向等协作偏好
-- 一个闪光点：基于数据的具体肯定
-- 一条建设性建议：有温度、可操作
+    // Let AI generate the narrative
+    // 2026-11-03 用户裁定：600 字定长；结构=全方位总结+本周工作梳理；正向夸奖语气、论点必须落到具体数据、禁空话
+    const systemPrompt = `你是${userName}的私人工作分析师。根据提供的审计日志与任务数据，写一篇固定 600 字的"工作画像"叙事（严格控制在 570–630 字之间，以汉字计），分为 4 个自然段，结构固定：
+
+第 1 段·全方位总结：从全量数据（累计审批、发布、项目、任务完成等）概括该用户的工作全貌、核心职责与最突出的优势
+第 2 段·本周工作梳理：基于「本周数据」逐项梳理这一周实际做了什么、办成了什么，点出本周亮点
+第 3 段·能力与成绩：用最亮的具体数字明确地夸奖一项能力或成绩，说明它意味着什么
+第 4 段·正向期许：基于数据给一条鼓励式的展望，收束全文
 
 写作要求：
-- 像一个了解你多年的导师在娓娓道来，有温度、有洞察，不是冰冷的数据汇报
-- 第二人称"你"叙述，亲切但有分寸
-- 自然融入关键数据点（审批次数、高峰时段、主要领域、完成率等），每处数字紧跟"这意味着什么"
-- 严格 2-3 个自然段，**段落之间只用一个换行分隔、禁止空行**（换行符 \\n，不是 \\n\\n）
+- 语气正向、肯定，大方地夸奖——赞美必须"有数字、有事实"作依据，不是空洞吹捧
+- 每个论点都要落到具体数字或事实（如审批 X 次、发布 X 篇、完成率 X%、连续活跃 X 天），禁止没有信息量的空话套话（如单独成句的"继续保持""未来可期"）
+- 第二人称"你"叙述，亲切、真诚
+- 严格 4 个自然段，**段落之间只用一个换行分隔、禁止空行**（换行符 \\n，不是 \\n\\n）
+- 全文长度固定：570–630 字（约 600 字，含标点），不许多也不许少
 - 纯中文、不使用Markdown、不加标题或序号
-- 如果某些数据为空或为0，巧妙规避或以中性表达处理，不要生硬地说"暂无数据"
+- 某些数据为空或为 0 时巧妙带过或以中性表达处理，不要生硬地说"暂无数据"
 
 返回 JSON:
 {
-  "narrative": "约500字、2-3段的工作画像叙事（段落之间用单个 \\n 分隔，禁止空行）"
+  "narrative": "570–630 字（约 600 字）、4 段的工作画像叙事（段落之间用单个 \\n 分隔，禁止空行）"
 }`;
 
+
+
+    const weekTopStr = weekStats.top.map(t => `${t.label}${t.count}次`).join('、');
     const userPrompt = `用户: ${userName}
 审批记录: ${approvalActs.length}条，平均响应间隔${avgHoursStr}，峰值时段${dayLabels[peakDayIdx]}${period}（${peakHour}:00左右），最近连续活跃${streak}天
 任务总览: 共${tasks.total}项，已完成${tasks.completed}项，完成率${tasks.total > 0 ? Math.round((tasks.completed / tasks.total) * 100) : 0}%
 任务类型分布: ${JSON.stringify(tasks.byType)}
+本周数据（近 7 天，用于第 2 段"本周工作梳理"，务必逐项用到）: 审计动作共${weekStats.total}条${weekTopStr ? `（${weekTopStr}）` : ''}，活跃${weekStats.activeDays}天
 任务类型含义: APPROVAL=审批处理, FOLLOW_UP=项目跟进, WRITING=文档撰写, COMMUNICATION=沟通协调, REVIEW=审核审查, MEETING=会议研讨, ARCHIVE=资料归档, RESEARCH=调研分析`;
 
     // AI 调用失败时直接抛错 —— 不再返回降级文案，让前端显示"未成功生成"。
@@ -2148,8 +2173,22 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       throw new ServiceUnavailableException('工作画像生成返回空内容，请稍后重试');
     }
 
-    // 乱码兜底：DeepSeek 偶发将个别汉字输出为 U+FFFD（�），先二次 LLM 还原，失败则剔除乱码字符
+    // 字数定长自校（2026-11-03 用户裁定 600 字）：首稿显著超差（<510 或 >690 字）带反馈重写一次，取更接近 600 字的稿
+    const distTo600 = (t: string) => Math.abs(t.replace(/\s/g, '').length - 600);
     let narrative = result.narrative;
+    if (distTo600(narrative) > 90) {
+      this.logger.warn(`[analyzeWorkPortrait] 首稿 ${narrative.replace(/\s/g, '').length} 字超差（目标 600），重写一次`);
+      try {
+        const redo = await this.llm.chatJson<{ narrative: string }>(
+          systemPrompt + '\n\n重要修正：上一次生成的内容长度不符合 570–630 字要求，请严格输出 600 字左右的完整画像。',
+          userPrompt,
+          0.5,
+        );
+        if (redo?.narrative && distTo600(redo.narrative) < distTo600(narrative)) narrative = redo.narrative;
+      } catch { /* 重写失败保留首稿 */ }
+    }
+
+    // 乱码兜底：DeepSeek 偶发将个别汉字输出为 U+FFFD（�），先二次 LLM 还原，失败则剔除乱码字符
     const needsRepair = (s: string) => s.includes('�') || /\?{3,}/.test(s);
     if (needsRepair(narrative)) {
       this.logger.warn('[analyzeWorkPortrait] 检测到工作画像含乱码字符（U+FFFD/???），尝试二次还原');

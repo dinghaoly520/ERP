@@ -50,6 +50,11 @@ export class BadgeService {
       });
     }
 
+    // 1.5 清理已下线的印记（如 2026-11-03 退役的 no_return）——残留行会继续出现在个人中心
+    const liveCodes = BADGE_DEFINITIONS.map(d => d.code);
+    await this.prisma.userBadge.deleteMany({ where: { badgeCode: { notIn: liveCodes } } });
+    await this.prisma.badgeDefinition.deleteMany({ where: { code: { notIn: liveCodes } } });
+
     // 2. 拉所有用户
     const users = await this.prisma.user.findMany({ select: { id: true, createdAt: true } });
     this.logger.log(`Recomputing badges for ${users.length} users...`);
@@ -120,11 +125,10 @@ export class BadgeService {
         });
 
       case 'publish_master':
-        return this.prisma.auditLog.count({
-          where: {
-            userId,
-            action: { in: ['ANNOUNCEMENT_CREATE', 'ANNOUNCEMENT_PUBLISH'] },
-          },
+        // 2026-11-03 修正：原口径统计 AuditLog.ANNOUNCEMENT_CREATE/PUBLISH——公告域从不写这两个动作
+        // （发布留痕在 Notification，AuditLog 零条），恒为 0 的死口径。真数据=本人署名已发布公告数。
+        return this.prisma.announcement.count({
+          where: { authorId: userId, status: 'PUBLISHED' },
         });
 
       case 'project_master':
@@ -138,33 +142,15 @@ export class BadgeService {
         return Math.max(0, Math.floor(ms / 86_400_000));
       }
 
-      case 'no_return':
-        // 从最近一次退回开始计数连续无退回审批
-        return this.computeNoReturnStreak(userId);
+      case 'evaluation_master':
+        // 本人完成的供应商履约评价次数（2026-11-03 替换「零退回」）
+        return this.prisma.supplierEvaluation.count({
+          where: { evaluatorId: userId },
+        });
 
       default:
         return 0;
     }
-  }
-
-  /** 连续审批无退回次数：从最后一次 SUPPLIER_RETURNED 之后的 SUPPLIER_APPROVED 次数 */
-  private async computeNoReturnStreak(userId: string): Promise<number> {
-    const lastReturn = await this.prisma.auditLog.findFirst({
-      where: {
-        userId,
-        action: { in: ['SUPPLIER_RETURNED', 'SUPPLIER_RETURN'] },
-      },
-      orderBy: { createdAt: 'desc' },
-      select: { createdAt: true },
-    });
-
-    return this.prisma.auditLog.count({
-      where: {
-        userId,
-        action: { in: ['SUPPLIER_APPROVED', 'SUPPLIER_APPROVE'] },
-        ...(lastReturn ? { createdAt: { gt: lastReturn.createdAt } } : {}),
-      },
-    });
   }
 
   /** 获取用户的印记列表（含定义） */
@@ -173,7 +159,8 @@ export class BadgeService {
     await this.ensureDefinitions();
 
     const rows = await this.prisma.userBadge.findMany({
-      where: { userId },
+      // 仅返回现行印记（已下线 code 的存量行不外露，清理见 recomputeAll）
+      where: { userId, badgeCode: { in: BADGE_DEFINITIONS.map(d => d.code) } },
       include: { badge: true },
     });
 
@@ -207,6 +194,23 @@ export class BadgeService {
         thresholds: d.levelThresholds as Record<string, number>,
       })),
     ];
+  }
+
+  /** 手动重算当前用户（2026-11-03：原控制器「已请求后台重算」是空操作假反馈） */
+  async recomputeCurrentUser(userId: string) {
+    const u = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, createdAt: true },
+    });
+    if (!u) return { ok: false as const, badges: [] };
+    // 新定义先行入库（UserBadge.badgeCode 有 FK——首次引入 evaluation_master 时旧库无此行即撞约束）
+    await this.ensureDefinitions();
+    // 顺带清理本人已下线印记行；BadgeDefinition 层面的清理只在全量路径（recomputeAll）做——
+    // 其他用户的 UserBadge 仍引用旧定义行，单用户路径删定义必撞 FK
+    const liveCodes = BADGE_DEFINITIONS.map(d => d.code);
+    await this.prisma.userBadge.deleteMany({ where: { userId, badgeCode: { notIn: liveCodes } } });
+    await this.recomputeUser(u.id, u.createdAt);
+    return { ok: true as const, badges: await this.getUserBadges(userId) };
   }
 
   private async ensureDefinitions() {

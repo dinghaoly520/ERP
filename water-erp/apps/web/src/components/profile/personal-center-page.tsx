@@ -9,7 +9,7 @@ import { clearWorkspaceCache } from '@/components/work-arrangements/work-arrange
 import { PersonalCenterHero } from './personal-center-hero';
 import { TabBasicInfo } from './tab-basic-info';
 import { TabPreferences } from './tab-preferences';
-import { TabWorkPortrait, clearWorkPortraitCache } from './tab-work-portrait';
+import { TabWorkPortrait } from './tab-work-portrait';
 import { TabWorkBadges } from './tab-work-badges';
 import { MemberListDialog } from '../chat/member-list-dialog';
 import { ChatDialog } from '../chat/chat-dialog';
@@ -52,7 +52,6 @@ export function PersonalCenterPage() {
     try {
       await logout();
       clearWorkspaceCache();
-      clearWorkPortraitCache();
       startTransition(() => { router.replace('/login'); router.refresh(); });
     } finally {
       setLoggingOut(false);
@@ -142,7 +141,7 @@ export function PersonalCenterPage() {
         </div>
       )}
 
-      {/* 人员列表 / 聊天 弹窗 */}
+      {/* 通讯联络 / 聊天 弹窗 */}
       {dialogState.kind === 'members' && (
         <MemberListDialog
           onClose={() => setDialogState({ kind: 'closed' })}

@@ -74,7 +74,7 @@ export class WorkArrangementsController {
 
   @Get('portrait')
   portrait(@CurrentUser() user: AuthenticatedUser) {
-    return this.workArrangementsService.buildPortrait(user.sub);
+    return this.workArrangementsService.getPortrait(user.sub);
   }
 
   @Get('summary')

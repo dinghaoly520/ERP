@@ -98,7 +98,7 @@ export function PersonalCenterHero({ user, onOpenBasicInfo, onOpenPreferences, o
             <CalendarClock size={14} strokeWidth={1.7} />近期登录
           </button>
           <button onClick={onOpenMemberList} className="neu-btn-soft" type="button">
-            <Users size={14} strokeWidth={1.7} />人员列表
+            <Users size={14} strokeWidth={1.7} />通讯联络
           </button>
           <button onClick={onLogout} disabled={loggingOut} type="button"
             className="neu-btn-soft is-danger disabled:cursor-not-allowed disabled:opacity-55">

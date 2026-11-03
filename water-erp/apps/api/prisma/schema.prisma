@@ -3415,6 +3415,19 @@ model WorkArrangementDailyPlanCache {
   @@index([userId, date])
 }
 
+/// 工作画像缓存（2026-11-03 用户裁定）：画像仅在每周一 12:00 定时批量为全体管理端账号生成，
+/// 读取端零生成、无任何手动刷新——本表为唯一数据源（替代原前端 15 天 localStorage 缓存）
+model WorkPortraitCache {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  portrait    Json     // 完整画像响应（narrative/metrics/domainFocus）
+  generatedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+}
+
 /// 评分标准模板（用户保存的整套评分项 + 得分点，便于跨项目复用）
 model ScoreTemplate {
   id                String   @id @default(cuid())

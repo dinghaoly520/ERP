@@ -168,6 +168,9 @@ export async function fetchWorkArrangementTemplates() {
 }
 
 export type WorkPortrait = {
+  /** 2026-11-03 裁定：画像仅每周一 12:00 后端批量生成，读取端零生成——available=false 表示尚无画像 */
+  available?: boolean;
+  generatedAt?: string | null;
   narrative: string;
   metrics: {
     totalApprovals: number;

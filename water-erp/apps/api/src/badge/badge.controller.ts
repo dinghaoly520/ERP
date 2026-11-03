@@ -19,10 +19,8 @@ export class BadgeController {
   }
 
   @Post('recompute')
-  @ApiOperation({ summary: '手动触发当前用户印记重算' })
+  @ApiOperation({ summary: '手动触发当前用户印记重算（同步执行，返回最新印记）' })
   async recompute(@CurrentUser() user: AuthenticatedUser) {
-    const u = await this.service.getUserBadges(user.sub);
-    // 触发完整重算前需要拿用户 createdAt — 由 service 内部 recomputeAll 处理更稳。
-    return { ok: true, message: '已请求后台重算', count: u.length };
+    return this.service.recomputeCurrentUser(user.sub);
   }
 }
