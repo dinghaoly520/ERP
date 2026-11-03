@@ -9,6 +9,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -43,6 +44,13 @@ export class KnowledgeController {
   })
   findAll(@CurrentUser() user: AuthenticatedUser | undefined) {
     return this.knowledge.findAll(user);
+  }
+
+  @Get('assistant-overview')
+  @ApiOperation({ summary: '水叮当知识库面板取数（mine=本人库；shared=他人共享库）' })
+  assistantOverview(@CurrentUser() user: AuthenticatedUser | undefined) {
+    if (!user?.sub) throw new ForbiddenException('请登录后使用知识库');
+    return this.knowledge.assistantOverview(user);
   }
 
   @Get(':id')

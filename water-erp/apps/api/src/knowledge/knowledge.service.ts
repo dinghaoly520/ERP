@@ -257,4 +257,38 @@ export class KnowledgeService {
 
     return { reindexed: true, fileCount: kb.files.length };
   }
+
+  /** 水叮当知识库面板取数（2026-11-03 设计 §4.3）：mine=本人库，shared=他人共享库
+   *  （他人私有库与停用库不入——where 即检索集口径）。写操作仍走既有端点与
+   *  assertEditable 闸。ownerName 经 User.displayName 批量解析（模型无 owner 关系）。 */
+  async assistantOverview(user: User) {
+    if (!user?.sub) throw new ForbiddenException('请登录后使用知识库');
+    const rows = await this.prisma.knowledgeBase.findMany({
+      where: { isActive: true, OR: [{ ownerId: user.sub }, { isShared: true }] },
+      select: {
+        id: true, name: true, isShared: true, ownerId: true,
+        files: {
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, fileName: true, fileSize: true, chunkCount: true, createdAt: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    const ownerIds = [...new Set(rows.map((r) => r.ownerId))];
+    const owners = ownerIds.length
+      ? await this.prisma.user.findMany({
+          where: { id: { in: ownerIds } },
+          select: { id: true, displayName: true, username: true },
+        })
+      : [];
+    const nameOf = new Map(owners.map((o) => [o.id, o.displayName || o.username]));
+    const named = rows.map((r) => ({
+      ...r,
+      ownerName: r.ownerId === user.sub ? '我' : (nameOf.get(r.ownerId) ?? '其他成员'),
+    }));
+    return {
+      mine: named.filter((r) => r.ownerId === user.sub),
+      shared: named.filter((r) => r.ownerId !== user.sub),
+    };
+  }
 }
