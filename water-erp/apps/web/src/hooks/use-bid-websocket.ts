@@ -8,7 +8,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { portalURL } from '@water-erp/config';
+import { gatewayWsUrl } from '@water-erp/config';
 import {
   BID_EVENT,
   type ConnectionState,
@@ -38,8 +38,8 @@ import {
 } from '@water-erp/shared';
 
 function wsUrl(): string {
-  if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL;
-  return portalURL('api', '/bid');
+  // 2026-11-03 统一走 gatewayWsUrl（同源/直连双模；NEXT_PUBLIC_WS_URL 单值会劫持多命名空间，弃用）
+  return gatewayWsUrl('/bid');
 }
 
 export interface BidWsHandlers {

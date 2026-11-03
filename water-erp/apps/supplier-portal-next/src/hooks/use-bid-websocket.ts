@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
-import { portalURL } from "@water-erp/config";
+import { gatewayWsUrl } from "@water-erp/config";
 import {
   BID_EVENT,
   type ConnectionState,
@@ -36,8 +36,8 @@ export interface BidWsHandlers {
 }
 
 function wsUrl(): string {
-  const env = process.env.NEXT_PUBLIC_WS_URL;
-  return env || portalURL("api", "/bid");
+  // 2026-11-03 统一走 gatewayWsUrl（同源/直连双模；NEXT_PUBLIC_WS_URL 单值会劫持多命名空间，弃用）
+  return gatewayWsUrl("/bid");
 }
 
 /**
