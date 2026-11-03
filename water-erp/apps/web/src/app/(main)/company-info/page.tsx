@@ -159,12 +159,12 @@ export default function CompanyInfoPage() {
             </div>
           </div>
           <div className="page-hero__right">
-            <div className="neu-btn-group !w-auto">
+            <div className="flex items-center gap-2">
               <button type="button" onClick={() => void load()} className="neu-btn-soft" title="重新加载本公司信息">
                 <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
                 刷新
               </button>
-              <button type="button" onClick={() => void save()} disabled={saving} className="neu-btn-primary is-water">
+              <button type="button" onClick={() => void save()} disabled={saving} className="neu-btn-soft">
                 {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                 {saving ? '保存中...' : '保存'}
               </button>
