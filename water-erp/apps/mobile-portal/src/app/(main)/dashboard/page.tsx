@@ -13,6 +13,8 @@ import {
   Lightbulb,
   Bot,
   RefreshCw,
+  Radar,
+  Gauge,
   Share2,
   Sparkles,
   Target,
@@ -28,6 +30,7 @@ import {
   type DashboardData,
 } from "@/lib/api/dashboard";
 import { fetchDashboardAnalysis, fetchMobileBrief, type DashboardAnalysisResult, type MobileBrief } from "@/lib/api/ai";
+import { fetchAlertsOverview, fetchPerformanceMetrics, type AlertsOverview, type PerformanceMetrics } from "@/lib/api/cockpit";
 import { useAuth } from "@/components/m/auth-context";
 import { CompanyPicker } from "@/components/m/company-picker";
 import { BottomSheet } from "@/components/m/bottom-sheet";
@@ -232,6 +235,9 @@ export default function DashboardPage() {
   const [ranking, setRanking] = useState<CompanyRankingView | null>(null);
   /* 龙虎榜失败≠空数据（P2，2026-11-03）：失败保留旧数据 + 显式重试入口，不再伪装成空态 */
   const [rankingError, setRankingError] = useState(false);
+  /* 资源告警 + 项目质效（2026-11-03 数据利用评审：后端现成、此前 :3011 零呈现） */
+  const [alerts, setAlerts] = useState<AlertsOverview | null>(null);
+  const [perf, setPerf] = useState<PerformanceMetrics | null>(null);
   const [rankingRange, setRankingRange] = useState<CompanyRankingRange>("year");
   useEffect(() => {
     let active = true;
@@ -240,6 +246,14 @@ export default function DashboardPage() {
       .catch(() => { if (active) setRankingError(true); }); // 失败≠空数据——区分重试态（P2，2026-11-03）
     return () => { active = false; };
   }, [rankingRange, retryTick]);
+
+  // 资源告警 + 项目质效：失败保留旧数据（告警）/静默隐藏（质效），随重试重取
+  useEffect(() => {
+    let active = true;
+    fetchAlertsOverview().then((a) => { if (active) setAlerts(a); }).catch(() => undefined);
+    fetchPerformanceMetrics().then((p) => { if (active) setPerf(p); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [retryTick]);
 
   // 一键转发今日要报：navigator.share 优先，AbortError=用户取消静默返回；无 share/分享失败回落剪贴板复制
   const [shared, setShared] = useState<"idle" | "ok" | "fail">("idle");
@@ -658,6 +672,25 @@ export default function DashboardPage() {
             )}
           </SectionCard>
 
+          {/* ── 项目质效（近一年，/performance/metrics——与 :3005 质效评分卡同源口径）── */}
+          {perf ? (
+            <SectionCard
+              icon={Gauge}
+              title="项目质效"
+              index={0.5}
+              right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">近一年</span>}
+            >
+              <div className="grid grid-cols-2 gap-2">
+                <MetricCard label="项目数" value={String(perf.projectCount)} tone="accent" />
+                <MetricCard label="平均周期" value={perf.avgCycleDays != null ? `${perf.avgCycleDays} 天` : "—"} />
+                <MetricCard label="节资率" value={perf.savingsRate != null ? `${perf.savingsRate}%` : "—"} tone="success" />
+                <MetricCard label="竞争度" value={perf.competitionAvg != null ? `${perf.competitionAvg} 家/项` : "—"} />
+                <MetricCard label="异议率" value={perf.objectionRate != null ? `${perf.objectionRate}%` : "—"} tone={perf.objectionRate && perf.objectionRate > 0 ? "warning" : "default"} />
+                <MetricCard label="验收率" value={perf.acceptanceRate != null ? `${perf.acceptanceRate}%` : "—"} tone="success" />
+              </div>
+            </SectionCard>
+          ) : null}
+
           {/* ── 采购执行趋势 ── */}
           <SectionCard
             icon={BarChart3}
@@ -1053,6 +1086,28 @@ export default function DashboardPage() {
                     </div>
                     <p className="mt-1 line-clamp-2 pl-4 text-[14px] leading-snug text-[var(--muted-foreground)]">{p.reason}</p>
                   </button>
+                ))}
+              </div>
+            </SectionCard>
+          ) : null}
+
+          {/* ── 资源告警（/alerts/overview——项目风险之外的第二雷达：资质临期/专家过载）── */}
+          {alerts ? (
+            <SectionCard icon={Radar} title="资源告警" index={8.5}>
+              <div className="space-y-2">
+                {[
+                  { label: "供应商资质 90 天内到期", n: alerts.expiringQualifications },
+                  { label: "在编专家项目过载", n: alerts.overloadedExperts },
+                ].map((a) => (
+                  <div
+                    key={a.label}
+                    className="flex items-center justify-between rounded-[12px] border border-[color-mix(in_oklch,var(--warning)_18%,transparent)] bg-[color-mix(in_oklch,var(--warning)_4%,transparent)] px-3 py-2.5"
+                  >
+                    <span className="text-[14px] text-[var(--foreground)]">{a.label}</span>
+                    <span className={`text-[16px] font-black tabular-nums ${a.n > 0 ? "text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>
+                      {a.n}
+                    </span>
+                  </div>
                 ))}
               </div>
             </SectionCard>
