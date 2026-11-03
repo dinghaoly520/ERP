@@ -25,7 +25,17 @@
 
 ### 3.1 图卡自包含（chart.mapper.ts）
 
-`ChartCard` 新增 `data: { rows, columns, viz }`（与 `option` 并存——:3005 继续用 option/ECharts，:3011 用 data/SVG）。图卡从此可独立于表卡被消费。
+`ChartCard` 新增 `data`（与 `option` 并存——:3005 继续用 option/ECharts，:3011 用 data/SVG）。图卡从此可独立于表卡被消费。实施时细化为**派生序列**（与 ECharts 视图同源派生，消费端免重算排序/TopN）：
+
+```
+data: {
+  rows:   Array<Record<string, unknown>>;              // 原始行（已滤 _total）
+  points: Array<{ name: string; value: number }>?;     // pie/bar/hbar 降序；line 时间升序
+  labels: string[]?;                                    // line/grouped_bar 的 x 轴标签
+  series: Array<{ name: string; values: number[] }>?;   // grouped_bar 干净数值系
+  total:  number?;                                      // pie 中心总计
+}
+```
 
 ### 3.2 cockpit 补 viz（cockpit.tool.ts）
 
