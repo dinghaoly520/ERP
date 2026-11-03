@@ -13,6 +13,14 @@
   --card: color-mix(in oklch, white 85%, #dce9ff 15%);
   --accent: oklch(0.63 0.128 247);
   --accent-strong: oklch(0.56 0.153 251);
+  /* ── 新拟态阴影令牌（2026-11-03 归位：曾被误粘进 @keyframes glow-drift 块内，
+     keyframes 内自定义属性不进层叠、整组失效——按钮层底色/字色全透明的根因）── */
+  --neu-dark-soft: oklch(0.45 0.08 258);
+  --neu-brand: var(--accent-strong);
+  --neu-brand-deep: oklch(0.42 0.16 251);
+  --neu-raised-bg: #edf2f8;
+  --neu-raised-bg-hover: #e4eaf3;
+  --neu-link-bg: #dce3ee;
   --accent-soft: oklch(0.905 0.04 243);
   --success: oklch(0.71 0.112 164);
   --warning: oklch(0.78 0.122 83);
@@ -256,14 +264,6 @@ a {
 @keyframes glow-drift {
   0%   { transform: translate3d(0, 0, 0) scale(1); }
   100% { transform: translate3d(-2%, 1.5%, 0) scale(1.06); }
-
-/* ── 新拟态阴影令牌 ── */
-  --neu-dark-soft: oklch(0.45 0.08 258);
-  --neu-brand: var(--accent-strong);
-  --neu-brand-deep: oklch(0.42 0.16 251);
-  --neu-raised-bg: #edf2f8;
-  --neu-raised-bg-hover: #e4eaf3;
-  --neu-link-bg: #dce3ee;
 }
 
 /* ══════════════════════════════════════════════════════════════════
