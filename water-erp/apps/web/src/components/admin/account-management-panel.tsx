@@ -316,6 +316,17 @@ export function AccountManagementPanel() {
                     {pending.total} 项待审
                   </span>
                 )}
+                {/* 刷新（2026-11-03 用户裁定：从右侧操作区移到左侧标题旁，做成带文字按钮） */}
+                <button
+                  type="button"
+                  onClick={refresh}
+                  disabled={isPending}
+                  className="neu-btn-soft !h-[30px] !px-3 !text-xs"
+                  aria-label="刷新"
+                >
+                  <RefreshCw size={13} className={isPending ? "animate-spin" : ""} />
+                  刷新
+                </button>
               </div>
               <div className="page-hero__sub">{SUBTITLE[tab]}</div>
             </div>
@@ -325,15 +336,6 @@ export function AccountManagementPanel() {
             {/* 公司信息管理（原「单位管理」，2026-10-10 更名增强：弹窗内可维护全量公司的开标/监督/采购人信息）；
                 合规规则/系统健康已迁侧栏「系统管理」组独立页（2026-10-09 迁出），本页不再重复入口 */}
             <button type="button" onClick={() => setToolView("companies")} className="neu-btn-soft" title="公司信息与业绩维护（全部公司）">公司信息管理</button>
-            <button
-              type="button"
-              onClick={refresh}
-              disabled={isPending}
-              className="neu-btn-xs"
-              aria-label="刷新"
-            >
-              <RefreshCw size={14} className={isPending ? "animate-spin" : ""} />
-            </button>
             {tab === "list" && listView === "staff" ? (
               <button
                 type="button"
