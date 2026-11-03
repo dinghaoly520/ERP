@@ -488,7 +488,7 @@ ${toolList}
             return rest;
           }),
         })),
-    ).slice(0, 3000)}\n\n【严格写作要求 —— 违反即为编造数据】\n1. 若用户问"有哪些项目/供应商/专家"等清单类问题，必须逐条列出实体清单中的名称，不得只给汇总数字。\n2. 涉及统计/数量时，必须原样引用上面的关键数字，例如"系统共有 1 个采购项目、24 个招标项目"——数字一个不能改。\n3. 后续每段也必须引用上面的具体数字，不能只说"有多条记录"。\n4. 英文状态码（OPENING、PENDING等）在回答中必须译为中文。`;
+    ).slice(0, 3000)}\n\n【严格写作要求 —— 违反即为编造数据】\n0. 所有工具已执行完毕、上述即全部数据——你的回复中【禁止出现任何 TOOL_CALL 指令】，直接给出面向用户的最终中文回答（2026-11-03 实录：第二轮再发 TOOL_CALL 被剥离后正文为空，用户拿到「未能生成有效回复」）。\n1. 若用户问"有哪些项目/供应商/专家"等清单类问题，必须逐条列出实体清单中的名称，不得只给汇总数字。\n2. 涉及统计/数量时，必须原样引用上面的关键数字，例如"系统共有 1 个采购项目、24 个招标项目"——数字一个不能改。\n3. 后续每段也必须引用上面的具体数字，不能只说"有多条记录"。\n4. 英文状态码（OPENING、PENDING等）在回答中必须译为中文。`;
 
     try {
       // 若剥离 TOOL_CALL 后 answer 为空，不传空 assistant 消息（DeepSeek 会拒绝空 content）
@@ -501,8 +501,22 @@ ${toolList}
 
       this.logger.log('handleNormalChat: 开始第二轮 DeepSeek 调用...');
       const followUp = await this.model.chat(followUpMessages);
-      const followUpText = followUp.text?.trim();
+      let followUpText = followUp.text?.trim();
       this.logger.log(`handleNormalChat: 第二轮 DeepSeek 调用完成，回复长度=${followUpText?.length || 0}, 前200字=${followUpText?.slice(0, 200) || '(空)'}`);
+      /* 防御网（2026-11-03 实录）：第二轮偶发再输出纯 TOOL_CALL/空文——剥离后正文
+       * 为空、用户拿到「未能生成有效回复」。追加一条显式禁令重试一次（仅失败路径付费） */
+      if (!followUpText || !this.stripAllToolCalls(followUpText).trim()) {
+        this.logger.warn('handleNormalChat: 第二轮为空/纯 TOOL_CALL，追加禁令重试一次');
+        const retry = await this.model.chat([
+          ...followUpMessages,
+          { role: 'user' as const, content: '（系统消息）禁止再输出任何 TOOL_CALL——所有工具已执行完毕、上述即全部数据。请直接给出面向用户的最终中文回答。' },
+        ]);
+        const retryText = retry.text?.trim();
+        if (retryText && this.stripAllToolCalls(retryText).trim()) {
+          followUpText = retryText;
+          this.logger.log(`handleNormalChat: 重试成功，回复长度=${retryText.length}`);
+        }
+      }
       if (followUpText) {
         answer = followUpText;
       }
