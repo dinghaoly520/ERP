@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PUBLIC_VISIBLE_CLASSES } from '@water-erp/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantTool, AssistantToolCtx, ToolResult } from './assistant-tool';
+import { announcementCompanyAllows, announcementCompanyWhere } from './company-filter';
 import { ANNOUNCEMENT_TYPE_LABEL, t as translate } from './labels';
 
 /** 公开域判定（2026-09-29 二审 P1）：AI 工具只答"已发布且公开可见"的公告——
@@ -32,27 +33,33 @@ export class AnnouncementTool implements AssistantTool {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async execute(args: Record<string, unknown> = {}, _ctx?: AssistantToolCtx): Promise<ToolResult> {
+  async execute(args: Record<string, unknown> = {}, ctx?: AssistantToolCtx): Promise<ToolResult> {
     const action = (args.action as string) || 'list';
     const type = args.type as string | undefined;
     const announcementId = args.announcementId as string | undefined;
     const limit = (args.limit as number) || 10;
+    // 公司口径（2026-11-03 用户裁定）：管理端公告按归属公司隔离（平台级全员可见）；
+    // 匿名=不过滤（公开可见性仍由 PUBLIC_WHERE 把关）
+    const companyScope = announcementCompanyWhere(ctx);
 
     if (action === 'detail' && announcementId) {
       const ann = await this.prisma.announcement.findUnique({
         where: { id: announcementId },
         include: { _count: { select: { attachments: true } } },
       });
-      if (!ann || !isPubliclyVisible(ann)) return { success: false, error: '公告不存在或不可见' };
+      // findUnique 直查旁路收口：公司归属 JS 侧判定（where 片段进不了 unique 查询）
+      if (!ann || !isPubliclyVisible(ann) || !announcementCompanyAllows(ctx, ann.companyId)) {
+        return { success: false, error: '公告不存在或不可见' };
+      }
       return { success: true, data: ann };
     }
 
     if (action === 'stats') {
       const [published, byType] = await Promise.all([
-        this.prisma.announcement.count({ where: PUBLIC_WHERE as never }),
+        this.prisma.announcement.count({ where: { ...PUBLIC_WHERE, ...companyScope } as never }),
         this.prisma.announcement.groupBy({
           by: ['type'], _count: true,
-          where: PUBLIC_WHERE as never,
+          where: { ...PUBLIC_WHERE, ...companyScope } as never,
         }),
       ]);
       byType.sort((a, b) => b._count - a._count);
@@ -88,8 +95,8 @@ export class AnnouncementTool implements AssistantTool {
       };
     }
 
-    // default: list —— 公开域口径，不提供按草稿/下架状态筛选
-    const where: Record<string, unknown> = { ...PUBLIC_WHERE };
+    // default: list —— 公开域口径，不提供按草稿/下架状态筛选；公司归属同口径过滤
+    const where: Record<string, unknown> = { ...PUBLIC_WHERE, ...companyScope };
     if (type) where.type = type;
     const announcements = await this.prisma.announcement.findMany({
       where: where as never,

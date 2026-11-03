@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantTool, AssistantToolCtx, ToolResult } from './assistant-tool';
-import { toolCompanyWhere } from './company-filter';
+import { announcementCompanyWhere, toolCompanyWhere } from './company-filter';
 import {
   PROCUREMENT_STATUS_LABEL,
   STAGE_LABEL,
@@ -19,8 +19,10 @@ export class GlobalOverviewTool implements AssistantTool {
 
   async execute(_args: Record<string, unknown> = {}, ctx?: AssistantToolCtx): Promise<ToolResult> {
     // 公司口径（:3011 P1）：leader/staff 只见本公司；专家经 user 关系（User.companyId）；
-    // 公告计数不过滤——平台级公告（companyId null）全员可见，naive companyId 过滤会错删
+    // 公告计数走公告域口径（2026-11-03）：本公司∪平台级（companyId null 恒全员，
+    // naive companyId 过滤会错删平台级公告）
     const companyWhere = toolCompanyWhere(ctx);
+    const announcementScope = announcementCompanyWhere(ctx);
     const [
       procurementCount,
       bidCount,
@@ -32,7 +34,7 @@ export class GlobalOverviewTool implements AssistantTool {
       this.prisma.bidProject.count({ where: { ...companyWhere, isExtractionOnly: false } }),
       this.prisma.supplier.count({ where: companyWhere }),
       this.prisma.expertProfile.count({ where: { user: companyWhere } }),
-      this.prisma.announcement.count({ where: { status: 'PUBLISHED' } }),
+      this.prisma.announcement.count({ where: { status: 'PUBLISHED', ...announcementScope } as never }),
     ]);
 
     const procurementByStatus =

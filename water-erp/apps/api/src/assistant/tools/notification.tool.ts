@@ -2,21 +2,28 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantTool, AssistantToolCtx, ToolResult } from './assistant-tool';
 
+/** 通知工具（2026-11-03 公司隔离收口）：通知是发给个人的私有数据——此前全表裸查
+ *  （全平台未读总数 / 任何人最近通知标题直接出给 AI），既无本人也无公司口径。
+ *  现一律按登录人（ctx.user.sub）过滤；匿名（公开 :3008 访客）不可用本工具。 */
 @Injectable()
 export class NotificationTool implements AssistantTool {
   name = 'notification';
   description =
-    '查询通知列表/统计/未读数量。args: { action: "list"|"stats"|"unread", limit? }';
+    '查询当前登录用户的通知列表/统计/未读数量。args: { action: "list"|"stats"|"unread", limit? }';
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async execute(args: Record<string, unknown> = {}, _ctx?: AssistantToolCtx): Promise<ToolResult> {
+  async execute(args: Record<string, unknown> = {}, ctx?: AssistantToolCtx): Promise<ToolResult> {
+    if (!ctx?.user?.sub) {
+      return { success: false, error: '通知为个人数据，请登录后查询' };
+    }
     const action = (args.action as string) || 'stats';
     const limit = (args.limit as number) || 10;
+    const mine = { userId: ctx.user.sub };
 
     if (action === 'unread') {
       const unread = await this.prisma.notification.count({
-        where: { isRead: false },
+        where: { ...mine, isRead: false },
       });
       return {
         success: true,
@@ -35,8 +42,8 @@ export class NotificationTool implements AssistantTool {
 
     if (action === 'stats') {
       const [total, unread] = await Promise.all([
-        this.prisma.notification.count(),
-        this.prisma.notification.count({ where: { isRead: false } }),
+        this.prisma.notification.count({ where: mine }),
+        this.prisma.notification.count({ where: { ...mine, isRead: false } }),
       ]);
       return {
         success: true,
@@ -58,6 +65,7 @@ export class NotificationTool implements AssistantTool {
 
     // list
     const notifications = await this.prisma.notification.findMany({
+      where: mine,
       take: limit,
       orderBy: { createdAt: 'desc' },
       select: {

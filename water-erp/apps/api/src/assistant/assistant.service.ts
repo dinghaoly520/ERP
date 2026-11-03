@@ -172,9 +172,9 @@ export class AssistantService {
     const roleContext = userRole
       ? `\n\n【当前用户的身份信息】\n用户的系统角色是"${userRole}"。${
           ['admin', 'bid_host', 'leader', 'staff'].includes(userRole)
-            ? ['admin', 'bid_host'].includes(userRole)
+            ? userRole === 'admin'
               ? '该用户属于管理层，拥有全系统数据访问权限。你可以综合分析所有模块的数据，给出全局视角的建议。'
-              : '该用户属于公司管理层（leader/staff），数据权限限于其所属公司；工具会自动按公司过滤，回答时不要跨公司汇总，除非用户明确是管理员。'
+              : '该用户属于公司管理层（leader/staff/bid_host），数据权限限于其所属公司；工具会自动按公司过滤，回答时不要跨公司汇总，除非用户明确是管理员。'
             : '该用户属于业务层角色，你只应分析与其业务范围直接相关的数据。如果用户询问跨模块或全系统性的问题，应说明数据权限限制并聚焦到其可访问的范围内。'
         }\n`
       : '';
