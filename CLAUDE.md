@@ -518,6 +518,15 @@ In non-interactive environments, use `prisma migrate dev --create-only` → `pri
 - **快照重封**（`SNAPSHOT_RESEAL_CRYPTO=1`，仅 CI）：快照内 sealedKey/bidPrice 是 dev KMS 包裹、FileAsset 引用 dev 产物——异 KMS 环境解不开。恢复时缺失 FileAsset 补桩（dummy 对象+哈希）、sealedKey 置空（走 legacy 完整性校验）、bidPrice 本地重封占位价。dev 关闭保持原值（快照是证据件）。产物仅作冒烟，非证据。
 - **教训闸**（memory `unit-tests-green-does-not-mean-boots` 的落地）：boot smoke 与 tsc 闸在 CI 首日各捕获一个真实 bug（ConflictException 导入漏 / Length 同类）。
 
+## 采购口径与命名裁定（2026-11-03）
+
+- **平台为采购口径**：「招标」不得泛指平台业务——BidProject 称「投标项目/开评标」；ProcurementProject 状态 BIDDING=「采购执行中」；水叮当工具/提示词/知识库同口径（`assistant/tools/labels.ts` + `system-knowledge.ts`）。
+- **阶段以采购流程为准**：PMI currentStage 九阶段+直接采购备案表为唯一 canon（`progress.service.ts STAGE_LABELS`）；BidProject 阶段只在投标类提问出现（bid 工具卡标「投标项目阶段分布」）；「采购趋势」用台账轮次月度（procurement `monthly`），不用 BidProject 计数。
+- **:3011 无公司隔离、总数据**（2026-11-03 用户裁定）：移动端 chat 携 `context.portal='mobile-3011'` → 内部角色置 `ctx.totalData` 短路公司过滤（`company-filter.ts`）；:3005/:3008 不带标记维持隔离。**admin 公司选择器（:3011/:3005）为显式筛选，不属隔离**。
+- **统一命名**：totalAward=「成交总额」（三端）；结果构成 PENDING=「待处理」（dashboard.service 单源）。
+- **邀请招标项目例外**：其采购文件阶段徽章显法定名「招标文件」（progress-content 按方式模板），分布图仍用 canon「采购文件」——维持现状（裁定 #3）。
+- 枚举标签唯一裸出面是**卡片 rows**（answer 有双兜底）：新增枚举值必须同步 `assistant/tools/labels.ts` 与 `STAGE_LABELS`（CLARIFY_NOTICE/DIRECT_PURCHASE_FILING 两度实录漏映射）。
+
 ## 谈判采购文件读端口径（2026-10-20 定案）
 
 **谈判采购不发布采购公告（BID_NOTICE），采购邀请书替代公告位**——故 `BidDocument` 表对谈判项目**恒空**，采购文件经 Redis `negotiation-config:{projectId}` 交付（`refFileKeys`=PMI 阶段附件主轨·本地 uploads/ 磁盘，`attachFileIds`/`refFileKeys` 兜底=FileAsset·MinIO）。任何读 `BidDocument` 的消费端对谈判项目都会拿到空——新消费端先判采购方式：
