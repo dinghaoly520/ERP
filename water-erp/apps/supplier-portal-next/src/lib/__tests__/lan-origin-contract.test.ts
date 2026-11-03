@@ -73,6 +73,14 @@ test("notificationWsUrl：本机 localhost 访问仍指向 localhost", async () 
   });
 });
 
+test("notificationWsUrl：生产域名模式走同源 + 命名空间（2026-11-03 拓扑修正——前后端分离、api 子域对浏览器不可达，门户 nginx 反代 /socket.io/）", async () => {
+  await withDevEnv(async () => {
+    await withWindow({ protocol: "https:", hostname: "procurement-ssyc.scsfjt.com" }, () => {
+      assert.equal(notificationWsUrl(), "https://procurement-ssyc.scsfjt.com/notifications");
+    });
+  });
+});
+
 test("notificationWsUrl：SSR（无 window）兜底 localhost", async () => {
   await withDevEnv(async () => {
     await withWindow(undefined, () => {

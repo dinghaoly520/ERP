@@ -50,17 +50,41 @@ export const ROLE_PORTAL: Record<string, AppName> = {
 };
 
 /**
+ * socket.io 网关统一寻址（2026-11-03 上收，6 消费点共用：通知 / 开标×4 / 聊天）。
+ * namespace 作参数（如 '/notifications'、'/bid'、'/chat'）。
+ *
+ * 拓扑口径（生产前后端分离：浏览器只可达门户域，门户→后端仅开 API 端口，
+ * api 子域对浏览器不可达——2026-11-03 用户澄清）：
+ * - 域名模式 → **同源** `${origin}${namespace}`。socket.io 的 URI pathname=命名空间、
+ *   wire path 恒为 /socket.io/——由门户侧 nginx 将 /socket.io/ 反代到 API 端口（带
+ *   WS 升级头，一个 location 服务全部命名空间）；同源免 CORS、cookie 天然携带。
+ *   旧病根：同源写 `/api/<ns>` 会让命名空间错位（实测 Invalid namespace）；指 api
+ *   子域则在分离拓扑下不可达。
+ * - 端口/IP 模式（开发/LAN）→ 直连当前主机:4001（按访问主机自适应，
+ *   2026-10-09 局域网缺口口径）。
+ * 须在浏览器端调用（读 window.location）；SSR 无 window 兜底 localhost。
+ */
+export function gatewayWsUrl(namespace: string): string {
+  const ns = namespace.startsWith('/') ? namespace : `/${namespace}`;
+  if (typeof window !== 'undefined') {
+    if (inDomainFamily(window.location.hostname)) {
+      const origin = window.location.origin || `${window.location.protocol}//${window.location.hostname}`;
+      return `${origin}${ns}`;
+    }
+    return `${window.location.protocol}//${window.location.hostname}:${PORTS.api}${ns}`;
+  }
+  return `http://localhost:${PORTS.api}${ns}`;
+}
+
+/**
  * 通知网关 WS 地址（X-P3-03 2026-09-29 上收——四门户 realtime-notifications 原样四份复制）：
- * NEXT_PUBLIC_WS_URL 覆盖（去尾斜杠）；生产=同源 /api/notifications（Next 代理升级 WS）；
- * 开发=直连 API origin。须在浏览器端调用（读 window.location.origin）。
+ * NEXT_PUBLIC_WS_URL 覆盖（去尾斜杠）——⚠️ 历史逃生口，勿随意设置：该变量曾同时被
+ * 四门户 use-bid-websocket 消费（现 hooks 已改走 gatewayWsUrl 不再读它）。
+ * 默认走 gatewayWsUrl('/notifications')（同源/直连双模，见其注释）。
  */
 export function notificationWsUrl(): string {
   if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL.replace(/\/$/, '');
-  if (process.env.NODE_ENV === 'production') return `${window.location.origin}/api/notifications`;
-  // 开发=直连 API 端口，按当前访问主机推导（localhost 本机 / 局域网 IP 自适应）——
-  // 硬编码 localhost 会让 LAN 设备连到客户端自己（2026-10-09 局域网缺口）。
-  if (typeof window === 'undefined') return `http://localhost:${PORTS.api}/notifications`;
-  return `${window.location.protocol}//${window.location.hostname}:${PORTS.api}/notifications`;
+  return gatewayWsUrl('/notifications');
 }
 
 /** 获取指定角色登陆后应跳转的完整门户 URL */

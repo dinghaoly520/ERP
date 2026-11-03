@@ -1,7 +1,7 @@
 'use client';
 
 import { io, type Socket } from 'socket.io-client';
-import { PORTS, PORTAL_DOMAINS, inDomainFamily } from '@water-erp/config';
+import { gatewayWsUrl } from '@water-erp/config';
 import { api } from '../api';
 
 // ── 类型 ──
@@ -82,20 +82,14 @@ export function uploadChatFile(file: File): Promise<UploadedFile> {
 // ── WebSocket ──
 
 /**
- * WebSocket 不能走 Next.js 的 /api rewrite（只代理 HTTP），必须直连 API 端口。
- * 生产环境用 NEXT_PUBLIC_CHAT_WS_URL 覆盖；本地从 window.location.hostname + API 端口推导。
+ * WebSocket 不能走 Next.js 的 /api rewrite（只代理 HTTP）。
+ * 2026-11-03 统一走 gatewayWsUrl('/chat')（域名模式=同源，门户侧 nginx 反代
+ * /socket.io/ → API 端口——前后端分离拓扑下 api 子域对浏览器不可达；端口/IP
+ * 模式=直连当前主机:4001）。NEXT_PUBLIC_CHAT_WS_URL 覆盖仍保留（chat 专属，无劫持问题）。
  */
-function resolveWsBaseUrl(): string {
+function chatWsUrl(): string {
   const env = process.env.NEXT_PUBLIC_CHAT_WS_URL;
-  if (env) return env.replace(/\/+$/, '');
-  if (typeof window === 'undefined') return `http://localhost:${PORTS.api}`;
-  // 域名家族访问（*.scsfjt.com，2026-10-26）→ API 子域直连（无端口，协议随当前页）；
-  // IP/端口访问 → 同主机 + API 端口（与 portalURL 双轨同口径）。
-  const domain = PORTAL_DOMAINS.api;
-  if (domain && inDomainFamily(window.location.hostname)) {
-    return `${window.location.protocol}//${domain}`;
-  }
-  return `${window.location.protocol}//${window.location.hostname}:${PORTS.api}`;
+  return env ? `${env.replace(/\/+$/, '')}/chat` : gatewayWsUrl('/chat');
 }
 
 let socket: Socket | null = null;
@@ -103,7 +97,7 @@ let socket: Socket | null = null;
 /** 单例 socket（namespace /chat）。带自动重连、cookie 凭证。 */
 export function getChatSocket(): Socket {
   if (socket) return socket;
-  socket = io(`${resolveWsBaseUrl()}/chat`, {
+  socket = io(chatWsUrl(), {
     withCredentials: true,
     transports: ['websocket', 'polling'],
     autoConnect: true,
