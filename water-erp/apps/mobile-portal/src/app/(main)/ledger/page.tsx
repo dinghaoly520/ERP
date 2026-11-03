@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Loader2, Search } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProcurements, fetchLedgerStats, fetchProcurementMethods } from "@/lib/api/procurements";
@@ -66,6 +67,8 @@ export default function LedgerPage() {
   const [searchKeyword, setSearchKeyword] = useState("");
   const [statusFilter, setStatusFilter] = useState<ResultStatusKey | null>(saved.statusFilter ?? null);
   const [methodFilter, setMethodFilter] = useState<string | null>(saved.methodFilter ?? null);
+  /* 异常四态快捷筛选（:3011 两步铁律，2026-11-03）——「异常 N」头条数字的一键明细 */
+  const [abnormalFilter, setAbnormalFilter] = useState(false);
   const [methods, setMethods] = useState<string[]>([]);
 
   const [items, setItems] = useState<ProcurementRoundItem[]>([]);
@@ -118,6 +121,35 @@ export default function LedgerPage() {
 
   const filterCompanyId = companyIds.length ? companyIds.join(",") : undefined;
 
+  /* URL 预置筛选（:3011 两步铁律，2026-11-03）——brief jump/异常卡/风险行经
+     ?abnormal=1 / ?status=<key> / ?q=<词> 直达预置；?focusPmi=<id> 直开详情弹层 */
+  const searchParams = useSearchParams();
+  const [urlConsumed, setUrlConsumed] = useState(false);
+  const [focusPmi, setFocusPmi] = useState<string | null>(null);
+  useEffect(() => {
+    if (urlConsumed) return;
+    setUrlConsumed(true);
+    const st = searchParams.get("status");
+    const q = searchParams.get("q");
+    const abnormal = searchParams.get("abnormal");
+    const pmi = searchParams.get("focusPmi");
+    if (st && RESULT_STATUS_CONFIG[st as ResultStatusKey]) setStatusFilter(st as ResultStatusKey);
+    if (q) setSearchInput(q);
+    if (abnormal === "1") setAbnormalFilter(true);
+    if (pmi) setFocusPmi(pmi);
+  }, [searchParams, urlConsumed]);
+
+  /* focusPmi：首页列表到达后直开对应详情弹层（跨页桥——进展页「查看台账」落地） */
+  const [focusOpened, setFocusOpened] = useState(false);
+  useEffect(() => {
+    if (!focusPmi || focusOpened || !items.length) return;
+    const it = items.find((x) => x.projectManagementId === focusPmi);
+    if (it) {
+      setActiveItem(it);
+      setFocusOpened(true);
+    }
+  }, [focusPmi, focusOpened, items]);
+
   /* 列表（首页替换、翻页追加；失败保留旧数据） */
   useEffect(() => {
     let active = true;
@@ -133,6 +165,7 @@ export default function LedgerPage() {
       searchKeyword: searchKeyword || undefined,
       resultStatus: statusFilter ?? undefined,
       procurementMethod: methodFilter ?? undefined,
+      abnormalOnly: abnormalFilter || undefined,
       companyId: filterCompanyId,
     })
       .then((res) => {
@@ -153,12 +186,17 @@ export default function LedgerPage() {
     return () => {
       active = false;
     };
-  }, [page, searchKeyword, statusFilter, methodFilter, filterCompanyId, retryTick]);
+  }, [page, searchKeyword, statusFilter, methodFilter, abnormalFilter, filterCompanyId, retryTick]);
 
-  /* 汇总（与列表同筛选，不含分页） */
+  /* 汇总（与列表同筛选，不含分页——P1-2 修复：搜索/状态/异常筛选全部同参） */
   useEffect(() => {
     let active = true;
-    fetchLedgerStats(undefined, undefined, filterCompanyId)
+    fetchLedgerStats({
+      companyId: filterCompanyId,
+      searchKeyword: searchKeyword || undefined,
+      resultStatus: statusFilter ?? undefined,
+      abnormalOnly: abnormalFilter || undefined,
+    })
       .then((s) => {
         if (active) setStats(s);
       })
@@ -166,7 +204,7 @@ export default function LedgerPage() {
     return () => {
       active = false;
     };
-  }, [filterCompanyId]);
+  }, [filterCompanyId, searchKeyword, statusFilter, abnormalFilter, retryTick]);
 
   /* 触底自动加载 */
   const loadMore = useCallback(() => {
@@ -244,6 +282,9 @@ export default function LedgerPage() {
               累计节资 <span className="font-bold tabular-nums text-[var(--success)]">{stats.totalSavingsLabel}</span>
             </span>
           </div>
+          {searchKeyword || statusFilter || methodFilter || abnormalFilter ? (
+            <div className="mt-1.5 text-[12px] text-[var(--muted-foreground)]">汇总口径：按当前筛选</div>
+          ) : null}
         </div>
       ) : null}
 
@@ -269,6 +310,9 @@ export default function LedgerPage() {
 
       {/* ── 筛选 chips ── */}
       <div className="mb-2 flex gap-2 overflow-x-auto pb-0.5">
+        <Chip active={abnormalFilter} onClick={() => changeFilter(() => setAbnormalFilter((v) => !v))}>
+          异常
+        </Chip>
         <Chip active={!statusFilter} onClick={() => changeFilter(() => { setStatusFilter(null); persistLedger({ statusFilter: null }); })}>
           全部状态
         </Chip>

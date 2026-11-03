@@ -14,6 +14,7 @@ export async function fetchProcurements(params: {
   departmentId?: string;
   resultStatus?: ResultStatusKey;
   searchKeyword?: string;
+  abnormalOnly?: boolean;
   recycleStatus?: 'ACTIVE' | 'RECYCLED' | 'ALL';
   category?: 'archived' | 'terminated';
   sortBy?: string;
@@ -29,6 +30,7 @@ export async function fetchProcurements(params: {
   if (params.departmentId) query.set('departmentId', params.departmentId);
   if (params.resultStatus) query.set('resultStatus', params.resultStatus);
   if (params.searchKeyword) query.set('searchKeyword', params.searchKeyword);
+  if (params.abnormalOnly) query.set('abnormalOnly', 'true');
   if (params.recycleStatus) query.set('recycleStatus', params.recycleStatus);
   if (params.category) query.set('category', params.category);
   if (params.sortBy) query.set('sortBy', params.sortBy);
@@ -37,15 +39,22 @@ export async function fetchProcurements(params: {
   return api.get<ProcurementsListResponse>(`/procurements?${query.toString()}`);
 }
 
-export async function fetchLedgerStats(
-  startDate?: string,
-  endDate?: string,
-  companyId?: string,
-): Promise<LedgerSummary> {
+/** 汇总条与列表同参（P1-2 口径漂移修复，2026-11-03）——筛选生效时两套数字必须可互相复现 */
+export async function fetchLedgerStats(filter: {
+  startDate?: string;
+  endDate?: string;
+  companyId?: string;
+  searchKeyword?: string;
+  resultStatus?: ResultStatusKey;
+  abnormalOnly?: boolean;
+}): Promise<LedgerSummary> {
   const query = new URLSearchParams();
-  if (startDate) query.set('startDate', startDate);
-  if (endDate) query.set('endDate', endDate);
-  if (companyId && companyId !== 'all') query.set('companyId', companyId);
+  if (filter.startDate) query.set('startDate', filter.startDate);
+  if (filter.endDate) query.set('endDate', filter.endDate);
+  if (filter.companyId && filter.companyId !== 'all') query.set('companyId', filter.companyId);
+  if (filter.searchKeyword) query.set('searchKeyword', filter.searchKeyword);
+  if (filter.resultStatus) query.set('resultStatus', filter.resultStatus);
+  if (filter.abnormalOnly) query.set('abnormalOnly', 'true');
   return api.get<LedgerSummary>(`/procurements/stats?${query.toString()}`);
 }
 
