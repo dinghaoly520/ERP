@@ -11,7 +11,7 @@ import { SearchSelect } from '@/components/workbench/search-select';
 import { EXPERT_TITLES, EXPERT_QUALIFICATIONS } from '@/lib/expert-standard-options';
 import { listSpecialties } from '@/lib/api/expert';
 import { useExpertAlerts } from '@/lib/hooks/use-alerts';
-import { TrendingUp, Award, AlertTriangle, ShieldAlert, ShieldCheck, Bell, Phone, MessageSquare, History, Ban, Sparkles, RefreshCw, Pencil, X, User, Hash, Briefcase, GraduationCap, Mail, Building2, Calendar, FileText, IdCard, Users, MapPin, Loader2 } from 'lucide-react';
+import { TrendingUp, Award, AlertTriangle, ShieldAlert, ShieldCheck, Bell, Phone, MessageSquare, History, Ban, Sparkles, RefreshCw, Pencil, X, User, Hash, Briefcase, GraduationCap, Mail, Building2, Calendar, FileText, IdCard, Users, MapPin, Loader2, Eye } from 'lucide-react';
 import { STAGE_LABEL, STAGE_COLOR, LEVEL_LABEL } from '@water-erp/shared';
 
 interface ScoreRecord { id: string; score: number; reason: string | null; scoreItem: { name: string; category: string; maxScore: number }; }
@@ -64,11 +64,13 @@ function InfoField({
   copyable?: boolean;
 }) {
   const empty = value == null || (typeof value === 'string' && !value.trim());
+  // 紧凑定义项（2026-11-04 用户口径：白瓷片占位大、显散）——无底色无投影，
+  // 纯 label 小字 + 值排版，靠网格与 GroupHead 组织
   return (
-    <div className={`kpi-card group flex min-w-0 flex-col gap-1 px-3.5 py-3 ${full ? 'col-span-full' : ''}`}>
+    <div className={`group flex min-w-0 flex-col gap-1 py-1 ${full ? 'col-span-full' : ''}`}>
       <span className="text-[10px] font-semibold uppercase tracking-[0.08em] leading-none text-[var(--muted-foreground)]">{label}</span>
       <div
-        className={`break-words text-[13px] font-bold leading-snug tabular-nums text-[var(--foreground)] ${mono ? 'font-mono tracking-tight' : ''} ${empty ? 'font-normal text-[var(--muted-foreground)]/55' : ''} ${copyable && !empty ? 'cursor-pointer transition-colors group-hover:text-[var(--accent)]' : ''}`}
+        className={`break-words text-[13px] font-semibold leading-snug tabular-nums text-[var(--foreground)] ${mono ? 'font-mono tracking-tight' : ''} ${empty ? 'font-normal text-[var(--muted-foreground)]/55' : ''} ${copyable && !empty ? 'cursor-pointer transition-colors group-hover:text-[var(--accent)]' : ''}`}
         title={copyable && !empty ? '点击复制' : undefined}
         onClick={copyable && !empty && typeof value === 'string' ? async () => { if (await copyToClipboard(value)) toast.success(`${label} 已复制`); else toast.error('复制失败，请手动选择复制'); } : undefined}
       >
@@ -79,16 +81,6 @@ function InfoField({
 }
 
 /** 分组标题（v3）：accent 竖点 + 粗标签 + hairline */
-function FieldGroup({ label }: { label: string }) {
-  return (
-    <div className="col-span-full mt-2 flex items-center gap-2 first:mt-0">
-      <span className="h-3 w-1 rounded-full bg-[var(--accent)]/70" />
-      <span className="text-[11px] font-extrabold tracking-[0.1em] text-[color:var(--muted-foreground)]">{label}</span>
-      <span className="flex-1 border-t" style={{ borderTopColor: "oklch(0.6 0.04 258 / 0.16)" }} />
-    </div>
-  );
-}
-
 /** 区块标题：小号大写 + 图标 */
 function SectionTitle({ icon: Icon, children }: { icon: React.ComponentType<{ size?: number }>; children: React.ReactNode }) {
   return (
@@ -206,8 +198,8 @@ export default function ExpertDetailPage() {
   };
   const PiiRevealBtn = ({ field }: { field: 'idNumber' | 'phone' | 'email' }) => (
     <button onClick={() => toggleRevealPii(field)} disabled={revealingPii === field}
-      className="neu-btn-xs is-ghost ml-1.5 !px-2 !py-0.5 !text-[10px] shrink-0" title="揭示明文（写入审计日志）">
-      {revealingPii === field ? '…' : revealedPii[field] !== undefined ? '复原' : '明文'}
+      className="ml-1 inline-flex shrink-0 items-center rounded p-0.5 text-[var(--muted-foreground)] transition-colors hover:text-[var(--accent)] disabled:opacity-50" title="揭示明文（写入审计日志）">
+      {revealingPii === field ? <Loader2 size={11} className="animate-spin" /> : revealedPii[field] !== undefined ? '复原' : <Eye size={11} />}
     </button>
   );
   const [editSaving, setEditSaving] = useState(false);
@@ -463,65 +455,72 @@ export default function ExpertDetailPage() {
         return (
           <div className="space-y-5">
             {/* 职业信息 */}
-            <section className="neu-card-static !rounded-2xl p-5">
-              <SectionTitle icon={Briefcase}>职业信息</SectionTitle>
-              <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
-                <InfoField label="专业领域" value={p.specialty} />
-                <InfoField label="职称" value={p.title} />
-                <InfoField label="执业资格" value={p.qualifications} />
-                <InfoField label="学历" value={p.education} />
-                <InfoField label="执业资格编号" value={p.licenseNo} mono copyable />
-                <InfoField label="行政区域代码" value={p.regionCode} mono />
-                <InfoField label="库内等级" value={p.expertLevel ? `${p.expertLevel} 级` : undefined} />
+            {/* 基本信息（2026-11-04 重构：三卡合一，GroupHead 分组、网格逐行凑整，
+                PII 揭示按钮图标化不再混入字段名） */}
+            <section className="neu-card-static !rounded-2xl p-5 space-y-4">
+              <SectionTitle icon={User}>基本信息</SectionTitle>
+
+              {/* 职业资格：8 瓷片 = 4 列整两行 */}
+              <div className="space-y-2.5">
+                <GroupHead>职业资格</GroupHead>
+                <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
+                  <InfoField label="专业领域" value={p.specialty} />
+                  <InfoField label="职称" value={p.title} />
+                  <InfoField label="执业资格" value={p.qualifications} />
+                  <InfoField label="学历" value={p.education} />
+                  <InfoField label="执业资格编号" value={p.licenseNo} mono copyable />
+                  <InfoField label="行政区域代码" value={p.regionCode} mono />
+                  <InfoField label="库内等级" value={p.expertLevel ? `${p.expertLevel} 级` : undefined} />
+                  <InfoField label="可用状态" value={p.availability ? <StatusBadge tone={availabilityTone as any}>{p.availability}</StatusBadge> : null} />
+                </div>
               </div>
-              {/* 工作单位 + 所属部门 成对相邻 */}
-              <div className="mt-4 grid grid-cols-1 gap-x-6 gap-y-4 border-t border-[var(--border)] pt-4 md:grid-cols-2">
-                <InfoField label="工作单位" value={p.employer} />
-                <InfoField label="所属部门" value={expert.department?.name} />
+
+              {/* 身份与联系：6 瓷片 = 3 列整两行（账户状态就近并入） */}
+              <div className="space-y-2.5">
+                <GroupHead>身份与联系</GroupHead>
+                <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
+                  <InfoField label="姓名" value={expert.displayName} />
+                  <InfoField label={<span className="inline-flex items-center">身份证号<PiiRevealBtn field="idNumber" /></span>} value={revealedPii.idNumber ?? p.idNumber} mono />
+                  <InfoField label="民族" value={p.ethnicity} />
+                  <InfoField label={<span className="inline-flex items-center">手机号码<PiiRevealBtn field="phone" /></span>} value={revealedPii.phone ?? p.phone} mono />
+                  <InfoField label={<span className="inline-flex items-center">邮箱<PiiRevealBtn field="email" /></span>} value={revealedPii.email ?? expert.email} />
+                  <InfoField label="账户状态" value={<StatusBadge tone={expert.isActive ? 'green' : 'gray'}>{expert.isActive ? '正常' : '已停用'}</StatusBadge>} />
+                </div>
               </div>
-              {/* AI 综合评价（2026-11-04）：聚合履职数据生成，每月 1 日 00:00 刷新；无履职数据不生成 */}
-              <div className="mt-4 border-t border-[var(--border)] pt-4">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[11px] font-semibold text-[var(--muted-foreground)]">综合评价</span>
+
+              {/* 工作归属 */}
+              <div className="space-y-2.5">
+                <GroupHead>工作归属</GroupHead>
+                <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
+                  <InfoField label="工作单位" value={p.employer} />
+                  <InfoField label="所属部门" value={expert.department?.name} />
+                </div>
+              </div>
+
+              {/* 综合评价（AI 聚合履职数据生成，每月 1 日 00:00 刷新；无履职数据不生成） */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2.5">
+                  <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">综合评价</span>
+                  <span className="h-px min-w-4 flex-1 bg-[color-mix(in_oklch,var(--muted-foreground)_14%,transparent)]" />
                   {p.aiEvaluatedAt && (
-                    <span className="text-[10px] text-[var(--muted-foreground)]">AI 生成 · {new Date(p.aiEvaluatedAt).toLocaleDateString('zh-CN')} 更新</span>
+                    <span className="shrink-0 text-[10px] text-[var(--muted-foreground)]">AI 生成 · {new Date(p.aiEvaluatedAt).toLocaleDateString('zh-CN')} 更新</span>
                   )}
                 </div>
-                <p className="mt-1.5 text-[13px] leading-6 text-[var(--foreground)]">
+                <p className="text-[13px] leading-6 text-[var(--foreground)]">
                   {p.aiEvaluation ?? '暂无'}
                 </p>
-                {p.notes && <p className="mt-2 text-[11px] leading-5 text-[var(--muted-foreground)]">备注：{p.notes}</p>}
+                {p.notes && <p className="text-[11px] leading-5 text-[var(--muted-foreground)]">备注：{p.notes}</p>}
+              </div>
+
+              {/* 账户元信息：登录账号可复制，入库时间戳 */}
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-t pt-3 text-[11px] text-[var(--muted-foreground)]" style={{ borderTopColor: 'oklch(0.6 0.04 258 / 0.16)' }}>
+                <span className="inline-flex items-center gap-1.5">
+                  登录账号
+                  <button onClick={() => copyToClipboard(expert.username)} className="font-mono font-semibold text-[var(--foreground)] transition-colors hover:text-[var(--accent)]" title="点击复制">{expert.username}</button>
+                </span>
+                <span className="inline-flex items-center gap-1"><Calendar size={11} /> 入库于 {new Date(expert.createdAt).toLocaleDateString('zh-CN')}</span>
               </div>
             </section>
-
-            {/* 身份与联系（2026-09-18 v3 合并为单卡分组瓷片） */}
-            <section className="neu-card-static !rounded-2xl p-5">
-              <SectionTitle icon={IdCard}>身份与联系</SectionTitle>
-              <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
-                <FieldGroup label="身份" />
-                <InfoField label="姓名" value={expert.displayName} />
-                <InfoField label={<span className="inline-flex items-center">身份证号<PiiRevealBtn field="idNumber" /></span>} value={revealedPii.idNumber ?? p.idNumber} mono />
-                <InfoField label="民族" value={p.ethnicity} />
-                <FieldGroup label="联系" />
-                <InfoField label={<span className="inline-flex items-center">手机号码<PiiRevealBtn field="phone" /></span>} value={revealedPii.phone ?? p.phone} mono />
-                <InfoField label={<span className="inline-flex items-center">邮箱<PiiRevealBtn field="email" /></span>} value={revealedPii.email ?? expert.email} />
-                <InfoField label="可用状态" value={p.availability ? <StatusBadge tone={availabilityTone as any}>{p.availability}</StatusBadge> : null} />
-              </div>
-            </section>
-
-            {/* 账户与归属 */}
-            <section className="neu-card-static !rounded-2xl p-5">
-              <SectionTitle icon={Building2}>账户与归属</SectionTitle>
-              <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
-                <InfoField label="登录用户名" value={expert.username} mono copyable />
-                <InfoField label="账户状态" value={<StatusBadge tone={expert.isActive ? 'green' : 'gray'}>{expert.isActive ? '正常' : '已停用'}</StatusBadge>} />
-              </div>
-            </section>
-
-            {/* 系统元信息 footer */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[11px] text-[var(--muted-foreground)]">
-              <span className="inline-flex items-center gap-1"><Calendar size={11} /> 入库于 {new Date(expert.createdAt).toLocaleDateString('zh-CN')}</span>
-            </div>
           </div>
         );
       })()}
