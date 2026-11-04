@@ -4,8 +4,9 @@ import { Fragment, useEffect, useState, useMemo, useRef, useCallback } from 'rea
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { recommendSuppliers, suggestBusinessTags, getTagVocabulary, polishRequirement, updateSelectionShortlist, notifySuppliers, generateNotificationContent, getSupplierList, getRsvpList, sendNegotiationConfig, markRsvpManual, markInvitedNotified } from '@/lib/api/supplier';
-import type { TagVocabularyItem, RsvpListResult, RsvpListItem } from '@/lib/api/supplier';
+import { recommendSuppliers, suggestBusinessTags, getTagVocabulary, polishRequirement, updateSelectionShortlist, notifySuppliers, generateNotificationContent, getSupplierList, getRsvpList, sendNegotiationConfig, markRsvpManual, markInvitedNotified, getHardConditionVocab, suggestHardConditions } from '@/lib/api/supplier';
+import type { TagVocabularyItem, RsvpListResult, RsvpListItem, HardConditions, HardConditionVocab } from '@/lib/api/supplier';
+import { HardConditionsSection } from './hard-conditions-section';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import { copyToClipboard } from '@/lib/copy-to-clipboard';
 import { getPmBidProject } from '@/lib/api/project-management';
@@ -235,6 +236,16 @@ export function SupplierSelectionPage({
   const toggleTag = (t: string) => { markTagsEdited(); setSelectedTags(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]); };
   const removeTag = (t: string) => { markTagsEdited(); setSelectedTags(prev => prev.filter(x => x !== t)); };
   const addCustomTag = (t: string) => { const v = t.trim(); if (!v) return; markTagsEdited(); setSelectedTags(prev => prev.includes(v) ? prev : [...prev, v]); setTagQuery(''); };
+  // 硬性筛选条件（2026-11-04 spec）：词表=库内真实数据，推荐时三态核验；手动改过 → AI 预填不再覆盖（同业务标签范式）
+  const [hardVocab, setHardVocab] = useState<HardConditionVocab | null>(null);
+  const [hardConditions, setHardConditions] = useState<HardConditions>({});
+  const hardCondUserEditedRef = useRef(false);
+  const markHardCondEdited = () => { hardCondUserEditedRef.current = true; };
+  const changeHardConditions = (v: HardConditions) => { markHardCondEdited(); setHardConditions(v); };
+  const activeHardConditions: HardConditions | undefined =
+    hardConditions.industries?.length || hardConditions.qualifications?.length || hardConditions.minGrade
+    || hardConditions.performance?.years || hardConditions.performance?.minCount || hardConditions.performance?.keywords?.length
+      ? hardConditions : undefined;
   const [maxCount, setMaxCount] = useState(3);
   const [loading, setLoading] = useState(false);
   const [reqGenerating, setReqGenerating] = useState(false);
@@ -572,6 +583,8 @@ export function SupplierSelectionPage({
   };
 
   useEffect(() => { listBidProjects().then(setProjects).catch(() => {}); getTagVocabulary(60).then(r => setTagVocab(r.items)).catch((e) => { console.warn('getTagVocabulary failed:', e); }); }, []);
+  // 硬性条件词表（行业=库内公司视野聚合+家数、资质=后端字典）；失败给空词表（UI 显示空态，不阻塞向导）
+  useEffect(() => { if (!sessionRestored || hardVocab) return; getHardConditionVocab().then(setHardVocab).catch(() => setHardVocab({ industries: [], qualifications: [] })); }, [sessionRestored, hardVocab]);
 
   // 从项目管理弹窗进入时，自动将 projectId 解析为 BidProject id（规范 id 空间），
   // 确保 rsvp 行的创建/读取与开标确认面板始终一致。
@@ -630,6 +643,13 @@ export function SupplierSelectionPage({
         if (Array.isArray(state.selectedTags)) {
           setSelectedTags(state.selectedTags);
           if (state.selectedTags.length) markTagsEdited(); // 恢复的标签视为用户意图，避免 AI 覆盖
+        }
+        if (state.hardConditions && typeof state.hardConditions === 'object') {
+          setHardConditions(state.hardConditions as HardConditions);
+          const hc = state.hardConditions as HardConditions;
+          if (hc.industries?.length || hc.qualifications?.length || hc.minGrade || hc.performance?.years || hc.performance?.minCount || hc.performance?.keywords?.length) {
+            markHardCondEdited(); // 恢复的条件视为用户意图，AI 生成不再覆盖
+          }
         }
         // 2026-09-10 防御：持久化的 projectId 可能是旧会话误挂的同名旧轮——
         // 有关联项目且列表已加载时校验归属，不符则丢弃（交由解析 effect 重新 ensure 本轮）；
@@ -797,7 +817,7 @@ export function SupplierSelectionPage({
     try {
       localStorage.setItem(sessionKey, JSON.stringify({
         v: 2,
-        requirement, reqOverview, reqScope, reqQualification, reqSpecial, reqOther, selectedTags, projectId, step, maxStepReached,
+        requirement, reqOverview, reqScope, reqQualification, reqSpecial, reqOther, selectedTags, hardConditions, projectId, step, maxStepReached,
         addMoreIdsArr: [...addMoreIds],
         result: result ? { ...result, recommendations: result.recommendations.slice(0, 20) } : null,
         shortlistArr: [...shortlist.entries()],
@@ -829,7 +849,7 @@ export function SupplierSelectionPage({
       draftPayloadRef.current = raw;
       scheduleDraftSync(draftKey);
     } catch {}
-  }, [requirementSnapshot, selectedTags, projectId, step, maxStepReached, result, shortlist, notified, notifyNotFound, completed, confirmations, notifyPerSupplier, notifyRsvpTokens, manualSearch, manualSuppliers, manualTotal, isRerun, rerunShortlist, rerunConfirmations, rerunResult, rerunNotified, rerunNotifyPerSupplier, rerunMode, rerunHistory.length, configSent, timeConfirmed, attachFiles, refFileKeys, downloadMode, downloadPassword, paidAmount, addMoreIdsSnapshot]);
+  }, [requirementSnapshot, selectedTags, hardConditions, projectId, step, maxStepReached, result, shortlist, notified, notifyNotFound, completed, confirmations, notifyPerSupplier, notifyRsvpTokens, manualSearch, manualSuppliers, manualTotal, isRerun, rerunShortlist, rerunConfirmations, rerunResult, rerunNotified, rerunNotifyPerSupplier, rerunMode, rerunHistory.length, configSent, timeConfirmed, attachFiles, refFileKeys, downloadMode, downloadPassword, paidAmount, addMoreIdsSnapshot]);
   useEffect(() => { if (!projectId) { setProjectDetail(null); return; } getBidProjectDetail(projectId).then(setProjectDetail).catch(() => setProjectDetail(null)); }, [projectId]);
 
   // 加载项目文件分析上下文（用于 AI 润色 + 供应商要求预填；步骤 1 即加载）
@@ -972,7 +992,7 @@ export function SupplierSelectionPage({
     setError(''); setLoading(true); setResult(null);
     try {
       // companyId=项目归属公司：admin 场景把 AI 候选池收敛到该公司（非 admin 由后端强制本人公司）
-      const res = await recommendSuppliers({ requirement: text, tags: selectedTags.length ? selectedTags : undefined, maxCount, projectContext: buildProjectContext(text), companyId: project?.companyId || undefined });
+      const res = await recommendSuppliers({ requirement: text, tags: selectedTags.length ? selectedTags : undefined, maxCount, projectContext: buildProjectContext(text), companyId: project?.companyId || undefined, hardConditions: activeHardConditions });
       setResult(res);
       setShortlist(new Map());
       setStep(2); // 自动跳转到审核候选步骤
@@ -999,6 +1019,7 @@ export function SupplierSelectionPage({
         excludedSupplierIds: excludeIds,
         projectContext: buildProjectContext(text),
         companyId: project?.companyId || undefined,
+        hardConditions: activeHardConditions,
       });
       if (res.recommendations.length > 0) {
         setResult(prev => prev ? { ...prev, recommendations: [...prev.recommendations, ...res.recommendations] } : res);
@@ -1106,18 +1127,30 @@ export function SupplierSelectionPage({
         ? `根据以下项目信息充实现有的供应商要求描述，保持【】标题结构与编号列表格式。要求：每部分2-4条、每条15-50字且具体可核验（认证、数量、年限、时限）；只列"对供应商的要求"，项目自身信息仅概况一段；严格段落语义——【业绩要求】只写供应商过往同类业绩与经验（几年内、几项、什么类型供货/服务案例），服务类内容（运输/安装/培训/质保/响应时限/报价限价/付款）只能写入【其他】；若现有内容段落归属错位，必须先移到正确段落后再充实。信息不足的维度可依据项目文件合理细化，但不得虚构具体认证名称或金额。\n\n现有内容：\n${buildRequirement()}`
         : `根据以下项目信息（来自采购需求、采购立项、采购文件），提炼一份面向供应商筛选的要求清单。严格按以下结构输出，编号列表，每条15-50字、具体可核验：\n\n${FORMAT_SPEC}\n\n要求：每部分2-4条（信息量实在不足可少于2条，但不得只写1条空泛的话）；从项目文件的技术参数、资格条款、服务条款中深挖素材；严格段落语义——服务类内容只进【其他】。`;
 
-      const res = await polishRequirement({
-        text: prompt,
-        projectName: selectedProject?.name || defaultProjectTitle || project?.title,
-        procurementMethod: selectedProject?.procurementMethod || project?.procurementMethod,
-        deadline: selectedProject?.deadline,
-        additionalContext: additionalContext || undefined,
-      });
+      // 硬性条件 AI 预填（2026-11-04 spec）：与五段文本并行、只从词表选；手动改过则不覆盖（同业务标签范式）
+      const hardSuggest = hardCondUserEditedRef.current || !hardVocab || (hardVocab.industries.length === 0 && hardVocab.qualifications.length === 0)
+        ? Promise.resolve(null)
+        : suggestHardConditions({
+            projectContext: additionalContext ? { 项目背景: additionalContext.slice(0, 4000) } : undefined,
+            industries: hardVocab.industries.map((i) => i.name),
+            qualifications: hardVocab.qualifications.map((q) => ({ key: q.key, label: q.label })),
+          }).catch(() => null);
+      const [res, hardRes] = await Promise.all([
+        polishRequirement({
+          text: prompt,
+          projectName: selectedProject?.name || defaultProjectTitle || project?.title,
+          procurementMethod: selectedProject?.procurementMethod || project?.procurementMethod,
+          deadline: selectedProject?.deadline,
+          additionalContext: additionalContext || undefined,
+        }),
+        hardSuggest,
+      ]);
       parsePolishedResult(res.polished);
+      if (hardRes?.hardConditions && !hardCondUserEditedRef.current) setHardConditions(hardRes.hardConditions);
       toast.success(hasContent ? '需求已润色' : '需求已生成');
     } catch (e: any) { toast.error(e?.message || '生成失败'); }
     setReqGenerating(false);
-  }, [project, fileAnalysisContext, selectedProject, defaultProjectTitle, buildRequirement, parsePolishedResult]);
+  }, [project, fileAnalysisContext, selectedProject, defaultProjectTitle, buildRequirement, parsePolishedResult, hardVocab]);
 
   // 首次进入供应商要求步骤（现为第 1 步）时，若无内容则自动 AI 生成。
   // 须等会话恢复完成（sessionRestored）再判空——已有草稿内容就不触发 AI，仅在空白时生成
@@ -1542,7 +1575,7 @@ export function SupplierSelectionPage({
     const totalDeclined = [...allSupplierStatuses.values()].filter(s => s === 'declined').length;
     const need = totalDeclined + 1;
     const rerunReq = buildRequirement() || selectedProject?.name || project?.title || '';
-    recommendSuppliers({ requirement: rerunReq, tags: selectedTags.length ? selectedTags : undefined, maxCount: need, excludedSupplierIds: excludeIds, projectContext: buildProjectContext(rerunReq), companyId: project?.companyId || undefined })
+    recommendSuppliers({ requirement: rerunReq, tags: selectedTags.length ? selectedTags : undefined, maxCount: need, excludedSupplierIds: excludeIds, projectContext: buildProjectContext(rerunReq), companyId: project?.companyId || undefined, hardConditions: activeHardConditions })
       .then(res => { setRerunResult(res); setRerunLoading(false); })
       .catch(() => { setRerunLoading(false); toast.error('补选推荐失败'); });
   };
@@ -2154,6 +2187,9 @@ export function SupplierSelectionPage({
             </div>
 
             <div className="wb-section-rule" />
+
+              {/* 硬性筛选条件（2026-11-04 spec）：词表=库内真实数据，推荐时机器三态核验 */}
+              <HardConditionsSection vocab={hardVocab} value={hardConditions} onChange={changeHardConditions} />
 
               {/* 项目概况（AI 预填上下文，可改） */}
               <div className="space-y-1.5">
