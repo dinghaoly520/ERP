@@ -48,6 +48,8 @@ export interface AuditActivity {
   details: Record<string, unknown> | null;
   /** 资源可读名（2026-11-04）：后端把 BidProject:<id>/BID-xxx/details.projectId 批量解析成项目名 */
   resourceName?: string | null;
+  /** 供应商名（2026-11-04）：details.supplierId 无名字的归属审批族由后端解析补挂 */
+  supplierName?: string | null;
   createdAt: string;
 }
 

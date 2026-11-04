@@ -168,12 +168,18 @@ export class AuditService {
    * 操作历史资源可读化（2026-11-04 用户口径）：resourceType 里塞的 `BidProject:<cuid>`
    * / `BID-xxx` 编号 / details.projectId 对用户全是黑话——批量解析成投标项目名挂在
    * resourceName 上，前端不再裸出主键。解析不到的保持 null（前端按原样兜底）。
+   * 全量形态（2026-11-04 稳健复查按 AuditLog 实测）：
+   * - `BidProject:<id>`（阶段流转/澄清/移交/AI 重跑等，主流形态）
+   * - resourceType 裸 `BidProject` + resourceId 装项目 id（EXPERT_EXTRACTION_CONFIRMED）
+   * - `BID-xxx` projectCode（邀请供应商）/ details.projectId（解密/异议裁决）
+   * - `supplier_company_link` + details.supplierId（归属审批族，无名字）→ 解析供应商名挂 supplierName
    */
-  private async withResourceNames<T extends { resourceType: string | null; details: unknown }>(
+  private async withResourceNames<T extends { resourceType: string | null; resourceId: string | null; details: unknown }>(
     rows: T[],
-  ): Promise<(T & { resourceName: string | null })[]> {
+  ): Promise<(T & { resourceName: string | null; supplierName?: string | null })[]> {
     const idSet = new Set<string>();
     const codeSet = new Set<string>();
+    const supplierIdSet = new Set<string>();
     const collect = (raw: unknown) => {
       if (typeof raw !== 'string' || !raw) return;
       const m = /^BidProject:(.+)$/.exec(raw);
@@ -182,32 +188,52 @@ export class AuditService {
     };
     for (const r of rows) {
       collect(r.resourceType);
+      if (r.resourceType === 'BidProject' && r.resourceId) idSet.add(r.resourceId);
       const d = r.details as Record<string, unknown> | null;
       if (d && typeof d.projectId === 'string') idSet.add(d.projectId);
+      if (d && typeof d.supplierId === 'string') supplierIdSet.add(d.supplierId);
     }
-    if (idSet.size === 0 && codeSet.size === 0) {
-      return rows.map(r => ({ ...r, resourceName: null }));
+
+    const byId = new Map<string, string>();
+    const byCode = new Map<string, string>();
+    if (idSet.size > 0 || codeSet.size > 0) {
+      const projects = await this.prisma.bidProject.findMany({
+        where: {
+          OR: [
+            ...(idSet.size ? [{ id: { in: [...idSet] } }] : []),
+            ...(codeSet.size ? [{ projectCode: { in: [...codeSet] } }] : []),
+          ],
+        },
+        select: { id: true, projectCode: true, name: true },
+      });
+      for (const p of projects) {
+        byId.set(p.id, p.name);
+        if (p.projectCode) byCode.set(p.projectCode, p.name);
+      }
     }
-    const projects = await this.prisma.bidProject.findMany({
-      where: {
-        OR: [
-          ...(idSet.size ? [{ id: { in: [...idSet] } }] : []),
-          ...(codeSet.size ? [{ projectCode: { in: [...codeSet] } }] : []),
-        ],
-      },
-      select: { id: true, projectCode: true, name: true },
-    });
-    const byId = new Map(projects.map(p => [p.id, p.name]));
-    const byCode = new Map(projects.filter(p => p.projectCode).map(p => [p.projectCode as string, p.name]));
+    const supplierById = new Map<string, string>();
+    if (supplierIdSet.size > 0) {
+      const suppliers = await this.prisma.supplier.findMany({
+        where: { id: { in: [...supplierIdSet] } },
+        select: { id: true, name: true },
+      });
+      for (const s of suppliers) supplierById.set(s.id, s.name);
+    }
+
     return rows.map(r => {
       const m = r.resourceType ? /^BidProject:(.+)$/.exec(r.resourceType) : null;
       const d = r.details as Record<string, unknown> | null;
       const name =
         (m && byId.get(m[1])) ||
+        (r.resourceType === 'BidProject' && r.resourceId ? byId.get(r.resourceId) : undefined) ||
         (d && typeof d.projectId === 'string' ? byId.get(d.projectId) : undefined) ||
         (r.resourceType ? byCode.get(r.resourceType) : undefined) ||
         null;
-      return { ...r, resourceName: name ?? null };
+      const supplierName =
+        d && typeof d.supplierName === 'string' ? d.supplierName
+          : d && typeof d.supplierId === 'string' ? supplierById.get(d.supplierId) ?? null
+          : null;
+      return { ...r, resourceName: name, supplierName };
     });
   }
 

@@ -124,38 +124,71 @@ const ACTION_LABEL: Record<string, string> = {
   RESTORE: '恢复',
   PUBLISH: '发布',
   HIDE: '隐藏',
+  // ── 存量补录（2026-11-04 稳健复查：按 AuditLog 全量 action 对照，此前 18 个
+  //    无标签的 action 会把英文动作码直接漏进操作历史标签位）──
+  BID_AI_RERUN_ANALYSIS: '重跑 AI 投标分析',
+  BID_BACKUP_VERIFY: '投标备份核验',
+  BID_TENDER_DOC_RELOAD: '重新传标',
+  CATALOG_APPLICATION_APPROVED: '目录申请 · 通过',
+  CATALOG_APPLICATION_COUNTERED: '目录申请 · 还价',
+  CATALOG_COUNTER_ACCEPTED: '目录还价 · 接受',
+  EXPERT_DISABLE: '停用专家',
+  EXPERT_ENABLE: '启用专家',
+  EXPERT_RESUME: '恢复专家',
+  EXPERT_RETIRE: '专家退库',
+  SUPPLIER_DISABLED: '供应商停用',
+  SUPPLIER_RESTORED: '供应商恢复',
+  SUPPLIER_EVALUATION_CREATED: '新增供应商评价',
+  SUPPLIER_LINK_APPROVED: '归属申请 · 通过',
+  SUPPLIER_LINK_PASSED_STAFF: '归属申请 · 初审通过',
+  SUPPLIER_LINK_PASSED_LEADER: '归属申请 · 复审通过',
+  SUPPLIER_LINK_REJECTED: '归属申请 · 拒绝',
+  查看账号密码: '查看账号密码',
 };
 
 /** 会话/心跳类动作——操作历史不展示（淹没业务动作的噪音） */
 const NOISE_ACTIONS = new Set(['LOGIN', 'LOGOUT']);
 
-/** 操作历史资源描述行（2026-11-04 用户口径）：优先后端解析的项目名（resourceName），
- *  其次 details 里的业务对象名（供应商名/邀请家数），最后才退回 resourceType 原文——
- *  `BidProject:<cuid>` 主键形态对用户是黑话，压成「投标项目」类目词兜底，不再裸出。 */
+/** 操作历史资源描述行（2026-11-04 用户口径）：项目名（后端解析）· 资源名前缀（中文
+ *  `供应商名:<主键>` 形态取冒号前）· 供应商名（details/后端解析）· 邀请家数。全部
+ *  解析不到时不显示该行——`BidProject:<cuid>`/`supplier_company_link` 等黑话不再裸出。 */
 function activityResourceLine(a: AuditActivity): string | null {
   const d = a.details ?? {};
   const parts: string[] = [];
+  // details.projectName 是写时快照：项目已删/改名时它是唯一名源（抽取确认等写入即带）
   if (a.resourceName) parts.push(a.resourceName);
-  if (typeof d.supplierName === 'string' && d.supplierName) parts.push(d.supplierName);
-  if (typeof d.added === 'number') parts.push(`新邀 ${d.added} 家`);
-  if (parts.length > 0) return parts.join(' · ');
+  else if (typeof d.projectName === 'string' && d.projectName) parts.push(d.projectName);
+  // `名:cuid` 复合形态：头段含中文即人写对象名（解密的「四川省xx大队:<id>」等），冒号后是主键
   const rt = a.resourceType;
+  if (rt?.includes(':')) {
+    const head = rt.slice(0, rt.indexOf(':'));
+    if (/[一-鿿]/.test(head) && head !== a.resourceName) parts.push(head);
+  }
+  const supplier = typeof d.supplierName === 'string' && d.supplierName ? d.supplierName : a.supplierName;
+  if (supplier) parts.push(supplier);
+  if (typeof d.target === 'string' && d.target) parts.push(d.target);
+  if (typeof d.added === 'number') parts.push(`新邀 ${d.added} 家`);
+  if (parts.length > 0) return [...new Set(parts)].join(' · ');
   if (!rt) return null;
-  if (/^BidProject:/.test(rt)) return '投标项目';
-  return rt;
+  if (/^BidProject/.test(rt)) return '投标项目';
+  return /[一-鿿]/.test(rt) ? rt : null; // 纯 ASCII 黑话形态不显示，优于裸主键
 }
 
-/** 连发折叠（2026-11-04）：同一动作+同一资源 2 分钟内连发多行（双击重放，实测对间隔
- *  ~0.6s 的成对澄清记录）只显示一行并带 ×N 计数——审计底账不动，纯展示层聚合。 */
+/** 连发折叠（2026-11-04）：同一动作+同一资源+同一供应商 2 分钟内连发多行（双击重放，
+ *  实测对间隔 ~0.6s 的成对澄清记录）只显示一行并带 ×N 计数——审计底账不动，纯展示层
+ *  聚合。供应商入键：同项目 2 分钟内向不同供应商各发澄清不会误并成一行。 */
 function groupActivities(acts: AuditActivity[]): AuditActivity[][] {
   const groups: AuditActivity[][] = [];
   for (const a of acts) {
     const last = groups[groups.length - 1];
     const head = last?.[0];
     const gap = head ? new Date(head.createdAt).getTime() - new Date(a.createdAt).getTime() : Infinity;
+    const supplierOf = (x: AuditActivity) =>
+      (typeof x.details?.supplierName === 'string' ? x.details.supplierName : x.supplierName) ?? '';
     if (
       head && gap <= 120_000 &&
-      head.action === a.action && head.resourceType === a.resourceType && head.resourceId === a.resourceId
+      head.action === a.action && head.resourceType === a.resourceType && head.resourceId === a.resourceId &&
+      supplierOf(head) === supplierOf(a)
     ) last.push(a);
     else groups.push([a]);
   }
@@ -391,11 +424,14 @@ export default function NotificationsPage() {
         description="我在本系统的业务操作记录（登录/登出等会话动作不在此列）"
         footer={<button className="neu-btn-soft" onClick={() => setHistoryOpen(false)}>关闭</button>}>
         <div className="max-h-[60vh] overflow-y-auto pr-1">
-          {groupActivities(activities.filter(a => !NOISE_ACTIONS.has(a.action))).length === 0 ? (
-            <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">暂无操作记录</p>
-          ) : (
+          {(() => {
+            const groups = groupActivities(activities.filter(a => !NOISE_ACTIONS.has(a.action)));
+            if (groups.length === 0) {
+              return <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">暂无操作记录</p>;
+            }
+            return (
             <div className="space-y-2">
-              {groupActivities(activities.filter(a => !NOISE_ACTIONS.has(a.action))).map(group => {
+              {groups.map(group => {
                 const a = group[0];
                 const label = ACTION_LABEL[a.action];
                 const isApprove = label?.includes('通过');
@@ -427,7 +463,8 @@ export default function NotificationsPage() {
                 );
               })}
             </div>
-          )}
+            );
+          })()}
         </div>
       </Modal>
     </div>
