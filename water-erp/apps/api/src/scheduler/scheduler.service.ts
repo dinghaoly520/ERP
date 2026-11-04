@@ -13,6 +13,9 @@ import { resolveProjectCreatorId } from '../bid/bid-project-notify.util';
 import { BID_DEADLINE_BEFORE_OPENING_MS, renderNotificationPayload } from '@water-erp/shared';
 import { formatLocalDate, formatLocalDateTime } from '../common/local-date-format.util';
 
+/** 资质到期扫描幂等窗口（天）：同资质 7 天内不重发（2026-11-04 堆积治理） */
+const QUALIFICATION_NOTICE_SKIP_DAYS = 7;
+
 export function buildExpiryNotification(input: { qualificationName: string; validTo: Date; daysLeft: number }) {
   const date = formatLocalDate(input.validTo);
   return {
@@ -23,6 +26,17 @@ export function buildExpiryNotification(input: { qualificationName: string; vali
     content: `您的资质材料「${input.qualificationName}」将于 ${date} 到期（剩 ${input.daysLeft} 天），请及时更新以免影响投标资格。`,
     link: '/profile',
   };
+}
+
+/** 资质提醒幂等键：用户|资质名|到期日——见 scanExpiringQualifications 注释 */
+export function qualificationNoticeKey(userId: string, qualificationName: string, validTo: Date): string {
+  return `${userId}|${qualificationName}|${formatLocalDate(validTo)}`;
+}
+
+/** 从既有通知正文反解幂等键（手动/定时两通道文案同构：「名」将于/已于 YYYY-MM-DD 到期） */
+export function parseQualificationNoticeKey(userId: string, content: string): string | null {
+  const m = /「(.+?)」(?:将于|已于) (\d{4}-\d{2}-\d{2})/.exec(content);
+  return m ? `${userId}|${m[1]}|${m[2]}` : null;
 }
 
 /** A-13（CTS）：供应商 CA 证书到期提醒文案——两态（即将到期/已过期），certSn 与剩余天数入文。 */
@@ -178,7 +192,10 @@ export class SchedulerService {
     }
   }
 
-  /** 每日 09:00 扫描未来 N 天内到期且未通知的资质，向供应商发站内信（经多渠道分发）。 */
+  /** 每日 09:00 扫描未来 N 天内到期且未通知的资质，向供应商发站内信（经多渠道分发）。
+   *  7 天幂等（2026-11-04 堆积治理）：同一供应商同一资质（名+到期日）7 天内已提醒过则跳过
+   *  ——此前同资质每日重发一条（8 月连续三日各 4 条实录）。换证/更新资质后 validTo 变化即新键照常提醒；
+   *  手动维护通道（supplier notifyQualificationAlert）文案同构，同样纳入去重口径。 */
   @Cron('0 9 * * *')
   async scanExpiringQualifications() {
     const horizon = Number(process.env.QUALIFICATION_EXPIRY_DAYS ?? 30);
@@ -190,13 +207,31 @@ export class SchedulerService {
       include: { supplier: { select: { userId: true, name: true } } },
     });
 
+    const since = new Date(now.getTime() - QUALIFICATION_NOTICE_SKIP_DAYS * 24 * 3600 * 1000);
+    const recent = await this.prisma.notification.findMany({
+      where: { type: 'QUALIFICATION_EXPIRING', createdAt: { gte: since } },
+      select: { userId: true, content: true },
+    });
+    const recentKeys = new Set<string>();
+    for (const n of recent) {
+      const key = parseQualificationNoticeKey(n.userId, n.content);
+      if (key) recentKeys.add(key);
+    }
+
+    let sent = 0;
+    let skipped = 0;
     for (const q of expiring) {
+      if (recentKeys.has(qualificationNoticeKey(q.supplier.userId, q.name, q.validTo!))) {
+        skipped++;
+        continue;
+      }
       const daysLeft = Math.ceil((q.validTo!.getTime() - now.getTime()) / (24 * 3600 * 1000));
       const dto = buildExpiryNotification({ qualificationName: q.name, validTo: q.validTo!, daysLeft });
       await this.notification.create({ userId: q.supplier.userId, ...dto });
+      sent++;
     }
 
-    this.logger.log(`资质到期扫描完成：通知 ${expiring.length} 条`);
+    this.logger.log(`资质到期扫描完成：通知 ${sent} 条，${QUALIFICATION_NOTICE_SKIP_DAYS} 天内已提醒跳过 ${skipped} 条`);
   }
 
   /** A-13（CTS）：供应商 CA 证书到期提醒——每日 08:15（避开 08:00/09:00 既有槽）。

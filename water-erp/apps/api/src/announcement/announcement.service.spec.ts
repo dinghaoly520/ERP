@@ -26,6 +26,8 @@ describe('AnnouncementService — P0-4 删除闸门（进行中项目禁删公�
       bidScoreRecord: { deleteMany: jest.fn() },
       bidEvaluationResult: { deleteMany: jest.fn() },
       bidInvalidBid: { deleteMany: jest.fn() },
+      // 公告删除联动清通知（2026-11-04 堆积治理）：remove() 事务内删链接指向本公告的站内信
+      notification: { deleteMany: jest.fn() },
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
     };
     // 监听 MinIO 清理调用（若被触发将断言零调用；mock 掉真实实现避免误连 MinIO）

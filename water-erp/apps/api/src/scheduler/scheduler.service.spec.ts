@@ -1,6 +1,7 @@
-import { buildExpiryNotification, buildCertExpiryNotification, SchedulerService } from './scheduler.service';
+import { buildExpiryNotification, buildCertExpiryNotification, SchedulerService, qualificationNoticeKey, parseQualificationNoticeKey } from './scheduler.service';
 import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 import { pendingBondReturnWhere } from '../bid/bond-pending.util';
+import { formatLocalDate } from '../common/local-date-format.util';
 
 describe('buildExpiryNotification', () => {
   it('生成到期提醒站内信', () => {
@@ -254,6 +255,72 @@ describe('buildCertExpiryNotification（A-13）', () => {
     expect(n.title).toBe('CA 证书已过期');
     expect(n.content).toContain('已于');
     expect(n.content).not.toContain('剩 ');
+  });
+});
+
+describe('scanExpiringQualifications — 7 天幂等（2026-11-04 堆积治理）', () => {
+  const DAY = 24 * 3600 * 1000;
+  const makeScheduler = () => {
+    const prisma: any = {
+      supplierQualification: { findMany: jest.fn() },
+      notification: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const notification: any = { create: jest.fn() };
+    const scheduler = new SchedulerService(prisma, notification, {} as any, {} as any, {} as any, {} as any);
+    return { scheduler, prisma, notification };
+  };
+
+  it('7 天内已提醒同资质（同到期日）→ 跳过；换证后新到期日 → 照常提醒', async () => {
+    const { scheduler, prisma, notification } = makeScheduler();
+    const now = Date.now();
+    const sameValidTo = new Date(now + 10 * DAY);
+    const renewedValidTo = new Date(now + 25 * DAY);
+    prisma.supplierQualification.findMany.mockResolvedValue([
+      { name: '安全生产许可证', validTo: sameValidTo, status: '有效', supplier: { userId: 'u1' } },
+      { name: '安全生产许可证', validTo: renewedValidTo, status: '有效', supplier: { userId: 'u2' } },
+    ]);
+    prisma.notification.findMany.mockResolvedValue([
+      { userId: 'u1', content: `您的资质材料「安全生产许可证」将于 ${formatLocalDate(sameValidTo)} 到期（剩 10 天），请及时更新以免影响投标资格。` },
+    ]);
+    await scheduler.scanExpiringQualifications();
+    expect(notification.create).toHaveBeenCalledTimes(1); // u1 跳过、u2 换证新键照发
+    expect(notification.create.mock.calls[0][0].userId).toBe('u2');
+  });
+
+  it('手动维护通道文案（已于 X 到期）同样反解命中——手动提醒后 7 天内扫描不重复', async () => {
+    const { scheduler, prisma, notification } = makeScheduler();
+    const now = Date.now();
+    const validTo = new Date(now + 10 * DAY);
+    prisma.supplierQualification.findMany.mockResolvedValue([
+      { name: '水利水电工程施工总承包壹级', validTo, status: '有效', supplier: { userId: 'u1' } },
+    ]);
+    prisma.notification.findMany.mockResolvedValue([
+      { userId: 'u1', content: `您的资质材料「水利水电工程施工总承包壹级」已于 ${formatLocalDate(validTo)} 到期，请及时更新以免影响投标资格。` },
+    ]);
+    await scheduler.scanExpiringQualifications();
+    expect(notification.create).not.toHaveBeenCalled();
+  });
+
+  it('无近期通知 → 全量发送；近期查询限定 7 天窗口与类型', async () => {
+    const { scheduler, prisma, notification } = makeScheduler();
+    const now = Date.now();
+    prisma.supplierQualification.findMany.mockResolvedValue([
+      { name: '安全生产许可证', validTo: new Date(now + 10 * DAY), status: '有效', supplier: { userId: 'u1' } },
+      { name: '资质证书乙', validTo: new Date(now + 20 * DAY), status: '有效', supplier: { userId: 'u2' } },
+    ]);
+    await scheduler.scanExpiringQualifications();
+    expect(notification.create).toHaveBeenCalledTimes(2);
+    const recentWhere = prisma.notification.findMany.mock.calls[0][0].where;
+    expect(recentWhere.type).toBe('QUALIFICATION_EXPIRING');
+    expect(new Date(recentWhere.createdAt.gte).getTime()).toBeGreaterThan(Date.now() - 8 * DAY);
+  });
+
+  it('幂等键正反解析对称；不匹配文案回 null 不入去重集', () => {
+    const validTo = new Date('2026-11-15T00:00:00');
+    const key = qualificationNoticeKey('u1', '安全生产许可证', validTo);
+    expect(parseQualificationNoticeKey('u1', `您的资质材料「安全生产许可证」将于 ${formatLocalDate(validTo)} 到期（剩 10 天），请及时更新以免影响投标资格。`)).toBe(key);
+    expect(parseQualificationNoticeKey('u1', `您的资质材料「安全生产许可证」已于 ${formatLocalDate(validTo)} 到期，请及时更新以免影响投标资格。`)).toBe(key);
+    expect(parseQualificationNoticeKey('u1', '其他无关文案')).toBeNull();
   });
 });
 

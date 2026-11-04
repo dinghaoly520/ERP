@@ -1446,6 +1446,11 @@ export class AnnouncementService {
         }
 
         await tx.announcement.delete({ where: { id } });
+
+        // 公告删除联动清通知（2026-11-04 堆积治理）：链接指向本公告的站内信一并删除——
+        // 公告已删、通知滞留即死链（8 月 7385 条死链堆积的成因）。站内信是触达渠道非留痕
+        // （审计留痕走 AuditLog/OperationLog），删公告后保留通知无消费价值。
+        await tx.notification.deleteMany({ where: { link: `/announcements/${id}` } });
       });
     } catch (e) {
       this.logger.error(
