@@ -1,8 +1,9 @@
 # OCR 服务架构文档
 
-> 最后更新：2026-11-03
-> 适用版本：`services/ocr/` v1.2.0（`main.py:27`）
+> 最后更新：2026-11-04
+> 适用版本：`services/ocr/` v1.3.0（`main.py:27`）
 > 当前引擎：`OCR_ENGINE=rapid`（RapidOCR PP-OCRv4，**CPU 模式**，GPU 自动检测未触发）
+> 变更摘要（相对 v1.2）：**ERP 全面接管**——本目录升为主副本，PM2 `erp-ocr` 独立实例 ：8110，procurement :8100 不再复用；细粒度配置面（workers/线程/dpi/页数全 env 化，线程铁律）；文字层快速路径（数字原生 PDF 提速一个量级，实测 450×）。
 > 变更摘要（相对 v1.1）：GLM-OCR 引擎已整体移除；新增 watchdog 挂死自愈、PDF 分块渲染、事件循环解锁 + 请求串行化、ONNX CUDA GPU 误判防护。
 
 ---
@@ -11,7 +12,7 @@
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│                         OCR Service (:8100)                            │
+│                 OCR Service (ERP 自管 PM2 erp-ocr :8110)               │
 │                    FastAPI + uvicorn (单 worker)                       │
 ├────────────────────────────────────────────────────────────────────────┤
 │                                                                        │
@@ -22,8 +23,12 @@
 │    │                                                                   │
 │    ├── PDF? ── engine=rapid ──── _ocr_pdf()                            │
 │    │            │                                                      │
-│    │            └─ 分块渲染(16页/块) → ocr_images() 2线程              │
-│    │               → RapidOcrEngine (PP-OCRv4 ONNX, CPU/GPU自动)       │
+│    │            ├─ 文字层快速路径：页 get_text ≥ OCR_TEXT_LAYER_MIN_CHARS │
+│    │            │  → 直接取文本免 OCR（source=text-layer，毫秒级）      │
+│    │            │                                                      │
+│    │            └─ 分块渲染(16页/块) → ocr_images() NUM_WORKERS 线程   │
+│    │               → RapidOcrEngine (PP-OCRv4 ONNX, CPU/GPU自动；      │
+│    │                 CPU 线程预算 = OCR_INTRA/INTER_THREADS 注入)      │
 │    │                                                                   │
 │    ├── PDF? ── engine=easy ───── _ocr_pdf()（⚠ easyocr 未安装）        │
 │    │            └─ EasyOcrEngine (PyTorch)                             │
@@ -42,10 +47,14 @@
 └────────────────────────────────────────────────────────────────────────┘
 
 调用方：apps/api NestJS `local-ai/ocr.service.ts`
-  · 大 PDF 分批提交（page_range，每批 40 页，dpi=300）
+  · `OCR_SERVICE_URL=http://localhost:8110`（ERP 自管实例，2026-11-04 接管）
+  · 大 PDF 分批提交（page_range，每批 OCR_BATCH_PAGES 页，默认 40，env 可调）
+  · `OCR_DPI`/`OCR_BATCH_PAGES` env 化；页数探测走 max_pages=0 零 OCR
+  · 结果 Redis 缓存（内容哈希键，rerun/重试零重复计算，故障不阻断）
   · 失败由 BullMQ 队列重试 → 与 watchdog 自愈配合
 
 GPU 上其余常驻：bge-m3 embedding vLLM (:8003, PM2 procurement-embedding)
+procurement 项目自己的 OCR（PM2 procurement-ocr :8100）与本实例无关、互不影响。
 ```
 
 ---
@@ -221,13 +230,19 @@ patch hybrid_server.py < ../../../../patches/hybrid_server_rapidocr.patch
 
 ## 6. 配置参考
 
-### 6.1 环境变量（`ocr_engine.py:28-40`、`main.py:35`）
+### 6.1 环境变量（`ocr_engine.py`、`main.py`）
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
 | `OCR_ENGINE` | `rapid` | 引擎：`rapid` \| `easy` \| `opendataloader` |
 | `OCR_MAX_SIDE` | `3000` | 图片长边超限自动缩放 |
-| `OCR_CHUNK_PAGES` | `16` | PDF 分块渲染页数（内存控制） |
+| **`OCR_NUM_WORKERS`** | `2` | 页级并行 worker 数（v1.2 前写死 2） |
+| **`OCR_INTRA_THREADS`** | `0`=不限 | onnxruntime 会话内线程（Global 级 kwargs 下推 Det/Cls/Rec） |
+| **`OCR_INTER_THREADS`** | `0`=不限 | onnxruntime 会话间线程 |
+| **`OCR_CHUNK_PAGES`** | `16` | PDF 分块渲染页数（内存控制） |
+| **`OCR_DEFAULT_DPI`** | `150` | 服务端 dpi Form 默认（客户端传参覆盖） |
+| **`OCR_MAX_PAGES_DEFAULT`** | `200` | 服务端 max_pages Form 默认（客户端传参覆盖） |
+| **`OCR_TEXT_LAYER_MIN_CHARS`** | `100` | 文字层快速路径阈值；`0`=禁用恒走 OCR |
 | `OCR_PAGE_TIMEOUT` | `180` | watchdog 单页超时秒数 |
 | `OCR_WATCHDOG` | `1` | `0` 禁用 watchdog |
 | `OCR_HYBRID_PORT` | `5002` | hybrid 起始端口（仅 opendataloader） |
@@ -236,7 +251,9 @@ patch hybrid_server.py < ../../../../patches/hybrid_server_rapidocr.patch
 | `OCR_HYBRID_OCR_ENGINE` | `rapidocr` | hybrid 后端（需补丁） |
 | `OCR_HYBRID_DEVICE` | `cuda` | hybrid 声明参数 |
 
-当前 `.env` 仅两行：`OCR_ENGINE=rapid`、`OCR_MAX_SIDE=3000`。`start.sh` 首次运行会从 `.env.example` 自动创建 `.env`（模板已对齐 rapid 默认）。
+**线程铁律（低配生产机）**：`OCR_NUM_WORKERS × OCR_INTRA_THREADS ≤ 分配给 OCR 的核数`。生产机（麒麟 x86_64，8 核分 6 核给 OCR）预设 `2×3`——实测 :8110 总线程 86 vs 无限制 :8100 117，预算真实收窄线程池且同材料 OCR 反而更快（3.8s vs 5.8s，超额抢占本就吃亏）。非法 env 值一律回落默认 + warn，不崩启动。
+
+NestJS 消费端 env（`apps/api/.env`）：`OCR_SERVICE_URL`（:8110）、`OCR_BATCH_PAGES`（默认 40）、`OCR_DPI`（默认 150）、`OCR_CACHE_ENABLED`/`OCR_CACHE_TTL_SECONDS`（7 天）/`OCR_CACHE_MAX_ENTRY_KB`（2MB）。
 
 ### 6.2 PM2 生产 env（ecosystem.config.js `procurement-ocr`）
 
@@ -281,18 +298,21 @@ GLM-OCR vLLM（原 :8101，~2.2GB）已下线，相关 vLLM 环境适配补丁�
 ### 8.2 启动方式
 
 ```bash
-# 开发（根 package.json）
+# 开发（根 package.json；端口可参数化 OCR_PORT/OCR_HOST，与常驻实例并存验证用）
 pnpm dev:ocr        # → bash services/ocr/start.sh
-                     #   首次自动建 venv（.venv/.ready 标记）、.env
+                     #   首次自动建 venv（.venv/.ready 标记）、.env；
+                     #   requirements.txt 变更后自动重建 venv
 
-# 生产（PM2，自动 resurrect）
-pm2 start ecosystem.config.js --only procurement-ocr
-pm2 logs procurement-ocr
+# 本机常驻（ERP 自管，2026-11-04 接管）
+pm2 start ecosystem.config.js --only erp-ocr    # :8110
+pm2 logs erp-ocr
 
-# 健康检查
-curl localhost:8100/health
-# {"status":"ok","engine":"rapid","hybrid":false,"workers":0,"busy":false}
+# 健康检查（含生效配置上报）
+curl localhost:8110/health
+# {"status":"ok","engine":"rapid","num_workers":2,"intra_threads":3,...}
 ```
+
+> **接管记录（2026-11-04）**：ERP API `OCR_SERVICE_URL` 由 procurement :8100 切至自管 `erp-ocr` :8110；procurement-ocr（:8100）属 procurement 项目、继续自用。生产部署为 Docker（麒麟 x86_64、8 核、6 核预算、无 GPU），本机调试完成后整体替换。
 
 ### 8.3 NestJS 调用方（`apps/api/src/local-ai/ocr.service.ts`）
 
@@ -313,16 +333,16 @@ docling 解析扫描件时无法提取文字，页面输出为图片占位符 `!
 
 ---
 
-## 10. 性能参考（历史测量值，v1.1 时代本机数据，供量级参考）
+## 10. 性能参考（2026-11-04 v1.3.0 双实例实测，:8110 预算 2×3 vs :8100 无限制）
 
-| 场景 | 引擎 | 速度 | 准确度 |
-|------|------|------|--------|
-| 纯文字 PDF（30页） | opendataloader | 毫秒级（不 OCR） | 100%（原文提取） |
-| 纯文字 PDF（30页） | rapid | ~30s（2 线程 CPU） | 高 |
-| 扫描件（10页） | rapid | ~3s | 中-高（中文优化） |
-| 单页图片 | rapid | ~0.3s | 中-高 |
+| 场景 | :8110（2×3 预算 + 快速路径） | :8100（无限线程，全量 OCR） |
+|------|------|------|
+| 文字 PDF 3 页 | **0.01s**（文字层快速路径，source=text-layer） | 2.29s（全量 OCR）→ **提速 450×** |
+| 扫描件 2 页 | 1.15s，输出与 :8100 逐字符一致 | 0.90s |
+| PNG 单图 | 0.65s，输出一致 | 0.50s |
+| 扫描件 12 页 | 3.8s（总线程 86） | 5.8s（总线程 117） |
 
-> v1.2.0 的分块渲染/watchdog 不改变单页吞吐，主要收益是内存峰值与可用性。如需当前机器的最新数据可重新测量。
+> 快速路径对数字原生 PDF（Word 导出标书）是数量级收益；线程预算在多核机上不亏反赚（避免 ORT 超额抢占）。NestJS 侧结果缓存使 rerun/重试场景零重复 OCR。
 
 ---
 
