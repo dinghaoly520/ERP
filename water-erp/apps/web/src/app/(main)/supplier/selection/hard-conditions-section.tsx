@@ -195,20 +195,28 @@ export function HardConditionsSection({ vocab, value, onChange }: {
         />
       </div>
 
-      {/* ④ 业绩条件 + 评价等级（同款容器，紧凑行） */}
+      {/* ④ 业绩与评价（同款容器；三行对齐表单——门槛/关键词/等级分段） */}
       <div>
         <BlockLabel text="业绩与评价" />
-        <div className="rounded-xl border border-[oklch(0.6_0.04_258_/_0.12)] px-3 py-2.5" style={{ background: 'oklch(0.98 0.008 258 / 0.35)' }}>
+        <div className="rounded-xl border border-[oklch(0.6_0.04_258_/_0.12)] px-3 py-3 space-y-2.5" style={{ background: 'oklch(0.98 0.008 258 / 0.35)' }}>
+          {/* 行 1：业绩门槛（自然语句式） */}
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[10px] font-bold text-[var(--muted-foreground)]">近</span>
+            <span className="w-[56px] shrink-0 text-[10px] font-bold text-[var(--muted-foreground)]">业绩门槛</span>
+            <span className="text-xs text-[var(--foreground)]">近</span>
             <input type="number" min={1} max={10} value={value.performance?.years ?? ''}
               onChange={(e) => onChange({ ...value, performance: { ...value.performance, years: e.target.value ? Number(e.target.value) : undefined } })}
-              className="workbench-input !w-[52px] !h-7 !text-xs" placeholder="年限" />
-            <span className="text-[10px] text-[var(--muted-foreground)]">年 ≥</span>
+              className="workbench-input !w-[48px] !h-7 !text-xs text-center" placeholder="年限" />
+            <span className="text-xs text-[var(--foreground)]">年，至少</span>
             <input type="number" min={1} max={99} value={value.performance?.minCount ?? ''}
               onChange={(e) => onChange({ ...value, performance: { ...value.performance, minCount: e.target.value ? Number(e.target.value) : undefined } })}
-              className="workbench-input !w-[52px] !h-7 !text-xs" placeholder="数量" />
-            <span className="text-[10px] text-[var(--muted-foreground)]">项 关键词</span>
+              className="workbench-input !w-[48px] !h-7 !text-xs text-center" placeholder="数量" />
+            <span className="text-xs text-[var(--foreground)]">项同类业绩</span>
+            <span className="text-[10px] text-[var(--muted-foreground)]">留空即不限</span>
+          </div>
+
+          {/* 行 2：业绩关键词（chips + 回车添加） */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="w-[56px] shrink-0 text-[10px] font-bold text-[var(--muted-foreground)]">业绩关键词</span>
             {(value.performance?.keywords || []).map((k) => (
               <span key={k} className="neu-tag is-on text-xs">
                 {k}
@@ -220,18 +228,24 @@ export function HardConditionsSection({ vocab, value, onChange }: {
             <span className="inline-flex items-center gap-1">
               <input value={perfKeyword} onChange={(e) => setPerfKeyword(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPerfKeyword(); } }}
-                className="workbench-input !w-[88px] !h-7 !text-xs" placeholder="如：钻机" />
-              <button type="button" onClick={addPerfKeyword} disabled={!perfKeyword.trim()} className="neu-btn-xs !h-7 !px-2"><Plus size={11} /></button>
+                className="workbench-input !w-[140px] !h-7 !text-xs" placeholder="输入关键词，回车添加" />
+              <button type="button" onClick={addPerfKeyword} disabled={!perfKeyword.trim()} className="neu-btn-xs !h-7 !px-2" aria-label="添加关键词"><Plus size={11} /></button>
             </span>
-            <span className="ml-2 shrink-0 text-[10px] font-bold text-[var(--muted-foreground)]">评价等级</span>
-            <select value={value.minGrade || ''}
-              onChange={(e) => onChange({ ...value, minGrade: (e.target.value || undefined) as HardConditions['minGrade'] })}
-              className="workbench-input !w-[72px] !h-7 !text-xs">
-              <option value="">不限</option>
-              <option value="A">≥A</option>
-              <option value="B">≥B</option>
-              <option value="C">≥C</option>
-            </select>
+          </div>
+
+          {/* 行 3：评价等级（分段按钮，一键切换；再点已选项=恢复不限） */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="w-[56px] shrink-0 text-[10px] font-bold text-[var(--muted-foreground)]">评价等级</span>
+            {([undefined, 'A', 'B', 'C'] as const).map((g) => {
+              const on = value.minGrade === g;
+              return (
+                <button key={g ?? 'any'} type="button" onClick={() => onChange({ ...value, minGrade: on ? undefined : (g as HardConditions['minGrade']) })}
+                  className={`neu-tag text-xs ${on ? 'is-on' : ''}`}>
+                  {on && <Check size={10} strokeWidth={3} className="shrink-0" />}
+                  {g ? `不低于 ${g} 级` : '不限'}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
