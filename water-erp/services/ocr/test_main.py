@@ -154,5 +154,47 @@ class FastPathGuardsTest(unittest.TestCase):
         self.assertEqual(calls, [])
 
 
+class MaxPagesDefaultGuardTest(unittest.TestCase):
+    """M1：OCR_MAX_PAGES_DEFAULT=0 回落 200（0 会把所有缺省请求变空探测，语义陷阱）"""
+
+    def test_max_pages_default_zero_falls_back_200(self):
+        r = subprocess.run(
+            [sys.executable, "-c", "import main; print(main.DEFAULT_MAX_PAGES)"],
+            cwd=str(Path(__file__).parent),
+            env={**os.environ, "OCR_MAX_PAGES_DEFAULT": "0"},
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(r.returncode, 0, r.stderr[-300:])
+        self.assertEqual(r.stdout.strip(), "200")
+
+
+class BusyDetailScopeTest(unittest.TestCase):
+    """M8：busy_detail 只报实际进 OCR 的页，不夸大整块范围"""
+
+    def test_busy_detail_reports_ocr_pages_only(self):
+        doc = fitz.open()
+        p1 = doc.new_page()  # 文字层页（不进 OCR）
+        for i, y in enumerate((80, 100, 120)):
+            p1.insert_text((72, y), f"DETAIL-P1-L{i}-" + "z" * 40)
+        doc.new_page().insert_text((72, 96), "abc")  # 短文本 → OCR
+        doc.new_page()  # 空 → OCR
+        pdf_bytes = doc.tobytes()
+        doc.close()
+
+        details = []
+
+        async def fake_batch(images, detail):
+            details.append(detail)
+            return ["P2", "P3"]
+
+        with patch.object(main, "_run_ocr_batch", fake_batch):
+            asyncio.run(main._ocr_pdf(pdf_bytes, 150, 10))
+
+        self.assertEqual(len(details), 1)
+        self.assertIn("p2-3", details[0])
+        self.assertNotIn("p1-3", details[0])
+
+
 if __name__ == "__main__":
     unittest.main()

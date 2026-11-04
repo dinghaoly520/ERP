@@ -175,7 +175,7 @@ watchdog 守护线程（每 5s 巡检，OCR_WATCHDOG=1 默认开）：
 
 ### 4.5 OMP 线程限制（PM2 env）
 
-`OMP_NUM_THREADS=8`（ecosystem.config.js）：onnxruntime 默认 `-1`（无上限），2 会话并发时 48 线程互掐是 OMP 死锁挂死的诱因之一；8×2=16 ≤ 24 核。
+历史口径（procurement-ocr 用 `OMP_NUM_THREADS=8` 压 OpenMP 互掐）；**erp-ocr 不设 OMP env**——线程预算直接由 `OCR_INTRA_THREADS`/`OCR_INTER_THREADS` 在会话层收口（v1.3.0），限得更准。
 
 ---
 
@@ -255,11 +255,11 @@ patch hybrid_server.py < ../../../../patches/hybrid_server_rapidocr.patch
 
 NestJS 消费端 env（`apps/api/.env`）：`OCR_SERVICE_URL`（:8110）、`OCR_BATCH_PAGES`（默认 40）、`OCR_DPI`（默认 150）、`OCR_CACHE_ENABLED`/`OCR_CACHE_TTL_SECONDS`（7 天）/`OCR_CACHE_MAX_ENTRY_KB`（2MB）。
 
-### 6.2 PM2 生产 env（ecosystem.config.js `procurement-ocr`）
+### 6.2 PM2 env 对照（erp-ocr vs procurement-ocr）
 
-| 项 | 值 | 原因 |
+| 项 | erp-ocr（ERP 自管 :8110） | procurement-ocr（:8100，对方项目） |
 |---|---|---|
-| `OMP_NUM_THREADS` | `8` | 防 onnxruntime OpenMP 线程互掐死锁 |
+| 线程控制 | `OCR_INTRA_THREADS`（会话层，.env） | `OMP_NUM_THREADS=8`（进程层 env） |
 | `ALL_PROXY` | `socks5://127.0.0.1:7897/` | docling/huggingface_hub 走 httpx，需 socks5 格式 |
 | `max_memory_restart` | `4G` | 191 页批处理正常峰值 <1G，超限回收 |
 | `kill_timeout` | `30s` | 留时间清理 hybrid 子进程 |
@@ -294,6 +294,9 @@ GLM-OCR vLLM（原 :8101，~2.2GB）已下线，相关 vLLM 环境适配补丁�
 | `patches/hybrid_server_rapidocr.patch` | venv 内 opendataloader 补丁的留档，升级后重放 |
 | `test_main.py` | 单元测试（max_pages=0 只返回页数） |
 | `test_ocr.py` | opendataloader hybrid 路径手动诊断脚本（`python test_ocr.py <pdf>`） |
+| `test_config.py` | 配置解析单测（resolve_* / v5 kwargs） |
+| `ecosystem.config.js` | PM2 `erp-ocr` 托管定义（:8110） |
+| `.env.example` | 全量配置旋钮契约（含 6 核预算预设注释） |
 
 ### 8.2 启动方式
 
@@ -316,7 +319,7 @@ curl localhost:8110/health
 
 ### 8.3 NestJS 调用方（`apps/api/src/local-ai/ocr.service.ts`）
 
-- 上传 PDF > 阈值时**客户端分批**：`page_range` 每批 40 页、`dpi=300`，避免单请求过大；
+- 上传 PDF > 阈值时**客户端分批**：`page_range` 每批 `OCR_BATCH_PAGES`（默认 40）、dpi 走 `OCR_DPI`（默认 150），避免单请求过大；
 - 服务端另有 `OCR_CHUNK_PAGES` 分块渲染兜底，两层分批互补；
 - 请求失败由 BullMQ 队列重试，与 watchdog 自愈闭环配合。
 
@@ -365,12 +368,12 @@ easy     仅在需要多语言混排且接受安装 easyocr/torch 时考虑
 | 症状 | 可能原因 | 排查 |
 |------|---------|------|
 | `/health` 正常但 `busy=true` 很久 | 大批次在处理（正常） | 看 `busy_seconds`/`busy_detail`（含文件名与页码进度） |
-| 进程反复重启，日志含 `OCR watchdog` | 单页 recognize 卡死超 180s | 确认 PM2 env `OMP_NUM_THREADS=8`；偶发属自愈设计；频繁则查 OMP/驱动 |
+| 进程反复重启，日志含 `OCR watchdog` | 单页 recognize 卡死超 180s | erp-ocr 查 `OCR_INTRA_THREADS` 预算；偶发属自愈设计；频繁则查 OMP/驱动 |
 | 日志 `No GPU, using CPU OCR` 但期望 GPU | libcudart 不在库路径 | 见 §4.4，设 `LD_LIBRARY_PATH` 后重启 |
 | OCR 返回空文本 | 空白扫描件 / 置信度过滤 | `curl /health`；人工看渲染图清晰度 |
 | 日志 `Using PP-OCRv4 default models` | 正常 | v5 模型未装；要 v5 需放 `~/.rapidocr/models/v5/` |
 | 选 `easy` 后 PM2 重启循环 | easyocr 未安装 | `.venv/bin/pip install easyocr` 或改回 `rapid` |
 | hybrid 启动失败 / 无 `--ocr-backend` | pip 升级后 venv 补丁丢失 | 重放 `patches/hybrid_server_rapidocr.patch`（§5.3） |
-| Hybrid 服务器离线 | 子进程崩溃 | `curl localhost:5002/health`；`pm2 logs procurement-ocr` |
+| Hybrid 服务器离线 | 子进程崩溃 | `curl localhost:5002/health`；`pm2 logs erp-ocr` |
 | httpx 代理报错 | `socks://` 不被识别 | 生产 env 已设 `socks5://`；代码侧自动改写子进程代理 |
 | GPU OOM / 显存争抢 | 多模型共存 | `nvidia-smi`；OCR 当前 CPU 模式不占显存 |

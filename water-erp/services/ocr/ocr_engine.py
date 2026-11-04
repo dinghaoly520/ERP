@@ -26,9 +26,12 @@ _pdf_parser = None
 _hybrid_servers: List["HybridServer"] = []
 
 def _resolve_int_env(env, key: str, default: int, minimum: int = 0) -> int:
-    """env 整数解析：缺失/非法/低于 minimum 回落默认并 warn（防低配机手滑崩启动）。"""
-    raw = env.get(key, "")
-    if not raw:
+    """env 整数解析：未设置静默回默认；显式空串/非法/低于 minimum 回落默认并 warn。"""
+    raw = env.get(key)
+    if raw is None:
+        return default
+    if raw == "":
+        logger.warning("OCR env %s 为空串，回落默认 %d", key, default)
         return default
     try:
         val = int(raw)
@@ -102,6 +105,21 @@ def _cuda_runtime_present() -> bool:
     return ctypes.util.find_library("cudart") is not None
 
 
+def _v5_model_kwargs(use_gpu: bool) -> dict:
+    """v5 模型构造 kwargs：GPU 走 config_gpu.yaml（不注入线程 kwargs）；
+    CPU 注入线程预算（与 v4 CPU 路径同口径）。"""
+    kwargs = dict(
+        det_model_path=os.path.join(V5_MODEL_DIR, "det_v5.onnx"),
+        rec_model_path=os.path.join(V5_MODEL_DIR, "rec_v5.onnx"),
+        rec_keys_path=os.path.join(V5_MODEL_DIR, "ppocrv5_dict.txt"),
+    )
+    if use_gpu:
+        kwargs["config_path"] = str(Path(__file__).parent / "config_gpu.yaml")
+    else:
+        kwargs.update(resolve_thread_config(os.environ))
+    return kwargs
+
+
 class RapidOcrEngine:
     def __init__(self):
         from rapidocr_onnxruntime import RapidOCR
@@ -120,15 +138,7 @@ class RapidOcrEngine:
 
         if V5_MODELS_AVAILABLE:
             logger.info("Using PP-OCRv5 server models")
-            kwargs = dict(
-                det_model_path=os.path.join(V5_MODEL_DIR, "det_v5.onnx"),
-                rec_model_path=os.path.join(V5_MODEL_DIR, "rec_v5.onnx"),
-                rec_keys_path=os.path.join(V5_MODEL_DIR, "ppocrv5_dict.txt"),
-            )
-            kwargs.update(resolve_thread_config(os.environ))
-            if use_gpu:
-                kwargs["config_path"] = gpu_config
-            self._engine = RapidOCR(**kwargs)
+            self._engine = RapidOCR(**_v5_model_kwargs(use_gpu))
         else:
             logger.info("Using PP-OCRv4 default models")
             if use_gpu:

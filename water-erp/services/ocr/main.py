@@ -39,7 +39,7 @@ _busy = {"active": False, "since": 0.0, "detail": ""}
 OCR_CHUNK_PAGES = _resolve_int_env(os.environ, "OCR_CHUNK_PAGES", 16, minimum=1)
 # 服务端表单默认（客户端显式传参可覆盖）：低配机可经 env 降档
 DEFAULT_DPI = _resolve_int_env(os.environ, "OCR_DEFAULT_DPI", 150)
-DEFAULT_MAX_PAGES = _resolve_int_env(os.environ, "OCR_MAX_PAGES_DEFAULT", 200)
+DEFAULT_MAX_PAGES = _resolve_int_env(os.environ, "OCR_MAX_PAGES_DEFAULT", 200, minimum=1)
 # 文字层快速路径阈值：页内嵌文字层字符数达此值则直接取文本免 OCR（0=禁用恒走 OCR）
 TEXT_LAYER_MIN_CHARS = _resolve_int_env(os.environ, "OCR_TEXT_LAYER_MIN_CHARS", 100)
 # 快速路径图像覆盖率护栏：页内嵌位图 bbox 面积占比超此值 → 该页回退 OCR
@@ -340,8 +340,11 @@ async def _ocr_pdf(content: bytes, dpi: int, max_pages: int, page_range: str = N
                         Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                     )
                     ocr_local_idx.append(page_idx - start)
-            detail = f"{filename} p{start + 1}-{end}/{process_count}"
             if images:
+                # busy_detail 只报实际进 OCR 的页号段（文字层页不在内，防夸大）
+                ocr_first = start + ocr_local_idx[0] + 1
+                ocr_last = start + ocr_local_idx[-1] + 1
+                detail = f"{filename} p{ocr_first}-{ocr_last}({len(images)}页OCR)/{process_count}"
                 chunk_texts = await _run_ocr_batch(images, detail)
                 for local_i, t in zip(ocr_local_idx, chunk_texts):
                     chunk_pages[local_i] = {
