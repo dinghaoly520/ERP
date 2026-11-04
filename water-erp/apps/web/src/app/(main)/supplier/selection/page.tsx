@@ -969,8 +969,11 @@ export function SupplierSelectionPage({
       parts.push(`【业绩要求】${p.years ? `近${p.years}年` : ''}${p.minCount ? `≥${p.minCount}项` : ''}${p.keywords?.length ? `，关键词：${p.keywords.join('、')}` : ''}`);
     }
     if (hc.minGrade) parts.push(`【评价等级】不低于${hc.minGrade}级`);
+    // 补充说明两段（已由提示词约束为简洁、不复读门槛的定性描述）——对选商有语义指导价值，一并送入推荐（2026-11-04 用户裁定）
+    if (reqSpecial.trim()) parts.push(`【业绩补充】\n${reqSpecial.trim()}`);
+    if (reqOther.trim()) parts.push(`【其他】\n${reqOther.trim()}`);
     return parts.join('\n');
-  }, [selectedProject, defaultProjectTitle, project, selectedTags, hardConditions, hardVocab]);
+  }, [selectedProject, defaultProjectTitle, project, selectedTags, hardConditions, hardVocab, reqSpecial, reqOther]);
 
   const buildProjectContext = useCallback((requirementText?: string): Record<string, string> | undefined => {
     const ctx: Record<string, string> = {};
@@ -1110,19 +1113,32 @@ export function SupplierSelectionPage({
       const additionalContext = contextParts.join('\n');
       const hasContent = !!(reqSpecial.trim() || reqOther.trim());
 
-      // 生成要求（2026-11-04 二次裁定：仅业绩要求/其他两段，用于文书；推荐匹配由结构化条件承担）
-      const FORMAT_SPEC = `【业绩要求】
-1.（同类业绩门槛：近几年的、几项、什么类型的供货/服务案例）
-2.（行业经验或应用场景要求，如水利/地勘行业案例优先）
-（严格限定为"供应商过往业绩与经验"；运输/安装/培训/质保等服务性要求禁止写在本段）
+      // 已设结构化门槛上下文：告知模型哪些系统已设、正文禁止复述（2026-11-04 用户裁定——生成内容须简洁且对选商有指导意义）
+      const perf = hardConditions.performance;
+      const setCond: string[] = [];
+      if (perf?.years || perf?.minCount) {
+        setCond.push(`业绩年限/数量门槛已由系统设定（${perf.years ? `近${perf.years}年` : ''}${perf.minCount ? `≥${perf.minCount}项` : ''}）`);
+      }
+      if ((hardConditions.qualifications || []).length > 0) setCond.push('资质条件已由系统设定');
+      if (hardConditions.minGrade) setCond.push(`评价等级门槛已设定（不低于${hardConditions.minGrade}级）`);
 
-【其他】
-1.（服务要求：运输、安装调试、培训、售后响应时限）
-2.（交付与质保：供货周期、质保年限）
-（有则逐条列，无信息则留空）`;
+      const FORMAT_SPEC = `【业绩要求】（只写"什么算同类"的界定与经验偏好，不写年限/数量门槛）
+1.（同类界定：应用场景、工况或规模，如"深孔（≥800m）钻探项目供货经验"）
+2.（行业偏好，如"水利、地勘行业案例优先"）
+
+【其他】（只写对供应商有实际约束的服务条款）
+1.（供货周期，如"合同签订后60日内完成供货"）
+2.（质保响应，如"整机质保12个月，48小时内到场"）`;
+
+      const RULES = `输出铁律：
+1. 每段最多2条、每条不超过35字、一句一事。
+2. 年限、数量、资质、认证、评价等级等门槛已由系统另行设定${setCond.length > 0 ? `（${setCond.join('；')}）` : ''}——正文禁止出现任何此类门槛。
+3. 报价、限价、付款、截止时间、采购方式响应、联合体、"以采购文件为准"等程序性内容一律不写。
+4. 项目信息中没有的数字（深度、年限、金额、时限）不得编造；没有可写内容的段落整段省略。`;
+
       const prompt = hasContent
-        ? `根据以下项目信息充实现有的供应商要求描述，仅输出【业绩要求】【其他】两段，保持【】标题结构与编号列表格式。要求：每部分1-4条、每条15-50字且具体可核验；严格段落语义——【业绩要求】只写供应商过往同类业绩与经验（几年内、几项、什么类型），服务类内容（运输/安装/培训/质保/响应时限/报价限价/付款）只能写入【其他】；信息不足不得虚构认证名称或金额。\n\n现有内容：\n${buildRequirement()}`
-        : `根据以下项目信息（来自采购需求、采购立项、采购文件），提炼供应商的业绩要求与其他要求（用于采购文书）。严格按以下结构输出，编号列表，每条15-50字、具体可核验：\n\n${FORMAT_SPEC}\n\n要求：每部分1-4条（信息量实在不足可少于2条，但不得只写1条空泛的话）；从项目文件的资格条款、服务条款中深挖素材；严格段落语义——服务类内容只进【其他】。`;
+        ? `根据项目信息重写现有的供应商补充说明，仅输出【业绩要求】【其他】两段，保持【】标题结构与编号列表格式。\n${RULES}\n\n现有内容（大幅精简重写：删除与系统门槛重复的内容与程序性套话）：\n${buildRequirement()}`
+        : `根据项目信息（来自采购需求、采购立项、采购文件）撰写供应商补充说明（供供应商自评与采购文书引用），严格按以下结构与铁律输出编号列表：\n\n${FORMAT_SPEC}\n${RULES}`;
 
       // 硬性条件 AI 预填（2026-11-04 spec）：与五段文本并行、只从词表选；手动改过则不覆盖（同业务标签范式）
       const hardSuggest = hardCondUserEditedRef.current || !hardVocab || (hardVocab.industries.length === 0 && hardVocab.qualifications.length === 0)
@@ -1147,7 +1163,7 @@ export function SupplierSelectionPage({
       toast.success(hasContent ? '需求已润色' : '需求已生成');
     } catch (e: any) { toast.error(e?.message || '生成失败'); }
     setReqGenerating(false);
-  }, [project, fileAnalysisContext, selectedProject, defaultProjectTitle, buildRequirement, parsePolishedResult, hardVocab]);
+  }, [project, fileAnalysisContext, selectedProject, defaultProjectTitle, buildRequirement, parsePolishedResult, hardVocab, hardConditions]);
 
   // 首次进入供应商要求步骤（现为第 1 步）时，若无内容则自动 AI 生成。
   // 须等会话恢复完成（sessionRestored）再判空——已有草稿内容就不触发 AI，仅在空白时生成
