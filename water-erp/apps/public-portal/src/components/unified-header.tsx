@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { portalURL } from '@water-erp/config';
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    统一顶栏 — 品牌 + 导航菜单
@@ -75,9 +74,9 @@ export function UnifiedHeader() {
         <div className="relative z-10 flex h-[68px] items-center px-[clamp(16px,4vw,48px)]">
         {/* ── 左侧：品牌 ── */}
         <div className="flex flex-1 items-center">
-          {/* mounted 门控（2026-10-30）：SSR 无 window 时 portalURL 回落 localhost——局域网
-              设备上是死链；JS 失效掉回服务端 DOM 时无 href 好过错误链接 */}
-          <a href={mounted ? portalURL('assistant') : undefined} className="flex items-center gap-3">
+          {/* 2026-11-04 用户裁定：品牌区不再跳转水叮当助手（:3008）——
+              点击一律强制回本门户（:3002）首页；静态路径无需 mounted 门控 */}
+          <a href="/" className="flex items-center gap-3">
             <img src="/assets/logo.png" alt="四川水发集团" className="h-[45px] w-auto object-contain" />
             <div className="flex flex-col gap-0">
               <strong
