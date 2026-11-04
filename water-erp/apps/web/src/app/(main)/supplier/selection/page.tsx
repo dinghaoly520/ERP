@@ -2180,7 +2180,7 @@ export function SupplierSelectionPage({
             style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.92) 0%, oklch(0.985 0.005 258 / 0.58) 40%, oklch(1 0 0 / 0.14) 75%)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.75), 2px 3px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.88)' }}>
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-[var(--foreground)]">硬性筛选</span>
-              <span className="text-[10px] text-[var(--muted-foreground)]">业务标签必选；行业/资质/业绩/评价可选——推荐时逐项核验库内资料（满足✓ / 资料缺失○标黄人工核实 / 不满足✗剔除）</span>
+              <span className="text-[10px] text-[var(--muted-foreground)]">业务标签必选，其余条件可选</span>
             </div>
             {/* ① 业务标签（选取方式仅 AI 智能选取——手动选取已于 2026-10-19 移除；2026-11-04 裁定必选） */}
             <div>
