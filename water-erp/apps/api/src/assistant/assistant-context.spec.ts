@@ -33,6 +33,7 @@ describe('兜底路径 ctx 线程（P1：无工具调用安全网不泄漏全公
       registry,
       overview as any,
       filler('procurement'),
+      filler('pmi'),
       filler('bid'),
       filler('supplier'),
       filler('expert'),

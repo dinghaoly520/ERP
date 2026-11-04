@@ -31,6 +31,17 @@ export const STAGE_LABEL: Record<string, string> = {
   ABORTED: '已流标', // 2026-11-03：此前无映射——bid 阶段卡漏出英文原键（用户实录）
 };
 
+/** 台账轮次结果状态（ResultStatus）——与 procurements.service getResultStatusLabel 同口径
+ *  （2026-11-04 台账工具翻新：枚举标签唯一裸出面是卡片 rows，统一进 labels.ts） */
+export const RESULT_STATUS_LABEL: Record<string, string> = {
+  AWARDED: '已成交',
+  FAILED_REVIEW: '资格审查未通过',
+  FILE_REVISION_REQUIRED: '采购文件需修改',
+  INVALID_RESPONSE: '未按要求响应',
+  PENDING: '待处理',
+  CANCELLED: '已取消',
+};
+
 export const SUPPLIER_STATUS_LABEL: Record<string, string> = {
   PENDING: '待审核',
   RETURNED: '已退回补正',

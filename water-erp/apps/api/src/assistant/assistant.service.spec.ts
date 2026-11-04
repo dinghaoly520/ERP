@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DeepSeekProvider } from './model/deepseek.provider';
 import { ToolRegistry } from './tools/tool-registry';
 import { GlobalOverviewTool } from './tools/global-overview.tool';
+import { PmiTool } from './tools/pmi.tool';
 import { ProcurementTool } from './tools/procurement.tool';
 import { BidTool } from './tools/bid.tool';
 import { SupplierTool } from './tools/supplier.tool';
@@ -72,6 +73,7 @@ describe('AssistantService', () => {
         { provide: DeepSeekProvider, useValue: model },
         ToolRegistry,
         { provide: GlobalOverviewTool, useValue: { name: 'global_overview', description: 'mock', execute: jest.fn() } },
+        { provide: PmiTool, useValue: { name: 'pmi', description: 'mock', execute: jest.fn() } },
         { provide: ProcurementTool, useValue: { name: 'procurement', description: 'mock', execute: jest.fn() } },
         { provide: BidTool, useValue: { name: 'bid', description: 'mock', execute: jest.fn() } },
         { provide: SupplierTool, useValue: { name: 'supplier', description: 'mock', execute: jest.fn() } },
