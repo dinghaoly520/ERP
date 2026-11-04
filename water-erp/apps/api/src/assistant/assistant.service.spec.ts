@@ -216,6 +216,32 @@ describe('AssistantService', () => {
       expect(result.answer).toBeDefined();
       expect(model.chat).toHaveBeenCalledTimes(1);
     });
+
+    it('非数据类问题直答放行——无工具调用、无卡片、不走数据兜底（2026-11-04 回答跟随提问）', async () => {
+      prisma.assistantConversation.create.mockResolvedValue({ ...mockConversation, messages: [] });
+      prisma.assistantMessage.create.mockResolvedValue({ id: 'msg-1' });
+      const direct = '流标是指采购活动中因有效投标不足三家等原因无法继续评标的情形，采购人应当依法重新组织采购。';
+      model.chat.mockResolvedValueOnce({ text: direct });
+
+      const result = await service.chat({ message: '什么是流标？' });
+
+      expect(result.answer).toContain('流标');
+      expect(result.cards).toEqual([]);
+      // 直答原样放行：不进第二轮、不触发 global_overview 兜底
+      expect(model.chat).toHaveBeenCalledTimes(1);
+    });
+
+    it('直答含未查先答的数据断言（数字+计量单位）仍走数据兜底，不放行', async () => {
+      prisma.assistantConversation.create.mockResolvedValue({ ...mockConversation, messages: [] });
+      prisma.assistantMessage.create.mockResolvedValue({ id: 'msg-1' });
+      model.chat.mockResolvedValueOnce({ text: '根据当前数据，系统共有 5 个采购项目、30 家供应商。' });
+
+      const result = await service.chat({ message: '系统有多少个采购项目' });
+
+      // 匿名访客兜底：global_overview 不在公开域 → 登录引导文案（证明直答被拦下）
+      expect(result.answer).toContain('需要登录');
+      expect(result.answer).not.toContain('5 个采购项目');
+    });
   });
 
   describe('listConversations', () => {

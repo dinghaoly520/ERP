@@ -205,14 +205,14 @@ export class AssistantService {
 ${toolList}
 
 【重要规则 —— 违反即为错误回复】
-- 铁律：任何涉及数据/统计/列表/详情/分析的回复，必须先通过 TOOL_CALL 调用工具。你没有内置数据库，不知道系统里有什么数据。不调用工具就回复数字 = 编造。
-- 当用户询问任何可能涉及数据的问题时，你的第一轮回复应该只包含 TOOL_CALL 指令，不要写任何实质内容。等系统把真实数据返回给你后，再基于真实数据撰写第二轮回复。
+- 先判断问题类型，再决定是否调用工具（2026-11-04 口径：回答跟随提问，不强行扯数据）：
+  1) 需要系统实时数据的问题（统计、数量、清单、详情、状态、趋势、排名、系统内业务分析）→ 必须先通过 TOOL_CALL 调用工具取真数据。你没有内置数据库，不调用工具就回复系统数据 = 编造。
+  2) 不需要系统数据的问题——问候、闲聊、概念解释、法规政策条文、流程指引、写作起草、通用建议——→ 直接回答，禁止 TOOL_CALL，禁止把系统数据或统计扯进回答。
+- 第一轮若调用工具，回复只包含 TOOL_CALL 指令、不写实质内容；工具返回真实数据后再撰写第二轮回复。
 - 工具调用格式（放在回答最前面，独占一行）：
   TOOL_CALL: {"tool": "<工具名>", "args": {"action": "<action>", ...}}
-- 每次回答调用一个或者多个工具。先获取数据，再基于数据提炼洞察。
-- 优先调用能产出"统计/分布"数据的 action（如 global_overview、各工具的 stats 动作），这些数据会自动生成可视化图表。
-- 对于综合概览类问题（如"整体运行状况""全面梳理""体检"），必须首先调用 global_overview 工具，它会返回采购/投标/供应商/专家的状态分布统计（阶段=采购流程步骤）。
-- 回答必须遵循系统提示词中的总-分结构和数据引用原则，直接引用工具返回的项目名称、金额、日期等具体信息，不写空洞的概括。
+- 综合概览类问题（如"整体运行状况""全面梳理"）调用 global_overview；清单/详情类调用对应工具的 list/detail；趋势类调用 monthly。
+- 数据类回答遵循系统提示词中的总-分结构和数据引用原则，直接引用工具返回的项目名称、金额、日期等具体信息，不写空洞的概括；非数据类回答按常规对话，简洁直接。
 - 禁止使用任何 emoji 表情符号。
 - 涉及修改/审批/删除/禁用/退回时，说明操作预案和风险，不要直接执行。`;
 
@@ -425,10 +425,16 @@ ${toolList}
     // Parse ALL TOOL_CALL directives (model may emit several for comprehensive questions)
     const toolCalls = this.parseAllToolCalls(answer);
     if (toolCalls.length === 0) {
-      // 模型没有调用任何工具就直接回复了——这很可能是编造的数据。
-      // 强行注入 global_overview 并对原回复做真实性核查。
-      this.logger.warn('handleNormalChat: 模型未调用任何工具，强制注入 global_overview 并丢弃原回复');
-      return this.handleFallbackWithGlobalOverview(messages, cards, citations, allowedTools, ctx);
+      /* 「回答跟随提问」（2026-11-04）：非数据类问题（问候/概念/法规/写作）按提示词
+       * 直答、无工具调用是正常形态——直答不含系统数据断言时原样放行；只有直答里
+       * 出现「数字+计量单位 / 系统口径措辞+数字」这类未查先答的数据断言，才视为
+       * 编造风险走 global_overview 数据兜底 */
+      if (this.looksLikeDataClaim(answer)) {
+        this.logger.warn('handleNormalChat: 模型未调用工具但直答含数据断言，走数据兜底核查');
+        return this.handleFallbackWithGlobalOverview(messages, cards, citations, allowedTools, ctx);
+      }
+      this.logger.log('handleNormalChat: 非数据直答（无工具调用、无数据断言），原样放行');
+      return answer;
     }
 
     this.logger.log(
@@ -505,7 +511,7 @@ ${toolList}
             return rest;
           }),
         })),
-    ).slice(0, 3000)}\n\n【严格写作要求 —— 违反即为编造数据】\n0. 所有工具已执行完毕、上述即全部数据——你的回复中【禁止出现任何 TOOL_CALL 指令】，直接给出面向用户的最终中文回答（2026-11-03 实录：第二轮再发 TOOL_CALL 被剥离后正文为空，用户拿到「未能生成有效回复」）。\n1. 若用户问"有哪些项目/供应商/专家"等清单类问题，必须逐条列出实体清单中的名称，不得只给汇总数字。\n2. 涉及统计/数量时，必须原样引用上面的关键数字，例如"系统共有 1 个采购项目、24 个投标项目"——数字一个不能改。\n3. 后续每段也必须引用上面的具体数字，不能只说"有多条记录"。\n4. 英文状态码（OPENING、PENDING等）在回答中必须译为中文。`;
+    ).slice(0, 3000)}\n\n【严格写作要求 —— 违反即为编造数据】\n0. 所有工具已执行完毕、上述即全部数据——你的回复中【禁止出现任何 TOOL_CALL 指令】，直接给出面向用户的最终中文回答（2026-11-03 实录：第二轮再发 TOOL_CALL 被剥离后正文为空，用户拿到「未能生成有效回复」）。\n1. 若用户问"有哪些项目/供应商/专家"等清单类问题，必须逐条列出实体清单中的名称，不得只给汇总数字。\n2. 涉及统计/数量时，必须原样引用上面的关键数字，例如"系统共有 23 个采购项目、25 个投标项目"——数字一个不能改。\n3. 后续每段也必须引用上面的具体数字，不能只说"有多条记录"。\n4. 英文状态码（OPENING、PENDING等）在回答中必须译为中文。`;
 
     try {
       // 若剥离 TOOL_CALL 后 answer 为空，不传空 assistant 消息（DeepSeek 会拒绝空 content）
@@ -548,6 +554,17 @@ ${toolList}
     this.logger.log(`handleNormalChat: 最终 answer 长度=${answer.length}, cards=${cards.length}`);
     return answer ||
       '抱歉，AI 未能生成有效回复，请重新提问。';
+  }
+
+  /**
+   * 直答是否含「系统数据式断言」——用于区分「非数据类问题的正常直答」（放行）
+   * 与「未查先答的编造数据」（走兜底）。只认系统盘点口径的措辞，不裸配
+   * 「数字+计量单位」：法定门槛（不足3家）、时长（延期30天）、日期（10日）
+   * 都不是系统数据断言（2026-11-04 实录：宽判据把概念/写作直答也打成兜底）。
+   */
+  private looksLikeDataClaim(text: string): boolean {
+    return /(系统|平台|库内|在库|现有|目前|当前|我们)[^。！？]{0,20}?\d/.test(text)
+      || /(共有|总计|合计|已有|多达|仅剩|剩下)\s*\d/.test(text);
   }
 
   /**
