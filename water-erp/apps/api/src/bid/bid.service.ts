@@ -3273,6 +3273,23 @@ export class BidService {
       if (rowByName) clarSupplierId = rowByName.supplierId;
     }
 
+    // 幂等闸（2026-11-04）：同项目+同供应商+同问题 60 秒内重复提交 → 409 拒绝。
+    // 实录（2026-10 演示期）：澄清台账与审计成对出现间隔 0.4-1s 的重复记录——前端
+    // busy 防重在位、后端单请求单落库（实测），双发路径未能完全考古；不管前端从
+    // 哪条缝漏进来的重放，法定澄清台账不应出现同文重复行，防线下沉到写入口。
+    const dup = await this.prisma.bidClarification.findFirst({
+      where: {
+        projectId,
+        supplierName: dto.supplierName,
+        question: dto.question,
+        type: dto.type || 'clarification',
+        createdAt: { gte: new Date(Date.now() - 60_000) },
+      },
+      select: { id: true },
+    });
+    if (dup) {
+      throw new ConflictException({ error: '疑似重复提交：60 秒内已向该供应商发起过相同内容的澄清，请勿重复发起', code: 'DUPLICATE_CLARIFICATION' });
+    }
     const created = await this.prisma.bidClarification.create({
       data: { projectId, type: dto.type || 'clarification', question: dto.question, issuer: dto.issuer, supplierName: dto.supplierName, supplierId: clarSupplierId },
     });
