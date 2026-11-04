@@ -652,7 +652,7 @@ export function AccountManagementPanel() {
                           ) : null}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-center font-mono text-xs text-[color:var(--muted-foreground)]"><span className="block truncate" title={s.username}>{s.username}</span></td>
+                      <td className="px-4 py-3 text-center font-mono text-xs text-[color:var(--muted-foreground)]"><span className="block truncate" title={s.supplier?.creditCode ?? ''}>{s.supplier?.creditCode ?? "—"}</span></td>
                       <td className="px-4 py-3 text-center text-[color:var(--foreground)]"><span className="block truncate" title={s.displayName || ""}>{s.displayName || "—"}</span></td>
                       <td className="px-4 py-3 text-center text-[color:var(--muted-foreground)]"><span className="block truncate" title={s.phone ?? ""}>{s.phone ?? "—"}</span></td>
                       <td className="px-4 py-3 text-center">
