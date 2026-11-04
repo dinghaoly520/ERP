@@ -612,7 +612,7 @@ export function AccountManagementPanel() {
           <table className="w-full min-w-[1080px] table-fixed border-collapse text-sm">
             <colgroup>
               <col style={{ width: '18%' }} />{/* 供应商 */}
-              <col style={{ width: '15%' }} />{/* 登录账号（信用代码） */}
+              <col style={{ width: '15%' }} />{/* 信用代码（=登录账号） */}
               <col style={{ width: '8%' }} />{/* 联系人 */}
               <col style={{ width: '11%' }} />{/* 手机 */}
               <col style={{ width: '9%' }} />{/* 状态 */}
@@ -623,7 +623,7 @@ export function AccountManagementPanel() {
             <thead>
               <tr className="border-b border-white/70 text-center text-xs text-[color:var(--muted-foreground)]">
                 <th className="px-4 py-3 font-medium">供应商</th>
-                <th className="px-4 py-3 font-medium">登录账号（信用代码）</th>
+                <th className="px-4 py-3 font-medium">信用代码</th>
                 <th className="px-4 py-3 font-medium">联系人</th>
                 <th className="px-4 py-3 font-medium">手机</th>
                 <th className="px-4 py-3 font-medium" style={{ width: 120 }}>状态</th>
