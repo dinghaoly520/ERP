@@ -39,16 +39,16 @@ const METHOD_LABELS: Record<string, string> = {
 };
 
 // 向导步骤定义 — 从项目管理进入且为竞争性谈判时，确认通知后插入「附件选择」
-// 2026-08-31 重构：原「选择项目 + 描述需求」合并为「供应商要求描述」——
-// 项目信息在前序步骤（需求/立项/采购文件）已详尽，此步聚焦对供应商的要求（经营范围/资质/业绩），填完即智能推荐
+// 2026-11-04 二次裁定：步骤 1 = 硬性筛选（业务标签必选 + 行业/资质/业绩/评价结构化条件）+ 补充说明（业绩/其他文字仅入文书）；
+// 推荐语义素材=项目上下文通道+结构化条件，文字段不再进推荐 prompt
 const STEPS = [
-  { num: 1, label: '供应商要求', desc: '描述对供应商的要求，AI 智能推荐' },
+  { num: 1, label: '硬性筛选', desc: '选业务标签与资格条件，AI 智能推荐' },
   { num: 2, label: '审核候选', desc: '查看 AI 推荐，构建候选名单' },
   { num: 3, label: '确认通知', desc: '发送通知给候选供应商' },
   { num: 4, label: '供应商确认', desc: '跟踪候选供应商确认参与意向' },
 ] as const;
 const NEGOTIATION_STEPS = [
-  { num: 1, label: '供应商要求', desc: '描述对供应商的要求，AI 智能推荐' },
+  { num: 1, label: '硬性筛选', desc: '选业务标签与资格条件，AI 智能推荐' },
   { num: 2, label: '审核候选', desc: '查看 AI 推荐，构建候选名单' },
   { num: 3, label: '确认通知', desc: '发送通知给候选供应商' },
   { num: 4, label: '附件选择', desc: '上传谈判所需附件供供应商下载' },
@@ -256,20 +256,17 @@ export function SupplierSelectionPage({
   // 一次 AI 请求、再被草稿覆盖（2026-10-19 用户裁定：有内容就不触发 AI 更新）
   const [sessionRestored, setSessionRestored] = useState(false);
   // 结构化需求字段（替代单一 textarea：5 个独立输入区 → 组合为 requirement 字符串）
-  const [reqOverview, setReqOverview] = useState('');
-  const [reqScope, setReqScope] = useState('');
-  const [reqQualification, setReqQualification] = useState('');
+  // 文字段（2026-11-04 二次裁定）：概况/经营范围/资质要求三段删除——信息由业务标签/行业/资质 pickers + 项目上下文通道覆盖；
+  // 文字区仅留 业绩要求（仅入文书）/其他（商务条款·仅入文书），推荐 prompt 改由结构化条件组装（buildStructuredRequirement）。
   const [reqSpecial, setReqSpecial] = useState('');
   const [reqOther, setReqOther] = useState('');
+  /** 文书全文（业绩/其他两段）——供资质分析面板、导出、历史存档等文书消费方 */
   const buildRequirement = useCallback(() => {
     const parts: string[] = [];
-    if (reqOverview.trim()) parts.push(`【项目概况】\n${reqOverview.trim()}`);
-    if (reqScope.trim()) parts.push(`【经营范围要求】\n${reqScope.trim()}`);
-    if (reqQualification.trim()) parts.push(`【资质要求】\n${reqQualification.trim()}`);
     if (reqSpecial.trim()) parts.push(`【业绩要求】\n${reqSpecial.trim()}`);
     if (reqOther.trim()) parts.push(`【其他】\n${reqOther.trim()}`);
     return parts.join('\n\n');
-  }, [reqOverview, reqScope, reqQualification, reqSpecial, reqOther]);
+  }, [reqSpecial, reqOther]);
   const [showHistory, setShowHistory] = useState(false);
   const [showCompare, setShowCompare] = useState(false);
   const [savedHistoryId, setSavedHistoryId] = useState<string | null>(null);
@@ -635,9 +632,6 @@ export function SupplierSelectionPage({
       if (saved) {
         const state = JSON.parse(saved);
         if (state.requirement) setRequirement(state.requirement);
-        if (state.reqOverview) setReqOverview(state.reqOverview);
-        if (state.reqScope) setReqScope(state.reqScope);
-        if (state.reqQualification) setReqQualification(state.reqQualification);
         if (state.reqSpecial) setReqSpecial(state.reqSpecial);
         if (state.reqOther) setReqOther(state.reqOther);
         if (Array.isArray(state.addMoreIdsArr)) setAddMoreIds(new Set(state.addMoreIdsArr));
@@ -797,7 +791,7 @@ export function SupplierSelectionPage({
   // 输入状态变化时持久化到 localStorage（跳过首次渲染，避免覆盖恢复的状态）
   const firstPersistSkip = useRef(true);
   // 将结构化字段合并为单一依赖，避免 useEffect deps 数组长度在 HMR 时变化
-  const requirementSnapshot = JSON.stringify({ requirement, reqOverview, reqScope, reqQualification, reqSpecial, reqOther });
+  const requirementSnapshot = JSON.stringify({ requirement, reqSpecial, reqOther });
   const addMoreIdsSnapshot = JSON.stringify([...addMoreIds].sort());
   // 服务端草稿同步（账号维度，跨设备）：本地保存后 2s 防抖写服务端——
   // 无论在哪个设备/IP 打开，同账号都能恢复到最新进度
@@ -818,7 +812,7 @@ export function SupplierSelectionPage({
     try {
       localStorage.setItem(sessionKey, JSON.stringify({
         v: 2,
-        requirement, reqOverview, reqScope, reqQualification, reqSpecial, reqOther, selectedTags, hardConditions, projectId, step, maxStepReached,
+        requirement, reqSpecial, reqOther, selectedTags, hardConditions, projectId, step, maxStepReached,
         addMoreIdsArr: [...addMoreIds],
         result: result ? { ...result, recommendations: result.recommendations.slice(0, 20) } : null,
         shortlistArr: [...shortlist.entries()],
@@ -898,7 +892,7 @@ export function SupplierSelectionPage({
         projectCode: selectedProject?.projectCode,
         procurementMethod: selectedProject?.procurementMethod,
         stage: selectedProject?.stage,
-        requirement: buildRequirement() || undefined,
+        requirement: buildStructuredRequirement() || undefined,
         fileSummary: fileAnalysisContext || undefined,
         vocabulary: vocab,
       });
@@ -958,6 +952,26 @@ export function SupplierSelectionPage({
 
   // 构建项目上下文供 AI 深度理解采购需求（提升推荐匹配度）
   // requirementText 用于去重：已覆盖的内容不再重复传入
+  /** 推荐 prompt 组装（2026-11-04 二次裁定）：项目标题 + 结构化条件——文字段（业绩/其他）仅入文书不进推荐 */
+  const buildStructuredRequirement = useCallback(() => {
+    const parts: string[] = [];
+    const title = selectedProject?.name || defaultProjectTitle || project?.title;
+    if (title) parts.push(`【项目】${title}`);
+    if (selectedTags.length > 0) parts.push(`【业务标签】${selectedTags.join('、')}`);
+    const hc = hardConditions;
+    if (hc.industries?.length) parts.push(`【行业要求】${hc.industries.join('、')}`);
+    if (hc.qualifications?.length) {
+      const labelOf = (k: string) => hardVocab?.qualifications.find((d) => d.key === k)?.label || k;
+      parts.push(`【资质要求】${hc.qualifications.map((q) => `${labelOf(q.key)}${q.required ? '（必须）' : '（优先）'}`).join('、')}`);
+    }
+    const p = hc.performance;
+    if (p && (p.years || p.minCount || p.keywords?.length)) {
+      parts.push(`【业绩要求】${p.years ? `近${p.years}年` : ''}${p.minCount ? `≥${p.minCount}项` : ''}${p.keywords?.length ? `，关键词：${p.keywords.join('、')}` : ''}`);
+    }
+    if (hc.minGrade) parts.push(`【评价等级】不低于${hc.minGrade}级`);
+    return parts.join('\n');
+  }, [selectedProject, defaultProjectTitle, project, selectedTags, hardConditions, hardVocab]);
+
   const buildProjectContext = useCallback((requirementText?: string): Record<string, string> | undefined => {
     const ctx: Record<string, string> = {};
     const req = (requirementText || '').trim();
@@ -988,7 +1002,7 @@ export function SupplierSelectionPage({
   }, [project, fileAnalysisContext]);
 
   const run = async () => {
-    const text = buildRequirement();
+    const text = buildStructuredRequirement();
     if (!text) { setError('请至少填写一项采购需求'); return; }
     setError(''); setLoading(true); setResult(null);
     try {
@@ -1011,7 +1025,7 @@ export function SupplierSelectionPage({
     setAddMoreLoading(true);
     setAddMoreOpen(false);
     try {
-      const text = buildRequirement() || selectedProject?.name || project?.title || '采购需求';
+      const text = buildStructuredRequirement() || selectedProject?.name || project?.title || '采购需求';
       const excludeIds = [...new Set([...shortlist.keys(), ...(result?.recommendations || []).map(r => r.supplierId)])];
       const res = await recommendSuppliers({
         requirement: text,
@@ -1038,6 +1052,7 @@ export function SupplierSelectionPage({
   };
 
   /** 将润色/模板文本按【标题】拆回结构化字段 */
+  /** 润色/模板文本按【标题】拆回字段（2026-11-04 二次裁定：仅业绩要求/其他两段；历史五段文本的概况/经营范围/资质段忽略） */
   const parsePolishedResult = useCallback((text: string) => {
     const sections = text.split(/(?=【)/g);
     const map: Record<string, string> = {};
@@ -1045,10 +1060,6 @@ export function SupplierSelectionPage({
       const m = s.match(/^【(.+?)】\n?([\s\S]*)/);
       if (m) map[m[1].trim()] = m[2].trim();
     }
-    // 段名兼容：2026-08-31 起为「经营范围要求/业绩要求」新段名，同时兼容旧输出的「采购范围/特殊要求」
-    let overview = map['项目概况'] || '';
-    let scope = map['经营范围要求'] || map['采购范围'] || '';
-    let qualification = map['资质要求'] || '';
     let performance = map['业绩要求'] || map['特殊要求'] || '';
     let other = map['其他'] || '';
 
@@ -1059,17 +1070,14 @@ export function SupplierSelectionPage({
     if (performance) {
       const kept: string[] = [];
       const moved: string[] = [];
-      for (const line of performance.split('\\n').filter((l) => l.trim())) {
+      for (const line of performance.split('\n').filter((l) => l.trim())) {
         if (PERF_RE.test(line) || !SERVICE_RE.test(line)) kept.push(line);
         else moved.push(line);
       }
-      performance = kept.join('\\n');
-      if (moved.length > 0) other = other ? other + '\\n' + moved.join('\\n') : moved.join('\\n');
+      performance = kept.join('\n');
+      if (moved.length > 0) other = other ? other + '\n' + moved.join('\n') : moved.join('\n');
     }
 
-    setReqOverview(overview);
-    setReqScope(scope);
-    setReqQualification(qualification);
     setReqSpecial(performance);
     setReqOther(other || (Object.keys(map).length === 0 ? text.trim() : ''));
   }, []);
@@ -1100,22 +1108,10 @@ export function SupplierSelectionPage({
         contextParts.push(fileAnalysisContext);
       }
       const additionalContext = contextParts.join('\n');
-      const hasContent = !!(reqOverview.trim() || reqScope.trim() || reqQualification.trim() || reqSpecial.trim() || reqOther.trim());
+      const hasContent = !!(reqSpecial.trim() || reqOther.trim());
 
-      // 生成要求：面向「对供应商的要求」，条目具体可核验、段落语义严格（服务类内容不得混入业绩段）
-      const FORMAT_SPEC = `【项目概况】
-1.（一句话：采购事项+所属领域+预算规模，≤50字）
-
-【经营范围要求】
-1.（供应商应覆盖的经营范围/业务领域，具体到产品类别）
-2.（供应商类型定位：制造商/代理商/集成商等，≥2条）
-
-【资质要求】
-1.（企业资质与体系认证：如 ISO 9001、生产许可、行业准入）
-2.（产品认证或技术资格，如强制性认证、特种设备许可）
-3.（有则继续，无信息的不编造，2-4条）
-
-【业绩要求】
+      // 生成要求（2026-11-04 二次裁定：仅业绩要求/其他两段，用于文书；推荐匹配由结构化条件承担）
+      const FORMAT_SPEC = `【业绩要求】
 1.（同类业绩门槛：近几年的、几项、什么类型的供货/服务案例）
 2.（行业经验或应用场景要求，如水利/地勘行业案例优先）
 （严格限定为"供应商过往业绩与经验"；运输/安装/培训/质保等服务性要求禁止写在本段）
@@ -1125,8 +1121,8 @@ export function SupplierSelectionPage({
 2.（交付与质保：供货周期、质保年限）
 （有则逐条列，无信息则留空）`;
       const prompt = hasContent
-        ? `根据以下项目信息充实现有的供应商要求描述，保持【】标题结构与编号列表格式。要求：每部分2-4条、每条15-50字且具体可核验（认证、数量、年限、时限）；只列"对供应商的要求"，项目自身信息仅概况一段；严格段落语义——【业绩要求】只写供应商过往同类业绩与经验（几年内、几项、什么类型供货/服务案例），服务类内容（运输/安装/培训/质保/响应时限/报价限价/付款）只能写入【其他】；若现有内容段落归属错位，必须先移到正确段落后再充实。信息不足的维度可依据项目文件合理细化，但不得虚构具体认证名称或金额。\n\n现有内容：\n${buildRequirement()}`
-        : `根据以下项目信息（来自采购需求、采购立项、采购文件），提炼一份面向供应商筛选的要求清单。严格按以下结构输出，编号列表，每条15-50字、具体可核验：\n\n${FORMAT_SPEC}\n\n要求：每部分2-4条（信息量实在不足可少于2条，但不得只写1条空泛的话）；从项目文件的技术参数、资格条款、服务条款中深挖素材；严格段落语义——服务类内容只进【其他】。`;
+        ? `根据以下项目信息充实现有的供应商要求描述，仅输出【业绩要求】【其他】两段，保持【】标题结构与编号列表格式。要求：每部分1-4条、每条15-50字且具体可核验；严格段落语义——【业绩要求】只写供应商过往同类业绩与经验（几年内、几项、什么类型），服务类内容（运输/安装/培训/质保/响应时限/报价限价/付款）只能写入【其他】；信息不足不得虚构认证名称或金额。\n\n现有内容：\n${buildRequirement()}`
+        : `根据以下项目信息（来自采购需求、采购立项、采购文件），提炼供应商的业绩要求与其他要求（用于采购文书）。严格按以下结构输出，编号列表，每条15-50字、具体可核验：\n\n${FORMAT_SPEC}\n\n要求：每部分1-4条（信息量实在不足可少于2条，但不得只写1条空泛的话）；从项目文件的资格条款、服务条款中深挖素材；严格段落语义——服务类内容只进【其他】。`;
 
       // 硬性条件 AI 预填（2026-11-04 spec）：与五段文本并行、只从词表选；手动改过则不覆盖（同业务标签范式）
       const hardSuggest = hardCondUserEditedRef.current || !hardVocab || (hardVocab.industries.length === 0 && hardVocab.qualifications.length === 0)
@@ -1157,7 +1153,7 @@ export function SupplierSelectionPage({
   // 须等会话恢复完成（sessionRestored）再判空——已有草稿内容就不触发 AI，仅在空白时生成
   useEffect(() => {
     if (step !== 1 || reqGeneratedRef.current || !sessionRestored) return;
-    if (reqOverview.trim() || reqScope.trim() || reqQualification.trim() || reqSpecial.trim() || reqOther.trim()) {
+    if (reqSpecial.trim() || reqOther.trim() || (hardConditions.industries?.length || 0) > 0 || (hardConditions.qualifications?.length || 0) > 0) {
       reqGeneratedRef.current = true;
       return;
     }
@@ -1575,7 +1571,7 @@ export function SupplierSelectionPage({
     const excludeIds = [...shortlist.keys(), ...previousRerunShortlist.keys(), ...rerunShortlist.keys()];
     const totalDeclined = [...allSupplierStatuses.values()].filter(s => s === 'declined').length;
     const need = totalDeclined + 1;
-    const rerunReq = buildRequirement() || selectedProject?.name || project?.title || '';
+    const rerunReq = buildStructuredRequirement() || selectedProject?.name || project?.title || '';
     recommendSuppliers({ requirement: rerunReq, tags: selectedTags.length ? selectedTags : undefined, maxCount: need, excludedSupplierIds: excludeIds, projectContext: buildProjectContext(rerunReq), companyId: project?.companyId || undefined, hardConditions: activeHardConditions })
       .then(res => { setRerunResult(res); setRerunLoading(false); })
       .catch(() => { setRerunLoading(false); toast.error('补选推荐失败'); });
@@ -2086,7 +2082,7 @@ export function SupplierSelectionPage({
           <div className="flex items-center justify-between pt-3 border-t border-[oklch(0.6_0.04_258_/_0.12)]">
             <div className="flex items-center gap-2">
               <button onClick={() => setStep(1)} className="neu-btn-soft gap-2">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>上一步：供应商要求
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>上一步：硬性筛选
               </button>
             </div>
             <button onClick={() => setStep(3)} disabled={shortlist.size === 0} className="neu-btn-soft gap-2" title={shortlist.size === 0 ? '请先加入候选供应商' : undefined}>
@@ -2179,17 +2175,24 @@ export function SupplierSelectionPage({
             </select>
           )}
 
+          {/* 硬性筛选卡（2026-11-04 二次裁定）：业务标签（必选）+ 行业/资质/业绩评价（可选）同款 picker 依次放置 */}
           <div className="rounded-[20px] p-5 space-y-4"
             style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.92) 0%, oklch(0.985 0.005 258 / 0.58) 40%, oklch(1 0 0 / 0.14) 75%)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.75), 2px 3px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.88)' }}>
-            {/* 业务标签（选取方式仅 AI 智能选取——手动选取已于 2026-10-19 移除） */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-[var(--foreground)]">硬性筛选</span>
+              <span className="text-[10px] text-[var(--muted-foreground)]">业务标签必选；行业/资质/业绩/评价可选——推荐时逐项核验库内资料（满足✓ / 资料缺失○标黄人工核实 / 不满足✗剔除）</span>
+            </div>
+            {/* ① 业务标签（选取方式仅 AI 智能选取——手动选取已于 2026-10-19 移除；2026-11-04 裁定必选） */}
             <div>
-              <label className="text-xs font-extrabold uppercase tracking-[0.08em] text-[var(--muted-foreground)] block mb-1.5">业务标签</label>
+              <label className="text-xs font-extrabold uppercase tracking-[0.08em] text-[var(--muted-foreground)] block mb-1.5">业务标签 <span className="text-[10px] font-bold normal-case text-[var(--danger)]">必选</span></label>
               <BusinessTagsPicker
                 tagVocab={tagVocab} selectedTags={selectedTags} tagQuery={tagQuery} setTagQuery={setTagQuery}
                 tagSuggesting={tagSuggesting} runTagSuggestion={runTagSuggestion} markTagsEdited={markTagsEdited}
                 setSelectedTags={setSelectedTags} removeTag={removeTag} toggleTag={toggleTag} addCustomTag={addCustomTag}
               />
             </div>
+            {/* ② 行业 ③ 资质 ④ 业绩与评价（同款设计依次放置） */}
+            <HardConditionsSection vocab={hardVocab} value={hardConditions} onChange={changeHardConditions} />
           </div>
 
           {/* 供应商要求卡（合并自原「描述需求」）：聚焦对供应商的要求，项目上下文 AI 已从项目文件注入 */}
@@ -2200,52 +2203,19 @@ export function SupplierSelectionPage({
                 <span className="flex h-7 w-7 items-center justify-center rounded-[9px]" style={{ background: 'color-mix(in oklch, var(--accent) 12%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5), 1px 1px 2px oklch(0.55 0.03 258 / 0.06)' }}>
                   <FileText size={13} className="text-[var(--accent)]" />
                 </span>
-                <span className="text-sm font-bold text-[var(--foreground)]">供应商要求</span>
-                <span className="text-[10px] text-[var(--muted-foreground)]">项目信息已自动关联，此处只需描述对供应商的要求</span>
+                <span className="text-sm font-bold text-[var(--foreground)]">补充说明</span>
+                <span className="text-[10px] text-[var(--muted-foreground)]">仅入采购文书与存档，不参与智能推荐——推荐由上方硬性筛选条件与项目上下文驱动</span>
               </div>
               <button onClick={generateRequirement} disabled={reqGenerating} className="neu-btn-xs gap-1.5 text-[var(--accent)]">
-                <Sparkles size={11} />{reqGenerating ? 'AI 生成中…' : (reqOverview || reqScope || reqQualification) ? '重新生成' : 'AI 按项目文件生成'}
+                <Sparkles size={11} />{reqGenerating ? 'AI 生成中…' : (reqSpecial || reqOther) ? '重新生成' : 'AI 按项目文件生成'}
               </button>
             </div>
 
             <div className="wb-section-rule" />
 
-              {/* 硬性筛选条件（2026-11-04 spec）：词表=库内真实数据，推荐时机器三态核验 */}
-              <HardConditionsSection vocab={hardVocab} value={hardConditions} onChange={changeHardConditions} />
-
-              {/* 项目概况（AI 预填上下文，可改） */}
+              {/* 业绩要求（文书） */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[var(--foreground)]">项目概况 <span className="font-normal text-[var(--muted-foreground)]">（AI 依据项目文件预填，作为推荐方向参照）</span></label>
-                <AutoTextarea
-                  value={reqOverview}
-                  onChange={e => setReqOverview(e.target.value)}
-                  placeholder="AI 将依据关联项目的需求/立项/采购文件自动填写；也可手动修正。"
-                />
-              </div>
-
-              {/* 经营范围要求 */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[var(--foreground)]">经营范围要求</label>
-                <AutoTextarea
-                  value={reqScope}
-                  onChange={e => setReqScope(e.target.value)}
-                  placeholder={'示例：1. 经营范围覆盖地质勘探设备、岩心钻机类产品\n2. 为该类设备制造商或授权代理商'}
-                />
-              </div>
-
-              {/* 资质要求 */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[var(--foreground)]">资质要求</label>
-                <AutoTextarea
-                  value={reqQualification}
-                  onChange={e => setReqQualification(e.target.value)}
-                  placeholder={'示例：1. 通过 ISO 9001 质量管理体系认证\n2. 具备相应生产许可或强制性认证'}
-                />
-              </div>
-
-              {/* 业绩要求 */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[var(--foreground)]">业绩要求</label>
+                <label className="text-xs font-bold text-[var(--foreground)]">业绩要求 <span className="font-normal text-[var(--muted-foreground)]">（仅入文书——推荐的业绩核验用上方结构化条件）</span></label>
                 <AutoTextarea
                   value={reqSpecial}
                   onChange={e => setReqSpecial(e.target.value)}
@@ -2253,9 +2223,9 @@ export function SupplierSelectionPage({
                 />
               </div>
 
-              {/* 其他 */}
+              {/* 其他（商务条款，文书） */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[var(--foreground)]">其他 <span className="font-normal text-[var(--muted-foreground)]">（服务响应、交付周期、质保等）</span></label>
+                <label className="text-xs font-bold text-[var(--foreground)]">其他 <span className="font-normal text-[var(--muted-foreground)]">（商务条款：服务响应、交付周期、质保等·仅入文书）</span></label>
                 <AutoTextarea
                   value={reqOther}
                   onChange={e => setReqOther(e.target.value)}
@@ -2276,7 +2246,7 @@ export function SupplierSelectionPage({
               </select>
               <span>家供应商</span>
             </div>
-            <button onClick={run} disabled={loading || !buildRequirement()} className="neu-btn-primary gap-2">
+            <button onClick={run} disabled={loading || selectedTags.length === 0} title={selectedTags.length === 0 ? '请先选择业务标签（必选）' : undefined} className="neu-btn-primary gap-2">
               <Wand2 size={14} />{loading ? '智能匹配中…' : '开始智能推荐'}
             </button>
           </div>
@@ -3912,7 +3882,12 @@ export function SupplierSelectionPage({
                     supplierId={detailSupplier.supplierId}
                     supplierName={detailSupplier.name}
                     projectId={projectId || (project as any)?.id || ''}
-                    requirementText={buildRequirement() || undefined}
+                    requirementText={
+                      (hardConditions.qualifications?.length
+                        ? `资质要求：${hardConditions.qualifications.map((q) => `${hardVocab?.qualifications.find((d) => d.key === q.key)?.label || q.key}${q.required ? '（必须）' : '（优先）'}`).join('、')}`
+                        : undefined)
+                      || buildRequirement() || undefined
+                    }
                   />
                 </div>
               </div>
