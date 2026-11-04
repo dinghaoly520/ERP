@@ -436,7 +436,7 @@ describe('ExpertAdminService', () => {
     });
     it('A1：regionCode 缺省（undefined）→ data 不含键（不动）', async () => {
       prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: 'bid_expert' });
-      await service.updateProfile('u1', { title: '高工' } as any);
+      await service.updateProfile('u1', { title: '高级工程师' } as any);
       const update = prisma.expertProfile.upsert.mock.calls[0][0].update;
       expect(update).not.toHaveProperty('regionCode');
     });
@@ -450,6 +450,19 @@ describe('ExpertAdminService', () => {
       id: 'e1', username: dto.username, displayName: dto.displayName,
       expertProfile: { phone: null, idNumber: null, licenseNo: null, employer: '' },
     };
+
+    it('职称标准化闸（2026-11-04）：非标准职称 → 400 TITLE_NOT_STANDARD（执业资格混入职称列即拒）', async () => {
+      prisma.user.findFirst.mockResolvedValue(null);
+      await expect(service.createExpert({ ...dto, title: '高级工程师、一建' } as any)).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'TITLE_NOT_STANDARD' }),
+      });
+    });
+    it('执业资格闸（2026-11-04）：非标准资格项 → 400 QUALIFICATION_NOT_STANDARD', async () => {
+      prisma.user.findFirst.mockResolvedValue(null);
+      await expect(service.createExpert({ ...dto, title: '高级工程师', qualifications: '一建、监理' } as any)).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'QUALIFICATION_NOT_STANDARD' }),
+      });
+    });
 
     it('companyId 给定 → User 归属与 ExpertProfile.employer 同用所选公司（防两列漂移）', async () => {
       prisma.user.findFirst.mockResolvedValue(null); // 账号查重

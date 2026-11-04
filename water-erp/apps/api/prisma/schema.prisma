@@ -1405,7 +1405,8 @@ model ExpertProfile {
   id                 String    @id @default(cuid())
   userId             String    @unique
   specialty          String // 专业领域（水利工程/机电设备/造价咨询/...）
-  title              String? // 职称（教授级高工/高工/...）
+  title              String? // 职称（15 项标准集：正高级工程师/高级工程师/工程师/...；API 校验闸 TITLE_NOT_STANDARD）
+  qualifications     String? // 执业资格（标准全称顿号分隔：一级建造师、监理工程师/...；与职称分列，API 校验闸 QUALIFICATION_NOT_STANDARD）
   employer           String? // 工作单位（用于供应商回避校验）
   phone              String?
   idNumber           String? // 身份证号

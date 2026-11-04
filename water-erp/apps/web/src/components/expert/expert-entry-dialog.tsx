@@ -9,12 +9,13 @@ import { ExpertCsvActions } from './expert-csv-actions';
 import { UserPlus, Eye, EyeOff, ScanLine, RefreshCw } from 'lucide-react';
 import { SearchSelect } from '@/components/workbench/search-select';
 
-const TITLES = ['教授级高级工程师','高级工程师','高级经济师','高级会计师','工程师','注册造价工程师','注册监理工程师'];
+import { EXPERT_TITLES as TITLES, EXPERT_QUALIFICATIONS as QUALIFICATIONS } from '@/lib/expert-standard-options';
+
 const EDUCATIONS = ['博士','硕士','本科','大专','其他'];
 const ETHNICITIES = ['汉族','蒙古族','回族','藏族','维吾尔族','苗族','彝族','壮族','布依族','朝鲜族','满族','侗族','瑶族','白族','土家族','其他'];
 
-type FormFields = { username: string; displayName: string; password: string; specialty: string; title: string; employer: string; departmentName: string; phone: string; idNumber: string; email: string; notes: string; ethnicity: string; education: string; licenseNo: string; };
-const INITIAL: FormFields = { username: '', displayName: '', password: '', specialty: '', title: '', employer: '', departmentName: '', phone: '', idNumber: '', email: '', notes: '', ethnicity: '', education: '', licenseNo: '' };
+type FormFields = { username: string; displayName: string; password: string; specialty: string; title: string; qualifications: string; employer: string; departmentName: string; phone: string; idNumber: string; email: string; notes: string; ethnicity: string; education: string; licenseNo: string; };
+const INITIAL: FormFields = { username: '', displayName: '', password: '', specialty: '', title: '', qualifications: '', employer: '', departmentName: '', phone: '', idNumber: '', email: '', notes: '', ethnicity: '', education: '', licenseNo: '' };
 
 interface ExpertEntryDialogProps {
   open: boolean;
@@ -60,7 +61,8 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
     else if (form.password.length < 6) e.password = '密码至少 6 位';
     if (!form.specialty.trim()) e.specialty = '请选择专业';
     else if (!specialties.includes(form.specialty)) e.specialty = '请从标准专业列表中选择';
-    if (!form.title.trim()) e.title = '请选择或输入职称';
+    if (!form.title.trim()) e.title = '请选择职称';
+    else if (!(TITLES as readonly string[]).includes(form.title)) e.title = '请从标准职称列表中选择';
     if (!form.employer.trim()) e.employer = '请选择工作单位';
     if (!form.departmentName.trim()) e.departmentName = '请输入所属部门';
     if (!form.phone.trim()) e.phone = '请输入联系电话';
@@ -190,7 +192,8 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
           <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><Step n={2} />专业资质</legend>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">专业领域 <span className="text-[var(--danger)]">*</span></span><SearchSelect options={specialties.map(s => ({ value: s, label: s }))} value={form.specialty} onPick={o => set('specialty', o.value)} placeholder="选择专业" searchPlaceholder="搜索专业…" emptyText="无匹配专业" triggerClassName={inputCls('specialty')} panelMinWidth={220} /><FieldError field="specialty" /></label>
-            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">职称 <span className="text-[var(--danger)]">*</span></span><input value={form.title} onChange={e => set('title', e.target.value)} list="entry-title-list" placeholder="如 高级工程师" className={inputCls('title')} /><datalist id="entry-title-list">{TITLES.map(t => <option key={t} value={t} />)}</datalist><FieldError field="title" /></label>
+            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">职称 <span className="text-[var(--danger)]">*</span></span><SearchSelect options={TITLES.map(t => ({ value: t, label: t }))} value={form.title} onPick={o => set('title', o.value)} placeholder="选择职称" searchPlaceholder="搜索职称…" emptyText="无匹配职称" triggerClassName={inputCls('title')} panelMinWidth={200} /><FieldError field="title" /></label>
+            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">执业资格</span><input value={form.qualifications} onChange={e => set('qualifications', e.target.value)} list="entry-qual-list" placeholder="如 一级建造师、监理工程师（顿号分隔）" className={inputCls('qualifications')} /><datalist id="entry-qual-list">{QUALIFICATIONS.map(q => <option key={q} value={q} />)}</datalist></label>
             {/* 工作单位：与 :3005 注册「公司」选择同款同源（UnitSearchSelect：62 家全级次企业名单 +
                 搜索 + 可手输），后端按名称命中公司主数据落归属 */}
             <div className="space-y-1">

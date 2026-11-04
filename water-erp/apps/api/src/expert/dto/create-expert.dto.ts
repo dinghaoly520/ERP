@@ -16,6 +16,8 @@ export class CreateExpertDto {
   specialty!: string;
 
   @IsOptional() @IsString() title?: string;
+  /** 执业资格（2026-11-04 与职称分列）：标准全称顿号分隔，service 层逐项校验 */
+  @IsOptional() @IsString() qualifications?: string;
   /** 归属公司（2026-10-15 录入收窄 admin 后的工作单位选择器）：给定则以该公司为归属与工作单位，未给定回退操作人公司快照 */
   @IsOptional() @IsString() companyId?: string;
   @IsOptional() @IsString() employer?: string;

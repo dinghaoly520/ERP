@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { listExperts, listSpecialties, setExpertAvailability, batchOperation, exportExperts, updateExpertEntryStatus, fetchExpertCompanyCounts, getExpertStatistics } from '@/lib/api/expert';
+import { EXPERT_TITLES } from '@/lib/expert-standard-options';
 import { exportExpertsToExcel } from '@/lib/excel-export';
 import type { ExpertListItem } from '@/lib/api/expert';
 import { Modal, StatusBadge, TableSkeleton } from '@/components/workbench';
@@ -461,7 +462,7 @@ export default function ExpertRepositoryPage() {
       {/* 高级筛选 */}
       {showAdvanced && (
         <div className="neu-table-card p-4 flex flex-wrap items-end gap-3">
-          <label className="space-y-1"><span className="text-[10px] font-semibold text-[var(--muted-foreground)]">职称</span><input value={advTitle} onChange={e => setAdvTitle(e.target.value)} placeholder="如 高级工程师" className="workbench-input !w-[150px]" /></label>
+          <label className="space-y-1"><span className="text-[10px] font-semibold text-[var(--muted-foreground)]">职称</span><select value={advTitle} onChange={e => setAdvTitle(e.target.value)} className="workbench-input !w-[150px]"><option value="">全部职称</option>{EXPERT_TITLES.map(t => <option key={t} value={t}>{t}</option>)}</select></label>
           <label className="space-y-1"><span className="text-[10px] font-semibold text-[var(--muted-foreground)]">工作单位</span><input value={advEmployer} onChange={e => setAdvEmployer(e.target.value)} placeholder="单位名称" className="workbench-input !w-[180px]" /></label>
           <label className="space-y-1"><span className="text-[10px] font-semibold text-[var(--muted-foreground)]">状态</span><select value={advAvailability} onChange={e => setAdvAvailability(e.target.value)} className="workbench-input !w-[110px]"><option value="">全部</option><option value="可用">可用</option><option value="占用">占用</option><option value="停用">停用</option></select></label>
           <button onClick={() => { setAdvTitle(''); setAdvEmployer(''); setAdvAvailability(''); }} className="neu-btn-xs">清除筛选</button>

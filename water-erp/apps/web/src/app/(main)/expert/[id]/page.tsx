@@ -7,6 +7,9 @@ import { api } from '@/lib/api';
 import { copyToClipboard } from '@/lib/copy-to-clipboard';
 import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getNotifyPrefs, updateNotifyPrefs, getNotifyHistory, getAiAdoptionRate, proxyMarkExpertInvitation, updateExpertProfile, getRiskBrief, type ExpertPortrait, type ExpertRiskBrief, type NotifyHistoryItem, revealExpertField } from '@/lib/api/expert';
 import { Modal, AlertBanner, StatusBadge } from '@/components/workbench';
+import { SearchSelect } from '@/components/workbench/search-select';
+import { EXPERT_TITLES, EXPERT_QUALIFICATIONS } from '@/lib/expert-standard-options';
+import { listSpecialties } from '@/lib/api/expert';
 import { useExpertAlerts } from '@/lib/hooks/use-alerts';
 import { TrendingUp, Award, AlertTriangle, ShieldAlert, ShieldCheck, Bell, Phone, MessageSquare, History, Ban, Sparkles, RefreshCw, Pencil, X, User, Hash, Briefcase, GraduationCap, Mail, Building2, Calendar, FileText, IdCard, Users, MapPin, Loader2 } from 'lucide-react';
 import { STAGE_LABEL, STAGE_COLOR, LEVEL_LABEL } from '@water-erp/shared';
@@ -31,7 +34,7 @@ interface ExpertDetail {
   /** 专家编号（2026-10-22）：{归属公司编码}-{同公司入库序号}，后端计算 */
   expertNo?: string;
   department: { id: string; name: string } | null; createdAt: string; isActive: boolean;
-  expertProfile?: { specialty?: string; title?: string; employer?: string; phone?: string; idNumber?: string; availability?: string; notes?: string; education?: string; ethnicity?: string; licenseNo?: string; regionCode?: string; expertLevel?: string; verifiedAt?: string | null; aiEvaluation?: string | null; aiEvaluatedAt?: string | null };
+  expertProfile?: { specialty?: string; title?: string; qualifications?: string | null; employer?: string; phone?: string; idNumber?: string; availability?: string; notes?: string; education?: string; ethnicity?: string; licenseNo?: string; regionCode?: string; expertLevel?: string; verifiedAt?: string | null; aiEvaluation?: string | null; aiEvaluatedAt?: string | null };
   assignments: Assignment[];
   statistics: { totalProjects: number; completedProjects: number; signedInProjects: number; evalAvg: number; evalCount: number };
   /** 邀请信用摘要（2026-10-21）：毁约记录 + 连拒段预警口径 */
@@ -108,12 +111,10 @@ const TABS: { key: Tab; label: string; icon: any }[] = [
   { key: 'notify', label: '通知偏好', icon: Bell },
 ];
 
-type ProfileFormState = { displayName: string; email: string; specialty: string; title: string; employer: string; departmentName: string; phone: string; idNumber: string; ethnicity: string; education: string; licenseNo: string; availability: '可用' | '占用' | '停用'; notes: string; regionCode: string; expertLevel: string };
+type ProfileFormState = { displayName: string; email: string; specialty: string; title: string; qualifications: string; employer: string; departmentName: string; phone: string; idNumber: string; ethnicity: string; education: string; licenseNo: string; availability: '可用' | '占用' | '停用'; notes: string; regionCode: string; expertLevel: string };
 const PROFILE_FIELDS: { key: Exclude<keyof ProfileFormState, 'notes' | 'availability' | 'departmentName'>; label: string; placeholder: string }[] = [
   { key: 'displayName', label: '姓名', placeholder: '专家姓名' },
   { key: 'email', label: '邮箱', placeholder: '用于登录与通知触达' },
-  { key: 'specialty', label: '专业', placeholder: '如 水利水电工程' },
-  { key: 'title', label: '职称', placeholder: '如 高级工程师' },
   { key: 'employer', label: '工作单位', placeholder: '所在单位全称' },
   { key: 'phone', label: '手机', placeholder: '用于短信 / 电话通知' },
   { key: 'idNumber', label: '身份证号', placeholder: '18 位身份证号码' },
@@ -179,7 +180,13 @@ export default function ExpertDetailPage() {
   const [vioSaving, setVioSaving] = useState(false);
   // 编辑资料弹窗
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm] = useState<ProfileFormState>({ displayName: '', email: '', specialty: '', title: '', employer: '', departmentName: '', phone: '', idNumber: '', ethnicity: '', education: '', licenseNo: '', availability: '可用', notes: '', regionCode: '', expertLevel: '' });
+  const [editForm, setEditForm] = useState<ProfileFormState>({ displayName: '', email: '', specialty: '', title: '', qualifications: '', employer: '', departmentName: '', phone: '', idNumber: '', ethnicity: '', education: '', licenseNo: '', availability: '可用', notes: '', regionCode: '', expertLevel: '' });
+  const [specialtyOptions, setSpecialtyOptions] = useState<string[]>([]);
+
+  useEffect(() => {
+    // 编辑表单专业严格下拉的选项源（库内实际专业，与录入弹窗同口径）
+    listSpecialties().then(setSpecialtyOptions).catch(() => setSpecialtyOptions([]));
+  }, []);
   // PII 明文揭示（等保+密评）：详情默认掩码；点「明文」调 reveal 端点（后端 SensitiveAccessLog 留痕）
   const [revealedPii, setRevealedPii] = useState<Record<string, string>>({});
   const [revealingPii, setRevealingPii] = useState<string | null>(null);
@@ -293,6 +300,7 @@ export default function ExpertDetailPage() {
       email: '',
       specialty: p?.specialty || '',
       title: p?.title || '',
+      qualifications: p?.qualifications || '',
       employer: p?.employer || '',
       departmentName: expert.department?.name || '',
       phone: '',
@@ -311,7 +319,13 @@ export default function ExpertDetailPage() {
   const saveProfile = async () => {
     // 保存前校验：姓名/专业必填；手机/身份证/邮箱填了才查格式（正则与录入页一致）
     if (!editForm.displayName.trim()) { toast.error('请输入专家姓名'); return; }
-    if (!editForm.specialty.trim()) { toast.error('请输入专业领域'); return; }
+    if (!editForm.specialty.trim()) { toast.error('请选择专业'); return; }
+    else if (!specialtyOptions.includes(editForm.specialty)) { toast.error('请从标准专业列表中选择'); return; }
+    if (editForm.title.trim() && !(EXPERT_TITLES as readonly string[]).includes(editForm.title.trim())) { toast.error('请从标准职称列表中选择'); return; }
+    if (editForm.qualifications.trim()) {
+      const bad = editForm.qualifications.split(/[、，,]/).map(s => s.trim()).filter(Boolean).filter(q => !(EXPERT_QUALIFICATIONS as readonly string[]).includes(q));
+      if (bad.length > 0) { toast.error(`执业资格「${bad.join('、')}」不在标准清单内`); return; }
+    }
     if (editForm.phone.trim() && !/^1[3-9]\d{9}$/.test(editForm.phone.trim())) { toast.error('手机号格式不正确（11位数字）'); return; }
     if (editForm.idNumber.trim() && !/^\d{17}[\dXx]$/.test(editForm.idNumber.trim())) { toast.error('身份证号格式不正确（18位）'); return; }
     if (editForm.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editForm.email.trim())) { toast.error('邮箱格式不正确'); return; }
@@ -321,7 +335,7 @@ export default function ExpertDetailPage() {
       // A-129 档案维度：空值提交 null=显式清除（后端 null 语义），清空保存即清除
       // PII（email/phone/idNumber/licenseNo）留空=不修改：剥离空值（后端 undefined 即跳过）
       const { email, phone, idNumber, licenseNo, ...rest } = editForm;
-      const payload: Record<string, unknown> = { ...rest, regionCode: editForm.regionCode.trim() || null, expertLevel: editForm.expertLevel || null };
+      const payload: Record<string, unknown> = { ...rest, regionCode: editForm.regionCode.trim() || null, expertLevel: editForm.expertLevel || null, qualifications: editForm.qualifications.trim() || null };
       if (email.trim()) payload.email = email.trim();
       if (phone.trim()) payload.phone = phone.trim();
       if (idNumber.trim()) payload.idNumber = idNumber.trim();
@@ -454,6 +468,7 @@ export default function ExpertDetailPage() {
               <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
                 <InfoField label="专业领域" value={p.specialty} />
                 <InfoField label="职称" value={p.title} />
+                <InfoField label="执业资格" value={p.qualifications} />
                 <InfoField label="学历" value={p.education} />
                 <InfoField label="执业资格编号" value={p.licenseNo} mono copyable />
                 <InfoField label="行政区域代码" value={p.regionCode} mono />
@@ -1122,12 +1137,24 @@ export default function ExpertDetailPage() {
             <section className="space-y-3">
               <GroupHead>专业资格 · 抽取匹配</GroupHead>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {PROFILE_FIELDS.filter(f => ['specialty', 'title', 'licenseNo'].includes(f.key)).map(f => (
-                  <label key={f.key} className="space-y-1 block">
-                    <span className="text-xs font-semibold text-[var(--muted-foreground)]">{f.label}</span>
-                    <input value={editForm[f.key]} onChange={e => setEditForm(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder={f.placeholder} className="workbench-input" />
-                  </label>
-                ))}
+                {/* 专业/职称：严格下拉（2026-11-04 标准化，与录入弹窗同口径）；执业资格独立字段 */}
+                <label className="space-y-1 block">
+                  <span className="text-xs font-semibold text-[var(--muted-foreground)]">专业</span>
+                  <SearchSelect options={specialtyOptions.map(s => ({ value: s, label: s }))} value={editForm.specialty} onPick={o => setEditForm(prev => ({ ...prev, specialty: o.value }))} placeholder="选择专业" searchPlaceholder="搜索专业…" emptyText="无匹配专业" triggerClassName="workbench-input" panelMinWidth={200} />
+                </label>
+                <label className="space-y-1 block">
+                  <span className="text-xs font-semibold text-[var(--muted-foreground)]">职称</span>
+                  <SearchSelect options={EXPERT_TITLES.map(t => ({ value: t, label: t }))} value={editForm.title} onPick={o => setEditForm(prev => ({ ...prev, title: o.value }))} placeholder="选择职称" searchPlaceholder="搜索职称…" emptyText="无匹配职称" triggerClassName="workbench-input" panelMinWidth={200} />
+                </label>
+                <label className="space-y-1 block">
+                  <span className="text-xs font-semibold text-[var(--muted-foreground)]">执业资格</span>
+                  <input value={editForm.qualifications} onChange={e => setEditForm(prev => ({ ...prev, qualifications: e.target.value }))} list="edit-qual-list" placeholder="如 一级建造师、监理工程师（顿号分隔）" className="workbench-input" />
+                  <datalist id="edit-qual-list">{EXPERT_QUALIFICATIONS.map(q => <option key={q} value={q} />)}</datalist>
+                </label>
+                <label className="space-y-1 block">
+                  <span className="text-xs font-semibold text-[var(--muted-foreground)]">证书编号</span>
+                  <input value={editForm.licenseNo} onChange={e => setEditForm(prev => ({ ...prev, licenseNo: e.target.value }))} placeholder="执业资格证书编号" className="workbench-input" />
+                </label>
                 <label className="space-y-1 block">
                   <span className="text-xs font-semibold text-[var(--muted-foreground)]">库内等级<span className="ml-1 text-[10px] font-normal opacity-70">清空保存即清除</span></span>
                   <select value={editForm.expertLevel} onChange={e => setEditForm(prev => ({ ...prev, expertLevel: e.target.value }))} className="workbench-input" title="专家库档案等级（区别于履职评价等级），抽取配额可按此过滤">

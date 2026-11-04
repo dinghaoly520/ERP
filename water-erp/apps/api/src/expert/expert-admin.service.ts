@@ -44,6 +44,30 @@ export const EXPERT_SPECIALTY_OPTIONS = [
 ] as const;
 
 
+/** 标准职称清单（2026-11-04 用户裁定标准化）：录入/CSV/编辑统一约束，按五个职称
+ *  序列组织；"中级"前缀冗余（中级即该序列中级本身）、执业资格不属职称（独立
+ *  qualifications 字段承载）。存量已按同口径清洗（40 种写法 → 标准职称/置空）。
+ *  新增职称须先在此登记。 */
+export const EXPERT_TITLE_OPTIONS = [
+  '正高级工程师', '高级工程师', '工程师', '助理工程师',
+  '正高级经济师', '高级经济师', '经济师', '助理经济师',
+  '正高级会计师', '高级会计师', '会计师',
+  '高级审计师', '审计师',
+  '高级政工师', '政工师',
+] as const;
+
+/** 标准执业资格清单（同裁定）：从职称列剥离的注册类证书标准全称，多值顿号分隔。 */
+export const EXPERT_QUALIFICATION_OPTIONS = [
+  '一级建造师', '二级建造师', '一级造价工程师', '二级造价工程师', '监理工程师',
+  '注册土木工程师', '注册会计师', '法律职业资格', '企业人力资源管理师',
+] as const;
+
+/** 执业资格字段切分归一：顿号/中英文逗号分隔，逐项去空格；用于校验与清洗。 */
+export function splitQualifications(raw: string): string[] {
+  return raw.split(/[、，,]/).map(s => s.trim()).filter(Boolean);
+}
+
+
 /** 等级→分值（用于加权计算综合等级） */
 const GRADE_SCORE: Record<ExpertLevel, number> = { A: 5, B: 4, C: 3, D: 2, E: 1 };
 const SCORE_GRADE: Record<number, ExpertLevel> = { 5: 'A', 4: 'B', 3: 'C', 2: 'D', 1: 'E' };
@@ -560,6 +584,22 @@ export class ExpertAdminService {
         code: 'SPECIALTY_NOT_STANDARD',
       });
     }
+    // 职称标准化闸（2026-11-04）：非标准职称拒绝；执业资格不在职称列（独立字段，逐项校验）
+    if (dto.title?.trim() && !(EXPERT_TITLE_OPTIONS as readonly string[]).includes(dto.title.trim())) {
+      throw new BadRequestException({
+        error: `职称「${dto.title.trim()}」不在标准职称清单内，请从下列选择：${EXPERT_TITLE_OPTIONS.join('、')}（执业证书请填入执业资格字段）`,
+        code: 'TITLE_NOT_STANDARD',
+      });
+    }
+    if (dto.qualifications?.trim()) {
+      const bad = splitQualifications(dto.qualifications).filter(q => !(EXPERT_QUALIFICATION_OPTIONS as readonly string[]).includes(q));
+      if (bad.length > 0) {
+        throw new BadRequestException({
+          error: `执业资格「${bad.join('、')}」不在标准清单内，请使用标准全称：${EXPERT_QUALIFICATION_OPTIONS.join('、')}`,
+          code: 'QUALIFICATION_NOT_STANDARD',
+        });
+      }
+    }
     if (await this.prisma.user.findFirst({ where: { username: dto.username, role: 'bid_expert' } })) {
       throw new BadRequestException({ error: '账号已存在', code: 'DUPLICATE_USERNAME' });
     }
@@ -774,6 +814,30 @@ export class ExpertAdminService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
 
+    // 标准化闸（2026-11-04）：编辑通道与录入/CSV 同口径——专业/职称/执业资格
+    // 非标准一律拒绝（编辑表单已是严格下拉，此处兜底直调 API）
+    if (dto.specialty?.trim() && !(EXPERT_SPECIALTY_OPTIONS as readonly string[]).includes(dto.specialty.trim())) {
+      throw new BadRequestException({
+        error: `专业「${dto.specialty.trim()}」不在标准专业清单内，请从下列选择：${EXPERT_SPECIALTY_OPTIONS.join('、')}`,
+        code: 'SPECIALTY_NOT_STANDARD',
+      });
+    }
+    if (dto.title?.trim() && !(EXPERT_TITLE_OPTIONS as readonly string[]).includes(dto.title.trim())) {
+      throw new BadRequestException({
+        error: `职称「${dto.title.trim()}」不在标准职称清单内，请从下列选择：${EXPERT_TITLE_OPTIONS.join('、')}（执业证书请填入执业资格字段）`,
+        code: 'TITLE_NOT_STANDARD',
+      });
+    }
+    if (dto.qualifications?.trim()) {
+      const bad = splitQualifications(dto.qualifications).filter(q => !(EXPERT_QUALIFICATION_OPTIONS as readonly string[]).includes(q));
+      if (bad.length > 0) {
+        throw new BadRequestException({
+          error: `执业资格「${bad.join('、')}」不在标准清单内，请使用标准全称：${EXPERT_QUALIFICATION_OPTIONS.join('、')}`,
+          code: 'QUALIFICATION_NOT_STANDARD',
+        });
+      }
+    }
+
     // R6-7（2026-09-30 审计 B5）：已退库/暂停的专家禁止经编辑资料把 availability 改回
     // '可用'——退库时落 availability='停用'+entryStatus=RETIRED，此入口可单方面改回可用
     // 造矛盾档案（抽取虽按 entryStatus 拦，但统计/档案失真）
@@ -816,6 +880,7 @@ export class ExpertAdminService {
         update: {
           ...(dto.specialty && { specialty: dto.specialty }),
           ...(dto.title !== undefined && { title: dto.title }),
+          ...(dto.qualifications !== undefined && { qualifications: dto.qualifications }),
           ...(dto.employer !== undefined && { employer: dto.employer }),
           ...(dto.phone !== undefined && { phone: sealPii(dto.phone) ?? null }), // PII 国密密封
           ...(dto.idNumber !== undefined && { idNumber: sealPii(dto.idNumber) ?? null }),
@@ -827,7 +892,7 @@ export class ExpertAdminService {
           ...(dto.regionCode !== undefined && { regionCode: dto.regionCode }),
           ...(dto.expertLevel !== undefined && { expertLevel: dto.expertLevel }),
         },
-        create: { userId, specialty: dto.specialty || '综合', title: dto.title, employer: dto.employer, phone: sealPii(dto.phone) ?? null, idNumber: sealPii(dto.idNumber) ?? null, ethnicity: dto.ethnicity, education: dto.education, licenseNo: sealPii(dto.licenseNo) ?? null, availability: dto.availability ?? '可用', notes: dto.notes, regionCode: dto.regionCode, expertLevel: dto.expertLevel },
+        create: { userId, specialty: dto.specialty || '综合', title: dto.title, qualifications: dto.qualifications, employer: dto.employer, phone: sealPii(dto.phone) ?? null, idNumber: sealPii(dto.idNumber) ?? null, ethnicity: dto.ethnicity, education: dto.education, licenseNo: sealPii(dto.licenseNo) ?? null, availability: dto.availability ?? '可用', notes: dto.notes, regionCode: dto.regionCode, expertLevel: dto.expertLevel },
       }),
     ]);
     await this.auditExpert(operatorId, 'EXPERT_UPDATE', userId, { expertName: user.displayName });
@@ -869,7 +934,9 @@ export class ExpertAdminService {
       }
     } catch {
       // AI 不可用 → 规则兜底
-      const titleRank = (t?: string | null) => /正高|研究员/.test(t || '') ? 4 : /高级|副高/.test(t || '') ? 3 : /中级|工程师/.test(t || '') ? 2 : 1;
+      // 职称档位（2026-11-04 标准化后口径）：正高 4 / 副高 3 / 中级 2 / 初级(助理/员级) 1
+      // ——「助理」先于「工程师」判定，防"助理工程师"被误判中级
+      const titleRank = (t?: string | null) => /正高|研究员/.test(t || '') ? 4 : /高级|副高/.test(t || '') ? 3 : /助理|员级/.test(t || '') ? 1 : /中级|工程师|经济师|会计师|审计师|政工师/.test(t || '') ? 2 : 1;
       const eduRank = (e?: string | null) => /博士/.test(e || '') ? 4 : /硕士/.test(e || '') ? 3 : /本科/.test(e || '') ? 2 : 1;
       let best = experts[0]; let bestScore = -1;
       for (const e of experts) {
@@ -2900,14 +2967,29 @@ export class ExpertAdminService {
         results.push({ 姓名: displayName, 状态: '跳过', 原因: `专业「${specialty}」不在标准清单` });
         skipped++; continue;
       }
+      // 职称/执业资格标准化闸（2026-11-04）：与录入同口径，非标准行跳过留原因
+      const title = pick(row, ['职称']) || undefined;
+      if (title?.trim() && !(EXPERT_TITLE_OPTIONS as readonly string[]).includes(title.trim())) {
+        results.push({ 姓名: displayName, 状态: '跳过', 原因: `职称「${title}」不在标准清单` });
+        skipped++; continue;
+      }
+      const qualifications = pick(row, ['执业资格', '执业资格证书']) || undefined;
+      const badQual = qualifications?.trim()
+        ? splitQualifications(qualifications).filter(q => !(EXPERT_QUALIFICATION_OPTIONS as readonly string[]).includes(q))
+        : [];
       const dup = await this.prisma.user.findFirst({ where: { username, role: 'bid_expert' } });
       if (dup) { results.push({ 姓名: displayName, 状态: '跳过', 原因: '账号已存在' }); skipped++; continue; }
+      if (badQual.length > 0) {
+        results.push({ 姓名: displayName, 状态: '跳过', 原因: `执业资格「${badQual.join('、')}」不在标准清单` });
+        skipped++; continue;
+      }
       try {
         await this.createExpert({
           username, displayName,
           password: pick(row, ['密码', '初始密码']) || 'expert@2026',
           specialty,
-          title: pick(row, ['职称']) || undefined,
+          title,
+          qualifications,
           employer: pick(row, ['工作单位', '单位']) || undefined,
           phone: pick(row, ['手机号', '手机', '电话']) || undefined,
           idNumber: pick(row, ['身份证号', '身份证']) || undefined,

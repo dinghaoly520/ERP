@@ -26,6 +26,8 @@ export class UpdateExpertProfileDto {
   @IsOptional() @IsString() displayName?: string;
   @IsOptional() @IsString() specialty?: string;
   @IsOptional() @IsString() title?: string;
+  /** 执业资格（2026-11-04 与职称分列）：标准全称顿号分隔，service 层逐项校验 */
+  @IsOptional() @IsString() qualifications?: string;
   @IsOptional() @IsString() employer?: string;
   @IsOptional() @IsString() departmentName?: string;
   @IsOptional() @IsString() phone?: string;

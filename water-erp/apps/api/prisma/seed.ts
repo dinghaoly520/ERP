@@ -688,7 +688,7 @@ async function main() {
       const oldExperts = await prisma.user.deleteMany({ where: { role: 'bid_expert' } });
       interface ExpertLibEntry {
         seq: number; name: string; gender: string; education: string; specialty: string;
-        title: string; employer: string; company: string; department: string;
+        title: string; qualifications?: string; employer: string; company: string; department: string;
         phone: string; idNumber: string; email: string; entryDate: string;
       }
       const library = load<ExpertLibEntry[]>('ExpertLibrary');
@@ -722,7 +722,8 @@ async function main() {
           data: {
             userId: u.id,
             specialty: e.specialty,
-            title: e.title,
+            title: e.title || null,
+            qualifications: e.qualifications || null,
             employer: e.employer,
             education: e.education,
             phone: e.phone ? sealPii(e.phone) : null,
