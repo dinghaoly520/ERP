@@ -9002,9 +9002,10 @@ a {
 
 /* ══════════════════════════════════════════════════════════════════
    主按钮 — .neu-btn-primary
-   品牌浅染底 + 深品牌蓝字（2026-10-10 用户裁定：按钮禁止纯蓝色底）。
-   主操作权重靠 深色粗字 + 品牌色染 + 略强于 soft 的方向性双影 表达，
-   三态完整：默认凸起 → hover 染色加深抬升 → active 内凹
+   纯白瓷片底 + 深品牌蓝字（2026-10-10 用户裁定：按钮禁止纯蓝色底；
+   2026-11-04 用户裁定：浅染底仍偏灰，改纯白——hover 才浮现 10% 品牌淡染）。
+   主操作权重靠 深色粗字 + 纯白瓷片 + 略强于 soft 的方向性双影 表达，
+   三态完整：默认凸起 → hover 淡染抬升 → active 内凹
    ══════════════════════════════════════════════════════════════════ */
 .neu-btn-primary {
   display: inline-flex;
@@ -9016,7 +9017,7 @@ a {
   font-size: 14px;
   font-weight: 700;
   color: var(--neu-brand-deep);
-  background: color-mix(in oklch, var(--neu-brand) 10%, oklch(1 0 0));
+  background: oklch(1 0 0);
   border: none;
   border-radius: 9px;
   cursor: pointer;
@@ -9028,7 +9029,7 @@ a {
   white-space: nowrap;
 }
 .neu-btn-primary:hover {
-  background: color-mix(in oklch, var(--neu-brand) 15%, oklch(1 0 0));
+  background: color-mix(in oklch, var(--neu-brand) 10%, oklch(1 0 0));
   transform: translateY(-1px);
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 0.8),
