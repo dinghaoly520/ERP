@@ -1,3 +1,7 @@
+import { HardConditions, ConditionCheck } from './supplier-hard-conditions';
+
+export type { HardConditions, ConditionCheck };
+
 export interface ComplianceItem {
   name: string;
   status: 'pass' | 'fail' | 'warn';
@@ -76,5 +80,9 @@ export interface SupplierSelectionResult {
   candidatePool: number;
   summary: string;
   recommendations: SupplierRecommendation[];
+  /** 硬性条件逐项核验（仅传入 hardConditions 时返回；键=推荐供应商） */
+  conditionsCheck?: { supplierId: string; checks: ConditionCheck[] }[];
+  /** 被硬性条件剔除的供应商（必须级 FAIL；供人工复核误杀） */
+  filteredOut?: { supplierId: string; name: string; failedCondition: string }[];
   generatedAt: string;
 }

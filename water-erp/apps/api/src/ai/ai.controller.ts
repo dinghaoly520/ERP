@@ -18,6 +18,7 @@ import { ProcurementAnalysisDto } from './dto/procurement-analysis.dto';
 import { TenderFieldGenerateDto } from './dto/tender-field-generate.dto';
 import { ReferenceBudgetDto } from './dto/reference-budget.dto';
 import { Throttle } from '@nestjs/throttler';
+import { sanitizeHardConditions } from './supplier-hard-conditions';
 
 @ApiTags('AI辅助评标')
 @ApiCookieAuth('token')
@@ -96,7 +97,7 @@ export class AiController {
   @ApiOperation({ summary: 'AI智能推荐供应商（按采购需求）' })
   @Roles('admin', 'bid_expert', 'bid_host', 'leader', 'staff')
   async recommendSuppliers(
-    @Body() body: { requirement?: string; tags?: string[]; maxCount?: number; excludedSupplierIds?: string[]; projectContext?: Record<string, string>; companyId?: string },
+    @Body() body: { requirement?: string; tags?: string[]; maxCount?: number; excludedSupplierIds?: string[]; projectContext?: Record<string, string>; companyId?: string; hardConditions?: unknown },
     @Request() req: any = {},
   ) {
     const requirement = (body?.requirement ?? '').trim();
@@ -112,6 +113,8 @@ export class AiController {
         projectContext: body.projectContext,
         // 公司级隔离：候选池限定登录人公司；admin 可传项目归属公司切换（非 admin 传参被 resolveScope 忽略）
         companyId: typeof body?.companyId === 'string' && body.companyId.trim() ? body.companyId.trim() : undefined,
+        // 硬性筛选条件（2026-11-04 spec）：入参消毒（字典 key 白名单/数字夹取），空对象=行为与现状一致
+        hardConditions: sanitizeHardConditions(body?.hardConditions),
         actor: req.user,
       });
     } catch (e: any) {

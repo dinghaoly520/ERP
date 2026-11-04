@@ -19,6 +19,12 @@ import type {
   SupplierRecommendation,
   SupplierSelectionResult,
 } from './ai.types';
+import {
+  type HardConditions,
+  type ConditionCheck,
+  hardConditionsEmpty,
+  filterPoolByHardConditions,
+} from './supplier-hard-conditions';
 import { computeRiskFactors, riskLevel, predictDefaultRisk } from './risk-score.compute';
 import { buildCalibration } from '../ai-bid-analysis/utils/calibration';
 import { openField } from '../common/crypto/field-crypto';
@@ -1216,6 +1222,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       projectContext?: Record<string, string>;
       companyId?: string; // admin 限定候选池公司（项目管理流程传项目归属公司）
       actor?: AuthenticatedUser; // 登录人（公司隔离视野来源；非 admin 强制本人公司，companyId 传参忽略防伪造）
+      hardConditions?: HardConditions; // 硬性筛选条件（2026-11-04 spec）：空/缺省=行为与现状一致
     },
   ): Promise<SupplierSelectionResult> {
     const maxCount = Math.min(Math.max(opts.maxCount ?? 10, 1), 30);
@@ -1231,15 +1238,50 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     // 多公司归属换形（2026-10-16）：APPROVED link 存在性替代单值 companyId（同供应商域读端口径）。
     // 非 admin 强制本人公司；admin 默认全部、由 companyId 切换（项目管理供应商邀请流程传项目归属公司快照）。
     Object.assign(where, supplierCompanyWhere(await this.companyScope.resolveScope(opts.actor, opts.companyId)));
-    const suppliers = await this.prisma.supplier.findMany({
+    let suppliers = await this.prisma.supplier.findMany({
       where,
       include: {
         contacts: { orderBy: { isPrimary: 'desc' }, take: 10 }, // 全联系人（主优先，2026-10-27 邀请表格全列展示+逐联系人短信）
-        qualifications: { select: { name: true }, take: 5 },
-        evaluations: { select: { finalGrade: true } },
+        qualifications: { select: { name: true, validTo: true }, take: 20 },
+        // 硬性条件核验/LLM 证据（2026-11-04 spec）：业绩=自报记录（recordType=performance）；惩戒计数
+        performances: { where: { recordType: 'performance' }, select: { projectName: true, description: true, signDate: true, createdAt: true }, orderBy: { signDate: 'desc' }, take: 50 },
+        penalties: { select: { id: true } },
+        evaluations: { select: { finalGrade: true, createdAt: true } },
         bidSuppliers: { where: { project: { stage: { notIn: ['ARCHIVED'] } } }, select: { id: true } },
       },
     });
+
+    // 硬性条件三态核验（2026-11-04 spec）：必须级 FAIL 剔除、MISSING 保留；不传/空=零行为变化
+    let hardChecks = new Map<string, ConditionCheck[]>();
+    let hardFilteredOut: { supplierId: string; name: string; failedCondition: string }[] | undefined;
+    if (!hardConditionsEmpty(opts.hardConditions)) {
+      const latestGrade = new Map<string, string | null>();
+      for (const s of suppliers) {
+        const evs: { finalGrade: string; createdAt: Date }[] = (s as any).evaluations || [];
+        latestGrade.set(
+          s.id,
+          evs.length > 0 ? evs.reduce((a, b) => (a.createdAt >= b.createdAt ? a : b)).finalGrade : null,
+        );
+      }
+      const verdict = filterPoolByHardConditions(suppliers as any, opts.hardConditions!, latestGrade);
+      const keptIds = new Set(verdict.kept.map((k) => k.id));
+      suppliers = suppliers.filter((s) => keptIds.has(s.id));
+      hardChecks = verdict.checksBySupplier;
+      hardFilteredOut = verdict.filteredOut;
+      if (suppliers.length === 0) {
+        return {
+          requirement,
+          engine: 'rules',
+          model: 'WaterERP Rules Engine',
+          candidatePool: 0,
+          summary: `硬性筛选条件剔除了全部 ${verdict.filteredOut.length} 家候选供应商，请放宽条件后重试。`,
+          recommendations: [],
+          conditionsCheck: [],
+          filteredOut: hardFilteredOut,
+          generatedAt: new Date().toISOString(),
+        };
+      }
+    }
 
     // 2. 关键词 n-gram 重叠度评分 → 取 top 候选池
     const scored = suppliers.map((s) => {
@@ -1343,10 +1385,11 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     const evalMap = new Map<string, { level: string; count: number }>();
     const activeMap = new Map<string, number>();
     for (const { supplier: s } of pool) {
-      const evals: { finalGrade: string }[] = (s as any).evaluations || [];
+      const evals: { finalGrade: string; createdAt: Date }[] = (s as any).evaluations || [];
       if (evals.length > 0) {
-        // 取最新一条评价的最终等级
-        evalMap.set(s.id, { level: evals[0].finalGrade || '', count: evals.length });
+        // 取最新一条评价的最终等级（createdAt 最大者；原先依赖默认序取 evals[0] 不稳）
+        const latest = evals.reduce((a, b) => (a.createdAt >= b.createdAt ? a : b));
+        evalMap.set(s.id, { level: latest.finalGrade || '', count: evals.length });
       }
       activeMap.set(s.id, ((s as any).bidSuppliers || []).length);
     }
@@ -1407,6 +1450,16 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       candidatePool: candidates.length,
       summary,
       recommendations,
+      // 硬性条件核验结果（仅传入 hardConditions 时；键=推荐供应商）
+      ...(hardFilteredOut
+        ? {
+            conditionsCheck: recommendations.map((r) => ({
+              supplierId: r.supplierId,
+              checks: hardChecks.get(r.supplierId) ?? [],
+            })),
+            filteredOut: hardFilteredOut,
+          }
+        : {}),
       generatedAt: new Date().toISOString(),
     };
 
