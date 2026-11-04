@@ -39,16 +39,16 @@ const METHOD_LABELS: Record<string, string> = {
 };
 
 // 向导步骤定义 — 从项目管理进入且为竞争性谈判时，确认通知后插入「附件选择」
-// 2026-11-04 二次裁定：步骤 1 = 硬性筛选（业务标签必选 + 行业/资质/业绩/评价结构化条件）+ 补充说明（业绩/其他文字仅入文书）；
+// 2026-11-04 二次裁定：步骤 1 = 条件筛选（业务标签必选 + 行业/资质/业绩/评价结构化条件）+ 补充说明（业绩/其他文字仅入文书）；
 // 推荐语义素材=项目上下文通道+结构化条件，文字段不再进推荐 prompt
 const STEPS = [
-  { num: 1, label: '硬性筛选', desc: '选业务标签与资格条件，AI 智能推荐' },
+  { num: 1, label: '条件筛选', desc: '选业务标签与资格条件，AI 智能推荐' },
   { num: 2, label: '审核候选', desc: '查看 AI 推荐，构建候选名单' },
   { num: 3, label: '确认通知', desc: '发送通知给候选供应商' },
   { num: 4, label: '供应商确认', desc: '跟踪候选供应商确认参与意向' },
 ] as const;
 const NEGOTIATION_STEPS = [
-  { num: 1, label: '硬性筛选', desc: '选业务标签与资格条件，AI 智能推荐' },
+  { num: 1, label: '条件筛选', desc: '选业务标签与资格条件，AI 智能推荐' },
   { num: 2, label: '审核候选', desc: '查看 AI 推荐，构建候选名单' },
   { num: 3, label: '确认通知', desc: '发送通知给候选供应商' },
   { num: 4, label: '附件选择', desc: '上传谈判所需附件供供应商下载' },
@@ -236,7 +236,7 @@ export function SupplierSelectionPage({
   const toggleTag = (t: string) => { markTagsEdited(); setSelectedTags(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]); };
   const removeTag = (t: string) => { markTagsEdited(); setSelectedTags(prev => prev.filter(x => x !== t)); };
   const addCustomTag = (t: string) => { const v = t.trim(); if (!v) return; markTagsEdited(); setSelectedTags(prev => prev.includes(v) ? prev : [...prev, v]); setTagQuery(''); };
-  // 硬性筛选条件（2026-11-04 spec）：词表=库内真实数据，推荐时三态核验；手动改过 → AI 预填不再覆盖（同业务标签范式）
+  // 条件筛选（2026-11-04 spec）：词表=库内真实数据，推荐时三态核验；手动改过 → AI 预填不再覆盖（同业务标签范式）
   const [hardVocab, setHardVocab] = useState<HardConditionVocab | null>(null);
   const [hardConditions, setHardConditions] = useState<HardConditions>({});
   const hardCondUserEditedRef = useRef(false);
@@ -2092,14 +2092,9 @@ export function SupplierSelectionPage({
           </div>
         </div>
       )}
-      {/* 审核候选导航按钮 */}
+      {/* 审核候选导航按钮（2026-11-04 用户裁定：推荐启动后不可回第一步——条件即筛选依据，回改应重新发起选取） */}
       {step === 2 && (
-          <div className="flex items-center justify-between pt-3 border-t border-[oklch(0.6_0.04_258_/_0.12)]">
-            <div className="flex items-center gap-2">
-              <button onClick={() => setStep(1)} className="neu-btn-soft gap-2">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>上一步：硬性筛选
-              </button>
-            </div>
+          <div className="flex items-center justify-end pt-3 border-t border-[oklch(0.6_0.04_258_/_0.12)]">
             <button onClick={() => setStep(3)} disabled={shortlist.size === 0} className="neu-btn-soft gap-2" title={shortlist.size === 0 ? '请先加入候选供应商' : undefined}>
               下一步：确认通知<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
               {shortlist.size > 0 && <span className="tabular-nums">（{shortlist.size}）</span>}
@@ -2148,6 +2143,7 @@ export function SupplierSelectionPage({
         onStepClick={(s) => setStep(isDirect ? s + 2 : s)}
         reachable={(s) => {
           const si = isDirect ? s + 3 : s;
+          if (!isDirect && s === 1) return false; // 第一步不可回访（2026-11-04 用户裁定）：推荐启动即锁定筛选条件
           if (si <= maxStepReached) return true;
           if (!isDirect && s === 3 && !!result) return true;
           if (isRerun) {
@@ -2190,11 +2186,11 @@ export function SupplierSelectionPage({
             </select>
           )}
 
-          {/* 硬性筛选卡（2026-11-04 二次裁定）：业务标签（必选）+ 行业/资质/业绩评价（可选）同款 picker 依次放置 */}
+          {/* 条件筛选卡（2026-11-04 二次裁定）：业务标签（必选）+ 行业/资质/业绩评价（可选）同款 picker 依次放置 */}
           <div className="rounded-[20px] p-5 space-y-4"
             style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.92) 0%, oklch(0.985 0.005 258 / 0.58) 40%, oklch(1 0 0 / 0.14) 75%)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.75), 2px 3px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.88)' }}>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-[var(--foreground)]">硬性筛选</span>
+              <span className="text-sm font-bold text-[var(--foreground)]">条件筛选</span>
               <span className="text-[10px] text-[var(--muted-foreground)]">业务标签必选，其余条件可选</span>
             </div>
             {/* ① 业务标签（选取方式仅 AI 智能选取——手动选取已于 2026-10-19 移除；2026-11-04 裁定必选） */}
@@ -2304,7 +2300,7 @@ export function SupplierSelectionPage({
                     {result.filteredOut && result.filteredOut.length > 0 && (
                       <button type="button" onClick={() => setShowFilteredOut(v => !v)}
                         className="font-semibold text-[var(--warning)] hover:underline"
-                        title="被硬性筛选条件剔除的供应商（必须级不满足）——可复核是否误杀">
+                        title="被条件筛选剔除的供应商（必须级不满足）——可复核是否误杀">
                         硬性条件剔除 {result.filteredOutTotal ?? result.filteredOut.length} 家{showFilteredOut ? '（收起）' : '（查看）'}
                       </button>
                     )}
