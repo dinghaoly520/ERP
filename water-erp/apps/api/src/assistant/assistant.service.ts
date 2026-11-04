@@ -7,6 +7,8 @@ import { AssistantToolCtx } from './tools/assistant-tool';
 import { GlobalOverviewTool } from './tools/global-overview.tool';
 import { ProcurementTool } from './tools/procurement.tool';
 import { PmiTool } from './tools/pmi.tool';
+import { AwardTool } from './tools/award.tool';
+import { ContractTool } from './tools/contract.tool';
 import { BidTool } from './tools/bid.tool';
 import { SupplierTool } from './tools/supplier.tool';
 import { ExpertTool } from './tools/expert.tool';
@@ -102,6 +104,8 @@ export class AssistantService {
     private readonly globalOverviewTool: GlobalOverviewTool,
     private readonly procurementTool: ProcurementTool,
     private readonly pmiTool: PmiTool,
+    private readonly awardTool: AwardTool,
+    private readonly contractTool: ContractTool,
     private readonly bidTool: BidTool,
     private readonly supplierTool: SupplierTool,
     private readonly expertTool: ExpertTool,
@@ -119,6 +123,8 @@ export class AssistantService {
     this.toolRegistry.register(this.globalOverviewTool);
     this.toolRegistry.register(this.procurementTool);
     this.toolRegistry.register(this.pmiTool);
+    this.toolRegistry.register(this.awardTool);
+    this.toolRegistry.register(this.contractTool);
     this.toolRegistry.register(this.bidTool);
     this.toolRegistry.register(this.supplierTool);
     this.toolRegistry.register(this.expertTool);

@@ -4,6 +4,9 @@ import { EmbeddingService } from '../../local-ai/embedding.service';
 import { VectorSearchService } from '../../knowledge/services/vector-search.service';
 
 const TOP_K = 5;
+/** 余弦相似度截断（2026-11-04）：bge-m3 语义分——低于此值的命中视为不相关，
+ *  不进上下文也不进来源尾注（实测「介绍一下集团」曾把 4 篇操作指引全拉进来） */
+const MIN_SCORE = 0.35;
 
 /** 水叮当对话 RAG 检索（2026-11-03 设计 §4.1）：检索集=自己的∪共享（isActive）库，
  *  跨库合并按相似度取 top5 片段。降级铁律：无库/无命中/嵌入或检索任何异常 → null
@@ -36,6 +39,7 @@ export class AssistantRagService {
       );
       const hits = perBase
         .flat()
+        .filter((h) => h.score >= MIN_SCORE)
         .sort((a, b) => b.score - a.score)
         .slice(0, TOP_K);
       if (hits.length === 0) return null;

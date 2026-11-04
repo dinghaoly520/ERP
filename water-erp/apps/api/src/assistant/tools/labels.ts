@@ -44,6 +44,17 @@ export const RESULT_STATUS_LABEL: Record<string, string> = {
 
 /** 通知类型（Notification.type，DB 现值全集）——data 序列化进 LLM 前翻译，
  *  未收录键回退原值（t() 兜底不吞数据） */
+/** 合同状态（Contract.status 现值集）——2026-11-04 合同履约工具新增 */
+export const CONTRACT_STATUS_LABEL: Record<string, string> = {
+  drafting: '起草中',
+  internal_review: '内部审查',
+  approved_for_signing: '待签约',
+  signed: '已签约',
+  performing: '履行中',
+  accepted: '已验收',
+  terminated: '已终止',
+};
+
 export const NOTIFICATION_TYPE_LABEL: Record<string, string> = {
   BID_PUBLISHED: '采购公告发布',
   BID_OPENING: '开标提醒',

@@ -34,6 +34,8 @@ describe('兜底路径 ctx 线程（P1：无工具调用安全网不泄漏全公
       overview as any,
       filler('procurement'),
       filler('pmi'),
+      filler('award'),
+      filler('contract'),
       filler('bid'),
       filler('supplier'),
       filler('expert'),

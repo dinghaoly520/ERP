@@ -11,6 +11,8 @@ import { ToolRegistry } from './tools/tool-registry';
 import { GlobalOverviewTool } from './tools/global-overview.tool';
 import { ProcurementTool } from './tools/procurement.tool';
 import { PmiTool } from './tools/pmi.tool';
+import { AwardTool } from './tools/award.tool';
+import { ContractTool } from './tools/contract.tool';
 import { BidTool } from './tools/bid.tool';
 import { SupplierTool } from './tools/supplier.tool';
 import { ExpertTool } from './tools/expert.tool';
@@ -31,6 +33,8 @@ import { AssistantRagService } from './knowledge/rag-retrieval.service';
     GlobalOverviewTool,
     ProcurementTool,
     PmiTool,
+    AwardTool,
+    ContractTool,
     BidTool,
     SupplierTool,
     ExpertTool,

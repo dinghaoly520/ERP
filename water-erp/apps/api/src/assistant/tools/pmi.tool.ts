@@ -59,9 +59,11 @@ export class PmiTool implements AssistantTool {
     // 方式入参容错（LLM 简称 + 轮次/PMI 两套词汇互通）：method-filter.util
     const methodWhere = method ? methodFilter(method) : {};
 
-    if (action === 'detail' && projectId) {
+    if (action === 'detail' && (projectId || keyword)) {
+      /* detail 支持按名查（2026-11-04 多轮追问链路）：清单后追问「XX项目详情」时
+       * LLM 手里只有项目名——findFirst 按名定位再取详情 */
       const item = await this.prisma.projectManagementItem.findFirst({
-        where: { id: projectId, ...companyWhere },
+        where: { ...(projectId ? { id: projectId } : {}), ...(keyword ? { title: { contains: keyword } } : {}), ...companyWhere },
       });
       if (!item) return { success: false, error: '采购项目不存在或不在数据范围内' };
       return {

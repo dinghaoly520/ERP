@@ -33,7 +33,7 @@ function dateLabel(d: Date | null): string {
 export class ProcurementTool implements AssistantTool {
   name = 'procurement';
   description =
-    '查询采购台账（轮次口径：与台账页同数据源）。args: { action: "list"|"detail"|"stats"|"pending"|"abnormal"|"monthly"|"methods"|"suppliers", keyword?, method?, resultStatus?, roundId?, startDate?, endDate?, limit? }——list=轮次清单（可按项目名/方式/结果筛选），detail=轮次详情（roundId），stats=区间汇总（预算/成交/节资+结果分布），pending=待处理清单（未定案压预算），abnormal=异常/终止轮次及原因，monthly=月度趋势（轮次+成交额），methods=按采购方式成交分布，suppliers=成交供应商排行。';
+    '查询采购台账（轮次口径：与台账页同数据源）。args: { action: "list"|"detail"|"stats"|"pending"|"abnormal"|"monthly"|"methods"|"suppliers", keyword?, method?, resultStatus?, roundId?, startDate?, endDate?, limit? }——list=轮次清单（可按项目名/方式/结果筛选），detail=轮次详情（roundId），stats=区间汇总（预算/成交/节资+结果分布；compare=true 自动带等长上期环比），pending=待处理清单（未定案压预算），abnormal=异常/终止轮次及原因，monthly=月度趋势（轮次+成交额），methods=按采购方式成交分布，suppliers=成交供应商排行。';
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -74,9 +74,15 @@ export class ProcurementTool implements AssistantTool {
         : {}),
     };
 
-    if (action === 'detail' && roundId) {
+    if (action === 'detail' && (roundId || keyword)) {
+      /* detail 支持按名查（2026-11-04）：roundId 或项目名关键词任一 */
       const round = await this.prisma.procurementRound.findFirst({
-        where: { id: roundId, isRecycled: false, ...companyWhere },
+        where: {
+          ...(roundId ? { id: roundId } : {}),
+          ...(keyword ? { project: { name: { contains: keyword } } } : {}),
+          isRecycled: false,
+          ...companyWhere,
+        },
         include: { project: { select: { name: true, projectCode: true } } },
       });
       if (!round) return { success: false, error: '轮次不存在或不在数据范围内' };
@@ -141,6 +147,37 @@ export class ProcurementTool implements AssistantTool {
         预算: formatWan(r._sum.budgetAmount),
       }));
       rows.push({ _total: true, 结果: '合计', 轮次: totalCount, 占比: '100%', 预算: formatWan(byStatus.reduce((s, r) => s + (Number(r._sum.budgetAmount) || 0), 0)) });
+      /* 环比（2026-11-04）：compare=true 且给了区间 → 自动取等长上期，出环比卡
+       * （「本月比上月成交多还是少」一轮可得） */
+      let compareCard: ToolResult['cards'] | null = null;
+      if (args.compare === true && startDate) {
+        const start = new Date(`${startDate}T00:00:00`);
+        const end = endDate ? new Date(`${endDate}T23:59:59`) : new Date();
+        const spanMs = Math.max(end.getTime() - start.getTime(), 86400000);
+        const prevEnd = new Date(start.getTime() - 1);
+        const prevStart = new Date(prevEnd.getTime() - spanMs + 1);
+        const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const prevAgg = await this.prisma.procurementRound.aggregate({
+          where: {
+            ...baseWhere,
+            resultStatus: 'AWARDED',
+            budgetAmount: { gt: 0 },
+            awardAmount: { gt: 0 },
+            procurementDate: { gte: prevStart, lte: prevEnd },
+          },
+          _sum: { awardAmount: true },
+        });
+        const prevAward = Number(prevAgg._sum.awardAmount) || 0;
+        const delta = awardSum - prevAward;
+        compareCard = [{
+          type: 'metric' as const,
+          title: `环比（上期 ${fmt(prevStart)} 至 ${fmt(prevEnd)}）`,
+          metrics: [
+            { label: '上期成交', value: formatWan(prevAward) },
+            { label: '本期较上期', value: `${delta >= 0 ? '+' : '-'}${formatWan(Math.abs(delta))}` },
+          ],
+        }];
+      }
       return {
         success: true,
         cards: [
@@ -154,6 +191,7 @@ export class ProcurementTool implements AssistantTool {
               { label: '节资率', value: savingsRate != null ? `${savingsRate}%` : '—' },
             ],
           },
+          ...(compareCard ?? []),
           {
             type: 'table',
             title: '结果分布',

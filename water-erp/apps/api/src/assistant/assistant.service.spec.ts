@@ -5,6 +5,8 @@ import { DeepSeekProvider } from './model/deepseek.provider';
 import { ToolRegistry } from './tools/tool-registry';
 import { GlobalOverviewTool } from './tools/global-overview.tool';
 import { PmiTool } from './tools/pmi.tool';
+import { AwardTool } from './tools/award.tool';
+import { ContractTool } from './tools/contract.tool';
 import { ProcurementTool } from './tools/procurement.tool';
 import { BidTool } from './tools/bid.tool';
 import { SupplierTool } from './tools/supplier.tool';
@@ -74,6 +76,8 @@ describe('AssistantService', () => {
         ToolRegistry,
         { provide: GlobalOverviewTool, useValue: { name: 'global_overview', description: 'mock', execute: jest.fn() } },
         { provide: PmiTool, useValue: { name: 'pmi', description: 'mock', execute: jest.fn() } },
+        { provide: AwardTool, useValue: { name: 'award', description: 'mock', execute: jest.fn() } },
+        { provide: ContractTool, useValue: { name: 'contract', description: 'mock', execute: jest.fn() } },
         { provide: ProcurementTool, useValue: { name: 'procurement', description: 'mock', execute: jest.fn() } },
         { provide: BidTool, useValue: { name: 'bid', description: 'mock', execute: jest.fn() } },
         { provide: SupplierTool, useValue: { name: 'supplier', description: 'mock', execute: jest.fn() } },
