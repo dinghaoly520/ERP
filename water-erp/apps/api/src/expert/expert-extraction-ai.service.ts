@@ -257,6 +257,25 @@ export class ExpertExtractionAiService {
   }
 
   /** AI 生成通知模板（正选/候补分别生成，简短精炼） */
+  /** 组队逻辑总结（2026-11-04）：重进/恢复场景的抽取结果分析——按已分配评审组构成概括组队逻辑 */
+  async summarizeCommittee(input: {
+    project: { name: string; procurementMethod?: string | null; scope?: string | null };
+    members: { name: string; role: string; specialty: string; title?: string | null; isLead?: boolean; kind: '专家' | '业主代表' }[];
+  }): Promise<string | undefined> {
+    if (!this.llm.getModel() || input.members.length === 0) return undefined;
+    const system = [
+      '你是采购评审专家组组建助手。根据项目信息与已组建评审组名单，写一段 80-150 字的组队逻辑总结。',
+      '要求：概括组队构成（正选/候补/需求方代表人数与专业分布）、组长安排（如有）与整体配置特点；只基于给定名单信息，不得虚构资历、评价或未列明的专业；不列电话等隐私信息；直接输出总结正文，不要标题、引号或前后缀。',
+    ].join('\n');
+    try {
+      const text = await this.llm.chat(system, JSON.stringify(input), 0.3, undefined, undefined, { timeoutMs: 60_000, retries: 1 });
+      const out = (text || '').trim();
+      return out.length > 0 ? out.slice(0, 400) : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   async generateNotification(params: {
     projectName: string;
     expertName: string;

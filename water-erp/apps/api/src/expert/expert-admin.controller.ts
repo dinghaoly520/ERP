@@ -143,6 +143,14 @@ export class ExpertAdminController {
     return this.extractionService.candidateProfiles(userIds);
   }
 
+  @Post('extract/analysis')
+  @ApiOperation({ summary: '组队逻辑总结（重进/恢复场景）：AI 按已分配评审组名单总结组队逻辑，替代前端占位句' })
+  committeeAnalysis(@Body() body: { projectId?: string }) {
+    const projectId = String(body?.projectId || '').trim();
+    if (!projectId) throw new BadRequestException({ error: '缺少 projectId', code: 'PROJECT_ID_REQUIRED' });
+    return this.extractionService.committeeAnalysis(projectId);
+  }
+
   @Post('notification/generate')
   @ApiOperation({ summary: 'AI 生成单专家个性化通知内容（DeepSeek）' })
   generateNotification(@Body() dto: GenerateNotificationDto) {

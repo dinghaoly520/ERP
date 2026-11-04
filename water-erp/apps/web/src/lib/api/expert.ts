@@ -197,6 +197,11 @@ export function fetchExtractionProfiles(userIds: string[]) {
   return api.post<{ items: CandidatePoolItem[] }>('/expert-admin/extract/profiles', { userIds });
 }
 
+/** 组队逻辑总结（2026-11-04）：重进/恢复场景 AI 按已分配评审组名单总结组队逻辑 */
+export function fetchCommitteeAnalysis(projectId: string) {
+  return api.post<{ analysis: string; engine: 'deepseek' | 'rules' }>('/expert-admin/extract/analysis', { projectId });
+}
+
 export function confirmExtraction(data: { projectId: string; experts: { userId: string; expertName: string; major: string; isLead?: boolean }[]; candidates?: { userId: string; expertName: string; major: string }[]; append?: boolean; extractMode?: 'specialty_match' | 'random' | 'merit_best'; companyIds?: string[] }) {
   return api.post<{ success: boolean; count: number; expertIds: string[] }>('/expert-admin/extract/confirm', data);
 }

@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { localDateInputValue, localTimeInputValue } from '@/lib/local-date';
 import { useCompanyInfo } from '@/lib/api/company-info';
-import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, specialtyPoolCounts, listPoolCompanies, listExperts, getDemandRepDirectory, getBidProjectDetail, getProjectInvitations, proxyMarkExpertInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, fetchExtractionProfiles, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, type DemandRepDirectoryItem } from '@/lib/api/expert';
+import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, specialtyPoolCounts, listPoolCompanies, listExperts, getDemandRepDirectory, getBidProjectDetail, getProjectInvitations, proxyMarkExpertInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, fetchExtractionProfiles, fetchCommitteeAnalysis, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, type DemandRepDirectoryItem } from '@/lib/api/expert';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { QuotaMultiSelect } from '@/components/expert/quota-multi-select';
@@ -572,7 +572,7 @@ export function ExpertExtractPage({
     setAlternativeExperts(altSelected);
     setPreview({
       engine: 'rules', model: '', extractMode: 'specialty_match',
-      analysis: '项目已有分配专家',
+      analysis: '正在总结组队逻辑…',
       requiredSpecialties: [],
       eligiblePool: main.length + alt.length,
       candidatePool: [],
@@ -582,6 +582,10 @@ export function ExpertExtractPage({
       suggestedLeaderId: null,
       generatedAt: new Date().toISOString(),
     });
+    // 组队逻辑 AI 总结（2026-11-04）：重进场景与首次抽取的分析同形态——按已分配名单生成，规则降级由后端兜底
+    fetchCommitteeAnalysis(pid).then(res => {
+      if (res?.analysis) setPreview(p => p ? { ...p, analysis: res.analysis, engine: res.engine } : p);
+    }).catch(() => {});
     // 之前已确认过名单（BidExpert 存在即步骤3已完成）→ 按通知进度回到对应步骤：
     // 全部终态（已确认/已拒绝）→ 步骤5 专家组确认；部分已通知 → 步骤4 查看回复；否则 → 步骤3 确认通知
     setConfirmedExpertIds(main.map(e => e.userId));
@@ -2569,11 +2573,11 @@ export function ExpertExtractPage({
 
           {preview && !loading && (
               <div className="space-y-4">
-                {/* 抽取配置摘要（2026-11-04 改 chips 回显——与供应商选取摘要卡同款设计）：
-                    按序——配额总人数 → 公司选择情况 → 专业选择情况 → 抽取方式。
+                {/* 抽取配置板块（2026-11-04 合并：配置 chips + 组队分析同卡）——chips 与供应商选取摘要卡同款设计：
+                    按序——配额总人数 → 公司选择情况 → 专业选择情况 → 抽取方式，下方为组队逻辑分析（AI/规则）。
                     配额与方式正交（manualQuotas 恒随请求发送，方式只决定池内选人规则），
                     公司=各配额行白名单并集（空=不限公司全库） */}
-                <div className="neu-table-card p-4">
+                <div className="neu-table-card p-4 space-y-3">
                   <div className="flex flex-wrap items-center gap-1">
                     <span className="mr-1 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">抽取配置</span>
                     <span className="rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-[var(--accent-strong)]"
@@ -2593,17 +2597,14 @@ export function ExpertExtractPage({
                     <span className="rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--muted-foreground)]"
                       style={{ background: 'color-mix(in oklch, var(--muted-foreground) 10%, transparent)' }}>方式·{MODE_LABELS[extractMode as ExtractMode] ?? extractMode}</span>
                   </div>
-                </div>
-
-                {/* AI 分析 */}
-                <div className="neu-table-card p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    {preview.engine === 'deepseek' ? <Sparkles size={16} className="text-[var(--accent)]" /> : <ShieldCheck size={16} className="text-[var(--warning)]" />}
-                    <h2 className="text-sm font-bold text-[var(--foreground)]">{preview.engine === 'deepseek' ? 'AI 评审组分析' : '规则引擎组建'}</h2>
+                  <div className="wb-section-rule" />
+                  <div className="flex items-center gap-2">
+                    {preview.engine === 'deepseek' ? <Sparkles size={15} className="text-[var(--accent)]" /> : <ShieldCheck size={15} className="text-[var(--warning)]" />}
+                    <h2 className="text-xs font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">{preview.engine === 'deepseek' ? 'AI 评审组分析' : '规则引擎组建'}</h2>
                     <span className={`inline-flex items-center rounded-[6px] px-1.5 py-0.5 text-[10px] font-bold shadow-[inset_0_0.5px_0_oklch(1_0_0/0.5)] ${preview.engine === 'deepseek' ? 'bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[var(--accent)]' : 'bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]'}`}>{preview.engine === 'deepseek' ? 'AI' : '规则'}</span>
                   </div>
                   <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">{preview.analysis}</p>
-                  {preview.requiredSpecialties.length > 0 && <div className="flex flex-wrap items-center gap-2 mt-3">{[...preview.requiredSpecialties].sort((a,b)=>(quotaOrderMap.get(a.specialty)??999)-(quotaOrderMap.get(b.specialty)??999)).map((q, i) => <span key={`${q.specialty}-${i}`} className="neu-tab-count">{q.specialties?.length ? q.specialties.join('、') : (q.specialty || '专业不限')} × {q.count}</span>)}</div>}
+                  {preview.requiredSpecialties.length > 0 && <div className="flex flex-wrap items-center gap-2">{[...preview.requiredSpecialties].sort((a,b)=>(quotaOrderMap.get(a.specialty)??999)-(quotaOrderMap.get(b.specialty)??999)).map((q, i) => <span key={`${q.specialty}-${i}`} className="neu-tab-count">{q.specialties?.length ? q.specialties.join('、') : (q.specialty || '专业不限')} × {q.count}</span>)}</div>}
                   <QuotaFiltersAppliedHint filters={preview.quotaFiltersApplied} />
                 </div>
 

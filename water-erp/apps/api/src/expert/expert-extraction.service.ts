@@ -852,6 +852,49 @@ export class ExpertExtractionService {
     return { items };
   }
 
+  /**
+   * 重进场景组队逻辑分析（2026-11-04）：替代前端占位句「项目已有分配专家」——
+   * AI 按已分配评审组名单总结组队逻辑；LLM 不可用时规则降级为确定性概况（不虚构）。
+   */
+  async committeeAnalysis(projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { name: true, procurementMethod: true, scope: true },
+    });
+    if (!project) throw new NotFoundException('项目不存在');
+    const assigns = await this.prisma.bidExpert.findMany({
+      where: { projectId },
+      include: { user: { include: { expertProfile: { select: { specialty: true, title: true } } } } },
+      orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }],
+    });
+    const members = assigns.map((a) => ({
+      name: a.expertName,
+      role: a.expertRole ?? (a.isPurchaserRepresentative ? '需求方代表' : '正选'),
+      specialty: a.major || a.user?.expertProfile?.specialty || '综合',
+      title: a.user?.expertProfile?.title ?? null,
+      isLead: a.isLead,
+      kind: (a.isPurchaserRepresentative ? '业主代表' : '专家') as '业主代表' | '专家',
+    }));
+    if (members.length === 0) return { analysis: '本项目尚未分配评审专家。', engine: 'rules' as const };
+
+    const analysis = await this.extractionAi.summarizeCommittee({ project, members });
+    if (analysis) return { analysis, engine: 'deepseek' as const };
+
+    // 规则降级：确定性组队概况
+    const main = members.filter((m) => m.role === '正选');
+    const alt = members.filter((m) => m.role === '候补');
+    const reps = members.filter((m) => m.kind === '业主代表');
+    const lead = members.find((m) => m.isLead);
+    const parts = [
+      `评审组共 ${members.length} 人`,
+      main.length > 0 ? `正选 ${main.length} 名（专业：${[...new Set(main.map((m) => m.specialty))].join('、')}）` : '',
+      alt.length > 0 ? `候补 ${alt.length} 名` : '',
+      reps.length > 0 ? `需求方（业主）代表 ${reps.length} 名` : '',
+      lead ? `组长 ${lead.name}` : '',
+    ].filter(Boolean);
+    return { analysis: parts.join('，') + '。', engine: 'rules' as const };
+  }
+
   private ruleScore(c: { specialty: string; title?: string; pastProjects: number; evaluationLevel?: string }): number {
     let s = 60;
     if (c.title?.includes('教授') || c.title?.includes('正高')) s += 12;
