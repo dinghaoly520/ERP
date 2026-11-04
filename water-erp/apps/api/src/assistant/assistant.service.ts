@@ -523,7 +523,9 @@ ${toolList}
     const toolSummary = `${droppedAll.length ? '【不挂卡片的小结果 —— 关键数字必须原样写进正文】\n' + droppedAll.join('\n') + '\n\n' : ''}${overviewText}${dataSnippets.length ? '【实体清单/详情 —— 数据库查到的真实记录，回答必须引用其中的名称、编号等具体信息，不得泛泛而谈】\n' + dataSnippets.join('\n') + '\n\n' : ''}以下是各模块状态分布表——用于支撑你展开分析，丰富细节：\n${JSON.stringify(
       (cards as Array<Record<string, unknown>>)
         .filter((c) => c.type === 'table' && !(c.title as string || '').includes('全局概览'))
-        .slice(0, 4)
+        /* 6 张（2026-11-04 多维度时代上调：单工具 stats 即可产 4 张维度表，多工具
+         * 综合提问时 4 张截断会让后到的维度表进不了 LLM 上下文——卡片照挂但答文不提） */
+        .slice(0, 6)
         .map((c) => ({
           title: c.title,
           rows: (c.rows as Array<Record<string, unknown>> || []).slice(0, 15).map((r: Record<string, unknown>) => {
