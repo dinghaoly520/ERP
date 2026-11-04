@@ -2215,7 +2215,7 @@ export function SupplierSelectionPage({
 
               {/* 业绩要求（文书） */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[var(--foreground)]">业绩要求 <span className="font-normal text-[var(--muted-foreground)]">（仅入文书）</span></label>
+                <label className="text-xs font-bold text-[var(--foreground)]">业绩要求</label>
                 <AutoTextarea
                   value={reqSpecial}
                   onChange={e => setReqSpecial(e.target.value)}
@@ -2225,7 +2225,7 @@ export function SupplierSelectionPage({
 
               {/* 其他（商务条款，文书） */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[var(--foreground)]">其他 <span className="font-normal text-[var(--muted-foreground)]">（服务响应、交付周期、质保等；仅入文书）</span></label>
+                <label className="text-xs font-bold text-[var(--foreground)]">其他 <span className="font-normal text-[var(--muted-foreground)]">（服务响应、交付周期、质保等）</span></label>
                 <AutoTextarea
                   value={reqOther}
                   onChange={e => setReqOther(e.target.value)}
