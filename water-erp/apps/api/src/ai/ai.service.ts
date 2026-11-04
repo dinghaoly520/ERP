@@ -1459,18 +1459,33 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       qualificationText: (s.qualifications || []).map((q) => q.name).join('；'),
       enterpriseType: s.enterpriseType,
       legalPerson: s.legalPerson,
+      // ── 库内证据（2026-11-04 spec）：行业/资质全名/业绩摘要/惩戒/注册资本 ──
+      industry: (s as any).industry || undefined,
+      qualificationNames: ((s.qualifications || []) as { name: string }[]).map((q) => q.name).slice(0, 8),
+      performanceSummary:
+        ((s as any).performances || []).length > 0
+          ? `近期业绩${(s as any).performances.length}项（${(s as any).performances
+              .slice(0, 2)
+              .map((p: any) => p.projectName)
+              .filter(Boolean)
+              .join('、')}）`
+          : undefined,
+      penaltyCount: ((s as any).penalties || []).length,
+      registeredCapital: s.registeredCapital || undefined,
       // C3：把规则阶段已算出的履约/评价数据喂给 LLM，使排序真正体现「择优」而非仅语义匹配。
-      evalGrade: evalMap.get(s.id)?.level,
+      // 2026-11-04 修复：evalGrade→evalLevel（接口字段名，此前漂移致评价从未进 LLM 行）。
+      evalLevel: evalMap.get(s.id)?.level,
       evalCount: evalMap.get(s.id)?.count,
       activeProjects: activeMap.get(s.id) ?? 0,
     }));
 
-    // 3. LLM 排序（失败重试一次再降级规则引擎，确保正选和补选的一致性）
-    let llm = await this.selectionAi.rankCandidates(requirement, candidates, maxCount, opts.projectContext);
+    // 3. LLM 排序（失败重试一次再降级规则引擎，确保正选和补选的一致性）；核验标记随行（硬性条件启用时）
+    const hardCheckMarks = hardChecks.size > 0 ? hardChecks : undefined;
+    let llm = await this.selectionAi.rankCandidates(requirement, candidates, maxCount, opts.projectContext, hardCheckMarks);
     if (!llm || llm.recommendations.length === 0) {
       // 重试一次：缓解 API 瞬时不可用导致的正选/补选分数不可比
       this.logger.warn('LLM supplier selection failed, retrying once...');
-      llm = await this.selectionAi.rankCandidates(requirement, candidates, maxCount, opts.projectContext);
+      llm = await this.selectionAi.rankCandidates(requirement, candidates, maxCount, opts.projectContext, hardCheckMarks);
     }
 
     let recommendations: SupplierRecommendation[];
