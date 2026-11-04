@@ -134,6 +134,15 @@ export class ExpertAdminController {
     return this.extractionService.previewExtraction(dto.projectId, dto, req.user);
   }
 
+  @Post('extract/profiles')
+  @ApiOperation({ summary: '批量专家画像（抽取结果重进/恢复场景补拉）：联系方式+库内等级/履职等级/负荷/参评数/偏离度，与抽取候选池同口径' })
+  extractionProfiles(@Body() body: { userIds?: string[] }) {
+    const userIds = Array.isArray(body?.userIds)
+      ? body.userIds.filter((x) => typeof x === 'string' && x.trim()).slice(0, 30)
+      : [];
+    return this.extractionService.candidateProfiles(userIds);
+  }
+
   @Post('notification/generate')
   @ApiOperation({ summary: 'AI 生成单专家个性化通知内容（DeepSeek）' })
   generateNotification(@Body() dto: GenerateNotificationDto) {

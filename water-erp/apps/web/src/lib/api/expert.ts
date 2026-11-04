@@ -192,6 +192,11 @@ export function previewExtraction(data: {
   return api.post<ExtractionPreview>('/expert-admin/extract', data);
 }
 
+/** 批量专家画像（2026-11-04）：抽取结果重进/恢复场景（本地重建 preview、候选池为空）补拉联系方式与五指标 */
+export function fetchExtractionProfiles(userIds: string[]) {
+  return api.post<{ items: CandidatePoolItem[] }>('/expert-admin/extract/profiles', { userIds });
+}
+
 export function confirmExtraction(data: { projectId: string; experts: { userId: string; expertName: string; major: string; isLead?: boolean }[]; candidates?: { userId: string; expertName: string; major: string }[]; append?: boolean; extractMode?: 'specialty_match' | 'random' | 'merit_best'; companyIds?: string[] }) {
   return api.post<{ success: boolean; count: number; expertIds: string[] }>('/expert-admin/extract/confirm', data);
 }

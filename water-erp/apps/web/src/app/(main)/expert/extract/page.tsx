@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { localDateInputValue, localTimeInputValue } from '@/lib/local-date';
 import { useCompanyInfo } from '@/lib/api/company-info';
-import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, specialtyPoolCounts, listPoolCompanies, listExperts, getDemandRepDirectory, getBidProjectDetail, getProjectInvitations, proxyMarkExpertInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, type DemandRepDirectoryItem } from '@/lib/api/expert';
+import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, specialtyPoolCounts, listPoolCompanies, listExperts, getDemandRepDirectory, getBidProjectDetail, getProjectInvitations, proxyMarkExpertInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, fetchExtractionProfiles, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, type DemandRepDirectoryItem } from '@/lib/api/expert';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { QuotaMultiSelect } from '@/components/expert/quota-multi-select';
@@ -1328,6 +1328,28 @@ export function ExpertExtractPage({
     : [];
   // 需求方代表 userId 集合 —— 用于在各步骤表格中标注身份（姓名后追加「（需求方代表）」）
   const demandRepIdSet = useMemo(() => new Set(demandRepPersons.map(p => p.userId)), [demandRepPersons]);
+
+  // 画像补齐（2026-11-04）：重进/恢复场景本地重建的 preview 候选池为空、需求方代表不在池内——
+  // 对结果表中不在候选池的行批量补拉联系方式+五指标（与抽取候选池同口径），失败静默保持「—」
+  const profileFetchedKeyRef = useRef('');
+  useEffect(() => {
+    const poolIds = new Set((preview?.candidatePool || []).map(c => c.userId));
+    const needIds = [...new Set([
+      ...demandRepItems.map(d => d.userId),
+      ...(preview ? [...selectedExperts, ...alternativeExperts].map(s => s.userId) : []),
+    ].filter(id => id && !poolIds.has(id)))];
+    const key = needIds.sort().join(',');
+    if (!key || profileFetchedKeyRef.current === key) return;
+    profileFetchedKeyRef.current = key;
+    fetchExtractionProfiles(needIds).then(res => {
+      if (!res.items?.length) return;
+      setPreview(p => {
+        if (!p) return p;
+        const existing = new Set(p.candidatePool.map(c => c.userId));
+        return { ...p, candidatePool: [...p.candidatePool, ...res.items.filter(i => !existing.has(i.userId))] };
+      });
+    }).catch(() => {});
+  }, [preview, demandRepItems, selectedExperts, alternativeExperts]);
   // 需求方代表 userId → 真实专业（demandRepPersons 配置时选取的专业）
   const demandRepSpecialtyMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -2632,7 +2654,7 @@ export function ExpertExtractPage({
                                 <td className="max-w-[120px] truncate text-sm text-[var(--muted-foreground)]" title={c?.department ?? ''}>{c?.department ?? '—'}</td>
                                 <td className="whitespace-nowrap text-sm text-[var(--muted-foreground)]">{s.title ?? c?.title ?? '—'}</td>
                                 <td className="whitespace-nowrap"><StatusBadge tone="blue">{fmtExpertSpecialty(s.userId, s.specialty)}</StatusBadge></td>
-                                <td className="whitespace-nowrap font-mono text-xs text-[var(--muted-foreground)]">{c?.phone ?? '—'}</td>
+                                <td className="whitespace-nowrap font-mono text-xs text-[var(--muted-foreground)]">{s.phone ?? c?.phone ?? '—'}</td>
                                 <td className="text-center">{levelBadge(c?.expertLevel ?? null)}</td>
                                 <td className="text-center">{levelBadge(s.evaluationLevel ?? c?.evaluationLevel ?? null)}</td>
                                 <td className={`text-center text-xs font-semibold ${loadClass(c?.currentLoadStatus)}`}>{c?.currentLoadStatus ?? '—'}</td>

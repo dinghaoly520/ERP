@@ -780,6 +780,78 @@ export class ExpertExtractionService {
     return quotas;
   }
 
+  /**
+   * 批量专家画像（2026-11-04）：抽取结果表重进/恢复场景（项目已有分配专家、前端本地重建
+   * preview 且 candidatePool 为空）补拉联系方式与五指标——与 previewExtraction 候选池同口径。
+   * 电话为明文出口（2026-10-12 用户裁定：抽取/联系专家是操作场景，非浏览展示）。
+   */
+  async candidateProfiles(userIds: string[]) {
+    const ids = [...new Set((userIds || []).map((x) => String(x).trim()).filter(Boolean))].slice(0, 30);
+    if (ids.length === 0) return { items: [] };
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: ids } },
+      include: {
+        expertProfile: true,
+        department: { select: { name: true } },
+        bidExperts: { select: { id: true } },
+      },
+    });
+
+    const [allEvals, allActiveAssigns, scoreRecords] = await Promise.all([
+      this.prisma.expertEvaluation.findMany({
+        where: { expertUserId: { in: ids } },
+        orderBy: { createdAt: 'desc' },
+        select: { expertUserId: true, overallGrade: true, createdAt: true },
+      }),
+      this.prisma.bidExpert.findMany({
+        where: { userId: { in: ids }, progress: { lt: 100 } },
+        select: { userId: true },
+      }),
+      this.prisma.bidScoreRecord.findMany({
+        where: { expert: { userId: { in: ids } } },
+        select: { score: true, scoreItemId: true, supplierId: true, expert: { select: { userId: true } } },
+      }),
+    ]);
+
+    const latestEvalMap = new Map<string, string>();
+    for (const ev of allEvals) {
+      if (!latestEvalMap.has(ev.expertUserId)) latestEvalMap.set(ev.expertUserId, ev.overallGrade);
+    }
+    const deviations = computeExpertMeanDeviations(
+      scoreRecords.map((r) => ({
+        expertId: r.expert.userId,
+        scoreItemId: r.scoreItemId,
+        supplierId: r.supplierId,
+        score: Number(r.score),
+      })),
+    );
+    const deviationMap = new Map(deviations.map((d) => [d.expertId, Math.round(d.meanDeviation * 10) / 10]));
+    const loadMap = new Map<string, number>();
+    for (const a of allActiveAssigns) loadMap.set(a.userId, (loadMap.get(a.userId) ?? 0) + 1);
+
+    const items = users.map((u) => {
+      const load = loadMap.get(u.id) ?? 0;
+      return {
+        userId: u.id,
+        name: u.displayName,
+        specialty: u.expertProfile?.specialty || '综合',
+        title: u.expertProfile?.title ?? null,
+        employer: u.expertProfile?.employer ?? null,
+        department: u.department?.name ?? null,
+        phone: openPiiForMask(u.expertProfile?.phone) ?? null,
+        expertLevel: u.expertProfile?.expertLevel ?? null,
+        evaluationLevel: latestEvalMap.get(u.id) ?? null,
+        currentLoadStatus: load === 0 ? '空闲' : load <= 2 ? '正常' : '繁忙',
+        pastProjects: u.bidExperts.length,
+        scoreDeviation: deviationMap.get(u.id) ?? null,
+        matchScore: 0,
+        reason: '',
+      };
+    });
+    return { items };
+  }
+
   private ruleScore(c: { specialty: string; title?: string; pastProjects: number; evaluationLevel?: string }): number {
     let s = 60;
     if (c.title?.includes('教授') || c.title?.includes('正高')) s += 12;
