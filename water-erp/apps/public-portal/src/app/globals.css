@@ -109,28 +109,80 @@ body {
 }
 
 /* ── Neumorphism Form Input ── */
+/* ── Neumorphism Input — 内凹井（2026-11-04 重设计：去描边，纯内阴影成井；
+   聚焦 = 井变浅 + 品牌焦点环，替代旧「描边+内影」叠加的脏质感） ── */
 .neu-input {
   height: 44px;
   padding: 0 14px;
-  border: 1px solid oklch(0.78 0.03 258 / 0.45);
-  border-radius: 9px;
+  border: none;
+  border-radius: 10px;
   font-size: 14px;
+  font-family: inherit;
   color: #18243a;
-  background: oklch(0.99 0.004 258);
+  background: oklch(0.972 0.008 258);
   outline: none;
   box-shadow:
-    inset 2px 2px 4px oklch(0.55 0.03 258 / 0.1),
-    inset -2px -2px 4px oklch(1 0 0 / 0.7);
-  transition: all 0.2s ease;
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12),
+    inset -2px -2px 5px oklch(1 0 0 / 0.65);
+  transition: box-shadow 0.2s ease, background 0.2s ease;
   width: 100%;
 }
-.neu-input::placeholder { color: #bcc6d4; }
+.neu-input::placeholder { color: #b3bdcc; }
 .neu-input:focus {
-  border-color: oklch(0.5 0.16 258 / 0.5);
+  background: oklch(0.985 0.004 258);
   box-shadow:
-    inset 2px 2px 4px oklch(0.55 0.03 258 / 0.08),
-    inset -2px -2px 4px oklch(1 0 0 / 0.5),
-    0 0 0 3px oklch(0.5 0.16 258 / 0.08);
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.08),
+    inset -2px -2px 5px oklch(1 0 0 / 0.5),
+    0 0 0 3px oklch(0.5 0.16 258 / 0.1);
+}
+/* 多行文本：自动高度，纵向可调 */
+textarea.neu-input {
+  height: auto;
+  min-height: 84px;
+  padding: 11px 14px;
+  line-height: 1.65;
+  resize: vertical;
+}
+/* 数字输入：隐藏原生步进箭头（金额/人数类短数字无需步进） */
+.neu-input[type='number'] { appearance: textfield; -moz-appearance: textfield; }
+.neu-input[type='number']::-webkit-inner-spin-button,
+.neu-input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+/* 原生日期选择器：亮色系渲染，与井融合 */
+.neu-input[type='date'] { color-scheme: light; min-width: 0; }
+
+/* ── Neumorphism Chip — 表单快选小芯片（28px 内凹，选中=纯白瓷片+品牌字，
+   与 neu-tab v2 激活语义一致；999px 药丸属标签语汇，同 page-hero__stat） ── */
+.neu-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 13px;
+  border: none;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--fg-2);
+  background: oklch(0.972 0.008 258);
+  cursor: pointer;
+  box-shadow:
+    inset 2px 2px 4px oklch(0.55 0.03 258 / 0.1),
+    inset -1px -1px 3px oklch(1 0 0 / 0.6);
+  transition: all 0.2s ease;
+}
+.neu-chip:hover { color: var(--brand-deep); }
+.neu-chip:active {
+  box-shadow:
+    inset 2px 2px 4px oklch(0.55 0.03 258 / 0.15),
+    inset -1px -1px 3px oklch(1 0 0 / 0.5);
+}
+.neu-chip.is-active {
+  color: var(--brand-deep);
+  background: oklch(1 0 0);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 4px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 3px oklch(1 0 0 / 0.8);
 }
 
 /* ── Neumorphism Primary Button — cgzxui 正典（2026-11-04 用户裁定）：纯白瓷片底
@@ -3296,13 +3348,13 @@ a.group:hover::after {
 .uss-trigger {
   display: flex; align-items: center; justify-content: space-between; gap: 4px;
   width: 100%; height: 44px; padding: 0 14px;
-  border: 1px solid oklch(0.78 0.03 258 / 0.45);
-  border-radius: 9px;
+  border: none;
+  border-radius: 10px;
   font-size: 14px; text-align: left; outline: none; cursor: pointer;
   color: var(--fg);
-  background: oklch(0.99 0.004 258);
-  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 4px oklch(1 0 0 / 0.7);
-  transition: all 0.2s ease;
+  background: oklch(0.972 0.008 258);
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12), inset -2px -2px 5px oklch(1 0 0 / 0.65);
+  transition: box-shadow 0.2s ease, background 0.2s ease;
 }
 .uss-trigger .uss-value {
   overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
@@ -3310,12 +3362,11 @@ a.group:hover::after {
 .uss-trigger .uss-value.is-empty { color: #bcc6d4; }
 .uss-trigger .uss-chev { flex-shrink: 0; color: var(--fg-3); transition: transform 0.2s ease; }
 .uss-trigger.is-open {
-  border-color: oklch(0.5 0.16 258 / 0.5);
-  background: oklch(0.985 0.005 258);
+  background: oklch(0.985 0.004 258);
   box-shadow:
-    inset 2px 2px 4px oklch(0.55 0.03 258 / 0.08),
-    inset -2px -2px 4px oklch(1 0 0 / 0.5),
-    0 0 0 3px oklch(0.5 0.16 258 / 0.08);
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.08),
+    inset -2px -2px 5px oklch(1 0 0 / 0.5),
+    0 0 0 3px oklch(0.5 0.16 258 / 0.1);
 }
 .uss-trigger.is-open .uss-chev { transform: rotate(180deg); }
 

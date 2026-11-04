@@ -17,6 +17,9 @@ interface FormData {
   visitorCount: string; visitDate: string; purpose: string; remark: string;
 }
 
+/* 来访事由快捷选项 — 与原 placeholder 示例一致，点击即填、可自由输入 */
+const PURPOSE_PRESETS = ['投标咨询', '合同洽谈', '异议沟通'];
+
 export default function VisitorPage() {
   const [form, setForm] = useState<FormData>({
     name: '', phone: '', organization: '', visitUnit: '',
@@ -49,8 +52,16 @@ export default function VisitorPage() {
     setSubmitting(false);
   };
 
-  const labelCls = 'grid gap-1.5 text-[13px] font-bold text-[var(--fg)]';
-  const req = <span className="text-[#d43030] text-xs">*</span>;
+  const labelCls = 'grid gap-2';
+  const labelText = 'flex items-baseline gap-1 text-[12px] font-semibold tracking-[0.02em] text-[var(--fg-2)]';
+  const req = <span className="text-[#d43030]">*</span>;
+  /* 分区头 — 与集团简介页 h2 同语汇（品牌色竖条 + 粗体） */
+  const sectionTitle = (t: string) => (
+    <div className="mb-4 flex items-center gap-2.5">
+      <span className="block w-[3px] h-[15px] rounded-full bg-[var(--brand)]" />
+      <span className="text-[13px] font-bold tracking-[0.06em] text-[var(--ink)]">{t}</span>
+    </div>
+  );
 
   return (
     <div className="flow-page flex flex-col">
@@ -75,23 +86,38 @@ export default function VisitorPage() {
               <p className="text-sm text-[var(--fg-3)]">供应商现场来访请提前登记，工作人员将尽快与您联系安排接待</p>
             </div>
 
-            {/* 表单卡 */}
+            {/* 表单卡 — 2026-11-04 重设计：两分区（来访人信息/来访安排）+
+                内凹井输入 + 快选芯片 + 整宽提交 */}
             <div className="neu-card neu-card--static p-[clamp(22px,3vw,34px)]">
+              {/* ── 分区一：来访人信息 ── */}
+              {sectionTitle('来访人信息')}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
                 <label className={labelCls}>
-                  <span className="flex items-center gap-1">来访人姓名{req}</span>
+                  <span className={labelText}>来访人姓名{req}</span>
                   <input type="text" value={form.name} onChange={e => update('name', e.target.value)} placeholder="请输入姓名" className="neu-input" />
                 </label>
                 <label className={labelCls}>
-                  <span className="flex items-center gap-1">联系电话{req}</span>
+                  <span className={labelText}>联系电话{req}</span>
                   <input type="tel" value={form.phone} onChange={e => update('phone', e.target.value)} placeholder="请输入手机号码" className="neu-input" />
                 </label>
                 <label className={labelCls}>
-                  <span>供应商单位</span>
+                  <span className={labelText}>供应商单位</span>
                   <input type="text" value={form.organization} onChange={e => update('organization', e.target.value)} placeholder="请输入供应商名称" className="neu-input" />
                 </label>
+                <label className={labelCls}>
+                  <span className={labelText}>来访人数</span>
+                  <input type="number" min="1" value={form.visitorCount} onChange={e => update('visitorCount', e.target.value)} placeholder="请输入人数" className="neu-input" />
+                </label>
+              </div>
+
+              {/* hairline 分割 — cgzxui 统一参数 */}
+              <div className="my-5" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.16)' }} />
+
+              {/* ── 分区二：来访安排 ── */}
+              {sectionTitle('来访安排')}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
                 <div className={labelCls}>
-                  <span className="flex items-center gap-1">访问单位{req}</span>
+                  <span className={labelText}>访问单位{req}</span>
                   <UnitSearchSelect
                     value={form.visitUnit}
                     onChange={v => update('visitUnit', v)}
@@ -100,34 +126,29 @@ export default function VisitorPage() {
                   />
                 </div>
                 <label className={labelCls}>
-                  <span>来访人数</span>
-                  <input type="number" min="1" value={form.visitorCount} onChange={e => update('visitorCount', e.target.value)} placeholder="请输入人数" className="neu-input" />
-                </label>
-                <label className={labelCls}>
-                  <span className="flex items-center gap-1">来访日期{req}</span>
+                  <span className={labelText}>来访日期{req}</span>
                   <input type="date" value={form.visitDate} onChange={e => update('visitDate', e.target.value)} className="neu-input" />
                 </label>
+                <div className={`${labelCls} sm:col-span-2`}>
+                  <label htmlFor="visit-purpose" className={labelText}>来访事由{req}</label>
+                  <input id="visit-purpose" type="text" value={form.purpose} onChange={e => update('purpose', e.target.value)} placeholder="可输入，或点击下方快捷选择" className="neu-input" />
+                  <div className="flex flex-wrap gap-2">
+                    {PURPOSE_PRESETS.map(p => (
+                      <button key={p} type="button" onClick={() => update('purpose', p)} className={`neu-chip${form.purpose === p ? ' is-active' : ''}`}>{p}</button>
+                    ))}
+                  </div>
+                </div>
                 <label className={`${labelCls} sm:col-span-2`}>
-                  <span className="flex items-center gap-1">来访事由{req}</span>
-                  <input type="text" value={form.purpose} onChange={e => update('purpose', e.target.value)} placeholder="如：投标咨询、合同洽谈、异议沟通" className="neu-input" />
+                  <span className={labelText}>备注说明</span>
+                  <textarea value={form.remark} onChange={e => update('remark', e.target.value)} placeholder="其他需要说明的事项" className="neu-input" />
                 </label>
               </div>
 
-              <div className="flex items-end gap-4 mt-5">
-                <label className={`${labelCls} flex-1`}>
-                  <span>备注说明</span>
-                  <input type="text" value={form.remark} onChange={e => update('remark', e.target.value)} placeholder="其他需要说明的事项" className="neu-input" />
-                </label>
-                <button
-                  onClick={handleSubmit}
-                  disabled={submitting}
-                  className="neu-btn-primary shrink-0"
-                >
-                  {submitting ? '提交中...' : '提交登记'}
-                </button>
-              </div>
-
-              <p className="text-[12px] text-[var(--fg-3)] text-center mt-4">提交后请保持手机畅通，我们会在1个工作日内与您联系</p>
+              {/* 提交 — 整宽主按钮 */}
+              <button onClick={handleSubmit} disabled={submitting} className="neu-btn-primary mt-6 w-full">
+                {submitting ? '提交中...' : '提交登记'}
+              </button>
+              <p className="text-[12px] text-[var(--fg-3)] text-center mt-3.5">提交后请保持手机畅通，我们会在1个工作日内与您联系</p>
             </div>
           </div>
         </div>
