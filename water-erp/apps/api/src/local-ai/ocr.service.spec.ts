@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OcrService } from './ocr.service';
 
@@ -12,18 +13,23 @@ const okJson = {
 async function makeService(
   url: string,
   env: Record<string, string> = {},
+  redis?: unknown,
 ): Promise<OcrService> {
-  const module: TestingModule = await Test.createTestingModule({
-    providers: [
-      OcrService,
-      {
-        provide: ConfigService,
-        useValue: {
-          get: (key: string, def?: string) =>
-            key === 'OCR_SERVICE_URL' ? url : (env[key] ?? def),
-        },
+  const providers: Provider[] = [
+    OcrService,
+    {
+      provide: ConfigService,
+      useValue: {
+        get: (key: string, def?: string) =>
+          key === 'OCR_SERVICE_URL' ? url : (env[key] ?? def),
       },
-    ],
+    },
+  ];
+  if (redis) {
+    providers.push({ provide: 'REDIS_CLIENT', useValue: redis });
+  }
+  const module: TestingModule = await Test.createTestingModule({
+    providers,
   }).compile();
   return module.get(OcrService);
 }
@@ -173,5 +179,79 @@ describe('OCR_BATCH_PAGES / OCR_DPI env 化 + 页数探测零 OCR', () => {
     await svc.ocrPdf(Buffer.from('x'), 200, 120);
 
     expect(records[0].form.dpi).toBe('120');
+  });
+});
+
+/** Redis mock：内部 Map 模拟 get/set 往返，可注入故障 */
+function makeRedisMock(
+  overrides: { get?: unknown; set?: unknown } = {},
+): any {
+  const store = new Map<string, string>();
+  return {
+    store,
+    get: jest.fn(async (k: string) => store.get(k) ?? null),
+    set: jest.fn(async (k: string, v: string) => {
+      store.set(k, v);
+    }),
+    ...overrides,
+  };
+}
+
+describe('OCR 结果缓存', () => {
+  it('相同参数二次调用命中缓存：fetch 仅 1 次，结果一致', async () => {
+    const redis = makeRedisMock();
+    const svc = await makeService('http://a:8100', {}, redis);
+    const records: FetchRecord[] = [];
+    (global as any).fetch = mockRecordingFetch(records);
+
+    const r1 = await svc.ocrPdf(Buffer.from('same-file'));
+    const r2 = await svc.ocrPdf(Buffer.from('same-file'));
+
+    expect((global as any).fetch).toHaveBeenCalledTimes(1);
+    expect(redis.set).toHaveBeenCalledTimes(1);
+    expect(r2.text).toBe(r1.text);
+    expect(r2.processedPages).toBe(r1.processedPages);
+  });
+
+  it('dpi 不同 → 键不同 → 两次 fetch', async () => {
+    const redis = makeRedisMock();
+    const svc = await makeService('http://a:8100', {}, redis);
+    (global as any).fetch = mockRecordingFetch([]);
+
+    await svc.ocrPdf(Buffer.from('same-file'));
+    await svc.ocrPdf(Buffer.from('same-file'), 200, 120);
+
+    expect((global as any).fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('Redis get/set 双双抛异常 → 不崩、照常 fetch', async () => {
+    const redis = makeRedisMock({
+      get: jest.fn().mockRejectedValue(new Error('redis down')),
+      set: jest.fn().mockRejectedValue(new Error('redis down')),
+    });
+    const svc = await makeService('http://a:8100', {}, redis);
+    const records: FetchRecord[] = [];
+    (global as any).fetch = mockRecordingFetch(records);
+
+    const r = await svc.ocrPdf(Buffer.from('x'));
+
+    expect(records).toHaveLength(1);
+    expect(r.processedPages).toBe(1);
+  });
+
+  it('OCR_CACHE_ENABLED=false → 不读不写缓存', async () => {
+    const redis = makeRedisMock();
+    const svc = await makeService(
+      'http://a:8100',
+      { OCR_CACHE_ENABLED: 'false' },
+      redis,
+    );
+    (global as any).fetch = mockRecordingFetch([]);
+
+    await svc.ocrPdf(Buffer.from('x'));
+
+    expect(redis.get).not.toHaveBeenCalled();
+    expect(redis.set).not.toHaveBeenCalled();
+    expect((global as any).fetch).toHaveBeenCalledTimes(1);
   });
 });

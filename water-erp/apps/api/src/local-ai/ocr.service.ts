@@ -1,9 +1,13 @@
 import {
+  Inject,
   Injectable,
   Logger,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import Redis from 'ioredis';
+import { createHash } from 'crypto';
 
 export interface OcrResult {
   text: string;
@@ -27,12 +31,20 @@ export class OcrService {
   // OCR_SERVICE_URL 配逗号多副本时，各批再 round-robin 分发到不同副本（见 nextBaseUrl）
   private readonly batchPages: number;
   private readonly defaultDpi: number;
+  // 结果缓存：内容哈希键，rerun/重试零重复计算；故障不阻断 OCR
+  private readonly cacheEnabled: boolean;
+  private readonly cacheTtlSeconds: number;
+  private readonly cacheMaxEntryBytes: number;
   private readonly LARGE_FILE_THRESHOLD_MB = 20;
   private readonly BATCH_DELAY_MS = 500;
   private readonly BATCH_RETRIES = 3;
   private readonly RETRY_DELAY_MS = 500;
 
-  constructor(private config: ConfigService) {
+  constructor(
+    private config: ConfigService,
+    // @Global RedisModule 的 token；worker 进程可能未导入该模块 → Optional 缺席即禁用缓存
+    @Optional() @Inject('REDIS_CLIENT') private readonly redis?: Redis | null,
+  ) {
     const raw = config.get<string>('OCR_SERVICE_URL', 'http://localhost:8100');
     this.baseUrls = raw
       .split(',')
@@ -48,6 +60,55 @@ export class OcrService {
     }
     this.batchPages = this.readIntConfig('OCR_BATCH_PAGES', 40);
     this.defaultDpi = this.readIntConfig('OCR_DPI', 150);
+    this.cacheEnabled =
+      this.config.get<string>('OCR_CACHE_ENABLED', 'true') !== 'false' &&
+      !!this.redis;
+    this.cacheTtlSeconds = this.readIntConfig('OCR_CACHE_TTL_SECONDS', 604800);
+    this.cacheMaxEntryBytes =
+      this.readIntConfig('OCR_CACHE_MAX_ENTRY_KB', 2048) * 1024;
+  }
+
+  // ── OCR 结果缓存（Redis）──
+
+  /** 缓存键：scope + 文件内容哈希 + 全部影响产出的参数（防串参） */
+  private cacheKey(
+    scope: 'pdf' | 'img',
+    buffer: Buffer,
+    dpi: number,
+    maxPages: number,
+    pageRange: string | null,
+  ): string {
+    const hash = createHash('sha256').update(buffer).digest('hex').slice(0, 40);
+    return `ocr:v1:${scope}:${hash}:${dpi}:${maxPages}:${pageRange ?? 'all'}`;
+  }
+
+  private async cacheGet(key: string): Promise<OcrResult | null> {
+    if (!this.cacheEnabled || !this.redis) return null;
+    try {
+      const raw = await this.redis.get(key);
+      if (!raw) return null;
+      return JSON.parse(raw) as OcrResult;
+    } catch (e) {
+      this.logger.warn(`OCR cache get failed (${key.slice(0, 60)}…): ${e}`);
+      return null;
+    }
+  }
+
+  private async cacheSet(key: string, result: OcrResult): Promise<void> {
+    if (!this.cacheEnabled || !this.redis) return;
+    try {
+      const raw = JSON.stringify(result);
+      if (Buffer.byteLength(raw) > this.cacheMaxEntryBytes) {
+        this.logger.log(
+          `OCR cache skip store (${key.slice(0, 60)}…): ` +
+            `${Math.round(Buffer.byteLength(raw) / 1024)}KB 超条目上限`,
+        );
+        return;
+      }
+      await this.redis.set(key, raw, 'EX', this.cacheTtlSeconds);
+    } catch (e) {
+      this.logger.warn(`OCR cache set failed (${key.slice(0, 60)}…): ${e}`);
+    }
   }
 
   /** env 整数读取：缺失/非法/非正回落默认并 warn 一次 */
@@ -108,8 +169,25 @@ export class OcrService {
     maxPages = 200,
     dpi?: number,
   ): Promise<OcrResult> {
-    const fileSizeMB = buffer.length / (1024 * 1024);
     const effectiveDpi = dpi ?? this.defaultDpi;
+    const key = this.cacheKey('pdf', buffer, effectiveDpi, maxPages, null);
+    const cached = await this.cacheGet(key);
+    if (cached) {
+      this.logger.log('OCR cache hit (pdf)');
+      return cached;
+    }
+
+    const result = await this.ocrPdfUncached(buffer, maxPages, effectiveDpi);
+    await this.cacheSet(key, result);
+    return result;
+  }
+
+  private async ocrPdfUncached(
+    buffer: Buffer,
+    maxPages: number,
+    effectiveDpi: number,
+  ): Promise<OcrResult> {
+    const fileSizeMB = buffer.length / (1024 * 1024);
 
     if (fileSizeMB <= this.LARGE_FILE_THRESHOLD_MB) {
       return this.ocrPdfSingle(buffer, maxPages, effectiveDpi, null);
@@ -317,6 +395,13 @@ export class OcrService {
     mimeType: string,
     filename: string,
   ): Promise<OcrResult> {
+    const key = this.cacheKey('img', buffer, 0, 0, null);
+    const cached = await this.cacheGet(key);
+    if (cached) {
+      this.logger.log('OCR cache hit (img)');
+      return cached;
+    }
+
     const formData = new FormData();
     formData.append(
       'file',
@@ -339,10 +424,12 @@ export class OcrService {
     }
 
     const data = await response.json();
-    return {
+    const result: OcrResult = {
       text: data.text,
       pageCount: data.page_count,
       processedPages: data.processed_pages,
     };
+    await this.cacheSet(key, result);
+    return result;
   }
 }
