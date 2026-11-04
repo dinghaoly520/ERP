@@ -473,7 +473,7 @@ export default function ExpertDetailPage() {
                   )}
                 </div>
                 <p className="mt-1.5 text-[13px] leading-6 text-[var(--foreground)]">
-                  {p.aiEvaluation ?? '暂无评审记录，参与评审后每月 1 日自动生成'}
+                  {p.aiEvaluation ?? '暂无'}
                 </p>
                 {p.notes && <p className="mt-2 text-[11px] leading-5 text-[var(--muted-foreground)]">备注：{p.notes}</p>}
               </div>
