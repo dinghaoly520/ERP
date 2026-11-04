@@ -10,15 +10,25 @@
 #   - main.ts 有 listen 预检（端口被占即 exit 1），与链内 watcher 竞争不会叠树；
 #   - 守护退出时仅清理**自己拉起**的进程树（pidfile 记录），不碰他人实例
 #     （链内 api 成员由 concurrently 正常终止；残树遗留与 dev:kill 语义不变）。
+#   - 单实例锁（flock，2026-11-04）：陈旧实例跨会话累积会轮番拉起 :4001 叠树
+#     （当日实录 4 个陈旧 guard 叠出 6 层 nest watch），持锁失败即退出；
+#     锁 fd 随进程死亡自动释放（含 kill -9）。子进程 spawn 点必须 9>&- 关闭
+#     继承——否则 guard 死后其 dev:api 子树仍攥锁，新 guard 拿不到锁会退出。
+#   - TERM/INT 可杀（2026-11-04）：trap 直接挂 cleanup 缺 exit 时，TERM 触发
+#     清理函数后**继续循环**杀不死（当日实录只能 -9）；现 TERM/INT 仅 exit，
+#     由 EXIT trap 统一走 cleanup。
+# 路径/URL 可用 GUARD_API_URL / GUARD_LOG / GUARD_PIDFILE / GUARD_LOCK 覆盖
+# （scripts/dev-api-guard.selftest.sh 用它隔离生产文件）。
 # 日志：/tmp/water-erp-dev-api-guard.log（dev 守护日志，不入库）
 set -u
 
-API_URL="http://127.0.0.1:4001/api/docs"
+API_URL="${GUARD_API_URL:-http://127.0.0.1:4001/api/docs}"
 PROBE_INTERVAL=10
 FAIL_THRESHOLD=3
 SETTLE_AFTER_START=30
-LOG=/tmp/water-erp-dev-api-guard.log
-PIDFILE=/tmp/water-erp-dev-api-guard.child
+LOG="${GUARD_LOG:-/tmp/water-erp-dev-api-guard.log}"
+PIDFILE="${GUARD_PIDFILE:-/tmp/water-erp-dev-api-guard.child}"
+LOCK="${GUARD_LOCK:-/tmp/water-erp-dev-api-guard.lock}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 log() { echo "[$(date '+%F %T')] $*" >> "$LOG"; }
@@ -42,7 +52,14 @@ cleanup() {
     rm -f "$PIDFILE"
   fi
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 143' TERM # 仅 exit：由 EXIT trap 统一走 cleanup；直接挂 cleanup 缺 exit 则 TERM 后继续循环
+trap 'exit 130' INT
+
+isleep() { # 可打断 sleep：裸 sleep 运行中 bash 不处理信号，TERM 最长拖一个周期才生效
+  sleep "$1" 9>&- &
+  wait $!
+}
 
 start_api() {
   local pid
@@ -55,10 +72,18 @@ start_api() {
   log "后台拉起 dev:api"
   (
     cd "$ROOT" || exit 1
-    nohup pnpm dev:api >> "$LOG" 2>&1 &
+    nohup pnpm dev:api >> "$LOG" 2>&1 9>&- &
     echo $! > "$PIDFILE"
   )
 }
+
+# 单实例锁（flock 非阻塞）：陈旧实例持锁时本实例直接退出，杜绝跨会话累积叠树
+exec 9>"$LOCK" || { echo "[guard] 无法写 lock 文件 $LOCK" >> "$LOG"; exit 1; }
+if ! flock -n 9; then
+  log "已有实例持锁运行（lock=$LOCK），本实例退出"
+  trap - EXIT # 本实例不拥有任何子进程，勿让 cleanup 误杀持锁实例的 pidfile 子树
+  exit 0
+fi
 
 log "guard 启动（探活 $API_URL 每 ${PROBE_INTERVAL}s，连续 ${FAIL_THRESHOLD} 次失败才干预）"
 fails=0
@@ -71,8 +96,8 @@ while true; do
     if [ "$fails" -ge "$FAIL_THRESHOLD" ]; then
       start_api
       fails=0
-      sleep "$SETTLE_AFTER_START" # 给 watcher 编译时间，期间不重复干预
+      isleep "$SETTLE_AFTER_START" # 给 watcher 编译时间，期间不重复干预
     fi
   fi
-  sleep "$PROBE_INTERVAL"
+  isleep "$PROBE_INTERVAL"
 done
