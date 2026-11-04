@@ -23,9 +23,10 @@ export class OcrService {
   private readonly logger = new Logger(OcrService.name);
 
   // 批处理配置
-  // 单副本 OCR 服务有 2 个并行 worker，每批 40 页 = 每个 worker 处理 20 页；
+  // 单副本 OCR 服务有 2 个并行 worker；OCR_BATCH_PAGES 可调批大小（低配生产机减小批）；
   // OCR_SERVICE_URL 配逗号多副本时，各批再 round-robin 分发到不同副本（见 nextBaseUrl）
-  private readonly BATCH_PAGES = 40;
+  private readonly batchPages: number;
+  private readonly defaultDpi: number;
   private readonly LARGE_FILE_THRESHOLD_MB = 20;
   private readonly BATCH_DELAY_MS = 500;
   private readonly BATCH_RETRIES = 3;
@@ -45,6 +46,21 @@ export class OcrService {
         `OCR 多副本模式：${this.baseUrls.join(', ')}（round-robin 分发）`,
       );
     }
+    this.batchPages = this.readIntConfig('OCR_BATCH_PAGES', 40);
+    this.defaultDpi = this.readIntConfig('OCR_DPI', 150);
+  }
+
+  /** env 整数读取：缺失/非法/非正回落默认并 warn 一次 */
+  private readIntConfig(key: string, def: number): number {
+    const raw = this.config.get<string>(key, '');
+    const val = parseInt(raw, 10);
+    if (Number.isFinite(val) && val > 0) {
+      return val;
+    }
+    if (raw) {
+      this.logger.warn(`OCR env ${key}=${raw} 非法，回落默认 ${def}`);
+    }
+    return def;
   }
 
   /** round-robin 取下一个副本地址（请求无会话亲和，任意副本可服务任意请求） */
@@ -87,18 +103,23 @@ export class OcrService {
    * 关键改进：使用 page_range 参数让 OCR 服务只处理指定页面范围
    * 这样避免了每次都处理整个 PDF 文件
    */
-  async ocrPdf(buffer: Buffer, maxPages = 200, dpi = 150): Promise<OcrResult> {
+  async ocrPdf(
+    buffer: Buffer,
+    maxPages = 200,
+    dpi?: number,
+  ): Promise<OcrResult> {
     const fileSizeMB = buffer.length / (1024 * 1024);
+    const effectiveDpi = dpi ?? this.defaultDpi;
 
     if (fileSizeMB <= this.LARGE_FILE_THRESHOLD_MB) {
-      return this.ocrPdfSingle(buffer, maxPages, dpi, null);
+      return this.ocrPdfSingle(buffer, maxPages, effectiveDpi, null);
     }
 
     // 大文件分批处理 - 使用 page_range 参数
     this.logger.log(
       `Large PDF (${fileSizeMB.toFixed(1)} MB), using batch processing with page_range`,
     );
-    return this.ocrPdfBatched(buffer, maxPages, dpi);
+    return this.ocrPdfBatched(buffer, maxPages, effectiveDpi);
   }
 
   /**
@@ -163,7 +184,7 @@ export class OcrService {
     const totalPages = await this.getPdfPageCount(buffer);
     const effectivePages =
       maxPages > 0 ? Math.min(totalPages, maxPages) : totalPages;
-    const batches = Math.ceil(effectivePages / this.BATCH_PAGES);
+    const batches = Math.ceil(effectivePages / this.batchPages);
     const allPages: Array<{ page: number; text: string }> = [];
 
     this.logger.log(
@@ -171,8 +192,8 @@ export class OcrService {
     );
 
     for (let batch = 0; batch < batches; batch++) {
-      const startPage = batch * this.BATCH_PAGES + 1;
-      const endPage = Math.min((batch + 1) * this.BATCH_PAGES, effectivePages);
+      const startPage = batch * this.batchPages + 1;
+      const endPage = Math.min((batch + 1) * this.batchPages, effectivePages);
       const pageRange = `${startPage}-${endPage}`;
 
       this.logger.log(
@@ -217,8 +238,8 @@ export class OcrService {
   }
 
   private async getPdfPageCount(buffer: Buffer): Promise<number> {
-    // 只 OCR 第 1 页即可获取总页数（PyMuPDF 在 page_count 字段返回总页数）
-    const result = await this.ocrPdfSingle(buffer, 1, 50, '1-1');
+    // max_pages=0 且无 page_range：服务端零 OCR 早返回页数（原实现 OCR 第 1 页纯浪费）
+    const result = await this.ocrPdfSingle(buffer, 0, 50, null);
     if (!result.pageCount || result.pageCount < 1) {
       throw new ServiceUnavailableException(
         'OCR service did not return a valid PDF page count',
