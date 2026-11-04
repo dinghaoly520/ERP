@@ -8,7 +8,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { gatewayWsUrl } from '@water-erp/config';
+import { bidWsUrl } from '@water-erp/config';
 import {
   BID_EVENT,
   type ConnectionState,
@@ -36,11 +36,6 @@ import {
   type OpeningStartedPayload,
   type RoundStatusChangePayload,
 } from '@water-erp/shared';
-
-function wsUrl(): string {
-  // 2026-11-03 统一走 gatewayWsUrl（同源/直连双模；NEXT_PUBLIC_WS_URL 单值会劫持多命名空间，弃用）
-  return gatewayWsUrl('/bid');
-}
 
 export interface BidWsHandlers {
   onDecryptStatus?: (d: DecryptStatusPayload) => void;
@@ -117,7 +112,7 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
     manualClose.current = false;
     setConnection(prev => (prev === 'connected' ? prev : 'reconnecting'));
 
-    const socket = io(wsUrl(), {
+    const socket = io(bidWsUrl(), { forceNew: true,
       withCredentials: true,
       reconnection: false,
       timeout: 10000,

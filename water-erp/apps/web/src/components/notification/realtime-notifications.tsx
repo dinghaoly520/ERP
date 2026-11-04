@@ -72,7 +72,7 @@ export function RealtimeNotifications() {
     };
 
     const connect = () => {
-      const socket = io(notificationWsUrl(), {
+      const socket = io(notificationWsUrl(), { forceNew: true,
         withCredentials: true,
         reconnection: false,
         timeout: 8000,

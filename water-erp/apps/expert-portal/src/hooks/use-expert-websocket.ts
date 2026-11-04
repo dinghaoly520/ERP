@@ -4,12 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import type { ConnectionState, ExpertPresenceAggregatePayload, ExpertPresencePayload, DecryptStatusPayload, StageChangePayload, ClarificationCreatedPayload, ClarificationRepliedPayload, BidValidityChangePayload, HallMessagePayload, ScoresSubmittedPayload, DraftSavedPayload, EvaluationExtendedPayload, RoomCodeRotatedPayload, ScoringReopenedPayload } from '@water-erp/shared';
 import { BID_EVENT } from '@water-erp/shared';
-import { gatewayWsUrl } from '@water-erp/config';
-
-function wsUrl(): string {
-  // 2026-11-03 统一走 gatewayWsUrl（同源/直连双模；NEXT_PUBLIC_WS_URL 单值会劫持多命名空间，弃用）
-  return gatewayWsUrl('/bid');
-}
+import { bidWsUrl } from '@water-erp/config';
 
 interface Handlers {
   onAggregatePresence?: (d: ExpertPresenceAggregatePayload) => void;
@@ -85,7 +80,7 @@ export function useExpertWebSocket(projectId: string | undefined, handlers: Hand
     manualClose.current = false;
     setConnection(prev => (prev === 'connected' ? prev : 'reconnecting'));
 
-    const socket = io(wsUrl(), {
+    const socket = io(bidWsUrl(), { forceNew: true,
       withCredentials: true,
       reconnection: false,
       timeout: 10000,
