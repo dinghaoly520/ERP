@@ -131,8 +131,8 @@ export function AccountManagementPanel() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<AdminAccount[]>([]);
   const [loading, setLoading] = useState(true);
+  // 页面级致命错误（加载失败整页态）；操作类成功/报错一律走 sonner toast 顶部弹出即消失（2026-11-04 用户口径）
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [isPending, startTransition] = useTransition();
   // 三合一（2026-08-21）：注册审核 / 密码审批并入账号管理
@@ -198,7 +198,6 @@ export function AccountManagementPanel() {
   useEffect(() => { if (currentUser === "admin") loadPending(); }, [currentUser, loadPending]);
 
   const refresh = () => {
-    setActionMessage(null);
     startTransition(async () => {
       await loadAccounts();
       loadPending();
@@ -263,10 +262,10 @@ export function AccountManagementPanel() {
       const r = await revealAccountPassword(id);
       setRevealed((prev) => ({ ...prev, [id]: r.password }));
       if (r.password === null) {
-        setActionMessage("该账号没有可查看的密码副本（改密早于本功能或非供应商账号），下次改密后可查看。");
+        toast.info("该账号没有可查看的密码副本（改密早于本功能或非供应商账号），下次改密后可查看。");
       }
     } catch (error) {
-      setErrorMessage(friendlyError(error, "获取密码失败。"));
+      toast.error(friendlyError(error, "获取密码失败。"));
     } finally {
       setRevealingId(null);
     }
@@ -418,12 +417,6 @@ export function AccountManagementPanel() {
         <PasswordRequestsPanel />
       ) : (
       <>
-
-      {actionMessage ? (
-        <div className="rounded-[16px] border border-[rgba(92,181,150,0.18)] bg-[rgba(240,250,245,0.76)] px-4 py-3 text-sm text-[color:var(--foreground)]">
-          {actionMessage}
-        </div>
-      ) : null}
 
       {/* 二级分区层（仅「账号列表」tab）：工作人员=审批管理 / 供应商=只读+密码查看 —— 与页面级 tab 分层 */}
       {tab === "list" && (
@@ -740,7 +733,7 @@ export function AccountManagementPanel() {
           onClose={() => setFormState(null)}
           onDone={(msg) => {
             setFormState(null);
-            setActionMessage(msg);
+            toast.success(msg);
             refresh();
           }}
         />
@@ -754,7 +747,7 @@ export function AccountManagementPanel() {
           onClose={() => setResetTarget(null)}
           onDone={(msg) => {
             setResetTarget(null);
-            setActionMessage(msg);
+            toast.success(msg);
           }}
         />
       ) : null}
@@ -768,7 +761,7 @@ export function AccountManagementPanel() {
           onClose={() => setConfirmState(null)}
           onDone={(msg) => {
             setConfirmState(null);
-            setActionMessage(msg);
+            toast.success(msg);
             refresh();
           }}
         />

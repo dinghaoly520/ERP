@@ -8,6 +8,7 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import {
   approveRegistration,
@@ -157,7 +158,6 @@ export function RegistrationReviewPanel({
   const [tab, setTab] = useState<"pending" | "history">("pending");
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<
     | { type: "approve"; id: string; user: PendingRegistration; role: "management" | "office" }
     | { type: "reject"; id: string }
@@ -184,22 +184,20 @@ export function RegistrationReviewPanel({
   }, [load]);
 
   const handleRefresh = () => {
-    setActionMessage(null);
     startTransition(async () => {
       await load();
     });
   };
 
   const handleApprove = (id: string, role: "management" | "office") => {
-    setActionMessage(null);
     startTransition(async () => {
       try {
         await approveRegistration(id, role);
-        setActionMessage("已通过注册申请");
+        toast.success("已通过注册申请");
         await load();
         onAccountsChanged?.();
       } catch (e) {
-        setActionMessage(e instanceof Error ? e.message : "审批失败");
+        toast.error(e instanceof Error ? e.message : "审批失败");
       }
       setConfirm(null);
     });
@@ -207,18 +205,17 @@ export function RegistrationReviewPanel({
 
   const handleReject = (id: string, reason?: string) => {
     if (!reason) {
-      setActionMessage("拒绝时必须填写理由");
+      toast.error("拒绝时必须填写理由");
       return;
     }
-    setActionMessage(null);
     startTransition(async () => {
       try {
         await rejectRegistration(id, reason);
-        setActionMessage("已拒绝注册申请");
+        toast.success("已拒绝注册申请");
         await load();
         onAccountsChanged?.();
       } catch (e) {
-        setActionMessage(e instanceof Error ? e.message : "拒绝失败");
+        toast.error(e instanceof Error ? e.message : "拒绝失败");
       }
       setConfirm(null);
     });
@@ -338,12 +335,6 @@ export function RegistrationReviewPanel({
           </button>
         </div>
       </div>
-
-      {actionMessage && (
-        <div className="rounded-[14px] bg-[color-mix(in_oklch,var(--success)_10%,transparent)] px-4 py-3 text-sm text-[var(--foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.55)]">
-          {actionMessage}
-        </div>
-      )}
 
       {/* 待审核表格 */}
       {tab === "pending" &&

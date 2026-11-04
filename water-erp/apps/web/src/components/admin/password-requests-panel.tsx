@@ -8,6 +8,7 @@ import {
   Loader2,
   X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import {
   fetchDepartments,
@@ -163,7 +164,6 @@ export function PasswordRequestsPanel() {
   // departmentId → 部门名翻译表（payload 里的裸 cuid 没法看）
   const [departmentMap, setDepartmentMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -200,7 +200,6 @@ export function PasswordRequestsPanel() {
   }, [loadRequests]);
 
   const handleRefresh = () => {
-    setActionMessage(null);
     startTransition(async () => {
       await loadRequests();
     });
@@ -209,87 +208,79 @@ export function PasswordRequestsPanel() {
   // ---- Approve / reject handlers ------------------------------------------
 
   const handleApproveChange = (requestId: string) => {
-    setActionMessage(null);
     startTransition(async () => {
       try {
         await approvePasswordChangeRequest(requestId);
         setChangeRequests((prev) => prev.filter((r) => r.id !== requestId));
-        setActionMessage("已批准修改密码申请，新密码已生效，该用户已登录会话已下线。");
+        toast.success("已批准修改密码申请，新密码已生效，该用户已登录会话已下线。");
       } catch (error) {
-        setActionMessage(error instanceof Error ? error.message : "审批失败，请稍后重试。");
+        toast.error(error instanceof Error ? error.message : "审批失败，请稍后重试。");
       }
       setConfirmState(null);
     });
   };
 
   const handleRejectChange = (requestId: string, reason?: string) => {
-    setActionMessage(null);
     startTransition(async () => {
       try {
         await rejectPasswordChangeRequest(requestId, reason);
         setChangeRequests((prev) => prev.filter((r) => r.id !== requestId));
-        setActionMessage("已拒绝该修改密码申请。");
+        toast.success("已拒绝该修改密码申请。");
       } catch (error) {
-        setActionMessage(error instanceof Error ? error.message : "拒绝申请失败，请稍后重试。");
+        toast.error(error instanceof Error ? error.message : "拒绝申请失败，请稍后重试。");
       }
       setConfirmState(null);
     });
   };
 
   const handleApproveReset = (requestId: string) => {
-    setActionMessage(null);
     startTransition(async () => {
       try {
         const resetRequest = resetRequests.find((item) => item.id === requestId) ?? null;
         const result = await approvePasswordResetRequest(requestId);
         setResetRequests((prev) => prev.filter((r) => r.id !== requestId));
-        setActionMessage(
-          `已批准「${result.requestedUsername}」的忘记密码申请（申请人：${resetRequest?.applicantName ?? "未知"}）。该账号密码已按提交内容更新，请通知其尽快登录后修改。`,
-        );
+        toast.success(`已批准「${result.requestedUsername}」的忘记密码申请（申请人：${resetRequest?.applicantName ?? "未知"}）。该账号密码已按提交内容更新，请通知其尽快登录后修改。`);
       } catch (error) {
-        setActionMessage(error instanceof Error ? error.message : "重置密码失败，请稍后重试。");
+        toast.error(error instanceof Error ? error.message : "重置密码失败，请稍后重试。");
       }
       setConfirmState(null);
     });
   };
 
   const handleRejectReset = (requestId: string, reason?: string) => {
-    setActionMessage(null);
     startTransition(async () => {
       try {
         await rejectPasswordResetRequest(requestId, reason);
         setResetRequests((prev) => prev.filter((r) => r.id !== requestId));
-        setActionMessage("已拒绝该密码重置申请。");
+        toast.success("已拒绝该密码重置申请。");
       } catch (error) {
-        setActionMessage(error instanceof Error ? error.message : "拒绝重置申请失败，请稍后重试。");
+        toast.error(error instanceof Error ? error.message : "拒绝重置申请失败，请稍后重试。");
       }
       setConfirmState(null);
     });
   };
 
   const handleApproveProfile = (requestId: string) => {
-    setActionMessage(null);
     startTransition(async () => {
       try {
         const result = await approveProfileChange(requestId);
         setProfileRequests((prev) => prev.filter((r) => r.id !== requestId));
-        setActionMessage(`已通过「${result.username}」的资料变更，新资料已生效并已通知申请人。`);
+        toast.success(`已通过「${result.username}」的资料变更，新资料已生效并已通知申请人。`);
       } catch (error) {
-        setActionMessage(error instanceof Error ? error.message : "审批失败，请稍后重试。");
+        toast.error(error instanceof Error ? error.message : "审批失败，请稍后重试。");
       }
       setConfirmState(null);
     });
   };
 
   const handleRejectProfile = (requestId: string, note?: string) => {
-    setActionMessage(null);
     startTransition(async () => {
       try {
         await rejectProfileChange(requestId, note);
         setProfileRequests((prev) => prev.filter((r) => r.id !== requestId));
-        setActionMessage("已拒绝该资料变更申请，申请人当前资料保持不变。");
+        toast.success("已拒绝该资料变更申请，申请人当前资料保持不变。");
       } catch (error) {
-        setActionMessage(error instanceof Error ? error.message : "拒绝失败，请稍后重试。");
+        toast.error(error instanceof Error ? error.message : "拒绝失败，请稍后重试。");
       }
       setConfirmState(null);
     });
@@ -342,13 +333,6 @@ export function PasswordRequestsPanel() {
           </button>
         </div>
       </div>
-
-      {/* --- Feedback banner --- */}
-      {actionMessage ? (
-        <div className="rounded-[14px] bg-[color-mix(in_oklch,var(--success)_10%,transparent)] px-4 py-3 text-sm text-[var(--foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.55)]">
-          {actionMessage}
-        </div>
-      ) : null}
 
       {/* --- 修改密码申请表 --- */}
       {tab === "change" &&
