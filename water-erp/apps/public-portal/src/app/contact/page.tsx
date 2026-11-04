@@ -67,12 +67,12 @@ export default function ContactPage() {
                     ))}
                   </div>
 
-                  {/* Action button */}
+                  {/* Action button — 箭头走 cgzxui 规范（.flow-cta-arrow：chevron 置圆形容器，hover 右滑） */}
                   {item.action && (
                     <a href={item.action.href}
                       className="neu-btn-primary mt-5 self-start">
                       {item.action.label}
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                      <svg className="flow-cta-arrow" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
                     </a>
                   )}
                 </div>

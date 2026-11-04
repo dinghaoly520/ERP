@@ -149,14 +149,16 @@ body {
   border-radius: 9px;
   cursor: pointer;
   box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.25),
     3px 3px 6px oklch(0.5 0.08 258 / 0.25),
     -2px -2px 5px oklch(1 0 0 / 0.5);
-  transition: all 0.2s ease;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease, background 0.25s ease, opacity 0.2s ease;
 }
 .neu-btn-primary:hover {
   background: oklch(0.42 0.16 258);
   transform: translateY(-1px);
   box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.3),
     4px 4px 10px oklch(0.45 0.08 258 / 0.28),
     -2px -2px 6px oklch(1 0 0 / 0.55);
 }
@@ -1517,7 +1519,8 @@ body {
 
 /* CTA 箭头容器 — cgzxui 箭头规范：13×13 chevron SVG 置于 18×18 圆形容器，
    hover 右滑 4px 与箭头方向同向（primary=白on深底、ghost=品牌色on浅底，
-   故背景用 color-mix(currentColor) 而非写死色值） */
+   故背景用 color-mix(currentColor) 而非写死色值）。
+   hover 触发面 = .flow-cta-btn 与 .neu-btn-primary 两处（同一箭头语汇） */
 .flow-cta-arrow {
   width: 18px;
   height: 18px;
@@ -1528,13 +1531,15 @@ body {
     transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
     background 0.3s ease;
 }
-.flow-cta-btn:hover .flow-cta-arrow {
+.flow-cta-btn:hover .flow-cta-arrow,
+.neu-btn-primary:hover .flow-cta-arrow {
   transform: translateX(4px);
   background: color-mix(in srgb, currentColor 16%, transparent);
 }
 @media (prefers-reduced-motion: reduce) {
   .flow-cta-arrow { transition: none; }
-  .flow-cta-btn:hover .flow-cta-arrow { transform: none; }
+  .flow-cta-btn:hover .flow-cta-arrow,
+  .neu-btn-primary:hover .flow-cta-arrow { transform: none; }
 }
 
 @media (max-width: 860px) {
