@@ -939,7 +939,7 @@ export default function SupplierDetailPage() {
               <div className="overflow-x-auto">
                 <table className="neu-table">
                   <thead>
-                    <tr><th>姓名</th><th>性别</th><th>手机号</th><th>身份证号</th><th>邮箱</th><th>职位</th><th>人员类别</th><th>执业证书</th><th>类型</th></tr>
+                    <tr><th>姓名</th><th>性别</th><th>联系方式</th><th>身份证号</th><th>邮箱</th><th>职位</th><th>人员类别</th><th>执业证书</th><th>类型</th></tr>
                   </thead>
                   <tbody>
                     {supplier.contacts.map(c => (
