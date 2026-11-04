@@ -48,6 +48,12 @@ export class NotificationController {
     return this.notificationService.markAsRead(id, req.user.sub);
   }
 
+  @Post(':id/resolve')
+  @ApiOperation({ summary: '标记已办（办结自己的待办）' })
+  async resolveOwn(@Param('id') id: string, @Request() req: any) {
+    return this.notificationService.resolveOwn(id, req.user.sub);
+  }
+
   @Post('mark-all-read')
   @ApiOperation({ summary: '全部标记已读' })
   async markAllAsRead(@Request() req: any) {

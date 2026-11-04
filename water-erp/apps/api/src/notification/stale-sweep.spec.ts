@@ -13,7 +13,7 @@ type UserRow = { id: string; isActive: boolean; role: string; displayName: strin
 function makePrisma(tables: {
   notifications?: NotifRow[];
   users?: UserRow[];
-  suppliers?: Array<{ id: string; status: string; name?: string }>;
+  suppliers?: Array<{ id: string; status: string; name?: string; companyId?: string | null }>;
   links?: Array<{ id: string; status: string }>;
   apps?: Array<{ id: string; status: string }>;
   tags?: Array<{ id: string; status: string; createdBySupplierId?: string | null }>;

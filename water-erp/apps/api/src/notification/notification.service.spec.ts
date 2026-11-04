@@ -18,7 +18,7 @@ describe('NotificationService', () => {
       groupBy: jest.fn().mockResolvedValue([]),
     },
     notificationDeliveryLog: { create: jest.fn().mockResolvedValue({}) },
-    user: { findUnique: jest.fn().mockResolvedValue(null) },
+    user: { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
   };
   const emailChannel = { send: jest.fn().mockResolvedValue({ status: 'skipped' }) } as any;
   const smsChannel = { send: jest.fn().mockResolvedValue({ status: 'skipped' }) } as any;
@@ -179,16 +179,55 @@ describe('NotificationService', () => {
       if (where.role === 'admin') return [{ id: 'u-admin' }];
       return [];
     });
-    prisma.notification.create.mockResolvedValue({});
+    prisma.notification.create.mockClear().mockResolvedValue({});
+    // 与本文件其余 sendToUser 用例同款：resolvePhones 真身查未 mock 的联系人表会炸（allSettled 吞掉 → sent 虚高、create 零调用）
+    jest.spyOn(service as any, 'resolvePhones').mockResolvedValue([]);
+    jest.spyOn(service as any, 'pushRealtime').mockImplementation(() => {});
 
     const r1 = await service.sendToCompanyRoles('co-x', ['leader', 'staff'], { type: 'T', title: 't', content: 'c', link: '/x' });
     expect(r1).toEqual({ sent: 2, fallbackAdmin: false });
     expect(prisma.notification.create).toHaveBeenCalledTimes(2);
-    expect(prisma.notification.create).toHaveBeenCalledWith(expect.objectContaining({ userId: 'u-x1', type: 'T' }));
+    expect(prisma.notification.create).toHaveBeenCalledWith({ data: expect.objectContaining({ userId: 'u-x1', type: 'T' }) });
 
     prisma.notification.create.mockClear();
     const r2 = await service.sendToCompanyRoles(null, ['leader'], { type: 'T', title: 't', content: 'c' });
     expect(r2).toEqual({ sent: 1, fallbackAdmin: true });
-    expect(prisma.notification.create).toHaveBeenCalledWith(expect.objectContaining({ userId: 'u-admin' }));
+    expect(prisma.notification.create).toHaveBeenCalledWith({ data: expect.objectContaining({ userId: 'u-admin' }) });
+  });
+
+  it('resolveOwn 办结自己的待办：resolvedAt+isRead+readAt 一次落库（2026-11-04 处理窗「标记已办」真实路径）', async () => {
+    prisma.notification.findUnique.mockReset().mockResolvedValue({
+      id: 'n1', userId: 'u1', type: 'EXPERT_DECLINE_STREAK', resolvedAt: null, isRead: false,
+    });
+    prisma.notification.update.mockClear().mockResolvedValue({ id: 'n1', resolvedAt: new Date() });
+
+    await service.resolveOwn('n1', 'u1');
+
+    expect(prisma.notification.update).toHaveBeenCalledWith({
+      where: { id: 'n1' },
+      data: { resolvedAt: expect.any(Date), isRead: true, readAt: expect.any(Date) },
+    });
+  });
+
+  it('resolveOwn 幂等：已办结不重置时间、不落库', async () => {
+    const done = { id: 'n2', userId: 'u1', type: 'SUPPLIER_PENDING', resolvedAt: new Date('2026-11-01'), isRead: false };
+    prisma.notification.findUnique.mockReset().mockResolvedValue(done);
+    prisma.notification.update.mockClear();
+
+    await expect(service.resolveOwn('n2', 'u1')).resolves.toBe(done);
+    expect(prisma.notification.update).not.toHaveBeenCalled();
+  });
+
+  it('resolveOwn 拒绝知会类与非本人通知', async () => {
+    prisma.notification.update.mockClear();
+    prisma.notification.findUnique.mockReset().mockResolvedValue(null);
+    await expect(service.resolveOwn('n3', 'u1'))
+      .rejects.toMatchObject({ status: 404 });
+    prisma.notification.findUnique.mockResolvedValue({ id: 'n4', userId: 'u1', type: 'BID_OPENING_CONFIRMED', resolvedAt: null });
+    await expect(service.resolveOwn('n4', 'u1'))
+      .rejects.toMatchObject({ status: 400, response: expect.objectContaining({ code: 'NOT_ACTIONABLE' }) });
+    prisma.notification.findUnique.mockResolvedValue({ id: 'n5', userId: 'u2', type: 'SUPPLIER_PENDING', resolvedAt: null });
+    await expect(service.resolveOwn('n5', 'u1'))
+      .rejects.toMatchObject({ status: 404 });
   });
 });

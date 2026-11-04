@@ -31,6 +31,10 @@ export function getUnreadCount() {
 export function markNotificationRead(id: string) {
   return api.post<NotificationItem>(`/notifications/${id}/read`, {});
 }
+/** 办结自己的待办（resolvedAt 落库）——markAsRead 对 actionable 未办结通知是 no-op，勿混用 */
+export function resolveNotification(id: string) {
+  return api.post<NotificationItem>(`/notifications/${id}/resolve`, {});
+}
 export function markAllNotificationsRead() {
   return api.post<{ count: number }>('/notifications/mark-all-read', {});
 }

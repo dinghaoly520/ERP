@@ -1,4 +1,4 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { NOTIFICATION_REGISTRY, NOTIFICATION_REGISTRY_MAP } from '@water-erp/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
@@ -425,6 +425,31 @@ export class NotificationService {
     return this.prisma.notification.updateMany({
       where: { userId, isRead: false, type: { in: READONLY_TYPES } },
       data: { isRead: true, readAt: new Date() },
+    });
+  }
+
+  /**
+   * 用户显式办结自己的待办（2026-11-04）：处理窗「标记已办」的真实落库路径。
+   * 此前按钮误调 markAsRead——其对 actionable 未办结通知按 2026-09-29 守卫是
+   * no-op（点开≠办结），toast 谎报成功、刷新后仍滞留待办段。办结同时置已读：
+   * 已办必然已阅，未读角标与五段计数同步消减。复核型待办（预警类，无业务
+   * resolveActionable 调用点）此前无任何消解路径，这是唯一出口。
+   */
+  async resolveOwn(notificationId: string, userId: string) {
+    const notification = await this.prisma.notification.findUnique({
+      where: { id: notificationId },
+    });
+    if (!notification || notification.userId !== userId) {
+      throw new NotFoundException({ error: '通知不存在或不属于此用户', code: 'NOTIFICATION_NOT_FOUND' });
+    }
+    if (!ACTIONABLE_TYPES.includes(notification.type)) {
+      throw new BadRequestException({ error: '知会类通知无需办结', code: 'NOT_ACTIONABLE' });
+    }
+    if (notification.resolvedAt) return notification; // 幂等：已办结不重置时间
+    const now = new Date();
+    return this.prisma.notification.update({
+      where: { id: notificationId },
+      data: { resolvedAt: now, isRead: true, readAt: now },
     });
   }
 }
