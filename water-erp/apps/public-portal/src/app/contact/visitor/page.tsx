@@ -144,10 +144,12 @@ export default function VisitorPage() {
                 </label>
               </div>
 
-              {/* 提交 — 整宽主按钮 */}
-              <button onClick={handleSubmit} disabled={submitting} className="neu-btn-primary mt-6 w-full">
-                {submitting ? '提交中...' : '提交登记'}
-              </button>
+              {/* 提交 — 居中定宽主按钮 */}
+              <div className="mt-6 flex justify-center">
+                <button onClick={handleSubmit} disabled={submitting} className="neu-btn-primary w-56">
+                  {submitting ? '提交中...' : '提交登记'}
+                </button>
+              </div>
               <p className="text-[12px] text-[var(--fg-3)] text-center mt-3.5">提交后请保持手机畅通，我们会在1个工作日内与您联系</p>
             </div>
           </div>
