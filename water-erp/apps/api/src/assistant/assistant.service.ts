@@ -643,7 +643,6 @@ ${toolList}
    * Remove all TOOL_CALL directives (with balanced braces) from text.
    */
   private stripAllToolCalls(text: string): string {
-    const calls = this.parseAllToolCalls(text);
     const result = text;
     // Re-scan and remove each TOOL_CALL:{...} block by balanced braces
     const marker = 'TOOL_CALL:';

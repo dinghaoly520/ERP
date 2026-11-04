@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../audit/audit.service';
 import { AssistantTool, AssistantToolCtx, ToolResult } from './assistant-tool';
 import { toolCompanyWhere } from './company-filter';
 import { SUPPLIER_STATUS_LABEL, t } from './labels';
@@ -9,9 +10,12 @@ import { openPiiForMask } from '../../common/crypto/sm-field-crypto';
 export class SupplierTool implements AssistantTool {
   name = 'supplier';
   description =
-    '查询供应商列表/详情/状态统计/风险画像/待审核项/活跃排名。args: { action: "list"|"detail"|"stats"|"pending"|"risk"|"top", status?, supplierId?, limit?, topN? }';
+    '查询供应商列表/详情/状态统计/风险画像/待审核项/活跃排名。args: { action: "list"|"detail"|"stats"|"pending"|"risk"|"top", keyword?, status?, supplierId?, limit?, topN? }——list 支持 keyword=供应商名称关键词（按名找供应商先用它）';
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   async execute(args: Record<string, unknown> = {}, ctx?: AssistantToolCtx): Promise<ToolResult> {
     const action = (args.action as string) || 'list';
@@ -29,7 +33,17 @@ export class SupplierTool implements AssistantTool {
         },
       });
       if (!supplier) return { success: false, error: '供应商不存在' };
-      // 联系人电话/邮箱明文出口（2026-10-30 口径同 list()/遴选视图：助手=员工操作辅助面，密文即不可用）
+      // 联系人电话/邮箱明文出口（2026-10-30 口径同 list()/遴选视图：助手=员工操作辅助面，密文即不可用；
+      // 2026-11-04 用户裁定「可以明文，但调用需要留痕」——AuditLog 记录谁经水叮当看了哪家联系人）
+      this.audit
+        .log({
+          userId: ctx?.user?.sub ?? 'unknown',
+          action: '水叮当明文查看供应商联系人',
+          resourceType: 'supplier',
+          resourceId: supplierId,
+          details: { via: 'assistant-supplier-detail', fields: ['contacts.phone', 'contacts.email'], supplierName: supplier.name },
+        })
+        .catch(() => {/* 留痕 best-effort：审计库抖动不阻断问答 */});
       return {
         success: true,
         data: {
@@ -145,8 +159,13 @@ export class SupplierTool implements AssistantTool {
       };
     }
 
-    // default: list
-    const where = { ...companyWhere, ...(status ? { status: status as never } : {}) };
+    // default: list（keyword=名称关键词——2026-11-04 实测按名提问曾查无此人；出卡替代裸 data）
+    const keyword = (args.keyword as string) || (args.name as string) || undefined;
+    const where = {
+      ...companyWhere,
+      ...(status ? { status: status as never } : {}),
+      ...(keyword ? { name: { contains: keyword } } : {}),
+    };
     const suppliers = await this.prisma.supplier.findMany({
       where, take: limit, orderBy: { createdAt: 'desc' },
       select: {
@@ -154,6 +173,25 @@ export class SupplierTool implements AssistantTool {
         legalPerson: true, createdAt: true, industry: true,
       },
     });
-    return { success: true, data: suppliers };
+    return {
+      success: true,
+      data: suppliers,
+      cards: [{
+        type: 'table',
+        title: `供应商清单（${suppliers.length}家）`,
+        columns: [
+          { key: 'name', label: '名称' },
+          { key: 'status', label: '状态' },
+          { key: 'enterpriseType', label: '类型' },
+          { key: 'industry', label: '行业' },
+        ],
+        rows: suppliers.map((x) => ({
+          name: x.name,
+          status: t(SUPPLIER_STATUS_LABEL, x.status),
+          enterpriseType: x.enterpriseType,
+          industry: x.industry || '-',
+        })),
+      }],
+    };
   }
 }
