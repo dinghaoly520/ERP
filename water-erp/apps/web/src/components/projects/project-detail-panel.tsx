@@ -247,10 +247,10 @@ function ExpertInfoField({
             <thead>
               <tr>
                 <th className="text-center" style={{ width: 24 }}>#</th>
-                <th className="text-left" style={{ width: '22%', minWidth: 120 }}>专家</th>
-                <th className="text-left">部门</th>
-                <th className="text-left">专业</th>
-                <th className="text-left">职称</th>
+                <th className="text-center" style={{ width: '22%', minWidth: 120 }}>专家</th>
+                <th className="text-center">部门</th>
+                <th className="text-center">专业</th>
+                <th className="text-center">职称</th>
                 <th className="text-center" style={{ width: 80 }}>角色</th>
               </tr>
             </thead>
@@ -258,13 +258,13 @@ function ExpertInfoField({
               {experts.map((expert, i) => (
                 <tr key={i}>
                   <td className="text-center tabular-nums" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)', verticalAlign: 'top' }}>{i + 1}</td>
-                  <td className="font-medium text-left" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--foreground)', verticalAlign: 'top' }}>
+                  <td className="font-medium text-center" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--foreground)', verticalAlign: 'top' }}>
                       <span className="inline-flex items-center gap-1">{expert.name}{(expert as any).role?.includes('组长') ? <span title="评审组长"><Crown size={12} className="text-[#7c3aed]" aria-label="评审组长" /></span> : null}</span>
                     </td>
 
-                  <td className="text-left" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)', verticalAlign: 'top' }}>{cleanMulti(expert.department)}</td>
-                  <td className="text-left" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)', verticalAlign: 'top' }}>{cleanMulti(expert.specialty)}</td>
-                  <td className="text-left" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)', verticalAlign: 'top' }}>{cleanMulti(expert.title)}</td>
+                  <td className="text-center" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)', verticalAlign: 'top' }}>{cleanMulti(expert.department)}</td>
+                  <td className="text-center" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)', verticalAlign: 'top' }}>{cleanMulti(expert.specialty)}</td>
+                  <td className="text-center" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)', verticalAlign: 'top' }}>{cleanMulti(expert.title)}</td>
                   <td className="text-center" style={{ paddingTop: 6, paddingBottom: 6, verticalAlign: 'top' }}>{((expert as any).role === '候补' || (expert as any).role === '补选') ? <StatusBadge tone="orange">候补</StatusBadge> : ((expert as any).role ? <StatusBadge tone="blue">正选</StatusBadge> : null)}</td>
                 </tr>
               ))}
