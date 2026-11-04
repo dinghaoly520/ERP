@@ -122,6 +122,38 @@ export class AiController {
     }
   }
 
+  @Get('hard-condition-vocab')
+  @ApiOperation({ summary: '硬性条件词表（行业=库内公司视野聚合 + 资质字典）' })
+  @Roles('admin', 'bid_expert', 'bid_host', 'leader', 'staff')
+  async getHardConditionVocab(@Query('companyId') companyId?: string, @Request() req: any = {}) {
+    return this.aiService.getHardConditionVocab(req.user, companyId);
+  }
+
+  @Post('suggest-hard-conditions')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: 'AI 按项目上下文从词表预填硬性筛选条件' })
+  @Roles('admin', 'bid_expert', 'bid_host', 'leader', 'staff')
+  async suggestHardConditions(
+    @Body() body: { projectContext?: Record<string, string>; industries?: string[]; qualifications?: { key: string; label: string }[] },
+  ) {
+    const industries = Array.isArray(body?.industries)
+      ? body.industries.filter((s) => typeof s === 'string').map((s) => s.trim()).filter(Boolean).slice(0, 40)
+      : [];
+    const qualifications = Array.isArray(body?.qualifications)
+      ? body.qualifications
+          .filter((q) => q && typeof q === 'object' && typeof (q as Record<string, unknown>).key === 'string')
+          .map((q) => ({ key: String(q.key), label: String((q as Record<string, unknown>).label || '') }))
+          .filter((q) => q.label)
+          .slice(0, 60)
+      : [];
+    const hardConditions = await this.aiService.suggestHardConditions({
+      projectContext: body?.projectContext,
+      industries,
+      qualifications,
+    });
+    return { hardConditions };
+  }
+
   @Post('suggest-tags')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'AI 按项目上下文从词表预选业务标签（供应商选取页预填）' })

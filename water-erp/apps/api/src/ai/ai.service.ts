@@ -24,6 +24,8 @@ import {
   type ConditionCheck,
   hardConditionsEmpty,
   filterPoolByHardConditions,
+  QUALIFICATION_DICTIONARY,
+  sanitizeSuggestedHardConditions,
 } from './supplier-hard-conditions';
 import { computeRiskFactors, riskLevel, predictDefaultRisk } from './risk-score.compute';
 import { buildCalibration } from '../ai-bid-analysis/utils/calibration';
@@ -125,6 +127,61 @@ export class AiService {
       return out.slice(0, 8);
     } catch {
       return [];
+    }
+  }
+
+  /** 硬性条件词表（2026-11-04 spec）：行业=库内公司视野聚合；资质=内置字典 */
+  async getHardConditionVocab(actor?: AuthenticatedUser, companyId?: string) {
+    const where: any = {
+      status: 'APPROVED',
+      ...supplierCompanyWhere(await this.companyScope.resolveScope(actor, companyId)),
+    };
+    const rows = await this.prisma.supplier.groupBy({
+      by: ['industry'],
+      where,
+      _count: { _all: true },
+    });
+    const industries = rows
+      .map((r) => ({ name: (r.industry || '').trim(), count: r._count._all }))
+      .filter((r) => r.name.length > 0)
+      .sort((a, b) => b.count - a.count);
+    return {
+      industries,
+      qualifications: QUALIFICATION_DICTIONARY.map(({ key, label, category }) => ({ key, label, category })),
+    };
+  }
+
+  /** AI 预填硬性条件——只能从词表/字典选，选不出留空（仿 suggestBusinessTags 范式，2026-11-04 spec） */
+  async suggestHardConditions(input: {
+    projectContext?: Record<string, string>;
+    industries: string[];
+    qualifications: { key: string; label: string }[];
+  }): Promise<HardConditions> {
+    const industries = Array.from(new Set((input.industries || []).map((s) => String(s).trim()).filter(Boolean)));
+    const quals = (input.qualifications || []).filter((q) => q && q.key && q.label).slice(0, 60);
+    if (industries.length === 0 && quals.length === 0) return {};
+
+    const system = [
+      '你是采购供应商筛选条件助手。根据采购项目背景，从给定词表中严格挑选硬性筛选条件。',
+      '规则：',
+      '1. 行业只能从「行业词表」选择 1-3 个与标的物制造/供应直接相关的行业；宁缺毋滥，判断不准就不选。',
+      '2. 资质只能从「资质字典」选择项目确实要求的企业资质/体系认证（0-4 项），并判定 required：法定或采购文件明确的准入门槛建 true；锦上添花的加分项填 false。判断不准一律不选。',
+      '3. 业绩：仅当项目文件明确写了业绩门槛（几年几项什么类型）才填 years/minCount/keywords；keywords 用 1-2 个核心产品词。没写就整个 performance 留空。',
+      '4. minGrade：仅当背景明确要求历史评价等级时填，否则留空。',
+      '5. 严禁自造词表外的行业名/资质名。仅输出严格 JSON，不要任何其它文字，格式：',
+      '{"industries":["..."],"qualifications":[{"key":"iso9001","required":true}],"performance":{"years":3,"minCount":2,"keywords":["钻机"]},"minGrade":"B"}',
+      '不需要的维度留空数组或省略键。',
+    ].join('\n');
+
+    try {
+      const res = await this.llm.chatJson<Record<string, unknown>>(system, JSON.stringify({
+        projectContext: input.projectContext || {},
+        行业词表: industries,
+        资质字典: quals,
+      }), 0);
+      return sanitizeSuggestedHardConditions(res, { industries, qualKeys: quals.map((q) => q.key) });
+    } catch {
+      return {};
     }
   }
 
