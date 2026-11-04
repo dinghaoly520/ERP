@@ -2293,9 +2293,10 @@ export function SupplierSelectionPage({
                       </span>
                     )}
                   </div>
-                  {/* 筛选条件回显（2026-11-04）：第一步锁定后随结果完整展示——标签/行业/资质/业绩/评价全量 */}
-                  {(selectedTags.length > 0 || activeHardConditions) && (
-                    <div className="mb-2.5 flex flex-wrap items-center gap-1">
+                  {/* 筛选条件回显（2026-11-04）：第一步锁定后随结果完整展示——标签/行业/资质/业绩/评价+补充说明文字 */}
+                  {(selectedTags.length > 0 || activeHardConditions || reqSpecial.trim() || reqOther.trim()) && (
+                    <div className="mb-2.5 space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-1">
                       {selectedTags.map(t => (
                         <span key={t} className="rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--accent-strong)]"
                           style={{ background: 'color-mix(in oklch, var(--accent) 10%, transparent)' }}>{t}</span>
@@ -2323,6 +2324,19 @@ export function SupplierSelectionPage({
                         <span className="rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--muted-foreground)]"
                           style={{ background: 'color-mix(in oklch, var(--muted-foreground) 10%, transparent)' }}>评价·不低于{activeHardConditions.minGrade}级</span>
                       )}
+                    </div>
+                    {reqSpecial.trim() && (
+                      <div className="flex items-start gap-1.5 text-[11px] leading-4">
+                        <span className="shrink-0 font-bold text-[var(--muted-foreground)]">业绩要求</span>
+                        <span className="min-w-0 flex-1 truncate text-[var(--muted-foreground)]" title={reqSpecial.trim()}>{reqSpecial.trim().replace(/\n+/g, '；')}</span>
+                      </div>
+                    )}
+                    {reqOther.trim() && (
+                      <div className="flex items-start gap-1.5 text-[11px] leading-4">
+                        <span className="shrink-0 font-bold text-[var(--muted-foreground)]">其他</span>
+                        <span className="min-w-0 flex-1 truncate text-[var(--muted-foreground)]" title={reqOther.trim()}>{reqOther.trim().replace(/\n+/g, '；')}</span>
+                      </div>
+                    )}
                     </div>
                   )}
                   <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">{result.summary}</p>
