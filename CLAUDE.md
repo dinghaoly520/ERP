@@ -117,7 +117,7 @@ Also includes a dashboard (project list + statistics) and profile management (ex
 
 ### 水叮当智能助手 (`assistant`, :3008)
 
-Standalone AI chat assistant powered by DeepSeek LLM. Provides procurement domain knowledge, bid analysis Q&A, and operational guidance. Features a full-screen chat interface with fluid cursor effects and video background.
+Standalone AI chat assistant powered by DeepSeek LLM. Provides procurement domain knowledge, bid analysis Q&A, and operational guidance. Features a full-screen chat interface with fluid cursor effects and video background. **系统操作知识双层挂载（2026-11-04 用户裁定「建立知识库+内置内容」）**：①SYSTEM_KNOWLEDGE 内置骨架（门户分工/九阶段 canon/六方式差异铁律/防伪铁律——操作步骤只能来自骨架或知识库命中，未覆盖细节明说「以系统页面为准」，严禁编造）；②共享知识库「系统操作指引」（domain=assistant 域，RAG 按问检索 top5）挂 4 篇分步操作文档（谈判/直接/公告型四方式/总览，源=knowledge-seeds/*.md 从 11-02 流程图册蒸馏）——**db:seed 清库后须重跑 `npx tsx scripts/seed-assistant-kb.ts` 重建**（幂等按文件名跳过；库发现走 Prisma 直查——/knowledge 列表端点硬编码只回审查域）。
 
 **Access:** Public — no login required. Sends `X-Portal: assistant` header.  
 **Target audience:** Any user seeking AI assistance.
