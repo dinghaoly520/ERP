@@ -2204,7 +2204,7 @@ export function SupplierSelectionPage({
                   <FileText size={13} className="text-[var(--accent)]" />
                 </span>
                 <span className="text-sm font-bold text-[var(--foreground)]">补充说明</span>
-                <span className="text-[10px] text-[var(--muted-foreground)]">仅入采购文书与存档，不参与智能推荐——推荐由上方硬性筛选条件与项目上下文驱动</span>
+                <span className="text-[10px] text-[var(--muted-foreground)]">仅入文书，不影响智能推荐</span>
               </div>
               <button onClick={generateRequirement} disabled={reqGenerating} className="neu-btn-xs gap-1.5 text-[var(--accent)]">
                 <Sparkles size={11} />{reqGenerating ? 'AI 生成中…' : (reqSpecial || reqOther) ? '重新生成' : 'AI 按项目文件生成'}
@@ -2215,7 +2215,7 @@ export function SupplierSelectionPage({
 
               {/* 业绩要求（文书） */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[var(--foreground)]">业绩要求 <span className="font-normal text-[var(--muted-foreground)]">（仅入文书——推荐的业绩核验用上方结构化条件）</span></label>
+                <label className="text-xs font-bold text-[var(--foreground)]">业绩要求 <span className="font-normal text-[var(--muted-foreground)]">（仅入文书）</span></label>
                 <AutoTextarea
                   value={reqSpecial}
                   onChange={e => setReqSpecial(e.target.value)}
@@ -2225,7 +2225,7 @@ export function SupplierSelectionPage({
 
               {/* 其他（商务条款，文书） */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[var(--foreground)]">其他 <span className="font-normal text-[var(--muted-foreground)]">（商务条款：服务响应、交付周期、质保等·仅入文书）</span></label>
+                <label className="text-xs font-bold text-[var(--foreground)]">其他 <span className="font-normal text-[var(--muted-foreground)]">（服务响应、交付周期、质保等；仅入文书）</span></label>
                 <AutoTextarea
                   value={reqOther}
                   onChange={e => setReqOther(e.target.value)}
