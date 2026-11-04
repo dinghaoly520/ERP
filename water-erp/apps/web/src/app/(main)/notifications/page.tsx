@@ -550,6 +550,7 @@ function HandleModal({ item, onClose, onDone }: { item: NotificationItem; onClos
 
   return (
     <Modal open onClose={onClose}
+      size="lg"
       title={`处理 · ${getNotificationLabel(item.type)}`}
       description={fmt(item.createdAt)}
       footer={
