@@ -63,6 +63,28 @@ export function fetchSupplierCompareProfiles(ids: string[]): Promise<Record<stri
   return api.post('/supplier/compare-profiles', { ids: [...new Set(ids)].slice(0, 12) });
 }
 
+/** 硬性筛选条件（2026-11-04 spec）：行业=库内词表、资质=后端字典 key、业绩/评价等级可空=不限 */
+export interface HardConditions {
+  industries?: string[];
+  qualifications?: { key: string; required: boolean }[];
+  performance?: { years?: number; minCount?: number; keywords?: string[] };
+  minGrade?: 'A' | 'B' | 'C';
+}
+
+/** 三态核验结果：PASS=满足 / FAIL=不满足（必须级已剔除）/ MISSING=库内资料缺失（保留待人工核实） */
+export interface ConditionCheckDto {
+  type: 'industry' | 'qualification' | 'performance' | 'grade';
+  label: string;
+  status: 'PASS' | 'FAIL' | 'MISSING';
+  detail?: string;
+  required: boolean;
+}
+
+export interface HardConditionVocab {
+  industries: { name: string; count: number }[];
+  qualifications: { key: string; label: string; category: string }[];
+}
+
 export interface SupplierSelectionResult {
   requirement: string;
   engine: 'deepseek' | 'rules';
@@ -70,6 +92,10 @@ export interface SupplierSelectionResult {
   candidatePool: number;
   summary: string;
   recommendations: SupplierRecommendation[];
+  /** 硬性条件逐项核验（仅传入 hardConditions 时返回；键=推荐供应商） */
+  conditionsCheck?: { supplierId: string; checks: ConditionCheckDto[] }[];
+  /** 被硬性条件剔除的供应商（必须级 FAIL；供人工复核误杀） */
+  filteredOut?: { supplierId: string; name: string; failedCondition: string }[];
   generatedAt: string;
 }
 
@@ -137,9 +163,23 @@ export function getSupplierStats(companyId?: string) {
   return api.get<SupplierStats>(`/supplier/stats${companyId && companyId !== 'all' ? '?companyId=' + companyId : ''}`);
 }
 
-// AI 智能推荐供应商（按采购需求 + 项目上下文；候选池公司隔离——companyId=项目归属公司，非 admin 由后端强制本人公司）
-export function recommendSuppliers(data: { requirement: string; tags?: string[]; maxCount?: number; excludedSupplierIds?: string[]; projectContext?: Record<string, string>; companyId?: string }) {
+// AI 智能推荐供应商（按采购需求 + 项目上下文；候选池公司隔离——companyId=项目归属公司，非 admin 由后端强制本人公司；hardConditions=硬性筛选条件三态核验）
+export function recommendSuppliers(data: { requirement: string; tags?: string[]; maxCount?: number; excludedSupplierIds?: string[]; projectContext?: Record<string, string>; companyId?: string; hardConditions?: HardConditions }) {
   return api.post<SupplierSelectionResult>('/ai/supplier-selection', data);
+}
+
+// 硬性条件词表：行业=库内公司视野聚合（带家数）、资质=后端内置字典
+export function getHardConditionVocab(companyId?: string) {
+  return api.get<HardConditionVocab>(`/ai/hard-condition-vocab${companyId && companyId !== 'all' ? '?companyId=' + companyId : ''}`);
+}
+
+// AI 按项目上下文从词表预填硬性筛选条件（选不出留空，杜绝编造）
+export function suggestHardConditions(data: {
+  projectContext?: Record<string, string>;
+  industries?: string[];
+  qualifications?: { key: string; label: string }[];
+}) {
+  return api.post<{ hardConditions: HardConditions }>('/ai/suggest-hard-conditions', data);
 }
 
 // AI 按项目上下文从词表预选业务标签（供应商选取页预填；用户可删减补充）
