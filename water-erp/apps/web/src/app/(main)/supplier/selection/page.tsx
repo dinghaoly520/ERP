@@ -248,6 +248,7 @@ export function SupplierSelectionPage({
       ? hardConditions : undefined;
   const [maxCount, setMaxCount] = useState(3);
   const [loading, setLoading] = useState(false);
+  const [showFilteredOut, setShowFilteredOut] = useState(false); // 摘要卡「硬性条件剔除 N 家」名单展开
   const [reqGenerating, setReqGenerating] = useState(false);
   const reqGeneratedRef = useRef(false);
   // 会话恢复完成标记：草稿回填（localStorage 与服务端取新）后置 true。自动 AI 生成
@@ -1827,6 +1828,27 @@ export function SupplierSelectionPage({
               </span>
             )}
           </div>
+          {/* 硬性条件核验矩阵（2026-11-04 spec）：✓满足 / ○资料缺失(黄,悬停提示人工核实) / ✗不满足 / 优先项灰✓ */}
+          {(() => {
+            const checks = result?.conditionsCheck?.find(c => c.supplierId === sid)?.checks
+              ?? rerunResult?.conditionsCheck?.find(c => c.supplierId === sid)?.checks;
+            if (!checks || checks.length === 0) return null;
+            return (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {checks.map(ch => (
+                  <span key={`${ch.type}-${ch.label}`}
+                    title={ch.detail || (ch.status === 'PASS' ? '已核验满足' : ch.status === 'MISSING' ? '库内未见该资料，请人工核实' : '不满足')}
+                    className="rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold"
+                    style={{
+                      color: ch.status === 'PASS' ? (ch.required ? 'var(--success)' : 'var(--muted-foreground)') : ch.status === 'MISSING' ? 'var(--warning)' : 'var(--danger)',
+                      background: `color-mix(in oklch, var(${ch.status === 'PASS' ? (ch.required ? '--success' : '--muted-foreground') : ch.status === 'MISSING' ? '--warning' : '--danger'}) 10%, transparent)`,
+                    }}>
+                    {ch.label}{ch.status === 'PASS' ? '✓' : ch.status === 'MISSING' ? '○' : '✗'}
+                  </span>
+                ))}
+              </div>
+            );
+          })()}
           {/* 供应商回执备注（回执页「备注」填写内容；放弃时常见档期冲突/资质说明等） */}
           {rsvpItem?.note && (
             <div className="mt-1 flex items-start gap-1.5 rounded-[6px] px-2 py-1 max-w-full"
@@ -2294,7 +2316,25 @@ export function SupplierSelectionPage({
                   <div className="flex gap-5 mt-3 text-xs">
                     <span className="tabular-nums">候选池 <strong className="text-[var(--foreground)]">{result.candidatePool}</strong></span>
                     <span className="tabular-nums">推荐 <strong className="text-[var(--foreground)]">{result.recommendations.length}</strong></span>
+                    {result.filteredOut && result.filteredOut.length > 0 && (
+                      <button type="button" onClick={() => setShowFilteredOut(v => !v)}
+                        className="font-semibold text-[var(--warning)] hover:underline"
+                        title="被硬性筛选条件剔除的供应商（必须级不满足）——可复核是否误杀">
+                        硬性条件剔除 {result.filteredOut.length} 家{showFilteredOut ? '（收起）' : '（查看）'}
+                      </button>
+                    )}
                   </div>
+                  {showFilteredOut && result.filteredOut && (
+                    <div className="mt-2 max-h-40 overflow-y-auto rounded-xl p-2 text-xs leading-5"
+                      style={{ background: 'color-mix(in oklch, var(--warning) 6%, transparent)', boxShadow: 'inset 0 1px 2px oklch(0.5 0.04 258 / 0.05)' }}>
+                      {result.filteredOut.map(f => (
+                        <div key={f.supplierId} className="flex justify-between gap-3">
+                          <span className="shrink-0 font-semibold text-[var(--foreground)]">{f.name}</span>
+                          <span className="text-right text-[var(--muted-foreground)]">{f.failedCondition}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Batch toolbar */}
