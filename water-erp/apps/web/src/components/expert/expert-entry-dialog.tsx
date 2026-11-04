@@ -7,6 +7,7 @@ import { Modal } from '@/components/workbench';
 import { UnitSearchSelect } from '@/components/login/unit-search-select';
 import { ExpertCsvActions } from './expert-csv-actions';
 import { UserPlus, Eye, EyeOff, ScanLine, RefreshCw } from 'lucide-react';
+import { SearchSelect } from '@/components/workbench/search-select';
 
 const TITLES = ['教授级高级工程师','高级工程师','高级经济师','高级会计师','工程师','注册造价工程师','注册监理工程师'];
 const EDUCATIONS = ['博士','硕士','本科','大专','其他'];
@@ -57,7 +58,8 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
     if (!form.displayName.trim()) e.displayName = '请输入专家姓名';
     if (!form.password.trim()) e.password = '请输入初始密码';
     else if (form.password.length < 6) e.password = '密码至少 6 位';
-    if (!form.specialty.trim()) e.specialty = '请选择或输入专业领域';
+    if (!form.specialty.trim()) e.specialty = '请选择专业';
+    else if (!specialties.includes(form.specialty)) e.specialty = '请从标准专业列表中选择';
     if (!form.title.trim()) e.title = '请选择或输入职称';
     if (!form.employer.trim()) e.employer = '请选择工作单位';
     if (!form.departmentName.trim()) e.departmentName = '请输入所属部门';
@@ -187,7 +189,7 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
         <fieldset>
           <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><Step n={2} />专业资质</legend>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">专业领域 <span className="text-[var(--danger)]">*</span></span><input value={form.specialty} onChange={e => set('specialty', e.target.value)} list="entry-spec-list" placeholder="如 水利工程" className={inputCls('specialty')} /><datalist id="entry-spec-list">{specialties.map(s => <option key={s} value={s} />)}</datalist><FieldError field="specialty" /></label>
+            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">专业领域 <span className="text-[var(--danger)]">*</span></span><SearchSelect options={specialties.map(s => ({ value: s, label: s }))} value={form.specialty} onPick={o => set('specialty', o.value)} placeholder="选择专业" searchPlaceholder="搜索专业…" emptyText="无匹配专业" triggerClassName={inputCls('specialty')} panelMinWidth={220} /><FieldError field="specialty" /></label>
             <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">职称 <span className="text-[var(--danger)]">*</span></span><input value={form.title} onChange={e => set('title', e.target.value)} list="entry-title-list" placeholder="如 高级工程师" className={inputCls('title')} /><datalist id="entry-title-list">{TITLES.map(t => <option key={t} value={t} />)}</datalist><FieldError field="title" /></label>
             {/* 工作单位：与 :3005 注册「公司」选择同款同源（UnitSearchSelect：62 家全级次企业名单 +
                 搜索 + 可手输），后端按名称命中公司主数据落归属 */}

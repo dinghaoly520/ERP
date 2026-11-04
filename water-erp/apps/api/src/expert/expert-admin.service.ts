@@ -32,6 +32,16 @@ import { BidGateway } from '../bid/bid.gateway';
 import { CompanyScopeService } from '../company/company-scope';
 import type { CompanyWhere } from '../company/company-scope';
 import { EVALUATION_COOLDOWN_MS, reevalAllowed, latestExpertEvals } from '../common/evaluation-dedupe.util';
+/** 标准专业清单（2026-11-04 用户裁定标准化）：录入/CSV/编辑统一约束，
+ *  存量已按同口径清洗（78 种写法 → 23 标准专业）。新增专业须先在此登记。 */
+export const EXPERT_SPECIALTY_OPTIONS = [
+  '水利工程', '水利水电工程', '水文与水资源', '地质勘查', '测绘工程',
+  '土木工程', '建筑工程', '市政工程', '工程管理', '工程造价',
+  '会计审计', '金融税务', '工商管理', '人力资源管理', '法学合规',
+  '档案管理', '电气工程及自动化', '机械工程', '电子信息', '计算机与信息化',
+  '环境工程', '水土保持', '物资管理',
+] as const;
+
 
 /** 等级→分值（用于加权计算综合等级） */
 const GRADE_SCORE: Record<ExpertLevel, number> = { A: 5, B: 4, C: 3, D: 2, E: 1 };
@@ -124,6 +134,7 @@ async function writeInvitationLog(
   }).catch((err: any) => {
     Logger.warn(`专家邀请轨迹落账失败 be=${data.bidExpertId} action=${data.action}: ${err?.message ?? err}`, 'ExpertAdminService');
   });
+
 }
 
 @Injectable()
@@ -540,6 +551,14 @@ export class ExpertAdminService {
 
   async createExpert(dto: CreateExpertDto, operatorId?: string) {
     const normalizedName = dto.displayName.trim();
+    // 专业标准化闸（2026-11-04）：非标准专业一律拒绝——录入表单已是严格下拉，
+    // CSV/直调 API 在此兜底；新增专业先登记 EXPERT_SPECIALTY_OPTIONS
+    if (dto.specialty?.trim() && !(EXPERT_SPECIALTY_OPTIONS as readonly string[]).includes(dto.specialty.trim())) {
+      throw new BadRequestException({
+        error: `专业「${dto.specialty.trim()}」不在标准专业清单内，请从下列选择：${EXPERT_SPECIALTY_OPTIONS.join('、')}`,
+        code: 'SPECIALTY_NOT_STANDARD',
+      });
+    }
     if (await this.prisma.user.findFirst({ where: { username: dto.username, role: 'bid_expert' } })) {
       throw new BadRequestException({ error: '账号已存在', code: 'DUPLICATE_USERNAME' });
     }
@@ -2865,6 +2884,10 @@ export class ExpertAdminService {
       const specialty = pick(row, ['专业领域', '专业']);
       if (!displayName || !username || !specialty) {
         results.push({ 姓名: displayName || '(空)', 状态: '跳过', 原因: '缺少姓名/账号/专业' });
+        skipped++; continue;
+      }
+      if (!(EXPERT_SPECIALTY_OPTIONS as readonly string[]).includes(specialty.trim())) {
+        results.push({ 姓名: displayName, 状态: '跳过', 原因: `专业「${specialty}」不在标准清单` });
         skipped++; continue;
       }
       const dup = await this.prisma.user.findFirst({ where: { username, role: 'bid_expert' } });
