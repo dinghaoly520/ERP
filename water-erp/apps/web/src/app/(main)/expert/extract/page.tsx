@@ -518,6 +518,12 @@ export function ExpertExtractPage({
       if (snap.alternativeExperts?.length) setAlternativeExperts(snap.alternativeExperts);
       if (snap.leadExpertId != null) setLeadExpertId(snap.leadExpertId);
       setPreview(snap.preview);
+      // 旧快照占位分析（2026-11-04 前会话存下「项目已有分配专家」/中断瞬间的过渡文案）→ 重新生成 AI 组队总结
+      if (snap.preview?.analysis === '项目已有分配专家' || snap.preview?.analysis === '正在总结组队逻辑…' || !snap.preview?.analysis) {
+        fetchCommitteeAnalysis(pid).then(res => {
+          if (res?.analysis) setPreview(p => p ? { ...p, analysis: res.analysis, engine: res.engine } : p);
+        }).catch(() => {});
+      }
       if (snap.done) setDone(snap.done);
       if (snap.confirmedExpertIds?.length) { setConfirmedExpertIds(snap.confirmedExpertIds); originalConfirmedIdsRef.current = new Set(snap.confirmedExpertIds); setStep3Confirmed(true); }
       if (snap.step3Confirmed) setStep3Confirmed(snap.step3Confirmed);
