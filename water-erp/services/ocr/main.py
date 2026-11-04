@@ -40,6 +40,16 @@ OCR_CHUNK_PAGES = int(os.environ.get("OCR_CHUNK_PAGES", "16"))
 # 服务端表单默认（客户端显式传参可覆盖）：低配机可经 env 降档
 DEFAULT_DPI = _resolve_int_env(os.environ, "OCR_DEFAULT_DPI", 150)
 DEFAULT_MAX_PAGES = _resolve_int_env(os.environ, "OCR_MAX_PAGES_DEFAULT", 200)
+# 文字层快速路径阈值：页内嵌文字层字符数达此值则直接取文本免 OCR（0=禁用恒走 OCR）
+TEXT_LAYER_MIN_CHARS = _resolve_int_env(os.environ, "OCR_TEXT_LAYER_MIN_CHARS", 100)
+
+
+def _should_use_text_layer(text: str, min_chars: int) -> bool:
+    """数字原生 PDF 快速路径判定：min_chars>0 且去空白后字符数达阈值。
+
+    短文本页（水印/页眉/扫描占位）不达阈值，整页回退 OCR，不产出半截结果。
+    """
+    return min_chars > 0 and len(text.strip()) >= min_chars
 
 
 async def _run_ocr_batch(images: list, detail: str) -> list:
@@ -281,30 +291,51 @@ async def _ocr_pdf(content: bytes, dpi: int, max_pages: int, page_range: str = N
         process_count = max_pages
         logger.warning(f"Truncated PDF batch from {total} to {max_pages} pages")
 
-    # 分块：渲染 OCR_CHUNK_PAGES 页 → OCR → 释放像素，峰值内存 ≈ 单块大小
-    texts: list[str] = []
+    # 分块：渲染 OCR_CHUNK_PAGES 页 → OCR → 释放像素，峰值内存 ≈ 单块大小。
+    # 文字层快速路径：页内嵌文字层达 TEXT_LAYER_MIN_CHARS 直接取文本免 OCR（逐页分流）。
+    page_results: list[dict] = []
     try:
         for start in range(0, process_count, OCR_CHUNK_PAGES):
             end = min(start + OCR_CHUNK_PAGES, process_count)
+            chunk_pages: list = [None] * (end - start)
             images = []
+            ocr_local_idx = []
             for page_idx in range(start, end):
-                page = doc[page_idx]
-                pix = page.get_pixmap(dpi=dpi)
-                images.append(Image.frombytes("RGB", [pix.width, pix.height], pix.samples))
+                layer_text = doc[page_idx].get_text("text")
+                if _should_use_text_layer(layer_text, TEXT_LAYER_MIN_CHARS):
+                    chunk_pages[page_idx - start] = {
+                        "page": page_idx + 1,
+                        "text": layer_text.strip(),
+                        "source": "text-layer",
+                    }
+                else:
+                    page = doc[page_idx]
+                    pix = page.get_pixmap(dpi=dpi)
+                    images.append(
+                        Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                    )
+                    ocr_local_idx.append(page_idx - start)
             detail = f"{filename} p{start + 1}-{end}/{process_count}"
-            chunk_texts = await _run_ocr_batch(images, detail)
-            texts.extend(chunk_texts)
+            if images:
+                chunk_texts = await _run_ocr_batch(images, detail)
+                for local_i, t in zip(ocr_local_idx, chunk_texts):
+                    chunk_pages[local_i] = {
+                        "page": start + local_i + 1,
+                        "text": t,
+                        "source": "ocr",
+                    }
+            page_results.extend(chunk_pages)
             del images
     finally:
         doc.close()
 
-    pages = [{"page": i + 1, "text": t} for i, t in enumerate(texts)]
+    pages = page_results
 
     return JSONResponse(
         {
-            "text": "\n\n".join(texts),
+            "text": "\n\n".join(p["text"] for p in pages),
             "page_count": original_page_count,
-            "processed_pages": len(texts),
+            "processed_pages": len(pages),
             "pages": pages,
         }
     )
