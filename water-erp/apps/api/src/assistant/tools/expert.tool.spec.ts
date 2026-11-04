@@ -64,6 +64,21 @@ it('stats：data.note 提示登记占用与在途指派的口径差（占用恒 
   expect(String((r.data as { note: string }).note)).toContain('以在途指派为准');
 });
 
+it('stats：视野裁剪——leader 单公司视野出「所属部门分布」而非公司分布（2026-11-04 二次裁定）', async () => {
+  const { prisma, tool } = makeTool();
+  prisma.expertProfile.findMany.mockResolvedValue([
+    { title: '高工', user: { company: '设计院', department: { name: '工程勘察院' } } },
+    { title: '高工', user: { company: '设计院', department: { name: '工程勘察院' } } },
+    { title: null, user: { company: '设计院', department: null } },
+  ]);
+  const r = await tool.execute({ action: 'stats' }, { user: { sub: 'u-2', role: 'leader', companyId: 'co-1' } });
+  const cards = r.cards as Array<Record<string, unknown>>;
+  expect(cards[2].title).toBe('所属部门分布');
+  const rows = cards[2].rows as Array<Record<string, unknown>>;
+  expect(rows[0]).toEqual({ company: '工程勘察院', count: 2, pct: '66.7%' });
+  expect(rows[1]).toEqual({ company: '未分配部门', count: 1, pct: '33.3%' });
+});
+
 it('list：出卡（此前裸 data 无卡）', async () => {
   const { prisma, tool } = makeTool();
   prisma.expertProfile.findMany.mockResolvedValue([

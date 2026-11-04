@@ -7,7 +7,7 @@ import { toolCompanyWhere } from './company-filter';
 export class ExpertTool implements AssistantTool {
   name = 'expert';
   description =
-    '查询专家库统计/列表/专业方向分布/可用状态/条件检索专家。args: { action: "stats"|"list"|"by_specialty"|"search", specialty?, title?, employer?, keyword?, availability?, limit? }——stats=多维度结构（专业/归属公司/职称/评审负荷四分布+总览），「专家分布/专家库结构」类问题用 stats 并覆盖全部维度。用户用自然语言找专家（如"找3个做过水利的高工"）时，用 action:"search"，把专业填 specialty、职称填 title、单位填 employer、姓名填 keyword、可用状态填 availability。';
+    '查询专家库统计/列表/专业方向分布/可用状态/条件检索专家。args: { action: "stats"|"list"|"by_specialty"|"search", specialty?, title?, employer?, keyword?, availability?, limit? }——stats=多维度结构（专业/部门或公司/职称/评审负荷四分布+总览：leader/staff 单公司视野=部门维度、admin/总数据=公司维度），「专家分布/专家库结构」类问题用 stats 并覆盖全部维度。用户用自然语言找专家（如"找3个做过水利的高工"）时，用 action:"search"，把专业填 specialty、职称填 title、单位填 employer、姓名填 keyword、可用状态填 availability。';
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -109,7 +109,7 @@ export class ExpertTool implements AssistantTool {
         // where as never：CompanyWhere 片段非完整 UserWhere，严格重载会窄化 select 类型
         this.prisma.expertProfile.findMany({
           where: { user: companyWhere } as never,
-          select: { title: true, user: { select: { company: true } } },
+          select: { title: true, user: { select: { company: true, department: { select: { name: true } } } } },
         }),
         // 评审负荷（在途评审任务）：availability「占用」是登记字段，可能滞后——
         // 以 BidExpert 挂在未归档项目上的实际指派数为准（同 expert-admin 负荷口径）
@@ -122,13 +122,18 @@ export class ExpertTool implements AssistantTool {
       const expTotal = bySpecialty.reduce((s, r) => s + r._count, 0);
       const pctOf = (n: number) => (expTotal > 0 ? ((n / expTotal) * 100).toFixed(1) + '%' : '-');
 
-      // 归属公司分布
-      const companyMap = new Map<string, number>();
+      /* 维度随视野裁剪（2026-11-04 用户裁定）：leader/staff 单公司视野下「归属公司分布」
+       * 恒 100% 一家公司=废话——换「所属部门分布」（ExpertProfile 无部门，落
+       * User.department）；admin/:3011 总数据口径才分析公司（跨公司结构是重点） */
+      const scoped = Object.keys(companyWhere).length > 0;
+      const dimMap = new Map<string, number>();
       for (const p of profiles) {
-        const name = p.user?.company || '未归属';
-        companyMap.set(name, (companyMap.get(name) ?? 0) + 1);
+        const name = scoped
+          ? (p.user?.department?.name || '未分配部门')
+          : (p.user?.company || '未归属');
+        dimMap.set(name, (dimMap.get(name) ?? 0) + 1);
       }
-      const byCompany = Array.from(companyMap.entries()).sort((a, b) => b[1] - a[1]);
+      const byCompany = Array.from(dimMap.entries()).sort((a, b) => b[1] - a[1]);
       // 职称分布（null → 未登记）
       const titleMap = new Map<string, number>();
       for (const p of profiles) {
@@ -175,9 +180,10 @@ export class ExpertTool implements AssistantTool {
             viz: { kind: 'distribution', category: 'specialty', value: 'count' },
           },
           {
-            type: 'table', title: '归属公司分布',
+            type: 'table',
+            title: scoped ? '所属部门分布' : '归属公司分布',
             columns: [
-              { key: 'company', label: '归属公司' },
+              { key: 'company', label: scoped ? '所属部门' : '归属公司' },
               { key: 'count', label: '人数' },
               { key: 'pct', label: '占比' },
             ],

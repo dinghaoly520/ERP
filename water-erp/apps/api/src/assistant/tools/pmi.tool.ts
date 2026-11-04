@@ -27,7 +27,7 @@ function dateLabel(d: Date | null | undefined): string {
 export class PmiTool implements AssistantTool {
   name = 'pmi';
   description =
-    '查询采购项目（项目管理口径，2026-11-04 裁定 canon）：清单/详情/多维度统计——阶段=采购流程九阶段、预算/成交金额、立项/归档信息。stats=方式/状态/归属公司分布+概览（「采购项目分布/结构」类问题用 stats）。args: { action: "list"|"detail"|"stats", keyword?, method?, stage?, status?, projectId?, limit? }——stage 如 采购文件/开标评标/合同（九阶段中文名或英文键均可），status=ACTIVE|ARCHIVED|TERMINATED。台账轮次/金额汇总请用 procurement，项目总数统计请用 global_overview。';
+    '查询采购项目（项目管理口径，2026-11-04 裁定 canon）：清单/详情/多维度统计——阶段=采购流程九阶段、预算/成交金额、立项/归档信息。stats=方式/状态/部门或公司分布+概览（leader/staff 单公司视野=申请部门维度、admin/总数据=公司维度；「采购项目分布/结构」类问题用 stats）。args: { action: "list"|"detail"|"stats", keyword?, method?, stage?, status?, projectId?, limit? }——stage 如 采购文件/开标评标/合同（九阶段中文名或英文键均可），status=ACTIVE|ARCHIVED|TERMINATED。台账轮次/金额汇总请用 procurement，项目总数统计请用 global_overview。';
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -105,17 +105,22 @@ export class PmiTool implements AssistantTool {
         }),
         this.prisma.projectManagementItem.findMany({
           where: base,
-          select: { companyName: true, budgetAmount: true },
+          select: { companyName: true, budgetAmount: true, requesterDepartment: true },
         }),
       ]);
       byMethod.sort((a, b) => b._count - a._count);
       byStatus.sort((a, b) => b._count - a._count);
       const total = items.length;
       const pctOf = (n: number) => (total > 0 ? ((n / total) * 100).toFixed(1) + '%' : '-');
-      // 归属公司分布（含预算合计——公司维度的体量比数量更有信息量）
+      /* 维度随视野裁剪（2026-11-04 用户裁定）：leader/staff 单公司视野下「归属公司分布」
+       * 恒 100% 一家=废话——换「申请部门分布」（requesterDepartment）；
+       * admin/:3011 总数据口径才分析公司；两形态都带预算合计（体量比数量更有信息量） */
+      const scoped = Object.keys(companyWhere).length > 0;
       const companyMap = new Map<string, { count: number; budget: number }>();
       for (const it of items) {
-        const name = (it.companyName ?? '').trim() || '未归属';
+        const name = scoped
+          ? ((it as { requesterDepartment?: string | null }).requesterDepartment ?? '').trim() || '未登记部门'
+          : (it.companyName ?? '').trim() || '未归属';
         const cur = companyMap.get(name) ?? { count: 0, budget: 0 };
         cur.count += 1;
         cur.budget += Number(it.budgetAmount) || 0;
@@ -150,9 +155,10 @@ export class PmiTool implements AssistantTool {
             viz: { kind: 'distribution', category: 'method', value: 'count' },
           },
           {
-            type: 'table', title: '归属公司分布（含预算）',
+            type: 'table',
+            title: scoped ? '申请部门分布（含预算）' : '归属公司分布（含预算）',
             columns: [
-              { key: 'company', label: '归属公司' },
+              { key: 'company', label: scoped ? '申请部门' : '归属公司' },
               { key: 'count', label: '项目数' },
               { key: 'budget', label: '预算合计' },
             ],

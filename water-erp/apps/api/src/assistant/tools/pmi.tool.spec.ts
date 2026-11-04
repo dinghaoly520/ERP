@@ -118,6 +118,21 @@ it('stats：多维度——概览/方式/归属公司（含预算合计）三卡
   expect(companyRows[1]).toEqual({ company: '未归属', count: 1, budget: '20.0万' });
 });
 
+it('stats：视野裁剪——leader 单公司视野出「申请部门分布」而非公司分布', async () => {
+  const { prisma, tool } = makeTool();
+  prisma.projectManagementItem.groupBy.mockResolvedValue([]);
+  prisma.projectManagementItem.findMany.mockResolvedValue([
+    { companyName: '设计院', budgetAmount: 900000, requesterDepartment: '工程勘察院/钻探室' },
+    { companyName: '设计院', budgetAmount: 100000, requesterDepartment: null },
+  ]);
+  const r = await tool.execute({ action: 'stats' }, { user: { sub: 'u-2', role: 'leader', companyId: 'co-1' } });
+  const cards = r.cards as Array<Record<string, unknown>>;
+  expect(cards[2].title).toBe('申请部门分布（含预算）');
+  const rows = cards[2].rows as Array<Record<string, unknown>>;
+  expect(rows[0]).toEqual({ company: '工程勘察院/钻探室', count: 1, budget: '90.0万' });
+  expect(rows[1]).toEqual({ company: '未登记部门', count: 1, budget: '10.0万' });
+});
+
 it('limit 钳制（上限 20）', async () => {
   const { prisma, tool } = makeTool();
   await tool.execute({ action: 'list', limit: 99999 }, ADMIN);
