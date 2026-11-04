@@ -1,5 +1,5 @@
 import type { ReadyTenderDocumentType } from '@/lib/types/tender-write';
-import type { ImportAutofillResult } from '@/lib/types/tender-write-import';
+import type { AnnouncementImportAutofillResult, ImportAutofillResult } from '@/lib/types/tender-write-import';
 import { apiFetch } from './api-fetch';
 import { toApiError } from '@water-erp/client';
 
@@ -30,5 +30,29 @@ export async function importAutofill(
     throw await toApiError(response, '分析失败，请稍后重试。');
   }
 
+  return response.json();
+}
+
+/** 公告导入识别（2026-11-03）：按（公告类别 × 采购方式）字段表识别，确认后由公告编辑器回填草稿 */
+export async function announcementImportAutofill(
+  category: 'procurement_document' | 'failed_bid' | 'winning_bid',
+  tenderType: string,
+  files: File[],
+): Promise<AnnouncementImportAutofillResult> {
+  const formData = new FormData();
+  formData.append('category', category);
+  formData.append('tenderType', tenderType);
+  for (const file of files) {
+    formData.append('files', file);
+  }
+  const response = await apiFetch(`${API_BASE}/tender-write/announcement-import-autofill`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'X-Portal': 'web' },
+    body: formData,
+  });
+  if (!response.ok) {
+    throw await toApiError(response, '分析失败，请稍后重试。');
+  }
   return response.json();
 }

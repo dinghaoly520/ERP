@@ -14,6 +14,7 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { ExportTenderWriteDto, ExportAnnouncementDto, ExportNotificationLetterDto, ExportDirectFilingDto } from './tender-write.dto';
 import { ImportAutofillDto } from './import-autofill.dto';
+import { AnnouncementImportAutofillDto } from './announcement-import-autofill.dto';
 import { TenderWriteService } from './tender-write.service';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -117,6 +118,38 @@ export class TenderWriteController {
       files.map((f) => ({
         buffer: f.buffer,
         // Multer encodes multipart filenames as Latin1; convert back to UTF-8
+        originalname: Buffer.from(f.originalname, 'latin1').toString('utf-8'),
+      })),
+    );
+  }
+
+  /** 公告导入识别（2026-11-03）：与采购文件导入识别同链路——上传文件按当前公告
+   *  类别（×采购方式）的字段表识别，前端逐字段确认后回填公告草稿。 */
+  @Post('announcement-import-autofill')
+  @UseInterceptors(
+    FilesInterceptor('files', 10, {
+      limits: { fileSize: 20 * 1024 * 1024 },
+    }),
+  )
+  async announcementImportAutofill(
+    @Body() dto: AnnouncementImportAutofillDto,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    // GB/T 43711（7.3）：谈判采购不发布采购公告（同 exportAnnouncement 防线）
+    if (dto.category === 'procurement_document' && dto.tenderType === 'COMPETITIVE_NEGOTIATION') {
+      throw new BadRequestException({
+        error: '谈判采购不发布采购公告，无对应公告字段可识别',
+        code: 'NEGOTIATION_NO_PROCUREMENT_NOTICE',
+      });
+    }
+    if (!files || files.length === 0) {
+      throw new BadRequestException('请至少上传一个文件。');
+    }
+    return this.tenderWriteService.announcementImportAutofill(
+      dto.category,
+      dto.tenderType,
+      files.map((f) => ({
+        buffer: f.buffer,
         originalname: Buffer.from(f.originalname, 'latin1').toString('utf-8'),
       })),
     );

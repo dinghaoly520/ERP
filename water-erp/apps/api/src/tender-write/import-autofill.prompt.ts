@@ -67,6 +67,48 @@ ${fieldList}
 11. 只输出 JSON，不要包含任何其他文字。`;
 }
 
+/**
+ * 公告导入识别的语义映射指引（2026-11-03）：上传资料多为采购文件/项目资料——公告字段与
+ * 采购文件措辞不同构，不给映射则模型大量落 not_found（用户实录：同文件采购文件导入命中
+ * 很多、公告导入几乎为空）。要求按语义映射提取，映射但内容明确 → recognized；含推断 →
+ * low_confidence 并在 reason 注明「由 XX 映射」；确实无从映射 → not_found。
+ */
+export function buildAnnouncementMappingGuidance(category: string): string {
+  const generic = `
+公告字段语义映射规则（上传资料通常是采购文件/项目资料，公告字段不必与原文措辞一致）：
+- 不要求原文出现与字段同名的标题/字样；按语义就近映射，映射成立且内容明确即 recognized。
+- 映射含推断成分（如时间换算、跨章节拼合）→ low_confidence，reason 写明「由 XX 映射」。
+- 金额类只输出纯数值（去"元/万元/人民币"）；日期时间保持原文表述原样输出。`;
+  const perCategory: Record<string, string> = {
+    procurement_document: `
+本类公告（采购文件公告）逐字段映射提示：
+- 项目概况和采购内容 ← 采购邀请/项目概况/采购需求章节的项目介绍与采购范围
+- 最高限价（小写） ← 最高限价/采购预算/预算金额（纯数值）
+- 工期及进度要求 / 其内容 ← 工期/服务期/交付（完成）期限/进度要求
+- 报名方式及条件 ← 供应商资格条件/报名方式/文件获取方式与要求
+- 公示期限（起始日） ← 公告公示期/异议期起算表述；资料无公示期概念则 not_found
+- 开标时间 ← 开标时间/响应文件递交截止时间/报价截止时间
+- 联系人/联系电话/联系邮箱 ← 采购人/采购代理机构联系方式（纯号码/纯邮箱）
+- 落款日期 ← 资料落款日期或公告拟定发布日；无则 not_found
+- 监督人/监督部门/监督地址/监督电话 ← 采购文件「监督/纪检监察/异议受理」章节的监督信息（监督电话只输出纯号码）；资料无监督章节则 not_found`,
+    failed_bid: `
+本类公告（流标公告）逐字段映射提示：
+- 项目简要说明 ← 项目概况/采购内容/采购需求摘要
+- 开标时间 ← 开标时间/递交截止时间/评审时间
+- 开标结果公示信息 ← 评审/开标结果、流标原因、有效供应商不足等描述；资料无结果信息则 not_found
+- 落款日期 ← 资料落款日期；无则 not_found
+- 监督人/监督部门/监督地址/监督电话 ← 采购文件「监督/纪检监察/异议受理」章节的监督信息（监督电话只输出纯号码）；资料无监督章节则 not_found`,
+    winning_bid: `
+本类公告（中标公告）逐字段映射提示：
+- 项目简要说明 ← 项目概况/采购内容摘要
+- 最高限价（小写） ← 最高限价/采购预算（纯数值）
+- 开标时间 ← 开标时间/递交截止时间
+- 备注 / 备注内容 ← 评审说明/成交说明（无则 not_found）
+- 公示期（异议期）/异议受理 ← 公示期与异议受理表述（无则 not_found）`,
+  };
+  return generic + (perCategory[category] ?? '');
+}
+
 export function buildImportAutofillUserPrompt(
   fileTexts: { name: string; text: string }[],
 ): string {
@@ -434,6 +476,128 @@ export function getFieldDefsForDocumentType(
         sectionKey: section.key,
         sectionTitle: section.title,
       });
+    }
+  }
+  return { fields, label };
+}
+
+// ── 公告导入识别（2026-11-03）：字段表镜像前端 announcement-templates 的四套变体 ──
+// （key/label 与 web 端 AnnouncementFieldConfig 逐一对应；日期类字段由前端按控件类型归一）
+
+const PROCUREMENT_BIDDING_ANNOUNCEMENT_SECTIONS: TenderSectionDef[] = [
+  {
+    key: 'content',
+    title: '公告内容',
+    fields: [
+      { key: 'projectName', label: '项目名称' },
+      { key: 'projectOverview', label: '项目概况和采购内容' },
+      { key: 'maxPriceNumeric', label: '最高限价（小写）' },
+      { key: 'scheduleRequirementsType', label: '工期及进度要求' },
+      { key: 'scheduleRequirements', label: '工期及进度要求内容' },
+      { key: 'registrationMethod', label: '报名方式及条件' },
+      { key: 'announcementStart', label: '公示期限（起始日）' },
+      { key: 'bidOpeningTime', label: '开标时间' },
+      { key: 'contactName', label: '联系人' },
+      { key: 'contactPhone', label: '联系电话' },
+      { key: 'contactEmail', label: '联系邮箱' },
+            { key: 'supervisionContact', label: '监督人' },
+      { key: 'supervisionDepartment', label: '监督部门' },
+      { key: 'supervisionAddress', label: '监督地址' },
+      { key: 'supervisionPhone', label: '监督电话' },
+      { key: 'signatureDate', label: '落款日期' },
+    ],
+  },
+];
+
+const PROCUREMENT_SINGLE_SOURCE_ANNOUNCEMENT_SECTIONS: TenderSectionDef[] = [
+  {
+    key: 'content',
+    title: '公告内容',
+    fields: [
+      { key: 'projectName', label: '项目名称' },
+      { key: 'projectOverview', label: '项目概况和采购内容' },
+      { key: 'maxPriceNumeric', label: '预算金额（小写）' },
+      { key: 'argumentOpinion', label: '论证意见' },
+      { key: 'supplierName', label: '拟定供应商名称' },
+      { key: 'supplierAddress', label: '拟定供应商地址' },
+      { key: 'announcementStart', label: '公示期限（起始日）' },
+      { key: 'announcementDays', label: '公示期限（天数）' },
+      { key: 'procurementTime', label: '采购时间' },
+            { key: 'supervisionContact', label: '监督人' },
+      { key: 'supervisionDepartment', label: '监督部门' },
+      { key: 'supervisionAddress', label: '监督地址' },
+      { key: 'supervisionPhone', label: '监督电话' },
+      { key: 'signatureDate', label: '落款日期' },
+    ],
+  },
+];
+
+const FAILED_BID_ANNOUNCEMENT_SECTIONS: TenderSectionDef[] = [
+  {
+    key: 'content',
+    title: '公告内容',
+    fields: [
+      { key: 'projectName', label: '项目名称' },
+      { key: 'projectBriefDescription', label: '项目简要说明' },
+      { key: 'bidOpeningTime', label: '开标时间' },
+      { key: 'resultInfo', label: '开标结果公示信息' },
+            { key: 'supervisionContact', label: '监督人' },
+      { key: 'supervisionDepartment', label: '监督部门' },
+      { key: 'supervisionAddress', label: '监督地址' },
+      { key: 'supervisionPhone', label: '监督电话' },
+      { key: 'signatureDate', label: '落款日期' },
+    ],
+  },
+];
+
+const WINNING_BID_ANNOUNCEMENT_SECTIONS: TenderSectionDef[] = [
+  {
+    key: 'content',
+    title: '公告内容',
+    fields: [
+      { key: 'projectName', label: '项目名称' },
+      { key: 'projectBriefDescription', label: '项目简要说明' },
+      { key: 'maxPrice', label: '最高限价（小写）' },
+      { key: 'bidOpeningTime', label: '开标时间' },
+      { key: 'bidder1RemarkType', label: '备注' },
+      { key: 'bidder1Remark', label: '备注内容' },
+      { key: 'publicityPeriod', label: '公示期（异议期）' },
+      { key: 'objection', label: '异议受理' },
+            { key: 'supervisionContact', label: '监督人' },
+      { key: 'supervisionDepartment', label: '监督部门' },
+      { key: 'supervisionAddress', label: '监督地址' },
+      { key: 'supervisionPhone', label: '监督电话' },
+      { key: 'signatureDate', label: '落款日期' },
+    ],
+  },
+];
+
+const ANNOUNCEMENT_CATEGORY_LABELS: Record<string, string> = {
+  procurement_document: '采购文件公告',
+  failed_bid: '流标公告',
+  winning_bid: '中标公告',
+};
+
+/** 公告字段定义：按（公告类别 × 采购方式）取四套变体之一——口径同前端 getAnnouncementFields */
+export function getFieldDefsForAnnouncement(
+  category: string,
+  tenderType: string,
+): { fields: FieldDef[]; label: string } {
+  let sections: TenderSectionDef[];
+  if (category === 'procurement_document') {
+    sections = tenderType === 'SINGLE_SOURCE'
+      ? PROCUREMENT_SINGLE_SOURCE_ANNOUNCEMENT_SECTIONS
+      : PROCUREMENT_BIDDING_ANNOUNCEMENT_SECTIONS;
+  } else if (category === 'failed_bid') {
+    sections = FAILED_BID_ANNOUNCEMENT_SECTIONS;
+  } else {
+    sections = WINNING_BID_ANNOUNCEMENT_SECTIONS;
+  }
+  const label = ANNOUNCEMENT_CATEGORY_LABELS[category] ?? category;
+  const fields: FieldDef[] = [];
+  for (const section of sections) {
+    for (const f of section.fields) {
+      fields.push({ key: f.key, label: f.label, sectionKey: section.key, sectionTitle: section.title });
     }
   }
   return { fields, label };

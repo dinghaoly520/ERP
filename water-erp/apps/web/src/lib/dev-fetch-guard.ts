@@ -38,11 +38,17 @@ if (
 
     for (let attempt = 0; ; attempt++) {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 10_000);
+      // abort 带理由（2026-11-03）：无参 abort 在控制台/overlay 显示为「signal is aborted
+      // without reason」的裸 AbortError，看似故障实为守卫主动止损——带 reason 后信息自明
+      const timer = setTimeout(
+        () => controller.abort(new Error("dev fetch 守卫：请求 10s 未响应，自动中止并重试（Turbopack dev 沙箱响应丢失自愈）")),
+        10_000,
+      );
       try {
         return await origFetch(input, { ...init, signal: controller.signal });
       } catch (err) {
-        // 超时中止后重试一次（新请求通常走新连接即恢复）；其余错误原样抛出
+        // 超时中止后重试一次（新请求通常走新连接即恢复）；其余错误原样抛出。
+        // 首轮超时的 AbortError 由本守卫主动触发，静默重试不上抛不打印
         if (attempt === 0 && (err as Error)?.name === "AbortError") continue;
         throw err;
       } finally {

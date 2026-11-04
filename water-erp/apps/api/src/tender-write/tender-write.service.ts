@@ -59,10 +59,12 @@ import { parseUploadedFile } from './import-autofill.file-parser';
 import { extractAnnouncementContentHtml } from './announcement-content-html.util';
 import { stripMojibake } from '../common/text-clean.util';
 import {
+  buildAnnouncementMappingGuidance,
+  getFieldDefsForAnnouncement,
+  getFieldDefsForDocumentType,
   buildImportAutofillSystemPrompt,
   buildImportAutofillUserPrompt,
   parseAiImportResponse,
-  getFieldDefsForDocumentType,
 } from './import-autofill.prompt';
 import type {
   ImportAutofillResult,
@@ -274,6 +276,35 @@ export class TenderWriteService {
   ): Promise<ImportAutofillResult> {
     const { fields: fieldDefs, label: documentTypeLabel } =
       getFieldDefsForDocumentType(documentType);
+    return this.runImportAutofillCore(documentType, fieldDefs, documentTypeLabel, files);
+  }
+
+  /** 公告导入识别（2026-11-03）：与采购文件同链路（解析→LLM→逐字段置信度），
+   *  字段表按（公告类别 × 采购方式）取四套变体，口径同前端 getAnnouncementFields。 */
+  async announcementImportAutofill(
+    category: string,
+    tenderType: string,
+    files: Array<{ buffer: Buffer; originalname: string }>,
+  ): Promise<ImportAutofillResult> {
+    const { fields: fieldDefs, label } = getFieldDefsForAnnouncement(category, tenderType);
+    // documentType 仅作结果回显标识；公告场景用「类别:方式」复合串（前端只消费 files/fields）
+    return this.runImportAutofillCore(
+      `${category}:${tenderType}`,
+      fieldDefs,
+      label,
+      files,
+      buildAnnouncementMappingGuidance(category),
+    );
+  }
+
+  private async runImportAutofillCore(
+    documentType: string,
+    fieldDefs: ReturnType<typeof getFieldDefsForDocumentType>['fields'],
+    documentTypeLabel: string,
+    files: Array<{ buffer: Buffer; originalname: string }>,
+    /** 附加提示词（公告场景：字段语义映射指引；采购文件场景缺省为空） */
+    extraGuidance = '',
+  ): Promise<ImportAutofillResult> {
     const allowedKeys = new Set(fieldDefs.map((f) => f.key));
 
     // 1. Parse each file independently
@@ -322,19 +353,15 @@ export class TenderWriteService {
     }
 
     // 3. Call DeepSeek
-    const systemPrompt = buildImportAutofillSystemPrompt(
-      documentTypeLabel,
-      fieldDefs,
-    );
+    const systemPrompt =
+      buildImportAutofillSystemPrompt(documentTypeLabel, fieldDefs) + extraGuidance;
     const userPrompt = buildImportAutofillUserPrompt(parsedTexts);
 
     let rawJson: unknown;
     try {
       rawJson = await this.aiService.chatJson(systemPrompt, userPrompt, 0.2);
     } catch (err) {
-      throw new BadRequestException(
-        `AI 分析失败：${err instanceof Error ? err.message : '请稍后重试。'}`,
-      );
+      throw new BadRequestException(this.describeLlmFailure(err));
     }
 
     // 4. Parse and validate AI response
@@ -347,6 +374,22 @@ export class TenderWriteService {
       files: fileResults,
       fields: fieldResults,
     };
+  }
+
+  /** LLM 失败的中文友好描述（2026-11-03 DeepSeek 503 抖动实录）：上游繁忙给出明确指引，
+   *  不把英文原文直接甩给用户；其余错误保留原始信息便于排障。 */
+  private describeLlmFailure(err: unknown): string {
+    const msg = err instanceof Error ? err.message : String(err ?? '');
+    if (/503|too busy|service_unavailable|ServiceUnavailable/i.test(msg)) {
+      return 'AI 服务当前繁忙（供应商过载），已自动多次重试仍失败——请稍等片刻后点击"重新上传"再试。';
+    }
+    if (/429|rate.?limit/i.test(msg)) {
+      return 'AI 服务限流中，请稍等片刻后点击"重新上传"再试。';
+    }
+    if (/timeout|aborted|ECONN|network|fetch failed/i.test(msg)) {
+      return 'AI 服务连接超时或不可达，请检查网络后点击"重新上传"再试。';
+    }
+    return `AI 分析失败：${msg || '请稍后重试。'}`;
   }
 
   async exportAnnouncement(dto: ExportAnnouncementDto, user?: { sub?: string }) {

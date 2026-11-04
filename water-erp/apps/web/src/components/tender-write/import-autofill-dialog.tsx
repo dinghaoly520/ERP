@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, FileUp, Check, AlertTriangle, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateFileSize } from '@/lib/upload-rules';
@@ -9,7 +10,7 @@ import type {
   ImportAutofillResult,
   ImportAutofillFieldResult,
 } from '@/lib/types/tender-write-import';
-import { importAutofill } from '@/lib/api/tender-write-import';
+import { importAutofill, announcementImportAutofill } from '@/lib/api/tender-write-import';
 
 const ACCEPT_STRING = '.docx,.pdf,.md,.txt';
 
@@ -158,8 +159,9 @@ export function ImportAutofillDialog({
   onClose,
   initialFiles,
   initialFilesNote,
+  announcement,
 }: {
-  documentType: ReadyTenderDocumentType;
+  documentType?: ReadyTenderDocumentType;
   onConfirm: (selectedFields: ImportAutofillFieldResult[]) => void;
   onClose: () => void;
   /** 预载文件（2026-10-30「参考上一轮」）：打开即自动分析，跳过手动选文件——
@@ -167,8 +169,20 @@ export function ImportAutofillDialog({
   initialFiles?: File[];
   /** 预载来源说明（显示在标题下方，如「正在识别第 1 轮采购文件…」） */
   initialFilesNote?: string;
+  /** 公告模式（2026-11-03）：传入即按（公告类别 × 采购方式）识别公告字段，忽略 documentType */
+  announcement?: {
+    category: 'procurement_document' | 'failed_bid' | 'winning_bid';
+    tenderType: string;
+  };
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  // Esc 关闭（2026-11-03）：嵌入 workbench Modal 内使用时，role=dialog 使父级 Modal 的
+  // 「只关最顶层」判定把本弹层视为顶层；自身补 Esc 通道，避免按键穿透
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [onClose]);
   const [result, setResult] = useState<ImportAutofillResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -192,13 +206,24 @@ export function ImportAutofillDialog({
       return;
     }
 
+    // 前置体积校验（与后端 FilesInterceptor 20MB 对齐，避免白跑一趟 413）
+    const sizeErrors = selectedFiles
+      .map((f) => validateFileSize(f, 20))
+      .filter((v): v is string => !!v);
+    if (sizeErrors.length > 0) {
+      setError(sizeErrors.join('；'));
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setResult(null);
 
     try {
-      const res = await importAutofill(documentType, selectedFiles);
-      setResult(res);
+      const res = announcement
+        ? await announcementImportAutofill(announcement.category, announcement.tenderType, selectedFiles)
+        : await importAutofill(documentType as ReadyTenderDocumentType, selectedFiles);
+      setResult(res as ImportAutofillResult);
       // Default: check all fillable fields
       const fillable = new Set(
         res.fields
@@ -252,15 +277,20 @@ export function ImportAutofillDialog({
   const lowConfCount = result?.fields.filter((f) => f.status === 'low_confidence').length ?? 0;
   const notFoundCount = result?.fields.filter((f) => f.status === 'not_found').length ?? 0;
 
-  return (
+  if (typeof document === 'undefined') return null;
+  return createPortal(
     <>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[var(--background)]/60 backdrop-blur-sm">
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="fixed inset-0 z-[610] flex items-center justify-center bg-[var(--background)]/60 backdrop-blur-sm"
+      >
         <div className="flex max-h-[85vh] w-[min(820px,92vw)] flex-col rounded-3xl bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
             <div>
               <h2 className="text-base font-semibold text-slate-800">
-                导入文件自动填写
+                {announcement ? '公告导入识别' : '导入文件自动填写'}
               </h2>
               {initialFilesNote && !result && (
                 <p className="mt-1 text-xs text-slate-500">{initialFilesNote}</p>
@@ -323,7 +353,7 @@ export function ImportAutofillDialog({
               </div>
               <div className="text-center">
                 <p className="text-sm font-medium text-slate-600">
-                  上传资料文件，AI 将自动识别可填写的字段
+                  上传资料文件，AI 将按当前公告类型识别可填写的字段
                 </p>
                 <p className="mt-1 text-xs text-slate-400">
                   支持 .docx / .pdf / .md / .txt，可上传多个文件
@@ -406,7 +436,7 @@ export function ImportAutofillDialog({
           {result && !loading && (
             <div className="flex items-center justify-between border-t border-[oklch(0.6_0.04_258_/_0.16)] px-6 py-4">
               <span className="text-xs text-slate-400">
-                已选择 {checkedKeys.size} 个字段，确认后写入当前草稿
+                已选择 {checkedKeys.size} 个字段，确认后写入当前{announcement ? '公告' : '草稿'}
               </span>
               <div className="flex gap-3">
                 <button
@@ -429,6 +459,7 @@ export function ImportAutofillDialog({
         </div>
       </div>
 
-    </>
+    </>,
+    document.body,
   );
 }

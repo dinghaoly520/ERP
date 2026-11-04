@@ -368,7 +368,7 @@ function InvitedOrInternalBiddingAnnouncementPreview({
       </div>
 
       {/* 落款 */}
-      <div className="flex justify-between pt-4 text-[0.92rem] leading-8">
+      <div className="flex flex-col items-end pt-4 text-[0.92rem] leading-8">
         <div>{company}</div>
         <div>{PV(formatDateToChinese(draft.signatureDate), "{{落款日期}}", "signatureDate")}</div>
       </div>
@@ -489,7 +489,7 @@ function SingleSourceAnnouncementPreview({
       </div>
 
       {/* 落款 */}
-      <div className="flex justify-between pt-4 text-[0.92rem] leading-8">
+      <div className="flex flex-col items-end pt-4 text-[0.92rem] leading-8">
         <div>{company}</div>
         <div>{PV(formatDateToChinese(draft.signatureDate), "{{落款日期}}", "signatureDate")}</div>
       </div>
@@ -566,7 +566,7 @@ function FailedBidAnnouncementPreview({
       </div>
 
       {/* 落款 */}
-      <div className="flex justify-between pt-4 text-[0.92rem] leading-8">
+      <div className="flex flex-col items-end pt-4 text-[0.92rem] leading-8">
         <div>{company}</div>
         <div>{PV(formatDateToChinese(draft.signatureDate), "{{落款日期}}", "signatureDate")}</div>
       </div>
@@ -738,7 +738,7 @@ function WinningBidAnnouncementPreview({
       </div>
 
       {/* 落款 */}
-      <div className="flex justify-between pt-4 text-[0.92rem] leading-8">
+      <div className="flex flex-col items-end pt-4 text-[0.92rem] leading-8">
         <div>{company}</div>
         <div>{PV(formatDateToChinese(draft.signatureDate), "{{落款日期}}", "signatureDate")}</div>
       </div>

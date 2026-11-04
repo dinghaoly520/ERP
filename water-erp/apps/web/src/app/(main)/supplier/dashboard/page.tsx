@@ -203,7 +203,7 @@ const DIM_META: [keyof Omit<DimensionStats, 'total'>, string][] = [
 const GRADES = ['A', 'B', 'C', 'D', 'E'] as const;
 const GRADE_COLORS: Record<string, string> = { A: 'var(--success)', B: 'var(--accent)', C: 'var(--warning)', D: '#ca8a04', E: 'var(--danger)' };
 
-/* 底部两卡固定同高对齐；近期动态默认折叠只展示前 N 条 */
+/* 中排三卡与底部两卡统一固定同高；列表超长一律卡内滚动 */
 const BOTTOM_CARD_HEIGHT = 'h-[460px]';
 const ACTIVITY_PREVIEW_COUNT = 5;
 
@@ -231,7 +231,7 @@ function EvalColumn({
   const typeMax = Math.max(1, ...Object.values(enterpriseTypeCounts));
 
   return (
-    <div className="flex-1 flex flex-col gap-2.5 min-h-0">
+    <div className="flex-1 flex flex-col gap-2.5 min-h-0 overflow-y-auto">
       {/* Donut + legend */}
       <div className="flex items-center gap-4 flex-shrink-0">
         <div className="relative flex-shrink-0" style={{ width: 88, height: 88 }}>
@@ -466,7 +466,7 @@ export default function SupplierDashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
         {/* 列 1 | 行业分布 */}
-        <div className="neu-table-card p-5 flex flex-col">
+        <div className={`neu-table-card p-5 ${BOTTOM_CARD_HEIGHT} flex flex-col`}>
           <h3 className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-4 flex-shrink-0 flex items-center gap-2">
             <Layers size={13} />行业分布
           </h3>
@@ -492,7 +492,7 @@ export default function SupplierDashboardPage() {
         </div>
 
         {/* 列 2 | 评价 + 五维 + 类型 */}
-        <div className="neu-table-card p-5 flex flex-col">
+        <div className={`neu-table-card p-5 ${BOTTOM_CARD_HEIGHT} flex flex-col`}>
           <h3 className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-4 flex-shrink-0 flex items-center gap-2">
             <TrendingUp size={13} />评价与构成
           </h3>
@@ -504,7 +504,7 @@ export default function SupplierDashboardPage() {
         </div>
 
         {/* 列 3 | 供应结构分析（规则推导，非 AI——如实标注，避免误导） */}
-        <div className="neu-table-card p-5 flex flex-col">
+        <div className={`neu-table-card p-5 ${BOTTOM_CARD_HEIGHT} flex flex-col`}>
           <div className="flex items-center justify-between mb-4 flex-shrink-0">
             <h3 className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)] flex items-center gap-2">
               <Lightbulb size={13} />供应结构分析

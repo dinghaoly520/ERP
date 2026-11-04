@@ -45,6 +45,10 @@ import { createFieldSample, generateFieldContent } from "@/lib/api/tender-sample
 import { fetchCurrentUser } from "@/lib/api/auth";
 import { getCompanyInfoOnce, type CompanyInfo } from "@/lib/api/company-info";
 import { exportAnnouncementDocument, importWinningBidFromPdf } from "@/lib/api/announcement";
+import { ImportAutofillButton } from "./import-autofill-button";
+import { ImportAutofillDialog } from "./import-autofill-dialog";
+import type { ImportAutofillFieldResult } from "@/lib/types/tender-write-import";
+import { localDateInputValue, localTimeInputValue } from "@/lib/local-date";
 import { checkSupplierChange } from "@/lib/api/project-management";
 import { getSupplierList } from "@/lib/api/supplier";
 import { confirmDialog } from "@/components/catalog/confirm-dialog";
@@ -109,6 +113,30 @@ const FIELDS_WITHOUT_ACTIONS: Set<string> = new Set([
   "supervisionContact",
   "supervisionPhone",
 ]);
+
+/**
+ * AI 日期文本 → 表单 input 值（2026-11-03 适配）：AI 常返回「2026年11月21日10时00分」等
+ * 中文写法（时/分无冒号、日期时间无分隔），naive new Date() 解析为 NaN 会把原文写进草稿——
+ * datetime-local 输入框吃不下非标准值显示为空（预览却可见），观感即"写入预览没写入输入框"。
+ * 中文/斜杠/点分隔 + 可选时分一律归一为 YYYY-MM-DD[THH:mm]；解析不动则原样返回（预览可显）。
+ */
+function normalizeDateLikeToInput(raw: string, cfgType: string): string {
+  const pad = (n: string) => n.padStart(2, "0");
+  const m = raw.match(
+    /(\d{4})\s*[年/\-.]\s*(\d{1,2})\s*[月/\-.]\s*(\d{1,2})\s*[日\sT]*(?:(\d{1,2})\s*[时:：]\s*(\d{1,2})\s*分?)?/,
+  );
+  if (m) {
+    const [, y, mo, d, h, mi] = m;
+    const date = `${y}-${pad(mo)}-${pad(d)}`;
+    return cfgType === "date" ? date : `${date}T${pad(h ?? "0")}:${pad(mi ?? "0")}`;
+  }
+  const t = new Date(raw);
+  if (!Number.isNaN(t.getTime())) {
+    const date = localDateInputValue(t);
+    return cfgType === "date" ? date : `${date}T${localTimeInputValue(t)}`;
+  }
+  return raw;
+}
 
 /** Read dynamic bidder entries from the draft record */
 function getBidders(draftRecord: Record<string, string>): Array<{ name: string; price: string }> {
@@ -551,6 +579,8 @@ export function AnnouncementDialog({
   const [category, setCategory] = useState<AnnouncementCategory | null>(null);
   const [draft, setDraft] = useState<AnnouncementDraft | null>(null);
   const [exporting, setExporting] = useState(false);
+  // 导入识别（2026-11-03）：上传资料按当前公告类型字段表识别 → 逐字段确认回填
+  const [showImportDialog, setShowImportDialog] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const previewScrollRef = useRef<HTMLDivElement | null>(null);
@@ -751,6 +781,45 @@ export function AnnouncementDialog({
 
       return next as AnnouncementDraft;
     });
+  };
+
+  /** 导入识别回填：按当前公告字段配置归一（日期/时间控件转 input 值格式）后逐字段写入 */
+  const handleImportConfirm = async (selected: ImportAutofillFieldResult[]) => {
+    if (!category || selected.length === 0) { setShowImportDialog(false); return; }
+    const cfgByKey = new Map(
+      getAnnouncementFields(tenderType, category).map((f) => [f.key as string, f]),
+    );
+    let filled = 0;
+    let contactNameValue = "";
+    for (const f of selected) {
+      const raw = (f.value ?? "").trim();
+      if (!raw) continue;
+      const cfg = cfgByKey.get(f.key);
+      let v = raw;
+      if (cfg?.type === "date" || cfg?.type === "datetime-local" || cfg?.type === "datetime-range") {
+        v = normalizeDateLikeToInput(raw, cfg.type);
+      }
+      handleFieldChange(f.key as AnnouncementFieldKey, v);
+      if (f.key === "contactName") contactNameValue = v;
+      filled++;
+    }
+    // 联系人联动（移植采购文件导入确认同款，2026-11-03 查漏）：AI 填了联系人姓名时，
+    // 到公司信息管理·采购人条目按姓名匹配，空位自动补电话/邮箱（仅当前为空才补，不覆盖 AI 值）
+    if (contactNameValue) {
+      try {
+        const ci = await getCompanyInfoOnce();
+        const contact = ci?.purchasers?.find((p) => p.name === contactNameValue.trim());
+        const record = (draft ?? {}) as Record<string, string>;
+        if (contact) {
+          if (contact.phone && cfgByKey.has("contactPhone") && !record.contactPhone?.trim()) handleFieldChange("contactPhone", contact.phone);
+          if (contact.email && cfgByKey.has("contactEmail") && !record.contactEmail?.trim()) handleFieldChange("contactEmail", contact.email);
+        }
+      } catch {
+        // 采购人条目查询尽力而为，失败不阻断回填
+      }
+    }
+    toast.success(`导入识别完成，已回填 ${filled} 个公告字段`);
+    setShowImportDialog(false);
   };
 
   const handleFavoriteToggle = async (fieldKey: AnnouncementFieldKey, currentValue: string) => {
@@ -1398,6 +1467,7 @@ export function AnnouncementDialog({
                       </span>
                     </div>
                   </div>
+                  {embedded && <ImportAutofillButton onClick={() => setShowImportDialog(true)} />}
                   <button
                     type="button"
                     onClick={() => void handleAutoFillAll()}
@@ -1536,8 +1606,10 @@ export function AnnouncementDialog({
             step === "edit" && draft ? (
               <>
                 <button type="button" onClick={handleBack} className="neu-btn-soft">
-                  ← 返回选择
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                  返回选择
                 </button>
+                <ImportAutofillButton onClick={() => setShowImportDialog(true)} />
                 <button
                   type="button"
                   onClick={() => void handleExport()}
@@ -1553,6 +1625,15 @@ export function AnnouncementDialog({
         >
           {modalBody}
         </Modal>
+      )}
+
+      {/* 导入识别（2026-11-03）：按当前公告类型（×采购方式）字段表识别回填 */}
+      {showImportDialog && category && (
+        <ImportAutofillDialog
+          announcement={{ category, tenderType }}
+          onConfirm={handleImportConfirm}
+          onClose={() => setShowImportDialog(false)}
+        />
       )}
 
       {/* Sample drawer */}
