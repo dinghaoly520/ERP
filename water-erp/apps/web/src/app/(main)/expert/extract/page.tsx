@@ -518,8 +518,12 @@ export function ExpertExtractPage({
       if (snap.alternativeExperts?.length) setAlternativeExperts(snap.alternativeExperts);
       if (snap.leadExpertId != null) setLeadExpertId(snap.leadExpertId);
       setPreview(snap.preview);
-      // 旧快照占位分析（2026-11-04 前会话存下「项目已有分配专家」/中断瞬间的过渡文案）→ 重新生成 AI 组队总结
-      if (snap.preview?.analysis === '项目已有分配专家' || snap.preview?.analysis === '正在总结组队逻辑…' || !snap.preview?.analysis) {
+      // 旧快照占位/过期分析（2026-11-04 前会话存下「项目已有分配专家」/过渡文案/含组长表述的旧组队总结）→ 重新生成。
+      // 仅限重建类快照（候选池为空）——首次抽取的 preview（池非空）analysis 是抽取逻辑分析，不动。
+      const snapAnalysis = String(snap.preview?.analysis || '');
+      const isRebuildSnap = (snap.preview?.candidatePool?.length ?? 0) === 0;
+      if (!snapAnalysis || snapAnalysis === '项目已有分配专家' || snapAnalysis === '正在总结组队逻辑…'
+        || (isRebuildSnap && snapAnalysis.includes('组长'))) {
         fetchCommitteeAnalysis(pid).then(res => {
           if (res?.analysis) setPreview(p => p ? { ...p, analysis: res.analysis, engine: res.engine } : p);
         }).catch(() => {});
