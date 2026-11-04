@@ -2293,6 +2293,38 @@ export function SupplierSelectionPage({
                       </span>
                     )}
                   </div>
+                  {/* 筛选条件回显（2026-11-04）：第一步锁定后随结果完整展示——标签/行业/资质/业绩/评价全量 */}
+                  {(selectedTags.length > 0 || activeHardConditions) && (
+                    <div className="mb-2.5 flex flex-wrap items-center gap-1">
+                      {selectedTags.map(t => (
+                        <span key={t} className="rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--accent-strong)]"
+                          style={{ background: 'color-mix(in oklch, var(--accent) 10%, transparent)' }}>{t}</span>
+                      ))}
+                      {(activeHardConditions?.industries || []).map(i => (
+                        <span key={i} className="rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--muted-foreground)]"
+                          style={{ background: 'color-mix(in oklch, var(--muted-foreground) 10%, transparent)' }}>行业·{i}</span>
+                      ))}
+                      {(activeHardConditions?.qualifications || []).map(q => {
+                        const label = hardVocab?.qualifications.find(d => d.key === q.key)?.label || q.key;
+                        return (
+                          <span key={q.key} className="rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold"
+                            style={{ color: q.required ? 'var(--foreground)' : 'var(--muted-foreground)', background: `color-mix(in oklch, var(${q.required ? '--accent' : '--muted-foreground'}) ${q.required ? 12 : 8}%, transparent)` }}>
+                            {label}·{q.required ? '必须' : '优先'}
+                          </span>
+                        );
+                      })}
+                      {activeHardConditions?.performance && (activeHardConditions.performance.years || activeHardConditions.performance.minCount || activeHardConditions.performance.keywords?.length) && (
+                        <span className="rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--muted-foreground)]"
+                          style={{ background: 'color-mix(in oklch, var(--muted-foreground) 10%, transparent)' }}>
+                          业绩·{activeHardConditions.performance.years ? `近${activeHardConditions.performance.years}年` : ''}{activeHardConditions.performance.minCount ? `≥${activeHardConditions.performance.minCount}项` : ''}{activeHardConditions.performance.keywords?.length ? `（${activeHardConditions.performance.keywords.join('、')}）` : ''}
+                        </span>
+                      )}
+                      {activeHardConditions?.minGrade && (
+                        <span className="rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--muted-foreground)]"
+                          style={{ background: 'color-mix(in oklch, var(--muted-foreground) 10%, transparent)' }}>评价·不低于{activeHardConditions.minGrade}级</span>
+                      )}
+                    </div>
+                  )}
                   <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">{result.summary}</p>
                   <div className="flex gap-5 mt-3 text-xs">
                     <span className="tabular-nums">候选池 <strong className="text-[var(--foreground)]">{result.candidatePool}</strong></span>
