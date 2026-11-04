@@ -12,6 +12,10 @@ from PIL import Image
 
 from ocr_engine import (
     ENGINE_NAME,
+    NUM_WORKERS,
+    OCR_INTRA_THREADS,
+    OCR_INTER_THREADS,
+    _resolve_int_env,
     get_engine,
     get_pdf_parser,
     get_hybrid_pool,
@@ -24,7 +28,7 @@ from ocr_engine import (
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title="OCR Service", version="1.2.0")
+app = FastAPI(title="OCR Service", version="1.3.0")
 
 # OCR 是 CPU 密集同步操作：必须在 executor 里跑并加锁串行化——
 # ① 事件循环不再被阻塞（/health 永远可用，可区分"在处理"与"挂死"）；
@@ -33,6 +37,9 @@ _ocr_lock = asyncio.Lock()
 _busy = {"active": False, "since": 0.0, "detail": ""}
 # 分页渲染块大小：渲染→OCR→释放，避免整本 PDF 的像素图常驻内存（191 页原需数 GB）
 OCR_CHUNK_PAGES = int(os.environ.get("OCR_CHUNK_PAGES", "16"))
+# 服务端表单默认（客户端显式传参可覆盖）：低配机可经 env 降档
+DEFAULT_DPI = _resolve_int_env(os.environ, "OCR_DEFAULT_DPI", 150)
+DEFAULT_MAX_PAGES = _resolve_int_env(os.environ, "OCR_MAX_PAGES_DEFAULT", 200)
 
 
 async def _run_ocr_batch(images: list, detail: str) -> list:
@@ -69,6 +76,11 @@ async def health():
         "hybrid": hybrid_running,
         "workers": workers,
         "busy": _busy["active"],
+        # 生效配置上报（不依赖引擎 warmup；0=未限制/包默认）
+        "num_workers": NUM_WORKERS,
+        "intra_threads": OCR_INTRA_THREADS,
+        "inter_threads": OCR_INTER_THREADS,
+        "chunk_pages": OCR_CHUNK_PAGES,
     }
     if _busy["active"]:
         payload["busy_seconds"] = round(time.monotonic() - _busy["since"], 1)
@@ -79,8 +91,8 @@ async def health():
 @app.post("/ocr")
 async def ocr_file(
     file: UploadFile = File(...),
-    dpi: int = Form(150),
-    max_pages: int = Form(200),
+    dpi: int = Form(DEFAULT_DPI),
+    max_pages: int = Form(DEFAULT_MAX_PAGES),
     page_range: str = Form(None),
 ):
     filename = file.filename or "unknown"

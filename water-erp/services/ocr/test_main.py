@@ -29,5 +29,20 @@ class ParsePdfOpenDataLoaderTest(unittest.TestCase):
         parser.parse_pdf_local.assert_not_called()
 
 
+class HealthConfigReportTest(unittest.TestCase):
+    def test_health_reports_effective_config_before_warmup(self):
+        payload = asyncio.run(main.health())
+        for key in ("num_workers", "intra_threads", "inter_threads", "chunk_pages"):
+            self.assertIn(key, payload)
+            self.assertIsInstance(payload[key], int)
+        self.assertEqual(payload["num_workers"], main.NUM_WORKERS)
+
+
+class FormDefaultsTest(unittest.TestCase):
+    def test_env_backed_defaults_are_ints(self):
+        self.assertIsInstance(main.DEFAULT_DPI, int)
+        self.assertGreater(main.DEFAULT_MAX_PAGES, 0)
+
+
 if __name__ == "__main__":
     unittest.main()
