@@ -16,13 +16,10 @@ import { isGroupedCompanyView, CompanySelect, readInitialCompanyId } from '@/com
 import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from '@/components/company/company-tag';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { UsersRound, PlusCircle, Search, RefreshCw, X, ChevronLeft, ChevronRight, Download, CheckSquare, Square, TrendingUp, UserX, Trophy, AlertTriangle, History, FileText } from 'lucide-react';
-import type { WorkbenchTone } from '@water-erp/shared';
+import { SpecialtyBadge } from '@/components/expert/specialty-badge';
 import { LEVEL_COLOR, LEVEL_LABEL } from '@water-erp/shared';
 
-// 专业标签统一品牌蓝（2026-11-04 用户裁定：原哈希六彩无语义规律、视觉混乱）
-function specialtyTone(_s: string): WorkbenchTone {
-  return 'blue';
-}
+
 
 export default function ExpertRepositoryPage() {
   const router = useRouter();
@@ -275,7 +272,7 @@ export default function ExpertRepositoryPage() {
                         <span className="text-sm font-bold text-[var(--foreground)] truncate hover:text-[var(--accent)] transition-colors">{e.displayName}</span>
                       </div>
                     </td>
-                    <td className="text-center">{e.expertProfile?.specialty && <StatusBadge tone={specialtyTone(e.expertProfile.specialty)}>{e.expertProfile.specialty}</StatusBadge>}</td>
+                    <td className="text-center">{e.expertProfile?.specialty && <SpecialtyBadge specialty={e.expertProfile.specialty} />}</td>
                     <td className="truncate px-2 text-center text-sm text-[var(--muted-foreground)]" title={e.expertProfile?.title || ''}>{e.expertProfile?.title || '—'}</td>
                     <td className="truncate px-2 text-center text-sm text-[var(--muted-foreground)]" title={e.department?.name || ''}>{e.department?.name || '—'}</td>
                     <td className="text-center">

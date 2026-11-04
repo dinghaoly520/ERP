@@ -6,15 +6,12 @@ import { getExpertRanking, getLoadDistribution } from '@/lib/api/expert';
 import { readInitialCompanyId } from '@/components/company/company-select';
 import { StatusBadge, TableSkeleton } from '@/components/workbench';
 import { Crown, Medal, RefreshCw, Trophy, AlertTriangle, Activity } from 'lucide-react';
+import { SpecialtyBadge } from '@/components/expert/specialty-badge';
 import { toast } from 'sonner';
-import type { WorkbenchTone } from '@water-erp/shared';
 
 const PERIOD_LABELS: Record<string, string> = { month: '近一月', quarter: '近一季', all: '累计' };
 
-// 专业标签统一品牌蓝（2026-11-04 用户裁定：原哈希六彩无语义规律、视觉混乱）
-function specialtyTone(_s: string): WorkbenchTone {
-  return 'blue';
-}
+
 
 // 前三名奖牌色：金 / 银 / 铜
 const MEDAL_COLORS = ['#d4a017', '#94a3b8', '#b45309'];
@@ -107,7 +104,7 @@ export default function ExpertRankingPage() {
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-extrabold text-white">{r.displayName[0]}</div>
                   <span className="text-base font-black text-[var(--foreground)] truncate">{r.displayName}</span>
                 </div>
-                <div className="mt-1.5">{r.specialty && <StatusBadge tone={specialtyTone(r.specialty)}>{r.specialty}</StatusBadge>}</div>
+                <div className="mt-1.5">{r.specialty && <SpecialtyBadge specialty={r.specialty} />}</div>
                 <div className="mt-3 grid grid-cols-2 gap-2 border-t border-[var(--border)] pt-3">
                   <div>
                     <span className="text-2xl font-black text-[var(--accent)] tabular-nums">{r.weightedScore}</span>
@@ -146,7 +143,7 @@ export default function ExpertRankingPage() {
                           <span className="text-sm font-bold text-[var(--foreground)] truncate hover:text-[var(--accent)] transition-colors">{r.displayName}</span>
                         </div>
                       </td>
-                      <td className="text-center">{r.specialty && <StatusBadge tone={specialtyTone(r.specialty)}>{r.specialty}</StatusBadge>}</td>
+                      <td className="text-center">{r.specialty && <SpecialtyBadge specialty={r.specialty} />}</td>
                       <td className="text-center text-sm tabular-nums text-[var(--foreground)]">{r.evalCount}</td>
                       <td className="text-center text-sm font-bold tabular-nums text-[var(--accent)]">{r.weightedScore}</td>
                       <td className="text-center text-sm font-bold tabular-nums text-[var(--success)]">{r.aCount}</td>

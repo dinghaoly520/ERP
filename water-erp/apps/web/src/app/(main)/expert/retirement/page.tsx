@@ -6,12 +6,9 @@ import { toast } from 'sonner';
 import { getRetireCandidates, confirmRetire, ignoreRetirementWarning } from '@/lib/api/expert';
 import { Modal, StatusBadge } from '@/components/workbench';
 import { AlertTriangle, Check, RefreshCw, UserX, FileText } from 'lucide-react';
-import type { WorkbenchTone } from '@water-erp/shared';
+import { SpecialtyBadge } from '@/components/expert/specialty-badge';
 
-// 专业标签统一品牌蓝（2026-11-04 用户裁定：原哈希六彩无语义规律、视觉混乱）
-function specialtyTone(_s: string): WorkbenchTone {
-  return 'blue';
-}
+
 
 export default function RetirementPage() {
   const router = useRouter();
@@ -120,7 +117,7 @@ export default function RetirementPage() {
                   <div className="flex items-center gap-2.5 flex-wrap">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-extrabold text-white">{c.displayName[0]}</div>
                     <span className="text-sm font-bold text-[var(--foreground)]">{c.displayName}</span>
-                    {c.specialty && <StatusBadge tone={specialtyTone(c.specialty)}>{c.specialty}</StatusBadge>}
+                    {c.specialty && <SpecialtyBadge specialty={c.specialty} />}
                     <AlertTriangle size={14} className="text-[var(--warning)]" />
                   </div>
                   <p className="text-xs text-[var(--muted-foreground)] mt-1.5 ml-[42px]">预警原因：{c.reason}</p>
