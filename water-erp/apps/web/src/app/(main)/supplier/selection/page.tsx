@@ -383,15 +383,14 @@ export function SupplierSelectionPage({
     return { startDate: single.date, startTime: single.time, endDate: '', endTime: '00:00' };
   };
 
+  // 时间选择（2026-11-04 重构）：日期+时刻合一的 datetime-local 单控件（原 date/time 双输入被 .neu-input
+  // 的 44px 高/28px 内边距压至不可操作——「无法重新选择」根源）；值为 "YYYY-MM-DDTHH:mm"
+  const toLocalDt = (date: string, time: string) => (date ? `${date}T${(time || '00:00').slice(0, 5)}` : '');
   const initBid = parseChineseDatetime(project?.bidOpeningTime);
-  const [bidDate, setBidDate] = useState(initBid.date);
-  const [bidTime, setBidTime] = useState(initBid.time);
-
+  const [bidAt, setBidAt] = useState(() => toLocalDt(initBid.date, initBid.time));
   const initAcquire = parseChineseRange(project?.documentAcquireTime);
-  const [acquireStartDate, setAcquireStartDate] = useState(initAcquire.startDate);
-  const [acquireStartTime, setAcquireStartTime] = useState(initAcquire.startTime);
-  const [acquireEndDate, setAcquireEndDate] = useState(initAcquire.endDate);
-  const [acquireEndTime, setAcquireEndTime] = useState(initAcquire.endTime);
+  const [acquireFrom, setAcquireFrom] = useState(() => toLocalDt(initAcquire.startDate, initAcquire.startTime));
+  const [acquireTo, setAcquireTo] = useState(() => toLocalDt(initAcquire.endDate || initAcquire.startDate, initAcquire.endTime));
 
   // 项目「采购文件」阶段附件（供"引用采购文件"勾选，排除审批/批准类文件）
   const projectTenderFiles = useMemo(() => {
@@ -1537,9 +1536,9 @@ export function SupplierSelectionPage({
       await sendNegotiationConfig({
         projectId: pid,
         supplierIds: [...shortlist.keys()],
-        acquireStartTime: acquireStartDate && acquireStartTime ? `${acquireStartDate} ${acquireStartTime}` : '',
-        acquireEndTime: acquireEndDate && acquireEndTime ? `${acquireEndDate} ${acquireEndTime}` : '',
-        bidOpeningTime: bidDate && bidTime ? `${bidDate} ${bidTime}` : '',
+        acquireStartTime: acquireFrom ? acquireFrom.replace('T', ' ') : '',
+        acquireEndTime: acquireTo ? acquireTo.replace('T', ' ') : '',
+        bidOpeningTime: bidAt ? bidAt.replace('T', ' ') : '',
         refFileKeys: [...refFileKeys],
         attachFileIds: attachFiles.map(f => f.id),
         downloadMode,
@@ -2684,35 +2683,29 @@ export function SupplierSelectionPage({
             </div>
             <p className="text-xs text-[var(--muted-foreground)]">请确认以下项目时间信息无误，确认后将随附件一并发送给候选供应商。</p>
             <div className="space-y-3">
-              {/* 采购文件获取时间 — 区间（整行展示） */}
+              {/* 采购文件获取时间 — 区间（起止单控件：日期+时刻合一） */}
               <div className="rounded-xl p-3.5" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6)' }}>
                 <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">采购文件获取时间</div>
-                <div className="flex items-center gap-2">
-                  <input type="date" value={acquireStartDate} onChange={e => setAcquireStartDate(e.target.value)}
-                    className="neu-input text-xs shrink-0" style={{ width: 150 }} />
-                  <input type="time" value={acquireStartTime} onChange={e => setAcquireStartTime(e.target.value)}
-                    className="neu-input text-xs shrink-0" style={{ width: 110 }} />
-                  <span className="text-[11px] font-semibold text-[var(--muted-foreground)] shrink-0">至</span>
-                  <input type="date" value={acquireEndDate} onChange={e => setAcquireEndDate(e.target.value)}
-                    className="neu-input text-xs shrink-0" style={{ width: 150 }} />
-                  <input type="time" value={acquireEndTime} onChange={e => setAcquireEndTime(e.target.value)}
-                    className="neu-input text-xs shrink-0" style={{ width: 110 }} />
+                <div className="flex flex-wrap items-center gap-2">
+                  <input type="datetime-local" value={acquireFrom} onChange={e => setAcquireFrom(e.target.value)}
+                    className="workbench-input !h-8 text-xs" style={{ width: 215 }} />
+                  <span className="text-[11px] font-semibold text-[var(--muted-foreground)]">至</span>
+                  <input type="datetime-local" value={acquireTo} onChange={e => setAcquireTo(e.target.value)}
+                    className="workbench-input !h-8 text-xs" style={{ width: 215 }} />
                 </div>
               </div>
-              {/* 开标时间 — 单点 */}
+              {/* 开标时间 — 单点（日期+时刻合一） */}
               <div className="rounded-xl p-3.5" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6)', maxWidth: 420 }}>
                 <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">开标时间</div>
-                <div className="flex items-center gap-2">
-                  <input type="date" value={bidDate} onChange={e => setBidDate(e.target.value)}
-                    className="neu-input text-xs shrink-0" style={{ width: 150 }} />
-                  <input type="time" value={bidTime} onChange={e => setBidTime(e.target.value)}
-                    className="neu-input text-xs shrink-0" style={{ width: 110 }} />
+                <div className="flex flex-wrap items-center gap-2">
+                  <input type="datetime-local" value={bidAt} onChange={e => setBidAt(e.target.value)}
+                    className="workbench-input !h-8 text-xs" style={{ width: 215 }} />
                 </div>
               </div>
             </div>
             <button
               onClick={() => { setTimeConfirmed(true); toast.success('项目时间已确认'); }}
-              disabled={!acquireStartDate && !bidDate}
+              disabled={!acquireFrom && !bidAt}
               className={`neu-btn-soft gap-2 ${timeConfirmed ? 'is-success' : ''}`}>
               {timeConfirmed ? <><Check size={13} /> 已确认</> : <><ShieldCheck size={13} /> 确认项目时间无误</>}
             </button>
@@ -3932,9 +3925,9 @@ export function SupplierSelectionPage({
         projectId={projectId || (project as any)?.id || ''}
         pmiId={project?.id}
         times={{
-          acquireStart: acquireStartDate ? `${acquireStartDate}T${acquireStartTime || '00:00'}:00` : undefined,
-          acquireEnd: acquireEndDate ? `${acquireEndDate}T${acquireEndTime || '23:59'}:00` : undefined,
-          bidAt: bidDate ? `${bidDate}T${bidTime || '00:00'}:00` : undefined,
+          acquireStart: acquireFrom ? `${acquireFrom}:00` : undefined,
+          acquireEnd: acquireTo ? `${acquireTo}:00` : undefined,
+          bidAt: bidAt ? `${bidAt}:00` : undefined,
         }}
         onClose={() => setInvitationOpen(false)}
         onExported={(f) => {
