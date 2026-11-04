@@ -52,7 +52,7 @@ services:
   portal-3002:
     <<: *portal-common
     container_name: water-portal-3002
-    command: sh -c "pnpm --filter public-portal exec next start -H 0.0.0.0 -p 3002"
+    command: sh -c "node scripts/portal-server.mjs --dir apps/public-portal --port 3002"
     ports:
       - "${PUB_PORT:-13002}:13002"
     healthcheck:
@@ -63,7 +63,7 @@ services:
   portal-3004:
     <<: *portal-common
     container_name: water-portal-3004
-    command: sh -c "pnpm --filter supplier-portal-next exec next start -H 0.0.0.0 -p 3004"
+    command: sh -c "node scripts/portal-server.mjs --dir apps/supplier-portal-next --port 3004"
     ports:
       - "${SUP_PORT:-3004}:3004"
     healthcheck:
@@ -75,7 +75,7 @@ services:
     <<: *portal-common
     container_name: water-portal-3005
     # 根 package.json 的 start 脚本没有 -p/-H，这里显式补齐
-    command: sh -c "pnpm --filter web exec next start -H 0.0.0.0 -p 3005"
+    command: sh -c "node scripts/portal-server.mjs --dir apps/web --port 3005"
     ports:
       - "${WEB_PORT:-3005}:3005"
     healthcheck:
@@ -86,7 +86,7 @@ services:
   portal-3006:
     <<: *portal-common
     container_name: water-portal-3006
-    command: sh -c "pnpm --filter expert-portal exec next start -H 0.0.0.0 -p 3006"
+    command: sh -c "node scripts/portal-server.mjs --dir apps/expert-portal --port 3006"
     ports:
       - "${EXP_PORT:-3006}:3006"
     healthcheck:
@@ -97,7 +97,7 @@ services:
   portal-3007:
     <<: *portal-common
     container_name: water-portal-3007
-    command: sh -c "pnpm --filter bid-portal exec next start -H 0.0.0.0 -p 3007"
+    command: sh -c "node scripts/portal-server.mjs --dir apps/bid-portal --port 3007"
     ports:
       - "${BID_PORT:-3007}:3007"
     healthcheck:

@@ -79,7 +79,7 @@ export function RealtimeNotifications() {
         withCredentials: true,
         reconnection: false,
         timeout: 8000,
-        transports: ["websocket"],
+        transports: ["websocket", "polling"], // polling 兜底：外网转发器剥 Upgrade 头时降级保通（2026-11-04 路线③）
       });
       socketRef.current = socket;
 
