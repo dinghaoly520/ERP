@@ -965,20 +965,21 @@ export function ExpertExtractPage({
   const demandRepSeats = needDemandRep ? demandRepCount : 0;
   const expertSeats = Math.max(0, totalSeats - demandRepSeats); // 专业专家可分配席位
   const quotaSum = quotas.reduce((s, q) => s + q.count, 0); // 所有专业行的人数和（含未选专业的占位行，与 addQ/adjustQuota 调配一致）
-  /** 步骤2「抽取配置」摘要（2026-11-02 用户口径：按序=配额总人数 → 公司选择 → 专业选择 → 抽取方式） */
+  /** 步骤2「抽取配置」摘要（2026-11-02 用户口径：按序=配额总人数 → 公司选择 → 专业选择 → 抽取方式；
+   *  2026-11-04 改 chips 回显——与供应商选取摘要同款设计） */
   const companyNameOf = useCallback((id: string) => companies.find(c => c.id === id)?.name ?? id, [companies]);
   const extractConfigSummary = useMemo(() => {
     const companySigs = quotas.map(q => {
       const ids = (q.companyIds ?? []).map(companyNameOf).sort();
       return ids.length === 0 ? '' : ids.join('、');
     });
-    const companySummary = companySigs.every(s => s === '')
-      ? '不限公司（全库专家池）'
+    const companyChips = companySigs.every(s => s === '')
+      ? ['不限公司（全库专家池）']
       : [...new Set(companySigs)].length === 1
-        ? companySigs[0]
-        : quotas.map((_, i) => `配额${i + 1}：${companySigs[i] === '' ? '不限公司' : companySigs[i]}`).join('；');
-    const specialtySummary = quotas.map(q => `${quotaLabel(q)} × ${q.count}`).join('，');
-    return { companySummary, specialtySummary };
+        ? [companySigs[0]]
+        : companySigs.map((s, i) => `配额${i + 1}·${s === '' ? '不限公司' : s}`);
+    const specialtyChips = quotas.map(q => `${quotaLabel(q)} × ${q.count}`);
+    return { companyChips, specialtyChips };
   }, [quotas, companyNameOf]);
   // 补选配置上限（2026-10-20 用户口径）：缺口=总席位-已确认正选，配额行合计最多=缺口，不得超配
   const reShortfall = invitationData ? Math.max(0, totalSeats - invitationData.experts.filter(e => e.expertRole === '正选' && e.invitationStatus === 'confirmed').length) : 0;
@@ -2568,23 +2569,29 @@ export function ExpertExtractPage({
 
           {preview && !loading && (
               <div className="space-y-4">
-                {/* 抽取配置摘要（2026-11-02 用户口径终版）：按序——配额总人数 → 公司选择情况 →
-                    专业选择情况 → 抽取方式。配额与方式正交（manualQuotas 恒随请求发送，
-                    方式只决定池内选人规则），公司=各配额行白名单并集（空=不限公司全库） */}
+                {/* 抽取配置摘要（2026-11-04 改 chips 回显——与供应商选取摘要卡同款设计）：
+                    按序——配额总人数 → 公司选择情况 → 专业选择情况 → 抽取方式。
+                    配额与方式正交（manualQuotas 恒随请求发送，方式只决定池内选人规则），
+                    公司=各配额行白名单并集（空=不限公司全库） */}
                 <div className="neu-table-card p-4">
-                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5 text-xs">
-                    <span className="font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">抽取配置：</span>
-                    <span className="text-[var(--muted-foreground)]">配额总人数</span>
-                    <span className="font-bold tabular-nums text-[var(--foreground)]">{quotaSum} 人{demandRepItems.length > 0 ? `（另需求方（业主）代表 ${demandRepItems.length} 人）` : ''}</span>
-                    <span className="text-[color-mix(in_oklch,var(--muted-foreground)_55%,transparent)]">·</span>
-                    <span className="text-[var(--muted-foreground)]">公司</span>
-                    <span className="font-bold text-[var(--foreground)]">{extractConfigSummary.companySummary}</span>
-                    <span className="text-[color-mix(in_oklch,var(--muted-foreground)_55%,transparent)]">·</span>
-                    <span className="text-[var(--muted-foreground)]">专业</span>
-                    <span className="font-bold text-[var(--foreground)]">{extractConfigSummary.specialtySummary}</span>
-                    <span className="text-[color-mix(in_oklch,var(--muted-foreground)_55%,transparent)]">·</span>
-                    <span className="text-[var(--muted-foreground)]">抽取方式</span>
-                    <span className="font-bold text-[var(--foreground)]">{MODE_LABELS[extractMode as ExtractMode] ?? extractMode}</span>
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span className="mr-1 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">抽取配置</span>
+                    <span className="rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-[var(--accent-strong)]"
+                      style={{ background: 'color-mix(in oklch, var(--accent) 10%, transparent)' }}>人数·{quotaSum} 人</span>
+                    {demandRepItems.length > 0 && (
+                      <span className="rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-[var(--muted-foreground)]"
+                        style={{ background: 'color-mix(in oklch, var(--muted-foreground) 10%, transparent)' }}>另业主代表·{demandRepItems.length} 人</span>
+                    )}
+                    {extractConfigSummary.companyChips.map((c, i) => (
+                      <span key={`company-${i}`} className="rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--muted-foreground)]"
+                        style={{ background: 'color-mix(in oklch, var(--muted-foreground) 10%, transparent)' }}>公司·{c}</span>
+                    ))}
+                    {extractConfigSummary.specialtyChips.map((s, i) => (
+                      <span key={`spec-${i}`} className="rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--muted-foreground)]"
+                        style={{ background: 'color-mix(in oklch, var(--muted-foreground) 10%, transparent)' }}>专业·{s}</span>
+                    ))}
+                    <span className="rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--muted-foreground)]"
+                      style={{ background: 'color-mix(in oklch, var(--muted-foreground) 10%, transparent)' }}>方式·{MODE_LABELS[extractMode as ExtractMode] ?? extractMode}</span>
                   </div>
                 </div>
 
