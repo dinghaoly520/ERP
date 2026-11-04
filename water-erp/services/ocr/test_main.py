@@ -1,9 +1,14 @@
 import asyncio
+import io
 import json
+import os
+import subprocess
 import sys
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
+
+from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -85,6 +90,68 @@ class TextLayerFastPathTest(unittest.TestCase):
         self.assertEqual(pages[2]["source"], "ocr")
         self.assertEqual(pages[2]["text"], "P3-OCR")
         self.assertEqual(body["processed_pages"], 3)
+
+
+class FastPathGuardsTest(unittest.TestCase):
+    """评审修复：快速路径三护栏（乱码层 / CHUNK_PAGES 非法值 / 图像覆盖率）"""
+
+    def test_garbled_layer_with_ufffd_rejected(self):
+        # 消费者（knowledge document-parser）依赖 OCR 修复乱码文字层——含 U+FFFD 不得走快速路径
+        self.assertFalse(_should_use_text_layer("�" * 150, 100))
+        self.assertTrue(_should_use_text_layer("正常文字" * 30 + "x" * 20, 100))
+
+    def test_chunk_pages_invalid_env_does_not_crash_import(self):
+        r = subprocess.run(
+            [sys.executable, "-c", "import main"],
+            cwd=str(Path(__file__).parent),
+            env={**os.environ, "OCR_CHUNK_PAGES": "abc"},
+            capture_output=True,
+        )
+        self.assertEqual(r.returncode, 0, r.stderr.decode(errors="replace")[-300:])
+
+    def _pdf_with_image(self, img_rect) -> bytes:
+        doc = fitz.open()
+        page = doc.new_page()
+        for i, y in enumerate((90, 120, 150)):  # 密集文字层 ≥100 字符
+            page.insert_text((72, y), f"TXT-L{i}-" + "y" * 30)
+        pic = Image.new("RGB", (600, 400), "white")
+        ImageDraw.Draw(pic).text((60, 100), "CERT-99008877", fill="black")
+        pb = io.BytesIO()
+        pic.save(pb, "PNG")
+        page.insert_image(img_rect, stream=pb.getvalue())
+        b = doc.tobytes()
+        doc.close()
+        return b
+
+    def test_page_with_large_image_goes_to_ocr(self):
+        pdf_bytes = self._pdf_with_image(fitz.Rect(50, 300, 450, 700))  # ~25% 页面积
+        calls = []
+
+        async def fake_batch(images, detail):
+            calls.append(len(images))
+            return ["OCR-MIXED"]
+
+        with patch.object(main, "_run_ocr_batch", fake_batch):
+            resp = asyncio.run(main._ocr_pdf(pdf_bytes, 150, 10))
+        body = json.loads(resp.body)
+        self.assertEqual(body["pages"][0]["source"], "ocr")
+        self.assertEqual(body["pages"][0]["text"], "OCR-MIXED")
+        self.assertEqual(calls, [1])
+
+    def test_page_with_small_logo_keeps_fast_path(self):
+        pdf_bytes = self._pdf_with_image(fitz.Rect(40, 40, 80, 80))  # ~0.5% 页面积（logo 级）
+        calls = []
+
+        async def fake_batch(images, detail):
+            calls.append(len(images))
+            return ["SHOULD-NOT-RUN"]
+
+        with patch.object(main, "_run_ocr_batch", fake_batch):
+            resp = asyncio.run(main._ocr_pdf(pdf_bytes, 150, 10))
+        body = json.loads(resp.body)
+        self.assertEqual(body["pages"][0]["source"], "text-layer")
+        self.assertIn("TXT-L0", body["pages"][0]["text"])
+        self.assertEqual(calls, [])
 
 
 if __name__ == "__main__":

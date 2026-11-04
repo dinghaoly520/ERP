@@ -36,20 +36,42 @@ app = FastAPI(title="OCR Service", version="1.3.0")
 _ocr_lock = asyncio.Lock()
 _busy = {"active": False, "since": 0.0, "detail": ""}
 # 分页渲染块大小：渲染→OCR→释放，避免整本 PDF 的像素图常驻内存（191 页原需数 GB）
-OCR_CHUNK_PAGES = int(os.environ.get("OCR_CHUNK_PAGES", "16"))
+OCR_CHUNK_PAGES = _resolve_int_env(os.environ, "OCR_CHUNK_PAGES", 16, minimum=1)
 # 服务端表单默认（客户端显式传参可覆盖）：低配机可经 env 降档
 DEFAULT_DPI = _resolve_int_env(os.environ, "OCR_DEFAULT_DPI", 150)
 DEFAULT_MAX_PAGES = _resolve_int_env(os.environ, "OCR_MAX_PAGES_DEFAULT", 200)
 # 文字层快速路径阈值：页内嵌文字层字符数达此值则直接取文本免 OCR（0=禁用恒走 OCR）
 TEXT_LAYER_MIN_CHARS = _resolve_int_env(os.environ, "OCR_TEXT_LAYER_MIN_CHARS", 100)
+# 快速路径图像覆盖率护栏：页内嵌位图 bbox 面积占比超此值 → 该页回退 OCR
+# （数字标书页里嵌的扫描证书/证照是真实场景；logo 级小图不受影响）
+TEXT_LAYER_MAX_IMAGE_RATIO = 0.10
 
 
 def _should_use_text_layer(text: str, min_chars: int) -> bool:
     """数字原生 PDF 快速路径判定：min_chars>0 且去空白后字符数达阈值。
 
     短文本页（水印/页眉/扫描占位）不达阈值，整页回退 OCR，不产出半截结果。
+    含 U+FFFD 的乱码文字层同样拒绝——消费端（knowledge document-parser）
+    依赖 OCR 修复乱码层，快速路径不得把垃圾文本当可信产出。
     """
-    return min_chars > 0 and len(text.strip()) >= min_chars
+    if min_chars <= 0:
+        return False
+    stripped = text.strip()
+    if len(stripped) < min_chars:
+        return False
+    return "�" not in stripped
+
+
+def _page_image_ratio(page) -> float:
+    """页内嵌位图 bbox 面积占页面积比（重叠双计，保守取向：偏高则回退 OCR）。"""
+    area = page.rect.get_area()
+    if area <= 0:
+        return 0.0
+    covered = sum(
+        (b[2] - b[0]) * (b[3] - b[1])
+        for b in (info.get("bbox", (0, 0, 0, 0)) for info in page.get_image_info())
+    )
+    return covered / area
 
 
 async def _run_ocr_batch(images: list, detail: str) -> list:
@@ -302,7 +324,10 @@ async def _ocr_pdf(content: bytes, dpi: int, max_pages: int, page_range: str = N
             ocr_local_idx = []
             for page_idx in range(start, end):
                 layer_text = doc[page_idx].get_text("text")
-                if _should_use_text_layer(layer_text, TEXT_LAYER_MIN_CHARS):
+                if (
+                    _should_use_text_layer(layer_text, TEXT_LAYER_MIN_CHARS)
+                    and _page_image_ratio(doc[page_idx]) <= TEXT_LAYER_MAX_IMAGE_RATIO
+                ):
                     chunk_pages[page_idx - start] = {
                         "page": page_idx + 1,
                         "text": layer_text.strip(),

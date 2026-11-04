@@ -24,7 +24,7 @@
 │    ├── PDF? ── engine=rapid ──── _ocr_pdf()                            │
 │    │            │                                                      │
 │    │            ├─ 文字层快速路径：页 get_text ≥ OCR_TEXT_LAYER_MIN_CHARS │
-│    │            │  → 直接取文本免 OCR（source=text-layer，毫秒级）      │
+│    │            │  且无 U+FFFD 乱码、位图占比≤10% → 免 OCR（毫秒级）    │
 │    │            │                                                      │
 │    │            └─ 分块渲染(16页/块) → ocr_images() NUM_WORKERS 线程   │
 │    │               → RapidOcrEngine (PP-OCRv4 ONNX, CPU/GPU自动；      │
@@ -242,7 +242,7 @@ patch hybrid_server.py < ../../../../patches/hybrid_server_rapidocr.patch
 | **`OCR_CHUNK_PAGES`** | `16` | PDF 分块渲染页数（内存控制） |
 | **`OCR_DEFAULT_DPI`** | `150` | 服务端 dpi Form 默认（客户端传参覆盖） |
 | **`OCR_MAX_PAGES_DEFAULT`** | `200` | 服务端 max_pages Form 默认（客户端传参覆盖） |
-| **`OCR_TEXT_LAYER_MIN_CHARS`** | `100` | 文字层快速路径阈值；`0`=禁用恒走 OCR |
+| **`OCR_TEXT_LAYER_MIN_CHARS`** | `100` | 文字层快速路径阈值；`0`=禁用恒走 OCR。护栏：乱码层(U+FFFD)拒绝、位图面积>10% 页回退 OCR（嵌扫描证书场景） |
 | `OCR_PAGE_TIMEOUT` | `180` | watchdog 单页超时秒数 |
 | `OCR_WATCHDOG` | `1` | `0` 禁用 watchdog |
 | `OCR_HYBRID_PORT` | `5002` | hybrid 起始端口（仅 opendataloader） |
