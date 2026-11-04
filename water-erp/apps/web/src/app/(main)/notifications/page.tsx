@@ -9,7 +9,6 @@ import {
   listNotifications, markNotificationRead, markAllNotificationsRead, fetchMyActivities, resolveNotification,
   type NotificationItem, type NotificationTab, type AuditActivity,
 } from '@/lib/api/notification';
-import { fetchCurrentUser } from '@/lib/api/auth';
 import {
   fetchPendingProfileChanges, approveProfileChange, rejectProfileChange,
   fetchPendingRegistrations, approveRegistration, rejectRegistration,
@@ -237,12 +236,6 @@ export default function NotificationsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // 当前登录人（2026-11-04 误读实录）：操作历史弹窗标注「这是谁的操作记录」——
-  // 用户把资源行里的投标供应商名（四川水发建设有限公司）误读成"看到了建设公司的
-  // 数据"；弹窗标明登录人+所属公司后，记录归属一目了然（仅本人数据，见 my-activities 隔离）
-  const [me, setMe] = useState<{ displayName: string; username: string; company?: string | null } | null>(null);
-  useEffect(() => { fetchCurrentUser().then(setMe).catch(() => {}); }, []);
-
   // 打开已办查看窗时拉取相关操作记录（同类型、时间晚于通知）
   const openDetail = useCallback((n: NotificationItem) => {
     setDetail(n);
@@ -437,9 +430,6 @@ export default function NotificationsPage() {
 
       {/* ═══ 操作历史（标题栏右上角） ═══ */}
       <Modal open={historyOpen} onClose={() => setHistoryOpen(false)} title="操作历史"
-        description={me
-          ? `${me.displayName}（${me.company ?? '未归属公司'}）的业务操作记录——仅本账号数据，登录/登出等会话动作不在此列`
-          : '我在本系统的业务操作记录（登录/登出等会话动作不在此列）'}
         footer={<button className="neu-btn-soft" onClick={() => setHistoryOpen(false)}>关闭</button>}>
         <div className="max-h-[60vh] overflow-y-auto pr-1">
           {(() => {
