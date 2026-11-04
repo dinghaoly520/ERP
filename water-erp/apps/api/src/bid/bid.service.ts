@@ -327,7 +327,9 @@ export class BidService {
 
   /** 公司隔离：web 等门户的内部角色（非 admin）仅看本公司项目；
    *  bid 门户（:3007）沿用"仅看指派"语义，不叠加公司过滤；admin 全量。 */
-  private async companyFilterFor(actor?: { id: string; role: string }, portal?: string): Promise<Record<string, unknown>> {
+  private async companyFilterFor(actor?: { id: string; role: string }, portal?: string, portalSource?: string): Promise<Record<string, unknown>> {
+    // :3011 总数据（2026-11-04 门户级）：开评标进行时卡走全库，不随登录人公司收窄
+    if (portalSource === 'mobile-3011') return {};
     if (portal === 'bid' || !actor || actor.role === 'admin') return {};
     if (!['leader', 'staff', 'bid_host'].includes(actor.role)) return {};
     const me = await this.prisma.user.findUnique({ where: { id: actor.id }, select: { companyId: true } });
@@ -345,13 +347,13 @@ export class BidService {
     return { companyId: me?.companyId ?? null, companyName: me?.company ?? null };
   }
 
-  async getProjectsDashboard(actor?: { id: string; role: string }, portal?: string) {
+  async getProjectsDashboard(actor?: { id: string; role: string }, portal?: string, portalSource?: string) {
     // 按 portal 过滤：bid portal 只看派给自己的；web portal 按公司隔离
     // N1（2026-08-28，浏览器验证发现）：admin 豁免主持人过滤——:3007 是 admin 的默认落地
     // 门户（urls.ts role→portal），未被指派为主持人时任务板全空不可用；leader/staff 维持
     // 只看派给自己的（:3005 才是其工作面，:3007 仅现场协同，可经直链进入工作区）。
     const actorFilter = portal === 'bid' && actor && actor.role !== 'admin' ? { assignedHostUserId: actor.id } : {};
-    const companyFilter = await this.companyFilterFor(actor, portal);
+    const companyFilter = await this.companyFilterFor(actor, portal, portalSource);
     const projects = await this.prisma.bidProject.findMany({
       where: { ...actorFilter, ...companyFilter, isExtractionOnly: false },
       orderBy: { createdAt: 'desc' },

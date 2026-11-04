@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
 import { INTERNAL_ROLES } from '../auth/auth-scope';
 import { AlertsService } from './alerts.service';
+import { portalSourceOf } from '../common/portal-source.util';
 
 @ApiTags('告警')
 @ApiCookieAuth('token')
@@ -13,7 +14,7 @@ export class AlertsController {
 
   @Get('overview')
   @ApiOperation({ summary: '仪表盘告警总览（临期资质/过载专家；公司视野+库内四态口径，2026-10-28 收口）' })
-  overview(@Request() req: any = {}) { return this.alerts.overview(req.user); }
+  overview(@Request() req: any = {}) { return this.alerts.overview(req.user, portalSourceOf(req)); }
 
   @Get('supplier/:id')
   @ApiOperation({ summary: '某供应商告警（临期资质）' })

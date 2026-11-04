@@ -1,11 +1,13 @@
-import { Controller, Get, Query, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Query, Req, ForbiddenException } from '@nestjs/common';
 import { ApiOperation } from '@nestjs/swagger';
+import { Request } from 'express';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { canViewGlobalBusinessData, INTERNAL_ROLES } from '../auth/auth-scope';
 import { Roles } from '../common/decorators/roles.decorator';
 import { DashboardService } from './dashboard.service';
 import { CompanyScopeService } from '../company/company-scope';
+import { portalSourceOf } from '../common/portal-source.util';
 
 @Controller('dashboard')
 @Roles(...INTERNAL_ROLES)
@@ -18,6 +20,7 @@ export class DashboardController {
   @Get()
   async getDashboard(
     @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('companyId') companyId?: string, // 仅 admin 生效：切换查看单公司
@@ -26,7 +29,7 @@ export class DashboardController {
     if (!canViewGlobalBusinessData(user.role)) {
       throw new ForbiddenException('普通账号无法查看数据库页面。');
     }
-    const scope = await this.companyScope.resolveScope(user, companyId);
+    const scope = await this.companyScope.resolveScope(user, companyId, portalSourceOf(req));
     return this.dashboardService.getDashboard(
       startDate,
       endDate,
@@ -39,12 +42,13 @@ export class DashboardController {
   @ApiOperation({ summary: ':3011 Tab 角标（异常/待处理/停滞）' })
   async getBadges(
     @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
     @Query('companyId') companyId?: string,
   ) {
     if (!canViewGlobalBusinessData(user.role)) {
       throw new ForbiddenException('普通账号无法查看数据库页面。');
     }
-    const scope = await this.companyScope.resolveScope(user, companyId);
+    const scope = await this.companyScope.resolveScope(user, companyId, portalSourceOf(req));
     return this.dashboardService.getBadges(this.companyScope.filter(scope));
   }
 

@@ -3,6 +3,7 @@ import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiCookieAuth, ApiConsumes } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { BidService } from './bid.service';
+import { portalSourceOf } from '../common/portal-source.util';
 import { BondLedgerService } from './bond-ledger.service';
 import { BidBondService } from './bid-bond.service';
 import { BidEvaluationResultsService } from './bid-evaluation-results.service';
@@ -101,7 +102,7 @@ export class BidController {
   ) {
     const actor = userId && req?.user?.role ? { id: userId, role: req.user.role } : undefined;
     const portal = portalFromRequest(req);
-    return this.bidService.getProjectsDashboard(actor, portal);
+    return this.bidService.getProjectsDashboard(actor, portal, portalSourceOf(req));
   }
 
   @Get('hosts')

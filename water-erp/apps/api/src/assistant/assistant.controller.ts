@@ -2,6 +2,7 @@ import { Controller, Get, Post, Delete, Body, Param, Req } from '@nestjs/common'
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Request } from 'express';
 import { OptionalAuth } from '../common/decorators/optional-auth.decorator';
+import { portalSourceOf } from '../common/portal-source.util';
 import { AssistantService, AssistantOwner } from './assistant.service';
 import { ChatDto } from './dto/chat.dto';
 
@@ -34,8 +35,8 @@ export class AssistantController {
   @ApiOperation({ summary: '发送对话消息' })
   async chat(@Body() dto: ChatDto, @Req() req: Request) {
     /* :3011 来源头透传（评审 F1）：代理注入的 x-portal-source 服务端判定总数据口径，
-     * body 自报 portal 已弃用 */
-    return this.assistantService.chat(dto, this.ownerFrom(req), req.headers['x-portal-source']);
+     * body 自报 portal 已弃用；portalSourceOf 归一 string[] 取首段 */
+    return this.assistantService.chat(dto, this.ownerFrom(req), portalSourceOf(req));
   }
 
   @Get('conversations')

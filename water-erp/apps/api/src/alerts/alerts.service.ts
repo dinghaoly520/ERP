@@ -15,8 +15,9 @@ export class AlertsService {
    *  口径收口（2026-10-28）：与供应商总览/资质预警同口径——临期资质=库内四态
    *  （APPROVED/DISABLED/BLACKLIST）+ 公司视野；过载专家按专家归属公司过滤
    *  （专家库 2026-09-24 已公司隔离，总览不得跨视野计数）。 */
-  async overview(actor?: AuthenticatedUser) {
-    const scope = actor ? await this.companyScope.resolveScope(actor) : null;
+  async overview(actor?: AuthenticatedUser, portalSource?: string) {
+    /* :3011 总数据（2026-11-04 门户级）：资源告警卡随门户视野走全库 */
+    const scope = actor ? await this.companyScope.resolveScope(actor, undefined, portalSource) : null;
     const ids = scope ? scopeCompanyIds(scope) : null;
     const horizon = new Date(Date.now() + 90 * 86400000);
     const expiringQualifications = await this.prisma.supplierQualification.count({

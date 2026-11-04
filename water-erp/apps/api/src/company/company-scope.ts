@@ -38,11 +38,25 @@ export type CompanyWhere = { companyId?: string | { in: string[] } };
 export class CompanyScopeService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** 解析当前请求的公司视野（admin 支持 ?companyId= 逗号多选） */
+  /**
+   * 解析当前请求的公司视野（admin 支持 ?companyId= 逗号多选）。
+   * portalSource（2026-11-04，:3011 总数据裁定扩到门户全页面）：来源头
+   * `x-portal-source: mobile-3011` 由 :3011 代理注入（浏览器 JS 不可伪造）——
+   * 内部角色（leader/staff/bid_host）无显式公司筛选时放开为全库视野；
+   * :3005/:3008 不带头维持公司隔离。admin 分支不受影响（本就全库+选择器）。
+   */
   async resolveScope(
     user: AuthenticatedUser | undefined,
     requestedCompanyId?: string,
+    portalSource?: string,
   ): Promise<CompanyScope> {
+    if (
+      portalSource === 'mobile-3011' &&
+      user &&
+      ['leader', 'staff', 'bid_host'].includes(user.role)
+    ) {
+      return { all: true };
+    }
     if (user?.role === 'admin') {
       const requested = (requestedCompanyId ?? '')
         .split(',')

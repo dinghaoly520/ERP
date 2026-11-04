@@ -80,8 +80,12 @@ export class MobileBriefService {
     startDate?: string,
     endDate?: string,
     rangeKey?: string,
+    portalSource?: string,
   ): Promise<MobileBriefResult> {
-    const scope = await this.companyScope.resolveScope(user, companyId);
+    /* :3011 总数据（2026-11-04 门户级落地）：来源头穿参，leader/staff 无显式
+     * 公司筛选时全库口径（与页面 /dashboard 同视野——否则要报说设计院 0 轮、
+     * 数据库页却全库，同设备自相矛盾） */
+    const scope = await this.companyScope.resolveScope(user, companyId, portalSource);
     const filter = this.companyScope.filter(scope);
     const now = new Date();
     const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;

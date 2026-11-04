@@ -13,6 +13,7 @@ import { ShareShortlistDto } from './dto/share-shortlist.dto';
 import { DashboardAnalysisDto } from './dto/dashboard-analysis.dto';
 import { MobileGreetingService } from './mobile-greeting.service';
 import { MobileBriefService } from './mobile-brief.service';
+import { portalSourceOf } from '../common/portal-source.util';
 import { ProcurementAnalysisDto } from './dto/procurement-analysis.dto';
 import { TenderFieldGenerateDto } from './dto/tender-field-generate.dto';
 import { ReferenceBudgetDto } from './dto/reference-budget.dto';
@@ -46,6 +47,7 @@ export class AiController {
   @Roles('admin', 'leader', 'staff')
   getMobileBrief(
     @CurrentUser() user: AuthenticatedUser,
+    @Request() req: any = {},
     @Query('companyId') companyId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
@@ -62,7 +64,7 @@ export class AiController {
     };
     assertValidDate('startDate', startDate);
     assertValidDate('endDate', endDate);
-    return this.mobileBrief.getBrief(user, companyId, startDate, endDate, rangeKey);
+    return this.mobileBrief.getBrief(user, companyId, startDate, endDate, rangeKey, portalSourceOf(req));
   }
 
   @Get('projects/:projectId/analyze/:supplierId')

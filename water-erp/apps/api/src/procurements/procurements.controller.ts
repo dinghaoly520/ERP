@@ -7,10 +7,12 @@ import {
   Query,
   Param,
   Body,
+  Req,
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
 import { ResultStatus } from '@prisma/client';
+import { Request } from 'express';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
@@ -20,6 +22,7 @@ import { UpdateProcurementRoundDto } from './dto/update-procurement-round.dto';
 import { QueryProcurementsDto } from './dto/query-procurements.dto';
 import { CompanyScopeService } from '../company/company-scope';
 import { canViewGlobalBusinessData } from '../auth/auth-scope';
+import { portalSourceOf } from '../common/portal-source.util';
 
 @Controller('procurements')
 export class ProcurementsController {
@@ -34,11 +37,12 @@ export class ProcurementsController {
     @Query() query: QueryProcurementsDto,
     @Query('companyId') companyId: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
+    @Req() req?: Request,
   ) {
     if (!canViewGlobalBusinessData(user.role)) {
       throw new ForbiddenException('普通账号无法查看采购台账。');
     }
-    const scope = await this.companyScope.resolveScope(user, companyId);
+    const scope = await this.companyScope.resolveScope(user, companyId, portalSourceOf(req));
     return this.procurementsService.findAll(query, user, this.companyScope.filter(scope));
   }
 
@@ -68,6 +72,7 @@ export class ProcurementsController {
     @Query('resultStatus') resultStatus?: string,
     @Query('abnormalOnly') abnormalOnly?: string,
     @CurrentUser() user?: AuthenticatedUser,
+    @Req() req?: Request,
   ) {
     if (!canViewGlobalBusinessData(user?.role ?? '')) {
       throw new ForbiddenException('普通账号无法查看采购台账。');
@@ -77,7 +82,7 @@ export class ProcurementsController {
     if (resultStatus != null && resultStatus !== '' && !Object.values(ResultStatus).includes(resultStatus as ResultStatus)) {
       throw new BadRequestException('无效的结果状态筛选值');
     }
-    const scope = await this.companyScope.resolveScope(user, companyId);
+    const scope = await this.companyScope.resolveScope(user, companyId, portalSourceOf(req));
     // 汇总与列表同参（P1-2 口径漂移修复，2026-11-03；方式筛选 2026-11-03 评审 F3 补齐）
     return this.procurementsService.getStats(startDate, endDate, user, this.companyScope.filter(scope), {
       searchKeyword,

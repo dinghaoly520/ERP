@@ -23,6 +23,26 @@ describe('CompanyScopeService 多选扩展（2026-10-14）', () => {
     } as never;
   }
 
+  // :3011 总数据（2026-11-04 门户级落地）：来源头 mobile-3011 + 内部角色 → 全库视野
+  it('mobile-3011 来源头：leader/staff/bid_host 放开为全库（无显式公司筛选）', async () => {
+    const svc = new CompanyScopeService(mk([]));
+    for (const role of ['leader', 'staff', 'bid_host']) {
+      const who = { sub: 'u-1', username: 'x', role } as never;
+      expect(await svc.resolveScope(who, undefined, 'mobile-3011')).toEqual({ all: true });
+      // 传参忽略语义保留（移动端无公司选择器，传参视为噪声）
+      expect(await svc.resolveScope(who, 'co-a', 'mobile-3011')).toEqual({ all: true });
+    }
+  });
+
+  it('mobile-3011 来源头：admin 不受影响（走选择器分支）、外部角色不放开、其余来源头维持隔离', async () => {
+    const svc = new CompanyScopeService(mk(['co-a']));
+    expect(await svc.resolveScope(admin, undefined, 'mobile-3011')).toEqual({ all: true }); // admin 本就全库
+    const supplier = { sub: 'u-2', username: 's', role: 'supplier' } as never;
+    expect((await svc.resolveScope(supplier, undefined, 'mobile-3011')).all).toBe(false); // 外部角色不放开
+    expect((await svc.resolveScope(leader, undefined, undefined)).all).toBe(false); // 无头=隔离
+    expect((await svc.resolveScope(leader, undefined, 'web')).all).toBe(false); // 其他来源=隔离
+  });
+
   it('admin 逗号多选：全有效 → 顺序保持的有效集', async () => {
     const svc = new CompanyScopeService(mk(['co-a', 'co-b', 'co-c']));
     const scope = await svc.resolveScope(admin, 'co-c,co-a,co-b,co-a');
