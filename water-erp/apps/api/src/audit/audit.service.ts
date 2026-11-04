@@ -151,7 +151,7 @@ export class AuditService {
         : {}),
     };
 
-    const [items, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.auditLog.findMany({
         where,
         orderBy: { createdAt: 'desc' },
@@ -161,7 +161,54 @@ export class AuditService {
       this.prisma.auditLog.count({ where }),
     ]);
 
-    return { items, total };
+    return { items: await this.withResourceNames(rows), total };
+  }
+
+  /**
+   * 操作历史资源可读化（2026-11-04 用户口径）：resourceType 里塞的 `BidProject:<cuid>`
+   * / `BID-xxx` 编号 / details.projectId 对用户全是黑话——批量解析成投标项目名挂在
+   * resourceName 上，前端不再裸出主键。解析不到的保持 null（前端按原样兜底）。
+   */
+  private async withResourceNames<T extends { resourceType: string | null; details: unknown }>(
+    rows: T[],
+  ): Promise<(T & { resourceName: string | null })[]> {
+    const idSet = new Set<string>();
+    const codeSet = new Set<string>();
+    const collect = (raw: unknown) => {
+      if (typeof raw !== 'string' || !raw) return;
+      const m = /^BidProject:(.+)$/.exec(raw);
+      if (m) { idSet.add(m[1]); return; }
+      if (/^BID-\d+$/.test(raw)) codeSet.add(raw);
+    };
+    for (const r of rows) {
+      collect(r.resourceType);
+      const d = r.details as Record<string, unknown> | null;
+      if (d && typeof d.projectId === 'string') idSet.add(d.projectId);
+    }
+    if (idSet.size === 0 && codeSet.size === 0) {
+      return rows.map(r => ({ ...r, resourceName: null }));
+    }
+    const projects = await this.prisma.bidProject.findMany({
+      where: {
+        OR: [
+          ...(idSet.size ? [{ id: { in: [...idSet] } }] : []),
+          ...(codeSet.size ? [{ projectCode: { in: [...codeSet] } }] : []),
+        ],
+      },
+      select: { id: true, projectCode: true, name: true },
+    });
+    const byId = new Map(projects.map(p => [p.id, p.name]));
+    const byCode = new Map(projects.filter(p => p.projectCode).map(p => [p.projectCode as string, p.name]));
+    return rows.map(r => {
+      const m = r.resourceType ? /^BidProject:(.+)$/.exec(r.resourceType) : null;
+      const d = r.details as Record<string, unknown> | null;
+      const name =
+        (m && byId.get(m[1])) ||
+        (d && typeof d.projectId === 'string' ? byId.get(d.projectId) : undefined) ||
+        (r.resourceType ? byCode.get(r.resourceType) : undefined) ||
+        null;
+      return { ...r, resourceName: name ?? null };
+    });
   }
 
   /** P1-12：保留期参数化——AUDIT_LOG_RETENTION_DAYS 默认 5475（15 年，办法第42条）。低频业务动作表体量小，直接留 PG。 */

@@ -129,6 +129,39 @@ const ACTION_LABEL: Record<string, string> = {
 /** 会话/心跳类动作——操作历史不展示（淹没业务动作的噪音） */
 const NOISE_ACTIONS = new Set(['LOGIN', 'LOGOUT']);
 
+/** 操作历史资源描述行（2026-11-04 用户口径）：优先后端解析的项目名（resourceName），
+ *  其次 details 里的业务对象名（供应商名/邀请家数），最后才退回 resourceType 原文——
+ *  `BidProject:<cuid>` 主键形态对用户是黑话，压成「投标项目」类目词兜底，不再裸出。 */
+function activityResourceLine(a: AuditActivity): string | null {
+  const d = a.details ?? {};
+  const parts: string[] = [];
+  if (a.resourceName) parts.push(a.resourceName);
+  if (typeof d.supplierName === 'string' && d.supplierName) parts.push(d.supplierName);
+  if (typeof d.added === 'number') parts.push(`新邀 ${d.added} 家`);
+  if (parts.length > 0) return parts.join(' · ');
+  const rt = a.resourceType;
+  if (!rt) return null;
+  if (/^BidProject:/.test(rt)) return '投标项目';
+  return rt;
+}
+
+/** 连发折叠（2026-11-04）：同一动作+同一资源 2 分钟内连发多行（双击重放，实测对间隔
+ *  ~0.6s 的成对澄清记录）只显示一行并带 ×N 计数——审计底账不动，纯展示层聚合。 */
+function groupActivities(acts: AuditActivity[]): AuditActivity[][] {
+  const groups: AuditActivity[][] = [];
+  for (const a of acts) {
+    const last = groups[groups.length - 1];
+    const head = last?.[0];
+    const gap = head ? new Date(head.createdAt).getTime() - new Date(a.createdAt).getTime() : Infinity;
+    if (
+      head && gap <= 120_000 &&
+      head.action === a.action && head.resourceType === a.resourceType && head.resourceId === a.resourceId
+    ) last.push(a);
+    else groups.push([a]);
+  }
+  return groups;
+}
+
 function fmt(dt: string | null | undefined) {
   if (!dt) return '—';
   const d = new Date(dt);
@@ -358,14 +391,16 @@ export default function NotificationsPage() {
         description="我在本系统的业务操作记录（登录/登出等会话动作不在此列）"
         footer={<button className="neu-btn-soft" onClick={() => setHistoryOpen(false)}>关闭</button>}>
         <div className="max-h-[60vh] overflow-y-auto pr-1">
-          {activities.filter(a => !NOISE_ACTIONS.has(a.action)).length === 0 ? (
+          {groupActivities(activities.filter(a => !NOISE_ACTIONS.has(a.action))).length === 0 ? (
             <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">暂无操作记录</p>
           ) : (
             <div className="space-y-2">
-              {activities.filter(a => !NOISE_ACTIONS.has(a.action)).map(a => {
+              {groupActivities(activities.filter(a => !NOISE_ACTIONS.has(a.action))).map(group => {
+                const a = group[0];
                 const label = ACTION_LABEL[a.action];
                 const isApprove = label?.includes('通过');
                 const isReject = label?.includes('拒绝') || label?.includes('退回');
+                const resource = activityResourceLine(a);
                 return (
                   <div key={a.id} className="flex items-start gap-3 rounded-xl bg-[color-mix(in_oklch,var(--muted-foreground)_5%,transparent)] px-4 py-3">
                     <Clock size={13} className="mt-1 shrink-0 text-[var(--muted-foreground)]" />
@@ -377,11 +412,15 @@ export default function NotificationsPage() {
                           : 'bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)] text-[var(--muted-foreground)]'}`}>
                           {label ?? a.action}
                         </span>
+                        {group.length > 1 && (
+                          <span
+                            className="inline-flex items-center rounded-[6px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--accent)]"
+                            title={`2 分钟内连发 ${group.length} 次（重复提交），已折叠显示`}>
+                            ×{group.length}
+                          </span>
+                        )}
                       </p>
-                      <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
-                        {a.resourceType}
-                        {a.resourceId && a.resourceId !== '—' ? ` · ${a.resourceId}` : ''}
-                      </p>
+                      {resource && <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--muted-foreground)]">{resource}</p>}
                       <p className="mt-0.5 text-[10px] tabular-nums text-[var(--muted-foreground)]/60">{fmt(a.createdAt)}</p>
                     </div>
                   </div>
@@ -414,11 +453,14 @@ function ViewBody({ n, acts }: { n: NotificationItem; acts: AuditActivity[] }) {
             处理时间：{n.resolvedAt ? fmt(n.resolvedAt) : n.readAt ? `${fmt(n.readAt)}（标记已阅）` : '—'}
           </p>
           {acts.length > 0 ? (
-            acts.map(a => (
-              <p key={a.id} className="pl-[19px] text-[11.5px] leading-relaxed text-[var(--muted-foreground)]">
-                处理结果：{ACTION_LABEL[a.action] ?? a.action}{a.resourceId ? `（${a.resourceId}）` : ''} · {fmt(a.createdAt)}
-              </p>
-            ))
+            acts.map(a => {
+              const resource = activityResourceLine(a);
+              return (
+                <p key={a.id} className="pl-[19px] text-[11.5px] leading-relaxed text-[var(--muted-foreground)]">
+                  处理结果：{ACTION_LABEL[a.action] ?? a.action}{resource ? `（${resource}）` : ''} · {fmt(a.createdAt)}
+                </p>
+              );
+            })
           ) : (
             <p className="pl-[19px] text-[11.5px] text-[var(--muted-foreground)]">处理结果：未找到留痕记录（早期操作或无需审批动作）</p>
           )}

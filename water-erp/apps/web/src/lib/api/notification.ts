@@ -45,7 +45,9 @@ export interface AuditActivity {
   action: string;
   resourceType: string;
   resourceId: string | null;
-  details: unknown;
+  details: Record<string, unknown> | null;
+  /** 资源可读名（2026-11-04）：后端把 BidProject:<id>/BID-xxx/details.projectId 批量解析成项目名 */
+  resourceName?: string | null;
   createdAt: string;
 }
 
