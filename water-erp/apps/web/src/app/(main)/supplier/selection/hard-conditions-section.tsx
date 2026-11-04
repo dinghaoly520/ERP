@@ -205,11 +205,11 @@ export function HardConditionsSection({ vocab, value, onChange }: {
             <span className="text-xs text-[var(--foreground)]">近</span>
             <input type="number" min={1} max={10} value={value.performance?.years ?? ''}
               onChange={(e) => onChange({ ...value, performance: { ...value.performance, years: e.target.value ? Number(e.target.value) : undefined } })}
-              className="workbench-input !w-[48px] !h-7 !text-xs text-center" placeholder="年限" />
+              className="workbench-input !w-[80px] !h-7 !text-xs text-center" placeholder="年限" />
             <span className="text-xs text-[var(--foreground)]">年，至少</span>
             <input type="number" min={1} max={99} value={value.performance?.minCount ?? ''}
               onChange={(e) => onChange({ ...value, performance: { ...value.performance, minCount: e.target.value ? Number(e.target.value) : undefined } })}
-              className="workbench-input !w-[48px] !h-7 !text-xs text-center" placeholder="数量" />
+              className="workbench-input !w-[80px] !h-7 !text-xs text-center" placeholder="数量" />
             <span className="text-xs text-[var(--foreground)]">项同类业绩</span>
             <span className="text-[10px] text-[var(--muted-foreground)]">留空即不限</span>
           </div>
