@@ -22,12 +22,14 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { Modal } from "@/components/workbench";
+import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
 import { fetchCurrentUser, type AuthRole } from "@/lib/api/auth";
 import { RegistrationReviewPanel } from "@/components/admin/registration-review-panel";
 import { UnitSearchSelect } from "@/components/login/unit-search-select";
 import { PasswordRequestsPanel } from "@/components/admin/password-requests-panel";
 import { CompaniesModal } from "@/components/admin/companies-modal";
+import { SupplierCompanyMultiSelect } from "@/components/admin/supplier-company-multi-select";
 import { ROLE_LABELS } from "@/lib/role-labels";
 import {
   createAccount,
@@ -43,7 +45,7 @@ import {
   resetAccountPassword,
   unfreezeAccount,
   updateAccount,
-  updateSupplierCompany,
+  updateSupplierCompanies,
   type AdminAccount,
   type CompanyOption,
   type LoginIpEntry,
@@ -270,19 +272,22 @@ export function AccountManagementPanel() {
     }
   };
 
-  const changeSupplierCompany = async (id: string, companyId: string) => {
+  // 归属公司多选保存（2026-11-04）：替换集提交 → 本地行更新 + sonner toast（自动消失，
+  // 不再进长留的 actionMessage 横幅）；错误同样走 toast，不打断浏览
+  const saveSupplierCompanies = async (id: string, companyIds: string[]) => {
     try {
-      await updateSupplierCompany(id, companyId);
+      const r = await updateSupplierCompanies(id, companyIds);
       setSuppliers((prev) =>
         prev.map((s) =>
           s.id === id && s.supplier
-            ? { ...s, supplier: { ...s.supplier, companyId, companyName: companies.find((c) => c.id === companyId)?.name ?? null } }
+            ? { ...s, supplier: { ...s.supplier, companies: r.companies, companyId: r.companyId, companyName: r.companyName } }
             : s,
         ),
       );
-      setActionMessage("归属公司已调整。");
+      toast.success("归属公司已调整");
     } catch (error) {
-      setErrorMessage(friendlyError(error, "调整归属公司失败。"));
+      toast.error(friendlyError(error, "调整归属公司失败。"));
+      throw error; // 让组件停在展开态（不静默关闭）
     }
   };
 
@@ -664,17 +669,11 @@ export function AccountManagementPanel() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <select
-                          value={s.supplier?.companyId ?? ""}
-                          onChange={(e) => void changeSupplierCompany(s.id, e.target.value)}
-                          className="h-8 w-full rounded-[10px] border border-white/60 bg-white/70 px-2 text-xs text-[color:var(--foreground)]"
-                          aria-label="调整归属公司"
-                        >
-                          <option value="" disabled>未归属</option>
-                          {companies.map((c) => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                          ))}
-                        </select>
+                        <SupplierCompanyMultiSelect
+                          companies={companies}
+                          selectedIds={s.supplier?.companies?.map((c) => c.id) ?? (s.supplier?.companyId ? [s.supplier.companyId] : [])}
+                          onSave={(ids) => saveSupplierCompanies(s.id, ids)}
+                        />
                       </td>
                       <td className="px-4 py-3 text-center">
                         {s.lastLogin?.ip ? (

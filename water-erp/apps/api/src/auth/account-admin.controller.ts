@@ -1,7 +1,7 @@
 import { Body, BadRequestException, ConflictException, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { IsIn, IsNotEmpty, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import { IsArray, IsIn, IsNotEmpty, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
 import { hashSync } from 'bcryptjs';
 import { sealPii, openPiiForMask, blindIndexPii } from '../common/crypto/sm-field-crypto';
 import { maskPhone, maskEmail } from '../common/pii-mask';
@@ -11,6 +11,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from './current-user.decorator';
 import type { AuthenticatedUser } from './auth.types';
 import { AUTHENTICATED_ROLES, INTERNAL_ROLES } from './auth-scope';
+import { planSupplierCompanySync } from './supplier-company-sync.util';
 
 /**
  * 管理员「账号管理」（:3005 系统管理，2026-08-21）：
@@ -22,6 +23,8 @@ import { AUTHENTICATED_ROLES, INTERNAL_ROLES } from './auth-scope';
  *
  * 2026-09-14 扩展：供应商账号纳入只读视图（按公司分组）——列表 / 密码查看
  * （passwordVault AES 解密+审计留痕）/ 归属公司调整；密码修改仍归供应商门户自助。
+ * 2026-11-04 归属公司多选：归属=APPROVED SupplierCompanyLink 集合（与 :3004 隔离
+ * 引擎同口径），多选保存=替换集（直批/移出），Supplier.companyId 快照同步主归属。
  */
 
 class CreateAccountDto {
@@ -50,8 +53,8 @@ class ResetPasswordDto {
 }
 
 class SupplierCompanyDto {
-  @IsString() @IsNotEmpty() // Company 主数据 id 为自定义短 id（co-swhi-*），非 UUID；存在性由 findUnique 兜底
-  companyId: string;
+  @IsArray() @IsString({ each: true }) // Company 主数据 id 为自定义短 id（co-swhi-*），非 UUID；存在性由 findMany 兜底
+  companyIds: string[]; // 2026-11-04 多归属：替换集语义（空数组=全部移出）
 }
 
 /** 账号 PII 出口掩码（等保+密评）：列表/建号/改号返回一律掩码；明文走揭示类流程 */
@@ -145,6 +148,8 @@ export class AccountAdminController {
             isTemporary: true,
             companyId: true,
             companyName: true,
+            // 2026-11-04 多归属：APPROVED 链接集合（归属中公司），非 APPROVED 不入
+            companyLinks: { select: { status: true, company: { select: { id: true, name: true } } } },
           },
         },
       },
@@ -162,7 +167,13 @@ export class AccountAdminController {
         lastLoginMap.set(log.userId, { ip: log.ipAddress, at: log.createdAt.toISOString() });
       }
     }
-    return users.map((u) => ({ ...u, lastLogin: lastLoginMap.get(u.id) ?? null }));
+    return users.map((u) => {
+      const { companyLinks, ...supplier } = u.supplier ?? ({} as NonNullable<typeof u.supplier>);
+      const companies = (companyLinks ?? [])
+        .filter((l) => l.status === 'APPROVED')
+        .map((l) => l.company);
+      return { ...u, supplier: supplier.name ? { ...supplier, companies } : null, lastLogin: lastLoginMap.get(u.id) ?? null };
+    });
   }
 
   /** 单账号登录过的全部 IP（去重聚合 + 首末次时间）——「查看全部 IP」弹窗数据源 */
@@ -264,25 +275,81 @@ export class AccountAdminController {
   }
 
   @Patch(':id/supplier-company')
-  @ApiOperation({ summary: '调整供应商账号的归属公司（账号管理分组）' })
-  async updateSupplierCompany(@Param('id') id: string, @Body() dto: SupplierCompanyDto) {
+  @ApiOperation({ summary: '调整供应商账号的归属公司（多选替换集；APPROVED 链接 + 主归属快照同步）' })
+  async updateSupplierCompany(
+    @Param('id') id: string,
+    @Body() dto: SupplierCompanyDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     const account = await this.prisma.user.findUnique({
       where: { id },
-      select: { id: true, supplier: { select: { id: true } } },
+      select: { id: true, supplier: { select: { id: true, name: true, companyId: true } } },
     });
     if (!account?.supplier) {
       throw new BadRequestException({ error: '该账号不是供应商账号', code: 'NOT_SUPPLIER' });
     }
-    const company = await this.prisma.company.findUnique({
-      where: { id: dto.companyId },
+    const supplier = account.supplier;
+    const target = [...new Set(dto.companyIds)];
+    // 替换集规划：授予差集直批 APPROVED（覆盖待审/停用/驳回）、目标外 APPROVED 移出
+    const links = await this.prisma.supplierCompanyLink.findMany({
+      where: { supplierId: supplier.id },
+      select: { id: true, companyId: true, status: true },
+    });
+    // 公司名取「目标 ∪ 既有链接」并集——被移除公司也要有可读名（审计用）
+    const companies = await this.prisma.company.findMany({
+      where: { id: { in: [...new Set([...target, ...links.map((l) => l.companyId)])] } },
       select: { id: true, name: true },
     });
-    if (!company) throw new BadRequestException({ error: '公司不存在', code: 'COMPANY_NOT_FOUND' });
-    return this.prisma.supplier.update({
-      where: { id: account.supplier.id },
-      data: { companyId: company.id, companyName: company.name },
-      select: { companyId: true, companyName: true },
-    });
+    const foundIds = new Set(companies.map((c) => c.id));
+    if (target.some((id) => !foundIds.has(id))) {
+      throw new BadRequestException({ error: '公司不存在', code: 'COMPANY_NOT_FOUND' });
+    }
+    const plan = planSupplierCompanySync(links, supplier.companyId, target);
+    const nameOf = new Map(companies.map((c) => [c.id, c.name]));
+    const nextPrimary = plan.nextPrimaryId ? { id: plan.nextPrimaryId, name: nameOf.get(plan.nextPrimaryId)! } : null;
+    const now = new Date();
+    await this.prisma.$transaction([
+      ...plan.grantCompanyIds.map((companyId) =>
+        this.prisma.supplierCompanyLink.upsert({
+          where: { supplierId_companyId: { supplierId: supplier.id, companyId } },
+          create: {
+            supplierId: supplier.id, companyId, status: 'APPROVED', reviewStage: null,
+            appliedAt: now, reviewedById: user.sub, reviewedAt: now,
+          },
+          update: { status: 'APPROVED', reviewStage: null, rejectReason: null, reviewedById: user.sub, reviewedAt: now },
+          select: { id: true },
+        }),
+      ),
+      ...plan.removeLinkIds.map((linkId) => this.prisma.supplierCompanyLink.delete({ where: { id: linkId } })),
+      this.prisma.supplier.update({
+        where: { id: supplier.id },
+        data: { companyId: nextPrimary?.id ?? null, companyName: nextPrimary?.name ?? null },
+        select: { id: true },
+      }),
+    ]);
+    // 审计留痕（失败不阻断，与查看密码同款兜底）
+    try {
+      await this.prisma.auditLog.create({
+        data: {
+          userId: user.sub,
+          action: '调整供应商归属公司',
+          resourceType: 'Supplier',
+          resourceId: supplier.id,
+          details: {
+            supplier: supplier.name,
+            added: plan.grantCompanyIds.map((cid) => nameOf.get(cid) ?? cid),
+            removed: links
+              .filter((l) => plan.removeLinkIds.includes(l.id))
+              .map((l) => nameOf.get(l.companyId) ?? l.companyId),
+            primary: nextPrimary?.name ?? null,
+          },
+        },
+      });
+    } catch {
+      // 审计失败不阻断归属调整
+    }
+    const resultCompanies = companies.filter((c) => target.includes(c.id));
+    return { companies: resultCompanies, companyId: nextPrimary?.id ?? null, companyName: nextPrimary?.name ?? null };
   }
 
   @Post()

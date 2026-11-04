@@ -79,6 +79,8 @@ export type SupplierAccount = {
     isTemporary: boolean;
     companyId: string | null;
     companyName: string | null;
+    /** 归属中的公司（APPROVED SupplierCompanyLink，2026-11-04 多归属）；companyId/companyName 为主归属快照 */
+    companies: CompanyOption[];
   } | null;
   lastLogin: LastLogin;
 };
@@ -113,8 +115,13 @@ export function revealAccountPassword(id: string) {
   );
 }
 
-export function updateSupplierCompany(id: string, companyId: string) {
-  return api.patch(`/auth/admin/accounts/${id}/supplier-company`, { companyId });
+/** 调整供应商归属公司（多选替换集，2026-11-04）：勾选=直批 APPROVED、取消=移出；
+ *  返回归属中公司集合与主归属快照 */
+export function updateSupplierCompanies(id: string, companyIds: string[]) {
+  return api.patch<{ companies: CompanyOption[]; companyId: string | null; companyName: string | null }>(
+    `/auth/admin/accounts/${id}/supplier-company`,
+    { companyIds },
+  );
 }
 
 // ── 2026-09-28 登录 IP 存证（账号管理）──
