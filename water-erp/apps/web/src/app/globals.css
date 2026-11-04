@@ -8351,7 +8351,8 @@ a {
 }
 .asst-card-table-body th {
   padding: 7px 10px;
-  text-align: left;
+  /* 列居中（2026-11-04 用户裁定） */
+  text-align: center;
   font-weight: 600;
   color: var(--muted-foreground);
   font-size: 11px;
@@ -8362,9 +8363,10 @@ a {
   padding: 6px 10px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.03);
   color: var(--foreground);
+  text-align: center;
 }
 .asst-card-table-body .asst-td-num {
-  text-align: right;
+  text-align: center;
   font-variant-numeric: tabular-nums;
 }
 .asst-card-table-body .asst-row-total {

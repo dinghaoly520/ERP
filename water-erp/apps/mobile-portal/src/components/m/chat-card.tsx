@@ -86,14 +86,15 @@ function TableCard({ card }: { card: ChatCard }) {
       <div className="overflow-x-auto px-3 pb-2.5 pt-1.5">
         <table className="w-full text-[12px]">
           <thead>
-            <tr className="text-left text-[var(--muted-foreground)]">
+            {/* 列居中（2026-11-04 用户裁定） */}
+            <tr className="text-center text-[var(--muted-foreground)]">
               {cols.map((c) => <th key={c.key} className="whitespace-nowrap py-1 pr-3 font-semibold">{c.label}</th>)}
             </tr>
           </thead>
           <tbody className="tabular-nums text-[var(--foreground)]">
             {shownRows.map((r, i) => (
               <tr key={i} className="border-t border-[color-mix(in_oklch,var(--border)_45%,transparent)]">
-                {cols.map((c) => <td key={c.key} className="max-w-[10rem] whitespace-nowrap py-1 pr-3">{String(r[c.key] ?? "")}</td>)}
+                {cols.map((c) => <td key={c.key} className="max-w-[10rem] whitespace-nowrap py-1 pr-3 text-center">{String(r[c.key] ?? "")}</td>)}
               </tr>
             ))}
           </tbody>

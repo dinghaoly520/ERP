@@ -205,7 +205,8 @@
   font-size: 11px;
   font-weight: 600;
   color: var(--text-muted);
-  text-align: left;
+  /* 列居中（2026-11-04 用户裁定）：表头与单元格统一居中 */
+  text-align: center;
   padding: 10px 20px;
   border-bottom: 1px solid rgba(201, 217, 239, 0.28);
   white-space: nowrap;
@@ -216,7 +217,7 @@
 
 .tableBody th[data-numeric="true"],
 .tableBody td[data-numeric="true"] {
-  text-align: right;
+  text-align: center;
   font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', var(--font-mono), monospace;
   font-variant-numeric: tabular-nums;
 }
@@ -224,6 +225,7 @@
 .tableBody td {
   font-size: 13px;
   color: var(--text-primary);
+  text-align: center;
   padding: 11px 20px;
   border-bottom: 1px solid rgba(201, 217, 239, 0.14);
   white-space: nowrap;
