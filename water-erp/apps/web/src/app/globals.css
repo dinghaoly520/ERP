@@ -9175,8 +9175,8 @@ a {
 .neu-btn-soft.is-warning { color: var(--warning); }
 .neu-btn-primary.is-warning { color: var(--warning); border-color: color-mix(in oklch, var(--warning) 30%, transparent); }
 .neu-btn-soft.is-warning:hover { background: oklch(0.95 0.05 83 / 0.5); }
-.neu-btn-soft.is-primary { color: var(--neu-brand-deep); background: color-mix(in oklch, var(--neu-brand) 10%, oklch(1 0 0)); }
-.neu-btn-soft.is-primary:hover { background: color-mix(in oklch, var(--neu-brand) 15%, oklch(1 0 0)); }
+.neu-btn-soft.is-primary { color: var(--neu-brand-deep); background: oklch(1 0 0); }
+.neu-btn-soft.is-primary:hover { background: color-mix(in oklch, var(--neu-brand) 10%, oklch(1 0 0)); }
 .neu-btn-soft.is-primary:disabled { opacity: 0.5; }
 
 /* 白瓷变体（2026-09-21）：纯白凸起瓷片——返回/导航类次要按钮（返回供应商库/返回专家库）。

@@ -560,7 +560,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
             ) : announcementsError ? (
               <div className="h-[200px] flex flex-col items-center justify-center gap-3 text-[#9aa6b8] text-sm">
                 <span>公告加载失败</span>
-                <button onClick={loadAnnouncements} className="h-9 px-5 bg-[#064ea2] text-white rounded-full text-xs font-semibold hover:bg-[#084fb0] transition-colors">重新加载</button>
+                <button onClick={loadAnnouncements} className="neu-btn-soft">重新加载</button>
               </div>
             ) : (
               <div className="h-[200px] flex items-center justify-center text-[#9aa6b8] text-sm">暂无公告</div>
@@ -658,12 +658,11 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                       onKeyDown={e => e.key === 'Enter' && handleLogin()}
                       className="h-[42px] border border-[#d2deed] rounded px-3 outline-none focus:border-[#0d65c8] focus:shadow-[0_0_0_3px_rgba(13,101,200,.11)]" placeholder="请输入密码" />
                   </label>
-                  <div className="flex gap-3 mt-5">
-                    <button onClick={handleLogin} disabled={logging}
-                      className="h-[42px] px-6 bg-[#064ea2] text-white rounded font-bold text-sm hover:bg-[#043f88] transition-colors">
+                  <div className="neu-btn-group mt-5">
+                    <button onClick={handleLogin} disabled={logging} className="neu-btn-primary">
                       {logging ? '登录中...' : '登 录'}
                     </button>
-                    <button onClick={() => setModal(null)} className="h-[42px] px-6 border border-[#d2deed] text-[#526075] rounded font-bold text-sm hover:bg-[#f8fbff]">取消</button>
+                    <button onClick={() => setModal(null)} className="neu-btn-soft">取消</button>
                   </div>
                 </div>
               </>
@@ -699,12 +698,11 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                     <input type="password" value={regForm.pwd} onChange={e => setRegForm(f => ({ ...f, pwd: e.target.value }))}
                       className="h-[42px] border border-[#d2deed] rounded px-3 outline-none focus:border-[#0d65c8] focus:shadow-[0_0_0_3px_rgba(13,101,200,.11)]" placeholder="不少于6位" />
                   </label>
-                  <div className="flex gap-3 mt-5">
-                    <button onClick={handleRegister} disabled={regLoading}
-                      className="h-[42px] px-6 bg-[#064ea2] text-white rounded font-bold text-sm hover:bg-[#043f88] transition-colors">
+                  <div className="neu-btn-group mt-5">
+                    <button onClick={handleRegister} disabled={regLoading} className="neu-btn-primary">
                       {regLoading ? '提交中...' : '提交注册'}
                     </button>
-                    <button onClick={() => setModal(null)} className="h-[42px] px-6 border border-[#d2deed] text-[#526075] rounded font-bold text-sm hover:bg-[#f8fbff]">取消</button>
+                    <button onClick={() => setModal(null)} className="neu-btn-soft">取消</button>
                   </div>
                 </div>
               </>

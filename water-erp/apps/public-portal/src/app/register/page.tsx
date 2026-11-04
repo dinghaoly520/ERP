@@ -143,10 +143,9 @@ export default function RegisterPage() {
               <textarea value={form.businessScope} onChange={e => update('businessScope', e.target.value)}
                 placeholder="与营业执照一致的经营范围" className="w-full px-3 py-2.5 border border-[oklch(0.91_0.006_264)] rounded-lg text-sm h-20 resize-none focus:border-[#064ea2] outline-none" />
             </div>
-            <div className="flex gap-3">
-              <button onClick={() => setStep(1)} className="flex-1 py-3 border border-[oklch(0.91_0.006_264)] text-[oklch(0.55_0.01_264)] rounded-xl font-bold text-sm hover:bg-[oklch(0.992_0.003_264)] transition">← 上一步</button>
-              <button onClick={handleRegister} disabled={loading || !form.name || !form.creditCode}
-                className="flex-1 py-3 bg-[#064ea2] text-white rounded-xl font-bold text-sm hover:bg-[#0e62d0] transition disabled:opacity-50">
+            <div className="neu-btn-group">
+              <button onClick={() => setStep(1)} className="neu-btn-soft">← 上一步</button>
+              <button onClick={handleRegister} disabled={loading || !form.name || !form.creditCode} className="neu-btn-primary">
                 {loading ? '提交中...' : '提交注册'}
               </button>
             </div>
