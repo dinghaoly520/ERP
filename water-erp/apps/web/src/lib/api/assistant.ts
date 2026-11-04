@@ -1,4 +1,4 @@
-import type { Conversation, Message, AssistantPageContext, AssistantAction } from '@/components/assistant/types';
+import type { AssistantCard, Conversation, Message, AssistantPageContext, AssistantAction } from '@/components/assistant/types';
 import { apiFetch } from './api-fetch';
 import { toApiError } from '@water-erp/client';
 
@@ -29,7 +29,18 @@ export async function createConversation(title?: string): Promise<Conversation> 
 }
 
 export async function getConversation(id: string): Promise<{ messages: Message[] } & Conversation> {
-  return requestJson(`${API_BASE}/assistant/conversations/${id}`);
+  const raw = await requestJson<
+    { messages?: Array<Message & { cardsJson?: AssistantCard[] }> } & Conversation
+  >(`${API_BASE}/assistant/conversations/${id}`);
+  /* cardsJson → cards 映射（2026-11-04 审查 P1）：后端历史行落的是 cardsJson 字段，
+   * 直传导致切回历史会话后「查看图表」/指标卡全消失（:3008/:3011 均已做此映射） */
+  return {
+    ...raw,
+    messages: (raw.messages ?? []).map((m) => ({
+      ...m,
+      cards: m.cards ?? m.cardsJson ?? undefined,
+    })),
+  };
 }
 
 export async function deleteConversation(id: string): Promise<void> {

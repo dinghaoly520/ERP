@@ -59,11 +59,13 @@ export async function createConversation(): Promise<{ id: string }> {
   return api.post<{ id: string }>("/assistant/conversations", { title: "移动驾驶舱对话" });
 }
 
-/** 历史会话摘要（属主隔离；title 取首条用户消息） */
+/** 历史会话摘要（属主隔离；后端实返 firstMessage=首条用户消息前 100 字——
+ * 2026-11-04 审查修正：此前误声明 messages 字段，历史弹层标题恒「（无标题）」） */
 export type ConversationSummary = {
   id: string;
+  title?: string;
   updatedAt: string;
-  messages?: Array<{ content: string }>;
+  firstMessage?: string;
 };
 
 export async function fetchConversationList(): Promise<ConversationSummary[]> {

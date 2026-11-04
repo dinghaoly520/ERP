@@ -208,15 +208,27 @@ function DataCards({ cards }: { cards: AssistantCard[] }) {
       {cards.map((card, i) => {
         if (card.type === 'table') return <CardTable key={`tbl-${i}`} card={card} />;
         if (card.type === 'chart') return <CardChart key={`cht-${i}`} card={card} />;
-        if (card.type === 'metric') return (
-          <div key={`met-${i}`} className="asst-metric-card" style={{ '--card-accent': '#2563EB', '--card-accent-soft': 'rgba(37,99,235,0.1)' } as React.CSSProperties}>
-            <div className="asst-metric-card-glow" style={{ background: 'radial-gradient(ellipse at 30% 20%, rgba(37,99,235,0.1), transparent 70%)' }} />
-            <div className="asst-metric-card-label">{card.title}</div>
-            <div className="asst-metric-card-value-row">
-              <span className="asst-metric-card-value">{card.value}</span>
+        if (card.type === 'metric') {
+          /* 兼容两种形状（2026-11-04 审查）：cockpit summary 卡={title,metrics:[{label,value}]}，
+           * 旧单值卡={title,value}——metrics 数组缺失时回退单值，不再渲染空白卡 */
+          const metrics = (card.metrics as Array<{ label: string; value: string }> | undefined) ?? [];
+          return (
+            <div key={`met-${i}`} className="asst-metric-card" style={{ '--card-accent': '#2563EB', '--card-accent-soft': 'rgba(37,99,235,0.1)' } as React.CSSProperties}>
+              <div className="asst-metric-card-glow" style={{ background: 'radial-gradient(ellipse at 30% 20%, rgba(37,99,235,0.1), transparent 70%)' }} />
+              <div className="asst-metric-card-label">{card.title}</div>
+              <div className="asst-metric-card-value-row">
+                {metrics.length > 0
+                  ? metrics.map((m, k) => (
+                    <span key={k} className="asst-metric-item">
+                      <span className="asst-metric-item-label">{m.label}</span>
+                      <span className="asst-metric-card-value">{m.value}</span>
+                    </span>
+                  ))
+                  : <span className="asst-metric-card-value">{card.value}</span>}
+              </div>
             </div>
-          </div>
-        );
+          );
+        }
         return null;
       })}
     </div>
@@ -224,8 +236,10 @@ function DataCards({ cards }: { cards: AssistantCard[] }) {
 }
 
 function CardTable({ card }: { card: AssistantCard & { type: 'table' } }) {
+  // columns 兜底（2026-11-04 审查 P0）：cockpit stages/risk 卡曾不带 columns——裸调 .filter 即崩溃
+  const cols = card.columns ?? [];
   const numericKeys = new Set(
-    card.columns.filter((c) => /count|value|budget|num|数量|数值|人数|预算|占比|pct/i.test(c.key)).map((c) => c.key),
+    cols.filter((c) => /count|value|budget|num|数量|数值|人数|预算|占比|pct/i.test(c.key)).map((c) => c.key),
   );
   return (
     <div className="asst-card-table">
@@ -234,7 +248,7 @@ function CardTable({ card }: { card: AssistantCard & { type: 'table' } }) {
         <table>
           <thead>
             <tr>
-              {card.columns.map((c) => (
+              {cols.map((c) => (
                 <th key={c.key} className={numericKeys.has(c.key) ? 'asst-td-num' : ''}>{c.label}</th>
               ))}
             </tr>
@@ -244,7 +258,7 @@ function CardTable({ card }: { card: AssistantCard & { type: 'table' } }) {
               const isTotal = row._total === true;
               return (
                 <tr key={j} className={isTotal ? 'asst-row-total' : ''}>
-                  {card.columns.map((c) => (
+                  {cols.map((c) => (
                     <td key={c.key} className={numericKeys.has(c.key) ? 'asst-td-num' : ''}>
                       {String(row[c.key] ?? '-')}
                     </td>

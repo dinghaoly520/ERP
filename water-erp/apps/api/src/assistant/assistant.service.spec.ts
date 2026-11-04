@@ -118,7 +118,8 @@ describe('AssistantService', () => {
 
       expect(prisma.assistantConversation.findUnique).toHaveBeenCalledWith({
         where: { id: 'conv-1' },
-        include: { messages: { orderBy: { createdAt: 'asc' }, take: 20 } },
+        /* 历史窗口取最近 20 条（2026-11-04 P0：asc+take20 曾取最旧 20 条） */
+        include: { messages: { orderBy: { createdAt: 'desc' }, take: 20 } },
       });
       expect(result.conversationId).toBe('conv-1');
     });
@@ -241,6 +242,17 @@ describe('AssistantService', () => {
       // 匿名访客兜底：global_overview 不在公开域 → 登录引导文案（证明直答被拦下）
       expect(result.answer).toContain('需要登录');
       expect(result.answer).not.toContain('5 个采购项目');
+    });
+  });
+
+  describe('stripEnglish 英文白名单（2026-11-04 审查 P0）', () => {
+    it('保留项目编码/标准号/U盾/格式缩写，剥离其余英文', () => {
+      const f = (service as unknown as { stripEnglish: (t: string) => string }).stripEnglish.bind(service);
+      expect(f('项目 SWHI-TP-2026102003 已归档')).toBe('项目 SWHI-TP-2026102003 已归档');
+      expect(f('依据 GB/T 43711 与 DB51/T 标准')).toBe('依据 GB/T 43711 与 DB51/T 标准');
+      expect(f('请插入 U盾 后重试')).toBe('请插入 U盾 后重试');
+      expect(f('文件为 PDF 格式')).toBe('文件为 PDF 格式');
+      expect(f('hello 世界 abc')).toBe('世界');
     });
   });
 

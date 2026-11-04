@@ -29,6 +29,12 @@ export class CockpitTool implements AssistantTool {
         cards: [{
           type: 'table',
           title: '采购阶段分布（在办）',
+          /* columns 必给（2026-11-04 审查 P0）：:3008/:3005 渲染端裸调 card.columns.filter
+           * 无空守卫——cockpit 卡无 columns 即 React 崩溃（:3011 有 ?? [] 兜底独善） */
+          columns: [
+            { key: '阶段', label: '阶段' },
+            { key: '项目数', label: '项目数' },
+          ],
           // 出图声明（2026-11-03）：阶段分布→柱图，「哪个阶段最堵」图即答案
           viz: { kind: 'distribution', category: '阶段', value: '项目数' },
           rows: (stats.stageDistribution ?? []).map((d: { stageName?: string; stage: string; count: number }) => ({
@@ -47,6 +53,11 @@ export class CockpitTool implements AssistantTool {
         cards: [{
           type: 'table',
           title: `风险项目（${data.riskProjects?.length ?? 0} 项）`,
+          columns: [
+            { key: '项目', label: '项目' },
+            { key: '滞留天数', label: '滞留天数' },
+            { key: '原因', label: '原因' },
+          ],
           rows: (data.riskProjects ?? []).map((r: { project: string; pendingDays: number; reason: string }) => ({
             项目: r.project, 滞留天数: r.pendingDays, 原因: r.reason,
           })),

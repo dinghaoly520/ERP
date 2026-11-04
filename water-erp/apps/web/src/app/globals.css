@@ -8261,9 +8261,27 @@ a {
 }
 .asst-metric-card-value-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 2px;
   position: relative;
+}
+/* metrics 数组形状（cockpit summary 卡 5 项瓷片，2026-11-04）：label 上 value 下的小纵排 */
+.asst-metric-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.asst-metric-item + .asst-metric-item {
+  margin-left: 10px;
+  padding-left: 10px;
+  border-left: 1px solid var(--wb-rule, oklch(0.6 0.04 258 / 0.16));
+}
+.asst-metric-item-label {
+  font-size: 10px;
+  color: var(--muted-foreground);
+  white-space: nowrap;
 }
 .asst-metric-card-value {
   font-size: 14px;

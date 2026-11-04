@@ -31,6 +31,7 @@ import { ArchiveFlowService } from '../archive/archive-flow.service';
 import { NotificationService } from '../notification/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CompanyScopeService } from '../company/company-scope';
+import { TimelineService } from './timeline.service';
 import { CompleteProjectDto } from './dto/complete-project.dto';
 import { CreateProjectFromInitiationDto } from './dto/create-project-from-initiation.dto';
 import { QueryProjectManagementDto } from './dto/query-project-management.dto';
@@ -222,7 +223,26 @@ export class ProjectManagementService {
     private readonly notificationService: NotificationService,
     private readonly scoreStandardValidator: ScoreStandardValidator,
     private readonly companyScope: CompanyScopeService, // 末位追加（2026-10-10 leader 公司视野）：构造器 12 参，三个 spec 按位同步
-  ) {}
+  ) {
+    /* 时间轴（2026-11-04 审查 B-5）：归档联动建台账轮次补采购日期——公告发布/邀请
+     * 节点推导，同 ProcurementsService.procurementDateOfPmi 口径；体内实例化避免
+     * 追加构造器参数牵连三个按位同步的 spec */
+    this.timeline = new TimelineService(prisma);
+  }
+  private readonly timeline: TimelineService;
+
+  /** PMI 采购日期推导（时间轴口径）：公告发布节点优先、回退供应商邀请节点；
+   *  多轮取当前轮、回退最近有值轮；均无则 null。与 ProcurementsService.procurementDateOfPmi 同口径 */
+  private async pmProcurementDateOf(pmiId: string): Promise<string | null> {
+    const tl = await this.timeline.getTimeline(pmiId).catch(() => null);
+    if (!tl) return null;
+    const pick = (nodes: Array<{ key: string; time?: string | null }>) =>
+      nodes.find((n) => (n.key === 'bidNoticePublish' || n.key === 'supplierInvitation') && !!n.time);
+    const desc = [...tl.rounds].sort((a, b) => b.round - a.round);
+    const node = pick(desc.find((r) => r.round === tl.currentRound)?.nodes ?? [])
+      ?? desc.map((r) => pick(r.nodes)).find((n) => !!n);
+    return node?.time ? node.time.slice(0, 10) : null;
+  }
 
   /** 按公司分组项目计数（2026-09-26 公司下拉语境化）：ARCHIVED=已完成、ACTIVE=进行中（RECYCLED/TERMINATED 不计） */
   /** 按公司分组项目计数（公司下拉语境化计数：数据库/台账=已完成 ARCHIVED、进度=进行中 ACTIVE）。
@@ -4129,11 +4149,16 @@ ${JSON.stringify(algorithmResult, null, 2)}
         },
       });
 
+      /* 采购日期（2026-11-04 审查 B-5）：此前 PMI 归档轮次恒无 procurementDate——
+       * 台账默认排序 NULLS FIRST 置顶 + 带日期区间的驾驶舱/移动端统计整体漏掉这些轮次。
+       * 时间轴口径：公告发布节点优先、回退供应商邀请节点（同 procurementDateOfPmi） */
+      const pmProcurementDate = await this.pmProcurementDateOf(projectId);
       const procurementRound = await tx.procurementRound.create({
         data: {
           projectId: createdProject.id,
           roundNo: 1,
           procurementMethod: project.procurementMethod,
+          procurementDate: pmProcurementDate ? new Date(`${pmProcurementDate}T00:00:00`) : null,
           departmentId: department.id,
           budgetAmount: project.budgetAmount,
           controlAmount: project.budgetAmount,

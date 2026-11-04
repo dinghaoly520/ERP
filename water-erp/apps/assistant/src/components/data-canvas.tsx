@@ -52,8 +52,10 @@ export function DataCanvas({
           const staggerDelay = `${i * 0.08}s`;
 
           if (card.type === 'table') {
+            // columns 兜底（2026-11-04 审查 P0）：cockpit 类卡可能不带 columns——裸调 .filter 即崩溃
+            const cols = card.columns ?? [];
             const numericKeys = new Set(
-              card.columns
+              cols
                 .filter((c) => /count|value|budget|num|数量|数值|人数|预算/i.test(c.key))
                 .map((c) => c.key),
             );
@@ -68,7 +70,7 @@ export function DataCanvas({
                   <table>
                     <thead>
                       <tr>
-                        {card.columns.map((c) => (
+                        {cols.map((c) => (
                           <th
                             key={c.key}
                             data-numeric={numericKeys.has(c.key) ? 'true' : 'false'}
@@ -83,7 +85,7 @@ export function DataCanvas({
                         const isTotal = row._total === true;
                         return (
                           <tr key={j} className={isTotal ? styles.totalRow : undefined}>
-                            {card.columns.map((c) => (
+                            {cols.map((c) => (
                               <td
                                 key={c.key}
                                 data-numeric={numericKeys.has(c.key) ? 'true' : 'false'}

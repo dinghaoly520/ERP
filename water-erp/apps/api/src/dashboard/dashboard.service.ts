@@ -1007,12 +1007,42 @@ export class DashboardService {
    *  简化口径（2026-10-23）：awardedCount=轮次数、abnormalCount=0——成交/异常细分需逐行
    *  过滤（groupBy 只能带一档 where），榜单主序由 awardAmount 驱动，两列 UI 标注「轮次」。 */
   async getCompanyRanking(startDate: string): Promise<{ rows: CompanyRankingRow[] }> {
+    /* 口径收口（2026-11-04 审查）：① where 补 isRecycled:false（与 getDashboard 2026-10-28
+     * 收口同口径）；② 节资改「仅已成交轮且预算/成交均为正、预算≥成交」——旧口径
+     * max(Σ预算−Σ成交,0) 把 PENDING 在途轮（award=null 记 0）的预算全额虚增为「节资」，
+     * 正是 getStats 2026-10-28 已修、龙虎榜漏修的同款错误 */
     const groups = await this.prisma.procurementRound.groupBy({
       by: ['companyId'],
-      where: { procurementDate: { gte: startOfDay(startDate) }, companyId: { not: null } },
+      where: {
+        isRecycled: false,
+        procurementDate: { gte: startOfDay(startDate) },
+        companyId: { not: null },
+      },
       _count: { _all: true },
       _sum: { awardAmount: true, budgetAmount: true },
     });
+    // 节资只能在「已成交」子集上算（AWARDED 且金额为正、预算≥成交）——groupBy 单档
+    // where 不够，单独取一档聚合
+    const awardedGroups = await this.prisma.procurementRound.groupBy({
+      by: ['companyId'],
+      where: {
+        isRecycled: false,
+        resultStatus: 'AWARDED',
+        procurementDate: { gte: startOfDay(startDate) },
+        companyId: { not: null },
+        budgetAmount: { gt: 0 },
+        awardAmount: { gt: 0 },
+      },
+      _sum: { awardAmount: true, budgetAmount: true },
+    });
+    const savingsOf = new Map(
+      awardedGroups
+        .filter((g) => g.companyId)
+        .map((g) => [
+          g.companyId!,
+          Math.max(decimalToNumber(g._sum.budgetAmount) - decimalToNumber(g._sum.awardAmount), 0),
+        ]),
+    );
     const companies = await this.prisma.company.findMany({
       where: { id: { in: groups.map((g) => g.companyId!).filter(Boolean) } },
       select: { id: true, name: true },
@@ -1026,7 +1056,7 @@ export class DashboardService {
         totalCount: g._count._all,
         awardedCount: g._count._all,
         awardAmount: decimalToNumber(g._sum.awardAmount),
-        savings: Math.max(decimalToNumber(g._sum.budgetAmount) - decimalToNumber(g._sum.awardAmount), 0),
+        savings: savingsOf.get(g.companyId!) ?? 0,
         abnormalCount: 0,
       }))
       .sort((a, b) => b.awardAmount - a.awardAmount);

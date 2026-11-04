@@ -8,6 +8,7 @@ import { ProcurementTool } from './tools/procurement.tool';
 import { BidTool } from './tools/bid.tool';
 import { SupplierTool } from './tools/supplier.tool';
 import { ExpertTool } from './tools/expert.tool';
+import { PUBLIC_VISIBLE_CLASSES } from '@water-erp/shared';
 import { AnnouncementTool } from './tools/announcement.tool';
 import { NotificationTool } from './tools/notification.tool';
 import { CockpitTool } from './tools/cockpit.tool';
@@ -139,12 +140,17 @@ export class AssistantService {
     const conversation = dto.conversationId
       ? await this.prisma.assistantConversation.findUnique({
           where: { id: dto.conversationId },
-          include: { messages: { orderBy: { createdAt: 'asc' }, take: 20 } },
+          /* 历史窗口取最近 20 条（2026-11-04 审查 P0：asc+take=20 取的是最旧 20 条，
+           * 长会话最新上下文全丢、模型「失忆」）——desc 取最新再反转回时序 */
+          include: { messages: { orderBy: { createdAt: 'desc' }, take: 20 } },
         })
       : await this.prisma.assistantConversation.create({
           data: { title: dto.message.slice(0, 50), ...ownerData(owner) },
           include: { messages: { orderBy: { createdAt: 'asc' }, take: 0 } },
         });
+    if (conversation?.messages?.length) {
+      conversation.messages = [...conversation.messages].reverse();
+    }
 
     if (!conversation || (dto.conversationId && !ownedBy(conversation, owner))) {
       // 他人会话与不存在同口径，不泄露存在性（P0 会话隔离）；
@@ -252,13 +258,11 @@ ${toolList}
       this.logger.error(`chat() 主流程异常: ${(e as Error).message}`, (e as Error).stack);
     }
 
-    this.logger.log(`chat() 主流程完成，准备清理 answer。当前 answer 长度=${answer?.length || 0}, cards=${cards.length}`);
-    this.logger.log(`answer 前200字: ${answer?.slice(0, 200)}`);
+    this.logger.debug(`chat() 主流程完成，answer 长度=${answer?.length || 0}, cards=${cards.length}`);
 
     // 安全网：剥离 Markdown 格式符号（无论模型是否遵守提示词规则）
     answer = this.stripMarkdown(answer);
-    this.logger.log(`stripMarkdown 完成, 长度=${answer.length}`);
-    // 安全网：剥离残留的英文字母/单词（无论模型是否遵守提示词规则）
+// 安全网：剥离残留的英文字母/单词（无论模型是否遵守提示词规则）
     answer = this.stripEnglish(answer);
     this.logger.log(`stripEnglish 完成, 长度=${answer.length}`);
 
@@ -267,8 +271,13 @@ ${toolList}
       answer = '抱歉，AI 未能生成有效回复。请重新提问或换一种方式描述您的问题。';
     }
 
+    // RAG 来源标注（仅命中时）：回答尾部注明参考的知识库文件——先拼尾注再落库
+    // （2026-11-04 审查 P1：此前落库后才追加，实时回答带尾注而历史回放没有，两副面孔）
+    if (ragContext && ragContext.fileNames.length && answer) {
+      answer += `\n\n（参考知识库：${ragContext.fileNames.join('、')}）`;
+    }
+
     try {
-      this.logger.log(`准备保存会话消息，cardsJson 大小=${JSON.stringify(cards).length} 字节`);
       await this.prisma.assistantMessage.create({
         data: {
           conversationId: conversation.id,
@@ -278,7 +287,6 @@ ${toolList}
           citationsJson: (citations.length > 0 ? citations : undefined) as any,
         },
       });
-      this.logger.log('会话消息保存成功');
     } catch (e) {
       this.logger.error(`保存助手消息失败: ${(e as Error).message}`, (e as Error).stack);
     }
@@ -295,11 +303,6 @@ ${toolList}
     }
 
     this.logger.log(`chat() 返回响应: conversationId=${conversation.id}, answerLen=${answer.length}, cards=${cards.length}`);
-    // RAG 来源标注（仅命中时）：回答尾部注明参考的知识库文件
-    if (ragContext && ragContext.fileNames.length && answer) {
-      answer += `\n\n（参考知识库：${ragContext.fileNames.join('、')}）`;
-    }
-
     return { conversationId: conversation.id, answer, cards, citations, pendingActions };
   }
 
@@ -403,7 +406,7 @@ ${toolList}
 
     try {
       const res = await this.model.chat(followUpMessages);
-      this.logger.log(`handleFallback: LLM 返回 ${res.text?.length || 0} 字: ${res.text?.slice(0, 200)}`);
+      this.logger.debug(`handleFallback: LLM 返回 ${res.text?.length || 0} 字`);
       return res.text?.trim() || '抱歉，AI 未能生成有效回复，请重新提问。';
     } catch (e) {
       this.logger.error(`handleFallbackWithGlobalOverview: 模型调用失败: ${(e as Error).message}`);
@@ -420,7 +423,7 @@ ${toolList}
   ): Promise<string> {
     const res = await this.model.chat(messages);
     let answer = res.text;
-    this.logger.log(`handleNormalChat: 第一轮 LLM 返回 ${answer.length} 字, 前150字=${answer.slice(0, 150)}`);
+    this.logger.debug(`handleNormalChat: 第一轮 LLM 返回 ${answer.length} 字`);
 
     // Parse ALL TOOL_CALL directives (model may emit several for comprehensive questions)
     const toolCalls = this.parseAllToolCalls(answer);
@@ -522,10 +525,9 @@ ${toolList}
       }
       followUpMessages.push({ role: 'user', content: toolSummary });
 
-      this.logger.log('handleNormalChat: 开始第二轮 DeepSeek 调用...');
-      const followUp = await this.model.chat(followUpMessages);
+    const followUp = await this.model.chat(followUpMessages);
       let followUpText = followUp.text?.trim();
-      this.logger.log(`handleNormalChat: 第二轮 DeepSeek 调用完成，回复长度=${followUpText?.length || 0}, 前200字=${followUpText?.slice(0, 200) || '(空)'}`);
+      this.logger.debug(`handleNormalChat: 第二轮 LLM 回复长度=${followUpText?.length || 0}`);
       /* 防御网（2026-11-03 实录）：第二轮偶发再输出纯 TOOL_CALL/空文——剥离后正文
        * 为空、用户拿到「未能生成有效回复」。追加一条显式禁令重试一次（仅失败路径付费） */
       if (!followUpText || !this.stripAllToolCalls(followUpText).trim()) {
@@ -692,10 +694,26 @@ ${toolList}
   /**
    * 安全网：剥离残留的英文字母和英文标点。
    * 只保留中文字符、中文标点、数字、空格、换行和常用的中文分隔符。
+   * 白名单（2026-10-28 界面文案裁定「格式名/键名/标准编号/U盾PIN 保留英文」+
+   * 2026-11-04 审查 P0：裸剥曾把 SWHI-TP-2026102003 毁成 --2026102003、
+   * GB/T 43711→43711、U盾→盾，与提示词「直接引用项目编号」自相矛盾）：
+   * 项目/轮次类编码（字母-数字连串）、GB/T 等标准号、U盾、ISO 类缩写——
+   * 先占位保护、剥完还原。
    */
   private stripEnglish(text: string): string {
+    const kept: string[] = [];
+    const protect = (m: string): string => {
+      kept.push(m);
+      return `\u0000${kept.length - 1}\u0000`;
+    };
     return text
-      // 删除所有 ASCII 字母（a-z, A-Z）
+      // 1) 占位保护英文白名单：编码（SWHI-TP-2026102003 / TP-2026101901）、
+      //    标准号（GB/T 43711、DB51/T）、U盾、常见缩写（ISO、PDF、DOCX、XML、CSV）
+      .replace(/\b[A-Z]{1,10}(?:-[A-Z0-9]{1,12})+\b/g, protect)
+      .replace(/\b[A-Z]{1,6}\d{0,4}\s*\/\s*[A-Z]{1,6}(?:\s*\d{1,8})?\b/g, protect)
+      .replace(/U盾/g, protect)
+      .replace(/\b(?:ISO|PDF|DOCX?|XLSX?|XML|CSV|JSON)\b/g, protect)
+      // 2) 删除所有 ASCII 字母（a-z, A-Z）
       .replace(/[a-zA-Z]+/g, '')
       // 删除英文标点符号（保留 % 和 . 因为它们可能属于数字如 47.1%、0.8%）
       .replace(/[`*_#~$^&|\\@!=\[\]{};:'"<>?,\/()]+/g, '')
@@ -704,7 +722,9 @@ ${toolList}
       // 清理多余空格
       .replace(/[ \t]{2,}/g, ' ')
       .replace(/\n{3,}/g, '\n\n')
-      .trim();
+      .trim()
+      // 3) 还原白名单
+      .replace(/\u0000(\d+)\u0000/g, (_, i: string) => kept[Number(i)] ?? '');
   }
 
   /**
@@ -787,7 +807,17 @@ ${toolList}
   async getQuickStats(ownerUserId?: string | null) {
     // 公共域聚合（两类调用方都要）
     const [announcementPublished] = await Promise.all([
-      this.prisma.announcement.count({ where: { status: 'PUBLISHED' } }),
+      /* 公开域过滤（2026-11-04 审查 P2-20）：与 announcement 工具 PUBLIC_WHERE 同口径——
+       * 裸 PUBLISHED 会把 RESTRICTED/保密类也计入，向匿名泄露内部公告计数 */
+      this.prisma.announcement.count({
+        where: {
+          status: 'PUBLISHED',
+          AND: [
+            { OR: [{ dataClass: { in: PUBLIC_VISIBLE_CLASSES } }, { dataClass: null }] },
+            { OR: [{ metadata: { path: ['visibility'], not: 'RESTRICTED' } }, { metadata: null }] },
+          ],
+        } as never,
+      }),
     ]);
 
     /* 认证≠授权（2026-09-29 口径，评审 F2 补全）：匿名访客与外部角色
@@ -943,6 +973,10 @@ ${toolList}
     await this.assertActionOwnership(id, user);
     const log = await this.prisma.assistantActionLog.findUnique({ where: { id } });
     if (!log) return { status: 'failed', message: '操作记录不存在' };
+    // 终态闸（2026-11-04 审查 P1-10）：success/failed/cancelled 不可再改写——防污染审计轨迹
+    if (log.status !== 'pending') {
+      return { status: 'failed', message: `操作已处于终态（${log.status}），不可取消` };
+    }
 
     await this.prisma.assistantActionLog.update({
       where: { id },

@@ -287,7 +287,7 @@ export default function ChatPage() {
             {historyList.map((c) => (
               <div key={c.id} className="flex items-center gap-2 rounded-[10px] m-tile px-3 py-2.5">
                 <button type="button" onClick={() => loadHistory(c.id)} className="flex min-w-0 flex-1 flex-col text-left active:scale-[0.99]">
-                  <span className="truncate text-[14px] font-medium text-[var(--foreground)]">{c.messages?.[0]?.content ?? "（无标题）"}</span>
+                  <span className="truncate text-[14px] font-medium text-[var(--foreground)]">{c.firstMessage || c.title || "（无标题）"}</span>
                   <span className="mt-0.5 text-[12px] text-[var(--muted-foreground)]">{(c.updatedAt ?? "").slice(0, 10)} · {c.id === conversationId ? "当前会话" : "点击载入"}</span>
                 </button>
                 <button type="button" aria-label="删除会话" onClick={() => deleteHistory(c.id)} className="neu-btn-soft h-8 w-8 shrink-0 rounded-[10px] p-0 active:scale-95">

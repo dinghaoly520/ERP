@@ -12,7 +12,8 @@ export type Conversation = {
 export type AssistantCard =
   | { type: 'table'; title: string; columns: Array<{ key: string; label: string }>; rows: unknown[]; viz?: VizDeclaration }
   | { type: 'chart'; title: string; chartType: string; option: Record<string, unknown>; caption?: string }
-  | { type: 'metric'; title: string; value: string; trend?: string };
+  /* metrics 数组形状（cockpit summary 卡）：2026-11-04 审查——旧单值 value 形状保留兼容 */
+  | { type: 'metric'; title: string; value: string; trend?: string; metrics?: Array<{ label: string; value: string }> };
 
 export type VizDeclaration = {
   kind: string;
