@@ -671,7 +671,7 @@ async function main() {
     //   唯一来源 seed-data/ExpertLibrary.json（180 名、8 家公司）；User.json/ExpertProfile.json 快照的
     //   旧 187 名专家不再是专家来源（此处清空后按名单重建，勿再从快照恢复专家——CLAUDE.md 口径）：
     //   用户名=姓名、口令=身份证号、entryStatus=ACTIVE、公司直挂 companyId、职务建 Department、
-    //   employer≠company（简写/变体单位）入 notes、PII（email/phone/idNumber）同 PII_SEAL_MAP 口径密封。
+    //   原表单位入 employer、PII（email/phone/idNumber）同 PII_SEAL_MAP 口径密封。
     {
       console.log('▶ 重建评审专家库（ExpertLibrary.json 名单；清空旧快照专家）');
       // 子表先清（BidExpert 级联链上的评分/条款评审/备忘）；ExpertProfile/Notification 须显式删——
@@ -695,7 +695,6 @@ async function main() {
       const companyAll = new Map((await prisma.company.findMany({ select: { id: true, name: true } })).map((c) => [c.name, c.id]));
       const deptByName = new Map((await prisma.department.findMany({ select: { id: true, name: true } })).map((d) => [d.name, d.id]));
       let rebuilt = 0;
-      let notesKept = 0;
       for (const e of library) {
         const companyId = companyAll.get(e.company);
         if (!companyId) throw new Error(`ExpertLibrary 公司未在 SEED_COMPANIES 建档：${e.company}`);
@@ -730,13 +729,13 @@ async function main() {
             idNumber: sealPii(e.idNumber),
             entryStatus: 'ACTIVE',
             availability: '可用',
-            notes: e.employer && e.employer !== e.company ? `原表单位：${e.employer}` : null,
+            // notes 不再写「原表单位」——employer 已承载（2026-11-04：notes 让位人工备注，
+            // AI 综合评价走独立字段 aiEvaluation，重跑 seed 不回流旧文案）
           },
         });
         rebuilt++;
-        if (e.employer && e.employer !== e.company) notesKept++;
       }
-      console.log(`    旧快照专家清空 ${oldExperts.count} 名；ExpertLibrary 重建 ${rebuilt} 名（原表单位入 notes ${notesKept} 名）`);
+      console.log(`    旧快照专家清空 ${oldExperts.count} 名；ExpertLibrary 重建 ${rebuilt} 名`);
     }
 
     // 1.45b) 内部员工部门按专家归属分发（2026-11-02 部门公司隔离初始数据）：

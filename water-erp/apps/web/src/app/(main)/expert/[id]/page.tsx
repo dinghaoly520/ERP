@@ -31,7 +31,7 @@ interface ExpertDetail {
   /** 专家编号（2026-10-22）：{归属公司编码}-{同公司入库序号}，后端计算 */
   expertNo?: string;
   department: { id: string; name: string } | null; createdAt: string; isActive: boolean;
-  expertProfile?: { specialty?: string; title?: string; employer?: string; phone?: string; idNumber?: string; availability?: string; notes?: string; education?: string; ethnicity?: string; licenseNo?: string; regionCode?: string; expertLevel?: string; verifiedAt?: string | null };
+  expertProfile?: { specialty?: string; title?: string; employer?: string; phone?: string; idNumber?: string; availability?: string; notes?: string; education?: string; ethnicity?: string; licenseNo?: string; regionCode?: string; expertLevel?: string; verifiedAt?: string | null; aiEvaluation?: string | null; aiEvaluatedAt?: string | null };
   assignments: Assignment[];
   statistics: { totalProjects: number; completedProjects: number; signedInProjects: number; evalAvg: number; evalCount: number };
   /** 邀请信用摘要（2026-10-21）：毁约记录 + 连拒段预警口径 */
@@ -464,6 +464,19 @@ export default function ExpertDetailPage() {
                 <InfoField label="工作单位" value={p.employer} />
                 <InfoField label="所属部门" value={expert.department?.name} />
               </div>
+              {/* AI 综合评价（2026-11-04）：聚合履职数据生成，每月 1 日 00:00 刷新；无履职数据不生成 */}
+              <div className="mt-4 border-t border-[var(--border)] pt-4">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[11px] font-semibold text-[var(--muted-foreground)]">综合评价</span>
+                  {p.aiEvaluatedAt && (
+                    <span className="text-[10px] text-[var(--muted-foreground)]">AI 生成 · {new Date(p.aiEvaluatedAt).toLocaleDateString('zh-CN')} 更新</span>
+                  )}
+                </div>
+                <p className="mt-1.5 text-[13px] leading-6 text-[var(--foreground)]">
+                  {p.aiEvaluation ?? '暂无评审记录，参与评审后每月 1 日自动生成'}
+                </p>
+                {p.notes && <p className="mt-2 text-[11px] leading-5 text-[var(--muted-foreground)]">备注：{p.notes}</p>}
+              </div>
             </section>
 
             {/* 身份与联系（2026-09-18 v3 合并为单卡分组瓷片） */}
@@ -488,11 +501,6 @@ export default function ExpertDetailPage() {
                 <InfoField label="登录用户名" value={expert.username} mono copyable />
                 <InfoField label="账户状态" value={<StatusBadge tone={expert.isActive ? 'green' : 'gray'}>{expert.isActive ? '正常' : '已停用'}</StatusBadge>} />
               </div>
-              {p.notes && (
-                <div className="mt-4 border-t border-[var(--border)] pt-4">
-                  <InfoField label="履职备注" value={p.notes} full />
-                </div>
-              )}
             </section>
 
             {/* 系统元信息 footer */}
@@ -1161,7 +1169,7 @@ export default function ExpertDetailPage() {
                 </label>
                 <label className="space-y-1 block sm:col-span-2">
                   <span className="text-xs font-semibold text-[var(--muted-foreground)]">备注</span>
-                  <textarea value={editForm.notes} onChange={e => setEditForm(prev => ({ ...prev, notes: e.target.value }))} placeholder="履职备注、回避事项等（可选）" className="neu-input text-sm w-full" rows={3} />
+                  <textarea value={editForm.notes} onChange={e => setEditForm(prev => ({ ...prev, notes: e.target.value }))} placeholder="备注、回避事项等（可选）" className="neu-input text-sm w-full" rows={3} />
                 </label>
               </div>
             </section>

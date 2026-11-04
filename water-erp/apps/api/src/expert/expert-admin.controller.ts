@@ -475,6 +475,13 @@ export class ExpertAdminController {
     return this.expertAdminService.importFromSeed(req.user?.sub);
   }
 
+  @Post('ai-evaluations/refresh')
+  @Roles('admin') // AI 综合评价批量生成（2026-11-04）：Scheduler 每月 1 日自动跑，此端点供上线/补跑
+  @ApiOperation({ summary: '全量刷新专家 AI 综合评价（仅 admin；无履职数据的专家跳过）' })
+  refreshAiEvaluations() {
+    return this.expertAdminService.refreshAiEvaluations();
+  }
+
   @Post('ocr-intake')
   @Roles('admin') // 录入辅助随「录入专家」收窄 admin（OCR 仅在录入弹窗内使用）
   @ApiOperation({ summary: '资质 OCR 自动录入（仅 admin；识别证件图片 → 结构化字段回填）' })

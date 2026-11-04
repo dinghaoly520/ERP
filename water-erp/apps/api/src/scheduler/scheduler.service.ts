@@ -68,6 +68,16 @@ export class SchedulerService {
     if (results.length === 0) this.logger.log('幽灵待办对账：无需消解');
   }
 
+  /** 专家 AI 综合评价全量刷新（2026-11-04）：每月 1 日 00:00。聚合档案与履职数据
+   *  （参评项目/评价等级/婉拒）由 LLM 生成评语写 ExpertProfile.aiEvaluation；
+   *  无履职数据的专家跳过（前端显示占位），LLM 失败保留旧值。admin 可经
+   *  POST /expert-admin/ai-evaluations/refresh 手动补跑。 */
+  @Cron('0 0 1 * *')
+  async refreshExpertAiEvaluations() {
+    const stats = await this.expertAdmin.refreshAiEvaluations();
+    this.logger.log(`专家 AI 综合评价月度刷新：共 ${stats.total} 人，生成 ${stats.generated}，跳过 ${stats.skipped}`);
+  }
+
   /** D2 归档时限扫描（DA/T 103-2024 §8.2/§10.1）：每日 05:00。
    *  流程终结（定标/合同阶段有件）但迟迟未导出 ASIP 的卷 → 分级提醒：
    *  - 终结满 ARCHIVE_TRANSFER_DUE_DAYS（默认 270 天，对齐「不晚于次年 3 月 31 日」）→ 提醒经办（staff+leader）

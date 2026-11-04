@@ -1425,6 +1425,8 @@ model ExpertProfile {
   contactConfirmedAt DateTime? // 首次登录联系方式确认时间（null = 未确认，需弹窗提醒）
   regionCode         String? // A-129：行政区域代码（GB/T 2260 六位；管理端录入/抽取配额过滤维度）
   expertLevel        String? // A-129：专家库档案等级 A|B|C|D|E（区别于 ExpertEvaluation.overallGrade 履职评价等级）
+  aiEvaluation       String? // AI 综合评价（2026-11-04：聚合履职数据由 LLM 生成，每月 1 日 00:00 刷新；无履职数据不生成）
+  aiEvaluatedAt      DateTime? // 最近一次 AI 评价生成时间
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 

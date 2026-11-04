@@ -10,6 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { sealPii, openPii, openPiiForMask } from '../common/crypto/sm-field-crypto';
 import { logSensitiveAccess } from '../common/sensitive-access.util';
 import { maskPhone, maskIdNumber, maskEmail, maskLicenseNo } from '../common/pii-mask';
+import { refreshAllExpertAiEvaluations } from './expert-ai-evaluation';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { EmbeddingService } from '../local-ai/embedding.service';
 import { LlmService } from '../local-ai/llm.service';
@@ -654,6 +655,15 @@ export class ExpertAdminService {
       }
       throw err;
     }
+  }
+
+  /** AI 综合评价全量刷新（2026-11-04）：Scheduler 每月 1 日 00:00 与 admin 手动触发共用。
+   *  无履职数据的专家不生成（防无据编造），LLM 失败跳过保留旧值。 */
+  async refreshAiEvaluations(): Promise<{ total: number; generated: number; skipped: number }> {
+    const logger = new Logger(ExpertAdminService.name);
+    const stats = await refreshAllExpertAiEvaluations(this.prisma, this.llm, msg => logger.warn(msg));
+    logger.log(`AI 综合评价刷新完成：共 ${stats.total} 人，生成 ${stats.generated}，跳过 ${stats.skipped}`);
+    return stats;
   }
 
   /** 从种子数据批量导入专家（仅导入尚未存在于数据库中的专家） */
