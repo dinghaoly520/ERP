@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantTool, AssistantToolCtx, ToolResult } from './assistant-tool';
 import { toolCompanyWhere } from './company-filter';
-import { PMI_STATUS_LABEL, t } from './labels';
+import { PMI_STATUS_LABEL, keyOfLabel, t } from './labels';
 import { methodFilter } from './method-filter.util';
 /** 采购流程阶段（PMI currentStage）canon 标签——与进展页/cockpit 同源 */
 import { STAGE_LABELS as PM_STAGE_LABELS } from '../../progress/progress.service';
@@ -27,7 +27,7 @@ function dateLabel(d: Date | null | undefined): string {
 export class PmiTool implements AssistantTool {
   name = 'pmi';
   description =
-    '查询采购项目（项目管理口径，2026-11-04 裁定 canon）：清单/详情——阶段=采购流程九阶段、预算/成交金额、立项/归档信息。args: { action: "list"|"detail", keyword?, method?, stage?, status?, projectId?, limit? }——stage 如 采购文件/开标评标/合同（九阶段中文名或英文键均可），status=ACTIVE|ARCHIVED|TERMINATED。台账轮次/金额汇总请用 procurement，项目总数统计请用 global_overview。';
+    '查询采购项目（项目管理口径，2026-11-04 裁定 canon）：清单/详情/多维度统计——阶段=采购流程九阶段、预算/成交金额、立项/归档信息。stats=方式/状态/归属公司分布+概览（「采购项目分布/结构」类问题用 stats）。args: { action: "list"|"detail"|"stats", keyword?, method?, stage?, status?, projectId?, limit? }——stage 如 采购文件/开标评标/合同（九阶段中文名或英文键均可），status=ACTIVE|ARCHIVED|TERMINATED。台账轮次/金额汇总请用 procurement，项目总数统计请用 global_overview。';
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -36,7 +36,9 @@ export class PmiTool implements AssistantTool {
     const keyword = (args.keyword as string) || (args.projectName as string) || undefined;
     const method = args.method as string | undefined;
     const stage = args.stage as string | undefined;
-    const status = args.status as string | undefined;
+    const statusRaw = args.status as string | undefined;
+    // 状态容错（「在办/已归档」反查枚举键；未知值按不过滤处理）
+    const status = statusRaw ? keyOfLabel(PMI_STATUS_LABEL, statusRaw) : undefined;
     const projectId = args.projectId as string | undefined;
     const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 20);
     const companyWhere = toolCompanyWhere(ctx);
@@ -85,6 +87,81 @@ export class PmiTool implements AssistantTool {
               { 项: '采购单位', 值: item.companyName ?? '-' },
               ...(item.terminationReason ? [{ 项: '终止原因', 值: item.terminationReason }] : []),
             ],
+          },
+        ],
+      };
+    }
+
+    if (action === 'stats') {
+      /* 多维度结构（2026-11-04 用户裁定：分布类=多结构全维度）——方式/状态/归属公司
+       * 三分布 + 概览；阶段分布由 global_overview/cockpit 的 canon 卡承担（同标题去重） */
+      const base = { status: { not: 'RECYCLED' } as never, ...companyWhere };
+      const [byMethod, byStatus, items] = await Promise.all([
+        this.prisma.projectManagementItem.groupBy({
+          by: ['procurementMethod'], where: base, _count: true,
+        }),
+        this.prisma.projectManagementItem.groupBy({
+          by: ['status'], where: base, _count: true,
+        }),
+        this.prisma.projectManagementItem.findMany({
+          where: base,
+          select: { companyName: true, budgetAmount: true },
+        }),
+      ]);
+      byMethod.sort((a, b) => b._count - a._count);
+      byStatus.sort((a, b) => b._count - a._count);
+      const total = items.length;
+      const pctOf = (n: number) => (total > 0 ? ((n / total) * 100).toFixed(1) + '%' : '-');
+      // 归属公司分布（含预算合计——公司维度的体量比数量更有信息量）
+      const companyMap = new Map<string, { count: number; budget: number }>();
+      for (const it of items) {
+        const name = (it.companyName ?? '').trim() || '未归属';
+        const cur = companyMap.get(name) ?? { count: 0, budget: 0 };
+        cur.count += 1;
+        cur.budget += Number(it.budgetAmount) || 0;
+        companyMap.set(name, cur);
+      }
+      const byCompany = Array.from(companyMap.entries()).sort((a, b) => b[1].budget - a[1].budget);
+      const statusCount = (st: string) => byStatus.find((x) => x.status === st)?._count ?? 0;
+      return {
+        success: true,
+        cards: [
+          {
+            type: 'metric', title: '采购项目概览（PMI）',
+            metrics: [
+              { label: '在册项目', value: String(total) },
+              { label: '在办', value: String(statusCount('ACTIVE')) },
+              { label: '已归档', value: String(statusCount('ARCHIVED')) },
+              { label: '已终止', value: String(statusCount('TERMINATED')) },
+            ],
+          },
+          {
+            type: 'table', title: '采购方式分布',
+            columns: [
+              { key: 'method', label: '采购方式' },
+              { key: 'count', label: '项目数' },
+              { key: 'pct', label: '占比' },
+            ],
+            rows: byMethod.map((m) => ({
+              method: (m.procurementMethod ?? '').trim() || '未登记',
+              count: m._count,
+              pct: pctOf(m._count),
+            })),
+            viz: { kind: 'distribution', category: 'method', value: 'count' },
+          },
+          {
+            type: 'table', title: '归属公司分布（含预算）',
+            columns: [
+              { key: 'company', label: '归属公司' },
+              { key: 'count', label: '项目数' },
+              { key: 'budget', label: '预算合计' },
+            ],
+            rows: byCompany.map(([company, v]) => ({
+              company,
+              count: v.count,
+              budget: formatWan(v.budget),
+            })),
+            viz: { kind: 'ranking', category: 'company', value: 'count' },
           },
         ],
       };

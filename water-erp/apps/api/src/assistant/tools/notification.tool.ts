@@ -10,7 +10,7 @@ import { NOTIFICATION_TYPE_LABEL, t } from './labels';
 export class NotificationTool implements AssistantTool {
   name = 'notification';
   description =
-    '查询当前登录用户的通知列表/统计/未读数量。args: { action: "list"|"stats"|"unread", limit? }';
+    '查询当前登录用户的通知列表/统计/未读数量。args: { action: "list"|"stats"|"unread", limit? }——stats 含类型分布';
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -42,23 +42,31 @@ export class NotificationTool implements AssistantTool {
     }
 
     if (action === 'stats') {
-      const [total, unread] = await Promise.all([
+      /* 多维度结构（2026-11-04 用户裁定）：总数/未读之外补类型分布 */
+      const [total, unread, byType] = await Promise.all([
         this.prisma.notification.count({ where: mine }),
         this.prisma.notification.count({ where: { ...mine, isRead: false } }),
+        this.prisma.notification.groupBy({ by: ['type'], where: mine, _count: true }),
       ]);
+      byType.sort((a, b) => b._count - a._count);
       return {
         success: true,
         cards: [
           {
-            type: 'table', title: '通知概览',
+            type: 'metric', title: '通知概览',
+            metrics: [
+              { label: '通知总数', value: String(total) },
+              { label: '未读', value: String(unread) },
+            ],
+          },
+          {
+            type: 'table', title: '通知类型分布',
             columns: [
-              { key: 'item', label: '统计项' },
-              { key: 'value', label: '数值' },
+              { key: 'type', label: '类型' },
+              { key: 'count', label: '数量' },
             ],
-            rows: [
-              { item: '通知总数', value: total },
-              { item: '未读通知', value: unread },
-            ],
+            rows: byType.map((x) => ({ type: t(NOTIFICATION_TYPE_LABEL, x.type), count: x._count })),
+            viz: { kind: 'distribution', category: 'type', value: 'count' },
           },
         ],
       };

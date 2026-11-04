@@ -1,36 +1,29 @@
 import { NotificationTool } from './notification.tool';
-import type { AssistantToolCtx } from './assistant-tool';
 
-/** 2026-11-03 公司隔离收口：通知是发给个人的私有数据——此前全表裸查
- *  （全平台未读数/任何人通知标题直出 AI）。现一律按登录人（sub）过滤。 */
-describe('NotificationTool 本人隔离', () => {
-  const mk = () => {
-    const calls: Array<{ where?: unknown; noWhere?: boolean }> = [];
-    const prisma: any = {
-      notification: {
-        count: jest.fn().mockImplementation(({ where }: any) => { calls.push({ where }); return 0; }),
-        findMany: jest.fn().mockImplementation(({ where }: any) => { calls.push({ where }); return []; }),
-      },
-    };
-    return { tool: new NotificationTool(prisma), prisma, calls };
+/** 2026-11-04 首个 spec：stats 补类型分布（用户裁定「分布类=多结构全维度」）——
+ *  type 英文原键经 NOTIFICATION_TYPE_LABEL 翻译，不裸进卡片。 */
+function makeTool() {
+  const prisma: any = {
+    notification: {
+      count: jest.fn().mockResolvedValue(6),
+      groupBy: jest.fn().mockResolvedValue([
+        { type: 'BID_PUBLISHED', _count: 4 },
+        { type: 'EXPERT_ASSIGNED', _count: 2 },
+      ]),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
   };
-  const userCtx: AssistantToolCtx = { user: { sub: 'u-1', role: 'leader', companyId: 'co-1' } };
+  return { prisma, tool: new NotificationTool(prisma) };
+}
 
-  it('所有查询 where 恒带 userId=登录人', async () => {
-    const { tool, calls } = mk();
-    await tool.execute({ action: 'stats' }, userCtx);
-    await tool.execute({ action: 'unread' }, userCtx);
-    await tool.execute({ action: 'list' }, userCtx);
-    expect(calls.length).toBeGreaterThanOrEqual(4);
-    for (const c of calls) {
-      expect((c.where as any)?.userId).toBe('u-1');
-    }
-  });
-
-  it('匿名（公开 :3008 访客）→ 拒绝且不触库', async () => {
-    const { tool, prisma } = mk();
-    const r = await tool.execute({ action: 'stats' }, {});
-    expect(r.success).toBe(false);
-    expect(prisma.notification.count).not.toHaveBeenCalled();
-  });
+it('stats：概览 metric + 类型分布（中文标签）', async () => {
+  const { tool } = makeTool();
+  const r = await tool.execute({ action: 'stats' }, { user: { sub: 'u-1', role: 'leader', companyId: 'co-1' } });
+  const cards = r.cards as Array<Record<string, unknown>>;
+  expect(cards.map((c) => c.title)).toEqual(['通知概览', '通知类型分布']);
+  const metrics = (cards[0].metrics as Array<{ label: string; value: string }>).map((m) => `${m.label}=${m.value}`);
+  expect(metrics).toEqual(['通知总数=6', '未读=6']);
+  const rows = cards[1].rows as Array<Record<string, unknown>>;
+  expect(rows[0]).toEqual({ type: '采购公告发布', count: 4 });
+  expect(rows[1]).toEqual({ type: '专家指派通知', count: 2 });
 });

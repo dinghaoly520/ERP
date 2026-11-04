@@ -10,8 +10,7 @@ import { PmiTool } from './tools/pmi.tool';
 import { BidTool } from './tools/bid.tool';
 import { SupplierTool } from './tools/supplier.tool';
 import { ExpertTool } from './tools/expert.tool';
-import { PUBLIC_VISIBLE_CLASSES } from '@water-erp/shared';
-import { AnnouncementTool } from './tools/announcement.tool';
+import { AnnouncementTool, PUBLIC_WHERE, isPubliclyVisible as isAnnouncementPubliclyVisible } from './tools/announcement.tool';
 import { NotificationTool } from './tools/notification.tool';
 import { CockpitTool } from './tools/cockpit.tool';
 import { ActionPlannerService } from './actions/action-planner.service';
@@ -823,17 +822,14 @@ ${toolList}
 
   async getQuickStats(ownerUserId?: string | null) {
     // 公共域聚合（两类调用方都要）
-    const [announcementPublished] = await Promise.all([
-      /* 公开域过滤（2026-11-04 审查 P2-20）：与 announcement 工具 PUBLIC_WHERE 同口径——
-       * 裸 PUBLISHED 会把 RESTRICTED/保密类也计入，向匿名泄露内部公告计数 */
-      this.prisma.announcement.count({
-        where: {
-          status: 'PUBLISHED',
-          AND: [
-            { OR: [{ dataClass: { in: PUBLIC_VISIBLE_CLASSES } }, { dataClass: null }] },
-            { OR: [{ metadata: { path: ['visibility'], not: 'RESTRICTED' } }, { metadata: null }] },
-          ],
-        } as never,
+    const [announcementRows] = await Promise.all([
+      /* 公开域过滤（2026-11-04 P2-20；当日修正）：复用 announcement 工具导出的
+       * PUBLIC_WHERE（SQL 可表达部分）+ isPubliclyVisible 同口径内存判定——
+       * visibility 的 JSON path 过滤不能进 SQL（Prisma 对键缺失三值排除 + 旧组合
+       * 形状直接校验报错，今晨初版即踩中）；公告表小，findMany+filter 即可 */
+      this.prisma.announcement.findMany({
+        where: { ...PUBLIC_WHERE } as never,
+        select: { status: true, dataClass: true, metadata: true },
       }),
     ]);
 
@@ -853,7 +849,7 @@ ${toolList}
         bid: { total: 0, active: 0 },
         supplier: { total: 0, approved: 0, pending: 0, risk: 0 },
         expert: { total: 0, available: 0 },
-        announcement: { published: announcementPublished },
+        announcement: { published: announcementRows.filter((a: { status: string; dataClass?: string | null; metadata?: unknown }) => isAnnouncementPubliclyVisible(a)).length },
         notification: { unread: 0 },
         focusAreas: [],
         generatedAt: new Date().toISOString(),
@@ -910,7 +906,7 @@ ${toolList}
       bid: { total: bidTotal, active: bidActive },
       supplier: { total: supplierTotal, approved: supplierApproved, pending: supplierPending, risk: supplierRisk },
       expert: { total: expertTotal, available: expertAvailable },
-      announcement: { published: announcementPublished },
+      announcement: { published: announcementRows.filter((a: { status: string; dataClass?: string | null; metadata?: unknown }) => isAnnouncementPubliclyVisible(a)).length },
       notification: { unread: notificationUnread },
       focusAreas: focusAreas.slice(0, 4),
       generatedAt: new Date().toISOString(),

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantTool, AssistantToolCtx, ToolResult } from './assistant-tool';
 import { toolCompanyWhere } from './company-filter';
-import { STAGE_LABEL, t } from './labels';
+import { STAGE_LABEL, keyOfLabel, t } from './labels';
 
 @Injectable()
 export class BidTool implements AssistantTool {
@@ -14,7 +14,9 @@ export class BidTool implements AssistantTool {
 
   async execute(args: Record<string, unknown> = {}, ctx?: AssistantToolCtx): Promise<ToolResult> {
     const action = (args.action as string) || 'list';
-    const stage = args.stage as string | undefined;
+    const stageRaw = args.stage as string | undefined;
+    // 阶段容错（中文标签反查枚举键；未知值按不过滤处理）
+    const stage = stageRaw ? keyOfLabel(STAGE_LABEL, stageRaw) : undefined;
     const projectId = args.projectId as string | undefined;
     const limit = (args.limit as number) || 10;
     const companyWhere = toolCompanyWhere(ctx);
@@ -109,29 +111,61 @@ export class BidTool implements AssistantTool {
     }
 
     if (action === 'stats') {
-      const byStage = await this.prisma.bidProject.groupBy({
-        by: ['stage'], where: { ...companyWhere, isExtractionOnly: false }, _count: true,
-      });
+      /* 多维度结构（2026-11-04 用户裁定）：阶段之外补采购方式维度 */
+      const [byStage, byMethod] = await Promise.all([
+        this.prisma.bidProject.groupBy({
+          by: ['stage'], where: { ...companyWhere, isExtractionOnly: false }, _count: true,
+        }),
+        this.prisma.bidProject.groupBy({
+          by: ['procurementMethod'], where: { ...companyWhere, isExtractionOnly: false }, _count: true,
+        }),
+      ]);
       byStage.sort((a, b) => b._count - a._count);
+      byMethod.sort((a, b) => b._count - a._count);
       const bidTotal = byStage.reduce((s, r) => s + r._count, 0);
+      const pctOf = (n: number) => (bidTotal > 0 ? ((n / bidTotal) * 100).toFixed(1) + '%' : '-');
+      const stageCount = (s: string) => byStage.find((x) => x.stage === s)?._count ?? 0;
       return {
         success: true,
-        cards: [{
-          /* 2026-11-03 用户裁定：采购语境不称「招标」——本卡只在投标/开评标类提问出现，
-             标题改「投标项目阶段分布」与采购阶段（PMI）区分 */
-          type: 'table', title: '投标项目阶段分布',
-          columns: [
-            { key: 'stage', label: '阶段' },
-            { key: 'count', label: '数量' },
-            { key: 'pct', label: '占比' },
-          ],
-          rows: byStage.map((s) => ({
-            stage: t(STAGE_LABEL, s.stage),
-            count: s._count,
-            pct: bidTotal > 0 ? ((s._count / bidTotal) * 100).toFixed(1) + '%' : '-',
-          })),
-          viz: { kind: 'distribution', category: 'stage', value: 'count' },
-        }],
+        cards: [
+          {
+            type: 'metric', title: '投标项目概览',
+            metrics: [
+              { label: '项目总数', value: String(bidTotal) },
+              { label: '开评标进行中', value: String(stageCount('OPENING') + stageCount('EVALUATING')) },
+              { label: '已归档', value: String(stageCount('ARCHIVED')) },
+              { label: '已流标', value: String(stageCount('ABORTED')) },
+            ],
+          },
+          {
+            type: 'table', title: '投标项目阶段分布',
+            columns: [
+              { key: 'stage', label: '阶段' },
+              { key: 'count', label: '数量' },
+              { key: 'pct', label: '占比' },
+            ],
+            rows: byStage.map((s) => ({
+              stage: t(STAGE_LABEL, s.stage),
+              count: s._count,
+              pct: pctOf(s._count),
+            })),
+            viz: { kind: 'distribution', category: 'stage', value: 'count' },
+          },
+          {
+            type: 'table', title: '投标项目采购方式分布',
+            columns: [
+              { key: 'method', label: '采购方式' },
+              { key: 'count', label: '数量' },
+              { key: 'pct', label: '占比' },
+            ],
+            rows: byMethod.map((m) => ({
+              method: (m.procurementMethod ?? '').trim() || '未登记',
+              count: m._count,
+              pct: pctOf(m._count),
+            })),
+            viz: { kind: 'distribution', category: 'method', value: 'count' },
+          },
+        ],
       };
     }
 

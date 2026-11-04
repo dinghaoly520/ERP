@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantTool, AssistantToolCtx, ToolResult } from './assistant-tool';
 import { toolCompanyWhere } from './company-filter';
-import { RESULT_STATUS_LABEL, t } from './labels';
+import { RESULT_STATUS_LABEL, keyOfLabel, t } from './labels';
 import { methodFilter } from './method-filter.util';
 
 /** 金额格式：内部元 → 「X.X万」展示（台账页/驾驶舱同款万位口径） */
@@ -41,7 +41,15 @@ export class ProcurementTool implements AssistantTool {
     const action = (args.action as string) || 'list';
     const keyword = (args.keyword as string) || (args.projectName as string) || undefined;
     const method = args.method as string | undefined;
-    const resultStatus = args.resultStatus as string | undefined;
+    const resultStatusRaw = args.resultStatus as string | undefined;
+    // 结果状态容错（中文标签/简写反查枚举键；未知值友好报错不炸工具）
+    let resultStatus: string | undefined;
+    if (resultStatusRaw) {
+      resultStatus = keyOfLabel(RESULT_STATUS_LABEL, resultStatusRaw);
+      if (!resultStatus) {
+        return { success: false, error: `未知结果状态「${resultStatusRaw}」，可用：${Object.values(RESULT_STATUS_LABEL).join('、')}` };
+      }
+    }
     const roundId = args.roundId as string | undefined;
     const startDate = args.startDate as string | undefined;
     const endDate = args.endDate as string | undefined;

@@ -83,6 +83,16 @@ export const ANNOUNCEMENT_TYPE_LABEL: Record<string, string> = {
   PLATFORM: '平台通知',
 };
 
+/** 反查：中文标签/简写 → 枚举键（LLM 常传「待处理」「在办」等中文进 enum where，
+ *  裸传即 Prisma 校验异常整工具失败——2026-11-04 公告类型实录）。未知返回 undefined */
+export function keyOfLabel(map: Record<string, string>, input: string): string | undefined {
+  if (input in map) return input;
+  const exact = Object.entries(map).find(([, label]) => label === input);
+  if (exact) return exact[0];
+  const partial = Object.entries(map).find(([, label]) => label.includes(input) || input.includes(label));
+  return partial?.[0];
+}
+
 /** 通用翻译函数：未命中时回退为原值（避免吞数据）。 */
 export function t(
   map: Record<string, string>,

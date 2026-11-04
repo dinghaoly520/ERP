@@ -3,14 +3,14 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { AssistantTool, AssistantToolCtx, ToolResult } from './assistant-tool';
 import { toolCompanyWhere } from './company-filter';
-import { SUPPLIER_STATUS_LABEL, t } from './labels';
+import { SUPPLIER_STATUS_LABEL, keyOfLabel, t } from './labels';
 import { openPiiForMask } from '../../common/crypto/sm-field-crypto';
 
 @Injectable()
 export class SupplierTool implements AssistantTool {
   name = 'supplier';
   description =
-    '查询供应商列表/详情/状态统计/风险画像/待审核项/活跃排名。args: { action: "list"|"detail"|"stats"|"pending"|"risk"|"top", keyword?, status?, supplierId?, limit?, topN? }——list 支持 keyword=供应商名称关键词（按名找供应商先用它）';
+    '查询供应商列表/详情/统计/风险画像/待审核项/活跃排名。args: { action: "list"|"detail"|"stats"|"pending"|"risk"|"top", keyword?, status?, supplierId?, limit?, topN? }——stats=多维度结构（状态/行业/企业类型分布+概览，「供应商分布/结构」类问题用 stats）；list 支持 keyword=供应商名称关键词（按名找供应商先用它）';
 
   constructor(
     private readonly prisma: PrismaService,
@@ -19,7 +19,9 @@ export class SupplierTool implements AssistantTool {
 
   async execute(args: Record<string, unknown> = {}, ctx?: AssistantToolCtx): Promise<ToolResult> {
     const action = (args.action as string) || 'list';
-    const status = args.status as string | undefined;
+    const statusRaw = args.status as string | undefined;
+    // 状态容错（「已入库/待审核」反查枚举键；未知值按不过滤处理）
+    const status = statusRaw ? keyOfLabel(SUPPLIER_STATUS_LABEL, statusRaw) : undefined;
     const supplierId = args.supplierId as string | undefined;
     const limit = (args.limit as number) || 10;
     const companyWhere = toolCompanyWhere(ctx);
@@ -135,27 +137,87 @@ export class SupplierTool implements AssistantTool {
     }
 
     if (action === 'stats') {
-      const byStatus = await this.prisma.supplier.groupBy({
-        by: ['status'], where: { ...companyWhere }, _count: true,
-      });
+      /* 多维度结构（2026-11-04 用户裁定：分布类=多结构全维度）——状态之外补
+       * 行业（注册国民经济行业，2026-10-29 裁定的分类口径）/企业类型/成交活跃度 */
+      const [byStatus, byIndustry, byType, awardedNames] = await Promise.all([
+        this.prisma.supplier.groupBy({
+          by: ['status'], where: { ...companyWhere }, _count: true,
+        }),
+        this.prisma.supplier.groupBy({
+          by: ['industry'], where: { ...companyWhere }, _count: true,
+        }),
+        this.prisma.supplier.groupBy({
+          by: ['enterpriseType'], where: { ...companyWhere }, _count: true,
+        }),
+        // 有成交记录家数（台账轮次成交供应商，名称双轨——distinct 名称即家数近似）
+        this.prisma.procurementRound.findMany({
+          where: { isRecycled: false, resultStatus: 'AWARDED', awardedSupplierName: { not: null }, ...companyWhere },
+          distinct: ['awardedSupplierName'],
+          select: { awardedSupplierName: true },
+        }),
+      ]);
       byStatus.sort((a, b) => b._count - a._count);
       const suppTotal = byStatus.reduce((s, r) => s + r._count, 0);
+      const pctOf = (n: number) => (suppTotal > 0 ? ((n / suppTotal) * 100).toFixed(1) + '%' : '-');
+      const countOf = (status: string) => byStatus.find((s) => s.status === status)?._count ?? 0;
+      // 行业/类型：null/空 → 未登记；行业取 Top8（国民经济行业类目多），其余并入「其他」
+      const dimRows = (groups: Array<{ _count: number } & Record<string, unknown>>, key: string, topN?: number) => {
+        const mapped = groups
+          .map((g) => ({ name: String(g[key] ?? '').trim() || '未登记', count: g._count }))
+          .sort((a, b) => b.count - a.count);
+        if (!topN || mapped.length <= topN) return mapped;
+        const head = mapped.slice(0, topN);
+        const rest = mapped.slice(topN).reduce((s, x) => s + x.count, 0);
+        return rest > 0 ? [...head, { name: '其他', count: rest }] : head;
+      };
       return {
         success: true,
-        cards: [{
-          type: 'table', title: '供应商状态分布',
-          columns: [
-            { key: 'status', label: '状态' },
-            { key: 'count', label: '数量' },
-            { key: 'pct', label: '占比' },
-          ],
-          rows: byStatus.map((s) => ({
-            status: t(SUPPLIER_STATUS_LABEL, s.status),
-            count: s._count,
-            pct: suppTotal > 0 ? ((s._count / suppTotal) * 100).toFixed(1) + '%' : '-',
-          })),
-          viz: { kind: 'distribution', category: 'status', value: 'count' },
-        }],
+        cards: [
+          {
+            type: 'metric', title: '供应商资源概览',
+            metrics: [
+              { label: '供应商总数', value: String(suppTotal) },
+              { label: '已入库', value: String(countOf('APPROVED')) },
+              { label: '待审核', value: String(countOf('PENDING')) },
+              { label: '风险（停用+黑名单）', value: String(countOf('DISABLED') + countOf('BLACKLIST')) },
+              { label: '有成交记录', value: String(awardedNames.length) },
+            ],
+          },
+          {
+            type: 'table', title: '供应商状态分布',
+            columns: [
+              { key: 'status', label: '状态' },
+              { key: 'count', label: '数量' },
+              { key: 'pct', label: '占比' },
+            ],
+            rows: byStatus.map((s) => ({
+              status: t(SUPPLIER_STATUS_LABEL, s.status),
+              count: s._count,
+              pct: pctOf(s._count),
+            })),
+            viz: { kind: 'distribution', category: 'status', value: 'count' },
+          },
+          {
+            type: 'table', title: '行业分布（注册国民经济行业）',
+            columns: [
+              { key: 'industry', label: '行业' },
+              { key: 'count', label: '数量' },
+              { key: 'pct', label: '占比' },
+            ],
+            rows: dimRows(byIndustry, 'industry', 8).map((x) => ({ industry: x.name, count: x.count, pct: pctOf(x.count) })),
+            viz: { kind: 'distribution', category: 'industry', value: 'count' },
+          },
+          {
+            type: 'table', title: '企业类型分布',
+            columns: [
+              { key: 'etype', label: '企业类型' },
+              { key: 'count', label: '数量' },
+              { key: 'pct', label: '占比' },
+            ],
+            rows: dimRows(byType, 'enterpriseType').map((x) => ({ etype: x.name, count: x.count, pct: pctOf(x.count) })),
+            viz: { kind: 'distribution', category: 'etype', value: 'count' },
+          },
+        ],
       };
     }
 

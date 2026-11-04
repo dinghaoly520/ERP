@@ -8,8 +8,20 @@ function makeTool() {
     supplier: {
       findUnique: jest.fn(),
       findMany: jest.fn().mockResolvedValue([]),
-      groupBy: jest.fn().mockResolvedValue([]),
+      groupBy: jest.fn().mockImplementation(({ by }: any) =>
+        by[0] === 'status'
+          ? Promise.resolve([
+              { status: 'APPROVED', _count: 8 },
+              { status: 'BLACKLIST', _count: 1 },
+            ])
+          : by[0] === 'industry'
+            ? Promise.resolve([
+                { industry: '专业技术服务业', _count: 6 },
+                { industry: null, _count: 3 },
+              ])
+            : Promise.resolve([{ enterpriseType: '私营企业', _count: 5 }])),
     },
+    procurementRound: { findMany: jest.fn().mockResolvedValue([{ awardedSupplierName: 'A' }, { awardedSupplierName: 'B' }]) },
   };
   return { prisma, audit, tool: new SupplierTool(prisma, audit as never) };
 }
@@ -44,6 +56,24 @@ it('detail：留痕失败不阻断问答（best-effort）', async () => {
   audit.log.mockRejectedValue(new Error('审计库抖动'));
   const r = await tool.execute({ action: 'detail', supplierId: 'sup-2' }, LEADER);
   expect(r.success).toBe(true);
+});
+
+it('stats：多维度——概览/状态/行业/企业类型四卡（含风险与成交家数）', async () => {
+  const { tool } = makeTool();
+  const r = await tool.execute({ action: 'stats' }, LEADER);
+  const cards = r.cards as Array<Record<string, unknown>>;
+  expect(cards.map((c) => c.title)).toEqual([
+    '供应商资源概览',
+    '供应商状态分布',
+    '行业分布（注册国民经济行业）',
+    '企业类型分布',
+  ]);
+  const metrics = Object.fromEntries((cards[0].metrics as Array<{ label: string; value: string }>).map((m) => [m.label, m.value]));
+  expect(metrics['已入库']).toBe('8');
+  expect(metrics['风险（停用+黑名单）']).toBe('1');
+  expect(metrics['有成交记录']).toBe('2');
+  const industryRows = cards[2].rows as Array<Record<string, unknown>>;
+  expect(industryRows[1]).toMatchObject({ industry: '未登记', count: 3 });
 });
 
 it('list：keyword 名称检索 + 出卡（此前裸 data 无卡、按名提问查无此人）', async () => {

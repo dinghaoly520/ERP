@@ -49,7 +49,7 @@ describe('AssistantService', () => {
         update: jest.fn(),
         create: jest.fn(),
       },
-      announcement: { count: jest.fn() },
+      announcement: { findMany: jest.fn().mockResolvedValue([]) },
       procurementProject: { count: jest.fn() },
       projectManagementItem: { count: jest.fn() },
       bidProject: { count: jest.fn() },
@@ -423,18 +423,26 @@ describe('AssistantService', () => {
 
   describe('getQuickStats 分层', () => {
     it('匿名访客只返回公开域数字（内部维度置 0）', async () => {
-      prisma.announcement.count.mockResolvedValue(12);
+      prisma.announcement.findMany.mockResolvedValue([
+        { status: 'PUBLISHED', dataClass: null, metadata: null },
+        { status: 'PUBLISHED', dataClass: null, metadata: { visibility: 'RESTRICTED' } }, // 剔除
+        { status: 'PUBLISHED', dataClass: null, metadata: null },
+      ]);
 
       const result = await service.getQuickStats(null);
 
-      expect(result.announcement.published).toBe(12);
+      expect(result.announcement.published).toBe(2); // 3 行中 RESTRICTED 1 行被内存过滤
       expect(result.supplier.risk).toBe(0);
       expect(result.focusAreas).toEqual([]);
       expect(prisma.supplier.count).not.toHaveBeenCalled();
     });
 
     it('认证 admin 返回全量统计（无公司过滤）', async () => {
-      prisma.announcement.count.mockResolvedValue(12);
+      prisma.announcement.findMany.mockResolvedValue([
+        { status: 'PUBLISHED', dataClass: null, metadata: null },
+        { status: 'PUBLISHED', dataClass: null, metadata: { visibility: 'RESTRICTED' } }, // 剔除
+        { status: 'PUBLISHED', dataClass: null, metadata: null },
+      ]);
       prisma.user.findUnique.mockResolvedValue({ role: 'admin', companyId: null });
       prisma.projectManagementItem.count.mockResolvedValue(5);
       prisma.procurementProject.count.mockResolvedValue(0);
@@ -456,18 +464,26 @@ describe('AssistantService', () => {
     });
 
     it('外部角色（supplier）认证后仍只返回公开域（认证≠授权，评审 F2）', async () => {
-      prisma.announcement.count.mockResolvedValue(12);
+      prisma.announcement.findMany.mockResolvedValue([
+        { status: 'PUBLISHED', dataClass: null, metadata: null },
+        { status: 'PUBLISHED', dataClass: null, metadata: { visibility: 'RESTRICTED' } }, // 剔除
+        { status: 'PUBLISHED', dataClass: null, metadata: null },
+      ]);
       prisma.user.findUnique.mockResolvedValue({ role: 'supplier', companyId: 'co-9' });
 
       const result = await service.getQuickStats('sup-1');
 
       expect(result.procurement.total).toBe(0);
-      expect(result.announcement.published).toBe(12);
+      expect(result.announcement.published).toBe(2); // 3 行中 RESTRICTED 1 行被内存过滤
       expect(prisma.supplier.count).not.toHaveBeenCalled();
     });
 
     it('认证 leader 公司隔离（2026-11-03 审计 F16）——计数注入本公司 + 未读数只数本人', async () => {
-      prisma.announcement.count.mockResolvedValue(12);
+      prisma.announcement.findMany.mockResolvedValue([
+        { status: 'PUBLISHED', dataClass: null, metadata: null },
+        { status: 'PUBLISHED', dataClass: null, metadata: { visibility: 'RESTRICTED' } }, // 剔除
+        { status: 'PUBLISHED', dataClass: null, metadata: null },
+      ]);
       prisma.user.findUnique.mockResolvedValue({ role: 'leader', companyId: 'co-1' });
       prisma.projectManagementItem.count.mockResolvedValue(5);
       prisma.procurementProject.count.mockResolvedValue(0);

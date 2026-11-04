@@ -4,7 +4,7 @@ import { PmiTool } from './pmi.tool';
  *  清单/详情（此前只有 global_overview 计数，清单类提问会被误导去台账轮次工具） */
 function makeTool() {
   const prisma: any = {
-    projectManagementItem: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn() },
+    projectManagementItem: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn(), groupBy: jest.fn().mockResolvedValue([]) },
   };
   return { prisma, tool: new PmiTool(prisma) };
 }
@@ -90,6 +90,32 @@ it('detail：全字段中文标签（含终止原因条件行）', async () => {
   expect(map['状态']).toBe('已终止');
   expect(map['终止原因']).toBe('需求取消');
   expect(map['预算']).toBe('50.0万');
+});
+
+it('stats：多维度——概览/方式/归属公司（含预算合计）三卡', async () => {
+  const { prisma, tool } = makeTool();
+  prisma.projectManagementItem.groupBy.mockImplementation(({ by }: any) =>
+    by[0] === 'procurementMethod'
+      ? Promise.resolve([
+          { procurementMethod: '谈判采购', _count: 8 },
+          { procurementMethod: '邀请招标', _count: 3 },
+        ])
+      : Promise.resolve([
+          { status: 'ACTIVE', _count: 23 },
+          { status: 'ARCHIVED', _count: 3 },
+        ]),
+  );
+  prisma.projectManagementItem.findMany.mockResolvedValue([
+    { companyName: '设计院', budgetAmount: 1000000 },
+    { companyName: '设计院', budgetAmount: 500000 },
+    { companyName: null, budgetAmount: 200000 },
+  ]);
+  const r = await tool.execute({ action: 'stats' }, ADMIN);
+  const cards = r.cards as Array<Record<string, unknown>>;
+  expect(cards.map((c) => c.title)).toEqual(['采购项目概览（PMI）', '采购方式分布', '归属公司分布（含预算）']);
+  const companyRows = cards[2].rows as Array<Record<string, unknown>>;
+  expect(companyRows[0]).toEqual({ company: '设计院', count: 2, budget: '150.0万' });
+  expect(companyRows[1]).toEqual({ company: '未归属', count: 1, budget: '20.0万' });
 });
 
 it('limit 钳制（上限 20）', async () => {
