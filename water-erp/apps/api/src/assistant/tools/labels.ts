@@ -42,6 +42,23 @@ export const RESULT_STATUS_LABEL: Record<string, string> = {
   CANCELLED: '已取消',
 };
 
+/** 通知类型（Notification.type，DB 现值全集）——data 序列化进 LLM 前翻译，
+ *  未收录键回退原值（t() 兜底不吞数据） */
+export const NOTIFICATION_TYPE_LABEL: Record<string, string> = {
+  BID_PUBLISHED: '采购公告发布',
+  BID_OPENING: '开标提醒',
+  BID_OPENING_HANDED_OVER: '开标资料移交',
+  BID_CLARIFICATION_CREATED: '澄清答疑通知',
+  BID_EVALUATION_RESULT: '评标结果',
+  SUPPLIER_APPROVED: '供应商审核通过',
+  SUPPLIER_LINK_REJECTED: '公司归属被拒',
+  QUALIFICATION_EXPIRING: '资质临期预警',
+  EXPERT_ASSIGNED: '专家指派通知',
+  EXPERT_SWAP_PROMOTED: '候补专家递补',
+  EXPERT_DECLINE_STREAK: '专家连续婉拒预警',
+  PROFILE_CHANGE_PENDING: '资料变更待审批',
+};
+
 export const SUPPLIER_STATUS_LABEL: Record<string, string> = {
   PENDING: '待审核',
   RETURNED: '已退回补正',

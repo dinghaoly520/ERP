@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Send, Loader2 } from 'lucide-react';
 import { MessageList } from './message-list';
 import { DataCanvas } from './data-canvas';
@@ -57,6 +57,12 @@ export function ChatWorkspace({
   const metricCount = 0;
   const tableCount = cards.filter((c) => c.type === 'table').length;
   const chartCount = cards.filter((c) => c.type === 'chart').length;
+
+  const messagesRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = messagesRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight });
+  }, [messages, isLoading]);
 
   // Topic label: use the last user message
   const topicLabel = useMemo(() => {
@@ -119,8 +125,10 @@ export function ChatWorkspace({
           </button>
         </header>
 
-        {/* Messages — hidden in data mode */}
+        {/* Messages — hidden in data mode；新消息/回答自动跟随滚动到底（2026-11-04 审查：
+            与 :3005/:3011 行为对齐——此前新回答不滚动，用户需手动翻到底） */}
         <div
+          ref={messagesRef}
           className={styles.messages}
           style={{ display: dataMode ? 'none' : undefined }}
         >

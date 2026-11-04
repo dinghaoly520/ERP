@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Bot, History, Plus, RefreshCw, SendHorizonal, Sparkles, Trash2 } from "lucide-react";
 import { useAuth } from "@/components/m/auth-context";
-import { sendChat, fetchConversation, createConversation, fetchConversationList, removeConversation, type ChatMessage, type ConversationSummary } from "@/lib/api/assistant";
+import { sendChat, fetchConversation, fetchConversationList, removeConversation, type ChatMessage, type ConversationSummary } from "@/lib/api/assistant";
 import { Skeleton } from "@/components/m/skeleton";
 import { EmptyState } from "@/components/m/empty-state";
 import { readSavedFilters } from "@/lib/filter-store";
@@ -11,7 +11,7 @@ import { ChatCardView } from "@/components/m/chat-card";
 import { BottomSheet } from "@/components/m/bottom-sheet";
 
 const CONV_KEY = "m-shuidingdang-conversation";
-const QUICK_QUESTIONS = ["本月成交额多少", "当前最大风险是什么", "节资排名前三", "哪个阶段最堵"];
+const QUICK_QUESTIONS = ["本月成交总额多少", "当前最大风险是什么", "节资排名前三", "哪个阶段最堵"];
 
 export default function ChatPage() {
   const { user } = useAuth();
@@ -162,13 +162,12 @@ export default function ChatPage() {
     await doAsk(q);
   }
 
-  async function newConversation() {
-    try {
-      const c = await createConversation();
-      setConversationId(c.id);
-      localStorage.setItem(CONV_KEY, c.id);
-      setMessages([]);
-    } catch { /* 失败保留当前会话 */ }
+  /* 新对话懒创建（2026-11-04 审查 D 批）：不再预建空会话（历史弹层堆积「（无标题）」
+   * 空行）；仅清本地态，首次提问时 sendChat 无 conversationId 由后端自动建会话 */
+  function newConversation() {
+    setConversationId(null);
+    localStorage.removeItem(CONV_KEY);
+    setMessages([]);
   }
 
   return (

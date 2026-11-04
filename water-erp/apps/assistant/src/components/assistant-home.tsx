@@ -32,12 +32,17 @@ function buildCards(s: QuickStats | null): Card[] {
 
   const { procurement, bid, supplier, notification, focusAreas } = s;
 
+  /* 匿名门户零态收口（2026-11-04 审查）：本门户无登录、quickStats 对匿名恒置 0——
+   * 渲染数据型副标题等于向访客展示「0 个项目/尚无采购项目」的虚假零运营状态。
+   * 0 值一律改中性能力引导语；非 0（理论上不会出现）仍展示数字。 */
+  const nz = (n: number) => n > 0;
+
   return [
     {
       icon: Gauge,
       label: '董事长驾驶舱',
-      subtitle: procurement.total === 0
-        ? '尚无采购项目 · 建议启动立项'
+      subtitle: !nz(procurement.total) && !nz(bid.total)
+        ? '登录采购系统后可问驾驶舱数据'
         : bid.active > 0
           ? `${bid.active} 个开评标进行中 · ${procurement.pending} 个台账立项待审批`
           : `${procurement.total} 个采购项目 · ${bid.total} 个投标项目`,
@@ -47,7 +52,7 @@ function buildCards(s: QuickStats | null): Card[] {
       label: '全系统数据问答',
       subtitle: focusAreas.length > 0
         ? `${focusAreas.slice(0, 2).join(' · ')}`
-        : '系统各模块运行正常',
+        : '问采购台账、投标项目、供应商与公告',
     },
     {
       icon: ShieldAlert,
@@ -56,29 +61,33 @@ function buildCards(s: QuickStats | null): Card[] {
         ? `${supplier.risk} 家供应商有风险`
         : bid.active > 0
           ? `${bid.active} 个项目在开/评标中`
-          : '暂无风险项目',
+          : '识别异常轮次、停滞项目与资质预警',
     },
     {
       icon: Users,
       label: '供应商画像',
-      subtitle: supplier.pending > 0
-        ? `${supplier.approved} 家已入库 · ${supplier.pending} 家待审核`
-        : `${supplier.approved} 家已入库 · 状态良好`,
+      subtitle: nz(supplier.total)
+        ? supplier.pending > 0
+          ? `${supplier.approved} 家已入库 · ${supplier.pending} 家待审核`
+          : `${supplier.approved} 家已入库 · 状态良好`
+        : '查供应商资质、成交记录与风险',
     },
     {
       icon: CalendarClock,
       label: '今日重点事项',
-      subtitle: bid.active > 0
-        ? `${bid.active} 个招标项目进行中`
-        : notification.unread > 0
-          ? `${notification.unread} 条未读通知`
-          : '暂无紧急事项',
+      subtitle: nz(bid.total)
+        ? bid.active > 0
+          ? `${bid.active} 个投标项目开评标进行中`
+          : notification.unread > 0
+            ? `${notification.unread} 条未读通知`
+            : '暂无紧急事项'
+        : '问截标、开标节点与待办提醒',
     },
     {
       icon: ScrollText,
       label: '汇报材料生成',
-      subtitle: bid.total > 0
-        ? `基于 ${bid.total} 个招标项目生成汇报`
+      subtitle: nz(bid.total)
+        ? `基于 ${bid.total} 个投标项目生成汇报`
         : '招采运行情况汇报提纲',
     },
     {
@@ -88,7 +97,7 @@ function buildCards(s: QuickStats | null): Card[] {
         ? `${supplier.pending} 家供应商待审核`
         : procurement.pending > 0
           ? `${procurement.pending} 个台账立项待审批`
-          : '暂无待办事项',
+          : '指导立项、公告、开评标流程操作',
     },
   ];
 }
@@ -127,9 +136,9 @@ const promptKits: PromptKit[] = [
     ],
     aspects: [
       '采购立项的推进节奏如何，有没有卡在审批环节的项目',
-      '招标板块的活跃度和各阶段分布是否均衡，有没有进度异常的项目',
+      '采购板块的活跃度和各阶段分布是否均衡，有没有进度异常的项目',
       '供应商库的规模与质量表现，入库审核通过率和近期评价趋势',
-      '专家资源的可用率及与当前招标项目的专业匹配度',
+      '专家资源的可用率及与当前采购项目的专业匹配度',
       '近期是否有异常指标波动或值得关注的变化信号',
       '与上月/上季度相比，哪些指标在改善，哪些在恶化',
     ],
@@ -145,11 +154,11 @@ const promptKits: PromptKit[] = [
       '请帮我做一次集团招采系统各模块的全面体检。',
       '帮我逐模块扫描一下招采系统的运行状态，看看哪里有问题。',
       '我想对集团招采系统做一轮深度巡检，请逐一分析各模块。',
-      '请系统性地审查采购、招标、供应商、专家、公告五大模块的当前状态。',
+      '请系统性地审查采购、投标、供应商、专家、公告五大模块的当前状态。',
     ],
     aspects: [
       '采购管理模块的数据表现和运行状态',
-      '招标管理各阶段的项目分布和流程效率',
+      '采购流程各阶段的项目分布和效率',
       '供应商库的规模、活跃度和审核流转情况',
       '专家资源的可用性和参与评标的频次分布',
       '通知公告的发布频率和覆盖范围',
@@ -171,7 +180,7 @@ const promptKits: PromptKit[] = [
       '我需要对当前的招采风险画像有一个清晰认识，请全面梳理。',
     ],
     aspects: [
-      '招标环节是否有异常报价模式、投标人关联关系或围标串标迹象',
+      '开评标环节是否有异常报价模式、投标人关联关系或围标串标迹象',
       '供应商端是否有信用评级下滑、资质到期、履约异常或黑名单关联的风险',
       '评标环节是否存在进度严重滞后、专家回避不到位、评分异常离散等程序风险',
       '哪些项目面临截标、开标或合同签订等关键节点的逼近',
@@ -218,7 +227,7 @@ const promptKits: PromptKit[] = [
       '今天有哪些事情需要我关注？请帮我系统地整理一下。',
     ],
     aspects: [
-      '临近截标的招标项目和即将开标的时间节点',
+      '临近截标的采购项目和即将开标的时间节点',
       '超时未审批的采购立项和积压的审核任务',
       '积压的供应商入库申请和即将到期的资质证件',
       '今日安排的评标会议和需要我参加的活动',
@@ -243,7 +252,7 @@ const promptKits: PromptKit[] = [
     ],
     aspects: [
       '采购立项总体情况——立项数量、审批通过率、与上期对比的变化趋势',
-      '招标推进执行情况——各阶段项目分布、开评标完成率、平均周期分析',
+      '采购推进执行情况——各阶段项目分布、开评标完成率、平均周期分析',
       '供应商管理成效——入库数量、审核效率、履约评价表现',
       '专家资源保障情况——专家库规模、参与评标频次、专业覆盖度',
       '风险管控与合规情况——发现的主要风险点及处置措施',
@@ -267,7 +276,7 @@ const promptKits: PromptKit[] = [
     aspects: [
       '采购管理方面有哪些待审批的立项申请，各自的紧急程度和审批注意要点',
       '供应商管理方面有哪些待审核的入库申请，审核的关注重点和常见退回原因',
-      '招标管理方面有哪些需要我跟进的项目，包括待发布公告、待确认开标、待录入评标结果',
+      '采购管理方面有哪些需要我跟进的项目，包括待发布公告、待确认开标、待录入评标结果',
       '专家管理方面是否需要协调专家排期或更新专家信息',
       '合同管理方面有哪些待签署或即将到期的合同',
       '是否有需要我处理的异常告警或风险预警',

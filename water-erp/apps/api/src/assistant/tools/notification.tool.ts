@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantTool, AssistantToolCtx, ToolResult } from './assistant-tool';
+import { NOTIFICATION_TYPE_LABEL, t } from './labels';
 
 /** 通知工具（2026-11-03 公司隔离收口）：通知是发给个人的私有数据——此前全表裸查
  *  （全平台未读总数 / 任何人最近通知标题直接出给 AI），既无本人也无公司口径。
@@ -72,6 +73,27 @@ export class NotificationTool implements AssistantTool {
         id: true, type: true, title: true, isRead: true, createdAt: true,
       },
     });
-    return { success: true, data: notifications };
+    /* 出卡（2026-11-04 审查 P3-26）：此前只回 data、type 英文原键经
+     * serializeDataForLlm 裸进 LLM 上下文——现在产出中文标签卡片 */
+    return {
+      success: true,
+      data: notifications,
+      cards: [
+        {
+          type: 'table',
+          title: `通知列表（${notifications.length} 条）`,
+          columns: [
+            { key: '类型', label: '类型' },
+            { key: '标题', label: '标题' },
+            { key: '状态', label: '状态' },
+          ],
+          rows: notifications.map((n) => ({
+            类型: t(NOTIFICATION_TYPE_LABEL, n.type),
+            标题: n.title,
+            状态: n.isRead ? '已读' : '未读',
+          })),
+        },
+      ],
+    };
   }
 }

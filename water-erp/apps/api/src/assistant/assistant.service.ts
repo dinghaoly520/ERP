@@ -2,6 +2,7 @@ import { Injectable, Logger, UnauthorizedException, ForbiddenException } from '@
 import { PrismaService } from '../prisma/prisma.service';
 import { DeepSeekProvider } from './model/deepseek.provider';
 import { ToolRegistry } from './tools/tool-registry';
+import type { ToolResult } from './tools/assistant-tool';
 import { AssistantToolCtx } from './tools/assistant-tool';
 import { GlobalOverviewTool } from './tools/global-overview.tool';
 import { ProcurementTool } from './tools/procurement.tool';
@@ -458,17 +459,30 @@ ${toolList}
     let successCount = 0;
     const dataSnippets: string[] = [];
     const droppedAll: string[] = []; // 规则闸丢弃的小表数据——数字进正文（2026-11-03）
-    for (const tc of toolCalls) {
-      const tool = this.toolRegistry.get(tc.tool);
-      if (!tool) {
-        this.logger.warn(`handleNormalChat: 未知工具 ${tc.tool}`);
-        continue;
-      }
-      if (allowedTools && !allowedTools.has(tc.tool)) {
-        this.logger.warn(`handleNormalChat: 匿名访客请求内部工具 ${tc.tool}，已跳过`);
-        continue;
-      }
-      const result = await tool.execute(tc.args || {}, ctx);
+    /* 异常隔离 + 并行执行（2026-11-04 审查 P1-4/P2-23）：单工具 DB 抖动此前直接冒泡
+     * 到 chat() 外层 catch——整答换「服务不可用」且已挂卡片照常返回（答文与卡自相矛盾）。
+     * 现逐工具 try/catch 转 success:false 继续答其余工具；独立查询无依赖 → Promise.all。 */
+    const results = await Promise.all(
+      toolCalls.map(async (tc) => {
+        const tool = this.toolRegistry.get(tc.tool);
+        if (!tool) {
+          this.logger.warn(`handleNormalChat: 未知工具 ${tc.tool}`);
+          return { tc, result: null };
+        }
+        if (allowedTools && !allowedTools.has(tc.tool)) {
+          this.logger.warn(`handleNormalChat: 匿名访客请求内部工具 ${tc.tool}，已跳过`);
+          return { tc, result: null };
+        }
+        try {
+          return { tc, result: await tool.execute(tc.args || {}, ctx) };
+        } catch (e) {
+          this.logger.error(`handleNormalChat: 工具 ${tc.tool} 执行异常: ${(e as Error).message}`, (e as Error).stack);
+          return { tc, result: { success: false, error: `工具 ${tc.tool} 查询失败，请稍后重试` } as ToolResult };
+        }
+      }),
+    );
+    for (const { tc, result } of results) {
+      if (!result) continue;
       const gate = this.pushCardsWithCharts(result, cards);
       droppedAll.push(...gate.droppedData);
       if (result.citations) {

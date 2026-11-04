@@ -95,7 +95,7 @@ export async function sendMessage(
     if (!response.ok) {
       const text = await response.text().catch(() => '');
       console.error(`[Assistant] API 返回非 200: ${response.status} ${response.statusText}`, text.slice(0, 500));
-      callbacks.onError(`服务异常（${response.status}），请确认 API 已重启并检查后端日志`);
+      callbacks.onError(`服务暂时不可用（${response.status}），请稍后重试`);
       return;
     }
 
@@ -112,6 +112,6 @@ export async function sendMessage(
       return;
     }
     console.error('[Assistant] sendMessage fetch 失败:', err);
-    callbacks.onError('无法连接到服务，请确认 API 服务（端口 4001）已启动并重启');
+    callbacks.onError('无法连接到服务，网络连接异常，请稍后重试');
   }
 }

@@ -95,7 +95,7 @@ function MessageList({
           <MiniSprite size={28} expression="thinking" animated />
           <div className="asst-thinking-bubble">
             <span className="thinking-dots"><span /><span /><span /></span>
-            <span className="text-[11px] text-[color:var(--muted-foreground)]">水叮当在想呢 🤔</span>
+            <span className="text-[11px] text-[color:var(--muted-foreground)]">水叮当思考中</span>
           </div>
         </div>
       )}

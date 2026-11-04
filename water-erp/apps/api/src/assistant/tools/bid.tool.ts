@@ -50,12 +50,17 @@ export class BidTool implements AssistantTool {
           _count: { select: { suppliers: true, experts: true } },
         },
       });
+      /* risks 动作真滤风险（2026-11-04 审查 P2-16）：此前是「最近创建清单」冒充
+       * 风险概览（riskNote 空照进、显示「无」）——只留 riskNote 非空或已超截止期 */
+      const filtered = action === 'risks'
+        ? projects.filter((p: any) => (p.riskNote && String(p.riskNote).trim()) || (p.deadline && new Date(p.deadline) < new Date()))
+        : projects;
       return {
         success: true,
         cards: [
           {
             type: 'table',
-            title: action === 'active' ? '进行中的投标项目' : '投标项目风险概览',
+            title: action === 'active' ? '进行中的投标项目' : `投标项目风险概览（${filtered.length} 项）`,
             columns: [
               { key: 'projectCode', label: '编号' },
               { key: 'name', label: '名称' },
@@ -63,12 +68,12 @@ export class BidTool implements AssistantTool {
               { key: 'supplierCount', label: '供应商数' },
               { key: 'riskNote', label: '风险提示' },
             ],
-            rows: projects.map((p: any) => ({
+            rows: filtered.map((p: any) => ({
               projectCode: p.projectCode,
               name: p.name,
               stage: t(STAGE_LABEL, p.stage),
               supplierCount: p._count.suppliers,
-              riskNote: p.riskNote || '无',
+              riskNote: p.riskNote || (p.deadline && new Date(p.deadline) < new Date() ? '已超截止期' : '无'),
             })),
           },
         ],
