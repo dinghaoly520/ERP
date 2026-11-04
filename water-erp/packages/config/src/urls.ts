@@ -63,12 +63,23 @@ export const ROLE_PORTAL: Record<string, AppName> = {
  * - 端口/IP 模式（开发/LAN）→ 直连当前主机:4001（按访问主机自适应，
  *   2026-10-09 局域网缺口口径）。
  * 须在浏览器端调用（读 window.location）；SSR 无 window 兜底 localhost。
+ *
+ * ⚠️ 消费方 io() 必须带 forceNew:true（2026-11-03 评审）：socket.io-client 按 origin
+ * 缓存 Manager，同源多命名空间共用时后建者的 reconnection/timeout/transports 会被
+ * 首建者静默覆盖（见 chat.ts/realtime-notifications/use-*-websocket 八处现网调用）。
+ * 新增 WS 调用点若漏带 forceNew，该 bug 会原样复发。
  */
 export function gatewayWsUrl(namespace: string): string {
   const ns = namespace.startsWith('/') ? namespace : `/${namespace}`;
+  // 分机前端等特殊拓扑的构建期出口（2026-11-03 评审#5）：只填 origin（不带路径/命名空间），
+  // 各消费方自动拼接自己的 namespace——从根上避免旧 NEXT_PUBLIC_WS_URL「裸值劫持全部
+  // 命名空间→Invalid namespace」的陷阱。trim 同 apiLoopbackOrigin 口径（2026-11-04 评审：
+  // 纯空白/尾随空格值会产生畸形 URL 而非回退自动探测）。
+  const envOrigin = process.env.NEXT_PUBLIC_WS_ORIGIN?.trim().replace(/\/+$/, '');
+  if (envOrigin) return `${envOrigin}${ns}`;
   if (typeof window !== 'undefined') {
     if (inDomainFamily(window.location.hostname)) {
-      const origin = window.location.origin || `${window.location.protocol}//${window.location.hostname}`;
+      const origin = window.location.origin || `${window.location.protocol}//${window.location.host}`;
       return `${origin}${ns}`;
     }
     return `${window.location.protocol}//${window.location.hostname}:${PORTS.api}${ns}`;
@@ -76,14 +87,20 @@ export function gatewayWsUrl(namespace: string): string {
   return `http://localhost:${PORTS.api}${ns}`;
 }
 
+/** 开标网关 WS 地址（2026-11-03 评审#8 收编四份复制；namespace 须与 bid.gateway.ts 装饰器一致） */
+export function bidWsUrl(): string {
+  return gatewayWsUrl('/bid');
+}
+
 /**
  * 通知网关 WS 地址（X-P3-03 2026-09-29 上收——四门户 realtime-notifications 原样四份复制）：
- * NEXT_PUBLIC_WS_URL 覆盖（去尾斜杠）——⚠️ 历史逃生口，勿随意设置：该变量曾同时被
- * 四门户 use-bid-websocket 消费（现 hooks 已改走 gatewayWsUrl 不再读它）。
+ * NEXT_PUBLIC_WS_URL 覆盖（去尾斜杠）——⚠️ 历史逃生口，仅本函数仍认且值须自带
+ * /notifications 命名空间（裸 origin 值=Invalid namespace 静默死）；新部署一律用
+ * NEXT_PUBLIC_WS_ORIGIN（仅 origin，gatewayWsUrl 自动拼命名空间）。
  * 默认走 gatewayWsUrl('/notifications')（同源/直连双模，见其注释）。
  */
 export function notificationWsUrl(): string {
-  if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL.replace(/\/$/, '');
+  if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL.replace(/\/+$/, '');
   return gatewayWsUrl('/notifications');
 }
 

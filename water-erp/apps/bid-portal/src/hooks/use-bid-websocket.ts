@@ -9,7 +9,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { gatewayWsUrl } from '@water-erp/config';
+import { bidWsUrl } from '@water-erp/config';
 import {
   BID_EVENT,
   type ConnectionState,
@@ -37,11 +37,6 @@ import {
   type RoomCodeRotatedPayload,
   type ScoringReopenedPayload,
 } from '@water-erp/shared';
-
-function wsUrl(): string {
-  // 2026-11-03 统一走 gatewayWsUrl（同源/直连双模；NEXT_PUBLIC_WS_URL 单值会劫持多命名空间，弃用）
-  return gatewayWsUrl('/bid');
-}
 
 /** 分工 v3（2026-08-13）：评标管理/异议裁决/澄清答疑为 :3007 现场全操作——
  * 启动评标、评标在场与澄清事件随迁回事件组归本 hook（解密/监督/大厅/开标事件组为开标执行保留）。 */
@@ -119,7 +114,7 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
     manualClose.current = false;
     setConnection(prev => (prev === 'connected' ? prev : 'reconnecting'));
 
-    const socket = io(wsUrl(), {
+    const socket = io(bidWsUrl(), { forceNew: true,
       withCredentials: true,
       reconnection: false,
       timeout: 10000,

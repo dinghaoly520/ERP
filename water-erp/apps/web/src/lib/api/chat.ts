@@ -97,7 +97,7 @@ let socket: Socket | null = null;
 /** 单例 socket（namespace /chat）。带自动重连、cookie 凭证。 */
 export function getChatSocket(): Socket {
   if (socket) return socket;
-  socket = io(chatWsUrl(), {
+  socket = io(chatWsUrl(), { forceNew: true,
     withCredentials: true,
     transports: ['websocket', 'polling'],
     autoConnect: true,

@@ -108,6 +108,11 @@
 
 ## 5. 生产 env 矩阵（示例值，端口形态按实测锁定）
 
+> **⚠️ 勘误（2026-11-04，随 `gatewayWsUrl` 同源化落地——`fe53fb54` 及其后修复批）：本节及第 7 节 B1 中三处 WS 表述已过时，勿照做：**
+> 1. **`NEXT_PUBLIC_WS_URL` 行作废**——四个开标/评标 hook 已不再读该变量（单值会劫持多命名空间）；仅 `notificationWsUrl` 仍认且值必须自带 `/notifications` 命名空间（裸 origin=Invalid namespace 静默死）。**新的应急出口是 `NEXT_PUBLIC_WS_ORIGIN`（仅填 origin，各消费方自动拼自己的命名空间）**。
+> 2. **B1 中「`portalURL('api')` 被 5 处浏览器 WS hook 消费」已不成立**——浏览器 WS 全部改走 `gatewayWsUrl`：域名模式=同源（门户 nginx `location /socket.io/` 反代到 API 端口，一个 location 服务全部命名空间）、端口/IP 模式=直连 `:4001`。`NEXT_PUBLIC_PORTAL_ORIGINS` 的 `api` 条目不再是 WS 前置条件（服务端分轨口径不变）。
+> 3. **api 子域不再是 WS 直连面**（前后端分离拓扑下浏览器不可达）；B2 中「WS 应急直连」按上文 `NEXT_PUBLIC_WS_ORIGIN` 执行。socket.io 的 URI pathname=命名空间、wire path 恒为 `/socket.io/`——同源写法必须 `${origin}/<命名空间>`，不能挂 `/api/` 前缀。
+
 | 变量 | 值（示例） | 消费方 |
 |---|---|---|
 | `COOKIE_DOMAIN` | `scsfjt.com` | auth `COOKIE_OPTS`（D1） |

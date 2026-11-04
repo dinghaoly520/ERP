@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
  * 不得硬编码 localhost——LAN 设备经 http://192.168.1.111 访问门户时，localhost 兜底
  * 会让浏览器连到客户端自己的机器，通知铃铛/标书上传全部失联。
  */
-import { notificationWsUrl } from "@water-erp/config";
+import { notificationWsUrl, gatewayWsUrl, bidWsUrl } from "@water-erp/config";
 
 /** upload-base 尚未实现时动态导入失败只影响上传用例，不掩盖 WS 用例的断言失败 */
 async function loadResolveUploadBase(): Promise<() => string> {
@@ -17,6 +17,7 @@ async function loadResolveUploadBase(): Promise<() => string> {
 interface StubLocation {
   protocol: string;
   hostname: string;
+  origin?: string;
 }
 
 /** 临时替换/移除 globalThis.window，测完还原（支持异步回调） */
@@ -75,10 +76,53 @@ test("notificationWsUrl：本机 localhost 访问仍指向 localhost", async () 
 
 test("notificationWsUrl：生产域名模式走同源 + 命名空间（2026-11-03 拓扑修正——前后端分离、api 子域对浏览器不可达，门户 nginx 反代 /socket.io/）", async () => {
   await withDevEnv(async () => {
-    await withWindow({ protocol: "https:", hostname: "procurement-ssyc.scsfjt.com" }, () => {
+    // origin 存在（真浏览器形态）——断言走真实分支而非兜底
+    await withWindow({ protocol: "https:", hostname: "procurement-ssyc.scsfjt.com", origin: "https://procurement-ssyc.scsfjt.com" }, () => {
       assert.equal(notificationWsUrl(), "https://procurement-ssyc.scsfjt.com/notifications");
     });
   });
+});
+
+test("gatewayWsUrl：端口模式协议随页面（http 页面 → http 直连）", async () => {
+  await withDevEnv(() =>
+    withWindow({ protocol: "http:", hostname: "192.168.1.50" }, () => {
+      assert.equal(gatewayWsUrl("/bid"), "http://192.168.1.50:4001/bid");
+      assert.equal(gatewayWsUrl("/chat"), "http://192.168.1.50:4001/chat");
+    }),
+  );
+});
+
+test("gatewayWsUrl：命名空间拼接（无前导斜杠自动补）+ bidWsUrl 契约（须与 bid.gateway 装饰器锁步）", async () => {
+  await withDevEnv(() =>
+    withWindow({ protocol: "http:", hostname: "localhost" }, () => {
+      assert.equal(gatewayWsUrl("bid"), "http://localhost:4001/bid");
+      assert.equal(bidWsUrl(), gatewayWsUrl("/bid"));
+    }),
+  );
+});
+
+test("gatewayWsUrl：NEXT_PUBLIC_WS_ORIGIN 覆盖（分机前端拓扑出口；仅 origin，命名空间自动拼）", async () => {
+  const saved = process.env.NEXT_PUBLIC_WS_ORIGIN;
+  process.env.NEXT_PUBLIC_WS_ORIGIN = "https://api.example.com/";
+  try {
+    await withDevEnv(() =>
+      withWindow({ protocol: "http:", hostname: "10.1.2.3" }, () => {
+        assert.equal(gatewayWsUrl("/bid"), "https://api.example.com/bid");
+        assert.equal(notificationWsUrl(), "https://api.example.com/notifications");
+      }),
+    );
+  } finally {
+    if (saved) process.env.NEXT_PUBLIC_WS_ORIGIN = saved;
+    else delete process.env.NEXT_PUBLIC_WS_ORIGIN;
+  }
+});
+
+test("gatewayWsUrl：SSR（无 window）兜底 localhost", async () => {
+  await withDevEnv(() =>
+    withWindow(undefined, () => {
+      assert.equal(gatewayWsUrl("/bid"), "http://localhost:4001/bid");
+    }),
+  );
 });
 
 test("notificationWsUrl：SSR（无 window）兜底 localhost", async () => {
