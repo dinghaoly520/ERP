@@ -490,10 +490,10 @@ export function AccountManagementPanel() {
               不再被长内容（手机号/公司名/操作按钮）撑爆；单元格内容截断+悬停看全文，跨浏览器一致 */}
           <table className="w-full min-w-[960px] table-fixed border-collapse text-sm">
             <colgroup>
-              <col style={{ width: '16%' }} />{/* 账号 */}
-              <col style={{ width: '10%' }} />{/* 姓名 */}
+              <col style={{ width: '18%' }} />{/* 账号（用户名+手机两行） */}
+              <col style={{ width: '14%' }} />{/* 姓名 */}
               <col style={{ width: '12%' }} />{/* 权限 */}
-              <col style={{ width: '20%' }} />{/* 公司/部门 */}
+              <col style={{ width: '14%' }} />{/* 部门 */}
               <col style={{ width: '10%' }} />{/* 状态 */}
               <col style={{ width: '32%' }} />{/* 操作（4 按钮） */}
             </colgroup>
@@ -502,7 +502,7 @@ export function AccountManagementPanel() {
                 <th className="px-4 py-3 font-medium">账号</th>
                 <th className="px-4 py-3 font-medium">姓名</th>
                 <th className="px-4 py-3 font-medium">权限 / 角色</th>
-                <th className="px-4 py-3 font-medium">公司 / 部门</th>
+                <th className="px-4 py-3 font-medium">部门</th>
                 <th className="px-4 py-3 font-medium">状态</th>
                 <th className="px-4 py-3 font-medium">操作</th>
               </tr>
@@ -539,8 +539,7 @@ export function AccountManagementPanel() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center text-[color:var(--muted-foreground)]">
-                      <div className="truncate" title={account.company ?? ''}>{account.company ?? "—"}</div>
-                      <div className="truncate text-xs" title={account.departmentName ?? ''}>{account.departmentName ?? ""}</div>
+                      <span className="block truncate" title={account.departmentName ?? ''}>{account.departmentName || "—"}</span>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold leading-none ${meta.cls}`}>
