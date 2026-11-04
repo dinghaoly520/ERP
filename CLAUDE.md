@@ -524,7 +524,8 @@ In non-interactive environments, use `prisma migrate dev --create-only` → `pri
 - **阶段以采购流程为准**：PMI currentStage 九阶段+直接采购备案表为唯一 canon（`progress.service.ts STAGE_LABELS`）；BidProject 阶段只在投标类提问出现（bid 工具卡标「投标项目阶段分布」）；「采购趋势」用台账轮次月度（procurement `monthly`），不用 BidProject 计数。
 - **:3011 无公司隔离、总数据**（2026-11-03 用户裁定）：移动端 chat 携 `context.portal='mobile-3011'` → 内部角色置 `ctx.totalData` 短路公司过滤（`company-filter.ts`）；:3005/:3008 不带标记维持隔离。**admin 公司选择器（:3011/:3005）为显式筛选，不属隔离**。
 - **统一命名**：totalAward=「成交总额」（三端）；结果构成 PENDING=「待处理」（dashboard.service 单源）。
-- **「采购项目」=PMI 非邀请招标**（2026-11-04 用户裁定「只有项目管理中的项目才是进行中的项目，除邀请招标外都是采购」）：水叮当全局概览/quick-stats 的「采购项目」计数以 ProjectManagementItem 为准（非邀请招标、不含回收站）；邀请招标单列「招标项目（邀请招标）」行；旧台账立项表 ProcurementProject（全库仅 1 行）不再充当「采购项目」数据源——台账工具（procurement.tool）卡名改「台账立项清单/统计/待审批」，quick-stats 的 pending 语义收窄为「台账立项待审批」。
+- **「采购项目」=PMI 非邀请招标**（2026-11-04 用户裁定「只有项目管理中的项目才是进行中的项目，除邀请招标外都是采购」）：水叮当全局概览/quick-stats 的「采购项目」计数以 ProjectManagementItem 为准（非邀请招标、不含回收站）；邀请招标单列「招标项目（邀请招标）」行；旧台账立项表 ProcurementProject（全库仅 1 行）不再充当「采购项目」数据源。**台账工具（procurement.tool）2026-11-04 翻新为轮次表 ProcurementRound 主数据源**（list/detail/stats/pending/abnormal/monthly/methods/suppliers——节资口径同 getStats 仅 AWARDED；pending=轮次待处理，页面同口径）；**新增 pmi.tool**（PMI 清单/详情，阶段 canon 标签）；方式参数跨词汇别名（method-filter.util：竞争性谈判↔谈判采购、LLM 简称容错）。
+- **:3011 总数据=门户全页面**（2026-11-03 裁定，2026-11-04 扩面）：不只水叮当——`resolveScope` 第 3 参 portalSource（`common/portal-source.util` 归一化 `x-portal-source` 头，代理注入不可伪造）：mobile-3011 + leader/staff/bid_host 无显式公司筛选 → 全库视野；已穿参 dashboard(/badges)、procurements(list/stats)、progress(stats/ai-insights/upcoming)、ai/mobile-brief、alerts/overview、bid projects/dashboard；admin 选择器不受影响、外部角色不放开、:3005/:3008 维持隔离。
 - **邀请招标项目例外**：其采购文件阶段徽章显法定名「招标文件」（progress-content 按方式模板），分布图仍用 canon「采购文件」——维持现状（裁定 #3）。
 - 枚举标签唯一裸出面是**卡片 rows**（answer 有双兜底）：新增枚举值必须同步 `assistant/tools/labels.ts` 与 `STAGE_LABELS`（CLARIFY_NOTICE/DIRECT_PURCHASE_FILING 两度实录漏映射）。
 
