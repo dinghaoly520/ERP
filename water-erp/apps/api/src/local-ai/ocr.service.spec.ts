@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { Provider } from '@nestjs/common';
+import { Provider, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OcrService } from './ocr.service';
 
@@ -40,7 +40,7 @@ describe('OcrService 多副本 round-robin', () => {
     const hosts: string[] = [];
     (global as any).fetch = jest.fn(async (url: string) => {
       hosts.push(new URL(url).host);
-      return { ok: true, json: async () => okJson, text: async () => '' };
+      return { ok: true, json: async () => okJson, text: async () => JSON.stringify(okJson) };
     });
     for (let i = 0; i < 4; i++) {
       await svc.ocrImage(Buffer.from('x'), 'image/png', 'x.png');
@@ -53,7 +53,7 @@ describe('OcrService 多副本 round-robin', () => {
     const hosts: string[] = [];
     (global as any).fetch = jest.fn(async (url: string) => {
       hosts.push(new URL(url).host);
-      return { ok: true, json: async () => okJson, text: async () => '' };
+      return { ok: true, json: async () => okJson, text: async () => JSON.stringify(okJson) };
     });
     for (let i = 0; i < 3; i++) {
       await svc.ocrImage(Buffer.from('x'), 'image/png', 'x.png');
@@ -66,7 +66,7 @@ describe('OcrService 多副本 round-robin', () => {
     const hosts: string[] = [];
     (global as any).fetch = jest.fn(async (url: string) => {
       hosts.push(new URL(url).host);
-      return { ok: true, json: async () => okJson, text: async () => '' };
+      return { ok: true, json: async () => okJson, text: async () => JSON.stringify(okJson) };
     });
     await svc.ocrImage(Buffer.from('x'), 'image/png', 'x.png');
     expect(hosts).toEqual(['a:8100']); // 无 //ocr 双斜杠
@@ -110,32 +110,26 @@ function mockRecordingFetch(records: FetchRecord[]) {
   return jest.fn(async (url: string, init: any) => {
     const form = formOf(init);
     records.push({ url, form });
+    let payload: any;
     if (form.max_pages === '0') {
-      return {
-        ok: true,
-        text: async () => '',
-        json: async () => ({
-          text: '',
-          page_count: 100,
-          processed_pages: 0,
-          pages: [],
-        }),
-      };
-    }
-    const [s, e] = (form.page_range ?? '1-1').split('-').map(Number);
-    const pages = Array.from({ length: e - s + 1 }, (_, i) => ({
-      page: i + 1,
-      text: `p${s + i}`,
-    }));
-    return {
-      ok: true,
-      text: async () => '',
-      json: async () => ({
+      payload = { text: '', page_count: 100, processed_pages: 0, pages: [] };
+    } else {
+      const [s, e] = (form.page_range ?? '1-1').split('-').map(Number);
+      const pages = Array.from({ length: e - s + 1 }, (_, i) => ({
+        page: i + 1,
+        text: `p${s + i}`,
+      }));
+      payload = {
         text: pages.map((p) => p.text).join('\n\n'),
         page_count: 100,
         processed_pages: pages.length,
         pages,
-      }),
+      };
+    }
+    return {
+      ok: true,
+      text: async () => JSON.stringify(payload),
+      json: async () => payload,
     };
   });
 }
@@ -253,5 +247,67 @@ describe('OCR 结果缓存', () => {
     expect(redis.get).not.toHaveBeenCalled();
     expect(redis.set).not.toHaveBeenCalled();
     expect((global as any).fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('评审 minors：严格解析 / CACHE_ENABLED=0 / 探测重试与非 JSON', () => {
+  it('M2: OCR_BATCH_PAGES=20abc 严格拒绝 → 回落 40（宽松 parseInt 会取 20）', async () => {
+    const svc = await makeService('http://a:8100', { OCR_BATCH_PAGES: '20abc' });
+    const records: FetchRecord[] = [];
+    (global as any).fetch = mockRecordingFetch(records);
+
+    const big = Buffer.alloc(21 * 1024 * 1024); // 触发分批（100 页探测）
+    await svc.ocrPdf(big);
+
+    expect(records).toHaveLength(4); // 1 探测 + ceil(100/40)=3 批（若误取 20 则 5 批）
+    expect(records[1].form.page_range).toBe('1-40');
+  });
+
+  it('M3: OCR_CACHE_ENABLED=0 → 缓存同样关闭（对齐 0=禁用惯例）', async () => {
+    const redis = makeRedisMock();
+    const svc = await makeService(
+      'http://a:8100',
+      { OCR_CACHE_ENABLED: '0' },
+      redis,
+    );
+    (global as any).fetch = mockRecordingFetch([]);
+
+    await svc.ocrPdf(Buffer.from('x'));
+
+    expect(redis.get).not.toHaveBeenCalled();
+    expect(redis.set).not.toHaveBeenCalled();
+  });
+
+  it('M5: 页数探测失败两次后成功 → 重试拿页数（3 次 fetch）', async () => {
+    const svc = await makeService('http://a:8100');
+    let n = 0;
+    (global as any).fetch = jest.fn(async () => {
+      n += 1;
+      if (n <= 2) throw new Error('ECONNREFUSED');
+      const payload = { text: '', page_count: 42, processed_pages: 0, pages: [] };
+      return {
+        ok: true,
+        text: async () => JSON.stringify(payload),
+        json: async () => payload,
+      };
+    });
+
+    const count = await (svc as any).getPdfPageCount(Buffer.from('x'));
+
+    expect(count).toBe(42);
+    expect((global as any).fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('M5: 200 但非 JSON → ServiceUnavailableException（非裸 SyntaxError）', async () => {
+    const svc = await makeService('http://a:8100');
+    (global as any).fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => '<html>proxy error page</html>',
+    }));
+
+    await expect(
+      svc.ocrImage(Buffer.from('x'), 'image/png', 'x.png'),
+    ).rejects.toThrow(ServiceUnavailableException);
   });
 });

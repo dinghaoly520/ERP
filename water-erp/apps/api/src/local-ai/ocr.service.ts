@@ -60,9 +60,12 @@ export class OcrService {
     }
     this.batchPages = this.readIntConfig('OCR_BATCH_PAGES', 40);
     this.defaultDpi = this.readIntConfig('OCR_DPI', 150);
+    // 0=禁用惯例对齐（'false' | '0' | 'off' | 'no' 均关）
+    const cacheFlag = (
+      this.config.get<string>('OCR_CACHE_ENABLED', 'true') || 'true'
+    ).toLowerCase();
     this.cacheEnabled =
-      this.config.get<string>('OCR_CACHE_ENABLED', 'true') !== 'false' &&
-      !!this.redis;
+      !['false', '0', 'off', 'no'].includes(cacheFlag) && !!this.redis;
     this.cacheTtlSeconds = this.readIntConfig('OCR_CACHE_TTL_SECONDS', 604800);
     this.cacheMaxEntryBytes =
       this.readIntConfig('OCR_CACHE_MAX_ENTRY_KB', 2048) * 1024;
@@ -111,14 +114,26 @@ export class OcrService {
     }
   }
 
-  /** env 整数读取：缺失/非法/非正回落默认并 warn 一次 */
+  /** 响应体 JSON 解析守卫：非 JSON（代理错误页等）归一为 ServiceUnavailableException */
+  private async parseJsonResponse(response: any): Promise<any> {
+    const raw = await response.text();
+    try {
+      return JSON.parse(raw);
+    } catch {
+      throw new ServiceUnavailableException(
+        `OCR service returned non-JSON (status ${response.status}): ${raw.slice(0, 200)}`,
+      );
+    }
+  }
+
+  /** env 整数读取：缺失/非法/非正回落默认并 warn 一次（Number 严格解析，'20abc' 拒收） */
   private readIntConfig(key: string, def: number): number {
     const raw = this.config.get<string>(key, '');
-    const val = parseInt(raw, 10);
-    if (Number.isFinite(val) && val > 0) {
-      return val;
-    }
     if (raw) {
+      const val = Number(raw);
+      if (Number.isFinite(val) && val > 0) {
+        return val;
+      }
       this.logger.warn(`OCR env ${key}=${raw} 非法，回落默认 ${def}`);
     }
     return def;
@@ -236,7 +251,7 @@ export class OcrService {
       );
     }
 
-    const data = await response.json();
+    const data = await this.parseJsonResponse(response);
     this.logger.log(
       `OCR complete: ${data.processed_pages} pages, ${data.text.length} chars`,
     );
@@ -316,14 +331,29 @@ export class OcrService {
   }
 
   private async getPdfPageCount(buffer: Buffer): Promise<number> {
-    // max_pages=0 且无 page_range：服务端零 OCR 早返回页数（原实现 OCR 第 1 页纯浪费）
-    const result = await this.ocrPdfSingle(buffer, 0, 50, null);
-    if (!result.pageCount || result.pageCount < 1) {
-      throw new ServiceUnavailableException(
-        'OCR service did not return a valid PDF page count',
-      );
+    // max_pages=0 且无 page_range：服务端零 OCR 早返回页数（原实现 OCR 第 1 页纯浪费）。
+    // 与批处理同权重的重试（探测也吃 BATCH_RETRIES/RETRY_DELAY_MS）。
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= this.BATCH_RETRIES; attempt++) {
+      try {
+        const result = await this.ocrPdfSingle(buffer, 0, 50, null);
+        if (!result.pageCount || result.pageCount < 1) {
+          throw new ServiceUnavailableException(
+            'OCR service did not return a valid PDF page count',
+          );
+        }
+        return result.pageCount;
+      } catch (error) {
+        lastError = error;
+        this.logger.warn(
+          `Page count probe attempt ${attempt}/${this.BATCH_RETRIES} failed: ${error}`,
+        );
+        if (attempt < this.BATCH_RETRIES) {
+          await this.delay(this.RETRY_DELAY_MS);
+        }
+      }
     }
-    return result.pageCount;
+    throw lastError;
   }
 
   private async ocrPdfBatchWithRetry(
@@ -423,7 +453,7 @@ export class OcrService {
       );
     }
 
-    const data = await response.json();
+    const data = await this.parseJsonResponse(response);
     const result: OcrResult = {
       text: data.text,
       pageCount: data.page_count,
