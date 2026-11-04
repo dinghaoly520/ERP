@@ -25,7 +25,47 @@ _thread_pool: Optional[ThreadPoolExecutor] = None
 _pdf_parser = None
 _hybrid_servers: List["HybridServer"] = []
 
-NUM_WORKERS = 2
+def _resolve_int_env(env, key: str, default: int, minimum: int = 0) -> int:
+    """env 整数解析：缺失/非法/低于 minimum 回落默认并 warn（防低配机手滑崩启动）。"""
+    raw = env.get(key, "")
+    if not raw:
+        return default
+    try:
+        val = int(raw)
+    except (TypeError, ValueError):
+        logger.warning("OCR env %s=%r 非整数，回落默认 %d", key, raw, default)
+        return default
+    if val < minimum:
+        logger.warning("OCR env %s=%d 低于下限 %d，回落默认 %d", key, val, minimum, default)
+        return default
+    return val
+
+
+def resolve_num_workers(env) -> int:
+    """页级并行 worker 数（OCR_NUM_WORKERS，默认 2；非法/<=0 回落 2）。"""
+    return _resolve_int_env(env, "OCR_NUM_WORKERS", 2, minimum=1)
+
+
+def resolve_thread_config(env) -> dict:
+    """onnxruntime 会话线程 kwargs（Global 级，RapidOCR 自动下推 Det/Cls/Rec 三会话）。
+
+    线程铁律：OCR_NUM_WORKERS × OCR_INTRA_THREADS ≤ 分配给 OCR 的核预算。
+    8 核机 6 核预算推荐 2×3（或 1×6）。0/未设 = 不限制（包默认）。
+    """
+    kwargs = {}
+    intra = _resolve_int_env(env, "OCR_INTRA_THREADS", 0)
+    inter = _resolve_int_env(env, "OCR_INTER_THREADS", 0)
+    if intra > 0:
+        kwargs["intra_op_num_threads"] = intra
+    if inter > 0:
+        kwargs["inter_op_num_threads"] = inter
+    return kwargs
+
+
+NUM_WORKERS = resolve_num_workers(os.environ)
+# 生效值（0=未限制）——/health 上报与 RapidOcrEngine 注入共用（见 resolve_thread_config）
+OCR_INTRA_THREADS = _resolve_int_env(os.environ, "OCR_INTRA_THREADS", 0)
+OCR_INTER_THREADS = _resolve_int_env(os.environ, "OCR_INTER_THREADS", 0)
 MAX_SIDE = int(os.environ.get("OCR_MAX_SIDE", "3000"))
 # 挂死自愈：单页 recognize 超过该秒数（onnxruntime 死角死锁，线程无法取消），
 # watchdog 守护线程直接终止进程，交由 PM2 约 5s 自动拉起、上游 BullMQ 重试。
@@ -85,12 +125,17 @@ class RapidOcrEngine:
                 rec_model_path=os.path.join(V5_MODEL_DIR, "rec_v5.onnx"),
                 rec_keys_path=os.path.join(V5_MODEL_DIR, "ppocrv5_dict.txt"),
             )
+            kwargs.update(resolve_thread_config(os.environ))
             if use_gpu:
                 kwargs["config_path"] = gpu_config
             self._engine = RapidOCR(**kwargs)
         else:
             logger.info("Using PP-OCRv4 default models")
-            self._engine = RapidOCR(config_path=gpu_config) if use_gpu else RapidOCR()
+            if use_gpu:
+                self._engine = RapidOCR(config_path=gpu_config)
+            else:
+                # CPU 线程预算注入（GPU 路径走 config_gpu.yaml，不受影响）
+                self._engine = RapidOCR(**resolve_thread_config(os.environ))
 
     def recognize(self, arr: np.ndarray) -> str:
         result, _ = self._engine(arr)
