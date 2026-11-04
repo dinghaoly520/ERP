@@ -2573,12 +2573,17 @@ export function ExpertExtractPage({
 
           {preview && !loading && (
               <div className="space-y-4">
-                {/* 抽取配置板块（2026-11-04 合并：配置 chips + 组队分析同卡）——chips 与供应商选取摘要卡同款设计：
-                    按序——配额总人数 → 公司选择情况 → 专业选择情况 → 抽取方式，下方为组队逻辑分析（AI/规则）。
+                {/* 抽取配置板块（2026-11-04 合并；骨架对齐供应商选取「智能分析摘要」卡）：
+                    标题+引擎徽标在顶部 → 配置 chips（人数→公司→专业→方式）→ 组队分析正文 → 配额明细。
                     配额与方式正交（manualQuotas 恒随请求发送，方式只决定池内选人规则），
                     公司=各配额行白名单并集（空=不限公司全库） */}
-                <div className="neu-table-card p-4 space-y-3">
-                  <div className="flex flex-wrap items-center gap-1">
+                <div className="neu-table-card p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    {preview.engine === 'deepseek' ? <Sparkles size={15} className="text-[var(--accent)]" /> : <ShieldCheck size={15} className="text-[var(--warning)]" />}
+                    <h2 className="text-[12px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">{preview.engine === 'deepseek' ? 'AI 评审组分析' : '规则引擎组建'}</h2>
+                    <span className={`ml-auto inline-flex items-center rounded-[6px] px-1.5 py-0.5 text-[10px] font-bold shadow-[inset_0_0.5px_0_oklch(1_0_0/0.5)] ${preview.engine === 'deepseek' ? 'bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[var(--accent)]' : 'bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]'}`}>{preview.engine === 'deepseek' ? 'AI 抽取' : '规则'}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1 mb-3">
                     <span className="mr-1 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">抽取配置</span>
                     <span className="rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-[var(--accent-strong)]"
                       style={{ background: 'color-mix(in oklch, var(--accent) 10%, transparent)' }}>人数·{quotaSum} 人</span>
@@ -2597,14 +2602,8 @@ export function ExpertExtractPage({
                     <span className="rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--muted-foreground)]"
                       style={{ background: 'color-mix(in oklch, var(--muted-foreground) 10%, transparent)' }}>方式·{MODE_LABELS[extractMode as ExtractMode] ?? extractMode}</span>
                   </div>
-                  <div className="wb-section-rule" />
-                  <div className="flex items-center gap-2">
-                    {preview.engine === 'deepseek' ? <Sparkles size={15} className="text-[var(--accent)]" /> : <ShieldCheck size={15} className="text-[var(--warning)]" />}
-                    <h2 className="text-xs font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">{preview.engine === 'deepseek' ? 'AI 评审组分析' : '规则引擎组建'}</h2>
-                    <span className={`inline-flex items-center rounded-[6px] px-1.5 py-0.5 text-[10px] font-bold shadow-[inset_0_0.5px_0_oklch(1_0_0/0.5)] ${preview.engine === 'deepseek' ? 'bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[var(--accent)]' : 'bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]'}`}>{preview.engine === 'deepseek' ? 'AI' : '规则'}</span>
-                  </div>
                   <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">{preview.analysis}</p>
-                  {preview.requiredSpecialties.length > 0 && <div className="flex flex-wrap items-center gap-2">{[...preview.requiredSpecialties].sort((a,b)=>(quotaOrderMap.get(a.specialty)??999)-(quotaOrderMap.get(b.specialty)??999)).map((q, i) => <span key={`${q.specialty}-${i}`} className="neu-tab-count">{q.specialties?.length ? q.specialties.join('、') : (q.specialty || '专业不限')} × {q.count}</span>)}</div>}
+                  {preview.requiredSpecialties.length > 0 && <div className="flex flex-wrap items-center gap-2 mt-3">{[...preview.requiredSpecialties].sort((a,b)=>(quotaOrderMap.get(a.specialty)??999)-(quotaOrderMap.get(b.specialty)??999)).map((q, i) => <span key={`${q.specialty}-${i}`} className="neu-tab-count">{q.specialties?.length ? q.specialties.join('、') : (q.specialty || '专业不限')} × {q.count}</span>)}</div>}
                   <QuotaFiltersAppliedHint filters={preview.quotaFiltersApplied} />
                 </div>
 
