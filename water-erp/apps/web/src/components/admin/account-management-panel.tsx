@@ -73,6 +73,24 @@ function permissionLabel(role: AuthRole): string {
   return ROLE_LABELS[role] ?? role;
 }
 
+/** 权限配色（2026-11-04 用户口径）：管理权限（含管理员/开标主持等管理侧角色）=品牌蓝、办公权限=石板灰 */
+const PERMISSION_TONE: Record<"management" | "office", string> = {
+  management: "bg-[rgba(122,168,255,0.18)] text-[color:var(--accent)]",
+  office: "bg-[rgba(100,116,139,0.1)] text-[rgba(71,85,105,0.95)]",
+};
+
+function permissionToneCls(role: AuthRole): string {
+  // 特殊角色（admin/bid_host）无档位，归管理侧蓝色
+  return PERMISSION_TONE[roleToPermission(role) ?? "management"];
+}
+
+/** 组内排序（2026-11-04 用户口径）：管理权限在前、特殊角色（管理员/开标主持）居中、办公权限殿后；同档保持原序 */
+function permissionRank(role: AuthRole): number {
+  if (role === "leader") return 0;
+  if (role === "staff") return 2;
+  return 1;
+}
+
 const inputCls = "neu-input w-full text-sm";
 
 /** IP/时间列显示格式：无记录「—」；IP 换行 + 相对友好的短时间（MM-DD HH:mm） */
@@ -212,7 +230,11 @@ export function AccountManagementPanel() {
       if (y[0] === "未归属") return -1;
       return x[0].localeCompare(y[0]);
     });
-  const staffGroups = groupBy(filtered, (a) => a.company ?? "");
+  // 工作人员组内排序（2026-11-04）：管理权限 → 特殊角色 → 办公权限
+  const staffGroups = groupBy(filtered, (a) => a.company ?? "").map(
+    ([name, rows]) =>
+      [name, [...rows].sort((x, y) => permissionRank(x.role) - permissionRank(y.role))] as [string, AdminAccount[]],
+  );
 
   const supplierFiltered = suppliers.filter((s) => {
     const q = query.trim().toLowerCase();
@@ -507,7 +529,7 @@ export function AccountManagementPanel() {
                     </td>
                     <td className="px-4 py-3 text-center text-[color:var(--foreground)]"><span className="block truncate" title={account.displayName}>{account.displayName}</span></td>
                     <td className="px-4 py-3 text-center">
-                      <span className="inline-flex items-center rounded-full bg-[rgba(122,168,255,0.12)] px-2.5 py-1 text-[11px] font-semibold leading-none text-[color:var(--accent)]">
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold leading-none ${permissionToneCls(account.role)}`}>
                         {permissionLabel(account.role)}
                       </span>
                     </td>
