@@ -22,7 +22,8 @@ const TRANSPORT_RETRY_DELAYS_MS = [400, 1_000, 3_000, 8_000];
  *  文件导入 AI 识别（解析 PDF/docx + LLM 全字段分析，同步慢路径）——2026-10-30 实录：
  *  import-autofill 未列入时吃 15s 硬超时，被误杀成 502「后端服务未启动」。 */
 const UPSTREAM_SLOW_PATH_PREFIXES = ['/api/ai/'];
-const UPSTREAM_SLOW_PATH_EXACT = ['/api/tender-write/import-autofill'];
+// 2026-11-04：公告导入识别（LLM 同链路，耐心重试下可达 ~30s）——未列入时吃 15s 硬超时
+const UPSTREAM_SLOW_PATH_EXACT = ['/api/tender-write/import-autofill', '/api/tender-write/announcement-import-autofill'];
 
 function upstreamTimeoutFor(pathname: string): number {
   return UPSTREAM_SLOW_PATH_PREFIXES.some((p) => pathname.startsWith(p))
