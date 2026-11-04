@@ -11,11 +11,9 @@ import type { WorkbenchTone } from '@water-erp/shared';
 
 const PERIOD_LABELS: Record<string, string> = { month: '近一月', quarter: '近一季', all: '累计' };
 
-const SPECIALTY_TONES: WorkbenchTone[] = ['blue', 'cyan', 'green', 'orange', 'red', 'purple'];
-function specialtyTone(s: string): WorkbenchTone {
-  let hash = 0;
-  for (let i = 0; i < s.length; i++) hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0;
-  return SPECIALTY_TONES[Math.abs(hash) % SPECIALTY_TONES.length];
+// 专业标签统一品牌蓝（2026-11-04 用户裁定：原哈希六彩无语义规律、视觉混乱）
+function specialtyTone(_s: string): WorkbenchTone {
+  return 'blue';
 }
 
 // 前三名奖牌色：金 / 银 / 铜
