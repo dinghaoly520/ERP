@@ -246,8 +246,8 @@ function ExpertInfoField({
           <table className="neu-table w-full min-w-[500px]">
             <thead>
               <tr>
-                <th style={{ width: 36 }}>#</th>
-                <th className="text-left">专家</th>
+                <th style={{ width: 24 }}>#</th>
+                <th className="text-left" style={{ width: '22%', minWidth: 120 }}>专家</th>
                 <th className="text-left">部门</th>
                 <th className="text-left">专业</th>
                 <th className="text-left">职称</th>
