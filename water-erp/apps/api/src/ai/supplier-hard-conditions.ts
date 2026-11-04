@@ -102,7 +102,9 @@ export function verifySupplierHardConditions(
     const valid = hits.filter((q) => {
       if (!q.validTo) return true; // 空=长期有效
       const t = q.validTo instanceof Date ? q.validTo.getTime() : new Date(q.validTo).getTime();
-      return Number.isFinite(t) && t > now;
+      // 解析失败（自报数据脏，如「长期」）按有效期内宽松处理——FAIL 会剔除，宁漏放不误杀
+      if (!Number.isFinite(t)) return true;
+      return t > now;
     });
     if (hits.length === 0) {
       checks.push({ type: 'qualification', label: dict.label, status: 'MISSING', detail: '库内未见该资质记录，请人工核实', required: req.required });

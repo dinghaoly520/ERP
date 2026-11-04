@@ -66,7 +66,7 @@ export function buildCandidateLines(
       (c.businessScope || '').slice(0, 90),
       c.tags && c.tags.length > 0 ? `标签:${c.tags.slice(0, 6).join('、')}` : '',
       c.qualificationNames && c.qualificationNames.length > 0
-        ? `资质全:${c.qualificationNames.slice(0, 8).join('、')}`
+        ? `资质全:${c.qualificationNames.slice(0, 8).map((n) => n.slice(0, 40)).join('、')}`
         : '资质:库内未见',
       `业绩:${c.performanceSummary || '库内无业绩记录'}`,
       c.penaltyCount ? `惩戒:${c.penaltyCount}条` : '',

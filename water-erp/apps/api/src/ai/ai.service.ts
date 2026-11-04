@@ -1311,6 +1311,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     // 硬性条件三态核验（2026-11-04 spec）：必须级 FAIL 剔除、MISSING 保留；不传/空=零行为变化
     let hardChecks = new Map<string, ConditionCheck[]>();
     let hardFilteredOut: { supplierId: string; name: string; failedCondition: string }[] | undefined;
+    let hardFilteredOutTotal: number | undefined;
     if (!hardConditionsEmpty(opts.hardConditions)) {
       const latestGrade = new Map<string, string | null>();
       for (const s of suppliers) {
@@ -1324,7 +1325,9 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       const keptIds = new Set(verdict.kept.map((k) => k.id));
       suppliers = suppliers.filter((s) => keptIds.has(s.id));
       hardChecks = verdict.checksBySupplier;
-      hardFilteredOut = verdict.filteredOut;
+      // 响应体防膨胀：剔除名单封顶 300 条，真实总数以 filteredOutTotal 透出（前端徽标用总数）
+      hardFilteredOutTotal = verdict.filteredOut.length;
+      hardFilteredOut = verdict.filteredOut.slice(0, 300);
       if (suppliers.length === 0) {
         return {
           requirement,
@@ -1335,6 +1338,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
           recommendations: [],
           conditionsCheck: [],
           filteredOut: hardFilteredOut,
+          filteredOutTotal: hardFilteredOutTotal,
           generatedAt: new Date().toISOString(),
         };
       }
@@ -1530,6 +1534,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
               checks: hardChecks.get(r.supplierId) ?? [],
             })),
             filteredOut: hardFilteredOut,
+            filteredOutTotal: hardFilteredOutTotal,
           }
         : {}),
       generatedAt: new Date().toISOString(),

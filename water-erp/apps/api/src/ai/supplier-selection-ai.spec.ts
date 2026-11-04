@@ -56,4 +56,11 @@ describe('buildCandidateLines（候选行证据组装）', () => {
     const { lines } = buildCandidateLines([c]);
     expect(lines[0]).not.toContain('核验:');
   });
+
+  it('资质全名单条超长截断 40 字（防 prompt 膨胀——库内存在整段自由文本资质名）', () => {
+    const longName = '持证等级: 工程勘察（综合）甲级；水利行业甲级；工程咨询甲级；地灾评估甲级；测绘乙级；市政甲级；建筑工程甲级；水利乙级；试验检测甲级';
+    const { lines } = buildCandidateLines([{ ...c, qualificationNames: [longName] }]);
+    expect(lines[0]).toContain(longName.slice(0, 40));
+    expect(lines[0]).not.toContain(longName.slice(41));
+  });
 });

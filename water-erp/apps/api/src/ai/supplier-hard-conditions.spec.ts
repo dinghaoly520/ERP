@@ -104,6 +104,13 @@ describe('资质三态（关键词变体匹配）', () => {
     );
     expect(checks[0].status).toBe('PASS');
   });
+  it('validTo 垃圾字符串（无法判定有效期）按有效期内宽松处理，不误杀', () => {
+    const checks = verifySupplierHardConditions(
+      mkSupplier({ qualifications: [{ name: '质量管理体系认证', validTo: '长期' }] }),
+      cond,
+    );
+    expect(checks[0].status).toBe('PASS');
+  });
 });
 
 describe('业绩三态', () => {

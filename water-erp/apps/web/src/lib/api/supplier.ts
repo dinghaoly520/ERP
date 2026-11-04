@@ -94,8 +94,10 @@ export interface SupplierSelectionResult {
   recommendations: SupplierRecommendation[];
   /** 硬性条件逐项核验（仅传入 hardConditions 时返回；键=推荐供应商） */
   conditionsCheck?: { supplierId: string; checks: ConditionCheckDto[] }[];
-  /** 被硬性条件剔除的供应商（必须级 FAIL；供人工复核误杀） */
+  /** 被硬性条件剔除的供应商（必须级 FAIL；供人工复核误杀；上限 300 条，总数见 filteredOutTotal） */
   filteredOut?: { supplierId: string; name: string; failedCondition: string }[];
+  /** 被硬性条件剔除的供应商总数（filteredOut 截断时 > filteredOut.length） */
+  filteredOutTotal?: number;
   generatedAt: string;
 }
 

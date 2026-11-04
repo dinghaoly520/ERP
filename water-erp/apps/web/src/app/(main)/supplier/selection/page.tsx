@@ -2320,7 +2320,7 @@ export function SupplierSelectionPage({
                       <button type="button" onClick={() => setShowFilteredOut(v => !v)}
                         className="font-semibold text-[var(--warning)] hover:underline"
                         title="被硬性筛选条件剔除的供应商（必须级不满足）——可复核是否误杀">
-                        硬性条件剔除 {result.filteredOut.length} 家{showFilteredOut ? '（收起）' : '（查看）'}
+                        硬性条件剔除 {result.filteredOutTotal ?? result.filteredOut.length} 家{showFilteredOut ? '（收起）' : '（查看）'}
                       </button>
                     )}
                   </div>
@@ -2333,6 +2333,9 @@ export function SupplierSelectionPage({
                           <span className="text-right text-[var(--muted-foreground)]">{f.failedCondition}</span>
                         </div>
                       ))}
+                      {(result.filteredOutTotal ?? result.filteredOut.length) > result.filteredOut.length && (
+                        <div className="pt-1 text-[10px] text-[var(--muted-foreground)]">仅显示前 {result.filteredOut.length} 家，共剔除 {result.filteredOutTotal} 家</div>
+                      )}
                     </div>
                   )}
                 </div>
