@@ -39,8 +39,8 @@ function buildCards(s: QuickStats | null): Card[] {
       subtitle: procurement.total === 0
         ? '尚无采购项目 · 建议启动立项'
         : bid.active > 0
-          ? `${bid.active} 个招标进行中· ${procurement.pending} 个待审批`
-          : `${procurement.total} 个采购 · ${bid.total} 个招标`,
+          ? `${bid.active} 个开评标进行中 · ${procurement.pending} 个台账立项待审批`
+          : `${procurement.total} 个采购项目 · ${bid.total} 个投标项目`,
     },
     {
       icon: Search,
@@ -87,7 +87,7 @@ function buildCards(s: QuickStats | null): Card[] {
       subtitle: supplier.pending > 0
         ? `${supplier.pending} 家供应商待审核`
         : procurement.pending > 0
-          ? `${procurement.pending} 个采购项目待审批`
+          ? `${procurement.pending} 个台账立项待审批`
           : '暂无待办事项',
     },
   ];

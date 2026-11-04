@@ -815,7 +815,11 @@ ${toolList}
       expertAvailable,
       notificationUnread,
     ] = await Promise.all([
-      this.prisma.procurementProject.count({ where: { ...companyWhere } }),
+      /* 「采购项目」口径（2026-11-04 用户裁定）：PMI 为准（非邀请招标、不含回收站）；
+       * pending=台账立项待审批（旧台账审批概念，语义收窄为台账） */
+      this.prisma.projectManagementItem.count({
+        where: { ...companyWhere, status: { not: 'RECYCLED' }, procurementMethod: { not: '邀请招标' } },
+      }),
       this.prisma.procurementProject.count({ where: { ...companyWhere, status: 'PENDING_REVIEW' } }),
       this.prisma.bidProject.count({ where: { ...companyWhere, isExtractionOnly: false } }),
       this.prisma.bidProject.count({ where: { ...companyWhere, stage: { in: ['OPENING', 'EVALUATING'] }, isExtractionOnly: false } }),
@@ -830,8 +834,8 @@ ${toolList}
 
     // Detect the most notable system state for each dimension
     const focusAreas: string[] = [];
-    if (procurementTotal === 0) focusAreas.push('采购立项为空');
-    if (procurementPending > 0) focusAreas.push(`${procurementPending}个项目待审批`);
+    if (procurementTotal === 0) focusAreas.push('尚无采购项目');
+    if (procurementPending > 0) focusAreas.push(`${procurementPending}个台账立项待审批`);
     if (bidActive > 0) focusAreas.push(`${bidActive}个开评标项目进行中`);
     if (supplierPending > 0) focusAreas.push(`${supplierPending}家供应商待审核`);
     if (supplierRisk > 0) focusAreas.push(`${supplierRisk}家供应商有风险`);

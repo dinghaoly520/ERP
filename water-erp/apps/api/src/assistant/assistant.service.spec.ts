@@ -50,6 +50,7 @@ describe('AssistantService', () => {
       },
       announcement: { count: jest.fn() },
       procurementProject: { count: jest.fn() },
+      projectManagementItem: { count: jest.fn() },
       bidProject: { count: jest.fn() },
       supplier: { count: jest.fn() },
       expertProfile: { count: jest.fn() },
@@ -395,7 +396,8 @@ describe('AssistantService', () => {
     it('认证 admin 返回全量统计（无公司过滤）', async () => {
       prisma.announcement.count.mockResolvedValue(12);
       prisma.user.findUnique.mockResolvedValue({ role: 'admin', companyId: null });
-      prisma.procurementProject.count.mockResolvedValue(5);
+      prisma.projectManagementItem.count.mockResolvedValue(5);
+      prisma.procurementProject.count.mockResolvedValue(0);
       prisma.bidProject.count.mockResolvedValue(3);
       prisma.supplier.count.mockResolvedValue(10);
       prisma.expertProfile.count.mockResolvedValue(7);
@@ -405,8 +407,12 @@ describe('AssistantService', () => {
 
       expect(result.procurement.total).toBe(5);
       expect(result.notification.unread).toBe(2);
-      // admin 无公司过滤（空 where）
-      expect(prisma.procurementProject.count).toHaveBeenCalledWith({ where: {} });
+      // 「采购项目」总数=PMI（非邀请招标、不含回收站，2026-11-04 口径裁定）；admin 无公司过滤
+      expect(prisma.projectManagementItem.count).toHaveBeenCalledWith({
+        where: { status: { not: 'RECYCLED' }, procurementMethod: { not: '邀请招标' } },
+      });
+      // 旧台账立项表只数待审批（pending 语义收窄为台账）
+      expect(prisma.procurementProject.count).toHaveBeenCalledWith({ where: { status: 'PENDING_REVIEW' } });
     });
 
     it('外部角色（supplier）认证后仍只返回公开域（认证≠授权，评审 F2）', async () => {
@@ -423,7 +429,8 @@ describe('AssistantService', () => {
     it('认证 leader 公司隔离（2026-11-03 审计 F16）——计数注入本公司 + 未读数只数本人', async () => {
       prisma.announcement.count.mockResolvedValue(12);
       prisma.user.findUnique.mockResolvedValue({ role: 'leader', companyId: 'co-1' });
-      prisma.procurementProject.count.mockResolvedValue(5);
+      prisma.projectManagementItem.count.mockResolvedValue(5);
+      prisma.procurementProject.count.mockResolvedValue(0);
       prisma.bidProject.count.mockResolvedValue(3);
       prisma.supplier.count.mockResolvedValue(10);
       prisma.expertProfile.count.mockResolvedValue(7);
@@ -431,7 +438,10 @@ describe('AssistantService', () => {
 
       await service.getQuickStats('leader-1');
 
-      expect(prisma.procurementProject.count).toHaveBeenCalledWith({ where: { companyId: 'co-1' } });
+      expect(prisma.projectManagementItem.count).toHaveBeenCalledWith({
+        where: { companyId: 'co-1', status: { not: 'RECYCLED' }, procurementMethod: { not: '邀请招标' } },
+      });
+      expect(prisma.procurementProject.count).toHaveBeenCalledWith({ where: { companyId: 'co-1', status: 'PENDING_REVIEW' } });
       expect(prisma.bidProject.count).toHaveBeenCalledWith({ where: { companyId: 'co-1', isExtractionOnly: false } });
       expect(prisma.supplier.count).toHaveBeenCalledWith({ where: { companyId: 'co-1', status: 'APPROVED' } });
       expect(prisma.expertProfile.count).toHaveBeenCalledWith({ where: { user: { companyId: 'co-1' } } });

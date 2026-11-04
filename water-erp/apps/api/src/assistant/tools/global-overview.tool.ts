@@ -3,7 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantTool, AssistantToolCtx, ToolResult } from './assistant-tool';
 import { announcementCompanyWhere, toolCompanyWhere } from './company-filter';
 import {
-  PROCUREMENT_STATUS_LABEL,
+  PMI_STATUS_LABEL,
   SUPPLIER_STATUS_LABEL,
   t,
 } from './labels';
@@ -15,7 +15,7 @@ import { STAGE_LABELS as PM_STAGE_LABELS } from '../../progress/progress.service
 export class GlobalOverviewTool implements AssistantTool {
   name = 'global_overview';
   description =
-    '获取 ERP 系统全局概览统计，包括采购/投标/供应商/专家/公告数量与状态分布（阶段=采购流程步骤）';
+    '获取 ERP 系统全局概览统计，包括采购/投标/供应商/专家/公告数量与状态分布（采购项目=项目管理口径、邀请招标单列；阶段=采购流程步骤）';
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -25,26 +25,43 @@ export class GlobalOverviewTool implements AssistantTool {
     // naive companyId 过滤会错删平台级公告）
     const companyWhere = toolCompanyWhere(ctx);
     const announcementScope = announcementCompanyWhere(ctx);
+    /* 「采购项目」数据源改 PMI（2026-11-04 用户裁定）：只有项目管理中的项目才是
+     * 进行中的项目；除邀请招标外都是采购——邀请招标=法定招标形态，单列「招标项目」
+     * 行。旧数据源 ProcurementProject（采购台账立项，全库仅 1 行）不再充当「采购项目」 */
     const [
       procurementCount,
+      procurementActive,
+      invitedCount,
+      invitedActive,
       bidCount,
       supplierCount,
       expertCount,
       announcementCount,
     ] = await Promise.all([
-      this.prisma.procurementProject.count({ where: companyWhere }),
+      this.prisma.projectManagementItem.count({
+        where: { ...companyWhere, status: { not: 'RECYCLED' }, procurementMethod: { not: '邀请招标' } },
+      }),
+      this.prisma.projectManagementItem.count({
+        where: { ...companyWhere, status: 'ACTIVE', procurementMethod: { not: '邀请招标' } },
+      }),
+      this.prisma.projectManagementItem.count({
+        where: { ...companyWhere, status: { not: 'RECYCLED' }, procurementMethod: '邀请招标' },
+      }),
+      this.prisma.projectManagementItem.count({
+        where: { ...companyWhere, status: 'ACTIVE', procurementMethod: '邀请招标' },
+      }),
       this.prisma.bidProject.count({ where: { ...companyWhere, isExtractionOnly: false } }),
       this.prisma.supplier.count({ where: companyWhere }),
       this.prisma.expertProfile.count({ where: { user: companyWhere } }),
       this.prisma.announcement.count({ where: { status: 'PUBLISHED', ...announcementScope } as never }),
     ]);
 
-    const procurementByStatus =
-      await this.prisma.procurementProject.groupBy({
+    const pmByStatus =
+      await this.prisma.projectManagementItem.groupBy({
         by: ['status'],
-        where: { ...companyWhere },
+        where: { ...companyWhere, status: { not: 'RECYCLED' }, procurementMethod: { not: '邀请招标' } },
         _count: true,
-        _sum: { budget: true },
+        _sum: { budgetAmount: true },
       });
 
     const supplierByStatus = await this.prisma.supplier.groupBy({
@@ -87,7 +104,8 @@ export class GlobalOverviewTool implements AssistantTool {
             { key: 'note', label: '备注' },
           ],
           rows: [
-            { item: '采购项目', value: procurementCount, note: '全部状态' },
+            { item: '采购项目', value: procurementCount, note: `其中 ${procurementActive} 个在办` },
+            { item: '招标项目（邀请招标）', value: invitedCount, note: `其中 ${invitedActive} 个在办` },
             { item: '投标项目', value: bidCount, note: `其中 ${activeBids} 个进行中` },
             { item: '在库供应商', value: supplierCount, note: `其中 ${pendingSuppliers} 家待审核` },
             { item: '评审专家', value: expertCount, note: '全专业方向' },
@@ -104,14 +122,14 @@ export class GlobalOverviewTool implements AssistantTool {
             { key: 'budget', label: '预算合计' },
           ],
           rows: (() => {
-            procurementByStatus.sort((a, b) => b._count - a._count);
-            const procurementTotal = procurementByStatus.reduce((s, r) => s + r._count, 0);
-            const budgetTotal = procurementByStatus.reduce((s, r) => s + (Number(r._sum?.budget) || 0), 0);
-            const rows: Record<string, unknown>[] = procurementByStatus.map((s) => ({
-              status: t(PROCUREMENT_STATUS_LABEL, s.status),
+            pmByStatus.sort((a, b) => b._count - a._count);
+            const procurementTotal = pmByStatus.reduce((s, r) => s + r._count, 0);
+            const budgetTotal = pmByStatus.reduce((s, r) => s + (Number(r._sum?.budgetAmount) || 0), 0);
+            const rows: Record<string, unknown>[] = pmByStatus.map((s) => ({
+              status: t(PMI_STATUS_LABEL, s.status),
               count: s._count,
               pct: procurementTotal > 0 ? ((s._count / procurementTotal) * 100).toFixed(1) + '%' : '-',
-              budget: s._sum?.budget ? `¥${s._sum.budget}` : '-',
+              budget: s._sum?.budgetAmount ? `¥${s._sum.budgetAmount}` : '-',
             }));
             rows.push({
               _total: true,

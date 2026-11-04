@@ -8,7 +8,7 @@ import { PROCUREMENT_STATUS_LABEL, t } from './labels';
 export class ProcurementTool implements AssistantTool {
   name = 'procurement';
   description =
-    '查询采购项目列表/详情/统计/待审批项/采购月度趋势（台账轮次按采购日期计）。args: { action: "list"|"detail"|"stats"|"pending"|"monthly", status?, projectId?, limit? }';
+    '查询采购台账（立项/轮次）：立项清单/详情/统计/待审批/采购月度趋势（轮次按采购日期计）。采购项目总数请用 global_overview（项目管理口径）。args: { action: "list"|"detail"|"stats"|"pending"|"monthly", status?, projectId?, limit? }';
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -56,7 +56,7 @@ export class ProcurementTool implements AssistantTool {
         cards: [
           {
             type: 'table',
-            title: `待审批项目（${pending.length}个）`,
+            title: `台账待审批立项（${pending.length}个）`,
             columns: [
               { key: 'projectCode', label: '编号' },
               { key: 'title', label: '名称' },
@@ -122,7 +122,7 @@ export class ProcurementTool implements AssistantTool {
         cards: [
           {
             type: 'table',
-            title: '采购项目统计',
+            title: '台账立项统计',
             columns: [
               { key: 'status', label: '状态' },
               { key: 'count', label: '数量' },
@@ -168,7 +168,7 @@ export class ProcurementTool implements AssistantTool {
       cards: [
         {
           type: 'table',
-          title: `采购项目清单（${projects.length}个）`,
+          title: `台账立项清单（${projects.length}个）`,
           columns: [
             { key: 'projectCode', label: '编号' },
             { key: 'title', label: '名称' },

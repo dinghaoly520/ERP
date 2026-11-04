@@ -13,6 +13,15 @@ export const PROCUREMENT_STATUS_LABEL: Record<string, string> = {
   CLOSED: '已关闭',
 };
 
+/** PMI 项目状态（ProjectManagementStatus）——2026-11-04 口径裁定：
+ *  「采购项目」以 PMI 为准（非邀请招标、不含回收站） */
+export const PMI_STATUS_LABEL: Record<string, string> = {
+  ACTIVE: '在办',
+  ARCHIVED: '已归档',
+  RECYCLED: '回收站',
+  TERMINATED: '已终止',
+};
+
 export const STAGE_LABEL: Record<string, string> = {
   DOWNLOAD: '文件下载',
   SUBMIT: '加密投递',
