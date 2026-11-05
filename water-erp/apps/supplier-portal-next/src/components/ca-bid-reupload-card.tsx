@@ -11,8 +11,13 @@ import { toast } from 'sonner';
 import { supplierApi } from '@/lib/api/supplier';
 import * as scca from '@/utils/scca-ukey';
 import { encryptAndUploadV3, unwrapSealedFields, nextRevisionContext, pickShieldByFingerprint } from '@/utils/dual-v3-client';
+import { withCryptoOverlay } from '@/utils/crypto-overlay';
+import { getDefaultCryptoEngine } from '@/utils/crypto-engine';
 import type { V3Fields, V3Role } from '@water-erp/ukey';
 import { SpButton, SpDialog } from '@/components/ui';
+
+/** ② 重封段遮罩取消文案（cancel 置旗 + terminate 引擎后 inline error 展示） */
+const CRYPTO_CANCEL_MSG = '已取消加密，文件未提交';
 
 type Stage = 'loading' | 'ready' | 'running';
 
@@ -78,6 +83,8 @@ export function CaBidReuploadCard({ projectId, onReuploaded }: {
     if (!ctx || !pin) return;
     setStage('running');
     setError('');
+    // ② 重封段遮罩取消旗：cancel 回调置旗 + terminate 引擎（幂等，双击安全）
+    let cryptoCancelled = false;
     try {
       // ① 盾复原 fields+nonce（补传必须复用原 nonce——fieldsCommit 与原版一致）
       setNote('盾复原唱标字段（fields+nonce）…');
@@ -90,21 +97,45 @@ export function CaBidReuploadCard({ projectId, onReuploaded }: {
       const dekFJson = await scca.unwrapSccaKey(shield.container, ctx.sealedFields.kself.value);
       const { fields, nonce } = await unwrapSealedFields(dekFJson, ctx.sealedFields);
 
-      // ② 重封（reuseNonce——fieldsCommit 必然与原版一致）
-      setNote('双层加密并暂存新密文…');
+      // ② 重封（reuseNonce——fieldsCommit 必然与原版一致）——加密+上传段挂遮罩（同投递页③）：
+      //    加密相位=engine 分块进度（byte 口径）、上传相位=XHR 百分比内嵌 phase 文案；
+      //    取消=置旗 + terminate 引擎 + 文件边界哨兵，遮罩待 promise 落定才撤。③ 签名/提交在遮罩外。
       const roleFiles = ctx.roles.map((r) => ({ role: r.role, file: files[r.role]! }));
-      const { envelope } = await encryptAndUploadV3(
-        projectId, roleFiles, fields as V3Fields, encCertPem, {
-          wrapKeyToEncCert: (pem, json) => scca.wrapSccaKey(pem, json),
-        }, ctx.adminCert, {
-          uploadOuter: (role, blob, filename) => supplierApi.caUploadEncryptedOuter(projectId, blob, filename)
-            .then((r) => ({ fileAssetId: r.fileAssetId, outerSha256: r.outerSha256, outerBytes: r.outerBytes })),
+      let fileIdx = 0; // 已完成上传的文件数——file i 的加密先于其上传，加密相位标签=fileIdx+1
+      const { envelope } = await withCryptoOverlay(
+        async (report) => {
+          const ensureNotCancelled = () => {
+            if (cryptoCancelled) throw new Error(CRYPTO_CANCEL_MSG);
+          };
+          const built = await encryptAndUploadV3(
+            projectId, roleFiles, fields as V3Fields, encCertPem, {
+              wrapKeyToEncCert: (pem, json) => scca.wrapSccaKey(pem, json),
+            }, ctx.adminCert, {
+              // 加密相位：deps.onProgress → engine 第 4 参 →「加密中 i/n xx%（a/b MB）」
+              onProgress: (done, total) => report({
+                phase: `加密中 ${fileIdx + 1}/${roleFiles.length}`,
+                doneBytes: done, totalBytes: total,
+              }),
+              uploadOuter: (role, blob, filename) => {
+                ensureNotCancelled(); // 上传相位点取消——止步于下一文件边界
+                const idx = ++fileIdx;
+                setNote(`双层加密并暂存新密文 ${idx}/${roleFiles.length}…`);
+                return supplierApi.caUploadEncryptedOuter(projectId, blob, filename, (pct) =>
+                  report({ phase: `上传中 ${idx}/${roleFiles.length} ${pct}%` }),
+                )
+                  .then((r) => ({ fileAssetId: r.fileAssetId, outerSha256: r.outerSha256, outerBytes: r.outerBytes }));
+              },
+            },
+            nextRevisionContext({
+              supplierId: ctx.supplierId, submissionId: '', revision: ctx.baseRevision,
+              signingBindingId: ctx.signingBindingId, signingCertFingerprint: ctx.signingCertFingerprint,
+            }),
+            nonce,
+          );
+          ensureNotCancelled(); // 单文件场景在上传中点取消——上传完成即止步，不进③签名
+          return built;
         },
-        nextRevisionContext({
-          supplierId: ctx.supplierId, submissionId: '', revision: ctx.baseRevision,
-          signingBindingId: ctx.signingBindingId, signingCertFingerprint: ctx.signingCertFingerprint,
-        }),
-        nonce,
+        { cancel: () => { cryptoCancelled = true; getDefaultCryptoEngine().terminate(); } },
       );
 
       // ③ 冻结 → 盾签 → 提交
@@ -123,7 +154,9 @@ export function CaBidReuploadCard({ projectId, onReuploaded }: {
       setFiles({});
       onReuploaded?.();
     } catch (e: any) {
-      setError(e?.message ?? '补传失败');
+      // 取消走专用文案（留在弹窗可重投——finally 已复位 stage/note）；其余给 message
+      if (cryptoCancelled) setError(CRYPTO_CANCEL_MSG);
+      else setError(e?.message ?? '补传失败');
     } finally {
       setStage('ready');
       setNote('');

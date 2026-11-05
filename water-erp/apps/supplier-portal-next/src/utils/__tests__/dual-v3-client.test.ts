@@ -20,15 +20,16 @@ const FIELDS: V3Fields = {
 const toHex = (b: Uint8Array): string => Buffer.from(b).toString('hex');
 
 /** 探针引擎：包一层 local 引擎——记录每次 encryptFile 的文件名与 DEK 入参
- *  （kadmin 走 SM2 不可逆，引擎入参是 DEK_A 唯一明文观测点），并自挂进度探针
- *  （调用方不传 onProgress 也能观测逐文件进度序）。 */
+ *  （kadmin 走 SM2 不可逆，引擎入参是 DEK_A 唯一明文观测点）。onProgress 第 4 参
+ *  原样透传（Task 9 起 client 经 deps.onProgress 注入——进度序观测已迁至 client 通道，
+ *  不再自挂引擎侧探针）。 */
 interface EngineCall { file: string; dekS: { keyHex: string; ivHex: string }; dekA: { keyHex: string; ivHex: string } }
-function spyLocalEngine(sink: { calls: EngineCall[]; progress: string[] }): CryptoEngine {
+function spyLocalEngine(sink: { calls: EngineCall[] }): CryptoEngine {
   const base = createLocalCryptoEngine();
   return {
-    encryptFile: (file, dekS, dekA) => {
+    encryptFile: (file, dekS, dekA, onProgress) => {
       sink.calls.push({ file: file.name, dekS, dekA });
-      return base.encryptFile(file, dekS, dekA, (done, total) => sink.progress.push(`${file.name}:${done}/${total}`));
+      return base.encryptFile(file, dekS, dekA, onProgress);
     },
     decryptUrl: (url, dek, onProgress) => base.decryptUrl(url, dek, onProgress),
     terminate: () => base.terminate(),
@@ -55,7 +56,7 @@ test('encryptAndUploadV3：信封结构/哈希锚点/双密封件/fieldsCommit �
   };
   const uploads: Array<{ role: string; filename: string; bytes: Uint8Array }> = [];
   const plainBytes = new TextEncoder().encode('technical-plaintext-pdf-bytes');
-  const probe = { calls: [] as EngineCall[], progress: [] as string[] };
+  const probe = { calls: [] as EngineCall[] };
 
   const result = await encryptAndUploadV3(
     'proj-1',
@@ -124,7 +125,9 @@ test('多角色（technical+coverLetter）：逐角色 DEK 独立、engine 按�
     },
   };
   const uploads: Array<{ role: string; bytes: Uint8Array }> = [];
-  const probe = { calls: [] as EngineCall[], progress: [] as string[] };
+  const probe = { calls: [] as EngineCall[] };
+  // client 进度通道（Task 9 迁移）：deps.onProgress ← engine.encryptFile 第 4 参透传
+  const clientProgress: string[] = [];
   const techPlain = new TextEncoder().encode('technical-role-plain-bytes');
   const coverPlain = new TextEncoder().encode('cover-letter-role-plain-bytes-longer');
 
@@ -139,6 +142,7 @@ test('多角色（technical+coverLetter）：逐角色 DEK 独立、engine 按�
     fakeAdapter as any,
     ADMIN,
     {
+      onProgress: (done, total) => clientProgress.push(`${done}/${total}`),
       uploadOuter: async (role, blob) => {
         uploads.push({ role, bytes: new Uint8Array(await blob.arrayBuffer()) });
         return { fileAssetId: `fa-${role}`, outerSha256: '', outerBytes: blob.size };
@@ -173,13 +177,15 @@ test('多角色（technical+coverLetter）：逐角色 DEK 独立、engine 按�
     'coverLetter C_outer 字节锚（独立 DEK 成立）',
   );
 
-  // 进度回调按文件序：technical 全部档先于 coverLetter，各文件终档=自身明文长（不跨文件累计）
-  const lastTech = probe.progress.map((l) => l.startsWith('tech.pdf:')).lastIndexOf(true);
-  const firstCover = probe.progress.findIndex((l) => l.startsWith('cover.pdf:'));
-  assert.ok(lastTech >= 0 && firstCover >= 0, '两文件均有进度档');
+  // 进度回调按文件序（client 通道）：technical 全部档先于 coverLetter，各文件终档=自身明文长（不跨文件累计）。
+  // total 即当前文件明文 size——两文件长度不同（26 vs 36B），total 值即文件判别键。
+  const isTechTick = (t: string) => t.endsWith(`/${techPlain.length}`);
+  const lastTech = clientProgress.map(isTechTick).lastIndexOf(true);
+  const firstCover = clientProgress.findIndex((t) => t.endsWith(`/${coverPlain.length}`));
+  assert.ok(lastTech >= 0 && firstCover >= 0, '两文件均有进度档（deps.onProgress 收到 engine 透传）');
   assert.ok(lastTech < firstCover, 'technical 进度全部先于 coverLetter（逐文件串行）');
-  assert.ok(probe.progress.includes(`tech.pdf:${techPlain.length}/${techPlain.length}`), 'technical 终档=自身 size');
-  assert.ok(probe.progress.includes(`cover.pdf:${coverPlain.length}/${coverPlain.length}`), 'coverLetter 终档=自身 size');
+  assert.ok(clientProgress.includes(`${techPlain.length}/${techPlain.length}`), 'technical 终档=自身 size');
+  assert.ok(clientProgress.includes(`${coverPlain.length}/${coverPlain.length}`), 'coverLetter 终档=自身 size');
 
   // 信封两角色各自落位（捕获序 wrapJson[0/1]=两角色 DEK_S、[2]=DEK_F）
   assert.equal(result.envelope.files.technical?.assetId, 'fa-technical');

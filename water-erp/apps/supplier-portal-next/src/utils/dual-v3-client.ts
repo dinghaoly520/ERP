@@ -32,6 +32,10 @@ export interface V3WrapAdapter {
 export interface V3UploadDeps {
   /** C_outer 密文暂存上传（Task5 encrypted-assets 端点） */
   uploadOuter(role: V3Role, blob: Blob, filename: string): Promise<V3UploadResult>;
+  /** 加密相位进度（Task 9）：逐文件透传 engine.encryptFile 第 4 参——
+   *  (doneBytes, totalBytes)，total=当前文件明文 size；逐文件串行、不跨文件累计。
+   *  上传相位进度走 uploadOuter 自身的上传通道（XHR 百分比），不经本字段。 */
+  onProgress?: (doneBytes: number, totalBytes: number) => void;
   /** 分块加密引擎（Task 6）：缺省 getDefaultCryptoEngine()（worker 优先、不可用回退
    *  local 同进程直跑）；测试注入 createLocalCryptoEngine()。函数入口解析一次、
    *  整次调用生效（逐角色共用同一引擎实例——worker 引擎模块内单例）。 */
@@ -140,7 +144,7 @@ export async function encryptAndUploadV3(
     // 分块一遍流过两层：C_inner 段即弃零驻留，三哈希/字节计数随流增量——
     // 哈希口径=二进制（真盾 E2E 实证：hex 字符串哈希 ≠ 服务端实算二进制哈希），
     // 引擎产物与旧 one-shot 路径逐字节一致（信封锚点不变）
-    const res = await engine.encryptFile(file, dekS, dekA);
+    const res = await engine.encryptFile(file, dekS, dekA, deps.onProgress);
 
     const uploaded = await deps.uploadOuter(role, res.outerBlob, `${file.name}.outer`);
     if (uploaded.outerSha256 && uploaded.outerSha256 !== res.outerSha256) {
