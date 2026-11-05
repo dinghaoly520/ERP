@@ -12,8 +12,9 @@ if [ ! -f ".env" ]; then
     fi
 fi
 
-if [ ! -f ".venv/.ready" ]; then
-    echo "Setting up OCR virtual environment..."
+# venv 就绪判定：缺 .ready 标记，或 requirements.txt 比标记新（依赖变更）→ 重建
+if [ ! -f ".venv/.ready" ] || [ "requirements.txt" -nt ".venv/.ready" ]; then
+    echo "Setting up OCR virtual environment (missing or requirements.txt changed)..."
     python3 -m venv --clear .venv
     .venv/bin/pip install --upgrade pip
     .venv/bin/pip install -r requirements.txt
@@ -23,6 +24,8 @@ fi
 # Add .venv/bin to PATH for hybrid servers
 export PATH="$(pwd)/.venv/bin:$PATH"
 
-# 多副本部署：每副本用不同的 OCR_PORT，且 OCR_HYBRID_PORT 段不可重叠（见 README.md）
-# API 侧 OCR_SERVICE_URL 支持逗号列表轮询多副本
-exec .venv/bin/uvicorn main:app --host "${OCR_HOST:-127.0.0.1}" --port "${OCR_PORT:-8100}" --workers 1 --timeout-keep-alive 300
+# 端口参数化：OCR_PORT/OCR_HOST（与 procurement 实例并存时起独立端口，如 OCR_PORT=8110）
+OCR_PORT="${OCR_PORT:-8100}"
+OCR_HOST="${OCR_HOST:-127.0.0.1}"
+
+exec .venv/bin/uvicorn main:app --host "$OCR_HOST" --port "$OCR_PORT" --workers 1 --timeout-keep-alive 300

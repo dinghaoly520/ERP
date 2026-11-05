@@ -12,6 +12,10 @@ from PIL import Image
 
 from ocr_engine import (
     ENGINE_NAME,
+    NUM_WORKERS,
+    OCR_INTRA_THREADS,
+    OCR_INTER_THREADS,
+    _resolve_int_env,
     get_engine,
     get_pdf_parser,
     get_hybrid_pool,
@@ -24,7 +28,7 @@ from ocr_engine import (
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title="OCR Service", version="1.2.0")
+app = FastAPI(title="OCR Service", version="1.3.0")
 
 # OCR 是 CPU 密集同步操作：必须在 executor 里跑并加锁串行化——
 # ① 事件循环不再被阻塞（/health 永远可用，可区分"在处理"与"挂死"）；
@@ -32,7 +36,42 @@ app = FastAPI(title="OCR Service", version="1.2.0")
 _ocr_lock = asyncio.Lock()
 _busy = {"active": False, "since": 0.0, "detail": ""}
 # 分页渲染块大小：渲染→OCR→释放，避免整本 PDF 的像素图常驻内存（191 页原需数 GB）
-OCR_CHUNK_PAGES = int(os.environ.get("OCR_CHUNK_PAGES", "16"))
+OCR_CHUNK_PAGES = _resolve_int_env(os.environ, "OCR_CHUNK_PAGES", 16, minimum=1)
+# 服务端表单默认（客户端显式传参可覆盖）：低配机可经 env 降档
+DEFAULT_DPI = _resolve_int_env(os.environ, "OCR_DEFAULT_DPI", 150)
+DEFAULT_MAX_PAGES = _resolve_int_env(os.environ, "OCR_MAX_PAGES_DEFAULT", 200, minimum=1)
+# 文字层快速路径阈值：页内嵌文字层字符数达此值则直接取文本免 OCR（0=禁用恒走 OCR）
+TEXT_LAYER_MIN_CHARS = _resolve_int_env(os.environ, "OCR_TEXT_LAYER_MIN_CHARS", 100)
+# 快速路径图像覆盖率护栏：页内嵌位图 bbox 面积占比超此值 → 该页回退 OCR
+# （数字标书页里嵌的扫描证书/证照是真实场景；logo 级小图不受影响）
+TEXT_LAYER_MAX_IMAGE_RATIO = 0.10
+
+
+def _should_use_text_layer(text: str, min_chars: int) -> bool:
+    """数字原生 PDF 快速路径判定：min_chars>0 且去空白后字符数达阈值。
+
+    短文本页（水印/页眉/扫描占位）不达阈值，整页回退 OCR，不产出半截结果。
+    含 U+FFFD 的乱码文字层同样拒绝——消费端（knowledge document-parser）
+    依赖 OCR 修复乱码层，快速路径不得把垃圾文本当可信产出。
+    """
+    if min_chars <= 0:
+        return False
+    stripped = text.strip()
+    if len(stripped) < min_chars:
+        return False
+    return "�" not in stripped
+
+
+def _page_image_ratio(page) -> float:
+    """页内嵌位图 bbox 面积占页面积比（重叠双计，保守取向：偏高则回退 OCR）。"""
+    area = page.rect.get_area()
+    if area <= 0:
+        return 0.0
+    covered = sum(
+        (b[2] - b[0]) * (b[3] - b[1])
+        for b in (info.get("bbox", (0, 0, 0, 0)) for info in page.get_image_info())
+    )
+    return covered / area
 
 
 async def _run_ocr_batch(images: list, detail: str) -> list:
@@ -69,6 +108,11 @@ async def health():
         "hybrid": hybrid_running,
         "workers": workers,
         "busy": _busy["active"],
+        # 生效配置上报（不依赖引擎 warmup；0=未限制/包默认）
+        "num_workers": NUM_WORKERS,
+        "intra_threads": OCR_INTRA_THREADS,
+        "inter_threads": OCR_INTER_THREADS,
+        "chunk_pages": OCR_CHUNK_PAGES,
     }
     if _busy["active"]:
         payload["busy_seconds"] = round(time.monotonic() - _busy["since"], 1)
@@ -79,8 +123,8 @@ async def health():
 @app.post("/ocr")
 async def ocr_file(
     file: UploadFile = File(...),
-    dpi: int = Form(150),
-    max_pages: int = Form(200),
+    dpi: int = Form(DEFAULT_DPI),
+    max_pages: int = Form(DEFAULT_MAX_PAGES),
     page_range: str = Form(None),
 ):
     filename = file.filename or "unknown"
@@ -269,30 +313,57 @@ async def _ocr_pdf(content: bytes, dpi: int, max_pages: int, page_range: str = N
         process_count = max_pages
         logger.warning(f"Truncated PDF batch from {total} to {max_pages} pages")
 
-    # 分块：渲染 OCR_CHUNK_PAGES 页 → OCR → 释放像素，峰值内存 ≈ 单块大小
-    texts: list[str] = []
+    # 分块：渲染 OCR_CHUNK_PAGES 页 → OCR → 释放像素，峰值内存 ≈ 单块大小。
+    # 文字层快速路径：页内嵌文字层达 TEXT_LAYER_MIN_CHARS 直接取文本免 OCR（逐页分流）。
+    page_results: list[dict] = []
     try:
         for start in range(0, process_count, OCR_CHUNK_PAGES):
             end = min(start + OCR_CHUNK_PAGES, process_count)
+            chunk_pages: list = [None] * (end - start)
             images = []
+            ocr_local_idx = []
             for page_idx in range(start, end):
-                page = doc[page_idx]
-                pix = page.get_pixmap(dpi=dpi)
-                images.append(Image.frombytes("RGB", [pix.width, pix.height], pix.samples))
-            detail = f"{filename} p{start + 1}-{end}/{process_count}"
-            chunk_texts = await _run_ocr_batch(images, detail)
-            texts.extend(chunk_texts)
+                layer_text = doc[page_idx].get_text("text")
+                if (
+                    _should_use_text_layer(layer_text, TEXT_LAYER_MIN_CHARS)
+                    and _page_image_ratio(doc[page_idx]) <= TEXT_LAYER_MAX_IMAGE_RATIO
+                ):
+                    chunk_pages[page_idx - start] = {
+                        "page": page_idx + 1,
+                        "text": layer_text.strip(),
+                        "source": "text-layer",
+                    }
+                else:
+                    page = doc[page_idx]
+                    pix = page.get_pixmap(dpi=dpi)
+                    images.append(
+                        Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                    )
+                    ocr_local_idx.append(page_idx - start)
+            if images:
+                # busy_detail 只报实际进 OCR 的页号段（文字层页不在内，防夸大）
+                ocr_first = start + ocr_local_idx[0] + 1
+                ocr_last = start + ocr_local_idx[-1] + 1
+                detail = f"{filename} p{ocr_first}-{ocr_last}({len(images)}页OCR)/{process_count}"
+                chunk_texts = await _run_ocr_batch(images, detail)
+                for local_i, t in zip(ocr_local_idx, chunk_texts):
+                    chunk_pages[local_i] = {
+                        "page": start + local_i + 1,
+                        "text": t,
+                        "source": "ocr",
+                    }
+            page_results.extend(chunk_pages)
             del images
     finally:
         doc.close()
 
-    pages = [{"page": i + 1, "text": t} for i, t in enumerate(texts)]
+    pages = page_results
 
     return JSONResponse(
         {
-            "text": "\n\n".join(texts),
+            "text": "\n\n".join(p["text"] for p in pages),
             "page_count": original_page_count,
-            "processed_pages": len(texts),
+            "processed_pages": len(pages),
             "pages": pages,
         }
     )

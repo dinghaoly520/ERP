@@ -1,9 +1,13 @@
 import {
+  Inject,
   Injectable,
   Logger,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import Redis from 'ioredis';
+import { createHash } from 'crypto';
 
 export interface OcrResult {
   text: string;
@@ -22,16 +26,25 @@ export class OcrService {
   private rrIndex = 0;
   private readonly logger = new Logger(OcrService.name);
 
-  // 批处理配置
-  // 单副本 OCR 服务有 2 个并行 worker，每批 40 页 = 每个 worker 处理 20 页；
+  // 批处理与缓存常量——消费端零配置面（用户裁定 2026-11-05）：
+  // 性能与行为调参全部收敛到 services/ocr/.env 单一配置面，这里只保留代码常量。
+  // 单副本 OCR 服务有 2 个并行 worker，每批 40 页 = 每 worker 20 页；
   // OCR_SERVICE_URL 配逗号多副本时，各批再 round-robin 分发到不同副本（见 nextBaseUrl）
   private readonly BATCH_PAGES = 40;
+  // 结果缓存：内容哈希键，rerun/重试零重复计算；故障不阻断 OCR（仅随 Redis 缺席禁用）
+  private readonly cacheEnabled: boolean;
+  private readonly CACHE_TTL_SECONDS = 7 * 24 * 3600;
+  private readonly CACHE_MAX_ENTRY_BYTES = 2 * 1024 * 1024;
   private readonly LARGE_FILE_THRESHOLD_MB = 20;
   private readonly BATCH_DELAY_MS = 500;
   private readonly BATCH_RETRIES = 3;
   private readonly RETRY_DELAY_MS = 500;
 
-  constructor(private config: ConfigService) {
+  constructor(
+    private config: ConfigService,
+    // @Global RedisModule 的 token；worker 进程可能未导入该模块 → Optional 缺席即禁用缓存
+    @Optional() @Inject('REDIS_CLIENT') private readonly redis?: Redis | null,
+  ) {
     const raw = config.get<string>('OCR_SERVICE_URL', 'http://localhost:8100');
     this.baseUrls = raw
       .split(',')
@@ -43,6 +56,61 @@ export class OcrService {
     if (this.baseUrls.length > 1) {
       this.logger.log(
         `OCR 多副本模式：${this.baseUrls.join(', ')}（round-robin 分发）`,
+      );
+    }
+    this.cacheEnabled = !!this.redis;
+  }
+
+  // ── OCR 结果缓存（Redis）──
+
+  /** 缓存键：scope + 文件内容哈希 + 影响产出的请求参数（dpi 由服务端统一掌控，不入键） */
+  private cacheKey(
+    scope: 'pdf' | 'img',
+    buffer: Buffer,
+    maxPages: number = 0,
+    pageRange: string | null = null,
+  ): string {
+    const hash = createHash('sha256').update(buffer).digest('hex').slice(0, 40);
+    return `ocr:v1:${scope}:${hash}:${maxPages}:${pageRange ?? 'all'}`;
+  }
+
+  private async cacheGet(key: string): Promise<OcrResult | null> {
+    if (!this.cacheEnabled || !this.redis) return null;
+    try {
+      const raw = await this.redis.get(key);
+      if (!raw) return null;
+      return JSON.parse(raw) as OcrResult;
+    } catch (e) {
+      this.logger.warn(`OCR cache get failed (${key.slice(0, 60)}…): ${e}`);
+      return null;
+    }
+  }
+
+  private async cacheSet(key: string, result: OcrResult): Promise<void> {
+    if (!this.cacheEnabled || !this.redis) return;
+    try {
+      const raw = JSON.stringify(result);
+      if (Buffer.byteLength(raw) > this.CACHE_MAX_ENTRY_BYTES) {
+        this.logger.log(
+          `OCR cache skip store (${key.slice(0, 60)}…): ` +
+            `${Math.round(Buffer.byteLength(raw) / 1024)}KB 超条目上限`,
+        );
+        return;
+      }
+      await this.redis.set(key, raw, 'EX', this.CACHE_TTL_SECONDS);
+    } catch (e) {
+      this.logger.warn(`OCR cache set failed (${key.slice(0, 60)}…): ${e}`);
+    }
+  }
+
+  /** 响应体 JSON 解析守卫：非 JSON（代理错误页等）归一为 ServiceUnavailableException */
+  private async parseJsonResponse(response: any): Promise<any> {
+    const raw = await response.text();
+    try {
+      return JSON.parse(raw);
+    } catch {
+      throw new ServiceUnavailableException(
+        `OCR service returned non-JSON (status ${response.status}): ${raw.slice(0, 200)}`,
       );
     }
   }
@@ -86,41 +154,57 @@ export class OcrService {
    *
    * 关键改进：使用 page_range 参数让 OCR 服务只处理指定页面范围
    * 这样避免了每次都处理整个 PDF 文件
+   *
+   * dpi 不再由消费端指定——统一走服务端 OCR_DEFAULT_DPI（单一配置面，2026-11-05 裁定）
    */
-  async ocrPdf(buffer: Buffer, maxPages = 200, dpi = 150): Promise<OcrResult> {
+  async ocrPdf(buffer: Buffer, maxPages = 200): Promise<OcrResult> {
+    const key = this.cacheKey('pdf', buffer, maxPages, null);
+    const cached = await this.cacheGet(key);
+    if (cached) {
+      this.logger.log('OCR cache hit (pdf)');
+      return cached;
+    }
+
+    const result = await this.ocrPdfUncached(buffer, maxPages);
+    await this.cacheSet(key, result);
+    return result;
+  }
+
+  private async ocrPdfUncached(
+    buffer: Buffer,
+    maxPages: number,
+  ): Promise<OcrResult> {
     const fileSizeMB = buffer.length / (1024 * 1024);
 
     if (fileSizeMB <= this.LARGE_FILE_THRESHOLD_MB) {
-      return this.ocrPdfSingle(buffer, maxPages, dpi, null);
+      return this.ocrPdfSingle(buffer, maxPages, null);
     }
 
     // 大文件分批处理 - 使用 page_range 参数
     this.logger.log(
       `Large PDF (${fileSizeMB.toFixed(1)} MB), using batch processing with page_range`,
     );
-    return this.ocrPdfBatched(buffer, maxPages, dpi);
+    return this.ocrPdfBatched(buffer, maxPages);
   }
 
   /**
-   * 单次 OCR 调用
+   * 单次 OCR 调用（不携带 dpi——服务端默认生效）
    */
   private async ocrPdfSingle(
     buffer: Buffer,
     maxPages: number,
-    dpi: number,
     pageRange: string | null,
   ): Promise<OcrResult> {
     const formData = new FormData();
     formData.append('file', new Blob([toBlobPart(buffer)]), 'document.pdf');
     formData.append('max_pages', String(maxPages));
-    formData.append('dpi', String(dpi));
     if (pageRange) {
       formData.append('page_range', pageRange);
     }
 
     const rangeDesc = pageRange ? `pages ${pageRange}` : `${maxPages} pages`;
     this.logger.log(
-      `OCR request: ${(buffer.length / 1024 / 1024).toFixed(1)} MB, ${rangeDesc}, dpi=${dpi}`,
+      `OCR request: ${(buffer.length / 1024 / 1024).toFixed(1)} MB, ${rangeDesc}`,
     );
 
     const ocrBase = this.nextBaseUrl();
@@ -137,7 +221,7 @@ export class OcrService {
       );
     }
 
-    const data = await response.json();
+    const data = await this.parseJsonResponse(response);
     this.logger.log(
       `OCR complete: ${data.processed_pages} pages, ${data.text.length} chars`,
     );
@@ -158,7 +242,6 @@ export class OcrService {
   private async ocrPdfBatched(
     buffer: Buffer,
     maxPages: number,
-    dpi: number,
   ): Promise<OcrResult> {
     const totalPages = await this.getPdfPageCount(buffer);
     const effectivePages =
@@ -182,7 +265,6 @@ export class OcrService {
       const result = await this.ocrPdfBatchWithRetry(
         buffer,
         endPage - startPage + 1,
-        dpi,
         pageRange,
         batch + 1,
       );
@@ -217,27 +299,41 @@ export class OcrService {
   }
 
   private async getPdfPageCount(buffer: Buffer): Promise<number> {
-    // 只 OCR 第 1 页即可获取总页数（PyMuPDF 在 page_count 字段返回总页数）
-    const result = await this.ocrPdfSingle(buffer, 1, 50, '1-1');
-    if (!result.pageCount || result.pageCount < 1) {
-      throw new ServiceUnavailableException(
-        'OCR service did not return a valid PDF page count',
-      );
+    // max_pages=0 且无 page_range：服务端零 OCR 早返回页数（原实现 OCR 第 1 页纯浪费）。
+    // 与批处理同权重的重试（探测也吃 BATCH_RETRIES/RETRY_DELAY_MS）。
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= this.BATCH_RETRIES; attempt++) {
+      try {
+        const result = await this.ocrPdfSingle(buffer, 0, null);
+        if (!result.pageCount || result.pageCount < 1) {
+          throw new ServiceUnavailableException(
+            'OCR service did not return a valid PDF page count',
+          );
+        }
+        return result.pageCount;
+      } catch (error) {
+        lastError = error;
+        this.logger.warn(
+          `Page count probe attempt ${attempt}/${this.BATCH_RETRIES} failed: ${error}`,
+        );
+        if (attempt < this.BATCH_RETRIES) {
+          await this.delay(this.RETRY_DELAY_MS);
+        }
+      }
     }
-    return result.pageCount;
+    throw lastError;
   }
 
   private async ocrPdfBatchWithRetry(
     buffer: Buffer,
     maxPages: number,
-    dpi: number,
     pageRange: string,
     batchNumber: number,
   ): Promise<OcrResult> {
     let lastError: unknown;
     for (let attempt = 1; attempt <= this.BATCH_RETRIES; attempt++) {
       try {
-        return await this.ocrPdfSingle(buffer, maxPages, dpi, pageRange);
+        return await this.ocrPdfSingle(buffer, maxPages, pageRange);
       } catch (error) {
         lastError = error;
         this.logger.warn(
@@ -296,6 +392,13 @@ export class OcrService {
     mimeType: string,
     filename: string,
   ): Promise<OcrResult> {
+    const key = this.cacheKey('img', buffer);
+    const cached = await this.cacheGet(key);
+    if (cached) {
+      this.logger.log('OCR cache hit (img)');
+      return cached;
+    }
+
     const formData = new FormData();
     formData.append(
       'file',
@@ -317,11 +420,13 @@ export class OcrService {
       );
     }
 
-    const data = await response.json();
-    return {
+    const data = await this.parseJsonResponse(response);
+    const result: OcrResult = {
       text: data.text,
       pageCount: data.page_count,
       processedPages: data.processed_pages,
     };
+    await this.cacheSet(key, result);
+    return result;
   }
 }

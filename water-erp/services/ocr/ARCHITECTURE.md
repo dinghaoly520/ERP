@@ -1,77 +1,87 @@
-# OCR 服务全流程文档
+# OCR 服务架构文档
 
-> 最后更新：2026-06-15  
-> 适用版本：`services/ocr/` v1.1.0  
-> 当前默认引擎：`OCR_ENGINE=rapid`
+> 最后更新：2026-11-04
+> 适用版本：`services/ocr/` v1.3.0（`main.py:27`）
+> 当前引擎：`OCR_ENGINE=rapid`（RapidOCR PP-OCRv4，**CPU 模式**，GPU 自动检测未触发）
+> 变更摘要（相对 v1.2）：**ERP 全面接管**——本目录升为主副本，PM2 `erp-ocr` 独立实例 ：8110，procurement :8100 不再复用；细粒度配置面（workers/线程/dpi/页数全 env 化，线程铁律）；文字层快速路径（数字原生 PDF 提速一个量级，实测 450×）。
+> 变更摘要（相对 v1.1）：GLM-OCR 引擎已整体移除；新增 watchdog 挂死自愈、PDF 分块渲染、事件循环解锁 + 请求串行化、ONNX CUDA GPU 误判防护。
 
 ---
 
 ## 1. 架构总览
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        OCR Service (:8100)                          │
-│                      FastAPI + uvicorn                              │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  POST /ocr                          GET /health                     │
-│    │                                    │                           │
-│    ├── PDF? ─── engine=rapid ─── _ocr_pdf()                         │
-│    │              │                   │                             │
-│    │              └── RapidOcrEngine  │  ocr_images() 并行          │
-│    │                                  │                             │
-│    ├── PDF? ─── engine=easy ─── _ocr_pdf()                          │
-│    │              │                   │                             │
-│    │              └── EasyOcrEngine   │  ocr_images() 并行          │
-│    │                                  │                             │
-│    ├── PDF? ─── engine=glm ─── _ocr_pdf()                           │
-│    │              │                   │                             │
-│    │              └── GlmOcrEngine ───│─ vLLM HTTP API (:8101)      │
-│    │                 (httpx, 16线程)  │                             │
-│    │                                  │                             │
-│    ├── PDF? ─── engine=opendataloader ─── _parse_pdf_opendataloader│
-│    │              │                                                │
-│    │              ├─ 文字型PDF → 直接提取文字层                     │
-│    │              │                                                │
-│    │              └─ 扫描件 ──┬── GLM-OCR vLLM 在线 → GPU推理       │
-│    │                          └── GLM-OCR 离线 → Hybrid RapidOCR    │
-│    │                                                                │
-│    └── 图片 ─── _ocr_image() → ocr_image() → engine.recognize()    │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│                 OCR Service (ERP 自管 PM2 erp-ocr :8110)               │
+│                    FastAPI + uvicorn (单 worker)                       │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│  POST /ocr                                 GET /health                 │
+│    {file, dpi=150, max_pages=200,           {status, engine, hybrid,   │
+│     page_range=None}                         workers, busy,            │
+│    │                                         busy_seconds, detail}     │
+│    │                                                                   │
+│    ├── PDF? ── engine=rapid ──── _ocr_pdf()                            │
+│    │            │                                                      │
+│    │            ├─ 文字层快速路径：页 get_text ≥ OCR_TEXT_LAYER_MIN_CHARS │
+│    │            │  且无 U+FFFD 乱码、位图占比≤10% → 免 OCR（毫秒级）    │
+│    │            │                                                      │
+│    │            └─ 分块渲染(16页/块) → ocr_images() NUM_WORKERS 线程   │
+│    │               → RapidOcrEngine (PP-OCRv4 ONNX, CPU/GPU自动；      │
+│    │                 CPU 线程预算 = OCR_INTRA/INTER_THREADS 注入)      │
+│    │                                                                   │
+│    ├── PDF? ── engine=easy ───── _ocr_pdf()（⚠ easyocr 未安装）        │
+│    │            └─ EasyOcrEngine (PyTorch)                             │
+│    │                                                                   │
+│    ├── PDF? ── engine=opendataloader ── _parse_pdf_opendataloader()    │
+│    │            ├─ 文字型PDF → docling 直接提取文字层（毫秒级）        │
+│    │            └─ 扫描件   → Hybrid Pool (5002-5003) 并行 OCR         │
+│    │                          └─ opendataloader-pdf-hybrid 子进程      │
+│    │                             后端 RapidOCR（需 venv 补丁）         │
+│    │                                                                   │
+│    └── 图片 ──── _ocr_image() → ocr_image() → engine.recognize()      │
+│                                                                        │
+│  稳定性层（v1.2.0）：                                                   │
+│    · asyncio.Lock 串行化批次 + executor 跑 OCR → 事件循环永不阻塞      │
+│    · watchdog 守护线程：单页超 180s → os._exit(1) → PM2 ~5s 拉起        │
+└────────────────────────────────────────────────────────────────────────┘
 
-外部依赖（独立进程）：
-┌──────────────────────┐  ┌──────────────────────────────┐
-│  GLM-OCR vLLM :8101  │  │  Hybrid Servers :5002-500m   │
-│  0.9B 视觉语言模型    │  │  opendataloader-pdf-hybrid    │
-│  GPU 显存 ~2.2GB      │  │  RapidOCR 后端 (PP-OCRv4)    │
-└──────────────────────┘  └──────────────────────────────┘
+调用方：apps/api NestJS `local-ai/ocr.service.ts`
+  · `OCR_SERVICE_URL=http://localhost:8110`（ERP 自管实例，2026-11-04 接管）
+  · 大 PDF 分批提交（page_range，每批 40 页，代码常量）
+  · 消费端零配置面（2026-11-05 裁定）：.env 仅 OCR_SERVICE_URL 一项；dpi 不上送、
+    走服务端 OCR_DEFAULT_DPI 单一权威；页数探测走 max_pages=0 零 OCR
+  · 结果 Redis 缓存（内容哈希键，rerun/重试零重复计算，故障不阻断；TTL/上限为代码常量）
+  · 失败由 BullMQ 队列重试 → 与 watchdog 自愈配合
+
+GPU 上其余常驻：bge-m3 embedding vLLM (:8003, PM2 procurement-embedding)
+procurement 项目自己的 OCR（PM2 procurement-ocr :8100）与本实例无关、互不影响。
 ```
 
 ---
 
-## 2. 四大引擎对比
+## 2. 引擎对比与当前可用性
 
-| | **RapidOCR** | **EasyOCR** | **GLM-OCR** | **OpenDataLoader** |
-|---|---|---|---|---|
-| **env 值** | `rapid` | `easy` | `glm` | `opendataloader` |
-| **原理** | PP-OCRv4 检测+识别 | CRNN 检测+识别 | 端到端 VLM | docling 文档解析 |
-| **运行位置** | CPU (ONNX) | CPU/GPU (PyTorch) | GPU (vLLM) | CPU + Hybrid 服务器 |
-| **中文优化** | ✅ 专门优化 | ⚠️ 通用多语言 | ✅ 视觉理解 | 取决于后端 |
-| **表格/公式** | ❌ 不支持 | ❌ 不支持 | ✅ 原生支持 | ✅ 保留排版 |
-| **手写体** | ❌ | ❌ | ✅ | ❌ |
-| **文字型PDF** | 渲染→OCR | 渲染→OCR | 渲染→OCR | 直接提取文字 |
-| **扫描件PDF** | 渲染→OCR | 渲染→OCR | 渲染→OCR | 自动检测→GLM/hybrid |
-| **并行线程** | 2 | 2 | 16 | 2 (hybrid) |
-| **速度（文字PDF）** | 快 | 中等 | 中等 | 最快（不OCR） |
-| **速度（扫描件）** | ~0.3s/页 | ~1s/页 | ~0.3s/页 | 取决于后端 |
-| **依赖** | rapidocr_onnxruntime | easyocr, torch | vLLM 服务器 | opendataloader-pdf |
+| | **RapidOCR**（默认） | **EasyOCR** | **OpenDataLoader** |
+|---|---|---|---|
+| **env 值** | `rapid` | `easy` | `opendataloader` |
+| **原理** | PP-OCRv4 检测+方向+识别（ONNX） | CRNN 检测+识别（PyTorch） | docling 文档解析 + hybrid OCR |
+| **运行位置** | CPU（满足条件自动切 CUDA） | CPU/GPU | 本地 docling + hybrid 子进程 |
+| **当前可用性** | ✅ 生产在用 | ⚠️ **easyocr 未安装**，选了会 ImportError→PM2 重启循环 | ✅ 已安装且已打补丁，默认未启用 |
+| **中文优化** | ✅ 专门优化 | ⚠️ 通用多语言 | 取决于后端（rapidocr 后端=同 RapidOCR） |
+| **表格/公式/排版** | ❌ | ❌ | ✅ docling 保留 Markdown 排版 |
+| **文字型 PDF** | 渲染→OCR | 渲染→OCR | 直接提取文字层（不 OCR） |
+| **扫描件 PDF** | 渲染→OCR | 渲染→OCR | 自动检测 → hybrid 并行 OCR |
+| **并行度** | 2 线程（`NUM_WORKERS`） | 2 线程 | 2 个 hybrid 子进程 |
+| **依赖** | `rapidocr_onnxruntime`（+`onnxruntime-gpu` 已装） | `easyocr`、`torch`（**未装**） | `opendataloader-pdf[hybrid]` + venv 补丁 |
+
+> GLM-OCR（vLLM :8101）已在 v1.2 前移除：代码、`start_glm_ocr.sh`、`dev:glm-ocr` 脚本均已删除，本文档不再涉及。
 
 ---
 
 ## 3. 请求处理流程
 
-### 3.1 入口路由 (`main.py:53-76`)
+### 3.1 入口路由（`main.py:79-102`）
 
 ```
 POST /ocr  {file, dpi=150, max_pages=200, page_range=None}
@@ -79,393 +89,292 @@ POST /ocr  {file, dpi=150, max_pages=200, page_range=None}
     ├── 文件是 PDF？
     │   ├── 是 + ENGINE_NAME == "opendataloader"
     │   │       → _parse_pdf_opendataloader(content, max_pages, page_range)
-    │   │
-    │   └── 是 + 其他引擎
+    │   └── 是 + 其他引擎（rapid / easy）
     │           → _ocr_pdf(content, dpi, max_pages, page_range)
-    │
-    └── 否（图片）
-            → _ocr_image(content)
+    └── 否（图片）→ _ocr_image(content)
 ```
 
-### 3.2 `_ocr_pdf()` — 通用 PDF 路径 (`main.py:248-288`)
+### 3.2 `_ocr_pdf()` — rapid/easy 通用路径（`main.py:248-298`）
 
 ```
 PDF 字节流
     │
-    ① _prepare_pdf()              ← 处理 max_pages=0、page_range 截取
+    ① _prepare_pdf()（main.py:169）
+    │     · max_pages=0 且无 page_range → 只返回页数，不解析
+    │     · page_range="3-10" → fitz 截取子文档
     │
-    ② PyMuPDF (fitz) 逐页渲染     ← 每页 → RGB PIL Image
-    │  dpi=150, 最大 MAX_SIDE 缩放
+    ② 分块渲染循环（main.py:275，块大小 OCR_CHUNK_PAGES=16）
+    │     for 每块 16 页：
+    │        渲染 dpi=150 → PIL Image 列表
+    │        _run_ocr_batch(images)  ← asyncio.Lock 串行 + executor
+    │        del images  ← 立即释放像素，峰值内存 ≈ 单块
     │
-    ③ ocr_images(images[])        ← 线程池并行
-    │   │
-    │   └── ThreadPoolExecutor(NUM_WORKERS)
-    │         ├── rapid: 2 线程   → RapidOcrEngine.recognize()
-    │         ├── easy:  2 线程   → EasyOcrEngine.recognize()
-    │         └── glm:  16 线程   → GlmOcrEngine.recognize() → vLLM HTTP
+    ③ ocr_images()（ocr_engine.py:634）
+    │     · _to_array()：长边 > MAX_SIDE=3000 则 LANCZOS 缩放
+    │     · ThreadPoolExecutor(NUM_WORKERS=2) 逐页 recognize()
+    │     · 每页 recognize 由 watchdog 计时（见 §4.3）
     │
-    ④ 组装 JSON 响应
-       {text, page_count, processed_pages, pages: [{page, text}]}
+    ④ JSON 响应 {text, page_count, processed_pages, pages:[{page,text}]}
 ```
 
-### 3.3 `_parse_pdf_opendataloader()` — OpenDataLoader 路径 (`main.py:169-235`)
+### 3.3 `_parse_pdf_opendataloader()` 路径（`main.py:186-235`）
 
 ```
 PDF 字节流
     │
-    ① parser.parse_pdf_local()     ← docling 直接提取文字层
-    │  返回: (全文, [{page, text}])
+    ① parser.parse_pdf_local()   ← docling 提取文字层 → Markdown
+    ② _is_scanned(pages)         ← 启发式判断（见 §9）
     │
-    ② _is_scanned(pages)           ← 启发式判断
-    │  判断依据：>50% 的页 text 以 "![image" 开头且长度 <200
+    ├── 不是扫描件 → 直接返回 ① 结果 ✅（毫秒级）
     │
-    ├── 不是扫描件（文字型PDF）
-    │   └── 直接返回 ① 的结果 ✅
-    │
-    └── 是扫描件
-        │
-        ③ glm_ocr_available()？
-        │
-        ├── ✅ GLM-OCR vLLM 在线
-        │   └── ocr_pdf_with_glm(content, dpi=150)
-        │       │
-        │       ├─ PyMuPDF 渲染 → numpy arrays
-        │       └─ ThreadPoolExecutor(8) → GlmOcrEngine.recognize()
-        │          └─ POST http://127.0.0.1:8101/v1/chat/completions
-        │             └─ base64 PNG + 识别prompt → 返回文字
-        │
-        └── ❌ GLM-OCR 离线
-            │
-            ├── Hybrid Pool 在线？
-            │   └── parser.parse_pdf_hybrid_parallel()
-            │       └─ 多进程逐页 OCR → RapidOCR (PP-OCRv4)
-            │
-            └── Hybrid Pool 也不在线
-                └── ⚠️ 返回扫描件原文（含大量 ![image] 占位符）
+    └── 是扫描件且 hybrid pool 在线
+        └── parser.parse_pdf_hybrid_parallel()
+            └── 按页数均分 → 各 hybrid 子进程并行 OCR → 合并
 ```
 
 ---
 
-## 4. 各引擎实现细节
+## 4. v1.2.0 稳定性设计（核心变更）
 
-### 4.1 RapidOCR (`ocr_engine.py:56-74`)
+### 4.1 事件循环解锁 + 批次串行化（`main.py:32-55`）
 
-```python
-class RapidOcrEngine:
-    def __init__(self):
-        # 优先 PP-OCRv5（需手动下载模型到 ~/.rapidocr/models/v5/）
-        # 否则 PP-OCRv4（rapidocr_onnxruntime 内置）
-        self._engine = RapidOCR(det_model, rec_model, rec_keys)
+- OCR 是 CPU 密集同步操作，全部丢进 `run_in_executor` → **`/health` 永远可响应**，可区分"在处理"（`busy=true` + `busy_seconds`）与"挂死"。
+- `asyncio.Lock` 保证同一时刻至多一个 OCR 批次：避免跨请求 OMP/GIL 争用与内存叠加（也是 OMP 死锁的诱因治理）。
+- `/health`（`main.py:58-76`）返回：`status, engine, hybrid, workers, busy, busy_seconds, busy_detail`（如 `xxx.pdf p17-32/191`）。
 
-    def recognize(self, arr: np.ndarray) -> str:
-        # arr: RGB uint8 numpy array
-        # 返回: 每行检测文字用 \n 连接
-        result, _ = self._engine(arr)
-        return "\n".join(r[1] for r in result)
-```
+### 4.2 分块渲染（`main.py:34-35, 272-286`）
 
-- **不支持** V5 模型（`V5_MODELS_AVAILABLE = False`），当前使用内置 PP-OCRv4
-- ONNX Runtime CPU 推理，无需 GPU
-- 图片自动缩放到 `MAX_SIDE=3000px`
+`OCR_CHUNK_PAGES=16`（env 可调）：渲染→OCR→释放 循环。此前整本 PDF 像素图常驻内存（191 页需数 GB），现峰值 ≈ 单块大小。配合 PM2 `max_memory_restart=4G`。
 
-### 4.2 EasyOCR (`ocr_engine.py:79-90`)
-
-```python
-class EasyOcrEngine:
-    def __init__(self):
-        self._engine = Reader(["ch_sim", "en"], gpu=torch.cuda.is_available())
-
-    def recognize(self, arr: np.ndarray) -> str:
-        return "\n".join(self._engine.readtext(arr, detail=0, paragraph=True))
-```
-
-- 可选择 GPU 加速（检测 CUDA 可用性）
-- 中文识别弱于 RapidOCR
-
-### 4.3 GLM-OCR (`ocr_engine.py:96-206`)
-
-```python
-class GlmOcrEngine:
-    # 线程安全：每线程一个 httpx.Client（连接池复用）
-
-    def _get_client(self):
-        # trust_env=False → 绕过系统代理（vLLM 在 localhost）
-        return httpx.Client(timeout=120s, limits=Limits(max_connections=8))
-
-    def recognize(self, arr: np.ndarray) -> str:
-        # array → PNG bytes → base64
-        # POST /v1/chat/completions
-        #   model: /home/asus/models/GLM-OCR
-        #   messages: [{role:"user", content:[
-        #     {type:"image_url", image_url:{url:"data:image/png;base64,..."}},
-        #     {type:"text", text:"请识别图片中的所有文字内容，保持原有格式和排版。"}
-        #   ]}]
-        #   max_tokens: 2048, temperature: 0.1
-        # 返回: content.strip()
-```
-
-**vLLM 服务启动参数** (`start_glm_ocr.sh`):
-```
---host 127.0.0.1 --port 8101
---gpu-memory-utilization 0.85
---max-model-len 4096
---max-num-seqs 16
---enforce-eager              ← 避免视觉 token CUDA Graph 兼容问题
---allowed-local-media-path / ← 允许 file:// URL 输入
-```
-
-### 4.4 OpenDataLoader / docling (`ocr_engine.py:361-536`)
+### 4.3 Watchdog 挂死自愈（`ocr_engine.py:573-610`）
 
 ```
-OpendataloaderPdfParser
-│
-├── parse_pdf_local()         ← docling 本地解析（无OCR）
-│   └── opendataloader_pdf.convert(hybrid=None)
-│       └── 提取 PDF 文字层 → Markdown
-│
-├── parse_pdf_hybrid()        ← 单 hybrid 服务器
-│   └── opendataloader_pdf.convert(hybrid="docling-fast")
-│
-└── parse_pdf_hybrid_parallel() ← 多 hybrid 服务器并行
-    └── _parallel_ocr()
-        ├── _is_scanned() 判断
-        └── ThreadPoolExecutor → _process_page_range()
-            └── opendataloader_pdf.convert(hybrid_url="http://127.0.0.1:{port}")
+_ocr_single()/ocr_image() 每次调用：
+    _wd_begin(label) → engine.recognize() → _wd_end()
+
+watchdog 守护线程（每 5s 巡检，OCR_WATCHDOG=1 默认开）：
+    in_flight 且 elapsed > OCR_PAGE_TIMEOUT（默认 180s）
+        → logger.critical("OCR watchdog: ... 卡死")
+        → os._exit(1)          ← 线程无法取消 onnxruntime 死锁，只能杀进程
+        → PM2 restart_delay=5s 拉起
+        → 上游 BullMQ 任务重试
 ```
 
-**Hybrid 服务器** (`HybridServer`):
-- 独立子进程：`opendataloader-pdf-hybrid`
-- 后端：`--ocr-backend rapidocr`（PP-OCRv4）
-- 每服务器一个端口（默认 5002 起）
-- 默认启动 2 个实例，并行处理不同页码范围
+把"永久挂死需人工 kill"收敛为"≤ 阈值+5s 自愈"。设 `OCR_WATCHDOG=0` 可禁用。
+
+### 4.4 GPU 误判防护（`ocr_engine.py:57-75`）
+
+`onnxruntime-gpu` 即使机器没有可用 CUDA 也会把 `CUDAExecutionProvider` 列进 `get_available_providers()`，运行时才在加载 `libonnxruntime_providers_cuda.so` 时报错回退（每次调用刷屏 + 变慢）。因此 GPU 判定需**同时满足三个条件**：
+
+1. `CUDAExecutionProvider` 在 providers 列表中
+2. `config_gpu.yaml` 存在（本目录）
+3. `ctypes.util.find_library("cudart")` 非 None（真实 CUDA runtime 判据）
+
+**当前机器**：条件 1、2 满足，条件 3 不满足（系统库路径无 libcudart，ldconfig 0 条）→ 启动日志 `No GPU, using CPU OCR`，**以 CPU 模式稳定运行**。
+
+若未来要启用 GPU OCR：将 venv 内 `nvidia-cuda-runtime` 的 lib 目录（或系统 CUDA）加入 `LD_LIBRARY_PATH`（PM2 env 块），重启即自动切换为 `config_gpu.yaml`（det/cls/rec 均为 PP-OCRv4 ONNX CUDA）。
+
+### 4.5 OMP 线程限制（PM2 env）
+
+历史口径（procurement-ocr 用 `OMP_NUM_THREADS=8` 压 OpenMP 互掐）；**erp-ocr 不设 OMP env**——线程预算直接由 `OCR_INTRA_THREADS`/`OCR_INTER_THREADS` 在会话层收口（v1.3.0），限得更准。
 
 ---
 
-## 5. 配置参考
+## 5. 引擎实现细节
 
-### 5.1 `.env` 文件
+### 5.1 RapidOcrEngine（`ocr_engine.py:65-99`）
+
+```python
+use_gpu = CUDAExecutionProvider 可用 且 config_gpu.yaml 存在 且 cudart 可找到
+
+if ~/.rapidocr/models/v5/{det_v5,rec_v5.onnx,ppocrv5_dict.txt} 齐全:
+    PP-OCRv5 server 模型（本机未安装，自动回落）
+else:
+    PP-OCRv4 内置模型（当前实际使用）
+    use_gpu 时额外传 config_path=config_gpu.yaml
+
+recognize(arr) → result 每行 r[1] 用 \n 连接
+```
+
+- 模型：det `ch_PP-OCRv4_det_infer` / cls `ch_ppocr_mobile_v2.0` / rec `ch_PP-OCRv4_rec_infer`（rapidocr 包内置；`config_gpu.yaml` 中为相对路径）
+- 输入图片先缩放到 `MAX_SIDE=3000`
+
+### 5.2 EasyOcrEngine（`ocr_engine.py:104-115`）
+
+代码保留但 **easyocr 未安装**（venv 无此包）。`.env` 设 `easy` 会在 warmup 抛 ImportError → PM2 重启循环。需要时先 `.venv/bin/pip install easyocr`。
+
+### 5.3 OpenDataLoader / hybrid（`ocr_engine.py:120-445`）
+
+```
+HybridServerPool（ocr_engine.py:226）
+  └── N 个 HybridServer 子进程（默认 HYBRID_WORKERS=2，端口 5002、5003）
+        命令：opendataloader-pdf-hybrid --port 5002 --force-ocr
+              --ocr-lang ch_sim,en --ocr-backend rapidocr
+        就绪探测：轮询 /health（120s 超时）
+        socks:// 代理自动改写为 socks5://（子进程 httpx 兼容）
+
+OpendataloaderPdfParser（ocr_engine.py:270）
+  ├── parse_pdf_local()           ← docling 本地，无 OCR
+  ├── parse_pdf_hybrid()          ← 单服务器
+  └── parse_pdf_hybrid_parallel() ← 页数均分 → ThreadPool 提交各服务器
+                                    → PAGE_BREAK 分隔 → 按页号归并
+```
+
+**venv 补丁（必须）**：`opendataloader-pdf 1.11.2` 的 `hybrid_server.py` 原生只支持 EasyOCR 后端。`patches/hybrid_server_rapidocr.patch` 为其添加 `--ocr-backend {easyocr|rapidocr}`（rapidocr 走 docling `RapidOcrOptions`，ONNX 后端）。**当前 venv 已应用**；`pip install --upgrade opendataloader-pdf` 后补丁会丢失，需重放：
 
 ```bash
-# services/ocr/.env  （当前默认配置）
-
-# 引擎选择：rapid | easy | glm | opendataloader
-OCR_ENGINE=rapid
-
-# 图片最大边长（像素），超过自动缩放
-OCR_MAX_SIDE=3000
-
-# 线程池大小（glm 模式下默认 16，其他 2）
-# OCR_NUM_WORKERS=8
-
-# ── GLM-OCR (仅 OCR_ENGINE=glm 或 opendataloader 扫描件路径) ──
-GLM_VLLM_URL=http://127.0.0.1:8101/v1
-GLM_VLLM_MODEL=/home/asus/models/GLM-OCR
-GLM_VLLM_TIMEOUT=120
-GLM_VLLM_MAX_TOKENS=2048
-GLM_VLLM_CONCURRENCY=8
-
-# ── Hybrid 服务器 (仅 OCR_ENGINE=opendataloader) ──
-# OCR_HYBRID_PORT=5002
-# OCR_HYBRID_LANG=ch_sim,en
-# OCR_HYBRID_DEVICE=cuda
-# OCR_HYBRID_OCR_ENGINE=rapidocr
-# OCR_HYBRID_WORKERS=2
+cd .venv/lib/python3.10/site-packages/opendataloader_pdf/
+patch hybrid_server.py < ../../../../patches/hybrid_server_rapidocr.patch
 ```
-
-### 5.2 运行时自动调整
-
-| 环境变量 | rapid | easy | glm | opendataloader |
-|---------|-------|------|-----|----------------|
-| `NUM_WORKERS` | 2 | 2 | **16** | 2 |
-| Hybrid 服务器 | 不启动 | 不启动 | 不启动 | **启动 2 个** |
-| `get_engine()` 返回 | RapidOcrEngine | EasyOcrEngine | GlmOcrEngine | RapidOcrEngine |
-| GLM bridge | 不初始化 | 不初始化 | N/A（直接用） | **延迟初始化** |
 
 ---
 
-## 6. GPU 资源分配
+## 6. 配置参考
 
-```
-RTX 5090 D (24GB VRAM)
-│
-├── bge-m3 embedding (:8003)    ~2.3 GB   ← PM2: procurement-embedding
-├── GLM-OCR vLLM (:8101)        ~2.2 GB   ← PM2: procurement-glm-ocr
-│   └── KV Cache + 激活值       ~2-6 GB   （取决于并发）
-│
-└── 剩余                        13-17 GB
-    可用于更大 batch size 或未来扩展
-```
+### 6.1 环境变量（`ocr_engine.py`、`main.py`）
 
-**GLM-OCR vLLM 关键参数**：
-- `gpu-memory-utilization=0.85` → 预占约 20.4GB
-- `max-model-len=4096` → OCR 输出通常 <500 tokens，留足余量
-- `max-num-seqs=16` → 最多 16 个并发推理请求
-- `enforce-eager` → 跳过 CUDA Graph 编译（兼容性，首 token 延迟不受影响）
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `OCR_ENGINE` | `rapid` | 引擎：`rapid` \| `easy` \| `opendataloader` |
+| `OCR_MAX_SIDE` | `3000` | 图片长边超限自动缩放 |
+| **`OCR_NUM_WORKERS`** | `2` | 页级并行 worker 数（v1.2 前写死 2） |
+| **`OCR_INTRA_THREADS`** | `0`=不限 | onnxruntime 会话内线程（Global 级 kwargs 下推 Det/Cls/Rec） |
+| **`OCR_INTER_THREADS`** | `0`=不限 | onnxruntime 会话间线程 |
+| **`OCR_CHUNK_PAGES`** | `16` | PDF 分块渲染页数（内存控制） |
+| **`OCR_DEFAULT_DPI`** | `150` | 服务端 dpi Form 默认（客户端传参覆盖） |
+| **`OCR_MAX_PAGES_DEFAULT`** | `200` | 服务端 max_pages Form 默认（客户端传参覆盖） |
+| **`OCR_TEXT_LAYER_MIN_CHARS`** | `100` | 文字层快速路径阈值；`0`=禁用恒走 OCR。护栏：乱码层(U+FFFD)拒绝、位图面积>10% 页回退 OCR（嵌扫描证书场景） |
+| `OCR_PAGE_TIMEOUT` | `180` | watchdog 单页超时秒数 |
+| `OCR_WATCHDOG` | `1` | `0` 禁用 watchdog |
+| `OCR_HYBRID_PORT` | `5002` | hybrid 起始端口（仅 opendataloader） |
+| `OCR_HYBRID_WORKERS` | `2` | hybrid 子进程数（仅 opendataloader） |
+| `OCR_HYBRID_LANG` | `ch_sim,en` | hybrid OCR 语言 |
+| `OCR_HYBRID_OCR_ENGINE` | `rapidocr` | hybrid 后端（需补丁） |
+| `OCR_HYBRID_DEVICE` | `cuda` | hybrid 声明参数 |
 
----
+**线程铁律（低配生产机）**：`OCR_NUM_WORKERS × OCR_INTRA_THREADS ≤ 分配给 OCR 的核数`。生产机（麒麟 x86_64，8 核分 6 核给 OCR）预设 `2×3`——实测 :8110 总线程 86 vs 无限制 :8100 117，预算真实收窄线程池且同材料 OCR 反而更快（3.8s vs 5.8s，超额抢占本就吃亏）。非法 env 值一律回落默认 + warn，不崩启动。
 
-## 7. 环境适配补丁
+NestJS 消费端 env（`apps/api/.env`）**仅一项**：`OCR_SERVICE_URL`（:8110）。批次 40 页/缓存 TTL 7 天/条目 2MB 均为代码常量——一切调参收敛到本服务 .env（单一配置面，2026-11-05 用户裁定）。
 
-由于本机 GPU 较新（RTX 5090 D, SM 120）且 CUDA toolkit 通过 pip 安装（非系统 apt），需要以下运行时补丁：
+### 6.2 PM2 env 对照（erp-ocr vs procurement-ocr）
 
-### 7.1 vLLM glm_ocr.py — 禁用视频模态
-
-**文件**: `/home/asus/vllm_venv/.../vllm/model_executor/models/glm_ocr.py`
-
-**问题**: GLM-OCR 继承自 GLM-4V 的 `Glm4vProcessingInfo`，后者声明支持视频输入。encoder cache 启动剖析时会创建虚拟视频输入，导致 GLM-OCR 视觉编码器崩溃。
-
-**修复**:
-```python
-class GlmOcrProcessingInfo(Glm4vProcessingInfo):
-    def get_supported_mm_limits(self) -> Mapping[str, int | None]:
-        return {"image": None}  # 仅图片，无视频
-
-# 注册时使用 GlmOcrProcessingInfo 替代 Glm4vProcessingInfo
-# _mark_tower_model(vllm_config, {"image"})  替代 {"image", "video"}
-```
-
-### 7.2 Triton build.py — Python 头文件路径
-
-**文件**: `/home/asus/vllm_venv/.../triton/runtime/build.py`
-
-**问题**: 系统未安装 `python3.10-dev`，`/usr/include/python3.10/` 不存在。Triton JIT 编译 CUDA 辅助代码时需要 `Python.h`。
-
-**修复**: 优先使用 `posix_user` scheme（`~/.local/include/python3.10`），头文件从下载的 `libpython3.10-dev` deb 包提取。
-
-### 7.3 FlashInfer CCCL 兼容性
-
-**环境变量**: `FLASHINFER_EXTRA_CUDAFLAGS="-DCCCL_DISABLE_CTK_COMPATIBILITY_CHECK"`
-
-**问题**: FlashInfer 0.6.12 内置的 CCCL 头文件（CUB/libcudacxx/Thrust）与 CUDA 13.x nvcc 编译器不兼容。
-
-**修复**: 跳过 CUDA toolkit 版本兼容性检查。
-
-### 7.4 CUDA 库符号链接
-
-**路径**: `/home/asus/vllm_venv/.../nvidia/cu13/lib/`
-
-**问题**: pip 安装的 nvidia-cuda-runtime 只提供版本化 `.so` 文件（如 `libcudart.so.13`），编译器链接需要无版本号 `.so`。
-
-**修复**: 手动创建 `libcudart.so → libcudart.so.13` 等符号链接。
+| 项 | erp-ocr（ERP 自管 :8110） | procurement-ocr（:8100，对方项目） |
+|---|---|---|
+| 线程控制 | `OCR_INTRA_THREADS`（会话层，.env） | `OMP_NUM_THREADS=8`（进程层 env） |
+| `ALL_PROXY` | `socks5://127.0.0.1:7897/` | docling/huggingface_hub 走 httpx，需 socks5 格式 |
+| `max_memory_restart` | `4G` | 191 页批处理正常峰值 <1G，超限回收 |
+| `kill_timeout` | `30s` | 留时间清理 hybrid 子进程 |
+| `restart_delay` | `5s` | watchdog 自杀后快速拉起 |
+| `max_restarts` | `10` | 防崩溃循环 |
 
 ---
 
-## 8. PM2 生产部署
+## 7. GPU 资源现状（RTX 5090 D, 24GB）
 
-### 8.1 服务列表 (`ecosystem.config.js`)
+```
+├── bge-m3 embedding vLLM (:8003)   ~2.3GB   PM2: procurement-embedding
+├── OCR 服务                        CPU 模式（显存 0；GPU 判定条件见 §4.4）
+└── 剩余显存                        可供未来启用 OCR CUDA / 其他模型
+```
 
-| PM2 名称 | 端口 | 用途 | 重启策略 |
-|----------|------|------|---------|
-| `procurement-api` | 4000 | NestJS 后端 | max 10 次 |
-| `procurement-web` | 3001 | Next.js 前端 | max 10 次 |
-| `procurement-embedding` | 8003 | bge-m3 向量化 | 无限制 |
-| `procurement-glm-ocr` | 8101 | GLM-OCR vLLM | max 5 次 |
-| `procurement-ocr` | 8100 | OCR FastAPI | max 10 次 |
-| `procurement-worker` | — | AI 投标分析队列 | max 10 次 |
+GLM-OCR vLLM（原 :8101，~2.2GB）已下线，相关 vLLM 环境适配补丁（glm_ocr.py 视频模态、Triton 头文件、FlashInfer CCCL 等）随引擎一并废弃，本文档不再记录。
 
-### 8.2 启动顺序
+---
+
+## 8. 部署与启动
+
+### 8.1 文件清单
+
+| 文件 | 用途 |
+|---|---|
+| `main.py` | FastAPI 入口（路由、分块渲染、锁与 busy 状态） |
+| `ocr_engine.py` | 引擎工厂 + watchdog + hybrid pool + opendataloader 解析 |
+| `config_gpu.yaml` | RapidOCR CUDA 配置（GPU 模式自动启用） |
+| `start.sh` | 开发启动：建 `.env`/`.venv` → uvicorn :8100（`pnpm dev:ocr`） |
+| `requirements.txt` | Python 依赖（PyMuPDF 为 PDF 渲染器；pdf2image 已移除） |
+| `patches/hybrid_server_rapidocr.patch` | venv 内 opendataloader 补丁的留档，升级后重放 |
+| `test_main.py` | 单元测试（max_pages=0 只返回页数） |
+| `test_ocr.py` | opendataloader hybrid 路径手动诊断脚本（`python test_ocr.py <pdf>`） |
+| `test_config.py` | 配置解析单测（resolve_* / v5 kwargs） |
+| `ecosystem.config.js` | PM2 `erp-ocr` 托管定义（:8110） |
+| `.env.example` | 全量配置旋钮契约（含 6 核预算预设注释） |
+
+### 8.2 启动方式
 
 ```bash
-# 1. 基础设施
-pnpm infra:up          # PostgreSQL, Redis, MinIO
+# 开发（根 package.json；端口可参数化 OCR_PORT/OCR_HOST，与常驻实例并存验证用）
+pnpm dev:ocr        # → bash services/ocr/start.sh
+                     #   首次自动建 venv（.venv/.ready 标记）、.env；
+                     #   requirements.txt 变更后自动重建 venv
 
-# 2. GPU 模型服务（先于 OCR 服务）
-pm2 start procurement-embedding    # bge-m3 on :8003
-pm2 start procurement-glm-ocr      # GLM-OCR on :8101  ← 可选
+# 本机常驻（ERP 自管，2026-11-04 接管）
+pm2 start ecosystem.config.js --only erp-ocr    # :8110
+pm2 logs erp-ocr
 
-# 3. 应用服务
-pm2 start procurement-ocr          # OCR on :8100
-pm2 start procurement-api          # API on :4000
-pm2 start procurement-web          # Web on :3001
-pm2 start procurement-worker       # Queue worker
+# 健康检查（含生效配置上报）
+curl localhost:8110/health
+# {"status":"ok","engine":"rapid","num_workers":2,"intra_threads":3,...}
 ```
 
-### 8.3 开发命令
+> **接管记录（2026-11-04）**：ERP API `OCR_SERVICE_URL` 由 procurement :8100 切至自管 `erp-ocr` :8110；procurement-ocr（:8100）属 procurement 项目、继续自用。生产部署为 Docker（麒麟 x86_64、8 核、6 核预算、无 GPU），本机调试完成后整体替换。
 
-```bash
-pnpm dev:ocr          # OCR 服务（读取 .env 中的 OCR_ENGINE）
-pnpm dev:glm-ocr      # GLM-OCR vLLM 服务（独立启动）
-pnpm dev:vllm         # bge-m3 embedding 服务
-pnpm dev              # 全部启动
-```
+### 8.3 NestJS 调用方（`apps/api/src/local-ai/ocr.service.ts`）
+
+- 上传 PDF > 阈值时**客户端分批**：`page_range` 每批 40 页（常量），不携带 dpi（服务端 `OCR_DEFAULT_DPI` 唯一权威）；
+- 服务端另有 `OCR_CHUNK_PAGES` 分块渲染兜底，两层分批互补；
+- 请求失败由 BullMQ 队列重试，与 watchdog 自愈闭环配合。
 
 ---
 
-## 9. 扫描件判断逻辑
+## 9. 扫描件判断逻辑（`main.py:238-245`、`ocr_engine.py:448-456`）
 
 ```python
-def _is_scanned(pages: list) -> bool:
-    """如果大多数页的 text 以 ![image 开头且长度 <200 字符 → 扫描件"""
-    if not pages:
-        return False
-    img_only = sum(
-        1 for p in pages
-        if p["text"].strip().startswith("![image")
-        and len(p["text"].strip()) < 200
-    )
-    return img_only > len(pages) * 0.5
+def _is_scanned(pages) -> bool:
+    # >50% 的页 text 以 "![image" 开头且长度 <200 → 扫描件
 ```
 
-docling 处理扫描件时，无法提取文字，页面输出为图片占位符 `![image](input_images/page_N.jpg)`。此启发式规则检测这种模式。
+docling 解析扫描件时无法提取文字，页面输出为图片占位符 `![image](input_images/page_N.jpg)`，此规则检测该模式。
 
 ---
 
-## 10. 性能基准
+## 10. 性能参考（2026-11-04 v1.3.0 双实例实测，:8110 预算 2×3 vs :8100 无限制）
 
-| 场景 | 引擎 | 速度 | 准确度 |
-|------|------|------|--------|
-| 纯文字 PDF（30页） | opendataloader | 毫秒级（不OCR） | 100%（原文提取） |
-| 纯文字 PDF（30页） | rapid | ~30s（2线程） | 高 |
-| 纯文字 PDF（30页） | glm | ~5s（16线程） | 高 |
-| 扫描件（10页） | rapid | ~3s | 中（中文优化） |
-| 扫描件（10页） | glm | ~3s | 高（表格/公式/手写） |
-| 扫描件（10页） | opendataloader+GLM | ~3s | 高 |
-| 单页图片 | rapid | ~0.3s | 中-高 |
-| 单页图片 | glm | ~0.3s（预热后） | 高 |
+| 场景 | :8110（2×3 预算 + 快速路径） | :8100（无限线程，全量 OCR） |
+|------|------|------|
+| 文字 PDF 3 页 | **0.01s**（文字层快速路径，source=text-layer） | 2.29s（全量 OCR）→ **提速 450×** |
+| 扫描件 2 页 | 1.15s，输出与 :8100 逐字符一致 | 0.90s |
+| PNG 单图 | 0.65s，输出一致 | 0.50s |
+| 扫描件 12 页 | 3.8s（总线程 86） | 5.8s（总线程 117） |
 
-**GLM-OCR 预热吞吐测量**（RTX 5090 D, dpi=150, 1200×400px）:
-- 首请求：~48s（含 vLLM profile_run 预热）
-- 后续请求：**~0.29s/页**（~3.3 页/秒）
+> 快速路径对数字原生 PDF（Word 导出标书）是数量级收益；线程预算在多核机上不亏反赚（避免 ORT 超额抢占）。NestJS 侧结果缓存使 rerun/重试场景零重复 OCR。
 
 ---
 
 ## 11. 引擎选择建议
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         OCR 引擎选择决策树                           │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  Q1: PDF 是纯文字型还是扫描件？                                     │
-│      ├── 纯文字型（电子生成）                                       │
-│      │   └── 选 opendataloader → 直接提取，毫秒级                   │
-│      │                                                                │
-│      └── 扫描件 / 混合 / 不确定                                     │
-│          │                                                          │
-│          Q2: 是否需要保留表格/公式/排版？                            │
-│              ├── 是 → opendataloader（自动检测+GLM回落）            │
-│              │                                                     │
-│              └── 否（只要文字内容）                                 │
-│                  │                                                 │
-│                  Q3: 文档以中文为主？                               │
-│                      ├── 是 → rapid（中文优化，准确稳定）           │
-│                      └── 否/多语言混排 → glm（VLM通用识别）         │
-│                                                                     │
-│  当前默认: rapid ← 适合中文投标文件场景                            │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+Q1: PDF 是纯文字型还是扫描件？
+    ├── 纯文字型 → opendataloader（直接提取，毫秒级；需 hybrid 补丁环境）
+    └── 扫描件 / 混合 / 不确定
+        └── 以中文为主的投标文件 → rapid（当前默认，准确稳定，零外部依赖）
+
+当前默认: rapid ✅  —— 中文投标文件场景，且不依赖 venv 补丁与子进程
+easy     仅在需要多语言混排且接受安装 easyocr/torch 时考虑
 ```
 
 ---
 
 ## 12. 故障排查
 
-| 症状 | 可能原因 | 排查命令 |
-|------|---------|---------|
-| OCR 返回空文本 | 引擎未加载/图片过大 | `curl localhost:8100/health` |
-| GLM-OCR 不可用 | vLLM 未启动 | `curl localhost:8101/health` |
-| Hybrid 服务器离线 | 子进程崩溃 | `curl localhost:5002/health` |
-| GLM-OCR 返回乱码 | max_tokens 超过上下文窗口 | 检查 `GLM_VLLM_MAX_TOKENS` < `max-model-len - prompt_tokens` |
-| vLLM 启动失败 | FlashInfer JIT 编译失败 | 检查 `FLASHINFER_EXTRA_CUDAFLAGS` 是否设置 |
-| GPU OOM | 多个模型争抢显存 | `nvidia-smi` 检查显存使用 |
-| httpx 代理错误 | SOCKS 代理干扰 localhost | 确认 `trust_env=False` 已设置 |
+| 症状 | 可能原因 | 排查 |
+|------|---------|------|
+| `/health` 正常但 `busy=true` 很久 | 大批次在处理（正常） | 看 `busy_seconds`/`busy_detail`（含文件名与页码进度） |
+| 进程反复重启，日志含 `OCR watchdog` | 单页 recognize 卡死超 180s | erp-ocr 查 `OCR_INTRA_THREADS` 预算；偶发属自愈设计；频繁则查 OMP/驱动 |
+| 日志 `No GPU, using CPU OCR` 但期望 GPU | libcudart 不在库路径 | 见 §4.4，设 `LD_LIBRARY_PATH` 后重启 |
+| OCR 返回空文本 | 空白扫描件 / 置信度过滤 | `curl /health`；人工看渲染图清晰度 |
+| 日志 `Using PP-OCRv4 default models` | 正常 | v5 模型未装；要 v5 需放 `~/.rapidocr/models/v5/` |
+| 选 `easy` 后 PM2 重启循环 | easyocr 未安装 | `.venv/bin/pip install easyocr` 或改回 `rapid` |
+| hybrid 启动失败 / 无 `--ocr-backend` | pip 升级后 venv 补丁丢失 | 重放 `patches/hybrid_server_rapidocr.patch`（§5.3） |
+| Hybrid 服务器离线 | 子进程崩溃 | `curl localhost:5002/health`；`pm2 logs erp-ocr` |
+| httpx 代理报错 | `socks://` 不被识别 | 生产 env 已设 `socks5://`；代码侧自动改写子进程代理 |
+| GPU OOM / 显存争抢 | 多模型共存 | `nvidia-smi`；OCR 当前 CPU 模式不占显存 |
