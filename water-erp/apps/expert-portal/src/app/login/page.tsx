@@ -192,7 +192,7 @@ function ExpertLoginPage() {
             <input id="exp-user" className="login-field-input w-full bg-transparent px-5 pb-4 pl-[3rem] pt-4 text-[15px] text-[color:var(--foreground)] outline-none placeholder:text-[#9aa7ba]"
               type="text" autoComplete="username"
               value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-              placeholder={tab === 'expert' ? '请输入专家账户' : '请输入管理员账户'} />
+              placeholder={tab === 'expert' ? '请输入中文姓名' : '请输入管理员账户'} />
             <span aria-hidden className="login-field-shell__line" />
           </div>
 
