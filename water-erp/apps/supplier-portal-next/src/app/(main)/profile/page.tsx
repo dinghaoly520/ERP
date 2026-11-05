@@ -878,7 +878,7 @@ export default function ProfilePage() {
                             onChange={(e) => setCrForm((f) => ({ ...f, [k]: e.target.value }))}
                           />
                         ) : k === "enterpriseType" ? (
-                          /* B4-2（2026-09-30）：注册侧是 11 项受控下拉，变更弹窗此前是自由文本——
+                          /* B4-2（2026-09-30）：注册侧是受控下拉（ENTERPRISE_TYPES），变更弹窗此前是自由文本——
                              随手可写脏值直接入 supplier.enterpriseType */
                           <select
                             className="workbench-input"

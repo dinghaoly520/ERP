@@ -2,7 +2,7 @@
  * 供应商门户 API 客户端 —— 基于 @water-erp/client 统一封装。
  *
  * 在统一客户端之上复刻 Vue 版 axios 拦截器的全局行为：
- *  - 401（非登录请求、非 ACCOUNT_PENDING）→ toast「登录已过期」+ 跳 /login
+ *  - 401（非登录请求、非 ACCOUNT_PENDING/TEMPORARY_EXPIRED）→ toast「登录已过期」+ 跳 /login
  *  - 403/400/5xx/其余状态码 → toast 后端业务错误消息
  *  - 断网/超时（fetch 直接 reject）→ toast「网络异常」（开标现场关键动作密集，不能静默）
  *  - 默认 15s 超时（上传等长请求可传 timeout 覆盖）

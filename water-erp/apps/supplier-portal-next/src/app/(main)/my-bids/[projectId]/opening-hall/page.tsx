@@ -226,7 +226,7 @@ export default function OpeningHallPage() {
   }
 
   // A-114 开标确认电子签名（口令弹窗 → 解锁 U盾 → canonical 签名 → 提交）已随 mock U盾轨
-  // 下线（2026-10-13）；开标记录确认/补签随 dual-v3（SCCA，阶段 2）恢复。异议通道不受影响。
+  // 下线（2026-10-13）；开标记录确认/补签已由 dual-v3（SCCA）轨恢复（CaOpeningConfirmButton）。异议通道不受影响。
 
   async function submitDispute() {
     const reason = disputeReason.trim();
@@ -304,7 +304,7 @@ export default function OpeningHallPage() {
   }
 
   // 后端/种子数据实际写入 '待供应商确认'（bid.service.ts），旧页兼容 '待确认'，两者都接受
-  // 确认/补签电子签名随 mock U盾轨下线（A-114，见上）；异议在待确认态开放，不受影响
+  // 确认/补签电子签名：mock 轨已下线，由 dual-v3 轨承载（A-114，见上）；异议在待确认态开放，不受影响
   const canDispute = isOpening && !!record && (record.confirmStatus === "待确认" || record.confirmStatus === "待供应商确认");
 
   return (

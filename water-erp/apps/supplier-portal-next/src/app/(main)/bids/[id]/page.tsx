@@ -376,7 +376,7 @@ function BidDetailInner() {
     router.push(`/bids/${projectId}/submit`);
   }
 
-  // ══ A-101 回执展示与核验（U盾签署随 mock U盾轨下线，dual-v3 阶段恢复；服务端重验签为只读）══
+  // ══ A-101 回执展示与核验（回执签署已由 dual-v3 盾签承载，mock U盾轨已下线；服务端重验签为只读）══
 
   /** 未签署时展开「核验负载」→ 向服务端取回执负载（以 DB 为准重建；已签署直接看存档 payload）
    *  P1-6：silent 取回——未绑定证书（确定性失败）不再弹「无法签署回执」全局 toast，改面板内解释+去绑定入口 */
@@ -854,7 +854,7 @@ function BidDetailInner() {
                   {/* W1（A-80~86）：澄清与修改——提问 + 澄清文件下载（区别于上方评标澄清答疑只读区） */}
                   <TenderClarificationCard projectId={projectId} stage={project?.stage} deadline={project?.deadline} />
 
-                  {/* ═══ 投标回执（A-101）：已递交后查看编号/递交时间/签名状态；U盾补签随 mock U盾轨下线（dual-v3 阶段恢复）═══ */}
+                  {/* ═══ 投标回执（A-101）：已递交后查看编号/递交时间/签名状态；未签署时经 dual-v3 盾签补签（CaReceiptSignButton）═══ */}
                   {submission?.status === "submitted" && (
                     <div className="neu-card bottom-card">
                       <div className="bc-hd flex items-center justify-between">

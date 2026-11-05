@@ -6,7 +6,8 @@
  * confirm() 返回 Promise<boolean>，调用点 await 后语义与原生确认框完全一致（true=确认）。
  * onConfirm 可选同步回调：在确认按钮 click 事件内同步执行，保留用户手势上下文（供 window.open 等
  * 受弹窗拦截策略约束的 API 使用）。
- * 内联 z-10001 盖过门户最高层级（水叮当浮层 z-10000）。
+ * 内联 z-10001 盖过门户既有弹窗/遮罩层级（gdlg/pwd 2000、加密进度遮罩 9999；仅会话被顶
+ * 遮罩 99999 刻意更高）。
  * createPortal 到 document.body（2026-10-26）：原地渲染会被壳层 .sp-content
  * （position:relative + z-index:0 堆叠上下文）困住——z-10001 只在该上下文内生效，
  * 压不过 body 级弹窗 portal（crp-overlay/ct-overlay 等 z-2000，根上下文），confirm

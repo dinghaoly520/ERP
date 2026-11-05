@@ -140,7 +140,8 @@ export function showSessionReplacedOverlay(message?: string) {
 }
 
 /** C11（第四波）：硬跳让位进行中的关键操作——解密/重传等标记 data-sp-busy 的操作未完成时
- *  暂缓跳转（遮罩常驻已阻断误操作，跳转只为清理会话），每 5s 复查、最多宽限 2 分钟 */
+ *  暂缓跳转（遮罩常驻已阻断误操作，跳转只为清理会话），每 5s 复查、最多宽限 5 分钟
+ *  （验收补：与 B6「大文件需数分钟」对齐，见下方 300_000） */
 function scheduleGoToLogin() {
   const start = Date.now();
   const tryGo = () => {
