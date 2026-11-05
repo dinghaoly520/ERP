@@ -19,8 +19,6 @@ import { ExpertTool } from './tools/expert.tool';
 import { AnnouncementTool } from './tools/announcement.tool';
 import { NotificationTool } from './tools/notification.tool';
 import { CockpitTool } from './tools/cockpit.tool';
-import { ActionPlannerService } from './actions/action-planner.service';
-import { ActionExecutorService } from './actions/action-executor.service';
 import { AssistantRagService } from './knowledge/rag-retrieval.service';
 
 @Module({
@@ -41,8 +39,6 @@ import { AssistantRagService } from './knowledge/rag-retrieval.service';
     AnnouncementTool,
     NotificationTool,
     CockpitTool,
-    ActionPlannerService,
-    ActionExecutorService,
     AssistantRagService,
   ],
   exports: [AssistantService],

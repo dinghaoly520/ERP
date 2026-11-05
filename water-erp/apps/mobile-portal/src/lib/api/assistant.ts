@@ -30,15 +30,12 @@ export type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   cards?: ChatCard[];
-  pending?: boolean;
 };
 
 export type ChatResult = {
   conversationId: string;
   answer: string;
   cards: ChatCard[];
-  citations?: unknown[];
-  pendingActions?: unknown[];
 };
 
 export async function sendChat(message: string, conversationId?: string | null, companyIds?: string[]): Promise<ChatResult> {

@@ -8,7 +8,6 @@ import { IndicatorBar } from './indicator-bar';
 import type {
   Message,
   AssistantCard as AssistantCardType,
-  AssistantCitation,
 } from '@/lib/types';
 import styles from './chat-workspace.module.css';
 import GradientText from './GradientText';
@@ -17,8 +16,6 @@ export function ChatWorkspace({
   messages,
   onSend,
   isLoading,
-  onConfirmAction,
-  onCancelAction,
   onBack,
   headerLeft = 260,
   dataMode,
@@ -27,8 +24,6 @@ export function ChatWorkspace({
   messages: Message[];
   onSend: (msg: string) => void;
   isLoading: boolean;
-  onConfirmAction: (id: string) => void;
-  onCancelAction: (id: string) => void;
   onBack: () => void;
   headerLeft?: number;
   dataMode: boolean;
@@ -36,25 +31,19 @@ export function ChatWorkspace({
 }) {
   // Only render cards from the LAST assistant message — keeps the data canvas
   // focused on the current question, not a cumulative dump of all previous queries.
-  const { cards, citations } = useMemo(() => {
+  const cards = useMemo(() => {
     const lastAssist = [...messages].reverse().find((m) => m.role === 'assistant');
     const cardMap = new Map<string, AssistantCardType>();
-    const allCitations: AssistantCitation[] = [];
     if (lastAssist?.cards) {
       for (const c of lastAssist.cards as AssistantCardType[]) {
         const key = `${c.type}:${c.title || JSON.stringify(c)}`;
         if (!cardMap.has(key)) cardMap.set(key, c);
       }
     }
-    if (lastAssist?.citations) {
-      for (const cit of lastAssist.citations as AssistantCitation[]) {
-        allCitations.push(cit);
-      }
-    }
-    return { cards: Array.from(cardMap.values()), citations: allCitations };
+    return Array.from(cardMap.values());
   }, [messages]);
 
-  const metricCount = 0;
+  const metricCount = cards.filter((c) => c.type === 'metric').length;
   const tableCount = cards.filter((c) => c.type === 'table').length;
   const chartCount = cards.filter((c) => c.type === 'chart').length;
 
@@ -134,8 +123,6 @@ export function ChatWorkspace({
         >
           <MessageList
             messages={messages}
-            onConfirmAction={onConfirmAction}
-            onCancelAction={onCancelAction}
           />
         </div>
 

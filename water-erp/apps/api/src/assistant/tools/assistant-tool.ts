@@ -16,11 +16,6 @@ export interface ToolResult {
         caption?: string;
       }
   >;
-  citations?: Array<{
-    type: string;
-    title: string;
-    entityId: string;
-  }>;
 }
 
 /** 可视化声明 —— 数据工具附带，告诉映射器如何画图 */

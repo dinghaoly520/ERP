@@ -4,9 +4,7 @@ import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useRef, useState } from "react";
 import type {
   AssistantPageContext,
-  AssistantAction,
   ChatState,
-  Conversation,
   Message,
 } from "./types";
 import {
@@ -16,7 +14,7 @@ import {
   deleteConversation,
   sendMessage,
 } from "@/lib/api/assistant";
-import { type SpriteExpression, inferExpression } from "./sprite-images";
+import { type SpriteExpression } from "./sprite-images";
 import { fetchCurrentUser, type AuthUser } from "@/lib/api/auth";
 
 // ---- Context shape ----
@@ -59,7 +57,6 @@ const initialChatState: ChatState = {
   isLoading: false,
   isStreaming: false,
   streamingContent: "",
-  streamingActions: [],
   error: null,
 };
 
@@ -78,7 +75,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const [userName, setUserName] = useState("");
 
   const abortControllerRef = useRef<AbortController | null>(null);
-  const streamingRef = useRef<{ content: string; actions: AssistantAction[] }>({ content: "", actions: [] });
+  const streamingRef = useRef<{ content: string }>({ content: "" });
 
   const setPageContext = useCallback(
     (partial: Partial<AssistantPageContext>) => {
@@ -233,21 +230,17 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         conversationId: activeConvId,
         role: "user",
         content,
-        toolCalls: null,
-        toolResult: null,
-        actions: null,
         createdAt: new Date().toISOString(),
       };
 
       setExpression('thinking');
-      streamingRef.current = { content: "", actions: [] };
+      streamingRef.current = { content: "" };
       setChatState((s) => ({
         ...s,
         messages: [...s.messages, tempUserMsg],
         isStreaming: true,
         streamingContent: "",
-        streamingActions: [],
-        error: null,
+              error: null,
       }));
 
       await sendMessage(activeConvId, content, pageContext, {
@@ -258,32 +251,17 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
             streamingContent: token,
           }));
         },
-        onToolCall: () => {},
-        onToolResult: () => {},
-        onAction: (action) => {
-          streamingRef.current.actions = [...streamingRef.current.actions, action];
-          setChatState((s) => ({
-            ...s,
-            streamingActions: [...s.streamingActions, action],
-          }));
-        },
-        onDone: (messageId, cards, citations) => {
+        onDone: (messageId, cards) => {
           abortControllerRef.current = null;
           // 从 ref 捕获流式内容（setState 异步更新，chatState 可能还是旧值）
           const finalText = streamingRef.current.content;
-          const finalActions = [...streamingRef.current.actions];
           setChatState((s) => {
             const assistantMsg: Message = {
               id: messageId || `msg-${Date.now()}`,
               conversationId: activeConvId,
               role: "assistant",
               content: finalText,
-              toolCalls: null,
-              toolResult: null,
-              actions:
-                finalActions.length > 0 ? finalActions : null,
               cards: (cards && cards.length > 0 ? cards : null) as any,
-              citations: (citations && citations.length > 0 ? citations : null) as any,
               createdAt: new Date().toISOString(),
             };
             return {
@@ -291,8 +269,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
               messages: [...s.messages, assistantMsg],
               isStreaming: false,
               streamingContent: "",
-              streamingActions: [],
-            };
+                        };
           });
 
           // 首条消息标题：后端 chat() 已按首条消息自动落库（slice 0-30），
@@ -307,8 +284,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
             }));
           }
 
-          // Set expression based on response
-          const hasChart = finalActions.some((a: Record<string, unknown>) => a.type === 'chart');
+          // Set expression based on response（图表判定改看真实卡片）
+          const hasChart = Array.isArray(cards) && (cards as Array<{ type?: string }>).some((c) => c?.type === 'chart');
           const hasKnowledge = /法规|合规|审查|风险|标准|流程|要求|必须|禁止/.test(finalText);
           if (hasChart) {
             setExpression('excited');

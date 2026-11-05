@@ -13,11 +13,7 @@ import { MiniSprite } from "./mini-sprite";
 
 // ---- 规则兜底追问 ----
 
-function getFallbackFollowUps(content: string, actions?: Array<{ type: string }>): string[] {
-  const hasChart = actions?.some((a) => a.type === "chart");
-  const hasNavigate = actions?.some((a) => a.type === "navigate");
-  if (hasNavigate) return ["好的，带我过去"];
-  if (hasChart) return ["帮我导出这些数据", "能详细分析一下第一项吗？"];
+function getFallbackFollowUps(content: string): string[] {
   const hasNumbers = /\d+[\d,.]*\s*(万|亿|元|个|项|%|人)/.test(content);
   if (hasNumbers) return ["帮我生成图表", "这些数据有变化趋势吗？"];
   return content.length > 200
@@ -25,10 +21,6 @@ function getFallbackFollowUps(content: string, actions?: Array<{ type: string }>
     : ["能展开说说吗？"];
 }
 
-function extractSuggestions(actions?: Array<{ type: string; items?: string[] }>): string[] | undefined {
-  const s = actions?.find((a) => a.type === "suggestions");
-  return s?.items;
-}
 
 // ---- 共享 MessageList ----
 
@@ -41,7 +33,6 @@ function MessageList({
   userName,
   expression,
   lastBotMsg,
-  lastBotActions,
   onSend,
 }: {
   displayMessages: Message[];
@@ -52,7 +43,6 @@ function MessageList({
   userName: string;
   expression: string;
   lastBotMsg: Message | undefined;
-  lastBotActions: Array<{ type: string; items?: string[] }> | undefined;
   onSend: (t: string) => Promise<void>;
 }) {
   const welcomeCls = isMini ? "asst-welcome" : "asst-page-welcome";
@@ -76,15 +66,14 @@ function MessageList({
 
       {displayMessages.map((msg, idx) => {
         const isLastBot = msg === lastBotMsg && msg.role === "assistant";
-        const llmSuggestions = isLastBot ? extractSuggestions(lastBotActions) : undefined;
-        const fallbacks = isLastBot && !llmSuggestions && msg.content
-          ? getFallbackFollowUps(msg.content, lastBotActions)
+        const fallbacks = isLastBot && msg.content
+          ? getFallbackFollowUps(msg.content)
           : undefined;
         return (
           <ChatMessage
             key={`${msg.id}-${idx}`}
             message={msg}
-            followUps={llmSuggestions ?? fallbacks}
+            followUps={fallbacks}
             onSendFollowUp={(text) => void onSend(text)}
           />
         );
@@ -134,21 +123,19 @@ export function ChatPanel({ variant }: ChatPanelProps) {
 
   if (variant === "mini" && !isMiniOpen) return null;
 
-  const { messages, isStreaming, streamingContent, streamingActions, activeConversationId, conversations } = chatState;
+  const { messages, isStreaming, streamingContent, activeConversationId, conversations } = chatState;
 
   const displayMessages = [...messages];
   if (isStreaming && streamingContent) {
     displayMessages.push({
       id: "streaming", conversationId: activeConversationId ?? "", role: "assistant" as const,
-      content: streamingContent, toolCalls: null, toolResult: null,
-      actions: streamingActions.length > 0 ? streamingActions : null,
+      content: streamingContent,
       createdAt: new Date().toISOString(),
     });
   }
 
   const isEmpty = displayMessages.length === 0 && !isStreaming;
   const lastBotMsg = [...displayMessages].reverse().find((m) => m.role === "assistant");
-  const lastBotActions = (lastBotMsg?.actions as Array<{ type: string; items?: string[] }> | undefined) ?? undefined;
 
   const isMini = variant === "mini";
 
@@ -195,7 +182,7 @@ export function ChatPanel({ variant }: ChatPanelProps) {
             displayMessages={displayMessages} isEmpty={isEmpty} isMini={false}
             isStreaming={isStreaming} streamingContent={streamingContent}
             userName={userName} expression={expression}
-            lastBotMsg={lastBotMsg} lastBotActions={lastBotActions} onSend={sendMessage}
+            lastBotMsg={lastBotMsg} onSend={sendMessage}
           />
           <div ref={messagesEndRef} />
         </div>
@@ -288,7 +275,7 @@ export function ChatPanel({ variant }: ChatPanelProps) {
           displayMessages={displayMessages} isEmpty={isEmpty} isMini
           isStreaming={isStreaming} streamingContent={streamingContent}
           userName={userName} expression={expression}
-          lastBotMsg={lastBotMsg} lastBotActions={lastBotActions} onSend={sendMessage}
+          lastBotMsg={lastBotMsg} onSend={sendMessage}
         />
         <div ref={messagesEndRef} />
       </div>

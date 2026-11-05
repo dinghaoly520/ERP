@@ -14,8 +14,6 @@ import { ExpertTool } from './tools/expert.tool';
 import { AnnouncementTool } from './tools/announcement.tool';
 import { NotificationTool } from './tools/notification.tool';
 import { CockpitTool } from './tools/cockpit.tool';
-import { ActionPlannerService } from './actions/action-planner.service';
-import { ActionExecutorService } from './actions/action-executor.service';
 import { AssistantRagService } from './knowledge/rag-retrieval.service';
 
 describe('AssistantService', () => {
@@ -85,8 +83,6 @@ describe('AssistantService', () => {
         { provide: AnnouncementTool, useValue: { name: 'announcement', description: 'mock', execute: jest.fn() } },
         { provide: NotificationTool, useValue: { name: 'notification', description: 'mock', execute: jest.fn() } },
         { provide: CockpitTool, useValue: { name: 'cockpit', description: 'mock', execute: jest.fn() } },
-        { provide: ActionPlannerService, useValue: { createPlan: jest.fn() } },
-        { provide: ActionExecutorService, useValue: { execute: jest.fn() } },
         { provide: AssistantRagService, useValue: { buildContext: jest.fn().mockResolvedValue(null) } },
       ],
     }).compile();
@@ -507,73 +503,6 @@ describe('AssistantService', () => {
       expect(prisma.expertProfile.count).toHaveBeenCalledWith({ where: { user: { companyId: 'co-1' } } });
       // 未读通知从「全平台所有人」收口为本人
       expect(prisma.notification.count).toHaveBeenCalledWith({ where: { userId: 'leader-1', isRead: false } });
-    });
-  });
-
-  describe('confirmAction', () => {
-    it('pending 状态的日志确认后应执行成功', async () => {
-      prisma.assistantActionLog.findUnique.mockResolvedValue({
-        id: 'act-1',
-        status: 'pending',
-        targetType: 'supplier',
-        targetId: 'sup-1',
-        actionType: 'update_status',
-        payloadJson: { newStatus: 'RETURNED' },
-      });
-      prisma.assistantActionLog.update.mockResolvedValue({});
-      (service as any)['actionExecutor'].execute = jest.fn().mockResolvedValue({
-        status: 'success',
-        message: '操作成功',
-      });
-
-      const result = await service.confirmAction('act-1', { sub: 'admin-1', role: 'admin' });
-
-      expect(result.status).toBe('success');
-    });
-
-    it('非 pending 状态的日志确认应返回错误', async () => {
-      prisma.assistantActionLog.findUnique.mockResolvedValue({
-        id: 'act-1',
-        status: 'success',
-      });
-
-      const result = await service.confirmAction('act-1', { sub: 'admin-1', role: 'admin' });
-
-      expect(result.status).toBe('failed');
-      expect(result.message).toContain('已处理');
-    });
-
-    it('P1 鉴权：匿名与非属主确认被拒（confirm 会执行真实写操作）', async () => {
-      const { UnauthorizedException, ForbiddenException } = await import('@nestjs/common');
-      await expect(service.confirmAction('act-1')).rejects.toThrow(UnauthorizedException);
-      await expect(service.confirmAction('act-1', { sub: 'user-other', role: 'staff' })).rejects.toThrow(ForbiddenException);
-    });
-
-    it('不存在的日志确认应返回错误', async () => {
-      prisma.assistantActionLog.findUnique.mockResolvedValue(null);
-
-      const result = await service.confirmAction('nonexistent', { sub: 'admin-1', role: 'admin' });
-
-      expect(result.status).toBe('failed');
-      expect(result.message).toContain('不存在');
-    });
-  });
-
-  describe('cancelAction', () => {
-    it('pending 状态的日志取消后状态应为 cancelled', async () => {
-      prisma.assistantActionLog.findUnique.mockResolvedValue({
-        id: 'act-1',
-        status: 'pending',
-      });
-      prisma.assistantActionLog.update.mockResolvedValue({});
-
-      const result = await service.cancelAction('act-1', { sub: 'admin-1', role: 'admin' });
-
-      expect(result.status).toBe('success');
-      expect(prisma.assistantActionLog.update).toHaveBeenCalledWith({
-        where: { id: 'act-1' },
-        data: { status: 'cancelled' },
-      });
     });
   });
 });

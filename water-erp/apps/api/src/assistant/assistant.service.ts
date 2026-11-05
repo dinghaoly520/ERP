@@ -15,8 +15,6 @@ import { ExpertTool } from './tools/expert.tool';
 import { AnnouncementTool, PUBLIC_WHERE, isPubliclyVisible as isAnnouncementPubliclyVisible } from './tools/announcement.tool';
 import { NotificationTool } from './tools/notification.tool';
 import { CockpitTool } from './tools/cockpit.tool';
-import { ActionPlannerService } from './actions/action-planner.service';
-import { ActionExecutorService } from './actions/action-executor.service';
 import { SYSTEM_KNOWLEDGE } from './knowledge/system-knowledge';
 import { AssistantRagService } from './knowledge/rag-retrieval.service';
 import { ChatMessage } from './model/assistant-model-provider';
@@ -112,8 +110,6 @@ export class AssistantService {
     private readonly announcementTool: AnnouncementTool,
     private readonly notificationTool: NotificationTool,
     private readonly cockpitTool: CockpitTool,
-    private readonly actionPlanner: ActionPlannerService,
-    private readonly actionExecutor: ActionExecutorService,
     private readonly rag: AssistantRagService,
   ) {
     this.registerTools();
@@ -168,8 +164,6 @@ export class AssistantService {
         conversationId: '',
         answer: '抱歉，会话不存在，请刷新页面重试。',
         cards: [],
-        citations: [],
-        pendingActions: [],
       };
     }
 
@@ -247,8 +241,6 @@ ${toolList}
 
     let answer: string;
     const cards: unknown[] = [];
-    const citations: unknown[] = [];
-    const pendingActions: unknown[] = [];
 
     // Quick path: direct tool dispatch from frontend quick cards
     const directToolMatch = dto.message.match(
@@ -258,10 +250,10 @@ ${toolList}
     try {
       if (directToolMatch) {
         answer = await this.handleDirectToolCall(
-          directToolMatch, messages, cards, citations, allowedTools, toolCtx,
+          directToolMatch, messages, cards, allowedTools, toolCtx,
         );
       } else {
-        answer = await this.handleNormalChat(messages, cards, citations, allowedTools, toolCtx);
+        answer = await this.handleNormalChat(messages, cards, allowedTools, toolCtx);
       }
     } catch (e) {
       answer = '抱歉，AI 服务暂时不可用，请稍后重试。';
@@ -294,7 +286,6 @@ ${toolList}
           role: 'assistant',
           content: answer,
           cardsJson: (cards.length > 0 ? cards : undefined) as any,
-          citationsJson: (citations.length > 0 ? citations : undefined) as any,
         },
       });
     } catch (e) {
@@ -313,14 +304,13 @@ ${toolList}
     }
 
     this.logger.log(`chat() 返回响应: conversationId=${conversation.id}, answerLen=${answer.length}, cards=${cards.length}`);
-    return { conversationId: conversation.id, answer, cards, citations, pendingActions };
+    return { conversationId: conversation.id, answer, cards };
   }
 
   private async handleDirectToolCall(
     match: RegExpMatchArray,
     messages: ChatMessage[],
     cards: unknown[],
-    citations: unknown[],
     allowedTools: Set<string> | null = null,
     ctx: AssistantToolCtx = {},
   ): Promise<string> {
@@ -343,9 +333,6 @@ ${toolList}
 
     const result = await tool.execute(toolArgs, ctx);
     const { attachedCount, droppedData } = this.pushCardsWithCharts(result, cards);
-    if (result.citations) {
-      for (const c of result.citations) citations.push(c);
-    }
 
     /* 提示词随挂载结果自适应（2026-11-03 回答跟随提问）：挂了卡→现文案；
        规则闸全弃（一句话可答）→ 关键数字写进正文，不再假装「卡片已渲染」 */
@@ -376,7 +363,6 @@ ${toolList}
   private async handleFallbackWithGlobalOverview(
     messages: ChatMessage[],
     cards: unknown[],
-    citations: unknown[],
     allowedTools: Set<string> | null = null,
     ctx: AssistantToolCtx = {},
   ): Promise<string> {
@@ -427,7 +413,6 @@ ${toolList}
   private async handleNormalChat(
     messages: ChatMessage[],
     cards: unknown[],
-    citations: unknown[],
     allowedTools: Set<string> | null = null,
     ctx: AssistantToolCtx = {},
   ): Promise<string> {
@@ -444,7 +429,7 @@ ${toolList}
        * 编造风险走 global_overview 数据兜底 */
       if (this.looksLikeDataClaim(answer)) {
         this.logger.warn('handleNormalChat: 模型未调用工具但直答含数据断言，走数据兜底核查');
-        return this.handleFallbackWithGlobalOverview(messages, cards, citations, allowedTools, ctx);
+        return this.handleFallbackWithGlobalOverview(messages, cards, allowedTools, ctx);
       }
       this.logger.log('handleNormalChat: 非数据直答（无工具调用、无数据断言），原样放行');
       return answer;
@@ -491,9 +476,6 @@ ${toolList}
       if (!result) continue;
       const gate = this.pushCardsWithCharts(result, cards);
       droppedAll.push(...gate.droppedData);
-      if (result.citations) {
-        for (const c of result.citations) citations.push(c);
-      }
       if (result.success) successCount++;
       // 安全网：部分工具的 list/detail 动作只返回 data、不产出 cards，
       // 而 service 只消费 cards → 真实实体名（供应商/专家/公告/项目详情）会被丢弃，
@@ -830,16 +812,14 @@ ${toolList}
 
   async getQuickStats(ownerUserId?: string | null) {
     // 公共域聚合（两类调用方都要）
-    const [announcementRows] = await Promise.all([
-      /* 公开域过滤（2026-11-04 P2-20；当日修正）：复用 announcement 工具导出的
-       * PUBLIC_WHERE（SQL 可表达部分）+ isPubliclyVisible 同口径内存判定——
-       * visibility 的 JSON path 过滤不能进 SQL（Prisma 对键缺失三值排除 + 旧组合
-       * 形状直接校验报错，今晨初版即踩中）；公告表小，findMany+filter 即可 */
-      this.prisma.announcement.findMany({
-        where: { ...PUBLIC_WHERE } as never,
-        select: { status: true, dataClass: true, metadata: true },
-      }),
-    ]);
+    /* 公开域过滤（2026-11-04 P2-20；当日修正）：复用 announcement 工具导出的
+     * PUBLIC_WHERE（SQL 可表达部分）+ isPubliclyVisible 同口径内存判定——
+     * visibility 的 JSON path 过滤不能进 SQL（Prisma 对键缺失三值排除 + 旧组合
+     * 形状直接校验报错，今晨初版即踩中）；公告表小，findMany+filter 即可 */
+    const announcementRows = await this.prisma.announcement.findMany({
+      where: { ...PUBLIC_WHERE } as never,
+      select: { status: true, dataClass: true, metadata: true },
+    });
 
     /* 认证≠授权（2026-09-29 口径，评审 F2 补全）：匿名访客与外部角色
      * （supplier/bid_expert 等）都只返回公开域数字——内部审批/风险/未读等
@@ -958,53 +938,6 @@ ${toolList}
 
   /** 操作预案鉴权（2026-09-29 二审 P1）：confirm 会经 ActionExecutor 执行真实写操作
    *  （供应商状态流转等）——须登录且为预案所属会话的属主（admin 直通）；匿名/他人一律拒。 */
-  private async assertActionOwnership(id: string, user?: { sub?: string; role?: string }) {
-    if (!user?.sub) {
-      throw new UnauthorizedException({ error: '请登录后操作', code: 'UNAUTHORIZED' });
-    }
-    if (user.role === 'admin') return;
-    const log = await this.prisma.assistantActionLog.findUnique({
-      where: { id },
-      select: { conversationId: true },
-    });
-    if (log?.conversationId) {
-      const conv = await this.prisma.assistantConversation.findUnique({
-        where: { id: log.conversationId },
-        select: { userId: true },
-      });
-      if (conv?.userId && conv.userId === user.sub) return;
-    }
-    throw new ForbiddenException({ error: '无权操作此预案', code: 'FORBIDDEN' });
-  }
-
-  async confirmAction(id: string, user?: { sub?: string; role?: string }) {
-    await this.assertActionOwnership(id, user);
-    const log = await this.prisma.assistantActionLog.findUnique({ where: { id } });
-    if (!log) return { status: 'failed', message: '操作记录不存在' };
-    if (log.status !== 'pending') return { status: 'failed', message: '操作已处理，无需重复确认' };
-
-    await this.prisma.assistantActionLog.update({
-      where: { id },
-      data: { status: 'confirmed', confirmedAt: new Date() },
-    });
-    return this.actionExecutor.execute(id, user);
-  }
-
-  async cancelAction(id: string, user?: { sub?: string; role?: string }) {
-    await this.assertActionOwnership(id, user);
-    const log = await this.prisma.assistantActionLog.findUnique({ where: { id } });
-    if (!log) return { status: 'failed', message: '操作记录不存在' };
-    // 终态闸（2026-11-04 审查 P1-10）：success/failed/cancelled 不可再改写——防污染审计轨迹
-    if (log.status !== 'pending') {
-      return { status: 'failed', message: `操作已处于终态（${log.status}），不可取消` };
-    }
-
-    await this.prisma.assistantActionLog.update({
-      where: { id },
-      data: { status: 'cancelled' },
-    });
-    return { status: 'success', message: '操作已取消' };
-  }
 
   async deleteConversation(id: string, owner: AssistantOwner | null = null) {
     const conv = await this.prisma.assistantConversation.findUnique({

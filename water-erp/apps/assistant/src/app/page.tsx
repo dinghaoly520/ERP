@@ -17,12 +17,6 @@ export default function Page() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [dataMode, setDataMode] = useState(false);
 
-  // Track whether the next onSuccess call is a retry response
-  const isRetryRef = useRef(false);
-
-  // Track the last user message ID so the retry toast can match
-  const lastUserMsgIdRef = useRef<string | null>(null);
-
   // ---- Conversation list ----
 
   const refreshConversations = useCallback(async () => {
@@ -67,8 +61,6 @@ export default function Page() {
         role: 'assistant',
         content: res.answer,
         cards: res.cards,
-        citations: res.citations,
-        pendingActions: res.pendingActions,
         timestamp: new Date().toLocaleTimeString('zh-CN', {
           hour: '2-digit',
           minute: '2-digit',
@@ -76,7 +68,6 @@ export default function Page() {
       };
       setMessages((prev) => [...prev, assistantMsg]);
 
-      isRetryRef.current = false;
       refreshConversations();
     },
     [refreshConversations],
@@ -121,7 +112,6 @@ export default function Page() {
       setInChat(true);
 
       // 立即添加用户消息到对话区，不要等到 API 返回
-      isRetryRef.current = false;
       const userMsg: Message = {
         id: crypto.randomUUID(),
         role: 'user',
@@ -131,7 +121,6 @@ export default function Page() {
           minute: '2-digit',
         }),
       };
-      lastUserMsgIdRef.current = userMsg.id;
       setMessages((prev) => [...prev, userMsg]);
 
       send(msg, conversationIdRef.current);
@@ -139,38 +128,12 @@ export default function Page() {
     [send],
   );
 
-  const handleConfirmAction = useCallback(async (actionId: string) => {
-    try {
-      const res = await api.post<{ status: string; message: string }>(
-        `/assistant/actions/${actionId}/confirm`,
-        { confirmed: true },
-      );
-      toast.success(res.message || '操作成功');
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : '操作失败');
-    }
-  }, []);
-
-  const handleCancelAction = useCallback(async (actionId: string) => {
-    try {
-      const res = await api.post<{ status: string; message: string }>(
-        `/assistant/actions/${actionId}/cancel`,
-        {},
-      );
-      toast.success(res.message || '操作已取消');
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : '取消失败');
-    }
-  }, []);
-
   const handleBack = useCallback(() => {
     cancel();
     clearError();
     setInChat(false);
     setMessages([]);
     setConversationId(undefined);
-    isRetryRef.current = false;
-    lastUserMsgIdRef.current = null;
   }, [cancel, clearError]);
 
   const handleSelectConversation = useCallback(async (id: string) => {
@@ -181,7 +144,6 @@ export default function Page() {
           role: string;
           content: string;
           cardsJson?: unknown;
-          citationsJson?: unknown;
           createdAt: string;
         }>;
       }>(`/assistant/conversations/${id}`);
@@ -190,7 +152,6 @@ export default function Page() {
         role: m.role as 'user' | 'assistant',
         content: m.content,
         cards: (m as any).cardsJson || undefined,
-        citations: (m as any).citationsJson || undefined,
         timestamp: new Date(m.createdAt).toLocaleTimeString('zh-CN', {
           hour: '2-digit',
           minute: '2-digit',
@@ -210,8 +171,6 @@ export default function Page() {
     setInChat(false);
     setMessages([]);
     setConversationId(undefined);
-    isRetryRef.current = false;
-    lastUserMsgIdRef.current = null;
   }, [cancel, clearError]);
 
   const handleDelete = useCallback(async (id: string) => {
@@ -255,8 +214,6 @@ export default function Page() {
             messages={messages}
             onSend={handleSend}
             isLoading={isLoading}
-            onConfirmAction={handleConfirmAction}
-            onCancelAction={handleCancelAction}
             onBack={handleBack}
             headerLeft={sidebarCollapsed ? 40 : 260}
             dataMode={dataMode}

@@ -42,8 +42,6 @@ describe('兜底路径 ctx 线程（P1：无工具调用安全网不泄漏全公
       filler('announcement'),
       filler('notification'),
       filler('cockpit'),
-      {} as any, // actionPlanner
-      {} as any, // actionExecutor
       {} as any, // rag（构造器第 14 参，知识库会话新增——mock 占位）
     );
   };
@@ -59,7 +57,6 @@ describe('兜底路径 ctx 线程（P1：无工具调用安全网不泄漏全公
     // 第一轮 LLM 未发 TOOL_CALL → handleNormalChat 走 handleFallbackWithGlobalOverview
     await (service as any).handleNormalChat(
       [{ role: 'user', content: '系统整体运行状况如何' }],
-      [],
       [],
       null,
       ctx,

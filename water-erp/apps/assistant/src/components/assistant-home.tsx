@@ -290,7 +290,7 @@ const promptKits: PromptKit[] = [
   },
 ];
 
-function generatePrompt(cardIndex: number, s: QuickStats | null): string {
+function generatePrompt(cardIndex: number): string {
   const kit = promptKits[cardIndex];
   if (!kit) return '';
 
@@ -407,7 +407,7 @@ export function AssistantHome({
                   key={idx}
                   className={styles.quickCard}
                   onClick={() => {
-                    const prompt = generatePrompt(idx, stats);
+                    const prompt = generatePrompt(idx);
                     if (prompt) onSend(prompt);
                   }}
                   type="button"

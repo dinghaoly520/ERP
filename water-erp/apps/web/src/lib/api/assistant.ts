@@ -1,4 +1,4 @@
-import type { AssistantCard, Conversation, Message, AssistantPageContext, AssistantAction } from '@/components/assistant/types';
+import type { AssistantCard, Conversation, Message, AssistantPageContext } from '@/components/assistant/types';
 import { apiFetch } from './api-fetch';
 import { toApiError } from '@water-erp/client';
 
@@ -61,9 +61,6 @@ export async function deleteConversation(id: string): Promise<void> {
 
 export type SendCallbacks = {
   onToken: (content: string) => void;
-  onToolCall: (tool: string, args: Record<string, unknown>) => void;
-  onToolResult: (tool: string, result: unknown, success: boolean) => void;
-  onAction: (action: AssistantAction) => void;
   onDone: (messageId: string, cards?: unknown[], citations?: unknown[]) => void;
   onError: (message: string) => void;
 };

@@ -20,7 +20,7 @@ export function DataCanvas({
     canvasRef.current?.scrollTo(0, 0);
   }, []);
 
-  const displayCards = cards.filter((c) => c.type !== 'actionPlan' && c.type !== 'metric');
+  const displayCards = cards.filter((c) => c.type !== 'metric');
 
   if (displayCards.length === 0) {
     return (

@@ -14,7 +14,6 @@ import {
 @Injectable()
 export class DeepSeekProvider extends AssistantModelProvider {
   private readonly logger = new Logger(DeepSeekProvider.name);
-  private toolsWarned = false;
 
   constructor(private readonly llm: LlmService) {
     super();
@@ -25,19 +24,10 @@ export class DeepSeekProvider extends AssistantModelProvider {
     options?: {
       temperature?: number;
       maxTokens?: number;
-      tools?: Array<{
-        name: string;
-        description: string;
-        parameters: Record<string, unknown>;
-      }>;
     },
   ): Promise<ModelResponse> {
     if (!this.llm.getModel()) {
       throw new Error('DeepSeek API Key 未配置，请在 .env 中设置 DEEPSEEK_API_KEY');
-    }
-    if (options?.tools?.length && !this.toolsWarned) {
-      this.toolsWarned = true;
-      this.logger.warn('tools 尚未接入 LlmService 网关，本次调用已忽略 tools 参数');
     }
 
     try {
