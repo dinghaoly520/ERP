@@ -416,7 +416,7 @@ DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED
 
 ### File Uploads (MinIO)
 
-`POST /api/upload?category=...` (50 MB cap), `GET /api/upload/files/:id`, `DELETE /api/upload/:key`. Files stored in MinIO, metadata in `FileAsset` model. 双信封新轨类目（2026-08）：`bid_inner_ciphertext`（解外层产物 C_inner，归属链=`SupplierBidSubmission.innerAssets`）与 `bid_decrypted`（供应商解密上传明文，归属链=`decryptedAssets`）——下载授权按 submission 四列+两 Json 列反查（C_outer 本人下载拒收、C_inner 成员放行、bid_decrypted 指派给 SUCCESS 家/staff/专家）；`bid_inner_ciphertext`/`bid_decrypted`/`bid_document` 三类目删除硬保护（永久不可删）。
+`POST /api/upload?category=...`（单文件统一 500MB，2026-11-05）, `GET /api/upload/files/:id`, `DELETE /api/upload/:key`. Files stored in MinIO, metadata in `FileAsset` model. 双信封新轨类目（2026-08）：`bid_inner_ciphertext`（解外层产物 C_inner，归属链=`SupplierBidSubmission.innerAssets`）与 `bid_decrypted`（供应商解密上传明文，归属链=`decryptedAssets`）——下载授权按 submission 四列+两 Json 列反查（C_outer 本人下载拒收、C_inner 成员放行、bid_decrypted 指派给 SUCCESS 家/staff/专家）；`bid_inner_ciphertext`/`bid_decrypted`/`bid_document` 三类目删除硬保护（永久不可删）。
 
 ### Frontend Conventions
 

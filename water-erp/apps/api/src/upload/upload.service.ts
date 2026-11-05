@@ -128,8 +128,7 @@ export class UploadService implements OnModuleInit {
       }
     }
 
-    // 附件统一限制（2026-10-19）：类目级大小上限（announcement/contract_document 100MB、
-    // 其余 50MB）+ announcement 扩展白名单
+    // 附件统一限制（2026-11-05）：全类目单文件 500MB + announcement 扩展白名单
     assertAttachmentRules(file, category);
   }
 

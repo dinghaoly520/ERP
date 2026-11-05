@@ -105,13 +105,13 @@ function formOf(init: any): Record<string, string | null> {
 }
 
 /** mock fetch：max_pages=0 探测调用返回 100 页；批量调用按 page_range 生成页 */
-function mockRecordingFetch(records: FetchRecord[]) {
+function mockRecordingFetch(records: FetchRecord[], totalPages = 100) {
   return jest.fn(async (url: string, init: any) => {
     const form = formOf(init);
     records.push({ url, form });
     let payload: any;
     if (form.max_pages === '0') {
-      payload = { text: '', page_count: 100, processed_pages: 0, pages: [] };
+      payload = { text: '', page_count: totalPages, processed_pages: 0, pages: [] };
     } else {
       const [s, e] = (form.page_range ?? '1-1').split('-').map(Number);
       const pages = Array.from({ length: e - s + 1 }, (_, i) => ({
@@ -120,7 +120,7 @@ function mockRecordingFetch(records: FetchRecord[]) {
       }));
       payload = {
         text: pages.map((p) => p.text).join('\n\n'),
-        page_count: 100,
+        page_count: totalPages,
         processed_pages: pages.length,
         pages,
       };
@@ -158,6 +158,20 @@ describe('消费端瘦身后契约：恒定批次 + 不发 dpi + 页数探测零
     expect(records[0].form.max_pages).toBe('0');
     expect(records[0].form.page_range).toBeNull();
     expect(records[0].form.dpi).toBeNull();
+  });
+
+  it('默认不截断：800 页文件按 40 分 20 批全量处理，末批 761-800', async () => {
+    const svc = await makeService('http://a:8100');
+    const records: FetchRecord[] = [];
+    (global as any).fetch = mockRecordingFetch(records, 800);
+
+    const big = Buffer.alloc(21 * 1024 * 1024);
+    const r = await svc.ocrPdf(big);
+
+    expect(records).toHaveLength(21); // 1 探测 + 20 批
+    expect(records[1].form.page_range).toBe('1-40');
+    expect(records[20].form.page_range).toBe('761-800');
+    expect(r.processedPages).toBe(800);
   });
 
   it('dpi 完全交由服务端：所有请求不带 dpi 字段', async () => {

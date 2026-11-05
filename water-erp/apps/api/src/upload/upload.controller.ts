@@ -86,9 +86,8 @@ export class UploadController {
 
   @Post()
   @UseInterceptors(FileInterceptor('file', {
-    // 100MB（2026-10-19 附件统一限制）：服务层按类目再收口——
-    // announcement/contract_document 100MB，其余类目维持 50MB
-    limits: { fileSize: 100 * 1024 * 1024 },
+    // 500MB（2026-11-05 单文件统一上限）：服务层 assertAttachmentRules 同口径把守
+    limits: { fileSize: 500 * 1024 * 1024 },
   }))
   @ApiConsumes('multipart/form-data')
   @ApiBody({

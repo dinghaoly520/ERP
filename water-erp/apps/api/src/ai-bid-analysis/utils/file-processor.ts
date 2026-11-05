@@ -1,7 +1,7 @@
 // Shared file→text helper used by controller, TenderProcessor, and BidderProcessor
 import * as mammoth from 'mammoth';
 import { execFileSync } from 'node:child_process';
-import { OcrService } from '../../local-ai/ocr.service';
+import { OCR_UNLIMITED_PAGES, OcrService } from '../../local-ai/ocr.service';
 
 /**
  * 尝试用 pdftotext 从 PDF 文本层提取文字（数字 PDF 秒级，比逐页 RapidOCR 快几个量级）。
@@ -26,7 +26,7 @@ export async function processFile(
   ocrService: OcrService,
   buffer: Buffer,
   fileName?: string,
-  maxPages = 200,
+  maxPages = OCR_UNLIMITED_PAGES,
 ) {
   const ext = fileName?.toLowerCase().split('.').pop();
 

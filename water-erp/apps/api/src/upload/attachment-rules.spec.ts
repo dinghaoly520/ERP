@@ -30,9 +30,9 @@ describe('attachment-rules（100MB+白名单，2026-10-19）', () => {
     expect(isAttachmentExtensionAllowed('无扩展名')).toBe(false);
   });
 
-  it('大小上限：announcement 100MB、其余 50MB', () => {
-    expect(ATTACHMENT_MAX_BYTES).toBe(100 * 1024 * 1024);
-    expect(DEFAULT_MAX_BYTES).toBe(50 * 1024 * 1024);
+  it('大小上限：全类目统一 500MB（2026-11-05 用户裁定，800 页标书 ~200-400MB）', () => {
+    expect(ATTACHMENT_MAX_BYTES).toBe(500 * 1024 * 1024);
+    expect(DEFAULT_MAX_BYTES).toBe(500 * 1024 * 1024);
   });
 
   it('assertAttachmentRules：announcement 类目拒格式/拒超大、放行合法文件', () => {
@@ -42,8 +42,8 @@ describe('attachment-rules（100MB+白名单，2026-10-19）', () => {
     expect(() => assertAttachmentRules(file('a.pdf', ATTACHMENT_MAX_BYTES), 'announcement')).not.toThrow();
     expectCode(() => assertAttachmentRules(file('a.pdf', DEFAULT_MAX_BYTES + 1), 'general'), 'ATTACHMENT_FILE_TOO_LARGE');
     expect(() => assertAttachmentRules(file('a.pdf', DEFAULT_MAX_BYTES), 'general')).not.toThrow();
-    // contract_document 不套扩展白名单（PDF_WORD_IMAGE 内容闸另管格式），仅 100MB
+    // contract_document 不套扩展白名单（PDF_WORD_IMAGE 内容闸另管格式），大小同统一上限
     expectCode(() => assertAttachmentRules(file('a.zip', ATTACHMENT_MAX_BYTES + 1), 'contract_document'), 'ATTACHMENT_FILE_TOO_LARGE');
-    expect(() => assertAttachmentRules(file('a.zip', DEFAULT_MAX_BYTES + 1), 'contract_document')).not.toThrow();
+    expect(() => assertAttachmentRules(file('a.zip', ATTACHMENT_MAX_BYTES), 'contract_document')).not.toThrow();
   });
 });

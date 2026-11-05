@@ -178,8 +178,8 @@ export class TenderWriteController {
   @Post('extract-notification-data')
   @UseInterceptors(
     FileInterceptor('file', {
-      // 定标审批表为扫描件，动辄几十 MB——与投标文件上传 50MB 口径对齐
-      limits: { fileSize: 50 * 1024 * 1024 },
+      // 定标审批表为扫描件——与全库单文件统一上限 500MB 对齐（2026-11-05）
+      limits: { fileSize: 500 * 1024 * 1024 },
     }),
   )
   async extractNotificationData(
