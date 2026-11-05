@@ -211,6 +211,8 @@ function BidSubmitInner() {
   const [showRecovery, setShowRecovery] = useState(false);
   const [recoveryTs, setRecoveryTs] = useState<number | null>(null);
   const [submitDialogVisible, setSubmitDialogVisible] = useState(false);
+  // 两步提交流（2026-11-05 手测回修）：第一步提交前检查（无 PIN）→ 第二步 U盾 PIN 验证弹窗
+  const [pinDialogVisible, setPinDialogVisible] = useState(false);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
 
   // 文字字段本地草稿（dual-v3 文件不落草稿——刷新即丢，离开守卫兜底）
@@ -445,7 +447,6 @@ function BidSubmitInner() {
       { label: "交货工期", detail: form.deliveryPeriod || "未填写", ok: !!form.deliveryPeriod, required: true },
       { label: "质量承诺", detail: form.qualityCommitment || "未填写", ok: !!form.qualityCommitment, required: false },
       { label: submissionMode === "full" ? "完整标书文件" : "拆分标书文件", detail: fileDetail, ok: fileOk, required: true },
-      { label: "U盾 PIN", detail: pin ? "已输入（提交时用于盾签名）" : "未输入", ok: !!pin, required: true },
     ];
     if (project?.bondRequired) {
       items.push({ label: "投标保证金凭证", detail: bondFile ? "已选择" : "未选择", ok: !!bondFile, required: true });
@@ -456,9 +457,25 @@ function BidSubmitInner() {
 
   const canConfirm = preflightItems.every((i) => i.ok || !i.required);
 
-  async function confirmSubmit() {
+  /** 第一步（提交前检查）「确认提交」→ 检查通过后收起检查表、弹出第二步 U盾 PIN 验证。
+   *  PIN 不再出现在检查弹窗内——两步流与旧版一致：检查（无 PIN）→ PIN → 加密提交。 */
+  function requestPinDialog() {
+    if (!canConfirm) return; // 确认按钮已按 canConfirm 禁用，防御直达调用
     setSubmitDialogVisible(false);
+    setPinDialogVisible(true);
+  }
+
+  /** 第二步（U盾 PIN）「确认加密并提交」→ 关弹窗进入加密+盾签名投递管线；
+   *  PIN 在 doSubmit 的 finally 用后即焚，绝不缓存 */
+  async function confirmSubmit() {
+    setPinDialogVisible(false);
     await doSubmit();
+  }
+
+  /** PIN 弹窗取消：回表单可重开，PIN 同样清空（用后即焚语义，取消不留残值） */
+  function cancelPinDialog() {
+    setPinDialogVisible(false);
+    setPin("");
   }
 
   /** dual-v3 投递管线：本地暂存 → 双层加密+暂存上传（逐文件进度）→ prepare → 盾 P7 签名 → submit v3 */
@@ -800,12 +817,12 @@ function BidSubmitInner() {
         </>
       )}
 
-      {/* 提交前检查弹窗（含 U盾 PIN——提交时盾签名用，用后即焚） */}
+      {/* 第一步：提交前检查弹窗（无 PIN——两步流，PIN 在第二步弹窗录入） */}
       <SpDialog open={submitDialogVisible} onClose={() => setSubmitDialogVisible(false)} title="提交前检查" width={500}
         footer={
           <>
             <SpButton variant="soft" onClick={() => setSubmitDialogVisible(false)}>取消</SpButton>
-            <SpButton variant="primary" disabled={!canConfirm} onClick={confirmSubmit}>确认提交</SpButton>
+            <SpButton variant="primary" disabled={!canConfirm} onClick={requestPinDialog}>确认提交</SpButton>
           </>
         }
       >
@@ -822,24 +839,34 @@ function BidSubmitInner() {
             </div>
           ))}
         </div>
-        {/* U盾 PIN 输入（在确认弹窗内输入——主表单与旧版一致，PIN 只在真正提交时出现） */}
-        <div className="mt-4 flex items-center justify-between gap-3">
-          <span className="text-xs text-[var(--fg-2)]">U盾 PIN（提交时用于盾签名，不缓存）</span>
-          <div className="b-inp-group w-[220px]">
-            <KeyRound size={13} strokeWidth={1.75} className="ml-2 shrink-0 text-[var(--fg-3)]" />
-            <input
-              type="password"
-              value={pin}
-              autoComplete="off"
-              onChange={(e) => setPin(e.target.value)}
-              placeholder="请输入 U盾 PIN"
-              className="w-full bg-transparent px-2 py-1.5 text-sm outline-none"
-            />
-          </div>
-        </div>
         {!canConfirm
           ? <BAlert type="error" className="mt-4" title="存在未通过的必填项，请完善后重新提交" />
-          : <BAlert type="success" className="mt-4" title="检查通过。确认后开始双层加密与盾签名，期间请勿关闭页面" />}
+          : <BAlert type="success" className="mt-4" title="检查通过。确认后需输入 U盾 PIN，随后开始双层加密与盾签名，期间请勿关闭页面" />}
+      </SpDialog>
+
+      {/* 第二步：U盾 PIN 验证弹窗（检查通过后弹出——PIN 只在真正提交时出现，用后即焚） */}
+      <SpDialog open={pinDialogVisible} onClose={cancelPinDialog} title="U盾 PIN 验证" width={420}
+        icon={KeyRound}
+        footer={
+          <>
+            <SpButton variant="soft" onClick={cancelPinDialog}>取消</SpButton>
+            <SpButton variant="primary" disabled={!pin.trim()} onClick={confirmSubmit}>确认加密并提交</SpButton>
+          </>
+        }
+      >
+        <div className="b-inp-group">
+          <KeyRound size={13} strokeWidth={1.75} className="ml-2 shrink-0 text-[var(--fg-3)]" />
+          <input
+            type="password"
+            value={pin}
+            autoComplete="off"
+            autoFocus
+            onChange={(e) => setPin(e.target.value)}
+            placeholder="请输入 U盾 PIN"
+            className="w-full bg-transparent px-2 py-1.5 text-sm outline-none"
+          />
+        </div>
+        <p className="mt-2 text-xs text-[var(--fg-3)]">PIN 仅用于本次盾签名，不缓存</p>
       </SpDialog>
 
       {/* A-88：删除草稿确认 */}
