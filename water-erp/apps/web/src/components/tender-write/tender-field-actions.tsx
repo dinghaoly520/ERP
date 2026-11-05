@@ -85,8 +85,9 @@ export function TenderFieldActions({
   const hideActions = FIELDS_WITHOUT_ACTIONS.has(fieldKey) ||
     (FIELDS_HIDE_WHEN_DATE.has(fieldKey) && fieldTypeValue === 'date');
 
-  // Table type: show actions but disable AI
-  const isTableType = fieldTypeValue === 'table';
+  // 报价表「设计表格」模式不再禁用 AI（2026-11-04 用户裁定）：
+  // 表格模式的优化/生成由 onAiGenerate 分流处理（当前表格序列化送模型、返回解析回表格）
+  const aiActionLabel = currentValue.trim() ? 'AI 优化' : 'AI 生成';
 
   const bindTooltip = (key: string) => ({
     onMouseEnter: () => setShowTooltip(key),
@@ -217,9 +218,9 @@ export function TenderFieldActions({
           <button
             type="button"
             onClick={onAiGenerate}
-            disabled={isGenerating || isTableType}
-            aria-label={isTableType ? '表格不支持AI优化' : currentValue.trim() ? 'AI 优化' : 'AI 生成'}
-            title={isTableType ? '表格不支持AI优化' : currentValue.trim() ? 'AI 优化' : 'AI 生成'}
+            disabled={isGenerating}
+            aria-label={aiActionLabel}
+            title={aiActionLabel}
             {...bindTooltip('ai')}
             className={`tender-action-chip tender-action-chip--primary ${isGenerating ? 'tender-status-badge--pulse' : ''} !text-[11px] !px-2 !py-1`}
           >
@@ -231,15 +232,11 @@ export function TenderFieldActions({
               className={
                 isGenerating
                   ? 'text-[rgba(96,139,239,1)]'
-                  : isTableType
-                    ? 'text-[color:var(--muted-foreground)] opacity-50'
-                    : 'text-[rgba(76,111,189,1)]'
+                  : 'text-[rgba(76,111,189,1)]'
               }
             />
             {showTooltip === 'ai' && (
-              <ActionTooltip>
-                {isTableType ? '表格不支持AI优化' : (currentValue.trim() ? 'AI 优化' : 'AI 生成')}
-              </ActionTooltip>
+              <ActionTooltip>{aiActionLabel}</ActionTooltip>
             )}
           </button>
           ))}

@@ -30,6 +30,11 @@ import {
 } from '@/lib/api/tender-sample';
 import { getCompanyInfoOnce } from '@/lib/api/company-info';
 import { SupplierNameInput } from './supplier-name-input';
+import { QUOTATION_TEXT_AI_PROMPT } from '@/lib/tender-write/templates';
+import {
+  serializeTableToText,
+  tableHasDataRows,
+} from '@/lib/tender-write/quotation-table-text';
 
 // 后端瞬时不可达（watch 重编译/守护恢复窗口）：代理层已快重试，此处再做耐心重试
 // （3 次 × 10s）桥接恢复窗口——2026-10-29 用户裁定，不允许「后端服务未启动」直抛用户
@@ -419,19 +424,10 @@ export function TenderSectionEditor({
         throw new Error('AI返回的内容为空');
       }
 
-      // 报价表/报价函：将 AI 文本解析为表格并自动切换到设计表格模式
-      const isQuotationField = fieldKey === 'quotationLetter';
-      const tableData = isQuotationField
-        ? parseQuotationTextToTable(result.content)
-        : null;
-
-      if (tableData && onTableChange) {
-        // 先切换类型再写入表格，确保编辑器渲染正确
-        onChange('quotationLetterType' as TenderFieldKey, 'table');
-        onTableChange(tableData);
-      } else {
-        onChange(fieldKey, result.content);
-      }
+      // 报价表/报价函在文字模式下走本通路：AI 产物直接写回文字
+      // （2026-11-04 用户裁定——文字模式优化文字本身、保持叙述性表达，
+      // 不再解析成表格并切换模式；表格模式的 AI 见 handleQuotationTableAiGenerate）
+      onChange(fieldKey, result.content);
 
       // 自动保存生成的样本（AI 原始文本，便于回看）
       await createFieldSample({
@@ -447,6 +443,49 @@ export function TenderSectionEditor({
       setTimeout(() => setAiError(null), 5000);
     } finally {
       setGeneratingStates((prev) => ({ ...prev, [fieldKey]: false }));
+    }
+  };
+
+  // ── 报价表「设计表格」模式 AI 优化/生成（2026-11-04 用户裁定）──
+  // 与文字模式分流：当前表格序列化为 Tab 文本送模型（表格版提示词），返回行解析回表格；
+  // 不切模式、不动 quotationLetterType——整体换表经编辑器外部变更检测入撤回栈（可撤回）
+  const handleQuotationTableAiGenerate = async (
+    fieldLabel: string,
+    aiPrompt: string | undefined,
+    currentTable: TableDataType | null,
+  ) => {
+    setGeneratingStates((prev) => ({ ...prev, quotationLetter: true }));
+    setAiError(null);
+    try {
+      const context: Record<string, string> = {};
+      for (const [key, v] of Object.entries(draft)) {
+        if (typeof v === 'string' && v.trim() && key !== 'quotationLetter') {
+          const cfg = section?.fields.find((f) => String(f.key) === key);
+          context[cfg?.label ?? fieldLabelMap?.[key] ?? key] = v;
+        }
+      }
+      const result = await generateFieldContentWithRetry({
+        fieldKey: 'quotationLetter',
+        fieldLabel,
+        currentValue: currentTable ? serializeTableToText(currentTable) : '',
+        aiPrompt,
+        context,
+      });
+      const parsed = parseQuotationTextToTable(result.content ?? '');
+      if (!parsed) throw new Error('AI 返回内容无法解析为表格行，请重试或手工编辑表格');
+      onTableChange?.(parsed);
+      await createFieldSample({
+        fieldKey: 'quotationLetter',
+        content: result.content,
+        sourceType: 'ai_generated',
+        context: { generatedAt: new Date().toISOString(), prompt: aiPrompt },
+      });
+    } catch (error) {
+      console.error('Failed to generate quotation table:', error);
+      setAiError(error instanceof Error ? error.message : 'AI生成失败，请稍后重试');
+      setTimeout(() => setAiError(null), 5000);
+    } finally {
+      setGeneratingStates((prev) => ({ ...prev, quotationLetter: false }));
     }
   };
 
@@ -1103,7 +1142,14 @@ export function TenderSectionEditor({
                     <div className="flex items-center gap-2">
                       <TenderFieldActions
                         fieldKey={field.key}
-                        currentValue={isText ? value : (tableData ? JSON.stringify(tableData) : '')}
+                        currentValue={
+                          isText
+                            ? value
+                            : // 表格模式：按数据行内容定「生成/优化」文案（表头行不算已填）
+                              tableData && tableHasDataRows(tableData)
+                              ? serializeTableToText(tableData)
+                              : ''
+                        }
                         isFavorite={isFavorite}
                         isGenerating={isGenerating}
                         fieldTypeValue={isTable ? 'table' : 'text'}
@@ -1119,10 +1165,13 @@ export function TenderSectionEditor({
                           }
                         }}
                         onAiGenerate={() => {
+                          // 2026-11-04 用户裁定：AI 按钮按当前模式分流——
+                          // 文字模式优化叙述性文字（不转表格）；表格模式优化/生成表格内容
                           if (isText) {
-                            handleAiGenerate(field.key, field.label, value, field.aiPrompt);
+                            handleAiGenerate(field.key, field.label, value, QUOTATION_TEXT_AI_PROMPT);
+                          } else {
+                            void handleQuotationTableAiGenerate(field.label, field.aiPrompt, tableData);
                           }
-                          // Table type: AI generation is disabled, but the button remains visible
                         }}
                       />
                       <span

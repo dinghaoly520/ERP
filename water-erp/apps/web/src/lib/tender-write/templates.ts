@@ -16,6 +16,15 @@ function currentYearMonth(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
+/**
+ * 报价表/报价函「填入文字」模式的 AI 提示词（2026-11-04 用户裁定）：
+ * 各采购方式 quotationLetter 字段的 aiPrompt 是「设计表格」模式口径（Tab 分隔、
+ * 列序固定）；文字模式改用本叙述性提示词——优化已填文字、连贯段落表达，
+ * 严禁输出 Tab 分隔的表格形态（否则文字框里会灌进表格行）。
+ */
+export const QUOTATION_TEXT_AI_PROMPT =
+  "本部分是针对各项采购物品的报价说明，以供应商口吻呈现（即供应商填报的报价内容），必须采用叙述性文字表达：以连贯段落逐项叙述所供物品的名称、规格型号、单位、数量，各项之间用逗号和顿号自然衔接；涉及报价金额处（单价、合价）以 ____ 留空供填写，不得编造金额。删除一切说明性条款、抬头（如 致：××）和落款尾缀（如 投标人盖章、法定代表人或授权代表签字、日期）。内容简单时直接用段落描述；多项内容可用层次编号（1. 2. 3.）。严禁以制表符（Tab 键）分隔的表格形式输出，不要使用#、*等符号，不要出现空行，不要在开头重复字段名称。";
+
 export const TENDER_DOCUMENT_TYPES: TenderDocumentTypeMeta[] = [
   {
     type: "COMPETITIVE_NEGOTIATION",

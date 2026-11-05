@@ -1,7 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlignCenter, AlignLeft, AlignRight, Merge, Split, Plus, Minus, ArrowDown, ArrowRight } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, Merge, Split, Plus, Minus, ArrowDown, ArrowRight, Undo2 } from "lucide-react";
+import {
+  createTableHistoryState,
+  popTableHistory,
+  recordTableEdit,
+  type TableHistoryState,
+} from "@/lib/tender-write/table-history";
 
 export type TableCell = {
   content: string;
@@ -256,6 +262,40 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
   const dragMovedRef = useRef(false);
   const tableRef = useRef<HTMLTableElement>(null);
 
+  // 撤回历史：所有改动经 commit 收口，改动前快照入栈（同格连续打字合并为一步）。
+  // 历史随组件存活——切走章节或切回「填入文字」再回来即清空（表格数据本身不丢）。
+  const [undoState, setUndoState] = useState<TableHistoryState>(createTableHistoryState);
+  // 追踪最近一次已知 value：用于识别「外部整体替换」（AI 优化表格、应用历史记录）——
+  // 这类写入不经过 commit，靠对比 prop 变化把替换前状态补进撤回栈
+  const lastValueRef = useRef(value);
+
+  const commit = useCallback(
+    (next: TableData, editCell: { r: number; c: number } | null = null) => {
+      lastValueRef.current = next;
+      setUndoState((prev) => recordTableEdit(prev, value, editCell));
+      onChange(next);
+    },
+    [value, onChange]
+  );
+
+  const handleUndo = useCallback(() => {
+    const { state, snapshot } = popTableHistory(undoState);
+    if (!snapshot) return;
+    lastValueRef.current = snapshot;
+    setUndoState(state);
+    onChange(snapshot);
+    // 选区可能指向撤回后已不存在的行列，直接清空
+    setSelectedCells(new Set());
+  }, [undoState, onChange]);
+
+  useEffect(() => {
+    if (value !== lastValueRef.current) {
+      const previous = lastValueRef.current;
+      lastValueRef.current = value;
+      setUndoState((prev) => recordTableEdit(prev, previous, null));
+    }
+  }, [value]);
+
   // 鼠标在表格外释放时也结束拖动，避免下次移入继续误扩选区
   useEffect(() => {
     const endDrag = () => {
@@ -271,9 +311,9 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
       const newCells = value.cells.map((row, r) =>
         row.map((cell, c) => (r === rowIndex && c === colIndex ? { ...cell, content } : cell))
       );
-      onChange({ ...value, cells: newCells });
+      commit({ ...value, cells: newCells }, { r: rowIndex, c: colIndex });
     },
-    [value, onChange]
+    [value, commit]
   );
 
   const handleCellAlign = useCallback(
@@ -286,9 +326,9 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
           return selectedCells.has(key) ? { ...cell, align } : cell;
         })
       );
-      onChange({ ...value, cells: newCells });
+      commit({ ...value, cells: newCells });
     },
-    [value, onChange, selectedCells]
+    [value, commit, selectedCells]
   );
 
   const handleMergeCells = useCallback(() => {
@@ -332,10 +372,10 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
       })
     );
 
-    onChange({ ...value, cells: newCells });
+    commit({ ...value, cells: newCells });
     // 保留锚点选中，合并后可直接拆分
     setSelectedCells(new Set([`${minR}-${minC}`]));
-  }, [value, onChange, selectedCells]);
+  }, [value, commit, selectedCells]);
 
   const handleSplitCells = useCallback(() => {
     if (selectedCells.size !== 1) return;
@@ -361,9 +401,9 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
       })
     );
 
-    onChange({ ...value, cells: newCells });
+    commit({ ...value, cells: newCells });
     setSelectedCells(new Set([`${rowIndex}-${colIndex}`]));
-  }, [value, onChange, selectedCells]);
+  }, [value, commit, selectedCells]);
 
   const handleCellMouseDown = useCallback((rowIndex: number, colIndex: number, e: React.MouseEvent) => {
     // 仅响应鼠标左键
@@ -444,7 +484,7 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
       if (html) {
         const parsed = parseTableFromHtml(html);
         if (parsed) {
-          onChange(parsed);
+          commit(parsed);
           return;
         }
       }
@@ -460,10 +500,10 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
           }))
         );
         const maxCols = Math.max(...cells.map((row) => row.length));
-        onChange({ rows: cells.length, cols: maxCols, cells });
+        commit({ rows: cells.length, cols: maxCols, cells });
       }
     },
-    [onChange]
+    [commit]
   );
 
   // 归一化后的选区矩形（完整覆盖相交的合并格）
@@ -526,9 +566,9 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
         }
       }
     }
-    onChange({ rows: value.rows + 1, cols: value.cols, cells: newCells });
+    commit({ rows: value.rows + 1, cols: value.cols, cells: newCells });
     setSelectedCells(new Set([`${selectedRow}-${selectedCol}`]));
-  }, [selectedRow, value, onChange, selectedCol]);
+  }, [selectedRow, value, commit, selectedCol]);
 
   const handleInsertRowBelow = useCallback(() => {
     if (selectedRow < 0 || value.rows >= 20) return;
@@ -548,9 +588,9 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
         }
       }
     }
-    onChange({ rows: value.rows + 1, cols: value.cols, cells: newCells });
+    commit({ rows: value.rows + 1, cols: value.cols, cells: newCells });
     setSelectedCells(new Set([`${insertIndex}-${selectedCol}`]));
-  }, [selectedRow, value, onChange, selectedCol]);
+  }, [selectedRow, value, commit, selectedCol]);
 
   const handleDeleteRow = useCallback(() => {
     if (selectedRow < 0 || value.rows <= 1) return;
@@ -558,10 +598,10 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
     const newCells: TableCell[][] = value.cells
       .filter((_, r) => r !== selectedRow)
       .map((row) => row.map((cell) => ({ ...cell })));
-    onChange({ rows: value.rows - 1, cols: value.cols, cells: newCells });
+    commit({ rows: value.rows - 1, cols: value.cols, cells: newCells });
     const newSelectedRow = Math.min(selectedRow, value.rows - 2);
     setSelectedCells(new Set([`${newSelectedRow}-${selectedCol}`]));
-  }, [selectedRow, selectedCol, value, onChange]);
+  }, [selectedRow, selectedCol, value, commit]);
 
   const handleInsertColLeft = useCallback(() => {
     if (selectedCol < 0 || value.cols >= 10) return;
@@ -580,9 +620,9 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
       }
       return newRow;
     });
-    onChange({ rows: value.rows, cols: value.cols + 1, cells: newCells });
+    commit({ rows: value.rows, cols: value.cols + 1, cells: newCells });
     setSelectedCells(new Set([`${selectedRow}-${selectedCol}`]));
-  }, [selectedCol, value, onChange, selectedRow]);
+  }, [selectedCol, value, commit, selectedRow]);
 
   const handleInsertColRight = useCallback(() => {
     if (selectedCol < 0 || value.cols >= 10) return;
@@ -602,9 +642,9 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
       }
       return newRow;
     });
-    onChange({ rows: value.rows, cols: value.cols + 1, cells: newCells });
+    commit({ rows: value.rows, cols: value.cols + 1, cells: newCells });
     setSelectedCells(new Set([`${selectedRow}-${insertIndex}`]));
-  }, [selectedCol, value, onChange, selectedRow]);
+  }, [selectedCol, value, commit, selectedRow]);
 
   const handleDeleteCol = useCallback(() => {
     if (selectedCol < 0 || value.cols <= 1) return;
@@ -613,16 +653,27 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
       row.filter((_, c) => c !== selectedCol).map((cell) => ({ ...cell }))
     );
     const newSelectedCol = Math.min(selectedCol, value.cols - 2);
-    onChange({ rows: value.rows, cols: value.cols - 1, cells: newCells });
+    commit({ rows: value.rows, cols: value.cols - 1, cells: newCells });
     setSelectedCells(new Set([`${selectedRow}-${newSelectedCol}`]));
-  }, [selectedCol, selectedRow, value, onChange]);
+  }, [selectedCol, selectedRow, value, commit]);
 
   return (
     <div className="grid gap-3">
       {/* Toolbar */}
       <div className="flex items-center justify-between rounded-[14px] border border-[oklch(0.6_0.04_258_/_0.2)] bg-[oklch(1_0_0_/_0.3)] px-3 py-2">
-        {/* Left: Alignment buttons */}
+        {/* Left: Undo + Alignment buttons */}
         <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={handleUndo}
+            disabled={undoState.history.length === 0}
+            className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-[color:var(--muted-foreground)] transition-colors hover:bg-[oklch(1_0_0_/_0.4)] hover:text-[color:var(--foreground)] disabled:opacity-40"
+            title="撤回上一步表格操作"
+          >
+            <Undo2 size={14} />
+            撤回
+          </button>
+          <div className="mx-1 h-4 w-px bg-[rgba(200,210,230,0.5)]" />
           <button
             type="button"
             onClick={() => handleCellAlign("left")}
@@ -762,7 +813,7 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
                     };
                   }
                 }
-                onChange({ ...value, rows, cells: newCells });
+                commit({ ...value, rows, cells: newCells });
               }}
               className="w-14 rounded-[8px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-1.5 py-0.5 text-center text-sm outline-none focus:border-[rgba(107,149,240,0.34)]"
             />
@@ -783,7 +834,7 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
                   }
                   return newRow.slice(0, cols);
                 });
-                onChange({ ...value, cols, cells: newCells });
+                commit({ ...value, cols, cells: newCells });
               }}
               className="w-14 rounded-[8px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-1.5 py-0.5 text-center text-sm outline-none focus:border-[rgba(107,149,240,0.34)]"
             />
@@ -843,7 +894,7 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
       </div>
 
       <p className="px-1 text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">
-        提示：按住鼠标左键拖动可选择多个单元格，点击工具栏「合并」即可合并；点击已合并的单元格后点「拆分」可还原。Ctrl/⌘+点击加减选区，Shift+点击扩展选区。
+        提示：按住鼠标左键拖动可选择多个单元格，点击工具栏「合并」即可合并；点击已合并的单元格后点「拆分」可还原。Ctrl/⌘+点击加减选区，Shift+点击扩展选区。误操作可点「撤回」逐步恢复。
       </p>
     </div>
   );
