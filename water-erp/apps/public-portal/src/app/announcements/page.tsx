@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, Megaphone, Search } from 'lucide-react';
-import { fetchPublicAnnouncements, ANNOUNCEMENT_TABS, ANNOUNCEMENTS, type AnnouncementItem } from '@/lib/announcements';
+import { fetchPublicAnnouncements, ANNOUNCEMENT_TABS, type AnnouncementItem } from '@/lib/announcements';
 import { UnifiedHeader } from '@/components/unified-header';
 import { FlowBackdrop } from '@/components/flow-stage';
 
@@ -32,6 +32,8 @@ function AnnouncementsContent() {
   const [search, setSearch] = useState(() => searchParams.get('search') || '');
   const [items, setItems] = useState<AnnouncementItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadTick, setReloadTick] = useState(0);
 
   // 同步 URL 参数到搜索框（顶栏 Enter / 外部跳转进入）
   useEffect(() => {
@@ -49,23 +51,20 @@ function AnnouncementsContent() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setLoadFailed(false);
     fetchPublicAnnouncements({ type: type || undefined, search: search || undefined, pageSize: 100 })
       .then(data => { if (!cancelled) setItems(data.items); })
       .catch(() => {
-        // Fallback to local data
+        // 2026-11-05 修复：API 失败不再回落本地 mock 假公告（虚构采购公告比报错更糟，
+        // 违反仓库 No mock data fallbacks 约定）——改显式错误态 + 重试
         if (!cancelled) {
-          const lc = search.toLowerCase();
-          const filtered = ANNOUNCEMENTS.filter(a => {
-            const matchType = !type || a.type === type;
-            const matchSearch = !search || a.title.toLowerCase().includes(lc) || a.code.toLowerCase().includes(lc);
-            return matchType && matchSearch;
-          });
-          setItems(filtered);
+          setItems([]);
+          setLoadFailed(true);
         }
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [type, search]);
+  }, [type, search, reloadTick]);
 
   return (
     <div className="flow-page" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
@@ -138,6 +137,13 @@ function AnnouncementsContent() {
           <div className="glass rounded-2xl p-16 text-center">
             <div className="text-5xl mb-4">⏳</div>
             <p className="text-[#5a6d8a] font-semibold">正在加载公告...</p>
+          </div>
+        ) : loadFailed ? (
+          <div className="glass rounded-2xl p-16 text-center flex flex-col items-center gap-3">
+            <div className="text-5xl mb-1">⚠️</div>
+            <p className="text-[#5a6d8a] font-semibold">公告加载失败</p>
+            <p className="text-xs text-[#8a96aa]">网络或服务暂时不可用，请稍后重试</p>
+            <button onClick={() => setReloadTick(t => t + 1)} className="neu-btn-soft">重新加载</button>
           </div>
         ) : items.length === 0 ? (
           <div className="glass rounded-2xl p-16 text-center">

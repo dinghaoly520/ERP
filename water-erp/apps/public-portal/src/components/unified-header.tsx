@@ -114,11 +114,15 @@ export function UnifiedHeader() {
               </svg>
             </button>
 
-            {/* 下拉面板 — Portal 到 body 以越过 header 层叠上下文 */}
+            {/* 下拉面板 — Portal 到 body 以越过 header 层叠上下文。
+                2026-11-05 修复：面板不在 wrapper DOM 子孙内，必须自带 hover 事件——
+                否则离开按钮 160ms 后菜单在光标下方消失，基本不可点 */}
             {activeMenu === 'about' && mounted && createPortal(
               <div
                 className="flow-nav-menu fixed z-[9999]"
                 style={{ top: aboutMenuPos.top, left: aboutMenuPos.left }}
+                onMouseEnter={() => handleMenuEnter('about')}
+                onMouseLeave={handleMenuLeave}
               >
                 <a href="/about" target="_blank" rel="noopener noreferrer" className="flow-nav-menu-item">
                   集团概况
@@ -154,11 +158,13 @@ export function UnifiedHeader() {
               </svg>
             </button>
 
-            {/* 下拉面板 — Portal 到 body */}
+            {/* 下拉面板 — Portal 到 body（hover 事件同 about，见上） */}
             {activeMenu === 'contact' && mounted && createPortal(
               <div
                 className="flow-nav-menu fixed z-[9999]"
                 style={{ top: contactMenuPos.top, left: contactMenuPos.left }}
+                onMouseEnter={() => handleMenuEnter('contact')}
+                onMouseLeave={handleMenuLeave}
               >
                 <a href="/contact" className="flow-nav-menu-item">
                   联系方式

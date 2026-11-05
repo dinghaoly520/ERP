@@ -84,8 +84,12 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
     // 不立即静默刷新——否则客户端导航(router.push)到首页时，二轮 fetch 会与
     // React reconciliation / 事件绑定产生竞态，导致公告区 tab 点击失效。
     // 仅在页面重新可见（切回标签页 / bfcache 恢复）时刷新，保证数据不过时。
+    // 2026-11-05 修复：pageshow 在首次加载也会触发（persisted=false）——不判
+    // persisted 会击穿本守卫，挂载即 8 连发二轮请求；只认 bfcache 恢复（true）。
+    const isInitialPageshow = (ev: Event) => ev.type === 'pageshow' && !(ev as PageTransitionEvent).persisted;
     if (hasInitialData.current) {
-      const refresh = () => {
+      const refresh = (ev?: Event) => {
+        if (ev && isInitialPageshow(ev)) return;
         if (document.visibilityState !== 'visible') return;
         Promise.allSettled(typeGroups.map(type => fetchPublicAnnouncements({ type, pageSize: 5 })))
           .then(results => {
@@ -104,7 +108,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
     // 无服务端预取数据时：立即加载 + 注册可见性监听
     loadAnnouncements();
     // 浏览器后退(bfcache 恢复)与切回标签页时都重新拉取
-    const onShow = () => loadAnnouncements();
+    const onShow = (ev: Event) => { if (!isInitialPageshow(ev)) loadAnnouncements(); };
     const onVisibility = () => { if (document.visibilityState === 'visible') loadAnnouncements(); };
     window.addEventListener('pageshow', onShow);
     document.addEventListener('visibilitychange', onVisibility);
@@ -126,7 +130,6 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
       key: tab.key,
       label: tab.label,
       color: tab.color,
-      deadlineLabel: items[0]?.deadlineLabel ?? '报名截止',
       items,
     };
   }), [fetchedAnnouncements, HOME_ANNOUNCE_TABS]);
@@ -452,7 +455,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                     <div className="flex gap-6 text-xs">
                       <span className="announce-meta">项目编号 <span className="announce-meta-val">{featuredItem.code}</span></span>
                       {featuredItem.deadline && (
-                        <span className="announce-meta">{currentAnnounce.deadlineLabel} <em className="announce-deadline">{featuredItem.deadline}</em></span>
+                        <span className="announce-meta">{featuredItem.deadlineLabel} <em className="announce-deadline">{featuredItem.deadline}</em></span>
                       )}
                     </div>
                     {featuredItem.titleOnly

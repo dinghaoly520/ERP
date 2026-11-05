@@ -8,10 +8,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="zh-CN">
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@900&display=swap" rel="stylesheet" />
+        {/* 2026-11-05 修复：移除 Google Fonts 外链——fonts.googleapis.com 在大陆不可达时
+            为 render-blocking，首屏白屏直至超时；Manrope 全项目零引用，Noto Serif SC
+            在 globals.css 已有本地宋体 fallback 链（Songti SC/STZhongsong/SimSun） */}
       </head>
       <body>
         {children}

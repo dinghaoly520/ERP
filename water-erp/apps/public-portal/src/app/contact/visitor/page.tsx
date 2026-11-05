@@ -28,7 +28,8 @@ export default function VisitorPage() {
   const [submitting, setSubmitting] = useState(false);
   const update = (k: keyof FormData, v: string) => setForm(p => ({ ...p, [k]: v }));
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!form.name || !form.phone || !form.visitUnit || !form.visitDate || !form.purpose) { toast.error('请填写必填项'); return; }
     if (!/^1\d{10}$/.test(form.phone)) { toast.error('请输入正确的手机号码'); return; }
     setSubmitting(true);
@@ -87,8 +88,8 @@ export default function VisitorPage() {
             </div>
 
             {/* 表单卡 — 2026-11-04 重设计：两分区（来访人信息/来访安排）+
-                内凹井输入 + 快选芯片 + 整宽提交 */}
-            <div className="neu-card neu-card--static p-[clamp(22px,3vw,34px)]">
+                内凹井输入 + 快选芯片 + 居中提交；2026-11-05 改 form 包裹（回车可提交） */}
+            <form className="neu-card neu-card--static p-[clamp(22px,3vw,34px)]" onSubmit={handleSubmit}>
               {/* ── 分区一：来访人信息 ── */}
               {sectionTitle('来访人信息')}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
@@ -106,7 +107,9 @@ export default function VisitorPage() {
                 </label>
                 <label className={labelCls}>
                   <span className={labelText}>来访人数</span>
-                  <input type="number" min="1" value={form.visitorCount} onChange={e => update('visitorCount', e.target.value)} placeholder="请输入人数" className="neu-input" />
+                  {/* 客户端数值闸（2026-11-05）：type=number 拦不住键盘输小数/科学计数法，
+                      改纯数字过滤（1-99，与后端 @IsInt @Min(1) @Max(99) 对齐） */}
+                  <input type="text" inputMode="numeric" value={form.visitorCount} onChange={e => update('visitorCount', e.target.value.replace(/\D/g, '').slice(0, 2))} placeholder="请输入人数" className="neu-input" />
                 </label>
               </div>
 
@@ -144,14 +147,14 @@ export default function VisitorPage() {
                 </label>
               </div>
 
-              {/* 提交 — 居中定宽主按钮 */}
+              {/* 提交 — 居中定宽主按钮（type=submit，回车同效） */}
               <div className="mt-6 flex justify-center">
-                <button onClick={handleSubmit} disabled={submitting} className="neu-btn-primary w-56">
+                <button type="submit" disabled={submitting} className="neu-btn-primary w-56">
                   {submitting ? '提交中...' : '提交登记'}
                 </button>
               </div>
               <p className="text-[12px] text-[var(--fg-3)] text-center mt-3.5">提交后请保持手机畅通，我们会在1个工作日内与您联系</p>
-            </div>
+            </form>
           </div>
         </div>
       </main>

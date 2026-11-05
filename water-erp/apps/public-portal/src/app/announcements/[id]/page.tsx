@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Download, FileText, Paperclip, PhoneCall } from 'lucide-react';
-import { fetchPublicAnnouncement, downloadAnnouncementAttachment, ANNOUNCEMENTS, type AnnouncementItem, ANNOUNCEMENT_TYPE_META, formatMetaValue, type MetaField } from '@/lib/announcements';
+import { fetchPublicAnnouncement, downloadAnnouncementAttachment, type AnnouncementItem, ANNOUNCEMENT_TYPE_META, formatMetaValue, type MetaField } from '@/lib/announcements';
 import { UnifiedHeader } from '@/components/unified-header';
 import { FlowBackdrop } from '@/components/flow-stage';
 
@@ -61,11 +61,11 @@ export default function AnnouncementDetailPage() {
     fetchPublicAnnouncement(id)
       .then(data => { if (!cancelled) setItem(data); })
       .catch((e) => {
-        // Fallback to local data；无本地兜底时透出后端业务文案（如「该公告已下线」）
+        // 2026-11-05 修复：不再回落本地 mock 假公告（同列表页口径）；
+        // 直接透出后端业务文案（如「该公告已下线」）
         if (!cancelled) {
-          const found = ANNOUNCEMENTS.find(a => a.id === id) || null;
-          setItem(found);
-          if (!found) setErrMsg(e instanceof Error ? e.message : '公告加载失败');
+          setItem(null);
+          setErrMsg(e instanceof Error ? e.message : '公告加载失败');
         }
       })
       .finally(() => { if (!cancelled) setLoading(false); });
