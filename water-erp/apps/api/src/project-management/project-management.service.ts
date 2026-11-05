@@ -1431,8 +1431,8 @@ ${shortlist}
     uploadedById?: string,
     round?: number,
   ) {
-    // 附件统一限制（2026-10-19）：阶段附件（含供应商邀请函/回执、采购文件、
-    // 正式盖章版、向导自动上传的公告 docx）100MB + 9 扩展白名单——
+    // 附件统一限制（2026-10-19 起；2026-11-05 上限统一 500MB）：阶段附件（含供应商邀请函/回执、
+    // 采购文件、正式盖章版、向导自动上传的公告 docx）500MB + 10 扩展白名单——
     // 复用 announcement 规则集，先于任何 prisma/落盘调用
     assertAttachmentRules(file, 'announcement');
     await this.assertPmiMutable(projectId);

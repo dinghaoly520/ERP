@@ -2948,7 +2948,7 @@ export class ExpertAdminService {
     }
 
     const rows = [...byExpert.entries()].map(([expertUserId, r]) => {
-      // 综合得分 = 加权均分 × 置信度因子（evalCount ≥5 时满 1.0，1 次时 0.5）
+      // 综合得分 = 加权均分 × 置信度因子（evalCount ≥5 时满 1.0，1 次时 0.6）
       const rawAvg = Object.entries(r.gradeCounts).reduce((s, [g, c]) => s + (GRADE_SCORE[g] ?? 3) * c, 0) / r.evalCount;
       const confidence = Math.min(1, 0.5 + r.evalCount / 10);
       const weightedScore = Math.round(rawAvg * confidence * 100) / 100;

@@ -26,7 +26,7 @@ const HINT = '支持 PNG/JPG/Word/PDF/Excel/ZIP/RAR';
 /**
  * 服务层附件大小/格式闸（multer 之后、落 MinIO 之前）。
  * 大小：全类目统一 500MB（2026-11-05）；
- * 格式：仅 announcement 类目套 9 扩展白名单（contract_document 的格式由
+ * 格式：仅 announcement 类目套 10 扩展白名单（contract_document 的格式由
  * matchesFileContentPolicy 内容闸把守，勿在此放松）。
  * size 取 file.size ?? buffer.length（内存存储下二者一致，测试可只给其一）。
  */
