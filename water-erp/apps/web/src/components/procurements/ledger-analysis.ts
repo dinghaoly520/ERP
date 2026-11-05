@@ -1,7 +1,5 @@
-// 采购台账 AI 分析·共享汇总口径（2026-10-21 分析界面重设计时抽取）。
-// 此前「选择分析对象」弹窗、「综合分析报告」弹窗与页面 confirmAnalysis 三处各自
-// reduce 同一份数据——口径漂移即同屏打架（2026-09-28 审计曾抓同页三处两套小数位），
-// 统一收口到本模块，金额解析与 lib/format 的 formatWan 同口径（剥千分位逗号）。
+// 采购台账 AI 分析·共享汇总口径（2026-10-21 重设计时抽取）——此前选集/报告/confirmAnalysis
+// 三处各自 reduce 致口径漂移同屏打架（2026-09-28 审计实录）；金额解析与 formatWan 同口径。
 
 import type { ProcurementRoundItem, ResultStatusKey } from '@/lib/types/procurement';
 

@@ -70,7 +70,6 @@ export default function InvitationConfirmPage() {
   return (
     <div className="min-h-screen flex items-start justify-center px-4 py-10">
       <div className="w-full max-w-lg space-y-4">
-        {/* 标题 */}
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--accent)] text-white shadow">
             <Gavel size={20} strokeWidth={1.6} />
@@ -158,7 +157,6 @@ export default function InvitationConfirmPage() {
               </div>
             )}
 
-            {/* 返回 */}
             <div className="flex items-center justify-between">
               <button onClick={() => router.push('/')} className="neu-btn-soft">
                 <ArrowLeft size={14} /> 返回工作台

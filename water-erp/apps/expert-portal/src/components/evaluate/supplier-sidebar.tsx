@@ -44,7 +44,6 @@ export function SupplierSidebar({
 
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-[oklch(0.55_0.03_258/0.1)]">
-      {/* 头部 */}
       <div className="flex items-center justify-between px-4 py-3">
         <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
           投标单位
@@ -85,7 +84,6 @@ export function SupplierSidebar({
               )}
 
               <span className="min-w-0 flex-1">
-                {/* 名称 */}
                 <span
                   className={`block truncate text-[13px] leading-tight ${
                     isActive ? 'font-bold text-[var(--foreground)]' : 'font-medium text-[var(--foreground)]/80'
@@ -116,7 +114,6 @@ export function SupplierSidebar({
                   )}
                 </span>
 
-                {/* 打分进度条 */}
                 {progress && (
                   <span className="exp-bar mt-1.5 block">
                     <i

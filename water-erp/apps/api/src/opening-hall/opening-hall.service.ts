@@ -35,11 +35,10 @@ export class OpeningHallService {
   }
 
   async sendMessage(actor: HallActor, projectId: string, dto: { roomType: OpeningHallRoomType; supplierId?: string; content: string }) {
-    // S4/S5：大厅是纯文本频道（两端均转义渲染：Vue `{{ }}` / React `{}`），与异议原因、澄清等
-    // 其他文本字段口径一致——原文落库，不复用公告富文本消毒器（旧实现把 `A & B` 存成 `A &amp; B`、
-    // 纯 `<script>` 消毒成空串仍落库）。DTO @IsNotEmpty 只挡空串，纯空白在此拒绝；
-    // 码点安全截断（[...str] 按码点迭代）避免切断 emoji 代理对——超长主要由 DTO @MaxLength(2000)
-    // （按 UTF-16 码元计）拦截，此处为防御纵深。
+    // S4/S5：大厅是纯文本频道（两端转义渲染：Vue `{{ }}` / React `{}`），与异议原因/澄清等口径
+    // 一致——原文落库，不复用公告富文本消毒器（旧实现把 `A & B` 存成 `A &amp; B`）。DTO
+    // @IsNotEmpty 只挡空串，纯空白在此拒绝；码点安全截断（[...str]）防切 emoji 代理对——超长已由
+    // @MaxLength(2000)（UTF-16 码元计）拦截，此处为防御纵深。
     const content = dto.content.trim();
     if (!content) throw new BadRequestException({ error: '消息内容不能为空', code: 'MESSAGE_EMPTY' });
     const clipped = [...content].slice(0, 2000).join('');

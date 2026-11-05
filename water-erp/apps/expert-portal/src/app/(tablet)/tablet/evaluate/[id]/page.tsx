@@ -21,8 +21,6 @@ import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { SyncConflictModal } from '@/components/evaluate/sync-conflict-modal';
 
-// ScoreEntry 从 @/lib/score-validation 导入（桌面/平板共用规范定义）
-
 const scoreKey = (supplierId: string, scoreItemId: string) => `${supplierId}:${scoreItemId}`;
 
 /**
@@ -388,7 +386,6 @@ export default function TabletEvaluatePage() {
     setDraftDismissed(true);
   }, [draftStorageKey, projectId]);
 
-  // 默认选中第一家供应商
   useEffect(() => {
     if (project && project.suppliers.length > 0 && !activeSupplier) {
       setActiveSupplier(project.suppliers[0].id);
@@ -497,7 +494,6 @@ export default function TabletEvaluatePage() {
     newVal: PointDecisionValue;
     applyFn: (val: PointDecisionValue) => void;
   } | null>(null);
-  // WS 同步冲突
   const [draftConflicts, setDraftConflicts] = useState<Array<{
     key: string;
     scoreItemName: string;
@@ -506,7 +502,6 @@ export default function TabletEvaluatePage() {
   }>>([]);
   const [conflictModalOpen, setConflictModalOpen] = useState(false);
 
-  // 按 category 分组
   const grouped = useMemo(() => {
     const g: Record<string, NonNullable<typeof project>['scoreItems']> = {};
     project?.scoreItems.forEach(si => {
@@ -543,7 +538,6 @@ export default function TabletEvaluatePage() {
       const oldPointVal = cur?.points?.[pid] ?? fallbackMap?.[pid];
       const pointName = itemPoints.find(p => p.id === pid)?.name ?? pid;
 
-      // 检测是否为修改（已有值 + 值不同）
       const isModify = oldPointVal && (
         oldPointVal.checked !== pv.checked ||
         oldPointVal.awardedScore !== pv.awardedScore
@@ -1362,7 +1356,6 @@ export default function TabletEvaluatePage() {
         onConfirm={() => {
           if (pendingModify) {
             pendingModify.applyFn(pendingModify.newVal);
-            // undo toast
             toast(`已将「${pendingModify.pointName}」修改`, {
               action: {
                 label: '撤销',

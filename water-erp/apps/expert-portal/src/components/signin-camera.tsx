@@ -241,7 +241,6 @@ export function SigninCamera({ userName, identityMode = 'self', onSignIn, busy =
 
   return (
     <div className="flex flex-col items-center">
-      {/* 标题 */}
       <div className="mb-5 flex items-center gap-2.5">
         <Camera size={20} strokeWidth={1.5} className="text-[var(--accent-strong)]" />
         <span className="text-sm font-bold text-[var(--foreground)]">签到留档照（必拍）</span>

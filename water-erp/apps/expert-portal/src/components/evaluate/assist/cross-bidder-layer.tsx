@@ -247,7 +247,6 @@ export function CrossBidderLayer({
             </div>
           </div>
 
-          {/* 分隔线 */}
           <hr className="wb-section-rule" />
 
           {/* 下半：投标报价对比 */}

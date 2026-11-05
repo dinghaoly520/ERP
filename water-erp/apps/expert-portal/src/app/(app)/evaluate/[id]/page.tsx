@@ -45,9 +45,6 @@ const STEPS: { key: Step; label: string; Icon: React.ComponentType<{ size?: numb
   { key: 'report', label: '评审报告', Icon: BarChart3 },
 ];
 
-// CATEGORY_LABEL, CATEGORY_COLOR 从 @water-erp/shared 导入（单一来源）
-// ScoreEntry 从 @/lib/score-validation 导入（桌面/平板共用规范定义）
-
 export default function ExpertEvaluatePage() {
   const router = useRouter();
   const params = useParams();
@@ -69,14 +66,12 @@ export default function ExpertEvaluatePage() {
   // 必拍留档照 + 遮挡检测（无照片仅应急模式可过——服务端 PHOTO_REQUIRED 闸门）
   const [faceVerified, setFaceVerified] = useState(false);
   const [faceVerifying, setFaceVerifying] = useState(false);
-  // clarifications panel
   const [showClarifications, setShowClarifications] = useState(false);
   const [clarifications, setClarifications] = useState<any[]>([]);
   const [clarQuestion, setClarQuestion] = useState('');
   const [clarSupplier, setClarSupplier] = useState('');
   const [clarSupplierId, setClarSupplierId] = useState('');
   const [clarPosting, setClarPosting] = useState(false);
-  // real-time status board
   const [liveEvents, setLiveEvents] = useState<{ time: number; label: string; icon: 'decrypt' | 'stage' | 'signin' | 'avoid' | 'score' | 'report' | 'clarify' }[]>([]);
   const [aggregatePresence, setAggregatePresence] = useState<any>(null);
   // 桌面端备忘抽屉（scoring / verify-score 步骤可开启；键盘输入为主，可查看平板墨迹）
@@ -99,8 +94,6 @@ export default function ExpertEvaluatePage() {
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [showMessages, setShowMessages] = useState(false);
 
-  // 开标消息与澄清答疑弹窗支持 Esc 关闭。
-  // 仅在弹窗开启时监听键盘事件，关闭时移除监听器。
   useEffect(() => {
     if (!showMessages && !showClarifications) return;
     const onKey = (e: KeyboardEvent) => {
@@ -158,17 +151,14 @@ export default function ExpertEvaluatePage() {
     },
     onDecryptStatus: (d: any) => {
       pushLiveEvent(`${d.supplierName} 解密${d.decryptStatus === 'SUCCESS' ? '成功' : '异常'}`, 'decrypt');
-      // auto-refresh documents when decrypt status changes
       if (activeSupplier) loadDocuments(activeSupplier);
     },
     onStageChange: (d: any) => {
       pushLiveEvent(`项目阶段: ${d.from} → ${d.to}`, 'stage');
-      // reload project data on stage transitions
       loadProject();
     },
     onClarificationCreated: (d: any) => {
       pushLiveEvent(`新澄清: ${d.questionPreview.slice(0, 30)}`, 'clarify');
-      // refresh clarifications if panel is open
       if (showClarifications) loadClarifications();
     },
     onClarificationReplied: (d: any) => {
@@ -194,7 +184,7 @@ export default function ExpertEvaluatePage() {
       setHallMessages(prev => {
         // 去重（WS 重连可能推送重复消息）
         if (prev.some(m => m.id === d.id)) return prev;
-        return [...prev, d].slice(-200); // 最多保留 200 条
+        return [...prev, d].slice(-200);
       });
       setUnreadMessageCount(prev => prev + 1);
     },
@@ -248,7 +238,6 @@ export default function ExpertEvaluatePage() {
 
   const [confidentialityAgreed, setConfidentialityAgreed] = useState(false);
   const [disciplineAgreed, setDisciplineAgreed] = useState(false);
-  // per-supplier conflict declaration
   const [conflictedSupplierIds, setConflictedSupplierIds] = useState<Set<string>>(new Set());
   // backend `bid:validity:change` invalid/revoked → real-time grey-out
   const [invalidSupplierIds, setInvalidSupplierIds] = useState<Set<string>>(new Set());
@@ -256,8 +245,6 @@ export default function ExpertEvaluatePage() {
   // ④ AI 辅助评标声明：勾选门控（确认态以服务端 expert.aiConsentConfirmed 为准）
   const [aiConsentChecked, setAiConsentChecked] = useState(false);
 
-  // step gating — each step is unlocked only when its preconditions are met
-  // verify-score completion — all active (decrypted, non-withdrawn) suppliers verified
   const allScoreReviewsVerified = (): boolean => {
     if (!project) return false;
     const reviews = (expert as any)?.scoreReviews as
@@ -277,10 +264,8 @@ export default function ExpertEvaluatePage() {
   // 不进专家校验/payload/进度与汇总分母（后端 PRICE_FORMULA_ACTIVE 拒收闸保留作纵深）。
   const priceFormulaActive = !!project?.priceFormulaConfig;
   const scorableItems = project ? filterScorableItems(project.scoreItems, priceFormulaActive) : [];
-  // 启动闸镜像（2026-10-21）：步骤 2+（标书获取/辅助评标/打分/报告）须主持人启动评标后方可进入——
-  // 后端同口径 403 EVALUATION_NOT_STARTED，此处仅前端引导（安全边界在 API）。
-  // 身份核验（step 1）按 2026-09-20 spec 决策 9 保持启动前可用（口令生成晚于签到）。
-  // （evaluationStarted/fiveFlagsVerified 声明于 expert 之后——stepAccessible 系闭包惰性引用）
+  // 启动闸镜像（2026-10-21）：各步骤须主持人启动评标后方可进入（后端同口径 403 EVALUATION_NOT_STARTED，
+  // 此处仅前端引导）；evaluationStarted/fiveFlagsVerified 声明于 expert 之后——stepAccessible 系闭包惰性引用
   const stepAccessible = (sKey: Step): boolean => {
     switch (sKey) {
       case 'verify': return evaluationStarted; // 2026-10-21 收紧：身份核验亦须启动评标后（整页待命页兜底，此为纵深）
@@ -379,7 +364,6 @@ export default function ExpertEvaluatePage() {
     setLoadError(null);
     return api.get<ExpertProjectDetail & { restricted?: boolean; noneEvaluation?: boolean }>(`/expert/projects/${projectId}`)
       .then(p => {
-        // Stage gate: redirect if project is not in an active review stage
         // 2026-10-22：OPENING 返回 restricted 壳但须放行走待命页——只按阶段判（restricted 不再弹回）
         if (p.stage !== 'OPENING' && p.stage !== 'EVALUATING') {
           toast.error('该项目尚未进入开评标阶段');
@@ -409,11 +393,8 @@ export default function ExpertEvaluatePage() {
         // hydrate confidentiality/discipline agreements from server (survives refresh)
         if (p.myExpertRecord?.confidentialityAgreed) setConfidentialityAgreed(true);
         if (p.myExpertRecord?.disciplineAgreed) setDisciplineAgreed(true);
-        // Fix 1: fetch disputeCategoriesBySupplier (per-supplier) via my-scores endpoint.
-        // 同时取 disputesBySupplier（异议详情，用于打分 step「📎插入异议」联动）。
-        // Task 7: 同时取 pointDecisions，按 pointId→scoreItemId 映射 hydrate 到 scores[k].points。
-        // P3-4（2026-09-21 审查）：未签到专家跳过——服务端 VERIFICATION_REQUIRED 403 只是控制台噪音
-        //（评分区本就锁定，无异议/得分点数据可 hydrate）；服务端闸门保留作纵深防御。
+        // my-scores 拉 disputeCategories/disputes/pointDecisions（打分步「📎插入异议」/得分点 hydrate 联动数据）；
+        // P3-4（2026-09-21）：未签到跳过——服务端 403 只是控制台噪音（评分区本就锁定），闸门保留作纵深防御。
         if (p.myExpertRecord?.signedIn) void loadMyScores(projectId, p.scoreItems ?? []);
       })
       .catch((e: any) => setLoadError(e?.message || '加载项目失败')) // P1-16：记录错误态供重试
@@ -770,14 +751,9 @@ export default function ExpertEvaluatePage() {
     || confirmedConflictIds.size !== conflictedSupplierIds.size
     || [...conflictedSupplierIds].some((id) => !confirmedConflictIds.has(id));
 
-  // 未签到期间 10s 静默轮询，覆盖两个场景：
-  // ① host 态待主持人核验登记解锁（P3 2026-09-20 spec §4.2，原逻辑）；
-  // ② self 态摄像头故障时主持人在 :3007 R9 手动确认签到——专家端需感知 signedIn 变化解锁后续步骤
-  //   （2026-09-20 修复：原轮询仅挂 hostLocked，手动确认后 :3006 无感知、须手动刷新页面）；
-  // ③ 评标室口令待验时（2026-09-20 spec §4）——主持人轮换口令后门页自动刷新状态
+  // 未签到期间 10s 静默轮询（silent 防整页卸载）：host 待核验登记（2026-09-20 §4.2）/ self 态 :3007 R9 手动确认
+  // 签到 / 口令待验（2026-09-20 §4）/ 启动前待命 OPENING 等 stage 翻转（2026-10-21 启动闸，WS 为主断连兜底）
   const roomGatePending = !!project?.roomCodeActive && !project?.roomCodeVerified;
-  // ④ 启动前待命（2026-10-21 启动闸）：OPENING 期轮询等 stage 翻转（WS onStageChange 为主，
-  //    此为断连兜底——主持启动后 10s 内步骤自动解锁）
   const evaluationPending = project?.stage === 'OPENING';
   const signInPending = evaluationPending || (!!project && !expert?.signedIn) || roomGatePending;
   useEffect(() => {
@@ -828,7 +804,6 @@ export default function ExpertEvaluatePage() {
     else setStep('assist');
   }, [project]);
 
-  // Guard: redirect to verify if current step is not accessible
   useEffect(() => {
     if (!project) return;
     if (!stepAccessible(step)) {
@@ -899,11 +874,8 @@ export default function ExpertEvaluatePage() {
     }
   };
 
-  // 必拍留档照（R3 2026-09-18 身份核验设计）：上传照片（expert_signin_photo）→ 携带 photoAssetId + 遮挡检测结论签到。
-  // 失败就地重试：faceVerified 仅在签到成功时置位——上传/签到失败不卸载 SigninCamera，
-  // captured 态照片与检测结论保留，专家再点「确认签到」即原地重试，不必重开摄像头重拍。
-  // 同一张照片（blob 引用不变）上传成功后缓存 assetId 复用，避免重试反复传新照片攒孤儿资产；
-  // INVALID_SIGNIN_PHOTO 说明缓存资产已被判无效，弃缓存后下次重试重新上传。
+  // 必拍留档照（R3 2026-09-18）：上传 expert_signin_photo + 遮挡检测结论签到。失败就地重试（不卸载相机、
+  // 照片保留原地重试）；同一照片 assetId 缓存复用防孤儿资产，INVALID_SIGNIN_PHOTO 弃缓存重传。
   const lastSigninPhotoRef = useRef<{ blob: Blob; assetId: string } | null>(null);
   const handleFaceSuccess = async (photoBlob: Blob | null, occlusion: 'passed' | 'unchecked') => {
     setFaceVerifying(true);
@@ -1061,7 +1033,7 @@ export default function ExpertEvaluatePage() {
       firstEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
-    setMissingReasons(new Set()); // clear on valid submit
+    setMissingReasons(new Set());
     // Fix 1: dispute-categories 软拦截 — 仅作用于当前 activeSupplier 的异议类别；无异议供应商不 gate。
     // 不改分、不阻断报告确认。
     const activeDisputes = new Set(disputeCategoriesBySupplier[activeSupplier] ?? []);
@@ -1154,11 +1126,8 @@ export default function ExpertEvaluatePage() {
     if (project) { api.get(`/expert/projects/${projectId}/disputes`).then((res: any) => setDisputes(res)).catch(() => {}); }
   }, [project?.id]);
 
-  /* A-152 评标报告电子签署（软证书 + PIN）
-     判态（零新增端点）：esign-payload 200=可签（再查 cert 分「创建」/「直接签」两态），
-     SIGN_PACKET_NOT_GENERATED=等待签字包、NOT_SIGNABLE=已完成/已纸质登记（中性文案，
-     精确已签徽标归 :3007）；其余（候补/非本项目专家/网络异常）不渲染区块。
-     口令范式照抄供应商门户：仅内存持有，用后即清，绝不落盘。 */
+  /* A-152 评标报告电子签署（软证书 + PIN）：esign-payload 200=可签（再查 cert 分「创建」/「直接签」两态），
+     SIGN_PACKET_NOT_GENERATED=等待签字包、NOT_SIGNABLE=已完成/已纸质登记；其余不渲染。口令仅内存持有、用后即清。 */
   const [esignState, setEsignState] = useState<EsignBlockState>('hidden');
   const [esignBusy, setEsignBusy] = useState(false);
   const [esignPinOpen, setEsignPinOpen] = useState(false);
@@ -1630,7 +1599,7 @@ export default function ExpertEvaluatePage() {
               step === 'scoring' && !noneNoScoring // F-1 两因子：none 且 0 评分项才不渲染侧栏进度（有评分项照常计）
                 ? Object.fromEntries(
                     project.suppliers.map((s) => {
-                      // EXP-P0-01：进度分母/计数基线均不含公式 PRICE 项（顺带移除 filter(()=>true) 死代码）
+                      // EXP-P0-01：进度分母/计数基线均不含公式 PRICE 项
                       const scored = scorableItems.filter(
                         (si) => {
                           const k = scoreKey(s.id, si.id);
@@ -2128,7 +2097,6 @@ export default function ExpertEvaluatePage() {
               )}
 
               {(() => {
-                // 按评分项类别分组。
                 const grouped: Record<string, typeof project.scoreItems> = {};
                 project.scoreItems.forEach(si => {
                   if (!grouped[si.category]) grouped[si.category] = [];
@@ -2136,10 +2104,8 @@ export default function ExpertEvaluatePage() {
                 });
                 const scoringSupplierName = project.suppliers.find(su => su.id === activeSupplier)?.supplierName || '';
                 return (
-                  // 不可评供应商（未解密/已撤回/已回避/已废标）整卡置灰防白填
-                  // ——惯用语同身份核验逐级解锁门（pointer-events-none select-none opacity-50）。
-                  // 报告已确认时，异常供应商仍不可评分；
-                  // 正常供应商的锁定状态由评分控件处理。
+                  // 不可评供应商（未解密/已撤回/已回避/已废标）整卡置灰防白填（惯用语同身份核验解锁门）；
+                  // 报告已确认时异常供应商仍不可评分，正常供应商的锁定由评分控件处理。
                   <div className={`space-y-6 ${!canScoreActiveSupplier ? 'pointer-events-none select-none opacity-50' : ''}`}>
                     {Object.entries(grouped).map(([category, items]) => {
                       const catTotal = items.reduce((s, i) => s + Number(i.maxScore), 0);
@@ -2472,7 +2438,6 @@ export default function ExpertEvaluatePage() {
         {/* 桌面端备忘抽屉（scoring / verify-score 可开启；键盘输入 + 查看平板墨迹） */}
         {memoOpen && (step === 'scoring' || step === 'verify-score') && (
           <div className="fixed inset-0 z-40 flex justify-end" role="dialog" aria-modal="true" aria-label="备注面板">
-            {/* 点击遮罩关闭 */}
             <div
               className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm"
               onClick={() => setMemoOpen(false)}

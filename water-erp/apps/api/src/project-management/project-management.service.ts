@@ -270,11 +270,9 @@ export class ProjectManagementService {
   async list(query: QueryProjectManagementDto, user?: AuthenticatedUser) {
     const where: Record<string, unknown> = {};
 
-    // 项目可见性（拍板 1C，2026-08-24；2026-10-10 修订）：staff 仅见本人创建的项目；
-    // leader 见本公司全部项目（用户裁定：leader 在 :3005 项目管理看公司全量）；
-    // admin 全量 + ?companyId= 单选/逗号多选（2026-10-14 多选统一——收口 resolveScope，
-    // 原单选直赋 where.companyId 的旁路删除；非法 id 由 resolveScope 过滤为有效集）。
-    // user=undefined 属鉴权异常，返回空集不泄露数据。
+    // 项目可见性（拍板 1C 2026-08-24；2026-10-10 修订）：staff 仅见本人创建；leader 见本公司全部
+    // （用户裁定）；admin 全量 + ?companyId= 单选/逗号多选（2026-10-14 统一收口 resolveScope，删
+    // 单选直赋旁路；非法 id 由 resolveScope 过滤）。user=undefined 属鉴权异常，返回空集不泄露。
     if (user?.role === 'leader') {
       // leader 公司视野：与数据库/台账等页同口径（resolveScope 强制本人公司，传参忽略）
       Object.assign(where, this.companyScope.filter(await this.companyScope.resolveScope(user)));
@@ -801,12 +799,10 @@ export class ProjectManagementService {
           status: i === 0 ? PROJECT_STAGE_STATUS.IN_PROGRESS : PROJECT_STAGE_STATUS.NOT_STARTED,
         })),
       });
-      // 2026-10-28 二轮隔离：旧轮 PMI 层开标/获取时间快照到旧轮 BidProject，PMI 字段清空——
-      // 两字段语义收窄为「当前轮值」，新轮基本信息不带旧轮时间（历史轮展示改读快照列）。
-      // 2026-10-30 类型闸修复：PMI 两列是自由文本（String?，中文格式「2026年4月17日9:00」），
-      // 快照列是 DateTime?——直赋字符串必炸 PrismaClientValidationError（此前流标联动死代码
-      // 挡住 reproc 两月未触发，首次可达即踩雷，SWHI-ZJ-2026102002 实录）。parseFlexibleDate
-      // 尽力解析（获取时间区间文本取首时刻），不可解析置 null。
+      // 2026-10-28 二轮隔离：旧轮开标/获取时间快照到旧轮 BidProject、PMI 字段清空——语义收窄为
+      // 「当前轮值」（历史轮展示改读快照列）。2026-10-30 类型闸修复：PMI 两列是自由文本（如
+      // 「2026年4月17日9:00」）、快照列是 DateTime?——直赋字符串必炸 PrismaClientValidationError
+      // （SWHI-ZJ-2026102002 实录）；parseFlexibleDate 尽力解析（区间文本取首时刻），不可解析置 null。
       if (item.bidOpeningTime || item.documentAcquireTime) {
         await tx.bidProject.updateMany({
           where: { projectManagementItemId: itemId, round: currentRound },
@@ -911,11 +907,10 @@ export class ProjectManagementService {
     const result: Record<string, string | null> = {};
 
     if (wants('projectOverview')) {
-      // 显式点击「AI 提取」（field 传入）→ AI 优先：正则只会复述文件里「项目概况」章节的
-      // 模板套话（如「本项目共计1个包，设置1名成交供应商，询比详见第五章」，2026-10-15 实录），
-      // 用户点名要 AI 就给实质提取（prompt 限采买标的/范围、排除条款性套话）；AI 落空回退正则。
-      // AI 产物免二次抛光：本就是成段干净散文，再过一次 LLM 只加 25-60s 无谓转圈。
-      // 自动路径（上传后自动提取/全字段）仍正则优先 + 抛光——省时且模板文档正则已够用。
+      // 显式点击「AI 提取」（field 传入）→ AI 优先：正则只复述「项目概况」模板套话（2026-10-15
+      // 实录），点名要 AI 就给实质提取（prompt 限采买标的/范围、排除条款性套话），AI 落空回退正则；
+      // AI 产物免二次抛光（本就成段干净散文，再过 LLM 只加 25-60s）。自动路径仍正则优先+抛光
+      // （省时，模板文档正则已够用）。
       const explicitOverview = field === 'projectOverview';
       let fromAi = false;
       let raw: string | null = null;
@@ -1389,12 +1384,10 @@ ${shortlist}
       return project;
     });
 
-    // Trigger analysis for the initiation stage (fire-and-forget) — must NOT be
-    // awaited: refreshProjectAnalysis can take minutes (PDF parse + LLM), and
-    // blocking here makes the create endpoint appear to hang, which tempts the
-    // user to resubmit. The resubmit reuses the same demand/initiation
-    // objectKey and trips the Attachment unique constraint → 500 → confusing
-    // "登录失败" dialog even though the first transaction committed.
+    // Trigger analysis for the initiation stage (fire-and-forget) — must NOT be awaited:
+    // refreshProjectAnalysis can take minutes (PDF parse + LLM); blocking here makes the
+    // create endpoint hang and tempts resubmit, which reuses the same objectKey and trips
+    // the Attachment unique constraint → 500 → confusing "登录失败" despite committed tx.
     void this.refreshProjectAnalysis(createdProject.id).catch(() => {
       this.logger.warn(
         `Project ${createdProject.id} created but analysis failed; it will be retried later.`,
@@ -1443,11 +1436,10 @@ ${shortlist}
     // 复用 announcement 规则集，先于任何 prisma/落盘调用
     assertAttachmentRules(file, 'announcement');
     await this.assertPmiMutable(projectId);
-    // R6-1（2026-09-30 审计⑤升级为硬死锁）：多轮项目每轮各有一行同 stageKey 阶段——
-    // 此前 findFirst 无 round 过滤，round-2 上传必落 round-1 行，selectOfficialTender
-    // 校验 projectManagementStageId 必拒"该文件不属于本步骤"→流标重采后 03 无法完成。
-    // 显式 round 优先；缺省回退 item.currentRound（兼容不带 round 的存量调用方）。
-    // （对照 updateStage :3347 同款修复早已有注释警示，唯独此处漏网。）
+    // R6-1（2026-09-30 审计⑤升级为硬死锁）：多轮项目每轮各有一行同 stageKey 阶段——此前
+    // findFirst 无 round 过滤，round-2 上传必落 round-1 行，selectOfficialTender 必拒→流标重采后
+    // 03 无法完成。显式 round 优先，缺省回退 item.currentRound（兼容存量调用方；updateStage :3347
+    // 同款修复早有警示，唯独此处漏网）。
     const roundItem = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
       select: { currentRound: true },
@@ -1639,11 +1631,9 @@ ${shortlist}
             where: { id: projectId },
             data: { bidOpeningTime },
           });
-          // 开标时间提取成功 → 对齐同轮 BidProject（间隔常量口径，同 opening-deadline.util）。
-          // 懒创建常早于本次提取（创建时 bidOpeningTime 尚未提取 → openTime 落在
-          // fallback=立项日、deadline 落在兜底 now+24h），时间轴因此出现
-          // "开标=立项日、投标截止=无关兜底值"的错乱；未开标前按下式回填修正：
-          // openTime=提取值，deadline=openTime−BID_DEADLINE_BEFORE_OPENING_MS
+          // 开标时间提取成功 → 对齐同轮 BidProject（间隔常量口径，同 opening-deadline.util）。懒创建
+          // 常早于本次提取（openTime 落 fallback=立项日、deadline 落兜底 now+24h，时间轴错乱），未开标
+          // 前回填修正：openTime=提取值，deadline=openTime−BID_DEADLINE_BEFORE_OPENING_MS
           try {
             const parsed = parseBidOpeningTime(bidOpeningTime);
             if (parsed) {
@@ -3471,12 +3461,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
       });
     }
 
-    // 补录（2026-09-07）：目标阶段早于当前活跃阶段（流程已越过的前置）允许补完成——
-    // 附件后传/历史数据补齐场景（此前一律拒绝，导致已越过阶段永远停在 NOT_STARTED，
-    // 归档台账与实际不符）。后续实质闸门（归档材料 DA/T 103、邀请回执等）照常校验。
-    // 补录只改该阶段 status：不触发 nextStage 推进/激活（那是"完成当前步骤往前走"的
-    // 语义，补录历史阶段时执行会把 currentStage 拉回过去——实测把已归档项目指针
-    // 从 CONTRACT 拉回 INITIATION，卡片「当前阶段」错显示「采购立项」）。
+    // 补录（2026-09-07）：目标阶段早于当前活跃阶段（已越过的前置）允许补完成——附件后传/历史
+    // 补齐场景（此前一律拒绝致已越过阶段永停 NOT_STARTED、归档台账失真）；实质闸门（DA/T 103
+    // 归档材料、邀请回执等）照常校验。补录只改 status：不触发 nextStage 推进/激活——补录历史
+    // 阶段时执行会把 currentStage 拉回过去（实测已归档项目从 CONTRACT 拉回 INITIATION）。
     let isBackfill = false;
     if (
       dto.status === PROJECT_STAGE_STATUS.COMPLETED &&
@@ -3498,12 +3486,11 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // P1-12：阶段完成最小实质校验（与 UI 步骤检查口径一致——此前 0 文件/0 邀请/0 专家可空完成，
     // 一路放行到开标确认才发现缺前置，返工成本高）
     if (dto.status === PROJECT_STAGE_STATUS.COMPLETED) {
-      // 投标侧收口闸（2026-10-19，TP-2026101901 实例续）：开标评标及之后阶段（定标/合同/
-      // 备案表）完成前，同轮关联 BidProject 必须已终局。正门=「开标确认」面板完整归档
-      // （archiveAll→syncPmStage 置本阶段 COMPLETED 并解锁定标）；手工标完成/补录均不得越过
-      // 投标侧——否则 PMI 一路推到合同而投标侧永卡活动态（专家/供应商端僵尸滞留）。
-      // 无关联招标项目（无投标链方式）不拦；旧轮已流标/归档自然放行。与 completeProject
-      // 归档闸、公告删除 BID_IN_PROGRESS 同源。
+      // 投标侧收口闸（2026-10-19，TP-2026101901 实例续）：开标评标及之后阶段（定标/合同/备案表）
+      // 完成前，同轮关联 BidProject 必须已终局；正门=「开标确认」面板完整归档（archiveAll→
+      // syncPmStage 置 COMPLETED 并解锁定标），手工标完成/补录不得越过——否则 PMI 推到合同而
+      // 投标侧永卡活动态（专家/供应商端僵尸滞留）。无关联招标项目不拦；旧轮已终局自然放行。
+      // 与 completeProject 归档闸、公告删除 BID_IN_PROGRESS 同源。
       if (BID_TAIL_STAGE_KEYS.has(stageKey as (typeof PROJECT_WORKFLOW_STAGES)[number]['key'])) {
         const activeBidProjects = await this.prisma.bidProject.findMany({
           where: {
@@ -3552,11 +3539,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
         }
       }
       if (stageKey === 'SUPPLIER_INVITATION') {
-        // 完成门槛：确认参加的回执数量达到用户设定的满足数量（默认 3）即可标记完成。
-        // 数量以 InvitationRsvp 实数核验（不信任前端计数）；达标蕴含通知已发出，原"须先发送邀请通知"核查被覆盖。
-        // id 空间：回执的 projectId 为 BidProject id（邀请发起方），阶段接口收到的是 PMI id。
-        // 2026-10-28 二轮隔离：完成闸只数本轮 BidProject 名下回执——旧轮回执不再计入新轮完成判定；
-        // 本轮 BidProject 尚未懒建时回退数 PMI id 存量行（旧数据空间）
+        // 完成门槛：确认参加回执数达用户设定满足数量（默认 3）即完成；以 InvitationRsvp 实数核验
+        // （不信任前端计数），达标蕴含通知已发（原「须先发送邀请通知」核查被覆盖）。回执 projectId
+        // 为 BidProject id、阶段接口收 PMI id（双 id 空间）。2026-10-28 二轮隔离：完成闸只数本轮
+        // BidProject 名下回执；本轮未懒建时回退数 PMI id 存量行。
         const threshold = Math.min(Math.max(dto.confirmedThreshold ?? 3, 1), 50);
         const roundBpForGate = await this.resolveRoundBidProject(projectId, targetRound, { id: true });
         const rsvpWhere = roundBpForGate ? { projectId: roundBpForGate.id } : { projectId };
@@ -3867,11 +3853,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new BadRequestException('只有已完成的步骤才能重新设置为进行中。');
     }
 
-    // ★ 开标锁定闸门（2026-09-24 用户拍板）：一旦「按时开标」被点击（BidProject→OPENING），
-    // 前置步骤（开标评标之前）即冻结、不可重开——开标时刻已法定公开，前置资料封存留痕。
-    // 口径与前端 isLockedByBid 一致（2026-08-17）：只锁 <BID_EVALUATION 的前置阶段；
-    // 定标（中标通知书）/合同等后置阶段不受锁，线下定标→扫描上传回填流程保持可达。
-    // 轮次对齐：流标（ABORTED）不在锁定态，再次采购新轮不受旧轮影响。
+    // ★ 开标锁定闸门（2026-09-24 用户拍板）：「按时开标」点击（BidProject→OPENING）后前置步骤
+    // （开标评标之前）即冻结不可重开——开标时刻已法定公开，前置资料封存留痕。口径同前端
+    // isLockedByBid（2026-08-17）：只锁 <BID_EVALUATION，定标/合同后置阶段不受锁（线下定标→扫描
+    // 回填可达）；流标（ABORTED）不在锁定态，新轮不受旧轮影响。
     const bidEval = await this.prisma.projectManagementStage.findFirst({
       where: { projectManagementItemId: projectId, stageKey: 'BID_EVALUATION', round: stage.round },
       select: { stageOrder: true },
@@ -3946,11 +3931,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new BadRequestException('仅进行中的项目可以归档。');
     }
 
-    // 闸门（2026-10-19，TP-2026101901 实例）：关联招标项目仍处活动阶段（含已发布未截标）时禁归档 PMI。
-    // 否则 PMI 已 ARCHIVED 而投标侧永卡活动态——专家门户「已完结待归档」、供应商端流程条僵尸滞留
-    // （单向棘轮无回退，且无人再触发投标侧归档）；投标侧收口须走「开标确认」面板完整归档
-    // （签字闭环+评标回流法定闸门），流标场景先走流标端点留痕（ABORTED 终态不阻塞）。
-    // 同源闸参照公告删除 BID_IN_PROGRESS；终止路径则是显式联动流标（terminateProject 下游联动①）。
+    // 闸门（2026-10-19，TP-2026101901 实例）：关联招标项目仍处活动阶段（含已发布未截标）时禁归档
+    // PMI——否则 PMI 已 ARCHIVED 而投标侧永卡活动态（专家「已完结待归档」/供应商流程条僵尸滞留，
+    // 单向棘轮无回退）；收口须走「开标确认」完整归档（签字闭环+评标回流闸门），流标先走流标端点
+    // 留痕（ABORTED 终态不阻塞）。同源闸=公告删除 BID_IN_PROGRESS；终止路径=显式联动流标。
     const activeBidProjects = await this.prisma.bidProject.findMany({
       where: {
         projectManagementItemId: projectId,

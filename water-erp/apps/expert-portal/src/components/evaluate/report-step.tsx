@@ -172,7 +172,6 @@ export function ReportStep({ report, busy, onConfirmReport, evaluationOverdue = 
       {/* ② 评分结果汇总（核心） */}
       {report ? (
         <div className="space-y-4">
-          {/* 项目概要 */}
           <div className="page-hero !gap-3">
             <div className="page-hero__row">
               <div className="page-hero__left">
@@ -197,7 +196,6 @@ export function ReportStep({ report, busy, onConfirmReport, evaluationOverdue = 
             const supplierDisputes = disputedBySupplier.get(ss.supplierName) ?? [];
             return (
               <div key={i} className={`neu-card-static overflow-hidden ${ss.invalid ? 'opacity-60' : ''}`}>
-                {/* 供应商头部 + 总分 */}
                 <div className="flex items-center justify-between p-5">
                   <div className="flex items-center gap-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--accent-strong)] text-sm font-bold text-white">{i + 1}</div>

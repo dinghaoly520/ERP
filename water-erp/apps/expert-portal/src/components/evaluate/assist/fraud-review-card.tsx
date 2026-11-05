@@ -1,9 +1,8 @@
 'use client';
 
 // ── 合规性审查卡（围标串标风险检测）──
-// 移植自已删除的 :3005 /bid-analysis「合规性审查」tab（AiFraudPanel，ed05c322），
-// 数据 = /expert/projects/:id/assist/compare 的 projectFraud（AiBidReport.fraudIndicators
-// 完整直通，2026-09-28 起本卡为唯一查看入口）。样式按 :3006 exp-*/neu-* 体系重制。
+// 移植自已删除的 :3005 /bid-analysis「合规性审查」tab（ed05c322）；数据 = assist/compare 的
+// projectFraud 完整直通（2026-09-28 起本卡为唯一查看入口）；样式按 :3006 exp-*/neu-* 体系重制。
 
 import { useState } from 'react';
 import {
@@ -246,7 +245,6 @@ function IndicatorCard({
         <p className="mt-1.5 text-xs text-[var(--foreground)]">{indicator.description}</p>
       </button>
 
-      {/* 展开内容 */}
       {isOpen && (
         <div className="mt-2.5 space-y-2.5">
           {/* 涉及单位 + 复核动作 */}

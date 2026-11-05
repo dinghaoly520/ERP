@@ -22,13 +22,10 @@ import { ROLE_PORTAL } from '@water-erp/config';
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
-// secure 标志环境门控：仅 production 生效，保证 dev/e2e（NODE_ENV=test）在 http 下仍可登录。
-// path 固定 '/'，登出 clearCookie 须传同样 opts 才能匹配删除浏览器 cookie。
-// cookie domain：默认不设（host-only）——dev localhost/192.168.x.x 各端口 cookie 天然共享
-// （RFC 6265 不区分端口），指定 domain='localhost' 平板经 IP 访问时浏览器会拒存。
-// 生产域名部署（*.scsfjt.com）必须设 COOKIE_DOMAIN=.scsfjt.com：各门户子域是不同 host，
-// 跨子域 cookie 是 :3006 分流写 token_bid 跳 :3007、WS 直连 api-ssyc 带凭据的前提
-// （dev 靠端口共享，域名模式无此天然共享）。登出 clearCookie 引用同一常量，镜像一致。
+// secure 仅 production 生效（dev/e2e http 可登录）；path 固定 '/'，登出 clearCookie 须同 opts。
+// domain 默认不设（host-only）——RFC 6265 不分端口，localhost 各门户端口天然共享，指定
+// 'localhost' 会拒 IP 访问；生产 *.scsfjt.com 必设 COOKIE_DOMAIN=.scsfjt.com（跨子域 cookie 是
+// :3006 分流写 token_bid、WS 带凭据的前提）。登出引用同一常量镜像一致。
 const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN?.trim() || undefined;
 
 const COOKIE_OPTS = {
@@ -188,11 +185,9 @@ export class AuthController {
       }
     }
 
-    // 单设备登录（web 2026-08-21；supplier 2026-09-18；expert 2026-09-20）：凡是最终写入
-    // token_web / token_supplier / token_expert 命名空间的登录（无论从本门户还是 :3002 入口）
-    // 都轮换会话 ID 并重签带 sid 的 token——后登录者顶掉先登录者。写 token_bid
-    // 等其他门户的登录不轮换、不互踢（bid_expert 角色↔expert 门户互斥，:3006 分流写
-    // token_bid 的仅限非 bid_expert 角色，不会误伤 :3007 主持人/管理员会话）。
+    // 单设备登录（web 2026-08-21；supplier 2026-09-18；expert 2026-09-20）：凡最终写
+    // token_web/token_supplier/token_expert 的登录都轮换会话 ID 重签带 sid token——后者顶前者；
+    // 写 token_bid 等不轮换不互踢（:3006 分流写 token_bid 仅非 bid_expert，不误伤 :3007）。
     if (cookiePortal === 'web' || cookiePortal === 'supplier' || cookiePortal === 'expert') {
       // 设备快照随会话轮换同写（2026-09-22）：IP/UA 分类后的「当前在线设备」供主持人侧展示
       result = await this.authService.rotatePortalSession(
@@ -292,11 +287,9 @@ export class AuthController {
       },
     });
 
-    // 登出即吊销（2026-09-18；X-P1-02 2026-09-29 修正）：仅当登出者所用 token 带 sid
-    // （web/supplier/expert 单设备命名空间，rotatePortalSession 签发）才清会话 ID——
-    // token_bid（无 sid）登出不清 webSessionId：staff/leader 可同时活跃于 :3005（带 sid）
-    // 与 :3007（无 sid），:3007 登出若清此列会误杀 :3005 会话（跨命名空间互杀）。
-    // 无 sid 会话本就不校验此列；清 cookie 本身已阻断重放面。
+    // 登出即吊销（2026-09-18；X-P1-02 2026-09-29 修正）：仅带 sid 的 token（web/supplier/expert
+    // 单设备命名空间）才清会话 ID——token_bid 无 sid 不清，:3007 登出若清此列会误杀同账号
+    // :3005 会话（跨命名空间互杀）；无 sid 会话不校验此列，清 cookie 已阻断重放。
     const revokeToken = tokenFromRequest(req);
     if (revokeToken && (await this.authService.shouldRevokeSession(revokeToken))) {
       await this.prisma.user.update({
@@ -370,11 +363,9 @@ export class AuthController {
   @AnyRole()
   @ApiOperation({ summary: '获取部门列表（下拉选择用，公司隔离）' })
   async listDepartments(@Query('scope') scope: string | undefined, @Req() req: any) {
-    // 2026-11-02 公司隔离：只返回当前用户本公司的部门——此前全量返回专家库导入的
-    // 101 条跨公司杂糅部门（部门+职务混编），他司组织信息不应出现在个人资料下拉。
-    // admin 亦按本人公司过滤（个人资料下拉同口径——全量例外曾致 admin 见 102 条
-    // 且同名跨公司行撞下拉 key）；平台级全量（密码审批面板的申请人部门名映射）走
-    // 显式 ?scope=platform，仅 admin 可用。
+    // 2026-11-02 公司隔离：只返回本公司部门——此前全量返回专家库导入的 101 条跨公司杂糅（部门+
+    // 职务混编），他司组织不该进个人资料下拉；admin 亦按本人公司过滤（全量例外曾致同名跨公司行撞
+    // 下拉 key），平台级全量走显式 ?scope=platform（仅 admin）。
     const u = req?.user?.sub
       ? await this.prisma.user.findUnique({ where: { id: req.user.sub }, select: { companyId: true, role: true } })
       : null;

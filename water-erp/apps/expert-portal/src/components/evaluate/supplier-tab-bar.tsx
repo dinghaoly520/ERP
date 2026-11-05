@@ -63,7 +63,6 @@ export function SupplierTabBar({
               {/* 解密状态点 */}
               <span className="exp-pill-dot" style={{ '--c': supColor } as React.CSSProperties} />
 
-              {/* 供应商名称 */}
               <span
                 className={`max-w-[150px] truncate text-sm font-semibold ${
                   isActive ? 'text-[var(--foreground)]' : 'text-[var(--muted-foreground)]'

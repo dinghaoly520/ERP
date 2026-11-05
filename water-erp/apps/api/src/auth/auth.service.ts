@@ -128,15 +128,11 @@ export class AuthService {
 
   async login(dto: LoginDto, portal?: string) {
     const priority = (portal && PORTAL_ROLE_PRIORITY[portal]) || PORTAL_ROLE_PRIORITY.public;
-    // 先按用户名取「所有」同名账号（含未激活），按门户角色优先级选其一。
-    // 供应商登录支持「统一社会信用代码」或「企业名称全称」两种账号（2026-09-24）：
-    //  - 信用代码 → Supplier.creditCode 反查 userId 命中用户
-    //  - 企业全称 → Supplier.name（精确匹配）反查 userId 命中用户
-    // 关键：必须先校验密码，密码正确后才判断是否待审核——否则「错密码+存在未激活用户名」与
-    // 「错密码+用户名不存在」响应不同，会构成用户名枚举。passwordHash 仅在此函数内使用，不外泄。
-    // 用户名先去前后空格（2026-10-27）：复制粘贴常带空格，不 trim 会查无此人、
-    // 回误导性「用户名或密码错误」（:3006 专家门户 8 连 401 实录）。密码不 trim——
-    // 空格是口令的一部分。供应商别名分支本就 trim，主查询补齐同口径。
+    // 先按用户名取「所有」同名账号（含未激活），按门户角色优先级选其一。供应商支持两种账号
+    // （2026-09-24：信用代码→Supplier.creditCode / 企业全称→Supplier.name 精确反查 userId）。
+    // 必须先验密码再判待审核——否则「错密码+未激活用户名」与「错密码+不存在」响应不同=用户名枚举；
+    // passwordHash 仅本函数内用不外泄。用户名去前后空格（2026-10-27，:3006 8 连 401 实录——粘贴
+    // 带空格致「查无此人」误导报错），与供应商别名分支同口径；密码不 trim（空格属口令）。
     const usernameInput = (dto.username ?? '').trim();
     const candidates = await this.prisma.user.findMany({
       where: { username: usernameInput },
@@ -237,13 +233,10 @@ export class AuthService {
         return { pending: true as const, role: user.role, code: 'TEMPORARY_EXPIRED' };
       }
     }
-    // 单设备登录（web 2026-08-21；supplier 2026-09-18；expert 2026-09-20）：轮换归
-    // auth.controller 的条件块（cookiePortal ∈ web/supplier/expert 时 rotatePortalSession
-    // ——旧设备 token 的 sid 与库中新值不一致，AuthGuard 401 SESSION_REPLACED 互踢）。
-    // 此前（93f4eaf8 起）此处无条件轮换——AuthGuard 对任何带 sid 的 token 都校验，
-    // mall/bid 被静默赋予互踢语义（违背「单设备=web/supplier/expert」文档化设计，
-    // auth e2e mall 用例实测抓出）；轮换还带穿命名空间副作用（任一门户登录即顶掉
-    // 同账号他门户带 sid 会话）。bid/mall 恢复 issueToken（无 sid、不互踢）。
+    // 单设备登录（web 2026-08-21；supplier 2026-09-18；expert 2026-09-20）：轮换归 auth.controller
+    // 条件块（cookiePortal ∈ 三门户时 rotatePortalSession——旧 token sid 与库中新值不一致，AuthGuard
+    // 401 SESSION_REPLACED 互踢）。此前（93f4eaf8 起）此处无条件轮换，mall/bid 被静默赋予互踢+跨命名
+    // 空间副作用（auth e2e mall 用例抓出）——bid/mall 恢复 issueToken（无 sid、不互踢）。
     return this.issueToken(user.id, user.username, user.role);
   }
 

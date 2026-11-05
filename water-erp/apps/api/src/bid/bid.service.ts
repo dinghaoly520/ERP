@@ -364,12 +364,11 @@ export class BidService {
 
     const projectIds = projects.map(p => p.id);
 
-    // 批量获取各项目的供应商提交数/专家签到数/开标就绪度计数（单次 groupBy，避免 N+1）
-    // 计数口径收口（2026-10-28，与开标大厅/评标管理同人口）：
-    //  - 解密/确认/异议/唱标四计数限「已投递」供应商（submitStatus=已提交）——此前按全受邀
-    //    名册计分子，受邀未投满时任务板显示「解密 3/5」而大厅按 3/3 已完成（A1 第四波同根）；
-    //  - 专家签到分母=正选且未婉拒（2026-10-27 名册除名裁定）——与 getWorkspace/评标管理
-    //    StatTile/签字包同口径，declined 与候补不入（此前 _count.experts 全名册计数）。
+    // 批量获取各项目的提交数/签到数/就绪度计数（单次 groupBy，避免 N+1）。计数口径收口
+    // （2026-10-28，与开标大厅/评标管理同人口）：解密/确认/异议/唱标四计数限「已投递」供应商
+    // （submitStatus=已提交——此前按全受邀名册计分子，任务板「解密 3/5」而大厅按 3/3 已完成）；
+    // 专家签到分母=正选且未婉拒（2026-10-27 名册除名裁定，同 getWorkspace/签字包口径），
+    // declined 与候补不入（此前 _count.experts 全名册计数）。
     type CountRow = { projectId: string; _count: { projectId: number } };
     const expertRosterFilter = { expertRole: '正选', invitationStatus: { not: 'declined' } };
     // 已投递供应商 id 集：供唱标记录按裸 FK bidSupplierId 过滤（BidOpeningRecord 无 Prisma 关系字段）
@@ -576,13 +575,11 @@ export class BidService {
       throw new ForbiddenException('无权访问该项目（未指派给您）');
     }
 
-    // 配置开关：评标期间对主持端匿名化专家身份（同 listScores）。
-    // 默认开启（未配置视为开启，显式 =false 才关闭）；
-    // 匿名标签按 expertId 排序稳定编号（专家 1/2/…），刷新不换号，矩阵行间可区分。
-    // 2026-08-17 方案 A（角色分层实名）：admin/bid_host 是现场组织者，评标期间需实名管理
-    // 专家（点名/签到核对/打印签字/面对面沟通）——expertName 保留实名并额外下发 anonLabel，
-    // 评分矩阵/排名/偏差清单仍按 anonLabel 呈现（组织视图实名、评分视图匿名）；
-    // 其余角色（leader/staff/其他）维持原匿名口径。实名查看写监督日志留痕（logExpertRosterView）。
+    // 配置开关：评标期间对主持端匿名化专家身份（同 listScores）；默认开启（显式 =false 才关闭），
+    // 匿名标签按 expertId 排序稳定编号（刷新不换号）。2026-08-17 方案 A（角色分层实名）：admin/
+    // bid_host 现场组织需实名管理（点名/签到核对/签字/沟通）——expertName 保留实名并额外下发
+    // anonLabel，评分矩阵/排名/偏差清单仍按 anonLabel（组织视图实名、评分视图匿名）；其余角色维持
+    // 匿名。实名查看写监督日志留痕（logExpertRosterView）。
     const anonymize = process.env.EXPERT_SCORE_ANONYMIZED_DURING_EVAL !== 'false';
     if (anonymize) {
       const allConfirmed = project.experts.length > 0 && project.experts.every(e => e.reportConfirmed);
@@ -969,14 +966,11 @@ export class BidService {
       }
     }
 
-    // 阶段锁——①定标语义字段（采购方式/资质要求/保证金）自开标启动
-    // （OPENING）起锁定：改 procurementMethod 会漂移法定家数门槛 getMinBidders 口径（如评标中
-    // 改「直接采购」使门槛 3→1，事后合法化家数不足），更正须走法定程序（更正公告）；
-    // ②ARCHIVED 为不可逆终局，任何字段不可再改——开标文件包/归档包/签字包记录的是归档时值，
-    // 事后 PATCH（含旧 frozen 分支仅校验相对关系的 openTime/deadline）都会污染历史证据。
-    // DOWNLOAD/SUBMIT/ABORTED 维持可编辑（发标期调整；流标项目重启前修正是正当窗口——
-    // reopenFromAborted 复制这些字段进新一轮）。
-    // null 守卫：@IsOptional 放行显式 null，null 一律视同未提供
+    // 阶段锁——①定标语义字段（采购方式/资质要求/保证金）自 OPENING 起锁定：改 procurementMethod
+    // 会漂移法定家数门槛 getMinBidders 口径（评标中改「直接采购」使 3→1 事后合法化家数不足），
+    // 更正须走更正公告；②ARCHIVED 不可逆终局，任何字段不可再改（开标文件包/归档包/签字包记录
+    // 归档时值，事后 PATCH 污染历史证据）。DOWNLOAD/SUBMIT/ABORTED 可编辑（流标重启前修正是
+    // 正当窗口——reopenFromAborted 复制进新轮）。null 守卫：@IsOptional 放行显式 null，视同未提供
     const providedAnyField = [
       'name', 'procurementMethod', 'openTime', 'deadline', 'riskNote', 'budget', 'scope',
       'qualification', 'contact', 'qualityRequirement', 'bondRequired', 'bondAmount',
@@ -1813,11 +1807,10 @@ export class BidService {
       }
     }
 
-    // 会话必填三项（主持人 + 解密窗口起止）要么全给（组建/更新开标会话），要么全不给（仅推进阶段）。
-    // 监督人选填——法律未强制开标现场必须有具名监督人（《招标投标法》第35/36条开标程序不含监督人；
-    // 《水利工程建设项目招标投标行政监督暂行规定》第8条行政监督部门「可以派人」为裁量性规定），
-    // 字段保留作为监督人登记 / 线上监督责任人。
-    // 部分必填字段视为客户端错误，避免静默跳过建会话导致开标流程卡死
+    // 会话必填三项（主持人+解密窗口起止）要么全给（组建/更新会话）要么全不给（仅推进阶段）；监督
+    // 人选填——法律未强制具名监督人（《招标投标法》35/36 条开标程序不含；水利监督暂行规定第 8 条
+    // 「可以派人」为裁量性），字段保留作登记/线上监督责任人。部分必填视为客户端错误，避免静默
+    // 跳过建会话致开标流程卡死。
     const hasRequiredSessionFields = [dto?.host, dto?.decryptWindowStart, dto?.decryptWindowEnd].every(Boolean);
     const providedAnySessionField = Boolean(dto?.host || dto?.supervisor || dto?.decryptWindowStart || dto?.decryptWindowEnd);
     if (providedAnySessionField && !hasRequiredSessionFields) {
@@ -2519,13 +2512,11 @@ export class BidService {
     }
 
     let task = await this.prisma.aiBidAnalysisTask.findUnique({ where: { projectId } });
-    // F15：进行中禁重跑——旧实现 task 处于 PENDING/TENDER_PROCESSING/ANALYZING 时照样
-    // 清空重跑，在途分析直接被铲（tender/bidder job 撞到已删/非 PENDING 行被认领守卫跳过）。
-    // 频控语义（F19 后终审核定）：worker 存活时非终态闸兼作频控（job 被消费 → probe active>0 → 409）；
-    // worker 已死场景（F19 豁免域）可重复触发——后果良性：全 PENDING/0 家无可铲数据、确定性 jobId
-    // + remove-first 使重复入队收敛为单 job、认领守卫防双写行，仅监督时间线逐次追加一条，可接受。
-    // 只判 findUnique 命中分支——N8 补建路径自建的 task 即为 PENDING，不能挡自己；
-    // 极窄的补建竞态窗（对手在途而我方早读 null）由认领守卫兜底。
+    // F15：进行中禁重跑——旧实现 PENDING/TENDER_PROCESSING/ANALYZING 照样清空重跑，在途分析被铲
+    // （tender/bidder job 撞已删/非 PENDING 行被认领守卫跳过）。频控语义（F19 后终审核定）：worker
+    // 存活时非终态闸兼作频控（job 被消费→probe active>0→409）；worker 已死（F19 豁免域）可重复触发，
+    // 后果良性（确定性 jobId+remove-first 收敛单 job、认领守卫防双写，仅监督时间线逐次追加）。
+    // 只判 findUnique 命中分支——N8 补建自建 task 即 PENDING 不能挡自己；补建竞态窗由认领守卫兜底。
     if (task && ['PENDING', 'TENDER_PROCESSING', 'ANALYZING'].includes(task.status)) {
       // F19（2026-10-28）：停摆豁免——全部 bidderResult PENDING（含 0 家）且队列探测确认无人消费
       // （F14 probeWorkerIdle 同款探测）= 无在途可铲，放行重跑；worker 死亡窗口内卡片「重新分析」
@@ -4449,12 +4440,10 @@ export class BidService {
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
 
-    // 公示载体（2026-10-19 收口）：本系统实际使用的载体是发布向导「中标公告」（WIN_BID_NOTICE）
-    // ——发布即公告中标候选人（确认 rank1 推荐为中标人）。此前查找只认 PRE_WIN_NOTICE/
-    // WIN_NOTICE（代码遗留的两段式轨道，系统内并不产生），导致「已发中标公告仍提示中标
-    // 候选人未公布」、中标通知书被 PUBLICITY_NOT_ENDED 卡死。三类候选并行查询、
-    // 仅取已发布者（草稿不得遮蔽已发布中标公告），本轮（最近评标结果之后）优先、
-    // 无则回落全量（在途/登记制场景）。
+    // 公示载体（2026-10-19 收口）：实际载体是发布向导「中标公告」（WIN_BID_NOTICE）——发布即
+    // 公告中标候选人（确认 rank1 推荐为中标人）。此前只认 PRE_WIN_NOTICE/WIN_NOTICE（两段式
+    // 遗留、系统内并不产生）→「已发中标公告仍提示未公布」、中标通知书被 PUBLICITY_NOT_ENDED
+    // 卡死。三类候选并行查询、仅取已发布者（草稿不遮蔽），本轮（最近评标结果之后）优先、无则回落全量。
     const codes = await this.resolveAnnouncementCodes(project);
     const latestResult = await this.prisma.bidEvaluationResult.findFirst({
       where: { projectId },
@@ -4492,11 +4481,10 @@ export class BidService {
       return { hasPublicity: false, publicityEnd: null, canIssueAward: false, announcement: null, winner: winnerProjection };
     }
     const now = new Date();
-    // 中标公告（WIN_BID_NOTICE）公示期读时推导（publishDate + 3 个日历日），不落库：
-    // ① 公开端 isOfflined 口径「有 publicityEnd 才会到期」——持久化会让中标公告 3 天后
-    //    被打成标题壳下线，而结果公告应长期可查（两段式的最终成交公告同样刻意不带 publicityEnd）；
-    // ② 存量已发布中标公告（修复前创建，publicityEnd 恒 null）经此自愈，无需数据迁移。
-    // 其余载体（预成交公示/成交公告）维持「null 不放行」铁律——create/update 路径已兜底必设。
+    // 中标公告（WIN_BID_NOTICE）公示期读时推导（publishDate + 3 个日历日）不落库：① 公开端
+    // isOfflined 口径「有 publicityEnd 才到期」——持久化会让中标公告 3 天后被打成标题壳，而结果
+    // 公告应长期可查；② 存量已发布（publicityEnd 恒 null）经此自愈免迁移。其余载体维持「null
+    // 不放行」铁律（create/update 已兜底必设）。
     let publicityEnd = notice.publicityEnd;
     if (!publicityEnd && notice.type === 'WIN_BID_NOTICE' && notice.publishDate) {
       const derived = new Date(notice.publishDate);
@@ -4887,11 +4875,10 @@ export class BidService {
       }
     } catch { /* 逐家退还提醒失败不阻塞中标通知书 */ }
 
-    // 定标即定向通知所有未中标投标人（《招标投标法》第45条——
-    // 中标人确定后应同时将中标结果通知所有未中标的投标人）。公开的预成交公示不构成定向通知。
-    // 口径：已投递家（submission status='submitted'）中排除中标人（BidSupplier.id → Supplier.id）；
-    // 幂等：systemConfig marker award_result_notified:<projectId>（发送成功后写，失败不占坑；
-    // 未签收前重发通知书不重复通知落标家）。响应担保退还另行通知（A-105 同点已提醒经办）。
+    // 定标即定向通知所有未中标投标人（《招标投标法》第45条；公开预成交公示不构成定向通知）。
+    // 口径：已投递家（status='submitted'）排除中标人（BidSupplier.id→Supplier.id）；幂等：
+    // systemConfig marker award_result_notified:<projectId>（成功后写、失败不占坑；未签收重发
+    // 通知书不重复通知落标家）。响应担保退还另行通知（A-105）。
     try {
       const markerKey = `award_result_notified:${projectId}`;
       const alreadyNotified = await this.prisma.systemConfig.findUnique({ where: { key: markerKey } });
@@ -5588,11 +5575,10 @@ export class BidService {
     });
     const aiUsage = aiTask ? buildArchiveAiUsage(aiTask.aiProvenance as any, aiTask.bidderResults as any) : null;
 
-    // S2：存证 sections（大厅消息 / 监督日志 / 澄清答疑）纳入归档包防篡改覆盖。
-    // 信任模型与 archiveItems 哈希链一致：均为"导出包内防局部篡改"——整体包的真伪由
-    // 导出时的捕获/签章环节保证（既有设计边界，不在本次扩展）。算法与 bid-archive.digest.ts
-    // 同款：crypto.createHash('sha256').update(JSON.stringify(...), 'utf8')，同输入恒等。
-    // 摘要取自与 sections 完全相同的数组引用/映射，保证复算口径一致。
+    // S2：存证 sections（大厅消息/监督日志/澄清答疑）纳入归档包防篡改覆盖。信任模型与
+    // archiveItems 哈希链一致（导出包内防局部篡改；整体真伪由捕获/签章环节保证——既有设计边界）。
+    // 算法同 bid-archive.digest.ts：sha256(JSON.stringify(...),'utf8')；摘要取自与 sections 相同
+    // 的数组引用，复算口径一致。
     const sha256Json = (v: unknown) => crypto.createHash('sha256').update(JSON.stringify(v), 'utf8').digest('hex');
     const hallSection = hallMessages.map(m => ({
       id: m.id, roomType: m.roomType,

@@ -1,4 +1,3 @@
-// requirement-compare-panel.tsx
 'use client';
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
@@ -601,7 +600,6 @@ export function RequirementComparePanel({
 
                   return (
                     <div className="space-y-1.5">
-                      {/* 总进度 */}
                       <div className="mb-1 flex items-center justify-between text-[10px]">
                         <span className="text-[var(--muted-foreground)]">总进度</span>
                         <span className="font-mono font-bold tabular-nums text-[var(--foreground)]">{totalDone} / {totalAll}</span>
@@ -617,7 +615,6 @@ export function RequirementComparePanel({
                         const passFail = isPassFailCategory(cat);
                         return (
                           <div key={cat}>
-                            {/* 类别行：chip + 名称 + 进度条 + 数字 */}
                             <button
                               type="button"
                               onClick={() => toggleCat(cat)}
@@ -628,14 +625,12 @@ export function RequirementComparePanel({
                                 : <ChevronRight size={11} strokeWidth={1.5} className="shrink-0 text-[var(--muted-foreground)]" />}
                               <span className="exp-category-chip !h-2 !w-2 shrink-0" style={{ '--cat': catColor } as React.CSSProperties} />
                               <span className="w-14 shrink-0 truncate text-[10px] font-semibold text-[var(--foreground)]">{catLabel}</span>
-                              {/* 进度条 */}
                               <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-[oklch(0.9_0.01_258/0.6)]">
                                 <span className="block h-full rounded-full transition-all duration-300" style={{ width: `${pct}%`, background: catColor }} />
                               </span>
                               <span className="w-8 shrink-0 text-right font-mono text-[9px] tabular-nums text-[var(--muted-foreground)]">{done}/{total}</span>
                             </button>
 
-                            {/* 展开内容 */}
                             {isExpanded && (
                               <div className="ml-4 space-y-1.5 pb-1">
                                 {items.map(si => {

@@ -145,11 +145,10 @@ export class AnnouncementService {
       include: { attachments: { include: { fileAsset: { select: { id: true, originalName: true, size: true, mimeType: true } } } } },
     });
 
-    // C1（7.5.2）：直接以 PUBLISHED 创建的预成交公示/成交公告同样设置公示期（登记制路径，
-    // publishDate 可回填线下实际发布日 → 公示期随之起算）；
-    // BID_NOTICE 同样设 3 天公示期（2026-09-09：前端状态徽标「公示中/已公示」按此判定，兜底同款）。
-    // 注意不含 WIN_BID_NOTICE：中标公告的公示期由 BidService.getPublicityStatus 读时推导
-    // （publishDate+3d）——持久化会让公开端 isOfflined 在 3 天后把结果公告打成标题壳下线。
+    // C1（7.5.2）：直接以 PUBLISHED 创建的预成交公示/成交公告同样设公示期（登记制路径，
+    // publishDate 可回填线下发布日→公示期随之起算）；BID_NOTICE 同设 3 天（2026-09-09：前端状态
+    // 徽标按此判定）。不含 WIN_BID_NOTICE：其公示期由 getPublicityStatus 读时推导（publishDate+3d）
+    // ——持久化会让 isOfflined 在 3 天后把结果公告打成标题壳。
     if ((dto.type === 'PRE_WIN_NOTICE' || dto.type === 'WIN_NOTICE' || dto.type === 'BID_NOTICE') && status === 'PUBLISHED' && !result.publicityEnd) {
       const end = new Date(result.publishDate || new Date());
       end.setDate(end.getDate() + 3);
@@ -356,12 +355,11 @@ export class AnnouncementService {
 
   /** Public listing — only published items；公开端不含招标文件（首页不泄露）；RESTRICTED 可见范围不流转到首页 */
   async publicList(params: { type?: string; search?: string; page?: number; pageSize?: number }) {
-    // 契约（2026-08-20 拍板，2026-10-20 修订）：公开门户（:3002）**全量展示所有公司公告**——
-    // 匿名公开端无从判归属，公司隔离不适用。供应商门户（:3004）已改公司隔离
-    // （supplierList，2026-10-20 用户裁定：归属公司 ∪ 平台级 ∪ 定向白名单命中）。
-    // A2（表 B.1）：查询层过滤公开级别（total 与 items 同口径）
-    // v2（2026-09-26 拍板）：已下线（公示期满的 PUBLISHED / 存量 ARCHIVED）仍列标题壳——
-    // 服务端剥正文/摘要 + titleOnly 标记，门户只渲染不可点标题；下架(OFFLINE)/隐藏(HIDDEN)完全不出。
+    // 契约（2026-08-20 拍板，2026-10-20 修订）：:3002 全量展示所有公司公告（匿名公开端无从判
+    // 归属，公司隔离不适用）；:3004 已改公司隔离（2026-10-20 用户裁定：归属公司∪平台级∪定向
+    // 白名单命中）。A2（表 B.1）：查询层过滤公开级别（total 与 items 同口径）。v2（2026-09-26
+    // 拍板）：已下线（公示期满 PUBLISHED/存量 ARCHIVED）仍列标题壳——剥正文/摘要+titleOnly，
+    // 门户只渲染不可点标题；下架(OFFLINE)/隐藏(HIDDEN)完全不出。
     const res = await this.list({ ...params, status: 'PUBLISHED,ARCHIVED' }, {}, { publicVisibilityOnly: true });
     return { ...res, items: res.items
       .filter((a: any) => a.metadata?.visibility !== 'RESTRICTED')
@@ -486,11 +484,10 @@ export class AnnouncementService {
       }
       throw new BadRequestException({ error: '公告未发布', code: 'NOT_PUBLISHED' });
     }
-    // 2026-10-20 用户裁定：公示期满的 PUBLISHED 同样返回标题壳（PUBLICITY_ENDED）——
-    // 门户点进去渲染「公示期已过，不再显示公示内容」；不计浏览（能走到这里的都已过
-    // dataClass/RESTRICTED 闸门，壳无正文/附件可泄）。注意：公示期满仅作用于公告渠道——
-    // 供应商「项目机会」详情须持续显示公告原文与采购文件
-    // （supplier-portal resolveOwnAnnouncement 只硬过滤 status）。
+    // 2026-10-20 用户裁定：公示期满的 PUBLISHED 同样返回标题壳（PUBLICITY_ENDED）——门户渲染
+    // 「公示期已过」；不计浏览（走到这里都已过 dataClass/RESTRICTED 闸门，壳无正文/附件可泄）。
+    // 公示期满仅作用于公告渠道——供应商「项目机会」详情须持续显示原文与采购文件
+    // （resolveOwnAnnouncement 只硬过滤 status）。
     if (announcement.publicityEnd && new Date(announcement.publicityEnd).getTime() < Date.now()) {
       return this.titleOnlyStub(announcement);
     }
@@ -694,11 +691,9 @@ export class AnnouncementService {
       void this.notifySuppliersOnPublish(result.id, result.title, { ...meta, __type: result.type }).catch(e =>
         this.logger.warn(`公告发布通知发送失败 (update): ${(e as Error).message}`),
       );
-      // 阳光采购平台推送（2026-10-29 流程侧接线，与 create 即时发布同口径）：发布向导的
-      // 「定时发布/按公示期起始」走 DRAFT+scheduledPublishDate → cron → 本 update 路径，
-      // 编辑页手动转发布与列表批量发布亦汇于此——此前只挂在 create（:209），定时发布的
-      // sunshinePublish 快照无人消费、推送静默丢失。onPublish 内部全捕获，无快照即跳过。
-      // （P2025 竞态分支已早退，赢家独推、无双发。）
+      // 阳光采购平台推送（2026-10-29 流程侧接线，与 create 即时发布同口径）：定时发布/编辑转发布/
+      // 批量发布均汇于本 update 路径——此前只挂在 create（:209），定时发布的 sunshinePublish 快照
+      // 无人消费、推送静默丢失。onPublish 内部全捕获，无快照即跳过（P2025 竞态分支已早退，赢家独推）。
       void this.sunshinePush?.onPublish({ id: result.id, content: result.content, metadata: result.metadata });
     }
     // C5（7.2.6）：update 路径发布补遗公告同样联动
@@ -1205,13 +1200,10 @@ export class AnnouncementService {
     if (!this.bidService) return;
     try {
       const meta = AnnouncementService.validateMetadata(announcement.metadata);
-      // relatedProjectCode 的两个编码空间
-      // 3005 向导传的是 PMI（ProjectManagementItem）projectCode，而旧逻辑拿它 findUnique
-      // BidProject.projectCode —— 永远 miss → 每次发布都走「直建新项」分支，产生孤儿 PMI
-      // 且立项↔招标关联断裂。正确次序：
-      //   a) 按 PMI 编码找立项项目 → 其名下最新 BidProject（多轮取最新一轮）
-      //   b) 回退按 BidProject 编码直接找（公告直建项目后 relatedProjectCode 被回写为
-      //      BidProject 编码，二次发布走此路径）
+      // relatedProjectCode 双编码空间：3005 向导传 PMI projectCode，旧逻辑拿它 findUnique
+      // BidProject.projectCode 永远 miss → 每次发布走「直建新项」、产生孤儿 PMI 且关联断裂。
+      // 正确次序：a) 按 PMI 编码找立项项目→其名下最新 BidProject（多轮取最新）；b) 回退按
+      // BidProject 编码直找（直建项目后 relatedProjectCode 已回写为 BidProject 编码）。
       let existingProject: Awaited<ReturnType<typeof this.prisma.bidProject.findFirst>> = null;
       let linkedPmi: { id: string; projectCode: string | null; currentRound?: number | null } | null = null;
       if (announcement.relatedProjectCode) {
@@ -1346,11 +1338,10 @@ export class AnnouncementService {
         this.logger.log(`公告首次发布，自动创建项目 ${project.projectCode}`);
       }
 
-      // A-87：BID_NOTICE 发布即前移招标要点提取——此前提取只在启动评标时发生，供应商在
-      // 整个 BID 阶段看不到结构化要点。fire-and-forget：失败仅告警不阻塞发布；ensureTenderAnalysis
-      // 自带幂等闸（requirements 已提取且无待派发 bidder 跳过入队），重复发布/下架再发布不重复入队。
-      // 流标公告（failed_bid）随即置 ABORTED，无提取意义，跳过。E2 白名单化后 meta.category 已可达，
-      // 此处仍读原始 metadata——过渡双读：白名单化前的存量数据兜底，下清理批移除。
+      // A-87：BID_NOTICE 发布即前移招标要点提取——此前只在启动评标时发生，供应商 BID 阶段看不到
+      // 结构化要点。fire-and-forget（失败仅告警）；ensureTenderAnalysis 自带幂等闸，重复发布不重复
+      // 入队；流标公告随即置 ABORTED 无提取意义跳过。meta.category 已可达后仍读原始 metadata——
+      // 过渡双读（存量兜底，下清理批移除）。
       const rawCategory = (announcement.metadata as Record<string, any> | null | undefined)?.category;
       if (linkedProjectId && rawCategory !== 'failed_bid' && typeof this.bidService?.ensureTenderAnalysis === 'function') {
         void Promise.resolve(this.bidService.ensureTenderAnalysis(linkedProjectId)).catch(e =>
@@ -1358,13 +1349,11 @@ export class AnnouncementService {
         );
       }
 
-      // 拟定供应商入参与名单：直接采购公告发布后，公告「拟定供应商名称」
-      // （metadata.supplierName，向导发布时随草稿快照写入）自动纳入 BidSupplier——
-      // 项目基本信息「供应商参与」区块（getParticipants ∪ bidSuppliers）即可见；
-      // 供应商在库时按名关联 id。
-      // 2026-10-16 口径修订：不再同时回填 PMI.awardedSupplier——「中标单位」展示字段
-      // 在发布公告时点即有值属过早（业务上应开标评标后才获取）；合法写入时点 =
-      // 评标结果回写（bidService）/ 定标审批表 / 中标通知书 / 合同附件解析。
+      // 拟定供应商入参与名单：直接采购公告发布后，「拟定供应商名称」（metadata.supplierName，
+      // 向导发布时快照写入）自动纳入 BidSupplier——「供应商参与」区块（getParticipants ∪
+      // bidSuppliers）即可见，在库时按名关联 id。2026-10-16 口径修订：不再同时回填
+      // PMI.awardedSupplier——发布时点即有「中标单位」值属过早，合法写入时点=评标结果回写/
+      // 定标审批表/中标通知书/合同附件解析。
       const proposedSupplier = String((announcement.metadata as Record<string, any> | null | undefined)?.supplierName ?? '').trim();
       if (linkedProjectId && proposedSupplier && rawCategory !== 'failed_bid') {
         try {
@@ -1706,10 +1695,9 @@ export class AnnouncementService {
    *  取该项目最新一条采购/资格预审公告的投标情况（下载者 ∪ 项目供应商，去重）。 */
   async getProjectParticipants(projectCode: string) {
     // 轮界收口（2026-10-30 用户裁定：新轮基本信息不带旧轮供应商参与）：流标重启后
-    // relatedProjectCode 仍是同一 PMI 编码，倒序取最新采购公告会命中旧轮公告、把旧轮
-    // 下载/参与供应商冒充本轮名单。以 PMI 当前轮首阶段创建时间为轮界——只统计本轮
-    // 起始之后创建的采购公告；无本轮公告（重启后尚未发布）→ 返回空。单轮项目轮界
-    // 早于一切公告，行为不变。
+    // relatedProjectCode 仍是同一 PMI 编码，倒序取最新公告会命中旧轮、把旧轮供应商冒充本轮名单。
+    // 以 PMI 当前轮首阶段创建时间为轮界——只统计轮界后公告；无本轮公告（重启未发布）→空。
+    // 单轮项目轮界早于一切公告，行为不变。
     const pmi = await this.prisma.projectManagementItem.findUnique({
       where: { projectCode },
       select: { id: true, currentRound: true },

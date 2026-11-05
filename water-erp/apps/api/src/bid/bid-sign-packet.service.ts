@@ -345,13 +345,10 @@ export class BidSignPacketService {
 
     // 基础快照复用评标完整性包（结果生成时的同一数据来源），扩展签字/异议/动议信息
     const base = await this.evalResults.buildEvaluationPackage(projectId);
-    // 2026-09-18 完整性扩展 v2（「专家的一切归档」原则）：
-    //  - 身份核验域整组（签到/AI 声明/回避——此前仅保密承诺与纪律经签字包 PDF 留痕，JSON 包不携带）
-    //  - 专家备忘（ExpertMemo 文本 + 笔迹图 FileAsset 引用）
-    //  - 条款裁定（BidRequirementReview，requirement-compare 产物）
-    //  - AI 分析产物（task + bidderResults 核心结论 + AiBidReport；报告 docx/pdf 走 FileAsset 引用）
-    //  - 评标段监督日志（与开标文件包 supervisionLogs 同口径）
-    //  - 补齐字段：得分点 note / 动议投票理由+专家姓名 / 异议裁决留痕 / 澄清 A-143 签名证据链
+    // 2026-09-18 完整性扩展 v2（「专家的一切归档」原则），新增纳入：身份核验域整组（签到/AI 声明/
+    // 回避——此前仅保密承诺与纪律留痕）、专家备忘（文本+笔迹图 FileAsset 引用）、条款裁定
+    // （BidRequirementReview）、AI 分析产物（task+bidderResults+AiBidReport，报告文件走 FileAsset
+    // 引用）、评标段监督日志（同开标文件包口径）、得分点 note/动议投票理由+专家姓名/异议裁决留痕/澄清 A-143 签名证据链。
     const [disputes, motions, clarifications, experts, evalResults, memos, requirementReviews, aiTask, supervisionLogs, scoreItemsForNames] = await Promise.all([
       this.prisma.expertDispute.findMany({ where: { projectId } }),
       this.prisma.bidMotion.findMany({ where: { projectId }, include: { votes: true } }),

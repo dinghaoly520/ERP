@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import type {
   ReadyTenderDraft,
   ScoringItem,
@@ -333,6 +333,32 @@ export function TenderSectionEditor({
 
   const dateInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const recentFieldTimeoutRef = useRef<number | null>(null);
+
+  // 报价表兜底对象引用稳定化（2026-11-05 核查修复）：表格模式的默认表兜底与旧草稿
+  // JSON 兼容解析若每次渲染都新建对象，会被表格编辑器的「外部整体替换」检测（撤回栈）
+  // 误判——没动过表格也持续灌入同内容快照，撤回按钮无操作即亮起、点击空转。
+  // useMemo 保证来源（类型/JSON 串/已存储表）不变即复用同一引用。
+  const quotationTypeRaw = draft['quotationLetterType' as keyof typeof draft] as string | undefined;
+  const quotationValueRaw = draft['quotationLetter' as keyof typeof draft] as string | undefined;
+  const quotationStoredTable = (draft as { quotationLetterTable?: TableDataType }).quotationLetterTable;
+  const quotationFallbackTable = useMemo<TableData | null>(() => {
+    if (quotationStoredTable) return null; // 已有存储表——不走兜底
+    const typeValue =
+      quotationTypeRaw === 'table' || quotationTypeRaw === 'text'
+        ? quotationTypeRaw
+        : quotationValueRaw?.trim()
+          ? 'text'
+          : 'table';
+    if (typeValue !== 'table') return null;
+    if (quotationValueRaw?.trim()) {
+      try {
+        return JSON.parse(quotationValueRaw) as TableData;
+      } catch {
+        // 非法 JSON → 落到默认表
+      }
+    }
+    return createDefaultQuotationTable();
+  }, [quotationStoredTable, quotationTypeRaw, quotationValueRaw]);
 
   const [aiError, setAiError] = useState<string | null>(null);
 
@@ -1118,17 +1144,14 @@ export function TenderSectionEditor({
                 const draftWithTable = draft as { quotationLetterTable?: TableDataType };
                 if (draftWithTable.quotationLetterTable) {
                   tableData = draftWithTable.quotationLetterTable;
-                } else if (value.trim()) {
-                  // Fallback to parsing from JSON string for backward compatibility
-                  try {
-                    tableData = JSON.parse(value);
-                  } catch {
-                    tableData = null;
-                  }
+                } else if (quotationFallbackTable) {
+                  // 旧草稿兼容（表以 JSON 存于 quotationLetter 字段）——兜底对象经
+                  // 组件顶部 useMemo 稳定引用，防编辑器撤回栈误判（见那里注释）
+                  tableData = quotationFallbackTable;
                 }
               }
               if (isTable && !tableData) {
-                tableData = createDefaultQuotationTable();
+                tableData = quotationFallbackTable ?? createDefaultQuotationTable();
               }
 
               return (

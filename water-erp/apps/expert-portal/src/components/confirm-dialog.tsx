@@ -59,7 +59,6 @@ export function ConfirmDialog({
       aria-labelledby={title ? 'confirm-dialog-title' : undefined}
       aria-describedby="confirm-dialog-desc"
     >
-      {/* 蒙层 */}
       <div
         className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm"
         onClick={() => onCancelRef.current()}

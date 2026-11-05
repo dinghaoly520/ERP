@@ -1827,12 +1827,11 @@ export class SupplierPortalService {
   async getNegotiationFiles(projectId: string, supplierId: string) {
     const cfg = await this.assertNegotiationAccess(projectId, supplierId);
 
-    // 解析文件——refFileKeys 双存储空间（2026-10-19 修复）：
-    //   主轨 = PMI 阶段附件（Attachment.objectKey，:3005「引用采购文件」勾选即此体系），
-    //          经本门户专用端点流式下载；旧实现按 FileAsset.key 查恒空 → 谈判项目文件不可见
-    //   兼容 = 历史 FileAsset.key 命中；attachFileIds 走 FileAsset.id
-    // 2026-11-05 下载方式治理：FileAsset 类也统一走门户专用端点（原先裸 /api/upload/files/:id
-    // 无法过密码闸）——两类文件同受「受邀 + 窗口 + 密码」三闸约束。
+    // 解析文件——refFileKeys 双存储空间（2026-10-19 修复）：主轨=PMI 阶段附件
+    // （Attachment.objectKey，:3005「引用采购文件」即此体系）经门户专用端点流式下载（旧实现按
+    // FileAsset.key 查恒空→谈判项目文件不可见）；兼容=历史 FileAsset.key，attachFileIds 走
+    // FileAsset.id。2026-11-05 下载治理：FileAsset 类也统一走门户专用端点（裸 /api/upload/files/:id
+    // 无法过密码闸）——两类文件同受「受邀+窗口+密码」三闸约束。
     const keys: string[] = cfg.refFileKeys || [];
     const ids: string[] = cfg.attachFileIds || [];
     const [attachments, byKey, byId] = await Promise.all([
@@ -2040,11 +2039,10 @@ export class SupplierPortalService {
         issuer: c.type === 'question' ? '供应商' : c.issuer,
       }));
 
-      // 富化：查找关联的招标公告内容（relatedProjectCode + type=BID_NOTICE）。
-      // 公告存业务编号（ZJ-xxx）、项目内部是 BID-时间戳——两个编号都试；撞号时按 metadata.projectCode 校正。
-      // attachments（2026-10-28）：公告附件随公告正文一并提供——:3004 项目机会详情页附件下载入口，
-      // 与公告中心/信息门户同源（公开下载端点按公告可见性闸门；本项目机会侧不受公示期满影响，
-      // 与 resolveOwnAnnouncement 只硬过滤 status 的既有裁定一致）。
+      // 富化：查关联招标公告（relatedProjectCode + type=BID_NOTICE）——公告存业务编号（ZJ-xxx）、
+      // 项目内部是 BID-时间戳，两个编号都试，撞号按 metadata.projectCode 校正。attachments
+      // （2026-10-28）：公告附件随正文一并提供（:3004 项目机会详情下载入口，与公告中心/信息门户
+      // 同源；本侧不受公示期满影响，同 resolveOwnAnnouncement 只硬过滤 status 裁定）。
       const announcement = await this.resolveOwnAnnouncement(project, {
         title: true, content: true, summary: true, publishDate: true, metadata: true,
         attachments: {
@@ -2312,10 +2310,9 @@ export class SupplierPortalService {
 
 
     // Layer C: SM2 digital signature verification (anti-repudiation)
-    // TODO (Phase 6): 当前前端 BidSubmit.vue 未实现 SM2 客户端签名，
-    // 因此 signature/fileHash 始终为空，此验证跳过。
-    // 需在客户端实现：计算标书文件 SHA-256 → 用供应商 SM2 私钥签名 → 随提交发送。
-    // dual-v2 新轨的验签在下方新轨分支内按「ACTIVE SupplierCert 收紧口径」执行，不走本段。
+    // TODO (Phase 6): 前端未实现 SM2 客户端签名，signature/fileHash 恒空，此验证跳过——客户端需
+    // 实现 SHA-256 → SM2 私钥签名 → 随提交发送。dual-v2 新轨验签在新轨分支按「ACTIVE
+    // SupplierCert 收紧口径」执行，不走本段。
     if (!dual && data.signature && data.fileHash) {
       const pubKey = supplier.sm2PublicKey;
       if (!pubKey) {
@@ -3703,11 +3700,10 @@ export class SupplierPortalService {
       }
     }
 
-    // ② 事务外内容级双闸校验（claim 后；顺序短路：先逐文件明文存证闸（含信封交叉比对），后 fieldsCommit）
-    //    文件闸锚点 = 投递时原 FileAsset.sha256（明文存证哈希，== envelope.files[role].sha256，签名覆盖；
-    //    补传同款闸门语义）。C_inner 资产（innerAssets）的 sha256 是密文哈希，不能做明文锚点。
-    //    归因（§5.5）：内容级失败（哈希/承诺不匹配——密文损坏/错钥/篡改不可区分）
-    //    → UNKNOWN；平台侧异常（文件引用缺失/记录缺失/存储失败）→ PLATFORM。
+    // ② 事务外内容级双闸校验（claim 后；顺序短路：先逐文件明文存证闸（含信封交叉比对），后
+    // fieldsCommit）。文件闸锚点=投递时原 FileAsset.sha256（明文存证哈希==envelope.files[role].
+    // sha256，签名覆盖；C_inner 资产的 sha256 是密文哈希，不能做明文锚点）。归因（§5.5）：内容级
+    // 失败（哈希/承诺不匹配）→UNKNOWN；平台侧异常（引用/记录缺失/存储失败）→PLATFORM。
     let gateError: string | null = null;
     let gateAttribution: 'UNKNOWN' | 'PLATFORM' = 'UNKNOWN';
     const uploaded: Array<{ role: EnvelopeRole; buf: Buffer }> = [];

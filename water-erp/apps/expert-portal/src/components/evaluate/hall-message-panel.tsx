@@ -43,7 +43,6 @@ export function HallMessagePanel({ messages, onOpen }: Props) {
 
   return (
     <div className="flex h-full flex-col">
-      {/* 标题栏 */}
       <div className="flex items-center justify-between px-4 py-3">
         <span className="text-sm font-bold text-[var(--foreground)]">开标大厅消息</span>
         <span className="text-[10px] text-[var(--muted-foreground)]">只读 · 公聊</span>
@@ -68,17 +67,14 @@ export function HallMessagePanel({ messages, onOpen }: Props) {
             ) : (
               // 气泡式：HOST 左对齐（对方），带头像 + 玻璃泡
               <div key={m.id} className="my-3 flex items-start gap-2">
-                {/* 发送者头像 */}
                 <div className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-[var(--accent-strong)] text-xs font-semibold text-white">
                   {(m.senderName || '?').slice(0, 1)}
                 </div>
                 {/* 消息列 */}
                 <div className="flex max-w-[74%] flex-col items-start">
-                  {/* 发送者 + 时间 */}
                   <div className="mb-0.5 text-[11px] text-[var(--muted-foreground)]">
                     {m.senderName} · {fmtTime(m.createdAt)}
                   </div>
-                  {/* 气泡 */}
                   <div className="exp-bubble whitespace-pre-wrap break-all rounded-xl rounded-tl-sm px-3 py-2 text-sm leading-relaxed text-[var(--foreground)]">
                     {m.content}
                   </div>

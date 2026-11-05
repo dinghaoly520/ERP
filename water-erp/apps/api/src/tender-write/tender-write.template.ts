@@ -402,13 +402,10 @@ function tableDataToWordXml(table: TableData): string {
   const rows: string[] = [];
 
   // ── 网格完整性（2026-09-09 修复：空单元格/合并单元格导出后线条缺失）──
-  // Word 的 <w:tbl> 要求每行的 <w:tc> 数与 tblGrid 列数严格对齐：
-  //  1. 纵向合并（rowSpan>1）覆盖的下方单元格必须仍然输出 <w:tc><w:vmerge/></w:tc> 续格，
-  //     直接跳过会导致该行列数不足 → Word 修复表格 → 边框线缺失/错位；
-  //  2. 未填写（模型缺失）的单元格也要输出空 <w:tc>，保持网格；
-  //  3. 仅横向合并（colSpan）覆盖的同行单元格不输出（由 gridSpan 占位），维持原逻辑。
-  // 预计算纵向合并覆盖：锚点 (r,c) rowSpan>1 时，其下方 (r+1..r+rowSpan-1, c..c+colSpan-1)
-  // 均为 vmerge 续格，续格的 gridSpan 取锚点的 colSpan。
+  // <w:tbl> 每行 <w:tc> 数须与 tblGrid 严格对齐：① rowSpan>1 覆盖的下方单元格仍须输出
+  // <w:tc><w:vmerge/></w:tc> 续格（跳过→列数不足→Word 修复表格→边框缺失/错位）；② 模型缺失
+  // 单元格输出空 <w:tc> 保网格；③ 仅 colSpan 覆盖的同行格不输出（gridSpan 占位，维持原逻辑）。
+  // 预计算：锚点 (r,c) rowSpan>1 时其下方 (r+1..r+rowSpan-1, c..c+colSpan-1) 均为续格，gridSpan 取锚点 colSpan。
   const vmergeContinue = new Map<string, number>(); // "r,c" → 锚点 colSpan
   for (let r = 0; r < table.rows; r++) {
     for (let c = 0; c < table.cols; c++) {

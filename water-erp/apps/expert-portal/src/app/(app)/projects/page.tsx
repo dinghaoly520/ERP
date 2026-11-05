@@ -239,7 +239,6 @@ export default function ExpertProjectsPage() {
           onKeyDown={(e) => { if (e.key === 'Escape') { setOverviewProject(null); } }}>
           <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={() => setOverviewProject(null)} />
           <div className="exp-dialog w-full max-w-md">
-            {/* 标题区 */}
             <div className="flex items-center justify-between gap-4 px-6 py-4">
               <div className="flex items-center gap-2">
                 <Clock size={16} strokeWidth={1.5} className="text-[var(--accent-strong)]" />
@@ -251,7 +250,6 @@ export default function ExpertProjectsPage() {
               </button>
             </div>
             <hr className="wb-section-rule" />
-            {/* 信息 */}
             <div className="space-y-4 px-6 py-5">
               <div className="flex items-center gap-3">
                 <span className="exp-user-chip-avatar !h-11 !w-11 !rounded-xl !text-base">
@@ -311,7 +309,6 @@ export default function ExpertProjectsPage() {
               )}
             </div>
             <hr className="wb-section-rule" />
-            {/* 页脚 */}
             <div className="flex justify-end px-6 py-4">
               <button onClick={() => setOverviewProject(null)} className="neu-btn-soft h-[38px]">关闭</button>
             </div>

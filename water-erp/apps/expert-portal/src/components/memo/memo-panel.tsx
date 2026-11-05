@@ -381,7 +381,6 @@ export function MemoPanel({
   // 工具栏：全屏带缩放(zoom:true)，略缩页去缩放、清屏占位(zoom:false)；清屏统一居末，点击弹 ConfirmDialog
   const renderToolbar = ({ zoom }: { zoom: boolean }) => (
     <div className="flex flex-wrap items-center gap-1.5">
-      {/* 颜色 */}
       {COLORS.map(c => (
         <button
           key={c.value}
@@ -397,7 +396,6 @@ export function MemoPanel({
         </button>
       ))}
       <span className="h-4 w-px bg-[oklch(0.6_0.04_258/0.2)]" />
-      {/* 线宽滑块 */}
       <input type="range" min={2} max={12} value={currentWeight}
         onChange={e => { const v=Number(e.target.value); setCurrentWeight(v); activeCanvas()?.setWeight(v); }}
         className={`w-20 ${sliderCls} [&::-webkit-slider-thumb]:bg-[var(--accent-strong)]`}
@@ -421,7 +419,6 @@ export function MemoPanel({
       >
         <Eraser size={14} strokeWidth={1.5} />
       </button>
-      {/* 橡皮大小（仅擦除模式） */}
       {eraseMode && (
         <>
           <input type="range" min={1} max={20} value={eraserSize}
@@ -439,11 +436,9 @@ export function MemoPanel({
         </>
       )}
       <span className="h-4 w-px bg-[oklch(0.6_0.04_258/0.2)]" />
-      {/* 撤销 */}
       <button type="button" onClick={() => activeCanvas()?.undo()} className={toolBtn} title="撤销上一笔">
         <Undo2 size={14} strokeWidth={1.5} />
       </button>
-      {/* 缩放（仅全屏） */}
       {zoom && (
         <>
           <span className="h-4 w-px bg-[oklch(0.6_0.04_258/0.2)]" />
@@ -461,7 +456,6 @@ export function MemoPanel({
         </>
       )}
       <span className="h-4 w-px bg-[oklch(0.6_0.04_258/0.2)]" />
-      {/* 清屏：弹 ConfirmDialog */}
       <button type="button"
         onClick={() => setClearConfirmOpen(true)}
         className="neu-btn-xs is-danger !h-9"
@@ -477,13 +471,10 @@ export function MemoPanel({
         onContextMenu={e => e.preventDefault()}
         onTouchStart={e => e.preventDefault()}>
         <div className="exp-topbar relative grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 py-2.5">
-          {/* 左：退出全屏 */}
           <button type="button" onClick={exitFullscreen} className="neu-btn-soft !h-11 justify-self-start">
             <Minimize2 size={15} strokeWidth={1.6} /> 退出全屏
           </button>
-          {/* 中：工具栏（含清屏），顶部居中 */}
           <div className="justify-self-center">{renderToolbar({ zoom: true })}</div>
-          {/* 右：保存 */}
           <button type="button" onClick={doSave} disabled={saving} className="neu-btn-primary !h-11 justify-self-end">
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} strokeWidth={1.6} />}
             {saving ? '保存中…' : '保存'}

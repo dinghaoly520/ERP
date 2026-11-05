@@ -35,12 +35,6 @@ export class WorkArrangementsController {
     return this.workArrangementsService.list(user.sub, query);
   }
 
-  @Get('admin/all')
-  @Roles('admin')
-  listAll() {
-    return this.workArrangementsService.listAll();
-  }
-
   @Get('daily-plan')
   dailyPlan(
     @CurrentUser() user: AuthenticatedUser,
@@ -57,62 +51,9 @@ export class WorkArrangementsController {
     return this.workArrangementsService.regenerateDailyPlan(user.sub, date);
   }
 
-  @Post('daily-plan/refresh-all')
-  @Roles('admin')
-  async refreshAllDailyPlans() {
-    return this.workArrangementsService.refreshDailyGreeting();
-  }
-
-  @Get('greeting')
-  greeting(@CurrentUser() user: AuthenticatedUser) {
-    return this.workArrangementsService.generateGreeting(
-      user.sub,
-      user.username,
-      user.role,
-    );
-  }
-
   @Get('portrait')
   portrait(@CurrentUser() user: AuthenticatedUser) {
     return this.workArrangementsService.getPortrait(user.sub);
-  }
-
-  @Get('summary')
-  summary(
-    @CurrentUser() user: AuthenticatedUser,
-    @Query('date') date?: string,
-  ) {
-    return this.workArrangementsService.buildWorkbenchSummary(user.sub, date);
-  }
-
-  @Get('templates')
-  listTemplates(@CurrentUser() user: AuthenticatedUser) {
-    return this.workArrangementsService.listTemplates(user.sub);
-  }
-
-  @Post('templates')
-  createTemplate(
-    @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: CreateWorkArrangementTemplateDto,
-  ) {
-    return this.workArrangementsService.createTemplate(user.sub, dto);
-  }
-
-  @Patch('templates/:id')
-  updateTemplate(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
-    @Body() dto: UpdateWorkArrangementTemplateDto,
-  ) {
-    return this.workArrangementsService.updateTemplate(user.sub, id, dto);
-  }
-
-  @Delete('templates/:id')
-  deleteTemplate(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
-  ) {
-    return this.workArrangementsService.deleteTemplate(user.sub, id);
   }
 
   @Post()

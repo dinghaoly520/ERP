@@ -174,11 +174,10 @@ export class BidDecryptService {
       data: { outerDecryptedAt: claimAt },
     });
     if (claim.count === 0) {
-      // ── 陈旧楔接管（同 decryptSupplier 60s 接管口径）：抢占被并发对手拿走，但对手可能在
-      //    ② 解密期间崩溃（kill/OOM）——catch 未执行 → outerDecryptedAt 残留、innerAssets 永久
-      //    null。此后快路径与抢占都跳过、批量预筛静默剔除，恢复只剩供应商补传或改库。
-      //    此处读 submission 判定：innerAssets 为 null 且 updatedAt 停摆超 60s → 条件重占
-      //    （带旧 outerDecryptedAt + updatedAt 上限；接管成功的 @updatedAt 刷新使并发第二笔接管 count=0）──
+      // ── 陈旧楔接管（同 decryptSupplier 60s 口径）：对手在 ② 解密期间崩溃（kill/OOM）→
+      // catch 未执行 → outerDecryptedAt 残留、innerAssets 永久 null，快路径/抢占都跳过、批量
+      // 预筛静默剔除，恢复只剩补传或改库。此处判定：innerAssets null 且 updatedAt 停摆超 60s →
+      // 条件重占（带旧值上限；@updatedAt 刷新使并发第二笔接管 count=0）──
       const fresh = await this.prisma.supplierBidSubmission.findUnique({
         where: { supplierId_projectId: { supplierId: submissionSupplierId, projectId } },
         select: { innerAssets: true, outerDecryptedAt: true, updatedAt: true },

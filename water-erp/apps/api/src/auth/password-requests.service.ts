@@ -538,12 +538,10 @@ export class PasswordRequestsService {
         } })).catch(() => {});
     } catch { /* 通知失败不阻塞审批 */ }
 
-    // 2026-09-26 五段状态：审批人待办消音 + 操作留痕（操作历史/已办结果依据）。
-    // 2026-09-29 精确消音：按 requestId 精确 link 只消本申请的待办——此前按通用 link
-    // 批量 resolve，审批 1 条会把所有审批人的全部待审待办一并消音（漏审风险）。
-    // 存量无 requestId 的旧待办仅在已无任何待审申请时统一清理（此时必为陈旧噪音）。
-    // 三审 P1-A：计数须排除本申请（此处它仍为 PENDING，恒 ≥1 会让兜底清理成死码，
-      // 存量无 requestId 旧待办将永久卡红）
+    // 2026-09-26 五段状态：审批人待办消音 + 操作留痕（操作历史/已办结果依据）。2026-09-29
+    // 精确消音：按 requestId 精确 link 只消本申请待办——此前按通用 link 批量 resolve 会把
+    // 所有审批人的全部待审一并消音（漏审风险）；存量无 requestId 旧待办仅在已无待审申请时统一
+    // 清理。三审 P1-A：计数须排除本申请（仍 PENDING 恒 ≥1 会让兜底清理成死码、旧待办永久卡红）。
       const legacyCleanup =
       (await this.prisma.profileChangeRequest.count({ where: { status: 'PENDING', id: { not: id } } })) === 0;
     await Promise.allSettled([

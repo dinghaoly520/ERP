@@ -178,17 +178,13 @@ export class RsvpService {
         action: 'RESPONDED', actorType: 'SUPPLIER', fromStatus: row.status, toStatus: body.status, note,
       });
 
-      // 接受 + 带项目：确保供应商进入项目候选（已存在则不动其投标进度，仅保证行存在）。
-      // 拒绝：同样同步候选名单——DECLINED 移出（「拒绝即离场」2026-10-23 用户裁定，推翻
-      // 2026-10-14「仅记录、看板人工处理」旧决策——看板并无移除入口，拒绝者永挂名单，
-      // 开标确认/评标视野受染）。移除统一在事务外执行（见 syncRosterMembership）。
-      // projectId 双 id 空间（2026-10-16）：生成端（ai.generateNotificationContent）已把回执行
-      // projectId 规范化为 BidProject id；旧轨行可能仍是 PMI id——先按 BidProject 主键解析，
-      // 落空再按 projectManagementItemId 反查（两代口径兼容）。旧实现直接拿 PMI id upsert
-      // BidSupplier → FK(P2003)；规范化后若漏改，ACCEPTED 永远解析不到项目 → 候选不落、门户不可见。
-      // BidProject 尚未懒创建时【事务提交后触发 ensureBidProject】而非仅记录回执——
-      // 供应商确认参加后门户「可投标项目/工作台」需立即可见。ensureBidProject 幂等，
-      // 且创建时会回填全部已接受回执的候选。
+      // 接受+带项目：确保进项目候选（已存在不动进度，仅保证行存在）；拒绝同样同步名单——DECLINED
+      // 移出（「拒绝即离场」2026-10-23 用户裁定，推翻 2026-10-14「仅记录、看板人工处理」——看板无
+      // 移除入口，拒绝者永挂名单染开标/评标视野）；移除统一事务外（syncRosterMembership）。
+      // projectId 双 id 空间（2026-10-16）：生成端已规范化为 BidProject id，旧轨行可能仍是 PMI id——
+      // 先按 BidProject 主键解析、落空再按 projectManagementItemId 反查；直拿 PMI id upsert 必
+      // FK(P2003)，漏改则 ACCEPTED 解析不到项目→候选不落、门户不可见。
+      // BidProject 未懒建时【事务提交后触发 ensureBidProject】（幂等、回填已接受回执）——确认参加后门户须立即可见。
       if (body.status === 'ACCEPTED' && row.projectId) {
         const bp = (await tx.bidProject.findUnique({ where: { id: row.projectId }, select: { id: true } })) ||
           (await tx.bidProject.findFirst({

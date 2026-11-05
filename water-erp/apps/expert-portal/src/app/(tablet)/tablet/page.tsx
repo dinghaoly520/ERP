@@ -174,7 +174,6 @@ function ProjectCard({
         </span>
       </div>
 
-      {/* 进度条 */}
       <div className="flex items-center gap-3">
         <div className="exp-bar flex-1">
           <i style={{ width: `${ep.progress}%`, '--bar': done ? 'var(--success)' : sc } as React.CSSProperties} />

@@ -324,11 +324,9 @@ export class UploadService implements OnModuleInit {
       return;
     }
 
-    // 旧轨服务端密封资产（encrypted && sealedPath，clientEncrypted=false）：
-    // clean-legacy-plaintext 清理 asset.key 明文原对象后，通用分支必须从 sealedPath
-    // 读密文并 KMS 解包 sealedKey 流式解密输出（口径镜像 plaintext-fetcher：
-    // sealedPath || key 读点 + isWrappedKey→unwrapKey + AES 解密）。否则供应商回看/
-    // staff/专家下载此类资产会 404。dual-v2 已在前置 SEALED_NO_DOWNLOAD 拒收，不落此分支。
+    // 旧轨服务端密封资产（encrypted && sealedPath，clientEncrypted=false）：clean-legacy-plaintext
+    // 清理明文原对象后，通用分支必须从 sealedPath 读密文+KMS 解包 sealedKey 流式解密输出（口径镜像
+    // plaintext-fetcher）——否则供应商回看/staff/专家下载 404；dual-v2 已前置 SEALED_NO_DOWNLOAD 拒收。
     if (asset.encrypted && asset.sealedPath) {
       const submission = await this.prisma.supplierBidSubmission.findFirst({
         where: {
@@ -538,11 +536,10 @@ export class UploadService implements OnModuleInit {
         if (awardLetter) return true;
       }
 
-      // 【防伪造】本分支内所有"URL 引用"类判定改为双闸门：
-      //  ① 引用行的 URL 必须精确等于 `/api/upload/files/${asset.id}`（拒绝 endsWith 后缀匹配，
-      //    防止构造 `xxx/files/<他企id>` 绕过）；
-      //  ② 被引用 asset 须为本供应商上传，或采购管理端（admin/leader/staff）代传——
-      //    供应商无法引用【另一供应商】上传的文件（防跨界读取他企资质/证件）。
+      // 【防伪造】本分支内所有"URL 引用"类判定双闸门：① 引用行 URL 必须精确等于
+      // `/api/upload/files/${asset.id}`（拒绝 endsWith 后缀匹配，防构造 `xxx/files/<他企id>` 绕过）；
+      // ② 被引用 asset 须为本供应商上传或采购管理端（admin/leader/staff）代传——供应商无法引用
+      // 另一供应商的文件（防跨界读取他企资质/证件）。
       const refOk = (url: unknown) =>
         typeof url === 'string' && url === `/api/upload/files/${asset.id}`;
       const assetTrusted = async (): Promise<boolean> => {

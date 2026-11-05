@@ -67,17 +67,13 @@ export class AuthGuard implements CanActivate {
           throw new UnauthorizedException({ error: '临时账号已随项目结束失效，请联系采购中心', code: 'TEMP_ACCOUNT_EXPIRED' });
         }
       }
-      // 单设备登录（web 2026-08-21；supplier 2026-09-18；expert 2026-09-20）：web/supplier/expert
-      // 登录签发的 token 自带 sid（web 侧为 tab 级——前端把 token 存 sessionStorage 经 X-Web-Token
-      // 头携带，同浏览器多账号并存互不覆盖；supplier/expert 侧纯 cookie，同浏览器不并存）。
-      // sid 与库中 User.webSessionId 不一致 = 该账号已在别处重新登录，本会话被顶下线。
-      // 校验依据是 JWT 内 sid 本身（不可通过省略请求头绕过）；无 sid 的 token 属其他
-      // 门户或本功能上线前的存量会话——后者（来自对应门户 cookie）统一失效重登。
-      // R6-5①（2026-09-30 审计 A-1）：token 签发早于最近一次密码变更 → 立即失效。
-      // 此前仅清 webSessionId（只拦带 sid 的 web/supplier/expert token），token_bid
-      // 无 sid 也不校验——重置密码后 :3007 会话照活到 7 天 JWT 过期，与"所有已登录
-      // 会话立即失效"承诺相反。iat 为 JWT 标准声明（秒），全命名空间统一拦截。
-      // 截到整秒比较：同秒内"改密→立即登录"的新 token 不误杀（iat 秒级 floor 无毫秒可辨）
+      // 单设备登录（web 2026-08-21；supplier 2026-09-18；expert 2026-09-20）：登录签发 token 自带
+      // sid，与库中 User.webSessionId 不一致=他处重登、本会话被顶；依据 JWT 内 sid 本身（不可省头绕过），
+      // 无 sid 存量会话统一失效重登。web 侧 sid 为 tab 级（token 存 sessionStorage 经 X-Web-Token 头携带，
+      // 多账号并存互不覆盖）；supplier/expert 纯 cookie（同浏览器不并存）。
+      // R6-5①（2026-09-30 审计 A-1）：iat 早于最近一次密码变更 → 立即失效（此前只清 webSessionId，
+      // token_bid 无 sid 不校验——改密后 :3007 会话照活到 JWT 过期，违「立即失效」承诺）；iat 为
+      // JWT 标准声明，全命名空间统一拦截；截到整秒比较，同秒「改密→登录」新 token 不误杀。
       if (user.passwordChangedAt && typeof payload.iat === 'number' && payload.iat < Math.floor(user.passwordChangedAt.getTime() / 1000)) {
         throw new UnauthorizedException({ error: '密码已变更，请使用新密码重新登录', code: 'PASSWORD_CHANGED' });
       }

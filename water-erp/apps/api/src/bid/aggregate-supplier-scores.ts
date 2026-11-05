@@ -1,10 +1,9 @@
 // apps/api/src/bid/aggregate-supplier-scores.ts
-// F12（2026-08-28）：官方口径供应商聚合与排名——自 generateEvaluationResults 提取为纯函数，
-// 与 GET /bid/projects/:id/live-official-scores（结果未生成时的排名预览）共用，单一事实源：
-// 前端预览不再自行复刻口径（旧预览=正选百分制原始均分，与官方「跳过公式价格项打分 + 公式分
-// 作常量 + ≥5 实际打分专家去 1 高 1 低 + 废标置后」双偏）。
-// 语义与提取前逐行一致：expertTotals.length>=5 的 length 是**实际打分专家数**（非 panelSize）；
-// formulaScore>0 才写 '__formula__' 单值（纯价格模式）；同分按供应商名确定性 tiebreaker。
+// F12（2026-08-28）官方口径供应商聚合与排名——自 generateEvaluationResults 提取为纯函数，与
+// live-official-scores（排名预览）共用单一事实源（旧前端预览复刻口径双偏：原始均分 vs 官方
+// 「跳过公式项打分+公式分常量+≥5 实际打分专家去 1 高 1 低+废标置后」）。
+// 语义与提取前逐行一致：length>=5 的 length 是实际打分专家数（非 panelSize）；formulaScore>0
+// 才写 '__formula__' 单值；同分按供应商名确定性 tiebreaker。
 
 export interface SupplierScoreRecordLite {
   expertId: string;

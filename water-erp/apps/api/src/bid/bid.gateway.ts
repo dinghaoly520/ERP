@@ -279,11 +279,10 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('leave:project')
   handleLeaveProject(client: Socket, projectId: string) {
-    // R8：退房同时回收连接表——旧实现只退房不清 supplierSockets/socketProjects，
-    // 导致离场后仍计在线、仍收私聊定向推送。
-    // Wave4a-M6：连接表清理一律以 socketProjects 登记项目为准（而非 leave 载荷）——
-    // 恶意/异常端 emit leave('p1') 不得误清/漏清登记于 p2 的 socket（自伤型）。
-    // 退房：载荷房 + 登记房去重后都退；presence 按涉及项目刷新。
+    // R8：退房同时回收连接表——旧实现只退房不清 supplierSockets/socketProjects，离场后仍计
+    // 在线、仍收私聊定向推送。Wave4a-M6：连接表清理一律以 socketProjects 登记为准（非 leave
+    // 载荷）——恶意 emit leave('p1') 不得误清/漏清登记于 p2 的 socket。退房：载荷房+登记房去重
+    // 后都退；presence 按涉及项目刷新。
     const supplierId: string | undefined = (client.data as any).supplierId;
     const registered: string | undefined = this.socketProjects.get(client.id);
     const requested: string | undefined = projectId || (client.data as any).projectId;

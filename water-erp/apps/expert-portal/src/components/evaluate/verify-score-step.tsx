@@ -74,7 +74,6 @@ export function VerifyScoreStep({
 
   return (
     <div className="mx-auto max-w-4xl p-6">
-      {/* 标题 */}
       <div className="mb-6 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <ShieldCheck size={20} strokeWidth={1.5} className="text-[var(--accent-strong)]" />
@@ -201,7 +200,6 @@ export function VerifyScoreStep({
         </div>
       )}
 
-      {/* 确认核对按钮 */}
       <button
         type="button"
         onClick={handleVerify}

@@ -517,10 +517,9 @@ export async function sweepStaleActionableNotifications(prisma: SweepPrisma): Pr
   }
 
   // ── 4e) 开标域阶段窗口统一对账（2026-11-02 全量矩阵审计）──
-  // 三类窗口 × link 含项目 id（/my-bids/{id}、/bid/project/{id}、?projectId=）：
-  //  - 截标窗口（受邀/催投/催供应商/时间变更）：项目离开 DOWNLOAD/SUBMIT 即失效
-  //  - 开标窗口（临近开标/解密临期/会场交流/异议超时）：评标启动或终局即失效
-  //  - 评标窗口（评标超时/专家指派/催专家）：项目终局即失效
+  // 三类窗口 × link 含项目 id（/my-bids/{id}、/bid/project/{id}、?projectId=）：截标窗口（受邀/
+  // 催投/催供应商/时间变更）离开 DOWNLOAD/SUBMIT 即失效；开标窗口（临近开标/解密临期/会场交流/
+  // 异议超时）评标启动或终局即失效；评标窗口（评标超时/专家指派/催专家）项目终局即失效。
   // 项目删除同样消解；无 id 存量（/dashboard 等）不动——已读兜底。
   {
     const BID_STAGE_WINDOWS: Array<{ types: string[]; stale: (stage: string | undefined) => boolean }> = [
