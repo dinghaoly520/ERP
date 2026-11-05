@@ -4,9 +4,7 @@ import React from 'react';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
-import { api } from '@/lib/api';
-import { landingURL, portalURL } from '@water-erp/config';
+import { portalURL } from '@water-erp/config';
 import { fetchPublicAnnouncements, type AnnouncementItem } from '@/lib/announcements';
 import GradientText from '@/components/GradientText';
 import { UnifiedHeader } from '@/components/unified-header';
@@ -19,12 +17,6 @@ import { FlowBackdrop } from '@/components/flow-stage';
 
 export default function HomeClient({ initialAnnouncements }: { initialAnnouncements: AnnouncementItem[] }) {
   const router = useRouter();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [logging, setLogging] = useState(false);
-  const [modal, setModal] = useState<'login' | 'register' | null>(null);
-  const [regForm, setRegForm] = useState({ name: '', creditCode: '', phone: '', pwd: '', contact: '' });
-  const [regLoading, setRegLoading] = useState(false);
   const [announceTab, setAnnounceTab] = useState(0);
   const [featuredIndex, setFeaturedIndex] = useState(0);
   const [heroIndex, setHeroIndex] = useState(0);
@@ -51,36 +43,6 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
     ];
     return BG_POOL.map(f => `BG/${f}`);
   }, []);
-
-  const handleLogin = async () => {
-    if (!username || !password) { toast.error('请输入用户名和密码'); return; }
-    setLogging(true);
-    try {
-      // 登录响应已含 role；公共门户带 X-Portal: public，/auth/me 会找 token_public（不存在）→ 401，
-      // 故直接用登录返回的 role 跳转，不再单独请求 /auth/me。
-      const { role } = await api.post<{ role: string }>('/auth/login', { username, password });
-      setTimeout(() => { window.location.href = landingURL(role); }, 600);
-    } catch (e: any) { toast.error(e.message || '登录失败'); }
-    setLogging(false);
-  };
-
-  const handleRegister = async () => {
-    const f = regForm;
-    if (!f.name || !f.creditCode || !f.phone || !f.pwd) { toast.error('请填写完整信息'); return; }
-    if (f.pwd.length < 6) { toast.error('密码不少于6位'); return; }
-    setRegLoading(true);
-    try {
-      await api.post('/supplier/register', {
-        name: f.name, creditCode: f.creditCode, enterpriseType: '有限责任公司',
-        legalPerson: f.contact || f.name, registeredAddress: '', businessScope: '',
-        username: f.phone, displayName: f.contact || f.name, password: f.pwd,
-        contacts: [{ name: f.contact || f.name, phone: f.phone, isPrimary: true }],
-        qualifications: [],
-      });
-      toast.success('注册成功！请登录'); setModal(null);
-    } catch (e: any) { toast.error(e.message || '注册失败'); }
-    setRegLoading(false);
-  };
 
   // 从后端 API 按公告类型分别获取，避免全局分页导致各类型数量不均
   // 公告分组与公告页 tab 口径一致（2026-09-16 拍板：首页放全部分类——全部/采购/流标/
@@ -633,83 +595,6 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
       <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="back-to-top">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
       </button>
-
-      {/* ═══════════════════ Modal ═══════════════════ */}
-      {modal && (
-        <div className="fixed inset-0 z-[100] flex" onClick={() => setModal(null)}>
-          <div className="absolute inset-0 bg-[rgba(3,17,38,.46)] backdrop-blur-sm" />
-          <div className="relative m-auto w-[min(620px,calc(100vw-36px))] max-h-[86vh] overflow-auto glass rounded-[10px] shadow-[0_30px_90px_rgba(0,0,0,.26)] p-[34px]" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setModal(null)} className="absolute right-4 top-2.5 w-9 h-9 text-[26px] text-[#7d8798] hover:text-[#0891a0]">×</button>
-
-            {modal === 'login' ? (
-              <>
-                <h3 className="text-2xl font-bold text-[#063f82] mb-2.5">登录平台</h3>
-                <p className="text-[#526075] leading-relaxed mb-4">蜀水云采·智慧水发</p>
-                <div className="grid gap-3.5">
-                  <label className="grid gap-[7px] text-[13px] font-extrabold text-[#26364e]">
-                    用户名
-                    <input value={username} onChange={e => setUsername(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                      className="h-[42px] border border-[#d2deed] rounded px-3 outline-none focus:border-[#0d65c8] focus:shadow-[0_0_0_3px_rgba(13,101,200,.11)]" placeholder="请输入用户名" />
-                  </label>
-                  <label className="grid gap-[7px] text-[13px] font-extrabold text-[#26364e]">
-                    密码
-                    <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                      className="h-[42px] border border-[#d2deed] rounded px-3 outline-none focus:border-[#0d65c8] focus:shadow-[0_0_0_3px_rgba(13,101,200,.11)]" placeholder="请输入密码" />
-                  </label>
-                  <div className="neu-btn-group mt-5">
-                    <button onClick={handleLogin} disabled={logging} className="neu-btn-primary">
-                      {logging ? '登录中...' : '登 录'}
-                    </button>
-                    <button onClick={() => setModal(null)} className="neu-btn-soft">取消</button>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <h3 className="text-2xl font-bold text-[#063f82] mb-2.5">供应商注册</h3>
-                <div className="steps mb-5">{['填写信息','提交审核','审核通过','正式入驻'].map(s => <span key={s}>{s}</span>)}</div>
-                <div className="grid gap-3.5">
-                  <label className="grid gap-[7px] text-[13px] font-extrabold text-[#26364e]">
-                    企业名称 *
-                    <input value={regForm.name} onChange={e => setRegForm(f => ({ ...f, name: e.target.value }))}
-                      className="h-[42px] border border-[#d2deed] rounded px-3 outline-none focus:border-[#0d65c8] focus:shadow-[0_0_0_3px_rgba(13,101,200,.11)]" placeholder="营业执照上的企业全称" />
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="grid gap-[7px] text-[13px] font-extrabold text-[#26364e]">
-                      统一社会信用代码 *
-                      <input value={regForm.creditCode} onChange={e => setRegForm(f => ({ ...f, creditCode: e.target.value }))}
-                        className="h-[42px] border border-[#d2deed] rounded px-3 outline-none focus:border-[#0d65c8] focus:shadow-[0_0_0_3px_rgba(13,101,200,.11)]" placeholder="18位信用代码" />
-                    </label>
-                    <label className="grid gap-[7px] text-[13px] font-extrabold text-[#26364e]">
-                      手机号 *
-                      <input value={regForm.phone} onChange={e => setRegForm(f => ({ ...f, phone: e.target.value }))}
-                        className="h-[42px] border border-[#d2deed] rounded px-3 outline-none focus:border-[#0d65c8] focus:shadow-[0_0_0_3px_rgba(13,101,200,.11)]" placeholder="联系电话" />
-                    </label>
-                  </div>
-                  <label className="grid gap-[7px] text-[13px] font-extrabold text-[#26364e]">
-                    联系人
-                    <input value={regForm.contact} onChange={e => setRegForm(f => ({ ...f, contact: e.target.value }))}
-                      className="h-[42px] border border-[#d2deed] rounded px-3 outline-none focus:border-[#0d65c8] focus:shadow-[0_0_0_3px_rgba(13,101,200,.11)]" placeholder="企业联系人姓名" />
-                  </label>
-                  <label className="grid gap-[7px] text-[13px] font-extrabold text-[#26364e]">
-                    密码 *
-                    <input type="password" value={regForm.pwd} onChange={e => setRegForm(f => ({ ...f, pwd: e.target.value }))}
-                      className="h-[42px] border border-[#d2deed] rounded px-3 outline-none focus:border-[#0d65c8] focus:shadow-[0_0_0_3px_rgba(13,101,200,.11)]" placeholder="不少于6位" />
-                  </label>
-                  <div className="neu-btn-group mt-5">
-                    <button onClick={handleRegister} disabled={regLoading} className="neu-btn-primary">
-                      {regLoading ? '提交中...' : '提交注册'}
-                    </button>
-                    <button onClick={() => setModal(null)} className="neu-btn-soft">取消</button>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

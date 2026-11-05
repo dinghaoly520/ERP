@@ -64,10 +64,6 @@ export function SpSelect({ className, children, ...rest }: React.SelectHTMLAttri
   );
 }
 
-export function SpNumberInput({ className, ...rest }: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input type="number" className={cn("workbench-input", className)} {...rest} />;
-}
-
 /** 原生 date / datetime-local 输入，样式与 workbench-input 一致 */
 export function SpDateInput({ type = "date", className, ...rest }: React.InputHTMLAttributes<HTMLInputElement> & { type?: "date" | "datetime-local" | "time" | "month" }) {
   return <input type={type} className={cn("workbench-input", className)} {...rest} />;
@@ -99,44 +95,6 @@ export function SpSwitch({
     >
       <span className="sp-switch-knob" />
     </button>
-  );
-}
-
-/* ─── 复选 / 单选 ─── */
-export function SpCheckbox({ checked, onChange, label, disabled }: { checked: boolean; onChange: (v: boolean) => void; label?: ReactNode; disabled?: boolean }) {
-  return (
-    <label className={cn("inline-flex items-center gap-2 text-sm cursor-pointer select-none", disabled && "opacity-50 cursor-not-allowed")}>
-      <input
-        type="checkbox"
-        className="h-4 w-4 accent-[var(--brand)]"
-        checked={checked}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.checked)}
-      />
-      {label}
-    </label>
-  );
-}
-
-export function SpRadioGroup<T extends string>({ value, onChange, options, className }: {
-  value: T;
-  onChange: (v: T) => void;
-  options: { value: T; label: ReactNode }[];
-  className?: string;
-}) {
-  return (
-    <div className={cn("flex flex-wrap gap-2", className)}>
-      {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          className={cn("sp-radio-chip", value === o.value && "on")}
-          onClick={() => onChange(o.value)}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
   );
 }
 
@@ -476,22 +434,6 @@ export function LoadingBlock({ text = "加载中…" }: { text?: string }) {
     <div className="flex flex-col items-center justify-center py-14 text-sm text-[var(--fg-2)] gap-2">
       <Loader2 size={20} className="animate-spin" />
       {text}
-    </div>
-  );
-}
-
-export function SkeletonList({ count = 3 }: { count?: number }) {
-  return (
-    <div className="space-y-3">
-      {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="skeleton-card">
-          <div className="skeleton-lines">
-            {Array.from({ length: 3 }).map((_, j) => (
-              <div key={j} className={`skeleton-line ${j === 2 ? "w-3/5" : "w-full"}`} />
-            ))}
-          </div>
-        </div>
-      ))}
     </div>
   );
 }

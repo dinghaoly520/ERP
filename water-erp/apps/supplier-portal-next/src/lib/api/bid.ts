@@ -20,19 +20,6 @@ export interface SupplierBidClarification {
   updatedAt: string;
 }
 
-/** A-87（P1 波4）：招标文件要点——AiBidAnalysisTask.requirements 的供应商侧扁平视图（发布即前移提取，BID 阶段对潜在投标人公开） */
-export interface TenderRequirementsSummary {
-  projectName: string;
-  projectType: string;
-  bidDeadline?: string;
-  maxPrice?: number;
-  estimatedCost?: number;
-  priceEvaluationMethod: string;
-  qualification: Array<{ category: string; content: string; isRequired: boolean }>;
-  technical: Array<{ category: string; content: string; isStarred: boolean }>;
-  commercial: Array<{ category: string; content: string; isRequired: boolean }>;
-}
-
 export const bidApi = {
   // 投标机会列表（供应商端，仅公开字段）
   listProjects(params?: { page?: number; pageSize?: number; search?: string; scope?: string }) {
