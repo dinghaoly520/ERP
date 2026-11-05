@@ -2924,17 +2924,25 @@ export class ExpertAdminService {
       include: { expertProfile: true, department: { select: { name: true } } },
       orderBy: { displayName: 'asc' },
     });
+    // 手机号/身份证号导出明文（2026-11-04 用户裁定：导出表供管理使用，掩码无意义）——
+    // 批量 PII 明文出口按口径留审计痕（逐行 SensitiveAccessLog，entity=ExpertProfile）
+    if (actor?.sub) {
+      for (const u of users) {
+        await logSensitiveAccess(this.prisma, actor, 'ExpertProfile', u.id, 'export:phone,idNumber');
+      }
+    }
     return users.map(u => ({
       姓名: u.displayName,
       登录账号: u.username,
       专业: u.expertProfile?.specialty ?? '',
       职称: u.expertProfile?.title ?? '',
+      执业资格: u.expertProfile?.qualifications ?? '',
       工作单位: u.expertProfile?.employer ?? '',
       所属公司: u.company ?? '',
       部门: u.department?.name ?? '',
-      手机号: maskPhone(openPiiForMask(u.expertProfile?.phone ?? null)) ?? '', // 导出脱敏（等保+密评）
-      身份证号: maskIdNumber(openPiiForMask(u.expertProfile?.idNumber ?? null)) ?? '',
-      邮箱: maskEmail(openPiiForMask(u.email)) ?? '',
+      手机号: openPiiForMask(u.expertProfile?.phone ?? null) ?? '', // 明文（2026-11-04 用户裁定）
+      身份证号: openPiiForMask(u.expertProfile?.idNumber ?? null) ?? '', // 明文（同上）
+      邮箱: maskEmail(openPiiForMask(u.email)) ?? '', // 邮箱维持掩码（未裁定）
       状态: u.isActive ? '可用' : '已停用',
       入库时间: u.createdAt.toISOString().slice(0, 10),
     }));

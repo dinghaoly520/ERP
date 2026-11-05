@@ -214,9 +214,10 @@ export function exportSuppliersToExcel(suppliers: any[]) {
 // ——打印时每公司自然成页（「表内分页」）。
 const EXPERT_EXPORT_COLUMNS: Array<{ key: string; width: number }> = [
   { key: '姓名', width: 10 }, { key: '登录账号', width: 12 }, { key: '专业', width: 24 },
-  { key: '职称', width: 20 }, { key: '工作单位', width: 30 }, { key: '所属公司', width: 26 },
-  { key: '部门', width: 24 }, { key: '手机号', width: 14 }, { key: '身份证号', width: 22 },
-  { key: '邮箱', width: 22 }, { key: '状态', width: 8 }, { key: '入库时间', width: 12 },
+  { key: '职称', width: 20 }, { key: '执业资格', width: 26 }, { key: '工作单位', width: 30 },
+  { key: '所属公司', width: 26 }, { key: '部门', width: 24 }, { key: '手机号', width: 14 },
+  { key: '身份证号', width: 22 }, { key: '邮箱', width: 22 }, { key: '状态', width: 8 },
+  { key: '入库时间', width: 12 },
 ];
 
 export async function exportExpertsToExcel(rows: Record<string, string>[]): Promise<number> {
