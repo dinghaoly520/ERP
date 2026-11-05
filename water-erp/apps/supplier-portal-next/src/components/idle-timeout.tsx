@@ -48,7 +48,6 @@ export function IdleTimeout() {
       try { window.localStorage.setItem(LS_KEY, String(lastActivityRef.current)); } catch { /* 存储满等忽略 */ }
     };
 
-    // 记录用户交互
     for (const evt of ACTIVITY_EVENTS) {
       document.addEventListener(evt, onActivity, { passive: true, capture: true });
     }

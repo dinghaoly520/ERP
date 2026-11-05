@@ -135,7 +135,6 @@ export default function RoundQuotePage() {
       const list = (res ?? []) as Round[];
       setRounds(list);
 
-      // 获取当前供应商在此项目中的 BidSupplier ID
       try {
         const bs = await bidApi.getMyBidSupplier(projectId);
         setMyBidSupplierId(bs?.id ?? "");
@@ -143,7 +142,6 @@ export default function RoundQuotePage() {
         /* 非项目成员则保持为空 */
       }
 
-      // 获取我的全部报价历史
       await reloadMyQuotes();
 
       // Load published round quotes
@@ -200,7 +198,6 @@ export default function RoundQuotePage() {
       }, { silent: true }); // B4-1：错误由本 catch 单一出口提示，避免与全局拦截器双弹
       toast.success("报价已提交（密封），不可修改");
       setQuotePriceText("");
-      // 刷新我的报价状态
       await reloadMyQuotes();
     } catch (e: any) {
       // L4: P2002 唯一约束冲突（双 tab 并发）或后端 ALREADY_QUOTED → 友好提示

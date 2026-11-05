@@ -37,11 +37,8 @@ function since(ts: string): string {
 
 /**
  * 资料变更申请记录（ChangeRequest.vue 移植）。
- *
- * 注：Vue 源中另有一套「申请资料变更」弹窗（dlg/qpn/cpn，openDialog 触发），
- * 但模板里没有任何入口调用 openDialog（路由仅指向本页记录列表）——属不可达死代码，
- * 变更申请的实际入口在 /profile 页「申请资料变更」按钮（已随 CompanyInfo 移植）。
- * 本页仅移植可达部分：加载态 / 错误重试 / 记录时间线 / 空态。
+ * 注：Vue 源的「申请资料变更」弹窗属不可达死代码（无入口调用 openDialog）未移植；
+ * 变更入口在 /profile 页「申请资料变更」按钮，本页仅含记录列表（加载/重试/时间线/空态）。
  */
 export default function ChangeRecordsPage() {
   const [loading, setLoading] = useState(true);
