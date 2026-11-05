@@ -33,7 +33,6 @@ export default function AboutPage() {
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
             返回首页
           </a>
-          {/* 标题 */}
           <div className="mb-[clamp(28px,3vw,40px)] text-center">
             <h1 className="mb-3 text-[clamp(28px,3vw,40px)] font-black tracking-[0.02em] text-[var(--ink)]">集团简介</h1>
             <span className="mx-auto mb-2.5 block h-[3px] w-10 rounded-full bg-[linear-gradient(90deg,var(--brand),var(--water))]" />
@@ -61,7 +60,6 @@ export default function AboutPage() {
             {/* ── 左栏：正文阅读区 ── */}
             <div className="flex-1 min-w-0">
 
-              {/* 集团概况 */}
               <article className="mb-10">
                 <div className="flex items-center gap-2.5 mb-4">
                   <span className="block w-[3px] h-[18px] rounded-full bg-[var(--brand)]" />
@@ -84,7 +82,6 @@ export default function AboutPage() {
                 </p>
               </article>
 
-              {/* 战略使命 */}
               <article className="mb-10">
                 <div className="flex items-center gap-2.5 mb-4">
                   <span className="block w-[3px] h-[18px] rounded-full bg-[var(--brand)]" />
@@ -95,7 +92,6 @@ export default function AboutPage() {
                 </p>
               </article>
 
-              {/* 企业文化 */}
               <article>
                 <div className="flex items-center gap-2.5 mb-4">
                   <span className="block w-[3px] h-[18px] rounded-full bg-[var(--brand)]" />

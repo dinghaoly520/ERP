@@ -65,7 +65,6 @@ export default function ContactPage() {
             <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-3">
               {CONTACT_CARDS.map((item, i) => (
                 <div key={i} className="neu-card flex flex-col p-6">
-                  {/* 头部：图标井 + 标签 */}
                   <div className="flex items-center gap-3">
                     <div className="page-hero__icon">
                       <item.icon size={18} strokeWidth={1.9} />
@@ -76,7 +75,6 @@ export default function ContactPage() {
                   {/* hairline 分割 — cgzxui 统一参数 */}
                   <div className="my-4" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.16)' }} />
 
-                  {/* 内容行 */}
                   <div className="flex flex-1 flex-col gap-2.5">
                     {item.rows.map((row, j) => (
                       <div key={j} className="flex items-baseline gap-2.5">

@@ -93,10 +93,8 @@ export default function AnnouncementDetailPage() {
   return (
     <div className="flow-page" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
       <FlowBackdrop />
-      {/* 统一顶栏 */}
       <UnifiedHeader />
 
-      {/* 内容区 */}
       <div className="relative z-10 px-[clamp(40px,4vw,72px)] pt-3 pb-10">
         <a href={backHref} className="flow-back mb-8"
           onClick={(e) => {
@@ -110,13 +108,11 @@ export default function AnnouncementDetailPage() {
           {backLabel}
         </a>
         <div className="glass rounded-2xl p-8">
-          {/* 标签 */}
           <div className="flex items-center gap-3 mb-4">
             <span className="text-xs px-3 py-1 rounded-full font-semibold" style={{ color: item.color, backgroundColor: item.color + '18' }}>{item.tag}</span>
             {item.urgent && <span className="text-xs bg-[#fff1f0] text-[#d43030] px-2 py-0.5 rounded-full font-bold">重要</span>}
           </div>
 
-          {/* 标题 */}
           <h1 className="text-2xl font-black text-[#18243a] mb-4 leading-snug" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>{item.title}</h1>
 
           {/* 元信息 —— 发布单位（2026-10-16）：公告必须标明公司（创建时写时快照） */}
@@ -178,7 +174,6 @@ export default function AnnouncementDetailPage() {
             );
           })()}
 
-          {/* AI 摘要 */}
           {item.aiSummary && (
             <div className="mb-6 neu-card p-5">
               <div className="mb-2 text-sm font-bold text-[#064ea2]">AI 摘要</div>

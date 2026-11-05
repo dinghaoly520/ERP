@@ -38,7 +38,6 @@ export function UnifiedHeader() {
     }
   }, [activeMenu]);
 
-  // 联系我们面板位置
   useLayoutEffect(() => {
     if (activeMenu === 'contact') {
       const calc = () => {

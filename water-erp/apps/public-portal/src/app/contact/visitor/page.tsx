@@ -77,10 +77,8 @@ export default function VisitorPage() {
           </a>
         </div>
 
-        {/* 内容区 — 垂直居中 */}
         <div className="flex-1 flex items-center justify-center px-[clamp(28px,4vw,72px)] pt-4 pb-[clamp(32px,4vw,56px)]">
           <div className="w-full max-w-2xl">
-            {/* 标题 */}
             <div className="mb-[clamp(24px,3vw,36px)] text-center">
               <h1 className="mb-3 text-[clamp(28px,3vw,40px)] font-black tracking-[0.02em] text-[var(--ink)]">供应商来访接待登记</h1>
               <span className="mx-auto mb-2.5 block h-[3px] w-10 rounded-full bg-[linear-gradient(90deg,var(--brand),var(--water))]" />

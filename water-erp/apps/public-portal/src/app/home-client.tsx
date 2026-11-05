@@ -21,7 +21,6 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
   const [featuredIndex, setFeaturedIndex] = useState(0);
   const [heroIndex, setHeroIndex] = useState(0);
 
-  // 自动轮播：每 6s 切换到下一张，7 张一个循环（42s）
   useEffect(() => {
     const timer = setInterval(() => {
       setHeroIndex(prev => (prev + 1) % 7);
@@ -144,12 +143,10 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
     ? currentAnnounce.items[Math.min(featuredIndex, currentAnnounce.items.length - 1)]
     : undefined;
 
-  // 数据变化后校正越界的 tab 索引
   useEffect(() => {
     if (announceData.length > 0 && announceTab >= announceData.length) setAnnounceTab(0);
   }, [announceData.length, announceTab]);
 
-  // 公告 featured 自动轮播：每 5s 切换到下一条
   useEffect(() => {
     const items = announceData[announceTab]?.items;
     if (!items || items.length <= 1) return;
@@ -159,12 +156,10 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
     return () => clearInterval(timer);
   }, [announceTab, announceData]);
 
-  // 切换 tab 时重置轮播位置
   useEffect(() => {
     setFeaturedIndex(0);
   }, [announceTab]);
 
-  // 数据变化后若当前轮播位置越界则回退
   useEffect(() => {
     const items = announceData[announceTab]?.items;
     if (items && featuredIndex >= items.length) {
@@ -253,7 +248,6 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
             </div>
           </div>
 
-          {/* Dot switchers — 点击可切换图片 */}
           <div className="absolute right-6 bottom-16 z-10 flex gap-1.5">
             {heroImages.map((_, i) => (
               <button
@@ -340,19 +334,15 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                       e.currentTarget.style.setProperty('--glow-x', `${e.clientX - rect.left}px`);
                       e.currentTarget.style.setProperty('--glow-y', `${e.clientY - rect.top}px`);
                     }}>
-                    {/* 悬停光晕 */}
                     <div className="feature-card-glow" />
-                    {/* 图标 */}
                     <div className="relative w-10 h-10 shrink-0">
                       <div className="feature-icon-ring" />
                       <div className="w-full h-full rounded-[10px] bg-[#eef3fb] text-[#064ea2] flex items-center justify-center group-hover:bg-[#064ea2] group-hover:text-white transition-all duration-300" dangerouslySetInnerHTML={{ __html: SVG_ICONS[f.icon] }} />
                     </div>
-                    {/* 文字 */}
                     <div className="flex flex-col gap-0.5 min-w-0">
                       <strong className="text-[18px] font-bold text-[#1c2941] group-hover:text-[#064ea2] transition-colors whitespace-nowrap">{f.title}</strong>
                       <span className="text-[13px] text-[#8a96aa] group-hover:text-[#5a7da8] transition-colors whitespace-nowrap">{f.desc}</span>
                     </div>
-                    {/* 右侧箭头指示 */}
                     <span className="feature-card-arrow">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
                     </span>
@@ -421,7 +411,6 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                 role="article">
                 <div className="announce-featured-border" />
                 <div className="announce-featured-inner">
-                  {/* 标签行 */}
                   <div className="flex items-center gap-2.5 mb-4">
                     <span className="announce-tag" style={{ backgroundColor: currentAnnounce.color }}>{featuredItem.tag}</span>
                     <span className="text-xs text-[#999]">{featuredItem.date}</span>
@@ -444,13 +433,11 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                       {featuredItem.title}
                     </a>
                   </h3>
-                  {/* 正文预览 */}
                   <p key={`content-${featuredItem.id}`} className="announce-featured-content-preview" style={{ animation: 'announceContentIn 0.4s ease 0.05s both' }}>
                     {featuredItem.titleOnly
                       ? (featuredItem.offlinedReason === 'PUBLICITY_ENDED' ? '该公告公示期已过，不再显示公示内容。' : '该公告已下线。')
                       : (featuredItem.aiSummary || featuredItem.desc || featuredItem.content.replace(/<h2>.*?<\/h2>/g, '').replace(/<[^>]+>/g, '').trim().slice(0, 320))}
                   </p>
-                  {/* 底部元信息 */}
                   <div className="flex items-center justify-between mt-auto">
                     <div className="flex gap-6 text-xs">
                       <span className="announce-meta">项目编号 <span className="announce-meta-val">{featuredItem.code}</span></span>

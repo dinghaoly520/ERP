@@ -23,8 +23,7 @@ const STAGES: StageData[] = [
 
 export default function ProcurementPortalPage() {
   // 采购管理端入口：直连 :3005 登录页（与首页「采购管理端」卡片同款口径）。
-  // portalURL SSR 阶段无 window → 返回 localhost，须等客户端挂载后再取值，
-  // 否则局域网设备经 192.168.x 访问时链接会错指 localhost。
+  // portalURL SSR 阶段无 window，须挂载后再取值——否则局域网访问会错指 localhost。
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const WEB_URL = process.env.NEXT_PUBLIC_WEB_PORTAL_URL ?? portalURL('web', '/login?forceLogin=1');

@@ -39,7 +39,6 @@ export const FlowTrack = forwardRef<FlowTrackHandle, {
         } as CSSProperties)
       : undefined;
 
-  // active stage via IntersectionObserver
   useEffect(() => {
     const el = trackRef.current;
     if (!el) return;
@@ -105,7 +104,6 @@ export const FlowTrack = forwardRef<FlowTrackHandle, {
     total: stages.length,
   }), [goTo, active, stages.length]);
 
-  // drag-to-scroll
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.pointerType === 'touch') return;
     const el = trackRef.current;
