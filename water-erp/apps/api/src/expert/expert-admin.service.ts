@@ -43,6 +43,11 @@ export const EXPERT_SPECIALTY_OPTIONS = [
   '环境工程', '水土保持', '物资管理',
 ] as const;
 
+/** 无档案专家（只有 User 行、缺 ExpertProfile——历史数据迁移/直接写库带入；账号管理 DTO @IsIn(INTERNAL_ROLES)
+ *  不含 bid_expert，正常通道产生不了此类孤儿）自愈建档的占位专业。
+ *  不进标准清单：专业下拉按 isActive 专家去重派生，退库（isActive=false）不污染筛选；恢复在库后应补录。 */
+export const EXPERT_SPECIALTY_UNREGISTERED = '未登记';
+
 
 /** 标准职称清单（2026-11-04 用户裁定标准化）：录入/CSV/编辑统一约束，按五个职称
  *  序列组织；"中级"前缀冗余（中级即该序列中级本身）、执业资格不属职称（独立
@@ -2676,11 +2681,33 @@ export class ExpertAdminService {
     }
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true } });
     if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
-    const profile = await this.prisma.expertProfile.findUnique({
+    let profile = await this.prisma.expertProfile.findUnique({
       where: { userId },
       select: { entryStatus: true, retiredAt: true }, // retiredAt 为准判退库恢复：兼容历史路径（曾漏写 entryStatus）
     });
-    if (!profile) throw new NotFoundException('专家档案不存在');
+    if (!profile) {
+      // 自愈建档（2026-11-05 生产实录）：专家可能只有 User 行而无档案行（sys_dump 等数据迁移带入），
+      // 列表按 role=bid_expert 过滤仍可见，状态机却无载体 → 退库/暂停恒 404「专家档案不存在」。
+      // 补最小档案（PENDING=未经正式录入）后继续走既有状态迁移；并发双写由 userId 唯一约束兜底。
+      try {
+        profile = await this.prisma.expertProfile.create({
+          data: {
+            userId,
+            specialty: EXPERT_SPECIALTY_UNREGISTERED,
+            entryStatus: 'PENDING',
+            notes: '系统自愈建档：该专家账号缺少档案行（数据迁移带入），由库状态操作自动补建，请补录档案信息',
+          },
+          select: { entryStatus: true, retiredAt: true },
+        });
+      } catch (err: any) {
+        if (err?.code !== 'P2002') throw err; // 并发下他人已建档：回读继续
+        profile = await this.prisma.expertProfile.findUnique({
+          where: { userId },
+          select: { entryStatus: true, retiredAt: true },
+        });
+        if (!profile) throw err;
+      }
+    }
     if (dto.status === 'RETIRED' && !dto.reason?.trim()) {
       throw new BadRequestException({ error: '退库必须填写事由', code: 'REASON_REQUIRED' });
     }
