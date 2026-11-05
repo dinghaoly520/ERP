@@ -16,7 +16,7 @@ import { stripMojibake, stripMojibakeDeep } from '../common/text-clean.util';
  *  - 收口全部直连 fetch 调用点（announcement-ai / supplier-selection-ai / ai.service.dashboardSummary / assistant DeepSeekProvider）
  *  - 新增 `LlmCallOptions`（model/maxTokens/timeoutMs/retries）—— 位置签名向后兼容
  *  - 新增 `chatMessages()` 多轮对话 API（assistant 用）
- *  - 429/5xx/网络/超时/空内容/截断/JSON 解析失败自动重试（LLM_MAX_RETRIES，指数退避，遵守 Retry-After≤8s；解析失败重试系 2026-10-10 增）；调用方 abort 不重试
+ *  - 429/5xx/网络/超时/空内容/截断/JSON 解析失败自动重试（LLM_MAX_RETRIES，指数退避，遵守 Retry-After≤8s；解析失败重试系 2026-10-10 增）；截断类重试升级 max_tokens（2026-11-05 增，封顶 32768）；调用方 abort 不重试
  *  - 进程内并发信号量（LLM_MAX_CONCURRENCY）：突发并发排队而非打爆上游配额
  */
 
@@ -34,7 +34,8 @@ export interface ChatMessage {
 export interface LlmCallOptions {
   /** 本次调用模型覆盖（默认 env DEEPSEEK_MODEL）——供 flash/chat 等不同档位的调用点使用 */
   model?: string;
-  /** 默认 chat/chatJson 16384、chatMessages 8192 */
+  /** 默认 chat/chatJson 16384、chatMessages 8192；截断（finish_reason=length）重试自动翻倍，
+   *  封顶 LlmService.MAX_TOKENS_CEILING=32768（2026-11-05 探针验证上限） */
   maxTokens?: number;
   /** 默认 180_000 ms */
   timeoutMs?: number;
@@ -53,6 +54,15 @@ export class LlmHttpError extends ServiceUnavailableException {
     this.retryable = status === 429 || status >= 500;
     this.retryAfterMs = retryAfterMs;
   }
+}
+
+/**
+ * 预算截断（finish_reason=length）：可重试；重试外壳升级 max_tokens 后重发。
+ * 类型化标记（2026-11-05）：requestOnce 的网络兜底 catch 曾把本类误包成
+ * "DeepSeek LLM network error" 前缀（截断≠网络故障，排障误导）——现按类型透传。
+ */
+export class LlmTruncationError extends ServiceUnavailableException {
+  readonly retryable = true;
 }
 
 /** 请求目标：base URL + API 路径解析出的协议/主机/端口/路径 */
@@ -187,6 +197,9 @@ export class LlmSemaphore {
 
 @Injectable()
 export class LlmService {
+  /** 截断升级预算封顶：2026-11-05 直连探针（max_tokens=32768 → HTTP 200）已验证 */
+  static readonly MAX_TOKENS_CEILING = 32_768;
+
   private readonly logger = new Logger(LlmService.name);
   private readonly deepseek: DeepSeekConfig | null;
   private readonly maxRetries: number;
@@ -248,20 +261,21 @@ export class LlmService {
     options?: LlmCallOptions,
   ): Promise<string> {
     this.getPrimary();
-    const r = await this.withRetry(
-      () =>
+    const r = await this.withBudgetEscalation(
+      (maxTokens) =>
         this.requestOnce({
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
           ],
           temperature,
-          maxTokens: options?.maxTokens ?? 16384,
+          maxTokens,
           timeoutMs: options?.timeoutMs ?? 180_000,
           model: options?.model,
           seed,
           signal,
         }),
+      options?.maxTokens ?? 16384,
       options,
       signal,
     );
@@ -282,9 +296,9 @@ export class LlmService {
     // DeepSeek 官方 JSON mode（api-docs.deepseek.com/guides/json_mode）：
     //  - response_format {'type':'json_object'} + prompt 含 "json" 词 + 格式示例
     //  - 明示禁止 Markdown 代码围栏（v4 系模型偶发包裹围栏/空内容，官方已知问题）
-    //  - 空 content / finish_reason=length 截断 → 抛 retryable 错误走 withRetry 重试
-    const parsed = await this.withRetry(
-      () =>
+    //  - 空 content / finish_reason=length 截断 → 抛 retryable 错误走重试（截断类升级预算）
+    const parsed = await this.withBudgetEscalation(
+      (maxTokens) =>
         this.requestOnce({
           messages: [
             {
@@ -296,7 +310,7 @@ export class LlmService {
             { role: 'user', content: userPrompt },
           ],
           temperature,
-          maxTokens: options?.maxTokens ?? 16384,
+          maxTokens,
           timeoutMs: options?.timeoutMs ?? 180_000,
           model: options?.model,
           seed,
@@ -311,13 +325,11 @@ export class LlmService {
             e.retryable = true;
             throw e;
           }
-          // 截断检测：finish_reason=length → JSON 必不完整，重试
+          // 截断检测：finish_reason=length → JSON 必不完整，重试（升级预算）
           if (r.finishReason === 'length') {
-            const e = new ServiceUnavailableException(
+            throw new LlmTruncationError(
               'LLM 输出被截断（finish_reason=length），将重试',
-            ) as ServiceUnavailableException & { retryable: boolean };
-            e.retryable = true;
-            throw e;
+            );
           }
           return r.content;
         }).then((content) => {
@@ -331,6 +343,7 @@ export class LlmService {
             throw err;
           }
         }),
+      options?.maxTokens ?? 16384,
       options,
       signal,
     );
@@ -348,17 +361,18 @@ export class LlmService {
     },
   ): Promise<string> {
     this.getPrimary();
-    const r = await this.withRetry(
-      () =>
+    const r = await this.withBudgetEscalation(
+      (maxTokens) =>
         this.requestOnce({
           messages,
           temperature: options?.temperature ?? 0.7,
-          maxTokens: options?.maxTokens ?? 8192,
+          maxTokens,
           timeoutMs: options?.timeoutMs ?? 180_000,
           model: options?.model,
           seed: options?.seed,
           signal: options?.signal,
         }),
+      options?.maxTokens ?? 8192,
       options,
       options?.signal,
     );
@@ -391,6 +405,41 @@ export class LlmService {
         await sleep(delay, callerSignal);
       }
     }
+  }
+
+  /**
+   * 截断预算升级重试外壳（2026-11-05）：推理模型思维链与正文共享 max_tokens，
+   * 预算耗尽时同参数重放在低温下近似确定性（通用审查实录：temp=0 三发全截断），
+   * 重试价值低——截断类错误重试前将 max_tokens 翻倍，给思维链留增长空间。
+   * 封顶 32768（2026-11-05 直连探针验证的 API 接受上限，更高未验证勿动）。
+   */
+  private withBudgetEscalation<T>(
+    buildCall: (maxTokens: number) => Promise<T>,
+    baseMaxTokens: number,
+    options: LlmCallOptions | undefined,
+    callerSignal?: AbortSignal,
+  ): Promise<T> {
+    let maxTokens = baseMaxTokens;
+    return this.withRetry(
+      async () => {
+        try {
+          return await buildCall(maxTokens);
+        } catch (err) {
+          if (
+            err instanceof LlmTruncationError &&
+            maxTokens < LlmService.MAX_TOKENS_CEILING
+          ) {
+            maxTokens = Math.min(maxTokens * 2, LlmService.MAX_TOKENS_CEILING);
+            this.logger.warn(
+              `LLM 预算截断，重试预算升至 max_tokens=${maxTokens}`,
+            );
+          }
+          throw err;
+        }
+      },
+      options,
+      callerSignal,
+    );
   }
 
   private retryDelay(err: unknown, attempt: number): number {
@@ -530,13 +579,11 @@ export class LlmService {
       // 推理型模型预算截断（2026-09-11）：思维链与正文共享 max_tokens——reasoning 波动超预算时
       // finish_reason=length 且 content 为空。此时回退 reasoning_content 只会拿到思维链文本
       // （上层摘要场景即此前「指令复述」入库的来源），正确处置是视为可重试：重试常能赶上
-      // 较短思维链产出完整正文。
+      // 较短思维链产出完整正文；2026-11-05 起重试外壳还会升级预算（withBudgetEscalation）。
       if (!response.content.trim() && response.finishReason === 'length') {
-        const e = new ServiceUnavailableException(
+        throw new LlmTruncationError(
           'LLM 输出被 max_tokens 截断（思维链耗尽预算，content 为空），将重试',
-        ) as ServiceUnavailableException & { retryable: boolean };
-        e.retryable = true;
-        throw e;
+        );
       }
 
       // 思考模式兜底：content 为空但 reasoning_content 有内容时取后者（官方文档：
@@ -557,6 +604,8 @@ export class LlmService {
       return { content: response.content, finishReason: response.finishReason };
     } catch (err) {
       if (err instanceof LlmHttpError) throw err;
+      // 预算截断已带准确文案：原样上抛，勿再套网络错误前缀（2026-11-05 误标实录）
+      if (err instanceof LlmTruncationError) throw err;
       // 调用方主动取消：原样上抛（不重试）
       if (p.signal?.aborted) throw err;
       if (timedOut || (err as Error)?.name === 'AbortError') {

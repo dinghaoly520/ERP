@@ -166,6 +166,11 @@ export class GeneralReviewerService {
             `【相关制度条款】\n${relevantClauses || '无相关检索结果'}`,
           0,
           signal,
+          undefined,
+          // 2026-11-05：deepseek-flash 为推理模型，思维链与正文共享 max_tokens——默认
+          // 16384 曾被「询比采购邀请」章节思维链独占（finish=length、content 空，3 发全截断）。
+          // 32768 为直连探针已验证的 API 接受上限；截断时 LlmService 重试外壳还会继续升级兜底。
+          { maxTokens: 32768 },
         );
 
         const issues = Array.isArray(llmResult.issues) ? llmResult.issues : [];

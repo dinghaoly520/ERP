@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { ServiceUnavailableException } from '@nestjs/common';
 import { EventEmitter } from 'events';
 import * as https from 'https';
 import * as http from 'http';
@@ -18,6 +19,8 @@ interface ResponseSpec {
   content?: string;
   /** 思考型模型思维链（message.reasoning_content） */
   reasoningContent?: string;
+  /** choices[0].finish_reason（'length'=预算截断） */
+  finishReason?: string;
   rawBody?: string;
   retryAfter?: string;
 }
@@ -27,6 +30,13 @@ const errRes = (status: number, retryAfter?: string): ResponseSpec => ({
   status,
   rawBody: 'error body',
   retryAfter,
+});
+/** 预算截断：思维链吃满 max_tokens、正文未出（content 空 + finish_reason=length） */
+const truncRes = (): ResponseSpec => ({
+  status: 200,
+  content: '',
+  reasoningContent: '（思维链耗尽预算，正文未产出）',
+  finishReason: 'length',
 });
 
 /** 哨兵：挂起（超时/手动响应测试）与网络层失败 */
@@ -81,6 +91,7 @@ class TransportMock {
               content: spec.content ?? '',
               ...(spec.reasoningContent ? { reasoning_content: spec.reasoningContent } : {}),
             },
+            ...(spec.finishReason ? { finish_reason: spec.finishReason } : {}),
           },
         ],
       });
@@ -233,6 +244,46 @@ describe('LlmService', () => {
       service.chat('s', 'u', 0.3, undefined, undefined, { timeoutMs: 10, retries: 1 }),
     ).rejects.toThrow(/timed out/);
     expect(httpsMock.request).toHaveBeenCalledTimes(2);
+  });
+
+  /* =====================================================================
+     预算截断（推理模型思维链与正文共享 max_tokens，2026-11-05 通用审查实录：
+     「询比采购邀请」章节思维链独占 16384 → finish_reason=length、content 空）
+     ===================================================================== */
+  it('content 空 + finish_reason=length：耗尽重试后抛截断错误，不得误标为 network error', async () => {
+    httpsMock = new TransportMock(https, () => truncRes());
+    const err: any = await service.chat('s', 'u').catch((e) => e);
+    expect(err).toBeInstanceOf(ServiceUnavailableException);
+    expect(err.message).toContain('max_tokens 截断');
+    expect(err.message).not.toContain('network error'); // 2026-11-05 实录：曾被兜底 catch 误包
+    expect(err.retryable).toBe(true);
+    expect(httpsMock.request).toHaveBeenCalledTimes(3); // 1+2 重试
+  });
+
+  it('截断重试升级预算：第 2 发 max_tokens 16384→32768', async () => {
+    httpsMock = new TransportMock(https, (i) => (i === 0 ? truncRes() : okRes('{"a":1}')));
+    await expect(service.chatJson<{ a: number }>('s', 'u')).resolves.toEqual({ a: 1 });
+    expect(httpsMock.calls[0].payload.max_tokens).toBe(16384);
+    expect(httpsMock.calls[1].payload.max_tokens).toBe(32768);
+  });
+
+  it('chatJson 正文截断（finish_reason=length、content 非空）重试同样升级预算', async () => {
+    httpsMock = new TransportMock(
+      https,
+      (i) => (i === 0 ? { status: 200, content: '{"issues":[', finishReason: 'length' } : okRes('{"issues":[]}')),
+    );
+    await expect(service.chatJson('s', 'u')).resolves.toEqual({ issues: [] });
+    expect(httpsMock.calls[0].payload.max_tokens).toBe(16384);
+    expect(httpsMock.calls[1].payload.max_tokens).toBe(32768);
+  });
+
+  it('预算升级封顶 32768：多重截断逐级翻倍后不再超顶（2026-11-05 直连探针上限）', async () => {
+    httpsMock = new TransportMock(https, () => truncRes());
+    await expect(
+      service.chat('s', 'u', 0.3, undefined, undefined, { retries: 3 }),
+    ).rejects.toThrow('max_tokens 截断');
+    const budgets = httpsMock.calls.map((c) => c.payload.max_tokens);
+    expect(budgets).toEqual([16384, 32768, 32768, 32768]);
   });
 
   it('chatMessages 透传多轮 messages，默认 max_tokens=8192', async () => {
