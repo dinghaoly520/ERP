@@ -77,6 +77,9 @@ export type BidProjectDetail = Omit<SharedBidProjectDetail, 'openingSession' | '
   }>;
   experts: (SharedBidExpert & {
     expertRole?: string; // EXPERT_ROLE.REGULAR | EXPERT_ROLE.ALTERNATE（Prisma BidExpert.expertRole）
+    /** 业主代表（含 2026-11-05 手动录入的临时账号）——BidExpert 标量列随详情全量下发，
+     *  评标管理状态卡/身份核验矩阵徽标用（主持人现场可辨需求方代表与库内专家） */
+    isPurchaserRepresentative?: boolean;
     /** F9（2026-08-28）：邀请状态（BidExpert 标量列随详情全量下发）——启动评标委员会闸门按已确认正选计数 */
     invitationStatus?: string; // invited | confirmed | declined
     /** A-132（2026-09-03）：评委分工（BidExpert 标量列随详情全量下发）——专家状态卡展示 分组·职责；

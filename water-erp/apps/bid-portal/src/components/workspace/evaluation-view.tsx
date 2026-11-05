@@ -609,7 +609,9 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   // 委员会不足/家数不足要点了按钮才被 409 教育。
   const confirmedRegular = regularExperts.filter(e => e.invitationStatus === 'confirmed').length;
   const committeeOk = confirmedRegular >= 3 && confirmedRegular % 2 === 1;
-  const evaluableCount = suppliers.filter(s => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回').length;
+  // 可评供应商（解密成功且未撤回）——启动闸门家数与评分进度分母共用此集
+  const evaluableSuppliers = suppliers.filter(s => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回');
+  const evaluableCount = evaluableSuppliers.length;
   const minBidders = project.minBidders ?? 3;
   const biddersOk = evaluableCount >= minBidders;
   const startBlockers: string[] = [];
@@ -627,12 +629,14 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   const step0Ready = canGenerate && leaderSigned && openDisputeCount === 0 && (!roundsRequired || roundsClosed);
 
   const itemCount = scoreItems.length;
-  // F4：评分格位分母同样只计正选（候补无评分权限，计入会压低进度百分比）
-  const totalSlots = regularExperts.length * suppliers.length * itemCount;
+  // F4：评分格位分母同样只计正选（候补无评分权限，计入会压低进度百分比）；
+  // 供应商侧只计可评集（解密成功且未撤回，与后端专家可评集同口径）——DANGER/未投递/已撤回
+  // 家不可产生评分，计入分母会让进度永不到 100%（矩阵同时存在永久 '—' 死列，展示误导）
+  const totalSlots = regularExperts.length * evaluableSuppliers.length * itemCount;
   let scoredSlots = 0;
   for (const expert of regularExperts) {
     const row = matrix.get(expert.id);
-    if (row) for (const s of suppliers) scoredSlots += Math.min(row.get(s.id)?.scoredCount ?? 0, itemCount);
+    if (row) for (const s of evaluableSuppliers) scoredSlots += Math.min(row.get(s.id)?.scoredCount ?? 0, itemCount);
   }
   const scorePct = totalSlots > 0 ? Math.round((scoredSlots / totalSlots) * 100) : 0;
 
@@ -961,6 +965,9 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                   {row.expertRole !== EXPERT_ROLE.REGULAR && (
                     <span className="bid-pill bid-pill--muted shrink-0 text-[9px]">候补</span>
                   )}
+                  {row.isPurchaserRepresentative && (
+                    <span className="bid-pill bid-pill--accent shrink-0 text-[9px]">业主代表</span>
+                  )}
                 </div>
                 <span className={`flex flex-1 items-center justify-center gap-1 text-[10px] font-semibold ${row.signedIn ? 'text-[var(--success)]' : 'text-[var(--muted-foreground)]'}`}>
                   <UserCheck size={11} /> {row.signedIn ? '已签到' : '未签到'}
@@ -1179,6 +1186,12 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 >
                   <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[var(--foreground)]">
                     {expert.expertName}
+                    {/* 业主代表（含手动录入临时账号）——与库内专家同权参与，现场点名/核验可辨 */}
+                    {expert.isPurchaserRepresentative && (
+                      <span className="ml-1.5 inline-flex shrink-0 items-center rounded-full bg-[oklch(0.94 0.05 258/0.5)] px-1.5 py-0.5 align-middle text-[9px] font-bold text-[var(--accent)]">
+                        业主代表
+                      </span>
+                    )}
                     {/* FE-5（2026-09-24）：组长徽章——管理端替换/递补接任组长后现场端可辨新任组长（仅实名区，匿名矩阵不变） */}
                     {expert.isLead && (
                       <span

@@ -170,6 +170,9 @@ function WorkspaceInner() {
           ),
         };
       });
+      // 解密时间等衍生列不在 WS 载荷内——终局态（SUCCESS/DANGER）回拉详情补齐，
+      // 否则大厅「解密时间」列要等下一个事件才刷新（可能长时间显示 '—'）
+      if (data.decryptStatus === 'SUCCESS' || data.decryptStatus === 'DANGER') loadProject();
     },
     onStageChange: () => { loadProject(); },
     onOpeningConfirmed: (d) => {

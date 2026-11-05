@@ -4,14 +4,14 @@
  * 主持人无感知继续操作全部失败。遮罩形态从 :3006 session-kick 简化移植
  * （本门户无「反馈管理员」双按钮体系，主持人是内部人员，单按钮重登即可）。
  */
+import { portalURL } from '@water-erp/config';
 
-/** 客户端跳 :3006 登录页——按当前访问主机构建（模块级 portalURL 绝对常量在 LAN
- * 平板上会跳 localhost：224debd3 修过 proxy 同款，此处为 app-shell 客户端侧同源修复）。 */
+/** 客户端跳 :3006 登录页。域名双轨（2026-10-26）：*.scsfjt.com 家族访问跳 expert 子域、
+ *  端口/IP 访问跳同主机 :3006——此前硬编码 hostname:3006，生产域名模式下落到公网
+ *  不暴露的 3006 端口死链（2026-11-05 审计；proxy.ts 服务端侧当时已改、此处漏网）。
+ *  仅客户端调用（遮罩按钮/on401 跳转），portalURL 的 SSR 占位分支不可达。 */
 export function expertLoginUrl(extra = '?forceLogin=1'): string {
-  if (typeof window === 'undefined') return `/login${extra}`;
-  const { protocol, hostname } = window.location;
-  const expertPort = 3006; // PORTS.expert
-  return `${protocol}//${hostname}:${expertPort}/login${extra}`;
+  return portalURL('expert', `/login${extra}`);
 }
 
 function goToLogin() {

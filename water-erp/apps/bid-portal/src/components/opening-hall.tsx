@@ -34,6 +34,9 @@ const STAGES = ['投递中', '解密中', '确认中', '已完成'] as const;
 
 /** 双信封轨判据（阶段2.5 收口：dual-v2|dual-v3 同走新轨——后端 decryptSupplier 对双轨硬拒代解密） */
 const isDualTrack = (v?: string | null): boolean => v === 'dual-v2' || v === 'dual-v3';
+/** dual-v3 专属：唱标值来自加密承诺（fieldsCommit），主持人只读核对。dual-v2 仍人工录入+MISMATCH 闸门
+ *  （2eff49ee 自述「legacy/dual-v2 轨完全不变」——2026-11-05 审计发现只读/徽标误扩到 isDualTrack，此处收窄） */
+const isDualV3 = (v?: string | null): boolean => v === 'dual-v3';
 
 /** decrypt-outer 批量聚合形状判别（批量：details 数组 + total/success/skipped/failed 计数） */
 type DecryptOuterBatch = { total: number; success: number; skipped: number; failed: number; details: DecryptOuterDetail[] };
@@ -74,12 +77,12 @@ function renderRecordCell(
 ) {
   switch (f.key) {
     case 'amount':
-      // dual-v2 报价以万元入库：带单位标记时直出「万元」，避免裸数字被读成「元」
-      return <td key={f.key} className="px-5 py-3 font-mono font-bold tracking-tight text-[color:var(--foreground)]">{r.amountUnit === '万元' && r.amount ? `${r.amount} 万元` : r.amount}</td>;
+      // dual-v2 报价以万元入库：带单位标记时直出「万元」，避免裸数字被读成「元」；空值兜底同其余列
+      return <td key={f.key} className="px-5 py-3 font-mono font-bold tracking-tight text-[color:var(--foreground)]">{r.amountUnit === '万元' && r.amount ? `${r.amount} 万元` : r.amount || '—'}</td>;
     case 'period':
-      return <td key={f.key} className="px-5 py-3 text-[color:var(--muted-foreground)]">{r.period}</td>;
+      return <td key={f.key} className="px-5 py-3 text-[color:var(--muted-foreground)]">{r.period || '—'}</td>;
     case 'qualityTarget':
-      return <td key={f.key} className="px-5 py-3 text-[color:var(--muted-foreground)]">{r.qualityTarget}</td>;
+      return <td key={f.key} className="px-5 py-3 text-[color:var(--muted-foreground)]">{r.qualityTarget || '—'}</td>;
     case 'bondStatus':
       return (
         <td key={f.key} className={`px-5 py-3 text-[13px] font-bold ${r.bondStatus === '已缴纳' || r.bondStatus === '保函有效' ? 'text-[var(--success)]' : r.bondStatus === '未缴纳' || r.bondStatus === '异常' ? 'text-[var(--danger)]' : 'text-[color:var(--muted-foreground)]'}`}>
@@ -477,7 +480,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const openRecordEntry = async (s: { id: string; supplierName: string; envelopeVersion?: string | null }, reentry = false) => {
     if (!projectId) return;
     if (recordEntryLoading) return; // C2（第四波补）：行级禁用后防弹窗目标切换竞态（同 openAdjudge 款）
-    const dualReadOnly = isDualTrack(s.envelopeVersion ?? (project.suppliers.find(x => x.id === s.id)?.envelopeVersion));
+    const dualReadOnly = isDualV3(s.envelopeVersion ?? (project.suppliers.find(x => x.id === s.id)?.envelopeVersion));
     setRecordEntry({ bidSupplierId: s.id, supplierName: s.supplierName, reentry, readOnly: dualReadOnly });
     setRecordDraft({ amount: '', period: '', qualityTarget: '', bondStatus: '', amountUnit: null, bondCompliance: null, fieldConfig: [], customFields: {} });
     setBidBondAssetId(null);
@@ -946,6 +949,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                 const isDecrypting = decrypting.has(s.id);
                 // 双信封轨（T17 + 阶段2.5）：新轨分派（dual-v2|dual-v3；envelopeVersion 由项目详情派生下发）
                 const isDual = isDualTrack(s.envelopeVersion);
+                const isV3 = isDualV3(s.envelopeVersion);
                 const outerDone = !!s.outerDecryptedAt;
                 // P1-4：参标=已投递——未投递/已撤回名册行的行级操作收口（见操作列）
                 const isSubmitted = s.submitStatus === '已提交';
@@ -1063,8 +1067,9 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                             </button>
                           ) : record.confirmStatus === '待供应商确认' ? (
                             <>
-                              {/* dual-v3：值来自加密承诺（fieldsCommit），主持人只读核对——不可重录修改 */}
-                              {isDual ? (
+                              {/* dual-v3：值来自加密承诺（fieldsCommit），主持人只读核对——不可重录修改；
+                                  dual-v2 仍走人工录入轨（可重录+MISMATCH 确认重试） */}
+                              {isV3 ? (
                                 <button type="button" onClick={() => openRecordEntry(s, true)} disabled={recordEntryLoading && recordEntry?.bidSupplierId === s.id}
                                   className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[color:var(--muted-foreground)] transition-colors hover:text-[var(--foreground)] disabled:opacity-50">
                                   <Eye size={12} strokeWidth={1.5} /> 查看唱标
@@ -1334,8 +1339,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                     }`}>
                       <td className="px-5 py-3 font-medium text-[color:var(--foreground)]">
                         {r.supplierName}
-                        {/* dual-v3 来源标识：值来自加密承诺 */}
-                        {isDualTrack((project.suppliers.find(s => s.supplierName === r.supplierName)?.envelopeVersion)) && (
+                        {/* dual-v3 来源标识：值来自加密承诺（dual-v2 唱标值来自解密上传/人工录入，不标） */}
+                        {isDualV3((project.suppliers.find(s => s.supplierName === r.supplierName)?.envelopeVersion)) && (
                           <span className="ml-1 inline-flex items-center" title="唱标值来自加密承诺（fieldsCommit），自动公布">
                             <ShieldCheck size={12} strokeWidth={1.75} className="text-[var(--success)]" />
                           </span>

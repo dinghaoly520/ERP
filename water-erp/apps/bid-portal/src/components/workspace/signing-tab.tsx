@@ -116,9 +116,10 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
     setAssignBusy(true);
     const results = batchResult ?? [];
     const withTarget = pendingAssign.filter((a) => a.target);
+    let hostRouted = false;
     for (const a of withTarget) {
       try {
-        if (a.target === 'host') await uploadOpeningSignScan(projectId, 'host', a.file);
+        if (a.target === 'host') { await uploadOpeningSignScan(projectId, 'host', a.file); hostRouted = true; }
         else if (a.target === 'supervisor') await uploadOpeningSignScan(projectId, 'supervisor', a.file);
         else if (a.target === 'report') await uploadSignaturePageScan(projectId, a.file);
         else if (a.target.startsWith('expert:')) await uploadExpertScan(projectId, a.target.slice(7), a.file);
@@ -129,6 +130,17 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
     }
     for (const a of pendingAssign) {
       if (!a.target) results.push({ file: a.file.name, target: '', status: 'unmatched', note: '未分配，已跳过' });
+    }
+    // 开标记录件到齐即自动登记——人工分配路径与智能路由/合并扫描同口径（此前漏挂：
+    // 主持人件经分配器补传后开标记录签字卡停「待登记」且无手动登记出口）
+    const openingFail = results.some((x) => (x.target === 'host' || x.target === 'supervisor') && x.status === 'fail');
+    if (hostRouted && !openingFail) {
+      try {
+        await registerOpeningSign(projectId);
+        results.push({ file: '（系统）', target: '开标记录自动登记', status: 'ok' });
+      } catch (e: any) {
+        results.push({ file: '（系统）', target: '开标记录自动登记', status: 'fail', note: e?.message ?? '有监督人且未到齐等场景请单独补传' });
+      }
     }
     setBatchResult(results);
     setPendingAssign(null);
@@ -433,7 +445,7 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
                   )}
                   <span className="ml-1 text-[11px] text-[var(--muted-foreground)]">{e.major}</span>
                 </td>
-                <td className="text-[var(--muted-foreground)]">{e.role}{e.isPurchaserRepresentative ? '·采购人代表' : ''}</td>
+                <td className="text-[var(--muted-foreground)]">{e.role}{e.isPurchaserRepresentative ? '·业主代表' : ''}</td>
                 <td>
                   <span className="sign-status font-semibold" data-status={e.signStatus}>
                     {STATUS_LABEL[e.signStatus] ?? e.signStatus}
