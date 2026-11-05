@@ -396,6 +396,9 @@ export class BidDecryptService {
         // pass2：二读 C_outer → 分块解密 → 无界队列桥 Readable → putObject 流式上传。
         // SM4 解密吞吐 ≪ MinIO 上传，队列实践恒 ~1 段；极端失配上限亦只等价旧整驻峰值
         // （不劣化）。上传侧中止时生成器 finally 掐断源流，孤儿解密随之终止。
+        // 终审二轮 TOCTOU 真修：pass2 内对源字节再散列并末尾比对信封声明（第 4 参）——
+        // 闸语义升格为「证明被解密的字节」，两遍读之间暂存件被调包即拒 OUTER_HASH_MISMATCH；
+        // pass1 保留为快预检（不合格件不浪费解密功），归因经下方 outcome() 原样抛出不伪装。
         const objectKey = `bid-inner/${projectId}/${bidSupplierId}/${role}.${submission.revision}.${attempt}.inner`;
         const queue: Buffer[] = [];
         let wake: (() => void) | null = null;
@@ -406,7 +409,7 @@ export class BidDecryptService {
         const outcome = (): Pass2Outcome | null => settled as Pass2Outcome | null;
         const outerStream = await minioClient.getObject(MINIO_BUCKET, readKey);
         const decryptPromise = this.dualEnvelope
-          .decryptOuterStreamV3(outerStream, dek, (b) => { queue.push(b); notify(); })
+          .decryptOuterStreamV3(outerStream, dek, (b) => { queue.push(b); notify(); }, entry.outerSha256)
           .then(
             (meta) => { settled = { ok: true, meta }; notify(); return meta; },
             (error: unknown) => { settled = { ok: false, error }; notify(); throw error; },

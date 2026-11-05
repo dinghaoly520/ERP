@@ -193,7 +193,7 @@ worker → 主  { id, type:'done', plainBlob: Blob, plainSha256, plainBytes }
 | T8 上传链路修复 | 两 XHR 超时按体积缩放 + 60s 停滞判活（addEventListener 化看门狗） | 53bf595..99e9034/ea89a36 |
 | T9 投递页/补传卡接线 | 遮罩进度相位 + 取消（worker/本地/上传尾三相位 settle） | ea89a36..ad7aa00 |
 | T10 解密卡接线 | 流式下载解密 + 回传进度 + 取消 | ad7aa00..797db10 |
-| T11 服务端两遍流式 | `bid-decrypt.service.ts` decryptOuterOneV3 + `dual-envelope.service.decryptOuterStreamV3/unwrapOuterDekV3`（哈希闸语义不变、C_inner 零驻留） | 797db10..dcbb87e |
+| T11 服务端两遍流式 | `bid-decrypt.service.ts` decryptOuterOneV3 + `dual-envelope.service.decryptOuterStreamV3/unwrapOuterDekV3`（哈希闸语义不变、C_inner 零驻留；终审二轮同日升格 pass2 源字节再散列闸，见 §9.5③） | 797db10..dcbb87e |
 | T12 e2e+基准+文档 | `apps/api/test/bid-v3.e2e-spec.ts` ⑪ 100MB 用例 + `packages/ukey/scripts/sm4-chunked-bench.js` + 本纪要 | （本次提交） |
 
 ### 9.2 基准实测（2026-11-05，Node 24.16.0 本机，`sm4-chunked-bench.js`）
@@ -213,7 +213,7 @@ worker → 主  { id, type:'done', plainBlob: Blob, plainSha256, plainBytes }
 
 - 链路：测试进程 ukey 分块双层加密（与浏览器 worker 同一密码学内核，明文逐块现生成不整驻）→ C_outer 暂存 → prepare/signing-payload/submit v3（I6 归属闸+T4 备份固化真实执行）→ 签到 quorum+OPENING+会话+指派主持人 → **真实 HTTP 端点 `POST /bid/projects/:id/opening/decrypt-outer`**（bid_host 登录 token_bid，AssignedHostGuard 按指派放行）。
 - 断言：SUCCESS / roles=[technical] / C_inner FileAsset.sha256 == 加密侧增量自算 innerSha256（字节级一致性的端到端证明） / size==innerBytes==outerBytes−16 / DecryptExecution SUCCESS / MinIO 对象在位；耗时 console.log 输出。
-- 两连跑实测（隔离库 water_erp_e2e + Redis 6390，2026-11-05）：plain=104857607B（100MB+7 非对齐）outer=104857632B inner=104857616B；**加密 28.5s/27.7s，submit 0.56s/0.62s（含 MinIO 100MB 备份读回写回），decrypt-outer 14.6s/14.4s（两遍流：哈希闸+解密写回），用例全程 ~44s**；套件 10/10 绿（~48s）。
+- 三连跑实测（隔离库 water_erp_e2e + Redis 6390，2026-11-05）：plain=104857607B（100MB+7 非对齐）outer=104857632B inner=104857616B；**加密 28.5s/27.7s，submit 0.56s/0.62s（含 MinIO 100MB 备份读回写回），decrypt-outer 14.6s/14.4s（两遍流：pass1 哈希预检 + pass2 源字节再散列闸+解密写回），用例全程 ~44s**；套件 10/10 绿（~48s）。
 - **用例头注的口径偏差**：C_outer 暂存不走 `encrypted-assets` 端点而按端点同构直写 MinIO+FileAsset——因该端点 multer 闸 `MAX_OUTER_BYTES = 50MiB+32B` **未随「全库统一 500MB」（2026-11-05）上调**（见 §9.5 待修项①；**同日 fix-wave 已上调**，用例直写口径仍有效、无需回改）；小件真实端点路径由用例①覆盖。
 
 ### 9.4 部署注记
@@ -228,6 +228,7 @@ worker → 主  { id, type:'done', plainBlob: Blob, plainSha256, plainBytes }
 1. **`encrypted-assets` 端点 50MiB 闸未上调（P0，500MB 链路唯一断点）——✅ 已修（2026-11-05 终审 fix-wave）**：原状 `MAX_OUTER_BYTES = 50*1024*1024+32` 漏改致 >50MiB 投递暂存即 413。fix-wave 三闸全量上调：`encrypted-asset.controller.ts` `MAX_OUTER_BYTES = 500*1024*1024+32`（两层 CBC padding 上限，注释记录 memoryStorage 500MB 瞬态 Buffer RSS 预算 + D4 单文件口径/多角色线性叠加不设闸）；`supplier-portal.controller.ts` `decrypt-upload` FileFieldsInterceptor per-file `fileSize = 500*1024*1024`（memoryStorage，至多 4 角色线性叠加）；同文件 `reupload-dual` 50MB → 500MB（**裁定：统一上调**——v2 前端已下线、信封实际 ≤50MB，为防口径漂移仍对齐 500MB）。`encrypted-asset.controller.spec.ts` 原 413 用例未硬编码数值，无需对齐。暂存 413 断点解除，500MB 浏览器全链（验收 #2）服务端侧可达。
    - **部署注记（挂审计缺口④，与 §9.4 `proxy_read_timeout` 一并处理）**：生产 nginx 对这组上传路由（`supplier-portal/bid-submissions/:id/encrypted-assets` / `reupload-dual` / `decrypt-upload`）`client_max_body_size` 须 ≥500MB——网关默认 1m 档会在 multer 闸之前就 413。
 2. dual-v2 存量整解路径（decryptOuterFile/decryptOuterOne v2 分支）未分块化（spec §4.5 既定不动；存量 v2 信封 ≤50MB，整解可承受）。
+3. **pass2 源字节不复核（TOCTOU 窗口）——✅ 已修（2026-11-05 终审二轮 review-round3）**：原状 pass1 `Sha256Incremental` 哈希闸（OUTER_HASH_MISMATCH）验的是**第一遍读**的字节，pass2 解密的是**第二遍独立读**——闸不再为被解密字节背书，两遍读之间暂存件被调包（MinIO 侧并发写/攻击面）可绕闸。修复：`decryptOuterStreamV3` 新增第 4 参 `expectedOuterSha256`（调用方传 `entry.outerSha256`），pass2 对**本遍实际消费的源字节**（喂解密器前）增量再散列，流末+`final()` 后比对——闸语义升格为「证明被解密的字节」，TOCTOU 窗口闭合；pass1 保留为快预检（不合格件不浪费解密功）。失配 → 同码同文案 OUTER_HASH_MISMATCH，经队列桥 `outcome()` 原样抛出（不伪装 STORAGE_FAILED/OUTER_FAILED）；解密失败仍先收口 OUTER_DECRYPT_FAILED（两闸互不背锅）。测试：`dual-envelope.service.spec.ts`（诚实放行 + 合法密文调包拒 OUTER_HASH_MISMATCH）、`bid-decrypt.service.spec.ts`（pass1 好件/pass2 调包件 → 拒且不落 FileAsset+回滚）。
 
 ### 9.6 验收对照与偏差记录
 

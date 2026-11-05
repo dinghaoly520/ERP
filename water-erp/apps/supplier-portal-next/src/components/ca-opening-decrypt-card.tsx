@@ -13,6 +13,7 @@
 import { useRef, useState } from 'react';
 import { LockOpen, LoaderCircle, CircleCheck } from 'lucide-react';
 import { toast } from 'sonner';
+import { useLeaveGuard } from '@/hooks/use-leave-guard';
 import { supplierApi } from '@/lib/api/supplier';
 import * as scca from '@/utils/scca-ukey';
 import { assertSecureContext, buildDecryptProofCanonical, pickShieldByFingerprint } from '@/utils/dual-v3-client';
@@ -58,6 +59,9 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
   /** 解密相位取消信号（F5 修复波）：local 降级引擎 terminate 是 no-op、长时间无
    *  效——AbortController 才能中断其流式管线（块边界 CRYPTO_CANCELLED） */
   const abortRef = useRef<AbortController | null>(null);
+
+  // 解密/上传在途离开守卫（终审二轮 F6）：刷新/关闭=解密与已传部分全部重来——busy 期间确认拦截
+  useLeaveGuard(busy, '正在解密/上传标书，刷新或关闭页面将丢失全部进度，确定离开吗？');
 
   if (done) {
     return (
@@ -209,7 +213,7 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
           </>
         )}
         {error && (
-          <div className="mt-3 text-xs" style={{ color: 'var(--danger, #c0392b)' }} role="alert">{error}</div>
+          <div className="mt-3 text-xs text-[var(--danger)]" role="alert">{error}</div>
         )}
       </SpDialog>
     </>

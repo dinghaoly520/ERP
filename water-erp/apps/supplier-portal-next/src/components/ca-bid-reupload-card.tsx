@@ -216,7 +216,7 @@ export function CaBidReuploadCard({ projectId, onReuploaded }: {
           </div>
         )}
         {error && (
-          <div className="mt-3 text-xs" style={{ color: 'var(--danger, #c0392b)' }} role="alert">{error}</div>
+          <div className="mt-3 text-xs text-[var(--danger)]" role="alert">{error}</div>
         )}
       </SpDialog>
     </>

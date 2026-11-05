@@ -126,14 +126,21 @@ export class DualEnvelopeService {
    * onPlainChunk 外送，同时增量哈希+计数。全程只持分块缓冲——500MB C_outer 不整驻内存。
    * PKCS#7 非法/密文截断 → OUTER_FAILED（与整读版同语义）；流自身的读错误不在此收口——
    * 存储故障保持原始错误（解密失败归因链路据此判定 BIDDER/PLATFORM，勿伪装）。
+   *
+   * expectedOuterSha256（终审二轮 TOCTOU 真修，2026-11-05）：pass2 对**本遍实际消费的源字节**
+   * （C_outer，喂解密器前）增量再散列，流末与信封声明比对——闸语义从「pass1 预检」升格为
+   * 「证明被解密的字节」，两遍读之间暂存件被调包的窗口闭合。失配 → OUTER_HASH_MISMATCH
+   * （与调用方 pass1 前置闸同码同文案；pass1 保留为快预检，不合格件不浪费解密功）。
    */
   async decryptOuterStreamV3(
     outerStream: AsyncIterable<Buffer>,
     dek: { keyHex: string; ivHex: string },
     onPlainChunk: (b: Buffer) => void,
+    expectedOuterSha256: string,
   ): Promise<{ plainBytes: number; plainSha256: string }> {
     const decryptor = new Sm4CbcChunkedDecryptor(dek);
     const hasher = new Sha256Incremental();
+    const sourceHasher = new Sha256Incremental(); // 本遍源字节（C_outer）再散列——TOCTOU 闭合闸
     let plainBytes = 0;
     const emit = (run: () => Uint8Array): void => {
       let plain: Uint8Array;
@@ -150,9 +157,13 @@ export class DualEnvelopeService {
       onPlainChunk(Buffer.from(plain.buffer, plain.byteOffset, plain.byteLength));
     };
     for await (const chunk of outerStream) {
+      sourceHasher.update(chunk); // 喂解密器前先记源字节——散列对象是被消费的 C_outer 本身
       emit(() => decryptor.update(chunk));
     }
     emit(() => decryptor.final());
+    if (sourceHasher.finalHex() !== expectedOuterSha256) {
+      throw new BadRequestException(OUTER_HASH_MISMATCH);
+    }
     return { plainBytes, plainSha256: hasher.finalHex() };
   }
 
@@ -164,3 +175,5 @@ export class DualEnvelopeService {
 
 const INCOMPLETE = { error: '信封缺少角色密封件或哈希不符', code: 'ENVELOPE_INCOMPLETE' } as const;
 const OUTER_FAILED = { error: '外层解密失败（管理方私钥不匹配或信封损坏）', code: 'OUTER_DECRYPT_FAILED' } as const;
+// 与 bid-decrypt.service.ts pass1 前置闸同码同文案（终审二轮 TOCTOU 修复：pass2 源字节再散列比对）
+const OUTER_HASH_MISMATCH = { error: '外层密文哈希与信封声明不符（疑似暂存件被调包）', code: 'OUTER_HASH_MISMATCH' } as const;

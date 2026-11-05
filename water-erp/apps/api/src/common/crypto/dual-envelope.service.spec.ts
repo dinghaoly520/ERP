@@ -125,6 +125,8 @@ async function expectBizErrorAsync(fn: () => Promise<unknown>, error: string, co
 
 const OUTER_FAILED = { error: '外层解密失败（管理方私钥不匹配或信封损坏）', code: 'OUTER_DECRYPT_FAILED' };
 const INCOMPLETE = { error: '信封缺少角色密封件或哈希不符', code: 'ENVELOPE_INCOMPLETE' };
+// 与 bid-decrypt.service.ts pass1 前置闸同码同文案（pass2 源字节再散列闸 · 终审二轮）
+const OUTER_HASH_MISMATCH = { error: '外层密文哈希与信封声明不符（疑似暂存件被调包）', code: 'OUTER_HASH_MISMATCH' };
 
 const FIELDS: SealedFields = { price: '15800000.00', deliveryPeriod: '540', qualityCommitment: '合格' };
 const NONCE = 'n-20260820-0001';
@@ -309,9 +311,10 @@ describe('DualEnvelopeService', () => {
       );
     });
 
-    it('decryptOuterStreamV3：>2MB 跨块分块喂入 → onPlainChunk 拼接 == C_inner、plainBytes/plainSha256 与整算一致', async () => {
+    it('decryptOuterStreamV3：>2MB 跨块分块喂入 → onPlainChunk 拼接 == C_inner、plainBytes/plainSha256 与整算一致（源哈希闸诚实放行）', async () => {
       const pieces: Buffer[] = [];
-      const r = await svc.decryptOuterStreamV3(feedCOuter(), dekA, (b) => pieces.push(b));
+      // 第 4 参=源字节真实哈希（诚实件）——末尾比对通过，正常返回（TOCTOU 闸不误伤）
+      const r = await svc.decryptOuterStreamV3(feedCOuter(), dekA, (b) => pieces.push(b), await sha256Hex(cOuter));
       expect(Buffer.concat(pieces)).toEqual(cInner);
       expect(r.plainBytes).toBe(cInner.length);
       expect(r.plainSha256).toBe(await sha256Hex(cInner)); // 整算独立口径（Node 全量哈希，非被测增量实现）
@@ -320,8 +323,18 @@ describe('DualEnvelopeService', () => {
     it('decryptOuterStreamV3 与整读版 decryptOuterFileV3 输出逐字节一致（两轨同源）', async () => {
       const whole = await svc.decryptOuterFileV3(v3Entry(), cOuter, adminKp.privateKey);
       const pieces: Buffer[] = [];
-      await svc.decryptOuterStreamV3(feedCOuter(), dekA, (b) => pieces.push(b));
+      await svc.decryptOuterStreamV3(feedCOuter(), dekA, (b) => pieces.push(b), await sha256Hex(cOuter));
       expect(Buffer.concat(pieces)).toEqual(whole);
+    });
+
+    it('decryptOuterStreamV3：源字节哈希 ≠ 信封声明（两遍读之间被调包但仍是合法密文）→ 末尾比对拒 400 OUTER_HASH_MISMATCH（TOCTOU 闭合）', async () => {
+      // 喂真实合法 C_outer（解密本身成功、final() 正常）——失配只可能来自源哈希闸，
+      // 钉死「闸在解密完成之后比对源字节」的语义（区别于解密失败的 OUTER_DECRYPT_FAILED）
+      await expectBizErrorAsync(
+        () => svc.decryptOuterStreamV3(feedCOuter(), dekA, () => {}, 'e'.repeat(64)),
+        OUTER_HASH_MISMATCH.error,
+        OUTER_HASH_MISMATCH.code,
+      );
     });
 
     it('decryptOuterStreamV3：密文翻转一字节（末块，固定 DEK+固定件保证确定性）→ 400 OUTER_DECRYPT_FAILED', async () => {
@@ -341,19 +354,22 @@ describe('DualEnvelopeService', () => {
         yield tampered.subarray(0, 16);
         yield tampered.subarray(16);
       }
+      const fedSha = await sha256Hex(tampered); // 第 4 参=所喂字节的真哈希——本用例只钉解密失败路径，源哈希闸不背锅
       await expectBizErrorAsync(
-        () => svc.decryptOuterStreamV3(feed(), fixedDekA, () => {}),
+        () => svc.decryptOuterStreamV3(feed(), fixedDekA, () => {}, fedSha),
         OUTER_FAILED.error,
         OUTER_FAILED.code,
       );
     });
 
     it('decryptOuterStreamV3：密文截断（非 16B 对齐）→ 400 OUTER_DECRYPT_FAILED', async () => {
+      const truncated = cOuter.subarray(0, cOuter.length - 1);
       async function* feed(): AsyncGenerator<Buffer> {
-        yield cOuter.subarray(0, cOuter.length - 1);
+        yield truncated;
       }
+      const fedSha = await sha256Hex(truncated); // 解密失败先于源哈希比对收口（两闸互不背锅）
       await expectBizErrorAsync(
-        () => svc.decryptOuterStreamV3(feed(), dekA, () => {}),
+        () => svc.decryptOuterStreamV3(feed(), dekA, () => {}, fedSha),
         OUTER_FAILED.error,
         OUTER_FAILED.code,
       );

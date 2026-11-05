@@ -863,6 +863,40 @@ describe('BidDecryptService — decryptOuter 主持端解外层 (dual-v3 · Task
     }));
   });
 
+  it('v3 pass2 再散列闸（TOCTOU 闭合）：pass1 读到声明好件、pass2 读到不同合法密文 → 400 OUTER_HASH_MISMATCH 原样抛，产物不落地+回滚', async () => {
+    // 调包件须仍是同 DEK 下的合法密文（解密/final 正常走完）——失配只能由 pass2 末尾的
+    // 源字节再散列闸揭发（终审二轮：闸语义=证明被解密的字节）。垃圾字节会在解密处以
+    // OUTER_DECRYPT_FAILED 拒——同为拒绝，本用例钉的是两遍读之间调包的闸语义本身。
+    const cInner2 = crypto.randomBytes(64 * 1024 + 7);
+    const cOuter2 = Buffer.from(sm4Encrypt(dekA.keyHex, dekA.ivHex, cInner2.toString('hex')), 'hex');
+    let reads = 0;
+    (minioClient.getObject as jest.Mock).mockReset().mockImplementation(async () => {
+      reads += 1;
+      const src = reads === 1 ? cOuter : cOuter2; // pass1=声明好件（预检放行）；pass2=调包件
+      return Readable.from((function* chunks(): Generator<Buffer> {
+        for (let i = 0; i < src.length; i += 64 * 1024) {
+          yield src.subarray(i, Math.min(i + 64 * 1024, src.length));
+        }
+      })());
+    });
+
+    await expect(service.decryptOuter('p1', 'bs-1', 'u1')).rejects.toMatchObject({
+      response: { code: 'OUTER_HASH_MISMATCH' }, // 经队列桥 outcome() 原样抛——不伪装 STORAGE_FAILED
+    });
+    // 两遍读都发生（pass1 预检放行后 pass2 才揭发）——闸语义=证明被解密的字节
+    expect(minioClient.getObject).toHaveBeenCalledTimes(2);
+    // 产物不落地：无 FileAsset、无 innerAssets 归属写回（putObject 即便已起流，产物被弃）
+    expect(prisma.fileAsset.create).not.toHaveBeenCalled();
+    expect(prisma.supplierBidSubmission.update).not.toHaveBeenCalled();
+    // 失败回滚：槽位 FAILED + outerDecryptedAt 复原 null（可直接重试）
+    expect(prisma.decryptExecution.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: { status: 'FAILED' },
+    }));
+    expect(prisma.supplierBidSubmission.updateMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      data: { outerDecryptedAt: null },
+    }));
+  });
+
   it('v3 错私钥：unwrapOuterDekV3 解封失败 → 400 OUTER_DECRYPT_FAILED 原样抛（不伪装 STORAGE_FAILED）+ 回滚', async () => {
     adminKeyMock.readPrivateKey.mockResolvedValue(sm2.generateKeyPairHex().privateKey); // 错私钥
 
