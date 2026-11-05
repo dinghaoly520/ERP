@@ -158,7 +158,6 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const canGoWeb = me?.role !== 'bid_host';
   const canHost = me?.role === 'admin' || (!!me?.id && project.assignedHostUser?.id === me.id);
   const [startOpen, setStartOpen] = useState(false);
-  // New UX state
   const [decrypting, setDecrypting] = useState<Set<string>>(new Set());
   const [inlineDispute, setInlineDispute] = useState<string | null>(null);
   const [disputeHandleResult, setDisputeHandleResult] = useState('');
