@@ -3,11 +3,10 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import * as LucideIcons from 'lucide-react';
-import { getNotifications, getUnreadNotificationCount, markNotificationRead, markAllNotificationsRead } from '@/lib/api/supplier';
-import type { Notification } from '@/lib/types';
+import { getNotifications, getUnreadNotificationCount, markNotificationRead, markAllNotificationsRead, resolveNotification, type BellNotification } from '@/lib/api/supplier';
 import { getNotificationMeta, getNotificationLabel } from '@water-erp/shared';
 import { resolveBidLink } from './notification/realtime-notifications';
-import { Bell, CheckCheck } from 'lucide-react';
+import { Bell, CheckCheck, CheckCircle2 } from 'lucide-react';
 
 /** 类型图标从 shared 注册表派生（2026-09-26 单一事实源；原本地 9 条兜底表已删） */
 function resolveIcon(type?: string | null): { Icon: React.ComponentType<{ size?: number; strokeWidth?: number }>; cls: string } {
@@ -26,7 +25,7 @@ function resolveIcon(type?: string | null): { Icon: React.ComponentType<{ size?:
 export default function NotificationBell() {
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<Notification[]>([]);
+  const [items, setItems] = useState<BellNotification[]>([]);
   const ref = useRef<HTMLDivElement>(null);
 
   const loadUnread = () => {
@@ -57,20 +56,40 @@ export default function NotificationBell() {
 
   const router = useRouter();
 
-  const handleItemClick = async (n: Notification) => {
+  /** 按服务端真值回填角标与列表。动作后本地不乐观谎报——服务端五段语义
+   *（2026-09-27）下 markAllAsRead 只清知会类、markAsRead 对未办结待办是
+   * no-op，本地全置已读会在 30s 轮询/重开面板时「复活」（2026-11-05 实录：
+   * 全部已读看似无效）。 */
+  const refresh = async () => {
+    const [cnt, list] = await Promise.all([
+      getUnreadNotificationCount().catch(() => null),
+      getNotifications(1, 10).catch(() => null),
+    ]);
+    if (cnt) setUnread(cnt.count);
+    if (list) setItems(list.items);
+  };
+
+  const handleItemClick = async (n: BellNotification) => {
     if (!n.isRead) {
       await markNotificationRead(n.id).catch(() => {});
-      setItems(prev => prev.map(x => x.id === n.id ? { ...x, isRead: true } : x));
-      setUnread(prev => Math.max(0, prev - 1));
+      await refresh();
     }
     const href = resolveBidLink(n.link);
     if (href) { setOpen(false); router.push(href); }
   };
 
+  /** 办结待办（resolveOwn）：待办的唯一消解出口（对齐 :3005 处理窗「标记已办」，
+   * 2026-11-04 语义——办结同时置已读，角标同步消减）。 */
+  const handleResolve = async (e: React.MouseEvent, n: BellNotification) => {
+    e.stopPropagation();
+    await resolveNotification(n.id).catch(() => {});
+    await refresh();
+  };
+
   const handleAllRead = async () => {
-    await markAllNotificationsRead();
-    setItems(prev => prev.map(n => ({ ...n, isRead: true })));
-    setUnread(0);
+    await markAllNotificationsRead().catch(() => {});
+    // 只清知会类：剩余未读=待办（本面板逐条「标记已办」消解），角标如实显示
+    await refresh();
   };
 
   return (
@@ -102,6 +121,7 @@ export default function NotificationBell() {
             ) : (
               items.map(n => {
                 const { Icon: IconComp, cls } = resolveIcon(n.type);
+                const actionable = getNotificationMeta(n.type).actionable && !n.resolvedAt;
                 return (
                   <div key={n.id}
                     className={`px-4 py-3 border-b border-[oklch(0.94_0.004_264)] hover:bg-[oklch(0.992_0.003_264)] cursor-pointer ${!n.isRead ? 'bg-[oklch(0.97_0.008_262)]' : ''}`}
@@ -117,6 +137,14 @@ export default function NotificationBell() {
                           {getNotificationLabel(n.type)} · {new Date(n.createdAt).toLocaleString('zh-CN')}
                         </p>
                       </div>
+                      {actionable && (
+                        <button type="button"
+                          onClick={(e) => handleResolve(e, n)}
+                          className="flex flex-shrink-0 items-center gap-1 self-center whitespace-nowrap rounded-lg border border-[oklch(0.6_0.04_258_/_0.14)] px-2 py-1 text-[11px] font-medium text-[oklch(0.42_0.14_260)] transition-colors hover:border-[oklch(0.42_0.14_260_/_0.4)] hover:bg-[oklch(0.42_0.14_260_/_0.06)]"
+                          aria-label="标记已办">
+                          <CheckCircle2 size={12} strokeWidth={1.5} /> 标记已办
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
