@@ -68,19 +68,6 @@ export async function getExtractionTask(taskId: string): Promise<{
   return handleResponse(res);
 }
 
-// For use-tender-review.ts - returns the actual rules
-export async function extractRulesFromKb(
-  knowledgeBaseId: string,
-): Promise<ComplianceRule[]> {
-  const res = await apiFetch(`${API_BASE}/rules/extract`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ knowledgeBaseId }),
-  });
-  return handleResponse(res);
-}
-
 // Original signature for rules-panel.tsx compatibility
 export async function createRuleLegacy(
   data: Omit<ComplianceRule, 'id' | 'isActive' | 'createdAt' | 'updatedAt'>,
@@ -90,20 +77,6 @@ export async function createRuleLegacy(
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
     body: JSON.stringify(data),
-  });
-  return handleResponse(res);
-}
-
-// New signature for use-tender-review.ts
-export async function createRule(
-  kbId: string,
-  data: Omit<ComplianceRule, 'id' | 'knowledgeBaseId' | 'createdAt' | 'updatedAt'>,
-): Promise<ComplianceRule> {
-  const res = await apiFetch(`${API_BASE}/rules`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ ...data, knowledgeBaseId: kbId }),
   });
   return handleResponse(res);
 }

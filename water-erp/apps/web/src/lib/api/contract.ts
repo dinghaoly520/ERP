@@ -154,10 +154,6 @@ export function signContract(id: string, data: { signedAssetId?: string; signedA
   return api.post<Contract>(`/contracts/${id}/sign`, data);
 }
 
-export function publishContractNotice(id: string) {
-  return api.post<{ announcementId: string; created: boolean }>(`/contracts/${id}/contract-notice`, {});
-}
-
 export function generateContractDraftDocx(id: string) {
   return api.post<{ fileAssetId: string; objectKey: string; size: number }>(`/contracts/${id}/draft-docx`, {});
 }
@@ -176,11 +172,6 @@ export function acceptContract(id: string, data: { note?: string; proofAssetId?:
 
 export function terminateContract(id: string, reason: string) {
   return api.post<Contract>(`/contracts/${id}/terminate`, { reason });
-}
-
-/** C4：登记响应担保退还/不予退还（合同关联的 BidProject，项目级·兼容保留——UI 已切逐家端点） */
-export function markBondReturned(projectId: string, data: { returned: boolean; reason?: string }) {
-  return api.post<{ id: string; bondReturnedAt: string | null }>(`/bid/projects/${projectId}/bond-return`, data);
 }
 
 /** A-105（实施条例第57条）：保证金逐家退还行——花名册 × 唱标 bondStatus × 退还态 × 中标标识 */

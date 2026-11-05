@@ -19,8 +19,6 @@ export type ReminderInfo = {
   dueAt: string | null;
 };
 
-export type ReminderCallback = (info: ReminderInfo, action: ReminderAction) => void;
-
 // 检查浏览器通知权限
 export async function requestNotificationPermission(): Promise<boolean> {
   if (!('Notification' in window)) {

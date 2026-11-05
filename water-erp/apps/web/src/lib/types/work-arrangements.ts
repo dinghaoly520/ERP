@@ -151,35 +151,6 @@ export type WorkArrangementWorkbenchOverview = {
   overview: string;
 };
 
-export type WorkArrangementTaskFlowGroupKey =
-  | 'FOCUS'
-  | 'IN_PROGRESS'
-  | 'TODO'
-  | 'BLOCKED'
-  | 'TODAY'
-  | 'WEEK'
-  | 'ALL';
-
-export type WorkArrangementTaskFlowGroup = {
-  key: WorkArrangementTaskFlowGroupKey;
-  title: string;
-  count: number;
-  items: WorkArrangementItem[];
-};
-
-export type WorkArrangementWorkbenchSignal =
-  | { type: 'SUMMARY'; filter: 'DUE_TODAY' | 'RISK' | 'IN_PROGRESS' | 'TODO' }
-  | { type: 'FOCUS_ITEM'; taskId: string }
-  | { type: 'TIME_BLOCK'; taskIds: string[] }
-  | { type: 'RISK_ALERT'; taskIds: string[] };
-
-export type WorkArrangementSummary = {
-  todoCount: number;
-  inProgressCount: number;
-  dueTodayCount: number;
-  riskCount: number;
-};
-
 export type PostponeWorkArrangementReminderPayload = {
   preset: 'PLUS_30_MINUTES' | 'THIS_AFTERNOON' | 'TOMORROW_MORNING' | 'CUSTOM';
   targetAt?: string;
@@ -205,10 +176,3 @@ export const WORK_ARRANGEMENT_STATUS_LABELS: Record<
 > = Object.fromEntries(
   WORK_ARRANGEMENT_STATUS_OPTIONS.map((item) => [item.value, item.label]),
 ) as Record<WorkArrangementStatus, string>;
-
-export const WORK_ARRANGEMENT_RECURRENCE_LABELS: Record<
-  WorkArrangementRecurrence,
-  string
-> = Object.fromEntries(
-  WORK_ARRANGEMENT_RECURRENCE_OPTIONS.map((item) => [item.value, item.label]),
-) as Record<WorkArrangementRecurrence, string>;

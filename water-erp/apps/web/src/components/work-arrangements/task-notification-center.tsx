@@ -12,12 +12,6 @@ import { listNotifications, markNotificationRead } from '@/lib/api/notification'
 import { Bell, Inbox, ClipboardList, CircleCheck, BookOpen, CheckCheck, ArrowRight, Loader2 } from 'lucide-react';
 import { handleNotificationClick } from '@/lib/notification-click';
 
-export interface PlannedItem {
-  title: string;
-  estimatedMinutes: number;
-  link: string;
-}
-
 /* ════════════════════════════════════════════════════════════════
  * 任务通知卡片（2026-09-27 重设计：与通知中心 /notifications 五段状态一致）
  *

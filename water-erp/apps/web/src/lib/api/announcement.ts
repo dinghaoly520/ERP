@@ -7,14 +7,6 @@ import { apiFetch } from './api-fetch';
 export type AnnouncementType = 'BID_NOTICE' | 'ADDENDUM' | 'PREQUAL_NOTICE' | 'PRE_WIN_NOTICE' | 'WIN_NOTICE' | 'CONTRACT_NOTICE' | 'PERFORMANCE_NOTICE' | 'POLICY' | 'PLATFORM' | 'FAILED_BID_NOTICE' | 'WIN_BID_NOTICE';
 export type AnnouncementStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED' | 'HIDDEN' | 'OFFLINE';
 
-/** 回收站留痕（隐藏/下架时后端合并写入 metadata.recycle；恢复后清除，2026-09-26） */
-export interface AnnouncementRecycleInfo {
-  from: AnnouncementStatus;
-  action: 'HIDDEN' | 'OFFLINE';
-  at: string;
-  by?: string | null;
-}
-
 export interface AnnouncementAttachment {
   id: string;
   announcementId: string;
@@ -195,10 +187,6 @@ export function updateAnnouncement(id: string, data: Partial<{
   return api.put<AnnouncementPublishResult>(`/announcements/${id}`, data);
 }
 
-export function deleteAnnouncement(id: string) {
-  return api.delete<{ deleted?: boolean }>(`/announcements/${id}`);
-}
-
 /* ── 回收站（2026-09-26：隐藏/下架/恢复取代删除）── */
 
 export function hideAnnouncement(id: string) {
@@ -263,17 +251,6 @@ export function addAttachment(announcementId: string, fileAssetId: string, title
 }
 export function removeAttachment(attachmentId: string) {
   return api.delete<{ deleted: boolean }>(`/announcements/attachments/${attachmentId}`);
-}
-
-/** 从已有本地对象挂载公告附件（引用项目采购文件，后端复制到 MinIO） */
-export function attachFromObject(
-  announcementId: string,
-  data: { objectKey: string; fileName?: string; title?: string; mimeType?: string; size?: number },
-) {
-  return api.post<AnnouncementAttachment>(
-    `/announcements/${announcementId}/attachments/from-object`,
-    data,
-  );
 }
 
 /** 上传文件（沿用既有 /upload），返回 fileAsset 信息 */

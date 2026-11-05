@@ -1,4 +1,4 @@
-import type { ProcurementsListResponse, LedgerSummary, ResultStatusKey } from '../types/procurement';
+import type { ProcurementsListResponse, ResultStatusKey } from '../types/procurement';
 import { api } from '../api';
 
 export async function fetchProcurements(params: {
@@ -51,18 +51,6 @@ export async function fetchLedgerCompanyCounts(params: {
   if (params.category) query.set('category', params.category);
   if (params.companyId && params.companyId !== 'all') query.set('companyId', params.companyId);
   return api.get<Array<{ name: string; count: number }>>(`/procurements/company-counts?${query.toString()}`);
-}
-
-export async function fetchLedgerStats(
-  startDate?: string,
-  endDate?: string,
-  companyId?: string,
-): Promise<LedgerSummary> {
-  const query = new URLSearchParams();
-  if (startDate) query.set('startDate', startDate);
-  if (endDate) query.set('endDate', endDate);
-  if (companyId && companyId !== 'all') query.set('companyId', companyId);
-  return api.get<LedgerSummary>(`/procurements/stats?${query.toString()}`);
 }
 
 export async function fetchProcurementMethods(): Promise<string[]> {

@@ -6,7 +6,6 @@ import type {
   WorkArrangementRecurrence,
   WorkArrangementScope,
   WorkArrangementStatus,
-  WorkArrangementTemplate,
   WorkArrangementType,
   WorkArrangementUrgency,
 } from '@/lib/types/work-arrangements';
@@ -156,15 +155,6 @@ export async function addWorkArrangementNote(
   });
 
   return parseJsonResponse<WorkArrangementNote>(response);
-}
-
-export async function fetchWorkArrangementTemplates() {
-  const response = await apiFetch(`${API_BASE}/work-arrangements/templates`, {
-    credentials: 'include',
-    cache: 'no-store',
-  });
-
-  return parseJsonResponse<WorkArrangementTemplate[]>(response);
 }
 
 export type WorkPortrait = {

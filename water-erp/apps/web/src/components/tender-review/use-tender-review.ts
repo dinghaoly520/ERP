@@ -5,8 +5,6 @@ import { toast } from 'sonner';
 import { useTenderReview } from './tender-review-context';
 import { createKnowledgeBase, deleteKnowledgeBase, uploadKnowledgeFile, deleteKnowledgeFile, reindexKnowledgeBase, updateKnowledgeBase } from '@/lib/api/knowledge';
 import { uploadReviewDocument, executeReview, stopReviewTask, deleteReviewTask, fetchReviewTask } from '@/lib/api/review';
-import { createRule, updateRule, deleteRule, extractRulesFromKb } from '@/lib/api/rules';
-import type { ComplianceRule } from '@/lib/types/tender-review';
 
 // Re-export the context hook for convenience
 export { useTenderReview } from './tender-review-context';
@@ -178,65 +176,3 @@ export function useReviewOps() {
   };
 }
 
-// Rule operations
-export function useRuleOps() {
-  const { refreshKnowledgeBases } = useTenderReview();
-
-  const create = useCallback(async (kbId: string, data: Omit<ComplianceRule, 'id' | 'knowledgeBaseId' | 'createdAt' | 'updatedAt'>) => {
-    try {
-      const rule = await createRule(kbId, data);
-      toast.success('规则创建成功');
-      await refreshKnowledgeBases();
-      return rule;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : '创建规则失败';
-      toast.error(msg);
-      throw err;
-    }
-  }, [refreshKnowledgeBases]);
-
-  const update = useCallback(async (ruleId: string, data: Partial<ComplianceRule>) => {
-    try {
-      const rule = await updateRule(ruleId, data);
-      toast.success('规则更新成功');
-      await refreshKnowledgeBases();
-      return rule;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : '更新规则失败';
-      toast.error(msg);
-      throw err;
-    }
-  }, [refreshKnowledgeBases]);
-
-  const remove = useCallback(async (ruleId: string) => {
-    try {
-      await deleteRule(ruleId);
-      toast.success('规则已删除');
-      await refreshKnowledgeBases();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : '删除规则失败';
-      toast.error(msg);
-      throw err;
-    }
-  }, [refreshKnowledgeBases]);
-
-  const extractFromKb = useCallback(async (kbId: string) => {
-    try {
-      const result = await extractRulesFromKb(kbId);
-      toast.success(`提取了 ${result.length} 条规则`);
-      await refreshKnowledgeBases();
-      return result;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'AI提取规则失败';
-      toast.error(msg);
-      throw err;
-    }
-  }, [refreshKnowledgeBases]);
-
-  return {
-    create,
-    update,
-    remove,
-    extractFromKb,
-  };
-}

@@ -50,7 +50,3 @@ export function createEvaluation(data: {
 export function generatePerformanceReport(periodLabel?: string) {
   return api.post<{ fileAssetId: string; size: number }>('/performance/report', { periodLabel });
 }
-
-export function submitSatisfaction(data: { projectCode: string; score: number; comment?: string }) {
-  return api.post<unknown>('/supplier-portal/satisfaction', data);
-}

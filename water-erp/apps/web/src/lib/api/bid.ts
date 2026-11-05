@@ -177,10 +177,6 @@ export interface BidScorePoint {
   linkedRequirementIds?: string[] | null;
 }
 
-export function listScorePoints(bidProjectId: string, itemId: string) {
-  return api.get<BidScorePoint[]>(`/bid/projects/${bidProjectId}/score-items/${itemId}/points`);
-}
-
 export function createScorePoint(
   bidProjectId: string,
   itemId: string,
@@ -375,11 +371,6 @@ export function notifyOpeningDecision(bidProjectId: string, payload: OpeningDeci
 
 /* ── 开标决策 ── */
 
-/** 开放投标投递（DOWNLOAD → SUBMIT）*/
-export function openSubmission(bidProjectId: string) {
-  return api.post<{ stage: BidStage }>(`/bid/projects/${bidProjectId}/open-submission`, {});
-}
-
 /** 启动开标（SUBMIT → OPENING），可附带主持人/监督员/解密窗口 */
 export function startOpening(
   bidProjectId: string,
@@ -499,13 +490,6 @@ export function updateBidProjectSchedule(
   data: { openTime?: string; deadline?: string },
 ) {
   return api.patch<BidProjectRef>(`/bid/projects/${bidProjectId}`, data);
-}
-
-/** 开标会话时间 */
-export function getOpeningSessionTime(bidProjectId: string) {
-  return api.get<{ openTime: string; decryptWindowStart?: string; decryptWindowEnd?: string } | null>(
-    `/bid/projects/${bidProjectId}/opening-session/time`,
-  );
 }
 
 /* ── Phase 2：:3005 开评标指挥中心（项目详情 / 评标管理 / 澄清答疑 / 归档）── */

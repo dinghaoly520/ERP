@@ -258,14 +258,6 @@ export function uploadExtractionFile(file: File) {
   return api.postForm<{ id: string; key: string; url: string; originalName: string; size: number; mimeType: string }>(`/upload?category=bid_document`, fd);
 }
 
-export function generateNotification(data: {
-  projectName: string; expertName: string; isLead: boolean;
-  totalExperts: number; extractMode: string; openTime: string;
-  isAlternate?: boolean; projectId?: string;
-}) {
-  return api.post<{ success: boolean; generated: boolean; content: string | null }>('/expert-admin/notification/generate', data);
-}
-
 export function prepRsvpLinks(projectId: string, force = false) {
   // force：强制换发（未回复行换新 token 重置 15 分钟有效期；已回复行保持原链接）
   return api.post<{ links: Record<string, string> }>(`/expert-admin/projects/${projectId}/rsvp-links`, { force });

@@ -1,9 +1,9 @@
 /* Re-exports from @water-erp/shared — single source of type truth */
 export type {
   User, BidProject, BidSupplier, BidExpert, BidScoreItem,
-  BidSupervisionLog, BidArchiveItem, BidClarification, BidProjectDetail,
+  BidSupervisionLog, BidArchiveItem, BidProjectDetail,
   ExpertStatistics, ExpertProject, ExpertProjectDetail,
-  DecryptedDocuments, AssistData, EvaluationReport,
+  AssistData, EvaluationReport,
   Supplier, SupplierContact, SupplierQualification,
   SupplierBankAccount, SupplierPerformance, FileLink,
   SupplierClassification, SupplierEvaluation, SupplierChangeRecord,

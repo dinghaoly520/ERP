@@ -85,20 +85,6 @@ export type LedgerFilterState = {
   category?: "archived" | "terminated" | null;
 };
 
-// 统计汇总
-export type LedgerSummary = {
-  totalCount: number;
-  awardedCount: number;
-  pendingCount: number;
-  abnormalCount: number;
-  totalBudget: number;
-  totalBudgetLabel: string;
-  totalAward: number;
-  totalAwardLabel: string;
-  totalSavings: number;
-  totalSavingsLabel: string;
-};
-
 // 状态配置
 export type StatusConfig = {
   key: ResultStatusKey;

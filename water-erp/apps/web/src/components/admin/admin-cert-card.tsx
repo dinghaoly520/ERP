@@ -202,6 +202,3 @@ export function AdminCertPage() {
     </div>
   );
 }
-
-/** 向后兼容：旧引用（如 :3007 侧栏复用）继续导出卡片形态 */
-export { AdminCertPage as AdminCertCard };

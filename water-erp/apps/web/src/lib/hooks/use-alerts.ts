@@ -2,23 +2,9 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api/api-fetch';
 
-export interface OverviewAlerts { expiringQualifications: number; overloadedExperts: number; }
 export interface SupplierAlertQual { id: string; name: string; type: string; validTo: Date; daysLeft: number; }
 export interface SupplierAlerts { expiringQualifications: SupplierAlertQual[]; }
 export interface ExpertAlerts { activeProjectCount: number; overloaded: boolean; consecutiveE: boolean; }
-
-export function useAlertsOverview() {
-  const [data, setData] = useState<OverviewAlerts>({ expiringQualifications: 0, overloadedExperts: 0 });
-  useEffect(() => {
-    let active = true;
-    apiFetch('/api/alerts/overview', { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (active && d) setData(d); })
-      .catch(() => {});
-    return () => { active = false; };
-  }, []);
-  return data;
-}
 
 export function useSupplierAlerts(supplierId: string | undefined) {
   const [data, setData] = useState<SupplierAlerts>({ expiringQualifications: [] });

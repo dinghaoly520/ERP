@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Building2 } from "lucide-react";
 import { api } from "@/lib/api";
 
 /**
@@ -82,32 +81,6 @@ export function companyColor(name: string): string {
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
   return COMPANY_PALETTE[Math.abs(hash) % COMPANY_PALETTE.length];
-}
-
-/** 行级公司标签：无归属显示灰色「未归属」；hideWhenMissing=true 时不渲染（单行降噪） */
-export function CompanyTag({
-  name,
-  hideWhenMissing = false,
-  className = "",
-}: {
-  name?: string | null;
-  hideWhenMissing?: boolean;
-  /** 附加类（如 shrink-0 防被 flex 挤压截断） */
-  className?: string;
-}) {
-  const label = (name ?? "").trim() || NO_COMPANY;
-  if (hideWhenMissing && label === NO_COMPANY) return null;
-  const color = companyColor(label);
-  return (
-    <span
-      className={`inline-flex max-w-[220px] items-center gap-1 truncate rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold ${className}`}
-      style={{ color, backgroundColor: `color-mix(in oklch, ${color} 9%, transparent)` }}
-      title={label === NO_COMPANY ? "创建人未归属任何公司，请管理员在账号管理中归位" : label}
-    >
-      <Building2 size={10} strokeWidth={2} className="shrink-0" />
-      <span className="truncate">{label}</span>
-    </span>
-  );
 }
 
 export interface CompanyCount {
