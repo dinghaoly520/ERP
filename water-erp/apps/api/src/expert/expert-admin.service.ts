@@ -777,6 +777,12 @@ export class ExpertAdminService {
         },
       },
       select: { id: true },
+    }).catch((err: unknown) => {
+      // 并发竞态（判重查过→他请求先建同 idCard）触发 [username, role] 唯一键 P2002 → 转 409 语义而非 500（createExpert 同口径）
+      if (err instanceof Error && (err as { code?: string }).code === 'P2002') {
+        throw new BadRequestException({ error: '该身份证号的临时账号已存在，请重试（将自动复用既有账号）', code: 'DUPLICATE_USERNAME' });
+      }
+      throw err;
     });
     await this.auditExpert(operatorId, 'DEMAND_REP_EXTERNAL_CREATE', user.id, { expertName: name, employer: employer ?? null });
     return { userId: user.id, name, specialty: dto.specialty?.trim() || '综合', employer: employer ?? null, isTemp: true, reused: false };
