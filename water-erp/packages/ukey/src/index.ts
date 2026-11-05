@@ -7,3 +7,4 @@ export * from './scca-transport';
 export * from './scca-ukey';
 // scca-fixture 仅测试用——不导出到公共 API
 export * from './dual-v3';
+export * from './sha256-increment';
