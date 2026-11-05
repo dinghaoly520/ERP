@@ -689,6 +689,35 @@ export class ExpertAdminService {
       where: { username: idCard, role: 'bid_expert' },
       select: { id: true, isTempExpert: true },
     });
+    // 库内重复判定（2026-11-05 用户裁定：姓名+身份证号均一致才提示「已在库，请库内指定」）。
+    // 库内专家 username=姓名（非证件号），username 查重抓不到；ExpertProfile.idNumber 密文无盲索引，
+    // 按库容（~180）全量拆封比对——毫秒级，库容上量再演进盲索引列。
+    if (!existing) {
+      const libExperts = await this.prisma.user.findMany({
+        where: { role: 'bid_expert', isTempExpert: false },
+        select: { username: true, displayName: true, expertProfile: { select: { idNumber: true } } },
+      });
+      const idHit = libExperts.find((u) => {
+        if (!u.expertProfile?.idNumber) return false;
+        // 拆封失败容错（密钥轮转期/个别坏行）：跳过该行而非打断录入（无匹配=允许建号，username 查重仍兜底）
+        let plain: string | null = null;
+        try { plain = openPiiForMask(u.expertProfile.idNumber); } catch { plain = null; }
+        return plain != null && plain.trim().toUpperCase() === idCard;
+      });
+      if (idHit) {
+        const names = new Set([idHit.username.trim(), (idHit.displayName || '').trim()]);
+        if (names.has(name)) {
+          throw new BadRequestException({
+            error: `「${name}」的姓名与身份证号均与库内专家一致——该人员已在专家库中，请直接在库内指定其为需求方代表`,
+            code: 'EXPERT_ALREADY_IN_LIBRARY',
+          });
+        }
+        throw new BadRequestException({
+          error: `该身份证号与库内专家「${idHit.displayName || idHit.username}」相同但姓名不一致——请核实证件号；确为同一人请在库内指定`,
+          code: 'IDCARD_MISMATCH_LIBRARY',
+        });
+      }
+    }
     if (existing && !existing.isTempExpert) {
       throw new BadRequestException({ error: '该身份证号已是库内专家账号——请直接在库内指定该人员为代表', code: 'ID_OCCUPIED_BY_EXPERT' });
     }
