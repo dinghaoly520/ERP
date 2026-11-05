@@ -49,7 +49,6 @@ const KNOWN_EXACT_ROUTES = new Set([
   '/tender-review',
   '/tender-write',
   '/work-arrangements',
-  '/workflow',
 ]);
 
 /**

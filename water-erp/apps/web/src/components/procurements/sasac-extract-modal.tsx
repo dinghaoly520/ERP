@@ -335,7 +335,7 @@ export function SasacExtractModal({ open, onClose, companyId }: { open: boolean;
     };
 
     const wb = XLSX.utils.book_new();
-    // Sheet1 采购项目：首列分组 + 18 项指标；阶段列以换行符分隔逐行显示
+    // Sheet1 采购项目：首列分组 + 19 项指标；阶段列以换行符分隔逐行显示
     const stageText = (p: SasacProjectRow) =>
       (p.steps?.length ?? 0) > 0
         ? p.steps!.map((s) => `${s.order}.${s.name}${s.code ? `[${s.code}]` : ""}${s.completed ? "" : "…"}`).join("\n")

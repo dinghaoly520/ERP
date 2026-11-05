@@ -49,7 +49,7 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
   // 身份核验完成度（R5 2026-09-20 §4.5：归档面板只读计数——不设新闸门）
   const [verification, setVerification] = useState<ExpertVerificationMatrix | null>(null);
 
-  // P1-9：依赖收敛到原始值签名（stage + updatedAt 刻度）——30s 轮询换引用但状态未变时不重拉
+  // P1-9：依赖收敛到原始值签名（stage + 归档证据条数）——30s 轮询换引用但状态未变时不重拉
   const refreshSignal = `${detail?.stage ?? ''}|${detail?.archiveItems?.length ?? 0}`;
   useEffect(() => {
     let alive = true;

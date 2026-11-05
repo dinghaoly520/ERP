@@ -207,9 +207,6 @@ export function exportSuppliersToExcel(suppliers: any[]) {
   });
 }
 
-// ── 专家库导出（按公司分组区块，2026-10-19）──后端扁平 JSON（PII 已掩码）按「所属公司」
-// 分组：admin 多区块/非 admin 单区块；公司按人数降序（与 :3005 库页一致）、组内姓名升序；
-// 区块间空行+打印分页符——打印时每公司自然成页（「表内分页」）。
 /** 专家导出列（2026-11-05 用户裁定）：列名列序严格对齐导入模板
  *  （expert-csv-actions CSV_HEADERS）——平铺表、首行即表头，导出文件可直接回导。 */
 const EXPERT_EXPORT_COLUMNS: Array<{ key: string; width: number }> = [
