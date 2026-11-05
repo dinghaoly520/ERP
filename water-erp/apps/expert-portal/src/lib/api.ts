@@ -1,6 +1,6 @@
 import { createApiClient, ApiError } from '@water-erp/client';
 import type { ExpertMemo } from '@water-erp/shared';
-import { showSessionReplacedOverlay, showFrozenOverlay } from '@/lib/session-kick';
+import { showSessionReplacedOverlay, showFrozenOverlay, showTempExpiredOverlay, showPasswordChangedOverlay } from '@/lib/session-kick';
 
 /**
  * expert-portal 专家门户 API 客户端 —— 基于 @water-erp/client 统一封装。
@@ -23,6 +23,10 @@ const client = createApiClient({
     if (window.location.pathname === '/login' || window.location.pathname === '/tablet/claim') return; // claim 页的密码错 401 由表单就地呈现
     if (error.code === 'SESSION_REPLACED') { showSessionReplacedOverlay(error.message); return; }
     if (error.code === 'ACCOUNT_FROZEN') { showFrozenOverlay(error.message); return; }
+    // 2026-11-05：临时账号随项目终态失效 / 密码变更吊销旧会话——此前落入兜底静默跳登录，
+    // 后端文案丢失（用户须再试一次登录才知道原因）；同遮罩口径就地说明
+    if (error.code === 'TEMP_ACCOUNT_EXPIRED') { showTempExpiredOverlay(error.message); return; }
+    if (error.code === 'PASSWORD_CHANGED') { showPasswordChangedOverlay(error.message); return; }
     // EXP-P3-05：携带 redirect——会话过期后从深链（如通知里的 /invitation/:id）进来，
     // 登录成功应回原页而非落首页（proxy 层页面级 redirect 已保留，此处为 API 层 401 补齐）
     window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
@@ -91,6 +95,8 @@ export interface MyInvitation {
   stage: string;
   isExtractionOnly?: boolean;
   expertRole: string;
+  /** 业主代表（含 2026-11-05 手动录入的临时账号）——页面身份徽标用，非「正选/候补专家」 */
+  isPurchaserRepresentative?: boolean;
   invitationStatus: string;
   signedIn: boolean;
 }

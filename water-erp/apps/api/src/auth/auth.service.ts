@@ -677,11 +677,22 @@ export class AuthService {
     const t = JSON.parse(raw) as { userId: string; expertName: string; projectId: string; sid: string; ticketId: string };
     const user = await this.prisma.user.findUnique({
       where: { id: t.userId },
-      select: { id: true, username: true, role: true, isActive: true, isFrozen: true, passwordHash: true, webSessionId: true },
+      select: { id: true, username: true, role: true, isActive: true, isFrozen: true, isTempExpert: true, passwordHash: true, webSessionId: true },
     });
     if (!user || user.role !== 'bid_expert' || !user.isActive || user.isFrozen) {
       await redis.del(key);
       throw new BadRequestException({ error: '迁移码无效', code: 'TICKET_INVALID' });
+    }
+    // 临时需求方代表（2026-11-05）：claim 是独立入口不走 login 闸——同口径复核未终态绑定，
+    // 防 90s 票据窗口内项目归档/流标后过期 temp 账号仍领票迁平板（会话 DOA）
+    if (user.isTempExpert) {
+      const binding = await this.prisma.bidExpert.count({
+        where: { userId: user.id, project: { stage: { notIn: ['ARCHIVED', 'ABORTED'] } } },
+      });
+      if (binding === 0) {
+        await redis.del(key);
+        throw new UnauthorizedException({ error: '临时账号已随项目结束失效，请联系采购中心', code: 'TEMP_ACCOUNT_EXPIRED' });
+      }
     }
     // 票据绑定签发时会话：桌面会话已被替换/吊销 → 票据随之作废（防旧票复用）
     if (!user.webSessionId || user.webSessionId !== t.sid) {

@@ -20,7 +20,8 @@ export function FieldCard({
         <span className="text-[11px] text-[var(--muted-foreground)]">{label}</span>
       </div>
       <div className="text-sm font-semibold text-[var(--foreground)]">
-        {value != null ? String(value) + (suffix ?? '') : '—'}
+        {/* 空串与 null/undefined 同兜底（PII 无源恢复的行为 ''，空白格会被误读为缺渲染） */}
+        {value != null && value !== '' ? String(value) + (suffix ?? '') : '—'}
       </div>
     </div>
   );

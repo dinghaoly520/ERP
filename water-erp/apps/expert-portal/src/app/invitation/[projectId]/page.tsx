@@ -109,7 +109,7 @@ export default function InvitationConfirmPage() {
                   <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">项目编号：{inv.projectCode}</p>
                 </div>
                 <span className="exp-pill shrink-0" style={{ '--c': 'var(--accent)' } as React.CSSProperties}>
-                  {inv.expertRole === '正选' ? '正选专家' : '候补专家'}
+                  {inv.isPurchaserRepresentative ? '业主代表' : inv.expertRole === '正选' ? '正选专家' : '候补专家'}
                 </span>
               </div>
               <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">

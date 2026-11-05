@@ -153,3 +153,26 @@ export function showFrozenOverlay(message?: string) {
   });
   window.setTimeout(goToLogin, 20000);
 }
+
+/** 临时账号已随项目终态失效（2026-11-05 需求方代表临时账号）：仅提示，回登录页。
+ *  非 security 事件（项目归档/流标/换人是预期 lifecycle），无「反馈管理员」按钮。 */
+export function showTempExpiredOverlay(message?: string) {
+  renderOverlay({
+    title: '临时账号已失效',
+    desc: message && message.trim() ? message : '临时账号仅项目存续期间可用，项目已结束，请联系采购中心。',
+    primaryText: '知道了',
+    onPrimary: goToLogin,
+  });
+  window.setTimeout(goToLogin, 20000);
+}
+
+/** 密码已变更，旧会话立即失效（R6-5① 全命名空间 iat 拦截）：仅提示，回登录页 */
+export function showPasswordChangedOverlay(message?: string) {
+  renderOverlay({
+    title: '密码已变更',
+    desc: message && message.trim() ? message : '密码已变更，请使用新密码重新登录。',
+    primaryText: '重新登录',
+    onPrimary: goToLogin,
+  });
+  window.setTimeout(goToLogin, 20000);
+}

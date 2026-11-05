@@ -58,7 +58,7 @@ function ExpertRsvpPage() {
   const isDone = view && (view.status === 'confirmed' || view.status === 'declined');
   const INFO = view ? [
     ['项目所属公司', view.companyName || '—'], ['开标时间', fmt(view.openTime)],
-    ['开标地点', view.openLocation || '—'], ['采购方式', view.procurementMethod],
+    ['开标地点', view.openLocation || '—'], ['采购方式', view.procurementMethod || '—'],
   ] : [];
 
   return (

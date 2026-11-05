@@ -26,6 +26,7 @@
 
 - **登录双闸**：auth.service.login 校验 + AuthGuard 每请求复核（仅 isTempExpert 账号付一次 `bidExpert.count`，普通用户零开销）；失效码 `TEMP_ACCOUNT_EXPIRED`
 - 判定谓词：`bidExpert.count({ userId, project: { stage: { notIn: ['ARCHIVED','ABORTED'] } } }) > 0`
+- **第三入口同闸（2026-11-05 审计补）**：`/auth/expert-transfer/claim`（平板工位迁移密码重证）不走 login——claimExpertTransferLocked 内同谓词复核，90s 票据窗口内项目终态即 401 并烧票；:3006 前端 on401 对 TEMP_ACCOUNT_EXPIRED/PASSWORD_CHANGED 增设遮罩（原落入兜底静默跳登录，文案丢失）
 
 ## 端点与 UI
 

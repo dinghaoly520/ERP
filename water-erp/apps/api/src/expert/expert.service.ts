@@ -305,6 +305,7 @@ export class ExpertService {
       stage: record.project.stage,
       isExtractionOnly: record.project.isExtractionOnly,
       expertRole: record.expertRole,
+      isPurchaserRepresentative: record.isPurchaserRepresentative,
       invitationStatus: record.invitationStatus,
       signedIn: record.signedIn,
     };
