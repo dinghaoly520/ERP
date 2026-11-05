@@ -582,10 +582,9 @@ export function SupplierSelectionPage({
   // 硬性条件词表（行业=库内公司视野聚合+家数、资质=后端字典）；失败给空词表（UI 显示空态，不阻塞向导）
   useEffect(() => { if (!sessionRestored || hardVocab) return; getHardConditionVocab().then(setHardVocab).catch(() => setHardVocab({ industries: [], qualifications: [] })); }, [sessionRestored, hardVocab]);
 
-  // 从项目管理弹窗进入时，自动将 projectId 解析为 BidProject id（规范 id 空间），
-  // 确保 rsvp 行的创建/读取与开标确认面板始终一致。
-  // 严格匹配落空（新项目尚无开评标记录）时走 ensureBidProject 创建本轮，
-  // 不再静默留空——留空会让第四步配置把 PMI id 当 BidProject id 用（update 静默失败）。
+  // 从项目管理弹窗进入时自动将 projectId 解析为 BidProject id（规范 id 空间，rsvp 行创建/读取
+  // 与开标确认面板一致）；严格匹配落空（新项目无开评标记录）走 ensureBidProject 创建本轮——留空会
+  // 让第四步把 PMI id 当 BidProject id 用（update 静默失败）。
   useEffect(() => {
     if (!project?.id || projectId) return;
     const match = projects.find(p => p.projectManagementItemId === project.id);
@@ -924,10 +923,8 @@ export function SupplierSelectionPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionRestored, selectedProject?.id, tagVocab.length]);
 
-  // 模态入口：自动解析项目 ID；步骤由 session 恢复决定（首次进入=步骤 1，再次进入=上次步骤）
-  // 不再按项目名模糊匹配 BidProject——多轮/同名场景会把新项目误挂到
-  // 旧轮记录（实录：新项目命中 9/7 旧测试轮，谈判配置被旧轮固化截标 409 拦截）。
-  // 项目 id 在手时走 ensureBidProject（无记录则创建本轮）；拿不到再兜底严格列表匹配。
+  // 模态入口：自动解析项目 ID（步骤由 session 恢复决定）；不再按项目名模糊匹配 BidProject——多轮/同名
+  // 会误挂旧轮（实录：谈判配置被旧轮固化截标 409 拦截）；id 在手走 ensureBidProject，拿不到兜底严格匹配。
   const autoMatchedRef = useRef(false);
   useEffect(() => {
     if (!defaultProjectTitle || !projects.length || autoMatchedRef.current) return;
@@ -1722,11 +1719,9 @@ export function SupplierSelectionPage({
     }, 500);
   };
 
-  // 第 5 步：工作人员代回应/代变更（2026-10-21 回执锁定口径重设计）
-  // 供应商回执一次性锁定后，采购端不再「点击循环切换」——代确认/代拒绝统一走弹窗：
-  // 必填理由落 InvitationRsvp.staffReason + 轨迹 STAFF_MARKED；「确认→拒绝」由后端
-  // 联动通知供应商本人（RSVP_OVERRIDDEN）并计入其邀请回执经历。本地三套确认 Map
-  // 与回执看板同源刷新（正选/当前补选/历史轮次补选一并写）。
+  // 第 5 步：工作人员代回应/代变更（2026-10-21 回执锁定口径重设计）：回执锁定后不再点击循环切换，
+  // 代确认/代拒绝走弹窗——必填理由落 InvitationRsvp.staffReason + 轨迹 STAFF_MARKED；「确认→拒绝」后端
+  // 联动通知供应商（RSVP_OVERRIDDEN）并计回执经历；本地三套确认 Map（正选/补选/历史轮）同源刷新。
   const [proxyMark, setProxyMark] = useState<{
     sid: string; name: string;
     target: 'ACCEPTED' | 'DECLINED';

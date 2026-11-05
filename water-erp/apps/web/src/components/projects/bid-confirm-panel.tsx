@@ -764,10 +764,9 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                   <EmptyHint text="尚未组建专家组。请先在「专家抽取」步骤完成抽取并通知。" />
                 ) : (
                   (() => {
-                    // 在册专家（未婉拒）+ 已婉拒分区（2026-10-21 代为变更适配：婉拒行保留可见——
-                    // 婉拒专家不进本表（2026-10-23 用户口径：拒绝的专家不显示在表格中、
-                    // 不计入本项目评标专家——留痕与恢复通道在专家抽取向导的各确认表）
-                    // 候补在 DB 中 invitationStatus 默认为 pending（不要求 RSVP 确认），有记录即已选定
+                    // 在册专家（未婉拒）+ 已婉拒分区：2026-10-23 用户口径——婉拒专家不进本表、不计入
+                    // 评标专家（留痕/恢复在抽取向导各确认表；2026-10-21 代为变更适配曾保留婉拒行可见）。
+                    // 候补 invitationStatus 默认 pending（不要求 RSVP），有记录即已选定。
                     const activeExperts = workspace.experts.filter(
                       e => e.invitationStatus !== 'declined',
                     );

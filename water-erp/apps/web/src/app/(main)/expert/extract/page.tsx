@@ -508,10 +508,8 @@ export function ExpertExtractPage({
     return () => clearInterval(timer);
   }, [step, pid, reDraft]);
 
-  // modal 模式状态恢复
-  // 两个独立 effect，不互等，消除 localStorage ↔ invitationData 加载竞态：
-  //   ① pid 就绪后立即查 localStorage（上次抽取状态）→ 成功则恢复
-  //   ② 仅当 localStorage 无数据时，从 invitationData 还原已有分配专家
+  // modal 模式状态恢复——两个独立 effect 不互等（消除 localStorage ↔ invitationData 加载竞态）：
+  // ① pid 就绪立即查 localStorage（上次抽取状态）恢复；② 仅当 localStorage 无数据时从 invitationData 还原。
 
   // ① modal 模式 localStorage 恢复（pid 就绪即触发，不依赖 invitationData）
   const lskeyForPid = `${storageKey}-${pid}`;
@@ -1285,11 +1283,10 @@ export function ExpertExtractPage({
     updateMessages(new Map());
     toast.loading('AI 正在分析项目需求并抽取专家组...', { id: 'extract-loading' });
 
-    // 组装抽取配额：专业可空=「不选择」（不限专业桶，2026-09-24）；公司=配额所选（默认本公司，可跨公司）；
-    // 部门需求方代表走 employer+department 限定配额，并带 companyIds=所选公司——跨公司时池子按白名单
-    // 并集取（与普通配额同口径；2026-10-20 前只传 employer，非 admin 池子被本公司隔离收窄恒抽 0 人）；
-    // 顶层 employer 大锤已删——它会把整池（含普通配额）错砍到需求方公司。
-    // 区域/等级档案过滤已随 UI 下线不再发送
+    // 组装抽取配额：专业可空=不限专业桶（2026-09-24）；公司=配额所选（默认本公司，可跨公司）；部门需求方
+    // 代表走 employer+department 限定配额并带 companyIds——跨公司池按白名单并集取（与普通配额同口径；
+    // 2026-10-20 前只传 employer，非 admin 池被本公司隔离恒抽 0 人）。顶层 employer 大锤已删（会把整池
+    // 错砍到需求方公司）；区域/等级过滤已随 UI 下线不再发送。
     const manualQuotas: { specialties: string[]; count: number; companyIds?: string[] }[] = [];
     for (const qq of quotas) manualQuotas.push({
       specialties: quotaSpecsOf(qq), count: qq.count, // 空=专业不限（不限专业桶）
@@ -1625,11 +1622,9 @@ export function ExpertExtractPage({
     // 到该结果（或配置中途态），不重进配置重建默认行；已确认且已通知的完结轮才开新一轮。
     if (reDraft && !(reDraft.confirmed && reDraft.notified)) { setReModalOpen(true); return; }
     const allMain = invitationData.experts.filter(e => e.expertRole === '正选');
-    // 补选人数 = 当时已拒绝(declined)的正选专家数（等额补选）——不要求全员回复完毕即可发起
-    // （2026-10-27 用户裁定：有待回复成员不挡补选；等额补 declined 不占 pending 席位，
-    //   总数不会超编：席位数 = 已确认 + 待回复 + 补选数）。已确认参加的成员不参与本次补选。
-    // 历史轮已补位过的拒绝者仍留在列表里（append 不清旧记录）——以「总席位-已确认」缺口为
-    // 准，只取最近回复拒绝的缺口数人，避免重复计数（2026-10-20 实录：缺 3 席却配出 4 人）。
+    // 补选人数 = 当时已拒绝的正选专家数（等额补选，不要求全员回复完毕；2026-10-27 用户裁定：有待回复
+    // 不挡补选，席位数=已确认+待回复+补选数不超编；已确认成员不参与）。历史轮已补位的拒绝者留在列表
+    // （append 不清旧记录）——按「总席位-已确认」缺口只取最近拒绝的缺口数人（2026-10-20 实录：缺 3 配 4）。
     const confirmedMain = allMain.filter(e => e.invitationStatus === 'confirmed').length;
     const shortfall = Math.max(0, totalSeats - confirmedMain);
     let declined = allMain
@@ -2148,10 +2143,9 @@ export function ExpertExtractPage({
         current={step}
         onStepClick={(s) => setStep(s)}
         reachable={(s) => {
-          // 进入步骤2（抽取结果既出）后配置冻结、禁回步骤1（2026-11-02 用户裁定；
-          // 2026-10-27 首次设锁、2026-10-30 曾短暂解锁）——顶部步骤按钮与一切回退
-          // 入口同口径。个别人员调整走后续步骤补选/替换；服务端 RE_EXTRACTION_LOCKED
-          // 硬闸（评标/归档/流标项目）不变
+          // 进入步骤2（抽取结果既出）后配置冻结、禁回步骤1（2026-11-02 用户裁定；2026-10-27 首次设锁、
+          // 2026-10-30 曾短暂解锁）——顶部步骤按钮与一切回退入口同口径；个别调整走后续步骤补选/替换，
+          // 服务端 RE_EXTRACTION_LOCKED 硬闸（评标/归档/流标项目）不变。
           if (s === 1) return step === 1;
           if (s <= step) return true;
           if (s === 2 && !!preview) return true;

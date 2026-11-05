@@ -655,10 +655,9 @@ export function AnnouncementDialog({
     return getAnnouncementFields(tenderType, category);
   }, [tenderType, category]);
 
-  // ★ 进入公告填写即直接带入（免手动点「智能填入」，与采购文件编写的进入预填对齐）：
-  // 工期及进度要求内容 ← 采购文件「商务要求/提交成果要求」→ 项目「采购活动时间安排」；
-  // 报名方式及条件 ← 项目「供应商资格要求」+ 采购文件「需提供的资料/特定资格要求」。
-  // 只填空缺不覆盖已填内容；填完后无 patch 不再触发，不会循环。
+  // ★ 进入公告填写即直接带入（免手动「智能填入」，与采购文件编写的进入预填对齐）：工期及进度
+  // 要求 ← 采购文件商务/提交成果要求 → 项目采购活动时间安排；报名方式及条件 ← 项目供应商资格
+  // 要求 + 采购文件需提供资料/特定资格要求。只填空缺不覆盖；无 patch 不再触发，不会循环。
   /* eslint-disable react-hooks/set-state-in-effect -- 进入表单的一次性预填 */
   useEffect(() => {
     if (!isOpen || !draft || !project) return;

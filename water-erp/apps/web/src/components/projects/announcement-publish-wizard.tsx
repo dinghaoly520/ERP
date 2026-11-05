@@ -216,12 +216,10 @@ function buildCanonicalMeta(
       putDownloadPeriod(undefined, d.announcementEnd || d.announcementStart);
     }
   } else {
-    // ── 其他采购方式：开标时间 = 开标时间/采购时间；投标截止 = 开标前间隔（10 分钟）
-    //    （BID_DEADLINE_BEFORE_OPENING_MS，与关键时间卡同口径），推导失败才回退公示止；
-    //    采购文件下载时间 = 公示起止区间，兜底项目 documentAcquireTime ──
-    // 开标来源序：draft 开标时间 → 项目开标时间 → 采购时间（procurementTime 是直接采购
-    // 语义字段且可能存着过期推导值——2026-10-12 实录：它先于 bidOpeningTime 被取用，
-    // 截止被算成开标−48h / 回退公示止）
+    // ── 其他采购方式：开标时间 = 开标/采购时间；投标截止 = 开标前 10 分钟（BID_DEADLINE_BEFORE_OPENING_MS，
+    // 与关键时间卡同口径），推导失败回退公示止；下载时间 = 公示起止区间，兜底 documentAcquireTime。
+    // 开标来源序：draft → 项目 → 采购时间（procurementTime 存过期推导值——2026-10-12 实录：先于
+    // bidOpeningTime 被取用，截止被算成开标−48h/回退公示止）──
     const openingRaw = d.bidOpeningTime || project?.bidOpeningTime || d.procurementTime || '';
     const openingIso = toDatetimeLocalValue(openingRaw);
     put('openTime', openingIso || d.bidOpeningTime || d.procurementTime);
@@ -1252,10 +1250,9 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
           ? msBeforeOpenTime(openTimeIsoPub, BID_DEADLINE_BEFORE_OPENING_MS)
           : bidSubmissionDeadline.trim();
         meta.deadline = derivedSubmissionDeadline || effectiveAnnouncementEnd;
-        // 采购文件下载时间：区间入 downloadPeriod（两门户芯片按裸字符串渲染），
-        // 止点入 downloadDeadline（后端 B-009 校验 parseFlexibleDate 取单点，勿写区间）。
-        // 有公示起止才覆盖——canonical 已兜底项目获取时间区间（公示起止为空的旧草稿
-        // 只落止点会丢区间，2026-10-12 实录）
+        // 采购文件下载时间：区间入 downloadPeriod（两门户芯片按裸字符串渲染），止点入
+        // downloadDeadline（后端 B-009 取单点，勿写区间）；有公示起止才覆盖——旧草稿起止为空
+        // 只落止点会丢区间（2026-10-12 实录）。
         const dlStart = (finalDraft as Record<string, string>).announcementStart || '';
         if (dlStart && effectiveAnnouncementEnd) {
           meta.downloadPeriod = `${toChineseDateTime(dlStart)} 至 ${toChineseDateTime(effectiveAnnouncementEnd)}`;

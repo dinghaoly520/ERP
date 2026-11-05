@@ -67,10 +67,8 @@ import type {
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 
 // ── 草稿持久化：服务器为准（跨设备同步，2026-09-09），localStorage 降级为离线缓存 ──
-// 背景：此前草稿仅存本机 localStorage（tender-write:project-drafts:v1:<projectId>），
-// 按设备隔离——另一台电脑登录同账号看不到已写内容。现打开时先拉服务器草稿
-// （服务器优先、本地缓存兜底并自动上云迁移），编辑期防抖推送服务器，
-// 同一账号在任何设备打开均一致（last-write-wins）。
+// 此前仅存本机（按设备隔离，换机不可见）；现打开时服务器优先、本地兜底（自动上云迁移），
+// 编辑期防抖推送，同账号任意设备一致（last-write-wins）。
 const DRAFTS_STORAGE_PREFIX = 'tender-write:project-drafts:v1:';
 const DRAFTS_HISTORY_PREFIX = 'tender-write:project-draft-history:';
 const MAX_HISTORY = 20;

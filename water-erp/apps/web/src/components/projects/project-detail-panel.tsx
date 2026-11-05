@@ -86,10 +86,9 @@ function ExpertInfoField({
   }, [isEditing]);
   const hasValue = value !== null && value !== undefined && value !== '';
 
-  // Parse experts from a pipe-delimited string: "姓名|部门|专业|职称|角色" per line.
-  // 续行合并（2026-10-27 实录）：存量串里多值专业含换行，把一条记录拆成两个假行
-  //（「罗卫…工程建设、⏎设备物资…」被读成两行）——不足 4 个竖线的行与下一行以顿号续接，
-  // 凑齐 5 字段（或到末行）才出一条记录。写入侧已同步清杀字段内换行，此为存量兜底。
+  // Parse experts from a pipe-delimited string: "姓名|部门|专业|职称|角色" per line. 续行合并
+  //（2026-10-27 实录：存量多值专业含换行拆出假行）——不足 4 竖线的行与下一行顿号续接凑齐 5
+  // 字段才出记录；写入侧已清杀字段内换行，此为存量兜底。
   const parseExperts = (raw: string | null | undefined) => {
     if (!raw || !raw.trim()) return [];
     const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
@@ -601,10 +600,9 @@ export function ProjectDetailPanel({
   const showArchiveStep = archiveStepState !== 'PENDING';
   const isCurrentStage = selectedStage.stageKey === localItem.currentStage && selectedRound === (localItem.currentRound ?? 1);
 
-  // ★ 开标锁定：开标确认阶段已进行（IN_PROGRESS 或 COMPLETED）→ 所有前置内容不可修改。
-  // 口径修正：只锁「开标评标」之前的前置阶段——定标（中标通知书）/合同等
-  // 后置阶段不受锁，否则定标入口被误锁、线下定标→扫描上传回填流程永不可达。
-  // 轮次对齐（2026-10-23 流标统一流）：开标评标按当前选中轮取行——多轮后不带 round 会命中第一轮
+  // ★ 开标锁定：开标确认阶段已进行（IN_PROGRESS/COMPLETED）→ 前置内容不可修改——但只锁
+  // 「开标评标」之前的前置阶段（口径修正：定标/合同等后置阶段不受锁，否则线下定标→扫描回填
+  // 永不可达）。轮次对齐（2026-10-23 流标统一流）：开标评标按选中轮取行，不带 round 命中第一轮。
   const bidEvalStage = localItem.stages.find(
     (s) => s.stageKey === 'BID_EVALUATION' && (s.round ?? 1) === selectedRound,
   );
@@ -978,10 +976,9 @@ export function ProjectDetailPanel({
     if (actionsDisabled) { toast.info('当前为查看模式，不能修改'); return; }
     if (isPastRound) { toast.warning('该步骤属已完成的历史轮次，仅供查看'); return; }
     if (isLockedByBid(stage.stageKey)) { toast.warning('开标已确认，前置步骤已锁定'); return; }
-    // 03 采购文件完成向导（2026-09-26 用户裁定：强制且不可豁免）——先选/传正式盖章版采购文件，
-    // 再左预览右配置对照确认评分标准，确认后才落完成。原「评分标准 incomplete 前置拦截」
-    // 并入向导 Step2（编辑器就在右侧，改完直接确认，闭环更短）；服务端权威闸门不变
-    // （OFFICIAL_TENDER_REQUIRED + SCORE_STANDARD_REQUIRED 双闸）。
+    // 03 采购文件完成向导（2026-09-26 用户裁定：强制且不可豁免）——先选/传正式盖章版，再左预览
+    // 右配置对照确认评分标准才落完成；原「评分标准 incomplete 拦截」并入向导 Step2；服务端
+    // OFFICIAL_TENDER_REQUIRED + SCORE_STANDARD_REQUIRED 双闸不变。
     if (stage.stageKey === 'TENDER_DOCUMENT') {
       setTenderWizardRound(stage.round ?? 1);
       return;
