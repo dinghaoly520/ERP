@@ -227,6 +227,8 @@ export class AnnouncementController {
         price: body.price ? Number(body.price) : undefined,
         bidProjectId: body.bidProjectId || undefined,
         allowedSupplierIds: body.allowedSupplierIds ? String(body.allowedSupplierIds).split(',').filter(Boolean) : [],
+        downloadMode: body.downloadMode,
+        downloadPassword: body.downloadPassword,
       },
       req.user.sub,
     );
@@ -249,6 +251,8 @@ export class AnnouncementController {
       price: body.price !== undefined ? Number(body.price) : undefined,
       bidProjectId: body.bidProjectId,
       allowedSupplierIds: body.allowedSupplierIds,
+      downloadMode: body.downloadMode,
+      downloadPassword: body.downloadPassword,
     });
   }
 

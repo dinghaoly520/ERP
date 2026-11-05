@@ -28,6 +28,14 @@ export class BidDocumentUploadDto {
   /** 逗号分隔的供应商 ID 列表（controller split） */
   @IsOptional()
   allowedSupplierIds?: string | string[];
+
+  /** 下载方式（2026-11-05）：free/解密下载；付费暂不支持（service 内拒） */
+  @EmptyAsUndefined()
+  @IsOptional() @IsIn(['free', 'encrypted'])
+  downloadMode?: 'free' | 'encrypted';
+
+  @IsOptional() @IsString() @MaxLength(16)
+  downloadPassword?: string;
 }
 
 /** 更新招标文件访问配置（PUT，JSON） */
@@ -51,4 +59,11 @@ export class UpdateBidDocumentConfigDto {
   @EmptyAsUndefined()
   @IsOptional() @IsArray()
   allowedSupplierIds?: string[];
+
+  @EmptyAsUndefined()
+  @IsOptional() @IsIn(['free', 'encrypted'])
+  downloadMode?: 'free' | 'encrypted';
+
+  @IsOptional() @IsString() @MaxLength(16)
+  downloadPassword?: string;
 }

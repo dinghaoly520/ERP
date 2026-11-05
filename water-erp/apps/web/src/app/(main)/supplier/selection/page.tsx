@@ -425,10 +425,9 @@ export function SupplierSelectionPage({
     if (refFilesTouchedRef.current || refFileKeys.size > 0 || projectTenderFiles.length === 0) return;
     setRefFileKeys(new Set(projectTenderFiles.map(f => f.objectKey)));
   }, [refFileKeys, projectTenderFiles]);
-  // 采购文件下载方式：免费 / 解密密码 / 付费
-  const [downloadMode, setDownloadMode] = useState<'free' | 'encrypted' | 'paid'>('free');
+  // 采购文件下载方式：免费 / 解密下载（随机密码，供应商端下载时必须输入）；付费暂不支持（2026-11-05）
+  const [downloadMode, setDownloadMode] = useState<'free' | 'encrypted'>('free');
   const [downloadPassword, setDownloadPassword] = useState('');
-  const [paidAmount, setPaidAmount] = useState('');
   // 项目时间确认
   const [timeConfirmed, setTimeConfirmed] = useState(false);
   // 确认配置下发状态
@@ -720,9 +719,8 @@ export function SupplierSelectionPage({
         if (state.timeConfirmed) setTimeConfirmed(true);
         if (Array.isArray(state.attachFiles)) setAttachFiles(state.attachFiles);
         if (Array.isArray(state.refFileKeys)) setRefFileKeys(new Set(state.refFileKeys));
-        if (state.downloadMode) setDownloadMode(state.downloadMode);
+        if (state.downloadMode) setDownloadMode(state.downloadMode === 'encrypted' ? 'encrypted' : 'free'); // 旧 'paid' 草稿归一（付费暂不支持）
         if (state.downloadPassword) setDownloadPassword(state.downloadPassword);
-        if (state.paidAmount) setPaidAmount(state.paidAmount);
       }
     } catch {}
     } // applySnapshot
@@ -833,7 +831,7 @@ export function SupplierSelectionPage({
         // 附件 + 下载方式 + 时间确认
         configSent, timeConfirmed,
         attachFiles, refFileKeys: [...refFileKeys],
-        downloadMode, downloadPassword, paidAmount,
+        downloadMode, downloadPassword,
       }));
       // 双写：payload（含 savedAt 时间戳）缓存到 ref，防抖同步服务端草稿
       const payloadWithTs = JSON.parse(localStorage.getItem(sessionKey) || '{}');
@@ -843,7 +841,7 @@ export function SupplierSelectionPage({
       draftPayloadRef.current = raw;
       scheduleDraftSync(draftKey);
     } catch {}
-  }, [requirementSnapshot, selectedTags, hardConditions, projectId, step, maxStepReached, result, shortlist, notified, notifyNotFound, completed, confirmations, notifyPerSupplier, notifyRsvpTokens, manualSearch, manualSuppliers, manualTotal, isRerun, rerunShortlist, rerunConfirmations, rerunResult, rerunNotified, rerunNotifyPerSupplier, rerunMode, rerunHistory.length, configSent, timeConfirmed, attachFiles, refFileKeys, downloadMode, downloadPassword, paidAmount, addMoreIdsSnapshot]);
+  }, [requirementSnapshot, selectedTags, hardConditions, projectId, step, maxStepReached, result, shortlist, notified, notifyNotFound, completed, confirmations, notifyPerSupplier, notifyRsvpTokens, manualSearch, manualSuppliers, manualTotal, isRerun, rerunShortlist, rerunConfirmations, rerunResult, rerunNotified, rerunNotifyPerSupplier, rerunMode, rerunHistory.length, configSent, timeConfirmed, attachFiles, refFileKeys, downloadMode, downloadPassword, addMoreIdsSnapshot]);
   useEffect(() => { if (!projectId) { setProjectDetail(null); return; } getBidProjectDetail(projectId).then(setProjectDetail).catch(() => setProjectDetail(null)); }, [projectId]);
 
   // 加载项目文件分析上下文（用于 AI 润色 + 供应商要求预填；步骤 1 即加载）
@@ -1543,7 +1541,6 @@ export function SupplierSelectionPage({
         attachFileIds: attachFiles.map(f => f.id),
         downloadMode,
         downloadPassword: downloadMode === 'encrypted' ? downloadPassword : undefined,
-        paidAmount: downloadMode === 'paid' ? paidAmount : undefined,
       });
       setConfigSent(true);
       toast.success('谈判配置已下发，供应商可在供应商端查看');
@@ -1553,7 +1550,7 @@ export function SupplierSelectionPage({
     setConfigSending(false);
   };
 
-  const reset = () => { setStepInner(1); setMaxStepReached(1); setResult(null); setShortlist(new Map()); setNotified(false); setConfirmations(new Map()); setNotifyNotFound(0); setCompleted(false); setError(''); setFileContextLoaded(false); setFileAnalysisContext(''); setManualSearch(''); setManualSuppliers([]); setManualTotal(0); setNotifyRsvpTokens({}); setIsRerun(false); setRerunShortlist(new Map()); setRerunResult(null); setRerunConfirmations(new Map()); setRerunNotified(false); setRerunNotifyPerSupplier(new Map()); setRerunHistory([]); setConfigSent(false); setTimeConfirmed(false); setAttachFiles([]); setRefFileKeys(new Set()); setDownloadMode('free'); setDownloadPassword(''); setPaidAmount(''); setShowManualAdd(false); setShowRerunManualAdd(false); setAddMoreIds(new Set()); setNotifyKeywords({ company: '', projectName: '', projectCode: '', method: '' }); try { localStorage.removeItem(`supplier-selection-state${project?.id ? `:${project.id}` : ''}`); } catch {} deleteDraft(`supplier-selection${project?.id ? `:${project.id}` : ''}`).catch(() => {}); };
+  const reset = () => { setStepInner(1); setMaxStepReached(1); setResult(null); setShortlist(new Map()); setNotified(false); setConfirmations(new Map()); setNotifyNotFound(0); setCompleted(false); setError(''); setFileContextLoaded(false); setFileAnalysisContext(''); setManualSearch(''); setManualSuppliers([]); setManualTotal(0); setNotifyRsvpTokens({}); setIsRerun(false); setRerunShortlist(new Map()); setRerunResult(null); setRerunConfirmations(new Map()); setRerunNotified(false); setRerunNotifyPerSupplier(new Map()); setRerunHistory([]); setConfigSent(false); setTimeConfirmed(false); setAttachFiles([]); setRefFileKeys(new Set()); setDownloadMode('free'); setDownloadPassword(''); setShowManualAdd(false); setShowRerunManualAdd(false); setAddMoreIds(new Set()); setNotifyKeywords({ company: '', projectName: '', projectCode: '', method: '' }); try { localStorage.removeItem(`supplier-selection-state${project?.id ? `:${project.id}` : ''}`); } catch {} deleteDraft(`supplier-selection${project?.id ? `:${project.id}` : ''}`).catch(() => {}); };
 
   // 补选 handlers
   const openRerun = () => setShowRerunDialog(true);
@@ -2831,7 +2828,6 @@ export function SupplierSelectionPage({
               {([
                 { value: 'free', label: '免费下载', desc: '供应商可直接下载采购文件' },
                 { value: 'encrypted', label: '解密下载', desc: '供应商需输入密码才可下载' },
-                { value: 'paid', label: '付费下载', desc: '供应商需付费后下载' },
               ] as const).map((m) => (
                 <label key={m.value} className={`flex items-start gap-2 rounded-lg px-3 py-2.5 cursor-pointer transition ${downloadMode === m.value ? 'ring-1 ring-[var(--accent)]/40' : ''}`}
                   style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
@@ -2849,19 +2845,21 @@ export function SupplierSelectionPage({
                   </div>
                 </label>
               ))}
+              {/* 付费下载暂不支持（2026-11-05 用户裁定）：后端同步拒绝 paid 配置 */}
+              <label className="flex items-start gap-2 rounded-lg px-3 py-2.5 cursor-not-allowed opacity-55"
+                style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+                <input type="radio" name="attachDownloadMode" disabled className="accent-[var(--accent)] mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-[var(--muted-foreground)]">付费下载</div>
+                  <div className="text-[10px] text-[var(--muted-foreground)] leading-tight mt-0.5">暂不支持</div>
+                </div>
+              </label>
             </div>
             {downloadMode === 'encrypted' && (
               <div className="flex items-center gap-2 rounded-lg px-3 py-2.5" style={{ background: 'color-mix(in oklch, var(--accent-soft, color-mix(in oklch, var(--accent) 12%, transparent)) 30%, transparent)' }}>
                 <span className="text-[11px] font-bold text-[var(--foreground)] shrink-0">下载密码：</span>
                 <code className="text-xs font-mono tabular-nums tracking-[0.15em] text-[var(--accent-strong)]">{downloadPassword}</code>
                 <button type="button" onClick={() => setDownloadPassword(String(Math.floor(100000 + Math.random() * 900000)))} className="neu-btn-xs ml-auto">刷新</button>
-              </div>
-            )}
-            {downloadMode === 'paid' && (
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold text-[var(--foreground)] shrink-0">售价（元）</span>
-                <input type="number" value={paidAmount} onChange={e => setPaidAmount(e.target.value)}
-                  placeholder="请输入售价" className="neu-input text-sm" style={{ width: 180 }} />
               </div>
             )}
           </div>

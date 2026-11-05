@@ -27,6 +27,8 @@ export class BidDocumentService {
       price?: number;
       bidProjectId?: string;
       allowedSupplierIds?: string[];
+      downloadMode?: 'free' | 'encrypted';
+      downloadPassword?: string;
     },
     uploaderId: string,
   ) {
@@ -37,6 +39,7 @@ export class BidDocumentService {
     }
     const existing = await this.prisma.bidDocument.findUnique({ where: { announcementId } });
     if (existing) throw new BadRequestException({ error: '该公告已有招标文件，请先删除', code: 'DOC_EXISTS' });
+    this.assertDownloadModeConfig(config);
 
     // ① 文件名 latin1→utf8 + ② docx/doc 转 PDF（标书获取页可预览）
     const originalName = sanitizeFileName(file.originalname);
@@ -79,6 +82,10 @@ export class BidDocumentService {
     // INVITED 白名单 → 建 eligible access 记录
     if (accessScope === 'INVITED' && config.allowedSupplierIds?.length) {
       await this.syncWhitelist(doc.id, config.allowedSupplierIds);
+    }
+    // 解密下载：密码写入公告 metadata（供应商端下载时校验，见 downloadForSupplier）
+    if (config.downloadMode === 'encrypted') {
+      await this.writeDownloadPassword(announcementId, config.downloadPassword);
     }
     return this.getForManagement(announcementId);
   }
@@ -183,9 +190,12 @@ export class BidDocumentService {
     bidProjectId?: string;
     title?: string;
     allowedSupplierIds?: string[];
+    downloadMode?: 'free' | 'encrypted';
+    downloadPassword?: string;
   }) {
     const doc = await this.prisma.bidDocument.findUnique({ where: { announcementId } });
     if (!doc) throw new NotFoundException({ error: '招标文件不存在', code: 'NOT_FOUND' });
+    this.assertDownloadModeConfig(config);
 
     const data: any = {};
     if (config.title !== undefined) data.title = config.title;
@@ -205,10 +215,50 @@ export class BidDocumentService {
 
     await this.prisma.bidDocument.update({ where: { id: doc.id }, data });
 
+    // 下载方式（2026-11-05）：encrypted 写密码 / free 清密码；不传（undefined）不动——
+    // 向导 attachFromObject 与旧客户端只改 scope/白名单时不误清密码。
+    if (config.downloadMode === 'encrypted') {
+      await this.writeDownloadPassword(announcementId, config.downloadPassword);
+    } else if (config.downloadMode === 'free') {
+      await this.clearDownloadPassword(announcementId);
+    }
+
     if (config.accessScope === 'INVITED' && config.allowedSupplierIds !== undefined) {
       await this.syncWhitelist(doc.id, config.allowedSupplierIds);
     }
     return this.getForManagement(announcementId);
+  }
+
+  /**
+   * 下载方式入参校验（2026-11-05 用户裁定）：
+   * - 付费下载暂不支持——requirePayment=true 新开一律 400（库存 8 条全为免费，零存量兼容负担；
+   *   既有付费闭环端点保留，仅不再允许新开）
+   * - encrypted 必须携带密码（4-16 位）
+   */
+  private assertDownloadModeConfig(config: { requirePayment?: boolean; downloadMode?: 'free' | 'encrypted'; downloadPassword?: string }) {
+    if (config.requirePayment === true) {
+      throw new BadRequestException({ error: '付费下载暂不支持，请选择免费或解密下载', code: 'PAID_NOT_SUPPORTED' });
+    }
+    if (config.downloadMode === 'encrypted' && (!config.downloadPassword || !/^\S{4,16}$/.test(config.downloadPassword))) {
+      throw new BadRequestException({ error: '解密下载必须设置 4-16 位下载密码', code: 'PASSWORD_REQUIRED' });
+    }
+  }
+
+  /** 密码写公告 metadata（read-modify-write 合并——metadata 是各类型共用的 Json 列，勿整列覆盖） */
+  private async writeDownloadPassword(announcementId: string, password?: string) {
+    const ann = await this.prisma.announcement.findUnique({ where: { id: announcementId }, select: { metadata: true } });
+    const meta: Record<string, any> = { ...((ann?.metadata as Record<string, any>) ?? {}) };
+    meta.downloadPassword = password;
+    await this.prisma.announcement.update({ where: { id: announcementId }, data: { metadata: meta } });
+  }
+
+  /** 免费下载：清除密码（同样合并写，保留 metadata 其余键） */
+  private async clearDownloadPassword(announcementId: string) {
+    const ann = await this.prisma.announcement.findUnique({ where: { id: announcementId }, select: { metadata: true } });
+    const meta: Record<string, any> = { ...((ann?.metadata as Record<string, any>) ?? {}) };
+    if (!('downloadPassword' in meta)) return;
+    delete meta.downloadPassword;
+    await this.prisma.announcement.update({ where: { id: announcementId }, data: { metadata: meta } });
   }
 
   /** 同步白名单：以传入列表为准，重建 eligible 记录（保留已付款） */
@@ -246,9 +296,10 @@ export class BidDocumentService {
   async getForManagement(announcementId: string) {
     const doc = await this.prisma.bidDocument.findUnique({
       where: { announcementId },
-      include: { fileAsset: { select: { id: true, originalName: true, size: true, mimeType: true } }, accesses: { include: { supplier: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } } },
+      include: { fileAsset: { select: { id: true, originalName: true, size: true, mimeType: true } }, announcement: { select: { metadata: true } }, accesses: { include: { supplier: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } } },
     });
     if (!doc) return null;
+    const annMeta = (doc.announcement as any)?.metadata as Record<string, any> | undefined;
     return {
       id: doc.id,
       announcementId: doc.announcementId,
@@ -258,6 +309,10 @@ export class BidDocumentService {
       price: doc.price !== null ? Number(doc.price) : null,
       bidProjectId: doc.bidProjectId,
       downloadCount: doc.downloadCount,
+      // 下载方式回显（2026-11-05）：管理端可见密码本身——需线下告知供应商；
+      // 供应商端 getForSupplier 只回 needPassword 布尔，密码不下发。
+      downloadMode: annMeta?.downloadPassword ? 'encrypted' : 'free',
+      downloadPassword: annMeta?.downloadPassword ?? null,
       fileName: doc.fileAsset.originalName,
       fileSize: doc.fileAsset.size,
       allowedSupplierIds: doc.accesses.filter(a => a.eligible).map(a => a.supplierId),
@@ -299,9 +354,11 @@ export class BidDocumentService {
       where: { documentId_supplierId: { documentId: doc.id, supplierId } },
     });
 
-    // 解密下载模式：需要供应商输入密码才能解密（密码存于 announcement.metadata.downloadPassword）
+    // 解密下载模式：需要供应商输入密码才能解密（密码存于 announcement.metadata.downloadPassword）。
+    // 2026-11-05 改为模式驱动（配置了密码即生效）——原 DESIGNATED 条件是历史死口径
+    //（AccessScope 联合类型早已只剩 OPEN|INVITED），密文模式与可见范围正交。
     const annMeta = (doc.announcement as any)?.metadata as Record<string, any> | undefined;
-    const needPassword = doc.accessScope === 'DESIGNATED' && !!annMeta?.downloadPassword;
+    const needPassword = !!annMeta?.downloadPassword;
 
     return {
       id: doc.id,
@@ -377,13 +434,11 @@ export class BidDocumentService {
     const elig = await this.checkEligibility(doc, supplierId);
     if (!elig.eligible) throw new ForbiddenException({ error: elig.reason, code: 'NOT_ELIGIBLE' });
 
-    // 解密下载模式：DESIGNATED 需验证密码（存于 announcement.metadata.downloadPassword）
-    if (doc.accessScope === 'DESIGNATED') {
-      const annMeta = (doc.announcement as any)?.metadata as Record<string, any> | undefined;
-      if (annMeta?.downloadPassword) {
-        if (!password || password !== annMeta.downloadPassword) {
-          throw new ForbiddenException({ error: '下载密码错误', code: 'WRONG_PASSWORD' });
-        }
+    // 解密下载模式：配置了密码即须验证（模式驱动，2026-11-05——DESIGNATED 历史条件已废）
+    const annMeta = (doc.announcement as any)?.metadata as Record<string, any> | undefined;
+    if (annMeta?.downloadPassword) {
+      if (!password || password !== annMeta.downloadPassword) {
+        throw new ForbiddenException({ error: '下载密码错误', code: 'WRONG_PASSWORD' });
       }
     }
     if (doc.requirePayment) {

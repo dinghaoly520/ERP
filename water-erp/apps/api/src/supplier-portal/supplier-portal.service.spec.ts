@@ -3449,7 +3449,7 @@ describe('SupplierPortalService — getNegotiationFiles / downloadNegotiationFil
     prisma = {
       supplier: { findUnique: jest.fn().mockResolvedValue({ id: 'sup-1', name: '腾威达液压设备（成都）有限公司' }) },
       bidSupplier: { findUnique: jest.fn().mockResolvedValue({ id: 'roster-1' }) },
-      fileAsset: { findMany: jest.fn().mockResolvedValue([]) },
+      fileAsset: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn().mockResolvedValue(null) },
       attachment: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn().mockResolvedValue(null) },
     };
     redis = { get: jest.fn().mockResolvedValue(JSON.stringify(CFG)) };
@@ -3471,13 +3471,13 @@ describe('SupplierPortalService — getNegotiationFiles / downloadNegotiationFil
     expect(r.files[0].url).toBe('/api/supplier-portal/bid-projects/bp-1/negotiation-files/att-1/download');
   });
 
-  it('历史 FileAsset.key 兼容轨保留（/api/upload/files/:id URL）', async () => {
+  it('历史 FileAsset.key 兼容轨保留（统一走门户专用下载端点，2026-11-05 下载方式治理）', async () => {
     prisma.fileAsset.findMany.mockImplementation(({ where }: any) =>
       where?.key ? [{ id: 'fa-1', originalName: 'legacy.docx', size: 9, mimeType: 'application/msword' }] : [],
     );
     const r = await svc.getNegotiationFiles('bp-1', 'sup-1');
     expect(r.files).toHaveLength(1);
-    expect(r.files[0].url).toBe('/api/upload/files/fa-1');
+    expect(r.files[0].url).toBe('/api/supplier-portal/bid-projects/bp-1/negotiation-files/fa-1/download');
   });
 
   it('未受邀 → 403 NOT_INVITED', async () => {
@@ -3517,6 +3517,104 @@ describe('SupplierPortalService — getNegotiationFiles / downloadNegotiationFil
     await expect(svc.downloadNegotiationFile('bp-1', 'att-1', 'sup-1', res)).rejects.toMatchObject({
       status: 400,
       response: { code: 'ACQUIRE_NOT_STARTED' },
+    });
+  });
+
+  /* ── 下载方式治理（2026-11-05）：解密下载必须输入密码，密码不下发供应商端 ── */
+
+  const CFG_ENC = { ...CFG, downloadMode: 'encrypted', downloadPassword: '285913' };
+
+  it('encrypted 配置：文件清单不回传密码（旧实现明文下发 → 闸门形同虚设）', async () => {
+    redis.get.mockResolvedValue(JSON.stringify(CFG_ENC));
+    prisma.attachment.findMany.mockResolvedValue([
+      { id: 'att-1', fileName: 'a.docx', fileSize: 1, mimeType: 'a/b' },
+    ]);
+    const r = await svc.getNegotiationFiles('bp-1', 'sup-1');
+    expect(r.downloadMode).toBe('encrypted');
+    expect(JSON.stringify(r)).not.toContain('285913');
+    expect(JSON.stringify(r)).not.toContain('password');
+  });
+
+  it('旧 paid 配置：归一为 free（付费暂不支持，无闸门语义一致）', async () => {
+    redis.get.mockResolvedValue(JSON.stringify({ ...CFG, downloadMode: 'paid', paidAmount: '500' }));
+    const r = await svc.getNegotiationFiles('bp-1', 'sup-1');
+    expect(r.downloadMode).toBe('free');
+  });
+
+  it('encrypted 下载：未携带密码 → 403 WRONG_PASSWORD', async () => {
+    redis.get.mockResolvedValue(JSON.stringify(CFG_ENC));
+    await expect(svc.downloadNegotiationFile('bp-1', 'att-1', 'sup-1', res)).rejects.toMatchObject({
+      status: 403,
+      response: { code: 'WRONG_PASSWORD' },
+    });
+  });
+
+  it('encrypted 下载：密码错误 → 403 WRONG_PASSWORD（与未传同码，不泄露差异）', async () => {
+    redis.get.mockResolvedValue(JSON.stringify(CFG_ENC));
+    await expect(svc.downloadNegotiationFile('bp-1', 'att-1', 'sup-1', res, '000000')).rejects.toMatchObject({
+      status: 403,
+      response: { code: 'WRONG_PASSWORD' },
+    });
+  });
+
+  it('encrypted 下载：密码正确 + 清单内 → 流式输出（主轨附件）', async () => {
+    const { writeFile, rm } = require('node:fs/promises');
+    const path = require('node:path');
+    redis.get.mockResolvedValue(JSON.stringify({ ...CFG_ENC, refFileKeys: ['nego-spec-enc.docx'] }));
+    const abs = path.resolve(process.cwd(), 'uploads', 'nego-spec-enc.docx');
+    await writeFile(abs, Buffer.from('ENC-PLAIN'));
+    prisma.attachment.findUnique.mockResolvedValue({ fileName: 'enc.docx', objectKey: 'nego-spec-enc.docx', mimeType: 'a/b' });
+    try {
+      await svc.downloadNegotiationFile('bp-1', 'att-1', 'sup-1', res, '285913');
+      expect(res.end).toHaveBeenCalledWith(Buffer.from('ENC-PLAIN'));
+    } finally {
+      await rm(abs, { force: true });
+    }
+  });
+
+  it('free 下载：多余 password 参数被忽略（免费模式不设闸）', async () => {
+    const { writeFile, rm } = require('node:fs/promises');
+    const path = require('node:path');
+    const tmpKey = 'nego-spec-free.docx';
+    redis.get.mockResolvedValue(JSON.stringify({ ...CFG, refFileKeys: [tmpKey] }));
+    const abs = path.resolve(process.cwd(), 'uploads', tmpKey);
+    await writeFile(abs, Buffer.from('FREE-PLAIN'));
+    prisma.attachment.findUnique.mockResolvedValue({ fileName: 'free.docx', objectKey: tmpKey, mimeType: 'a/b' });
+    try {
+      await svc.downloadNegotiationFile('bp-1', 'att-1', 'sup-1', res, 'whatever');
+      expect(res.end).toHaveBeenCalledWith(Buffer.from('FREE-PLAIN'));
+    } finally {
+      await rm(abs, { force: true });
+    }
+  });
+
+  it('FileAsset 兼容轨下载（MinIO + 非密封）：id ∈ attachFileIds + 密码正确 → 流式输出；密码闸同样生效', async () => {
+    // 文件顶部对 bid-document.crypto / minio.client 有全局 mock（streamToBuffer 恒返 'plaintext'），
+    // 本用例覆写 streamToBuffer 模块属性以验证真实数据链（service 经属性访问调用，spy 生效）
+    const cryptoMod = require('../announcement/bid-document.crypto');
+    const stbSpy = jest.spyOn(cryptoMod, 'streamToBuffer').mockResolvedValue(Buffer.from('FA-PLAIN'));
+    redis.get.mockResolvedValue(JSON.stringify({ ...CFG_ENC, refFileKeys: [], attachFileIds: ['fa-9'] }));
+    prisma.attachment.findUnique.mockResolvedValue(null);
+    prisma.fileAsset.findUnique.mockResolvedValue({ key: 'general/x.bin', sealedPath: null, sealedKey: null, clientEncrypted: false, originalName: 'x.bin', mimeType: 'application/octet-stream' });
+    try {
+      await svc.downloadNegotiationFile('bp-1', 'fa-9', 'sup-1', res, '285913');
+      expect(res.end).toHaveBeenCalledWith(Buffer.from('FA-PLAIN'));
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining(encodeURIComponent('x.bin')));
+      await expect(svc.downloadNegotiationFile('bp-1', 'fa-9', 'sup-1', res)).rejects.toMatchObject({
+        status: 403, response: { code: 'WRONG_PASSWORD' },
+      });
+    } finally {
+      stbSpy.mockRestore();
+    }
+  });
+
+  it('FileAsset 兼容轨：既不在 attachFileIds 也不在 refFileKeys → 403 FILE_NOT_IN_CONFIG', async () => {
+    redis.get.mockResolvedValue(JSON.stringify({ ...CFG_ENC, refFileKeys: [], attachFileIds: ['fa-9'] }));
+    prisma.attachment.findUnique.mockResolvedValue(null);
+    prisma.fileAsset.findUnique.mockResolvedValue({ key: 'general/other.bin', sealedPath: null, sealedKey: null, clientEncrypted: false, originalName: 'other.bin', mimeType: 'application/octet-stream' });
+    await expect(svc.downloadNegotiationFile('bp-1', 'fa-x', 'sup-1', res, '285913')).rejects.toMatchObject({
+      status: 403,
+      response: { code: 'FILE_NOT_IN_CONFIG' },
     });
   });
 
@@ -3566,5 +3664,35 @@ describe('SupplierPortalService — getNegotiationFiles / downloadNegotiationFil
       expect(ctPrisma.supplierContact.update).toHaveBeenCalled();
       expect(r.name).toBe('张三');
     });
+  });
+});
+
+/** 谈判配置 DTO（2026-11-05 下载方式治理）：付费暂不支持——downloadMode 白名单只剩 free/encrypted */
+describe('NegotiationConfigDto — 下载方式白名单', () => {
+  const { plainToInstance } = require('class-transformer');
+  const { validateSync } = require('class-validator');
+  const { NegotiationConfigDto } = require('../supplier/dto/negotiation-config.dto');
+
+  const base = {
+    projectId: 'bp-1', supplierIds: ['sup-1'],
+    acquireStartTime: '2026-11-05 09:00', acquireEndTime: '2026-11-20 17:00', bidOpeningTime: '2026-11-21 14:00',
+    refFileKeys: [], attachFileIds: [],
+  };
+
+  it("downloadMode='paid' → 校验拒绝（付费暂不支持）", () => {
+    const dto = plainToInstance(NegotiationConfigDto, { ...base, downloadMode: 'paid' });
+    const errors = validateSync(dto);
+    expect(errors.some((e: any) => e.property === 'downloadMode')).toBe(true);
+  });
+
+  it("downloadMode='encrypted' 缺密码 → 校验拒绝（密码必填）", () => {
+    const dto = plainToInstance(NegotiationConfigDto, { ...base, downloadMode: 'encrypted' });
+    const errors = validateSync(dto);
+    expect(errors.some((e: any) => e.property === 'downloadPassword')).toBe(true);
+  });
+
+  it("downloadMode='encrypted' 带密码 → 通过；'free' → 通过", () => {
+    expect(validateSync(plainToInstance(NegotiationConfigDto, { ...base, downloadMode: 'encrypted', downloadPassword: '285913' }))).toHaveLength(0);
+    expect(validateSync(plainToInstance(NegotiationConfigDto, { ...base, downloadMode: 'free' }))).toHaveLength(0);
   });
 });
