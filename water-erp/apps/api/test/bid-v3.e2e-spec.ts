@@ -3,22 +3,29 @@
  * overrideProvider(CaVerificationService) 策略（同 auth-ca.e2e——动态挑战无法用固定真盾 P7；
  * 真实密码学路径由 ca-verification.service.spec 以真 P7 fixtures 覆盖）。
  * 覆盖：登录→encrypted-assets→prepare→signing-payload→submit v3→receipt v3→
- *      opening-package v3→decrypt-upload v3（P7 证明）→opening-confirm v3；旧轨回执 unsigned-legacy。
+ *      opening-package v3→decrypt-upload v3（P7 证明）→opening-confirm v3；旧轨回执 unsigned-legacy；
+ *      ⑪ 大件 100MB——ukey 分块双层加密 → 主持端 decrypt-outer v3 两遍流式解密全链。
  */
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import * as request from 'supertest';
 import * as cookieParser from 'cookie-parser';
+import * as crypto from 'crypto';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { CaVerificationService } from '../src/ca/ca-verification.service';
 import { OutboxDispatchService } from '../src/scheduler/outbox-dispatch.service';
 import { hashSync } from 'bcryptjs';
-import { canonicalJson, computeV3FieldsCommit, sha256Hex } from '@water-erp/ukey';
+import {
+  canonicalJson, computeV3FieldsCommit, sha256Hex,
+  Sm4CbcChunkedEncryptor, Sha256Incremental, sm2EncryptHex, wrapDekJson,
+} from '@water-erp/ukey';
 import type { V3Fields } from '@water-erp/ukey';
 
 const USER = 'e2e-v3-supplier';
 const PASSWORD = 'SCCA-V3@2026';
+const HOST_USER = 'e2e-v3-host';
+const HOST_PASSWORD = 'e2e-v3-host@2026';
 
 class FakeVerificationService {
   async verifySignature(input: { expectedToSign: string }) {
@@ -388,6 +395,195 @@ describe('dual-v3 全链 (e2e)', () => {
     expect(notice?.link).toBe('/bid');
     await prisma.notification.deleteMany({ where: { userId: me!.id, type: 'BID_SUBMITTED_V3' } }).catch(() => {});
   });
+
+  // ── 大件 100MB 全链（分块加密 spec 验收 #5）：测试进程 ukey 分块双层加密（与浏览器 worker
+  //    同一密码学内核）→ C_outer 暂存 → submit v3（真实备份固化）→ 主持端 decrypt-outer v3
+  //    真实 HTTP 端点（两遍流式：pass1 哈希闸 + pass2 分块解密流式写 MinIO）。
+  //    C_outer 暂存不走 encrypted-assets 端点：该端点 multer 闸 MAX_OUTER_BYTES=50MiB+32B
+  //    （2026-11-05 核实未随「全库统一 500MB」上调——已记 spec 实现纪要为待修项），此处按
+  //    端点同构直写 MinIO+FileAsset（同 key 形制/同哈希实算/同归属 uploaderId）；小件真实
+  //    端点路径由用例①覆盖。解外层之后的一切（哈希闸/解密/写回/归属链/fence）全为真实执行。──
+  it('⑪ 大件 100MB：分块双层加密投递 → decrypt-outer v3 流式解密 → C_inner 哈希/尺寸/耗时', async () => {
+    const { minioClient, MINIO_BUCKET } = await import('../src/upload/minio.client');
+    const t0 = Date.now();
+    const PLAIN_BYTES = 100 * 1024 * 1024 + 7; // 非对齐尾巴：尺寸恒等式与明文对齐无关的实证
+    const CHUNK = 2 * 1024 * 1024;             // SM4_CHUNK_BYTES 同款分块
+
+    // ① 主持端账号（AssignedHostGuard 按项目指派放行）
+    let host = await prisma.user.findUnique({ where: { username_role: { username: HOST_USER, role: 'bid_host' } } });
+    if (!host) {
+      host = await prisma.user.create({
+        data: { username: HOST_USER, role: 'bid_host', isActive: true, passwordHash: hashSync(HOST_PASSWORD, 10), displayName: 'e2e-v3主持人' },
+      });
+    }
+
+    // ② 真实分块双层加密（明文逐块现生成——测试进程内不整驻 100MB 明文；与 one-shot 逐字节一致由 ukey 一致性测试锁定）
+    const dekS = { keyHex: crypto.randomBytes(16).toString('hex'), ivHex: crypto.randomBytes(16).toString('hex') };
+    const dekA = { keyHex: crypto.randomBytes(16).toString('hex'), ivHex: crypto.randomBytes(16).toString('hex') };
+    const encS = new Sm4CbcChunkedEncryptor(dekS);
+    const encA = new Sm4CbcChunkedEncryptor(dekA);
+    const hPlain = new Sha256Incremental();
+    const hInner = new Sha256Incremental();
+    const hOuter = new Sha256Incremental();
+    const outerParts: Buffer[] = [];
+    let plainBytes = 0;
+    let innerBytesTotal = 0;
+    const tEnc = Date.now();
+    const feed = (seg: Uint8Array): void => {
+      hOuter.update(seg);
+      outerParts.push(Buffer.from(seg));
+    };
+    while (plainBytes < PLAIN_BYTES) {
+      const n = Math.min(CHUNK, PLAIN_BYTES - plainBytes);
+      const chunk = crypto.randomBytes(n);
+      plainBytes += n;
+      hPlain.update(chunk);
+      const inner = encS.update(chunk);
+      if (inner.length > 0) {
+        hInner.update(inner);
+        innerBytesTotal += inner.length;
+        const outer = encA.update(inner);
+        if (outer.length > 0) feed(outer);
+      }
+    }
+    const innerTail = encS.final();
+    hInner.update(innerTail);
+    innerBytesTotal += innerTail.length;
+    const outerMid = encA.update(innerTail);
+    if (outerMid.length > 0) feed(outerMid);
+    feed(encA.final());
+    const encMs = Date.now() - tEnc;
+    const C_OUTER = Buffer.concat(outerParts);
+    const plainSha256 = hPlain.finalHex();
+    const innerSha256 = hInner.finalHex();
+    const outerSha256 = hOuter.finalHex();
+    // 增量摘要 vs 一次性摘要交叉核对（外层全量缓冲在手，可独立复核）
+    expect(outerSha256).toBe(await sha256Hex(C_OUTER));
+    // 双层 CBC+PKCS#7 尺寸公式：内层补至 16 对齐（整除补整块）+ 外层恒再补一整块
+    expect(C_OUTER.length).toBe((Math.floor(PLAIN_BYTES / 16) + 1) * 16 + 16);
+
+    // ③ 项目+名册（直接采购=邀请域，quorum 最低 1 家）
+    const proj = await prisma.bidProject.create({
+      data: { projectCode: `BID-V3-BIG-${Date.now()}`, name: 'v3大件100MB测试', stage: 'SUBMIT', procurementMethod: '直接采购',
+        openTime: new Date(Date.now() + 3600_000), deadline: new Date(Date.now() + 24 * 3600_000) },
+    });
+    const roster = await prisma.bidSupplier.create({
+      data: { projectId: proj.id, supplierId, supplierName: 'e2e-v3供应商', submitStatus: '未递交' },
+    });
+
+    // ④ C_outer 暂存（encrypted-assets 端点同构：key 形制/哈希/归属一致——端点 50MiB 闸见用例头注）
+    const me = await prisma.user.findUnique({ where: { username_role: { username: USER, role: 'supplier' } } });
+    const stagingKey = `v3-staging/${proj.id}/${supplierId}/${Date.now()}-${outerSha256.slice(0, 8)}.outer`;
+    await minioClient.putObject(MINIO_BUCKET, stagingKey, C_OUTER, C_OUTER.length, {
+      'Content-Type': 'application/octet-stream',
+    });
+    const stagedAsset = await prisma.fileAsset.create({
+      data: {
+        key: stagingKey, originalName: 'big.outer', mimeType: 'application/octet-stream',
+        size: C_OUTER.length, sha256: outerSha256, category: 'bid_document', uploaderId: me!.id,
+      } as any,
+    });
+
+    // ⑤ 信封组装（kadmin=真 SM2 封 DEK_A——decrypt-outer v3 将以 active 管理方私钥真实解封）
+    const activeCert = await prisma.adminEncryptionCert.findFirst({ where: { active: true } });
+    expect(activeCert).toBeTruthy(); // BidModule onModuleInit ensureBootstrap 兜底生成
+    const envelope = {
+      version: 'dual-v3', canonicalVersion: 'erp-json-v1', provider: 'scca',
+      context: { projectId: proj.id, supplierId, submissionId: '', revision: 1, signingBindingId: 'e2e-b', signingCertFingerprint: 'f'.repeat(64) },
+      files: {
+        technical: {
+          assetId: stagedAsset.id, plainSha256, plainBytes: PLAIN_BYTES,
+          innerSha256, innerBytes: innerBytesTotal, outerSha256, outerBytes: C_OUTER.length,
+          kself: { format: 'scca-pkcs7-base64', recipientCertFingerprint: FP, value: P7VAL },
+          kadmin: { format: 'sm2-c1c3c2-hex', adminCertId: activeCert!.id, value: sm2EncryptHex(activeCert!.publicKey, Buffer.from(wrapDekJson(dekA), 'utf8').toString('hex')) },
+        },
+      },
+      sealedFields: {
+        cipherFormat: 'sm4-cbc-pkcs7-hex', cipher: 'deadbeef01', cipherSha256: 'c'.repeat(64), cipherBytes: 6,
+        kself: { format: 'scca-pkcs7-base64', recipientCertFingerprint: FP, value: P7VAL },
+      },
+      fieldsCommit: await computeV3FieldsCommit(FIELDS, NONCE),
+    };
+
+    // ⑥ submit v3（I6 归属闸+T4 备份固化全真实——备份自 MinIO 读回 100MB C_outer 再写一份证据件）
+    const tSubmit = Date.now();
+    const prep = await request(app.getHttpServer())
+      .post(`/api/supplier-portal/bid-submissions/${proj.id}/operations/prepare`)
+      .set('Cookie', cookie).set('X-Portal', 'supplier')
+      .send({ action: 'submit', baseRevision: 0 })
+      .expect(200);
+    await request(app.getHttpServer())
+      .post(`/api/supplier-portal/bid-submissions/${proj.id}/operations/${prep.body.operationId}/signing-payload`)
+      .set('Cookie', cookie).set('X-Portal', 'supplier')
+      .send({ envelope })
+      .expect(200);
+    const sub = await request(app.getHttpServer())
+      .post(`/api/supplier-portal/bid-submissions/${proj.id}/submit`)
+      .set('Cookie', cookie).set('X-Portal', 'supplier')
+      .send({ operationId: prep.body.operationId, signatureFormat: 'scca-pkcs7-base64', signP7: B64('e2e-big-p7'), baseRevision: 0 })
+      .expect(201);
+    const submissionId = sub.body.submissionId;
+    const submitMs = Date.now() - tSubmit;
+
+    // ⑦ 开标态：签到 quorum + OPENING + 会话窗口 + 指派主持人
+    await prisma.bidSupplier.updateMany({ where: { projectId: proj.id, supplierId }, data: { checkInAt: new Date() } });
+    await prisma.bidProject.update({ where: { id: proj.id }, data: { stage: 'OPENING', assignedHostUserId: host.id } });
+    await prisma.bidOpeningSession.create({
+      data: { projectId: proj.id, host: 'e2e-v3主持人', decryptWindowStart: new Date(), decryptWindowEnd: new Date(Date.now() + 3600_000) },
+    });
+    const hostLogin = await request(app.getHttpServer())
+      .post('/api/auth/login').set('X-Portal', 'bid')
+      .send({ username: HOST_USER, password: HOST_PASSWORD });
+    const hostCookie = hostLogin.headers['set-cookie'] as unknown as string[];
+    expect(hostLogin.status).toBe(200);
+    expect(hostCookie?.length).toBeGreaterThan(0);
+
+    // ⑧ 主持端解外层 v3 真实端点（两遍流：pass1 哈希闸 → pass2 分块解密流式写 MinIO）
+    const tDecrypt = Date.now();
+    const res = await request(app.getHttpServer())
+      .post(`/api/bid/projects/${proj.id}/opening/decrypt-outer`)
+      .set('Cookie', hostCookie).set('X-Portal', 'bid')
+      .send({ supplierId: roster.id })
+      .expect(201);
+    const decryptMs = Date.now() - tDecrypt;
+    expect(res.body.success).toBe(true);
+    expect(res.body.roles).toEqual(['technical']);
+    const innerAssetId = res.body.innerAssets.technical as string;
+    // 服务端流式解密自算的 C_inner 哈希 == 测试进程加密时增量自算值（字节级一致性的端到端证明）
+    const innerAsset = await prisma.fileAsset.findUnique({ where: { id: innerAssetId } });
+    expect(innerAsset?.sha256).toBe(innerSha256);
+    expect(innerAsset?.size).toBe(innerBytesTotal);
+    // 尺寸恒等式（Task 11 不变量）：C_inner 本身是 SM4-CBC 密文恒 16 对齐 → 外层填充恒一整块
+    expect(innerBytesTotal).toBe(C_OUTER.length - 16);
+    const exec = await prisma.decryptExecution.findFirst({ where: { submissionId } });
+    expect(exec?.status).toBe('SUCCESS');
+    // MinIO 落位（C_inner 真实在位，非仅元数据）
+    await expect(minioClient.statObject(MINIO_BUCKET, innerAsset!.key)).resolves.toBeTruthy();
+    console.log(
+      `[100MB e2e] plain=${PLAIN_BYTES}B outer=${C_OUTER.length}B inner=${innerBytesTotal}B | ` +
+      `encrypt=${encMs}ms submit=${submitMs}ms decrypt-outer=${decryptMs}ms total=${Date.now() - t0}ms`,
+    );
+
+    // ⑨ 清场（本项目前缀——MinIO 对象先行移除再删行，dev 共享桶不留 300MB 孤儿）
+    const backups = await prisma.bidFileBackup.findMany({ where: { projectId: proj.id }, select: { backupKey: true } });
+    for (const key of [stagingKey, innerAsset!.key, ...backups.map((b) => b.backupKey)]) {
+      await minioClient.removeObject(MINIO_BUCKET, key).catch(() => {});
+    }
+    await prisma.decryptExecution.deleteMany({ where: { submissionId } }).catch(() => {});
+    await prisma.submissionVersion.deleteMany({ where: { submissionId } }).catch(() => {});
+    await prisma.outbox.deleteMany({ where: { topic: 'bid.submitted.v3', payload: { path: ['projectId'], equals: proj.id } as any } }).catch(() => {});
+    await prisma.bidFileBackup.deleteMany({ where: { projectId: proj.id } }).catch(() => {});
+    await prisma.supplierBidSubmission.deleteMany({ where: { projectId: proj.id } }).catch(() => {});
+    await prisma.bidSupervisionLog.deleteMany({ where: { projectId: proj.id } }).catch(() => {});
+    await prisma.bidOpeningRecord.deleteMany({ where: { projectId: proj.id } }).catch(() => {});
+    await prisma.bidSupplier.deleteMany({ where: { projectId: proj.id } }).catch(() => {});
+    await prisma.bidOpeningSession.deleteMany({ where: { projectId: proj.id } }).catch(() => {});
+    await prisma.fileAsset.deleteMany({ where: { OR: [
+      { id: stagedAsset.id }, { id: innerAssetId },
+      { key: { startsWith: `v3-staging/${proj.id}/` } }, { key: { startsWith: `bid-inner/${proj.id}/` } },
+    ] } }).catch(() => {});
+    await prisma.bidProject.delete({ where: { id: proj.id } }).catch(() => {});
+  }, 300_000);
 
   afterAll(async () => {
     if (projectId) {

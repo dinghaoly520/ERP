@@ -448,6 +448,8 @@ In non-interactive environments, use `prisma migrate dev --create-only` → `pri
 
 ## 双信封新轨·生产启用前清单（2026-08 双信封落地）
 
+> **双信封大文件链路已分块化（2026-11，spec `docs/superpowers/specs/2026-11-05-dual-envelope-chunked-encryption-design.md`）**：浏览器 worker 流式加密/解密 + 服务端两遍流式剥外层（哈希闸语义不变、C_inner 零驻留），单件 500MB 密码学链路可用（`encrypted-assets` 端点 50MiB 闸待上调——spec §9.5①）；`ukey Sm4CbcChunked*` 为唯一分块密码原语，基准与部署注记见 spec「实现纪要」。
+
 - **ADMIN_KEYSTORE_DIR 必须纳入备份**：管理方外层私钥文件不在 DB/MinIO 备份内；丢失=对应历史信封外层永久不可解（全量 PLATFORM 归因）。生产对应加密机/HSM。
 - **.data/supervision/ 必须纳入备份**：监督推送平台签名私钥（A-153），与 ADMIN_KEYSTORE_DIR 同级；缺省 `SUPERVISION_KEYSTORE_DIR`。
 - **供应商门户须 https（或 localhost）**：`@water-erp/ukey`/WebCrypto（crypto.subtle）要求 secure context，局域网 http 直连会挂。

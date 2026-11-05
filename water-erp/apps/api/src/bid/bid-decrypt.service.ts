@@ -429,6 +429,8 @@ export class BidDecryptService {
           }
         })());
         try {
+          // 尺寸不变量（Task 11 minor①）：C_inner 本身是 SM4-CBC 密文恒 16 字节对齐 → 外层
+          // PKCS#7 填充恒为一整块 16B → innerBytes = outerBytes − 16 对一切良构信封恒成立
           await minioClient.putObject(MINIO_BUCKET, objectKey, upload, entry.outerBytes - 16, {
             'Content-Type': 'application/octet-stream',
           });
