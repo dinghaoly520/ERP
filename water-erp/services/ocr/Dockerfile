@@ -1,39 +1,66 @@
-# ERP OCR 服务生产镜像（麒麟 x86_64 / 8 核 / 无 GPU / 32G）
+# =============================================================================
+# OCR 微服务镜像（FastAPI + RapidOCR）——生产线同构版（2026-11-05 对齐生产
+# Dockerfile.ocr 结构：BASE_IMAGE/PIP_INDEX/DEB_MIRROR 可参数化 + OCR_GPU 变体）
 #
-# 构建（本机有网）：docker build -t water-erp-ocr:1.3.0 .
+# 构建（CPU 版，8 核无 GPU 生产机用这个）：
+#   docker build -t water-erp-ocr:1.3.0 .
+# 构建（GPU 变体，供有 CUDA 机器；镜像约 +6GB）：
+#   docker build --build-arg OCR_GPU=1 -t water-erp-ocr:1.3.0-gpu .
 # 搬运（生产无网）：docker save water-erp-ocr:1.3.0 | gzip > water-erp-ocr-1.3.0.tar.gz
-#                   生产 docker load < water-erp-ocr-1.3.0.tar.gz
-# 依赖用 requirements-prod.txt（rapid 专用裁剪版，模型内置 wheel，勿用全量 requirements
-# ——opendataloader[hybrid] 会拖 torch/docling 使镜像膨胀数 GB）
 #
-# 运行时配置：容器内 ocr_engine 读 /app/.env（挂载）或直接 -e 注入；
-# 8 核 6 核预算预设：-e OCR_NUM_WORKERS=2 -e OCR_INTRA_THREADS=3 -e OCR_INTER_THREADS=1
-FROM python:3.10-slim
+# v1.3.0 变更（相对生产 1.0.0）：
+#   - 依赖走 requirements-prod.txt（drop pdf2image——v1.2 起代码改用 PyMuPDF，已死）
+#   - 细粒度配置面：OCR_NUM_WORKERS/OCR_INTRA_THREADS 等（线程铁律 2×3≤核预算，
+#     全量旋钮见 .env.example；compose -e 注入优先）
+#   - 文字层快速路径 + 三护栏 / health 上报生效配置
+# =============================================================================
+ARG BASE_IMAGE=python:3.10-slim
+FROM ${BASE_IMAGE}
 
-# 国内源加速（构建机网络对官方源慢）
-RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null \
-    || sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list
+# 国内加速参数（内网/海外机器可置空回退官方源）
+ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ARG DEB_MIRROR=mirrors.aliyun.com
 
-# opencv（rapidocr 依赖）与 onnxruntime 的系统库：libGL/libglib/libxcb + OpenMP
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        libgl1 libglib2.0-0 libxcb1 libgomp1 \
+ENV PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# opencv（rapidocr 依赖）libgl/libglib + OpenMP libgomp + curl（compose 健康检查用）
+RUN set -eux; \
+    for f in /etc/apt/sources.list /etc/apt/sources.list.d/debian.sources; do \
+      [ -f "$f" ] && sed -i -e "s|deb.debian.org/debian|${DEB_MIRROR}/debian|g" \
+                          -e "s|deb.debian.org/debian-security|${DEB_MIRROR}/debian-security|g" "$f" || true; \
+    done; \
+    apt-get update && apt-get install -y --no-install-recommends \
+        libgl1 libglib2.0-0 libxcb1 libgomp1 curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
+# 依赖：rapid(ONNX/CPU) 为底座（requirements-prod.txt，PP-OCRv4 模型随 wheel 内置）；
+# OCR_GPU=1 叠加 opendataloader-pdf[hybrid]（torch/cuda wheel，约 +6GB）
+ARG OCR_GPU=0
 COPY requirements-prod.txt .
-RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements-prod.txt
+RUN set -eux; \
+    pip install --no-cache-dir --index-url ${PIP_INDEX_URL} -r requirements-prod.txt; \
+    if [ "$OCR_GPU" = "1" ]; then \
+        pip install --no-cache-dir --index-url ${PIP_INDEX_URL} "opendataloader-pdf[hybrid]"; \
+    fi
 
-COPY main.py ocr_engine.py config_gpu.yaml start.sh ./
-COPY .env.example ./
+COPY main.py ocr_engine.py config_gpu.yaml ./
 
-# 容器必须绑 0.0.0.0（start.sh 的 OCR_HOST env 默认即经此生效）
-ENV OCR_HOST=0.0.0.0 OCR_PORT=8100
+# 镜像出厂默认 rapid/CPU + 8 核机 6 核预算预设；compose 覆盖层 env 优先级更高
+ENV OCR_ENGINE=rapid \
+    OCR_HOST=0.0.0.0 \
+    OCR_PORT=8100 \
+    OCR_MAX_SIDE=3000 \
+    OCR_NUM_WORKERS=2 \
+    OCR_INTRA_THREADS=3 \
+    OCR_INTER_THREADS=1
 
 EXPOSE 8100
 
-# 与旧 1.0.0-gpu 的运维口径对齐（slim 无 curl，用 python 探活）
+# 容器级健康检查（compose 层的 curl 检查会覆盖此项；docker run 直用时兜底）
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/health', timeout=4)" || exit 1
+  CMD curl -sf http://127.0.0.1:8100/health || exit 1
 
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8100", "--workers", "1", "--timeout-keep-alive", "300"]
+CMD ["sh", "-c", "exec uvicorn main:app --host \"${OCR_HOST:-0.0.0.0}\" --port \"${OCR_PORT:-8100}\" --workers 1 --timeout-keep-alive 300"]
