@@ -86,7 +86,6 @@ export function ChartRenderer({
                 itemStyle: { ...(s.itemStyle || {}), opacity: 1 },
               }),
             })),
-            // Custom downplay: dim to 0.25
             stateAnimation: { duration: 250, easing: 'cubicOut' },
           } as any,
           true,

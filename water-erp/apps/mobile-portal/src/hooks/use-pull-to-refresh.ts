@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * 下拉刷新（2026-10-14 spec，零依赖）：仅窗口滚顶时响应；拖距阻尼 0.45、
+ * 下拉刷新（2026-10-14 spec，零依赖）：仅滚顶时响应；拖距阻尼 0.45、
  * 阈值 64px；指示器随 pull 渐显、refreshing 时旋转。touch 事件驱动——
  * 桌面无触摸自然禁用，不影响鼠标交互。
  */

@@ -137,7 +137,7 @@ export const RESULT_STATUS_CONFIG: Record<ResultStatusKey, StatusConfig> = {
     borderColor: "rgba(230,140,90,0.25)",
     icon: "alert",
   },
-  // 已取消 - 灰色（流程终止：非异常）
+  // 已取消 - 灰色（流程终止：中性色；仍计入台账异常四态，见后端 ABNORMAL_RESULT_STATES）
   CANCELLED: {
     key: "CANCELLED",
     label: "已取消",

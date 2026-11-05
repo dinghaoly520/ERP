@@ -1,4 +1,4 @@
-/** 品牌蓝系配色（与后端 PALETTE 一致） */
+/** 品牌蓝系配色（与后端 chart.mapper 调色板一致，同 8 色） */
 export const CHART_PALETTE = [
   '#2563EB', '#0891b2', '#7dd3fc', '#0d9488', '#6366f1',
   '#3b82f6', '#06b6d4', '#818cf8',

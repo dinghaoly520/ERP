@@ -22,7 +22,7 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   // admin 口径标签展示值：读数据库页当前公司选择，挂载 + 回前台（visibilitychange）时刷新；
-  // 发送提问时在 ask() 内再读一次真实值，标签只作展示不作数据源
+  // 发送提问时在 doAsk() 内再读一次真实值，标签只作展示不作数据源
   const [adminScopeCount, setAdminScopeCount] = useState(0);
 
   useEffect(() => {

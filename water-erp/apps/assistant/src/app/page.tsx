@@ -47,8 +47,9 @@ export default function Page() {
 
   // ---- Chat request ----
 
-  // onSuccess: create user + assistant messages from the API response.
-  // Uses refs for conversationId to keep the callback stable.
+  // onSuccess: append the assistant message from the API response
+  // (the user message is added in handleSend). Uses refs for conversationId
+  // to keep the callback stable.
   const conversationIdRef = useRef(conversationId);
   conversationIdRef.current = conversationId;
 
