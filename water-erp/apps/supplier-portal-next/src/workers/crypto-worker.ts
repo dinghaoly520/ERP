@@ -12,7 +12,7 @@
    运行时反向依赖门面模块会成打包环，勿改成值导入。
    ================================================================= */
 import { SM4_CHUNK_BYTES } from '@water-erp/ukey';
-import { decryptStream, encryptFileStream } from '../utils/crypto-pipeline';
+import { decryptStream, encryptFileStream, parseContentLengthBytes } from '../utils/crypto-pipeline';
 import type {
   CryptoWorkerDecryptBody,
   CryptoWorkerEncryptBody,
@@ -67,18 +67,13 @@ async function runEncrypt(body: CryptoWorkerEncryptBody & { id: number }): Promi
   post({ id: body.id, type: 'done', ...result });
 }
 
-/** Content-Length → totalBytes（缺失/非法 → 0=未知）。与 crypto-engine.ts 同义
- *  拷贝——见该文件注释（防打包环，勿单边改口径）。 */
-function toTotalBytes(raw: string | null): number {
-  const n = Number(raw ?? '');
-  return Number.isFinite(n) && n > 0 ? n : 0;
-}
-
+/** Content-Length → totalBytes：统一走 crypto-pipeline.parseContentLengthBytes
+ *  （2026-11-05 修复波收口——原 engine 侧/worker 侧各持一份同义拷贝靠注释同步）。 */
 async function runDecrypt(body: CryptoWorkerDecryptBody & { id: number }): Promise<void> {
   const res = await fetch(body.url, { credentials: 'include', headers: { 'X-Portal': 'supplier' } });
   if (!res.ok) throw new Error(`密文下载失败（HTTP ${res.status}）`);
   if (!res.body) throw new Error('下载响应无流式 body（response.body 为空）');
-  const totalBytes = toTotalBytes(res.headers.get('content-length'));
+  const totalBytes = parseContentLengthBytes(res.headers.get('content-length'));
   const throttle = new ProgressThrottle(totalBytes);
   const result = await decryptStream(res.body, body.dek, (done) => {
     if (throttle.hit(done)) post({ id: body.id, type: 'progress', doneBytes: done, totalBytes });

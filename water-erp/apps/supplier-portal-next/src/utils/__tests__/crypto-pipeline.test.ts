@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomHex, sha256Hex, sm4Encrypt, SM4_CHUNK_BYTES } from '@water-erp/ukey';
 import type { DekHex } from '../crypto-pipeline';
-import { decryptStream, encryptFileStream } from '../crypto-pipeline';
+import { decryptStream, encryptFileStream, parseContentLengthBytes } from '../crypto-pipeline';
 
 /** 测试尺寸：0（空）/1（单字节）/16（恰好整块）/1000（非对齐）/300KB+7（跨多个读段） */
 const SIZES = [0, 1, 16, 1000, 300 * 1024 + 7];
@@ -191,4 +191,52 @@ test('空文件：双层各补单填充块——innerBytes=16/outerBytes=32，ou
   assert.equal(back.plainBytes, 0);
   assert.equal(back.plainBlob.size, 0);
   assert.equal(back.plainSha256, await sha256Hex(new Uint8Array(0)));
+});
+
+/* ───────────────────── 组6：取消（shouldStop 块边界哨兵——F5 修复波） ───────────────────── */
+
+test('取消：encryptFileStream shouldStop 第 N 次检查起置位 → reject CRYPTO_CANCELLED（部分产出随拒绝作废）', async () => {
+  const plain = randomBytes(300 * 1024 + 7);
+  let checks = 0;
+  await assert.rejects(
+    encryptFileStream(
+      fixedChunkStream(plain, 64 * 1024), // 5 个读段——多块输入
+      plain.length,
+      randomDek(),
+      randomDek(),
+      undefined,
+      () => ++checks > 2, // 第 3 次检查（块边界）起取消
+    ),
+    /CRYPTO_CANCELLED/,
+  );
+  assert.ok(checks >= 3, `取消检查确实执行并拦截（${checks} 次）`);
+});
+
+test('取消：decryptStream shouldStop 第 N 次检查起置位 → reject CRYPTO_CANCELLED（不触 final/padding 校验）', async () => {
+  const plain = randomBytes(300 * 1024 + 7);
+  const enc = await encryptFileStream(chunkedStream(plain), plain.length, randomDek(), randomDek());
+  const cOuter = await blobBytes(enc.outerBlob);
+  let checks = 0;
+  await assert.rejects(
+    decryptStream(
+      fixedChunkStream(cOuter, 64 * 1024),
+      randomDek(), // 到不了 final——错钥 padding 校验不构成干扰
+      undefined,
+      () => ++checks > 2,
+    ),
+    /CRYPTO_CANCELLED/,
+  );
+  assert.ok(checks >= 3, `取消检查确实执行并拦截（${checks} 次）`);
+});
+
+/* ───────────────────── 组7：parseContentLengthBytes（Content-Length 唯一实现，engine/worker 双消费） ───────────────────── */
+
+test('parseContentLengthBytes：合法→字节数；缺失/空串/非法/非正→0', () => {
+  assert.equal(parseContentLengthBytes('12345'), 12345);
+  assert.equal(parseContentLengthBytes('0'), 0, '0=未知总量口径（非「总长 0」）');
+  assert.equal(parseContentLengthBytes('-5'), 0);
+  assert.equal(parseContentLengthBytes('abc'), 0);
+  assert.equal(parseContentLengthBytes('NaN'), 0);
+  assert.equal(parseContentLengthBytes(''), 0);
+  assert.equal(parseContentLengthBytes(null), 0);
 });

@@ -399,10 +399,11 @@ describe('dual-v3 全链 (e2e)', () => {
   // ── 大件 100MB 全链（分块加密 spec 验收 #5）：测试进程 ukey 分块双层加密（与浏览器 worker
   //    同一密码学内核）→ C_outer 暂存 → submit v3（真实备份固化）→ 主持端 decrypt-outer v3
   //    真实 HTTP 端点（两遍流式：pass1 哈希闸 + pass2 分块解密流式写 MinIO）。
-  //    C_outer 暂存不走 encrypted-assets 端点：该端点 multer 闸 MAX_OUTER_BYTES=50MiB+32B
-  //    （2026-11-05 核实未随「全库统一 500MB」上调——已记 spec 实现纪要为待修项），此处按
-  //    端点同构直写 MinIO+FileAsset（同 key 形制/同哈希实算/同归属 uploaderId）；小件真实
-  //    端点路径由用例①覆盖。解外层之后的一切（哈希闸/解密/写回/归属链/fence）全为真实执行。──
+  //    C_outer 暂存不走 encrypted-assets 端点（MAX_OUTER_BYTES 已随 2026-11-05 上限修复波
+  //    统一上调至 500MB+32B，commit 5868a2751——大件走该端点不会被 413 拒）：此处保留
+  //    staging 直写 MinIO+FileAsset 的同构路径（同 key 形制/同哈希实算/同归属 uploaderId）
+  //    是为速度/确定性——免推 100MB 走 HTTP multer 链路；小件真实端点路径由用例①覆盖。
+  //    解外层之后的一切（哈希闸/解密/写回/归属链/fence）全为真实执行。──
   it('⑪ 大件 100MB：分块双层加密投递 → decrypt-outer v3 流式解密 → C_inner 哈希/尺寸/耗时', async () => {
     const { minioClient, MINIO_BUCKET } = await import('../src/upload/minio.client');
     const t0 = Date.now();

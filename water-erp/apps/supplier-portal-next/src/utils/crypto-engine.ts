@@ -9,10 +9,14 @@
      （兜底③，spec §4.4）；worker onerror 后会话级熔断改指 local
      （脚本装载失败在构造成功后异步炸——不熔断则永远 erroring）。
    进度口径桥接：引擎公开 onProgress(doneBytes, totalBytes)；pipeline 是单参
-   (doneBytes)——total 由本层补齐（encrypt=file.size、decrypt=Content-Length，
-   缺失=0）。pipeline 产出的 Blob 原样透传，本层绝不重建。
+   (doneBytes)——total 由本层补齐（encrypt=file.size、decrypt=Content-Length
+   （parseContentLengthBytes 统一实现落 pipeline 模块），缺失=0）。pipeline
+   产出的 Blob 原样透传，本层绝不重建。
+   取消（2026-11-05 修复波 F5）：encryptFile/decryptUrl 末参可选 AbortSignal
+   ——local 引擎桥 pipeline.shouldStop（块边界 CRYPTO_CANCELLED）；worker
+   引擎 abort 即 disposeWorker（pending 全 reject，与 terminate 同语义、幂等）。
    ================================================================= */
-import { decryptStream, encryptFileStream } from './crypto-pipeline';
+import { decryptStream, encryptFileStream, parseContentLengthBytes } from './crypto-pipeline';
 import type { DecryptStreamResult, DekHex, EncryptFileResult } from './crypto-pipeline';
 
 /* ───────────── 消息协议（spec §4.2 定案；crypto-worker.ts type-only 引用共享） ───────────── */
@@ -53,8 +57,14 @@ export interface CryptoEngine {
     dekS: DekHex,
     dekA: DekHex,
     onProgress?: CryptoProgressFn,
+    signal?: AbortSignal,
   ): Promise<EncryptFileResult>;
-  decryptUrl(url: string, dek: DekHex, onProgress?: CryptoProgressFn): Promise<DecryptStreamResult>;
+  decryptUrl(
+    url: string,
+    dek: DekHex,
+    onProgress?: CryptoProgressFn,
+    signal?: AbortSignal,
+  ): Promise<DecryptStreamResult>;
   /** worker 引擎：终止 worker + pending 全 reject（取消语义）；local 引擎：no-op */
   terminate(): void;
 }
@@ -66,20 +76,19 @@ export interface CryptoWorkerHandle {
   onmessage: ((event: MessageEvent<CryptoWorkerResponse>) => void) | null;
   onerror: ((event: ErrorEvent) => void) | null;
 }
-export type CryptoWorkerCtor = new (
-  scriptURL: URL,
-  options?: { type: 'module' },
-) => CryptoWorkerHandle;
 export interface CryptoEngineOptions {
-  /** 测试注入 fake Worker 构造器（Node 无 Worker 全局）；缺省用浏览器全局 Worker */
-  workerCtor?: CryptoWorkerCtor;
+  /** 测试注入 worker 构造（Node 无 Worker 全局）——直接给「造一个 handle」的
+   *  函数（与生产 defaultSpawn 同形）。注入只落「当前生效 spawn」槽位（共享
+   *  worker 重建跟随）；生产默认 defaultSpawn 为 const 永不被改写。 */
+  spawn?: () => CryptoWorkerHandle;
 }
 
 /* ───────────── worker 引擎（模块内单实例 + promise map） ───────────── */
 
 type SpawnWorker = () => CryptoWorkerHandle;
 
-/** 默认 spawn：仅浏览器窗口可用（SSR/Node → null → 调用方回退 local） */
+/** 默认 spawn：仅浏览器窗口可用（SSR/Node → null → 调用方回退 local）。
+ *  const——生产构造路径，测试注入永不触碰本引用。 */
 const defaultSpawn: SpawnWorker | null =
   typeof window !== 'undefined' && typeof Worker === 'function'
     ? () =>
@@ -88,16 +97,18 @@ const defaultSpawn: SpawnWorker | null =
         new Worker(new URL('../workers/crypto-worker.ts', import.meta.url), { type: 'module' })
     : null;
 
-/** 测试注入分支的哑 URL——fake 构造器不读脚本地址，仅保 (URL, options) 形参一致 */
-const TEST_WORKER_URL = new URL('file:///crypto-worker.fake');
-
 interface PendingEntry {
   resolve: (value: EncryptFileResult | DecryptStreamResult) => void;
   reject: (reason: Error) => void;
   onProgress?: CryptoProgressFn;
 }
 
-let spawnWorker: SpawnWorker | null = defaultSpawn;
+/** 当前生效 spawn：共享 worker 懒重建（terminate/崩溃置空后）跟随本槽位。
+ *  仅 createWorkerCryptoEngine 写入——显式注入=换装、无参调用=复位生产默认。
+ *  之所以保留模块槽位（而非纯参数传递）：workerEngine 是共享单例，terminate
+ *  后的重建必须沿用「最后一次换装的 spawn」，否则注入环境下的重建会回落
+ *  到 Node 下的 null。生产 defaultSpawn（const）不会被注入污染（F5 修复波）。 */
+let activeSpawn: SpawnWorker | null = defaultSpawn;
 let activeWorker: CryptoWorkerHandle | null = null;
 const pendingRequests = new Map<number, PendingEntry>();
 let nextRequestId = 1;
@@ -154,9 +165,10 @@ function attachHandlers(worker: CryptoWorkerHandle): void {
 
 function getWorker(): CryptoWorkerHandle | null {
   if (activeWorker) return activeWorker;
-  if (!spawnWorker) return null;
+  const spawn = activeSpawn;
+  if (!spawn) return null;
   try {
-    const worker = spawnWorker();
+    const worker = spawn();
     attachHandlers(worker);
     activeWorker = worker;
     return worker;
@@ -185,6 +197,7 @@ function disposeWorker(): void {
 function requestViaWorker<T>(
   body: CryptoWorkerEncryptBody | CryptoWorkerDecryptBody,
   onProgress?: CryptoProgressFn,
+  signal?: AbortSignal,
 ): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const worker = getWorker();
@@ -192,10 +205,26 @@ function requestViaWorker<T>(
       reject(new Error('crypto worker 不可用（环境不支持或构造失败）——应回退 local 引擎'));
       return;
     }
+    // 调用即已取消：不发帧、不动共享 worker（dispose 会误伤其他在途 pending）
+    if (signal?.aborted) {
+      reject(new Error('CRYPTO_CANCELLED'));
+      return;
+    }
     const id = nextRequestId++;
+    // abort → disposeWorker（幂等）：本请求与其余 pending 一并 reject——worker 引擎
+    // 的取消语义本就是「整场终止」（与 terminate 同源），settle 时摘监听防泄漏/防误触发
+    const onAbort = (): void => disposeWorker();
+    const cleanup = (): void => signal?.removeEventListener('abort', onAbort);
+    signal?.addEventListener('abort', onAbort, { once: true });
     pendingRequests.set(id, {
-      resolve: resolve as (value: EncryptFileResult | DecryptStreamResult) => void,
-      reject,
+      resolve: (value) => {
+        cleanup();
+        resolve(value as T);
+      },
+      reject: (reason) => {
+        cleanup();
+        reject(reason);
+      },
       onProgress,
     });
     worker.postMessage({ ...body, id });
@@ -204,10 +233,10 @@ function requestViaWorker<T>(
 
 /** worker 引擎门面（模块单例——多次 create 共享同一 worker 与 pending map） */
 const workerEngine: CryptoEngine = {
-  encryptFile: (file, dekS, dekA, onProgress) =>
-    requestViaWorker<EncryptFileResult>({ cmd: 'encrypt', file, dekS, dekA }, onProgress),
-  decryptUrl: (url, dek, onProgress) =>
-    requestViaWorker<DecryptStreamResult>({ cmd: 'decrypt', url, dek }, onProgress),
+  encryptFile: (file, dekS, dekA, onProgress, signal) =>
+    requestViaWorker<EncryptFileResult>({ cmd: 'encrypt', file, dekS, dekA }, onProgress, signal),
+  decryptUrl: (url, dek, onProgress, signal) =>
+    requestViaWorker<DecryptStreamResult>({ cmd: 'decrypt', url, dek }, onProgress, signal),
   terminate: disposeWorker,
 };
 
@@ -215,12 +244,13 @@ const workerEngine: CryptoEngine = {
  * 构造 worker 引擎。
  *
  * - 浏览器：静态字面量 URL 构造（见 defaultSpawn 注释）
- * - SSR / Worker 不可用 / 构造抛错（注入 fake 抛错同理）→ null，调用方降级 local
- * - 重复调用 = 换引擎：旧 worker 与 pending 先清场（terminate + 全 reject）
+ * - SSR / Worker 不可用 / 构造抛错（注入 spawn 抛错同理）→ null，调用方降级 local
+ * - 重复调用 = 换引擎：旧 worker 与 pending 先清场（terminate + 全 reject）。
+ *   ⚠ 本工厂会重置共享 worker——「重复调用=换引擎」的清场语义是刻意的：
+ *   生产代码勿在业务在途请求时调用（会 reject 全部 pending）；测试注入走 opts.spawn。
  */
 export function createWorkerCryptoEngine(options?: CryptoEngineOptions): CryptoEngine | null {
-  const injected = options?.workerCtor;
-  spawnWorker = injected ? () => new injected(TEST_WORKER_URL, { type: 'module' }) : defaultSpawn;
+  activeSpawn = options?.spawn ?? defaultSpawn;
   disposeWorker();
   return getWorker() ? workerEngine : null;
 }
@@ -230,33 +260,37 @@ export function createWorkerCryptoEngine(options?: CryptoEngineOptions): CryptoE
 /** local 引擎可注入的 fetch 形态（decryptUrl 数据源；默认全局 fetch） */
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
-/** Content-Length → totalBytes（缺失/非法 → 0=未知）。crypto-worker.ts 有一份
- *  同义拷贝——worker 侧不能运行时依赖本模块（防打包环），勿单边改口径。 */
-function parseContentLength(raw: string | null): number {
-  const n = Number(raw ?? '');
-  return Number.isFinite(n) && n > 0 ? n : 0;
-}
+/** AbortSignal → pipeline.shouldStop 桥（F5 修复波）：local 引擎的取消通道——
+ *  每块边界检查，取消时 pipeline 抛 CRYPTO_CANCELLED 并尽力断流。 */
+const signalToShouldStop = (signal?: AbortSignal): (() => boolean) | undefined =>
+  signal ? () => signal.aborted === true : undefined;
 
 export function createLocalCryptoEngine(
   fetchImpl: FetchLike = (url, init) => fetch(url, init),
 ): CryptoEngine {
   return {
-    async encryptFile(file, dekS, dekA, onProgress) {
+    async encryptFile(file, dekS, dekA, onProgress, signal) {
       // file.stream() 直喂 pipeline；totalBytes 恒为 file.size
-      return encryptFileStream(file.stream(), file.size, dekS, dekA, (done) =>
-        onProgress?.(done, file.size),
+      return encryptFileStream(
+        file.stream(),
+        file.size,
+        dekS,
+        dekA,
+        (done) => onProgress?.(done, file.size),
+        signalToShouldStop(signal),
       );
     },
-    async decryptUrl(url, dek, onProgress) {
+    async decryptUrl(url, dek, onProgress, signal) {
       // 与既有主线程取件同构（ca-opening-decrypt-card）：同源 cookie + 门户头
       const res = await fetchImpl(url, { credentials: 'include', headers: { 'X-Portal': 'supplier' } });
       if (!res.ok) throw new Error(`密文下载失败（HTTP ${res.status}）`);
       if (!res.body) throw new Error('下载响应无流式 body（response.body 为空）');
-      const totalBytes = parseContentLength(res.headers.get('content-length'));
-      return decryptStream(res.body, dek, (done) => onProgress?.(done, totalBytes));
+      const totalBytes = parseContentLengthBytes(res.headers.get('content-length'));
+      // 取消检查在 pipeline 读流循环内——下载连接随 reader.cancel 一并释放
+      return decryptStream(res.body, dek, (done) => onProgress?.(done, totalBytes), signalToShouldStop(signal));
     },
     terminate() {
-      // 同进程直跑无 worker 可终止——取消语义仅 worker 引擎具备（spec §4.2）
+      // 同进程直跑无 worker 可终止——取消语义经 AbortSignal→shouldStop 通道（F5 修复波）
     },
   };
 }

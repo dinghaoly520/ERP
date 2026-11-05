@@ -53,8 +53,11 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
   const [decrypting, setDecrypting] = useState(false);
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
-  /** 解密相位取消旗：置旗 + terminate 引擎（幂等）——pending reject 落 catch 专用文案 */
+  /** 解密相位取消旗：置旗 + abort + terminate 引擎（幂等）——pending reject 落 catch 专用文案 */
   const cancelRef = useRef(false);
+  /** 解密相位取消信号（F5 修复波）：local 降级引擎 terminate 是 no-op、长时间无
+   *  效——AbortController 才能中断其流式管线（块边界 CRYPTO_CANCELLED） */
+  const abortRef = useRef<AbortController | null>(null);
 
   if (done) {
     return (
@@ -71,6 +74,8 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
     setBusy(true);
     setError('');
     cancelRef.current = false;
+    const controller = new AbortController(); // 每次执行新控制器——上次取消不留残迹
+    abortRef.current = controller;
     try {
       setNote('正在获取开标解密包…');
       const pkg = await supplierApi.getOpeningPackage(projectId);
@@ -89,6 +94,10 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
       const plainSha256ByRole: Record<string, string> = {};
       setDecrypting(true); // 解密相位开窗——取消钮在此窗口内可见（F4）
       for (const f of pkg.files as PkgFile[]) {
+        // 角色边界取消哨兵（F5 修复波）：盾解封（unwrapSccaKey）是主线程原子段不可中断，
+        // 点击取消后若恰无流式解密在途（如恰在盾操作/两角色间隙），置旗无 pending 可拒
+        // 会静默继续走完上传——此处按角色边界拦停（与提交页文件边界哨兵同模式）
+        if (cancelRef.current) throw new Error(DECRYPT_CANCEL_MSG);
         setNote(`正在解密 ${f.role}（${(f.innerBytes / 1024 / 1024).toFixed(1)}MB）…`);
         const dekJson = await scca.unwrapSccaKey(shield.container, f.kself.value);
         const dek = JSON.parse(dekJson) as { k: string; iv: string };
@@ -96,6 +105,7 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
           f.downloadUrl,
           { keyHex: dek.k, ivHex: dek.iv },
           (doneBytes, totalBytes) => setNote(decryptProgressNote(f.role, doneBytes, totalBytes)),
+          controller.signal, // 取消通道（F5）：local 引擎中断流式管线；worker 引擎 abort 即 terminate
         );
         plainByRole[f.role] = r.plainBlob;
         plainSha256ByRole[f.role] = r.plainSha256;
@@ -187,11 +197,12 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
         {busy && decrypting && (
           <>
             {/* busy 态取消（弹窗关闭闸 !busy 保留；F4：仅解密相位渲染——terminate
-                只管辖流式解密）：置旗 + terminate 引擎（幂等）——pending 流式解密
-                reject 落 catch，弹窗回初始态可重试；上传相位 XHR 不在引擎管辖
-                （Task8 未暴露 abort），不渲染本钮即不存在点了没反应的窗口 */}
+                只管辖流式解密）：置旗 + abort 信号（F5：local 降级引擎 terminate 是
+                no-op，靠信号中断块边界）+ terminate 引擎（幂等，worker 轨 pending
+                reject 落 catch）——角色边界哨兵兜住盾操作间隙的取消；上传相位 XHR
+                不在引擎管辖（Task8 未暴露 abort），不渲染本钮即不存在点了没反应的窗口 */}
             <div className="mt-3 flex justify-end">
-              <SpButton variant="soft" onClick={() => { cancelRef.current = true; getDefaultCryptoEngine().terminate(); }}>
+              <SpButton variant="soft" onClick={() => { cancelRef.current = true; abortRef.current?.abort(); getDefaultCryptoEngine().terminate(); }}>
                 取消解密
               </SpButton>
             </div>

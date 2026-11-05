@@ -68,53 +68,62 @@ function ensureOverlay() {
   if (overlayEl) return;
   const root = el(
     "div",
-    "position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.55)",
+    "position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;background:oklch(0.35 0.06 258 / 0.32)",
   );
   root.setAttribute("role", "alert");
   // 验收补（C11）：遮罩自身即 busy 标记——session-kick 据此让位（覆盖提交页等未打标调用方）
   root.setAttribute("data-sp-busy", "1");
 
+  // cgzxui 对齐（2026-11-05 修复波）：取消钮三态（新拟态凸起→悬停抬升→按压内陷）
+  // 经 <style> 规则承载（cssText 只留版式）；spinner 动画改类承载——reduced-motion
+  // 媒体查询可整灭（内联 animation shorthand 灭不掉）。色值全部 oklch 字面量：
+  // 遮罩挂在 body 下，页面级 CSS 变量（.flow-page 等）作用域不可达，勿用 var()。
   const spinCss = document.createElement("style");
   spinCss.textContent =
     "@keyframes sp-crypto-spin{to{transform:rotate(360deg)}}" +
-    ".sp-crypto-cancel:hover{border-color:#94a3b8;color:#0f172a}" +
-    ".sp-crypto-cancel:active{transform:translateY(1px)}" +
-    ".sp-crypto-cancel:disabled{opacity:.6;cursor:default}";
+    ".sp-crypto-spin-anim{animation:sp-crypto-spin .9s linear infinite}" +
+    ".sp-crypto-cancel{background:oklch(0.985 0.005 258);border:none;box-shadow:inset 0 1px 0 oklch(1 0 0/0.7),2px 2px 4px oklch(0.55 0.03 258/0.1),-1px -1px 3px oklch(1 0 0/0.85)}" +
+    ".sp-crypto-cancel:hover:not(:disabled){transform:translateY(-1px);box-shadow:inset 0 1px 0 oklch(1 0 0/0.7),3px 3px 6px oklch(0.55 0.03 258/0.14),-1px -1px 3px oklch(1 0 0/0.85)}" +
+    ".sp-crypto-cancel:active:not(:disabled){transform:none;box-shadow:inset 2px 2px 5px oklch(0.55 0.03 258/0.15),inset -2px -2px 5px oklch(1 0 0/0.5)}" +
+    ".sp-crypto-cancel:disabled{opacity:.6;cursor:default}" +
+    "@media (prefers-reduced-motion: reduce){.sp-crypto-spin-anim{animation:none}.sp-crypto-cancel:hover:not(:disabled){transform:none}}";
   root.appendChild(spinCss);
 
-  // 卡片视觉对齐 .impeccable：rounded-2xl、1px 发丝线、方向性双影（非全向投影）、tabular-nums
+  // 卡片视觉对齐 cgzxui 弹窗语言（.gdlg-pn 同源）：无外侧框线、表面渐变、方向性
+  // 双影（inset 高光 + 右下柔影 + 左上负向影，非全向投影）、tabular-nums
   const card = el(
     "div",
-    "width:420px;max-width:calc(100vw - 48px);background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:24px 28px;box-shadow:inset 0 1px 0 rgba(255,255,255,.9),6px 6px 16px rgba(2,6,23,.35),-1px -1px 3px rgba(148,163,184,.25)",
+    "width:420px;max-width:calc(100vw - 48px);background:linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));border-radius:16px;padding:24px 28px;box-shadow:inset 0 1px 0 oklch(1 0 0 / 0.75), 6px 6px 16px oklch(0.3 0.05 258 / 0.18), -1px -1px 3px oklch(1 0 0 / 0.85)",
   );
   const headerRow = el("div", "display:flex;align-items:center;gap:14px");
-  headerRow.appendChild(
-    el(
-      "div",
-      "width:28px;height:28px;flex:none;border-radius:50%;border:3px solid rgba(15,23,42,.12);border-top-color:#1e40af;animation:sp-crypto-spin .9s linear infinite",
-    ),
+  const spinner = el(
+    "div",
+    "width:28px;height:28px;flex:none;border-radius:50%;border:3px solid oklch(0.55 0.03 258 / 0.12);border-top-color:oklch(0.5 0.16 258)",
   );
+  spinner.className = "sp-crypto-spin-anim"; // 动画入类（reduced-motion 灭动画的挂点）
+  headerRow.appendChild(spinner);
   // 进度行：初始文案沿用 B6 加密语境，首个 report() 起被实时覆盖（解密等场景自纠）
   const progress = el(
     "div",
-    "flex:1;min-width:0;color:#0f172a;font-size:15px;font-weight:600;line-height:1.5;letter-spacing:.01em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere",
+    "flex:1;min-width:0;color:oklch(0.28 0.03 258);font-size:15px;font-weight:600;line-height:1.5;letter-spacing:.01em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere",
     "正在加密投标文件（国密 SM4 双层密封）…",
   );
   headerRow.appendChild(progress);
   card.appendChild(headerRow);
-  card.appendChild(el("div", "height:1px;background:#e2e8f0;margin:16px 0 12px"));
+  card.appendChild(el("div", "height:1px;background:oklch(0.6 0.04 258 / 0.16);margin:16px 0 12px"));
   card.appendChild(
     el(
       "div",
-      "color:#64748b;font-size:12px;line-height:1.6",
+      "color:oklch(0.47 0.025 258);font-size:12px;line-height:1.6",
       "大文件加密可能需要数分钟，请勿刷新或关闭本页面",
     ),
   );
 
   const cancelRow = el("div", "display:none;justify-content:flex-end;margin-top:14px");
+  // 版式走 cssText；背景/边框/三态影子走上方 <style> 的 .sp-crypto-cancel 规则
   const cancelBtn = el(
     "button",
-    "padding:8px 20px;border-radius:12px;border:1px solid #cbd5e1;background:#fff;color:#334155;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer",
+    "padding:8px 20px;border-radius:12px;color:oklch(0.28 0.03 258);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer",
     "取消",
   );
   cancelBtn.type = "button";

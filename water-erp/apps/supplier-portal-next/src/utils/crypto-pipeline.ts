@@ -23,6 +23,14 @@ import {
 /** 数据加密密钥（hex，16B key + 16B IV）——与信封 kself/kadmin 封装前同形态 */
 export type DekHex = { keyHex: string; ivHex: string };
 
+/** Content-Length 头 → totalBytes（缺失/非法/非正 → 0=未知）。engine local 与
+ *  crypto-worker 双消费的唯一实现（2026-11-05 修复波收口——原两处同义拷贝仅靠
+ *  注释互相同步，现统一落本管线模块：纯函数、零依赖，两消费侧均无环导入）。 */
+export function parseContentLengthBytes(raw: string | null): number {
+  const n = Number(raw ?? '');
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
 export interface EncryptFileResult {
   /** C_outer 全量（唯一累积的密文）——直接供 uploadOuter 上传 */
   outerBlob: Blob;
@@ -53,12 +61,19 @@ class ProgressGate {
   }
 }
 
+/** 取消检查（F5 修复波）：每块处理前 + 收口前各查一次——true 即抛
+ *  CRYPTO_CANCELLED。部分产出（密文累积/增量哈希）随 Promise 拒绝一并作废，
+ *  调用方拿不到半成品（catch 侧丢弃语义）。盾操作等主线程原子段不可中断，
+ *  取消最快在下一块边界生效（大文件分块 2MB 一块，粒度足够）。 */
+const CRYPTO_CANCELLED_MSG = 'CRYPTO_CANCELLED';
+
 export async function encryptFileStream(
   source: ReadableStream<Uint8Array>,
   totalBytes: number,
   dekS: DekHex,
   dekA: DekHex,
   onProgress?: (doneBytes: number) => void | Promise<void>,
+  shouldStop?: () => boolean,
 ): Promise<EncryptFileResult> {
   const encInner = new Sm4CbcChunkedEncryptor(dekS);
   const encOuter = new Sm4CbcChunkedEncryptor(dekA);
@@ -87,6 +102,7 @@ export async function encryptFileStream(
   const reader = source.getReader();
   try {
     for (;;) {
+      if (shouldStop?.()) throw new Error(CRYPTO_CANCELLED_MSG); // 块边界前置检查（含读前）
       const { done, value } = await reader.read();
       if (done) break;
       const chunk = value ?? new Uint8Array(0);
@@ -106,6 +122,8 @@ export async function encryptFileStream(
       `encryptFileStream: 流实际长度 ${plainBytes} 与声明的 totalBytes ${totalBytes} 不符（文件在读取中被改动或截断）`,
     );
   }
+  // 收口前最后一次取消检查（EOF 已到——读完整个流才取消的调用方意图仍被尊重）
+  if (shouldStop?.()) throw new Error(CRYPTO_CANCELLED_MSG);
   // EOF 双层依序收口：内层 final（PKCS#7 补块）产物即弃喂外层，再外层 final
   pumpOuter(encInner.final());
   const outerTail = encOuter.final();
@@ -132,6 +150,7 @@ export async function decryptStream(
   source: ReadableStream<Uint8Array>,
   dek: DekHex,
   onProgress?: (doneBytes: number) => void | Promise<void>,
+  shouldStop?: () => boolean,
 ): Promise<DecryptStreamResult> {
   const decryptor = new Sm4CbcChunkedDecryptor(dek);
   const plainHash = new Sha256Incremental();
@@ -143,6 +162,7 @@ export async function decryptStream(
   const reader = source.getReader();
   try {
     for (;;) {
+      if (shouldStop?.()) throw new Error(CRYPTO_CANCELLED_MSG); // 块边界前置检查（含读前）
       const { done, value } = await reader.read();
       if (done) break;
       const chunk = value ?? new Uint8Array(0);
@@ -156,9 +176,11 @@ export async function decryptStream(
       if (onProgress && gate.hit(cipherBytes)) await onProgress(cipherBytes); // 按密文 doneBytes 计
     }
   } catch (err) {
-    await reader.cancel().catch(() => undefined);
+    await reader.cancel().catch(() => undefined); // 取消/异常一并尽力断流（下载连接随 reader.cancel 释放）
     throw err;
   }
+  // 收口前最后一次取消检查——已下载未收口的流就此作废（不做 padding 校验/终档进度）
+  if (shouldStop?.()) throw new Error(CRYPTO_CANCELLED_MSG);
   const plainTail = decryptor.final(); // 解扣留块并校验剥 PKCS#7；非法 → sm-crypto 'padding is invalid'
   if (plainTail.length > 0) {
     plainBytes += plainTail.length;

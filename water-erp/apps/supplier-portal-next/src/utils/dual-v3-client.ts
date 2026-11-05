@@ -40,6 +40,10 @@ export interface V3UploadDeps {
    *  local 同进程直跑）；测试注入 createLocalCryptoEngine()。函数入口解析一次、
    *  整次调用生效（逐角色共用同一引擎实例——worker 引擎模块内单例）。 */
   cryptoEngine?: CryptoEngine;
+  /** 取消信号（2026-11-05 修复波 F5）：透传 engine.encryptFile 第 5 参——local
+   *  引擎中断流式管线（块边界 CRYPTO_CANCELLED）、worker 引擎 abort 即 terminate
+   *  （pending reject）。逐角色共用同一信号：取消即整场停（不产半成品信封）。 */
+  signal?: AbortSignal;
 }
 
 /** 非安全上下文守卫：http 局域网地址（非 localhost/https）下浏览器禁用 crypto.subtle，
@@ -143,8 +147,9 @@ export async function encryptAndUploadV3(
     const dekA = { keyHex: randomHex(16), ivHex: randomHex(16) };
     // 分块一遍流过两层：C_inner 段即弃零驻留，三哈希/字节计数随流增量——
     // 哈希口径=二进制（真盾 E2E 实证：hex 字符串哈希 ≠ 服务端实算二进制哈希），
-    // 引擎产物与旧 one-shot 路径逐字节一致（信封锚点不变）
-    const res = await engine.encryptFile(file, dekS, dekA, deps.onProgress);
+    // 引擎产物与旧 one-shot 路径逐字节一致（信封锚点不变）；deps.signal 透传
+    // 第 5 参——取消时管线抛 CRYPTO_CANCELLED，本角色密文不入信封
+    const res = await engine.encryptFile(file, dekS, dekA, deps.onProgress, deps.signal);
 
     const uploaded = await deps.uploadOuter(role, res.outerBlob, `${file.name}.outer`);
     if (uploaded.outerSha256 && uploaded.outerSha256 !== res.outerSha256) {

@@ -83,8 +83,10 @@ export function CaBidReuploadCard({ projectId, onReuploaded }: {
     if (!ctx || !pin) return;
     setStage('running');
     setError('');
-    // ② 重封段遮罩取消旗：cancel 回调置旗 + terminate 引擎（幂等，双击安全）
+    // ② 重封段遮罩取消旗：cancel 回调置旗 + abort 信号 + terminate 引擎
+    //   （均幂等，双击安全；F5 修复波：local 降级引擎靠 AbortSignal 中断流式管线）
     let cryptoCancelled = false;
+    const cancelController = new AbortController();
     try {
       // ① 盾复原 fields+nonce（补传必须复用原 nonce——fieldsCommit 与原版一致）
       setNote('盾复原唱标字段（fields+nonce）…');
@@ -116,6 +118,8 @@ export function CaBidReuploadCard({ projectId, onReuploaded }: {
                 phase: `加密中 ${fileIdx + 1}/${roleFiles.length}`,
                 doneBytes: done, totalBytes: total,
               }),
+              // 取消信号（F5）：透传 engine 第 5 参——local 引擎块边界中断、worker abort 即 terminate
+              signal: cancelController.signal,
               uploadOuter: (role, blob, filename) => {
                 ensureNotCancelled(); // 上传相位点取消——止步于下一文件边界
                 const idx = ++fileIdx;
@@ -135,7 +139,7 @@ export function CaBidReuploadCard({ projectId, onReuploaded }: {
           ensureNotCancelled(); // 单文件场景在上传中点取消——上传完成即止步，不进③签名
           return built;
         },
-        { cancel: () => { cryptoCancelled = true; getDefaultCryptoEngine().terminate(); } },
+        { cancel: () => { cryptoCancelled = true; cancelController.abort(); getDefaultCryptoEngine().terminate(); } },
       );
 
       // ③ 冻结 → 盾签 → 提交

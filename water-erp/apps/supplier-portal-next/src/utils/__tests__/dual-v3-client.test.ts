@@ -20,18 +20,18 @@ const FIELDS: V3Fields = {
 const toHex = (b: Uint8Array): string => Buffer.from(b).toString('hex');
 
 /** 探针引擎：包一层 local 引擎——记录每次 encryptFile 的文件名与 DEK 入参
- *  （kadmin 走 SM2 不可逆，引擎入参是 DEK_A 唯一明文观测点）。onProgress 第 4 参
- *  原样透传（Task 9 起 client 经 deps.onProgress 注入——进度序观测已迁至 client 通道，
- *  不再自挂引擎侧探针）。 */
+ *  （kadmin 走 SM2 不可逆，引擎入参是 DEK_A 唯一明文观测点）。onProgress 第 4 参 /
+ *  signal 第 5 参原样透传（Task 9 起进度经 deps.onProgress 注入；F5 修复波起取消
+ *  经 deps.signal 注入——探针保持与真引擎同参形，不吞尾参）。 */
 interface EngineCall { file: string; dekS: { keyHex: string; ivHex: string }; dekA: { keyHex: string; ivHex: string } }
 function spyLocalEngine(sink: { calls: EngineCall[] }): CryptoEngine {
   const base = createLocalCryptoEngine();
   return {
-    encryptFile: (file, dekS, dekA, onProgress) => {
+    encryptFile: (file, dekS, dekA, onProgress, signal) => {
       sink.calls.push({ file: file.name, dekS, dekA });
-      return base.encryptFile(file, dekS, dekA, onProgress);
+      return base.encryptFile(file, dekS, dekA, onProgress, signal);
     },
-    decryptUrl: (url, dek, onProgress) => base.decryptUrl(url, dek, onProgress),
+    decryptUrl: (url, dek, onProgress, signal) => base.decryptUrl(url, dek, onProgress, signal),
     terminate: () => base.terminate(),
   };
 }
@@ -210,6 +210,30 @@ test('服务端实算 outerSha256 与本地不一致 → 抛错（防传输损�
     ),
     /outerSha256/,
   );
+});
+
+test('deps.signal（F5 修复波）：透传 engine.encryptFile 第 5 参——中途 abort → CRYPTO_CANCELLED（半成品不入信封）', async () => {
+  const fakeAdapter = { wrapKeyToEncCert: async () => 'TURJWA==.1' };
+  const controller = new AbortController();
+  const p = encryptAndUploadV3(
+    'proj-cancel',
+    // ≥2MB：进度字节闸首档后才触发 abort（onProgress 首档即取消——下一块边界拦停）
+    [{ role: 'technical', file: new File([new Uint8Array(5 * 1024 * 1024 + 3)], 'big.pdf') }],
+    FIELDS,
+    ENC_CERT_PEM,
+    fakeAdapter as any,
+    ADMIN,
+    {
+      uploadOuter: async () => {
+        throw new Error('取消后不得进入上传相位');
+      },
+      onProgress: () => controller.abort(), // 首档进度即取消
+      signal: controller.signal,
+    },
+    { supplierId: 'sup-1', submissionId: '', revision: 1, signingBindingId: 'b', signingCertFingerprint: 'c' },
+  );
+  // Node 下默认引擎=local（无 Worker 全局）——即真走 signal→shouldStop 块边界通道
+  await assert.rejects(p, /CRYPTO_CANCELLED/);
 });
 
 test('非安全上下文（浏览器禁用 crypto.subtle，http 局域网访问）→ 中文指引而非裸 TypeError', async () => {

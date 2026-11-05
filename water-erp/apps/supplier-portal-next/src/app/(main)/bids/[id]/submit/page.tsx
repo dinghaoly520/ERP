@@ -465,8 +465,10 @@ function BidSubmitInner() {
   async function doSubmit() {
     if (!sccaCtx) return;
     setSubmitting(true);
-    // ③ 加密/上传段遮罩取消旗：cancel 回调置旗 + terminate 引擎（幂等，双击安全）
+    // ③ 加密/上传段遮罩取消旗：cancel 回调置旗 + abort 信号 + terminate 引擎
+    //   （均幂等，双击安全；F5 修复波：local 降级引擎靠 AbortSignal 中断流式管线）
     let cryptoCancelled = false;
+    const cancelController = new AbortController();
     try {
       // ① 盾枚举（容器 + 加密证 PEM）
       setSubmitNote("正在读取 U盾…");
@@ -515,6 +517,8 @@ function BidSubmitInner() {
                 phase: `加密中 ${fileIdx + 1}/${roleFiles.length}`,
                 doneBytes: done, totalBytes: total,
               }),
+              // 取消信号（F5）：透传 engine 第 5 参——local 引擎块边界中断、worker abort 即 terminate
+              signal: cancelController.signal,
               uploadOuter: (role, blob, filename) => {
                 ensureNotCancelled(); // 上传相位点取消——止步于下一文件边界
                 const idx = ++fileIdx;
@@ -537,7 +541,7 @@ function BidSubmitInner() {
           ensureNotCancelled(); // 单文件场景在上传中点取消——上传完成即止步，不进④签名
           return built;
         },
-        { cancel: () => { cryptoCancelled = true; getDefaultCryptoEngine().terminate(); } },
+        { cancel: () => { cryptoCancelled = true; cancelController.abort(); getDefaultCryptoEngine().terminate(); } },
       );
 
       // ④ 冻结签名原文 → 盾 P7 签名

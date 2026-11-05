@@ -7,6 +7,8 @@
  * ③ terminate 语义：pending 全 reject、worker.terminate 被调、下次调用自动重建
  * ④ 构造失败 → null；getDefaultCryptoEngine 回退 local 且记忆化
  *    F5 补：worker onerror（脚本装载失败=构造后异步炸）→ 默认引擎会话级熔断改指 local
+ *    F5 修复波补：AbortSignal 取消双轨（local=块边界 CRYPTO_CANCELLED / worker=
+ *    abort 即 terminate 共享 worker）+ 测试注入改 opts.spawn（不再改写模块全局）
  * 另设一组直驱真实 crypto-worker 模块（伪造 self 全局）：真数据面（pipeline 直跑、
  * progress 节流、done 帧形状、解密 fetch、error 帧）——node:test 按文件分进程，
  * 全局替身不影响其他测试文件。
@@ -20,7 +22,6 @@ import {
   createLocalCryptoEngine,
   createWorkerCryptoEngine,
   getDefaultCryptoEngine,
-  type CryptoWorkerCtor,
   type CryptoWorkerRequest,
   type CryptoWorkerResponse,
 } from '../crypto-engine';
@@ -94,6 +95,12 @@ const asDecryptRequest = (msg: CryptoWorkerRequest) => {
   if (msg.cmd !== 'decrypt') throw new Error(`期望 decrypt 帧，实得 ${String(msg.cmd)}`);
   return msg;
 };
+
+/** 注入口（F5 修复波改 opts.spawn）：与生产 defaultSpawn 同形——URL 指 worker 文件
+ *  + module 选项（沿用原 workerCtor 注入断言口径：scriptURL 含 crypto-worker、
+ *  options={type:'module'}）。注入只落「当前生效 spawn」槽位，不触生产默认。 */
+const spawnFakeWorker = (): FakeWorker =>
+  new FakeWorker(new URL('file:///crypto-worker.fake'), { type: 'module' });
 
 /** encrypt done 帧样本（字段值与锚无关，锁的是引擎透传） */
 const encryptDone = (id: number, outerBlob: Blob): CryptoWorkerResponse => ({
@@ -194,11 +201,46 @@ test('local 解密：非 2xx → reject 带状态码；无 body 响应 → rejec
   await assert.rejects(engineNoBody.decryptUrl('/api/upload/files/x', randomDek()), /body/);
 });
 
+test('local 取消（F5 修复波）：AbortSignal 中途 abort → reject CRYPTO_CANCELLED（块边界哨兵生效）', async () => {
+  // encryptFile：≥2MB（进度字节闸首档）后 abort——下一块边界拦停（terminate 是 no-op，
+  // 信号是 local 引擎唯一有效的取消通道——本用例即其回归闸）
+  const controller = new AbortController();
+  const plain = randomBytes(5 * 1024 * 1024 + 3);
+  await assert.rejects(
+    createLocalCryptoEngine().encryptFile(
+      new File([plain], 'bid.pdf'),
+      randomDek(),
+      randomDek(),
+      () => controller.abort(), // 首档进度即取消
+      controller.signal,
+    ),
+    /CRYPTO_CANCELLED/,
+  );
+
+  // decryptUrl 同口径：注入 fetch 回 C_outer 流，中途 abort
+  const dekS = randomDek();
+  const dekA = randomDek();
+  const enc = await createLocalCryptoEngine().encryptFile(
+    new File([randomBytes(5 * 1024 * 1024 + 3)], 'seed.pdf'),
+    dekS,
+    dekA,
+  );
+  const cOuter = await blobBytes(enc.outerBlob);
+  const c2 = new AbortController();
+  const engine = createLocalCryptoEngine(
+    async () => new Response(chunkedStream(cOuter), { headers: { 'content-length': String(cOuter.length) } }),
+  );
+  await assert.rejects(
+    engine.decryptUrl('/api/upload/files/x', dekA, () => c2.abort(), c2.signal),
+    /CRYPTO_CANCELLED/,
+  );
+});
+
 /* ───────────────────── 组2：worker 协议编解码（fake Worker） ───────────────────── */
 
 test('worker encrypt：发 {cmd:encrypt,file,dekS,dekA}；progress×3 双参透传；done resolve 且 Blob 引用不重建', async () => {
   FakeWorker.instances.length = 0;
-  const engine = createWorkerCryptoEngine({ workerCtor: FakeWorker });
+  const engine = createWorkerCryptoEngine({ spawn: spawnFakeWorker });
   assert.ok(engine, 'fake 构造可用 → 引擎非 null');
   assert.equal(FakeWorker.instances.length, 1, '构造即建一个 worker');
   const w = FakeWorker.instances[0]!;
@@ -245,7 +287,7 @@ test('worker encrypt：发 {cmd:encrypt,file,dekS,dekA}；progress×3 双参透�
 
 test('worker decrypt：发 {cmd:decrypt,url,dek}；error 帧 → reject(message)，之后引擎仍可用', async () => {
   FakeWorker.instances.length = 0;
-  const engine = createWorkerCryptoEngine({ workerCtor: FakeWorker });
+  const engine = createWorkerCryptoEngine({ spawn: spawnFakeWorker });
   assert.ok(engine);
   const w = FakeWorker.instances[0]!;
 
@@ -270,7 +312,7 @@ test('worker decrypt：发 {cmd:decrypt,url,dek}；error 帧 → reject(message)
 
 test('worker 并发：id 关联不串线——后发 id 先 done 也不误投', async () => {
   FakeWorker.instances.length = 0;
-  const engine = createWorkerCryptoEngine({ workerCtor: FakeWorker });
+  const engine = createWorkerCryptoEngine({ spawn: spawnFakeWorker });
   assert.ok(engine);
   const w = FakeWorker.instances[0]!;
   const file = new File([new Uint8Array(4)], 'f');
@@ -308,7 +350,7 @@ test('worker 并发：id 关联不串线——后发 id 先 done 也不误投', 
 
 test('worker terminate：pending 全 reject（取消语义）+ worker.terminate 被调；下次调用自动重建新 worker', async () => {
   FakeWorker.instances.length = 0;
-  const engine = createWorkerCryptoEngine({ workerCtor: FakeWorker });
+  const engine = createWorkerCryptoEngine({ spawn: spawnFakeWorker });
   assert.ok(engine);
   const w1 = FakeWorker.instances[0]!;
   const file = new File([new Uint8Array(3)], 'f');
@@ -339,7 +381,7 @@ test('worker terminate：pending 全 reject（取消语义）+ worker.terminate 
 
 test('worker 崩溃（onerror）：pending 全 reject、坏 worker 被 terminate，下次调用重建', async () => {
   FakeWorker.instances.length = 0;
-  const engine = createWorkerCryptoEngine({ workerCtor: FakeWorker });
+  const engine = createWorkerCryptoEngine({ spawn: spawnFakeWorker });
   assert.ok(engine);
   const w1 = FakeWorker.instances[0]!;
   const file = new File([new Uint8Array(2)], 'f');
@@ -357,16 +399,46 @@ test('worker 崩溃（onerror）：pending 全 reject、坏 worker 被 terminate
   await p2; // 重建后可正常完成
 });
 
+test('worker 取消（F5 修复波）：在途请求 signal abort → terminate 共享 worker、pending reject（取消语义）', async () => {
+  FakeWorker.instances.length = 0;
+  const engine = createWorkerCryptoEngine({ spawn: spawnFakeWorker });
+  assert.ok(engine);
+  const w = FakeWorker.instances[0]!;
+  const controller = new AbortController();
+  const p = engine.encryptFile(
+    new File([new Uint8Array(3)], 'f'),
+    randomDek(),
+    randomDek(),
+    undefined,
+    controller.signal,
+  );
+  controller.abort(); // 帧已发、worker 未回——abort 即整场终止（与手按取消钮同语义）
+  assert.equal(w.terminated, 1, '底层 worker.terminate 被调');
+  await assert.rejects(p, /已终止|取消/);
+});
+
+test('worker 取消：调用即已 abort → 不发帧直接 reject CRYPTO_CANCELLED（不误伤共享 worker）', async () => {
+  FakeWorker.instances.length = 0;
+  const engine = createWorkerCryptoEngine({ spawn: spawnFakeWorker });
+  assert.ok(engine);
+  const w = FakeWorker.instances[0]!;
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(
+    engine.decryptUrl('/api/upload/files/x', randomDek(), undefined, controller.signal),
+    /CRYPTO_CANCELLED/,
+  );
+  assert.equal(w.posted.length, 0, '未发帧');
+  assert.equal(w.terminated, 0, '未动共享 worker（无在途 pending 可误伤）');
+});
+
 /* ───────────────────── 组4：构造失败 / 默认引擎 ───────────────────── */
 
-test('构造失败 → null：WorkerCtor 抛错被吞，不外泄', () => {
-  class ThrowingWorker {
-    constructor() {
-      throw new Error('module workers unsupported');
-    }
-  }
+test('构造失败 → null：spawn 抛错被吞，不外泄', () => {
   const engine = createWorkerCryptoEngine({
-    workerCtor: ThrowingWorker as unknown as CryptoWorkerCtor,
+    spawn: () => {
+      throw new Error('module workers unsupported');
+    },
   });
   assert.equal(engine, null);
 });
