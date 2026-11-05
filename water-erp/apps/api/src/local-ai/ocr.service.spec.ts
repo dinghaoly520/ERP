@@ -12,7 +12,6 @@ const okJson = {
 
 async function makeService(
   url: string,
-  env: Record<string, string> = {},
   redis?: unknown,
 ): Promise<OcrService> {
   const providers: Provider[] = [
@@ -21,7 +20,7 @@ async function makeService(
       provide: ConfigService,
       useValue: {
         get: (key: string, def?: string) =>
-          key === 'OCR_SERVICE_URL' ? url : (env[key] ?? def),
+          key === 'OCR_SERVICE_URL' ? url : def,
       },
     },
   ];
@@ -134,45 +133,42 @@ function mockRecordingFetch(records: FetchRecord[]) {
   });
 }
 
-describe('OCR_BATCH_PAGES / OCR_DPI env 化 + 页数探测零 OCR', () => {
-  it('OCR_BATCH_PAGES=20：100 页文件分 5 批（+1 次零 OCR 探测），批界按 20 切', async () => {
-    const svc = await makeService('http://a:8100', { OCR_BATCH_PAGES: '20' });
+describe('消费端瘦身后契约：恒定批次 + 不发 dpi + 页数探测零 OCR', () => {
+  it('100 页文件默认按 40 分批（3 批 + 1 次零 OCR 探测），无 env 可调', async () => {
+    const svc = await makeService('http://a:8100');
     const records: FetchRecord[] = [];
     (global as any).fetch = mockRecordingFetch(records);
 
     const big = Buffer.alloc(21 * 1024 * 1024); // >20MB 触发分批路径
-    const result = await svc.ocrPdf(big);
+    await svc.ocrPdf(big);
 
-    expect(records).toHaveLength(6);
-    expect(records[0].form.max_pages).toBe('0'); // 探测零 OCR
-    expect(records[0].form.page_range).toBeNull();
+    expect(records).toHaveLength(4);
     const batches = records.slice(1).map((r) => r.form.page_range);
-    expect(batches).toEqual(['1-20', '21-40', '41-60', '61-80', '81-100']);
-    for (const r of records.slice(1)) {
-      expect(r.form.max_pages).toBe('20');
-    }
-    expect(result.processedPages).toBe(100);
+    expect(batches).toEqual(['1-40', '41-80', '81-100']);
   });
 
-  it('省略 dpi 走 OCR_DPI 默认：表单 dpi 字段=env 值', async () => {
-    const svc = await makeService('http://a:8100', { OCR_DPI: '200' });
+  it('页数探测调用零 OCR：max_pages=0 且无 page_range、无 dpi 字段', async () => {
+    const svc = await makeService('http://a:8100');
+    const records: FetchRecord[] = [];
+    (global as any).fetch = mockRecordingFetch(records);
+
+    const big = Buffer.alloc(21 * 1024 * 1024);
+    await svc.ocrPdf(big);
+
+    expect(records[0].form.max_pages).toBe('0');
+    expect(records[0].form.page_range).toBeNull();
+    expect(records[0].form.dpi).toBeNull();
+  });
+
+  it('dpi 完全交由服务端：所有请求不带 dpi 字段', async () => {
+    const svc = await makeService('http://a:8100');
     const records: FetchRecord[] = [];
     (global as any).fetch = mockRecordingFetch(records);
 
     await svc.ocrPdf(Buffer.from('x'));
 
     expect(records).toHaveLength(1);
-    expect(records[0].form.dpi).toBe('200');
-  });
-
-  it('显式 dpi 覆盖 env 默认', async () => {
-    const svc = await makeService('http://a:8100', { OCR_DPI: '200' });
-    const records: FetchRecord[] = [];
-    (global as any).fetch = mockRecordingFetch(records);
-
-    await svc.ocrPdf(Buffer.from('x'), 200, 120);
-
-    expect(records[0].form.dpi).toBe('120');
+    expect(records[0].form.dpi).toBeNull();
   });
 });
 
@@ -194,7 +190,7 @@ function makeRedisMock(
 describe('OCR 结果缓存', () => {
   it('相同参数二次调用命中缓存：fetch 仅 1 次，结果一致', async () => {
     const redis = makeRedisMock();
-    const svc = await makeService('http://a:8100', {}, redis);
+    const svc = await makeService('http://a:8100', redis);
     const records: FetchRecord[] = [];
     (global as any).fetch = mockRecordingFetch(records);
 
@@ -207,13 +203,13 @@ describe('OCR 结果缓存', () => {
     expect(r2.processedPages).toBe(r1.processedPages);
   });
 
-  it('dpi 不同 → 键不同 → 两次 fetch', async () => {
+  it('maxPages 不同 → 键不同 → 两次 fetch', async () => {
     const redis = makeRedisMock();
-    const svc = await makeService('http://a:8100', {}, redis);
+    const svc = await makeService('http://a:8100', redis);
     (global as any).fetch = mockRecordingFetch([]);
 
     await svc.ocrPdf(Buffer.from('same-file'));
-    await svc.ocrPdf(Buffer.from('same-file'), 200, 120);
+    await svc.ocrPdf(Buffer.from('same-file'), 50);
 
     expect((global as any).fetch).toHaveBeenCalledTimes(2);
   });
@@ -223,7 +219,7 @@ describe('OCR 结果缓存', () => {
       get: jest.fn().mockRejectedValue(new Error('redis down')),
       set: jest.fn().mockRejectedValue(new Error('redis down')),
     });
-    const svc = await makeService('http://a:8100', {}, redis);
+    const svc = await makeService('http://a:8100', redis);
     const records: FetchRecord[] = [];
     (global as any).fetch = mockRecordingFetch(records);
 
@@ -232,52 +228,9 @@ describe('OCR 结果缓存', () => {
     expect(records).toHaveLength(1);
     expect(r.processedPages).toBe(1);
   });
-
-  it('OCR_CACHE_ENABLED=false → 不读不写缓存', async () => {
-    const redis = makeRedisMock();
-    const svc = await makeService(
-      'http://a:8100',
-      { OCR_CACHE_ENABLED: 'false' },
-      redis,
-    );
-    (global as any).fetch = mockRecordingFetch([]);
-
-    await svc.ocrPdf(Buffer.from('x'));
-
-    expect(redis.get).not.toHaveBeenCalled();
-    expect(redis.set).not.toHaveBeenCalled();
-    expect((global as any).fetch).toHaveBeenCalledTimes(1);
-  });
 });
 
-describe('评审 minors：严格解析 / CACHE_ENABLED=0 / 探测重试与非 JSON', () => {
-  it('M2: OCR_BATCH_PAGES=20abc 严格拒绝 → 回落 40（宽松 parseInt 会取 20）', async () => {
-    const svc = await makeService('http://a:8100', { OCR_BATCH_PAGES: '20abc' });
-    const records: FetchRecord[] = [];
-    (global as any).fetch = mockRecordingFetch(records);
-
-    const big = Buffer.alloc(21 * 1024 * 1024); // 触发分批（100 页探测）
-    await svc.ocrPdf(big);
-
-    expect(records).toHaveLength(4); // 1 探测 + ceil(100/40)=3 批（若误取 20 则 5 批）
-    expect(records[1].form.page_range).toBe('1-40');
-  });
-
-  it('M3: OCR_CACHE_ENABLED=0 → 缓存同样关闭（对齐 0=禁用惯例）', async () => {
-    const redis = makeRedisMock();
-    const svc = await makeService(
-      'http://a:8100',
-      { OCR_CACHE_ENABLED: '0' },
-      redis,
-    );
-    (global as any).fetch = mockRecordingFetch([]);
-
-    await svc.ocrPdf(Buffer.from('x'));
-
-    expect(redis.get).not.toHaveBeenCalled();
-    expect(redis.set).not.toHaveBeenCalled();
-  });
-
+describe('探测重试与非 JSON 归一', () => {
   it('M5: 页数探测失败两次后成功 → 重试拿页数（3 次 fetch）', async () => {
     const svc = await makeService('http://a:8100');
     let n = 0;

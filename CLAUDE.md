@@ -41,7 +41,7 @@ Run workspace commands from `water-erp/`.
 
 Infrastructure in `water-erp/docker-compose.yml`: PostgreSQL 16 (`localhost:5432`), Redis 7 (`localhost:6380→6379`), MinIO (`localhost:9000`, console `localhost:9001`).
 
-**Auxiliary service:** `water-erp/services/ocr/` is a standalone Python (FastAPI + uvicorn) OCR microservice, **ERP 自管 PM2 `erp-ocr` 实例 `:8110`（2026-11-04 接管，v1.3.0）**——不再复用 procurement 的 :8100（procurement-ocr 属对方项目、继续自用）。`start.sh` 支持 `OCR_PORT`/`OCR_HOST` 参数化，venv 就绪含 requirements 新旧检查；细粒度配置面（`OCR_NUM_WORKERS`/`OCR_INTRA_THREADS`/`OCR_CHUNK_PAGES`/`OCR_DEFAULT_DPI` 等，线程铁律 WORKERS×INTRA≤核预算，见 `services/ocr/.env.example`）；文字层快速路径（数字原生 PDF 免 OCR，实测 450×）。API 侧 `local-ai/OcrService`：`OCR_SERVICE_URL=:8110` + `OCR_BATCH_PAGES`/`OCR_DPI`/`OCR_CACHE_*` env + Redis 结果缓存（内容哈希键、故障不阻断）。生产部署 Docker（麒麟 x86_64/8核/6核预算/无 GPU）。架构文档 `services/ocr/ARCHITECTURE.md`。
+**Auxiliary service:** `water-erp/services/ocr/` is a standalone Python (FastAPI + uvicorn) OCR microservice, **ERP 自管 PM2 `erp-ocr` 实例 `:8110`（2026-11-04 接管，v1.3.0）**——不再复用 procurement 的 :8100（procurement-ocr 属对方项目、继续自用）。`start.sh` 支持 `OCR_PORT`/`OCR_HOST` 参数化，venv 就绪含 requirements 新旧检查；细粒度配置面（`OCR_NUM_WORKERS`/`OCR_INTRA_THREADS`/`OCR_CHUNK_PAGES`/`OCR_DEFAULT_DPI` 等，线程铁律 WORKERS×INTRA≤核预算，见 `services/ocr/.env.example`）；文字层快速路径（数字原生 PDF 免 OCR，实测 450×）。API 侧 `local-ai/OcrService` **零配置面**（2026-11-05 裁定）：`.env` 仅 `OCR_SERVICE_URL=:8110` 一项，批次 40/缓存 TTL 7 天为代码常量，dpi 不上送走服务端 `OCR_DEFAULT_DPI` 单一权威，Redis 结果缓存（内容哈希键、故障不阻断）。生产部署 Docker（麒麟 x86_64/8核/6核预算/无 GPU）。架构文档 `services/ocr/ARCHITECTURE.md`。
 
 ## Portal Descriptions
 

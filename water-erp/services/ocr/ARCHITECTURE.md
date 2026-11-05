@@ -48,9 +48,10 @@
 
 调用方：apps/api NestJS `local-ai/ocr.service.ts`
   · `OCR_SERVICE_URL=http://localhost:8110`（ERP 自管实例，2026-11-04 接管）
-  · 大 PDF 分批提交（page_range，每批 OCR_BATCH_PAGES 页，默认 40，env 可调）
-  · `OCR_DPI`/`OCR_BATCH_PAGES` env 化；页数探测走 max_pages=0 零 OCR
-  · 结果 Redis 缓存（内容哈希键，rerun/重试零重复计算，故障不阻断）
+  · 大 PDF 分批提交（page_range，每批 40 页，代码常量）
+  · 消费端零配置面（2026-11-05 裁定）：.env 仅 OCR_SERVICE_URL 一项；dpi 不上送、
+    走服务端 OCR_DEFAULT_DPI 单一权威；页数探测走 max_pages=0 零 OCR
+  · 结果 Redis 缓存（内容哈希键，rerun/重试零重复计算，故障不阻断；TTL/上限为代码常量）
   · 失败由 BullMQ 队列重试 → 与 watchdog 自愈配合
 
 GPU 上其余常驻：bge-m3 embedding vLLM (:8003, PM2 procurement-embedding)
@@ -253,7 +254,7 @@ patch hybrid_server.py < ../../../../patches/hybrid_server_rapidocr.patch
 
 **线程铁律（低配生产机）**：`OCR_NUM_WORKERS × OCR_INTRA_THREADS ≤ 分配给 OCR 的核数`。生产机（麒麟 x86_64，8 核分 6 核给 OCR）预设 `2×3`——实测 :8110 总线程 86 vs 无限制 :8100 117，预算真实收窄线程池且同材料 OCR 反而更快（3.8s vs 5.8s，超额抢占本就吃亏）。非法 env 值一律回落默认 + warn，不崩启动。
 
-NestJS 消费端 env（`apps/api/.env`）：`OCR_SERVICE_URL`（:8110）、`OCR_BATCH_PAGES`（默认 40）、`OCR_DPI`（默认 150）、`OCR_CACHE_ENABLED`/`OCR_CACHE_TTL_SECONDS`（7 天）/`OCR_CACHE_MAX_ENTRY_KB`（2MB）。
+NestJS 消费端 env（`apps/api/.env`）**仅一项**：`OCR_SERVICE_URL`（:8110）。批次 40 页/缓存 TTL 7 天/条目 2MB 均为代码常量——一切调参收敛到本服务 .env（单一配置面，2026-11-05 用户裁定）。
 
 ### 6.2 PM2 env 对照（erp-ocr vs procurement-ocr）
 
@@ -319,7 +320,7 @@ curl localhost:8110/health
 
 ### 8.3 NestJS 调用方（`apps/api/src/local-ai/ocr.service.ts`）
 
-- 上传 PDF > 阈值时**客户端分批**：`page_range` 每批 `OCR_BATCH_PAGES`（默认 40）、dpi 走 `OCR_DPI`（默认 150），避免单请求过大；
+- 上传 PDF > 阈值时**客户端分批**：`page_range` 每批 40 页（常量），不携带 dpi（服务端 `OCR_DEFAULT_DPI` 唯一权威）；
 - 服务端另有 `OCR_CHUNK_PAGES` 分块渲染兜底，两层分批互补；
 - 请求失败由 BullMQ 队列重试，与 watchdog 自愈闭环配合。
 

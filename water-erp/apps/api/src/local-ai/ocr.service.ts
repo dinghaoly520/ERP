@@ -26,15 +26,15 @@ export class OcrService {
   private rrIndex = 0;
   private readonly logger = new Logger(OcrService.name);
 
-  // 批处理配置
-  // 单副本 OCR 服务有 2 个并行 worker；OCR_BATCH_PAGES 可调批大小（低配生产机减小批）；
+  // 批处理与缓存常量——消费端零配置面（用户裁定 2026-11-05）：
+  // 性能与行为调参全部收敛到 services/ocr/.env 单一配置面，这里只保留代码常量。
+  // 单副本 OCR 服务有 2 个并行 worker，每批 40 页 = 每 worker 20 页；
   // OCR_SERVICE_URL 配逗号多副本时，各批再 round-robin 分发到不同副本（见 nextBaseUrl）
-  private readonly batchPages: number;
-  private readonly defaultDpi: number;
-  // 结果缓存：内容哈希键，rerun/重试零重复计算；故障不阻断 OCR
+  private readonly BATCH_PAGES = 40;
+  // 结果缓存：内容哈希键，rerun/重试零重复计算；故障不阻断 OCR（仅随 Redis 缺席禁用）
   private readonly cacheEnabled: boolean;
-  private readonly cacheTtlSeconds: number;
-  private readonly cacheMaxEntryBytes: number;
+  private readonly CACHE_TTL_SECONDS = 7 * 24 * 3600;
+  private readonly CACHE_MAX_ENTRY_BYTES = 2 * 1024 * 1024;
   private readonly LARGE_FILE_THRESHOLD_MB = 20;
   private readonly BATCH_DELAY_MS = 500;
   private readonly BATCH_RETRIES = 3;
@@ -58,31 +58,20 @@ export class OcrService {
         `OCR 多副本模式：${this.baseUrls.join(', ')}（round-robin 分发）`,
       );
     }
-    this.batchPages = this.readIntConfig('OCR_BATCH_PAGES', 40);
-    this.defaultDpi = this.readIntConfig('OCR_DPI', 150);
-    // 0=禁用惯例对齐（'false' | '0' | 'off' | 'no' 均关）
-    const cacheFlag = (
-      this.config.get<string>('OCR_CACHE_ENABLED', 'true') || 'true'
-    ).toLowerCase();
-    this.cacheEnabled =
-      !['false', '0', 'off', 'no'].includes(cacheFlag) && !!this.redis;
-    this.cacheTtlSeconds = this.readIntConfig('OCR_CACHE_TTL_SECONDS', 604800);
-    this.cacheMaxEntryBytes =
-      this.readIntConfig('OCR_CACHE_MAX_ENTRY_KB', 2048) * 1024;
+    this.cacheEnabled = !!this.redis;
   }
 
   // ── OCR 结果缓存（Redis）──
 
-  /** 缓存键：scope + 文件内容哈希 + 全部影响产出的参数（防串参） */
+  /** 缓存键：scope + 文件内容哈希 + 影响产出的请求参数（dpi 由服务端统一掌控，不入键） */
   private cacheKey(
     scope: 'pdf' | 'img',
     buffer: Buffer,
-    dpi: number,
-    maxPages: number,
-    pageRange: string | null,
+    maxPages: number = 0,
+    pageRange: string | null = null,
   ): string {
     const hash = createHash('sha256').update(buffer).digest('hex').slice(0, 40);
-    return `ocr:v1:${scope}:${hash}:${dpi}:${maxPages}:${pageRange ?? 'all'}`;
+    return `ocr:v1:${scope}:${hash}:${maxPages}:${pageRange ?? 'all'}`;
   }
 
   private async cacheGet(key: string): Promise<OcrResult | null> {
@@ -101,14 +90,14 @@ export class OcrService {
     if (!this.cacheEnabled || !this.redis) return;
     try {
       const raw = JSON.stringify(result);
-      if (Buffer.byteLength(raw) > this.cacheMaxEntryBytes) {
+      if (Buffer.byteLength(raw) > this.CACHE_MAX_ENTRY_BYTES) {
         this.logger.log(
           `OCR cache skip store (${key.slice(0, 60)}…): ` +
             `${Math.round(Buffer.byteLength(raw) / 1024)}KB 超条目上限`,
         );
         return;
       }
-      await this.redis.set(key, raw, 'EX', this.cacheTtlSeconds);
+      await this.redis.set(key, raw, 'EX', this.CACHE_TTL_SECONDS);
     } catch (e) {
       this.logger.warn(`OCR cache set failed (${key.slice(0, 60)}…): ${e}`);
     }
@@ -124,19 +113,6 @@ export class OcrService {
         `OCR service returned non-JSON (status ${response.status}): ${raw.slice(0, 200)}`,
       );
     }
-  }
-
-  /** env 整数读取：缺失/非法/非正回落默认并 warn 一次（Number 严格解析，'20abc' 拒收） */
-  private readIntConfig(key: string, def: number): number {
-    const raw = this.config.get<string>(key, '');
-    if (raw) {
-      const val = Number(raw);
-      if (Number.isFinite(val) && val > 0) {
-        return val;
-      }
-      this.logger.warn(`OCR env ${key}=${raw} 非法，回落默认 ${def}`);
-    }
-    return def;
   }
 
   /** round-robin 取下一个副本地址（请求无会话亲和，任意副本可服务任意请求） */
@@ -178,21 +154,18 @@ export class OcrService {
    *
    * 关键改进：使用 page_range 参数让 OCR 服务只处理指定页面范围
    * 这样避免了每次都处理整个 PDF 文件
+   *
+   * dpi 不再由消费端指定——统一走服务端 OCR_DEFAULT_DPI（单一配置面，2026-11-05 裁定）
    */
-  async ocrPdf(
-    buffer: Buffer,
-    maxPages = 200,
-    dpi?: number,
-  ): Promise<OcrResult> {
-    const effectiveDpi = dpi ?? this.defaultDpi;
-    const key = this.cacheKey('pdf', buffer, effectiveDpi, maxPages, null);
+  async ocrPdf(buffer: Buffer, maxPages = 200): Promise<OcrResult> {
+    const key = this.cacheKey('pdf', buffer, maxPages, null);
     const cached = await this.cacheGet(key);
     if (cached) {
       this.logger.log('OCR cache hit (pdf)');
       return cached;
     }
 
-    const result = await this.ocrPdfUncached(buffer, maxPages, effectiveDpi);
+    const result = await this.ocrPdfUncached(buffer, maxPages);
     await this.cacheSet(key, result);
     return result;
   }
@@ -200,41 +173,38 @@ export class OcrService {
   private async ocrPdfUncached(
     buffer: Buffer,
     maxPages: number,
-    effectiveDpi: number,
   ): Promise<OcrResult> {
     const fileSizeMB = buffer.length / (1024 * 1024);
 
     if (fileSizeMB <= this.LARGE_FILE_THRESHOLD_MB) {
-      return this.ocrPdfSingle(buffer, maxPages, effectiveDpi, null);
+      return this.ocrPdfSingle(buffer, maxPages, null);
     }
 
     // 大文件分批处理 - 使用 page_range 参数
     this.logger.log(
       `Large PDF (${fileSizeMB.toFixed(1)} MB), using batch processing with page_range`,
     );
-    return this.ocrPdfBatched(buffer, maxPages, effectiveDpi);
+    return this.ocrPdfBatched(buffer, maxPages);
   }
 
   /**
-   * 单次 OCR 调用
+   * 单次 OCR 调用（不携带 dpi——服务端默认生效）
    */
   private async ocrPdfSingle(
     buffer: Buffer,
     maxPages: number,
-    dpi: number,
     pageRange: string | null,
   ): Promise<OcrResult> {
     const formData = new FormData();
     formData.append('file', new Blob([toBlobPart(buffer)]), 'document.pdf');
     formData.append('max_pages', String(maxPages));
-    formData.append('dpi', String(dpi));
     if (pageRange) {
       formData.append('page_range', pageRange);
     }
 
     const rangeDesc = pageRange ? `pages ${pageRange}` : `${maxPages} pages`;
     this.logger.log(
-      `OCR request: ${(buffer.length / 1024 / 1024).toFixed(1)} MB, ${rangeDesc}, dpi=${dpi}`,
+      `OCR request: ${(buffer.length / 1024 / 1024).toFixed(1)} MB, ${rangeDesc}`,
     );
 
     const ocrBase = this.nextBaseUrl();
@@ -272,12 +242,11 @@ export class OcrService {
   private async ocrPdfBatched(
     buffer: Buffer,
     maxPages: number,
-    dpi: number,
   ): Promise<OcrResult> {
     const totalPages = await this.getPdfPageCount(buffer);
     const effectivePages =
       maxPages > 0 ? Math.min(totalPages, maxPages) : totalPages;
-    const batches = Math.ceil(effectivePages / this.batchPages);
+    const batches = Math.ceil(effectivePages / this.BATCH_PAGES);
     const allPages: Array<{ page: number; text: string }> = [];
 
     this.logger.log(
@@ -285,8 +254,8 @@ export class OcrService {
     );
 
     for (let batch = 0; batch < batches; batch++) {
-      const startPage = batch * this.batchPages + 1;
-      const endPage = Math.min((batch + 1) * this.batchPages, effectivePages);
+      const startPage = batch * this.BATCH_PAGES + 1;
+      const endPage = Math.min((batch + 1) * this.BATCH_PAGES, effectivePages);
       const pageRange = `${startPage}-${endPage}`;
 
       this.logger.log(
@@ -296,7 +265,6 @@ export class OcrService {
       const result = await this.ocrPdfBatchWithRetry(
         buffer,
         endPage - startPage + 1,
-        dpi,
         pageRange,
         batch + 1,
       );
@@ -336,7 +304,7 @@ export class OcrService {
     let lastError: unknown;
     for (let attempt = 1; attempt <= this.BATCH_RETRIES; attempt++) {
       try {
-        const result = await this.ocrPdfSingle(buffer, 0, 50, null);
+        const result = await this.ocrPdfSingle(buffer, 0, null);
         if (!result.pageCount || result.pageCount < 1) {
           throw new ServiceUnavailableException(
             'OCR service did not return a valid PDF page count',
@@ -359,14 +327,13 @@ export class OcrService {
   private async ocrPdfBatchWithRetry(
     buffer: Buffer,
     maxPages: number,
-    dpi: number,
     pageRange: string,
     batchNumber: number,
   ): Promise<OcrResult> {
     let lastError: unknown;
     for (let attempt = 1; attempt <= this.BATCH_RETRIES; attempt++) {
       try {
-        return await this.ocrPdfSingle(buffer, maxPages, dpi, pageRange);
+        return await this.ocrPdfSingle(buffer, maxPages, pageRange);
       } catch (error) {
         lastError = error;
         this.logger.warn(
@@ -425,7 +392,7 @@ export class OcrService {
     mimeType: string,
     filename: string,
   ): Promise<OcrResult> {
-    const key = this.cacheKey('img', buffer, 0, 0, null);
+    const key = this.cacheKey('img', buffer);
     const cached = await this.cacheGet(key);
     if (cached) {
       this.logger.log('OCR cache hit (img)');
