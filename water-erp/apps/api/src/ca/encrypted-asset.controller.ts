@@ -15,7 +15,10 @@ import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 
-const MAX_OUTER_BYTES = 50 * 1024 * 1024 + 32; // 50MiB + 32B（两层 CBC padding）
+// 500MiB + 32B（两层 CBC padding 余量）——对齐全库单文件 500MB 统一口径（upload/attachment-rules.ts ATTACHMENT_MAX_BYTES）
+const MAX_OUTER_BYTES = 500 * 1024 * 1024 + 32;
+// 注：本端点走 multer memoryStorage（file.buffer 整驻）——500MB 单文件即 500MB 瞬态 Buffer RSS 预算；
+// D4 口径=单文件 500MB，多角色（technical/business/coverLetter/bond）总量线性叠加不设闸（spec §9.5）
 
 @ApiTags('CA 投标密文暂存')
 @Controller('supplier-portal/bid-submissions/:projectId/encrypted-assets')

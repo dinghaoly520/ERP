@@ -214,7 +214,7 @@ worker → 主  { id, type:'done', plainBlob: Blob, plainSha256, plainBytes }
 - 链路：测试进程 ukey 分块双层加密（与浏览器 worker 同一密码学内核，明文逐块现生成不整驻）→ C_outer 暂存 → prepare/signing-payload/submit v3（I6 归属闸+T4 备份固化真实执行）→ 签到 quorum+OPENING+会话+指派主持人 → **真实 HTTP 端点 `POST /bid/projects/:id/opening/decrypt-outer`**（bid_host 登录 token_bid，AssignedHostGuard 按指派放行）。
 - 断言：SUCCESS / roles=[technical] / C_inner FileAsset.sha256 == 加密侧增量自算 innerSha256（字节级一致性的端到端证明） / size==innerBytes==outerBytes−16 / DecryptExecution SUCCESS / MinIO 对象在位；耗时 console.log 输出。
 - 两连跑实测（隔离库 water_erp_e2e + Redis 6390，2026-11-05）：plain=104857607B（100MB+7 非对齐）outer=104857632B inner=104857616B；**加密 28.5s/27.7s，submit 0.56s/0.62s（含 MinIO 100MB 备份读回写回），decrypt-outer 14.6s/14.4s（两遍流：哈希闸+解密写回），用例全程 ~44s**；套件 10/10 绿（~48s）。
-- **用例头注的口径偏差**：C_outer 暂存不走 `encrypted-assets` 端点而按端点同构直写 MinIO+FileAsset——因该端点 multer 闸 `MAX_OUTER_BYTES = 50MiB+32B` **未随「全库统一 500MB」（2026-11-05）上调**（见 §9.5 待修项①）；小件真实端点路径由用例①覆盖。
+- **用例头注的口径偏差**：C_outer 暂存不走 `encrypted-assets` 端点而按端点同构直写 MinIO+FileAsset——因该端点 multer 闸 `MAX_OUTER_BYTES = 50MiB+32B` **未随「全库统一 500MB」（2026-11-05）上调**（见 §9.5 待修项①；**同日 fix-wave 已上调**，用例直写口径仍有效、无需回改）；小件真实端点路径由用例①覆盖。
 
 ### 9.4 部署注记
 
@@ -225,7 +225,8 @@ worker → 主  { id, type:'done', plainBlob: Blob, plainSha256, plainBytes }
 
 ### 9.5 已知待修项（实现后发现）
 
-1. **`encrypted-assets` 端点 50MiB 闸未上调（P0，500MB 链路唯一断点）**：`apps/api/src/ca/encrypted-asset.controller.ts` `MAX_OUTER_BYTES = 50*1024*1024+32`——2026-11-05「单文件统一 500MB」只覆盖了通用 `/api/upload`（attachment-rules.ts），本端点自带 multer 闸漏改。>50MiB 的真实投递在暂存即 413，浏览器 500MB 全链（验收 #2）当前不可达。修法=常量改 `500*1024*1024+32`（两层 CBC padding 上限）+ `encrypted-asset.controller.spec.ts` 对齐 + 顺带核对 `supplier-portal.controller.ts` :548/:612 两处 50MB multer 闸是否同口径（补传/解密回传文件）。本纪要成文时未改（Task 12 文件面约束），**500MB 上线前必修**。
+1. **`encrypted-assets` 端点 50MiB 闸未上调（P0，500MB 链路唯一断点）——✅ 已修（2026-11-05 终审 fix-wave）**：原状 `MAX_OUTER_BYTES = 50*1024*1024+32` 漏改致 >50MiB 投递暂存即 413。fix-wave 三闸全量上调：`encrypted-asset.controller.ts` `MAX_OUTER_BYTES = 500*1024*1024+32`（两层 CBC padding 上限，注释记录 memoryStorage 500MB 瞬态 Buffer RSS 预算 + D4 单文件口径/多角色线性叠加不设闸）；`supplier-portal.controller.ts` `decrypt-upload` FileFieldsInterceptor per-file `fileSize = 500*1024*1024`（memoryStorage，至多 4 角色线性叠加）；同文件 `reupload-dual` 50MB → 500MB（**裁定：统一上调**——v2 前端已下线、信封实际 ≤50MB，为防口径漂移仍对齐 500MB）。`encrypted-asset.controller.spec.ts` 原 413 用例未硬编码数值，无需对齐。暂存 413 断点解除，500MB 浏览器全链（验收 #2）服务端侧可达。
+   - **部署注记（挂审计缺口④，与 §9.4 `proxy_read_timeout` 一并处理）**：生产 nginx 对这组上传路由（`supplier-portal/bid-submissions/:id/encrypted-assets` / `reupload-dual` / `decrypt-upload`）`client_max_body_size` 须 ≥500MB——网关默认 1m 档会在 multer 闸之前就 413。
 2. dual-v2 存量整解路径（decryptOuterFile/decryptOuterOne v2 分支）未分块化（spec §4.5 既定不动；存量 v2 信封 ≤50MB，整解可承受）。
 
 ### 9.6 验收对照与偏差记录
@@ -236,7 +237,7 @@ worker → 主  { id, type:'done', plainBlob: Blob, plainSha256, plainBytes }
 
 ### 9.7 PENDING：500MB 浏览器手动实测（验收 #2/#7 真盾路径——SCCA helper wss://localhost:36171 于 T9/T10/T12 三次核查均未监听，无法代跑，待用户插盾执行）
 
-前置：先修 §9.5①（否则暂存端点 413 断链）。清单：
+前置已满足（2026-11-05 fix-wave）：§9.5① 三处上传闸已上调（500MiB+32 / 500MB×2），暂存端点不再 413 断链，本清单当前可执行。清单：
 
 - [ ] **投递 500MB 全链**（供应商门户投递页，真盾）：进度遮罩平滑推进（加密→上传相位衔接）、中途取消可重发、无残留状态；
 - [ ] **DevTools 内存观测**：标签页+worker 合计堆峰 ≤1GB（单件口径；注意 Blob 构造瞬间瞬态 2× 峰属预期——目的地是盘非 JS 堆）；

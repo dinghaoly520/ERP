@@ -545,7 +545,8 @@ export class SupplierPortalController {
   // file 字段收的是新 C_outer 密文（客户端重新双层加密产物，非明文）；envelope 为整体新信封 JSON string。
   @Post('bid-submissions/:projectId/reupload-dual')
   @Throttle({ default: { ttl: 60000, limit: 5 } }) // 旧轨 reupload 5/min 同款，防刷拦截路径灌监督日志
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 50 * 1024 * 1024 } }))
+  // 全库 500MB 统一口径（对齐 attachment-rules.ts）；v2 信封实际 ≤50MB——统一上调防口径漂移
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 500 * 1024 * 1024 } }))
   async reuploadDual(
     @Request() req: any,
     @Param('projectId') projectId: string,
@@ -609,7 +610,8 @@ export class SupplierPortalController {
     { name: 'file_business', maxCount: 1 },
     { name: 'file_coverLetter', maxCount: 1 },
     { name: 'file_bond', maxCount: 1 },
-  ], { limits: { fileSize: 50 * 1024 * 1024 } }))
+  // memoryStorage（file.buffer 整驻）——单文件 500MB、至多 4 角色文件线性叠加的瞬态 RSS 预算（D4 口径，spec §9.5）
+  ], { limits: { fileSize: 500 * 1024 * 1024 } }))
   async decryptUpload(
     @Request() req: any,
     @Param('projectId') projectId: string,
