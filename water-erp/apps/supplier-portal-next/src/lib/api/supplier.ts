@@ -1,6 +1,89 @@
 import { api, type ReqOpts } from "../api";
 import type { OpeningFieldDef } from "../opening-fields";
 
+// ── 上传 XHR 超时/停滞看门狗（Task8：500MB 广域网上传可达）──
+// 旧状：caDecryptUpload / caUploadEncryptedOuter 硬编码 timeout=180s——500MB 级密文在
+// 真实供应商上行带宽下 180s 内几乎必然跑不完 → XHR 确定性 abort。
+// 新契约：≤50MB 维持 180s 硬超时；>50MB 禁用硬超时、改走停滞判活——60s 内无任何上传
+// 进度才 abort（慢而活的链路不误杀；真断网 60s 内可感知，并给出可行动文案）。
+const LARGE_UPLOAD_BYTES = 50 * 1024 * 1024;
+const UPLOAD_HARD_TIMEOUT_MS = 180_000;
+const UPLOAD_STALL_WATCHDOG_MS = 60_000;
+const UPLOAD_STALL_MESSAGE = "上传中断（网络停滞超过 60 秒），请检查网络后重试";
+const UPLOAD_TIMEOUT_MESSAGE = "上传超时，请检查网络后重试";
+
+/** 已被看门狗 abort 的 XHR——onerror/onabort 据此给停滞文案而非泛化网络异常（abort 事件在个别浏览器派发为 error） */
+const stallAbortedXhrs = new WeakSet<XMLHttpRequest>();
+
+/** 上传硬超时：>50MB 返回 0（禁用硬超时，走停滞判活），否则 180s（维持现状） */
+export function xhrTimeoutMs(bytes: number): number {
+  return bytes > LARGE_UPLOAD_BYTES ? 0 : UPLOAD_HARD_TIMEOUT_MS;
+}
+
+/**
+ * 停滞看门狗：任何 upload.onprogress 事件复位计时；ms 内无进度 → xhr.abort()。
+ * 通过属性拦截包裹 onprogress / 终态 handler 赋值——先挂看门狗或先赋 handler 两种顺序均生效；
+ * 终态（load/error/abort/timeout）自动解除，防上传完成后残留 60s 计时器。
+ */
+export function attachStallWatchdog(xhr: XMLHttpRequest, ms = UPLOAD_STALL_WATCHDOG_MS): void {
+  type Handler = (ev?: unknown) => unknown;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const disarm = () => {
+    if (timer !== null) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
+  const arm = () => {
+    disarm();
+    timer = setTimeout(() => {
+      stallAbortedXhrs.add(xhr);
+      xhr.abort();
+    }, ms);
+  };
+  const intercept = (target: object, key: string, wrap: (fn: Handler) => Handler) => {
+    const holder = target as Record<string, Handler | null | undefined>;
+    const existing = holder[key] ?? null;
+    let current: Handler | null = null;
+    Object.defineProperty(target, key, {
+      configurable: true,
+      enumerable: true,
+      get: () => current,
+      set: (fn: Handler | null) => {
+        current = fn ? wrap(fn) : null;
+      },
+    });
+    if (existing) current = wrap(existing);
+  };
+  intercept(xhr.upload, "onprogress", (fn: Handler) => (ev?: unknown) => {
+    arm();
+    return fn(ev);
+  });
+  // 调用方不关心进度（无 onProgress）时也要装一个仅复位用的 handler——progress=活着
+  const uploadHolder = xhr.upload as unknown as Record<string, Handler | null | undefined>;
+  if (!uploadHolder.onprogress) {
+    uploadHolder.onprogress = () => arm();
+  }
+  const disarmOnTerminal = (fn: Handler) => (ev?: unknown) => {
+    disarm();
+    return fn(ev);
+  };
+  intercept(xhr, "onload", disarmOnTerminal);
+  intercept(xhr, "onerror", disarmOnTerminal);
+  intercept(xhr, "onabort", disarmOnTerminal);
+  intercept(xhr, "ontimeout", disarmOnTerminal);
+  arm();
+}
+
+/** FormData 内各 Blob/File 尺寸求和（FormData 无总长 API；字符串字段不计）——大文件判活阈值输入 */
+function formDataBlobBytes(fd: FormData): number {
+  let total = 0;
+  for (const [, value] of fd.entries()) {
+    if (typeof (value as File).size === "number") total += (value as File).size;
+  }
+  return total;
+}
+
 /** 公开唱标行（大厅脱敏视图：不含异议裁决过程字段） */
 export interface OpeningRecordRow {
   id: string;
@@ -96,14 +179,20 @@ export const supplierApi = {
   getOpeningPackage(projectId: string) {
     return api.get<any>(`/supplier-portal/bid-submissions/${projectId}/opening-package`);
   },
-  /** 解密上传（Task9）：明文 multipart + fieldsJson/nonce + P7 证明 */
-  caDecryptUpload(projectId: string, fd: FormData): Promise<any> {
+  /** 解密上传（Task9）：明文 multipart + fieldsJson/nonce + P7 证明；onProgress 整数百分比（Task8 补，Task10 消费） */
+  caDecryptUpload(projectId: string, fd: FormData, onProgress?: (pct: number) => void): Promise<any> {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `/api/supplier-portal/bid-submissions/${projectId}/decrypt-upload`);
       xhr.withCredentials = true;
       xhr.setRequestHeader('X-Portal', 'supplier');
-      xhr.timeout = 180000;
+      // 体积=fd 内各 Blob 尺寸求和：>50MB 免 180s 硬超时，改 60s 停滞判活（Task8）
+      const bytes = formDataBlobBytes(fd);
+      xhr.timeout = xhrTimeoutMs(bytes);
+      if (xhr.timeout === 0) attachStallWatchdog(xhr);
+      xhr.upload.onprogress = (ev) => {
+        if (ev.lengthComputable && onProgress) onProgress(Math.round((ev.loaded / ev.total) * 100));
+      };
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
           try { resolve(JSON.parse(xhr.responseText)); } catch (e) { reject(e); }
@@ -112,7 +201,9 @@ export const supplierApi = {
           catch { reject(new Error(`解密上传失败(${xhr.status})`)); }
         }
       };
-      xhr.onerror = () => reject(new Error('网络异常，解密上传失败'));
+      xhr.onerror = () => reject(new Error(stallAbortedXhrs.has(xhr) ? UPLOAD_STALL_MESSAGE : '网络异常，解密上传失败'));
+      xhr.onabort = () => reject(new Error(stallAbortedXhrs.has(xhr) ? UPLOAD_STALL_MESSAGE : '上传已取消'));
+      xhr.ontimeout = () => reject(new Error(UPLOAD_TIMEOUT_MESSAGE));
       xhr.send(fd);
     });
   },
@@ -125,7 +216,9 @@ export const supplierApi = {
       xhr.open('POST', `/api/supplier-portal/bid-submissions/${projectId}/encrypted-assets`);
       xhr.withCredentials = true;
       xhr.setRequestHeader('X-Portal', 'supplier');
-      xhr.timeout = 180000;
+      // >50MB 免 180s 硬超时，改 60s 停滞判活（Task8）——500MB 级密文广域网上传可达
+      xhr.timeout = xhrTimeoutMs(blob.size);
+      if (xhr.timeout === 0) attachStallWatchdog(xhr);
       if (onProgress) {
         xhr.upload.onprogress = (ev) => {
           if (ev.lengthComputable) onProgress(Math.round((ev.loaded / ev.total) * 100));
@@ -139,7 +232,9 @@ export const supplierApi = {
           catch { reject(new Error(`上传失败(${xhr.status})`)); }
         }
       };
-      xhr.onerror = () => reject(new Error('网络异常，密文上传失败'));
+      xhr.onerror = () => reject(new Error(stallAbortedXhrs.has(xhr) ? UPLOAD_STALL_MESSAGE : '网络异常，密文上传失败'));
+      xhr.onabort = () => reject(new Error(stallAbortedXhrs.has(xhr) ? UPLOAD_STALL_MESSAGE : '上传已取消'));
+      xhr.ontimeout = () => reject(new Error(UPLOAD_TIMEOUT_MESSAGE));
       xhr.send(fd);
     });
   },
