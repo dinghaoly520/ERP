@@ -331,7 +331,7 @@ The NestJS API (`apps/api`, :4001):
 | `Prisma` | Infrastructure: global `PrismaService` singleton |
 | `Common` | Shared: `HttpExceptionFilter` (normalized errors), guards, decorators (`@CurrentUser`, `@Public`, `@Roles`) |
 
-> **LLM 调用已收口（2026-07）：** 所有 DeepSeek/vLLM 调用统一走 `local-ai/LlmService`（`chat`/`chatJson`/`chatMessages`）。`LLM_MAX_CONCURRENCY`（默认 10，进程内信号量）、`LLM_MAX_RETRIES`（默认 2，429/5xx/网络/超时指数退避，遵守 Retry-After≤8s）。历史曾散落于 `announcement-ai`、`ai/supplier-selection-ai`、`ai/ai.service`、`expert/expert-extraction-ai`、`assistant/deepseek.provider` 的直连 `process.env.DEEPSEEK_API_URL + fetch` 均已迁移
+> **LLM 调用已收口（2026-07）：** 所有 DeepSeek/vLLM 调用统一走 `local-ai/LlmService`（`chat`/`chatJson`/`chatMessages`）。`LLM_MAX_CONCURRENCY`（默认 10，进程内信号量）、`LLM_MAX_RETRIES`（默认 2，429/5xx/网络/超时指数退避，遵守 Retry-After≤8s）；截断类（finish_reason=length，deepseek-flash 思维链与正文共享 max_tokens）重试自动翻倍预算、封顶 32768（`LlmTruncationError` 类型化，2026-11-05）。历史曾散落于 `announcement-ai`、`ai/supplier-selection-ai`、`ai/ai.service`、`expert/expert-extraction-ai`、`assistant/deepseek.provider` 的直连 `process.env.DEEPSEEK_API_URL + fetch` 均已迁移
 
 ### Security Hardening (API)
 
