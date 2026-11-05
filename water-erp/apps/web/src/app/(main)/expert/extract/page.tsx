@@ -1369,6 +1369,8 @@ export function ExpertExtractPage({
     : [];
   // 需求方代表 userId 集合 —— 用于在各步骤表格中标注身份（姓名后追加「（需求方代表）」）
   const demandRepIdSet = useMemo(() => new Set(demandRepPersons.map(p => p.userId)), [demandRepPersons]);
+  // 手动录入（临时账号）需求方代表集合——步骤2配置chips与结果表身份列标注（2026-11-05）
+  const demandRepTempIds = useMemo(() => new Set(demandRepPersons.filter(p => p.isTemp).map(p => p.userId)), [demandRepPersons]);
 
   // 画像补齐（2026-11-04）：重进/恢复场景本地重建的 preview 候选池为空、需求方代表不在池内——
   // 对结果表中不在候选池的行批量补拉联系方式+五指标（与抽取候选池同口径），失败静默保持「—」
@@ -2627,10 +2629,15 @@ export function ExpertExtractPage({
                     <span className="mr-1 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">抽取配置</span>
                     <span className="rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-[var(--accent-strong)]"
                       style={{ background: 'color-mix(in oklch, var(--accent) 10%, transparent)' }}>人数·{quotaSum} 人</span>
-                    {demandRepItems.length > 0 && (
+                    {demandRepItems.length > demandRepTempIds.size && (
                       <span className="rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-[var(--muted-foreground)]"
-                        style={{ background: 'color-mix(in oklch, var(--muted-foreground) 10%, transparent)' }}>另业主代表·{demandRepItems.length} 人</span>
+                        style={{ background: 'color-mix(in oklch, var(--muted-foreground) 10%, transparent)' }}>另业主代表·{demandRepItems.length - demandRepTempIds.size} 人</span>
                     )}
+                    {demandRepPersons.filter(p => p.isTemp).map(p => (
+                      <span key={p.userId} title="手动录入的库外人员：临时账号，仅本项目评标期间可登录专家门户，项目结束后自动失效"
+                        className="rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--warning)]"
+                        style={{ background: 'color-mix(in oklch, var(--warning) 12%, transparent)' }}>手动录入·{p.name}·临时</span>
+                    ))}
                     {extractConfigSummary.companyChips.map((c, i) => (
                       <span key={`company-${i}`} className="rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--muted-foreground)]"
                         style={{ background: 'color-mix(in oklch, var(--muted-foreground) 10%, transparent)' }}>公司·{c}</span>
@@ -2696,7 +2703,7 @@ export function ExpertExtractPage({
                               <tr key={`${s.userId}-${seq}`} className="row-clickable" onClick={() => router.push(`/expert/${s.userId}`)}>
                                 <td className="font-mono text-xs font-bold tabular-nums text-[var(--muted-foreground)]">{String(seq).padStart(2, '0')}</td>
                                 <td className="whitespace-nowrap text-sm font-bold text-[var(--foreground)]">{s.name}</td>
-                                <td className="whitespace-nowrap">{isRep ? <StatusBadge tone="orange">业主代表</StatusBadge> : <StatusBadge tone="green">正选</StatusBadge>}</td>
+                                <td className="whitespace-nowrap">{isRep ? (demandRepTempIds.has(s.userId) ? <StatusBadge tone="orange">业主代表·临时</StatusBadge> : <StatusBadge tone="orange">业主代表</StatusBadge>) : <StatusBadge tone="green">正选</StatusBadge>}</td>
                                 <td className="max-w-[180px] truncate text-sm text-[var(--muted-foreground)]" title={s.employer ?? c?.employer ?? ''}>{s.employer ?? c?.employer ?? '—'}</td>
                                 <td className="max-w-[120px] truncate text-sm text-[var(--muted-foreground)]" title={c?.department ?? ''}>{c?.department ?? '—'}</td>
                                 <td className="whitespace-nowrap text-sm text-[var(--muted-foreground)]">{s.title ?? c?.title ?? '—'}</td>
