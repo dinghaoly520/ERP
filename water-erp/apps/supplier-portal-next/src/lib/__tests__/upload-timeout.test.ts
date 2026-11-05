@@ -10,41 +10,110 @@ import { supplierApi, xhrTimeoutMs, attachStallWatchdog } from "../api/supplier"
  *
  * 修复契约：
  *  - xhrTimeoutMs(bytes)：≤50MB → 180000（维持现状硬超时）；>50MB → 0（禁用硬超时，走停滞判活）
- *  - attachStallWatchdog(xhr, ms=60s)：每次 upload.onprogress 复位计时；停滞满窗 → xhr.abort()；
- *    abort 后无论浏览器派发 onabort 还是 onerror，promise 一律以
- *    「上传中断（网络停滞超过 60 秒），请检查网络后重试」reject（而非泛化网络异常）
+ *  - attachStallWatchdog(xhr, ms=60s)：任何上传进度事件复位计时；停滞满窗 → xhr.abort()；
+ *    复位/解除走 addEventListener（与 on* 赋值并存、顺序不敏感）；abort 后无论浏览器派发
+ *    onabort 还是 onerror，promise 一律以「上传中断（网络停滞超过 60 秒），请检查网络后重试」
+ *    reject（而非泛化网络异常）
  *  - caDecryptUpload 签名扩展第三参 onProgress（既有两参调用方不受影响），fd 体积 = 各 Blob size 求和
  *
- * 纯 Node：手写 fake XMLHttpRequest 记录 timeout 赋值 / abort 调用，node:test mock.timers 驱动看门狗。
+ * 纯 Node：手写 fake XMLHttpRequest。**fake 与浏览器同构**（评审 #1/#2 教训）：on* 赋值经原型
+ * setter 写入内部注册表，addEventListener 同注册表，派发只读注册表——实例属性遮蔽
+ * （defineProperty 拦截 on*）不会被派发调用，此类接线缺陷在本 fake 下必红。
+ * node:test mock.timers 驱动看门狗，无需 60s 真等待。
  */
 
 const MB = 1024 * 1024;
 
-/** >50MB 单体 Blob（>50MB 轨） */
-const BIG_BLOB = new Blob([new Uint8Array(51 * MB)]);
+/** >50MB 单体 Blob（懒分配，仅 >50MB 轨测试用到） */
+let bigBlob: Blob | null = null;
+const getBigBlob = () => (bigBlob ??= new Blob([new Uint8Array(51 * MB)]));
 /** 两个各 26MB（单件均 ≤50MB，求和 52MB >50MB —— 锁「FormData 内 Blob 求和」而非只看首件） */
-const HALF_BLOB_A = new Blob([new Uint8Array(26 * MB)]);
-const HALF_BLOB_B = new Blob([new Uint8Array(26 * MB)]);
+let halfBlobA: Blob | null = null;
+let halfBlobB: Blob | null = null;
+const getHalfBlobA = () => (halfBlobA ??= new Blob([new Uint8Array(26 * MB)]));
+const getHalfBlobB = () => (halfBlobB ??= new Blob([new Uint8Array(26 * MB)]));
 
 type FakeEvent = { lengthComputable?: boolean; loaded?: number; total?: number };
+type FakeHandler = (ev?: unknown) => unknown;
 
-class FakeXMLHttpRequest {
+/** 事件基座：on* 与 addEventListener 都进注册表；派发只读注册表（浏览器同构） */
+class FakeEventTargetBase {
+  private listenersByType = new Map<string, FakeHandler[]>();
+  private onHandlers = new Map<string, FakeHandler>();
+
+  protected setOnHandler(type: string, fn: FakeHandler | null) {
+    if (fn) this.onHandlers.set(type, fn);
+    else this.onHandlers.delete(type);
+  }
+  private getOnHandler(type: string): FakeHandler | null {
+    return this.onHandlers.get(type) ?? null;
+  }
+  protected currentOn(type: string) {
+    return this.getOnHandler(type);
+  }
+
+  addEventListener(type: string, listener: FakeHandler) {
+    const list = this.listenersByType.get(type) ?? [];
+    list.push(listener);
+    this.listenersByType.set(type, list);
+  }
+
+  /** 派发只走注册表——绝不读实例属性存储 */
+  dispatchEvent(type: string, ev?: unknown): boolean {
+    this.getOnHandler(type)?.(ev);
+    for (const listener of [...(this.listenersByType.get(type) ?? [])]) listener(ev);
+    return true;
+  }
+}
+
+class FakeUpload extends FakeEventTargetBase {
+  get onprogress() {
+    return this.currentOn("progress");
+  }
+  set onprogress(fn: FakeHandler | null) {
+    this.setOnHandler("progress", fn);
+  }
+}
+
+class FakeXMLHttpRequest extends FakeEventTargetBase {
   static last: FakeXMLHttpRequest | null = null;
+  readonly upload = new FakeUpload();
   timeout = 0;
   withCredentials = false;
   status = 0;
   responseText = "";
-  upload: { onprogress?: (ev: FakeEvent) => void } = {};
-  onload: ((ev?: unknown) => void) | null = null;
-  onerror: ((ev?: unknown) => void) | null = null;
-  onabort: ((ev?: unknown) => void) | null = null;
-  ontimeout: ((ev?: unknown) => void) | null = null;
   sentBody: unknown = undefined;
   abortCalls = 0;
   /** abort() 后派发哪个事件：规范=abort，个别浏览器=error（看门狗两条路都要给出停滞文案） */
   abortDispatch: "abort" | "error" = "abort";
   headers: Record<string, string> = {};
   openedUrl = "";
+
+  get onload() {
+    return this.currentOn("load");
+  }
+  set onload(fn: FakeHandler | null) {
+    this.setOnHandler("load", fn);
+  }
+  get onerror() {
+    return this.currentOn("error");
+  }
+  set onerror(fn: FakeHandler | null) {
+    this.setOnHandler("error", fn);
+  }
+  get onabort() {
+    return this.currentOn("abort");
+  }
+  set onabort(fn: FakeHandler | null) {
+    this.setOnHandler("abort", fn);
+  }
+  get ontimeout() {
+    return this.currentOn("timeout");
+  }
+  set ontimeout(fn: FakeHandler | null) {
+    this.setOnHandler("timeout", fn);
+  }
+
   open(_method: string, url: string) {
     this.openedUrl = url;
   }
@@ -57,14 +126,22 @@ class FakeXMLHttpRequest {
   }
   abort() {
     this.abortCalls += 1;
-    if (this.abortDispatch === "error") this.onerror?.({});
-    else this.onabort?.({});
+    this.fireTerminal(this.abortDispatch === "error" ? "error" : "abort");
+  }
+  /** 终态事件 + loadend（浏览器同构：load/error/abort/timeout 之后必派 loadend） */
+  fireTerminal(type: "load" | "error" | "abort" | "timeout") {
+    this.dispatchEvent(type, {});
+    this.dispatchEvent("loadend", {});
   }
   /** 测试驱动：以服务端口吻完成请求 */
   finish(status: number, body: unknown) {
     this.status = status;
     this.responseText = JSON.stringify(body);
-    this.onload?.({});
+    this.fireTerminal("load");
+  }
+  /** 测试驱动：上传进度事件（on* handler 与 addEventListener 监听者都收到） */
+  fireProgress(ev: FakeEvent) {
+    this.upload.dispatchEvent("progress", ev);
   }
 }
 
@@ -93,24 +170,26 @@ test("xhrTimeoutMs：50MB=180000（含边界）、50MB+1=0、0=180000", () => {
 
 test("watchdog：默认 60s 无任何 progress → abort（59_999 仍不触发）", () => {
   mock.timers.enable({ apis: ["setTimeout"] });
-  const xhr = new FakeXMLHttpRequest() as unknown as XMLHttpRequest;
-  attachStallWatchdog(xhr);
+  const xhr = new FakeXMLHttpRequest();
+  attachStallWatchdog(xhr as unknown as XMLHttpRequest);
   mock.timers.tick(59_999);
-  assert.equal(xhrAsFake(xhr).abortCalls, 0);
+  assert.equal(xhr.abortCalls, 0);
   mock.timers.tick(1);
-  assert.equal(xhrAsFake(xhr).abortCalls, 1);
+  assert.equal(xhr.abortCalls, 1);
 });
 
-test("watchdog：progress 持续心跳不 abort（每次复位）；停滞满窗 → abort；原 handler 不被包裹吞掉", () => {
+test("watchdog：progress 持续心跳不 abort（每次复位）；停滞满窗 → abort；on* handler 照常收到事件", () => {
   mock.timers.enable({ apis: ["setTimeout"] });
   const xhr = new FakeXMLHttpRequest();
   const seen: number[] = [];
-  attachStallWatchdog(xhrAsXhr(xhr), 100);
-  xhr.upload.onprogress = (ev) => seen.push(ev.loaded ?? -1);
+  attachStallWatchdog(xhr as unknown as XMLHttpRequest, 100);
+  xhr.upload.onprogress = (ev) => {
+    seen.push((ev as FakeEvent | undefined)?.loaded ?? -1);
+  };
   // 5 × (80ms 间隔 + progress)：累计 400ms > 100ms 窗口，但每次 progress 都复位 → 不 abort
   for (let i = 0; i < 5; i++) {
     mock.timers.tick(80);
-    xhr.upload.onprogress!({ lengthComputable: true, loaded: i + 1, total: 10 });
+    xhr.fireProgress({ lengthComputable: true, loaded: i + 1, total: 10 });
   }
   assert.equal(xhr.abortCalls, 0);
   assert.deepEqual(seen, [1, 2, 3, 4, 5]);
@@ -123,10 +202,12 @@ test("watchdog：先赋 onprogress 后挂看门狗——复位同样生效（挂
   mock.timers.enable({ apis: ["setTimeout"] });
   const xhr = new FakeXMLHttpRequest();
   const seen: number[] = [];
-  xhr.upload.onprogress = (ev) => seen.push(ev.loaded ?? -1);
-  attachStallWatchdog(xhrAsXhr(xhr), 100);
+  xhr.upload.onprogress = (ev) => {
+    seen.push((ev as FakeEvent | undefined)?.loaded ?? -1);
+  };
+  attachStallWatchdog(xhr as unknown as XMLHttpRequest, 100);
   mock.timers.tick(90);
-  xhr.upload.onprogress!({ lengthComputable: true, loaded: 7, total: 10 });
+  xhr.fireProgress({ lengthComputable: true, loaded: 7, total: 10 });
   mock.timers.tick(90); // 距上次 progress 90ms < 100ms
   assert.equal(xhr.abortCalls, 0);
   mock.timers.tick(10); // 停滞累计满 100ms
@@ -134,15 +215,28 @@ test("watchdog：先赋 onprogress 后挂看门狗——复位同样生效（挂
   assert.deepEqual(seen, [7]);
 });
 
-test("watchdog：终态（onload）自动解除——上传完成后不再残留 abort", () => {
+test("watchdog：看门狗监听走 addEventListener——不依赖/不干扰 on* handler（无 onprogress 也有判活）", () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const xhr = new FakeXMLHttpRequest();
+  attachStallWatchdog(xhr as unknown as XMLHttpRequest, 100);
+  assert.equal(xhr.upload.onprogress, null); // 未给调用方装任何 on* handler
+  mock.timers.tick(90);
+  xhr.fireProgress({ lengthComputable: true, loaded: 1, total: 10 }); // 复位来自监听器
+  mock.timers.tick(90);
+  assert.equal(xhr.abortCalls, 0);
+  mock.timers.tick(10);
+  assert.equal(xhr.abortCalls, 1);
+});
+
+test("watchdog：终态（loadend）自动解除——上传完成后不再残留 abort", () => {
   mock.timers.enable({ apis: ["setTimeout"] });
   const xhr = new FakeXMLHttpRequest();
   let loaded = false;
-  attachStallWatchdog(xhrAsXhr(xhr), 100);
+  attachStallWatchdog(xhr as unknown as XMLHttpRequest, 100);
   xhr.onload = () => {
     loaded = true;
   };
-  xhr.onload!({});
+  xhr.fireTerminal("load");
   mock.timers.tick(10_000);
   assert.ok(loaded);
   assert.equal(xhr.abortCalls, 0);
@@ -165,8 +259,8 @@ test("caDecryptUpload 体积=fd 内各 Blob size 求和（26MB+26MB=52MB → 无
   mock.timers.enable({ apis: ["setTimeout"] });
   const fd = new FormData();
   fd.append("fieldsJson", JSON.stringify({ a: 1 }));
-  fd.append("plain", HALF_BLOB_A, "plain.bin");
-  fd.append("proof", HALF_BLOB_B, "proof.p7b");
+  fd.append("plain", getHalfBlobA(), "plain.bin");
+  fd.append("proof", getHalfBlobB(), "proof.p7b");
   const pr = supplierApi.caDecryptUpload("p1", fd);
   const xhr = FakeXMLHttpRequest.last!;
   assert.equal(xhr.timeout, 0);
@@ -181,12 +275,11 @@ test("caDecryptUpload onProgress：整数百分比透传；lengthComputable=fals
   fd.append("plain", new Blob(["abc"]), "p.bin");
   const pr = supplierApi.caDecryptUpload("p1", fd, (pct) => pcts.push(pct));
   const xhr = FakeXMLHttpRequest.last!;
-  const fire = (ev: FakeEvent) => xhr.upload.onprogress!(ev);
-  fire({ lengthComputable: true, loaded: 0, total: 3 });
-  fire({ lengthComputable: true, loaded: 1, total: 3 }); // 33.33 → 33
-  fire({ lengthComputable: true, loaded: 2, total: 3 }); // 66.67 → 67
-  fire({ lengthComputable: true, loaded: 3, total: 3 }); // 100
-  fire({ lengthComputable: false, loaded: 2, total: 0 });
+  xhr.fireProgress({ lengthComputable: true, loaded: 0, total: 3 });
+  xhr.fireProgress({ lengthComputable: true, loaded: 1, total: 3 }); // 33.33 → 33
+  xhr.fireProgress({ lengthComputable: true, loaded: 2, total: 3 }); // 66.67 → 67
+  xhr.fireProgress({ lengthComputable: true, loaded: 3, total: 3 }); // 100
+  xhr.fireProgress({ lengthComputable: false, loaded: 2, total: 0 });
   assert.deepEqual(pcts, [0, 33, 67, 100]);
   xhr.finish(200, { ok: 1 });
   await pr;
@@ -195,7 +288,7 @@ test("caDecryptUpload onProgress：整数百分比透传；lengthComputable=fals
 test("caDecryptUpload >50MB：停滞满 60s → abort → 以停滞文案 reject（onabort 派发面）", { timeout: 10_000 }, async () => {
   mock.timers.enable({ apis: ["setTimeout"] });
   const fd = new FormData();
-  fd.append("plain", BIG_BLOB, "plain.bin");
+  fd.append("plain", getBigBlob(), "plain.bin");
   const pr = supplierApi.caDecryptUpload("p1", fd);
   const xhr = FakeXMLHttpRequest.last!;
   assert.equal(xhr.timeout, 0);
@@ -208,7 +301,7 @@ test("caDecryptUpload >50MB：停滞满 60s → abort → 以停滞文案 reject
 test("caDecryptUpload >50MB：abort 派发走 onerror 的浏览器 → 仍是停滞文案而非「网络异常」", { timeout: 10_000 }, async () => {
   mock.timers.enable({ apis: ["setTimeout"] });
   const fd = new FormData();
-  fd.append("plain", BIG_BLOB, "plain.bin");
+  fd.append("plain", getBigBlob(), "plain.bin");
   const pr = supplierApi.caDecryptUpload("p1", fd);
   const xhr = FakeXMLHttpRequest.last!;
   xhr.abortDispatch = "error";
@@ -224,7 +317,7 @@ test("caDecryptUpload：硬超时（ontimeout 面）不再让 promise 悬挂", {
   const pr = supplierApi.caDecryptUpload("p1", fd);
   const xhr = FakeXMLHttpRequest.last!;
   const expectation = assert.rejects(pr, /上传超时/);
-  xhr.ontimeout?.({});
+  xhr.fireTerminal("timeout");
   await expectation;
 });
 
@@ -236,7 +329,7 @@ test("caUploadEncryptedOuter ≤50MB：硬超时 180s 不变、onProgress 透传
   const pr = supplierApi.caUploadEncryptedOuter("p1", blob, "o.bin", (pct) => pcts.push(pct));
   const xhr = FakeXMLHttpRequest.last!;
   assert.equal(xhr.timeout, 180_000);
-  xhr.upload.onprogress!({ lengthComputable: true, loaded: 5, total: 20 });
+  xhr.fireProgress({ lengthComputable: true, loaded: 5, total: 20 });
   assert.deepEqual(pcts, [25]);
   xhr.finish(200, { fileAssetId: "f1", outerSha256: "x", outerBytes: 1024, expiresAt: "later" });
   const res = await pr;
@@ -255,13 +348,13 @@ test("caUploadEncryptedOuter 无 onProgress 调用（既有三参/两参形态�
 test("caUploadEncryptedOuter >50MB：timeout=0 + 看门狗；传输中 progress 复位不误杀，停滞满 60s → 停滞文案", { timeout: 10_000 }, async () => {
   mock.timers.enable({ apis: ["setTimeout"] });
   const pcts: number[] = [];
-  const pr = supplierApi.caUploadEncryptedOuter("p1", BIG_BLOB, "o.bin", (pct) => pcts.push(pct));
+  const pr = supplierApi.caUploadEncryptedOuter("p1", getBigBlob(), "o.bin", (pct) => pcts.push(pct));
   const xhr = FakeXMLHttpRequest.last!;
   assert.equal(xhr.timeout, 0);
   // 3 × (30s 心跳 + progress)：累计 90s > 60s 窗口，但持续有进度 → 不 abort（500MB 慢链路不误杀）
   for (let i = 1; i <= 3; i++) {
     mock.timers.tick(30_000);
-    xhr.upload.onprogress!({ lengthComputable: true, loaded: i, total: 4 });
+    xhr.fireProgress({ lengthComputable: true, loaded: i, total: 4 });
   }
   assert.equal(xhr.abortCalls, 0);
   assert.deepEqual(pcts, [25, 50, 75]);
@@ -271,13 +364,3 @@ test("caUploadEncryptedOuter >50MB：timeout=0 + 看门狗；传输中 progress 
   await expectation;
   assert.equal(xhr.abortCalls, 1);
 });
-
-// ── 测试小工具 ────────────────────────────────────────────────────────────────
-
-function xhrAsXhr(fake: FakeXMLHttpRequest): XMLHttpRequest {
-  return fake as unknown as XMLHttpRequest;
-}
-
-function xhrAsFake(xhr: XMLHttpRequest): FakeXMLHttpRequest {
-  return xhr as unknown as FakeXMLHttpRequest;
-}

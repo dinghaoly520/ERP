@@ -21,57 +21,37 @@ export function xhrTimeoutMs(bytes: number): number {
 }
 
 /**
- * 停滞看门狗：任何 upload.onprogress 事件复位计时；ms 内无进度 → xhr.abort()。
- * 通过属性拦截包裹 onprogress / 终态 handler 赋值——先挂看门狗或先赋 handler 两种顺序均生效；
- * 终态（load/error/abort/timeout）自动解除，防上传完成后残留 60s 计时器。
+ * 停滞看门狗：任何上传进度事件复位计时；ms 内无进度 → xhr.abort()。
+ * 复位/解除走 addEventListener——与任意 on* handler 赋值并存、先后顺序不敏感
+ * （勿用 defineProperty 拦截 on*：浏览器事件派发读的是原型 setter 写入的内部注册表，
+ *  实例遮蔽属性不会被调用，评审实测 Chrome 上监听器彻底失联）。
+ * 解除时机：上传体完成（upload 的 loadend）或请求终态（xhr 的 loadend）——此后不再有
+ * 上传进度，防成功后残留 60s 计时器；下载/服务端处理阶段停滞也不误杀已传完的请求。
  */
 export function attachStallWatchdog(xhr: XMLHttpRequest, ms = UPLOAD_STALL_WATCHDOG_MS): void {
-  type Handler = (ev?: unknown) => unknown;
   let timer: ReturnType<typeof setTimeout> | null = null;
-  const disarm = () => {
+  let finished = false;
+  const clearTimer = () => {
     if (timer !== null) {
       clearTimeout(timer);
       timer = null;
     }
   };
+  const disarm = () => {
+    finished = true;
+    clearTimer();
+  };
   const arm = () => {
-    disarm();
+    clearTimer();
+    if (finished) return;
     timer = setTimeout(() => {
       stallAbortedXhrs.add(xhr);
       xhr.abort();
     }, ms);
   };
-  const intercept = (target: object, key: string, wrap: (fn: Handler) => Handler) => {
-    const holder = target as Record<string, Handler | null | undefined>;
-    const existing = holder[key] ?? null;
-    let current: Handler | null = null;
-    Object.defineProperty(target, key, {
-      configurable: true,
-      enumerable: true,
-      get: () => current,
-      set: (fn: Handler | null) => {
-        current = fn ? wrap(fn) : null;
-      },
-    });
-    if (existing) current = wrap(existing);
-  };
-  intercept(xhr.upload, "onprogress", (fn: Handler) => (ev?: unknown) => {
-    arm();
-    return fn(ev);
-  });
-  // 调用方不关心进度（无 onProgress）时也要装一个仅复位用的 handler——progress=活着
-  const uploadHolder = xhr.upload as unknown as Record<string, Handler | null | undefined>;
-  if (!uploadHolder.onprogress) {
-    uploadHolder.onprogress = () => arm();
-  }
-  const disarmOnTerminal = (fn: Handler) => (ev?: unknown) => {
-    disarm();
-    return fn(ev);
-  };
-  intercept(xhr, "onload", disarmOnTerminal);
-  intercept(xhr, "onerror", disarmOnTerminal);
-  intercept(xhr, "onabort", disarmOnTerminal);
-  intercept(xhr, "ontimeout", disarmOnTerminal);
+  xhr.upload.addEventListener("progress", () => arm());
+  xhr.upload.addEventListener("loadend", disarm);
+  xhr.addEventListener("loadend", disarm);
   arm();
 }
 
