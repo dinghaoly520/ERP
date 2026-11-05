@@ -2,8 +2,8 @@
 /**
  * U盾全流程演示项目脚本 —— 搭建「供应商 U盾加密投递 → 开标 U盾解密」所需的最小项目
  *
- * 与 demo-decrypt-project.js 分工不同：本项目走 dual-v2 新轨，从 DOWNLOAD 起步，
- * 让「四川水发建设有限公司」真实经浏览器 U盾（厂商中间件 :17999）投递，再转 OPENING
+ * 与 demo-decrypt-project.js 分工不同：本项目走 SCCA dual-v3 新轨，从 DOWNLOAD 起步，
+ * 让「四川水发建设有限公司」真实经浏览器 U盾（SCCA 证书助手 wss://localhost:36171）投递，再转 OPENING
  * 供开标大厅供应商侧 U盾解密演示。
  *
  * 用法（在 water-erp/apps/api 目录下）：

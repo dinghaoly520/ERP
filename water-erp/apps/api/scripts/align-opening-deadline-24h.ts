@@ -4,13 +4,14 @@
  *
  * 背景：业务规则「投标截止 = 开标前 10 分钟」（BID_DEADLINE_BEFORE_OPENING_MS，口径见
  * packages/shared/src/constants.ts 与 src/bid/opening-deadline.util.ts）。存量项目（含
- * 旧演示脚本时代创建的）deadline 与 openTime 相差 1h 或任意值，不满足 24h 关系。
- * 本脚本扫描存量 BidProject，把 deadline 对齐到 openTime − 24h（openTime 为基准不动）。
+ * 旧演示脚本时代创建的）deadline 与 openTime 相差 1h 或任意值，不满足规则关系。
+ * 本脚本扫描存量 BidProject，把 deadline 对齐到 openTime − BID_DEADLINE_BEFORE_OPENING_MS（现行 10 分钟；
+ * openTime 为基准不动）。
  *
  * 候选集  bidProject 全量，四分区：
- *   1. 待修正    deadline > now 且 |deadline − (openTime − 24h)| > 60s
+ *   1. 待修正    deadline > now 且 |deadline − (openTime − 常量)| > 60s
  *   2. 已截标不动 deadline <= now（历史已截标项目，改动无意义，不动）
- *   3. 已合规    |deadline − (openTime − 24h)| <= 60s（含开标已过但关系本已合规的行）
+ *   3. 已合规    |deadline − (openTime − 常量)| <= 60s（含开标已过但关系本已合规的行）
  *   4. 信息区    openTime 或 deadline 为空（无基准/无目标，仅列出，不修正）
  *
  * 用法：
@@ -78,7 +79,7 @@ type Proj = {
   stage: string;
 };
 
-/** 24h 关系偏差：|deadline − (openTime − 24h)|，单位 ms；openTime/deadline 缺失返回 Infinity */
+/** 截标↔开标关系偏差：|deadline − (openTime − BID_DEADLINE_BEFORE_OPENING_MS)|，单位 ms；openTime/deadline 缺失返回 Infinity */
 function gapMs(p: Proj): number {
   if (!p.openTime || !p.deadline) return Infinity;
   return Math.abs(

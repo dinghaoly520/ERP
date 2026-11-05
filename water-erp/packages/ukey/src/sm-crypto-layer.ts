@@ -11,7 +11,8 @@
    sm-crypto 0.4 为无类型 CJS 包，且本包 tsconfig 作用域内无 @types/node，
    故对 require 做局部声明；编译产物为普通 CJS require 调用，Node / jest 直接可解析；
    Vite 应用须把本包登记进 optimizeDeps.include 才会经 esbuild 预打包转 ESM
-   （否则 dev 模式浏览器侧 require is not defined；见 apps/supplier-portal/vite.config.ts）。
+   （否则 dev 模式浏览器侧 require is not defined；历史 Vite 消费方 apps/supplier-portal
+   已删除，现存消费方为 Next 门户与 Node/jest，本条仅备将来再接 Vite 时参考）。
    ================================================================= */
 
 declare const require: (id: string) => { sm2: any; sm4: any };

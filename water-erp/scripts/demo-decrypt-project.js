@@ -112,7 +112,7 @@ async function reset() {
       `UPDATE "BidSupplier" SET "decryptStatus"='PENDING', "confirmStatus"='PENDING', "checkInAt"=NULL, "lastSeenAt"=NULL WHERE "projectId"=$1`,
       demo.id,
     );
-    // 时间口径刷新为当前时刻（fresh-time 默认行为，与 create 一致；开标=now、截标=now-1h、下载截止=now+30min）
+    // 时间口径刷新为当前时刻（fresh-time 默认行为，与 create 一致；开标=now、截标=now-24h、下载截止=now+30min）
     await tx.bidProject.update({
       where: { id: demo.id },
       data: {
@@ -227,7 +227,7 @@ async function create() {
       name: DEMO_NAME,
       procurementMethod: src.procurementMethod,
       openTime: t,
-      deadline: new Date(t.getTime() - 24 * 3600_000), // 截标=开标前 24h：BID_DEADLINE_BEFORE_OPENING_MS 口径（packages/shared/src/constants.ts）；CJS 脚本不 import shared，写字面量 24h
+      deadline: new Date(t.getTime() - 24 * 3600_000), // 截标=开标前 24h：历史口径字面量（现行 BID_DEADLINE_BEFORE_OPENING_MS 已改 10 分钟，2026-10-16，packages/shared/src/constants.ts）；CJS 脚本不 import shared，演示保留 24h 拉长窗口
       stage: 'OPENING',
       riskNote: `${src.riskNote ?? ''}；（解密演示副本）`,
       budget: src.budget,

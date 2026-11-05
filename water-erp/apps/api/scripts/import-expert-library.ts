@@ -9,7 +9,7 @@
  *   - 公司按 ExpertLibrary.company 直挂（SEED_COMPANIES 8 家 upsert，新 4 家 code=null）
  *   - 部门按名 find-or-create；entryStatus=ACTIVE（名单即批文）
  *   - PII（email/phone/idNumber）sealPii 国密密封落库
- *   - 清空列与 seed 1.45 相同（9 张显式清；BidScoreDelta 表未建勿加）
+ *   - 清空列与 seed 1.45 相同（9 张显式清；BidScoreDelta 由 seed 全量 TRUNCATE 清单覆盖，表已建）
  * 用法：cd water-erp/apps/api && npx tsx scripts/import-expert-library.ts
  */
 import 'dotenv/config';

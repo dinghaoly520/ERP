@@ -50,7 +50,7 @@ function loadEnvFile(candidates: string[]): string | null {
 const scriptDir = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
 loadEnvFile([join(scriptDir, '..', '.env'), join(process.cwd(), '.env')]);
 
-const DUAL_V2_AMOUNT_UNIT = '万元'; // 与 packages/shared DUAL_V2_AMOUNT_UNIT 对齐
+const DUAL_V2_AMOUNT_UNIT = '万元'; // 与 src/bid/opening-amount-unit.util.ts 的 DUAL_V2_AMOUNT_UNIT 对齐
 // 与 src/bid/opening-amount-unit.util.ts 的 BARE_NUM_RE 逐字一致——勿自造变体
 const BARE_NUM_RE = /^[\d,]+(?:\.\d+)?$/;
 

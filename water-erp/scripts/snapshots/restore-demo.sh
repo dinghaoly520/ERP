@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # 一键恢复演示快照（引大济岷钻孔竞价项目 → 组长末签前停止点）
-# 2026-09-14 起指向 demo-0914（同停止点 + 3 家回执全部已签）；旧 demo.json 保留在目录内备用
+# 2026-09-14 起指向 demo-0914（同停止点 + 3 家回执全部已签）；demo/demo-0914 快照 JSON
+# 已删除下线（27f64480），库内现存仅 BID-DEMO-20260817150148-pre-open.json——运行前需重捕或改指
 # 用法：./restore-demo.sh
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

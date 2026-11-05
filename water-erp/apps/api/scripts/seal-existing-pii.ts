@@ -7,7 +7,7 @@
  * 「未识别的字段密文格式（缺少 sm1:keyId: 前缀）」500。实测明文分布：
  * SupplierContact.phone 246 / ExpertProfile.idNumber 187 / ExpertProfile.phone 186 …
  *
- * 动作：按 seed.ts 的 PII_SEAL_MAP（单一口径，改映射须两处同步）逐列扫描，
+ * 动作：按 seed.ts 的 PII_SEAL_MAP（单一口径，改映射须三处同步——seed/本脚本/crypto-health-report）逐列扫描，
  * 明文行 sealPii 原地密封 + 同步回填 *Idx 盲索引（与种子装载行为一致）；
  * 已密封行跳过（幂等）。不打印任何明文值，只输出行 id 与计数。
  *
@@ -62,7 +62,7 @@ const EXECUTE = process.argv.includes('--execute');
 const RESEAL = process.argv.includes('--re-seal');
 const prisma = new PrismaClient();
 
-/** 与 prisma/seed.ts PII_SEAL_MAP 单一口径——改映射须两处同步 */
+/** 与 prisma/seed.ts PII_SEAL_MAP 单一口径——改映射须三处同步（seed/本脚本/crypto-health-report） */
 const PII_SEAL_MAP: Record<string, Array<{ field: string; idx?: string }>> = {
   User: [{ field: 'email' }, { field: 'phone', idx: 'phoneIdx' }],
   ExpertProfile: [{ field: 'phone' }, { field: 'idNumber' }, { field: 'licenseNo' }],
