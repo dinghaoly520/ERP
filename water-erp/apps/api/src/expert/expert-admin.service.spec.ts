@@ -451,13 +451,7 @@ describe('ExpertAdminService', () => {
       expertProfile: { phone: null, idNumber: null, licenseNo: null, employer: '' },
     };
 
-    it('职称标准化闸（2026-11-04）：非标准职称 → 400 TITLE_NOT_STANDARD（执业资格混入职称列即拒）', async () => {
-      prisma.user.findFirst.mockResolvedValue(null);
-      await expect(service.createExpert({ ...dto, title: '高级工程师、一建' } as any)).rejects.toMatchObject({
-        response: expect.objectContaining({ code: 'TITLE_NOT_STANDARD' }),
-      });
-    });
-    it('执业资格闸（2026-11-04）：非标准资格项 → 400 QUALIFICATION_NOT_STANDARD', async () => {
+    it('执业资格闸（2026-11-04）：非标准资格项 → 400 QUALIFICATION_NOT_STANDARD（专业/职称已放开自定义，2026-11-05）', async () => {
       prisma.user.findFirst.mockResolvedValue(null);
       await expect(service.createExpert({ ...dto, title: '高级工程师', qualifications: '一建、监理' } as any)).rejects.toMatchObject({
         response: expect.objectContaining({ code: 'QUALIFICATION_NOT_STANDARD' }),

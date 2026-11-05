@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 import { copyToClipboard } from '@/lib/copy-to-clipboard';
 import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getNotifyPrefs, updateNotifyPrefs, getNotifyHistory, getAiAdoptionRate, proxyMarkExpertInvitation, updateExpertProfile, getRiskBrief, type ExpertPortrait, type ExpertRiskBrief, type NotifyHistoryItem, revealExpertField } from '@/lib/api/expert';
 import { Modal, AlertBanner, StatusBadge } from '@/components/workbench';
-import { SearchSelect } from '@/components/workbench/search-select';
+import { TypeaheadCombobox } from '@/components/workbench/typeahead-combobox';
 import { EXPERT_TITLES, EXPERT_QUALIFICATIONS } from '@/lib/expert-standard-options';
 import { listSpecialties } from '@/lib/api/expert';
 import { useExpertAlerts } from '@/lib/hooks/use-alerts';
@@ -311,9 +311,7 @@ export default function ExpertDetailPage() {
   const saveProfile = async () => {
     // 保存前校验：姓名/专业必填；手机/身份证/邮箱填了才查格式（正则与录入页一致）
     if (!editForm.displayName.trim()) { toast.error('请输入专家姓名'); return; }
-    if (!editForm.specialty.trim()) { toast.error('请选择专业'); return; }
-    else if (!specialtyOptions.includes(editForm.specialty)) { toast.error('请从标准专业列表中选择'); return; }
-    if (editForm.title.trim() && !(EXPERT_TITLES as readonly string[]).includes(editForm.title.trim())) { toast.error('请从标准职称列表中选择'); return; }
+    if (!editForm.specialty.trim()) { toast.error('请输入专业'); return; }
     if (editForm.qualifications.trim()) {
       const bad = editForm.qualifications.split(/[、，,]/).map(s => s.trim()).filter(Boolean).filter(q => !(EXPERT_QUALIFICATIONS as readonly string[]).includes(q));
       if (bad.length > 0) { toast.error(`执业资格「${bad.join('、')}」不在标准清单内`); return; }
@@ -1136,14 +1134,14 @@ export default function ExpertDetailPage() {
             <section className="space-y-3">
               <GroupHead>专业资格 · 抽取匹配</GroupHead>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {/* 专业/职称：严格下拉（2026-11-04 标准化，与录入弹窗同口径）；执业资格独立字段 */}
+                {/* 专业/职称：typeahead 联想（2026-11-05 可自定义新增，标准清单为推荐项）；执业资格独立字段 */}
                 <label className="space-y-1 block">
                   <span className="text-xs font-semibold text-[var(--muted-foreground)]">专业</span>
-                  <SearchSelect options={specialtyOptions.map(s => ({ value: s, label: s }))} value={editForm.specialty} onPick={o => setEditForm(prev => ({ ...prev, specialty: o.value }))} placeholder="选择专业" searchPlaceholder="搜索专业…" emptyText="无匹配专业" triggerClassName="workbench-input" panelMinWidth={200} />
+                  <TypeaheadCombobox value={editForm.specialty} onChange={v => setEditForm(prev => ({ ...prev, specialty: v }))} options={specialtyOptions} allowCustom placeholder="输入或选择专业" emptyText="无匹配专业" />
                 </label>
                 <label className="space-y-1 block">
                   <span className="text-xs font-semibold text-[var(--muted-foreground)]">职称</span>
-                  <SearchSelect options={EXPERT_TITLES.map(t => ({ value: t, label: t }))} value={editForm.title} onPick={o => setEditForm(prev => ({ ...prev, title: o.value }))} placeholder="选择职称" searchPlaceholder="搜索职称…" emptyText="无匹配职称" triggerClassName="workbench-input" panelMinWidth={200} />
+                  <TypeaheadCombobox value={editForm.title} onChange={v => setEditForm(prev => ({ ...prev, title: v }))} options={[...EXPERT_TITLES]} allowCustom placeholder="输入或选择职称" emptyText="无匹配职称" />
                 </label>
                 <label className="space-y-1 block">
                   <span className="text-xs font-semibold text-[var(--muted-foreground)]">执业资格</span>

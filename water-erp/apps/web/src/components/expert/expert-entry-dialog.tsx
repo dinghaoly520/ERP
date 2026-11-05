@@ -7,7 +7,6 @@ import { Modal } from '@/components/workbench';
 import { UnitSearchSelect } from '@/components/login/unit-search-select';
 import { ExpertCsvActions } from './expert-csv-actions';
 import { UserPlus, Eye, EyeOff, ScanLine, RefreshCw } from 'lucide-react';
-import { SearchSelect } from '@/components/workbench/search-select';
 import { TypeaheadCombobox } from '@/components/workbench/typeahead-combobox';
 
 import { EXPERT_TITLES as TITLES, EXPERT_QUALIFICATIONS as QUALIFICATIONS } from '@/lib/expert-standard-options';
@@ -60,10 +59,8 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
     if (!form.displayName.trim()) e.displayName = '请输入专家姓名';
     if (!form.password.trim()) e.password = '请输入初始密码';
     else if (form.password.length < 6) e.password = '密码至少 6 位';
-    if (!form.specialty.trim()) e.specialty = '请选择专业';
-    else if (!specialties.includes(form.specialty)) e.specialty = '请从标准专业列表中选择';
-    if (!form.title.trim()) e.title = '请选择职称';
-    else if (!(TITLES as readonly string[]).includes(form.title)) e.title = '请从标准职称列表中选择';
+    if (!form.specialty.trim()) e.specialty = '请输入专业';
+    if (!form.title.trim()) e.title = '请输入职称';
     if (!form.employer.trim()) e.employer = '请选择工作单位';
     if (!form.departmentName.trim()) e.departmentName = '请输入所属部门';
     if (!form.phone.trim()) e.phone = '请输入联系电话';
@@ -192,8 +189,8 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
         <fieldset>
           <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><Step n={2} />专业资质</legend>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">专业 <span className="text-[var(--danger)]">*</span></span><TypeaheadCombobox value={form.specialty} onChange={v => set('specialty', v)} options={specialties} placeholder="输入或选择专业" emptyText="无匹配专业" triggerClassName={errors.specialty ? '!border-[var(--danger)]' : ''} /><FieldError field="specialty" /></label>
-            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">职称 <span className="text-[var(--danger)]">*</span></span><SearchSelect options={TITLES.map(t => ({ value: t, label: t }))} value={form.title} onPick={o => set('title', o.value)} placeholder="选择职称" searchPlaceholder="搜索职称…" emptyText="无匹配职称" triggerClassName={inputCls('title')} panelMinWidth={200} /><FieldError field="title" /></label>
+            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">专业 <span className="text-[var(--danger)]">*</span></span><TypeaheadCombobox value={form.specialty} onChange={v => set('specialty', v)} options={specialties} allowCustom placeholder="输入或选择专业" emptyText="无匹配专业" triggerClassName={errors.specialty ? '!border-[var(--danger)]' : ''} /><FieldError field="specialty" /></label>
+            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">职称 <span className="text-[var(--danger)]">*</span></span><TypeaheadCombobox value={form.title} onChange={v => set('title', v)} options={[...TITLES]} allowCustom placeholder="输入或选择职称" emptyText="无匹配职称" triggerClassName={errors.title ? '!border-[var(--danger)]' : ''} /><FieldError field="title" /></label>
             <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">执业资格</span><input value={form.qualifications} onChange={e => set('qualifications', e.target.value)} list="entry-qual-list" placeholder="如 一级建造师、监理工程师（顿号分隔）" className={inputCls('qualifications')} /><datalist id="entry-qual-list">{QUALIFICATIONS.map(q => <option key={q} value={q} />)}</datalist></label>
             {/* 工作单位：与 :3005 注册「公司」选择同款同源（UnitSearchSelect：62 家全级次企业名单 +
                 搜索 + 可手输），后端按名称命中公司主数据落归属 */}

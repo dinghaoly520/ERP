@@ -33,30 +33,12 @@ import { BidGateway } from '../bid/bid.gateway';
 import { CompanyScopeService } from '../company/company-scope';
 import type { CompanyWhere } from '../company/company-scope';
 import { EVALUATION_COOLDOWN_MS, reevalAllowed, latestExpertEvals } from '../common/evaluation-dedupe.util';
-/** 标准专业清单（2026-11-04 用户裁定标准化）：录入/CSV/编辑统一约束，
- *  存量已按同口径清洗（78 种写法 → 23 标准专业）。新增专业须先在此登记。 */
-export const EXPERT_SPECIALTY_OPTIONS = [
-  '水利工程', '水利水电工程', '水文与水资源', '地质勘查', '测绘工程',
-  '土木工程', '建筑工程', '市政工程', '工程管理', '工程造价',
-  '会计审计', '金融税务', '工商管理', '人力资源管理', '法学合规',
-  '档案管理', '电气工程及自动化', '机械工程', '电子信息', '计算机与信息化',
-  '环境工程', '水土保持', '物资管理',
-] as const;
+/** 专业/职称标准清单（2026-11-04 清洗口径；2026-11-05 用户裁定降为推荐项——
+ *  录入/编辑/CSV 允许自定义新增，闸仅保留执业资格）：专业推荐清单随库内实际
+ *  值动态去重（listSpecialties），职称推荐清单在前端 expert-standard-options.ts
+ *  （存量 180 人已收敛为 23 专业 / 8 职称，见 seed ExpertLibrary.json）。 */
 
-
-/** 标准职称清单（2026-11-04 用户裁定标准化）：录入/CSV/编辑统一约束，按五个职称
- *  序列组织；"中级"前缀冗余（中级即该序列中级本身）、执业资格不属职称（独立
- *  qualifications 字段承载）。存量已按同口径清洗（40 种写法 → 标准职称/置空）。
- *  新增职称须先在此登记。 */
-export const EXPERT_TITLE_OPTIONS = [
-  '正高级工程师', '高级工程师', '工程师', '助理工程师',
-  '正高级经济师', '高级经济师', '经济师', '助理经济师',
-  '正高级会计师', '高级会计师', '会计师',
-  '高级审计师', '审计师',
-  '高级政工师', '政工师',
-] as const;
-
-/** 标准执业资格清单（同裁定）：从职称列剥离的注册类证书标准全称，多值顿号分隔。 */
+/** 标准执业资格清单：从职称列剥离的注册类证书标准全称，多值顿号分隔（封闭校验）。 */
 export const EXPERT_QUALIFICATION_OPTIONS = [
   '一级建造师', '二级建造师', '一级造价工程师', '二级造价工程师', '监理工程师',
   '注册土木工程师', '注册会计师', '法律职业资格', '企业人力资源管理师',
@@ -576,21 +558,8 @@ export class ExpertAdminService {
 
   async createExpert(dto: CreateExpertDto, operatorId?: string) {
     const normalizedName = dto.displayName.trim();
-    // 专业标准化闸（2026-11-04）：非标准专业一律拒绝——录入表单已是严格下拉，
-    // CSV/直调 API 在此兜底；新增专业先登记 EXPERT_SPECIALTY_OPTIONS
-    if (dto.specialty?.trim() && !(EXPERT_SPECIALTY_OPTIONS as readonly string[]).includes(dto.specialty.trim())) {
-      throw new BadRequestException({
-        error: `专业「${dto.specialty.trim()}」不在标准专业清单内，请从下列选择：${EXPERT_SPECIALTY_OPTIONS.join('、')}`,
-        code: 'SPECIALTY_NOT_STANDARD',
-      });
-    }
-    // 职称标准化闸（2026-11-04）：非标准职称拒绝；执业资格不在职称列（独立字段，逐项校验）
-    if (dto.title?.trim() && !(EXPERT_TITLE_OPTIONS as readonly string[]).includes(dto.title.trim())) {
-      throw new BadRequestException({
-        error: `职称「${dto.title.trim()}」不在标准职称清单内，请从下列选择：${EXPERT_TITLE_OPTIONS.join('、')}（执业证书请填入执业资格字段）`,
-        code: 'TITLE_NOT_STANDARD',
-      });
-    }
+    // 专业/职称自由新增（2026-11-05 用户裁定）：标准清单降为推荐项（前端 typeahead
+    // 联想），自定义值放行——闸只保留执业资格（封闭全称集）。存量已按 15 项/23 项清洗。
     if (dto.qualifications?.trim()) {
       const bad = splitQualifications(dto.qualifications).filter(q => !(EXPERT_QUALIFICATION_OPTIONS as readonly string[]).includes(q));
       if (bad.length > 0) {
@@ -814,20 +783,8 @@ export class ExpertAdminService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
 
-    // 标准化闸（2026-11-04）：编辑通道与录入/CSV 同口径——专业/职称/执业资格
-    // 非标准一律拒绝（编辑表单已是严格下拉，此处兜底直调 API）
-    if (dto.specialty?.trim() && !(EXPERT_SPECIALTY_OPTIONS as readonly string[]).includes(dto.specialty.trim())) {
-      throw new BadRequestException({
-        error: `专业「${dto.specialty.trim()}」不在标准专业清单内，请从下列选择：${EXPERT_SPECIALTY_OPTIONS.join('、')}`,
-        code: 'SPECIALTY_NOT_STANDARD',
-      });
-    }
-    if (dto.title?.trim() && !(EXPERT_TITLE_OPTIONS as readonly string[]).includes(dto.title.trim())) {
-      throw new BadRequestException({
-        error: `职称「${dto.title.trim()}」不在标准职称清单内，请从下列选择：${EXPERT_TITLE_OPTIONS.join('、')}（执业证书请填入执业资格字段）`,
-        code: 'TITLE_NOT_STANDARD',
-      });
-    }
+    // 标准化闸（2026-11-05 用户裁定收窄）：专业/职称自由新增（标准清单降为前端
+    // 推荐项），仅执业资格保留封闭全称集校验
     if (dto.qualifications?.trim()) {
       const bad = splitQualifications(dto.qualifications).filter(q => !(EXPERT_QUALIFICATION_OPTIONS as readonly string[]).includes(q));
       if (bad.length > 0) {
@@ -2971,16 +2928,8 @@ export class ExpertAdminService {
         results.push({ 姓名: displayName || '(空)', 状态: '跳过', 原因: '缺少姓名/账号/专业' });
         skipped++; continue;
       }
-      if (!(EXPERT_SPECIALTY_OPTIONS as readonly string[]).includes(specialty.trim())) {
-        results.push({ 姓名: displayName, 状态: '跳过', 原因: `专业「${specialty}」不在标准清单` });
-        skipped++; continue;
-      }
-      // 职称/执业资格标准化闸（2026-11-04）：与录入同口径，非标准行跳过留原因
+      // 专业/职称自由新增（2026-11-05 用户裁定）：CSV 不再卡标准清单；执业资格仍校验
       const title = pick(row, ['职称']) || undefined;
-      if (title?.trim() && !(EXPERT_TITLE_OPTIONS as readonly string[]).includes(title.trim())) {
-        results.push({ 姓名: displayName, 状态: '跳过', 原因: `职称「${title}」不在标准清单` });
-        skipped++; continue;
-      }
       const qualifications = pick(row, ['执业资格', '执业资格证书']) || undefined;
       const badQual = qualifications?.trim()
         ? splitQualifications(qualifications).filter(q => !(EXPERT_QUALIFICATION_OPTIONS as readonly string[]).includes(q))
