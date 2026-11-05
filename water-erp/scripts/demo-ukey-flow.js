@@ -12,7 +12,8 @@
  *   node ../../scripts/demo-ukey-flow.js reset       # 清开标过程数据，回 OPENING 待组建会话（重演场景 B）
  *   node ../../scripts/demo-ukey-flow.js status      # 打印项目/供应商/提交状态
  *
- * 时间口径（对齐 demo-decrypt-project.js 与 BID_DEADLINE_BEFORE_OPENING_MS）：
+ * 时间口径（对齐 demo-decrypt-project.js；24h 为历史口径字面量——现行常量
+ * BID_DEADLINE_BEFORE_OPENING_MS 已改 10 分钟，2026-10-16）：
  *   create:      deadline=now+1d, openTime=now+2d, downloadDeadline=now+1d
  *   to-opening:  openTime=now, deadline=now-24h, downloadDeadline=now+30min
  */
