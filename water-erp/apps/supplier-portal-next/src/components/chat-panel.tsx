@@ -13,7 +13,7 @@ import { useBidWebSocket } from "@/hooks/use-bid-websocket";
  */
 type Msg = { id: string; senderId: string; senderRole: string; senderName: string; content: string; createdAt: string; roomType: string };
 
-export function ChatPanel({ projectId, supplierId, supplierName: _supplierName, userId, stage, sessionReady = true }: {
+export function ChatPanel({ projectId, supplierId, supplierName: _supplierName, userId, stage, sessionReady = true, sessionEnded = false }: {
   stage?: string;
   projectId: string;
   supplierId: string;
@@ -21,6 +21,9 @@ export function ChatPanel({ projectId, supplierId, supplierName: _supplierName, 
   userId: string;
   /** 开标会话是否已组建（2026-10-22）：未组建时后端恒 403 SESSION_NOT_CREATED，输入同步禁用；组建经 WS 翻转 */
   sessionReady?: boolean;
+  /** 会话已终局（2026-11-05）：完成开标·移交只写 handoverAt、stage 停留 OPENING——
+   *  此态 stageClosed 判不到、sessionOpen 又为 true，曾误显「尚未组建开标会话」；据此独立关交流 */
+  sessionEnded?: boolean;
 }) {
   const [tab, setTab] = useState<"PUBLIC" | "PRIVATE">("PUBLIC");
   const [publicMsgs, setPublicMsgs] = useState<Msg[]>([]);
@@ -47,10 +50,12 @@ export function ChatPanel({ projectId, supplierId, supplierName: _supplierName, 
     : [...privateMsgs, ...publicMsgs.filter((m) => m.senderRole === "SYSTEM")]
         .sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
 
-  const canSend = exchangeControl === "OPEN" && !stageClosed && sessionOpen;
+  const canSend = exchangeControl === "OPEN" && !stageClosed && !sessionEnded && sessionOpen;
   const controlHint = stageClosed
     ? "开标阶段已结束，互动已关闭"
-    : !sessionOpen
+    : sessionEnded
+      ? "开标已结束，交流已关闭"
+      : !sessionOpen
       ? "尚未组建开标会话，交流将在会话组建后开放"
       : exchangeControl === "MUTED"
       ? "主持人已开启全员禁言"
