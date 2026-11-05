@@ -53,7 +53,11 @@ const mkTx = () => ({
 
 const mkSvc = (prisma: any, dualV3Decrypt: jest.Mock) => new BidDecryptService(
   prisma,
-  { decryptOuterFileV3: dualV3Decrypt } as any,
+  {
+    decryptOuterFileV3: jest.fn(), // Task 11 后 v3 主路径走流式两方法；整读版按计划原样保留（无生产调用方）
+    unwrapOuterDekV3: jest.fn().mockResolvedValue({ keyHex: '00', ivHex: '11' }),
+    decryptOuterStreamV3: dualV3Decrypt,
+  } as any,
   { readPrivateKey: jest.fn().mockResolvedValue('admin-priv-hex') } as any,
   {} as any,
   {} as any,
@@ -67,7 +71,12 @@ describe('bid-decrypt v3（Task10）', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    dualV3Decrypt = jest.fn().mockResolvedValue(Buffer.from('inner-data'));
+    // Task 11 两遍流契约：消费源流 + onPlainChunk 外送 + 返回流式 { plainBytes, plainSha256 }
+    dualV3Decrypt = jest.fn().mockImplementation(async (stream: AsyncIterable<Buffer>, _dek: unknown, onPlainChunk: (b: Buffer) => void) => {
+      for await (const _chunk of stream) { /* 消费源流（真实哈希闸在 pass1 已完成） */ }
+      onPlainChunk(Buffer.from('inner-data'));
+      return { plainBytes: 10, plainSha256: 'a'.repeat(64) };
+    });
     tx = mkTx();
     prisma = {
       bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'OPENING', name: '项目一', procurementMethod: '询比采购' }) },

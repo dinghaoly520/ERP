@@ -1,18 +1,40 @@
 /**
- * dual-v3 客户端组装单测（Task11）
+ * dual-v3 客户端组装单测（Task11；Task 6 改造——加密数据面走注入 CryptoEngine）
  * Node 同源跑 ukey 原语——fieldsCommit 与服务端公式一致 + 信封结构/哈希/密封件闭环
+ * + C_outer 字节锚（one-shot 双层手工期望值，信封字节级零变化）+ 多角色 DEK 独立/进度序
  */
 import assert from 'node:assert/strict';
 import * as nodeCrypto from 'node:crypto';
 import { test } from 'node:test';
-import { canonicalJson, sha256Hex, sm4Decrypt } from '@water-erp/ukey';
+import { canonicalJson, sha256Hex, sm4Decrypt, sm4Encrypt } from '@water-erp/ukey';
 import type { V3Fields } from '@water-erp/ukey';
+import { createLocalCryptoEngine } from '../crypto-engine';
+import type { CryptoEngine } from '../crypto-engine';
 import { encryptAndUploadV3, pemDerSha256 } from '../dual-v3-client';
 
 const FIELDS: V3Fields = {
   price: '153.95', amountUnit: '万元', currency: 'CNY',
   deliveryPeriod: '90 日历天', qualityCommitment: '合格',
 };
+
+const toHex = (b: Uint8Array): string => Buffer.from(b).toString('hex');
+
+/** 探针引擎：包一层 local 引擎——记录每次 encryptFile 的文件名与 DEK 入参
+ *  （kadmin 走 SM2 不可逆，引擎入参是 DEK_A 唯一明文观测点）。onProgress 第 4 参 /
+ *  signal 第 5 参原样透传（Task 9 起进度经 deps.onProgress 注入；F5 修复波起取消
+ *  经 deps.signal 注入——探针保持与真引擎同参形，不吞尾参）。 */
+interface EngineCall { file: string; dekS: { keyHex: string; ivHex: string }; dekA: { keyHex: string; ivHex: string } }
+function spyLocalEngine(sink: { calls: EngineCall[] }): CryptoEngine {
+  const base = createLocalCryptoEngine();
+  return {
+    encryptFile: (file, dekS, dekA, onProgress, signal) => {
+      sink.calls.push({ file: file.name, dekS, dekA });
+      return base.encryptFile(file, dekS, dekA, onProgress, signal);
+    },
+    decryptUrl: (url, dek, onProgress, signal) => base.decryptUrl(url, dek, onProgress, signal),
+    terminate: () => base.terminate(),
+  };
+}
 
 const ENC_CERT_PEM = '-----BEGIN CERTIFICATE-----\nQUJDREVG\n-----END CERTIFICATE-----'; // DER = "ABCDEF"
 const ADMIN = { adminCertId: 'ac-1', publicKey: '04' + 'ab'.repeat(64) };
@@ -23,7 +45,7 @@ test('pemDerSha256：PEM 甲剥除后取 DER 哈希', async () => {
   assert.equal(await pemDerSha256(ENC_CERT_PEM), expected);
 });
 
-test('encryptAndUploadV3：信封结构/哈希锚点/双密封件/fieldsCommit 闭环', async () => {
+test('encryptAndUploadV3：信封结构/哈希锚点/双密封件/fieldsCommit 闭环（走注入 CryptoEngine）', async () => {
   const capturedWrapJsons: string[] = [];
   const fakeAdapter = {
     // 捕获被封装的 keyWrapJson——测试据此反解 DEK 做密封件闭环
@@ -32,8 +54,9 @@ test('encryptAndUploadV3：信封结构/哈希锚点/双密封件/fieldsCommit �
       return 'TURJWA==.' + capturedWrapJsons.length; // 假 P7（base64 'MIIx.'）
     },
   };
-  const uploads: Array<{ role: string; bytes: number }> = [];
+  const uploads: Array<{ role: string; filename: string; bytes: Uint8Array }> = [];
   const plainBytes = new TextEncoder().encode('technical-plaintext-pdf-bytes');
+  const probe = { calls: [] as EngineCall[] };
 
   const result = await encryptAndUploadV3(
     'proj-1',
@@ -43,10 +66,11 @@ test('encryptAndUploadV3：信封结构/哈希锚点/双密封件/fieldsCommit �
     fakeAdapter as any,
     ADMIN,
     {
-      uploadOuter: async (role, blob) => {
-        uploads.push({ role, bytes: blob.size });
+      uploadOuter: async (role, blob, filename) => {
+        uploads.push({ role, filename, bytes: new Uint8Array(await blob.arrayBuffer()) });
         return { fileAssetId: `fa-${role}`, outerSha256: '', outerBytes: blob.size };
       },
+      cryptoEngine: spyLocalEngine(probe), // 注入 local 引擎（Node 无 Worker，默认链路同轨）
     },
     { supplierId: 'sup-1', submissionId: '', revision: 1, signingBindingId: 'b-1', signingCertFingerprint: 'cf-1' },
   );
@@ -60,14 +84,27 @@ test('encryptAndUploadV3：信封结构/哈希锚点/双密封件/fieldsCommit �
   const entry = envelope.files.technical!;
   assert.equal(entry.assetId, 'fa-technical');
   assert.equal(entry.plainSha256, await sha256Hex(plainBytes), '明文哈希锚点');
-  assert.equal(entry.outerBytes, uploads[0]?.bytes, '上传密文字节数=信封声明');
+  assert.equal(entry.outerBytes, uploads[0]?.bytes.length, '上传密文字节数=信封声明');
+  assert.equal(uploads[0]?.filename, 'tech.pdf.outer', '上传文件名=原名+.outer');
   assert.equal(entry.kadmin.adminCertId, 'ac-1');
   assert.match(entry.kadmin.value, /^[0-9a-f]{190,}$/, 'SM2 密文=hex（C1C3C2，sm-crypto 无 04 前缀）');
   assert.equal(entry.kself.recipientCertFingerprint, await sha256Hex(new TextEncoder().encode('ABCDEF')), 'kself 指纹=加密证 DER sha256');
   assert.match(entry.kself.value, /^TURJWA==\.\d+$/, 'kself 走 adapter P7 封装');
 
-  // 闭环①：文件密封件——首个 wrapJson 是 technical 的 DEK_S；用其 SM4 解 C_inner 不在本测试
-  // （C_inner 未上传），改验 plainSha256 已由 sha256Hex 直接锚定（上断言）。
+  // 注入引擎被实走（整读旧路径不触引擎——本断言是重构的 RED 锚点）
+  assert.equal(probe.calls.length, 1, 'deps.cryptoEngine 注入引擎被逐角色调用');
+  // 闭环①（字节锚）：DEK_S 取 fake adapter 捕获的 kself wrapJson（封装的就是加密用钥），
+  // DEK_A 取引擎入参（kadmin 走 SM2 不可逆）——重组 one-shot 双层密文应逐字节等于上传的 C_outer
+  // （Task 2 一致性闸的推论：分块 == one-shot，信封字节级零变化）
+  const dekSJson = JSON.parse(capturedWrapJsons[0]!) as { k: string; iv: string };
+  assert.equal(probe.calls[0]?.dekS.keyHex, dekSJson.k, 'kself 封装的 DEK_S 即引擎加密用钥');
+  assert.equal(probe.calls[0]?.dekS.ivHex, dekSJson.iv, 'kself 封装的 DEK_S IV 同源');
+  const expectedOuterHex = sm4Encrypt(
+    probe.calls[0]!.dekA.keyHex, probe.calls[0]!.dekA.ivHex,
+    sm4Encrypt(dekSJson.k, dekSJson.iv, toHex(plainBytes)),
+  );
+  assert.equal(toHex(uploads[0]!.bytes), expectedOuterHex, 'C_outer 字节 == one-shot sm4Encrypt(dekA, sm4Encrypt(dekS, plain)) 手工期望值');
+
   // 闭环②：sealedFields——第二个 wrapJson 是 DEK_F；解 cipher 应还原 canonicalJson(fields)
   const dekF = JSON.parse(capturedWrapJsons[1]!);
   const plainFieldsHex = sm4Decrypt(dekF.k, dekF.iv, envelope.sealedFields.cipher);
@@ -77,6 +114,84 @@ test('encryptAndUploadV3：信封结构/哈希锚点/双密封件/fieldsCommit �
   // Ruling（Task12）：cipher 内容=canonicalJson({fields, nonce})——供应商解密后可取回 nonce
   assert.equal(restored, canonicalJson({ fields: FIELDS, nonce: result.nonceHex }), 'sealedFields 密文可由 DEK_F 还原 fields+nonce');
   assert.equal(envelope.sealedFields.kself.format, 'scca-pkcs7-base64');
+});
+
+test('多角色（technical+coverLetter）：逐角色 DEK 独立、engine 按文件序、进度回调按文件序', async () => {
+  const capturedWrapJsons: string[] = [];
+  const fakeAdapter = {
+    wrapKeyToEncCert: async (_pem: string, json: string) => {
+      capturedWrapJsons.push(json);
+      return 'TURJWA==.' + capturedWrapJsons.length;
+    },
+  };
+  const uploads: Array<{ role: string; bytes: Uint8Array }> = [];
+  const probe = { calls: [] as EngineCall[] };
+  // client 进度通道（Task 9 迁移）：deps.onProgress ← engine.encryptFile 第 4 参透传
+  const clientProgress: string[] = [];
+  const techPlain = new TextEncoder().encode('technical-role-plain-bytes');
+  const coverPlain = new TextEncoder().encode('cover-letter-role-plain-bytes-longer');
+
+  const result = await encryptAndUploadV3(
+    'proj-2',
+    [
+      { role: 'technical', file: new File([techPlain], 'tech.pdf') },
+      { role: 'coverLetter', file: new File([coverPlain], 'cover.pdf') },
+    ],
+    FIELDS,
+    ENC_CERT_PEM,
+    fakeAdapter as any,
+    ADMIN,
+    {
+      onProgress: (done, total) => clientProgress.push(`${done}/${total}`),
+      uploadOuter: async (role, blob) => {
+        uploads.push({ role, bytes: new Uint8Array(await blob.arrayBuffer()) });
+        return { fileAssetId: `fa-${role}`, outerSha256: '', outerBytes: blob.size };
+      },
+      cryptoEngine: spyLocalEngine(probe),
+    },
+    { supplierId: 'sup-2', submissionId: '', revision: 1, signingBindingId: 'b-2', signingCertFingerprint: 'cf-2' },
+  );
+
+  // 注入引擎逐角色实走、按文件序（整读旧路径 calls 为空 / 不保证逐文件串行）
+  assert.equal(probe.calls.length, 2, '每角色恰一次 engine.encryptFile');
+  assert.deepEqual(probe.calls.map((c) => c.file), ['tech.pdf', 'cover.pdf'], 'engine 调用按文件序');
+
+  // 逐角色 DEK 独立（DEK_S/DEK_A 各自新生成，不跨角色复用）
+  assert.notEqual(probe.calls[0]!.dekS.keyHex, probe.calls[1]!.dekS.keyHex, 'DEK_S 逐角色独立');
+  assert.notEqual(probe.calls[0]!.dekA.keyHex, probe.calls[1]!.dekA.keyHex, 'DEK_A 逐角色独立');
+
+  // 字节锚×2：各角色用**各自** DEK 重组 one-shot 双层密文 == 各自上传的 C_outer
+  // （kself 封装即加密用钥：wrapJson 反解的 DEK_S == 引擎入参）
+  const dekS0 = JSON.parse(capturedWrapJsons[0]!) as { k: string; iv: string };
+  const dekS1 = JSON.parse(capturedWrapJsons[1]!) as { k: string; iv: string };
+  assert.equal(dekS0.k, probe.calls[0]!.dekS.keyHex);
+  assert.equal(dekS1.k, probe.calls[1]!.dekS.keyHex);
+  assert.equal(
+    toHex(uploads[0]!.bytes),
+    sm4Encrypt(probe.calls[0]!.dekA.keyHex, probe.calls[0]!.dekA.ivHex, sm4Encrypt(dekS0.k, dekS0.iv, toHex(techPlain))),
+    'technical C_outer 字节锚（独立 DEK 成立）',
+  );
+  assert.equal(
+    toHex(uploads[1]!.bytes),
+    sm4Encrypt(probe.calls[1]!.dekA.keyHex, probe.calls[1]!.dekA.ivHex, sm4Encrypt(dekS1.k, dekS1.iv, toHex(coverPlain))),
+    'coverLetter C_outer 字节锚（独立 DEK 成立）',
+  );
+
+  // 进度回调按文件序（client 通道）：technical 全部档先于 coverLetter，各文件终档=自身明文长（不跨文件累计）。
+  // total 即当前文件明文 size——两文件长度不同（26 vs 36B），total 值即文件判别键。
+  const isTechTick = (t: string) => t.endsWith(`/${techPlain.length}`);
+  const lastTech = clientProgress.map(isTechTick).lastIndexOf(true);
+  const firstCover = clientProgress.findIndex((t) => t.endsWith(`/${coverPlain.length}`));
+  assert.ok(lastTech >= 0 && firstCover >= 0, '两文件均有进度档（deps.onProgress 收到 engine 透传）');
+  assert.ok(lastTech < firstCover, 'technical 进度全部先于 coverLetter（逐文件串行）');
+  assert.ok(clientProgress.includes(`${techPlain.length}/${techPlain.length}`), 'technical 终档=自身 size');
+  assert.ok(clientProgress.includes(`${coverPlain.length}/${coverPlain.length}`), 'coverLetter 终档=自身 size');
+
+  // 信封两角色各自落位（捕获序 wrapJson[0/1]=两角色 DEK_S、[2]=DEK_F）
+  assert.equal(result.envelope.files.technical?.assetId, 'fa-technical');
+  assert.equal(result.envelope.files.coverLetter?.assetId, 'fa-coverLetter');
+  assert.equal(result.envelope.files.technical?.plainSha256, await sha256Hex(techPlain));
+  assert.equal(result.envelope.files.coverLetter?.plainSha256, await sha256Hex(coverPlain));
 });
 
 test('服务端实算 outerSha256 与本地不一致 → 抛错（防传输损坏静默入信封）', async () => {
@@ -95,6 +210,30 @@ test('服务端实算 outerSha256 与本地不一致 → 抛错（防传输损�
     ),
     /outerSha256/,
   );
+});
+
+test('deps.signal（F5 修复波）：透传 engine.encryptFile 第 5 参——中途 abort → CRYPTO_CANCELLED（半成品不入信封）', async () => {
+  const fakeAdapter = { wrapKeyToEncCert: async () => 'TURJWA==.1' };
+  const controller = new AbortController();
+  const p = encryptAndUploadV3(
+    'proj-cancel',
+    // ≥2MB：进度字节闸首档后才触发 abort（onProgress 首档即取消——下一块边界拦停）
+    [{ role: 'technical', file: new File([new Uint8Array(5 * 1024 * 1024 + 3)], 'big.pdf') }],
+    FIELDS,
+    ENC_CERT_PEM,
+    fakeAdapter as any,
+    ADMIN,
+    {
+      uploadOuter: async () => {
+        throw new Error('取消后不得进入上传相位');
+      },
+      onProgress: () => controller.abort(), // 首档进度即取消
+      signal: controller.signal,
+    },
+    { supplierId: 'sup-1', submissionId: '', revision: 1, signingBindingId: 'b', signingCertFingerprint: 'c' },
+  );
+  // Node 下默认引擎=local（无 Worker 全局）——即真走 signal→shouldStop 块边界通道
+  await assert.rejects(p, /CRYPTO_CANCELLED/);
 });
 
 test('非安全上下文（浏览器禁用 crypto.subtle，http 局域网访问）→ 中文指引而非裸 TypeError', async () => {

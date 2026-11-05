@@ -2,6 +2,8 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import {
   canonicalEnvelopeHash,
   computeFieldsCommit,
+  Sha256Incremental,
+  Sm4CbcChunkedDecryptor,
   sm2DecryptHex,
   sm4Decrypt,
   unwrapDekJson,
@@ -97,6 +99,74 @@ export class DualEnvelopeService {
     }
   }
 
+  /**
+   * dual-v3 外层 DEK_A 解封（Task 11）：SM2 解 kadmin.value → unwrapDekJson → { keyHex, ivHex }。
+   * decryptOuterFileV3 前半段独立成方法，供两遍流式解密（先哈希闸后解密）的 pass2 复用；
+   * 失败语义与整读版完全一致（''、坏 JSON、缺 k/iv 字段统一收口 OUTER_FAILED）。
+   */
+  async unwrapOuterDekV3(entry: DualV3FileEntry, adminPrivateKey: string): Promise<{ keyHex: string; ivHex: string }> {
+    if (!entry?.kadmin?.value) throw new BadRequestException(OUTER_FAILED);
+    try {
+      const wrapDekHex = sm2DecryptHex(adminPrivateKey, entry.kadmin.value);
+      if (!wrapDekHex) throw new Error('sm2 decrypt failed'); // ''=失败（sm-crypto 从不抛错）
+      // unwrapDekJson 失败两态与 decryptOuterFile 同：语法非法 → JSON.parse 抛错（落入 catch）；
+      // 合法 JSON 缺 k/iv 字段 → 返回 undefined 字段——由下方守卫拦截，勿删
+      const dek = unwrapDekJson(Buffer.from(wrapDekHex, 'hex').toString('utf8'));
+      if (!dek?.keyHex || !dek?.ivHex) throw new Error('bad dek');
+      return { keyHex: dek.keyHex, ivHex: dek.ivHex };
+    } catch (e) {
+      if (e instanceof BadRequestException) throw e;
+      throw new BadRequestException(OUTER_FAILED);
+    }
+  }
+
+  /**
+   * dual-v3 外层流式解密（Task 11）：AsyncIterable<Buffer> 喂 Sm4CbcChunkedDecryptor（滚动
+   * IV 续链，累计输出与 one-shot sm4Decrypt 逐字节一致），解出的明文段（=C_inner 密文）经
+   * onPlainChunk 外送，同时增量哈希+计数。全程只持分块缓冲——500MB C_outer 不整驻内存。
+   * PKCS#7 非法/密文截断 → OUTER_FAILED（与整读版同语义）；流自身的读错误不在此收口——
+   * 存储故障保持原始错误（解密失败归因链路据此判定 BIDDER/PLATFORM，勿伪装）。
+   *
+   * expectedOuterSha256（终审二轮 TOCTOU 真修，2026-11-05）：pass2 对**本遍实际消费的源字节**
+   * （C_outer，喂解密器前）增量再散列，流末与信封声明比对——闸语义从「pass1 预检」升格为
+   * 「证明被解密的字节」，两遍读之间暂存件被调包的窗口闭合。失配 → OUTER_HASH_MISMATCH
+   * （与调用方 pass1 前置闸同码同文案；pass1 保留为快预检，不合格件不浪费解密功）。
+   */
+  async decryptOuterStreamV3(
+    outerStream: AsyncIterable<Buffer>,
+    dek: { keyHex: string; ivHex: string },
+    onPlainChunk: (b: Buffer) => void,
+    expectedOuterSha256: string,
+  ): Promise<{ plainBytes: number; plainSha256: string }> {
+    const decryptor = new Sm4CbcChunkedDecryptor(dek);
+    const hasher = new Sha256Incremental();
+    const sourceHasher = new Sha256Incremental(); // 本遍源字节（C_outer）再散列——TOCTOU 闭合闸
+    let plainBytes = 0;
+    const emit = (run: () => Uint8Array): void => {
+      let plain: Uint8Array;
+      try {
+        plain = run();
+      } catch (e) {
+        if (e instanceof BadRequestException) throw e;
+        throw new BadRequestException(OUTER_FAILED);
+      }
+      if (plain.length === 0) return;
+      hasher.update(plain);
+      plainBytes += plain.length;
+      // 解密器返回段恒为新分配（无缓冲复用）——视图包装零拷贝移交回调持有
+      onPlainChunk(Buffer.from(plain.buffer, plain.byteOffset, plain.byteLength));
+    };
+    for await (const chunk of outerStream) {
+      sourceHasher.update(chunk); // 喂解密器前先记源字节——散列对象是被消费的 C_outer 本身
+      emit(() => decryptor.update(chunk));
+    }
+    emit(() => decryptor.final());
+    if (sourceHasher.finalHex() !== expectedOuterSha256) {
+      throw new BadRequestException(OUTER_HASH_MISMATCH);
+    }
+    return { plainBytes, plainSha256: hasher.finalHex() };
+  }
+
   /** fieldsCommit 双闸：sha256(canonicalJson(fields) + ':' + nonce) 比对（防开标时篡改报价字段/重放 nonce）。 */
   async verifyFieldsCommit(fields: SealedFields, nonce: string, commit: string): Promise<boolean> {
     return (await computeFieldsCommit(fields, nonce)) === commit;
@@ -105,3 +175,5 @@ export class DualEnvelopeService {
 
 const INCOMPLETE = { error: '信封缺少角色密封件或哈希不符', code: 'ENVELOPE_INCOMPLETE' } as const;
 const OUTER_FAILED = { error: '外层解密失败（管理方私钥不匹配或信封损坏）', code: 'OUTER_DECRYPT_FAILED' } as const;
+// 与 bid-decrypt.service.ts pass1 前置闸同码同文案（终审二轮 TOCTOU 修复：pass2 源字节再散列比对）
+const OUTER_HASH_MISMATCH = { error: '外层密文哈希与信封声明不符（疑似暂存件被调包）', code: 'OUTER_HASH_MISMATCH' } as const;

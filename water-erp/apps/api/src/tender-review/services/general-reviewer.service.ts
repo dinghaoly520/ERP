@@ -166,6 +166,12 @@ export class GeneralReviewerService {
             `【相关制度条款】\n${relevantClauses || '无相关检索结果'}`,
           0,
           signal,
+          undefined,
+          // 2026-11-05：deepseek-flash 为推理模型，思维链与正文共享 max_tokens——默认
+          // 16384 曾被「询比采购邀请」章节思维链独占（finish=length、content 空，3 发全截断）。
+          // 预算 65536（直连探针验证；API 硬上限 393216 但再高无意义）须与 300s 超时成对——
+          // 顶格生成约 5-6 分钟，默认 180s 会先掐掉；截断时 LlmService 重试外壳还会升级兜底。
+          { maxTokens: 65536, timeoutMs: 300_000 },
         );
 
         const issues = Array.isArray(llmResult.issues) ? llmResult.issues : [];

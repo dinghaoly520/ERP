@@ -17,9 +17,14 @@ import { SpButton, SpInput, SpDialog, SpProgress, LoadingBlock } from "@/compone
 import { serverNowMs, syncServerClock, formatBidPrice } from "@water-erp/shared";
 import * as scca from "@/utils/scca-ukey";
 import { encryptAndUploadV3, nextRevisionContext } from "@/utils/dual-v3-client";
+import { withCryptoOverlay } from "@/utils/crypto-overlay";
+import { getDefaultCryptoEngine } from "@/utils/crypto-engine";
 import type { V3Fields, V3Role } from "@water-erp/ukey";
 import "@/styles/pages/bids.css";
 import "@/styles/pages/shared.css"; // 跨页面共用的卡片与骨架屏样式。
+
+/** ③ 加密/上传段遮罩取消文案（cancel 置旗 + terminate 引擎后 catch 兜底展示） */
+const CRYPTO_CANCEL_MSG = "已取消加密，文件未提交";
 
 /** el-alert 的原生等价（EP 四色调 + show-icon） */
 function BAlert({ type, title, children, className }: {
@@ -460,6 +465,10 @@ function BidSubmitInner() {
   async function doSubmit() {
     if (!sccaCtx) return;
     setSubmitting(true);
+    // ③ 加密/上传段遮罩取消旗：cancel 回调置旗 + abort 信号 + terminate 引擎
+    //   （均幂等，双击安全；F5 修复波：local 降级引擎靠 AbortSignal 中断流式管线）
+    let cryptoCancelled = false;
+    const cancelController = new AbortController();
     try {
       // ① 盾枚举（容器 + 加密证 PEM）
       setSubmitNote("正在读取 U盾…");
@@ -483,31 +492,56 @@ function BidSubmitInner() {
       if (coverLetterFile) roleFiles.push({ role: "coverLetter", file: coverLetterFile });
       if (project?.bondRequired && bondFile) roleFiles.push({ role: "bond", file: bondFile });
 
-      // ③ 双层加密 + 暂存上传 + 信封组装（信封 revision=当前+1——服务端按 ===newRev 硬校验）
+      // ③ 双层加密 + 暂存上传 + 信封组装（信封 revision=当前+1——服务端按 ===newRev 硬校验）。
+      //    加密+上传段挂全屏遮罩（B6 翻新，Task 9 接线）：加密相位=engine 分块进度（byte 口径），
+      //    上传相位=XHR 百分比内嵌 phase 文案（pct/100 走 byte 口径会渲染成 MB——不附 byte 字段）；
+      //    取消=置旗 + terminate 引擎（reject pending 加密）+ 文件边界哨兵（上传相位无 pending 可拒），
+      //    遮罩待 promise 落定才撤。④ 签名/⑤ 提交仍在遮罩外。
       const fields: V3Fields = {
         price: form.bidPrice, amountUnit: "万元", currency: "CNY",
         deliveryPeriod: form.deliveryPeriod, qualityCommitment: form.qualityCommitment,
       };
       const baseRevision = (existingSubmission as any)?.revision ?? 0;
-      let fileIdx = 0;
-      const { envelope } = await encryptAndUploadV3(
-        projectId, roleFiles, fields, encCertPem, {
-          wrapKeyToEncCert: (pem, json) => scca.wrapSccaKey(pem, json),
-        }, sccaCtx.adminCert, {
-          uploadOuter: (role, blob, filename) => {
-            const idx = ++fileIdx;
-            setSubmitNote(`正在双层加密并上传标书文件 ${idx}/${roleFiles.length}…`);
-            setSubmitProgress(0);
-            return supplierApi.caUploadEncryptedOuter(projectId, blob, filename, (pct) => setSubmitProgress(pct));
-          },
+      let fileIdx = 0; // 已完成上传的文件数——file i 的加密先于其上传，加密相位标签=fileIdx+1
+      const { envelope } = await withCryptoOverlay(
+        async (report) => {
+          const ensureNotCancelled = () => {
+            if (cryptoCancelled) throw new Error(CRYPTO_CANCEL_MSG);
+          };
+          const built = await encryptAndUploadV3(
+            projectId, roleFiles, fields, encCertPem, {
+              wrapKeyToEncCert: (pem, json) => scca.wrapSccaKey(pem, json),
+            }, sccaCtx.adminCert, {
+              // 加密相位：deps.onProgress → engine 第 4 参 →「加密中 i/n xx%（a/b MB）」
+              onProgress: (done, total) => report({
+                phase: `加密中 ${fileIdx + 1}/${roleFiles.length}`,
+                doneBytes: done, totalBytes: total,
+              }),
+              // 取消信号（F5）：透传 engine 第 5 参——local 引擎块边界中断、worker abort 即 terminate
+              signal: cancelController.signal,
+              uploadOuter: (role, blob, filename) => {
+                ensureNotCancelled(); // 上传相位点取消——止步于下一文件边界
+                const idx = ++fileIdx;
+                setSubmitNote(`正在双层加密并上传标书文件 ${idx}/${roleFiles.length}…`);
+                setSubmitProgress(0);
+                return supplierApi.caUploadEncryptedOuter(projectId, blob, filename, (pct) => {
+                  setSubmitProgress(pct);
+                  report({ phase: `上传中 ${idx}/${roleFiles.length} ${pct}%` });
+                });
+              },
+            },
+            nextRevisionContext({
+              supplierId: sccaCtx.supplierId,
+              submissionId: existingSubmission?.id ?? "",
+              revision: baseRevision,
+              signingBindingId: sccaCtx.signingBindingId,
+              signingCertFingerprint: sccaCtx.signingCertFingerprint,
+            }),
+          );
+          ensureNotCancelled(); // 单文件场景在上传中点取消——上传完成即止步，不进④签名
+          return built;
         },
-        nextRevisionContext({
-          supplierId: sccaCtx.supplierId,
-          submissionId: existingSubmission?.id ?? "",
-          revision: baseRevision,
-          signingBindingId: sccaCtx.signingBindingId,
-          signingCertFingerprint: sccaCtx.signingCertFingerprint,
-        }),
+        { cancel: () => { cryptoCancelled = true; cancelController.abort(); getDefaultCryptoEngine().terminate(); } },
       );
 
       // ④ 冻结签名原文 → 盾 P7 签名
@@ -530,7 +564,9 @@ function BidSubmitInner() {
       router.push("/my-bids");
     } catch (err: any) {
       // 信封组装/盾操作等本地错误（无 status）给 message；API 错误由全局 toast
-      if (!(err?.status) && err?.message && !String(err?.message).includes("Request failed")) {
+      if (cryptoCancelled) {
+        toast.info(CRYPTO_CANCEL_MSG); // 留在表单页可重投（finally 已复位 submitting/PIN）
+      } else if (!(err?.status) && err?.message && !String(err?.message).includes("Request failed")) {
         toast.error(err.message);
       }
     } finally {

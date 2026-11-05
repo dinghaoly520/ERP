@@ -1,6 +1,7 @@
 /** 双信封解密域（F1d）。legacy 代解密剪除后（2026-10-14 用户裁定）：decryptOuter/decryptOuterOne(V3)/adjudicateDecryptFault/acceptSupplierDanger（+私有解密证明） */
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, Optional, Logger } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { Readable } from 'stream';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { BidGateway } from './bid.gateway';
@@ -14,7 +15,7 @@ import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { Prisma } from '@prisma/client';
 import { AdminKeyService } from '../common/crypto/admin-keystore.service';
 import { DualEnvelopeService } from '../common/crypto/dual-envelope.service';
-import { sha256Hex } from '@water-erp/ukey';
+import { sha256Hex, Sha256Incremental } from '@water-erp/ukey';
 import { randomUUID } from 'crypto';
 import { DUAL_V2_AMOUNT_UNIT } from './opening-amount-unit.util';
 import type { DualEnvelope, EnvelopeFileEntry, EnvelopeRole, DualV3Envelope, DualV3FileEntry } from '@water-erp/ukey';
@@ -367,14 +368,21 @@ export class BidDecryptService {
     }
 
     try {
-      // ── 逐角色：C_outer 读取（entry.assetId=暂存件）→ outerSha256 闸 → 每角色私钥 → 剥外层 ──
-      const written: Array<{ role: EnvelopeRole; objectKey: string; cInner: Buffer }> = [];
+      // ── 逐角色两遍流（Task 11 分块化）：pass1 流式哈希闸（调包件不解密直接拒）→
+      //    每角色私钥解封 DEK_A → pass2 分块解密经队列桥 Readable 流式写 MinIO。
+      //    C_outer/C_inner 全程不整驻内存（500MB 投标不 OOM）；CBC+PKCS#7 解外层恰剥
+      //    一块填充——C_inner 尺寸 = outerBytes - 16（putObject 已知 size 的依据）──
+      const written: Array<{ role: EnvelopeRole; objectKey: string; innerBytes: number; innerSha256: string }> = [];
       for (const [role, entry] of roles) {
         const asset = await this.prisma.fileAsset.findUnique({ where: { id: entry.assetId } });
         if (!asset) throw new BadRequestException({ error: `投标文件记录缺失: ${entry.assetId}`, code: 'FILE_RECORD_MISSING' });
         const readKey = asset.sealedPath || asset.key;
-        const cOuter = await streamToBuffer(await minioClient.getObject(MINIO_BUCKET, readKey));
-        if ((await sha256Hex(cOuter)) !== entry.outerSha256) {
+        // pass1：C_outer 完整性闸（流式哈希——闸语义/文案与整读版逐字一致，先于任何解密）
+        const gateHash = new Sha256Incremental();
+        for await (const chunk of await minioClient.getObject(MINIO_BUCKET, readKey)) {
+          gateHash.update(chunk);
+        }
+        if (gateHash.finalHex() !== entry.outerSha256) {
           throw new BadRequestException({ error: `${role} 外层密文哈希与信封声明不符（疑似暂存件被调包）`, code: 'OUTER_HASH_MISMATCH' });
         }
         let adminPrivateKey: string;
@@ -383,17 +391,60 @@ export class BidDecryptService {
         } catch {
           throw new BadRequestException({ error: '管理方加密证书私钥不可用（keystore 缺失或未 bootstrap）', code: 'ADMIN_KEY_UNAVAILABLE' });
         }
-        const cInner = await this.dualEnvelope.decryptOuterFileV3(entry, cOuter, adminPrivateKey);
+        const dek = await this.dualEnvelope.unwrapOuterDekV3(entry, adminPrivateKey);
+        // pass2：二读 C_outer → 分块解密 → 无界队列桥 Readable → putObject 流式上传。
+        // SM4 解密吞吐 ≪ MinIO 上传，队列实践恒 ~1 段；极端失配上限亦只等价旧整驻峰值
+        // （不劣化）。上传侧中止时生成器 finally 掐断源流，孤儿解密随之终止。
+        // 终审二轮 TOCTOU 真修：pass2 内对源字节再散列并末尾比对信封声明（第 4 参）——
+        // 闸语义升格为「证明被解密的字节」，两遍读之间暂存件被调包即拒 OUTER_HASH_MISMATCH；
+        // pass1 保留为快预检（不合格件不浪费解密功），归因经下方 outcome() 原样抛出不伪装。
         const objectKey = `bid-inner/${projectId}/${bidSupplierId}/${role}.${submission.revision}.${attempt}.inner`;
+        const queue: Buffer[] = [];
+        let wake: (() => void) | null = null;
+        type Pass2Outcome = { ok: true; meta: { plainBytes: number; plainSha256: string } } | { ok: false; error: unknown };
+        let settled: Pass2Outcome | null = null;
+        const notify = (): void => { const w = wake; wake = null; w?.(); };
+        // 读经函数：闭包写不被直线流分析感知，直读会被 CFA 误窄化成 never
+        const outcome = (): Pass2Outcome | null => settled as Pass2Outcome | null;
+        const outerStream = await minioClient.getObject(MINIO_BUCKET, readKey);
+        const decryptPromise = this.dualEnvelope
+          .decryptOuterStreamV3(outerStream, dek, (b) => { queue.push(b); notify(); }, entry.outerSha256)
+          .then(
+            (meta) => { settled = { ok: true, meta }; notify(); return meta; },
+            (error: unknown) => { settled = { ok: false, error }; notify(); throw error; },
+          );
+        decryptPromise.catch(() => {}); // 上传失败路径不再 await——防未处理拒绝
+        const upload = Readable.from((async function* (): AsyncGenerator<Buffer> {
+          try {
+            for (;;) {
+              while (queue.length > 0) yield queue.shift()!;
+              const s = outcome();
+              if (s) {
+                if (!s.ok) throw s.error;
+                break;
+              }
+              await new Promise<void>((resolve) => { wake = resolve; });
+            }
+          } finally {
+            // 生成器中止（正常排空/销毁/出错）→ 掐断源流，解密 for-await 随之终止
+            outerStream.destroy();
+          }
+        })());
         try {
-          await minioClient.putObject(MINIO_BUCKET, objectKey, cInner, cInner.length, {
+          // 尺寸不变量（Task 11 minor①）：C_inner 本身是 SM4-CBC 密文恒 16 字节对齐 → 外层
+          // PKCS#7 填充恒为一整块 16B → innerBytes = outerBytes − 16 对一切良构信封恒成立
+          await minioClient.putObject(MINIO_BUCKET, objectKey, upload, entry.outerBytes - 16, {
             'Content-Type': 'application/octet-stream',
           });
+          const { plainBytes, plainSha256 } = await decryptPromise;
+          written.push({ role, objectKey, innerBytes: plainBytes, innerSha256: plainSha256 });
         } catch (err) {
+          // 解密失败（PKCS#7 非法/密钥不匹配等）会先经上传流浮出——原样抛保持归因语义，勿伪装存储失败
+          const s = outcome();
+          if (s && !s.ok) throw s.error;
           this.logger.error(`decrypt-outer-v3 MinIO putObject failed: ${objectKey}`, (err as Error).stack);
           throw new BadRequestException({ error: '文件存储失败，请重试', code: 'STORAGE_FAILED' });
         }
-        written.push({ role, objectKey, cInner });
       }
 
       // ── 短事务终局：fence CAS（旧 attempt 不得写终局）→ C_inner 归属链 + 监督日志 + 审计 ──
@@ -413,8 +464,8 @@ export class BidDecryptService {
               key: w.objectKey,
               originalName: `${w.role}.inner`,
               mimeType: 'application/octet-stream',
-              size: w.cInner.length,
-              sha256: await sha256Hex(w.cInner),
+              size: w.innerBytes,      // 流式计数（Task 11：Buffer 不再驻留）
+              sha256: w.innerSha256,   // 流式增量哈希
               category: 'bid_inner_ciphertext',
               clientEncrypted: false,
               encrypted: true,

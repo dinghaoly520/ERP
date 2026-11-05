@@ -331,7 +331,7 @@ The NestJS API (`apps/api`, :4001):
 | `Prisma` | Infrastructure: global `PrismaService` singleton |
 | `Common` | Shared: `HttpExceptionFilter` (normalized errors), guards, decorators (`@CurrentUser`, `@Public`, `@Roles`) |
 
-> **LLM 调用已收口（2026-07）：** 所有 DeepSeek/vLLM 调用统一走 `local-ai/LlmService`（`chat`/`chatJson`/`chatMessages`）。`LLM_MAX_CONCURRENCY`（默认 10，进程内信号量）、`LLM_MAX_RETRIES`（默认 2，429/5xx/网络/超时指数退避，遵守 Retry-After≤8s）。历史曾散落于 `announcement-ai`、`ai/supplier-selection-ai`、`ai/ai.service`、`expert/expert-extraction-ai`、`assistant/deepseek.provider` 的直连 `process.env.DEEPSEEK_API_URL + fetch` 均已迁移
+> **LLM 调用已收口（2026-07）：** 所有 DeepSeek/vLLM 调用统一走 `local-ai/LlmService`（`chat`/`chatJson`/`chatMessages`）。`LLM_MAX_CONCURRENCY`（默认 10，进程内信号量）、`LLM_MAX_RETRIES`（默认 2，429/5xx/网络/超时指数退避，遵守 Retry-After≤8s）；截断类（finish_reason=length，deepseek-flash 思维链与正文共享 max_tokens）重试自动翻倍预算、封顶 65536（`LlmTruncationError` 类型化，2026-11-05；API 硬上限 393216，预算与 timeoutMs 须成对提）。历史曾散落于 `announcement-ai`、`ai/supplier-selection-ai`、`ai/ai.service`、`expert/expert-extraction-ai`、`assistant/deepseek.provider` 的直连 `process.env.DEEPSEEK_API_URL + fetch` 均已迁移
 
 ### Security Hardening (API)
 
@@ -372,7 +372,7 @@ REDIS_URL=redis://localhost:6380   # BullMQ + ioredis；API 与 ai-bid worker �
 OCR_SERVICE_URL=http://localhost:8100  # OCR 微服务（services/ocr），local-ai/OcrService 消费（后端内部依赖，浏览器零直连，无需域名）；生产分机部署（2026-10-26）：http://10.60.14.14:8100（生产 .env 设此项；本机开发不设=默认 localhost 配 pnpm dev:ocr）
 KMS_SECRET=...                     # 信封加密主密钥：见下方「投标文件密钥信封加密」；生产必填，空则抛错
 FIELD_ENC_SECRET=...               # 敏感字段国密加密主密钥（PII sm1: SM4-CBC+HMAC-SM3，等保+密评 2026-10；生产缺失/<32 拒绝启动；dev 回退固定钥；FIELD_ENC_SECRET_OLD 轮转旧钥）
-BID_DUAL_ENVELOPE=true            # 双信封新轨总开关（=false 全局退回旧轨 KMS 信封投递；默认开，灰度/应急双向可退）
+# BID_DUAL_ENVELOPE（已废弃 2026-10-14：旧轨投递整体封死，flag 不再提供退回语义，env 无此行）；CA_SUPPLIER_V3_ENABLED（已转正 2026-11-05：默认开含 dual-v3，仅显式 false 应急收窄，env 无此行）
 UPLOAD_SERVER_SEAL=true            # 通用上传服务端密封（2026-10-12）：qualification/profile/general/contract_document/framework_document/performance_report 类目 AES-GCM 密文落 MinIO、DEK 经 KMS 包裹挂 FileAsset.sealedKey；false=应急明文回退；存量补封/密钥轮转见 scripts/seal-existing-uploads.ts 与 docs/crypto-key-rotation-runbook.md
 TRUSTED_CA_DIR=...                 # X.509 链校验信任锚目录（PEM/DER；空=跳过链闸，mock 兼容期默认空；真 CA 根证书落此即启用，apps/api/src/common/crypto/x509/）
 CERT_CHAIN_ENFORCE=true            # 链闸失败语义：默认拒绝；false=告警放行（灰度）
@@ -448,11 +448,13 @@ In non-interactive environments, use `prisma migrate dev --create-only` → `pri
 
 ## 双信封新轨·生产启用前清单（2026-08 双信封落地）
 
+> **双信封大文件链路已分块化（2026-11，spec `docs/superpowers/specs/2026-11-05-dual-envelope-chunked-encryption-design.md`）**：浏览器 worker 流式加密/解密 + 服务端两遍流式剥外层（哈希闸语义不变、C_inner 零驻留），单件 500MB 密码学链路可用（上传闸已全量 500MB 对齐）；`ukey Sm4CbcChunked*` 为唯一分块密码原语，基准与部署注记见 spec「实现纪要」。
+
 - **ADMIN_KEYSTORE_DIR 必须纳入备份**：管理方外层私钥文件不在 DB/MinIO 备份内；丢失=对应历史信封外层永久不可解（全量 PLATFORM 归因）。生产对应加密机/HSM。
 - **.data/supervision/ 必须纳入备份**：监督推送平台签名私钥（A-153），与 ADMIN_KEYSTORE_DIR 同级；缺省 `SUPERVISION_KEYSTORE_DIR`。
 - **供应商门户须 https（或 localhost）**：`@water-erp/ukey`/WebCrypto（crypto.subtle）要求 secure context，局域网 http 直连会挂。
 - **clean-legacy-plaintext --execute 前**：先 dry-run 审阅清单；旧轨服务端密封资产的回看下载已支持 sealedPath 流式解密（streamFile，2026-08-21），执行后供应商回看/staff/专家下载不受影响。
-- **BID_DUAL_ENVELOPE=false 应急语义**：flag 关时新轨投递（envelope.version='dual-v2'）被显式 400 `DUAL_DISABLED` 拒收——供应商须按旧流程（clientDeks）重新投递；回退前应公告通知投标人。**（2026-09-29 口径修正）**门户旧轨表单已下线——「按旧流程投递」无从执行：回退仅指 API 侧放行旧轨 clientDeks，供应商实际投递需管理员线下引导（DUAL_DISABLED 文案已改应急指引）。
+- **BID_DUAL_ENVELOPE 应急语义已废弃**（2026-10-14 用户裁定，2026-11-05 CLAUDE.md 落注）：旧轨（KMS 信封/clientDeks）投递通道整体封死（`LEGACY_TRACK_CLOSED`），flag 仅余 dual-v2/v3 内部分派作用且 env 已无此行。dual-v3 灰度开关 `CA_SUPPLIER_V3_ENABLED` 同日转正：默认开（未设即含 dual-v3），仅显式 `false` 可应急收窄回 dual-v2。
 - **管理方密钥轮转**：`POST /api/bid/admin-cert/generate` 置旧证 inactive；历史信封按 `envelope.adminCertId` 定位旧私钥（keystore 目录每证一文件，保留至其覆盖提交全部归档）。
 - **供应商证书有效期与验签口径（2026-09-17）**：`SupplierCert.notBefore/expiresAt`（null=长期——mock 存量介质/旧中间件实例证书）；mock 新证书发行即带 60 天有效期（D1v2 用户裁定）。时点闸门=绑定（`BIND_CERT_EXPIRED`）与投递/补传验签（`CERT_EXPIRED`，`findActiveUnexpiredCert`），**历史签名复验不因嗣后过期/撤销失效**——复验走签时快照（`receiptSignature`/`confirmSignature` 增 `certSn/certPublicKey`，存量无快照回退 `Supplier.sm2PublicKey` 旧列，旧列已 @deprecated 仅回填+回退读）。回执/开标确认验签公钥已统一 ACTIVE SupplierCert（`findActiveCertForSigning`，不再读旧列——revoke 不清旧列的抵赖窗口就此关闭）。A-13 到期提醒=Scheduler `scanSupplierCertExpiry`（每日 08:15，30/7 天两档+过期补发，`expiryNotifyStage` 0/1/2 幂等）。运行中的 :17999 mock 中间件实例须重启后才会对**新生成**证书带有效期（存量盾文件向后兼容=长期）。
 

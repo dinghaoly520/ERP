@@ -26,13 +26,15 @@ describe('resolveEnvelopeVersion（Task13）', () => {
   });
 });
 
-describe('capabilities allowedEnvelopeVersions 开关（Task13）', () => {
-  test('CA_SUPPLIER_V3_ENABLED 未设 → 仅 dual-v2；设 true → 含 dual-v3', () => {
+describe('capabilities allowedEnvelopeVersions 开关（Task13；2026-11-05 转正：默认开）', () => {
+  test('未设 → 含 dual-v3（转正默认）；显式 false → 应急收窄仅 dual-v2；显式 true → 含 dual-v3', () => {
     // 纯函数直测（controller 内联逻辑抽为 v3Enabled()）
     const { v3Enabled } = require('../supplier-portal/envelope-version.util');
     const prev = process.env.CA_SUPPLIER_V3_ENABLED;
     delete process.env.CA_SUPPLIER_V3_ENABLED;
-    expect(v3Enabled()).toBe(false);
+    expect(v3Enabled()).toBe(true); // 转正：未设即开
+    process.env.CA_SUPPLIER_V3_ENABLED = 'false';
+    expect(v3Enabled()).toBe(false); // 唯一应急杆
     process.env.CA_SUPPLIER_V3_ENABLED = 'true';
     expect(v3Enabled()).toBe(true);
     if (prev === undefined) delete process.env.CA_SUPPLIER_V3_ENABLED; else process.env.CA_SUPPLIER_V3_ENABLED = prev;

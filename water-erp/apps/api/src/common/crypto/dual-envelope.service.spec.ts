@@ -15,9 +15,10 @@ import {
   sm2EncryptHex,
   sm4Decrypt,
   sm4Encrypt,
+  SM4_CHUNK_BYTES,
   wrapDekJson,
 } from '@water-erp/ukey';
-import type { DualEnvelope, SealedFields } from '@water-erp/ukey';
+import type { DualEnvelope, DualV3FileEntry, SealedFields } from '@water-erp/ukey';
 import { DualEnvelopeService } from './dual-envelope.service';
 import { SignatureService } from './signature.service';
 
@@ -124,6 +125,8 @@ async function expectBizErrorAsync(fn: () => Promise<unknown>, error: string, co
 
 const OUTER_FAILED = { error: '外层解密失败（管理方私钥不匹配或信封损坏）', code: 'OUTER_DECRYPT_FAILED' };
 const INCOMPLETE = { error: '信封缺少角色密封件或哈希不符', code: 'ENVELOPE_INCOMPLETE' };
+// 与 bid-decrypt.service.ts pass1 前置闸同码同文案（pass2 源字节再散列闸 · 终审二轮）
+const OUTER_HASH_MISMATCH = { error: '外层密文哈希与信封声明不符（疑似暂存件被调包）', code: 'OUTER_HASH_MISMATCH' };
 
 const FIELDS: SealedFields = { price: '15800000.00', deliveryPeriod: '540', qualityCommitment: '合格' };
 const NONCE = 'n-20260820-0001';
@@ -242,6 +245,131 @@ describe('DualEnvelopeService', () => {
       tampered[tampered.length - 1] ^= 0x5a; // 破坏最后一个密文块 → padding 校验失败
       await expectBizErrorAsync(
         () => svc.decryptOuterFile(env, 'technical', tampered, adminKp.privateKey),
+        OUTER_FAILED.error,
+        OUTER_FAILED.code,
+      );
+    });
+  });
+
+  /* ═══ dual-v3 流式解外层（unwrapOuterDekV3 / decryptOuterStreamV3 · Task 11）
+     C_outer 按 AsyncIterable 分块喂入（minio getObject 流形态），输出经 onPlainChunk
+     外送——与整读版 decryptOuterFileV3 逐字节同源（Sm4CbcChunkedDecryptor 一致性闸）。 ═══ */
+  describe('dual-v3 流式解外层（Task 11 分块化）', () => {
+    const dekA: Dek = { keyHex: randomHex(16), ivHex: randomHex(16) };
+    // webcrypto getRandomValues 单次上限 64KB——分段取随机再拼接
+    const rand = (n: number): Buffer => {
+      const parts: Buffer[] = [];
+      for (let left = n; left > 0; ) {
+        const take = Math.min(left, 65536);
+        parts.push(Buffer.from(randomHex(take), 'hex'));
+        left -= take;
+      }
+      return Buffer.concat(parts);
+    };
+    // >2MB 随机 C_inner（跨 2MB 标准块边界）+ 无效 utf8 序列尾——外层解密的输出即 C_inner
+    const cInner = Buffer.concat([
+      rand(SM4_CHUNK_BYTES + 256 * 1024),
+      Buffer.from([0xff, 0x80, 0x00, 0x42]),
+    ]);
+    const cOuter = Buffer.from(sm4Encrypt(dekA.keyHex, dekA.ivHex, cInner.toString('hex')), 'hex');
+    const v3Entry = (): DualV3FileEntry => ({
+      assetId: 'fa-v3-1',
+      plainSha256: 'p'.repeat(64), plainBytes: 1,
+      innerSha256: 'i'.repeat(64), innerBytes: 2,
+      outerSha256: 'o'.repeat(64), outerBytes: cOuter.length,
+      kself: { format: 'scca-pkcs7-base64', recipientCertFingerprint: 'f'.repeat(64), value: 'MIIB.' },
+      kadmin: {
+        format: 'sm2-c1c3c2-hex', adminCertId: 'cert-admin-1',
+        value: sm2EncryptHex(adminKp.publicKey, Buffer.from(wrapDekJson(dekA), 'utf8').toString('hex')),
+      },
+    });
+    /** 按固定 64KB 分块喂入 C_outer（AsyncIterable 契约；末段为非对齐余量） */
+    async function* feedCOuter(chunkSize = 64 * 1024): AsyncGenerator<Buffer> {
+      for (let i = 0; i < cOuter.length; i += chunkSize) {
+        yield cOuter.subarray(i, Math.min(i + chunkSize, cOuter.length));
+      }
+    }
+
+    it('unwrapOuterDekV3：v3 对象形态 kadmin 解封 → { keyHex, ivHex }（既有 SM2 密钥对闭环）', async () => {
+      await expect(svc.unwrapOuterDekV3(v3Entry(), adminKp.privateKey)).resolves.toEqual(dekA);
+    });
+
+    it('unwrapOuterDekV3：错私钥（sm2DecryptHex 返回 \'\'）→ 400 OUTER_DECRYPT_FAILED（与整读版同语义）', async () => {
+      await expectBizErrorAsync(
+        () => svc.unwrapOuterDekV3(v3Entry(), sm2.generateKeyPairHex().privateKey),
+        OUTER_FAILED.error,
+        OUTER_FAILED.code,
+      );
+    });
+
+    it('unwrapOuterDekV3：kadmin.value 缺失 → 400 OUTER_DECRYPT_FAILED', async () => {
+      const bad = { ...v3Entry(), kadmin: { ...v3Entry().kadmin, value: '' } } as DualV3FileEntry;
+      await expectBizErrorAsync(
+        () => svc.unwrapOuterDekV3(bad, adminKp.privateKey),
+        OUTER_FAILED.error,
+        OUTER_FAILED.code,
+      );
+    });
+
+    it('decryptOuterStreamV3：>2MB 跨块分块喂入 → onPlainChunk 拼接 == C_inner、plainBytes/plainSha256 与整算一致（源哈希闸诚实放行）', async () => {
+      const pieces: Buffer[] = [];
+      // 第 4 参=源字节真实哈希（诚实件）——末尾比对通过，正常返回（TOCTOU 闸不误伤）
+      const r = await svc.decryptOuterStreamV3(feedCOuter(), dekA, (b) => pieces.push(b), await sha256Hex(cOuter));
+      expect(Buffer.concat(pieces)).toEqual(cInner);
+      expect(r.plainBytes).toBe(cInner.length);
+      expect(r.plainSha256).toBe(await sha256Hex(cInner)); // 整算独立口径（Node 全量哈希，非被测增量实现）
+    });
+
+    it('decryptOuterStreamV3 与整读版 decryptOuterFileV3 输出逐字节一致（两轨同源）', async () => {
+      const whole = await svc.decryptOuterFileV3(v3Entry(), cOuter, adminKp.privateKey);
+      const pieces: Buffer[] = [];
+      await svc.decryptOuterStreamV3(feedCOuter(), dekA, (b) => pieces.push(b), await sha256Hex(cOuter));
+      expect(Buffer.concat(pieces)).toEqual(whole);
+    });
+
+    it('decryptOuterStreamV3：源字节哈希 ≠ 信封声明（两遍读之间被调包但仍是合法密文）→ 末尾比对拒 400 OUTER_HASH_MISMATCH（TOCTOU 闭合）', async () => {
+      // 喂真实合法 C_outer（解密本身成功、final() 正常）——失配只可能来自源哈希闸，
+      // 钉死「闸在解密完成之后比对源字节」的语义（区别于解密失败的 OUTER_DECRYPT_FAILED）
+      await expectBizErrorAsync(
+        () => svc.decryptOuterStreamV3(feedCOuter(), dekA, () => {}, 'e'.repeat(64)),
+        OUTER_HASH_MISMATCH.error,
+        OUTER_HASH_MISMATCH.code,
+      );
+    });
+
+    it('decryptOuterStreamV3：密文翻转一字节（末块，固定 DEK+固定件保证确定性）→ 400 OUTER_DECRYPT_FAILED', async () => {
+      // 随机件有微小概率伪合法填充 → 偶发红；镜像 decryptOuterFile 损坏用例的固定值手法
+      const fixedDekA: Dek = {
+        keyHex: '0123456789abcdeffedcba9876543210',
+        ivHex: '00112233445566778899aabbccddeeff',
+      };
+      const fixedInner = Buffer.from('feedbeefcafebabe', 'hex');
+      const fixedOuter = Buffer.from(
+        sm4Encrypt(fixedDekA.keyHex, fixedDekA.ivHex, fixedInner.toString('hex')),
+        'hex',
+      );
+      const tampered = Buffer.from(fixedOuter);
+      tampered[tampered.length - 1] ^= 0x5a; // 破坏最后一个密文块 → PKCS#7 校验失败
+      async function* feed(): AsyncGenerator<Buffer> {
+        yield tampered.subarray(0, 16);
+        yield tampered.subarray(16);
+      }
+      const fedSha = await sha256Hex(tampered); // 第 4 参=所喂字节的真哈希——本用例只钉解密失败路径，源哈希闸不背锅
+      await expectBizErrorAsync(
+        () => svc.decryptOuterStreamV3(feed(), fixedDekA, () => {}, fedSha),
+        OUTER_FAILED.error,
+        OUTER_FAILED.code,
+      );
+    });
+
+    it('decryptOuterStreamV3：密文截断（非 16B 对齐）→ 400 OUTER_DECRYPT_FAILED', async () => {
+      const truncated = cOuter.subarray(0, cOuter.length - 1);
+      async function* feed(): AsyncGenerator<Buffer> {
+        yield truncated;
+      }
+      const fedSha = await sha256Hex(truncated); // 解密失败先于源哈希比对收口（两闸互不背锅）
+      await expectBizErrorAsync(
+        () => svc.decryptOuterStreamV3(feed(), dekA, () => {}, fedSha),
         OUTER_FAILED.error,
         OUTER_FAILED.code,
       );

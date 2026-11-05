@@ -1,0 +1,14 @@
+# 生产镜像依赖（rapid 引擎专用裁剪版）
+#
+# 与 requirements.txt 的差异：去掉 opendataloader-pdf[hybrid]（拖 torch/docling 全家桶，
+# venv 因此 12G；rapid 引擎为惰性导入、永不触碰，缺失时 engine=opendataloader 优雅降级不可用）
+# 与 socksio（docling 代理配套）。生产跑 OCR_ENGINE=rapid，此清单即全部所需。
+# PP-OCRv4 模型（det/cls/rec 三个 onnx，16MB）内置于 rapidocr_onnxruntime wheel，随装随用。
+fastapi==0.115.12
+uvicorn[standard]==0.34.2
+python-multipart==0.0.20
+rapidocr_onnxruntime
+Pillow>=11.0.0
+numpy
+PyMuPDF
+python-dotenv
