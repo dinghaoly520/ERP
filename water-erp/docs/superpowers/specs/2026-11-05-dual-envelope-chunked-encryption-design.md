@@ -111,9 +111,14 @@ worker → 主  { id, type:'done', plainBlob: Blob, plainSha256, plainBytes }
 3. **`ca-bid-reupload-card`**：经 `encryptAndUploadV3` 自动受益
 4. **`crypto-overlay.ts` 翻新**：`withCryptoOverlay(task, { progress })` 全屏遮罩（cgzxui 视觉）+ 进度百分比 + 防误关；接到投递/解密/补传三处；submit 页内联 note/progress 保留为遮罩内文案来源
 
-### 4.4 Worker 打包 spike（开工第一步）
+### 4.4 Worker 打包 spike（开工第一步）——已定案（2026-11-05，Task 3）
 
-`new Worker(new URL('../workers/crypto-worker.ts', import.meta.url))` 在 `next dev`（Turbopack）与 `next build` 双模式验证。兜底链（按序尝试）：①语法变体/相对路径形式 → ②构建期把 worker 编译为静态资源（public/ 或独立 tsc 产物）+ Blob URL → ③主线程分块 + 每块 yield（功能等价降级，UX 差但不崩）。spike 结论回写本节。
+**结论：`new Worker(new URL('../workers/crypto-worker.ts', import.meta.url), { type: 'module' })` 双模式可用，定为唯一实例化模式**（骨架 `src/utils/crypto-engine.ts` `createWorkerCryptoEngine()`，Task 5 在其上建消息协议）。实测记录：
+
+- **dev（真实门户实测）**：运行中 :3004（Turbopack watch）热接新文件，登录页探针 `useEffect` 挂引擎 → console `[worker-spike] engine: Worker created ok`、`onmessage: {"id":1,"type":"pong"}`、无错误；Turbopack 即时编译独立 worker 入口（网络面板 `/_next/static/chunks/apps_supplier-portal-next_src_workers_crypto-worker_ts_*.js` 三块均 200，经 `turbopack-worker-*#params=` 引导）。
+- **build（同版本合成应用实测）**：不动真树 .next，/tmp 一次性 next@16.2.3 + react@19.2.4 应用（与门户同版本）复刻同构 workers/+utils/ 骨架，`next build`（Turbopack）通过：TS worker 源被编译为 chunk（ping/pong 处理器逐字节在 `.next/static/chunks/17tdwi6~3n3hs.js`），运行时 Turbopack 把 Worker 构造改写为自家引导入口 `turbopack-worker-*.js#params=[chunkurls]`（**实际按经典 worker + importScripts 装载**，`{type:'module'}` 被接管——模块形态由引导层保证，业务代码无感知）；`next start` + 真浏览器加载 `/spike` 页实测 pong、零 console 错误。另产出辅助媒体件 `/_next/static/media/crypto-worker.*.ts`（源码原样 asset，非运行路径，勿据其误判"未编译"）。
+- **注意**：URL 必须是静态字面量（Turbopack 编译期识别该语法模式），勿改成运行时拼接。
+- **残留兜底**：若未来生产构建（Next/Turbopack 升级或 webpack 回退）不再识别该模式（症状=worker 请求 404/语法错误），按原兜底链改造：②构建期把 worker 预编译为静态资源（`tsc` 独立产物进 public/）+ 显式 URL/Blob URL → ③主线程分块 + 每块 yield（功能等价降级）。①语法变体已无必要（原语法即过）。`createWorkerCryptoEngine` 构造失败返回 null 的降级语义保留，调用方按③兜底。
 
 ### 4.5 服务端外层解密分块化（D3，apps/api）
 
@@ -157,7 +162,7 @@ worker → 主  { id, type:'done', plainBlob: Blob, plainSha256, plainBytes }
 - **CBC 链式**：分块必须按 16B 密码学块边界串行推进，禁止并行分块（并行需 GCM/CTR，合规另议，默认不做）
 - **sm-crypto `padding:'none'` 静默丢尾**（builder check 实证）：非 16B 对齐输入不报错、**尾字节静默丢弃**——分块类必须缓冲未对齐尾巴、只在块边界调用，一致性测试覆盖跨块非对齐尺寸
 - **末块整除补整块**：PKCS#7 在输入恰为 16 整除时补**整块** 16 字节——一致性测试必须覆盖整除尺寸
-- **Turbopack worker 打包**：全库首例，§4.4 spike 先行，兜底链已备
+- **Turbopack worker 打包**：全库首例——§4.4 spike 已双模式定案（dev 实测 + 同版本合成 build 实测），兜底②③仅在构建形态未来分叉时启用
 - **服务端 MinIO 流式写**：minio-js `putObject` 流式需 size 或走分段上传——plan 期定两遍流 vs 单遍分段；dual-v2 存量整解路径保留不动
 - **worker 内存**：outer/plain 块累积在 worker 堆（~500MB 量级 OK）；块用 transferable 回传避免拷贝翻倍
 - **进度节流**：postMessage 每 2MB/250ms 一次，防消息风暴
