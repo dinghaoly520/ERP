@@ -298,7 +298,6 @@ function generatePrompt(cardIndex: number): string {
   const aspects = shuffleSlice(kit.aspects, 4, 6);
   const closing = pick(kit.closings);
 
-  // Build natural text with numbered aspects
   const aspectText = aspects.map((a, i) => {
     const prefixes = [
       `我想了解：`,
@@ -354,7 +353,6 @@ export function AssistantHome({
   return (
     <div className={styles.home}>
       <section className={styles.hero}>
-        {/* 品牌区 */}
         <div className={styles.brandRow}>
           <div className={styles.logoShell}>
             <img src="/logo.jpg" alt="Logo" className={styles.logoImage} />
@@ -371,7 +369,6 @@ export function AssistantHome({
           </h1>
         </div>
 
-        {/* 搜索框 */}
         <div className={styles.commandPanel}>
           <div className={styles.commandBox}>
             <textarea

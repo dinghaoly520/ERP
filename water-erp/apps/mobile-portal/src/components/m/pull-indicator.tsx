@@ -6,10 +6,9 @@ import { createPortal } from "react-dom";
 const TRIGGER_PX = 64;
 
 /**
- * 下拉刷新指示器——固定在顶栏下缘居中，随拖距渐显。
- * Portal 到 document.body：指示器原本渲染在滚动容器（main）内部，
- * iOS WebKit 会把页内 fixed 约束在祖先上下文（同 BottomSheet 修复的坑），
- * Portal 后两端均恒锚定视口。顶栏高度随纤薄化调整（h-11 = 2.75rem）。
+ * 下拉刷新指示器——固定在顶栏下缘居中，随拖距渐显；顶栏高度随纤薄化调整（h-11 = 2.75rem）。
+ * Portal 到 document.body：iOS WebKit 把页内 fixed 约束在滚动祖先上下文（同 BottomSheet 的坑），
+ * Portal 后两端均恒锚定视口。
  */
 export function PullIndicator({ pull, refreshing }: { pull: number; refreshing: boolean }) {
   if (!pull && !refreshing) return null;

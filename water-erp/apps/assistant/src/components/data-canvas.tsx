@@ -48,7 +48,6 @@ export function DataCanvas({
 
       <div className={styles.cardStack}>
         {displayCards.map((card, i) => {
-          // Staggered entrance: 80ms delay per card
           const staggerDelay = `${i * 0.08}s`;
 
           if (card.type === 'table') {

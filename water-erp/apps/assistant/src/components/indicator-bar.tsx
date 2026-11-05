@@ -18,7 +18,6 @@ export function IndicatorBar({
 }) {
   const total = metricCount + tableCount + chartCount;
 
-  // Data mode: always show "switch to chat" hint
   if (dataMode) {
     return (
       <div
@@ -43,7 +42,6 @@ export function IndicatorBar({
     );
   }
 
-  // Chat mode: show card count breakdown
   if (total === 0) return null;
 
   const parts: string[] = [];

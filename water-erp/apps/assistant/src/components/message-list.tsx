@@ -14,24 +14,20 @@ export function MessageList({
     <div className={styles.messageList}>
       {messages.map((msg) => (
         <div key={msg.id}>
-          {/* 用户消息 */}
           {msg.role === 'user' && (
             <div className={styles.userBubble}>
               <div className={styles.userContent}>{msg.content}</div>
             </div>
           )}
 
-          {/* 助手消息 */}
           {msg.role === 'assistant' && (
             <div className={styles.assistantBubble}>
               <div className={styles.assistantContent}>
-                {/* 文本 */}
                 <div className={styles.assistantText}>{msg.content}</div>
               </div>
             </div>
           )}
 
-          {/* 时间戳 */}
           <div
             style={{
               textAlign: msg.role === 'user' ? 'right' : 'left',

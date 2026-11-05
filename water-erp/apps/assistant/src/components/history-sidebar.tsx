@@ -29,7 +29,6 @@ function extractTitle(item: ConversationItem): string {
     .replace(/^(请帮我|帮我|请|我想|麻烦|帮我看看|请你|能否|可以)\s*/g, '')
     .trim();
 
-  // Take first 20 characters
   if (cleaned.length <= 20) return cleaned;
   return cleaned.slice(0, 20) + '...';
 }
@@ -101,7 +100,6 @@ export function HistorySidebar({
 }) {
   const grouped = useMemo(() => groupByDate(conversations), [conversations]);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
-    // First two groups expanded by default
     const names = grouped.map((g) => g.label).slice(0, 2);
     return new Set(names);
   });
@@ -143,13 +141,11 @@ export function HistorySidebar({
 
   return (
     <aside className={styles.sidebar}>
-      {/* 品牌区 */}
       <div className={styles.brand}>
         <img src="/logo.jpg" alt="四川省水利发展集团有限公司" className={styles.brandLogo} />
         <span className={styles.brandName}>四川省水利发展集团有限公司</span>
       </div>
 
-      {/* Header */}
       <div className={styles.header}>
         <div className={styles.headerTitle}>
           <MessageSquare size={16} strokeWidth={1.8} />
@@ -175,7 +171,6 @@ export function HistorySidebar({
         </div>
       </div>
 
-      {/* List */}
       <div className={styles.list}>
         {grouped.length === 0 && (
           <p className={styles.empty}>暂无历史对话</p>
@@ -236,7 +231,6 @@ export function HistorySidebar({
         })}
       </div>
 
-      {/* 底部返回按钮 */}
       {onBack && (
         <button
           className={styles.backBtn}

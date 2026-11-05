@@ -105,10 +105,9 @@ export default function ChatPage() {
     setHistoryList((prev) => prev.filter((c) => c.id !== id));
   }
 
-  /* 键盘协同（2026-10-26）：VirtualKeyboard.overlaysContent 让键盘覆盖而非压缩布局——
-   * tabbar 留在屏幕底部（用户裁定：不随键盘抬升）；--kb-h 由 visualViewport 实时驱动，
-   * 输入条（.m-chat-dock）抬到键盘上方、消息区（.m-chat-scroll）垫高避让。
-   * iOS 无 VirtualKeyboard——键盘本就不压缩布局，visualViewport 通道同样生效。 */
+  /* 键盘协同（2026-10-26 用户裁定 tabbar 不随键盘抬升）：VirtualKeyboard.overlaysContent
+   * 让键盘覆盖而非压缩布局，--kb-h 由 visualViewport 驱动输入条抬升/消息区避让；
+   * iOS 无 VirtualKeyboard——键盘本就不压缩布局，同一通道仍生效。 */
   const shellRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const vk = (navigator as Navigator & { keyboard?: { overlaysContent?: boolean } }).keyboard;

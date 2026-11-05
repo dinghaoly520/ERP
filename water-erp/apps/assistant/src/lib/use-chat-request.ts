@@ -34,13 +34,10 @@ export function useChatRequest(opts: UseChatRequestOptions): UseChatRequest {
   const optsRef = useRef(opts);
   optsRef.current = opts;
 
-  // Track the in-flight AbortController for cancellation
   const abortRef = useRef<AbortController | null>(null);
 
-  // Store the most recent (message, conversationId) for retry
   const lastMsgRef = useRef<{ message: string; conversationId?: string } | null>(null);
 
-  // Prevent duplicate concurrent send() calls
   const sendingRef = useRef(false);
 
   const clearError = useCallback(() => setError(null), []);
@@ -56,10 +53,8 @@ export function useChatRequest(opts: UseChatRequestOptions): UseChatRequest {
 
   const send = useCallback(
     (message: string, conversationId?: string) => {
-      // Dedup: ignore if already sending
       if (sendingRef.current) return;
 
-      // Store for retry
       lastMsgRef.current = { message, conversationId };
 
       sendingRef.current = true;
@@ -91,7 +86,6 @@ export function useChatRequest(opts: UseChatRequestOptions): UseChatRequest {
           sendingRef.current = false;
           setIsLoading(false);
 
-          // Ignore user-cancelled requests
           if (e instanceof ApiError && e.code === 'CANCELLED') return;
 
           const apiError =

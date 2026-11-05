@@ -53,7 +53,6 @@ export function ChatWorkspace({
     if (el) el.scrollTo({ top: el.scrollHeight });
   }, [messages, isLoading]);
 
-  // Topic label: use the last user message
   const topicLabel = useMemo(() => {
     const lastUser = [...messages].reverse().find((m) => m.role === 'user');
     return lastUser?.content?.slice(0, 30) || '数据总览';
@@ -86,7 +85,6 @@ export function ChatWorkspace({
   return (
     <div className={styles.workspace}>
       <div className={styles.main}>
-        {/* Header */}
         <header
           className={styles.header}
           style={{ left: `${headerLeft}px` }}
@@ -126,12 +124,10 @@ export function ChatWorkspace({
           />
         </div>
 
-        {/* DataCanvas — shown in data mode */}
         {dataMode && (
           <DataCanvas cards={cards} topicLabel={topicLabel} />
         )}
 
-        {/* Spacer when messages empty in data mode */}
         {dataMode && cards.length === 0 && (
           <div style={{ flex: 1 }} />
         )}
@@ -145,7 +141,6 @@ export function ChatWorkspace({
           dataMode={dataMode}
         />
 
-        {/* Input */}
         <div className={styles.inputBar}>
           <div className={styles.inputWrapper}>
             <div className={styles.commandBox}>

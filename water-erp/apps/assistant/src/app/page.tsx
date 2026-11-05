@@ -185,7 +185,6 @@ export default function Page() {
     }
   }, [conversationId, refreshConversations, handleNew]);
 
-  // Cancel in-flight request on unmount
   useEffect(() => {
     return () => {
       cancel();
