@@ -1,11 +1,9 @@
 'use client';
 
 /**
- * 邀请回执链接桥接页（2026-10-27 用户裁定：域名模式下邀请链接统一挂根域 ssyc.scsfjt.com）。
- * 短信里的链接形如 https://ssyc.scsfjt.com/rsvp?t=<token>——供应商与专家两个回执页共用该路径，
- * 本页按 token 依次探询两个公开校验端点（/api/expert/rsvp/verify、/api/supplier/rsvp/verify），
- * 命中即跳转对应门户的回执页（域名模式→对应子域 https；IP:端口模式→同 IP 换端口）。
- * 未命中/缺 token：展示无效提示（链接过期或非本平台签发）。
+ * 邀请回执链接桥接页（2026-10-27 用户裁定：域名模式下邀请链接统一挂根域 ssyc.scsfjt.com/rsvp?t=<token>）。
+ * 供应商/专家两回执页共用：按 token 探询两个公开校验端点，命中跳对应门户回执页
+ * （域名模式→子域 https；IP:端口→同 IP 换端口），未命中/缺 token 显无效提示。
  */
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';

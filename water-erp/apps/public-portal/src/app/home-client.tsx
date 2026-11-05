@@ -43,9 +43,8 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
     return BG_POOL.map(f => `BG/${f}`);
   }, []);
 
-  // 从后端 API 按公告类型分别获取，避免全局分页导致各类型数量不均
-  // 公告分组与公告页 tab 口径一致（2026-09-16 拍板：首页放全部分类——全部/采购/流标/
-  // 中标(中标公告+预成交公示合并)/补遗/资格预审/政策/平台，空类型也显示 tab 呈空态）
+  // 按公告类型分别获取，避免全局分页导致各类型数量不均；分组与公告页 tab 口径一致
+  // （2026-09-16 拍板：首页放全部分类——全部/采购/流标/中标(中标公告+预成交公示合并)/补遗/资格预审/政策/平台，空类型也显示 tab 呈空态）
   const typeGroups = useMemo(() =>
     ['BID_NOTICE', 'FAILED_BID_NOTICE', 'WIN_BID_NOTICE', 'PRE_WIN_NOTICE', 'ADDENDUM', 'PREQUAL_NOTICE', 'POLICY', 'PLATFORM'], []);
   /** 首页公告 tab 固定顺序（与 /announcements 页 ANNOUNCEMENT_TABS 同口径） */
@@ -79,12 +78,8 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
   }, []);
 
   useEffect(() => {
-    // 已有服务端预取数据时：force-dynamic 已通过 RSC 提供最新数据，
-    // 不立即静默刷新——否则客户端导航(router.push)到首页时，二轮 fetch 会与
-    // React reconciliation / 事件绑定产生竞态，导致公告区 tab 点击失效。
-    // 仅在页面重新可见（切回标签页 / bfcache 恢复）时刷新，保证数据不过时。
-    // 2026-11-05 修复：pageshow 在首次加载也会触发（persisted=false）——不判
-    // persisted 会击穿本守卫，挂载即 8 连发二轮请求；只认 bfcache 恢复（true）。
+    // 有服务端预取数据时不立即刷新：二轮 fetch 与 reconciliation 竞态会致 tab 点击失效，仅页面重新可见时刷新。
+    // 2026-11-05 修复：pageshow 首次加载也触发（persisted=false），不判 persisted 会击穿守卫（挂载即 8 连发）——只认 bfcache 恢复（true）。
     const isInitialPageshow = (ev: Event) => ev.type === 'pageshow' && !(ev as PageTransitionEvent).persisted;
     if (hasInitialData.current) {
       const refresh = (ev?: Event) => {
@@ -181,9 +176,8 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
     }
   }, []);
 
-  // 门户入口 URL：默认走 @water-erp/config 的 portalURL，生产可用 NEXT_PUBLIC_*_PORTAL_URL 覆盖。
-  // 注意：portalURL 在 SSR 阶段无 window → 返回 localhost，故必须等客户端挂载后（mounted）再求值，
-  // 否则局域网设备通过 192.168.1.109 访问时，入口卡片仍指向 localhost。
+  // 门户入口 URL：默认 portalURL（生产可用 NEXT_PUBLIC_*_PORTAL_URL 覆盖）；注意 portalURL
+  // SSR 阶段无 window 会返回 localhost——须挂载后（mounted）再求值，否则局域网访问的入口卡片错指 localhost。
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -192,9 +186,8 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
   const SUPPLIER_URL = process.env.NEXT_PUBLIC_SUPPLIER_PORTAL_URL ?? portalURL('supplier', '/login');
   const WEB_URL = process.env.NEXT_PUBLIC_WEB_PORTAL_URL ?? portalURL('web', '/login');
 
-  // 入口 href 兜底用 undefined 而非 '#'（2026-10-30 用户实录）：dev 重建后旧标签 JS
-  // 失效（Next stale）会掉回服务端 DOM——'#' + target=_blank 点击=新标签复制当前页；
-  // 无 href 的 <a> 点击不导航，JS 恢复（挂载/刷新）后自动换真地址
+  // 入口 href 兜底用 undefined 而非 '#'（2026-10-30 用户实录）：dev 重建后旧标签 JS 失效（Next stale）
+  // 掉回服务端 DOM，'#'+target=_blank 点击=新标签复制当前页；无 href 不导航，JS 恢复后自动换真地址。
   const features = [
     { icon: 'cart', title: '电子商城', desc: '办公集采、员工内购、大宗商品', href: 'https://j.youzan.com/-khlqe?shopAutoEnter=1&kdt_id=157422811' },
     { icon: 'share', title: '供应商门户', desc: '供应商注册、投标、反馈', href: mounted ? SUPPLIER_URL : undefined },

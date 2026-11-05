@@ -8,9 +8,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="zh-CN">
       <head>
-        {/* 2026-11-05 修复：移除 Google Fonts 外链——fonts.googleapis.com 在大陆不可达时
-            为 render-blocking，首屏白屏直至超时；Manrope 全项目零引用，Noto Serif SC
-            在 globals.css 已有本地宋体 fallback 链（Songti SC/STZhongsong/SimSun） */}
+        {/* 2026-11-05 修复：移除 Google Fonts 外链——fonts.googleapis.com 大陆不可达时 render-blocking，
+            首屏白屏直至超时；Manrope 全项目零引用，Noto Serif SC 在 globals.css 已有本地宋体 fallback 链 */}
       </head>
       <body>
         {children}

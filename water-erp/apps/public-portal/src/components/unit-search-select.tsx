@@ -7,11 +7,8 @@ import { SASAC_UNITS } from '@/lib/sasac-units';
 
 /**
  * 集团单位选择器（2026-09-30 自 :3005 login/unit-search-select 完全复刻移植）：
- * 62 家全级次企业名单 + 首行搜索。
- *  面板 = 145° 白→浅灰渐变瓷片 + 方向性双影（无外框线）+ 视口翻转；
- *  搜索区 = sticky 贴顶（外层无顶 padding 防滚动透字）+ 内凹小输入 + hairline 分隔；
- *  当前值 = 白瓷片凸起 + 品牌蓝粗体 + 对勾（与 neu-tab v2 激活语义统一）；选项 hover 品牌蓝淡染。
- * 触发器 44px 对齐 .neu-input；样式类 .uss-* 见 globals.css 尾部。
+ * 62 家全级次企业名单 + 首行搜索；触发器 44px 对齐 .neu-input，
+ * 搜索区 sticky 贴顶（外层无顶 padding 防滚动透字）；面板/当前值等 cgzxui 规格见 globals.css 尾部 .uss-* 分节。
  */
 export function UnitSearchSelect({
   value,

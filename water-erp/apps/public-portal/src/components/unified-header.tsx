@@ -113,9 +113,8 @@ export function UnifiedHeader() {
               </svg>
             </button>
 
-            {/* 下拉面板 — Portal 到 body 以越过 header 层叠上下文。
-                2026-11-05 修复：面板不在 wrapper DOM 子孙内，必须自带 hover 事件——
-                否则离开按钮 160ms 后菜单在光标下方消失，基本不可点 */}
+            {/* 下拉面板 — Portal 到 body 以越过 header 层叠上下文。2026-11-05 修复：
+                面板不在 wrapper DOM 子孙内须自带 hover 事件，否则离开按钮 160ms 后菜单在光标下方消失 */}
             {activeMenu === 'about' && mounted && createPortal(
               <div
                 className="flow-nav-menu fixed z-[9999]"

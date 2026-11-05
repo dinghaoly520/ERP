@@ -230,9 +230,8 @@ export async function fetchPublicAnnouncement(id: string): Promise<AnnouncementI
   return toAnnouncementItem(data);
 }
 
-/* ── 服务端预取（Server Component 专用） ──
-   直接请求 API 绝对地址（服务端无法用相对 /api），按类型各取 5 条，
-   失败返回空数组，绝不抛错以免阻塞首屏渲染。 */
+/* ── 服务端预取（Server Component 专用）——须用 API 绝对地址（服务端无法用相对 /api），
+   按类型各取 5 条，失败返回空数组、绝不抛错以免阻塞首屏渲染 ── */
 export async function fetchAnnouncementsServer(apiBase: string): Promise<AnnouncementItem[]> {
   const types = ['BID_NOTICE', 'ADDENDUM', 'PREQUAL_NOTICE', 'PRE_WIN_NOTICE', 'WIN_BID_NOTICE', 'FAILED_BID_NOTICE', 'CLARIFY_NOTICE', 'WIN_NOTICE', 'CONTRACT_NOTICE', 'PERFORMANCE_NOTICE', 'POLICY', 'PLATFORM'];
   const settled = await Promise.all(

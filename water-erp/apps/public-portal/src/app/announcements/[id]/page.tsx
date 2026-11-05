@@ -8,10 +8,8 @@ import { fetchPublicAnnouncement, downloadAnnouncementAttachment, type Announcem
 import { UnifiedHeader } from '@/components/unified-header';
 import { FlowBackdrop } from '@/components/flow-stage';
 
-/* ── 公告正文展示归一（2026-10-30）：存量公告监督块曾被生成端粘连成一段
-      （监督举报四行串行）。生成端已根治（软换行合并守卫）；此处兜存量数据——
-      与后端 announcement-content-html.util 同口径：≥2 个监督标签同段时在非段首
-      标签前断行 + 剔除 docx 空格撑行的纯空白段。 ── */
+/* ── 公告正文展示归一（2026-10-30）：兜存量公告监督块粘连（生成端已根治）——与后端
+      announcement-content-html.util 同口径：≥2 个监督标签同段时在非段首标签前断行 + 剔除纯空白段 ── */
 const SUPERVISION_LABELS = ['监督部门：', '地址：', '联系人：', '监督电话：'];
 
 function breakGluedSupervisionLabels(html: string): string {
