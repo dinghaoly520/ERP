@@ -15,30 +15,3 @@ export const statusTone: Record<WorkbenchTone, { color: string; bg: string; bord
   gray: { color: '#5a6d8a', bg: '#f8fafc', border: '#e5ecf4', gradient: 'from-[#64748b] to-[#94a3b8]' },
 };
 
-export function numberOrZero(value: number | null | undefined): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
-}
-
-export function formatDateTime(value?: string | Date | null): string {
-  if (!value) return '—';
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-export function formatDate(value?: string | Date | null): string {
-  if (!value) return '—';
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleDateString('zh-CN');
-}
-
-export function percent(part: number, total: number): number {
-  if (!total) return 0;
-  return Math.max(0, Math.min(100, Math.round((part / total) * 100)));
-}

@@ -12,14 +12,12 @@
     "@water-erp/client": "workspace:*",
     "@water-erp/config": "workspace:*",
     "@water-erp/shared": "workspace:*",
-    "clsx": "^2.1.1",
     "lucide-react": "^1.17.0",
     "motion": "^12.40.0",
     "next": "16.2.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "sonner": "^2.0.7",
-    "tailwind-merge": "^3.6.0"
+    "sonner": "^2.0.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

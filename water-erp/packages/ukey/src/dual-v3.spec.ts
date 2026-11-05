@@ -1,6 +1,6 @@
 import {
   DualV3Envelope, V3Fields, computeV3FieldsCommit, buildV3Envelope,
-  validateV3Envelope, keyWrapJson, validateV3Price,
+  validateV3Envelope, keyWrapJson,
 } from './dual-v3';
 import { canonicalJson, sha256Hex } from './canonical';
 
@@ -54,22 +54,6 @@ describe('dual-v3（阶段2 Task1）', () => {
     test('键排序——iv 在 k 前', async () => {
       const result = keyWrapJson({ keyHex: '0123456789abcdef0123456789abcdef', ivHex: 'fedcba9876543210fedcba9876543210' });
       expect(result).toBe('{"iv":"fedcba9876543210fedcba9876543210","k":"0123456789abcdef0123456789abcdef"}');
-    });
-  });
-
-  describe('validateV3Price', () => {
-    test('合法：整数、最多 4 位小数', async () => {
-      expect(validateV3Price('100')).toBe(true);
-      expect(validateV3Price('100.5')).toBe(true);
-      expect(validateV3Price('100.1234')).toBe(true);
-    });
-    test('非法：指数/逗号/前导零/超精度', async () => {
-      expect(validateV3Price('1e2')).toBe(false);
-      expect(validateV3Price('1,000')).toBe(false);
-      expect(validateV3Price('0100')).toBe(false);
-      expect(validateV3Price('100.12345')).toBe(false);
-      expect(validateV3Price('-100')).toBe(false);
-      expect(validateV3Price('')).toBe(false);
     });
   });
 

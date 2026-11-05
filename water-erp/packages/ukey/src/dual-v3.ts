@@ -99,7 +99,6 @@ export function keyWrapJson(dek: { keyHex: string; ivHex: string }): string {
 
 const HEX32 = /^[0-9a-f]{32}$/;
 const HEX64 = /^[0-9a-f]{64}$/;
-const PRICE_RE = /^(0|[1-9]\d{0,11})(\.\d{1,4})?$/;
 const VALID_ROLES = new Set(['technical', 'business', 'coverLetter', 'bond']);
 
 export function validateV3Envelope(env: unknown): { ok: boolean; errors: string[] } {
@@ -176,8 +175,3 @@ function validateKeyWrapSM2(kw: unknown, path: string, errors: string[]): void {
   if (typeof o.value !== 'string') errors.push(`${path}.value 非字符串`);
 }
 
-// ─── price 校验 ───
-
-export function validateV3Price(price: string): boolean {
-  return PRICE_RE.test(price);
-}

@@ -11,8 +11,6 @@
   "dependencies": {
     "@water-erp/client": "workspace:*",
     "@water-erp/config": "workspace:*",
-    "@water-erp/shared": "workspace:*",
-    "clsx": "^2.1.1",
     "lucide-react": "^1.8.0",
     "next": "16.2.3",
     "react": "19.2.4",

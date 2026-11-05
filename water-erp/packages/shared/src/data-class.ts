@@ -11,13 +11,7 @@ export const DATA_CLASS_LABELS = {
 
 export type DataClassValue = keyof typeof DATA_CLASS_LABELS;
 
-export const DATA_DOMAIN_LABELS = {
-  trade: '交易过程数据',
-  supervision: '监管数据',
-  rights: '权益保护数据',
-} as const;
-
-export type DataDomainValue = keyof typeof DATA_DOMAIN_LABELS;
+export type DataDomainValue = 'trade' | 'supervision' | 'rights';
 
 /** 公开门户可见级别（B.1：仅"应公开/宜公开"对外） */
 export const PUBLIC_VISIBLE_CLASSES: DataClassValue[] = ['public_mandatory', 'public_voluntary'];
