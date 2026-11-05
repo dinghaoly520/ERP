@@ -72,18 +72,6 @@ export type ProcurementsListResponse = {
   pagination: PaginationInfo;
 };
 
-// 筛选状态
-export type LedgerFilterState = {
-  startDate: string | null;
-  endDate: string | null;
-  procurementMethod: string | null;
-  departmentId: string | null;
-  resultStatus: ResultStatusKey | null;
-  searchKeyword: string;
-  recycleStatus?: "ACTIVE" | "RECYCLED" | "ALL";
-  /** 台账类型快捷筛选（2026-09-20）：archived=已归档、terminated=已终止 */
-  category?: "archived" | "terminated" | null;
-};
 
 // 统计汇总
 export type LedgerSummary = {

@@ -42,16 +42,3 @@ export function CardSkeleton({ count = 4 }: { count?: number }) {
     </div>
   );
 }
-
-export function PageSkeleton() {
-  return (
-    <div className="space-y-6 animate-pulse">
-      <div className={`h-7 w-48 rounded ${BAR}`} />
-      <div className={`h-4 w-80 rounded ${BAR_SOFT}`} />
-      <CardSkeleton />
-      <div className="neu-card-static p-5">
-        <TableSkeleton />
-      </div>
-    </div>
-  );
-}
