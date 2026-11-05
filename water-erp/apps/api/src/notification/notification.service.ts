@@ -74,9 +74,12 @@ export class NotificationService {
     return out;
   }
 
-  /** 站内信创建后，按用户联系方式异步分发到 Email/SMS/Phone（失败不阻断主流程）。 */
+  /** 站内信创建后，按用户联系方式异步分发到 Email/Phone（失败不阻断主流程；短信已移除——2026-11-05 裁定，见 dispatchExternal 注释）。 */
   private async dispatchExternal(userId: string, notificationId: string, payload: { type: string; title: string; content: string; link?: string | null }) {
-    // 2026-10-27：供应商短信改全联系人各发一条（resolvePhones）；email/电话渠道仍用主联系人（phones[0]）
+    // 2026-11-05 用户裁定：站内通知不再隐式外发短信——此前 create()/sendToRole() 产生的任何通知，
+    // 只要收件人有手机号就全联系人各发一条（资格预审结果/回执代变更/密码审批/公告广播等全在内），
+    // 条数消耗失控。短信仅保留显式渠道（sendToUser 且 channels 含 sms：邀请/抽取/开标决策/催促）与验证码轨。
+    // email/电话渠道仍用主联系人（phones[0]）。
     const [user, phones] = await Promise.all([
       this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } }).catch(() => null),
       this.resolvePhones(userId),
@@ -91,17 +94,6 @@ export class NotificationService {
         this.emailChannel.send({ userId, ...contact, ...payload })
           .then(r => this.logDelivery(userId, notificationId, 'email', r)),
       );
-    }
-    if (phones.length === 0) {
-      // 无联系人手机号：仅站内，留痕一条 skipped 便于核查（2026-10-27 用户口径）
-      tasks.push(this.logDelivery(userId, notificationId, 'sms', { status: 'skipped', error: '无联系人手机号' }));
-    } else {
-      for (const phone of phones) {
-        tasks.push(
-          this.smsChannel.send({ userId, phone, email: contact.email, ...payload })
-            .then(r => this.logDelivery(userId, notificationId, 'sms', r)),
-        );
-      }
     }
     if (shouldDispatch('phone', contact)) {
       tasks.push(
