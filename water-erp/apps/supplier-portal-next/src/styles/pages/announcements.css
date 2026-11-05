@@ -140,7 +140,6 @@
 .bid-doc-section { padding: 16px; border: none; border-radius: 12px; background: var(--surface); box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.10), inset -3px -3px 7px oklch(1 0 0 / 0.8); }
 .bid-doc-head { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--foreground); flex-wrap: wrap; }
 .bid-doc-lock { color: var(--brand); }
-.bid-doc-title { font-weight: 600; }
 .bid-doc-hint { font-size: 12px; color: var(--muted-foreground); margin: 8px 0 12px; }
 .bid-doc-actions { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
 /* ── 公告附件（2026-10-28）：公告中心/信息门户/项目机会三端下载入口——附件行三态，与 bdoc 文件行同语言 ── */
@@ -169,12 +168,8 @@
   box-sizing: border-box;
 }
 .ann-alert__icon { display: inline-flex; flex-shrink: 0; margin-right: 8px; }
-.ann-alert--error { color: #f56c6c; }
-.ann-alert--warning { color: #e6a23c; }
 .ann-alert--info { color: #909399; }
 /* el-form-item 原生等价（付款凭证弹窗） */
-.ann-form-item { display: flex; align-items: center; gap: 12px; }
-.ann-form-item__label { flex-shrink: 0; font-size: 13px; font-weight: 600; color: var(--sp-gray-600); }
 .ann-form-item .neu-input { flex: 1; min-width: 0; }
 
 
