@@ -6,7 +6,8 @@
    - createLocalCryptoEngine(fetchImpl?)：同进程直跑 crypto-pipeline——
      Node 测试与降级双用；decryptUrl 的 fetch 可注入（默认全局 fetch）。
    - getDefaultCryptoEngine()：lazy——worker 优先，不可用回退 local
-     （兜底③，spec §4.4）。
+     （兜底③，spec §4.4）；worker onerror 后会话级熔断改指 local
+     （脚本装载失败在构造成功后异步炸——不熔断则永远 erroring）。
    进度口径桥接：引擎公开 onProgress(doneBytes, totalBytes)；pipeline 是单参
    (doneBytes)——total 由本层补齐（encrypt=file.size、decrypt=Content-Length，
    缺失=0）。pipeline 产出的 Blob 原样透传，本层绝不重建。
@@ -124,8 +125,10 @@ function attachHandlers(worker: CryptoWorkerHandle): void {
         entry.reject(new Error(msg.message));
         return;
       case 'pong':
-        // 引擎不发 ping（Task 3 探针槽位）；若外部直发 ping 也不许挂死 promise
+        // 引擎不发 ping（Task 3 探针槽位）——pong 能关联到 pending 即协议异常，reject 防挂死
+        // （旧行为只 delete 不 settle，恰好制造它注释里声称要防止的挂死 promise）
         pendingRequests.delete(msg.id);
+        entry.reject(new Error('意外 pong 帧（引擎不发 ping）'));
         return;
     }
   };
@@ -141,6 +144,11 @@ function attachHandlers(worker: CryptoWorkerHandle): void {
       /* 已死 */
     }
     if (activeWorker === worker) activeWorker = null;
+    // 脚本装载失败（如打包回归）在构造成功后异步炸 onerror——不熔断则默认引擎每次
+    // 重建新 worker 再失败，永远 erroring、local 兜底永不介入。会话级熔断（阈值 1）：
+    // 默认引擎改指 local；直连 createWorkerCryptoEngine 的重建语义不变（显式换引擎）。
+    defaultEngineFusedToLocal = true;
+    defaultEngine = null;
   };
 }
 
@@ -256,9 +264,16 @@ export function createLocalCryptoEngine(
 /* ───────────── 默认引擎（lazy） ───────────── */
 
 let defaultEngine: CryptoEngine | null = null;
+/** worker onerror 会话级熔断旗（阈值 1）：置位后默认引擎不再试 worker，改指 local */
+let defaultEngineFusedToLocal = false;
 
-/** lazy 默认引擎：worker 优先，构造失败/环境不可用 → 回退 local 同进程直跑 */
+/** lazy 默认引擎：worker 优先，构造失败/环境不可用 → 回退 local 同进程直跑；
+ *  worker 运行中 onerror（含脚本装载失败）→ 会话级熔断，后续调用恒 local */
 export function getDefaultCryptoEngine(): CryptoEngine {
+  if (defaultEngineFusedToLocal) {
+    defaultEngine ??= createLocalCryptoEngine();
+    return defaultEngine;
+  }
   if (!defaultEngine) {
     defaultEngine = createWorkerCryptoEngine() ?? createLocalCryptoEngine();
   }

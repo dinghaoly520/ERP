@@ -48,6 +48,9 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
   const [open, setOpen] = useState(false);
   const [pin, setPin] = useState('');
   const [busy, setBusy] = useState(false);
+  /** 解密相位旗（F4）：仅逐角色 decryptUrl 循环期间为 true——取消钮只在该窗口渲染
+   *  （unwrap/P7/上传相位 terminate 无效，不显示可点而无效的按钮）；关闭闸 !busy 不变 */
+  const [decrypting, setDecrypting] = useState(false);
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   /** 解密相位取消旗：置旗 + terminate 引擎（幂等）——pending reject 落 catch 专用文案 */
@@ -84,6 +87,7 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
       const engine = getDefaultCryptoEngine();
       const plainByRole: Partial<Record<V3Role, Blob>> = {};
       const plainSha256ByRole: Record<string, string> = {};
+      setDecrypting(true); // 解密相位开窗——取消钮在此窗口内可见（F4）
       for (const f of pkg.files as PkgFile[]) {
         setNote(`正在解密 ${f.role}（${(f.innerBytes / 1024 / 1024).toFixed(1)}MB）…`);
         const dekJson = await scca.unwrapSccaKey(shield.container, f.kself.value);
@@ -96,6 +100,7 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
         plainByRole[f.role] = r.plainBlob;
         plainSha256ByRole[f.role] = r.plainSha256;
       }
+      setDecrypting(false); // 解密相位关窗——后续 unwrap/P7/上传不可取消（terminate 无管辖）
 
       setNote('正在揭示唱标字段…');
       const dekFJson = await scca.unwrapSccaKey(shield.container, pkg.sealedFields.kself.value);
@@ -136,6 +141,7 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
     } finally {
       setBusy(false);
       setNote('');
+      setDecrypting(false);
     }
   }
 
@@ -174,13 +180,16 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
           />
         </div>
         {busy && (
+          <div className="mt-3 flex items-center gap-2 text-xs text-[var(--fg-3)]">
+            <LoaderCircle size={12} className="animate-spin" />{note || '处理中…'}
+          </div>
+        )}
+        {busy && decrypting && (
           <>
-            <div className="mt-3 flex items-center gap-2 text-xs text-[var(--fg-3)]">
-              <LoaderCircle size={12} className="animate-spin" />{note || '处理中…'}
-            </div>
-            {/* busy 态取消（弹窗关闭闸 !busy 保留）：置旗 + terminate 引擎（幂等）——
-                pending 流式解密 reject 落 catch，弹窗回初始态可重试；上传相位 XHR
-                不在引擎管辖（Task8 未暴露 abort），点击不中断已发出的回传 */}
+            {/* busy 态取消（弹窗关闭闸 !busy 保留；F4：仅解密相位渲染——terminate
+                只管辖流式解密）：置旗 + terminate 引擎（幂等）——pending 流式解密
+                reject 落 catch，弹窗回初始态可重试；上传相位 XHR 不在引擎管辖
+                （Task8 未暴露 abort），不渲染本钮即不存在点了没反应的窗口 */}
             <div className="mt-3 flex justify-end">
               <SpButton variant="soft" onClick={() => { cancelRef.current = true; getDefaultCryptoEngine().terminate(); }}>
                 取消解密

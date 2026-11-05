@@ -6,6 +6,7 @@
  *    响应帧/id 关联/并发不串线/error→reject
  * ③ terminate 语义：pending 全 reject、worker.terminate 被调、下次调用自动重建
  * ④ 构造失败 → null；getDefaultCryptoEngine 回退 local 且记忆化
+ *    F5 补：worker onerror（脚本装载失败=构造后异步炸）→ 默认引擎会话级熔断改指 local
  * 另设一组直驱真实 crypto-worker 模块（伪造 self 全局）：真数据面（pipeline 直跑、
  * progress 节流、done 帧形状、解密 fetch、error 帧）——node:test 按文件分进程，
  * 全局替身不影响其他测试文件。
@@ -389,6 +390,71 @@ test('getDefaultCryptoEngine：Node（无 Worker 全局）→ 回退 local，记
   e1.terminate();
   const r2 = await e1.encryptFile(new File([plain], 'f'), dekS, dekA);
   assert.equal(r2.plainBytes, 100);
+});
+
+/* ───────────────────── 组4b：F5 熔断——worker onerror 后默认引擎改指 local ───────────────────── */
+
+test('F5 worker 脚本装载失败熔断：构造成功→onerror→后续 getDefaultCryptoEngine 改指 local（不再复用死 worker）', async () => {
+  // 伪造浏览器全局（window+Worker）并带 query 重导入——fresh 模块实例的 defaultSpawn
+  // 在模块求值期生效（Node 原生导入永远拿 local，测不到浏览器侧路径）
+  class BrowserFakeWorker {
+    static instances: BrowserFakeWorker[] = [];
+    onmessage: ((event: MessageEvent<CryptoWorkerResponse>) => void) | null = null;
+    onerror: ((event: ErrorEvent) => void) | null = null;
+    terminated = 0;
+    constructor(_scriptURL: URL, _options?: unknown) {
+      BrowserFakeWorker.instances.push(this);
+    }
+    postMessage(): void {
+      /* 引擎会 post，本测试不回帧 */
+    }
+    terminate(): void {
+      this.terminated += 1;
+    }
+    crash(message: string): void {
+      this.onerror?.({ message } as ErrorEvent);
+    }
+  }
+  const g = globalThis as unknown as { window?: unknown; Worker?: unknown };
+  const savedWindow = g.window;
+  const savedWorker = g.Worker;
+  g.window = {};
+  g.Worker = BrowserFakeWorker;
+  try {
+    // query 后缀使 TS 无法静态解析模块（运行时 tsx/Node 正常按 query 取 fresh 实例）——
+    // 非 literal specifier + typeof import 显式回类型
+    type CryptoEngineModule = typeof import('../crypto-engine');
+    const specifier = new URL('../crypto-engine.ts?fuse=fix-wave', import.meta.url).href;
+    const mod = (await import(specifier)) as unknown as CryptoEngineModule;
+    BrowserFakeWorker.instances.length = 0;
+
+    // ① 构造成功期：默认引擎解析到 worker 门面，worker 实例在位
+    const engineA = mod.getDefaultCryptoEngine();
+    assert.equal(BrowserFakeWorker.instances.length, 1, '默认引擎 lazy 构造 worker');
+    const w = BrowserFakeWorker.instances[0]!;
+
+    // ② 挂起请求 → onerror（脚本装载失败=构造成功后异步炸，同一 onerror 路径）
+    const pPending = engineA.decryptUrl('/api/upload/files/big', randomDek());
+    w.crash('worker script load failed（打包回归模拟）');
+    assert.equal(w.terminated, 1, '坏 worker 被 terminate');
+    await assert.rejects(pPending, /worker script load failed|worker 异常/, 'pending 请求被 reject（不挂死）');
+
+    // ③ 熔断后：默认引擎重指向 local——新请求直跑 pipeline，零新 worker 构造
+    const engineB = mod.getDefaultCryptoEngine();
+    assert.notEqual(engineB, engineA, '默认引擎已改指 local（非原 worker 门面）');
+    const plain = randomBytes(100);
+    const dekS = randomDek();
+    const dekA = randomDek();
+    const r = await engineB.encryptFile(new File([plain], 'f'), dekS, dekA);
+    const outerHex = sm4Encrypt(dekA.keyHex, dekA.ivHex, sm4Encrypt(dekS.keyHex, dekS.ivHex, toHex(plain)));
+    assert.equal(toHex(await blobBytes(r.outerBlob)), outerHex, 'local 引擎真跑（one-shot 双层锚）');
+    assert.equal(BrowserFakeWorker.instances.length, 1, '熔断后不再构造新 worker（不会重建再失败死循环）');
+  } finally {
+    if (savedWindow === undefined) delete g.window;
+    else g.window = savedWindow;
+    if (savedWorker === undefined) delete g.Worker;
+    else g.Worker = savedWorker;
+  }
 });
 
 /* ───────────────────── 组5：直驱真实 worker 模块（伪造 self 全局，真数据面） ───────────────────── */

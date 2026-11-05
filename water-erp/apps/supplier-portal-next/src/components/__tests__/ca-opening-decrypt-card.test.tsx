@@ -33,6 +33,7 @@ test('组件源码守卫：SpDialog 弹窗模式+证明链+流式化接线', () 
   assert.ok(src.includes('engine.decryptUrl'), '流式下载解密（worker 数据面）');
   assert.ok(src.includes('上传明文 ${pct}%`'), '回传进度（caDecryptUpload 第 3 参）');
   assert.ok(src.includes('getDefaultCryptoEngine().terminate()'), '取消接线（terminate 引擎，幂等）');
+  assert.ok(src.includes('busy && decrypting'), '取消钮仅解密相位渲染（F4——unwrap/P7/上传相位 terminate 无管辖，不显示无效按钮）');
   assert.ok(src.includes('sm4Decrypt(dekF.k'), 'sealedFields 整块解密保留（KB 级，无流式必要）');
   assert.ok(!src.includes('fetchCInner'), '整读下载已删（worker 流式替代）');
   assert.ok(!/\bsha256Hex\b/.test(src), '主线程整算哈希已删（worker 增量哈希直接作证明）');

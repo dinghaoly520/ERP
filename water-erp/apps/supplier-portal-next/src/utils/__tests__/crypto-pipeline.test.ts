@@ -159,7 +159,17 @@ test('进度：doneBytes 单调不减、终值==总量、节流后调用次数 �
   assert.equal(back.plainSha256, enc.plainSha256);
 });
 
-/* ───────────────────── 组4：空文件（每层单填充块，与 one-shot 空输入一致） ───────────────────── */
+/* ───────────────────── 组4：totalBytes 声明不符闸（T4①——防截断/改动静默进信封） ───────────────────── */
+
+test('totalBytes 声明不符 → throw（流 10B 声明 9B 不许静默放行）', async () => {
+  const plain = randomBytes(10);
+  await assert.rejects(
+    encryptFileStream(chunkedStream(plain), 9, randomDek(), randomDek()),
+    /totalBytes 9 不符/,
+  );
+});
+
+/* ───────────────────── 组5：空文件（每层单填充块，与 one-shot 空输入一致） ───────────────────── */
 
 test('空文件：双层各补单填充块——innerBytes=16/outerBytes=32，outerBlob == one-shot 空输入双层密文', async () => {
   const dekS = randomDek();

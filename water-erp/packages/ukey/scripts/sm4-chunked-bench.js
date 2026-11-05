@@ -32,7 +32,8 @@ const {
 const crypto = require('crypto');
 
 const MB = 1024 * 1024;
-const ONESHOT_SKIP_BYTES = 200 * MB; // one-shot 只跑到 100MB 档（500MB 需 ~10×S 堆必 OOM）
+const ONESHOT_AUTO_SKIP_BYTES = 150 * MB; // ≥150MB 自动跳过 one-shot：100MB 档实测已需 >4GB 提交堆，
+                                          // 150-200MB 手输档必 OOM（静默撞死不如打警告跳过）
 
 function parseSizes() {
   const arg = process.argv.find((a) => a.startsWith('--sizes='));
@@ -89,7 +90,7 @@ function measure(label, fn) {
 }
 
 function main() {
-  console.log(`sm4-chunked-bench  chunk=${SM4_CHUNK_BYTES / MB}MB  node=${process.version}  (one-shot 档上限 ${ONESHOT_SKIP_BYTES / MB}MB)`);
+  console.log(`sm4-chunked-bench  chunk=${SM4_CHUNK_BYTES / MB}MB  node=${process.version}  (one-shot ≥${ONESHOT_AUTO_SKIP_BYTES / MB}MB 自动跳过)`);
   // JIT 预热（2MB 加解密一轮，不计时）
   {
     const dek = { keyHex: crypto.randomBytes(16).toString('hex'), ivHex: crypto.randomBytes(16).toString('hex') };
@@ -111,7 +112,7 @@ function main() {
     if (sha(cDec.out) !== srcSha) throw new Error('chunked 回读 sha256 不符——密码学损坏，基准作废');
     rows.push({ sizeMB, track: 'chunked', encMs: cEnc.ms, decMs: cDec.ms });
 
-    if (size <= ONESHOT_SKIP_BYTES) {
+    if (size < ONESHOT_AUTO_SKIP_BYTES) {
       const oEnc = measure('one-shot encrypt', () => oneShotEncrypt(data, dek));
       const oDec = measure('one-shot decrypt', () => oneShotDecrypt(oEnc.out, dek));
       if (sha(oDec.out) !== srcSha) throw new Error('one-shot 回读 sha256 不符——基准作废');
@@ -119,7 +120,7 @@ function main() {
       console.log('  自检：回读 sha256 ✓  chunked==one-shot 密文 ✓');
       rows.push({ sizeMB, track: 'one-shot', encMs: oEnc.ms, decMs: oDec.ms });
     } else {
-      console.log('  自检：chunked 回读 sha256 ✓（one-shot 档跳过：堆需求 ~10×S 必 OOM）');
+      console.log(`  自检：chunked 回读 sha256 ✓（⚠ one-shot 档自动跳过：${sizeMB}MB ≥ ${ONESHOT_AUTO_SKIP_BYTES / MB}MB 阈值，堆需求 ~10×S 必 OOM——如确要跑请自行改 ONESHOT_AUTO_SKIP_BYTES 并带 --max-old-space-size）`);
     }
     console.log(`  rss@end ${rssMB()}MB`);
   }
