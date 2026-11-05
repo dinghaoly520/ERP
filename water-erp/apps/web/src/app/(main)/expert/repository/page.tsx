@@ -167,9 +167,9 @@ export default function ExpertRepositoryPage() {
     try {
       const data = await exportExperts(selectedIds.size > 0 ? [...selectedIds] : undefined);
       if (!data || data.length === 0) { toast.error('无数据可导出'); return; }
-      // 按公司分组 xlsx（admin=全部公司多区块，非 admin=本公司单区块；每区块打印分页）
-      const companies = await exportExpertsToExcel(data);
-      toast.success(`已导出 ${data.length} 人 · 按 ${companies} 家公司分组`);
+      // 平铺 xlsx：列名列序与导入模板一致，可直接回导（2026-11-05 用户裁定）
+      await exportExpertsToExcel(data);
+      toast.success(`已导出 ${data.length} 人（格式与导入模板一致，可直接回导）`);
     } catch (e: any) { toast.error(e?.message || '导出失败'); }
   };
   const { sortKey, sortDir, toggle: sortToggle, sorted } = useSort<ExpertListItem>('displayName', 'asc');

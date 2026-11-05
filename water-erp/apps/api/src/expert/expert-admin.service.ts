@@ -2888,20 +2888,26 @@ export class ExpertAdminService {
         await logSensitiveAccess(this.prisma, actor, 'ExpertProfile', u.id, 'export:phone,idNumber');
       }
     }
+    // 列名列序严格对齐导入模板（2026-11-05 用户裁定：导出表可直接回导）——
+    // 姓名/登录账号/初始密码/专业领域/职称/执业资格/工作单位/所属部门/联系电话/
+    // 电子邮箱/身份证号/民族/学历/执业资格证号/备注；初始密码不导出（哈希不可逆，
+    // 留空回导时按 R2 回退链取身份证号）
     return users.map(u => ({
       姓名: u.displayName,
       登录账号: u.username,
-      专业: u.expertProfile?.specialty ?? '',
+      初始密码: '',
+      专业领域: u.expertProfile?.specialty ?? '',
       职称: u.expertProfile?.title ?? '',
       执业资格: u.expertProfile?.qualifications ?? '',
       工作单位: u.expertProfile?.employer ?? '',
-      所属公司: u.company ?? '',
-      部门: u.department?.name ?? '',
-      手机号: openPiiForMask(u.expertProfile?.phone ?? null) ?? '', // 明文（2026-11-04 用户裁定）
+      所属部门: u.department?.name ?? '',
+      联系电话: openPiiForMask(u.expertProfile?.phone ?? null) ?? '', // 明文（2026-11-04 用户裁定）
+      电子邮箱: maskEmail(openPiiForMask(u.email)) ?? '', // 邮箱维持掩码（未裁定）
       身份证号: openPiiForMask(u.expertProfile?.idNumber ?? null) ?? '', // 明文（同上）
-      邮箱: maskEmail(openPiiForMask(u.email)) ?? '', // 邮箱维持掩码（未裁定）
-      状态: u.isActive ? '可用' : '已停用',
-      入库时间: u.createdAt.toISOString().slice(0, 10),
+      民族: u.expertProfile?.ethnicity ?? '',
+      学历: u.expertProfile?.education ?? '',
+      执业资格证号: openPiiForMask(u.expertProfile?.licenseNo ?? null) ?? '',
+      备注: u.expertProfile?.notes ?? '',
     }));
   }
 
