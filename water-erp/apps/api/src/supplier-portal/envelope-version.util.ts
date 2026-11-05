@@ -7,9 +7,11 @@ import { BadRequestException } from '@nestjs/common';
 
 export type EnvelopeTrack = 'legacy' | 'dual-v2' | 'dual-v3';
 
-/** dual-v3 灰度开关：capabilities.allowedEnvelopeVersions 与投递端组装随此开关 */
+/** dual-v3 转正（2026-11-05 用户裁定）：默认开——未设即含 dual-v3；
+ *  仅显式 'false' 应急收窄回 dual-v2（灰度使命已完成：库里 15/15 全 v3、旧轨封死）。
+ *  capabilities.allowedEnvelopeVersions 与投递端组装随此开关。 */
 export function v3Enabled(): boolean {
-  return process.env.CA_SUPPLIER_V3_ENABLED === 'true';
+  return process.env.CA_SUPPLIER_V3_ENABLED !== 'false';
 }
 
 /** 读端统一分派：未知版本 → 400 ENVELOPE_VERSION_UNKNOWN（显式拒绝，不静默落轨） */
