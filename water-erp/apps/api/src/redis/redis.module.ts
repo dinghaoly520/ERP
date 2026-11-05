@@ -7,10 +7,8 @@ import Redis from 'ioredis';
     {
       provide: 'REDIS_CLIENT',
       useFactory: () => {
-        // 统一与 BullMQ（app.module.ts / ai-bid-analysis-worker.module.ts）走同一条配置轨：
-        // 优先 REDIS_URL（与 BullMQ 一致），无则回退到 REDIS_HOST/REDIS_PORT（旧轨，向后兼容）。
-        // 这样默认情况下一份 REDIS_URL 即可同时驱动 ioredis 客户端与 BullMQ 队列，
-        // 杜绝「两条轨指向不同实例」的潜在漂移。
+        // 与 BullMQ（app.module.ts / ai-bid-analysis-worker.module.ts）同一配置轨：优先
+        // REDIS_URL，回退 REDIS_HOST/REDIS_PORT（旧轨兼容）——一份 URL 同驱 ioredis 与 BullMQ，杜绝两轨漂移。
         const url = process.env.REDIS_URL;
         if (url) {
           return new Redis(url, { family: 4, maxRetriesPerRequest: 3 });
