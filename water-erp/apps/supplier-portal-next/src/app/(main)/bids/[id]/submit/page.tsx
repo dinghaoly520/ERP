@@ -158,7 +158,8 @@ function BidSubmitInner() {
   // 保留来源上下文（from=list 表示从可投标项目进入），返回时正确还原
   const fromList = sp.get("from") === "list";
 
-  const maxUploadSizeMB = Number(process.env.NEXT_PUBLIC_MAX_UPLOAD_SIZE_MB) || 50;
+  // 单文件上限与 API 统一 500MB（2026-11-05 用户裁定；双信封同步加密实际建议 ≤100MB，见 spec 备忘）
+  const maxUploadSizeMB = Number(process.env.NEXT_PUBLIC_MAX_UPLOAD_SIZE_MB) || 500;
   const maxUploadSize = maxUploadSizeMB * 1024 * 1024;
 
   const [loading, setLoading] = useState(true);

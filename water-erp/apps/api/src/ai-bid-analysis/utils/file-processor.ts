@@ -12,7 +12,7 @@ function tryPdfTextLayer(buffer: Buffer): string | null {
     const out = execFileSync('pdftotext', ['-layout', '-', '-'], {
       input: buffer,
       maxBuffer: 32 * 1024 * 1024,
-      timeout: 60_000, // 加密/损坏 PDF 交 poppler 可能卡死，限时强制返回降级 OCR
+      timeout: 180_000, // 加密/损坏 PDF 交 poppler 可能卡死，限时强制返回降级 OCR（500MB/800页大件 60s 不够，2026-11-05）
     });
     const text = out.toString('utf8');
     return text && text.trim().length > 500 ? text : null;

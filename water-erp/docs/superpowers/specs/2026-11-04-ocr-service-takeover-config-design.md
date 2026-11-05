@@ -79,6 +79,21 @@
 
 同轮裁定：**生产机 CPU 确认为 x86_64**（无 ARM 轮子顾虑）；P1/P2 优化项（INT8 量化模型、PP-OCRv5、paddle 后端、渲染↔OCR 流水线重叠、workers×intra 基准矩阵、dpi 精调、上传一次多批处理）**明确不做**，留待接管稳定后按实测数据另行立项。
 
+## 2026-11-05 补充：500MB 单件全链审计——两缺口记档（Backlog）
+
+用户裁定：单文件上限统一 500MB + OCR 页数全量透传（`OCR_UNLIMITED_PAGES`）。全链审计后两缺口当轮不修、记档待立项：
+
+### ③ 双信封大文件分块加密（中等工程量，单独立项）
+
+`packages/ukey` sm-crypto **同步阻塞、无流式 CBC**，`crypto-overlay.ts` 自述设计上限 ≤50MB。500MB 明文在浏览器同步加密 = UI 冻结 10-25s + ~1.5GB 内存，低配供应商机 tab 崩溃；开标大厅解密同实现同风险。**立项前现实约束：供应商单件建议 ≤100MB**（同步加密冻结 2-5s 尚可忍受）。
+改造面：`sm-crypto-layer` 分块 CBC 循环（或 worker 线程化）+ submit 页/大厅解密遮罩进度 + `packages/ukey` 测试。
+
+### ④ 生产 nginx body 上限与门户代理缓冲（部署侧清单）
+
+- 生产走域名同源 `/api` 代理（`proxy.ts` arrayBuffer 全量缓冲，自测上限 20MB）——500MB 上传须验证门户 Next 进程内存（瞬时 ~1GB）可承受；
+- nginx **必须** `client_max_body_size 500m;`（默认 1MB 必 413），并确认反代超时（`proxy_read_timeout` ≥ 600s，OCR 长批）；
+- 已随本批修改：前端闸默认 500MB（`submit/page.tsx`）、pdftotext 超时 180s（`file-processor.ts`）。
+
 ## 非目标
 
 - 不改引擎（保持 rapid + 内置 PP-OCRv4——生产内网无下载条件）。
