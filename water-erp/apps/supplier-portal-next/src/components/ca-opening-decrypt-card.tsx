@@ -1,19 +1,23 @@
 /* =================================================================
-   ca-opening-decrypt-card — dual-v3 开标解密（阶段2 Task12 · 2026-10-14 重构）
+   ca-opening-decrypt-card — dual-v3 开标解密（阶段2 Task12 · 2026-10-14 重构；
+   2026-11-05 流式化：C_inner 下载解密移 worker 数据面——进度/哈希/取消）
    交互（用户裁定）：按钮触发 → 弹窗输 PIN → 执行；成功后由父页卸载。
-   流程：取包（opening-package v3）→ 逐角色下载 C_inner → 盾 unwrapKey(kself P7)
-        → DEK_S → SM4 解密 → sealedFields 解出 fields+nonce → P7 解密证明
-        → decrypt-upload。
-   样式：SpDialog/SpButton 对齐大厅既有弹窗体系（与确认唱标按钮同构）。
+   流程：取包（opening-package v3）→ 逐角色盾 unwrapKey(kself P7) → DEK_S →
+        引擎流式下载解密 C_inner（worker：进度按密文字节推进、plainSha256 随流
+        增量产出直接作 P7 证明——主线程零整读零整算，busy 态可取消）→
+        sealedFields 解出 fields+nonce → P7 解密证明 → decrypt-upload（回传进度）。
+   样式：SpDialog/SpButton 对齐大厅既有弹窗体系（与确认唱标按钮同构）；弹窗 busy
+        态自带防误关+进度（P-3 裁定——本卡不叠全屏遮罩）。
    ================================================================= */
 'use client';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { LockOpen, LoaderCircle, CircleCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { supplierApi } from '@/lib/api/supplier';
 import * as scca from '@/utils/scca-ukey';
 import { assertSecureContext, buildDecryptProofCanonical, pickShieldByFingerprint } from '@/utils/dual-v3-client';
-import { canonicalJson, computeV3FieldsCommit, sha256Hex, sm4Decrypt } from '@water-erp/ukey';
+import { getDefaultCryptoEngine } from '@/utils/crypto-engine';
+import { canonicalJson, computeV3FieldsCommit, sm4Decrypt } from '@water-erp/ukey';
 import type { V3Fields, V3Role } from '@water-erp/ukey';
 import { SpButton, SpDialog } from '@/components/ui';
 
@@ -22,13 +26,17 @@ interface PkgFile { role: V3Role; innerAsset: string; downloadUrl: string; inner
 const hexToBytes = (h: string): Uint8Array =>
   Uint8Array.from((h.match(/.{2}/g) ?? []).map((x) => parseInt(x, 16)));
 
-const bytesToHex = (b: Uint8Array): string =>
-  Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+/** 解密相位取消文案（置旗 + terminate 引擎后 catch 优先展示——弹窗回初始态可重试） */
+const DECRYPT_CANCEL_MSG = '已取消解密，标书未提交，可重新解密';
 
-async function fetchCInner(url: string): Promise<Uint8Array> {
-  const res = await fetch(url, { credentials: 'include', headers: { 'X-Portal': 'supplier' } });
-  if (!res.ok) throw new Error(`C_inner 下载失败(${res.status})`);
-  return new Uint8Array(await res.arrayBuffer());
+/** 纯函数：解密相位进度行——已知总量走百分比（向下取整+封顶 100），
+ *  无 Content-Length（total=0）只报已下载量 */
+export function decryptProgressNote(role: string, doneBytes: number, totalBytes: number): string {
+  if (totalBytes > 0) {
+    const pct = Math.min(100, Math.floor((doneBytes / totalBytes) * 100));
+    return `正在解密 ${role}（下载解密 ${pct}%）…`;
+  }
+  return `正在解密 ${role}（已下载 ${(doneBytes / 1024 / 1024).toFixed(1)}MB）…`;
 }
 
 export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
@@ -42,6 +50,8 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
+  /** 解密相位取消旗：置旗 + terminate 引擎（幂等）——pending reject 落 catch 专用文案 */
+  const cancelRef = useRef(false);
 
   if (done) {
     return (
@@ -54,9 +64,10 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
 
   async function start() {
     if (!pin) return;
-    assertSecureContext(); // LAN http 下 sha256Hex（解密证明哈希）首触即裸 TypeError——先给指引
+    assertSecureContext(); // LAN http 下 crypto.subtle（fieldsCommit/证明哈希）首触即裸 TypeError——先给指引
     setBusy(true);
     setError('');
+    cancelRef.current = false;
     try {
       setNote('正在获取开标解密包…');
       const pkg = await supplierApi.getOpeningPackage(projectId);
@@ -68,14 +79,22 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
       const shield = await pickShieldByFingerprint(certs, pkg.files?.[0]?.kself?.recipientCertFingerprint);
       await scca.loginScca(shield.container, pin);
 
-      const plainByRole: Partial<Record<V3Role, Uint8Array>> = {};
+      // 逐角色流式解密（worker 数据面）：下载+SM4+增量哈希全在 worker——主线程零整读
+      // 零整算，进度按密文字节推进；plainBlob/plainSha256 直接落表（哈希作 P7 证明）
+      const engine = getDefaultCryptoEngine();
+      const plainByRole: Partial<Record<V3Role, Blob>> = {};
+      const plainSha256ByRole: Record<string, string> = {};
       for (const f of pkg.files as PkgFile[]) {
         setNote(`正在解密 ${f.role}（${(f.innerBytes / 1024 / 1024).toFixed(1)}MB）…`);
-        const cInner = await fetchCInner(f.downloadUrl);
         const dekJson = await scca.unwrapSccaKey(shield.container, f.kself.value);
-        const dek = JSON.parse(dekJson);
-        const plainHex = sm4Decrypt(dek.k, dek.iv, bytesToHex(cInner));
-        plainByRole[f.role] = hexToBytes(plainHex);
+        const dek = JSON.parse(dekJson) as { k: string; iv: string };
+        const r = await engine.decryptUrl(
+          f.downloadUrl,
+          { keyHex: dek.k, ivHex: dek.iv },
+          (doneBytes, totalBytes) => setNote(decryptProgressNote(f.role, doneBytes, totalBytes)),
+        );
+        plainByRole[f.role] = r.plainBlob;
+        plainSha256ByRole[f.role] = r.plainSha256;
       }
 
       setNote('正在揭示唱标字段…');
@@ -85,10 +104,6 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
       const { fields, nonce } = JSON.parse(sealedPlain) as { fields: V3Fields; nonce: string };
 
       setNote('盾签名解密证明（P7）…');
-      const plainSha256ByRole: Record<string, string> = {};
-      for (const [role, buf] of Object.entries(plainByRole) as Array<[V3Role, Uint8Array]>) {
-        plainSha256ByRole[role] = await sha256Hex(buf);
-      }
       const fieldsCommit = await computeV3FieldsCommit(fields, nonce);
       const proofCanonical = buildDecryptProofCanonical({
         openingSessionId: pkg.openingSessionId,
@@ -101,22 +116,23 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
 
       setNote('正在上传明文与证明…');
       const fd = new FormData();
-      for (const [role, buf] of Object.entries(plainByRole) as Array<[V3Role, Uint8Array]>) {
-        fd.append(`file_${role}`, new Blob([new Uint8Array(buf)], { type: 'application/octet-stream' }), `${role}.plain`);
+      for (const [role, blob] of Object.entries(plainByRole) as Array<[V3Role, Blob]>) {
+        fd.append(`file_${role}`, blob, `${role}.plain`); // Blob 直传（worker 产物句柄，不重建）
       }
       fd.append('fieldsJson', canonicalJson(fields));
       fd.append('nonce', nonce);
       fd.append('operationId', prep.operationId);
       fd.append('signatureFormat', 'scca-pkcs7-base64');
       fd.append('signP7', signP7);
-      const result = await supplierApi.caDecryptUpload(projectId, fd);
+      const result = await supplierApi.caDecryptUpload(projectId, fd, (pct) => setNote(`上传明文 ${pct}%`));
 
       toast.success('开标解密完成，明文与解密证明已提交。请查看唱标表并确认');
       setOpen(false);
       setPin('');
       onDecrypted?.({ decryptStatus: result?.decryptStatus ?? 'SUCCESS' });
     } catch (e: any) {
-      setError(e?.message ?? '解密失败');
+      // 取消走专用文案（terminate 的 reject/后续失败归并）——留在弹窗可重试
+      setError(cancelRef.current ? DECRYPT_CANCEL_MSG : (e?.message ?? '解密失败'));
     } finally {
       setBusy(false);
       setNote('');
@@ -158,9 +174,19 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
           />
         </div>
         {busy && (
-          <div className="mt-3 flex items-center gap-2 text-xs text-[var(--fg-3)]">
-            <LoaderCircle size={12} className="animate-spin" />{note || '处理中…'}
-          </div>
+          <>
+            <div className="mt-3 flex items-center gap-2 text-xs text-[var(--fg-3)]">
+              <LoaderCircle size={12} className="animate-spin" />{note || '处理中…'}
+            </div>
+            {/* busy 态取消（弹窗关闭闸 !busy 保留）：置旗 + terminate 引擎（幂等）——
+                pending 流式解密 reject 落 catch，弹窗回初始态可重试；上传相位 XHR
+                不在引擎管辖（Task8 未暴露 abort），点击不中断已发出的回传 */}
+            <div className="mt-3 flex justify-end">
+              <SpButton variant="soft" onClick={() => { cancelRef.current = true; getDefaultCryptoEngine().terminate(); }}>
+                取消解密
+              </SpButton>
+            </div>
+          </>
         )}
         {error && (
           <div className="mt-3 text-xs" style={{ color: 'var(--danger, #c0392b)' }} role="alert">{error}</div>
