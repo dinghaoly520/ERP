@@ -281,6 +281,13 @@ export default function OpeningHallPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // A-113：两表同一 config 渲染——公开总表列序（config 缺失回退默认四列=现状渲染）、
+  // 本司对比区动态字段增显行（仅 config 动态键且有值；无密封源不做比对，仅展示）。
+  // 必须位于下方错误态 early return 之前——否则「失败→重试成功」两次渲染 hooks 数量
+  // 不一致，React 运行时崩溃（2026-11-05 :3004 排查实录）
+  const tableFields = useMemo(() => resolveOpeningFields(fieldConfig), [fieldConfig]);
+  const myOtherRows = useMemo(() => otherOpeningRows(tableFields, record), [tableFields, record]);
+
   // 首屏加载失败（尚无项目数据）：错误态 + 重试
   if (loadError && !project) {
     return (
@@ -299,11 +306,6 @@ export default function OpeningHallPage() {
   // 后端/种子数据实际写入 '待供应商确认'（bid.service.ts），旧页兼容 '待确认'，两者都接受
   // 确认/补签电子签名随 mock U盾轨下线（A-114，见上）；异议在待确认态开放，不受影响
   const canDispute = isOpening && !!record && (record.confirmStatus === "待确认" || record.confirmStatus === "待供应商确认");
-
-  // A-113：两表同一 config 渲染——公开总表列序（config 缺失回退默认四列=现状渲染）、
-  // 本司对比区动态字段增显行（仅 config 动态键且有值；无密封源不做比对，仅展示）
-  const tableFields = useMemo(() => resolveOpeningFields(fieldConfig), [fieldConfig]);
-  const myOtherRows = useMemo(() => otherOpeningRows(tableFields, record), [tableFields, record]);
 
   return (
     <div className="hall" ref={hallRef} style={chatW != null ? ({ "--chat-w": `${chatW}px` } as React.CSSProperties) : undefined}>

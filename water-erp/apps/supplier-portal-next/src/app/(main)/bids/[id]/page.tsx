@@ -145,8 +145,9 @@ function BidDetailInner() {
   const negoWinState = (() => {
     if (!nego) return null;
     const now = serverNowMs();
-    const s = nego.acquireStartTime ? new Date(nego.acquireStartTime).getTime() : NaN;
-    const e = nego.acquireEndTime ? new Date(nego.acquireEndTime).getTime() : NaN;
+    // 'YYYY-MM-DD HH:mm' 空格形态在 Safari 是 Invalid Date → 统一 'T' 归一（与列表页同修，2026-11-05）
+    const s = nego.acquireStartTime ? new Date(String(nego.acquireStartTime).replace(" ", "T")).getTime() : NaN;
+    const e = nego.acquireEndTime ? new Date(String(nego.acquireEndTime).replace(" ", "T")).getTime() : NaN;
     if (!isNaN(s) && now < s) return "before" as const;
     if (!isNaN(e) && now > e) return "after" as const;
     return "open" as const;

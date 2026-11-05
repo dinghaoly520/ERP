@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { authedFileAction } from "@/lib/authed-file";
 import { downloadNegotiationFilesGated, NegoPasswordDialog, type NegoFilesMeta } from "@/components/nego-download";
 import dayjs from "dayjs";
 import {
@@ -72,8 +71,10 @@ function negoWindowState(p: any): "before" | "open" | "after" {
   const n = p.negotiation;
   if (!n) return "before";
   const now = serverNowMs();
-  const s = new Date(n.acquireStartTime).getTime();
-  const e = new Date(n.acquireEndTime).getTime();
+  // 后端存 'YYYY-MM-DD HH:mm'（空格分隔）——Safari 的 Date 解析不接受空格形态
+  // （Invalid Date → 窗口恒 open），统一替换为 ISO 'T' 再解析（Chrome/Safari 双兼容）
+  const s = new Date(String(n.acquireStartTime || "").replace(" ", "T")).getTime();
+  const e = new Date(String(n.acquireEndTime || "").replace(" ", "T")).getTime();
   if (!isNaN(s) && now < s) return "before";
   if (!isNaN(e) && now > e) return "after";
   return "open";

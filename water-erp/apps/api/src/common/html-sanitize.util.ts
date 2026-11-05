@@ -47,3 +47,16 @@ export function sanitizeHtmlContent(html: string): string {
     disallowedTagsMode: 'discard',
   }));
 }
+
+/**
+ * 公告 metadata 富文本字段写时消毒（2026-11-05 :3004 排查）：
+ * `metadata.objectionContact`（异议联系方式）在 :3002/:3004 详情页被直接
+ * dangerouslySetInnerHTML 渲染——content 有消毒而 metadata 整对象是 @IsObject()
+ * 直通，内部角色可经此向供应商/公众注入脚本。仅消毒已知富文本键，其余键原样
+ * （metadata 大多为结构化非展示字段，全量递归消毒有误伤语义风险）。
+ */
+export function sanitizeAnnouncementMetadata(meta: Record<string, any> | undefined | null): Record<string, any> | undefined {
+  if (!meta || typeof meta !== 'object') return meta ?? undefined;
+  if (typeof meta.objectionContact !== 'string') return meta;
+  return { ...meta, objectionContact: sanitizeHtmlContent(meta.objectionContact) };
+}

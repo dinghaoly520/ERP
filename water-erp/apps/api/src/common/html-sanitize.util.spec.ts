@@ -78,3 +78,25 @@ describe('sanitizeHtmlContent', () => {
     expect(sanitizeHtmlContent(undefined as unknown as string)).toBeUndefined();
   });
 });
+
+/** metadata 富文本键消毒（2026-11-05 :3004 排查：objectionContact 直通 innerHTML 的存储型 XSS 面） */
+describe('sanitizeAnnouncementMetadata', () => {
+  const { sanitizeAnnouncementMetadata } = require('./html-sanitize.util');
+
+  it('objectionContact 携带 script/onerror → 剥离危险载荷保留文本', () => {
+    const out = sanitizeAnnouncementMetadata({
+      objectionContact: '<img src=x onerror=alert(1)>联系人：<script>steal()</script>张三 028-12345678',
+      otherKey: { nested: true },
+    });
+    expect(out!.objectionContact).not.toMatch(/onerror|<script/);
+    expect(out!.objectionContact).toContain('张三 028-12345678');
+    expect(out!.otherKey).toEqual({ nested: true }); // 非富文本键原样
+  });
+
+  it('无 objectionContact（纯结构化 metadata / null）→ 原引用直通，不误伤', () => {
+    const meta = { aiSummary: 'x', downloadPassword: '123' };
+    expect(sanitizeAnnouncementMetadata(meta)).toBe(meta);
+    expect(sanitizeAnnouncementMetadata(null)).toBeUndefined();
+    expect(sanitizeAnnouncementMetadata(undefined)).toBeUndefined();
+  });
+});

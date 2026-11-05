@@ -4,6 +4,7 @@ import { SystemConfigService } from './system-config.service';
 import { HealthAggregateService } from './health-aggregate.service';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
+import { sanitizeHtmlContent } from '../common/html-sanitize.util';
 import { UpdateConfigDto } from './dto/update-config.dto';
 
 @ApiTags('系统配置')
@@ -52,12 +53,12 @@ export class SystemConfigController {
     return { value: row?.value ?? '' };
   }
 
-  // 编辑发布澄清说明文案：仅采购管理方
+  // 编辑发布澄清说明文案：仅采购管理方。值在 :3004 被直接 innerHTML 渲染——写时消毒（2026-11-05）
   @Put('clarification-notice')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '编辑发布澄清说明文案' })
   async updateClarificationNotice(@Body() dto: UpdateConfigDto, @Request() req: any) {
-    return this.configService.set('supplier_clarification_notice', dto.value, req.user?.sub);
+    return this.configService.set('supplier_clarification_notice', sanitizeHtmlContent(dto.value), req.user?.sub);
   }
 
   // 异议联系方式（2026-09-11，源自澄清说明页）：公告发布向导带入、公告详情页单独展示；公开读取
@@ -69,11 +70,11 @@ export class SystemConfigController {
     return { value: row?.value ?? '' };
   }
 
-  // 编辑异议联系方式：仅采购管理方
+  // 编辑异议联系方式：仅采购管理方。值在 :3002/:3004 被直接 innerHTML 渲染——写时消毒（2026-11-05）
   @Put('objection-contact')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '编辑异议联系方式' })
   async updateObjectionContact(@Body() dto: UpdateConfigDto, @Request() req: any) {
-    return this.configService.set('objection_contact', dto.value, req.user?.sub);
+    return this.configService.set('objection_contact', sanitizeHtmlContent(dto.value), req.user?.sub);
   }
 }

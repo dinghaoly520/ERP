@@ -873,7 +873,7 @@ export default function ProfilePage() {
                           <input
                             type="date"
                             className="workbench-input"
-                            max={new Date().toISOString().slice(0, 10)}
+                            max={new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10)}
                             value={crForm[k]}
                             onChange={(e) => setCrForm((f) => ({ ...f, [k]: e.target.value }))}
                           />

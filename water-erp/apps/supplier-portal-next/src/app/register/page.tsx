@@ -1090,7 +1090,7 @@ export default function RegisterPage() {
                   {item("registeredAddress", "注册地址", inp(basic.registeredAddress, (s) => setBasic((b) => ({ ...b, registeredAddress: s })), "营业执照登记地址"), true)}
                   {item("establishedDate", "企业注册成立日期", (
                     <input type="date" className="reg-date" value={basic.establishedDate}
-                      max={new Date().toISOString().slice(0, 10)}
+                      max={new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10)}
                       onChange={(e) => setBasic((b) => ({ ...b, establishedDate: e.target.value }))} />
                   ), true)}
                   {item("registeredCapital", "注册资金（万元）", (
