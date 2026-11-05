@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import * as crypto from 'crypto';
+import { Readable } from 'stream';
 import { BidDecryptService } from './bid-decrypt.service';
 import { BidService } from './bid.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -10,7 +11,7 @@ import { SignatureService } from '../common/crypto/signature.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { streamToBuffer } from './bid-submission.crypto';
 import { randomHex, sha256Hex, sm4Encrypt, wrapDekJson, sm2EncryptHex } from '@water-erp/ukey';
-import type { DualEnvelope } from '@water-erp/ukey';
+import type { DualEnvelope, DualV3Envelope, DualV3FileEntry } from '@water-erp/ukey';
 import { Prisma } from '@prisma/client';
 import { wrapKey } from '../common/crypto/envelope-crypto';
 
@@ -675,5 +676,203 @@ describe('BidDecryptService — decryptOuter 主持端解外层 (dual-v2 · Task
     expect(result.details[1].error).toContain('外层解密失败');
     expect(prisma.fileAsset.create).toHaveBeenCalledTimes(2); // 仅成功家落库
     expect(minioClient.putObject).toHaveBeenCalledTimes(2);   // s2 在写 MinIO 前即失败——无孤儿 C_inner
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════
+   Task 11：decryptOuterOneV3 两遍流式化——pass1 流式哈希闸（调包件不解密直接
+   OUTER_HASH_MISMATCH）→ 解封 DEK_A → pass2 分块解密经 Readable 流式写 MinIO
+   （putObject 收到流且 size=outerBytes-16；FileAsset 的 size/sha256 取流式值，
+   C_inner/C_outer 全程不整驻内存）。真实 DualEnvelopeService（真实 SM2/SM4 链路），
+   唯一 mock：Prisma/MinIO（流按 ca-v3 spec 手法 Readable.from）/私钥读取。
+   ═══════════════════════════════════════════════════════════════════ */
+
+describe('BidDecryptService — decryptOuter 主持端解外层 (dual-v3 · Task 11 两遍流)', () => {
+  const adminKp = sm2.generateKeyPairHex();
+  const ADMIN_CERT_ID = 'cert-v3-1';
+  // ~160KB 随机 C_inner（分块喂入跨多段）+ 无效 utf8 序列尾——钉住字节通道精确性
+  // （webcrypto getRandomValues 单次上限 64KB——分段取随机再拼接）
+  const cInner = Buffer.concat([
+    crypto.randomBytes(160 * 1024),
+    Buffer.from([0xff, 0x80, 0x00, 0x42]),
+  ]);
+  const dekA: Dek = { keyHex: randomHex(16), ivHex: randomHex(16) };
+  const cOuter = Buffer.from(sm4Encrypt(dekA.keyHex, dekA.ivHex, cInner.toString('hex')), 'hex');
+
+  /** 信封声明 innerSha256/innerBytes 刻意取假值——钉死 FileAsset 用流式算出的值而非信封声明 */
+  const entry: DualV3FileEntry = {
+    assetId: 'fa-v3-t',
+    plainSha256: 'p'.repeat(64), plainBytes: 1,
+    innerSha256: '9'.repeat(64), innerBytes: 999999,
+    outerSha256: '', // beforeAll 内流式算出真值
+    outerBytes: cOuter.length,
+    kself: { format: 'scca-pkcs7-base64', recipientCertFingerprint: 'f'.repeat(64), value: 'MIIB.' },
+    kadmin: {
+      format: 'sm2-c1c3c2-hex', adminCertId: ADMIN_CERT_ID,
+      value: sm2EncryptHex(adminKp.publicKey, Buffer.from(wrapDekJson(dekA), 'utf8').toString('hex')),
+    },
+  };
+  const v3Env: DualV3Envelope = {
+    version: 'dual-v3', canonicalVersion: 'erp-json-v1', provider: 'scca',
+    context: { projectId: 'p1', supplierId: 's1', submissionId: 'sub-1', revision: 1, signingBindingId: 'b-1', signingCertFingerprint: 'cf' },
+    files: { technical: entry },
+    sealedFields: {
+      cipherFormat: 'sm4-cbc-pkcs7-hex', cipher: 'aa', cipherSha256: 'c'.repeat(64), cipherBytes: 1,
+      kself: { format: 'scca-pkcs7-base64', recipientCertFingerprint: 'f'.repeat(64), value: 'MIIC.' },
+    },
+    fieldsCommit: 'f'.repeat(64),
+  };
+
+  /** 排空上传流（putObject 收到的 Readable）——断言流内容 == 真实 C_inner */
+  const drainStream = async (s: AsyncIterable<Buffer>): Promise<Buffer> => {
+    const parts: Buffer[] = [];
+    for await (const c of s) parts.push(c);
+    return Buffer.concat(parts);
+  };
+
+  let service: BidDecryptService;
+  let prisma: any;
+  let adminKeyMock: { readPrivateKey: jest.Mock };
+
+  beforeAll(async () => {
+    entry.outerSha256 = await sha256Hex(cOuter);
+  });
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'OPENING', name: '项目一', procurementMethod: '询比采购' }) },
+      bidOpeningSession: {
+        findUnique: jest.fn().mockResolvedValue({
+          pausedAt: null,
+          decryptWindowStart: new Date(Date.now() - 3600_000),
+          decryptWindowEnd: new Date(Date.now() + 3600_000),
+        }),
+      },
+      bidSupplier: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'bs-1', projectId: 'p1', supplierId: 's1', supplierName: '测试供应商' }),
+        count: jest.fn().mockResolvedValue(3), // A-109a 签到 quorum 闸门默认放行
+      },
+      supplierBidSubmission: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'sub-1', supplierId: 's1', projectId: 'p1',
+          envelopeVersion: 'dual-v3', revision: 1, envelope: v3Env,
+          outerDecryptedAt: null, innerAssets: null,
+          updatedAt: new Date(Date.now() - 1000),
+        }),
+        findMany: jest.fn().mockResolvedValue([]),
+        update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }), // outerDecryptedAt 抢占默认抢到
+      },
+      submissionVersion: { findUnique: jest.fn().mockResolvedValue({ envelope: v3Env, envelopeHash: 'd'.repeat(64) }) },
+      fileAsset: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'fa-v3-t', key: 'v3-staging/fa-v3-t.outer', sealedPath: null }),
+        create: jest.fn().mockResolvedValueOnce({ id: 'inner-fa-t' }),
+      },
+      decryptExecution: {
+        upsert: jest.fn().mockResolvedValue({ id: 'dx-1', fence: 1 }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }), // fence CAS 默认放行
+      },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+      $transaction: jest.fn(async (cb: any) => cb(prisma)),
+    };
+
+    // getObject 每次调用吐新鲜流（pass1/pass2 各一读），64KB 分块 + 非对齐余量
+    (minioClient.getObject as jest.Mock).mockReset().mockImplementation(async () =>
+      Readable.from((function* chunks(): Generator<Buffer> {
+        for (let i = 0; i < cOuter.length; i += 64 * 1024) {
+          yield cOuter.subarray(i, Math.min(i + 64 * 1024, cOuter.length));
+        }
+      })()),
+    );
+    (minioClient.putObject as jest.Mock).mockReset().mockResolvedValue({});
+    (streamToBuffer as jest.Mock).mockReset().mockResolvedValue(Buffer.from('unused-in-v3'));
+
+    adminKeyMock = { readPrivateKey: jest.fn().mockResolvedValue(adminKp.privateKey) };
+
+    const module = await Test.createTestingModule({
+      providers: [
+        BidDecryptService,
+        DualEnvelopeService, // 真实 unwrapOuterDekV3/decryptOuterStreamV3（真实 SM2/SM4 解密链路）
+        SignatureService,
+        { provide: AdminKeyService, useValue: adminKeyMock },
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn(), resolveActionable: jest.fn().mockResolvedValue({ count: 0 }) } },
+        { provide: BidService, useValue: BID_SERVICE_STUB },
+      ],
+    }).compile();
+    service = module.get(BidDecryptService);
+  });
+
+  it('v3 单家成功：putObject 收到 Readable 流（排空 == C_inner）且 size=outerBytes-16；FileAsset size/sha256=流式值（非信封声明）', async () => {
+    const result: any = await service.decryptOuter('p1', 'bs-1', 'u1');
+
+    expect(result).toMatchObject({ supplierId: 'bs-1', supplierName: '测试供应商', success: true, roles: ['technical'] });
+    expect(result.innerAssets).toEqual({ technical: 'inner-fa-t' });
+
+    // 两遍读同一对象键：pass1 哈希闸 + pass2 解密上传
+    expect(minioClient.getObject).toHaveBeenCalledTimes(2);
+    expect(minioClient.getObject).toHaveBeenNthCalledWith(1, MINIO_BUCKET, 'v3-staging/fa-v3-t.outer');
+    expect(minioClient.getObject).toHaveBeenNthCalledWith(2, MINIO_BUCKET, 'v3-staging/fa-v3-t.outer');
+
+    // putObject 收到流（非 Buffer）且 size = outerBytes - 16（CBC+PKCS#7 解外层恰剥一块填充）
+    expect(minioClient.putObject).toHaveBeenCalledTimes(1);
+    const [bucket, key, upload, size, meta] = (minioClient.putObject as jest.Mock).mock.calls[0];
+    expect(bucket).toBe(MINIO_BUCKET);
+    expect(key).toBe('bid-inner/p1/bs-1/technical.1.1.inner');
+    expect(upload).toBeInstanceOf(Readable);
+    expect(size).toBe(entry.outerBytes - 16);
+    expect(meta).toEqual({ 'Content-Type': 'application/octet-stream' });
+    // 上传流内容 == 真实 C_inner（流式解密产物逐字节正确）
+    expect(await drainStream(upload)).toEqual(cInner);
+
+    // FileAsset 取流式算出的 size/sha256（≠ 信封声明 innerBytes=999999/innerSha256='9'*64）
+    expect(prisma.fileAsset.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        key: 'bid-inner/p1/bs-1/technical.1.1.inner',
+        category: 'bid_inner_ciphertext',
+        clientEncrypted: false,
+        encrypted: true,
+        uploaderId: 'u1',
+        size: cInner.length,
+        sha256: await sha256Hex(cInner),
+      }),
+    });
+    expect(prisma.supplierBidSubmission.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ innerAssets: { technical: 'inner-fa-t' } }),
+    }));
+  });
+
+  it('v3 哈希闸失配：pass1 流式哈希即拒 → 400 OUTER_HASH_MISMATCH，且不二读/不解密/不写 MinIO（调包件先拒）', async () => {
+    (minioClient.getObject as jest.Mock).mockReset().mockImplementation(async () =>
+      Readable.from([Buffer.from('tampered-outer-bytes')]),
+    );
+
+    await expect(service.decryptOuter('p1', 'bs-1', 'u1')).rejects.toMatchObject({
+      response: { code: 'OUTER_HASH_MISMATCH' },
+    });
+    expect(minioClient.getObject).toHaveBeenCalledTimes(1); // 只 pass1 一读——闸在解密前
+    expect(minioClient.putObject).not.toHaveBeenCalled();
+    expect(prisma.fileAsset.create).not.toHaveBeenCalled();
+    // 失败回滚：槽位 FAILED + outerDecryptedAt 复原 null（可直接重试）
+    expect(prisma.decryptExecution.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: { status: 'FAILED' },
+    }));
+    expect(prisma.supplierBidSubmission.updateMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      data: { outerDecryptedAt: null },
+    }));
+  });
+
+  it('v3 错私钥：unwrapOuterDekV3 解封失败 → 400 OUTER_DECRYPT_FAILED 原样抛（不伪装 STORAGE_FAILED）+ 回滚', async () => {
+    adminKeyMock.readPrivateKey.mockResolvedValue(sm2.generateKeyPairHex().privateKey); // 错私钥
+
+    await expect(service.decryptOuter('p1', 'bs-1', 'u1')).rejects.toMatchObject({
+      response: { code: 'OUTER_DECRYPT_FAILED' },
+    });
+    expect(minioClient.getObject).toHaveBeenCalledTimes(1); // pass1 闸通过后，pass2 前即失败
+    expect(minioClient.putObject).not.toHaveBeenCalled();
+    expect(prisma.supplierBidSubmission.updateMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      data: { outerDecryptedAt: null },
+    }));
   });
 });

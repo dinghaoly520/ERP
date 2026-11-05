@@ -2,6 +2,8 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import {
   canonicalEnvelopeHash,
   computeFieldsCommit,
+  Sha256Incremental,
+  Sm4CbcChunkedDecryptor,
   sm2DecryptHex,
   sm4Decrypt,
   unwrapDekJson,
@@ -95,6 +97,63 @@ export class DualEnvelopeService {
       if (e instanceof BadRequestException) throw e;
       throw new BadRequestException(OUTER_FAILED);
     }
+  }
+
+  /**
+   * dual-v3 外层 DEK_A 解封（Task 11）：SM2 解 kadmin.value → unwrapDekJson → { keyHex, ivHex }。
+   * decryptOuterFileV3 前半段独立成方法，供两遍流式解密（先哈希闸后解密）的 pass2 复用；
+   * 失败语义与整读版完全一致（''、坏 JSON、缺 k/iv 字段统一收口 OUTER_FAILED）。
+   */
+  async unwrapOuterDekV3(entry: DualV3FileEntry, adminPrivateKey: string): Promise<{ keyHex: string; ivHex: string }> {
+    if (!entry?.kadmin?.value) throw new BadRequestException(OUTER_FAILED);
+    try {
+      const wrapDekHex = sm2DecryptHex(adminPrivateKey, entry.kadmin.value);
+      if (!wrapDekHex) throw new Error('sm2 decrypt failed'); // ''=失败（sm-crypto 从不抛错）
+      // unwrapDekJson 失败两态与 decryptOuterFile 同：语法非法 → JSON.parse 抛错（落入 catch）；
+      // 合法 JSON 缺 k/iv 字段 → 返回 undefined 字段——由下方守卫拦截，勿删
+      const dek = unwrapDekJson(Buffer.from(wrapDekHex, 'hex').toString('utf8'));
+      if (!dek?.keyHex || !dek?.ivHex) throw new Error('bad dek');
+      return { keyHex: dek.keyHex, ivHex: dek.ivHex };
+    } catch (e) {
+      if (e instanceof BadRequestException) throw e;
+      throw new BadRequestException(OUTER_FAILED);
+    }
+  }
+
+  /**
+   * dual-v3 外层流式解密（Task 11）：AsyncIterable<Buffer> 喂 Sm4CbcChunkedDecryptor（滚动
+   * IV 续链，累计输出与 one-shot sm4Decrypt 逐字节一致），解出的明文段（=C_inner 密文）经
+   * onPlainChunk 外送，同时增量哈希+计数。全程只持分块缓冲——500MB C_outer 不整驻内存。
+   * PKCS#7 非法/密文截断 → OUTER_FAILED（与整读版同语义）；流自身的读错误不在此收口——
+   * 存储故障保持原始错误（解密失败归因链路据此判定 BIDDER/PLATFORM，勿伪装）。
+   */
+  async decryptOuterStreamV3(
+    outerStream: AsyncIterable<Buffer>,
+    dek: { keyHex: string; ivHex: string },
+    onPlainChunk: (b: Buffer) => void,
+  ): Promise<{ plainBytes: number; plainSha256: string }> {
+    const decryptor = new Sm4CbcChunkedDecryptor(dek);
+    const hasher = new Sha256Incremental();
+    let plainBytes = 0;
+    const emit = (run: () => Uint8Array): void => {
+      let plain: Uint8Array;
+      try {
+        plain = run();
+      } catch (e) {
+        if (e instanceof BadRequestException) throw e;
+        throw new BadRequestException(OUTER_FAILED);
+      }
+      if (plain.length === 0) return;
+      hasher.update(plain);
+      plainBytes += plain.length;
+      // 解密器返回段恒为新分配（无缓冲复用）——视图包装零拷贝移交回调持有
+      onPlainChunk(Buffer.from(plain.buffer, plain.byteOffset, plain.byteLength));
+    };
+    for await (const chunk of outerStream) {
+      emit(() => decryptor.update(chunk));
+    }
+    emit(() => decryptor.final());
+    return { plainBytes, plainSha256: hasher.finalHex() };
   }
 
   /** fieldsCommit 双闸：sha256(canonicalJson(fields) + ':' + nonce) 比对（防开标时篡改报价字段/重放 nonce）。 */
