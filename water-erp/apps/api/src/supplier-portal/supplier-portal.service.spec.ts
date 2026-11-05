@@ -3541,6 +3541,23 @@ describe('SupplierPortalService — getNegotiationFiles / downloadNegotiationFil
     expect(r.downloadMode).toBe('free');
   });
 
+  it('坏配置 encrypted-缺密码（旧 DTO 允许）：读侧归一 free + 下载不设闸——防下载端恒 403 卡死', async () => {
+    const { writeFile, rm } = require('node:fs/promises');
+    const path = require('node:path');
+    redis.get.mockResolvedValue(JSON.stringify({ ...CFG, downloadMode: 'encrypted', refFileKeys: ['nego-spec-bad.docx'] }));
+    const r = await svc.getNegotiationFiles('bp-1', 'sup-1');
+    expect(r.downloadMode).toBe('free');
+    const abs = path.resolve(process.cwd(), 'uploads', 'nego-spec-bad.docx');
+    await writeFile(abs, Buffer.from('BAD-CFG-PLAIN'));
+    prisma.attachment.findUnique.mockResolvedValue({ fileName: 'bad.docx', objectKey: 'nego-spec-bad.docx', mimeType: 'a/b' });
+    try {
+      await svc.downloadNegotiationFile('bp-1', 'att-1', 'sup-1', res); // 无密码直接放行
+      expect(res.end).toHaveBeenCalledWith(Buffer.from('BAD-CFG-PLAIN'));
+    } finally {
+      await rm(abs, { force: true });
+    }
+  });
+
   it('encrypted 下载：未携带密码 → 403 WRONG_PASSWORD', async () => {
     redis.get.mockResolvedValue(JSON.stringify(CFG_ENC));
     await expect(svc.downloadNegotiationFile('bp-1', 'att-1', 'sup-1', res)).rejects.toMatchObject({

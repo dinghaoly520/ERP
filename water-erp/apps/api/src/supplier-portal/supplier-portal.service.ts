@@ -1859,8 +1859,9 @@ export class SupplierPortalService {
     return {
       // 密码永不回传供应商端（2026-11-05 治理：原实现把 downloadPassword 明文下发，
       // :3004 直接 toast 展示——闸门形同虚设）。供应商端只知道模式，密码在下载端点校验。
-      // 旧配置 'paid'（付费暂不支持前下发）归一为 free——无闸门语义与其一致。
-      downloadMode: cfg.downloadMode === 'encrypted' ? 'encrypted' : 'free',
+      // 旧配置 'paid'（付费暂不支持前下发）与「encrypted 但缺密码」的坏配置（旧 DTO 允许，
+      // 下载端会恒 403 卡死）一并归一 free——与公告链路「有密码才设闸」同语义。
+      downloadMode: cfg.downloadMode === 'encrypted' && cfg.downloadPassword ? 'encrypted' : 'free',
       acquireStartTime: cfg.acquireStartTime || null,
       acquireEndTime: cfg.acquireEndTime || null,
       bidOpeningTime: cfg.bidOpeningTime || null,
@@ -1883,9 +1884,10 @@ export class SupplierPortalService {
   ) {
     const cfg = await this.assertNegotiationAccess(projectId, supplierId);
 
-    // 解密下载密码闸：encrypted 模式必须携带正确密码（未传/错传同码，不泄露差异）
-    if (cfg.downloadMode === 'encrypted') {
-      if (!cfg.downloadPassword || password !== cfg.downloadPassword) {
+    // 解密下载密码闸：encrypted 且配置了密码才设闸（「有密码才生效」与公告链路同语义，
+    // 防旧 DTO 下发的 encrypted-无密码坏配置让下载恒 403 卡死）；未传/错传同码不泄露差异
+    if (cfg.downloadMode === 'encrypted' && cfg.downloadPassword) {
+      if (password !== cfg.downloadPassword) {
         throw new ForbiddenException({ error: '下载密码错误', code: 'WRONG_PASSWORD' });
       }
     }
@@ -1910,7 +1912,9 @@ export class SupplierPortalService {
       return;
     }
 
-    // 兼容轨：FileAsset（MinIO）——id ∈ attachFileIds 或 key ∈ refFileKeys
+    // 兼容轨：FileAsset（MinIO）——id ∈ attachFileIds 或 key ∈ refFileKeys。
+    // 注意：全量 buffer 读入（与专家端 downloadNegotiationFile / 公告 downloadForSupplier
+    // 同款既有模式）——上传上限已提到 500MB（8d3b77bc），超大附件下载的流式化为全局待办。
     const asset = await this.prisma.fileAsset.findUnique({
       where: { id: fileId },
       select: { key: true, sealedPath: true, sealedKey: true, clientEncrypted: true, originalName: true, mimeType: true },

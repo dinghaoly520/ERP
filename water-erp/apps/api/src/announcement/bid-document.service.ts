@@ -83,9 +83,12 @@ export class BidDocumentService {
     if (accessScope === 'INVITED' && config.allowedSupplierIds?.length) {
       await this.syncWhitelist(doc.id, config.allowedSupplierIds);
     }
-    // 解密下载：密码写入公告 metadata（供应商端下载时校验，见 downloadForSupplier）
+    // 解密下载：密码写入公告 metadata（供应商端下载时校验，见 downloadForSupplier）。
+    // 免费（或不传）时清残留——防「删旧加密文件→免费重传」静默继承旧密码
     if (config.downloadMode === 'encrypted') {
       await this.writeDownloadPassword(announcementId, config.downloadPassword);
+    } else {
+      await this.clearDownloadPassword(announcementId);
     }
     return this.getForManagement(announcementId);
   }
@@ -289,6 +292,8 @@ export class BidDocumentService {
       try { await minioClient.removeObject(MINIO_BUCKET, asset.key); } catch (e) { this.logger.warn(`remove minio object failed: ${(e as Error).message}`); }
       await this.prisma.fileAsset.delete({ where: { id: asset.id } }).catch(() => {});
     }
+    // 删除即重置下载方式：清残留密码——防重新上传（免费）后供应商仍被要求输入已删文件的旧密码
+    await this.clearDownloadPassword(announcementId);
     return { deleted: true };
   }
 

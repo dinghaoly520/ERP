@@ -194,3 +194,57 @@ describe('BidDocumentService — 下载方式治理（2026-11-05）', () => {
     expect(r.downloadPassword).toBe('285913');
   });
 });
+
+/** 稳健性收口（2026-11-05 全方位复查）：密码生命周期与残留 */
+describe('BidDocumentService — 下载密码残留清理', () => {
+  const { Readable } = require('node:stream');
+
+  const mk = (prismaOverrides: Record<string, any> = {}) => {
+    const prisma: any = {
+      announcement: { findUnique: jest.fn().mockResolvedValue({ metadata: { downloadPassword: 'OLD' } }), update: jest.fn().mockResolvedValue({}) },
+      bidDocument: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}), delete: jest.fn().mockResolvedValue({}), create: jest.fn().mockResolvedValue({ id: 'd1' }) },
+      bidDocumentAccess: { findUnique: jest.fn().mockResolvedValue(null), updateMany: jest.fn(), upsert: jest.fn() },
+      supplierCompanyLink: { findMany: jest.fn().mockResolvedValue([]) },
+      bidSupplier: { findFirst: jest.fn().mockResolvedValue(null) },
+      fileAsset: { findUnique: jest.fn(), create: jest.fn().mockResolvedValue({ id: 'f1' }), delete: jest.fn().mockResolvedValue({}) },
+      $transaction: jest.fn().mockResolvedValue([]),
+      ...prismaOverrides,
+    };
+    const svc: any = Object.create(BidDocumentService.prototype);
+    svc.prisma = prisma;
+    return { svc, prisma };
+  };
+
+  it('remove()：删除采购文件时清残留密码——防重建（免费）后仍要求旧密码', async () => {
+    const { svc, prisma } = mk();
+    prisma.bidDocument.findUnique.mockResolvedValue({ id: 'd1', fileAssetId: 'f1' });
+    prisma.fileAsset.findUnique.mockResolvedValue({ id: 'f1', key: 'k' });
+    const minioMod = require('../upload/minio.client');
+    const rmSpy = jest.spyOn(minioMod.minioClient, 'removeObject').mockResolvedValue({} as any);
+    try {
+      await svc.remove('a1');
+      expect(prisma.announcement.update).toHaveBeenCalledWith({
+        where: { id: 'a1' },
+        data: { metadata: {} },
+      });
+    } finally { rmSpy.mockRestore(); }
+  });
+
+  it('upload() 免费（或不传 downloadMode）：清残留密码，不静默继承旧加密', async () => {
+    const { svc, prisma } = mk();
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', type: 'BID_NOTICE', metadata: { downloadPassword: 'OLD' } });
+    prisma.bidDocument.findUnique.mockResolvedValue(null); // 无既有 doc
+    const { encryptBuffer } = require('./bid-document.crypto');
+    const { wrapKey } = require('../common/crypto/envelope-crypto');
+    // 全局 mock：encryptBuffer 返回固定密文/密钥（见文件顶部 jest.mock）
+    const minioMod = require('../upload/minio.client');
+    const putSpy = jest.spyOn(minioMod.minioClient, 'putObject').mockResolvedValue({} as any);
+    try {
+      await svc.upload('a1', { buffer: Buffer.from('x'), originalname: 'a.pdf', mimetype: 'application/pdf' } as any, { accessScope: 'OPEN', requirePayment: false }, 'u1');
+      expect(prisma.announcement.update).toHaveBeenCalledWith({
+        where: { id: 'a1' },
+        data: { metadata: {} },
+      });
+    } finally { putSpy.mockRestore(); }
+  });
+});

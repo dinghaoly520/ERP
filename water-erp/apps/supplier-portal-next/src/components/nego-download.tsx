@@ -8,7 +8,7 @@
  * 此前实现把后端下发的密码直接 toast 展示给供应商——闸门形同虚设，后端已同步
  * 停止下发密码（getNegotiationFiles 无 password 字段）。
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { SpButton, SpDialog, SpInput } from "@/components/ui";
 import { fetchAuthedFile, saveBlob } from "@/lib/authed-file";
@@ -49,6 +49,8 @@ export function NegoPasswordDialog({ open, onClose, onConfirm, busy }: {
   busy?: boolean;
 }) {
   const [pwd, setPwd] = useState("");
+  // 关闭即清空：重开弹窗不残留上次的密码输入（错密码重试场景）
+  useEffect(() => { if (!open) setPwd(""); }, [open]);
   const submit = () => {
     const v = pwd.trim();
     if (!v) { toast.warning("请输入下载密码"); return; }
