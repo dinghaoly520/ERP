@@ -9,7 +9,6 @@ import { uploadReviewDocument, executeReview, stopReviewTask, deleteReviewTask, 
 // Re-export the context hook for convenience
 export { useTenderReview } from './tender-review-context';
 
-// Knowledge base operations
 export function useKnowledgeBaseOps() {
   const { refreshKnowledgeBases, selectedKbId, setSelectedKbId } = useTenderReview();
 
@@ -98,7 +97,6 @@ export function useKnowledgeBaseOps() {
   };
 }
 
-// Review operations
 export function useReviewOps() {
   const { refreshTasks, selectedKbId } = useTenderReview();
 

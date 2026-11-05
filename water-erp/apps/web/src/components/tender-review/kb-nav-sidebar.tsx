@@ -90,14 +90,11 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
     return (
       <div className="wb-panel h-full flex flex-col overflow-hidden"
         style={{ width: `${width}px` }}>
-        {/* Header */}
         <div className="p-3 shrink-0 border-b border-[color-mix(in_oklch,var(--muted-foreground)_16%,transparent)]">
           <h3 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--foreground)]">今日统计</h3>
         </div>
 
-        {/* Stats content */}
         <div className="flex-1 overflow-y-auto p-3 space-y-4">
-          {/* Today stats */}
           <div className="space-y-2">
             <div className="grid grid-cols-3 gap-2">
               <div className="neu-tile is-accent p-2.5 text-center">
@@ -115,7 +112,6 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
             </div>
           </div>
 
-          {/* Warning count */}
           {stats.warningCount > 0 && (
             <div className="flex items-center gap-2 p-2 rounded-[10px] bg-[color-mix(in_oklch,var(--warning)_10%,transparent)]">
               <AlertTriangle className="h-4 w-4 text-[color:var(--warning)]" />
@@ -123,7 +119,6 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
             </div>
           )}
 
-          {/* Running tasks */}
           {runningTasks.length > 0 && (
             <div className="space-y-2">
               <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--foreground)]">进行中</div>
@@ -136,7 +131,6 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
             </div>
           )}
 
-          {/* Recent reviews */}
           <div className="space-y-2">
             <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--foreground)]">最近审查</div>
             {recentReviews.length === 0 ? (
@@ -180,7 +174,6 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
           </div>
         </div>
 
-        {/* Footer: KB button */}
         <div className="p-3 shrink-0 border-t border-[color-mix(in_oklch,var(--muted-foreground)_16%,transparent)]">
           <button
             onClick={() => setPanelState('kb-list')}
@@ -198,7 +191,6 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
   return (
     <div className="wb-panel h-full flex flex-col overflow-hidden"
       style={{ width: `${width}px` }}>
-      {/* Header */}
       <div className="p-3 shrink-0 border-b border-[color-mix(in_oklch,var(--muted-foreground)_16%,transparent)]">
         <div className="flex items-center justify-between">
           <button
@@ -217,7 +209,6 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
           </button>
         </div>
 
-        {/* Create new KB form */}
         <AnimatePresence>
           {showCreate && (
             <motion.div
@@ -263,7 +254,6 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
         </AnimatePresence>
       </div>
 
-      {/* KB List */}
       <div className="flex-1 overflow-y-auto p-2">
         {loading.kbs ? (
           <div className="flex items-center justify-center py-8">
@@ -339,7 +329,6 @@ function KbNavItem({
 }: KbNavItemProps) {
   return (
     <div className={`rounded-[10px] overflow-hidden ${isSelected ? 'bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] ring-1 ring-[color-mix(in_oklch,var(--accent)_28%,transparent)]' : ''}`}>
-      {/* KB header */}
       <button
         onClick={onToggleExpand}
         className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-[color-mix(in_oklch,var(--muted)_20%,transparent)] transition-colors"
@@ -358,7 +347,6 @@ function KbNavItem({
         <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-[var(--muted-foreground)] transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
       </button>
 
-      {/* Expanded actions */}
       <AnimatePresence>
         {isExpanded && (
           <motion.div

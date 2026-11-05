@@ -2364,7 +2364,6 @@ export function SupplierSelectionPage({
                   )}
                 </div>
 
-                {/* Batch toolbar */}
                 <div className="flex items-center gap-2 text-[10px] font-semibold text-[var(--muted-foreground)]">
                   <button onClick={() => handleBatchAdd()} className="neu-btn-xs gap-1"><ListPlus size={12} />全部加入</button>
                   <span className="text-[var(--muted-foreground)]/40">|</span>

@@ -69,7 +69,6 @@ export function WorkArrangementsPageChairman({
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Task editor state
   const [editor, setEditor] = useState<EditorState>(() => blankEditor(initialProjectManagementItemId));
   const [creating, setCreating] = useState(false);
   const [showFullEditor, setShowFullEditor] = useState(false);

@@ -81,7 +81,6 @@ export function TenderFieldActions({
 }) {
   const [showTooltip, setShowTooltip] = useState<string | null>(null);
 
-  // Check if this field should hide favorite/sample/AI actions
   const hideActions = FIELDS_WITHOUT_ACTIONS.has(fieldKey) ||
     (FIELDS_HIDE_WHEN_DATE.has(fieldKey) && fieldTypeValue === 'date');
 

@@ -70,7 +70,6 @@ const accentMap = {
   indigo: "rgba(119,129,219,1)",
 };
 
-// Status Badge
 function StatusBadge({ status, resultText, terminationReason }: { status: ResultStatusKey; resultText?: string | null; terminationReason?: string | null }) {
   // 终止项目：红色「已终止」徽章（区分于普通「已取消」——后者是投标环节取消，非项目级终止）
   if (status === "CANCELLED" && terminationReason) {
@@ -371,9 +370,7 @@ function LedgerRow({
         transition: "box-shadow 0.3s ease, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
       }}
     >
-      {/* Main Row */}
       <div className="p-3.5">
-        {/* Header Row */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2">
             <Calendar size={11} style={{ color: accentMap.blue }} />
@@ -451,7 +448,6 @@ function LedgerRow({
           )}
         </div>
 
-        {/* Amount */}
         <div className="mt-2 flex items-center gap-4 pt-2" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
           <div>
             <span className="text-[10px] uppercase text-[color:var(--muted-foreground)]">预算</span>
@@ -500,7 +496,6 @@ function LedgerRow({
         </div>
       </div>
 
-      {/* Expanded Details */}
       <AnimatePresence>
         {isExpanded && (
           <motion.div
@@ -649,7 +644,6 @@ function LedgerRow({
   );
 }
 
-// Recycle confirmation Modal
 function RecycleConfirmModal({
   item,
   loading,
@@ -724,7 +718,6 @@ function RecycleConfirmModal({
   );
 }
 
-// Main Page
 export default function ProcurementsPage() {
   const router = useRouter();
   const { confirm, dialog } = useConfirm();
@@ -752,20 +745,17 @@ export default function ProcurementsPage() {
 
   const [sortBy, setSortBy] = useState<'procurementDate' | 'amount'>('procurementDate');
 
-  // Analysis states
   const [showAnalysisSelection, setShowAnalysisSelection] = useState(false);
   const [matchedItems, setMatchedItems] = useState<ProcurementRoundItem[]>([]);
   const [selectedAnalysisIds, setSelectedAnalysisIds] = useState<Set<string>>(new Set());
   const [showAnalysisResult, setShowAnalysisResult] = useState(false);
   const [aiAnalysisResult, setAiAnalysisResult] = useState<AiAnalysisResult | null>(null);
 
-  // Expanded card states for inline details
   const [expandedItemIds, setExpandedItemIds] = useState<Set<string>>(new Set());
   const [itemSummaries, setItemSummaries] = useState<Record<string, string>>({});
   const [loadingSummaries, setLoadingSummaries] = useState<Set<string>>(new Set());
   const { setPageContext } = useAssistant();
 
-  // Archive detail modal state
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [selectedArchiveRoundId, setSelectedArchiveRoundId] = useState<string | null>(null);
 
@@ -813,7 +803,6 @@ export default function ProcurementsPage() {
     void loadCurrentUser();
   }, [router]);
 
-  // Move to recycle bin state
   const [movingToRecycleBinId, setMovingToRecycleBinId] = useState<string | null>(null);
   const [recycleTarget, setRecycleTarget] = useState<ProcurementRoundItem | null>(null);
   const [recycleError, setRecycleError] = useState<string | null>(null);
@@ -887,13 +876,11 @@ export default function ProcurementsPage() {
     }
   };
 
-  // Handle expand toggle for card details
   const handleExpandToggle = async (item: ProcurementRoundItem) => {
     const itemId = item.id;
     const isCurrentlyExpanded = expandedItemIds.has(itemId);
 
     if (isCurrentlyExpanded) {
-      // Collapse
       setExpandedItemIds(prev => {
         const newSet = new Set(prev);
         newSet.delete(itemId);
@@ -901,7 +888,6 @@ export default function ProcurementsPage() {
       });
       setPageContext({ selectedItemId: undefined, selectedItemType: undefined, selectedItemData: undefined });
     } else {
-      // Expand
       setExpandedItemIds(prev => new Set(prev).add(itemId));
       setPageContext({
         selectedItemId: item.id,
@@ -943,7 +929,6 @@ export default function ProcurementsPage() {
     }
   };
 
-  // Load data
   const loadData = useCallback(async () => {
     const rid = ++loadReqIdRef.current; // R7-4② 请求序守卫
     setLoading(true);
@@ -1069,7 +1054,6 @@ export default function ProcurementsPage() {
     setPagination(prev => ({ ...prev, page: 1 }));
   };
 
-  // Analysis handlers
   const handleAnalyze = async () => {
     if (!filters.searchKeyword) return;
     try {
@@ -1118,7 +1102,6 @@ export default function ProcurementsPage() {
     // 汇总口径统一走共享工具（与选择/报告两个弹窗同源，2026-10-21 重设计收口）
     const summary = buildLedgerAnalysisSummary(selectedItems);
 
-    // Call AI API
     try {
       const result = await analyzeProcurementLedger({
         keyword: filters.searchKeyword || "",
@@ -1165,7 +1148,6 @@ export default function ProcurementsPage() {
 
   return (
     <div className="min-h-full">
-        {/* Page Hero: title + KPI + search toolbar */}
         <div className="mb-4">
           <PageHero
             filters={filters}
@@ -1203,7 +1185,6 @@ export default function ProcurementsPage() {
           </div>
         )}
 
-        {/* Data Grid */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="wb-panel p-4">
           {loading ? (
             <div className="flex items-center justify-center py-12">
@@ -1268,7 +1249,6 @@ export default function ProcurementsPage() {
               </div>
               )}
 
-              {/* Pagination */}
               <hr className="wb-section-rule !mt-0 !mb-4" />
               <div className="flex items-center justify-between">
                 <span className="text-[11px] text-[color:var(--muted-foreground)]">
@@ -1287,7 +1267,6 @@ export default function ProcurementsPage() {
           )}
         </motion.div>
 
-        {/* Analysis Modals */}
         {showAnalysisSelection && (
           <AnalysisSelectionModal
             keyword={filters.searchKeyword || ""}
@@ -1308,7 +1287,6 @@ export default function ProcurementsPage() {
           />
         )}
 
-        {/* Recycle Confirmation Modal */}
         {recycleTarget && (
           <RecycleConfirmModal
             item={recycleTarget}
@@ -1319,7 +1297,6 @@ export default function ProcurementsPage() {
           />
         )}
 
-        {/* Archive Detail Modal */}
         {showArchiveModal && selectedArchiveRoundId && (
           <ArchiveDetailModal
             procurementRoundId={selectedArchiveRoundId}

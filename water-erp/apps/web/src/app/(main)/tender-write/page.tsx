@@ -102,7 +102,6 @@ function downloadBlobFile(blob: Blob, fileName: string) {
 }
 
 async function saveFileWithPicker(blob: Blob, suggestedName: string): Promise<boolean> {
-  // Check if File System Access API is available
   if ('showSaveFilePicker' in window) {
     try {
       const handle = await window.showSaveFilePicker({
@@ -123,12 +122,10 @@ async function saveFileWithPicker(blob: Blob, suggestedName: string): Promise<bo
       if (err instanceof Error && err.name === 'AbortError') {
         return false;
       }
-      // Fall back to traditional download
       downloadBlobFile(blob, suggestedName);
       return true;
     }
   }
-  // Fall back to traditional download for browsers without File System Access API
   downloadBlobFile(blob, suggestedName);
   return true;
 }
@@ -422,7 +419,6 @@ export default function TenderWritePage() {
     setClearing(false);
     setSuccessMessage("已清除当前草稿内容。");
 
-    // Auto-hide success message after 2 seconds
     setTimeout(() => setSuccessMessage(null), 2000);
   };
 
@@ -444,7 +440,6 @@ export default function TenderWritePage() {
         draftData,
       });
       setSuccessMessage("保存成功！可在历史记录中查看。");
-      // Auto-hide success message after 2 seconds
       setTimeout(() => setSuccessMessage(null), 2000);
     } catch (error) {
       setErrorMessage(
@@ -672,7 +667,6 @@ export default function TenderWritePage() {
         />
       )}
 
-      {/* Success Toast */}
       {successMessage && (
         <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 animate-fade-in">
           <div className="rounded-[10px] border border-[color-mix(in_oklch,var(--success)_28%,transparent)] bg-[var(--success)] px-5 py-3 text-sm font-medium text-white shadow-[0_12px_28px_rgba(0,0,0,0.12)]">

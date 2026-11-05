@@ -14,7 +14,6 @@ interface Props {
 }
 
 export function TenderReviewProvider({ children, onReviewComplete }: Props) {
-  // State
   const [selectedKbId, setSelectedKbId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TenderReviewTab>('review');
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
@@ -23,14 +22,12 @@ export function TenderReviewProvider({ children, onReviewComplete }: Props) {
   const [selectedReportTask, setSelectedReportTask] = useState<ReviewTask | null>(null);
   const [currentUser, setCurrentUser] = useState<{ id: string; role: string } | null>(null);
 
-  // Loading states
   const [loading, setLoading] = useState<TenderReviewLoadingState>({
     kbs: false,
     tasks: false,
     rules: false,
   });
 
-  // Error states
   const [error, setError] = useState<TenderReviewErrorState>({
     kbs: null,
     tasks: null,
@@ -39,7 +36,6 @@ export function TenderReviewProvider({ children, onReviewComplete }: Props) {
 
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Derived state
   const runningTasks = useMemo(() =>
     tasks.filter(t => t.status === 'running' || t.status === 'pending'),
     [tasks]
@@ -62,7 +58,6 @@ export function TenderReviewProvider({ children, onReviewComplete }: Props) {
     }
   }, []);
 
-  // Data fetching
   const refreshKnowledgeBases = useCallback(async () => {
     setLoading(prev => ({ ...prev, kbs: true }));
     setError(prev => ({ ...prev, kbs: null }));
@@ -92,7 +87,6 @@ export function TenderReviewProvider({ children, onReviewComplete }: Props) {
     }
   }, []);
 
-  // Initial load
   useEffect(() => {
     refreshKnowledgeBases();
     refreshTasks();

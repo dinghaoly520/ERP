@@ -1617,7 +1617,6 @@ export default function SupplierDetailPage() {
             <div className="py-8 text-center"><Loader2 size={14} className="animate-spin mx-auto mb-2" /><span className="text-sm text-[var(--muted-foreground)]">加载中...</span></div>
           ) : (
             <>
-              {/* Upload form */}
               <div className="neu-card-static !rounded-2xl p-4 mb-4 flex flex-wrap gap-2 items-center">
                 {/* 真实文件选择：先上传 MinIO 拿到 url，杜绝 fileUrl:'#' 假记录（B10） */}
                 <label className="neu-btn-xs gap-1 cursor-pointer">

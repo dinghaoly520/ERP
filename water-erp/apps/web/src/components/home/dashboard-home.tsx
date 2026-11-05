@@ -41,8 +41,6 @@ function fadeIn(index: number, reducedMotion: boolean, baseDelay = 0.04) {
   return { initial: { opacity: 0, y: 18, scale: 0.98, filter: "blur(6px)" }, animate: { opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }, transition: { duration: 0.5, delay: index * baseDelay, ease: easeOutQuint } };
 }
 
-// KPI Card
-
 function KpiCard({ label, value, sub, signal, trend, trendLabel, index, reducedMotion, showDivider }: {
   label: string; value: string; sub?: string; signal?: "normal" | "warning" | "danger" | "success";
   trend?: "up" | "down" | "flat"; trendLabel?: string; index: number; reducedMotion: boolean; showDivider?: "right";
@@ -67,8 +65,6 @@ function KpiCard({ label, value, sub, signal, trend, trendLabel, index, reducedM
     </motion.div>
   );
 }
-
-// AI Intelligence
 
 function IntelligencePanel({ analysis, loading, error, onRefresh, index, reducedMotion }: {
   analysis: DashboardAnalysisResult | null; loading: boolean; error: string | null;
@@ -102,8 +98,6 @@ function IntelligencePanel({ analysis, loading, error, onRefresh, index, reduced
     </motion.div>
   );
 }
-
-// Savings Ranking
 
 type SavingsRankingItem = { project: string; department: string; controlAmount: number; awardAmount: number; savings: number; savingsRate: number; controlAmountLabel: string; awardAmountLabel: string; savingsLabel: string; method: string; date: string; projectCode: string | null; awardedSupplierName: string | null; participantCount: number };
 
@@ -213,8 +207,6 @@ function SavingsRankingPanel({ items, index, reducedMotion }: { items: SavingsRa
     </motion.div>
   );
 }
-
-// Risk Projects
 
 function RiskProjectsPanel({ profile, index, reducedMotion }: { profile: DashboardData; index: number; reducedMotion: boolean }) {
   const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.05);
@@ -333,8 +325,6 @@ function NonAwardDonutPanel({ profile, index, reducedMotion }: { profile: Dashbo
     </>
   );
 }
-
-// Supplier Cards
 
 function SupplierCards({ suppliers, index, reducedMotion }: { suppliers: SupplierDetail[]; index: number; reducedMotion: boolean }) {
   const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.06);

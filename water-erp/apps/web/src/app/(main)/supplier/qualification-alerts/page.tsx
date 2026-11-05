@@ -97,7 +97,6 @@ export default function QualificationAlertsPage() {
         <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]">加载中...</div>
       ) : data ? (
         <>
-          {/* KPI */}
           <div className="grid grid-cols-3 gap-4">
             {[
               { label: '已过期', value: data.expiredCount, tone: 'var(--danger)' },
@@ -111,7 +110,6 @@ export default function QualificationAlertsPage() {
             ))}
           </div>
 
-          {/* Filter tabs */}
           <div className="wb-toolbar !px-3 !py-2">
             {['', '即将过期', '已过期'].map(s => (
               <button key={s || 'all'} onClick={() => setStatusFilter(s)} className={`neu-tab text-[11px] !px-3 !py-1.5 ${statusFilter === s ? 'is-active' : ''}`}>
@@ -126,7 +124,6 @@ export default function QualificationAlertsPage() {
             )}
           </div>
 
-          {/* Table */}
           <div className="neu-table-card overflow-hidden">
             <table className="neu-table">
               <thead>

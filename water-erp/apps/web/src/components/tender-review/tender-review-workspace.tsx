@@ -61,7 +61,6 @@ export default function TenderReviewWorkspace() {
     }
   }, [isResizing]);
 
-  // Loading state
   if (loading.kbs && loading.tasks) {
     return (
       <div className="flex flex-1 items-center justify-center min-h-[400px]">
@@ -70,7 +69,6 @@ export default function TenderReviewWorkspace() {
     );
   }
 
-  // Error state
   if (error.kbs && error.tasks) {
     return (
       <div className="flex flex-1 items-center justify-center min-h-[400px]">

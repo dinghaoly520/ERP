@@ -232,7 +232,6 @@ function EvalColumn({
 
   return (
     <div className="flex-1 flex flex-col gap-2.5 min-h-0 overflow-y-auto">
-      {/* Donut + legend */}
       <div className="flex items-center gap-4 flex-shrink-0">
         <div className="relative flex-shrink-0" style={{ width: 88, height: 88 }}>
           <div className="w-full h-full rounded-full" style={{ background: `conic-gradient(${stops || 'var(--muted)'})` }} />

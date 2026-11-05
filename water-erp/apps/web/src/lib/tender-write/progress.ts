@@ -55,12 +55,10 @@ export function buildTenderSectionProgress(
         return !!items?.some((it) => it.factor.trim() || it.criteria.trim());
       }
 
-      // For select fields, check if value matches any option
       if (field.select) {
         return field.select.options.some(opt => opt.value === value);
       }
 
-      // For quotationType fields, check if type is selected and content is filled
       if (field.quotationType) {
         const typeKey = 'quotationLetterType';
         const typeValue = draft[typeKey as keyof ReadyTenderDraft] as string;
@@ -74,20 +72,16 @@ export function buildTenderSectionProgress(
           return typeof value === 'string' && value.trim().length > 0;
         }
         if (effectiveType === 'table') {
-          // Check if table has any content
           const tableData = draft['quotationLetterTable' as keyof ReadyTenderDraft] as { cells: { content: string }[][] } | undefined;
           if (!tableData || !tableData.cells) return false;
-          // Check if any cell has content
           return tableData.cells.some(row => row.some(cell => cell.content?.trim().length > 0));
         }
         return false;
       }
 
-      // For composite fields, check if type is selected and if it makes the field optional
       if (field.composite) {
         const typeValue = draft[field.composite.typeKey as keyof ReadyTenderDraft] as string;
 
-        // If type is not selected, field is not filled
         if (!typeValue) {
           return false;
         }
@@ -97,7 +91,6 @@ export function buildTenderSectionProgress(
           if (typeValue === 'none') {
             return true;
           }
-          // If type is "allow", need to check if content is filled
           if (typeValue === 'allow') {
             return typeof value === 'string' && value.trim().length > 0;
           }

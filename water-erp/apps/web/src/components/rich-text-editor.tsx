@@ -57,7 +57,6 @@ export function RichTextEditor({ value, onChange, className, placeholder, minHei
 
   return (
     <div className={`rounded-lg border border-[#e5ecf4] bg-white overflow-hidden focus-within:border-[#064ea2] focus-within:ring-2 focus-within:ring-[#064ea2]/10 ${className || ''}`}>
-      {/* Toolbar */}
       <div className="flex items-center gap-1 px-2 py-1.5 border-b border-[#eef3f8] bg-[#f8fafc] flex-wrap">
         <div className="flex items-center gap-0.5 pr-3 mr-3 border-r border-[#e5ecf4]">
           {btn('标题2', 'formatBlock', 'H2', 'H2')}
@@ -84,7 +83,6 @@ export function RichTextEditor({ value, onChange, className, placeholder, minHei
         </div>
       </div>
 
-      {/* Editor area */}
       <div
         ref={editorRef}
         contentEditable

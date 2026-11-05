@@ -87,7 +87,6 @@ const QUOTATION_HEADERS = ['名称', '规格型号', '单位', '数量', '单价
 /** 创建带默认表头的报价空表。 */
 export function createDefaultQuotationTable(): TableData {
   const cells: TableCell[][] = [];
-  // Header row
   cells[0] = QUOTATION_HEADERS.map((h) => ({
     content: h,
     rowSpan: 1,

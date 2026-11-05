@@ -296,7 +296,6 @@ export function NotificationLetterDialog({
     }
   };
 
-  // Load project options
   useEffect(() => {
     if (isOpen) {
       fetchProjectAttributions()
@@ -305,7 +304,6 @@ export function NotificationLetterDialog({
     }
   }, [isOpen]);
 
-  // Reset state when dialog opens
   useEffect(() => {
     if (isOpen) {
       setStep("upload");
@@ -425,7 +423,6 @@ export function NotificationLetterDialog({
     return projectOptions.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 20);
   }, [projectOptions, projectSearch]);
 
-  // Fields configuration
   const fields = [
     { key: "category" as const, label: "类别", type: "select" as const, options: CATEGORY_OPTIONS },
     { key: "project" as const, label: "项目", type: "combo" as const },

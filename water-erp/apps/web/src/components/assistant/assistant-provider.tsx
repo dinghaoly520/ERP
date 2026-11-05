@@ -101,7 +101,6 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     setIsExpanded(false);
   }, []);
 
-  // Load conversation list
   const loadConversations = useCallback(async () => {
     try {
       const convs = await listConversations();
@@ -124,7 +123,6 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const closeMini = useCallback(() => setIsMiniOpen(false), []);
   const toggleExpand = useCallback(() => setIsExpanded((v) => !v), []);
 
-  // Select a conversation
   const selectConversation = useCallback(async (id: string) => {
     setChatState((s) => ({ ...s, isLoading: true, error: null }));
     try {
@@ -140,7 +138,6 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Start new conversation
   const startNewConversation = useCallback(async () => {
     try {
       const conv = await createConversation();
@@ -156,7 +153,6 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Delete conversation
   const removeConversation = useCallback(
     async (id: string) => {
       try {
@@ -194,7 +190,6 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   // Send message with SSE streaming
   const sendMsg = useCallback(
     async (content: string) => {
-      // Abort previous request
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
@@ -203,7 +198,6 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
 
       const convId = chatState.activeConversationId;
 
-      // Auto-create conversation if none exists
       let activeConvId = convId;
       if (!activeConvId) {
         try {
@@ -294,7 +288,6 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           } else {
             setExpression('happy');
           }
-          // Return to normal after a few seconds
           setTimeout(() => setExpression('normal'), 5000);
         },
         onError: (message) => {

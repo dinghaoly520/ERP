@@ -427,7 +427,6 @@ function CompetitiveNegotiationPreview({
     />
   );
 
-  // Get submissionRequirementsType from draft
   const submissionRequirementsType = (draft as Record<string, string>).submissionRequirementsType;
 
   return (

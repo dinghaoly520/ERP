@@ -180,7 +180,6 @@ function BidderEditor({
       onChange(`bidder${i + 1}Name`, b.name);
       onChange(`bidder${i + 1}Price`, b.price);
     });
-    // Update count
     onChange("bidderCount", String(updated.length));
   };
 

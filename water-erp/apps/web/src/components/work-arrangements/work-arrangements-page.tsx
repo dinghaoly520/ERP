@@ -135,7 +135,6 @@ export function WorkArrangementsPage({
 }) {
   const linkedProjectId = initialProjectManagementItemId;
 
-  // Initialize state from cache if available
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => workspaceCache.user);
   const [allItems, setAllItems] = useState<WorkArrangementItem[]>(() => workspaceCache.items);
   const [projects, setProjects] = useState<ProjectManagementItem[]>(() => workspaceCache.projects);
@@ -266,7 +265,6 @@ export function WorkArrangementsPage({
   const linkedProject =
     projects.find((project) => project.id === linkedProjectId) ?? null;
 
-  // Tasks for the selected date
   const tasksForSelectedDate = useMemo(() => {
     const dayStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
@@ -279,7 +277,6 @@ export function WorkArrangementsPage({
     });
   }, [allItems, selectedDate]);
 
-  // Tasks without due dates
   const unscheduledItems = useMemo(() => {
     return allItems.filter(item => !item.dueAt);
   }, [allItems]);

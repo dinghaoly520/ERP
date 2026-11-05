@@ -38,7 +38,6 @@ export default function ProgressPage() {
     };
   }, [router]);
 
-  // Show loading spinner while verifying session
   if (user === undefined) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">

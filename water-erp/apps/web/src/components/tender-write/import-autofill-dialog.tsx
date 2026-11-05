@@ -193,7 +193,6 @@ export function ImportAutofillDialog({
   };
 
   const runAnalysis = async (selectedFiles: File[]) => {
-    // Check for .doc files
     const docFiles = selectedFiles.filter(
       (f) =>
         f.name.toLowerCase().endsWith('.doc') &&

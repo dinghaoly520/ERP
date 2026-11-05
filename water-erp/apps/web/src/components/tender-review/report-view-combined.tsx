@@ -80,7 +80,6 @@ function flattenReport(report: ReviewReport): Issue[] {
     addResults(report.passedChecks || [], true);
   }
 
-  // LLM-free review issues
   if (report.llmFreeIssues) {
     report.llmFreeIssues.forEach((issue: LlmFreeIssue, idx: number) => {
       issues.push({

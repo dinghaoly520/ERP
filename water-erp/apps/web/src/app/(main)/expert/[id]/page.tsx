@@ -151,7 +151,6 @@ export default function ExpertDetailPage() {
   const [tabLoading, setTabLoading] = useState(false);
   const loadedTabsRef = useRef<Set<Tab>>(new Set(['overview']));
 
-  // Sub-data
   const [portrait, setPortrait] = useState<ExpertPortrait | null>(null);
   const [evaluations, setEvaluations] = useState<any[]>([]);
   const [violations, setViolations] = useState<any[]>([]);
@@ -164,7 +163,6 @@ export default function ExpertDetailPage() {
   // Tab 失败态：区分「加载中 / 出错 / 真空」，出错不记缓存、可重试
   const [tabError, setTabError] = useState<Partial<Record<Tab, boolean>>>({});
   const [tabReload, setTabReload] = useState(0);
-  // Violation form
   const [showViolationForm, setShowViolationForm] = useState(false);
   const [vioType, setVioType] = useState('');
   const [vioDetail, setVioDetail] = useState('');
