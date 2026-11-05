@@ -404,7 +404,6 @@ export class ExpertService {
       };
     }
 
-    // 获取当前专家自己的评分记录
     const myScores = await this.prisma.bidScoreRecord.findMany({
       where: { expertId: expertRecord.id },
       include: { scoreItem: true },

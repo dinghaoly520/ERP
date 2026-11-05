@@ -2751,7 +2751,6 @@ export class SupplierService {
       throw new BadRequestException({ error: '该字段已有待审核的变更申请，请等待审核结果', code: 'DUPLICATE_PENDING_CHANGE' });
     }
 
-    // 获取旧值
     const oldValue = supplier[dto.fieldName as keyof typeof supplier] as string;
 
     const record = await this.prisma.supplierChangeRecord.create({

@@ -945,7 +945,6 @@ export class ExpertExtractionService {
     // 繁忙不加分
 
     // 近期活跃（5分）—— 暂未实现该字段，跳过
-    // if (c.recentProjects12m != null && c.recentProjects12m > 0) s += Math.min(5, c.recentProjects12m);
 
     return Math.max(0, Math.round(s));
   }

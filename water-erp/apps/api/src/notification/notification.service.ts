@@ -196,7 +196,6 @@ export class NotificationService {
 
   async sendToRole(role: string, dto: Omit<CreateNotificationDto, 'userId'>) {
     this.assertRegisteredType(dto.type);
-    // 获取所有指定角色的用户
     const users = await this.prisma.user.findMany({
       where: { role, isActive: true },
       select: { id: true },
