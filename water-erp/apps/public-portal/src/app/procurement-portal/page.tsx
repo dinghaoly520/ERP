@@ -8,7 +8,7 @@ import { FlowTrack, FlowBackdrop, type StageData } from '@/components/flow-stage
 /* 采购全流程 —— 与系统「项目管理」九阶段（apps/web/src/lib/types/project-management.ts 的
    PROJECT_WORKFLOW_STAGES_ALL）一字不差；各阶段描述对应系统真实功能（AI 文件解析、
    供应商智能选取、评标专家库抽取、:3007 在线开评标、哈希归档）。
-   五种采购方式（谈判/竞价/询比/邀请招标/直接采购）按 METHOD_STAGE_TEMPLATES 各自裁剪。 */
+   五种采购方式（谈判/竞价/询比/邀请招标/直接采购）按 PROCUREMENT_METHOD_STAGES 各自裁剪。 */
 const STAGES: StageData[] = [
   { no: '01', en: 'DEMAND', title: '采购需求', color: '#7ec8e3', desc: '申请部门上传采购需求申请表，AI 自动解析文件内容、提炼立项事由与供方要求，归集生成需求台账。', roles: ['申请部门', 'AI 辅助'] },
   { no: '02', en: 'INITIATION', title: '采购立项', color: '#a3d9a5', desc: '填报预算金额、采购方式与采购类别，上传采购立项申请表，审批流转全程留痕可追溯。', roles: ['申请部门', '采购中心'] },
