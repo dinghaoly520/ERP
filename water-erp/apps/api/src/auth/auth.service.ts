@@ -140,7 +140,7 @@ export class AuthService {
     const usernameInput = (dto.username ?? '').trim();
     const candidates = await this.prisma.user.findMany({
       where: { username: usernameInput },
-      select: { id: true, username: true, role: true, isActive: true, isFrozen: true, passwordHash: true },
+      select: { id: true, username: true, role: true, isActive: true, isFrozen: true, isTempExpert: true, passwordHash: true },
     });
 
     // 供应商别名解析：按信用代码或企业全称反查（仅当按用户名未命中供应商角色时启用）
@@ -154,7 +154,7 @@ export class AuthService {
         if (supplier) {
           const aliasUser = await this.prisma.user.findUnique({
             where: { id: supplier.userId },
-            select: { id: true, username: true, role: true, isActive: true, isFrozen: true, passwordHash: true },
+            select: { id: true, username: true, role: true, isActive: true, isFrozen: true, isTempExpert: true, passwordHash: true },
           });
           if (aliasUser) candidates.push(aliasUser);
         }
@@ -216,6 +216,17 @@ export class AuthService {
     if (user.isFrozen) {
       return { pending: true as const, role: user.role, code: 'ACCOUNT_FROZEN' };
     }
+    // 临时需求方代表（2026-11-05）：仅项目存续期可登录——须存在未终态（非 ARCHIVED/ABORTED）
+    // 项目的 BidExpert 绑定（确认抽取时写入）。项目结束/归档/流标/终止/废标/重抽换人后即拒绝；
+    // 录入后尚未确认抽取时同样无绑定不可登录（受邀入组才生效）。
+    if (user.role === 'bid_expert' && user.isTempExpert) {
+      const binding = await this.prisma.bidExpert.count({
+        where: { userId: user.id, project: { stage: { notIn: ['ARCHIVED', 'ABORTED'] } } },
+      });
+      if (binding === 0) {
+        return { pending: true as const, role: user.role, code: 'TEMP_ACCOUNT_EXPIRED' };
+      }
+    }
     // 临时供应商过期拦截：邀请码绑定的有效期已过则禁止登录（与未激活一样走 pending 分支）
     if (user.role === 'supplier') {
       const supplier = await this.prisma.supplier.findUnique({
@@ -251,6 +262,7 @@ export class AuthService {
         avatar: true,
         role: true,
         isActive: true,
+        isTempExpert: true,
         createdAt: true,
         department: {
           select: { id: true, name: true, code: true },

@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { localDateInputValue, localTimeInputValue } from '@/lib/local-date';
 import { useCompanyInfo } from '@/lib/api/company-info';
-import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, specialtyPoolCounts, listPoolCompanies, listExperts, getDemandRepDirectory, getBidProjectDetail, getProjectInvitations, proxyMarkExpertInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, fetchExtractionProfiles, fetchCommitteeAnalysis, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, type DemandRepDirectoryItem } from '@/lib/api/expert';
+import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, specialtyPoolCounts, listPoolCompanies, listExperts, getDemandRepDirectory, getBidProjectDetail, getProjectInvitations, proxyMarkExpertInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, fetchExtractionProfiles, fetchCommitteeAnalysis, createExternalDemandRep, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, type DemandRepDirectoryItem } from '@/lib/api/expert';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { QuotaMultiSelect } from '@/components/expert/quota-multi-select';
@@ -248,11 +248,37 @@ export function ExpertExtractPage({
   // 需求方代表配置
   const [needDemandRep, setNeedDemandRep] = useState(false);
   const [demandRepMode, setDemandRepMode] = useState<'designated' | 'department' | null>(null);
-  const [demandRepPersons, setDemandRepPersons] = useState<{ userId: string; name: string; specialty: string; title?: string | null; employer?: string | null; companyId?: string; reason?: string; evaluationLevel?: string }[]>([]);
+  const [demandRepPersons, setDemandRepPersons] = useState<{ userId: string; name: string; specialty: string; title?: string | null; employer?: string | null; companyId?: string; reason?: string; evaluationLevel?: string; isTemp?: boolean }[]>([]);
   const [demandRepCount, setDemandRepCount] = useState(1); // 需求方代表人数（>100万可选 1 或 2；≤100万固定 1）
   const [demandRepDept, setDemandRepDept] = useState('');
   const [demandRepDeptSpecialty, setDemandRepDeptSpecialty] = useState('');
   const [demandRepSearch, setDemandRepSearch] = useState('');
+  // 手动录入需求方代表（2026-11-05）：库外人员建临时专家账号（登录名/初始口令=身份证号），仅项目存续期可登录
+  const [extRepOpen, setExtRepOpen] = useState(false);
+  const [extRepSaving, setExtRepSaving] = useState(false);
+  const [extRepForm, setExtRepForm] = useState({ name: '', idCard: '', phone: '', employer: '', departmentName: '', specialty: '' });
+  const submitExtRep = async () => {
+    const { name, idCard, phone, employer, departmentName, specialty } = extRepForm;
+    if (!name.trim() || !idCard.trim() || !phone.trim()) { toast.error('姓名、身份证号、手机号为必填'); return; }
+    if (demandRepPersons.length >= demandRepCount) { toast.error(`代表人数已达上限（${demandRepCount} 名）`); return; }
+    setExtRepSaving(true);
+    try {
+      const res = await createExternalDemandRep({
+        name: name.trim(), idCard: idCard.trim(), phone: phone.trim(),
+        employer: employer.trim() || undefined, departmentName: departmentName.trim() || undefined, specialty: specialty.trim() || undefined,
+      });
+      setDemandRepPersons(prev => prev.some(x => x.userId === res.userId)
+        ? prev
+        : [...prev, { userId: res.userId, name: res.name, specialty: res.specialty || '', employer: res.employer ?? undefined, reason: '手动录入需求方代表', isTemp: true }]);
+      setExtRepOpen(false);
+      setExtRepForm({ name: '', idCard: '', phone: '', employer: '', departmentName: '', specialty: '' });
+      toast.success(`${res.reused ? '已复用既有临时账号' : '临时账号已创建'}：${res.name}`, { description: '专家门户登录名与初始口令均为其身份证号；仅本项目评标期间可登录，项目结束后自动失效' });
+    } catch (e: any) {
+      toast.error(e?.message || '录入失败');
+    } finally {
+      setExtRepSaving(false);
+    }
+  };
   const [demandRepDirectory, setDemandRepDirectory] = useState<DemandRepDirectoryItem[]>([]); // 全库目录（级联 + 指定代表搜索数据源，无 PII）
   const [employerSpecs, setEmployerSpecs] = useState<Map<string, string[]>>(new Map()); // 公司 → 该公司专家的可选专业
   // 公司→真部门映射（User.department）+ 公司→部门→专业映射（公司→部门→专业三级级联）
@@ -2358,15 +2384,19 @@ export function ExpertExtractPage({
                   {/* 指定代表：搜索选人（支持 1-2 人，受 demandRepCount 限制） */}
                   {demandRepMode === 'designated' && (
                     <div className="space-y-2">
-                      <div className="relative">
-                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
-                        <input value={demandRepSearch} onChange={e => setDemandRepSearch(e.target.value)} placeholder="搜索代表姓名、专业或单位..." className="neu-input !pl-9 text-sm" />
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
+                          <input value={demandRepSearch} onChange={e => setDemandRepSearch(e.target.value)} placeholder="搜索代表姓名、专业或单位..." className="neu-input !pl-9 text-sm" />
+                        </div>
+                        <button onClick={() => setExtRepOpen(true)} disabled={demandRepPersons.length >= demandRepCount} title={demandRepPersons.length >= demandRepCount ? `代表人数已达上限（${demandRepCount} 名）` : '库外人员建临时账号，仅本项目评标期间可登录专家门户'} className="neu-btn-xs is-info shrink-0 gap-1"><Plus size={12} />手动录入</button>
                       </div>
                       {demandRepPersons.length > 0 && (
                         <div className="flex flex-wrap gap-1.5">
                           {demandRepPersons.map(p => (
                             <span key={p.userId} className="inline-flex items-center gap-1.5 rounded-lg bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2.5 py-1 text-xs font-semibold text-[var(--accent)]">
                               {p.name}{p.specialty && <span className="font-normal text-[var(--muted-foreground)]">{p.specialty}</span>}
+                              {p.isTemp && <span className="rounded-[4px] bg-[color-mix(in_oklch,var(--warning)_16%,transparent)] px-1 py-0.5 text-[9px] font-bold text-[var(--warning)]">临时</span>}
                               <button onClick={() => setDemandRepPersons(prev => prev.filter(x => x.userId !== p.userId))} className="ml-0.5 opacity-70 hover:opacity-100"><X size={11} /></button>
                             </span>
                           ))}
@@ -3950,6 +3980,46 @@ export function ExpertExtractPage({
       )}
 
       {/* 选用理由查看弹窗（确认表「选用理由」列按钮唤起——理由长文不入表） */}
+      {/* 手动录入需求方代表（2026-11-05）：库外人员建临时专家账号——确认抽取入组后可登录 :3006，项目终态自动失效 */}
+      {extRepOpen && (
+        <Modal open onClose={() => setExtRepOpen(false)} size="md">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-base font-bold text-[color:var(--foreground)]">手动录入需求方代表</h3>
+              <p className="mt-1 text-xs text-[var(--muted-foreground)]">库外人员将创建临时专家账号：登录名与初始口令均为身份证号，仅本项目评标期间可登录专家门户，项目结束/归档/流标后自动失效</p>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {([
+              { key: 'name', label: '姓名', placeholder: '必填', required: true },
+              { key: 'idCard', label: '身份证号', placeholder: '必填（18 位，将作为登录名与初始口令）', required: true },
+              { key: 'phone', label: '手机号', placeholder: '必填（11 位，通知触达用）', required: true },
+              { key: 'employer', label: '工作单位', placeholder: '选填', required: false },
+              { key: 'departmentName', label: '部门', placeholder: '选填', required: false },
+              { key: 'specialty', label: '专业', placeholder: '选填，默认「综合」', required: false },
+            ] as const).map(f => (
+              <div key={f.key} className="space-y-1">
+                <label className="text-xs font-bold text-[var(--foreground)]">
+                  {f.label}{f.required && <span className="ml-0.5 text-[var(--danger)]">*</span>}
+                </label>
+                <input
+                  value={(extRepForm as any)[f.key]}
+                  onChange={(e) => setExtRepForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                  placeholder={f.placeholder}
+                  className="workbench-input !h-8 text-xs"
+                />
+              </div>
+            ))}
+          </div>
+          <div className="mt-5 flex items-center justify-end gap-2">
+            <button onClick={() => setExtRepOpen(false)} className="neu-btn-soft">取消</button>
+            <button onClick={() => void submitExtRep()} disabled={extRepSaving} className="neu-btn-primary gap-1.5">
+              {extRepSaving ? '创建中…' : '创建临时账号'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
       {reasonView && (
         <Modal open onClose={() => setReasonView(null)} size="md">
           <div className="flex items-start justify-between gap-4">

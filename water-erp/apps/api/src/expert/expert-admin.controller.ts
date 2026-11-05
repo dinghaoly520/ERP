@@ -109,6 +109,28 @@ export class ExpertAdminController {
     return this.expertAdminService.getDemandRepDirectory();
   }
 
+  @Post('demand-rep/external')
+  @ApiOperation({
+    summary: '手动录入需求方代表（库外人员，2026-11-05）：建临时专家账号（username/初始口令=身份证号）',
+    description: '登录与 :3006 功能同正式专家，但仅项目存续期有效——确认抽取入组后可登录；项目归档/流标/终止/废标或重抽换人后，登录与会话即时失效（TEMP_ACCOUNT_EXPIRED）。身份证号已绑定库内专家时报 409 引导改从库内指定。',
+  })
+  createExternalDemandRep(
+    @Body() body: { name?: string; idCard?: string; phone?: string; employer?: string; departmentName?: string; specialty?: string },
+    @Request() req: any = {},
+  ) {
+    return this.expertAdminService.createExternalDemandRep(
+      {
+        name: String(body?.name || ''),
+        idCard: String(body?.idCard || ''),
+        phone: String(body?.phone || ''),
+        employer: body?.employer,
+        departmentName: body?.departmentName,
+        specialty: body?.specialty,
+      },
+      req.user?.sub,
+    );
+  }
+
   @Get('evaluations/stats')
   @ApiOperation({ summary: '专家评价统计（公司隔离）' })
   getEvaluationStats(@Request() req: any = {}) {

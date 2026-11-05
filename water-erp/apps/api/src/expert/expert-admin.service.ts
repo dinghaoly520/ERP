@@ -200,6 +200,7 @@ export class ExpertAdminService {
   async listExperts(search?: string, specialty?: string, employer?: string, page = 1, pageSize = 20, user?: AuthenticatedUser, companyId?: string) {
     const where = {
       role: 'bid_expert' as const,
+      isTempExpert: false, // 临时需求方代表账号不入专家库列表（2026-11-05；其档案 availability='停用' 已不入池/目录）
       // 公司级数据隔离：admin 可 ?companyId= 切单公司，非 admin 强制本人公司
       ...(await this.expertScopeFilter(user, companyId)),
       // 专业/公司筛选（ExpertProfile）：specialty 须独立于 employer——曾嵌在 employer 条件内，
@@ -664,6 +665,92 @@ export class ExpertAdminService {
       }
       throw err;
     }
+  }
+
+  /**
+   * 手动录入需求方代表（2026-11-05 用户裁定）：抽取配置允许录入库外人员（姓名/身份证号/手机号）。
+   * 建临时专家账号（isTempExpert）：username=身份证号、初始口令=身份证号（库内专家口令同口径）、
+   * 档案 availability='停用'（不入抽取池/代表目录；库列表按 isTempExpert 过滤）。
+   * 生效链：确认抽取写入 BidExpert 后方可登录 :3006（功能与正式专家一致）；
+   * 项目归档/流标/终止/废标/重抽换人后无未终态绑定，登录与会话即时失效（auth 双闸）。
+   */
+  async createExternalDemandRep(
+    dto: { name: string; idCard: string; phone: string; employer?: string; departmentName?: string; specialty?: string },
+    operatorId?: string,
+  ) {
+    const name = (dto.name || '').trim();
+    const idCard = (dto.idCard || '').trim().toUpperCase();
+    const phone = (dto.phone || '').trim();
+    if (!name) throw new BadRequestException({ error: '请填写姓名', code: 'NAME_REQUIRED' });
+    if (!/^\d{17}[\dX]$/.test(idCard)) throw new BadRequestException({ error: '身份证号格式不正确（18 位）', code: 'IDCARD_INVALID' });
+    if (!/^1\d{10}$/.test(phone)) throw new BadRequestException({ error: '手机号格式不正确（11 位）', code: 'PHONE_INVALID' });
+
+    const existing = await this.prisma.user.findFirst({
+      where: { username: idCard, role: 'bid_expert' },
+      select: { id: true, isTempExpert: true },
+    });
+    if (existing && !existing.isTempExpert) {
+      throw new BadRequestException({ error: '该身份证号已是库内专家账号——请直接在库内指定该人员为代表', code: 'ID_OCCUPIED_BY_EXPERT' });
+    }
+    if (existing) {
+      // 幂等复用：同一人重复录入时更新联系方式/单位/专业，不重复建号
+      await this.prisma.$transaction(async (tx) => {
+        await tx.user.update({ where: { id: existing.id }, data: { displayName: name } });
+        await tx.expertProfile.update({
+          where: { userId: existing.id },
+          data: {
+            phone: sealPii(phone) ?? null,
+            ...(dto.employer?.trim() ? { employer: dto.employer.trim() } : {}),
+            ...(dto.specialty?.trim() ? { specialty: dto.specialty.trim() } : {}),
+          },
+        });
+      });
+      await this.auditExpert(operatorId, 'DEMAND_REP_EXTERNAL_CREATE', existing.id, { expertName: name, reused: true });
+      return { userId: existing.id, name, specialty: dto.specialty?.trim() || '综合', employer: dto.employer?.trim() || null, isTemp: true, reused: true };
+    }
+
+    // 部门：按名解析，不存在则新建（createExpert 同口径）
+    let departmentId: string | undefined;
+    if (dto.departmentName?.trim()) {
+      const depName = dto.departmentName.trim();
+      const dep = await this.prisma.department.findFirst({ where: { name: depName }, select: { id: true } });
+      departmentId = dep?.id ?? (await this.prisma.department.create({ data: { name: depName } })).id;
+    }
+    // 单位名称轨：命中公司主数据即挂归属（createExpert 同口径；外部单位保留自由文本）
+    let companyId: string | undefined;
+    let companyName: string | undefined;
+    const employer = dto.employer?.trim() || undefined;
+    if (employer) {
+      const byName = await this.prisma.company.findFirst({ where: { name: employer }, select: { id: true, name: true } });
+      if (byName) { companyId = byName.id; companyName = byName.name; }
+    }
+
+    const user = await this.prisma.user.create({
+      data: {
+        username: idCard,
+        displayName: name,
+        passwordHash: hashSync(idCard, 10), // 初始口令=身份证号（原文哈希）
+        role: 'bid_expert',
+        isActive: true,
+        isTempExpert: true,
+        ...(departmentId && { departmentId }),
+        ...(companyId && { companyId, company: companyName }),
+        expertProfile: {
+          create: {
+            specialty: dto.specialty?.trim() || '综合',
+            employer,
+            phone: sealPii(phone) ?? null,
+            idNumber: sealPii(idCard) ?? null,
+            availability: '停用', // 不入抽取池/代表目录——临时账号仅经确认抽取以 BidExpert 绑定项目
+            entryStatus: 'ACTIVE',
+            notes: '临时需求方代表账号（项目存续期有效，项目归档/流标后登录失效）',
+          },
+        },
+      },
+      select: { id: true },
+    });
+    await this.auditExpert(operatorId, 'DEMAND_REP_EXTERNAL_CREATE', user.id, { expertName: name, employer: employer ?? null });
+    return { userId: user.id, name, specialty: dto.specialty?.trim() || '综合', employer: employer ?? null, isTemp: true, reused: false };
   }
 
   /** AI 综合评价全量刷新（2026-11-04）：Scheduler 每月 1 日 00:00 与 admin 手动触发共用。

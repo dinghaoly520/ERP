@@ -202,6 +202,11 @@ export function fetchCommitteeAnalysis(projectId: string) {
   return api.post<{ analysis: string; engine: 'deepseek' | 'rules' }>('/expert-admin/extract/analysis', { projectId });
 }
 
+/** 手动录入需求方代表（2026-11-05）：库外人员建临时专家账号——仅项目存续期可登录 :3006 */
+export function createExternalDemandRep(data: { name: string; idCard: string; phone: string; employer?: string; departmentName?: string; specialty?: string }) {
+  return api.post<{ userId: string; name: string; specialty: string; employer: string | null; isTemp: true; reused: boolean }>('/expert-admin/demand-rep/external', data);
+}
+
 export function confirmExtraction(data: { projectId: string; experts: { userId: string; expertName: string; major: string; isLead?: boolean }[]; candidates?: { userId: string; expertName: string; major: string }[]; append?: boolean; extractMode?: 'specialty_match' | 'random' | 'merit_best'; companyIds?: string[] }) {
   return api.post<{ success: boolean; count: number; expertIds: string[] }>('/expert-admin/extract/confirm', data);
 }

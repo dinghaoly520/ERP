@@ -135,6 +135,7 @@ export class AuthController {
       // ACCOUNT_FROZEN：管理员冻结
       const msg =
         result.code === 'TEMPORARY_EXPIRED' ? '临时供应商有效期已过，请联系采购中心'
+        : result.code === 'TEMP_ACCOUNT_EXPIRED' ? '临时账号未生效或已随项目结束失效（项目归档/流标后不再可用），请联系采购中心'
         : result.code === 'ACCOUNT_FROZEN' ? '该账号已被冻结，请联系管理员'
         : result.code === 'ACCOUNT_RETIRED' ? '该专家已退库停用，如需恢复请联系管理单位'
         : result.code === 'EXPERT_DISABLED' ? '该专家已被停用，如需恢复请联系管理单位'

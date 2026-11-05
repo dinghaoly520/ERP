@@ -50,12 +50,22 @@ export class AuthGuard implements CanActivate {
       // 此处即时止损，避免退役/停用用户的 JWT 在自然过期前继续有效。
       const user = await this.prisma.user.findUnique({
         where: { id: payload.sub },
-        select: { isActive: true, isFrozen: true, webSessionId: true, passwordChangedAt: true },
+        select: { isActive: true, isFrozen: true, isTempExpert: true, webSessionId: true, passwordChangedAt: true },
       });
       if (!user || !user.isActive) throw new UnauthorizedException();
       // 冻结账号即时止损：已签发的 token 立刻失效，登录端另行提示 ACCOUNT_FROZEN。
       if (user.isFrozen) {
         throw new UnauthorizedException({ error: '该账号已被冻结，请联系管理员', code: 'ACCOUNT_FROZEN' });
+      }
+      // 临时需求方代表（2026-11-05）：项目终态/重抽换人即失效——已登录会话即时止损（口径同冻结）。
+      // 仅临时账号付这一次 count 查询（普通用户零开销）。
+      if (user.isTempExpert) {
+        const binding = await this.prisma.bidExpert.count({
+          where: { userId: payload.sub, project: { stage: { notIn: ['ARCHIVED', 'ABORTED'] } } },
+        });
+        if (binding === 0) {
+          throw new UnauthorizedException({ error: '临时账号已随项目结束失效，请联系采购中心', code: 'TEMP_ACCOUNT_EXPIRED' });
+        }
       }
       // 单设备登录（web 2026-08-21；supplier 2026-09-18；expert 2026-09-20）：web/supplier/expert
       // 登录签发的 token 自带 sid（web 侧为 tab 级——前端把 token 存 sessionStorage 经 X-Web-Token

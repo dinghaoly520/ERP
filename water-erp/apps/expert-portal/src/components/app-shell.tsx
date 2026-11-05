@@ -148,6 +148,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <div className="exp-brand-text exp-brand-text--flow truncate text-[1rem] font-semibold tracking-[0.07em]">
                 蜀水云采 · 专家门户
               </div>
+              {/* 临时需求方代表账号标注（2026-11-05）：仅本项目评标期间可用，项目结束/归档/流标后自动失效 */}
+              {user?.isTempExpert && (
+                <span
+                  className="mt-1.5 inline-block rounded-[6px] px-1.5 py-0.5 text-[10px] font-bold"
+                  style={{ background: 'color-mix(in oklch, var(--warning) 16%, transparent)', color: 'var(--warning)' }}
+                  title="临时需求方代表账号：仅本项目评标期间可用，项目结束、归档、流标、终止后自动失效"
+                >
+                  临时账号 · 仅本项目可用
+                </span>
+              )}
             </div>
           </header>
 

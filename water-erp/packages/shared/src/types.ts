@@ -57,6 +57,8 @@ export interface User {
   email?: string;
   role: string;
   isActive: boolean;
+  /** 临时需求方代表账号（2026-11-05）：仅项目存续期可登录专家门户，项目终态自动失效 */
+  isTempExpert?: boolean;
 }
 
 /* ── 投标项目 ── */
