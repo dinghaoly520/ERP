@@ -126,8 +126,9 @@ export class CreateCustomProjectDto {
   @IsOptional() @IsDateString() deadline?: string;
 }
 
-/** PII 明文揭示（等保+密评）：白名单字段；揭示动作写 SensitiveAccessLog 审计 */
+/** PII 明文揭示（等保+密评）：白名单字段；揭示动作写 SensitiveAccessLog 审计
+ *  2026-11-05 修正：email 漏在校验白名单（服务层 REVEALABLE_EXPERT_FIELDS 已含）——前端邮箱揭示按钮被 DTO 先拒 */
 export class RevealExpertFieldDto {
-  @IsIn(['idNumber', 'phone', 'licenseNo'])
-  field!: 'idNumber' | 'phone' | 'licenseNo';
+  @IsIn(['idNumber', 'phone', 'licenseNo', 'email'])
+  field!: 'idNumber' | 'phone' | 'licenseNo' | 'email';
 }
