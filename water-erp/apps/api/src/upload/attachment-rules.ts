@@ -1,9 +1,13 @@
 import { BadRequestException } from '@nestjs/common';
 
-/** 附件统一限制（2026-10-19 spec：公告中心/项目管理）：单文件 ≤100MB、9 扩展名白名单 */
-export const ATTACHMENT_MAX_BYTES = 100 * 1024 * 1024;
-/** 其余类目维持旧 50MB 口径（/api/upload multer 提至 100MB 后由服务层把住，防外溢） */
-export const DEFAULT_MAX_BYTES = 50 * 1024 * 1024;
+/**
+ * 单文件统一上限 500MB（2026-11-05 用户裁定：800 页扫描标书 ~200-400MB，旧 50/100MB 分档截断大件）。
+ * 内存模型：multer 内存存储按实际文件大小增长（解析瞬时 ~2×，请求结束归还 OS），
+ * 32G 生产机并发 2-3 个大件上传峰值 +2-3GB，余量充足。
+ */
+export const ATTACHMENT_MAX_BYTES = 500 * 1024 * 1024;
+/** 其余类目同口径（历史分档 50/100MB 已统一） */
+export const DEFAULT_MAX_BYTES = 500 * 1024 * 1024;
 
 export const ATTACHMENT_EXTENSIONS = ['png', 'jpg', 'jpeg', 'doc', 'docx', 'xls', 'xlsx', 'pdf', 'zip', 'rar'] as const;
 
@@ -24,7 +28,7 @@ const HINT = '支持 PNG/JPG/Word/PDF/Excel/ZIP/RAR';
 
 /**
  * 服务层附件大小/格式闸（multer 之后、落 MinIO 之前）。
- * 大小：announcement / contract_document 100MB，其余类目 50MB；
+ * 大小：全类目统一 500MB（2026-11-05）；
  * 格式：仅 announcement 类目套 9 扩展白名单（contract_document 的格式由
  * matchesFileContentPolicy 内容闸把守，勿在此放松）。
  * size 取 file.size ?? buffer.length（内存存储下二者一致，测试可只给其一）。

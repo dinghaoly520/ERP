@@ -1,7 +1,7 @@
 // Shared file→text helper used by controller, TenderProcessor, and BidderProcessor
 import * as mammoth from 'mammoth';
 import { execFileSync } from 'node:child_process';
-import { OcrService } from '../../local-ai/ocr.service';
+import { OCR_UNLIMITED_PAGES, OcrService } from '../../local-ai/ocr.service';
 
 /**
  * 尝试用 pdftotext 从 PDF 文本层提取文字（数字 PDF 秒级，比逐页 RapidOCR 快几个量级）。
@@ -12,7 +12,7 @@ function tryPdfTextLayer(buffer: Buffer): string | null {
     const out = execFileSync('pdftotext', ['-layout', '-', '-'], {
       input: buffer,
       maxBuffer: 32 * 1024 * 1024,
-      timeout: 60_000, // 加密/损坏 PDF 交 poppler 可能卡死，限时强制返回降级 OCR
+      timeout: 180_000, // 加密/损坏 PDF 交 poppler 可能卡死，限时强制返回降级 OCR（500MB/800页大件 60s 不够，2026-11-05）
     });
     const text = out.toString('utf8');
     return text && text.trim().length > 500 ? text : null;
@@ -26,7 +26,7 @@ export async function processFile(
   ocrService: OcrService,
   buffer: Buffer,
   fileName?: string,
-  maxPages = 200,
+  maxPages = OCR_UNLIMITED_PAGES,
 ) {
   const ext = fileName?.toLowerCase().split('.').pop();
 

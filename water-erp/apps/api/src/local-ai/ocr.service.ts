@@ -16,6 +16,13 @@ export interface OcrResult {
   pages?: Array<{ page: number; text: string }>;
 }
 
+/**
+ * 页数不截断哨兵（2026-11-05 用户裁定：文件有多少页就处理多少页）。
+ * 值仅作实际上限保护（防手滑传入病态值），远超任何真实文档页数；
+ * 服务端 max_pages=0 是「零 OCR 页数探测」专用语义，与此无关。
+ */
+export const OCR_UNLIMITED_PAGES = 1_000_000;
+
 function toBlobPart(buffer: Buffer): Uint8Array<ArrayBuffer> {
   return new Uint8Array(buffer);
 }
@@ -157,7 +164,10 @@ export class OcrService {
    *
    * dpi 不再由消费端指定——统一走服务端 OCR_DEFAULT_DPI（单一配置面，2026-11-05 裁定）
    */
-  async ocrPdf(buffer: Buffer, maxPages = 200): Promise<OcrResult> {
+  async ocrPdf(
+    buffer: Buffer,
+    maxPages = OCR_UNLIMITED_PAGES,
+  ): Promise<OcrResult> {
     const key = this.cacheKey('pdf', buffer, maxPages, null);
     const cached = await this.cacheGet(key);
     if (cached) {

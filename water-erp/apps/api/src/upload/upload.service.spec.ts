@@ -84,7 +84,7 @@ describe('UploadService — download permission', () => {
     });
   });
 
-  describe('附件统一限制（2026-10-19：100MB+9 扩展白名单）', () => {
+  describe('附件统一限制（2026-11-05：单文件 500MB+9 扩展白名单）', () => {
     const pdfFile = {
       mimetype: 'application/pdf',
       originalname: 'proof.pdf',
@@ -103,8 +103,8 @@ describe('UploadService — download permission', () => {
       expect(() => service.validateFile(rar, 'announcement')).not.toThrow();
     });
 
-    it('其余类目 >50MB 由服务层拒绝（multer 已放宽到 100MB）', () => {
-      const big = { ...pdfFile, size: 51 * 1024 * 1024, buffer: Buffer.alloc(0) } as Express.Multer.File;
+    it('其余类目 >500MB 由服务层拒绝（2026-11-05 统一上限，旧 50MB 口径废除）', () => {
+      const big = { ...pdfFile, size: 501 * 1024 * 1024, buffer: Buffer.alloc(0) } as Express.Multer.File;
       expect(() => service.validateFile(big, 'general'))
         .toThrow(expect.objectContaining({ response: expect.objectContaining({ code: 'ATTACHMENT_FILE_TOO_LARGE' }) }));
     });
