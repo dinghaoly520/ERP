@@ -316,7 +316,7 @@ The NestJS API (`apps/api`, :4001):
 | `Storage` | **Global** MinIO object-storage wrapper (`StorageService`) — shared by `Upload` and `AiBidAnalysis`; distinct from the HTTP-facing `Upload` module |
 | `Announcement` | Announcements CRUD, publish/archive, bid documents (encrypted, access-controlled) |
 | `Notification` | In-app notifications + `NotificationDeliveryLog` (Track A: multi-channel delivery) |
-| `Upload` | File upload to MinIO (50 MB cap), download, delete |
+| `Upload` | File upload to MinIO (500 MB cap, 统一口径见 `upload/attachment-rules.ts`), download, delete |
 | `Procurements` | Procurement project lifecycle (active module — exports `ProcurementsService`) |
 | `Procurement` | Legacy procurement module (no Prisma; prefer `Procurements` for new work) |
 | `ProjectManagement` | Project management endpoints |

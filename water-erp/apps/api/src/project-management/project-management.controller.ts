@@ -74,7 +74,7 @@ export class ProjectManagementController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
-      limits: { fileSize: 100 * 1024 * 1024 }, // multer 上限 100MB（2026-10-19 档；服务层统一上限 2026-11-05 起 500MB，见 upload/attachment-rules.ts）
+      limits: { fileSize: 500 * 1024 * 1024 }, // 单文件统一 500MB（2026-11-05 用户裁定，对齐 upload/attachment-rules.ts 服务层闸）
     }),
   )
   async extractInitiation(
@@ -95,7 +95,7 @@ export class ProjectManagementController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
-      limits: { fileSize: 100 * 1024 * 1024 }, // multer 上限 100MB（2026-10-19 档；服务层统一上限 2026-11-05 起 500MB，见 upload/attachment-rules.ts）
+      limits: { fileSize: 500 * 1024 * 1024 }, // 单文件统一 500MB（2026-11-05 用户裁定，对齐 upload/attachment-rules.ts 服务层闸）
     }),
   )
   async extractDemand(
@@ -169,7 +169,7 @@ export class ProjectManagementController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
-      limits: { fileSize: 100 * 1024 * 1024 }, // multer 上限 100MB（2026-10-19 档；服务层统一上限 2026-11-05 起 500MB，见 upload/attachment-rules.ts）
+      limits: { fileSize: 500 * 1024 * 1024 }, // 单文件统一 500MB（2026-11-05 用户裁定，对齐 upload/attachment-rules.ts 服务层闸）
     }),
   )
   uploadStageAttachment(
