@@ -66,6 +66,28 @@ describe('NotificationService', () => {
     expect(r.results.sms).toBe('skipped');
   });
 
+  it('create() 站内通知不再隐式外发短信（2026-11-05 裁定）：有联系人手机号也零短信，phone 渠道不受影响', async () => {
+    smsChannel.send.mockReset();
+    phoneChannel.send.mockReset().mockResolvedValue({ status: 'sent' });
+    // 本文件 mock 跨用例累积（无 clearAllMocks），投递日志先清零只看本用例记录
+    (prisma.notificationDeliveryLog.create as jest.Mock).mockClear();
+    (prisma.notification.create as jest.Mock).mockResolvedValue({ id: 'n3' });
+    jest.spyOn(service as any, 'pushRealtime').mockImplementation(() => {});
+    jest.spyOn(service as any, 'resolvePhones').mockResolvedValue(['13800000001']);
+
+    await service.create({ userId: 'u3', type: 'SELECTION_NOTIFY', title: 't', content: 'c' });
+    // dispatchExternal 是 void 异步外发（失败不阻断），冲刷微任务后再断言
+    await new Promise(r => setImmediate(r));
+
+    // 手机号存在也不发短信——隐式短信层已删（此前 create() 会全联系人各发一条）
+    expect(smsChannel.send).not.toHaveBeenCalled();
+    // phone 渠道保留：有主联系人电话仍外发
+    expect(phoneChannel.send).toHaveBeenCalledTimes(1);
+    const logs = (prisma.notificationDeliveryLog.create as jest.Mock).mock.calls.map(c => c[0].data);
+    expect(logs).toContainEqual(expect.objectContaining({ channel: 'in_app', status: 'sent' }));
+    expect(logs).not.toContainEqual(expect.objectContaining({ channel: 'sms' }));
+  });
+
   it('list tab=todo 只返回未 resolve 的通知（where 含 resolvedAt: null）', async () => {
     prisma.notification.count.mockResolvedValue(1);
     prisma.notification.findMany.mockResolvedValue([{ id: 'n1' }]);
