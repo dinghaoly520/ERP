@@ -1,9 +1,10 @@
 import { api } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
 
-/* ── :3007 开标执行终端 API 封装 ──
-   项目管理 / 评分标准 / 评标 / 澄清 / 归档触发等封装已随对应页面迁往 :3005。
-   此处仅保留：任务板、开标会话组建、解密、唱标、异议、监督批注、评标结果。 */
+/* ── :3007 开评标现场执行终端 API 封装 ──
+   分工 v3（2026-08-13）：评标/澄清/异议裁决/签字等现场操作在本端（evaluation.ts / sign-packet.ts）；
+   项目管理 / 评分标准编制 / 完整归档触发等办公室工作归 :3005。
+   此处保留：任务板、开标会话组建、解密、唱标、开标异议、监督批注、多轮报价。 */
 
 /* ── 开标任务板 ── */
 
@@ -54,7 +55,7 @@ export function startOpening(projectId: string, body: {
   return api.post<BidProjectDetail>(`/bid/projects/${projectId}/open`, body);
 }
 
-/* ── 双信封 v2：解外层 / 归因裁决（§5.2/§5.5，admin·bid_host）── */
+/* ── 双信封 v2：解外层 / 归因裁决（§5.2/§5.5；四内部角色 + AssignedHostGuard 按指派放行）── */
 
 /** decrypt-outer 单家明细（单家路径直接返回该明细；批量路径以 details 数组聚合） */
 export type DecryptOuterDetail =
@@ -121,8 +122,6 @@ export function decryptAdjudge(projectId: string, body: {
     body,
   );
 }
-
-/* ── 管理方加密证书（§3.2：查看 admin·bid_host；生成仅 admin）── */
 
 /* 管理方加密证书端点封装已随 :3007 加密管理迁移删除（2026-08-28）：
    管理入口在 :3005 系统管理·加密管理页（apps/web/src/lib/api/admin-cert.ts），

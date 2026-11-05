@@ -5,7 +5,8 @@ import { apiLoopbackOrigin, portalOriginForHost } from '@water-erp/config';
 /**
  * 开标管理端（:3007）鉴权拦截。
  *
- * 角色路由：admin / bid_host 经"在线开评标系统"(:3006)登录后写到 token_bid cookie 跳到本门户。
+ * 角色路由：非 bid_expert 角色（admin/bid_host/leader/staff）经"在线开评标系统"(:3006)
+ * 登录分流统一写 token_bid cookie 跳到本门户。
  * 本门户读 token_bid、以 X-Portal: bid 调用后端鉴权。
  *
  * 未登录或 token 失效时，跳转"在线开评标系统"登录页（专家门户）。

@@ -17,7 +17,7 @@ import { useBidUser } from '@/hooks/use-bid-user';
 import { useConfirm } from '@/components/use-confirm';
 // 注：开标记录签字卡在「评标签字」tab（评标结束一次性办理的运营口径），本组件不再渲染
 
-/** cgzxui 裸面板（取代 @water-erp/ui SectionCard 的 p-0 用法）——无边框玻璃静态卡 */
+/** cgzxui 裸面板——无边框玻璃静态卡 */
 function Card({ className = '', children }: { className?: string; children: React.ReactNode }) {
   return <section className={`neu-card-static overflow-hidden ${className}`}>{children}</section>;
 }
@@ -32,7 +32,7 @@ const decryptColors: Record<string, { cls: string }> = {
 
 const STAGES = ['投递中', '解密中', '确认中', '已完成'] as const;
 
-/** 双信封轨判据（阶段2.5 收口：dual-v2|dual-v3 同走新轨——后端 decryptSupplier 对双轨硬拒代解密） */
+/** 双信封轨判据（阶段2.5 收口：dual-v2|dual-v3 同走新轨——旧轨主持端代解密 decryptSupplier 已于 2026-10-14 剪除） */
 const isDualTrack = (v?: string | null): boolean => v === 'dual-v2' || v === 'dual-v3';
 /** dual-v3 专属：唱标值来自加密承诺（fieldsCommit），主持人只读核对。dual-v2 仍人工录入+MISMATCH 闸门
  *  （2eff49ee 自述「legacy/dual-v2 轨完全不变」——2026-11-05 审计发现只读/徽标误扩到 isDualTrack，此处收窄） */

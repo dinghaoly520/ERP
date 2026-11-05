@@ -233,7 +233,7 @@ export function getExpertCert() {
   return api.get<{ cert: ExpertCertRecord | null }>('/expert/cert');
 }
 
-/** 绑定证书（公钥 04+128hex；DN 的 CN 须=专家姓名；换证旧 ACTIVE 置 REVOKED） */
+/** 绑定证书（公钥 04+128hex；DN 的 CN 须匹配名源集合——displayName/username+历史 BidExpert.expertName；换证旧 ACTIVE 置 REVOKED） */
 export function bindExpertCert(data: { certSn: string; certDn: string; publicKey: string; alg?: string }) {
   return api.post<{ cert: ExpertCertRecord }>('/expert/cert', data);
 }

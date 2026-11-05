@@ -35,7 +35,8 @@ const IconTablet = (
 
 type Tab = 'expert' | 'admin';
 
-/** 管理员 Tab 接受的 web 端角色（与后端 portal-cookie 的 ROLE_COOKIE_PORTAL 对齐：admin/bid_host/leader/staff 共用 token_web 命名空间） */
+/** 管理员 Tab 接受的角色（与 bid-portal proxy 的 ALLOWED_ROLES 对齐：admin/bid_host/leader/staff；
+ *  本页 X-Portal:expert 登录，非 bid_expert 角色统一写 token_bid 命名空间，非 token_web） */
 const WEB_ROLES = ['admin', 'bid_host', 'leader', 'staff'];
 
 // 演示账号预填/填充按钮已于 2026-09-18 按用户要求删除（对齐 :3005 登录页形态：表单初始为空）。
@@ -94,7 +95,7 @@ function ExpertLoginPage() {
       });
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error((err as any).error || '登录失败'); }
       // role 直接取登录响应：本页发 X-Portal:expert，/auth/me 会读 token_expert，
-      // 而管理员登录拿到的是 token_web（按角色命名），读不到。登录响应本身已含 role。
+      // 而非专家角色登录拿到的是 token_bid（:3006 分流命名空间），读不到。登录响应本身已含 role。
       const { role } = (await res.json()) as { role: string };
       if (tab === 'expert') {
         if (role === 'bid_expert') {
@@ -109,9 +110,9 @@ function ExpertLoginPage() {
           }
         }
         else {
-          // 非专家角色在「专家登录」tab 登录：后端已 200 并按角色写好门户 cookie
-          // （bid_host/admin→token_bid、leader/staff→token_web）——原提示留页=死路，
-          // 引导至各自工作门户（与「管理员登录」tab 同去处；2026-09-30 验收发现的 UX 断头路）
+          // 非专家角色在「专家登录」tab 登录：后端已 200 并写好门户 cookie
+          // （:3006 分流：非 bid_expert 一律 token_bid）——原提示留页=死路，
+          // 引导至各自工作门户（bid_host/admin 与「管理员登录」tab 同去处；2026-09-30 验收发现的 UX 断头路）
           const dest = (role === 'bid_host' || role === 'admin')
             ? portalURL('bid', '/bid')
             : portalURL('web', '/');
