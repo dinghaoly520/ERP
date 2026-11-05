@@ -82,23 +82,6 @@ select.workbench-input:focus {
 }
 
 /* ─── Animations for bid opening hall（opening-hall.tsx animate-[flash_/shake_/scan_] 活体引用）─── */
-@keyframes flash {
-  0% { background-color: rgba(17, 168, 116, 0.15); }
-  100% { background-color: transparent; }
-}
-
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  20% { transform: translateX(-4px); }
-  40% { transform: translateX(4px); }
-  60% { transform: translateX(-3px); }
-  80% { transform: translateX(3px); }
-}
-
-@keyframes scan {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100%); }
-}
 
 /* =============================================================================
    cgzxui 新拟态设计系统 —— 移植自 public-portal :3002 / web :3005
@@ -346,14 +329,6 @@ select.neu-select {
   color: var(--accent); border-color: color-mix(in oklch, var(--accent) 25%, transparent);
   background: color-mix(in oklch, var(--accent) 6%, transparent);
 }
-.page-hero__stat--warn {
-  color: var(--danger); border-color: color-mix(in oklch, var(--danger) 28%, transparent);
-  background: color-mix(in oklch, var(--danger) 6%, transparent);
-}
-.page-hero__stat--warning {
-  color: var(--warning); border-color: color-mix(in oklch, var(--warning) 32%, transparent);
-  background: color-mix(in oklch, var(--warning) 8%, transparent);
-}
 .page-hero__stat--success {
   color: var(--success); border-color: color-mix(in oklch, var(--success) 30%, transparent);
   background: color-mix(in oklch, var(--success) 8%, transparent);
@@ -368,23 +343,6 @@ select.neu-select {
 .page-hero > .grid { position: relative; z-index: 1; }
 
 /* ── KPI 指标瓷片 .kpi-card ── */
-.kpi-card {
-  background: oklch(0.985 0.005 258); border: none; border-radius: 14px;
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.85),
-    2.5px 2.5px 5px oklch(0.55 0.03 258 / 0.12),
-    -2px -2px 5px oklch(1 0 0 / 0.9);
-  transition: box-shadow 0.25s ease, transform 0.25s ease;
-}
-.kpi-card:hover {
-  transform: translateY(-1px);
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.9),
-    4px 4px 8px oklch(0.55 0.03 258 / 0.15),
-    -2.5px -2.5px 7px oklch(1 0 0 / 0.95);
-}
-.kpi-signal { color: var(--s); }
-.kpi-signal-dot { background: var(--s); }
 
 /* ── 数据表格外壳 .neu-table-card ── */
 .neu-table-card {
@@ -404,8 +362,6 @@ select.neu-select {
     4px 4px 14px oklch(0.55 0.03 258 / 0.16),
     -3px -3px 10px oklch(1 0 0 / 0.95);
 }
-.neu-table-card-header { padding: 14px 18px; border-bottom: 1px solid oklch(0.55 0.03 258 / 0.1); }
-.neu-table-card-footer { padding: 12px 18px; border-top: 1px solid oklch(0.55 0.03 258 / 0.1); }
 
 /* ── 表格基类 .neu-table ── */
 .neu-table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -461,40 +417,6 @@ select.neu-select {
 .neu-table tbody tr.bid-expand-row:hover { transform: none; box-shadow: none; background: oklch(0.97 0.008 258 / 0.78); }
 
 /* ── 阶段筛选磁贴 .bid-stage-tile（neumorphic，--stage-color 驱动配色，无 border 框线）── */
-.bid-stage-tile {
-  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
-  padding: 14px 8px; border: none; border-radius: 14px; cursor: pointer;
-  background: color-mix(in oklch, var(--stage-color) 7%, oklch(0.985 0.005 258));
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.7),
-    2px 2px 5px oklch(0.55 0.03 258 / 0.1),
-    -1px -1px 4px oklch(1 0 0 / 0.85);
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.bid-stage-tile:hover {
-  transform: translateY(-2px);
-  background: color-mix(in oklch, var(--stage-color) 12%, oklch(0.985 0.005 258));
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.8),
-    3px 3px 8px oklch(0.55 0.03 258 / 0.14),
-    -2px -2px 6px oklch(1 0 0 / 0.9);
-}
-.bid-stage-tile:active {
-  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5);
-}
-.bid-stage-tile[aria-pressed="true"] {
-  background: color-mix(in oklch, var(--stage-color) 16%, oklch(0.985 0.005 258));
-  box-shadow:
-    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.14),
-    inset -2px -2px 5px oklch(1 0 0 / 0.5),
-    0 0 0 2px color-mix(in oklch, var(--stage-color) 45%, transparent);
-}
-.bid-stage-num {
-  font-size: 1.6rem; font-weight: 900; line-height: 1; letter-spacing: -0.03em;
-  color: var(--stage-color); font-variant-numeric: tabular-nums;
-}
-.bid-stage-label { font-size: 11px; font-weight: 700; color: var(--muted-foreground); }
-.bid-stage-tile[aria-pressed="true"] .bid-stage-label { color: var(--stage-color); }
 
 /* ── 行内彩色徽标 .bid-pill（--c 驱动，无内联 hex）── */
 .bid-pill {
@@ -505,18 +427,11 @@ select.neu-select {
 .bid-pill-dot { width: 0.5rem; height: 0.5rem; border-radius: 999px; background: var(--c); flex-shrink: 0; }
 
 /* ── 进度条 .bid-bar（内凹轨道 + --bar 驱动填充）── */
-.bid-bar {
-  height: 6px; border-radius: 999px; overflow: hidden; background: oklch(0.96 0.01 258);
-  box-shadow: inset 1px 1px 2px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.6);
-}
-.bid-bar > i { display: block; height: 100%; border-radius: 999px; background: var(--bar); transition: width 0.3s ease; }
 
 /* ── reduced motion：cgzxui 全量降级 ── */
 @media (prefers-reduced-motion: reduce) {
-  .neu-btn-primary, .neu-btn-soft, .neu-btn-xs, .neu-card, .neu-table-card,
-  .neu-table tbody tr, .bid-stage-tile, .kpi-card, .bid-bar > i { transition: none !important; }
-  .neu-btn-primary:hover, .neu-btn-soft:hover, .neu-btn-xs:hover, .neu-card:hover,
-  .kpi-card:hover, .bid-stage-tile:hover, .neu-table tbody tr:hover { transform: none !important; }
+  .neu-btn-primary, .neu-btn-soft, .neu-btn-xs, .neu-card, .neu-table-card, .neu-table tbody tr { transition: none !important; }
+  .neu-btn-primary:hover, .neu-btn-soft:hover, .neu-btn-xs:hover, .neu-card:hover, .neu-table tbody tr:hover { transform: none !important; }
 }
 /* cgzxui port applied — bid dashboard refactor */
 
@@ -561,8 +476,6 @@ select.neu-select {
   color: var(--tone, var(--danger));
   background: color-mix(in oklch, var(--tone, var(--danger)) 10%, transparent);
 }
-.bid-alert--success { --tone: var(--success); }
-.bid-alert--info { --tone: var(--accent); }
 .bid-alert--warning { --tone: var(--warning); }
 .bid-alert--danger { --tone: var(--danger); }
 
@@ -845,27 +758,6 @@ select.neu-select {
 .sidebar-3d[data-hidden="true"] .nav-active-skew { display: none; }
 
 /* ── 品牌球 .command-orb / .brand-orb-3d — 悬停 360° 翻转 ── */
-.command-orb { position: relative; isolation: isolate; }
-.command-orb::before {
-  content: "";
-  position: absolute;
-  inset: -30%;
-  background:
-    radial-gradient(circle at 35% 35%, oklch(1 0 0 / 0.9), transparent 28%),
-    radial-gradient(circle at 70% 68%, oklch(0.62 0.16 258 / 0.18), transparent 42%);
-  filter: blur(16px);
-  animation: orbPulse 8s var(--ease-out-quint) infinite;
-  pointer-events: none;
-}
-@keyframes orbPulse {
-  0%, 100% { opacity: 0.7; transform: scale(1); }
-  50%      { opacity: 1; transform: scale(1.08); }
-}
-.brand-orb-3d {
-  transform-style: preserve-3d;
-  transition: transform 0.75s var(--ease-out-quint);
-}
-.brand-orb-3d:hover { transform: perspective(700px) rotateY(360deg) scale(1.08); }
 
 /* ── 导航项 .sidebar-nav-item — 未选白凸 / 选中灰凹 / 按下更深 ── */
 /* ══ 导航项 — 与 :3004 sp-nav-item 完全一致：默认平伏 / hover 轻蓝染 / active 纯白凹陷 */
@@ -926,125 +818,16 @@ select.neu-select {
 }
 
 /* ── 侧栏边缘折叠手柄 .sidebar-edge-tab — 新拟态凸起，无 rgba 阴影 ── */
-.sidebar-edge-tab {
-  position: absolute;
-  cursor: pointer;
-  border: none;
-  background: oklch(0.985 0.006 258 / 0.9);
-  color: var(--muted-foreground);
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.8),
-    2px 2px 5px oklch(0.55 0.03 258 / 0.16),
-    -1px -1px 3px oklch(1 0 0 / 0.9);
-  transition: all 0.25s ease;
-}
-.sidebar-edge-tab:hover {
-  color: var(--accent-strong);
-  background: oklch(1 0 0);
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.85),
-    3px 3px 7px oklch(0.55 0.03 258 / 0.2),
-    -1px -1px 4px oklch(1 0 0 / 0.95);
-}
-.sidebar-edge-tab:active {
-  box-shadow:
-    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.18),
-    inset -2px -2px 5px oklch(1 0 0 / 0.55);
-}
 
 /* ── 统一顶栏 .flow-header — 浮动玻璃条（结构壳，细 oklch 描边）── */
-.flow-header {
-  position: relative;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-  padding: 0.5rem 0.875rem;
-  margin-bottom: 0.75rem;
-  border-radius: 18px;
-  background: linear-gradient(180deg, oklch(1 0 0 / 0.88), oklch(0.985 0.006 258 / 0.74));
-  border: 1px solid oklch(0.6 0.05 258 / 0.16);
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.9),
-    3px 3px 10px oklch(0.55 0.04 258 / 0.12),
-    -2px -2px 6px oklch(1 0 0 / 0.85);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-}
 
 /* ── 品牌标识块 .flow-brand-mark — 凸起圆角 logo 托 ── */
-.flow-brand-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 11px;
-  background: linear-gradient(145deg, oklch(1 0 0 / 0.94), oklch(0.97 0.008 258 / 0.88));
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.85),
-    2px 2px 6px oklch(0.55 0.04 258 / 0.14),
-    -1px -1px 4px oklch(1 0 0 / 0.9);
-  flex-shrink: 0;
-}
 
 /* ── 用户/统计凸起瓷片 .neu-chip — 不可点击的凸起信息块 ── */
-.neu-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: none;
-  background: oklch(0.985 0.006 258 / 0.9);
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.8),
-    2px 2px 5px oklch(0.55 0.03 258 / 0.12),
-    -1px -1px 3px oklch(1 0 0 / 0.9);
-}
 
 /* ── 最近访问圆点 .bid-recent-dot — data-active 驱动，无内联 hex ── */
-.bid-recent-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  flex-shrink: 0;
-  background: oklch(0.78 0.02 258);
-  transition: background 0.2s ease;
-}
-.bid-recent-row[data-active="true"] .bid-recent-dot { background: var(--accent-strong); }
 
 /* ── 通知铃铛按钮 .bid-bell — 新拟态圆形图标按钮，三态 ── */
-.bid-bell {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border: none;
-  border-radius: 11px;
-  color: var(--muted-foreground);
-  background: oklch(0.985 0.006 258 / 0.9);
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.8),
-    2px 2px 5px oklch(0.55 0.03 258 / 0.12),
-    -1px -1px 3px oklch(1 0 0 / 0.9);
-  transition: all 0.25s ease;
-  cursor: pointer;
-}
-.bid-bell:hover {
-  color: var(--accent-strong);
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.85),
-    3px 3px 7px oklch(0.55 0.03 258 / 0.16),
-    -1px -1px 4px oklch(1 0 0 / 0.95);
-}
-.bid-bell:active {
-  box-shadow:
-    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.18),
-    inset -2px -2px 5px oklch(1 0 0 / 0.55);
-}
 
 /* ── 通知浮层 .bid-bell-panel — 浮动玻璃面板，无外侧框线 ── */
 .bid-bell-panel {
@@ -1067,11 +850,9 @@ select.neu-select {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .flow-glow, .ambient-grid::after, .command-orb::before,
-  .nav-active-skew, .sidebar-3d, .brand-orb-3d { animation: none !important; }
+  .flow-glow, .ambient-grid::after, .nav-active-skew, .sidebar-3d { animation: none !important; }
   .sidebar-3d { transition: width 0.2s ease, margin 0.2s ease, padding 0.2s ease; }
   .sidebar-3d[data-hidden="true"] { transform: none; }
-  .brand-orb-3d:hover { transform: none; }
 }
 
 /* ── 开标大厅倒计时圆环（data-urgent 驱动配色，避免内联 stroke/color）── */
