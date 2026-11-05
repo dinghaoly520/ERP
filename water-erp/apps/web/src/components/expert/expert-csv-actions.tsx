@@ -6,8 +6,8 @@ import { importCsv } from '@/lib/api/expert';
 import { Workbook } from 'exceljs';
 import { Download, Upload, Loader2, Eye, ChevronDown } from 'lucide-react';
 
-const CSV_HEADERS = ['姓名', '登录账号', '初始密码', '专业领域', '职称', '工作单位', '所属部门', '联系电话', '电子邮箱', '身份证号', '民族', '学历', '执业资格证号', '备注'];
-const CSV_EXAMPLE = ['张三', 'zhangsan', 'abc123', '水利水电工程', '高级工程师', '四川水发勘测设计研究有限公司', '工程勘察院', '13800138000', 'zhangsan@example.com', '', '汉族', '硕士', '', ''];
+const CSV_HEADERS = ['姓名', '登录账号', '初始密码', '专业领域', '职称', '执业资格', '工作单位', '所属部门', '联系电话', '电子邮箱', '身份证号', '民族', '学历', '执业资格证号', '备注'];
+const CSV_EXAMPLE = ['张三', 'zhangsan', 'abc123', '水利水电工程', '高级工程师', '一级建造师、监理工程师', '四川水发勘测设计研究有限公司', '工程勘察院', '13800138000', 'zhangsan@example.com', '', '汉族', '硕士', '', ''];
 
 interface ExpertCsvActionsProps {
   onImported?: () => void;

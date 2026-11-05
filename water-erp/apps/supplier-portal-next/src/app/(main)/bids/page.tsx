@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { authedFileAction } from "@/lib/authed-file";
+import { downloadNegotiationFilesGated, NegoPasswordDialog, type NegoFilesMeta } from "@/components/nego-download";
 import dayjs from "dayjs";
 import {
   ArrowRight,
@@ -91,6 +92,20 @@ export default function BidListPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [negoLoading, setNegoLoading] = useState<string>("");
+  // 谈判采购文件解密下载（2026-11-05）：记录待下载项目（弹窗确认后带密码下载）
+  const [negoPwdFor, setNegoPwdFor] = useState<{ projectId: string; meta: NegoFilesMeta } | null>(null);
+
+  async function doDownloadNegoWithPwd(pwd: string) {
+    if (!negoPwdFor) return;
+    const { projectId, meta } = negoPwdFor;
+    setNegoPwdFor(null);
+    setNegoLoading(projectId);
+    try {
+      await downloadNegotiationFilesGated(meta, pwd);
+    } finally {
+      setNegoLoading("");
+    }
+  }
 
   const pageRef = useRef(page);
   const searchRef = useRef(search);
@@ -164,32 +179,17 @@ export default function BidListPage() {
     load(p);
   }
 
-  // 谈判采购文件下载：校验获取窗口 + 权限由后端把关，前端拿到文件列表后逐个打开
+  // 谈判采购文件下载：解密下载先弹密码窗（2026-11-05 治理——后端不再下发密码），
+  // 免费/旧 paid（后端归一免费）直接逐文件带 token 下载
   async function downloadNegotiationFiles(p: any) {
     setNegoLoading(p.id);
     try {
       const res: any = await bidApi.getNegotiationFiles(p.id);
-      if (!res.files || res.files.length === 0) {
-        toast.warning("该项目暂无可下载的采购文件");
+      if (res.downloadMode === "encrypted") {
+        setNegoPwdFor({ projectId: p.id, meta: res });
         return;
       }
-      if (res.downloadMode === "encrypted" && res.password) {
-        toast.info(`加密文件，访问密码：${res.password}`);
-      } else if (res.downloadMode === "paid" && res.paidAmount) {
-        toast.info(`付费文件，金额：¥${res.paidAmount}`);
-      }
-      // B4-1（2026-09-30）：非用户手势触发的第二个及以后 window.open 会被浏览器弹窗拦截静默
-      // 丢弃——多文件项目只开出第一个。改为逐个经 authed-file 带 token 下载（还能顺带解决
-      // 同浏览器他 tab 登录后 cookie 串身份的 403）。
-      const files = (res.files ?? []) as Array<{ url?: string; name?: string }>;
-      if (files.length === 1 && files[0].url) {
-        window.open(files[0].url, "_blank", "noopener");
-      } else {
-        for (const f of files) {
-          if (f.url) authedFileAction(f.url, "download", f.name || undefined);
-        }
-        if (files.length > 0) toast.success(`已开始下载 ${files.length} 个谈判文件`);
-      }
+      await downloadNegotiationFilesGated(res);
     } catch {
       /* API 层已全局错误 toast */
     } finally {
@@ -360,6 +360,11 @@ export default function BidListPage() {
           )}
         </div>
       )}
+
+      {/* 谈判采购文件解密下载密码弹窗（2026-11-05） */}
+      <NegoPasswordDialog open={!!negoPwdFor} busy={!!negoLoading}
+        onClose={() => setNegoPwdFor(null)}
+        onConfirm={doDownloadNegoWithPwd} />
     </div>
   );
 }

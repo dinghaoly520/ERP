@@ -69,6 +69,9 @@ export interface BidDocumentManage {
   price: number | null;
   bidProjectId: string | null;
   downloadCount: number;
+  /** 下载方式（2026-11-05）：encrypted 时 downloadPassword 为管理端自设需线下告知供应商的密码 */
+  downloadMode: 'free' | 'encrypted';
+  downloadPassword: string | null;
   fileName: string;
   fileSize: number;
   allowedSupplierIds: string[];
@@ -293,6 +296,8 @@ export function updateBidDocumentConfig(announcementId: string, data: {
   bidProjectId?: string;
   title?: string;
   allowedSupplierIds?: string[];
+  downloadMode?: 'free' | 'encrypted';
+  downloadPassword?: string;
 }) {
   return api.put<BidDocumentManage>(`/announcements/${announcementId}/bid-document`, data);
 }
@@ -309,6 +314,7 @@ export function removeBidDocument(announcementId: string) {
 export function uploadBidDocument(announcementId: string, file: File, config: {
   title?: string; accessScope: 'OPEN' | 'INVITED';
   requirePayment: boolean; price?: number; bidProjectId?: string; allowedSupplierIds?: string[];
+  downloadMode?: 'free' | 'encrypted'; downloadPassword?: string;
 }) {
   const fd = new FormData();
   fd.append('file', file);
@@ -318,6 +324,12 @@ export function uploadBidDocument(announcementId: string, file: File, config: {
   if (config.price !== undefined) fd.append('price', String(config.price));
   if (config.bidProjectId) fd.append('bidProjectId', config.bidProjectId);
   if (config.allowedSupplierIds?.length) fd.append('allowedSupplierIds', config.allowedSupplierIds.join(','));
+  if (config.downloadMode) {
+    fd.append('downloadMode', config.downloadMode);
+    if (config.downloadMode === 'encrypted' && config.downloadPassword) {
+      fd.append('downloadPassword', config.downloadPassword);
+    }
+  }
   return api.postForm<BidDocumentManage>(`/announcements/${announcementId}/bid-document`, fd);
 }
 import type {

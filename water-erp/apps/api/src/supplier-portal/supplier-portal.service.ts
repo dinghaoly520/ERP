@@ -20,8 +20,8 @@ import { ClarificationReplyDraftDto, SubmitClarificationReplyDto } from './dto/c
 import { isSupplierChangeAllowedField, supplierChangeFieldLabel } from '../supplier/supplier-change-fields';
 import { resolveEnvelopeVersion } from './envelope-version.util';
 import { resolveOpeningAmountUnitMap } from '../bid/opening-amount-unit.util';
-import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
-import { wrapKey } from '../common/crypto/envelope-crypto';
+import { encryptBuffer, decryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
+import { wrapKey, unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 import { sealField, openField } from '../common/crypto/field-crypto';
 import { sealChangeValue, openChangeValue } from '../supplier/change-record-pii';
 import { openPii, openPiiForMask, sealPii, blindIndexPii } from '../common/crypto/sm-field-crypto';
@@ -1830,7 +1830,9 @@ export class SupplierPortalService {
     // 解析文件——refFileKeys 双存储空间（2026-10-19 修复）：
     //   主轨 = PMI 阶段附件（Attachment.objectKey，:3005「引用采购文件」勾选即此体系），
     //          经本门户专用端点流式下载；旧实现按 FileAsset.key 查恒空 → 谈判项目文件不可见
-    //   兼容 = 历史 FileAsset.key 命中；attachFileIds 走 FileAsset.id（/api/upload/files/:id）
+    //   兼容 = 历史 FileAsset.key 命中；attachFileIds 走 FileAsset.id
+    // 2026-11-05 下载方式治理：FileAsset 类也统一走门户专用端点（原先裸 /api/upload/files/:id
+    // 无法过密码闸）——两类文件同受「受邀 + 窗口 + 密码」三闸约束。
     const keys: string[] = cfg.refFileKeys || [];
     const ids: string[] = cfg.attachFileIds || [];
     const [attachments, byKey, byId] = await Promise.all([
@@ -1851,13 +1853,15 @@ export class SupplierPortalService {
       })),
       ...[...byKey, ...byId]
         .filter((f, i, arr) => arr.findIndex(x => x.id === f.id) === i)
-        .map(f => ({ id: f.id, name: f.originalName, size: f.size, mimeType: f.mimeType, url: `/api/upload/files/${f.id}` })),
+        .map(f => ({ id: f.id, name: f.originalName, size: f.size, mimeType: f.mimeType, url: `/api/supplier-portal/bid-projects/${projectId}/negotiation-files/${f.id}/download` })),
     ];
 
     return {
-      downloadMode: cfg.downloadMode || 'free',
-      password: cfg.downloadMode === 'encrypted' ? cfg.downloadPassword : undefined,
-      paidAmount: cfg.downloadMode === 'paid' ? cfg.paidAmount : undefined,
+      // 密码永不回传供应商端（2026-11-05 治理：原实现把 downloadPassword 明文下发，
+      // :3004 直接 toast 展示——闸门形同虚设）。供应商端只知道模式，密码在下载端点校验。
+      // 旧配置 'paid'（付费暂不支持前下发）与「encrypted 但缺密码」的坏配置（旧 DTO 允许，
+      // 下载端会恒 403 卡死）一并归一 free——与公告链路「有密码才设闸」同语义。
+      downloadMode: cfg.downloadMode === 'encrypted' && cfg.downloadPassword ? 'encrypted' : 'free',
       acquireStartTime: cfg.acquireStartTime || null,
       acquireEndTime: cfg.acquireEndTime || null,
       bidOpeningTime: cfg.bidOpeningTime || null,
@@ -1866,25 +1870,74 @@ export class SupplierPortalService {
   }
 
   /**
-   * 谈判采购文件逐个下载（PMI 阶段附件，本地 uploads/ 磁盘流）。
-   * 闸门与清单端点同源（assertNegotiationAccess）；附件 id 须命中本项目配置引用集，
-   * 防跨项目附件越权读取。
+   * 谈判采购文件逐个下载。闸门与清单端点同源（assertNegotiationAccess：受邀 + 获取窗口）
+   * + 解密下载密码闸（2026-11-05）+ 清单归属闸（防跨项目文件越权）。
+   * 主轨 = PMI 阶段附件（本地 uploads/ 磁盘流）；兼容轨 = FileAsset（MinIO，sealed 按
+   * /upload streamFile 同口径解封——与专家端 downloadNegotiationFile 同款）。
    */
-  async downloadNegotiationFile(projectId: string, attachmentId: string, supplierId: string, res: { setHeader(k: string, v: string): void; end(body?: Buffer): void }) {
+  async downloadNegotiationFile(
+    projectId: string,
+    fileId: string,
+    supplierId: string,
+    res: { setHeader(k: string, v: string): void; end(body?: Buffer): void },
+    password?: string,
+  ) {
     const cfg = await this.assertNegotiationAccess(projectId, supplierId);
+
+    // 解密下载密码闸：encrypted 且配置了密码才设闸（「有密码才生效」与公告链路同语义，
+    // 防旧 DTO 下发的 encrypted-无密码坏配置让下载恒 403 卡死）；未传/错传同码不泄露差异
+    if (cfg.downloadMode === 'encrypted' && cfg.downloadPassword) {
+      if (password !== cfg.downloadPassword) {
+        throw new ForbiddenException({ error: '下载密码错误', code: 'WRONG_PASSWORD' });
+      }
+    }
+
+    const keys: string[] = cfg.refFileKeys || [];
+    const ids: string[] = cfg.attachFileIds || [];
+
+    // 主轨：PMI 阶段附件（Attachment.id）——objectKey 须命中引用集
     const attachment = await this.prisma.attachment.findUnique({
-      where: { id: attachmentId },
+      where: { id: fileId },
       select: { fileName: true, objectKey: true, mimeType: true },
     });
-    if (!attachment) throw new NotFoundException({ error: '附件不存在', code: 'NOT_FOUND' });
-    if (!(cfg.refFileKeys || []).includes(attachment.objectKey)) {
-      throw new ForbiddenException({ error: '该文件不在本项目的采购文件清单内', code: 'FILE_NOT_IN_CONFIG' });
+    if (attachment) {
+      if (!keys.includes(attachment.objectKey)) {
+        throw new ForbiddenException({ error: '该文件不在本项目的采购文件清单内', code: 'FILE_NOT_IN_CONFIG' });
+      }
+      const buffer = await readFile(resolve(process.cwd(), 'uploads', attachment.objectKey));
+      res.setHeader('Content-Type', attachment.mimeType || 'application/octet-stream');
+      res.setHeader('Content-Length', String(buffer.length));
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(attachment.fileName)}"`);
+      res.end(buffer);
+      return;
     }
-    const buffer = await readFile(resolve(process.cwd(), 'uploads', attachment.objectKey));
-    res.setHeader('Content-Type', attachment.mimeType || 'application/octet-stream');
-    res.setHeader('Content-Length', String(buffer.length));
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(attachment.fileName)}"`);
-    res.end(buffer);
+
+    // 兼容轨：FileAsset（MinIO）——id ∈ attachFileIds 或 key ∈ refFileKeys。
+    // 注意：全量 buffer 读入（与专家端 downloadNegotiationFile / 公告 downloadForSupplier
+    // 同款既有模式）——上传上限已提到 500MB（8d3b77bc），超大附件下载的流式化为全局待办。
+    const asset = await this.prisma.fileAsset.findUnique({
+      where: { id: fileId },
+      select: { key: true, sealedPath: true, sealedKey: true, clientEncrypted: true, originalName: true, mimeType: true },
+    });
+    if (asset) {
+      if (!ids.includes(fileId) && !keys.includes(asset.key)) {
+        throw new ForbiddenException({ error: '该文件不在本项目的采购文件清单内', code: 'FILE_NOT_IN_CONFIG' });
+      }
+      let buffer = await streamToBuffer(await minioClient.getObject(MINIO_BUCKET, asset.sealedPath || asset.key));
+      if (asset.sealedKey && !asset.clientEncrypted) {
+        const rawKey = isWrappedKey(asset.sealedKey)
+          ? unwrapKey(asset.sealedKey, process.env.KMS_SECRET!)
+          : asset.sealedKey;
+        buffer = decryptBuffer(buffer, rawKey);
+      }
+      res.setHeader('Content-Type', asset.mimeType || 'application/octet-stream');
+      res.setHeader('Content-Length', String(buffer.length));
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(asset.originalName)}"`);
+      res.end(buffer);
+      return;
+    }
+
+    throw new NotFoundException({ error: '谈判采购文件不存在', code: 'NOT_FOUND' });
   }
 
   /** 批量读取项目的谈判配置（Redis），返回 projectId → 配置摘要 映射 */

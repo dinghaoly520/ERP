@@ -4463,7 +4463,12 @@ export class SupplierService {
     const key = `negotiation-config:${projectId}`;
     const raw = await this.redis.get(key);
     if (!raw) return null;
-    return JSON.parse(raw);
+    // 供应商端读端点（@Roles('supplier')）：剥离 downloadPassword（2026-11-05 治理——
+    // 原实现整包下发原始配置，密码明文可达供应商端）；paidAmount 随付费暂不支持一并剥离，
+    // 旧 'paid'/「encrypted 缺密码」坏配置归一 free（与 getNegotiationFiles 同口径）。
+    const cfg = JSON.parse(raw);
+    const { downloadPassword, paidAmount, ...safe } = cfg ?? {};
+    return { ...safe, downloadMode: cfg?.downloadMode === 'encrypted' && cfg?.downloadPassword ? 'encrypted' : 'free' };
   }
 
   // Excel 批量导入

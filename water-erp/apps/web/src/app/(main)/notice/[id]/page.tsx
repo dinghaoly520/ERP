@@ -707,32 +707,88 @@ function AttachmentEditSection({ annId, attachments, onChanged }: { annId: strin
 }
 
 /* 招标文件编辑 */
+/** 采购文件下载方式三卡（2026-11-05，与供应商邀请谈判配置同款设计）：
+ *  免费 / 解密下载（随机 6 位密码，可刷新）/ 付费下载（暂不支持，禁用）。 */
+function DownloadModePicker({ mode, password, onMode, onPassword }: {
+  mode: 'free' | 'encrypted';
+  password: string;
+  onMode: (m: 'free' | 'encrypted') => void;
+  onPassword: (p: string) => void;
+}) {
+  const genPwd = () => String(Math.floor(100000 + Math.random() * 900000));
+  const options = [
+    { value: 'free' as const, label: '免费下载', desc: '供应商可直接下载' },
+    { value: 'encrypted' as const, label: '解密下载', desc: '供应商需输入密码才能下载' },
+  ];
+  return (
+    <div className="space-y-1.5">
+      <div className="grid grid-cols-3 gap-1.5">
+        {options.map(m => (
+          <label key={m.value} className={`flex cursor-pointer items-start gap-1.5 rounded-lg px-2 py-2 transition ${mode === m.value ? 'ring-1 ring-[var(--accent)]/40' : ''}`}
+            style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+            <input type="radio" name="bidDocDownloadMode" checked={mode === m.value}
+              onChange={() => { onMode(m.value); if (m.value === 'encrypted' && !password) onPassword(genPwd()); }}
+              className="accent-[var(--accent)] mt-0.5 shrink-0" />
+            <span className="min-w-0">
+              <span className="block text-[11px] font-semibold text-[var(--foreground)]">{m.label}</span>
+              <span className="block text-[10px] leading-tight text-[var(--muted-foreground)]">{m.desc}</span>
+            </span>
+          </label>
+        ))}
+        <label className="flex cursor-not-allowed items-start gap-1.5 rounded-lg px-2 py-2 opacity-55"
+          style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+          <input type="radio" disabled className="accent-[var(--accent)] mt-0.5 shrink-0" />
+          <span className="min-w-0">
+            <span className="block text-[11px] font-semibold text-[var(--muted-foreground)]">付费下载</span>
+            <span className="block text-[10px] leading-tight text-[var(--muted-foreground)]">暂不支持</span>
+          </span>
+        </label>
+      </div>
+      {mode === 'encrypted' && (
+        <div className="flex items-center gap-2 rounded-lg px-2.5 py-1.5" style={{ background: 'color-mix(in oklch, var(--accent) 8%, transparent)' }}>
+          <span className="text-[11px] font-bold text-[var(--foreground)] shrink-0">下载密码</span>
+          <code className="text-xs font-mono tabular-nums tracking-[0.15em] text-[var(--accent-strong)]">{password || '—'}</code>
+          <span className="text-[10px] text-[var(--muted-foreground)]">请线下告知受邀供应商</span>
+          <button type="button" onClick={() => onPassword(genPwd())} className="neu-btn-xs ml-auto">刷新</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BidDocEditSection({ annId, bidDoc, onChanged }: { annId: string; bidDoc: BidDocumentManage | null; onChanged: () => void }) {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [supplierSearch, setSupplierSearch] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [docTitle, setDocTitle] = useState("");
   const [scope, setScope] = useState<"OPEN" | "INVITED">(bidDoc?.accessScope || "OPEN");
-  const [requirePayment, setRequirePayment] = useState(bidDoc?.requirePayment ?? false);
-  const [price, setPrice] = useState<number | "">(bidDoc?.price ?? "");
+  const [dlMode, setDlMode] = useState<'free' | 'encrypted'>(bidDoc?.downloadMode === 'encrypted' ? 'encrypted' : 'free');
+  const [dlPassword, setDlPassword] = useState(bidDoc?.downloadPassword || '');
   const [selected, setSelected] = useState<string[]>(bidDoc?.allowedSupplierIds || []);
   const [busy, setBusy] = useState(false);
   const { confirm, dialog } = useConfirm();
   useEffect(() => { if (scope === "INVITED") getSupplierList({ status: "APPROVED", search: supplierSearch || undefined, pageSize: 50 }).then(r => setSuppliers(r.items)).catch(() => {}); }, [scope, supplierSearch]);
+  // 外部配置刷新（onChanged 重拉 bidDoc）时回显下载方式
+  useEffect(() => {
+    setDlMode(bidDoc?.downloadMode === 'encrypted' ? 'encrypted' : 'free');
+    if (bidDoc?.downloadPassword) setDlPassword(bidDoc.downloadPassword);
+  }, [bidDoc?.downloadMode, bidDoc?.downloadPassword]);
 
   const doUpload = async () => {
     if (!file) { toast.error("请选择采购文件"); return; }
+    if (dlMode === 'encrypted' && !dlPassword) { toast.error("解密下载需先设置下载密码"); return; }
     setBusy(true);
     try {
-      await uploadBidDocument(annId, file, { title: docTitle || file.name, accessScope: scope, requirePayment, price: requirePayment ? (price || 0) : undefined, allowedSupplierIds: scope === "INVITED" ? selected : undefined });
+      await uploadBidDocument(annId, file, { title: docTitle || file.name, accessScope: scope, requirePayment: false, allowedSupplierIds: scope === "INVITED" ? selected : undefined, downloadMode: dlMode, downloadPassword: dlMode === 'encrypted' ? dlPassword : undefined });
       toast.success("已加密上传"); setFile(null); setDocTitle(""); onChanged();
     } catch (e: any) { toast.error(e?.message || "上传失败"); }
     finally { setBusy(false); }
   };
   const saveConfig = async () => {
     if (!bidDoc) return;
+    if (dlMode === 'encrypted' && !dlPassword) { toast.error("解密下载需先设置下载密码"); return; }
     setBusy(true);
-    try { await updateBidDocumentConfig(annId, { accessScope: scope, requirePayment, price: requirePayment ? (price || 0) : undefined, allowedSupplierIds: scope === "INVITED" ? selected : undefined }); toast.success("配置已保存"); onChanged(); }
+    try { await updateBidDocumentConfig(annId, { accessScope: scope, requirePayment: false, allowedSupplierIds: scope === "INVITED" ? selected : undefined, downloadMode: dlMode, downloadPassword: dlMode === 'encrypted' ? dlPassword : undefined }); toast.success("配置已保存"); onChanged(); }
     catch (e: any) { toast.error(e?.message || "保存失败"); }
     finally { setBusy(false); }
   };
@@ -751,10 +807,9 @@ function BidDocEditSection({ annId, bidDoc, onChanged }: { annId: string; bidDoc
             <div className="min-w-0"><p className="break-words text-[0.85rem] font-bold text-[var(--foreground)] leading-snug">🔒 {bidDoc.title}</p><p className="text-[11px] text-[var(--muted-foreground)]">{bidDoc.fileName} · {(bidDoc.fileSize / 1024).toFixed(0)} KB · {bidDoc.downloadCount} 次</p></div>
             <button onClick={removeDoc} className="neu-btn-xs is-danger ml-2 shrink-0">删除</button>
           </div>
-          <div className="grid gap-2 grid-cols-2">
+          <div className="space-y-1.5">
             <select value={scope} onChange={e => setScope(e.target.value as any)} className="neu-input text-sm"><option value="OPEN">公开</option><option value="INVITED">邀请</option></select>
-            <select value={requirePayment ? "1" : "0"} onChange={e => setRequirePayment(e.target.value === "1")} className="neu-input text-sm"><option value="0">免费</option><option value="1">付费</option></select>
-            {requirePayment && <input type="number" value={price} onChange={e => setPrice(e.target.value === "" ? "" : Number(e.target.value))} className="neu-input text-sm" placeholder="价格（元）" />}
+            <DownloadModePicker mode={dlMode} password={dlPassword} onMode={setDlMode} onPassword={setDlPassword} />
           </div>
           {scope === "INVITED" && (
             <div>
@@ -790,10 +845,9 @@ function BidDocEditSection({ annId, bidDoc, onChanged }: { annId: string; bidDoc
 
           <input value={docTitle} onChange={e => setDocTitle(e.target.value)} className="neu-input" placeholder="文件标题（选填）" />
 
-          <div className="grid gap-2 grid-cols-2">
+          <div className="space-y-1.5">
             <select value={scope} onChange={e => setScope(e.target.value as any)} className="neu-input text-sm"><option value="OPEN">公开</option><option value="INVITED">邀请</option></select>
-            <select value={requirePayment ? "1" : "0"} onChange={e => setRequirePayment(e.target.value === "1")} className="neu-input text-sm"><option value="0">免费</option><option value="1">付费</option></select>
-            {requirePayment && <input type="number" value={price} onChange={e => setPrice(e.target.value === "" ? "" : Number(e.target.value))} className="neu-input text-sm" placeholder="价格（元）" />}
+            <DownloadModePicker mode={dlMode} password={dlPassword} onMode={setDlMode} onPassword={setDlPassword} />
           </div>
 
           {scope === "INVITED" && (

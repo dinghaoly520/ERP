@@ -16,6 +16,7 @@ import { CountdownTimer } from "@/components/countdown-timer";
 import { supplierApi } from "@/lib/api/supplier";
 import { announcementApi } from "@/lib/api/announcement";
 import { authedFileAction, saveBlob } from "@/lib/authed-file";
+import { downloadNegotiationFilesGated, NegoPasswordDialog, type NegoFilesMeta } from "@/components/nego-download";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import { InvitationDocxPreview } from "@/components/invitation-docx-preview";
 import { SpButton, SpInput, SpDialog, LoadingBlock } from "@/components/ui";
@@ -123,6 +124,9 @@ function BidDetailInner() {
   const [paymentRef, setPaymentRef] = useState("");
   const [pwdDialog, setPwdDialog] = useState(false);
   const [decryptPwd, setDecryptPwd] = useState("");
+  // 谈判采购文件解密下载（2026-11-05）：弹窗收集密码后统一下载
+  const [negoPwdOpen, setNegoPwdOpen] = useState(false);
+  const [negoPending, setNegoPending] = useState<NegoFilesMeta | null>(null);
 
   // ── AI 融合概览（采购内容 + 通知内容 + 两个时间）──
   const [overview, setOverview] = useState<any>(null);
@@ -148,26 +152,29 @@ function BidDetailInner() {
     return "open" as const;
   })();
 
+  async function doDownloadNegotiationWithPwd(pwd: string) {
+    if (!negoPending) return;
+    setNegoPwdOpen(false);
+    setNegoLoading(true);
+    try {
+      await downloadNegotiationFilesGated(negoPending, pwd);
+    } finally {
+      setNegoLoading(false);
+      setNegoPending(null);
+    }
+  }
+
   async function doDownloadNegotiation() {
     setNegoLoading(true);
     try {
       const res: any = await bidApi.getNegotiationFiles(projectId);
-      if (!res.files || res.files.length === 0) {
-        toast.warning("该项目暂无可下载的采购文件");
+      // 解密下载（2026-11-05 治理）：后端不再下发密码，必须弹窗输入、下载 URL 携密码校验
+      if (res.downloadMode === "encrypted") {
+        setNegoPending(res);
+        setNegoPwdOpen(true);
         return;
       }
-      if (res.downloadMode === "encrypted" && res.password) {
-        toast.info(`加密文件，访问密码：${res.password}`);
-      } else if (res.downloadMode === "paid" && res.paidAmount) {
-        toast.info(`付费文件，金额：¥${res.paidAmount}`);
-      }
-      // 全部经 authed-file 带 token 下载（窗口明示的「下载」动作无需新开预览标签，
-      // 顺带规避单文件 window.open 在弹窗拦截/无头环境下的静默失败）
-      const files = (res.files ?? []) as Array<{ url?: string; name?: string }>;
-      for (const f of files) {
-        if (f.url) authedFileAction(f.url, "download", f.name || undefined);
-      }
-      if (files.length > 0) toast.success(`已开始下载 ${files.length} 个采购文件`);
+      await downloadNegotiationFilesGated(res);
     } catch {
       /* API 层已全局错误 toast（窗口未开始/已截止/未受邀等后端文案） */
     } finally {
@@ -984,6 +991,11 @@ function BidDetailInner() {
           <SpInput value={paymentRef} onChange={(e) => setPaymentRef(e.target.value)} placeholder="如：银行流水号" />
         </div>
       </SpDialog>
+
+      {/* 谈判采购文件解密下载密码弹窗（2026-11-05） */}
+      <NegoPasswordDialog open={negoPwdOpen} busy={negoLoading}
+        onClose={() => { setNegoPwdOpen(false); setNegoPending(null); }}
+        onConfirm={doDownloadNegotiationWithPwd} />
 
       {/* 下载密码弹窗 */}
       <SpDialog open={pwdDialog} onClose={() => setPwdDialog(false)} title="输入下载密码" width={380}

@@ -257,6 +257,7 @@ export function notifySuppliers(data: { supplierIds: string[]; channels: string[
 }
 
 // 谈判采购配置下发（附件步骤确认后，后台推送给供应商端）
+// 下载方式 2026-11-05 收窄：免费 / 解密下载（随机密码）；付费暂不支持（后端 DTO 同步拒绝）
 export interface NegotiationConfigPayload {
   projectId: string;
   supplierIds: string[];
@@ -265,9 +266,8 @@ export interface NegotiationConfigPayload {
   bidOpeningTime: string;
   refFileKeys: string[];
   attachFileIds: string[];
-  downloadMode: 'free' | 'encrypted' | 'paid';
+  downloadMode: 'free' | 'encrypted';
   downloadPassword?: string;
-  paidAmount?: string;
 }
 export function sendNegotiationConfig(data: NegotiationConfigPayload) {
   return api.post<{ delivered: number }>('/supplier/negotiation-config', data);
