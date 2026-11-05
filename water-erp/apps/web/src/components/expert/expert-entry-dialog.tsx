@@ -8,6 +8,7 @@ import { UnitSearchSelect } from '@/components/login/unit-search-select';
 import { ExpertCsvActions } from './expert-csv-actions';
 import { UserPlus, Eye, EyeOff, ScanLine, RefreshCw } from 'lucide-react';
 import { SearchSelect } from '@/components/workbench/search-select';
+import { TypeaheadCombobox } from '@/components/workbench/typeahead-combobox';
 
 import { EXPERT_TITLES as TITLES, EXPERT_QUALIFICATIONS as QUALIFICATIONS } from '@/lib/expert-standard-options';
 
@@ -191,7 +192,7 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
         <fieldset>
           <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><Step n={2} />专业资质</legend>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">专业领域 <span className="text-[var(--danger)]">*</span></span><SearchSelect options={specialties.map(s => ({ value: s, label: s }))} value={form.specialty} onPick={o => set('specialty', o.value)} placeholder="选择专业" searchPlaceholder="搜索专业…" emptyText="无匹配专业" triggerClassName={inputCls('specialty')} panelMinWidth={220} /><FieldError field="specialty" /></label>
+            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">专业 <span className="text-[var(--danger)]">*</span></span><TypeaheadCombobox value={form.specialty} onChange={v => set('specialty', v)} options={specialties} placeholder="输入或选择专业" emptyText="无匹配专业" triggerClassName={errors.specialty ? '!border-[var(--danger)]' : ''} /><FieldError field="specialty" /></label>
             <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">职称 <span className="text-[var(--danger)]">*</span></span><SearchSelect options={TITLES.map(t => ({ value: t, label: t }))} value={form.title} onPick={o => set('title', o.value)} placeholder="选择职称" searchPlaceholder="搜索职称…" emptyText="无匹配职称" triggerClassName={inputCls('title')} panelMinWidth={200} /><FieldError field="title" /></label>
             <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">执业资格</span><input value={form.qualifications} onChange={e => set('qualifications', e.target.value)} list="entry-qual-list" placeholder="如 一级建造师、监理工程师（顿号分隔）" className={inputCls('qualifications')} /><datalist id="entry-qual-list">{QUALIFICATIONS.map(q => <option key={q} value={q} />)}</datalist></label>
             {/* 工作单位：与 :3005 注册「公司」选择同款同源（UnitSearchSelect：62 家全级次企业名单 +
