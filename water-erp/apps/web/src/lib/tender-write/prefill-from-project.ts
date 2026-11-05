@@ -126,13 +126,11 @@ export function getAiGenerationFields(tenderType: TenderDocumentType): Array<{
   const withPrompts = (fields: Array<{ fieldKey: string; label: string }>) =>
     fields.map((f) => ({ ...f, aiPrompt: resolveAiPrompt(tenderType, f.fieldKey) }));
 
-  // 注意：封面字段 projectName 不在 AI 生成清单（2026-10-30 实录）——名称权威来源是
-  // PMI 标题（buildPrefillFromProject 预填），LLM 拿全套素材只会写出整段项目综述盖掉
-  // 名称；服务端 tender-field-generate 亦纵深拦截 PROJECT_NAME_NO_AI。
-  // 同批移除的结构化控件（2026-10-30 盘点）：siteSurvey/serviceContent 是 toggle
-  //（开关即得法定固定文案）、responseDepositForm/performanceDepositForm/
-  // evaluationMethod 是 select（下拉选定）——AI 生成的自由文本与控件形态不匹配，
-  // 此前它们混在清单里且无 aiPrompt，服务端以「生成专业内容」兜底 prompt 带偏内容。
+  // projectName 不在 AI 生成清单（2026-10-30 实录）：名称权威来源是 PMI 标题预填，LLM 只会
+  // 写整段综述盖掉名称（服务端 tender-field-generate 亦拦 PROJECT_NAME_NO_AI）。同批移除的
+  // 结构化控件（同日盘点）：toggle 类 siteSurvey/serviceContent（开关即得法定固定文案）、
+  // select 类 responseDepositForm/performanceDepositForm/evaluationMethod（下拉选定）——
+  // 自由文本与控件形态不匹配，曾靠兜底 prompt 带偏内容。
   switch (tenderType) {
     case 'COMPETITIVE_NEGOTIATION':
       return withPrompts([

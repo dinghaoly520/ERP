@@ -48,11 +48,8 @@ export function CreateProjectDialog({
 }) {
   const [step, setStep] = useState<Step>('upload');
   const [submitting, setSubmitting] = useState(false);
-  // Ref mirror of `submitting` — setState is async, so two rapid clicks on the
-  // "创建项目" button can both pass the `disabled={submitting}` guard before
-  // React re-renders. The second submission reuses the same demand/initiation
-  // objectKey and trips the backend's Attachment unique constraint → confusing
-  // "登录失败 / 服务处理失败" error even though the first submission succeeded.
+  // Ref mirror of `submitting`：setState 异步，双击可在 disabled 生效前都过闸——第二次提交
+  // 复用同一 objectKey 触发后端唯一约束，报出误导性的「登录失败 / 服务处理失败」错误。
   const submittingRef = useRef(false);
   const [extractingDemand, setExtractingDemand] = useState(false);
   const [extractingInitiation, setExtractingInitiation] = useState(false);

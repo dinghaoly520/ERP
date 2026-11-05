@@ -1342,12 +1342,8 @@ export function ProjectDetailPanel({
     return `${num.toLocaleString('zh-CN')} 元`;
   };
 
-  // 阶段附件发生变化（新增 / 替换）后的统一处理，避免需手动刷新页面才可见：
-  //  - 拿到上传结果（客户端上传）时即时注入 localItem，文件立即可见；
-  //  - 服务端创建/替换（无 result）时由弹窗的 onPublished/onFileReplaced 回流更新列表；
-  //  - 始终刷新后端文件分析（即使当前没选中该阶段），这样从弹窗（如采购文件编写）
-  //    回到该阶段时缓存已就绪、不会报"没有文件内容"。
-  //  - UI 态（analysis / loading）仅当选中的正是该阶段时才更新。
+  // 阶段附件变化后的统一刷新（免手动刷新页面）：客户端上传即时注入 localItem、服务端
+  // 创建/替换由弹窗回流；文件分析始终预刷（回该阶段时缓存已就绪）；UI 态仅当选中该阶段才更新。
   const handleStageAttachmentChanged = useCallback(
     (stageKey: ProjectWorkflowStageKey, result?: UploadStageAttachmentResult) => {
       if (result) {

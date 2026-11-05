@@ -63,11 +63,9 @@ export function OpeningProgressBlock({ detail, onAbort }: Props) {
   const { stage, openingSession, suppliers, openingRecords } = detail;
   if (stage !== 'OPENING' && stage !== 'EVALUATING' && stage !== 'ARCHIVED' && stage !== 'ABORTED') return null;
 
-  // 口径收口（2026-10-28，对齐 :3007 开标大厅与后端 H4 权威口径 bid.service.ts isSubmittedRow）：
-  // 开标四联计数与完成判定的分母=已投递家（submitStatus='已提交'）——原「非撤回」含受邀未投
-  // 的「待提交」家，受邀未投满时「开标已完成」横幅永不出现（P1-4 同根，:3007 大厅已修此口径）。
-  // 解密已处理 = SUCCESS/DANGER；唱标覆盖全部解密成功供应商；确认闭环含 EXCEPTION（异议处理
-  // 完成的终态，展示计数与完成判定同集）；无 DISPUTED 悬置。
+  // 口径收口（2026-10-28，对齐 :3007 大厅与后端 H4 isSubmittedRow；P1-4 同根）：四联计数
+  // 与完成判定分母=已投递家（'已提交'；原「非撤回」含受邀未投的待提交家，完成横幅永不出现）。
+  // 解密已处理=SUCCESS/DANGER、唱标覆盖全部解密成功、确认闭环含 EXCEPTION 终态、无 DISPUTED 悬置。
   const activeSuppliers = suppliers.filter(s => s.submitStatus === '已提交');
   const total = activeSuppliers.length;
   const decrypted = activeSuppliers.filter(s => s.decryptStatus === 'SUCCESS').length;

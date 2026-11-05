@@ -99,10 +99,9 @@ export function NudgeUnsubmittedModal({ isOpen, onClose, project, bidProjectId, 
     return new Date(new Date(status.openTime).getTime() - NUDGE_DEFAULT_LEAD_MS).toISOString();
   }, [status?.openTime]);
   const scheduleInFuture = !!scheduleAtIso && new Date(scheduleAtIso).getTime() > Date.now();
-  // 催促窗口（2026-09-01 拍板）：距开标不足间隔时长后催促通道整体关闭——立即发送与定时均不可。
-  // 按间隔常量直接判定（与后端 assertNudgeWindowOpen/nudgeWindowOpen 同口径），与定时点解耦：
-  // 定时点已过（距开标不足 2 小时）但窗口未关时，立即发送仍可用。
-  // openTime 未登记时无从判定窗口，不拦（与后端口径一致）
+  // 催促窗口（2026-09-01 拍板）：距开标不足间隔时长后催促通道整体关闭（立即+定时均不可），
+  // 按间隔常量判定、与定时点解耦（定时点已过但窗口未关时立即发送仍可用，与后端同口径）；
+  // openTime 未登记时不拦。
   const msToOpening = status?.openTime ? new Date(status.openTime).getTime() - Date.now() : null;
   const windowClosed = msToOpening !== null && msToOpening <= BID_DEADLINE_BEFORE_OPENING_MS;
 

@@ -4,17 +4,14 @@ import { apiLoopbackOrigin } from '@water-erp/config';
 
 const AUTH_COOKIE_NAME = 'token_web';
 
-// 2026-10-29：Turbopack dev 沙箱里 middleware 的流式转发偶发「响应丢失」——后端已 200（OperationLog
-// 有记录、个位数 ms），浏览器却永远 pending（客户端重试洪流 auth/me 每秒 8-16 次，用户侧升级为
-// 整页重载风暴）。改为：手动 AbortController 超时（AbortSignal.timeout 在该沙箱不可用，实测致全挂）
-// + 响应体 arrayBuffer 缓冲后回传（不走 upstream.body 流管道）。
-// 2026-10-29 二次加固（用户裁定「不允许出现后端服务未启动」）：
-//   a) 连接层失败（拒连/重置——请求未抵达后端，任意方法重放安全）全方法自动重试 4 次
-//      （400ms/1s/3s/8s 退避，总跨度 ~12s）——桥接 nest watch 重编译/瞬时抖动窗口；
-//   b) 响应体读取中断的请求已抵达后端，仅幂等（GET/HEAD）重试一次（保留原语义）；
-//   c) /api/ai/* 为 LLM 慢路径（后端内部另有 3 次重试退避，合法耗时可达分钟级），
-//      超时单独放宽——否则 15s 硬超时会把「后端活着只是慢」误杀成 502 后端服务未启动。
-// 注意：大文件下载经此代理会整包缓冲（dev 可接受；生产走域名/直连轨道）。
+// 2026-10-29：Turbopack dev 沙箱流式转发偶发「响应丢失」（后端已 200、浏览器永远 pending）——
+// 改为手动 AbortController 超时（AbortSignal.timeout 在该沙箱不可用）+ 响应体 arrayBuffer 缓冲回传。
+// 同日二次加固（用户裁定「不允许出现后端服务未启动」）：
+//   a) 连接层失败（请求未抵达后端，任意方法重放安全）全方法自动重试 4 次（400ms/1s/3s/8s 退避），
+//      桥接 nest watch 重编译/瞬时抖动窗口；
+//   b) 响应体读取中断已抵达后端，仅幂等（GET/HEAD）重试一次；
+//   c) /api/ai/* LLM 慢路径（合法耗时可达分钟级）超时单独放宽，防 15s 硬超时误杀成 502。
+// 注意：大文件下载经此代理整包缓冲（dev 可接受；生产走域名/直连轨道）。
 const UPSTREAM_TIMEOUT_MS = 15_000;
 const UPSTREAM_TIMEOUT_SLOW_MS = 120_000;
 const TRANSPORT_RETRY_DELAYS_MS = [400, 1_000, 3_000, 8_000];

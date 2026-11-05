@@ -1051,12 +1051,9 @@ export function AnnouncementDialog({
       }
     }
 
-    // ★ 采购时间（=开标时间）取值链（2026-09-11 修复：此前只认 project.bidOpeningTime——
-    // 项目信息未填时智能填入永远填不上，且 ANNOUNCEMENT_AUTO_FILL 的 procurementTime 映射
-    // 指向 tenderDraft 中不存在的键名（各方式开标时间字段为 submissionAndNegotiationTime/
-    // responseDeadline/bidOpeningTime/responseSubmissionTime），Pass 2 恒落空）。
-    // 顺序：项目 bidOpeningTime → tenderDraft 各方式开标时间 → 兜底推算（公示期限止或
-    // 今日往后推 3 个工作日 14:00，与采购文件侧开标时间推算规则同口径）
+    // ★ 采购时间（=开标时间）取值链（2026-09-11 修复：此前只认 project.bidOpeningTime 且
+    // AUTO_FILL 映射键名错，智能填入恒落空）：项目 bidOpeningTime → tenderDraft 各方式开标
+    // 时间 → 兜底推算（公示期限止或今日+3 个工作日 14:00，与采购文件侧同口径）
     const cnOrIsoToISODatetime = (raw: string): string | null => {
       const m = raw.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(\d{1,2}):(\d{2})/);
       if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}T${m[4].padStart(2,'0')}:${m[5]}`;
