@@ -97,11 +97,4 @@ export class VectorSearchService {
       ]);
   }
 
-  async getChunkCountByFileId(fileId: string): Promise<number> {
-    const res = await this.vectorDb.getPool().query<{ count: number }>(
-      `SELECT COUNT(*)::int AS count FROM "DocumentChunk" WHERE "fileId" = $1`,
-      [fileId],
-    );
-    return Number(res.rows[0]?.count ?? 0);
-  }
 }

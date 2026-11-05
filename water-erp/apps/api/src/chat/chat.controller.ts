@@ -29,12 +29,6 @@ export class ChatController {
     return this.chatService.listUsers(this.gateway.getOnlineUserIds());
   }
 
-  @Get('conversations')
-  @ApiOperation({ summary: '我的会话列表' })
-  async conversations(@Request() req: any) {
-    return this.chatService.listConversations(req.user.sub);
-  }
-
   @Get('messages/:peerId')
   @ApiOperation({ summary: '与某人的历史消息（游标分页 ?before=&limit=）' })
   async messages(

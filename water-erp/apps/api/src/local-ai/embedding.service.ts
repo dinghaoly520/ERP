@@ -47,11 +47,6 @@ export class EmbeddingService {
     return results;
   }
 
-  async embedSingle(text: string): Promise<number[]> {
-    const [embedding] = await this.embed([text]);
-    return embedding;
-  }
-
   private async embedBatch(texts: string[]): Promise<number[][]> {
     const response = await fetch(`${this.baseUrl}/embeddings`, {
       method: 'POST',

@@ -48,7 +48,6 @@ import { TenderHistoryModule } from './tender-history/tender-history.module';
 import { ProgressModule } from './progress/progress.module';
 import { WorkArrangementsModule } from './work-arrangements/work-arrangements.module';
 import { ProjectManagementModule } from './project-management/project-management.module';
-import { ProjectPlanModule } from './project-plan/project-plan.module';
 import { ArchiveModule } from './archive/archive.module';
 import { KnowledgeModule } from './knowledge/knowledge.module';
 import { TenderReviewModule } from './tender-review/tender-review.module';
@@ -114,7 +113,6 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     ProgressModule,
     WorkArrangementsModule,
     ProjectManagementModule,
-    ProjectPlanModule,
     ArchiveModule,
     KnowledgeModule,
     TenderReviewModule,

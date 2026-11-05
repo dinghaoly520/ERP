@@ -11,9 +11,6 @@ export const DEFAULT_MAX_BYTES = 500 * 1024 * 1024;
 
 export const ATTACHMENT_EXTENSIONS = ['png', 'jpg', 'jpeg', 'doc', 'docx', 'xls', 'xlsx', 'pdf', 'zip', 'rar'] as const;
 
-/** 走 100MB+白名单的 /upload 类目（contract_document 仅 100MB，格式由 PDF_WORD_IMAGE 内容闸管） */
-export const ATTACHMENT_WHITELIST_CATEGORIES: ReadonlySet<string> = new Set(['announcement']);
-
 export function getFileExtension(name: string): string {
   const idx = name.lastIndexOf('.');
   return idx > 0 ? name.slice(idx + 1).toLowerCase() : '';

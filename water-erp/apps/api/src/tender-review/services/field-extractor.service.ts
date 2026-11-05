@@ -102,28 +102,4 @@ export class FieldExtractorService {
     }
   }
 
-  extractNumericByRegex(text: string): Partial<ExtractedFields> {
-    const fields: Partial<ExtractedFields> = {};
-
-    // Extract amounts: "50万元", "500,000元", "50万"
-    const amountMatch = text.match(/(\d[\d,]*(?:\.\d+)?)\s*万?\s*元/);
-    if (amountMatch) {
-      const raw = amountMatch[1].replace(/,/g, '');
-      let amount = parseFloat(raw);
-      if (amountMatch[0].includes('万')) {
-        amount *= 10000;
-      }
-      fields.budgetAmount = amount;
-    }
-
-    // Extract publicity days: "公示期5个工作日", "公示5天"
-    const daysMatch = text.match(
-      /公示[期]?\s*(?:不少[于于]?\s*)?(\d+)\s*(?:个\s*)?(?:工作日|天|日)/,
-    );
-    if (daysMatch) {
-      fields.publicityDays = parseInt(daysMatch[1], 10);
-    }
-
-    return fields;
-  }
 }

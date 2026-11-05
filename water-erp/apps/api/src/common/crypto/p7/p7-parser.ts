@@ -11,8 +11,6 @@ import { createHash } from 'crypto';
 import { DerNode, parseChildren, parseDer, readOid } from '../x509/der-parser';
 
 export const OID_SIGNED_DATA = '1.2.840.113549.1.7.2';
-export const OID_DATA = '1.2.840.113549.1.7.1';
-
 /** 算法白名单（Global Constraints——阶段0 C-9 实测） */
 export const ALG_WHITELIST = {
   digest: '1.2.156.10197.1.401',        // SM3

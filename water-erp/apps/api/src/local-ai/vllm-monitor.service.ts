@@ -83,10 +83,6 @@ export class VllmMonitorService implements OnModuleInit {
     }
   }
 
-  isLlmAvailable(): boolean {
-    return this.llmStatus.online;
-  }
-
   isEmbeddingAvailable(): boolean {
     return this.embeddingStatus.online;
   }

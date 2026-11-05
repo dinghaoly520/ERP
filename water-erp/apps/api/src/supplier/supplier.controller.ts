@@ -327,29 +327,6 @@ export class SupplierController {
     return this.supplierService.getTagVocabulary(limit ? Number(limit) : undefined);
   }
 
-  @Post('backfill-tags')
-  @Roles('admin', 'leader', 'staff')
-  @ApiOperation({ summary: '业务标签全量回填（规则引擎；默认仅填空标签，force=true 全量重算）' })
-  async backfillTags(@Query('force') force?: string, @Request() req?: any) {
-    return this.supplierService.backfillBusinessTags({ force: force === 'true', userId: req?.user?.sub });
-  }
-
-  @Post('import')
-  @Roles('admin', 'leader', 'staff')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
-  @ApiOperation({ summary: 'Excel 批量导入供应商（模板格式，每条创建为 PENDING 状态）' })
-  async importSuppliers(@UploadedFile() file: Express.Multer.File, @Request() req: any) {
-    if (!file) throw new BadRequestException('请上传 Excel 文件');
-    return this.supplierService.importFromExcel(file.buffer, req.user?.sub);
-  }
-
-  @Get('import-template')
-  @Roles('admin', 'leader', 'staff')
-  @ApiOperation({ summary: '下载供应商导入模板（Excel 格式）' })
-  async downloadImportTemplate() {
-    return this.supplierService.getImportTemplate();
-  }
-
   @Get('list')
   @Roles('admin', 'leader', 'staff', 'supplier') // 补角色白名单：杜绝 bid_expert/mall 拖全库+PII；supplier 由 service 的 scopeUserId 收敛到本企业
   @ApiOperation({ summary: '供应商库列表（supplier 角色仅见本企业，杜绝枚举他企与主联系人 PII）' })
@@ -397,13 +374,6 @@ export class SupplierController {
   @ApiOperation({ summary: '大屏供应商统计（公开，仅计数；详细须鉴权）' })
   async getBigscreenStats() {
     return this.supplierService.getBigscreenStats();
-  }
-
-  @Get('bigscreen/detail')
-  @Roles('admin', 'leader', 'staff') // 评价分布/分类计数/绩效趋势属经营敏感数据，须鉴权
-  @ApiOperation({ summary: '大屏供应商统计（详细，需采购侧鉴权）' })
-  async getBigscreenDetail() {
-    return this.supplierService.getBigscreenDetail();
   }
 
   @Get('evaluations/stats')

@@ -30,24 +30,4 @@ export class AuditController {
     });
   }
 
-  @Get('all-activities')
-  async getAllActivities(
-    @CurrentUser() user: AuthenticatedUser,
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
-    @Query('userId') targetUserId?: string,
-  ) {
-    if (!canViewAllUserActivity(user.role)) {
-      throw new ForbiddenException('仅管理员可查看所有使用记录。');
-    }
-
-    const parsedLimit = limit ? parseInt(limit, 10) : 50;
-    const parsedOffset = offset ? parseInt(offset, 10) : 0;
-
-    return this.auditLog.getAllActivities({
-      limit: Math.min(parsedLimit, 100),
-      offset: parsedOffset,
-      userId: targetUserId,
-    });
-  }
 }

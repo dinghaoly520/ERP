@@ -137,12 +137,6 @@ export class ExpertAdminController {
     return this.expertAdminService.getEvaluationStats(req.user);
   }
 
-  @Get('evaluations/dimensions')
-  @ApiOperation({ summary: '三维评分分布（出勤/质量/廉洁全局均分；公司隔离）' })
-  getEvaluationDimensionStats(@Request() req: any = {}) {
-    return this.expertAdminService.getEvaluationDimensionStats(req.user);
-  }
-
   @Post()
   @Roles('admin') // 方法级收窄（类默认含 bid_host/leader/staff）：专家录入仅 admin（2026-10-15 用户裁定）
   @ApiOperation({ summary: '录入专家（仅 admin）' })
@@ -171,12 +165,6 @@ export class ExpertAdminController {
     const projectId = String(body?.projectId || '').trim();
     if (!projectId) throw new BadRequestException({ error: '缺少 projectId', code: 'PROJECT_ID_REQUIRED' });
     return this.extractionService.committeeAnalysis(projectId);
-  }
-
-  @Post('notification/generate')
-  @ApiOperation({ summary: 'AI 生成单专家个性化通知内容（DeepSeek）' })
-  generateNotification(@Body() dto: GenerateNotificationDto) {
-    return this.expertAdminService.generateNotificationAi(dto);
   }
 
   @Post('extract/confirm')

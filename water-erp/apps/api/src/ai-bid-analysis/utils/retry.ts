@@ -53,21 +53,3 @@ export async function withRetry<T>(
 export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
-
-export function isRetryableError(error: Error): boolean {
-  // 网络错误、超时、服务暂时不可用等可重试
-  const retryableMessages = [
-    'ECONNRESET',
-    'ETIMEDOUT',
-    'ENOTFOUND',
-    'EAI_AGAIN',
-    'timeout',
-    'rate limit',
-    'too many requests',
-    'service unavailable',
-    'internal server error',
-  ];
-
-  const message = error.message.toLowerCase();
-  return retryableMessages.some(msg => message.includes(msg.toLowerCase()));
-}

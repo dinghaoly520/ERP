@@ -71,14 +71,6 @@ export class BidController {
     private readonly workTemplates: WorkTemplateService,
   ) {}
 
-  @Get('dashboard-stats')
-  @ApiOperation({ summary: '驾驶舱统计' })
-  getDashboardStats() { return this.bidService.getDashboardStats(); }
-
-  @Get('crypto-health')
-  @ApiOperation({ summary: 'KMS 加密封装健康检查' })
-  cryptoHealth() { return verifyKmsHealth(process.env.KMS_SECRET!); }
-
   @Get('projects')
   @ApiOperation({ summary: '项目列表（bid portal 仅看派给自己的）' })
   listProjects(
@@ -127,10 +119,6 @@ export class BidController {
   @Get('projects/:id/ai-adoption')
   @ApiOperation({ summary: 'P1-E：项目级 AI 建议采纳率（专家 vs AI 评分 delta）' })
   getAiAdoption(@Param('id') id: string) { return this.bidService.getAiAdoption(id); }
-
-  @Get('projects/archive-summary')
-  @ApiOperation({ summary: '归档项目汇总（单次聚合，避免 N+1）' })
-  getArchiveSummary() { return this.bidService.getArchiveSummary(); }
 
   @Post('projects')
   @ApiOperation({ summary: '创建项目' })

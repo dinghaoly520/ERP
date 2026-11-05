@@ -32,13 +32,6 @@ export class ArchiveController {
     private readonly flow: ArchiveFlowService,
   ) {}
 
-  @Get('scope-items')
-  @ApiOperation({ summary: '归档范围表（附录B 全量）' })
-  async scopeItems() {
-    await this.scope.ensureSeeded();
-    return this.prisma.archiveScopeItem.findMany({ orderBy: { sortOrder: 'asc' } });
-  }
-
   /** 卷列表（A.2e 组合查询：状态/类型/时间） */
   @Get('items')
   @ApiOperation({ summary: '归档卷台账（PMI 一卷；非 admin 仅本人项目，与项目管理页同口径）' })

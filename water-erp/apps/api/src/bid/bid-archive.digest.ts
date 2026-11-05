@@ -33,28 +33,6 @@ export function genesisHash(project: ArchiveProject): string {
 }
 
 /**
- * 计算归档内容的 SHA-256 哈希链（向后兼容：单一摘要）。
- * 归档项按 id 排序后取 [id,name,ownerRole,status]，拼接项目元数据，再整体 SHA-256。
- * 同输入恒等、防篡改。
- *
- * @deprecated 新代码应使用 {@link computeArchiveChain} 获取逐项链式哈希。
- */
-export function computeArchiveDigest(project: ArchiveProject, items: ArchiveItemLike[]): string {
-  const normalizedItems = sortByItemId(items).map(i =>
-    [i.id, i.name, i.ownerRole, i.status, ...(Array.isArray(i.fileHashes) && i.fileHashes.length ? [i.fileHashes.slice().sort()] : [])],
-  );
-  const payload = JSON.stringify({
-    projectId: project.id,
-    projectCode: project.projectCode,
-    projectName: project.name,
-    stage: project.stage,
-    items: normalizedItems,
-  });
-  const hash = crypto.createHash('sha256').update(payload, 'utf8').digest('hex');
-  return `sha256:${hash}`;
-}
-
-/**
  * 计算逐项 SHA-256 哈希链：每个 item 的哈希 = SHA-256(prevHash + itemContent)。
  * prevHash 初始为项目元数据的创世哈希，逐项传递。
  *
@@ -82,15 +60,4 @@ export function computeArchiveChain(project: ArchiveProject, items: ArchiveItemL
     prevHash = h; // 链：本项哈希成为下一项的前驱
   }
   return result;
-}
-
-/**
- * 项目根哈希 = 链中最后一个 item 的哈希（整条链的摘要指纹）。
- * 若无 item，返回创世哈希。用于状态头/导出包的"档案指纹"展示。
- */
-export function computeArchiveRootDigest(project: ArchiveProject, items: ArchiveItemLike[]): string {
-  const sorted = sortByItemId(items);
-  if (sorted.length === 0) return `sha256:${genesisHash(project)}`;
-  const chain = computeArchiveChain(project, items);
-  return chain.get(sorted[sorted.length - 1].id)!;
 }

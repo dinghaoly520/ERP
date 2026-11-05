@@ -54,33 +54,6 @@ export function signRsvpToken(ctx: RsvpContext): string {
   return b64url(Buffer.concat([body, sig]));
 }
 
-/** 校验并解密 token。失败（篡改/格式错/过期）抛错。返回解密后的上下文。 */
-export function verifyRsvpToken(token: string): RsvpContext {
-  const { enc, mac } = deriveKeys(getJwtSecret());
-  const all = fromB64url(token);
-  if (all.length < 12 + 16 + MAC_LEN + 1) throw new Error('RSVP_TOKEN_INVALID');
-  const body = all.subarray(0, all.length - MAC_LEN);
-  const sig = all.subarray(all.length - MAC_LEN);
-  const expect = createHmac('sha256', mac).update(body).digest().subarray(0, MAC_LEN);
-  // 常量时间比较，防时序攻击
-  if (!timingSafeEq(sig, expect)) throw new Error('RSVP_TOKEN_INVALID');
-  const iv = body.subarray(0, 12);
-  const tag = body.subarray(body.length - 16);
-  const ct = body.subarray(12, body.length - 16);
-  let plain: Buffer;
-  try {
-    const decipher = createDecipheriv(ALG, enc, iv);
-    decipher.setAuthTag(tag);
-    plain = Buffer.concat([decipher.update(ct), decipher.final()]);
-  } catch {
-    throw new Error('RSVP_TOKEN_INVALID');
-  }
-  const ctx = JSON.parse(plain.toString('utf8')) as RsvpContext;
-  if (!ctx || typeof ctx.exp !== 'number' || Date.now() > ctx.exp) throw new Error('RSVP_TOKEN_EXPIRED');
-  if (!ctx.sid || !ctx.iid) throw new Error('RSVP_TOKEN_INVALID');
-  return ctx;
-}
-
 function timingSafeEq(a: Buffer, b: Buffer): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;

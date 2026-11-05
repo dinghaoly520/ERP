@@ -1431,11 +1431,6 @@ ${shortlist}
     };
   }
 
-  async extractInitiationFieldsFromPdf(filePath: string) {
-    const text = await this.extractFileText(filePath, 'application/pdf', 'initiation.pdf');
-    return this.extractInitiationFieldsFromText(text);
-  }
-
   async addStageAttachment(
     projectId: string,
     stageKey: string,
@@ -1901,133 +1896,6 @@ paymentPerformance 要求：提炼 3-6 条要点，涵盖支付方式与比例�
       this.logger.error('AI identify field failed:', error);
       return [];
     }
-  }
-
-  /**
-   * Scan all uploaded files in a project and extract missing info.
-   * Called when project detail opens to handle files uploaded before extraction code existed.
-   */
-  async refreshExtractedInfo(projectId: string) {
-    const project = await this.prisma.projectManagementItem.findUnique({
-      where: { id: projectId },
-      select: {
-        initiationDate: true,
-        evaluationMethod: true,
-        expertInfo: true,
-        biddingUnits: true,
-        awardedSupplier: true,
-        contractAmount: true,
-        contractNumber: true,
-        demandContractNumber: true,
-        stages: {
-          orderBy: { stageOrder: 'asc' },
-          include: { attachments: true },
-        },
-      },
-    });
-
-    if (!project) {
-      throw new NotFoundException('未找到对应项目。');
-    }
-
-    const updates: Record<string, unknown> = {};
-
-    for (const stage of project.stages) {
-      for (const attachment of stage.attachments) {
-        const filePath = resolve(process.cwd(), 'uploads', attachment.objectKey);
-        const fileName = attachment.fileName.toLowerCase();
-
-        try {
-          // AWARD_DECISION stage
-          if (stage.stageKey === 'AWARD_DECISION' && (fileName.includes('定标') || fileName.includes('审批表'))) {
-            const text = await this.extractFileText(filePath, attachment.mimeType, attachment.fileName);
-            if (!project.biddingUnits && !updates.biddingUnits) {
-              const biddingUnits = extractBiddingUnitsFromText(text);
-              if (biddingUnits) updates.biddingUnits = biddingUnits;
-            }
-            if (!project.awardedSupplier && !updates.awardedSupplier) {
-              const awardedSupplier = extractAwardedSupplierFromAwardTable(text);
-              if (awardedSupplier) updates.awardedSupplier = awardedSupplier;
-            }
-          }
-
-          // BID_EVALUATION stage — also extract bidding units
-          if (stage.stageKey === 'BID_EVALUATION' && !project.biddingUnits && !updates.biddingUnits) {
-            const text = await this.extractFileText(filePath, attachment.mimeType, attachment.fileName);
-            const biddingUnits = extractBiddingUnitsFromText(text);
-            if (biddingUnits) updates.biddingUnits = biddingUnits;
-          }
-
-          if (stage.stageKey === 'AWARD_DECISION' && (fileName.includes('中标') || fileName.includes('通知书'))) {
-            const text = await this.extractFileText(filePath, attachment.mimeType, attachment.fileName);
-            if (!project.awardedSupplier && !updates.awardedSupplier) {
-              const awardedSupplier = extractAwardedSupplierFromText(text);
-              if (awardedSupplier) updates.awardedSupplier = awardedSupplier;
-            }
-          }
-
-          // CONTRACT stage
-          if (stage.stageKey === 'CONTRACT') {
-            const text = await this.extractFileText(filePath, attachment.mimeType, attachment.fileName);
-            if (!project.contractAmount && !updates.contractAmount) {
-              const contractAmount = extractContractAmountFromText(text);
-              if (contractAmount !== null) updates.contractAmount = contractAmount;
-            }
-            if (!project.contractNumber && !updates.contractNumber) {
-              const contractNumber = extractContractNumberFromText(text);
-              if (contractNumber !== null) updates.contractNumber = contractNumber;
-            }
-            if (!project.awardedSupplier && !updates.awardedSupplier) {
-              const fileName = attachment.fileName;
-              const awardedSupplier = fileName.includes('中标通知书') || fileName.includes('中标')
-                ? extractAwardedSupplierFromText(text)
-                : extractAwardedSupplierFromContract(text);
-              if (awardedSupplier) updates.awardedSupplier = awardedSupplier;
-            }
-          }
-
-          // EXPERT_SELECTION stage
-          if (stage.stageKey === 'EXPERT_SELECTION' && (fileName.includes('抽取结果单') || fileName.includes('抽取结果'))) {
-            const text = await this.extractFileText(filePath, attachment.mimeType, attachment.fileName);
-            if (!project.expertInfo && !updates.expertInfo) {
-              const expertInfo = extractExpertInfoFromText(text);
-              if (expertInfo) updates.expertInfo = expertInfo;
-            }
-          }
-        } catch {
-          // Skip files that can't be read
-        }
-      }
-    }
-
-    if (Object.keys(updates).length > 0) {
-      await this.prisma.projectManagementItem.update({
-        where: { id: projectId },
-        data: updates,
-      });
-    }
-
-    // Return the latest extracted info
-    const updated = await this.prisma.projectManagementItem.findUnique({
-      where: { id: projectId },
-      select: {
-        initiationDate: true,
-        evaluationMethod: true,
-        expertInfo: true,
-        biddingUnits: true,
-        awardedSupplier: true,
-        contractAmount: true,
-      },
-    });
-
-    return {
-      initiationDate: updated?.initiationDate?.toISOString().split('T')[0] ?? null,
-      evaluationMethod: updated?.evaluationMethod,
-      expertInfo: updated?.expertInfo,
-      biddingUnits: updated?.biddingUnits,
-      awardedSupplier: updated?.awardedSupplier,
-      contractAmount: updated?.contractAmount ? Number(updated.contractAmount) : null,
-    };
   }
 
   extractInitiationFieldsFromText(text: string) {
@@ -6927,7 +6795,6 @@ ${JSON.stringify(algorithmResult, null, 2)}
       return null;
     }
   }
-
 
 
   /**

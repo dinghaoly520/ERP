@@ -29,13 +29,6 @@ export class KnowledgeService {
     return !!user && (kb.ownerId === user.sub || user.role === 'admin');
   }
 
-  /** 抛 404/403；返回 KB（不含关联）。供外部模块（tender-review）复用。 */
-  async assertVisible(kbId: string, user: User) {
-    const kb = await this.prisma.knowledgeBase.findUnique({ where: { id: kbId } });
-    if (!kb) throw new NotFoundException(`知识库不存在或已被删除（id：${kbId}）`);
-    if (!this.canUse(kb, user)) throw new ForbiddenException('无权访问该知识库');
-    return kb;
-  }
   async assertEditable(kbId: string, user: User) {
     const kb = await this.prisma.knowledgeBase.findUnique({ where: { id: kbId } });
     if (!kb) throw new NotFoundException(`知识库不存在或已被删除（id：${kbId}）`);

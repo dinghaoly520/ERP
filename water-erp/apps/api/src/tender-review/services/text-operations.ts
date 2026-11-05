@@ -33,60 +33,6 @@ export function stripHtmlTags(text: string): string {
     .replace(/<[^>]+>/g, '');
 }
 
-export function findOriginalTextIndex(
-  originalText: string,
-  documentContent: string,
-  clauseNumber?: string,
-): number {
-  // 1. Exact match on visible text (strip tags first for partial matching)
-  const visibleText = stripHtmlTags(documentContent);
-  const idx = visibleText.indexOf(originalText);
-  if (idx >= 0) {
-    return mapVisibleIndexToRaw(
-      visibleText,
-      documentContent,
-      idx,
-      originalText,
-    );
-  }
-
-  // 2. Exact match on raw content
-  const rawIdx = documentContent.indexOf(originalText);
-  if (rawIdx >= 0) return rawIdx;
-
-  // 3. Fuzzy: find best substring match within edit distance ≤ 20%
-  const threshold = Math.floor(originalText.length * 0.2);
-  const snippetLen = originalText.length + threshold * 2;
-  let bestIdx = -1;
-  let bestDist = Infinity;
-
-  for (let i = 0; i < visibleText.length; i++) {
-    const end = Math.min(i + snippetLen, visibleText.length);
-    const candidate = visibleText.slice(i, end);
-    if (candidate.length < originalText.length * 0.8) continue;
-
-    const d = editDistance(
-      originalText,
-      candidate.slice(0, originalText.length),
-    );
-    if (d < bestDist && d <= threshold) {
-      bestDist = d;
-      bestIdx = i;
-    }
-  }
-
-  if (bestIdx >= 0) {
-    return mapVisibleIndexToRaw(
-      visibleText,
-      documentContent,
-      bestIdx,
-      originalText,
-    );
-  }
-
-  return -1;
-}
-
 function mapVisibleIndexToRaw(
   visibleText: string,
   rawContent: string,
@@ -122,26 +68,6 @@ function mapVisibleIndexToRaw(
   }
 
   return rawPos;
-}
-
-export function findAnchorIndex(
-  anchor: string,
-  documentContent: string,
-): number {
-  const visibleText = stripHtmlTags(documentContent);
-  const idx = visibleText.indexOf(anchor);
-  if (idx >= 0) {
-    const rawIdx = mapVisibleIndexToRaw(
-      visibleText,
-      documentContent,
-      idx,
-      anchor,
-    );
-    return rawIdx + anchor.length;
-  }
-  const rawIdx = documentContent.indexOf(anchor);
-  if (rawIdx >= 0) return rawIdx + anchor.length;
-  return -1;
 }
 
 function editDistance(a: string, b: string): number {

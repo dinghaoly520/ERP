@@ -2,7 +2,6 @@ import { BadRequestException } from '@nestjs/common';
 import {
   ATTACHMENT_MAX_BYTES,
   DEFAULT_MAX_BYTES,
-  ATTACHMENT_WHITELIST_CATEGORIES,
   isAttachmentExtensionAllowed,
   assertAttachmentRules,
 } from './attachment-rules';
@@ -19,8 +18,7 @@ function expectCode(fn: () => void, code: string) {
 }
 
 describe('attachment-rules（100MB+白名单，2026-10-19）', () => {
-  it('白名单类目=announcement，扩展名 9 项大小写不敏感', () => {
-    expect([...ATTACHMENT_WHITELIST_CATEGORIES]).toEqual(['announcement']);
+  it('扩展名 9 项大小写不敏感', () => {
     for (const ext of ['png', 'jpg', 'jpeg', 'doc', 'docx', 'xls', 'xlsx', 'pdf', 'zip', 'rar']) {
       expect(isAttachmentExtensionAllowed(`a.${ext}`)).toBe(true);
       expect(isAttachmentExtensionAllowed(`A.${ext.toUpperCase()}`)).toBe(true);

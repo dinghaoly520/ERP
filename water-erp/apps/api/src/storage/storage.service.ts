@@ -54,23 +54,4 @@ export class StorageService {
     return minioClient.presignedGetObject(bucket, objectKey, expirySeconds);
   }
 
-  /** List all object keys in the bucket (orphan detection 用) */
-  async listObjects(
-    bucket: string = MINIO_BUCKET,
-  ): Promise<Array<{ key: string; lastModified: Date }>> {
-    const stream = minioClient.listObjects(bucket, '', true);
-    const objects: Array<{ key: string; lastModified: Date }> = [];
-    return new Promise((resolve, reject) => {
-      stream.on('data', (obj) => {
-        if (obj.name) {
-          objects.push({
-            key: obj.name,
-            lastModified: obj.lastModified ?? new Date(0),
-          });
-        }
-      });
-      stream.on('end', () => resolve(objects));
-      stream.on('error', reject);
-    });
-  }
 }

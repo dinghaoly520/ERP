@@ -150,38 +150,3 @@ export function findSimilarSegments(
   return segments;
 }
 
-/**
- * 文档相似度分析
- * 返回详细的相似度报告
- */
-export function calculateDocumentSimilarity(
-  doc1: { text: string; name?: string },
-  doc2: { text: string; name?: string },
-): {
-  overallSimilarity: number;
-  jaccardSimilarity: number;
-  cosineSimilarity: number;
-  lcsSimilarity: number;
-  similarSegments: string[];
-  riskLevel: 'low' | 'medium' | 'high';
-} {
-  const similarity = calculateComprehensiveSimilarity(doc1.text, doc2.text);
-  const similarSegments = findSimilarSegments(doc1.text, doc2.text);
-
-  // 确定风险等级
-  let riskLevel: 'low' | 'medium' | 'high' = 'low';
-  if (similarity.overall > 0.9 || similarity.lcs > 0.95) {
-    riskLevel = 'high';
-  } else if (similarity.overall > 0.7 || similarity.lcs > 0.8) {
-    riskLevel = 'medium';
-  }
-
-  return {
-    overallSimilarity: similarity.overall,
-    jaccardSimilarity: similarity.jaccard,
-    cosineSimilarity: similarity.cosine,
-    lcsSimilarity: similarity.lcs,
-    similarSegments,
-    riskLevel,
-  };
-}

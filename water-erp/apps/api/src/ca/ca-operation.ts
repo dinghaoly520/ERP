@@ -10,13 +10,3 @@ export const CA_OP_STATUS = {
   EXPIRED: 'EXPIRED',
   CANCELLED: 'CANCELLED',
 } as const;
-
-export type CaOpStatus = keyof typeof CA_OP_STATUS;
-
-export const CA_OP_PURPOSE = {
-  CA_LOGIN: 'ca-login',
-  BIND: 'bind',
-  REPLACE: 'replace',
-  REVOKE: 'revoke',
-  SELF_TEST: 'self-test',
-} as const;

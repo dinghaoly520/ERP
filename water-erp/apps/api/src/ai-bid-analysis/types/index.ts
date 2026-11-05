@@ -63,49 +63,6 @@ export interface BidderKeyInfo {
   missingItems: string[];
 }
 
-export interface DeviationAnalysis {
-  positiveDeviations: number;
-  negativeDeviations: number;
-  neutralResponses: number;
-  criticalDeviations: Array<{
-    requirementId: string;
-    requirement: string;
-    isStarred: boolean;
-    bidderResponse: string;
-    deviationType: 'positive' | 'negative' | 'none';
-    severity: 'critical' | 'major' | 'minor';
-    impact: string;
-    evidenceLocation: string;
-  }>;
-  deviationScore: number;
-  summary: string;
-}
-
-export interface TechnicalScore {
-  totalScore: number;
-  breakdown: {
-    feasibility: { score: number; maxScore: 20; analysis: string; strengths: string[]; weaknesses: string[]; };
-    equipment: { score: number; maxScore: 10; analysis: string; strengths: string[]; weaknesses: string[]; };
-    personnel: { score: number; maxScore: 10; analysis: string; strengths: string[]; weaknesses: string[]; };
-    guarantee: { score: number; maxScore: 10; analysis: string; strengths: string[]; weaknesses: string[]; };
-  };
-  starredResponse: {
-    allMet: boolean;
-    items: Array<{ requirement: string; response: string; met: boolean; }>;
-  };
-  overallComment: string;
-}
-
-export interface CommercialScore {
-  totalScore: number;
-  breakdown: {
-    qualification: { score: number; maxScore: 10; analysis: string; details: string; };
-    performance: { score: number; maxScore: 10; analysis: string; relevantCount: number; qualityAssessment: string; };
-    service: { score: number; maxScore: 10; analysis: string; commitments: string[]; };
-  };
-  overallComment: string;
-}
-
 export interface PriceScore {
   totalScore: number;
   price: number;
@@ -142,22 +99,6 @@ export interface PriceAnalysisDetail {
   strategyAssessment?: PriceScore['strategyAssessment'];
   riskWarning?: string;
   analysis?: string;
-}
-
-export interface QualificationResult {
-  status: 'qualified' | 'unqualified';
-  items: Array<{
-    requirementId: string;
-    category: string;
-    requirementContent: string;
-    bidderResponse: string;
-    evidenceFound: boolean;
-    evidenceDetail: string;
-    result: string;
-    issue: string;
-  }>;
-  summary: string;
-  criticalIssues: string[];
 }
 
 export type FraudRuleCode =

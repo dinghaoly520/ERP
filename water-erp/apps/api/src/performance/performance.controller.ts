@@ -30,12 +30,6 @@ export class PerformanceController {
     return this.performanceService.listEvaluations({ projectCode });
   }
 
-  @Get('satisfactions')
-  @ApiOperation({ summary: '供应商满意度反馈列表（9.2）' })
-  listSatisfactions(@Query('projectCode') projectCode?: string) {
-    return this.performanceService.listSatisfactions({ projectCode });
-  }
-
   @Post('report')
   @ApiOperation({ summary: '生成周期性质效报告 DOCX（9.1/9.4）' })
   generateReport(@Body() dto: { periodLabel?: string }) {

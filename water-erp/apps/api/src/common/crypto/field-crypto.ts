@@ -59,10 +59,3 @@ export function openField(stored: string | null | undefined, kms: string): strin
   d.setAuthTag(tag);
   return Buffer.concat([d.update(ct), d.final()]).toString('utf8');
 }
-
-/**
- * 判断字段值是否已密封（带 v1: 前缀）。用于迁移检测或调试。
- */
-export function isSealedField(value: string | null | undefined): boolean {
-  return !!value && value.startsWith(PREFIX);
-}

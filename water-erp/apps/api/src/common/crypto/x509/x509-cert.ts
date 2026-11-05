@@ -12,7 +12,6 @@ import { DerNode, parseChildren, parseDer, readIntegerHex, readOid, readTime, si
 const sm2 = require('sm-crypto').sm2;
 
 export const OID_SM2_ECC = '1.2.156.10197.1.301'; // SM2 椭圆曲线公钥
-export const OID_SM3_WITH_SM2 = '1.2.156.10197.1.501'; // SM3withSM2 签名算法
 
 /** X.509 Name 常用属性 OID → 短名（渲染 DN 用；未收录 OID 原样点分输出） */
 const DN_ATTR: Record<string, string> = {

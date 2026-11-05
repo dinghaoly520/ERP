@@ -188,24 +188,6 @@ export class AiController {
     }
   }
 
-  @Post('dashboard-summary')
-  @ApiOperation({ summary: 'AI采购运营总览摘要' })
-  @Roles('admin', 'leader', 'staff')
-  async dashboardSummary(
-    @Body() body: {
-      supplier?: { total: number; approved: number; pending: number; risk: number };
-      announcement?: { total: number; published: number; draftLike: number };
-      expert?: { total: number; active: number; unfinished: number };
-    },
-  ) {
-    return this.aiService.dashboardSummary(body);
-  }
-
-  @Get('ai-calibration')
-  @ApiOperation({ summary: 'P1-E：全局 AI 评分校准（跨项目采纳率 + category 偏差）' })
-  @Roles('admin', 'bid_host', 'leader', 'staff')
-  getAiCalibration() { return this.aiService.getAiCalibration(); }
-
   @Post('dashboard-analysis')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'AI采购仪表盘深度分析（从procurement迁入）' })
@@ -236,13 +218,6 @@ export class AiController {
       throw new BadRequestException({ error: '项目名称不支持 AI 生成——已按项目信息预填，如需调整请在编辑器中直接修改', code: 'PROJECT_NAME_NO_AI' });
     }
     return this.aiService.generateTenderFieldContent(payload);
-  }
-
-  @Post('reference-budget')
-  @ApiOperation({ summary: 'AI参考预算生成' })
-  @Roles('admin', 'leader', 'staff')
-  async referenceBudget(@Body() payload: ReferenceBudgetDto) {
-    return this.aiService.generateReferenceBudget(payload);
   }
 
   @Post('generate-notification')
@@ -328,15 +303,6 @@ export class AiController {
     return this.supplierPortraitAnalysis.analyze(payload.supplierId, !!payload.bypassCache);
   }
 
-  // ── C8 履约违约风险预测 ──
-  @Get('supplier-default-risk')
-  @ApiOperation({ summary: '供应商履约违约风险预测（规则+诚实置信度）' })
-  @Roles('admin', 'leader', 'staff')
-  async predictDefaultRisk(@Query('supplierId') supplierId: string) {
-    if (!supplierId) throw new BadRequestException('请提供 supplierId');
-    return this.aiService.predictSupplierDefaultRisk(supplierId);
-  }
-
   // ── A2 选取历史 / 候选名单 / 分享（此前路由缺失致前端死链）──
   @Get('selection-history')
   @ApiOperation({ summary: '选取历史列表' })
@@ -364,13 +330,6 @@ export class AiController {
   @ApiOperation({ summary: '删除选取历史' })
   @Roles('admin', 'leader', 'staff')
   async deleteSelectionHistory(@Param('id') id: string) { return this.aiService.deleteSelectionHistory(id); }
-
-  @Post('share-shortlist')
-  @ApiOperation({ summary: '分享候选名单给采购主管' })
-  @Roles('admin', 'leader', 'staff')
-  async shareShortlist(@Body() body: ShareShortlistDto, @Request() req: any) {
-    return this.aiService.shareShortlist(body, { id: req.user?.sub, displayName: req.user?.displayName });
-  }
 
   // ── 采购邀请书（供应商邀请·附件步骤：AI 起草九项 → 排版导出 Word） ──
 

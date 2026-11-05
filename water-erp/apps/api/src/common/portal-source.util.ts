@@ -15,7 +15,3 @@ export function portalSourceOf(req?: Request): string | undefined {
   const value = Array.isArray(raw) ? raw[0] : raw;
   return value || undefined;
 }
-
-export function isMobilePortalSource(req?: Request): boolean {
-  return portalSourceOf(req) === MOBILE_PORTAL_SOURCE;
-}

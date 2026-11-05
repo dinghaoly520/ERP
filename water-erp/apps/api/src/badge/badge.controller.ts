@@ -18,9 +18,4 @@ export class BadgeController {
     return this.service.getUserBadges(user.sub);
   }
 
-  @Post('recompute')
-  @ApiOperation({ summary: '手动触发当前用户印记重算（同步执行，返回最新印记）' })
-  async recompute(@CurrentUser() user: AuthenticatedUser) {
-    return this.service.recomputeCurrentUser(user.sub);
-  }
 }

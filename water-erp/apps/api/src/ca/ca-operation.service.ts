@@ -31,17 +31,6 @@ export class CaOperationService {
     });
   }
 
-  async toCommitted(id: string, result: Record<string, unknown>, subjectId?: string): Promise<void> {
-    await this.prisma.caOperation.update({
-      where: { id },
-      data: {
-        status: CA_OP_STATUS.COMMITTED,
-        result: result as any,
-        ...(subjectId !== undefined ? { subjectId } : {}),
-      },
-    });
-  }
-
   /** Task3：冻结签名原文到 operation（PREPARED/VERIFYING 阶段可覆盖，COMMITTED 后不可变） */
   async attachPayload(id: string, canonical: string, sha256: string, extra?: Record<string, unknown>): Promise<void> {
     const op = await this.prisma.caOperation.findUnique({ where: { id } });
@@ -54,21 +43,8 @@ export class CaOperationService {
     });
   }
 
-  async toFailed(id: string, reason: string): Promise<void> {
-    await this.prisma.caOperation.update({
-      where: { id },
-      data: { status: CA_OP_STATUS.FAILED, result: { reason: reason as any } },
-    });
-  }
-
   async findById(id: string) {
     return this.prisma.caOperation.findUnique({ where: { id } });
   }
 
-  /** 幂等查询：COMMITTED 重发返回既有结果 */
-  async queryResult(id: string): Promise<{ status: string; result: unknown; subjectId: string | null } | null> {
-    const op = await this.prisma.caOperation.findUnique({ where: { id } });
-    if (!op) return null;
-    return { status: op.status, result: op.result, subjectId: op.subjectId };
-  }
 }
