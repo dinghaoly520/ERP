@@ -610,12 +610,20 @@ export function ProjectDetailPanel({
   );
   const isBidLocked = bidEvalStage?.status === 'IN_PROGRESS' || bidEvalStage?.status === 'COMPLETED';
 
-  const isLockedByBid = (stageKey: string) => {
-    if (!isBidLocked) return false;
+  const isLockedByBid = (stageKey: string, round?: number) => {
+    // 2026-11-05：按被判条目自身轮次定位（时间轴逐卡判定时旧轮条目此前误读当前选中轮）——
+    // 锁定与否看该轮自己的开标评标状态，与该轮阶段序比较
+    const targetRound = round ?? selectedRound;
+    const targetBidEval = localItem.stages.find(
+      (s) => s.stageKey === 'BID_EVALUATION' && (s.round ?? 1) === targetRound,
+    );
+    const bidLocked =
+      targetBidEval?.status === 'IN_PROGRESS' || targetBidEval?.status === 'COMPLETED';
+    if (!bidLocked) return false;
     const stageOrder = localItem.stages.find(
-      (s) => s.stageKey === stageKey && (s.round ?? 1) === selectedRound,
+      (s) => s.stageKey === stageKey && (s.round ?? 1) === targetRound,
     )?.stageOrder ?? Infinity;
-    return stageOrder < (bidEvalStage?.stageOrder ?? Infinity);
+    return stageOrder < (targetBidEval?.stageOrder ?? Infinity);
   };
 
   // 轮次锁（2026-10-23 流标统一流）：旧轮全部只读（含已完成阶段——补传/编辑/AI 提取全关，查看与附件下载保留）
@@ -1631,6 +1639,7 @@ export function ProjectDetailPanel({
                 }
               }}
               isStageLocked={isLockedByBid}
+              currentRound={localItem.currentRound ?? 1}
               roundMethods={(() => {
                 const m: Record<number, string> = { 1: item.procurementMethod };
                 bpRefs.forEach((r) => { m[r.round] = r.procurementMethod; });

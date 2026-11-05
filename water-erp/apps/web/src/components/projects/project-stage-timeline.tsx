@@ -100,6 +100,7 @@ export function ProjectStageTimeline({
   onOpenScoreStandard,
   onReopenStage,
   isStageLocked,
+  currentRound,
   roundMethods,
 }: {
   stages: ProjectManagementStage[];
@@ -118,8 +119,12 @@ export function ProjectStageTimeline({
   onOpenScoreStandard?: (round: number) => void;
   /** 重开已完成步骤：目标→进行中，后续→待解锁；由父组件调 API 后刷新。 */
   onReopenStage?: (stageKey: ProjectWorkflowStageKey, round: number) => Promise<void>;
-  /** 步骤锁定判定（开标锁定）：true 时「已完成 ↺」退化为静态徽章，禁止重开入口。 */
-  isStageLocked?: (stageKey: ProjectWorkflowStageKey) => boolean;
+  /** 步骤锁定判定（开标锁定）：true 时「已完成 ↺」退化为静态徽章，禁止重开入口。
+   *  round=被判条目自身轮次（2026-11-05：旧轮判定必须按条目轮次而非当前选中轮）。 */
+  isStageLocked?: (stageKey: ProjectWorkflowStageKey, round?: number) => boolean;
+  /** 当前轮（2026-11-05 用户裁定）：流标重开后除当前轮可回退外，其余轮次全部锁定——
+   *  旧轮「已完成 ↺」退化为 🔒 静态徽章、分组头加「已锁定」徽标；查看与附件下载保留。 */
+  currentRound?: number;
   /** 轮次 → 采购方式（2026-10-23 流标统一流）：round ≥ 2 与首轮不同时分组头显示方式变更徽标 */
   roundMethods?: Record<number, string>;
 }) {
@@ -262,6 +267,11 @@ export function ProjectStageTimeline({
                       流标重采
                     </span>
                   )}
+                  {currentRound != null && round < currentRound && (
+                    <span className="inline-flex items-center rounded-full px-1.5 py-0 text-[9px] font-bold" style={{ background: 'color-mix(in oklch, var(--muted-foreground) 12%, transparent)', color: 'var(--muted-foreground)' }} title="除当前轮可回退外，该轮次已全部锁定，仅供查看">
+                      已锁定
+                    </span>
+                  )}
                   {roundMethods && round > 1 && roundMethods[round] && roundMethods[1] && roundMethods[round] !== roundMethods[1] && (
                     <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'color-mix(in oklch, var(--accent) 14%, transparent)', color: 'var(--accent)' }}>
                       方式：{roundMethods[round]}（原 {roundMethods[1]}）
@@ -318,7 +328,15 @@ export function ProjectStageTimeline({
                           {entry.orderLabel}
                         </span>
                         <div className="flex min-w-0 flex-col items-end gap-2 text-right">
-                          {entry.isCompleted && !isSelected && onReopenStage && !isStageLocked?.(stageKey) ? (
+                          {entry.isCompleted && !isSelected && currentRound != null && entry.round < currentRound ? (
+                            /* 旧轮锁定（2026-11-05 用户裁定）：流标重开后历史轮次仅供查看，回退入口撤除 */
+                            <span
+                              className="pm-stage-progress pm-stage-progress--completed cursor-not-allowed opacity-70"
+                              title="该步骤属已完成的历史轮次，仅供查看"
+                            >
+                              已完成 🔒
+                            </span>
+                          ) : entry.isCompleted && !isSelected && onReopenStage && !isStageLocked?.(stageKey, entry.round) ? (
                             /* 已完成徽章 → 可点击重开（卡片是 button，内层用 span role=button 避免嵌套 button 的 hydration 错误） */
                             <span
                               role="button"
@@ -330,7 +348,7 @@ export function ProjectStageTimeline({
                             >
                               已完成 ↺
                             </span>
-                          ) : entry.isCompleted && !isSelected && isStageLocked?.(stageKey) ? (
+                          ) : entry.isCompleted && !isSelected && isStageLocked?.(stageKey, entry.round) ? (
                             /* 开标锁定（2026-09-24）：按时开标后前置步骤冻结——重开入口撤除，静态徽章留痕 */
                             <span
                               className="pm-stage-progress pm-stage-progress--completed cursor-not-allowed opacity-70"
