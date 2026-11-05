@@ -16,7 +16,7 @@ import { stripMojibake, stripMojibakeDeep } from '../common/text-clean.util';
  *  - 收口全部直连 fetch 调用点（announcement-ai / supplier-selection-ai / ai.service.dashboardSummary / assistant DeepSeekProvider）
  *  - 新增 `LlmCallOptions`（model/maxTokens/timeoutMs/retries）—— 位置签名向后兼容
  *  - 新增 `chatMessages()` 多轮对话 API（assistant 用）
- *  - 429/5xx/网络/超时/空内容/截断/JSON 解析失败自动重试（LLM_MAX_RETRIES，指数退避，遵守 Retry-After≤8s；解析失败重试系 2026-10-10 增）；截断类重试升级 max_tokens（2026-11-05 增，封顶 32768）；调用方 abort 不重试
+ *  - 429/5xx/网络/超时/空内容/截断/JSON 解析失败自动重试（LLM_MAX_RETRIES，指数退避，遵守 Retry-After≤8s；解析失败重试系 2026-10-10 增）；截断类重试升级 max_tokens（2026-11-05 增，封顶 65536）；调用方 abort 不重试
  *  - 进程内并发信号量（LLM_MAX_CONCURRENCY）：突发并发排队而非打爆上游配额
  */
 
@@ -35,7 +35,7 @@ export interface LlmCallOptions {
   /** 本次调用模型覆盖（默认 env DEEPSEEK_MODEL）——供 flash/chat 等不同档位的调用点使用 */
   model?: string;
   /** 默认 chat/chatJson 16384、chatMessages 8192；截断（finish_reason=length）重试自动翻倍，
-   *  封顶 LlmService.MAX_TOKENS_CEILING=32768（2026-11-05 探针验证上限） */
+   *  封顶 LlmService.MAX_TOKENS_CEILING=65536（2026-11-05 探针验证；升顶须与 timeoutMs 成对） */
   maxTokens?: number;
   /** 默认 180_000 ms */
   timeoutMs?: number;
@@ -197,8 +197,12 @@ export class LlmSemaphore {
 
 @Injectable()
 export class LlmService {
-  /** 截断升级预算封顶：2026-11-05 直连探针（max_tokens=32768 → HTTP 200）已验证 */
-  static readonly MAX_TOKENS_CEILING = 32_768;
+  /**
+   * 截断升级预算封顶：2026-11-05 直连探针（max_tokens=65536 → HTTP 200）已验证；
+   * API 硬上限 393216（400 错误信息自报区间 [1,393216]），但预算越大生成墙钟越长，
+   * 再高会被默认 180s 超时先掐掉——升顶须与 timeoutMs 成对提，勿单方面调高。
+   */
+  static readonly MAX_TOKENS_CEILING = 65_536;
 
   private readonly logger = new Logger(LlmService.name);
   private readonly deepseek: DeepSeekConfig | null;

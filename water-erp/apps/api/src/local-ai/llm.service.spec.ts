@@ -277,13 +277,13 @@ describe('LlmService', () => {
     expect(httpsMock.calls[1].payload.max_tokens).toBe(32768);
   });
 
-  it('预算升级封顶 32768：多重截断逐级翻倍后不再超顶（2026-11-05 直连探针上限）', async () => {
+  it('预算升级封顶 65536：多重截断逐级翻倍后不再超顶（2026-11-05 直连探针上限）', async () => {
     httpsMock = new TransportMock(https, () => truncRes());
     await expect(
       service.chat('s', 'u', 0.3, undefined, undefined, { retries: 3 }),
     ).rejects.toThrow('max_tokens 截断');
     const budgets = httpsMock.calls.map((c) => c.payload.max_tokens);
-    expect(budgets).toEqual([16384, 32768, 32768, 32768]);
+    expect(budgets).toEqual([16384, 32768, 65536, 65536]);
   });
 
   it('chatMessages 透传多轮 messages，默认 max_tokens=8192', async () => {

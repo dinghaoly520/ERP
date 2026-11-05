@@ -7,7 +7,7 @@ import { GeneralReviewerService } from './general-reviewer.service';
  * （直连探针已验证 API 接受），截断时另由 LlmService 重试外壳继续升级兜底。
  */
 describe('GeneralReviewerService', () => {
-  it('chatJson 以 maxTokens=32768 调用（推理模型思维链共享预算，16k 曾被吃满）', async () => {
+  it('chatJson 以 maxTokens=65536 + timeoutMs=300s 调用（推理模型思维链共享预算，16k 曾被吃满）', async () => {
     const chatJson = jest.fn().mockResolvedValue({ issues: [] });
     const vectorSearch = { search: jest.fn().mockResolvedValue([]) };
     // 走 detectChapters 轨道（splitIntoLargeChunks 兜底有 >100 字符门槛）
@@ -30,7 +30,7 @@ describe('GeneralReviewerService', () => {
       0,
       undefined,
       undefined,
-      { maxTokens: 32768 },
+      { maxTokens: 65536, timeoutMs: 300_000 },
     );
   });
 });
