@@ -1973,7 +1973,7 @@ describe('直接采购「中标单位」收口（2026-10-16：开标评标前恒
     expect(data).not.toHaveProperty('awardedSupplier');
   });
 
-  describe('addStageAttachment 附件统一限制（2026-10-19：100MB+9 扩展白名单）', () => {
+  describe('addStageAttachment 附件统一限制（2026-11-05 统一 500MB 上限 + 9 扩展白名单）', () => {
     it('拒绝白名单外扩展名（先于任何 prisma 调用）', async () => {
       const { service, prisma } = makeService();
       const bad = {
@@ -1985,14 +1985,26 @@ describe('直接采购「中标单位」收口（2026-10-16：开标评标前恒
       expect(prisma.projectManagementItem.findUnique).not.toHaveBeenCalled();
     });
 
-    it('拒绝超 100MB 文件', async () => {
+    it('拒绝超 500MB 文件（2026-11-05 用户裁定统一上限）', async () => {
       const { service } = makeService();
       const big = {
         originalname: '大文件.pdf', mimetype: 'application/pdf',
-        buffer: Buffer.alloc(0), size: 100 * 1024 * 1024 + 1,
+        buffer: Buffer.alloc(0), size: 500 * 1024 * 1024 + 1,
       } as Express.Multer.File;
       await expect(service.addStageAttachment('p1', 'TENDER_DOCUMENT', big))
         .rejects.toThrow(expect.objectContaining({ response: expect.objectContaining({ code: 'ATTACHMENT_FILE_TOO_LARGE' }) }));
+    });
+
+    it('100MB+1 已放行（旧 100MB 档废除）——校验通过走到阶段定位', async () => {
+      const { service, prisma } = makeService();
+      prisma.projectManagementItem.findUnique.mockResolvedValue({ status: 'ACTIVE', currentRound: 1 });
+      prisma.projectManagementStage.findFirst.mockResolvedValue(null); // 阶段不存在 → 校验已过
+      const mid = {
+        originalname: '扫描标书.pdf', mimetype: 'application/pdf',
+        buffer: Buffer.alloc(0), size: 100 * 1024 * 1024 + 1,
+      } as Express.Multer.File;
+      await expect(service.addStageAttachment('p1', 'TENDER_DOCUMENT', mid))
+        .rejects.toThrow(/未找到对应的项目阶段/);
     });
 
     it('放行白名单内文件（走到阶段定位即认为通过校验）', async () => {
