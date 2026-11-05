@@ -4,12 +4,17 @@
         C_outer 暂存上传（服务端实算哈希）→ kself=盾 P7 封装 / kadmin=SM2 管理方公钥 →
         sealedFields（DEK_F）+ fieldsCommit → buildV3Envelope
    原语全部来自 @water-erp/ukey（前后端同源 sm-crypto 字节通道）
+   加密数据面走 CryptoEngine（Task 6，2026-11-05）：worker 分块一遍流过两层、
+   C_inner 零驻留、三哈希随流增量——主线程零整读、hex 中间态放大清零；
+   输出与旧 one-shot 路径逐字节一致（ukey 一致性闸锁定，信封锚点不变）。
    ================================================================= */
 import {
   randomHex, sm4Encrypt, sm4Decrypt, sm2EncryptHex, sha256Hex, canonicalJson,
   buildV3Envelope, computeV3FieldsCommit, keyWrapJson,
 } from '@water-erp/ukey';
 import type { DualV3Envelope, DualV3SealedFields, V3Fields, V3Role } from '@water-erp/ukey';
+import { getDefaultCryptoEngine } from './crypto-engine';
+import type { CryptoEngine } from './crypto-engine';
 
 export interface V3FileInput { role: V3Role; file: File }
 
@@ -27,6 +32,10 @@ export interface V3WrapAdapter {
 export interface V3UploadDeps {
   /** C_outer 密文暂存上传（Task5 encrypted-assets 端点） */
   uploadOuter(role: V3Role, blob: Blob, filename: string): Promise<V3UploadResult>;
+  /** 分块加密引擎（Task 6）：缺省 getDefaultCryptoEngine()（worker 优先、不可用回退
+   *  local 同进程直跑）；测试注入 createLocalCryptoEngine()。函数入口解析一次、
+   *  整次调用生效（逐角色共用同一引擎实例——worker 引擎模块内单例）。 */
+  cryptoEngine?: CryptoEngine;
 }
 
 /** 非安全上下文守卫：http 局域网地址（非 localhost/https）下浏览器禁用 crypto.subtle，
@@ -118,32 +127,24 @@ export async function encryptAndUploadV3(
 }> {
   assertSecureContext();
   const encCertFingerprint = await pemDerSha256(encCertPem);
+  const engine = deps.cryptoEngine ?? getDefaultCryptoEngine();
   const uploadedAssets: Array<{ role: V3Role; fileAssetId: string }> = [];
   const entries: Partial<Record<V3Role, DualV3Envelope['files'][V3Role]>> = {};
 
-  // ── 逐角色：明文 → C_inner（DEK_S）→ C_outer（DEK_A）→ 暂存上传 ──
+  // ── 逐角色：DEK 主线程生成 → 引擎分块双层加密 → C_outer 暂存上传 ──
   for (const { role, file } of files) {
-    const plain = new Uint8Array(await file.arrayBuffer());
-    const plainHex = Array.from(plain, (b) => b.toString(16).padStart(2, '0')).join('');
-    const plainSha256 = await sha256Hex(plain);
-
+    // DEK 主线程生成（randomHex）：kself/kadmin 封装需要明文 hex——密钥材料
+    // 只进引擎一次（worker 边界 postMessage 结构化克隆），绝不随密文往返
     const dekS = { keyHex: randomHex(16), ivHex: randomHex(16) };
-    const innerHex = sm4Encrypt(dekS.keyHex, dekS.ivHex, plainHex);
-    const innerBin = hexToBytes(innerHex);
-    // 哈希口径=二进制（真盾 E2E 实证：hex 字符串哈希 ≠ 服务端实算二进制哈希——跨校验必炸）
-    const innerSha256 = await sha256Hex(innerBin);
-
     const dekA = { keyHex: randomHex(16), ivHex: randomHex(16) };
-    const outerHex = sm4Encrypt(dekA.keyHex, dekA.ivHex, innerHex);
-    const outerBin = hexToBytes(outerHex);
-    const outerSha256Local = await sha256Hex(outerBin);
+    // 分块一遍流过两层：C_inner 段即弃零驻留，三哈希/字节计数随流增量——
+    // 哈希口径=二进制（真盾 E2E 实证：hex 字符串哈希 ≠ 服务端实算二进制哈希），
+    // 引擎产物与旧 one-shot 路径逐字节一致（信封锚点不变）
+    const res = await engine.encryptFile(file, dekS, dekA);
 
-    const outerBlob = new Blob([new Uint8Array(outerBin)], {
-      type: 'application/octet-stream',
-    });
-    const uploaded = await deps.uploadOuter(role, outerBlob, `${file.name}.outer`);
-    if (uploaded.outerSha256 && uploaded.outerSha256 !== outerSha256Local) {
-      throw new Error(`outerSha256 不一致（服务端实算 ${uploaded.outerSha256.slice(0, 8)}… ≠ 本地 ${outerSha256Local.slice(0, 8)}…）——传输损坏或截断，请重试`);
+    const uploaded = await deps.uploadOuter(role, res.outerBlob, `${file.name}.outer`);
+    if (uploaded.outerSha256 && uploaded.outerSha256 !== res.outerSha256) {
+      throw new Error(`outerSha256 不一致（服务端实算 ${uploaded.outerSha256.slice(0, 8)}… ≠ 本地 ${res.outerSha256.slice(0, 8)}…）——传输损坏或截断，请重试`);
     }
 
     // kself=盾 P7 封装 DEK_S（供应商加密证书收件人）；kadmin=SM2 封装 DEK_A（管理方公钥+证书 id）
@@ -160,9 +161,9 @@ export async function encryptAndUploadV3(
 
     entries[role] = {
       assetId: uploaded.fileAssetId,
-      plainSha256, plainBytes: plain.length,
-      innerSha256, innerBytes: hexBytes(innerHex),
-      outerSha256: uploaded.outerSha256 || outerSha256Local, outerBytes: uploaded.outerBytes || outerBlob.size,
+      plainSha256: res.plainSha256, plainBytes: res.plainBytes,
+      innerSha256: res.innerSha256, innerBytes: res.innerBytes,
+      outerSha256: uploaded.outerSha256 || res.outerSha256, outerBytes: uploaded.outerBytes || res.outerBlob.size,
       kself, kadmin,
     };
     uploadedAssets.push({ role, fileAssetId: uploaded.fileAssetId });
