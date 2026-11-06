@@ -254,7 +254,8 @@ patch hybrid_server.py < ../../../../patches/hybrid_server_rapidocr.patch
 
 **线程铁律（低配生产机）**：`OCR_NUM_WORKERS × OCR_INTRA_THREADS ≤ 分配给 OCR 的核数`。生产机（麒麟 x86_64，8 核分 6 核给 OCR）预设 `2×3`——实测 :8110 总线程 86 vs 无限制 :8100 117，预算真实收窄线程池且同材料 OCR 反而更快（3.8s vs 5.8s，超额抢占本就吃亏）。非法 env 值一律回落默认 + warn，不崩启动。
 
-NestJS 消费端 env（`apps/api/.env`）**仅一项**：`OCR_SERVICE_URL`（:8110）。批次 40 页/缓存 TTL 7 天/条目 2MB 均为代码常量——一切调参收敛到本服务 .env（单一配置面，2026-11-05 用户裁定）。
+NestJS 消费端 env（`apps/api/.env`）9 项（2026-11-06 用户裁定推翻 11-05 零配置面，恢复 env 装配；全部带默认值，缺省零行为变化）：
+`OCR_SERVICE_URL`（:8110）、`OCR_BATCH_PAGES`（40）、`OCR_BATCH_TIMEOUT_MS`（300000）、`OCR_IMAGE_TIMEOUT_MS`（120000）、`OCR_BATCH_RETRIES`（3）、`OCR_RETRY_DELAY_MS`（500）、`OCR_LARGE_FILE_MB`（20）、`OCR_CACHE_TTL_SECONDS`（604800）、`OCR_CACHE_MAX_ENTRY_KB`（2048）。非法值回落默认并 warn；服务端引擎调参仍在 services/ocr/.env。
 
 ### 6.2 PM2 env 对照（erp-ocr vs procurement-ocr）
 

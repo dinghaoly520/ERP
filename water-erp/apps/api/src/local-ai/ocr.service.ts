@@ -33,19 +33,20 @@ export class OcrService {
   private rrIndex = 0;
   private readonly logger = new Logger(OcrService.name);
 
-  // 批处理与缓存常量——消费端零配置面（用户裁定 2026-11-05）：
-  // 性能与行为调参全部收敛到 services/ocr/.env 单一配置面，这里只保留代码常量。
+  // ── 消费端 OCR 旋钮（2026-11-06 用户裁定推翻 11-05 零配置面，回归 env 装配）──
+  // 8 项全带默认=原常量值，env 缺省时零行为变化；非法值回落默认并 warn 一次。
   // 单副本 OCR 服务有 2 个并行 worker，每批 40 页 = 每 worker 20 页；
   // OCR_SERVICE_URL 配逗号多副本时，各批再 round-robin 分发到不同副本（见 nextBaseUrl）
-  private readonly BATCH_PAGES = 40;
+  private readonly batchPages: number;
+  private readonly batchTimeoutMs: number;
+  private readonly imageTimeoutMs: number;
+  private readonly batchRetries: number;
+  private readonly retryDelayMs: number;
+  private readonly largeFileMb: number;
   // 结果缓存：内容哈希键，rerun/重试零重复计算；故障不阻断 OCR（仅随 Redis 缺席禁用）
   private readonly cacheEnabled: boolean;
-  private readonly CACHE_TTL_SECONDS = 7 * 24 * 3600;
-  private readonly CACHE_MAX_ENTRY_BYTES = 2 * 1024 * 1024;
-  private readonly LARGE_FILE_THRESHOLD_MB = 20;
-  private readonly BATCH_DELAY_MS = 500;
-  private readonly BATCH_RETRIES = 3;
-  private readonly RETRY_DELAY_MS = 500;
+  private readonly cacheTtlSeconds: number;
+  private readonly cacheMaxEntryBytes: number;
 
   constructor(
     private config: ConfigService,
@@ -66,6 +67,27 @@ export class OcrService {
       );
     }
     this.cacheEnabled = !!this.redis;
+    this.batchPages = this.readIntConfig('OCR_BATCH_PAGES', 40);
+    this.batchTimeoutMs = this.readIntConfig('OCR_BATCH_TIMEOUT_MS', 300_000);
+    this.imageTimeoutMs = this.readIntConfig('OCR_IMAGE_TIMEOUT_MS', 120_000);
+    this.batchRetries = this.readIntConfig('OCR_BATCH_RETRIES', 3);
+    this.retryDelayMs = this.readIntConfig('OCR_RETRY_DELAY_MS', 500);
+    this.largeFileMb = this.readIntConfig('OCR_LARGE_FILE_MB', 20);
+    this.cacheTtlSeconds = this.readIntConfig('OCR_CACHE_TTL_SECONDS', 7 * 24 * 3600);
+    this.cacheMaxEntryBytes = this.readIntConfig('OCR_CACHE_MAX_ENTRY_KB', 2048) * 1024;
+  }
+
+  /** env 整数读取：缺失/非法/非正回落默认并 warn 一次（Number 严格解析，'20abc' 拒收） */
+  private readIntConfig(key: string, def: number): number {
+    const raw = this.config.get<string>(key, '');
+    if (raw) {
+      const val = Number(raw);
+      if (Number.isFinite(val) && val > 0) {
+        return val;
+      }
+      this.logger.warn(`OCR env ${key}=${raw} 非法，回落默认 ${def}`);
+    }
+    return def;
   }
 
   // ── OCR 结果缓存（Redis）──
@@ -124,14 +146,14 @@ export class OcrService {
     if (!this.cacheEnabled || !this.redis) return;
     try {
       const raw = JSON.stringify(result);
-      if (Buffer.byteLength(raw) > this.CACHE_MAX_ENTRY_BYTES) {
+      if (Buffer.byteLength(raw) > this.cacheMaxEntryBytes) {
         this.logger.log(
           `OCR cache skip store (${key.slice(0, 60)}…): ` +
             `${Math.round(Buffer.byteLength(raw) / 1024)}KB 超条目上限`,
         );
         return;
       }
-      await this.redis.set(key, raw, 'EX', this.CACHE_TTL_SECONDS);
+      await this.redis.set(key, raw, 'EX', this.cacheTtlSeconds);
     } catch (e) {
       this.logger.warn(`OCR cache set failed (${key.slice(0, 60)}…): ${e}`);
     }
@@ -209,7 +231,7 @@ export class OcrService {
   ): Promise<OcrResult> {
     const fileSizeMB = buffer.length / (1024 * 1024);
 
-    if (fileSizeMB <= this.LARGE_FILE_THRESHOLD_MB) {
+    if (fileSizeMB <= this.largeFileMb) {
       const result = await this.ocrPdfSingle(buffer, maxPages, null);
       onProgress?.(result.processedPages, result.pageCount);
       return result;
@@ -246,7 +268,7 @@ export class OcrService {
     const response = await fetch(`${ocrBase}/ocr`, {
       method: 'POST',
       body: formData,
-      signal: AbortSignal.timeout(300_000), // 单批 5 分钟超时
+      signal: AbortSignal.timeout(this.batchTimeoutMs), // 单批超时（OCR_BATCH_TIMEOUT_MS，默认 5 分钟）
     });
 
     if (!response.ok) {
@@ -282,7 +304,7 @@ export class OcrService {
     const totalPages = await this.getPdfPageCount(buffer);
     const effectivePages =
       maxPages > 0 ? Math.min(totalPages, maxPages) : totalPages;
-    const batches = Math.ceil(effectivePages / this.BATCH_PAGES);
+    const batches = Math.ceil(effectivePages / this.batchPages);
     const allPages: Array<{ page: number; text: string }> = [];
 
     // 页数探测完成即报总数（消费端可先渲染「x/y 页」分母）
@@ -293,8 +315,8 @@ export class OcrService {
     );
 
     for (let batch = 0; batch < batches; batch++) {
-      const startPage = batch * this.BATCH_PAGES + 1;
-      const endPage = Math.min((batch + 1) * this.BATCH_PAGES, effectivePages);
+      const startPage = batch * this.batchPages + 1;
+      const endPage = Math.min((batch + 1) * this.batchPages, effectivePages);
       const pageRange = `${startPage}-${endPage}`;
 
       this.logger.log(
@@ -362,16 +384,16 @@ export class OcrService {
   /** 页数探测带重试（与批处理同权重：BATCH_RETRIES/RETRY_DELAY_MS） */
   private async probeWithRetry(buffer: Buffer): Promise<OcrResult> {
     let lastError: unknown;
-    for (let attempt = 1; attempt <= this.BATCH_RETRIES; attempt++) {
+    for (let attempt = 1; attempt <= this.batchRetries; attempt++) {
       try {
         return await this.ocrPdfSingle(buffer, 0, null);
       } catch (error) {
         lastError = error;
         this.logger.warn(
-          `Page count probe attempt ${attempt}/${this.BATCH_RETRIES} failed: ${error}`,
+          `Page count probe attempt ${attempt}/${this.batchRetries} failed: ${error}`,
         );
-        if (attempt < this.BATCH_RETRIES) {
-          await this.delay(this.RETRY_DELAY_MS);
+        if (attempt < this.batchRetries) {
+          await this.delay(this.retryDelayMs);
         }
       }
     }
@@ -385,22 +407,22 @@ export class OcrService {
     batchNumber: number,
   ): Promise<OcrResult> {
     let lastError: unknown;
-    for (let attempt = 1; attempt <= this.BATCH_RETRIES; attempt++) {
+    for (let attempt = 1; attempt <= this.batchRetries; attempt++) {
       try {
         return await this.ocrPdfSingle(buffer, maxPages, pageRange);
       } catch (error) {
         lastError = error;
         this.logger.warn(
-          `Batch ${batchNumber} attempt ${attempt}/${this.BATCH_RETRIES} failed: ${error}`,
+          `Batch ${batchNumber} attempt ${attempt}/${this.batchRetries} failed: ${error}`,
         );
-        if (attempt < this.BATCH_RETRIES) {
-          await this.delay(this.RETRY_DELAY_MS);
+        if (attempt < this.batchRetries) {
+          await this.delay(this.retryDelayMs);
         }
       }
     }
 
     this.logger.error(
-      `Batch ${batchNumber} failed after ${this.BATCH_RETRIES} attempts: ${lastError}`,
+      `Batch ${batchNumber} failed after ${this.batchRetries} attempts: ${lastError}`,
     );
     throw lastError;
   }
@@ -464,7 +486,7 @@ export class OcrService {
     const response = await fetch(`${ocrBase}/ocr`, {
       method: 'POST',
       body: formData,
-      signal: AbortSignal.timeout(120_000),
+      signal: AbortSignal.timeout(this.imageTimeoutMs),
     });
 
     if (!response.ok) {

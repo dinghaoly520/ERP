@@ -13,6 +13,7 @@ const okJson = {
 async function makeService(
   url: string,
   redis?: unknown,
+  env: Record<string, string> = {},
 ): Promise<OcrService> {
   const providers: Provider[] = [
     OcrService,
@@ -20,7 +21,7 @@ async function makeService(
       provide: ConfigService,
       useValue: {
         get: (key: string, def?: string) =>
-          key === 'OCR_SERVICE_URL' ? url : def,
+          key === 'OCR_SERVICE_URL' ? url : (env[key] ?? def),
       },
     },
   ];
@@ -213,6 +214,33 @@ function makeRedisMock(
     ...overrides,
   };
 }
+
+describe('消费端 OCR env 旋钮（2026-11-06 推翻零配置面裁定）', () => {
+  it('OCR_BATCH_PAGES=20：批界按 20 切', async () => {
+    const svc = await makeService('http://a:8100', undefined, { OCR_BATCH_PAGES: '20' });
+    const records: FetchRecord[] = [];
+    (global as any).fetch = mockRecordingFetch(records);
+    await svc.ocrPdf(Buffer.alloc(21 * 1024 * 1024));
+    expect(records[1].form.page_range).toBe('1-20');
+    expect(records[1].form.max_pages).toBe('20');
+  });
+
+  it('OCR_CACHE_TTL_SECONDS=3600：redis.set 以 EX 3600 落盘', async () => {
+    const redis = makeRedisMock();
+    const svc = await makeService('http://a:8100', redis, { OCR_CACHE_TTL_SECONDS: '3600' });
+    (global as any).fetch = mockRecordingFetch([]);
+    await svc.ocrPdf(Buffer.from('x'));
+    expect(redis.set).toHaveBeenCalledWith(expect.any(String), expect.any(String), 'EX', 3600);
+  });
+
+  it('非法值回落默认（OCR_BATCH_PAGES=abc → 40）', async () => {
+    const svc = await makeService('http://a:8100', undefined, { OCR_BATCH_PAGES: 'abc' });
+    const records: FetchRecord[] = [];
+    (global as any).fetch = mockRecordingFetch(records);
+    await svc.ocrPdf(Buffer.alloc(21 * 1024 * 1024));
+    expect(records[1].form.page_range).toBe('1-40');
+  });
+});
 
 describe('OCR 结果缓存', () => {
   it('相同参数二次调用命中缓存：fetch 仅 1 次，结果一致', async () => {
