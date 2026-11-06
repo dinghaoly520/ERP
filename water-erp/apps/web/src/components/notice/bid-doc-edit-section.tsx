@@ -65,15 +65,13 @@ export function DownloadModePicker({ mode, password, onMode, onPassword }: {
   );
 }
 
-export function BidDocEditSection({ annId, bidDoc, onChanged, ensureAnnId, heading = '采购文件', fixedOpen = false }: {
+export function BidDocEditSection({ annId, bidDoc, onChanged, ensureAnnId, heading = '采购文件' }: {
   annId: string | null;
   bidDoc: BidDocumentManage | null;
   onChanged: () => void;
   /** annId 为空时调用以自动落草稿（新建页），返回公告 id；不可用返回 null */
   ensureAnnId?: () => Promise<string | null>;
   heading?: string;
-  /** 恒公开（补遗引用采购文件，2026-11-06 用户裁定）：不渲染「公开/邀请」范围下拉，恒 OPEN */
-  fixedOpen?: boolean;
 }) {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [supplierSearch, setSupplierSearch] = useState("");
@@ -133,7 +131,7 @@ export function BidDocEditSection({ annId, bidDoc, onChanged, ensureAnnId, headi
             <button onClick={removeDoc} className="neu-btn-xs is-danger ml-2 shrink-0">删除</button>
           </div>
           <div className="space-y-1.5">
-            {!fixedOpen && <select value={scope} onChange={e => setScope(e.target.value as any)} className="neu-input text-sm"><option value="OPEN">公开</option><option value="INVITED">邀请</option></select>}
+            <select value={scope} onChange={e => setScope(e.target.value as any)} className="neu-input text-sm"><option value="OPEN">公开</option><option value="INVITED">邀请</option></select>
             <DownloadModePicker mode={dlMode} password={dlPassword} onMode={setDlMode} onPassword={setDlPassword} />
           </div>
           {scope === "INVITED" && (
@@ -169,7 +167,7 @@ export function BidDocEditSection({ annId, bidDoc, onChanged, ensureAnnId, headi
           </label>
 
           <div className="space-y-1.5">
-            {!fixedOpen && <select value={scope} onChange={e => setScope(e.target.value as any)} className="neu-input text-sm"><option value="OPEN">公开</option><option value="INVITED">邀请</option></select>}
+            <select value={scope} onChange={e => setScope(e.target.value as any)} className="neu-input text-sm"><option value="OPEN">公开</option><option value="INVITED">邀请</option></select>
             <DownloadModePicker mode={dlMode} password={dlPassword} onMode={setDlMode} onPassword={setDlPassword} />
           </div>
 
@@ -190,6 +188,95 @@ export function BidDocEditSection({ annId, bidDoc, onChanged, ensureAnnId, headi
             </div>
           )}
         </div>
+      )}
+      {dialog}
+    </div>
+  );
+}
+
+/** 补遗「引用采购文件」紧凑段（2026-11-06 UI 重设计）：与公告表单同语言（neu-drop-zone/
+ *  neu-btn，无外层卡片），恒公开（无范围下拉）、复用下载方式三卡；供新建/编辑页在
+ *  「附件 | 引用采购文件」双栏布局中与附件上传并排使用。 */
+export function AddendumRefDocSection({ annId, bidDoc, onChanged, ensureAnnId }: {
+  annId: string | null;
+  bidDoc: BidDocumentManage | null;
+  onChanged: () => void;
+  ensureAnnId?: () => Promise<string | null>;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [dlMode, setDlMode] = useState<'free' | 'encrypted'>(bidDoc?.downloadMode === 'encrypted' ? 'encrypted' : 'free');
+  const [dlPassword, setDlPassword] = useState(bidDoc?.downloadPassword || '');
+  const [busy, setBusy] = useState(false);
+  const [pct, setPct] = useState<number | null>(null);
+  const { confirm, dialog } = useConfirm();
+  useEffect(() => {
+    setDlMode(bidDoc?.downloadMode === 'encrypted' ? 'encrypted' : 'free');
+    if (bidDoc?.downloadPassword) setDlPassword(bidDoc.downloadPassword);
+  }, [bidDoc?.downloadMode, bidDoc?.downloadPassword]);
+
+  const doUpload = async () => {
+    if (!file) { toast.error('请选择采购文件'); return; }
+    if (dlMode === 'encrypted' && !dlPassword) { toast.error('解密下载需先设置下载密码'); return; }
+    let targetId = annId;
+    if (!targetId && ensureAnnId) targetId = await ensureAnnId();
+    if (!targetId) { toast.error('请先保存草稿'); return; }
+    setBusy(true);
+    setPct(0);
+    try {
+      await uploadBidDocument(targetId, file, { title: file.name, accessScope: 'OPEN', requirePayment: false, downloadMode: dlMode, downloadPassword: dlMode === 'encrypted' ? dlPassword : undefined }, {
+        onProgress: (l, t) => setPct(t > 0 ? Math.round((l / t) * 100) : 0),
+      });
+      toast.success('已加密上传'); setFile(null); setPct(null); onChanged();
+    } catch (e: any) { toast.error(e?.message || '上传失败'); }
+    finally { setBusy(false); setPct(null); }
+  };
+  const saveConfig = async () => {
+    if (!bidDoc || !annId) return;
+    if (dlMode === 'encrypted' && !dlPassword) { toast.error('解密下载需先设置下载密码'); return; }
+    setBusy(true);
+    try { await updateBidDocumentConfig(annId, { accessScope: 'OPEN', requirePayment: false, downloadMode: dlMode, downloadPassword: dlMode === 'encrypted' ? dlPassword : undefined }); toast.success('配置已保存'); onChanged(); }
+    catch (e: any) { toast.error(e?.message || '保存失败'); }
+    finally { setBusy(false); }
+  };
+  const removeDoc = async () => {
+    if (!bidDoc || !annId || !(await confirm({ message: '删除引用的采购文件？', danger: true }))) return;
+    try { await removeBidDocument(annId); toast.success('已删除'); onChanged(); } catch (e: any) { toast.error(e?.message || '失败'); }
+  };
+
+  return (
+    <div className="space-y-3">
+      {bidDoc ? (
+        <>
+          <div className="flex items-center justify-between gap-2 rounded-[10px] bg-[var(--surface)] px-3 py-2"
+            style={{ boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5), 1px 1px 2px oklch(0.55 0.03 258 / 0.05), -1px -1px 1px oklch(1 0 0 / 0.6)' }}>
+            <div className="min-w-0">
+              <div className="truncate text-[0.85rem] font-bold text-[var(--foreground)] leading-snug">🔒 {bidDoc.title}</div>
+              <div className="text-[11px] text-[var(--muted-foreground)] truncate">{bidDoc.fileName} · {(bidDoc.fileSize / 1024).toFixed(0)} KB · {bidDoc.downloadCount} 次下载</div>
+            </div>
+            <button type="button" onClick={removeDoc} className="neu-btn-xs is-danger shrink-0">删除</button>
+          </div>
+          <DownloadModePicker mode={dlMode} password={dlPassword} onMode={setDlMode} onPassword={setDlPassword} />
+          <button type="button" onClick={saveConfig} disabled={busy} className="neu-btn-soft w-full justify-center disabled:opacity-50">{busy ? '保存中...' : '保存配置'}</button>
+        </>
+      ) : (
+        <>
+          <label className="neu-drop-zone">
+            <Upload size={14} className="text-[var(--muted-foreground)] mb-1" />
+            <span className="text-[0.75rem] font-medium text-[var(--muted-foreground)]">{file ? file.name : '选择采购文件'}</span>
+            <span className="mt-0.5 text-[0.65rem] text-[var(--muted-foreground)]/60">{file ? `${(file.size / 1024).toFixed(0)} KB` : '点击浏览或拖拽上传'}</span>
+            <input type="file" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
+          </label>
+          <DownloadModePicker mode={dlMode} password={dlPassword} onMode={setDlMode} onPassword={setDlPassword} />
+          <button type="button" onClick={doUpload} disabled={busy || !file} className="neu-btn-soft w-full justify-center disabled:opacity-40">
+            {busy ? `加密上传中${pct != null ? ` ${pct}%` : '...'}` : '加密上传'}
+          </button>
+          {pct != null && (
+            <div className="flex items-center gap-2">
+              <WaterBar pct={pct} state="uploading" />
+              <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[var(--accent)]">{pct}%</span>
+            </div>
+          )}
+        </>
       )}
       {dialog}
     </div>

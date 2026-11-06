@@ -20,7 +20,7 @@ import { useConfirm } from '@/components/workbench/use-confirm';
 import { ArrowLeft, Pencil, X, EyeOff, PackageX, Megaphone, Upload, Sparkles, Clock } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { PublishConfigSection, configFromMetadata, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
-import { BidDocEditSection } from '@/components/notice/bid-doc-edit-section';
+import { BidDocEditSection, AddendumRefDocSection } from '@/components/notice/bid-doc-edit-section';
 import { DATA_CLASS_LABELS, ANNOUNCEMENT_TYPE_ORDER } from '@water-erp/shared';
 import { ANN_TYPE_LABEL, ANN_STATUS_LABEL, ANN_STATUS_TONE } from '@/lib/announcement-meta';
 import { isOverdueScheduledDraft } from '@/lib/notice/schedule';
@@ -621,19 +621,20 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
       <div className="flex flex-col gap-4 min-w-0">
         <AttachmentEditSection annId={ann.id} attachments={attachments} onChanged={loadExtras} />
         {type === 'BID_NOTICE' && <BidDocEditSection annId={ann.id} bidDoc={bidDoc} onChanged={loadExtras} />}
-        {/* 补遗公告引用采购文件（2026-11-06 用户裁定）：开关 + 同链管理段（免费/解密/付费暂不支持） */}
+        {/* 补遗公告引用采购文件（2026-11-06）：开关 + 紧凑文件段（免费/解密），单卡收纳 */}
         {type === 'ADDENDUM' && (metadata.refBidDoc === '1' || bidDoc) && (
-          <div className="space-y-3">
-            <div className="neu-table-card p-5">
-              <div className="text-xs font-bold text-[var(--accent-strong)] mb-3">引用采购文件</div>
+          <div className="neu-table-card p-4 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">引用采购文件</span>
               <div className="neu-segment" role="group" aria-label="引用采购文件" data-index={metadata.refBidDoc === '1' ? '1' : '0'}>
                 <span aria-hidden className="neu-segment-thumb" />
                 <button type="button" aria-pressed={metadata.refBidDoc !== '1'} onClick={() => setMetadata({ ...metadata, refBidDoc: '' })} className="neu-segment-btn">不引用</button>
                 <button type="button" aria-pressed={metadata.refBidDoc === '1'} onClick={() => setMetadata({ ...metadata, refBidDoc: '1' })} className="neu-segment-btn">引用</button>
               </div>
-              <p className="mt-2 text-[11px] text-[var(--muted-foreground)]">引用后补遗公告附带采购文件下载通道（免费 / 解密 / 付费暂不支持），供应商在公告详情下载</p>
             </div>
-            {metadata.refBidDoc === '1' && <BidDocEditSection annId={ann.id} bidDoc={bidDoc} onChanged={loadExtras} heading="引用采购文件" fixedOpen />}
+            {metadata.refBidDoc === '1'
+              ? <div className="mt-3"><AddendumRefDocSection annId={ann.id} bidDoc={bidDoc} onChanged={loadExtras} /></div>
+              : <p className="mt-2 text-[11px] text-[var(--muted-foreground)]">已关闭引用——补遗仅文字澄清</p>}
           </div>
         )}
         <div className="flex flex-col gap-2 pt-1">

@@ -8,7 +8,7 @@ import {
   listAttachments, addAttachment, removeAttachment, uploadFile, getBidDocument,
 } from '@/lib/api/announcement';
 import type { AnnouncementType, AnnouncementStatus, AnnouncementAttachment, BidDocumentManage } from '@/lib/api/announcement';
-import { BidDocEditSection } from '@/components/notice/bid-doc-edit-section';
+import { AddendumRefDocSection } from '@/components/notice/bid-doc-edit-section';
 import { WaterBar } from '@/components/upload/water-bar';
 import { Upload, PlusCircle, Save, Send, FolderKanban, Megaphone, Search, X } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
@@ -463,27 +463,7 @@ export default function NewNoticePage() {
               );
             })}
           </div>
-          {/* 补遗公告：是否引用采购文件（2026-11-06 用户裁定）——引用则提供下载方式（免费/解密/付费暂不支持） */}
-          {type === 'ADDENDUM' && (
-            <div className="mt-4 rounded-xl bg-[var(--accent-soft)]/15 p-4" style={{ boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.3), inset 1px 1px 4px oklch(0.55 0.03 258/0.06), inset -1px -1px 4px oklch(1 0 0 / 0.5)' }}>
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">引用采购文件</span>
-                <div className="neu-segment" role="group" aria-label="引用采购文件" data-index={metadata.refBidDoc === '1' ? '1' : '0'}>
-                  <span aria-hidden className="neu-segment-thumb" />
-                  <button type="button" aria-pressed={metadata.refBidDoc !== '1'} onClick={() => setMetadata({ ...metadata, refBidDoc: '' })} className="neu-segment-btn">不引用</button>
-                  <button type="button" aria-pressed={metadata.refBidDoc === '1'} onClick={() => setMetadata({ ...metadata, refBidDoc: '1' })} className="neu-segment-btn">引用</button>
-                </div>
-              </div>
-              <p className="mt-2 text-[11px] text-[var(--muted-foreground)]">
-                引用后补遗公告附带采购文件下载通道（免费 / 解密 / 付费暂不支持），供应商在公告详情下载；不引用则仅文字澄清
-              </p>
-              {metadata.refBidDoc === '1' && (
-                <div className="mt-3">
-                  <BidDocEditSection annId={annId} bidDoc={bidDoc} onChanged={loadExtras} ensureAnnId={ensureDraft} heading="引用采购文件" fixedOpen />
-                </div>
-              )}
-            </div>
-          )}
+          {/* 补遗公告「引用采购文件」开关与文件段在下方「附件与采购文件」双栏区块（2026-11-06 UI 重设计） */}
         </fieldset>
 
         <hr className="wb-section-rule" />
@@ -507,13 +487,36 @@ export default function NewNoticePage() {
           <PublishConfigSection config={publishConfig} onChange={setPublishConfig} />
         </fieldset>
 
-        {/* ⑥ 附件 — 随时可传（2026-11-06 用户裁定：不再要求先保存草稿；首传自动落草稿绑定） */}
+        {/* ⑥ 附件与采购文件 — 随时可传（2026-11-06：免先存草稿 + 补遗双栏并排 UI 重设计）：
+            补遗类型左附件右采购文件，其余类型附件独占整行 */}
         <hr className="wb-section-rule" />
         <fieldset>
           <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">
-            <Step n={isProjectLinked ? 7 : 6} />附件（公开可下载）
+            <Step n={isProjectLinked ? 7 : 6} />{type === 'ADDENDUM' ? '附件与采购文件' : '附件（公开可下载）'}
           </legend>
-          <AttachmentUploader annId={annId} ensureAnnId={ensureDraft} attachments={attachments} onChanged={loadExtras} />
+          <div className={`grid grid-cols-1 gap-6 ${type === 'ADDENDUM' ? 'lg:grid-cols-2' : 'max-w-2xl'}`}>
+            <div className="space-y-2">
+              <span className="text-xs font-semibold text-[var(--muted-foreground)]">附件（公开可下载）</span>
+              <AttachmentUploader annId={annId} ensureAnnId={ensureDraft} attachments={attachments} onChanged={loadExtras} />
+            </div>
+            {type === 'ADDENDUM' && (
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-[var(--muted-foreground)]">引用采购文件</span>
+                  <div className="neu-segment" role="group" aria-label="引用采购文件" data-index={metadata.refBidDoc === '1' ? '1' : '0'}>
+                    <span aria-hidden className="neu-segment-thumb" />
+                    <button type="button" aria-pressed={metadata.refBidDoc !== '1'} onClick={() => setMetadata({ ...metadata, refBidDoc: '' })} className="neu-segment-btn">不引用</button>
+                    <button type="button" aria-pressed={metadata.refBidDoc === '1'} onClick={() => setMetadata({ ...metadata, refBidDoc: '1' })} className="neu-segment-btn">引用</button>
+                  </div>
+                </div>
+                {metadata.refBidDoc === '1' ? (
+                  <AddendumRefDocSection annId={annId} bidDoc={bidDoc} onChanged={loadExtras} ensureAnnId={ensureDraft} />
+                ) : (
+                  <p className="text-[11px] text-[var(--muted-foreground)] py-6 text-center">开启「引用」后补遗附带采购文件下载通道（免费 / 解密），供应商在公告详情下载</p>
+                )}
+              </div>
+            )}
+          </div>
         </fieldset>
 
         {/* 操作栏 */}
