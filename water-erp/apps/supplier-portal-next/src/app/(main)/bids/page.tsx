@@ -346,11 +346,23 @@ export default function BidListPage() {
             </div>
           ) : (
             !loading && (
-              <EmptyState
-                icon={ClipboardList}
-                title="暂无招标项目"
-                desc={search || filterScope ? "没有符合当前筛选条件的项目，试试调整搜索或类别" : "当前没有处于投标期内（下载/递交阶段且未截标）的招标项目；已截止或已开评标的项目请在「我的投标」中查看进度"}
-              />
+              /* 空态与公告公示等板块同款：装入模块卡（card）而非裸浮在页面底色上 */
+              <div className="mt-[18px]">
+                <EmptyState
+                  card
+                  icon={ClipboardList}
+                  title="暂无可参与的项目"
+                  desc={search || filterScope
+                    ? "没有符合当前筛选条件的项目，试试调整搜索关键词"
+                    : "当前没有处于投标期内（下载/递交阶段且未截标）的项目"}
+                >
+                  {!search && !filterScope && (
+                    <Link href="/my-bids" className="neu-btn-soft">
+                      查看我的投标<ArrowRight size={14} strokeWidth={1.85} />
+                    </Link>
+                  )}
+                </EmptyState>
+              </div>
             )
           )}
 
