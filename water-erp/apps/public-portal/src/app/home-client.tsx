@@ -567,6 +567,14 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                   四川水发勘测设计研究有限公司
                   <svg className="footer-link-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>
                 </a>
+                <a href="https://www.sdgcj.cn/" target="_blank" rel="noopener noreferrer" className="footer-link">
+                  四川水发建设有限公司
+                  <svg className="footer-link-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>
+                </a>
+                <a href="https://www.dsjt.cc/" target="_blank" rel="noopener noreferrer" className="footer-link">
+                  四川水发投资有限公司
+                  <svg className="footer-link-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>
+                </a>
               </div>
             </div>
 
