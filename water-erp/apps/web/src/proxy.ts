@@ -21,10 +21,15 @@ const TRANSPORT_RETRY_DELAYS_MS = [400, 1_000, 3_000, 8_000];
 const UPSTREAM_SLOW_PATH_PREFIXES = ['/api/ai/'];
 // 2026-11-04：公告导入识别（LLM 同链路，耐心重试下可达 ~30s）——未列入时吃 15s 硬超时
 const UPSTREAM_SLOW_PATH_EXACT = ['/api/tender-write/import-autofill', '/api/tender-write/announcement-import-autofill'];
+// 2026-11-06（生产实录）：知识库上传 235MB 经门户 arrayBuffer 缓冲转发，body 传输逼近 15s
+// 临界带宽（~15MB/s）即被击穿 → API 侧 multer Request aborted——放大到 120s 覆盖大件传输窗。
+// 异步化（202）已消掉处理侧长等待，此窗口只需罩住 body 本身的搬运。
+const UPSTREAM_SLOW_PATH_PREFIXES_LARGE_BODY = ['/api/knowledge/'];
 
 function upstreamTimeoutFor(pathname: string): number {
   return UPSTREAM_SLOW_PATH_PREFIXES.some((p) => pathname.startsWith(p))
     || UPSTREAM_SLOW_PATH_EXACT.includes(pathname)
+    || UPSTREAM_SLOW_PATH_PREFIXES_LARGE_BODY.some((p) => pathname.startsWith(p))
     ? UPSTREAM_TIMEOUT_SLOW_MS
     : UPSTREAM_TIMEOUT_MS;
 }
