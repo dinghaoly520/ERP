@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {
   Upload,
@@ -8,6 +8,7 @@ import {
   FileText,
   Trash2,
   RefreshCw,
+  RotateCw,
   Database,
   Shield,
   ArrowRight,
@@ -15,6 +16,45 @@ import {
 import { toast } from 'sonner';
 import { WaterBar } from '../upload/water-bar';
 import { useTenderReview, useKnowledgeBaseOps } from './use-tender-review';
+import { retryKnowledgeFile } from '@/lib/api/knowledge';
+import type { KnowledgeFile } from '@/lib/types/tender-review';
+
+/** 解析状态徽章（2026-11-06 异步化）：PARSING=页进度、FAILED=可重试、READY+未索引=待重建 */
+function ParseStatusBadge({ file }: { file: KnowledgeFile }) {
+  if (file.status === 'PARSING') {
+    return (
+      <span
+        className="shrink-0 rounded-[6px] px-1.5 py-0.5 text-[11px] tabular-nums"
+        style={{ background: 'color-mix(in oklch, var(--accent) 14%, transparent)', color: 'var(--accent)' }}
+      >
+        {file.totalPages ? `解析中 ${file.processedPages ?? 0}/${file.totalPages} 页` : '解析中…'}
+      </span>
+    );
+  }
+  if (file.status === 'FAILED') {
+    return (
+      <span
+        className="shrink-0 rounded-[6px] px-1.5 py-0.5 text-[11px]"
+        style={{ background: 'color-mix(in oklch, var(--danger) 12%, transparent)', color: 'var(--danger)' }}
+        title={file.error ?? undefined}
+      >
+        解析失败
+      </span>
+    );
+  }
+  if (file.status === 'READY' && file.indexed === false) {
+    return (
+      <span
+        className="shrink-0 rounded-[6px] px-1.5 py-0.5 text-[11px]"
+        style={{ background: 'color-mix(in oklch, var(--warning) 12%, transparent)', color: 'var(--warning)' }}
+        title="嵌入服务未运行，文件已入库；恢复后请点「重建索引」"
+      >
+        未索引
+      </span>
+    );
+  }
+  return null;
+}
 
 export default function FilesPanelCompact() {
   const { selectedKbId, knowledgeBases, refreshKnowledgeBases, setActiveTab } = useTenderReview();
@@ -28,6 +68,14 @@ export default function FilesPanelCompact() {
 
   const selectedKb = knowledgeBases.find(kb => kb.id === selectedKbId);
 
+  // 解析中文件存在时 5s 轮询刷新（2026-11-06 异步化——收件即回、解析后台化）；无则停
+  const hasParsing = !!selectedKb?.files?.some(f => f.status === 'PARSING');
+  useEffect(() => {
+    if (!hasParsing) return;
+    const timer = setInterval(() => { void refreshKnowledgeBases(); }, 5000);
+    return () => clearInterval(timer);
+  }, [hasParsing, refreshKnowledgeBases]);
+
   const handleFileUpload = async (files: FileList | null) => {
     if (!files?.length || !selectedKbId) return;
     setUploading(true);
@@ -36,16 +84,12 @@ export default function FilesPanelCompact() {
     try {
       for (let i = 0; i < total; i++) {
         const file = files[i];
-        const isLargePdf = file.name.toLowerCase().endsWith('.pdf') && file.size > 5 * 1024 * 1024;
-        const msg = isLargePdf
-          ? `正在处理文件 (${i + 1}/${total})：${file.name}（扫描件可能需要较长时间）`
-          : `正在处理文件 (${i + 1}/${total})：${file.name}`;
-        toast.info(msg, { duration: 8000, id: 'upload-progress' });
+        toast.info(`正在上传 (${i + 1}/${total})：${file.name}`, { duration: 8000, id: 'upload-progress' });
         await uploadFile(selectedKbId, file, {
           onProgress: (l, t) => setUpRows(rows => rows.map((r, j) => (j === i ? { ...r, pct: t > 0 ? Math.round((l / t) * 100) : 0 } : r))),
         });
       }
-      toast.success(`${total} 个文件上传并索引完成`, { id: 'upload-progress' });
+      toast.success(`${total} 个文件已上传，后台解析中`, { id: 'upload-progress' });
 
       // 刷新知识库数据后检查是否需要提示用户提取规则
       await refreshKnowledgeBases();
@@ -56,10 +100,21 @@ export default function FilesPanelCompact() {
         setShowRuleTip(true);
       }
     } catch (err) {
-      toast.error(`文件处理失败：${err instanceof Error ? err.message : '请重试'}`, { id: 'upload-progress' });
+      toast.error(`上传失败：${err instanceof Error ? err.message : '请重试'}`, { id: 'upload-progress' });
     } finally {
       setUploading(false);
       setUpRows([]);
+    }
+  };
+
+  const handleRetryParse = async (fileId: string) => {
+    if (!selectedKbId) return;
+    try {
+      await retryKnowledgeFile(selectedKbId, fileId);
+      await refreshKnowledgeBases();
+      toast.success('已重新入队解析');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '重试失败');
     }
   };
 
@@ -215,14 +270,26 @@ export default function FilesPanelCompact() {
                       <span>{new Date(file.createdAt).toLocaleDateString('zh-CN')}</span>
                     </div>
                   </div>
+                  <ParseStatusBadge file={file} />
                 </div>
-                <button
-                  onClick={() => handleDeleteFile(file.id)}
-                  className="p-2 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--danger)] hover:bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] transition-colors shrink-0"
-                  title="删除文件"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  {file.status === 'FAILED' && (
+                    <button
+                      onClick={() => handleRetryParse(file.id)}
+                      className="p-2 rounded-lg text-[var(--danger)] hover:bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] transition-colors"
+                      title={file.error ? `失败原因：${file.error}（点击重试）` : '重新解析'}
+                    >
+                      <RotateCw className="h-4 w-4" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleDeleteFile(file.id)}
+                    className="p-2 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--danger)] hover:bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] transition-colors"
+                    title="删除文件"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </motion.div>
             ))}
           </div>

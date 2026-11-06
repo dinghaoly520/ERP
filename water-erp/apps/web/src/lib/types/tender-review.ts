@@ -21,6 +21,15 @@ export interface KnowledgeFile {
   content: string | null;
   chunkCount: number;
   isActive: boolean;
+  /** 解析异步化（2026-11-06）：PARSING=后台解析中（progressed/totalPages 页进度）、
+   *  FAILED=解析失败（error 原因，可 retry）、READY=可检索；indexed=false=嵌入降级待重建索引 */
+  status?: 'PARSING' | 'READY' | 'FAILED';
+  processedPages?: number;
+  totalPages?: number | null;
+  error?: string | null;
+  indexed?: boolean;
+  /** 上传响应标志：同库同 sha256 命中既有行（未新建、未重复入队） */
+  deduplicated?: boolean;
   createdAt: string;
   updatedAt: string;
 }
