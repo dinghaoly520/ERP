@@ -165,6 +165,49 @@ export class AuditService {
   }
 
   /**
+   * 全中心操作留痕（2026-11-06 用户裁定）：leader/admin 查所有人 AuditLog——join 操作人
+   * 姓名/角色（displayName 优先），响应剥离 user 关系只留 operator 投影；资源名解析复用
+   * my-activities 同一管线。LOGIN/LOGOUT 噪音由前端 exclude 传入（与本人视图同口径）。
+   * （与既有 getAllActivities——admin 审计列表同函数名撞车，此方法名取 org 视野语义）
+   */
+  async getOrgActivities(options?: {
+    limit?: number;
+    offset?: number;
+    excludeActions?: string[];
+  }) {
+    const limit = options?.limit ?? 100;
+    const offset = options?.offset ?? 0;
+    const where = {
+      ...(options?.excludeActions && options.excludeActions.length > 0
+        ? { action: { notIn: options.excludeActions } }
+        : {}),
+    };
+
+    const [rows, total] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+        include: { user: { select: { displayName: true, username: true, role: true } } },
+      }),
+      this.prisma.auditLog.count({ where }),
+    ]);
+
+    const named = await this.withResourceNames(rows);
+    const items = named.map(r => {
+      const { user, ...rest } = r as typeof r & {
+        user?: { displayName: string; username: string; role: string } | null;
+      };
+      return {
+        ...rest,
+        operator: user ? { name: user.displayName || user.username, role: user.role } : null,
+      };
+    });
+    return { items, total };
+  }
+
+  /**
    * 操作历史资源可读化（2026-11-04 用户口径）：resourceType 里塞的 `BidProject:<cuid>`
    * / `BID-xxx` 编号 / details.projectId 对用户全是黑话——批量解析成投标项目名挂在
    * resourceName 上，前端不再裸出主键。解析不到的保持 null（前端按原样兜底）。

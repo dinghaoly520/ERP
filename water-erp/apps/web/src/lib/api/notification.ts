@@ -53,6 +53,8 @@ export interface AuditActivity {
   /** 审计留痕元信息（2026-11-06 操作历史明细）：AuditLog 全行透传，前端此前未声明 */
   ipAddress?: string | null;
   userAgent?: string | null;
+  /** 操作人（2026-11-06 全中心留痕端点）：仅 all-activities 视图带；my-activities 恒为本人 */
+  operator?: { name: string; role?: string | null } | null;
   createdAt: string;
 }
 
@@ -60,4 +62,11 @@ export interface AuditActivity {
 export function fetchMyActivities(limit = 50, exclude?: string[]) {
   const ex = exclude?.length ? `&exclude=${exclude.join(',')}` : '';
   return api.get<{ items: AuditActivity[]; total: number }>(`/audit-log/my-activities?limit=${limit}${ex}`);
+}
+
+/** 全中心操作留痕（2026-11-06 用户裁定）——leader/admin 专属端点，每条带 operator；
+ *  staff 调用会被后端 403，前端按角色分流调用 */
+export function fetchAllActivities(limit = 100, exclude?: string[]) {
+  const ex = exclude?.length ? `&exclude=${exclude.join(',')}` : '';
+  return api.get<{ items: AuditActivity[]; total: number }>(`/audit-log/all-activities?limit=${limit}${ex}`);
 }

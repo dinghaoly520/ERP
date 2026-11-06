@@ -6,12 +6,13 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { getNotificationMeta, getNotificationLabel } from '@water-erp/shared';
 import {
-  listNotifications, markNotificationRead, markAllNotificationsRead, fetchMyActivities, resolveNotification,
+  listNotifications, markNotificationRead, markAllNotificationsRead, fetchMyActivities, fetchAllActivities, resolveNotification,
   type NotificationItem, type NotificationTab, type AuditActivity,
 } from '@/lib/api/notification';
 import {
   fetchPendingProfileChanges, approveProfileChange, rejectProfileChange,
   fetchPendingRegistrations, approveRegistration, rejectRegistration,
+  fetchCurrentUser,
 } from '@/lib/api/auth';
 import { getSupplier, getSupplierList, approveSupplier, rejectSupplier, returnSupplier } from '@/lib/api/supplier';
 import { Modal } from '@/components/workbench';
@@ -185,7 +186,8 @@ function activityResourceLine(a: AuditActivity): string | null {
 
 /** 连发折叠（2026-11-04）：同一动作+同一资源+同一供应商 2 分钟内连发多行（双击重放，
  *  实测对间隔 ~0.6s 的成对澄清记录）只显示一行并带 ×N 计数——审计底账不动，纯展示层
- *  聚合。供应商入键：同项目 2 分钟内向不同供应商各发澄清不会误并成一行。 */
+ *  聚合。供应商入键：同项目 2 分钟内向不同供应商各发澄清不会误并成一行。
+ *  userId 入键（2026-11-06 全中心视图）：不同操作人的同型动作不得并成一行。 */
 function groupActivities(acts: AuditActivity[]): AuditActivity[][] {
   const groups: AuditActivity[][] = [];
   for (const a of acts) {
@@ -197,7 +199,7 @@ function groupActivities(acts: AuditActivity[]): AuditActivity[][] {
     if (
       head && gap <= 120_000 &&
       head.action === a.action && head.resourceType === a.resourceType && head.resourceId === a.resourceId &&
-      supplierOf(head) === supplierOf(a)
+      head.userId === a.userId && supplierOf(head) === supplierOf(a)
     ) last.push(a);
     else groups.push([a]);
   }
@@ -234,25 +236,40 @@ function uaLabel(ua: string | null | undefined): string | null {
 /** details 明细行（2026-11-06 用户口径「每条更详细」）：白名单键→中文标签，最多 4 项。
  *  键集按 AuditLog 实测形态校准（EXPERT_EXTRACTION_CONFIRMED/DEMAND_REP_EXTERNAL_CREATE/
  *  查看账号密码/PROFILE_CHANGE_APPROVED 等）；已由资源行消费的键（projectName/
- *  supplierName/target/added）不重复；cuid 形态值、超长值不裸出（同通知文案治理口径）。 */
+ *  supplierName/target/added）不重复；cuid 形态值、超长值不裸出（同通知文案治理口径）。
+ *  「查看账号密码」按动作特译（2026-11-06 用户反馈「命中/身份不知所云」）：role=被查账号
+ *  的角色、hit=是否查到存档密码副本（工作人员账号无副本）——generic 键表不再收录这两个键。 */
 const DETAIL_LABEL: Record<string, string> = {
   reason: '原因', stage: '审批级', title: '标题', count: '数量',
   departmentName: '部门', officeLocation: '办公地', newName: '新名', oldName: '旧名',
   expertName: '专家', employer: '单位', expertCount: '专家数', extractMode: '抽取方式',
-  fields: '变更字段', hit: '命中', role: '身份',
+  fields: '变更字段',
 };
 const STAGE_CN: Record<string, string> = { STAFF: '初审', LEADER: '复审', ADMIN: '终审' };
 const EXTRACT_MODE_CN: Record<string, string> = { random: '随机抽取', rule: '规则引擎', ai: '智能抽取', custom: '自定义' };
 const ROLE_CN: Record<string, string> = { admin: '管理员', leader: '领导', staff: '员工', supplier: '供应商', bid_expert: '评标专家', bid_host: '开标主持人' };
+/** 资料变更字段英文名 → 中文（PROFILE_CHANGE payload 白名单同集） */
+const FIELD_CN: Record<string, string> = {
+  displayName: '姓名', email: '邮箱', phone: '手机号', officeLocation: '办公地点',
+  company: '公司', departmentId: '部门', avatar: '头像',
+};
+function detailLabelOf(action: string, key: string): string | null {
+  if (action === '查看账号密码') {
+    if (key === 'role') return '被查账号';
+    if (key === 'hit') return '密码存档';
+    return null;
+  }
+  return DETAIL_LABEL[key] ?? null;
+}
 function activityDetailLine(a: AuditActivity): string | null {
   const d = a.details ?? {};
   const parts: string[] = [];
   for (const [k, v] of Object.entries(d)) {
-    const label = DETAIL_LABEL[k];
+    const label = detailLabelOf(a.action, k);
     if (!label) continue;
     let sv: string;
-    if (typeof v === 'boolean') sv = v ? '是' : '否';
-    else if (Array.isArray(v) && v.every(x => typeof x === 'string')) sv = v.join('、');
+    if (typeof v === 'boolean') sv = a.action === '查看账号密码' && k === 'hit' ? (v ? '查到' : '未查到') : v ? '是' : '否';
+    else if (Array.isArray(v) && v.every(x => typeof x === 'string')) sv = v.map(x => FIELD_CN[x] ?? x).join('、');
     else if (typeof v === 'string' || typeof v === 'number') sv = String(v).trim();
     else continue;
     if (!sv || sv.length > 40 || /^c[a-z0-9]{20,}$/.test(sv)) continue;
@@ -280,6 +297,18 @@ export default function NotificationsPage() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activities, setActivities] = useState<AuditActivity[]>([]);
   const [detailActs, setDetailActs] = useState<AuditActivity[]>([]); // 已办窗内的结果记录
+  // 操作历史视野（2026-11-06 用户裁定）：leader/admin=全中心留痕（带操作人），staff=仅本人
+  const [myRole, setMyRole] = useState<string | null>(null);
+
+  useEffect(() => { fetchCurrentUser().then(u => setMyRole(u.role)).catch(() => {}); }, []);
+  const isOrgScope = myRole === 'leader' || myRole === 'admin';
+
+  const openHistory = () => {
+    setHistoryOpen(true);
+    const exclude = ['LOGIN', 'LOGOUT'];
+    const fetcher = isOrgScope ? fetchAllActivities(100, exclude) : fetchMyActivities(50, exclude);
+    fetcher.then(r => setActivities(r.items)).catch(() => setActivities([]));
+  };
 
   const load = useCallback(() => {
     setLoading(true);
@@ -355,7 +384,7 @@ export default function NotificationsPage() {
             <button className="neu-btn-soft" onClick={() => { void markAllNotificationsRead().then(() => load()); }}>
               <CheckCheck size={14} /> 全部标已阅
             </button>
-            <button className="neu-btn-soft" onClick={() => { setHistoryOpen(true); fetchMyActivities(50, ['LOGIN', 'LOGOUT']).then(r => setActivities(r.items)).catch(() => setActivities([])); }}>
+            <button className="neu-btn-soft" onClick={openHistory}>
               <History size={14} /> 操作历史
             </button>
           </div>
@@ -483,9 +512,10 @@ export default function NotificationsPage() {
         <HandleModal item={handleItem} onClose={() => setHandleItem(null)} onDone={() => { setHandleItem(null); load(); }} />
       )}
 
-      {/* ═══ 操作历史（标题栏右上角）—— xl 加宽 + 每条明细（2026-11-06 用户口径） ═══ */}
+      {/* ═══ 操作历史（标题栏右上角）—— xl 加宽 + 每条明细（2026-11-06 用户口径；
+          leader/admin 视野=全中心留痕并标操作人，staff=仅本人） ═══ */}
       <Modal open={historyOpen} onClose={() => setHistoryOpen(false)} title="操作历史" size="xl"
-        description="当前账号的操作留痕 · 按时间倒序 · 最多 50 条"
+        description={isOrgScope ? '全中心操作留痕 · 按时间倒序 · 最多 100 条' : '当前账号的操作留痕 · 按时间倒序 · 最多 50 条'}
         footer={<button className="neu-btn-soft" onClick={() => setHistoryOpen(false)}>关闭</button>}>
         <div className="max-h-[60vh] overflow-y-auto pr-1">
           {(() => {
@@ -505,7 +535,12 @@ export default function NotificationsPage() {
                   <div key={a.id} className="flex items-start gap-3 rounded-xl bg-[color-mix(in_oklch,var(--muted-foreground)_5%,transparent)] px-4 py-3">
                     <Clock size={13} className="mt-1 shrink-0 text-[var(--muted-foreground)]" />
                     <div className="min-w-0 flex-1">
-                      <p className="flex items-center gap-2">
+                      <p className="flex flex-wrap items-center gap-2">
+                        {a.operator && (
+                          <span className="text-[11px] font-semibold text-[var(--foreground)]">
+                            {a.operator.name}{a.operator.role ? `（${ROLE_CN[a.operator.role] ?? a.operator.role}）` : ''}
+                          </span>
+                        )}
                         <span className={`inline-flex items-center gap-1 rounded-[6px] px-2 py-0.5 text-[11px] font-bold ${
                           isApprove ? 'bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[var(--success)]'
                           : isReject ? 'bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] text-[var(--danger)]'
@@ -520,7 +555,10 @@ export default function NotificationsPage() {
                           </span>
                         )}
                       </p>
-                      {resource && <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--muted-foreground)]">{resource}</p>}
+                      {/* 资源行与动作徽章同文（如「资料变更审批」）时不重复显示 */}
+                      {resource && !(label ?? a.action).startsWith(resource) && (
+                        <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--muted-foreground)]">{resource}</p>
+                      )}
                       {(() => {
                         const detail = activityDetailLine(a);
                         return detail ? <p className="mt-1 text-[11px] leading-relaxed text-[var(--foreground)]/75">{detail}</p> : null;
