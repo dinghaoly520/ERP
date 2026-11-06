@@ -1,11 +1,15 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { DocumentParserService } from './services/document-parser.service';
-import { TextSplitterService, type TextChunk } from './services/text-splitter.service';
+import { TextSplitterService } from './services/text-splitter.service';
 import { EmbeddingService } from '../local-ai/embedding.service';
 import { VectorSearchService } from './services/vector-search.service';
 import { CreateKnowledgeBaseDto, UpdateKnowledgeBaseDto } from './dto/knowledge.dto';
+import { KNOWLEDGE_PARSE_QUEUE, parseJobOptions } from './queues/knowledge-queue.module';
 import type { AuthenticatedUser } from '../auth/auth.types';
 
 type User = AuthenticatedUser | undefined;
@@ -19,6 +23,7 @@ export class KnowledgeService {
     private splitter: TextSplitterService,
     private embedding: EmbeddingService,
     private vectorSearch: VectorSearchService,
+    @InjectQueue(KNOWLEDGE_PARSE_QUEUE) private parseQueue: Queue,
   ) {}
 
   // ── 权限：可见 = 创建者 或 共享 或 admin；可维护 = 创建者 或 admin ──
@@ -98,8 +103,21 @@ export class KnowledgeService {
     return this.prisma.knowledgeBase.delete({ where: { id } });
   }
 
+  /** 上传收件即返回（2026-11-06 异步化）：MinIO 落盘 + 建 PARSING 行 + 入队——
+   *  响应时间与文件大小/页数/OCR 时长完全解耦（118MB 扫描件 <5s 返回 202）。
+   *  同库 sha256 去重：PARSING/READY → 直接返回既有行（deduplicated:true）；
+   *  FAILED → 复用该行重置重入队。跨库重复靠 OCR 内容哈希缓存兜底（第二库秒级）。
+   *  解析/分块/嵌入/向量入库全部在 KnowledgeParseProcessor（ai-bid worker 进程）。 */
   async uploadFile(kbId: string, file: Express.Multer.File, user: User) {
     await this.assertEditable(kbId, user);
+
+    const sha256 = createHash('sha256').update(file.buffer).digest('hex');
+    const existing = await this.prisma.knowledgeFile.findFirst({
+      where: { knowledgeBaseId: kbId, sha256, status: { in: ['PARSING', 'READY', 'FAILED'] } },
+    });
+    if (existing && (existing.status === 'PARSING' || existing.status === 'READY')) {
+      return { ...existing, deduplicated: true };
+    }
 
     const objectKey = `knowledge/${kbId}/${Date.now()}_${file.originalname}`;
     try {
@@ -109,80 +127,47 @@ export class KnowledgeService {
       throw new Error('文件存储失败');
     }
 
-    let content: string;
-    try {
-      content = await this.parser.parse(
-        file.buffer,
-        file.mimetype,
-        file.originalname,
-      );
-    } catch (err) {
-      console.error('Document parse error:', err);
-      throw new Error('文档解析失败');
+    const data = {
+      fileName: file.originalname,
+      objectKey,
+      mimeType: file.mimetype,
+      fileSize: file.size,
+      sha256,
+      status: 'PARSING',
+      error: null,
+      processedPages: 0,
+      totalPages: null,
+      chunkCount: 0,
+      indexed: true,
+    };
+    // FAILED 同 sha 行复用（重置字段+换新对象），否则新建
+    const kbFile = existing
+      ? await this.prisma.knowledgeFile.update({ where: { id: existing.id }, data })
+      : await this.prisma.knowledgeFile.create({ data: { knowledgeBaseId: kbId, ...data } });
+    if (existing) {
+      void this.storage.delete(existing.objectKey).catch(() => undefined); // best-effort 清旧对象
     }
 
-    let textChunks: TextChunk[];
-    try {
-      textChunks = this.splitter.split(content);
-    } catch (err) {
-      console.error('Text split error:', err);
-      throw new Error('文本分割失败');
-    }
+    // jobId=fileId：并发重复上传的 BullMQ 层双保险（同 id 在队/运行中 add 被忽略）
+    await this.parseQueue.add('parse', { fileId: kbFile.id }, parseJobOptions(kbFile.id));
+    return kbFile;
+  }
 
-    let embeddings: number[][] = [];
-    let indexed = true;
-    if (textChunks.length > 0) {
-      try {
-        embeddings = await this.embedding.embed(
-          textChunks.map((c) => c.content),
-        );
-      } catch (err) {
-        // 2026-11-03 水叮当知识库设计 §4.2：嵌入服务不可用不再整体失败——
-        // 文件与分块照存（embedding 列空），响应 indexed:false，恢复后走 reindex
-        console.error('Embedding error (degraded):', err);
-        embeddings = [];
-        indexed = false;
-      }
-    }
+  /** FAILED 行重试（前端一键）：重置状态重新入队——OCR 批次缓存命中时秒级完成 */
+  async retryFile(kbId: string, fileId: string, user: User) {
+    await this.assertEditable(kbId, user);
+    const file = await this.prisma.knowledgeFile.findFirst({
+      where: { id: fileId, knowledgeBaseId: kbId },
+    });
+    if (!file) throw new NotFoundException(`File ${fileId} not found`);
+    if (file.status !== 'FAILED') throw new BadRequestException('仅解析失败的文件可重试');
 
-    let kbFile;
-    try {
-      kbFile = await this.prisma.knowledgeFile.create({
-        data: {
-          knowledgeBaseId: kbId,
-          fileName: file.originalname,
-          objectKey,
-          mimeType: file.mimetype,
-          fileSize: file.size,
-          content,
-          chunkCount: textChunks.length,
-        },
-      });
-    } catch (err) {
-      console.error('KnowledgeFile create error:', err);
-      throw new Error('文件记录保存失败');
-    }
-
-    if (textChunks.length > 0) {
-      try {
-        const chunks = textChunks.map((chunk, i) => ({
-          collectionName: kbId,
-          fileId: kbFile.id,
-          content: chunk.content,
-          embedding: embeddings[i],
-          metadata: {
-            fileName: file.originalname,
-            startOffset: chunk.startOffset,
-          },
-        }));
-        await this.vectorSearch.insertChunks(chunks);
-      } catch (err) {
-        console.error('Vector insert error:', err);
-        // Continue even if vector insert fails - file is already saved
-      }
-    }
-
-    return { ...kbFile, indexed };
+    const row = await this.prisma.knowledgeFile.update({
+      where: { id: fileId },
+      data: { status: 'PARSING', error: null, processedPages: 0, totalPages: null },
+    });
+    await this.parseQueue.add('parse', { fileId }, parseJobOptions(fileId));
+    return row;
   }
 
   async deleteFile(kbId: string, fileId: string, user: User) {

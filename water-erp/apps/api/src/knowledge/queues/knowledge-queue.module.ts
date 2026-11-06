@@ -12,13 +12,15 @@ export const KNOWLEDGE_PARSE_QUEUE = 'knowledge-parse';
  *  - jobId=fileId：BullMQ 同 id 在队/运行中时 add 被忽略——并发重复上传双保险之一（另一层=同库 sha256 去重）
  *  - attempts=3 + 指数退避：OCR 服务抖动自愈；末次失败由 processor 落 FAILED（死信可见性走 DB，不依赖 failed 集）
  *  - removeOnComplete/removeOnFail=true：完成/失败即清——jobId 可被 retry 端点复用 */
-export const KNOWLEDGE_PARSE_JOB_OPTS = {
-  jobId: '', // 调用方以 fileId 填充
-  attempts: 3,
-  backoff: { type: 'exponential', delay: 30_000 } as const,
-  removeOnComplete: true,
-  removeOnFail: true,
-} as const;
+export function parseJobOptions(fileId: string) {
+  return {
+    jobId: fileId,
+    attempts: 3,
+    backoff: { type: 'exponential' as const, delay: 30_000 },
+    removeOnComplete: true,
+    removeOnFail: true,
+  };
+}
 
 @Module({
   imports: [BullModule.registerQueue({ name: KNOWLEDGE_PARSE_QUEUE })],

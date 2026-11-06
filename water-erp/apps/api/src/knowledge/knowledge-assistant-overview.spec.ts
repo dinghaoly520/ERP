@@ -23,7 +23,7 @@ describe('KnowledgeService.assistantOverview（水叮当知识库面板取数）
       knowledgeBase: { findMany },
       user: { findMany: jest.fn().mockResolvedValue([{ id: 'u-2', displayName: '同事', username: 'tongshi' }]) },
     };
-    const svc: any = new KnowledgeService(prisma, {} as any, {} as any, {} as any, {} as any, {} as any);
+    const svc: any = new KnowledgeService(prisma, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
     return { svc, findMany };
   };
 
@@ -48,7 +48,7 @@ describe('KnowledgeService.assistantOverview（水叮当知识库面板取数）
     const svc: any = new KnowledgeService(
       { knowledgeBase: { findMany: jest.fn().mockResolvedValue(withFile) },
         user: { findMany: jest.fn().mockResolvedValue([]) } } as any,
-      {} as any, {} as any, {} as any, {} as any, {} as any);
+      {} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
     const r = await svc.assistantOverview({ sub: 'u-1', role: 'leader' });
     expect(r.mine[0].files[0]).toMatchObject({ fileName: '制度.pdf', chunkCount: 3 });
     expect(r.mine[0].ownerName).toBe('我');
