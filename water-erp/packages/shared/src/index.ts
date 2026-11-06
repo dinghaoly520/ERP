@@ -16,3 +16,4 @@ export * from './data-class';
 export * from './file-name';
 export * from './format-bid';
 export * from './evaluation-rules';
+export * from './company-order';

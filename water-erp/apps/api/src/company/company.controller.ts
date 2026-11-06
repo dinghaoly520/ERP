@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, 
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IsBoolean, IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
 import { Prisma } from '@prisma/client';
+import { sortByCompanyName } from '@water-erp/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -148,7 +149,9 @@ export class CompanyController {
       if (g.role === 'bid_expert') rec.expert += g._count;
       byCompany.set(g.companyId, rec);
     }
-    return companies.map(c => ({
+    // 公司显示顺序 canon（2026-11-06 用户裁定）：集团第一、设计公司第二、其余随后——
+    // 本端点是各端公司选择器/筛选的统一数据源，在此排序即全局生效
+    return sortByCompanyName(companies, c => c.name).map(c => ({
       ...c,
       _count: {
         users: c._count.users,

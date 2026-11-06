@@ -2,6 +2,7 @@
 
 import { Suspense, useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { sortByCompanyName } from '@water-erp/shared';
 import { Building2, ChevronDown, Eye, Megaphone, Search } from 'lucide-react';
 import { fetchPublicAnnouncements, ANNOUNCEMENT_TABS, type AnnouncementItem } from '@/lib/announcements';
 import { UnifiedHeader } from '@/components/unified-header';
@@ -36,9 +37,10 @@ function AnnouncementsContent() {
   const [loadFailed, setLoadFailed] = useState(false);
   const [reloadTick, setReloadTick] = useState(0);
 
-  /** 公司筛选项 — 从已拉取公告的发布单位动态去重（当前 4 家，原生 select 足够） */
+  /** 公司筛选项 — 从已拉取公告的发布单位动态去重；排序走 canon（2026-11-06
+      用户裁定：集团第一、设计公司第二、其余随后，与全系统公司筛选一致） */
   const companyOptions = useMemo(
-    () => [...new Set(items.map(a => a.companyName).filter(Boolean))].sort(),
+    () => sortByCompanyName([...new Set(items.map(a => a.companyName).filter(Boolean))], c => c),
     [items]);
   /** 公司筛选为客户端精确匹配（数据量级=单页全量拉取，与服务端搜索互补） */
   const visibleItems = useMemo(
