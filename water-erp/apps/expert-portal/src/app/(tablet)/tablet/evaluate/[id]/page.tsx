@@ -593,7 +593,7 @@ export default function TabletEvaluatePage() {
           try {
             const fd = new FormData();
             fd.append('file', photoBlob, `expert-signin-${Date.now()}.jpg`);
-            const asset = await api.post<{ id: string }>('/upload?category=expert_signin_photo', fd);
+            const asset = await api.upload<{ id: string }>('/upload?category=expert_signin_photo', fd);
             lastSigninPhotoRef.current = { blob: photoBlob, assetId: asset.id };
             photoAssetId = asset.id;
           } catch {

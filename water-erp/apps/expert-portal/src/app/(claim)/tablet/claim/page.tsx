@@ -75,7 +75,7 @@ function ClaimFlow() {
       try {
         const fd = new FormData();
         fd.append('file', photoBlob, `expert-transfer-${Date.now()}.jpg`);
-        const asset = await api.post<{ id: string }>('/upload?category=expert_signin_photo', fd);
+        const asset = await api.upload<{ id: string }>('/upload?category=expert_signin_photo', fd);
         await finish({ photoAssetId: asset.id, occlusion });
       } catch (e: any) {
         toast.error(e?.message || '照片上传失败，可重试或跳过');

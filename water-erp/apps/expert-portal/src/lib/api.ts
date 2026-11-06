@@ -63,6 +63,9 @@ export const api = {
     }
     return fetchApi<T>(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   },
+  /** XHR 上传（2026-11-06 上传进度条）：fetch 无上传进度事件；错误归一与上方 fetchApi 同语义 */
+  upload: <T>(path: string, body: FormData, opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal }) =>
+    client.upload<T>(path, body, opts),
   patch: <T>(path: string, body: unknown) => fetchApi<T>(path, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
   delete: <T>(path: string) => fetchApi<T>(path, { method: 'DELETE' }),
 };
@@ -152,7 +155,8 @@ export async function createMemo(
   if (data.scorePointId) fd.append('scorePointId', data.scorePointId);
   if (data.sourceDevice) fd.append('sourceDevice', data.sourceDevice);
   if (data.inkBlob) fd.append('ink', data.inkBlob, 'memo-ink.png');
-  return api.post<ExpertMemo>(`/expert/projects/${projectId}/memos`, fd);
+  // XHR 轨（2026-11-06 上传进度条）：画布 PNG 为亚秒级小文件，进度能力就绪但不出视觉
+  return api.upload<ExpertMemo>(`/expert/projects/${projectId}/memos`, fd);
 }
 
 export async function deleteMemo(
