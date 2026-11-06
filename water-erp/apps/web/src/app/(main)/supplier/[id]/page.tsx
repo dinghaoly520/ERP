@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { Fragment, useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, getSupplierCommunications, updateSupplierTags, blacklistSupplier, unblacklistSupplier, revealSupplierField, companyLinksApi } from '@/lib/api/supplier';
@@ -1022,8 +1022,10 @@ export default function SupplierDetailPage() {
                           const fg = e.finalGrade || (e as any).level;
                           const gradeColor = LEVEL_COLOR[fg] || 'var(--muted-foreground)';
                           return (
-                            <>
-                            <tr key={e.id} className="row-clickable" onClick={() => setExpandedEvalId(expandedEvalId === e.id ? null : e.id)}>
+                            // key 上移到 Fragment（2026-11-06 控制台 unique key 告警修复：
+                            // 展开行+主行是同一列表项，键必须落在最外层元素上）
+                            <Fragment key={e.id}>
+                            <tr className="row-clickable" onClick={() => setExpandedEvalId(expandedEvalId === e.id ? null : e.id)}>
                               <td>
                                 <span className="inline-flex items-center gap-1.5">
                                   <span className="inline-flex h-6 w-6 items-center justify-center rounded text-[11px] font-extrabold text-white" style={{ backgroundColor: gradeColor }}>{fg}</span>
@@ -1108,7 +1110,7 @@ export default function SupplierDetailPage() {
                                 </td>
                               </tr>
                             )}
-                            </>
+                            </Fragment>
                           );
                         })}
                       </tbody>
