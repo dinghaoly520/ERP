@@ -113,7 +113,7 @@ export default function ExpertProfilePage() {
             <div>
               <div className="page-hero__title">个人信息</div>
               <div className="page-hero__sub">
-                评审专家 · {maskIdNumber(profile.username)} — 参与 {totalProjects} 项（进行中 {inProgress}）· 评分 {totalScoreRecords} 条
+                参与 {totalProjects} 项（进行中 {inProgress}）· 评分 {totalScoreRecords} 条
                 {profile.averageScore != null ? ` · 平均给分 ${profile.averageScore}` : ''}
               </div>
             </div>
@@ -144,7 +144,6 @@ export default function ExpertProfilePage() {
             </span>
             <div>
               <h2 className="text-xl font-black tracking-tight text-[var(--foreground)]">{profile.displayName}</h2>
-              <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">评审专家 · {maskIdNumber(profile.username)}</p>
             </div>
           </div>
 
