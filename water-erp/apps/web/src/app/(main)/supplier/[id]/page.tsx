@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, getSupplierCommunications, getSupplierDocuments, uploadSupplierDocument, deleteSupplierDocument, updateSupplierTags, uploadSupplierFile, blacklistSupplier, unblacklistSupplier, addSupplierRecord, listSupplierRecords, revealSupplierField, companyLinksApi } from '@/lib/api/supplier';
+import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, getSupplierCommunications, getSupplierDocuments, deleteSupplierDocument, updateSupplierTags, blacklistSupplier, unblacklistSupplier, revealSupplierField, companyLinksApi } from '@/lib/api/supplier';
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification } from '@/lib/types';
 import type { CommunicationRecord, SupplierDocumentRecord, CompanyLinkRow, RsvpHistoryResult } from '@/lib/api/supplier';
 import { getRsvpHistory } from '@/lib/api/supplier';
@@ -134,9 +134,7 @@ export default function SupplierDetailPage() {
 
   // 状态操作弹窗（停用/黑名单/解除黑名单，保留 modal）
   const [actionModal, setActionModal] = useState<{ type: 'disable' | 'blacklist' | 'unblacklist' | 'restore'; supplier: Supplier } | null>(null);
-  // CTS A-213 奖惩记录
-  const [rewardRecords, setRewardRecords] = useState<Array<{ id: string; projectName: string; recordType: string; recordNote: string | null; effectiveDate: string | null; clientName: string | null; createdAt: string }>>([]);
-  const [recordForm, setRecordForm] = useState({ recordType: 'punishment' as 'reward' | 'punishment', projectName: '', recordNote: '', effectiveDate: '' });
+  // CTS A-213 奖惩记录已删（2026-11-06 用户裁定）——状态/表单/加载链整组移除
   // CTS A-216 人员标注
   const [actionReason, setActionReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
@@ -197,13 +195,7 @@ export default function SupplierDetailPage() {
   const [rsvpLoading, setRsvpLoading] = useState(false);
   const [documents, setDocuments] = useState<SupplierDocumentRecord[]>([]);
   const [docLoading, setDocLoading] = useState(false);
-  const [docUploading, setDocUploading] = useState(false);
-  const [docUpPct, setDocUpPct] = useState(0); // 文件档案上传字节进度（2026-11-06）
-  const [newDocName, setNewDocName] = useState('');
-  const [newDocNote, setNewDocNote] = useState('');
-  const [newDocFile, setNewDocFile] = useState<File | null>(null);
-  // 文件类型（2026-10-23 修复「类型展示异常」：此前上传硬编码 'other' 英文裸值直出且无选择器）
-  const [newDocType, setNewDocType] = useState<string>('other');
+  // 文件档案录入态已删（2026-11-06 用户裁定）：docUploading/docUpPct/newDoc* 整组移除，列表只读
 
   // 归属公司（多公司归属 2026-10-16）：本视野内该供应商的库内归属（APPROVED/DISABLED link），
   // 列表按登录人公司隔离（staff/leader=本公司；admin=全部公司）——公司侧零检索面，仅展示归属事实
@@ -231,7 +223,7 @@ export default function SupplierDetailPage() {
   };
 
   useEffect(() => { loadAll(); }, [loadAll]);
-  useEffect(() => { if (id) void loadRewardRecords(id); }, [id]); // CTS A-213 奖惩记录
+  // 奖惩记录加载链已删（2026-11-06 用户裁定，随录入/展示整组移除）
   const loadRsvpHistory = useCallback(() => {
     if (!id) return;
     setRsvpLoading(true);
@@ -330,20 +322,7 @@ export default function SupplierDetailPage() {
     setActionLoading(false);
   };
 
-  // CTS A-213 奖惩记录
-  const loadRewardRecords = async (id: string) => {
-    try { setRewardRecords(await listSupplierRecords(id)); } catch { /* 静默 */ }
-  };
-  const handleAddRecord = async () => {
-    if (!supplier) return;
-    if (!recordForm.projectName.trim() || !recordForm.recordNote.trim()) { toast.error('请填写关联项目与奖惩事由'); return; }
-    try {
-      await addSupplierRecord(supplier.id, { recordType: recordForm.recordType, projectName: recordForm.projectName.trim(), recordNote: recordForm.recordNote.trim(), effectiveDate: recordForm.effectiveDate || undefined });
-      toast.success('奖惩记录已录入');
-      setRecordForm({ recordType: 'punishment', projectName: '', recordNote: '', effectiveDate: '' });
-      loadRewardRecords(supplier.id);
-    } catch (e: any) { toast.error(e?.message || '录入失败'); }
-  };
+  // CTS A-213 奖惩记录已删（2026-11-06 用户裁定）：loadRewardRecords/handleAddRecord 整组移除
 
   // CTS A-216 人员类别标注已删（2026-11-06 用户裁定——工具条+表格列整组移除，
   // 后端 updateContactPersonnel 端点保留未动）
@@ -390,7 +369,7 @@ export default function SupplierDetailPage() {
     { key: 'portrait', label: '供应商画像' },
     // 合并计数（2026-10-23）：资质+文件 / 评价+奖惩；邀请数沿用回执统计
     { key: 'qualifications', label: '资质与文件', count: qualifications.length + documents.length },
-    { key: 'evaluations', label: '评价与奖惩', count: evaluations.length + rewardRecords.length },
+    { key: 'evaluations', label: '履约评价', count: evaluations.length },
     { key: 'rsvp', label: '邀请与沟通', count: rsvpHistory?.stats.invited },
   ];
 
@@ -894,8 +873,7 @@ export default function SupplierDetailPage() {
           </div>
         )}
 
-        {/* 奖惩记录（CTS A-213） */}
-        {/* 资质材料 */}
+        {/* 资质材料（奖惩记录已删 2026-11-06） */}
         {activeTab === 'qualifications' && (
           <div>
             <SectionTitle icon={FolderOpen}>资质材料</SectionTitle>
@@ -1152,47 +1130,8 @@ export default function SupplierDetailPage() {
           </div>
         )}
 
-        {/* 奖惩记录（2026-10-23 并入评价与奖惩分区——置于履约评价之后，主次分明） */}
-        {activeTab === 'evaluations' && (
-          <div className="mt-8">
-            <SectionTitle icon={AlertTriangle}>奖惩记录</SectionTitle>
-            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[14px] bg-[color-mix(in_oklch,var(--muted-foreground)_6%,transparent)] px-4 py-3">
-              <span className="text-xs font-semibold text-[var(--foreground)]">录入奖惩</span>
-              <select value={recordForm.recordType} onChange={e => setRecordForm(f => ({ ...f, recordType: e.target.value as 'reward' | 'punishment' }))} className="neu-input !h-8 text-xs">
-                <option value="punishment">惩戒</option>
-                <option value="reward">奖励</option>
-              </select>
-              <input value={recordForm.projectName} onChange={e => setRecordForm(f => ({ ...f, projectName: e.target.value }))} placeholder="关联项目/事项名称" className="neu-input !h-8 min-w-[160px] flex-1 text-xs" />
-              <input value={recordForm.recordNote} onChange={e => setRecordForm(f => ({ ...f, recordNote: e.target.value }))} placeholder="奖惩事由/文号" className="neu-input !h-8 min-w-[160px] flex-1 text-xs" />
-              <input type="date" value={recordForm.effectiveDate} onChange={e => setRecordForm(f => ({ ...f, effectiveDate: e.target.value }))} className="neu-input !h-8 text-xs" />
-              <button onClick={handleAddRecord} className="neu-btn-xs">录入</button>
-            </div>
-            <div className="neu-table-card overflow-hidden">
-              {rewardRecords.length === 0 ? (
-                <p className="text-[var(--muted-foreground)] text-center py-10 text-sm">暂无奖惩记录</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="neu-table">
-                    <thead>
-                      <tr><th>类型</th><th>关联项目/事项</th><th>事由/文号</th><th>生效日期</th><th>录入时间</th></tr>
-                    </thead>
-                    <tbody>
-                      {rewardRecords.map(r => (
-                        <tr key={r.id}>
-                          <td>{r.recordType === 'reward' ? <StatusBadge tone="green">奖励</StatusBadge> : <StatusBadge tone="red">惩戒</StatusBadge>}</td>
-                          <td className="font-semibold text-[var(--foreground)]">{r.projectName}</td>
-                          <td className="text-[var(--muted-foreground)]">{r.recordNote}</td>
-                          <td className="text-[var(--muted-foreground)] font-mono text-xs">{r.effectiveDate ? new Date(r.effectiveDate).toLocaleDateString('zh-CN') : '—'}</td>
-                          <td className="text-[var(--muted-foreground)] font-mono text-xs">{new Date(r.createdAt).toLocaleString('zh-CN')}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        {/* 奖惩记录已删（2026-11-06 用户裁定：录入表单+记录表整节移除，CTS A-216 同批）；
+            tab 改名「履约评价」并只剩评价内容；后端 add/listSupplierRecords 端点保留未动 */}
 
         {/* 邀请回执经历（2026-10-21 回执锁定口径）：邀请统计 + 毁约记录 + 逐条回执轨迹 */}
         {activeTab === 'rsvp' && rsvpHistory && (rsvpHistory.stats.consecutiveDeclined ?? 0) >= 3 && (
@@ -1544,48 +1483,8 @@ export default function SupplierDetailPage() {
             <div className="py-8 text-center"><Loader2 size={14} className="animate-spin mx-auto mb-2" /><span className="text-sm text-[var(--muted-foreground)]">加载中...</span></div>
           ) : (
             <>
-              <div className="neu-card-static !rounded-2xl p-4 mb-4 flex flex-wrap gap-2 items-center">
-                {/* 真实文件选择：先上传 MinIO 拿到 url，杜绝 fileUrl:'#' 假记录（B10） */}
-                <label className="neu-btn-xs gap-1 cursor-pointer">
-                  <Plus size={12} />{newDocFile ? newDocFile.name : '选择文件'}
-                  <input type="file" className="hidden" onChange={e => {
-                    const f = e.target.files?.[0] || null;
-                    setNewDocFile(f);
-                    if (f && !newDocName.trim()) setNewDocName(f.name);
-                  }} />
-                </label>
-                <select value={newDocType} onChange={e => setNewDocType(e.target.value)} className="neu-input !h-9 !text-xs !w-auto" aria-label="文件类型">
-                  {DOC_TYPES.map(t => <option key={t.v} value={t.v}>{t.l}</option>)}
-                </select>
-                <input value={newDocName} onChange={e => setNewDocName(e.target.value)} placeholder="文件名称" className="neu-input !h-9 !text-xs !flex-1 min-w-[140px]" />
-                <input value={newDocNote} onChange={e => setNewDocNote(e.target.value)} placeholder="备注（可选）" className="neu-input !h-9 !text-xs !w-auto" />
-                <button
-                  onClick={async () => {
-                    if (!newDocFile) { toast.error('请先选择文件'); return; }
-                    if (!newDocName.trim()) { toast.error('请填写文件名称'); return; }
-                    setDocUploading(true);
-                    setDocUpPct(0);
-                    try {
-                      const uploaded = await uploadSupplierFile(newDocFile, {
-                        onProgress: (l, t) => setDocUpPct(t > 0 ? Math.round((l / t) * 100) : 0),
-                      });
-                      const doc = await uploadSupplierDocument(id as string, {
-                        type: newDocType,
-                        name: newDocName.trim(),
-                        fileUrl: uploaded.url,
-                        fileSize: uploaded.size,
-                        note: newDocNote || undefined,
-                      });
-                      setDocuments(prev => [doc, ...prev]); setNewDocName(''); setNewDocNote(''); setNewDocFile(null); setNewDocType('other');
-                      toast.success('文件已上传并添加');
-                    } catch (e: any) { toast.error(e?.message || '上传失败'); }
-                    setDocUploading(false);
-                  }}
-                  disabled={docUploading || !newDocFile || !newDocName.trim()} className="neu-btn-xs gap-1"
-                >
-                  {docUploading ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}{docUploading ? `上传中 ${docUpPct}%` : '添加文件'}
-                </button>
-              </div>
+              {/* 录入表单已删（2026-11-06 用户裁定）——档案只读列表；
+                  后端 uploadSupplierDocument 端点保留未动 */}
 
               {documents.length === 0 ? (
                 <div className="neu-card-static !rounded-2xl py-10 text-center">
