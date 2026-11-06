@@ -479,16 +479,31 @@ export default function SupplierDetailPage() {
 
         {/* KPI 瓷片行已删（2026-11-06 用户裁定）：入库时间/变更次数并入标题栏副标题行 */}
 
-        {/* Tab 导航 —— 融入 page-hero 底部 */}
-        <div className="page-hero__divider !pt-3">
-          <div className="neu-tab-bar flex-wrap">
-            {tabs.map(tab => (
-              <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-                className={`neu-tab whitespace-nowrap ${activeTab === tab.key ? 'is-active' : ''}`}>
-                {tab.label}{tab.count !== undefined && <span className="neu-tab-count">{tab.count}</span>}
-              </button>
-            ))}
-          </div>
+      </div>
+
+      {/* 信息分区切换（2026-11-06 用户裁定：移出标题卡，hero 下方独立工具行，
+          与供应商库状态分段同款 neu-segment）——外层 flex 包裹（grid 轨道防拉满） */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div
+          className="neu-segment"
+          role="group"
+          aria-label="供应商信息分区"
+          data-count="5"
+          data-index={String(Math.max(0, tabs.findIndex(t => t.key === activeTab)))}
+        >
+          <span className="neu-segment-thumb" aria-hidden="true" />
+          {tabs.map(tab => (
+            <button
+              key={tab.key}
+              type="button"
+              className="neu-segment-btn"
+              aria-pressed={activeTab === tab.key}
+              onClick={() => setActiveTab(tab.key)}
+            >
+              {tab.label}
+              {tab.count != null && tab.count > 0 && <span className="neu-segment-count">{tab.count}</span>}
+            </button>
+          ))}
         </div>
       </div>
 
