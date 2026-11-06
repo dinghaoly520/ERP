@@ -256,7 +256,10 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
    *  单家失败不中断后续（与原批量端点逐家串行+明细聚合同语义），末尾汇总成功/跳过/失败计数 */
   const handleBulkDecryptOuter = async () => {
     if (bulkOuterDecrypting) return;
-    const targets = [...dualOuterPending];
+    // 剔除已在单家解密在途的行（评审 Minor）：否则批量迭代的 finally 会删掉别家 handler
+    // 持有的在途标记（Set 去重后 add 是 no-op、delete 却 unconditional）——单家请求仍在跑时
+    // 行级 spinner 提前消失、按钮解禁，再点即重复解密；在途家由其原 handler 自行收尾
+    const targets = [...dualOuterPending].filter(s => !outerDecrypting.has(s.id));
     if (targets.length === 0) return;
     setBulkOuterDecrypting(true);
     const counts = { success: 0, skipped: 0, failed: 0 };
