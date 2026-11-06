@@ -11,6 +11,7 @@ import {
   type SignPacketResponse, type SignPacketExpertRow,
 } from '@/lib/api/sign-packet';
 import { uploadOpeningSignScan, registerOpeningSign } from '@/lib/api/bid';
+import { WaterBar } from '../upload/water-bar';
 import SignRegisterDialog from './sign-register-dialog';
 import { OpeningSignBlock } from '../opening-hall-sign-block';
 import { useBidUser } from '@/hooks/use-bid-user';
@@ -36,6 +37,8 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
   // ═══ 批量回传签字扫描件：一次多选 → 文件名智能路由直传 → 结果清单肉眼核对 ═══
   const [batchBusy, setBatchBusy] = useState(false);
   const [batchResult, setBatchResult] = useState<Array<{ file: string; target: string; status: 'ok' | 'fail' | 'unmatched'; note?: string }> | null>(null);
+  // 当前上传相位（2026-11-06 上传进度条）：批量/分配/合并三流共用的实时水波行
+  const [upLive, setUpLive] = useState<{ name: string; pct: number } | null>(null);
   const [signRefreshTick, setSignRefreshTick] = useState(0);
   const batchInputRef = useRef<HTMLInputElement | null>(null);
   // 审查优化（2026-09-21）：文件名路由未识别的文件不再静默 unmatched——弹分配选择器人工指定去向
@@ -82,15 +85,19 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
       // 链前捕获 + 显式 string：字面量联合的穷尽窄化会把 r 整体窄成 never（含别名窄化），链后不可再碰 r.*
       const label: string = r.label ?? '';
       const targetKey: string = r.target;
+      // 逐文件字节进度（2026-11-06 上传进度条）：当前文件名+水波条实时亮在结果区上方
+      setUpLive({ name: f.name, pct: 0 });
+      const prog = { onProgress: (l: number, t: number) => setUpLive({ name: f.name, pct: t > 0 ? Math.round((l / t) * 100) : 0 }) };
       try {
-        if (targetKey === 'host') { await uploadOpeningSignScan(projectId, 'host', f); hostRouted = true; }
-        else if (targetKey === 'supervisor') { await uploadOpeningSignScan(projectId, 'supervisor', f); }
-        else if (targetKey === 'report') { await uploadSignaturePageScan(projectId, f); }
-        else if (targetKey.startsWith('expert:')) { await uploadExpertScan(projectId, targetKey.slice(7), f); }
+        if (targetKey === 'host') { await uploadOpeningSignScan(projectId, 'host', f, prog); hostRouted = true; }
+        else if (targetKey === 'supervisor') { await uploadOpeningSignScan(projectId, 'supervisor', f, prog); }
+        else if (targetKey === 'report') { await uploadSignaturePageScan(projectId, f, prog); }
+        else if (targetKey.startsWith('expert:')) { await uploadExpertScan(projectId, targetKey.slice(7), f, prog); }
         results.push({ file: f.name, target: label || targetKey, status: 'ok' });
       } catch (e: any) {
         results.push({ file: f.name, target: label || targetKey, status: 'fail', note: e?.message ?? '上传失败' });
       }
+      setUpLive(null);
     }
     // 开标记录件到齐即自动登记（与签字卡同一口径；登记成败只取决于主持人/监督人项，不连累专家件）
     const openingFail = results.some((x) => (x.target.startsWith('主持人') || x.target.startsWith('监督人')) && x.status === 'fail');
@@ -118,15 +125,18 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
     const withTarget = pendingAssign.filter((a) => a.target);
     let hostRouted = false;
     for (const a of withTarget) {
+      setUpLive({ name: a.file.name, pct: 0 });
+      const prog = { onProgress: (l: number, t: number) => setUpLive({ name: a.file.name, pct: t > 0 ? Math.round((l / t) * 100) : 0 }) };
       try {
-        if (a.target === 'host') { await uploadOpeningSignScan(projectId, 'host', a.file); hostRouted = true; }
-        else if (a.target === 'supervisor') await uploadOpeningSignScan(projectId, 'supervisor', a.file);
-        else if (a.target === 'report') await uploadSignaturePageScan(projectId, a.file);
-        else if (a.target.startsWith('expert:')) await uploadExpertScan(projectId, a.target.slice(7), a.file);
+        if (a.target === 'host') { await uploadOpeningSignScan(projectId, 'host', a.file, prog); hostRouted = true; }
+        else if (a.target === 'supervisor') await uploadOpeningSignScan(projectId, 'supervisor', a.file, prog);
+        else if (a.target === 'report') await uploadSignaturePageScan(projectId, a.file, prog);
+        else if (a.target.startsWith('expert:')) await uploadExpertScan(projectId, a.target.slice(7), a.file, prog);
         results.push({ file: a.file.name, target: a.target, status: 'ok' });
       } catch (e: any) {
         results.push({ file: a.file.name, target: a.target, status: 'fail', note: e?.message ?? '上传失败' });
       }
+      setUpLive(null);
     }
     for (const a of pendingAssign) {
       if (!a.target) results.push({ file: a.file.name, target: '', status: 'unmatched', note: '未分配，已跳过' });
@@ -162,13 +172,18 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
         results.push({ file: file.name, target: label, status: 'fail', note: msg });
       }
     };
-    await apply('主持人签字（开标记录）', () => uploadOpeningSignScan(projectId, 'host', file));
-    await apply('监督人签字（开标记录）', () => uploadOpeningSignScan(projectId, 'supervisor', file), 'NO_SUPERVISOR');
-    if (data.packet) await apply('主报告签字页（共签）', () => uploadSignaturePageScan(projectId, file));
+    // 合并扫描：同一文件应用到多个签字项——进度按当前目标项推进（2026-11-06 上传进度条）
+    const liveProg = (label: string) => ({
+      onProgress: (l: number, t: number) => setUpLive({ name: `${label} · ${file.name}`, pct: t > 0 ? Math.round((l / t) * 100) : 0 }),
+    });
+    await apply('主持人签字（开标记录）', () => uploadOpeningSignScan(projectId, 'host', file, liveProg('主持人')));
+    await apply('监督人签字（开标记录）', () => uploadOpeningSignScan(projectId, 'supervisor', file, liveProg('监督人')), 'NO_SUPERVISOR');
+    if (data.packet) await apply('主报告签字页（共签）', () => uploadSignaturePageScan(projectId, file, liveProg('主报告')));
     for (const e of data.experts ?? []) {
       if (e.role !== EXPERT_ROLE.REGULAR) continue;
-      await apply(`专家·${e.name}`, () => uploadExpertScan(projectId, e.expertId, file));
+      await apply(`专家·${e.name}`, () => uploadExpertScan(projectId, e.expertId, file, liveProg(`专家·${e.name}`)));
     }
+    setUpLive(null);
     const openingFail2 = results.some((x) => (x.target.startsWith('主持人') || x.target.startsWith('监督人')) && x.status === 'fail');
     if (results.some((x) => x.target.startsWith('主持人')) && !openingFail2) {
       try {
@@ -511,6 +526,17 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
         </table>
         </div>
       </div>
+
+      {/* 当前上传相位（2026-11-06 上传进度条）：批量/分配/合并三流共用的实时水波行 */}
+      {upLive && (
+        <div className="neu-card-static flex items-center gap-3 p-3">
+          <span className="max-w-[240px] shrink-0 truncate text-[11px] font-semibold text-[var(--muted-foreground)]" title={upLive.name}>
+            {upLive.name}
+          </span>
+          <WaterBar pct={upLive.pct} state="uploading" />
+          <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[var(--accent)]">{upLive.pct}%</span>
+        </div>
+      )}
 
       {/* 批量回传结果清单——肉眼核对各文件去向；分错的可撤销登记后单传 */}
       {batchResult && (

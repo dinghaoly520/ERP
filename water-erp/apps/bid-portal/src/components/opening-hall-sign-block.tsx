@@ -6,6 +6,7 @@ import {
   getOpeningSignStatus, generateOpeningSignPage, uploadOpeningSignScan, registerOpeningSign,
   type OpeningSignStatus,
 } from '@/lib/api/bid';
+import { WaterBar } from './upload/water-bar';
 
 /** P1-3①A：开标记录签字卡——唯一入口在「评标签字」tab（评标结束一次性打印、一次签完的运营口径）。
  * 未闭环才显示；扫描件到齐（主持人+监督人如有）自动登记并入包存档，无需手动「完成登记」。
@@ -14,6 +15,8 @@ export function OpeningSignBlock({ projectId, refreshKey }: { projectId: string;
   const [status, setStatus] = useState<OpeningSignStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  // 上传字节进度（2026-11-06 上传进度条）：busy 期间实时水波行
+  const [upPct, setUpPct] = useState<number | null>(null);
 
   const refresh = async (): Promise<OpeningSignStatus | null> => {
     try {
@@ -57,7 +60,9 @@ export function OpeningSignBlock({ projectId, refreshKey }: { projectId: string;
           else if (!s?.hostScanUploaded) role = 'host';
           else if (s?.supervisor && !s.supervisorScanUploaded) role = 'supervisor';
           if (!role || (role === 'host' && s?.hostScanUploaded) || (role === 'supervisor' && (!s?.supervisor || s.supervisorScanUploaded))) continue; // 无空槽可填
-          await uploadOpeningSignScan(projectId, role, file);
+          await uploadOpeningSignScan(projectId, role, file, {
+            onProgress: (l, t) => { const p = t > 0 ? Math.round((l / t) * 100) : 0; setUpPct(p); setMsg(`正在上传 ${file.name} · ${p}%`); },
+          });
           uploaded.push(role === 'host' ? '主持人' : '监督人');
           s = await refresh();
         }
@@ -75,7 +80,7 @@ export function OpeningSignBlock({ projectId, refreshKey }: { projectId: string;
           setMsg(`${uploaded.join('、')}签字已上传，等待监督人签字上传后自动登记`);
         }
       } catch (e: any) { setMsg(`${uploaded.length ? uploaded.join('、') + '签字已上传；' : ''}${e?.message || '上传失败'}`); }
-      finally { setBusy(false); }
+      finally { setBusy(false); setUpPct(null); }
     };
     input.click();
   };
@@ -97,6 +102,12 @@ export function OpeningSignBlock({ projectId, refreshKey }: { projectId: string;
           <Upload size={13} /> 上传签字扫描件
         </button>
       </div>
+      {upPct != null && (
+        <div className="mt-2 flex items-center gap-2">
+          <WaterBar pct={upPct} state="uploading" />
+          <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[var(--accent)]">{upPct}%</span>
+        </div>
+      )}
       {msg && <p className="mt-2 text-xs text-[color:var(--muted-foreground)]">{msg}</p>}
     </div>
   );

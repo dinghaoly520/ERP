@@ -74,16 +74,25 @@ export function reopenSignPacket(projectId: string, reason: string) {
   return api.post<SignPacketResponse>(`/bid/projects/${projectId}/sign-packet/reopen`, { reason });
 }
 
-export function uploadExpertScan(projectId: string, expertId: string, file: File) {
+export function uploadExpertScan(
+  projectId: string,
+  expertId: string,
+  file: File,
+  opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal },
+) {
   const form = new FormData();
   form.append('file', file);
-  return api.upload<SignPacketResponse>(`/bid/projects/${projectId}/sign-packet/experts/${expertId}/scan`, form);
+  return api.upload<SignPacketResponse>(`/bid/projects/${projectId}/sign-packet/experts/${expertId}/scan`, form, opts);
 }
 
-export function uploadSignaturePageScan(projectId: string, file: File) {
+export function uploadSignaturePageScan(
+  projectId: string,
+  file: File,
+  opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal },
+) {
   const form = new FormData();
   form.append('file', file);
-  return api.upload<SignPacketResponse>(`/bid/projects/${projectId}/sign-packet/signature-page/scan`, form);
+  return api.upload<SignPacketResponse>(`/bid/projects/${projectId}/sign-packet/signature-page/scan`, form, opts);
 }
 
 export function registerSign(projectId: string, expertId: string, dto: { status: Exclude<SignStatusValue, 'PENDING'>; dissentingOpinion?: string; dissentingReason?: string }) {

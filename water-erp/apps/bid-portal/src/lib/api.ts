@@ -30,7 +30,10 @@ export const api = {
   put: <T>(path: string, body: unknown) => client.put<T>(path, body),
   patch: <T>(path: string, body: unknown) => client.patch<T>(path, body),
   delete: <T>(path: string) => client.delete<T>(path),
-  upload: <T>(path: string, formData: FormData) => client.postForm<T>(path, formData),
+  /** 2026-11-06 上传进度条：原为 postForm 别名（fetch 无进度）；指回 client.upload XHR 轨——
+   *  签名向后兼容（不传 opts 行为不变），错误归一语义一致 */
+  upload: <T>(path: string, formData: FormData, opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal }) =>
+    client.upload<T>(path, formData, opts),
 };
 
 export * from './api/supplier';

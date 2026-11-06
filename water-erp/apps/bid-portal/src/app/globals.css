@@ -987,3 +987,16 @@ select.neu-select {
 }
 .ai-retry-chip[aria-pressed="false"]:hover { color: var(--accent-strong); }
 @media (prefers-reduced-motion: reduce) { .ai-retry-chip { transition: none; } }
+
+/* ── 上传进度·水波+流光（2026-11-06 上传进度条；与 web 门户同款，门户自包含） ── */
+@keyframes uploadWaveA { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes uploadWaveB { from { transform: translateX(-25%); } to { transform: translateX(-75%); } }
+@keyframes uploadShimmer { from { left: -14%; } to { left: 100%; } }
+.up-wave { position: absolute; top: -1.5px; left: 0; right: 0; height: 3px; background-repeat: repeat-x; background-size: 50% 100%;
+  background-image: linear-gradient(90deg, transparent 0%, color-mix(in oklch, var(--accent) 35%, transparent) 25%, transparent 50%); }
+.up-wave--a { animation: uploadWaveA 8s linear infinite; opacity: 0.35; }
+.up-wave--b { animation: uploadWaveB 13s linear infinite; opacity: 0.18; }
+.up-shimmer { position: absolute; top: 0; bottom: 0; width: 12px; background: oklch(1 0 0 / 0.35); animation: uploadShimmer 2.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .up-wave, .up-shimmer { animation: none; display: none; }
+}

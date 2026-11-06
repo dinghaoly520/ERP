@@ -92,11 +92,17 @@ export function generateOpeningSignPage(projectId: string) {
   );
 }
 
-export function uploadOpeningSignScan(projectId: string, role: 'host' | 'supervisor', file: File) {
+export function uploadOpeningSignScan(
+  projectId: string,
+  role: 'host' | 'supervisor',
+  file: File,
+  opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal },
+) {
   const form = new FormData();
   form.append('file', file);
-  return api.post<{ assetId: string; sha256: string }>(
-    `/bid/projects/${projectId}/opening/sign-scan?role=${role}`, form,
+  // XHR 轨（2026-11-06 上传进度条）：签字扫描可达大文件
+  return api.upload<{ assetId: string; sha256: string }>(
+    `/bid/projects/${projectId}/opening/sign-scan?role=${role}`, form, opts,
   );
 }
 
