@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Clock3, Download, FileArchive, History, ShieldCheck, Upload } from "lucide-react";
 import { Modal } from "@/components/workbench";
 import { apiFetch } from "@/lib/api/api-fetch";
+import { api as apiClient } from "@/lib/api";
 
 /* ═══════════════════════════════════════════════════════════════
    归档卷弹窗（DA/T 103-2024）——自 /archive 独立页迁入采购台账卡片。
@@ -72,6 +73,7 @@ export function ArchiveVolumeModal({
   const [check, setCheck] = useState<CheckResult | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [regUpPct, setRegUpPct] = useState<number | null>(null); // 登记表补传字节进度（2026-11-06）
   const [toast, setToast] = useState<string | null>(null);
   const [toastDownload, setToastDownload] = useState<string | null>(null); // 导出成功 → toast 内联下载链接
   const [auditRows, setAuditRows] = useState<AuditRow[] | null>(null);
@@ -122,17 +124,16 @@ export function ArchiveVolumeModal({
   // D3 补传（multipart）：headers 只带 X-Portal，绝不能带 Content-Type（boundary 由浏览器生成）
   async function uploadRegistration(file: File) {
     setBusy(true);
+    setRegUpPct(0);
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await apiFetch(`/api/archive/items/${target.pmiId}/registration-scan`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "X-Portal": "web" },
-        body: fd,
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body?.error ?? "上传失败");
+      // 2026-11-06 上传进度条：api.upload XHR 轨（X-Portal/X-Web-Token 头由 client 统一注入）
+      const body = await apiClient.upload<{ objectKey: string }>(
+        `/archive/items/${target.pmiId}/registration-scan`,
+        fd,
+        { onProgress: (l, t) => setRegUpPct(t > 0 ? Math.round((l / t) * 100) : 0) },
+      );
       setRegistrationKey(body.objectKey);
       setToast("登记表扫描件已回传（纸电关联闭环）");
     } catch (e) {
@@ -332,7 +333,7 @@ export function ArchiveVolumeModal({
                   }}
                 />
                 <button className="neu-btn-xs" disabled={busy} onClick={() => fileInputRef.current?.click()}>
-                  <Upload size={13} /> {registrationKey ? "重新上传" : "上传扫描件"}
+                  <Upload size={13} /> {busy && regUpPct != null ? `上传中 ${regUpPct}%…` : registrationKey ? "重新上传" : "上传扫描件"}
                 </button>
                 {registrationKey && (
                   <a className="neu-btn-xs" href={`/api/archive/items/${target.pmiId}/registration`} target="_blank" rel="noreferrer">

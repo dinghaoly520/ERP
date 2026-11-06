@@ -28,6 +28,7 @@ import { ComparePanel } from '@/components/supplier/compare-panel';
 import { exportShortlistToExcel } from '@/lib/excel-export';
 import { StepTrack } from '@/components/step-track';
 import { apiFetch } from '@/lib/api/api-fetch';
+import { api } from '@/lib/api';
 import { SUPPLIER_STATUS_LABEL } from '@water-erp/shared';
 import { tenderDraftStorageKey } from '@/lib/tender-write/storage';
 
@@ -415,6 +416,7 @@ export function SupplierSelectionPage({
   // 附件选择步骤状态
   const [attachFiles, setAttachFiles] = useState<{ id: string; name: string; size: number }[]>([]);
   const [attachUploading, setAttachUploading] = useState(false);
+  const [attachUpPct, setAttachUpPct] = useState<number | null>(null); // 附件上传字节进度（2026-11-06）
   // 采购邀请书（AI 起草 → 导出 Word → 自动加入附件）
   const [invitationOpen, setInvitationOpen] = useState(false);
   // 引用采购文件（勾选项目各阶段已上传的附件）
@@ -1508,18 +1510,24 @@ export function SupplierSelectionPage({
     return header + body;
   };
   const copyList = async () => { if (shortlist.size === 0) return; if (await copyToClipboard(buildExportText())) toast.success('已复制到剪贴板'); else toast.error('复制失败，请手动复制'); };
-  // 附件上传（谈判采购）
+  // 附件上传（谈判采购）——2026-11-06 上传进度条：api.upload XHR 轨带字节进度
   const handleAttachUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setAttachUploading(true);
+    setAttachUpPct(0);
     for (const f of Array.from(files)) {
       try {
         const fd = new FormData(); fd.append('file', f);
-        const res = await apiFetch('/api/upload?category=general', { method: 'POST', credentials: 'include', headers: { 'X-Portal': 'web' }, body: fd });
-        if (res.ok) { const data = await res.json(); setAttachFiles(prev => [...prev, { id: data.id, name: data.originalName || f.name, size: data.size || f.size }]); }
-      } catch { toast.error(`「${f.name}」上传失败`); }
+        const data = await api.upload<{ id: string; originalName?: string; size?: number }>('/upload?category=general', fd, {
+          onProgress: (l, t) => setAttachUpPct(t > 0 ? Math.round((l / t) * 100) : 0),
+        });
+        setAttachFiles(prev => [...prev, { id: data.id, name: data.originalName || f.name, size: data.size || f.size }]);
+      } catch (e) {
+        toast.error(`「${f.name}」上传失败${e instanceof Error ? `：${e.message}` : ''}`);
+      }
     }
     setAttachUploading(false);
+    setAttachUpPct(null);
   };
 
   // 确认配置：将谈判配置（时间/附件/下载方式）后台推送给供应商端
@@ -2786,7 +2794,7 @@ export function SupplierSelectionPage({
               <p className="text-xs text-[var(--muted-foreground)]">上传谈判所需文件，与引用文件一并交付供应商。</p>
               <label className="neu-drop-zone w-full cursor-pointer">
                 {attachUploading ? <Loader2 size={22} className="animate-spin" /> : <Upload size={22} />}
-                <span className="text-xs font-semibold">{attachUploading ? '上传中…' : '点击上传（PDF / Word / 图片 / 压缩包）'}</span>
+                <span className="text-xs font-semibold">{attachUploading ? (attachUpPct != null ? `上传中 ${attachUpPct}%…` : '上传中…') : '点击上传（PDF / Word / 图片 / 压缩包）'}</span>
                 <input type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.zip,.rar" className="hidden"
                   onChange={e => { handleAttachUpload(e.target.files); e.target.value = ''; }} />
               </label>

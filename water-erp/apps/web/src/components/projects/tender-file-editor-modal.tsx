@@ -5,6 +5,7 @@ import { Check, ChevronDown, ChevronUp, Clock, FileUp, History, Loader2, Pencil,
 import { toast } from 'sonner';
 import { useDraftAutosave, loadDraft, clearDraft } from '../../hooks/projects/useDraftAutosave';
 import { apiFetch } from '@/lib/api/api-fetch';
+import { api } from '@/lib/api';
 
 const API_BASE = '/api';
 
@@ -110,6 +111,7 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
   const [reviewAnnotationCount, setReviewAnnotationCount] = useState(0);
   const [reviewFileName, setReviewFileName]     = useState('');
   const [reviewImporting, setReviewImporting]   = useState(false);
+  const [reviewUpPct, setReviewUpPct] = useState(0); // 导入上传字节进度（2026-11-06）
 
   /* ── Refs ── */
   const editorRef       = useRef<HTMLDivElement>(null);
@@ -328,18 +330,16 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
       toast.error('仅支持 .docx 格式'); return;
     }
     setReviewImporting(true);
+    setReviewUpPct(0);
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const r = await apiFetch(`${API_BASE}/project-management/${projectId}/import-review-file`, {
-        method: 'POST', credentials: 'include', body: formData,
-      });
-      if (!r.ok) {
-        let msg = `导入失败（${r.status}）`;
-        try { msg = (await r.json() as any).message || msg; } catch {}
-        throw new Error(msg);
-      }
-      const data = await r.json() as { html: string; annotationCount: number };
+      // 2026-11-06 上传进度条：api.upload XHR 轨（错误经 ApiError.message，语义同旧裸 fetch 版）
+      const data = await api.upload<{ html: string; annotationCount: number }>(
+        `/project-management/${projectId}/import-review-file`,
+        formData,
+        { onProgress: (l, t) => setReviewUpPct(t > 0 ? Math.round((l / t) * 100) : 0) },
+      );
       setReviewHtml(data.html);
       setReviewAnnotationCount(data.annotationCount || 0);
       setReviewFileName(file.name);
@@ -916,7 +916,7 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
             <button type="button" onClick={() => fileInputRef.current?.click()} disabled={reviewImporting || loading}
               className="neu-btn-soft gap-1.5 h-8 text-xs">
               {reviewImporting ? <Loader2 size={12} className="animate-spin" /> : <FileUp size={13} />}
-              {reviewImporting ? '导入中…' : reviewFileName ? reviewFileName.length > 16 ? reviewFileName.slice(0,14)+'…' : reviewFileName : '导入审阅文件'}
+              {reviewImporting ? `导入中 ${reviewUpPct}%…` : reviewFileName ? reviewFileName.length > 16 ? reviewFileName.slice(0,14)+'…' : reviewFileName : '导入审阅文件'}
             </button>
 
             {isDualPane && (
