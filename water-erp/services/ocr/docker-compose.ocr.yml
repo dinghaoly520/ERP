@@ -1,0 +1,49 @@
+# =============================================================================
+# OCR 微服务编排 —— docker-compose 覆盖层（配 backend 基础文件使用，不改原文件）
+# 与生产部署目录的 docker-compose.ocr.yml 同构；仓库此份为 source of truth，
+# 生产侧改动须回灌本文件（2026-11-06 收编，默认 tag 升 1.3.0）。
+#
+# 用法：
+#   OCR_TAG=1.3.0 docker compose -f docker-compose.backend.yml -f docker-compose.ocr.yml up -d
+#   ↑ 双 -f 合并：ocr 服务加入 water-erp-backend 网络，并给 api 注入 OCR_SERVICE_URL；
+#     compose 检测到 api 环境变量变化会自动重建 api 容器（秒级）
+#
+# 网络：ocr 与 api 同在 backend 网络（water-erp-backend），互访走服务名 http://ocr:8100
+# 镜像：本目录 Dockerfile 构建（docker build -t water-erp-ocr:1.3.0 .），
+#       离线部署线 docker save/load（见 Dockerfile 头注释）
+# =============================================================================
+
+services:
+  # ── OCR 识别服务（FastAPI + RapidOCR，纯 CPU）──
+  ocr:
+    image: water-erp-ocr:${OCR_TAG:-1.3.0}
+    container_name: water-erp-be-ocr
+    restart: unless-stopped
+    networks: [backend]
+    cpus: 6                                  # cgroup 硬限 6 核（与镜像内 2×3 线程预算双保险，2026-11-05 裁定）
+    environment:
+      OCR_ENGINE: ${OCR_ENGINE:-rapid}
+      OCR_HOST: 0.0.0.0
+      OCR_PORT: "8100"
+      OCR_MAX_SIDE: "3000"
+      # 8 核机 6 核预算预设（镜像出厂已带同值，此处显式声明可审计）
+      OCR_NUM_WORKERS: "2"
+      OCR_INTRA_THREADS: "3"
+      OCR_INTER_THREADS: "1"
+    ports:
+      - "${OCR_PORT_MAP:-18100}:8100"        # 宿主机避让端口；仅运维直查用，api 走内网 http://ocr:8100
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8100/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 40s                      # v1.3.0 模型随 wheel 内置无需下载，warmup ~10s 即可（旧 90s 系为在线下载留的余量）
+
+  # ── 给 api 注入 OCR 地址（覆盖层只声明差异项，其余沿用基础文件）──
+  api:
+    environment:
+      OCR_SERVICE_URL: http://ocr:8100
+
+networks:
+  backend:
+    name: water-erp-backend
