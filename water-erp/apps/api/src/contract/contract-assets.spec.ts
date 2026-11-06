@@ -767,7 +767,7 @@ describe('ContractService — 线上成交合同绑定真实供应商', () => {
       ...created,
       status: 'signed',
       signedAssetId: 'signed-file',
-      fulfillments: [{ id: 'fulfillment-1', contractId: created.id, status: 'pending', proofAssetId: null }],
+      fulfillments: [{ id: 'fulfillment-1', contractId: created.id, status: 'pending', proofAssetId: null, proofAsset: null }],
     };
     const portalPrisma: any = {
       supplier: { findUnique: jest.fn().mockResolvedValue({ id: 'supplier-real-1' }) },
@@ -981,6 +981,8 @@ describe('SupplierPortalController — 供应商合同发布边界', () => {
           fulfillments: [{ id: 'legacy-internal-node', proofAssetId: 'legacy-proof' }],
         }]),
       },
+      // proofAsset 反查（2026-10-30 转主体业绩用）：脏数据带 proofAssetId → 走 fileAsset.findMany
+      fileAsset: { findMany: jest.fn().mockResolvedValue([]) },
     };
     const controller = Object.create(SupplierPortalController.prototype) as SupplierPortalController;
     (controller as any).prisma = prisma;

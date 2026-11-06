@@ -2008,7 +2008,9 @@ export class SupplierPortalService {
         _count: { select: { suppliers: true } },
         // C9（第四波验收根修）：解密窗口时点下发——供应商大厅倒计时数据源
         // （此前 select 无此字段，前端读 openingSession 恒 undefined=死功能）
-        openingSession: { select: { decryptWindowStart: true, decryptWindowEnd: true, pausedAt: true } },
+        // handoverAt（2026-11-05）：完成开标·移交只写 handoverAt 不改 stage——
+        // 供应商大厅交流面板需据此判定「开标已结束」，否则误显「尚未组建开标会话」
+        openingSession: { select: { decryptWindowStart: true, decryptWindowEnd: true, pausedAt: true, handoverAt: true } },
       },
     });
     // 影子项目（自定义抽取）不对供应商可见

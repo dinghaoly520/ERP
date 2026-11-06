@@ -80,7 +80,7 @@ type PhraseItem = { text: string; builtin: boolean };
 /** 内凹按压态分段控件样式（与 supervision-view 共用） */
 export const SEG_ACTIVE = 'rounded-[7px] px-2 py-1 text-xs font-semibold text-[color:var(--foreground)] bg-[oklch(0.92_0.012_258)] shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258_/_0.18),inset_-2px_-2px_5px_oklch(1_0_0_/_0.6)] transition-all';
 
-export function ExchangeDrawer({ projectId, initialStageClosed, sessionActive = true }: { projectId: string; initialStageClosed?: boolean; sessionActive?: boolean }) {
+export function ExchangeDrawer({ projectId, initialStageClosed, sessionActive = true, sessionEnded = false }: { projectId: string; initialStageClosed?: boolean; sessionActive?: boolean; sessionEnded?: boolean }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC');
   const [activeSupplier, setActiveSupplier] = useState<Session | null>(null);
@@ -383,9 +383,11 @@ export function ExchangeDrawer({ projectId, initialStageClosed, sessionActive = 
   const msgs = tab === 'PUBLIC' ? publicMsgs : [...privateMsgs, ...sysMsgs].sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
 
   // R4：阶段离开 OPENING 关输入；U11：control=CLOSED 关 host 输入（MUTED 不影响 host 发言）；
-  // 会话未组建关输入（后端恒 403 SESSION_NOT_CREATED，免首次发送撞墙）
-  const inputDisabled = (tab === 'PRIVATE' && !activeSupplier) || !sessionReady || stageClosed || control === 'CLOSED';
-  const inputHint = stageClosed ? '开标阶段已结束，互动已关闭' : control === 'CLOSED' ? '主持人已关闭聊天大厅' : !sessionReady ? '尚未组建开标会话，会话组建后开放交流' : '';
+  // 会话未组建关输入（后端恒 403 SESSION_NOT_CREATED，免首次发送撞墙）；
+  // sessionEnded：完成开标·移交只写 handoverAt、stage 停留 OPENING——会话终局独立关输入
+  // （2026-11-05：此前该态误显「尚未组建开标会话」，优先级与供应商端 ChatPanel 同序）
+  const inputDisabled = (tab === 'PRIVATE' && !activeSupplier) || !sessionReady || stageClosed || sessionEnded || control === 'CLOSED';
+  const inputHint = stageClosed ? '开标阶段已结束，互动已关闭' : sessionEnded ? '开标已结束，交流已关闭' : control === 'CLOSED' ? '主持人已关闭聊天大厅' : !sessionReady ? '尚未组建开标会话，会话组建后开放交流' : '';
   const connBadge = connection === 'connected'
     ? { text: '实时已连', cls: 'text-[var(--success)]', dot: 'bg-[var(--success)]' }
     : connection === 'reconnecting'

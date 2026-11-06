@@ -7,7 +7,7 @@ import StartOpeningDialog from '@/components/start-opening-dialog';
 import AdjudicateDialog, { type AdjudgeMode } from '@/components/adjudicate-dialog';
 import {
   Unlock, Clock, Shield, CheckCircle, AlertTriangle, ExternalLink,
-  Volume2, Zap, Loader, FileText, RotateCcw, PencilLine, Lock, Gavel,
+  Volume2, Zap, Loader, LoaderCircle, FileText, RotateCcw, PencilLine, Lock, Gavel,
   Eye, ShieldCheck } from "lucide-react";
 import { DECRYPT_LABEL, BOND_STATUS_OPTIONS, deriveOpeningSessionStatus, evaluateBondCompliance } from '@water-erp/shared';
 import { toast } from 'sonner';
@@ -184,6 +184,11 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   // 双信封 v2（T17）：解外层 / 归因裁决
   const [outerDecrypting, setOuterDecrypting] = useState<Set<string>>(new Set());
   const [bulkOuterDecrypting, setBulkOuterDecrypting] = useState(false);
+  // 解外层进度反馈（2026-11-05 手测回修）：服务端解 100-250MB 外层约 1-2 分钟/家，
+  // 原先只有按钮文字翻转、无任何耗时提示——批量改为客户端逐家串行调单家端点，进度可见
+  const [bulkProgress, setBulkProgress] = useState<{ idx: number; total: number } | null>(null); // 批量进度（第 idx+1 家 / 共 total 家）
+  const [bulkCurrent, setBulkCurrent] = useState<string | null>(null); // 批量当前正在处理的供应商名（提示行展示）
+  const [decryptElapsed, setDecryptElapsed] = useState(0); // 解外层已耗时（秒）——行级按钮「解外层中 45s」计时源
   const [adjudgeTarget, setAdjudgeTarget] = useState<{ id: string; name: string; mode: AdjudgeMode } | null>(null);
   const [adjudgeSubmitting, setAdjudgeSubmitting] = useState(false);
   // A-102/104：保证金到账台账（主持人面板；bondRequired 项目 OPENING 阶段）
@@ -211,6 +216,16 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     return () => window.removeEventListener('keydown', onKey);
   }, [reasonDialog, reasonBusy]);
 
+  // 解外层耗时秒表：以「当前解密中的第一家」为键——批量串行逐家推进时换家自动清零重计，
+  // 全部结束（集合空）归零。批量端点保持服务端原样（本次仅客户端改走逐家串行单家调用）
+  const outerDecryptingFirst = outerDecrypting.size > 0 ? [...outerDecrypting][0] : null;
+  useEffect(() => {
+    if (!outerDecryptingFirst) { setDecryptElapsed(0); return; }
+    setDecryptElapsed(0);
+    const timer = setInterval(() => setDecryptElapsed(s => s + 1), 1000);
+    return () => clearInterval(timer);
+  }, [outerDecryptingFirst]);
+
   // 双信封 v2（T17）：解外层（单家/批量，§5.2）
   const handleDecryptOuter = async (sid: string) => {
     setOuterDecrypting(prev => new Set(prev).add(sid));
@@ -235,31 +250,51 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     }
   };
 
+  /** 批量解外层（2026-11-05 改逐家串行单家调用，服务端批量端点不动）：单次批量请求期间
+   *  无任何进度可见——改客户端循环后按钮显「第 x/n 家」、提示行显当前供应商名、行级秒表照跑；
+   *  单家失败不中断后续（与原批量端点逐家串行+明细聚合同语义），末尾汇总成功/跳过/失败计数 */
   const handleBulkDecryptOuter = async () => {
+    if (bulkOuterDecrypting) return;
+    // 剔除已在单家解密在途的行（评审 Minor）：否则批量迭代的 finally 会删掉别家 handler
+    // 持有的在途标记（Set 去重后 add 是 no-op、delete 却 unconditional）——单家请求仍在跑时
+    // 行级 spinner 提前消失、按钮解禁，再点即重复解密；在途家由其原 handler 自行收尾
+    const targets = [...dualOuterPending].filter(s => !outerDecrypting.has(s.id));
+    if (targets.length === 0) return;
     setBulkOuterDecrypting(true);
+    const counts = { success: 0, skipped: 0, failed: 0 };
     try {
-      const res = await decryptOuter(project.id);
-      // 批量路径返回明细聚合（total=进入处理的供应商数，口径）
-      if (isDecryptOuterBatch(res)) {
-        toast.success(`解外层完成：成功 ${res.success} · 跳过 ${res.skipped} · 失败 ${res.failed}`);
-        for (const d of res.details) {
-          if ('success' in d && !d.success) {
-            toast.error(`${d.supplierName}：${d.error ?? d.code ?? '解外层失败'}`);
+      for (let i = 0; i < targets.length; i++) {
+        const s = targets[i];
+        setBulkProgress({ idx: i, total: targets.length });
+        setBulkCurrent(s.supplierName);
+        setOuterDecrypting(prev => new Set(prev).add(s.id));
+        try {
+          const res = await decryptOuter(project.id, s.id);
+          if (isDecryptOuterBatch(res)) {
+            // 单家路径正常不返回批量形状；防御性按聚合计数（后端契约变更时仍可读）
+            counts.success += res.success; counts.skipped += res.skipped; counts.failed += res.failed;
+          } else if ('skipped' in res) {
+            counts.skipped += 1;
+          } else if (res.success) {
+            counts.success += 1;
+          } else {
+            counts.failed += 1;
+            toast.error(`${s.supplierName}：${res.error ?? res.code ?? '解外层失败'}`);
           }
+        } catch (e: any) {
+          counts.failed += 1;
+          toast.error(`${s.supplierName}：${e?.message || '解外层失败'}`);
+        } finally {
+          setOuterDecrypting(prev => { const n = new Set(prev); n.delete(s.id); return n; });
         }
-      } else if ('skipped' in res) {
-        toast.info('外层已解密（此前已完成，无需重复）');
-      } else if (res.success) {
-        toast.success('外层解密成功');
-      } else {
-        toast.error(`${res.error ?? '解外层失败'}`);
+        onRefresh();
       }
-      onRefresh();
-    } catch (e: any) {
-      toast.error(e?.message || '解外层失败');
-      onRefresh();
+      toast.success(`解外层完成：成功 ${counts.success} · 跳过 ${counts.skipped} · 失败 ${counts.failed}`);
     } finally {
       setBulkOuterDecrypting(false);
+      setBulkProgress(null);
+      setBulkCurrent(null);
+      onRefresh();
     }
   };
 
@@ -849,17 +884,26 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           </h2>
           <div className="flex items-center gap-2">
             {/* 阶段流转（开放投递/确定开标）已归 :3005 采购管理工作台，本页仅执行开标 */}
-            {/* T17：双信封 v2——管理方解外层（§5.2；批量逐家串行，返回明细聚合） */}
+            {/* T17：双信封 v2——管理方解外层（§5.2；批量改客户端逐家串行单家调用，进度可见） */}
             {/* C1（第四波补）：批量解密同受窗口闸——过期后隐藏（后端恒 403），处置走延长窗口/定性通道 */}
             {!!session && canHost && project.stage === 'OPENING' && remaining > 0 && dualOuterPending.length > 0 && (
               <button type="button" onClick={handleBulkDecryptOuter} disabled={bulkOuterDecrypting || !!session.pausedAt}
                 className="neu-btn-soft is-warning disabled:opacity-50">
-                <Unlock size={13} /> {bulkOuterDecrypting ? '批量解外层中...' : session.pausedAt ? '开标已暂停' : `全部解外层 (${dualOuterPending.length})`}
+                <Unlock size={13} /> {bulkOuterDecrypting && bulkProgress
+                  ? `全部解外层 ${bulkProgress.idx + 1}/${bulkProgress.total}`
+                  : session.pausedAt ? '开标已暂停' : `全部解外层 (${dualOuterPending.length})`}
               </button>
             )}
+            {/* 解外层进行中提示行：单家/批量通用耗时提醒 + 批量当前处理家（大文件服务端解密 1-2 分钟/家） */}
+            {(outerDecrypting.size > 0 || bulkOuterDecrypting) && (
+              <span className="text-[11px] font-medium text-[color:var(--muted-foreground)]">
+                {bulkOuterDecrypting && bulkCurrent ? `正在处理：${bulkCurrent} · ` : ''}大文件解外层约需 1-2 分钟/家，请勿关闭页面
+              </span>
+            )}
             {/* Wave 5-6：阶段已离 OPENING 后才开抽屉时，initialStageClosed 让输入框初始即禁用（免首次发送撞 403）；
-                sessionActive：未组建会话时交流输入禁用（后端 SESSION_NOT_CREATED 闸的前端映射） */}
-            {projectId && <ExchangeDrawer projectId={projectId} initialStageClosed={project.stage !== 'OPENING'} sessionActive={!!session} />}
+                sessionActive：未组建会话时交流输入禁用（后端 SESSION_NOT_CREATED 闸的前端映射）；
+                sessionEnded：完成开标·移交后 stage 停留 OPENING，会话终局须独立传递（2026-11-05） */}
+            {projectId && <ExchangeDrawer projectId={projectId} initialStageClosed={project.stage !== 'OPENING'} sessionActive={!!session} sessionEnded={sessionEnded} />}
           </div>
         </div>
 
@@ -1048,8 +1092,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                         {isDual && !outerDone && canAct && canHost && remaining > 0 && (
                           <button type="button" onClick={() => handleDecryptOuter(s.id)} disabled={isOuterDecrypting || bulkOuterDecrypting}
                             className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--accent-strong)] transition-colors hover:text-[var(--accent)] disabled:opacity-50">
-                            {isOuterDecrypting ? <Loader size={12} className="animate-spin" /> : <Unlock size={12} strokeWidth={1.5} />}
-                            {isOuterDecrypting ? '解外层中...' : '解外层'}
+                            {isOuterDecrypting ? <LoaderCircle size={12} className="animate-spin" /> : <Unlock size={12} strokeWidth={1.5} />}
+                            {isOuterDecrypting ? `解外层中 ${decryptElapsed}s` : '解外层'}
                           </button>
                         )}
                         {/* T17：外层已解、等待供应商自行解密上传（主持端无代解密通道） */}
