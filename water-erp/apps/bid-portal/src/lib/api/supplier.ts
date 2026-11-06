@@ -13,7 +13,6 @@ export interface BellNotification extends Notification {
   resolvedAt?: string | null;
 }
 
-// 通知列表
 export function getNotifications(page?: number, pageSize?: number) {
   const query = new URLSearchParams();
   if (page) query.set('page', String(page));
@@ -21,17 +20,14 @@ export function getNotifications(page?: number, pageSize?: number) {
   return api.get<{ total: number; page: number; pageSize: number; items: BellNotification[] }>(`/notifications?${query.toString()}`);
 }
 
-// 未读通知数量
 export function getUnreadNotificationCount() {
   return api.get<{ count: number }>('/notifications/unread-count');
 }
 
-// 标记已读
 export function markNotificationRead(id: string) {
   return api.post<Notification>(`/notifications/${id}/read`, {});
 }
 
-// 全部标记已读
 export function markAllNotificationsRead() {
   return api.post<{ count: number }>('/notifications/mark-all-read', {});
 }

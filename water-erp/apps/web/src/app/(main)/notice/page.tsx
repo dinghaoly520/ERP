@@ -26,11 +26,9 @@ import { AnnouncementRecycleModal } from '@/components/notice/announcement-recyc
 import { ANN_TYPE_LABEL, ANN_TYPE_TONE, ANN_STATUS_LABEL, ANN_STATUS_TONE } from '@/lib/announcement-meta';
 
 /* ── 类型/状态映射 ── */
-// 2026-09-09 拍板：公告类型入口收敛为 6 类（删中标公示/成交/合同/履行结果/流标/中标公告 tab，与公开端一致）；
-// 被删类型的历史数据在「全部」中展示（列表类型徽标用 typeBadgeMeta 完整映射）
-// 公告入口包括采购、流标、中标、补遗、资格预审、政策和平台公告。
-// 「全部」（2026-09-28 审计 P1）：不传 type 过滤——成交/合同/履行结果公告（C1 流程自动
-// 派生 + 手工可建）无专属 tab，此前在管理列表永久不可见。
+// 2026-09-09 拍板：公告类型入口收敛为 6 类（删中标公示/成交/合同/履行结果/流标/中标公告 tab，与公开端一致；
+// 被删类型历史数据在「全部」展示，徽标走 typeBadgeMeta 完整映射）。「全部」（2026-09-28 审计 P1）不传
+// type 过滤——成交/合同/履行结果公告（C1 自动派生+手工可建）无专属 tab，此前永久不可见。
 type TypeTabKey = AnnouncementType | 'WIN_BID_NOTICE,PRE_WIN_NOTICE' | 'ALL';
 const typeMeta: Partial<Record<TypeTabKey, { label: string; tone: 'blue' | 'green' | 'orange' | 'gray' }>> = {
   BID_NOTICE: { label: '采购公告', tone: 'blue' },

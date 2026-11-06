@@ -42,7 +42,7 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
   const suppliers = detail?.suppliers ?? [];
 
   // F8：创建入口阶段门槛（镜像后端 createRound 守卫）——谈判采购为「先评标→再报价」形态，
-  // 报价轮仅在 EVALUATING 可开（OPENING 会被后端 assertEvaluationComplete 409）；
+  // 报价轮仅在 EVALUATING 可开（OPENING 会被后端 assertEvaluationComplete 400 拦）；
   // 竞价（sealed_auction，形态B 先报价后评标）OPENING/EVALUATING 均可。
   // 其余阶段（含 ARCHIVED/ABORTED 只读态）隐藏入口并提示，不再渲染点了必 409 的死按钮。
   const canCreateRound = roundMode === 'negotiation'

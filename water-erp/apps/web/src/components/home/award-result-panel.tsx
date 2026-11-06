@@ -62,11 +62,9 @@ export function AwardResultPanel({ startDate, endDate, companyId }: { startDate?
   const [allOpen, setAllOpen] = useState(false);
   const [detail, setDetail] = useState<ProjectManagementItem | null>(null);
 
-  // R6-6④（2026-09-30 审计 B1）：随页头日期筛选联动——此前零参全量拉，
-  // 切日期/公司后其余面板全变、这两块不变。companyId 接上（2026-10-28）：后端 2026-10-14
-  // 起 list 支持 admin companyId 多选，页头选单公司后本面板不再恒全量。leader 后端强制本人
-  // 公司、staff 无驾驶舱入口（app-shell 驾驶舱整组 roles=[admin,leader]）——页面可达人群
-  // （leader/admin）自此与页头 KPI 同公司视野，双源口径差消除。
+  // R6-6④（2026-09-30 审计 B1）：随页头日期/公司筛选联动（此前零参全量拉，切筛选后与其余
+  // 面板脱节；companyId 2026-10-28 接上——后端 2026-10-14 起 list 支持 admin companyId 多选）。
+  // leader 后端强制本人公司、staff 无驾驶舱入口——可达人群自此与页头 KPI 同公司视野。
   useEffect(() => {
     fetchProjectManagementList(undefined, companyId && companyId !== 'all' ? companyId : undefined)
       .then((all) => {

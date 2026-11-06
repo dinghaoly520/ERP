@@ -15,7 +15,7 @@
 # web3005-watch.sh（/tmp 守尸网）不在本列——它是 :3005 的留置缓解，按 memory 另行维护。
 #
 # 用法：
-#   pnpm dev:kill              # 全量：guard + 11 个端口 + apps/api 残树
+#   pnpm dev:kill              # 全量：guard + 10 个端口 + apps/api 残树
 #   pnpm dev:kill --api        # 只清 guard + :4001 + apps/api 残树（不动 9 个 portal）
 #   pnpm dev:kill --list       # 干跑：只列出将杀对象，不动手
 set -u

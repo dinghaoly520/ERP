@@ -99,10 +99,9 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
 
   const connect = useCallback(() => {
     if (!projectId) return;
-    // O4（2026-08-28）：「连接中」半开旧连接先拆干净再建新——原仅拦 connected，快速
-    // visibility 切换/重连竞态下会叠出第二条 socket（双份事件回调），且旧连接的
-    // disconnect 回调会把 socketRef.current 置 null 覆盖新引用。removeAllListeners
-    // 先摘回调再 disconnect，避免拆旧触发 scheduleReconnect。
+    // O4（2026-08-28）：「连接中」半开旧连接先拆干净再建新——原仅拦 connected，竞态下会叠出
+    // 第二条 socket（双份回调）且旧 disconnect 回调覆盖新引用；removeAllListeners 先摘回调
+    // 再 disconnect，避免拆旧触发 scheduleReconnect。
     if (socketRef.current) {
       if (socketRef.current.connected) return;
       socketRef.current.removeAllListeners();

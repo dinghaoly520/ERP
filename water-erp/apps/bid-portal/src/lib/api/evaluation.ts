@@ -170,7 +170,6 @@ export function verifyClarificationReply(projectId: string, cid: string) {
   );
 }
 
-/** AI 起草候选问题（不落库） */
 /** AI 提炼回复要点（不落库） */
 export function summarizeClarification(bidProjectId: string, clarificationId: string) {
   return api.post<{ summary: string; keyPoints: string[]; aiSummary: string }>(

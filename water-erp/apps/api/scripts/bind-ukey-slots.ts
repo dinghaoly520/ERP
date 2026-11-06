@@ -3,8 +3,9 @@
  *
  * 用途：把 mock U盾中间件槽目录（~/.shuidi-ukey/slots/*.ukey）里的盾，按盾内 CN（证书主体
  * 企业名）与 Supplier.name 精确匹配，幂等绑定 SupplierCert（certSn 唯一键）并回填
- * Supplier.sm2PublicKey——供应商门户 dualReady = !!profile.sm2PublicKey（投递页 A-90 绑盾
- * 引导卡据此切换为双信封投递）。
+ * Supplier.sm2PublicKey——历史上供应商门户 dualReady = !!profile.sm2PublicKey（投递页 A-90
+ * 绑盾引导卡据此切换双信封投递）；mock 中间件已于 2026-10-19 退役，供应商端现走 SCCA dual-v3，
+ * 本脚本仅存档供旧环境补绑。
  *
  * 槽文件结构（services/ukey-middleware/src/shield.mjs · issueShield）：**明文 JSON**，
  * { version, shieldId, certSn(=shieldId), certDn: 'CN=<企业名>,O=蜀水云采模拟CA,C=CN',

@@ -39,8 +39,8 @@ export function EvaluationHandoverBlock({ bidProjectId, detail }: Props) {
   // A4：候选人与金额表随评标结果生成即展示（评标进行中 detail.evaluationResults 为空数组，不泄露）；
   // 结果与回流包均无时不渲染（签字闸门警示由 ArchiveBlock 展示，此处不重复提示）
   const results = detail.evaluationResults ?? [];
-  // 列头口径随项目去极值配置（BidProject.scoreTrimEnabled，价格配置卡片写入）——trim 关闭时
-  // averageScore 为全额均分，静态「去极值」列名/排名依据与事实相反（2026-09-29，同 :3007 生成规则文案病）
+  // 列头口径随项目去极值配置（BidProject.scoreTrimEnabled，价格配置卡片写入）切换——trim 关闭时
+  // averageScore 为全额均分，沿用静态「去极值」列名/排名依据会与事实相反（2026-09-29 修正，同 :3007 生成规则文案病）
   const trimOn = detail.scoreTrimEnabled ?? true;
   if (results.length === 0 && !signData?.packet?.handoverFileAssetId) return null;
 

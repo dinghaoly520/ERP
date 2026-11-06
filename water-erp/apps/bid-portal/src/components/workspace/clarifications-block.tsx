@@ -2,8 +2,8 @@
 
 /**
  * 澄清答疑区块——:3007 项目工作区「评标管理」tab（分工 v3 自 :3005 迁回现场）。
- * 澄清/答疑记录表、发起澄清、AI 起草候选问题、AI 摘要、书面来函（question 类型在此答复并展示答复全文——L1）。
- * 实时性由父组件的 socket 刷新驱动（project 变化时重拉列表）。
+ * 澄清/答疑记录表、发起澄清、AI 摘要、书面来函（question 类型在此答复并展示答复全文——L1）。
+ * 实时性由父组件的 socket 刷新驱动（远程事件经 refreshSignal 触发重拉）。
  */
 
 import { Fragment, useCallback, useEffect, useState } from 'react';
@@ -426,7 +426,7 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
                 <select
                   value={selectedSupplierId}
                   onChange={e => {
-                    // F3：澄清供应商契约 = BidSupplier.id（行 id）——专家端校验、AI 起草
+                    // F3：澄清供应商契约 = BidSupplier.id（行 id）——专家端校验
                     // （bidSupplierId）、后端落库转换全按行 id；同名供应商也不会错行
                     const sel = detail.suppliers.find(s => s.id === e.target.value);
                     setSelectedSupplierId(e.target.value);

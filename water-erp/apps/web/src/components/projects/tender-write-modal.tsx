@@ -67,10 +67,8 @@ import type {
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 
 // ── 草稿持久化：服务器为准（跨设备同步，2026-09-09），localStorage 降级为离线缓存 ──
-// 背景：此前草稿仅存本机 localStorage（tender-write:project-drafts:v1:<projectId>），
-// 按设备隔离——另一台电脑登录同账号看不到已写内容。现打开时先拉服务器草稿
-// （服务器优先、本地缓存兜底并自动上云迁移），编辑期防抖推送服务器，
-// 同一账号在任何设备打开均一致（last-write-wins）。
+// 此前仅存本机（按设备隔离，换机不可见）；现打开时服务器优先、本地兜底（自动上云迁移），
+// 编辑期防抖推送，同账号任意设备一致（last-write-wins）。
 const DRAFTS_STORAGE_PREFIX = 'tender-write:project-drafts:v1:';
 const DRAFTS_HISTORY_PREFIX = 'tender-write:project-draft-history:';
 const MAX_HISTORY = 20;
@@ -193,13 +191,10 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     };
   }, [project?.id, round]);
 
-  // ── 2026-10-28 二轮隔离·「参考上一轮」：非首轮探测上一轮可参考素材（只读，不自动带入）──
-  // 素材两级（2026-10-30 修正）：
-  //   ① 上一轮编辑器草稿（服务器优先、本地缓存兜底——与打开流程同链；此前只查服务器，
-  //      10-28 草稿上云前编辑的只在本地，按钮恒灰不可点）；
-  //   ② 上一轮 03「采购文件」阶段的正式盖章版附件（本项目的常见形态：轮 1 直接上传
-  //      成品 PDF、从未走过编辑器——哪都没有草稿。点按钮走「导入识别」对文件本体
-  //      AI 识别回填，即「填入上一轮的采购文件填入的内容」）。
+  // ── 2026-10-28 二轮隔离·「参考上一轮」：非首轮探测上一轮素材（只读，不自动带入）──
+  // 素材两级（2026-10-30 修正）：① 上一轮编辑器草稿（服务器优先、本地兜底——此前只查
+  // 服务器，草稿未上云的只在本地致按钮恒灰）；② 上一轮 03 阶段盖章版附件（从未走过编辑器
+  // 的轮次无草稿，走「导入识别」对文件本体 AI 回填）。
   const prevRoundDraftRef = useRef<TenderDraftsState | null>(null);
   const [prevRoundAvailable, setPrevRoundAvailable] = useState(false);
   /** 上一轮 03 阶段的正式采购文件附件（正式盖章版指针优先，回退按文件名主文件判定） */

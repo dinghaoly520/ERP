@@ -6,7 +6,7 @@
 # （2026-10-16 全项目文案排查→整改；本闸将当次口径固化为 CI 硬闸，2026-10-18 加强）
 #
 # 用法：
-#   bash scripts/copy-lint.sh              # 全量（前端 9 门户 + packages；API 错误消息）
+#   bash scripts/copy-lint.sh              # 全量（前端 8 门户 + packages；API 错误消息）
 #   bash scripts/copy-lint.sh <路径…>      # 只扫指定文件/目录（本地预检）
 #   bash scripts/copy-lint.sh --ci         # 同全量（旗标与红牌闸风格对齐）
 #
@@ -22,7 +22,7 @@
 #                        （全大写机器码）——码归 code: 字段，不进散文
 #
 # 扫描范围：
-#   U1-U7 → 前端门户（public-portal/mall/supplier-portal-next/web/expert-portal/
+#   U1-U7 → 前端门户（public-portal/supplier-portal-next/web/expert-portal/
 #           bid-portal/assistant/bigscreen/mobile-portal）+ packages 的 ts/tsx
 #   A1    → apps/api/src 非 spec 的 error: 消息行
 #   （apps/api 的 console/Swagger/注释不在 U 范围——内部件，黑话合法）

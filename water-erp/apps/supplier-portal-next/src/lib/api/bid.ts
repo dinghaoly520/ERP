@@ -108,7 +108,7 @@ export const bidApi = {
     );
   },
 
-  /** 提交答复（U盾签名随 mock U盾轨下线；certSn/signature 可选，dual-v3 阶段恢复签名） */
+  /** 提交答复（mock U盾签名轨已下线，certSn/signature 可选；dual-v3 走 operationId+signP7 盾签，已恢复） */
   submitClarificationReply(
     projectId: string,
     cid: string,

@@ -32,10 +32,9 @@ test("new project review step renders procurement category as a fixed dropdown",
 });
 
 test("评审页字段编辑必须同步 compare 步 selectedValue——解析模式预选值否则弹回手填值（立项日期无法选择）", () => {
-  // 根因：compareFields 对每字段自动预选 selectedValue（initiationValue || demandValue），
-  // 评审页 value 解析优先读它，而 onChange 若只写 initiationFields（低优先级源），
-  // 手填值会被旧预选值弹回；立项日期抽出非 ISO 串时日期框空白且无法选择。
-  // e798639a 曾为 budgetAmount 单独修过此病，此处要求推广到全部评审字段（house precedent）。
+  // 根因：compareFields 自动预选 selectedValue，评审页 value 解析优先读它，onChange 只写
+  // initiationFields（低优先级源）会被弹回；立项日期非 ISO 串致日期框空白。e798639a 曾为
+  // budgetAmount 单修，此处要求推广到全部评审字段（house precedent）。
   assert.match(
     source,
     /const handleReviewFieldChange = \(fieldName: string, value: string\) => \{[\s\S]*?setInitiationFields[\s\S]*?setFieldComparisons[\s\S]*?selectedValue: value/,

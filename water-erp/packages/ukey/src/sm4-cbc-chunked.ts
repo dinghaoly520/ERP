@@ -12,8 +12,8 @@
  * - `padding:'pkcs#7'` 加密侧恒在输入后补齐（整除输入补整块 16B）、解密侧负责
  *   校验并剥除——只允许出现在末段（final），否则链条与 one-shot 不再一致。
  *
- * sm-crypto 为无类型 CJS 包（局部 require 声明同 sm-crypto-layer.ts）；Vite 应用
- * 仍须把本包登记进 optimizeDeps.include（经 esbuild 预打包转 ESM）。
+ * sm-crypto 为无类型 CJS 包（局部 require 声明同 sm-crypto-layer.ts）；历史 Vite
+ * 消费方（旧 supplier-portal）已删除，现存消费方为 Next 门户与 Node/jest。
  */
 
 declare const require: (id: string) => { sm4: any };

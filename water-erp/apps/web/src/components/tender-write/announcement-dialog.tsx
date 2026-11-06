@@ -655,10 +655,9 @@ export function AnnouncementDialog({
     return getAnnouncementFields(tenderType, category);
   }, [tenderType, category]);
 
-  // ★ 进入公告填写即直接带入（免手动点「智能填入」，与采购文件编写的进入预填对齐）：
-  // 工期及进度要求内容 ← 采购文件「商务要求/提交成果要求」→ 项目「采购活动时间安排」；
-  // 报名方式及条件 ← 项目「供应商资格要求」+ 采购文件「需提供的资料/特定资格要求」。
-  // 只填空缺不覆盖已填内容；填完后无 patch 不再触发，不会循环。
+  // ★ 进入公告填写即直接带入（免手动「智能填入」，与采购文件编写的进入预填对齐）：工期及进度
+  // 要求 ← 采购文件商务/提交成果要求 → 项目采购活动时间安排；报名方式及条件 ← 项目供应商资格
+  // 要求 + 采购文件需提供资料/特定资格要求。只填空缺不覆盖；无 patch 不再触发，不会循环。
   /* eslint-disable react-hooks/set-state-in-effect -- 进入表单的一次性预填 */
   useEffect(() => {
     if (!isOpen || !draft || !project) return;
@@ -1051,12 +1050,9 @@ export function AnnouncementDialog({
       }
     }
 
-    // ★ 采购时间（=开标时间）取值链（2026-09-11 修复：此前只认 project.bidOpeningTime——
-    // 项目信息未填时智能填入永远填不上，且 ANNOUNCEMENT_AUTO_FILL 的 procurementTime 映射
-    // 指向 tenderDraft 中不存在的键名（各方式开标时间字段为 submissionAndNegotiationTime/
-    // responseDeadline/bidOpeningTime/responseSubmissionTime），Pass 2 恒落空）。
-    // 顺序：项目 bidOpeningTime → tenderDraft 各方式开标时间 → 兜底推算（公示期限止或
-    // 今日往后推 3 个工作日 14:00，与采购文件侧开标时间推算规则同口径）
+    // ★ 采购时间（=开标时间）取值链（2026-09-11 修复：此前只认 project.bidOpeningTime 且
+    // AUTO_FILL 映射键名错，智能填入恒落空）：项目 bidOpeningTime → tenderDraft 各方式开标
+    // 时间 → 兜底推算（公示期限止或今日+3 个工作日 14:00，与采购文件侧同口径）
     const cnOrIsoToISODatetime = (raw: string): string | null => {
       const m = raw.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(\d{1,2}):(\d{2})/);
       if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}T${m[4].padStart(2,'0')}:${m[5]}`;

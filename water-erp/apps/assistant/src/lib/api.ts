@@ -1,12 +1,7 @@
 /**
- * assistant API 客户端 —— 刻意保留的独立实现（未收敛到 @water-erp/client）。
- *
- * 原因：本门户是公共聊天机器人，请求特性与其他门户不同——
- *  - 超时分级（POST 90s / GET 15s，LLM 长请求）；
- *  - 瞬态网络错误指数退避重试（用户取消/超时/HTTP 错误不重试）；
- *  - AbortSignal 透传（用户停止生成）。
- * 共享包暂未实现这些；如需统一，先把 FetchOptions 移植进 @water-erp/client 再迁移。
- * 见 packages/client/src/index.ts 头注释。
+ * assistant API 客户端 —— 刻意保留的独立实现（未收敛到 @water-erp/client）：
+ * 公共聊天机器人需要超时分级（POST 90s/GET 15s）、瞬态网络错误退避重试、AbortSignal 透传，
+ * 共享包均未实现；如需统一，先把 FetchOptions 移植进 @water-erp/client 再迁移（见其头注释）。
  */
 const BASE = '/api';
 const PORTAL = 'assistant';
@@ -49,8 +44,8 @@ function isNetworkError(e: unknown): boolean {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * 匿名访客键：本门户无登录，后端按此键隔离会话（P0 会话隔离，2026-09-28）。
- * 首次访问生成 UUID 存 localStorage，此后所有请求随 X-Assistant-Guest 头携带。
+ * 匿名访客键（P0 会话隔离，2026-09-28）：本门户无登录，后端按 X-Assistant-Guest 头隔离会话；
+ * UUID 存 localStorage。
  */
 /** 非安全上下文（HTTP 局域网）crypto.randomUUID 不可用时的兜底生成器——
  *  返回空串会让后端拒收访客键、会话沦为无主行（历史永不显示） */

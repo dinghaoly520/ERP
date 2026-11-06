@@ -7,7 +7,6 @@ export type ResultStatusKey =
   | "INVALID_RESPONSE"
   | "CANCELLED";
 
-// 数据来源类型
 export type SourceTypeKey = "MANUAL" | "IMPORTED" | "PROJECT_MANAGEMENT";
 
 // 采购台账项
@@ -56,7 +55,6 @@ export type ProcurementRoundItem = {
   pmCreatedById?: string | null;
 };
 
-// 分页信息
 export type PaginationInfo = {
   page: number;
   pageSize: number;
@@ -64,7 +62,6 @@ export type PaginationInfo = {
   totalPages: number;
 };
 
-// 列表响应
 export type ProcurementsListResponse = {
   data: ProcurementRoundItem[];
   /** 异常全量计数（与列表同筛选/公司/回收站视图；hero 展示用，2026-09-28） */
@@ -73,7 +70,6 @@ export type ProcurementsListResponse = {
 };
 
 
-// 统计汇总
 export type LedgerSummary = {
   totalCount: number;
   awardedCount: number;
@@ -87,7 +83,6 @@ export type LedgerSummary = {
   totalSavingsLabel: string;
 };
 
-// 状态配置
 export type StatusConfig = {
   key: ResultStatusKey;
   label: string;
@@ -142,7 +137,7 @@ export const RESULT_STATUS_CONFIG: Record<ResultStatusKey, StatusConfig> = {
     borderColor: "rgba(230,140,90,0.25)",
     icon: "alert",
   },
-  // 已取消 - 灰色（流程终止：非异常）
+  // 已取消 - 灰色（流程终止：中性色；仍计入台账异常四态，见后端 ABNORMAL_RESULT_STATES）
   CANCELLED: {
     key: "CANCELLED",
     label: "已取消",

@@ -415,7 +415,7 @@ export class LlmService {
    * 截断预算升级重试外壳（2026-11-05）：推理模型思维链与正文共享 max_tokens，
    * 预算耗尽时同参数重放在低温下近似确定性（通用审查实录：temp=0 三发全截断），
    * 重试价值低——截断类错误重试前将 max_tokens 翻倍，给思维链留增长空间。
-   * 封顶 32768（2026-11-05 直连探针验证的 API 接受上限，更高未验证勿动）。
+   * 封顶 MAX_TOKENS_CEILING=65536（2026-11-05 直连探针验证；升顶须与 timeoutMs 成对提，见常量注）。
    */
   private withBudgetEscalation<T>(
     buildCall: (maxTokens: number) => Promise<T>,

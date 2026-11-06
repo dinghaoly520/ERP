@@ -48,11 +48,8 @@ export function CreateProjectDialog({
 }) {
   const [step, setStep] = useState<Step>('upload');
   const [submitting, setSubmitting] = useState(false);
-  // Ref mirror of `submitting` — setState is async, so two rapid clicks on the
-  // "创建项目" button can both pass the `disabled={submitting}` guard before
-  // React re-renders. The second submission reuses the same demand/initiation
-  // objectKey and trips the backend's Attachment unique constraint → confusing
-  // "登录失败 / 服务处理失败" error even though the first submission succeeded.
+  // Ref mirror of `submitting`：setState 异步，双击可在 disabled 生效前都过闸——第二次提交
+  // 复用同一 objectKey 触发后端唯一约束，报出误导性的「登录失败 / 服务处理失败」错误。
   const submittingRef = useRef(false);
   const [extractingDemand, setExtractingDemand] = useState(false);
   const [extractingInitiation, setExtractingInitiation] = useState(false);
@@ -88,9 +85,8 @@ export function CreateProjectDialog({
   // Field comparison
   const [fieldComparisons, setFieldComparisons] = useState<FieldComparison[]>([]);
   // 用户已编辑字段锁（2026-10-23 输入稳定性根治）：编辑过的字段恒以 initiationFields 为准
-  // （含空串——可正常清空）——不再被 selectedValue 空值守卫 / demand 提取值回退链弹回。
-  // 同病第三落点：e798639a（budgetAmount 单修）、363 行注释（预选值弹回推广修）均未断根，
-  // 此处以「编辑权归用户」语义收口全部评审字段。
+  //（含空串可清空），不被 selectedValue 空值守卫/demand 回退链弹回——同病第三落点
+  //（e798639a 单修、363 行推广修均未断根），以「编辑权归用户」收口全部评审字段。
   const [editedFields, setEditedFields] = useState<Set<string>>(new Set());
   const [aiCandidates, setAiCandidates] = useState<Record<string, FieldCandidate[]>>({});
   const [aiLoading, setAiLoading] = useState<string | null>(null);

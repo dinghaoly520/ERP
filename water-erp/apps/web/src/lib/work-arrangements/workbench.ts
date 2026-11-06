@@ -17,7 +17,7 @@ export function deriveReminderState(
   item: WorkArrangementItem,
   now: Date,
 ): WorkArrangementReminderState {
-  // 已完结的任务没有活的提醒——与 reminder.ts checkReminders 同口径跳过；
+  // 已完结的任务没有活的提醒——与 checkReminders（work-arrangements-page）同口径跳过；
   // 否则完成后 reminderAt 仍过期，「需注意」列表/徽章会一直留着已完成任务（2026-10-21 修复）
   if (item.status === 'COMPLETED' || item.status === 'CANCELLED') {
     return 'NONE';
@@ -35,7 +35,7 @@ export function deriveReminderState(
     return deltaMs <= 2 * 60 * 60 * 1000 ? 'UPCOMING' : 'NONE';
   }
 
-  // 已到提醒时刻：1 分钟内「提醒已到」（与 reminder.ts 通知口径一致），超过即「提醒超时」。
+  // 已到提醒时刻：1 分钟内「提醒已到」（与 checkReminders 通知口径一致），超过即「提醒超时」。
   // 勿把未到的窗口并入 DUE_NOW——否则提醒时间没到就显示「提醒已到」（2026-10-21 修复）。
   return deltaMs > -60 * 1000 ? 'DUE_NOW' : 'OVERDUE';
 }

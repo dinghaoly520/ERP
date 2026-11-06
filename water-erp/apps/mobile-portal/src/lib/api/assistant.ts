@@ -1,7 +1,7 @@
 /**
  * 水叮当会话 API（:3011 第四 Tab）——认证用户按 JWT 属主隔离会话，
  * 服务端按角色裁剪工具门禁（内部管理角色全量，匿名仅公开域）。
- * companyIds 第三参为 admin 公司口径切换预留（Task 12 后按 filter-store 接线）。
+ * companyIds 第三参为 admin 公司口径（chat 页读 filter-store 传入）。
  */
 import { api } from "../api";
 

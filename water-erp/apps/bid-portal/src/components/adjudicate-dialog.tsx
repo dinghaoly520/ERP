@@ -70,7 +70,6 @@ export default function AdjudicateDialog({ open, supplierName, mode, submitting,
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={onClose} />
       <div className="bid-dialog relative mx-4 w-full max-w-[min(520px,92vw)]" role="dialog" aria-modal="true">
-        {/* Header */}
         <div className="flex items-start justify-between gap-4 px-6 pb-4 pt-5">
           <h3 className="flex items-center gap-2 font-[family-name:var(--font-display)] text-[15px] font-semibold tracking-tight text-[color:var(--foreground)]">
             <Gavel size={16} className="text-[var(--warning)]" />
@@ -81,7 +80,6 @@ export default function AdjudicateDialog({ open, supplierName, mode, submitting,
 
         <hr className="wb-section-rule mx-6" />
 
-        {/* Body */}
         <div className="space-y-4 px-6 py-5">
           <div className="flex items-start gap-2.5 rounded-xl bg-[oklch(0.78_0.12_83_/_0.16)] p-3">
             <AlertTriangle size={16} className="mt-0.5 shrink-0 text-[oklch(0.46_0.11_65)]" />
@@ -154,7 +152,6 @@ export default function AdjudicateDialog({ open, supplierName, mode, submitting,
 
         <hr className="wb-section-rule mx-6" />
 
-        {/* Footer */}
         <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
           <span className="text-[11px] font-semibold tracking-tight text-[var(--danger)]">裁决结果不可自动撤回</span>
           <div className="flex gap-3">

@@ -28,7 +28,6 @@ export function ChartRenderer({
         chart.dispatchAction({ type: 'restore' });
         focusedRef.current = false;
       } else {
-        // Dim all others
         const opt = chart.getOption() as Record<string, unknown>;
         const seriesList = (opt.series as unknown[]) || [];
         for (let si = 0; si < seriesList.length; si++) {
@@ -87,12 +86,10 @@ export function ChartRenderer({
                 itemStyle: { ...(s.itemStyle || {}), opacity: 1 },
               }),
             })),
-            // Custom downplay: dim to 0.25
             stateAnimation: { duration: 250, easing: 'cubicOut' },
           } as any,
           true,
         );
-        // Reset any previous focus state
         chartRef.current.dispatchAction({ type: 'restore' });
         focusedRef.current = false;
         setReady(true);
@@ -106,7 +103,6 @@ export function ChartRenderer({
     return () => cancelAnimationFrame(timer);
   }, [option]);
 
-  // 自适应宽度 + 卸载清理
   useEffect(() => {
     const handleResize = () => chartRef.current?.resize();
     window.addEventListener('resize', handleResize);

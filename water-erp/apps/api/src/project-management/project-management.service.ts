@@ -1431,8 +1431,8 @@ ${shortlist}
     uploadedById?: string,
     round?: number,
   ) {
-    // 附件统一限制（2026-10-19）：阶段附件（含供应商邀请函/回执、采购文件、
-    // 正式盖章版、向导自动上传的公告 docx）100MB + 9 扩展白名单——
+    // 附件统一限制（2026-10-19 起；2026-11-05 上限统一 500MB）：阶段附件（含供应商邀请函/回执、
+    // 采购文件、正式盖章版、向导自动上传的公告 docx）500MB + 10 扩展白名单——
     // 复用 announcement 规则集，先于任何 prisma/落盘调用
     assertAttachmentRules(file, 'announcement');
     await this.assertPmiMutable(projectId);
@@ -2483,10 +2483,8 @@ paymentPerformance 要求：提炼 3-6 条要点，涵盖支付方式与比例�
         lines.find((line) => KNOWN_CATEGORIES.includes(line)) || '';
     }
 
-    // Extract procurement method
-    // Note: PDF text extraction merges all method options into one line,
-    // making it impossible to determine which one is selected.
-    // We leave it empty for user to select manually.
+    // Extract procurement method: PDF extraction merges all method options into one
+    // line (can't tell which is selected) — left empty for manual selection.
     const procurementMethod = '';
 
     // Extract procurement organization form
@@ -7530,10 +7528,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // 为每条标注的文字指纹在 HTML 中查找对应位置，包裹标注标签
     for (const anno of inlineAnnotations) {
       let fp = anno.fingerprint;
-      // 标注指纹可能带"…"省略尾缀
-      // 查找纯文本匹配（在 > 和 < 之间，跳过标签）
-      // 用更精确的从左到右扫描
-      // 查找模式：先尝试完整指纹，若以"…"结尾且未匹配则去尾再试
+      // 指纹可能带"…"省略尾缀：先完整匹配，未中且以"…"结尾则去尾再试；须为纯文本匹配（不在标签内）
       let searchStart = 0;
       let found = false;
       while (!found) {

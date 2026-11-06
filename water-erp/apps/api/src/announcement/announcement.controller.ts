@@ -192,7 +192,7 @@ export class AnnouncementController {
 
   @Post(':id/bid-document')
   @Roles('admin', 'bid_host', 'leader', 'staff')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 100 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 500 * 1024 * 1024 } })) // 单文件统一 500MB（2026-11-05 用户裁定）
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {

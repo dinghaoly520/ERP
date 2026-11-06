@@ -13,7 +13,7 @@ import { STAGE_LABEL, STAGE_COLOR } from '@water-erp/shared';
 
 const VOTE_LABEL: Record<string, string> = { approve: '赞成', reject: '反对', abstain: '弃权' };
 
-// /expert/tasks 返回的表决/异议（与 /tasks 页共享类型结构）
+// /expert/tasks 返回的表决/异议
 interface MotionItem {
   id: string; projectId: string; projectName: string; projectStage: string;
   title: string; status: string; result?: string | null; myVote: string | null;

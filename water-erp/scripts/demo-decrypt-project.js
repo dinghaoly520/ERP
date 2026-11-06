@@ -14,7 +14,8 @@
  *     （KMS 信封密钥与项目无关，副本解密可用）。
  *   - 专家为另外抽取的 5 名（与原项目 5 人不同），全部已确认参加。
  *   - 时间口径：开标时间 = 执行时刻（now），投标截止 = 开标前 24 小时
- *     （BID_DEADLINE_BEFORE_OPENING_MS 口径，见 packages/shared/src/constants.ts），
+ *     （历史 24h 口径字面量——现行常量 BID_DEADLINE_BEFORE_OPENING_MS 已改 10 分钟，
+ *     2026-10-16 裁定；演示数据保留 24h 拉长窗口），
  *     解密窗口 now ~ now+30min。
  */
 const fs = require('fs');
@@ -111,13 +112,13 @@ async function reset() {
       `UPDATE "BidSupplier" SET "decryptStatus"='PENDING', "confirmStatus"='PENDING', "checkInAt"=NULL, "lastSeenAt"=NULL WHERE "projectId"=$1`,
       demo.id,
     );
-    // 时间口径刷新为当前时刻（fresh-time 默认行为，与 create 一致；开标=now、截标=now-1h、下载截止=now+30min）
+    // 时间口径刷新为当前时刻（fresh-time 默认行为，与 create 一致；开标=now、截标=now-24h、下载截止=now+30min）
     await tx.bidProject.update({
       where: { id: demo.id },
       data: {
         stage: 'OPENING',
         openTime: t,
-        deadline: new Date(t.getTime() - 24 * 3600_000), // 截标=开标前 24h：BID_DEADLINE_BEFORE_OPENING_MS 口径（packages/shared/src/constants.ts）；CJS 脚本不 import shared，写字面量 24h
+        deadline: new Date(t.getTime() - 24 * 3600_000), // 截标=开标前 24h：历史口径字面量（现行常量已改 10 分钟，2026-10-16；CJS 不 import shared，演示保留 24h 拉长窗口）
         downloadDeadline: new Date(t.getTime() + 30 * 60_000),
         evaluationDeadline: new Date(t.getTime() + 72 * 3600_000),
       },
@@ -226,7 +227,7 @@ async function create() {
       name: DEMO_NAME,
       procurementMethod: src.procurementMethod,
       openTime: t,
-      deadline: new Date(t.getTime() - 24 * 3600_000), // 截标=开标前 24h：BID_DEADLINE_BEFORE_OPENING_MS 口径（packages/shared/src/constants.ts）；CJS 脚本不 import shared，写字面量 24h
+      deadline: new Date(t.getTime() - 24 * 3600_000), // 截标=开标前 24h：历史口径字面量（现行 BID_DEADLINE_BEFORE_OPENING_MS 已改 10 分钟，2026-10-16，packages/shared/src/constants.ts）；CJS 脚本不 import shared，演示保留 24h 拉长窗口
       stage: 'OPENING',
       riskNote: `${src.riskNote ?? ''}；（解密演示副本）`,
       budget: src.budget,

@@ -2,8 +2,8 @@
 /**
  * U盾全流程演示项目脚本 —— 搭建「供应商 U盾加密投递 → 开标 U盾解密」所需的最小项目
  *
- * 与 demo-decrypt-project.js 分工不同：本项目走 dual-v2 新轨，从 DOWNLOAD 起步，
- * 让「四川水发建设有限公司」真实经浏览器 U盾（厂商中间件 :17999）投递，再转 OPENING
+ * 与 demo-decrypt-project.js 分工不同：本项目走 SCCA dual-v3 新轨，从 DOWNLOAD 起步，
+ * 让「四川水发建设有限公司」真实经浏览器 U盾（SCCA 证书助手 wss://localhost:36171）投递，再转 OPENING
  * 供开标大厅供应商侧 U盾解密演示。
  *
  * 用法（在 water-erp/apps/api 目录下）：
@@ -12,7 +12,8 @@
  *   node ../../scripts/demo-ukey-flow.js reset       # 清开标过程数据，回 OPENING 待组建会话（重演场景 B）
  *   node ../../scripts/demo-ukey-flow.js status      # 打印项目/供应商/提交状态
  *
- * 时间口径（对齐 demo-decrypt-project.js 与 BID_DEADLINE_BEFORE_OPENING_MS）：
+ * 时间口径（对齐 demo-decrypt-project.js；24h 为历史口径字面量——现行常量
+ * BID_DEADLINE_BEFORE_OPENING_MS 已改 10 分钟，2026-10-16）：
  *   create:      deadline=now+1d, openTime=now+2d, downloadDeadline=now+1d
  *   to-opening:  openTime=now, deadline=now-24h, downloadDeadline=now+30min
  */

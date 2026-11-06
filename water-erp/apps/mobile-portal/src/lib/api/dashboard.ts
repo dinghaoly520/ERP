@@ -71,7 +71,7 @@ export type DashboardData = {
     amount: number;
     /** 立项节点数（按项目立项日落桶） */
     initiated: number;
-    /** 归档节点数（已成交轮次按完成时点落桶） */
+    /** 归档节点数（AWARDED 轮次按 PMI 归档时点 archivedAt 落桶，无关联回退 updatedAt） */
     archived: number;
     /** 在执行净值（累计立项 − 累计归档） */
     active: number;

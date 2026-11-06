@@ -16,7 +16,7 @@ import { Shield, AlertTriangle, Eye, Download, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { SEG_ACTIVE } from '@/components/bid/exchange-drawer';
 
-/** cgzxui 面板（取代 @water-erp/ui 的 SectionCard）——无边框玻璃静态卡 + hairline 标题行 */
+/** cgzxui 面板——无边框玻璃静态卡 + hairline 标题行 */
 function Panel({ title, children, className = '' }: { title?: string; children: React.ReactNode; className?: string }) {
   return (
     <section className={`neu-card-static overflow-hidden ${className}`}>

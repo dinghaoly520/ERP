@@ -1973,7 +1973,7 @@ describe('直接采购「中标单位」收口（2026-10-16：开标评标前恒
     expect(data).not.toHaveProperty('awardedSupplier');
   });
 
-  describe('addStageAttachment 附件统一限制（2026-11-05 统一 500MB 上限 + 9 扩展白名单）', () => {
+  describe('addStageAttachment 附件统一限制（2026-11-05：500MB+10 扩展白名单）', () => {
     it('拒绝白名单外扩展名（先于任何 prisma 调用）', async () => {
       const { service, prisma } = makeService();
       const bad = {
@@ -1985,7 +1985,7 @@ describe('直接采购「中标单位」收口（2026-10-16：开标评标前恒
       expect(prisma.projectManagementItem.findUnique).not.toHaveBeenCalled();
     });
 
-    it('拒绝超 500MB 文件（2026-11-05 用户裁定统一上限）', async () => {
+    it('拒绝超 500MB 文件（2026-11-05 统一上限契约）', async () => {
       const { service } = makeService();
       const big = {
         originalname: '大文件.pdf', mimetype: 'application/pdf',

@@ -8,7 +8,7 @@ import { toApiError } from '@water-erp/client';
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
-    // 403 的后端 error 体多为笼统 'Forbidden'，特例覆盖为可行动的中文提示
+    // 403 时后端 RolesGuard 文案较笼统（'无权访问'，不说需要什么角色），特例覆盖为可行动的中文提示
     if (res.status === 403) {
       throw new Error('无权限执行此操作，需要管理员权限');
     }

@@ -81,7 +81,7 @@ export type BidProjectDetail = Omit<SharedBidProjectDetail, 'openingSession' | '
      *  评标管理状态卡/身份核验矩阵徽标用（主持人现场可辨需求方代表与库内专家） */
     isPurchaserRepresentative?: boolean;
     /** F9（2026-08-28）：邀请状态（BidExpert 标量列随详情全量下发）——启动评标委员会闸门按已确认正选计数 */
-    invitationStatus?: string; // invited | confirmed | declined
+    invitationStatus?: string; // pending | confirmed | declined
     /** A-132（2026-09-03）：评委分工（BidExpert 标量列随详情全量下发）——专家状态卡展示 分组·职责；
      *  配置入口在 :3005 步骤5（PUT /expert-admin/projects/:id/committee/assignment） */
     reviewGroup?: string | null; // 技术组 | 商务组 | 综合组

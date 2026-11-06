@@ -123,7 +123,7 @@ function LoginForm() {
     try {
       const result: LoginResult = await login(username, password);
       if (result === "ok") {
-        // B4-3（2026-09-30）：消费登录门禁写入的 ?redirect= 深链（proxy.ts:110 写入但全站无人读，
+        // B4-3（2026-09-30）：消费登录门禁写入的 ?redirect= 深链（proxy.ts 登录跳转处写入但全站无人读，
         // 受保护页登录后回不到原页）；仅放行站内相对路径，防开放重定向
         const redirect = params.get("redirect") || "";
         const safeRedirect = redirect.startsWith("/") && !redirect.startsWith("//") ? redirect : "/dashboard";

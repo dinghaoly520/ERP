@@ -6,8 +6,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 /**
  * 项目工作区路由上下文——仅派生 projectId（路由参数 [id] 优先，旧 ?id= 查询兜底）。
  * O1（2026-08-28）：删除 provider 内的项目详情拉取——工作区页（page.tsx）本就自持唯一
- * 显示源并全量拉取，provider 的副本仅被 ScoreStandardView 作 propsProject 回退消费
- * （实际恒有 props），留着只会在挂载时多发一次 GET /bid/projects/:id。
+ * 显示源并全量拉取，context 不再持 project 副本（ScoreStandardView 的 ctx 回退亦已删）。
  */
 
 export interface BidProjectContextValue {

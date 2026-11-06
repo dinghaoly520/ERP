@@ -84,7 +84,7 @@ describe('UploadService — download permission', () => {
     });
   });
 
-  describe('附件统一限制（2026-11-05：单文件 500MB+9 扩展白名单）', () => {
+  describe('附件统一限制（2026-11-05：单文件 500MB+10 扩展白名单）', () => {
     const pdfFile = {
       mimetype: 'application/pdf',
       originalname: 'proof.pdf',

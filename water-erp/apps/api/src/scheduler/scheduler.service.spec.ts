@@ -143,6 +143,7 @@ describe('remindBondReturns — A-105 pending 口径（终审 Critical#2 共享�
     expect(notification.sendToUser).toHaveBeenCalledTimes(2);
     const [p1Call, p2Call] = notification.sendToUser.mock.calls;
     expect(p1Call[0]).toBe('creator-1');
+    // 深链直达（2026-11-03 与定标即时通道同款）：有 PMI id → /projects?projectId=…
     expect(p1Call[2]).toMatchObject({ type: 'BOND_REFUND_DUE', link: '/projects?projectId=pm1' });
     expect(p1Call[2].content).toContain('项目一（GK-1）尚有 6 家');
     expect(p1Call[2].content).toContain('甲公司、乙公司、丙公司、丁公司、戊公司…。');

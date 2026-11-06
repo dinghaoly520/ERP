@@ -41,10 +41,8 @@ export function LoginErrorDialog({
   if (!isOpen || typeof document === "undefined") return null;
 
   return createPortal(
-    // ── Backdrop ──
-    // z-[600]：必须盖过业务全屏 overlay——新建项目对话框 z-[95]、项目详情面板 z-[120/121]、
-    // workbench 全屏层 z-[500]（此前 z-50 被新建项目对话框整体压住：解析失败弹的错误框
-    // 不可见，错误被静默吞掉且 body 滚动锁死，用户感知为表单卡死无法输入）
+    // ── Backdrop ── z-[600] 必须盖过业务全屏 overlay（新建项目 z-[95]/详情面板 z-[120/121]/
+    // workbench z-[500]；此前 z-50 被压住，错误框不可见且 body 滚动锁死，用户感知表单卡死）
     <div className="fixed inset-0 z-[600] flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm"

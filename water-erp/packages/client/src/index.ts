@@ -6,7 +6,7 @@
  * 各门户只保留 2-10 行的门户配置。
  *
  * 设计约束：
- *  - 纯 fetch，无框架依赖（Next.js React 门户与 Vue supplier-portal 均可用）；
+ *  - 纯 fetch，无框架依赖（各 Next.js 门户均可用）；
  *  - 浏览器与 SSR 均可运行（401 跳转等浏览器行为通过 on401 回调由各 app 注入）；
  *  - 错误统一抛 ApiError（携带后端规范化错误体的 status/code/message/data）；
  *  - post() 自动识别 FormData（浏览器自动设置 multipart boundary，不强制 JSON）。
@@ -45,7 +45,7 @@ export interface ApiClientOptions {
    * （如 SESSION_REPLACED = 账号被其他设备顶下线，需专门提示）。
    */
   on401?: (error: ApiError) => void;
-  /** 每次请求动态附加的额外头（如 :3005 单设备登录的 tab 级会话标识 X-Web-Sid） */
+  /** 每次请求动态附加的额外头（如 :3005 单设备登录的 tab 级会话标识 X-Web-Token） */
   extraHeaders?: () => Record<string, string>;
 }
 
