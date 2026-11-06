@@ -795,7 +795,7 @@ export class AnnouncementService {
 
     const project = await this.prisma.bidProject.findUnique({
       where: { projectCode: code },
-      select: { id: true, deadline: true, openTime: true, stage: true, name: true, projectCode: true },
+      select: { id: true, deadline: true, openTime: true, stage: true, name: true, projectCode: true, projectManagementItemId: true },
     });
     if (!project) return {};
 
@@ -831,6 +831,16 @@ export class AnnouncementService {
         bm.deadline = newDeadline.toISOString();
         await this.prisma.announcement.update({ where: { id: bidNotice.id }, data: { metadata: bm } });
       }
+      // PMI 基本信息快照同步（2026-11-06 实录：项目详情「开标时间」与时间轴兜底源此前
+      // 滞留旧值）——bidOpeningTime 中文格式与详情面板保存口径一致（format-acquire-time 同款）
+      const zhPad = (n: number) => String(n).padStart(2, '0');
+      const zhTime = `${t.getFullYear()}年${t.getMonth() + 1}月${t.getDate()}日${t.getHours()}:${zhPad(t.getMinutes())}`;
+      await this.prisma.projectManagementItem.update({
+        where: project.projectManagementItemId
+          ? { id: project.projectManagementItemId }
+          : { projectCode: code },
+        data: { bidOpeningTime: zhTime },
+      }).catch(e => this.logger.warn(`补遗开标联动 PMI 快照同步失败 (${code}): ${(e as Error).message}`));
       await this.prisma.auditLog.create({
         data: {
           userId: actorId ?? 'system',

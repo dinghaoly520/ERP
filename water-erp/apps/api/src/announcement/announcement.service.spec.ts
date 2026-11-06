@@ -1715,9 +1715,10 @@ describe('AnnouncementService — syncAddendum 开标时间联动（2026-11-06 �
         update: jest.fn().mockResolvedValue({}),
       },
       bidProject: {
-        findUnique: jest.fn().mockResolvedValue({ id: 'bp-1', projectCode: 'SWHI-TP-1', openTime: new Date('2026-11-10T10:00'), deadline: new Date('2026-11-10T09:50'), stage: 'SUBMIT' }),
+        findUnique: jest.fn().mockResolvedValue({ id: 'bp-1', projectCode: 'SWHI-TP-1', projectManagementItemId: 'pmi-1', openTime: new Date('2026-11-10T10:00'), deadline: new Date('2026-11-10T09:50'), stage: 'SUBMIT' }),
         update: jest.fn().mockResolvedValue({}),
       },
+      projectManagementItem: { update: jest.fn().mockResolvedValue({}) },
       bidDocument: { findFirst: jest.fn().mockResolvedValue({ id: 'doc-1' }), update: jest.fn().mockResolvedValue({}) },
       bidDocumentAccess: { findMany: jest.fn().mockResolvedValue([{ supplierId: 'sup-1' }]) },
       bidSupplier: { findMany: jest.fn().mockResolvedValue([{ supplierId: 'sup-1' }]) },
@@ -1743,6 +1744,10 @@ describe('AnnouncementService — syncAddendum 开标时间联动（2026-11-06 �
     const annCall = prisma.announcement.update.mock.calls.find((c: any[]) => c[0].where?.id === 'bid-notice-1')[0];
     expect(annCall.data.metadata.openTime).toBe('2026-11-20T10:00');
     expect(new Date(annCall.data.metadata.deadline).getTime()).toBe(open.getTime() - 10 * 60 * 1000);
+    // PMI 基本信息快照同步（详情「开标时间」数据源，中文格式与面板保存口径一致）
+    expect(prisma.projectManagementItem.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'pmi-1' }, data: { bidOpeningTime: '2026年11月20日10:00' } }),
+    );
     expect(prisma.auditLog.create).toHaveBeenCalledTimes(1);
     // 联动后不提前返回：①补遗计数与 ②供应商通知仍执行
     expect(prisma.bidDocument.update).toHaveBeenCalledWith(expect.objectContaining({ data: { addendumNo: { increment: 1 } } }));
