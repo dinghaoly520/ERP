@@ -42,6 +42,11 @@ import { StageFileList } from './stage-file-list';
 import { TenderWriteModal } from './tender-write-modal';
 import { DirectFilingDialog } from './direct-filing-dialog';
 import { SupplierExtractModal } from './supplier-extract-modal';
+import { UploadProgressList } from '../upload/upload-progress-list';
+import { WaterBar } from '../upload/water-bar';
+import { useFileUploads } from '@/lib/upload/use-file-uploads';
+import { useCountUp } from '@/lib/upload/use-count-up';
+import { formatSpeed } from '@/lib/upload/format';
 import { ExpertExtractModal } from './expert-extract-modal';
 import { AnnouncementPublishWizard } from './announcement-publish-wizard';
 import { BidConfirmPanel } from './bid-confirm-panel';
@@ -537,8 +542,78 @@ export function ProjectDetailPanel({
     setLocalItem(item);
   }, [item]);
 
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<{ completed: number; total: number } | null>(null);
+  // 上传队列（2026-11-06 上传进度条 spec §5）：顺序逐文件+字节进度+取消/重试；
+  // uploading 由队列 running 派生（原布尔 state 移除）。ctx 快照在发起时落 ref——
+  // 上传中切换阶段由 clear() 中止（spec §5.3），不会错挂新阶段。
+  const uploadCtxRef = useRef<{ stageKey: ProjectWorkflowStageKey; round: number } | null>(null);
+  const stageUploads = useFileUploads<UploadStageAttachmentResult>({
+    uploadOne: (file, _id, onProgress, signal) => {
+      const ctx = uploadCtxRef.current;
+      if (!ctx) return Promise.reject(new Error('上传会话已失效，请重新发起上传'));
+      return uploadProjectStageAttachment(item.id, ctx.stageKey, file, ctx.round, { onProgress, signal });
+    },
+    onEachDone: ({ result }) => {
+      const key = uploadCtxRef.current?.stageKey ?? selectedStage.stageKey;
+      // 立即注入本地附件列表（不等父组件刷新）
+      if (result.objectKey) {
+        setLocalItem(prev => {
+          const newStages = prev.stages.map(s =>
+            s.stageKey !== key ? s
+              : { ...s, attachments: [...s.attachments, result] }
+          );
+          return { ...prev, stages: newStages };
+        });
+      }
+      if (result.extractedInfo) {
+        const info = result.extractedInfo;
+        setExtractedInfoOverride((prev) => {
+          const next = { ...prev };
+          for (const [k, v] of Object.entries(info)) {
+            if (v !== null && v !== undefined && v !== '') {
+              next[k as keyof ExtractedInfo] = v as never;
+            }
+          }
+          return next;
+        });
+      }
+    },
+    onAllSettled: ({ done, failed }) => {
+      setSelectedFiles([]);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (failed > 0) toast.warning(`${failed} 个文件上传失败，可在列表中逐个重试`);
+      // 后台异步刷新父组件数据（不阻塞后续分析）
+      handleUpdated().catch(() => {});
+      if (done === 0) return; // 全失败/全取消：不进分析，失败行保留供重试
+      // AI 分析链（时机不变：整批上传动作结束时跑一次；守卫与 loadAnalysis 共用）
+      setAnalysisLoading(true);
+      setAnalysisError(null);
+      const uploadSeq = ++analysisSeqRef.current;
+      const key = uploadCtxRef.current?.stageKey ?? selectedStage.stageKey;
+      void (async () => {
+        try {
+          const nextAnalysis = await analyzeProjectManagementItem(item.id, key);
+          if (uploadSeq === analysisSeqRef.current) {
+            setAnalysis(nextAnalysis);
+            if (nextAnalysis.fileAnalyses && nextAnalysis.fileAnalyses.length > 0) {
+              setCurrentFileIndex(nextAnalysis.fileAnalyses.length - 1);
+            }
+          }
+        } catch (analysisErr) {
+          if (uploadSeq === analysisSeqRef.current) {
+            setAnalysisError(analysisErr instanceof Error ? analysisErr.message : 'AI 分析暂不可用。');
+          }
+        } finally {
+          if (uploadSeq === analysisSeqRef.current) {
+            setAnalysisLoading(false);
+          }
+        }
+      })();
+    },
+  });
+  const uploading = stageUploads.running;
+  const uploadPctAnim = useCountUp(stageUploads.aggregate.pct);
+  const uploadSpeedText = formatSpeed(stageUploads.aggregate.speedBps);
+
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -1017,7 +1092,7 @@ export function ProjectDetailPanel({
     }
   };
 
-  const uploadStageFiles = async () => {
+  const uploadStageFiles = () => {
     if (actionsDisabled) return; // 只读（归档/终止/非创建人）
     if (isPastRound) { toast.warning('该步骤属已完成的历史轮次，仅供查看'); return; }
     if (isLockedByBid(selectedStage.stageKey)) { toast.warning('开标已确认，文件不可上传'); return; }
@@ -1031,86 +1106,18 @@ export function ProjectDetailPanel({
       return;
     }
 
-    setUploading(true);
+    // 队列接管（2026-11-06）：字节进度/取消/逐文件重试在 stageUploads；
+    // 失败不中断队列，onEachDone 注入附件与提取信息，onAllSettled 收尾进分析
     setErrorMessage(null);
-    setUploadProgress({ completed: 0, total: selectedFiles.length });
-
-    try {
-      for (let i = 0; i < selectedFiles.length; i++) {
-        setUploadProgress({ completed: i, total: selectedFiles.length });
-        const result = await uploadProjectStageAttachment(
-          item.id,
-          selectedStage.stageKey,
-          selectedFiles[i],
-          selectedStage.round ?? 1, // R6-1: 显式 round——多轮项目同 stageKey 各一行，防错挂第一轮
-        );
-        // 立即注入本地附件列表（不等父组件刷新）
-        if (result.objectKey) {
-          setLocalItem(prev => {
-            const newStages = prev.stages.map(s =>
-              s.stageKey !== selectedStage.stageKey ? s
-                : { ...s, attachments: [...s.attachments, result] }
-            );
-            return { ...prev, stages: newStages };
-          });
-        }
-        // Update extracted info immediately from upload response
-        if (result.extractedInfo) {
-          const info = result.extractedInfo;
-          setExtractedInfoOverride((prev) => {
-            const next = { ...prev };
-            for (const [key, value] of Object.entries(info)) {
-              if (value !== null && value !== undefined && value !== '') {
-                next[key as keyof ExtractedInfo] = value as never;
-              }
-            }
-            return next;
-          });
-        }
-      }
-
-      setSelectedFiles([]);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-
-      // End upload phase, start analysis phase
-      setUploading(false);
-      setUploadProgress(null);
-      setAnalysisLoading(true);
-
-      // 后台异步刷新父组件数据（不阻塞后续分析）
-      handleUpdated().catch(() => {});
-
-      // 2. Load analysis directly (not via useEffect) to avoid race conditions
-      setAnalysisError(null);
-      const uploadSeq = ++analysisSeqRef.current; // 与 loadAnalysis 共用守卫：等待期间切换步骤则丢弃
-      try {
-        const nextAnalysis = await analyzeProjectManagementItem(item.id, selectedStage.stageKey);
-        if (uploadSeq === analysisSeqRef.current) {
-          setAnalysis(nextAnalysis);
-          // Jump to the newest uploaded file
-          if (nextAnalysis.fileAnalyses && nextAnalysis.fileAnalyses.length > 0) {
-            setCurrentFileIndex(nextAnalysis.fileAnalyses.length - 1);
-          }
-        }
-      } catch (analysisErr) {
-        if (uploadSeq === analysisSeqRef.current) {
-          setAnalysisError(analysisErr instanceof Error ? analysisErr.message : 'AI 分析暂不可用。');
-        }
-      } finally {
-        if (uploadSeq === analysisSeqRef.current) {
-          setAnalysisLoading(false);
-        }
-      }
-
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : '上传阶段文件失败。');
-      setUploading(false);
-      setAnalysisLoading(false);
-      setUploadProgress(null);
-    }
+    uploadCtxRef.current = { stageKey: selectedStage.stageKey, round: selectedStage.round ?? 1 };
+    stageUploads.start(selectedFiles);
   };
+
+  // 阶段切换清理上传行（spec §5.3：行列表保留至用户切换步骤）；中止在跑队列防错挂新阶段
+  useEffect(() => {
+    stageUploads.clear();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStage.stageKey, selectedStage.round]);
 
   const archiveProject = async () => {
     if (actionsDisabled) return;
@@ -2264,22 +2271,40 @@ export function ProjectDetailPanel({
                 {isPastRound ? '该步骤属已完成的历史轮次，仅供查看。' : stageLocked ? '当前阶段尚未解锁。请先完成上一个阶段，再继续上传当前材料。' : selectedStage.status === 'COMPLETED' ? '当前阶段已完成。仍可继续补充材料，保持归档完整。' : '请上传当前阶段所需材料，确认无误后再推进到下一阶段。'}
               </p>
 
-              {/* 上传/分析进度条 — sticky 固定，始终可见 */}
+              {/* 上传/分析进度条 — sticky 固定，始终可见（2026-11-06：上传相位升级为
+                  水波流光聚合条——总百分比=Σ字节，速度滑动窗，可取消；分析相位不变） */}
               {(uploading || analysisLoading) && (
                 <div className="sticky top-0 z-10 -mx-5 px-5 py-2 mb-1"
                   style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.95), oklch(0.98 0.003 258 / 0.8))', borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
-                  <div className="flex items-center gap-3">
-                    <Loader2 size={15} className="animate-spin text-[color:var(--accent)] shrink-0" />
-                    <div className="flex flex-col gap-0.5 min-w-0">
-                      <span className="text-[0.8rem] font-semibold text-[color:var(--foreground)]">{uploading ? '正在上传文件…' : '正在智能分析文件内容…'}</span>
-                      <span className="text-[10px] text-[color:var(--muted-foreground)]">{uploading ? `已完成 ${uploadProgress?.completed ?? 0} / ${uploadProgress?.total ?? selectedFiles.length}` : 'AI 正在识别文件类型与内容，分析完成后即可确认阶段完成'}</span>
-                    </div>
-                    {uploadProgress && uploading && (
-                      <div className="ml-auto h-1.5 w-28 shrink-0 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_15%,transparent)]">
-                        <div className="h-full rounded-full bg-[color:var(--accent)] transition-all duration-500" style={{ width: `${((uploadProgress.completed + 0.3) / Math.max(uploadProgress.total, 1)) * 100}%` }} />
+                  {uploading ? (
+                    <div className="flex items-center gap-3">
+                      <Loader2 size={15} className="animate-spin text-[color:var(--accent)] shrink-0" />
+                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[0.8rem] font-semibold text-[color:var(--foreground)]">
+                            正在上传 {stageUploads.aggregate.doneCount + stageUploads.aggregate.failedCount} / {stageUploads.items.length}
+                            {' · '}
+                            <span className="font-mono tabular-nums">{uploadPctAnim}%</span>
+                            {uploadSpeedText && (
+                              <span className="font-mono tabular-nums text-[color:var(--muted-foreground)]"> · {uploadSpeedText}</span>
+                            )}
+                          </span>
+                          <button type="button" className="neu-btn-soft ml-auto shrink-0 !px-3 !py-1 !text-[11px]" onClick={stageUploads.cancel}>
+                            <X size={11} /> 取消
+                          </button>
+                        </div>
+                        <WaterBar pct={stageUploads.aggregate.pct} state="uploading" />
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <Loader2 size={15} className="animate-spin text-[color:var(--accent)] shrink-0" />
+                      <div className="flex flex-col gap-0.5 min-w-0">
+                        <span className="text-[0.8rem] font-semibold text-[color:var(--foreground)]">正在智能分析文件内容…</span>
+                        <span className="text-[10px] text-[color:var(--muted-foreground)]">AI 正在识别文件类型与内容，分析完成后即可确认阶段完成</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -2362,6 +2387,14 @@ export function ProjectDetailPanel({
                         <Paperclip size={11} className="text-[color:var(--muted-foreground)]" />{file.name}
                       </span>
                     ))}
+                  </div>
+                )}
+
+                {/* 上传行列表（2026-11-06 spec §4.2）：发起后接管展示——每文件字节进度/
+                    状态/失败重试；失败/取消行保留至全部处理完或切换步骤 */}
+                {stageUploads.items.length > 0 && (
+                  <div className="mt-3">
+                    <UploadProgressList items={stageUploads.items} onRetry={stageUploads.retry} retryDisabled={uploading} />
                   </div>
                 )}
 

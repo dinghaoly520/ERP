@@ -9,6 +9,7 @@ import type {
 } from '@/lib/types/project-management';
 import { apiFetch } from './api-fetch';
 import { toApiError } from '@water-erp/client';
+import { api } from '../api';
 
 // Use /api proxy by default so LAN clients do not resolve localhost on their own machine.
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
@@ -335,18 +336,18 @@ export async function uploadProjectStageAttachment(
   /** 轮次（R6-1）：多轮项目每轮各有一行同 stageKey 阶段——不带 round 会错挂第一轮。
    *  缺省时后端按 currentRound 定位（兼容既有调用）。 */
   round?: number,
+  /** 进度/取消（2026-11-06 上传进度条）：XHR 通道（api.upload），错误语义与原 apiFetch 版一致 */
+  opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal },
 ) {
   const formData = new FormData();
   formData.append('file', file);
   if (typeof round === 'number') formData.append('round', String(round));
 
-  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/stages/${stageKey}/attachments`, {
-    method: 'POST',
-    credentials: 'include',
-    body: formData,
-  });
-
-  return parseJsonResponse<UploadStageAttachmentResult>(response);
+  return api.upload<UploadStageAttachmentResult>(
+    `/project-management/${projectId}/stages/${stageKey}/attachments`,
+    formData,
+    opts,
+  );
 }
 
 /** 标记正式盖章版采购文件（2026-09-26）：指针即真相（不限文件类型）——
