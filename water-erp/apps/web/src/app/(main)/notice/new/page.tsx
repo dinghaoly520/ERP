@@ -46,7 +46,7 @@ function toDateInputValue(raw: string): string {
 }
 const TYPE_META: Record<NoticeType, MetaField[]> = {
   // C5（GB/T 43711 7.2.6）：采购文件澄清/修改 → 补遗公告（发布后自动通知已获取文件的供应商）
-  // projectCode 不在通用网格——移入「关联信息」区块（选择器 + 手填兜底，2026-10-16）
+  // projectCode 不在通用网格——移入「关联信息」区块（选择器自动带出，2026-10-16；手填入口 2026-11-06 删除）
   ADDENDUM: [
     { key: 'changes', label: '澄清/修改内容', area: true },
     { key: 'newDeadline', label: '调整后递交截止', date: true },
@@ -407,12 +407,7 @@ export default function NewNoticePage() {
                   <span className="text-xs text-[var(--muted-foreground)]">可选——关联本公司的已发布采购公告，自动带出其项目编号</span>
                 )}
               </div>
-              {/* 手填兜底：项目编号随 PROJECT_LINKED_TYPES 写入 relatedProjectCode（发布联动/项目反查） */}
-              <label className="block max-w-md space-y-1">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">项目编号（选择项目自动带出，可手填修正）</span>
-                <input value={metadata.projectCode || ''} onChange={e => setMetadata({ ...metadata, projectCode: e.target.value })}
-                  placeholder="如 SWHI-TP-2026101301" className="neu-input font-mono" />
-              </label>
+              {/* 项目编号由选择项目/关联公告自动带出（随 PROJECT_LINKED_TYPES 写入 relatedProjectCode，发布联动/项目反查）；2026-11-06 用户裁定删除手填修正入口 */}
             </div>
           </fieldset>
         )}
