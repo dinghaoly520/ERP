@@ -4094,7 +4094,7 @@ export class SupplierService {
    *  按供应商模式=该供应商须在视野（同详情页 assertSupplierInScope 谓词）。 */
   async listSupplierAuditLogs(opts: { page: number; pageSize: number; supplierId?: string; action?: string; dateFrom?: string; dateTo?: string }, actor?: AuthenticatedUser, companyId?: string) {
     const page = Math.max(1, opts.page);
-    const pageSize = Math.min(100, Math.max(1, opts.pageSize));
+    const pageSize = Math.min(500, Math.max(1, opts.pageSize));
     const where: any = { resourceType: 'supplier' };
     if (opts.supplierId) {
       if (actor && actor.role !== 'supplier') {

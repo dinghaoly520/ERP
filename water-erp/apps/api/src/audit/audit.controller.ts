@@ -24,7 +24,7 @@ export class AuditController {
       : [];
 
     return this.auditLog.getUserActivities(user.sub, {
-      limit: Math.min(parsedLimit, 100),
+      limit: Math.min(parsedLimit, 500),
       offset: parsedOffset,
       excludeActions,
     });
@@ -50,7 +50,7 @@ export class AuditController {
       : [];
 
     return this.auditLog.getOrgActivities({
-      limit: Math.min(parsedLimit, 200),
+      limit: Math.min(parsedLimit, 500),
       offset: parsedOffset,
       excludeActions,
     });

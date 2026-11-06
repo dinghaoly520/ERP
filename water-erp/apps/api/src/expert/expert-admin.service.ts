@@ -3963,7 +3963,7 @@ ${combined}`,
   /** 专家管理操作历史：仅白名单动作，附操作人/时间/事由，供审计追溯（无改删端点，不可篡改）。 */
   async getExpertOperationHistory(params: { expertId?: string; action?: string; startDate?: string; endDate?: string; page?: number; pageSize?: number }) {
     const page = params.page && params.page > 0 ? params.page : 1;
-    const pageSize = Math.min(params.pageSize && params.pageSize > 0 ? params.pageSize : 20, 100);
+    const pageSize = Math.min(params.pageSize && params.pageSize > 0 ? params.pageSize : 20, 500);
 
     const where: Prisma.AuditLogWhereInput = {
       action: { in: [...EXPERT_AUDIT_ACTIONS] },

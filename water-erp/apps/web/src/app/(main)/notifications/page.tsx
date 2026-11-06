@@ -18,8 +18,9 @@ import { getSupplier, getSupplierList, approveSupplier, rejectSupplier, returnSu
 import { Modal } from '@/components/workbench';
 import {
   Bell, CheckCheck, Clock, History, Inbox, ClipboardList, CircleCheck, BookOpen, Loader2, CheckCircle2, XCircle, RotateCcw, UserPlus, IdCard,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Download,
 } from 'lucide-react';
+import { downloadHistoryTxt } from '@/lib/history-export';
 
 /* ════════════════════════════════════════════════════════════════
  * 通知中心（2026-09-26 五段状态重构）
@@ -104,6 +105,7 @@ const ACTION_LABEL: Record<string, string> = {
   EXPERT_EXTRACTION_CONFIRMED: '确认专家抽取',
   EXPERT_DISPUTE_RESOLVE: '专家异议处理',
   EXPERT_VIOLATION_RECORDED: '记录专家违规',
+  DEMAND_REP_EXTERNAL_CREATE: '手动录入需求方代表',
   // ── 合同 ──
   CONTRACT_SIGNED: '合同签署',
   CONTRACT_TERMINATED: '合同终止',
@@ -299,15 +301,68 @@ export default function NotificationsPage() {
   const [detailActs, setDetailActs] = useState<AuditActivity[]>([]); // 已办窗内的结果记录
   // 操作历史视野（2026-11-06 用户裁定）：leader/admin=全中心留痕（带操作人），staff=仅本人
   const [myRole, setMyRole] = useState<string | null>(null);
+  const [actTotal, setActTotal] = useState(0);
+  const [histBusy, setHistBusy] = useState(false);   // 首载/加载更多
+  const [exporting, setExporting] = useState(false); // txt 导出全量拉取中
+  const HIST_PAGE = 100;
 
   useEffect(() => { fetchCurrentUser().then(u => setMyRole(u.role)).catch(() => {}); }, []);
   const isOrgScope = myRole === 'leader' || myRole === 'admin';
 
+  /** 不上限（2026-11-06 用户裁定）：offset 逐页翻——加载更多与导出共用 */
+  const fetchHistPage = (offset: number) =>
+    (isOrgScope
+      ? fetchAllActivities(HIST_PAGE, ['LOGIN', 'LOGOUT'], offset)
+      : fetchMyActivities(HIST_PAGE, ['LOGIN', 'LOGOUT'], offset));
+
   const openHistory = () => {
     setHistoryOpen(true);
-    const exclude = ['LOGIN', 'LOGOUT'];
-    const fetcher = isOrgScope ? fetchAllActivities(100, exclude) : fetchMyActivities(50, exclude);
-    fetcher.then(r => setActivities(r.items)).catch(() => setActivities([]));
+    setActivities([]); setActTotal(0); setHistBusy(true);
+    fetchHistPage(0)
+      .then(r => { setActivities(r.items); setActTotal(r.total); })
+      .catch(() => { setActivities([]); setActTotal(0); })
+      .finally(() => setHistBusy(false));
+  };
+
+  const loadMoreHistory = () => {
+    setHistBusy(true);
+    fetchHistPage(activities.length)
+      .then(r => setActivities(prev => {
+        const seen = new Set(prev.map(x => x.id));
+        return [...prev, ...r.items.filter(x => !seen.has(x.id))];
+      }))
+      .catch(() => toast.error('加载失败，请重试'))
+      .finally(() => setHistBusy(false));
+  };
+
+  /** 导出 txt：逐页拉全量（受当前视野口径），按天分段正序落档（UTF-8 BOM） */
+  const exportHistory = async () => {
+    setExporting(true);
+    try {
+      let all: AuditActivity[] = [];
+      for (;;) {
+        const r = await fetchHistPage(all.length);
+        all = all.concat(r.items);
+        if (r.items.length === 0 || all.length >= r.total) break;
+      }
+      const entries = all.filter(a => !NOISE_ACTIONS.has(a.action)).map(a => ({
+        at: a.createdAt,
+        operator: a.operator ? `${a.operator.name}${a.operator.role ? `（${ROLE_CN[a.operator.role] ?? a.operator.role}）` : ''}` : undefined,
+        action: ACTION_LABEL[a.action] ?? a.action,
+        subject: activityResourceLine(a) ?? undefined,
+        detail: activityDetailLine(a) ?? undefined,
+        meta: [a.ipAddress, uaLabel(a.userAgent)].filter(Boolean).join(' · ') || undefined,
+      }));
+      const n = downloadHistoryTxt(
+        isOrgScope ? '通知中心·全中心' : '通知中心·本人',
+        isOrgScope ? '全中心操作留痕（全部记录）' : '当前账号操作留痕（全部记录）',
+        entries,
+      );
+      toast.success(`已导出 ${n} 条操作记录`);
+    } catch {
+      toast.error('导出失败，请重试');
+    }
+    setExporting(false);
   };
 
   const load = useCallback(() => {
@@ -513,15 +568,20 @@ export default function NotificationsPage() {
       )}
 
       {/* ═══ 操作历史（标题栏右上角）—— xl 加宽 + 每条明细（2026-11-06 用户口径；
-          leader/admin 视野=全中心留痕并标操作人，staff=仅本人） ═══ */}
+          leader/admin 视野=全中心留痕并标操作人，staff=仅本人）；不限量逐页加载 + txt 导出 ═══ */}
       <Modal open={historyOpen} onClose={() => setHistoryOpen(false)} title="操作历史" size="xl"
-        description={isOrgScope ? '全中心操作留痕 · 按时间倒序 · 最多 100 条' : '当前账号的操作留痕 · 按时间倒序 · 最多 50 条'}
+        description={isOrgScope ? '全中心操作留痕 · 按时间倒序 · 可加载全部' : '当前账号的操作留痕 · 按时间倒序 · 可加载全部'}
+        headerExtra={
+          <button className="neu-btn-xs" onClick={() => void exportHistory()} disabled={exporting || activities.length === 0}>
+            {exporting ? <><Loader2 size={12} className="animate-spin" /> 导出中…</> : <><Download size={12} /> 导出 txt</>}
+          </button>
+        }
         footer={<button className="neu-btn-soft" onClick={() => setHistoryOpen(false)}>关闭</button>}>
         <div className="max-h-[60vh] overflow-y-auto pr-1">
           {(() => {
             const groups = groupActivities(activities.filter(a => !NOISE_ACTIONS.has(a.action)));
             if (groups.length === 0) {
-              return <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">暂无操作记录</p>;
+              return <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">{histBusy ? '加载中…' : '暂无操作记录'}</p>;
             }
             return (
             <div className="space-y-2">
@@ -575,6 +635,15 @@ export default function NotificationsPage() {
             </div>
             );
           })()}
+          {/* 不上限（2026-11-06 用户裁定）：逐页翻页直至全部记录 */}
+          {activities.length < actTotal && (
+            <div className="mt-3 flex items-center justify-center gap-2 pb-1">
+              <button className="neu-btn-soft !px-3 !py-1.5 !text-[11px]" onClick={loadMoreHistory} disabled={histBusy}>
+                {histBusy ? <Loader2 size={12} className="animate-spin" /> : null}
+                加载更多（已显示 {activities.length} / 共 {actTotal} 条）
+              </button>
+            </div>
+          )}
         </div>
       </Modal>
     </div>

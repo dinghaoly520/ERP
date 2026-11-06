@@ -3,8 +3,10 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Modal } from '@/components/workbench';
 import { getSupplierAuditLogs, type SupplierAuditLogItem } from '@/lib/api/supplier';
-import { History, RefreshCw, ChevronLeft, ChevronRight, Lock, CalendarDays } from 'lucide-react';
+import { History, RefreshCw, ChevronLeft, ChevronRight, Lock, CalendarDays, Download, Loader2 } from 'lucide-react';
 import { SUPPLIER_STATUS_LABEL, LEVEL_LABEL } from '@water-erp/shared';
+import { downloadHistoryTxt } from '@/lib/history-export';
+import { toast } from 'sonner';
 
 // 供应商操作类型 → 中文标签（对齐 dashboard 与 audit-log 既有映射，补齐全量）。
 const ACTION_LABELS: Record<string, string> = {
@@ -103,6 +105,16 @@ function dayLabel(day: string): string {
   return d.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
+/** txt 导出用明细串：与 DetailLines 同键序（剔除 name 冗余），「键：值 · …」单行 */
+function detailText(item: SupplierAuditLogItem): string | undefined {
+  const d = (item.details ?? {}) as Record<string, unknown>;
+  const keys = Object.keys(d).filter(k => k !== 'name');
+  if (keys.length === 0) return undefined;
+  const prefer = ['reason', 'finalGrade', 'field', 'from', 'note'];
+  const ordered = [...prefer.filter(k => keys.includes(k)), ...keys.filter(k => !prefer.includes(k))];
+  return ordered.map(k => `${FIELD_LABELS[k] ?? k}：${formatValue(k, d[k])}`).join(' · ');
+}
+
 export function SupplierAuditLogModal({ onClose, companyId }: { onClose: () => void; companyId?: string }) {
   const [items, setItems] = useState<SupplierAuditLogItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -138,6 +150,46 @@ export function SupplierAuditLogModal({ onClose, companyId }: { onClose: () => v
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
+  /** 导出 txt（2026-11-06 用户裁定）：按当前筛选逐页拉全量（不限量），按天分段正序落档 */
+  const [exporting, setExporting] = useState(false);
+  const exportHistory = async () => {
+    setExporting(true);
+    try {
+      let all: SupplierAuditLogItem[] = [];
+      for (let p = 1; ; p++) {
+        const r = await getSupplierAuditLogs({
+          page: p, pageSize: 200,
+          action: actionFilter || undefined,
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined,
+          companyId,
+        });
+        all = all.concat(r.items);
+        if (all.length >= r.total || r.items.length === 0) break;
+      }
+      const filterBits = [
+        actionFilter ? ACTION_LABELS[actionFilter] ?? actionFilter : null,
+        dateFrom ? `${dateFrom} 起` : null,
+        dateTo ? `${dateTo} 止` : null,
+      ].filter(Boolean).join(' · ');
+      const n = downloadHistoryTxt(
+        '供应商库',
+        `供应商操作留痕（${filterBits ? `筛选：${filterBits}` : '全部记录'}）`,
+        all.map(it => ({
+          at: it.createdAt,
+          operator: it.actorName,
+          action: ACTION_LABELS[it.action] || it.action,
+          subject: it.resourceName || undefined,
+          detail: detailText(it),
+        })),
+      );
+      toast.success(`已导出 ${n} 条操作记录`);
+    } catch {
+      toast.error('导出失败，请重试');
+    }
+    setExporting(false);
+  };
+
   // 按天分组（后端已按 createdAt desc 排序，Map 保持日期从新到旧）。
   const groups = useMemo(() => {
     const map = new Map<string, SupplierAuditLogItem[]>();
@@ -161,6 +213,11 @@ export function SupplierAuditLogModal({ onClose, companyId }: { onClose: () => v
       }
       description="入库、评价、停用、拉黑等全部操作的不可变留痕，供审计追溯，不支持修改"
       size="2xl"
+      headerExtra={
+        <button className="neu-btn-xs" onClick={() => void exportHistory()} disabled={exporting || total === 0}>
+          {exporting ? <><Loader2 size={12} className="animate-spin" /> 导出中…</> : <><Download size={12} /> 导出 txt</>}
+        </button>
+      }
       footer={
         <div className="flex items-center justify-between w-full">
           <span className="text-xs text-[var(--muted-foreground)] flex items-center gap-1">

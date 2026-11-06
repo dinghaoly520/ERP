@@ -58,15 +58,16 @@ export interface AuditActivity {
   createdAt: string;
 }
 
-/** 当前用户操作历史（AuditLog）——通知中心「操作历史」与已办结果记录数据源 */
-export function fetchMyActivities(limit = 50, exclude?: string[]) {
+/** 当前用户操作历史（AuditLog）——通知中心「操作历史」与已办结果记录数据源；
+ *  offset 分页（2026-11-06 不上限裁定：加载更多/导出全量逐页翻） */
+export function fetchMyActivities(limit = 50, exclude?: string[], offset = 0) {
   const ex = exclude?.length ? `&exclude=${exclude.join(',')}` : '';
-  return api.get<{ items: AuditActivity[]; total: number }>(`/audit-log/my-activities?limit=${limit}${ex}`);
+  return api.get<{ items: AuditActivity[]; total: number }>(`/audit-log/my-activities?limit=${limit}&offset=${offset}${ex}`);
 }
 
 /** 全中心操作留痕（2026-11-06 用户裁定）——leader/admin 专属端点，每条带 operator；
  *  staff 调用会被后端 403，前端按角色分流调用 */
-export function fetchAllActivities(limit = 100, exclude?: string[]) {
+export function fetchAllActivities(limit = 100, exclude?: string[], offset = 0) {
   const ex = exclude?.length ? `&exclude=${exclude.join(',')}` : '';
-  return api.get<{ items: AuditActivity[]; total: number }>(`/audit-log/all-activities?limit=${limit}${ex}`);
+  return api.get<{ items: AuditActivity[]; total: number }>(`/audit-log/all-activities?limit=${limit}&offset=${offset}${ex}`);
 }

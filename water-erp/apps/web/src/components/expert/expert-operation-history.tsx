@@ -3,8 +3,10 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Modal } from '@/components/workbench';
 import { getExpertOperationHistory, type ExpertOperationHistoryItem } from '@/lib/api/expert';
-import { History, RefreshCw, ChevronLeft, ChevronRight, Lock, CalendarDays } from 'lucide-react';
+import { History, RefreshCw, ChevronLeft, ChevronRight, Lock, CalendarDays, Download, Loader2 } from 'lucide-react';
 import { LEVEL_LABEL } from '@water-erp/shared';
+import { downloadHistoryTxt } from '@/lib/history-export';
+import { toast } from 'sonner';
 
 // 专家操作类型 → 中文标签（对齐供应商操作历史的设计口径）。
 const ACTION_LABELS: Record<string, string> = {
@@ -118,6 +120,16 @@ function dayLabel(day: string): string {
   return d.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
+/** txt 导出用明细串：与 DetailLines 同键序（剔除 expertName 冗余），「键：值 · …」单行 */
+function detailText(item: ExpertOperationHistoryItem): string | undefined {
+  const d = (item.details ?? {}) as Record<string, unknown>;
+  const keys = Object.keys(d).filter(k => k !== 'expertName');
+  if (keys.length === 0) return undefined;
+  const prefer = ['reason', 'overallGrade', 'from', 'to', 'type', 'detail'];
+  const ordered = [...prefer.filter(k => keys.includes(k)), ...keys.filter(k => !prefer.includes(k))];
+  return ordered.map(k => `${FIELD_LABELS[k] ?? k}：${formatValue(k, d[k])}`).join(' · ');
+}
+
 export function ExpertOperationHistory({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [items, setItems] = useState<ExpertOperationHistoryItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -159,6 +171,46 @@ export function ExpertOperationHistory({ open, onClose }: { open: boolean; onClo
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
+  /** 导出 txt（2026-11-06 用户裁定）：按当前筛选逐页拉全量（不限量），按天分段正序落档 */
+  const [exporting, setExporting] = useState(false);
+  const exportHistory = async () => {
+    setExporting(true);
+    try {
+      let all: ExpertOperationHistoryItem[] = [];
+      for (let p = 1; ; p++) {
+        const r = await getExpertOperationHistory({
+          page: p, pageSize: 200,
+          action: actionFilter || undefined,
+          startDate: dateFrom || undefined,
+          endDate: dateTo || undefined,
+        });
+        all = all.concat(r.items);
+        if (all.length >= r.total || r.items.length === 0) break;
+      }
+      const filterBits = [
+        actionFilter ? ACTION_LABELS[actionFilter] ?? actionFilter : null,
+        dateFrom ? `${dateFrom} 起` : null,
+        dateTo ? `${dateTo} 止` : null,
+      ].filter(Boolean).join(' · ');
+      const n = downloadHistoryTxt(
+        '专家库',
+        `专家管理操作留痕（${filterBits ? `筛选：${filterBits}` : '全部记录'}）`,
+        all.map(it => ({
+          at: it.createdAt,
+          operator: it.user?.displayName || it.user?.username || '系统',
+          action: ACTION_LABELS[it.action] || it.action,
+          subject: (typeof (it.details as any)?.expertName === 'string' ? (it.details as any).expertName : undefined)
+            ?? (it.resourceId === 'batch' ? '批量操作' : undefined),
+          detail: detailText(it),
+        })),
+      );
+      toast.success(`已导出 ${n} 条操作记录`);
+    } catch {
+      toast.error('导出失败，请重试');
+    }
+    setExporting(false);
+  };
+
   // 按天分组（后端已按 createdAt desc 排序，Map 保持日期从新到旧）。
   const groups = useMemo(() => {
     const map = new Map<string, ExpertOperationHistoryItem[]>();
@@ -182,6 +234,11 @@ export function ExpertOperationHistory({ open, onClose }: { open: boolean; onClo
       }
       description="入库、评价、停用、暂停、退库等全部操作的不可变留痕，供审计追溯，不支持修改"
       size="2xl"
+      headerExtra={
+        <button className="neu-btn-xs" onClick={() => void exportHistory()} disabled={exporting || total === 0}>
+          {exporting ? <><Loader2 size={12} className="animate-spin" /> 导出中…</> : <><Download size={12} /> 导出 txt</>}
+        </button>
+      }
       footer={
         <div className="flex items-center justify-between w-full">
           <span className="text-xs text-[var(--muted-foreground)] flex items-center gap-1">
