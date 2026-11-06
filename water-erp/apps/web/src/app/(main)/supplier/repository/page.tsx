@@ -449,10 +449,25 @@ function SupplierRepositoryPageInner() {
             <div className="page-hero__icon"><Building2 size={17} /></div>
             <div>
               <div className="page-hero__title">供应商管理</div>
-              <div className="page-hero__sub">集中查看和管理全部入库供应商及其状态</div>
+              <div className="page-hero__sub">
+                全库口径 共 {stats.total} 家 · 已入库 {stats.approved} · 临时 {stats.temporaryApproved} · 已停用 {stats.disabled} · 黑名单 {stats.blacklist}
+              </div>
             </div>
           </div>
           <div className="page-hero__right">
+            {/* 待审核警示胶囊（2026-11-06 自 KPI 引导卡收编）：>0 红点提示、点击前往审批中心；
+                myPending 口径=待我审（非全局 PENDING，与下方「审批」按钮同源） */}
+            {canApprove && (
+              <button
+                type="button"
+                onClick={() => router.push('/supplier/approval')}
+                title={myPendingDetail ? `供应商审批中心待办：${describeMyPending(myPendingDetail)}` : '前往供应商审批中心（三级注册审核）'}
+                className="page-hero__stat page-hero__stat--warn"
+              >
+                <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-[var(--danger)]" />
+                待审核 {myPending}
+              </button>
+            )}
             <CompanySelect value={companyId} onChange={(v) => { setCompanyId(v); setPage(1); }} countMode="suppliers" />
             <button onClick={() => router.push('/supplier/dashboard')} className="neu-btn-soft"><Activity size={15} />总览</button>
             <button onClick={() => window.dispatchEvent(new Event('open-review-center'))} className="neu-btn-soft" title={myPendingDetail ? `供应商审批中心待办：${describeMyPending(myPendingDetail)}` : "供应商审批中心：注册三级审核 · 信息更新审批"}><BadgeCheck size={15} />审批{myPending > 0 ? `（${myPending}）` : ''}</button>
@@ -465,33 +480,8 @@ function SupplierRepositoryPageInner() {
             <button onClick={() => setShowAuditLog(true)} className="neu-btn-soft"><History size={15} />操作历史</button>
           </div>
         </div>
-        <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
-        {/* 4 张 KPI 卡；「待审核」为审批中心引导卡（注册审批已迁出本库，2026-09-29） */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 items-stretch">
-          <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">供应商总数</span>
-            <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats.total}</span>
-            <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">在库 / 临时 / 停用 / 黑名单</span>
-          </div>
-          <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">已入库</span>
-            <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats.approved}</span>
-            <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">正常运营</span>
-          </div>
-          {canApprove && (
-          <button type="button" onClick={() => router.push('/supplier/approval')} title="前往供应商审批中心（三级注册审核）" className="kpi-card group flex h-full flex-col gap-1.5 p-3 text-left cursor-pointer w-full">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">待审核</span>
-            <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{myPending}</span>
-            <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight group-hover:text-[var(--accent)]">待我审 · 点击前往</span>
-          </button>
-          )}
-          <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">已停用</span>
-            <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats.disabled}</span>
-            <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">状态冻结</span>
-          </div>
-        </div>
-        </div>
+        {/* KPI 四瓷片已删（2026-11-06 用户裁定，同专家库口径）：库况融入副标题；
+            「待审核」引导卡改标题右侧警示胶囊（可点前往审批中心，>0 红点） */}
       </div>
 
 
