@@ -120,13 +120,14 @@ export default function ExpertProfilePage() {
                 竖 hairline 分隔，零值照常呈现；数据自己发光，不加底色容器） */}
             <div className="mr-2 hidden items-center sm:flex">
               {([
-                { value: String(totalProjects), unit: '项', label: `参与 · 进行中 ${inProgress}`, color: 'var(--accent)' },
+                { value: String(totalProjects), unit: '项', label: '参与', color: 'var(--accent)' },
+                { value: String(inProgress), unit: '项', label: '进行中', color: 'var(--warning)' },
                 { value: String(totalScoreRecords), unit: '条', label: '累计评分', color: 'var(--accent-strong)' },
                 { value: profile.averageScore != null ? String(profile.averageScore) : '—', unit: '分', label: '平均给分', color: profile.averageScore != null && profile.averageScore >= 85 ? 'var(--success)' : 'var(--accent)' },
               ] as const).map((s, i) => (
                 <div key={s.label} className="flex items-center">
-                  {i > 0 && <span className="mx-4 h-9 w-px bg-[oklch(0.6_0.04_258/0.16)]" aria-hidden="true" />}
-                  <div className="flex min-w-[64px] flex-col items-center gap-0.5">
+                  {i > 0 && <span className="mx-3.5 h-9 w-px bg-[oklch(0.6_0.04_258/0.16)]" aria-hidden="true" />}
+                  <div className="flex min-w-[56px] flex-col items-center gap-0.5">
                     <span className="font-mono text-[1.3rem] font-black leading-none tabular-nums" style={{ color: s.color }}>
                       {s.value}<span className="ml-0.5 text-[10px] font-bold">{s.unit}</span>
                     </span>
