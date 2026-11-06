@@ -387,53 +387,40 @@ export default function ExpertRepositoryPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* page-hero */}
+      {/* page-hero（2026-11-06 用户裁定：KPI 六瓷片删除，库况融入副标题、评价口径
+          入右侧统计胶囊——A-E 分布仅在存在评价时以悬停呈现，全零不显噪音） */}
       <div className="page-hero">
         <div className="page-hero__row">
           <div className="page-hero__left">
             <div className="page-hero__icon"><UsersRound size={17} /></div>
-            <div><div className="page-hero__title">专家管理</div><div className="page-hero__sub">维护评审专家名录与专业分类，可暂停或恢复专家资格</div></div>
+            <div>
+              <div className="page-hero__title">专家管理</div>
+              <div className="page-hero__sub">
+                全库口径 共 {expStats?.totalExperts ?? total} 名 · 可用 {expStats?.available ?? available} · 占用中 {expStats?.occupied ?? occupied} · 已停用 {expStats?.disabled ?? disabled}
+              </div>
+            </div>
           </div>
           <div className="page-hero__right">
+            <span className="page-hero__stat page-hero__stat--info">累计评价 {expStats?.evaluationStats.total ?? totalEvals} 次</span>
+            {(() => {
+              const graded = gradeDistribution.A + gradeDistribution.B + gradeDistribution.C + gradeDistribution.D + gradeDistribution.E;
+              if (graded === 0) return null; // 无评价不显示五个零
+              const pct = Math.round(((gradeDistribution.A + gradeDistribution.B) / graded) * 100);
+              return (
+                <span
+                  className="page-hero__stat page-hero__stat--info"
+                  title={`等级分布：A ${gradeDistribution.A} · B ${gradeDistribution.B} · C ${gradeDistribution.C} · D ${gradeDistribution.D} · E ${gradeDistribution.E}`}
+                >
+                  优良率 {pct}%
+                </span>
+              );
+            })()}
             <CompanySelect value={companyId} onChange={(v) => { setCompanyId(v); setPage(1); }} countMode="experts" />
             <Link href="/expert/ranking" className="neu-btn-soft"><Trophy size={15} />排名</Link>
             <Link href="/expert/statistics" className="neu-btn-soft"><TrendingUp size={15} />统计</Link>
             {canManageStatus && <Link href="/expert/retirement" className="neu-btn-soft"><UserX size={15} />退库</Link>}
             <button onClick={() => setShowHistory(true)} className="neu-btn-soft"><History size={15} />操作历史</button>
           </div>
-        </div>
-        <div className="page-hero__divider">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-6 items-stretch">
-          {[
-            // KPI 服务端全量口径（2026-09-28 审计 P2：此前由当前页 20 条近似计算，翻页即变；
-            // 统计未就绪时回退当前页推导值）
-            ['专家总数', expStats?.totalExperts ?? total, '全库口径'],
-            ['可用', expStats?.available ?? available, '可参与抽取'],
-            ['占用中', expStats?.occupied ?? occupied, '正参与评审'],
-            ['已停用', expStats?.disabled ?? disabled, '退库/停用'],
-            ['总评价次数', expStats?.evaluationStats.total ?? totalEvals, '累计评价'],
-          ].map(([label, value, sub]) => (
-            <div key={label} className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">{label}</span>
-              <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{String(value)}</span>
-              <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">{sub}</span>
-            </div>
-          ))}
-          <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">优良率</span>
-            <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">
-              {(() => { const graded = gradeDistribution.A + gradeDistribution.B + gradeDistribution.C + gradeDistribution.D + gradeDistribution.E; return graded > 0 ? Math.round((gradeDistribution.A + gradeDistribution.B) / graded * 100) : 0; })()}%
-            </span>
-            <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight flex items-center gap-1.5">
-              {(['A','B','C','D','E'] as const).map(g => (
-                <span key={g} className="inline-flex items-baseline gap-0.5">
-                  <span className="font-bold" style={{color: g==='A'?'#059669':g==='B'?'#0a5eb8':g==='C'?'#d97706':g==='D'?'#ca8a04':'#dc2626'}}>{g}</span>
-                  <span className="tabular-nums">{gradeDistribution[g]}</span>
-                </span>
-              ))}
-            </span>
-          </div>
-        </div>
         </div>
       </div>
 
