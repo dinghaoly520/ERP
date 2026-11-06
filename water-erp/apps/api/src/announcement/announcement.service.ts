@@ -121,6 +121,14 @@ export class AnnouncementService {
       });
     }
 
+    // 补遗闸（2026-11-06 用户裁定）：项目已进入开标确认及以后步骤（开标/评标/终局/流标）
+    // 不可再发布补遗——置于建行之前，违者 400 不留孤儿公告；选择器侧 mine=true 已同步过滤
+    if (dto.type === 'ADDENDUM' && status === 'PUBLISHED') {
+      await this.assertAddendumProjectNotOpened(
+        dto.relatedProjectCode ?? ((dto.metadata as Record<string, any>) ?? {}).projectCode,
+      );
+    }
+
     // A2（表 B.1）：公告按类型落默认公开范围（可由 dto.metadata.dataClass 覆盖）
     const dataClass = ((dto.metadata as any)?.dataClass as string) ?? ANNOUNCEMENT_TYPE_DATA_CLASS[dto.type] ?? 'public_voluntary';
 
@@ -594,6 +602,14 @@ export class AnnouncementService {
     const isPublishTransition =
       announcement.status !== 'PUBLISHED' &&
       targetStatus === 'PUBLISHED';
+    // 补遗闸（2026-11-06 用户裁定）：项目已进入开标确认及以后步骤不可发布补遗（update 路径：
+    // 编辑转发布/定时到点发布/批量发布均汇于此）
+    if (isPublishTransition && (dto.type ?? announcement.type) === 'ADDENDUM') {
+      const effectiveMeta = (dto.metadata ?? announcement.metadata) as Record<string, any> | null;
+      await this.assertAddendumProjectNotOpened(
+        dto.relatedProjectCode ?? announcement.relatedProjectCode ?? effectiveMeta?.projectCode,
+      );
+    }
     const isBidNoticePublish =
       isPublishTransition &&
       (dto.type ?? announcement.type) === 'BID_NOTICE';
@@ -783,6 +799,23 @@ export class AnnouncementService {
    * ③ 开标时间联动（改变时项目开标/截标与原采购公告展示值全改）；时限充分性提示
    *    已前移到 :3005 开标时间字段处行内显示（2026-11-06 用户裁定，删发布 toast）。
    */
+  /** 补遗项目闸（2026-11-06 用户裁定）：项目当前阶段已进入开标确认及以后
+   *  （OPENING/EVALUATING/ARCHIVED/ABORTED）→ 400 拒绝发布补遗。无项目编号或项目
+   *  不存在（未发公告/未建 BidProject）不拦——补遗关联以 PMI 为准，发布联动自会兜底。 */
+  private async assertAddendumProjectNotOpened(projectCode?: string | null): Promise<void> {
+    if (!projectCode) return;
+    const bp = await this.prisma.bidProject.findUnique({
+      where: { projectCode },
+      select: { stage: true },
+    });
+    if (bp && ['OPENING', 'EVALUATING', 'ARCHIVED', 'ABORTED'].includes(bp.stage)) {
+      throw new BadRequestException({
+        error: '该项目已进入开标确认及以后步骤，不可发布补遗公告',
+        code: 'ADDENDUM_BID_STARTED',
+      });
+    }
+  }
+
   private async syncAddendum(announcementId: string, actorId?: string): Promise<{ openTimeAdjusted?: boolean; openTimeSyncWarning?: string }> {
     const ann = await this.prisma.announcement.findUnique({
       where: { id: announcementId },

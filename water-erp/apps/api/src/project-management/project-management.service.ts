@@ -324,12 +324,32 @@ export class ProjectManagementService {
       },
     });
 
-    return items.map((item) => ({
+    const mapped = items.map((item) => ({
       ...item,
       budgetAmount: Number(item.budgetAmount),
       createdByName: item.createdBy?.displayName || item.createdBy?.username || null,
       terminatedByName: item.terminatedBy?.displayName || item.terminatedBy?.username || null,
     }));
+
+    // mine=true 选择器专用语义（2026-11-06 用户裁定：已进入开标确认的项目不可补遗）：
+    // 剔除当前轮 BidProject 已进入开标/评标/终局/流标的项目（发布侧另有 ADDENDUM_BID_STARTED
+    // 硬闸双保险）；未建 BidProject 的项目不剔（尚未组织投标，补遗关联按 PMI 兜底）。
+    if (query.mine !== 'true' || items.length === 0) return mapped;
+    const bps = await this.prisma.bidProject.findMany({
+      where: { projectManagementItemId: { in: items.map((i) => i.id) } },
+      select: { projectManagementItemId: true, round: true, stage: true },
+    });
+    const blocked = new Set<string>();
+    for (const item of items) {
+      const rounds = bps.filter((b) => b.projectManagementItemId === item.id);
+      if (rounds.length === 0) continue;
+      const currentRound = item.currentRound ?? Math.max(...rounds.map((b) => b.round ?? 1));
+      const opened = rounds.some(
+        (b) => (b.round ?? 1) === currentRound && ['OPENING', 'EVALUATING', 'ARCHIVED', 'ABORTED'].includes(b.stage),
+      );
+      if (opened) blocked.add(item.id);
+    }
+    return mapped.filter((m) => !blocked.has(m.id));
   }
 
   /** 项目管理权（2026-10-10 读写分级）：仅创建人可管理（修改/终止/回收/恢复/彻底删除）；

@@ -1791,3 +1791,28 @@ describe('AnnouncementService — syncAddendum 开标时间联动（2026-11-06 �
     expect(prisma.bidDocument.update).toHaveBeenCalled();
   });
 });
+
+describe('AnnouncementService — 补遗项目闸 ADDENDUM_BID_STARTED（2026-11-06 用户裁定）', () => {
+  const mk = async (stage: string | null, code?: string) => {
+    const prisma: any = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue(stage ? { stage } : null) },
+    };
+    const { AnnouncementService: Svc } = await import('./announcement.service');
+    const svc: any = new (Svc as any)(prisma, {}, undefined, undefined);
+    return svc.assertAddendumProjectNotOpened(code ?? 'SWHI-TP-1');
+  };
+
+  it('OPENING/EVALUATING/ARCHIVED/ABORTED → 400 拒绝', async () => {
+    for (const stage of ['OPENING', 'EVALUATING', 'ARCHIVED', 'ABORTED']) {
+      await expect(mk(stage)).rejects.toMatchObject({ status: 400, response: { code: 'ADDENDUM_BID_STARTED' } });
+    }
+  });
+
+  it('DOWNLOAD/SUBMIT/无项目/无编码 → 放行', async () => {
+    await expect(mk('DOWNLOAD')).resolves.toBeUndefined();
+    await expect(mk('SUBMIT')).resolves.toBeUndefined();
+    await expect(mk(null)).resolves.toBeUndefined();
+    await expect(mk('OPENING', undefined as any)).rejects.toBeTruthy(); // code 缺省值仍拦
+    await expect(mk('OPENING', '')).resolves.toBeUndefined(); // 空编码不查不拦
+  });
+});
