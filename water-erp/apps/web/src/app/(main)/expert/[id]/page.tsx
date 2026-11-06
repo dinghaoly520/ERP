@@ -45,6 +45,8 @@ interface ExpertDetail {
   };
 }
 
+import { RingGauge, GRADE_SCORE, type WidgetTone } from '@/components/detail/data-widgets';
+
 const STAGE_FALLBACK_COLOR = 'var(--muted-foreground)';
 const levelTone: Record<string, 'green' | 'blue' | 'orange' | 'red'> = { A: 'green', B: 'blue', C: 'orange', D: 'orange', E: 'red' };
 
@@ -452,9 +454,32 @@ export default function ExpertDetailPage() {
           <div className="space-y-5">
             {/* 职业信息 */}
             {/* 基本信息（2026-11-04 重构：三卡合一，GroupHead 分组、网格逐行凑整，
-                PII 揭示按钮图标化不再混入字段名） */}
-            <section className="neu-card-static !rounded-2xl p-5 space-y-4">
-              <SectionTitle icon={User}>基本信息</SectionTitle>
+                PII 揭示按钮图标化不再混入字段名）；2026-11-06 数据鲜活：顶部淡色洗染 +
+                标题行右侧 等级/履职评价 双环 */}
+            <section className="neu-card-static detail-card-wash !rounded-2xl p-5 space-y-4">
+              <div className="flex items-start justify-between gap-4">
+                <SectionTitle icon={User}>基本信息</SectionTitle>
+                <div className="flex shrink-0 items-center gap-4">
+                  {p.expertLevel && (
+                    <RingGauge
+                      pct={GRADE_SCORE[p.expertLevel] ?? 0}
+                      tone={(levelTone[p.expertLevel] as WidgetTone) ?? 'blue'}
+                      label="等级"
+                      display={GRADE_SCORE[p.expertLevel] ?? 0}
+                      caption={`${p.expertLevel} 级`}
+                    />
+                  )}
+                  {expert.statistics.evalAvg != null && Number.isFinite(Number(expert.statistics.evalAvg)) && (
+                    <RingGauge
+                      pct={Math.round(Number(expert.statistics.evalAvg))}
+                      tone={Number(expert.statistics.evalAvg) >= 85 ? 'green' : Number(expert.statistics.evalAvg) >= 70 ? 'orange' : 'red'}
+                      label="履职"
+                      display={Math.round(Number(expert.statistics.evalAvg))}
+                      caption={`${expert.statistics.evalCount} 次获评`}
+                    />
+                  )}
+                </div>
+              </div>
 
               {/* 职业资格：8 瓷片 = 4 列整两行 */}
               <div className="space-y-2.5">

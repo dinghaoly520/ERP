@@ -7878,3 +7878,12 @@ select.workbench-input {
 @media (prefers-reduced-motion: reduce) {
   .up-wave, .up-shimmer, .up-ripple { animation: none; display: none; }
 }
+
+/* ── 详情页「数据鲜活」微件底（2026-11-06）：身份卡顶部极淡 accent 洗染（72px 递减，
+     同页面光晕语言；pointer-events 穿透，不影响交互） ── */
+.detail-card-wash { position: relative; }
+.detail-card-wash::before {
+  content: ''; position: absolute; inset: 0 0 auto 0; height: 72px; border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(180deg, color-mix(in oklch, var(--accent) 6%, transparent), transparent);
+}
