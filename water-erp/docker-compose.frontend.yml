@@ -15,7 +15,7 @@
 #   docker compose -f docker-compose.frontend.yml down
 #
 # 后端地址写在同目录 .env.frontend（本包已提供），或直接改 API_ORIGIN。
-# 5 个服务共用 docker/frontend/Dockerfile 构建的同一个镜像。
+# 5 个服务共用根 Dockerfile 构建的同一个镜像。
 # =============================================================================
 
 x-portal-common: &portal-common
