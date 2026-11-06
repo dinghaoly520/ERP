@@ -468,6 +468,7 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
   // 操作区待上传附件
   const [pendingAtts, setPendingAtts] = useState<Array<{ id: string; name: string; size: number }>>([]);
   const [attUploading, setAttUploading] = useState(false);
+  const [attPcts, setAttPcts] = useState<number[]>([]); // 并发附件聚合进度（2026-11-06）
   // 文件窗口预览（2026-10-09）：查看文件/附件在弹窗内渲染，不再新开标签页
   const [filePreview, setFilePreview] = useState<FilePreviewTarget>(null);
   /* eslint-disable react-hooks/set-state-in-effect -- 弹窗选中项初始化重置，符合模态惯例 */
@@ -831,7 +832,12 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
                 </label>
                 <div className="flex flex-wrap items-center gap-1.5">
                   <label className="neu-btn-xs cursor-pointer" title="随本次审核意见上传佐证附件">
-                    {attUploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}上传附件
+                    {attUploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                    {attUploading
+                      ? attPcts.length > 0
+                        ? `上传附件 ${Math.round(attPcts.reduce((s, p) => s + p, 0) / attPcts.length)}%`
+                        : '上传附件'
+                      : '上传附件'}
                     <input type="file" multiple hidden onChange={e => {
                       const files = Array.from(e.target.files ?? []);
                       e.target.value = '';
@@ -841,7 +847,16 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
                       if (oversize.length) { toast.error(`文件超过 20MB：${oversize.map(f => f.name).join('、')}`); return; }
                       if (pendingAtts.length + files.length > 10) { toast.error('单个审核意见最多 10 个附件'); return; }
                       setAttUploading(true);
-                      Promise.all(files.map(f => uploadReviewAttachment(f).then(r => ({ id: r.id, name: r.originalName, size: r.size })).catch(err => {
+                      // 并发上传的聚合进度（2026-11-06 残留补齐）：逐文件百分比取均值进按钮
+                      setAttPcts(new Array(files.length).fill(0));
+                      Promise.all(files.map((f, i) => uploadReviewAttachment(f, {
+                        onProgress: (l, t) => setAttPcts(prev => {
+                          if (i >= prev.length) return prev;
+                          const n = [...prev];
+                          n[i] = t > 0 ? Math.round((l / t) * 100) : 0;
+                          return n;
+                        }),
+                      }).then(r => ({ id: r.id, name: r.originalName, size: r.size })).catch(err => {
                         toast.error(`「${f.name}」上传失败：${(err as Error)?.message || '未知错误'}`);
                         return null;
                       })))
@@ -849,7 +864,7 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
                           const ok = added.filter(Boolean) as Array<{ id: string; name: string; size: number }>;
                           if (ok.length) setPendingAtts(prev => [...prev, ...ok]);
                         })
-                        .finally(() => setAttUploading(false));
+                        .finally(() => { setAttUploading(false); setAttPcts([]); });
                     }} />
                   </label>
                   {pendingAtts.map((a, i) => (

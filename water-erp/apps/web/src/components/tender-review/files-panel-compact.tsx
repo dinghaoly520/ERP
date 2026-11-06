@@ -13,6 +13,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { WaterBar } from '../upload/water-bar';
 import { useTenderReview, useKnowledgeBaseOps } from './use-tender-review';
 
 export default function FilesPanelCompact() {
@@ -22,6 +23,8 @@ export default function FilesPanelCompact() {
   const [reindexing, setReindexing] = useState(false);
   const [showRuleTip, setShowRuleTip] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // 上传行（2026-11-06 残留补齐）：每文件字节进度行——替代纯 toast 计数
+  const [upRows, setUpRows] = useState<Array<{ name: string; pct: number }>>([]);
 
   const selectedKb = knowledgeBases.find(kb => kb.id === selectedKbId);
 
@@ -29,6 +32,7 @@ export default function FilesPanelCompact() {
     if (!files?.length || !selectedKbId) return;
     setUploading(true);
     const total = files.length;
+    setUpRows(Array.from(files).map(f => ({ name: f.name, pct: 0 })));
     try {
       for (let i = 0; i < total; i++) {
         const file = files[i];
@@ -37,7 +41,9 @@ export default function FilesPanelCompact() {
           ? `正在处理文件 (${i + 1}/${total})：${file.name}（扫描件可能需要较长时间）`
           : `正在处理文件 (${i + 1}/${total})：${file.name}`;
         toast.info(msg, { duration: 8000, id: 'upload-progress' });
-        await uploadFile(selectedKbId, file);
+        await uploadFile(selectedKbId, file, {
+          onProgress: (l, t) => setUpRows(rows => rows.map((r, j) => (j === i ? { ...r, pct: t > 0 ? Math.round((l / t) * 100) : 0 } : r))),
+        });
       }
       toast.success(`${total} 个文件上传并索引完成`, { id: 'upload-progress' });
 
@@ -53,6 +59,7 @@ export default function FilesPanelCompact() {
       toast.error(`文件处理失败：${err instanceof Error ? err.message : '请重试'}`, { id: 'upload-progress' });
     } finally {
       setUploading(false);
+      setUpRows([]);
     }
   };
 
@@ -127,6 +134,17 @@ export default function FilesPanelCompact() {
           )}
           {uploading ? '上传中...' : '上传文件'}
         </button>
+        {upRows.length > 0 && (
+          <div className="min-w-0 flex-1 space-y-1">
+            {upRows.map((r, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span className="max-w-[180px] shrink-0 truncate text-[11px] font-semibold text-[var(--muted-foreground)]" title={r.name}>{r.name}</span>
+                <WaterBar pct={r.pct} state="uploading" />
+                <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[var(--accent)]">{r.pct}%</span>
+              </div>
+            ))}
+          </div>
+        )}
         <button
           onClick={handleReindex}
           disabled={reindexing}
