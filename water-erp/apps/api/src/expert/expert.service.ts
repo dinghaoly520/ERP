@@ -95,6 +95,7 @@ export class ExpertService {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: {
+        department: { select: { name: true } },
         expertProfile: {
           select: {
             specialty: true,
@@ -156,6 +157,8 @@ export class ExpertService {
     if (typeof dto.idNumber === 'string') profileData.idNumber = sealPii(dto.idNumber) as string;
     if (typeof dto.specialty === 'string') profileData.specialty = dto.specialty;
     if (typeof dto.title === 'string') profileData.title = dto.title;
+    if (typeof dto.ethnicity === 'string') profileData.ethnicity = dto.ethnicity;
+    if (typeof dto.education === 'string') profileData.education = dto.education;
     if (Object.keys(profileData).length > 0) {
       await this.prisma.expertProfile.updateMany({ where: { userId }, data: profileData });
     }

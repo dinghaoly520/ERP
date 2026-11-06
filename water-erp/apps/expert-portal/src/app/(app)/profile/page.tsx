@@ -13,6 +13,7 @@ interface ExpertProfile {
   id: string; username: string; displayName: string; email: string; role: string; isActive: boolean;
   phone?: string;
   averageScore: number;
+  department?: { name: string } | null;
   expertProfile?: {
     specialty?: string; title?: string; employer?: string; phone?: string;
     idNumber?: string; ethnicity?: string; education?: string; licenseNo?: string;
@@ -30,17 +31,19 @@ export default function ExpertProfilePage() {
   const [profile, setProfile] = useState<ExpertProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  // 2026-11-06 扩面（用户裁定：除工作单位外全字段可改）——姓名/邮箱/手机/专业/职称/身份证号
-  const [form, setForm] = useState({ displayName: '', email: '', phone: '', specialty: '', title: '', idNumber: '' });
+  // 2026-11-06 扩面（用户裁定：除工作单位/部门外全字段可改）——姓名/民族/身份证号/手机/邮箱/学历/专业/职称
+  const [form, setForm] = useState({ displayName: '', ethnicity: '', idNumber: '', phone: '', email: '', education: '', specialty: '', title: '' });
   const [saving, setSaving] = useState(false);
 
   const fillForm = (data: ExpertProfile) => setForm({
     displayName: data.displayName,
-    email: data.email || '',
+    ethnicity: data.expertProfile?.ethnicity || '',
+    idNumber: data.expertProfile?.idNumber || '',
     phone: data.expertProfile?.phone || '',
+    email: data.email || '',
+    education: data.expertProfile?.education || '',
     specialty: data.expertProfile?.specialty || '',
     title: data.expertProfile?.title || '',
-    idNumber: data.expertProfile?.idNumber || '',
   });
 
   useEffect(() => {
@@ -98,12 +101,7 @@ export default function ExpertProfilePage() {
     return `${p.slice(0, 3)}****${p.slice(-4)}`;
   };
 
-  // 用户名行已删（2026-11-06 用户裁定「现在不存在用户名」——专家以姓名+身份证号口令登录，
-  // 该行与身份证号重复且泄露口令前缀）；工作单位只读（用户裁定），其余字段可编辑
-  const readonlyView: [string, string][] = [
-    ['工作单位', profile.expertProfile?.employer || '未设置'],
-    ['角色', '评审专家'],
-  ];
+  // 用户名行已删（2026-11-06 用户裁定）；readonlyView 已内联进网格尾部（工作单位/部门/角色）
 
   return (
     <div className="space-y-5">
@@ -168,17 +166,19 @@ export default function ExpertProfilePage() {
 
           <hr className="wb-section-rule mb-5" />
 
-          {/* 字段网格（2026-11-06 用户裁定：除工作单位外全字段可编辑；编辑态全网格同构，
-              可改字段原位变输入框；手机/身份证号查看态脱敏；专业/职称为联想下拉
-              ——与 :3005 录入专家弹窗 TypeaheadCombobox 完全同款） */}
+          {/* 字段网格（2026-11-06 用户裁定：补 民族/学历/部门 三项并重排序——
+              身份行（姓名/民族/身份证号/手机/邮箱/学历）→ 职业行（专业/职称）→ 归属行（工作单位/部门/角色）；
+              除工作单位/部门/角色外可编辑；手机/身份证号查看态脱敏；专业/职称为联想下拉 */}
           <div className="grid grid-cols-2 gap-x-12 gap-y-4">
             {([
               { key: 'displayName', label: '姓名', mono: false, display: profile.displayName, invalid: form.displayName.trim().length === 0, invalidMsg: '姓名不能为空' },
-              { key: 'email', label: '邮箱', mono: false, display: profile.email || '未设置', invalid: !!form.email && !emailValid, invalidMsg: '邮箱格式不正确' },
+              { key: 'ethnicity', label: '民族', mono: false, display: profile.expertProfile?.ethnicity || '未设置', placeholder: '如 汉族' },
+              { key: 'idNumber', label: '身份证号', mono: true, display: maskIdNumber(profile.expertProfile?.idNumber) || '未设置', placeholder: '18 位身份证号', invalid: !!form.idNumber && !idNumberValid, invalidMsg: '身份证号须为 18 位有效号码' },
               { key: 'phone', label: '手机', mono: true, display: maskPhone(profile.expertProfile?.phone || profile.phone) || '未设置', placeholder: '11 位手机号', invalid: !!form.phone && !phoneValid, invalidMsg: '手机号须为 11 位有效号码' },
+              { key: 'email', label: '邮箱', mono: false, display: profile.email || '未设置', invalid: !!form.email && !emailValid, invalidMsg: '邮箱格式不正确' },
+              { key: 'education', label: '学历', mono: false, display: profile.expertProfile?.education || '未设置', placeholder: '如 硕士研究生' },
               { key: 'specialty', label: '专业', mono: false, display: profile.expertProfile?.specialty || '未设置', placeholder: '输入或选择专业', emptyText: '无匹配专业', options: [...EXPERT_SPECIALTIES] },
               { key: 'title', label: '职称', mono: false, display: profile.expertProfile?.title || '未设置', placeholder: '输入或选择职称', emptyText: '无匹配职称', options: [...EXPERT_TITLES] },
-              { key: 'idNumber', label: '身份证号', mono: true, display: maskIdNumber(profile.expertProfile?.idNumber) || '未设置', placeholder: '18 位身份证号', invalid: !!form.idNumber && !idNumberValid, invalidMsg: '身份证号须为 18 位有效号码' },
             ]).map(f => (
               <div key={f.key}>
                 <label className="mb-1 block text-xs font-semibold text-[var(--muted-foreground)]">{f.label}</label>
@@ -212,7 +212,11 @@ export default function ExpertProfilePage() {
                 )}
               </div>
             ))}
-            {readonlyView.map(([label, value]) => (
+            {([
+              ['工作单位', profile.expertProfile?.employer || '未设置'],
+              ['部门', profile.department?.name || '未设置'],
+              ['角色', '评审专家'],
+            ] as const).map(([label, value]) => (
               <div key={label}>
                 <p className="mb-1 text-xs font-semibold text-[var(--muted-foreground)]">{label}</p>
                 <p className="text-sm font-bold text-[var(--foreground)]">{value}</p>

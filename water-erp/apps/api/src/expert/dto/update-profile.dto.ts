@@ -35,6 +35,15 @@ export class UpdateExpertProfileDto {
   @IsOptional()
   title?: string;
 
+  /** 2026-11-06：民族/学历纳入自助修改（除工作单位外全字段可改口径） */
+  @IsString()
+  @IsOptional()
+  ethnicity?: string;
+
+  @IsString()
+  @IsOptional()
+  education?: string;
+
   @IsString()
   @IsOptional()
   major?: string;
