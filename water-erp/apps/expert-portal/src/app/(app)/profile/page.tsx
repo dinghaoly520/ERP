@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Pencil, ClipboardList, CheckCircle, FileText, TrendingUp, ScrollText, ChevronRight, UserCircle } from 'lucide-react';
+import { Pencil, ClipboardList, ScrollText, ChevronRight, UserCircle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { STAGE_LABEL, STAGE_COLOR } from '@water-erp/shared';
@@ -64,16 +64,7 @@ export default function ExpertProfilePage() {
   if (loading) return <div className="py-20 text-center text-sm text-[var(--muted-foreground)]">加载中...</div>;
   if (!profile) return <div className="py-20 text-center text-sm text-[var(--danger)]">未找到专家信息</div>;
 
-  const totalProjects = profile.assignments.length;
-  const completedProjects = profile.assignments.filter(a => a.progress >= 100).length;
-  const totalScoreRecords = profile.assignments.reduce((s, a) => s + a.scoreRecords.length, 0);
-
-  const kpis = [
-    { label: '参与项目', value: totalProjects, sub: '累计分配评审项目', sig: 'var(--accent-strong)', sigLabel: '进行中', Icon: ClipboardList },
-    { label: '已完成', value: completedProjects, sub: '评审完成并归档', sig: 'var(--success)', sigLabel: '已完成', Icon: CheckCircle },
-    { label: '评分记录', value: totalScoreRecords, sub: '累计提交评分项', sig: 'var(--warning)', sigLabel: '累计', Icon: FileText },
-    { label: '平均给分', value: profile.averageScore ?? 0, sub: '历史评分均值', sig: 'var(--accent)', sigLabel: '均值', Icon: TrendingUp },
-  ];
+  // KPI 派生量与四瓷片已删（2026-11-06 用户裁定）——评审数据在「评审记录」区与工作台呈现
 
   /** EXP-P2-04：身份证号脱敏（前4后3；短串整段打码）——专家口令=身份证号，明文即展示登录密码 */
   const maskIdNumber = (id?: string | null): string => {
@@ -125,25 +116,8 @@ export default function ExpertProfilePage() {
         </div>
 
         <div className="wb-section-rule" />
-
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {kpis.map(k => (
-            <div key={k.label} className="kpi-card flex flex-col gap-1.5 p-3.5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
-                  <k.Icon size={13} strokeWidth={1.7} />
-                  {k.label}
-                </span>
-                <span className="kpi-signal text-[9px] font-bold" style={{ '--s': k.sig } as React.CSSProperties}>
-                  <span className="kpi-signal-dot" />
-                  {k.sigLabel}
-                </span>
-              </div>
-              <span className="text-[1.7rem] font-black leading-none tracking-[-0.04em] tabular-nums text-[var(--foreground)]">{k.value}</span>
-              <span className="text-[10px] font-medium text-[var(--muted-foreground)]">{k.sub}</span>
-            </div>
-          ))}
-        </div>
+        {/* KPI 四瓷片已删（2026-11-06 用户裁定：参与项目/已完成/评分记录/平均给分）——
+            评审明细在下方「评审记录」与工作台呈现，此页专注资料维护 */}
       </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
