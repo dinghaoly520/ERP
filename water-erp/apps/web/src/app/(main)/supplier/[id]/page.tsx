@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, getSupplierCommunications, getSupplierDocuments, uploadSupplierDocument, deleteSupplierDocument, updateSupplierTags, uploadSupplierFile, blacklistSupplier, unblacklistSupplier, addSupplierRecord, listSupplierRecords, updateContactPersonnel, revealSupplierField, companyLinksApi } from '@/lib/api/supplier';
+import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, getSupplierCommunications, getSupplierDocuments, uploadSupplierDocument, deleteSupplierDocument, updateSupplierTags, uploadSupplierFile, blacklistSupplier, unblacklistSupplier, addSupplierRecord, listSupplierRecords, revealSupplierField, companyLinksApi } from '@/lib/api/supplier';
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification } from '@/lib/types';
 import type { CommunicationRecord, SupplierDocumentRecord, CompanyLinkRow, RsvpHistoryResult } from '@/lib/api/supplier';
 import { getRsvpHistory } from '@/lib/api/supplier';
@@ -17,6 +17,7 @@ import { CheckCircle2, X, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck,
 import { SupplierTimeline } from '@/components/supplier/timeline';
 import { ApprovalHistory } from '@/components/supplier/approval-history';
 import { PortraitTab } from '@/components/supplier/portrait-tab';
+import { RingGauge, GRADE_SCORE, type WidgetTone } from '@/components/detail/data-widgets';
 
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import { copyToClipboard } from '@/lib/copy-to-clipboard';
@@ -139,7 +140,6 @@ export default function SupplierDetailPage() {
   const [rewardRecords, setRewardRecords] = useState<Array<{ id: string; projectName: string; recordType: string; recordNote: string | null; effectiveDate: string | null; clientName: string | null; createdAt: string }>>([]);
   const [recordForm, setRecordForm] = useState({ recordType: 'punishment' as 'reward' | 'punishment', projectName: '', recordNote: '', effectiveDate: '' });
   // CTS A-216 人员标注
-  const [personnelForm, setPersonnelForm] = useState({ contactId: '', personnelType: '项目经理', certTitle: '' });
   const [actionReason, setActionReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -347,15 +347,8 @@ export default function SupplierDetailPage() {
     } catch (e: any) { toast.error(e?.message || '录入失败'); }
   };
 
-  // CTS A-216 人员类别标注
-  const handleMarkPersonnel = async () => {
-    if (!personnelForm.contactId) { toast.error('请选择联系人'); return; }
-    try {
-      await updateContactPersonnel(personnelForm.contactId, { personnelType: personnelForm.personnelType, certTitle: personnelForm.certTitle.trim() || undefined });
-      toast.success('人员类别已标注');
-      loadAll();
-    } catch (e: any) { toast.error(e?.message || '标注失败'); }
-  };
+  // CTS A-216 人员类别标注已删（2026-11-06 用户裁定——工具条+表格列整组移除，
+  // 后端 updateContactPersonnel 端点保留未动）
 
   // 业务标签编辑
   const handleSaveTags = async () => {
@@ -649,16 +642,17 @@ export default function SupplierDetailPage() {
       {/* 基本信息 */}
       {activeTab === 'info' && (
           <div className="space-y-5">
-            {/* 企业工商信息（2026-09-18 v2：Hero 身份头 + 分组字段 + 长文本） */}
-            <section className="neu-card-static !rounded-2xl p-5">
+            {/* 企业工商信息（2026-09-18 v2：Hero 身份头 + 分组字段 + 长文本）；
+                2026-11-06 数据鲜活：顶部淡色洗染 + 徽章光晕环 + hero 右侧资质健康度/评价双环 */}
+            <section className="neu-card-static detail-card-wash !rounded-2xl p-5">
               <SectionTitle icon={Building2}>企业工商信息</SectionTitle>
 
-              {/* Hero：logo + 企业名 + 代码徽章（可复制）+ 身份 chip */}
+              {/* Hero：logo + 企业名 + 代码徽章（可复制）+ 身份 chip + 数据双环 */}
               <div className="mb-5 flex items-start gap-4">
                 {supplier.logoUrl ? (
-                  <img src={supplier.logoUrl} alt={`${supplier.name} logo`} className="h-14 w-14 flex-shrink-0 rounded-[14px] bg-[var(--muted)]/20 object-cover shadow-[inset_0_1px_0_oklch(1_0_0/0.8),1px_1px_4px_oklch(0.55_0.03_258/0.12)]" />
+                  <img src={supplier.logoUrl} alt={`${supplier.name} logo`} className="h-14 w-14 flex-shrink-0 rounded-[14px] bg-[var(--muted)]/20 object-cover ring-2 ring-[color-mix(in_oklch,var(--accent)_22%,transparent)] shadow-[inset_0_1px_0_oklch(1_0_0/0.8),1px_1px_4px_oklch(0.55_0.03_258/0.12)]" />
                 ) : (
-                  <span className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[14px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] text-lg font-black text-[var(--accent)]">{supplier.name.charAt(0)}</span>
+                  <span className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[14px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] text-lg font-black text-[var(--accent)] ring-2 ring-[color-mix(in_oklch,var(--accent)_22%,transparent)] shadow-[inset_0_1px_0_oklch(1_0_0/0.7)]">{supplier.name.charAt(0)}</span>
                 )}
                 <div className="min-w-0 flex-1">
                   <h4 className="mb-1.5 break-words text-[17px] font-black leading-tight tracking-tight text-[var(--foreground)]">{supplier.name}</h4>
@@ -674,6 +668,30 @@ export default function SupplierDetailPage() {
                       <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_7%,transparent)] px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">{supplier.industry}</span>
                     )}
                   </div>
+                </div>
+                {/* 数据鲜活双环：资质健康度（有效占比，语义色随健康度）+ 履约评价（等级分值） */}
+                <div className="ml-auto hidden shrink-0 items-center gap-5 sm:flex">
+                  {qualStats.total > 0 && (() => {
+                    const validPct = qualStats.valid / qualStats.total;
+                    return (
+                      <RingGauge
+                        pct={Math.round(validPct * 100)}
+                        tone={validPct >= 0.8 ? 'green' : validPct >= 0.5 ? 'orange' : 'red'}
+                        label="资质"
+                        display={qualStats.total}
+                        caption={`绿 ${qualStats.valid} · 临 ${qualStats.expiring} · 过 ${qualStats.expired}`}
+                      />
+                    );
+                  })()}
+                  {mostCommonGrade && (
+                    <RingGauge
+                      pct={GRADE_SCORE[mostCommonGrade] ?? 0}
+                      tone={(GRADE_TONE[mostCommonGrade] as WidgetTone) ?? 'blue'}
+                      label="评价"
+                      display={GRADE_SCORE[mostCommonGrade] ?? 0}
+                      caption={`${LEVEL_LABEL[mostCommonGrade] ?? mostCommonGrade}级 · ${evaluations.length} 次`}
+                    />
+                  )}
                 </div>
               </div>
 
@@ -920,21 +938,6 @@ export default function SupplierDetailPage() {
         {activeTab === 'info' && (
           <div className="mt-8">
           <SectionTitle icon={Users}>联系人管理</SectionTitle>
-          {/* CTS A-216 人员类别标注工具条 */}
-          {supplier.contacts && supplier.contacts.length > 0 && (
-            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[14px] bg-[color-mix(in_oklch,var(--muted-foreground)_6%,transparent)] px-4 py-3">
-              <span className="text-xs font-semibold text-[var(--foreground)]">人员类别标注</span>
-              <select value={personnelForm.contactId} onChange={e => setPersonnelForm(f => ({ ...f, contactId: e.target.value }))} className="neu-input !h-8 text-xs">
-                <option value="">选择联系人</option>
-                {supplier.contacts.map(c => <option key={c.id} value={c.id}>{c.name}{c.position ? `（${c.position}）` : ''}</option>)}
-              </select>
-              <select value={personnelForm.personnelType} onChange={e => setPersonnelForm(f => ({ ...f, personnelType: e.target.value }))} className="neu-input !h-8 text-xs">
-                {['法人代表', '项目经理', '技术负责人', '质量安全负责人', '持证人员', '普通联系人'].map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-              <input value={personnelForm.certTitle} onChange={e => setPersonnelForm(f => ({ ...f, certTitle: e.target.value }))} placeholder="执业资格/证书（如：一级建造师）" className="neu-input !h-8 min-w-[200px] flex-1 text-xs" />
-              <button onClick={handleMarkPersonnel} className="neu-btn-xs">标注</button>
-            </div>
-          )}
           <div className="neu-table-card overflow-hidden">
             {(!supplier.contacts || supplier.contacts.length === 0) ? (
               <p className="text-[var(--muted-foreground)] text-center py-10 text-sm">暂无联系人信息</p>
@@ -942,7 +945,7 @@ export default function SupplierDetailPage() {
               <div className="overflow-x-auto">
                 <table className="neu-table">
                   <thead>
-                    <tr><th>姓名</th><th>性别</th><th>联系方式</th><th>身份证号</th><th>邮箱</th><th>职位</th><th>人员类别</th><th>执业证书</th><th>类型</th></tr>
+                    <tr><th>姓名</th><th>性别</th><th>联系方式</th><th>身份证号</th><th>邮箱</th><th>职位</th><th>类型</th></tr>
                   </thead>
                   <tbody>
                     {supplier.contacts.map(c => (
@@ -953,8 +956,6 @@ export default function SupplierDetailPage() {
                         <td className="text-[var(--muted-foreground)] font-mono text-xs"><span className="inline-flex items-center">{revealedPii[`contact:${c.id}:idCard`] ?? c.idCard ?? '—'}{c.idCard ? <PiiRevealBtn entity="contact" targetId={c.id} field="idCard" /> : null}</span></td>
                         <td className="text-[var(--muted-foreground)]"><span className="inline-flex items-center">{revealedPii[`contact:${c.id}:email`] ?? c.email ?? '—'}{c.email ? <PiiRevealBtn entity="contact" targetId={c.id} field="email" /> : null}</span></td>
                         <td className="text-[var(--muted-foreground)]">{c.position || '—'}</td>
-                        <td className="text-[var(--muted-foreground)]">{(c as any).personnelType || '—'}</td>
-                        <td className="text-[var(--muted-foreground)]">{(c as any).certTitle || '—'}</td>
                         <td>
                           {c.isPrimary
                             ? <StatusBadge tone="blue">主要联系人</StatusBadge>
