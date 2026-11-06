@@ -418,7 +418,8 @@ export default function SupplierDetailPage() {
               <div className="page-hero__sub truncate">
                 <span className="inline-flex items-center gap-1"><Hash size={11} />{supplier.creditCode || '信用代码未登记'}</span>
                 {/* 评价等级小块已删（2026-11-06 用户裁定：评价域内容归「评价与奖惩」tab） */}
-                <span className="opacity-40 ml-2">·</span><span className="ml-2" title={`入库时间：${entryDate.toLocaleString('zh-CN')}`}>在库 {Math.floor((Date.now() - entryDate.getTime()) / (1000 * 60 * 60 * 24))} 天</span>
+                <span className="opacity-40 ml-2">·</span><span className="ml-2" title={`入库时间：${entryDate.toLocaleString('zh-CN')}`}>入库 {entryDate.toLocaleDateString('zh-CN')}（在库 {Math.floor((Date.now() - entryDate.getTime()) / (1000 * 60 * 60 * 24))} 天）</span>
+                <span className="opacity-40 ml-2">·</span><span className="ml-2">变更 {changes.length} 次</span>
               </div>
               {supplier.returnReason && supplier.status === 'RETURNED' && (
                 <div className="mt-2 flex items-start gap-1.5 text-xs">
@@ -470,21 +471,7 @@ export default function SupplierDetailPage() {
           </div>
         </div>
 
-        {/* KPI 瓷片行（2026-11-06 收窄：评价等级/资质数量/评价记录归各自 tab，不在此重复） */}
-        <div className="page-hero__divider">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-2">
-            {[
-              ['入库时间', entryDate.toLocaleDateString('zh-CN'), `注册于 ${new Date(supplier.createdAt).toLocaleDateString('zh-CN')}`],
-              ['变更次数', changes.length, '历史变更'],
-            ].map(([label, value, sub]) => (
-              <div key={label} className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">{label}</span>
-                <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{String(value)}</span>
-                <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">{String(sub)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* KPI 瓷片行已删（2026-11-06 用户裁定）：入库时间/变更次数并入标题栏副标题行 */}
 
         {/* Tab 导航 —— 融入 page-hero 底部 */}
         <div className="page-hero__divider !pt-3">
