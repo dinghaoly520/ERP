@@ -437,7 +437,7 @@ export default function NewNoticePage() {
                     </button>
                   </span>
                 ) : (
-                  <span className="text-xs text-[var(--muted-foreground)]">必选——关联本公司项目，自动带出项目编号与建议标题</span>
+                  <span className="text-xs text-[var(--muted-foreground)]">必选——关联本公司项目</span>
                 )}
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -452,7 +452,7 @@ export default function NewNoticePage() {
                     </button>
                   </span>
                 ) : (
-                  <span className="text-xs text-[var(--muted-foreground)]">可选——关联本公司的已发布采购公告，自动带出其项目编号</span>
+                  <span className="text-xs text-[var(--muted-foreground)]">可选——关联本公司的已发布采购公告</span>
                 )}
               </div>
               {/* 项目编号由选择项目/关联公告自动带出（随 PROJECT_LINKED_TYPES 写入 relatedProjectCode，发布联动/项目反查）；2026-11-06 用户裁定删除手填修正入口 */}

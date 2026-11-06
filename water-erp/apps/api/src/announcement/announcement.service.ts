@@ -807,17 +807,19 @@ export class AnnouncementService {
 
     // ③ 开标时间联动（2026-11-06 用户裁定）：补遗选择「改变开标时间」→ 项目开标/截标
     // 与原采购公告展示值全部改为该时间（截标按 10 分钟铁律随动）。仅投递前可调——
-    // 开标/评标已开始后不再扰动（响应带警示，发布不回滚）。
+    // 开标/评标已开始后不再扰动（响应带警示，发布不回滚）。联动结果记录后**不提前返回**：
+    // ①补遗计数与 ②供应商通知照常执行（警示/失败也不跳过）。
+    let openTimeAdjusted: boolean | undefined;
+    let openTimeSyncWarning: string | undefined;
     if (meta.openTimeChanged === '1') {
       const t = new Date(meta.newOpenTime || '');
       if (!meta.newOpenTime || Number.isNaN(t.getTime())) {
         this.logger.warn(`补遗开标时间联动跳过（时间非法）: ${ann.title}`);
-        return { openTimeSyncWarning: '补遗声明改变开标时间但时间非法，项目开标时间未调整，请检查补遗公告' };
-      }
-      if (!['DOWNLOAD', 'SUBMIT'].includes(project.stage)) {
+        openTimeSyncWarning = '补遗声明改变开标时间但时间非法，项目开标时间未调整，请检查补遗公告';
+      } else if (!['DOWNLOAD', 'SUBMIT'].includes(project.stage)) {
         this.logger.warn(`补遗开标时间联动跳过（阶段 ${project.stage}）: ${ann.title}`);
-        return { openTimeSyncWarning: `项目已进入 ${project.stage === 'OPENING' ? '开标' : project.stage === 'EVALUATING' ? '评标' : '终局'}阶段，开标时间未随补遗调整，请人工核处` };
-      }
+        openTimeSyncWarning = `项目已进入 ${project.stage === 'OPENING' ? '开标' : project.stage === 'EVALUATING' ? '评标' : '终局'}阶段，开标时间未随补遗调整，请人工核处`;
+      } else {
       const newDeadline = deriveDeadlineFromOpenTime(t);
       await this.prisma.bidProject.update({
         where: { id: project.id },
@@ -845,7 +847,8 @@ export class AnnouncementService {
         },
       }).catch(e => this.logger.warn(`补遗开标联动审计留痕失败: ${(e as Error).message}`));
       this.logger.log(`补遗开标时间联动完成: ${project.projectCode} → ${t.toISOString()}`);
-      return { openTimeAdjusted: true };
+      openTimeAdjusted = true;
+      }
     }
 
     // ① 采购文件补遗计数（OPEN 文档可能无 bidProjectId，用 announcement 链路兜底找）
@@ -896,7 +899,7 @@ export class AnnouncementService {
       } catch { /* 单个失败不阻塞 */ }
     }
     this.logger.log(`补遗公告通知已发送: ${ann.title}, 收件 ${sent}/${suppliers.length} 家供应商`);
-    return {};
+    return { openTimeAdjusted, openTimeSyncWarning };
   }
 
   /** C5：补遗截止时间充分性提示（7.2.6.2 保证供应商有足够时间编制） */
