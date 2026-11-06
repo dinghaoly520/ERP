@@ -75,6 +75,7 @@ export default function ReviewWorkspaceContent() {
               file={file}
               setFile={setFile}
               executing={executing}
+              execUpPct={execUpPct}
               handleExecute={handleExecute}
               fileInputRef={fileInputRef}
               runningTasks={runningTasks}
@@ -107,12 +108,14 @@ interface ReviewTabProps {
   file: File | null;
   setFile: (file: File | null) => void;
   executing: boolean;
+  /** 审查文档上传字节进度（2026-11-06 上传进度条）——提交按钮内展示 */
+  execUpPct: number;
   handleExecute: () => Promise<void>;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   runningTasks: { id: string; documentName: string; status: string }[];
 }
 
-function ReviewTab({ selectedKb, selectedKbId, mode, setMode, file, setFile, executing, handleExecute, fileInputRef, runningTasks }: ReviewTabProps) {
+function ReviewTab({ selectedKb, selectedKbId, mode, setMode, file, setFile, executing, execUpPct, handleExecute, fileInputRef, runningTasks }: ReviewTabProps) {
   const { knowledgeBases, setSelectedKbId } = useTenderReview();
   const [showKbDropdown, setShowKbDropdown] = useState(false);
 
