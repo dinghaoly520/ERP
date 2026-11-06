@@ -355,6 +355,11 @@ select.neu-select {
   color: var(--accent); border-color: color-mix(in oklch, var(--accent) 25%, transparent);
   background: color-mix(in oklch, var(--accent) 6%, transparent);
 }
+/* 2026-11-06 补齐 :3005 同款 warn 变体（待办警示胶囊） */
+.page-hero__stat--warn {
+  color: var(--danger); border-color: color-mix(in oklch, var(--danger) 25%, transparent);
+  background: color-mix(in oklch, var(--danger) 6%, transparent);
+}
 .page-hero > .wb-section-rule,
 .page-hero > .grid { position: relative; z-index: 1; }
 
