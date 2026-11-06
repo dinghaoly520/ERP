@@ -180,7 +180,7 @@ export default function ExpertProfilePage() {
               { key: 'education', label: '学历', mono: false, display: profile.expertProfile?.education || '未设置', placeholder: '如 硕士研究生' },
               { key: 'specialty', label: '专业', mono: false, display: profile.expertProfile?.specialty || '未设置', placeholder: '输入或选择专业', emptyText: '无匹配专业', options: [...EXPERT_SPECIALTIES] },
               { key: 'title', label: '职称', mono: false, display: profile.expertProfile?.title || '未设置', placeholder: '输入或选择职称', emptyText: '无匹配职称', options: [...EXPERT_TITLES] },
-              { key: 'departmentName', label: '部门', mono: false, display: profile.department?.name || '未设置', placeholder: '输入部门名称' },
+              { key: 'departmentName', label: '所属部门', mono: false, display: profile.department?.name || '未设置', placeholder: '如 工程勘察院' },
             ]).map(f => (
               <div key={f.key}>
                 <label className="mb-1 block text-xs font-semibold text-[var(--muted-foreground)]">{f.label}</label>
@@ -214,9 +214,9 @@ export default function ExpertProfilePage() {
                 )}
               </div>
             ))}
+            {/* 角色行已删（2026-11-06 用户裁定——本门户登录者恒为评审专家，无需自述） */}
             {([
               ['工作单位', profile.expertProfile?.employer || '未设置'],
-              ['角色', '评审专家'],
             ] as const).map(([label, value]) => (
               <div key={label}>
                 <p className="mb-1 text-xs font-semibold text-[var(--muted-foreground)]">{label}</p>
