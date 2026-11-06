@@ -6708,6 +6708,9 @@ select.workbench-input {
   border-top: 1px solid color-mix(in oklch, var(--muted-foreground) 16%, transparent);
   padding-top: 1rem;
 }
+/* 末位横线（2026-11-06）：KPI 删除后 divider 常为标题卡最后一个元素——padding-top 的 1rem
+   本为线下内容留距，末位时成为线下死空间（长横线下方高度虚高）；归零后线位由 flex gap 统一 */
+.page-hero__divider:last-child { padding-top: 0; }
 
 /* ── 右侧：统计标签 + 操作 ── */
 .page-hero__right { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
