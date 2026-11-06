@@ -36,7 +36,9 @@ const STATUS_TONE: Record<string, 'green' | 'blue' | 'orange' | 'red' | 'gray'> 
 const CHANGE_TONE: Record<string, 'blue' | 'green' | 'red'> = { PENDING: 'blue', APPROVED: 'green', REJECTED: 'red' };
 const GRADE_TONE: Record<string, string> = { A: 'green', B: 'blue', C: 'orange', D: 'yellow', E: 'red' };
 
-/** 单字段展示卡片：空值淡化；copyable 启用点击复制。 */
+/** 单字段展示：空值淡化；copyable 启用点击复制。
+ *  紧凑定义项（2026-11-06 参照专家详情 2026-11-04 口径：白瓷片占位大、显散）——
+ *  无底色无投影，纯 label 小字 + 值排版，靠网格与 FieldGroup 分组组织 */
 
 function InfoField({
   label,
@@ -53,10 +55,10 @@ function InfoField({
 }) {
   const empty = !value || !value.trim();
   return (
-    <div className={`kpi-card group flex min-w-0 flex-col gap-1 px-3.5 py-3 ${full ? 'col-span-full' : ''}`}>
+    <div className={`group flex min-w-0 flex-col gap-1 py-1 ${full ? 'col-span-full' : ''}`}>
       <span className="text-[10px] font-semibold uppercase tracking-[0.08em] leading-none text-[var(--muted-foreground)]">{label}</span>
       <span
-        className={`break-words text-[13px] font-bold leading-snug tabular-nums text-[var(--foreground)] ${mono ? 'font-mono tracking-tight' : ''} ${empty ? 'font-normal text-[var(--muted-foreground)]/55' : ''} ${copyable && !empty ? 'cursor-pointer transition-colors group-hover:text-[var(--accent)]' : ''}`}
+        className={`break-words text-[13px] font-semibold leading-snug tabular-nums text-[var(--foreground)] ${mono ? 'font-mono tracking-tight' : ''} ${empty ? 'font-normal text-[var(--muted-foreground)]/55' : ''} ${copyable && !empty ? 'cursor-pointer transition-colors group-hover:text-[var(--accent)]' : ''}`}
         title={copyable && !empty ? '点击复制' : undefined}
         onClick={copyable && !empty ? async () => { if (await copyToClipboard(value!)) toast.success(`${label} 已复制`); else toast.error('复制失败，请手动选择复制'); } : undefined}
       >
@@ -675,7 +677,7 @@ export default function SupplierDetailPage() {
                 </div>
               </div>
 
-              {/* 字段瓷片网格（kpi-card 复用）：分组竖点标题 + 4 列紧凑 */}
+              {/* 字段网格：分组竖点标题 + 4 列紧凑（2026-11-06 去瓷片，同专家详情口径） */}
               <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
                 <FieldGroup label="法定代表人" />
                 <InfoField label="姓名" value={supplier.legalPerson} />
@@ -732,7 +734,7 @@ export default function SupplierDetailPage() {
                         {primaryContact.position && <span className="text-[11px] text-[var(--muted-foreground)]">{primaryContact.position}</span>}
                       </div>
                     </div>
-                    <div className="mt-3 grid grid-cols-1 gap-2.5">
+                    <div className="mt-3 grid grid-cols-2 gap-2.5">
                       <InfoField label="联系电话" value={primaryContact.phone} mono copyable />
                       {primaryContact.email && <InfoField label="邮箱" value={primaryContact.email} copyable />}
                     </div>
