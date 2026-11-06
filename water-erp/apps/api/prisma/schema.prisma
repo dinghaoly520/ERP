@@ -3288,11 +3288,20 @@ model KnowledgeFile {
   content         String?
   chunkCount      Int           @default(0)
   isActive        Boolean       @default(true)
+  // 解析异步化（2026-11-06）：PARSING→READY/FAILED，进度按 OCR 批次回写；
+  // indexed=嵌入降级标志（READY 但无向量，reindex 可补）；sha256=同库去重键
+  status          String        @default("PARSING")
+  totalPages      Int?
+  processedPages  Int           @default(0)
+  error           String?
+  indexed         Boolean       @default(true)
+  sha256          String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
 
   @@index([knowledgeBaseId])
+  @@index([knowledgeBaseId, sha256])
 }
 
 model DocumentChunk {
