@@ -71,6 +71,15 @@ const ANNO_TYPE_META: Record<string, MetaField[]> = {
     { key: "projectCode", label: "项目编号" }, { key: "changes", label: "澄清/修改内容", area: true },
     { key: "newDeadline", label: "调整后递交截止", date: true },
   ],
+  // 资格预审公告：申请供应商是主要受众（2026-11-06 与 :3005 发布字段表对齐补齐——此前整块缺失）
+  PREQUAL_NOTICE: [
+    { key: "projectCode", label: "项目编号" }, { key: "relatedAnnouncementTitle", label: "关联采购公告" },
+    { key: "requirements", label: "申请人资格条件" },
+    { key: "method", label: "预审方式" }, { key: "applyDeadline", label: "申请截止时间", date: true },
+    { key: "documents", label: "需提交的申请材料", area: true },
+    { key: "validUntil", label: "预审结果有效期", date: true }, { key: "contact", label: "联系方式" },
+    { key: "title", label: "预审名称" },
+  ],
   PRE_WIN_NOTICE: [
     { key: "projectCode", label: "项目编号" }, { key: "winner", label: "预成交供应商" }, { key: "amount", label: "预成交价格" },
     { key: "period", label: "工期/交货期/服务期限" }, { key: "publicityPeriod", label: "公示期" }, { key: "objection", label: "异议渠道", area: true },
@@ -82,6 +91,7 @@ const ANNO_TYPE_META: Record<string, MetaField[]> = {
   ],
   POLICY: [
     { key: "docNo", label: "文号" }, { key: "issuer", label: "发布机关" }, { key: "effectiveDate", label: "生效日期" },
+    { key: "status", label: "时效状态" },
     { key: "scope", label: "适用范围", area: true },
   ],
   PLATFORM: [

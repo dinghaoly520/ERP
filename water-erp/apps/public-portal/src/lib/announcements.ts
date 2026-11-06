@@ -50,9 +50,12 @@ export const ANNOUNCEMENT_TYPE_META: Record<string, MetaField[]> = {
     { key: 'scope', label: '采购内容/范围', area: true }, { key: 'qualification', label: '投标人资格要求', area: true },
   ],
   PREQUAL_NOTICE: [
-    { key: 'title', label: '预审名称' }, { key: 'projectCode', label: '项目编号' }, { key: 'relatedAnnouncementTitle', label: '关联采购公告' },
+    { key: 'projectCode', label: '项目编号' }, { key: 'relatedAnnouncementTitle', label: '关联采购公告' },
+    { key: 'requirements', label: '申请人资格条件' },
     { key: 'method', label: '预审方式' }, { key: 'applyDeadline', label: '申请截止时间', date: true },
     { key: 'documents', label: '需提交的申请材料', area: true },
+    { key: 'validUntil', label: '预审结果有效期', date: true }, { key: 'contact', label: '联系方式' },
+    { key: 'title', label: '预审名称' },
   ],
   PRE_WIN_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'winner', label: '预成交供应商' }, { key: 'amount', label: '预成交价格' },
@@ -70,6 +73,7 @@ export const ANNOUNCEMENT_TYPE_META: Record<string, MetaField[]> = {
   ],
   POLICY: [
     { key: 'docNo', label: '文号' }, { key: 'issuer', label: '发布机关' }, { key: 'effectiveDate', label: '生效日期' },
+    { key: 'status', label: '时效状态' },
     { key: 'scope', label: '适用范围', area: true },
   ],
   PLATFORM: [

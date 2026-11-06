@@ -37,34 +37,46 @@ const typeLabel: Record<NoticeType, string> = {
   ADDENDUM: '补遗公告', PREQUAL_NOTICE: '资格预审公告', POLICY: '政策法规', PLATFORM: '平台通知',
 };
 
-interface MetaField { key: string; label: string; area?: boolean; date?: boolean }
+interface MetaField { key: string; label: string; area?: boolean; date?: boolean; ph?: string }
 
 /** datetime-local 值归一：存量纯日期（2026-07-01）补 T00:00，否则控件显示空；已合规/空原样 */
 function toDateInputValue(raw: string): string {
   if (!raw) return '';
   return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00` : raw;
 }
+/** 四类型结构化字段（2026-11-06 用户裁定逐项优化——每个字段都有实际意义且在三端详情页渲染；
+ *  ph=填写引导占位符。展示端字段表须与本表同步：web notice-view、public lib/announcements、
+ *  supplier 公告详情 ANNO_TYPE_META） */
 const TYPE_META: Record<NoticeType, MetaField[]> = {
   // C5（GB/T 43711 7.2.6）：采购文件澄清/修改 → 补遗公告（发布后自动通知已获取文件的供应商）
   // projectCode 不在通用网格——移入「关联信息」区块（选择器自动带出，2026-10-16；手填入口 2026-11-06 删除）
   ADDENDUM: [
-    { key: 'changes', label: '澄清/修改内容', area: true },
+    { key: 'changes', label: '澄清/修改内容', area: true, ph: '逐条列出对采购文件的澄清或修改事项' },
     { key: 'newDeadline', label: '调整后递交截止', date: true },
   ],
-  // 7.2.3 资格预审公告：供应商按公告约定提交资格预审申请
+  // 7.2.3 资格预审公告：供应商按公告约定提交资格预审申请。原「预审名称」与公告标题重复（2026-11-06 删），
+  // 改收「申请人资格条件」——资格预审公告的法定核心内容
   PREQUAL_NOTICE: [
-    { key: 'title', label: '预审名称' },
-    { key: 'method', label: '预审方式（合格制/有限数量制）' }, { key: 'applyDeadline', label: '申请截止时间', date: true },
-    { key: 'documents', label: '需提交的申请材料', area: true }, { key: 'validUntil', label: '预审结果有效期', date: true },
-    { key: 'contact', label: '联系方式' },
+    { key: 'requirements', label: '申请人资格条件', area: true, ph: '资质等级、类似业绩、财务状况、人员配置等要求' },
+    { key: 'method', label: '预审方式', ph: '合格制 / 有限数量制' },
+    { key: 'applyDeadline', label: '申请截止时间', date: true },
+    { key: 'documents', label: '需提交的申请材料', area: true, ph: '营业执照、资质证书、业绩证明、财务报表等' },
+    { key: 'validUntil', label: '预审结果有效期', date: true },
+    { key: 'contact', label: '联系方式', ph: '联系人及电话' },
   ],
   POLICY: [
-    { key: 'docNo', label: '文号' }, { key: 'issuer', label: '发布机关' }, { key: 'effectiveDate', label: '生效日期', date: true },
-    { key: 'scope', label: '适用范围', area: true },
+    { key: 'docNo', label: '文号', ph: '如 川水发〔2026〕12 号' },
+    { key: 'issuer', label: '发布机关', ph: '如 四川省水利发展集团有限公司' },
+    { key: 'effectiveDate', label: '生效日期', date: true },
+    { key: 'status', label: '时效状态', ph: '现行有效 / 已修订 / 已废止' },
+    { key: 'scope', label: '适用范围', area: true, ph: '适用的业务、单位或人员范围' },
   ],
   PLATFORM: [
-    { key: 'impactScope', label: '影响范围' }, { key: 'changes', label: '功能变化', area: true }, { key: 'schedule', label: '时间安排' },
-    { key: 'guide', label: '操作指引', area: true }, { key: 'support', label: '支持渠道' },
+    { key: 'impactScope', label: '影响范围', ph: '受影响的门户与用户，如 全部用户 / 供应商门户' },
+    { key: 'changes', label: '功能变化', area: true, ph: '本次更新新增、调整或下线的功能' },
+    { key: 'schedule', label: '时间安排', ph: '上线/维护时间窗，如 2026-11-08 22:00–24:00' },
+    { key: 'guide', label: '操作指引', area: true, ph: '受影响用户的应对步骤' },
+    { key: 'support', label: '支持渠道', ph: '咨询电话或平台客服入口' },
   ],
 };
 
@@ -218,10 +230,6 @@ export default function NewNoticePage() {
       targetStatus === 'PUBLISHED' && publishConfig.scheduleMode === 'scheduled' && publishConfig.scheduledPublishDate
         ? 'DRAFT'
         : targetStatus;
-    if (targetStatus === 'PUBLISHED' && publishConfig.visibility === 'RESTRICTED' && publishConfig.restrictedSupplierIds.length === 0) {
-      toast.error('部分供应商可见模式下请至少选择一家供应商');
-      return null;
-    }
     setBusy(true);
     const meta: Record<string, any> = {};
     for (const f of TYPE_META[type]) if (metadata[f.key]?.trim()) meta[f.key] = metadata[f.key].trim();
@@ -427,10 +435,10 @@ export default function NewNoticePage() {
                   <label className="space-y-1">
                     <span className="text-xs font-semibold text-[var(--muted-foreground)]">{f.label}</span>
                     {f.area
-                      ? <textarea value={val} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className="neu-input h-20 resize-y" />
+                      ? <textarea value={val} placeholder={f.ph} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className="neu-input h-20 resize-y" />
                       : f.date
                         ? <input type="datetime-local" value={toDateInputValue(val)} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className="neu-input" />
-                        : <input value={val} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className="neu-input" />
+                        : <input value={val} placeholder={f.ph} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className="neu-input" />
                     }
                   </label>
                 </div>

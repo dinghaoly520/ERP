@@ -22,7 +22,11 @@ const statusLabel = ANN_STATUS_LABEL;
 interface MetaField { key: string; label: string; area?: boolean; date?: boolean }
 const TYPE_META: Record<AnnouncementType, MetaField[]> = {
   PREQUAL_NOTICE: [
-    { key: 'title', label: '预审名称' }, { key: 'validUntil', label: '申请截止', date: true },
+    { key: 'projectCode', label: '项目编号' }, { key: 'relatedAnnouncementTitle', label: '关联采购公告' },
+    { key: 'requirements', label: '申请人资格条件', area: true }, { key: 'method', label: '预审方式' },
+    { key: 'applyDeadline', label: '申请截止时间', date: true }, { key: 'documents', label: '需提交的申请材料', area: true },
+    { key: 'validUntil', label: '预审结果有效期', date: true }, { key: 'contact', label: '联系方式' },
+    { key: 'title', label: '预审名称' },
   ],
   ADDENDUM: [
     { key: 'projectCode', label: '项目编号' }, { key: 'changes', label: '澄清/修改内容', area: true },
@@ -52,6 +56,7 @@ const TYPE_META: Record<AnnouncementType, MetaField[]> = {
   ],
   POLICY: [
     { key: 'docNo', label: '文号' }, { key: 'issuer', label: '发布机关' }, { key: 'effectiveDate', label: '生效日期' },
+    { key: 'status', label: '时效状态' },
     { key: 'scope', label: '适用范围', area: true },
   ],
   PLATFORM: [

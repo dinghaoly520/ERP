@@ -33,7 +33,7 @@ const typeLabel = ANN_TYPE_LABEL;
 const statusTone = ANN_STATUS_TONE;
 const statusLabel = ANN_STATUS_LABEL;
 
-interface MetaField { key: string; label: string; area?: boolean; date?: boolean }
+interface MetaField { key: string; label: string; area?: boolean; date?: boolean; ph?: string }
 
 /** datetime-local 值归一：存量纯日期（2026-07-01）补 T00:00，否则控件显示空；已合规/空原样 */
 function toDateInputValue(raw: string): string {
@@ -41,14 +41,22 @@ function toDateInputValue(raw: string): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00` : raw;
 }
 const TYPE_META: Record<AnnouncementType, MetaField[]> = {
+  // 四个手工类型字段与 :3005 新建页 TYPE_META 同源（2026-11-06 逐项优化）——
+  // 此前 PREQUAL 表缺 method/applyDeadline/documents，编辑保存会静默丢这三项数据（本提交修复）
   PREQUAL_NOTICE: [
-    { key: 'title', label: '预审名称' }, { key: 'projectCode', label: '项目编号' }, { key: 'relatedAnnouncementTitle', label: '关联采购公告' },
-    { key: 'validUntil', label: '申请截止', date: true },
+    { key: 'requirements', label: '申请人资格条件', area: true, ph: '资质等级、类似业绩、财务状况、人员配置等要求' },
+    { key: 'method', label: '预审方式', ph: '合格制 / 有限数量制' },
+    { key: 'applyDeadline', label: '申请截止时间', date: true },
+    { key: 'documents', label: '需提交的申请材料', area: true, ph: '营业执照、资质证书、业绩证明、财务报表等' },
+    { key: 'validUntil', label: '预审结果有效期', date: true },
+    { key: 'contact', label: '联系方式', ph: '联系人及电话' },
+    { key: 'projectCode', label: '项目编号' }, { key: 'relatedAnnouncementTitle', label: '关联采购公告' },
+    { key: 'title', label: '预审名称（存量）' },
   ],
   ADDENDUM: [
-    { key: 'projectCode', label: '项目编号' }, { key: 'relatedAnnouncementTitle', label: '关联采购公告' },
-    { key: 'changes', label: '澄清/修改内容', area: true },
+    { key: 'changes', label: '澄清/修改内容', area: true, ph: '逐条列出对采购文件的澄清或修改事项' },
     { key: 'newDeadline', label: '调整后递交截止', date: true },
+    { key: 'projectCode', label: '项目编号' }, { key: 'relatedAnnouncementTitle', label: '关联采购公告' },
   ],
   BID_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '招标方式' }, { key: 'budget', label: '预算金额' },
@@ -73,12 +81,13 @@ const TYPE_META: Record<AnnouncementType, MetaField[]> = {
     { key: 'projectCode', label: '项目编号' }, { key: 'supplierName', label: '成交供应商' }, { key: 'result', label: '履行结果' },
   ],
   POLICY: [
-    { key: 'docNo', label: '文号' }, { key: 'issuer', label: '发布机关' }, { key: 'effectiveDate', label: '生效日期', date: true },
-    { key: 'scope', label: '适用范围', area: true },
+    { key: 'docNo', label: '文号', ph: '如 川水发〔2026〕12 号' }, { key: 'issuer', label: '发布机关', ph: '如 四川省水利发展集团有限公司' }, { key: 'effectiveDate', label: '生效日期', date: true },
+    { key: 'status', label: '时效状态', ph: '现行有效 / 已修订 / 已废止' },
+    { key: 'scope', label: '适用范围', area: true, ph: '适用的业务、单位或人员范围' },
   ],
   PLATFORM: [
-    { key: 'impactScope', label: '影响范围' }, { key: 'changes', label: '功能变化', area: true }, { key: 'schedule', label: '时间安排' },
-    { key: 'guide', label: '操作指引', area: true }, { key: 'support', label: '支持渠道' },
+    { key: 'impactScope', label: '影响范围', ph: '受影响的门户与用户，如 全部用户 / 供应商门户' }, { key: 'changes', label: '功能变化', area: true, ph: '本次更新新增、调整或下线的功能' }, { key: 'schedule', label: '时间安排', ph: '上线/维护时间窗，如 2026-11-08 22:00–24:00' },
+    { key: 'guide', label: '操作指引', area: true, ph: '受影响用户的应对步骤' }, { key: 'support', label: '支持渠道', ph: '咨询电话或平台客服入口' },
   ],
   // 系统生成类：字段与发布向导写入的 canonical meta / 公告草稿键对齐
   FAILED_BID_NOTICE: [
@@ -464,7 +473,13 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
     return out;
   };
   const [metadata, setMetadata] = useState<Record<string, string>>(() => buildMeta(ann.type));
-  const [publishConfig, setPublishConfig] = useState<PublishConfig>(() => configFromMetadata(ann.metadata));
+  // 可见范围固定全部可见（2026-11-06 用户裁定）：编辑存量 RESTRICTED 公告时立即归一为 PUBLIC
+  // （保存即转换，配置区带提示行）；restrictedSupplierIds 由 configToMetadata 对 PUBLIC 恒清空。
+  const [wasRestricted] = useState(() => configFromMetadata(ann.metadata).visibility === 'RESTRICTED');
+  const [publishConfig, setPublishConfig] = useState<PublishConfig>(() => {
+    const init = configFromMetadata(ann.metadata);
+    return init.visibility === 'RESTRICTED' ? { ...init, visibility: 'PUBLIC', restrictedSupplierIds: [] } : init;
+  });
   const [busy, setBusy] = useState(false);
   const { confirm, dialog } = useConfirm();
   const [attachments, setAttachments] = useState<AnnouncementAttachment[]>([]);
@@ -480,10 +495,6 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
 
   const save = async (targetStatus: AnnouncementStatus): Promise<AnnouncementPublishResult | null> => {
     if (!title.trim()) { toast.error('请填写标题'); return null; }
-    if (targetStatus === 'PUBLISHED' && publishConfig.visibility === 'RESTRICTED' && publishConfig.restrictedSupplierIds.length === 0) {
-      toast.error('部分供应商可见模式下请至少选择一家供应商');
-      return null;
-    }
     // 定时发布：实际保存为 DRAFT，由 scheduler 到点自动发布
     const actualStatus: AnnouncementStatus =
       targetStatus === 'PUBLISHED' && publishConfig.scheduleMode === 'scheduled' && publishConfig.scheduledPublishDate
@@ -576,10 +587,10 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
               <div key={f.key} className={f.area ? 'sm:col-span-2' : ''}>
                 <label className="block text-xs font-semibold text-[var(--muted-foreground)] mb-1.5">{f.label}</label>
                 {f.area
-                  ? <textarea value={metadata[f.key] || ''} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className="neu-input h-20 resize-none" />
+                  ? <textarea value={metadata[f.key] || ''} placeholder={f.ph} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className="neu-input h-20 resize-none" />
                   : f.date
                     ? <input type="datetime-local" value={toDateInputValue(metadata[f.key] || '')} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className="neu-input" />
-                    : <input value={metadata[f.key] || ''} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className="neu-input" />
+                    : <input value={metadata[f.key] || ''} placeholder={f.ph} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className="neu-input" />
                 }
               </div>
             ))}
@@ -619,7 +630,7 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
             <span>定时发布时刻已过，但公告仍是草稿——定时发布被发布校验拒绝或服务异常滞留。请检查公告要素（项目编码/时间等）后重新点「发布」，或切回「立即发布」。</span>
           </div>
         )}
-        <PublishConfigSection config={publishConfig} onChange={setPublishConfig} />
+        <PublishConfigSection config={publishConfig} onChange={setPublishConfig} legacyRestricted={wasRestricted} />
       </div>
       {dialog}
     </div>
