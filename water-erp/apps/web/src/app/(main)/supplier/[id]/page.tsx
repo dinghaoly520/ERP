@@ -477,8 +477,9 @@ export default function SupplierDetailPage() {
           </div>
         </div>
 
-        {/* KPI 瓷片行已删（2026-11-06 用户裁定）：入库时间/变更次数并入标题栏副标题行 */}
-
+        {/* KPI 瓷片行已删（2026-11-06 用户裁定）：入库时间/变更次数并入标题栏副标题行；
+            标题行下长横线对齐公司信息管理同款 page-hero__divider */}
+        <div className="page-hero__divider" />
       </div>
 
       {/* 信息分区切换（2026-11-06 用户裁定：移出标题卡，hero 下方独立工具行，

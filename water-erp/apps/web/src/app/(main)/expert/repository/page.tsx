@@ -422,6 +422,8 @@ export default function ExpertRepositoryPage() {
             <button onClick={() => setShowHistory(true)} className="neu-btn-soft"><History size={15} />操作历史</button>
           </div>
         </div>
+        {/* 标题行下长横线（2026-11-06 对齐公司信息管理同款 page-hero__divider；KPI 六瓷片已删） */}
+        <div className="page-hero__divider" />
       </div>
 
       {/* 工具行：搜索（左，固定 280px）+ 筛选与操作（右）——2026-09-18 对齐供应商库同款 */}

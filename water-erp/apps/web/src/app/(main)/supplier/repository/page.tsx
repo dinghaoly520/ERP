@@ -480,8 +480,8 @@ function SupplierRepositoryPageInner() {
             <button onClick={() => setShowAuditLog(true)} className="neu-btn-soft"><History size={15} />操作历史</button>
           </div>
         </div>
-        {/* KPI 四瓷片已删（2026-11-06 用户裁定，同专家库口径）：库况融入副标题；
-            「待审核」引导卡改标题右侧警示胶囊（可点前往审批中心，>0 红点） */}
+        {/* 标题行下长横线（2026-11-06 对齐公司信息管理同款 page-hero__divider；KPI 四瓷片已删，库况融入副标题、待审核入右侧警示胶囊） */}
+        <div className="page-hero__divider" />
       </div>
 
 

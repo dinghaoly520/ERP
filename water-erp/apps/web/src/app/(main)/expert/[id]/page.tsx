@@ -410,7 +410,9 @@ export default function ExpertDetailPage() {
         </div>
 
         {/* KPI 瓷片行已删（2026-11-06 用户裁定）：参评项目/已完成/已签到/评价均分/获评次数
-            五瓷片移除——履职数据在「评审项目/评价历史」tab 与基本信息双环中各有呈现 */}
+            五瓷片移除——履职数据在「评审项目/评价历史」tab 与基本信息双环中各有呈现；
+            标题行下长横线对齐公司信息管理同款 page-hero__divider */}
+        <div className="page-hero__divider" />
       </div>
 
       {/* 信息分区切换（2026-11-06 用户裁定：移出标题卡，hero 下方独立工具行，
