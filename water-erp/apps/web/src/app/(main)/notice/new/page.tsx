@@ -67,7 +67,7 @@ const TYPE_META: Record<NoticeType, MetaField[]> = {
   ],
   POLICY: [
     { key: 'docNo', label: '文号', ph: '如 川水发〔2026〕12 号' },
-    { key: 'issuer', label: '发布机关', ph: '如 四川省水利发展集团有限公司' },
+    { key: 'issuer', label: '发布机关', ph: '如：国资委' },
     { key: 'effectiveDate', label: '生效日期', date: true },
     { key: 'status', label: '时效状态', ph: '现行有效 / 已修订 / 已废止' },
     { key: 'scope', label: '适用范围', area: true, ph: '适用的业务、单位或人员范围' },
