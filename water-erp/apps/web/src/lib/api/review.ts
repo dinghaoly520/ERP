@@ -3,6 +3,7 @@ const API_BASE = '/api/tender-review';
 
 import type { ReviewTask } from '../types/tender-review';
 import { apiFetch } from './api-fetch';
+import { api } from '../api';
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -20,6 +21,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 export async function uploadReviewDocument(
   file: File,
+  opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal },
 ): Promise<{
   documentName: string;
   objectKey: string;
@@ -28,12 +30,8 @@ export async function uploadReviewDocument(
 }> {
   const formData = new FormData();
   formData.append('file', file);
-  const res = await apiFetch(`${API_BASE}/review/upload`, {
-    method: 'POST',
-    credentials: 'include',
-    body: formData,
-  });
-  return handleResponse(res);
+  // api.upload XHR 轨（2026-11-06 上传进度条）：错误经 ApiError（data.error 优先）同旧语义
+  return api.upload(`/tender-review/review/upload`, formData, opts);
 }
 
 export async function executeReview(params: {

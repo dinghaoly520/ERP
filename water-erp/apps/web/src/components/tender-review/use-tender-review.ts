@@ -41,9 +41,9 @@ export function useKnowledgeBaseOps() {
     }
   }, [refreshKnowledgeBases, selectedKbId, setSelectedKbId]);
 
-  const uploadFile = useCallback(async (kbId: string, file: File) => {
+  const uploadFile = useCallback(async (kbId: string, file: File, opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal }) => {
     try {
-      await uploadKnowledgeFile(kbId, file);
+      await uploadKnowledgeFile(kbId, file, opts);
       await refreshKnowledgeBases();
     } catch (err) {
       const msg = err instanceof Error ? err.message : '上传失败';
@@ -100,9 +100,9 @@ export function useKnowledgeBaseOps() {
 export function useReviewOps() {
   const { refreshTasks, selectedKbId } = useTenderReview();
 
-  const uploadDocument = useCallback(async (file: File) => {
+  const uploadDocument = useCallback(async (file: File, opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal }) => {
     try {
-      const result = await uploadReviewDocument(file);
+      const result = await uploadReviewDocument(file, opts);
       return result;
     } catch (err) {
       const msg = err instanceof Error ? err.message : '上传文档失败';

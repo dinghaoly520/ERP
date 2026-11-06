@@ -28,6 +28,7 @@ export function KnowledgePanel({ open, onClose }: { open: boolean; onClose: () =
   const [newName, setNewName] = useState('');
   const [newShared, setNewShared] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [uploadPct, setUploadPct] = useState(0); // 上传字节进度（2026-11-06）
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const uploadKbRef = useRef<string | null>(null);
 
@@ -65,8 +66,11 @@ export function KnowledgePanel({ open, onClose }: { open: boolean; onClose: () =
   const handleUpload = async (kbId: string, file: File) => {
     if (file.size > MAX_SIZE) { toast.error('文件超过 50MB 上限'); return; }
     setBusyId(kbId);
+    setUploadPct(0);
     try {
-      const r = await uploadKnowledgeFileWithStatus(kbId, file);
+      const r = await uploadKnowledgeFileWithStatus(kbId, file, {
+        onProgress: (l, t) => setUploadPct(t > 0 ? Math.round((l / t) * 100) : 0),
+      });
       if (r.indexed === false) {
         toast.warning(`《${file.name}》已保存；嵌入服务未运行，恢复后请点「重建索引」`);
       } else {
@@ -97,7 +101,7 @@ export function KnowledgePanel({ open, onClose }: { open: boolean; onClose: () =
               onClick={() => { uploadKbRef.current = kb.id; fileInputRef.current?.click(); }}
               disabled={busyId === kb.id}
             >
-              {busyId === kb.id ? <Loader2 size={13} className="animate-spin" /> : <FileUp size={13} />}上传
+              {busyId === kb.id ? <Loader2 size={13} className="animate-spin" /> : <FileUp size={13} />}{busyId === kb.id ? (uploadPct > 0 ? `上传中 ${uploadPct}%` : '上传中') : '上传'}
             </button>
             <button
               type="button"

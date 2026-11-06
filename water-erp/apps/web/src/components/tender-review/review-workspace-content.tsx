@@ -23,6 +23,7 @@ export default function ReviewWorkspaceContent() {
   const [mode, setMode] = useState<ReviewMode>('general');
   const [file, setFile] = useState<File | null>(null);
   const [executing, setExecuting] = useState(false);
+  const [execUpPct, setExecUpPct] = useState(0); // 审查文档上传字节进度（2026-11-06）
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selectedKb = knowledgeBases.find(kb => kb.id === selectedKbId);
@@ -40,8 +41,11 @@ export default function ReviewWorkspaceContent() {
   const handleExecute = async () => {
     if (!selectedKbId || !file) return;
     setExecuting(true);
+    setExecUpPct(0);
     try {
-      const uploadResult = await uploadDocument(file);
+      const uploadResult = await uploadDocument(file, {
+        onProgress: (l, t) => setExecUpPct(t > 0 ? Math.round((l / t) * 100) : 0),
+      });
       await startReview({
         knowledgeBaseId: selectedKbId,
         reviewMode: mode,
@@ -249,7 +253,7 @@ function ReviewTab({ selectedKb, selectedKbId, mode, setMode, file, setFile, exe
         ) : (
           <Play className="h-4 w-4" />
         )}
-        {executing ? '提交中...' : '开始审查'}
+        {executing ? `提交中${execUpPct > 0 ? ` ${execUpPct}%` : '...'}` : '开始审查'}
       </button>
     </div>
   );

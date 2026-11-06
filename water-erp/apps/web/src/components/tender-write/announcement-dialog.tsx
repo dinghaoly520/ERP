@@ -618,6 +618,7 @@ export function AnnouncementDialog({
   }, []);
   const [aiError, setAiError] = useState<string | null>(null);
   const [importingBidders, setImportingBidders] = useState(false);
+  const [biddersUpPct, setBiddersUpPct] = useState(0); // 定标审批表导入上传字节进度（2026-11-06）
 
   // Reset state when dialog opens with a new tender type
   /* eslint-disable react-hooks/set-state-in-effect -- modal/dialog form reset is intentional */
@@ -1304,9 +1305,12 @@ export function AnnouncementDialog({
 
     setImportingBidders(true);
     setAiError(null);
+    setBiddersUpPct(0);
 
     try {
-      const bidders = await importWinningBidFromPdf(file);
+      const bidders = await importWinningBidFromPdf(file, {
+        onProgress: (l, t) => setBiddersUpPct(t > 0 ? Math.round((l / t) * 100) : 0),
+      });
       if (bidders.length === 0) {
         setAiError("未从定标审批表中提取到投标单位信息。");
         setTimeout(() => setAiError(null), 5000);

@@ -1,13 +1,14 @@
 import type { ReadyTenderDocumentType } from '@/lib/types/tender-write';
 import type { AnnouncementImportAutofillResult, ImportAutofillResult } from '@/lib/types/tender-write-import';
-import { apiFetch } from './api-fetch';
-import { toApiError } from '@water-erp/client';
+import { api } from '../api';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
+/** 上传选项（2026-11-06 上传进度条）：字节进度+取消 */
+export type UploadOpts = { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal };
 
 export async function importAutofill(
   documentType: ReadyTenderDocumentType,
   files: File[],
+  opts?: UploadOpts,
 ): Promise<ImportAutofillResult> {
   const formData = new FormData();
   formData.append('documentType', documentType);
@@ -16,21 +17,9 @@ export async function importAutofill(
     formData.append('files', file);
   }
 
-  // 统一走 /api 相对路径，由 src/proxy.ts 转发到后端（proxy 已透传 Cookie + X-Portal）。
-  // 之前的「LAN 直连 :4000」逻辑是错误的——(1) water-erp API 端口是 4001 不是 4000；
-  // (2) 直连会绕过 proxy 丢掉 X-Portal 头导致 401/跨域 Failed to fetch。
-  const response = await apiFetch(`${API_BASE}/tender-write/import-autofill`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'X-Portal': 'web' },
-    body: formData,
-  });
-
-  if (!response.ok) {
-    throw await toApiError(response, '分析失败，请稍后重试。');
-  }
-
-  return response.json();
+  // api.upload XHR 轨（2026-11-06）：X-Portal/X-Web-Token 由 client 统一注入，
+  // 错误经 ApiError（后端 error 文案）抛出，与旧 toApiError 版语义一致。
+  return api.upload<ImportAutofillResult>('/tender-write/import-autofill', formData, opts);
 }
 
 /** 公告导入识别（2026-11-03）：按（公告类别 × 采购方式）字段表识别，确认后由公告编辑器回填草稿 */
@@ -38,6 +27,7 @@ export async function announcementImportAutofill(
   category: 'procurement_document' | 'failed_bid' | 'winning_bid',
   tenderType: string,
   files: File[],
+  opts?: UploadOpts,
 ): Promise<AnnouncementImportAutofillResult> {
   const formData = new FormData();
   formData.append('category', category);
@@ -45,14 +35,5 @@ export async function announcementImportAutofill(
   for (const file of files) {
     formData.append('files', file);
   }
-  const response = await apiFetch(`${API_BASE}/tender-write/announcement-import-autofill`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'X-Portal': 'web' },
-    body: formData,
-  });
-  if (!response.ok) {
-    throw await toApiError(response, '分析失败，请稍后重试。');
-  }
-  return response.json();
+  return api.upload<AnnouncementImportAutofillResult>('/tender-write/announcement-import-autofill', formData, opts);
 }

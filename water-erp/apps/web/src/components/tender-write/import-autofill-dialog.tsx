@@ -185,6 +185,7 @@ export function ImportAutofillDialog({
   }, [onClose]);
   const [result, setResult] = useState<ImportAutofillResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [upPct, setUpPct] = useState(0); // 批量上传字节进度（2026-11-06）
   const [error, setError] = useState<string | null>(null);
   const [checkedKeys, setCheckedKeys] = useState<Set<string>>(new Set());
 
@@ -217,11 +218,13 @@ export function ImportAutofillDialog({
     setLoading(true);
     setError(null);
     setResult(null);
+    setUpPct(0);
 
     try {
+      const progressOpts = { onProgress: (l: number, t: number) => setUpPct(t > 0 ? Math.round((l / t) * 100) : 0) };
       const res = announcement
-        ? await announcementImportAutofill(announcement.category, announcement.tenderType, selectedFiles)
-        : await importAutofill(documentType as ReadyTenderDocumentType, selectedFiles);
+        ? await announcementImportAutofill(announcement.category, announcement.tenderType, selectedFiles, progressOpts)
+        : await importAutofill(documentType as ReadyTenderDocumentType, selectedFiles, progressOpts);
       setResult(res as ImportAutofillResult);
       // Default: check all fillable fields
       const fillable = new Set(
@@ -317,7 +320,7 @@ export function ImportAutofillDialog({
                 className="neu-btn-soft"
               >
                 <FileUp size={13} />
-                {loading ? '分析中...' : result ? '重新上传' : '选择文件'}
+                {loading ? `上传并分析中 ${upPct}%...` : result ? '重新上传' : '选择文件'}
               </button>
               <button
                 type="button"

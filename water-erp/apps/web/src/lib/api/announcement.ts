@@ -396,26 +396,17 @@ export type WinningBidImporter = {
   price: string;
 };
 
-export async function importWinningBidFromPdf(file: File): Promise<
+export async function importWinningBidFromPdf(
+  file: File,
+  opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal },
+): Promise<
   WinningBidImporter[]
 > {
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await apiFetch(
-    `${API_BASE}/tender-write/import-winning-bid`,
-    {
-      method: "POST",
-      credentials: "include",
-      body: formData,
-    },
-  );
-
-  if (!response.ok) {
-    throw await toApiError(response, '导入中标结果失败，请稍后重试。');
-  }
-
-  return response.json();
+  // api.upload XHR 轨（2026-11-06 上传进度条）：错误经 ApiError（后端 error 文案）同旧语义
+  return api.upload<WinningBidImporter[]>('/tender-write/import-winning-bid', formData, opts);
 }
 
 // 中标通知书

@@ -4,6 +4,7 @@ const API_BASE = '/api';
 import type { KnowledgeBase, KnowledgeFile } from '../types/tender-review';
 import { apiFetch } from './api-fetch';
 import { toApiError } from '@water-erp/client';
+import { api } from '../api';
 
 export async function fetchKnowledgeBases(): Promise<KnowledgeBase[]> {
   const res = await apiFetch(`${API_BASE}/knowledge`, { credentials: 'include' });
@@ -60,20 +61,12 @@ export async function deleteKnowledgeBase(id: string): Promise<void> {
 export async function uploadKnowledgeFile(
   kbId: string,
   file: File,
+  opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal },
 ): Promise<KnowledgeFile> {
   const formData = new FormData();
   formData.append('file', file);
-  const res = await apiFetch(`${API_BASE}/knowledge/${kbId}/files`, {
-    method: 'POST',
-    credentials: 'include',
-    body: formData,
-  });
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    console.error('Upload file error:', res.status, errorData);
-    throw await toApiError(res, '上传文件失败');
-  }
-  return res.json();
+  // api.upload XHR 轨（2026-11-06 上传进度条）：错误经 ApiError（后端 error 文案）同旧语义
+  return api.upload<KnowledgeFile>(`/knowledge/${kbId}/files`, formData, opts);
 }
 
 export async function deleteKnowledgeFile(
@@ -106,8 +99,9 @@ export async function fetchAssistantKnowledge(): Promise<{ mine: KbCard[]; share
 export async function uploadKnowledgeFileWithStatus(
   kbId: string,
   file: File,
+  opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal },
 ): Promise<{ id: string; indexed: boolean }> {
-  const r = (await uploadKnowledgeFile(kbId, file)) as KnowledgeFile & { indexed?: boolean };
+  const r = (await uploadKnowledgeFile(kbId, file, opts)) as KnowledgeFile & { indexed?: boolean };
   return { id: r.id, indexed: r.indexed !== false };
 }
 
