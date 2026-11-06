@@ -28,14 +28,33 @@
 
 现成基建：BullMQ（`ai-bid-analysis` 已有 worker 模式先例）、Redis、站内通知（NotificationGateway WS 推送）。
 
-## 3. 设计方向（开工时按 brainstorming 定案）
+## 3. 设计方向（2026-11-06 brainstorming 已定案）
 
 **收件即返回 + 后台解析 + 状态可见**：
 
-1. `POST /files` 收件落 MinIO + 建 `KnowledgeFile(status=PARSING, meta: 总页数)` → **立即 202**（文件 id 返回）
-2. BullMQ 队列 `knowledge-parse`（新 worker 或并入 ai-bid worker 进程）：消费 → DocumentParser 解析 → 分块进度回写（`processedPages/totalPages`，OCR 批次粒度天然可报）→ 成功置 READY / 失败置 FAILED(原因)
-3. 前端：上传列表即时出现「解析中」态 + 轮询（或 WS 推送）刷新；FAILED 可重试（重试吃 ③ 的批次缓存，秒级）
-4. 知识检索侧：PARSING 文件不可检索（或按已解析部分可检索——开工定案）
+1. `POST /files` 收件落 MinIO + 建 `KnowledgeFile(status=PARSING)` → **立即 202**（文件 id 返回）
+2. BullMQ 队列 `knowledge-parse`：消费 → DocumentParser 解析 → 分块进度回写（`processedPages/totalPages`，OCR 批次粒度天然可报）→ 成功置 READY / 失败置 FAILED(原因)
+3. 前端：上传列表即时出现「解析中」态 + 轮询刷新；FAILED 可重试（重试吃 ③ 的批次缓存，秒级）
+4. 知识检索侧：PARSING 文件不可检索
+
+### 定案记录（2026-11-06 与用户 brainstorming 四点裁定）
+
+| 决策点 | 裁定 | 落地要点 |
+|---|---|---|
+| PARSING 检索口径 | **不可检索**（READY 才可检索） | 分块/嵌入本就在全文解析完成后一次性进行，PARSING 期无向量数据天然搜不到；规则提取 `rule-extractor` 显式加 `status:'READY'` 过滤 |
+| worker 归属 | **并入 ai-bid worker 进程**（不另起进程） | `AiBidAnalysisWorkerModule` 增引 KnowledgeModule + 队列注册 + KnowledgeParseProcessor；dev 链/生产部署零新增进程。代价已知情：改解析源码须杀 worker 重启，会连带中断进行中的 AI 分析任务（memory `ai-bid-worker-independent-process` 既有坑，非新增） |
+| 前端刷新 | **轮询** | 页面存在 PARSING 文件时 ~5s 轮询知识库详情、无则停轮；断网关重进页面即见状态（验收 #3 天然满足） |
+| sha256 去重 | **同库内去重** | 同库同 sha256 且 PARSING/READY → 直接返回既有行（响应标 `deduplicated:true`）；FAILED → 对该行重入队。跨库重复靠 ③ OCR 内容哈希缓存兜底（第二库秒级），不做跨库共享 content |
+
+### 实现层裁定（builder 自定，非用户决策）
+
+- **schema 字段**：`KnowledgeFile` 增 `status`(默认 PARSING) / `totalPages Int?` / `processedPages Int @default(0)` / `error String?` / `indexed Boolean @default(true)`（嵌入降级标志持久化，替代原响应瞬态）/ `sha256 String?`；存量行回填 READY
+- **totalPages 时机**：worker 开始解析时写（OCR getPdfPageCount / pdf-parse numpages），不在 202 路径探测——收件路径零解析开销；前端在 totalPages 出现前显示不定态「解析中…」
+- **队列作业**：jobId=fileId（BullMQ 天然防重复入队）、payload 仅 `{fileId}`（不传 buffer）、attempts=3+指数退避、removeOnComplete/removeOnFail=true——**死信可见性走 DB（status=FAILED+error），不依赖 BullMQ failed 集**；并发默认 1（`KNOWLEDGE_PARSE_CONCURRENCY` 可调）
+- **OCR 进度回调**：`ocrPdf(buffer, maxPages, onProgress?)` 选参穿透到 `ocrPdfBatched` 每批回调；`DocumentParserService.parse` 同增选参
+- **重试端点**：`POST /knowledge/:id/files/:fileId/retry`（FAILED→PARSING→重入队；吃 ③ 批次缓存）
+- **删除 PARSING 文件**：允许；processor 执行时行已删则 no-op（MinIO 对象由删除端点清）
+- **e2e**：现有测试无人直打上传端点（tender-review e2e 走 prisma 直建），无需迁移；上传降级单测 `knowledge-upload-degrade.spec.ts` 契约重写（uploadFile 不再内联解析）
 
 **硬约束**：
 - 上传响应时间与文件大小/页数/OCR 时长**完全解耦**（大件不应再有任何同步等待）
