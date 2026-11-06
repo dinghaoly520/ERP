@@ -125,7 +125,7 @@ export const INVITED_OR_INTERNAL_BIDDING_ANNOUNCEMENT_FIELDS: AnnouncementFieldC
     // announcementEnd 各存 ISO（天数自算/预览/docx 下游不变；止点 2026-09-21 起支持选到时分）
     key: "announcementStart",
     label: "公示期限",
-    placeholder: "起止时间选择（形成时间段）",
+    placeholder: "请选择起止时间",
     type: "datetime-range",
     rangeEndKey: "announcementEnd",
   },
@@ -212,7 +212,7 @@ export const SINGLE_SOURCE_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
     // 2026-10-21 合并单行（用户口径）：起/止两个时间选择器形成时间段（同直接采购模板）
     key: "announcementStart",
     label: "公示期限",
-    placeholder: "起止时间选择（形成时间段）",
+    placeholder: "请选择起止时间",
     type: "datetime-range",
     rangeEndKey: "announcementEnd",
   },
@@ -267,6 +267,15 @@ export const FAILED_BID_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
     placeholder: "请输入开标结果公示信息",
     multiline: true,
     aiPrompt: "根据项目信息生成流标公告中的开标结果公示信息。说明流标原因，如：有效投标不足法定家数、所有投标超过最高限价、投标人资格不符等。要求简明扼要。不要使用#、*等符号，不要出现空行。",
+  },
+  {
+    // 2026-11-06 用户裁定：流标/中标公告公示期限改为起止选择（与采购公告同款控件），
+    // 所选止点=公开端内容显示窗口（发布直供后端 publicityEnd，期满标题壳）
+    key: "announcementStart",
+    label: "公示期限",
+    placeholder: "请选择起止时间",
+    type: "datetime-range",
+    rangeEndKey: "announcementEnd",
   },
   ...SUPERVISION_ANNOUNCEMENT_FIELDS,
   {
@@ -325,10 +334,13 @@ export const WINNING_BID_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
     placeholder: "请输入备注内容",
   },
   {
-    key: "publicityPeriod",
-    label: "公示期（异议期）",
-    placeholder: "发布后自动生成（顺延 3 天）",
-    autoFill: "publicityPeriod",
+    // 2026-11-06 用户裁定：公示期（异议期）自动文案改为公示期限起止选择（与采购公告/流标公告同款），
+    // 所选止点=公开端内容显示窗口；正文「公示期限：」由起止区间生成
+    key: "announcementStart",
+    label: "公示期限",
+    placeholder: "请选择起止时间",
+    type: "datetime-range",
+    rangeEndKey: "announcementEnd",
   },
   {
     key: "objection",
@@ -422,6 +434,8 @@ export function createEmptyFailedBidAnnouncementDraft(): FailedBidAnnouncementDr
     bidOpeningTime: "",
     bidOpeningTimeType: "",
     resultInfo: "",
+    announcementStart: "",
+    announcementEnd: "",
     supervisionDepartment: "",
     supervisionAddress: "",
     supervisionContact: "",
@@ -447,7 +461,8 @@ export function createEmptyWinningBidAnnouncementDraft(): WinningBidAnnouncement
     bidder3Name: "",
     bidder3Price: "",
     signatureDate: "",
-    publicityPeriod: "",
+    announcementStart: "",
+    announcementEnd: "",
     objection: "",
     supervisionDepartment: "",
     supervisionAddress: "",
@@ -496,7 +511,6 @@ export const ANNOUNCEMENT_AUTO_FILL: Record<string, string> = {
   announcementDays: "announcementDays",
   procurementTime: "procurementTime",
   signatureDate: "signatureDate",
-  publicityPeriod: "publicityPeriod",
   objection: "objection",
 };
 

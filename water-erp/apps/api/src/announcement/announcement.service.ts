@@ -123,6 +123,11 @@ export class AnnouncementService {
     // A2（表 B.1）：公告按类型落默认公开范围（可由 dto.metadata.dataClass 覆盖）
     const dataClass = ((dto.metadata as any)?.dataClass as string) ?? ANNOUNCEMENT_TYPE_DATA_CLASS[dto.type] ?? 'public_voluntary';
 
+    // 公示截止直供（2026-11-06 用户裁定）：流标/中标公告公示期限改为起止选择（与采购公告
+    // 同款），所选止点即公开端显示窗口。草稿期即落库（定时发布/草稿转发布无需再传），
+    // 仅这两类生效；止点须晚于发布时刻（否则发布即过期、内容永不展示）。
+    const chosenPublicityEnd = this.resolveChosenPublicityEnd(dto.type, dto.publicityEnd, dto.publishDate);
+
     const result = await this.prisma.announcement.create({
       data: {
         title: dto.title,
@@ -134,6 +139,7 @@ export class AnnouncementService {
         type: dto.type as any,
         summary: dto.summary,
         publishDate: dto.publishDate ? new Date(dto.publishDate) : new Date(),
+        ...(chosenPublicityEnd && { publicityEnd: chosenPublicityEnd }),
         isTop: dto.isTop ?? false,
         relatedProjectCode: dto.relatedProjectCode,
         authorId,
@@ -147,9 +153,14 @@ export class AnnouncementService {
 
     // C1（7.5.2）：直接以 PUBLISHED 创建的预成交公示/成交公告同样设公示期（登记制路径，
     // publishDate 可回填线下发布日→公示期随之起算）；BID_NOTICE 同设 3 天（2026-09-09：前端状态
-    // 徽标按此判定）。不含 WIN_BID_NOTICE：其公示期由 getPublicityStatus 读时推导（publishDate+3d）
-    // ——持久化会让 isOfflined 在 3 天后把结果公告打成标题壳。
-    if ((dto.type === 'PRE_WIN_NOTICE' || dto.type === 'WIN_NOTICE' || dto.type === 'BID_NOTICE') && status === 'PUBLISHED' && !result.publicityEnd) {
+    // 徽标按此判定）。流标/中标公告 2026-11-06 用户裁定纳入同口径（推翻原「WIN_BID_NOTICE
+    // 结果公告长期可查」不落库的理由）：与采购公告一样只在公示期限内显示内容；编写侧
+    // 起止选择直供的 publicityEnd 已在建行落库，此处仅兜底（未直供时自动顺延 3 日）。
+    if (
+      (dto.type === 'PRE_WIN_NOTICE' || dto.type === 'WIN_NOTICE' || dto.type === 'BID_NOTICE'
+        || dto.type === 'FAILED_BID_NOTICE' || dto.type === 'WIN_BID_NOTICE')
+      && status === 'PUBLISHED' && !result.publicityEnd
+    ) {
       const end = new Date(result.publishDate || new Date());
       end.setDate(end.getDate() + 3);
       await this.prisma.announcement.update({ where: { id: result.id }, data: { publicityEnd: end } });
@@ -351,6 +362,25 @@ export class AnnouncementService {
     return groups
       .map(g => ({ name: g.companyName?.trim() || '未归属', count: g._count._all }))
       .sort((a, b) => (a.name === '未归属' ? 1 : b.name === '未归属' ? -1 : b.count - a.count || a.name.localeCompare(b.name, 'zh')));
+  }
+
+  /**
+   * 流标/中标公告公示截止直供解析（2026-11-06 用户裁定）：起止选择器的止点 → Date。
+   * 仅 FAILED_BID_NOTICE / WIN_BID_NOTICE 生效（其余类型维持自动顺延，防误传改变既有闸门）；
+   * 止点须晚于发布时刻（定时发布按预定发布时刻判），否则 400——发布即过期的公告内容永不展示。
+   */
+  private resolveChosenPublicityEnd(type: string | undefined, publicityEnd: string | undefined, publishDate?: string): Date | null {
+    if (!publicityEnd) return null;
+    if (type !== 'FAILED_BID_NOTICE' && type !== 'WIN_BID_NOTICE') return null;
+    const end = new Date(publicityEnd);
+    if (Number.isNaN(end.getTime())) {
+      throw new BadRequestException({ error: '公示截止时间格式无效', code: 'PUBLICITY_END_INVALID' });
+    }
+    const base = publishDate ? new Date(publishDate) : new Date();
+    if (end.getTime() <= base.getTime()) {
+      throw new BadRequestException({ error: '公示截止时间须晚于发布时间', code: 'PUBLICITY_END_TOO_EARLY' });
+    }
+    return end;
   }
 
   /** Public listing — only published items；公开端不含招标文件（首页不泄露）；RESTRICTED 可见范围不流转到首页 */
@@ -596,6 +626,12 @@ export class AnnouncementService {
 
     let result;
     try {
+      // 公示截止直供（2026-11-06，同 create）：流标/中标公告编辑/草稿转发布时更新所选止点
+      const chosenPublicityEnd = this.resolveChosenPublicityEnd(
+        dto.type ?? announcement.type,
+        dto.publicityEnd,
+        dto.publishDate ?? (announcement.publishDate?.toISOString() || undefined),
+      );
       result = await this.prisma.announcement.update({
         where: {
           id,
@@ -609,6 +645,7 @@ export class AnnouncementService {
         ...(aiSummary !== undefined && { aiSummary }),
         ...(dto.status !== undefined && { status: dto.status as any }),
         ...(dto.publishDate !== undefined && { publishDate: new Date(dto.publishDate) }),
+        ...(chosenPublicityEnd && { publicityEnd: chosenPublicityEnd }),
         ...(dto.isTop !== undefined && { isTop: dto.isTop }),
         ...(dto.relatedProjectCode !== undefined && { relatedProjectCode: dto.relatedProjectCode }),
         ...(dto.metadata !== undefined && { metadata: normalizeScheduledPublishMetadata(dto.metadata) as any }),
@@ -640,8 +677,13 @@ export class AnnouncementService {
 
     // A1→C1（GB/T 43711 7.5.2）：预成交公示发布时自动设置公示期（3 个日历日）；
     // WIN_NOTICE 保留同逻辑以兼容存量"中标公示"与手动直发成交公告的路径。
-    // 不含 WIN_BID_NOTICE——中标公告公示期由 BidService.getPublicityStatus 读时推导（见 create 同款注释）
-    if ((result.type === 'PRE_WIN_NOTICE' || result.type === 'WIN_NOTICE' || result.type === 'BID_NOTICE') && targetStatus === 'PUBLISHED' && !result.publicityEnd) {
+    // 流标/中标公告 2026-11-06 纳入同口径（用户裁定与采购公告一致：期限内才显示内容）；
+    // 编写侧起止选择直供的止点已随草稿落库，此处仅对未直供的兜底顺延 3 日（定时发布防漏）。
+    if (
+      (result.type === 'PRE_WIN_NOTICE' || result.type === 'WIN_NOTICE' || result.type === 'BID_NOTICE'
+        || result.type === 'FAILED_BID_NOTICE' || result.type === 'WIN_BID_NOTICE')
+      && targetStatus === 'PUBLISHED' && !result.publicityEnd
+    ) {
       const end = new Date(result.publishDate || new Date());
       end.setDate(end.getDate() + 3);
       await this.prisma.announcement.update({ where: { id: result.id }, data: { publicityEnd: end } });

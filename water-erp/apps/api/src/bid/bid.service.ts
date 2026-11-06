@@ -4481,10 +4481,10 @@ export class BidService {
       return { hasPublicity: false, publicityEnd: null, canIssueAward: false, announcement: null, winner: winnerProjection };
     }
     const now = new Date();
-    // 中标公告（WIN_BID_NOTICE）公示期读时推导（publishDate + 3 个日历日）不落库：① 公开端
-    // isOfflined 口径「有 publicityEnd 才到期」——持久化会让中标公告 3 天后被打成标题壳，而结果
-    // 公告应长期可查；② 存量已发布（publicityEnd 恒 null）经此自愈免迁移。其余载体维持「null
-    // 不放行」铁律（create/update 已兜底必设）。
+    // 中标公告（WIN_BID_NOTICE）2026-11-06 用户裁定已与采购公告同口径落库 publicityEnd
+    // （编写侧起止选择直供、未直供兜底顺延 3 日，公开端期限内才显示内容）。此处的读时推导
+    // 仅服务存量自愈：裁定前已发布的中标公告 publicityEnd 恒 null，按 publishDate+3 日补判，
+    // 免迁移。其余载体维持「null 不放行」铁律（create/update 已兜底必设）。
     let publicityEnd = notice.publicityEnd;
     if (!publicityEnd && notice.type === 'WIN_BID_NOTICE' && notice.publishDate) {
       const derived = new Date(notice.publishDate);

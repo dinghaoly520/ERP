@@ -25,6 +25,12 @@ export class CreateAnnouncementDto {
   @IsDateString() @IsOptional()
   publishDate?: string;
 
+  // 公示截止（2026-11-06 用户裁定）：流标/中标公告公示期限改为起止选择（与采购公告同款），
+  // 所选止点直供公开端显示窗口（期满标题壳）；仅这两类生效，其余类型忽略（维持自动顺延）
+  @EmptyAsUndefined()
+  @IsDateString() @IsOptional()
+  publicityEnd?: string;
+
   @EmptyAsUndefined()
   @IsBoolean() @IsOptional()
   isTop?: boolean;
@@ -64,6 +70,11 @@ export class UpdateAnnouncementDto {
   @EmptyAsUndefined()
   @IsDateString() @IsOptional()
   publishDate?: string;
+
+  // 同 Create（2026-11-06）：流标/中标公告编辑/定时发布路径直供公示截止
+  @EmptyAsUndefined()
+  @IsDateString() @IsOptional()
+  publicityEnd?: string;
 
   @EmptyAsUndefined()
   @IsBoolean() @IsOptional()

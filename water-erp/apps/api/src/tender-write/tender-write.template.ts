@@ -2415,6 +2415,15 @@ export type AnnouncementDraft = {
   [key: string]: string | undefined;
 };
 
+/** 公示期限区间正文（2026-11-06 起止选择）：「X年X月X日 至 X年X月X日（N天）」；起止任一缺失返回 '' */
+function formatPublicityPeriodRange(answers: AnnouncementDraft): string {
+  const start = answers.announcementStart?.trim();
+  const end = answers.announcementEnd?.trim();
+  if (!start || !end) return '';
+  const days = Math.max(1, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 86400000));
+  return `${formatAnnouncementDateToChinese(start)} 至 ${formatAnnouncementDateToChinese(end)}（${days}天）`;
+}
+
 function formatAnnouncementDateToChinese(dateString: string): string {
   if (!dateString?.trim()) return dateString;
   if (/^\d{4}-\d{2}$/.test(dateString)) {
@@ -2524,6 +2533,9 @@ export function buildFailedBidAnnouncementPlan(
     { targetText: '项目简要说明', ...buildReplacement('项目简要说明', answers.projectBriefDescription), isHierarchicalText: true },
     { targetText: '开标时间', ...buildReplacement('开标时间', formatBidOpeningTime(answers.bidOpeningTime, answers.bidOpeningTimeType)) },
     { targetText: '开标结果公示信息', ...buildReplacement('开标结果公示信息', answers.resultInfo), isHierarchicalText: true },
+    // 公示期限（2026-11-06 用户裁定）：模板原硬编码「1日」已占位符化；正文取起止选择器
+    // 所选区间（与公开端显示窗口同源），未填兜底法定 3 日
+    { targetText: '公示期限', replacementText: formatPublicityPeriodRange(answers) || '3日', highlight: false },
     { targetText: '落款日期', ...buildReplacement('落款日期', formatAnnouncementDateToChinese(answers.signatureDate || '')) },
   ];
 }
@@ -2559,10 +2571,9 @@ export function buildWinningBidAnnouncementPlan(
           { targetText: '中标金额2', ...buildReplacement('中标金额（小写）', bidders[0].price) },
         ]
       : []),
-    // 公示期限（2026-09-07）：此前模板硬编码「1日」，与数据层 3 天公示期（发布后顺延）
-    // 不一致——占位符化后取 draft.publicityPeriod（前端向导自动填「X日 至 Y日（3天）」），
-    // 兜底法定 3 日
-    { targetText: '公示期限', replacementText: answers.publicityPeriod?.trim() || '3日', highlight: false },
+    // 公示期限（2026-09-07 占位符化；2026-11-06 改起止选择）：正文取公示期限起止区间
+    // （draft.announcementStart/End，与公开端显示窗口同源），未填兜底法定 3 日
+    { targetText: '公示期限', replacementText: formatPublicityPeriodRange(answers) || '3日', highlight: false },
   ];
 
   // Generate the full bidder table as a replacement

@@ -104,7 +104,8 @@ export function buildAnnouncementMappingGuidance(category: string): string {
 - 最高限价（小写） ← 最高限价/采购预算（纯数值）
 - 开标时间 ← 开标时间/递交截止时间
 - 备注 / 备注内容 ← 评审说明/成交说明（无则 not_found）
-- 公示期（异议期）/异议受理 ← 公示期与异议受理表述（无则 not_found）`,
+- 异议受理 ← 公示期与异议受理表述（无则 not_found）。
+  公示期限本身不导入：2026-11-06 改为起止选择（与采购公告同款），由经办在公告制作中选定`,
   };
   return generic + (perCategory[category] ?? '');
 }
@@ -561,7 +562,6 @@ const WINNING_BID_ANNOUNCEMENT_SECTIONS: TenderSectionDef[] = [
       { key: 'bidOpeningTime', label: '开标时间' },
       { key: 'bidder1RemarkType', label: '备注' },
       { key: 'bidder1Remark', label: '备注内容' },
-      { key: 'publicityPeriod', label: '公示期（异议期）' },
       { key: 'objection', label: '异议受理' },
             { key: 'supervisionContact', label: '监督人' },
       { key: 'supervisionDepartment', label: '监督部门' },

@@ -65,6 +65,11 @@ export const ANNOUNCEMENT_TYPE_META: Record<string, MetaField[]> = {
     { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '采购方式' }, { key: 'budget', label: '最高限价' },
     { key: 'openTime', label: '开标时间', date: true }, { key: 'bidder1Name', label: '中标供应商' }, { key: 'bidder1Price', label: '中标价格' },
     { key: 'remark', label: '备注' },
+    // 2026-11-06：公示期限起止选择落地——详情页公示期芯片（期限内显示内容，期满转标题壳）
+    { key: 'publicityPeriod', label: '公示期' },
+  ],
+  FAILED_BID_NOTICE: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'publicityPeriod', label: '公示期' },
   ],
   WIN_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'winner', label: '成交供应商' }, { key: 'amount', label: '成交金额' },

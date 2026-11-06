@@ -85,6 +85,14 @@ const ANNO_TYPE_META: Record<string, MetaField[]> = {
     { key: "projectCode", label: "项目编号" }, { key: "winner", label: "预成交供应商" }, { key: "amount", label: "预成交价格" },
     { key: "period", label: "工期/交货期/服务期限" }, { key: "publicityPeriod", label: "公示期" }, { key: "objection", label: "异议渠道", area: true },
   ],
+  // 2026-11-06：公示期限起止选择落地——中标/流标公告公示期芯片（期限内显示内容，期满转标题壳）
+  WIN_BID_NOTICE: [
+    { key: "projectCode", label: "项目编号" }, { key: "bidder1Name", label: "中标供应商" }, { key: "bidder1Price", label: "中标价格" },
+    { key: "publicityPeriod", label: "公示期" },
+  ],
+  FAILED_BID_NOTICE: [
+    { key: "projectCode", label: "项目编号" }, { key: "publicityPeriod", label: "公示期" },
+  ],
   WIN_NOTICE: [
     { key: "projectCode", label: "项目编号" }, { key: "winner", label: "中标供应商" }, { key: "amount", label: "中标金额" },
     { key: "period", label: "工期/交货期" }, { key: "quality", label: "质量标准" }, { key: "experts", label: "评审专家" },

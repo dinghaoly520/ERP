@@ -105,6 +105,8 @@ export type FailedBidAnnouncementFieldKey =
   | "bidOpeningTime"
   | "bidOpeningTimeType"
   | "resultInfo"
+  | "announcementStart"
+  | "announcementEnd"
   | SupervisionFieldKey
   | "signatureDate";
 
@@ -131,7 +133,10 @@ export type WinningBidAnnouncementFieldKey =
   | "bidder3Name"
   | "bidder3Price"
   | "signatureDate"
-  | "publicityPeriod"
+  // 2026-11-06 用户裁定：公示期（异议期）自动文案改为公示期限起止选择（与采购公告同款），
+  // 所选止点直供公开端显示窗口（metadata.publicityPeriod 芯片由起止区间生成）
+  | "announcementStart"
+  | "announcementEnd"
   | "objection"
   | SupervisionFieldKey;
 

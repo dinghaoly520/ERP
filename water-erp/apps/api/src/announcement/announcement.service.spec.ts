@@ -1100,7 +1100,7 @@ describe('AnnouncementService — 发布向导中标公告（WIN_BID_NOTICE）�
     return service;
   };
 
-  it('create 直接发布 → 不持久化 publicityEnd（读时推导），metadata 落 winCandidates（winner=rank1 推荐）', async () => {
+  it('create 直接发布 → 兜底顺延 3 日落库（2026-11-06 裁定推翻原「不持久化」契约），metadata 落 winCandidates（winner=rank1 推荐）', async () => {
     const prisma: any = makePrisma();
     prisma.announcement.create.mockResolvedValue({
       id: 'ann-wb-1', type: 'WIN_BID_NOTICE', status: 'PUBLISHED',
@@ -1115,12 +1115,14 @@ describe('AnnouncementService — 发布向导中标公告（WIN_BID_NOTICE）�
       relatedProjectCode: 'ZJ-2026001', aiSummary: '测试摘要',
     });
 
-    // 公示期不落库：持久化会让公开端 isOfflined 在 3 天后把结果公告打成标题壳——推导职责在
-    // BidService.getPublicityStatus（publishDate+3d，存量行同步自愈）
-    expect(result.publicityEnd).toBeNull();
-    expect(prisma.announcement.update).toHaveBeenCalledTimes(1); // 仅候选人链接一次
+    // 2026-11-06 用户裁定：中标公告与采购公告同口径——未直供止点时兜底顺延 3 日并落库
+    // （公开端期限内才显示内容，期满标题壳；存量 null 行由 BidService 读时推导自愈）
+    expect(result.publicityEnd?.getTime()).toBe(publishDate.getTime() + 3 * 86400000);
+    expect(prisma.announcement.update).toHaveBeenCalledTimes(2); // 兜底公示期一次 + 候选人链接一次
+    const autoSet = prisma.announcement.update.mock.calls.find((c: any[]) => c[0].data.publicityEnd !== undefined);
+    expect(autoSet![0].data.publicityEnd.getTime()).toBe(publishDate.getTime() + 3 * 86400000);
     // 中标候选人链接：rank1 推荐为确认中标人，候选全量随公告留档（保留既有 metadata 键）
-    const linkage = prisma.announcement.update.mock.calls[0];
+    const linkage = prisma.announcement.update.mock.calls.find((c: any[]) => c[0].data.metadata?.winCandidates)!;
     expect(linkage[0].data.publicityEnd).toBeUndefined();
     expect(linkage[0].data.metadata.publicityPeriod).toBe('3天');
     expect(linkage[0].data.metadata.winCandidates.winner).toMatchObject({ rank: 1, supplierName: '四川水发建设有限公司' });
@@ -1128,7 +1130,7 @@ describe('AnnouncementService — 发布向导中标公告（WIN_BID_NOTICE）�
     expect(linkage[0].data.metadata.winCandidates.candidates[0]).toMatchObject({ supplierName: '四川水发建设有限公司', recommended: true });
   });
 
-  it('update 草稿转发布 → 同样不持久化公示期、候选人照常链接（定时发布路径）', async () => {
+  it('update 草稿转发布 → 同样兜底顺延 3 日（2026-11-06 裁定）、候选人照常链接（定时发布路径）', async () => {
     const prisma: any = makePrisma();
     prisma.announcement.findUnique.mockResolvedValue({
       id: 'ann-wb-2', title: '中标公告：智慧水务平台建设', content: '公告正文',
@@ -1149,14 +1151,15 @@ describe('AnnouncementService — 发布向导中标公告（WIN_BID_NOTICE）�
     const publicityWrite = prisma.announcement.update.mock.calls.find(
       (c: any[]) => c[0]?.data?.publicityEnd !== undefined,
     );
-    expect(publicityWrite).toBeUndefined(); // 中标公告不写 publicityEnd
+    expect(publicityWrite).toBeTruthy(); // 2026-11-06：草稿转发布兜底落库（直供止点时跳过）
+    expect((publicityWrite![0].data.publicityEnd as Date).getTime()).toBe(publishDate.getTime() + 3 * 86400000);
     const linkage = prisma.announcement.update.mock.calls.find(
       (c: any[]) => c[0]?.data?.metadata?.winCandidates,
     );
     expect(linkage[0].data.metadata.winCandidates.winner).toMatchObject({ supplierName: '四川水发建设有限公司' });
   });
 
-  it('无关联项目编号 → 零后续写入（登记制公告不报错、不做候选人链接）', async () => {
+  it('无关联项目编号 → 不做候选人链接，公示期兜底照常（登记制公告不报错）', async () => {
     const prisma: any = makePrisma();
     prisma.announcement.create.mockResolvedValue({
       id: 'ann-wb-3', type: 'WIN_BID_NOTICE', status: 'PUBLISHED',
@@ -1170,7 +1173,9 @@ describe('AnnouncementService — 发布向导中标公告（WIN_BID_NOTICE）�
     });
 
     expect(prisma.projectManagementItem.findUnique).not.toHaveBeenCalled();
-    expect(prisma.announcement.update).not.toHaveBeenCalled();
+    // 2026-11-06：公示期兜底仍写（一次）；仅候选人链接不做
+    expect(prisma.announcement.update).toHaveBeenCalledTimes(1);
+    expect(prisma.announcement.update.mock.calls[0][0].data.publicityEnd).toBeTruthy();
   });
 });
 
@@ -1606,5 +1611,93 @@ describe('previewBidNoticeChecklist 类型闸（2026-10-30 流标公告误报实
     expect(bid.warnings.length).toBeGreaterThan(0);
     const legacy = await svc.previewBidNoticeChecklist({ title: '', content: '', metadata: {} });
     expect(legacy.warnings.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * 公示期限起止选择（2026-11-06 用户裁定）：流标/中标公告与采购公告同款——所选止点直供
+ * publicityEnd（公开端显示窗口，期满标题壳）；未直供发布兜底顺延 3 日；止点须晚于发布时间。
+ */
+describe('AnnouncementService — 流标/中标公告公示期限直供与兜底（2026-11-06）', () => {
+  const mkSvc = async () => {
+    const prisma: any = {
+      announcement: {
+        // 回声 data.publicityEnd——真实库建行即持久化所选止点，auto-set 块据此跳过
+        create: jest.fn().mockImplementation(async ({ data }: any) => ({
+          id: 'a1', title: 'T', type: data.type, status: data.status,
+          publishDate: data.publishDate ?? new Date(),
+          publicityEnd: data.publicityEnd ?? null,
+          metadata: {}, relatedProjectCode: data.relatedProjectCode ?? null, authorId: 'u1',
+        })),
+        findUnique: jest.fn(),
+        update: jest.fn().mockImplementation(async (args: any) => ({ id: args.where.id, ...args.data })),
+      },
+      bidProject: { findUnique: jest.fn() },
+      bidEvaluationResult: { findFirst: jest.fn().mockResolvedValue(null), updateMany: jest.fn() },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const { AnnouncementService: Svc } = await import('./announcement.service');
+    const svc: any = Object.create(Svc.prototype);
+    svc.prisma = prisma;
+    svc.logger = { warn: jest.fn(), log: jest.fn(), error: jest.fn() };
+    svc.announcementAi = { summarize: jest.fn().mockResolvedValue('摘要') };
+    svc.notificationService = undefined;
+    svc.syncBidProject = jest.fn().mockResolvedValue({});
+    svc.linkWinBidCandidates = jest.fn().mockResolvedValue({});
+    prisma.announcement.findUnique.mockImplementation(async () => prisma.announcement.create.mock.results[0]?.value);
+    return { svc, prisma };
+  };
+  const dto = (type: string, extra: Record<string, unknown> = {}) => ({
+    title: 'T', content: 'c', type, status: 'PUBLISHED',
+    publishDate: new Date().toISOString(), ...extra,
+  } as any);
+
+  it('中标公告：直供止点随建行落库，不再自动顺延（update 未被调用改公示期）', async () => {
+    const { svc, prisma } = await mkSvc();
+    const chosen = new Date(Date.now() + 5 * 86400000);
+    await svc.create(dto('WIN_BID_NOTICE', { publicityEnd: chosen.toISOString() }), 'u1');
+    const data = prisma.announcement.create.mock.calls[0][0].data;
+    expect(data.publicityEnd?.getTime()).toBe(chosen.getTime());
+    expect(prisma.announcement.update).not.toHaveBeenCalled();
+  });
+
+  it('流标公告：未直供发布 → 兜底顺延 3 日（与采购公告同口径）', async () => {
+    const { svc, prisma } = await mkSvc();
+    await svc.create(dto('FAILED_BID_NOTICE'), 'u1');
+    const auto = prisma.announcement.update.mock.calls.find((c: any[]) => c[0].data.publicityEnd);
+    expect(auto).toBeTruthy();
+    const end = auto![0].data.publicityEnd as Date;
+    expect(end.getTime() - new Date().getTime()).toBeGreaterThan(2.9 * 86400000);
+  });
+
+  it('止点不晚于发布时间 → 400 PUBLICITY_END_TOO_EARLY（发布即过期、内容永不展示）', async () => {
+    const { svc } = await mkSvc();
+    const past = new Date(Date.now() - 86400000).toISOString();
+    await expect(svc.create(dto('WIN_BID_NOTICE', { publicityEnd: past }), 'u1'))
+      .rejects.toMatchObject({ response: { code: 'PUBLICITY_END_TOO_EARLY' } });
+  });
+
+  it('其余类型传 publicityEnd → 忽略（维持自动顺延，防误传改变既有闸门）', async () => {
+    const { svc, prisma } = await mkSvc();
+    const chosen = new Date(Date.now() + 9 * 86400000);
+    await svc.create(dto('BID_NOTICE', { publicityEnd: chosen.toISOString(), metadata: { method: '公开招标' } }), 'u1');
+    const data = prisma.announcement.create.mock.calls[0][0].data;
+    expect(data.publicityEnd).toBeUndefined();
+  });
+
+  it('草稿转发布（update 路径）：流标公告无止点 → 兜底顺延 3 日（定时发布防漏）', async () => {
+    const { svc, prisma } = await mkSvc();
+    prisma.announcement.findUnique.mockReset();
+    prisma.announcement.findUnique
+      .mockResolvedValueOnce({ id: 'a1', type: 'FAILED_BID_NOTICE', status: 'DRAFT', publishDate: new Date(), publicityEnd: null, metadata: {}, relatedProjectCode: null })
+      .mockResolvedValue({ id: 'a1', type: 'FAILED_BID_NOTICE', status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() + 3 * 86400000), metadata: {}, relatedProjectCode: null });
+    prisma.announcement.update.mockImplementation(async (args: any) => ({
+      id: args.where.id, type: 'FAILED_BID_NOTICE', status: 'PUBLISHED',
+      publishDate: new Date(), publicityEnd: args.data.publicityEnd ?? null,
+    }));
+    svc.get = jest.fn().mockResolvedValue({ id: 'a1' });
+    await svc.update('a1', { status: 'PUBLISHED' } as any);
+    const auto = prisma.announcement.update.mock.calls.find((c: any[]) => c[0].data.publicityEnd);
+    expect(auto).toBeTruthy();
   });
 });

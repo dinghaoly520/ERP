@@ -164,6 +164,8 @@ export type AnnouncementPublishResult = AnnouncementListItem & {
 export function createAnnouncement(data: {
   title: string; content: string; type: AnnouncementType;
   summary?: string; publishDate?: string; isTop?: boolean; relatedProjectCode?: string; metadata?: Record<string, any>; status?: AnnouncementStatus;
+  /** 公示截止直供（2026-11-06）：流标/中标公告起止选择的止点 → 后端 publicityEnd（公开端显示窗口） */
+  publicityEnd?: string;
 }) {
   return api.post<AnnouncementPublishResult>('/announcements', data);
 }

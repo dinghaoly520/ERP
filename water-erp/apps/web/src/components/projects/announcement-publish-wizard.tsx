@@ -297,6 +297,10 @@ const PORTAL_META_FIELDS: Record<string, PortalMetaField[]> = {
     { key: 'period', label: '工期/交货期' }, { key: 'quality', label: '质量标准' }, { key: 'experts', label: '评审专家' },
     { key: 'publicityPeriod', label: '公示期' }, { key: 'objection', label: '异议渠道', area: true },
   ],
+  // 2026-11-06：流标公告公示期限起止选择落地，门户预览同步公示期芯片
+  FAILED_BID_NOTICE: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'publicityPeriod', label: '公示期' },
+  ],
 };
 /** 元数据值格式化（门户同款：日期 locale 化、预算/金额万元化） */
 function portalFormatMetaValue(field: PortalMetaField, raw: unknown): string {
@@ -427,6 +431,22 @@ function toDateInputValue(text: string): string {
     return `${y}-${mo}-${d}`;
   }
   return text;
+}
+
+/** 公示期限芯片文案（2026-11-06 起止选择）：「N天（YYYY-MM-DD 至 YYYY-MM-DD）」取所选区间；
+ *  起止任一缺失兜底发布基准（定时=定时时刻）+3 天 */
+function publicityPeriodText(startIso?: string, endIso?: string, base?: Date): string {
+  const s = startIso?.trim();
+  const e = endIso?.trim();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const fmtDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  if (s && e) {
+    const days = Math.max(1, Math.round((new Date(e).getTime() - new Date(s).getTime()) / 86400000));
+    return `${days}天（${fmtDate(new Date(s))} 至 ${fmtDate(new Date(e))}）`;
+  }
+  const b = base ?? new Date();
+  const end = new Date(b.getTime() + 3 * 86400000);
+  return `3天（${fmtDate(b)} 至 ${fmtDate(end)}）`;
 }
 
 /** 中文日期时间 "2026年3月26日15:00" / "2026年10月20日14时00分00秒" → YYYY-MM-DDTHH:MM（datetime-local 格式） */
@@ -738,17 +758,30 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
           fd.bidder1RemarkType = '手动填入';
           fd.bidder1Remark = em;
         }
-        // 公示期（异议期）+ 异议受理：公告正文单列展示（发布配置面板同口径，顺延 3 天）
-        if (!fd.publicityPeriod?.trim()) {
+        // 公示期限（2026-11-06 用户裁定）：改为起止选择（与采购公告同款控件）——默认预填
+        // 3 天区间（今日起算），经办可改；止点直供公开端显示窗口。异议受理不再硬编码 3 天。
+        if (!fd.announcementStart && !fd.announcementEnd) {
           const pad = (n: number) => String(n).padStart(2, '0');
-          const fmtD = (d: Date) => `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+          const fmtT = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
           const start = new Date();
           const end = new Date(start.getTime() + 3 * 86400000);
-          fd.publicityPeriod = `${fmtD(start)} 至 ${fmtD(end)}（3天）`;
+          fd.announcementStart = fmtT(start);
+          fd.announcementEnd = fmtT(end);
         }
         if (!fd.objection?.trim()) {
-          fd.objection = '公示期为 3 天，自发布之日起算。供应商或其他利害关系人对中标结果有异议的，应在公示期内以书面形式向采购人提出。';
+          fd.objection = '供应商或其他利害关系人对中标结果有异议的，应在上述公示期限内以书面形式向采购人提出。';
         }
+      }
+
+      // ★ 流标公告：公示期限同款预填（2026-11-06 与采购公告同款起止选择，止点直供公开端
+      // 显示窗口）；默认 3 天区间（今日起算），经办可改
+      if (initialCategory === 'failed_bid' && !fd.announcementStart && !fd.announcementEnd) {
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const fmtT = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        const start = new Date();
+        const end = new Date(start.getTime() + 3 * 86400000);
+        fd.announcementStart = fmtT(start);
+        fd.announcementEnd = fmtT(end);
       }
     }
 
@@ -1071,7 +1104,10 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       toast.error('请选择定时发布时间');
       return;
     }
-    if (category === 'procurement_document' && !(draft as Record<string, string>).announcementEnd) {
+    // 公示期限（止）必填：采购公告（docx 占位文案防漏）+ 流标/中标公告（2026-11-06 起止
+    // 选择，止点=公开端显示窗口，缺失则窗口无从谈起）
+    if ((category === 'procurement_document' || category === 'winning_bid' || category === 'failed_bid')
+      && !(draft as Record<string, string>).announcementEnd) {
       toast.error('公告制作中未填写公示期限（止），请返回填写');
       return;
     }
@@ -1113,16 +1149,14 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
           displayMeta.downloadDeadline = toChineseDateTime(effectiveAnnouncementEnd);
         }
       }
-      if (category === 'winning_bid') {
-        const draftPeriod = (finalDraft as Record<string, string>).publicityPeriod?.trim();
-        if (draftPeriod) {
-          displayMeta.publicityPeriod = draftPeriod;
-        } else {
-          const base = publishTiming === 'scheduled' && scheduledDate ? new Date(scheduledDate) : new Date();
-          const end = new Date(base.getTime() + 3 * 86400000);
-          const pad = (n: number) => String(n).padStart(2, '0');
-          displayMeta.publicityPeriod = `3天（${base.getFullYear()}-${pad(base.getMonth() + 1)}-${pad(base.getDate())} 至 ${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}）`;
-        }
+      // 公示期限芯片（2026-11-06 起止选择）：流标/中标公告同口径——取所选区间生成，缺省兜底发布基准+3 天
+      if (category === 'winning_bid' || category === 'failed_bid') {
+        const fdm = finalDraft as Record<string, string>;
+        displayMeta.publicityPeriod = publicityPeriodText(
+          fdm.announcementStart,
+          effectiveAnnouncementEnd,
+          publishTiming === 'scheduled' && scheduledDate ? new Date(scheduledDate) : undefined,
+        );
       }
       setPreview({
         blob: built.blob,
@@ -1160,8 +1194,10 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       }
     }
     // 公示期限（止）空值会让 docx 模板渲染出「请填写公示期限（止）」占位文案并随公告发布
-    // （实测存量公告已出现）——采购公告发布前强制校验。中标公告无此字段（公示期发布后顺延 3 天），不校验。
-    if (category === 'procurement_document' && !(draft as Record<string, string>).announcementEnd) {
+    // （实测存量公告已出现）——采购公告发布前强制校验。流标/中标公告 2026-11-06 改起止选择
+    // 后同校验：止点直供公开端显示窗口（publicityEnd），缺失即无从起算。
+    if ((category === 'procurement_document' || category === 'winning_bid' || category === 'failed_bid')
+      && !(draft as Record<string, string>).announcementEnd) {
       toast.error('公告制作中未填写公示期限（止），请返回填写');
       return;
     }
@@ -1272,18 +1308,14 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       if (category === 'procurement_document' && officialTender) {
         meta.downloadMode = 'free';
       }
-      // 中标公告：公示期/异议受理写入 metadata（详情页公示期与异议渠道芯片消费）；
-      // 公示期口径 = 实际发布时刻顺延 3 天（A1 同源），优先取草稿正文值兜底重算
-      if (category === 'winning_bid') {
-        const draftPeriod = (draft as Record<string, string>).publicityPeriod?.trim();
-        if (draftPeriod) {
-          meta.publicityPeriod = draftPeriod;
-        } else {
-          const publicityBase = publishTiming === 'scheduled' && scheduledDate ? new Date(scheduledDate) : new Date();
-          const publicityEnd = new Date(publicityBase.getTime() + 3 * 86400000);
-          const pad = (n: number) => String(n).padStart(2, '0');
-          meta.publicityPeriod = `3天（${publicityBase.getFullYear()}-${pad(publicityBase.getMonth() + 1)}-${pad(publicityBase.getDate())} 至 ${publicityEnd.getFullYear()}-${pad(publicityEnd.getMonth() + 1)}-${pad(publicityEnd.getDate())}）`;
-        }
+      // 流标/中标公告：公示期限写入 metadata（详情页公示期芯片消费）+ 直供显示窗口止点；
+      // 2026-11-06 用户裁定改为起止选择（与采购公告同款）——芯片文案取所选区间，缺省兜底发布基准+3 天
+      if (category === 'winning_bid' || category === 'failed_bid') {
+        meta.publicityPeriod = publicityPeriodText(
+          (draft as Record<string, string>).announcementStart,
+          effectiveAnnouncementEnd,
+          publishTiming === 'scheduled' && scheduledDate ? new Date(scheduledDate) : undefined,
+        );
         const draftObjection = (draft as Record<string, string>).objection?.trim();
         if (draftObjection) meta.objection = draftObjection;
       }
@@ -1346,6 +1378,11 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         summary: draftRecord.projectOverview?.slice(0, 100) || '',
         status,
         publishDate: publishTiming === 'now' ? new Date().toISOString() : undefined,
+        // 公示截止直供（2026-11-06）：流标/中标公告所选止点 → 后端 publicityEnd（公开端显示窗口）；
+        // 定时发布传定时时刻（服务端按 publishDate 校验止点晚于发布）
+        ...((category === 'winning_bid' || category === 'failed_bid') && effectiveAnnouncementEnd
+          ? { publicityEnd: new Date(effectiveAnnouncementEnd).toISOString() }
+          : {}),
         metadata: meta,
         relatedProjectCode: project?.projectCode || undefined,
       });
