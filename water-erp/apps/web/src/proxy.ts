@@ -36,7 +36,8 @@ interface UpstreamResult {
   body: ArrayBuffer;
 }
 
-async function fetchUpstreamBuffered(
+/** 导出仅供验证脚本测试（web 门户无 jest 基建） */
+export async function fetchUpstreamBuffered(
   targetUrl: string,
   init: RequestInit,
   timeoutMs: number,
@@ -52,6 +53,10 @@ async function fetchUpstreamBuffered(
       res = await fetch(targetUrl, { ...init, signal: controller.signal });
     } catch (err) {
       clearTimeout(timer);
+      // 超时（本代理计时器主动 abort）≠ 连接层失败：请求可能已抵达后端且正在处理中，
+      // 非幂等 POST 整包重放 = 重复副作用（2026-11-06 实录：知识库 118MB 上传被重放 4 次、
+      // 后端并发跑出 5 份解析）。超时直抛外层，走 504 UPSTREAM_TIMEOUT 分型报文。
+      if (err instanceof Error && err.name === 'AbortError') throw err;
       // 连接层失败：请求未抵达后端，重放安全——全方法重试
       if (transportAttempt >= TRANSPORT_RETRY_DELAYS_MS.length) throw err;
       const delay = TRANSPORT_RETRY_DELAYS_MS[transportAttempt++];

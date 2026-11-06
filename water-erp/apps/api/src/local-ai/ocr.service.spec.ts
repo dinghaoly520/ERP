@@ -278,3 +278,52 @@ describe('探测重试与非 JSON 归一', () => {
     ).rejects.toThrow(ServiceUnavailableException);
   });
 });
+
+describe('批次级缓存与并发合并（2026-11-06 知识库 5 份重复实录）', () => {
+  it('串行场景：第二次同文件分批 → 全部批次命中缓存，零 fetch', async () => {
+    const redis = makeRedisMock();
+    const svc = await makeService('http://a:8100', redis);
+    const records: FetchRecord[] = [];
+    (global as any).fetch = mockRecordingFetch(records);
+
+    const big = Buffer.alloc(21 * 1024 * 1024);
+    await svc.ocrPdf(big); // 第一次：探测+3 批，全部落缓存
+    const fetchedAfterFirst = (global as any).fetch.mock.calls.length;
+    await svc.ocrPdf(big); // 第二次：整体入口缓存命中（不 fetch）
+
+    expect((global as any).fetch.mock.calls.length).toBe(fetchedAfterFirst);
+  });
+
+  it('并发场景：5 个同文件同时分批 → 每批次底层只算一次（in-flight 合并）', async () => {
+    const redis = makeRedisMock();
+    const svc = await makeService('http://a:8100', redis);
+    const records: FetchRecord[] = [];
+    let inFlight = 0;
+    let maxInFlight = 0;
+    (global as any).fetch = jest.fn(async (url: string, init: any) => {
+      const form = formOf(init);
+      records.push({ url, form });
+      if (form.max_pages === '0') {
+        return { ok: true, text: async () => JSON.stringify({ text: '', page_count: 100, processed_pages: 0, pages: [] }), json: async () => ({ text: '', page_count: 100, processed_pages: 0, pages: [] }) };
+      }
+      inFlight += 1; maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((r) => setTimeout(r, 150)); // 模拟 OCR 耗时，制造并发窗口
+      inFlight -= 1;
+      const [s, e] = (form.page_range ?? '1-1').split('-').map(Number);
+      const pages = Array.from({ length: e - s + 1 }, (_, i) => ({ page: i + 1, text: `p${s + i}` }));
+      const payload = { text: pages.map((p) => p.text).join('\n\n'), page_count: 100, processed_pages: pages.length, pages };
+      return { ok: true, text: async () => JSON.stringify(payload), json: async () => payload };
+    });
+
+    const big = Buffer.alloc(21 * 1024 * 1024);
+    const results = await Promise.all([
+      svc.ocrPdf(big), svc.ocrPdf(big), svc.ocrPdf(big), svc.ocrPdf(big), svc.ocrPdf(big),
+    ]);
+
+    // 5 份结果一致
+    expect(new Set(results.map((r) => r.text)).size).toBe(1);
+    // fetch 计数：1 次探测合并 + 3 批各合并一次 = 4（无合并时 = 5×(1+3)=20）
+    expect((global as any).fetch.mock.calls.length).toBe(4);
+    expect(maxInFlight).toBe(1); // 计算流唯一：批次串行、无重复并发
+  });
+});
