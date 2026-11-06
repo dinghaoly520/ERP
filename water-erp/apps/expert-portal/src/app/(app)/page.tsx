@@ -184,6 +184,8 @@ export default function ExpertDashboardPage() {
             </button>
           </div>
         </div>
+        {/* 标题行下长横线（2026-11-06 对齐 :3005 标题卡口径——本门户 wb-section-rule 同 hairline 色值） */}
+        <div className="wb-section-rule" />
       </div>
 
       {loading ? (
