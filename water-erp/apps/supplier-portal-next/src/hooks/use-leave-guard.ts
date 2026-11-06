@@ -1,23 +1,30 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
+import { useConfirm } from "@/components/use-confirm";
 
 /**
  * 离开守卫（React 版）— 移植自 Vue useRouteLeaveGuard / createDialogLeaveGuard。
  *
- * useLeaveGuard(dirty)：
- *  - 浏览器级关闭/刷新/外链跳转 → beforeunload 原生确认
- *  - 站内 SPA 路由跳转（Next Link / router.push 走 history.pushState）→ 拦截后原生 confirm
- *    （ElMessageBox 样式确认框在同步拦截语义下无法复刻，以原生 confirm 保功能等价）
- *
- * confirmDiscard()：弹窗关闭守卫（对话框场景）用的 Promise 化确认，由调用方配合样式化弹窗使用。
+ * useLeaveGuard(dirty) 返回 { leaveGuardDialog }，消费组件须渲染该节点：
+ *  - 浏览器级关闭/刷新/外链跳转 → beforeunload（浏览器原生机制，样式无法自定义——
+ *    各浏览器一律弹系统级提示，这是平台约束而非设计选择）；
+ *  - 站内 SPA 路由跳转 → 门户样式化确认弹窗（use-confirm，gdlg 壳）。
+ *    2026-11-06 用户裁定「全系统弃原生 window.confirm」重构：
+ *    · pushState/replaceState 拦截：吞掉本次调用，弹窗确认后 bypass 重放原始参数
+ *      （取消则不重放，停留原页）；
+ *    · popstate（后退/前进）：先同步弹回原位（防目的地闪现），再弹窗确认；
+ *      确认后 allowNextPop 放行一次 history.back()，取消则原地不动。
  */
 export function useLeaveGuard(
   dirty: boolean | (() => boolean),
   message = "当前有未保存的修改，离开后会丢失。确定离开吗？",
-) {
+): { leaveGuardDialog: ReactNode } {
   const dirtyRef = useRef(dirty);
   dirtyRef.current = dirty;
+
+  // 门户样式化确认（gdlg 壳）：confirm 稳定引用（useCallback 空依赖），可安全进 history 闭包
+  const { confirm, dialog } = useConfirm();
 
   useEffect(() => {
     const isDirty = () => (typeof dirtyRef.current === "function" ? dirtyRef.current() : dirtyRef.current);
@@ -32,6 +39,10 @@ export function useLeaveGuard(
     const origPush = history.pushState.bind(history);
     const origReplace = history.replaceState.bind(history);
     let bypass = false;
+    // 异步确认放行的回退导航（popstate 不再拦截一次）
+    let allowNextPop = false;
+    // 弹窗期间挂起的待确认导航（弹窗被新确认替换/组件卸载时按取消处理，不重放）
+    let settled = false;
 
     const guardNav = (orig: (...args: unknown[]) => void) => {
       return (...args: unknown[]) => {
@@ -39,18 +50,21 @@ export function useLeaveGuard(
           bypass = false;
           return orig(...args);
         }
-        if (window.confirm(message)) {
-          bypass = true;
-          return orig(...args);
-        }
-        // 拒绝离开：不执行原始导航。App Router 在 popstate 场景下会自行前进，
-        // pushState 场景直接吞掉即可。
+        // 吞掉本次导航，样式化弹窗确认后再重放原始参数
+        settled = false;
+        void confirm({ title: "离开确认", message }).then((ok) => {
+          if (settled) return;
+          settled = true;
+          if (ok) {
+            bypass = true;
+            orig(...args);
+          }
+          // 取消：不重放，停留原页
+        });
       };
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const guardedPush = guardNav(origPush as (...args: unknown[]) => void) as typeof history.pushState;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const guardedReplace = guardNav(origReplace as (...args: unknown[]) => void) as typeof history.replaceState;
 
     // B4-1（2026-09-30）：抑制「拒绝后回弹」触发的第二次 popstate——此前 forward() 回到原位
@@ -62,11 +76,23 @@ export function useLeaveGuard(
         suppressBouncePop = false;
         return;
       }
-      if (isDirty() && !window.confirm(message)) {
-        // 拒绝后回弹：把用户按回原位置（前进到被拒绝的目的地再退回）
-        suppressBouncePop = true;
-        history.forward();
+      if (allowNextPop) {
+        allowNextPop = false;
+        return;
       }
+      if (!isDirty()) return;
+      // 先同步弹回原位（目的地不闪现），再样式化弹窗确认（2026-11-06 替代原生 confirm）
+      suppressBouncePop = true;
+      history.forward();
+      settled = false;
+      void confirm({ title: "离开确认", message }).then((ok) => {
+        if (settled) return;
+        settled = true;
+        if (ok) {
+          allowNextPop = true;
+          history.back();
+        }
+      });
     };
 
     history.pushState = guardedPush;
@@ -75,11 +101,14 @@ export function useLeaveGuard(
     window.addEventListener("popstate", onPopState);
 
     return () => {
+      // 卸载时挂起中的确认按取消结算（不重放导航），并还原 history 原方法
+      settled = true;
       history.pushState = origPush;
       history.replaceState = origReplace;
       window.removeEventListener("beforeunload", onBeforeUnload);
       window.removeEventListener("popstate", onPopState);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [message]);
+  }, [message, confirm]);
+
+  return { leaveGuardDialog: dialog };
 }

@@ -60,8 +60,9 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
    *  效——AbortController 才能中断其流式管线（块边界 CRYPTO_CANCELLED） */
   const abortRef = useRef<AbortController | null>(null);
 
-  // 解密/上传在途离开守卫（终审二轮 F6）：刷新/关闭=解密与已传部分全部重来——busy 期间确认拦截
-  useLeaveGuard(busy, '正在解密/上传标书，刷新或关闭页面将丢失全部进度，确定离开吗？');
+  // 解密/上传在途离开守卫（终审二轮 F6）：刷新/关闭=解密与已传部分全部重来——busy 期间确认拦截；
+  // 2026-11-06 起守卫改样式化弹窗确认，须渲染返回的弹窗节点（done 早退分支 busy 恒 false，弹窗不可能弹出）
+  const { leaveGuardDialog } = useLeaveGuard(busy, '正在解密/上传标书，刷新或关闭页面将丢失全部进度，确定离开吗？');
 
   if (done) {
     return (
@@ -216,6 +217,7 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
           <div className="mt-3 text-xs text-[var(--danger)]" role="alert">{error}</div>
         )}
       </SpDialog>
+      {leaveGuardDialog}
     </>
   );
 }

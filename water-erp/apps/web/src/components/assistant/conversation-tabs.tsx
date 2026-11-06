@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { confirmDialog } from "@/components/catalog/confirm-dialog";
 import type { Conversation } from "./types";
 
 interface ConversationTabsProps {
@@ -84,10 +85,14 @@ export function ConversationTabs({
               <span
                 onClick={(e) => {
                   e.stopPropagation();
-                  /* 删除二次确认（2026-11-04 审查 D 批：:3011 已有、此处一击即删） */
-                  if (window.confirm(`删除对话「${conv.title || '未命名'}」？删除后不可恢复。`)) {
-                    onDelete(conv.id);
-                  }
+                  /* 删除二次确认（2026-11-04 审查 D 批）：2026-11-06 用户裁定改窗口式确认
+                     （confirmDialog 新拟态弹窗，(main) layout 全局挂 ConfirmHost），弃原生 window.confirm */
+                  void confirmDialog({
+                    title: '删除对话',
+                    message: `删除对话「${conv.title || '未命名'}」？删除后不可恢复。`,
+                    confirmText: '删除',
+                    danger: true,
+                  }).then((ok) => { if (ok) onDelete(conv.id); });
                 }}
                 className="asst-conv-tab-delete"
                 aria-label={`删除对话"${conv.title}"`}

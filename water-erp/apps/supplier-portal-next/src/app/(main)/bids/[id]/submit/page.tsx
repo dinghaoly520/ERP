@@ -228,7 +228,8 @@ function BidSubmitInner() {
   const dirty = !!(draft.dirty || pin
     || fullBidFile || splitCats.tech.file || splitCats.biz.file || splitCats.other.file
     || coverLetterFile || bondFile);
-  useLeaveGuard(dirty, "当前有未提交的投标内容，离开后会丢失。确定离开吗？");
+  // 2026-11-06 起守卫改样式化弹窗确认，须渲染返回的弹窗节点
+  const { leaveGuardDialog } = useLeaveGuard(dirty, "当前有未提交的投标内容，离开后会丢失。确定离开吗？");
 
   function backToDetail() {
     router.push(fromList ? `/bids/${projectId}?from=list` : `/bids/${projectId}`);
@@ -883,6 +884,7 @@ function BidSubmitInner() {
           将删除服务器端保存的草稿并清空当前表单，操作不可恢复。已正式提交的标书不可删除（撤回请在「我的投标」中操作）。
         </p>
       </SpDialog>
+      {leaveGuardDialog}
     </div>
   );
 }
