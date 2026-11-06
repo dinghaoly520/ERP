@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Eye, Megaphone, Search } from 'lucide-react';
+import { Building2, ChevronDown, Eye, Megaphone, Search } from 'lucide-react';
 import { fetchPublicAnnouncements, ANNOUNCEMENT_TABS, type AnnouncementItem } from '@/lib/announcements';
 import { UnifiedHeader } from '@/components/unified-header';
 import { FlowBackdrop } from '@/components/flow-stage';
@@ -102,8 +102,27 @@ function AnnouncementsContent() {
           <div className="page-hero__divider" />
         </div>
 
-        {/* ═══ 工具行：类型分段切换（左）+ 搜索（右，固定 280px）═══ */}
+        {/* ═══ 工具行：公司筛选（最左，2026-11-06 用户裁定）+ 类型分段切换 + 搜索（右）═══ */}
         <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+          {/* 公司筛选 — 发布单位动态去重；原生 select（≤8 项分型规则）。
+              appearance-none 去原生箭头与焦点蓝环，聚焦内凹与搜索框同语言 */}
+          <div className="relative shrink-0">
+            <select
+              value={company}
+              onChange={e => setCompany(e.target.value)}
+              aria-label="按发布单位筛选"
+              className="peer h-10 w-[200px] max-w-[52vw] cursor-pointer appearance-none rounded-xl border border-[#dbe4ef] bg-[oklch(1_0_0/0.6)] pl-10 pr-9 text-sm text-[#18243a] transition-all
+                shadow-[inset_0_1px_0_oklch(1_0_0/0.8),1px_1px_3px_oklch(0.55_0.03_258/0.08)]
+                focus:border-[#cfd9e6]
+                focus:shadow-[inset_1px_1px_3px_oklch(0.55_0.03_258/0.12),inset_-1px_-1px_2px_oklch(1_0_0/0.9)]">
+              <option value="">全部单位</option>
+              {companyOptions.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <Building2 size={15} strokeWidth={1.8}
+              className={`pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors ${company ? 'text-[#5a6d8a]' : 'text-[#9aa8ba] peer-focus:text-[#5a6d8a]'}`} />
+            <ChevronDown size={14} strokeWidth={2}
+              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#9aa8ba] transition-all duration-200 peer-focus:translate-y-[-55%] peer-focus:text-[#5a6d8a]" />
+          </div>
           <div
             className="neu-segment"
             role="group"
@@ -120,17 +139,6 @@ function AnnouncementsContent() {
               </button>
             ))}
           </div>
-
-          {/* ═══ 公司筛选（2026-11-06）：发布单位动态去重；原生 select（≤8 项分型规则）═══ */}
-          <select value={company} onChange={e => setCompany(e.target.value)}
-            aria-label="按发布单位筛选"
-            className="h-10 shrink-0 rounded-xl border border-[#dbe4ef] bg-[oklch(1_0_0/0.6)] px-3 pr-8 text-sm text-[#18243a] transition-all
-              shadow-[inset_0_1px_0_oklch(1_0_0/0.8),1px_1px_3px_oklch(0.55_0.03_258/0.08)]
-              focus:outline-none focus:border-[#cfd9e6]
-              focus:shadow-[inset_1px_1px_3px_oklch(0.55_0.03_258/0.12),inset_-1px_-1px_2px_oklch(1_0_0/0.9)]">
-            <option value="">全部单位</option>
-            {companyOptions.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
 
           {/* ═══ 搜索框（2026-10-22 重设计）：玻璃瓷片质感，聚焦内凹（无蓝色框线）═══
               凸起（方向性双影）→ 聚焦内凹（与 neu-segment/瓷片同语言）；图标随聚焦加深；有输入显清空钮 */}
