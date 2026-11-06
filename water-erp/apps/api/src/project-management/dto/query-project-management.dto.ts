@@ -24,4 +24,11 @@ export class QueryProjectManagementDto {
   @IsOptional()
   @IsString()
   companyId?: string;
+
+  /** 仅本人创建的项目（2026-11-06 用户裁定：公告关联项目只能选自己的）——
+   *  覆盖 leader/admin 的公司/全量视野；消费方：notice/new 关联项目选择器 */
+  @EmptyAsUndefined()
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  mine?: 'true' | 'false';
 }

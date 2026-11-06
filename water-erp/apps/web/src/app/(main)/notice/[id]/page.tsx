@@ -19,6 +19,7 @@ import { StatusBadge } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
 import { ArrowLeft, Pencil, X, EyeOff, PackageX, Megaphone, Upload, Sparkles, Clock } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
+import { fetchProjectManagementList, fetchPmBidProjectRefs } from '@/lib/api/project-management';
 import { PublishConfigSection, configFromMetadata, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
 import { BidDocEditSection, AddendumRefDocSection } from '@/components/notice/bid-doc-edit-section';
 import { DATA_CLASS_LABELS, ANNOUNCEMENT_TYPE_ORDER } from '@water-erp/shared';
@@ -511,6 +512,29 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
 
   const onTypeChange = (t: AnnouncementType) => { setType(t); setMetadata(buildMeta(t)); };
 
+  /** 补遗「改变开标时间」：按项目编号解析 PMI 后预填当前轮开标时间（只读 refs 不建项目，
+   *  已有值不覆盖；解析失败留空由用户填写）——查全视野（公告可能关联他人创建的项目） */
+  const enableOpenTimeChange = async () => {
+    setMetadata(prev => ({ ...prev, openTimeChanged: '1' }));
+    if (metadata.newOpenTime) return;
+    const code = metadata.projectCode?.trim();
+    if (!code) return;
+    try {
+      const items = await fetchProjectManagementList('ACTIVE');
+      const pm = items.find(i => i.projectCode === code);
+      if (!pm) return;
+      const refs = await fetchPmBidProjectRefs(pm.id);
+      const ref = [...(refs || [])].sort((a, b) => (b.round ?? 0) - (a.round ?? 0))[0];
+      const raw = ref?.openTime || ref?.roundOpeningTime;
+      if (!raw) return;
+      const d = new Date(raw);
+      if (Number.isNaN(d.getTime())) return;
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const local = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      setMetadata(prev => (prev.newOpenTime ? prev : { ...prev, newOpenTime: local }));
+    } catch { /* 预填失败不阻塞 */ }
+  };
+
   const save = async (targetStatus: AnnouncementStatus): Promise<AnnouncementPublishResult | null> => {
     if (!title.trim()) { toast.error('请填写标题'); return null; }
     // 定时发布：实际保存为 DRAFT，由 scheduler 到点自动发布
@@ -642,7 +666,7 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
               <div className="neu-segment" role="group" aria-label="开标时间" data-index={metadata.openTimeChanged === '1' ? '1' : '0'}>
                 <span aria-hidden className="neu-segment-thumb" />
                 <button type="button" aria-pressed={metadata.openTimeChanged !== '1'} onClick={() => setMetadata({ ...metadata, openTimeChanged: '' })} className="neu-segment-btn">不改变</button>
-                <button type="button" aria-pressed={metadata.openTimeChanged === '1'} onClick={() => setMetadata({ ...metadata, openTimeChanged: '1' })} className="neu-segment-btn">改变</button>
+                <button type="button" aria-pressed={metadata.openTimeChanged === '1'} onClick={enableOpenTimeChange} className="neu-segment-btn">改变</button>
               </div>
               {metadata.openTimeChanged === '1' ? (
                 <input type="datetime-local" value={toDateInputValue(metadata.newOpenTime || '')} onChange={e => setMetadata({ ...metadata, newOpenTime: e.target.value })} className="neu-input !w-[13.5rem]" />

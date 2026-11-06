@@ -84,10 +84,12 @@ export function buildProjectManagementCreatePayload(fields: InitiationFields) {
 export async function fetchProjectManagementList(
   status?: 'ACTIVE' | 'ARCHIVED' | 'RECYCLED' | 'TERMINATED',
   companyId?: string,
+  mine?: boolean,
 ) {
   const params = new URLSearchParams();
   if (status) params.set('status', status);
   if (companyId && companyId !== 'all') params.set('companyId', companyId);
+  if (mine) params.set('mine', 'true');
   const query = params.toString() ? `?${params.toString()}` : '';
   const response = await apiFetch(`${API_BASE}/project-management${query}`, {
     credentials: 'include',

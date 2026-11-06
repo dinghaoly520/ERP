@@ -16,7 +16,7 @@ import { useConfirm } from '@/components/workbench/use-confirm';
 import { ANNOUNCEMENT_TYPE_ORDER, announcementTypeGroupIndex } from '@water-erp/shared';
 import { PublishConfigSection, DEFAULT_PUBLISH_CONFIG, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
 import { Modal } from '@/components/workbench';
-import { fetchProjectManagementList } from '@/lib/api/project-management';
+import { fetchProjectManagementList, fetchPmBidProjectRefs } from '@/lib/api/project-management';
 import { localDateInputValue } from '@/lib/local-date';
 import { ATTACHMENT_ACCEPT, ATTACHMENT_HINT, validateAttachmentFile } from '@/lib/upload-rules';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
@@ -182,7 +182,8 @@ export default function NewNoticePage() {
     if (projectOptions === null) {
       setPickerBusy(true);
       // GET /project-management 已按登录人公司隔离（非 admin 强制本公司；admin 默认全部公司视野）
-      fetchProjectManagementList('ACTIVE')
+      // 关联项目只能选自己的（2026-11-06 用户裁定）——mine=true 服务端强制本人创建
+      fetchProjectManagementList('ACTIVE', undefined, true)
         .then(setProjectOptions)
         .catch(() => { toast.error('项目列表加载失败'); setProjectOptions([]); })
         .finally(() => setPickerBusy(false));
@@ -222,6 +223,26 @@ export default function NewNoticePage() {
       ...(a.relatedProjectCode && !prev.projectCode ? { projectCode: a.relatedProjectCode } : {}),
     }));
     setAnnPickerOpen(false); setAnnQuery('');
+  };
+
+  /** 补遗「改变开标时间」：预填所关联项目当前轮的开标时间（只读 refs，不建项目；
+   *  已有值不覆盖；取不到留空由用户填写） */
+  const enableOpenTimeChange = async () => {
+    setMetadata(prev => ({ ...prev, openTimeChanged: '1' }));
+    if (metadata.newOpenTime) return;
+    const pmId = linkedProject?.id;
+    if (!pmId) return;
+    try {
+      const refs = await fetchPmBidProjectRefs(pmId);
+      const ref = [...(refs || [])].sort((a, b) => (b.round ?? 0) - (a.round ?? 0))[0];
+      const raw = ref?.openTime || ref?.roundOpeningTime;
+      if (!raw) return;
+      const d = new Date(raw);
+      if (Number.isNaN(d.getTime())) return;
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const local = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      setMetadata(prev => (prev.newOpenTime ? prev : { ...prev, newOpenTime: local }));
+    } catch { /* 预填失败不阻塞——留空由用户填写 */ }
   };
 
   const loadExtras = useCallback(async () => {
@@ -494,7 +515,7 @@ export default function NewNoticePage() {
               <div className="neu-segment" role="group" aria-label="开标时间" data-index={metadata.openTimeChanged === '1' ? '1' : '0'}>
                 <span aria-hidden className="neu-segment-thumb" />
                 <button type="button" aria-pressed={metadata.openTimeChanged !== '1'} onClick={() => setMetadata({ ...metadata, openTimeChanged: '' })} className="neu-segment-btn">不改变</button>
-                <button type="button" aria-pressed={metadata.openTimeChanged === '1'} onClick={() => setMetadata({ ...metadata, openTimeChanged: '1' })} className="neu-segment-btn">改变</button>
+                <button type="button" aria-pressed={metadata.openTimeChanged === '1'} onClick={enableOpenTimeChange} className="neu-segment-btn">改变</button>
               </div>
               {metadata.openTimeChanged === '1' ? (
                 <input type="datetime-local" value={toDateInputValue(metadata.newOpenTime || '')} onChange={e => setMetadata({ ...metadata, newOpenTime: e.target.value })} className="neu-input !w-[13.5rem]" />
