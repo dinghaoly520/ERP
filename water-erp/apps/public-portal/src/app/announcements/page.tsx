@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, Megaphone, Search } from 'lucide-react';
 import { fetchPublicAnnouncements, ANNOUNCEMENT_TABS, type AnnouncementItem } from '@/lib/announcements';
@@ -31,9 +31,19 @@ function AnnouncementsContent() {
   const [searchInput, setSearchInput] = useState(() => searchParams.get('search') || '');
   const [search, setSearch] = useState(() => searchParams.get('search') || '');
   const [items, setItems] = useState<AnnouncementItem[]>([]);
+  const [company, setCompany] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [reloadTick, setReloadTick] = useState(0);
+
+  /** 公司筛选项 — 从已拉取公告的发布单位动态去重（当前 4 家，原生 select 足够） */
+  const companyOptions = useMemo(
+    () => [...new Set(items.map(a => a.companyName).filter(Boolean))].sort(),
+    [items]);
+  /** 公司筛选为客户端精确匹配（数据量级=单页全量拉取，与服务端搜索互补） */
+  const visibleItems = useMemo(
+    () => (company ? items.filter(a => a.companyName === company) : items),
+    [items, company]);
 
   // 同步 URL 参数到搜索框（顶栏 Enter / 外部跳转进入）
   useEffect(() => {
@@ -111,6 +121,17 @@ function AnnouncementsContent() {
             ))}
           </div>
 
+          {/* ═══ 公司筛选（2026-11-06）：发布单位动态去重；原生 select（≤8 项分型规则）═══ */}
+          <select value={company} onChange={e => setCompany(e.target.value)}
+            aria-label="按发布单位筛选"
+            className="h-10 shrink-0 rounded-xl border border-[#dbe4ef] bg-[oklch(1_0_0/0.6)] px-3 pr-8 text-sm text-[#18243a] transition-all
+              shadow-[inset_0_1px_0_oklch(1_0_0/0.8),1px_1px_3px_oklch(0.55_0.03_258/0.08)]
+              focus:outline-none focus:border-[#cfd9e6]
+              focus:shadow-[inset_1px_1px_3px_oklch(0.55_0.03_258/0.12),inset_-1px_-1px_2px_oklch(1_0_0/0.9)]">
+            <option value="">全部单位</option>
+            {companyOptions.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+
           {/* ═══ 搜索框（2026-10-22 重设计）：玻璃瓷片质感，聚焦内凹（无蓝色框线）═══
               凸起（方向性双影）→ 聚焦内凹（与 neu-segment/瓷片同语言）；图标随聚焦加深；有输入显清空钮 */}
           <div className="relative ml-auto shrink-0">
@@ -145,15 +166,15 @@ function AnnouncementsContent() {
             <p className="text-xs text-[#8a96aa]">网络或服务暂时不可用，请稍后重试</p>
             <button onClick={() => setReloadTick(t => t + 1)} className="neu-btn-soft">重新加载</button>
           </div>
-        ) : items.length === 0 ? (
+        ) : visibleItems.length === 0 ? (
           <div className="glass rounded-2xl p-16 text-center">
             <div className="text-5xl mb-4">📢</div>
             <p className="text-[#5a6d8a] font-semibold mb-1">暂无相关公告</p>
-            <p className="text-xs text-[#8a96aa]">试试切换分类或调整搜索关键词</p>
+            <p className="text-xs text-[#8a96aa]">试试切换分类、筛选发布单位或调整搜索关键词</p>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            {items.map(a => a.titleOnly ? (
+            {visibleItems.map(a => a.titleOnly ? (
               /* 已下线标题壳（2026-09-26 v2；2026-10-20 改可点）：详情为「公示期已过/已下线」提示页 */
               <div key={a.id} onClick={() => router.push(`/announcements/${a.id}`)}
                 className="glass rounded-2xl p-5 hover:shadow-md transition-all cursor-pointer opacity-80">
@@ -165,6 +186,7 @@ function AnnouncementsContent() {
                 </div>
                 <div className="flex items-center gap-4 text-xs text-[#8a96aa] ml-1">
                   <span>{a.date}</span>
+                  {a.companyName && <span>发布单位：{a.companyName}</span>}
                   {a.code && <span>编号：{a.code}</span>}
                 </div>
               </div>
@@ -180,6 +202,7 @@ function AnnouncementsContent() {
                 <p className="text-xs text-[#5a6d8a] ml-1 mb-2 line-clamp-2">{a.desc}</p>
                 <div className="flex items-center gap-4 text-xs text-[#8a96aa] ml-1">
                   <span>{a.date}</span>
+                  {a.companyName && <span>发布单位：{a.companyName}</span>}
                   {a.code && <span>编号：{a.code}</span>}
                 </div>
               </div>

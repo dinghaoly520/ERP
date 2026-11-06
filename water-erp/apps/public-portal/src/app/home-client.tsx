@@ -119,7 +119,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
     // 标题可见、灰态不可点、正文不可查看（版式口径同「全部公告」页标题壳）
     const src = tab.types ? fetchedAnnouncements.filter(a => tab.types!.includes(a.type)) : fetchedAnnouncements;
     const items = [...src].sort((a, b) => (a.date < b.date ? 1 : -1))
-      .map(a => ({ tag: a.tag, date: a.date, urgent: a.urgent, title: a.title, desc: a.desc, content: a.content, aiSummary: a.aiSummary, code: a.code, deadline: a.deadline, id: a.id, deadlineLabel: a.deadlineLabel, titleOnly: a.titleOnly === true, offlinedReason: a.offlinedReason }));
+      .map(a => ({ tag: a.tag, date: a.date, urgent: a.urgent, title: a.title, desc: a.desc, content: a.content, aiSummary: a.aiSummary, code: a.code, deadline: a.deadline, id: a.id, deadlineLabel: a.deadlineLabel, companyName: a.companyName, titleOnly: a.titleOnly === true, offlinedReason: a.offlinedReason }));
     return {
       key: tab.key,
       label: tab.label,
@@ -434,6 +434,9 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                   <div className="flex items-center justify-between mt-auto">
                     <div className="flex gap-6 text-xs">
                       <span className="announce-meta">项目编号 <span className="announce-meta-val">{featuredItem.code}</span></span>
+                      {featuredItem.companyName && (
+                        <span className="announce-meta">发布单位 <span className="announce-meta-val">{featuredItem.companyName}</span></span>
+                      )}
                       {featuredItem.deadline && (
                         <span className="announce-meta">{featuredItem.deadlineLabel} <em className="announce-deadline">{featuredItem.deadline}</em></span>
                       )}
@@ -475,7 +478,10 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                           style={{ '--item-delay': `${idx * 60}ms`, '--rank-color': '#b6c0cf', opacity: 0.75 } as React.CSSProperties}>
                           <div className="announce-side-item-rank">{String(idx + 1).padStart(2, '0')}</div>
                           <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                            <span className="text-[13px] text-[#aaa]">{item.date.slice(5)}</span>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-[13px] text-[#aaa] shrink-0">{item.date.slice(5)}</span>
+                              {item.companyName && <span className="text-[11px] text-[#b6c0cf] truncate">{item.companyName}</span>}
+                            </div>
                             <span className="announce-side-item-title" style={{ color: '#8a96aa' }}>{item.title}</span>
                           </div>
                         </a>
@@ -486,7 +492,10 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                         style={{ '--item-delay': `${idx * 60}ms`, '--rank-color': currentAnnounce.color } as React.CSSProperties}>
                         <div className="announce-side-item-rank">{String(idx + 1).padStart(2, '0')}</div>
                         <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                          <span className="text-[13px] text-[#aaa]">{item.date.slice(5)}</span>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-[13px] text-[#aaa] shrink-0">{item.date.slice(5)}</span>
+                            {item.companyName && <span className="text-[11px] text-[#b6c0cf] truncate">{item.companyName}</span>}
+                          </div>
                           <span className="announce-side-item-title">{item.title}</span>
                         </div>
                       </a>
