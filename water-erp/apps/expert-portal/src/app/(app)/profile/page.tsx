@@ -28,13 +28,23 @@ export default function ExpertProfilePage() {
   const [profile, setProfile] = useState<ExpertProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ displayName: '', email: '' });
+  // 2026-11-06 扩面（用户裁定：除工作单位外全字段可改）——姓名/邮箱/手机/专业/职称/身份证号
+  const [form, setForm] = useState({ displayName: '', email: '', phone: '', specialty: '', title: '', idNumber: '' });
   const [saving, setSaving] = useState(false);
+
+  const fillForm = (data: ExpertProfile) => setForm({
+    displayName: data.displayName,
+    email: data.email || '',
+    phone: data.expertProfile?.phone || '',
+    specialty: data.expertProfile?.specialty || '',
+    title: data.expertProfile?.title || '',
+    idNumber: data.expertProfile?.idNumber || '',
+  });
 
   useEffect(() => {
     api.get<ExpertProfile>('/expert/profile').then(data => {
       setProfile(data);
-      setForm({ displayName: data.displayName, email: data.email || '' });
+      fillForm(data);
     }).catch(() => toast.error('操作失败')).finally(() => setLoading(false));
   }, []);
 
@@ -42,11 +52,11 @@ export default function ExpertProfilePage() {
     setSaving(true);
     try {
       await api.patch('/expert/profile', form);
-      toast.success('资料已更新');
+      toast.success('资料已更新，采购管理端专家信息已同步');
       // Refresh profile from server, then exit editing mode
       const data = await api.get<ExpertProfile>('/expert/profile');
       setProfile(data);
-      setForm({ displayName: data.displayName, email: data.email || '' });
+      fillForm(data);
       setEditing(false);
     } catch (e: any) { toast.error(e.message || '更新失败'); } // P2-2：透出服务端校验消息（如「姓名不能为空」）
     setSaving(false);
@@ -54,11 +64,13 @@ export default function ExpertProfilePage() {
 
   // P2-2（2026-09-21 审查）：空名/坏邮箱前端先拦——服务端静默跳过空名的假成功由此杜绝双保险
   const emailValid = !form.email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email);
-  const canSave = form.displayName.trim().length > 0 && emailValid;
+  const phoneValid = !form.phone || /^1\d{10}$/.test(form.phone);
+  const idNumberValid = !form.idNumber || /^\d{17}[\dX]$/.test(form.idNumber);
+  const canSave = form.displayName.trim().length > 0 && emailValid && phoneValid && idNumberValid;
 
   const cancelEdit = () => {
     setEditing(false);
-    if (profile) setForm({ displayName: profile.displayName, email: profile.email || '' });
+    if (profile) fillForm(profile);
   };
 
   if (loading) return <div className="py-20 text-center text-sm text-[var(--muted-foreground)]">加载中...</div>;
@@ -84,15 +96,10 @@ export default function ExpertProfilePage() {
     return `${p.slice(0, 3)}****${p.slice(-4)}`;
   };
 
-  const readOnlyFields: [string, string][] = [
-    ['用户名', maskIdNumber(profile.username) || '未设置'],
-    ['手机', maskPhone(profile.expertProfile?.phone || profile.phone) || '未设置'],
-    ['专业', profile.expertProfile?.specialty || '未设置'],
-    ['职称', profile.expertProfile?.title || '未设置'],
+  // 用户名行已删（2026-11-06 用户裁定「现在不存在用户名」——专家以姓名+身份证号口令登录，
+  // 该行与身份证号重复且泄露口令前缀）；工作单位只读（用户裁定），其余字段可编辑
+  const readonlyView: [string, string][] = [
     ['工作单位', profile.expertProfile?.employer || '未设置'],
-    // EXP-P2-04：身份证号脱敏——专家登录口令即身份证号，明文展示等于在页面上展示登录密码
-    // （现场他人/投屏/拍照即获口令，削弱「口令=身份证号」防冒名与闸4 工位锁）
-    ['身份证号', maskIdNumber(profile.expertProfile?.idNumber) || '未设置'],
     ['角色', '评审专家'],
   ];
 
@@ -143,57 +150,41 @@ export default function ExpertProfilePage() {
 
           <hr className="wb-section-rule mb-5" />
 
-          {/* 字段网格（2026-11-06 用户裁定：编辑态不再整块换成两输入框——全字段保持网格，
-              姓名/邮箱原位变输入框，其余只读；与查看态完全同构） */}
+          {/* 字段网格（2026-11-06 用户裁定：除工作单位外全字段可编辑；编辑态全网格同构，
+              可改字段原位变输入框；手机/身份证号查看态脱敏） */}
           <div className="grid grid-cols-2 gap-x-12 gap-y-4">
-            {/* 姓名：可编辑（专家端自助修改仅开放姓名/邮箱，其余走资料变更审批） */}
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-[var(--muted-foreground)]">姓名</label>
-              {editing ? (
-                <>
-                  <input
-                    value={form.displayName}
-                    onChange={e => setForm(f => ({ ...f, displayName: e.target.value }))}
-                    aria-invalid={form.displayName.trim().length === 0 ? 'true' : undefined}
-                    className="neu-input !h-9 text-sm"
-                  />
-                  {form.displayName.trim().length === 0 && (
-                    <p className="mt-1 text-xs font-semibold text-[var(--danger)]">姓名不能为空</p>
-                  )}
-                </>
-              ) : (
-                <p className="text-sm font-bold text-[var(--foreground)]">{profile.displayName}</p>
-              )}
-            </div>
-            {readOnlyFields.slice(0, 1).map(([label, value]) => (
-              <div key={label}>
-                <p className="mb-1 text-xs font-semibold text-[var(--muted-foreground)]">{label}</p>
-                <p className="font-mono text-sm font-bold text-[var(--foreground)]">{value}</p>
+            {([
+              { key: 'displayName', label: '姓名', mono: false, display: profile.displayName, invalid: form.displayName.trim().length === 0, invalidMsg: '姓名不能为空' },
+              { key: 'email', label: '邮箱', mono: false, display: profile.email || '未设置', invalid: !!form.email && !emailValid, invalidMsg: '邮箱格式不正确' },
+              { key: 'phone', label: '手机', mono: true, display: maskPhone(profile.expertProfile?.phone || profile.phone) || '未设置', placeholder: '11 位手机号', invalid: !!form.phone && !phoneValid, invalidMsg: '手机号须为 11 位有效号码' },
+              { key: 'specialty', label: '专业', mono: false, display: profile.expertProfile?.specialty || '未设置' },
+              { key: 'title', label: '职称', mono: false, display: profile.expertProfile?.title || '未设置' },
+              { key: 'idNumber', label: '身份证号', mono: true, display: maskIdNumber(profile.expertProfile?.idNumber) || '未设置', placeholder: '18 位身份证号', invalid: !!form.idNumber && !idNumberValid, invalidMsg: '身份证号须为 18 位有效号码' },
+            ] as const).map(f => (
+              <div key={f.key}>
+                <label className="mb-1 block text-xs font-semibold text-[var(--muted-foreground)]">{f.label}</label>
+                {editing ? (
+                  <>
+                    <input
+                      value={form[f.key as 'displayName']}
+                      onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                      aria-invalid={'invalid' in f && f.invalid ? 'true' : undefined}
+                      className={`neu-input !h-9 text-sm ${f.mono ? 'font-mono' : ''}`}
+                      placeholder={'placeholder' in f ? f.placeholder : undefined}
+                    />
+                    {'invalid' in f && f.invalid && (
+                      <p className="mt-1 text-xs font-semibold text-[var(--danger)]">{f.invalidMsg}</p>
+                    )}
+                  </>
+                ) : (
+                  <p className={`text-sm font-bold text-[var(--foreground)] ${f.mono ? 'font-mono' : ''}`}>{f.display}</p>
+                )}
               </div>
             ))}
-            {/* 邮箱：可编辑 */}
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-[var(--muted-foreground)]">邮箱</label>
-              {editing ? (
-                <>
-                  <input
-                    type="email"
-                    value={form.email}
-                    onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                    className="neu-input !h-9 text-sm"
-                  />
-                  {!emailValid && (
-                    <p className="mt-1 text-xs font-semibold text-[var(--danger)]">邮箱格式不正确</p>
-                  )}
-                </>
-              ) : (
-                <p className="text-sm font-bold text-[var(--foreground)]">{profile.email || '未设置'}</p>
-              )}
-            </div>
-            {readOnlyFields.slice(1).map(([label, value]) => (
+            {readonlyView.map(([label, value]) => (
               <div key={label}>
                 <p className="mb-1 text-xs font-semibold text-[var(--muted-foreground)]">{label}</p>
-                <p className={`text-sm font-bold text-[var(--foreground)] ${label === '手机' || label === '身份证号' ? 'font-mono' : ''}`}>{value}</p>
+                <p className="text-sm font-bold text-[var(--foreground)]">{value}</p>
               </div>
             ))}
           </div>
