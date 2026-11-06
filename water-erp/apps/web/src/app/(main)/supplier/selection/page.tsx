@@ -2144,8 +2144,7 @@ export function SupplierSelectionPage({
         }}
       />
 
-      {error && step < 3 && <div className="rounded-xl bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-4 py-3 text-sm font-semibold text-[var(--danger)] shadow-[inset_0_1px_0_oklch(1_0_0/0.3)]">{error}</div>}
-
+      {/* 错误横幅在各步骤内容区内渲染（步骤1 底部操作上方、步骤2 结果区顶部）——勿在步骤轨道下再全局渲染，会与内容区横幅双条堆叠（2026-11-06 修复） */}
       {/* 步骤 1：选择项目 + 业务标签 */}
       {step === 1 && (
         <div className="space-y-5">
