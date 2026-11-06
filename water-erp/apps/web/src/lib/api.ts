@@ -29,6 +29,9 @@ export const api = {
   get: <T>(path: string) => client.get<T>(path),
   post: <T>(path: string, body?: unknown, init?: RequestInit) => client.post<T>(path, body, init),
   postForm: <T>(path: string, body: FormData) => client.postForm<T>(path, body),
+  /** XHR 上传（2026-11-06 上传进度条）：fetch 无上传进度事件，此通道带字节进度+取消 */
+  upload: <T>(path: string, body: FormData, opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal }) =>
+    client.upload<T>(path, body, opts),
   put: <T>(path: string, body: unknown) => client.put<T>(path, body),
   patch: <T>(path: string, body: unknown) => client.patch<T>(path, body),
   delete: <T>(path: string) => client.delete<T>(path),
