@@ -935,3 +935,84 @@ hover: background: color-mix(in oklch, var(--accent) 6%, transparent);
 搜索行自动显隐（选项 >8 或 allowCustom）；allowCustom 提供「使用自定义名称」行；
 选中即回填并收起。分型边界（原生 select vs SearchSelect vs typeahead vs 树/多选）
 见 SKILL.md「下拉选择器（SearchSelect）」专节。
+
+## 上传进度·水波+流光（.up-*，2026-11-06 定版）
+
+全门户上传进度的统一视觉（水利品牌的水槽隐喻）。**传输底座是 `@water-erp/client` 的
+`upload()`（XHR）——fetch 规范无上传进度事件，任何要进度的上传必须走此通道**；
+本节是它的展示层规格。定版判例：spec `docs/superpowers/specs/2026-11-06-upload-progress-design.md`。
+
+### 组件契约
+
+| 层 | 契约 | 落点 |
+|----|------|------|
+| 传输 | `api.upload<T>(path, formData, { onProgress?, signal? })`：错误归一/401 回调/断网中文与 postForm 同语义；abort 三分支恒 AbortError | `packages/client/src/index.ts`（共享单源） |
+| 队列 | `useFileUploads({ uploadOne, onEachDone?, onAllSettled? })` → `{ items, start, retry, cancel, clear, running, aggregate }`：顺序逐文件、失败不中断（逐文件标记可重试）、retry 不触发 onAllSettled（收尾语义只在整批 start 结束跑一次）、cancel=abort 当前+余下置 canceled、速度 2s 滑动窗（<400ms 不出值） | `apps/web/src/lib/upload/use-file-uploads.ts`（web 单源，他门户按需复制） |
+| 条 | `<WaterBar pct state showRipple? />`，state ∈ `pending | uploading | done | failed` | web `apps/web/src/components/upload/water-bar.tsx`；bid-portal 同款自包含副本 |
+| 行 | `<UploadProgressList items onRetry? retryDisabled? />` 每文件行（状态图标+文件名 truncate+大小 mono+百分比 mono+重试钮+行内 WaterBar） | `apps/web/src/components/upload/upload-progress-list.tsx` |
+| 播值 | `useCountUp(target, 200ms)` rAF 插值；reduced-motion 直跳终值 | `apps/web/src/lib/upload/use-count-up.ts` |
+
+### CSS 规格（照抄；关键常量是红线，勿偏离）
+
+```css
+@keyframes uploadWaveA { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes uploadWaveB { from { transform: translateX(-25%); } to { transform: translateX(-75%); } }
+@keyframes uploadShimmer { from { left: -14%; } to { left: 100%; } }
+@keyframes uploadRipple { from { transform: scale(1); opacity: 0.5; } to { transform: scale(1.6); opacity: 0; } }
+/* 水面：填充区顶部 3px 流动纹理（两层错相；纯透明度波形，非彩色渐变） */
+.up-wave { position: absolute; top: -1.5px; left: 0; right: 0; height: 3px; background-repeat: repeat-x; background-size: 50% 100%;
+  background-image: linear-gradient(90deg, transparent 0%, color-mix(in oklch, var(--accent) 35%, transparent) 25%, transparent 50%); }
+.up-wave--a { animation: uploadWaveA 8s linear infinite; opacity: 0.35; }
+.up-wave--b { animation: uploadWaveB 13s linear infinite; opacity: 0.18; }
+/* 流光：白色高光带扫过（语言同卡片 inset 顶光线） */
+.up-shimmer { position: absolute; top: 0; bottom: 0; width: 12px; background: oklch(1 0 0 / 0.35); animation: uploadShimmer 2.4s ease-in-out infinite; }
+/* 完成涟漪：一次性（forwards 定格透明），仅 done 态挂载 */
+.up-ripple { position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--success) 45%, transparent); animation: uploadRipple 400ms ease-out forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .up-wave, .up-shimmer, .up-ripple { animation: none; display: none; }
+}
+```
+
+填充色（token 化，state 驱动）：
+
+| state | 填充 | 动效 |
+|-------|------|------|
+| uploading | `color-mix(in oklch, var(--accent) 14%, transparent)` | 波纹双层 + 流光 |
+| done | `color-mix(in oklch, var(--success) 28%, transparent)` | 一次性涟漪（400ms 后静止） |
+| failed | `color-mix(in oklch, var(--danger) 30%, transparent)` | 无（终态） |
+| pending | `color-mix(in oklch, var(--accent) 8%, transparent)` | 无 |
+
+轨道：`h-1.5 rounded-full`，`color-mix(in oklch, var(--muted-foreground) 15%, transparent)`（内凹
+hairline 语言）。数字一律 `font-mono tabular-nums`（等宽数字令牌）；百分比=Σ已传字节/Σ总字节，
+**不是文件计数**。
+
+### 形态分级（对号入座）
+
+| 场景 | 形态 | 范本 |
+|------|------|------|
+| 多文件批量（阶段附件/附件列表/签字扫描批量） | sticky 或卡内**聚合条**（完成数 N/M · 总百分比 · 速度 · 取消钮）+ **每文件行**（重试在行内） | web project-detail-panel、bid-portal signing-tab |
+| 单文件中大件（采购文件加密上传/凭证扫描） | 紧凑单行：WaterBar + mono 百分比（置于按钮/上传卡下方） | web notice/[id] 采购文件、opening-hall-sign-block |
+| 单文件小件（通知书 docx/聊天附件/合同凭证） | 按钮内百分比文本（`上传中 62%`），不出条 | web chat-dialog、contract-stage-modal |
+| 亚秒级 Blob（摄像头签到照/画布墨迹） | 仅换 `api.upload` 轨不出视觉（既有 spinner 即轻量指示） | expert-portal 签到照×3 |
+| 既有进度组件统一（不重构传输） | CSS 层换肤：给既有填充类加波层伪元素+扫光背景（:3004 SpProgress/add-panel 判例） | supplier-portal-next globals.css `.sp-prog-fill` |
+
+### 红线（照 .impeccable 动效禁区收口）
+
+- 波幅 ≤3px；循环周期 ≥2s；填充只用透明度波形与白色高光，**禁止彩色渐变**；
+- `done/failed` 是终态，**不加循环动效**（涟漪是一次性 400ms）；
+- `prefers-reduced-motion` 全退静态填充（波纹/流光/涟漪 display:none，数字直跳）；
+- 取消语义：abort 后 promise 必落定 AbortError（XHR abort 不保证回调 onload/onerror——
+  须在 abort 监听器就地 settle，判例 2026-11-06 稳健审计 P0）。
+
+### 反模式
+
+| 错误 | 正确 |
+|------|------|
+| fetch/postForm 传大文件（零进度，用户以为卡死） | `api.upload`（XHR 轨） |
+| 给 done/failed 填充挂循环波纹/流光 | 终态静止；一次性涟漪仅 done |
+| 波幅 5px+、周期 <2s 的"更炫"波纹 | 红线常量：3px / 8s+13s / 2.4s |
+| 彩色渐变填充（蓝→绿渐变条） | token 纯色 + 白高光扫过 |
+| 进度条数字用比例字体（宽度跳动） | `font-mono tabular-nums` |
+| 忘 reduced-motion 退路 | 全动效 display:none |
+| 失败即中断整批上传 | 逐文件标记失败+行内重试（失败不中断队列） |
+| 单文件重试触发整批收尾（如重跑 AI 分析） | retry 不触发 onAllSettled |

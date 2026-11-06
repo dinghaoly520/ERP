@@ -253,6 +253,7 @@ box-shadow:
 |------|------|
 | `.neu-drop-zone` | 文件选择虚线拖放区（内凹 surface 底色，居中图标 + 文件名 + 提示文字） |
 | `.neu-attachment-item` | 已上传附件列表项（凸起 surface 底色 + 方向性双影，hover 加深投影） |
+| `.up-wave(--a/--b)` / `.up-shimmer` / `.up-ripple` | **上传进度水波+流光**（2026-11-06 定版）——填充区顶部双层错相波纹 + 白高光扫光 + 完成一次性涟漪；配套组件 WaterBar/UploadProgressList 与传输底座 `api.upload`，见「上传进度」专节与 `references/component-specs.md` |
 
 ### 页面结构
 
@@ -403,6 +404,28 @@ Modal 壳之上的内容层标准结构（范本：`apps/web/src/components/admi
 - **reduced-motion**：transition 降级瞬时（铁律）。
 - **反模式**：常驻说明段落（重复下拉选项文本/挤占布局）；原生 title（触屏无效）；全角？；气泡居中弹出。
 
+## 上传进度（水波+流光，2026-11-06 定版）
+
+全门户上传进度的统一视觉（水利品牌的水槽隐喻）。**任何要进度的上传必须走
+`api.upload`（`@water-erp/client` XHR 轨）——fetch 规范无上传进度事件**；展示层
+`WaterBar`（.up-* 动效类）+ 每文件行 `UploadProgressList` + 队列 `useFileUploads`。
+
+形态分级（对号入座）：
+
+| 场景 | 形态 |
+|------|------|
+| 多文件批量 | 聚合条（N/M · 总百分比 · 速度 · 取消）+ 每文件行（行内重试） |
+| 单文件中大件 | 紧凑单行：WaterBar + mono 百分比 |
+| 单文件小件 | 按钮内百分比文本，不出条 |
+| 亚秒级 Blob（签到照等） | 仅换 api.upload 轨，spinner 即轻量指示 |
+| 既有进度组件 | CSS 换肤（波层伪元素+扫光背景），不动传输 |
+
+铁律：失败不中断队列（逐文件标记可重试）；retry 不触发整批收尾；波幅 ≤3px、循环 ≥2s、
+无彩色渐变、终态无循环动效、`prefers-reduced-motion` 全退静态；百分比=Σ字节（非文件计数），
+数字 `font-mono tabular-nums`。完整 CSS/组件契约/反模式见
+`references/component-specs.md`「上传进度·水波+流光」节；判例 spec
+`docs/superpowers/specs/2026-11-06-upload-progress-design.md`。
+
 ## 弹窗「Modal 化」决策规则（web :3005）
 
 - **默认用 workbench `Modal` 组件**（`src/components/workbench/modal.tsx`）：token 蒙层 + oklch 阴影 + focus trap + Esc + 滚动锁 + aria 全套；宽度用 `size` 或 `className="!max-w-[480px]"` 覆写；busy 防护映射 `closeOnBackdrop/closeOnEsc`。
@@ -429,7 +452,10 @@ Modal 壳之上的内容层标准结构（范本：`apps/web/src/components/admi
 | `apps/public-portal/src/app/home-client.tsx` | 首页参考实现（hero / 公告 / tabs / CTA） |
 | `apps/public-portal/src/components/unified-header.tsx` | 统一顶栏 |
 | `apps/public-portal/src/components/flow-track.tsx` | `FlowBackdrop` + `FlowTrack` |
-| `references/component-specs.md`（本 skill 内） | 按钮/卡片/输入框的完整 CSS 规格 |
+| `references/component-specs.md`（本 skill 内） | 按钮/卡片/输入框的完整 CSS 规格（含「上传进度·水波+流光」节） |
+| `apps/web/src/components/upload/water-bar.tsx`（及 bid-portal 自包含副本） | WaterBar 进度条组件源 |
+| `apps/web/src/lib/upload/use-file-uploads.ts` | 上传队列 hook 源（顺序/取消/重试/速度） |
+| `packages/client/src/index.ts` | `upload()` XHR 传输底座（进度/取消/错误归一） |
 | `apps/public-portal/.claude/skills/neumorphic-design/SKILL.md` | 专注新拟态细节的伴随 skill |
 | `docs/superpowers/specs/2026-07-02-announcement-raised-border-design.md` | 公告区新拟态设计规格 |
 | `scripts/check-cgzxui-redcards.sh`（water-erp/ 下） | 红牌检查闸（--ci / --app / --files） |
