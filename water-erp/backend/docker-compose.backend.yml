@@ -16,6 +16,7 @@
 #   docker compose -f docker-compose.backend.yml up -d postgres redis minio
 #   docker compose -f docker-compose.backend.yml --profile tools run --rm migrate   # 幂等
 #   docker compose -f docker-compose.backend.yml up -d api
+#   docker compose -f docker-compose.backend.yml up -d ai-worker   # 2026-11-06 起必需（见下）
 #
 # 端口避让（本机 5432/6379/9000/9001 已被 dify 等占用）：
 #   postgres 15432 | redis 16380 | minio 19000/19001 | api 4001
@@ -152,6 +153,33 @@ services:
       timeout: 8s
       retries: 8
       start_period: 90s
+
+  # ── AI 投标分析 + 知识库解析 worker（2026-11-06 前缺本服务）──
+  # 同镜像不同命令（nest build 的 dist 镜像 src，含 ai-bid-analysis-worker.js）。
+  # 消费 BullMQ 队列（Redis）：ai-tender/bidder-processing（AI 投标分析）+
+  #   knowledge-parse（知识库上传解析异步化）——不本服务，知识库上传永远停在「解析中」。
+  # 无 HTTP 端口/healthcheck：存活信号=Redis 心跳键 sys:aiworker:hb:*（health 端点读侧）+ 容器重启策略。
+  # 环境注意：worker 现在也连向量库写 DocumentChunk（本栈=pgvector 主库，走 DIRECT_URL 回退，
+  #   PGVECTOR_ENABLED 随 .env.backend）；重启发现在途知识解析由启动清扫器自动重入队。
+  # 可选：KNOWLEDGE_PARSE_CONCURRENCY（知识解析并发，默认 1；AI_BID_WORKER_CONCURRENCY 默认 2）。
+  ai-worker:
+    <<: *infra-common
+    image: water-erp-api:1.0.0
+    container_name: water-erp-be-ai-worker
+    working_dir: /app/apps/api
+    command: ["node", "dist/ai-bid-analysis-worker.js"]
+    env_file: .env.backend
+    environment:
+      DATABASE_URL: postgresql://water_erp:water_erp_dev@postgres:5432/water_erp?connection_limit=10
+      DIRECT_URL: postgresql://water_erp:water_erp_dev@postgres:5432/water_erp
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
 
 networks:
   backend:
