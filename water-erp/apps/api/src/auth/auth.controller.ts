@@ -19,6 +19,7 @@ import { buildSessionMeta } from '../common/session-device.util';
 import { cookieNameForPortal, portalForRole, portalFromRequest, tokenFromRequest, LEGACY_COOKIE } from './portal-cookie';
 import { checkPortRole } from './port-roles';
 import { ROLE_PORTAL } from '@water-erp/config';
+import { normalizeCompanyName } from '../company/company-scope';
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
@@ -61,7 +62,8 @@ export class AuthController {
   @ApiOperation({ summary: '已知公司列表（注册下拉建议，Company 主数据）' })
   async companies() {
     // 2026-08-20 起改查 Company 主数据表（数据隔离的归属单位），新公司注册时自动建档。
-    // 返回保持纯名称数组——注册 datalist 直接回填，须与 normalizeCompany 的对齐键一致。
+    // 返回保持纯名称数组——注册 datalist 直接回填，须与 normalizeCompanyName（company-scope.ts，
+    // 2026-11-06 自 auth.service 移入）的对齐键一致。
     const rows = await this.prisma.company.findMany({
       select: { name: true },
       orderBy: { name: 'asc' },
@@ -75,6 +77,29 @@ export class AuthController {
   async companyOptions() {
     return this.prisma.company.findMany({
       select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  @Get('department-options')
+  @Public()
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiOperation({ summary: '部门选项（注册下拉建议，按公司名过滤本公司部门）' })
+  async departmentOptions(@Query('company') company: string | undefined) {
+    // 注册弹窗（未登录）部门联想下拉：按公司名取该公司部门清单。公司名归一化与注册
+    // resolveCompanyRecord 同源（normalizeCompanyName）——「四川水发建设」等手输变体
+    // 也能命中规范全称。公开只读仅回名称；未命中公司/空参回空表（不泄露存在性）。
+    const raw = (company ?? '').trim();
+    if (!raw) return [];
+    const known = (await this.prisma.company.findMany({ select: { name: true } })).map((c) => c.name);
+    const rec = await this.prisma.company.findUnique({
+      where: { name: normalizeCompanyName(raw, known) },
+      select: { id: true },
+    });
+    if (!rec) return [];
+    return this.prisma.department.findMany({
+      where: { companyId: rec.id },
+      select: { id: true, name: true, code: true },
       orderBy: { name: 'asc' },
     });
   }

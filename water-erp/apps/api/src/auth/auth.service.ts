@@ -15,6 +15,7 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { findOpenEvaluationWindows } from '../expert/expert-room.util';
+import { CompanyScopeService } from '../company/company-scope';
 
 /**
  * 登录时按来源门户（X-Portal）优先匹配的 role 顺序。
@@ -42,6 +43,9 @@ export class AuthService {
     // REST 全 401 却仍收推送弹窗（「通知可见、消息中心拉不到」悖论）
     @Optional() @Inject(forwardRef(() => NotificationGateway))
     private readonly notificationGateway?: NotificationGateway,
+    // 公司名→Company 记录统一收口（2026-11-06 改公司全链路联动裁定）；
+    // Optional 仅防测试直构，生产由 @Global CompanyScopeModule 提供
+    @Optional() private readonly companyScope?: CompanyScopeService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -83,16 +87,10 @@ export class AuthService {
     // ③ 已拒绝（已被删除，两处都查不到）→ 允许再次注册
 
     // 公司名归一化：公司是数据隔离的归属单位（2026-08-20 起对齐 Company 主数据），
-    // 手输变体（漏「有限」、空格等）统一到已有规范写法；未命中的新公司入 Company 表建档
-    const knownCompanies = await this.prisma.company.findMany({
-      select: { name: true },
-    }).then(rows => rows.map(r => r.name));
-    const company = this.normalizeCompany(dto.company, knownCompanies);
-    const companyRecord = await this.prisma.company.upsert({
-      where: { name: company },
-      update: {},
-      create: { name: company },
-    });
+    // 手输变体（漏「有限」、空格等）统一到已有规范写法；未命中的新公司入 Company 表建档。
+    // 2026-11-06 收口到 CompanyScopeService.resolveCompanyRecord（company 文本与 companyId 成对写入）
+    const companyRecord = await this.companyScope!.resolveCompanyRecord(dto.company);
+    const company = companyRecord.name;
 
     // 验证手机验证码
     await this.verificationService.verifyRegistrationCode(dto.phone, dto.verificationCode);
@@ -265,17 +263,6 @@ export class AuthService {
     if (!me) return null;
     // 本人自视明文（email/phone 密文列拆封；本人数据本人可见，不入揭示审计）
     return { ...me, email: openPii(me.email), phone: openPii(me.phone) };
-  }
-
-  /** 公司名归一化：精确匹配（忽略大小写/空白）→ 去后缀模糊匹配（有限/股份/集团）→ 原样保留 */
-  private normalizeCompany(input: string, known: string[]): string {
-    const trimmed = input.trim().replace(/\s+/g, '');
-    const exact = known.find(c => c.toLowerCase() === trimmed.toLowerCase());
-    if (exact) return exact;
-    const stripSuffix = (s: string) => s.replace(/(股份有限公司|有限公司|有限责任公司|集团)$/, '');
-    const target = stripSuffix(trimmed);
-    const fuzzy = known.find(c => stripSuffix(c) === target);
-    return fuzzy ?? trimmed;
   }
 
   /** 通知管理员（leader/admin）有新注册待审核；link 带 userId 供审核完成后精确清除 */
@@ -537,6 +524,17 @@ export class AuthService {
         throw new NotFoundException('指定的部门不存在');
       }
     }
+    // 改公司全链路联动（2026-11-06 用户裁定）：company 显示名与 companyId 真归属
+    // （隔离/编号段/归属快照的依据）成对变更——只写一侧即名实分离。空串=成对清除。
+    let companySync: { company: string | null; companyId: string | null } | undefined;
+    if (dto.company !== undefined) {
+      if (dto.company) {
+        const rec = await this.companyScope!.resolveCompanyRecord(dto.company);
+        companySync = { company: rec.name, companyId: rec.id };
+      } else {
+        companySync = { company: null, companyId: null };
+      }
+    }
 
     const updated = await this.prisma.user.update({
       where: { id: userId },
@@ -546,7 +544,7 @@ export class AuthService {
         ...(dto.departmentId !== undefined && { departmentId: dto.departmentId }),
         ...(dto.phone !== undefined && { phone: dto.phone }),
         ...(dto.officeLocation !== undefined && { officeLocation: dto.officeLocation }),
-        ...(dto.company !== undefined && { company: dto.company }),
+        ...(companySync && { ...companySync }),
         ...(dto.avatar !== undefined && { avatar: dto.avatar }),
       },
       select: {

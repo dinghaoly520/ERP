@@ -40,7 +40,7 @@ describe('AccountAdminController.updateSupplierCompany（多归属替换集）',
       auditLog: { create: jest.fn().mockResolvedValue({}) },
       $transaction: jest.fn((ops: any[]) => Promise.all(ops)),
     };
-    return { ctrl: new AccountAdminController(prisma), prisma, upsert, linkDelete, supplierUpdate };
+    return { ctrl: new AccountAdminController(prisma, {} as any), prisma, upsert, linkDelete, supplierUpdate };
   };
 
   it('授予差集直批 APPROVED + 移除目标外 APPROVED + 主归属被移除时改指首个', async () => {
@@ -96,7 +96,7 @@ describe('AccountAdminController.updateSupplierCompany（多归属替换集）',
     });
 
     const notSupplier: any = { ...prisma, user: { findUnique: jest.fn().mockResolvedValue({ id: 'u-1', supplier: null }) } };
-    const ctrl2 = new AccountAdminController(notSupplier);
+    const ctrl2 = new AccountAdminController(notSupplier, {} as any);
     await expect(ctrl2.updateSupplierCompany('u-1', { companyIds: ['co-a'] }, actor)).rejects.toMatchObject({
       response: { code: 'NOT_SUPPLIER' },
     });
@@ -139,7 +139,7 @@ describe('AccountAdminController.listSuppliers（列表带多归属 companies）
       },
       auditLog: { findMany: jest.fn().mockResolvedValue([]) },
     };
-    const r = await new AccountAdminController(prisma).listSuppliers();
+    const r = await new AccountAdminController(prisma, {} as any).listSuppliers();
     expect(r[0].supplier!.companies).toEqual([
       { id: 'co-a', name: '蜀水建设' },
       { id: 'co-c', name: '亭子口' },

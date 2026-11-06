@@ -7,6 +7,7 @@ import { sealPii, openPii, openPiiForMask, blindIndexPii } from '../common/crypt
 import { PASSWORD_PATTERN } from '../common/validators/password-strength';
 import { VerificationService } from '../verification/verification.service';
 import { NotificationService } from '../notification/notification.service';
+import { CompanyScopeService } from '../company/company-scope';
 
 /**
  * 密码变更/重置申请（2026-08-21 补齐后端实现）：
@@ -33,6 +34,9 @@ export class PasswordRequestsService {
     // 资料变更通知（2026-09-22，走 NotificationService=含 WS 实时推送）；Optional 防测试环境
     @Optional() @Inject(forwardRef(() => NotificationService))
     private readonly notifications?: NotificationService,
+    // 改公司全链路联动（2026-11-06 裁定）用：批准资料变更时把 company 解析成 companyId
+    // 真归属；Optional 仅防测试直构，生产由 @Global CompanyScopeModule 提供
+    @Optional() private readonly companyScope?: CompanyScopeService,
   ) {}
 
   // ── 用户端：提交申请 ──
@@ -514,6 +518,27 @@ export class PasswordRequestsService {
     }
     if ('phone' in payload) {
       data.phoneIdx = payload.phone ? blindIndexPii(openPii(payload.phone)) : null; // 盲索引同步（null=清除）
+    }
+    // 改公司全链路联动（2026-11-06 用户裁定）：company 不止是显示名——User.companyId 是
+    // 数据隔离/项目编号段/归属快照的真归属。内部账号批准改公司须解析成对写入
+    // （company 文本 + companyId 外键），只写字符串会名实分离（编号段仍按旧公司发）。
+    // 供应商例外：其公司身份由 SupplierCompanyLink 多归属与资质变更流程管辖，
+    // profile 的 company 仅作展示名，不联动外键。
+    if ('company' in payload && this.companyScope) {
+      const role = (await this.prisma.user.findUnique({
+        where: { id: req.userId },
+        select: { role: true },
+      }))?.role;
+      if (role && role !== 'supplier') {
+        if (payload.company) {
+          const rec = await this.companyScope.resolveCompanyRecord(payload.company);
+          data.company = rec.name;
+          data.companyId = rec.id;
+        } else {
+          data.company = null;
+          data.companyId = null;
+        }
+      }
     }
     const updated = await this.prisma.user.update({
       where: { id: req.userId },

@@ -12,6 +12,7 @@ import { CurrentUser } from './current-user.decorator';
 import type { AuthenticatedUser } from './auth.types';
 import { AUTHENTICATED_ROLES, INTERNAL_ROLES } from './auth-scope';
 import { planSupplierCompanySync } from './supplier-company-sync.util';
+import { CompanyScopeService } from '../company/company-scope';
 
 /**
  * 管理员「账号管理」（:3005 系统管理，2026-08-21）：
@@ -85,7 +86,11 @@ const ACCOUNT_SELECT = {
 @Controller('auth/admin/accounts')
 @Roles('admin')
 export class AccountAdminController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // 公司名→Company 记录统一收口（2026-11-06 改公司全链路联动裁定，逻辑移出本控制器）
+    private readonly companyScope: CompanyScopeService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: '账号列表（仅 :3005 采购中心人员账号）' })
@@ -364,8 +369,9 @@ export class AccountAdminController {
       throw new ConflictException({ error: `用户名「${dto.username}」已被使用`, code: 'USERNAME_EXISTS' });
     }
     // 公司名 → Company 记录并联动 companyId（2026-09-17）：此前只写 company 文本、
-    // companyId 恒空 → 账号管理建的账号在公司隔离引擎里全部「未归属」（resolveScope 读 companyId）
-    const companyRec = dto.company ? await this.resolveCompanyRecord(dto.company) : null;
+    // companyId 恒空 → 账号管理建的账号在公司隔离引擎里全部「未归属」（resolveScope 读 companyId）。
+    // 2026-11-06 收口到 CompanyScopeService.resolveCompanyRecord（注册/资料变更审批同源）
+    const companyRec = dto.company ? await this.companyScope.resolveCompanyRecord(dto.company) : null;
     return this.prisma.user.create({
       data: {
         username: dto.username,
@@ -396,8 +402,8 @@ export class AccountAdminController {
     if (id === user.sub && dto.role && dto.role !== 'admin') {
       throw new BadRequestException({ error: '不能修改自己的管理员角色', code: 'SELF_ROLE_LOCK' });
     }
-    // 公司名 → Company 记录（联动 companyId，口径同 create；空串=清除归属）
-    const companyRec = dto.company ? await this.resolveCompanyRecord(dto.company) : null;
+    // 公司名 → Company 记录（联动 companyId，口径同 create；空串=清除归属；2026-11-06 收口 CompanyScopeService）
+    const companyRec = dto.company ? await this.companyScope.resolveCompanyRecord(dto.company) : null;
     // 掩码回声防御（2026-10-15）：编辑表单回填的是出口掩码（173****0762 / a***@x.com），
     // 原样提交会把掩码串密封入库 → 本人 /auth/me 拆封回显掩码 → 个人中心资料修改校验卡死。
     // 含 * 的 phone/email 一律视为「未修改」剔除（同 supervision authToken '******'=保持现有 惯例）；
@@ -429,17 +435,6 @@ export class AccountAdminController {
   }
 
   /** 公司名归一化 → Company upsert（与注册链路同款：精确/去后缀匹配，未知公司即建档） */
-  private async resolveCompanyRecord(companyName: string) {
-    const known = (await this.prisma.company.findMany({ select: { name: true } })).map(c => c.name);
-    const trimmed = companyName.trim().replace(/\s+/g, '');
-    let name = known.find(c => c.toLowerCase() === trimmed.toLowerCase());
-    if (!name) {
-      const stripSuffix = (s: string) => s.replace(/(股份有限公司|有限公司|有限责任公司|集团)$/, '');
-      name = known.find(c => stripSuffix(c) === stripSuffix(trimmed)) ?? trimmed;
-    }
-    return this.prisma.company.upsert({ where: { name }, update: {}, create: { name } });
-  }
-
   @Post(':id/reset-password')
   @ApiOperation({ summary: '重置密码（并吊销该账号全部 web 会话）' })
   async resetPassword(@Param('id') id: string, @Body() dto: ResetPasswordDto) {

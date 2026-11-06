@@ -1,5 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
-import { CompanyScopeService, CompanyScope, NO_COMPANY, scopeCompanyIds } from './company-scope';
+import { CompanyScopeService, CompanyScope, NO_COMPANY, scopeCompanyIds, normalizeCompanyName } from './company-scope';
 
 /**
  * 公司隔离引擎多选扩展（2026-10-14）：?companyId=a,b,c 逗号多选语义锁定。
@@ -89,5 +89,60 @@ describe('CompanyScopeService 多选扩展（2026-10-14）', () => {
   it('scopeCompanyIds：all → null；限定 → id 列表（直读者统一出口）', () => {
     expect(scopeCompanyIds({ all: true })).toBeNull();
     expect(scopeCompanyIds({ all: false, companyIds: ['x'] })).toEqual(['x']);
+  });
+});
+
+/**
+ * resolveCompanyRecord —「改公司全链路联动」唯一收口（2026-11-06 用户裁定）：
+ * company 显示名与 companyId 真归属必须成对变更，注册/账号管理//auth/me/资料变更审批
+ * 四路同源解析。匹配规则：精确（忽略大小写/空白）→ 去后缀模糊（有限/股份/集团）→ 原样建档。
+ */
+describe('resolveCompanyRecord — 公司名归一化统一收口（2026-11-06）', () => {
+  const known = ['四川省水利发展集团有限公司', '四川水发勘测设计研究有限公司', '四川水发建设有限公司'];
+
+  function mk() {
+    const upsert = jest.fn().mockImplementation(({ where }: any) => Promise.resolve({ id: `id-of:${where.name}`, name: where.name }));
+    const prisma = {
+      company: {
+        findMany: jest.fn().mockResolvedValue(known.map(name => ({ name }))),
+        upsert,
+      },
+    } as never;
+    return { svc: new CompanyScopeService(prisma), upsert };
+  }
+
+  it('精确匹配（含空白变体）→ 沿用主数据规范名，不新建档', async () => {
+    const { svc, upsert } = mk();
+    const rec = await svc.resolveCompanyRecord(' 四川水发建设有限公司 ');
+    expect(rec).toEqual({ id: 'id-of:四川水发建设有限公司', name: '四川水发建设有限公司' });
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { name: '四川水发建设有限公司' }, update: {} }));
+  });
+
+  it('去后缀模糊匹配：「四川水发建设」→ 四川水发建设有限公司（漏写后缀对齐规范名）', async () => {
+    const { svc } = mk();
+    const rec = await svc.resolveCompanyRecord('四川水发建设');
+    expect(rec.name).toBe('四川水发建设有限公司');
+  });
+
+  it('空白公司名 → 400 拒绝（防 \' \' 绕过 DTO IsNotEmpty 建档空名公司）', async () => {
+    const { svc, upsert } = mk();
+    await expect(svc.resolveCompanyRecord('   ')).rejects.toMatchObject({
+      status: 400,
+      response: { code: 'COMPANY_NAME_REQUIRED' },
+    });
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it('未命中主数据 → 以原名建档（upsert create 分支）', async () => {
+    const { svc, upsert } = mk();
+    const rec = await svc.resolveCompanyRecord('全新某某公司');
+    expect(rec.name).toBe('全新某某公司');
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ create: { name: '全新某某公司' } }));
+  });
+
+  it('normalizeCompanyName 纯函数：大小写不敏感、空格折叠、后缀剥离键一致', () => {
+    expect(normalizeCompanyName('acme', ['ACME'])).toBe('ACME'); // 大小写不敏感（空白为删除语义非折叠）
+    expect(normalizeCompanyName('四川水发投资有限公司', ['四川水发投资集团'])).toBe('四川水发投资集团');
+    expect(normalizeCompanyName('孤本名称', [])).toBe('孤本名称');
   });
 });

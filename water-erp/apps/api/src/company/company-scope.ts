@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, Global, Module } from '@nestjs/common';
+import { Injectable, ForbiddenException, BadRequestException, Global, Module } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { CompanyController } from './company.controller';
@@ -33,6 +33,20 @@ export function scopeCompanyIds(scope: CompanyScope): string[] | null {
 
 /** filter() 返回的 where 片段类型——各 service 接收端签名直接引用，勿手写窄化为 string */
 export type CompanyWhere = { companyId?: string | { in: string[] } };
+
+/**
+ * 公司名归一化（纯函数）：精确匹配（忽略大小写/空白）→ 去后缀模糊匹配（有限/股份/集团）→ 原样保留。
+ * 注册 datalist（auth.controller 公司清单端点）返回纯名称数组，与本函数的对齐键保持一致。
+ */
+export function normalizeCompanyName(input: string, known: string[]): string {
+  const trimmed = input.trim().replace(/\s+/g, '');
+  const exact = known.find(c => c.toLowerCase() === trimmed.toLowerCase());
+  if (exact) return exact;
+  const stripSuffix = (s: string) => s.replace(/(股份有限公司|有限公司|有限责任公司|集团)$/, '');
+  const target = stripSuffix(trimmed);
+  const fuzzy = known.find(c => stripSuffix(c) === target);
+  return fuzzy ?? trimmed;
+}
 
 @Injectable()
 export class CompanyScopeService {
@@ -116,6 +130,23 @@ export class CompanyScopeService {
     });
     if (!me?.companyId) return {};
     return { companyId: me.companyId, companyName: me.company ?? undefined };
+  }
+
+  /**
+   * 公司名 → Company 记录（归一化 + 未命中建档）。
+   * 「改公司全链路联动」的唯一收口（2026-11-06 用户裁定）：User.company（显示名）与
+   * User.companyId（真归属——数据隔离/项目编号段/归属快照都读它）必须成对变更——
+   * 注册建档、账号管理、/auth/me 直改、资料变更审批一律经此解析，禁止只写一侧
+   * （名实分离实录：admin 公司名改集团、编号仍发设计院 SWHI 段）。
+   */
+  async resolveCompanyRecord(companyName: string): Promise<{ id: string; name: string }> {
+    // 空白闸：' ' 能绕过 DTO 层 @IsNotEmpty，落库会建档出空名公司（主数据污染）
+    if (!companyName.trim()) {
+      throw new BadRequestException({ error: '公司名不能为空', code: 'COMPANY_NAME_REQUIRED' });
+    }
+    const known = await this.prisma.company.findMany({ select: { name: true } }).then(rows => rows.map(r => r.name));
+    const name = normalizeCompanyName(companyName, known);
+    return this.prisma.company.upsert({ where: { name }, update: {}, create: { name }, select: { id: true, name: true } });
   }
 }
 

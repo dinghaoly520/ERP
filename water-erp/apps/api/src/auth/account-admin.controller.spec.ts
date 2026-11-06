@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AccountAdminController } from './account-admin.controller';
 import { PrismaService } from '../prisma/prisma.service';
+import { CompanyScopeService } from '../company/company-scope';
 import { openPii, isSealedFieldSm, blindIndexPii } from '../common/crypto/sm-field-crypto';
 
 /**
@@ -22,7 +23,7 @@ describe('AccountAdminController — 掩码回声防御（2026-10-15）', () => 
     };
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AccountAdminController],
-      providers: [{ provide: PrismaService, useValue: prisma }],
+      providers: [CompanyScopeService, { provide: PrismaService, useValue: prisma }],
     }).compile();
     controller = module.get(AccountAdminController);
   });
