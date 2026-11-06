@@ -111,7 +111,7 @@ function AnnouncementsContent() {
               value={company}
               onChange={e => setCompany(e.target.value)}
               aria-label="按发布单位筛选"
-              className="peer h-10 w-[200px] max-w-[52vw] cursor-pointer appearance-none rounded-xl border border-[#dbe4ef] bg-[oklch(1_0_0/0.6)] pl-10 pr-9 text-sm text-[#18243a] transition-all
+              className="peer h-10 w-[260px] max-w-[60vw] cursor-pointer appearance-none rounded-xl border border-[#dbe4ef] bg-[oklch(1_0_0/0.6)] pl-10 pr-9 text-sm text-[#18243a] transition-all
                 shadow-[inset_0_1px_0_oklch(1_0_0/0.8),1px_1px_3px_oklch(0.55_0.03_258/0.08)]
                 focus:border-[#cfd9e6]
                 focus:shadow-[inset_1px_1px_3px_oklch(0.55_0.03_258/0.12),inset_-1px_-1px_2px_oklch(1_0_0/0.9)]">
