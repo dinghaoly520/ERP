@@ -23,9 +23,9 @@ import { fetchCurrentUser } from '@/lib/api/auth';
 
 /** 可手工新建的公告类型。
  *  采购公告（BID_NOTICE）、流标公告（FAILED_BID_NOTICE）、中标公告（WIN_BID_NOTICE）
- *  由系统在项目公告发布向导中生成，不在此手工创建。
+ *  在项目管理中随流程进行制作和发布，均不在此创建（2026-11-06 文案口径）。
  *  2026-10-16 用户裁定：中标公告（PRE_WIN_NOTICE）、成交公告（WIN_NOTICE）、合同公告（CONTRACT_NOTICE）、
- *  履行结果公告（PERFORMANCE_NOTICE）同样收归项目「公告制作与发布」向导（announcement-publish-wizard）
+ *  履行结果公告（PERFORMANCE_NOTICE）同样收归项目向导（announcement-publish-wizard）
  *  生成——此四类不再提供手工创建入口。 */
 type NoticeType =
   | 'ADDENDUM'
@@ -331,7 +331,7 @@ export default function NewNoticePage() {
             ))}
           </div>
           <p className="mt-2 text-[11px] text-[var(--muted-foreground)]">
-            采购公告、流标公告、中标公告、成交公告、合同公告、履行结果公告由系统在项目的「公告制作与发布」向导中生成，不在此手工创建。
+            采购公告、流标公告、中标公告在项目管理中随流程进行制作和发布，均不在此处创建。
           </p>
         </fieldset>
 
