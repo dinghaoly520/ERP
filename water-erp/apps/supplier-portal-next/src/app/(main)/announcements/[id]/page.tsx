@@ -70,6 +70,7 @@ const ANNO_TYPE_META: Record<string, MetaField[]> = {
   ],
   ADDENDUM: [
     { key: "projectCode", label: "项目编号" }, { key: "changes", label: "澄清/修改内容", area: true },
+    { key: "newOpenTime", label: "调整后开标时间", date: true },
     { key: "newDeadline", label: "调整后递交截止", date: true },
   ],
   // 资格预审公告：申请供应商是主要受众（2026-11-06 与 :3005 发布字段表对齐补齐——此前整块缺失）

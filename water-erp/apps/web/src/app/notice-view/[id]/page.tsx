@@ -29,7 +29,9 @@ const TYPE_META: Record<AnnouncementType, MetaField[]> = {
     { key: 'title', label: '预审名称' },
   ],
   ADDENDUM: [
-    { key: 'projectCode', label: '项目编号' }, { key: 'changes', label: '澄清/修改内容', area: true },
+    { key: 'projectCode', label: '项目编号' }, { key: 'relatedAnnouncementTitle', label: '关联采购公告' },
+    { key: 'changes', label: '澄清/修改内容', area: true },
+    { key: 'newOpenTime', label: '调整后开标时间', date: true },
     { key: 'newDeadline', label: '调整后递交截止', date: true },
   ],
   BID_NOTICE: [

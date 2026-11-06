@@ -53,7 +53,7 @@ const TYPE_META: Record<NoticeType, MetaField[]> = {
   // projectCode 不在通用网格——移入「关联信息」区块（选择器自动带出，2026-10-16；手填入口 2026-11-06 删除）
   ADDENDUM: [
     { key: 'changes', label: '澄清/修改内容', area: true, ph: '逐条列出对采购文件的澄清或修改事项' },
-    { key: 'newDeadline', label: '调整后递交截止', date: true },
+    // 开标时间调整（openTimeChanged/newOpenTime）为专用行渲染（segment + 窄时间框），不在通用网格
   ],
   // 7.2.3 资格预审公告：供应商按公告约定提交资格预审申请。原「预审名称」与公告标题重复（2026-11-06 删），
   // 改收「申请人资格条件」——资格预审公告的法定核心内容
@@ -137,6 +137,8 @@ export default function NewNoticePage() {
   // 已发布标记：publish 成功后 router.push 生效前的窗口期内，再点「保存草稿」会把
   // 已发布公告降级回 DRAFT——用 ref 拦住（2026-09-29 健壮性复查补充）
   const publishedRef = useRef(false);
+  // 最近一次保存的完整响应（发布后取 openTimeSyncWarning/deadlineAdvice 等警示面）
+  const savedResultRef = useRef<any>(null);
   const [type, setType] = useState<NoticeType>('POLICY');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -167,7 +169,7 @@ export default function NewNoticePage() {
   const { confirm, dialog: confirmDialog } = useConfirm();
 
   const onTypeChange = (t: NoticeType) => {
-    setType(t); setMetadata(t === 'ADDENDUM' ? { refBidDoc: '' } : {});
+    setType(t); setMetadata(t === 'ADDENDUM' ? { refBidDoc: '', openTimeChanged: '', newOpenTime: '' } : {});
     setLinkedProject(null); setLinkedAnnouncement(null); setProjectQuery(''); setAnnQuery('');
     setBidDoc(null);
   };
@@ -240,8 +242,14 @@ export default function NewNoticePage() {
     setBusy(true);
     const meta: Record<string, any> = {};
     for (const f of TYPE_META[type]) if (metadata[f.key]?.trim()) meta[f.key] = metadata[f.key].trim();
-    // 补遗「引用采购文件」开关随 meta 落库（2026-11-06；关=不写键）
-    if (type === 'ADDENDUM' && metadata.refBidDoc === '1') meta.refBidDoc = '1';
+    // 补遗「引用采购文件」开关与「开标时间调整」随 meta 落库（2026-11-06；关=不写键）
+    if (type === 'ADDENDUM') {
+      if (metadata.refBidDoc === '1') meta.refBidDoc = '1';
+      if (metadata.openTimeChanged === '1') {
+        meta.openTimeChanged = '1';
+        if (metadata.newOpenTime) meta.newOpenTime = metadata.newOpenTime;
+      }
+    }
     // 关联信息（2026-10-16）：projectCode/relatedAnnouncementTitle 移入选择器区块、不在 TYPE_META，须显式带走
     if (isProjectLinked) {
       if (metadata.projectCode?.trim()) meta.projectCode = metadata.projectCode.trim();
@@ -262,6 +270,7 @@ export default function NewNoticePage() {
         ? await updateAnnouncement(annId, payload)
         : await createAnnouncement(payload);
       setAnnId(saved.id);
+      savedResultRef.current = saved;
       return saved.id;
     } catch (e: any) { toast.error(e?.message || '保存失败'); return null; }
     finally { setBusy(false); }
@@ -299,6 +308,16 @@ export default function NewNoticePage() {
       toast.error('请设置定时发布时间');
       return;
     }
+    // 补遗/资格预审公告必须关联项目（2026-11-06 用户裁定）；关联采购公告为可选
+    if ((type === 'ADDENDUM' || type === 'PREQUAL_NOTICE') && !linkedProject) {
+      toast.error(`${typeLabel[type]}须先选择关联项目`);
+      return;
+    }
+    // 补遗选择「改变开标时间」须给出新时间（后端发布时联动项目开标/截标与原采购公告）
+    if (type === 'ADDENDUM' && metadata.openTimeChanged === '1' && !metadata.newOpenTime) {
+      toast.error('已选择改变开标时间，请填写调整后开标时间');
+      return;
+    }
     // 补遗声明引用采购文件但尚未上传：发布前确认（同采购公告口径，2026-11-06）
     if (type === 'ADDENDUM' && metadata.refBidDoc === '1' && !bidDoc && publishConfig.scheduleMode === 'immediate'
       && !(await confirm({ message: '该补遗公告声明引用采购文件但尚未上传，确认直接发布？' }))) return;
@@ -306,6 +325,9 @@ export default function NewNoticePage() {
     if (id) {
       publishedRef.current = true;
       toast.success(publishConfig.scheduleMode === 'scheduled' ? `已设定定时发布（${publishConfig.scheduledPublishDate.replace('T', ' ')}）` : '已发布');
+      const r = savedResultRef.current;
+      if (r?.openTimeSyncWarning) toast.error(r.openTimeSyncWarning);
+      if (r?.deadlineAdvice) toast.warning(r.deadlineAdvice);
       router.push(`/notice/${id}`);
     }
   };
@@ -399,11 +421,11 @@ export default function NewNoticePage() {
         {isProjectLinked && (
           <fieldset>
             <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">
-              <Step n={3} />关联信息（仅本公司项目 / 公告）
+              <Step n={3} />关联信息（仅本公司项目 / 公告；项目必选、公告可选）
             </legend>
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
-                <button type="button" onClick={openProjectPicker} className="neu-btn-soft"><FolderKanban size={14} />选择关联项目</button>
+                <button type="button" onClick={openProjectPicker} className="neu-btn-soft"><FolderKanban size={14} />选择关联项目 <span className="text-[var(--danger)]">*</span></button>
                 {linkedProject ? (
                   <span className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-[oklch(0.6_0.04_258_/_0.16)] bg-[color-mix(in_oklch,var(--accent)_7%,transparent)] px-2.5 py-1.5 text-xs text-[color:var(--foreground)]">
                     {linkedProject.projectCode && <span className="font-mono text-[10px] text-[var(--accent-strong)]">{linkedProject.projectCode}</span>}
@@ -415,7 +437,7 @@ export default function NewNoticePage() {
                     </button>
                   </span>
                 ) : (
-                  <span className="text-xs text-[var(--muted-foreground)]">未选择——可先选项目（自动带出编号与建议标题），或用下方项目编号手填</span>
+                  <span className="text-xs text-[var(--muted-foreground)]">必选——关联本公司项目，自动带出项目编号与建议标题</span>
                 )}
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -463,7 +485,24 @@ export default function NewNoticePage() {
               );
             })}
           </div>
-          {/* 补遗公告「引用采购文件」开关与文件段在下方「附件与采购文件」双栏区块（2026-11-06 UI 重设计） */}
+          {/* 补遗：开标时间调整（2026-11-06 用户裁定）——不改变沿用所关联公告/项目的开标时间；
+              改变则发布时联动项目开标/截标（10 分钟铁律随动）与原采购公告展示值。
+              「引用采购文件」开关与文件段在下方「附件与采购文件」双栏区块（2026-11-06 UI 重设计） */}
+          {type === 'ADDENDUM' && (
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <span className="text-xs font-semibold text-[var(--muted-foreground)]">开标时间</span>
+              <div className="neu-segment" role="group" aria-label="开标时间" data-index={metadata.openTimeChanged === '1' ? '1' : '0'}>
+                <span aria-hidden className="neu-segment-thumb" />
+                <button type="button" aria-pressed={metadata.openTimeChanged !== '1'} onClick={() => setMetadata({ ...metadata, openTimeChanged: '' })} className="neu-segment-btn">不改变</button>
+                <button type="button" aria-pressed={metadata.openTimeChanged === '1'} onClick={() => setMetadata({ ...metadata, openTimeChanged: '1' })} className="neu-segment-btn">改变</button>
+              </div>
+              {metadata.openTimeChanged === '1' ? (
+                <input type="datetime-local" value={toDateInputValue(metadata.newOpenTime || '')} onChange={e => setMetadata({ ...metadata, newOpenTime: e.target.value })} className="neu-input !w-[13.5rem]" />
+              ) : (
+                <span className="text-[11px] text-[var(--muted-foreground)]">沿用所关联公告/项目的开标时间</span>
+              )}
+            </div>
+          )}
         </fieldset>
 
         <hr className="wb-section-rule" />

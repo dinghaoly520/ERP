@@ -9,6 +9,7 @@ import { CreateAnnouncementDto, UpdateAnnouncementDto } from './dto/create-annou
 import { AnnouncementAiService } from './announcement-ai.service';
 import { SunshinePushService } from './sunshine-push.service';
 import { normalizeScheduledPublishMetadata, parseScheduledPublishDate } from './scheduled-publish.util';
+import { deriveDeadlineFromOpenTime } from '../bid/opening-deadline.util';
 import { BidService } from '../bid/bid.service';
 import { ProjectManagementService } from '../project-management/project-management.service';
 import { BidDocumentService } from './bid-document.service';
@@ -223,10 +224,14 @@ export class AnnouncementService {
       // 阳光采购平台推送（2026-10-28 测试联调）：metadata.sunshinePublish 快照外发，结果留痕同字段
       void this.sunshinePush?.onPublish({ id: result.id, content: result.content, metadata: result.metadata });
     }
-    // C5（7.2.6）：补遗公告发布 → 补遗计数 + 已获取文件供应商定向通知（不阻塞发布）
+    // C5（7.2.6）：补遗公告发布 → 补遗计数 + 已获取文件供应商定向通知 + 开标时间联动（不阻塞发布）
     if (dto.type === 'ADDENDUM' && status === 'PUBLISHED') {
-      const advice = this.addendumDeadlineAdvice((dto.metadata as Record<string, any>)?.newDeadline);
-      void this.syncAddendum(result.id).catch(e => this.logger.warn(`补遗联动失败: ${(e as Error).message}`));
+      const m = (dto.metadata as Record<string, any>) || {};
+      const advice = this.addendumDeadlineAdvice(m.newOpenTime ?? m.newDeadline);
+      try {
+        const sync = await this.syncAddendum(result.id, authorId);
+        if (sync.openTimeSyncWarning) Object.assign(result, { openTimeSyncWarning: sync.openTimeSyncWarning });
+      } catch (e) { this.logger.warn(`补遗联动失败: ${(e as Error).message}`); }
       if (advice) Object.assign(result, { deadlineAdvice: advice });
     }
     // A3（GB/T 43711 7.2.2.5）：发布采购公告时做要素完整性检查——警告不阻断，
@@ -738,11 +743,14 @@ export class AnnouncementService {
       // 无人消费、推送静默丢失。onPublish 内部全捕获，无快照即跳过（P2025 竞态分支已早退，赢家独推）。
       void this.sunshinePush?.onPublish({ id: result.id, content: result.content, metadata: result.metadata });
     }
-    // C5（7.2.6）：update 路径发布补遗公告同样联动
+    // C5（7.2.6）：update 路径发布补遗公告同样联动（含开标时间联动，2026-11-06）
     if (result.type === 'ADDENDUM' && isPublishTransition) {
       const effectiveMeta = (dto.metadata ?? announcement.metadata) as Record<string, any> | null;
-      const advice = this.addendumDeadlineAdvice(effectiveMeta?.newDeadline);
-      void this.syncAddendum(result.id).catch(e => this.logger.warn(`补遗联动失败 (update): ${(e as Error).message}`));
+      const advice = this.addendumDeadlineAdvice(effectiveMeta?.newOpenTime ?? effectiveMeta?.newDeadline);
+      try {
+        const sync = await this.syncAddendum(result.id);
+        if (sync.openTimeSyncWarning) Object.assign(result, { openTimeSyncWarning: sync.openTimeSyncWarning });
+      } catch (e) { this.logger.warn(`补遗联动失败 (update): ${(e as Error).message}`); }
       if (advice) Object.assign(result, { deadlineAdvice: advice });
     }
     // A3：update 路径发布采购公告同样做要素检查（用合并后的生效值）
@@ -781,21 +789,64 @@ export class AnnouncementService {
    * ③ 若填写了调整后截止时间且距发布不足 ADDENDUM_MIN_LEAD_DAYS（默认 3 日），
    *    在响应中给出 deadlineAdvice 提示（不自动改项目时间——调整走项目编辑，避免误伤开标联动）。
    */
-  private async syncAddendum(announcementId: string) {
+  private async syncAddendum(announcementId: string, actorId?: string): Promise<{ openTimeAdjusted?: boolean; openTimeSyncWarning?: string }> {
     const ann = await this.prisma.announcement.findUnique({
       where: { id: announcementId },
       select: { id: true, title: true, relatedProjectCode: true, metadata: true },
     });
-    if (!ann) return;
+    if (!ann) return {};
     const meta = (ann.metadata as Record<string, any>) ?? {};
     const code = ann.relatedProjectCode || meta.projectCode;
-    if (!code) return;
+    if (!code) return {};
 
     const project = await this.prisma.bidProject.findUnique({
       where: { projectCode: code },
-      select: { id: true, deadline: true },
+      select: { id: true, deadline: true, openTime: true, stage: true, name: true, projectCode: true },
     });
-    if (!project) return;
+    if (!project) return {};
+
+    // ③ 开标时间联动（2026-11-06 用户裁定）：补遗选择「改变开标时间」→ 项目开标/截标
+    // 与原采购公告展示值全部改为该时间（截标按 10 分钟铁律随动）。仅投递前可调——
+    // 开标/评标已开始后不再扰动（响应带警示，发布不回滚）。
+    if (meta.openTimeChanged === '1') {
+      const t = new Date(meta.newOpenTime || '');
+      if (!meta.newOpenTime || Number.isNaN(t.getTime())) {
+        this.logger.warn(`补遗开标时间联动跳过（时间非法）: ${ann.title}`);
+        return { openTimeSyncWarning: '补遗声明改变开标时间但时间非法，项目开标时间未调整，请检查补遗公告' };
+      }
+      if (!['DOWNLOAD', 'SUBMIT'].includes(project.stage)) {
+        this.logger.warn(`补遗开标时间联动跳过（阶段 ${project.stage}）: ${ann.title}`);
+        return { openTimeSyncWarning: `项目已进入 ${project.stage === 'OPENING' ? '开标' : project.stage === 'EVALUATING' ? '评标' : '终局'}阶段，开标时间未随补遗调整，请人工核处` };
+      }
+      const newDeadline = deriveDeadlineFromOpenTime(t);
+      await this.prisma.bidProject.update({
+        where: { id: project.id },
+        data: { openTime: t, deadline: newDeadline },
+      });
+      // 原采购公告展示值同步（开标时间 + 随动的报名/投标截止，read-modify-write 保他键）
+      const bidNotice = await this.prisma.announcement.findFirst({
+        where: { relatedProjectCode: code, type: 'BID_NOTICE', status: 'PUBLISHED' },
+        select: { id: true, metadata: true },
+        orderBy: { publishDate: 'desc' },
+      });
+      if (bidNotice) {
+        const bm = { ...((bidNotice.metadata as Record<string, any>) ?? {}) };
+        bm.openTime = meta.newOpenTime;
+        bm.deadline = newDeadline.toISOString();
+        await this.prisma.announcement.update({ where: { id: bidNotice.id }, data: { metadata: bm } });
+      }
+      await this.prisma.auditLog.create({
+        data: {
+          userId: actorId ?? 'system',
+          action: 'ADDENDUM_OPEN_TIME_SYNC',
+          resourceType: 'BidProject',
+          resourceId: project.id,
+          details: { announcementId: ann.id, openTime: t.toISOString(), deadline: newDeadline.toISOString() },
+        },
+      }).catch(e => this.logger.warn(`补遗开标联动审计留痕失败: ${(e as Error).message}`));
+      this.logger.log(`补遗开标时间联动完成: ${project.projectCode} → ${t.toISOString()}`);
+      return { openTimeAdjusted: true };
+    }
 
     // ① 采购文件补遗计数（OPEN 文档可能无 bidProjectId，用 announcement 链路兜底找）
     const bidDoc = (await this.prisma.bidDocument.findFirst({ where: { bidProjectId: project.id } }))
@@ -819,7 +870,7 @@ export class AnnouncementService {
     const supplierIds = [...new Set(
       [...accesses.map(a => a.supplierId), ...invited.map(b => b.supplierId)].filter((id): id is string => !!id),
     )];
-    if (supplierIds.length === 0) return;
+    if (supplierIds.length === 0) return {};
     const suppliers = await this.prisma.supplier.findMany({
       where: { id: { in: supplierIds } },
       select: { userId: true },
@@ -845,6 +896,7 @@ export class AnnouncementService {
       } catch { /* 单个失败不阻塞 */ }
     }
     this.logger.log(`补遗公告通知已发送: ${ann.title}, 收件 ${sent}/${suppliers.length} 家供应商`);
+    return {};
   }
 
   /** C5：补遗截止时间充分性提示（7.2.6.2 保证供应商有足够时间编制） */
@@ -855,7 +907,7 @@ export class AnnouncementService {
     if (Number.isNaN(target.getTime())) return null;
     const leadMs = target.getTime() - Date.now();
     if (leadMs < minDays * 86400000) {
-      return `调整后的截止时间距补遗发布不足 ${minDays} 日，GB/T 43711 7.2.6.2 要求保证供应商有足够时间编制响应文件，请确认时限合理（或说明紧急理由）`;
+      return `调整后的时间距补遗发布不足 ${minDays} 日，GB/T 43711 7.2.6.2 要求保证供应商有足够时间编制响应文件，请确认时限合理（或说明紧急理由）`;
     }
     return null;
   }
