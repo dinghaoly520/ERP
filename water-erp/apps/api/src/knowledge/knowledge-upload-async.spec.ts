@@ -16,7 +16,12 @@ function mkHarness(existing?: { id: string; status: string; objectKey?: string }
   const prisma: any = {
     knowledgeBase: { findUnique: jest.fn().mockResolvedValue({ id: 'kb-1', ownerId: 'u-1' }) },
     knowledgeFile: {
-      findFirst: jest.fn().mockResolvedValue(existing ?? null),
+      // 语义化 mock：按 where.status（裸字符串或 in 数组）判断本查询是否命中（贴近真实 DB 过滤）
+      findFirst: jest.fn(async ({ where }: any) => {
+        const st = where?.status;
+        const wanted: string[] = typeof st === 'string' ? [st] : st?.in ?? [];
+        return existing && wanted.includes(existing.status) ? existing : null;
+      }),
       findUnique: jest.fn(),
       create,
       update,
@@ -97,17 +102,69 @@ describe('KnowledgeService 上传异步化', () => {
     await expect(h.svc.retryFile('kb-1', 'kf-2', user)).rejects.toThrow(BadRequestException);
   });
 
+  it('M-3 retry 双击幂等：PARSING 行 → 返回当前行（不 400、不重复入队——job 已在跑）', async () => {
+    const h = mkHarness(null);
+    h.prisma.knowledgeFile.findFirst.mockResolvedValueOnce({ id: 'kf-run', status: 'PARSING', fileName: 'x.pdf' });
+    const res = await h.svc.retryFile('kb-1', 'kf-run', user);
+    expect(res).toMatchObject({ id: 'kf-run', status: 'PARSING' });
+    expect(h.update).not.toHaveBeenCalled();
+    expect(h.queue.add).not.toHaveBeenCalled();
+  });
+
   it('并发竞争输家（唯一索引 P2002）→ 重查赢家行返回 deduplicated:true、清自己刚传的孤儿对象、不入队', async () => {
     // 评审 I-1：findFirst→create 窗口（含 118MB MinIO 上传，秒级宽）内并发重复上传，
     // partial unique index（kbId,sha256 WHERE status IN PARSING/READY）兜底——输家 create 抛 P2002
     const h = mkHarness(null);
-    h.create.mockRejectedValueOnce(Object.assign(new Error('Unique constraint failed'), { code: 'P2002' }));
-    h.prisma.knowledgeFile.findFirst
-      .mockResolvedValueOnce(null)                       // 首查 miss（竞争窗口）
-      .mockResolvedValueOnce({ id: 'kf-winner', status: 'PARSING', objectKey: 'other' }); // 输家重查见赢家
+    let winnerRow: any = null;
+    h.prisma.knowledgeFile.findFirst.mockImplementation(async ({ where }: any) =>
+      where?.status?.in?.includes('PARSING') ? winnerRow : null);
+    h.create.mockImplementation(async () => {
+      if (winnerRow) throw Object.assign(new Error('Unique constraint failed'), { code: 'P2002' });
+      winnerRow = { id: 'kf-winner', status: 'PARSING', objectKey: 'other' };
+      throw Object.assign(new Error('模拟：首建者胜出后，本输家的 create 撞唯一索引'), { code: 'P2002' });
+    });
     const res = await h.svc.uploadFile('kb-1', file, user);
     expect(res).toMatchObject({ id: 'kf-winner', deduplicated: true });
     expect(h.storage.delete).toHaveBeenCalledWith(expect.stringContaining('knowledge/kb-1/'));
     expect(h.queue.add).not.toHaveBeenCalled();
+  });
+
+  it('M-5 建行抛错（非 P2002）→ best-effort 清刚传的 MinIO 对象后 rethrow（不留孤儿）', async () => {
+    const h = mkHarness(null);
+    h.create.mockRejectedValueOnce(new Error('db down'));
+    await expect(h.svc.uploadFile('kb-1', file, user)).rejects.toThrow('db down');
+    expect(h.storage.delete).toHaveBeenCalledWith(expect.stringContaining('knowledge/kb-1/'));
+    expect(h.queue.add).not.toHaveBeenCalled();
+  });
+
+  it('M-7 并发窗口钉子：双方都过了去重查询（A 挂在 MinIO 上传、B 全程跑完建行）→ A 的 create 撞唯一索引兜底返回 B 的行', async () => {
+    const h = mkHarness(null);
+    let winnerRow: any = null;
+    // 模拟 DB 语义：active 去重查询返回「当刻」已存在的赢家；FAILED 复用查询恒空
+    h.prisma.knowledgeFile.findFirst.mockImplementation(async ({ where }: any) =>
+      where?.status?.in?.includes('PARSING') ? winnerRow : null);
+    h.create.mockImplementation(async ({ data }: any) => {
+      if (winnerRow) throw Object.assign(new Error('Unique constraint failed on KnowledgeFile_kb_sha_active_uniq'), { code: 'P2002' });
+      winnerRow = { id: 'kf-B', ...data };
+      return winnerRow;
+    });
+    // A 的存储上传被闸住（118MB 慢传＝天然竞争窗），B 不受闸先跑完全链
+    let releaseA!: () => void;
+    const gate = new Promise<void>(r => { releaseA = r; });
+    let uploadCalls = 0;
+    h.storage.upload.mockImplementation(async () => { if (++uploadCalls === 1) await gate; });
+
+    const pa = h.svc.uploadFile('kb-1', file, user);
+    const pb = h.svc.uploadFile('kb-1', file, user);
+    await new Promise(r => setImmediate(r)); // B 建成赢家行
+    releaseA();                              // A 恢复：create 撞唯一索引
+    const [a, b] = await Promise.all([pa, pb]);
+
+    expect(b).toMatchObject({ id: 'kf-B' });
+    expect(b.deduplicated).toBeUndefined();
+    expect(a).toMatchObject({ id: 'kf-B', deduplicated: true }); // 输家复用赢家行
+    // 建行尝试 2 次（B 成功 + A 撞唯一索引），但落库仅一行——两响应同 id 即单行契约
+    expect(h.create).toHaveBeenCalledTimes(2);
+    expect(a.id).toBe(b.id);
   });
 });

@@ -81,15 +81,20 @@ export default function FilesPanelCompact() {
     setUploading(true);
     const total = files.length;
     setUpRows(Array.from(files).map(f => ({ name: f.name, pct: 0 })));
+    let dedupCount = 0;
     try {
       for (let i = 0; i < total; i++) {
         const file = files[i];
         toast.info(`正在上传 (${i + 1}/${total})：${file.name}`, { duration: 8000, id: 'upload-progress' });
-        await uploadFile(selectedKbId, file, {
+        const row = await uploadFile(selectedKbId, file, {
           onProgress: (l, t) => setUpRows(rows => rows.map((r, j) => (j === i ? { ...r, pct: t > 0 ? Math.round((l / t) * 100) : 0 } : r))),
         });
+        if (row?.deduplicated) dedupCount++;
       }
       toast.success(`${total} 个文件已上传，后台解析中`, { id: 'upload-progress' });
+      if (dedupCount > 0) {
+        toast.info(`${dedupCount} 个文件已在库中（内容相同，未重复上传）`, { duration: 8000 });
+      }
 
       // 刷新知识库数据后检查是否需要提示用户提取规则
       await refreshKnowledgeBases();

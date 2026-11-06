@@ -105,6 +105,8 @@ export class KnowledgeParseProcessor extends WorkerHost {
       // 嵌入缺失时显式跳过向量入库，reindex 可补
       if (textChunks.length > 0 && embeddings.length === textChunks.length) {
         try {
+          // M-2 幂等化：先清同 fileId 旧块——stall 重跑/并发 reindex 等同 fileId 双执行不产生双份向量
+          await this.vectorSearch.deleteByFileId(fileId);
           await this.vectorSearch.insertChunks(
             textChunks.map((chunk, i) => ({
               collectionName: file.knowledgeBaseId,

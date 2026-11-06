@@ -112,12 +112,11 @@ export class KnowledgeService {
     await this.assertEditable(kbId, user);
 
     const sha256 = createHash('sha256').update(file.buffer).digest('hex');
-    const existing = await this.prisma.knowledgeFile.findFirst({
-      where: { knowledgeBaseId: kbId, sha256, status: { in: ['PARSING', 'READY', 'FAILED'] } },
+    // 去重第一步：活动行（PARSING/READY）直接复用（M-4 拆分查询——原「三态并查」等价全集、语义噪音）
+    const active = await this.prisma.knowledgeFile.findFirst({
+      where: { knowledgeBaseId: kbId, sha256, status: { in: ['PARSING', 'READY'] } },
     });
-    if (existing && (existing.status === 'PARSING' || existing.status === 'READY')) {
-      return { ...existing, deduplicated: true };
-    }
+    if (active) return { ...active, deduplicated: true };
 
     const objectKey = `knowledge/${kbId}/${Date.now()}_${file.originalname}`;
     try {
@@ -127,6 +126,10 @@ export class KnowledgeService {
       throw new Error('文件存储失败');
     }
 
+    // 去重第二步：FAILED 同 sha 行复用（重置字段+换新对象），否则新建
+    const failed = await this.prisma.knowledgeFile.findFirst({
+      where: { knowledgeBaseId: kbId, sha256, status: 'FAILED' },
+    });
     const data = {
       fileName: file.originalname,
       objectKey,
@@ -140,11 +143,10 @@ export class KnowledgeService {
       chunkCount: 0,
       indexed: true,
     };
-    // FAILED 同 sha 行复用（重置字段+换新对象），否则新建
     let kbFile;
     try {
-      kbFile = existing
-        ? await this.prisma.knowledgeFile.update({ where: { id: existing.id }, data })
+      kbFile = failed
+        ? await this.prisma.knowledgeFile.update({ where: { id: failed.id }, data })
         : await this.prisma.knowledgeFile.create({ data: { knowledgeBaseId: kbId, ...data } });
     } catch (err) {
       // 并发竞争输家（评审 I-1）：partial unique index (kbId,sha256 WHERE PARSING/READY) 撞唯一——
@@ -158,10 +160,12 @@ export class KnowledgeService {
           return { ...winner, deduplicated: true };
         }
       }
+      // M-5：建行失败（非并发竞争）不留孤儿对象——best-effort 清刚传的 MinIO 件后原样抛出
+      void this.storage.delete(objectKey).catch(() => undefined);
       throw err;
     }
-    if (existing) {
-      void this.storage.delete(existing.objectKey).catch(() => undefined); // best-effort 清旧对象
+    if (failed) {
+      void this.storage.delete(failed.objectKey).catch(() => undefined); // best-effort 清旧对象
     }
 
     // jobId=fileId：并发重复上传的 BullMQ 层双保险（同 id 在队/运行中 add 被忽略）
@@ -169,13 +173,16 @@ export class KnowledgeService {
     return kbFile;
   }
 
-  /** FAILED 行重试（前端一键）：重置状态重新入队——OCR 批次缓存命中时秒级完成 */
+  /** FAILED 行重试（前端一键）：重置状态重新入队——OCR 批次缓存命中时秒级完成。
+   *  PARSING 幂等返回当前行（M-3：retry 双击不 400、不重复入队——job 已在跑；
+   *  死态 PARSING 由 worker 启动清扫器自愈）。READY 不受理。 */
   async retryFile(kbId: string, fileId: string, user: User) {
     await this.assertEditable(kbId, user);
     const file = await this.prisma.knowledgeFile.findFirst({
       where: { id: fileId, knowledgeBaseId: kbId },
     });
     if (!file) throw new NotFoundException(`File ${fileId} not found`);
+    if (file.status === 'PARSING') return file;
     if (file.status !== 'FAILED') throw new BadRequestException('仅解析失败的文件可重试');
 
     const row = await this.prisma.knowledgeFile.update({

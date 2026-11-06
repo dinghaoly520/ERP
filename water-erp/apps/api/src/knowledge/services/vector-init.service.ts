@@ -32,27 +32,36 @@ export class VectorInitService implements OnModuleInit {
     }
 
     // sidecar 形态：目标库可能为空库（金仓主库无此表）——幂等建全套
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS "DocumentChunk" (
-          "id" TEXT NOT NULL,
-          "collectionName" TEXT NOT NULL,
-          "fileId" TEXT NOT NULL,
-          "content" TEXT NOT NULL,
-          "metadata" JSONB NOT NULL DEFAULT '{}',
-          "embedding" vector(1024),
-          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          CONSTRAINT "DocumentChunk_pkey" PRIMARY KEY ("id")
-      )`);
-    await pool.query(
-      `CREATE INDEX IF NOT EXISTS "DocumentChunk_collectionName_idx" ON "DocumentChunk"("collectionName")`,
-    );
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS "DocumentChunk_embedding_idx" ON "DocumentChunk"
-      USING hnsw (embedding vector_cosine_ops)
-      WITH (m = 16, ef_construction = 64)`);
+    // M-6（2026-11-06 评审）：本段软失败——knowledge-parse 并入 ai-bid worker 后，
+    // 建表段硬失败会连带 AI 分析 worker 起不来；故障延迟到首次向量读写时暴露
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS "DocumentChunk" (
+            "id" TEXT NOT NULL,
+            "collectionName" TEXT NOT NULL,
+            "fileId" TEXT NOT NULL,
+            "content" TEXT NOT NULL,
+            "metadata" JSONB NOT NULL DEFAULT '{}',
+            "embedding" vector(1024),
+            "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT "DocumentChunk_pkey" PRIMARY KEY ("id")
+        )`);
+      await pool.query(
+        `CREATE INDEX IF NOT EXISTS "DocumentChunk_collectionName_idx" ON "DocumentChunk"("collectionName")`,
+      );
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS "DocumentChunk_embedding_idx" ON "DocumentChunk"
+        USING hnsw (embedding vector_cosine_ops)
+        WITH (m = 16, ef_construction = 64)`);
 
-    this.logger.log(
-      `HNSW embedding indexes ensured @ ${this.vectorDb.describeTarget()}`,
-    );
+      this.logger.log(
+        `HNSW embedding indexes ensured @ ${this.vectorDb.describeTarget()}`,
+      );
+    } catch (e) {
+      this.logger.error(
+        'Failed to ensure DocumentChunk table/indexes on vector DB — 将在首次向量读写时暴露本故障',
+        e,
+      );
+    }
   }
 }

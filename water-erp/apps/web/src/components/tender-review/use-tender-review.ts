@@ -41,10 +41,11 @@ export function useKnowledgeBaseOps() {
     }
   }, [refreshKnowledgeBases, selectedKbId, setSelectedKbId]);
 
-  const uploadFile = useCallback(async (kbId: string, file: File, opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal }) => {
+  const uploadFile = useCallback(async (kbId: string, file: File, opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal }): Promise<ReturnType<typeof uploadKnowledgeFile> | undefined> => {
     try {
-      await uploadKnowledgeFile(kbId, file, opts);
+      const row = await uploadKnowledgeFile(kbId, file, opts); // M-1：透传响应行（含 deduplicated 标志）
       await refreshKnowledgeBases();
+      return row;
     } catch (err) {
       const msg = err instanceof Error ? err.message : '上传失败';
       toast.error(msg);

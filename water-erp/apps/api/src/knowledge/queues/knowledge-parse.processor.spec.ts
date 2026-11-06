@@ -46,12 +46,13 @@ function mkHarness(opts?: {
       : jest.fn().mockResolvedValue([[0.1], [0.2]]),
   };
   const insertChunks = jest.fn().mockResolvedValue(undefined);
-  const vectorSearch: any = { insertChunks, deleteByFileId: jest.fn() };
+  const deleteByFileId = jest.fn().mockResolvedValue(undefined);
+  const vectorSearch: any = { insertChunks, deleteByFileId };
   const queue: any = { getJob: jest.fn().mockResolvedValue(null), add: jest.fn().mockResolvedValue(undefined) };
   const processor = new KnowledgeParseProcessor(
     prisma, storage, parser, splitter, embedding, vectorSearch, queue,
   );
-  return { processor, prisma, storage, parse, embedding, insertChunks, update, queue };
+  return { processor, prisma, storage, parse, embedding, insertChunks, deleteByFileId, update, queue };
 }
 
 describe('KnowledgeParseProcessor 状态机', () => {
@@ -66,6 +67,13 @@ describe('KnowledgeParseProcessor 状态机', () => {
     const chunks = h.insertChunks.mock.calls[0][0];
     expect(chunks).toHaveLength(2);
     expect(chunks[0]).toMatchObject({ collectionName: 'kb-1', fileId: 'kf-1', embedding: [0.1] });
+  });
+
+  it('M-2 向量写入幂等：insertChunks 前先 deleteByFileId 清同 fileId 旧块（stall 重跑/并发 reindex 防双份）', async () => {
+    const h = mkHarness();
+    await h.processor.process(mkJob('kf-1'));
+    expect(h.deleteByFileId).toHaveBeenCalledWith('kf-1');
+    expect(h.deleteByFileId.mock.invocationCallOrder[0]).toBeLessThan(h.insertChunks.mock.invocationCallOrder[0]);
   });
 
   it('嵌入失败 → READY + indexed:false（2026-11-03 降级语义，非 FAILED），分块不入向量（validateVector 不吃 undefined）', async () => {
