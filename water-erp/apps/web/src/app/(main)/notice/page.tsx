@@ -366,11 +366,21 @@ export default function NoticePage() {
             </div>
             <div>
               <div className="page-hero__title">公告发布中心</div>
-              <div className="page-hero__sub">起草并发布采购公告、中标公告、政策法规等各类公告通知</div>
+              <div className="page-hero__sub">
+                起草并发布采购公告、中标公告、政策法规等各类公告通知——已发布 {published}
+                {stats.publicityEnded > 0 ? `（另已下线 ${stats.publicityEnded}）` : ''} · 本月 {publishedThisMonth} · 累计浏览 {totalViews >= 10000 ? `${(totalViews / 10000).toFixed(1)} 万` : totalViews.toLocaleString('zh-CN')}
+              </div>
             </div>
           </div>
 
           <div className="page-hero__right">
+            {/* 待处理草稿警示胶囊（2026-11-06 KPI 瓷片收编）：>0 才显示、点击开窗速览草稿 */}
+            {drafts > 0 && (
+              <button type="button" onClick={() => void openDrafts()} title="点击速览待处理草稿" className="page-hero__stat page-hero__stat--warn">
+                <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-[var(--danger)]" />
+                待处理草稿 {drafts}
+              </button>
+            )}
             <CompanySelect value={companyId} onChange={setCompanyId} countMode="announcements" />
             <button onClick={() => setShowAllHistories(true)} className="neu-btn-soft">
               <HistoryIcon size={15} /> 公告历史
@@ -384,17 +394,9 @@ export default function NoticePage() {
           </div>
         </div>
 
-                {/* hairline 分割线 + KPI 行 — 合并为单一容器，间距与项目管理统一 */}
-        <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 items-stretch">
-          <HeroStat label="已发布" value={published} sub={stats.publicityEnded > 0 ? `已生效可见 · 另已下线 ${stats.publicityEnded}` : '已生效可见'} />
-          {/* 点击开窗速览草稿（不动列表筛选）——行点击跳详情页继续编辑/发布 */}
-          <HeroStat label="待处理草稿" value={drafts} signal={drafts > 0 ? "warning" : undefined} sub={drafts > 0 ? "尽快发布 · 点击查看" : "全部已发布"}
-            onClick={() => void openDrafts()} />
-          <HeroStat label="本月发布" value={publishedThisMonth} sub="本月新增公告" valueStr={publishedThisMonth.toString()} />
-          <HeroStat label="浏览总量" value={totalViews} sub="累计曝光量" valueStr={totalViews >= 10000 ? `${(totalViews / 10000).toFixed(1)} 万` : totalViews.toLocaleString('zh-CN')} />
-        </div>
-        </div>
+        {/* KPI 四瓷片已删（2026-11-06 用户裁定）：已发布/下线/本月/浏览融入副标题，
+            待处理草稿入右侧警示胶囊；标题行下长横线保留（公司信息管理同款） */}
+        <div className="page-hero__divider" />
       </div>
 
       {/* 工具行：类型分段切换（左）+ 搜索/状态筛选（右）——2026-09-18 对齐供应商门户公告公示同款 */}
@@ -540,42 +542,6 @@ export default function NoticePage() {
           )}
         </Modal>
       )}
-    </div>
-  );
-}
-
-/* HeroStat — 对标采购进度 KpiCard 的紧凑指标瓷片
-   kpi-card 基类：浅底凸起 + hover 抬升 + label/value/sub 纵向排版
-   所有卡片保留相同结构层（label区 / value / sub区），确保同排高度一致 */
-function HeroStat({ label, value, sub, signal, valueStr, onClick }: {
-  label: string; value: number;
-  sub?: string;
-  signal?: "success" | "warning" | "danger";
-  valueStr?: string;
-  /** 可点击联动（如「待处理草稿」点击即筛出草稿列表）——渲染为 button，视觉与纯展示卡一致 */
-  onClick?: () => void;
-}) {
-  const sc = signal === "success" ? "bg-[var(--success)]" : signal === "warning" ? "bg-[var(--warning)]" : signal === "danger" ? "bg-[var(--danger)]" : "";
-  const st = signal === "success" ? "text-[var(--success)]" : signal === "warning" ? "text-[var(--warning)]" : signal === "danger" ? "text-[var(--danger)]" : "";
-  return (
-    <div onClick={onClick} role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined}
-      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
-      className={`kpi-card group flex h-full flex-col gap-1.5 p-3${onClick ? ' cursor-pointer' : ''}`}>
-      {/* label 行 — 固定 min-h 使得有/无 signal 时 label 位置一致 */}
-      <div className="flex items-center justify-between gap-2 min-h-[18px]">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">{label}</span>
-        {signal && (
-          <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)] ${st}`}>
-            <span className={`h-1 w-1 rounded-full shrink-0 ${sc}`} />{signal === "warning" ? "待处理" : signal === "danger" ? "风险" : "正常"}
-          </span>
-        )}
-      </div>
-      {/* value — 始终渲染 */}
-      <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">
-        {valueStr ?? (value >= 1000 ? value.toLocaleString('zh-CN') : value)}
-      </span>
-      {/* sub 行 — 固定 min-h 使得有/无 sub 时 value 位置一致 */}
-      <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">{sub || " "}</span>
     </div>
   );
 }
