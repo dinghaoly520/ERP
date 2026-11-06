@@ -1113,11 +1113,12 @@ export function ProjectDetailPanel({
     stageUploads.start(selectedFiles);
   };
 
-  // 阶段切换清理上传行（spec §5.3：行列表保留至用户切换步骤）；中止在跑队列防错挂新阶段
+  // 阶段/轮次/项目切换清理上传行（spec §5.3：行列表保留至用户切换步骤）；
+  // item.id 入键（2026-11-06 稳健审计）：同阶段键切项目时旧行残留+重试错传旧项目的竞态
   useEffect(() => {
     stageUploads.clear();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedStage.stageKey, selectedStage.round]);
+  }, [item.id, selectedStage.stageKey, selectedStage.round]);
 
   const archiveProject = async () => {
     if (actionsDisabled) return;

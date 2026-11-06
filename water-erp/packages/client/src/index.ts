@@ -167,22 +167,31 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
       xhr.withCredentials = true;
       const headers = { 'X-Portal': options.portal, ...(options.extraHeaders?.() ?? {}) };
       for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
-      const onAbort = () => xhr.abort();
+      // 取消（2026-11-06 稳健审计修正）：XHR abort() 只派发 abort 事件，不保证触发
+      // onerror/onload——若不在监听器里就地 settle，promise 永不落定（队列卡死）。
+      // settled 守卫防双 settle（abort 后浏览器个别版本仍回调 onerror/onload）。
+      let settled = false;
+      const settle = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        opts.signal?.removeEventListener('abort', onAbort);
+        fn();
+      };
+      const onAbort = () => {
+        xhr.abort();
+        settle(() => reject(new DOMException('Aborted', 'AbortError')));
+      };
       opts.signal?.addEventListener('abort', onAbort);
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable && opts.onProgress) opts.onProgress(e.loaded, e.total);
       };
-      const settle = (fn: () => void) => {
-        opts.signal?.removeEventListener('abort', onAbort);
-        fn();
-      };
+      xhr.onabort = () => settle(() => reject(new DOMException('Aborted', 'AbortError')));
       xhr.onerror = () => settle(() => {
         // 调用方取消（abort 触发 onerror）保持 AbortError 语义，不误报断网
         if (opts.signal?.aborted) reject(new DOMException('Aborted', 'AbortError'));
         else reject(new ApiError(0, 'NETWORK_ERROR', '网络异常或请求超时，请检查网络'));
       });
       xhr.onload = () => settle(() => {
-        if (opts.signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
         if (xhr.status >= 200 && xhr.status < 300) {
           const text = xhr.responseText ?? '';
           try {

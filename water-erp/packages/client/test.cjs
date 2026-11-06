@@ -135,7 +135,20 @@ async function testUpload() {
     );
     FakeXHR.sendImpl = realSend;
 
-    console.log('upload: 5 cases passed');
+    // 3f. 在途取消（2026-11-06 稳健审计）：send 已发出后取消（浏览器 abort() 只发 abort
+    //     事件、不触发 onload/onerror 的路径）——abort 监听器就地 settle，promise 不悬死
+    FakeXHR.sendImpl = () => { /* 挂起：永不 onload/onerror */ };
+    {
+      const ctl = new AbortController();
+      const p = client.upload('/x', new FormData(), { signal: ctl.signal });
+      assert2.equal(FakeXHR.last instanceof FakeXHR, true); // send 已同步发出（在途）
+      ctl.abort(); // 在途取消
+      const err = await p.then(() => null, (e) => e);
+      assert2.equal(err && err.name, 'AbortError');
+    }
+    FakeXHR.sendImpl = realSend;
+
+    console.log('upload: 6 cases passed');
   } finally {
     globalThis.XMLHttpRequest = prevXHR;
   }
