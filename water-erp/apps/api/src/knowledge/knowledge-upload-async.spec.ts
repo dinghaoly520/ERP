@@ -96,4 +96,18 @@ describe('KnowledgeService 上传异步化', () => {
     expect(h.queue.add).toHaveBeenCalledWith('parse', { fileId: 'kf-1' }, expect.objectContaining({ jobId: 'kf-1' }));
     await expect(h.svc.retryFile('kb-1', 'kf-2', user)).rejects.toThrow(BadRequestException);
   });
+
+  it('并发竞争输家（唯一索引 P2002）→ 重查赢家行返回 deduplicated:true、清自己刚传的孤儿对象、不入队', async () => {
+    // 评审 I-1：findFirst→create 窗口（含 118MB MinIO 上传，秒级宽）内并发重复上传，
+    // partial unique index（kbId,sha256 WHERE status IN PARSING/READY）兜底——输家 create 抛 P2002
+    const h = mkHarness(null);
+    h.create.mockRejectedValueOnce(Object.assign(new Error('Unique constraint failed'), { code: 'P2002' }));
+    h.prisma.knowledgeFile.findFirst
+      .mockResolvedValueOnce(null)                       // 首查 miss（竞争窗口）
+      .mockResolvedValueOnce({ id: 'kf-winner', status: 'PARSING', objectKey: 'other' }); // 输家重查见赢家
+    const res = await h.svc.uploadFile('kb-1', file, user);
+    expect(res).toMatchObject({ id: 'kf-winner', deduplicated: true });
+    expect(h.storage.delete).toHaveBeenCalledWith(expect.stringContaining('knowledge/kb-1/'));
+    expect(h.queue.add).not.toHaveBeenCalled();
+  });
 });

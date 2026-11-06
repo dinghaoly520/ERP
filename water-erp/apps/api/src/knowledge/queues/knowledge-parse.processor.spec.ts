@@ -27,6 +27,7 @@ function mkHarness(opts?: {
         fileName: 'x.pdf',
         status: 'PARSING',
       }),
+      findMany: jest.fn().mockResolvedValue([]),
       update,
     },
   };
@@ -46,10 +47,11 @@ function mkHarness(opts?: {
   };
   const insertChunks = jest.fn().mockResolvedValue(undefined);
   const vectorSearch: any = { insertChunks, deleteByFileId: jest.fn() };
+  const queue: any = { getJob: jest.fn().mockResolvedValue(null), add: jest.fn().mockResolvedValue(undefined) };
   const processor = new KnowledgeParseProcessor(
-    prisma, storage, parser, splitter, embedding, vectorSearch,
+    prisma, storage, parser, splitter, embedding, vectorSearch, queue,
   );
-  return { processor, prisma, storage, parse, embedding, insertChunks, update };
+  return { processor, prisma, storage, parse, embedding, insertChunks, update, queue };
 }
 
 describe('KnowledgeParseProcessor 状态机', () => {
@@ -111,5 +113,29 @@ describe('KnowledgeParseProcessor 状态机', () => {
     const failed = h.update.mock.calls.map((c) => c[0].data).find((d) => d.status === 'FAILED');
     expect(failed).toMatchObject({ status: 'FAILED', error: expect.stringContaining('OCR 持续不可用') });
     expect(h.insertChunks).not.toHaveBeenCalled();
+  });
+
+  describe('PARSING 死态清扫（评审 I-2：worker 被杀/入队失败 → job 丢失行永卡 PARSING）', () => {
+    it('启动清扫：PARSING 行且队列无该 job → 重入队（jobId=fileId）', async () => {
+      const h = mkHarness();
+      h.prisma.knowledgeFile.findMany.mockResolvedValue([{ id: 'kf-stuck' }]);
+      h.queue.getJob.mockResolvedValue(null); // job 已被 removeOnFail 清除/从未入队
+      await h.processor.onModuleInit();
+      expect(h.queue.add).toHaveBeenCalledWith('parse', { fileId: 'kf-stuck' }, expect.objectContaining({ jobId: 'kf-stuck' }));
+    });
+
+    it('job 仍存活（active/waiting/delayed）→ 跳过不重入队', async () => {
+      const h = mkHarness();
+      h.prisma.knowledgeFile.findMany.mockResolvedValue([{ id: 'kf-live' }]);
+      h.queue.getJob.mockResolvedValue({ getState: jest.fn().mockResolvedValue('active') });
+      await h.processor.onModuleInit();
+      expect(h.queue.add).not.toHaveBeenCalled();
+    });
+
+    it('清扫自身异常不阻断 worker 启动', async () => {
+      const h = mkHarness();
+      h.prisma.knowledgeFile.findMany.mockRejectedValue(new Error('db down'));
+      await expect(h.processor.onModuleInit()).resolves.toBeUndefined();
+    });
   });
 });

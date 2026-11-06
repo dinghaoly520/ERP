@@ -4,16 +4,16 @@
 // → 分块 → 嵌入（失败=降级 indexed:false，非 FAILED——2026-11-03 §4.2 语义）
 // → 行置 READY → 向量入库（失败仅 log，reindex 可补）。
 // 末次尝试失败 → 行置 FAILED + error（前端可一键重试，重试吃 OCR 批次缓存秒级完成）。
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Processor, WorkerHost, InjectQueue } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import type { Job } from 'bullmq';
+import type { Job, Queue } from 'bullmq';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { DocumentParserService } from '../services/document-parser.service';
 import { TextSplitterService } from '../services/text-splitter.service';
 import { EmbeddingService } from '../../local-ai/embedding.service';
 import { VectorSearchService } from '../services/vector-search.service';
-import { KNOWLEDGE_PARSE_QUEUE } from './knowledge-queue.module';
+import { KNOWLEDGE_PARSE_QUEUE, parseJobOptions } from './knowledge-queue.module';
 
 // 478 页扫描件实测 ~12min；lockDuration 15min 容忍长解析（BullMQ 处理期间自动续锁，
 // 该值防事件循环被大 buffer 同步操作长阻塞时误判 stalled）。并发默认 1：OCR 服务容量有限。
@@ -31,8 +31,34 @@ export class KnowledgeParseProcessor extends WorkerHost {
     private splitter: TextSplitterService,
     private embedding: EmbeddingService,
     private vectorSearch: VectorSearchService,
+    @InjectQueue(KNOWLEDGE_PARSE_QUEUE) private parseQueue: Queue,
   ) {
     super();
+  }
+
+  /** PARSING 死态清扫（评审 I-2）：FAILED 只在 processor catch 里落库，三类路径绕过它——
+   *  末次尝试中 worker 被 kill（stall 烧光 attempts）、上传时 queue.add 抛错（行已建 job 未入）、
+   *  重复 stall。removeOnFail=true 使丢失 job 无迹可查 → 行永卡 PARSING（前端永久轮询、retry 拒收、
+   *  dedup 吸收重传）。worker 每次启动清扫：PARSING 行若队列无活 job → 重入队（幂等恢复）。 */
+  async onModuleInit(): Promise<void> {
+    try {
+      const stuck = await this.prisma.knowledgeFile.findMany({
+        where: { status: 'PARSING' },
+        select: { id: true },
+      });
+      for (const row of stuck) {
+        const job = await this.parseQueue.getJob(row.id).catch(() => undefined);
+        const state = job ? await job.getState().catch(() => 'unknown') : 'missing';
+        const alive = state === 'waiting' || state === 'delayed' || state === 'active' || state === 'waiting-children';
+        if (!alive) {
+          await this.parseQueue.add('parse', { fileId: row.id }, parseJobOptions(row.id));
+          this.logger.warn(`Sweeper re-enqueued stuck PARSING file ${row.id}（job ${state}——worker 被杀/入队失败的兜底）`);
+        }
+      }
+    } catch (err) {
+      // 清扫失败不阻断 worker 启动（下次重启再扫）
+      this.logger.error(`PARSING sweeper failed: ${err}`);
+    }
   }
 
   async process(job: Job<{ fileId: string }>): Promise<void> {

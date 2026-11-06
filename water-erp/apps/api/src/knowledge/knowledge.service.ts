@@ -141,9 +141,25 @@ export class KnowledgeService {
       indexed: true,
     };
     // FAILED 同 sha 行复用（重置字段+换新对象），否则新建
-    const kbFile = existing
-      ? await this.prisma.knowledgeFile.update({ where: { id: existing.id }, data })
-      : await this.prisma.knowledgeFile.create({ data: { knowledgeBaseId: kbId, ...data } });
+    let kbFile;
+    try {
+      kbFile = existing
+        ? await this.prisma.knowledgeFile.update({ where: { id: existing.id }, data })
+        : await this.prisma.knowledgeFile.create({ data: { knowledgeBaseId: kbId, ...data } });
+    } catch (err) {
+      // 并发竞争输家（评审 I-1）：partial unique index (kbId,sha256 WHERE PARSING/READY) 撞唯一——
+      // 重查赢家行返回 deduplicated，清自己刚传的孤儿对象（输家行未建成，无 job）
+      if ((err as { code?: string })?.code === 'P2002') {
+        const winner = await this.prisma.knowledgeFile.findFirst({
+          where: { knowledgeBaseId: kbId, sha256, status: { in: ['PARSING', 'READY'] } },
+        });
+        if (winner) {
+          void this.storage.delete(objectKey).catch(() => undefined);
+          return { ...winner, deduplicated: true };
+        }
+      }
+      throw err;
+    }
     if (existing) {
       void this.storage.delete(existing.objectKey).catch(() => undefined); // best-effort 清旧对象
     }
@@ -196,6 +212,9 @@ export class KnowledgeService {
     return { deleted: true };
   }
 
+  /** 重建索引：indexed=false 徽章（嵌入降级）指引的补救动作——成功后复位 indexed:true
+   *  （评审 I-3）；嵌入/向量失败按文件降级（indexed:false 继续），不得中途 500
+   *  （旧行为：全库向量已清而循环中断，徽章与实际脱节）。 */
   async reindex(kbId: string, user: User) {
     await this.assertEditable(kbId, user);
     const kb = await this.prisma.knowledgeBase.findUnique({
@@ -206,38 +225,51 @@ export class KnowledgeService {
 
     await this.vectorSearch.deleteByCollection(kbId);
 
+    let degradedCount = 0;
     for (const file of kb.files) {
       if (!file.content) continue;
 
       const textChunks = this.splitter.split(file.content);
       let embeddings: number[][] = [];
+      let indexed = true;
       if (textChunks.length > 0) {
-        embeddings = await this.embedding.embed(
-          textChunks.map((c) => c.content),
-        );
+        try {
+          embeddings = await this.embedding.embed(textChunks.map((c) => c.content));
+        } catch (err) {
+          console.error(`Embedding error (degraded) for ${file.fileName}:`, err);
+          embeddings = [];
+          indexed = false;
+        }
       }
 
-      if (textChunks.length > 0) {
-        const chunks = textChunks.map((chunk, i) => ({
-          collectionName: kbId,
-          fileId: file.id,
-          content: chunk.content,
-          embedding: embeddings[i],
-          metadata: {
-            fileName: file.fileName,
-            startOffset: chunk.startOffset,
-          },
-        }));
-        await this.vectorSearch.insertChunks(chunks);
+      if (textChunks.length > 0 && embeddings.length === textChunks.length) {
+        try {
+          await this.vectorSearch.insertChunks(
+            textChunks.map((chunk, i) => ({
+              collectionName: kbId,
+              fileId: file.id,
+              content: chunk.content,
+              embedding: embeddings[i],
+              metadata: { fileName: file.fileName, startOffset: chunk.startOffset },
+            })),
+          );
+        } catch (err) {
+          // 向量写入失败 = 无向量可检索 → 与嵌入降级同语义（indexed:false）
+          console.error(`Vector insert error for ${file.fileName}:`, err);
+          indexed = false;
+        }
+      } else if (textChunks.length > 0) {
+        indexed = false;
       }
+      if (!indexed) degradedCount++;
 
       await this.prisma.knowledgeFile.update({
         where: { id: file.id },
-        data: { chunkCount: textChunks.length },
+        data: { chunkCount: textChunks.length, indexed },
       });
     }
 
-    return { reindexed: true, fileCount: kb.files.length };
+    return { reindexed: true, fileCount: kb.files.length, degradedCount };
   }
 
   /** 水叮当知识库面板取数（2026-11-03 设计 §4.3）：mine=本人库，shared=他人共享库
