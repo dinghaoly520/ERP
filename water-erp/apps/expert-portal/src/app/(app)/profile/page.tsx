@@ -116,19 +116,25 @@ export default function ExpertProfilePage() {
             </div>
           </div>
           <div className="page-hero__right">
-            {/* 统计胶囊（2026-11-06 用户裁定，二修）：零值不显示——有真实数据才亮出，
-                与 :3005「待审核 0 / 累计评价 0 次」删除裁定同口径 */}
-            {totalProjects > 0 && (
-              <span className="page-hero__stat page-hero__stat--info" title="累计分配评审项目 / 进行中">
-                参与 {totalProjects} · 进行中 {inProgress}
-              </span>
-            )}
-            {totalScoreRecords > 0 && (
-              <span className="page-hero__stat page-hero__stat--info" title="累计提交评分项">评分 {totalScoreRecords} 条</span>
-            )}
-            {profile.averageScore != null && totalScoreRecords > 0 && (
-              <span className="page-hero__stat page-hero__stat--info" title="历史评分均值">平均给分 {profile.averageScore}</span>
-            )}
+            {/* 统计三联（2026-11-06 三修：胶囊改「数字锚点」——大号 mono 数值 + 小字标签 +
+                竖 hairline 分隔，零值照常呈现；数据自己发光，不加底色容器） */}
+            <div className="mr-2 hidden items-center sm:flex">
+              {([
+                { value: String(totalProjects), unit: '项', label: `参与 · 进行中 ${inProgress}`, color: 'var(--accent)' },
+                { value: String(totalScoreRecords), unit: '条', label: '累计评分', color: 'var(--accent-strong)' },
+                { value: profile.averageScore != null ? String(profile.averageScore) : '—', unit: '分', label: '平均给分', color: profile.averageScore != null && profile.averageScore >= 85 ? 'var(--success)' : 'var(--accent)' },
+              ] as const).map((s, i) => (
+                <div key={s.label} className="flex items-center">
+                  {i > 0 && <span className="mx-4 h-9 w-px bg-[oklch(0.6_0.04_258/0.16)]" aria-hidden="true" />}
+                  <div className="flex min-w-[64px] flex-col items-center gap-0.5">
+                    <span className="font-mono text-[1.3rem] font-black leading-none tabular-nums" style={{ color: s.color }}>
+                      {s.value}<span className="ml-0.5 text-[10px] font-bold">{s.unit}</span>
+                    </span>
+                    <span className="text-[10px] font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">{s.label}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
             {/* 编辑态的 取消/保存 已删（2026-11-06 用户裁定）——操作钮只在表单底部，
                 标题栏仅保留非编辑态的「编辑资料」入口 */}
             {!editing && (
