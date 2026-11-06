@@ -70,21 +70,27 @@ export default function ExpertProfilePage() {
   const inProgress = profile.assignments.filter(a => a.progress < 100).length;
   const totalScoreRecords = profile.assignments.reduce((s, a) => s + a.scoreRecords.length, 0);
 
-  /** EXP-P2-04：身份证号脱敏（前4后3；短串整段打码）——专家口令=身份证号，明文即展示登录密码 */
+  /** EXP-P2-04：身份证号脱敏（前4后3；短串整段打码）——专家口令=身份证号，明文即展示登录密码。
+   *  2026-11-06：username 本身即身份证号（专家口令），所有展示位（用户名行/副标题）一律同款脱敏 */
   const maskIdNumber = (id?: string | null): string => {
     if (!id) return '';
     if (id.length < 8) return '*'.repeat(id.length);
     return `${id.slice(0, 4)}${'*'.repeat(id.length - 7)}${id.slice(-3)}`;
   };
+  /** 手机号脱敏（3****4；短串整段打码）——2026-11-06 用户裁定：本页手机号不再明文 */
+  const maskPhone = (p?: string | null): string => {
+    if (!p) return '';
+    if (p.length < 7) return '*'.repeat(p.length);
+    return `${p.slice(0, 3)}****${p.slice(-4)}`;
+  };
 
-  const infoFields: [string, string][] = [
-    ['姓名', profile.displayName],
-    ['用户名', profile.username],
-    ['手机', profile.expertProfile?.phone || profile.phone || '未设置'],
-    ['邮箱', profile.email || '未设置'],
+  const readOnlyFields: [string, string][] = [
+    ['用户名', maskIdNumber(profile.username) || '未设置'],
+    ['手机', maskPhone(profile.expertProfile?.phone || profile.phone) || '未设置'],
     ['专业', profile.expertProfile?.specialty || '未设置'],
     ['职称', profile.expertProfile?.title || '未设置'],
-    ['工作单位', profile.expertProfile?.employer || '未设置'],    // EXP-P2-04：身份证号脱敏——专家登录口令即身份证号，明文展示等于在页面上展示登录密码
+    ['工作单位', profile.expertProfile?.employer || '未设置'],
+    // EXP-P2-04：身份证号脱敏——专家登录口令即身份证号，明文展示等于在页面上展示登录密码
     // （现场他人/投屏/拍照即获口令，削弱「口令=身份证号」防冒名与闸4 工位锁）
     ['身份证号', maskIdNumber(profile.expertProfile?.idNumber) || '未设置'],
     ['角色', '评审专家'],
@@ -100,20 +106,15 @@ export default function ExpertProfilePage() {
             <div>
               <div className="page-hero__title">个人信息</div>
               <div className="page-hero__sub">
-                评审专家 · {profile.username} — 参与 {totalProjects} 项（进行中 {inProgress}）· 评分 {totalScoreRecords} 条
+                评审专家 · {maskIdNumber(profile.username)} — 参与 {totalProjects} 项（进行中 {inProgress}）· 评分 {totalScoreRecords} 条
                 {profile.averageScore != null ? ` · 平均给分 ${profile.averageScore}` : ''}
               </div>
             </div>
           </div>
           <div className="page-hero__right">
-            {editing ? (
-              <>
-                <button onClick={cancelEdit} className="neu-btn-soft">取消</button>
-                <button onClick={handleSave} disabled={saving || !canSave} className="neu-btn-primary">
-                  {saving ? '保存中...' : '保存'}
-                </button>
-              </>
-            ) : (
+            {/* 编辑态的 取消/保存 已删（2026-11-06 用户裁定）——操作钮只在表单底部，
+                标题栏仅保留非编辑态的「编辑资料」入口 */}
+            {!editing && (
               <button onClick={() => setEditing(true)} className="neu-btn-soft">
                 <Pencil size={14} strokeWidth={1.6} />
                 编辑资料
@@ -136,53 +137,72 @@ export default function ExpertProfilePage() {
             </span>
             <div>
               <h2 className="text-xl font-black tracking-tight text-[var(--foreground)]">{profile.displayName}</h2>
-              <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">评审专家 · {profile.username}</p>
+              <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">评审专家 · {maskIdNumber(profile.username)}</p>
             </div>
           </div>
 
           <hr className="wb-section-rule mb-5" />
 
-          {editing ? (
-            <div className="space-y-4">
-              <div>
-                <label className="mb-1.5 block text-xs font-bold text-[var(--muted-foreground)]">姓名</label>
-                <input
-                  value={form.displayName}
-                  onChange={e => setForm(f => ({ ...f, displayName: e.target.value }))}
-                  aria-invalid={form.displayName.trim().length === 0 ? 'true' : undefined}
-                  className="neu-input"
-                />
-                {editing && form.displayName.trim().length === 0 && (
-                  <p className="mt-1 text-xs font-semibold text-[var(--danger)]">姓名不能为空</p>
-                )}
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-bold text-[var(--muted-foreground)]">邮箱</label>
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                  className="neu-input"
-                />
-                {editing && !emailValid && (
-                  <p className="mt-1 text-xs font-semibold text-[var(--danger)]">邮箱格式不正确</p>
-                )}
-              </div>
-              <div className="flex gap-3 pt-1">
-                <button onClick={handleSave} disabled={saving || !canSave} className="neu-btn-primary !h-[38px]">
-                  {saving ? '保存中...' : '保存'}
-                </button>
-                <button onClick={cancelEdit} className="neu-btn-soft h-[38px]">取消</button>
-              </div>
+          {/* 字段网格（2026-11-06 用户裁定：编辑态不再整块换成两输入框——全字段保持网格，
+              姓名/邮箱原位变输入框，其余只读；与查看态完全同构） */}
+          <div className="grid grid-cols-2 gap-x-12 gap-y-4">
+            {/* 姓名：可编辑（专家端自助修改仅开放姓名/邮箱，其余走资料变更审批） */}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-[var(--muted-foreground)]">姓名</label>
+              {editing ? (
+                <>
+                  <input
+                    value={form.displayName}
+                    onChange={e => setForm(f => ({ ...f, displayName: e.target.value }))}
+                    aria-invalid={form.displayName.trim().length === 0 ? 'true' : undefined}
+                    className="neu-input !h-9 text-sm"
+                  />
+                  {form.displayName.trim().length === 0 && (
+                    <p className="mt-1 text-xs font-semibold text-[var(--danger)]">姓名不能为空</p>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm font-bold text-[var(--foreground)]">{profile.displayName}</p>
+              )}
             </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-x-12 gap-y-4">
-              {infoFields.map(([label, value]) => (
-                <div key={label}>
-                  <p className="mb-1 text-xs font-semibold text-[var(--muted-foreground)]">{label}</p>
-                  <p className="text-sm font-bold text-[var(--foreground)]">{value}</p>
-                </div>
-              ))}
+            {readOnlyFields.slice(0, 1).map(([label, value]) => (
+              <div key={label}>
+                <p className="mb-1 text-xs font-semibold text-[var(--muted-foreground)]">{label}</p>
+                <p className="font-mono text-sm font-bold text-[var(--foreground)]">{value}</p>
+              </div>
+            ))}
+            {/* 邮箱：可编辑 */}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-[var(--muted-foreground)]">邮箱</label>
+              {editing ? (
+                <>
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                    className="neu-input !h-9 text-sm"
+                  />
+                  {!emailValid && (
+                    <p className="mt-1 text-xs font-semibold text-[var(--danger)]">邮箱格式不正确</p>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm font-bold text-[var(--foreground)]">{profile.email || '未设置'}</p>
+              )}
+            </div>
+            {readOnlyFields.slice(1).map(([label, value]) => (
+              <div key={label}>
+                <p className="mb-1 text-xs font-semibold text-[var(--muted-foreground)]">{label}</p>
+                <p className={`text-sm font-bold text-[var(--foreground)] ${label === '手机' || label === '身份证号' ? 'font-mono' : ''}`}>{value}</p>
+              </div>
+            ))}
+          </div>
+          {editing && (
+            <div className="mt-5 flex gap-3">
+              <button onClick={handleSave} disabled={saving || !canSave} className="neu-btn-primary !h-[38px]">
+                {saving ? '保存中...' : '保存'}
+              </button>
+              <button onClick={cancelEdit} className="neu-btn-soft !h-[38px]">取消</button>
             </div>
           )}
         </div>
