@@ -50,6 +50,9 @@ export interface AuditActivity {
   resourceName?: string | null;
   /** 供应商名（2026-11-04）：details.supplierId 无名字的归属审批族由后端解析补挂 */
   supplierName?: string | null;
+  /** 审计留痕元信息（2026-11-06 操作历史明细）：AuditLog 全行透传，前端此前未声明 */
+  ipAddress?: string | null;
+  userAgent?: string | null;
   createdAt: string;
 }
 

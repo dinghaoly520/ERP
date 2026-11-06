@@ -210,6 +210,61 @@ function fmt(dt: string | null | undefined) {
   return d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
+/** 时间到秒（操作历史元信息行）——列表主时间保留分钟粒度，审计明细需秒级 */
+function fmtSec(dt: string | null | undefined) {
+  if (!dt) return '—';
+  return new Date(dt).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+}
+
+/** UA → 短标签「浏览器/平台」（操作历史元信息行）；解析不出返回 null 不显示 */
+function uaLabel(ua: string | null | undefined): string | null {
+  if (!ua) return null;
+  const os = /Windows/.test(ua) ? 'Windows'
+    : /Mac OS X/.test(ua) && !/iPhone|iPad/.test(ua) ? 'macOS'
+    : /Android/.test(ua) ? 'Android'
+    : /iPhone|iPad/.test(ua) ? 'iOS'
+    : /Linux/.test(ua) ? 'Linux' : null;
+  const br = /Edg\//.test(ua) ? 'Edge'
+    : /Chrome\//.test(ua) ? 'Chrome'
+    : /Firefox\//.test(ua) ? 'Firefox'
+    : /Safari\//.test(ua) ? 'Safari' : null;
+  return [br, os].filter(Boolean).join('/') || null;
+}
+
+/** details 明细行（2026-11-06 用户口径「每条更详细」）：白名单键→中文标签，最多 4 项。
+ *  键集按 AuditLog 实测形态校准（EXPERT_EXTRACTION_CONFIRMED/DEMAND_REP_EXTERNAL_CREATE/
+ *  查看账号密码/PROFILE_CHANGE_APPROVED 等）；已由资源行消费的键（projectName/
+ *  supplierName/target/added）不重复；cuid 形态值、超长值不裸出（同通知文案治理口径）。 */
+const DETAIL_LABEL: Record<string, string> = {
+  reason: '原因', stage: '审批级', title: '标题', count: '数量',
+  departmentName: '部门', officeLocation: '办公地', newName: '新名', oldName: '旧名',
+  expertName: '专家', employer: '单位', expertCount: '专家数', extractMode: '抽取方式',
+  fields: '变更字段', hit: '命中', role: '身份',
+};
+const STAGE_CN: Record<string, string> = { STAFF: '初审', LEADER: '复审', ADMIN: '终审' };
+const EXTRACT_MODE_CN: Record<string, string> = { random: '随机抽取', rule: '规则引擎', ai: '智能抽取', custom: '自定义' };
+const ROLE_CN: Record<string, string> = { admin: '管理员', leader: '领导', staff: '员工', supplier: '供应商', bid_expert: '评标专家', bid_host: '开标主持人' };
+function activityDetailLine(a: AuditActivity): string | null {
+  const d = a.details ?? {};
+  const parts: string[] = [];
+  for (const [k, v] of Object.entries(d)) {
+    const label = DETAIL_LABEL[k];
+    if (!label) continue;
+    let sv: string;
+    if (typeof v === 'boolean') sv = v ? '是' : '否';
+    else if (Array.isArray(v) && v.every(x => typeof x === 'string')) sv = v.join('、');
+    else if (typeof v === 'string' || typeof v === 'number') sv = String(v).trim();
+    else continue;
+    if (!sv || sv.length > 40 || /^c[a-z0-9]{20,}$/.test(sv)) continue;
+    const cn = k === 'stage' ? STAGE_CN[sv] ?? sv
+      : k === 'extractMode' ? EXTRACT_MODE_CN[sv] ?? sv
+      : k === 'role' ? ROLE_CN[sv] ?? sv : sv;
+    parts.push(`${label}：${cn}`);
+    if (parts.length >= 4) break;
+  }
+  return parts.length ? parts.join(' · ') : null;
+}
+
 export default function NotificationsPage() {
   const router = useRouter();
   const [tab, setTab] = useState<NotificationTab>('all'); // 默认打开「全部」
@@ -428,8 +483,9 @@ export default function NotificationsPage() {
         <HandleModal item={handleItem} onClose={() => setHandleItem(null)} onDone={() => { setHandleItem(null); load(); }} />
       )}
 
-      {/* ═══ 操作历史（标题栏右上角） ═══ */}
-      <Modal open={historyOpen} onClose={() => setHistoryOpen(false)} title="操作历史"
+      {/* ═══ 操作历史（标题栏右上角）—— xl 加宽 + 每条明细（2026-11-06 用户口径） ═══ */}
+      <Modal open={historyOpen} onClose={() => setHistoryOpen(false)} title="操作历史" size="xl"
+        description="当前账号的操作留痕 · 按时间倒序 · 最多 50 条"
         footer={<button className="neu-btn-soft" onClick={() => setHistoryOpen(false)}>关闭</button>}>
         <div className="max-h-[60vh] overflow-y-auto pr-1">
           {(() => {
@@ -465,7 +521,15 @@ export default function NotificationsPage() {
                         )}
                       </p>
                       {resource && <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--muted-foreground)]">{resource}</p>}
-                      <p className="mt-0.5 text-[10px] tabular-nums text-[var(--muted-foreground)]/60">{fmt(a.createdAt)}</p>
+                      {(() => {
+                        const detail = activityDetailLine(a);
+                        return detail ? <p className="mt-1 text-[11px] leading-relaxed text-[var(--foreground)]/75">{detail}</p> : null;
+                      })()}
+                      <p className="mt-1 font-mono text-[10px] tabular-nums leading-relaxed text-[var(--muted-foreground)]/60">
+                        {fmtSec(a.createdAt)}
+                        {a.ipAddress ? ` · ${a.ipAddress}` : ''}
+                        {uaLabel(a.userAgent) ? ` · ${uaLabel(a.userAgent)}` : ''}
+                      </p>
                     </div>
                   </div>
                 );
