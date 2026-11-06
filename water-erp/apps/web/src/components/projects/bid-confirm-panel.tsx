@@ -1431,6 +1431,7 @@ function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detai
   const [status, setStatus] = useState<PublicityStatus | null>(null);
   const [letters, setLetters] = useState<AwardLetterStatus[]>([]);
   const [delivering, setDelivering] = useState(false);
+  const [letterUpPct, setLetterUpPct] = useState(0); // 通知书上传字节进度（2026-11-06）
   const [letterFile, setLetterFile] = useState<File | null>(null);
   const [deliverError, setDeliverError] = useState<string | null>(null);
 
@@ -1452,7 +1453,9 @@ function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detai
     setDelivering(true);
     setDeliverError(null);
     try {
-      const asset = await uploadFile(letterFile, 'contract_document');
+      const asset = await uploadFile(letterFile, 'contract_document', {
+        onProgress: (l, t) => setLetterUpPct(t > 0 ? Math.round((l / t) * 100) : 0),
+      });
       await deliverAwardLetter(bidProjectId, {
         winnerName: winner.supplierName,
         winnerSupplierId: winner.supplierId,
@@ -1526,7 +1529,7 @@ function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detai
                 />
                 <button type="button" onClick={handleDeliver} disabled={delivering || !letterFile || Boolean(validateAwardLetterFile(letterFile))} className="neu-btn-primary is-water !min-h-9 !px-3 !text-xs">
                   {delivering
-                    ? (deliveryUiState === 'reissue' ? '更换并重发中…' : '上传并发出中…')
+                    ? (deliveryUiState === 'reissue' ? `更换并重发中${letterUpPct > 0 ? ` ${letterUpPct}%` : '…'}` : `上传并发出中${letterUpPct > 0 ? ` ${letterUpPct}%` : '…'}`)
                     : (deliveryUiState === 'reissue' ? '更换文件并重发' : '上传并发出')}
                 </button>
               </div>

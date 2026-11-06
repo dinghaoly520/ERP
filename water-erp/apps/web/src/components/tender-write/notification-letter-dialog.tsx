@@ -229,6 +229,7 @@ export function NotificationLetterDialog({
 
   // ── 发布步骤：公示状态检查 + 生成 docx → 上传 → 定向发出（门户成交通知 + 站内信）──
   const [publishing, setPublishing] = useState(false);
+  const [docxUpPct, setDocxUpPct] = useState(0); // 通知书 docx 上传字节进度（2026-11-06；生成件小，进度以按钮内百分比呈现）
   const [publicity, setPublicity] = useState<PublicityStatus | null>(null);
   const [publishError, setPublishError] = useState<string | null>(null);
 
@@ -264,7 +265,9 @@ export function NotificationLetterDialog({
       const file = new File([docxResult.blob], docxResult.fileName, {
         type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       });
-      const asset = await uploadFile(file, 'contract_document');
+      const asset = await uploadFile(file, 'contract_document', {
+        onProgress: (l, t) => setDocxUpPct(t > 0 ? Math.round((l / t) * 100) : 0),
+      });
       // 3. 定向发出：后端公示硬闸 + 中标人一致性校验 + AwardLetterDelivery + 站内信 + 门户成交通知
       await deliverAwardLetter(bp.id, {
         winnerName: winner.supplierName,
@@ -482,7 +485,7 @@ export function NotificationLetterDialog({
                 <span className="tb-icon tb-anim-bob">
                   {publishing ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
                 </span>
-                {publishing ? "发出中..." : "生成并发出通知书"}
+                {publishing ? `发出中${docxUpPct > 0 ? ` ${docxUpPct}%` : '...'}` : "生成并发出通知书"}
               </button>
             </>
           ) : step === "edit" ? (

@@ -12,6 +12,7 @@ import {
 import type { AnnouncementListItem, AnnouncementPublishResult, AnnouncementType, AnnouncementStatus, AnnouncementAttachment, BidDocumentManage, ParticipantsResult } from '@/lib/api/announcement';
 import { localDateInputValue } from '@/lib/local-date';
 import { ATTACHMENT_ACCEPT, ATTACHMENT_HINT, validateAttachmentFile } from '@/lib/upload-rules';
+import { WaterBar } from '@/components/upload/water-bar';
 import { getSupplierList } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
 import { StatusBadge } from '@/components/workbench';
@@ -630,6 +631,7 @@ function AttachmentEditSection({ annId, attachments, onChanged }: { annId: strin
   const [title, setTitle] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [upRows, setUpRows] = useState<Array<{ name: string; pct: number }>>([]); // 2026-11-06 上传进度条
   const { confirm, dialog } = useConfirm();
   const file = files[0] ?? null;
 
@@ -647,20 +649,25 @@ function AttachmentEditSection({ annId, attachments, onChanged }: { annId: strin
   const handleAdd = async () => {
     if (files.length === 0) return;
     setUploading(true);
+    setUpRows(files.map(f => ({ name: f.name, pct: 0 })));
     try {
       let done = 0;
-      for (const f of files) {
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i];
         try {
-          const asset = await uploadFile(f, "announcement");
+          const asset = await uploadFile(f, "announcement", {
+            onProgress: (l, t) => setUpRows(rows => rows.map((r, j) => (j === i ? { ...r, pct: t > 0 ? Math.round((l / t) * 100) : 0 } : r))),
+          });
           await addAttachment(annId, asset.id, title || f.name);
           done++;
         } catch (err: any) { toast.error(`${f.name}：${err?.message || "上传失败"}`); }
       }
       setTitle("");
       setFiles([]);
+      setUpRows([]);
       onChanged();
       if (done > 0) toast.success(`已添加 ${done} 个附件`);
-    } finally { setUploading(false); }
+    } finally { setUploading(false); setUpRows([]); }
   };
 
   return (
@@ -677,6 +684,18 @@ function AttachmentEditSection({ annId, attachments, onChanged }: { annId: strin
         </span>
         <input type="file" multiple accept={ATTACHMENT_ACCEPT} className="hidden" onChange={handlePick} />
       </label>
+
+      {upRows.length > 0 && (
+        <div className="mt-2 space-y-1.5">
+          {upRows.map((r, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <span className="max-w-[220px] shrink-0 truncate text-[11px] font-semibold text-[var(--muted-foreground)]" title={r.name}>{r.name}</span>
+              <WaterBar pct={r.pct} state="uploading" />
+              <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[var(--accent)]">{r.pct}%</span>
+            </div>
+          ))}
+        </div>
+      )}
       <p className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">{ATTACHMENT_HINT}，可选择多个文件</p>
 
       {/* 标题 + 添加按钮 */}
@@ -766,6 +785,7 @@ function BidDocEditSection({ annId, bidDoc, onChanged }: { annId: string; bidDoc
   const [dlPassword, setDlPassword] = useState(bidDoc?.downloadPassword || '');
   const [selected, setSelected] = useState<string[]>(bidDoc?.allowedSupplierIds || []);
   const [busy, setBusy] = useState(false);
+  const [docUpPct, setDocUpPct] = useState<number | null>(null); // 采购文件加密上传字节进度（2026-11-06）
   const { confirm, dialog } = useConfirm();
   useEffect(() => { if (scope === "INVITED") getSupplierList({ status: "APPROVED", search: supplierSearch || undefined, pageSize: 50 }).then(r => setSuppliers(r.items)).catch(() => {}); }, [scope, supplierSearch]);
   // 外部配置刷新（onChanged 重拉 bidDoc）时回显下载方式
@@ -778,11 +798,14 @@ function BidDocEditSection({ annId, bidDoc, onChanged }: { annId: string; bidDoc
     if (!file) { toast.error("请选择采购文件"); return; }
     if (dlMode === 'encrypted' && !dlPassword) { toast.error("解密下载需先设置下载密码"); return; }
     setBusy(true);
+    setDocUpPct(0);
     try {
-      await uploadBidDocument(annId, file, { title: docTitle || file.name, accessScope: scope, requirePayment: false, allowedSupplierIds: scope === "INVITED" ? selected : undefined, downloadMode: dlMode, downloadPassword: dlMode === 'encrypted' ? dlPassword : undefined });
-      toast.success("已加密上传"); setFile(null); setDocTitle(""); onChanged();
+      await uploadBidDocument(annId, file, { title: docTitle || file.name, accessScope: scope, requirePayment: false, allowedSupplierIds: scope === "INVITED" ? selected : undefined, downloadMode: dlMode, downloadPassword: dlMode === 'encrypted' ? dlPassword : undefined }, {
+        onProgress: (l, t) => setDocUpPct(t > 0 ? Math.round((l / t) * 100) : 0),
+      });
+      toast.success("已加密上传"); setFile(null); setDocTitle(""); setDocUpPct(null); onChanged();
     } catch (e: any) { toast.error(e?.message || "上传失败"); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setDocUpPct(null); }
   };
   const saveConfig = async () => {
     if (!bidDoc) return;
@@ -859,7 +882,13 @@ function BidDocEditSection({ annId, bidDoc, onChanged }: { annId: string; bidDoc
             </div>
           )}
 
-          <button onClick={doUpload} disabled={busy || !file} className="neu-btn-soft w-full justify-center disabled:opacity-40">{busy ? "加密上传中..." : "加密上传"}</button>
+          <button onClick={doUpload} disabled={busy || !file} className="neu-btn-soft w-full justify-center disabled:opacity-40">{busy ? `加密上传中${docUpPct != null ? ` ${docUpPct}%` : '...'}` : "加密上传"}</button>
+          {docUpPct != null && (
+            <div className="flex items-center gap-2">
+              <WaterBar pct={docUpPct} state="uploading" />
+              <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[var(--accent)]">{docUpPct}%</span>
+            </div>
+          )}
         </div>
       )}
       {dialog}

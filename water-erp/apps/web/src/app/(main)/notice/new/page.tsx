@@ -8,6 +8,7 @@ import {
   listAttachments, addAttachment, removeAttachment, uploadFile,
 } from '@/lib/api/announcement';
 import type { AnnouncementType, AnnouncementStatus, AnnouncementAttachment } from '@/lib/api/announcement';
+import { WaterBar } from '@/components/upload/water-bar';
 import { Upload, PlusCircle, Save, Send, FolderKanban, Megaphone, Search, X } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { useConfirm } from '@/components/workbench/use-confirm';
@@ -529,6 +530,8 @@ export default function NewNoticePage() {
 function AttachmentUploader({ annId, attachments, onChanged }: { annId: string; attachments: AnnouncementAttachment[]; onChanged: () => void }) {
   const [title, setTitle] = useState('');
   const [uploading, setUploading] = useState(false);
+  // 上传行（2026-11-06 上传进度条）：每文件字节进度，行随批次清理
+  const [upRows, setUpRows] = useState<Array<{ name: string; pct: number }>>([]);
   const { confirm, dialog } = useConfirm();
   // 附件统一限制（2026-10-19）：多选 + 100MB + 9 扩展白名单，坏文件当场提示并剔除
   const onUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -539,13 +542,20 @@ function AttachmentUploader({ annId, attachments, onChanged }: { annId: string; 
     if (invalid.length > 0) toast.error(invalid[0] + (invalid.length > 1 ? ` 等 ${invalid.length} 个文件被跳过` : ''));
     if (okFiles.length === 0) { e.target.value = ''; return; }
     setUploading(true);
+    setUpRows(okFiles.map(f => ({ name: f.name, pct: 0 })));
     let done = 0;
-    for (const f of okFiles) {
-      try { const asset = await uploadFile(f, 'announcement'); await addAttachment(annId, asset.id, title || f.name); done++; }
+    for (let i = 0; i < okFiles.length; i++) {
+      const f = okFiles[i];
+      try {
+        const asset = await uploadFile(f, 'announcement', {
+          onProgress: (l, t) => setUpRows(rows => rows.map((r, j) => (j === i ? { ...r, pct: t > 0 ? Math.round((l / t) * 100) : 0 } : r))),
+        });
+        await addAttachment(annId, asset.id, title || f.name); done++;
+      }
       catch (err: any) { toast.error(`${f.name}：${err?.message || '上传失败'}`); }
     }
     if (done > 0) { setTitle(''); toast.success(`已添加 ${done} 个附件`); }
-    setUploading(false); e.target.value = ''; onChanged();
+    setUploading(false); setUpRows([]); e.target.value = ''; onChanged();
   };
   return (
     <div className="space-y-3">
@@ -557,6 +567,17 @@ function AttachmentUploader({ annId, attachments, onChanged }: { annId: string; 
         </label>
       </div>
       <p className="text-[11px] text-[var(--muted-foreground)]">{ATTACHMENT_HINT}，可选择多个文件</p>
+      {upRows.length > 0 && (
+        <div className="space-y-1.5">
+          {upRows.map((r, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <span className="max-w-[220px] shrink-0 truncate text-[11px] font-semibold text-[var(--muted-foreground)]" title={r.name}>{r.name}</span>
+              <WaterBar pct={r.pct} state="uploading" />
+              <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[var(--accent)]">{r.pct}%</span>
+            </div>
+          ))}
+        </div>
+      )}
       {attachments.length === 0 ? <p className="text-xs text-[var(--muted-foreground)]">暂无附件</p> : attachments.map(a => (
         <div key={a.id} className="neu-attachment-item">
           <div><div className="text-sm font-semibold text-[var(--foreground)]">{a.title}</div><div className="text-xs text-[var(--muted-foreground)]">{a.fileAsset.originalName} · {(a.fileAsset.size / 1024).toFixed(0)} KB</div></div>
