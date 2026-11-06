@@ -252,7 +252,9 @@ export class KnowledgeService {
         id: true, name: true, isShared: true, ownerId: true,
         files: {
           orderBy: { createdAt: 'desc' },
-          select: { id: true, fileName: true, fileSize: true, chunkCount: true, createdAt: true },
+          // 解析状态字段随行透出（2026-11-06 异步化）：前端徽章「解析中(x/y页)/失败可重试/已入库」轮询消费
+          select: { id: true, fileName: true, fileSize: true, chunkCount: true, createdAt: true,
+            status: true, processedPages: true, totalPages: true, error: true, indexed: true },
         },
       },
       orderBy: { createdAt: 'desc' },
