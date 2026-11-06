@@ -67,6 +67,8 @@ export default function ChatPage() {
 
   /* 历史会话回看（2026-10-27）：服务端按属主隔离存档，换机/隔天可找回；删除当前会话自动开新 */
   const [historyOpen, setHistoryOpen] = useState(false);
+  // 待确认删除的会话 id（2026-11-06：底部弹层二次确认，替代原生 window.confirm）
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [historyList, setHistoryList] = useState<ConversationSummary[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(false); // R3-1：失败≠空，须可重试
@@ -98,8 +100,15 @@ export default function ChatPage() {
   }
 
   async function deleteHistory(id: string) {
-    /* 破坏性操作防误触（P2，2026-11-03）：一触即删且不可恢复，先确认 */
-    if (!window.confirm("删除该会话？删除后不可恢复。")) return;
+    /* 破坏性操作防误触（P2，2026-11-03）：一触即删且不可恢复；
+     * 2026-11-06 用户裁定弃原生 window.confirm，改底部弹层确认（本门户弹窗形态） */
+    setDeleteTarget(id);
+  }
+
+  async function confirmDeleteHistory() {
+    const id = deleteTarget;
+    if (!id) return;
+    setDeleteTarget(null);
     try { await removeConversation(id); } catch { /* 删除失败不阻塞列表刷新 */ }
     if (id === conversationId) newConversation();
     setHistoryList((prev) => prev.filter((c) => c.id !== id));
@@ -297,6 +306,25 @@ export default function ChatPage() {
         ) : (
           <EmptyState text="暂无历史会话" />
         )}
+      </BottomSheet>
+
+      {/* 删除会话二次确认（2026-11-06：底部弹层形态，替代原生 window.confirm） */}
+      <BottomSheet open={deleteTarget !== null} onClose={() => setDeleteTarget(null)} title="删除会话">
+        <div className="space-y-3 px-4 pb-5 pt-1">
+          <p className="text-[14px] leading-relaxed text-[var(--muted-foreground)]">删除该会话？删除后不可恢复。</p>
+          <div className="flex gap-2 pt-1">
+            <button type="button" onClick={() => setDeleteTarget(null)} className="neu-btn-soft h-11 flex-1 rounded-[12px] text-[14px] active:scale-95">
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={() => void confirmDeleteHistory()}
+              className="neu-btn-primary h-11 flex-1 rounded-[12px] text-[14px] font-semibold !bg-[var(--danger)] active:scale-95"
+            >
+              删除
+            </button>
+          </div>
+        </div>
       </BottomSheet>
     </div>
   );

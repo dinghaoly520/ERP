@@ -46,6 +46,7 @@ import {
 import { ArrowUpRight, Plus } from "lucide-react";
 import Link from "next/link";
 import { OverdueTasksDialog } from "@/components/work-arrangements/overdue-tasks-dialog";
+import { confirmDialog } from "@/components/catalog/confirm-dialog";
 import {
   getOverdueTasks,
   hasShownOverdueDialogToday,
@@ -609,8 +610,9 @@ export function WorkArrangementsPage({
     if (!selectedItemId) {
       return;
     }
-    // R6-4（2026-09-30 审计②）：删除不可逆且此前无确认（误触即永久删除）
-    if (!window.confirm("确认删除该工作安排？此操作不可恢复。")) {
+    // R6-4（2026-09-30 审计②）：删除不可逆且此前无确认（误触即永久删除）；
+    // 2026-11-06 用户裁定弃原生 window.confirm，统一窗口式确认
+    if (!(await confirmDialog({ title: "删除工作安排", message: "确认删除该工作安排？此操作不可恢复。", confirmText: "删除", danger: true }))) {
       return;
     }
 

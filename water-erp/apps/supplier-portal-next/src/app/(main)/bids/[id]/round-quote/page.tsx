@@ -173,8 +173,9 @@ export default function RoundQuotePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // L8: 输入价格后导航离开提示（Vue onBeforeRouteLeave → useLeaveGuard）
-  useLeaveGuard(
+  // L8: 输入价格后导航离开提示（Vue onBeforeRouteLeave → useLeaveGuard）；
+  // 2026-11-06 起守卫改样式化弹窗确认，须渲染返回的弹窗节点
+  const { leaveGuardDialog } = useLeaveGuard(
     () => quotePriceValid && !submitting && !currentOpenMyQuote,
     "您已输入报价但尚未提交，确定离开吗？",
   );
@@ -370,6 +371,7 @@ export default function RoundQuotePage() {
         )}
       </div>
       {dialog}
+      {leaveGuardDialog}
     </div>
   );
 }

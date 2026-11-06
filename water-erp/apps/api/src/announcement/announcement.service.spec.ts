@@ -1701,3 +1701,118 @@ describe('AnnouncementService — 流标/中标公告公示期限直供与兜底
     expect(auto).toBeTruthy();
   });
 });
+
+describe('AnnouncementService — syncAddendum 开标时间联动（2026-11-06 用户裁定）', () => {
+  const baseAnn = {
+    id: 'add-1', title: '补遗公告X', relatedProjectCode: 'SWHI-TP-1',
+    metadata: { openTimeChanged: '1', newOpenTime: '2026-11-20T10:00' },
+  };
+  const makeSvc = async (prismaOverrides: Record<string, any> = {}) => {
+    const prisma: any = {
+      announcement: {
+        findUnique: jest.fn().mockResolvedValue(baseAnn),
+        findFirst: jest.fn().mockResolvedValue({ id: 'bid-notice-1', metadata: { openTime: '2026-11-10T10:00', deadline: '2026-11-10T09:50' } }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      bidProject: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'bp-1', projectCode: 'SWHI-TP-1', projectManagementItemId: 'pmi-1', openTime: new Date('2026-11-10T10:00'), deadline: new Date('2026-11-10T09:50'), stage: 'SUBMIT' }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      projectManagementItem: { update: jest.fn().mockResolvedValue({}) },
+      bidDocument: { findFirst: jest.fn().mockResolvedValue({ id: 'doc-1' }), update: jest.fn().mockResolvedValue({}) },
+      bidDocumentAccess: { findMany: jest.fn().mockResolvedValue([{ supplierId: 'sup-1' }]) },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([{ supplierId: 'sup-1' }]) },
+      supplier: { findMany: jest.fn().mockResolvedValue([{ userId: 'u-1' }]) },
+      notification: { create: jest.fn().mockResolvedValue({}) },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+      ...prismaOverrides,
+    };
+    const { AnnouncementService: Svc } = await import('./announcement.service');
+    const service: any = new (Svc as any)(prisma, {}, undefined, undefined);
+    return { service, prisma };
+  };
+
+  it('改变开标时间 → 项目 openTime/deadline（截标=开标前10分钟）与原采购公告展示值全改 + 审计留痕 + 计数/通知照常', async () => {
+    const { service, prisma } = await makeSvc();
+    const r = await service.syncAddendum('add-1', 'actor-1');
+    expect(r.openTimeAdjusted).toBe(true);
+    const projCall = prisma.bidProject.update.mock.calls[0][0];
+    const open = projCall.data.openTime as Date;
+    expect(projCall.where).toEqual({ id: 'bp-1' });
+    expect(open.getTime()).toBe(new Date('2026-11-20T10:00').getTime());
+    expect((projCall.data.deadline as Date).getTime()).toBe(open.getTime() - 10 * 60 * 1000);
+    const annCall = prisma.announcement.update.mock.calls.find((c: any[]) => c[0].where?.id === 'bid-notice-1')[0];
+    expect(annCall.data.metadata.openTime).toBe('2026-11-20T10:00');
+    expect(new Date(annCall.data.metadata.deadline).getTime()).toBe(open.getTime() - 10 * 60 * 1000);
+    // PMI 基本信息快照同步（详情「开标时间」数据源，中文格式与面板保存口径一致）
+    expect(prisma.projectManagementItem.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'pmi-1' }, data: { bidOpeningTime: '2026年11月20日10:00' } }),
+    );
+    expect(prisma.auditLog.create).toHaveBeenCalledTimes(1);
+    // 联动后不提前返回：①补遗计数与 ②供应商通知仍执行
+    expect(prisma.bidDocument.update).toHaveBeenCalledWith(expect.objectContaining({ data: { addendumNo: { increment: 1 } } }));
+    expect(prisma.notification.create).toHaveBeenCalled();
+  });
+
+  it('OPENING 阶段不再扰动 → 警示返回、不更新项目，但计数/通知照常（不提前返回）', async () => {
+    const { service, prisma } = await makeSvc({
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'bp-1', projectCode: 'SWHI-TP-1', stage: 'OPENING' }), update: jest.fn() },
+    });
+    const r = await service.syncAddendum('add-1');
+    expect(r.openTimeAdjusted).toBeUndefined();
+    expect(r.openTimeSyncWarning).toContain('未随补遗调整');
+    expect(prisma.bidProject.update).not.toHaveBeenCalled();
+    expect(prisma.bidDocument.update).toHaveBeenCalled();
+    expect(prisma.notification.create).toHaveBeenCalled();
+  });
+
+  it('时间非法 → 警示返回不更新', async () => {
+    const { service, prisma } = await makeSvc({
+      announcement: {
+        findUnique: jest.fn().mockResolvedValue({ ...baseAnn, metadata: { openTimeChanged: '1', newOpenTime: 'not-a-date' } }),
+        findFirst: jest.fn(), update: jest.fn(),
+      },
+    });
+    const r = await service.syncAddendum('add-1');
+    expect(r.openTimeSyncWarning).toContain('未调整');
+    expect(prisma.bidProject.update).not.toHaveBeenCalled();
+  });
+
+  it('未选改变 → 原补遗链（计数/通知），不动项目时间', async () => {
+    const { service, prisma } = await makeSvc({
+      announcement: {
+        findUnique: jest.fn().mockResolvedValue({ ...baseAnn, metadata: {} }),
+        findFirst: jest.fn(), update: jest.fn(),
+      },
+    });
+    const r = await service.syncAddendum('add-1');
+    expect(r).toEqual({});
+    expect(prisma.bidProject.update).not.toHaveBeenCalled();
+    expect(prisma.bidDocument.update).toHaveBeenCalled();
+  });
+});
+
+describe('AnnouncementService — 补遗项目闸 ADDENDUM_BID_STARTED（2026-11-06 用户裁定）', () => {
+  const mk = async (stage: string | null, code?: string) => {
+    const prisma: any = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue(stage ? { stage } : null) },
+    };
+    const { AnnouncementService: Svc } = await import('./announcement.service');
+    const svc: any = new (Svc as any)(prisma, {}, undefined, undefined);
+    return svc.assertAddendumProjectNotOpened(code ?? 'SWHI-TP-1');
+  };
+
+  it('OPENING/EVALUATING/ARCHIVED/ABORTED → 400 拒绝', async () => {
+    for (const stage of ['OPENING', 'EVALUATING', 'ARCHIVED', 'ABORTED']) {
+      await expect(mk(stage)).rejects.toMatchObject({ status: 400, response: { code: 'ADDENDUM_BID_STARTED' } });
+    }
+  });
+
+  it('DOWNLOAD/SUBMIT/无项目/无编码 → 放行', async () => {
+    await expect(mk('DOWNLOAD')).resolves.toBeUndefined();
+    await expect(mk('SUBMIT')).resolves.toBeUndefined();
+    await expect(mk(null)).resolves.toBeUndefined();
+    await expect(mk('OPENING', undefined as any)).rejects.toBeTruthy(); // code 缺省值仍拦
+    await expect(mk('OPENING', '')).resolves.toBeUndefined(); // 空编码不查不拦
+  });
+});

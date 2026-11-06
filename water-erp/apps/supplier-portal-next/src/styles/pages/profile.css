@@ -17,19 +17,23 @@
 /* 原 .detail-card（Vue CompanyInfo 逐字迁移）——2026-09-02 改独有名：与 bids.css/ukey.css 的 .detail-card 裸类撞车，
    Next 客户端导航 CSS 不卸载，后访问页的 28px/16px 值会污染投标提交页与 U盾页的卡片 */
 .prof-card { position: relative; padding: 28px; margin-top: 16px; border-radius: 16px; background: linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 35%, oklch(1 0 0 / 0.16) 72%); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 2px 2px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.9); }
+/* 顶部品牌色淡洗染（2026-11-06 数据鲜活，同 :3005 详情卡口径）：72px 递减，pointer-events 穿透 */
+.prof-card::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 72px; border-radius: 16px 16px 0 0; pointer-events: none; background: linear-gradient(180deg, color-mix(in oklch, var(--brand) 6%, transparent), transparent); }
 .company-identity { display: flex; align-items: center; gap: 20px; padding-bottom: 24px; border-bottom: 1px solid var(--hairline); }
-.company-avatar { width: 72px; height: 72px; border-radius: 14px; display: flex; align-items: center; justify-content: center; background: var(--brand); color: #fff; font-size: 32px; font-weight: 900; box-shadow: 4px 4px 10px oklch(0.4 0.1 258 / 0.28), -2px -2px 6px oklch(1 0 0 / 0.6), inset 0 1px 0 oklch(1 0 0 / 0.25); }
+.company-avatar { width: 72px; height: 72px; border-radius: 14px; display: flex; align-items: center; justify-content: center; background: var(--brand); color: #fff; font-size: 32px; font-weight: 900; box-shadow: 0 0 0 2px color-mix(in oklch, var(--brand) 22%, transparent), 4px 4px 10px oklch(0.4 0.1 258 / 0.28), -2px -2px 6px oklch(1 0 0 / 0.6), inset 0 1px 0 oklch(1 0 0 / 0.25); }
 .company-title h2 { margin: 0; color: var(--foreground); font-size: 24px; font-weight: 900; letter-spacing: -0.02em; }
 .company-subline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; color: var(--muted-foreground); }
 .company-credit-code { font-family: 'SF Mono','JetBrains Mono',monospace; font-size: 13px; font-variant-numeric: tabular-nums; }
-.info-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin-top: 24px; }
-.info-item { padding: 16px 18px; border-radius: 12px; background: oklch(0.985 0.005 258); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.85), 2.5px 2.5px 5px oklch(0.55 0.03 258 / 0.10), -2px -2px 5px oklch(1 0 0 / 0.9); }
+/* 紧凑定义项（2026-11-06，同 :3005 供应商详情口径：白瓷片占位大、显散——去底色去投影，
+   纯 label 小字 + 值排版，靠网格密度组织；桌面 4 列） */
+.info-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 14px; margin-top: 22px; }
+.info-item { display: flex; min-width: 0; flex-direction: column; gap: 4px; padding: 5px 0; }
 .info-item.wide { grid-column: 1/-1; }
-.info-item span { display: block; color: var(--muted-foreground); font-size: 12px; }
-.info-item strong { display: block; margin-top: 6px; color: var(--foreground); font-size: 14px; line-height: 1.6; }
-.info-tags { margin-top: 18px; padding: 14px 18px; border-radius: 12px; background: oklch(0.985 0.005 258); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.85), 2.5px 2.5px 5px oklch(0.55 0.03 258 / 0.10), -2px -2px 5px oklch(1 0 0 / 0.9); }
-.info-tags-label { display: block; color: var(--muted-foreground); font-size: 12px; margin-bottom: 10px; }
-.info-tags-list { display: flex; flex-wrap: wrap; gap: 10px; }
+.info-item span { display: block; color: var(--muted-foreground); font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; line-height: 1.2; }
+.info-item strong { display: block; color: var(--foreground); font-size: 13.5px; font-weight: 650; line-height: 1.55; overflow-wrap: anywhere; }
+.info-tags { margin-top: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.info-tags-label { display: block; color: var(--muted-foreground); font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-right: 2px; }
+.info-tags-list { display: flex; flex-wrap: wrap; gap: 8px; }
 /* 高级感业务标签：oklch 渐变填充 + 顶缘内高光 + 菱形品牌标记符，不用 neumorphic 双影（标签属文字级小元素） */
 .info-tag-chip {
   position: relative;
@@ -278,7 +282,7 @@
 .ct-panel-enter-from .ct-panel, .ct-panel-leave-to .ct-panel { transform: scale(0.96) translateY(12px); opacity: 0; }
 
 /* ═══ Responsive ═══ */
-@media (max-width: 768px) { .company-identity { flex-direction: column; align-items: stretch; } .info-grid { grid-template-columns: 1fr; } .qual-health-dashboard { flex-direction: column; align-items: flex-start; } .add-panel-row { grid-template-columns: 1fr; } .ct-panel-row { grid-template-columns: 1fr; } }
+@media (max-width: 768px) { .company-identity { flex-direction: column; align-items: stretch; } .info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .qual-health-dashboard { flex-direction: column; align-items: flex-start; } .add-panel-row { grid-template-columns: 1fr; } .ct-panel-row { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .qual-card,.qual-timeline-fill,.qual-file-cta,.add-panel-close,.add-panel-upload-btn,.add-panel-btn-cancel,.add-panel-btn-submit,.ct-panel-close,.ct-panel-btn-cancel,.ct-panel-btn-submit,.ct-toggle,.ct-toggle-knob,.info-tag-chip { transition: none; } .info-tag-chip:hover { transform: none; } }
 
 /* ═══ Change request dialog ═══ */
@@ -539,11 +543,11 @@
 .profile-lock-banner { display: flex; align-items: center; gap: 8px; margin-top: 16px; margin-bottom: -4px; font-size: 13px; line-height: 1.6; }
 
 /* 公司 logo（有则 img，无则首字占位） */
-.company-avatar-img { object-fit: contain; background: oklch(0.99 0.004 258); border-radius: 14px; padding: 4px; box-shadow: 3px 3px 8px oklch(0.55 0.03 258 / 0.14), -2px -2px 6px oklch(1 0 0 / 0.8), inset 0 1px 0 oklch(1 0 0 / 0.6); }
+.company-avatar-img { object-fit: contain; background: oklch(0.99 0.004 258); border-radius: 14px; padding: 4px; box-shadow: 0 0 0 2px color-mix(in oklch, var(--brand) 22%, transparent), 3px 3px 8px oklch(0.55 0.03 258 / 0.14), -2px -2px 6px oklch(1 0 0 / 0.8), inset 0 1px 0 oklch(1 0 0 / 0.6); }
 .company-avatar-fallback { opacity: 0.92; }
 
 /* info-grid 内的官网链接 */
-.info-item-link { display: block; margin-top: 6px; font-size: 14px; line-height: 1.6; font-weight: 700; color: var(--brand); word-break: break-all; text-decoration: none; }
+.info-item-link { display: block; margin-top: 0; font-size: 13.5px; line-height: 1.55; font-weight: 650; color: var(--brand); word-break: break-all; text-decoration: none; }
 .info-item-link:hover { text-decoration: underline; }
 .info-item-link:active { color: var(--brand-deep); }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, useReducedMotion } from 'framer-motion';
-import { FileSearch, FileText, FolderOpen, Loader2, Play, Shield } from 'lucide-react';
+import { FileSearch, Loader2 } from 'lucide-react';
 import { TenderReviewProvider } from '@/components/tender-review/tender-review-provider';
 import { useTenderReview } from '@/components/tender-review/use-tender-review';
 import TenderReviewWorkspace from '@/components/tender-review/tender-review-workspace';
@@ -24,42 +24,38 @@ function HeroStats() {
   );
 }
 
-/** hero 底部视图切换（审查执行 / 审查报告 + 动态文件/规则管理）——与采购文件编写同款 hero 内嵌切换，
- *  cgzxui .neu-segment 分段切换（本会话统一规格）；文件/规则管理为侧栏触发的上下文视图，激活时并入段。 */
+/** 视图切换（审查执行 / 审查报告 + 动态文件/规则管理）——2026-11-06 移出 hero 独立工具行，
+ *  并对齐信息发布中心类型切换的 .neu-segment 分段切换设计（内凹轨道+滑动拇指，段内不带图标）；
+ *  文件/规则管理为侧栏触发的上下文视图，激活时并入段（段数随之 2↔3，走内联 --segs 通式）。 */
 function ReviewTabBar() {
   const { activeTab, setActiveTab } = useTenderReview();
   const tabs = [
-    { id: 'review' as const, label: '审查执行', icon: Play },
-    { id: 'reports' as const, label: '审查报告', icon: FileText },
-    ...(activeTab === 'files' ? [{ id: 'files' as const, label: '文件管理', icon: FolderOpen }] : []),
-    ...(activeTab === 'rules' ? [{ id: 'rules' as const, label: '规则管理', icon: Shield }] : []),
+    { id: 'review' as const, label: '审查执行' },
+    { id: 'reports' as const, label: '审查报告' },
+    ...(activeTab === 'files' ? [{ id: 'files' as const, label: '文件管理' }] : []),
+    ...(activeTab === 'rules' ? [{ id: 'rules' as const, label: '规则管理' }] : []),
   ];
   return (
-    <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="审查视图">
-      {tabs.map((t) => {
-        const active = t.id === activeTab;
-        return (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => setActiveTab(t.id)}
-            className={[
-              "inline-flex items-center gap-1.5 rounded-[8px] px-3.5 py-2 text-xs font-semibold transition-all duration-200",
-              active
-                ? "bg-[color-mix(in_oklch,var(--accent-soft)_55%,transparent)] text-[color:var(--accent)]"
-                : "text-[color:var(--muted-foreground)] hover:bg-[color-mix(in_oklch,var(--muted)_40%,transparent)]",
-            ].join(" ")}
-            style={active ? {
-              boxShadow: "inset 1px 2px 3px oklch(0.55 0.03 258 / 0.1), inset -1px -1px 2px oklch(1 0 0 / 0.4)",
-            } : undefined}
-          >
-            <t.icon size={13} strokeWidth={1.9} aria-hidden="true" />
-            {t.label}
-          </button>
-        );
-      })}
+    <div
+      className="neu-segment"
+      role="group"
+      aria-label="审查视图"
+      data-count={String(tabs.length)}
+      data-index={String(Math.max(0, tabs.findIndex((t) => t.id === activeTab)))}
+      style={{ '--segs': tabs.length } as React.CSSProperties}
+    >
+      <span className="neu-segment-thumb" aria-hidden="true" />
+      {tabs.map((t) => (
+        <button
+          key={t.id}
+          type="button"
+          className="neu-segment-btn"
+          aria-pressed={activeTab === t.id}
+          onClick={() => setActiveTab(t.id)}
+        >
+          {t.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -92,10 +88,14 @@ export default function TenderReviewPage() {
             </div>
             <HeroStats />
           </div>
+          {/* hairline 下横线（cgzxui 规定：标题行与下方内容之间必有分割线） */}
+          <div className="page-hero__divider" />
+        </div>
 
-          <div className="mt-3 pt-2" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.12)" }}>
-            <ReviewTabBar />
-          </div>
+        {/* 视图切换行——独立工具行（2026-11-06 用户裁定移出标题栏，与采购台账/通知中心同款设计）。
+            flex 行容器：neu-segment 为块级 grid，须作 flex 子项按文字宽度收缩（块级包裹会拉满页宽） */}
+        <div className="mb-4 flex shrink-0 flex-wrap items-center gap-3">
+          <ReviewTabBar />
         </div>
         <TenderReviewWorkspace />
       </motion.div>

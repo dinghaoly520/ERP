@@ -2251,4 +2251,46 @@ describe('listBidProjectRefs 公告闸字段（2026-10-23 统一流）', () => {
     expect(refs.find((r: any) => r.round === 2)!.failedBidNoticePublished).toBe(true);
   });
 });
+
+  describe('list mine=true 补遗选择器过滤（2026-11-06 用户裁定：开标确认后的项目不可补遗）', () => {
+    it('当前轮已 OPENING → 剔除；SUBMIT / 未建 BidProject → 保留', async () => {
+      const { service, prisma } = makeService();
+      prisma.projectManagementItem.findMany.mockResolvedValue([
+        { id: 'pm-open', currentRound: 1, budgetAmount: null, createdBy: null, terminatedBy: null },
+        { id: 'pm-submit', currentRound: 1, budgetAmount: null, createdBy: null, terminatedBy: null },
+        { id: 'pm-nobp', currentRound: 1, budgetAmount: null, createdBy: null, terminatedBy: null },
+      ]);
+      prisma.bidProject.findMany.mockResolvedValue([
+        { projectManagementItemId: 'pm-open', round: 1, stage: 'OPENING' },
+        { projectManagementItemId: 'pm-submit', round: 1, stage: 'SUBMIT' },
+      ]);
+      const res = await service.list({ mine: 'true' } as never, { sub: 'staff-1', username: 's', role: 'staff' });
+      expect(res.map((r: any) => r.id)).toEqual(['pm-submit', 'pm-nobp']);
+      expect(prisma.projectManagementItem.findMany.mock.calls[0][0].where.createdById).toBe('staff-1');
+    });
+
+    it('旧轮 OPENING 但当前轮 SUBMIT（流标后再采购）→ 按当前轮判定保留', async () => {
+      const { service, prisma } = makeService();
+      prisma.projectManagementItem.findMany.mockResolvedValue([
+        { id: 'pm-reproc', currentRound: 2, budgetAmount: null, createdBy: null, terminatedBy: null },
+      ]);
+      prisma.bidProject.findMany.mockResolvedValue([
+        { projectManagementItemId: 'pm-reproc', round: 1, stage: 'OPENING' },
+        { projectManagementItemId: 'pm-reproc', round: 2, stage: 'SUBMIT' },
+      ]);
+      const res = await service.list({ mine: 'true' } as never, { sub: 'staff-1', username: 's', role: 'staff' });
+      expect(res.map((r: any) => r.id)).toEqual(['pm-reproc']);
+    });
+
+    it('mine 未传 → 不剔除（数据库/台账等既有口径不变，不触发 BP 查询）', async () => {
+      const { service, prisma } = makeService();
+      prisma.projectManagementItem.findMany.mockResolvedValue([
+        { id: 'pm-open', currentRound: 1, budgetAmount: null, createdBy: null, terminatedBy: null },
+      ]);
+      const res = await service.list({} as never, { sub: 'leader-1', username: 'l', role: 'leader' });
+      expect(res).toHaveLength(1);
+      expect(prisma.bidProject.findMany).not.toHaveBeenCalled();
+    });
+  });
 });
+

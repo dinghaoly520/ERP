@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Pencil, ClipboardList, CheckCircle, FileText, TrendingUp, ScrollText, ChevronRight, UserCircle } from 'lucide-react';
+import { Pencil, ClipboardList, ScrollText, ChevronRight, UserCircle } from 'lucide-react';
 import { api } from '@/lib/api';
+import { TypeaheadCombobox } from '@/components/workbench/typeahead-combobox';
+import { EXPERT_TITLES, EXPERT_SPECIALTIES } from '@/lib/expert-standard-options';
 import { toast } from 'sonner';
 import { STAGE_LABEL, STAGE_COLOR } from '@water-erp/shared';
 
@@ -11,6 +13,7 @@ interface ExpertProfile {
   id: string; username: string; displayName: string; email: string; role: string; isActive: boolean;
   phone?: string;
   averageScore: number;
+  department?: { name: string } | null;
   expertProfile?: {
     specialty?: string; title?: string; employer?: string; phone?: string;
     idNumber?: string; ethnicity?: string; education?: string; licenseNo?: string;
@@ -28,13 +31,26 @@ export default function ExpertProfilePage() {
   const [profile, setProfile] = useState<ExpertProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ displayName: '', email: '' });
+  // 2026-11-06 扩面（用户裁定：除工作单位外全字段可改）——姓名/民族/身份证号/手机/邮箱/学历/专业/职称/部门
+  const [form, setForm] = useState({ displayName: '', ethnicity: '', idNumber: '', phone: '', email: '', education: '', specialty: '', title: '', departmentName: '' });
   const [saving, setSaving] = useState(false);
+
+  const fillForm = (data: ExpertProfile) => setForm({
+    displayName: data.displayName,
+    ethnicity: data.expertProfile?.ethnicity || '',
+    idNumber: data.expertProfile?.idNumber || '',
+    phone: data.expertProfile?.phone || '',
+    email: data.email || '',
+    education: data.expertProfile?.education || '',
+    specialty: data.expertProfile?.specialty || '',
+    title: data.expertProfile?.title || '',
+    departmentName: data.department?.name || '',
+  });
 
   useEffect(() => {
     api.get<ExpertProfile>('/expert/profile').then(data => {
       setProfile(data);
-      setForm({ displayName: data.displayName, email: data.email || '' });
+      fillForm(data);
     }).catch(() => toast.error('操作失败')).finally(() => setLoading(false));
   }, []);
 
@@ -42,11 +58,11 @@ export default function ExpertProfilePage() {
     setSaving(true);
     try {
       await api.patch('/expert/profile', form);
-      toast.success('资料已更新');
+      toast.success('资料已更新，采购管理端专家信息已同步');
       // Refresh profile from server, then exit editing mode
       const data = await api.get<ExpertProfile>('/expert/profile');
       setProfile(data);
-      setForm({ displayName: data.displayName, email: data.email || '' });
+      fillForm(data);
       setEditing(false);
     } catch (e: any) { toast.error(e.message || '更新失败'); } // P2-2：透出服务端校验消息（如「姓名不能为空」）
     setSaving(false);
@@ -54,46 +70,39 @@ export default function ExpertProfilePage() {
 
   // P2-2（2026-09-21 审查）：空名/坏邮箱前端先拦——服务端静默跳过空名的假成功由此杜绝双保险
   const emailValid = !form.email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email);
-  const canSave = form.displayName.trim().length > 0 && emailValid;
+  const phoneValid = !form.phone || /^1\d{10}$/.test(form.phone);
+  const idNumberValid = !form.idNumber || /^\d{17}[\dX]$/.test(form.idNumber);
+  const canSave = form.displayName.trim().length > 0 && emailValid && phoneValid && idNumberValid;
 
   const cancelEdit = () => {
     setEditing(false);
-    if (profile) setForm({ displayName: profile.displayName, email: profile.email || '' });
+    if (profile) fillForm(profile);
   };
 
   if (loading) return <div className="py-20 text-center text-sm text-[var(--muted-foreground)]">加载中...</div>;
   if (!profile) return <div className="py-20 text-center text-sm text-[var(--danger)]">未找到专家信息</div>;
 
+  // KPI 四瓷片已删（2026-11-06 用户裁定）——派生量收编进标题副标题行（:3005 口径：
+  // 纯统计入副标题、零值不噪音；均分无值整段省略）
   const totalProjects = profile.assignments.length;
-  const completedProjects = profile.assignments.filter(a => a.progress >= 100).length;
+  const inProgress = profile.assignments.filter(a => a.progress < 100).length;
   const totalScoreRecords = profile.assignments.reduce((s, a) => s + a.scoreRecords.length, 0);
 
-  const kpis = [
-    { label: '参与项目', value: totalProjects, sub: '累计分配评审项目', sig: 'var(--accent-strong)', sigLabel: '进行中', Icon: ClipboardList },
-    { label: '已完成', value: completedProjects, sub: '评审完成并归档', sig: 'var(--success)', sigLabel: '已完成', Icon: CheckCircle },
-    { label: '评分记录', value: totalScoreRecords, sub: '累计提交评分项', sig: 'var(--warning)', sigLabel: '累计', Icon: FileText },
-    { label: '平均给分', value: profile.averageScore ?? 0, sub: '历史评分均值', sig: 'var(--accent)', sigLabel: '均值', Icon: TrendingUp },
-  ];
-
-  /** EXP-P2-04：身份证号脱敏（前4后3；短串整段打码）——专家口令=身份证号，明文即展示登录密码 */
+  /** EXP-P2-04：身份证号脱敏（前4后3；短串整段打码）——专家口令=身份证号，明文即展示登录密码。
+   *  2026-11-06：username 本身即身份证号（专家口令），所有展示位（用户名行/副标题）一律同款脱敏 */
   const maskIdNumber = (id?: string | null): string => {
     if (!id) return '';
     if (id.length < 8) return '*'.repeat(id.length);
     return `${id.slice(0, 4)}${'*'.repeat(id.length - 7)}${id.slice(-3)}`;
   };
+  /** 手机号脱敏（3****4；短串整段打码）——2026-11-06 用户裁定：本页手机号不再明文 */
+  const maskPhone = (p?: string | null): string => {
+    if (!p) return '';
+    if (p.length < 7) return '*'.repeat(p.length);
+    return `${p.slice(0, 3)}****${p.slice(-4)}`;
+  };
 
-  const infoFields: [string, string][] = [
-    ['姓名', profile.displayName],
-    ['用户名', profile.username],
-    ['手机', profile.expertProfile?.phone || profile.phone || '未设置'],
-    ['邮箱', profile.email || '未设置'],
-    ['专业', profile.expertProfile?.specialty || '未设置'],
-    ['职称', profile.expertProfile?.title || '未设置'],
-    ['工作单位', profile.expertProfile?.employer || '未设置'],    // EXP-P2-04：身份证号脱敏——专家登录口令即身份证号，明文展示等于在页面上展示登录密码
-    // （现场他人/投屏/拍照即获口令，削弱「口令=身份证号」防冒名与闸4 工位锁）
-    ['身份证号', maskIdNumber(profile.expertProfile?.idNumber) || '未设置'],
-    ['角色', '评审专家'],
-  ];
+  // 用户名行已删（2026-11-06 用户裁定）；readonlyView 已内联进网格尾部（工作单位/部门/角色）
 
   return (
     <div className="space-y-5">
@@ -104,18 +113,33 @@ export default function ExpertProfilePage() {
             <div className="page-hero__icon"><UserCircle size={18} strokeWidth={1.5} /></div>
             <div>
               <div className="page-hero__title">个人信息</div>
-              <div className="page-hero__sub">评审专家 · {profile.username} — 基本资料维护与评审记录总览</div>
+              <div className="page-hero__sub">基本资料维护与评审记录总览</div>
             </div>
           </div>
           <div className="page-hero__right">
-            {editing ? (
-              <>
-                <button onClick={cancelEdit} className="neu-btn-soft">取消</button>
-                <button onClick={handleSave} disabled={saving || !canSave} className="neu-btn-primary">
-                  {saving ? '保存中...' : '保存'}
-                </button>
-              </>
-            ) : (
+            {/* 统计三联（2026-11-06 三修：胶囊改「数字锚点」——大号 mono 数值 + 小字标签 +
+                竖 hairline 分隔，零值照常呈现；数据自己发光，不加底色容器） */}
+            <div className="mr-2 hidden items-center sm:flex">
+              {([
+                { value: String(totalProjects), unit: '项', label: '参与', color: 'var(--accent)' },
+                { value: String(inProgress), unit: '项', label: '进行中', color: 'var(--warning)' },
+                { value: String(totalScoreRecords), unit: '条', label: '累计评分', color: 'var(--accent-strong)' },
+                { value: profile.averageScore != null ? String(profile.averageScore) : '—', unit: '分', label: '平均给分', color: profile.averageScore != null && profile.averageScore >= 85 ? 'var(--success)' : 'var(--accent)' },
+              ] as const).map((s, i) => (
+                <div key={s.label} className="flex items-center">
+                  {i > 0 && <span className="mx-3.5 h-9 w-px bg-[oklch(0.6_0.04_258/0.16)]" aria-hidden="true" />}
+                  <div className="flex min-w-[56px] flex-col items-center gap-0.5">
+                    <span className="font-mono text-[1.3rem] font-black leading-none tabular-nums" style={{ color: s.color }}>
+                      {s.value}<span className="ml-0.5 text-[10px] font-bold">{s.unit}</span>
+                    </span>
+                    <span className="text-[10px] font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">{s.label}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* 编辑态的 取消/保存 已删（2026-11-06 用户裁定）——操作钮只在表单底部，
+                标题栏仅保留非编辑态的「编辑资料」入口 */}
+            {!editing && (
               <button onClick={() => setEditing(true)} className="neu-btn-soft">
                 <Pencil size={14} strokeWidth={1.6} />
                 编辑资料
@@ -125,25 +149,8 @@ export default function ExpertProfilePage() {
         </div>
 
         <div className="wb-section-rule" />
-
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {kpis.map(k => (
-            <div key={k.label} className="kpi-card flex flex-col gap-1.5 p-3.5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
-                  <k.Icon size={13} strokeWidth={1.7} />
-                  {k.label}
-                </span>
-                <span className="kpi-signal text-[9px] font-bold" style={{ '--s': k.sig } as React.CSSProperties}>
-                  <span className="kpi-signal-dot" />
-                  {k.sigLabel}
-                </span>
-              </div>
-              <span className="text-[1.7rem] font-black leading-none tracking-[-0.04em] tabular-nums text-[var(--foreground)]">{k.value}</span>
-              <span className="text-[10px] font-medium text-[var(--muted-foreground)]">{k.sub}</span>
-            </div>
-          ))}
-        </div>
+        {/* KPI 四瓷片已删（2026-11-06 用户裁定：参与项目/已完成/评分记录/平均给分）——
+            评审明细在下方「评审记录」与工作台呈现，此页专注资料维护 */}
       </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -155,53 +162,74 @@ export default function ExpertProfilePage() {
             </span>
             <div>
               <h2 className="text-xl font-black tracking-tight text-[var(--foreground)]">{profile.displayName}</h2>
-              <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">评审专家 · {profile.username}</p>
             </div>
           </div>
 
           <hr className="wb-section-rule mb-5" />
 
-          {editing ? (
-            <div className="space-y-4">
-              <div>
-                <label className="mb-1.5 block text-xs font-bold text-[var(--muted-foreground)]">姓名</label>
-                <input
-                  value={form.displayName}
-                  onChange={e => setForm(f => ({ ...f, displayName: e.target.value }))}
-                  aria-invalid={form.displayName.trim().length === 0 ? 'true' : undefined}
-                  className="neu-input"
-                />
-                {editing && form.displayName.trim().length === 0 && (
-                  <p className="mt-1 text-xs font-semibold text-[var(--danger)]">姓名不能为空</p>
+          {/* 字段网格（2026-11-06 用户裁定：补 民族/学历/部门 三项并重排序——
+              身份行（姓名/民族/身份证号/手机/邮箱/学历）→ 职业行（专业/职称）→ 归属行（工作单位/部门/角色）；
+              除工作单位/部门/角色外可编辑；手机/身份证号查看态脱敏；专业/职称为联想下拉 */}
+          <div className="grid grid-cols-2 gap-x-12 gap-y-4">
+            {([
+              { key: 'displayName', label: '姓名', mono: false, display: profile.displayName, invalid: form.displayName.trim().length === 0, invalidMsg: '姓名不能为空' },
+              { key: 'ethnicity', label: '民族', mono: false, display: profile.expertProfile?.ethnicity || '未设置', placeholder: '如 汉族' },
+              { key: 'idNumber', label: '身份证号', mono: true, display: maskIdNumber(profile.expertProfile?.idNumber) || '未设置', placeholder: '18 位身份证号', invalid: !!form.idNumber && !idNumberValid, invalidMsg: '身份证号须为 18 位有效号码' },
+              { key: 'phone', label: '手机', mono: true, display: maskPhone(profile.expertProfile?.phone || profile.phone) || '未设置', placeholder: '11 位手机号', invalid: !!form.phone && !phoneValid, invalidMsg: '手机号须为 11 位有效号码' },
+              { key: 'email', label: '邮箱', mono: false, display: profile.email || '未设置', invalid: !!form.email && !emailValid, invalidMsg: '邮箱格式不正确' },
+              { key: 'education', label: '学历', mono: false, display: profile.expertProfile?.education || '未设置', placeholder: '如 硕士研究生' },
+              { key: 'specialty', label: '专业', mono: false, display: profile.expertProfile?.specialty || '未设置', placeholder: '输入或选择专业', emptyText: '无匹配专业', options: [...EXPERT_SPECIALTIES] },
+              { key: 'title', label: '职称', mono: false, display: profile.expertProfile?.title || '未设置', placeholder: '输入或选择职称', emptyText: '无匹配职称', options: [...EXPERT_TITLES] },
+              { key: 'departmentName', label: '所属部门', mono: false, display: profile.department?.name || '未设置', placeholder: '如 工程勘察院' },
+            ]).map(f => (
+              <div key={f.key}>
+                <label className="mb-1 block text-xs font-semibold text-[var(--muted-foreground)]">{f.label}</label>
+                {editing ? (
+                  'options' in f ? (
+                    <TypeaheadCombobox
+                      value={form[f.key as 'specialty']}
+                      onChange={v => setForm(prev => ({ ...prev, [f.key]: v }))}
+                      options={f.options ?? []}
+                      allowCustom
+                      placeholder={f.placeholder}
+                      emptyText={f.emptyText}
+                      triggerClassName="!h-9 text-sm"
+                    />
+                  ) : (
+                    <>
+                      <input
+                        value={form[f.key as 'displayName']}
+                        onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                        aria-invalid={'invalid' in f && f.invalid ? 'true' : undefined}
+                        className={`neu-input !h-9 text-sm ${f.mono ? 'font-mono' : ''}`}
+                        placeholder={'placeholder' in f ? f.placeholder : undefined}
+                      />
+                      {'invalid' in f && f.invalid && (
+                        <p className="mt-1 text-xs font-semibold text-[var(--danger)]">{f.invalidMsg}</p>
+                      )}
+                    </>
+                  )
+                ) : (
+                  <p className={`text-sm font-bold text-[var(--foreground)] ${f.mono ? 'font-mono' : ''}`}>{f.display}</p>
                 )}
               </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-bold text-[var(--muted-foreground)]">邮箱</label>
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                  className="neu-input"
-                />
-                {editing && !emailValid && (
-                  <p className="mt-1 text-xs font-semibold text-[var(--danger)]">邮箱格式不正确</p>
-                )}
+            ))}
+            {/* 角色行已删（2026-11-06 用户裁定——本门户登录者恒为评审专家，无需自述） */}
+            {([
+              ['工作单位', profile.expertProfile?.employer || '未设置'],
+            ] as const).map(([label, value]) => (
+              <div key={label}>
+                <p className="mb-1 text-xs font-semibold text-[var(--muted-foreground)]">{label}</p>
+                <p className="text-sm font-bold text-[var(--foreground)]">{value}</p>
               </div>
-              <div className="flex gap-3 pt-1">
-                <button onClick={handleSave} disabled={saving || !canSave} className="neu-btn-primary !h-[38px]">
-                  {saving ? '保存中...' : '保存'}
-                </button>
-                <button onClick={cancelEdit} className="neu-btn-soft h-[38px]">取消</button>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-x-12 gap-y-4">
-              {infoFields.map(([label, value]) => (
-                <div key={label}>
-                  <p className="mb-1 text-xs font-semibold text-[var(--muted-foreground)]">{label}</p>
-                  <p className="text-sm font-bold text-[var(--foreground)]">{value}</p>
-                </div>
-              ))}
+            ))}
+          </div>
+          {editing && (
+            <div className="mt-5 flex gap-3">
+              <button onClick={handleSave} disabled={saving || !canSave} className="neu-btn-primary !h-[38px]">
+                {saving ? '保存中...' : '保存'}
+              </button>
+              <button onClick={cancelEdit} className="neu-btn-soft !h-[38px]">取消</button>
             </div>
           )}
         </div>

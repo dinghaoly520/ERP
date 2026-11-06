@@ -365,7 +365,7 @@ export default function ExpertRepositoryPage() {
   const available = experts.filter(e => e.isActive && e.expertProfile?.availability === '可用').length;
   const occupied = experts.filter(e => e.isActive && e.expertProfile?.availability === '占用').length;
   const disabled = experts.filter(e => !e.isActive || e.expertProfile?.availability === '停用').length;
-  const totalEvals = experts.reduce((s, e) => s + e._count.expertEvaluations, 0);
+  // totalEvals 已删（2026-11-06 随累计评价胶囊移除；当前页推导值本就随翻页漂移）
   // 服务端全量 KPI（与 /expert/statistics 同口径，公司隔离同参数）
   const [expStats, setExpStats] = useState<Awaited<ReturnType<typeof getExpertStatistics>> | null>(null);
   // 仅公司视野变化重拉（experts 引用每页变，会无谓重跑 8 个聚合）；变更类操作后手动刷（三审 P2-3）
@@ -387,14 +387,51 @@ export default function ExpertRepositoryPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* page-hero */}
+      {/* page-hero（2026-11-06 用户裁定：KPI 六瓷片删除，库况融入副标题、评价口径
+          入右侧统计胶囊——A-E 分布仅在存在评价时以悬停呈现，全零不显噪音） */}
       <div className="page-hero">
         <div className="page-hero__row">
           <div className="page-hero__left">
             <div className="page-hero__icon"><UsersRound size={17} /></div>
-            <div><div className="page-hero__title">专家管理</div><div className="page-hero__sub">维护评审专家名录与专业分类，可暂停或恢复专家资格</div></div>
+            <div>
+              <div className="page-hero__title">专家管理</div>
+              <div className="page-hero__sub">维护评审专家名录与专业分类，可暂停或恢复专家资格</div>
+            </div>
           </div>
           <div className="page-hero__right">
+            {/* 库况数字锚点四联（2026-11-06 用户裁定：同 :3006 统计三联设计） */}
+            <div className="mr-2 hidden items-center lg:flex">
+              {([
+                { value: String(expStats?.totalExperts ?? total), unit: '名', label: '全库口径', color: 'var(--accent)' },
+                { value: String(expStats?.available ?? available), unit: '名', label: '可用', color: 'var(--success)' },
+                { value: String(expStats?.occupied ?? occupied), unit: '名', label: '占用中', color: 'var(--warning)' },
+                { value: String(expStats?.disabled ?? disabled), unit: '名', label: '已停用', color: 'var(--muted-foreground)' },
+              ] as const).map((s, i) => (
+                <div key={s.label} className="flex items-center">
+                  {i > 0 && <span className="mx-3 h-9 w-px bg-[oklch(0.6_0.04_258/0.16)]" aria-hidden="true" />}
+                  <div className="flex min-w-[52px] flex-col items-center gap-0.5">
+                    <span className="font-mono text-[1.3rem] font-black leading-none tabular-nums" style={{ color: s.color }}>
+                      {s.value}<span className="ml-0.5 text-[10px] font-bold">{s.unit}</span>
+                    </span>
+                    <span className="text-[10px] font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">{s.label}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* 累计评价胶囊已删（2026-11-06 用户裁定）——评价数据在「统计/排名」页与各专家详情呈现 */}
+            {(() => {
+              const graded = gradeDistribution.A + gradeDistribution.B + gradeDistribution.C + gradeDistribution.D + gradeDistribution.E;
+              if (graded === 0) return null; // 无评价不显示五个零
+              const pct = Math.round(((gradeDistribution.A + gradeDistribution.B) / graded) * 100);
+              return (
+                <span
+                  className="page-hero__stat page-hero__stat--info"
+                  title={`等级分布：A ${gradeDistribution.A} · B ${gradeDistribution.B} · C ${gradeDistribution.C} · D ${gradeDistribution.D} · E ${gradeDistribution.E}`}
+                >
+                  优良率 {pct}%
+                </span>
+              );
+            })()}
             <CompanySelect value={companyId} onChange={(v) => { setCompanyId(v); setPage(1); }} countMode="experts" />
             <Link href="/expert/ranking" className="neu-btn-soft"><Trophy size={15} />排名</Link>
             <Link href="/expert/statistics" className="neu-btn-soft"><TrendingUp size={15} />统计</Link>
@@ -402,39 +439,8 @@ export default function ExpertRepositoryPage() {
             <button onClick={() => setShowHistory(true)} className="neu-btn-soft"><History size={15} />操作历史</button>
           </div>
         </div>
-        <div className="page-hero__divider">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-6 items-stretch">
-          {[
-            // KPI 服务端全量口径（2026-09-28 审计 P2：此前由当前页 20 条近似计算，翻页即变；
-            // 统计未就绪时回退当前页推导值）
-            ['专家总数', expStats?.totalExperts ?? total, '全库口径'],
-            ['可用', expStats?.available ?? available, '可参与抽取'],
-            ['占用中', expStats?.occupied ?? occupied, '正参与评审'],
-            ['已停用', expStats?.disabled ?? disabled, '退库/停用'],
-            ['总评价次数', expStats?.evaluationStats.total ?? totalEvals, '累计评价'],
-          ].map(([label, value, sub]) => (
-            <div key={label} className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">{label}</span>
-              <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{String(value)}</span>
-              <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">{sub}</span>
-            </div>
-          ))}
-          <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">优良率</span>
-            <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">
-              {(() => { const graded = gradeDistribution.A + gradeDistribution.B + gradeDistribution.C + gradeDistribution.D + gradeDistribution.E; return graded > 0 ? Math.round((gradeDistribution.A + gradeDistribution.B) / graded * 100) : 0; })()}%
-            </span>
-            <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight flex items-center gap-1.5">
-              {(['A','B','C','D','E'] as const).map(g => (
-                <span key={g} className="inline-flex items-baseline gap-0.5">
-                  <span className="font-bold" style={{color: g==='A'?'#059669':g==='B'?'#0a5eb8':g==='C'?'#d97706':g==='D'?'#ca8a04':'#dc2626'}}>{g}</span>
-                  <span className="tabular-nums">{gradeDistribution[g]}</span>
-                </span>
-              ))}
-            </span>
-          </div>
-        </div>
-        </div>
+        {/* 标题行下长横线（2026-11-06 对齐公司信息管理同款 page-hero__divider；KPI 六瓷片已删） */}
+        <div className="page-hero__divider" />
       </div>
 
       {/* 工具行：搜索（左，固定 280px）+ 筛选与操作（右）——2026-09-18 对齐供应商库同款 */}

@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import { BookOpen, FileUp, Loader2, Plus, RefreshCw, RotateCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Modal } from '@/components/workbench';
+import { confirmDialog } from '@/components/catalog/confirm-dialog';
 import {
   createKnowledgeBase,
   deleteKnowledgeBase,
@@ -183,7 +184,8 @@ export function KnowledgePanel({ open, onClose }: { open: boolean; onClose: () =
               type="button"
               className="neu-btn-xs is-danger gap-1"
               onClick={async () => {
-                if (!window.confirm(`确认删除知识库「${kb.name}」及其全部文件？`)) return;
+                /* 2026-11-06 用户裁定：弃原生 window.confirm，统一窗口式确认 */
+                if (!(await confirmDialog({ title: '删除知识库', message: `确认删除知识库「${kb.name}」及其全部文件？删除后不可恢复。`, confirmText: '删除', danger: true }))) return;
                 setBusyId(kb.id);
                 try { await deleteKnowledgeBase(kb.id); toast.success('已删除'); await load(); }
                 catch (e) { toast.error(e instanceof Error ? e.message : '删除失败'); }
@@ -224,7 +226,7 @@ export function KnowledgePanel({ open, onClose }: { open: boolean; onClose: () =
                   className="neu-btn-xs is-danger"
                   title="删除文件"
                   onClick={async () => {
-                    if (!window.confirm(`确认删除《${f.fileName}》？`)) return;
+                    if (!(await confirmDialog({ title: '删除文件', message: `确认删除《${f.fileName}》？删除后不可恢复。`, confirmText: '删除', danger: true }))) return;
                     setBusyId(kb.id);
                     try { await deleteKnowledgeFile(kb.id, f.id); toast.success('已删除'); await load(); }
                     catch (e) { toast.error(e instanceof Error ? e.message : '删除失败'); }

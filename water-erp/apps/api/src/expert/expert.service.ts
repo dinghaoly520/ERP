@@ -95,6 +95,7 @@ export class ExpertService {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: {
+        department: { select: { name: true } },
         expertProfile: {
           select: {
             specialty: true,
@@ -148,6 +149,31 @@ export class ExpertService {
     // 收口为 typeof 守卫：字符串才写（空串已被 DTO 拒），null/undefined 一律跳过。
     if (typeof dto.displayName === 'string') data.displayName = dto.displayName;
     if (typeof dto.email === 'string') data.email = sealPii(dto.email) as string;
+
+    // 2026-11-06 扩面（用户裁定：除工作单位外全字段可改）：手机/身份证号 PII 密封落
+    // ExpertProfile，专业/职称明文列直写——与 :3005 专家详情同一份记录，改后即时同步
+    const profileData: Record<string, string> = {};
+    if (typeof dto.phone === 'string') profileData.phone = sealPii(dto.phone) as string;
+    if (typeof dto.idNumber === 'string') profileData.idNumber = sealPii(dto.idNumber) as string;
+    if (typeof dto.specialty === 'string') profileData.specialty = dto.specialty;
+    if (typeof dto.title === 'string') profileData.title = dto.title;
+    if (typeof dto.ethnicity === 'string') profileData.ethnicity = dto.ethnicity;
+    if (typeof dto.education === 'string') profileData.education = dto.education;
+    if (Object.keys(profileData).length > 0) {
+      await this.prisma.expertProfile.updateMany({ where: { userId }, data: profileData });
+    }
+
+    // 部门（2026-11-06 用户裁定：部门也可自助修改）——按名匹配已有部门无则新建
+    // （专家域 companyId=null 行，与 :3005 录入专家同口径）；空串清空归属
+    if (typeof dto.departmentName === 'string') {
+      const name = dto.departmentName.trim();
+      let departmentId: string | null = null;
+      if (name) {
+        const existing = await this.prisma.department.findFirst({ where: { name }, select: { id: true } });
+        departmentId = existing?.id ?? (await this.prisma.department.create({ data: { name } })).id;
+      }
+      await this.prisma.user.update({ where: { id: userId }, data: { departmentId } });
+    }
 
     await this.prisma.user.update({
       where: { id: userId },

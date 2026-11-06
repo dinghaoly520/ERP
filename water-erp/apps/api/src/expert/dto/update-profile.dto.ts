@@ -1,6 +1,11 @@
-import { IsString, IsOptional, IsNotEmpty, IsEmail } from 'class-validator';
+import { IsString, IsOptional, IsNotEmpty, IsEmail, Matches } from 'class-validator';
 import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
+/**
+ * 专家端自助资料修改（2026-11-06 扩面：除工作单位外全字段可改）——
+ * 姓名/邮箱落 User；手机/身份证号落 ExpertProfile（PII 密封）；专业/职称落 ExpertProfile。
+ * 修改直写同一份 User/ExpertProfile 记录，:3005 专家详情即时同步（无需额外链路）。
+ */
 export class UpdateExpertProfileDto {
   @IsString()
   @IsNotEmpty({ message: '姓名不能为空' })
@@ -11,6 +16,39 @@ export class UpdateExpertProfileDto {
   @IsEmail()
   @IsOptional()
   email?: string;
+
+  @IsString()
+  @Matches(/^1\d{10}$/, { message: '手机号须为 11 位有效号码' })
+  @IsOptional()
+  phone?: string;
+
+  @IsString()
+  @Matches(/^\d{17}[\dX]$/, { message: '身份证号须为 18 位有效号码' })
+  @IsOptional()
+  idNumber?: string;
+
+  @IsString()
+  @IsOptional()
+  specialty?: string;
+
+  @IsString()
+  @IsOptional()
+  title?: string;
+
+  /** 2026-11-06：民族/学历纳入自助修改（除工作单位外全字段可改口径） */
+  @IsString()
+  @IsOptional()
+  ethnicity?: string;
+
+  @IsString()
+  @IsOptional()
+  education?: string;
+
+  /** 2026-11-06：部门自助修改——按名匹配已有部门，无则新建（专家域 companyId=null 行，
+   *  与 :3005 录入专家同口径）；空串清空归属 */
+  @IsString()
+  @IsOptional()
+  departmentName?: string;
 
   @IsString()
   @IsOptional()

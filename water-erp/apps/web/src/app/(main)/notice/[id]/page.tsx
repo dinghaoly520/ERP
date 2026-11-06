@@ -19,6 +19,7 @@ import { StatusBadge } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
 import { ArrowLeft, Pencil, X, EyeOff, PackageX, Megaphone, Upload, Sparkles, Clock } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
+import { fetchProjectManagementList, fetchPmBidProjectRefs } from '@/lib/api/project-management';
 import { PublishConfigSection, configFromMetadata, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
 import { BidDocEditSection, AddendumRefDocSection } from '@/components/notice/bid-doc-edit-section';
 import { DATA_CLASS_LABELS, ANNOUNCEMENT_TYPE_ORDER } from '@water-erp/shared';
@@ -34,7 +35,7 @@ const typeLabel = ANN_TYPE_LABEL;
 const statusTone = ANN_STATUS_TONE;
 const statusLabel = ANN_STATUS_LABEL;
 
-interface MetaField { key: string; label: string; area?: boolean; date?: boolean; ph?: string }
+interface MetaField { key: string; label: string; area?: boolean; date?: boolean; ph?: string; required?: boolean }
 
 /** datetime-local 值归一：存量纯日期（2026-07-01）补 T00:00，否则控件显示空；已合规/空原样 */
 function toDateInputValue(raw: string): string {
@@ -55,9 +56,9 @@ const TYPE_META: Record<AnnouncementType, MetaField[]> = {
     { key: 'title', label: '预审名称（存量）' },
   ],
   ADDENDUM: [
-    { key: 'changes', label: '澄清/修改内容', area: true, ph: '逐条列出对采购文件的澄清或修改事项' },
-    { key: 'newDeadline', label: '调整后递交截止', date: true },
-    { key: 'projectCode', label: '项目编号' }, { key: 'relatedAnnouncementTitle', label: '关联采购公告' },
+    { key: 'changes', label: '澄清/修改内容', area: true, required: true, ph: '逐条列出对采购文件的澄清或修改事项' },
+    { key: 'projectCode', label: '项目编号' }, { key: 'relatedAnnouncementTitle', label: '关联采购公告（可选）' },
+    // 开标时间调整（openTimeChanged/newOpenTime）为专用行渲染；newDeadline 为存量键随保存显式带走不展示
   ],
   BID_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '招标方式' }, { key: 'budget', label: '预算金额' },
@@ -82,7 +83,7 @@ const TYPE_META: Record<AnnouncementType, MetaField[]> = {
     { key: 'projectCode', label: '项目编号' }, { key: 'supplierName', label: '成交供应商' }, { key: 'result', label: '履行结果' },
   ],
   POLICY: [
-    { key: 'docNo', label: '文号', ph: '如 川水发〔2026〕12 号' }, { key: 'issuer', label: '发布机关', ph: '如 四川省水利发展集团有限公司' }, { key: 'effectiveDate', label: '生效日期', date: true },
+    { key: 'docNo', label: '文号', ph: '如 川水发〔2026〕12 号' }, { key: 'issuer', label: '发布机关', ph: '如：国资委' }, { key: 'effectiveDate', label: '生效日期', date: true },
     { key: 'status', label: '时效状态', ph: '现行有效 / 已修订 / 已废止' },
     { key: 'scope', label: '适用范围', area: true, ph: '适用的业务、单位或人员范围' },
   ],
@@ -235,7 +236,15 @@ function renderMeta(ann: AnnouncementListItem) {
   const meta = (ann.metadata || {}) as Record<string, any>;
   // amount 无顶层值时从 winner.price 兜底（WIN_NOTICE 中标公示草稿）
   const hasVal = (f: { key: string }) => !!meta[f.key] || (f.key === 'amount' && meta.winner?.price != null);
-  const allFields = TYPE_META[ann.type].filter(hasVal);
+  // 补遗开标时间调整（2026-11-06）：展示专用键与存量 newDeadline（不在编辑网格 TYPE_META 内）
+  const baseFields = TYPE_META[ann.type].slice();
+  if (ann.type === 'ADDENDUM') {
+    baseFields.push(
+      { key: 'newOpenTime', label: '调整后开标时间', date: true },
+      { key: 'newDeadline', label: '调整后递交截止（存量）', date: true },
+    );
+  }
+  const allFields = baseFields.filter(hasVal);
   if (allFields.length === 0) return null;
   const shortFields = allFields.filter(f => !f.area);
   const areaFields = allFields.filter(f => f.area);
@@ -471,8 +480,14 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
       // 对象值（WIN_NOTICE 的 winner）在输入框里只展示供应商名，保存时再还原对象（见 save）
       out[f.key] = v == null ? '' : (typeof v === 'object' ? (v.supplierName ?? v.name ?? '') : String(v));
     }
-    // 补遗公告「引用采购文件」开关（不在 TYPE_META 通用网格，2026-11-06）
-    if (t === 'ADDENDUM') out.refBidDoc = m.refBidDoc === '1' ? '1' : '';
+    // 补遗公告「引用采购文件」开关与「开标时间调整」（不在 TYPE_META 通用网格，2026-11-06）；
+    // newDeadline 为存量键隐性带走（保存时原样回写，不展示）
+    if (t === 'ADDENDUM') {
+      out.refBidDoc = m.refBidDoc === '1' ? '1' : '';
+      out.openTimeChanged = m.openTimeChanged === '1' ? '1' : '';
+      out.newOpenTime = m.newOpenTime ? String(m.newOpenTime).slice(0, 16) : '';
+      out.newDeadline = m.newDeadline ? String(m.newDeadline) : '';
+    }
     return out;
   };
   const [metadata, setMetadata] = useState<Record<string, string>>(() => buildMeta(ann.type));
@@ -497,6 +512,29 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
 
   const onTypeChange = (t: AnnouncementType) => { setType(t); setMetadata(buildMeta(t)); };
 
+  /** 补遗「改变开标时间」：按项目编号解析 PMI 后预填当前轮开标时间（只读 refs 不建项目，
+   *  已有值不覆盖；解析失败留空由用户填写）——查全视野（公告可能关联他人创建的项目） */
+  const enableOpenTimeChange = async () => {
+    setMetadata(prev => ({ ...prev, openTimeChanged: '1' }));
+    if (metadata.newOpenTime) return;
+    const code = metadata.projectCode?.trim();
+    if (!code) return;
+    try {
+      const items = await fetchProjectManagementList('ACTIVE');
+      const pm = items.find(i => i.projectCode === code);
+      if (!pm) return;
+      const refs = await fetchPmBidProjectRefs(pm.id);
+      const ref = [...(refs || [])].sort((a, b) => (b.round ?? 0) - (a.round ?? 0))[0];
+      const raw = ref?.openTime || ref?.roundOpeningTime;
+      if (!raw) return;
+      const d = new Date(raw);
+      if (Number.isNaN(d.getTime())) return;
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const local = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      setMetadata(prev => (prev.newOpenTime ? prev : { ...prev, newOpenTime: local }));
+    } catch { /* 预填失败不阻塞 */ }
+  };
+
   const save = async (targetStatus: AnnouncementStatus): Promise<AnnouncementPublishResult | null> => {
     if (!title.trim()) { toast.error('请填写标题'); return null; }
     // 定时发布：实际保存为 DRAFT，由 scheduler 到点自动发布
@@ -507,8 +545,15 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
     setBusy(true);
     const meta: Record<string, any> = {};
     for (const f of TYPE_META[type]) if (metadata[f.key]?.trim()) meta[f.key] = metadata[f.key].trim();
-    // 补遗「引用采购文件」开关随 meta 落库（关=不写键，保存即摘除）
-    if (type === 'ADDENDUM' && metadata.refBidDoc === '1') meta.refBidDoc = '1';
+    // 补遗「引用采购文件」开关与「开标时间调整」随 meta 落库（2026-11-06；关=不写键）；存量 newDeadline 原样保留
+    if (type === 'ADDENDUM') {
+      if (metadata.refBidDoc === '1') meta.refBidDoc = '1';
+      if (metadata.openTimeChanged === '1') {
+        meta.openTimeChanged = '1';
+        if (metadata.newOpenTime) meta.newOpenTime = metadata.newOpenTime;
+      }
+      if (metadata.newDeadline) meta.newDeadline = metadata.newDeadline;
+    }
     // WIN_NOTICE：winner 是结构化对象（供应商名+报价+得分）。编辑表单只改供应商名，
     // 保存时保留原对象（仅覆盖 supplierName），避免 String(object)="[object Object]" 破坏 metadata
     if (type === 'WIN_NOTICE') {
@@ -542,6 +587,20 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
   };
   const publish = async () => {
     if (publishConfig.scheduleMode === 'scheduled' && !publishConfig.scheduledPublishDate) { toast.error('请设置定时发布时间'); return; }
+    // 补遗/资格预审必须关联项目（2026-11-06 用户裁定）——编辑页以项目编号为准
+    if ((type === 'ADDENDUM' || type === 'PREQUAL_NOTICE') && !metadata.projectCode?.trim()) {
+      toast.error(type === 'ADDENDUM' ? '补遗公告须填写关联项目编号' : '资格预审公告须填写关联项目编号');
+      return;
+    }
+    // 补遗澄清/修改内容必填（2026-11-06 用户裁定）
+    if (type === 'ADDENDUM' && !metadata.changes?.trim()) {
+      toast.error('请填写澄清/修改内容');
+      return;
+    }
+    if (type === 'ADDENDUM' && metadata.openTimeChanged === '1' && !metadata.newOpenTime) {
+      toast.error('已选择改变开标时间，请填写调整后开标时间');
+      return;
+    }
     if (type === 'BID_NOTICE' && !bidDoc && publishConfig.scheduleMode === 'immediate' && !(await confirm({ message: '该采购公告尚未上传采购文件，确认直接发布？' }))) return;
     // 补遗声明引用采购文件但尚未上传：发布前确认（同采购公告口径，2026-11-06）
     if (type === 'ADDENDUM' && metadata.refBidDoc === '1' && !bidDoc && publishConfig.scheduleMode === 'immediate' && !(await confirm({ message: '该补遗公告声明引用采购文件但尚未上传，确认直接发布？' }))) return;
@@ -550,6 +609,7 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
       toast.success(publishConfig.scheduleMode === 'scheduled' ? `已设定定时发布（${publishConfig.scheduledPublishDate.replace('T', ' ')}）` : '已发布');
       // 联动失败不静默（2026-10-30）：流标/采购公告发布但联动未完成时亮出服务端警示
       if (s.projectSyncWarning) toast.error(s.projectSyncWarning);
+      if ((s as any).openTimeSyncWarning) toast.error((s as any).openTimeSyncWarning);
       onSaved(s);
     }
   };
@@ -593,7 +653,7 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {TYPE_META[type].map(f => (
               <div key={f.key} className={f.area ? 'sm:col-span-2' : ''}>
-                <label className="block text-xs font-semibold text-[var(--muted-foreground)] mb-1.5">{f.label}</label>
+                <label className="block text-xs font-semibold text-[var(--muted-foreground)] mb-1.5">{f.label}{f.required && <span className="text-[var(--danger)]"> *</span>}</label>
                 {f.area
                   ? <textarea value={metadata[f.key] || ''} placeholder={f.ph} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className="neu-input h-20 resize-none" />
                   : f.date
@@ -603,6 +663,25 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
               </div>
             ))}
           </div>
+          {/* 补遗：开标时间调整（2026-11-06 用户裁定）——不改变沿用所关联公告/项目的开标时间；改变则发布时联动项目全部开标时间 */}
+          {type === 'ADDENDUM' && (
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <span className="text-xs font-semibold text-[var(--muted-foreground)]">开标时间</span>
+              <div className="neu-segment" role="group" aria-label="开标时间" data-index={metadata.openTimeChanged === '1' ? '1' : '0'}>
+                <span aria-hidden className="neu-segment-thumb" />
+                <button type="button" aria-pressed={metadata.openTimeChanged !== '1'} onClick={() => setMetadata({ ...metadata, openTimeChanged: '' })} className="neu-segment-btn">不改变</button>
+                <button type="button" aria-pressed={metadata.openTimeChanged === '1'} onClick={enableOpenTimeChange} className="neu-segment-btn">改变</button>
+              </div>
+              {metadata.openTimeChanged === '1' ? (
+                <input type="datetime-local" value={toDateInputValue(metadata.newOpenTime || '')} onChange={e => setMetadata({ ...metadata, newOpenTime: e.target.value })} className="neu-input !w-[13.5rem]" />
+              ) : (
+                <span className="text-[11px] text-[var(--muted-foreground)]">沿用所关联公告/项目的开标时间</span>
+              )}
+              {metadata.openTimeChanged === '1' && metadata.newOpenTime && new Date(metadata.newOpenTime).getTime() - Date.now() < 3 * 86400000 && (
+                <p className="w-full text-[11px] font-medium text-[var(--warning)]">新开标时间距现在不足 3 日——请保证供应商有足够时间编制响应文件（GB/T 43711 7.2.6.2）</p>
+              )}
+            </div>
+          )}
         </div>
 
         <div>

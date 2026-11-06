@@ -22,7 +22,7 @@ import { useConfirm } from '@/components/workbench/use-confirm';
 import { SupplierEvaluationDialog } from '@/components/supplier/supplier-evaluation-dialog';
 import { ObjectionBoardModal } from '@/components/notice/objection-board-modal';
 import { SupplierAuditLogModal } from '@/components/supplier/supplier-audit-log-modal';
-import { Building2, MessageSquareWarning, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban, History } from 'lucide-react';
+import { Building2, MessageSquareWarning, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, Download, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban, History } from 'lucide-react';
 import { copyToClipboard } from '@/lib/copy-to-clipboard';
 import { exportAllFilteredSuppliersToExcel } from '@/lib/excel-export';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
@@ -453,6 +453,28 @@ function SupplierRepositoryPageInner() {
             </div>
           </div>
           <div className="page-hero__right">
+            {/* 库况数字锚点五联（2026-11-06 用户裁定：同 :3006 个人信息统计三联设计）——
+                大号 mono 数值 + 小字标签 + 竖 hairline 分隔，零值照常呈现 */}
+            <div className="mr-2 hidden items-center lg:flex">
+              {([
+                { value: String(stats.total), unit: '家', label: '全库口径', color: 'var(--accent)' },
+                { value: String(stats.approved), unit: '家', label: '已入库', color: 'var(--success)' },
+                { value: String(stats.temporaryApproved), unit: '家', label: '临时', color: 'var(--warning)' },
+                { value: String(stats.disabled), unit: '家', label: '已停用', color: 'var(--muted-foreground)' },
+                { value: String(stats.blacklist), unit: '家', label: '黑名单', color: 'var(--danger)' },
+              ] as const).map((s, i) => (
+                <div key={s.label} className="flex items-center">
+                  {i > 0 && <span className="mx-3 h-9 w-px bg-[oklch(0.6_0.04_258/0.16)]" aria-hidden="true" />}
+                  <div className="flex min-w-[52px] flex-col items-center gap-0.5">
+                    <span className="font-mono text-[1.3rem] font-black leading-none tabular-nums" style={{ color: s.color }}>
+                      {s.value}<span className="ml-0.5 text-[10px] font-bold">{s.unit}</span>
+                    </span>
+                    <span className="text-[10px] font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">{s.label}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* 待审核胶囊已删（2026-11-06 用户裁定）——待办计数由右侧「审批（N）」按钮承载（>0 才显数） */}
             <CompanySelect value={companyId} onChange={(v) => { setCompanyId(v); setPage(1); }} countMode="suppliers" />
             <button onClick={() => router.push('/supplier/dashboard')} className="neu-btn-soft"><Activity size={15} />总览</button>
             <button onClick={() => window.dispatchEvent(new Event('open-review-center'))} className="neu-btn-soft" title={myPendingDetail ? `供应商审批中心待办：${describeMyPending(myPendingDetail)}` : "供应商审批中心：注册三级审核 · 信息更新审批"}><BadgeCheck size={15} />审批{myPending > 0 ? `（${myPending}）` : ''}</button>
@@ -465,33 +487,8 @@ function SupplierRepositoryPageInner() {
             <button onClick={() => setShowAuditLog(true)} className="neu-btn-soft"><History size={15} />操作历史</button>
           </div>
         </div>
-        <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
-        {/* 4 张 KPI 卡；「待审核」为审批中心引导卡（注册审批已迁出本库，2026-09-29） */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 items-stretch">
-          <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">供应商总数</span>
-            <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats.total}</span>
-            <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">在库 / 临时 / 停用 / 黑名单</span>
-          </div>
-          <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">已入库</span>
-            <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats.approved}</span>
-            <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">正常运营</span>
-          </div>
-          {canApprove && (
-          <button type="button" onClick={() => router.push('/supplier/approval')} title="前往供应商审批中心（三级注册审核）" className="kpi-card group flex h-full flex-col gap-1.5 p-3 text-left cursor-pointer w-full">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">待审核</span>
-            <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{myPending}</span>
-            <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight group-hover:text-[var(--accent)]">待我审 · 点击前往</span>
-          </button>
-          )}
-          <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">已停用</span>
-            <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats.disabled}</span>
-            <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">状态冻结</span>
-          </div>
-        </div>
-        </div>
+        {/* 标题行下长横线（2026-11-06 对齐公司信息管理同款 page-hero__divider；KPI 四瓷片已删，库况融入副标题、待审核入右侧警示胶囊） */}
+        <div className="page-hero__divider" />
       </div>
 
 
@@ -621,7 +618,7 @@ function SupplierRepositoryPageInner() {
           title={`按当前筛选条件导出全部 ${data.total} 家供应商（含编号、法定代表人、标签、评价等完整资料）`}
           className="neu-btn-xs gap-1"
         >
-          <FileSpreadsheet size={12} />{exporting ? '导出中…' : `导出 Excel（${data.total}）`}
+          <Download size={12} />{exporting ? '导出中…' : `导出 Excel（${data.total}）`}
         </button>
         </div>
       </div>

@@ -1,23 +1,22 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { Fragment, useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, getSupplierCommunications, getSupplierDocuments, uploadSupplierDocument, deleteSupplierDocument, updateSupplierTags, uploadSupplierFile, blacklistSupplier, unblacklistSupplier, addSupplierRecord, listSupplierRecords, updateContactPersonnel, revealSupplierField, companyLinksApi } from '@/lib/api/supplier';
+import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, updateSupplierTags, getTagVocabulary, blacklistSupplier, unblacklistSupplier, revealSupplierField, companyLinksApi } from '@/lib/api/supplier';
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification } from '@/lib/types';
-import type { CommunicationRecord, SupplierDocumentRecord, CompanyLinkRow, RsvpHistoryResult } from '@/lib/api/supplier';
+import type { CompanyLinkRow, RsvpHistoryResult, TagVocabularyItem } from '@/lib/api/supplier';
 import { getRsvpHistory } from '@/lib/api/supplier';
 import { ApprovalTimeline } from '@/components/workbench/approval-timeline';
 import { AlertBanner, type AlertSeverity, StatusBadge, Modal } from '@/components/workbench';
 import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
-import { LEVEL_LABEL, LEVEL_COLOR, SUPPLIER_STATUS_LABEL, getNotificationLabel, getNotificationChannelLabel } from '@water-erp/shared';
+import { LEVEL_LABEL, LEVEL_COLOR, SUPPLIER_STATUS_LABEL } from '@water-erp/shared';
 import type { AuthUser } from '@/lib/api/auth';
 import { fetchCurrentUser } from '@/lib/api/auth';
-import { CheckCircle2, X, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, FileText, User, Users, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Trash2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, Link2, AtSign, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, Check, Search, X, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, FileText, User, Users, MapPin, Phone, Mail, Hash, FolderOpen, Plus, Loader2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, Link2, AtSign, AlertTriangle } from 'lucide-react';
 import { SupplierTimeline } from '@/components/supplier/timeline';
 import { ApprovalHistory } from '@/components/supplier/approval-history';
 import { PortraitTab } from '@/components/supplier/portrait-tab';
-
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import { copyToClipboard } from '@/lib/copy-to-clipboard';
 
@@ -36,7 +35,9 @@ const STATUS_TONE: Record<string, 'green' | 'blue' | 'orange' | 'red' | 'gray'> 
 const CHANGE_TONE: Record<string, 'blue' | 'green' | 'red'> = { PENDING: 'blue', APPROVED: 'green', REJECTED: 'red' };
 const GRADE_TONE: Record<string, string> = { A: 'green', B: 'blue', C: 'orange', D: 'yellow', E: 'red' };
 
-/** 单字段展示卡片：空值淡化；copyable 启用点击复制。 */
+/** 单字段展示：空值淡化；copyable 启用点击复制。
+ *  紧凑定义项（2026-11-06 参照专家详情 2026-11-04 口径：白瓷片占位大、显散）——
+ *  无底色无投影，纯 label 小字 + 值排版，靠网格与 FieldGroup 分组组织 */
 
 function InfoField({
   label,
@@ -53,10 +54,10 @@ function InfoField({
 }) {
   const empty = !value || !value.trim();
   return (
-    <div className={`kpi-card group flex min-w-0 flex-col gap-1 px-3.5 py-3 ${full ? 'col-span-full' : ''}`}>
+    <div className={`group flex min-w-0 flex-col gap-1 py-1 ${full ? 'col-span-full' : ''}`}>
       <span className="text-[10px] font-semibold uppercase tracking-[0.08em] leading-none text-[var(--muted-foreground)]">{label}</span>
       <span
-        className={`break-words text-[13px] font-bold leading-snug tabular-nums text-[var(--foreground)] ${mono ? 'font-mono tracking-tight' : ''} ${empty ? 'font-normal text-[var(--muted-foreground)]/55' : ''} ${copyable && !empty ? 'cursor-pointer transition-colors group-hover:text-[var(--accent)]' : ''}`}
+        className={`break-words text-[13px] font-semibold leading-snug tabular-nums text-[var(--foreground)] ${mono ? 'font-mono tracking-tight' : ''} ${empty ? 'font-normal text-[var(--muted-foreground)]/55' : ''} ${copyable && !empty ? 'cursor-pointer transition-colors group-hover:text-[var(--accent)]' : ''}`}
         title={copyable && !empty ? '点击复制' : undefined}
         onClick={copyable && !empty ? async () => { if (await copyToClipboard(value!)) toast.success(`${label} 已复制`); else toast.error('复制失败，请手动选择复制'); } : undefined}
       >
@@ -78,15 +79,7 @@ function FieldGroup({ label }: { label: string }) {
 }
 
 /** 区块标题：小号大写 + 图标 */
-// 文件档案类型（2026-10-23）：上传可选 + 列表中文标签（兜底显原值——存量/自定义类型不炸）
-const DOC_TYPES = [
-  { v: 'contract', l: '合同文件' },
-  { v: 'qualification', l: '资质文件' },
-  { v: 'performance', l: '业绩证明' },
-  { v: 'report', l: '报告文书' },
-  { v: 'other', l: '其他' },
-] as const;
-const DOC_TYPE_LABEL: Record<string, string> = Object.fromEntries(DOC_TYPES.map(t => [t.v, t.l]));
+// DOC_TYPES/DOC_TYPE_LABEL 已删（2026-11-06 用户裁定，随文件档案整节移除）
 
 function SectionTitle({ icon: Icon, children }: { icon: React.ComponentType<{ size?: number }>; children: React.ReactNode }) {
   return (
@@ -133,17 +126,17 @@ export default function SupplierDetailPage() {
 
   // 状态操作弹窗（停用/黑名单/解除黑名单，保留 modal）
   const [actionModal, setActionModal] = useState<{ type: 'disable' | 'blacklist' | 'unblacklist' | 'restore'; supplier: Supplier } | null>(null);
-  // CTS A-213 奖惩记录
-  const [rewardRecords, setRewardRecords] = useState<Array<{ id: string; projectName: string; recordType: string; recordNote: string | null; effectiveDate: string | null; clientName: string | null; createdAt: string }>>([]);
-  const [recordForm, setRecordForm] = useState({ recordType: 'punishment' as 'reward' | 'punishment', projectName: '', recordNote: '', effectiveDate: '' });
+  // CTS A-213 奖惩记录已删（2026-11-06 用户裁定）——状态/表单/加载链整组移除
   // CTS A-216 人员标注
-  const [personnelForm, setPersonnelForm] = useState({ contactId: '', personnelType: '项目经理', certTitle: '' });
   const [actionReason, setActionReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
-  // 业务标签编辑弹窗
+  // 业务标签编辑弹窗（2026-11-06 重构：三层 picker——搜索/已选条/词表+新建，
+  // 与供应商选取 BusinessTagsPicker 同款设计）
   const [tagsModal, setTagsModal] = useState(false);
   const [editTags, setEditTags] = useState<string[]>([]);
+  const [tagVocab, setTagVocab] = useState<TagVocabularyItem[]>([]);
+  const [tagQuery, setTagQuery] = useState('');
   // PII 明文揭示（等保+密评）：详情默认掩码；点「明文」调 reveal 端点（后端 SensitiveAccessLog 留痕）
   const [revealedPii, setRevealedPii] = useState<Record<string, string>>({});
   const [revealingPii, setRevealingPii] = useState<string | null>(null);
@@ -189,21 +182,12 @@ export default function SupplierDetailPage() {
     setLoading(false);
   }, [id]);
 
-  const [communications, setCommunications] = useState<CommunicationRecord[]>([]);
-  const [commLoading, setCommLoading] = useState(false);
+  // 沟通记录已删（2026-11-06 用户裁定）：communications/commLoading 状态随整节移除
   // 邀请回执经历（2026-10-21 回执锁定口径）：进入 tab 时懒加载——邀请统计 + 逐条回执轨迹；
   // overrideAfterAccept（确认后被采购方改为拒绝）为经历警示核心口径
   const [rsvpHistory, setRsvpHistory] = useState<RsvpHistoryResult | null>(null);
   const [rsvpLoading, setRsvpLoading] = useState(false);
-  const [documents, setDocuments] = useState<SupplierDocumentRecord[]>([]);
-  const [docLoading, setDocLoading] = useState(false);
-  const [docUploading, setDocUploading] = useState(false);
-  const [docUpPct, setDocUpPct] = useState(0); // 文件档案上传字节进度（2026-11-06）
-  const [newDocName, setNewDocName] = useState('');
-  const [newDocNote, setNewDocNote] = useState('');
-  const [newDocFile, setNewDocFile] = useState<File | null>(null);
-  // 文件类型（2026-10-23 修复「类型展示异常」：此前上传硬编码 'other' 英文裸值直出且无选择器）
-  const [newDocType, setNewDocType] = useState<string>('other');
+  // 文件档案已删（2026-11-06 用户裁定）：documents/docLoading 状态随整节移除
 
   // 归属公司（多公司归属 2026-10-16）：本视野内该供应商的库内归属（APPROVED/DISABLED link），
   // 列表按登录人公司隔离（staff/leader=本公司；admin=全部公司）——公司侧零检索面，仅展示归属事实
@@ -231,7 +215,7 @@ export default function SupplierDetailPage() {
   };
 
   useEffect(() => { loadAll(); }, [loadAll]);
-  useEffect(() => { if (id) void loadRewardRecords(id); }, [id]); // CTS A-213 奖惩记录
+  // 奖惩记录加载链已删（2026-11-06 用户裁定，随录入/展示整组移除）
   const loadRsvpHistory = useCallback(() => {
     if (!id) return;
     setRsvpLoading(true);
@@ -242,9 +226,8 @@ export default function SupplierDetailPage() {
   }, [id]);
   useEffect(() => { if (activeTab === 'rsvp') loadRsvpHistory(); }, [activeTab, loadRsvpHistory]);
   useEffect(() => {
-    // 2026-10-23 板块合并：懒加载挂到合并后的 tab 键（邀请与沟通/资质与文件/基本信息）
-    if (activeTab === 'rsvp' && communications.length === 0) { setCommLoading(true); getSupplierCommunications(id as string).then(setCommunications).catch(() => {}).finally(() => setCommLoading(false)); }
-    if (activeTab === 'qualifications' && documents.length === 0) { setDocLoading(true); getSupplierDocuments(id as string).then(setDocuments).catch(() => {}).finally(() => setDocLoading(false)); }
+    // 2026-10-23 板块合并：懒加载挂到合并后的 tab 键（沟通记录懒加载已删 2026-11-06）
+    // 文件档案懒加载已删（2026-11-06 用户裁定，随整节移除）
     if (activeTab === 'info' && companyLinks === null) loadCompanyLinks();
   }, [activeTab, id]);
 
@@ -330,30 +313,10 @@ export default function SupplierDetailPage() {
     setActionLoading(false);
   };
 
-  // CTS A-213 奖惩记录
-  const loadRewardRecords = async (id: string) => {
-    try { setRewardRecords(await listSupplierRecords(id)); } catch { /* 静默 */ }
-  };
-  const handleAddRecord = async () => {
-    if (!supplier) return;
-    if (!recordForm.projectName.trim() || !recordForm.recordNote.trim()) { toast.error('请填写关联项目与奖惩事由'); return; }
-    try {
-      await addSupplierRecord(supplier.id, { recordType: recordForm.recordType, projectName: recordForm.projectName.trim(), recordNote: recordForm.recordNote.trim(), effectiveDate: recordForm.effectiveDate || undefined });
-      toast.success('奖惩记录已录入');
-      setRecordForm({ recordType: 'punishment', projectName: '', recordNote: '', effectiveDate: '' });
-      loadRewardRecords(supplier.id);
-    } catch (e: any) { toast.error(e?.message || '录入失败'); }
-  };
+  // CTS A-213 奖惩记录已删（2026-11-06 用户裁定）：loadRewardRecords/handleAddRecord 整组移除
 
-  // CTS A-216 人员类别标注
-  const handleMarkPersonnel = async () => {
-    if (!personnelForm.contactId) { toast.error('请选择联系人'); return; }
-    try {
-      await updateContactPersonnel(personnelForm.contactId, { personnelType: personnelForm.personnelType, certTitle: personnelForm.certTitle.trim() || undefined });
-      toast.success('人员类别已标注');
-      loadAll();
-    } catch (e: any) { toast.error(e?.message || '标注失败'); }
-  };
+  // CTS A-216 人员类别标注已删（2026-11-06 用户裁定——工具条+表格列整组移除，
+  // 后端 updateContactPersonnel 端点保留未动）
 
   // 业务标签编辑
   const handleSaveTags = async () => {
@@ -396,9 +359,9 @@ export default function SupplierDetailPage() {
     { key: 'info', label: '基本信息' },
     { key: 'portrait', label: '供应商画像' },
     // 合并计数（2026-10-23）：资质+文件 / 评价+奖惩；邀请数沿用回执统计
-    { key: 'qualifications', label: '资质与文件', count: qualifications.length + documents.length },
-    { key: 'evaluations', label: '评价与奖惩', count: evaluations.length + rewardRecords.length },
-    { key: 'rsvp', label: '邀请与沟通', count: rsvpHistory?.stats.invited },
+    { key: 'qualifications', label: '资质材料', count: qualifications.length },
+    { key: 'evaluations', label: '履约评价', count: evaluations.length },
+    { key: 'rsvp', label: '邀请回执', count: rsvpHistory?.stats.invited },
   ];
 
   const getQualStatus = (q: SupplierQualification) => {
@@ -457,8 +420,9 @@ export default function SupplierDetailPage() {
               </div>
               <div className="page-hero__sub truncate">
                 <span className="inline-flex items-center gap-1"><Hash size={11} />{supplier.creditCode || '信用代码未登记'}</span>
-                {mostCommonGrade && <><span className="opacity-40 ml-2">·</span><span className="inline-flex items-center gap-1 ml-2">评价等级 <span className="inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[mostCommonGrade] }}>{mostCommonGrade}</span></span></>}
-                <span className="opacity-40 ml-2">·</span><span className="ml-2" title={`入库时间：${entryDate.toLocaleString('zh-CN')}`}>在库 {Math.floor((Date.now() - entryDate.getTime()) / (1000 * 60 * 60 * 24))} 天</span>
+                {/* 评价等级小块已删（2026-11-06 用户裁定：评价域内容归「评价与奖惩」tab） */}
+                <span className="opacity-40 ml-2">·</span><span className="ml-2" title={`入库时间：${entryDate.toLocaleString('zh-CN')}`}>入库 {entryDate.toLocaleDateString('zh-CN')}（在库 {Math.floor((Date.now() - entryDate.getTime()) / (1000 * 60 * 60 * 24))} 天）</span>
+                <span className="opacity-40 ml-2">·</span><span className="ml-2">变更 {changes.length} 次</span>
               </div>
               {supplier.returnReason && supplier.status === 'RETURNED' && (
                 <div className="mt-2 flex items-start gap-1.5 text-xs">
@@ -489,8 +453,11 @@ export default function SupplierDetailPage() {
               <>
                 <button onClick={() => {
                   const currentTags = (supplier as any).tags || [];
-                  setEditTags(currentTags.length >= 2 ? [...currentTags] : ['', '']);
+                  setEditTags(currentTags.length >= 2 ? [...currentTags] : []);
+                  setTagQuery('');
                   setTagsModal(true);
+                  // 词表随开窗拉取（库内全部业务标签按频次）——点选/计数展示用
+                  getTagVocabulary(120).then(r => setTagVocab(r.items)).catch(() => setTagVocab([]));
                 }} className="neu-btn-xs"><Pencil size={12} /> 业务标签</button>
                 <button onClick={() => { setActionReason(''); setActionModal({ type: 'disable', supplier }); }} className="neu-btn-xs is-warning">停用</button>
                 {/* 黑名单走专用端点（@Roles admin/leader），staff 点必 403——按钮同步收敛 */}
@@ -510,35 +477,34 @@ export default function SupplierDetailPage() {
           </div>
         </div>
 
-        {/* KPI 瓷片行 */}
-        <div className="page-hero__divider">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-            {[
-              ['入库时间', entryDate.toLocaleDateString('zh-CN'), `注册于 ${new Date(supplier.createdAt).toLocaleDateString('zh-CN')}`],
-              ['评价等级', mostCommonGrade || '暂无', mostCommonGrade ? `${LEVEL_LABEL[mostCommonGrade] || mostCommonGrade}级` : '未见评价'],
-              ['资质数量', qualifications.length, '已提交资质'],
-              ['变更次数', changes.length, '历史变更'],
-              ['评价记录', supplier._count?.evaluations ?? evaluations.length, evaluations.length > 0 ? '履约评价' : '未见评价'],
-            ].map(([label, value, sub]) => (
-              <div key={label} className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">{label}</span>
-                <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{String(value)}</span>
-                <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">{String(sub)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* KPI 瓷片行已删（2026-11-06 用户裁定）：入库时间/变更次数并入标题栏副标题行；
+            标题行下长横线对齐公司信息管理同款 page-hero__divider */}
+        <div className="page-hero__divider" />
+      </div>
 
-        {/* Tab 导航 —— 融入 page-hero 底部 */}
-        <div className="page-hero__divider !pt-3">
-          <div className="neu-tab-bar flex-wrap">
-            {tabs.map(tab => (
-              <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-                className={`neu-tab whitespace-nowrap ${activeTab === tab.key ? 'is-active' : ''}`}>
-                {tab.label}{tab.count !== undefined && <span className="neu-tab-count">{tab.count}</span>}
-              </button>
-            ))}
-          </div>
+      {/* 信息分区切换（2026-11-06 用户裁定：移出标题卡，hero 下方独立工具行，
+          与供应商库状态分段同款 neu-segment）——外层 flex 包裹（grid 轨道防拉满） */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div
+          className="neu-segment"
+          role="group"
+          aria-label="供应商信息分区"
+          data-count="5"
+          data-index={String(Math.max(0, tabs.findIndex(t => t.key === activeTab)))}
+        >
+          <span className="neu-segment-thumb" aria-hidden="true" />
+          {tabs.map(tab => (
+            <button
+              key={tab.key}
+              type="button"
+              className="neu-segment-btn"
+              aria-pressed={activeTab === tab.key}
+              onClick={() => setActiveTab(tab.key)}
+            >
+              {tab.label}
+              {tab.count != null && tab.count > 0 && <span className="neu-segment-count">{tab.count}</span>}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -647,16 +613,17 @@ export default function SupplierDetailPage() {
       {/* 基本信息 */}
       {activeTab === 'info' && (
           <div className="space-y-5">
-            {/* 企业工商信息（2026-09-18 v2：Hero 身份头 + 分组字段 + 长文本） */}
-            <section className="neu-card-static !rounded-2xl p-5">
+            {/* 企业工商信息（2026-09-18 v2：Hero 身份头 + 分组字段 + 长文本）；
+                2026-11-06 数据鲜活：顶部淡色洗染 + 徽章光晕环 + hero 右侧资质健康度/评价双环 */}
+            <section className="neu-card-static detail-card-wash !rounded-2xl p-5">
               <SectionTitle icon={Building2}>企业工商信息</SectionTitle>
 
-              {/* Hero：logo + 企业名 + 代码徽章（可复制）+ 身份 chip */}
+              {/* Hero：logo + 企业名 + 代码徽章（可复制）+ 身份 chip + 数据双环 */}
               <div className="mb-5 flex items-start gap-4">
                 {supplier.logoUrl ? (
-                  <img src={supplier.logoUrl} alt={`${supplier.name} logo`} className="h-14 w-14 flex-shrink-0 rounded-[14px] bg-[var(--muted)]/20 object-cover shadow-[inset_0_1px_0_oklch(1_0_0/0.8),1px_1px_4px_oklch(0.55_0.03_258/0.12)]" />
+                  <img src={supplier.logoUrl} alt={`${supplier.name} logo`} className="h-14 w-14 flex-shrink-0 rounded-[14px] bg-[var(--muted)]/20 object-cover ring-2 ring-[color-mix(in_oklch,var(--accent)_22%,transparent)] shadow-[inset_0_1px_0_oklch(1_0_0/0.8),1px_1px_4px_oklch(0.55_0.03_258/0.12)]" />
                 ) : (
-                  <span className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[14px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] text-lg font-black text-[var(--accent)]">{supplier.name.charAt(0)}</span>
+                  <span className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[14px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] text-lg font-black text-[var(--accent)] ring-2 ring-[color-mix(in_oklch,var(--accent)_22%,transparent)] shadow-[inset_0_1px_0_oklch(1_0_0/0.7)]">{supplier.name.charAt(0)}</span>
                 )}
                 <div className="min-w-0 flex-1">
                   <h4 className="mb-1.5 break-words text-[17px] font-black leading-tight tracking-tight text-[var(--foreground)]">{supplier.name}</h4>
@@ -673,9 +640,11 @@ export default function SupplierDetailPage() {
                     )}
                   </div>
                 </div>
+                {/* 数据鲜活双环已移除（2026-11-06 用户裁定：资质/评价域内容归各自 tab，
+                    基本信息不重复呈现；wash 与徽章光晕保留） */}
               </div>
 
-              {/* 字段瓷片网格（kpi-card 复用）：分组竖点标题 + 4 列紧凑 */}
+              {/* 字段网格：分组竖点标题 + 4 列紧凑（2026-11-06 去瓷片，同专家详情口径） */}
               <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
                 <FieldGroup label="法定代表人" />
                 <InfoField label="姓名" value={supplier.legalPerson} />
@@ -732,7 +701,7 @@ export default function SupplierDetailPage() {
                         {primaryContact.position && <span className="text-[11px] text-[var(--muted-foreground)]">{primaryContact.position}</span>}
                       </div>
                     </div>
-                    <div className="mt-3 grid grid-cols-1 gap-2.5">
+                    <div className="mt-3 grid grid-cols-2 gap-2.5">
                       <InfoField label="联系电话" value={primaryContact.phone} mono copyable />
                       {primaryContact.email && <InfoField label="邮箱" value={primaryContact.email} copyable />}
                     </div>
@@ -835,58 +804,8 @@ export default function SupplierDetailPage() {
               )}
             </section>
 
-            {/* 评价概览 */}
-            {evaluations.length > 0 && (
-              <section className="neu-card-static !rounded-2xl p-5">
-                <SectionTitle icon={Award}>评价概览</SectionTitle>
-
-                {/* 主指标：两个大卡片 */}
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div className="neu-card-static !rounded-xl p-4 text-center">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">评价次数</p>
-                    <p className="text-[2rem] font-black tabular-nums tracking-[-0.03em] text-[var(--accent)] leading-none">{evaluations.length}</p>
-                    <p className="text-[10px] text-[var(--muted-foreground)] mt-1">次履约评价</p>
-                  </div>
-                  <div className="neu-card-static !rounded-xl p-4 text-center">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">主要等级</p>
-                    <div className="flex items-center justify-center gap-2">
-                      <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-lg font-black text-white" style={{ backgroundColor: mostCommonGrade ? LEVEL_COLOR[mostCommonGrade] : 'var(--muted-foreground)' }}>{mostCommonGrade || '—'}</span>
-                      <span className="text-sm font-bold" style={{ color: mostCommonGrade ? LEVEL_COLOR[mostCommonGrade] : 'var(--muted-foreground)' }}>{LEVEL_LABEL[mostCommonGrade] || ''}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 等级分布条形图 */}
-                {evaluations.length > 0 && (() => {
-                  const total = evaluations.length;
-                  const grades = ['A','B','C','D','E'] as const;
-                  const colors: Record<string, string> = { A: 'var(--success)', B: 'var(--accent)', C: 'var(--warning)', D: '#ca8a04', E: 'var(--danger)' };
-                  const labels: Record<string, string> = { A: '优秀', B: '良好', C: '合格', D: '待改进', E: '不合格' };
-                  const maxCount = Math.max(...grades.map(g => evalLevelCounts[g] || 0), 1);
-                  return (
-                    <div className="space-y-1.5">
-                      {grades.map(g => {
-                        const count = evalLevelCounts[g] || 0;
-                        const pct = total > 0 ? ((count / total) * 100) : 0;
-                        const barW = maxCount > 0 ? ((count / maxCount) * 100) : 0;
-                        return (
-                          <div key={g} className="flex items-center gap-2">
-                            <span className="w-5 text-center text-[10px] font-extrabold tabular-nums" style={{ color: colors[g] }}>{g}</span>
-                            <div className="flex-1 h-5 rounded-md bg-[var(--muted)]/30 overflow-hidden relative">
-                              <div className="h-full rounded-md transition-all duration-500 flex items-center justify-end px-1.5 min-w-[24px]" style={{ width: `${Math.max(barW, 0.5)}%`, backgroundColor: `color-mix(in oklch, ${colors[g]} 85%, transparent)` }}>
-                                {count > 0 && <span className="text-[9px] font-bold text-white drop-shadow-sm tabular-nums">{count}</span>}
-                              </div>
-                            </div>
-                            <span className="w-10 text-right text-[10px] tabular-nums text-[var(--muted-foreground)]">{pct.toFixed(0)}%</span>
-                            <span className="w-10 text-[10px] text-[var(--muted-foreground)] hidden sm:inline">{labels[g]}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-              </section>
-            )}
+            {/* 评价概览已移除（2026-11-06 用户裁定：评价内容归「评价与奖惩」tab，
+                基本信息不重复呈现——概览大卡与等级分布图整节删除） */}
 
             {/* 系统元信息（弱化 footer） */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[11px] text-[var(--muted-foreground)]">
@@ -918,21 +837,6 @@ export default function SupplierDetailPage() {
         {activeTab === 'info' && (
           <div className="mt-8">
           <SectionTitle icon={Users}>联系人管理</SectionTitle>
-          {/* CTS A-216 人员类别标注工具条 */}
-          {supplier.contacts && supplier.contacts.length > 0 && (
-            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[14px] bg-[color-mix(in_oklch,var(--muted-foreground)_6%,transparent)] px-4 py-3">
-              <span className="text-xs font-semibold text-[var(--foreground)]">人员类别标注</span>
-              <select value={personnelForm.contactId} onChange={e => setPersonnelForm(f => ({ ...f, contactId: e.target.value }))} className="neu-input !h-8 text-xs">
-                <option value="">选择联系人</option>
-                {supplier.contacts.map(c => <option key={c.id} value={c.id}>{c.name}{c.position ? `（${c.position}）` : ''}</option>)}
-              </select>
-              <select value={personnelForm.personnelType} onChange={e => setPersonnelForm(f => ({ ...f, personnelType: e.target.value }))} className="neu-input !h-8 text-xs">
-                {['法人代表', '项目经理', '技术负责人', '质量安全负责人', '持证人员', '普通联系人'].map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-              <input value={personnelForm.certTitle} onChange={e => setPersonnelForm(f => ({ ...f, certTitle: e.target.value }))} placeholder="执业资格/证书（如：一级建造师）" className="neu-input !h-8 min-w-[200px] flex-1 text-xs" />
-              <button onClick={handleMarkPersonnel} className="neu-btn-xs">标注</button>
-            </div>
-          )}
           <div className="neu-table-card overflow-hidden">
             {(!supplier.contacts || supplier.contacts.length === 0) ? (
               <p className="text-[var(--muted-foreground)] text-center py-10 text-sm">暂无联系人信息</p>
@@ -940,7 +844,7 @@ export default function SupplierDetailPage() {
               <div className="overflow-x-auto">
                 <table className="neu-table">
                   <thead>
-                    <tr><th>姓名</th><th>性别</th><th>联系方式</th><th>身份证号</th><th>邮箱</th><th>职位</th><th>人员类别</th><th>执业证书</th><th>类型</th></tr>
+                    <tr><th>姓名</th><th>性别</th><th>联系方式</th><th>身份证号</th><th>邮箱</th><th>职位</th><th>类型</th></tr>
                   </thead>
                   <tbody>
                     {supplier.contacts.map(c => (
@@ -951,8 +855,6 @@ export default function SupplierDetailPage() {
                         <td className="text-[var(--muted-foreground)] font-mono text-xs"><span className="inline-flex items-center">{revealedPii[`contact:${c.id}:idCard`] ?? c.idCard ?? '—'}{c.idCard ? <PiiRevealBtn entity="contact" targetId={c.id} field="idCard" /> : null}</span></td>
                         <td className="text-[var(--muted-foreground)]"><span className="inline-flex items-center">{revealedPii[`contact:${c.id}:email`] ?? c.email ?? '—'}{c.email ? <PiiRevealBtn entity="contact" targetId={c.id} field="email" /> : null}</span></td>
                         <td className="text-[var(--muted-foreground)]">{c.position || '—'}</td>
-                        <td className="text-[var(--muted-foreground)]">{(c as any).personnelType || '—'}</td>
-                        <td className="text-[var(--muted-foreground)]">{(c as any).certTitle || '—'}</td>
                         <td>
                           {c.isPrimary
                             ? <StatusBadge tone="blue">主要联系人</StatusBadge>
@@ -968,8 +870,7 @@ export default function SupplierDetailPage() {
           </div>
         )}
 
-        {/* 奖惩记录（CTS A-213） */}
-        {/* 资质材料 */}
+        {/* 资质材料（奖惩记录已删 2026-11-06） */}
         {activeTab === 'qualifications' && (
           <div>
             <SectionTitle icon={FolderOpen}>资质材料</SectionTitle>
@@ -1128,8 +1029,10 @@ export default function SupplierDetailPage() {
                           const fg = e.finalGrade || (e as any).level;
                           const gradeColor = LEVEL_COLOR[fg] || 'var(--muted-foreground)';
                           return (
-                            <>
-                            <tr key={e.id} className="row-clickable" onClick={() => setExpandedEvalId(expandedEvalId === e.id ? null : e.id)}>
+                            // key 上移到 Fragment（2026-11-06 控制台 unique key 告警修复：
+                            // 展开行+主行是同一列表项，键必须落在最外层元素上）
+                            <Fragment key={e.id}>
+                            <tr className="row-clickable" onClick={() => setExpandedEvalId(expandedEvalId === e.id ? null : e.id)}>
                               <td>
                                 <span className="inline-flex items-center gap-1.5">
                                   <span className="inline-flex h-6 w-6 items-center justify-center rounded text-[11px] font-extrabold text-white" style={{ backgroundColor: gradeColor }}>{fg}</span>
@@ -1214,7 +1117,7 @@ export default function SupplierDetailPage() {
                                 </td>
                               </tr>
                             )}
-                            </>
+                            </Fragment>
                           );
                         })}
                       </tbody>
@@ -1226,47 +1129,8 @@ export default function SupplierDetailPage() {
           </div>
         )}
 
-        {/* 奖惩记录（2026-10-23 并入评价与奖惩分区——置于履约评价之后，主次分明） */}
-        {activeTab === 'evaluations' && (
-          <div className="mt-8">
-            <SectionTitle icon={AlertTriangle}>奖惩记录</SectionTitle>
-            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[14px] bg-[color-mix(in_oklch,var(--muted-foreground)_6%,transparent)] px-4 py-3">
-              <span className="text-xs font-semibold text-[var(--foreground)]">录入奖惩</span>
-              <select value={recordForm.recordType} onChange={e => setRecordForm(f => ({ ...f, recordType: e.target.value as 'reward' | 'punishment' }))} className="neu-input !h-8 text-xs">
-                <option value="punishment">惩戒</option>
-                <option value="reward">奖励</option>
-              </select>
-              <input value={recordForm.projectName} onChange={e => setRecordForm(f => ({ ...f, projectName: e.target.value }))} placeholder="关联项目/事项名称" className="neu-input !h-8 min-w-[160px] flex-1 text-xs" />
-              <input value={recordForm.recordNote} onChange={e => setRecordForm(f => ({ ...f, recordNote: e.target.value }))} placeholder="奖惩事由/文号" className="neu-input !h-8 min-w-[160px] flex-1 text-xs" />
-              <input type="date" value={recordForm.effectiveDate} onChange={e => setRecordForm(f => ({ ...f, effectiveDate: e.target.value }))} className="neu-input !h-8 text-xs" />
-              <button onClick={handleAddRecord} className="neu-btn-xs">录入</button>
-            </div>
-            <div className="neu-table-card overflow-hidden">
-              {rewardRecords.length === 0 ? (
-                <p className="text-[var(--muted-foreground)] text-center py-10 text-sm">暂无奖惩记录</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="neu-table">
-                    <thead>
-                      <tr><th>类型</th><th>关联项目/事项</th><th>事由/文号</th><th>生效日期</th><th>录入时间</th></tr>
-                    </thead>
-                    <tbody>
-                      {rewardRecords.map(r => (
-                        <tr key={r.id}>
-                          <td>{r.recordType === 'reward' ? <StatusBadge tone="green">奖励</StatusBadge> : <StatusBadge tone="red">惩戒</StatusBadge>}</td>
-                          <td className="font-semibold text-[var(--foreground)]">{r.projectName}</td>
-                          <td className="text-[var(--muted-foreground)]">{r.recordNote}</td>
-                          <td className="text-[var(--muted-foreground)] font-mono text-xs">{r.effectiveDate ? new Date(r.effectiveDate).toLocaleDateString('zh-CN') : '—'}</td>
-                          <td className="text-[var(--muted-foreground)] font-mono text-xs">{new Date(r.createdAt).toLocaleString('zh-CN')}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        {/* 奖惩记录已删（2026-11-06 用户裁定：录入表单+记录表整节移除，CTS A-216 同批）；
+            tab 改名「履约评价」并只剩评价内容；后端 add/listSupplierRecords 端点保留未动 */}
 
         {/* 邀请回执经历（2026-10-21 回执锁定口径）：邀请统计 + 毁约记录 + 逐条回执轨迹 */}
         {activeTab === 'rsvp' && rsvpHistory && (rsvpHistory.stats.consecutiveDeclined ?? 0) >= 3 && (
@@ -1572,129 +1436,13 @@ export default function SupplierDetailPage() {
         </section>
       )}
 
-      {/* 沟通记录 */}
-      {/* 沟通记录（2026-10-23 并入邀请与沟通分区） */}
-      {activeTab === 'rsvp' && (
-        <section className="mt-8">
-          <SectionTitle icon={MessageSquare}>沟通记录</SectionTitle>
-          {commLoading ? (
-            <div className="py-8 text-center"><Loader2 size={14} className="animate-spin mx-auto mb-2" /><span className="text-sm text-[var(--muted-foreground)]">加载中...</span></div>
-          ) : communications.length === 0 ? (
-            <div className="neu-card-static !rounded-2xl py-10 text-center">
-              <MessageSquare size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />
-              <p className="text-sm text-[var(--muted-foreground)]">暂无沟通记录</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {communications.map(c => (
-                <div key={c.id} className={`neu-card-static !rounded-xl p-4 ${!c.isRead ? 'ring-1 ring-[var(--accent)]/20' : ''}`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <StatusBadge tone="blue">{getNotificationLabel(c.type)}</StatusBadge>
-                        {!c.isRead && <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />}
-                      </div>
-                      <h4 className="text-sm font-semibold text-[var(--foreground)] mt-1.5">{c.title}</h4>
-                      <p className="text-xs text-[var(--muted-foreground)] mt-1 line-clamp-2">{c.content}</p>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <div className="text-[10px] text-[var(--muted-foreground)]/70">{new Date(c.createdAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
-                      {c.channels.length > 0 && <div className="text-[10px] text-[var(--muted-foreground)]/60 mt-0.5" title={`投递通道：${c.channels.map(getNotificationChannelLabel).join('、')}`}>{c.channels.map(getNotificationChannelLabel).join(' · ')}</div>}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
+      {/* 沟通记录整节已删（2026-11-06 用户裁定）：其内容实为公告发布的通知投递日志
+          （站内/短信/电话通道），非与该供应商的沟通——状态/懒加载/导入整组清理，
+          tab 更名「邀请回执」；后端 communications 端点保留未动 */}
 
-      {/* 文件档案 */}
-      {/* 文件档案（2026-10-23 并入资质与文件分区） */}
-      {activeTab === 'qualifications' && (
-        <section className="mt-8">
-          <SectionTitle icon={Paperclip}>文件档案</SectionTitle>
-          {docLoading ? (
-            <div className="py-8 text-center"><Loader2 size={14} className="animate-spin mx-auto mb-2" /><span className="text-sm text-[var(--muted-foreground)]">加载中...</span></div>
-          ) : (
-            <>
-              <div className="neu-card-static !rounded-2xl p-4 mb-4 flex flex-wrap gap-2 items-center">
-                {/* 真实文件选择：先上传 MinIO 拿到 url，杜绝 fileUrl:'#' 假记录（B10） */}
-                <label className="neu-btn-xs gap-1 cursor-pointer">
-                  <Plus size={12} />{newDocFile ? newDocFile.name : '选择文件'}
-                  <input type="file" className="hidden" onChange={e => {
-                    const f = e.target.files?.[0] || null;
-                    setNewDocFile(f);
-                    if (f && !newDocName.trim()) setNewDocName(f.name);
-                  }} />
-                </label>
-                <select value={newDocType} onChange={e => setNewDocType(e.target.value)} className="neu-input !h-9 !text-xs !w-auto" aria-label="文件类型">
-                  {DOC_TYPES.map(t => <option key={t.v} value={t.v}>{t.l}</option>)}
-                </select>
-                <input value={newDocName} onChange={e => setNewDocName(e.target.value)} placeholder="文件名称" className="neu-input !h-9 !text-xs !flex-1 min-w-[140px]" />
-                <input value={newDocNote} onChange={e => setNewDocNote(e.target.value)} placeholder="备注（可选）" className="neu-input !h-9 !text-xs !w-auto" />
-                <button
-                  onClick={async () => {
-                    if (!newDocFile) { toast.error('请先选择文件'); return; }
-                    if (!newDocName.trim()) { toast.error('请填写文件名称'); return; }
-                    setDocUploading(true);
-                    setDocUpPct(0);
-                    try {
-                      const uploaded = await uploadSupplierFile(newDocFile, {
-                        onProgress: (l, t) => setDocUpPct(t > 0 ? Math.round((l / t) * 100) : 0),
-                      });
-                      const doc = await uploadSupplierDocument(id as string, {
-                        type: newDocType,
-                        name: newDocName.trim(),
-                        fileUrl: uploaded.url,
-                        fileSize: uploaded.size,
-                        note: newDocNote || undefined,
-                      });
-                      setDocuments(prev => [doc, ...prev]); setNewDocName(''); setNewDocNote(''); setNewDocFile(null); setNewDocType('other');
-                      toast.success('文件已上传并添加');
-                    } catch (e: any) { toast.error(e?.message || '上传失败'); }
-                    setDocUploading(false);
-                  }}
-                  disabled={docUploading || !newDocFile || !newDocName.trim()} className="neu-btn-xs gap-1"
-                >
-                  {docUploading ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}{docUploading ? `上传中 ${docUpPct}%` : '添加文件'}
-                </button>
-              </div>
-
-              {documents.length === 0 ? (
-                <div className="neu-card-static !rounded-2xl py-10 text-center">
-                  <FolderOpen size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />
-                  <p className="text-sm text-[var(--muted-foreground)]">暂无文件档案</p>
-                </div>
-              ) : (
-                <div className="neu-table-card overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="neu-table w-full">
-                      <thead>
-                        <tr><th>文件名称</th><th>类型</th><th>上传人</th><th>上传时间</th><th className="w-20">操作</th></tr>
-                      </thead>
-                      <tbody>
-                        {documents.map(d => (
-                          <tr key={d.id}>
-                            <td className="text-sm font-semibold text-[var(--foreground)]">{d.name}</td>
-                            <td><span className="inline-flex items-center rounded-full bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 text-[11px] font-semibold text-[var(--accent)]">{DOC_TYPE_LABEL[d.type] || d.type}</span></td>
-                            <td className="text-sm text-[var(--muted-foreground)]">{d.uploader?.displayName || '—'}</td>
-                            <td className="text-sm tabular-nums text-[var(--muted-foreground)]">{new Date(d.createdAt).toLocaleDateString('zh-CN')}</td>
-                            <td>
-                              <button onClick={async () => { try { await deleteSupplierDocument(id as string, d.id); setDocuments(prev => prev.filter(x => x.id !== d.id)); toast.success('已删除'); } catch { toast.error('删除失败'); } }}
-                                className="neu-btn-xs is-danger"><Trash2 size={12} /></button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </section>
-      )}
+      {/* 文件档案整节已删（2026-11-06 用户裁定：录入表单先行移除后列表一并删除）——
+          状态/懒加载/DOC_TYPES/删除链整组清理；tab 更名「资质材料」；
+          后端 documents 端点保留未动 */}
 
       {/* ═══ 审批操作栏（PENDING/RETURNED 时固定在底部）═══ */}
       {isPending && isAdmin && (
@@ -1797,13 +1545,14 @@ export default function SupplierDetailPage() {
         </Modal>
       )}
 
-      {/* 业务标签编辑弹窗 */}
+      {/* 业务标签编辑弹窗（2026-11-06 重构：搜索/点选/新建三层 picker，
+          与供应商选取 BusinessTagsPicker 同款——词表带库内使用计数） */}
       {tagsModal && (
         <Modal
           open
           onClose={() => setTagsModal(false)}
           title="编辑业务标签"
-          description="使用 2-8 个词语简述业务方向，每个单独填写，保存后立即生效"
+          description="从词表点选或搜索新建，2-8 个，保存后立即生效"
           footer={
             <div className="neu-btn-group">
               <button onClick={() => setTagsModal(false)} className="neu-btn-soft">取消</button>
@@ -1813,30 +1562,90 @@ export default function SupplierDetailPage() {
             </div>
           }
         >
-          <div className="space-y-2 max-h-[420px] overflow-y-auto">
-            {editTags.map((tag, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <span className="text-[11px] font-bold text-[var(--muted-foreground)] min-w-[18px]">{i + 1}.</span>
-                <input
-                  value={tag}
-                  onChange={e => setEditTags(prev => { const n = [...prev]; n[i] = e.target.value; return n; })}
-                  placeholder={i === 0 ? '如：办公用品' : i === 1 ? '如：钻机销售' : '请输入业务标签'}
-                  maxLength={20}
-                  className="neu-input flex-1 text-sm h-9"
-                />
-                {editTags.length > 2 && (
-                  <button onClick={() => setEditTags(prev => prev.filter((_, j) => j !== i))} aria-label={`删除第 ${i + 1} 个标签`} className="text-[var(--muted-foreground)] hover:text-[var(--danger)] transition-colors">
-                    <X size={15} strokeWidth={2} />
+          {(() => {
+            const q = tagQuery.trim();
+            const ql = q.toLowerCase();
+            const exactInVocab = !q || tagVocab.some(t => t.tag.toLowerCase() === ql);
+            const alreadySelected = !!q && editTags.some(t => t.toLowerCase() === ql);
+            const showCustomAdd = !!q && !exactInVocab && !alreadySelected;
+            const filtered = q ? tagVocab.filter(t => t.tag.toLowerCase().includes(ql)) : tagVocab;
+            const toggleTag = (tag: string) => setEditTags(prev =>
+              prev.includes(tag) ? prev.filter(t => t !== tag)
+                : prev.length >= 8 ? (toast.warning('最多 8 个业务标签'), prev)
+                : [...prev, tag]);
+            const addCustom = (raw: string) => {
+              const t = raw.trim();
+              if (!t || t.length > 20) { toast.error('标签须为 1-20 字'); return; }
+              if (editTags.some(x => x.toLowerCase() === t.toLowerCase())) { toast.warning('该标签已选'); return; }
+              if (editTags.length >= 8) { toast.warning('最多 8 个业务标签'); return; }
+              setEditTags(prev => [...prev, t]);
+              setTagQuery('');
+            };
+            return (
+              <div>
+                {/* 第一层：搜索（兼新建输入） */}
+                <div className="relative mb-2.5">
+                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
+                  <input
+                    value={tagQuery}
+                    onChange={e => setTagQuery(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (showCustomAdd) addCustom(tagQuery); } }}
+                    placeholder="搜索标签，或输入新标签后回车…"
+                    maxLength={20}
+                    className="workbench-input w-full !pl-8 !pr-2 text-xs !h-8"
+                  />
+                </div>
+
+                {/* 第二层：已选条 */}
+                <div className="mb-2.5 flex items-start gap-1.5 rounded-lg px-2.5 py-2"
+                  style={{ background: 'color-mix(in oklch, var(--accent) 6%, transparent)', boxShadow: 'inset 0 1px 2px oklch(0.5 0.04 258 / 0.06)' }}>
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+                    <span className="mr-0.5 shrink-0 text-[10px] font-extrabold tabular-nums text-[var(--accent-strong)]">已选 {editTags.length}/8</span>
+                    {editTags.map(t => (
+                      <span key={t} className="neu-tag is-on text-xs">
+                        {t}
+                        <button type="button" onClick={() => setEditTags(prev => prev.filter(x => x !== t))} aria-label={`移除 ${t}`} className="neu-tag__x">
+                          <X size={11} strokeWidth={2.5} />
+                        </button>
+                      </span>
+                    ))}
+                    {editTags.length === 0 && <span className="text-[10px] text-[var(--muted-foreground)]">尚未选择（至少 2 个方可保存）</span>}
+                  </div>
+                  {editTags.length > 0 && (
+                    <button type="button" onClick={() => setEditTags([])} className="neu-btn-xs shrink-0">清空</button>
+                  )}
+                </div>
+
+                {/* 新建入口：搜索词不在词表且未选 */}
+                {showCustomAdd && (
+                  <button type="button" onClick={() => addCustom(tagQuery)} className="neu-btn-xs is-info mb-2">
+                    <Plus size={11} />新建标签「{q}」
                   </button>
                 )}
+
+                {/* 第三层：可选词表（内凹滚动区，按库内使用频次降序） */}
+                {filtered.length > 0 ? (
+                  <div className="flex max-h-[190px] flex-wrap content-start gap-1 overflow-y-auto rounded-lg px-2.5 py-2"
+                    style={{ background: 'oklch(0.968 0.01 258 / 0.45)', boxShadow: 'inset 1px 1px 4px oklch(0.52 0.05 258 / 0.08), inset -1px -1px 2px oklch(1 0 0 / 0.55)' }}>
+                    {[...filtered].sort((a, b) => b.count - a.count).map(t => {
+                      const on = editTags.includes(t.tag);
+                      return (
+                        <button key={t.tag} type="button" onClick={() => toggleTag(t.tag)} title={`库内 ${t.count} 家供应商在用`}
+                          className={`neu-tag text-xs ${on ? 'is-on' : ''}`}>
+                          {on && <Check size={10} strokeWidth={3} className="shrink-0" />}{t.tag}<span className="neu-tag__count">{t.count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="rounded-lg px-3 py-4 text-center text-[11px] text-[var(--muted-foreground)]"
+                    style={{ background: 'oklch(0.968 0.01 258 / 0.45)', boxShadow: 'inset 1px 1px 4px oklch(0.52 0.05 258 / 0.08), inset -1px -1px 2px oklch(1 0 0 / 0.55)' }}>
+                    {q ? '无匹配标签——回车或点上方按钮新建' : '词表加载中或为空'}
+                  </p>
+                )}
               </div>
-            ))}
-            {editTags.length < 8 && (
-              <button onClick={() => setEditTags(prev => [...prev, ''])} className="neu-btn-xs w-full justify-center py-1.5 text-[11px] !text-[var(--muted-foreground)]">
-                <Plus size={11} />添加标签（{editTags.length}/8）
-              </button>
-            )}
-          </div>
+            );
+          })()}
         </Modal>
       )}
     </div>

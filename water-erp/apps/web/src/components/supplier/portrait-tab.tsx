@@ -3,28 +3,23 @@
 import { useEffect, useState, useCallback } from 'react';
 import { getSupplierPortraitAnalysis } from '@/lib/api/supplier';
 import type { SupplierPortraitAnalysis } from '@/lib/api/supplier';
-import { Loader2, Brain, Sparkles, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Loader2, Brain, Sparkles, AlertTriangle } from 'lucide-react';
 
 export function PortraitTab({ supplierId }: { supplierId: string }) {
   const [data, setData] = useState<SupplierPortraitAnalysis | null>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
 
+  // 刷新画像已删（2026-11-06 用户裁定：画像每月 1 日 00:00 定时生成）——仅首载与失败重试两路径
   const fetchPortrait = useCallback((forceRefresh = false) => {
-    const isFirstLoad = !data;
-    if (isFirstLoad) setLoading(true);
-    else setRefreshing(true);
+    setLoading(true);
     setError('');
 
     getSupplierPortraitAnalysis(supplierId, forceRefresh)
       .then(setData)
       .catch((e) => setError(e?.message || '分析失败'))
-      .finally(() => {
-        setLoading(false);
-        setRefreshing(false);
-      });
-  }, [supplierId, data]);
+      .finally(() => setLoading(false));
+  }, [supplierId]);
 
   useEffect(() => {
     fetchPortrait();
@@ -50,7 +45,8 @@ export function PortraitTab({ supplierId }: { supplierId: string }) {
 
   return (
     <div className="space-y-5">
-      {/* ══ 标题栏 + 刷新按钮 ══ */}
+      {/* ══ 标题栏（刷新画像按钮已删 2026-11-06 用户裁定：画像每月 1 日 00:00 定时生成，
+          不提供手动刷新；失败态「重试」保留） ══ */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Brain size={15} className="text-[var(--accent)]" />
@@ -63,14 +59,6 @@ export function PortraitTab({ supplierId }: { supplierId: string }) {
           <span className="text-[10px] text-[var(--muted-foreground)]/50">
             {new Date(data.analyzedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
           </span>
-          <button
-            onClick={() => fetchPortrait(true)}
-            disabled={refreshing}
-            className="neu-btn-xs flex items-center gap-1"
-          >
-            <RefreshCw size={11} className={refreshing ? 'animate-spin' : ''} />
-            {refreshing ? '刷新中…' : '刷新画像'}
-          </button>
         </div>
       </div>
 

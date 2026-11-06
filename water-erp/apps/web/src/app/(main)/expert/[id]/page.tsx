@@ -45,6 +45,8 @@ interface ExpertDetail {
   };
 }
 
+import { RingGauge, GRADE_SCORE, type WidgetTone } from '@/components/detail/data-widgets';
+
 const STAGE_FALLBACK_COLOR = 'var(--muted-foreground)';
 const levelTone: Record<string, 'green' | 'blue' | 'orange' | 'red'> = { A: 'green', B: 'blue', C: 'orange', D: 'orange', E: 'red' };
 
@@ -407,40 +409,38 @@ export default function ExpertDetailPage() {
           </div>
         </div>
 
-        {/* KPI 瓷片行 —— 融入 page-hero */}
-        <div className="page-hero__divider">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-            {[
-              ['参评项目', expert.statistics.totalProjects],
-              ['已完成', expert.statistics.completedProjects],
-              ['已签到', expert.statistics.signedInProjects],
-              ['评价均分', expert.statistics.evalAvg ? `${expert.statistics.evalAvg}分` : '—'],
-              ['获评次数', expert.statistics.evalCount],
-            ].map(([label, value]) => (
-              <div key={label} className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">{label}</span>
-                <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{String(value)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* KPI 瓷片行已删（2026-11-06 用户裁定）：参评项目/已完成/已签到/评价均分/获评次数
+            五瓷片移除——履职数据在「评审项目/评价历史」tab 与基本信息双环中各有呈现；
+            标题行下长横线对齐公司信息管理同款 page-hero__divider */}
+        <div className="page-hero__divider" />
+      </div>
 
-        {/* Tab 导航 —— 融入 page-hero 底部 */}
-        <div className="page-hero__divider !pt-3">
-          <div className="neu-tab-bar">
-            {TABS.map(t => (
-              <button
-                key={t.key}
-                onClick={() => {
-                  if (!loadedTabsRef.current.has(t.key)) setTabLoading(true);
-                  setTab(t.key);
-                }}
-                className={`neu-tab ${tab === t.key ? 'is-active' : ''}`}
-              >
-                <t.icon size={14} /><span className="ml-1.5">{t.label}</span>
-              </button>
-            ))}
-          </div>
+      {/* 信息分区切换（2026-11-06 用户裁定：移出标题卡，hero 下方独立工具行，
+          与供应商库/供应商详情同款 neu-segment）——外层 flex 包裹（grid 轨道防拉满） */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div
+          className="neu-segment"
+          role="group"
+          aria-label="专家信息分区"
+          data-count="9"
+          data-index={String(Math.max(0, TABS.findIndex(t => t.key === tab)))}
+        >
+          <span className="neu-segment-thumb" aria-hidden="true" />
+          {TABS.map(t => (
+            <button
+              key={t.key}
+              type="button"
+              className="neu-segment-btn"
+              aria-pressed={tab === t.key}
+              onClick={() => {
+                if (!loadedTabsRef.current.has(t.key)) setTabLoading(true);
+                setTab(t.key);
+              }}
+            >
+              <t.icon size={13} strokeWidth={1.9} aria-hidden="true" />
+              {t.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -452,9 +452,32 @@ export default function ExpertDetailPage() {
           <div className="space-y-5">
             {/* 职业信息 */}
             {/* 基本信息（2026-11-04 重构：三卡合一，GroupHead 分组、网格逐行凑整，
-                PII 揭示按钮图标化不再混入字段名） */}
-            <section className="neu-card-static !rounded-2xl p-5 space-y-4">
-              <SectionTitle icon={User}>基本信息</SectionTitle>
+                PII 揭示按钮图标化不再混入字段名）；2026-11-06 数据鲜活：顶部淡色洗染 +
+                标题行右侧 等级/履职评价 双环 */}
+            <section className="neu-card-static detail-card-wash !rounded-2xl p-5 space-y-4">
+              <div className="flex items-start justify-between gap-4">
+                <SectionTitle icon={User}>基本信息</SectionTitle>
+                <div className="flex shrink-0 items-center gap-4">
+                  {p.expertLevel && (
+                    <RingGauge
+                      pct={GRADE_SCORE[p.expertLevel] ?? 0}
+                      tone={(levelTone[p.expertLevel] as WidgetTone) ?? 'blue'}
+                      label="等级"
+                      display={GRADE_SCORE[p.expertLevel] ?? 0}
+                      caption={`${p.expertLevel} 级`}
+                    />
+                  )}
+                  {expert.statistics.evalAvg != null && Number.isFinite(Number(expert.statistics.evalAvg)) && (
+                    <RingGauge
+                      pct={Math.round(Number(expert.statistics.evalAvg))}
+                      tone={Number(expert.statistics.evalAvg) >= 85 ? 'green' : Number(expert.statistics.evalAvg) >= 70 ? 'orange' : 'red'}
+                      label="履职"
+                      display={Math.round(Number(expert.statistics.evalAvg))}
+                      caption={`${expert.statistics.evalCount} 次获评`}
+                    />
+                  )}
+                </div>
+              </div>
 
               {/* 职业资格：8 瓷片 = 4 列整两行 */}
               <div className="space-y-2.5">

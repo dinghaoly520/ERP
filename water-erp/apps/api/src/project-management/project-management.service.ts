@@ -273,7 +273,10 @@ export class ProjectManagementService {
     // 项目可见性（拍板 1C 2026-08-24；2026-10-10 修订）：staff 仅见本人创建；leader 见本公司全部
     // （用户裁定）；admin 全量 + ?companyId= 单选/逗号多选（2026-10-14 统一收口 resolveScope，删
     // 单选直赋旁路；非法 id 由 resolveScope 过滤）。user=undefined 属鉴权异常，返回空集不泄露。
-    if (user?.role === 'leader') {
+    // mine=true（2026-11-06 用户裁定：公告关联项目只能选自己的）——覆盖角色视野强制本人项目。
+    if (query.mine === 'true') {
+      where.createdById = user?.sub ?? '__no_user__';
+    } else if (user?.role === 'leader') {
       // leader 公司视野：与数据库/台账等页同口径（resolveScope 强制本人公司，传参忽略）
       Object.assign(where, this.companyScope.filter(await this.companyScope.resolveScope(user)));
     } else if (user?.role === 'admin') {
@@ -321,12 +324,32 @@ export class ProjectManagementService {
       },
     });
 
-    return items.map((item) => ({
+    const mapped = items.map((item) => ({
       ...item,
       budgetAmount: Number(item.budgetAmount),
       createdByName: item.createdBy?.displayName || item.createdBy?.username || null,
       terminatedByName: item.terminatedBy?.displayName || item.terminatedBy?.username || null,
     }));
+
+    // mine=true 选择器专用语义（2026-11-06 用户裁定：已进入开标确认的项目不可补遗）：
+    // 剔除当前轮 BidProject 已进入开标/评标/终局/流标的项目（发布侧另有 ADDENDUM_BID_STARTED
+    // 硬闸双保险）；未建 BidProject 的项目不剔（尚未组织投标，补遗关联按 PMI 兜底）。
+    if (query.mine !== 'true' || items.length === 0) return mapped;
+    const bps = await this.prisma.bidProject.findMany({
+      where: { projectManagementItemId: { in: items.map((i) => i.id) } },
+      select: { projectManagementItemId: true, round: true, stage: true },
+    });
+    const blocked = new Set<string>();
+    for (const item of items) {
+      const rounds = bps.filter((b) => b.projectManagementItemId === item.id);
+      if (rounds.length === 0) continue;
+      const currentRound = item.currentRound ?? Math.max(...rounds.map((b) => b.round ?? 1));
+      const opened = rounds.some(
+        (b) => (b.round ?? 1) === currentRound && ['OPENING', 'EVALUATING', 'ARCHIVED', 'ABORTED'].includes(b.stage),
+      );
+      if (opened) blocked.add(item.id);
+    }
+    return mapped.filter((m) => !blocked.has(m.id));
   }
 
   /** 项目管理权（2026-10-10 读写分级）：仅创建人可管理（修改/终止/回收/恢复/彻底删除）；

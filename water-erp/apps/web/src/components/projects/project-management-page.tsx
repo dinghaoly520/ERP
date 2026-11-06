@@ -338,7 +338,12 @@ export function ProjectManagementPage() {
                 </button>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-3" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
+            {/* hairline 下横线（cgzxui 规定：标题行与下方内容之间必有分割线） */}
+            <div className="page-hero__divider" />
+          </div>
+
+          {/* 搜索 + 状态/排序/筛选行——独立工具行（2026-11-06 用户裁定移出标题栏，与采购台账/通知中心同款设计） */}
+          <div className="flex flex-wrap items-center gap-3">
               <div className="relative w-[280px] shrink-0">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-foreground)] z-10" />
                 <input
@@ -416,7 +421,6 @@ export function ProjectManagementPage() {
                   {filterOptions.map((v) => <option key={v} value={v ?? ''}>{v}</option>)}
                 </select>
               </div>
-            </div>
           </div>
 
           {errorMessage ? (

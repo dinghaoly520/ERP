@@ -165,17 +165,20 @@ export default function ExpertDashboardPage() {
   return (
     <div className="space-y-5">
       <div className="page-hero">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
+        {/* 2026-11-06 标题栏结构对齐 :3005：canonical page-hero__row/__left/__right
+            （此前裸 flex 的 gap/对齐与另两页不一致，高度漂移） */}
+        <div className="page-hero__row">
+          <div className="page-hero__left">
             <div className="page-hero__icon"><UserCircle size={18} strokeWidth={1.5} /></div>
             <div>
               <div className="page-hero__title">欢迎，{user?.displayName || '专家'}</div>
               <div className="page-hero__sub">在线开标 · 专家评审 · 过程留痕</div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="page-hero__right">
             {totalPending > 0 && (
-              <span className="exp-pill exp-pill--solid !px-2.5 !text-[11px] tabular-nums" style={{ '--c': 'var(--warning)' } as React.CSSProperties}>
+              <span className="page-hero__stat page-hero__stat--warn">
+                <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-[var(--danger)]" />
                 {totalPending} 项待处理
               </span>
             )}
@@ -184,6 +187,8 @@ export default function ExpertDashboardPage() {
             </button>
           </div>
         </div>
+        {/* 标题行下长横线（2026-11-06 对齐 :3005 标题卡口径——本门户 wb-section-rule 同 hairline 色值） */}
+        <div className="wb-section-rule" />
       </div>
 
       {loading ? (
