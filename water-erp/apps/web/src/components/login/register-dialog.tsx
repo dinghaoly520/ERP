@@ -4,10 +4,12 @@ import { Check, CheckCircle2, Eye, EyeOff, Loader2, ShieldCheck, X } from "lucid
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/workbench";
 import { UnitSearchSelect } from "@/components/login/unit-search-select";
+import { TypeaheadCombobox } from "@/components/workbench/typeahead-combobox";
 import {
   sendRegistrationCode,
   registerUser,
   checkRegistrationCode,
+  fetchDepartmentOptions,
 } from "@/lib/api/auth";
 import { sanitizePhoneInput } from "@/lib/phone-input";
 import { REGISTER_AGREEMENT_TITLE, REGISTER_AGREEMENT } from "./register-agreement";
@@ -57,10 +59,34 @@ export function RegisterDialog({ isOpen, onClose }: RegisterDialogProps) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [showAgreement, setShowAgreement] = useState(false);
+  const [deptOptions, setDeptOptions] = useState<string[]>([]);
 
 
   const set = (key: keyof FormState, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
+
+  // 部门下拉选项随公司选择级联（300ms 防抖）；接口不可用静默降级为纯手输
+  useEffect(() => {
+    const company = form.company.trim();
+    if (!company) {
+      setDeptOptions([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      fetchDepartmentOptions(company)
+        .then((rows) => {
+          if (!cancelled) setDeptOptions(rows.map((r) => r.name));
+        })
+        .catch(() => {
+          if (!cancelled) setDeptOptions([]);
+        });
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [form.company]);
 
   // 验证码输满 6 位 → 400ms 防抖预检（不消费验证码），即时反馈 ✓/✗
   useEffect(() => {
@@ -333,19 +359,32 @@ export function RegisterDialog({ isOpen, onClose }: RegisterDialogProps) {
                 </span>
                 <UnitSearchSelect
                   value={form.company}
-                  onChange={(v) => set("company", v)}
+                  onChange={(v) => {
+                    // 级联清空：换公司后原部门大概率不属于新公司（部门选项随公司刷新）
+                    if (v !== form.company) {
+                      set("company", v);
+                      set("department", "");
+                    }
+                  }}
                 />
               </label>
               <label className="block">
                 <span className="text-xs font-medium text-[var(--muted-foreground)] mb-1 block">
                   部门 <span className="text-[var(--danger)]">*</span>
                 </span>
-                <input
-                  type="text"
+                <TypeaheadCombobox
                   value={form.department}
-                  onChange={(e) => set("department", e.target.value)}
-                  placeholder="请输入部门"
-                  className={inputCls}
+                  onChange={(v) => set("department", v)}
+                  options={deptOptions}
+                  allowCustom
+                  placeholder="选择或输入部门"
+                  emptyText={
+                    form.company.trim()
+                      ? "该公司暂无部门记录，可直接输入"
+                      : "请先选择公司，或直接输入部门"
+                  }
+                  customHint="直接使用"
+                  triggerClassName="!h-[38px]"
                 />
               </label>
             </div>

@@ -444,6 +444,14 @@ export async function fetchDepartments(scope?: 'platform'): Promise<DepartmentIt
   });
 }
 
+/** 注册弹窗（未登录）按公司名取部门下拉选项——公开只读；未命中公司/空参返回空表 */
+export async function fetchDepartmentOptions(company: string): Promise<DepartmentItem[]> {
+  const qs = `?company=${encodeURIComponent(company)}`;
+  return requestJson<DepartmentItem[]>(`${API_BASE}/auth/department-options${qs}`, {
+    cache: 'no-store',
+  });
+}
+
 // ── 注册 ──
 
 export type RegisterPayload = {
