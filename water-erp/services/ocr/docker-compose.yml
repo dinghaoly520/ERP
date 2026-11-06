@@ -1,0 +1,36 @@
+# =============================================================================
+# OCR 服务·本文件夹自足编排（standalone）——在本目录即可完成 构建→起服→验证 全流程
+#
+#   docker compose up -d --build      # 构建镜像并起服务（首次约 3-5 分钟拉依赖，之后秒级）
+#   curl localhost:18100/health       # 验证（应见 num_workers=2, intra_threads=3）
+#   docker compose down               # 停清
+#
+# 与 docker-compose.ocr.yml（生产覆盖层）的分工：
+#   本文件 = 自足（build: . 自动构建、无外部依赖），本机/新机快速起服用；
+#   覆盖层 = 配生产 docker-compose.backend.yml 双 -f 合并用（api 注入 OCR_SERVICE_URL、
+#           water-erp-backend 网络），生产部署专用。两者配置口径保持同步。
+# =============================================================================
+services:
+  ocr:
+    build: .
+    image: water-erp-ocr:1.3.0
+    container_name: water-erp-ocr-dev
+    restart: unless-stopped
+    cpus: 6                                  # cgroup 硬限 6 核（与镜像内 2×3 线程预算双保险）
+    environment:
+      OCR_ENGINE: rapid
+      OCR_HOST: 0.0.0.0
+      OCR_PORT: "8100"
+      OCR_MAX_SIDE: "3000"
+      # 8 核机 6 核预算预设（镜像出厂已带同值，此处显式声明可审计）
+      OCR_NUM_WORKERS: "2"
+      OCR_INTRA_THREADS: "3"
+      OCR_INTER_THREADS: "1"
+    ports:
+      - "${OCR_PORT_MAP:-18100}:8100"        # 宿主机端口可覆盖：OCR_PORT_MAP=18200 docker compose up -d
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8100/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 40s
