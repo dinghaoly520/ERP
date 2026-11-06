@@ -16,6 +16,7 @@ import {
   type DemandFields,
   type ProjectAttribution,
 } from '@/lib/api/project-management';
+import { WaterBar } from '../upload/water-bar';
 import {
   PROCUREMENT_METHODS,
   PROCUREMENT_CATEGORY_OPTIONS,
@@ -53,6 +54,7 @@ export function CreateProjectDialog({
   const submittingRef = useRef(false);
   const [extractingDemand, setExtractingDemand] = useState(false);
   const [extractingInitiation, setExtractingInitiation] = useState(false);
+  const [upPct, setUpPct] = useState(0); // 上传字节进度（2026-11-06 上传进度条，解析按钮旁展示）
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
 
@@ -215,11 +217,14 @@ export function CreateProjectDialog({
   const handleExtractDemand = async () => {
     if (!demandFile) return;
 
+    setUpPct(0);
     setExtractingDemand(true);
     setErrorMessage(null);
 
     try {
-      const result = await extractDemandFields(demandFile);
+      const result = await extractDemandFields(demandFile, {
+        onProgress: (l, t) => setUpPct(t > 0 ? Math.round((l / t) * 100) : 0),
+      });
       setDemandFields(result.fields);
       setDemandAttachment(result.attachment);
       setDemandExtractedText(result.extractedText);
@@ -234,11 +239,14 @@ export function CreateProjectDialog({
   const handleExtractInitiation = async () => {
     if (!initiationFile) return;
 
+    setUpPct(0);
     setExtractingInitiation(true);
     setErrorMessage(null);
 
     try {
-      const result = await extractInitiationFields(initiationFile);
+      const result = await extractInitiationFields(initiationFile, {
+        onProgress: (l, t) => setUpPct(t > 0 ? Math.round((l / t) * 100) : 0),
+      });
       setInitiationFields({
         requesterName: result.fields.requesterName || '',
         requesterDepartment: result.fields.requesterDepartment || '',
@@ -943,6 +951,14 @@ export function CreateProjectDialog({
                   {extractingDemand || extractingInitiation ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
                   {extractingDemand || extractingInitiation ? '解析中...' : '解析文档'}
                 </button>
+              </div>
+            )}
+
+            {/* 上传/解析进度（2026-11-06 上传进度条）：解析按钮在底部时也在其上方给出水波条 */}
+            {(extractingDemand || extractingInitiation) && (
+              <div className="mb-2 flex items-center gap-3">
+                <WaterBar pct={upPct} state="uploading" />
+                <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[var(--accent)]">{upPct}%</span>
               </div>
             )}
 

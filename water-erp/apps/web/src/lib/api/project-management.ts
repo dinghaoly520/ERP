@@ -164,38 +164,32 @@ export async function recommendSuppliersForProject(projectId: string) {
   return parseJsonResponse<{ suppliers: Array<{ name: string; reason: string; matchScore: number }>; contextSummary?: string }>(response);
 }
 
-export async function extractInitiationFields(file: File) {
+export async function extractInitiationFields(
+  file: File,
+  opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal },
+) {
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await apiFetch(`${API_BASE}/project-management/extract-initiation`, {
-    method: 'POST',
-    credentials: 'include',
-    body: formData,
-  });
-
-  return parseJsonResponse<{
+  return api.upload<{
     fields: Omit<InitiationFields, 'initiationAttachment' | 'hasProcurementDemand' | 'demandAttachment' | 'procurementMethod'>;
     attachment: ProjectManagementAttachment;
     extractedText: string;
-  }>(response);
+  }>('/project-management/extract-initiation', formData, opts);
 }
 
-export async function extractDemandFields(file: File) {
+export async function extractDemandFields(
+  file: File,
+  opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal },
+) {
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await apiFetch(`${API_BASE}/project-management/extract-demand`, {
-    method: 'POST',
-    credentials: 'include',
-    body: formData,
-  });
-
-  return parseJsonResponse<{
+  return api.upload<{
     fields: DemandFields;
     attachment: ProjectManagementAttachment;
     extractedText: string;
-  }>(response);
+  }>('/project-management/extract-demand', formData, opts);
 }
 
 export async function aiIdentifyField(fieldName: string, documentText: string, topK?: number) {

@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Ban, CheckCircle2, FileUp, Loader2, RefreshCw, Sparkles, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Modal } from '@/components/workbench';
+import { WaterBar } from '../upload/water-bar';
 import { getNonTenderDeal } from '@/lib/api/bid';
 import {
   aiIdentifyField,
@@ -91,6 +92,7 @@ export function AbortRestartDialog({
 
   // Step3 上传新文件（需求/立项起点必经）：解析字段覆盖进信息确认表单；extractedText 供 AI 识别
   const [uploading, setUploading] = useState(false);
+  const [upPct, setUpPct] = useState(0); // 上传字节进度（2026-11-06 上传进度条）
   const [uploadedName, setUploadedName] = useState('');
   // 上传的原文件留存（2026-10-30 闭环）：重启成功后自动挂到新一轮起点阶段——
   // extract-* 端点纯解析零落库，文件本体若不回传，新轮起点阶段还需手动再传一次
@@ -151,11 +153,13 @@ export function AbortRestartDialog({
 
   /** 上传新文件并解析（extract-* 端点纯解析零落库）：非空字段覆盖进信息确认表单 */
   const handleUploadExtract = async (file: File) => {
+    setUpPct(0);
     setUploading(true);
     try {
+      const progressOpts = { onProgress: (l: number, t: number) => setUpPct(t > 0 ? Math.round((l / t) * 100) : 0) };
       const result = startStage === 'PROCUREMENT_DEMAND'
-        ? await extractDemandFields(file)
-        : await extractInitiationFields(file);
+        ? await extractDemandFields(file, progressOpts)
+        : await extractInitiationFields(file, progressOpts);
       const f = result.fields as Record<string, unknown>;
       let count = 0;
       const put = (formKey: string, v: unknown, origin: unknown) => {
@@ -487,7 +491,11 @@ export function AbortRestartDialog({
             {uploading ? (
               <>
                 <Loader2 size={22} className="animate-spin text-[var(--accent)] mx-auto mb-2" />
-                <p className="text-sm font-semibold text-[var(--foreground)]">正在解析文件…</p>
+                <p className="text-sm font-semibold text-[var(--foreground)]">正在上传并解析文件…</p>
+                <div className="mx-auto mt-2 flex w-4/5 items-center gap-2">
+                  <WaterBar pct={upPct} state="uploading" />
+                  <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[var(--accent)]">{upPct}%</span>
+                </div>
               </>
             ) : uploadedName ? (
               <>

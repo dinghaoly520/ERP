@@ -253,11 +253,15 @@ export function removeAttachment(attachmentId: string) {
   return api.delete<{ deleted: boolean }>(`/announcements/attachments/${attachmentId}`);
 }
 
-/** 上传文件（沿用既有 /upload），返回 fileAsset 信息 */
-export function uploadFile(file: File, category = 'announcement') {
+/** 上传文件（沿用既有 /upload；2026-11-06 换 XHR 轨带字节进度），返回 fileAsset 信息 */
+export function uploadFile(
+  file: File,
+  category = 'announcement',
+  opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal },
+) {
   const fd = new FormData();
   fd.append('file', file);
-  return api.postForm<{ id: string; key: string; url: string; originalName: string; size: number; mimeType: string }>(`/upload?category=${category}`, fd);
+  return api.upload<{ id: string; key: string; url: string; originalName: string; size: number; mimeType: string }>(`/upload?category=${category}`, fd, opts);
 }
 
 /* 招标文件（加密 + 受控分发） */
@@ -287,12 +291,12 @@ export function removeBidDocument(announcementId: string) {
   return api.delete<{ deleted: boolean }>(`/announcements/${announcementId}/bid-document`);
 }
 
-/** 上传加密招标文件（multipart） */
+/** 上传加密招标文件（multipart；2026-11-06 换 XHR 轨带字节进度——采购文件可达大文件） */
 export function uploadBidDocument(announcementId: string, file: File, config: {
   title?: string; accessScope: 'OPEN' | 'INVITED';
   requirePayment: boolean; price?: number; bidProjectId?: string; allowedSupplierIds?: string[];
   downloadMode?: 'free' | 'encrypted'; downloadPassword?: string;
-}) {
+}, opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal }) {
   const fd = new FormData();
   fd.append('file', file);
   if (config.title) fd.append('title', config.title);
@@ -307,7 +311,7 @@ export function uploadBidDocument(announcementId: string, file: File, config: {
       fd.append('downloadPassword', config.downloadPassword);
     }
   }
-  return api.postForm<BidDocumentManage>(`/announcements/${announcementId}/bid-document`, fd);
+  return api.upload<BidDocumentManage>(`/announcements/${announcementId}/bid-document`, fd, opts);
 }
 import type {
   AnnouncementCategory,

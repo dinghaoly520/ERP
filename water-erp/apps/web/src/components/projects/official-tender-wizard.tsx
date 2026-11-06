@@ -16,6 +16,7 @@ import { selectOfficialTender, uploadProjectStageAttachment } from '@/lib/api/pr
 import type { BidProjectDetail, BidProjectRef } from '@/lib/api/bid';
 import { ScoreStandardCard } from './score-standard-card';
 import { FilePreviewPane, getFileKind } from './file-preview-pane';
+import { WaterBar } from '../upload/water-bar';
 import { ATTACHMENT_ACCEPT, ATTACHMENT_HINT, validateAttachmentFile } from '@/lib/upload-rules';
 
 type Props = {
@@ -67,6 +68,7 @@ export function OfficialTenderWizard({
   const [selectedId, setSelectedId] = useState<string | null>(initialOfficialId);
   const [selecting, setSelecting] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [upPct, setUpPct] = useState(0); // 上传字节进度（2026-11-06 上传进度条）
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const selectedFile = useMemo(
@@ -105,9 +107,12 @@ export function OfficialTenderWizard({
     // 附件统一限制（2026-10-19）：100MB + 9 扩展白名单（盖章扫描 pdf/图片/docx 均在白名单内）
     const invalid = validateAttachmentFile(file);
     if (invalid) { toast.error(invalid); return; }
+    setUpPct(0);
     setUploading(true);
     try {
-      const uploaded = await uploadProjectStageAttachment(project.id, 'TENDER_DOCUMENT', file, round); // R6-1: 显式 round 防错挂
+      const uploaded = await uploadProjectStageAttachment(project.id, 'TENDER_DOCUMENT', file, round, { // R6-1: 显式 round 防错挂
+        onProgress: (loaded, total) => setUpPct(total > 0 ? Math.round((loaded / total) * 100) : 0),
+      });
       toast.success('已上传至「采购文件」步骤');
       await onChanged(); // 抽屉重拉 → attachments 注入新文件
       if (uploaded?.id) {
@@ -229,6 +234,12 @@ export function OfficialTenderWizard({
                     }}
                     className="sr-only" />
                 </label>
+                {uploading && (
+                  <div className="mt-3 flex items-center gap-3 px-1">
+                    <WaterBar pct={upPct} state="uploading" />
+                    <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[var(--accent)]">{upPct}%</span>
+                  </div>
+                )}
               </div>
             </div>
           ) : (

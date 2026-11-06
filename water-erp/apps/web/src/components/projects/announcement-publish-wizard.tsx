@@ -18,6 +18,7 @@ import {
   type AnnouncementType,
 } from '@/lib/api/announcement';
 import { ATTACHMENT_ACCEPT, ATTACHMENT_HINT, validateAttachmentFile } from '@/lib/upload-rules';
+import { WaterBar } from '../upload/water-bar';
 import { uploadProjectStageAttachment, getPmBidProject, type UploadStageAttachmentResult } from '@/lib/api/project-management';
 import { getBidProjectDetail } from '@/lib/api/bid';
 import { generateFieldContent } from '@/lib/api/tender-sample';
@@ -551,6 +552,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
   const [annId, setAnnId] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<Array<{ file: File; title: string }>>([]);
   const [busy, setBusy] = useState(false);
+  // 发布管线上传相位进度（2026-11-06 上传进度条）：公告 docx 落阶段 + 附件批量
+  const [pubUp, setPubUp] = useState<{ label: string; pct: number } | null>(null);
   // 中标公告 AI 自动填入进度（步骤文案 + 完成计数），loading 面板实时展示
   const [aiFill, setAiFill] = useState<{ steps: string[]; done: number } | null>(null);
 
@@ -1042,16 +1045,20 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     if (project) saveWizardState(project.id, cat, { draft: d as Record<string, string> });
   }, [project]);
 
-  // 发布时上传本地暂存的附件（附件 API 需要 announcementId，故在 create 之后批量上传）
+  // 发布时上传本地暂存的附件（附件 API 需要 announcementId，故在 create 之后批量上传）；
+  // 2026-11-06 上传进度条：字节进度实时亮在发布按钮上方（pubUp）
   const uploadPendingFiles = async (id: string) => {
     for (const item of pendingFiles) {
       try {
-        const asset = await uploadFile(item.file, 'announcement');
+        const asset = await uploadFile(item.file, 'announcement', {
+          onProgress: (l, t) => setPubUp({ label: item.file.name, pct: t > 0 ? Math.round((l / t) * 100) : 0 }),
+        });
         await addAttachment(id, asset.id, item.title || item.file.name);
       } catch (e) {
         toast.error(`附件上传失败：${item.file.name} ${(e as Error).message}`);
       }
     }
+    setPubUp(null);
   };
 
   /** 「预览并发布」：先过发布前校验，再生成公告 docx 进入第三步预览确认（核对版式与文字） */
@@ -1353,7 +1360,9 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         const docFile = new File([blob], fileName, {
           type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         });
-        const uploaded = await uploadProjectStageAttachment(project!.id, 'PUBLIC_ANNOUNCEMENT', docFile);
+        const uploaded = await uploadProjectStageAttachment(project!.id, 'PUBLIC_ANNOUNCEMENT', docFile, undefined, {
+          onProgress: (l, t) => setPubUp({ label: fileName, pct: t > 0 ? Math.round((l / t) * 100) : 0 }),
+        });
         onStageAttachmentUploaded?.(uploaded);
       } catch (e) {
         toast.error(`公告文件上传到阶段失败：${(e as Error).message}`);
@@ -2011,6 +2020,16 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               </>
             )}
           </div>
+          {/* 发布管线上传相位（2026-11-06 上传进度条）：当前文件名 + 水波条 */}
+          {pubUp && (
+            <div className="mt-2 flex items-center gap-3">
+              <span className="max-w-[220px] truncate text-[11px] font-semibold text-[var(--muted-foreground)]" title={pubUp.label}>
+                {pubUp.label}
+              </span>
+              <WaterBar pct={pubUp.pct} state="uploading" />
+              <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[var(--accent)]">{pubUp.pct}%</span>
+            </div>
+          )}
         </div>
       </div>
 
