@@ -494,13 +494,16 @@ export default function NewNoticePage() {
           <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">
             <Step n={isProjectLinked ? 7 : 6} />{type === 'ADDENDUM' ? '附件与采购文件' : '附件（公开可下载）'}
           </legend>
-          <div className={`grid grid-cols-1 gap-6 ${type === 'ADDENDUM' ? 'lg:grid-cols-2' : 'max-w-2xl'}`}>
+          <div className={`grid grid-cols-1 gap-6 ${type === 'ADDENDUM' ? 'lg:grid-cols-[1fr_auto_1fr]' : 'max-w-2xl'}`}>
             <div className="space-y-2">
               <span className="text-xs font-semibold text-[var(--muted-foreground)]">附件（公开可下载）</span>
               <AttachmentUploader annId={annId} ensureAnnId={ensureDraft} attachments={attachments} onChanged={loadExtras} />
             </div>
             {type === 'ADDENDUM' && (
-              <div className="space-y-2">
+              <>
+                {/* 双栏中缝 hairline 竖线（与信息类型 tab 分隔同款） */}
+                <span aria-hidden className="hidden w-px self-stretch bg-[var(--border)] lg:block" />
+                <div className="space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs font-semibold text-[var(--muted-foreground)]">引用采购文件</span>
                   <div className="neu-segment" role="group" aria-label="引用采购文件" data-index={metadata.refBidDoc === '1' ? '1' : '0'}>
@@ -514,7 +517,8 @@ export default function NewNoticePage() {
                 ) : (
                   <p className="text-[11px] text-[var(--muted-foreground)] py-6 text-center">开启「引用」后补遗附带采购文件下载通道（免费 / 解密），供应商在公告详情下载</p>
                 )}
-              </div>
+                </div>
+              </>
             )}
           </div>
         </fieldset>
