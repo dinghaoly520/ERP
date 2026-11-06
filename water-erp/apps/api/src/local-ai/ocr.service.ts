@@ -72,7 +72,7 @@ export class OcrService {
 
   /** 缓存键：scope + 文件内容哈希 + 影响产出的请求参数（dpi 由服务端统一掌控，不入键） */
   private cacheKey(
-    scope: 'pdf' | 'img',
+    scope: 'pdf' | 'img' | 'probe' | 'pdfbatch',
     buffer: Buffer,
     maxPages: number = 0,
     pageRange: string | null = null,
@@ -91,6 +91,33 @@ export class OcrService {
       this.logger.warn(`OCR cache get failed (${key.slice(0, 60)}…): ${e}`);
       return null;
     }
+  }
+
+  /** 同键并发合并 + 结果缓存（2026-11-06 知识库实录：代理重放致 5 份同文件并发 OCR） */
+  private readonly inflight = new Map<string, Promise<OcrResult>>();
+
+  private async ocrOnce(
+    key: string,
+    label: string,
+    compute: () => Promise<OcrResult>,
+  ): Promise<OcrResult> {
+    const cached = await this.cacheGet(key);
+    if (cached) {
+      this.logger.log(`OCR cache hit (${label})`);
+      return cached;
+    }
+    const existing = this.inflight.get(key);
+    if (existing) {
+      this.logger.log(`OCR in-flight merge (${label})`);
+      return existing;
+    }
+    const p = (async () => {
+      const result = await compute();
+      await this.cacheSet(key, result);
+      return result;
+    })().finally(() => this.inflight.delete(key));
+    this.inflight.set(key, p);
+    return p;
   }
 
   private async cacheSet(key: string, result: OcrResult): Promise<void> {
@@ -167,34 +194,32 @@ export class OcrService {
   async ocrPdf(
     buffer: Buffer,
     maxPages = OCR_UNLIMITED_PAGES,
+    onProgress?: (processed: number, total: number) => void,
   ): Promise<OcrResult> {
     const key = this.cacheKey('pdf', buffer, maxPages, null);
-    const cached = await this.cacheGet(key);
-    if (cached) {
-      this.logger.log('OCR cache hit (pdf)');
-      return cached;
-    }
-
-    const result = await this.ocrPdfUncached(buffer, maxPages);
-    await this.cacheSet(key, result);
-    return result;
+    return this.ocrOnce(key, 'pdf', () =>
+      this.ocrPdfUncached(buffer, maxPages, onProgress),
+    );
   }
 
   private async ocrPdfUncached(
     buffer: Buffer,
     maxPages: number,
+    onProgress?: (processed: number, total: number) => void,
   ): Promise<OcrResult> {
     const fileSizeMB = buffer.length / (1024 * 1024);
 
     if (fileSizeMB <= this.LARGE_FILE_THRESHOLD_MB) {
-      return this.ocrPdfSingle(buffer, maxPages, null);
+      const result = await this.ocrPdfSingle(buffer, maxPages, null);
+      onProgress?.(result.processedPages, result.pageCount);
+      return result;
     }
 
     // 大文件分批处理 - 使用 page_range 参数
     this.logger.log(
       `Large PDF (${fileSizeMB.toFixed(1)} MB), using batch processing with page_range`,
     );
-    return this.ocrPdfBatched(buffer, maxPages);
+    return this.ocrPdfBatched(buffer, maxPages, onProgress);
   }
 
   /**
@@ -252,12 +277,16 @@ export class OcrService {
   private async ocrPdfBatched(
     buffer: Buffer,
     maxPages: number,
+    onProgress?: (processed: number, total: number) => void,
   ): Promise<OcrResult> {
     const totalPages = await this.getPdfPageCount(buffer);
     const effectivePages =
       maxPages > 0 ? Math.min(totalPages, maxPages) : totalPages;
     const batches = Math.ceil(effectivePages / this.BATCH_PAGES);
     const allPages: Array<{ page: number; text: string }> = [];
+
+    // 页数探测完成即报总数（消费端可先渲染「x/y 页」分母）
+    onProgress?.(0, effectivePages);
 
     this.logger.log(
       `Batch OCR: PDF has ${totalPages} pages, will process ${effectivePages} pages in ${batches} batches`,
@@ -272,15 +301,21 @@ export class OcrService {
         `Batch ${batch + 1}/${batches}: extracting pages ${pageRange}`,
       );
 
-      const result = await this.ocrPdfBatchWithRetry(
-        buffer,
-        endPage - startPage + 1,
-        pageRange,
-        batch + 1,
+      const result = await this.ocrOnce(
+        this.cacheKey('pdfbatch', buffer, endPage - startPage + 1, pageRange),
+        `batch ${pageRange}`,
+        () =>
+          this.ocrPdfBatchWithRetry(
+            buffer,
+            endPage - startPage + 1,
+            pageRange,
+            batch + 1,
+          ),
       );
 
       const pages = this.normalizeBatchPages(result, startPage);
       allPages.push(...pages);
+      onProgress?.(allPages.length, effectivePages);
 
       this.logger.log(
         `Batch ${batch + 1} complete: ${result.processedPages} pages, total accumulated: ${allPages.length}`,
@@ -310,17 +345,26 @@ export class OcrService {
 
   private async getPdfPageCount(buffer: Buffer): Promise<number> {
     // max_pages=0 且无 page_range：服务端零 OCR 早返回页数（原实现 OCR 第 1 页纯浪费）。
-    // 与批处理同权重的重试（探测也吃 BATCH_RETRIES/RETRY_DELAY_MS）。
+    // ocrOnce 并发合并：重复上传不重复探测。
+    const probe = await this.ocrOnce(
+      this.cacheKey('probe', buffer),
+      'probe',
+      () => this.probeWithRetry(buffer),
+    );
+    if (!probe.pageCount || probe.pageCount < 1) {
+      throw new ServiceUnavailableException(
+        'OCR service did not return a valid PDF page count',
+      );
+    }
+    return probe.pageCount;
+  }
+
+  /** 页数探测带重试（与批处理同权重：BATCH_RETRIES/RETRY_DELAY_MS） */
+  private async probeWithRetry(buffer: Buffer): Promise<OcrResult> {
     let lastError: unknown;
     for (let attempt = 1; attempt <= this.BATCH_RETRIES; attempt++) {
       try {
-        const result = await this.ocrPdfSingle(buffer, 0, null);
-        if (!result.pageCount || result.pageCount < 1) {
-          throw new ServiceUnavailableException(
-            'OCR service did not return a valid PDF page count',
-          );
-        }
-        return result.pageCount;
+        return await this.ocrPdfSingle(buffer, 0, null);
       } catch (error) {
         lastError = error;
         this.logger.warn(

@@ -1,0 +1,17 @@
+# 构建上下文瘦身（Dockerfile 只 COPY main.py/ocr_engine.py/config_gpu.yaml/requirements-prod.txt，
+# 但上下文本身也会全量发给 daemon——不排除大件则每次 build 白传 12G）
+.venv/
+.env
+__pycache__/
+*.pyc
+# 以下不进镜像也不需进上下文
+patches/
+test_*.py
+ecosystem.config.js
+start.sh
+ARCHITECTURE.md
+requirements.txt
+.gitignore
+.dockerignore
+Dockerfile
+docker-compose*.yml

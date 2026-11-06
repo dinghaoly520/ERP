@@ -2,9 +2,10 @@
 
 /** 水叮当知识库管理面板（2026-11-03 设计 §5.2）：我的知识库（可维护）与共享知识库
  *  （只读检索）两组；建库（名称+可见性 仅自己/所有人）；上传 pdf/doc/docx/txt/md
- *  ≤50MB；上传返回 indexed:false 时提示嵌入服务未运行、可「重建索引」。 */
+ *  ≤50MB。2026-11-06 解析异步化：上传收件即回（202），行上展示解析状态徽章
+ *  （解析中页进度/失败可重试/未索引=嵌入降级待重建），面板开着且有解析中文件时 5s 轮询。 */
 import { useEffect, useRef, useState } from 'react';
-import { BookOpen, FileUp, Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { BookOpen, FileUp, Loader2, Plus, RefreshCw, RotateCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Modal } from '@/components/workbench';
 import {
@@ -13,12 +14,51 @@ import {
   deleteKnowledgeFile,
   fetchAssistantKnowledge,
   reindexKnowledgeBase,
+  retryKnowledgeFile,
   uploadKnowledgeFileWithStatus,
   type KbCard,
+  type KbFile,
 } from '@/lib/api/knowledge';
 
 const MAX_SIZE = 50 * 1024 * 1024;
 const ACCEPT = '.pdf,.doc,.docx,.txt,.md';
+
+/** 解析状态徽章（2026-11-06 异步化）：PARSING=页进度、FAILED=可重试、READY+未索引=待重建 */
+function FileStatusChip({ f }: { f: KbFile }) {
+  if (f.status === 'PARSING') {
+    return (
+      <span
+        className="shrink-0 rounded-[6px] px-1.5 py-0.5 text-[10px] tabular-nums"
+        style={{ background: 'color-mix(in oklch, var(--accent) 14%, transparent)', color: 'var(--accent)' }}
+      >
+        {f.totalPages ? `解析中 ${f.processedPages ?? 0}/${f.totalPages} 页` : '解析中…'}
+      </span>
+    );
+  }
+  if (f.status === 'FAILED') {
+    return (
+      <span
+        className="shrink-0 rounded-[6px] px-1.5 py-0.5 text-[10px]"
+        style={{ background: 'color-mix(in oklch, var(--danger) 12%, transparent)', color: 'var(--danger)' }}
+        title={f.error ?? undefined}
+      >
+        解析失败
+      </span>
+    );
+  }
+  if (f.status === 'READY' && f.indexed === false) {
+    return (
+      <span
+        className="shrink-0 rounded-[6px] px-1.5 py-0.5 text-[10px]"
+        style={{ background: 'color-mix(in oklch, var(--warning) 12%, transparent)', color: 'var(--warning)' }}
+        title="嵌入服务未运行，文件已入库；恢复后请点「重建索引」"
+      >
+        未索引
+      </span>
+    );
+  }
+  return null;
+}
 
 export function KnowledgePanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [loading, setLoading] = useState(false);
@@ -32,20 +72,30 @@ export function KnowledgePanel({ open, onClose }: { open: boolean; onClose: () =
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const uploadKbRef = useRef<string | null>(null);
 
-  const load = async () => {
-    setLoading(true);
+  // silent=true 供 5s 轮询静默刷新（不动 loading 态防面板闪烁，2026-11-06 同 tender-review 实录）
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const r = await fetchAssistantKnowledge();
       setMine(r.mine);
       setShared(r.shared);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '知识库加载失败');
+      if (!silent) toast.error(e instanceof Error ? e.message : '知识库加载失败');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => { if (open) void load(); }, [open]);
+
+  // 解析异步化（2026-11-06）：面板开着且存在解析中文件 → 5s 轮询刷新；无则停
+  const hasParsing = [...mine, ...shared].some(kb => kb.files.some(f => f.status === 'PARSING'));
+  useEffect(() => {
+    if (!open || !hasParsing) return;
+    const timer = setInterval(() => { void load(true); }, 5000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, hasParsing]);
 
   const handleCreate = async () => {
     if (!newName.trim()) { toast.error('请填写知识库名称'); return; }
@@ -71,14 +121,27 @@ export function KnowledgePanel({ open, onClose }: { open: boolean; onClose: () =
       const r = await uploadKnowledgeFileWithStatus(kbId, file, {
         onProgress: (l, t) => setUploadPct(t > 0 ? Math.round((l / t) * 100) : 0),
       });
-      if (r.indexed === false) {
-        toast.warning(`《${file.name}》已保存；嵌入服务未运行，恢复后请点「重建索引」`);
+      if (r.deduplicated) {
+        toast.info(`《${file.name}》已在库中（${r.status === 'PARSING' ? '解析中' : '已入库'}），未重复上传`);
       } else {
-        toast.success(`《${file.name}》已上传并完成索引`);
+        toast.success(`《${file.name}》已上传，后台解析中`);
       }
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '上传失败');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleRetry = async (kbId: string, f: KbFile) => {
+    setBusyId(kbId);
+    try {
+      await retryKnowledgeFile(kbId, f.id);
+      toast.success('已重新入队解析');
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '重试失败');
     } finally {
       setBusyId(null);
     }
@@ -143,7 +206,18 @@ export function KnowledgePanel({ open, onClose }: { open: boolean; onClose: () =
               style={{ background: 'color-mix(in oklch, var(--surface) 65%, transparent)' }}
             >
               <span className="min-w-0 flex-1 truncate font-medium text-[color:var(--foreground)]">{f.fileName}</span>
+              <FileStatusChip f={f} />
               <span className="tabular-nums text-[var(--muted-foreground)]">{(f.fileSize / 1024).toFixed(0)}KB · {f.chunkCount} 块</span>
+              {editable && f.status === 'FAILED' && (
+                <button
+                  type="button"
+                  className="neu-btn-xs"
+                  title={f.error ? `失败原因：${f.error}（点击重试）` : '重新解析'}
+                  onClick={() => void handleRetry(kb.id, f)}
+                >
+                  <RotateCw size={12} />重试
+                </button>
+              )}
               {editable && (
                 <button
                   type="button"

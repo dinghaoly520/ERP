@@ -10,6 +10,8 @@ import {
   UploadedFile,
   BadRequestException,
   ForbiddenException,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -84,8 +86,9 @@ export class KnowledgeController {
   }
 
   @Post(':id/files')
+  @HttpCode(HttpStatus.ACCEPTED)
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Upload file to knowledge base (创建者/admin)' })
+  @ApiOperation({ summary: 'Upload file to knowledge base (创建者/admin；202 收件即回，解析异步)' })
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
@@ -109,6 +112,17 @@ export class KnowledgeController {
       );
     }
     return this.knowledge.uploadFile(id, file, user);
+  }
+
+  @Post(':id/files/:fileId/retry')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({ summary: 'Retry failed parse (创建者/admin；FAILED→PARSING 重入队)' })
+  retryFile(
+    @Param('id') id: string,
+    @Param('fileId') fileId: string,
+    @CurrentUser() user: AuthenticatedUser | undefined,
+  ) {
+    return this.knowledge.retryFile(id, fileId, user);
   }
 
   @Delete(':id/files/:fileId')

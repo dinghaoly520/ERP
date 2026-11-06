@@ -118,7 +118,9 @@ services:
     <<: *infra-common
     build:
       # v2：直接用仓库根做构建上下文（不再快照）。REPO_DIR 可用环境变量覆盖。
-      context: ${REPO_DIR:-/home/asus/桌面/water-erp}
+      # 2026-11-04 修正：默认值曾指向旧快照 /home/asus/桌面/water-erp（非 git、停在 10-27 前），
+      # 导致两次打包都把旧代码打进镜像（rongyida 缺失、API 启动崩）。默认指回本仓库根。
+      context: ${REPO_DIR:-/home/asus/桌面/ERP/water-erp}
       dockerfile: backend/Dockerfile.api
       # 构建容器内 DNS 解析失败（EAI_AGAIN），用宿主机网络栈构建（与前端同因同修）。
       network: host

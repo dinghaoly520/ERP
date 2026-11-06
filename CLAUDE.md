@@ -321,7 +321,7 @@ The NestJS API (`apps/api`, :4001):
 | `Procurement` | Legacy procurement module (no Prisma; prefer `Procurements` for new work) |
 | `ProjectManagement` | Project management endpoints |
 | `TenderWrite` / `TenderReview` / `TenderSample` / `TenderHistory` | Tender-document authoring, AI review, sample library, historical-tender search. **`TenderReview` 硬依赖基础设施**（移植自 procurement，缺一即"无法使用"）：postgres 须为 `pgvector/pgvector:pg16` + `PGVECTOR_ENABLED=true`（语义/通用审查走 pgvector RAG）；`EMBEDDING_BASE_URL` 须指本机在跑的 vLLM bge-m3 `http://localhost:8003/v1` 且 `EMBEDDING_MODEL=/home/asus/models/bge-m3`（全路径，无 `--served-model-name`）；规则提取/CRUD 走 `@Roles('leader','admin','staff')`（与 upload/execute 对齐；原 `AdminGuard` 仅 admin 在 :3005 不可用——admin 登录后被 `portalURL` 弹去 :3007，故已放宽）。详见 memory `tender-review-infra-gotchas` |
-| `Knowledge` | Knowledge base / RAG corpus backing AI features |
+| `Knowledge` | Knowledge base / RAG corpus backing AI features. **文件上传解析异步化（2026-11-06）**：`POST /knowledge/:id/files` 收件即落 MinIO+建 `KnowledgeFile(status=PARSING)` 返 202，解析/分块/嵌入在 BullMQ `knowledge-parse` 队列（由 ai-bid worker 进程消费）；`status` PARSING/READY/FAILED+页进度（`processedPages/totalPages`，OCR 批次粒度）、`indexed=false`=嵌入降级、`sha256` 同库去重（PARSING/READY 复用返回、FAILED 重置重入队）；FAILED 可 `POST :id/files/:fileId/retry`；检索/规则提取仅 READY |
 | `Audit` | Operation audit logs (`AuditLog` model) |
 | `Assistant` | AI chatbot conversations & messages (DeepSeek LLM); action logs |
 | `Scheduler` | Cron-only scheduled tasks |
@@ -343,7 +343,7 @@ The NestJS API (`apps/api`, :4001):
 
 ### AI Bid Analysis Worker (separate process)
 
-`AiBidAnalysis` jobs (BullMQ, backed by Redis `:6380`) are **not** processed by the main API. They run in a standalone Nest process bootstrapped from `apps/api/src/ai-bid-analysis-worker.module.ts` (`AiBidAnalysisWorkerModule`), which registers `TenderProcessor` + `BidderProcessor`. It is deliberately **not** imported by `AppModule`.
+`AiBidAnalysis` jobs (BullMQ, backed by Redis `:6380`) are **not** processed by the main API. They run in a standalone Nest process bootstrapped from `apps/api/src/ai-bid-analysis-worker.module.ts` (`AiBidAnalysisWorkerModule`), which registers `TenderProcessor` + `BidderProcessor` + `KnowledgeParseProcessor`（2026-11-06 起：知识库 `knowledge-parse` 队列并入本进程消费——改 knowledge/ocr 解析源码须杀 worker 重启（`pkill -f ai-bid-analysis-worker` 后重跑 dev:worker:ai-bid-analysis），会连带中断进行中的 AI 分析任务，已知代价）. It is deliberately **not** imported by `AppModule`.
 
 ```bash
 pnpm --filter api dev:worker:ai-bid-analysis   # build + run the worker

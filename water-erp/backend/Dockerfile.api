@@ -10,12 +10,17 @@
 #   3. pnpm-workspace.yaml 的 onlyBuilt/ignoredBuilt 两段与 pnpm11 互斥 → sed 删副本
 #   4. 锁文件缺 ukey devDeps → --no-frozen-lockfile
 #   5. npmmirror 偶发超时 → fetch-timeout/重试/降并发 + store 缓存挂载
+#   6. registry 接线补全（2026-11-06）：原仅设 COREPACK_NPM_REGISTRY（corepack 专用），
+#      删垫片后 npm -g 与 pnpm install 裸连 registry.npmjs.org，该路由国内间歇
+#      ETIMEDOUT → 对齐前端 Dockerfile：ENV npm_config_registry + /root/.npmrc 双保险
 # =============================================================================
 FROM node:24.16.0-bookworm-slim
 
 # ---- 依赖源（构建机需能访问该 registry；纯内网改成 http://<内网registry>）----
 ARG NPM_REGISTRY=https://registry.npmmirror.com
-ENV COREPACK_NPM_REGISTRY=${NPM_REGISTRY}
+# 对齐前端 Dockerfile:23-24/37：npm -g 认 npm_config_registry；pnpm 11 只认 /root/.npmrc
+ENV COREPACK_NPM_REGISTRY=${NPM_REGISTRY} \
+    npm_config_registry=${NPM_REGISTRY}
 # 版本对齐构建机：node 24.16.0 / npm 11.13.0 / pnpm 11.6.0（仓库 package.json 声明 10.33.0，
 # 由 corepack 垫片删除 + npm -g 显式覆盖；pnpm11 与仓库配置的兼容处理见下方 RUN）
 ARG PNPM_VERSION=11.6.0
@@ -44,6 +49,7 @@ COPY packages/ukey/package.json        packages/ukey/
 # pnpm store 用 BuildKit 缓存挂载：重跑构建命中缓存，npmmirror 偶发超时不再致命
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     sed -i '/^onlyBuiltDependencies:/,$d' pnpm-workspace.yaml \
+ && printf 'registry=%s\n' "$NPM_REGISTRY" > /root/.npmrc \
  && rm -f /usr/local/bin/pnpm /usr/local/bin/pnpx /usr/local/bin/yarn /usr/local/bin/yarnpkg \
  && npm install -g npm@${NPM_VERSION} pnpm@${PNPM_VERSION} \
  && pnpm -v \

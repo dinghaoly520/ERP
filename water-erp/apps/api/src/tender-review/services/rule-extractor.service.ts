@@ -66,7 +66,9 @@ export class RuleExtractorService {
     skipFiles: string[] = [],
   ): Promise<number> {
     const files = await this.prisma.knowledgeFile.findMany({
-      where: { knowledgeBaseId, isActive: true },
+      // status READY 闸（2026-11-06 解析异步化）：PARSING/FAILED 不参与规则提取；
+      // 下方 !file.content 双保险保留（READY 行恒有 content）
+      where: { knowledgeBaseId, isActive: true, status: 'READY' },
     });
 
     // Load existing rules for deduplication

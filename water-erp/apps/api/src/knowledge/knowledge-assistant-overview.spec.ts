@@ -23,9 +23,18 @@ describe('KnowledgeService.assistantOverview（水叮当知识库面板取数）
       knowledgeBase: { findMany },
       user: { findMany: jest.fn().mockResolvedValue([{ id: 'u-2', displayName: '同事', username: 'tongshi' }]) },
     };
-    const svc: any = new KnowledgeService(prisma, {} as any, {} as any, {} as any, {} as any, {} as any);
+    const svc: any = new KnowledgeService(prisma, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
     return { svc, findMany };
   };
+
+  it('文件 select 含解析状态字段（2026-11-06 异步化：前端徽章/轮询消费）', async () => {
+    const { svc, findMany } = mk();
+    await svc.assistantOverview({ sub: 'u-1', role: 'leader' });
+    const sel = findMany.mock.calls[0][0].select.files.select;
+    expect(sel).toEqual(expect.objectContaining({
+      status: true, processedPages: true, totalPages: true, error: true, indexed: true,
+    }));
+  });
 
   it('where 恒为 assistant 域 + isActive +（自己的 ∪ 共享）——他人私有库、停用库、审查域库均不入（2026-11-03 域隔离）', async () => {
     const { svc, findMany } = mk();
@@ -48,7 +57,7 @@ describe('KnowledgeService.assistantOverview（水叮当知识库面板取数）
     const svc: any = new KnowledgeService(
       { knowledgeBase: { findMany: jest.fn().mockResolvedValue(withFile) },
         user: { findMany: jest.fn().mockResolvedValue([]) } } as any,
-      {} as any, {} as any, {} as any, {} as any, {} as any);
+      {} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
     const r = await svc.assistantOverview({ sub: 'u-1', role: 'leader' });
     expect(r.mine[0].files[0]).toMatchObject({ fileName: '制度.pdf', chunkCount: 3 });
     expect(r.mine[0].ownerName).toBe('我');

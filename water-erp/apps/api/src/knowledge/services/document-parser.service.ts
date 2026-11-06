@@ -5,13 +5,16 @@ import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { OcrService } from '../../local-ai/ocr.service';
+import { OcrService, OCR_UNLIMITED_PAGES } from '../../local-ai/ocr.service';
 
- 
+
 const pdfParse = require('pdf-parse');
 const execFileAsync = promisify(execFile);
 
 const MIN_CHARS_PER_PAGE = 50;
+
+/** 解析进度回调：processed/total 为页数（OCR 批次粒度）；total 在页数探测后即首次上报 */
+export type ParseProgressFn = (processed: number, total: number) => void;
 
 @Injectable()
 export class DocumentParserService {
@@ -23,6 +26,7 @@ export class DocumentParserService {
     buffer: Buffer,
     mimeType: string,
     fileName?: string,
+    onProgress?: ParseProgressFn,
   ): Promise<string> {
     const isDocx =
       mimeType ===
@@ -41,7 +45,7 @@ export class DocumentParserService {
 
     if (isDocx) return this.parseDocx(buffer);
     if (isDoc) return this.parseDoc(buffer);
-    if (isPdf) return this.parsePdf(buffer);
+    if (isPdf) return this.parsePdf(buffer, onProgress);
     if (isImage) return this.parseImage(buffer, mimeType, fileName || 'image');
     if (isText) return this.parseText(buffer);
     throw new Error(`不支持的文件类型：${fileName ?? ''}（${mimeType}）`);
@@ -51,17 +55,22 @@ export class DocumentParserService {
    * Parse PDF with OCR (for file analysis feature)
    * Always uses OCR for better content understanding
    */
-  async parseWithOcr(buffer: Buffer, mimeType: string, fileName?: string): Promise<string> {
+  async parseWithOcr(
+    buffer: Buffer,
+    mimeType: string,
+    fileName?: string,
+    onProgress?: ParseProgressFn,
+  ): Promise<string> {
     const isPdf = mimeType === 'application/pdf' || fileName?.endsWith('.pdf');
     const isImage =
       mimeType.startsWith('image/') ||
       /\.(jpe?g|png|tiff?)$/i.test(fileName || '');
 
-    if (isPdf) return this.parsePdfWithOcr(buffer);
+    if (isPdf) return this.parsePdfWithOcr(buffer, onProgress);
     if (isImage) return this.parseImage(buffer, mimeType, fileName || 'image');
 
     // For other types, use regular parse
-    return this.parse(buffer, mimeType, fileName);
+    return this.parse(buffer, mimeType, fileName, onProgress);
   }
 
   private async parseDocx(buffer: Buffer): Promise<string> {
@@ -73,7 +82,7 @@ export class DocumentParserService {
    * Parse PDF for field extraction (new project creation)
    * Uses pdf-parse first, only falls back to OCR if text is too sparse (scanned document)
    */
-  private async parsePdf(buffer: Buffer): Promise<string> {
+  private async parsePdf(buffer: Buffer, onProgress?: ParseProgressFn): Promise<string> {
     // First try pdf-parse for native PDF text
     const data = await pdfParse(new Uint8Array(buffer));
     const text = data.text.trim();
@@ -95,7 +104,11 @@ export class DocumentParserService {
         );
         if (await this.ocrService.isAvailable()) {
           try {
-            const ocrResult = await this.ocrService.ocrPdf(buffer);
+            const ocrResult = await this.ocrService.ocrPdf(
+              buffer,
+              OCR_UNLIMITED_PAGES,
+              onProgress,
+            );
             if (ocrResult.text.trim() && !this.hasGarbledText(ocrResult.text)) {
               this.logger.log(
                 `OCR recovered ${ocrResult.text.length} chars, replacing garbled pdf-parse output`,
@@ -116,7 +129,11 @@ export class DocumentParserService {
     const ocrAvailable = await this.ocrService.isAvailable();
     if (ocrAvailable) {
       try {
-        const ocrResult = await this.ocrService.ocrPdf(buffer);
+        const ocrResult = await this.ocrService.ocrPdf(
+          buffer,
+          OCR_UNLIMITED_PAGES,
+          onProgress,
+        );
         if (ocrResult.text.trim().length > 0) {
           this.logger.log(
             `OCR extracted ${ocrResult.text.length} chars from ${ocrResult.processedPages} pages`,
@@ -136,12 +153,16 @@ export class DocumentParserService {
    * Parse PDF with OCR (for file analysis feature)
    * Always uses OCR for better content understanding
    */
-  private async parsePdfWithOcr(buffer: Buffer): Promise<string> {
+  private async parsePdfWithOcr(buffer: Buffer, onProgress?: ParseProgressFn): Promise<string> {
     const ocrAvailable = await this.ocrService.isAvailable();
     if (ocrAvailable) {
       try {
         this.logger.log('Using OCR for PDF analysis...');
-        const ocrResult = await this.ocrService.ocrPdf(buffer);
+        const ocrResult = await this.ocrService.ocrPdf(
+          buffer,
+          OCR_UNLIMITED_PAGES,
+          onProgress,
+        );
         if (ocrResult.text.trim().length > 0) {
           this.logger.log(
             `OCR extracted ${ocrResult.text.length} chars from ${ocrResult.processedPages} pages`,

@@ -1,11 +1,15 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { DocumentParserService } from './services/document-parser.service';
-import { TextSplitterService, type TextChunk } from './services/text-splitter.service';
+import { TextSplitterService } from './services/text-splitter.service';
 import { EmbeddingService } from '../local-ai/embedding.service';
 import { VectorSearchService } from './services/vector-search.service';
 import { CreateKnowledgeBaseDto, UpdateKnowledgeBaseDto } from './dto/knowledge.dto';
+import { KNOWLEDGE_PARSE_QUEUE, parseJobOptions } from './queues/knowledge-queue.module';
 import type { AuthenticatedUser } from '../auth/auth.types';
 
 type User = AuthenticatedUser | undefined;
@@ -19,6 +23,7 @@ export class KnowledgeService {
     private splitter: TextSplitterService,
     private embedding: EmbeddingService,
     private vectorSearch: VectorSearchService,
+    @InjectQueue(KNOWLEDGE_PARSE_QUEUE) private parseQueue: Queue,
   ) {}
 
   // ── 权限：可见 = 创建者 或 共享 或 admin；可维护 = 创建者 或 admin ──
@@ -98,8 +103,20 @@ export class KnowledgeService {
     return this.prisma.knowledgeBase.delete({ where: { id } });
   }
 
+  /** 上传收件即返回（2026-11-06 异步化）：MinIO 落盘 + 建 PARSING 行 + 入队——
+   *  响应时间与文件大小/页数/OCR 时长完全解耦（118MB 扫描件 <5s 返回 202）。
+   *  同库 sha256 去重：PARSING/READY → 直接返回既有行（deduplicated:true）；
+   *  FAILED → 复用该行重置重入队。跨库重复靠 OCR 内容哈希缓存兜底（第二库秒级）。
+   *  解析/分块/嵌入/向量入库全部在 KnowledgeParseProcessor（ai-bid worker 进程）。 */
   async uploadFile(kbId: string, file: Express.Multer.File, user: User) {
     await this.assertEditable(kbId, user);
+
+    const sha256 = createHash('sha256').update(file.buffer).digest('hex');
+    // 去重第一步：活动行（PARSING/READY）直接复用（M-4 拆分查询——原「三态并查」等价全集、语义噪音）
+    const active = await this.prisma.knowledgeFile.findFirst({
+      where: { knowledgeBaseId: kbId, sha256, status: { in: ['PARSING', 'READY'] } },
+    });
+    if (active) return { ...active, deduplicated: true };
 
     const objectKey = `knowledge/${kbId}/${Date.now()}_${file.originalname}`;
     try {
@@ -109,80 +126,71 @@ export class KnowledgeService {
       throw new Error('文件存储失败');
     }
 
-    let content: string;
-    try {
-      content = await this.parser.parse(
-        file.buffer,
-        file.mimetype,
-        file.originalname,
-      );
-    } catch (err) {
-      console.error('Document parse error:', err);
-      throw new Error('文档解析失败');
-    }
-
-    let textChunks: TextChunk[];
-    try {
-      textChunks = this.splitter.split(content);
-    } catch (err) {
-      console.error('Text split error:', err);
-      throw new Error('文本分割失败');
-    }
-
-    let embeddings: number[][] = [];
-    let indexed = true;
-    if (textChunks.length > 0) {
-      try {
-        embeddings = await this.embedding.embed(
-          textChunks.map((c) => c.content),
-        );
-      } catch (err) {
-        // 2026-11-03 水叮当知识库设计 §4.2：嵌入服务不可用不再整体失败——
-        // 文件与分块照存（embedding 列空），响应 indexed:false，恢复后走 reindex
-        console.error('Embedding error (degraded):', err);
-        embeddings = [];
-        indexed = false;
-      }
-    }
-
+    // 去重第二步：FAILED 同 sha 行复用（重置字段+换新对象），否则新建
+    const failed = await this.prisma.knowledgeFile.findFirst({
+      where: { knowledgeBaseId: kbId, sha256, status: 'FAILED' },
+    });
+    const data = {
+      fileName: file.originalname,
+      objectKey,
+      mimeType: file.mimetype,
+      fileSize: file.size,
+      sha256,
+      status: 'PARSING',
+      error: null,
+      processedPages: 0,
+      totalPages: null,
+      chunkCount: 0,
+      indexed: true,
+    };
     let kbFile;
     try {
-      kbFile = await this.prisma.knowledgeFile.create({
-        data: {
-          knowledgeBaseId: kbId,
-          fileName: file.originalname,
-          objectKey,
-          mimeType: file.mimetype,
-          fileSize: file.size,
-          content,
-          chunkCount: textChunks.length,
-        },
-      });
+      kbFile = failed
+        ? await this.prisma.knowledgeFile.update({ where: { id: failed.id }, data })
+        : await this.prisma.knowledgeFile.create({ data: { knowledgeBaseId: kbId, ...data } });
     } catch (err) {
-      console.error('KnowledgeFile create error:', err);
-      throw new Error('文件记录保存失败');
-    }
-
-    if (textChunks.length > 0) {
-      try {
-        const chunks = textChunks.map((chunk, i) => ({
-          collectionName: kbId,
-          fileId: kbFile.id,
-          content: chunk.content,
-          embedding: embeddings[i],
-          metadata: {
-            fileName: file.originalname,
-            startOffset: chunk.startOffset,
-          },
-        }));
-        await this.vectorSearch.insertChunks(chunks);
-      } catch (err) {
-        console.error('Vector insert error:', err);
-        // Continue even if vector insert fails - file is already saved
+      // 并发竞争输家（评审 I-1）：partial unique index (kbId,sha256 WHERE PARSING/READY) 撞唯一——
+      // 重查赢家行返回 deduplicated，清自己刚传的孤儿对象（输家行未建成，无 job）
+      if ((err as { code?: string })?.code === 'P2002') {
+        const winner = await this.prisma.knowledgeFile.findFirst({
+          where: { knowledgeBaseId: kbId, sha256, status: { in: ['PARSING', 'READY'] } },
+        });
+        if (winner) {
+          void this.storage.delete(objectKey).catch(() => undefined);
+          return { ...winner, deduplicated: true };
+        }
       }
+      // M-5：建行失败（非并发竞争）不留孤儿对象——best-effort 清刚传的 MinIO 件后原样抛出
+      void this.storage.delete(objectKey).catch(() => undefined);
+      throw err;
+    }
+    if (failed) {
+      void this.storage.delete(failed.objectKey).catch(() => undefined); // best-effort 清旧对象
     }
 
-    return { ...kbFile, indexed };
+    // jobId=fileId：并发重复上传的 BullMQ 层双保险（同 id 在队/运行中 add 被忽略）
+    await this.parseQueue.add('parse', { fileId: kbFile.id }, parseJobOptions(kbFile.id));
+    return kbFile;
+  }
+
+  /** FAILED 行重试（前端一键）：重置状态重新入队——OCR 批次缓存命中时秒级完成。
+   *  PARSING 幂等返回当前行（M-3：retry 双击不 400、不重复入队——job 已在跑；
+   *  死态 PARSING 由 worker 启动清扫器自愈）。READY 不受理。 */
+  async retryFile(kbId: string, fileId: string, user: User) {
+    await this.assertEditable(kbId, user);
+    const file = await this.prisma.knowledgeFile.findFirst({
+      where: { id: fileId, knowledgeBaseId: kbId },
+    });
+    if (!file) throw new NotFoundException(`File ${fileId} not found`);
+    if (file.status === 'PARSING') return file;
+    if (file.status !== 'FAILED') throw new BadRequestException('仅解析失败的文件可重试');
+
+    const row = await this.prisma.knowledgeFile.update({
+      where: { id: fileId },
+      data: { status: 'PARSING', error: null, processedPages: 0, totalPages: null },
+    });
+    await this.parseQueue.add('parse', { fileId }, parseJobOptions(fileId));
+    return row;
   }
 
   async deleteFile(kbId: string, fileId: string, user: User) {
@@ -211,6 +219,9 @@ export class KnowledgeService {
     return { deleted: true };
   }
 
+  /** 重建索引：indexed=false 徽章（嵌入降级）指引的补救动作——成功后复位 indexed:true
+   *  （评审 I-3）；嵌入/向量失败按文件降级（indexed:false 继续），不得中途 500
+   *  （旧行为：全库向量已清而循环中断，徽章与实际脱节）。 */
   async reindex(kbId: string, user: User) {
     await this.assertEditable(kbId, user);
     const kb = await this.prisma.knowledgeBase.findUnique({
@@ -221,38 +232,51 @@ export class KnowledgeService {
 
     await this.vectorSearch.deleteByCollection(kbId);
 
+    let degradedCount = 0;
     for (const file of kb.files) {
       if (!file.content) continue;
 
       const textChunks = this.splitter.split(file.content);
       let embeddings: number[][] = [];
+      let indexed = true;
       if (textChunks.length > 0) {
-        embeddings = await this.embedding.embed(
-          textChunks.map((c) => c.content),
-        );
+        try {
+          embeddings = await this.embedding.embed(textChunks.map((c) => c.content));
+        } catch (err) {
+          console.error(`Embedding error (degraded) for ${file.fileName}:`, err);
+          embeddings = [];
+          indexed = false;
+        }
       }
 
-      if (textChunks.length > 0) {
-        const chunks = textChunks.map((chunk, i) => ({
-          collectionName: kbId,
-          fileId: file.id,
-          content: chunk.content,
-          embedding: embeddings[i],
-          metadata: {
-            fileName: file.fileName,
-            startOffset: chunk.startOffset,
-          },
-        }));
-        await this.vectorSearch.insertChunks(chunks);
+      if (textChunks.length > 0 && embeddings.length === textChunks.length) {
+        try {
+          await this.vectorSearch.insertChunks(
+            textChunks.map((chunk, i) => ({
+              collectionName: kbId,
+              fileId: file.id,
+              content: chunk.content,
+              embedding: embeddings[i],
+              metadata: { fileName: file.fileName, startOffset: chunk.startOffset },
+            })),
+          );
+        } catch (err) {
+          // 向量写入失败 = 无向量可检索 → 与嵌入降级同语义（indexed:false）
+          console.error(`Vector insert error for ${file.fileName}:`, err);
+          indexed = false;
+        }
+      } else if (textChunks.length > 0) {
+        indexed = false;
       }
+      if (!indexed) degradedCount++;
 
       await this.prisma.knowledgeFile.update({
         where: { id: file.id },
-        data: { chunkCount: textChunks.length },
+        data: { chunkCount: textChunks.length, indexed },
       });
     }
 
-    return { reindexed: true, fileCount: kb.files.length };
+    return { reindexed: true, fileCount: kb.files.length, degradedCount };
   }
 
   /** 水叮当知识库面板取数（2026-11-03 设计 §4.3）：mine=本人库，shared=他人共享库
@@ -267,7 +291,9 @@ export class KnowledgeService {
         id: true, name: true, isShared: true, ownerId: true,
         files: {
           orderBy: { createdAt: 'desc' },
-          select: { id: true, fileName: true, fileSize: true, chunkCount: true, createdAt: true },
+          // 解析状态字段随行透出（2026-11-06 异步化）：前端徽章「解析中(x/y页)/失败可重试/已入库」轮询消费
+          select: { id: true, fileName: true, fileSize: true, chunkCount: true, createdAt: true,
+            status: true, processedPages: true, totalPages: true, error: true, indexed: true },
         },
       },
       orderBy: { createdAt: 'desc' },

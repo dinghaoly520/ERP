@@ -83,9 +83,13 @@ export async function deleteKnowledgeFile(
   }
 }
 
-/* ── 水叮当知识库面板（2026-11-03）：取数聚合 / 重建索引 / indexed 标志 ── */
+/* ── 水叮当知识库面板（2026-11-03）：取数聚合 / 重建索引 / 解析状态 ── */
 
-export type KbFile = { id: string; fileName: string; fileSize: number; chunkCount: number; createdAt: string };
+export type KbFile = {
+  id: string; fileName: string; fileSize: number; chunkCount: number; createdAt: string;
+  status?: 'PARSING' | 'READY' | 'FAILED';
+  processedPages?: number; totalPages?: number | null; error?: string | null; indexed?: boolean;
+};
 export type KbCard = { id: string; name: string; isShared: boolean; ownerId: string; ownerName: string; files: KbFile[] };
 
 /** 面板取数（mine=本人库；shared=他人共享库）——后端 assistant-overview 聚合端点 */
@@ -95,14 +99,25 @@ export async function fetchAssistantKnowledge(): Promise<{ mine: KbCard[]; share
   return res.json();
 }
 
-/** 上传并携带嵌入降级标志（indexed=false=嵌入服务未运行，待重建索引） */
+/** 上传收件即回（2026-11-06 异步化，202）：返回 PARSING 行（或同 sha 既有行 deduplicated:true）——
+ *  解析完成时点已移后台；indexed 语义见行上字段（READY+indexed=false=嵌入降级待重建索引）。
+ *  opts.onProgress 仍可用于上传传输段进度（118MB 收件本身仍需时间） */
 export async function uploadKnowledgeFileWithStatus(
   kbId: string,
   file: File,
   opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal },
-): Promise<{ id: string; indexed: boolean }> {
-  const r = (await uploadKnowledgeFile(kbId, file, opts)) as KnowledgeFile & { indexed?: boolean };
-  return { id: r.id, indexed: r.indexed !== false };
+): Promise<KnowledgeFile & { deduplicated?: boolean }> {
+  return uploadKnowledgeFile(kbId, file, opts);
+}
+
+/** FAILED 行一键重试（重置 PARSING 重入队；OCR 批次缓存命中时秒级完成） */
+export async function retryKnowledgeFile(kbId: string, fileId: string): Promise<KnowledgeFile> {
+  const res = await apiFetch(`${API_BASE}/knowledge/${kbId}/files/${fileId}/retry`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  if (!res.ok) throw await toApiError(res, '重试失败');
+  return res.json();
 }
 
 /** 重建向量索引（嵌入服务恢复后补建） */

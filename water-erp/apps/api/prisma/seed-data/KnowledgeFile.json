@@ -10,7 +10,8 @@
     "chunkCount": 15,
     "isActive": true,
     "createdAt": "2026-07-28T06:11:17.871Z",
-    "updatedAt": "2026-07-28T06:11:17.871Z"
+    "updatedAt": "2026-07-28T06:11:17.871Z",
+    "status": "READY"
   },
   {
     "id": "cms49cgox001quumt337km1bn",
@@ -23,7 +24,8 @@
     "chunkCount": 16,
     "isActive": true,
     "createdAt": "2026-07-28T06:11:18.273Z",
-    "updatedAt": "2026-07-28T06:11:18.273Z"
+    "updatedAt": "2026-07-28T06:11:18.273Z",
+    "status": "READY"
   },
   {
     "id": "cms49cxkg001uuumtclbr2ttp",
@@ -36,7 +38,8 @@
     "chunkCount": 8,
     "isActive": true,
     "createdAt": "2026-07-28T06:11:40.143Z",
-    "updatedAt": "2026-07-28T06:11:40.143Z"
+    "updatedAt": "2026-07-28T06:11:40.143Z",
+    "status": "READY"
   },
   {
     "id": "cms49cxoq001yuumt95tas0b1",
@@ -49,7 +52,8 @@
     "chunkCount": 8,
     "isActive": true,
     "createdAt": "2026-07-28T06:11:40.298Z",
-    "updatedAt": "2026-07-28T06:11:40.298Z"
+    "updatedAt": "2026-07-28T06:11:40.298Z",
+    "status": "READY"
   },
   {
     "id": "cms49cxwd0022uumtvittyso3",
@@ -62,7 +66,8 @@
     "chunkCount": 2,
     "isActive": true,
     "createdAt": "2026-07-28T06:11:40.573Z",
-    "updatedAt": "2026-07-28T06:11:40.573Z"
+    "updatedAt": "2026-07-28T06:11:40.573Z",
+    "status": "READY"
   },
   {
     "id": "cms49cy130026uumtk9i6ab20",
@@ -75,7 +80,8 @@
     "chunkCount": 1,
     "isActive": true,
     "createdAt": "2026-07-28T06:11:40.743Z",
-    "updatedAt": "2026-07-28T06:11:40.743Z"
+    "updatedAt": "2026-07-28T06:11:40.743Z",
+    "status": "READY"
   },
   {
     "id": "cms49cy5v002auumtv9w39mpq",
@@ -88,6 +94,7 @@
     "chunkCount": 10,
     "isActive": true,
     "createdAt": "2026-07-28T06:11:40.916Z",
-    "updatedAt": "2026-07-28T06:11:40.916Z"
+    "updatedAt": "2026-07-28T06:11:40.916Z",
+    "status": "READY"
   }
 ]
