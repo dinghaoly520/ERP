@@ -116,12 +116,17 @@ export default function ExpertProfilePage() {
             </div>
           </div>
           <div className="page-hero__right">
-            {/* 统计胶囊（2026-11-06 用户裁定：副标题纯文本改 info 胶囊，与 :3005 标题卡同款） */}
-            <span className="page-hero__stat page-hero__stat--info" title="累计分配评审项目 / 进行中">
-              参与 {totalProjects} · 进行中 {inProgress}
-            </span>
-            <span className="page-hero__stat page-hero__stat--info" title="累计提交评分项">评分 {totalScoreRecords} 条</span>
-            {profile.averageScore != null && (
+            {/* 统计胶囊（2026-11-06 用户裁定，二修）：零值不显示——有真实数据才亮出，
+                与 :3005「待审核 0 / 累计评价 0 次」删除裁定同口径 */}
+            {totalProjects > 0 && (
+              <span className="page-hero__stat page-hero__stat--info" title="累计分配评审项目 / 进行中">
+                参与 {totalProjects} · 进行中 {inProgress}
+              </span>
+            )}
+            {totalScoreRecords > 0 && (
+              <span className="page-hero__stat page-hero__stat--info" title="累计提交评分项">评分 {totalScoreRecords} 条</span>
+            )}
+            {profile.averageScore != null && totalScoreRecords > 0 && (
               <span className="page-hero__stat page-hero__stat--info" title="历史评分均值">平均给分 {profile.averageScore}</span>
             )}
             {/* 编辑态的 取消/保存 已删（2026-11-06 用户裁定）——操作钮只在表单底部，
