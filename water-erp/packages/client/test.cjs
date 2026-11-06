@@ -62,6 +62,83 @@ async function main() {
   assert.equal((await toApiError(legacyStr)).message, '参数错误');
 
   console.log('toApiError: 9 cases passed');
+
+  await testUpload();
+}
+
+/** upload() 契约（2026-11-06 上传进度条）：XHR stub 注入 globalThis——进度回调/头注入/
+ *  非 2xx ApiError 归一/abort AbortError/空响应 undefined。 */
+class FakeXHR {
+  static last = null;
+  constructor() { this.status = 0; this.responseText = ''; this.upload = {}; this.headers = {}; this._sendImpl = FakeXHR.sendImpl; }
+  open(method, url) { this.method = method; this.url = url; }
+  setRequestHeader(k, v) { this.headers[k] = v; }
+  send(body) { this.body = body; FakeXHR.last = this; this._sendImpl(this); }
+  abort() { this._aborted = true; }
+  // 默认 send 行为：进度回调 → 200 JSON
+  static sendImpl = (xhr) => queueMicrotask(() => {
+    if (xhr._aborted) { xhr.onerror(new DOMException('Aborted', 'AbortError')); return; }
+    xhr.upload.onprogress && xhr.upload.onprogress({ lengthComputable: true, loaded: 50, total: 100 });
+    xhr.status = 200;
+    xhr.responseText = JSON.stringify({ ok: 1 });
+    xhr.onload();
+  });
+}
+
+async function testUpload() {
+  const assert2 = require('node:assert/strict');
+  const prevXHR = globalThis.XMLHttpRequest;
+  globalThis.XMLHttpRequest = FakeXHR;
+  try {
+    const { createApiClient } = require('./dist/index.js');
+    const client = createApiClient({ portal: 'web', baseUrl: '' });
+
+    // 3a. 进度回调透传 + 2xx JSON 解析 + 头注入（X-Portal）
+    let seen = null;
+    const res = await client.upload('/x', new FormData(), { onProgress: (l, t) => (seen = [l, t]) });
+    assert2.deepEqual(seen, [50, 100]);
+    assert2.deepEqual(res, { ok: 1 });
+    assert2.equal(FakeXHR.last.method, 'POST');
+    assert2.equal(FakeXHR.last.headers['X-Portal'], 'web');
+
+    // 3b. 非 2xx → ApiError（body.error 优先为 message，code 透传）
+    const realSend = FakeXHR.sendImpl;
+    FakeXHR.sendImpl = (xhr) => queueMicrotask(() => {
+      xhr.status = 413;
+      xhr.responseText = JSON.stringify({ code: 'FILE_TOO_LARGE', error: '文件超过大小限制' });
+      xhr.onload();
+    });
+    await assert2.rejects(
+      () => client.upload('/x', new FormData()),
+      (e) => e.name === 'ApiError' && e.code === 'FILE_TOO_LARGE' && e.message === '文件超过大小限制' && e.status === 413,
+    );
+    FakeXHR.sendImpl = realSend;
+
+    // 3c. 空 body 2xx → undefined（与 fetchApi 判空同语义）
+    FakeXHR.sendImpl = (xhr) => queueMicrotask(() => { xhr.status = 204; xhr.responseText = ''; xhr.onload(); });
+    assert2.equal(await client.upload('/x', new FormData()), undefined);
+    FakeXHR.sendImpl = realSend;
+
+    // 3d. signal 已 abort → AbortError 语义
+    const ctl = new AbortController();
+    ctl.abort();
+    await assert2.rejects(
+      () => client.upload('/x', new FormData(), { signal: ctl.signal }),
+      (e) => e.name === 'AbortError',
+    );
+
+    // 3e. 网络层错误 → NETWORK_ERROR 中文
+    FakeXHR.sendImpl = (xhr) => queueMicrotask(() => xhr.onerror(new Error('boom')));
+    await assert2.rejects(
+      () => client.upload('/x', new FormData()),
+      (e) => e.code === 'NETWORK_ERROR' && e.message.includes('网络异常'),
+    );
+    FakeXHR.sendImpl = realSend;
+
+    console.log('upload: 5 cases passed');
+  } finally {
+    globalThis.XMLHttpRequest = prevXHR;
+  }
 }
 
 main().catch((e) => {

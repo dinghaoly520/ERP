@@ -55,9 +55,22 @@ export interface ApiClient {
   get<T>(path: string, init?: RequestInit): Promise<T>;
   post<T>(path: string, body?: unknown, init?: RequestInit): Promise<T>;
   postForm<T>(path: string, body: FormData): Promise<T>;
+  /**
+   * XHR 上传（fetch 无上传进度事件，2026-11-06 上传进度条底座）：头注入/错误归一/
+   * 401 回调/断网翻译与 doFetch 同语义；FormData 由浏览器设置 multipart boundary。
+   */
+  upload<T>(path: string, body: FormData, opts?: UploadOptions): Promise<T>;
   put<T>(path: string, body?: unknown, init?: RequestInit): Promise<T>;
   patch<T>(path: string, body?: unknown, init?: RequestInit): Promise<T>;
   delete<T>(path: string, init?: RequestInit): Promise<T>;
+}
+
+/** upload() 选项：字节进度回调 + 取消 */
+export interface UploadOptions {
+  /** 上传字节进度（lengthComputable 才回调） */
+  onProgress?: (loaded: number, total: number) => void;
+  /** 取消：abort 后 reject DOMException('…','AbortError')，与 fetch 同语义 */
+  signal?: AbortSignal;
 }
 
 function mergeHeaders(init: RequestInit | undefined, extra: Record<string, string>): Record<string, string> {
@@ -137,6 +150,72 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     return { headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) };
   }
 
+  /**
+   * XHR 底座上传（fetch 规范无上传进度事件，唯一可靠途径是 xhr.upload.onprogress）。
+   * 头注入（X-Portal + extraHeaders）/错误归一（ApiError，body.error 优先）/401 回调/
+   * 断网 NETWORK_ERROR 中文翻译均与 doFetch 同语义；空响应体返回 undefined（同 fetchApi）。
+   * XMLHttpRequest 运行时取 globalThis（SSR 不触达；Node 测试注入 stub 即可测）。
+   */
+  function upload<T>(path: string, body: FormData, opts: UploadOptions = {}): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      if (opts.signal?.aborted) {
+        reject(new DOMException('Aborted', 'AbortError'));
+        return;
+      }
+      const xhr = new globalThis.XMLHttpRequest();
+      xhr.open('POST', `${base}${path}`);
+      xhr.withCredentials = true;
+      const headers = { 'X-Portal': options.portal, ...(options.extraHeaders?.() ?? {}) };
+      for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
+      const onAbort = () => xhr.abort();
+      opts.signal?.addEventListener('abort', onAbort);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && opts.onProgress) opts.onProgress(e.loaded, e.total);
+      };
+      const settle = (fn: () => void) => {
+        opts.signal?.removeEventListener('abort', onAbort);
+        fn();
+      };
+      xhr.onerror = () => settle(() => {
+        // 调用方取消（abort 触发 onerror）保持 AbortError 语义，不误报断网
+        if (opts.signal?.aborted) reject(new DOMException('Aborted', 'AbortError'));
+        else reject(new ApiError(0, 'NETWORK_ERROR', '网络异常或请求超时，请检查网络'));
+      });
+      xhr.onload = () => settle(() => {
+        if (opts.signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const text = xhr.responseText ?? '';
+          try {
+            resolve((text ? JSON.parse(text) : undefined) as T);
+          } catch {
+            reject(new ApiError(xhr.status, 'BAD_JSON', `响应解析失败 (${xhr.status})`));
+          }
+          return;
+        }
+        let code = 'UNKNOWN';
+        let message = `请求失败 (${xhr.status})`;
+        let data: unknown;
+        try {
+          data = JSON.parse(xhr.responseText);
+          if ((data as any)?.code) code = String((data as any).code);
+          if ((data as any)?.error) message = String((data as any).error);
+          else if ((data as any)?.message) {
+            const raw = (data as any).message;
+            const first = Array.isArray(raw) ? String(raw[0] ?? '') : String(raw);
+            if (first) message = first;
+          }
+        } catch {
+          // 响应体非 JSON，保留默认消息
+        }
+        if (xhr.status === 401 && isBrowser && options.on401) {
+          options.on401(new ApiError(xhr.status, code, message, data));
+        }
+        reject(new ApiError(xhr.status, code, message, data));
+      });
+      xhr.send(body);
+    });
+  }
+
   return {
     raw: (path, init) => doFetch(path, init),
     get: <T>(path: string, init?: RequestInit) => fetchApi<T>(path, init),
@@ -151,6 +230,8 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     },
     postForm: <T>(path: string, body: FormData) =>
       fetchApi<T>(path, { method: 'POST', body }),
+    upload: <T>(path: string, body: FormData, opts?: UploadOptions) =>
+      upload<T>(path, body, opts),
     // put/patch/delete 支持可选 init（2026-10-28）：调用方需要传 signal/timeout 等
     // RequestInit 时不必再退回 raw——raw 返回 Response 且 fetch 对 4xx/5xx 是 resolve，
     // 绕过 fetchApi 的 !ok → toApiError 通道（供应商门户 api.put 曾因此吞掉一切非 2xx
