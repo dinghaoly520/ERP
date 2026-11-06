@@ -3,17 +3,17 @@
 import { Fragment, useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, getSupplierCommunications, updateSupplierTags, blacklistSupplier, unblacklistSupplier, revealSupplierField, companyLinksApi } from '@/lib/api/supplier';
+import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, updateSupplierTags, blacklistSupplier, unblacklistSupplier, revealSupplierField, companyLinksApi } from '@/lib/api/supplier';
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification } from '@/lib/types';
-import type { CommunicationRecord, CompanyLinkRow, RsvpHistoryResult } from '@/lib/api/supplier';
+import type { CompanyLinkRow, RsvpHistoryResult } from '@/lib/api/supplier';
 import { getRsvpHistory } from '@/lib/api/supplier';
 import { ApprovalTimeline } from '@/components/workbench/approval-timeline';
 import { AlertBanner, type AlertSeverity, StatusBadge, Modal } from '@/components/workbench';
 import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
-import { LEVEL_LABEL, LEVEL_COLOR, SUPPLIER_STATUS_LABEL, getNotificationLabel, getNotificationChannelLabel } from '@water-erp/shared';
+import { LEVEL_LABEL, LEVEL_COLOR, SUPPLIER_STATUS_LABEL } from '@water-erp/shared';
 import type { AuthUser } from '@/lib/api/auth';
 import { fetchCurrentUser } from '@/lib/api/auth';
-import { CheckCircle2, X, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, FileText, User, Users, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, Link2, AtSign, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, X, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, FileText, User, Users, MapPin, Phone, Mail, Hash, FolderOpen, Plus, Loader2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, Link2, AtSign, AlertTriangle } from 'lucide-react';
 import { SupplierTimeline } from '@/components/supplier/timeline';
 import { ApprovalHistory } from '@/components/supplier/approval-history';
 import { PortraitTab } from '@/components/supplier/portrait-tab';
@@ -179,8 +179,7 @@ export default function SupplierDetailPage() {
     setLoading(false);
   }, [id]);
 
-  const [communications, setCommunications] = useState<CommunicationRecord[]>([]);
-  const [commLoading, setCommLoading] = useState(false);
+  // 沟通记录已删（2026-11-06 用户裁定）：communications/commLoading 状态随整节移除
   // 邀请回执经历（2026-10-21 回执锁定口径）：进入 tab 时懒加载——邀请统计 + 逐条回执轨迹；
   // overrideAfterAccept（确认后被采购方改为拒绝）为经历警示核心口径
   const [rsvpHistory, setRsvpHistory] = useState<RsvpHistoryResult | null>(null);
@@ -224,8 +223,7 @@ export default function SupplierDetailPage() {
   }, [id]);
   useEffect(() => { if (activeTab === 'rsvp') loadRsvpHistory(); }, [activeTab, loadRsvpHistory]);
   useEffect(() => {
-    // 2026-10-23 板块合并：懒加载挂到合并后的 tab 键（邀请与沟通/资质与文件/基本信息）
-    if (activeTab === 'rsvp' && communications.length === 0) { setCommLoading(true); getSupplierCommunications(id as string).then(setCommunications).catch(() => {}).finally(() => setCommLoading(false)); }
+    // 2026-10-23 板块合并：懒加载挂到合并后的 tab 键（沟通记录懒加载已删 2026-11-06）
     // 文件档案懒加载已删（2026-11-06 用户裁定，随整节移除）
     if (activeTab === 'info' && companyLinks === null) loadCompanyLinks();
   }, [activeTab, id]);
@@ -360,7 +358,7 @@ export default function SupplierDetailPage() {
     // 合并计数（2026-10-23）：资质+文件 / 评价+奖惩；邀请数沿用回执统计
     { key: 'qualifications', label: '资质材料', count: qualifications.length },
     { key: 'evaluations', label: '履约评价', count: evaluations.length },
-    { key: 'rsvp', label: '邀请与沟通', count: rsvpHistory?.stats.invited },
+    { key: 'rsvp', label: '邀请回执', count: rsvpHistory?.stats.invited },
   ];
 
   const getQualStatus = (q: SupplierQualification) => {
@@ -1429,42 +1427,9 @@ export default function SupplierDetailPage() {
         </section>
       )}
 
-      {/* 沟通记录 */}
-      {/* 沟通记录（2026-10-23 并入邀请与沟通分区） */}
-      {activeTab === 'rsvp' && (
-        <section className="mt-8">
-          <SectionTitle icon={MessageSquare}>沟通记录</SectionTitle>
-          {commLoading ? (
-            <div className="py-8 text-center"><Loader2 size={14} className="animate-spin mx-auto mb-2" /><span className="text-sm text-[var(--muted-foreground)]">加载中...</span></div>
-          ) : communications.length === 0 ? (
-            <div className="neu-card-static !rounded-2xl py-10 text-center">
-              <MessageSquare size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />
-              <p className="text-sm text-[var(--muted-foreground)]">暂无沟通记录</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {communications.map(c => (
-                <div key={c.id} className={`neu-card-static !rounded-xl p-4 ${!c.isRead ? 'ring-1 ring-[var(--accent)]/20' : ''}`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <StatusBadge tone="blue">{getNotificationLabel(c.type)}</StatusBadge>
-                        {!c.isRead && <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />}
-                      </div>
-                      <h4 className="text-sm font-semibold text-[var(--foreground)] mt-1.5">{c.title}</h4>
-                      <p className="text-xs text-[var(--muted-foreground)] mt-1 line-clamp-2">{c.content}</p>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <div className="text-[10px] text-[var(--muted-foreground)]/70">{new Date(c.createdAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
-                      {c.channels.length > 0 && <div className="text-[10px] text-[var(--muted-foreground)]/60 mt-0.5" title={`投递通道：${c.channels.map(getNotificationChannelLabel).join('、')}`}>{c.channels.map(getNotificationChannelLabel).join(' · ')}</div>}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
+      {/* 沟通记录整节已删（2026-11-06 用户裁定）：其内容实为公告发布的通知投递日志
+          （站内/短信/电话通道），非与该供应商的沟通——状态/懒加载/导入整组清理，
+          tab 更名「邀请回执」；后端 communications 端点保留未动 */}
 
       {/* 文件档案整节已删（2026-11-06 用户裁定：录入表单先行移除后列表一并删除）——
           状态/懒加载/DOC_TYPES/删除链整组清理；tab 更名「资质材料」；
