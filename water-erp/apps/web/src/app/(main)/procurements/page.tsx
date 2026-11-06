@@ -154,6 +154,7 @@ function PageHero({
   ).length;
 
   return (
+    <>
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
@@ -195,9 +196,12 @@ function PageHero({
           )}
         </div>
       </div>
+      {/* hairline 下横线（cgzxui 规定：标题行与下方内容之间必有分割线） */}
+      <div className="page-hero__divider" />
+    </motion.div>
 
-      {/* 搜索 + 筛选行 */}
-      <div className="flex flex-wrap items-center gap-3" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
+    {/* 搜索 + 筛选行——独立工具行（2026-11-06 用户裁定移出标题栏，仿通知中心工具行设计） */}
+    <div className="mt-4 flex flex-wrap items-center gap-3">
         <div className="relative w-[280px] shrink-0">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-foreground)] z-10" />
           <input
@@ -301,7 +305,7 @@ function PageHero({
           </select>
         </div>
       </div>
-    </motion.div>
+    </>
   );
 }
 
