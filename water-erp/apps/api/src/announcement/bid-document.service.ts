@@ -34,11 +34,12 @@ export class BidDocumentService {
   ) {
     const announcement = await this.prisma.announcement.findUnique({ where: { id: announcementId } });
     if (!announcement) throw new NotFoundException({ error: '公告不存在', code: 'NOT_FOUND' });
-    if (announcement.type !== 'BID_NOTICE') {
-      throw new BadRequestException({ error: '仅招标公示可上传招标文件', code: 'NOT_BID_NOTICE' });
+    // 补遗公告可引用采购文件（2026-11-06 用户裁定）：与采购公告同链——加密上传 + 免费/解密下载方式
+    if (announcement.type !== 'BID_NOTICE' && announcement.type !== 'ADDENDUM') {
+      throw new BadRequestException({ error: '仅采购公告/补遗公告可上传采购文件', code: 'NOT_BID_NOTICE' });
     }
     const existing = await this.prisma.bidDocument.findUnique({ where: { announcementId } });
-    if (existing) throw new BadRequestException({ error: '该公告已有招标文件，请先删除', code: 'DOC_EXISTS' });
+    if (existing) throw new BadRequestException({ error: '该公告已有采购文件，请先删除', code: 'DOC_EXISTS' });
     this.assertDownloadModeConfig(config);
 
     // ① 文件名 latin1→utf8 + ② docx/doc 转 PDF（标书获取页可预览）
@@ -352,7 +353,8 @@ export class BidDocumentService {
       where: { announcementId },
       include: { announcement: { select: { id: true, title: true, type: true, status: true, metadata: true } } },
     });
-    if (!doc || doc.announcement.type !== 'BID_NOTICE') return null;
+    // 补遗公告引用的采购文件同链可取（2026-11-06）：公告中心补遗详情的下载卡走此端点
+    if (!doc || (doc.announcement.type !== 'BID_NOTICE' && doc.announcement.type !== 'ADDENDUM')) return null;
 
     const eligibility = await this.checkEligibility(doc, supplierId);
     const access = await this.prisma.bidDocumentAccess.findUnique({

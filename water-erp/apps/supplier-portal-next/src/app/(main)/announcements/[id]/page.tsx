@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dayjs from "dayjs";
+import { toast } from "sonner";
 import { Download, FileText, Info, Link as LinkIcon, Lock, Paperclip, TriangleAlert } from "lucide-react";
 import { announcementApi } from "@/lib/api/announcement";
-import { authedFileAction } from "@/lib/authed-file";
+import { authedFileAction, saveBlob } from "@/lib/authed-file";
 import { SpPageHero } from "@/components/sp-page-hero";
-import { LoadingBlock, SpButton } from "@/components/ui";
+import { LoadingBlock, SpButton, SpInput } from "@/components/ui";
 import "@/styles/pages/announcements.css";
 
 /* ── 公告正文展示归一（2026-10-30）：存量公告监督块曾被生成端粘连成一段
@@ -135,6 +136,10 @@ export default function AnnouncementDetailPage() {
   const [error, setError] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState<any>(null);
+  // 补遗公告引用的采购文件（2026-11-06）：undefined=未查询/无文件，null=查询失败
+  const [refDoc, setRefDoc] = useState<any>(undefined);
+  const [refDocPwd, setRefDocPwd] = useState("");
+  const [refDlBusy, setRefDlBusy] = useState(false);
 
   const isBidNotice = announcement?.type === "BID_NOTICE";
   // 已下线壳（2026-10-20）：公示期满/手动下线 → 提示页形态（标题等元信息保留，正文与采购文件不展示）
@@ -151,6 +156,10 @@ export default function AnnouncementDetailPage() {
     try {
       const a = await announcementApi.getPublic(id);
       setAnnouncement(a);
+      // 补遗公告引用的采购文件（2026-11-06）：公告维度元信息（免费/解密下载）
+      if (a?.type === "ADDENDUM" && a?.titleOnly !== true) {
+        try { setRefDoc(await announcementApi.getAnnouncementBidDocument(id)); } catch { setRefDoc(undefined); }
+      }
     } catch (e: any) {
       setError(true);
       // v2（2026-09-26）：透出后端业务文案（如「该公告已下线」）
@@ -169,6 +178,25 @@ export default function AnnouncementDetailPage() {
   function downloadAttachment(att: any) {
     const name = att?.fileAsset?.originalName || att?.title || "附件";
     authedFileAction(`/api/announcements/attachments/${att.id}/download`, "download", name);
+  }
+
+  // 补遗公告引用的采购文件下载（2026-11-06）：免费直接下；解密须密码（错误 toast 后端文案）
+  async function downloadRefDoc() {
+    if (!id || !refDoc || refDlBusy) return;
+    if (refDoc.needPassword && !refDocPwd.trim()) {
+      toast.error("请输入下载密码");
+      return;
+    }
+    setRefDlBusy(true);
+    try {
+      const { blob, fileName } = await announcementApi.downloadBidDocument(id, refDocPwd.trim() || undefined);
+      await saveBlob(blob, fileName);
+      const fresh = await announcementApi.getAnnouncementBidDocument(id).catch(() => null);
+      if (fresh) setRefDoc(fresh);
+    } catch (e: any) {
+      toast.error(e?.message || "下载失败");
+    }
+    setRefDlBusy(false);
   }
 
   const metaFields = useMemo(() => {
@@ -299,6 +327,54 @@ export default function AnnouncementDetailPage() {
                     </button>
                   ))}
                 </div>
+              </div>
+            </>
+          )}
+
+          {/* 补遗公告引用的采购文件（2026-11-06 用户裁定）：补遗自带下载通道（免费/解密/付费暂不支持），
+              与其他引用采购文件处同链——元信息/下载走公告维度端点，资格校验同口径 */}
+          {announcement.type === "ADDENDUM" && !offlined && refDoc && (
+            <>
+              <hr className="ann-divider" />
+              <div className="bid-doc-section">
+                <div className="bid-doc-head">
+                  <Lock size={16} className="bid-doc-lock" strokeWidth={1.75} />
+                  <strong>引用采购文件</strong>
+                  {refDoc.needPassword && <span className="ann-tag ann-tag--sm ann-tag--info">解密下载</span>}
+                </div>
+                <div className="ann-att-list">
+                  <div className="ann-att-item" style={{ cursor: "default" }}>
+                    <FileText size={14} strokeWidth={1.75} className="ann-att-ico" />
+                    <span className="ann-att-name">{refDoc.title}</span>
+                    {fmtAttSize(refDoc.fileSize) && <span className="ann-att-size">{fmtAttSize(refDoc.fileSize)}</span>}
+                  </div>
+                </div>
+                {!refDoc.eligible ? (
+                  <p className="bid-doc-hint">{refDoc.reason || "暂无下载权限"}</p>
+                ) : refDoc.needPayment ? (
+                  <p className="bid-doc-hint">付费下载暂不支持，请线下联系采购单位获取</p>
+                ) : refDoc.needPassword ? (
+                  <div className="bid-doc-actions" style={{ gap: 8 }}>
+                    <SpInput
+                      value={refDocPwd}
+                      onChange={(e) => setRefDocPwd(e.target.value)}
+                      placeholder="请输入6位下载密码"
+                      maxLength={10}
+                    />
+                    <SpButton variant="primary" onClick={downloadRefDoc} disabled={refDlBusy}>
+                      {refDlBusy ? "下载中…" : "解密下载"}
+                    </SpButton>
+                  </div>
+                ) : (
+                  <div className="bid-doc-actions">
+                    <SpButton variant="primary" onClick={downloadRefDoc} disabled={refDlBusy}>
+                      <Download size={14} strokeWidth={1.75} /> {refDlBusy ? "下载中…" : "下载"}
+                    </SpButton>
+                    {typeof refDoc.downloadCount === "number" && refDoc.downloadCount > 0 && (
+                      <span className="bid-doc-hint">已下载 {refDoc.downloadCount} 次</span>
+                    )}
+                  </div>
+                )}
               </div>
             </>
           )}

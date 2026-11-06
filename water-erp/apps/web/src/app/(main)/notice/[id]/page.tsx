@@ -20,6 +20,7 @@ import { useConfirm } from '@/components/workbench/use-confirm';
 import { ArrowLeft, Pencil, X, EyeOff, PackageX, Megaphone, Upload, Sparkles, Clock } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { PublishConfigSection, configFromMetadata, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
+import { BidDocEditSection } from '@/components/notice/bid-doc-edit-section';
 import { DATA_CLASS_LABELS, ANNOUNCEMENT_TYPE_ORDER } from '@water-erp/shared';
 import { ANN_TYPE_LABEL, ANN_STATUS_LABEL, ANN_STATUS_TONE } from '@/lib/announcement-meta';
 import { isOverdueScheduledDraft } from '@/lib/notice/schedule';
@@ -332,7 +333,7 @@ function ReadOnlyView({ ann }: { ann: AnnouncementListItem }) {
   const [localAiSummary, setLocalAiSummary] = useState<string | undefined>(ann.aiSummary);
   useEffect(() => {
     listAttachments(ann.id).then(setAttachments).catch(() => {});
-    if (ann.type === 'BID_NOTICE') getBidDocument(ann.id).then(setBidDoc).catch(() => setBidDoc(null));
+    if (ann.type === 'BID_NOTICE' || ann.type === 'ADDENDUM') getBidDocument(ann.id).then(setBidDoc).catch(() => setBidDoc(null));
     // 投标情况：与公告列表「投标情况」同源同步（下载采购文件 ∪ 登记投标的供应商）
     if (ann.type === 'BID_NOTICE') getParticipants(ann.id).then(setParticipants).catch(() => setParticipants(null));
   }, [ann.id, ann.type]);
@@ -470,6 +471,8 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
       // 对象值（WIN_NOTICE 的 winner）在输入框里只展示供应商名，保存时再还原对象（见 save）
       out[f.key] = v == null ? '' : (typeof v === 'object' ? (v.supplierName ?? v.name ?? '') : String(v));
     }
+    // 补遗公告「引用采购文件」开关（不在 TYPE_META 通用网格，2026-11-06）
+    if (t === 'ADDENDUM') out.refBidDoc = m.refBidDoc === '1' ? '1' : '';
     return out;
   };
   const [metadata, setMetadata] = useState<Record<string, string>>(() => buildMeta(ann.type));
@@ -487,7 +490,8 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
 
   const loadExtras = useCallback(async () => {
     try { setAttachments(await listAttachments(ann.id)); } catch {}
-    if (type === 'BID_NOTICE') { try { setBidDoc(await getBidDocument(ann.id)); } catch { setBidDoc(null); } }
+    // 补遗公告可引用采购文件（2026-11-06）：与采购公告同链管理/回显
+    if (type === 'BID_NOTICE' || type === 'ADDENDUM') { try { setBidDoc(await getBidDocument(ann.id)); } catch { setBidDoc(null); } }
   }, [ann.id, type]);
   useEffect(() => { loadExtras(); }, [loadExtras]);
 
@@ -503,6 +507,8 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
     setBusy(true);
     const meta: Record<string, any> = {};
     for (const f of TYPE_META[type]) if (metadata[f.key]?.trim()) meta[f.key] = metadata[f.key].trim();
+    // 补遗「引用采购文件」开关随 meta 落库（关=不写键，保存即摘除）
+    if (type === 'ADDENDUM' && metadata.refBidDoc === '1') meta.refBidDoc = '1';
     // WIN_NOTICE：winner 是结构化对象（供应商名+报价+得分）。编辑表单只改供应商名，
     // 保存时保留原对象（仅覆盖 supplierName），避免 String(object)="[object Object]" 破坏 metadata
     if (type === 'WIN_NOTICE') {
@@ -515,7 +521,7 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
     // draft 闸（2026-10-23 修正，与 notice/new 同款）：按用户动作（targetStatus）判定——
     // 定时发布落库态也是 DRAFT，此前误用 actualStatus 把 scheduledPublishDate 剥掉致定时失效。
     const finalMeta = configToMetadata(publishConfig, meta, { draft: targetStatus === 'DRAFT' });
-    const payload = { title, content, type, summary, status: actualStatus, isTop, publishDate, metadata: finalMeta, ...(type === 'BID_NOTICE' ? { relatedProjectCode: meta.projectCode || null } : {}) };
+    const payload = { title, content, type, summary, status: actualStatus, isTop, publishDate, metadata: finalMeta, ...(type === 'BID_NOTICE' || type === 'ADDENDUM' || type === 'PREQUAL_NOTICE' ? { relatedProjectCode: meta.projectCode || null } : {}) };
     try { return await updateAnnouncement(ann.id, payload as any); }
     catch (e: any) { toast.error(e?.message || '保存失败'); return null; }
     finally { setBusy(false); }
@@ -537,6 +543,8 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
   const publish = async () => {
     if (publishConfig.scheduleMode === 'scheduled' && !publishConfig.scheduledPublishDate) { toast.error('请设置定时发布时间'); return; }
     if (type === 'BID_NOTICE' && !bidDoc && publishConfig.scheduleMode === 'immediate' && !(await confirm({ message: '该采购公告尚未上传采购文件，确认直接发布？' }))) return;
+    // 补遗声明引用采购文件但尚未上传：发布前确认（同采购公告口径，2026-11-06）
+    if (type === 'ADDENDUM' && metadata.refBidDoc === '1' && !bidDoc && publishConfig.scheduleMode === 'immediate' && !(await confirm({ message: '该补遗公告声明引用采购文件但尚未上传，确认直接发布？' }))) return;
     const s = await save('PUBLISHED');
     if (s) {
       toast.success(publishConfig.scheduleMode === 'scheduled' ? `已设定定时发布（${publishConfig.scheduledPublishDate.replace('T', ' ')}）` : '已发布');
@@ -613,6 +621,21 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
       <div className="flex flex-col gap-4 min-w-0">
         <AttachmentEditSection annId={ann.id} attachments={attachments} onChanged={loadExtras} />
         {type === 'BID_NOTICE' && <BidDocEditSection annId={ann.id} bidDoc={bidDoc} onChanged={loadExtras} />}
+        {/* 补遗公告引用采购文件（2026-11-06 用户裁定）：开关 + 同链管理段（免费/解密/付费暂不支持） */}
+        {type === 'ADDENDUM' && (metadata.refBidDoc === '1' || bidDoc) && (
+          <div className="space-y-3">
+            <div className="neu-table-card p-5">
+              <div className="text-xs font-bold text-[var(--accent-strong)] mb-3">引用采购文件</div>
+              <div className="neu-segment" role="group" aria-label="引用采购文件" data-index={metadata.refBidDoc === '1' ? '1' : '0'}>
+                <span aria-hidden className="neu-segment-thumb" />
+                <button type="button" aria-pressed={metadata.refBidDoc !== '1'} onClick={() => setMetadata({ ...metadata, refBidDoc: '' })} className="neu-segment-btn">不引用</button>
+                <button type="button" aria-pressed={metadata.refBidDoc === '1'} onClick={() => setMetadata({ ...metadata, refBidDoc: '1' })} className="neu-segment-btn">引用</button>
+              </div>
+              <p className="mt-2 text-[11px] text-[var(--muted-foreground)]">引用后补遗公告附带采购文件下载通道（免费 / 解密 / 付费暂不支持），供应商在公告详情下载</p>
+            </div>
+            {metadata.refBidDoc === '1' && <BidDocEditSection annId={ann.id} bidDoc={bidDoc} onChanged={loadExtras} heading="引用采购文件" />}
+          </div>
+        )}
         <div className="flex flex-col gap-2 pt-1">
           <button onClick={saveDraft} disabled={busy} className="neu-btn-soft w-full justify-center disabled:opacity-50">{busy ? "保存中..." : "保存草稿"}</button>
           <button onClick={publish} disabled={busy} className="neu-btn-soft is-success w-full justify-center disabled:opacity-50">{busy ? "处理中..." : publishConfig.scheduleMode === 'scheduled' ? "设定时发布" : "发布"}</button>
@@ -736,173 +759,4 @@ function AttachmentEditSection({ annId, attachments, onChanged }: { annId: strin
   );
 }
 
-/* 招标文件编辑 */
-/** 采购文件下载方式三卡（2026-11-05，与供应商邀请谈判配置同款设计）：
- *  免费 / 解密下载（随机 6 位密码，可刷新）/ 付费下载（暂不支持，禁用）。 */
-function DownloadModePicker({ mode, password, onMode, onPassword }: {
-  mode: 'free' | 'encrypted';
-  password: string;
-  onMode: (m: 'free' | 'encrypted') => void;
-  onPassword: (p: string) => void;
-}) {
-  const genPwd = () => String(Math.floor(100000 + Math.random() * 900000));
-  const options = [
-    { value: 'free' as const, label: '免费下载', desc: '供应商可直接下载' },
-    { value: 'encrypted' as const, label: '解密下载', desc: '供应商需输入密码才能下载' },
-  ];
-  return (
-    <div className="space-y-1.5">
-      <div className="grid grid-cols-3 gap-1.5">
-        {options.map(m => (
-          <label key={m.value} className={`flex cursor-pointer items-start gap-1.5 rounded-lg px-2 py-2 transition ${mode === m.value ? 'ring-1 ring-[var(--accent)]/40' : ''}`}
-            style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
-            <input type="radio" name="bidDocDownloadMode" checked={mode === m.value}
-              onChange={() => { onMode(m.value); if (m.value === 'encrypted' && !password) onPassword(genPwd()); }}
-              className="accent-[var(--accent)] mt-0.5 shrink-0" />
-            <span className="min-w-0">
-              <span className="block text-[11px] font-semibold text-[var(--foreground)]">{m.label}</span>
-              <span className="block text-[10px] leading-tight text-[var(--muted-foreground)]">{m.desc}</span>
-            </span>
-          </label>
-        ))}
-        <label className="flex cursor-not-allowed items-start gap-1.5 rounded-lg px-2 py-2 opacity-55"
-          style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
-          <input type="radio" disabled className="accent-[var(--accent)] mt-0.5 shrink-0" />
-          <span className="min-w-0">
-            <span className="block text-[11px] font-semibold text-[var(--muted-foreground)]">付费下载</span>
-            <span className="block text-[10px] leading-tight text-[var(--muted-foreground)]">暂不支持</span>
-          </span>
-        </label>
-      </div>
-      {mode === 'encrypted' && (
-        <div className="flex items-center gap-2 rounded-lg px-2.5 py-1.5" style={{ background: 'color-mix(in oklch, var(--accent) 8%, transparent)' }}>
-          <span className="text-[11px] font-bold text-[var(--foreground)] shrink-0">下载密码</span>
-          <code className="text-xs font-mono tabular-nums tracking-[0.15em] text-[var(--accent-strong)]">{password || '—'}</code>
-          <span className="text-[10px] text-[var(--muted-foreground)]">请线下告知受邀供应商</span>
-          <button type="button" onClick={() => onPassword(genPwd())} className="neu-btn-xs ml-auto">刷新</button>
-        </div>
-      )}
-    </div>
-  );
-}
 
-function BidDocEditSection({ annId, bidDoc, onChanged }: { annId: string; bidDoc: BidDocumentManage | null; onChanged: () => void }) {
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [supplierSearch, setSupplierSearch] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [docTitle, setDocTitle] = useState("");
-  const [scope, setScope] = useState<"OPEN" | "INVITED">(bidDoc?.accessScope || "OPEN");
-  const [dlMode, setDlMode] = useState<'free' | 'encrypted'>(bidDoc?.downloadMode === 'encrypted' ? 'encrypted' : 'free');
-  const [dlPassword, setDlPassword] = useState(bidDoc?.downloadPassword || '');
-  const [selected, setSelected] = useState<string[]>(bidDoc?.allowedSupplierIds || []);
-  const [busy, setBusy] = useState(false);
-  const [docUpPct, setDocUpPct] = useState<number | null>(null); // 采购文件加密上传字节进度（2026-11-06）
-  const { confirm, dialog } = useConfirm();
-  useEffect(() => { if (scope === "INVITED") getSupplierList({ status: "APPROVED", search: supplierSearch || undefined, pageSize: 50 }).then(r => setSuppliers(r.items)).catch(() => {}); }, [scope, supplierSearch]);
-  // 外部配置刷新（onChanged 重拉 bidDoc）时回显下载方式
-  useEffect(() => {
-    setDlMode(bidDoc?.downloadMode === 'encrypted' ? 'encrypted' : 'free');
-    if (bidDoc?.downloadPassword) setDlPassword(bidDoc.downloadPassword);
-  }, [bidDoc?.downloadMode, bidDoc?.downloadPassword]);
-
-  const doUpload = async () => {
-    if (!file) { toast.error("请选择采购文件"); return; }
-    if (dlMode === 'encrypted' && !dlPassword) { toast.error("解密下载需先设置下载密码"); return; }
-    setBusy(true);
-    setDocUpPct(0);
-    try {
-      await uploadBidDocument(annId, file, { title: docTitle || file.name, accessScope: scope, requirePayment: false, allowedSupplierIds: scope === "INVITED" ? selected : undefined, downloadMode: dlMode, downloadPassword: dlMode === 'encrypted' ? dlPassword : undefined }, {
-        onProgress: (l, t) => setDocUpPct(t > 0 ? Math.round((l / t) * 100) : 0),
-      });
-      toast.success("已加密上传"); setFile(null); setDocTitle(""); setDocUpPct(null); onChanged();
-    } catch (e: any) { toast.error(e?.message || "上传失败"); }
-    finally { setBusy(false); setDocUpPct(null); }
-  };
-  const saveConfig = async () => {
-    if (!bidDoc) return;
-    if (dlMode === 'encrypted' && !dlPassword) { toast.error("解密下载需先设置下载密码"); return; }
-    setBusy(true);
-    try { await updateBidDocumentConfig(annId, { accessScope: scope, requirePayment: false, allowedSupplierIds: scope === "INVITED" ? selected : undefined, downloadMode: dlMode, downloadPassword: dlMode === 'encrypted' ? dlPassword : undefined }); toast.success("配置已保存"); onChanged(); }
-    catch (e: any) { toast.error(e?.message || "保存失败"); }
-    finally { setBusy(false); }
-  };
-  const confirmPay = async (id: string) => { try { await confirmBidDocPayment(annId, id); toast.success("已确认"); onChanged(); } catch (e: any) { toast.error(e?.message || "失败"); } };
-  const removeDoc = async () => { if (!bidDoc || !(await confirm({ message: "删除？", danger: true }))) return; try { await removeBidDocument(annId); toast.success("已删除"); onChanged(); } catch (e: any) { toast.error(e?.message || "失败"); } };
-
-  return (
-    <div className="neu-table-card p-4 text-sm">
-      <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">采购文件</span>
-      <span className="ml-2 text-[10px] text-[var(--muted-foreground)]">AES-256 加密</span>
-
-      {bidDoc ? (
-        /* 已上传状态 */
-        <div className="mt-3 space-y-3">
-          <div className="flex items-center justify-between rounded-[8px] bg-[var(--surface)] px-3 py-2 shadow-[inset_0_1px_0_oklch(1_0_0/0.5),1px_1px_2px_oklch(0.55_0.03_258/0.05),-1px_-1px_1px_oklch(1_0_0/0.6)]">
-            <div className="min-w-0"><p className="break-words text-[0.85rem] font-bold text-[var(--foreground)] leading-snug">🔒 {bidDoc.title}</p><p className="text-[11px] text-[var(--muted-foreground)]">{bidDoc.fileName} · {(bidDoc.fileSize / 1024).toFixed(0)} KB · {bidDoc.downloadCount} 次</p></div>
-            <button onClick={removeDoc} className="neu-btn-xs is-danger ml-2 shrink-0">删除</button>
-          </div>
-          <div className="space-y-1.5">
-            <select value={scope} onChange={e => setScope(e.target.value as any)} className="neu-input text-sm"><option value="OPEN">公开</option><option value="INVITED">邀请</option></select>
-            <DownloadModePicker mode={dlMode} password={dlPassword} onMode={setDlMode} onPassword={setDlPassword} />
-          </div>
-          {scope === "INVITED" && (
-            <div>
-              <div className="flex items-center justify-between mb-1"><span className="text-[11px] text-[var(--muted-foreground)]">已选 {selected.length} 家</span><input value={supplierSearch} onChange={e => setSupplierSearch(e.target.value)} placeholder="搜索供应商" className="neu-input !h-7 w-32 px-2 text-[11px]" /></div>
-              <div className="max-h-32 overflow-y-auto rounded-lg bg-[var(--surface)] shadow-[inset_1px_1px_3px_oklch(0.55_0.03_258/0.08),inset_-1px_-1px_3px_oklch(1_0_0/0.5)]">
-                {suppliers.map(s => (<label key={s.id} className="flex items-center gap-2 px-3 py-1.5 text-[0.8rem] hover:bg-[var(--muted)] cursor-pointer"><input type="checkbox" checked={selected.includes(s.id)} onChange={() => setSelected(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id])} className="accent-[var(--accent)]" /><span className="text-[var(--foreground)] truncate">{s.name}</span></label>))}
-              </div>
-            </div>
-          )}
-          <button onClick={saveConfig} disabled={busy} className="neu-btn-soft w-full justify-center disabled:opacity-50">{busy ? "保存中..." : "保存配置"}</button>
-          {bidDoc.accesses.length > 0 && (
-            <div className="rounded-lg bg-[var(--surface)] p-2 shadow-[inset_0_1px_0_oklch(1_0_0/0.4),inset_1px_1px_3px_oklch(0.55_0.03_258/0.06),inset_-1px_-1px_3px_oklch(1_0_0/0.5)]">
-              <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">到账确认</span>
-              {bidDoc.accesses.map(a => (
-                <div key={a.supplierId} className="flex items-center justify-between py-1 text-[0.8rem]">
-                  <span className="truncate text-[var(--foreground)]">{a.supplierName}{a.paymentRef && <span className="ml-1 text-[var(--muted-foreground)]">凭证:{a.paymentRef}</span>}</span>
-                  {bidDoc.requirePayment ? (a.paid ? <StatusBadge tone="green">已付</StatusBadge> : <button onClick={() => confirmPay(a.supplierId)} className="neu-btn-xs is-success">确认</button>) : <span className="text-[var(--muted-foreground)]">{a.downloadCount} 次</span>}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : (
-        /* 上传表单 */
-        <div className="mt-3 space-y-2.5">
-          {/* 文件选择 - 虚线拖放区 */}
-          <label className="neu-drop-zone">
-            <Upload size={14} className="text-[var(--muted-foreground)] mb-1" />
-            <span className="text-[0.75rem] font-medium text-[var(--muted-foreground)]">{file ? file.name : "选择招标文件"}</span>
-            <span className="mt-0.5 text-[0.65rem] text-[var(--muted-foreground)]/60">{file ? `${(file.size / 1024).toFixed(0)} KB` : "点击浏览或拖拽上传"}</span>
-            <input type="file" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
-          </label>
-
-          <input value={docTitle} onChange={e => setDocTitle(e.target.value)} className="neu-input" placeholder="文件标题（选填）" />
-
-          <div className="space-y-1.5">
-            <select value={scope} onChange={e => setScope(e.target.value as any)} className="neu-input text-sm"><option value="OPEN">公开</option><option value="INVITED">邀请</option></select>
-            <DownloadModePicker mode={dlMode} password={dlPassword} onMode={setDlMode} onPassword={setDlPassword} />
-          </div>
-
-          {scope === "INVITED" && (
-            <div>
-              <div className="flex items-center justify-between mb-1"><span className="text-[11px] text-[var(--muted-foreground)]">已选 {selected.length} 家</span><input value={supplierSearch} onChange={e => setSupplierSearch(e.target.value)} placeholder="搜索供应商" className="neu-input !h-7 w-32 px-2 text-[11px]" /></div>
-              <div className="max-h-32 overflow-y-auto rounded-lg bg-[var(--surface)] shadow-[inset_1px_1px_3px_oklch(0.55_0.03_258/0.08),inset_-1px_-1px_3px_oklch(1_0_0/0.5)]">
-                {suppliers.map(s => (<label key={s.id} className="flex items-center gap-2 px-3 py-1.5 text-[0.8rem] hover:bg-[var(--muted)] cursor-pointer"><input type="checkbox" checked={selected.includes(s.id)} onChange={() => setSelected(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id])} className="accent-[var(--accent)]" /><span className="text-[var(--foreground)] truncate">{s.name}</span></label>))}
-              </div>
-            </div>
-          )}
-
-          <button onClick={doUpload} disabled={busy || !file} className="neu-btn-soft w-full justify-center disabled:opacity-40">{busy ? `加密上传中${docUpPct != null ? ` ${docUpPct}%` : '...'}` : "加密上传"}</button>
-          {docUpPct != null && (
-            <div className="flex items-center gap-2">
-              <WaterBar pct={docUpPct} state="uploading" />
-              <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[var(--accent)]">{docUpPct}%</span>
-            </div>
-          )}
-        </div>
-      )}
-      {dialog}
-    </div>
-  );
-}

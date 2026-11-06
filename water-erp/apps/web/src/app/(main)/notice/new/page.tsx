@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   createAnnouncement, updateAnnouncement, listAnnouncements,
-  listAttachments, addAttachment, removeAttachment, uploadFile,
+  listAttachments, addAttachment, removeAttachment, uploadFile, getBidDocument,
 } from '@/lib/api/announcement';
-import type { AnnouncementType, AnnouncementStatus, AnnouncementAttachment } from '@/lib/api/announcement';
+import type { AnnouncementType, AnnouncementStatus, AnnouncementAttachment, BidDocumentManage } from '@/lib/api/announcement';
+import { BidDocEditSection } from '@/components/notice/bid-doc-edit-section';
 import { WaterBar } from '@/components/upload/water-bar';
 import { Upload, PlusCircle, Save, Send, FolderKanban, Megaphone, Search, X } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
@@ -162,9 +163,13 @@ export default function NewNoticePage() {
   const [projectQuery, setProjectQuery] = useState('');
   const [annQuery, setAnnQuery] = useState('');
 
+  const [bidDoc, setBidDoc] = useState<BidDocumentManage | null>(null);
+  const { confirm, dialog: confirmDialog } = useConfirm();
+
   const onTypeChange = (t: NoticeType) => {
-    setType(t); setMetadata({});
+    setType(t); setMetadata(t === 'ADDENDUM' ? { refBidDoc: '' } : {});
     setLinkedProject(null); setLinkedAnnouncement(null); setProjectQuery(''); setAnnQuery('');
+    setBidDoc(null);
   };
 
   // 发布单位：登录人公司（后端 create 时 stampFor 落 companyName 快照，此处仅展示口径一致）
@@ -220,7 +225,9 @@ export default function NewNoticePage() {
   const loadExtras = useCallback(async () => {
     if (!annId) return;
     try { setAttachments(await listAttachments(annId)); } catch {}
-  }, [annId]);
+    // 补遗公告引用的采购文件（2026-11-06）：与采购公告同链回显
+    if (type === 'ADDENDUM') { try { setBidDoc(await getBidDocument(annId)); } catch { setBidDoc(null); } }
+  }, [annId, type]);
   useEffect(() => { loadExtras(); }, [loadExtras]);
 
   const saveNew = async (targetStatus: AnnouncementStatus): Promise<string | null> => {
@@ -233,6 +240,8 @@ export default function NewNoticePage() {
     setBusy(true);
     const meta: Record<string, any> = {};
     for (const f of TYPE_META[type]) if (metadata[f.key]?.trim()) meta[f.key] = metadata[f.key].trim();
+    // 补遗「引用采购文件」开关随 meta 落库（2026-11-06；关=不写键）
+    if (type === 'ADDENDUM' && metadata.refBidDoc === '1') meta.refBidDoc = '1';
     // 关联信息（2026-10-16）：projectCode/relatedAnnouncementTitle 移入选择器区块、不在 TYPE_META，须显式带走
     if (isProjectLinked) {
       if (metadata.projectCode?.trim()) meta.projectCode = metadata.projectCode.trim();
@@ -258,6 +267,20 @@ export default function NewNoticePage() {
     finally { setBusy(false); }
   };
 
+  /** 附件/采购文件上传前的按需落草稿（2026-11-06 用户裁定：不再要求先手工保存草稿）——
+   *  标题为空时以「未命名{类型}」占位自动建草稿，上传即绑定本记录；后续正常编辑覆盖标题 */
+  const ensureDraft = useCallback(async (): Promise<string | null> => {
+    if (publishedRef.current) { toast.error('公告已发布，如需调整请从详情页操作'); return null; }
+    if (annId) return annId;
+    if (busy) return null;
+    const fallbackTitle = title.trim() || `未命名${typeLabel[type]}`;
+    if (!title.trim()) setTitle(fallbackTitle);
+    const id = await saveNew('DRAFT');
+    if (id) toast.info('已自动保存草稿');
+    return id;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [annId, busy, title, type, publishConfig, metadata, content, summary, isTop, publishDate, linkedProject, linkedAnnouncement]);
+
   const saveDraft = async () => {
     if (publishedRef.current) { toast.error('公告已发布，如需调整请从详情页操作'); return; }
     const id = await saveNew('DRAFT');
@@ -266,7 +289,7 @@ export default function NewNoticePage() {
       if (publishConfig.scheduleMode === 'scheduled' && publishConfig.scheduledPublishDate) {
         toast.info(`草稿已保存，定时发布仍生效（${publishConfig.scheduledPublishDate.replace('T', ' ')}）`);
       } else {
-        toast.success('草稿已保存，可上传附件');
+        toast.success('草稿已保存');
       }
       loadExtras();
     }
@@ -276,6 +299,9 @@ export default function NewNoticePage() {
       toast.error('请设置定时发布时间');
       return;
     }
+    // 补遗声明引用采购文件但尚未上传：发布前确认（同采购公告口径，2026-11-06）
+    if (type === 'ADDENDUM' && metadata.refBidDoc === '1' && !bidDoc && publishConfig.scheduleMode === 'immediate'
+      && !(await confirm({ message: '该补遗公告声明引用采购文件但尚未上传，确认直接发布？' }))) return;
     const id = await saveNew('PUBLISHED');
     if (id) {
       publishedRef.current = true;
@@ -295,7 +321,7 @@ export default function NewNoticePage() {
             </div>
             <div>
               <div className="page-hero__title">新建公告</div>
-              <div className="page-hero__sub">填写{typeLabel[type]}的基本信息，可先存草稿，配齐附件后发布</div>
+              <div className="page-hero__sub">填写{typeLabel[type]}的基本信息；附件与采购文件可随时上传，配齐后发布</div>
             </div>
           </div>
           <div className="page-hero__right">
@@ -306,14 +332,6 @@ export default function NewNoticePage() {
           </div>
         </div>
       </div>
-
-      {/* 提示条 */}
-      {!annId && (
-        <div className="rounded-lg px-4 py-2.5 text-xs font-medium text-[var(--accent-strong)]"
-          style={{ background: 'color-mix(in oklch, var(--accent-soft), transparent 50%)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.4)' }}>
-          先填写基本信息并「保存草稿」后，才能上传附件；全部配齐后再「发布」。
-        </div>
-      )}
 
       {/* 表单卡片 — neu-table-card */}
       <div className="neu-table-card p-5 space-y-6">
@@ -445,6 +463,27 @@ export default function NewNoticePage() {
               );
             })}
           </div>
+          {/* 补遗公告：是否引用采购文件（2026-11-06 用户裁定）——引用则提供下载方式（免费/解密/付费暂不支持） */}
+          {type === 'ADDENDUM' && (
+            <div className="mt-4 rounded-xl bg-[var(--accent-soft)]/15 p-4" style={{ boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.3), inset 1px 1px 4px oklch(0.55 0.03 258/0.06), inset -1px -1px 4px oklch(1 0 0 / 0.5)' }}>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-xs font-semibold text-[var(--muted-foreground)]">引用采购文件</span>
+                <div className="neu-segment" role="group" aria-label="引用采购文件" data-index={metadata.refBidDoc === '1' ? '1' : '0'}>
+                  <span aria-hidden className="neu-segment-thumb" />
+                  <button type="button" aria-pressed={metadata.refBidDoc !== '1'} onClick={() => setMetadata({ ...metadata, refBidDoc: '' })} className="neu-segment-btn">不引用</button>
+                  <button type="button" aria-pressed={metadata.refBidDoc === '1'} onClick={() => setMetadata({ ...metadata, refBidDoc: '1' })} className="neu-segment-btn">引用</button>
+                </div>
+              </div>
+              <p className="mt-2 text-[11px] text-[var(--muted-foreground)]">
+                引用后补遗公告附带采购文件下载通道（免费 / 解密 / 付费暂不支持），供应商在公告详情下载；不引用则仅文字澄清
+              </p>
+              {metadata.refBidDoc === '1' && (
+                <div className="mt-3">
+                  <BidDocEditSection annId={annId} bidDoc={bidDoc} onChanged={loadExtras} ensureAnnId={ensureDraft} heading="引用采购文件" />
+                </div>
+              )}
+            </div>
+          )}
         </fieldset>
 
         <hr className="wb-section-rule" />
@@ -468,23 +507,14 @@ export default function NewNoticePage() {
           <PublishConfigSection config={publishConfig} onChange={setPublishConfig} />
         </fieldset>
 
-        {/* ⑥ 附件 — 保存草稿后显示 */}
-        {annId ? (
-          <>
-            <hr className="wb-section-rule" />
-            <fieldset>
-              <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">
-                <Step n={isProjectLinked ? 7 : 6} />附件（公开可下载）
-              </legend>
-              <AttachmentUploader annId={annId} attachments={attachments} onChanged={loadExtras} />
-            </fieldset>
-          </>
-        ) : (
-          <>
-            <hr className="wb-section-rule" />
-            <p className="text-xs text-[var(--muted-foreground)] py-2">保存草稿后可上传附件</p>
-          </>
-        )}
+        {/* ⑥ 附件 — 随时可传（2026-11-06 用户裁定：不再要求先保存草稿；首传自动落草稿绑定） */}
+        <hr className="wb-section-rule" />
+        <fieldset>
+          <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">
+            <Step n={isProjectLinked ? 7 : 6} />附件（公开可下载）
+          </legend>
+          <AttachmentUploader annId={annId} ensureAnnId={ensureDraft} attachments={attachments} onChanged={loadExtras} />
+        </fieldset>
 
         {/* 操作栏 */}
         <div className="flex items-center justify-between gap-3 pt-4 border-t border-[color-mix(in_oklch,var(--muted-foreground)_16%,transparent)]">
@@ -525,18 +555,20 @@ export default function NewNoticePage() {
           />
         </>
       )}
+      {confirmDialog}
     </div>
   );
 }
 
 /* 附件上传器 */
-function AttachmentUploader({ annId, attachments, onChanged }: { annId: string; attachments: AnnouncementAttachment[]; onChanged: () => void }) {
+function AttachmentUploader({ annId, ensureAnnId, attachments, onChanged }: { annId: string | null; ensureAnnId: () => Promise<string | null>; attachments: AnnouncementAttachment[]; onChanged: () => void }) {
   const [title, setTitle] = useState('');
   const [uploading, setUploading] = useState(false);
   // 上传行（2026-11-06 上传进度条）：每文件字节进度，行随批次清理
   const [upRows, setUpRows] = useState<Array<{ name: string; pct: number }>>([]);
   const { confirm, dialog } = useConfirm();
-  // 附件统一限制（2026-10-19）：多选 + 100MB + 9 扩展白名单，坏文件当场提示并剔除
+  // 附件统一限制（2026-10-19）：多选 + 100MB + 9 扩展白名单，坏文件当场提示并剔除；
+  // 未保存草稿时先自动落草稿（2026-11-06：不再要求先手工保存）
   const onUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     if (files.length === 0) return;
@@ -544,6 +576,8 @@ function AttachmentUploader({ annId, attachments, onChanged }: { annId: string; 
     const okFiles = files.filter((f) => !validateAttachmentFile(f));
     if (invalid.length > 0) toast.error(invalid[0] + (invalid.length > 1 ? ` 等 ${invalid.length} 个文件被跳过` : ''));
     if (okFiles.length === 0) { e.target.value = ''; return; }
+    const targetId = annId ?? (await ensureAnnId());
+    if (!targetId) { e.target.value = ''; return; }
     setUploading(true);
     setUpRows(okFiles.map(f => ({ name: f.name, pct: 0 })));
     let done = 0;
@@ -553,7 +587,7 @@ function AttachmentUploader({ annId, attachments, onChanged }: { annId: string; 
         const asset = await uploadFile(f, 'announcement', {
           onProgress: (l, t) => setUpRows(rows => rows.map((r, j) => (j === i ? { ...r, pct: t > 0 ? Math.round((l / t) * 100) : 0 } : r))),
         });
-        await addAttachment(annId, asset.id, title || f.name); done++;
+        await addAttachment(targetId, asset.id, title || f.name); done++;
       }
       catch (err: any) { toast.error(`${f.name}：${err?.message || '上传失败'}`); }
     }

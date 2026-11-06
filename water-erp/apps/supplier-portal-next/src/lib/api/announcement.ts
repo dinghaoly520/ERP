@@ -12,9 +12,14 @@ export const announcementApi = {
     return api.get<any>(`/supplier-portal/announcements${qs(params)}`);
   },
   // 招标文件付费/下载（供应商视角）——获取元信息走 bidApi.getProjectBidDocument（项目维度）；
-  // 公告中心详情页自 2026-10-28 起不再发放采购文件（仅「项目机会」），此组仅项目机会详情页在用
+  // 公告中心详情页自 2026-10-28 起不再发放采购文件（仅「项目机会」），此组仅项目机会详情页在用。
+  // 例外（2026-11-06）：补遗公告「引用采购文件」自带下载通道，公告维度元信息走下方 getAnnouncementBidDocument
   payBidDocument(announcementId: string, paymentRef?: string) {
     return api.post<any>(`/supplier-portal/bid-documents/${announcementId}/pay`, { paymentRef });
+  },
+  // 公告维度采购文件元信息（补遗公告引用的采购文件）：无文件/无权限时后端返回 null
+  getAnnouncementBidDocument(announcementId: string) {
+    return api.get<any>(`/supplier-portal/bid-documents/${announcementId}`);
   },
   // 下载（cookie 鉴权 + 服务端解密），返回 blob
   async downloadBidDocument(announcementId: string, password?: string): Promise<{ blob: Blob; fileName: string }> {
