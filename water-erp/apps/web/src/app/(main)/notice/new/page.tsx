@@ -479,7 +479,7 @@ export default function NewNoticePage() {
               </p>
               {metadata.refBidDoc === '1' && (
                 <div className="mt-3">
-                  <BidDocEditSection annId={annId} bidDoc={bidDoc} onChanged={loadExtras} ensureAnnId={ensureDraft} heading="引用采购文件" />
+                  <BidDocEditSection annId={annId} bidDoc={bidDoc} onChanged={loadExtras} ensureAnnId={ensureDraft} heading="引用采购文件" fixedOpen />
                 </div>
               )}
             </div>

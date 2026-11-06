@@ -65,13 +65,15 @@ export function DownloadModePicker({ mode, password, onMode, onPassword }: {
   );
 }
 
-export function BidDocEditSection({ annId, bidDoc, onChanged, ensureAnnId, heading = '采购文件' }: {
+export function BidDocEditSection({ annId, bidDoc, onChanged, ensureAnnId, heading = '采购文件', fixedOpen = false }: {
   annId: string | null;
   bidDoc: BidDocumentManage | null;
   onChanged: () => void;
   /** annId 为空时调用以自动落草稿（新建页），返回公告 id；不可用返回 null */
   ensureAnnId?: () => Promise<string | null>;
   heading?: string;
+  /** 恒公开（补遗引用采购文件，2026-11-06 用户裁定）：不渲染「公开/邀请」范围下拉，恒 OPEN */
+  fixedOpen?: boolean;
 }) {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [supplierSearch, setSupplierSearch] = useState("");
@@ -131,7 +133,7 @@ export function BidDocEditSection({ annId, bidDoc, onChanged, ensureAnnId, headi
             <button onClick={removeDoc} className="neu-btn-xs is-danger ml-2 shrink-0">删除</button>
           </div>
           <div className="space-y-1.5">
-            <select value={scope} onChange={e => setScope(e.target.value as any)} className="neu-input text-sm"><option value="OPEN">公开</option><option value="INVITED">邀请</option></select>
+            {!fixedOpen && <select value={scope} onChange={e => setScope(e.target.value as any)} className="neu-input text-sm"><option value="OPEN">公开</option><option value="INVITED">邀请</option></select>}
             <DownloadModePicker mode={dlMode} password={dlPassword} onMode={setDlMode} onPassword={setDlPassword} />
           </div>
           {scope === "INVITED" && (
@@ -167,7 +169,7 @@ export function BidDocEditSection({ annId, bidDoc, onChanged, ensureAnnId, headi
           </label>
 
           <div className="space-y-1.5">
-            <select value={scope} onChange={e => setScope(e.target.value as any)} className="neu-input text-sm"><option value="OPEN">公开</option><option value="INVITED">邀请</option></select>
+            {!fixedOpen && <select value={scope} onChange={e => setScope(e.target.value as any)} className="neu-input text-sm"><option value="OPEN">公开</option><option value="INVITED">邀请</option></select>}
             <DownloadModePicker mode={dlMode} password={dlPassword} onMode={setDlMode} onPassword={setDlPassword} />
           </div>
 

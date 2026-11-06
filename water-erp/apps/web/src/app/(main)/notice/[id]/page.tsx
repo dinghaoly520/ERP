@@ -633,7 +633,7 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
               </div>
               <p className="mt-2 text-[11px] text-[var(--muted-foreground)]">引用后补遗公告附带采购文件下载通道（免费 / 解密 / 付费暂不支持），供应商在公告详情下载</p>
             </div>
-            {metadata.refBidDoc === '1' && <BidDocEditSection annId={ann.id} bidDoc={bidDoc} onChanged={loadExtras} heading="引用采购文件" />}
+            {metadata.refBidDoc === '1' && <BidDocEditSection annId={ann.id} bidDoc={bidDoc} onChanged={loadExtras} heading="引用采购文件" fixedOpen />}
           </div>
         )}
         <div className="flex flex-col gap-2 pt-1">
