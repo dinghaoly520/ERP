@@ -79,6 +79,18 @@
 - 状态机：`等待中 → 上传中(loaded/total) → 已完成 | 失败(reason) | 已取消`；失败行内 ↻ 仅重传该文件（复用同一 abort 链）。
 - 非上传期（仅选择未上传）：保持现有芯片形态，不预渲染行。
 
+### 4.3 动效层（2026-11-06 用户裁定：水波+流光叠加——「炫酷但须契合系统风格」）
+
+全部动效只用系统既有语言（令牌色、hairline、inset 顶光线、等宽数字），禁区：彩色渐变、
+Material 投影、emoji、波幅 >3px、循环周期 <2s。
+
+- **水面（水槽隐喻，贴水利品牌）**：填充本体 `--accent` 半透明（`color-mix(in oklch, var(--accent) 14%, transparent)`，同徽章底色口径）；填充缘两层错相波纹——纯 CSS 波形，波幅 2px、透明度 0.35/0.18、8s/13s 双周期 translateX 循环，颜色 accent-soft；轨道维持内凹 hairline（§4.2 既有轨道样式）。
+- **流光**：波峰上一道 12px 宽白色高光带（`oklch(1 0 0 / 0.35)`）每 2.4s 自左向右扫过填充区一次——与卡片 `inset 0 1px 0 oklch(1 0 0/0.7)` 顶光线同一语言，非彩色渐变。
+- **数字滚动**：总百分比/单行百分比/速度 tabular-nums 逐帧播值（rAF 插值 ~200ms 到达目标值），仪表感；到达 100% 定格。
+- **完成涟漪**：单文件到 100% 一次性对勾描边（SVG stroke-dashoffset 250ms，success 色）+ 水面一圈涟漪（scale 1→1.6 淡出 400ms，一次性）。
+- **无障碍**：`prefers-reduced-motion: reduce` → 全部动效退静态填充（波纹/流光/涟漪停用，数字直接跳变终值）。
+- 实现：纯 CSS keyframes + 一段 rAF 播值 hook，零依赖零库；组件外不可见任何新增装饰元素。
+
 ## 5. 演示面集成（:3005 项目管理阶段附件）
 
 1. **传输切换**：`uploadProjectStageAttachment`（project-management.ts:331）从裸 `apiFetch` 改为 `api.upload`（web `lib/api.ts` 新增 `upload: (path, body, opts) => client.upload(path, body, opts)`），FormData 组装不变、round 参数不变。
