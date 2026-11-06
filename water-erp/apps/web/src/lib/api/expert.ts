@@ -251,11 +251,15 @@ export function createCustomProject(data: { name: string; procurementMethod?: st
   return api.post<{ projectId: string; projectCode: string; name: string; openTime: string }>('/expert-admin/extract/custom-project', data);
 }
 
-/** 自定义抽取：上传项目文件（PDF/Word/图片），返回 FileAsset 元数据 */
-export function uploadExtractionFile(file: File) {
+/** 自定义抽取：上传项目文件（PDF/Word/图片），返回 FileAsset 元数据；
+ *  2026-11-06 换 XHR 轨带字节进度（批量上传场景） */
+export function uploadExtractionFile(
+  file: File,
+  opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal },
+) {
   const fd = new FormData();
   fd.append('file', file);
-  return api.postForm<{ id: string; key: string; url: string; originalName: string; size: number; mimeType: string }>(`/upload?category=bid_document`, fd);
+  return api.upload<{ id: string; key: string; url: string; originalName: string; size: number; mimeType: string }>(`/upload?category=bid_document`, fd, opts);
 }
 
 export function prepRsvpLinks(projectId: string, force = false) {

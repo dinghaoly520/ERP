@@ -111,6 +111,8 @@ export function ContractStageModal({ open, onClose, item, onUpdated }: Props) {
   const awardedSupplierName = item.awardedSupplier?.trim() ?? '';
   const [contracts, setContracts] = useState<Contract[] | null>(null);
   const [busy, setBusy] = useState(false);
+  // 履约/验收/签署证明上传字节进度（2026-11-06 上传进度条；随 act 收尾复位）
+  const [proofUpPct, setProofUpPct] = useState(0);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ supplierName: '', amount: '', signDeadline: '' });
   const [fulfillmentProofFiles, setFulfillmentProofFiles] = useState<Record<string, File | undefined>>({});
@@ -147,7 +149,7 @@ export function ContractStageModal({ open, onClose, item, onUpdated }: Props) {
     setBusy(true);
     try { await fn(); toast.success(ok); load(); onUpdated?.(); }
     catch (e: any) { toast.error(e?.message || '操作失败'); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setProofUpPct(0); }
   };
 
   const handleCreate = () => {
@@ -179,7 +181,9 @@ export function ContractStageModal({ open, onClose, item, onUpdated }: Props) {
     }
 
     void act(async () => {
-      const uploaded = selectedFile ? await uploadContractProof(selectedFile) : null;
+      const uploaded = selectedFile ? await uploadContractProof(selectedFile, {
+        onProgress: (l, t) => setProofUpPct(t > 0 ? Math.round((l / t) * 100) : 0),
+      }) : null;
       const proofAssetId = uploaded?.id ?? fulfillment.proofAsset?.id ?? fulfillment.proofAssetId ?? undefined;
       await updateContractFulfillment(contract.id, fulfillment.id, { status: 'done', proofAssetId });
       setFulfillmentProofFiles(current => {
@@ -200,7 +204,9 @@ export function ContractStageModal({ open, onClose, item, onUpdated }: Props) {
     const note = prompt('验收情况说明：') ?? '';
     if (note === '') return;
     void act(async () => {
-      const uploaded = selectedFile ? await uploadContractProof(selectedFile) : null;
+      const uploaded = selectedFile ? await uploadContractProof(selectedFile, {
+        onProgress: (l, t) => setProofUpPct(t > 0 ? Math.round((l / t) * 100) : 0),
+      }) : null;
       await acceptContract(contract.id, { note, proofAssetId: uploaded?.id });
       setAcceptanceProofFiles(current => {
         const next = { ...current };
@@ -217,7 +223,9 @@ export function ContractStageModal({ open, onClose, item, onUpdated }: Props) {
       return;
     }
     void act(async () => {
-      const uploaded = await uploadContractProof(selectedFile!);
+      const uploaded = await uploadContractProof(selectedFile!, {
+        onProgress: (l, t) => setProofUpPct(t > 0 ? Math.round((l / t) * 100) : 0),
+      });
       await signContract(contract.id, { signedAssetId: uploaded.id });
       setSigningFiles(current => {
         const next = { ...current };
@@ -228,7 +236,9 @@ export function ContractStageModal({ open, onClose, item, onUpdated }: Props) {
   };
 
   return (
-    <Modal open={open} onClose={closeModal} title="合同订立与履行" description="订立（一致性校验→内审→签署）· 履行台账 · 验收办结" size="xl">
+    <Modal open={open} onClose={closeModal} title="合同订立与履行"
+      description={busy && proofUpPct > 0 ? `证明文件上传中 ${proofUpPct}%…` : '订立（一致性校验→内审→签署）· 履行台账 · 验收办结'}
+      size="xl">
       {/* ── 新建入口 ── */}
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs text-[var(--muted-foreground)]">项目编号 {item.projectCode}</span>

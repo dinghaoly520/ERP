@@ -55,6 +55,7 @@ export function ChatDialog({ peerId, onClose, onBack }: ChatDialogProps) {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [uploadingKind, setUploadingKind] = useState<'image' | 'file' | null>(null);
+  const [upPct, setUpPct] = useState(0); // 附件上传字节进度（2026-11-06；输入区占位提示）
   const [mounted, setMounted] = useState(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
 
@@ -217,8 +218,11 @@ export function ChatDialog({ peerId, onClose, onBack }: ChatDialogProps) {
 
   const handleUpload = async (file: File, kind: 'image' | 'file') => {
     setUploadingKind(kind);
+    setUpPct(0);
     try {
-      const uploaded = await uploadChatFile(file);
+      const uploaded = await uploadChatFile(file, {
+        onProgress: (l, t) => setUpPct(t > 0 ? Math.round((l / t) * 100) : 0),
+      });
       await doSend({
         type: kind,
         content: uploaded.originalName,
@@ -415,7 +419,7 @@ export function ChatDialog({ peerId, onClose, onBack }: ChatDialogProps) {
                   void handleSendText();
                 }
               }}
-              placeholder={isSelfMode ? '写下要备份的内容，Enter 保存 / Shift+Enter 换行' : '输入消息，Enter 发送 / Shift+Enter 换行'}
+              placeholder={uploadingKind ? `附件上传中 ${upPct}%…` : isSelfMode ? '写下要备份的内容，Enter 保存 / Shift+Enter 换行' : '输入消息，Enter 发送 / Shift+Enter 换行'}
               rows={1}
             />
             <button

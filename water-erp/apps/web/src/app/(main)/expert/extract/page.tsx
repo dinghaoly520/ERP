@@ -8,6 +8,7 @@ import { fetchCurrentUser } from '@/lib/api/auth';
 import { localDateInputValue, localTimeInputValue } from '@/lib/local-date';
 import { useCompanyInfo } from '@/lib/api/company-info';
 import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, specialtyPoolCounts, listPoolCompanies, listExperts, getDemandRepDirectory, getBidProjectDetail, getProjectInvitations, proxyMarkExpertInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, fetchExtractionProfiles, fetchCommitteeAnalysis, createExternalDemandRep, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, type DemandRepDirectoryItem } from '@/lib/api/expert';
+import { WaterBar } from '@/components/upload/water-bar';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { QuotaMultiSelect } from '@/components/expert/quota-multi-select';
@@ -1200,13 +1201,20 @@ export function ExpertExtractPage({
   [availablePool, replaceSearch]);
 
   // 自定义项目：上传文件 / AI 分析 / 创建影子项目并进入抽取
+  // 2026-11-06 上传进度条：字节进度实时亮在上传钮下方（每文件行）
+  const [upRows, setUpRows] = useState<Array<{ name: string; pct: number }>>([]);
   const handleUploadFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setUploading(true);
+    const list = Array.from(files);
+    setUpRows(list.map(f => ({ name: f.name, pct: 0 })));
     let okCount = 0;
-    for (const f of Array.from(files)) {
+    for (let i = 0; i < list.length; i++) {
+      const f = list[i];
       try {
-        const res = await uploadExtractionFile(f);
+        const res = await uploadExtractionFile(f, {
+          onProgress: (l, t) => setUpRows(rows => rows.map((r, j) => (j === i ? { ...r, pct: t > 0 ? Math.round((l / t) * 100) : 0 } : r))),
+        });
         setCustomFiles(prev => [...prev, { id: res.id, name: res.originalName, size: res.size }]);
         okCount++;
       } catch (e: any) {
@@ -1215,6 +1223,7 @@ export function ExpertExtractPage({
     }
     if (okCount > 0) toast.success(`已上传 ${okCount} 个文件`);
     setUploading(false);
+    setUpRows([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -2205,6 +2214,17 @@ export function ExpertExtractPage({
                         <span className="text-xs font-semibold">{uploading ? '上传中...' : '点击选择文件上传'}</span>
                         <span className="text-[10px] text-[var(--muted-foreground)]">PDF / Word / 图片 / TXT，可多选</span>
                       </button>
+                      {upRows.length > 0 && (
+                        <div className="mt-2 space-y-1.5">
+                          {upRows.map((r, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <span className="max-w-[220px] shrink-0 truncate text-[11px] font-semibold text-[var(--muted-foreground)]" title={r.name}>{r.name}</span>
+                              <WaterBar pct={r.pct} state="uploading" />
+                              <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[var(--accent)]">{r.pct}%</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       {customFiles.length > 0 && (
                         <div className="mt-2 space-y-1.5">
                           {customFiles.map(f => (

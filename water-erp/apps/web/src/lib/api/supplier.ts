@@ -660,10 +660,13 @@ export function getSupplierDocuments(id: string) {
 }
 /** 上传文件到 MinIO，返回真实可访问 url —— 供详情文件档案使用，杜绝 fileUrl:'#' 假记录。
  *  分类须在后端 ALLOWED_CATEGORIES 白名单内（upload.service.ts），故用 'general' 而非自造值。 */
-export function uploadSupplierFile(file: File): Promise<{ url: string; originalName: string; size: number }> {
+export function uploadSupplierFile(
+  file: File,
+  opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal },
+): Promise<{ url: string; originalName: string; size: number }> {
   const fd = new FormData();
   fd.append('file', file);
-  return api.postForm<{ id: string; url: string; originalName: string; size: number }>('/upload?category=general', fd);
+  return api.upload<{ id: string; url: string; originalName: string; size: number }>('/upload?category=general', fd, opts);
 }
 export function uploadSupplierDocument(id: string, data: { type: string; name: string; fileUrl: string; fileSize?: number; note?: string }) {
   return api.post<SupplierDocumentRecord>(`/supplier/${id}/documents`, data);
@@ -764,10 +767,14 @@ export function resolveApprovalAttachments(ids: string[]) {
 }
 
 /** 上传审核意见附件（FileAsset） */
-export function uploadReviewAttachment(file: File) {
+/** 上传审核意见附件（FileAsset）；2026-11-06 换 XHR 轨带字节进度 */
+export function uploadReviewAttachment(
+  file: File,
+  opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal },
+) {
   const fd = new FormData();
   fd.append('file', file);
-  return api.postForm<{ id: string; url: string; originalName: string; size: number }>(`/upload?category=general`, fd);
+  return api.upload<{ id: string; url: string; originalName: string; size: number }>(`/upload?category=general`, fd, opts);
 }
 
 export function fetchMyPendingReviewCount(companyId?: string) {

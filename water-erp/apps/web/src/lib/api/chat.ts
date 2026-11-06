@@ -72,11 +72,15 @@ export function markRead(peerId: string): Promise<{ updated: number }> {
   return api.post<{ updated: number }>(`/chat/messages/${encodeURIComponent(peerId)}/read`, {});
 }
 
-/** 上传图片/文件到 /api/upload（general 分类），返回 fileAsset 元数据 */
-export function uploadChatFile(file: File): Promise<UploadedFile> {
+/** 上传图片/文件到 /api/upload（general 分类），返回 fileAsset 元数据；
+ *  2026-11-06 换 XHR 轨带字节进度（发送按钮内展示） */
+export function uploadChatFile(
+  file: File,
+  opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal },
+): Promise<UploadedFile> {
   const fd = new FormData();
   fd.append('file', file);
-  return api.postForm<UploadedFile>('/upload?category=general', fd);
+  return api.upload<UploadedFile>('/upload?category=general', fd, opts);
 }
 
 // ── WebSocket ──

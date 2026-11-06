@@ -115,12 +115,16 @@ export function formatContractProofMetadata(asset: ContractProofAsset) {
   };
 }
 
-export function uploadContractProof(file: File) {
+export function uploadContractProof(
+  file: File,
+  opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal },
+) {
   const body = new FormData();
   body.append('file', file);
-  return api.postForm<ContractProofAsset & { key: string; url: string; category: string }>(
+  return api.upload<ContractProofAsset & { key: string; url: string; category: string }>(
     '/upload?category=contract_document',
     body,
+    opts,
   );
 }
 

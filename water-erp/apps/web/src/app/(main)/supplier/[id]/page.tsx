@@ -198,6 +198,7 @@ export default function SupplierDetailPage() {
   const [documents, setDocuments] = useState<SupplierDocumentRecord[]>([]);
   const [docLoading, setDocLoading] = useState(false);
   const [docUploading, setDocUploading] = useState(false);
+  const [docUpPct, setDocUpPct] = useState(0); // 文件档案上传字节进度（2026-11-06）
   const [newDocName, setNewDocName] = useState('');
   const [newDocNote, setNewDocNote] = useState('');
   const [newDocFile, setNewDocFile] = useState<File | null>(null);
@@ -1637,8 +1638,11 @@ export default function SupplierDetailPage() {
                     if (!newDocFile) { toast.error('请先选择文件'); return; }
                     if (!newDocName.trim()) { toast.error('请填写文件名称'); return; }
                     setDocUploading(true);
+                    setDocUpPct(0);
                     try {
-                      const uploaded = await uploadSupplierFile(newDocFile);
+                      const uploaded = await uploadSupplierFile(newDocFile, {
+                        onProgress: (l, t) => setDocUpPct(t > 0 ? Math.round((l / t) * 100) : 0),
+                      });
                       const doc = await uploadSupplierDocument(id as string, {
                         type: newDocType,
                         name: newDocName.trim(),
@@ -1653,7 +1657,7 @@ export default function SupplierDetailPage() {
                   }}
                   disabled={docUploading || !newDocFile || !newDocName.trim()} className="neu-btn-xs gap-1"
                 >
-                  {docUploading ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}添加文件
+                  {docUploading ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}{docUploading ? `上传中 ${docUpPct}%` : '添加文件'}
                 </button>
               </div>
 
