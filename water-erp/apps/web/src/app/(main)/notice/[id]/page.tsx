@@ -35,7 +35,7 @@ const typeLabel = ANN_TYPE_LABEL;
 const statusTone = ANN_STATUS_TONE;
 const statusLabel = ANN_STATUS_LABEL;
 
-interface MetaField { key: string; label: string; area?: boolean; date?: boolean; ph?: string }
+interface MetaField { key: string; label: string; area?: boolean; date?: boolean; ph?: string; required?: boolean }
 
 /** datetime-local 值归一：存量纯日期（2026-07-01）补 T00:00，否则控件显示空；已合规/空原样 */
 function toDateInputValue(raw: string): string {
@@ -56,7 +56,7 @@ const TYPE_META: Record<AnnouncementType, MetaField[]> = {
     { key: 'title', label: '预审名称（存量）' },
   ],
   ADDENDUM: [
-    { key: 'changes', label: '澄清/修改内容', area: true, ph: '逐条列出对采购文件的澄清或修改事项' },
+    { key: 'changes', label: '澄清/修改内容', area: true, required: true, ph: '逐条列出对采购文件的澄清或修改事项' },
     { key: 'projectCode', label: '项目编号' }, { key: 'relatedAnnouncementTitle', label: '关联采购公告（可选）' },
     // 开标时间调整（openTimeChanged/newOpenTime）为专用行渲染；newDeadline 为存量键随保存显式带走不展示
   ],
@@ -592,6 +592,11 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
       toast.error(type === 'ADDENDUM' ? '补遗公告须填写关联项目编号' : '资格预审公告须填写关联项目编号');
       return;
     }
+    // 补遗澄清/修改内容必填（2026-11-06 用户裁定）
+    if (type === 'ADDENDUM' && !metadata.changes?.trim()) {
+      toast.error('请填写澄清/修改内容');
+      return;
+    }
     if (type === 'ADDENDUM' && metadata.openTimeChanged === '1' && !metadata.newOpenTime) {
       toast.error('已选择改变开标时间，请填写调整后开标时间');
       return;
@@ -649,7 +654,7 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {TYPE_META[type].map(f => (
               <div key={f.key} className={f.area ? 'sm:col-span-2' : ''}>
-                <label className="block text-xs font-semibold text-[var(--muted-foreground)] mb-1.5">{f.label}</label>
+                <label className="block text-xs font-semibold text-[var(--muted-foreground)] mb-1.5">{f.label}{f.required && <span className="text-[var(--danger)]"> *</span>}</label>
                 {f.area
                   ? <textarea value={metadata[f.key] || ''} placeholder={f.ph} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className="neu-input h-20 resize-none" />
                   : f.date

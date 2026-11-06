@@ -38,7 +38,7 @@ const typeLabel: Record<NoticeType, string> = {
   ADDENDUM: '补遗公告', PREQUAL_NOTICE: '资格预审公告', POLICY: '政策法规', PLATFORM: '平台通知',
 };
 
-interface MetaField { key: string; label: string; area?: boolean; date?: boolean; ph?: string }
+interface MetaField { key: string; label: string; area?: boolean; date?: boolean; ph?: string; required?: boolean }
 
 /** datetime-local 值归一：存量纯日期（2026-07-01）补 T00:00，否则控件显示空；已合规/空原样 */
 function toDateInputValue(raw: string): string {
@@ -52,7 +52,7 @@ const TYPE_META: Record<NoticeType, MetaField[]> = {
   // C5（GB/T 43711 7.2.6）：采购文件澄清/修改 → 补遗公告（发布后自动通知已获取文件的供应商）
   // projectCode 不在通用网格——移入「关联信息」区块（选择器自动带出，2026-10-16；手填入口 2026-11-06 删除）
   ADDENDUM: [
-    { key: 'changes', label: '澄清/修改内容', area: true, ph: '逐条列出对采购文件的澄清或修改事项' },
+    { key: 'changes', label: '澄清/修改内容', area: true, required: true, ph: '逐条列出对采购文件的澄清或修改事项' },
     // 开标时间调整（openTimeChanged/newOpenTime）为专用行渲染（segment + 窄时间框），不在通用网格
   ],
   // 7.2.3 资格预审公告：供应商按公告约定提交资格预审申请。原「预审名称」与公告标题重复（2026-11-06 删），
@@ -334,6 +334,11 @@ export default function NewNoticePage() {
       toast.error(`${typeLabel[type]}须先选择关联项目`);
       return;
     }
+    // 补遗澄清/修改内容必填（2026-11-06 用户裁定）
+    if (type === 'ADDENDUM' && !metadata.changes?.trim()) {
+      toast.error('请填写澄清/修改内容');
+      return;
+    }
     // 补遗选择「改变开标时间」须给出新时间（后端发布时联动项目开标/截标与原采购公告）
     if (type === 'ADDENDUM' && metadata.openTimeChanged === '1' && !metadata.newOpenTime) {
       toast.error('已选择改变开标时间，请填写调整后开标时间');
@@ -494,7 +499,7 @@ export default function NewNoticePage() {
               return (
                 <div key={f.key} className={f.area ? 'sm:col-span-2' : ''}>
                   <label className="space-y-1">
-                    <span className="text-xs font-semibold text-[var(--muted-foreground)]">{f.label}</span>
+                    <span className="text-xs font-semibold text-[var(--muted-foreground)]">{f.label}{f.required && <span className="text-[var(--danger)]"> *</span>}</span>
                     {f.area
                       ? <textarea value={val} placeholder={f.ph} onChange={e => setMetadata({ ...metadata, [f.key]: e.target.value })} className="neu-input h-20 resize-y" />
                       : f.date
