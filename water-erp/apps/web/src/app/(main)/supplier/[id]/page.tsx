@@ -3,9 +3,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, getSupplierCommunications, getSupplierDocuments, deleteSupplierDocument, updateSupplierTags, blacklistSupplier, unblacklistSupplier, revealSupplierField, companyLinksApi } from '@/lib/api/supplier';
+import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, getSupplierCommunications, updateSupplierTags, blacklistSupplier, unblacklistSupplier, revealSupplierField, companyLinksApi } from '@/lib/api/supplier';
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification } from '@/lib/types';
-import type { CommunicationRecord, SupplierDocumentRecord, CompanyLinkRow, RsvpHistoryResult } from '@/lib/api/supplier';
+import type { CommunicationRecord, CompanyLinkRow, RsvpHistoryResult } from '@/lib/api/supplier';
 import { getRsvpHistory } from '@/lib/api/supplier';
 import { ApprovalTimeline } from '@/components/workbench/approval-timeline';
 import { AlertBanner, type AlertSeverity, StatusBadge, Modal } from '@/components/workbench';
@@ -13,7 +13,7 @@ import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
 import { LEVEL_LABEL, LEVEL_COLOR, SUPPLIER_STATUS_LABEL, getNotificationLabel, getNotificationChannelLabel } from '@water-erp/shared';
 import type { AuthUser } from '@/lib/api/auth';
 import { fetchCurrentUser } from '@/lib/api/auth';
-import { CheckCircle2, X, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, FileText, User, Users, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Trash2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, Link2, AtSign, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, X, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, FileText, User, Users, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, Link2, AtSign, AlertTriangle } from 'lucide-react';
 import { SupplierTimeline } from '@/components/supplier/timeline';
 import { ApprovalHistory } from '@/components/supplier/approval-history';
 import { PortraitTab } from '@/components/supplier/portrait-tab';
@@ -79,15 +79,7 @@ function FieldGroup({ label }: { label: string }) {
 }
 
 /** 区块标题：小号大写 + 图标 */
-// 文件档案类型（2026-10-23）：上传可选 + 列表中文标签（兜底显原值——存量/自定义类型不炸）
-const DOC_TYPES = [
-  { v: 'contract', l: '合同文件' },
-  { v: 'qualification', l: '资质文件' },
-  { v: 'performance', l: '业绩证明' },
-  { v: 'report', l: '报告文书' },
-  { v: 'other', l: '其他' },
-] as const;
-const DOC_TYPE_LABEL: Record<string, string> = Object.fromEntries(DOC_TYPES.map(t => [t.v, t.l]));
+// DOC_TYPES/DOC_TYPE_LABEL 已删（2026-11-06 用户裁定，随文件档案整节移除）
 
 function SectionTitle({ icon: Icon, children }: { icon: React.ComponentType<{ size?: number }>; children: React.ReactNode }) {
   return (
@@ -193,9 +185,7 @@ export default function SupplierDetailPage() {
   // overrideAfterAccept（确认后被采购方改为拒绝）为经历警示核心口径
   const [rsvpHistory, setRsvpHistory] = useState<RsvpHistoryResult | null>(null);
   const [rsvpLoading, setRsvpLoading] = useState(false);
-  const [documents, setDocuments] = useState<SupplierDocumentRecord[]>([]);
-  const [docLoading, setDocLoading] = useState(false);
-  // 文件档案录入态已删（2026-11-06 用户裁定）：docUploading/docUpPct/newDoc* 整组移除，列表只读
+  // 文件档案已删（2026-11-06 用户裁定）：documents/docLoading 状态随整节移除
 
   // 归属公司（多公司归属 2026-10-16）：本视野内该供应商的库内归属（APPROVED/DISABLED link），
   // 列表按登录人公司隔离（staff/leader=本公司；admin=全部公司）——公司侧零检索面，仅展示归属事实
@@ -236,7 +226,7 @@ export default function SupplierDetailPage() {
   useEffect(() => {
     // 2026-10-23 板块合并：懒加载挂到合并后的 tab 键（邀请与沟通/资质与文件/基本信息）
     if (activeTab === 'rsvp' && communications.length === 0) { setCommLoading(true); getSupplierCommunications(id as string).then(setCommunications).catch(() => {}).finally(() => setCommLoading(false)); }
-    if (activeTab === 'qualifications' && documents.length === 0) { setDocLoading(true); getSupplierDocuments(id as string).then(setDocuments).catch(() => {}).finally(() => setDocLoading(false)); }
+    // 文件档案懒加载已删（2026-11-06 用户裁定，随整节移除）
     if (activeTab === 'info' && companyLinks === null) loadCompanyLinks();
   }, [activeTab, id]);
 
@@ -368,7 +358,7 @@ export default function SupplierDetailPage() {
     { key: 'info', label: '基本信息' },
     { key: 'portrait', label: '供应商画像' },
     // 合并计数（2026-10-23）：资质+文件 / 评价+奖惩；邀请数沿用回执统计
-    { key: 'qualifications', label: '资质与文件', count: qualifications.length + documents.length },
+    { key: 'qualifications', label: '资质材料', count: qualifications.length },
     { key: 'evaluations', label: '履约评价', count: evaluations.length },
     { key: 'rsvp', label: '邀请与沟通', count: rsvpHistory?.stats.invited },
   ];
@@ -1474,52 +1464,9 @@ export default function SupplierDetailPage() {
         </section>
       )}
 
-      {/* 文件档案 */}
-      {/* 文件档案（2026-10-23 并入资质与文件分区） */}
-      {activeTab === 'qualifications' && (
-        <section className="mt-8">
-          <SectionTitle icon={Paperclip}>文件档案</SectionTitle>
-          {docLoading ? (
-            <div className="py-8 text-center"><Loader2 size={14} className="animate-spin mx-auto mb-2" /><span className="text-sm text-[var(--muted-foreground)]">加载中...</span></div>
-          ) : (
-            <>
-              {/* 录入表单已删（2026-11-06 用户裁定）——档案只读列表；
-                  后端 uploadSupplierDocument 端点保留未动 */}
-
-              {documents.length === 0 ? (
-                <div className="neu-card-static !rounded-2xl py-10 text-center">
-                  <FolderOpen size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />
-                  <p className="text-sm text-[var(--muted-foreground)]">暂无文件档案</p>
-                </div>
-              ) : (
-                <div className="neu-table-card overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="neu-table w-full">
-                      <thead>
-                        <tr><th>文件名称</th><th>类型</th><th>上传人</th><th>上传时间</th><th className="w-20">操作</th></tr>
-                      </thead>
-                      <tbody>
-                        {documents.map(d => (
-                          <tr key={d.id}>
-                            <td className="text-sm font-semibold text-[var(--foreground)]">{d.name}</td>
-                            <td><span className="inline-flex items-center rounded-full bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 text-[11px] font-semibold text-[var(--accent)]">{DOC_TYPE_LABEL[d.type] || d.type}</span></td>
-                            <td className="text-sm text-[var(--muted-foreground)]">{d.uploader?.displayName || '—'}</td>
-                            <td className="text-sm tabular-nums text-[var(--muted-foreground)]">{new Date(d.createdAt).toLocaleDateString('zh-CN')}</td>
-                            <td>
-                              <button onClick={async () => { try { await deleteSupplierDocument(id as string, d.id); setDocuments(prev => prev.filter(x => x.id !== d.id)); toast.success('已删除'); } catch { toast.error('删除失败'); } }}
-                                className="neu-btn-xs is-danger"><Trash2 size={12} /></button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </section>
-      )}
+      {/* 文件档案整节已删（2026-11-06 用户裁定：录入表单先行移除后列表一并删除）——
+          状态/懒加载/DOC_TYPES/删除链整组清理；tab 更名「资质材料」；
+          后端 documents 端点保留未动 */}
 
       {/* ═══ 审批操作栏（PENDING/RETURNED 时固定在底部）═══ */}
       {isPending && isAdmin && (
