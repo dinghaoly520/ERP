@@ -455,19 +455,7 @@ function SupplierRepositoryPageInner() {
             </div>
           </div>
           <div className="page-hero__right">
-            {/* 待审核警示胶囊（2026-11-06 自 KPI 引导卡收编）：>0 红点提示、点击前往审批中心；
-                myPending 口径=待我审（非全局 PENDING，与下方「审批」按钮同源） */}
-            {canApprove && (
-              <button
-                type="button"
-                onClick={() => router.push('/supplier/approval')}
-                title={myPendingDetail ? `供应商审批中心待办：${describeMyPending(myPendingDetail)}` : '前往供应商审批中心（三级注册审核）'}
-                className="page-hero__stat page-hero__stat--warn"
-              >
-                <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-[var(--danger)]" />
-                待审核 {myPending}
-              </button>
-            )}
+            {/* 待审核胶囊已删（2026-11-06 用户裁定）——待办计数由右侧「审批（N）」按钮承载（>0 才显数） */}
             <CompanySelect value={companyId} onChange={(v) => { setCompanyId(v); setPage(1); }} countMode="suppliers" />
             <button onClick={() => router.push('/supplier/dashboard')} className="neu-btn-soft"><Activity size={15} />总览</button>
             <button onClick={() => window.dispatchEvent(new Event('open-review-center'))} className="neu-btn-soft" title={myPendingDetail ? `供应商审批中心待办：${describeMyPending(myPendingDetail)}` : "供应商审批中心：注册三级审核 · 信息更新审批"}><BadgeCheck size={15} />审批{myPending > 0 ? `（${myPending}）` : ''}</button>

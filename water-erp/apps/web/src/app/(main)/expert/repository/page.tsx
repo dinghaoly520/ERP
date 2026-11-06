@@ -365,7 +365,7 @@ export default function ExpertRepositoryPage() {
   const available = experts.filter(e => e.isActive && e.expertProfile?.availability === '可用').length;
   const occupied = experts.filter(e => e.isActive && e.expertProfile?.availability === '占用').length;
   const disabled = experts.filter(e => !e.isActive || e.expertProfile?.availability === '停用').length;
-  const totalEvals = experts.reduce((s, e) => s + e._count.expertEvaluations, 0);
+  // totalEvals 已删（2026-11-06 随累计评价胶囊移除；当前页推导值本就随翻页漂移）
   // 服务端全量 KPI（与 /expert/statistics 同口径，公司隔离同参数）
   const [expStats, setExpStats] = useState<Awaited<ReturnType<typeof getExpertStatistics>> | null>(null);
   // 仅公司视野变化重拉（experts 引用每页变，会无谓重跑 8 个聚合）；变更类操作后手动刷（三审 P2-3）
@@ -401,7 +401,7 @@ export default function ExpertRepositoryPage() {
             </div>
           </div>
           <div className="page-hero__right">
-            <span className="page-hero__stat page-hero__stat--info">累计评价 {expStats?.evaluationStats.total ?? totalEvals} 次</span>
+            {/* 累计评价胶囊已删（2026-11-06 用户裁定）——评价数据在「统计/排名」页与各专家详情呈现 */}
             {(() => {
               const graded = gradeDistribution.A + gradeDistribution.B + gradeDistribution.C + gradeDistribution.D + gradeDistribution.E;
               if (graded === 0) return null; // 无评价不显示五个零
