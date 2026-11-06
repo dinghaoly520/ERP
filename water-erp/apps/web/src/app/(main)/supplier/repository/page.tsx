@@ -22,7 +22,7 @@ import { useConfirm } from '@/components/workbench/use-confirm';
 import { SupplierEvaluationDialog } from '@/components/supplier/supplier-evaluation-dialog';
 import { ObjectionBoardModal } from '@/components/notice/objection-board-modal';
 import { SupplierAuditLogModal } from '@/components/supplier/supplier-audit-log-modal';
-import { Building2, MessageSquareWarning, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban, History } from 'lucide-react';
+import { Building2, MessageSquareWarning, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, Download, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban, History } from 'lucide-react';
 import { copyToClipboard } from '@/lib/copy-to-clipboard';
 import { exportAllFilteredSuppliersToExcel } from '@/lib/excel-export';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
@@ -611,7 +611,7 @@ function SupplierRepositoryPageInner() {
           title={`按当前筛选条件导出全部 ${data.total} 家供应商（含编号、法定代表人、标签、评价等完整资料）`}
           className="neu-btn-xs gap-1"
         >
-          <FileSpreadsheet size={12} />{exporting ? '导出中…' : `导出 Excel（${data.total}）`}
+          <Download size={12} />{exporting ? '导出中…' : `导出 Excel（${data.total}）`}
         </button>
         </div>
       </div>
