@@ -64,7 +64,11 @@ export default function ExpertProfilePage() {
   if (loading) return <div className="py-20 text-center text-sm text-[var(--muted-foreground)]">加载中...</div>;
   if (!profile) return <div className="py-20 text-center text-sm text-[var(--danger)]">未找到专家信息</div>;
 
-  // KPI 派生量与四瓷片已删（2026-11-06 用户裁定）——评审数据在「评审记录」区与工作台呈现
+  // KPI 四瓷片已删（2026-11-06 用户裁定）——派生量收编进标题副标题行（:3005 口径：
+  // 纯统计入副标题、零值不噪音；均分无值整段省略）
+  const totalProjects = profile.assignments.length;
+  const inProgress = profile.assignments.filter(a => a.progress < 100).length;
+  const totalScoreRecords = profile.assignments.reduce((s, a) => s + a.scoreRecords.length, 0);
 
   /** EXP-P2-04：身份证号脱敏（前4后3；短串整段打码）——专家口令=身份证号，明文即展示登录密码 */
   const maskIdNumber = (id?: string | null): string => {
@@ -95,7 +99,10 @@ export default function ExpertProfilePage() {
             <div className="page-hero__icon"><UserCircle size={18} strokeWidth={1.5} /></div>
             <div>
               <div className="page-hero__title">个人信息</div>
-              <div className="page-hero__sub">评审专家 · {profile.username} — 基本资料维护与评审记录总览</div>
+              <div className="page-hero__sub">
+                评审专家 · {profile.username} — 参与 {totalProjects} 项（进行中 {inProgress}）· 评分 {totalScoreRecords} 条
+                {profile.averageScore != null ? ` · 平均给分 ${profile.averageScore}` : ''}
+              </div>
             </div>
           </div>
           <div className="page-hero__right">
