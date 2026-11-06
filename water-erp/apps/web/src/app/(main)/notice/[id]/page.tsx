@@ -610,7 +610,6 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
       // 联动失败不静默（2026-10-30）：流标/采购公告发布但联动未完成时亮出服务端警示
       if (s.projectSyncWarning) toast.error(s.projectSyncWarning);
       if ((s as any).openTimeSyncWarning) toast.error((s as any).openTimeSyncWarning);
-      if ((s as any).deadlineAdvice) toast.warning((s as any).deadlineAdvice);
       onSaved(s);
     }
   };
@@ -677,6 +676,9 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
                 <input type="datetime-local" value={toDateInputValue(metadata.newOpenTime || '')} onChange={e => setMetadata({ ...metadata, newOpenTime: e.target.value })} className="neu-input !w-[13.5rem]" />
               ) : (
                 <span className="text-[11px] text-[var(--muted-foreground)]">沿用所关联公告/项目的开标时间</span>
+              )}
+              {metadata.openTimeChanged === '1' && metadata.newOpenTime && new Date(metadata.newOpenTime).getTime() - Date.now() < 3 * 86400000 && (
+                <p className="w-full text-[11px] font-medium text-[var(--warning)]">新开标时间距现在不足 3 日——请保证供应商有足够时间编制响应文件（GB/T 43711 7.2.6.2）</p>
               )}
             </div>
           )}

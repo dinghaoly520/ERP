@@ -137,7 +137,7 @@ export default function NewNoticePage() {
   // 已发布标记：publish 成功后 router.push 生效前的窗口期内，再点「保存草稿」会把
   // 已发布公告降级回 DRAFT——用 ref 拦住（2026-09-29 健壮性复查补充）
   const publishedRef = useRef(false);
-  // 最近一次保存的完整响应（发布后取 openTimeSyncWarning/deadlineAdvice 等警示面）
+  // 最近一次保存的完整响应（发布后取 openTimeSyncWarning 警示面）
   const savedResultRef = useRef<any>(null);
   const [type, setType] = useState<NoticeType>('POLICY');
   const [title, setTitle] = useState('');
@@ -353,7 +353,6 @@ export default function NewNoticePage() {
       toast.success(publishConfig.scheduleMode === 'scheduled' ? `已设定定时发布（${publishConfig.scheduledPublishDate.replace('T', ' ')}）` : '已发布');
       const r = savedResultRef.current;
       if (r?.openTimeSyncWarning) toast.error(r.openTimeSyncWarning);
-      if (r?.deadlineAdvice) toast.warning(r.deadlineAdvice);
       router.push(`/notice/${id}`);
     }
   };
@@ -526,6 +525,9 @@ export default function NewNoticePage() {
                 <input type="datetime-local" value={toDateInputValue(metadata.newOpenTime || '')} onChange={e => setMetadata({ ...metadata, newOpenTime: e.target.value })} className="neu-input !w-[13.5rem]" />
               ) : (
                 <span className="text-[11px] text-[var(--muted-foreground)]">沿用所关联公告/项目的开标时间</span>
+              )}
+              {metadata.openTimeChanged === '1' && metadata.newOpenTime && new Date(metadata.newOpenTime).getTime() - Date.now() < 3 * 86400000 && (
+                <p className="w-full text-[11px] font-medium text-[var(--warning)]">新开标时间距现在不足 3 日——请保证供应商有足够时间编制响应文件（GB/T 43711 7.2.6.2）</p>
               )}
             </div>
           )}

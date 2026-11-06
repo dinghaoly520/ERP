@@ -226,13 +226,10 @@ export class AnnouncementService {
     }
     // C5（7.2.6）：补遗公告发布 → 补遗计数 + 已获取文件供应商定向通知 + 开标时间联动（不阻塞发布）
     if (dto.type === 'ADDENDUM' && status === 'PUBLISHED') {
-      const m = (dto.metadata as Record<string, any>) || {};
-      const advice = this.addendumDeadlineAdvice(m.newOpenTime ?? m.newDeadline);
       try {
         const sync = await this.syncAddendum(result.id, authorId);
         if (sync.openTimeSyncWarning) Object.assign(result, { openTimeSyncWarning: sync.openTimeSyncWarning });
       } catch (e) { this.logger.warn(`补遗联动失败: ${(e as Error).message}`); }
-      if (advice) Object.assign(result, { deadlineAdvice: advice });
     }
     // A3（GB/T 43711 7.2.2.5）：发布采购公告时做要素完整性检查——警告不阻断，
     // 前端读到 checklistWarnings 后弹确认，放行理由由操作历史（PUBLISH changedFields）留痕。
@@ -745,13 +742,10 @@ export class AnnouncementService {
     }
     // C5（7.2.6）：update 路径发布补遗公告同样联动（含开标时间联动，2026-11-06）
     if (result.type === 'ADDENDUM' && isPublishTransition) {
-      const effectiveMeta = (dto.metadata ?? announcement.metadata) as Record<string, any> | null;
-      const advice = this.addendumDeadlineAdvice(effectiveMeta?.newOpenTime ?? effectiveMeta?.newDeadline);
       try {
         const sync = await this.syncAddendum(result.id);
         if (sync.openTimeSyncWarning) Object.assign(result, { openTimeSyncWarning: sync.openTimeSyncWarning });
       } catch (e) { this.logger.warn(`补遗联动失败 (update): ${(e as Error).message}`); }
-      if (advice) Object.assign(result, { deadlineAdvice: advice });
     }
     // A3：update 路径发布采购公告同样做要素检查（用合并后的生效值）
     const checklistWarnings: ChecklistWarning[] = isBidNoticePublish
@@ -786,8 +780,8 @@ export class AnnouncementService {
    * C5（GB/T 43711 7.2.6）：补遗公告发布联动——
    * ① 项目采购文件 addendumNo +1（供应商侧显示"补遗 N 次"，提示重新下载）；
    * ② 已下载/受邀供应商批量站内信（澄清修改应告知潜在供应商）；
-   * ③ 若填写了调整后截止时间且距发布不足 ADDENDUM_MIN_LEAD_DAYS（默认 3 日），
-   *    在响应中给出 deadlineAdvice 提示（不自动改项目时间——调整走项目编辑，避免误伤开标联动）。
+   * ③ 开标时间联动（改变时项目开标/截标与原采购公告展示值全改）；时限充分性提示
+   *    已前移到 :3005 开标时间字段处行内显示（2026-11-06 用户裁定，删发布 toast）。
    */
   private async syncAddendum(announcementId: string, actorId?: string): Promise<{ openTimeAdjusted?: boolean; openTimeSyncWarning?: string }> {
     const ann = await this.prisma.announcement.findUnique({
@@ -902,18 +896,6 @@ export class AnnouncementService {
     return { openTimeAdjusted, openTimeSyncWarning };
   }
 
-  /** C5：补遗截止时间充分性提示（7.2.6.2 保证供应商有足够时间编制） */
-  addendumDeadlineAdvice(newDeadline?: string) {
-    if (!newDeadline) return null;
-    const minDays = Number(process.env.ADDENDUM_MIN_LEAD_DAYS ?? 3);
-    const target = new Date(newDeadline);
-    if (Number.isNaN(target.getTime())) return null;
-    const leadMs = target.getTime() - Date.now();
-    if (leadMs < minDays * 86400000) {
-      return `调整后的时间距补遗发布不足 ${minDays} 日，GB/T 43711 7.2.6.2 要求保证供应商有足够时间编制响应文件，请确认时限合理（或说明紧急理由）`;
-    }
-    return null;
-  }
 
   /**
    * C1（GB/T 43711 7.5.2.5）：预成交公示期满且无异议 → 发布成交公告。
