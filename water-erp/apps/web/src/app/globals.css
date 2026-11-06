@@ -5670,6 +5670,45 @@ textarea.neu-input {
 }
 
 /* ══════════════════════════════════════════════════════════════════
+   公司信息条目卡 — .ce-row / .ce-well（2026-11-06 重设计）
+   展示态=凸起瓷片行（数据自证），编辑/新增=内凹输入井——
+   凸起读、凹陷写的 neumorphic 语义分工，替代旧带框常驻输入行。
+   消费方：company-entry-list-card（公司信息管理页 + admin 公司编辑弹窗）
+   ══════════════════════════════════════════════════════════════════ */
+.ce-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 16px;
+  border-radius: 12px;
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.94), oklch(0.99 0.003 258 / 0.6));
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.72),
+    2px 2px 5px oklch(0.55 0.04 258 / 0.1),
+    -1px -1px 3px oklch(1 0 0 / 0.88);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.ce-row:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    3px 3px 7px oklch(0.5 0.06 258 / 0.14),
+    -2px -2px 5px oklch(1 0 0 / 0.95);
+}
+.ce-well {
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--surface);
+  box-shadow:
+    inset 1.5px 1.5px 4px oklch(0.55 0.04 258 / 0.09),
+    inset -1px -1px 3px oklch(1 0 0 / 0.75);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ce-row { transition: none; }
+  .ce-row:hover { transform: none; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
    表格表头 — .neu-thead
    内凹表头背景，与凸起卡片形成层次
    ══════════════════════════════════════════════════════════════════ */

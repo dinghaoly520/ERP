@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Building2,
-  Gavel,
+  Info,
   Loader2,
   MapPin,
   RefreshCw,
@@ -32,11 +32,23 @@ import {
 } from '@/lib/api/company-info';
 
 /* ═══════════════════════════════════════════════════════════════
-   公司信息管理（2026-10-10，条目化）
+   公司信息管理（2026-10-10 条目化；2026-11-06 版式重设计）
    leader 维护：基本信息（名称/简称/编码）+ 三类条目列表——
-   采购人（四字段行：姓名/电话/邮箱/地址，地址 2026-10-21 自公司级迁为条目级）/ 开标地点 / 监督举报（均为多条目、单默认）。
+   采购人（姓名/电话/邮箱/地址，地址 2026-10-21 自公司级迁为条目级）/
+   开标地点 / 监督举报（均为多条目、单默认）。
    默认条目用于采购文件编写进入预填；编写时可点对应按钮改选其他条目。
+   版式：hero 下方 neu-segment 四分区单区聚焦（与供应商详情分区同款），
+   保存按钮随表单（标题栏不再放全局保存）。
    ═══════════════════════════════════════════════════════════════ */
+
+const SECTIONS = [
+  { key: 'basic', label: '基本信息' },
+  { key: 'places', label: '开标地点' },
+  { key: 'supervision', label: '监督举报' },
+  { key: 'purchasers', label: '采购人' },
+] as const;
+
+type SectionKey = (typeof SECTIONS)[number]['key'];
 
 /* EntryListCard 已抽取共享（2026-10-12）：admin 账号管理弹窗内的公司编辑窗口同源复用，
    组件见 @/components/company/company-entry-list-card */
@@ -49,6 +61,7 @@ export default function CompanyInfoPage() {
   const [purchasers, setPurchasers] = useState<CompanyPurchaserEntry[]>([]);
   const [places, setPlaces] = useState<CompanyPlaceEntry[]>([]);
   const [supervisions, setSupervisions] = useState<CompanySupervisionEntry[]>([]);
+  const [section, setSection] = useState<SectionKey>('basic');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -142,9 +155,15 @@ export default function CompanyInfoPage() {
     );
   }
 
+  const sectionCounts: Record<Exclude<SectionKey, 'basic'>, number> = {
+    places: places.length,
+    supervision: supervisions.length,
+    purchasers: purchasers.length,
+  };
+
   return (
     <div className="flex flex-col gap-5">
-      {/* ══════ page-hero ══════ */}
+      {/* ══════ page-hero（保存随表单走，标题栏仅保留刷新） ══════ */}
       <div className="page-hero">
         <div className="page-hero__row">
           <div className="page-hero__left">
@@ -154,159 +173,196 @@ export default function CompanyInfoPage() {
             <div>
               <div className="page-hero__title">公司信息管理</div>
               <div className="page-hero__sub">
-                维护本公司的开标地点、监督举报与采购人信息，编写采购文件时自动带入
+                维护本公司基本信息、开标地点、监督举报与采购人，编写采购文件时自动带入
               </div>
             </div>
           </div>
           <div className="page-hero__right">
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={() => void load()} className="neu-btn-soft" title="重新加载本公司信息">
-                <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-                刷新
-              </button>
-              <button type="button" onClick={() => void save()} disabled={saving} className="neu-btn-soft">
-                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                {saving ? '保存中...' : '保存'}
-              </button>
-            </div>
+            <button type="button" onClick={() => void load()} className="neu-btn-soft" title="重新加载本公司信息">
+              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+              刷新
+            </button>
           </div>
         </div>
         <div className="page-hero__divider" />
       </div>
 
-      {/* ══════ 基本信息（名称可改，全局唯一） ══════ */}
-      <div className="neu-card p-5">
-        <div className="mb-3 flex items-center gap-2">
-          <Gavel size={14} className="text-[var(--accent)]" />
-          <span className="text-sm font-semibold text-[var(--foreground)]">基本信息</span>
-        </div>
-        <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
-          公司名称用于采购文件落款和公告发布方展示。公司编码是项目编号的开头段（大写字母或数字，不超过 20 位），修改后本公司在办项目的编号会同步更新；已归档和回收站中的项目不变。
-        </p>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">
-              公司名称 <span className="text-[var(--danger)]">*</span>
-            </span>
-            <input
-              type="text"
-              value={form.name ?? ''}
-              onChange={(e) => set('name', e.target.value)}
-              placeholder="规范全称（全局唯一）"
-              className="workbench-input w-full"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">公司简称</span>
-            <input
-              type="text"
-              value={form.shortName ?? ''}
-              onChange={(e) => set('shortName', e.target.value)}
-              placeholder="例如：设计公司"
-              className="workbench-input w-full"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">公司编码</span>
-            <input
-              type="text"
-              value={form.code ?? ''}
-              onChange={(e) => set('code', e.target.value)}
-              placeholder="例如：SWHI（留空则用 SW）"
-              className="workbench-input w-full font-mono"
-              title="项目编号首段（编号格式：公司编码-方式前缀-日期序号，全局唯一）；修改将同步更新本公司在办项目编号，归档/回收项目不动。大写字母/数字，≤20 字符"
-            />
-          </label>
+      {/* ══════ 分区切换（2026-11-06 重设计）：hero 下方独立工具行，与供应商详情分区同款 neu-segment ══════ */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div
+          className="neu-segment"
+          role="group"
+          aria-label="公司信息分区"
+          data-count="4"
+          data-index={String(Math.max(0, SECTIONS.findIndex((s) => s.key === section)))}
+        >
+          <span className="neu-segment-thumb" aria-hidden="true" />
+          {SECTIONS.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              className="neu-segment-btn"
+              aria-pressed={section === s.key}
+              onClick={() => setSection(s.key)}
+            >
+              {s.label}
+              {s.key !== 'basic' && sectionCounts[s.key] > 0 && (
+                <span className="neu-segment-count">{sectionCounts[s.key]}</span>
+              )}
+            </button>
+          ))}
         </div>
       </div>
 
+      {/* ══════ 基本信息（名称可改，全局唯一；保存随表单） ══════ */}
+      {section === 'basic' && (
+        <div className="neu-card p-5">
+          <div className="flex items-center gap-2.5">
+            <span className="wb-icon-well wb-icon-well--sm">
+              <Info size={14} strokeWidth={1.7} />
+            </span>
+            <span className="text-sm font-semibold text-[var(--foreground)]">基本信息</span>
+          </div>
+          <p className="mb-4 mt-1.5 text-xs leading-5 text-[var(--muted-foreground)]">
+            公司名称用于采购文件落款和公告发布方展示；公司编码是项目编号开头段（大写字母或数字，≤20 位），修改后本公司在办项目编号自动同步，已归档与回收站项目不变。
+          </p>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">
+                公司名称 <span className="text-[var(--danger)]">*</span>
+              </span>
+              <input
+                type="text"
+                value={form.name ?? ''}
+                onChange={(e) => set('name', e.target.value)}
+                placeholder="规范全称（全局唯一）"
+                className="workbench-input w-full"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">公司简称</span>
+              <input
+                type="text"
+                value={form.shortName ?? ''}
+                onChange={(e) => set('shortName', e.target.value)}
+                placeholder="例如：设计公司"
+                className="workbench-input w-full"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">公司编码</span>
+              <input
+                type="text"
+                value={form.code ?? ''}
+                onChange={(e) => set('code', e.target.value)}
+                placeholder="例如：SWHI（留空则用 SW）"
+                className="workbench-input w-full font-mono"
+                title="项目编号首段（编号格式：公司编码-方式前缀-日期序号，全局唯一）；修改将同步更新本公司在办项目编号，归档/回收项目不动。大写字母/数字，≤20 字符"
+              />
+            </label>
+          </div>
+          <div className="mt-4 flex justify-end">
+            <button type="button" onClick={() => void save()} disabled={saving} className="neu-btn-primary !h-9 !text-xs shrink-0">
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              {saving ? '保存中...' : '保存基本信息'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ══════ 开标地点条目 ══════ */}
-      <EntryListCard
-        icon={MapPin}
-        title="开标地点"
-        hint="可维护多个开标地点、单默认——默认者进入编写时预填「开标地点」字段，编写时可点「地点」按钮改选；不设默认则不预填。"
-        fields={[
-          { key: 'address', label: '地址（写入文档）', placeholder: '完整地址' },
-        ]}
-        entries={places}
-        onReload={reloadEntries}
-        onCreate={async (v) => {
-          await createPlace({ address: v.address });
-        }}
-        onUpdate={async (id, v) => {
-          await updatePlace(id, { address: v.address });
-        }}
-        onSetDefault={async (row, isDefault) => {
-          await updatePlace(row.id, { isDefault });
-        }}
-        onRemove={async (row) => {
-          await deletePlace(row.id);
-        }}
-      />
+      {section === 'places' && (
+        <EntryListCard
+          icon={MapPin}
+          title="开标地点"
+          hint="默认地点在采购文件编写时预填「开标地点」字段，编写中可改选其他地点；不设默认则不预填。"
+          fields={[
+            { key: 'address', label: '地址', placeholder: '完整地址（写入采购文件）' },
+          ]}
+          entries={places}
+          onReload={reloadEntries}
+          onCreate={async (v) => {
+            await createPlace({ address: v.address });
+          }}
+          onUpdate={async (id, v) => {
+            await updatePlace(id, { address: v.address });
+          }}
+          onSetDefault={async (row, isDefault) => {
+            await updatePlace(row.id, { isDefault });
+          }}
+          onRemove={async (row) => {
+            await deletePlace(row.id);
+          }}
+        />
+      )}
 
       {/* ══════ 监督举报条目 ══════ */}
-      <EntryListCard
-        icon={ShieldAlert}
-        title="监督举报"
-        hint="可维护多套监督举报信息（以监督人为标识）、单默认——默认者进入编写时预填「监督信息」四字段；不设默认则不预填。"
-        fields={[
-          { key: 'contact', label: '监督人（标识，必填）', placeholder: '多人顿号分隔，如：王先生、徐先生' },
-          { key: 'department', label: '监督部门', placeholder: '留空 = 公司名称 + 纪检监察部' },
-          { key: 'address', label: '监督地址', placeholder: '地址' },
-          { key: 'phone', label: '监督电话', placeholder: '电话' },
-        ]}
-        entries={supervisions}
-        onReload={reloadEntries}
-        onCreate={async (v) => {
-          await createSupervision({
-            contact: v.contact,
-            department: v.department || null,
-            address: v.address || null,
-            phone: v.phone || null,
-          });
-        }}
-        onUpdate={async (id, v) => {
-          await updateSupervision(id, {
-            contact: v.contact,
-            department: v.department || null,
-            address: v.address || null,
-            phone: v.phone || null,
-          });
-        }}
-        onSetDefault={async (row, isDefault) => {
-          await updateSupervision(row.id, { isDefault });
-        }}
-        onRemove={async (row) => {
-          await deleteSupervision(row.id);
-        }}
-      />
+      {section === 'supervision' && (
+        <EntryListCard
+          icon={ShieldAlert}
+          title="监督举报"
+          hint="以监督人为标识维护多套监督信息，默认套组在采购文件编写时预填监督四字段；不设默认则不预填。"
+          fields={[
+            { key: 'contact', label: '监督人', placeholder: '多人顿号分隔，如：王先生、徐先生' },
+            { key: 'department', label: '监督部门', placeholder: '留空 = 公司名称 + 纪检监察部' },
+            { key: 'address', label: '监督地址', placeholder: '如：四川省成都市双流区红莲街' },
+            { key: 'phone', label: '监督电话', placeholder: '如：028-68686868', type: 'tel' },
+          ]}
+          entries={supervisions}
+          onReload={reloadEntries}
+          onCreate={async (v) => {
+            await createSupervision({
+              contact: v.contact,
+              department: v.department || null,
+              address: v.address || null,
+              phone: v.phone || null,
+            });
+          }}
+          onUpdate={async (id, v) => {
+            await updateSupervision(id, {
+              contact: v.contact,
+              department: v.department || null,
+              address: v.address || null,
+              phone: v.phone || null,
+            });
+          }}
+          onSetDefault={async (row, isDefault) => {
+            await updateSupervision(row.id, { isDefault });
+          }}
+          onRemove={async (row) => {
+            await deleteSupervision(row.id);
+          }}
+        />
+      )}
 
-      {/* ══════ 采购人条目（四字段行：姓名/电话/邮箱/地址——2026-10-21 地址自公司级迁为条目级，格式同其他条目即时保存） ══════ */}
-      <EntryListCard
-        icon={UserRound}
-        title="采购人"
-        hint="可维护多位采购人、单默认——默认者进入编写时预填联系人四字段（姓名/电话/邮箱/地址），编写时可点「联系人」按钮改选；不设默认则不预填。地址为条目级字段（含存量公司级地址迁移），与其他条目同格式即时保存。"
-        fields={[
-          { key: 'name', label: '姓名', placeholder: '姓名（必填）' },
-          { key: 'phone', label: '联系电话', placeholder: '电话', type: 'tel' },
-          { key: 'email', label: '电子邮箱', placeholder: '邮箱', type: 'email' },
-          { key: 'address', label: '采购人地址', placeholder: '例如：四川省成都市双流区红莲街三段383号' },
-        ]}
-        entries={purchasers}
-        onReload={reloadEntries}
-        onCreate={async (v) => {
-          await createPurchaser({ name: v.name, phone: v.phone || null, email: v.email || null, address: v.address || null });
-        }}
-        onUpdate={async (id, v) => {
-          await updatePurchaser(id, { name: v.name, phone: v.phone || null, email: v.email || null, address: v.address || null });
-        }}
-        onSetDefault={async (row, isDefault) => {
-          await updatePurchaser(row.id, { isDefault });
-        }}
-        onRemove={async (row) => {
-          await deletePurchaser(row.id);
-        }}
-      />
+      {/* ══════ 采购人条目（姓名/电话/邮箱/地址——2026-10-21 地址自公司级迁为条目级，即时保存） ══════ */}
+      {section === 'purchasers' && (
+        <EntryListCard
+          icon={UserRound}
+          title="采购人"
+          hint="默认采购人的姓名/电话/邮箱/地址在采购文件编写时预填联系人四字段，编写中可改选其他采购人；不设默认则不预填。"
+          fields={[
+            { key: 'name', label: '姓名', placeholder: '如：孙悟空' },
+            { key: 'phone', label: '联系电话', placeholder: '如：13101010101', type: 'tel' },
+            { key: 'email', label: '电子邮箱', placeholder: '如：sun@163.com', type: 'email' },
+            { key: 'address', label: '采购人地址', placeholder: '如：四川省成都市双流区红莲街三段383号' },
+          ]}
+          entries={purchasers}
+          onReload={reloadEntries}
+          onCreate={async (v) => {
+            await createPurchaser({ name: v.name, phone: v.phone || null, email: v.email || null, address: v.address || null });
+          }}
+          onUpdate={async (id, v) => {
+            await updatePurchaser(id, { name: v.name, phone: v.phone || null, email: v.email || null, address: v.address || null });
+          }}
+          onSetDefault={async (row, isDefault) => {
+            await updatePurchaser(row.id, { isDefault });
+          }}
+          onRemove={async (row) => {
+            await deletePurchaser(row.id);
+          }}
+        />
+      )}
 
     </div>
   );

@@ -199,8 +199,8 @@ export function CompanyEditDialog({
           <EntryListCard
             icon={MapPin}
             title="开标地点"
-            hint="可维护多个开标地点、单默认——默认者进入编写时预填「开标地点」字段，编写时可点「地点」按钮改选；不设默认则不预填。"
-            fields={[{ key: 'address', label: '地址（写入文档）', placeholder: '完整地址' }]}
+            hint="默认地点在采购文件编写时预填「开标地点」字段，编写中可改选其他地点；不设默认则不预填。"
+            fields={[{ key: 'address', label: '地址', placeholder: '完整地址（写入采购文件）' }]}
             entries={info.places ?? []}
             onReload={reloadEntries}
             onCreate={async (v) => {
@@ -221,12 +221,12 @@ export function CompanyEditDialog({
           <EntryListCard
             icon={ShieldAlert}
             title="监督举报"
-            hint="可维护多套监督举报信息（以监督人为标识）、单默认——默认者进入编写时预填「监督信息」四字段；不设默认则不预填。"
+            hint="以监督人为标识维护多套监督信息，默认套组在采购文件编写时预填监督四字段；不设默认则不预填。"
             fields={[
-              { key: 'contact', label: '监督人（标识，必填）', placeholder: '多人顿号分隔，如：王先生、徐先生' },
+              { key: 'contact', label: '监督人', placeholder: '多人顿号分隔，如：王先生、徐先生' },
               { key: 'department', label: '监督部门', placeholder: '留空 = 公司名称 + 纪检监察部' },
-              { key: 'address', label: '监督地址', placeholder: '地址' },
-              { key: 'phone', label: '监督电话', placeholder: '电话' },
+              { key: 'address', label: '监督地址', placeholder: '如：四川省成都市双流区红莲街' },
+              { key: 'phone', label: '监督电话', placeholder: '如：028-68686868', type: 'tel' },
             ]}
             entries={info.supervisionProfiles ?? []}
             onReload={reloadEntries}
@@ -258,12 +258,12 @@ export function CompanyEditDialog({
           <EntryListCard
             icon={UserRound}
             title="采购人"
-            hint="可维护多位采购人、单默认——默认者进入编写时预填联系人四字段（姓名/电话/邮箱/地址），编写时可点「联系人」按钮改选；不设默认则不预填。"
+            hint="默认采购人的姓名/电话/邮箱/地址在采购文件编写时预填联系人四字段，编写中可改选其他采购人；不设默认则不预填。"
             fields={[
-              { key: 'name', label: '姓名', placeholder: '姓名（必填）' },
-              { key: 'phone', label: '联系电话', placeholder: '电话', type: 'tel' },
-              { key: 'email', label: '电子邮箱', placeholder: '邮箱', type: 'email' },
-              { key: 'address', label: '采购人地址', placeholder: '例如：四川省成都市双流区红莲街三段383号' },
+              { key: 'name', label: '姓名', placeholder: '如：孙悟空' },
+              { key: 'phone', label: '联系电话', placeholder: '如：13101010101', type: 'tel' },
+              { key: 'email', label: '电子邮箱', placeholder: '如：sun@163.com', type: 'email' },
+              { key: 'address', label: '采购人地址', placeholder: '如：四川省成都市双流区红莲街三段383号' },
             ]}
             entries={info.purchasers ?? []}
             onReload={reloadEntries}
