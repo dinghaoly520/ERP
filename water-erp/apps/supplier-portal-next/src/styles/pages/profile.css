@@ -203,8 +203,21 @@
 .add-panel-upload-replace { background: none; border: none; font-size: 12px; font-weight: 600; color: var(--brand); cursor: pointer; font-family: inherit; padding: 0; transition: opacity 0.15s; }
 .add-panel-upload-replace:hover { opacity: 0.7; }
 .add-panel-upload-replace:active { transform: scale(0.97); }
-.add-panel-upload-progress { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: var(--hairline); border-radius: 0 0 10px 10px; overflow: hidden; }
-.add-panel-upload-progress-bar { height: 100%; background: var(--brand); transition: width 0.3s ease; border-radius: 0 1px 1px 0; }
+.add-panel-upload-progress { position: absolute; bottom: 0; left: 0; right: 0; height: 5px; background: var(--hairline); border-radius: 0 0 10px 10px; overflow: hidden; }
+/* 水波+流光（2026-11-06 样式统一，与 SpProgress 同款）：填充行进带波面流动与扫光 */
+.add-panel-upload-progress-bar { height: 100%; background: linear-gradient(90deg, transparent 0%, oklch(1 0 0 / 0.35) 50%, transparent 100%) no-repeat -14px 0 / 12px 100%, var(--brand); transition: width 0.3s ease; border-radius: 0 1px 1px 0; position: relative; animation: spProgShimmer 2.4s ease-in-out infinite; }
+.add-panel-upload-progress-bar::before, .add-panel-upload-progress-bar::after {
+  content: ''; position: absolute; top: -1px; left: 0; right: 0; height: 3px;
+  background-repeat: repeat-x; background-size: 50% 100%;
+  background-image: linear-gradient(90deg, transparent 0%, color-mix(in oklch, var(--brand) 35%, transparent) 25%, transparent 50%);
+  pointer-events: none;
+}
+.add-panel-upload-progress-bar::before { animation: uploadWaveA 8s linear infinite; opacity: 0.35; }
+.add-panel-upload-progress-bar::after { animation: uploadWaveB 13s linear infinite; opacity: 0.18; }
+@media (prefers-reduced-motion: reduce) {
+  .add-panel-upload-progress-bar { animation: none; background: var(--brand); }
+  .add-panel-upload-progress-bar::before, .add-panel-upload-progress-bar::after { animation: none; display: none; }
+}
 .add-panel-foot { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 16px 26px; border-top: 1px solid var(--hairline); background: oklch(1 0 0 / 0.3); }
 .add-panel-hint { font-size: 12px; color: var(--muted-foreground); font-weight: 600; }
 .add-panel-hint.ready { color: var(--success); }

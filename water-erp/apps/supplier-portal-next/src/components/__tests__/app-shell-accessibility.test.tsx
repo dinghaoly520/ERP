@@ -332,21 +332,8 @@ test("shell controls keep 44px touch targets and the mobile popover stays in the
   );
 });
 
-test("hero workspace tabs stay scrollable, focusable, and neumorphic", () => {
-  assert.match(
-    globalStyles,
-    /\.sp-hero-tabs\s*\{[\s\S]{0,600}?box-shadow:\s*inset 2px 2px 5px[\s\S]{0,300}?overflow-x:\s*auto/,
-  );
-  assert.match(
-    globalStyles,
-    /\.sp-hero-tab\s*\{[\s\S]{0,500}?min-height:\s*40px[\s\S]{0,400}?background:\s*linear-gradient/,
-  );
-  assert.match(globalStyles, /\.sp-hero-tab\.is-active\s*\{[\s\S]{0,300}?inset 2px 2px 5px/);
-  assert.match(
-    globalStyles,
-    /\.sp-hero-tab:focus-visible\s*\{\s*outline:\s*3px solid var\(--brand\);\s*outline-offset:\s*2px;/,
-  );
-});
+/* hero workspace tabs 测试已删（2026-11-06）：其断言的 .sp-hero-tabs/.sp-hero-tab 系列
+   类在死类清除（5abf1357）中删除且组件零引用——断言随类一并退役。 */
 
 test("collapsed sidebar keeps navigation scrollable while portal tooltips escape clipping", () => {
   assert.match(

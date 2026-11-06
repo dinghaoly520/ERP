@@ -2620,10 +2620,28 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 
 /* 进度条 */
 .sp-prog { height: 8px; border-radius: 999px; background: oklch(0.92 0.01 258); box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.1), inset -1px -1px 3px oklch(1 0 0 / 0.7); overflow: hidden; }
-.sp-prog-fill { height: 100%; border-radius: 999px; background: var(--brand); transition: width .4s ease; }
-.sp-prog-fill.ok { background: var(--success); }
-.sp-prog-fill.warn { background: var(--warning); }
-.sp-prog-fill.bad { background: var(--danger); }
+.sp-prog-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, transparent 0%, oklch(1 0 0 / 0.35) 50%, transparent 100%) no-repeat -14px 0 / 12px 100%, var(--brand); background-blend-mode: normal; transition: width .4s ease; position: relative; animation: spProgShimmer 2.4s ease-in-out infinite; }
+/* 水波+流光（2026-11-06 样式统一）：品牌默认填充行进中带波面流动与扫光——
+   ok/warn/bad 语义色为终态指示，不加动效 */
+.sp-prog-fill::before, .sp-prog-fill::after {
+  content: ''; position: absolute; top: -1.5px; left: 0; right: 0; height: 3px;
+  background-repeat: repeat-x; background-size: 50% 100%;
+  background-image: linear-gradient(90deg, transparent 0%, color-mix(in oklch, var(--brand) 35%, transparent) 25%, transparent 50%);
+  pointer-events: none;
+}
+.sp-prog-fill::before { animation: uploadWaveA 8s linear infinite; opacity: 0.35; }
+.sp-prog-fill::after { animation: uploadWaveB 13s linear infinite; opacity: 0.18; }
+@keyframes spProgShimmer { from { background-position: -14px 0; } to { background-position: calc(100% + 12px) 0; } }
+.sp-prog-fill.ok { background: var(--success); animation: none; }
+.sp-prog-fill.ok::before, .sp-prog-fill.ok::after { display: none; }
+.sp-prog-fill.warn { background: var(--warning); animation: none; }
+.sp-prog-fill.warn::before, .sp-prog-fill.warn::after { display: none; }
+.sp-prog-fill.bad { background: var(--danger); animation: none; }
+.sp-prog-fill.bad::before, .sp-prog-fill.bad::after { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .sp-prog-fill { animation: none; background: var(--brand); }
+  .sp-prog-fill::before, .sp-prog-fill::after { animation: none; display: none; }
+}
 
 /* 通用表格（页面可叠加自己的类） */
 .sp-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
@@ -4448,3 +4466,16 @@ main.reg { align-items: flex-start; }
 .clq-aff-well { flex: none; width: 36px; height: 36px; margin-top: 2px; border-radius: 11px; display: flex; align-items: center; justify-content: center; color: var(--card-color); background: color-mix(in oklch, var(--card-color) 14%, oklch(1 0 0)); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.65), inset 1px 1px 3px oklch(0.55 0.03 258 / 0.1), -1px -1px 2px oklch(1 0 0 / 0.8); }
 .clq-aff-body { flex: 1; min-width: 0; }
 .clq-tag { font-size: 10.5px; padding: 1px 7px; border-radius: 999px; color: oklch(0.45 0.03 258); background: oklch(0.55 0.03 258 / 0.08); }
+
+/* ── 上传进度·水波+流光（2026-11-06 样式统一：既有进度条统一视觉，传输层不动） ── */
+@keyframes uploadWaveA { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes uploadWaveB { from { transform: translateX(-25%); } to { transform: translateX(-75%); } }
+@keyframes uploadShimmer { from { left: -14%; } to { left: 100%; } }
+.up-wave { position: absolute; top: -1.5px; left: 0; right: 0; height: 3px; background-repeat: repeat-x; background-size: 50% 100%;
+  background-image: linear-gradient(90deg, transparent 0%, color-mix(in oklch, var(--accent) 35%, transparent) 25%, transparent 50%); }
+.up-wave--a { animation: uploadWaveA 8s linear infinite; opacity: 0.35; }
+.up-wave--b { animation: uploadWaveB 13s linear infinite; opacity: 0.18; }
+.up-shimmer { position: absolute; top: 0; bottom: 0; width: 12px; background: oklch(1 0 0 / 0.35); animation: uploadShimmer 2.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .up-wave, .up-shimmer { animation: none; display: none; }
+}
