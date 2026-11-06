@@ -36,3 +36,39 @@ describe('DocumentParserService onProgress 转发', () => {
     expect(ocr.ocrPdf).toHaveBeenCalledWith(expect.any(Buffer), OCR_UNLIMITED_PAGES, cb);
   });
 });
+
+describe('DocumentParserService onProgress 快速路径回填（2026-11-06 显示缺口修复）', () => {
+  const pdfParseMock = require('pdf-parse') as jest.Mock;
+  const mkParser = (ocrAvailable = false) => {
+    const ocr = {
+      isAvailable: jest.fn().mockResolvedValue(ocrAvailable),
+      ocrPdf: jest.fn(),
+      ocrImage: jest.fn().mockResolvedValue({ text: '图文字' }),
+    };
+    return { parser: new DocumentParserService(ocr as unknown as OcrService), ocr };
+  };
+
+  it('文字型 PDF（pdf-parse 原生路径）：onProgress 回填 (numpages, numpages)', async () => {
+    pdfParseMock.mockResolvedValueOnce({ text: 'A'.repeat(500), numpages: 5 });
+    const { parser } = mkParser();
+    const cb = jest.fn();
+    const text = await parser.parse(Buffer.from('pdf'), 'application/pdf', 't.pdf', cb);
+    expect(text).toBe('A'.repeat(500));
+    expect(cb).toHaveBeenCalledWith(5, 5);
+  });
+
+  it('稀疏 PDF 但 OCR 不可用（pdf-parse 兜底）：同样回填页数', async () => {
+    pdfParseMock.mockResolvedValueOnce({ text: '稀', numpages: 8 });
+    const { parser } = mkParser(false);
+    const cb = jest.fn();
+    await parser.parse(Buffer.from('pdf'), 'application/pdf', 's.pdf', cb);
+    expect(cb).toHaveBeenCalledWith(8, 8);
+  });
+
+  it('txt/docx/image 等单件类型：onProgress 回填 (1, 1)', async () => {
+    const { parser } = mkParser();
+    const cb = jest.fn();
+    await parser.parse(Buffer.from('hello'), 'text/plain', 'a.txt', cb);
+    expect(cb).toHaveBeenCalledWith(1, 1);
+  });
+});

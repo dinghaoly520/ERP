@@ -43,11 +43,12 @@ export class DocumentParserService {
       mimeType.startsWith('image/') ||
       /\.(jpe?g|png|tiff?)$/i.test(fileName || '');
 
-    if (isDocx) return this.parseDocx(buffer);
-    if (isDoc) return this.parseDoc(buffer);
+    // 单件类型（docx/doc/image/txt）无页概念，回填 (1,1) 防「0/?页」显示缺口
+    if (isDocx) { onProgress?.(1, 1); return this.parseDocx(buffer); }
+    if (isDoc) { onProgress?.(1, 1); return this.parseDoc(buffer); }
     if (isPdf) return this.parsePdf(buffer, onProgress);
-    if (isImage) return this.parseImage(buffer, mimeType, fileName || 'image');
-    if (isText) return this.parseText(buffer);
+    if (isImage) { onProgress?.(1, 1); return this.parseImage(buffer, mimeType, fileName || 'image'); }
+    if (isText) { onProgress?.(1, 1); return this.parseText(buffer); }
     throw new Error(`不支持的文件类型：${fileName ?? ''}（${mimeType}）`);
   }
 
@@ -121,6 +122,7 @@ export class DocumentParserService {
         }
       }
       this.logger.log('Using pdf-parse text (native PDF detected)');
+      onProgress?.(numpages, numpages); // 快速路径页数回填（2026-11-06 显示缺口）
       return text;
     }
 
@@ -146,6 +148,7 @@ export class DocumentParserService {
     }
 
     // Return whatever text we got from pdf-parse
+    onProgress?.(numpages, numpages); // OCR 兜底未走成——pdf-parse 结果的页数回填
     return text;
   }
 
@@ -187,6 +190,7 @@ export class DocumentParserService {
         `pdf-parse fallback contains replacement chars (U+FFFD) — OCR service unavailable, extracted text may have missing Chinese characters`,
       );
     }
+    onProgress?.(data.numpages || 1, data.numpages || 1);
     return text;
   }
 
