@@ -32,7 +32,7 @@ export interface TenderReviewContextValue {
   setSelectedKbId: (id: string | null) => void;
   setActiveTab: (tab: TenderReviewTab) => void;
   setSelectedReportTask: (task: ReviewTask | null) => void;
-  refreshKnowledgeBases: () => Promise<void>;
+  refreshKnowledgeBases: (opts?: { silent?: boolean }) => Promise<void>;
   refreshTasks: () => Promise<void>;
 
   // Loading & Error states

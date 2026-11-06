@@ -58,18 +58,25 @@ export function TenderReviewProvider({ children, onReviewComplete }: Props) {
     }
   }, []);
 
-  const refreshKnowledgeBases = useCallback(async () => {
-    setLoading(prev => ({ ...prev, kbs: true }));
-    setError(prev => ({ ...prev, kbs: null }));
+  // silent=true 供 5s 轮询静默刷新：不动 loading 态（否则右侧栏每拍骨架屏闪烁，2026-11-06 实录）、
+  // 失败不弹 toast（轮询失败每 5s 一弹会成为新噪音）；仅首载/手动刷新走完整态
+  const refreshKnowledgeBases = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = !!opts?.silent;
+    if (!silent) {
+      setLoading(prev => ({ ...prev, kbs: true }));
+      setError(prev => ({ ...prev, kbs: null }));
+    }
     try {
       const data = await fetchKnowledgeBases();
       setKnowledgeBases(data);
     } catch (err) {
       const msg = err instanceof Error ? err.message : '加载知识库失败';
-      setError(prev => ({ ...prev, kbs: msg }));
-      toast.error(msg);
+      if (!silent) {
+        setError(prev => ({ ...prev, kbs: msg }));
+        toast.error(msg);
+      }
     } finally {
-      setLoading(prev => ({ ...prev, kbs: false }));
+      if (!silent) setLoading(prev => ({ ...prev, kbs: false }));
     }
   }, []);
 

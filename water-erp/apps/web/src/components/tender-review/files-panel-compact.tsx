@@ -72,7 +72,7 @@ export default function FilesPanelCompact() {
   const hasParsing = !!selectedKb?.files?.some(f => f.status === 'PARSING');
   useEffect(() => {
     if (!hasParsing) return;
-    const timer = setInterval(() => { void refreshKnowledgeBases(); }, 5000);
+    const timer = setInterval(() => { void refreshKnowledgeBases({ silent: true }); }, 5000);
     return () => clearInterval(timer);
   }, [hasParsing, refreshKnowledgeBases]);
 

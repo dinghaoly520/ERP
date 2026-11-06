@@ -72,16 +72,17 @@ export function KnowledgePanel({ open, onClose }: { open: boolean; onClose: () =
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const uploadKbRef = useRef<string | null>(null);
 
-  const load = async () => {
-    setLoading(true);
+  // silent=true 供 5s 轮询静默刷新（不动 loading 态防面板闪烁，2026-11-06 同 tender-review 实录）
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const r = await fetchAssistantKnowledge();
       setMine(r.mine);
       setShared(r.shared);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '知识库加载失败');
+      if (!silent) toast.error(e instanceof Error ? e.message : '知识库加载失败');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -91,7 +92,7 @@ export function KnowledgePanel({ open, onClose }: { open: boolean; onClose: () =
   const hasParsing = [...mine, ...shared].some(kb => kb.files.some(f => f.status === 'PARSING'));
   useEffect(() => {
     if (!open || !hasParsing) return;
-    const timer = setInterval(() => { void load(); }, 5000);
+    const timer = setInterval(() => { void load(true); }, 5000);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, hasParsing]);
