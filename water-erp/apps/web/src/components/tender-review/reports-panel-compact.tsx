@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   FileText,
@@ -13,7 +13,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { fetchReviewTasks, stopReviewTask, deleteReviewTask } from '@/lib/api/review';
+import { stopReviewTask, deleteReviewTask } from '@/lib/api/review';
 import type { ReviewTask, ReviewReport } from '@/lib/types/tender-review';
 import { STATUS_COLORS } from '@/lib/types/tender-review';
 import ReportViewCombined from './report-view-combined';
@@ -21,39 +21,20 @@ import { useTenderReview } from './tender-review-context';
 import { useConfirm } from '@/components/workbench/use-confirm';
 
 export default function ReportsPanelCompact() {
-  const { selectedReportTask, setSelectedReportTask, refreshTasks } = useTenderReview();
+  // 2026-11-06 修复：改吃 context 真源 tasks（provider 2s 轮询驱动）——
+  // 原实现本地自拉且仅挂载时加载一次，任务完成后列表永卡「执行中」需手动 F5
+  const { tasks, loading: ctxLoading, selectedReportTask, setSelectedReportTask, refreshTasks } = useTenderReview();
   const { confirm, dialog } = useConfirm();
-  const [tasks, setTasks] = useState<ReviewTask[]>([]);
-  const [loading, setLoading] = useState(true);
   const [localSelectedTask, setLocalSelectedTask] = useState<ReviewTask | null>(null);
 
   // Determine which task to show: context-selected takes priority
   const selectedTask = selectedReportTask ?? localSelectedTask;
 
-  useEffect(() => {
-    loadTasks();
-  }, []);
-
-  async function loadTasks() {
-    try {
-      const data = await fetchReviewTasks();
-      setTasks(data);
-    } catch {
-      // Error handled silently
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function handleStop(task: ReviewTask) {
     if (!(await confirm({ message: '确定停止该审查任务？', danger: true }))) return;
     try {
       await stopReviewTask(task.id);
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === task.id ? { ...t, status: 'failed' as const } : t,
-        ),
-      );
+      await refreshTasks();
       toast.success('已停止');
     } catch {
       toast.error('停止失败');
@@ -64,14 +45,14 @@ export default function ReportsPanelCompact() {
     if (!(await confirm({ message: '确定删除该审查记录？', danger: true }))) return;
     try {
       await deleteReviewTask(task.id);
-      setTasks((prev) => prev.filter((t) => t.id !== task.id));
+      await refreshTasks();
       toast.success('已删除');
     } catch {
       toast.error('删除失败');
     }
   }
 
-  if (loading) {
+  if (ctxLoading.tasks) {
     return (
       <div className="flex items-center justify-center py-8">
         <Loader2 className="h-5 w-5 animate-spin text-[var(--accent)]" />
@@ -86,8 +67,7 @@ export default function ReportsPanelCompact() {
         onBack={() => {
           setSelectedReportTask(null);
           setLocalSelectedTask(null);
-          loadTasks();
-          refreshTasks();
+          void refreshTasks();
         }}
       />
     );

@@ -23,6 +23,8 @@ export interface TenderReviewContextValue {
   selectedKbId: string | null;
   activeTab: TenderReviewTab;
   knowledgeBases: KnowledgeBase[];
+  /** 全量任务（真源——报告面板等消费；runningTasks/recentReviews 为其派生） */
+  tasks: ReviewTask[];
   runningTasks: ReviewTask[];
   recentReviews: ReviewTask[];
   stats: TodayStats;
@@ -33,7 +35,7 @@ export interface TenderReviewContextValue {
   setActiveTab: (tab: TenderReviewTab) => void;
   setSelectedReportTask: (task: ReviewTask | null) => void;
   refreshKnowledgeBases: (opts?: { silent?: boolean }) => Promise<void>;
-  refreshTasks: () => Promise<void>;
+  refreshTasks: (opts?: { silent?: boolean }) => Promise<void>;
 
   // Loading & Error states
   loading: TenderReviewLoadingState;
