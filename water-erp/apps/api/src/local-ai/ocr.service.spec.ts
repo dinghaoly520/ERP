@@ -147,6 +147,19 @@ describe('消费端瘦身后契约：恒定批次 + 不发 dpi + 页数探测零
     expect(batches).toEqual(['1-40', '41-80', '81-100']);
   });
 
+  it('onProgress：页数探测后先报总数 (0,100)，每批完成累加 (40/80/100,100)', async () => {
+    const svc = await makeService('http://a:8100');
+    const records: FetchRecord[] = [];
+    (global as any).fetch = mockRecordingFetch(records);
+
+    const big = Buffer.alloc(21 * 1024 * 1024);
+    const events: Array<[number, number]> = [];
+    const r = await svc.ocrPdf(big, 0, (p, t) => events.push([p, t]));
+
+    expect(r.processedPages).toBe(100);
+    expect(events).toEqual([[0, 100], [40, 100], [80, 100], [100, 100]]);
+  });
+
   it('页数探测调用零 OCR：max_pages=0 且无 page_range、无 dpi 字段', async () => {
     const svc = await makeService('http://a:8100');
     const records: FetchRecord[] = [];
