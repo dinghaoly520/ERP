@@ -366,14 +366,29 @@ export default function NoticePage() {
             </div>
             <div>
               <div className="page-hero__title">公告发布中心</div>
-              <div className="page-hero__sub">
-                起草并发布采购公告、中标公告、政策法规等各类公告通知——已发布 {published}
-                {stats.publicityEnded > 0 ? `（另已下线 ${stats.publicityEnded}）` : ''} · 本月 {publishedThisMonth} · 累计浏览 {totalViews >= 10000 ? `${(totalViews / 10000).toFixed(1)} 万` : totalViews.toLocaleString('zh-CN')}
-              </div>
+              <div className="page-hero__sub">起草并发布采购公告、中标公告、政策法规等各类公告通知</div>
             </div>
           </div>
 
           <div className="page-hero__right">
+            {/* 运营数字锚点（2026-11-06 用户裁定：同 :3006 统计三联设计；下线数并入已发布锚点悬停） */}
+            <div className="mr-2 hidden items-center lg:flex">
+              {([
+                { value: String(published), unit: '条', label: '已发布', color: 'var(--accent)', title: stats.publicityEnded > 0 ? `已生效可见 · 另已下线 ${stats.publicityEnded}` : '已生效可见' },
+                { value: String(publishedThisMonth), unit: '条', label: '本月发布', color: 'var(--accent-strong)', title: '本月新增公告' },
+                { value: totalViews >= 10000 ? `${(totalViews / 10000).toFixed(1)}` : totalViews.toLocaleString('zh-CN'), unit: totalViews >= 10000 ? '万' : '次', label: '累计浏览', color: 'var(--success)', title: '累计曝光量' },
+              ] as const).map((s, i) => (
+                <div key={s.label} className="flex items-center">
+                  {i > 0 && <span className="mx-3 h-9 w-px bg-[oklch(0.6_0.04_258/0.16)]" aria-hidden="true" />}
+                  <div className="flex min-w-[52px] flex-col items-center gap-0.5" title={s.title}>
+                    <span className="font-mono text-[1.3rem] font-black leading-none tabular-nums" style={{ color: s.color }}>
+                      {s.value}<span className="ml-0.5 text-[10px] font-bold">{s.unit}</span>
+                    </span>
+                    <span className="text-[10px] font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">{s.label}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
             {/* 待处理草稿警示胶囊（2026-11-06 KPI 瓷片收编）：>0 才显示、点击开窗速览草稿 */}
             {drafts > 0 && (
               <button type="button" onClick={() => void openDrafts()} title="点击速览待处理草稿" className="page-hero__stat page-hero__stat--warn">

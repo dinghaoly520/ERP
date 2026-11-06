@@ -449,12 +449,31 @@ function SupplierRepositoryPageInner() {
             <div className="page-hero__icon"><Building2 size={17} /></div>
             <div>
               <div className="page-hero__title">供应商管理</div>
-              <div className="page-hero__sub">
-                全库口径 共 {stats.total} 家 · 已入库 {stats.approved} · 临时 {stats.temporaryApproved} · 已停用 {stats.disabled} · 黑名单 {stats.blacklist}
-              </div>
+              <div className="page-hero__sub">集中查看和管理全部入库供应商及其状态</div>
             </div>
           </div>
           <div className="page-hero__right">
+            {/* 库况数字锚点五联（2026-11-06 用户裁定：同 :3006 个人信息统计三联设计）——
+                大号 mono 数值 + 小字标签 + 竖 hairline 分隔，零值照常呈现 */}
+            <div className="mr-2 hidden items-center lg:flex">
+              {([
+                { value: String(stats.total), unit: '家', label: '全库口径', color: 'var(--accent)' },
+                { value: String(stats.approved), unit: '家', label: '已入库', color: 'var(--success)' },
+                { value: String(stats.temporaryApproved), unit: '家', label: '临时', color: 'var(--warning)' },
+                { value: String(stats.disabled), unit: '家', label: '已停用', color: 'var(--muted-foreground)' },
+                { value: String(stats.blacklist), unit: '家', label: '黑名单', color: 'var(--danger)' },
+              ] as const).map((s, i) => (
+                <div key={s.label} className="flex items-center">
+                  {i > 0 && <span className="mx-3 h-9 w-px bg-[oklch(0.6_0.04_258/0.16)]" aria-hidden="true" />}
+                  <div className="flex min-w-[52px] flex-col items-center gap-0.5">
+                    <span className="font-mono text-[1.3rem] font-black leading-none tabular-nums" style={{ color: s.color }}>
+                      {s.value}<span className="ml-0.5 text-[10px] font-bold">{s.unit}</span>
+                    </span>
+                    <span className="text-[10px] font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">{s.label}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
             {/* 待审核胶囊已删（2026-11-06 用户裁定）——待办计数由右侧「审批（N）」按钮承载（>0 才显数） */}
             <CompanySelect value={companyId} onChange={(v) => { setCompanyId(v); setPage(1); }} countMode="suppliers" />
             <button onClick={() => router.push('/supplier/dashboard')} className="neu-btn-soft"><Activity size={15} />总览</button>

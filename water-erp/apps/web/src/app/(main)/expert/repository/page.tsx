@@ -395,12 +395,29 @@ export default function ExpertRepositoryPage() {
             <div className="page-hero__icon"><UsersRound size={17} /></div>
             <div>
               <div className="page-hero__title">专家管理</div>
-              <div className="page-hero__sub">
-                全库口径 共 {expStats?.totalExperts ?? total} 名 · 可用 {expStats?.available ?? available} · 占用中 {expStats?.occupied ?? occupied} · 已停用 {expStats?.disabled ?? disabled}
-              </div>
+              <div className="page-hero__sub">维护评审专家名录与专业分类，可暂停或恢复专家资格</div>
             </div>
           </div>
           <div className="page-hero__right">
+            {/* 库况数字锚点四联（2026-11-06 用户裁定：同 :3006 统计三联设计） */}
+            <div className="mr-2 hidden items-center lg:flex">
+              {([
+                { value: String(expStats?.totalExperts ?? total), unit: '名', label: '全库口径', color: 'var(--accent)' },
+                { value: String(expStats?.available ?? available), unit: '名', label: '可用', color: 'var(--success)' },
+                { value: String(expStats?.occupied ?? occupied), unit: '名', label: '占用中', color: 'var(--warning)' },
+                { value: String(expStats?.disabled ?? disabled), unit: '名', label: '已停用', color: 'var(--muted-foreground)' },
+              ] as const).map((s, i) => (
+                <div key={s.label} className="flex items-center">
+                  {i > 0 && <span className="mx-3 h-9 w-px bg-[oklch(0.6_0.04_258/0.16)]" aria-hidden="true" />}
+                  <div className="flex min-w-[52px] flex-col items-center gap-0.5">
+                    <span className="font-mono text-[1.3rem] font-black leading-none tabular-nums" style={{ color: s.color }}>
+                      {s.value}<span className="ml-0.5 text-[10px] font-bold">{s.unit}</span>
+                    </span>
+                    <span className="text-[10px] font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">{s.label}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
             {/* 累计评价胶囊已删（2026-11-06 用户裁定）——评价数据在「统计/排名」页与各专家详情呈现 */}
             {(() => {
               const graded = gradeDistribution.A + gradeDistribution.B + gradeDistribution.C + gradeDistribution.D + gradeDistribution.E;
