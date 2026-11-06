@@ -31,8 +31,8 @@ export default function ExpertProfilePage() {
   const [profile, setProfile] = useState<ExpertProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  // 2026-11-06 扩面（用户裁定：除工作单位/部门外全字段可改）——姓名/民族/身份证号/手机/邮箱/学历/专业/职称
-  const [form, setForm] = useState({ displayName: '', ethnicity: '', idNumber: '', phone: '', email: '', education: '', specialty: '', title: '' });
+  // 2026-11-06 扩面（用户裁定：除工作单位外全字段可改）——姓名/民族/身份证号/手机/邮箱/学历/专业/职称/部门
+  const [form, setForm] = useState({ displayName: '', ethnicity: '', idNumber: '', phone: '', email: '', education: '', specialty: '', title: '', departmentName: '' });
   const [saving, setSaving] = useState(false);
 
   const fillForm = (data: ExpertProfile) => setForm({
@@ -44,6 +44,7 @@ export default function ExpertProfilePage() {
     education: data.expertProfile?.education || '',
     specialty: data.expertProfile?.specialty || '',
     title: data.expertProfile?.title || '',
+    departmentName: data.department?.name || '',
   });
 
   useEffect(() => {
@@ -179,6 +180,7 @@ export default function ExpertProfilePage() {
               { key: 'education', label: '学历', mono: false, display: profile.expertProfile?.education || '未设置', placeholder: '如 硕士研究生' },
               { key: 'specialty', label: '专业', mono: false, display: profile.expertProfile?.specialty || '未设置', placeholder: '输入或选择专业', emptyText: '无匹配专业', options: [...EXPERT_SPECIALTIES] },
               { key: 'title', label: '职称', mono: false, display: profile.expertProfile?.title || '未设置', placeholder: '输入或选择职称', emptyText: '无匹配职称', options: [...EXPERT_TITLES] },
+              { key: 'departmentName', label: '部门', mono: false, display: profile.department?.name || '未设置', placeholder: '输入部门名称' },
             ]).map(f => (
               <div key={f.key}>
                 <label className="mb-1 block text-xs font-semibold text-[var(--muted-foreground)]">{f.label}</label>
@@ -214,7 +216,6 @@ export default function ExpertProfilePage() {
             ))}
             {([
               ['工作单位', profile.expertProfile?.employer || '未设置'],
-              ['部门', profile.department?.name || '未设置'],
               ['角色', '评审专家'],
             ] as const).map(([label, value]) => (
               <div key={label}>

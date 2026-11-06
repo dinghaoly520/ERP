@@ -163,6 +163,18 @@ export class ExpertService {
       await this.prisma.expertProfile.updateMany({ where: { userId }, data: profileData });
     }
 
+    // 部门（2026-11-06 用户裁定：部门也可自助修改）——按名匹配已有部门无则新建
+    // （专家域 companyId=null 行，与 :3005 录入专家同口径）；空串清空归属
+    if (typeof dto.departmentName === 'string') {
+      const name = dto.departmentName.trim();
+      let departmentId: string | null = null;
+      if (name) {
+        const existing = await this.prisma.department.findFirst({ where: { name }, select: { id: true } });
+        departmentId = existing?.id ?? (await this.prisma.department.create({ data: { name } })).id;
+      }
+      await this.prisma.user.update({ where: { id: userId }, data: { departmentId } });
+    }
+
     await this.prisma.user.update({
       where: { id: userId },
       data,

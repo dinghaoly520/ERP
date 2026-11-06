@@ -44,6 +44,12 @@ export class UpdateExpertProfileDto {
   @IsOptional()
   education?: string;
 
+  /** 2026-11-06：部门自助修改——按名匹配已有部门，无则新建（专家域 companyId=null 行，
+   *  与 :3005 录入专家同口径）；空串清空归属 */
+  @IsString()
+  @IsOptional()
+  departmentName?: string;
+
   @IsString()
   @IsOptional()
   major?: string;
