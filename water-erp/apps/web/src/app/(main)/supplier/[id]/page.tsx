@@ -3,9 +3,9 @@
 import { Fragment, useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, updateSupplierTags, blacklistSupplier, unblacklistSupplier, revealSupplierField, companyLinksApi } from '@/lib/api/supplier';
+import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, updateSupplierTags, getTagVocabulary, blacklistSupplier, unblacklistSupplier, revealSupplierField, companyLinksApi } from '@/lib/api/supplier';
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification } from '@/lib/types';
-import type { CompanyLinkRow, RsvpHistoryResult } from '@/lib/api/supplier';
+import type { CompanyLinkRow, RsvpHistoryResult, TagVocabularyItem } from '@/lib/api/supplier';
 import { getRsvpHistory } from '@/lib/api/supplier';
 import { ApprovalTimeline } from '@/components/workbench/approval-timeline';
 import { AlertBanner, type AlertSeverity, StatusBadge, Modal } from '@/components/workbench';
@@ -13,7 +13,7 @@ import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
 import { LEVEL_LABEL, LEVEL_COLOR, SUPPLIER_STATUS_LABEL } from '@water-erp/shared';
 import type { AuthUser } from '@/lib/api/auth';
 import { fetchCurrentUser } from '@/lib/api/auth';
-import { CheckCircle2, X, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, FileText, User, Users, MapPin, Phone, Mail, Hash, FolderOpen, Plus, Loader2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, Link2, AtSign, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, Check, Search, X, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, FileText, User, Users, MapPin, Phone, Mail, Hash, FolderOpen, Plus, Loader2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, Link2, AtSign, AlertTriangle } from 'lucide-react';
 import { SupplierTimeline } from '@/components/supplier/timeline';
 import { ApprovalHistory } from '@/components/supplier/approval-history';
 import { PortraitTab } from '@/components/supplier/portrait-tab';
@@ -131,9 +131,12 @@ export default function SupplierDetailPage() {
   const [actionReason, setActionReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
-  // 业务标签编辑弹窗
+  // 业务标签编辑弹窗（2026-11-06 重构：三层 picker——搜索/已选条/词表+新建，
+  // 与供应商选取 BusinessTagsPicker 同款设计）
   const [tagsModal, setTagsModal] = useState(false);
   const [editTags, setEditTags] = useState<string[]>([]);
+  const [tagVocab, setTagVocab] = useState<TagVocabularyItem[]>([]);
+  const [tagQuery, setTagQuery] = useState('');
   // PII 明文揭示（等保+密评）：详情默认掩码；点「明文」调 reveal 端点（后端 SensitiveAccessLog 留痕）
   const [revealedPii, setRevealedPii] = useState<Record<string, string>>({});
   const [revealingPii, setRevealingPii] = useState<string | null>(null);
@@ -450,8 +453,11 @@ export default function SupplierDetailPage() {
               <>
                 <button onClick={() => {
                   const currentTags = (supplier as any).tags || [];
-                  setEditTags(currentTags.length >= 2 ? [...currentTags] : ['', '']);
+                  setEditTags(currentTags.length >= 2 ? [...currentTags] : []);
+                  setTagQuery('');
                   setTagsModal(true);
+                  // 词表随开窗拉取（库内全部业务标签按频次）——点选/计数展示用
+                  getTagVocabulary(120).then(r => setTagVocab(r.items)).catch(() => setTagVocab([]));
                 }} className="neu-btn-xs"><Pencil size={12} /> 业务标签</button>
                 <button onClick={() => { setActionReason(''); setActionModal({ type: 'disable', supplier }); }} className="neu-btn-xs is-warning">停用</button>
                 {/* 黑名单走专用端点（@Roles admin/leader），staff 点必 403——按钮同步收敛 */}
@@ -1523,13 +1529,14 @@ export default function SupplierDetailPage() {
         </Modal>
       )}
 
-      {/* 业务标签编辑弹窗 */}
+      {/* 业务标签编辑弹窗（2026-11-06 重构：搜索/点选/新建三层 picker，
+          与供应商选取 BusinessTagsPicker 同款——词表带库内使用计数） */}
       {tagsModal && (
         <Modal
           open
           onClose={() => setTagsModal(false)}
           title="编辑业务标签"
-          description="使用 2-8 个词语简述业务方向，每个单独填写，保存后立即生效"
+          description="从词表点选或搜索新建，2-8 个，保存后立即生效"
           footer={
             <div className="neu-btn-group">
               <button onClick={() => setTagsModal(false)} className="neu-btn-soft">取消</button>
@@ -1539,30 +1546,90 @@ export default function SupplierDetailPage() {
             </div>
           }
         >
-          <div className="space-y-2 max-h-[420px] overflow-y-auto">
-            {editTags.map((tag, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <span className="text-[11px] font-bold text-[var(--muted-foreground)] min-w-[18px]">{i + 1}.</span>
-                <input
-                  value={tag}
-                  onChange={e => setEditTags(prev => { const n = [...prev]; n[i] = e.target.value; return n; })}
-                  placeholder={i === 0 ? '如：办公用品' : i === 1 ? '如：钻机销售' : '请输入业务标签'}
-                  maxLength={20}
-                  className="neu-input flex-1 text-sm h-9"
-                />
-                {editTags.length > 2 && (
-                  <button onClick={() => setEditTags(prev => prev.filter((_, j) => j !== i))} aria-label={`删除第 ${i + 1} 个标签`} className="text-[var(--muted-foreground)] hover:text-[var(--danger)] transition-colors">
-                    <X size={15} strokeWidth={2} />
+          {(() => {
+            const q = tagQuery.trim();
+            const ql = q.toLowerCase();
+            const exactInVocab = !q || tagVocab.some(t => t.tag.toLowerCase() === ql);
+            const alreadySelected = !!q && editTags.some(t => t.toLowerCase() === ql);
+            const showCustomAdd = !!q && !exactInVocab && !alreadySelected;
+            const filtered = q ? tagVocab.filter(t => t.tag.toLowerCase().includes(ql)) : tagVocab;
+            const toggleTag = (tag: string) => setEditTags(prev =>
+              prev.includes(tag) ? prev.filter(t => t !== tag)
+                : prev.length >= 8 ? (toast.warning('最多 8 个业务标签'), prev)
+                : [...prev, tag]);
+            const addCustom = (raw: string) => {
+              const t = raw.trim();
+              if (!t || t.length > 20) { toast.error('标签须为 1-20 字'); return; }
+              if (editTags.some(x => x.toLowerCase() === t.toLowerCase())) { toast.warning('该标签已选'); return; }
+              if (editTags.length >= 8) { toast.warning('最多 8 个业务标签'); return; }
+              setEditTags(prev => [...prev, t]);
+              setTagQuery('');
+            };
+            return (
+              <div>
+                {/* 第一层：搜索（兼新建输入） */}
+                <div className="relative mb-2.5">
+                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
+                  <input
+                    value={tagQuery}
+                    onChange={e => setTagQuery(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (showCustomAdd) addCustom(tagQuery); } }}
+                    placeholder="搜索标签，或输入新标签后回车…"
+                    maxLength={20}
+                    className="workbench-input w-full !pl-8 !pr-2 text-xs !h-8"
+                  />
+                </div>
+
+                {/* 第二层：已选条 */}
+                <div className="mb-2.5 flex items-start gap-1.5 rounded-lg px-2.5 py-2"
+                  style={{ background: 'color-mix(in oklch, var(--accent) 6%, transparent)', boxShadow: 'inset 0 1px 2px oklch(0.5 0.04 258 / 0.06)' }}>
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+                    <span className="mr-0.5 shrink-0 text-[10px] font-extrabold tabular-nums text-[var(--accent-strong)]">已选 {editTags.length}/8</span>
+                    {editTags.map(t => (
+                      <span key={t} className="neu-tag is-on text-xs">
+                        {t}
+                        <button type="button" onClick={() => setEditTags(prev => prev.filter(x => x !== t))} aria-label={`移除 ${t}`} className="neu-tag__x">
+                          <X size={11} strokeWidth={2.5} />
+                        </button>
+                      </span>
+                    ))}
+                    {editTags.length === 0 && <span className="text-[10px] text-[var(--muted-foreground)]">尚未选择（至少 2 个方可保存）</span>}
+                  </div>
+                  {editTags.length > 0 && (
+                    <button type="button" onClick={() => setEditTags([])} className="neu-btn-xs shrink-0">清空</button>
+                  )}
+                </div>
+
+                {/* 新建入口：搜索词不在词表且未选 */}
+                {showCustomAdd && (
+                  <button type="button" onClick={() => addCustom(tagQuery)} className="neu-btn-xs is-info mb-2">
+                    <Plus size={11} />新建标签「{q}」
                   </button>
                 )}
+
+                {/* 第三层：可选词表（内凹滚动区，按库内使用频次降序） */}
+                {filtered.length > 0 ? (
+                  <div className="flex max-h-[190px] flex-wrap content-start gap-1 overflow-y-auto rounded-lg px-2.5 py-2"
+                    style={{ background: 'oklch(0.968 0.01 258 / 0.45)', boxShadow: 'inset 1px 1px 4px oklch(0.52 0.05 258 / 0.08), inset -1px -1px 2px oklch(1 0 0 / 0.55)' }}>
+                    {[...filtered].sort((a, b) => b.count - a.count).map(t => {
+                      const on = editTags.includes(t.tag);
+                      return (
+                        <button key={t.tag} type="button" onClick={() => toggleTag(t.tag)} title={`库内 ${t.count} 家供应商在用`}
+                          className={`neu-tag text-xs ${on ? 'is-on' : ''}`}>
+                          {on && <Check size={10} strokeWidth={3} className="shrink-0" />}{t.tag}<span className="neu-tag__count">{t.count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="rounded-lg px-3 py-4 text-center text-[11px] text-[var(--muted-foreground)]"
+                    style={{ background: 'oklch(0.968 0.01 258 / 0.45)', boxShadow: 'inset 1px 1px 4px oklch(0.52 0.05 258 / 0.08), inset -1px -1px 2px oklch(1 0 0 / 0.55)' }}>
+                    {q ? '无匹配标签——回车或点上方按钮新建' : '词表加载中或为空'}
+                  </p>
+                )}
               </div>
-            ))}
-            {editTags.length < 8 && (
-              <button onClick={() => setEditTags(prev => [...prev, ''])} className="neu-btn-xs w-full justify-center py-1.5 text-[11px] !text-[var(--muted-foreground)]">
-                <Plus size={11} />添加标签（{editTags.length}/8）
-              </button>
-            )}
-          </div>
+            );
+          })()}
         </Modal>
       )}
     </div>
