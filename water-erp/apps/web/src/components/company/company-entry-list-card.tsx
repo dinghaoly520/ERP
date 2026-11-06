@@ -235,31 +235,32 @@ export function EntryListCard({
             );
           }
 
-          /* 展示态：凸起瓷片行——主字段加粗、次字段 label:value 弱化陈列 */
+          /* 展示态：凸起瓷片行——状态列（默认徽标独立占位）/ 正文列 / 操作列三区分离，
+              徽标不与正文、操作钮挤挨（2026-11-06 用户裁定布局融洽） */
           return (
             <div key={entry.id} className="ce-row">
+              <div className="flex w-16 shrink-0 items-center">
+                {entry.isDefault && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void runRow(
+                        entry.id,
+                        () => onSetDefault(entry, false),
+                        `已取消「${primaryValue}」的默认，编写采购文件不再预填此项`,
+                      )
+                    }
+                    disabled={rowDisabled}
+                    title="当前默认（点击取消默认；取消后编写不再预填此项）"
+                    className="wb-status-pill cursor-pointer"
+                  >
+                    <span className="wb-status-pill-dot" />
+                    默认
+                  </button>
+                )}
+              </div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  {entry.isDefault && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void runRow(
-                          entry.id,
-                          () => onSetDefault(entry, false),
-                          `已取消「${primaryValue}」的默认，编写采购文件不再预填此项`,
-                        )
-                      }
-                      disabled={rowDisabled}
-                      title="当前默认（点击取消默认；取消后编写不再预填此项）"
-                      className="wb-status-pill shrink-0 cursor-pointer"
-                    >
-                      <span className="wb-status-pill-dot" />
-                      默认
-                    </button>
-                  )}
-                  <p className="truncate text-sm font-semibold text-[var(--foreground)]">{primaryValue || '（未命名）'}</p>
-                </div>
+                <p className="truncate text-sm font-semibold text-[var(--foreground)]">{primaryValue || '（未命名）'}</p>
                 {fields.length > 1 && (
                   <p className="mt-1 flex flex-wrap items-baseline gap-x-3.5 gap-y-1 text-xs text-[var(--muted-foreground)]">
                     {fields.slice(1).map((f) => (

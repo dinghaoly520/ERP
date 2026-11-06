@@ -5678,8 +5678,8 @@ textarea.neu-input {
 .ce-row {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 11px 16px;
+  gap: 18px;
+  padding: 11px 18px;
   border-radius: 12px;
   background: linear-gradient(105deg, oklch(1 0 0 / 0.94), oklch(0.99 0.003 258 / 0.6));
   box-shadow:
