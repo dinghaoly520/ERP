@@ -545,9 +545,13 @@ export function getLoadDistribution(companyId?: string) {
 /* 批量导入 */
 export type ExpertImportResult = {
   total: number; imported: number; skipped: number; failed: number;
-  results: Array<{ 姓名: string; 状态: '成功' | '跳过' | '失败'; 原因?: string }>;
+  results: Array<{ 姓名: string; 状态: '成功' | '跳过' | '失败'; 原因?: string; 归属?: string }>;
   /** 本次导入成功的专家 id 集（一键启用凭此批量审核入库，2026-11-09） */
   importedIds: string[];
+  /** 成功行按公司计数（2026-11-09：表格单位名未命中主数据即按表格名直接建档） */
+  companies?: Array<{ name: string; count: number }>;
+  /** 本次按表格单位名新建的公司主数据 */
+  createdCompanies?: string[];
 };
 export function importCsv(rows: Array<Record<string, string>>) {
   return api.post<ExpertImportResult>('/expert-admin/import-csv', { rows });

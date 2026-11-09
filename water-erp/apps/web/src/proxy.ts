@@ -20,7 +20,15 @@ const TRANSPORT_RETRY_DELAYS_MS = [400, 1_000, 3_000, 8_000];
  *  import-autofill 未列入时吃 15s 硬超时，被误杀成 502「后端服务未启动」。 */
 const UPSTREAM_SLOW_PATH_PREFIXES = ['/api/ai/'];
 // 2026-11-04：公告导入识别（LLM 同链路，耐心重试下可达 ~30s）——未列入时吃 15s 硬超时
-const UPSTREAM_SLOW_PATH_EXACT = ['/api/tender-write/import-autofill', '/api/tender-write/announcement-import-autofill'];
+const UPSTREAM_SLOW_PATH_EXACT = [
+  '/api/tender-write/import-autofill',
+  '/api/tender-write/announcement-import-autofill',
+  // 2026-11-09（生产实录）：专家 CSV 批量导入逐行串行（bcrypt 哈希+查重+事务），180 行在
+  // 生产硬件上 >15s 被 504——后端实际跑完但前端丢失逐行结果与 importedIds（一键启用断链）。
+  // 种子导入同链路串行哈希，一并放宽。
+  '/api/expert-admin/import-csv',
+  '/api/expert-admin/import-from-seed',
+];
 // 2026-11-06（生产实录）：知识库上传 235MB 经门户 arrayBuffer 缓冲转发，body 传输逼近 15s
 // 临界带宽（~15MB/s）即被击穿 → API 侧 multer Request aborted——放大到 120s 覆盖大件传输窗。
 // 异步化（202）已消掉处理侧长等待，此窗口只需罩住 body 本身的搬运。

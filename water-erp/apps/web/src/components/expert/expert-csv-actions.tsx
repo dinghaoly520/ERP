@@ -346,21 +346,35 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
             <span>跳过 <strong className="text-[var(--warning)]">{importResult.skipped}</strong></span>
             <span>失败 <strong className="text-[var(--danger)]">{importResult.failed}</strong></span>
           </div>
+          {/* 表格单位名未命中公司主数据时按表格名直接建档（2026-11-09 用户裁定）——
+              新建了哪些公司必须显式告知，主数据增长不悄然发生 */}
+          {(importResult.createdCompanies?.length ?? 0) > 0 && (
+            <p className="text-[11px] leading-relaxed text-[var(--warning)]">
+              本次有 {importResult.createdCompanies!.length} 家单位不在公司主数据（:3005 注册公司名单）中，已按表格单位名直接建档归属：
+              <span className="font-semibold">{importResult.createdCompanies!.join('、')}</span>
+            </p>
+          )}
+          {(importResult.companies?.length ?? 0) > 0 && (
+            <p className="text-[10px] leading-relaxed text-[var(--muted-foreground)]/80">
+              归属分布：{importResult.companies!.map(c => `${c.name} ${c.count} 人`).join(' · ')}
+            </p>
+          )}
           {/* 逐行明细（2026-10-22）：后端本就返回 per-row 结果，此前前端只显汇总——
               「成功 0 跳过 23」却看不到原因的困惑由此而来。跳过/失败行必须给出原因 */}
           {Array.isArray(importResult.results) && importResult.results.length > 0 && (
             <div className="mt-2 max-h-[220px] overflow-y-auto rounded-[10px] border border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
               <table className="w-full table-fixed border-collapse text-[11px]">
-                <colgroup><col style={{ width: '28%' }} /><col style={{ width: '14%' }} /><col /></colgroup>
+                <colgroup><col style={{ width: '20%' }} /><col style={{ width: '11%' }} /><col style={{ width: '34%' }} /><col /></colgroup>
                 <thead>
                   <tr className="text-[color:var(--muted-foreground)]">
                     <th className="px-2 py-1.5 text-left font-medium">姓名</th>
                     <th className="px-2 py-1.5 text-center font-medium">状态</th>
+                    <th className="px-2 py-1.5 text-left font-medium">归属</th>
                     <th className="px-2 py-1.5 text-left font-medium">原因</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {importResult.results.map((r: { 姓名: string; 状态: string; 原因?: string }, i: number) => (
+                  {importResult.results.map((r: { 姓名: string; 状态: string; 原因?: string; 归属?: string }, i: number) => (
                     <tr key={i} className="border-t border-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
                       <td className="px-2 py-1.5 text-left text-[var(--foreground)]"><span className="block truncate" title={r.姓名}>{r.姓名}</span></td>
                       <td className="px-2 py-1.5 text-center">
@@ -368,6 +382,9 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
                           r.状态 === '成功' ? 'bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[color:var(--success)]'
                           : r.状态 === '失败' ? 'bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] text-[color:var(--danger)]'
                           : 'bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[color:var(--warning)]'}`}>{r.状态}</span>
+                      </td>
+                      <td className={`px-2 py-1.5 text-left ${r.归属 === '未归属' ? 'text-[color:var(--warning)]' : 'text-[color:var(--foreground)]'}`}>
+                        <span className="block truncate" title={r.归属 ?? ''}>{r.归属 ?? '—'}</span>
                       </td>
                       <td className="px-2 py-1.5 text-left text-[color:var(--muted-foreground)]"><span className="block truncate" title={r.原因 ?? ''}>{r.原因 ?? '—'}</span></td>
                     </tr>
