@@ -699,7 +699,7 @@ export default function ExpertRepositoryPage() {
 
       {/* 清空专家名单弹窗·勾选式（2026-11-09 用户裁定：搜索+全选+勾选；强保险：输入「清空」二字） */}
       <Modal open={showClearModal} onClose={() => setShowClearModal(false)}
-        title={<span className="flex items-center gap-2"><span className="neu-icon-well !h-7 !w-7"><AlertTriangle size={14} className="text-[var(--danger)]" /></span>清空专家名单</span>}
+        title={<span className="flex items-center gap-2"><span className="neu-icon-well inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]"><AlertTriangle size={14} strokeWidth={1.9} className="text-[var(--danger)]" /></span>清空专家名单</span>}
         description="勾选要删除的专家——仅删名单与随账号档案，评审记录保留"
         size="lg"
         footer={
@@ -724,10 +724,10 @@ export default function ExpertRepositoryPage() {
           </div>
           {/* 搜索 + 全选 */}
           <div className="flex items-center gap-2">
-            <div className="relative flex-1">
+            <div className="relative min-w-[300px] flex-1">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
               <input value={rosterSearch} onChange={e => setRosterSearch(e.target.value)} placeholder="搜索姓名 / 专业 / 单位 / 公司…"
-                className="workbench-input workbench-input-sm !pl-8" disabled={rosterLoading || clearing} />
+                className="workbench-input workbench-input-sm w-full !pl-8" disabled={rosterLoading || clearing} />
             </div>
             <button className="neu-btn-xs shrink-0" disabled={rosterLoading || rosterFiltered.length === 0 || clearing}
               onClick={() => {
