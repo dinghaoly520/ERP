@@ -3,9 +3,9 @@
 import { Fragment, useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, updateSupplierTags, getTagVocabulary, blacklistSupplier, unblacklistSupplier, revealSupplierField, companyLinksApi } from '@/lib/api/supplier';
+import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, updateSupplierTags, getTagVocabulary, blacklistSupplier, unblacklistSupplier, revealSupplierField } from '@/lib/api/supplier';
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification } from '@/lib/types';
-import type { CompanyLinkRow, RsvpHistoryResult, TagVocabularyItem } from '@/lib/api/supplier';
+import type { RsvpHistoryResult, TagVocabularyItem } from '@/lib/api/supplier';
 import { getRsvpHistory } from '@/lib/api/supplier';
 import { ApprovalTimeline } from '@/components/workbench/approval-timeline';
 import { AlertBanner, type AlertSeverity, StatusBadge, Modal } from '@/components/workbench';
@@ -13,7 +13,7 @@ import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
 import { LEVEL_LABEL, LEVEL_COLOR, SUPPLIER_STATUS_LABEL } from '@water-erp/shared';
 import type { AuthUser } from '@/lib/api/auth';
 import { fetchCurrentUser } from '@/lib/api/auth';
-import { CheckCircle2, Check, Search, X, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, FileText, User, Users, MapPin, Phone, Mail, Hash, FolderOpen, Plus, Loader2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, Link2, AtSign, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, Check, Search, X, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, User, Users, MapPin, Phone, Mail, Hash, FolderOpen, Plus, Loader2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, AtSign, AlertTriangle } from 'lucide-react';
 import { SupplierTimeline } from '@/components/supplier/timeline';
 import { ApprovalHistory } from '@/components/supplier/approval-history';
 import { PortraitTab } from '@/components/supplier/portrait-tab';
@@ -191,30 +191,8 @@ export default function SupplierDetailPage() {
   const [rsvpLoading, setRsvpLoading] = useState(false);
   // 文件档案已删（2026-11-06 用户裁定）：documents/docLoading 状态随整节移除
 
-  // 归属公司（多公司归属 2026-10-16）：本视野内该供应商的库内归属（APPROVED/DISABLED link），
-  // 列表按登录人公司隔离（staff/leader=本公司；admin=全部公司）——公司侧零检索面，仅展示归属事实
-  const [companyLinks, setCompanyLinks] = useState<CompanyLinkRow[] | null>(null);
-  const [linksLoading, setLinksLoading] = useState(false);
-  const [linkBusyId, setLinkBusyId] = useState<string | null>(null);
-  const loadCompanyLinks = useCallback(() => {
-    if (!id) return;
-    setLinksLoading(true);
-    companyLinksApi.list()
-      .then(rows => setCompanyLinks(rows.filter(r => r.supplierId === id && (r.status === 'APPROVED' || r.status === 'DISABLED'))))
-      .catch(() => setCompanyLinks([]))
-      .finally(() => setLinksLoading(false));
-  }, [id]);
-  // leader 库内停用/恢复（后端 @Roles('leader')；软移出本公司库，不影响其他公司归属）
-  const toggleCompanyLink = async (row: CompanyLinkRow, disable: boolean) => {
-    setLinkBusyId(row.id);
-    try {
-      if (disable) await companyLinksApi.disable(row.id);
-      else await companyLinksApi.enable(row.id);
-      toast.success(disable ? `已在 ${row.company.name} 库内停用该供应商` : `已恢复该供应商在 ${row.company.name} 的库内资格`);
-      loadCompanyLinks();
-    } catch (e: any) { toast.error(e?.message || '操作失败'); loadCompanyLinks(); }
-    finally { setLinkBusyId(null); }
-  };
+  // 归属公司区块已删（2026-11-09 用户裁定）：companyLinks/linkBusyId/toggleCompanyLink
+  // 整组移除（后端 company-links 端点保留未动，:3004 供应商端自视归属另有消费面）
 
   useEffect(() => { loadAll(); }, [loadAll]);
   // 奖惩记录加载链已删（2026-11-06 用户裁定，随录入/展示整组移除）
@@ -230,7 +208,7 @@ export default function SupplierDetailPage() {
   useEffect(() => {
     // 2026-10-23 板块合并：懒加载挂到合并后的 tab 键（沟通记录懒加载已删 2026-11-06）
     // 文件档案懒加载已删（2026-11-06 用户裁定，随整节移除）
-    if (activeTab === 'info' && companyLinks === null) loadCompanyLinks();
+    // 归属公司懒加载已删（2026-11-09 用户裁定，随整节移除）
   }, [activeTab, id]);
 
   const supplierAlerts = useSupplierAlerts(id as string);
@@ -632,7 +610,7 @@ export default function SupplierDetailPage() {
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] font-semibold text-[var(--accent)]" style={{ background: "color-mix(in oklch, var(--accent) 7%, transparent)" }} title="统一社会信用代码">
                       {supplier.creditCode}
-                      <CopyIconButton value={supplier.creditCode} label="统一社会信用代码" />
+                      {supplier.creditCode ? <CopyIconButton value={supplier.creditCode} label="统一社会信用代码" /> : null}
                     </span>
                     {normalizeEnterpriseType(supplier.enterpriseType) && (
                       <span className="rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)] px-2 py-0.5 text-[10px] font-semibold text-[color:var(--muted-foreground)]">{normalizeEnterpriseType(supplier.enterpriseType)}</span>
@@ -797,11 +775,7 @@ export default function SupplierDetailPage() {
             {/* 生命周期时间线已移至「画像」tab（2026-11-09 用户裁定：
                 先显示生命周期、再给出画像；基本信息不承载动态事件流） */}
 
-            {/* 审核历史（不可变留痕） */}
-            <section className="neu-card-static !rounded-2xl p-5">
-              <SectionTitle icon={FileCheck}>审核历史</SectionTitle>
-              <ApprovalHistory supplierId={id as string} />
-            </section>
+            {/* 审核历史已并入下方「审核与变更记录」节（2026-11-09 用户裁定） */}
           </div>
         )}
 
@@ -1276,15 +1250,19 @@ export default function SupplierDetailPage() {
           </div>
         )}
 
-        {/* 变更记录 */}
+        {/* 审核与变更记录（2026-11-09 用户裁定：审核历史与资料变更记录合并为一节） */}
         {activeTab === 'info' && (
           <div className="mt-8">
-            <SectionTitle icon={Pencil}>资料变更记录</SectionTitle>
+            <SectionTitle icon={FileCheck}>审核与变更记录</SectionTitle>
+            <ApprovalHistory supplierId={id as string} />
+            {/* 子分区：资料变更记录 */}
+            <div className="mb-3 mt-6 flex items-center gap-2">
+              <Pencil size={13} className="text-[var(--muted-foreground)]" />
+              <span className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">资料变更记录</span>
+              {changes.length > 0 && <span className="text-[10px] text-[var(--muted-foreground)]/60">{changes.length} 条</span>}
+            </div>
             {changes.length === 0 ? (
-              <div className="neu-card-static !rounded-2xl py-10 text-center">
-                <FileText size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />
-                <p className="text-sm text-[var(--muted-foreground)]">暂无变更记录</p>
-              </div>
+              <p className="text-sm text-[var(--muted-foreground)] py-6 text-center">暂无变更记录</p>
             ) : (
               <div className="neu-table-card overflow-hidden">
                 <div className="overflow-x-auto">
@@ -1347,77 +1325,8 @@ export default function SupplierDetailPage() {
             )}
           </div>
         )}
-      {/* 归属公司（多公司归属 2026-10-16）：本视野内该供应商的库内归属与状态；2026-10-23 并入基本信息分区 */}
-      {activeTab === 'info' && (
-        <section className="mt-8">
-          <SectionTitle icon={Link2}>归属公司</SectionTitle>
-          {linksLoading || companyLinks === null ? (
-            <div className="py-8 text-center"><Loader2 size={14} className="animate-spin mx-auto mb-2" /><span className="text-sm text-[var(--muted-foreground)]">加载中...</span></div>
-          ) : companyLinks.length === 0 ? (
-            <div className="neu-card-static !rounded-2xl py-10 text-center">
-              <Building2 size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />
-              <p className="text-sm text-[var(--muted-foreground)]">本视野内暂无该供应商的库内归属关系</p>
-              <p className="mt-1 text-xs text-[var(--muted-foreground)]/70">供应商自主申请加入并经三级审核通过后出现在此处（仅显示本公司记录）</p>
-            </div>
-          ) : (
-            <div className="neu-table-card overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="neu-table w-full">
-                  <thead>
-                    <tr>
-                      <th>归属公司</th>
-                      <th className="text-center">库内状态</th>
-                      <th className="text-center">加入时间</th>
-                      {currentUser?.role === 'leader' && <th className="text-center">操作</th>}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {companyLinks.map(l => {
-                      // 主归属=注册归属公司（Supplier.companyId 写时快照）；其余为自主申请加入的公司
-                      const isPrimary = l.companyId === (supplier as { companyId?: string | null }).companyId;
-                      return (
-                        <tr key={l.id}>
-                          <td>
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-[var(--foreground)]">{l.company.name}</span>
-                              {isPrimary && (
-                                <span className="inline-flex items-center rounded-full bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--accent)]" title="注册归属公司（主归属）">主归属</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="text-center">
-                            {l.status === 'APPROVED'
-                              ? <StatusBadge tone="green">在库</StatusBadge>
-                              : <StatusBadge tone="gray">已停用（本公司）</StatusBadge>}
-                          </td>
-                          <td className="text-center tabular-nums text-[var(--muted-foreground)]">{new Date(l.createdAt).toLocaleDateString('zh-CN')}</td>
-                          {currentUser?.role === 'leader' && (
-                            <td className="text-center">
-                              {l.status === 'APPROVED' ? (
-                                <button onClick={() => void toggleCompanyLink(l, true)} disabled={linkBusyId === l.id}
-                                  title="本公司库内停用（软移出，不影响该供应商在其他公司的归属）"
-                                  className="neu-btn-xs is-warning">
-                                  {linkBusyId === l.id ? <Loader2 size={12} className="animate-spin" /> : null}停用
-                                </button>
-                              ) : (
-                                <button onClick={() => void toggleCompanyLink(l, false)} disabled={linkBusyId === l.id}
-                                  title="恢复本公司库内资格"
-                                  className="neu-btn-xs is-success">
-                                  {linkBusyId === l.id ? <Loader2 size={12} className="animate-spin" /> : null}恢复
-                                </button>
-                              )}
-                            </td>
-                          )}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </section>
-      )}
+      {/* 归属公司节已删（2026-11-09 用户裁定）：本视野库内归属表与 leader 停用/恢复操作
+          整块移除；后端 company-links 端点保留未动（:3004 供应商端自视归属另有消费面） */}
 
       {/* 沟通记录整节已删（2026-11-06 用户裁定）：其内容实为公告发布的通知投递日志
           （站内/短信/电话通道），非与该供应商的沟通——状态/懒加载/导入整组清理，
