@@ -596,11 +596,7 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
           </div>
 
           <div className="page-hero__right">
-            <CompanySelect
-              value={companyId}
-              onChange={(c) => { setCompanyId(c); void loadData(c); }}
-              countMode="projectsActive"
-            />
+            {/* 统计瓷片居公司选择器左侧（2026-11-09 全 hero 统一口径：统计→选择器→操作按钮） */}
             <span className="page-hero__stat page-hero__stat--info">
               共 {stats.totalActive} 项
             </span>
@@ -610,6 +606,11 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
                 待推进 {attnCount}
               </span>
             )}
+            <CompanySelect
+              value={companyId}
+              onChange={(c) => { setCompanyId(c); void loadData(c); }}
+              countMode="projectsActive"
+            />
           </div>
         </div>
 

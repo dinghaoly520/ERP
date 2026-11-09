@@ -173,6 +173,16 @@ function PageHero({
         </div>
 
         <div className="page-hero__right">
+          {/* 统计瓷片居公司选择器左侧（2026-11-09 全 hero 统一口径：统计→选择器→操作按钮） */}
+          <span className="page-hero__stat page-hero__stat--info">
+            共 {pagination.total} 条
+          </span>
+          {abnormalCount > 0 && (
+            <span className="page-hero__stat page-hero__stat--warn">
+              <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-[oklch(0.67_0.14_32)]" />
+              异常 {abnormalCount}
+            </span>
+          )}
           <CompanySelect value={companyId} onChange={onCompanyChange} countMode="projectsDone" />
           {isAdmin && (
           <button
@@ -184,15 +194,6 @@ function PageHero({
             <ClipboardCheck size={14} strokeWidth={1.9} className="text-[var(--accent)]" />
             国资监管数据生成
           </button>
-          )}
-          <span className="page-hero__stat page-hero__stat--info">
-            共 {pagination.total} 条
-          </span>
-          {abnormalCount > 0 && (
-            <span className="page-hero__stat page-hero__stat--warn">
-              <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-[oklch(0.67_0.14_32)]" />
-              异常 {abnormalCount}
-            </span>
           )}
         </div>
       </div>
