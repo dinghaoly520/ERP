@@ -637,20 +637,11 @@ export class ExpertAdminService {
         employer = selected.name;
       } else if (dto.employer?.trim()) {
         const employerName = dto.employer.trim();
-        let byName = await this.prisma.company.findFirst({
-          where: { name: employerName },
-          select: { id: true, name: true },
-        });
-        if (!byName && opts?.sheetAttribution) {
-          // 表格导入未命中主数据 → 以表格单位名建档（name 唯一；并发导入撞 P2002 时回读既有行）
-          try {
-            byName = await this.prisma.company.create({ data: { name: employerName }, select: { id: true, name: true } });
-          } catch (e) {
-            if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-              byName = await this.prisma.company.findFirst({ where: { name: employerName }, select: { id: true, name: true } });
-            } else throw e;
-          }
-        }
+        // sheet 模式 find-or-create（未命中按表格名建档）；手动录入仅精确匹配
+        // （未命中保留自由文本+操作人快照）
+        const byName = opts?.sheetAttribution
+          ? await this.resolveSheetCompany(employerName)
+          : await this.findCompanyByName(employerName);
         if (byName) { companyId = byName.id; companyName = byName.name; }
       }
       return await this.prisma.$transaction(async (tx) => {
@@ -3099,6 +3090,26 @@ export class ExpertAdminService {
     }));
   }
 
+  /** 公司主数据按名精确匹配（:3005 注册公司全名单口径） */
+  private async findCompanyByName(name: string) {
+    return this.prisma.company.findFirst({ where: { name }, select: { id: true, name: true } });
+  }
+
+  /** 表格单位名 → 公司归属（2026-11-09 用户裁定）：先对公司主数据精确匹配，未命中按
+   *  表格名直接建档归属（name 唯一；并发撞 P2002 回读既有行）。新导入与重导修复共用。 */
+  private async resolveSheetCompany(employerName: string) {
+    const hit = await this.findCompanyByName(employerName);
+    if (hit) return hit;
+    try {
+      return await this.prisma.company.create({ data: { name: employerName }, select: { id: true, name: true } });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        return this.findCompanyByName(employerName);
+      }
+      throw e;
+    }
+  }
+
   /** CSV 批量导入（表头灵活匹配） */
   async importCsv(rows: Array<Record<string, string>>, operatorId?: string) {
     const pick = (row: Record<string, string>, keys: string[]): string => {
@@ -3111,9 +3122,10 @@ export class ExpertAdminService {
       return '';
     };
 
-    const results: Array<{ 姓名: string; 状态: '成功' | '跳过' | '失败'; 原因?: string; 归属?: string }> = [];
-    let imported = 0, skipped = 0, failed = 0;
+    const results: Array<{ 姓名: string; 状态: '成功' | '跳过' | '失败' | '修复归属'; 原因?: string; 归属?: string }> = [];
+    let imported = 0, skipped = 0, failed = 0, repaired = 0;
     const importedIds: string[] = [];
+    const repairedIds: string[] = [];
     // 导入前公司主数据快照（成功行归属分布 + 「按表格名新建了哪些公司」上报用）
     const companyNamesBefore = new Set(
       (await this.prisma.company.findMany({ select: { name: true } })).map(c => c.name)
@@ -3134,8 +3146,30 @@ export class ExpertAdminService {
       const badQual = qualifications?.trim()
         ? splitQualifications(qualifications).filter(q => !(EXPERT_QUALIFICATION_OPTIONS as readonly string[]).includes(q))
         : [];
-      const dup = await this.prisma.user.findFirst({ where: { username, role: 'bid_expert' } });
-      if (dup) { results.push({ 姓名: displayName, 状态: '跳过', 原因: '账号已存在' }); skipped++; continue; }
+      const dup = await this.prisma.user.findFirst({
+        where: { username, role: 'bid_expert' },
+        select: { id: true, companyId: true },
+      });
+      if (dup) {
+        // 重导修复（2026-11-09 生产实录：旧导入未命中公司主数据整批落「未归属」）：账号
+        // 已在库但未归属、且本行表格带单位名 → 按表格补录归属（建档语义同新导入；
+        // 只补 companyId 为空的行，绝不覆盖既有归属——已归属/未填单位照旧跳过）
+        const sheetEmployer = pick(row, ['工作单位', '单位']);
+        const healed = dup.companyId == null && sheetEmployer?.trim()
+          ? await this.resolveSheetCompany(sheetEmployer.trim())
+          : null;
+        if (healed) {
+          await this.prisma.user.update({
+            where: { id: dup.id },
+            data: { companyId: healed.id, company: healed.name },
+          });
+          repaired++;
+          repairedIds.push(dup.id);
+          results.push({ 姓名: displayName, 状态: '修复归属', 归属: healed.name, 原因: '账号已存在，按表格单位名补录归属' });
+          continue;
+        }
+        results.push({ 姓名: displayName, 状态: '跳过', 原因: '账号已存在' }); skipped++; continue;
+      }
       if (badQual.length > 0) {
         results.push({ 姓名: displayName, 状态: '跳过', 原因: `执业资格「${badQual.join('、')}」不在标准清单` });
         skipped++; continue;
@@ -3167,24 +3201,26 @@ export class ExpertAdminService {
         failed++;
       }
     }
-    // 归属分布（成功行按公司计数）+ 本次按表格名新建的公司主数据（2026-11-09 用户裁定：
-    // 表格单位名未命中主数据即直接建档——新建了哪些公司必须显式上报，主数据增长不悄然发生）
+    // 归属分布（成功/修复行按公司计数）+ 本次按表格名新建的公司主数据（2026-11-09 用户
+    // 裁定：表格单位名未命中主数据即直接建档——新建了哪些公司必须显式上报，主数据增长不悄然发生）
     const attribution = new Map<string, number>();
     for (const r of results) {
-      if (r.状态 === '成功' && r.归属) attribution.set(r.归属, (attribution.get(r.归属) ?? 0) + 1);
+      if ((r.状态 === '成功' || r.状态 === '修复归属') && r.归属) attribution.set(r.归属, (attribution.get(r.归属) ?? 0) + 1);
     }
     const companies = [...attribution.entries()]
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'zh'));
     const createdCompanies = [...attribution.keys()].filter(n => !companyNamesBefore.has(n));
-    if (imported > 0) {
+    if (imported > 0 || repaired > 0) {
       await this.auditExpert(operatorId, 'EXPERT_IMPORT', 'batch', {
         imported, skipped, failed, total: rows.length,
+        ...(repaired > 0 && { repaired }),
         ...(createdCompanies.length > 0 && { createdCompanies }),
       });
     }
-    // importedIds：本次导入成功的专家 id 集（前端「一键全部启用」凭此批量审核入库）
-    return { total: rows.length, imported, skipped, failed, results, importedIds, companies, createdCompanies };
+    // importedIds：本次导入成功的专家 id 集；repairedIds：本次补录归属的已在库专家 id 集
+    // （前端「一键全部启用」凭两者并集批量审核入库——均只动 PENDING 行，幂等）
+    return { total: rows.length, imported, skipped, failed, repaired, results, importedIds, repairedIds, companies, createdCompanies };
   }
 
   /** CSV 导入后一键启用（2026-11-09 用户裁定）：批量审核入库 entryStatus PENDING→ACTIVE

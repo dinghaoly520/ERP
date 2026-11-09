@@ -43,6 +43,7 @@ describe('ExpertAdminService.importCsv 表格归属', () => {
       user: {
         findFirst: jest.fn().mockResolvedValue(null), // 查重（importCsv 预查 + createExpert 复查）
         findUnique: jest.fn().mockResolvedValue(null), // operatorCompanyOf（sheet 模式不用其结果）
+        update: jest.fn().mockResolvedValue({}), // 重导修复补录归属
       },
       company: {
         findMany: jest.fn().mockResolvedValue([{ name: EXISTING.name }]), // 导入前主数据快照
@@ -115,5 +116,40 @@ describe('ExpertAdminService.importCsv 表格归属', () => {
     ], 'op1');
     expect(createdUsers[0].companyId).toBe('co-raced');
     expect(r.imported).toBe(1);
+  });
+
+  it('重导修复：账号已在库且未归属 + 表格带单位名 → 按表格补录归属（建档语义同新导入）', async () => {
+    prisma.user.findFirst.mockResolvedValueOnce({ id: 'dup-1', companyId: null }); // importCsv 查重命中
+    const r = await service.importCsv([
+      { 姓名: '张三', 专业领域: '水利水电', 工作单位: NEW_NAME, 身份证号: '510000199001010011' },
+    ], 'op1');
+    expect(prisma.company.create).toHaveBeenCalledWith(expect.objectContaining({ data: { name: NEW_NAME } }));
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: 'dup-1' },
+      data: { companyId: 'co-new-1', company: NEW_NAME },
+    });
+    expect(r.imported).toBe(0);
+    expect(r.repaired).toBe(1);
+    expect(r.repairedIds).toEqual(['dup-1']);
+    expect(r.results[0].状态).toBe('修复归属');
+    expect(r.results[0].归属).toBe(NEW_NAME);
+    expect(r.createdCompanies).toEqual([NEW_NAME]);
+    // 审计留痕带 repaired
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ action: 'EXPERT_IMPORT', details: expect.objectContaining({ repaired: 1 }) }),
+    }));
+  });
+
+  it('重导不覆盖既有归属：账号已归属（含曾入库审核者）→ 照旧跳过，不建档不更新', async () => {
+    prisma.user.findFirst.mockResolvedValueOnce({ id: 'dup-2', companyId: 'co-x' });
+    const r = await service.importCsv([
+      { 姓名: '李四', 专业领域: '水文地质', 工作单位: NEW_NAME, 身份证号: '510000199001010022' },
+    ], 'op1');
+    expect(prisma.company.create).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(r.skipped).toBe(1);
+    expect(r.repaired ?? 0).toBe(0);
+    expect(r.results[0].状态).toBe('跳过');
+    expect(r.results[0].原因).toBe('账号已存在');
   });
 });

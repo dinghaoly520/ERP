@@ -253,15 +253,18 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
       toast.success(`导入完成：成功 ${result.imported} 条，跳过 ${result.skipped} 条，失败 ${result.failed} 条`);
       onImported?.();
       // 一键启用（2026-11-09 用户裁定）：导入成功后询问是否批量审核入库
-      //（导入默认 entryStatus=PENDING 不入抽取池，启用后立即可抽取）
-      if ((result.importedIds?.length ?? 0) > 0) {
+      //（导入默认 entryStatus=PENDING 不入抽取池，启用后立即可抽取；重导修复的
+      // 已在库 PENDING 专家一并纳入——端点只动 PENDING 行，幂等不误启已入库）
+      const enableIds = [...(result.importedIds ?? []), ...(result.repairedIds ?? [])];
+      if (enableIds.length > 0) {
+        const repairedNote = (result.repairedIds?.length ?? 0) > 0 ? `、修复归属 ${result.repairedIds!.length} 位已在库` : '';
         const yes = await confirm({
           title: '一键启用导入的专家',
-          message: `本次导入成功 ${result.importedIds.length} 位专家，当前为「待审核」状态（未入抽取池）。\n是否一键全部启用（审核入库）？启用后立即进入可抽取状态。`,
+          message: `本次导入成功 ${result.importedIds?.length ?? 0} 位${repairedNote}专家，当前为「待审核」状态（未入抽取池）。\n是否一键全部启用（审核入库）？启用后立即进入可抽取状态。`,
         });
         if (yes) {
           try {
-            const r = await expertImportBatchApprove(result.importedIds);
+            const r = await expertImportBatchApprove(enableIds);
             toast.success(`已启用 ${r.enabled} 位专家（审核入库）`);
             onImported?.();
           } catch (e: any) {
@@ -343,6 +346,9 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
           <div className="flex gap-4 text-xs text-[var(--muted-foreground)]">
             <span>总计 <strong className="text-[var(--foreground)]">{importResult.total}</strong> 行</span>
             <span>成功 <strong className="text-[var(--success)]">{importResult.imported}</strong></span>
+            {(importResult.repaired ?? 0) > 0 && (
+              <span>修复归属 <strong className="text-[color:var(--accent)]">{importResult.repaired}</strong></span>
+            )}
             <span>跳过 <strong className="text-[var(--warning)]">{importResult.skipped}</strong></span>
             <span>失败 <strong className="text-[var(--danger)]">{importResult.failed}</strong></span>
           </div>
@@ -380,6 +386,7 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
                       <td className="px-2 py-1.5 text-center">
                         <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none ${
                           r.状态 === '成功' ? 'bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[color:var(--success)]'
+                          : r.状态 === '修复归属' ? 'bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[color:var(--accent)]'
                           : r.状态 === '失败' ? 'bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] text-[color:var(--danger)]'
                           : 'bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[color:var(--warning)]'}`}>{r.状态}</span>
                       </td>
