@@ -14,7 +14,7 @@ import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
 import { LEVEL_LABEL, LEVEL_COLOR, SUPPLIER_STATUS_LABEL } from '@water-erp/shared';
 import type { AuthUser } from '@/lib/api/auth';
 import { fetchCurrentUser } from '@/lib/api/auth';
-import { CheckCircle2, Check, Search, X, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, User, Users, MapPin, Phone, Mail, Hash, FolderOpen, Plus, Loader2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, AtSign, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, Check, Search, X, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, User, Users, MapPin, Phone, Mail,  FolderOpen, Plus, Loader2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, AtSign, AlertTriangle } from 'lucide-react';
 import { SupplierTimeline } from '@/components/supplier/timeline';
 import { ApprovalChangeHistory } from '@/components/supplier/approval-change-history';
 import { PortraitTab } from '@/components/supplier/portrait-tab';
@@ -406,9 +406,8 @@ export default function SupplierDetailPage() {
                     <span className="opacity-40 ml-2">·</span>
                   </>
                 )}
-                <span className="inline-flex items-center gap-1"><Hash size={11} />{supplier.creditCode || '信用代码未登记'}</span>
-                {/* 评价等级小块已删（2026-11-06 用户裁定：评价域内容归「评价与奖惩」tab） */}
-                <span className="opacity-40 ml-2">·</span><span className="ml-2" title={`入库时间：${entryDate.toLocaleString('zh-CN')}`}>入库 {entryDate.toLocaleDateString('zh-CN')}（在库 {Math.floor((Date.now() - entryDate.getTime()) / (1000 * 60 * 60 * 24))} 天）</span>
+                {/* 信用代码段已删（2026-11-09 用户裁定）——企业工商信息卡内有全字段+复制，hero 不重复 */}
+                <span className="ml-2" title={`入库时间：${entryDate.toLocaleString('zh-CN')}`}>入库 {entryDate.toLocaleDateString('zh-CN')}（在库 {Math.floor((Date.now() - entryDate.getTime()) / (1000 * 60 * 60 * 24))} 天）</span>
                 <span className="opacity-40 ml-2">·</span><span className="ml-2">变更 {changes.length} 次</span>
               </div>
               {supplier.returnReason && supplier.status === 'RETURNED' && (
