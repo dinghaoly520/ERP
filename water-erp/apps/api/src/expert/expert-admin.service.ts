@@ -3043,14 +3043,12 @@ export class ExpertAdminService {
         await logSensitiveAccess(this.prisma, actor, 'ExpertProfile', u.id, 'export:phone,idNumber');
       }
     }
-    // 列名列序严格对齐导入模板（2026-11-05 用户裁定：导出表可直接回导）——
-    // 姓名/登录账号/初始密码/专业领域/职称/执业资格/工作单位/所属部门/联系电话/
-    // 电子邮箱/身份证号/民族/学历/执业资格证号/备注；初始密码不导出（哈希不可逆，
-    // 留空回导时按 R2 回退链取身份证号）
+    // 列名列序严格对齐导入模板（2026-11-05 用户裁定：导出表可直接回导；
+    // 2026-11-09 账号/密码两列随导入模板删除——账号=姓名、初始口令=身份证号自动生成，
+    // 不再导出）——姓名/专业领域/职称/执业资格/工作单位/所属部门/联系电话/
+    // 电子邮箱/身份证号/民族/学历/执业资格证号/备注
     return users.map(u => ({
       姓名: u.displayName,
-      登录账号: u.username,
-      初始密码: '',
       专业领域: u.expertProfile?.specialty ?? '',
       职称: u.expertProfile?.title ?? '',
       执业资格: u.expertProfile?.qualifications ?? '',
