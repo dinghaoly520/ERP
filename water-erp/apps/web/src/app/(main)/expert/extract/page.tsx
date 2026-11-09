@@ -319,6 +319,10 @@ export function ExpertExtractPage({
   const [notifyActiveExpert, setNotifyActiveExpert] = useState<string>('');
   const [openTimeDate, setOpenTimeDate] = useState('');
   const [openTimeTime, setOpenTimeTime] = useState('');
+  // 开标时间同步源（2026-11-09 用户裁定）：记录当前 openTimeDate/Time 载入自哪个 pd.openTime——
+  // pd.openTime 与之不同（基本信息修改后重拉/快照恢复）→ 重新识别覆盖；相同 → 保留用户手改。
+  // 声明前置（同 expertNotifyKeywords）：localStorage 存/读与 stateRef 快照在组件更早处引用，勿下移
+  const [openTimeSource, setOpenTimeSource] = useState('');
   // 通知关键词（2026-10-27 与供应商邀请同口径：固定语句+关键词——无 AI 文案、无标题输入、无电话话术）
   // 声明前置（2026-10-29）：localStorage 存/读与 stateRef 快照在组件更早处引用，勿下移
   const [expertNotifyKeywords, setExpertNotifyKeywords] = useState({ company: '四川省水利发展集团', openLocation: '', method: '' });
@@ -575,6 +579,7 @@ export function ExpertExtractPage({
       // 且关键词无自动带出兜底时步骤4/6 报错死局（步骤6 候补确认实录）
       if (snap.openTimeDate) setOpenTimeDate(snap.openTimeDate);
       if (snap.openTimeTime) setOpenTimeTime(snap.openTimeTime);
+      if (snap.openTimeSource !== undefined) setOpenTimeSource(snap.openTimeSource);
       if (snap.expertNotifyKeywords) setExpertNotifyKeywords(snap.expertNotifyKeywords);
     } catch { localStorage.removeItem(lskeyForPid); }
   }, [pid, lskeyForPid, defaultPid]);
@@ -645,7 +650,7 @@ export function ExpertExtractPage({
   }, [step, pid, altPreview, altExhausted, altQuotas]);
 
   // 状态变更时自动保存到 localStorage（页面切换后恢复）
-  const stateRef = useRef({ pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, expertNotifyKeywords, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified, altExhausted, needDemandRep, demandRepCount, demandRepPersons, demandRepMode, demandRepCompany, demandRepDept, demandRepDeptSpecialty, totalSeats: 5 as 3 | 5 | 7 });
+  const stateRef = useRef({ pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, openTimeSource, expertNotifyKeywords, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified, altExhausted, needDemandRep, demandRepCount, demandRepPersons, demandRepMode, demandRepCompany, demandRepDept, demandRepDeptSpecialty, totalSeats: 5 as 3 | 5 | 7 });
   useEffect(() => {
     const save = () => {
       const s = stateRef.current;
@@ -700,6 +705,7 @@ export function ExpertExtractPage({
       if (snap.phoneScriptsArr?.length) { /* 电话话术已下线（2026-10-27），旧快照字段忽略 */ }
       if (snap.openTimeDate) setOpenTimeDate(snap.openTimeDate);
       if (snap.openTimeTime) setOpenTimeTime(snap.openTimeTime);
+      if (snap.openTimeSource !== undefined) setOpenTimeSource(snap.openTimeSource);
       // 通知关键词（2026-10-29 补）：存档侧早已随 stateRef 落盘但恢复侧漏读——重进向导后
       // 开标地点/采购方式只剩自动带出兜底，公司未维护默认开标地点即步骤4/6 报错
       if (snap.expertNotifyKeywords) setExpertNotifyKeywords(snap.expertNotifyKeywords);
@@ -822,15 +828,21 @@ export function ExpertExtractPage({
   }, [pid]);
   // 专业池人数已随挂载一次取全（specialtyPoolCounts，全库口径）——原逐专业 listExperts 扇出（86 专业×1 次）已删
 
-  // 开标时间自愈回填：预填本只在 confirm() 里做——若确认当时详情接口失败（曾因 DB 迁移漂移 500）
-  // 或 openTime 尚未落库，localStorage 恢复的步骤3 会永远停在空值。进入步骤3 后字段仍空而详情
-  // 已有 openTime 时自动补上（日期取本地分量，与时分同口径；用户手改不受影响）
+  // 开标时间跟随项目基本信息（2026-11-09 用户裁定）：项目详情「采购文件」的开标时间为唯一权威，
+  // 专家抽取识别到的开标时间（含此前已加载的值——快照恢复/modal 重开/确认后）必须与其一致——
+  // pd.openTime 变化即重新识别覆盖（后端在各写路径同步 BidProject.openTime，pd 即权威载体）；
+  // 源未变时不打扰用户在通知编辑器里的手改。取代旧「confirm 预填一次 + 空值自愈」：pd 到达/变化
+  // 即覆盖，确认时详情接口失败的场景亦由本 effect 在 pd 后续到达时兜底。
   useEffect(() => {
-    if (!step3Confirmed || openTimeDate || !pd?.openTime) return;
+    if (!pd?.openTime) return;
+    const src = new Date(pd.openTime).toISOString();
+    if (src === openTimeSource) return;
+    setOpenTimeSource(src);
+    // 日期/时间统一本地取值（2026-10-28）：UTC 日期 + 本地时间混取会让 UTC≥16:00 的开标整体早一天
     const d = new Date(pd.openTime);
-    setOpenTimeDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
-    setOpenTimeTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
-  }, [step3Confirmed, openTimeDate, pd]);
+    setOpenTimeDate(localDateInputValue(d));
+    setOpenTimeTime(localTimeInputValue(d));
+  }, [pd?.openTime, openTimeSource]);
 
   // AI 配额不自动触发（2026-10-20 用户口径）：项目加载/席位变化均不后台调 AI，仅用户点「AI 配额」
   // 按钮时执行（aiQuota）——原「项目加载自动推断」effect 已删（补选弹窗内 AI 为显式打开弹窗触发，保留）。
@@ -1526,13 +1538,8 @@ export function ExpertExtractPage({
       setConfirmedExpertIds(ids);
       originalConfirmedIdsRef.current = new Set(ids);
 
-      if (pd?.openTime) {
-        // 日期/时间统一本地取值（2026-10-28）：此前 UTC 日期 + 本地时间混取，UTC≥16:00 的
-        // 开标（本地已是次日）在通知「开标时间」里整体早一天
-        const d = new Date(pd.openTime);
-        setOpenTimeDate(localDateInputValue(d));
-        setOpenTimeTime(localTimeInputValue(d));
-      }
+      // 开标时间不再在此预填（2026-11-09）：跟随 pd.openTime 的 effect（见「开标时间跟随项目
+      // 基本信息」）已覆盖首次载入与变化重载，含确认时详情接口失败的迟到兜底
 
       setNotifyActiveExpert(exps[0]?.userId || '');
       const notifyList: ExtractionSelected[] = [...selectedExperts, ...demandRepItems];
@@ -1623,7 +1630,7 @@ export function ExpertExtractPage({
   }, [step4Experts, expertNotifyKeywords, openTimeFormatted, rsvpLinks]);
 
   // 保持 stateRef 同步最新渲染值（必须在所有 useState 之后，供 beforeunload 保存使用）
-  stateRef.current = { pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, expertNotifyKeywords, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified, altExhausted, needDemandRep, demandRepCount, demandRepPersons, demandRepMode, demandRepCompany, demandRepDept, demandRepDeptSpecialty, totalSeats };
+  stateRef.current = { pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, openTimeSource, expertNotifyKeywords, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified, altExhausted, needDemandRep, demandRepCount, demandRepPersons, demandRepMode, demandRepCompany, demandRepDept, demandRepDeptSpecialty, totalSeats };
 
   /** 打开补选弹窗（2026-10-20 用户口径）：不直接抽取、不 AI 推荐——进手动配额。默认行按
    *  「确认无法参加」专家的公司分组：同公司缺席合并一行（席位=该公司缺席人数），不同公司

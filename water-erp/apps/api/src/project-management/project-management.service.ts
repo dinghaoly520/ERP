@@ -971,8 +971,46 @@ export class ProjectManagementService {
 
     if (Object.keys(updateData).length > 0) {
       await this.prisma.projectManagementItem.update({ where: { id: itemId }, data: updateData });
+      // 开标时间一致性（2026-11-09 用户裁定）：AI 提取落库后同步当前轮开标前 BidProject
+      if (updateData.bidOpeningTime) {
+        await this.syncBidProjectOpeningFromPmi(itemId, updateData.bidOpeningTime);
+      }
     }
     return field ? { [field]: result[field] ?? null } : result;
+  }
+
+  /**
+   * 开标时间一致性同步（2026-11-09 用户裁定）：项目基本信息「采购文件」的开标时间（PMI
+   * bidOpeningTime）为唯一权威——一切写路径（手改 updateExtractedInfo / AI 提取 extractTenderFields /
+   * 上传提取）更新后，当前轮开标前（DOWNLOAD/SUBMIT）BidProject 的 openTime/deadline 须对齐
+   * （deadline=openTime−BID_DEADLINE_BEFORE_OPENING_MS，同 opening-deadline.util 口径），时间轴、
+   * 供应商邀请、专家抽取三端读面才一致。BidProject 常早于提取创建（openTime 落 fallback=立项日、
+   * deadline 落兜底 now+24h，时间轴错乱），未开标前回填修正；已进入 OPENING 及之后不回写——
+   * 开标时间是已执行的过程事实（延时开标等流程拥有权威），基本信息修改不追溯。失败不阻断主流程。
+   */
+  private async syncBidProjectOpeningFromPmi(projectId: string, bidOpeningTime: string) {
+    try {
+      const parsed = parseBidOpeningTime(bidOpeningTime);
+      if (!parsed) return;
+      const bp = await this.prisma.bidProject.findFirst({
+        where: { projectManagementItemId: projectId },
+        orderBy: { round: 'desc' },
+        select: { id: true, stage: true, openTime: true },
+      });
+      const preOpening = bp && (bp.stage === 'DOWNLOAD' || bp.stage === 'SUBMIT');
+      if (bp && preOpening && bp.openTime.getTime() !== parsed.getTime()) {
+        await this.prisma.bidProject.update({
+          where: { id: bp.id },
+          data: {
+            openTime: parsed,
+            deadline: new Date(parsed.getTime() - BID_DEADLINE_BEFORE_OPENING_MS),
+          },
+        });
+        this.logger.log(`开标时间同步：PMI ${bidOpeningTime} → BidProject ${bp.id}（deadline=openTime−间隔常量）`);
+      }
+    } catch (e) {
+      this.logger.warn(`开标时间同步 BidProject 失败（不阻断）: ${(e as Error).message}`);
+    }
   }
 
   /**
@@ -1654,34 +1692,8 @@ ${shortlist}
             where: { id: projectId },
             data: { bidOpeningTime },
           });
-          // 开标时间提取成功 → 对齐同轮 BidProject（间隔常量口径，同 opening-deadline.util）。懒创建
-          // 常早于本次提取（openTime 落 fallback=立项日、deadline 落兜底 now+24h，时间轴错乱），未开标
-          // 前回填修正：openTime=提取值，deadline=openTime−BID_DEADLINE_BEFORE_OPENING_MS
-          try {
-            const parsed = parseBidOpeningTime(bidOpeningTime);
-            if (parsed) {
-              const bp = await this.prisma.bidProject.findFirst({
-                where: { projectManagementItemId: projectId },
-                orderBy: { round: 'desc' },
-                select: { id: true, stage: true, openTime: true },
-              });
-              const preOpening = bp && (bp.stage === 'DOWNLOAD' || bp.stage === 'SUBMIT');
-              if (bp && preOpening && bp.openTime.getTime() !== parsed.getTime()) {
-                await this.prisma.bidProject.update({
-                  where: { id: bp.id },
-                  data: {
-                    openTime: parsed,
-                    deadline: new Date(parsed.getTime() - BID_DEADLINE_BEFORE_OPENING_MS),
-                  },
-                });
-                this.logger.log(
-                  `采购文件提取开标时间 ${bidOpeningTime} → 已回填 BidProject ${bp.id}（deadline=openTime−间隔常量）`,
-                );
-              }
-            }
-          } catch (e) {
-            this.logger.warn(`开标时间回填 BidProject 失败（不阻断上传）: ${(e as Error).message}`);
-          }
+          // 开标时间提取成功 → 同步当前轮开标前 BidProject（口径见 syncBidProjectOpeningFromPmi）
+          await this.syncBidProjectOpeningFromPmi(projectId, bidOpeningTime);
         }
 
         // 直接采购：拟定供应商不再写入 awardedSupplier（2026-10-16 收口，同 extractTenderFields）——
@@ -4521,10 +4533,16 @@ ${JSON.stringify(algorithmResult, null, 2)}
       updateData.supplierRequirements = dto.supplierRequirements;
     }
 
-    return this.prisma.projectManagementItem.update({
+    const updated = await this.prisma.projectManagementItem.update({
       where: { id: projectId },
       data: updateData,
     });
+    // 开标时间一致性（2026-11-09 用户裁定）：基本信息「采购文件」开标时间为唯一权威——手改后
+    // 同步当前轮开标前 BidProject（时间轴/专家抽取/供应商邀请三端一致）；清空（null）无权威值不同步
+    if (typeof updateData.bidOpeningTime === 'string' && updateData.bidOpeningTime) {
+      await this.syncBidProjectOpeningFromPmi(projectId, updateData.bidOpeningTime);
+    }
+    return updated;
   }
 
    
