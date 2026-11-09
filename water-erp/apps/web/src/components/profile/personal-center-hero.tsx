@@ -93,37 +93,31 @@ export function PersonalCenterHero({ user, onOpenBasicInfo, onOpenPreferences, o
           </div>
         </div>
 
-        <div className="page-hero__right">
-          <div className="flex flex-col items-end gap-2">
-            {/* 状态瓷片行（原「当前会话/安全状态」KPI 卡融入，2026-11-09） */}
-            <div className="flex flex-wrap items-center justify-end gap-1.5">
-              <span className="page-hero__stat page-hero__stat--info" title="当前会话状态">
-                <span className="h-1.5 w-1.5 rounded-full bg-[var(--success)]" />活跃中
-              </span>
-              <span className={`page-hero__stat ${user.isFrozen ? 'page-hero__stat--warn' : 'page-hero__stat--info'}`} title="账号安全状态">
-                <ShieldCheck size={11} strokeWidth={2} />{user.isFrozen ? '已冻结' : '安全正常'}
-              </span>
-            </div>
-            {/* 操作按钮行 */}
-            <div className="flex flex-wrap items-center justify-end gap-1.5">
-              <button onClick={onOpenBasicInfo} type="button" className="neu-btn-soft">
-                <UserRound size={14} strokeWidth={1.7} />基本资料与安全
-              </button>
-              <button onClick={onOpenPreferences} type="button" className="neu-btn-soft">
-                <Settings size={14} strokeWidth={1.7} />偏好设置
-              </button>
-              <button onClick={openLoginHistory} type="button" className="neu-btn-soft">
-                <CalendarClock size={14} strokeWidth={1.7} />近期登录
-              </button>
-              <button onClick={onOpenMemberList} className="neu-btn-soft" type="button">
-                <Users size={14} strokeWidth={1.7} />通讯联络
-              </button>
-              <button onClick={onLogout} disabled={loggingOut} type="button"
-                className="neu-btn-soft is-danger disabled:cursor-not-allowed disabled:opacity-55">
-                {loggingOut ? <><Loader2 size={14} className="animate-spin" />退出中</> : <><LogOut size={14} strokeWidth={1.7} />退出登录</>}
-              </button>
-            </div>
-          </div>
+        <div className="page-hero__right flex-wrap">
+          {/* 状态瓷片（原「当前会话/安全状态」KPI 卡融入，2026-11-09；
+              与其他页 hero 同形态：瓷片居按钮前同行内联、垂直居中） */}
+          <span className="page-hero__stat page-hero__stat--info" title="当前会话状态">
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--success)]" />活跃中
+          </span>
+          <span className={`page-hero__stat ${user.isFrozen ? 'page-hero__stat--warn' : 'page-hero__stat--info'}`} title="账号安全状态">
+            <ShieldCheck size={11} strokeWidth={2} />{user.isFrozen ? '已冻结' : '安全正常'}
+          </span>
+          <button onClick={onOpenBasicInfo} type="button" className="neu-btn-soft">
+            <UserRound size={14} strokeWidth={1.7} />基本资料与安全
+          </button>
+          <button onClick={onOpenPreferences} type="button" className="neu-btn-soft">
+            <Settings size={14} strokeWidth={1.7} />偏好设置
+          </button>
+          <button onClick={openLoginHistory} type="button" className="neu-btn-soft">
+            <CalendarClock size={14} strokeWidth={1.7} />近期登录
+          </button>
+          <button onClick={onOpenMemberList} className="neu-btn-soft" type="button">
+            <Users size={14} strokeWidth={1.7} />通讯联络
+          </button>
+          <button onClick={onLogout} disabled={loggingOut} type="button"
+            className="neu-btn-soft is-danger disabled:cursor-not-allowed disabled:opacity-55">
+            {loggingOut ? <><Loader2 size={14} className="animate-spin" />退出中</> : <><LogOut size={14} strokeWidth={1.7} />退出登录</>}
+          </button>
         </div>
       </div>
 
