@@ -21,6 +21,7 @@ import {
   GenerateNotificationDto,
   BatchOperationDto,
   ImportCsvDto,
+  ImportBatchApproveDto,
   RecordViolationDto,
   NotifyPrefsDto,
   OcrIntakeDto,
@@ -368,9 +369,16 @@ export class ExpertAdminController {
 
   @Post('import-csv')
   @Roles('admin') // 录入通道随「录入专家」一并收窄 admin（CSV 导入在录入弹窗内）
-  @ApiOperation({ summary: 'CSV 批量导入专家（仅 admin）' })
+  @ApiOperation({ summary: 'CSV 批量导入专家（仅 admin；按表格工作单位归属、导入后待审核）' })
   importCsv(@Body() dto: ImportCsvDto, @Request() req: any) {
     return this.expertAdminService.importCsv(dto.rows, req.user?.sub);
+  }
+
+  @Post('import-batch-approve')
+  @Roles('admin') // 与 CSV 导入同权（2026-11-09 用户裁定：导入后一键启用）
+  @ApiOperation({ summary: 'CSV 导入后一键启用：批量审核入库本次导入专家（只动 PENDING 行，幂等）' })
+  importBatchApprove(@Body() dto: ImportBatchApproveDto, @Request() req: any) {
+    return this.expertAdminService.importBatchApprove(dto.ids, req.user?.sub);
   }
 
   @Get('projects/:projectId/memos')

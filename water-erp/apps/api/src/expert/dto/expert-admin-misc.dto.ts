@@ -77,6 +77,11 @@ export class ImportCsvDto {
   @IsArray() @IsObject({ each: true }) rows!: Array<Record<string, string>>;
 }
 
+/** CSV 导入后一键启用（2026-11-09 用户裁定）：批量审核入库本次导入的专家 */
+export class ImportBatchApproveDto {
+  @IsArray() @IsString({ each: true }) ids!: string[];
+}
+
 /** 记录专家违规 */
 export class RecordViolationDto {
   @IsString() type!: string;

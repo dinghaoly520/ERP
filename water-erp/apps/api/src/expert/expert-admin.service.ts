@@ -579,7 +579,7 @@ export class ExpertAdminService {
       .slice(0, 120);
   }
 
-  async createExpert(dto: CreateExpertDto, operatorId?: string) {
+  async createExpert(dto: CreateExpertDto, operatorId?: string, opts?: { sheetAttribution?: boolean }) {
     const normalizedName = dto.displayName.trim();
     // 登录账号缺省=姓名（2026-11-09 用户裁定：专家默认以姓名+身份证号登录，
     // 录入界面与 CSV 模板已删账号字段——显式传值仍兼容旧调用方）
@@ -618,8 +618,11 @@ export class ExpertAdminService {
       //  - companyId 轨（id 直选）：以所选公司为准，employer 同源为公司名（防两列漂移）；
       //  - 名称轨：单位名命中公司主数据即同源落归属；未命中（外部单位如设计院/高校）保留自由文本+操作人快照
       const { companyId: opCompanyId, companyName: opCompanyName } = operatorId ? await this.operatorCompanyOf(operatorId) : { companyId: null, companyName: null };
-      let companyId = opCompanyId;
-      let companyName = opCompanyName;
+      // CSV 导入按表格归属（2026-11-09 用户裁定：所有专家必须按表格中的公司归属，
+      // 不得回退操作人公司）——sheetAttribution 模式下公司只来自表格：单位名命中公司
+      // 主数据即归属之；外部单位/未填则无归属（工作单位保留表格原文）
+      let companyId = opts?.sheetAttribution ? null : opCompanyId;
+      let companyName = opts?.sheetAttribution ? null : opCompanyName;
       let employer = dto.employer;
       if (dto.companyId?.trim()) {
         const selected = await this.prisma.company.findUnique({
@@ -3097,6 +3100,7 @@ export class ExpertAdminService {
 
     const results: Array<{ 姓名: string; 状态: '成功' | '跳过' | '失败'; 原因?: string }> = [];
     let imported = 0, skipped = 0, failed = 0;
+    const importedIds: string[] = [];
 
     for (const row of rows) {
       const displayName = pick(row, ['姓名', '名称']);
@@ -3120,7 +3124,7 @@ export class ExpertAdminService {
         skipped++; continue;
       }
       try {
-        await this.createExpert({
+        const created = await this.createExpert({
           username,
           displayName,
           // 密码列已从模板删除（2026-11-09）；缺省走 createExpert 回退链：身份证号 → expert@2026
@@ -3129,6 +3133,7 @@ export class ExpertAdminService {
           title,
           qualifications,
           employer: pick(row, ['工作单位', '单位']) || undefined,
+          departmentName: pick(row, ['所属部门', '部门']) || undefined,
           phone: pick(row, ['手机号', '手机', '电话']) || undefined,
           idNumber: pick(row, ['身份证号', '身份证']) || undefined,
           ethnicity: pick(row, ['民族']) || undefined,
@@ -3136,8 +3141,9 @@ export class ExpertAdminService {
           licenseNo: pick(row, ['证书编号', '证书号', '资格证']) || undefined,
           email: pick(row, ['邮箱', 'email', '电子邮箱']) || undefined,
           notes: pick(row, ['备注']) || undefined,
-        }, operatorId);
+        }, operatorId, { sheetAttribution: true });
         results.push({ 姓名: displayName, 状态: '成功' });
+        importedIds.push(created.id);
         imported++;
       } catch (e: any) {
         results.push({ 姓名: displayName, 状态: '失败', 原因: e?.message ?? '录入异常' });
@@ -3147,7 +3153,23 @@ export class ExpertAdminService {
     if (imported > 0) {
       await this.auditExpert(operatorId, 'EXPERT_IMPORT', 'batch', { imported, skipped, failed, total: rows.length });
     }
-    return { total: rows.length, imported, skipped, failed, results };
+    // importedIds：本次导入成功的专家 id 集（前端「一键全部启用」凭此批量审核入库）
+    return { total: rows.length, imported, skipped, failed, results, importedIds };
+  }
+
+  /** CSV 导入后一键启用（2026-11-09 用户裁定）：批量审核入库 entryStatus PENDING→ACTIVE
+   *  （verifiedById/At 留痕，与 PATCH :id/status 同字段）；只动 PENDING 行——幂等，
+   *  防误启他人/已入库/已退库档案 */
+  async importBatchApprove(ids: string[], operatorId?: string) {
+    if (!ids?.length) {
+      throw new BadRequestException({ error: '未提供要启用的专家', code: 'EMPTY_IDS' });
+    }
+    const res = await this.prisma.expertProfile.updateMany({
+      where: { userId: { in: ids }, entryStatus: 'PENDING' },
+      data: { entryStatus: 'ACTIVE', verifiedById: operatorId ?? null, verifiedAt: new Date() },
+    });
+    await this.auditExpert(operatorId, 'EXPERT_IMPORT_BATCH_APPROVE', 'batch', { count: res.count, ids });
+    return { enabled: res.count };
   }
 
   /* ── 违规记录（AuditLog）── */

@@ -543,8 +543,19 @@ export function getLoadDistribution(companyId?: string) {
 }
 
 /* 批量导入 */
+export type ExpertImportResult = {
+  total: number; imported: number; skipped: number; failed: number;
+  results: Array<{ 姓名: string; 状态: '成功' | '跳过' | '失败'; 原因?: string }>;
+  /** 本次导入成功的专家 id 集（一键启用凭此批量审核入库，2026-11-09） */
+  importedIds: string[];
+};
 export function importCsv(rows: Array<Record<string, string>>) {
-  return api.post<any>('/expert-admin/import-csv', { rows });
+  return api.post<ExpertImportResult>('/expert-admin/import-csv', { rows });
+}
+
+/** CSV 导入后一键启用：批量审核入库本次导入专家（仅 admin） */
+export function expertImportBatchApprove(ids: string[]) {
+  return api.post<{ enabled: number }>('/expert-admin/import-batch-approve', { ids });
 }
 
 /* AI 深化：OCR 录入 / 风险预警 / 抽取复盘 */

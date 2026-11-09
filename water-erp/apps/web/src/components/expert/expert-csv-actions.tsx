@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { importCsv } from '@/lib/api/expert';
+import { importCsv, expertImportBatchApprove, type ExpertImportResult } from '@/lib/api/expert';
+import { useConfirm } from '@/components/workbench/use-confirm';
 import { Workbook } from 'exceljs';
 import { Download, Upload, Loader2, Eye, ChevronDown } from 'lucide-react';
 
@@ -15,8 +16,9 @@ interface ExpertCsvActionsProps {
 
 /** 模板下载 + CSV 批量导入按钮（可复用嵌入任意专家录入场景） */
 export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
+  const { confirm, dialog } = useConfirm();
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<any>(null);
+  const [importResult, setImportResult] = useState<ExpertImportResult | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
   const downloadTemplate = () => {
@@ -250,6 +252,23 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
       setImportResult(result);
       toast.success(`导入完成：成功 ${result.imported} 条，跳过 ${result.skipped} 条，失败 ${result.failed} 条`);
       onImported?.();
+      // 一键启用（2026-11-09 用户裁定）：导入成功后询问是否批量审核入库
+      //（导入默认 entryStatus=PENDING 不入抽取池，启用后立即可抽取）
+      if ((result.importedIds?.length ?? 0) > 0) {
+        const yes = await confirm({
+          title: '一键启用导入的专家',
+          message: `本次导入成功 ${result.importedIds.length} 位专家，当前为「待审核」状态（未入抽取池）。\n是否一键全部启用（审核入库）？启用后立即进入可抽取状态。`,
+        });
+        if (yes) {
+          try {
+            const r = await expertImportBatchApprove(result.importedIds);
+            toast.success(`已启用 ${r.enabled} 位专家（审核入库）`);
+            onImported?.();
+          } catch (e: any) {
+            toast.error(e?.message || '一键启用失败，可在专家库中逐个审核入库');
+          }
+        }
+      }
     } catch (err: any) {
       toast.error(err?.message || '导入失败');
     }
@@ -359,6 +378,7 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
           )}
         </div>
       )}
+      {dialog}
     </>
   );
 }
