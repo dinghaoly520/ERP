@@ -1,5 +1,5 @@
 import { Request } from 'express';
-import { PORTS, type AppName } from '@water-erp/config';
+import { PORTS, portalFromHostname, type AppName } from '@water-erp/config';
 
 /**
  * 每个门户独立登录会话 —— 浏览器在 localhost 上跨端口共享 cookie，
@@ -55,8 +55,33 @@ export function portalForRole(role: string | undefined | null): string | undefin
 }
 
 /**
+ * 域名家族（*.scsfjt.com）hostname → cookie 命名空间门户。
+ *
+ * - mobile-portal（:3011）会话复用 token_web 命名空间（其 proxy 自报 `X-Portal: web`），
+ *   直链导航时同口径落 web；
+ * - api 子域是服务端自身、非登录门户 → 无映射（落 undefined，回退旧版 token cookie）。
+ */
+const HOSTNAME_PORTAL: Partial<Record<AppName, string>> = {
+  public: 'public',
+  supplier: 'supplier',
+  web: 'web',
+  expert: 'expert',
+  bid: 'bid',
+  mobile: 'web',
+};
+
+/**
  * 从请求中判断来源门户：优先读 `X-Portal` 请求头，
- * 其次从 Origin / Referer 的端口推断，均失败返回 undefined。
+ * 其次从 Origin / Referer 的端口推断（dev 端口模式），
+ * 再按域名家族子域反查（生产 *.scsfjt.com 无端口，2026-11-09），均失败返回 undefined。
+ *
+ * 域名子域回退镜像 WS 握手 `portalFromHandshake` 的同款收口。触发场景：门户页
+ * `<a href="/api/...">` 直链下载/预览（next.config rewrites 与门户 nginx 反代均不注入
+ * X-Portal，浏览器 GET 导航不带 Origin、仅无端口 Referer）——无此回退则取不到
+ * 按门户命名的 cookie、回退旧版 token → 401「未登录或登录已过期」
+ * （2026-11-09 生产实录：专家门户「标书获取」预览谈判采购文件）。
+ * 安全口径与 WS 端一致：门户值仅作 cookie 名选择器（伪造只能选用自己浏览器里
+ * 已有的 cookie），JWT 校验照旧强制，无提权面。
  */
 export function portalFromRequest(req: Request): string | undefined {
   const header = req.headers['x-portal'] as string | undefined;
@@ -67,8 +92,10 @@ export function portalFromRequest(req: Request): string | undefined {
   const ref = origin || referer;
   if (ref) {
     try {
-      const port = new URL(ref).port;
-      if (port && PORT_TO_PORTAL[port]) return PORT_TO_PORTAL[port];
+      const u = new URL(ref);
+      if (u.port && PORT_TO_PORTAL[u.port]) return PORT_TO_PORTAL[u.port];
+      const hostPortal = portalFromHostname(u.hostname);
+      if (hostPortal) return HOSTNAME_PORTAL[hostPortal];
     } catch {
       /* ignore malformed header */
     }
