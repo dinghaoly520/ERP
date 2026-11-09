@@ -82,6 +82,9 @@ export function useExpertWebSocket(projectId: string | undefined, handlers: Hand
 
     const socket = io(bidWsUrl(), { forceNew: true,
       withCredentials: true,
+      // 同源反代握手（域名模式 /socket.io/ 经 nginx）无 Origin 头、XHR 轮询加不了
+      // X-Portal——自报门户供 tokenFromHandshake 选对 cookie 命名空间（2026-11-09）
+      query: { portal: 'expert' },
       reconnection: false,
       timeout: 10000,
     });

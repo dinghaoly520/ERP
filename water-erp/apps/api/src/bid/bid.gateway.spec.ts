@@ -258,8 +258,8 @@ describe('tokenFromHandshake 门户判定（多 cookie 共存）', () => {
   const WEB = 'token_web=web-jwt';
   const SUP = 'token_supplier=sup-jwt';
   const EXP = 'token_expert=exp-jwt';
-  const mk = (cookie: string, headers: Record<string, string> = {}) =>
-    ({ handshake: { headers: { cookie, ...headers } } }) as any;
+  const mk = (cookie: string, headers: Record<string, string> = {}, query: Record<string, unknown> = {}) =>
+    ({ handshake: { headers: { cookie, ...headers }, query } }) as any;
 
   it('X-Portal: supplier 时优先 token_supplier（即使 token_web 共存）', () => {
     expect(tokenFromHandshake(mk(`${WEB}; ${SUP}`, { 'x-portal': 'supplier' }))).toBe('sup-jwt');
@@ -309,6 +309,35 @@ describe('tokenFromHandshake 门户判定（多 cookie 共存）', () => {
   it('域名家族 Origin 无对应 token 时不跨命名空间回退（纵深防御语义保持）', () => {
     expect(tokenFromHandshake(mk(WEB, { origin: 'https://supplier-ssyc.scsfjt.com' }))).toBeUndefined();
     expect(tokenFromHandshake(mk(WEB, { origin: 'https://bid-ssyc.scsfjt.com' }))).toBeUndefined();
+  });
+
+  // ── 同源反代（2026-11-03 gatewayWsUrl 域名模式 = 同源 /socket.io/ 经门户 nginx）：
+  //    同源 GET 握手浏览器不带 Origin 头、XHR 轮询加不了自定义头 X-Portal——
+  //    各门户客户端 io() 自报 query.portal 兜底（生产实录：主持人/供应商 WS 每秒被拒重连）。──
+
+  it('query.portal=bid（无 Origin/无 X-Portal 的同源握手）→ 读 token_bid，不误读共存 token_web', () => {
+    const BID = 'token_bid=bid-jwt';
+    expect(tokenFromHandshake(mk(`${WEB}; ${BID}`, {}, { portal: 'bid' }))).toBe('bid-jwt');
+  });
+
+  it('query.portal=supplier / expert 各归各命名空间 cookie', () => {
+    expect(tokenFromHandshake(mk(`${WEB}; ${SUP}`, {}, { portal: 'supplier' }))).toBe('sup-jwt');
+    expect(tokenFromHandshake(mk(`${WEB}; ${EXP}`, {}, { portal: 'expert' }))).toBe('exp-jwt');
+    expect(tokenFromHandshake(mk(WEB, {}, { portal: 'web' }))).toBe('web-jwt');
+  });
+
+  it('query.portal 非法值忽略 → 走原判定链（默认 token_web）', () => {
+    expect(tokenFromHandshake(mk(`${WEB}; ${SUP}`, {}, { portal: 'attacker' }))).toBe('web-jwt');
+    expect(tokenFromHandshake(mk(`${WEB}; ${SUP}`, {}, { portal: ['supplier', 'bid'] }))).toBe('sup-jwt');
+  });
+
+  it('X-Portal（nginx 注入的可信头）优先于 query.portal 自报', () => {
+    expect(tokenFromHandshake(mk(`${WEB}; ${SUP}`, { 'x-portal': 'supplier' }, { portal: 'bid' }))).toBe('sup-jwt');
+  });
+
+  it('query.portal 指向命名空间无对应 cookie 时不跨命名空间回退', () => {
+    expect(tokenFromHandshake(mk(WEB, {}, { portal: 'bid' }))).toBeUndefined();
+    expect(tokenFromHandshake(mk(SUP, {}, { portal: 'expert' }))).toBeUndefined();
   });
 });
 
