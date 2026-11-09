@@ -11,12 +11,17 @@ export class UpdateUserSettingsDto {
   @EmptyAsUndefined()
   @IsOptional()
   @IsString()
-  @IsIn(['dashboard', 'procurements', 'projects', 'work-arrangements'])
+  // 落地页候选=工作台全部一级业务页（2026-11-09 用户裁定扩全；与前端 HOME_PAGE_OPTIONS、
+  // login-routing HOME_PAGE_ROUTES 三处同口径维护）；DB 列为 String，扩值零迁移
+  @IsIn([
+    'dashboard', 'procurements', 'progress', 'projects', 'work-arrangements',
+    'tender-write', 'tender-review', 'notice', 'clar-notice', 'notifications',
+    'supplier', 'expert',
+  ])
   defaultHomePage?:
-    | 'dashboard'
-    | 'procurements'
-    | 'projects'
-    | 'work-arrangements';
+    | 'dashboard' | 'procurements' | 'progress' | 'projects' | 'work-arrangements'
+    | 'tender-write' | 'tender-review' | 'notice' | 'clar-notice' | 'notifications'
+    | 'supplier' | 'expert';
 
   @EmptyAsUndefined()
   @IsOptional()

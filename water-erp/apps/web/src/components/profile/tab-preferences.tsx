@@ -115,23 +115,34 @@ export function TabPreferences() {
           导航
         </h3>
 
-        <div className="mt-2">
-          {/* 登录后落地页（2026-11-09 补齐：后端字段与登录跳转早已接线，此前缺设置面） */}
-          <div className="flex items-start justify-between gap-6 py-4">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <Home size={14} strokeWidth={1.6} className="shrink-0 text-[var(--accent)]" />
-                <span className="text-[13px] font-semibold text-[var(--foreground)]">登录后落地页</span>
-              </div>
-              <p className="mt-0.5 text-[12px] leading-relaxed text-[var(--muted-foreground)]">设置登录成功后优先进入的页面，下次登录生效</p>
-            </div>
-            <OptionButtons
-              value={settings.defaultHomePage}
-              options={HOME_PAGE_OPTIONS}
-              onSelect={(v) => void handleUpdate({ defaultHomePage: v })}
-              disabled={saving}
-            />
-          </div>
+        {/* 登录后落地页（2026-11-09 扩全候选 + 单选卡列表，用户裁定方案 A）：
+            候选=工作台全部一级业务页（12 项），选中白瓷片凸起 + 对勾 */}
+        <div className="mt-4 flex items-center gap-2">
+          <Home size={14} strokeWidth={1.6} className="shrink-0 text-[var(--accent)]" />
+          <span className="text-[13px] font-semibold text-[var(--foreground)]">登录后落地页</span>
+          <span className="text-[12px] text-[var(--muted-foreground)]">下次登录生效</span>
+        </div>
+        <div className="mt-3 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+          {HOME_PAGE_OPTIONS.map(opt => {
+            const active = settings.defaultHomePage === opt.value;
+            const Icon = opt.icon;
+            return (
+              <button key={opt.value} type="button" disabled={saving}
+                onClick={() => void handleUpdate({ defaultHomePage: opt.value })}
+                className={`flex items-center gap-3 rounded-[14px] px-3.5 py-2.5 text-left transition-all duration-200 ${active ? '' : 'hover:bg-[color-mix(in_oklch,var(--foreground)_3%,transparent)]'}`}
+                style={active ? { background: 'oklch(1 0 0 / 0.92)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 1px 4px oklch(0.55 0.03 258 / 0.1), -1px -1px 3px oklch(1 0 0 / 0.85)' } : undefined}>
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px]"
+                  style={{ background: `color-mix(in oklch, var(--accent) ${active ? 12 : 7}%, transparent)`, color: 'var(--accent)' }}>
+                  <Icon size={15} strokeWidth={1.8} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-bold text-[var(--foreground)]">{opt.label}</span>
+                  <span className="block truncate text-[11px] text-[var(--muted-foreground)]">{opt.desc}</span>
+                </span>
+                {active && <Check size={14} strokeWidth={2.4} className="shrink-0 text-[var(--accent)]" />}
+              </button>
+            );
+          })}
         </div>
       </div>
 

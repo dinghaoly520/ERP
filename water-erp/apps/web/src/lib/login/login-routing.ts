@@ -29,12 +29,20 @@ export function canAccessCockpit(role: string) {
   return canAccessDatabase(role);
 }
 
-// Map user settings home page to route
+// Map user settings home page to route（候选与 user-settings DTO / HOME_PAGE_OPTIONS 同口径扩全，2026-11-09）
 const HOME_PAGE_ROUTES: Record<string, string> = {
   dashboard: "/dashboard",
   procurements: "/procurements",
+  progress: "/progress",
   projects: "/projects",
   "work-arrangements": "/work-arrangements",
+  "tender-write": "/tender-write",
+  "tender-review": "/tender-review",
+  notice: "/notice",
+  "clar-notice": "/clar-notice",
+  notifications: "/notifications",
+  supplier: "/supplier",
+  expert: "/expert",
 };
 
 export function getHomePageRoute(homePage: string): string {
