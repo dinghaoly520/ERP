@@ -145,8 +145,18 @@ export function RegisterDialog({ isOpen, onClose }: RegisterDialogProps) {
       setErrorMessage("请输入用户名");
       return;
     }
-    if (form.password.length < 6) {
-      setErrorMessage("密码不少于 6 位");
+    // 用户名仅字母+数字且须同时包含（与后端 USERNAME_PATTERN 同口径）
+    if (!/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9]+$/.test(form.username)) {
+      setErrorMessage("用户名须为字母与数字的组合");
+      return;
+    }
+    // 口令 ≥8 位且同时包含字母与数字（与后端 PASSWORD_PATTERN 统一，2026-11-09 修 6/8 口径漂移）
+    if (form.password.length < 8 || !/[A-Za-z]/.test(form.password) || !/[0-9]/.test(form.password)) {
+      setErrorMessage("密码不少于 8 位，且须同时包含字母与数字");
+      return;
+    }
+    if (form.password === form.username.trim()) {
+      setErrorMessage("密码不能与用户名相同");
       return;
     }
     if (form.confirmPassword !== form.password) {
@@ -269,8 +279,8 @@ export function RegisterDialog({ isOpen, onClose }: RegisterDialogProps) {
               <input
                 type="text"
                 value={form.username}
-                onChange={(e) => set("username", e.target.value)}
-                placeholder="登录账号"
+                onChange={(e) => set("username", e.target.value.replace(/[^A-Za-z0-9]/g, ""))}
+                placeholder="登录账号（字母与数字组合）"
                 className={inputCls}
                 autoComplete="username"
               />
@@ -285,7 +295,7 @@ export function RegisterDialog({ isOpen, onClose }: RegisterDialogProps) {
                   type={showPassword ? "text" : "password"}
                   value={form.password}
                   onChange={(e) => set("password", e.target.value)}
-                  placeholder="至少 6 位"
+                  placeholder="至少 8 位，含字母与数字"
                   className={`${inputCls} pr-10`}
                   autoComplete="new-password"
                 />

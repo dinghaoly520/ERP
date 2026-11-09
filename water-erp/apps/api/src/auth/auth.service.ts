@@ -49,6 +49,11 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
+    // 口令不得与用户名相同（2026-11-09 注册页规则统一；跨字段校验 DTO 表达不了）
+    if (dto.password === dto.username) {
+      throw new BadRequestException({ error: '密码不能与用户名相同', code: 'PASSWORD_EQUALS_USERNAME' });
+    }
+
     // ── 查重（三层）──
     // ① 待审核：手机号或用户名已有未激活的 internal_user 申请 → 拦截，提示等待。
     //    待审核期间资料不可修改/不可重复提交（申请已存在，拒绝后才可重新注册）。
