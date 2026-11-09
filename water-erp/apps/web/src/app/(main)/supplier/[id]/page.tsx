@@ -536,9 +536,11 @@ export default function SupplierDetailPage() {
               </div>
             </div>
 
-            {/* 中：关键摘要 */}
+            {/* 中：关键摘要（首位行 admin 专属归属公司——全视野跨公司辨识归属；
+                staff/leader 本公司隔离、所见即本公司，无需） */}
             <div className="space-y-2.5">
               {[
+                ...(currentUser?.role === 'admin' ? [{ icon: Building2, label: '归属公司', value: supplier.companyName || '未归属（平台）' }] : []),
                 { icon: Building2, label: '企业类型', value: normalizeEnterpriseType(supplier.enterpriseType) },
                 { icon: ShieldCheck, label: '法定代表人', value: supplier.legalPerson },
                 { icon: MapPin, label: '注册地址', value: supplier.registeredAddress || '未登记' },
