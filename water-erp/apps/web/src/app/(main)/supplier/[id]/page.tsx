@@ -7,6 +7,7 @@ import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualificati
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification } from '@/lib/types';
 import type { RsvpHistoryResult, TagVocabularyItem } from '@/lib/api/supplier';
 import { getRsvpHistory } from '@/lib/api/supplier';
+import { splitQualificationItems } from '@/lib/qualification-split';
 // ApprovalTimeline 已随变更表格版下线（2026-11-09）：混排组件内自带展开时间线
 import { AlertBanner, type AlertSeverity, StatusBadge, Modal } from '@/components/workbench';
 import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
@@ -880,7 +881,28 @@ export default function SupplierDetailPage() {
                           <StatusBadge tone="blue">{q.type}</StatusBadge>
                           <span className="text-xs px-2.5 py-1 rounded font-semibold" style={{ color: qs.color, backgroundColor: `color-mix(in oklch, ${qs.color} 12%, transparent)` }}>{qs.label}</span>
                         </div>
-                        <p className="font-bold text-[var(--foreground)] text-sm mb-3">{q.name}</p>
+                        {(() => {
+                          // 多合一名称拆分（2026-11-09 用户裁定）：一条记录塞进多项资质/许可/认证时
+                          // 按分类拆条目展示；单项/不可识别形态保持原文标题
+                          const groups = splitQualificationItems(q.name);
+                          if (!groups) return <p className="font-bold text-[var(--foreground)] text-sm mb-3">{q.name}</p>;
+                          const total = groups.reduce((n, g) => n + g.items.length, 0);
+                          return (
+                            <div className="mb-3">
+                              <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">共 {total} 项 · 已按条目拆分</p>
+                              <div className="space-y-2">
+                                {groups.map(g => (
+                                  <div key={g.label || 'items'}>
+                                    {g.label && <p className="mb-1 text-[10px] font-bold text-[var(--muted-foreground)]">{g.label}</p>}
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {g.items.map((it, i) => <span key={i} className="biz-tag">{it}</span>)}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
                         {q.validFrom && q.validTo ? (
                           <div className="space-y-1.5">
                             <div className="flex justify-between text-[10px]">
