@@ -1,9 +1,11 @@
 'use client';
 
 import { Fragment, useEffect, useState, useRef } from 'react';
-import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, RefreshCw, RotateCcw, ScrollText, Search, X } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, Download, Loader2, RefreshCw, RotateCcw, ScrollText, Search, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { fetchOperationLogs, type OperationLogRow } from '@/lib/api/operation-log';
 import { TableSkeleton } from '@/components/workbench';
+import { downloadOperationLogTxt } from '@/lib/history-export';
 
 /* ═══════════════════════════════════════════════════════════════
    系统健康 · 操作日志 Tab（2026-10-30 自 /admin/operation-log 平移）
@@ -34,6 +36,15 @@ const PORTAL_OPTIONS = [
 const ROLE_OPTIONS = [
   'admin', 'leader', 'staff', 'bid_host', 'bid_expert', 'supplier', 'mall', 'anonymous',
 ] as const;
+
+const ROLE_CN: Record<string, string> = {
+  admin: '管理员', leader: '领导', staff: '员工', bid_host: '开标主持人',
+  bid_expert: '评标专家', supplier: '供应商', mall: '商城', anonymous: '匿名',
+};
+
+const STATUS_CLASS_CN: Record<string, string> = {
+  success: '成功（2xx/3xx）', client: '客户端错误（4xx）', server: '服务端错误（5xx）',
+};
 
 function buildParams(f: Filters, limit: number, offset: number): URLSearchParams {
   const p = new URLSearchParams();
@@ -102,6 +113,48 @@ export function OperationLogTab({ active }: { active: boolean }) {
   useEffect(() => { if (active) setArmed(true); }, [active]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (armed) void load({ offset: 0 }); }, [armed]);
+
+  /** 导出 txt（2026-11-09 操作历史统一配下载）：按当前筛选逐页拉全量（100/页上限），
+   *  超 5000 条截取最近段并提示收窄筛选——防无筛选全量 8 万+条的巨量导出 */
+  const [exporting, setExporting] = useState(false);
+  const EXPORT_CAP = 5000;
+  async function exportLogs() {
+    setExporting(true);
+    try {
+      let all: OperationLogRow[] = [];
+      for (;;) {
+        const r = await fetchOperationLogs(buildParams(filters, 100, all.length));
+        all = all.concat(r.items);
+        if (r.items.length === 0 || all.length >= r.total || all.length >= EXPORT_CAP) break;
+      }
+      const truncated = all.length >= EXPORT_CAP && total > all.length ? EXPORT_CAP : undefined;
+      const scope = [
+        filters.portal ? `门户：${PORTAL_OPTIONS.find(([v]) => v === filters.portal)?.[1] ?? filters.portal}` : null,
+        filters.role ? `角色：${ROLE_CN[filters.role] ?? filters.role}` : null,
+        filters.username.trim() ? `操作人：${filters.username.trim()}` : null,
+        filters.method ? `方法：${filters.method}` : null,
+        filters.statusClass ? `状态：${STATUS_CLASS_CN[filters.statusClass] ?? filters.statusClass}` : null,
+        filters.keyword.trim() ? `关键词：${filters.keyword.trim()}` : null,
+        filters.startTime || filters.endTime ? `时间：${filters.startTime ? new Date(filters.startTime).toLocaleString('zh-CN', { hour12: false }) : '…'} ～ ${filters.endTime ? new Date(filters.endTime).toLocaleString('zh-CN', { hour12: false }) : '…'}` : null,
+      ].filter(Boolean).join(' · ') || '全部记录（无筛选）';
+      const n = downloadOperationLogTxt(scope, all.map(r => ({
+        at: r.createdAt,
+        operator: r.displayName || r.username || undefined,
+        role: r.role ? ROLE_CN[r.role] ?? r.role : null,
+        portal: r.portal,
+        method: r.method,
+        path: r.path,
+        query: r.query,
+        statusCode: r.statusCode,
+        durationMs: r.durationMs,
+        ip: r.ipAddress,
+      })), truncated);
+      toast.success(truncated ? `已导出最近 ${n} 条（共 ${total} 条，请收窄筛选后导出完整）` : `已导出 ${n} 条操作日志`);
+    } catch {
+      toast.error('导出失败，请重试');
+    }
+    setExporting(false);
+  }
 
   /** 下拉即筛选（传值避免 setState 异步导致用旧值） */
   function applyFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
@@ -187,7 +240,12 @@ export function OperationLogTab({ active }: { active: boolean }) {
       <div className="neu-table-card">
         <div className="neu-table-card-header flex flex-wrap items-center justify-between gap-3">
           <span className="text-sm font-semibold tracking-wide">操作记录</span>
-          <span className="text-xs text-[var(--muted-foreground)]">按监管要求留存不少于 15 年 · 命中 {total} 条</span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-[var(--muted-foreground)]">按监管要求留存不少于 15 年 · 命中 {total} 条</span>
+            <button type="button" className="neu-btn-xs gap-1" onClick={() => void exportLogs()} disabled={exporting || total === 0}>
+              {exporting ? <><Loader2 size={12} className="animate-spin" /> 导出中…</> : <><Download size={12} /> 导出 txt</>}
+            </button>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="neu-table w-full min-w-[960px]">

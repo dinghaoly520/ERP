@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
-import { Clock, FileText, Loader2, Send, History, Pencil, Trash2, Archive, Undo2, RefreshCw, CalendarDays, Lock, Search, ChevronLeft, ChevronRight, EyeOff, PackageX, RotateCcw } from "lucide-react";
+import { Clock, FileText, Loader2, Send, History, Pencil, Trash2, Archive, Undo2, RefreshCw, CalendarDays, Lock, Search, ChevronLeft, ChevronRight, EyeOff, PackageX, RotateCcw, Download } from "lucide-react";
+import { toast } from "sonner";
 import { Modal } from "@/components/workbench";
+import { downloadHistoryTxt } from "@/lib/history-export";
 import {
   fetchAnnouncementHistory,
   fetchAllAnnouncementHistories,
@@ -43,6 +45,19 @@ function localTime(iso: string): string {
 function dayLabel(day: string): string {
   const d = new Date(`${day}T00:00:00`);
   return d.toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric" });
+}
+
+/** 导出行投影（单条/全部两处导出共用）：动作中文 / 公告标题 / 变更字段中文化 */
+function toExportEntry(it: AnnouncementHistoryItem) {
+  return {
+    at: it.createdAt,
+    operator: it.operatorName ?? undefined,
+    action: ACTION_META[it.action]?.label ?? it.action,
+    subject: it.title,
+    detail: it.action === "UPDATE" && it.changedFields.length
+      ? `变更字段：${it.changedFields.map(f => FIELD_LABELS[f] ?? f).join("、")}`
+      : undefined,
+  };
 }
 
 /** 单条历史记录行（时间线式）：操作人 + 时分 + 变更字段（中文化），不再显示冗余指纹/IP。 */
@@ -91,6 +106,17 @@ export function AnnouncementHistoryModal({ announcementId, onClose }: { announce
   const [items, setItems] = useState<AnnouncementHistoryItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  /** 导出 txt（2026-11-09 用户需求：操作历史统一配下载）——timeline 无分页，全量即已载 */
+  const exportOne = () => {
+    if (!items || items.length === 0) return;
+    const n = downloadHistoryTxt(
+      '公告操作时间线',
+      `单条公告操作流水（旧→新，共 ${items.length} 条）`,
+      items.map(it => toExportEntry(it)),
+    );
+    toast.success(`已导出 ${n} 条操作记录`);
+  };
+
   useEffect(() => {
     fetchAnnouncementHistory(announcementId)
       .then(setItems)
@@ -126,7 +152,12 @@ export function AnnouncementHistoryModal({ announcementId, onClose }: { announce
           <span className="text-xs text-[var(--muted-foreground)] flex items-center gap-1">
             <Lock size={11} />只读记录{items ? ` · 共 ${items.length} 条` : ""}
           </span>
-          <button type="button" onClick={onClose} className="neu-btn-soft">关闭</button>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={exportOne} className="neu-btn-xs gap-1" disabled={!items || items.length === 0}>
+              <Download size={12} /> 导出 txt
+            </button>
+            <button type="button" onClick={onClose} className="neu-btn-soft">关闭</button>
+          </div>
         </div>
       }
     >
@@ -170,7 +201,41 @@ export function AllAnnouncementHistoriesModal({ onClose }: { onClose: () => void
   const [search, setSearch] = useState("");
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reqIdRef = useRef(0);
+  const [exporting, setExporting] = useState(false);
   const pageSize = 50;
+
+  /** 导出 txt（2026-11-09 用户需求）：按当前筛选逐页拉全量（pageSize 上限 200），按天分段正序落档 */
+  const exportAll = async () => {
+    setExporting(true);
+    try {
+      let all: AnnouncementHistoryItem[] = [];
+      for (let p = 1; ; p++) {
+        const res = await fetchAllAnnouncementHistories({
+          page: p, pageSize: 200,
+          action: actionFilter || undefined,
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined,
+          search: search || undefined,
+        });
+        all = all.concat(res.items);
+        if (res.items.length === 0 || all.length >= res.total) break;
+      }
+      const n = downloadHistoryTxt(
+        '公告操作历史',
+        [
+          '全部公告操作流水（只读）',
+          actionFilter ? `类型：${ACTION_META[actionFilter as AnnouncementHistoryAction]?.label ?? actionFilter}` : null,
+          dateFrom || dateTo ? `时间：${dateFrom || '…'} ～ ${dateTo || '…'}` : null,
+          search ? `关键词：${search}` : null,
+        ].filter(Boolean).join(' · '),
+        all.map(toExportEntry),
+      );
+      toast.success(`已导出 ${n} 条操作记录`);
+    } catch {
+      toast.error('导出失败，请重试');
+    }
+    setExporting(false);
+  };
 
   const doLoad = useCallback(async (p: number, action: string, df: string, dt: string, kw: string) => {
     const rid = ++reqIdRef.current;
@@ -276,6 +341,10 @@ export function AllAnnouncementHistoriesModal({ onClose }: { onClose: () => void
                 className="workbench-input !h-7 !text-[11px] !pl-8"
               />
             </div>
+
+            <button type="button" className="neu-btn-xs gap-1 shrink-0" onClick={() => void exportAll()} disabled={exporting || (data?.total ?? 0) === 0}>
+              {exporting ? <><Loader2 size={12} className="animate-spin" /> 导出中…</> : <><Download size={12} /> 导出 txt</>}
+            </button>
           </div>
 
           {/* 列表（按天分组） */}

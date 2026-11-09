@@ -579,12 +579,13 @@ export interface ExpertOperationHistoryItem {
   user: { id: string; displayName: string; username: string } | null;
 }
 
-export function getExpertOperationHistory(params?: { expertId?: string; action?: string; startDate?: string; endDate?: string; page?: number; pageSize?: number }) {
+export function getExpertOperationHistory(params?: { expertId?: string; action?: string; startDate?: string; endDate?: string; search?: string; page?: number; pageSize?: number }) {
   const q = new URLSearchParams();
   if (params?.expertId) q.set('expertId', params.expertId);
   if (params?.action) q.set('action', params.action);
   if (params?.startDate) q.set('startDate', params.startDate);
   if (params?.endDate) q.set('endDate', params.endDate);
+  if (params?.search?.trim()) q.set('search', params.search.trim());
   if (params?.page) q.set('page', String(params.page ?? 1));
   if (params?.pageSize) q.set('pageSize', String(params.pageSize ?? 20));
   const qs = q.toString();

@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Modal } from '@/components/workbench';
 import { getSupplierAuditLogs, type SupplierAuditLogItem } from '@/lib/api/supplier';
-import { History, RefreshCw, ChevronLeft, ChevronRight, Lock, CalendarDays, Download, Loader2 } from 'lucide-react';
+import { History, RefreshCw, ChevronLeft, ChevronRight, Lock, CalendarDays, Download, Loader2, Search } from 'lucide-react';
 import { SUPPLIER_STATUS_LABEL, LEVEL_LABEL } from '@water-erp/shared';
 import { downloadHistoryTxt } from '@/lib/history-export';
 import { toast } from 'sonner';
@@ -123,9 +123,11 @@ export function SupplierAuditLogModal({ onClose, companyId }: { onClose: () => v
   const [actionFilter, setActionFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [search, setSearch] = useState('');
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pageSize = 20;
 
-  const doLoad = useCallback(async (p: number, action: string, df: string, dt: string) => {
+  const doLoad = useCallback(async (p: number, action: string, df: string, dt: string, kw?: string) => {
     setLoading(true);
     try {
       const res = await getSupplierAuditLogs({
@@ -133,6 +135,7 @@ export function SupplierAuditLogModal({ onClose, companyId }: { onClose: () => v
         action: action || undefined,
         dateFrom: df || undefined,
         dateTo: dt || undefined,
+        search: kw || undefined,
         companyId, // 公司视野（admin 选择器上下文透传；非 admin 后端强制本公司）
       });
       setItems(res.items);
@@ -147,6 +150,7 @@ export function SupplierAuditLogModal({ onClose, companyId }: { onClose: () => v
   }, [pageSize, companyId]);
 
   useEffect(() => { doLoad(1, '', '', ''); }, [doLoad]);
+  useEffect(() => () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); }, []);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -162,6 +166,7 @@ export function SupplierAuditLogModal({ onClose, companyId }: { onClose: () => v
           action: actionFilter || undefined,
           dateFrom: dateFrom || undefined,
           dateTo: dateTo || undefined,
+          search: search || undefined,
           companyId,
         });
         all = all.concat(r.items);
@@ -171,6 +176,7 @@ export function SupplierAuditLogModal({ onClose, companyId }: { onClose: () => v
         actionFilter ? ACTION_LABELS[actionFilter] ?? actionFilter : null,
         dateFrom ? `${dateFrom} 起` : null,
         dateTo ? `${dateTo} 止` : null,
+        search ? `关键词：${search}` : null,
       ].filter(Boolean).join(' · ');
       const n = downloadHistoryTxt(
         '供应商库',
@@ -259,7 +265,16 @@ export function SupplierAuditLogModal({ onClose, companyId }: { onClose: () => v
             className="workbench-input !w-auto !h-7 !text-[11px]"
           />
 
-          <div className="flex-1" />
+          <div className="relative min-w-[150px] flex-1">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
+            <input
+              type="text"
+              placeholder="搜索供应商 / 明细…"
+              value={search}
+              onChange={e => { const v = e.target.value; setSearch(v); if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); searchDebounceRef.current = setTimeout(() => doLoad(1, actionFilter, dateFrom, dateTo, v), 300); }}
+              className="workbench-input !h-7 !text-[11px] !pl-8"
+            />
+          </div>
         </div>
 
         {/* 列表（按天分组） */}
@@ -287,11 +302,11 @@ export function SupplierAuditLogModal({ onClose, companyId }: { onClose: () => v
         {/* 分页 */}
         {total > pageSize && (
           <div className="flex items-center justify-end gap-2">
-            <button onClick={() => doLoad(page - 1, actionFilter, dateFrom, dateTo)} disabled={page <= 1 || loading} className="neu-btn-xs gap-1">
+            <button onClick={() => doLoad(page - 1, actionFilter, dateFrom, dateTo, search)} disabled={page <= 1 || loading} className="neu-btn-xs gap-1">
               <ChevronLeft size={12} />上一页
             </button>
             <span className="text-xs tabular-nums text-[var(--muted-foreground)]">{page} / {totalPages}</span>
-            <button onClick={() => doLoad(page + 1, actionFilter, dateFrom, dateTo)} disabled={page >= totalPages || loading} className="neu-btn-xs gap-1">
+            <button onClick={() => doLoad(page + 1, actionFilter, dateFrom, dateTo, search)} disabled={page >= totalPages || loading} className="neu-btn-xs gap-1">
               下一页<ChevronRight size={12} />
             </button>
           </div>

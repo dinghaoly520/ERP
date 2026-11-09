@@ -23,6 +23,7 @@ import { buildSupplierPortrait } from './supplier-portrait.util';
 import { generateBusinessTags, TAG_MAX, TAG_MIN } from './business-tags';
 import { LlmService } from '../local-ai/llm.service';
 import { CompanyScopeService, scopeCompanyIds } from '../company/company-scope';
+import { auditDetailSearchClauses } from '../common/audit-search.util';
 import { formatLocalDate } from '../common/local-date-format.util';
 import { supplierCompanyWhere } from './supplier-company-filter';
 import * as XLSX from 'xlsx';
@@ -4102,7 +4103,7 @@ export class SupplierService {
   /** 供应商操作历史（公司隔离 2026-10-19）：全局模式曾全量拉审计流（nameMap 解析跨公司供应商名）；
    *  按供应商模式可直打他司 id。全局模式=视野内供应商 id 集（双谓词，同 getRecentActivities）；
    *  按供应商模式=该供应商须在视野（同详情页 assertSupplierInScope 谓词）。 */
-  async listSupplierAuditLogs(opts: { page: number; pageSize: number; supplierId?: string; action?: string; dateFrom?: string; dateTo?: string }, actor?: AuthenticatedUser, companyId?: string) {
+  async listSupplierAuditLogs(opts: { page: number; pageSize: number; supplierId?: string; action?: string; dateFrom?: string; dateTo?: string; search?: string }, actor?: AuthenticatedUser, companyId?: string) {
     const page = Math.max(1, opts.page);
     const pageSize = Math.min(500, Math.max(1, opts.pageSize));
     const where: any = { resourceType: 'supplier' };
@@ -4137,6 +4138,23 @@ export class SupplierService {
       where.createdAt = {};
       if (opts.dateFrom) where.createdAt.gte = new Date(`${opts.dateFrom}T00:00:00`);
       if (opts.dateTo) where.createdAt.lte = new Date(`${opts.dateTo}T23:59:59.999`);
+    }
+    // 搜索（2026-11-09 操作历史统一配筛选+搜索）：供应商名（resourceId 反查）∪ 明细 JSON 串
+    if (opts.search?.trim()) {
+      const q = opts.search.trim();
+      const matched = await this.prisma.supplier.findMany({
+        where: { name: { contains: q } },
+        select: { id: true },
+      });
+      where.AND = [
+        ...((where.AND as any[]) ?? []),
+        {
+          OR: [
+            ...(matched.length ? [{ resourceId: { in: matched.map(s => s.id) } }] : []),
+            ...auditDetailSearchClauses(q),
+          ],
+        },
+      ];
     }
 
     const [total, logs] = await Promise.all([

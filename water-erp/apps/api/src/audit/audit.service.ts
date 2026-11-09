@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { auditDetailSearchClauses } from '../common/audit-search.util';
 
 export type AuditAction =
   | 'LOGIN'
@@ -65,6 +67,26 @@ export type CreateAuditLogInput = {
   ipAddress?: string;
   userAgent?: string;
 };
+
+/** 操作历史筛选子句（2026-11-09 用户需求：操作历史统一配类型/时间筛选+搜索）——
+ *  单类型等值、日期按本地时区天边界（与公告/供应商历史同口径）、搜索命中
+ *  资源类型/明细 JSON 串（resourceName 是读端计算字段无列，其数据源
+ *  `名:id` 复合 resourceType 头段与 details.projectName/supplierName 均可被命中）。
+ *  经 AND 组合注入，不与调用方既有 action in/notIn 键互覆。 */
+function activityFilterClause(o?: { action?: string; dateFrom?: string; dateTo?: string; search?: string }): Prisma.AuditLogWhereInput {
+  const and: Prisma.AuditLogWhereInput[] = [];
+  if (o?.action) and.push({ action: o.action });
+  if (o?.dateFrom || o?.dateTo) {
+    const createdAt: { gte?: Date; lte?: Date } = {};
+    if (o?.dateFrom) createdAt.gte = new Date(`${o.dateFrom}T00:00:00`);
+    if (o?.dateTo) createdAt.lte = new Date(`${o.dateTo}T23:59:59.999`);
+    and.push({ createdAt });
+  }
+  if (o?.search?.trim()) {
+    and.push({ OR: auditDetailSearchClauses(o.search.trim()) as Prisma.AuditLogWhereInput[] });
+  }
+  return and.length ? { AND: and } : {};
+}
 
 @Injectable()
 export class AuditService {
@@ -136,12 +158,16 @@ export class AuditService {
       offset?: number;
       actions?: string[];
       excludeActions?: string[];
+      action?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      search?: string;
     },
   ) {
     const limit = options?.limit ?? 50;
     const offset = options?.offset ?? 0;
 
-    const where = {
+    const where: Prisma.AuditLogWhereInput = {
       userId,
       ...(options?.actions && options.actions.length > 0
         ? { action: { in: options.actions } }
@@ -149,6 +175,7 @@ export class AuditService {
       ...(options?.excludeActions && options.excludeActions.length > 0
         ? { action: { notIn: options.excludeActions } }
         : {}),
+      ...activityFilterClause(options),
     };
 
     const [rows, total] = await Promise.all([
@@ -174,13 +201,18 @@ export class AuditService {
     limit?: number;
     offset?: number;
     excludeActions?: string[];
+    action?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    search?: string;
   }) {
     const limit = options?.limit ?? 100;
     const offset = options?.offset ?? 0;
-    const where = {
+    const where: Prisma.AuditLogWhereInput = {
       ...(options?.excludeActions && options.excludeActions.length > 0
         ? { action: { notIn: options.excludeActions } }
         : {}),
+      ...activityFilterClause(options),
     };
 
     const [rows, total] = await Promise.all([

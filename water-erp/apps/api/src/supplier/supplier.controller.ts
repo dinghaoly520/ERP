@@ -461,6 +461,7 @@ export class SupplierController {
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
     @Query('companyId') companyId?: string,
+    @Query('search') search?: string,
     @Request() req: any = {},
   ) {
     return this.supplierService.listSupplierAuditLogs({
@@ -470,6 +471,7 @@ export class SupplierController {
       action,
       dateFrom,
       dateTo,
+      ...(search?.trim() ? { search: search.trim() } : {}),
     }, req.user, companyId);
   }
 

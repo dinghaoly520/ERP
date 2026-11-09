@@ -16,9 +16,10 @@ import {
 } from '@/lib/api/auth';
 import { getSupplier, getSupplierList, approveSupplier, rejectSupplier, returnSupplier } from '@/lib/api/supplier';
 import { Modal } from '@/components/workbench';
+import { SearchSelect } from '@/components/workbench/search-select';
 import {
   Bell, CheckCheck, Clock, History, Inbox, ClipboardList, CircleCheck, BookOpen, Loader2, CheckCircle2, XCircle, RotateCcw, UserPlus, IdCard,
-  ChevronLeft, ChevronRight, Download,
+  ChevronLeft, ChevronRight, Download, Search, X,
 } from 'lucide-react';
 import { downloadHistoryTxt } from '@/lib/history-export';
 
@@ -338,15 +339,29 @@ export default function NotificationsPage() {
   const [histBusy, setHistBusy] = useState(false);   // 首载/加载更多
   const [exporting, setExporting] = useState(false); // txt 导出全量拉取中
   const HIST_PAGE = 100;
+  // 操作历史筛选（2026-11-09 用户需求：类型/时间/搜索统一配置）——提交态驱动请求
+  const [histAction, setHistAction] = useState('');
+  const [histDateFrom, setHistDateFrom] = useState('');
+  const [histDateTo, setHistDateTo] = useState('');
+  const [histSearch, setHistSearch] = useState('');
+  const [histSearchDraft, setHistSearchDraft] = useState('');
 
   useEffect(() => { fetchCurrentUser().then(u => setMyRole(u.role)).catch(() => {}); }, []);
   const isOrgScope = myRole === 'leader' || myRole === 'admin';
 
-  /** 不上限（2026-11-06 用户裁定）：offset 逐页翻——加载更多与导出共用 */
-  const fetchHistPage = (offset: number) =>
+  const histFilters = useMemo(() => ({
+    ...(histAction ? { action: histAction } : {}),
+    ...(histDateFrom ? { dateFrom: histDateFrom } : {}),
+    ...(histDateTo ? { dateTo: histDateTo } : {}),
+    ...(histSearch ? { search: histSearch } : {}),
+  }), [histAction, histDateFrom, histDateTo, histSearch]);
+  const histFiltered = !!(histAction || histDateFrom || histDateTo || histSearch);
+
+  /** 不上限（2026-11-06 用户裁定）：offset 逐页翻——加载更多与导出共用（筛选态下翻页） */
+  const fetchHistPage = (offset: number, filters: { action?: string; dateFrom?: string; dateTo?: string; search?: string } = histFilters) =>
     (isOrgScope
-      ? fetchAllActivities(HIST_PAGE, ['LOGIN', 'LOGOUT'], offset)
-      : fetchMyActivities(HIST_PAGE, ['LOGIN', 'LOGOUT'], offset));
+      ? fetchAllActivities(HIST_PAGE, ['LOGIN', 'LOGOUT'], offset, filters)
+      : fetchMyActivities(HIST_PAGE, ['LOGIN', 'LOGOUT'], offset, filters));
 
   const openHistory = () => {
     setHistoryOpen(true);
@@ -356,6 +371,30 @@ export default function NotificationsPage() {
       .catch(() => { setActivities([]); setActTotal(0); })
       .finally(() => setHistBusy(false));
   };
+
+  /** 筛选变更：setState 与请求同 tick——patch 显式合并后下发，规避 setState 后
+   *  本帧闭包 histFilters 仍旧值的时序坑；回第一页重新拉取 */
+  const applyHist = (patch: { action?: string; dateFrom?: string; dateTo?: string; search?: string }) => {
+    if (patch.action !== undefined) setHistAction(patch.action);
+    if (patch.dateFrom !== undefined) setHistDateFrom(patch.dateFrom);
+    if (patch.dateTo !== undefined) setHistDateTo(patch.dateTo);
+    if (patch.search !== undefined) { setHistSearch(patch.search); setHistSearchDraft(patch.search); }
+    const next = {
+      ...(histAction ? { action: histAction } : {}),
+      ...(histDateFrom ? { dateFrom: histDateFrom } : {}),
+      ...(histDateTo ? { dateTo: histDateTo } : {}),
+      ...(histSearch ? { search: histSearch } : {}),
+      ...patch,
+    };
+    const clean = Object.fromEntries(Object.entries(next).filter(([, v]) => v));
+    setActivities([]); setActTotal(0); setHistBusy(true);
+    fetchHistPage(0, clean)
+      .then(r => { setActivities(r.items); setActTotal(r.total); })
+      .catch(() => { setActivities([]); setActTotal(0); })
+      .finally(() => setHistBusy(false));
+  };
+
+  const clearHistFilters = () => applyHist({ action: '', dateFrom: '', dateTo: '', search: '' });
 
   const loadMoreHistory = () => {
     setHistBusy(true);
@@ -388,7 +427,12 @@ export default function NotificationsPage() {
       }));
       const n = downloadHistoryTxt(
         isOrgScope ? '通知中心·全中心' : '通知中心·本人',
-        isOrgScope ? '全中心操作留痕（全部记录）' : '当前账号操作留痕（全部记录）',
+        [
+          isOrgScope ? '全中心操作留痕' : '当前账号操作留痕',
+          histAction ? `类型：${ACTION_LABEL[histAction] ?? histAction}` : null,
+          histDateFrom || histDateTo ? `时间：${histDateFrom || '…'} ～ ${histDateTo || '…'}` : null,
+          histSearch ? `关键词：${histSearch}` : null,
+        ].filter(Boolean).join(' · '),
         entries,
       );
       toast.success(`已导出 ${n} 条操作记录`);
@@ -610,6 +654,42 @@ export default function NotificationsPage() {
           </button>
         }
         footer={<button className="neu-btn-soft" onClick={() => setHistoryOpen(false)}>关闭</button>}>
+        {/* 筛选工具栏（2026-11-09 用户需求：操作历史统一配类型/时间筛选+搜索）——
+            类型 SearchSelect（动作域名单长，≥9 项走可搜索瓷片面板）、日期范围原生
+            date、关键词 Enter 提交（服务端 resourceName/details 串命中） */}
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <SearchSelect
+            compact
+            triggerClassName="!w-[150px]"
+            options={[
+              { value: '', label: '全部类型' },
+              ...Object.entries(ACTION_LABEL).map(([value, label]) => ({ value, label })),
+            ]}
+            value={histAction}
+            onPick={o => applyHist({ action: o.value })}
+          />
+          <input type="date" className="workbench-input workbench-input-sm !w-auto"
+            value={histDateFrom} onChange={e => applyHist({ dateFrom: e.target.value })} aria-label="起始日期" />
+          <span className="text-[11px] text-[var(--muted-foreground)]">至</span>
+          <input type="date" className="workbench-input workbench-input-sm !w-auto"
+            value={histDateTo} onChange={e => applyHist({ dateTo: e.target.value })} aria-label="截止日期" />
+          <div className="relative">
+            <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
+            <input
+              className="workbench-input workbench-input-sm !w-[190px] !pl-8"
+              placeholder="搜索对象 / 项目 / 明细，回车"
+              value={histSearchDraft}
+              onChange={e => setHistSearchDraft(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') applyHist({ search: histSearchDraft.trim() }); }}
+            />
+          </div>
+          {histFiltered && (
+            <button className="neu-btn-xs" onClick={clearHistFilters}>
+              <X size={12} /> 清除筛选
+            </button>
+          )}
+          <span className="ml-auto text-[11px] tabular-nums text-[var(--muted-foreground)]">共 {actTotal} 条</span>
+        </div>
         <div className="max-h-[60vh] overflow-y-auto pr-1">
           {(() => {
             const groups = groupActivities(activities.filter(a => !NOISE_ACTIONS.has(a.action)));
