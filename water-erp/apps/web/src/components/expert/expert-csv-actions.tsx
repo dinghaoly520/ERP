@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { importCsv, expertImportBatchApprove, type ExpertImportDone } from '@/lib/api/expert';
 import { api } from '@/lib/api';
@@ -10,7 +10,8 @@ import { Workbook } from 'exceljs';
 import { Download, Upload, Loader2, Eye, ChevronDown } from 'lucide-react';
 
 const CSV_HEADERS = ['姓名', '专业领域', '职称', '执业资格', '工作单位', '所属部门', '联系电话', '电子邮箱', '身份证号', '民族', '学历', '执业资格证号', '备注'];
-const CSV_EXAMPLE = ['张三', 'zhangsan', 'abc123', '水利水电工程', '高级工程师', '一级建造师、监理工程师', '四川水发勘测设计研究有限公司', '工程勘察院', '13800138000', 'zhangsan@example.com', '', '汉族', '硕士', '', ''];
+// 示例行与表头逐列对齐（账号/密码列删除后的存量行曾多两个旧值，整行左错位）
+const CSV_EXAMPLE = ['张三', '水利水电工程', '高级工程师', '一级建造师、监理工程师', '四川水发勘测设计研究有限公司', '工程勘察院', '13800138000', 'zhangsan@example.com', '510000199001010011', '汉族', '硕士', '', ''];
 
 interface ExpertCsvActionsProps {
   onImported?: () => void;
@@ -30,6 +31,8 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
     draft: Record<string, string>;
   } | null>(null);
   const mappingResolveRef = useRef<((m: Record<string, string> | null) => void) | null>(null);
+  // 面板开着时组件被卸载（关闭录入弹窗）→ 悬挂的 Promise 以「取消」收口，导入流程自然终止
+  useEffect(() => () => { mappingResolveRef.current?.(null); mappingResolveRef.current = null; }, []);
 
   const requestCompanyMapping = async (unmatched: string[]): Promise<Record<string, string> | null> => {
     try {
@@ -57,7 +60,12 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
       return;
     }
     setMappingPanel(null);
-    mappingResolveRef.current?.(p.draft);
+    // 面板内「不归属」用哨兵值 '__NONE__'（空串会与「未选择」态混淆——SearchSelect
+    // 的 value='' 会命中 value 为空串的选项被显示成已选）；提交前还原为后端契约的空串
+    const mapping = Object.fromEntries(
+      Object.entries(p.draft).map(([k, v]) => [k, v === '__NONE__' ? '' : v])
+    );
+    mappingResolveRef.current?.(mapping);
     mappingResolveRef.current = null;
   };
 
@@ -412,7 +420,7 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
                 <div className="min-w-0 flex-1">
                   <SearchSelect
                     options={[
-                      { value: '', label: '不归属（保留单位原文）' },
+                      { value: '__NONE__', label: '不归属（保留单位原文）' },
                       ...mappingPanel.companies,
                     ]}
                     value={mappingPanel.draft[name] ?? ''}

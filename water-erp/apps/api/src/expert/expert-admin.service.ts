@@ -3112,9 +3112,11 @@ export class ExpertAdminService {
 
     // ── 归属预解析：表格单位名 → 既有公司（禁止新建）──
     // 命中=精确同名；未命中=查 companyMapping 人工指定（id 必须真实存在；空串=显式不归属）；
-    // 仍未定的收集为 unmatched 返回前端弹窗——本轮不动任何数据
+    // 仍未定的收集为 unmatched 返回前端弹窗——本轮不动任何数据。
+    // 只收有效行（姓名+专业齐备）的单位名：必跳过的垃圾行不该把单位名带进指定面板
+    const validRows = rows.filter(r => pick(r, ['姓名', '名称']) && pick(r, ['专业领域', '专业']));
     const distinctEmployers = [...new Set(
-      rows.map(r => pick(r, ['工作单位', '单位']).trim()).filter(Boolean)
+      validRows.map(r => pick(r, ['工作单位', '单位']).trim()).filter(Boolean)
     )];
     const matchedRows = distinctEmployers.length
       ? await this.prisma.company.findMany({ where: { name: { in: distinctEmployers } }, select: { id: true, name: true } })
@@ -3178,10 +3180,17 @@ export class ExpertAdminService {
           ? (resolution.get(sheetEmployer.trim()) ?? null)
           : null;
         if (healed) {
-          await this.prisma.user.update({
-            where: { id: dup.id },
-            data: { companyId: healed.id, company: healed.name },
-          });
+          // 补录失败只记该行失败，不中断整批（此前中途 DB 异常会 500 掉已完成行的结果汇总）
+          try {
+            await this.prisma.user.update({
+              where: { id: dup.id },
+              data: { companyId: healed.id, company: healed.name },
+            });
+          } catch (e: any) {
+            results.push({ 姓名: displayName, 状态: '失败', 原因: `补录归属失败：${e?.message ?? '数据库异常'}` });
+            failed++;
+            continue;
+          }
           repaired++;
           repairedIds.push(dup.id);
           results.push({ 姓名: displayName, 状态: '修复归属', 归属: healed.name, 原因: '账号已存在，按表格单位名补录归属' });

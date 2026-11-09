@@ -195,4 +195,35 @@ describe('ExpertAdminService.importCsv 归属二段式', () => {
       expect(r.results[0].原因).toBe('账号已存在');
     }
   });
+
+  it('补录归属 DB 异常 → 只记该行失败，不中断整批', async () => {
+    prisma.user.findFirst
+      .mockResolvedValueOnce({ id: 'dup-1', companyId: null }) // 首行查重命中（待修复）
+      .mockResolvedValueOnce(null); // 次行走新导入
+    prisma.user.update.mockRejectedValueOnce(new Error('db down'));
+    const r = await service.importCsv([
+      { 姓名: '张三', 专业领域: '水利水电', 工作单位: EXISTING.name, 身份证号: '510000199001010011' },
+      { 姓名: '李四', 专业领域: '水文地质', 工作单位: EXISTING.name, 身份证号: '510000199001010022' },
+    ], 'op1');
+    expect(r.needMapping ?? false).toBe(false);
+    if (!r.needMapping) {
+      expect(r.failed).toBe(1);
+      expect(r.repaired).toBe(0);
+      expect(r.imported).toBe(1); // 后续行不受单行补录失败影响
+      expect(r.results[0].状态).toBe('失败');
+      expect(r.results[0].原因).toContain('补录归属失败');
+    }
+  });
+
+  it('缺姓名/专业的无效行不参与归属预解析——其单位名不触发 needMapping', async () => {
+    const r = await service.importCsv([
+      { 专业领域: '水利水电', 工作单位: '垃圾行单位XYZ' }, // 无姓名 → 必跳过
+      { 姓名: '张三', 专业领域: '水利水电', 工作单位: EXISTING.name, 身份证号: '510000199001010011' },
+    ], 'op1');
+    expect(r.needMapping ?? false).toBe(false);
+    if (!r.needMapping) {
+      expect(r.imported).toBe(1);
+      expect(r.skipped).toBe(1);
+    }
+  });
 });
