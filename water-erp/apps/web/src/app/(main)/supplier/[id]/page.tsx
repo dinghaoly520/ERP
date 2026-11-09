@@ -3,22 +3,23 @@
 import { Fragment, useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, updateSupplierTags, getTagVocabulary, blacklistSupplier, unblacklistSupplier, revealSupplierField, companyLinksApi } from '@/lib/api/supplier';
+import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, updateSupplierTags, getTagVocabulary, blacklistSupplier, unblacklistSupplier, revealSupplierField } from '@/lib/api/supplier';
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification } from '@/lib/types';
-import type { CompanyLinkRow, RsvpHistoryResult, TagVocabularyItem } from '@/lib/api/supplier';
+import type { RsvpHistoryResult, TagVocabularyItem } from '@/lib/api/supplier';
 import { getRsvpHistory } from '@/lib/api/supplier';
-import { ApprovalTimeline } from '@/components/workbench/approval-timeline';
+import { splitQualificationItems } from '@/lib/qualification-split';
+// ApprovalTimeline 已随变更表格版下线（2026-11-09）：混排组件内自带展开时间线
 import { AlertBanner, type AlertSeverity, StatusBadge, Modal } from '@/components/workbench';
 import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
 import { LEVEL_LABEL, LEVEL_COLOR, SUPPLIER_STATUS_LABEL } from '@water-erp/shared';
 import type { AuthUser } from '@/lib/api/auth';
 import { fetchCurrentUser } from '@/lib/api/auth';
-import { CheckCircle2, Check, Search, X, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, FileText, User, Users, MapPin, Phone, Mail, Hash, FolderOpen, Plus, Loader2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, Link2, AtSign, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, Check, Search, X, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, User, Users, MapPin, Phone, Mail,  FolderOpen, Plus, Loader2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, AtSign, AlertTriangle } from 'lucide-react';
 import { SupplierTimeline } from '@/components/supplier/timeline';
-import { ApprovalHistory } from '@/components/supplier/approval-history';
+import { ApprovalChangeHistory } from '@/components/supplier/approval-change-history';
 import { PortraitTab } from '@/components/supplier/portrait-tab';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
-import { copyToClipboard } from '@/lib/copy-to-clipboard';
+import { CopyIconButton } from '@/components/copy-icon-button';
 
 // 2026-10-23 板块合并（11→5）：info=基本信息+联系人+归属公司+变更记录、qualifications=资质材料+文件档案、
 // evaluations=履约评价+奖惩记录、rsvp=邀请回执+沟通记录；旧深链键经 MERGED_TAB 归组映射
@@ -32,10 +33,9 @@ const STATUS_LABEL: Record<string, string> = SUPPLIER_STATUS_LABEL; // 统一 sh
 const STATUS_TONE: Record<string, 'green' | 'blue' | 'orange' | 'red' | 'gray'> = {
   APPROVED: 'green', PENDING: 'blue', RETURNED: 'orange', REJECTED: 'red', DISABLED: 'gray', BLACKLIST: 'red',
 };
-const CHANGE_TONE: Record<string, 'blue' | 'green' | 'red'> = { PENDING: 'blue', APPROVED: 'green', REJECTED: 'red' };
 const GRADE_TONE: Record<string, string> = { A: 'green', B: 'blue', C: 'orange', D: 'yellow', E: 'red' };
 
-/** 单字段展示：空值淡化；copyable 启用点击复制。
+/** 单字段展示：空值淡化；copy 启用值右侧复制图标按钮（2026-11-09 统一图标形态，与专家详情同款）。
  *  紧凑定义项（2026-11-06 参照专家详情 2026-11-04 口径：白瓷片占位大、显散）——
  *  无底色无投影，纯 label 小字 + 值排版，靠网格与 FieldGroup 分组组织 */
 
@@ -44,25 +44,27 @@ function InfoField({
   value,
   mono = false,
   full = false,
-  copyable = false,
+  copy,
 }: {
   label: React.ReactNode; // 允许 PII 揭示按钮随标签内联
   value?: string | null;
   mono?: boolean;
   full?: boolean;
-  copyable?: boolean;
+  /** 明文字段只给 label；掩码 PII 再给 getText（reveal 取明文，禁止复制掩码串） */
+  copy?: { label: string; getText?: () => Promise<string | null | undefined> };
 }) {
   const empty = !value || !value.trim();
   return (
     <div className={`group flex min-w-0 flex-col gap-1 py-1 ${full ? 'col-span-full' : ''}`}>
       <span className="text-[10px] font-semibold uppercase tracking-[0.08em] leading-none text-[var(--muted-foreground)]">{label}</span>
-      <span
-        className={`break-words text-[13px] font-semibold leading-snug tabular-nums text-[var(--foreground)] ${mono ? 'font-mono tracking-tight' : ''} ${empty ? 'font-normal text-[var(--muted-foreground)]/55' : ''} ${copyable && !empty ? 'cursor-pointer transition-colors group-hover:text-[var(--accent)]' : ''}`}
-        title={copyable && !empty ? '点击复制' : undefined}
-        onClick={copyable && !empty ? async () => { if (await copyToClipboard(value!)) toast.success(`${label} 已复制`); else toast.error('复制失败，请手动选择复制'); } : undefined}
-      >
-        {empty ? '—' : value}
-      </span>
+      <div className="flex min-w-0 items-center gap-1">
+        <span
+          className={`min-w-0 break-words text-[13px] font-semibold leading-snug tabular-nums text-[var(--foreground)] ${mono ? 'font-mono tracking-tight' : ''} ${empty ? 'font-normal text-[var(--muted-foreground)]/55' : ''}`}
+        >
+          {empty ? '—' : value}
+        </span>
+        {copy && (!empty || copy.getText) && <CopyIconButton value={value} getText={copy.getText} label={copy.label} />}
+      </div>
     </div>
   );
 }
@@ -96,7 +98,6 @@ export default function SupplierDetailPage() {
   const [qualifications, setQualifications] = useState<SupplierQualification[]>([]);
   const [evaluations, setEvaluations] = useState<SupplierEvaluation[]>([]);
   const [changes, setChanges] = useState<SupplierChangeRecord[]>([]);
-  const [expandedChangeId, setExpandedChangeId] = useState<string | null>(null);
   // 履约评价行展开（2026-10-23）：点击行看详情——四维等级/评语/评价人/关联项目（与变更记录同款模式）
   const [expandedEvalId, setExpandedEvalId] = useState<string | null>(null);
   // tab 深链（2026-09-29 审批「详情」入口直达资质材料）：?tab=xxx——初值恒 info（SSR/客户端
@@ -189,30 +190,8 @@ export default function SupplierDetailPage() {
   const [rsvpLoading, setRsvpLoading] = useState(false);
   // 文件档案已删（2026-11-06 用户裁定）：documents/docLoading 状态随整节移除
 
-  // 归属公司（多公司归属 2026-10-16）：本视野内该供应商的库内归属（APPROVED/DISABLED link），
-  // 列表按登录人公司隔离（staff/leader=本公司；admin=全部公司）——公司侧零检索面，仅展示归属事实
-  const [companyLinks, setCompanyLinks] = useState<CompanyLinkRow[] | null>(null);
-  const [linksLoading, setLinksLoading] = useState(false);
-  const [linkBusyId, setLinkBusyId] = useState<string | null>(null);
-  const loadCompanyLinks = useCallback(() => {
-    if (!id) return;
-    setLinksLoading(true);
-    companyLinksApi.list()
-      .then(rows => setCompanyLinks(rows.filter(r => r.supplierId === id && (r.status === 'APPROVED' || r.status === 'DISABLED'))))
-      .catch(() => setCompanyLinks([]))
-      .finally(() => setLinksLoading(false));
-  }, [id]);
-  // leader 库内停用/恢复（后端 @Roles('leader')；软移出本公司库，不影响其他公司归属）
-  const toggleCompanyLink = async (row: CompanyLinkRow, disable: boolean) => {
-    setLinkBusyId(row.id);
-    try {
-      if (disable) await companyLinksApi.disable(row.id);
-      else await companyLinksApi.enable(row.id);
-      toast.success(disable ? `已在 ${row.company.name} 库内停用该供应商` : `已恢复该供应商在 ${row.company.name} 的库内资格`);
-      loadCompanyLinks();
-    } catch (e: any) { toast.error(e?.message || '操作失败'); loadCompanyLinks(); }
-    finally { setLinkBusyId(null); }
-  };
+  // 归属公司区块已删（2026-11-09 用户裁定）：companyLinks/linkBusyId/toggleCompanyLink
+  // 整组移除（后端 company-links 端点保留未动，:3004 供应商端自视归属另有消费面）
 
   useEffect(() => { loadAll(); }, [loadAll]);
   // 奖惩记录加载链已删（2026-11-06 用户裁定，随录入/展示整组移除）
@@ -228,7 +207,7 @@ export default function SupplierDetailPage() {
   useEffect(() => {
     // 2026-10-23 板块合并：懒加载挂到合并后的 tab 键（沟通记录懒加载已删 2026-11-06）
     // 文件档案懒加载已删（2026-11-06 用户裁定，随整节移除）
-    if (activeTab === 'info' && companyLinks === null) loadCompanyLinks();
+    // 归属公司懒加载已删（2026-11-09 用户裁定，随整节移除）
   }, [activeTab, id]);
 
   const supplierAlerts = useSupplierAlerts(id as string);
@@ -357,7 +336,7 @@ export default function SupplierDetailPage() {
 
   const tabs: { key: TabKey; label: string; count?: number }[] = [
     { key: 'info', label: '基本信息' },
-    { key: 'portrait', label: '供应商画像' },
+    { key: 'portrait', label: '画像与动态' },
     // 合并计数（2026-10-23）：资质+文件 / 评价+奖惩；邀请数沿用回执统计
     { key: 'qualifications', label: '资质材料', count: qualifications.length },
     { key: 'evaluations', label: '履约评价', count: evaluations.length },
@@ -419,9 +398,16 @@ export default function SupplierDetailPage() {
                 >{supplier.companyNo ?? supplier.supplierNo}</span>
               </div>
               <div className="page-hero__sub truncate">
-                <span className="inline-flex items-center gap-1"><Hash size={11} />{supplier.creditCode || '信用代码未登记'}</span>
-                {/* 评价等级小块已删（2026-11-06 用户裁定：评价域内容归「评价与奖惩」tab） */}
-                <span className="opacity-40 ml-2">·</span><span className="ml-2" title={`入库时间：${entryDate.toLocaleString('zh-CN')}`}>入库 {entryDate.toLocaleDateString('zh-CN')}（在库 {Math.floor((Date.now() - entryDate.getTime()) / (1000 * 60 * 60 * 24))} 天）</span>
+                {/* admin 专属归属公司段（2026-11-09）：全视野跨公司辨识，常显于 hero 副标题首位；
+                    staff/leader 本公司隔离、所见即本公司，不渲染 */}
+                {currentUser?.role === 'admin' && (
+                  <>
+                    <span className="inline-flex items-center gap-1 font-semibold text-[var(--accent)]" title="归属公司（主归属）"><Building2 size={11} />{supplier.companyName || '未归属（平台）'}</span>
+                    <span className="opacity-40 ml-2">·</span>
+                  </>
+                )}
+                {/* 信用代码段已删（2026-11-09 用户裁定）——企业工商信息卡内有全字段+复制，hero 不重复 */}
+                <span className="ml-2" title={`入库时间：${entryDate.toLocaleString('zh-CN')}`}>入库 {entryDate.toLocaleDateString('zh-CN')}（在库 {Math.floor((Date.now() - entryDate.getTime()) / (1000 * 60 * 60 * 24))} 天）</span>
                 <span className="opacity-40 ml-2">·</span><span className="ml-2">变更 {changes.length} 次</span>
               </div>
               {supplier.returnReason && supplier.status === 'RETURNED' && (
@@ -628,9 +614,9 @@ export default function SupplierDetailPage() {
                 <div className="min-w-0 flex-1">
                   <h4 className="mb-1.5 break-words text-[17px] font-black leading-tight tracking-tight text-[var(--foreground)]">{supplier.name}</h4>
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] font-semibold text-[var(--accent)]" style={{ background: "color-mix(in oklch, var(--accent) 7%, transparent)", cursor: 'pointer' }} title="点击复制" onClick={async () => { if (await copyToClipboard(supplier.creditCode ?? '')) toast.success('统一社会信用代码已复制'); else toast.error('复制失败，请手动选择复制'); }}>
+                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] font-semibold text-[var(--accent)]" style={{ background: "color-mix(in oklch, var(--accent) 7%, transparent)" }} title="统一社会信用代码">
                       {supplier.creditCode}
-                      <span className="text-[9px] font-sans font-bold opacity-60">复制</span>
+                      {supplier.creditCode ? <CopyIconButton value={supplier.creditCode} label="统一社会信用代码" /> : null}
                     </span>
                     {normalizeEnterpriseType(supplier.enterpriseType) && (
                       <span className="rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)] px-2 py-0.5 text-[10px] font-semibold text-[color:var(--muted-foreground)]">{normalizeEnterpriseType(supplier.enterpriseType)}</span>
@@ -648,19 +634,21 @@ export default function SupplierDetailPage() {
               <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
                 <FieldGroup label="法定代表人" />
                 <InfoField label="姓名" value={supplier.legalPerson} />
-                <InfoField label={<span className="inline-flex items-center">身份证号<PiiRevealBtn entity="supplier" field="legalPersonIdCard" /></span>} value={revealedPii["supplier::legalPersonIdCard"] ?? supplier.legalPersonIdCard} mono />
-                <InfoField label={<span className="inline-flex items-center">联系电话<PiiRevealBtn entity="supplier" field="legalPersonPhone" /></span>} value={revealedPii["supplier::legalPersonPhone"] ?? supplier.legalPersonPhone} mono />
+                <InfoField label={<span className="inline-flex items-center">身份证号<PiiRevealBtn entity="supplier" field="legalPersonIdCard" /></span>} value={revealedPii["supplier::legalPersonIdCard"] ?? supplier.legalPersonIdCard} mono
+                  copy={{ label: '身份证号', getText: async () => revealedPii["supplier::legalPersonIdCard"] ?? (await revealSupplierField(id, { entity: 'supplier', field: 'legalPersonIdCard' })).value }} />
+                <InfoField label={<span className="inline-flex items-center">联系电话<PiiRevealBtn entity="supplier" field="legalPersonPhone" /></span>} value={revealedPii["supplier::legalPersonPhone"] ?? supplier.legalPersonPhone} mono
+                  copy={{ label: '联系电话', getText: async () => revealedPii["supplier::legalPersonPhone"] ?? (await revealSupplierField(id, { entity: 'supplier', field: 'legalPersonPhone' })).value }} />
                 <InfoField label="国别" value={supplier.country} />
 
                 <FieldGroup label="注册与资质" />
                 <InfoField label="注册资金" value={supplier.registeredCapital} />
                 <InfoField label="成立日期" value={supplier.establishedDate ? new Date(supplier.establishedDate).toLocaleDateString('zh-CN') : null} />
-                <InfoField label="机构代码" value={supplier.organizationCode} mono copyable />
+                <InfoField label="机构代码" value={supplier.organizationCode} mono copy={{ label: '机构代码' }} />
                 <InfoField label="行政区域" value={supplier.region} />
 
                 <FieldGroup label="联系方式" />
-                <InfoField label="公司邮箱" value={supplier.companyEmail} copyable />
-                <InfoField label="公司官网" value={supplier.companyWebsite} copyable />
+                <InfoField label="公司邮箱" value={supplier.companyEmail} copy={{ label: '公司邮箱' }} />
+                <InfoField label="公司官网" value={supplier.companyWebsite} copy={{ label: '公司官网' }} />
               </div>
 
               {/* 长文本（全宽瓷片） */}
@@ -673,44 +661,20 @@ export default function SupplierDetailPage() {
               </div>
             </section>
 
-            {/* 业务标签 + 主要联系人（双列） */}
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-              {/* 业务标签 */}
-              <section className="neu-card-static !rounded-2xl p-5">
-                <SectionTitle icon={Briefcase}>业务标签</SectionTitle>
-                {(supplier as any).tags?.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {(supplier as any).tags.map((tag: string, i: number) => (
-                      <span key={i} className="biz-tag">{tag}</span>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-[var(--muted-foreground)]">暂无业务标签，供应商可通过变更申请补充</p>
-                )}
-              </section>
-
-              {/* 主要联系人 */}
-              <section className="neu-card-static !rounded-2xl p-5">
-                <SectionTitle icon={User}>主要联系人</SectionTitle>
-                {primaryContact ? (
-                  <div>
-                    <div className="flex items-center gap-2.5">
-                      <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-sm font-black text-[var(--accent)]">{primaryContact.name[0]}</span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-[var(--foreground)]">{primaryContact.name}</p>
-                        {primaryContact.position && <span className="text-[11px] text-[var(--muted-foreground)]">{primaryContact.position}</span>}
-                      </div>
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2.5">
-                      <InfoField label="联系电话" value={primaryContact.phone} mono copyable />
-                      {primaryContact.email && <InfoField label="邮箱" value={primaryContact.email} copyable />}
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-xs text-[var(--muted-foreground)]">暂无主要联系人</p>
-                )}
-              </section>
-            </div>
+            {/* 业务标签（2026-11-09 主要联系人卡片删除：与「联系人管理」表重复，
+                联系人信息统一归联系人管理表呈现） */}
+            <section className="neu-card-static !rounded-2xl p-5">
+              <SectionTitle icon={Briefcase}>业务标签</SectionTitle>
+              {(supplier as any).tags?.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {(supplier as any).tags.map((tag: string, i: number) => (
+                    <span key={i} className="biz-tag">{tag}</span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-[var(--muted-foreground)]">暂无业务标签，供应商可通过变更申请补充</p>
+              )}
+            </section>
 
             {/* 银行账户（注册 2.0） */}
             <section>
@@ -814,23 +778,32 @@ export default function SupplierDetailPage() {
               <span className="inline-flex items-center gap-1"><RotateCcw size={11} /> 最后更新 {new Date(supplier.updatedAt).toLocaleDateString('zh-CN')}</span>
             </div>
 
-            {/* 生命周期时间线 */}
-            <section className="neu-card-static !rounded-2xl p-5">
-              <SectionTitle icon={RotateCcw}>生命周期</SectionTitle>
-              <SupplierTimeline supplierId={id as string} />
-            </section>
+            {/* 生命周期时间线已移至「画像」tab（2026-11-09 用户裁定：
+                先显示生命周期、再给出画像；基本信息不承载动态事件流） */}
 
-            {/* 审核历史（不可变留痕） */}
+            {/* 审核与变更记录（2026-11-09 用户裁定：注册审核留痕与资料变更合并单卡混排，
+                同一套行样式按时间倒序；不再分立两节/两种 UI） */}
             <section className="neu-card-static !rounded-2xl p-5">
-              <SectionTitle icon={FileCheck}>审核历史</SectionTitle>
-              <ApprovalHistory supplierId={id as string} />
+              <SectionTitle icon={FileCheck}>审核与变更记录</SectionTitle>
+              <ApprovalChangeHistory
+                supplierId={id as string}
+                supplierName={supplier.name}
+                changes={changes}
+                onReviewChange={(changeId, type) => { setReviewReason(''); setReviewModal({ changeId, type }); }}
+              />
             </section>
           </div>
         )}
 
-        {/* 供应商画像 */}
+        {/* 供应商画像（2026-11-09 用户裁定：生命周期在前、画像在后） */}
         {activeTab === 'portrait' && (
-          <section><PortraitTab supplierId={id as string} /></section>
+          <div className="space-y-5">
+            <section className="neu-card-static !rounded-2xl p-5">
+              <SectionTitle icon={RotateCcw}>生命周期</SectionTitle>
+              <SupplierTimeline supplierId={id as string} />
+            </section>
+            <section><PortraitTab supplierId={id as string} /></section>
+          </div>
         )}
 
         {/* 联系人 */}
@@ -851,9 +824,9 @@ export default function SupplierDetailPage() {
                       <tr key={c.id}>
                         <td className="font-semibold text-[var(--foreground)]">{c.name}</td>
                         <td className="text-[var(--muted-foreground)]">{c.gender || '—'}</td>
-                        <td className="text-[var(--muted-foreground)] font-mono text-xs"><span className="inline-flex items-center">{revealedPii[`contact:${c.id}:phone`] ?? c.phone}<PiiRevealBtn entity="contact" targetId={c.id} field="phone" /></span></td>
-                        <td className="text-[var(--muted-foreground)] font-mono text-xs"><span className="inline-flex items-center">{revealedPii[`contact:${c.id}:idCard`] ?? c.idCard ?? '—'}{c.idCard ? <PiiRevealBtn entity="contact" targetId={c.id} field="idCard" /> : null}</span></td>
-                        <td className="text-[var(--muted-foreground)]"><span className="inline-flex items-center">{revealedPii[`contact:${c.id}:email`] ?? c.email ?? '—'}{c.email ? <PiiRevealBtn entity="contact" targetId={c.id} field="email" /> : null}</span></td>
+                        <td className="text-[var(--muted-foreground)] font-mono text-xs"><span className="inline-flex items-center">{revealedPii[`contact:${c.id}:phone`] ?? c.phone}<PiiRevealBtn entity="contact" targetId={c.id} field="phone" /><CopyIconButton label="联系电话" getText={async () => revealedPii[`contact:${c.id}:phone`] ?? (await revealSupplierField(id, { entity: 'contact', targetId: c.id, field: 'phone' })).value} /></span></td>
+                        <td className="text-[var(--muted-foreground)] font-mono text-xs"><span className="inline-flex items-center">{revealedPii[`contact:${c.id}:idCard`] ?? c.idCard ?? '—'}{c.idCard ? <><PiiRevealBtn entity="contact" targetId={c.id} field="idCard" /><CopyIconButton label="身份证号" getText={async () => revealedPii[`contact:${c.id}:idCard`] ?? (await revealSupplierField(id, { entity: 'contact', targetId: c.id, field: 'idCard' })).value} /></> : null}</span></td>
+                        <td className="text-[var(--muted-foreground)]"><span className="inline-flex items-center">{revealedPii[`contact:${c.id}:email`] ?? c.email ?? '—'}{c.email ? <><PiiRevealBtn entity="contact" targetId={c.id} field="email" /><CopyIconButton label="邮箱" getText={async () => revealedPii[`contact:${c.id}:email`] ?? (await revealSupplierField(id, { entity: 'contact', targetId: c.id, field: 'email' })).value} /></> : null}</span></td>
                         <td className="text-[var(--muted-foreground)]">{c.position || '—'}</td>
                         <td>
                           {c.isPrimary
@@ -915,7 +888,28 @@ export default function SupplierDetailPage() {
                           <StatusBadge tone="blue">{q.type}</StatusBadge>
                           <span className="text-xs px-2.5 py-1 rounded font-semibold" style={{ color: qs.color, backgroundColor: `color-mix(in oklch, ${qs.color} 12%, transparent)` }}>{qs.label}</span>
                         </div>
-                        <p className="font-bold text-[var(--foreground)] text-sm mb-3">{q.name}</p>
+                        {(() => {
+                          // 多合一名称拆分（2026-11-09 用户裁定）：一条记录塞进多项资质/许可/认证时
+                          // 按分类拆条目展示；单项/不可识别形态保持原文标题
+                          const groups = splitQualificationItems(q.name);
+                          if (!groups) return <p className="font-bold text-[var(--foreground)] text-sm mb-3">{q.name}</p>;
+                          const total = groups.reduce((n, g) => n + g.items.length, 0);
+                          return (
+                            <div className="mb-3">
+                              <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">共 {total} 项 · 已按条目拆分</p>
+                              <div className="space-y-2">
+                                {groups.map(g => (
+                                  <div key={g.label || 'items'}>
+                                    {g.label && <p className="mb-1 text-[10px] font-bold text-[var(--muted-foreground)]">{g.label}</p>}
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {g.items.map((it, i) => <span key={i} className="biz-tag">{it}</span>)}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
                         {q.validFrom && q.validTo ? (
                           <div className="space-y-1.5">
                             <div className="flex justify-between text-[10px]">
@@ -1293,148 +1287,10 @@ export default function SupplierDetailPage() {
           </div>
         )}
 
-        {/* 变更记录 */}
-        {activeTab === 'info' && (
-          <div className="mt-8">
-            <SectionTitle icon={Pencil}>资料变更记录</SectionTitle>
-            {changes.length === 0 ? (
-              <div className="neu-card-static !rounded-2xl py-10 text-center">
-                <FileText size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />
-                <p className="text-sm text-[var(--muted-foreground)]">暂无变更记录</p>
-              </div>
-            ) : (
-              <div className="neu-table-card overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="neu-table w-full min-w-[680px]">
-                    <thead>
-                      <tr>
-                        <th>变更字段</th><th>原值</th>
-                        <th>新值</th><th>原因</th>
-                        <th>状态</th><th>变更时间</th>
-                        <th className="text-right">操作</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {changes.map(c => (
-                        <>
-                        <tr key={c.id} className="row-clickable" onClick={() => setExpandedChangeId(expandedChangeId === c.id ? null : c.id)}>
-                          <td className="font-semibold text-[var(--foreground)]">
-                            {c.fieldLabel || '资料信息'}
-                            {c.fieldName === 'convertToRegular' && (
-                              <span className="ml-1 inline-flex items-center rounded-full bg-[color-mix(in_oklch,var(--accent)_15%,transparent)] px-1.5 py-0.5 text-[9px] font-bold text-[var(--accent)]">转正</span>
-                            )}
-                          </td>
-                          <td className="text-[var(--muted-foreground)] max-w-[150px] truncate">{c.oldValue || '—'}</td>
-                          <td className="text-[var(--accent)] font-medium max-w-[150px] truncate">{c.fieldName === 'convertToRegular' ? '企业资料+联系人+资质' : (c.newValue || '—')}</td>
-                          <td className="text-[var(--muted-foreground)] max-w-[150px] truncate">{c.reason || '—'}</td>
-                          <td><StatusBadge tone={CHANGE_TONE[c.status] || 'gray'}>{c.status === 'PENDING' ? '待审批' : c.status === 'APPROVED' ? '已通过' : '已拒绝'}</StatusBadge></td>
-                          <td className="text-[var(--muted-foreground)]">{new Date(c.createdAt).toLocaleDateString('zh-CN')}</td>
-                          <td className="text-right">
-                            {c.status === 'PENDING' && (
-                              <div className="flex justify-end gap-1.5">
-                                <button onClick={() => { setReviewReason(''); setReviewModal({ changeId: c.id, type: 'approve' }); }} className="neu-btn-xs is-success">通过</button>
-                                <button onClick={() => { setReviewReason(''); setReviewModal({ changeId: c.id, type: 'reject' }); }} className="neu-btn-xs is-danger">拒绝</button>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                        {expandedChangeId === c.id && (
-                          <tr>
-                            <td colSpan={7} className="bg-[color-mix(in_oklch,var(--foreground)_3%,transparent)] px-4 py-2.5">
-                              <ApprovalTimeline compact events={[
-                                { action: '提交变更申请', actor: supplier.name, time: c.createdAt, note: c.reason, outcome: 'pending' as const },
-                                ...(c.status !== 'PENDING' ? [{
-                                  action: c.status === 'APPROVED' ? '审批通过' : '审批拒绝',
-                                  // S10 终稿：后端已 enrich reviewedByName；reviewedBy（user id）仅作历史数据兜底经形状守卫隐藏
-                    actor: (c as any).reviewedByName ?? ((typeof c.reviewedBy === 'string' && /^[a-z0-9]{20,}$/.test(c.reviewedBy)) ? undefined : (c.reviewedBy ?? undefined)),
-                                  time: c.reviewedAt ?? null,
-                                  note: c.rejectReason ?? null,
-                                  outcome: c.status === 'APPROVED' ? 'approved' as const : 'rejected' as const,
-                                }] : []),
-                              ]} />
-                            </td>
-                          </tr>
-                        )}
-                        </>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      {/* 归属公司（多公司归属 2026-10-16）：本视野内该供应商的库内归属与状态；2026-10-23 并入基本信息分区 */}
-      {activeTab === 'info' && (
-        <section className="mt-8">
-          <SectionTitle icon={Link2}>归属公司</SectionTitle>
-          {linksLoading || companyLinks === null ? (
-            <div className="py-8 text-center"><Loader2 size={14} className="animate-spin mx-auto mb-2" /><span className="text-sm text-[var(--muted-foreground)]">加载中...</span></div>
-          ) : companyLinks.length === 0 ? (
-            <div className="neu-card-static !rounded-2xl py-10 text-center">
-              <Building2 size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />
-              <p className="text-sm text-[var(--muted-foreground)]">本视野内暂无该供应商的库内归属关系</p>
-              <p className="mt-1 text-xs text-[var(--muted-foreground)]/70">供应商自主申请加入并经三级审核通过后出现在此处（仅显示本公司记录）</p>
-            </div>
-          ) : (
-            <div className="neu-table-card overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="neu-table w-full">
-                  <thead>
-                    <tr>
-                      <th>归属公司</th>
-                      <th className="text-center">库内状态</th>
-                      <th className="text-center">加入时间</th>
-                      {currentUser?.role === 'leader' && <th className="text-center">操作</th>}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {companyLinks.map(l => {
-                      // 主归属=注册归属公司（Supplier.companyId 写时快照）；其余为自主申请加入的公司
-                      const isPrimary = l.companyId === (supplier as { companyId?: string | null }).companyId;
-                      return (
-                        <tr key={l.id}>
-                          <td>
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-[var(--foreground)]">{l.company.name}</span>
-                              {isPrimary && (
-                                <span className="inline-flex items-center rounded-full bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--accent)]" title="注册归属公司（主归属）">主归属</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="text-center">
-                            {l.status === 'APPROVED'
-                              ? <StatusBadge tone="green">在库</StatusBadge>
-                              : <StatusBadge tone="gray">已停用（本公司）</StatusBadge>}
-                          </td>
-                          <td className="text-center tabular-nums text-[var(--muted-foreground)]">{new Date(l.createdAt).toLocaleDateString('zh-CN')}</td>
-                          {currentUser?.role === 'leader' && (
-                            <td className="text-center">
-                              {l.status === 'APPROVED' ? (
-                                <button onClick={() => void toggleCompanyLink(l, true)} disabled={linkBusyId === l.id}
-                                  title="本公司库内停用（软移出，不影响该供应商在其他公司的归属）"
-                                  className="neu-btn-xs is-warning">
-                                  {linkBusyId === l.id ? <Loader2 size={12} className="animate-spin" /> : null}停用
-                                </button>
-                              ) : (
-                                <button onClick={() => void toggleCompanyLink(l, false)} disabled={linkBusyId === l.id}
-                                  title="恢复本公司库内资格"
-                                  className="neu-btn-xs is-success">
-                                  {linkBusyId === l.id ? <Loader2 size={12} className="animate-spin" /> : null}恢复
-                                </button>
-                              )}
-                            </td>
-                          )}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </section>
-      )}
+      {/* 审核与变更记录单卡混排已上移至基本信息流（2026-11-09 用户裁定：
+          不再底部另立分节、不再两套 UI）；归属公司节已删同日裁定 */}
+      {/* 归属公司节已删（2026-11-09 用户裁定）：本视野库内归属表与 leader 停用/恢复操作
+          整块移除；后端 company-links 端点保留未动（:3004 供应商端自视归属另有消费面） */}
 
       {/* 沟通记录整节已删（2026-11-06 用户裁定）：其内容实为公告发布的通知投递日志
           （站内/短信/电话通道），非与该供应商的沟通——状态/懒加载/导入整组清理，

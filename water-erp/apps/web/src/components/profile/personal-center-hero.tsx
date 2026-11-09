@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react';
 import {
   LogOut, Loader2, Mail, Phone, UserRound, Building2, Building, Monitor, Users,
-  ShieldCheck, CalendarClock, Settings, X, Clock,
+  ShieldCheck, CalendarClock, Calendar, Settings, X, Clock,
 } from 'lucide-react';
 import type { AuthUser } from '@/lib/api/auth';
 import { fetchLoginHistory, type LoginHistoryItem } from '@/lib/api/auth';
 import { ROLE_LABELS } from '@/lib/role-labels';
+import { StatusBadge } from '@/components/workbench';
 
 function formatLoginTime(iso: string): string {
   const d = new Date(iso);
@@ -74,6 +75,9 @@ export function PersonalCenterHero({ user, onOpenBasicInfo, onOpenPreferences, o
                 style={{ backgroundColor: 'rgba(96,139,239,0.12)', color: 'var(--accent)' }}>
                 {ROLE_LABELS[user.role] ?? user.role}
               </span>
+              {/* 登录用户名瓷片（原「用户名」KPI 卡融入，2026-11-09） */}
+              <span className="inline-flex items-center rounded-md bg-[color-mix(in_oklch,var(--muted-foreground)_9%,transparent)] px-2 py-0.5 align-middle font-mono text-[12px] font-medium tracking-wide text-[color:var(--muted-foreground)]"
+                title="登录用户名">{user.username}</span>
             </div>
             <div className="page-hero__sub flex flex-wrap items-center gap-x-3 gap-y-0.5">
               <span className="inline-flex items-center gap-1"><Building size={11} strokeWidth={1.6} />{user.company ?? '未设置公司'}</span>
@@ -83,11 +87,18 @@ export function PersonalCenterHero({ user, onOpenBasicInfo, onOpenPreferences, o
               <span className="inline-flex items-center gap-1"><Mail size={11} strokeWidth={1.6} />{user.email ?? '未绑定邮箱'}</span>
               <span className="text-[color:var(--muted-foreground)]/40">·</span>
               <span className="inline-flex items-center gap-1"><Phone size={11} strokeWidth={1.6} />{user.phone ?? '未绑定手机'}</span>
+              <span className="text-[color:var(--muted-foreground)]/40">·</span>
+              {/* 创建时间（原「账号创建」KPI 卡融入，2026-11-09） */}
+              <span className="inline-flex items-center gap-1"><Calendar size={11} strokeWidth={1.6} />创建于 {createdAtLabel}</span>
             </div>
           </div>
         </div>
 
         <div className="page-hero__right flex-wrap">
+          {/* 状态瓷片（原「当前会话/安全状态」KPI 卡融入，2026-11-09；
+              与其他页 hero 同形态：瓷片居按钮前同行内联、垂直居中） */}
+          <StatusBadge tone="green">活跃中</StatusBadge>
+          <StatusBadge tone={user.isFrozen ? 'red' : 'green'}><ShieldCheck size={11} strokeWidth={2} />{user.isFrozen ? '已冻结' : '安全正常'}</StatusBadge>
           <button onClick={onOpenBasicInfo} type="button" className="neu-btn-soft">
             <UserRound size={14} strokeWidth={1.7} />基本资料与安全
           </button>
@@ -107,38 +118,8 @@ export function PersonalCenterHero({ user, onOpenBasicInfo, onOpenPreferences, o
         </div>
       </div>
 
-      {/* hairline */}
-      <div style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.16)', paddingTop: '1rem' }} />
-
-      {/* ══ 行 2：账号摘要 KPI ══ */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <div className="kpi-card flex h-full flex-col gap-1 p-3">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">用户名</span>
-          <span className="truncate text-[14px] font-bold tracking-[-0.01em] text-[var(--foreground)]">{user.username}</span>
-        </div>
-        <div className="kpi-card flex h-full flex-col gap-1 p-3">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">账号创建</span>
-          <span className="truncate text-[13px] font-semibold tabular-nums text-[var(--foreground)]">{createdAtLabel}</span>
-        </div>
-        <div className="kpi-card flex h-full flex-col gap-1 p-3">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">当前会话</span>
-          <span className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--foreground)]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[var(--success)]" />活跃中
-          </span>
-        </div>
-        <div className="kpi-card flex h-full flex-col gap-1 p-3">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">安全状态</span>
-          {user.isFrozen ? (
-            <span className="flex items-center gap-1 text-[13px] font-semibold text-[var(--danger)]">
-              <ShieldCheck size={12} strokeWidth={1.8} />已冻结
-            </span>
-          ) : (
-            <span className="flex items-center gap-1 text-[13px] font-semibold text-[var(--success)]">
-              <ShieldCheck size={12} strokeWidth={1.8} />正常
-            </span>
-          )}
-        </div>
-      </div>
+      {/* 标题行下长横线（2026-11-09 用户裁定：与其他页 hero 一致，公司信息管理同款 page-hero__divider） */}
+      <div className="page-hero__divider" />
 
       {/* ══ 近期登录记录弹窗 ══ */}
       {showLoginHistory && (

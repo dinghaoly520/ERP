@@ -483,7 +483,7 @@ export function getTagVocabulary(limit = 60) {
 
 // 供应商画像
 // 生命周期时间线
-export interface TimelineEvent { type: string; label: string; detail: string; at: string; }
+export interface TimelineEvent { type: string; label: string; detail: string; at: string; grade?: string; }
 export interface SupplierTimeline { supplierId: string; supplierName: string; events: TimelineEvent[]; }
 export function getSupplierTimeline(id: string) {
   return api.get<SupplierTimeline>(`/supplier/${id}/timeline`);

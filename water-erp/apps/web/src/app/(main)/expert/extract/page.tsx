@@ -13,6 +13,7 @@ import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { QuotaMultiSelect } from '@/components/expert/quota-multi-select';
 import { StepTrack } from '@/components/step-track';
+import { CopyIconButton } from '@/components/copy-icon-button';
 import { Sparkles, ShieldCheck, AlertTriangle, Check, X, RefreshCw, UsersRound, Info, MessageSquare, Bell, Pencil, Plus, Clock, FileText, UserCircle, Search, ClipboardList, Upload, Loader2, Brain, Send, MapPin } from 'lucide-react';
 import { STAGE_LABEL } from '@water-erp/shared';
 
@@ -335,8 +336,12 @@ export function ExpertExtractPage({
   const phoneCell = (_userId: string, phone?: string | null) => (
     <span className="inline-flex items-center justify-center gap-1">
       <span className="font-mono">{phone || '—'}</span>
+      {phone ? <CopyIconButton value={phone} label="手机号" /> : null}
     </span>
   );
+  // 专家手机号兜底链（通知名单行）：本人值 → 邀请名单 → 候选池快照
+  const phoneOf = (userId: string, own?: string | null) =>
+    own || invitationData?.experts.find(x => x.userId === userId)?.phone || preview?.candidatePool.find(c => c.userId === userId)?.phone;
   // 步骤5 组长选定/切换（从 DB isLead 恢复，关闭页面重进不丢失）
   const [step5LeaderId, setStep5LeaderId] = useState<string | null>(null);
   const [selectingLeader, setSelectingLeader] = useState(false);
@@ -2713,6 +2718,7 @@ export function ExpertExtractPage({
                             const c = poolMap.get(s.userId);
                             seq += 1;
                             const reason = s.reason || c?.reason || '';
+                            const ph = s.phone ?? c?.phone ?? null; // 手机号兜底链收敛为一处（避免 ?? / || 混用致空串假真）
                             return (
                               <tr key={`${s.userId}-${seq}`} className="row-clickable" onClick={() => router.push(`/expert/${s.userId}`)}>
                                 <td className="font-mono text-xs font-bold tabular-nums text-[var(--muted-foreground)]">{String(seq).padStart(2, '0')}</td>
@@ -2722,7 +2728,7 @@ export function ExpertExtractPage({
                                 <td className="max-w-[120px] truncate text-sm text-[var(--muted-foreground)]" title={c?.department ?? ''}>{c?.department ?? '—'}</td>
                                 <td className="whitespace-nowrap text-sm text-[var(--muted-foreground)]">{s.title ?? c?.title ?? '—'}</td>
                                 <td className="whitespace-nowrap"><StatusBadge tone="blue">{fmtExpertSpecialty(s.userId, s.specialty)}</StatusBadge></td>
-                                <td className="whitespace-nowrap font-mono text-xs text-[var(--muted-foreground)]">{s.phone ?? c?.phone ?? '—'}</td>
+                                <td className="whitespace-nowrap font-mono text-xs text-[var(--muted-foreground)]"><span className="inline-flex items-center gap-1">{ph || '—'}{ph ? <CopyIconButton value={ph} label="手机号" /> : null}</span></td>
                                 <td className="text-center">{levelBadge(c?.expertLevel ?? null)}</td>
                                 <td className="text-center">{levelBadge(s.evaluationLevel ?? c?.evaluationLevel ?? null)}</td>
                                 <td className={`text-center text-xs font-semibold ${loadClass(c?.currentLoadStatus)}`}>{c?.currentLoadStatus ?? '—'}</td>
@@ -2897,7 +2903,7 @@ export function ExpertExtractPage({
                                 >
                                   <td className="px-3 py-2 font-bold whitespace-nowrap text-[var(--foreground)]">{fmtExpertName(e.userId, e.name || '未知')}{on && <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle" style={{ background: 'var(--accent)' }} />}</td>
                                   <td className="px-3 py-2 text-[var(--muted-foreground)]">{fmtExpertSpecialty(e.userId, e.specialty)}</td>
-                                  <td className="px-3 py-2 font-mono tabular-nums text-[var(--muted-foreground)]">{e.phone || invitationData?.experts.find(x => x.userId === e.userId)?.phone || preview?.candidatePool.find(c => c.userId === e.userId)?.phone || '—'}</td>
+                                  <td className="px-3 py-2 font-mono tabular-nums text-[var(--muted-foreground)]"><span className="inline-flex items-center gap-1">{phoneOf(e.userId, e.phone) || '—'}{phoneOf(e.userId, e.phone) ? <CopyIconButton value={phoneOf(e.userId, e.phone)} label="手机号" /> : null}</span></td>
                                 </tr>
                               );
                             })}

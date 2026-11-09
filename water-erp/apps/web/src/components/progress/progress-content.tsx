@@ -24,6 +24,7 @@ import {
 import Link from "next/link";
 import { type AuthRole } from "@/lib/api/auth";
 import { isGroupedCompanyView, CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
+import { StatusBadge } from "@/components/workbench";
 import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from "@/components/company/company-tag";
 import {
   fetchProgressStats,
@@ -596,20 +597,15 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
           </div>
 
           <div className="page-hero__right">
+            {/* 统计状态徽章（2026-11-09 用户裁定：瓷片/数字锚点两版均不适配，
+                终版=与「已入库/账户已激活」同款描边小胶囊；居公司选择器左侧） */}
+            <StatusBadge tone="blue">进行中 {stats.totalActive}</StatusBadge>
+            <StatusBadge tone={attnCount > 0 ? 'orange' : 'green'}>待推进 {attnCount}</StatusBadge>
             <CompanySelect
               value={companyId}
               onChange={(c) => { setCompanyId(c); void loadData(c); }}
               countMode="projectsActive"
             />
-            <span className="page-hero__stat page-hero__stat--info">
-              共 {stats.totalActive} 项
-            </span>
-            {attnCount > 0 && (
-              <span className="page-hero__stat page-hero__stat--warn">
-                <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-[var(--danger)]" />
-                待推进 {attnCount}
-              </span>
-            )}
           </div>
         </div>
 

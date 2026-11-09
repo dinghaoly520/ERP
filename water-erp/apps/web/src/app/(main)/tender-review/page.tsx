@@ -9,17 +9,17 @@ import TenderReviewWorkspace from '@/components/tender-review/tender-review-work
 const easeOutQuint: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 /** hero 右侧统计徽标（需在 Provider 内取 context，故拆为子组件） */
+import { StatusBadge } from '@/components/workbench';
+
 function HeroStats() {
   const { stats, runningTasks } = useTenderReview();
   return (
     <div className="page-hero__right">
       {runningTasks.length > 0 && (
-        <span className="page-hero__stat page-hero__stat--info">
-          <Loader2 size={11} className="animate-spin" />
-          进行中 {runningTasks.length}
-        </span>
+        <StatusBadge tone="blue"><Loader2 size={11} className="animate-spin" />进行中 {runningTasks.length}</StatusBadge>
       )}
-      <span className="page-hero__stat page-hero__stat--info">今日审查 {stats.totalReviews} · 违规 {stats.failedCount}</span>
+      <StatusBadge tone="blue">今日审查 {stats.totalReviews}</StatusBadge>
+      <StatusBadge tone={stats.failedCount > 0 ? 'orange' : 'green'}>违规 {stats.failedCount}</StatusBadge>
     </div>
   );
 }

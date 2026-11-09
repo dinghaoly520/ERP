@@ -4,7 +4,7 @@ import { Fragment, useEffect, useState, useMemo, useRef, useCallback } from 'rea
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { recommendSuppliers, suggestBusinessTags, getTagVocabulary, polishRequirement, updateSelectionShortlist, notifySuppliers, generateNotificationContent, getSupplierList, getRsvpList, sendNegotiationConfig, markRsvpManual, markInvitedNotified, getHardConditionVocab, suggestHardConditions } from '@/lib/api/supplier';
+import { recommendSuppliers, suggestBusinessTags, getTagVocabulary, polishRequirement, updateSelectionShortlist, notifySuppliers, generateNotificationContent, getSupplierList, getRsvpList, sendNegotiationConfig, markRsvpManual, markInvitedNotified, getHardConditionVocab, suggestHardConditions, revealSupplierField } from '@/lib/api/supplier';
 import type { TagVocabularyItem, RsvpListResult, RsvpListItem, HardConditions, HardConditionVocab } from '@/lib/api/supplier';
 import { HardConditionsSection } from './hard-conditions-section';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
@@ -28,6 +28,7 @@ import { ComparePanel } from '@/components/supplier/compare-panel';
 import { exportShortlistToExcel } from '@/lib/excel-export';
 import { StepTrack } from '@/components/step-track';
 import { apiFetch } from '@/lib/api/api-fetch';
+import { CopyIconButton } from '@/components/copy-icon-button';
 import { api } from '@/lib/api';
 import { SUPPLIER_STATUS_LABEL } from '@water-erp/shared';
 import { tenderDraftStorageKey } from '@/lib/tender-write/storage';
@@ -206,6 +207,9 @@ function BusinessTagsPicker({
     </div>
   );
 }
+
+/** 详情档案行明文可复制字段（2026-11-09 统一复制图标按钮）：法人电话为掩码，走 reveal 单独判 */
+const ARCHIVE_COPY_LABELS = new Set(['统一社会信用代码', '机构代码', '公司邮箱']);
 
 export function SupplierSelectionPage({
   hideHeader,
@@ -3724,7 +3728,18 @@ export function SupplierSelectionPage({
                         ['详细地址', detailData.detailedAddress],
                         ['入库时间', detailData.createdAt?.slice(0, 10)],
                       ].filter(([, v]) => v !== null && v !== undefined && v !== '').map(([label, value]) => (
-                        <div key={label as string}><span className="text-[var(--muted-foreground)]">{label}</span><p className="font-semibold text-[var(--foreground)] break-all">{String(value)}</p></div>
+                        <div key={label as string}>
+                          <span className="text-[var(--muted-foreground)]">{label}</span>
+                          <p className="flex items-center gap-1 font-semibold text-[var(--foreground)]">
+                            <span className="break-all">{String(value)}</span>
+                            {label === '法人电话' ? (
+                              // 浏览详情接口回掩码——复制走 reveal 端点取明文（服务端留审计），不复制掩码串
+                              <CopyIconButton label="法人电话" getText={async () => (await revealSupplierField(detailSupplier.supplierId, { entity: 'supplier', field: 'legalPersonPhone' })).value} />
+                            ) : ARCHIVE_COPY_LABELS.has(label as string) ? (
+                              <CopyIconButton value={String(value)} label={label as string} />
+                            ) : null}
+                          </p>
+                        </div>
                       ))}
                     </div>
                     <div className="flex flex-wrap gap-1.5 pt-1">

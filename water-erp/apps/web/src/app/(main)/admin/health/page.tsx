@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Activity, AlertTriangle, Cpu, Database, Gauge, HardDrive, RefreshCw, ScanText, ScrollText, Server } from 'lucide-react';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { fmtAgo, fmtBytes, fmtSecAgo, healthApi, type HealthReport } from '@/components/admin/health/health-api';
+import { StatusBadge } from '@/components/workbench';
 import { OverviewTab } from '@/components/admin/health/overview-tab';
 import { OperationLogTab } from '@/components/admin/health/operation-log-tab';
 
@@ -106,13 +107,12 @@ function HealthPageInner() {
           </div>
           <div className="page-hero__right">
             {data && (failCount > 0
-              ? <span className="page-hero__stat page-hero__stat--warn"><span className="h-1.5 w-1.5 rounded-full shrink-0 bg-[var(--danger)]" />组件异常 {failCount}</span>
-              : <span className="page-hero__stat page-hero__stat--info">组件 {probes.length - failCount}/{probes.length} 正常</span>)}
+              ? <StatusBadge tone="red">组件异常 {failCount}</StatusBadge>
+              : <StatusBadge tone="green">组件 {probes.length - failCount}/{probes.length} 正常</StatusBadge>)}
             {data && (
-              <span className={`page-hero__stat ${data.worker.alive ? 'page-hero__stat--info' : 'page-hero__stat--warn'}`}>
-                <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${data.worker.alive ? 'bg-[var(--success)]' : 'bg-[var(--danger)]'}`} />
+              <StatusBadge tone={data.worker.alive ? 'green' : 'red'}>
                 {data.worker.alive ? `分析服务运行中（${data.worker.count} 个）` : '分析服务未运行'}
-              </span>
+              </StatusBadge>
             )}
           </div>
         </div>

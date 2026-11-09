@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { isGroupedCompanyView, CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
+import { StatusBadge as WbStatusBadge } from "@/components/workbench"; // 别名避开本页台账结果 StatusBadge
 import { SasacExtractModal } from "@/components/procurements/sasac-extract-modal";
 import { ProjectTimelineStrip } from "@/components/projects/project-timeline-strip";
 import { useRouter } from "next/navigation";
@@ -173,6 +174,9 @@ function PageHero({
         </div>
 
         <div className="page-hero__right">
+          {/* 统计状态徽章（2026-11-09 用户裁定终版：与「已入库/账户已激活」同款描边小胶囊；居公司选择器左侧） */}
+          <WbStatusBadge tone="blue">总计 {pagination.total}</WbStatusBadge>
+          <WbStatusBadge tone={abnormalCount > 0 ? 'orange' : 'green'}>异常 {abnormalCount}</WbStatusBadge>
           <CompanySelect value={companyId} onChange={onCompanyChange} countMode="projectsDone" />
           {isAdmin && (
           <button
@@ -184,15 +188,6 @@ function PageHero({
             <ClipboardCheck size={14} strokeWidth={1.9} className="text-[var(--accent)]" />
             国资监管数据生成
           </button>
-          )}
-          <span className="page-hero__stat page-hero__stat--info">
-            共 {pagination.total} 条
-          </span>
-          {abnormalCount > 0 && (
-            <span className="page-hero__stat page-hero__stat--warn">
-              <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-[oklch(0.67_0.14_32)]" />
-              异常 {abnormalCount}
-            </span>
           )}
         </div>
       </div>
