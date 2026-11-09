@@ -514,8 +514,8 @@ export default function ExpertRepositoryPage() {
           )}
           {/* 录入专家仅 admin（2026-10-15 用户裁定）；导出对全部工作台角色保留 */}
           {isAdmin && <button onClick={() => setShowEntryModal(true)} className="neu-btn-xs"><PlusCircle size={12} />录入专家</button>}
-          {/* 一键清空（2026-11-09）：仅 dev 构建——生产禁用钮（后端另有硬闸） */}
-          {isAdmin && process.env.NODE_ENV !== 'production' && (
+          {/* 一键清空（2026-11-09；同日二次裁定撤生产环境闸——全环境可用，保险=确认词+勾选+在评拦截+审计） */}
+          {isAdmin && (
             <button onClick={() => void openClearModal()} className="neu-btn-xs is-danger"><AlertTriangle size={12} />清空专家列表</button>
           )}
           <button onClick={doExport} className="neu-btn-xs" title={selectedIds.size > 0 ? `导出已选的 ${selectedIds.size} 位专家（按公司分组）` : '导出全部专家（按公司分组）'}><Download size={12} />导出Excel{selectedIds.size > 0 && <span className="ml-1 rounded bg-[var(--accent)] px-1 py-0 text-[10px] font-bold text-white">{selectedIds.size}</span>}</button>

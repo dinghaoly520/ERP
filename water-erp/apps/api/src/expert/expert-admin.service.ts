@@ -4153,14 +4153,12 @@ ${combined}`,
    * 一键清空专家库名单（2026-11-09 用户裁定：仅删名单——User(bid_expert ∪ 临时需求方
    * 代表账号)，档案随 User Cascade（ExpertProfile/ExpertCert/履职评价/通知/会话）；
    * **评审记录全部保留**：BidExpert 工作位、评分链、抽取任务、异议、备忘、表决不动。
-   * 强保险：生产禁用 + 确认词「清空」 + 开评标中项目挡闸 + 审计留痕（本动作留痕不可
-   * 被自身清掉——AuditLog→User 是 Cascade，先断链 userId 置 null 保法定留痕再删账号，
-   * 断链行操作人回退「系统」）。fail-closed：漏 FK 引用即事务整体回滚，绝不半清。
+   * 保险（同日二次裁定撤生产环境闸、全环境可用，其余保留）：确认词「清空」 + 开评标
+   * 中项目挡闸 + 审计留痕（本动作留痕不可被自身清掉——AuditLog→User 是 Cascade，
+   * 先断链 userId 置 null 保法定留痕再删账号，断链行操作人回退「系统」）。
+   * fail-closed：漏 FK 引用即事务整体回滚，绝不半清。
    */
   async clearExpertRoster(operatorId: string, confirmText: string, userIds?: string[]) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new ForbiddenException({ error: '生产环境禁用专家名单清空', code: 'EXPERT_CLEAR_DISABLED' });
-    }
     if (confirmText !== '清空') {
       throw new BadRequestException({ error: '确认词不匹配：请输入「清空」二字', code: 'CONFIRM_TEXT_MISMATCH' });
     }

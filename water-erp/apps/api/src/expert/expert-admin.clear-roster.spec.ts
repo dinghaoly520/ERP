@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import { BadRequestException, ForbiddenException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { ExpertAdminService } from './expert-admin.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ExpertCrossConflictService } from './expert-cross-conflict.service';
@@ -26,7 +26,8 @@ describe('ExpertAdminService.clearExpertRoster', () => {
     tx = {
       auditLog: { updateMany: jest.fn().mockResolvedValue(7) },
       reviewTask: { deleteMany: jest.fn().mockResolvedValue(0) },
-      user: { deleteMany: jest.fn().mockResolvedValue(2) },
+      // 按 where.id.in 动态计数（与真实 deleteMany 返回语义一致）
+      user: { deleteMany: jest.fn(async (args: any) => (args?.where?.id?.in ?? []).length) },
     };
     prisma = {
       // 按 where.id.in 动态过滤（目标校验语义与真实查询一致）
@@ -61,9 +62,10 @@ describe('ExpertAdminService.clearExpertRoster', () => {
     expect(prisma.user.findMany).not.toHaveBeenCalled();
   });
 
-  it('生产环境 → 403 硬拒', async () => {
+  it('生产环境同样可用（2026-11-09 二次裁定撤环境闸，其余保险不变）', async () => {
     process.env.NODE_ENV = 'production';
-    await expect(service.clearExpertRoster('op1', '清空', ['e1'])).rejects.toThrow(ForbiddenException);
+    const r = await service.clearExpertRoster('op1', '清空', ['e1']);
+    expect(r.clearedExperts).toBe(1);
     process.env.NODE_ENV = 'test';
   });
 
