@@ -13,7 +13,7 @@ const CHUNKS: TextChunk[] = [
 ];
 
 function mkHarness(opts?: {
-  parseImpl?: (buf: Buffer, mime: string, name: string, onProgress?: (p: number, t: number) => void) => Promise<string>;
+  parseImpl?: (buf: Buffer, mime: string, name: string, onProgress?: (p: number, t: number) => void | Promise<void>) => Promise<string>;
   embedReject?: boolean;
 }) {
   const update = jest.fn().mockResolvedValue(undefined);
@@ -28,14 +28,18 @@ function mkHarness(opts?: {
         status: 'PARSING',
       }),
       findMany: jest.fn().mockResolvedValue([]),
+      // 协作式取消检查点（2026-11-09）：count=1 文件在库；测试可改 0 模拟解析中删除
+      count: jest.fn().mockResolvedValue(1),
       update,
     },
   };
   const storage: any = { download: jest.fn().mockResolvedValue(Buffer.from('pdf-bytes')) };
   const parse = opts?.parseImpl
     ? jest.fn(opts.parseImpl)
-    : jest.fn(async (_b: Buffer, _m: string, _n: string, onProgress?: (p: number, t: number) => void) => {
-        onProgress?.(40, 100);
+    : jest.fn(async (_b: Buffer, _m: string, _n: string, onProgress?: (p: number, t: number) => void | Promise<void>) => {
+        // await 对齐真实 OCR 批循环契约（d4e9ad00b）：回调内检查点抛错=取消向上传播；
+        // 不 await 则取消异常变浮动 rejection 崩 worker（2026-11-09 实录）
+        await onProgress?.(40, 100);
         return '全文正文'.repeat(50);
       });
   const parser: any = { parse };
@@ -91,6 +95,17 @@ describe('KnowledgeParseProcessor 状态机', () => {
     await h.processor.process(mkJob('kf-1'));
     const prog = h.update.mock.calls.map((c) => c[0].data).find((d) => d.processedPages === 40);
     expect(prog).toMatchObject({ processedPages: 40, totalPages: 100 });
+  });
+
+  it('解析中文件被删（count=0）→ 协作式取消：不抛、不写 READY/FAILED、不嵌入（2026-11-09）', async () => {
+    const h = mkHarness();
+    h.prisma.knowledgeFile.count.mockResolvedValue(0); // onProgress 检查点即抛取消
+    await expect(h.processor.process(mkJob('kf-1'))).resolves.toBeUndefined();
+    expect(h.embedding.embed).not.toHaveBeenCalled();
+    const terminal = h.update.mock.calls
+      .map((c) => c[0].data)
+      .find((d) => d.status === 'READY' || d.status === 'FAILED');
+    expect(terminal).toBeUndefined();
   });
 
   it('行不存在（已删除）→ no-op：无 update、无 insert、不抛', async () => {
