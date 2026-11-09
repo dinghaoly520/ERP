@@ -140,10 +140,12 @@ export function ExpertOperationHistory({ open, onClose }: { open: boolean; onClo
   const [dateTo, setDateTo] = useState('');
   const [search, setSearch] = useState('');
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reqIdRef = useRef(0); // 请求序守卫：防抖连发/连点筛选时慢响应覆盖新结果
   const pageSize = 20;
 
   // 注意：doLoad 显式接收 filter 参数，依赖数组仅为 pageSize → 函数引用稳定，避免对象身份导致的 useEffect 死循环
   const doLoad = useCallback(async (p: number, action: string, df: string, dt: string, kw?: string) => {
+    const rid = ++reqIdRef.current;
     setLoading(true);
     try {
       const res = await getExpertOperationHistory({
@@ -153,14 +155,16 @@ export function ExpertOperationHistory({ open, onClose }: { open: boolean; onClo
         endDate: dt || undefined,
         ...(kw ? { search: kw } : {}),
       });
+      if (rid !== reqIdRef.current) return;
       setItems(res.items);
       setTotal(res.total);
       setPage(res.page);
     } catch {
+      if (rid !== reqIdRef.current) return;
       setItems([]);
       setTotal(0);
     } finally {
-      setLoading(false);
+      if (rid === reqIdRef.current) setLoading(false);
     }
   }, [pageSize]);
 

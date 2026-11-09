@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { resolveNotificationLink, openNotificationLink } from '@/lib/notification-link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -363,13 +363,22 @@ export default function NotificationsPage() {
       ? fetchAllActivities(HIST_PAGE, ['LOGIN', 'LOGOUT'], offset, filters)
       : fetchMyActivities(HIST_PAGE, ['LOGIN', 'LOGOUT'], offset, filters));
 
+  // 请求序守卫（与公告/供应商历史 modal 同款）：连点筛选/翻页时慢响应不得覆盖新结果
+  const histReqIdRef = useRef(0);
+
+  /** 首页拉取（开窗/筛选变更共用）：重置列表后请求，过期响应整包丢弃 */
+  const loadHistoryFirstPage = (filters: { action?: string; dateFrom?: string; dateTo?: string; search?: string } = histFilters) => {
+    const rid = ++histReqIdRef.current;
+    setActivities([]); setActTotal(0); setHistBusy(true);
+    fetchHistPage(0, filters)
+      .then(r => { if (rid !== histReqIdRef.current) return; setActivities(r.items); setActTotal(r.total); })
+      .catch(() => { if (rid !== histReqIdRef.current) return; setActivities([]); setActTotal(0); })
+      .finally(() => { if (rid === histReqIdRef.current) setHistBusy(false); });
+  };
+
   const openHistory = () => {
     setHistoryOpen(true);
-    setActivities([]); setActTotal(0); setHistBusy(true);
-    fetchHistPage(0)
-      .then(r => { setActivities(r.items); setActTotal(r.total); })
-      .catch(() => { setActivities([]); setActTotal(0); })
-      .finally(() => setHistBusy(false));
+    loadHistoryFirstPage();
   };
 
   /** 筛选变更：setState 与请求同 tick——patch 显式合并后下发，规避 setState 后
@@ -387,24 +396,24 @@ export default function NotificationsPage() {
       ...patch,
     };
     const clean = Object.fromEntries(Object.entries(next).filter(([, v]) => v));
-    setActivities([]); setActTotal(0); setHistBusy(true);
-    fetchHistPage(0, clean)
-      .then(r => { setActivities(r.items); setActTotal(r.total); })
-      .catch(() => { setActivities([]); setActTotal(0); })
-      .finally(() => setHistBusy(false));
+    loadHistoryFirstPage(clean);
   };
 
   const clearHistFilters = () => applyHist({ action: '', dateFrom: '', dateTo: '', search: '' });
 
   const loadMoreHistory = () => {
+    const rid = ++histReqIdRef.current;
     setHistBusy(true);
     fetchHistPage(activities.length)
-      .then(r => setActivities(prev => {
-        const seen = new Set(prev.map(x => x.id));
-        return [...prev, ...r.items.filter(x => !seen.has(x.id))];
-      }))
+      .then(r => {
+        if (rid !== histReqIdRef.current) return;
+        setActivities(prev => {
+          const seen = new Set(prev.map(x => x.id));
+          return [...prev, ...r.items.filter(x => !seen.has(x.id))];
+        });
+      })
       .catch(() => toast.error('加载失败，请重试'))
-      .finally(() => setHistBusy(false));
+      .finally(() => { if (rid === histReqIdRef.current) setHistBusy(false); });
   };
 
   /** 导出 txt：逐页拉全量（受当前视野口径），按天分段正序落档（UTF-8 BOM） */

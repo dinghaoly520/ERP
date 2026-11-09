@@ -101,6 +101,7 @@ export interface OperationLogExportEntry {
 const PORTAL_LABELS: Record<string, string> = {
   web: '采购管理端', bid: '开评标端', supplier: '供应商门户',
   expert: '专家门户', public: '信息门户', mobile: '移动驾驶舱',
+  assistant: '智能助手', mall: '采购商城',
 };
 
 /** 生成请求日志 txt：头块（筛选摘要/条数）+ 逐行请求记录（新→旧原序，时间正序呈现） */
