@@ -18,7 +18,7 @@ import { SupplierTimeline } from '@/components/supplier/timeline';
 import { ApprovalHistory } from '@/components/supplier/approval-history';
 import { PortraitTab } from '@/components/supplier/portrait-tab';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
-import { copyToClipboard } from '@/lib/copy-to-clipboard';
+import { CopyIconButton } from '@/components/copy-icon-button';
 
 // 2026-10-23 板块合并（11→5）：info=基本信息+联系人+归属公司+变更记录、qualifications=资质材料+文件档案、
 // evaluations=履约评价+奖惩记录、rsvp=邀请回执+沟通记录；旧深链键经 MERGED_TAB 归组映射
@@ -35,7 +35,7 @@ const STATUS_TONE: Record<string, 'green' | 'blue' | 'orange' | 'red' | 'gray'> 
 const CHANGE_TONE: Record<string, 'blue' | 'green' | 'red'> = { PENDING: 'blue', APPROVED: 'green', REJECTED: 'red' };
 const GRADE_TONE: Record<string, string> = { A: 'green', B: 'blue', C: 'orange', D: 'yellow', E: 'red' };
 
-/** 单字段展示：空值淡化；copyable 启用点击复制。
+/** 单字段展示：空值淡化；copy 启用值右侧复制图标按钮（2026-11-09 统一图标形态，与专家详情同款）。
  *  紧凑定义项（2026-11-06 参照专家详情 2026-11-04 口径：白瓷片占位大、显散）——
  *  无底色无投影，纯 label 小字 + 值排版，靠网格与 FieldGroup 分组组织 */
 
@@ -44,25 +44,27 @@ function InfoField({
   value,
   mono = false,
   full = false,
-  copyable = false,
+  copy,
 }: {
   label: React.ReactNode; // 允许 PII 揭示按钮随标签内联
   value?: string | null;
   mono?: boolean;
   full?: boolean;
-  copyable?: boolean;
+  /** 明文字段只给 label；掩码 PII 再给 getText（reveal 取明文，禁止复制掩码串） */
+  copy?: { label: string; getText?: () => Promise<string | null | undefined> };
 }) {
   const empty = !value || !value.trim();
   return (
     <div className={`group flex min-w-0 flex-col gap-1 py-1 ${full ? 'col-span-full' : ''}`}>
       <span className="text-[10px] font-semibold uppercase tracking-[0.08em] leading-none text-[var(--muted-foreground)]">{label}</span>
-      <span
-        className={`break-words text-[13px] font-semibold leading-snug tabular-nums text-[var(--foreground)] ${mono ? 'font-mono tracking-tight' : ''} ${empty ? 'font-normal text-[var(--muted-foreground)]/55' : ''} ${copyable && !empty ? 'cursor-pointer transition-colors group-hover:text-[var(--accent)]' : ''}`}
-        title={copyable && !empty ? '点击复制' : undefined}
-        onClick={copyable && !empty ? async () => { if (await copyToClipboard(value!)) toast.success(`${label} 已复制`); else toast.error('复制失败，请手动选择复制'); } : undefined}
-      >
-        {empty ? '—' : value}
-      </span>
+      <div className="flex min-w-0 items-center gap-1">
+        <span
+          className={`min-w-0 break-words text-[13px] font-semibold leading-snug tabular-nums text-[var(--foreground)] ${mono ? 'font-mono tracking-tight' : ''} ${empty ? 'font-normal text-[var(--muted-foreground)]/55' : ''}`}
+        >
+          {empty ? '—' : value}
+        </span>
+        {copy && (!empty || copy.getText) && <CopyIconButton value={value} getText={copy.getText} label={copy.label} />}
+      </div>
     </div>
   );
 }
@@ -357,7 +359,7 @@ export default function SupplierDetailPage() {
 
   const tabs: { key: TabKey; label: string; count?: number }[] = [
     { key: 'info', label: '基本信息' },
-    { key: 'portrait', label: '供应商画像' },
+    { key: 'portrait', label: '画像与动态' },
     // 合并计数（2026-10-23）：资质+文件 / 评价+奖惩；邀请数沿用回执统计
     { key: 'qualifications', label: '资质材料', count: qualifications.length },
     { key: 'evaluations', label: '履约评价', count: evaluations.length },
@@ -628,9 +630,9 @@ export default function SupplierDetailPage() {
                 <div className="min-w-0 flex-1">
                   <h4 className="mb-1.5 break-words text-[17px] font-black leading-tight tracking-tight text-[var(--foreground)]">{supplier.name}</h4>
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] font-semibold text-[var(--accent)]" style={{ background: "color-mix(in oklch, var(--accent) 7%, transparent)", cursor: 'pointer' }} title="点击复制" onClick={async () => { if (await copyToClipboard(supplier.creditCode ?? '')) toast.success('统一社会信用代码已复制'); else toast.error('复制失败，请手动选择复制'); }}>
+                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] font-semibold text-[var(--accent)]" style={{ background: "color-mix(in oklch, var(--accent) 7%, transparent)" }} title="统一社会信用代码">
                       {supplier.creditCode}
-                      <span className="text-[9px] font-sans font-bold opacity-60">复制</span>
+                      <CopyIconButton value={supplier.creditCode} label="统一社会信用代码" />
                     </span>
                     {normalizeEnterpriseType(supplier.enterpriseType) && (
                       <span className="rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)] px-2 py-0.5 text-[10px] font-semibold text-[color:var(--muted-foreground)]">{normalizeEnterpriseType(supplier.enterpriseType)}</span>
@@ -648,19 +650,21 @@ export default function SupplierDetailPage() {
               <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
                 <FieldGroup label="法定代表人" />
                 <InfoField label="姓名" value={supplier.legalPerson} />
-                <InfoField label={<span className="inline-flex items-center">身份证号<PiiRevealBtn entity="supplier" field="legalPersonIdCard" /></span>} value={revealedPii["supplier::legalPersonIdCard"] ?? supplier.legalPersonIdCard} mono />
-                <InfoField label={<span className="inline-flex items-center">联系电话<PiiRevealBtn entity="supplier" field="legalPersonPhone" /></span>} value={revealedPii["supplier::legalPersonPhone"] ?? supplier.legalPersonPhone} mono />
+                <InfoField label={<span className="inline-flex items-center">身份证号<PiiRevealBtn entity="supplier" field="legalPersonIdCard" /></span>} value={revealedPii["supplier::legalPersonIdCard"] ?? supplier.legalPersonIdCard} mono
+                  copy={{ label: '身份证号', getText: async () => revealedPii["supplier::legalPersonIdCard"] ?? (await revealSupplierField(id, { entity: 'supplier', field: 'legalPersonIdCard' })).value }} />
+                <InfoField label={<span className="inline-flex items-center">联系电话<PiiRevealBtn entity="supplier" field="legalPersonPhone" /></span>} value={revealedPii["supplier::legalPersonPhone"] ?? supplier.legalPersonPhone} mono
+                  copy={{ label: '联系电话', getText: async () => revealedPii["supplier::legalPersonPhone"] ?? (await revealSupplierField(id, { entity: 'supplier', field: 'legalPersonPhone' })).value }} />
                 <InfoField label="国别" value={supplier.country} />
 
                 <FieldGroup label="注册与资质" />
                 <InfoField label="注册资金" value={supplier.registeredCapital} />
                 <InfoField label="成立日期" value={supplier.establishedDate ? new Date(supplier.establishedDate).toLocaleDateString('zh-CN') : null} />
-                <InfoField label="机构代码" value={supplier.organizationCode} mono copyable />
+                <InfoField label="机构代码" value={supplier.organizationCode} mono copy={{ label: '机构代码' }} />
                 <InfoField label="行政区域" value={supplier.region} />
 
                 <FieldGroup label="联系方式" />
-                <InfoField label="公司邮箱" value={supplier.companyEmail} copyable />
-                <InfoField label="公司官网" value={supplier.companyWebsite} copyable />
+                <InfoField label="公司邮箱" value={supplier.companyEmail} copy={{ label: '公司邮箱' }} />
+                <InfoField label="公司官网" value={supplier.companyWebsite} copy={{ label: '公司官网' }} />
               </div>
 
               {/* 长文本（全宽瓷片） */}
@@ -790,11 +794,8 @@ export default function SupplierDetailPage() {
               <span className="inline-flex items-center gap-1"><RotateCcw size={11} /> 最后更新 {new Date(supplier.updatedAt).toLocaleDateString('zh-CN')}</span>
             </div>
 
-            {/* 生命周期时间线 */}
-            <section className="neu-card-static !rounded-2xl p-5">
-              <SectionTitle icon={RotateCcw}>生命周期</SectionTitle>
-              <SupplierTimeline supplierId={id as string} />
-            </section>
+            {/* 生命周期时间线已移至「画像」tab（2026-11-09 用户裁定：
+                先显示生命周期、再给出画像；基本信息不承载动态事件流） */}
 
             {/* 审核历史（不可变留痕） */}
             <section className="neu-card-static !rounded-2xl p-5">
@@ -804,9 +805,15 @@ export default function SupplierDetailPage() {
           </div>
         )}
 
-        {/* 供应商画像 */}
+        {/* 供应商画像（2026-11-09 用户裁定：生命周期在前、画像在后） */}
         {activeTab === 'portrait' && (
-          <section><PortraitTab supplierId={id as string} /></section>
+          <div className="space-y-5">
+            <section className="neu-card-static !rounded-2xl p-5">
+              <SectionTitle icon={RotateCcw}>生命周期</SectionTitle>
+              <SupplierTimeline supplierId={id as string} />
+            </section>
+            <section><PortraitTab supplierId={id as string} /></section>
+          </div>
         )}
 
         {/* 联系人 */}
@@ -827,9 +834,9 @@ export default function SupplierDetailPage() {
                       <tr key={c.id}>
                         <td className="font-semibold text-[var(--foreground)]">{c.name}</td>
                         <td className="text-[var(--muted-foreground)]">{c.gender || '—'}</td>
-                        <td className="text-[var(--muted-foreground)] font-mono text-xs"><span className="inline-flex items-center">{revealedPii[`contact:${c.id}:phone`] ?? c.phone}<PiiRevealBtn entity="contact" targetId={c.id} field="phone" /></span></td>
-                        <td className="text-[var(--muted-foreground)] font-mono text-xs"><span className="inline-flex items-center">{revealedPii[`contact:${c.id}:idCard`] ?? c.idCard ?? '—'}{c.idCard ? <PiiRevealBtn entity="contact" targetId={c.id} field="idCard" /> : null}</span></td>
-                        <td className="text-[var(--muted-foreground)]"><span className="inline-flex items-center">{revealedPii[`contact:${c.id}:email`] ?? c.email ?? '—'}{c.email ? <PiiRevealBtn entity="contact" targetId={c.id} field="email" /> : null}</span></td>
+                        <td className="text-[var(--muted-foreground)] font-mono text-xs"><span className="inline-flex items-center">{revealedPii[`contact:${c.id}:phone`] ?? c.phone}<PiiRevealBtn entity="contact" targetId={c.id} field="phone" /><CopyIconButton label="联系电话" getText={async () => revealedPii[`contact:${c.id}:phone`] ?? (await revealSupplierField(id, { entity: 'contact', targetId: c.id, field: 'phone' })).value} /></span></td>
+                        <td className="text-[var(--muted-foreground)] font-mono text-xs"><span className="inline-flex items-center">{revealedPii[`contact:${c.id}:idCard`] ?? c.idCard ?? '—'}{c.idCard ? <><PiiRevealBtn entity="contact" targetId={c.id} field="idCard" /><CopyIconButton label="身份证号" getText={async () => revealedPii[`contact:${c.id}:idCard`] ?? (await revealSupplierField(id, { entity: 'contact', targetId: c.id, field: 'idCard' })).value} /></> : null}</span></td>
+                        <td className="text-[var(--muted-foreground)]"><span className="inline-flex items-center">{revealedPii[`contact:${c.id}:email`] ?? c.email ?? '—'}{c.email ? <><PiiRevealBtn entity="contact" targetId={c.id} field="email" /><CopyIconButton label="邮箱" getText={async () => revealedPii[`contact:${c.id}:email`] ?? (await revealSupplierField(id, { entity: 'contact', targetId: c.id, field: 'email' })).value} /></> : null}</span></td>
                         <td className="text-[var(--muted-foreground)]">{c.position || '—'}</td>
                         <td>
                           {c.isPrimary

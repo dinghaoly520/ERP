@@ -3694,7 +3694,7 @@ export class SupplierService {
     ]);
     if (!supplier) throw new NotFoundException('供应商不存在');
 
-    const events: Array<{ type: string; label: string; detail: string; at: string }> = [];
+    const events: Array<{ type: string; label: string; detail: string; at: string; grade?: string }> = [];
 
     // #1 注册
     const regLabel = supplier.isTemporary ? '临时注册' : '注册提交';
@@ -3716,7 +3716,8 @@ export class SupplierService {
         SUPPLIER_CHANGE_REJECTED: '资料变更驳回',
         SUPPLIER_CONVERTED_REGULAR: '转为正式供应商',
         SUPPLIER_TAGS_UPDATED: '业务标签更新',
-        SUPPLIER_EVALUATION_CREATED: '绩效评价',
+        // SUPPLIER_EVALUATION_CREATED 不在此展示：与评价表同事件双写（两次独立写入毫秒级时差），
+        // 归 #3 按 ±5s 时间窗配对去重，防止同一次评价出两条
       };
       const label = labelMap[log.action];
       if (!label) continue; // 跳过无标签的审计事件
@@ -3727,7 +3728,6 @@ export class SupplierService {
         detail = `${label}：${supplierChangeFieldLabel(deets.field)}`;
       }
       if (deets?.reason) detail += `（${deets.reason}）`;
-      if (deets?.finalGrade) detail = `绩效评价：${deets.finalGrade} 级`;
       if (deets?.from) detail = `从「${deets.from}」恢复`;
       if (deets?.before && deets?.after) {
         const before = Array.isArray(deets.before) ? deets.before.join('、') || '（空）' : '';
@@ -3737,12 +3737,22 @@ export class SupplierService {
       events.push({ type: log.action, label, detail, at: log.createdAt.toISOString() });
     }
 
-    // #3 绩效评价（扣除 auditLog 中已覆盖的，补充遗漏的）
-    const auditEvalAts = new Set(auditLogs.filter(l => l.action === 'SUPPLIER_EVALUATION_CREATED').map(l => l.createdAt.getTime()));
+    // #3 绩效评价：评价表为准（带评价人）。评价记录与审计日志是两次独立写入、毫秒级时差，
+    //    按就近 ±5s 时间窗配对去重——命中只出一条；未配对的审计条目（评价已被删）兜底展示防丢事件
+    const evalAudits = auditLogs.filter(l => l.action === 'SUPPLIER_EVALUATION_CREATED');
+    const pairedAuditIdx = new Set<number>();
     for (const e of evaluations) {
-      if (auditEvalAts.has(e.createdAt.getTime())) continue;
-      events.push({ type: 'evaluation', label: '绩效评价', detail: `${e.finalGrade} 级 · 评价人：${e.evaluator?.displayName || '—'}`, at: e.createdAt.toISOString() });
+      const eAt = e.createdAt.getTime();
+      evalAudits.forEach((l, idx) => {
+        if (pairedAuditIdx.has(idx)) return;
+        if (Math.abs(l.createdAt.getTime() - eAt) <= 5_000) pairedAuditIdx.add(idx);
+      });
+      events.push({ type: 'evaluation', label: '绩效评价', detail: `评价人：${e.evaluator?.displayName || '—'}`, grade: e.finalGrade, at: e.createdAt.toISOString() });
     }
+    evalAudits.forEach((l, idx) => {
+      if (pairedAuditIdx.has(idx)) return;
+      events.push({ type: 'SUPPLIER_EVALUATION_CREATED', label: '绩效评价', detail: `评价人：${l.user?.displayName || '—'}`, grade: (l.details as any)?.finalGrade, at: l.createdAt.toISOString() });
+    });
 
     // #4 参与项目（投标/合作）
     for (const bs of bidSuppliers) {
