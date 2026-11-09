@@ -7,7 +7,7 @@ import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualificati
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification } from '@/lib/types';
 import type { RsvpHistoryResult, TagVocabularyItem } from '@/lib/api/supplier';
 import { getRsvpHistory } from '@/lib/api/supplier';
-import { ApprovalTimeline } from '@/components/workbench/approval-timeline';
+// ApprovalTimeline 已随变更表格版下线（2026-11-09）：混排组件内自带展开时间线
 import { AlertBanner, type AlertSeverity, StatusBadge, Modal } from '@/components/workbench';
 import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
 import { LEVEL_LABEL, LEVEL_COLOR, SUPPLIER_STATUS_LABEL } from '@water-erp/shared';
@@ -15,7 +15,7 @@ import type { AuthUser } from '@/lib/api/auth';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { CheckCircle2, Check, Search, X, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, User, Users, MapPin, Phone, Mail, Hash, FolderOpen, Plus, Loader2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, AtSign, AlertTriangle } from 'lucide-react';
 import { SupplierTimeline } from '@/components/supplier/timeline';
-import { ApprovalHistory } from '@/components/supplier/approval-history';
+import { ApprovalChangeHistory } from '@/components/supplier/approval-change-history';
 import { PortraitTab } from '@/components/supplier/portrait-tab';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import { CopyIconButton } from '@/components/copy-icon-button';
@@ -32,7 +32,6 @@ const STATUS_LABEL: Record<string, string> = SUPPLIER_STATUS_LABEL; // 统一 sh
 const STATUS_TONE: Record<string, 'green' | 'blue' | 'orange' | 'red' | 'gray'> = {
   APPROVED: 'green', PENDING: 'blue', RETURNED: 'orange', REJECTED: 'red', DISABLED: 'gray', BLACKLIST: 'red',
 };
-const CHANGE_TONE: Record<string, 'blue' | 'green' | 'red'> = { PENDING: 'blue', APPROVED: 'green', REJECTED: 'red' };
 const GRADE_TONE: Record<string, string> = { A: 'green', B: 'blue', C: 'orange', D: 'yellow', E: 'red' };
 
 /** 单字段展示：空值淡化；copy 启用值右侧复制图标按钮（2026-11-09 统一图标形态，与专家详情同款）。
@@ -98,7 +97,6 @@ export default function SupplierDetailPage() {
   const [qualifications, setQualifications] = useState<SupplierQualification[]>([]);
   const [evaluations, setEvaluations] = useState<SupplierEvaluation[]>([]);
   const [changes, setChanges] = useState<SupplierChangeRecord[]>([]);
-  const [expandedChangeId, setExpandedChangeId] = useState<string | null>(null);
   // 履约评价行展开（2026-10-23）：点击行看详情——四维等级/评语/评价人/关联项目（与变更记录同款模式）
   const [expandedEvalId, setExpandedEvalId] = useState<string | null>(null);
   // tab 深链（2026-09-29 审批「详情」入口直达资质材料）：?tab=xxx——初值恒 info（SSR/客户端
@@ -775,7 +773,17 @@ export default function SupplierDetailPage() {
             {/* 生命周期时间线已移至「画像」tab（2026-11-09 用户裁定：
                 先显示生命周期、再给出画像；基本信息不承载动态事件流） */}
 
-            {/* 审核历史已并入下方「审核与变更记录」节（2026-11-09 用户裁定） */}
+            {/* 审核与变更记录（2026-11-09 用户裁定：注册审核留痕与资料变更合并单卡混排，
+                同一套行样式按时间倒序；不再分立两节/两种 UI） */}
+            <section className="neu-card-static !rounded-2xl p-5">
+              <SectionTitle icon={FileCheck}>审核与变更记录</SectionTitle>
+              <ApprovalChangeHistory
+                supplierId={id as string}
+                supplierName={supplier.name}
+                changes={changes}
+                onReviewChange={(changeId, type) => { setReviewReason(''); setReviewModal({ changeId, type }); }}
+              />
+            </section>
           </div>
         )}
 
@@ -1250,81 +1258,8 @@ export default function SupplierDetailPage() {
           </div>
         )}
 
-        {/* 审核与变更记录（2026-11-09 用户裁定：审核历史与资料变更记录合并为一节） */}
-        {activeTab === 'info' && (
-          <div className="mt-8">
-            <SectionTitle icon={FileCheck}>审核与变更记录</SectionTitle>
-            <ApprovalHistory supplierId={id as string} />
-            {/* 子分区：资料变更记录 */}
-            <div className="mb-3 mt-6 flex items-center gap-2">
-              <Pencil size={13} className="text-[var(--muted-foreground)]" />
-              <span className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">资料变更记录</span>
-              {changes.length > 0 && <span className="text-[10px] text-[var(--muted-foreground)]/60">{changes.length} 条</span>}
-            </div>
-            {changes.length === 0 ? (
-              <p className="text-sm text-[var(--muted-foreground)] py-6 text-center">暂无变更记录</p>
-            ) : (
-              <div className="neu-table-card overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="neu-table w-full min-w-[680px]">
-                    <thead>
-                      <tr>
-                        <th>变更字段</th><th>原值</th>
-                        <th>新值</th><th>原因</th>
-                        <th>状态</th><th>变更时间</th>
-                        <th className="text-right">操作</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {changes.map(c => (
-                        <>
-                        <tr key={c.id} className="row-clickable" onClick={() => setExpandedChangeId(expandedChangeId === c.id ? null : c.id)}>
-                          <td className="font-semibold text-[var(--foreground)]">
-                            {c.fieldLabel || '资料信息'}
-                            {c.fieldName === 'convertToRegular' && (
-                              <span className="ml-1 inline-flex items-center rounded-full bg-[color-mix(in_oklch,var(--accent)_15%,transparent)] px-1.5 py-0.5 text-[9px] font-bold text-[var(--accent)]">转正</span>
-                            )}
-                          </td>
-                          <td className="text-[var(--muted-foreground)] max-w-[150px] truncate">{c.oldValue || '—'}</td>
-                          <td className="text-[var(--accent)] font-medium max-w-[150px] truncate">{c.fieldName === 'convertToRegular' ? '企业资料+联系人+资质' : (c.newValue || '—')}</td>
-                          <td className="text-[var(--muted-foreground)] max-w-[150px] truncate">{c.reason || '—'}</td>
-                          <td><StatusBadge tone={CHANGE_TONE[c.status] || 'gray'}>{c.status === 'PENDING' ? '待审批' : c.status === 'APPROVED' ? '已通过' : '已拒绝'}</StatusBadge></td>
-                          <td className="text-[var(--muted-foreground)]">{new Date(c.createdAt).toLocaleDateString('zh-CN')}</td>
-                          <td className="text-right">
-                            {c.status === 'PENDING' && (
-                              <div className="flex justify-end gap-1.5">
-                                <button onClick={() => { setReviewReason(''); setReviewModal({ changeId: c.id, type: 'approve' }); }} className="neu-btn-xs is-success">通过</button>
-                                <button onClick={() => { setReviewReason(''); setReviewModal({ changeId: c.id, type: 'reject' }); }} className="neu-btn-xs is-danger">拒绝</button>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                        {expandedChangeId === c.id && (
-                          <tr>
-                            <td colSpan={7} className="bg-[color-mix(in_oklch,var(--foreground)_3%,transparent)] px-4 py-2.5">
-                              <ApprovalTimeline compact events={[
-                                { action: '提交变更申请', actor: supplier.name, time: c.createdAt, note: c.reason, outcome: 'pending' as const },
-                                ...(c.status !== 'PENDING' ? [{
-                                  action: c.status === 'APPROVED' ? '审批通过' : '审批拒绝',
-                                  // S10 终稿：后端已 enrich reviewedByName；reviewedBy（user id）仅作历史数据兜底经形状守卫隐藏
-                    actor: (c as any).reviewedByName ?? ((typeof c.reviewedBy === 'string' && /^[a-z0-9]{20,}$/.test(c.reviewedBy)) ? undefined : (c.reviewedBy ?? undefined)),
-                                  time: c.reviewedAt ?? null,
-                                  note: c.rejectReason ?? null,
-                                  outcome: c.status === 'APPROVED' ? 'approved' as const : 'rejected' as const,
-                                }] : []),
-                              ]} />
-                            </td>
-                          </tr>
-                        )}
-                        </>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+      {/* 审核与变更记录单卡混排已上移至基本信息流（2026-11-09 用户裁定：
+          不再底部另立分节、不再两套 UI）；归属公司节已删同日裁定 */}
       {/* 归属公司节已删（2026-11-09 用户裁定）：本视野库内归属表与 leader 停用/恢复操作
           整块移除；后端 company-links 端点保留未动（:3004 供应商端自视归属另有消费面） */}
 
