@@ -368,3 +368,29 @@ describe('批次级缓存与并发合并（2026-11-06 知识库 5 份重复实�
     expect(maxInFlight).toBe(1); // 计算流唯一：批次串行、无重复并发
   });
 });
+
+describe('onProgress 协作式取消（2026-11-09 删除解析中文件实录）', () => {
+  it('异步 onProgress 抛错 → 批循环立即中止，后续批次不再发起', async () => {
+    const svc = await makeService('http://a:8100');
+    const records: FetchRecord[] = [];
+    (global as any).fetch = mockRecordingFetch(records);
+    const err = new Error('文件已删除，解析中止');
+    // 现状（未 await 回调）下拒绝是 unhandled——抑制防进程崩，让断言正常说话
+    const swallowed: unknown[] = [];
+    const onUnhandled = (e: unknown) => swallowed.push(e);
+    process.on('unhandledRejection', onUnhandled);
+
+    await expect(
+      svc.ocrPdf(Buffer.alloc(21 * 1024 * 1024), 200, async (processed: number) => {
+        if (processed > 0) throw err; // 批 1 完成后的进度回调取消（0 页起始调用放行）
+      }),
+    ).rejects.toThrow('文件已删除，解析中止');
+
+    process.off('unhandledRejection', onUnhandled);
+
+    // 探测 1 + 批次 1（被取消，批 2/3 不得发起）
+    const batches = records.filter((r) => r.form.page_range).length;
+    expect(batches).toBe(1);
+    expect(swallowed).toHaveLength(0); // 修复后回调被 await，无 unhandled 拒绝
+  });
+});

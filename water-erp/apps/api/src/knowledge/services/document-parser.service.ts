@@ -13,7 +13,8 @@ const execFileAsync = promisify(execFile);
 
 const MIN_CHARS_PER_PAGE = 50;
 
-/** 解析进度回调：processed/total 为页数（OCR 批次粒度）；total 在页数探测后即首次上报 */
+/** 解析进度回调：processed/total 为页数（OCR 批次粒度）；total 在页数探测后即首次上报。
+ *  类型保持 void（特例兼容同步任意返回/异步 Promise）——消费链路 await 后异步抛错=协作式取消（2026-11-09）。 */
 export type ParseProgressFn = (processed: number, total: number) => void;
 
 @Injectable()

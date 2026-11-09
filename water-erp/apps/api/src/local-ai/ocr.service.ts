@@ -216,6 +216,8 @@ export class OcrService {
   async ocrPdf(
     buffer: Buffer,
     maxPages = OCR_UNLIMITED_PAGES,
+      /** 进度回调；类型保持 void（特例兼容同步任意返回/异步 Promise）——调用点 await，
+     *  异步回调抛错=协作式取消（中止批循环，2026-11-09 删除解析中文件实录） */
     onProgress?: (processed: number, total: number) => void,
   ): Promise<OcrResult> {
     const key = this.cacheKey('pdf', buffer, maxPages, null);
@@ -227,13 +229,13 @@ export class OcrService {
   private async ocrPdfUncached(
     buffer: Buffer,
     maxPages: number,
-    onProgress?: (processed: number, total: number) => void,
+    onProgress?: (processed: number, total: number) => void | Promise<void>,
   ): Promise<OcrResult> {
     const fileSizeMB = buffer.length / (1024 * 1024);
 
     if (fileSizeMB <= this.largeFileMb) {
       const result = await this.ocrPdfSingle(buffer, maxPages, null);
-      onProgress?.(result.processedPages, result.pageCount);
+      await onProgress?.(result.processedPages, result.pageCount);
       return result;
     }
 
@@ -299,7 +301,7 @@ export class OcrService {
   private async ocrPdfBatched(
     buffer: Buffer,
     maxPages: number,
-    onProgress?: (processed: number, total: number) => void,
+    onProgress?: (processed: number, total: number) => void | Promise<void>,
   ): Promise<OcrResult> {
     const totalPages = await this.getPdfPageCount(buffer);
     const effectivePages =
@@ -308,7 +310,7 @@ export class OcrService {
     const allPages: Array<{ page: number; text: string }> = [];
 
     // 页数探测完成即报总数（消费端可先渲染「x/y 页」分母）
-    onProgress?.(0, effectivePages);
+    await onProgress?.(0, effectivePages);
 
     this.logger.log(
       `Batch OCR: PDF has ${totalPages} pages, will process ${effectivePages} pages in ${batches} batches`,
@@ -337,7 +339,7 @@ export class OcrService {
 
       const pages = this.normalizeBatchPages(result, startPage);
       allPages.push(...pages);
-      onProgress?.(allPages.length, effectivePages);
+      await onProgress?.(allPages.length, effectivePages);
 
       this.logger.log(
         `Batch ${batch + 1} complete: ${result.processedPages} pages, total accumulated: ${allPages.length}`,
