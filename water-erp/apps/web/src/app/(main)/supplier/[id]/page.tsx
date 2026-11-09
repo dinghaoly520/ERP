@@ -673,44 +673,20 @@ export default function SupplierDetailPage() {
               </div>
             </section>
 
-            {/* 业务标签 + 主要联系人（双列） */}
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-              {/* 业务标签 */}
-              <section className="neu-card-static !rounded-2xl p-5">
-                <SectionTitle icon={Briefcase}>业务标签</SectionTitle>
-                {(supplier as any).tags?.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {(supplier as any).tags.map((tag: string, i: number) => (
-                      <span key={i} className="biz-tag">{tag}</span>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-[var(--muted-foreground)]">暂无业务标签，供应商可通过变更申请补充</p>
-                )}
-              </section>
-
-              {/* 主要联系人 */}
-              <section className="neu-card-static !rounded-2xl p-5">
-                <SectionTitle icon={User}>主要联系人</SectionTitle>
-                {primaryContact ? (
-                  <div>
-                    <div className="flex items-center gap-2.5">
-                      <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-sm font-black text-[var(--accent)]">{primaryContact.name[0]}</span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-[var(--foreground)]">{primaryContact.name}</p>
-                        {primaryContact.position && <span className="text-[11px] text-[var(--muted-foreground)]">{primaryContact.position}</span>}
-                      </div>
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2.5">
-                      <InfoField label="联系电话" value={primaryContact.phone} mono copyable />
-                      {primaryContact.email && <InfoField label="邮箱" value={primaryContact.email} copyable />}
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-xs text-[var(--muted-foreground)]">暂无主要联系人</p>
-                )}
-              </section>
-            </div>
+            {/* 业务标签（2026-11-09 主要联系人卡片删除：与「联系人管理」表重复，
+                联系人信息统一归联系人管理表呈现） */}
+            <section className="neu-card-static !rounded-2xl p-5">
+              <SectionTitle icon={Briefcase}>业务标签</SectionTitle>
+              {(supplier as any).tags?.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {(supplier as any).tags.map((tag: string, i: number) => (
+                    <span key={i} className="biz-tag">{tag}</span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-[var(--muted-foreground)]">暂无业务标签，供应商可通过变更申请补充</p>
+              )}
+            </section>
 
             {/* 银行账户（注册 2.0） */}
             <section>
