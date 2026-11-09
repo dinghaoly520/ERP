@@ -1,9 +1,34 @@
 'use client';
 
-import { Loader2, AlertTriangle, Check, Palette, LayoutDashboard } from 'lucide-react';
+import { Loader2, AlertTriangle, Check, Palette, LayoutDashboard, Compass, Home } from 'lucide-react';
 import { useState } from 'react';
-import { THEME_OPTIONS, type UserSettings } from '@/lib/api/user-settings';
+import { THEME_OPTIONS, HOME_PAGE_OPTIONS, type UserSettings } from '@/lib/api/user-settings';
 import { useUserSettings } from '@/lib/user-settings-context';
+
+/** 设置行右列的枚举按钮组（≤4 项静态枚举；激活=品牌蓝实底白字） */
+function OptionButtons<T extends string>({ value, options, onSelect, disabled }: {
+  value: T;
+  options: ReadonlyArray<{ value: T; label: string }>;
+  onSelect: (v: T) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap justify-end gap-1.5">
+      {options.map(option => (
+        <button key={option.value} type="button" disabled={disabled} onClick={() => onSelect(option.value)}
+          className={[
+            'rounded-[12px] px-3.5 py-1.5 text-[12px] font-semibold transition-all duration-200',
+            value === option.value
+              ? 'bg-[var(--accent)] text-white'
+              : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]',
+          ].join(' ')}
+          style={value !== option.value ? { backgroundColor: 'oklch(0.55 0.03 258 / 0.05)' } : undefined}>
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export function TabPreferences() {
   const { settings, loading, updateSettings } = useUserSettings();
@@ -38,14 +63,14 @@ export function TabPreferences() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* ══ 外观与导航 ══ */}
+      {/* ══ 外观 ══ */}
       <div className="wb-panel p-6">
         <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
           <Palette size={12} strokeWidth={1.8} className="text-[var(--accent)]" />
-          外观与导航
+          外观
         </h3>
 
-        <div className="mt-5 space-y-0">
+        <div className="mt-2">
           {/* 主题颜色 */}
           <div className="flex items-start justify-between gap-6 py-4">
             <div className="min-w-0 flex-1">
@@ -55,20 +80,12 @@ export function TabPreferences() {
               </div>
               <p className="mt-0.5 text-[12px] leading-relaxed text-[var(--muted-foreground)]">选择偏好的界面配色方案</p>
             </div>
-            <div className="flex gap-1.5">
-              {THEME_OPTIONS.map(option => (
-                <button key={option.value} type="button" disabled={saving} onClick={() => handleUpdate({ theme: option.value })}
-                  className={[
-                    'rounded-[12px] px-3.5 py-1.5 text-[12px] font-semibold transition-all duration-200',
-                    settings.theme === option.value
-                      ? 'bg-[var(--accent)] text-white'
-                      : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]',
-                  ].join(' ')}
-                  style={settings.theme !== option.value ? { backgroundColor: 'oklch(0.55 0.03 258 / 0.05)' } : undefined}>
-                  {option.label}
-                </button>
-              ))}
-            </div>
+            <OptionButtons
+              value={settings.theme}
+              options={THEME_OPTIONS}
+              onSelect={(v) => void handleUpdate({ theme: v })}
+              disabled={saving}
+            />
           </div>
 
           <hr className="wb-section-rule" />
@@ -82,11 +99,38 @@ export function TabPreferences() {
               </div>
               <p className="mt-0.5 text-[12px] leading-relaxed text-[var(--muted-foreground)]">减少页面间距，同一屏幕显示更多内容</p>
             </div>
-            <button type="button" onClick={() => handleUpdate({ compactMode: !settings.compactMode })} disabled={saving}
+            <button type="button" onClick={() => void handleUpdate({ compactMode: !settings.compactMode })} disabled={saving}
               className="relative h-6 w-11 shrink-0 rounded-full transition-all duration-200"
               style={{ backgroundColor: settings.compactMode ? 'var(--accent)' : 'oklch(0.55 0.03 258 / 0.2)' }}>
               <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-200 ${settings.compactMode ? 'translate-x-5' : ''}`} />
             </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ══ 导航 ══ */}
+      <div className="wb-panel p-6">
+        <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
+          <Compass size={12} strokeWidth={1.8} className="text-[var(--accent)]" />
+          导航
+        </h3>
+
+        <div className="mt-2">
+          {/* 登录后落地页（2026-11-09 补齐：后端字段与登录跳转早已接线，此前缺设置面） */}
+          <div className="flex items-start justify-between gap-6 py-4">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <Home size={14} strokeWidth={1.6} className="shrink-0 text-[var(--accent)]" />
+                <span className="text-[13px] font-semibold text-[var(--foreground)]">登录后落地页</span>
+              </div>
+              <p className="mt-0.5 text-[12px] leading-relaxed text-[var(--muted-foreground)]">设置登录成功后优先进入的页面，下次登录生效</p>
+            </div>
+            <OptionButtons
+              value={settings.defaultHomePage}
+              options={HOME_PAGE_OPTIONS}
+              onSelect={(v) => void handleUpdate({ defaultHomePage: v })}
+              disabled={saving}
+            />
           </div>
         </div>
       </div>

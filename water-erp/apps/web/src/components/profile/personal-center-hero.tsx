@@ -127,6 +127,9 @@ export function PersonalCenterHero({ user, onOpenBasicInfo, onOpenPreferences, o
         </div>
       </div>
 
+      {/* 标题行下长横线（2026-11-09 用户裁定：与其他页 hero 一致，公司信息管理同款 page-hero__divider） */}
+      <div className="page-hero__divider" />
+
       {/* ══ 近期登录记录弹窗 ══ */}
       {showLoginHistory && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">

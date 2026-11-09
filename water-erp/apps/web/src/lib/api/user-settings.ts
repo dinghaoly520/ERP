@@ -52,3 +52,11 @@ export const THEME_OPTIONS = [
   { value: 'dark', label: '深色' },
   { value: 'system', label: '跟随系统' },
 ] as const;
+
+// 登录后落地页选项（2026-11-09 偏好设置补齐——后端字段与登录跳转链路早已存在，仅缺设置面）
+export const HOME_PAGE_OPTIONS = [
+  { value: 'dashboard', label: '数据库' },
+  { value: 'procurements', label: '采购台账' },
+  { value: 'projects', label: '项目管理' },
+  { value: 'work-arrangements', label: '工作台' },
+] as const;
