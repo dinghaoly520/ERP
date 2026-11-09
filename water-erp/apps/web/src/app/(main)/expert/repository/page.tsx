@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { listExperts, listSpecialties, setExpertAvailability, batchOperation, exportExperts, updateExpertEntryStatus, fetchExpertCompanyCounts, getExpertStatistics } from '@/lib/api/expert';
+import { listExperts, listSpecialties, setExpertAvailability, batchOperation, exportExperts, updateExpertEntryStatus, fetchExpertCompanyCounts, getExpertStatistics, clearExpertRoster } from '@/lib/api/expert';
 import { EXPERT_TITLES } from '@/lib/expert-standard-options';
 import { exportExpertsToExcel } from '@/lib/excel-export';
 import type { ExpertListItem } from '@/lib/api/expert';
@@ -61,6 +61,10 @@ export default function ExpertRepositoryPage() {
   const [evalTarget, setEvalTarget] = useState<ExpertListItem | null>(null);
   // 录入专家弹窗
   const [showEntryModal, setShowEntryModal] = useState(false);
+  // 一键清空专家名单（2026-11-09 用户裁定：仅删名单；admin+非生产才显示按钮）
+  const [showClearModal, setShowClearModal] = useState(false);
+  const [clearText, setClearText] = useState('');
+  const [clearing, setClearing] = useState(false);
   // 操作历史抽屉（审计，只读）
   const [showHistory, setShowHistory] = useState(false);
   // 批量操作二次确认
@@ -102,6 +106,22 @@ export default function ExpertRepositoryPage() {
     }
     setEntryReason('');
     setEntryEdit({ expert: e, target });
+  };
+
+  /** 一键清空专家库名单：后端强闸（确认词/生产禁用/开评标中挡闸），此处再兜 UI 确认词 */
+  const doClearRoster = async () => {
+    if (clearText !== '清空') return;
+    setClearing(true);
+    try {
+      const r = await clearExpertRoster(clearText);
+      toast.success(`已清空专家名单 ${r.clearedExperts} 名（评审记录已保留）`);
+      setShowClearModal(false); setClearText('');
+      load();
+    } catch (e) {
+      toast.error((e as Error)?.message || '清空失败');
+    } finally {
+      setClearing(false);
+    }
   };
 
   const load = useCallback(async () => {
@@ -458,6 +478,10 @@ export default function ExpertRepositoryPage() {
           )}
           {/* 录入专家仅 admin（2026-10-15 用户裁定）；导出对全部工作台角色保留 */}
           {isAdmin && <button onClick={() => setShowEntryModal(true)} className="neu-btn-xs"><PlusCircle size={12} />录入专家</button>}
+          {/* 一键清空（2026-11-09）：仅 dev 构建——生产禁用钮（后端另有硬闸） */}
+          {isAdmin && process.env.NODE_ENV !== 'production' && (
+            <button onClick={() => { setShowClearModal(true); setClearText(''); }} className="neu-btn-xs is-danger"><AlertTriangle size={12} />清空专家列表</button>
+          )}
           <button onClick={doExport} className="neu-btn-xs" title={selectedIds.size > 0 ? `导出已选的 ${selectedIds.size} 位专家（按公司分组）` : '导出全部专家（按公司分组）'}><Download size={12} />导出Excel{selectedIds.size > 0 && <span className="ml-1 rounded bg-[var(--accent)] px-1 py-0 text-[10px] font-bold text-white">{selectedIds.size}</span>}</button>
         </div>
       </div>
@@ -636,6 +660,37 @@ export default function ExpertRepositoryPage() {
 
       {/* 录入专家弹窗 */}
       <ExpertEntryDialog open={showEntryModal} onClose={() => setShowEntryModal(false)} onSubmitted={load} />
+
+      {/* 一键清空专家名单确认弹窗（强保险：输入「清空」二字） */}
+      <Modal open={showClearModal} onClose={() => setShowClearModal(false)}
+        title={<span className="flex items-center gap-2"><span className="neu-icon-well !h-7 !w-7"><AlertTriangle size={14} className="text-[var(--danger)]" /></span>清空专家名单</span>}
+        description="仅删除专家库名单与随账号档案，评审记录保留"
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <span className="text-xs text-[var(--muted-foreground)]">本操作将写入操作历史留痕，不可撤销</span>
+            <div className="flex items-center gap-2">
+              <button className="neu-btn-soft" onClick={() => setShowClearModal(false)} disabled={clearing}>取消</button>
+              <button className="neu-btn-xs is-danger" onClick={() => void doClearRoster()} disabled={clearText !== '清空' || clearing}>
+                {clearing ? <><RefreshCw size={12} className="animate-spin" /> 清空中…</> : <>确认清空</>}
+              </button>
+            </div>
+          </div>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <div className="flex items-start gap-2 rounded-[10px] bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-3 py-2.5">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0 text-[var(--danger)]" />
+            <p className="text-xs leading-relaxed text-[var(--foreground)]">
+              将删除全部 <strong>{expStats?.totalExperts ?? total}</strong> 名专家的名单与账号档案（含证书、履职评价、站内通知）；
+              <strong>评审记录（评分/抽取/异议/备忘）与全部审计留痕保留</strong>。清单可经「录入专家 / 从种子名单导入」重建。
+            </p>
+          </div>
+          <label className="space-y-1">
+            <span className="text-[10px] font-semibold text-[var(--muted-foreground)]">请输入「清空」二字确认</span>
+            <input value={clearText} onChange={e => setClearText(e.target.value)} placeholder="清空" className="neu-input w-full" autoComplete="off" disabled={clearing} />
+          </label>
+        </div>
+      </Modal>
 
       {/* 操作历史（审计，只读） */}
       <ExpertOperationHistory open={showHistory} onClose={() => setShowHistory(false)} />

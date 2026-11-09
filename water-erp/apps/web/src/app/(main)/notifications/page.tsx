@@ -164,6 +164,7 @@ const ACTION_LABEL: Record<string, string> = {
   CUSTOM_EXTRACTION_PROJECT_CREATED: '手工创建抽取项目',
   EVALUATION_REOPEN: '重开评标',
   EXPERT_REPORT_UNCONFIRMED: '撤销评审报告确认',
+  EXPERT_ROSTER_CLEARED: '清空专家库名单',
   EXPERT_VIEW_DOCUMENT: '专家查阅投标文件',
   EXPERT_VIEW_DOCUMENTS_SUMMARY: '专家查阅投标文件清单',
   PLATFORM_PUSH: '平台推送',

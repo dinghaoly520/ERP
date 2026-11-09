@@ -345,6 +345,15 @@ export class ExpertAdminController {
     });
   }
 
+  /** 一键清空专家库名单（2026-11-09 用户裁定）——强保险：admin only + 生产禁用 +
+   *  确认词「清空」 + 开评标中挡闸 + 审计留痕；评审记录（BidExpert/评分/抽取）保留 */
+  @Post('clear-expert-roster')
+  @Roles('admin')
+  @ApiOperation({ summary: '一键清空专家库名单（仅名单与随账号档案；评审记录保留；生产禁用）' })
+  clearExpertRoster(@Body() body: { confirm?: string }, @Request() req: any = {}) {
+    return this.expertAdminService.clearExpertRoster(req.user?.sub, body?.confirm ?? '');
+  }
+
   @Post('batch')
   @ApiOperation({ summary: '批量启用/停用专家（公司隔离）' })
   batchOperation(@Body() dto: BatchOperationDto, @Request() req: any) {

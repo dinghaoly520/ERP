@@ -2314,7 +2314,9 @@ model ProcurementProject {
 
 model AuditLog {
   id           String   @id @default(cuid())
-  userId       String
+  // 可空（2026-11-09）：用户删除时先断链置 null 保法定留痕——此前 onDelete Cascade
+  // 会级联毁掉被删用户的全部审计行（清空专家名单 clearExpertRoster 首用）
+  userId       String?
   action       String
   resourceType String
   resourceId   String?
@@ -2323,7 +2325,7 @@ model AuditLog {
   userAgent    String?
   createdAt    DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@index([action, createdAt])

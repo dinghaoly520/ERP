@@ -168,6 +168,8 @@ export class AccountAdminController {
     });
     const lastLoginMap = new Map<string, { ip: string | null; at: string }>();
     for (const log of logs) {
+      // AuditLog.userId 已可空（2026-11-09 断链保痕）；本查询 IN 非空 id 集运行时不为 null
+      if (!log.userId) continue;
       if (!lastLoginMap.has(log.userId)) {
         lastLoginMap.set(log.userId, { ip: log.ipAddress, at: log.createdAt.toISOString() });
       }
@@ -230,7 +232,7 @@ export class AccountAdminController {
     const byIp = new Map<string, { suppliers: Map<string, { name: string; firstAt: string; lastAt: string }> }>();
     for (const log of logs) {
       const ip = log.ipAddress as string;
-      if (!idSet.has(log.userId)) continue;
+      if (!log.userId || !idSet.has(log.userId)) continue;
       let entry = byIp.get(ip);
       if (!entry) {
         entry = { suppliers: new Map() };

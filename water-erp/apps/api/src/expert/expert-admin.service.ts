@@ -89,6 +89,7 @@ export const EXPERT_AUDIT_ACTIONS = [
   'EXPERT_RETIRE_IGNORE', // 忽略退库预警
   'EXPERT_EVALUATE',      // 履职评价
   'EXPERT_VIOLATION_RECORDED', // 违规记录
+  'EXPERT_ROSTER_CLEARED', // 一键清空专家库名单（2026-11-09；留痕不可被清——见 clearExpertRoster 断链）
 ] as const;
 
 /** 专家邀请作答方（2026-10-21 代为变更设计适配，口径与供应商 RsvpActorType 对齐） */
@@ -4004,6 +4005,58 @@ ${combined}`,
     ]);
 
     return { total, page, pageSize, items };
+  }
+
+  /**
+   * 一键清空专家库名单（2026-11-09 用户裁定：仅删名单——User(bid_expert ∪ 临时需求方
+   * 代表账号)，档案随 User Cascade（ExpertProfile/ExpertCert/履职评价/通知/会话）；
+   * **评审记录全部保留**：BidExpert 工作位、评分链、抽取任务、异议、备忘、表决不动。
+   * 强保险：生产禁用 + 确认词「清空」 + 开评标中项目挡闸 + 审计留痕（本动作留痕不可
+   * 被自身清掉——AuditLog→User 是 Cascade，先断链 userId 置 null 保法定留痕再删账号，
+   * 断链行操作人回退「系统」）。fail-closed：漏 FK 引用即事务整体回滚，绝不半清。
+   */
+  async clearExpertRoster(operatorId: string, confirmText: string) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new ForbiddenException({ error: '生产环境禁用专家名单清空', code: 'EXPERT_CLEAR_DISABLED' });
+    }
+    if (confirmText !== '清空') {
+      throw new BadRequestException({ error: '确认词不匹配：请输入「清空」二字', code: 'CONFIRM_TEXT_MISMATCH' });
+    }
+    // 开标/评标进行中的项目挡闸（同 BID_IN_PROGRESS 语义）——清名单会让在场专家无法登录评审
+    const active = await this.prisma.bidProject.count({ where: { stage: { in: ['OPENING', 'EVALUATING'] } } });
+    if (active > 0) {
+      throw new ConflictException({ error: `有 ${active} 个项目处于开标/评标中，清空专家名单会让在场评审失效——请先完成或流标`, code: 'BID_IN_PROGRESS' });
+    }
+
+    const experts = await this.prisma.user.findMany({
+      where: { OR: [{ role: 'bid_expert' }, { isTempExpert: true }] },
+      select: { id: true },
+    });
+    if (experts.length === 0) {
+      return { clearedExperts: 0, auditDetached: 0, reviewTasksRemoved: 0 };
+    }
+    const ids = experts.map(u => u.id);
+
+    const counts = await this.prisma.$transaction(async (tx) => {
+      // ① 断审计链：AuditLog.userId → User onDelete Cascade，不先置 null 删号即毁全部留痕
+      const auditDetached = await tx.auditLog.updateMany({ where: { userId: { in: ids } }, data: { userId: null } });
+      // ② 审查任务随人走（ReviewTask.userId 无显式 onDelete，防 Restrict 挡删号）
+      const reviewTasksRemoved = await tx.reviewTask.deleteMany({ where: { userId: { in: ids } } });
+      // ③ 删名单：Cascade 带走 ExpertProfile/ExpertCert/ExpertEvaluation/Notification/AssistantConversation 等
+      const clearedExperts = await tx.user.deleteMany({ where: { id: { in: ids } } });
+      return { clearedExperts, auditDetached, reviewTasksRemoved };
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: operatorId,
+        action: 'EXPERT_ROSTER_CLEARED',
+        resourceType: 'expert-domain',
+        details: { expertCount: counts.clearedExperts, auditDetached: counts.auditDetached, reviewTasksRemoved: counts.reviewTasksRemoved },
+      },
+    }).catch(e => new Logger(ExpertAdminService.name).warn(`专家名单清空审计写入失败: ${(e as Error).message}`));
+
+    return counts;
   }
 
   /* ── PII 明文揭示（等保+密评：管理端默认掩码，明文走此处并留痕）── */
