@@ -138,7 +138,7 @@ export function OperationLogTab({ active }: { active: boolean }) {
           )}
         </div>
         <input
-          className="workbench-input workbench-input-sm !w-auto min-w-[130px]" placeholder="用户名（精确）"
+          className="workbench-input workbench-input-sm !w-auto min-w-[130px]" placeholder="姓名 / 账号（精确）"
           value={filters.username}
           onChange={(e) => setFilters({ ...filters, username: e.target.value })}
         />
@@ -222,7 +222,7 @@ export function OperationLogTab({ active }: { active: boolean }) {
                       </td>
                       <td className="font-mono text-[0.72rem] tabular-nums">{fmtTime(r.createdAt)}</td>
                       <td>
-                        <span className="text-[0.78rem] font-semibold">{r.username ?? '—'}</span>
+                        <span className="text-[0.78rem] font-semibold">{r.displayName || r.username || '—'}</span>
                       </td>
                       <td><span className="text-[0.75rem]">{r.role ?? '—'}</span></td>
                       <td>
