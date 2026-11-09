@@ -27,6 +27,16 @@ const expertLoginUrl = (request: NextRequest) => {
   return new URL(`${origin}/login?forceLogin=1`);
 };
 
+/** 鉴权回源请求头（2026-11-09 限流收口）：透传 X-Forwarded-For——生产 nginx 覆盖式写入
+ *  真实客户端 IP，此处原样带给 API（限流/审计 IP 归位）；无 XFF（dev 直连）不设头，
+ *  API 落 socket 地址，语义与改前一致。/api/* 数据面走 next.config rewrites 天然透传，无需处理。 */
+const authHeaders = (request: NextRequest, cookie: string) => {
+  const h: Record<string, string> = { Cookie: cookie, 'X-Portal': PORTAL };
+  const xff = request.headers.get('x-forwarded-for');
+  if (xff) h['X-Forwarded-For'] = xff;
+  return h;
+};
+
 export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -46,7 +56,7 @@ export default async function proxy(request: NextRequest) {
     const res = await fetch(
       `${apiLoopbackOrigin()}/api/auth/me`,
       {
-        headers: { Cookie: `${COOKIE}=${token}`, 'X-Portal': PORTAL },
+        headers: authHeaders(request, `${COOKIE}=${token}`),
       },
     );
     if (!res.ok) {

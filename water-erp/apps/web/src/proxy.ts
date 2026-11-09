@@ -17,18 +17,26 @@ const UPSTREAM_TIMEOUT_SLOW_MS = 120_000;
 const TRANSPORT_RETRY_DELAYS_MS = [400, 1_000, 3_000, 8_000];
 /** LLM 慢路径：后端内部另有重试退避，合法耗时可达分钟级。除 /api/ai/* 外还包括
  *  文件导入 AI 识别（解析 PDF/docx + LLM 全字段分析，同步慢路径）——2026-10-30 实录：
- *  import-autofill 未列入时吃 15s 硬超时，被误杀成 502「后端服务未启动」。 */
-const UPSTREAM_SLOW_PATH_PREFIXES = ['/api/ai/'];
+ *  import-autofill 未列入时吃 15s 硬超时，被误杀成 502「后端服务未启动」。
+ *  2026-11-09（慢路径审计·用户裁定）：专家抽取 AI 家族（extract/analyze-project、
+ *  analyze-files、ai-leader、notify 等）全是同步 DeepSeek 调用，整前缀列入。 */
+const UPSTREAM_SLOW_PATH_PREFIXES = ['/api/ai/', '/api/expert-admin/extract/'];
 // 2026-11-04：公告导入识别（LLM 同链路，耐心重试下可达 ~30s）——未列入时吃 15s 硬超时
+// 2026-11-09（生产实录）：专家 CSV 批量导入逐行串行（bcrypt 哈希+查重+事务），180 行在
+// 生产硬件上 >15s 被 504——后端实际跑完但前端丢失逐行结果与 importedIds（一键启用断链）。
+// 种子导入同链路串行哈希，一并放宽。同日慢路径审计补：定标审批表 LLM 识别（import-autofill
+// 同族）与抽取主端点（前缀漏 /extract 本身需精确补位）。
 const UPSTREAM_SLOW_PATH_EXACT = [
   '/api/tender-write/import-autofill',
   '/api/tender-write/announcement-import-autofill',
-  // 2026-11-09（生产实录）：专家 CSV 批量导入逐行串行（bcrypt 哈希+查重+事务），180 行在
-  // 生产硬件上 >15s 被 504——后端实际跑完但前端丢失逐行结果与 importedIds（一键启用断链）。
-  // 种子导入同链路串行哈希，一并放宽。
+  '/api/tender-write/import-winning-bid',
   '/api/expert-admin/import-csv',
   '/api/expert-admin/import-from-seed',
+  '/api/expert-admin/extract',
 ];
+// 2026-11-09（慢路径审计·用户裁定）：动态 id 路径的同步 LLM 润色（/api/project-management/:id/attachment-ai-polish）
+// ——精确匹配不了带参路径，补后缀匹配层。
+const UPSTREAM_SLOW_PATH_SUFFIXES = ['/attachment-ai-polish'];
 // 2026-11-06（生产实录）：知识库上传 235MB 经门户 arrayBuffer 缓冲转发，body 传输逼近 15s
 // 临界带宽（~15MB/s）即被击穿 → API 侧 multer Request aborted——放大到 120s 覆盖大件传输窗。
 // 异步化（202）已消掉处理侧长等待，此窗口只需罩住 body 本身的搬运。
@@ -37,6 +45,7 @@ const UPSTREAM_SLOW_PATH_PREFIXES_LARGE_BODY = ['/api/knowledge/'];
 function upstreamTimeoutFor(pathname: string): number {
   return UPSTREAM_SLOW_PATH_PREFIXES.some((p) => pathname.startsWith(p))
     || UPSTREAM_SLOW_PATH_EXACT.includes(pathname)
+    || UPSTREAM_SLOW_PATH_SUFFIXES.some((s) => pathname.endsWith(s))
     || UPSTREAM_SLOW_PATH_PREFIXES_LARGE_BODY.some((p) => pathname.startsWith(p))
     ? UPSTREAM_TIMEOUT_SLOW_MS
     : UPSTREAM_TIMEOUT_MS;
@@ -137,7 +146,7 @@ export async function proxy(request: NextRequest) {
           JSON.stringify({
             statusCode: 504,
             code: 'UPSTREAM_TIMEOUT',
-            error: `后端响应超时：${request.nextUrl.pathname} 超过 ${upstreamTimeoutFor(request.nextUrl.pathname) / 1000} 秒代理时限（AI 分析类请求耗时较长，请稍后重试）`,
+            error: `后端响应超时：${request.nextUrl.pathname} 超过 ${upstreamTimeoutFor(request.nextUrl.pathname) / 1000} 秒代理时限——耗时操作（批量导入、文档解析、AI 分析等）后端通常仍在执行，请稍后刷新查看结果，勿立即重试`,
           }),
           { status: 504, headers: { 'Content-Type': 'application/json' } },
         );
