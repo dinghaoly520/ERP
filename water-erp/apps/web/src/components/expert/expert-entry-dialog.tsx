@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { createExpert, listSpecialties, ocrIntake } from '@/lib/api/expert';
+import { createExpert, listSpecialties, fetchExpertDepartmentOptions, ocrIntake } from '@/lib/api/expert';
 import { Modal } from '@/components/workbench';
 import { UnitSearchSelect } from '@/components/login/unit-search-select';
 import { ExpertCsvActions } from './expert-csv-actions';
@@ -25,6 +25,8 @@ interface ExpertEntryDialogProps {
 
 export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDialogProps) {
   const [specialties, setSpecialties] = useState<string[]>([]);
+  // 所属部门联想（2026-11-09 用户裁定：同专业/职称下拉设计——专家域已用部门名，自定义仍可新建）
+  const [departments, setDepartments] = useState<string[]>([]);
   const [form, setForm] = useState<FormFields>(INITIAL);
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState('');
@@ -34,6 +36,7 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
   useEffect(() => {
     if (open) {
       listSpecialties().then(setSpecialties).catch(() => toast.warning('加载专业列表失败，可手动输入'));
+      fetchExpertDepartmentOptions().then(rows => setDepartments(rows.map(r => r.name))).catch(() => {});
       // 重置表单
       setForm(INITIAL);
       setErrors({});
@@ -195,7 +198,7 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
               <UnitSearchSelect value={form.employer} onChange={v => set('employer', v)} />
               <FieldError field="employer" />
             </div>
-            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">所属部门 <span className="text-[var(--danger)]">*</span></span><input value={form.departmentName} onChange={e => set('departmentName', e.target.value)} placeholder="如 工程勘察院" className={inputCls('departmentName')} /><FieldError field="departmentName" /></label>
+            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">所属部门 <span className="text-[var(--danger)]">*</span></span><TypeaheadCombobox value={form.departmentName} onChange={v => set('departmentName', v)} options={departments} allowCustom placeholder="输入或选择部门" emptyText="无匹配部门" triggerClassName={errors.departmentName ? '!border-[var(--danger)]' : ''} /><FieldError field="departmentName" /></label>
           </div>
         </fieldset>
         <hr className="wb-section-rule" />

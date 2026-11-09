@@ -94,6 +94,12 @@ export class ExpertAdminController {
     return this.expertAdminService.specialtyPoolCounts();
   }
 
+  @Get('department-options')
+  @ApiOperation({ summary: '录入表单所属部门联想：专家域已用部门名（按专家使用数降序；自定义输入仍可新建）' })
+  departmentOptions() {
+    return this.expertAdminService.departmentOptions();
+  }
+
   @Get('pool-companies')
   @ApiOperation({ summary: '配额「公司」下拉候选：仅列库内确有可抽取专家的公司（与抽取池同资格口径，可跨公司）' })
   listPoolCompanies() {

@@ -151,6 +151,10 @@ export function fetchExpertCompanyCounts(params?: { search?: string; specialty?:
   return api.get<Array<{ name: string; count: number }>>(`/expert-admin/company-counts${qs ? '?' + qs : ''}`);
 }
 
+export function fetchExpertDepartmentOptions() {
+  return api.get<Array<{ name: string; count: number }>>(`/expert-admin/department-options`);
+}
+
 export function createExpert(data: {
   displayName: string; specialty: string;
   /** 归属公司（2026-10-15 工作单位=公司选择器）：后端以所选公司落 User 归属与 ExpertProfile.employer */

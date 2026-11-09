@@ -565,6 +565,20 @@ export class ExpertAdminService {
 
   /* 专家录入 */
 
+  /** 录入表单所属部门联想（2026-11-09 用户裁定：部门同专业/职称下拉设计）：
+   *  专家域已用部门名按专家数降序——引导复用既有部门行（createExpert 按名
+   *  find-or-create，同字异名会裂出多行）；自定义输入仍放行走新建 */
+  async departmentOptions(): Promise<Array<{ name: string; count: number }>> {
+    const deps = await this.prisma.department.findMany({
+      select: { name: true, _count: { select: { users: { where: { role: 'bid_expert' } } } } },
+    });
+    return deps
+      .map(d => ({ name: d.name, count: d._count.users }))
+      .filter(d => d.name.trim().length > 0)
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'zh'))
+      .slice(0, 120);
+  }
+
   async createExpert(dto: CreateExpertDto, operatorId?: string) {
     const normalizedName = dto.displayName.trim();
     // 登录账号缺省=姓名（2026-11-09 用户裁定：专家默认以姓名+身份证号登录，
