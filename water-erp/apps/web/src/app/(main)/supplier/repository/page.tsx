@@ -24,6 +24,7 @@ import { ObjectionBoardModal } from '@/components/notice/objection-board-modal';
 import { SupplierAuditLogModal } from '@/components/supplier/supplier-audit-log-modal';
 import { Building2, MessageSquareWarning, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, Download, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban, History } from 'lucide-react';
 import { copyToClipboard } from '@/lib/copy-to-clipboard';
+import { CopyIconButton } from '@/components/copy-icon-button';
 import { exportAllFilteredSuppliersToExcel } from '@/lib/excel-export';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import { LEVEL_LABEL, LEVEL_COLOR, SUPPLIER_STATUS_LABEL } from '@water-erp/shared';
@@ -360,7 +361,12 @@ function SupplierRepositoryPageInner() {
                       </button>
                     </div>
                   </td>
-                  <td className="text-center font-mono text-xs text-[var(--muted-foreground)] max-w-[160px] truncate" title={s.creditCode || ''}>{s.creditCode || '—'}</td>
+                  <td className="text-center font-mono text-xs text-[var(--muted-foreground)] max-w-[160px]">
+                    <span className="inline-flex items-center justify-center gap-0.5 align-middle" title={s.creditCode || ''}>
+                      <span className="max-w-[128px] truncate">{s.creditCode || '—'}</span>
+                      {s.creditCode ? <CopyIconButton value={s.creditCode} label="统一社会信用代码" /> : null}
+                    </span>
+                  </td>
                   <td className="text-sm text-[var(--muted-foreground)] max-w-[140px] truncate" title={s.enterpriseType || ''}>{normalizeEnterpriseType(s.enterpriseType)}</td>
                   <td className="text-center text-sm font-semibold text-[var(--foreground)] tabular-nums">{s._count?.evaluations ?? 0}</td>
                   <td className="text-center">

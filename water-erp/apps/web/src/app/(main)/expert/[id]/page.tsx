@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { copyToClipboard } from '@/lib/copy-to-clipboard';
+import { CopyIconButton } from '@/components/copy-icon-button';
 import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getNotifyPrefs, updateNotifyPrefs, getNotifyHistory, getAiAdoptionRate, proxyMarkExpertInvitation, updateExpertProfile, getRiskBrief, type ExpertPortrait, type ExpertRiskBrief, type NotifyHistoryItem, revealExpertField } from '@/lib/api/expert';
 import { Modal, AlertBanner, StatusBadge } from '@/components/workbench';
 import { TypeaheadCombobox } from '@/components/workbench/typeahead-combobox';
@@ -57,13 +57,14 @@ function InfoField({
   value,
   mono = false,
   full = false,
-  copyable = false,
+  copy,
 }: {
   label: React.ReactNode; // 允许 PII 揭示按钮随标签内联
   value?: React.ReactNode;
   mono?: boolean;
   full?: boolean;
-  copyable?: boolean;
+  /** 值右侧复制图标按钮（2026-11-09 统一图标复制形态，替代点击值复制）：明文字段只给 label；掩码 PII 再给 getText（reveal 取明文，禁止复制掩码串） */
+  copy?: { label: string; getText?: () => Promise<string | null | undefined> };
 }) {
   const empty = value == null || (typeof value === 'string' && !value.trim());
   // 紧凑定义项（2026-11-04 用户口径：白瓷片占位大、显散）——无底色无投影，
@@ -71,18 +72,20 @@ function InfoField({
   return (
     <div className={`group flex min-w-0 flex-col gap-1 py-1 ${full ? 'col-span-full' : ''}`}>
       <span className="text-[10px] font-semibold uppercase tracking-[0.08em] leading-none text-[var(--muted-foreground)]">{label}</span>
-      <div
-        className={`break-words text-[13px] font-semibold leading-snug tabular-nums text-[var(--foreground)] ${mono ? 'font-mono tracking-tight' : ''} ${empty ? 'font-normal text-[var(--muted-foreground)]/55' : ''} ${copyable && !empty ? 'cursor-pointer transition-colors group-hover:text-[var(--accent)]' : ''}`}
-        title={copyable && !empty ? '点击复制' : undefined}
-        onClick={copyable && !empty && typeof value === 'string' ? async () => { if (await copyToClipboard(value)) toast.success(`${label} 已复制`); else toast.error('复制失败，请手动选择复制'); } : undefined}
-      >
-        {empty ? '—' : value}
+      <div className="flex min-w-0 items-center gap-1">
+        <div
+          className={`min-w-0 break-words text-[13px] font-semibold leading-snug tabular-nums text-[var(--foreground)] ${mono ? 'font-mono tracking-tight' : ''} ${empty ? 'font-normal text-[var(--muted-foreground)]/55' : ''}`}
+        >
+          {empty ? '—' : value}
+        </div>
+        {copy && (!empty || copy.getText) && (
+          <CopyIconButton value={typeof value === 'string' ? value : undefined} getText={copy.getText} label={copy.label} />
+        )}
       </div>
     </div>
   );
 }
 
-/** 分组标题（v3）：accent 竖点 + 粗标签 + hairline */
 /** 区块标题：小号大写 + 图标 */
 function SectionTitle({ icon: Icon, children }: { icon: React.ComponentType<{ size?: number }>; children: React.ReactNode }) {
   return (
@@ -487,7 +490,7 @@ export default function ExpertDetailPage() {
                   <InfoField label="职称" value={p.title} />
                   <InfoField label="执业资格" value={p.qualifications} />
                   <InfoField label="学历" value={p.education} />
-                  <InfoField label="执业资格编号" value={p.licenseNo} mono copyable />
+                  <InfoField label="执业资格编号" value={p.licenseNo} mono copy={{ label: '执业资格编号' }} />
                   <InfoField label="行政区域代码" value={p.regionCode} mono />
                   <InfoField label="库内等级" value={p.expertLevel ? `${p.expertLevel} 级` : undefined} />
                   <InfoField label="可用状态" value={p.availability ? <StatusBadge tone={availabilityTone as any}>{p.availability}</StatusBadge> : null} />
@@ -499,10 +502,13 @@ export default function ExpertDetailPage() {
                 <GroupHead>身份与联系</GroupHead>
                 <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
                   <InfoField label="姓名" value={expert.displayName} />
-                  <InfoField label={<span className="inline-flex items-center">身份证号<PiiRevealBtn field="idNumber" /></span>} value={revealedPii.idNumber ?? p.idNumber} mono />
+                  <InfoField label={<span className="inline-flex items-center">身份证号<PiiRevealBtn field="idNumber" /></span>} value={revealedPii.idNumber ?? p.idNumber} mono
+                    copy={{ label: '身份证号', getText: async () => revealedPii.idNumber ?? (await revealExpertField(expertId, 'idNumber')).value }} />
                   <InfoField label="民族" value={p.ethnicity} />
-                  <InfoField label={<span className="inline-flex items-center">手机号码<PiiRevealBtn field="phone" /></span>} value={revealedPii.phone ?? p.phone} mono />
-                  <InfoField label={<span className="inline-flex items-center">邮箱<PiiRevealBtn field="email" /></span>} value={revealedPii.email ?? expert.email} />
+                  <InfoField label={<span className="inline-flex items-center">手机号码<PiiRevealBtn field="phone" /></span>} value={revealedPii.phone ?? p.phone} mono
+                    copy={{ label: '手机号码', getText: async () => revealedPii.phone ?? (await revealExpertField(expertId, 'phone')).value }} />
+                  <InfoField label={<span className="inline-flex items-center">邮箱<PiiRevealBtn field="email" /></span>} value={revealedPii.email ?? expert.email}
+                    copy={{ label: '邮箱', getText: async () => revealedPii.email ?? (await revealExpertField(expertId, 'email')).value }} />
                   <InfoField label="账户状态" value={<StatusBadge tone={expert.isActive ? 'green' : 'gray'}>{expert.isActive ? '正常' : '已停用'}</StatusBadge>} />
                 </div>
               </div>
@@ -535,7 +541,8 @@ export default function ExpertDetailPage() {
               <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-t pt-3 text-[11px] text-[var(--muted-foreground)]" style={{ borderTopColor: 'oklch(0.6 0.04 258 / 0.16)' }}>
                 <span className="inline-flex items-center gap-1.5">
                   登录账号
-                  <button onClick={() => copyToClipboard(expert.username)} className="font-mono font-semibold text-[var(--foreground)] transition-colors hover:text-[var(--accent)]" title="点击复制">{expert.username}</button>
+                  <span className="font-mono font-semibold text-[var(--foreground)]">{expert.username}</span>
+                  <CopyIconButton value={expert.username} label="登录账号" />
                 </span>
                 <span className="inline-flex items-center gap-1"><Calendar size={11} /> 入库于 {new Date(expert.createdAt).toLocaleDateString('zh-CN')}</span>
               </div>
