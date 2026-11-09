@@ -543,7 +543,13 @@ export function getLoadDistribution(companyId?: string) {
 }
 
 /* 批量导入 */
-export type ExpertImportResult = {
+/** 二段式（2026-11-09 用户裁定）：表格单位名未命中公司主数据时返回本形态——
+ *  前端弹窗让用户在既有公司内人工指定归属（禁止新建），携 companyMapping 重提 */
+export type ExpertImportNeedsMapping = { needMapping: true; unmatched: string[] };
+
+export type ExpertImportDone = {
+  /** 判别位：false/缺省=已完成导入（与 ExpertImportNeedsMapping 构成可辨识联合） */
+  needMapping?: false;
   total: number; imported: number; skipped: number; failed: number;
   /** 已在库未归属、本次按表格单位名补录归属的行数（重导修复，2026-11-09） */
   repaired?: number;
@@ -552,13 +558,16 @@ export type ExpertImportResult = {
   importedIds: string[];
   /** 本次补录归属的已在库专家 id 集（与 importedIds 并集供一键启用） */
   repairedIds?: string[];
-  /** 成功/修复行按公司计数（2026-11-09：表格单位名未命中主数据即按表格名直接建档） */
+  /** 成功/修复行按公司计数 */
   companies?: Array<{ name: string; count: number }>;
-  /** 本次按表格单位名新建的公司主数据 */
-  createdCompanies?: string[];
+  /** 人工指定的归属关系（表格单位名 → 公司名） */
+  manualMappings?: Array<{ sheet: string; company: string }>;
 };
-export function importCsv(rows: Array<Record<string, string>>) {
-  return api.post<ExpertImportResult>('/expert-admin/import-csv', { rows });
+export type ExpertImportResult = ExpertImportNeedsMapping | ExpertImportDone;
+
+/** companyMapping：表格单位名 → 公司 id（空串=显式不归属）——弹窗指定后随行重提 */
+export function importCsv(rows: Array<Record<string, string>>, companyMapping?: Record<string, string>) {
+  return api.post<ExpertImportResult>('/expert-admin/import-csv', { rows, ...(companyMapping && { companyMapping }) });
 }
 
 /** CSV 导入后一键启用：批量审核入库本次导入专家（仅 admin） */

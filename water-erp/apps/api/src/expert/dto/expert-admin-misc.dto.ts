@@ -75,6 +75,10 @@ export class BatchOperationDto {
 /** CSV 批量导入专家 */
 export class ImportCsvDto {
   @IsArray() @IsObject({ each: true }) rows!: Array<Record<string, string>>;
+
+  /** 表格单位名 → 公司 id：未命中主数据的单位由前端弹窗人工指定（2026-11-09 用户裁定：
+   *  只能在既有公司内指定、禁止新建）；空串=显式「不归属」 */
+  @IsOptional() @IsObject() companyMapping?: Record<string, string>;
 }
 
 /** CSV 导入后一键启用（2026-11-09 用户裁定）：批量审核入库本次导入的专家 */

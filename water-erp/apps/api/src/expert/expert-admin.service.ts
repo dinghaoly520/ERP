@@ -619,10 +619,10 @@ export class ExpertAdminService {
       //  - 名称轨：单位名命中公司主数据即同源落归属；未命中（外部单位如设计院/高校）保留自由文本+操作人快照
       const { companyId: opCompanyId, companyName: opCompanyName } = operatorId ? await this.operatorCompanyOf(operatorId) : { companyId: null, companyName: null };
       // CSV 导入按表格归属（2026-11-09 用户裁定：所有专家必须按表格中的公司归属，
-      // 不得回退操作人公司）——sheetAttribution 模式下公司只来自表格：单位名先对
-      // 公司主数据全量名单（:3005 注册 64 家）精确匹配；未命中也按表格单位名直接
-      // 建档归属（同日二次裁定，生产实录：名单表述与主数据不一致时整批落「未归属」）；
-      // 未填单位才无归属（工作单位保留表格原文）
+      // 不得回退操作人公司；同日三次裁定：归属只能落在公司主数据（:3005 注册名单）
+      // 既有公司内——未命中的由前端弹窗让用户人工指定到既有公司，禁止新建）。
+      // importCsv 预解析后经 companyId 轨传入；此处 name 轨仅剩精确命中兜底，
+      // 未命中=未归属（保留表格原文）
       let companyId = opts?.sheetAttribution ? null : opCompanyId;
       let companyName = opts?.sheetAttribution ? null : opCompanyName;
       let employer = dto.employer;
@@ -636,12 +636,7 @@ export class ExpertAdminService {
         companyName = selected.name;
         employer = selected.name;
       } else if (dto.employer?.trim()) {
-        const employerName = dto.employer.trim();
-        // sheet 模式 find-or-create（未命中按表格名建档）；手动录入仅精确匹配
-        // （未命中保留自由文本+操作人快照）
-        const byName = opts?.sheetAttribution
-          ? await this.resolveSheetCompany(employerName)
-          : await this.findCompanyByName(employerName);
+        const byName = await this.findCompanyByName(dto.employer.trim());
         if (byName) { companyId = byName.id; companyName = byName.name; }
       }
       return await this.prisma.$transaction(async (tx) => {
@@ -3095,23 +3090,11 @@ export class ExpertAdminService {
     return this.prisma.company.findFirst({ where: { name }, select: { id: true, name: true } });
   }
 
-  /** 表格单位名 → 公司归属（2026-11-09 用户裁定）：先对公司主数据精确匹配，未命中按
-   *  表格名直接建档归属（name 唯一；并发撞 P2002 回读既有行）。新导入与重导修复共用。 */
-  private async resolveSheetCompany(employerName: string) {
-    const hit = await this.findCompanyByName(employerName);
-    if (hit) return hit;
-    try {
-      return await this.prisma.company.create({ data: { name: employerName }, select: { id: true, name: true } });
-    } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-        return this.findCompanyByName(employerName);
-      }
-      throw e;
-    }
-  }
-
-  /** CSV 批量导入（表头灵活匹配） */
-  async importCsv(rows: Array<Record<string, string>>, operatorId?: string) {
+  /** CSV 批量导入（表头灵活匹配）。归属二段式（2026-11-09 用户裁定）：表格单位名只对
+   *  公司主数据既有公司精确匹配；未命中的返回 needMapping+unmatched 由前端弹窗让用户
+   *  人工指定（companyMapping: 表格单位名 → 公司 id，空串=显式不归属），携映射重提——
+   *  全程禁止新建公司。 */
+  async importCsv(rows: Array<Record<string, string>>, operatorId?: string, companyMapping?: Record<string, string>) {
     const pick = (row: Record<string, string>, keys: string[]): string => {
       for (const k of Object.keys(row)) {
         const norm = k.trim();
@@ -3126,10 +3109,46 @@ export class ExpertAdminService {
     let imported = 0, skipped = 0, failed = 0, repaired = 0;
     const importedIds: string[] = [];
     const repairedIds: string[] = [];
-    // 导入前公司主数据快照（成功行归属分布 + 「按表格名新建了哪些公司」上报用）
-    const companyNamesBefore = new Set(
-      (await this.prisma.company.findMany({ select: { name: true } })).map(c => c.name)
-    );
+
+    // ── 归属预解析：表格单位名 → 既有公司（禁止新建）──
+    // 命中=精确同名；未命中=查 companyMapping 人工指定（id 必须真实存在；空串=显式不归属）；
+    // 仍未定的收集为 unmatched 返回前端弹窗——本轮不动任何数据
+    const distinctEmployers = [...new Set(
+      rows.map(r => pick(r, ['工作单位', '单位']).trim()).filter(Boolean)
+    )];
+    const matchedRows = distinctEmployers.length
+      ? await this.prisma.company.findMany({ where: { name: { in: distinctEmployers } }, select: { id: true, name: true } })
+      : [];
+    const bySheetName = new Map(matchedRows.map(c => [c.name, c]));
+    const mappingIds = [...new Set(
+      Object.values(companyMapping ?? {}).map(v => v?.trim()).filter((v): v is string => !!v)
+    )];
+    const mappedCompanies = mappingIds.length
+      ? await this.prisma.company.findMany({ where: { id: { in: mappingIds } }, select: { id: true, name: true } })
+      : [];
+    const byMappedId = new Map(mappedCompanies.map(c => [c.id, c]));
+    const resolution = new Map<string, { id: string; name: string; via: 'match' | 'manual' } | null>();
+    const unmatched: string[] = [];
+    for (const name of distinctEmployers) {
+      const hit = bySheetName.get(name);
+      if (hit) { resolution.set(name, { id: hit.id, name: hit.name, via: 'match' }); continue; }
+      const mappedId = (companyMapping ?? {})[name]?.trim();
+      if (mappedId) {
+        const c = byMappedId.get(mappedId);
+        if (!c) throw new BadRequestException({ error: `「${name}」指定的归属公司不存在，请重新选择`, code: 'COMPANY_NOT_FOUND' });
+        resolution.set(name, { id: c.id, name: c.name, via: 'manual' });
+      } else if (name in (companyMapping ?? {})) {
+        resolution.set(name, null); // 显式「不归属」
+      } else {
+        unmatched.push(name);
+      }
+    }
+    if (unmatched.length > 0) {
+      return { needMapping: true as const, unmatched };
+    }
+    const manualMappings = [...resolution.entries()]
+      .filter(([, v]) => v?.via === 'manual')
+      .map(([sheet, v]) => ({ sheet, company: v!.name }));
 
     for (const row of rows) {
       const displayName = pick(row, ['姓名', '名称']);
@@ -3152,11 +3171,11 @@ export class ExpertAdminService {
       });
       if (dup) {
         // 重导修复（2026-11-09 生产实录：旧导入未命中公司主数据整批落「未归属」）：账号
-        // 已在库但未归属、且本行表格带单位名 → 按表格补录归属（建档语义同新导入；
-        // 只补 companyId 为空的行，绝不覆盖既有归属——已归属/未填单位照旧跳过）
+        // 已在库但未归属、且本行表格单位名已有归属解析（精确命中/人工指定）→ 补录归属；
+        // 只补 companyId 为空的行，绝不覆盖既有归属——已归属/不归属/未填单位照旧跳过
         const sheetEmployer = pick(row, ['工作单位', '单位']);
         const healed = dup.companyId == null && sheetEmployer?.trim()
-          ? await this.resolveSheetCompany(sheetEmployer.trim())
+          ? (resolution.get(sheetEmployer.trim()) ?? null)
           : null;
         if (healed) {
           await this.prisma.user.update({
@@ -3175,6 +3194,8 @@ export class ExpertAdminService {
         skipped++; continue;
       }
       try {
+        const sheetEmployer = pick(row, ['工作单位', '单位']);
+        const resolved = sheetEmployer ? resolution.get(sheetEmployer) : undefined;
         const created = await this.createExpert({
           username,
           displayName,
@@ -3183,7 +3204,9 @@ export class ExpertAdminService {
           specialty,
           title,
           qualifications,
-          employer: pick(row, ['工作单位', '单位']) || undefined,
+          employer: sheetEmployer || undefined,
+          // 归属走预解析结果（精确命中/人工指定）——companyId 轨以所选公司为准（employer 同源规范名）
+          ...(resolved?.id && { companyId: resolved.id }),
           departmentName: pick(row, ['所属部门', '部门']) || undefined,
           phone: pick(row, ['手机号', '手机', '电话']) || undefined,
           idNumber: pick(row, ['身份证号', '身份证']) || undefined,
@@ -3201,8 +3224,8 @@ export class ExpertAdminService {
         failed++;
       }
     }
-    // 归属分布（成功/修复行按公司计数）+ 本次按表格名新建的公司主数据（2026-11-09 用户
-    // 裁定：表格单位名未命中主数据即直接建档——新建了哪些公司必须显式上报，主数据增长不悄然发生）
+    // 归属分布（成功/修复行按公司计数）+ 人工指定清单（2026-11-09 用户裁定：未命中主数据
+    // 的单位由用户在既有公司内指定归属——指定关系显式上报，禁止新建公司）
     const attribution = new Map<string, number>();
     for (const r of results) {
       if ((r.状态 === '成功' || r.状态 === '修复归属') && r.归属) attribution.set(r.归属, (attribution.get(r.归属) ?? 0) + 1);
@@ -3210,17 +3233,16 @@ export class ExpertAdminService {
     const companies = [...attribution.entries()]
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'zh'));
-    const createdCompanies = [...attribution.keys()].filter(n => !companyNamesBefore.has(n));
     if (imported > 0 || repaired > 0) {
       await this.auditExpert(operatorId, 'EXPERT_IMPORT', 'batch', {
         imported, skipped, failed, total: rows.length,
         ...(repaired > 0 && { repaired }),
-        ...(createdCompanies.length > 0 && { createdCompanies }),
+        ...(manualMappings.length > 0 && { manualMappings }),
       });
     }
     // importedIds：本次导入成功的专家 id 集；repairedIds：本次补录归属的已在库专家 id 集
     // （前端「一键全部启用」凭两者并集批量审核入库——均只动 PENDING 行，幂等）
-    return { total: rows.length, imported, skipped, failed, repaired, results, importedIds, repairedIds, companies, createdCompanies };
+    return { total: rows.length, imported, skipped, failed, repaired, results, importedIds, repairedIds, companies, manualMappings };
   }
 
   /** CSV 导入后一键启用（2026-11-09 用户裁定）：批量审核入库 entryStatus PENDING→ACTIVE

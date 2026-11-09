@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { importCsv, expertImportBatchApprove, type ExpertImportResult } from '@/lib/api/expert';
+import { importCsv, expertImportBatchApprove, type ExpertImportDone } from '@/lib/api/expert';
+import { api } from '@/lib/api';
+import { SearchSelect } from '@/components/workbench/search-select';
 import { useConfirm } from '@/components/workbench/use-confirm';
 import { Workbook } from 'exceljs';
 import { Download, Upload, Loader2, Eye, ChevronDown } from 'lucide-react';
@@ -18,8 +20,52 @@ interface ExpertCsvActionsProps {
 export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
   const { confirm, dialog } = useConfirm();
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<ExpertImportResult | null>(null);
+  const [importResult, setImportResult] = useState<ExpertImportDone | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  // 归属指定面板（2026-11-09 用户裁定）：表格单位名未命中公司主数据 → 弹面板让用户
+  // 在既有公司（:3005 注册名单）内人工指定归属，禁止新建；Promise 与导入流程衔接
+  const [mappingPanel, setMappingPanel] = useState<{
+    unmatched: string[];
+    companies: Array<{ value: string; label: string }>;
+    draft: Record<string, string>;
+  } | null>(null);
+  const mappingResolveRef = useRef<((m: Record<string, string> | null) => void) | null>(null);
+
+  const requestCompanyMapping = async (unmatched: string[]): Promise<Record<string, string> | null> => {
+    try {
+      const companies = await api.get<Array<{ id: string; name: string }>>('/companies');
+      return await new Promise<Record<string, string> | null>((resolve) => {
+        mappingResolveRef.current = resolve;
+        setMappingPanel({
+          unmatched,
+          companies: companies.map(c => ({ value: c.id, label: c.name })),
+          draft: {},
+        });
+      });
+    } catch {
+      toast.error('获取公司主数据失败，无法指定归属');
+      return null;
+    }
+  };
+
+  const confirmMapping = () => {
+    const p = mappingPanel;
+    if (!p) return;
+    const missing = p.unmatched.filter(n => !(n in p.draft));
+    if (missing.length > 0) {
+      toast.warning(`还有单位未指定归属：${missing.join('、')}`);
+      return;
+    }
+    setMappingPanel(null);
+    mappingResolveRef.current?.(p.draft);
+    mappingResolveRef.current = null;
+  };
+
+  const cancelMapping = () => {
+    setMappingPanel(null);
+    mappingResolveRef.current?.(null);
+    mappingResolveRef.current = null;
+  };
 
   const downloadTemplate = () => {
     const csv = '﻿' + CSV_HEADERS.join(',') + '\n' + CSV_EXAMPLE.join(',');
@@ -248,7 +294,19 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
       if (idLike && rows.some(r => /\d{15,}0{3}/.test(r[idLike] ?? ''))) {
         toast.warning('身份证号末位出现多个 0，可能是表格把它当成了数字。请将该列设为「文本」格式后重填再导入');
       }
-      const result = await importCsv(rows);
+      let result = await importCsv(rows);
+      // 二段式：未命中公司主数据的单位 → 面板人工指定归属（只能在既有公司内选，
+      // 禁止新建；「不归属」为显式选项）→ 携映射重提
+      if (result.needMapping) {
+        const mapping = await requestCompanyMapping(result.unmatched);
+        if (!mapping) {
+          toast.info('已取消导入——未指定归属前不会写入任何数据');
+          done();
+          return;
+        }
+        result = await importCsv(rows, mapping);
+        if (result.needMapping) throw new Error('仍有单位未指定归属，请重试');
+      }
       setImportResult(result);
       toast.success(`导入完成：成功 ${result.imported} 条，跳过 ${result.skipped} 条，失败 ${result.failed} 条`);
       onImported?.();
@@ -337,6 +395,49 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
         <p className="text-[10px] text-[var(--muted-foreground)]/70 leading-relaxed">支持 .xlsx 与 .csv（模板两用）；必填姓名/专业领域——登录账号=姓名、初始口令=身份证号自动生成。身份证与手机号列请设为「文本」格式，避免 Excel 数值失真。</p>
       </div>
 
+      {/* 归属指定面板：表格单位名未命中公司主数据时出现（2026-11-09 用户裁定：
+          逐个指定到既有公司，禁止新建；确认后携映射继续导入，取消则整单不写入） */}
+      {mappingPanel && (
+        <div className="rounded-xl border border-[color-mix(in_oklch,var(--accent)_30%,transparent)] bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] p-4 space-y-3">
+          <div>
+            <h4 className="text-xs font-bold text-[var(--foreground)]">指定单位归属</h4>
+            <p className="text-[10px] text-[var(--muted-foreground)] mt-0.5 leading-relaxed">
+              以下表格「工作单位」未命中公司主数据（:3005 注册公司名单）。请在既有公司内为每个单位指定归属——不能新建公司；确属库外单位可选「不归属」。
+            </p>
+          </div>
+          <div className="max-h-[260px] space-y-2 overflow-y-auto pr-1">
+            {mappingPanel.unmatched.map(name => (
+              <div key={name} className="flex items-center gap-3">
+                <span className="w-[38%] shrink-0 truncate text-[11px] font-medium text-[var(--foreground)]" title={name}>{name}</span>
+                <div className="min-w-0 flex-1">
+                  <SearchSelect
+                    options={[
+                      { value: '', label: '不归属（保留单位原文）' },
+                      ...mappingPanel.companies,
+                    ]}
+                    value={mappingPanel.draft[name] ?? ''}
+                    onPick={(o) => setMappingPanel(p => (p ? { ...p, draft: { ...p.draft, [name]: o.value } } : p))}
+                    placeholder="选择归属公司…"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <button onClick={cancelMapping} className="neu-btn-soft !h-9 !text-xs">
+              取消导入
+            </button>
+            <button
+              onClick={confirmMapping}
+              className="neu-btn-primary is-water !h-9 !text-xs"
+              disabled={mappingPanel.unmatched.some(n => !(n in mappingPanel.draft))}
+            >
+              确认并继续导入
+            </button>
+          </div>
+        </div>
+      )}
+
       {importResult && (
         <div className="rounded-xl bg-[color-mix(in_oklch,var(--accent)_5%,transparent)] px-4 py-3 space-y-2 shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
           <div className="flex items-center justify-between">
@@ -352,12 +453,12 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
             <span>跳过 <strong className="text-[var(--warning)]">{importResult.skipped}</strong></span>
             <span>失败 <strong className="text-[var(--danger)]">{importResult.failed}</strong></span>
           </div>
-          {/* 表格单位名未命中公司主数据时按表格名直接建档（2026-11-09 用户裁定）——
-              新建了哪些公司必须显式告知，主数据增长不悄然发生 */}
-          {(importResult.createdCompanies?.length ?? 0) > 0 && (
-            <p className="text-[11px] leading-relaxed text-[var(--warning)]">
-              本次有 {importResult.createdCompanies!.length} 家单位不在公司主数据（:3005 注册公司名单）中，已按表格单位名直接建档归属：
-              <span className="font-semibold">{importResult.createdCompanies!.join('、')}</span>
+          {/* 未命中主数据的单位按人工指定归属（2026-11-09 用户裁定：只能在既有公司内
+              指定、禁止新建）——指定关系显式回显，归属口径有据可查 */}
+          {(importResult.manualMappings?.length ?? 0) > 0 && (
+            <p className="text-[11px] leading-relaxed text-[color:var(--accent)]">
+              以下 {importResult.manualMappings!.length} 个表格单位经人工指定归属：
+              <span className="font-semibold">{importResult.manualMappings!.map(m => `${m.sheet} → ${m.company}`).join('、')}</span>
             </p>
           )}
           {(importResult.companies?.length ?? 0) > 0 && (
