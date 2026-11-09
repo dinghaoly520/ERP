@@ -3739,15 +3739,19 @@ export class SupplierService {
     }
 
     // #3 绩效评价：评价表为准（带评价人）。评价记录与审计日志是两次独立写入、毫秒级时差，
-    //    按就近 ±5s 时间窗配对去重——命中只出一条；未配对的审计条目（评价已被删）兜底展示防丢事件
+    //    按就近 ±5s 时间窗配对去重——一评配一审（至多一条，防批量导入窄窗内多审被单评
+    //    连环吞掉、孤儿兜底失效）；未配对的审计条目（评价已被删）兜底展示防丢事件
     const evalAudits = auditLogs.filter(l => l.action === 'SUPPLIER_EVALUATION_CREATED');
     const pairedAuditIdx = new Set<number>();
     for (const e of evaluations) {
       const eAt = e.createdAt.getTime();
-      evalAudits.forEach((l, idx) => {
-        if (pairedAuditIdx.has(idx)) return;
-        if (Math.abs(l.createdAt.getTime() - eAt) <= 5_000) pairedAuditIdx.add(idx);
-      });
+      for (let idx = 0; idx < evalAudits.length; idx++) {
+        if (pairedAuditIdx.has(idx)) continue;
+        if (Math.abs(evalAudits[idx].createdAt.getTime() - eAt) <= 5_000) {
+          pairedAuditIdx.add(idx);
+          break; // 一次评价至多配对一条审计——配满即止
+        }
+      }
       events.push({ type: 'evaluation', label: '绩效评价', detail: `评价人：${e.evaluator?.displayName || '—'}`, grade: e.finalGrade, at: e.createdAt.toISOString() });
     }
     evalAudits.forEach((l, idx) => {

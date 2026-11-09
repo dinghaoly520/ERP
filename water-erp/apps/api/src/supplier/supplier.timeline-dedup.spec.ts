@@ -95,4 +95,19 @@ describe('SupplierService.getSupplierTimeline——绩效评价双源去重', ()
     expect(evals[0].grade).toBe('D');
     expect(evals[0].detail).toBe('评价人：陈源远');
   });
+
+  it('一评至多配一审：窄窗内 1 评价 + 2 审计（其一评价已删）→ 2 条事件不丢', async () => {
+    await make();
+    (prisma.supplierEvaluation.findMany as jest.Mock).mockResolvedValue([
+      { finalGrade: 'A', createdAt: new Date('2026-08-12T07:29:00.000Z'), evaluator: { displayName: '陈源远' } },
+    ]);
+    (prisma.auditLog.findMany as jest.Mock).mockResolvedValue([
+      { action: 'SUPPLIER_EVALUATION_CREATED', details: { finalGrade: 'A' }, createdAt: new Date('2026-08-12T07:29:00.300Z'), userId: 'u1', user: { displayName: '陈源远' } },
+      { action: 'SUPPLIER_EVALUATION_CREATED', details: { finalGrade: 'B' }, createdAt: new Date('2026-08-12T07:29:01.000Z'), userId: 'u1', user: { displayName: '陈源远' } },
+    ]);
+    const r = await service.getSupplierTimeline('s1');
+    const evals = r.events.filter(e => e.label === '绩效评价');
+    expect(evals).toHaveLength(2); // 评价表 1 条 + 孤儿审计 1 条——旧 forEach 无短路会把两条审计都吞成 1 条
+    expect(evals.map(e => e.grade).sort()).toEqual(['A', 'B']);
+  });
 });
