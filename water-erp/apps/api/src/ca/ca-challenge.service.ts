@@ -38,6 +38,7 @@ export interface ChallengePayload {
   expiresAt: Date;
 }
 
+@Injectable()
 export class CaChallengeService {
   constructor(@Inject('REDIS_CLIENT') private readonly redis: Redis) {}
 

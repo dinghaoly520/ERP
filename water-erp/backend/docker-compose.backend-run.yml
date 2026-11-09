@@ -106,13 +106,23 @@ services:
     working_dir: /app/apps/api
     env_file: .env.backend
     environment:
-      NODE_ENV: ${NODE_ENV:-development}
+      # 2026-11-09：原 ${NODE_ENV:-development} 插值不读 .env.backend（服务级 env_file 不参与
+      # compose 插值），api 会一直以 development 跑生产（Swagger 暴露/cookie 无 Secure）；硬编码翻正。
+      # B 机真身同日已修（JWT_SECRET 50 字符 ≥32，production 启动守卫通过）。
+      NODE_ENV: production
       PORT: "4001"
       DATABASE_URL: postgresql://water_erp:water_erp_dev@postgres:5432/water_erp?connection_limit=20
       DIRECT_URL: postgresql://water_erp:water_erp_dev@postgres:5432/water_erp
       REDIS_URL: redis://redis:6379
     ports:
       - "4001:4001"
+    volumes:
+      # 运行时密钥/信任锚持久化（bind mount 落 B 机 compose 同目录 ./data/api-data，活过容器重建）：
+      #   admin-keystore/ 管理方外层私钥——admin-cert/generate 运行时写入；丢=对应历史信封外层永久不可解
+      #   supervision/    监督推送平台签名私钥（A-153，同 .data 落盘惯例）
+      #   trusted-ca/     X.509 链校验信任锚——空=跳过链闸；启用链闸时把 CA 证书放宿主此目录即可
+      # 必须读写挂载（不可 :ro）：generate 要写私钥文件进去
+      - ./data/api-data:/app/apps/api/.data
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

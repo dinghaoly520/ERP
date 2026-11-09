@@ -10,6 +10,7 @@
 
    本地比对无条件强制（World B 下是唯一原文绑定，非纵深防御）。
    ================================================================= */
+import { Injectable } from '@nestjs/common';
 import { parseSignedP7, P7ParseError, P7ParseResult, ALG_WHITELIST } from '../common/crypto/p7/p7-parser';
 import { parseCertificate, pemToDer } from '../common/crypto/x509/x509-cert';
 import { SccaGatewayClient } from './scca-gateway.client';
@@ -54,6 +55,7 @@ interface ITrustStore {
   verifyChain(leaf: { isCa: boolean; notBefore: Date; notAfter: Date; issuerDn: string; [k: string]: unknown }, atTime?: Date): { ok: boolean; reason?: string };
 }
 
+@Injectable()
 export class CaVerificationService {
   constructor(
     private readonly gateway: SccaGatewayClient,

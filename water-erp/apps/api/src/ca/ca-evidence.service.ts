@@ -1,10 +1,12 @@
 /* =================================================================
    CaEvidenceService — 验签证据不可变记录（CaVerificationRecord）
    ================================================================= */
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { createHash } from 'crypto';
 import type { VerificationOutcome } from './ca-verification.service';
 
+@Injectable()
 export class CaEvidenceService {
   constructor(private readonly prisma: PrismaService) {}
 
