@@ -6,22 +6,16 @@
  * 开标现场按流程依次解密——开标前任何人（包括平台管理员）都无法看到投标内容。
  * 更换证书不影响已递交的投标（每份投标记录所用证书，解密自动配对）。
  * 公钥为公开物（供应商端投递前即拉取），页面仅展示指纹；机密私钥只在服务端保管目录。
- * 2026-08-31 视觉对齐 cgzxui：page-hero 标题卡 + 双锁流程条 + 证书状态卡。
+ * 2026-08-31 视觉对齐 cgzxui：page-hero 标题卡 + 证书状态卡
+ * （双锁流程条已删 2026-11-09 用户裁定）。
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { ChevronRight, Eye, KeyRound, Loader2, Lock, RefreshCw, ShieldAlert, ShieldCheck, Usb } from "lucide-react";
+import { KeyRound, Loader2, Lock, RefreshCw, ShieldAlert, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { fetchCurrentUser } from "@/lib/api/auth";
 import { fetchAdminCert, generateAdminCert, type AdminCertInfo } from "@/lib/api/admin-cert";
 import { useConfirm } from "@/components/workbench/use-confirm";
-
-/** 双锁流程条：投标保密的三步（hero 第二行，替代大段说明文字） */
-const LOCK_FLOW = [
-  { icon: KeyRound, title: '第一道锁 · 管理方证书', desc: '投标人递交时，系统用本页证书加密投标文件' },
-  { icon: Usb, title: '第二道锁 · 供应商 U 盾', desc: '供应商以自有 U 盾再封一层，双锁齐上' },
-  { icon: Eye, title: '开标现场 · 依次解密', desc: '开标前任何人（含管理员）均无法查看内容' },
-];
 
 export function AdminCertPage() {
   const [cert, setCert] = useState<AdminCertInfo | null | undefined>(undefined); // undefined = 加载中
@@ -100,23 +94,7 @@ export function AdminCertPage() {
         </div>
 
         <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }} />
-
-        {/* 行2：双锁流程条（横向三步） */}
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          {LOCK_FLOW.map((f, i) => (
-            <div key={f.title} className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-[var(--accent)]"
-                style={{ background: 'color-mix(in oklch, var(--accent) 8%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
-                <f.icon size={14} strokeWidth={1.8} />
-              </div>
-              <div className="min-w-0">
-                <div className="text-[11px] font-bold text-[color:var(--foreground)]">{f.title}</div>
-                <div className="truncate text-[10px] leading-4 text-[var(--muted-foreground)]" title={f.desc}>{f.desc}</div>
-              </div>
-              {i < LOCK_FLOW.length - 1 && <ChevronRight size={13} className="ml-auto shrink-0 text-[var(--muted-foreground)] opacity-50" />}
-            </div>
-          ))}
-        </div>
+        {/* 双锁流程条已删（2026-11-09 用户裁定）——hero 第二行不再放说明性三步卡 */}
       </div>
 
       {/* ══ 证书状态卡 ══ */}
