@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { hashSync } from 'bcryptjs';
 import { Prisma, ExpertLevel } from '@prisma/client';
 import { resolveRsvpLinkOrigin, type PortalLinkHeaders } from '../common/portal-link-origin';
+import { auditDetailSearchClauses } from '../common/audit-search.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { sealPii, openPii, openPiiForMask } from '../common/crypto/sm-field-crypto';
 import { logSensitiveAccess } from '../common/sensitive-access.util';
@@ -3961,7 +3962,7 @@ ${combined}`,
   /* 操作历史（审计，只读） */
 
   /** 专家管理操作历史：仅白名单动作，附操作人/时间/事由，供审计追溯（无改删端点，不可篡改）。 */
-  async getExpertOperationHistory(params: { expertId?: string; action?: string; startDate?: string; endDate?: string; page?: number; pageSize?: number }) {
+  async getExpertOperationHistory(params: { expertId?: string; action?: string; startDate?: string; endDate?: string; search?: string; page?: number; pageSize?: number }) {
     const page = params.page && params.page > 0 ? params.page : 1;
     const pageSize = Math.min(params.pageSize && params.pageSize > 0 ? params.pageSize : 20, 500);
 
@@ -3970,6 +3971,12 @@ ${combined}`,
     };
     if (params.expertId) where.resourceId = params.expertId;
     if (params.action) where.action = params.action;
+    // 搜索（2026-11-09 操作历史统一配筛选+搜索）：resourceType/expertName/reason 等
+    // 文本键逐 path 命中（整篇 string_contains 对对象值恒 false，见 common/audit-search.util）
+    if (params.search?.trim()) {
+      const q = params.search.trim();
+      where.AND = [...(where.AND as Prisma.AuditLogWhereInput[] ?? []), { OR: auditDetailSearchClauses(q) as Prisma.AuditLogWhereInput[] }];
+    }
     // 日期检索（以天为单位）：startDate ≤ createdAt < endDate 次日，均按 YYYY-MM-DD
     if (params.startDate || params.endDate) {
       const range: { gte?: Date; lt?: Date } = {};

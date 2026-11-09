@@ -16,6 +16,10 @@ export class AuditController {
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
     @Query('exclude') exclude?: string,
+    @Query('action') action?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('search') search?: string,
   ) {
     const parsedLimit = limit ? parseInt(limit, 10) : 50;
     const parsedOffset = offset ? parseInt(offset, 10) : 0;
@@ -27,6 +31,10 @@ export class AuditController {
       limit: Math.min(parsedLimit, 500),
       offset: parsedOffset,
       excludeActions,
+      ...(action ? { action } : {}),
+      ...(dateFrom ? { dateFrom } : {}),
+      ...(dateTo ? { dateTo } : {}),
+      ...(search?.trim() ? { search: search.trim() } : {}),
     });
   }
 
@@ -42,6 +50,10 @@ export class AuditController {
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
     @Query('exclude') exclude?: string,
+    @Query('action') action?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('search') search?: string,
   ) {
     const parsedLimit = limit ? parseInt(limit, 10) : 100;
     const parsedOffset = offset ? parseInt(offset, 10) : 0;
@@ -53,6 +65,10 @@ export class AuditController {
       limit: Math.min(parsedLimit, 500),
       offset: parsedOffset,
       excludeActions,
+      ...(action ? { action } : {}),
+      ...(dateFrom ? { dateFrom } : {}),
+      ...(dateTo ? { dateTo } : {}),
+      ...(search?.trim() ? { search: search.trim() } : {}),
     });
   }
 

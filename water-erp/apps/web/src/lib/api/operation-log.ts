@@ -5,6 +5,8 @@ export type OperationLogRow = {
   id: string;
   userId: string | null;
   username: string | null;
+  /** 操作人姓名（2026-11-09：读端按 userId 联查 User.displayName 附带，username 回退） */
+  displayName?: string | null;
   role: string | null;
   portal: string | null;
   method: string;

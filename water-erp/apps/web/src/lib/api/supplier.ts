@@ -599,7 +599,7 @@ export interface SupplierAuditLogItem {
 export interface SupplierAuditLogs {
   items: SupplierAuditLogItem[]; total: number; page: number; pageSize: number;
 }
-export function getSupplierAuditLogs(opts?: { page?: number; pageSize?: number; supplierId?: string; action?: string; dateFrom?: string; dateTo?: string; companyId?: string }) {
+export function getSupplierAuditLogs(opts?: { page?: number; pageSize?: number; supplierId?: string; action?: string; dateFrom?: string; dateTo?: string; search?: string; companyId?: string }) {
   const params = new URLSearchParams();
   if (opts?.page) params.set('page', String(opts.page));
   if (opts?.pageSize) params.set('pageSize', String(opts.pageSize));
@@ -607,6 +607,7 @@ export function getSupplierAuditLogs(opts?: { page?: number; pageSize?: number; 
   if (opts?.action) params.set('action', opts.action);
   if (opts?.dateFrom) params.set('dateFrom', opts.dateFrom);
   if (opts?.dateTo) params.set('dateTo', opts.dateTo);
+  if (opts?.search?.trim()) params.set('search', opts.search.trim());
   if (opts?.companyId && opts.companyId !== 'all') params.set('companyId', opts.companyId);
   const q = params.toString();
   return api.get<SupplierAuditLogs>(`/supplier/audit-logs${q ? `?${q}` : ''}`);

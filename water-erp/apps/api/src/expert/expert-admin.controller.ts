@@ -330,6 +330,7 @@ export class ExpertAdminController {
     @Query('action') action?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('search') search?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
@@ -338,6 +339,7 @@ export class ExpertAdminController {
       action,
       startDate,
       endDate,
+      ...(search?.trim() ? { search: search.trim() } : {}),
       page: page ? parseInt(page, 10) : 1,
       pageSize: pageSize ? parseInt(pageSize, 10) : 20,
     });

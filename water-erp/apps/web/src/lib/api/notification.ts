@@ -58,16 +58,35 @@ export interface AuditActivity {
   createdAt: string;
 }
 
+/** 操作历史筛选（2026-11-09 用户需求：全部操作历史统一配类型/时间筛选+搜索） */
+export interface ActivityFilters {
+  action?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  search?: string;
+}
+
+function activityFilterQuery(f?: ActivityFilters): string {
+  if (!f) return '';
+  const p = new URLSearchParams();
+  if (f.action) p.set('action', f.action);
+  if (f.dateFrom) p.set('dateFrom', f.dateFrom);
+  if (f.dateTo) p.set('dateTo', f.dateTo);
+  if (f.search?.trim()) p.set('search', f.search.trim());
+  const s = p.toString();
+  return s ? `&${s}` : '';
+}
+
 /** 当前用户操作历史（AuditLog）——通知中心「操作历史」与已办结果记录数据源；
  *  offset 分页（2026-11-06 不上限裁定：加载更多/导出全量逐页翻） */
-export function fetchMyActivities(limit = 50, exclude?: string[], offset = 0) {
+export function fetchMyActivities(limit = 50, exclude?: string[], offset = 0, filters?: ActivityFilters) {
   const ex = exclude?.length ? `&exclude=${exclude.join(',')}` : '';
-  return api.get<{ items: AuditActivity[]; total: number }>(`/audit-log/my-activities?limit=${limit}&offset=${offset}${ex}`);
+  return api.get<{ items: AuditActivity[]; total: number }>(`/audit-log/my-activities?limit=${limit}&offset=${offset}${ex}${activityFilterQuery(filters)}`);
 }
 
 /** 全中心操作留痕（2026-11-06 用户裁定）——leader/admin 专属端点，每条带 operator；
  *  staff 调用会被后端 403，前端按角色分流调用 */
-export function fetchAllActivities(limit = 100, exclude?: string[], offset = 0) {
+export function fetchAllActivities(limit = 100, exclude?: string[], offset = 0, filters?: ActivityFilters) {
   const ex = exclude?.length ? `&exclude=${exclude.join(',')}` : '';
-  return api.get<{ items: AuditActivity[]; total: number }>(`/audit-log/all-activities?limit=${limit}&offset=${offset}${ex}`);
+  return api.get<{ items: AuditActivity[]; total: number }>(`/audit-log/all-activities?limit=${limit}&offset=${offset}${ex}${activityFilterQuery(filters)}`);
 }

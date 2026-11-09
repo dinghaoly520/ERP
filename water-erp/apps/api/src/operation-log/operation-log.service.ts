@@ -199,29 +199,58 @@ export class OperationLogService {
   async findAll(q: OperationLogQuery) {
     const limit = Math.min(q.limit ?? 50, 100);
     const offset = q.offset ?? 0;
-    const where = this.buildWhere(q);
+    const where = await this.buildWhere(q);
     const [items, total] = await Promise.all([
       this.prisma.operationLog.findMany({ where, orderBy: { createdAt: 'desc' }, take: limit, skip: offset }),
       this.prisma.operationLog.count({ where }),
     ]);
-    return { items, total };
+    return { items: await this.withDisplayNames(items), total };
   }
 
   async findMine(userId: string, q: OperationLogQuery) {
     const limit = Math.min(q.limit ?? 50, 100);
     const offset = q.offset ?? 0;
-    const where: Prisma.OperationLogWhereInput = { ...this.buildWhere(q), userId };
+    const where: Prisma.OperationLogWhereInput = { ...(await this.buildWhere(q)), userId };
     const [items, total] = await Promise.all([
       this.prisma.operationLog.findMany({ where, orderBy: { createdAt: 'desc' }, take: limit, skip: offset }),
       this.prisma.operationLog.count({ where }),
     ]);
-    return { items, total };
+    return { items: await this.withDisplayNames(items), total };
   }
 
-  private buildWhere(q: OperationLogQuery): Prisma.OperationLogWhereInput {
+  /** 操作人姓名（2026-11-09 口径：操作人显示账号姓名而非账号名）——日志只存 userId/username
+   *  快照，按 userId 联查 User.displayName 附带回显（displayName 优先、username 回退）。 */
+  private async withDisplayNames<T extends { userId: string | null; username: string | null }>(items: T[]): Promise<(T & { displayName: string | null })[]> {
+    const ids = [...new Set(items.map((i) => i.userId).filter((x): x is string => !!x))];
+    if (ids.length === 0) return items.map((i) => ({ ...i, displayName: i.username }));
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, displayName: true },
+    });
+    const names = new Map(users.map((u) => [u.id, u.displayName]));
+    return items.map((i) => ({ ...i, displayName: (i.userId && names.get(i.userId)) || i.username }));
+  }
+
+  private async buildWhere(q: OperationLogQuery): Promise<Prisma.OperationLogWhereInput> {
     const where: Prisma.OperationLogWhereInput = {};
     if (q.userId) where.userId = q.userId;
-    if (q.username) where.username = q.username;
+    if (q.username) {
+      // 过滤同口径接受姓名或账号（精确）：命中用户（username/displayName 等值）按
+      // userId ∪ username 快照过滤；未命中回退原语义按 username 精确（保持无结果）
+      const users = await this.prisma.user.findMany({
+        where: { OR: [{ username: q.username }, { displayName: q.username }] },
+        select: { id: true, username: true },
+      });
+      where.AND = [
+        ...((where.AND as Prisma.OperationLogWhereInput[]) ?? []),
+        {
+          OR: [
+            ...(users.length ? [{ userId: { in: users.map((u) => u.id) } }] : []),
+            { username: { in: users.length ? users.map((u) => u.username) : [q.username] } },
+          ],
+        },
+      ];
+    }
     if (q.role) where.role = q.role;
     if (q.portal) where.portal = q.portal;
     if (q.method) where.method = q.method.toUpperCase();

@@ -16,9 +16,10 @@ import {
 } from '@/lib/api/auth';
 import { getSupplier, getSupplierList, approveSupplier, rejectSupplier, returnSupplier } from '@/lib/api/supplier';
 import { Modal } from '@/components/workbench';
+import { SearchSelect } from '@/components/workbench/search-select';
 import {
   Bell, CheckCheck, Clock, History, Inbox, ClipboardList, CircleCheck, BookOpen, Loader2, CheckCircle2, XCircle, RotateCcw, UserPlus, IdCard,
-  ChevronLeft, ChevronRight, Download,
+  ChevronLeft, ChevronRight, Download, Search, X,
 } from 'lucide-react';
 import { downloadHistoryTxt } from '@/lib/history-export';
 
@@ -146,6 +147,39 @@ const ACTION_LABEL: Record<string, string> = {
   SUPPLIER_LINK_PASSED_LEADER: '归属申请 · 复审通过',
   SUPPLIER_LINK_REJECTED: '归属申请 · 拒绝',
   查看账号密码: '查看账号密码',
+  // ── 二轮补录（2026-11-09：对照后端 AuditLog 写入全集而非 DB 存量——当日库内只漏
+  //    ADDENDUM_OPEN_TIME_SYNC 一个，但下列动作码一旦发生同样会把英文裸进标签位）──
+  ADDENDUM_OPEN_TIME_SYNC: '补遗联动调整开标时间',
+  BID_ACCEPT_DANGER: '确认接受解密失败',
+  BID_AI_RETRY_BIDDERS: '重试 AI 投标方分析',
+  BID_DECRYPT_OUTER: '解密投标外层信封',
+  BID_DECRYPT_OUTER_V3: '解密投标外层信封',
+  BID_DISPUTE_OVERRIDE: '开标异议强制裁决',
+  BID_OPENING_FIELD_CONFIG_SET: '配置唱标字段',
+  BID_OPENING_PAUSED: '暂停开标',
+  BID_OPENING_RESUMED: '恢复开标',
+  BID_PROJECT_REOPEN: '流标项目重新招标',
+  BID_PROJECT_TIME_UPDATED: '调整开标/截标时间',
+  CA_LOGIN: 'CA 证书登录',
+  CUSTOM_EXTRACTION_PROJECT_CREATED: '手工创建抽取项目',
+  EVALUATION_REOPEN: '重开评标',
+  EXPERT_REPORT_UNCONFIRMED: '撤销评审报告确认',
+  EXPERT_VIEW_DOCUMENT: '专家查阅投标文件',
+  EXPERT_VIEW_DOCUMENTS_SUMMARY: '专家查阅投标文件清单',
+  PLATFORM_PUSH: '平台推送',
+  SUPERVISION_PUSH: '监督数据推送',
+  SUPPLIER_LINK_DISABLED: '停用公司归属',
+  SUPPLIER_LINK_ENABLED: '启用公司归属',
+  SUPPLIER_RESUBMITTED: '重新提交补正资料',
+  SUPPLIER_CHANGE_APPROVED: '供应商资料变更 · 通过',
+  SUPPLIER_CHANGE_REJECTED: '供应商资料变更 · 拒绝',
+  SUPPLIER_CONVERTED_REGULAR: '临时供应商转正式',
+  SUPPLIER_ELIMINATED: '淘汰供应商',
+  SUPPLIER_EVALUATION_UPDATED: '更新供应商评价',
+  SUPPLIER_REACTIVATED: '复活被拒供应商申请',
+  SUPPLIER_TAGS_UPDATED: '更新业务标签',
+  SUPPLIER_TAGS_BACKFILL: '业务标签批量回填',
+  SUPPLIER_UNBLACKLIST: '移出黑名单',
 };
 
 /** 会话/心跳类动作——操作历史不展示（淹没业务动作的噪音） */
@@ -305,15 +339,29 @@ export default function NotificationsPage() {
   const [histBusy, setHistBusy] = useState(false);   // 首载/加载更多
   const [exporting, setExporting] = useState(false); // txt 导出全量拉取中
   const HIST_PAGE = 100;
+  // 操作历史筛选（2026-11-09 用户需求：类型/时间/搜索统一配置）——提交态驱动请求
+  const [histAction, setHistAction] = useState('');
+  const [histDateFrom, setHistDateFrom] = useState('');
+  const [histDateTo, setHistDateTo] = useState('');
+  const [histSearch, setHistSearch] = useState('');
+  const [histSearchDraft, setHistSearchDraft] = useState('');
 
   useEffect(() => { fetchCurrentUser().then(u => setMyRole(u.role)).catch(() => {}); }, []);
   const isOrgScope = myRole === 'leader' || myRole === 'admin';
 
-  /** 不上限（2026-11-06 用户裁定）：offset 逐页翻——加载更多与导出共用 */
-  const fetchHistPage = (offset: number) =>
+  const histFilters = useMemo(() => ({
+    ...(histAction ? { action: histAction } : {}),
+    ...(histDateFrom ? { dateFrom: histDateFrom } : {}),
+    ...(histDateTo ? { dateTo: histDateTo } : {}),
+    ...(histSearch ? { search: histSearch } : {}),
+  }), [histAction, histDateFrom, histDateTo, histSearch]);
+  const histFiltered = !!(histAction || histDateFrom || histDateTo || histSearch);
+
+  /** 不上限（2026-11-06 用户裁定）：offset 逐页翻——加载更多与导出共用（筛选态下翻页） */
+  const fetchHistPage = (offset: number, filters: { action?: string; dateFrom?: string; dateTo?: string; search?: string } = histFilters) =>
     (isOrgScope
-      ? fetchAllActivities(HIST_PAGE, ['LOGIN', 'LOGOUT'], offset)
-      : fetchMyActivities(HIST_PAGE, ['LOGIN', 'LOGOUT'], offset));
+      ? fetchAllActivities(HIST_PAGE, ['LOGIN', 'LOGOUT'], offset, filters)
+      : fetchMyActivities(HIST_PAGE, ['LOGIN', 'LOGOUT'], offset, filters));
 
   const openHistory = () => {
     setHistoryOpen(true);
@@ -323,6 +371,30 @@ export default function NotificationsPage() {
       .catch(() => { setActivities([]); setActTotal(0); })
       .finally(() => setHistBusy(false));
   };
+
+  /** 筛选变更：setState 与请求同 tick——patch 显式合并后下发，规避 setState 后
+   *  本帧闭包 histFilters 仍旧值的时序坑；回第一页重新拉取 */
+  const applyHist = (patch: { action?: string; dateFrom?: string; dateTo?: string; search?: string }) => {
+    if (patch.action !== undefined) setHistAction(patch.action);
+    if (patch.dateFrom !== undefined) setHistDateFrom(patch.dateFrom);
+    if (patch.dateTo !== undefined) setHistDateTo(patch.dateTo);
+    if (patch.search !== undefined) { setHistSearch(patch.search); setHistSearchDraft(patch.search); }
+    const next = {
+      ...(histAction ? { action: histAction } : {}),
+      ...(histDateFrom ? { dateFrom: histDateFrom } : {}),
+      ...(histDateTo ? { dateTo: histDateTo } : {}),
+      ...(histSearch ? { search: histSearch } : {}),
+      ...patch,
+    };
+    const clean = Object.fromEntries(Object.entries(next).filter(([, v]) => v));
+    setActivities([]); setActTotal(0); setHistBusy(true);
+    fetchHistPage(0, clean)
+      .then(r => { setActivities(r.items); setActTotal(r.total); })
+      .catch(() => { setActivities([]); setActTotal(0); })
+      .finally(() => setHistBusy(false));
+  };
+
+  const clearHistFilters = () => applyHist({ action: '', dateFrom: '', dateTo: '', search: '' });
 
   const loadMoreHistory = () => {
     setHistBusy(true);
@@ -355,7 +427,12 @@ export default function NotificationsPage() {
       }));
       const n = downloadHistoryTxt(
         isOrgScope ? '通知中心·全中心' : '通知中心·本人',
-        isOrgScope ? '全中心操作留痕（全部记录）' : '当前账号操作留痕（全部记录）',
+        [
+          isOrgScope ? '全中心操作留痕' : '当前账号操作留痕',
+          histAction ? `类型：${ACTION_LABEL[histAction] ?? histAction}` : null,
+          histDateFrom || histDateTo ? `时间：${histDateFrom || '…'} ～ ${histDateTo || '…'}` : null,
+          histSearch ? `关键词：${histSearch}` : null,
+        ].filter(Boolean).join(' · '),
         entries,
       );
       toast.success(`已导出 ${n} 条操作记录`);
@@ -577,6 +654,42 @@ export default function NotificationsPage() {
           </button>
         }
         footer={<button className="neu-btn-soft" onClick={() => setHistoryOpen(false)}>关闭</button>}>
+        {/* 筛选工具栏（2026-11-09 用户需求：操作历史统一配类型/时间筛选+搜索）——
+            类型 SearchSelect（动作域名单长，≥9 项走可搜索瓷片面板）、日期范围原生
+            date、关键词 Enter 提交（服务端 resourceName/details 串命中） */}
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <SearchSelect
+            compact
+            triggerClassName="!w-[150px]"
+            options={[
+              { value: '', label: '全部类型' },
+              ...Object.entries(ACTION_LABEL).map(([value, label]) => ({ value, label })),
+            ]}
+            value={histAction}
+            onPick={o => applyHist({ action: o.value })}
+          />
+          <input type="date" className="workbench-input workbench-input-sm !w-auto"
+            value={histDateFrom} onChange={e => applyHist({ dateFrom: e.target.value })} aria-label="起始日期" />
+          <span className="text-[11px] text-[var(--muted-foreground)]">至</span>
+          <input type="date" className="workbench-input workbench-input-sm !w-auto"
+            value={histDateTo} onChange={e => applyHist({ dateTo: e.target.value })} aria-label="截止日期" />
+          <div className="relative">
+            <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
+            <input
+              className="workbench-input workbench-input-sm !w-[190px] !pl-8"
+              placeholder="搜索对象 / 项目 / 明细，回车"
+              value={histSearchDraft}
+              onChange={e => setHistSearchDraft(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') applyHist({ search: histSearchDraft.trim() }); }}
+            />
+          </div>
+          {histFiltered && (
+            <button className="neu-btn-xs" onClick={clearHistFilters}>
+              <X size={12} /> 清除筛选
+            </button>
+          )}
+          <span className="ml-auto text-[11px] tabular-nums text-[var(--muted-foreground)]">共 {actTotal} 条</span>
+        </div>
         <div className="max-h-[60vh] overflow-y-auto pr-1">
           {(() => {
             const groups = groupActivities(activities.filter(a => !NOISE_ACTIONS.has(a.action)));

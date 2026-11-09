@@ -8,6 +8,7 @@ import { Inject, forwardRef } from '@nestjs/common';
 import { CreateAnnouncementDto, UpdateAnnouncementDto } from './dto/create-announcement.dto';
 import { AnnouncementAiService } from './announcement-ai.service';
 import { SunshinePushService } from './sunshine-push.service';
+import { AnnouncementHistoryService } from './announcement-history.service';
 import { normalizeScheduledPublishMetadata, parseScheduledPublishDate } from './scheduled-publish.util';
 import { deriveDeadlineFromOpenTime } from '../bid/opening-deadline.util';
 import { BidService } from '../bid/bid.service';
@@ -37,6 +38,8 @@ export class AnnouncementService {
     @Optional() private readonly gbCode?: GbCodeService,
     /** 阳光采购平台推送（2026-10-28 测试联调）——置末位不动既有位置构造（测试直构按位传参） */
     @Optional() private readonly sunshinePush?: SunshinePushService,
+    /** 操作人姓名解析（2026-11-09）：回收站 by / 派生留痕落姓名快照（append 末位同上） */
+    @Optional() private readonly history?: AnnouncementHistoryService,
   ) {}
 
   /** 公告类型→中文名称（AI 摘要 prompt 期望中文类型名；两段式公示语义收口 shared） */
@@ -1003,18 +1006,19 @@ export class AnnouncementService {
     });
 
     // 派生关系双向留痕：公示公告记 UPDATE（changedFields 指向成交公告），成交公告记 CREATE
+    const derivedOpName = (await this.history?.resolvedName(operator.operatorId, operator.operatorName)) ?? operator.operatorName ?? null;
     await this.prisma.announcementHistory.createMany({
       data: [
         {
           announcementId: pre.id, action: 'UPDATE', title: pre.title, type: pre.type,
           status: pre.status, changedFields: ['confirmWinnerNotice', `derived:${winnerNotice.id}`],
-          operatorId: operator.operatorId ?? null, operatorName: operator.operatorName ?? null,
+          operatorId: operator.operatorId ?? null, operatorName: derivedOpName,
           ipAddress: operator.ipAddress ?? null, userAgent: operator.userAgent ?? null,
         },
         {
           announcementId: winnerNotice.id, action: 'CREATE', title: winnerNotice.title, type: winnerNotice.type,
           status: winnerNotice.status, changedFields: [`derivedFrom:${pre.id}`],
-          operatorId: operator.operatorId ?? null, operatorName: operator.operatorName ?? null,
+          operatorId: operator.operatorId ?? null, operatorName: derivedOpName,
           ipAddress: operator.ipAddress ?? null, userAgent: operator.userAgent ?? null,
         },
       ],
@@ -1108,14 +1112,16 @@ export class AnnouncementService {
     }
     // v2 拍板（2026-09-26）：下架/隐藏对任意状态可用——下架为终态（不可恢复），隐藏可恢复
     // 合并写入：保留其余 metadata 键（编辑页整存 metadata 时 recycle 随行）
+    // by/留痕操作人 = 姓名（2026-11-09 口径：操作人显示账号姓名而非账号名）
+    const recycleOpName = (await this.history?.resolvedName(operator.operatorId, operator.operatorName)) ?? operator.operatorName ?? null;
     const meta = { ...((ann.metadata as Record<string, any>) ?? {}) };
-    meta.recycle = { from: ann.status, action: target, at: new Date().toISOString(), by: operator.operatorName ?? null };
+    meta.recycle = { from: ann.status, action: target, at: new Date().toISOString(), by: recycleOpName };
     const result = await this.prisma.announcement.update({ where: { id }, data: { status: target, metadata: meta as any } });
     await this.prisma.announcementHistory.create({
       data: {
         announcementId: id, action: target === 'HIDDEN' ? 'HIDE' : 'OFFLINE',
         title: result.title, type: result.type, status: result.status, changedFields: ['status'],
-        operatorId: operator.operatorId ?? null, operatorName: operator.operatorName ?? null,
+        operatorId: operator.operatorId ?? null, operatorName: recycleOpName,
         ipAddress: operator.ipAddress ?? null, userAgent: operator.userAgent ?? null,
       },
     }).catch(e => this.logger.warn(`回收站留痕写入失败（不阻塞）: ${(e as Error).message}`));
@@ -1147,11 +1153,12 @@ export class AnnouncementService {
       }
     }
     const result = await this.prisma.announcement.update({ where: { id }, data: { status: from, metadata: rest as any } });
+    const restoreOpName = (await this.history?.resolvedName(operator.operatorId, operator.operatorName)) ?? operator.operatorName ?? null;
     await this.prisma.announcementHistory.create({
       data: {
         announcementId: id, action: 'RESTORE', title: result.title, type: result.type, status: result.status,
         changedFields: ['status'],
-        operatorId: operator.operatorId ?? null, operatorName: operator.operatorName ?? null,
+        operatorId: operator.operatorId ?? null, operatorName: restoreOpName,
         ipAddress: operator.ipAddress ?? null, userAgent: operator.userAgent ?? null,
       },
     }).catch(e => this.logger.warn(`回收站恢复留痕写入失败（不阻塞）: ${(e as Error).message}`));
