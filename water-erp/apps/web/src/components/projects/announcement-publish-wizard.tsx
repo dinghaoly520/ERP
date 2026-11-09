@@ -24,6 +24,7 @@ import { getBidProjectDetail } from '@/lib/api/bid';
 import { generateFieldContent } from '@/lib/api/tender-sample';
 import { getSupplierList } from '@/lib/api/supplier';
 import { getObjectionContact } from '@/lib/api/system-config';
+import { fetchCurrentUser } from '@/lib/api/auth';
 import { listBidProjects, type BidProjectOption } from '@/lib/api/expert';
 import type { Supplier } from '@/lib/types';
 import { AnnouncementDialog } from '@/components/tender-write/announcement-dialog';
@@ -489,11 +490,30 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
 
   // Step 2 config
   const [visibility, setVisibility] = useState<'PUBLIC' | 'RESTRICTED'>('PUBLIC');
+  // 阳光采购弹窗「招标经办人/发布人」=当前登录人（2026-11-09 用户裁定，不再取立项人）——
+  // 挂载即取（/auth/me），进到公告范围步骤打开弹窗时早已就绪；取不到则弹窗内留空可手填
+  const [currentUserName, setCurrentUserName] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    fetchCurrentUser()
+      .then((u) => setCurrentUserName(u.displayName || u.username))
+      .catch(() => { /* 会话异常不阻塞向导 */ });
+  }, []);
   const [restrictedSupplierIds, setRestrictedSupplierIds] = useState<string[]>([]);
   // ★ 阳光采购平台同步发布（2026-09-24）：与公告范围（全部/部分可见）不互斥的附加选项，所有公告类型常置；
   // 配置内容按《天府阳光采购平台招标数据接口文档 V2.0.5》设计，发布时快照写入 metadata.sunshinePublish
   const [sunshineOn, setSunshineOn] = useState(false);
   const [sunshineConfig, setSunshineConfig] = useState<SunshinePublishConfig | null>(null);
+  // 缓存旧配置里的经办人可能是立项人/上一位经办——当前用户名就绪时覆写一次，堵「不重开弹窗
+  // 直接发布」旁路（本会话内用户经弹窗保存过则不再动，尊重手动编辑）
+  const sunshineSessionSavedRef = useRef(false);
+  useEffect(() => {
+    if (!currentUserName) return;
+    setSunshineConfig((prev) => {
+      if (!prev || sunshineSessionSavedRef.current) return prev;
+      if (prev.handUserName === currentUserName && prev.issueUserName === currentUserName) return prev;
+      return { ...prev, handUserName: currentUserName, issueUserName: currentUserName };
+    });
+  }, [currentUserName]);
   const [sunshineModalOpen, setSunshineModalOpen] = useState(false);
   const [publishTiming, setPublishTiming] = useState<'now' | 'scheduled' | 'announcement_start'>('now');
   const [scheduledDate, setScheduledDate] = useState('');
@@ -1067,6 +1087,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
 
   // 阳光采购平台配置保存（弹窗回调）：随草稿一起入 localStorage 缓存
   const handleSunshineSave = useCallback((cfg: SunshinePublishConfig) => {
+    sunshineSessionSavedRef.current = true; // 本会话已保存——经办人自动覆写到此为止（2026-11-09）
     setSunshineConfig(cfg);
     if (project && category) saveWizardState(project.id, category, { sunshineConfig: cfg, sunshineOn: true });
   }, [project, category]);
@@ -2080,7 +2101,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
           project={project}
           draft={draft}
           visibility={visibility}
-          operatorName={project.requesterName ?? undefined}
+          operatorName={currentUserName}
         />
       )}
 

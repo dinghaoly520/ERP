@@ -252,7 +252,9 @@ function buildDefaultConfig(
     type: PLAN_TYPE_BY_CATEGORY[project.procurementCategory ?? ''] ?? 7,
     tenderAmount: Number.isFinite(budgetYuan) ? +(budgetYuan / 10000).toFixed(4) : null,
     centralized: 1,
-    handUserName: operatorName || project.requesterName || purchaser?.name || '',
+    // 经办人=当前登录人（2026-11-09 用户裁定「总是填入当前用户」）——不再回退立项人/采购人
+    // （错人不如留空手填；operatorName 由向导取 /auth/me 传入）
+    handUserName: operatorName || '',
     handOrganizationName: project.requesterDepartment || company?.sunshineOrganizationName || '',
     contacts: d.contactName || project.requesterName || purchaser?.name || '',
     phone: d.contactPhone || purchaser?.phone || '',
@@ -274,7 +276,8 @@ function buildDefaultConfig(
     annreason: '',
     startTime: daysFromNow(0),
     endTime: daysFromNow(3),
-    issueUserName: operatorName || project.requesterName || '',
+    // 发布人同经办人口径（operatorName=当前登录人，2026-11-09）
+    issueUserName: operatorName || '',
     content: '',
     candidates,
   };
@@ -282,6 +285,11 @@ function buildDefaultConfig(
 
 const inputCls =
   'w-full px-3 py-2 border border-[var(--border)] bg-[var(--background)] rounded-lg text-sm placeholder-[var(--muted-foreground)]/60 focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/10';
+
+/** 锁定态输入（2026-11-09 用户裁定：组织编码/组织名称/组织唯一标识/父级组织四字段禁止修改）：
+ *  值为公司主数据的集团级常量（各公司行同值，维护入口=公司信息管理），readOnly 保文本可选中复制 */
+const lockedInputCls =
+  'w-full px-3 py-2 border border-[var(--border)] bg-[color-mix(in_oklch,var(--muted-foreground)_5%,transparent)] rounded-lg text-sm text-[var(--muted-foreground)] cursor-not-allowed select-text';
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -345,6 +353,7 @@ export function SunshinePlatformDialog({
   draft: AnnouncementDraft;
   /** 发布范围决定 issueType（公开/邀请）与 isExternal（是否对外公开）——弹窗内只读展示 */
   visibility: 'PUBLIC' | 'RESTRICTED';
+  /** 操作人=当前登录人（2026-11-09 用户裁定）：经办人/发布人预填来源，不再用立项人 */
   operatorName?: string;
   initialConfig?: SunshinePublishConfig | null;
 }) {
@@ -359,7 +368,7 @@ export function SunshinePlatformDialog({
       setConfig(buildDefaultConfig(project, draft, operatorName ?? '', companyInfo));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, companyInfo]);
+  }, [isOpen, companyInfo, operatorName]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   /** 推送报文预览（文档字段组织，供核对）——须在早退 return 之前调用（hooks 顺序稳定） */
@@ -490,8 +499,9 @@ export function SunshinePlatformDialog({
                 <span className="pm-help-anchor" tabIndex={0}>
                   <span className="pm-help-dot" aria-label="阳光采购平台发布配置说明" role="img">?</span>
                   <span className="pm-help-tip" role="tooltip">
-                    字段已按项目与公告草稿预填，核对补全后保存。组织编码、组织唯一标识、采购主体 ID
-                    等平台侧档案字段如暂无，可联系阳光采购服务团队获取后补填。保存后随公告发布
+                    字段已按项目与公告草稿预填，核对补全后保存。组织编码、组织名称、组织唯一标识、
+                    父级组织为集团级平台档案（各公司同值），已锁定不可修改；采购主体 ID 等平台侧
+                    档案字段如暂无，可联系阳光采购服务团队获取后补填。保存后随公告发布
                     自动推送至阳光采购平台，推送结果记录在公告档案中。
                   </span>
                 </span>
@@ -525,11 +535,11 @@ export function SunshinePlatformDialog({
               <Field label="标包名称" hint="单标包填计划名称">
                 <input className={inputCls} value={config.packageName} onChange={(e) => set('packageName', e.target.value)} />
               </Field>
-              <Field label="组织编码"><input className={inputCls} value={config.organizationCode} onChange={(e) => set('organizationCode', e.target.value)} /></Field>
-              <Field label="组织名称"><input className={inputCls} value={config.organizationName} onChange={(e) => set('organizationName', e.target.value)} /></Field>
-              <Field label="组织唯一标识"><input className={inputCls} value={config.organizationUnique} onChange={(e) => set('organizationUnique', e.target.value)} /></Field>
-              <Field label="父级组织" hint="唯一标识用/分割到根">
-                <input className={inputCls} value={config.parentOrganization} onChange={(e) => set('parentOrganization', e.target.value)} />
+              <Field label="组织编码" hint="不可修改"><input readOnly className={lockedInputCls} value={config.organizationCode} /></Field>
+              <Field label="组织名称" hint="不可修改"><input readOnly className={lockedInputCls} value={config.organizationName} /></Field>
+              <Field label="组织唯一标识" hint="不可修改"><input readOnly className={lockedInputCls} value={config.organizationUnique} /></Field>
+              <Field label="父级组织" hint="唯一标识用/分割到根 · 不可修改">
+                <input readOnly className={lockedInputCls} value={config.parentOrganization} />
               </Field>
               <Field label="招标经办人"><input className={inputCls} value={config.handUserName} onChange={(e) => set('handUserName', e.target.value)} /></Field>
               <Field label="招标组织名称"><input className={inputCls} value={config.handOrganizationName} onChange={(e) => set('handOrganizationName', e.target.value)} /></Field>
