@@ -85,7 +85,8 @@ export function useBidWebSocket(projectId: string | undefined, getHandlers: () =
       manualClose = false;
       setConnection((c) => (c === "connected" ? c : "reconnecting"));
 
-      const s = io(bidWsUrl(), { forceNew: true, withCredentials: true, reconnection: false, timeout: 10000 });
+      // query.portal：同源反代握手无 Origin/X-Portal——自报门户供 tokenFromHandshake 选对 cookie 命名空间（2026-11-09）
+      const s = io(bidWsUrl(), { forceNew: true, withCredentials: true, query: { portal: "supplier" }, reconnection: false, timeout: 10000 });
       socket = s;
 
       s.on("connect", () => {

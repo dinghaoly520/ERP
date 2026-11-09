@@ -15,6 +15,15 @@ import { EmbeddingService } from '../../local-ai/embedding.service';
 import { VectorSearchService } from '../services/vector-search.service';
 import { KNOWLEDGE_PARSE_QUEUE, parseJobOptions } from './knowledge-queue.module';
 
+/** 协作式取消（2026-11-09 实录：解析中删除文件，OCR 照跑 20 分钟白烧串行锁）——
+ *  行已不存在时 onProgress/检查点抛出，批循环即刻中止；catch 按干净取消处理（不重试、不写 FAILED）。 */
+class KnowledgeParseCancelledError extends Error {
+  constructor() {
+    super('文件已删除，解析中止');
+    this.name = 'KnowledgeParseCancelledError';
+  }
+}
+
 // 478 页扫描件实测 ~12min；lockDuration 15min 容忍长解析（BullMQ 处理期间自动续锁，
 // 该值防事件循环被大 buffer 同步操作长阻塞时误判 stalled）。并发默认 1：OCR 服务容量有限。
 @Processor(KNOWLEDGE_PARSE_QUEUE, {
@@ -72,7 +81,12 @@ export class KnowledgeParseProcessor extends WorkerHost {
 
     try {
       const buffer = await this.storage.download(file.objectKey);
-      const content = await this.parser.parse(buffer, file.mimeType, file.fileName, (processed, total) => {
+      const assertAlive = async () => {
+        // 文件被删 → 协作式取消（每 OCR 批一次，DB count 代价可忽略）
+        const alive = await this.prisma.knowledgeFile.count({ where: { id: fileId } });
+        if (alive === 0) throw new KnowledgeParseCancelledError();
+      };
+      const content = await this.parser.parse(buffer, file.mimeType, file.fileName, async (processed, total) => {
         // 进度回写失败不得中断解析（fire-and-forget）；processedPages 仅展示用，乱序无害
         void this.prisma.knowledgeFile
           .update({
@@ -80,8 +94,10 @@ export class KnowledgeParseProcessor extends WorkerHost {
             data: { processedPages: processed, ...(total > 0 ? { totalPages: total } : {}) },
           })
           .catch(() => undefined);
+        await assertAlive();
       });
 
+      await assertAlive(); // 嵌入前检查点（OCR 后、长嵌入前的取消窗口）
       const textChunks = this.splitter.split(content);
       let embeddings: number[][] = [];
       let indexed = true;
@@ -96,6 +112,7 @@ export class KnowledgeParseProcessor extends WorkerHost {
         }
       }
 
+      await assertAlive(); // READY 落库/向量写入前检查点
       await this.prisma.knowledgeFile.update({
         where: { id: fileId },
         data: { status: 'READY', content, chunkCount: textChunks.length, indexed, error: null },
@@ -126,6 +143,11 @@ export class KnowledgeParseProcessor extends WorkerHost {
 
       this.logger.log(`Knowledge file ready: ${file.fileName} (${textChunks.length} chunks, indexed=${indexed})`);
     } catch (err) {
+      // 干净取消：行已删（检查点抛出，或写库撞 P2025）——不重试、不写 FAILED（行没了写也会炸）
+      if (err instanceof KnowledgeParseCancelledError || (err as { code?: string })?.code === 'P2025') {
+        this.logger.log(`Knowledge parse cancelled (file deleted): ${fileId}`);
+        return;
+      }
       const message = String((err as Error)?.message ?? err).slice(0, 500);
       const attempts = (job.opts?.attempts as number | undefined) ?? 1;
       const isFinal = job.attemptsMade >= attempts;

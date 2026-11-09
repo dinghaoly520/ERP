@@ -80,11 +80,21 @@ function parseOrigin(origin: string | undefined): { hostname?: string; port?: st
   return { hostname: hostname || undefined, port };
 }
 
-/** P2-1：握手门户判定（与 tokenFromHandshake 同链：X-Portal 头优先 → Origin 端口 →
- *  域名家族子域反查）——host 域隔离用。 */
+/** P2-1：握手门户判定（与 tokenFromHandshake 同链：X-Portal 头 → query.portal 自报 →
+ *  Origin 端口 → 域名家族子域反查）——host 域隔离用。
+ *
+ * query.portal（2026-11-09）：同源反代拓扑（gatewayWsUrl 域名模式 = 同源 /socket.io/
+ * 经门户 nginx）下，同源 GET 握手浏览器不带 Origin 头、XHR 轮询也加不了自定义头——
+ * 各门户客户端 io() 以 query 自报门户（socket.handshake.query 取自 engine.io 握手
+ * 请求）。安全口径：portal 值仅作 cookie 名选择器，JWT 校验照旧强制；伪造 portal
+ * 只能选用自己浏览器里已有的 cookie，无提权面。X-Portal（nginx 注入的可信头）仍最优先。
+ */
 export function portalFromHandshake(socket: Socket): 'bid' | 'supplier' | 'expert' | 'web' | undefined {
   const xPortal = (socket.handshake.headers['x-portal'] as string | undefined)?.toLowerCase();
   if (xPortal === 'bid' || xPortal === 'supplier' || xPortal === 'expert' || xPortal === 'web') return xPortal;
+  const rawQueryPortal = socket.handshake.query?.portal;
+  const qPortal = (Array.isArray(rawQueryPortal) ? rawQueryPortal[0] : rawQueryPortal)?.toLowerCase();
+  if (qPortal === 'bid' || qPortal === 'supplier' || qPortal === 'expert' || qPortal === 'web') return qPortal;
   const { hostname, port: originPort } = parseOrigin(socket.handshake.headers.origin as string | undefined);
   if (originPort === String(PORTS.bid)) return 'bid';
   if (originPort === String(PORTS.supplier) || originPort === String(PORTS.supplierNext)) return 'supplier';

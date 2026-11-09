@@ -13,8 +13,20 @@ const execFileAsync = promisify(execFile);
 
 const MIN_CHARS_PER_PAGE = 50;
 
-/** 解析进度回调：processed/total 为页数（OCR 批次粒度）；total 在页数探测后即首次上报 */
+/** 解析进度回调：processed/total 为页数（OCR 批次粒度）；total 在页数探测后即首次上报。
+ *  类型保持 void（特例兼容同步任意返回/异步 Promise）——消费链路 await 后异步抛错=协作式取消（2026-11-09）。 */
 export type ParseProgressFn = (processed: number, total: number) => void;
+
+/** 单发进度上报（非批循环路径）：消费端回调可能为异步，且其中检查点会抛协作式取消——
+ *  此处不 await（值无需回传），拒绝必须就地吞掉：取消语义由 processor 的前后检查点收口，
+ *  浮动 rejection 会崩掉整个 worker 进程（2026-11-09 实录，Node 默认 unhandled-rejections=throw）。 */
+function reportProgress(
+  onProgress: ParseProgressFn | undefined,
+  processed: number,
+  total: number,
+): void {
+  Promise.resolve(onProgress?.(processed, total)).catch(() => undefined);
+}
 
 @Injectable()
 export class DocumentParserService {
@@ -44,11 +56,11 @@ export class DocumentParserService {
       /\.(jpe?g|png|tiff?)$/i.test(fileName || '');
 
     // 单件类型（docx/doc/image/txt）无页概念，回填 (1,1) 防「0/?页」显示缺口
-    if (isDocx) { onProgress?.(1, 1); return this.parseDocx(buffer); }
-    if (isDoc) { onProgress?.(1, 1); return this.parseDoc(buffer); }
+    if (isDocx) { reportProgress(onProgress, 1, 1); return this.parseDocx(buffer); }
+    if (isDoc) { reportProgress(onProgress, 1, 1); return this.parseDoc(buffer); }
     if (isPdf) return this.parsePdf(buffer, onProgress);
-    if (isImage) { onProgress?.(1, 1); return this.parseImage(buffer, mimeType, fileName || 'image'); }
-    if (isText) { onProgress?.(1, 1); return this.parseText(buffer); }
+    if (isImage) { reportProgress(onProgress, 1, 1); return this.parseImage(buffer, mimeType, fileName || 'image'); }
+    if (isText) { reportProgress(onProgress, 1, 1); return this.parseText(buffer); }
     throw new Error(`不支持的文件类型：${fileName ?? ''}（${mimeType}）`);
   }
 
@@ -122,7 +134,7 @@ export class DocumentParserService {
         }
       }
       this.logger.log('Using pdf-parse text (native PDF detected)');
-      onProgress?.(numpages, numpages); // 快速路径页数回填（2026-11-06 显示缺口）
+      reportProgress(onProgress, numpages, numpages); // 快速路径页数回填（2026-11-06 显示缺口）
       return text;
     }
 
@@ -148,7 +160,7 @@ export class DocumentParserService {
     }
 
     // Return whatever text we got from pdf-parse
-    onProgress?.(numpages, numpages); // OCR 兜底未走成——pdf-parse 结果的页数回填
+    reportProgress(onProgress, numpages, numpages); // OCR 兜底未走成——pdf-parse 结果的页数回填
     return text;
   }
 
@@ -190,7 +202,7 @@ export class DocumentParserService {
         `pdf-parse fallback contains replacement chars (U+FFFD) — OCR service unavailable, extracted text may have missing Chinese characters`,
       );
     }
-    onProgress?.(data.numpages || 1, data.numpages || 1);
+    reportProgress(onProgress, data.numpages || 1, data.numpages || 1);
     return text;
   }
 

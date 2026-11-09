@@ -221,7 +221,8 @@ export class KnowledgeService {
 
   /** 重建索引：indexed=false 徽章（嵌入降级）指引的补救动作——成功后复位 indexed:true
    *  （评审 I-3）；嵌入/向量失败按文件降级（indexed:false 继续），不得中途 500
-   *  （旧行为：全库向量已清而循环中断，徽章与实际脱节）。 */
+   *  （旧行为：全库向量已清而循环中断，徽章与实际脱节）；循环中被并发删除的文件按
+   *  删除跳过（deletedSkipped 计数，2026-11-09 生产实录 P2025 整单炸的修复）。 */
   async reindex(kbId: string, user: User) {
     await this.assertEditable(kbId, user);
     const kb = await this.prisma.knowledgeBase.findUnique({
@@ -233,8 +234,20 @@ export class KnowledgeService {
     await this.vectorSearch.deleteByCollection(kbId);
 
     let degradedCount = 0;
+    let deletedSkipped = 0;
     for (const file of kb.files) {
       if (!file.content) continue;
+
+      // 2026-11-09 生产实录：files 是循环前快照，嵌入慢（分钟级）窗口内文件可被并发
+      // deleteFile 删除——轮到时已不存在的直接跳过（省嵌入算力、防孤儿向量），不整单 404
+      const stillExists = await this.prisma.knowledgeFile.findFirst({
+        where: { id: file.id },
+        select: { id: true },
+      });
+      if (!stillExists) {
+        deletedSkipped++;
+        continue;
+      }
 
       const textChunks = this.splitter.split(file.content);
       let embeddings: number[][] = [];
@@ -270,13 +283,29 @@ export class KnowledgeService {
       }
       if (!indexed) degradedCount++;
 
-      await this.prisma.knowledgeFile.update({
-        where: { id: file.id },
-        data: { chunkCount: textChunks.length, indexed },
-      });
+      try {
+        await this.prisma.knowledgeFile.update({
+          where: { id: file.id },
+          data: { chunkCount: textChunks.length, indexed },
+        });
+      } catch (err) {
+        // 预检与 update 之间的残余竞态：文件刚被删——回收本次刚插入的向量（防孤儿
+        // 泄漏检索），按删除跳过继续；其余错误照抛。同 d4e9ad00b 协作式取消语义。
+        if ((err as { code?: string })?.code === 'P2025') {
+          deletedSkipped++;
+          try {
+            await this.vectorSearch.deleteByFileId(file.id);
+          } catch (cleanupErr) {
+            console.error(`Vector cleanup error for deleted ${file.fileName}:`, cleanupErr);
+            // 下次 reindex 开头 deleteByCollection 全清兜底
+          }
+          continue;
+        }
+        throw err;
+      }
     }
 
-    return { reindexed: true, fileCount: kb.files.length, degradedCount };
+    return { reindexed: true, fileCount: kb.files.length, degradedCount, deletedSkipped };
   }
 
   /** 水叮当知识库面板取数（2026-11-03 设计 §4.3）：mine=本人库，shared=他人共享库
