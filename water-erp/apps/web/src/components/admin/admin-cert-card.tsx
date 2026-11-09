@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { fetchCurrentUser } from "@/lib/api/auth";
 import { fetchAdminCert, generateAdminCert, type AdminCertInfo } from "@/lib/api/admin-cert";
 import { useConfirm } from "@/components/workbench/use-confirm";
+import { StatusBadge } from "@/components/workbench";
 
 export function AdminCertPage() {
   const [cert, setCert] = useState<AdminCertInfo | null | undefined>(undefined); // undefined = 加载中
@@ -78,17 +79,11 @@ export function AdminCertPage() {
           </div>
           <div className="page-hero__right">
             {denied ? (
-              <span className="page-hero__stat page-hero__stat--warn">无权限</span>
+              <StatusBadge tone="gray">无权限</StatusBadge>
             ) : cert?.active ? (
-              <span className="page-hero__stat page-hero__stat--info">
-                <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-[var(--success)]" />
-                证书生效中
-              </span>
+              <StatusBadge tone="green">证书生效中</StatusBadge>
             ) : (
-              <span className="page-hero__stat page-hero__stat--warn">
-                <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-[var(--danger)]" />
-                未配置
-              </span>
+              <StatusBadge tone="orange">未配置</StatusBadge>
             )}
           </div>
         </div>

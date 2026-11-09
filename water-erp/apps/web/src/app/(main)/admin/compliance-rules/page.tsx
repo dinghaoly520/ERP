@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, Check, ListChecks, Pencil, RefreshCw, Sparkles, X } from 'lucide-react';
 import { apiFetch } from '@/lib/api/api-fetch';
-import { TableSkeleton } from '@/components/workbench';
+import { TableSkeleton, StatusBadge } from '@/components/workbench';
 import { PMI_STAGE_LABEL } from '@water-erp/shared';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -145,7 +145,7 @@ export default function ComplianceRulesPage() {
           </div>
           <div className="page-hero__right">
             {data?.source === 'db' && (
-              <span className="page-hero__stat page-hero__stat--info">数据库（生效中）</span>
+              <StatusBadge tone="green">数据库（生效中）</StatusBadge>
             )}
             {data?.source === 'builtin' && (
               <button onClick={() => void initFromBuiltin()} className="neu-btn-xs" disabled={busy} title="将内置规则导入数据库（行内编辑或停用规则时也会自动保存）">

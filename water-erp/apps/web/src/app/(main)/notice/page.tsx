@@ -391,9 +391,8 @@ export default function NoticePage() {
             </div>
             {/* 待处理草稿警示胶囊（2026-11-06 KPI 瓷片收编）：>0 才显示、点击开窗速览草稿 */}
             {drafts > 0 && (
-              <button type="button" onClick={() => void openDrafts()} title="点击速览待处理草稿" className="page-hero__stat page-hero__stat--warn">
-                <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-[var(--danger)]" />
-                待处理草稿 {drafts}
+              <button type="button" onClick={() => void openDrafts()} title="点击速览待处理草稿" className="cursor-pointer border-0 bg-transparent p-0">
+                <StatusBadge tone="orange">待处理草稿 {drafts}</StatusBadge>
               </button>
             )}
             <CompanySelect value={companyId} onChange={setCompanyId} countMode="announcements" />

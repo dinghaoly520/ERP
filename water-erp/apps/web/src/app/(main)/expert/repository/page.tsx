@@ -424,11 +424,8 @@ export default function ExpertRepositoryPage() {
               if (graded === 0) return null; // 无评价不显示五个零
               const pct = Math.round(((gradeDistribution.A + gradeDistribution.B) / graded) * 100);
               return (
-                <span
-                  className="page-hero__stat page-hero__stat--info"
-                  title={`等级分布：A ${gradeDistribution.A} · B ${gradeDistribution.B} · C ${gradeDistribution.C} · D ${gradeDistribution.D} · E ${gradeDistribution.E}`}
-                >
-                  优良率 {pct}%
+                <span title={`等级分布：A ${gradeDistribution.A} · B ${gradeDistribution.B} · C ${gradeDistribution.C} · D ${gradeDistribution.D} · E ${gradeDistribution.E}`}>
+                  <StatusBadge tone="blue">优良率 {pct}%</StatusBadge>
                 </span>
               );
             })()}

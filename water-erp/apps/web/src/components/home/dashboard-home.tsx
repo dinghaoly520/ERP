@@ -19,7 +19,7 @@ import {
   fetchDashboardAnalysis,
   type DashboardAnalysisPayload, type DashboardAnalysisResult,
 } from "@/lib/api/ai";
-import { Modal } from "@/components/workbench";
+import { Modal, StatusBadge } from "@/components/workbench";
 
 /** 结果构成状态→色（评审 F6：原四面板各复制一份，改名曾需四处同步） */
 const statusColor = (s: string) =>
@@ -600,12 +600,9 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
             </div>
           </div>
           <div className="page-hero__right">
-            <span className="page-hero__stat page-hero__stat--info">共 {data.summary.totalCount} 项</span>
+            <StatusBadge tone="blue">共 {data.summary.totalCount} 项</StatusBadge>
             {data.summary.abnormalCount > 0 && (
-              <span className="page-hero__stat page-hero__stat--warn">
-                <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-[oklch(0.67_0.14_32)]" />
-                异常 {data.summary.abnormalCount}
-              </span>
+              <StatusBadge tone="orange">异常 {data.summary.abnormalCount}</StatusBadge>
             )}
             <CompanySelect value={companyId} onChange={setCompanyId} countMode="projectsDone"/>
             <div className="relative">

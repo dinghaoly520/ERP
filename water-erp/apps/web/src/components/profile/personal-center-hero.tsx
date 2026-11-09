@@ -8,6 +8,7 @@ import {
 import type { AuthUser } from '@/lib/api/auth';
 import { fetchLoginHistory, type LoginHistoryItem } from '@/lib/api/auth';
 import { ROLE_LABELS } from '@/lib/role-labels';
+import { StatusBadge } from '@/components/workbench';
 
 function formatLoginTime(iso: string): string {
   const d = new Date(iso);
@@ -96,12 +97,8 @@ export function PersonalCenterHero({ user, onOpenBasicInfo, onOpenPreferences, o
         <div className="page-hero__right flex-wrap">
           {/* 状态瓷片（原「当前会话/安全状态」KPI 卡融入，2026-11-09；
               与其他页 hero 同形态：瓷片居按钮前同行内联、垂直居中） */}
-          <span className="page-hero__stat page-hero__stat--info" title="当前会话状态">
-            <span className="h-1.5 w-1.5 rounded-full bg-[var(--success)]" />活跃中
-          </span>
-          <span className={`page-hero__stat ${user.isFrozen ? 'page-hero__stat--warn' : 'page-hero__stat--info'}`} title="账号安全状态">
-            <ShieldCheck size={11} strokeWidth={2} />{user.isFrozen ? '已冻结' : '安全正常'}
-          </span>
+          <StatusBadge tone="green">活跃中</StatusBadge>
+          <StatusBadge tone={user.isFrozen ? 'red' : 'green'}><ShieldCheck size={11} strokeWidth={2} />{user.isFrozen ? '已冻结' : '安全正常'}</StatusBadge>
           <button onClick={onOpenBasicInfo} type="button" className="neu-btn-soft">
             <UserRound size={14} strokeWidth={1.7} />基本资料与安全
           </button>
