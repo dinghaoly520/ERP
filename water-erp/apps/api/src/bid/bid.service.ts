@@ -4642,7 +4642,7 @@ export class BidService {
     if (!publicity.canIssueAward) {
       throw new ConflictException({
         error: publicity.hasPublicity
-          ? `中标候选人公示期未满（公示截止 ${publicity.publicityEnd}），不得发出中标通知书`
+          ? `中标候选人公示期未满（公示截止 ${new Date(publicity.publicityEnd!).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })}），不得发出中标通知书`
           : '中标候选人公示未发布，不得发出中标通知书',
         code: 'PUBLICITY_NOT_ENDED',
       });

@@ -34,13 +34,14 @@ import { fetchProjectAttributions, updateProjectExtractedInfo, getPmBidProject, 
 import { aiIdentifyField } from "@/lib/api/project-management";
 import { getBidProjectDetail, getPublicityStatus, deliverAwardLetter, type PublicityStatus } from "@/lib/api/bid";
 import type { FieldCandidate, ProjectManagementItem } from "@/lib/types/project-management";
+import { ANNOUNCEMENT_TYPE_LABELS } from "@water-erp/shared";
 import { PurchaserPickerDialog } from "./purchaser-picker-dialog";
 import { fetchCurrentUser } from "@/lib/api/auth";
 
 /** 公示载体公告类型 → 中文名（publicity-status.announcement.type 展示用；系统实际只有中标公告一轨） */
-const PUBLICITY_CARRIER_LABEL: Record<string, string> = {
-  WIN_BID_NOTICE: '中标公告',
-};
+/** 公示载体类型名——用 shared 单一来源标签表（2026-11-09：本地残缺映射致存量
+ *  PRE_WIN_NOTICE/WIN_NOTICE 载体裸出英文枚举） */
+const PUBLICITY_CARRIER_LABEL: Record<string, string> = { ...ANNOUNCEMENT_TYPE_LABELS };
 
 function downloadBlobFile(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob);
@@ -255,7 +256,7 @@ export function NotificationLetterDialog({
       const bp = await getPmBidProject(project.id, p.currentRound ?? 1);
       const detail = await getBidProjectDetail(bp.id);
       const winner = (detail.evaluationResults ?? []).find(r => r.rank === 1 && r.recommended);
-      if (!winner) throw new Error('缺少评标结果（rank1 推荐），无法定向发出；请先在开标确认完成评标');
+      if (!winner) throw new Error('缺少评标结果（第一中标候选人推荐），无法定向发出；请先在开标确认完成评标');
       if (draft.winnerName?.trim() && draft.winnerName.trim() !== winner.supplierName) {
         throw new Error(`通知书中标人（${draft.winnerName}）与评标推荐中标人（${winner.supplierName}）不一致，请修正`);
       }
@@ -584,7 +585,7 @@ export function NotificationLetterDialog({
                     </div>
                     <div>
                       <div className="text-sm font-semibold text-[color:var(--foreground)]">自动填入</div>
-                      <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">按项目数据 + 评标结果（rank1）直接生成，无需上传文件</div>
+                      <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">按项目数据与评标结果（第一中标候选人）直接生成，无需上传文件</div>
                     </div>
                   </>
                 )}
@@ -635,7 +636,7 @@ export function NotificationLetterDialog({
                 </div>
                 <div className="mt-2 text-sm font-bold text-[color:var(--foreground)]">{draft.winnerName || '（未填中标单位）'}</div>
                 <p className="mt-2 text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">
-                  通知书将定向发出至该中标供应商：自动写入其门户「成交履约 · 成交通知」，并发送站内通知。后端将校验与评标推荐中标人（rank1）一致。
+                  通知书将定向发出至该中标供应商：自动写入其门户「成交履约 · 成交通知」，并发送站内通知。后端将校验与评标推荐的第一中标候选人一致。
                 </p>
               </div>
               {/* 公示闸状态 */}
