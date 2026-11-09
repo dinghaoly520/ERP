@@ -30,7 +30,7 @@ type FormState = {
   phone: string;
   officeLocation: string;
   verificationCode: string;
-  requestedRole: "management" | "office" | "";
+  requestedRole: "management" | "office";
 };
 
 const EMPTY_FORM: FormState = {
@@ -44,7 +44,8 @@ const EMPTY_FORM: FormState = {
   phone: "",
   officeLocation: "",
   verificationCode: "",
-  requestedRole: "",
+  // 默认办公权限、直接生效无需点击；可切换为管理权限（2026-11-09）
+  requestedRole: "office",
 };
 
 export function RegisterDialog({ isOpen, onClose }: RegisterDialogProps) {
@@ -173,10 +174,6 @@ export function RegisterDialog({ isOpen, onClose }: RegisterDialogProps) {
     }
     if (!form.verificationCode.trim()) {
       setErrorMessage("请输入手机验证码");
-      return;
-    }
-    if (!form.requestedRole) {
-      setErrorMessage("请选择申请权限");
       return;
     }
     if (!agreed) {
@@ -440,6 +437,9 @@ export function RegisterDialog({ isOpen, onClose }: RegisterDialogProps) {
                   办公权限
                 </button>
               </div>
+              <span className="mt-1 block text-[11px] text-[var(--muted-foreground)]">
+                默认申请办公权限，如需管理权限请切换（均需管理员审核）
+              </span>
             </div>
 
             <label className="block">
