@@ -6,7 +6,7 @@ import { importCsv } from '@/lib/api/expert';
 import { Workbook } from 'exceljs';
 import { Download, Upload, Loader2, Eye, ChevronDown } from 'lucide-react';
 
-const CSV_HEADERS = ['姓名', '登录账号', '初始密码', '专业领域', '职称', '执业资格', '工作单位', '所属部门', '联系电话', '电子邮箱', '身份证号', '民族', '学历', '执业资格证号', '备注'];
+const CSV_HEADERS = ['姓名', '专业领域', '职称', '执业资格', '工作单位', '所属部门', '联系电话', '电子邮箱', '身份证号', '民族', '学历', '执业资格证号', '备注'];
 const CSV_EXAMPLE = ['张三', 'zhangsan', 'abc123', '水利水电工程', '高级工程师', '一级建造师、监理工程师', '四川水发勘测设计研究有限公司', '工程勘察院', '13800138000', 'zhangsan@example.com', '', '汉族', '硕士', '', ''];
 
 interface ExpertCsvActionsProps {
@@ -236,8 +236,8 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
       // 表头关键列校验（与后端 pick 的宽松匹配同口径）：缺关键列时逐行必然「缺少必填」全跳过
       const sampleKeys = Object.keys(rows[0] ?? {});
       const hasCol = (keys: string[]) => sampleKeys.some(h => keys.some(k => h.includes(k)));
-      if (rows.length === 0 || !hasCol(['姓名', '名称']) || !hasCol(['登录账号', '账号', '用户名']) || !hasCol(['专业领域', '专业'])) {
-        toast.error('表头缺少关键列（姓名 / 登录账号 / 专业领域）——请点击「模板查看与下载」获取标准模板填写');
+      if (rows.length === 0 || !hasCol(['姓名', '名称']) || !hasCol(['专业领域', '专业'])) {
+        toast.error('表头缺少关键列（姓名 / 专业领域）——请点击「模板查看与下载」获取标准模板填写');
         done();
         return;
       }
@@ -305,14 +305,14 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
             </div>
             {/* 填写说明 */}
             <div className="px-4 py-2.5 border-t border-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)] flex flex-wrap gap-x-5 gap-y-1 text-[10px] text-[var(--muted-foreground)]/70">
-              <span>姓名/登录账号/初始密码/专业领域为必填字段</span>
+              <span>姓名/专业领域为必填字段（登录账号=姓名、初始口令=身份证号自动生成）</span>
               <span>编码保存为 <code className="px-1 py-0.5 rounded bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] text-[10px]">UTF-8 CSV</code> 格式</span>
               <span>空字段保留逗号占位即可</span>
             </div>
           </div>
         )}
 
-        <p className="text-[10px] text-[var(--muted-foreground)]/70 leading-relaxed">支持 .xlsx 与 .csv（模板两用）；必填姓名/登录账号/初始密码/专业领域。身份证与手机号列请设为「文本」格式，避免 Excel 数值失真。</p>
+        <p className="text-[10px] text-[var(--muted-foreground)]/70 leading-relaxed">支持 .xlsx 与 .csv（模板两用）；必填姓名/专业领域——登录账号=姓名、初始口令=身份证号自动生成。身份证与手机号列请设为「文本」格式，避免 Excel 数值失真。</p>
       </div>
 
       {importResult && (

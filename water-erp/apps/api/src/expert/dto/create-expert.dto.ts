@@ -1,8 +1,11 @@
 import { IsString, IsNotEmpty, IsOptional, IsEmail, MinLength } from 'class-validator';
 
 export class CreateExpertDto {
+  @IsOptional()
   @IsString() @IsNotEmpty()
-  username!: string;
+  /** 登录账号；缺省=姓名（2026-11-09 用户裁定：专家默认以姓名+身份证号登录，
+   *  录入界面与 CSV 模板已删账号/密码字段——显式传值仍兼容旧调用方/种子导入） */
+  username?: string;
 
   @IsString() @IsNotEmpty()
   displayName!: string;

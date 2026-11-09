@@ -567,6 +567,9 @@ export class ExpertAdminService {
 
   async createExpert(dto: CreateExpertDto, operatorId?: string) {
     const normalizedName = dto.displayName.trim();
+    // 登录账号缺省=姓名（2026-11-09 用户裁定：专家默认以姓名+身份证号登录，
+    // 录入界面与 CSV 模板已删账号字段——显式传值仍兼容旧调用方）
+    const username = dto.username?.trim() || normalizedName;
     // 专业/职称自由新增（2026-11-05 用户裁定）：标准清单降为推荐项（前端 typeahead
     // 联想），自定义值放行——闸只保留执业资格（封闭全称集）。存量已按 15 项/23 项清洗。
     if (dto.qualifications?.trim()) {
@@ -578,8 +581,8 @@ export class ExpertAdminService {
         });
       }
     }
-    if (await this.prisma.user.findFirst({ where: { username: dto.username, role: 'bid_expert' } })) {
-      throw new BadRequestException({ error: '账号已存在', code: 'DUPLICATE_USERNAME' });
+    if (await this.prisma.user.findFirst({ where: { username, role: 'bid_expert' } })) {
+      throw new BadRequestException({ error: '该姓名的专家账号已存在（专家以姓名登录，同名不可重复录入）', code: 'DUPLICATE_USERNAME' });
     }
     // 部门：按名称查找已有记录，不存在则新建
     let departmentId: string | undefined;
@@ -623,7 +626,7 @@ export class ExpertAdminService {
       return await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
-          username: dto.username,
+          username,
           displayName: normalizedName,
           email: sealPii(dto.email) ?? null, // PII 国密密封（等保+密评）
           passwordHash: hashSync(dto.password?.trim() || dto.idNumber?.trim() || 'expert@2026', 10), // R2：缺省口令=身份证号（原文哈希，先于密封）
@@ -3080,10 +3083,11 @@ export class ExpertAdminService {
 
     for (const row of rows) {
       const displayName = pick(row, ['姓名', '名称']);
+      // 登录账号列已从模板删除（2026-11-09 用户裁定：账号=姓名）；旧文件带列仍兼容
       const username = pick(row, ['登录账号', '账号', '用户名']) || displayName;
       const specialty = pick(row, ['专业领域', '专业']);
-      if (!displayName || !username || !specialty) {
-        results.push({ 姓名: displayName || '(空)', 状态: '跳过', 原因: '缺少姓名/账号/专业' });
+      if (!displayName || !specialty) {
+        results.push({ 姓名: displayName || '(空)', 状态: '跳过', 原因: '缺少姓名/专业' });
         skipped++; continue;
       }
       // 专业/职称自由新增（2026-11-05 用户裁定）：CSV 不再卡标准清单；执业资格仍校验
@@ -3100,8 +3104,10 @@ export class ExpertAdminService {
       }
       try {
         await this.createExpert({
-          username, displayName,
-          password: pick(row, ['密码', '初始密码']) || 'expert@2026',
+          username,
+          displayName,
+          // 密码列已从模板删除（2026-11-09）；缺省走 createExpert 回退链：身份证号 → expert@2026
+          password: pick(row, ['密码', '初始密码']) || undefined,
           specialty,
           title,
           qualifications,
@@ -4045,7 +4051,8 @@ ${combined}`,
       // ③ 删名单：Cascade 带走 ExpertProfile/ExpertCert/ExpertEvaluation/Notification/AssistantConversation 等
       const clearedExperts = await tx.user.deleteMany({ where: { id: { in: ids } } });
       return { clearedExperts, auditDetached, reviewTasksRemoved };
-    });
+      // 交互事务默认 5s：180+ 名专家的级联删除在慢库可能超时（超时=安全回滚但误报失败），放宽到 30s
+    }, { timeout: 30_000 });
 
     await this.prisma.auditLog.create({
       data: {

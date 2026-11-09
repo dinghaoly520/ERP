@@ -6,7 +6,7 @@ import { createExpert, listSpecialties, ocrIntake } from '@/lib/api/expert';
 import { Modal } from '@/components/workbench';
 import { UnitSearchSelect } from '@/components/login/unit-search-select';
 import { ExpertCsvActions } from './expert-csv-actions';
-import { UserPlus, Eye, EyeOff, ScanLine, RefreshCw } from 'lucide-react';
+import { UserPlus, ScanLine, RefreshCw } from 'lucide-react';
 import { TypeaheadCombobox } from '@/components/workbench/typeahead-combobox';
 
 import { EXPERT_TITLES as TITLES, EXPERT_QUALIFICATIONS as QUALIFICATIONS } from '@/lib/expert-standard-options';
@@ -14,8 +14,8 @@ import { EXPERT_TITLES as TITLES, EXPERT_QUALIFICATIONS as QUALIFICATIONS } from
 const EDUCATIONS = ['博士','硕士','本科','大专','其他'];
 const ETHNICITIES = ['汉族','蒙古族','回族','藏族','维吾尔族','苗族','彝族','壮族','布依族','朝鲜族','满族','侗族','瑶族','白族','土家族','其他'];
 
-type FormFields = { username: string; displayName: string; password: string; specialty: string; title: string; qualifications: string; employer: string; departmentName: string; phone: string; idNumber: string; email: string; notes: string; ethnicity: string; education: string; licenseNo: string; };
-const INITIAL: FormFields = { username: '', displayName: '', password: '', specialty: '', title: '', qualifications: '', employer: '', departmentName: '', phone: '', idNumber: '', email: '', notes: '', ethnicity: '', education: '', licenseNo: '' };
+type FormFields = { displayName: string; specialty: string; title: string; qualifications: string; employer: string; departmentName: string; phone: string; idNumber: string; email: string; notes: string; ethnicity: string; education: string; licenseNo: string; };
+const INITIAL: FormFields = { displayName: '', specialty: '', title: '', qualifications: '', employer: '', departmentName: '', phone: '', idNumber: '', email: '', notes: '', ethnicity: '', education: '', licenseNo: '' };
 
 interface ExpertEntryDialogProps {
   open: boolean;
@@ -28,7 +28,6 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
   const [form, setForm] = useState<FormFields>(INITIAL);
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState('');
-  const [showPw, setShowPw] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof FormFields, string>>>({});
 
@@ -55,10 +54,7 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
   // 全字段必填（2026-10-15 用户裁定）——唯一例外：执业资格证号选填
   const validate = (): boolean => {
     const e: Partial<Record<keyof FormFields, string>> = {};
-    if (!form.username.trim()) e.username = '请输入登录账号';
     if (!form.displayName.trim()) e.displayName = '请输入专家姓名';
-    if (!form.password.trim()) e.password = '请输入初始密码';
-    else if (form.password.length < 6) e.password = '密码至少 6 位';
     if (!form.specialty.trim()) e.specialty = '请输入专业';
     if (!form.title.trim()) e.title = '请输入职称';
     if (!form.employer.trim()) e.employer = '请选择工作单位';
@@ -174,13 +170,13 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
         {/* CSV 导入 + 模板下载 */}
         <ExpertCsvActions onImported={onSubmitted} />
 
-        {/* ① 登录凭证 */}
+        {/* ① 基本信息（2026-11-09 用户裁定：登录账号/初始密码字段删除——专家默认
+            以姓名+身份证号登录，账号=姓名、初始口令=身份证号由后端自动生成） */}
         <fieldset>
-          <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><Step n={1} />登录凭证</legend>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">登录账号 <span className="text-[var(--danger)]">*</span></span><input value={form.username} onChange={e => set('username', e.target.value)} placeholder="如 expert_zhang（建议使用姓名拼音）" className={inputCls('username')} /><FieldError field="username" /></label>
+          <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><Step n={1} />基本信息</legend>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">专家姓名 <span className="text-[var(--danger)]">*</span></span><input value={form.displayName} onChange={e => set('displayName', e.target.value)} placeholder="真实姓名" className={inputCls('displayName')} /><FieldError field="displayName" /></label>
-            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">初始密码 <span className="text-[var(--danger)]">*</span></span><div className="relative"><input value={form.password} onChange={e => set('password', e.target.value)} type={showPw ? 'text' : 'password'} placeholder="至少 6 位" className={inputCls('password')} /><button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--foreground)]">{showPw ? <EyeOff size={15} /> : <Eye size={15} />}</button></div><FieldError field="password" /></label>
+            <div className="flex items-end pb-1 text-[10px] leading-relaxed text-[var(--muted-foreground)]/70">登录凭证自动生成：账号=姓名，初始口令=身份证号（未填身份证号时为默认口令）</div>
           </div>
         </fieldset>
         <hr className="wb-section-rule" />
