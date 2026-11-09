@@ -612,10 +612,10 @@ export function revealExpertField(userId: string, field: 'idNumber' | 'phone' | 
   return api.post<{ field: string; value: string | null }>(`/expert-admin/${userId}/reveal`, { field });
 }
 
-/** 一键清空专家库名单（2026-11-09 用户裁定：仅名单与随账号档案；评审记录保留；
- *  强保险=确认词「清空」+生产禁用+开评标中挡闸——后端硬闸，前端亦有环境隐藏） */
-export function clearExpertRoster(confirm: string) {
+/** 清空专家库名单·勾选式（2026-11-09 用户裁定：弹窗勾选+搜索+全选，仅勾选账号；
+ *  强保险=确认词「清空」+生产禁用+勾选集在评挡闸——后端硬闸，前端亦有环境隐藏） */
+export function clearExpertRoster(confirm: string, userIds: string[]) {
   return api.post<{ clearedExperts: number; auditDetached: number; reviewTasksRemoved: number }>(
-    '/expert-admin/clear-expert-roster', { confirm },
+    '/expert-admin/clear-expert-roster', { confirm, userIds },
   );
 }

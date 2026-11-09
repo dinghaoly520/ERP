@@ -4060,27 +4060,44 @@ ${combined}`,
    * 被自身清掉——AuditLog→User 是 Cascade，先断链 userId 置 null 保法定留痕再删账号，
    * 断链行操作人回退「系统」）。fail-closed：漏 FK 引用即事务整体回滚，绝不半清。
    */
-  async clearExpertRoster(operatorId: string, confirmText: string) {
+  async clearExpertRoster(operatorId: string, confirmText: string, userIds?: string[]) {
     if (process.env.NODE_ENV === 'production') {
       throw new ForbiddenException({ error: '生产环境禁用专家名单清空', code: 'EXPERT_CLEAR_DISABLED' });
     }
     if (confirmText !== '清空') {
       throw new BadRequestException({ error: '确认词不匹配：请输入「清空」二字', code: 'CONFIRM_TEXT_MISMATCH' });
     }
-    // 开标/评标进行中的项目挡闸（同 BID_IN_PROGRESS 语义）——清名单会让在场专家无法登录评审
-    const active = await this.prisma.bidProject.count({ where: { stage: { in: ['OPENING', 'EVALUATING'] } } });
-    if (active > 0) {
-      throw new ConflictException({ error: `有 ${active} 个项目处于开标/评标中，清空专家名单会让在场评审失效——请先完成或流标`, code: 'BID_IN_PROGRESS' });
+    const ids = [...new Set((userIds ?? []).map(s => (s ?? '').trim()).filter(Boolean))];
+    if (ids.length === 0) {
+      throw new BadRequestException({ error: '未勾选任何专家', code: 'EMPTY_SELECTION' });
     }
-
-    const experts = await this.prisma.user.findMany({
-      where: { OR: [{ role: 'bid_expert' }, { isTempExpert: true }] },
-      select: { id: true },
+    // 目标校验：勾选 id 必须全部存在且为专家域账号（防误传管理员 id 连账号一起删）
+    const targets = await this.prisma.user.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, role: true, isTempExpert: true },
     });
-    if (experts.length === 0) {
-      return { clearedExperts: 0, auditDetached: 0, reviewTasksRemoved: 0 };
+    if (targets.length !== ids.length || targets.some(u => u.role !== 'bid_expert' && !u.isTempExpert)) {
+      throw new BadRequestException({ error: '勾选中包含不存在或非专家域的账号，请刷新后重选', code: 'INVALID_TARGET' });
     }
-    const ids = experts.map(u => u.id);
+    // 在评挡闸（收窄到勾选集，2026-11-09 勾选式改版）：勾选专家绑定开标/评标中项目 → 拒绝。
+    // BidExpert.projectId 是松列无关系——先取其项目集再查活动态
+    const bindings = await this.prisma.bidExpert.findMany({
+      where: { userId: { in: ids } },
+      select: { projectId: true },
+    });
+    const projectIds = [...new Set(bindings.map(b => b.projectId))];
+    if (projectIds.length > 0) {
+      const liveProjects = await this.prisma.bidProject.findMany({
+        where: { id: { in: projectIds }, stage: { in: ['OPENING', 'EVALUATING'] } },
+        select: { name: true },
+      });
+      if (liveProjects.length > 0) {
+        throw new ConflictException({
+          error: `勾选的专家正参与 ${liveProjects.length} 个开标/评标中项目（${liveProjects.slice(0, 3).map(p => p.name).join('、')}${liveProjects.length > 3 ? ' 等' : ''}），删除会让在场评审失效——请先完成或流标，或取消勾选相关专家`,
+          code: 'EXPERT_IN_LIVE_EVALUATION',
+        });
+      }
+    }
 
     const counts = await this.prisma.$transaction(async (tx) => {
       // ① 断审计链：AuditLog.userId → User onDelete Cascade，不先置 null 删号即毁全部留痕
@@ -4090,7 +4107,7 @@ ${combined}`,
       // ③ 删名单：Cascade 带走 ExpertProfile/ExpertCert/ExpertEvaluation/Notification/AssistantConversation 等
       const clearedExperts = await tx.user.deleteMany({ where: { id: { in: ids } } });
       return { clearedExperts, auditDetached, reviewTasksRemoved };
-      // 交互事务默认 5s：180+ 名专家的级联删除在慢库可能超时（超时=安全回滚但误报失败），放宽到 30s
+      // 交互事务默认 5s：大量勾选的级联删除在慢库可能超时（超时=安全回滚但误报失败），放宽到 30s
     }, { timeout: 30_000 });
 
     await this.prisma.auditLog.create({

@@ -65,6 +65,11 @@ export default function ExpertRepositoryPage() {
   const [showClearModal, setShowClearModal] = useState(false);
   const [clearText, setClearText] = useState('');
   const [clearing, setClearing] = useState(false);
+  // 勾选式清空（2026-11-09 用户裁定：弹窗勾选+搜索+全选）——roster=全库名单（不随公司视图）
+  const [roster, setRoster] = useState<ExpertListItem[]>([]);
+  const [rosterLoading, setRosterLoading] = useState(false);
+  const [rosterSearch, setRosterSearch] = useState('');
+  const [rosterIds, setRosterIds] = useState<Set<string>>(new Set());
   // 操作历史抽屉（审计，只读）
   const [showHistory, setShowHistory] = useState(false);
   // 批量操作二次确认
@@ -109,13 +114,43 @@ export default function ExpertRepositoryPage() {
   };
 
   /** 一键清空专家库名单：后端强闸（确认词/生产禁用/开评标中挡闸），此处再兜 UI 确认词 */
+  /** 打开勾选弹窗：全库名单逐页拉全（不随公司视图；上限 1000 防意外巨量） */
+  const openClearModal = async () => {
+    setShowClearModal(true);
+    setRosterSearch(''); setRosterIds(new Set()); setClearText('');
+    setRosterLoading(true);
+    try {
+      let all: ExpertListItem[] = [];
+      for (let pg = 1; pg <= 5; pg++) {
+        const r = await listExperts({ page: pg, pageSize: 200 });
+        all = all.concat(r.items);
+        if (all.length >= r.total || r.items.length === 0) break;
+      }
+      setRoster(all);
+    } catch {
+      toast.error('专家名单加载失败，请重试');
+      setShowClearModal(false);
+    } finally {
+      setRosterLoading(false);
+    }
+  };
+
+  /** 弹窗内搜索（客户端过滤：姓名/专业/单位/公司——全库 ≤ 数百名，即时） */
+  const rosterFiltered = roster.filter(e => {
+    const q = rosterSearch.trim();
+    if (!q) return true;
+    return [e.displayName, e.expertProfile?.specialty ?? '', e.expertProfile?.employer ?? '', e.company ?? '']
+      .some(v => v.includes(q));
+  });
+  const allFilteredSelected = rosterFiltered.length > 0 && rosterFiltered.every(e => rosterIds.has(e.id));
+
   const doClearRoster = async () => {
-    if (clearText !== '清空') return;
+    if (clearText !== '清空' || rosterIds.size === 0) return;
     setClearing(true);
     try {
-      const r = await clearExpertRoster(clearText);
+      const r = await clearExpertRoster(clearText, [...rosterIds]);
       toast.success(`已清空专家名单 ${r.clearedExperts} 名（评审记录已保留）`);
-      setShowClearModal(false); setClearText('');
+      setShowClearModal(false); setClearText(''); setRosterIds(new Set()); setRoster([]);
       load();
       refreshExpStats(); // hero 库况四联随清空归零（变更类操作后手动刷，同三审 P2-3 口径）
     } catch (e) {
@@ -481,7 +516,7 @@ export default function ExpertRepositoryPage() {
           {isAdmin && <button onClick={() => setShowEntryModal(true)} className="neu-btn-xs"><PlusCircle size={12} />录入专家</button>}
           {/* 一键清空（2026-11-09）：仅 dev 构建——生产禁用钮（后端另有硬闸） */}
           {isAdmin && process.env.NODE_ENV !== 'production' && (
-            <button onClick={() => { setShowClearModal(true); setClearText(''); }} className="neu-btn-xs is-danger"><AlertTriangle size={12} />清空专家列表</button>
+            <button onClick={() => void openClearModal()} className="neu-btn-xs is-danger"><AlertTriangle size={12} />清空专家列表</button>
           )}
           <button onClick={doExport} className="neu-btn-xs" title={selectedIds.size > 0 ? `导出已选的 ${selectedIds.size} 位专家（按公司分组）` : '导出全部专家（按公司分组）'}><Download size={12} />导出Excel{selectedIds.size > 0 && <span className="ml-1 rounded bg-[var(--accent)] px-1 py-0 text-[10px] font-bold text-white">{selectedIds.size}</span>}</button>
         </div>
@@ -662,17 +697,18 @@ export default function ExpertRepositoryPage() {
       {/* 录入专家弹窗 */}
       <ExpertEntryDialog open={showEntryModal} onClose={() => setShowEntryModal(false)} onSubmitted={load} />
 
-      {/* 一键清空专家名单确认弹窗（强保险：输入「清空」二字） */}
+      {/* 清空专家名单弹窗·勾选式（2026-11-09 用户裁定：搜索+全选+勾选；强保险：输入「清空」二字） */}
       <Modal open={showClearModal} onClose={() => setShowClearModal(false)}
         title={<span className="flex items-center gap-2"><span className="neu-icon-well !h-7 !w-7"><AlertTriangle size={14} className="text-[var(--danger)]" /></span>清空专家名单</span>}
-        description="仅删除专家库名单与随账号档案，评审记录保留"
+        description="勾选要删除的专家——仅删名单与随账号档案，评审记录保留"
+        size="lg"
         footer={
           <div className="flex items-center justify-between w-full">
-            <span className="text-xs text-[var(--muted-foreground)]">本操作将写入操作历史留痕，不可撤销</span>
+            <span className="text-xs text-[var(--muted-foreground)]">已勾选 <strong className="tabular-nums text-[var(--danger)]">{rosterIds.size}</strong> / {roster.length} 名 · 本操作写入操作历史留痕，不可撤销</span>
             <div className="flex items-center gap-2">
               <button className="neu-btn-soft" onClick={() => setShowClearModal(false)} disabled={clearing}>取消</button>
-              <button className="neu-btn-soft is-danger" onClick={() => void doClearRoster()} disabled={clearText !== '清空' || clearing}>
-                {clearing ? <><RefreshCw size={12} className="animate-spin" /> 清空中…</> : <>确认清空</>}
+              <button className="neu-btn-soft is-danger" onClick={() => void doClearRoster()} disabled={clearText !== '清空' || rosterIds.size === 0 || clearing}>
+                {clearing ? <><RefreshCw size={12} className="animate-spin" /> 清空中…</> : <>确认清空（{rosterIds.size} 名）</>}
               </button>
             </div>
           </div>
@@ -682,10 +718,65 @@ export default function ExpertRepositoryPage() {
           <div className="flex items-start gap-2 rounded-[10px] bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-3 py-2.5">
             <AlertTriangle size={14} className="mt-0.5 shrink-0 text-[var(--danger)]" />
             <p className="text-xs leading-relaxed text-[var(--foreground)]">
-              将删除全部 <strong>{expStats?.totalExperts ?? total}</strong> 名专家的名单与账号档案（含证书、履职评价、站内通知）；
-              <strong>评审记录（评分/抽取/异议/备忘）与全部审计留痕保留</strong>。清单可经「录入专家 / 从种子名单导入」重建。
+              删除勾选专家的名单与账号档案（含证书、履职评价、站内通知）；
+              <strong>评审记录（评分/抽取/异议/备忘）与全部审计留痕保留</strong>。参与开标/评标中项目的专家会被后端拒绝。
             </p>
           </div>
+          {/* 搜索 + 全选 */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
+              <input value={rosterSearch} onChange={e => setRosterSearch(e.target.value)} placeholder="搜索姓名 / 专业 / 单位 / 公司…"
+                className="workbench-input workbench-input-sm !pl-8" disabled={rosterLoading || clearing} />
+            </div>
+            <button className="neu-btn-xs shrink-0" disabled={rosterLoading || rosterFiltered.length === 0 || clearing}
+              onClick={() => {
+                setRosterIds(prev => {
+                  const next = new Set(prev);
+                  if (allFilteredSelected) rosterFiltered.forEach(e => next.delete(e.id));
+                  else rosterFiltered.forEach(e => next.add(e.id));
+                  return next;
+                });
+              }}>
+              {allFilteredSelected ? '取消全选' : `全选${rosterSearch.trim() ? '（筛选项）' : ''}（${rosterFiltered.length}）`}
+            </button>
+            {rosterIds.size > 0 && (
+              <button className="neu-btn-xs shrink-0" disabled={clearing} onClick={() => setRosterIds(new Set())}>清空勾选</button>
+            )}
+          </div>
+          {/* 勾选列表 */}
+          {rosterLoading ? (
+            <div className="flex items-center justify-center gap-2 py-10 text-sm text-[var(--muted-foreground)]">
+              <RefreshCw size={15} className="animate-spin" /> 正在加载专家名单…
+            </div>
+          ) : roster.length === 0 ? (
+            <div className="py-10 text-center text-sm text-[var(--muted-foreground)]">专家库为空，无需清空</div>
+          ) : rosterFiltered.length === 0 ? (
+            <div className="py-10 text-center text-sm text-[var(--muted-foreground)]">无匹配「{rosterSearch.trim()}」的专家</div>
+          ) : (
+            <div className="max-h-[42vh] space-y-1.5 overflow-y-auto pr-1">
+              {rosterFiltered.map(e => {
+                const checked = rosterIds.has(e.id);
+                const live = (e.bidExperts ?? []).some(b => b.project?.stage === 'OPENING' || b.project?.stage === 'EVALUATING');
+                return (
+                  <label key={e.id} className={`flex cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 transition-colors ${checked ? 'bg-[color-mix(in_oklch,var(--danger)_7%,transparent)]' : 'hover:bg-[color-mix(in_oklch,var(--muted-foreground)_6%,transparent)]'}`}>
+                    <input type="checkbox" checked={checked} disabled={clearing}
+                      onChange={() => setRosterIds(prev => { const n = new Set(prev); if (n.has(e.id)) n.delete(e.id); else n.add(e.id); return n; })}
+                      className="accent-[var(--danger)] shrink-0" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] font-semibold text-[var(--foreground)]">
+                        {e.displayName}
+                        {live && <span className="ml-1.5 rounded bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--danger)]">在评中</span>}
+                      </span>
+                      <span className="block truncate text-[11px] text-[var(--muted-foreground)]">
+                        {[e.expertProfile?.specialty, e.expertProfile?.employer ?? e.company].filter(Boolean).join(' · ') || '—'}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
           <label className="space-y-1">
             <span className="text-[10px] font-semibold text-[var(--muted-foreground)]">请输入「清空」二字确认</span>
             <input value={clearText} onChange={e => setClearText(e.target.value)} placeholder="清空" className="neu-input w-full" autoComplete="off" disabled={clearing} />

@@ -352,13 +352,14 @@ export class ExpertAdminController {
     });
   }
 
-  /** 一键清空专家库名单（2026-11-09 用户裁定）——强保险：admin only + 生产禁用 +
-   *  确认词「清空」 + 开评标中挡闸 + 审计留痕；评审记录（BidExpert/评分/抽取）保留 */
+  /** 清空专家库名单·勾选式（2026-11-09 用户裁定：弹窗勾选+搜索+全选）——强保险：
+   *  admin only + 生产禁用 + 确认词「清空」 + 勾选集在评挡闸 + 审计留痕；
+   *  评审记录（BidExpert/评分/抽取）保留；userIds 必为专家域账号（服务端校验） */
   @Post('clear-expert-roster')
   @Roles('admin')
-  @ApiOperation({ summary: '一键清空专家库名单（仅名单与随账号档案；评审记录保留；生产禁用）' })
-  clearExpertRoster(@Body() body: { confirm?: string }, @Request() req: any = {}) {
-    return this.expertAdminService.clearExpertRoster(req.user?.sub, body?.confirm ?? '');
+  @ApiOperation({ summary: '清空勾选的专家名单（仅名单与随账号档案；评审记录保留；生产禁用）' })
+  clearExpertRoster(@Body() body: { confirm?: string; userIds?: string[] }, @Request() req: any = {}) {
+    return this.expertAdminService.clearExpertRoster(req.user?.sub, body?.confirm ?? '', body?.userIds);
   }
 
   @Post('batch')
