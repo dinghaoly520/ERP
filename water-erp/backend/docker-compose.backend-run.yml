@@ -106,7 +106,10 @@ services:
     working_dir: /app/apps/api
     env_file: .env.backend
     environment:
-      NODE_ENV: ${NODE_ENV:-development}
+      # 2026-11-09：原 ${NODE_ENV:-development} 插值不读 .env.backend（服务级 env_file 不参与
+      # compose 插值），api 会一直以 development 跑生产（Swagger 暴露/cookie 无 Secure）；硬编码翻正。
+      # B 机真身同日已修（JWT_SECRET 50 字符 ≥32，production 启动守卫通过）。
+      NODE_ENV: production
       PORT: "4001"
       DATABASE_URL: postgresql://water_erp:water_erp_dev@postgres:5432/water_erp?connection_limit=20
       DIRECT_URL: postgresql://water_erp:water_erp_dev@postgres:5432/water_erp
