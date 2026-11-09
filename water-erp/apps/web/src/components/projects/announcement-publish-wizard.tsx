@@ -82,9 +82,11 @@ function readTenderDraftOpening(projectId: string, tt: TenderDocumentType, round
   } catch { return ''; }
 }
 
-/** 开标时间稳健获取（2026-10-28）：来源链 = 采购文件编写草稿 → 项目基本信息，只补空、
- *  归一为 datetime-local（中文原文/仅日期都会被 datetime-local 输入框静默丢弃，见 lib/tender-write/opening-time）。
- *  直接采购落到 procurementTime（采购时间语义字段），其余采购方式落到 bidOpeningTime。 */
+/** 开标时间稳健获取（2026-10-28；2026-11-09 权威序调整后仅作兜底链）：来源链 =
+ *  采购文件编写草稿 → 项目基本信息，只补空、归一为 datetime-local（中文原文/仅日期都会被
+ *  datetime-local 输入框静默丢弃，见 lib/tender-write/opening-time）。仅在基本信息无值时被
+ *  syncOpeningTimeFromPmi 走到——有值时基本信息优先（唯一权威裁定）。直接采购落到
+ *  procurementTime（采购时间语义字段），其余采购方式落到 bidOpeningTime。 */
 function fillOpeningTime(fd: Record<string, string>, project: ProjectManagementItem, tt: TenderDocumentType): void {
   const draftOpening = readTenderDraftOpening(project.id, tt, project.currentRound ?? 1);
   if (tt === 'SINGLE_SOURCE') {
@@ -96,6 +98,31 @@ function fillOpeningTime(fd: Record<string, string>, project: ProjectManagementI
       if (!fd.bidOpeningTimeType?.trim()) fd.bidOpeningTimeType = 'datetime';
     }
   }
+}
+
+/** 开标时间跟随项目基本信息（2026-11-09 用户裁定）：基本信息「采购文件」的开标时间为唯一权威——
+ *  有值即优先于向导缓存值/采购文件编写草稿；权威值随向导缓存记录在 openingTimeSource，重开向导时
+ *  基本信息已变（≠记录源，含旧缓存无记录源）→ 重新识别覆盖已加载值，未变 → 保留现值（含用户手改）。
+ *  基本信息为空时无权威，回落 fillOpeningTime 只补空链（此时源记 ''，将来基本信息补值即接管）。
+ *  返回 { source, applied } 供调用方落缓存。 */
+function syncOpeningTimeFromPmi(
+  fd: Record<string, string>,
+  project: ProjectManagementItem,
+  tt: TenderDocumentType,
+  cachedSource?: string,
+): { source: string; applied: boolean } {
+  const pmiOpening = toDatetimeLocal(project.bidOpeningTime ?? '');
+  if (pmiOpening && toDatetimeLocal(cachedSource ?? '') !== pmiOpening) {
+    if (tt === 'SINGLE_SOURCE') {
+      fd.procurementTime = pmiOpening;
+    } else {
+      fd.bidOpeningTime = pmiOpening;
+      if (!fd.bidOpeningTimeType?.trim()) fd.bidOpeningTimeType = 'datetime';
+    }
+    return { source: pmiOpening, applied: true };
+  }
+  fillOpeningTime(fd, project, tt);
+  return { source: pmiOpening, applied: false };
 }
 
 /** docx 解析字段的日期类归一（2026-10-29）：.docx 解析出的开标/采购时间是中文原文
@@ -666,6 +693,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     setTenderType(tt);
     const meta = TENDER_DOCUMENT_TYPES.find((m) => m.type === tt) ?? TENDER_DOCUMENT_TYPES[0];
     setSelectedMeta(meta);
+    // 基本信息开标时间权威值（归一 datetime-local）：存在时 docx 解析异步合并不得回盖此时间
+    const pmiOpening = toDatetimeLocal(project.bidOpeningTime ?? '');
 
     const preTender = buildPrefillFromProject(project, tt) as ReadyTenderDraft;
     setTenderDraftForDialog(preTender);
@@ -675,8 +704,14 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       // 恢复时回到编辑页（step 1），让用户看到之前填写的内容
       setStep(1);
       setCategory((cachedWiz.category as AnnouncementCategory) ?? initialCategory);
-      // 缓存草稿同样只补空：上次会话源未就绪而空着的开标时间，现在（基本信息/采购文件已补值）照样补上
-      fillOpeningTime(cachedWiz.draft as Record<string, string>, project, tt);
+      // 缓存草稿开标时间（2026-11-09 用户裁定）：基本信息为唯一权威——缓存记录源 ≠ 当前基本信息
+      // 值（含基本信息修改、旧缓存无记录源）即重新识别覆盖，此前「只补空」会让缓存永远停在旧值；
+      // 源未变则保留缓存值（含用户手改）。覆盖后连同新源落回缓存
+      const restoreCategory = (cachedWiz.category as AnnouncementCategory) ?? initialCategory;
+      const openSync = syncOpeningTimeFromPmi(cachedWiz.draft as Record<string, string>, project, tt, cachedWiz.openingTimeSource as string | undefined);
+      if (openSync.applied) {
+        saveWizardState(project.id, restoreCategory, { draft: cachedWiz.draft as Record<string, string>, openingTimeSource: openSync.source });
+      }
       setDraft(cachedWiz.draft as AnnouncementDraft);
       setVisibility(cachedWiz.visibility ?? 'PUBLIC');
       setRestrictedSupplierIds(cachedWiz.restrictedSupplierIds ?? []);
@@ -699,6 +734,9 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         .then((parsed) => {
           if (!parsed?.fields) return;
           const nf = normalizeParsedDateFields(parsed.fields, tt, (cachedWiz.category as AnnouncementCategory) ?? initialCategory);
+          // 权威值生效时不让 docx 原文时间回盖（基本信息才是唯一权威；原文与权威不一致正说明
+          // 基本信息被手改过——同步优先于异步合并生效）
+          if (pmiOpening) { delete nf.procurementTime; delete nf.bidOpeningTime; }
           setDraft((prev) => prev ? ({ ...(prev as any), ...nf }) : prev);
         }).catch(() => {});
       return;
@@ -726,14 +764,15 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     // ★ 增强预填：直接从项目数据填入公告字段（无需 AI）
     // 判断是否直接采购（SINGLE_SOURCE）—— 直接采购有更多可自动填入的数据
     const isSingleSource = tt === 'SINGLE_SOURCE';
+    let openSync = { source: '', applied: false }; // 开标时间同步结果（块内赋值，落缓存处消费）
     {
       const fd = filledDraft as Record<string, string>;
       if (!fd.maxPriceNumeric?.trim() && project.budgetAmount != null) fd.maxPriceNumeric = String(project.budgetAmount);
       if (!fd.projectOverview?.trim() && project.projectOverview?.trim()) fd.projectOverview = project.projectOverview;
       if (!fd.qualificationRequirements?.trim() && project.supplierRequirements?.trim()) fd.qualificationRequirements = project.supplierRequirements;
 
-      // 开标/采购时间：采购文件草稿 → 基本信息链（2026-10-28 起 bidOpeningTime 同链补齐，此前该字段无任何预填）
-      fillOpeningTime(fd, project, tt);
+      // 开标/采购时间（2026-11-09 权威序）：基本信息优先，采购文件编写草稿降为兜底；源随缓存记录
+      openSync = syncOpeningTimeFromPmi(fd, project, tt, undefined);
 
       // 落款日期 = 当前日期
       if (!fd.signatureDate?.trim()) {
@@ -832,8 +871,9 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     }
 
     setDraft(filledDraft);
-    // ★ 预填后立即持久化草稿，确保发布后再次进入能恢复（而非重新 AI 预填）
-    saveWizardState(project.id, procCat, { step: 1, draft: filledDraft as Record<string, string> });
+    // ★ 预填后立即持久化草稿，确保发布后再次进入能恢复（而非重新 AI 预填）；开标时间同步源一并
+    //   落缓存——重开向导时据此判定基本信息是否又变过（变了即重新识别覆盖）
+    saveWizardState(project.id, procCat, { step: 1, draft: filledDraft as Record<string, string>, openingTimeSource: openSync.source });
 
     // ★ 引用采购文件（2026-09-26 起不再走开关/多选）：采购公告固定引用 03 步标记的
     // 正式盖章版（officialTender 派生值，见 memo）；中标/流标公告不挂采购文件
@@ -1027,6 +1067,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       .then((parsed) => {
         if (!parsed?.fields) return;
         const nf = normalizeParsedDateFields(parsed.fields, tt, procCat);
+        // 权威值生效时不让 docx 原文时间回盖（同缓存恢复路径口径）
+        if (pmiOpening) { delete nf.procurementTime; delete nf.bidOpeningTime; }
         const merged = { ...preTender, ...nf } as ReadyTenderDraft;
         setTenderDraftForDialog(merged);
         setDraft((prev) =>
