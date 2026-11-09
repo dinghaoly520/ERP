@@ -117,6 +117,7 @@ export default function ExpertRepositoryPage() {
       toast.success(`已清空专家名单 ${r.clearedExperts} 名（评审记录已保留）`);
       setShowClearModal(false); setClearText('');
       load();
+      refreshExpStats(); // hero 库况四联随清空归零（变更类操作后手动刷，同三审 P2-3 口径）
     } catch (e) {
       toast.error((e as Error)?.message || '清空失败');
     } finally {
@@ -670,7 +671,7 @@ export default function ExpertRepositoryPage() {
             <span className="text-xs text-[var(--muted-foreground)]">本操作将写入操作历史留痕，不可撤销</span>
             <div className="flex items-center gap-2">
               <button className="neu-btn-soft" onClick={() => setShowClearModal(false)} disabled={clearing}>取消</button>
-              <button className="neu-btn-xs is-danger" onClick={() => void doClearRoster()} disabled={clearText !== '清空' || clearing}>
+              <button className="neu-btn-soft is-danger" onClick={() => void doClearRoster()} disabled={clearText !== '清空' || clearing}>
                 {clearing ? <><RefreshCw size={12} className="animate-spin" /> 清空中…</> : <>确认清空</>}
               </button>
             </div>
