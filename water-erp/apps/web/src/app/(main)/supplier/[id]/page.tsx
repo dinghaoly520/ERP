@@ -50,7 +50,7 @@ function InfoField({
   value?: string | null;
   mono?: boolean;
   full?: boolean;
-  /** 明文字段只给 label；掩码 PII 再给 getText（reveal 取明文，禁止复制掩码串） */
+  /** 明文字段只给 label；掩码字段再给 getText 取明文 */
   copy?: { label: string; getText?: () => Promise<string | null | undefined> };
 }) {
   const empty = !value || !value.trim();

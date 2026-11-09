@@ -2076,6 +2076,12 @@ a {
   color: rgba(102, 118, 149, 0.88);
 }
 
+/* 待补充（2026-11-09）：区别于普通待解锁的琥珀色 */
+.pm-stage-progress--supplement {
+  background: color-mix(in oklch, var(--warning) 14%, transparent);
+  color: color-mix(in oklch, var(--warning) 72%, var(--foreground) 28%);
+}
+
 /* ── ？帮助图标 + hover 气泡（2026-09-26，先例：标题行 Info 图标 + group-hover 显隐）──
    纯 CSS 显隐：anchor hover / focus-within 触发；气泡左对齐图标向下弹出（居中弹出在面板左缘会越界裁切） */
 .pm-help-dot {

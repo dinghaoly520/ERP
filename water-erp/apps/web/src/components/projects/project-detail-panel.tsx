@@ -31,6 +31,7 @@ import {
   PROCUREMENT_CATEGORY_OPTIONS,
   PROJECT_STAGE_STATUS_LABELS,
   PROJECT_WORKFLOW_STAGES,
+  isPendingSupplementStage,
   type ProjectDetailAnalysis,
   type ProjectManagementItem,
   type ProjectManagementStage,
@@ -701,11 +702,16 @@ export function ProjectDetailPanel({
 
   // 轮次锁（2026-10-23 流标统一流）：旧轮全部只读（含已完成阶段——补传/编辑/AI 提取全关，查看与附件下载保留）
   const isPastRound = (selectedStage.round ?? 1) < (localItem.currentRound ?? 1);
+  // 待补充（2026-11-09）：被越过的需求/立项不按待解锁锁死，开放补传与补录完成
+  const isSupplementStage = isPendingSupplementStage(
+    selectedStage,
+    { stages: localItem.stages, currentStage: localItem.currentStage, currentRound: localItem.currentRound },
+  );
   const stageLocked =
-    selectedStage.status === 'NOT_STARTED' || isLockedByBid(selectedStage.stageKey) || isPastRound;
+    (selectedStage.status === 'NOT_STARTED' && !isSupplementStage) || isLockedByBid(selectedStage.stageKey) || isPastRound;
   const stageProcessing = uploading || analysisLoading;
   const canCompleteStage =
-    isCurrentStage && selectedStage.status !== 'COMPLETED' && !stageLocked && !stageProcessing;
+    (isCurrentStage || isSupplementStage) && selectedStage.status !== 'COMPLETED' && !stageLocked && !stageProcessing;
   const canArchive = archiveStepState === 'READY' && canModify;
 
 	const heroVisual = STAGE_HERO_VISUAL[selectedStage.stageKey] ?? { Icon: UploadCloud, colorVar: 'var(--accent)' };
@@ -1591,6 +1597,7 @@ export function ProjectDetailPanel({
                 : localItem.stages}
               activeStageKey={selectedStage.stageKey}
               activeRound={selectedRound}
+              currentStageKey={localItem.currentStage}
               onSelect={(key, round) => { setSelectedStageKey(key); setSelectedRound(round); setEditingField(null); }}
               onStageAction={actionsDisabled ? undefined : (stageKey, round) => {
                 if (actionsDisabled) { toast.info('当前为查看模式，不能修改'); return; }
@@ -2172,7 +2179,11 @@ export function ProjectDetailPanel({
                 </svg>
                 <span className="text-xs leading-5 text-[color:var(--foreground)]">
                   {stageLocked
-                    ? '该阶段尚未解锁，需要先完成前一个阶段。'
+                    ? isSupplementStage
+                      ? '开标已确认，本阶段已锁定；如需补充材料请联系管理员处理。'
+                      : '该阶段尚未解锁，需要先完成前一个阶段。'
+                    : isSupplementStage
+                      ? '本阶段建项时未上传文件：可补传材料、补填信息后点击「补录完成」，项目进度不受影响。'
                     : selectedStage.stageKey === 'PROCUREMENT_DEMAND' && isCurrentStage
                       ? '请上传采购需求申请表（PDF），系统将自动提取项目基本信息。'
                     : selectedStage.stageKey === 'INITIATION' && isCurrentStage
@@ -2405,7 +2416,7 @@ export function ProjectDetailPanel({
                     {uploading ? (<><Loader2 size={15} className="animate-spin" />上传中…</>) : (<><UploadCloud size={15} />{selectedStage.status === 'COMPLETED' ? '补充材料' : '上传所选文件'}</>)}
                   </button>
                   <button type="button" onClick={() => void markStageCompleted(selectedStage)} disabled={!canCompleteStage || submitting} className="neu-btn-primary is-success">
-                    {submitting ? (<><Loader2 size={15} className="animate-spin" />提交中…</>) : selectedStage.status === 'COMPLETED' ? (<><CheckCircle2 size={15} />已完成</>) : stageProcessing ? (<><Loader2 size={15} className="animate-spin opacity-50" />等待分析完成…</>) : (<><CheckCircle2 size={15} />标记本阶段完成</>)}
+                    {submitting ? (<><Loader2 size={15} className="animate-spin" />提交中…</>) : selectedStage.status === 'COMPLETED' ? (<><CheckCircle2 size={15} />已完成</>) : stageProcessing ? (<><Loader2 size={15} className="animate-spin opacity-50" />等待分析完成…</>) : isSupplementStage ? (<><CheckCircle2 size={15} />补录完成</>) : (<><CheckCircle2 size={15} />标记本阶段完成</>)}
                   </button>
                   {selectedFiles.length > 0 && !uploading && (
                     <button type="button" onClick={() => { setSelectedFiles([]); if (fileInputRef.current) fileInputRef.current.value = ''; }} className="neu-btn-soft !px-3 !py-1.5 !text-[11px]"><X size={12} />清空选择</button>

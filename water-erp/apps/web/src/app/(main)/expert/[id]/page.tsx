@@ -63,7 +63,7 @@ function InfoField({
   value?: React.ReactNode;
   mono?: boolean;
   full?: boolean;
-  /** 值右侧复制图标按钮（2026-11-09 统一图标复制形态，替代点击值复制）：明文字段只给 label；掩码 PII 再给 getText（reveal 取明文，禁止复制掩码串） */
+  /** 值右侧复制图标按钮（2026-11-09 统一形态）：明文字段只给 label；掩码字段再给 getText 取明文 */
   copy?: { label: string; getText?: () => Promise<string | null | undefined> };
 }) {
   const empty = value == null || (typeof value === 'string' && !value.trim());

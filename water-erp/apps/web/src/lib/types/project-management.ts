@@ -114,6 +114,26 @@ export const PROJECT_STAGE_STATUS_LABELS: Record<ProjectStageStatus, string> = {
   COMPLETED: '已完成',
 };
 
+/** 待补充阶段（2026-11-09 用户裁定）：仅采购需求、采购立项。「跳过，手动填写」建项时
+ *  不上传两表，这两阶段保持未开始且已被当前阶段越过；读侧据此显示「待补充」并开放
+ *  补传与补录完成。状态不落库，仅当前轮生效。 */
+export const PENDING_SUPPLEMENT_STAGE_KEYS = new Set<string>(['PROCUREMENT_DEMAND', 'INITIATION']);
+
+/** 未开始的需求/立项，且同轮序号小于当前阶段行 */
+export function isPendingSupplementStage(
+  stage: { stageKey: string; status: ProjectStageStatus; stageOrder: number; round?: number | null },
+  ctx: { stages: Array<{ stageKey: string; stageOrder: number; round?: number | null }>; currentStage: string | null; currentRound?: number | null },
+): boolean {
+  if (stage.status !== 'NOT_STARTED') return false;
+  if (!PENDING_SUPPLEMENT_STAGE_KEYS.has(stage.stageKey)) return false;
+  if ((stage.round ?? 1) !== (ctx.currentRound ?? 1)) return false;
+  if (!ctx.currentStage) return false;
+  const currentRow = ctx.stages.find(
+    (s) => s.stageKey === ctx.currentStage && (s.round ?? 1) === (ctx.currentRound ?? 1),
+  );
+  return !!currentRow && stage.stageOrder < currentRow.stageOrder;
+}
+
 export type ProjectManagementAttachment = {
   id?: string;
   fileName: string;

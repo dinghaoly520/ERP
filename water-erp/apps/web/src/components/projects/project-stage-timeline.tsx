@@ -1,5 +1,6 @@
 import {
   PROJECT_STAGE_STATUS_LABELS,
+  isPendingSupplementStage,
   type ProjectManagementStage,
   type ProjectWorkflowStageKey,
 } from '@/lib/types/project-management';
@@ -43,6 +44,8 @@ type SelectableTimelineEntry = TimelineEntryBase & {
   stageCode?: string | null;
   isInProgress: boolean;
   isCompleted: boolean;
+  /** 待补充（2026-11-09）：被越过的需求/立项 */
+  isSupplement?: boolean;
 };
 
 type ArchiveTimelineEntry = TimelineEntryBase & {
@@ -101,11 +104,14 @@ export function ProjectStageTimeline({
   onReopenStage,
   isStageLocked,
   currentRound,
+  currentStageKey,
   roundMethods,
 }: {
   stages: ProjectManagementStage[];
   activeStageKey: ProjectWorkflowStageKey;
   activeRound: number;
+  /** 项目进度指针（currentStage），待补充判定的越过参照；区别于 activeStageKey（用户选中项） */
+  currentStageKey?: ProjectWorkflowStageKey | null;
   onSelect: (stageKey: ProjectWorkflowStageKey, round: number) => void;
   onStageAction?: (stageKey: ProjectWorkflowStageKey, round?: number | null) => void;
   showArchiveStep: boolean;
@@ -131,6 +137,9 @@ export function ProjectStageTimeline({
   const entries: TimelineEntry[] = stages.map((stage): SelectableTimelineEntry => {
     const isCompleted = stage.status === 'COMPLETED';
     const isInProgress = stage.status === 'IN_PROGRESS';
+    // 待补充（2026-11-09）：被越过的需求/立项未开始，等用户回来补材料
+    const isSupplement = !isCompleted && !isInProgress
+      && isPendingSupplementStage(stage, { stages, currentStage: currentStageKey ?? null, currentRound });
 
     return {
       key: stage.id,
@@ -139,9 +148,11 @@ export function ProjectStageTimeline({
       statusLabel: PROJECT_STAGE_STATUS_LABELS[stage.status],
       summary: isCompleted
         ? '当前阶段已完成，可继续补充材料。'
-        : isInProgress
-          ? '当前推进阶段，完成后才会解锁下一步。'
-          : '等待上一阶段完成后解锁。',
+        : isSupplement
+          ? '建项时未上传文件，材料待补充。'
+          : isInProgress
+            ? '当前推进阶段，完成后才会解锁下一步。'
+            : '等待上一阶段完成后解锁。',
       toneClassName: isCompleted
         ? 'pm-stage-card--completed'
         : isInProgress
@@ -158,12 +169,15 @@ export function ProjectStageTimeline({
       stageCode: stage.stageCode ?? null,
       isInProgress,
       isCompleted,
-      progressLabel: isCompleted ? '已完成' : isInProgress ? '进行中' : '待解锁',
+      isSupplement,
+      progressLabel: isCompleted ? '已完成' : isInProgress ? '进行中' : isSupplement ? '待补充' : '待解锁',
       progressClassName: isCompleted
         ? 'pm-stage-progress--completed'
         : isInProgress
           ? 'pm-stage-progress--current'
-          : 'pm-stage-progress--idle',
+          : isSupplement
+            ? 'pm-stage-progress--supplement'
+            : 'pm-stage-progress--idle',
       accentClassName: `pm-stage-accent--${stage.stageKey.toLowerCase()}`,
     };
   });

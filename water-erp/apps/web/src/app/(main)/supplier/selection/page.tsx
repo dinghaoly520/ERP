@@ -208,7 +208,7 @@ function BusinessTagsPicker({
   );
 }
 
-/** 详情档案行明文可复制字段（2026-11-09 统一复制图标按钮）：法人电话为掩码，走 reveal 单独判 */
+/** 档案行可复制字段（2026-11-09）；法人电话为掩码，单独走 reveal */
 const ARCHIVE_COPY_LABELS = new Set(['统一社会信用代码', '机构代码', '公司邮箱']);
 
 export function SupplierSelectionPage({
@@ -3733,7 +3733,7 @@ export function SupplierSelectionPage({
                           <p className="flex items-center gap-1 font-semibold text-[var(--foreground)]">
                             <span className="break-all">{String(value)}</span>
                             {label === '法人电话' ? (
-                              // 浏览详情接口回掩码——复制走 reveal 端点取明文（服务端留审计），不复制掩码串
+                              // 接口返回掩码，复制时走 reveal 端点取明文（留审计）
                               <CopyIconButton label="法人电话" getText={async () => (await revealSupplierField(detailSupplier.supplierId, { entity: 'supplier', field: 'legalPersonPhone' })).value} />
                             ) : ARCHIVE_COPY_LABELS.has(label as string) ? (
                               <CopyIconButton value={String(value)} label={label as string} />

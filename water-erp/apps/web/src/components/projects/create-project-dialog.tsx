@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
-import { X, Upload, FileText, CheckCircle, Loader2, Sparkles, ChevronDown } from 'lucide-react';
+import { X, Upload, FileText, CheckCircle, Loader2, Sparkles, ChevronDown, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateFileSize } from '@/lib/upload-rules';
 import {
@@ -697,6 +697,16 @@ export function CreateProjectDialog({
 
   const renderReview = () => (
     <div className="space-y-5 pb-[1.7rem]">
+      {/* 两表未传时预告（2026-11-09）：建项后这两阶段为「待补充」 */}
+      {!demandFile && !initiationFile && (
+        <div className="flex items-start gap-3 rounded-xl bg-[color-mix(in_oklch,var(--accent-soft)_30%,transparent)] px-4 py-3">
+          <Info size={16} className="mt-0.5 shrink-0 text-[color:var(--accent)]" />
+          <span className="text-xs leading-5 text-[color:var(--foreground)]">
+            未上传采购需求表与采购立项申请表：创建后这两个阶段将显示为<b>待补充</b>，
+            可随时在项目详情中补传文件并完成补录。
+          </span>
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-3">
         <div className="space-y-2">
           <label className="text-xs font-semibold text-[color:var(--foreground)]">需求申请人</label>

@@ -2205,6 +2205,73 @@ describe('reproc 流标重启（2026-10-23 统一流 spec）', () => {
   });
 });
 
+describe('跳过建项待补充（2026-11-09 用户裁定）', () => {
+  it('跳过建项：需求/立项保持未开始，当前阶段为采购文件', async () => {
+    const { service, prisma } = makeService();
+    prisma.department.upsert.mockResolvedValue({ id: 'dept-01', name: '采购中心' });
+    prisma.projectManagementItem.create.mockResolvedValue({
+      id: 'pm-skip', title: '跳过建项', currentStage: 'TENDER_DOCUMENT', status: 'ACTIVE',
+    });
+    prisma.projectManagementStage.createMany.mockResolvedValue({ count: 8 });
+
+    await service.createFromInitiation({
+      requesterName: '张三',
+      requesterDepartment: '采购中心',
+      procurementTitle: '跳过建项',
+      procurementMethod: '询比采购',
+      procurementCategory: '货物',
+      procurementOrganizationForm: '自行招标',
+      budgetAmount: 10,
+      isAnnualBudget: false,
+      hasProcurementDemand: false,
+      projectReason: '测试',
+      supplierRequirements: '无',
+    });
+
+    // 指针越过需求/立项，落在询比模板 INITIATION 后第一个非锁定阶段
+    expect(prisma.projectManagementItem.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ currentStage: 'TENDER_DOCUMENT' }) }),
+    );
+    const rows = prisma.projectManagementStage.createMany.mock.calls[0][0].data as Array<{
+      stageKey: string; status: string;
+    }>;
+    const byKey = Object.fromEntries(rows.map((r) => [r.stageKey, r.status]));
+    expect(byKey['PROCUREMENT_DEMAND']).toBe('NOT_STARTED'); // 待补充形态：未完成被越过
+    expect(byKey['INITIATION']).toBe('NOT_STARTED');
+    expect(byKey['TENDER_DOCUMENT']).toBe('IN_PROGRESS'); // 指针阶段照常进行中
+  });
+
+  it('补录完成采购需求：仅更新完成状态，不推进项目', async () => {
+    const { service, prisma, aiService } = makeService();
+    prisma.projectManagementItem.findUnique.mockResolvedValue({
+      id: 'pm-1', status: 'ACTIVE', currentRound: 1, currentStage: 'TENDER_DOCUMENT', stages: [],
+    });
+    prisma.projectManagementStage.findFirst
+      .mockResolvedValueOnce({
+        id: 'st-demand', stageKey: 'PROCUREMENT_DEMAND', stageName: '采购需求',
+        stageOrder: 1, round: 1, status: 'NOT_STARTED', note: null,
+      })
+      .mockResolvedValueOnce({ stageKey: 'TENDER_DOCUMENT', stageOrder: 3 }); // 当前指针行（序比较）
+    prisma.projectManagementStage.update.mockResolvedValue({ id: 'st-demand', status: 'COMPLETED' });
+    prisma.projectManagementStage.findMany.mockResolvedValue([]); // 推进块空表兜底
+    aiService.analyzeProjectDetail.mockResolvedValue({ summary: { stageMatch: '项目简报', contentSummary: '无' }, fileAnalyses: [] });
+
+    const updated = await service.updateStage('pm-1', 'PROCUREMENT_DEMAND', { status: 'COMPLETED' });
+
+    expect(updated.status).toBe('COMPLETED');
+    expect(prisma.projectManagementStage.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'st-demand' }, data: expect.objectContaining({ status: 'COMPLETED' }) }),
+    );
+    // 补录只更新本阶段状态，不产生任何推进
+    expect(prisma.projectManagementStage.updateMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'IN_PROGRESS' }) }),
+    );
+    expect(prisma.projectManagementItem.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ currentStage: expect.anything() }) }),
+    );
+  });
+});
+
 describe('listBidProjectRefs 公告闸字段（2026-10-23 统一流）', () => {
   it('FAILED_BID_NOTICE 按轮归属：早于该轮 BidProject 创建的公告不算该轮', async () => {
     const { service, prisma } = makeService();

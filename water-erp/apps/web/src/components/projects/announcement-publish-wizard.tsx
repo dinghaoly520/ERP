@@ -517,8 +517,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
 
   // Step 2 config
   const [visibility, setVisibility] = useState<'PUBLIC' | 'RESTRICTED'>('PUBLIC');
-  // 阳光采购弹窗「招标经办人/发布人」=当前登录人（2026-11-09 用户裁定，不再取立项人）——
-  // 挂载即取（/auth/me），进到公告范围步骤打开弹窗时早已就绪；取不到则弹窗内留空可手填
+  // 阳光采购弹窗「招标经办人/发布人」填当前登录人（2026-11-09 用户裁定）：挂载时取
+  // /auth/me；取不到则弹窗内留空可手填
   const [currentUserName, setCurrentUserName] = useState<string | undefined>(undefined);
   useEffect(() => {
     fetchCurrentUser()
@@ -530,8 +530,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
   // 配置内容按《天府阳光采购平台招标数据接口文档 V2.0.5》设计，发布时快照写入 metadata.sunshinePublish
   const [sunshineOn, setSunshineOn] = useState(false);
   const [sunshineConfig, setSunshineConfig] = useState<SunshinePublishConfig | null>(null);
-  // 缓存旧配置里的经办人可能是立项人/上一位经办——当前用户名就绪时覆写一次，堵「不重开弹窗
-  // 直接发布」旁路（本会话内用户经弹窗保存过则不再动，尊重手动编辑）
+  // 缓存旧配置里的经办人可能不是当前用户：用户名就绪时覆写一次；本会话保存过则不再动
   const sunshineSessionSavedRef = useRef(false);
   useEffect(() => {
     if (!currentUserName) return;
@@ -1129,7 +1128,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
 
   // 阳光采购平台配置保存（弹窗回调）：随草稿一起入 localStorage 缓存
   const handleSunshineSave = useCallback((cfg: SunshinePublishConfig) => {
-    sunshineSessionSavedRef.current = true; // 本会话已保存——经办人自动覆写到此为止（2026-11-09）
+    sunshineSessionSavedRef.current = true; // 本会话已保存，经办人不再自动覆写（2026-11-09）
     setSunshineConfig(cfg);
     if (project && category) saveWizardState(project.id, category, { sunshineConfig: cfg, sunshineOn: true });
   }, [project, category]);

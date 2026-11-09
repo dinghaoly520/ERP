@@ -6,13 +6,12 @@ import { toast } from "sonner";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
 
 /**
- * 值右侧统一复制图标按钮（2026-11-09 用户裁定：身份证号/手机号/邮箱/统一社会信用代码等
- * 身份联系类信息一律显式图标复制，供应商/专家管理全模块形态一致——替代此前「点击值复制」
- * 的隐式形态与各页各写一套 toast/copy 的局面）。
- * - 明文字段传 value 同步复制；掩码 PII 传 getText 异步取明文（走 reveal 端点，服务端
- *   留审计）——禁止把掩码串复制出去；
+ * 值右侧统一复制图标按钮（2026-11-09 用户裁定：身份证号/手机号/邮箱/统一社会信用代码
+ * 等身份联系类信息一律显式图标复制，供应商/专家管理全模块同款）。
+ * - 明文字段传 value 直接复制；掩码字段传 getText 异步取明文（走 reveal 端点，服务端
+ *   留审计），不复制掩码串；
  * - 点击自带 stopPropagation：表格行/卡片多为可点跳转，防误触；
- * - 成功 Check 回填 1.2s；结果以 toast 反馈（copyToClipboard 在 http 演示环境走降级可能失败）。
+ * - 成功后图标变对勾 1.2 秒；结果以 toast 反馈（http 演示环境走降级，可能失败）。
  */
 export function CopyIconButton({ value, getText, label, className = "" }: {
   /** 展示值即复制值（明文字段） */
@@ -41,7 +40,7 @@ export function CopyIconButton({ value, getText, label, className = "" }: {
         return;
       }
       if (await copyToClipboard(text)) {
-        toast.success(`${label}已复制${getText ? "（取明文已留审计日志）" : ""}`);
+        toast.success(`${label}已复制${getText ? "（本次查看明文已记录）" : ""}`);
         setState("done");
         if (doneTimer.current !== null) window.clearTimeout(doneTimer.current);
         doneTimer.current = window.setTimeout(() => setState("idle"), 1200);
@@ -61,7 +60,7 @@ export function CopyIconButton({ value, getText, label, className = "" }: {
       onClick={handle}
       disabled={state === "busy" || (!getText && !plain)}
       aria-label={`复制${label}`}
-      title={`复制${label}${getText ? "（取明文将留审计日志）" : ""}`}
+      title={`复制${label}${getText ? "（将记录明文查看）" : ""}`}
       className={`inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded text-[var(--muted-foreground)] transition-all hover:text-[var(--accent)] active:scale-90 disabled:pointer-events-none disabled:opacity-40 ${className}`}
     >
       {state === "busy" ? (
