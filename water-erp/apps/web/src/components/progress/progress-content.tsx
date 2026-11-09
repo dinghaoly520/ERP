@@ -24,6 +24,7 @@ import {
 import Link from "next/link";
 import { type AuthRole } from "@/lib/api/auth";
 import { isGroupedCompanyView, CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
+import { StatusBadge } from "@/components/workbench";
 import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from "@/components/company/company-tag";
 import {
   fetchProgressStats,
@@ -596,24 +597,10 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
           </div>
 
           <div className="page-hero__right">
-            {/* 运营数字锚点（2026-11-09 用户裁定：瓷片形态突兀不适配，改公告中心 hero
-                统计三联同款——大数字+小标签+竖 hairline；居公司选择器左侧） */}
-            <div className="mr-2 hidden items-center lg:flex">
-              {([
-                { value: String(stats.totalActive), unit: '项', label: '进行中', color: 'var(--accent)', title: '进行中的采购项目' },
-                { value: String(attnCount), unit: '项', label: '待推进', color: attnCount > 0 ? 'var(--warning)' : 'var(--success)', title: '待跟进推进的项目' },
-              ] as const).map((s, i) => (
-                <div key={s.label} className="flex items-center">
-                  {i > 0 && <span className="mx-3 h-9 w-px bg-[oklch(0.6 0.04 258/0.16)]" aria-hidden="true" />}
-                  <div className="flex min-w-[52px] flex-col items-center gap-0.5" title={s.title}>
-                    <span className="font-mono text-[1.3rem] font-black leading-none tabular-nums" style={{ color: s.color }}>
-                      {s.value}<span className="ml-0.5 text-[10px] font-bold">{s.unit}</span>
-                    </span>
-                    <span className="text-[10px] font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">{s.label}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {/* 统计状态徽章（2026-11-09 用户裁定：瓷片/数字锚点两版均不适配，
+                终版=与「已入库/账户已激活」同款描边小胶囊；居公司选择器左侧） */}
+            <StatusBadge tone="blue">进行中 {stats.totalActive}</StatusBadge>
+            <StatusBadge tone={attnCount > 0 ? 'orange' : 'green'}>待推进 {attnCount}</StatusBadge>
             <CompanySelect
               value={companyId}
               onChange={(c) => { setCompanyId(c); void loadData(c); }}
