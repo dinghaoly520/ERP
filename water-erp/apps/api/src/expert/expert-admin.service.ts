@@ -3047,9 +3047,14 @@ export class ExpertAdminService {
     const f = await this.expertScopeFilter(actor);
     const users = await this.prisma.user.findMany({
       where: { role: 'bid_expert', ...f, ...(ids?.length && { id: { in: ids } }) },
-      include: { expertProfile: true, department: { select: { name: true } } },
+      include: { expertProfile: true, department: { select: { name: true } }, companyRef: { select: { name: true } } },
       orderBy: { displayName: 'asc' },
     });
+    // 按归属公司排序（2026-11-09 用户裁定）：公司名升序分组、无归属沉底、组内按姓名。
+    // JS 排序显式控 null 位（Prisma 关系排序的 null 位置不可指定）
+    users.sort((a, b) =>
+      (a.companyRef?.name ?? '￿').localeCompare(b.companyRef?.name ?? '￿', 'zh')
+      || a.displayName.localeCompare(b.displayName, 'zh'));
     // 手机号/身份证号导出明文（2026-11-04 用户裁定：导出表供管理使用，掩码无意义）——
     // 批量 PII 明文出口按口径留审计痕（逐行 SensitiveAccessLog，entity=ExpertProfile）
     if (actor?.sub) {
