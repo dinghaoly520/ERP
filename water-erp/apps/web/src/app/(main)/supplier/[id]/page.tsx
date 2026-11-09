@@ -398,6 +398,14 @@ export default function SupplierDetailPage() {
                 >{supplier.companyNo ?? supplier.supplierNo}</span>
               </div>
               <div className="page-hero__sub truncate">
+                {/* admin 专属归属公司段（2026-11-09）：全视野跨公司辨识，常显于 hero 副标题首位；
+                    staff/leader 本公司隔离、所见即本公司，不渲染 */}
+                {currentUser?.role === 'admin' && (
+                  <>
+                    <span className="inline-flex items-center gap-1 font-semibold text-[var(--accent)]" title="归属公司（主归属）"><Building2 size={11} />{supplier.companyName || '未归属（平台）'}</span>
+                    <span className="opacity-40 ml-2">·</span>
+                  </>
+                )}
                 <span className="inline-flex items-center gap-1"><Hash size={11} />{supplier.creditCode || '信用代码未登记'}</span>
                 {/* 评价等级小块已删（2026-11-06 用户裁定：评价域内容归「评价与奖惩」tab） */}
                 <span className="opacity-40 ml-2">·</span><span className="ml-2" title={`入库时间：${entryDate.toLocaleString('zh-CN')}`}>入库 {entryDate.toLocaleDateString('zh-CN')}（在库 {Math.floor((Date.now() - entryDate.getTime()) / (1000 * 60 * 60 * 24))} 天）</span>
@@ -536,11 +544,9 @@ export default function SupplierDetailPage() {
               </div>
             </div>
 
-            {/* 中：关键摘要（首位行 admin 专属归属公司——全视野跨公司辨识归属；
-                staff/leader 本公司隔离、所见即本公司，无需） */}
+            {/* 中：关键摘要 */}
             <div className="space-y-2.5">
               {[
-                ...(currentUser?.role === 'admin' ? [{ icon: Building2, label: '归属公司', value: supplier.companyName || '未归属（平台）' }] : []),
                 { icon: Building2, label: '企业类型', value: normalizeEnterpriseType(supplier.enterpriseType) },
                 { icon: ShieldCheck, label: '法定代表人', value: supplier.legalPerson },
                 { icon: MapPin, label: '注册地址', value: supplier.registeredAddress || '未登记' },
