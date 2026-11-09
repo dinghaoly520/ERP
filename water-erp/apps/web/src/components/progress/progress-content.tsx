@@ -596,16 +596,24 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
           </div>
 
           <div className="page-hero__right">
-            {/* 统计瓷片居公司选择器左侧（2026-11-09 全 hero 统一口径：统计→选择器→操作按钮） */}
-            <span className="page-hero__stat page-hero__stat--info">
-              共 {stats.totalActive} 项
-            </span>
-            {attnCount > 0 && (
-              <span className="page-hero__stat page-hero__stat--warn">
-                <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-[var(--danger)]" />
-                待推进 {attnCount}
-              </span>
-            )}
+            {/* 运营数字锚点（2026-11-09 用户裁定：瓷片形态突兀不适配，改公告中心 hero
+                统计三联同款——大数字+小标签+竖 hairline；居公司选择器左侧） */}
+            <div className="mr-2 hidden items-center lg:flex">
+              {([
+                { value: String(stats.totalActive), unit: '项', label: '进行中', color: 'var(--accent)', title: '进行中的采购项目' },
+                { value: String(attnCount), unit: '项', label: '待推进', color: attnCount > 0 ? 'var(--warning)' : 'var(--success)', title: '待跟进推进的项目' },
+              ] as const).map((s, i) => (
+                <div key={s.label} className="flex items-center">
+                  {i > 0 && <span className="mx-3 h-9 w-px bg-[oklch(0.6 0.04 258/0.16)]" aria-hidden="true" />}
+                  <div className="flex min-w-[52px] flex-col items-center gap-0.5" title={s.title}>
+                    <span className="font-mono text-[1.3rem] font-black leading-none tabular-nums" style={{ color: s.color }}>
+                      {s.value}<span className="ml-0.5 text-[10px] font-bold">{s.unit}</span>
+                    </span>
+                    <span className="text-[10px] font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">{s.label}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
             <CompanySelect
               value={companyId}
               onChange={(c) => { setCompanyId(c); void loadData(c); }}
