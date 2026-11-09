@@ -20,7 +20,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Ban, CheckCircle2, FileUp, Loader2, RefreshCw, Sparkles, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Modal } from '@/components/workbench';
-import { WaterBar } from '../upload/water-bar';
+import { UploadProgressRow } from '../upload/upload-progress-row';
 import { getNonTenderDeal } from '@/lib/api/bid';
 import {
   aiIdentifyField,
@@ -492,10 +492,7 @@ export function AbortRestartDialog({
               <>
                 <Loader2 size={22} className="animate-spin text-[var(--accent)] mx-auto mb-2" />
                 <p className="text-sm font-semibold text-[var(--foreground)]">正在上传并解析文件…</p>
-                <div className="mx-auto mt-2 flex w-4/5 items-center gap-2">
-                  <WaterBar pct={upPct} state="uploading" />
-                  <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[var(--accent)]">{upPct}%</span>
-                </div>
+                <UploadProgressRow pct={upPct} className="mx-auto mt-2 w-4/5" />
               </>
             ) : uploadedName ? (
               <>

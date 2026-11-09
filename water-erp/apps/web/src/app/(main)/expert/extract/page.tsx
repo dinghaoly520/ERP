@@ -8,7 +8,7 @@ import { fetchCurrentUser } from '@/lib/api/auth';
 import { localDateInputValue, localTimeInputValue } from '@/lib/local-date';
 import { useCompanyInfo } from '@/lib/api/company-info';
 import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, specialtyPoolCounts, listPoolCompanies, listExperts, getDemandRepDirectory, getBidProjectDetail, getProjectInvitations, proxyMarkExpertInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, fetchExtractionProfiles, fetchCommitteeAnalysis, createExternalDemandRep, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, type DemandRepDirectoryItem } from '@/lib/api/expert';
-import { WaterBar } from '@/components/upload/water-bar';
+import { UploadProgressRow } from '@/components/upload/upload-progress-row';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { QuotaMultiSelect } from '@/components/expert/quota-multi-select';
@@ -2229,11 +2229,7 @@ export function ExpertExtractPage({
                       {upRows.length > 0 && (
                         <div className="mt-2 space-y-1.5">
                           {upRows.map((r, i) => (
-                            <div key={i} className="flex items-center gap-2">
-                              <span className="max-w-[220px] shrink-0 truncate text-[11px] font-semibold text-[var(--muted-foreground)]" title={r.name}>{r.name}</span>
-                              <WaterBar pct={r.pct} state="uploading" />
-                              <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[var(--accent)]">{r.pct}%</span>
-                            </div>
+                            <UploadProgressRow key={i} label={r.name} pct={r.pct} />
                           ))}
                         </div>
                       )}

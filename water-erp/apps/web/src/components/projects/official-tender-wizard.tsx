@@ -16,7 +16,7 @@ import { selectOfficialTender, uploadProjectStageAttachment } from '@/lib/api/pr
 import type { BidProjectDetail, BidProjectRef } from '@/lib/api/bid';
 import { ScoreStandardCard } from './score-standard-card';
 import { FilePreviewPane, getFileKind } from './file-preview-pane';
-import { WaterBar } from '../upload/water-bar';
+import { UploadProgressRow } from '../upload/upload-progress-row';
 import { ATTACHMENT_ACCEPT, ATTACHMENT_HINT, validateAttachmentFile } from '@/lib/upload-rules';
 
 type Props = {
@@ -235,10 +235,7 @@ export function OfficialTenderWizard({
                     className="sr-only" />
                 </label>
                 {uploading && (
-                  <div className="mt-3 flex items-center gap-3 px-1">
-                    <WaterBar pct={upPct} state="uploading" />
-                    <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[var(--accent)]">{upPct}%</span>
-                  </div>
+                  <UploadProgressRow pct={upPct} className="mt-3 px-1" />
                 )}
               </div>
             </div>

@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { Upload } from 'lucide-react';
 import { uploadBidDocument, updateBidDocumentConfig, confirmBidDocPayment, removeBidDocument } from '@/lib/api/announcement';
 import type { BidDocumentManage } from '@/lib/api/announcement';
-import { WaterBar } from '@/components/upload/water-bar';
+import { UploadProgressRow } from '@/components/upload/upload-progress-row';
 import { getSupplierList } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
 import { StatusBadge } from '@/components/workbench';
@@ -180,13 +180,8 @@ export function BidDocEditSection({ annId, bidDoc, onChanged, ensureAnnId, headi
             </div>
           )}
 
-          <button onClick={doUpload} disabled={busy || !file} className="neu-btn-soft w-full justify-center disabled:opacity-40">{busy ? `加密上传中${docUpPct != null ? ` ${docUpPct}%` : '...'}` : "加密上传"}</button>
-          {docUpPct != null && (
-            <div className="flex items-center gap-2">
-              <WaterBar pct={docUpPct} state="uploading" />
-              <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[var(--accent)]">{docUpPct}%</span>
-            </div>
-          )}
+          <button onClick={doUpload} disabled={busy || !file} className="neu-btn-soft w-full justify-center disabled:opacity-40">{busy ? '加密上传中…' : '加密上传'}</button>
+          {docUpPct != null && <UploadProgressRow pct={docUpPct} />}
         </div>
       )}
       {dialog}
@@ -268,14 +263,9 @@ export function AddendumRefDocSection({ annId, bidDoc, onChanged, ensureAnnId }:
           </label>
           <DownloadModePicker mode={dlMode} password={dlPassword} onMode={setDlMode} onPassword={setDlPassword} />
           <button type="button" onClick={doUpload} disabled={busy || !file} className="neu-btn-soft w-full justify-center disabled:opacity-40">
-            {busy ? `加密上传中${pct != null ? ` ${pct}%` : '...'}` : '加密上传'}
+            {busy ? '加密上传中…' : '加密上传'}
           </button>
-          {pct != null && (
-            <div className="flex items-center gap-2">
-              <WaterBar pct={pct} state="uploading" />
-              <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[var(--accent)]">{pct}%</span>
-            </div>
-          )}
+          {pct != null && <UploadProgressRow pct={pct} />}
         </>
       )}
       {dialog}

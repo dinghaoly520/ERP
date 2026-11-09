@@ -14,7 +14,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { WaterBar } from '../upload/water-bar';
+import { UploadProgressRow } from '../upload/upload-progress-row';
 import { useTenderReview, useKnowledgeBaseOps } from './use-tender-review';
 import { retryKnowledgeFile } from '@/lib/api/knowledge';
 import type { KnowledgeFile } from '@/lib/types/tender-review';
@@ -197,11 +197,7 @@ export default function FilesPanelCompact() {
         {upRows.length > 0 && (
           <div className="min-w-0 flex-1 space-y-1">
             {upRows.map((r, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <span className="max-w-[180px] shrink-0 truncate text-[11px] font-semibold text-[var(--muted-foreground)]" title={r.name}>{r.name}</span>
-                <WaterBar pct={r.pct} state="uploading" />
-                <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[var(--accent)]">{r.pct}%</span>
-              </div>
+              <UploadProgressRow key={i} label={r.name} pct={r.pct} />
             ))}
           </div>
         )}

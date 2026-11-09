@@ -78,7 +78,7 @@ export function UploadProgressList<T>({
                 <span className="shrink-0 text-[11px] font-semibold text-[var(--muted-foreground)]">等待中</span>
               )}
             </div>
-            <div className="mt-1.5">
+            <div className="mt-2">
               <WaterBar pct={it.status === 'done' ? 100 : pct} state={barState} showRipple={it.status === 'done'} />
             </div>
           </div>

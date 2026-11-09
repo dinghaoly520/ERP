@@ -7899,8 +7899,8 @@ select.workbench-input {
 @keyframes uploadWaveB { from { transform: translateX(-25%); } to { transform: translateX(-75%); } }
 @keyframes uploadShimmer { from { left: -14%; } to { left: 100%; } }
 @keyframes uploadRipple { from { transform: scale(1); opacity: 0.5; } to { transform: scale(1.6); opacity: 0; } }
-/* 水面：填充区顶部 3px 流动纹理（两层错相；纯透明度波形，非彩色渐变） */
-.up-wave { position: absolute; top: -1.5px; left: 0; right: 0; height: 3px; background-repeat: repeat-x; background-size: 50% 100%;
+/* 水面：填充区顶部 4px 流动纹理（两层错相；纯透明度波形，非彩色渐变） */
+.up-wave { position: absolute; top: -2px; left: 0; right: 0; height: 4px; background-repeat: repeat-x; background-size: 50% 100%;
   background-image: linear-gradient(90deg, transparent 0%, color-mix(in oklch, var(--accent) 35%, transparent) 25%, transparent 50%); }
 .up-wave--a { animation: uploadWaveA 8s linear infinite; opacity: 0.35; }
 .up-wave--b { animation: uploadWaveB 13s linear infinite; opacity: 0.18; }
@@ -7908,6 +7908,23 @@ select.workbench-input {
 .up-shimmer { position: absolute; top: 0; bottom: 0; width: 12px; background: oklch(1 0 0 / 0.35); animation: uploadShimmer 2.4s ease-in-out infinite; }
 /* 完成涟漪：一次性 scale+淡出（success 色 inset 描边） */
 .up-ripple { position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--success) 45%, transparent); animation: uploadRipple 400ms ease-out forwards; }
+/* ── 上传进度条白瓷重设计（2026-11-09 用户裁定）：内凹轨道 + 纯白瓷片填充，
+   与系统瓷片语言（纯白底 + 顶内高光 + 底缘微影）一致 ── */
+.up-track {
+  background: color-mix(in oklch, var(--muted-foreground) 8%, var(--surface));
+  box-shadow:
+    inset 1px 1px 2px oklch(0.55 0.03 258 / 0.10),
+    inset -1px -1px 2px oklch(1 0 0 / 0.55);
+}
+.up-fill {
+  background: oklch(1 0 0);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.95),
+    inset 0 -1px 0 oklch(0.55 0.03 258 / 0.10);
+}
+.up-fill--done { background: color-mix(in oklch, var(--success) 20%, oklch(1 0 0)); }
+.up-fill--failed { background: color-mix(in oklch, var(--danger) 22%, oklch(1 0 0)); }
+.up-fill--pending { background: color-mix(in oklch, var(--accent) 6%, oklch(1 0 0)); }
 @media (prefers-reduced-motion: reduce) {
   .up-wave, .up-shimmer, .up-ripple { animation: none; display: none; }
 }

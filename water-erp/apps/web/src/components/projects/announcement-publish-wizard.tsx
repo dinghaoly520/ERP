@@ -18,7 +18,7 @@ import {
   type AnnouncementType,
 } from '@/lib/api/announcement';
 import { ATTACHMENT_ACCEPT, ATTACHMENT_HINT, validateAttachmentFile } from '@/lib/upload-rules';
-import { WaterBar } from '../upload/water-bar';
+import { UploadProgressRow } from '../upload/upload-progress-row';
 import { uploadProjectStageAttachment, getPmBidProject, type UploadStageAttachmentResult } from '@/lib/api/project-management';
 import { getBidProjectDetail } from '@/lib/api/bid';
 import { generateFieldContent } from '@/lib/api/tender-sample';
@@ -2121,13 +2121,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
           </div>
           {/* 发布管线上传相位（2026-11-06 上传进度条）：当前文件名 + 水波条 */}
           {pubUp && (
-            <div className="mt-2 flex items-center gap-3">
-              <span className="max-w-[220px] truncate text-[11px] font-semibold text-[var(--muted-foreground)]" title={pubUp.label}>
-                {pubUp.label}
-              </span>
-              <WaterBar pct={pubUp.pct} state="uploading" />
-              <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[var(--accent)]">{pubUp.pct}%</span>
-            </div>
+            <UploadProgressRow label={pubUp.label} pct={pubUp.pct} className="mt-2" />
           )}
         </div>
       </div>

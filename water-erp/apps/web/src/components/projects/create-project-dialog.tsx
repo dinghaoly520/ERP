@@ -16,7 +16,7 @@ import {
   type DemandFields,
   type ProjectAttribution,
 } from '@/lib/api/project-management';
-import { WaterBar } from '../upload/water-bar';
+import { UploadProgressRow } from '../upload/upload-progress-row';
 import {
   PROCUREMENT_METHODS,
   PROCUREMENT_CATEGORY_OPTIONS,
@@ -966,10 +966,7 @@ export function CreateProjectDialog({
 
             {/* 上传/解析进度（2026-11-06 上传进度条）：解析按钮在底部时也在其上方给出水波条 */}
             {(extractingDemand || extractingInitiation) && (
-              <div className="mb-2 flex items-center gap-3">
-                <WaterBar pct={upPct} state="uploading" />
-                <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[var(--accent)]">{upPct}%</span>
-              </div>
+              <UploadProgressRow pct={upPct} className="mb-2" />
             )}
 
             {step === 'compare' && (

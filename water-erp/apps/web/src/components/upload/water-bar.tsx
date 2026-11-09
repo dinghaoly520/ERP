@@ -1,9 +1,10 @@
 'use client';
 
 /**
- * 水波进度条（spec §4.2/§4.3）：h-1.5 细条，轨道内凹 hairline；
- * uploading=accent 半透明填充+水面波纹（两层错相）+流光扫过；done=success（一次性涟漪）；
- * failed=danger；pending=accent-soft 静态。动效全部 CSS（globals.css .up-*），零 JS 动画。
+ * 上传进度条（2026-11-09 白瓷重设计）：内凹轨道 + 纯白瓷片填充（顶内高光 + 底缘微影，
+ * 与系统瓷片语言一致）。uploading 瓷片上保留水面波纹与流光；done 为 success 淡染瓷片
+ * 加一次性涟漪；failed 为 danger 淡染；pending 为 accent 微染静态。
+ * 动效全部 CSS（globals.css .up-*）。
  */
 export function WaterBar({
   pct,
@@ -12,21 +13,21 @@ export function WaterBar({
 }: {
   pct: number;
   state: 'pending' | 'uploading' | 'done' | 'failed';
-  /** done 时的一次性完成涟漪（元素首次挂载播放一次，forwards 定格透明） */
+  /** done 时的一次性完成涟漪（元素首次挂载播放一次，forwards 定定格透明） */
   showRipple?: boolean;
 }) {
   const clamped = Math.max(0, Math.min(100, Math.round(pct)));
   const fillCls =
     state === 'done'
-      ? 'bg-[color-mix(in_oklch,var(--success)_28%,transparent)]'
+      ? 'up-fill up-fill--done'
       : state === 'failed'
-        ? 'bg-[color-mix(in_oklch,var(--danger)_30%,transparent)]'
+        ? 'up-fill up-fill--failed'
         : state === 'pending'
-          ? 'bg-[color-mix(in_oklch,var(--accent)_8%,transparent)]'
-          : 'bg-[color-mix(in_oklch,var(--accent)_14%,transparent)]';
+          ? 'up-fill up-fill--pending'
+          : 'up-fill';
   return (
     <div
-      className="relative h-1.5 w-full overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_15%,transparent)]"
+      className="up-track relative h-2.5 w-full overflow-hidden rounded-full"
       role="progressbar"
       aria-valuenow={clamped}
       aria-valuemin={0}

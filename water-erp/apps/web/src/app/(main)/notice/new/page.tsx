@@ -9,7 +9,7 @@ import {
 } from '@/lib/api/announcement';
 import type { AnnouncementType, AnnouncementStatus, AnnouncementAttachment, BidDocumentManage } from '@/lib/api/announcement';
 import { AddendumRefDocSection } from '@/components/notice/bid-doc-edit-section';
-import { WaterBar } from '@/components/upload/water-bar';
+import { UploadProgressRow } from '@/components/upload/upload-progress-row';
 import { Upload, PlusCircle, Save, Send, FolderKanban, Megaphone, Search, X } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { useConfirm } from '@/components/workbench/use-confirm';
@@ -681,11 +681,7 @@ function AttachmentUploader({ annId, ensureAnnId, attachments, onChanged }: { an
       {upRows.length > 0 && (
         <div className="space-y-1.5">
           {upRows.map((r, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <span className="max-w-[220px] shrink-0 truncate text-[11px] font-semibold text-[var(--muted-foreground)]" title={r.name}>{r.name}</span>
-              <WaterBar pct={r.pct} state="uploading" />
-              <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[var(--accent)]">{r.pct}%</span>
-            </div>
+            <UploadProgressRow key={i} label={r.name} pct={r.pct} />
           ))}
         </div>
       )}
