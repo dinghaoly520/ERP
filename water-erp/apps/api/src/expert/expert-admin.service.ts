@@ -1801,7 +1801,8 @@ export class ExpertAdminService {
     });
 
     const expertPortalUrl = resolveRsvpLinkOrigin('expert', headers, process.env.EXPERT_PORTAL_URL || process.env.PUBLIC_PORTAL_URL);
-    const body = message || `您已被选为「${project.name}（${project.projectCode}）」评审专家。`;
+    // 缺省文案不透露项目名称/编号（2026-11-10 用户裁定：专家短信不含项目名；确认链接由下方拼接逻辑自动附加）
+    const body = message || `您被选为评审专家，请在收到通知后确认是否参加。`;
     const expiresAt = new Date(Date.now() + this.rsvpTtlMs);
 
     // 发送时刷新 RSVP 过期时间（token 已在预生成时创建，这里不重新生成）

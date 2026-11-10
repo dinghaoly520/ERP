@@ -989,22 +989,21 @@ export function ExpertExtractPage({
 
   // 候补通知文案自愈：文案在候补抽取时定格——若当时项目名/开标时间缺失（如详情接口故障期，
   // 名称落占位「采购项目」、无开标时间），待名称/时间到位后对仍是模板样式的候补文案原位补齐；
-  // 已含开标时间或非候补模板（正选 AI 文案/人工改写不含特征句）的不动
+  // 已含开标时间或非候补模板（正选 AI 文案/人工改写不含特征句）的不动；
+  // 2026-11-10 裁定后候补模板不含项目名称，名称占位替换分支已随之移除
   useEffect(() => {
     if (altSelected.length === 0 || notifyMessages.size === 0) return;
-    const pn = sel?.name || pd?.name;
     let changed = false;
     const next = new Map(notifyMessages);
     for (const e of altSelected) {
       const cur = next.get(e.userId);
-      if (!cur || !cur.includes('的候补评审专家，若参与评审专家因故无法参加') || cur.includes('开标时间：')) continue;
+      if (!cur || !cur.includes('候补评审专家，若参与评审专家因故无法参加') || cur.includes('开标时间：')) continue;
       let msg = cur;
-      if (pn && msg.includes('「采购项目」')) msg = msg.replace('「采购项目」', `「${pn}」`);
       if (openTimeFormatted) msg = msg.replace('将按序递补您参加评标。', `将按序递补您参加评标。\n开标时间：${openTimeFormatted}\n`);
       if (msg !== cur) { next.set(e.userId, msg); changed = true; }
     }
     if (changed) updateMessages(next);
-  }, [altSelected, notifyMessages, sel, pd, openTimeFormatted]);
+  }, [altSelected, notifyMessages, openTimeFormatted]);
 
   // 集团更名自愈：通知正文/电话话术在发送前定格于旧名（四川水发集团）的，统一替换为现名
   // （四川省水利发展集团有限公司）——覆盖正选 AI 文案与候补模板；新名不含旧名子串，幂等安全
@@ -1878,11 +1877,11 @@ export function ExpertExtractPage({
       setAltQuotas(null); // 抽出结果即离开配置态（重新抽取/重试时再回配置）
       setAltModalOpen(false); // 结果回页面展示，关配置弹窗
       if (result.suggestedLeaderId) setLeadExpertId(result.suggestedLeaderId);
-      // 候补通知：专属文案（不含 RSVP 链接，不要求确认，仅告知准备参加；含开标时间）
-      const projectName = sel?.name || pd?.name || '采购项目';
+      // 候补通知：专属文案（不含 RSVP 链接，不要求确认，仅告知准备参加；含开标时间；
+      // 2026-11-10 裁定：专家短信不透露项目名称）
       const altMsg = new Map(notifyMessages);
       for (const e of result.selected) {
-        altMsg.set(e.userId, `${e.name}专家您好！\n您被选为「${projectName}」的候补评审专家，若参与评审专家因故无法参加，将按序递补您参加评标。${openTimeFormatted ? `\n开标时间：${openTimeFormatted}` : ''}\n请您提前做好准备并保持通讯畅通。感谢您的支持与配合。\n\n四川省水利发展集团有限公司\n${new Date().toLocaleDateString('zh-CN', { year:'numeric', month:'long', day:'numeric' })}`);
+        altMsg.set(e.userId, `${e.name}专家您好！\n您被选为候补评审专家，若参与评审专家因故无法参加，将按序递补您参加评标。${openTimeFormatted ? `\n开标时间：${openTimeFormatted}` : ''}\n请您提前做好准备并保持通讯畅通。感谢您的支持与配合。\n\n四川省水利发展集团有限公司\n${new Date().toLocaleDateString('zh-CN', { year:'numeric', month:'long', day:'numeric' })}`);
       }
       updateMessages(altMsg);
       toast.success(`候补专家抽取完成，共 ${result.selected.length} 人`);

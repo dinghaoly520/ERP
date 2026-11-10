@@ -87,14 +87,15 @@ function buildSupplierTemplate(bp: BidProjectRef, mode: OpeningDecisionMode, fmt
       };
 }
 function buildExpertTemplate(bp: BidProjectRef, mode: OpeningDecisionMode, fmt: string) {
+  // 专家短信不透露项目名称（2026-11-10 用户裁定）：名称只进 title（短信不携带标题），正文仅编号
   return mode === 'ontime'
     ? {
         title: `评审出席提醒：${bp.name}`,
-        body: `{专家姓名} 老师：\n\n项目 ${bp.projectCode}（${bp.name}）将按计划于 ${fmt} 开标，请您提前安排行程，准时出席评审工作。\n\n${SIGNATURE}`,
+        body: `{专家姓名} 老师：\n\n项目 ${bp.projectCode} 将按计划于 ${fmt} 开标，请您提前安排行程，准时出席评审工作。\n\n${SIGNATURE}`,
       }
     : {
         title: `开标时间变更：${bp.name}`,
-        body: `{专家姓名} 老师：\n\n项目 ${bp.projectCode}（${bp.name}）开标时间调整至 ${fmt}，请以最新时间为准安排出席评审。\n\n${SIGNATURE}`,
+        body: `{专家姓名} 老师：\n\n项目 ${bp.projectCode} 开标时间调整至 ${fmt}，请以最新时间为准安排出席评审。\n\n${SIGNATURE}`,
       };
 }
 
