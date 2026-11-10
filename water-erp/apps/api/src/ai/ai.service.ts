@@ -2411,8 +2411,8 @@ stageMatch 字段需要输出两部分判断结果：
     }
   }
 
-  /** 仪表盘 AI 分析（从 procurement 迁入） */
-  async analyzeDashboard(payload: any) {
+  /** 仪表盘 AI 分析（从 procurement 迁入）。生成成功按登录人 scope 落服务端缓存 */
+  async analyzeDashboard(payload: any, user?: AuthenticatedUser) {
     const systemPrompt = [
       '你是"水叮当"——四川省水利发展集团有限公司招采ERP的 AI 采购运营分析师，服务于采购中心管理驾驶舱。',
       '',
@@ -2501,7 +2501,7 @@ stageMatch 字段需要输出两部分判断结果：
         suggestions: await cleanArr(raw?.suggestions),
       };
       // 生成成功才落缓存（AI 不可用兜底文案不入库）；失败不阻断返回
-      await this.saveDashboardAnalysisCache(payload, result).catch(() => {});
+      await this.saveDashboardAnalysisCache(user, payload, result).catch(() => {});
       return result;
     } catch {
       return { overview: 'AI 分析暂不可用', highlights: [], concerns: [], suggestions: [] };
@@ -2513,20 +2513,33 @@ stageMatch 字段需要输出两部分判断结果：
    *  （与进度洞察同源），此处仅声明命名空间。 */
   private static readonly DASH_INSIGHT_NS = 'dash-ai-analysis';
 
-  /** 缓存提取：指纹一致 → 命中返回该视野最新报告；miss/stale/缓存损坏 → hit=false
-   *  （多公司视野由前端提示手动「开始分析」，不自动生成） */
-  async getDashboardAnalysisCache(companyId = 'all', startDate?: string, endDate?: string) {
-    return readInsightCache(this.prisma, AiService.DASH_INSIGHT_NS, companyId, startDate, endDate);
+  /** 缓存键公司段：与数据端点同款 scope 解析（admin=选择器参数；非 admin=本人公司，
+   *  传参忽略）——非 admin 同样吃本公司缓存（不因越权收紧而每次重生成），且只能
+   *  读写自家条目，键不来自客户端（污染面为零）。无登录上下文返回 null=不缓存 */
+  private async dashCacheScopeKey(user: AuthenticatedUser | undefined, companyId?: string): Promise<string | null> {
+    if (!user) return null;
+    const scope = await this.companyScope.resolveScope(user, companyId);
+    return scope.all ? 'all' : scope.companyIds.slice().sort().join(',');
   }
 
-  /** 生成成功后落存：带 cacheKey 才写（自定义透传视野不入库）；存时重算指纹（与数据同刻） */
+  /** 缓存提取：指纹一致 → 命中返回该视野最新报告；miss/stale/缓存损坏 → hit=false
+   *  （多公司视野由前端提示手动「开始分析」，不自动生成） */
+  async getDashboardAnalysisCache(user: AuthenticatedUser | undefined, companyId = 'all', startDate?: string, endDate?: string) {
+    const scopeKey = await this.dashCacheScopeKey(user, companyId);
+    if (scopeKey === null) return { hit: false as const, fingerprint: '' };
+    return readInsightCache(this.prisma, AiService.DASH_INSIGHT_NS, scopeKey, startDate, endDate);
+  }
+
+  /** 生成成功后落存：键由登录人 scope 派生（admin=选择器；非 admin=本公司）；
+   *  存时重算指纹（与数据同刻） */
   private async saveDashboardAnalysisCache(
-    payload: { cacheKey?: string; startDate?: string; endDate?: string },
+    user: AuthenticatedUser | undefined,
+    payload: { companyId?: string; startDate?: string; endDate?: string },
     result: unknown,
   ) {
-    const company = payload.cacheKey?.trim();
-    if (!company) return;
-    await writeInsightCache(this.prisma, AiService.DASH_INSIGHT_NS, company, result, payload.startDate, payload.endDate);
+    const scopeKey = await this.dashCacheScopeKey(user, payload.companyId);
+    if (scopeKey === null) return;
+    await writeInsightCache(this.prisma, AiService.DASH_INSIGHT_NS, scopeKey, result, payload.startDate, payload.endDate);
   }
 
   /** 采购台账 AI 分析 */

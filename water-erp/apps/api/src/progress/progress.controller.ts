@@ -44,22 +44,25 @@ export class ProgressController {
       throw new ForbiddenException('普通账号无法查看采购进度。');
     }
     const scope = await this.companyScope.resolveScope(user, companyId, portalSourceOf(req));
-    // 缓存写仅 admin（2026-11-10 稳健轮）：companyId 参数对非 admin 本被 resolveScope
-    // 忽略（按本人公司过滤）——若照传 cacheCompanyId 会把本公司内容写进他公司缓存键
-    return this.progressService.getAiInsights(userId, stage, this.companyScope.filter(scope), user.role === 'admin' ? companyId : undefined);
+    // 缓存键由已解析 scope 派生（2026-11-10 二次修订：admin=选择器参数；非 admin=本人
+    // 公司，传参忽略）——非 admin 同样吃本公司缓存（不因越权收紧而每次重生成），
+    // 且键不来自客户端（污染面为零）
+    const cacheKey = scope.all ? 'all' : scope.companyIds.slice().sort().join(',');
+    return this.progressService.getAiInsights(userId, stage, this.companyScope.filter(scope), cacheKey);
   }
 
   @Get('ai-insights/cache')
-  @ApiOperation({ summary: '进度洞察缓存提取（2026-11-10）：按公司视野取最新一份，数据指纹未变即命中，不再每次重新生成（仅 admin——公司选择器为 admin 专用，非 admin 一律 miss 走隔离链路）' })
+  @ApiOperation({ summary: '进度洞察缓存提取（2026-11-10）：按登录人 scope（admin=选择器参数、非 admin=本公司）取最新一份，数据指纹未变即命中' })
   async getAiInsightsCache(
     @CurrentUser() user: AuthenticatedUser,
+    @Req() req?: Request,
     @Query('companyId') companyId = 'all',
   ) {
     if (!canViewGlobalBusinessData(user.role)) {
       throw new ForbiddenException('普通账号无法查看采购进度。');
     }
-    if (user.role !== 'admin') return { hit: false, fingerprint: '' };
-    return this.progressService.getProgressInsightCache(companyId);
+    const scope = await this.companyScope.resolveScope(user, companyId, portalSourceOf(req));
+    return this.progressService.getProgressInsightCache(scope.all ? 'all' : scope.companyIds.slice().sort().join(','));
   }
 
   @Get('upcoming')

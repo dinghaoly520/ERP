@@ -64,14 +64,16 @@ export type DashboardAnalysisResult = {
 
 export async function fetchDashboardAnalysis(
   payload: DashboardAnalysisPayload,
-  /** 公司视野（all/单 id/逗号多选，2026-11-10）：传入则生成结果落服务端缓存（每公司一份最新） */
-  cacheKey?: string,
+  /** 公司视野（2026-11-10）：服务端按登录人 scope 解析为缓存键——admin=本参数（选择器），
+   *  非 admin=本人公司；生成成功落服务端缓存（每公司一份最新） */
+  companyId?: string,
 ): Promise<DashboardAnalysisResult> {
-  return api.post<DashboardAnalysisResult>('/ai/dashboard-analysis', { ...payload, ...(cacheKey && { cacheKey }) });
+  return api.post<DashboardAnalysisResult>('/ai/dashboard-analysis', { ...payload, ...(companyId && { companyId }) });
 }
 
-/** 服务端缓存提取（2026-11-10 用户裁定）：按公司视野+日期区间取最新一份分析，
- *  该公司数据指纹未变即命中（instant）——命中不再请求 LLM 重新生成 */
+/** 服务端缓存提取（2026-11-10 用户裁定）：按登录人 scope（admin=选择器参数、非
+ *  admin=本公司，传参忽略）取最新一份分析，该公司数据指纹未变即命中——命中不再
+ *  请求 LLM 重新生成 */
 export async function fetchDashboardAnalysisCache(
   companyId: string,
   startDate?: string,
