@@ -14,6 +14,7 @@ import {
   Gavel,
   LayoutGrid,
   Lightbulb,
+  RefreshCw,
   Search,
   ShieldAlert,
   Sparkles,
@@ -28,7 +29,7 @@ import { StatusBadge } from "@/components/workbench";
 import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from "@/components/company/company-tag";
 import {
   fetchProgressStats,
-  fetchProgressAiInsights,
+  fetchProgressAiInsights, fetchProgressInsightCache,
   type ProgressAiInsight,
   type ProgressAiInsights,
   type ProgressStats,
@@ -433,32 +434,31 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
     finally { setLoading(false); }
   };
 
-  const AI_CACHE_KEY = "progress-ai-insights-cache-v2";
-  const buildFp = (s: ProgressStats) => `${s.totalActive}:${s.monthlyAdded}:${s.monthlyCompleted}:${s.projects.map((p) => `${p.id}:${p.currentStage}:${p.updatedAt}`).join("|")}`;
-
+  // 进度洞察（2026-11-10 用户裁定，同仪表盘综合分析）：服务端缓存即时提取——每公司
+  // 视野存最新一份、数据指纹未变不再请求 LLM；单公司/全部 miss 自动生成，多公司
+  // miss 只提示手动「开始分析」不自动跑
   const loadAiInsights = useCallback(async (forceRefresh = false) => {
-    if (!stats) return;
-    const fp = buildFp(stats);
+    const multi = companyId.includes(",");
     if (!forceRefresh) {
       try {
-        const c = localStorage.getItem(AI_CACHE_KEY);
-        if (c) { const p = JSON.parse(c) as { fingerprint: string; data: ProgressAiInsights }; if (p.fingerprint === fp && p.data) { setAiInsights(p.data); return; } }
-      } catch { /* ignore */ }
+        const c = await fetchProgressInsightCache(companyId);
+        if (c.hit && c.result && Array.isArray(c.result.insights)) { setAiInsights(c.result); return; }
+      } catch { /* 缓存接口失败：单公司退回自动生成，多公司按手动处理 */ }
+      if (multi) { setAiInsights(null); return; }
     }
     setAiLoading(true);
     try {
       const data = await fetchProgressAiInsights(companyId); setAiInsights(data);
-      try { localStorage.setItem(AI_CACHE_KEY, JSON.stringify({ fingerprint: fp, data })); } catch { /* ignore */ }
     } catch { setAiInsights(null); }
     finally { setAiLoading(false); }
-  }, [stats]);
+  }, [companyId]);
 
   useEffect(() => {
     const initial = readInitialCompanyId();
     setCompanyId(initial);
     void loadData(initial);
   }, []);
-  useEffect(() => { if (stats) void loadAiInsights(); }, [stats, loadAiInsights]);
+  useEffect(() => { void loadAiInsights(); }, [loadAiInsights]);
 
   // ─── Derived data ────────────────────────────────────────────────────────
   const derivedProjects = useMemo<DerivedProject[]>(() => {
@@ -651,12 +651,28 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
                 <Sparkles size={15} className="text-[oklch(0.5_0.16_258)]" />
                 <h2 className="neu-section-heading">进度洞察</h2>
               </div>
+              <div className="flex items-center gap-2">
+                {aiLoading && <span className="text-[11px] text-[color:var(--muted-foreground)]">分析中...</span>}
+                {!aiLoading && (
+                  <button type="button" onClick={() => void loadAiInsights(true)} className="neu-btn-soft !h-7 !px-2.5 !text-[11px]" aria-label={aiInsights ? "重新生成洞察" : "开始生成洞察"}>
+                    <RefreshCw size={11} className="mr-1" />{aiInsights ? "重新分析" : "开始分析"}
+                  </button>
+                )}
+              </div>
             </div>
             <div className="wb-panel-body">
               {aiLoading && !aiInsights ? (
                 <div className="flex flex-col items-center gap-2 py-8 text-xs text-[color:var(--muted-foreground)]">
                   <div className="h-5 w-5 animate-spin rounded-full border-2 border-[oklch(0.5_0.16_258_/_0.25)] border-t-[oklch(0.5_0.16_258)]" />
                   正在分析项目数据...
+                </div>
+              ) : companyId.includes(",") && !aiInsights ? (
+                <div className="neu-card-static mb-3 !rounded-[12px] !border-none flex items-center gap-2.5 px-3 py-2.5">
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] bg-[oklch(0.5_0.16_258_/_0.08)]"><Building2 size={13} className="text-[oklch(0.5_0.16_258)]" /></div>
+                  <div>
+                    <p className="text-xs font-semibold text-[color:var(--foreground)]">已选择多家公司</p>
+                    <p className="mt-0.5 text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">多公司组合分析不自动加载，点击右上角「开始分析」手动生成。</p>
+                  </div>
                 </div>
               ) : aiInsights ? (
                 <>

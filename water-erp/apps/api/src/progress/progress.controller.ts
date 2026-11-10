@@ -37,14 +37,26 @@ export class ProgressController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('userId') userId?: string,
     @Query('stage') stage?: string,
-    @Query('companyId') companyId?: string, // 仅 admin 生效：切换查看单公司
+    @Query('companyId') companyId?: string, // 仅 admin 生效：切换查看单公司；显式传入时生成结果落服务端缓存
     @Req() req?: Request,
   ) {
     if (!canViewGlobalBusinessData(user.role)) {
       throw new ForbiddenException('普通账号无法查看采购进度。');
     }
     const scope = await this.companyScope.resolveScope(user, companyId, portalSourceOf(req));
-    return this.progressService.getAiInsights(userId, stage, this.companyScope.filter(scope));
+    return this.progressService.getAiInsights(userId, stage, this.companyScope.filter(scope), companyId);
+  }
+
+  @Get('ai-insights/cache')
+  @ApiOperation({ summary: '进度洞察缓存提取（2026-11-10）：按公司视野取最新一份，数据指纹未变即命中，不再每次重新生成' })
+  async getAiInsightsCache(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('companyId') companyId = 'all',
+  ) {
+    if (!canViewGlobalBusinessData(user.role)) {
+      throw new ForbiddenException('普通账号无法查看采购进度。');
+    }
+    return this.progressService.getProgressInsightCache(companyId);
   }
 
   @Get('upcoming')

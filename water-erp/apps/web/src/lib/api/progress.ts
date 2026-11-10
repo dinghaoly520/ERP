@@ -90,6 +90,21 @@ export async function fetchProgressStats(
   return response.json();
 }
 
+/** 服务端缓存提取（2026-11-10 用户裁定）：按公司视野取最新一份洞察，该公司数据
+ *  指纹未变即命中——命中不再请求 LLM 重新生成 */
+export async function fetchProgressInsightCache(
+  companyId?: string,
+): Promise<{ hit: boolean; result?: ProgressAiInsights; generatedAt?: string }> {
+  const qs = companyId ? `?companyId=${encodeURIComponent(companyId)}` : '';
+  const url = `${API_BASE}/progress/ai-insights/cache${qs}`;
+
+  const response = await apiFetch(url, { credentials: "include" });
+  if (!response.ok) {
+    throw await toApiError(response, "加载进度洞察缓存失败");
+  }
+  return response.json();
+}
+
 export async function fetchProgressAiInsights(companyId?: string): Promise<ProgressAiInsights> {
   const qs = companyId && companyId !== 'all' ? `?companyId=${encodeURIComponent(companyId)}` : '';
   const url = `${API_BASE}/progress/ai-insights${qs}`;

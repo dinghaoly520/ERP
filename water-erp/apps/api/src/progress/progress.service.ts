@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectManagementStatus } from '@prisma/client';
 import { AiService } from '../ai/ai.service';
+import { readInsightCache, writeInsightCache } from '../common/company-data-fingerprint';
 import type { CompanyWhere } from '../company/company-scope';
 
 export interface ProjectWithCreator {
@@ -398,10 +399,17 @@ export class ProgressService {
     };
   }
 
+  /** 进度洞察服务端缓存命名空间（2026-11-10 用户裁定：同仪表盘综合分析——每公司视野
+   *  存最新一份，数据指纹未变即时提取不重生成；多公司组合由前端提示手动分析） */
+  private static readonly PROGRESS_INSIGHT_NS = 'progress-ai-insights';
+
   async getAiInsights(
     userId?: string,
     stage?: string,
     companyFilter: CompanyWhere = {},
+    /** 显式公司视野（admin 选择器 all/单选/多选）——传入则生成成功后落缓存；
+     *  非显式（普通账号本公司视角）不缓存，避免按登录人快照污染共享键 */
+    cacheCompanyId?: string,
   ) {
     const stats = await this.getProgressStats(userId, stage, companyFilter);
 
@@ -547,10 +555,19 @@ export class ProgressService {
     const llmResult = await this.generateInsightsFromLLM(systemPrompt, userPrompt, stats, stageNames);
     if (llmResult && llmResult.insights.length > 0) {
       this.logger.log(`DeepSeek generated ${llmResult.insights.length} insights: ${llmResult.overview.substring(0, 50)}`);
+      // LLM 结果落服务端缓存（数据驱动兜底不入库——质量降级不冻结共享缓存）
+      if (cacheCompanyId) {
+        await writeInsightCache(this.prisma, ProgressService.PROGRESS_INSIGHT_NS, cacheCompanyId, llmResult).catch(() => {});
+      }
       return llmResult;
     }
     this.logger.log('DeepSeek unavailable, falling back to data-driven insights');
     return this.generateInsightsFromData(stats, stageNames);
+  }
+
+  /** 进度洞察缓存提取：指纹一致命中返回最新洞察；miss/stale → hit=false */
+  async getProgressInsightCache(companyId = 'all') {
+    return readInsightCache(this.prisma, ProgressService.PROGRESS_INSIGHT_NS, companyId);
   }
 
   private async generateInsightsFromLLM(
