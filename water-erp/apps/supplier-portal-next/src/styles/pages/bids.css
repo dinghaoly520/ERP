@@ -921,3 +921,17 @@ a.cq-att-item:active { opacity: 0.65; box-shadow: inset 1px 1px 2px oklch(0.55 0
 .cc-att-file { color: var(--brand); flex-shrink: 0; }
 .cc-att-dl { color: var(--muted-foreground); flex-shrink: 0; }
 @media (prefers-reduced-motion: reduce) { .cc-att-item { transition: none; } .cc-att-item:hover { transform: none; } }
+
+/* ═══ 开标时间延期标注（2026-11-10）：现值 vs 公告快照不一致时，瓷片备注 + info-bar 标签 ═══ */
+.cc-meta-note {
+  font-size: 10px; font-weight: 500; line-height: 1.4;
+  color: var(--warning); opacity: 0.9; word-break: break-word;
+}
+.open-delayed-tag {
+  font-style: normal; font-size: 10px; font-weight: 800;
+  margin-left: 6px; padding: 1px 6px; border-radius: 999px;
+  color: var(--warning);
+  background: color-mix(in oklch, var(--warning) 14%, transparent);
+  border: 1px solid color-mix(in oklch, var(--warning) 38%, transparent);
+  cursor: help;
+}

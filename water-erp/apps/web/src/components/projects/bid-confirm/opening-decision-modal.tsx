@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 import {
   Bell,
   CalendarClock,
@@ -73,19 +74,35 @@ function fmtCn(iso: string): string {
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** 延时开标后的新截止（= 新开标时刻 − 截标间隔常量；align 口径与后端 opening-deadline.util 同源） */
+function delayDeadlineIso(openTimeIso: string): string {
+  return new Date(new Date(openTimeIso).getTime() - BID_DEADLINE_BEFORE_OPENING_MS).toISOString();
+}
+
 // 正文不带公司落款（2026-11-10 用户裁定）：短信通道发送时自动前置【四川省水利发展集团】签名，
 // 正文落款冗余且多耗分段字数——供应商/专家模板一律不附
-function buildSupplierTemplate(bp: BidProjectRef, mode: OpeningDecisionMode, fmt: string) {
+function buildSupplierTemplate(
+  bp: BidProjectRef,
+  mode: OpeningDecisionMode,
+  fmt: string,
+  opts?: { deadlinePassed?: boolean; deadlineFmt?: string },
+) {
   // 供应商无需到场（2026-11-10 用户裁定）：线上解密即可，文案只请关注开标动态，不出现「出席」
-  return mode === 'ontime'
-    ? {
-        title: `开标通知：${bp.name}`,
-        body: `{供应商名称} 您好！\n\n项目 ${bp.projectCode}（${bp.name}）将按计划于 ${fmt} 开标，请及时关注供应商门户开标动态与相关通知。`,
-      }
-    : {
-        title: `开标时间变更：${bp.name}`,
-        body: `{供应商名称} 您好！\n\n项目 ${bp.projectCode}（${bp.name}）开标时间调整至 ${fmt}，请以最新时间为准关注开标动态；投标截止时间不变。`,
-      };
+  // 延时模式截止口径（2026-11-10）：原截止未过=align，截止随开标自动前移 10 分钟（须告知新截止）；
+  // 原截止已过=frozen，截止依法不变——两种情形文案分别表述，不得再说笼统的「截止不变」
+  if (mode === 'ontime') {
+    return {
+      title: `开标通知：${bp.name}`,
+      body: `{供应商名称} 您好！\n\n项目 ${bp.projectCode}（${bp.name}）将按计划于 ${fmt} 开标，请及时关注供应商门户开标动态与相关通知。`,
+    };
+  }
+  const deadlineLine = opts?.deadlinePassed
+    ? '投标截止时间不变；'
+    : `投标截止时间相应调整至 ${opts?.deadlineFmt ?? ''}，`;
+  return {
+    title: `开标时间变更：${bp.name}`,
+    body: `{供应商名称} 您好！\n\n项目 ${bp.projectCode}（${bp.name}）开标时间调整至 ${fmt}，${deadlineLine}请以最新时间为准关注开标动态。`,
+  };
 }
 function buildExpertTemplate(bp: BidProjectRef, mode: OpeningDecisionMode, fmt: string) {
   // 专家短信不透露项目名称（2026-11-10 用户裁定）：名称只进 title（短信不携带标题），正文仅编号
@@ -131,8 +148,12 @@ export function OpeningDecisionModal({
   useEffect(() => {
     if (isOpen && bidProject) {
       setDelayTime(toLocalInput(bidProject.openTime));
-      setDeadlinePassed(!!bidProject.deadline && new Date(bidProject.deadline).getTime() <= Date.now());
-      const tpl = buildSupplierTemplate(bidProject, mode, fmtCn(bidProject.openTime));
+      const dp = !!bidProject.deadline && new Date(bidProject.deadline).getTime() <= Date.now();
+      setDeadlinePassed(dp);
+      const tpl = buildSupplierTemplate(bidProject, mode, fmtCn(bidProject.openTime), {
+        deadlinePassed: dp,
+        deadlineFmt: fmtCn(delayDeadlineIso(bidProject.openTime)),
+      });
       setSupplierTitle(tpl.title);
       setSupplierBody(tpl.body);
       setSupplierDirty(false);
@@ -158,7 +179,10 @@ export function OpeningDecisionModal({
     if (!value || Number.isNaN(new Date(value).getTime())) return;
     const iso = new Date(value).toISOString();
     if (!supplierDirty) {
-      const tpl = buildSupplierTemplate(bidProject, mode, fmtCn(iso));
+      const tpl = buildSupplierTemplate(bidProject, mode, fmtCn(iso), {
+        deadlinePassed,
+        deadlineFmt: fmtCn(delayDeadlineIso(iso)),
+      });
       setSupplierTitle(tpl.title);
       setSupplierBody(tpl.body);
     }

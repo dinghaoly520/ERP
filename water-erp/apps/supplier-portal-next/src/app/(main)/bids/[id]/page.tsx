@@ -213,11 +213,18 @@ function BidDetailInner() {
   const supplierCount = project?._count?.suppliers || 0;
 
 
+  // ── 开标时间延期检测（2026-11-10）：BidProject 现值 vs 公告发布时快照，不一致即延期/调整过 ──
+  const openSnapIso = (project?.announcement?.metadata as { openTime?: string } | null | undefined)?.openTime ?? null;
+  const openDelayed = !!(project?.openTime && openSnapIso
+    && new Date(project.openTime).getTime() !== new Date(openSnapIso).getTime());
+  const openDelayedLabel = openDelayed
+    && new Date(project!.openTime!).getTime() > new Date(openSnapIso!).getTime() ? '已延期' : '已调整';
+
   // ── 公告结构化信息（来自 announcement.metadata，仅展示有值字段）──
   const metaFields = (() => {
     const m = project?.announcement?.metadata || null;
-    if (!m) return [] as { label: string; value: string; kind: 'code' | 'money' | 'date' | 'plain' }[];
-    const fields: { label: string; value: string; kind: 'code' | 'money' | 'date' | 'plain' }[] = [];
+    if (!m) return [] as { label: string; value: string; kind: 'code' | 'money' | 'date' | 'plain'; note?: string }[];
+    const fields: { label: string; value: string; kind: 'code' | 'money' | 'date' | 'plain'; note?: string }[] = [];
     if (m.projectCode) fields.push({ label: "项目编号", value: m.projectCode, kind: 'code' });
     if (m.method) fields.push({ label: "采购方式", value: m.method, kind: 'plain' });
     if (m.budget != null && m.budget !== "") fields.push({ label: "预算金额", value: fmtBudget(m.budget), kind: 'money' });
@@ -227,7 +234,15 @@ function BidDetailInner() {
     if (bidDeadline) fields.push({ label: "投标截止", value: fmtMetaDate(bidDeadline), kind: 'date' });
     if (m.downloadDeadline) fields.push({ label: "采购文件下载截止", value: fmtMetaDate(m.downloadDeadline), kind: 'date' });
     if (m.downloadMode) fields.push({ label: "下载方式", value: m.downloadMode === "encrypted" ? "解密下载" : m.downloadMode === "paid" ? "付费下载" : "免费下载", kind: 'plain' });
-    if (m.openTime) fields.push({ label: "开标时间", value: fmtMetaDate(m.openTime), kind: 'date' });
+    // 开标时间同截止口径（2026-11-10）：以 BidProject 现值为准——延时开标后自动为新时间；
+    // 与公告快照不一致时带延期标注（原时间+方向），不做无痕静默替换
+    const openTimeShown = project?.openTime || m.openTime;
+    if (openTimeShown) {
+      fields.push({
+        label: "开标时间", value: fmtMetaDate(openTimeShown), kind: 'date',
+        ...(openDelayed && openSnapIso ? { note: `${openDelayedLabel}：原 ${fmtMetaDate(openSnapIso)}` } : {}),
+      });
+    }
     if (m.contact) fields.push({ label: "联系方式", value: m.contact, kind: 'plain' });
     return fields;
   })();
@@ -534,7 +549,10 @@ function BidDetailInner() {
               {!isListMode && (
                 <div className="info-bar">
                   <span>截止<strong className={project.stage === "SUBMIT" ? "danger" : undefined}>{dayjs(project.deadline).format("MM-DD HH:mm")}</strong></span>
-                  <span>开标<strong>{dayjs(project.openTime).format("MM-DD HH:mm")}</strong></span>
+                  <span>
+                    开标<strong>{dayjs(project.openTime).format("MM-DD HH:mm")}</strong>
+                    {openDelayed && <em className="open-delayed-tag" title={`原 ${dayjs(openSnapIso).format("YYYY-MM-DD HH:mm")}`}>{openDelayedLabel}</em>}
+                  </span>
                   <span>保证金<strong>{project.bondRequired && project.bondAmount ? "¥" + Number(project.bondAmount).toLocaleString() : "无"}</strong></span>
                   {showSupplierCount && <span>投标方<strong>{supplierCount} 家</strong></span>}
                   {/* A-98：服务器标准时间常显（截止预检/倒计时同源 /api/time） */}
@@ -590,6 +608,7 @@ function BidDetailInner() {
                       <span key={f.label} className={`cc-meta-chip ${f.kind === 'code' ? 'cc-meta-chip--code' : f.kind === 'money' ? 'cc-meta-chip--money' : f.kind === 'date' ? 'cc-meta-chip--date' : ''}`}>
                         <span className="cc-meta-label">{f.label}</span>
                         <span className="cc-meta-value">{f.value}</span>
+                        {f.note && <span className="cc-meta-note">{f.note}</span>}
                       </span>
                     ))}
                   </div>
