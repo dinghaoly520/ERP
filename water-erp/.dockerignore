@@ -61,3 +61,12 @@ dist
 **/.dockerignore
 README*.md
 docs
+
+# 镜像导出 tar（2026-11-09 滚雪球事故根修）：docker save 的产物
+# （water-erp-portal.tar / backend/water-erp-api.tar）落在构建上下文里，
+# 下一轮 COPY . . 会把它原样打进新镜像 → 镜像每轮近翻倍（11G→23G…）。
+# 任何 tar/tar.gz 一律不进镜像。
+*.tar
+**/*.tar
+*.tar.gz
+**/*.tar.gz
