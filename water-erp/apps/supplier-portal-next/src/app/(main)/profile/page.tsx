@@ -55,6 +55,8 @@ const STATUS_TEXT: Record<string, string> = {
   PENDING: "待审核", APPROVED: "已入库", REJECTED: "不通过", RETURNED: "退回补正", DISABLED: "已停用", BLACKLIST: "黑名单",
 };
 const CR_FIELDS = [
+  // 2026-11-10 放开：统一社会信用代码可变更（后端四闸+审批落库联动登录名，见 supplier-change-fields.ts）
+  "creditCode",
   "name", "enterpriseType", "legalPerson",
   // B2-4（2026-09-30）：法人身份证号可随姓名变更（注册必传；后端白名单同步放行）
   "legalPersonIdCard",
@@ -66,6 +68,7 @@ const CR_FIELDS = [
   "establishedDate", "companyProfile",
 ] as const;
 const CR_FIELD_LABELS: Record<string, string> = {
+  creditCode: "统一社会信用代码",
   name: "企业名称", enterpriseType: "企业类型", legalPerson: "法定代表人", legalPersonIdCard: "法定代表人身份证号", registeredAddress: "注册地址", businessScope: "主要经营业务范围", tags: "业务标签",
   logoUrl: "公司标志", country: "国别", region: "所属行政区域", detailedAddress: "详细地址",
   registeredCapital: "注册资金", industry: "所属的国民经济行业", legalPersonPhone: "法人联系电话", companyEmail: "公司邮箱", companyWebsite: "公司官网",
@@ -454,6 +457,11 @@ export default function ProfilePage() {
       // B2-4：身份证号格式守卫（18 位；仅在有值/有变更时拦截，存量空值走补填）
       if (crForm.legalPersonIdCard && !/^\d{17}[\dXx]$/.test(crForm.legalPersonIdCard.trim())) {
         toast.warning("法定代表人身份证号须为 18 位"); return;
+      }
+      // 统一社会信用代码守卫（2026-11-10 放开变更）：18 位大写字母/数字，与注册/后端同口径；
+      // 按变更触发（清空也拦——信用代码不允许置空）
+      if ((crForm.creditCode ?? "") !== (crOrig.creditCode ?? "") && !/^[0-9A-Z]{18}$/.test((crForm.creditCode ?? "").trim())) {
+        toast.warning("统一社会信用代码须为 18 位大写字母/数字"); return;
       }
       // 业务标签数量守卫（2026-10-14 选择制后与注册同口径：2~8 个）
       if (crHasTagsChanges && crTags.filter((t) => t.trim()).length < 2) {
@@ -904,6 +912,19 @@ export default function ProfilePage() {
                               </optgroup>
                             ))}
                           </select>
+                        ) : k === "creditCode" ? (
+                          /* 统一社会信用代码（2026-11-10 放开变更）：18 位大写受控输入 +
+                             审批联动提示（后端审批通过会同步登录账号，见 approveChange creditCode 分支） */
+                          <>
+                            <input
+                              className="neu-input"
+                              maxLength={18}
+                              placeholder="18 位大写字母/数字"
+                              value={crForm[k]}
+                              onChange={(e) => setCrForm((f) => ({ ...f, [k]: e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, "") }))}
+                            />
+                            <p className="crp-cc-hint">审批通过后，登录账号将同步变更为新统一社会信用代码（企业名称仍可登录）；已绑定 CA 证书如提示身份不一致，请重新绑定。</p>
+                          </>
                         ) : (
                           <input
                             className="neu-input"

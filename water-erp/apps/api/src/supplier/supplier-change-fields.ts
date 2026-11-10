@@ -2,13 +2,19 @@
  * 供应商资料变更字段白名单
  *
  * 只允许以下字段通过变更申请修改。
- * 禁止修改 status / userId / id / creditCode / normalizedName / classificationId 等敏感字段。
+ * 禁止修改 status / userId / id / normalizedName / classificationId 等敏感字段。
  *
  * 聚合字段（bankAccounts / performances）的 newValue 为 JSON 字符串，审批时整体替换子表。
- * 机构代码 = 统一社会信用代码（敏感不可变），不提供变更入口。
+ *
+ * 统一社会信用代码（creditCode）2026-11-10 用户裁定放开变更（推翻本文件旧注「敏感不可变，
+ * 不提供变更入口」）：提交四闸见 credit-code-change.util.ts（格式/同值/全库查重/登录名占用）；
+ * 审批落库三处联动——Supplier.creditCode + Supplier.organizationCode（建档三处冗余同源）
+ * + User.username（注册三处强制 username=creditCode，改码必跟），见 approveChange creditCode 分支。
  */
 
 export const SUPPLIER_CHANGE_ALLOWED_FIELDS = [
+  // 2026-11-10 放开：统一社会信用代码可变更（四闸+审批联动见上注）
+  'creditCode',
   'name',
   'enterpriseType',
   'legalPerson',
@@ -42,6 +48,7 @@ export type SupplierChangeAllowedField =
 /** 字段中文名（通知摘要用，2026-10-29 文案治理）：此前通知文案直接回退裸英文字段名
  *  （如 legalPerson）， DTO 的 fieldLabel 缺失时黑话直达审批人通知。 */
 export const SUPPLIER_CHANGE_FIELD_LABELS: Record<SupplierChangeAllowedField, string> = {
+  creditCode: '统一社会信用代码',
   name: '企业名称',
   enterpriseType: '企业类型',
   legalPerson: '法定代表人',
