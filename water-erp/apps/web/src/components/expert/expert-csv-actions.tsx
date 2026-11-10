@@ -410,7 +410,7 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
           <div>
             <h4 className="text-xs font-bold text-[var(--foreground)]">指定单位归属</h4>
             <p className="text-[10px] text-[var(--muted-foreground)] mt-0.5 leading-relaxed">
-              以下表格「工作单位」未命中公司主数据（:3005 注册公司名单）。请在既有公司内为每个单位指定归属——不能新建公司；确属库外单位可选「不归属」。
+              表格中下列「工作单位」未能与系统已有公司自动匹配，请为每个单位指定归属公司（仅限已有公司，不支持新建）；确属集团外单位，可选择「不归属」。
             </p>
           </div>
           <div className="max-h-[260px] space-y-2 overflow-y-auto pr-1">
