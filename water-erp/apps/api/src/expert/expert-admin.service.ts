@@ -1237,7 +1237,8 @@ export class ExpertAdminService {
 
   /**
    * 导出专家抽取情况（Word 证明材料，2026-10-22）：抽取过程细节（方式/轮次/操作人/池规模/
-   * 命中序列——来自 EXPERT_EXTRACTION_CONFIRMED 审计快照）+ 正选/候补专家详情表（含确认
+   * 命中序列——来自 EXPERT_EXTRACTION_CONFIRMED 审计快照）+ 各轮人员状态表（初次抽取轮
+   * 2026-11-10 起与补选轮同构逐人记录接受/婉拒）+ 正选/候补专家详情表（含确认
    * 状态与作答留痕）。联系电话走 openPiiForMask 明文口径（2026-10-12 裁定：staff 视野
    * 证明材料需要逐一致电核实，掩码无意义）。
    */
@@ -1349,6 +1350,14 @@ export class ExpertAdminService {
       ...roster.map(r => [r.userId, r.expertName] as [string, string]),
       ...extraUsers.map(u => [u.id, u.displayName] as [string, string]),
     ]);
+    // 审计快照自带姓名（details.experts = 确认 DTO 正选名单）：名册行已删且 user 表也
+    // 查不到时（seed 清库/存量项目），各轮人员表按快照名兜底，避免裸显 userId——
+    // 名册名仍为第一权威，此处只填空缺不覆盖
+    for (const ev of extractionEvents) {
+      for (const e of ((((ev.details ?? {}) as any).experts ?? []) as any[]) ?? []) {
+        if (e?.userId && e?.name && !nameByUserId.has(e.userId)) nameByUserId.set(e.userId, e.name);
+      }
+    }
     const rowByUserId = new Map(roster.map(r => [r.userId, r] as [string, typeof r]));
     // 第 i 轮配置：该轮确认时刻窗口内（上一轮确认之后～本轮确认之前）最近的配置快照；
     // 初次轮放宽为「首次确认前最近一次」
@@ -1489,6 +1498,35 @@ export class ExpertAdminService {
                       new TextRun({ text: `本轮结果：确定正选 ${drawnNames.length} 名${drawnNames.length > 0 ? `（${drawnNames.join('、')}）` : ''}。`, size: 21 }),
                     ],
                   }));
+                  // 初次轮人员表（2026-11-10 用户要求）：第 1 轮同样逐人记录接受/婉拒，
+                  // 与补选轮同构（姓名/本轮角色/当前状态/确认方式/回执时间）——快照
+                  // drawnUserIds 回名册行取最新邀请状态，已删行经 user 反查显「已移出名册」；
+                  // 快照 poolUserIds（=确认 DTO candidates，同事务落库的候补）非空时按候补行入表
+                  const firstRoundPeople = [
+                    ...drawn.map(id => ({ id, role: '正选' })),
+                    ...alts.map(id => ({ id, role: '候补' })),
+                  ];
+                  if (firstRoundPeople.length > 0) {
+                    blocks.push(new Table({
+                      width: { size: 100, type: WidthType.PERCENTAGE },
+                      borders: tableBorders,
+                      rows: [
+                        headerRow(['姓名', '本轮角色', '当前状态', '确认方式', '回执时间']),
+                        ...firstRoundPeople.map(rp => {
+                          const row = rowByUserId.get(rp.id);
+                          return new TableRow({
+                            children: [
+                              cell(nameByUserId.get(rp.id) ?? rp.id),
+                              cell(rp.role),
+                              cell(row ? stCn(row.invitationStatus) : '已移出名册'),
+                              cell(row ? actorCn(confirmOf(row).actor) : '—'),
+                              cell(row ? fmt(confirmOf(row).time) : '—'),
+                            ],
+                          });
+                        }),
+                      ],
+                    }));
+                  }
                 } else if (isAltRound) {
                   // 候补抽取（初次流程·步骤6）：候补名单在此环节抽取
                   blocks.push(new Paragraph({
@@ -1535,7 +1573,7 @@ export class ExpertAdminService {
                 }
                 return blocks;
               })),
-          new Paragraph({ children: [new TextRun({ text: '补选轮人员表中的「当前状态」为导出时刻的最新邀请状态（已确认/已婉拒/待回复/已移出名册），流转轨迹见系统专家详情页。', size: 18, color: '666666' })] }),
+          new Paragraph({ children: [new TextRun({ text: '各轮人员表（初次抽取与补选轮）中的「当前状态」为导出时刻的最新邀请状态（已确认/已婉拒/待回复/已移出名册），流转轨迹见系统专家详情页。', size: 18, color: '666666' })] }),
           new Paragraph({ text: '' }),
 
           new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: `四、最终评审专家名单（已确认正选 ${regulars.filter(r => r.invitationStatus === 'confirmed').length} 名）`, bold: true, size: 24 })] }),
