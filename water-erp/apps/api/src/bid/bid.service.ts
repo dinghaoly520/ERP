@@ -1090,6 +1090,24 @@ export class BidService {
           },
         }).catch(() => {});
       }
+      // 开标时间一处修改全局统一（2026-11-10 用户裁定）：BidProject 侧改开标时间（延时开标等）
+      // 回写 PMI bidOpeningTime（唯一权威），:3005 基本信息/时间轴/公告制作三端保持一致。
+      // 中文格式入库且固定 +08 墙钟（parseFlexibleDate 恒按北京时间解析——禁组件构造，
+      // 服务器 UTC 容器下 getHours 会偏 8h，见 beijing-wallclock 裁定）；PMI→bp 同步有
+      // 同值守卫不回环；失败不阻断。
+      if (openTime && prevTime && openTime.getTime() !== prevTime.openTime.getTime() && updated.projectManagementItemId) {
+        const p = (x: number) => String(x).padStart(2, '0');
+        const bj = new Date(openTime.getTime() + 8 * 3600_000);
+        const cn = `${bj.getUTCFullYear()}年${bj.getUTCMonth() + 1}月${bj.getUTCDate()}日 ${p(bj.getUTCHours())}:${p(bj.getUTCMinutes())}`;
+        this.prisma.projectManagementItem
+          .update({ where: { id: updated.projectManagementItemId }, data: { bidOpeningTime: cn } })
+          .then(() => {
+            this.logger.log(`开标时间回写 PMI：BidProject ${id} → PMI ${updated.projectManagementItemId}（${cn}）`);
+          })
+          .catch((e: Error) => {
+            this.logger.warn(`开标时间回写 PMI 失败（不阻断）: ${e.message}`);
+          });
+      }
     }
     return updated;
   }

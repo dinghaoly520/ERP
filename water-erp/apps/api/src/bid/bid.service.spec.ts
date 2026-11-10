@@ -387,6 +387,34 @@ describe('BidService — stage transitions', () => {
           .rejects.toMatchObject({ response: { code: 'LEGAL_FLAG_LOCKED' } });
         expect(prisma.bidProject.update).not.toHaveBeenCalled();
       });
+      it('开标时间变更 → 回写 PMI 中文格式 +08 墙钟（一处修改全局统一，2026-11-10）', async () => {
+        const prev = new Date('2026-11-15T01:00:00.000Z'); // 北京 09:00
+        const next = new Date('2026-11-16T01:00:00.000Z'); // 北京 09:00
+        prisma.bidProject.findUnique.mockResolvedValue({ openTime: prev, deadline: new Date(prev.getTime() - 600_000), stage: 'SUBMIT' });
+        prisma.bidProject.update.mockResolvedValue({ id: 'p1', projectManagementItemId: 'pmi-1' });
+        prisma.bidSupervisionLog.create.mockResolvedValue({} as any); // 留痕链 .catch 需要 Promise 返回
+        prisma.auditLog.create.mockResolvedValue({} as any);
+        prisma.projectManagementItem.update.mockResolvedValue({} as any); // 回写链 .then 需要 Promise 返回
+
+        await service.updateProject('p1', { openTime: next.toISOString() } as any, 'u1');
+
+        // 回写格式固定北京时间（服务器 UTC 容器下不得偏 8h——beijing-wallclock 裁定）
+        expect(prisma.projectManagementItem.update).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { id: 'pmi-1' }, data: { bidOpeningTime: '2026年11月16日 09:00' } }),
+        );
+      });
+      it('开标时间同值重放（DB 已新值）→ 不回写 PMI', async () => {
+        const next = new Date('2026-11-16T01:00:00.000Z');
+        prisma.bidProject.findUnique.mockResolvedValue({ openTime: next, deadline: new Date(next.getTime() - 600_000), stage: 'SUBMIT' });
+        prisma.bidProject.update.mockResolvedValue({ id: 'p1', projectManagementItemId: 'pmi-1' });
+        prisma.bidSupervisionLog.create.mockResolvedValue({} as any);
+        prisma.auditLog.create.mockResolvedValue({} as any);
+        prisma.projectManagementItem.update.mockClear();
+
+        await service.updateProject('p1', { openTime: next.toISOString() } as any, 'u1');
+
+        expect(prisma.projectManagementItem.update).not.toHaveBeenCalled();
+      });
     });
   });
 
