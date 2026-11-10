@@ -190,20 +190,25 @@ export class AiController {
 
   @Post('dashboard-analysis')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  @ApiOperation({ summary: 'AI采购仪表盘深度分析（从procurement迁入；带 cacheKey 时生成结果落服务端缓存——每公司视野一份最新）' })
+  @ApiOperation({ summary: 'AI采购仪表盘深度分析（从procurement迁入；admin 带 cacheKey 时生成结果落服务端缓存——每公司视野一份最新）' })
   @Roles('admin', 'bid_host', 'leader', 'staff')
-  async dashboardAnalysis(@Body() payload: DashboardAnalysisDto) {
+  async dashboardAnalysis(@CurrentUser() user: AuthenticatedUser, @Body() payload: DashboardAnalysisDto) {
+    // 缓存写仅 admin（2026-11-10 稳健轮）：非 admin 的 companyId 参数本被数据端点忽略，
+    // 若放行 cacheKey 会用本公司数据污染他公司缓存键（管理员命中错内容=跨公司错标）
+    if (user.role !== 'admin') payload.cacheKey = undefined;
     return this.aiService.analyzeDashboard(payload);
   }
 
   @Get('dashboard-analysis/cache')
-  @ApiOperation({ summary: '仪表盘 AI 分析缓存提取（2026-11-10）：按公司视野+日期区间取最新一份，数据指纹未变即命中，不再每次重新生成' })
+  @ApiOperation({ summary: '仪表盘 AI 分析缓存提取（2026-11-10）：按公司视野+日期区间取最新一份，数据指纹未变即命中，不再每次重新生成（仅 admin——公司选择器为 admin 专用，非 admin 一律 miss 走隔离链路）' })
   @Roles('admin', 'bid_host', 'leader', 'staff')
   async dashboardAnalysisCache(
+    @CurrentUser() user: AuthenticatedUser,
     @Query('companyId') companyId = 'all',
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
+    if (user.role !== 'admin') return { hit: false, fingerprint: '' };
     return this.aiService.getDashboardAnalysisCache(companyId, startDate, endDate);
   }
 
