@@ -903,8 +903,8 @@ export class AnnouncementService {
       }).catch(e => this.logger.warn(`补遗计数更新失败 bidDoc=${bidDoc.id}: ${(e as Error).message}`));
     }
 
-    // ② 通知已下载过文件或受邀的供应商（去重）。受众=获取文件∪名册（招标投标法 23 条：
-    //    澄清/修改须告知所有获取了文件的潜在投标人，故仅下载未投递者也通知）；
+    // ② 通知已下载过文件或受邀的供应商（去重）。受众=获取文件∪名册∪RESTRICTED白名单
+    //    （招标投标法 23 条：澄清/修改须告知所有获取了文件的潜在投标人，故仅下载未投递者也通知）；
     //    【与您相关】标记另设参与闸（2026-11-10 用户裁定）：仅名册内（受邀/已投递=真参与）才标。
     const [accesses, invited] = await Promise.all([
       bidDoc
@@ -913,8 +913,16 @@ export class AnnouncementService {
       this.prisma.bidSupplier.findMany({ where: { projectId: project.id }, select: { supplierId: true } }),
     ]);
     const participantIds = new Set(invited.map(b => b.supplierId).filter((id): id is string => !!id));
+    // RESTRICTED 定向白名单并入受众（2026-11-10 稳健轮）：单轨化撤了通用轨的 RESTRICTED 分支，
+    // 白名单内、非获取非名册的供应商不能因此丢通知（同老通用轨口径：仅 APPROVED）；非名册 → 不带标记。
+    const restrictedIds = meta.visibility === 'RESTRICTED' && Array.isArray(meta.restrictedSupplierIds)
+      ? (meta.restrictedSupplierIds as string[]).filter((id): id is string => typeof id === 'string')
+      : [];
+    const whitelisted = restrictedIds.length > 0
+      ? await this.prisma.supplier.findMany({ where: { id: { in: restrictedIds }, status: 'APPROVED' }, select: { id: true } })
+      : [];
     const supplierIds = [...new Set(
-      [...accesses.map(a => a.supplierId), ...participantIds].filter((id): id is string => !!id),
+      [...accesses.map(a => a.supplierId), ...participantIds, ...whitelisted.map(w => w.id)].filter((id): id is string => !!id),
     )];
     if (supplierIds.length === 0) return {};
     const suppliers = await this.prisma.supplier.findMany({

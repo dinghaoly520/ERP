@@ -1810,6 +1810,31 @@ describe('AnnouncementService — syncAddendum 开标时间联动（2026-11-06 �
       content: expect.stringContaining('您获取过'),
     }) });
   });
+
+  it('RESTRICTED 白名单并入受众（2026-11-10 稳健轮：单轨化后白名单收件人不丢通知）→ 白名单-only 供应商收到但不带标', async () => {
+    const { service, prisma } = await makeSvc({
+      announcement: {
+        findUnique: jest.fn().mockResolvedValue({
+          ...baseAnn,
+          metadata: { ...baseAnn.metadata, visibility: 'RESTRICTED', restrictedSupplierIds: ['sup-w', 'sup-1'] },
+        }),
+        findFirst: jest.fn(), update: jest.fn(),
+      },
+      // 白名单查询（带 status: 'APPROVED'）与受众查询（无 status）按 where 形状分派
+      supplier: { findMany: jest.fn(async (args: any) =>
+        args?.where?.status === 'APPROVED'
+          ? [{ id: 'sup-w' }, { id: 'sup-1' }] // 白名单（仅 APPROVED，与老通用轨同口径）
+          : [{ id: 'sup-1', userId: 'u-1' }, { id: 'sup-w', userId: 'u-w' }]) },
+    });
+    await service.syncAddendum('add-1');
+    const titles = prisma.notification.create.mock.calls.map((c: any[]) => c[0].data);
+    // 名册内 sup-1：带标+『您参与的』；白名单-only sup-w：收到但无标（参与闸）
+    expect(titles).toEqual(expect.arrayContaining([
+      expect.objectContaining({ userId: 'u-1', title: '【与您相关】补遗公告：补遗公告X' }),
+      expect.objectContaining({ userId: 'u-w', title: '补遗公告：补遗公告X' }),
+    ]));
+    expect(titles).toHaveLength(2);
+  });
 });
 
 describe('AnnouncementService — notifySuppliersOnPublish 补遗单轨与定向标记（2026-11-10 用户裁定）', () => {
@@ -1832,6 +1857,10 @@ describe('AnnouncementService — notifySuppliersOnPublish 补遗单轨与定向
     await service.notifySuppliersOnPublish('ann-1', '补遗X', { __type: 'ADDENDUM' });
     expect(prisma.notification.create).not.toHaveBeenCalled();
     expect(prisma.user.findMany).not.toHaveBeenCalled(); // 未进入任何收件人解析
+    // RESTRICTED 补遗同样跳过——白名单收件人由 syncAddendum 并入受众（稳健轮），通用轨再发即双发
+    await service.notifySuppliersOnPublish('ann-1', '补遗X', { __type: 'ADDENDUM', visibility: 'RESTRICTED', restrictedSupplierIds: ['s1'] });
+    expect(prisma.notification.create).not.toHaveBeenCalled();
+    expect(prisma.supplier.findMany).not.toHaveBeenCalled();
   });
 
   it('项目内类（WIN_NOTICE）→ 名册定向 + 【与您相关】前缀', async () => {
