@@ -176,8 +176,9 @@ export class SupplierLinkService {
       });
       if (claimed.count === 0) throw new ConflictException({ error: '申请状态已变更，请刷新后重试', code: 'CONFLICT' });
       if (userId) await this.audit(userId, 'SUPPLIER_LINK_APPROVED', linkId, { supplierId: link.supplierId, companyId: link.companyId, stage });
-      await this.notificationService.create({
-        userId: link.supplier.userId,
+      // 入库完成显式短信（2026-11-10 增补）：站内信+短信双通道（11-05 裁定后 create() 不外发短信，
+      // 入库结果是供应商参与该公司采购的前置，须及时知晓——收窄清单内单点放行）
+      await this.notificationService.sendToUser(link.supplier.userId, ['in_app', 'sms'], {
         type: 'SUPPLIER_LINK_APPROVED',
         title: `已加入 ${link.company.name} 供应商库`,
         content: `贵司加入 ${link.company.name} 的申请已通过三级审核，正式入库。`,

@@ -115,7 +115,10 @@ describe('SupplierLinkService — 公司侧（三级审批）', () => {
       },
       auditLog: { create: jest.fn().mockResolvedValue({}) },
     };
-    const notify = { create: jest.fn().mockResolvedValue({}) };
+    const notify = {
+      create: jest.fn().mockResolvedValue({}),
+      sendToUser: jest.fn().mockResolvedValue({ userId: 'u1', results: {} }),
+    };
     // I1 终审修复（2026-10-19）：setDisabled 经 resolveScope+assertInScope 断言本公司 link——
     // 桩与真 CompanyScopeService 同语义（限定集不含目标公司 id → 403 COMPANY_SCOPE_FORBIDDEN）
     const SCOPE: any = {
@@ -161,6 +164,22 @@ describe('SupplierLinkService — 公司侧（三级审批）', () => {
     const clash = mkSide({ link: { reviewStage: 'ADMIN' }, reviewer: { id: 'adm', role: 'admin', companyId: null } });
     (clash.prisma.supplierCompanyLink.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
     await expect(clash.svc.approveLink('l1', 'adm')).rejects.toMatchObject({ response: { code: 'CONFLICT' } });
+  });
+
+  it('approveLink ADMIN 终审通知走显式短信渠道（2026-11-10 增补）：sendToUser in_app+sms、文案与站内信同源', async () => {
+    const admin = mkSide({ link: { reviewStage: 'ADMIN' }, reviewer: { id: 'adm', role: 'admin', companyId: null } });
+    await admin.svc.approveLink('l1', 'adm', undefined);
+    expect(admin.notify.sendToUser).toHaveBeenCalledWith(
+      'u1',
+      ['in_app', 'sms'],
+      expect.objectContaining({
+        type: 'SUPPLIER_LINK_APPROVED',
+        title: '已加入 乙公司 供应商库',
+        content: '贵司加入 乙公司 的申请已通过三级审核，正式入库。',
+      }),
+    );
+    // 站内信不再走隐式 create()（11-05 裁定后 create 不外发短信，此处须显式渠道才带短信）
+    expect(admin.notify.create).not.toHaveBeenCalled();
   });
 
   it('approveLink：非待审态（APPROVED）→ 400 INVALID_STATUS', async () => {
