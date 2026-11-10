@@ -18,6 +18,7 @@ import { buildClarificationReplyCanonical, buildClarificationReplyCanonicalV2 } 
 import { buildOpeningConfirmCanonical, buildOpeningConfirmCanonicalV2, computeOpeningRecordHash } from './opening-confirm-signature.util';
 import { ClarificationReplyDraftDto, SubmitClarificationReplyDto } from './dto/clarification-reply.dto';
 import { isSupplierChangeAllowedField, supplierChangeFieldLabel } from '../supplier/supplier-change-fields';
+import { assertCreditCodeChangeable } from '../supplier/credit-code-change.util';
 import { resolveEnvelopeVersion } from './envelope-version.util';
 import { resolveOpeningAmountUnitMap } from '../bid/opening-amount-unit.util';
 import { encryptBuffer, decryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
@@ -1282,6 +1283,12 @@ export class SupplierPortalService {
     // 字段白名单校验
     if (!isSupplierChangeAllowedField(dto.fieldName)) {
       throw new BadRequestException({ error: '该字段不允许通过变更申请修改', code: 'FIELD_NOT_ALLOWED' });
+    }
+
+    // 统一社会信用代码四闸（2026-11-10 放开变更）：格式/同值/全库查重/登录名占用——
+    // username=信用代码为注册三处强制口径，新代码被占用若拖到审批时才发现则记录悬死
+    if (dto.fieldName === 'creditCode') {
+      await assertCreditCodeChangeable(this.prisma, supplier, dto.newValue);
     }
 
     const oldValue = supplier[dto.fieldName as keyof typeof supplier] as string;

@@ -18,6 +18,7 @@ import { CreateQualificationDto } from './dto/create-qualification.dto';
 import { CreateEvaluationDto } from './dto/create-evaluation.dto';
 import { NegotiationConfigDto } from './dto/negotiation-config.dto';
 import { isSupplierChangeAllowedField, supplierChangeFieldLabel } from './supplier-change-fields';
+import { assertCreditCodeChangeable } from './credit-code-change.util';
 import { shouldAutoDisable } from './supplier-performance';
 import { buildSupplierPortrait } from './supplier-portrait.util';
 import { generateBusinessTags, TAG_MAX, TAG_MIN } from './business-tags';
@@ -2743,6 +2744,12 @@ export class SupplierService {
       throw new BadRequestException({ error: '该字段不允许通过变更申请修改', code: 'FIELD_NOT_ALLOWED' });
     }
 
+    // 统一社会信用代码四闸（2026-11-10 放开变更）：格式/同值/全库查重/登录名占用——
+    // username=信用代码为注册三处强制口径，新代码被占用若拖到审批时才发现则记录悬死
+    if (dto.fieldName === 'creditCode') {
+      await assertCreditCodeChangeable(this.prisma, supplier, dto.newValue);
+    }
+
     // 同字段已有 PENDING 变更时拒绝——避免审核列表重复项 + 反复群发通知风暴。
     const dupPending = await this.prisma.supplierChangeRecord.findFirst({
       where: { supplierId, fieldName: dto.fieldName, status: 'PENDING' },
@@ -2804,6 +2811,7 @@ export class SupplierService {
     // #3 原子化：条件置位 + 应用字段变更并入同一事务。此前分两步，supplier.update 失败会留下
     // 「change 已 APPROVED 但字段未生效」且不可重试的不一致态。事务内 updateMany count=0 即冲突回滚。
     // #4 name 变更须同步 normalizedName 并查重，否则 register 按 normalizedName 查重失效→同名重复注册。
+    let creditCodeSyncUserId: string | null = null; // 信用代码变更 → 事务后通知供应商登录名已跟改
     await this.prisma.$transaction(async (tx) => {
       const claimed = await tx.supplierChangeRecord.updateMany({
         where: { id: changeId, status: 'PENDING' },
@@ -2836,6 +2844,22 @@ export class SupplierService {
           if (userDup) throw new BadRequestException({ error: '新企业名与已有供应商登录名冲突', code: 'DUPLICATE_USERNAME' });
           await tx.user.update({ where: { id: supRow.userId }, data: { username: newName } });
         }
+      }
+
+      if (change.fieldName === 'creditCode') {
+        // 统一社会信用代码变更（2026-11-10 放开）：审批时点再校验（不信任提交时点——期间他司
+        // 可能已注册占用新代码；存量记录格式脏亦拦）。三处联动落库：
+        // creditCode + organizationCode（建档三处冗余同源）+ user.username（注册三处强制口径）。
+        const supRow = await tx.supplier.findUnique({
+          where: { id: change.supplierId },
+          select: { id: true, userId: true, creditCode: true },
+        });
+        if (!supRow) throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
+        const newCode = await assertCreditCodeChangeable(tx, supRow, change.newValue);
+        data.creditCode = newCode;
+        data.organizationCode = newCode;
+        await tx.user.update({ where: { id: supRow.userId }, data: { username: newCode } });
+        creditCodeSyncUserId = supRow.userId;
       }
 
       if (change.fieldName === 'tags') {
@@ -2917,6 +2941,19 @@ export class SupplierService {
       await tx.supplier.update({ where: { id: change.supplierId }, data });
     });
 
+    // 信用代码变更落地 → 站内通知供应商登录账号已同步（改登录名必须主动告知；
+    // 旧企业名仍可经登录别名反查登录——auth.service login OR[{creditCode},{name}]），
+    // CA 绑定身份核对按 creditCode 比对（ca-binding I10 fail-closed），改码后旧证书失配须重绑。
+    if (creditCodeSyncUserId) {
+      await this.notificationService.create({
+        userId: creditCodeSyncUserId,
+        type: 'SUPPLIER_CHANGE_APPROVED',
+        title: '统一社会信用代码已变更',
+        content: '贵司统一社会信用代码变更已审核通过，登录账号已同步变更为新代码，下次登录请使用新统一社会信用代码（企业名称仍可登录）。如已绑定CA证书提示身份不一致，请重新绑定。',
+        link: '/change-records',
+      }).catch(() => {});
+    }
+
     // 变更审批（敏感操作）补审计留痕。
     await this.audit(reviewerId, 'SUPPLIER_CHANGE_APPROVED', change.supplierId, { field: change.fieldName });
 
@@ -2972,13 +3009,27 @@ export class SupplierService {
         throw new BadRequestException({ error: '变更记录已被处理，请勿重复审批', code: 'CONFLICT' });
       }
 
-      // 0) 信用代码变更查重（转正时可修正临时注册时的错填）
+      // 0) 信用代码变更查重（转正时可修正临时注册时的错填）+ 登录名联动（2026-11-10 补：
+      //    修正代码时须同步 user.username——注册口径 username=creditCode，不跟则转正后
+      //    新旧代码并存认知混乱；同值转正不动登录名）
       if (creditCode) {
         const dup = await tx.supplier.findFirst({
           where: { creditCode: String(creditCode), NOT: { id: change.supplierId } },
           select: { id: true },
         });
         if (dup) throw new BadRequestException({ error: '该统一社会信用代码已被其他供应商占用', code: 'DUPLICATE_CREDIT_CODE' });
+        const cur = await tx.supplier.findUnique({
+          where: { id: change.supplierId },
+          select: { userId: true, creditCode: true },
+        });
+        if (cur && String(creditCode) !== (cur.creditCode ?? '').trim()) {
+          const userDup = await tx.user.findFirst({
+            where: { username: String(creditCode), role: 'supplier', NOT: { id: cur.userId } },
+            select: { id: true },
+          });
+          if (userDup) throw new BadRequestException({ error: '该统一社会信用代码已被其他账号占用为登录名', code: 'DUPLICATE_USERNAME' });
+          await tx.user.update({ where: { id: cur.userId }, data: { username: String(creditCode) } });
+        }
       }
 
       // 1) 补全企业资料 + 信用代码 + 取消临时标记
@@ -2992,7 +3043,8 @@ export class SupplierService {
           legalPersonIdCardIdx: blindIndexPii(String(legalPersonIdCard)) ?? null,
           registeredAddress,
           businessScope,
-          ...(creditCode ? { creditCode: String(creditCode) } : {}),
+          // organizationCode=creditCode 冗余同源（建档三处口径，2026-11-10 补同步）
+          ...(creditCode ? { creditCode: String(creditCode), organizationCode: String(creditCode) } : {}),
           isTemporary: false,
           temporaryExpiresAt: null,
           ...(Array.isArray(tags) && tags.length >= 2 ? { tags: tags.filter((t: any) => typeof t === 'string' && t.trim()).slice(0, 8) } : {}),
