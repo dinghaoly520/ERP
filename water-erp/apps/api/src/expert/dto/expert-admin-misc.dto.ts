@@ -76,8 +76,9 @@ export class BatchOperationDto {
 export class ImportCsvDto {
   @IsArray() @IsObject({ each: true }) rows!: Array<Record<string, string>>;
 
-  /** 表格单位名 → 公司 id：未命中主数据的单位由前端弹窗人工指定（2026-11-09 用户裁定：
-   *  只能在既有公司内指定、禁止新建）；空串=显式「不归属」 */
+  /** 表格单位名 → 目标公司名（2026-11-10 契约：值由公司 id 改为公司名）：名单/主数据
+   *  两档自动解析都未命中的单位由前端弹窗人工指定；目标须为既有公司或集团名单内公司
+   *  （名单内缺档由服务端按名单规范名自动建档）；空串=显式「不归属」 */
   @IsOptional() @IsObject() companyMapping?: Record<string, string>;
 }
 

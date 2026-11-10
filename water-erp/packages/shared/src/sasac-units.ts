@@ -6,6 +6,13 @@ export interface SasacUnit {
   /** 统一社会信用代码（18 位） */
   code: string;
 }
+;
+/** 种子/历史简写 → 名单官方拼写：按名匹配前归一（专家导入三档解析/主数据同步脚本共用；
+ *  新增别名在此登记，勿散落各端） */
+export const SASAC_NAME_ALIASES: Record<string, string> = {
+  '引大济岷水资源开发有限公司': '四川省引大济岷水资源开发有限公司',
+};
+
 export const SASAC_UNITS: SasacUnit[] = [
   {
     "name": "四川省水利发展集团有限公司",

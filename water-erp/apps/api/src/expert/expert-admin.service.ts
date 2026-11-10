@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { hashSync } from 'bcryptjs';
 import { Prisma, ExpertLevel } from '@prisma/client';
+import { SASAC_UNITS, SASAC_NAME_ALIASES } from '@water-erp/shared';
 import { resolveRsvpLinkOrigin, type PortalLinkHeaders } from '../common/portal-link-origin';
 import { auditDetailSearchClauses } from '../common/audit-search.util';
 import { PrismaService } from '../prisma/prisma.service';
@@ -3090,10 +3091,11 @@ export class ExpertAdminService {
     return this.prisma.company.findFirst({ where: { name }, select: { id: true, name: true } });
   }
 
-  /** CSV 批量导入（表头灵活匹配）。归属二段式（2026-11-09 用户裁定）：表格单位名只对
-   *  公司主数据既有公司精确匹配；未命中的返回 needMapping+unmatched 由前端弹窗让用户
-   *  人工指定（companyMapping: 表格单位名 → 公司 id，空串=显式不归属），携映射重提——
-   *  全程禁止新建公司。 */
+  /** CSV 批量导入（表头灵活匹配）。归属三档解析（2026-11-10 用户裁定：集团 62 家名单
+   *  静态文件升为第二权威源，导入不再依赖 Company 主数据预建档）：①主数据精确命中；
+   *  ②名单精确命中（拼写别名先归一）→ 自动归属、公司行缺则按名单规范名建档（注册同款
+   *  懒建档——companyId 外键与公司隔离依赖公司行）；③needMapping 人工指定（表格单位名
+   *  → 目标公司名，空串=显式不归属；目标须为既有公司或名单内公司）。除名单外一律不新建。 */
   async importCsv(rows: Array<Record<string, string>>, operatorId?: string, companyMapping?: Record<string, string>) {
     const pick = (row: Record<string, string>, keys: string[]): string => {
       for (const k of Object.keys(row)) {
@@ -3110,9 +3112,7 @@ export class ExpertAdminService {
     const importedIds: string[] = [];
     const repairedIds: string[] = [];
 
-    // ── 归属预解析：表格单位名 → 既有公司（禁止新建）──
-    // 命中=精确同名；未命中=查 companyMapping 人工指定（id 必须真实存在；空串=显式不归属）；
-    // 仍未定的收集为 unmatched 返回前端弹窗——本轮不动任何数据。
+    // ── 归属预解析（三档，见方法头注释）──
     // 只收有效行（姓名+专业齐备）的单位名：必跳过的垃圾行不该把单位名带进指定面板
     const validRows = rows.filter(r => pick(r, ['姓名', '名称']) && pick(r, ['专业领域', '专业']));
     const distinctEmployers = [...new Set(
@@ -3122,23 +3122,44 @@ export class ExpertAdminService {
       ? await this.prisma.company.findMany({ where: { name: { in: distinctEmployers } }, select: { id: true, name: true } })
       : [];
     const bySheetName = new Map(matchedRows.map(c => [c.name, c]));
-    const mappingIds = [...new Set(
+    const sasacNames = new Set(SASAC_UNITS.map(u => u.name));
+    /** 名称 → 名单规范名（非名单且别名未登记返回 null） */
+    const canonicalSasac = (name: string): string | null => {
+      if (sasacNames.has(name)) return name;
+      const aliased = SASAC_NAME_ALIASES[name];
+      return aliased && sasacNames.has(aliased) ? aliased : null;
+    };
+    const mappingTargets = [...new Set(
       Object.values(companyMapping ?? {}).map(v => v?.trim()).filter((v): v is string => !!v)
     )];
-    const mappedCompanies = mappingIds.length
-      ? await this.prisma.company.findMany({ where: { id: { in: mappingIds } }, select: { id: true, name: true } })
+    const mappedRows = mappingTargets.length
+      ? await this.prisma.company.findMany({ where: { name: { in: mappingTargets } }, select: { id: true, name: true } })
       : [];
-    const byMappedId = new Map(mappedCompanies.map(c => [c.id, c]));
-    const resolution = new Map<string, { id: string; name: string; via: 'match' | 'manual' } | null>();
+    const byTargetName = new Map(mappedRows.map(c => [c.name, c]));
+    for (const t of mappingTargets) {
+      if (!byTargetName.has(t) && !canonicalSasac(t)) {
+        throw new BadRequestException({ error: `指定的归属公司「${t}」不存在（仅可选系统已有公司或集团名单内公司）`, code: 'COMPANY_NOT_FOUND' });
+      }
+    }
+    /** 名单内公司按需建档：只写规范名——shortName/code 是人工维护的项目编号前缀（SWHI 等），
+     *  名单 18 位是社会信用代码，语义不同不写入 */
+    const ensureListedCompany = async (canonical: string): Promise<{ id: string; name: string }> => {
+      const existing = await this.prisma.company.findUnique({ where: { name: canonical }, select: { id: true, name: true } });
+      if (existing) return existing;
+      return this.prisma.company.create({ data: { name: canonical }, select: { id: true, name: true } });
+    };
+    const resolution = new Map<string, { id: string; name: string; via: 'match' | 'auto' | 'manual' } | null>();
     const unmatched: string[] = [];
     for (const name of distinctEmployers) {
       const hit = bySheetName.get(name);
       if (hit) { resolution.set(name, { id: hit.id, name: hit.name, via: 'match' }); continue; }
-      const mappedId = (companyMapping ?? {})[name]?.trim();
-      if (mappedId) {
-        const c = byMappedId.get(mappedId);
-        if (!c) throw new BadRequestException({ error: `「${name}」指定的归属公司不存在，请重新选择`, code: 'COMPANY_NOT_FOUND' });
-        resolution.set(name, { id: c.id, name: c.name, via: 'manual' });
+      const auto = canonicalSasac(name);
+      if (auto) { resolution.set(name, { ...(await ensureListedCompany(auto)), via: 'auto' }); continue; }
+      const target = (companyMapping ?? {})[name]?.trim();
+      if (target) {
+        // 预检已保证目标存在：既有公司行或名单规范名
+        const existing = byTargetName.get(target);
+        resolution.set(name, { ...(existing ?? (await ensureListedCompany(canonicalSasac(target)!))), via: 'manual' });
       } else if (name in (companyMapping ?? {})) {
         resolution.set(name, null); // 显式「不归属」
       } else {

@@ -11,14 +11,12 @@
  * - 幂等：重复执行只补缺，安全；生产跑一次即可
  */
 import { PrismaClient } from '@prisma/client';
-import { SASAC_UNITS } from '@water-erp/shared';
+import { SASAC_UNITS, SASAC_NAME_ALIASES } from '@water-erp/shared';
 
 const prisma = new PrismaClient();
 
-/** 种子/历史简写 → 名单官方拼写（同步时改名并轨；新增别名在此登记） */
-const NAME_ALIASES: Record<string, string> = {
-  '引大济岷水资源开发有限公司': '四川省引大济岷水资源开发有限公司',
-};
+// 拼写别名单源在 @water-erp/shared（SASAC_NAME_ALIASES）——与导入三档解析共用
+const NAME_ALIASES = SASAC_NAME_ALIASES;
 
 /** 持 companyId 的模型（12 个 FK 关系 + SupplierObjection/Contract 裸列）——两行并轨时迁移归属 */
 const COMPANY_ID_MODELS = [

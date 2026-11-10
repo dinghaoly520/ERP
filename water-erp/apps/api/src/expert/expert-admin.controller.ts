@@ -370,7 +370,7 @@ export class ExpertAdminController {
 
   @Post('import-csv')
   @Roles('admin') // 录入通道随「录入专家」一并收窄 admin（CSV 导入在录入弹窗内）
-  @ApiOperation({ summary: 'CSV 批量导入专家（仅 admin；按表格工作单位归属、导入后待审核。未命中公司主数据的单位返回 needMapping 待人工指定，禁止新建公司）' })
+  @ApiOperation({ summary: 'CSV 批量导入专家（仅 admin；按表格工作单位归属、导入后待审核。归属三档解析：主数据精确命中→集团名单精确命中自动归属（缺档按名单名建档）→needMapping 人工指定（companyMapping：单位名→公司名，空串=不归属））' })
   importCsv(@Body() dto: ImportCsvDto, @Request() req: any) {
     return this.expertAdminService.importCsv(dto.rows, req.user?.sub, dto.companyMapping);
   }

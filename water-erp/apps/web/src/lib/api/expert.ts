@@ -543,8 +543,9 @@ export function getLoadDistribution(companyId?: string) {
 }
 
 /* 批量导入 */
-/** 二段式（2026-11-09 用户裁定）：表格单位名未命中公司主数据时返回本形态——
- *  前端弹窗让用户在既有公司内人工指定归属（禁止新建），携 companyMapping 重提 */
+/** 三档解析兜底（2026-11-10 用户裁定）：表格单位名对 Company 主数据与集团 62 家名单
+ *  （含拼写别名）两档精确解析都未命中时返回本形态——前端弹窗人工指定归属
+ *  （选项=已有公司∪集团名单、相似度置顶），携 companyMapping 重提 */
 export type ExpertImportNeedsMapping = { needMapping: true; unmatched: string[] };
 
 export type ExpertImportDone = {
@@ -565,7 +566,8 @@ export type ExpertImportDone = {
 };
 export type ExpertImportResult = ExpertImportNeedsMapping | ExpertImportDone;
 
-/** companyMapping：表格单位名 → 公司 id（空串=显式不归属）——弹窗指定后随行重提 */
+/** companyMapping：表格单位名 → 目标公司名（2026-11-10 契约：值由公司 id 改为公司名；
+ *  目标须为既有公司或集团名单内公司，空串=显式不归属）——弹窗指定后随行重提 */
 export function importCsv(rows: Array<Record<string, string>>, companyMapping?: Record<string, string>) {
   return api.post<ExpertImportResult>('/expert-admin/import-csv', { rows, ...(companyMapping && { companyMapping }) });
 }

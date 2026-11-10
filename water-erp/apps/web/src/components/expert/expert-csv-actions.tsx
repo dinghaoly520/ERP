@@ -6,6 +6,8 @@ import { importCsv, expertImportBatchApprove, type ExpertImportDone } from '@/li
 import { api } from '@/lib/api';
 import { SearchSelect } from '@/components/workbench/search-select';
 import { useConfirm } from '@/components/workbench/use-confirm';
+import { SASAC_UNITS } from '@/lib/data/sasac-units';
+import { rankCompaniesBySimilarity } from '@/lib/company-name-similarity';
 import { Workbook } from 'exceljs';
 import { Download, Upload, Loader2, Eye, ChevronDown } from 'lucide-react';
 
@@ -23,11 +25,13 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ExpertImportDone | null>(null);
   const [showPreview, setShowPreview] = useState(false);
-  // 归属指定面板（2026-11-09 用户裁定）：表格单位名未命中公司主数据 → 弹面板让用户
-  // 在既有公司（:3005 注册名单）内人工指定归属，禁止新建；Promise 与导入流程衔接
+  // 归属指定面板（2026-11-10 用户裁定）：表格单位名两档精确解析（Company 主数据 +
+  // 集团 62 家名单静态文件）都未命中时弹面板人工指定。选项 = 系统已有公司 ∪ 集团名单
+  // （按名并集去重、DB 行优先）；每行下拉按名字相似度排序、最可能的公司置顶；选名单
+  // 公司而 DB 无档时，导入侧按名单规范名自动建档（后端三档解析）；Promise 与导入流程衔接
   const [mappingPanel, setMappingPanel] = useState<{
     unmatched: string[];
-    companies: Array<{ value: string; label: string }>;
+    candidates: string[];
     draft: Record<string, string>;
   } | null>(null);
   const mappingResolveRef = useRef<((m: Record<string, string> | null) => void) | null>(null);
@@ -35,20 +39,20 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
   useEffect(() => () => { mappingResolveRef.current?.(null); mappingResolveRef.current = null; }, []);
 
   const requestCompanyMapping = async (unmatched: string[]): Promise<Record<string, string> | null> => {
+    let candidates: string[];
     try {
       const companies = await api.get<Array<{ id: string; name: string }>>('/companies');
-      return await new Promise<Record<string, string> | null>((resolve) => {
-        mappingResolveRef.current = resolve;
-        setMappingPanel({
-          unmatched,
-          companies: companies.map(c => ({ value: c.id, label: c.name })),
-          draft: {},
-        });
-      });
+      const byName = new Map<string, true>(companies.map(c => [c.name, true]));
+      for (const u of SASAC_UNITS) if (!byName.has(u.name)) byName.set(u.name, true);
+      candidates = [...byName.keys()];
     } catch {
-      toast.error('获取公司主数据失败，无法指定归属');
-      return null;
+      // 公司接口不可用也照常弹面板：名单即第二权威源（2026-11-10），仅少 DB 独有公司
+      candidates = SASAC_UNITS.map(u => u.name);
     }
+    return await new Promise<Record<string, string> | null>((resolve) => {
+      mappingResolveRef.current = resolve;
+      setMappingPanel({ unmatched, candidates, draft: {} });
+    });
   };
 
   const confirmMapping = () => {
@@ -403,14 +407,15 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
         <p className="text-[10px] text-[var(--muted-foreground)]/70 leading-relaxed">支持 .xlsx 与 .csv（模板两用）；必填姓名/专业领域——登录账号=姓名、初始口令=身份证号自动生成。身份证与手机号列请设为「文本」格式，避免 Excel 数值失真。</p>
       </div>
 
-      {/* 归属指定面板：表格单位名未命中公司主数据时出现（2026-11-09 用户裁定：
-          逐个指定到既有公司，禁止新建；确认后携映射继续导入，取消则整单不写入） */}
+      {/* 归属指定面板：表格单位名两档精确解析（主数据+集团名单）都未命中时出现
+          （2026-11-10 用户裁定：选项=已有公司∪集团名单、按相似度置顶最可能；
+          确认后携映射继续导入，取消则整单不写入） */}
       {mappingPanel && (
         <div className="rounded-xl border border-[color-mix(in_oklch,var(--accent)_30%,transparent)] bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] p-4 space-y-3">
           <div>
             <h4 className="text-xs font-bold text-[var(--foreground)]">指定单位归属</h4>
             <p className="text-[10px] text-[var(--muted-foreground)] mt-0.5 leading-relaxed">
-              表格中下列「工作单位」未能与系统已有公司自动匹配，请为每个单位指定归属公司（仅限已有公司，不支持新建）；确属集团外单位，可选择「不归属」。
+              表格中下列「工作单位」未能自动匹配，请为每个单位指定归属公司（可选系统已有公司或集团名单内公司，下拉首项为最可能的一家）；确属集团外单位，可选择「不归属」。
             </p>
           </div>
           <div className="max-h-[260px] space-y-2 overflow-y-auto pr-1">
@@ -420,8 +425,11 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
                 <div className="min-w-0 flex-1">
                   <SearchSelect
                     options={[
+                      // 相似度置顶（2026-11-10 用户裁定）：该行最可能的公司排第一并标「最可能」，
+                      // 「不归属」是显式兜底沉底。SearchSelect 按传入顺序渲染、过滤不改序
+                      ...rankCompaniesBySimilarity(name, mappingPanel.candidates.map(n => ({ name: n })))
+                        .map((c, i) => ({ value: c.name, label: c.name, ...(i === 0 && c.similarity > 0 && { meta: '最可能' }) })),
                       { value: '__NONE__', label: '不归属（保留单位原文）' },
-                      ...mappingPanel.companies,
                     ]}
                     value={mappingPanel.draft[name] ?? ''}
                     onPick={(o) => setMappingPanel(p => (p ? { ...p, draft: { ...p.draft, [name]: o.value } } : p))}
@@ -461,8 +469,8 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
             <span>跳过 <strong className="text-[var(--warning)]">{importResult.skipped}</strong></span>
             <span>失败 <strong className="text-[var(--danger)]">{importResult.failed}</strong></span>
           </div>
-          {/* 未命中主数据的单位按人工指定归属（2026-11-09 用户裁定：只能在既有公司内
-              指定、禁止新建）——指定关系显式回显，归属口径有据可查 */}
+          {/* 未自动命中的单位按人工指定归属（2026-11-10：目标=已有公司或集团名单内公司）
+              ——指定关系显式回显，归属口径有据可查 */}
           {(importResult.manualMappings?.length ?? 0) > 0 && (
             <p className="text-[11px] leading-relaxed text-[color:var(--accent)]">
               以下 {importResult.manualMappings!.length} 个表格单位经人工指定归属：
