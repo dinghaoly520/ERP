@@ -76,14 +76,15 @@ function fmtCn(iso: string): string {
 // 正文不带公司落款（2026-11-10 用户裁定）：短信通道发送时自动前置【四川省水利发展集团】签名，
 // 正文落款冗余且多耗分段字数——供应商/专家模板一律不附
 function buildSupplierTemplate(bp: BidProjectRef, mode: OpeningDecisionMode, fmt: string) {
+  // 供应商无需到场（2026-11-10 用户裁定）：线上解密即可，文案只请关注开标动态，不出现「出席」
   return mode === 'ontime'
     ? {
         title: `开标通知：${bp.name}`,
-        body: `{供应商名称} 您好！\n\n项目 ${bp.projectCode}（${bp.name}）将按计划于 ${fmt} 开标，请您安排代表准时出席，具体开标安排请以供应商门户最新通知为准。`,
+        body: `{供应商名称} 您好！\n\n项目 ${bp.projectCode}（${bp.name}）将按计划于 ${fmt} 开标，请及时关注供应商门户开标动态与相关通知。`,
       }
     : {
         title: `开标时间变更：${bp.name}`,
-        body: `{供应商名称} 您好！\n\n项目 ${bp.projectCode}（${bp.name}）开标时间调整至 ${fmt}，请您以最新时间为准安排出席；投标截止时间不变。`,
+        body: `{供应商名称} 您好！\n\n项目 ${bp.projectCode}（${bp.name}）开标时间调整至 ${fmt}，请以最新时间为准关注开标动态；投标截止时间不变。`,
       };
 }
 function buildExpertTemplate(bp: BidProjectRef, mode: OpeningDecisionMode, fmt: string) {
