@@ -1722,7 +1722,7 @@ describe('AnnouncementService — syncAddendum 开标时间联动（2026-11-06 �
       bidDocument: { findFirst: jest.fn().mockResolvedValue({ id: 'doc-1' }), update: jest.fn().mockResolvedValue({}) },
       bidDocumentAccess: { findMany: jest.fn().mockResolvedValue([{ supplierId: 'sup-1' }]) },
       bidSupplier: { findMany: jest.fn().mockResolvedValue([{ supplierId: 'sup-1' }]) },
-      supplier: { findMany: jest.fn().mockResolvedValue([{ userId: 'u-1' }]) },
+      supplier: { findMany: jest.fn().mockResolvedValue([{ id: 'sup-1', userId: 'u-1' }]) },
       notification: { create: jest.fn().mockResolvedValue({}) },
       auditLog: { create: jest.fn().mockResolvedValue({}) },
       ...prismaOverrides,
@@ -1789,6 +1789,67 @@ describe('AnnouncementService — syncAddendum 开标时间联动（2026-11-06 �
     expect(r).toEqual({});
     expect(prisma.bidProject.update).not.toHaveBeenCalled();
     expect(prisma.bidDocument.update).toHaveBeenCalled();
+  });
+
+  it('参与闸（2026-11-10 用户裁定）：名册内供应商（受邀/已投递=真参与）→ 带【与您相关】+『您参与的』文案', async () => {
+    const { service, prisma } = await makeSvc();
+    await service.syncAddendum('add-1');
+    expect(prisma.notification.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      userId: 'u-1',
+      title: '【与您相关】补遗公告：补遗公告X',
+      content: expect.stringContaining('您参与的'),
+    }) });
+  });
+
+  it('参与闸：仅获取过文件未入名册（潜在投标人，招标投标法 23 条仍告知）→ 通知保留但不带标记、文案改『您获取过』', async () => {
+    const { service, prisma } = await makeSvc({ bidSupplier: { findMany: jest.fn().mockResolvedValue([]) } });
+    await service.syncAddendum('add-1');
+    expect(prisma.notification.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      userId: 'u-1',
+      title: '补遗公告：补遗公告X',
+      content: expect.stringContaining('您获取过'),
+    }) });
+  });
+});
+
+describe('AnnouncementService — notifySuppliersOnPublish 补遗单轨与定向标记（2026-11-10 用户裁定）', () => {
+  const mk = async (overrides: Record<string, any> = {}) => {
+    const prisma: any = {
+      announcement: { findUnique: jest.fn().mockResolvedValue({ relatedProjectCode: 'SWHI-TP-1' }) },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([{ supplier: { userId: 'u-1' } }]) },
+      user: { findMany: jest.fn().mockResolvedValue([{ id: 'u-1' }, { id: 'u-2' }]) },
+      supplier: { findMany: jest.fn().mockResolvedValue([]) },
+      notification: { create: jest.fn().mockResolvedValue({}) },
+      ...overrides,
+    };
+    const { AnnouncementService: Svc } = await import('./announcement.service');
+    const service: any = new (Svc as any)(prisma, {}, undefined, undefined);
+    return { service, prisma };
+  };
+
+  it('ADDENDUM → 通用钩子零通知（补遗归 syncAddendum 专用轨——防同一条补遗同分钟双通知）', async () => {
+    const { service, prisma } = await mk();
+    await service.notifySuppliersOnPublish('ann-1', '补遗X', { __type: 'ADDENDUM' });
+    expect(prisma.notification.create).not.toHaveBeenCalled();
+    expect(prisma.user.findMany).not.toHaveBeenCalled(); // 未进入任何收件人解析
+  });
+
+  it('项目内类（WIN_NOTICE）→ 名册定向 + 【与您相关】前缀', async () => {
+    const { service, prisma } = await mk();
+    await service.notifySuppliersOnPublish('ann-1', '成交公告X', { __type: 'WIN_NOTICE' });
+    expect(prisma.bidSupplier.findMany).toHaveBeenCalled(); // 名册轨而非全量
+    expect(prisma.notification.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      userId: 'u-1', type: 'ANNOUNCEMENT_PUBLISHED', title: '【与您相关】新成交公告：成交公告X',
+    }) });
+  });
+
+  it('广播类（BID_NOTICE）→ 全量收件、无前缀（广播永不标）', async () => {
+    const { service, prisma } = await mk();
+    await service.notifySuppliersOnPublish('ann-1', '采购公告X', { __type: 'BID_NOTICE' });
+    expect(prisma.user.findMany).toHaveBeenCalled();
+    expect(prisma.notification.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      title: '新采购公告：采购公告X',
+    }) });
   });
 });
 

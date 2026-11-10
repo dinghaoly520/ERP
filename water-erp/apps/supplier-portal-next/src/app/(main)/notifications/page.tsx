@@ -13,7 +13,7 @@ import { notificationApi, type SupplierNotification } from "@/lib/api/notificati
 import { useNotifications } from "@/lib/notification-context";
 import {
   getNotificationMeta, notificationTypesForGroup, resolveNotificationLink,
-  summarizeNotification, type NotificationGroup, type NotificationTone,
+  splitRelevanceMarker, summarizeNotification, type NotificationGroup, type NotificationTone,
 } from "@/lib/notification-meta";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { LoadingBlock, SpDialog, SpPagination } from "@/components/ui";
@@ -51,6 +51,17 @@ const TONE_COLOR: Record<NotificationTone, string> = {
 
 function isNewArrival(notification: SupplierNotification): boolean {
   return !notification.isRead && new Date(notification.createdAt).getTime() > serverNowMs() - NEW_WINDOW_MS;
+}
+
+/** 「与您相关」标记渲染（2026-11-10 用户裁定：蓝色显示）：拆出标题前缀染品牌蓝，正文标题色不变 */
+function RelevanceTitle({ title }: { title: string }) {
+  const { marker, text } = splitRelevanceMarker(title);
+  return (
+    <>
+      {marker && <span className="text-[color:var(--brand)]">【与您相关】</span>}
+      {text}
+    </>
+  );
 }
 
 export default function NotificationListPage() {
@@ -222,7 +233,7 @@ export default function NotificationListPage() {
                   <span className="notif-body">
                     <span className="notif-row-title">
                       {isNewArrival(notification) && <span className="notif-new-badge">NEW</span>}
-                      {notification.title}
+                      <RelevanceTitle title={notification.title} />
                     </span>
                     <span className="notif-row-content">{summarizeNotification(notification.content)}</span>
                     <span className="mt-1 block text-xs text-[var(--muted-foreground)]">{meta.label}</span>
@@ -269,7 +280,7 @@ export default function NotificationListPage() {
       <SpDialog
         open={detail !== null}
         onClose={() => setDetail(null)}
-        title={detail?.title || "通知详情"}
+        title={detail ? <RelevanceTitle title={detail.title} /> : "通知详情"}
         subtitle={detail ? `${getNotificationMeta(detail.type).label} · ${dayjs(detail.createdAt).format("YYYY-MM-DD HH:mm")}` : undefined}
         width={600}
         footer={(

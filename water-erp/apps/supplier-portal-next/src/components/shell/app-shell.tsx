@@ -22,7 +22,7 @@ import { useNotifications } from "@/lib/notification-context";
 import { useSupplierStatus } from "@/lib/supplier-status-context";
 import { useConfirm } from "@/components/use-confirm";
 import type { SupplierNotification } from "@/lib/api/notification";
-import { resolveNotificationLink, summarizeNotification } from "@/lib/notification-meta";
+import { resolveNotificationLink, splitRelevanceMarker, summarizeNotification } from "@/lib/notification-meta";
 import {
   buildMenuItems,
   findWorkspaceForPath,
@@ -477,7 +477,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       >
                         {!n.isRead && <span className="sp-notif-dot" aria-hidden="true" />}
                         <div className="sp-notif-content">
-                          <div className="sp-notif-item-title">{n.title}</div>
+                          {/* 「与您相关」标记蓝色显示（2026-11-10 裁定）——与消息中心列表同款拆分渲染 */}
+                          <div className="sp-notif-item-title">
+                            {splitRelevanceMarker(n.title).marker && (
+                              <span className="text-[color:var(--brand)]">【与您相关】</span>
+                            )}
+                            {splitRelevanceMarker(n.title).text}
+                          </div>
                           <div className="sp-notif-item-desc">{summarizeNotification(n.content, 72)}</div>
                           <div className="sp-notif-item-time">{dayjs(n.createdAt).format("MM-DD HH:mm")}</div>
                         </div>

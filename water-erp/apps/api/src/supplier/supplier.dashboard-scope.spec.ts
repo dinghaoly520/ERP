@@ -289,6 +289,33 @@ describe('SupplierService — 总览旁路端点公司隔离', () => {
       expect(res.sent).toBe(1);
       expect(res.outOfScope).toBe(0);
     });
+
+    it('采购邀请（SELECTION_NOTIFY）→ 站内信标题带【与您相关】（2026-11-10 裁定：标记⟔被点名/真参与，广播永不标）', async () => {
+      prisma.supplier.findMany
+        .mockResolvedValueOnce([{ id: 's1' }])
+        .mockResolvedValueOnce([{ id: 's1', name: '本公司', userId: 'u1' }]);
+      await service.notifySuppliers(['s1'], ['in_app'], { type: 'SELECTION_NOTIFY', title: '关于X候选供应商邀请的通知', content: 'c' });
+      expect(notification.sendToUser).toHaveBeenCalledWith('u1', ['in_app'],
+        expect.objectContaining({ title: '【与您相关】关于X候选供应商邀请的通知' }));
+    });
+
+    it('非定向类型不标（广播类维持原标题）', async () => {
+      prisma.supplier.findMany
+        .mockResolvedValueOnce([{ id: 's1' }])
+        .mockResolvedValueOnce([{ id: 's1', name: '本公司', userId: 'u1' }]);
+      await service.notifySuppliers(['s1'], ['in_app'], { type: 'T', title: 't', content: 'c' });
+      expect(notification.sendToUser).toHaveBeenCalledWith('u1', ['in_app'],
+        expect.objectContaining({ title: 't' }));
+    });
+
+    it('标题已带标记（重发幂等）→ 不重复叠加', async () => {
+      prisma.supplier.findMany
+        .mockResolvedValueOnce([{ id: 's1' }])
+        .mockResolvedValueOnce([{ id: 's1', name: '本公司', userId: 'u1' }]);
+      await service.notifySuppliers(['s1'], ['in_app'], { type: 'SELECTION_NOTIFY', title: '【与您相关】关于X候选供应商邀请的通知', content: 'c' });
+      expect(notification.sendToUser).toHaveBeenCalledWith('u1', ['in_app'],
+        expect.objectContaining({ title: '【与您相关】关于X候选供应商邀请的通知' }));
+    });
   });
 
   describe('compareProfiles（对比面板）', () => {

@@ -4064,9 +4064,16 @@ export class SupplierService {
 
     const results: Array<{ supplierId: string; supplierName: string; userId: string; channels: Record<string, string> }> = [];
 
+    // 「与您相关」定向标记（2026-11-10 用户裁定）：标记⟺收件人被点名/真参与，广播类永不标。
+    // 本端点为逐家点名发送（现役=供应商选择向导 SELECTION_NOTIFY 采购邀请）——恒属定向。
+    // 只标站内信标题（:3004 拆前缀渲染蓝色）；短信 title 不参与发送、邮件主题带标无害。
+    const RELEVANCE_TYPES = new Set(['SELECTION_NOTIFY']);
+    const markRelevance = (t: string) =>
+      RELEVANCE_TYPES.has(payload.type) && !t.startsWith('【与您相关】') ? `【与您相关】${t}` : t;
+
     for (const s of suppliers) {
       // 占位符替换：{供应商名称} / {name} / {supplierName} → 实际供应商名称
-      const title = payload.title.replace(/\{(供应商名称|name|supplierName)\}/g, s.name);
+      const title = markRelevance(payload.title.replace(/\{(供应商名称|name|supplierName)\}/g, s.name));
       const content = payload.content.replace(/\{(供应商名称|name|supplierName)\}/g, s.name);
       // link 透传：逐家发送时由调用方填入该供应商专属回执链接，使站内信可点击直达回执页。
       const r = await this.notificationService.sendToUser(s.userId, channels, { type: payload.type, title, content, link: payload.link ?? null });

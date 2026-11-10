@@ -903,36 +903,44 @@ export class AnnouncementService {
       }).catch(e => this.logger.warn(`补遗计数更新失败 bidDoc=${bidDoc.id}: ${(e as Error).message}`));
     }
 
-    // ② 通知已下载过文件或受邀的供应商（去重）
+    // ② 通知已下载过文件或受邀的供应商（去重）。受众=获取文件∪名册（招标投标法 23 条：
+    //    澄清/修改须告知所有获取了文件的潜在投标人，故仅下载未投递者也通知）；
+    //    【与您相关】标记另设参与闸（2026-11-10 用户裁定）：仅名册内（受邀/已投递=真参与）才标。
     const [accesses, invited] = await Promise.all([
       bidDoc
         ? this.prisma.bidDocumentAccess.findMany({ where: { documentId: bidDoc.id }, select: { supplierId: true } })
         : Promise.resolve([] as { supplierId: string }[]),
       this.prisma.bidSupplier.findMany({ where: { projectId: project.id }, select: { supplierId: true } }),
     ]);
+    const participantIds = new Set(invited.map(b => b.supplierId).filter((id): id is string => !!id));
     const supplierIds = [...new Set(
-      [...accesses.map(a => a.supplierId), ...invited.map(b => b.supplierId)].filter((id): id is string => !!id),
+      [...accesses.map(a => a.supplierId), ...participantIds].filter((id): id is string => !!id),
     )];
     if (supplierIds.length === 0) return {};
     const suppliers = await this.prisma.supplier.findMany({
       where: { id: { in: supplierIds } },
-      select: { userId: true },
+      select: { id: true, userId: true },
     });
     let sent = 0;
     for (const s of suppliers) {
       if (!s.userId) continue;
+      const isParticipant = participantIds.has(s.id);
+      const title = `${isParticipant ? '【与您相关】' : ''}补遗公告：${ann.title}`;
+      const content = isParticipant
+        ? `您参与的采购项目发布补遗/澄清公告，请及时查看并按新要求准备响应文件。`
+        : `您获取过采购文件的项目发布补遗/澄清公告，请及时查看并按最新要求编制响应文件。`;
       try {
         await (this.notifications ? this.notifications.create({
             userId: s.userId,
             type: 'ANNOUNCEMENT_PUBLISHED',
-            title: `【与您相关】补遗公告：${ann.title}`, // 参与供应商定向（ADDENDUM 属项目内类，A1 同口径）
-            content: `您参与的采购项目发布补遗/澄清公告，请及时查看并按新要求准备响应文件。`,
+            title,
+            content,
             link: `/announcements/${ann.id}`,
           }) : this.prisma.notification.create({ data: {
             userId: s.userId,
             type: 'ANNOUNCEMENT_PUBLISHED',
-            title: `【与您相关】补遗公告：${ann.title}`, // 参与供应商定向（ADDENDUM 属项目内类，A1 同口径）
-            content: `您参与的采购项目发布补遗/澄清公告，请及时查看并按新要求准备响应文件。`,
+            title,
+            content,
             link: `/announcements/${ann.id}`,
           } })).catch(() => {});
         sent++;
@@ -1179,6 +1187,12 @@ export class AnnouncementService {
   async notifySuppliersOnPublish(annId: string, title: string, meta: Record<string, any>) {
     // notifyOnPublish 显式关闭则不发
     if (meta.notifyOnPublish === false) return;
+    // 补遗不走本通用轨（2026-11-10 用户裁定·单轨化）：syncAddendum 专用轨定向（获取文件∪名册）
+    // 并按「该供应商参与该项目」闸标记——通用轨再发一次即同一条补遗双通知（生产实录 11-06 同分钟两条）。
+    if (String(meta.__type) === 'ADDENDUM') {
+      this.logger.log(`补遗公告「${title}」站内通知走 syncAddendum 专用轨，通用发布钩子跳过（防双发）`);
+      return;
+    }
 
     let userIds: string[];
     const visibility = meta.visibility || 'PUBLIC';

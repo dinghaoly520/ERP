@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { io, type Socket } from "socket.io-client";
 import { Bell, CheckCheck, X } from "lucide-react";
 import { getNotificationLabel } from "@water-erp/shared";
+import { splitRelevanceMarker } from "@/lib/notification-meta";
 import { getSupplierToken } from "@/lib/session-store";
 
 /**
@@ -146,7 +147,9 @@ export function RealtimeNotifications() {
 
   return (
     <div className="pointer-events-none fixed bottom-4 right-4 z-[999] flex w-[340px] flex-col gap-2" role="region" aria-label="新通知提醒">
-      {toasts.map((n) => (
+      {toasts.map((n) => {
+        const relevance = splitRelevanceMarker(n.title);
+        return (
         <div
           key={n.id}
           className="notif-card pointer-events-auto relative cursor-pointer rounded-[14px] p-3 pr-8"
@@ -167,7 +170,11 @@ export function RealtimeNotifications() {
               <Bell size={13} strokeWidth={2} />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[12.5px] font-bold text-[var(--foreground)]">{n.title}</p>
+              {/* 「与您相关」标记蓝色显示（2026-11-10 裁定）——与消息中心列表同款拆分渲染 */}
+              <p className="truncate text-[12.5px] font-bold text-[var(--foreground)]">
+                {relevance.marker && <span className="text-[color:var(--brand)]">【与您相关】</span>}
+                {relevance.text}
+              </p>
               <p className="mt-0.5 line-clamp-2 break-words text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">{n.content}</p>
               <div className="mt-1.5 flex items-center justify-between">
                 <span className="text-[9px] uppercase tracking-wider text-[color:var(--sp-gray-400)]/70">{getNotificationLabel(n.type)}</span>
@@ -182,7 +189,8 @@ export function RealtimeNotifications() {
             </div>
           </div>
         </div>
-      ))}
+        );
+      })}
       <style>{`
         .notif-card {
           background: linear-gradient(145deg, oklch(1 0 0) 0%, oklch(0.965 0.012 258) 100%);
