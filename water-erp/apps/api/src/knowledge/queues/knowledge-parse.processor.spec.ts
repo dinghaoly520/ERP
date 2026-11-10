@@ -64,7 +64,7 @@ describe('KnowledgeParseProcessor 状态机', () => {
     const h = mkHarness();
     await h.processor.process(mkJob('kf-1'));
     expect(h.storage.download).toHaveBeenCalledWith('knowledge/kb-1/x.pdf');
-    expect(h.parse).toHaveBeenCalledWith(expect.any(Buffer), 'application/pdf', 'x.pdf', expect.any(Function));
+    expect(h.parse).toHaveBeenCalledWith(expect.any(Buffer), 'application/pdf', 'x.pdf', expect.any(Function), { strictOcr: true });
     const ready = h.update.mock.calls.map((c) => c[0].data).find((d) => d.status === 'READY');
     expect(ready).toMatchObject({ content: expect.stringContaining('全文正文'), chunkCount: 2, indexed: true });
     expect(h.insertChunks).toHaveBeenCalledTimes(1);
