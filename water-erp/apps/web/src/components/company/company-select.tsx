@@ -175,6 +175,17 @@ export function CompanySelect({
   const isAll = selectedIds.length === 0;
   const loading = options === null;
 
+  // 展示集（2026-11-10 用户裁定）：当前页计数口径为 0 的公司不进下拉（主数据物化 62 家后
+  // 大量零数据公司成噪音）。业务口径计数未到位（null=加载中）时暂不过滤防闪空；
+  // accounts 口径计数随 options 自带。仅影响展示——已选公司（URL/localStorage）不受
+  // 影响，触发器名解析仍用全量 options
+  const displayOptions = (() => {
+    if (!options) return options;
+    if (countMode === "accounts") return options.filter((c) => (c._count?.users ?? 0) > 0);
+    if (bizCounts === null) return options;
+    return options.filter((c) => (bizCounts[c.name] ?? 0) > 0);
+  })();
+
   const handleChange = (next: string) => {
     const url = new URL(window.location.href);
     if (next === "all") url.searchParams.delete("companyId");
@@ -278,7 +289,7 @@ export function CompanySelect({
               />
             </div>
             <div className="px-2.5 pt-1 text-[10px] font-bold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">
-              已入驻{options ? ` · ${options.length} 家` : ""}
+              共{displayOptions ? ` ${displayOptions.length} 家` : ""}
             </div>
           </div>
           <div className="p-1.5 pt-0.5">
@@ -306,14 +317,14 @@ export function CompanySelect({
               )}
               {(() => {
                 const text = q.trim().toLowerCase();
-                const badges = buildCompanyBadges(options!);
-                return options!
+                const badges = buildCompanyBadges(displayOptions!);
+                return displayOptions!
                   .filter((c) => !text || c.name.toLowerCase().includes(text) || (c.shortName ?? "").toLowerCase().includes(text))
                   .map((c) =>
                     optionRow(c.id, selectedIds.includes(c.id), c.name, subLabelFor(c, countMode, bizCounts), () => toggle(c.id), badges.get(c.id)),
                   );
               })()}
-              {options!.filter((c) => q.trim() && (c.name.toLowerCase().includes(q.trim().toLowerCase()) || (c.shortName ?? "").toLowerCase().includes(q.trim().toLowerCase()))).length === 0 && q.trim() && (
+              {displayOptions!.filter((c) => q.trim() && (c.name.toLowerCase().includes(q.trim().toLowerCase()) || (c.shortName ?? "").toLowerCase().includes(q.trim().toLowerCase()))).length === 0 && q.trim() && (
                 <div className="px-2 py-2 text-center text-[10px] text-[color:var(--muted-foreground)]">无匹配公司</div>
               )}
             </>
