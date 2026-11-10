@@ -604,7 +604,9 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
             {data.summary.abnormalCount > 0 && (
               <StatusBadge tone="orange">异常 {data.summary.abnormalCount}</StatusBadge>
             )}
-            <CompanySelect value={companyId} onChange={setCompanyId} countMode="projectsDone"/>
+            {/* 计数口径=采购轮次（2026-11-10 用户裁定：数据库与台账一致——原 PMI 已归档
+                项目计数在无归档项目的库上恒 0，与页面内容断桥） */}
+            <CompanySelect value={companyId} onChange={setCompanyId} countMode="rounds"/>
             <div className="relative">
               {showDP && <div className="fixed inset-0 z-[999]" onClick={()=>setShowDP(false)}/>}
               <button ref={dateBtnRef} onClick={()=>setShowDP(!showDP)} className="neu-btn-soft !h-[36px] !px-3.5 !text-xs flex items-center gap-1.5"><CalendarRange size={13}/> {data.range.startDate??"起始"} ~ {data.range.endDate??"至今"}</button>
