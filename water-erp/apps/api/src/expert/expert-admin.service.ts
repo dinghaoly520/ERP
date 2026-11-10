@@ -1801,8 +1801,12 @@ export class ExpertAdminService {
     });
 
     const expertPortalUrl = resolveRsvpLinkOrigin('expert', headers, process.env.EXPERT_PORTAL_URL || process.env.PUBLIC_PORTAL_URL);
-    // 缺省文案不透露项目名称/编号（2026-11-10 用户裁定：专家短信不含项目名；确认链接由下方拼接逻辑自动附加）
-    const body = message || `您被选为评审专家，请在收到通知后确认是否参加。`;
+    // 无兜底文案（2026-11-10 用户裁定）：通知文案只能来自向导固定语句/操作人填写——
+    // 服务端不自拟，空文案直接拒（向导三条路径均为确定性拼装，正常流不会触达此闸）
+    const body = (message ?? '').trim();
+    if (!body) {
+      throw new BadRequestException({ error: '通知文案不能为空，请在向导中生成话术后发送', code: 'NOTIFY_MESSAGE_REQUIRED' });
+    }
     const expiresAt = new Date(Date.now() + this.rsvpTtlMs);
 
     // 发送时刷新 RSVP 过期时间（token 已在预生成时创建，这里不重新生成）

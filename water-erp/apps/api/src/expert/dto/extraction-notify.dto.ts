@@ -10,10 +10,10 @@ export class ExtractionNotifyDto {
   @IsArray() @ArrayMinSize(1) @IsIn(['in_app', 'sms', 'phone', 'email'], { each: true })
   channels!: string[]; // 'in_app' | 'sms' | 'phone' | 'email'
 
-  // 允许空/缺省：service 内已有默认文案兜底（`message || 您已被选为…`）。
-  // 前端「发送通知」在话术未生成时提交空串，原 @IsNotEmpty 会把 5 家专家通知全部 400。
-  @IsString() @IsOptional()
-  message?: string;
+  // 必填（2026-11-10 用户裁定：取消服务端兜底文案）——文案只能来自向导固定语句/操作人填写，
+  // 服务端不再自拟。历史「话术未生成提交空串」场景已随固定语句设计（确定性拼装）消失。
+  @IsString() @IsNotEmpty()
+  message!: string;
 
   /** 候补文案（无确认链接）：true=正文原样直发——不追加回执链接尾段、不刷新 RSVP token（2026-10-27） */
   @IsBoolean() @IsOptional()

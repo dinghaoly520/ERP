@@ -751,7 +751,7 @@ describe('ExpertAdminService', () => {
       delete process.env.EXPERT_RSVP_TTL_HOURS;
       setupNotify();
 
-      await service.sendExtractionNotify('p1', ['u1'], ['in_app'], '');
+      await service.sendExtractionNotify('p1', ['u1'], ['in_app'], '您被选为评审专家，请确认是否参加。');
 
       expect(notification.sendToUser).toHaveBeenCalledTimes(1);
       const content = notification.sendToUser.mock.calls[0][2].content;
@@ -767,10 +767,18 @@ describe('ExpertAdminService', () => {
       process.env.EXPERT_RSVP_TTL_HOURS = '6';
       setupNotify();
 
-      await service.sendExtractionNotify('p1', ['u1'], ['in_app'], '');
+      await service.sendExtractionNotify('p1', ['u1'], ['in_app'], '您被选为评审专家，请确认是否参加。');
 
       const content = notification.sendToUser.mock.calls[0][2].content;
       expect(content).toContain('确认链接（6小时内有效）');
+    });
+
+    it('空文案直接拒绝（2026-11-10 取消兜底裁定）：400 NOTIFY_MESSAGE_REQUIRED，不触发送', async () => {
+      setupNotify();
+
+      await expect(service.sendExtractionNotify('p1', ['u1'], ['in_app'], '   '))
+        .rejects.toMatchObject({ response: { code: 'NOTIFY_MESSAGE_REQUIRED' } });
+      expect(notification.sendToUser).not.toHaveBeenCalled();
     });
   });
 
