@@ -158,7 +158,9 @@ describe('消费端瘦身后契约：恒定批次 + 不发 dpi + 页数探测零
     const r = await svc.ocrPdf(big, 0, (p, t) => events.push([p, t]));
 
     expect(r.processedPages).toBe(100);
-    expect(events).toEqual([[0, 100], [40, 100], [80, 100], [100, 100]]);
+    // 末次 (100,100) 为 ocrPdf 出口的无条件终值补报（2026-11-10：缓存命中路径行上页数
+    // 不再 0/?）——compute 路径与末批上报同值幂等重复，契约=「终值保证至少上报一次」
+    expect(events).toEqual([[0, 100], [40, 100], [80, 100], [100, 100], [100, 100]]);
   });
 
   it('页数探测调用零 OCR：max_pages=0 且无 page_range、无 dpi 字段', async () => {
@@ -392,5 +394,42 @@ describe('onProgress 协作式取消（2026-11-09 删除解析中文件实录）
     const batches = records.filter((r) => r.form.page_range).length;
     expect(batches).toBe(1);
     expect(swallowed).toHaveLength(0); // 修复后回调被 await，无 unhandled 拒绝
+  });
+});
+
+describe('缓存命中补进度上报（2026-11-10：行上页数不再 0/?）', () => {
+  it('整文件缓存命中（零 fetch）时 onProgress 仍收到终值 (pages, pageCount)', async () => {
+    const redis = makeRedisMock();
+    const svc = await makeService('http://a:8100', redis);
+    (global as any).fetch = mockRecordingFetch([]);
+
+    const big = Buffer.alloc(21 * 1024 * 1024);
+    await svc.ocrPdf(big); // 首算落缓存（mock 100 页 3 批）
+
+    const progress: Array<[number, number]> = [];
+    (global as any).fetch = jest.fn(); // 二次调用若误发请求会露馅
+    const r = await svc.ocrPdf(big, 200, (p, t) => progress.push([p, t]));
+
+    expect((global as any).fetch).not.toHaveBeenCalled(); // 批次键全命中
+    expect(r.processedPages).toBe(100);
+    expect(progress.length).toBeGreaterThan(0);
+    const last = progress[progress.length - 1];
+    expect(last).toEqual([100, 100]);
+  });
+
+  it('整文件键命中（同参重传）时也补报终值——修复前该路径 onProgress 零调用', async () => {
+    const redis = makeRedisMock();
+    const svc = await makeService('http://a:8100', redis);
+    (global as any).fetch = mockRecordingFetch([]);
+    const big = Buffer.alloc(21 * 1024 * 1024);
+    await svc.ocrPdf(big); // 默认 maxPages 落整文件键
+
+    const progress: Array<[number, number]> = [];
+    (global as any).fetch = jest.fn();
+    await svc.ocrPdf(big, undefined, (p, t) => progress.push([p, t]));
+
+    expect((global as any).fetch).not.toHaveBeenCalled(); // 整文件键直接命中
+    expect(progress.length).toBeGreaterThan(0);
+    expect(progress[progress.length - 1]).toEqual([100, 100]);
   });
 });

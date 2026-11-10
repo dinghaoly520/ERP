@@ -103,7 +103,15 @@ export class KnowledgeParseProcessor extends WorkerHost {
       let indexed = true;
       if (textChunks.length > 0) {
         try {
-          embeddings = await this.embedding.embed(textChunks.map((c) => c.content));
+          // 嵌入进度（2026-11-10）：块级日志消掉「看着像死了」的静默窗口（676 块在 4 核上可达 ~1h）
+        embeddings = await this.embedding.embed(
+          textChunks.map((c) => c.content),
+          (done, total) => {
+            if (done === total || done % 50 === 0) {
+              this.logger.log(`Embedding progress: ${done}/${total} chunks（${file.fileName}）`);
+            }
+          },
+        );
         } catch (err) {
           // 2026-11-03 §4.2 降级：嵌入不可用不翻 FAILED——文件已解析成功，恢复后 reindex 补建
           this.logger.warn(`Embedding degraded for ${file.fileName}: ${err}`);

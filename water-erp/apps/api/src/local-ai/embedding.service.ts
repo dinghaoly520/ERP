@@ -26,7 +26,11 @@ export class EmbeddingService {
     this.apiKey = config.get<string>('EMBEDDING_API_KEY', '');
   }
 
-  async embed(texts: string[]): Promise<number[][]> {
+  /** onProgress：块级进度（每批一次）——消费端消掉嵌入静默窗口（2026-11-10） */
+  async embed(
+    texts: string[],
+    onProgress?: (done: number, total: number) => void,
+  ): Promise<number[][]> {
     if (!this.vllmMonitor.isEmbeddingAvailable()) {
       throw new ServiceUnavailableException(
         'Embedding service unavailable. Please check vLLM status.',
@@ -46,6 +50,7 @@ export class EmbeddingService {
       const batch = texts.slice(i, i + batchSize);
       const batchResults = await this.embedBatchWithRetry(batch);
       results.push(...batchResults);
+      onProgress?.(results.length, texts.length);
     }
 
     return results;
