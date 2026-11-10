@@ -37,13 +37,27 @@ export class SmsChannel implements NotificationChannel {
       // resultCode 防御性归一（与 RongyidaSmsProvider 同口径）
       const resultCode = Number(data.resultCode);
       if (!res.ok || !Number.isFinite(resultCode) || resultCode !== 0) {
-        return { status: 'failed', error: `融易达 ${data.resultCode ?? `HTTP ${res.status}`} ${data.resultMsg ?? ''}`.trim() };
+        return {
+          status: 'failed',
+          error: `融易达 ${data.resultCode ?? `HTTP ${res.status}`} ${data.resultMsg ?? ''}`.trim(),
+          phoneMasked: maskPhone(p.phone),
+        };
       }
       const restHint = typeof data.restNum === 'number' && data.restNum >= 0 ? `，余量 ${data.restNum}` : '';
-      this.logger.log(`[SMS] → ${p.phone.slice(0, 3)}****${p.phone.slice(-4)}（taskId ${String(data.taskId ?? '')}${restHint}）`);
-      return { status: 'sent' };
+      this.logger.log(`[SMS] → ${maskPhone(p.phone)}（taskId ${String(data.taskId ?? '')}${restHint}）`);
+      return {
+        status: 'sent',
+        // taskId 落库（2026-11-10）：与融易达账单逐条对账；此前拿到即丢弃只能对总量
+        providerRef: data.taskId ? String(data.taskId) : undefined,
+        phoneMasked: maskPhone(p.phone),
+      };
     } catch (e: unknown) {
-      return { status: 'failed', error: e instanceof Error ? e.message : '网络异常' };
+      return { status: 'failed', error: e instanceof Error ? e.message : '网络异常', phoneMasked: maskPhone(p.phone) };
     }
   }
+}
+
+/** 掩码手机号（138****0001）：对账定位用，PII 不落明文 */
+function maskPhone(phone: string): string {
+  return phone.length >= 7 ? `${phone.slice(0, 3)}****${phone.slice(-4)}` : '***';
 }

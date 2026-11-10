@@ -48,9 +48,19 @@ export class NotificationService {
   }
 
   /** 写一条投递日志（Track A：多渠道投递可观测性）。失败不阻断主流程。 */
-  private async logDelivery(userId: string, notificationId: string | null, channel: string, r: { status: string; error?: string }) {
+  private async logDelivery(
+    userId: string,
+    notificationId: string | null,
+    channel: string,
+    r: { status: string; error?: string; providerRef?: string; phoneMasked?: string },
+  ) {
     await this.prisma.notificationDeliveryLog.create({
-      data: { userId, notificationId, channel, status: r.status, error: r.error ?? null },
+      data: {
+        userId, notificationId, channel, status: r.status, error: r.error ?? null,
+        // 短信对账字段（2026-11-10）：taskId + 掩码手机号随投递结果落库
+        providerRef: r.providerRef ?? null,
+        phoneMasked: r.phoneMasked ?? null,
+      },
     }).catch(() => {});
   }
 

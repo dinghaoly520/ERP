@@ -1959,6 +1959,8 @@ model NotificationDeliveryLog {
   channel        String // in_app | email | sms
   status         String // sent | failed | skipped
   error          String?
+  providerRef    String? // 网关回执标识（融易达 taskId）——短信逐条对账用（2026-11-10）
+  phoneMasked    String? // 掩码手机号（138****1234）——对账定位用；PII 不落明文
   createdAt      DateTime @default(now())
 
   @@index([userId])

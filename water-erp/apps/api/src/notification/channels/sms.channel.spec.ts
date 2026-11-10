@@ -3,7 +3,9 @@ import { SmsChannel } from './sms.channel';
 
 /* 通知轨短信通道单测（2026-10-27 接融易达）：mock global.fetch。
    锁定：sign=md5(appid+mobile+msg 原文+appkey) 传输才编码；msg 未带【签名】时前置；
-   失败不兜底直接 failed 透出错误码。 */
+   失败不兜底直接 failed 透出错误码。
+   2026-11-10 对账字段：taskId→providerRef、手机号掩码 phoneMasked 随结果返回——
+   融易达账单逐条对账与多联系人失败定位。 */
 
 const ENV = {
   RYD_APPID: 'test-appid-0000000000000000',
@@ -37,10 +39,10 @@ describe('SmsChannel（通知轨·融易达）', () => {
     content: '中国地质科学院探工所 您好！四川水发勘测设计研究有限公司现邀请贵公司参与钻机（800型）采购项目（项目编号：X-1），采购方式为谈判采购。请在24小时内登录供应商门户或直接点击 http://192.168.1.107:3004/rsvp?t=abc123 确认是否参加本次采购邀请，若超时则视为自动放弃；',
   };
 
-  it('成功：前置【签名】、sign 用 msg 原文、返回 sent', async () => {
+  it('成功：前置【签名】、sign 用 msg 原文、taskId 与掩码手机号随结果返回（对账字段）', async () => {
     fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ resultCode: 0, taskId: 'T1', restNum: 50 }) });
     const r = await channel.send(payload as never);
-    expect(r).toEqual({ status: 'sent' });
+    expect(r).toMatchObject({ status: 'sent', providerRef: 'T1', phoneMasked: '133****0619' });
 
     const body = fetchMock.mock.calls[0][1].body as URLSearchParams;
     const msg = body.get('msg') ?? '';
@@ -57,11 +59,12 @@ describe('SmsChannel（通知轨·融易达）', () => {
     expect((body.get('msg') ?? '').split('【').length - 1).toBe(1);
   });
 
-  it('网关失败：不兜底，failed 透出错误码（-11 签名未报备）', async () => {
+  it('网关失败：不兜底，failed 透出错误码（-11 签名未报备）；掩码手机号仍随错误返回（多联系人定位）', async () => {
     fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ resultCode: -11, resultMsg: '短信签名不正确' }) });
     const r = await channel.send(payload as never);
     expect(r.status).toBe('failed');
     expect(r.error).toContain('-11');
+    expect(r.phoneMasked).toBe('133****0619');
   });
 
   it('env 缺失：failed 配置不完整，不触网', async () => {

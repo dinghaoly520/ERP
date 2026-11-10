@@ -6272,7 +6272,8 @@ export class BidService {
       const channels = dto.supplierChannels?.length ? dto.supplierChannels : ['in_app', 'sms'];
       const title = dto.supplierTitle?.trim() || `开标通知：${project.name}`;
       // 内容缺省回退口径与 notifyScheduleChange 一致（弹窗默认预填，正常不触发）
-      const content = dto.supplierContent?.trim() || `项目 ${project.projectCode}（${project.name}）开标时间：${fmt}，请留意最新安排。`;
+      // 缺省文案 ≤70 字（含签名 11 字）——融易达 >70 按 67 字/条分段计费，项目名由 title 携带不重复入正文
+      const content = dto.supplierContent?.trim() || `项目${project.projectCode}开标时间：${fmt}，请留意最新安排。`;
       const targets = roster
         .map((r) => r.supplier)
         .filter((s): s is { id: string; name: string; userId: string } => !!s?.userId);
@@ -6295,7 +6296,7 @@ export class BidService {
     if (dto.notifyExperts !== false) {
       const channels = dto.expertChannels?.length ? dto.expertChannels : ['sms'];
       const title = dto.expertTitle?.trim() || `评审出席提醒：${project.name}`;
-      const content = dto.expertContent?.trim() || `项目 ${project.projectCode}（${project.name}）开标时间：${fmt}，请准时出席。`;
+      const content = dto.expertContent?.trim() || `项目${project.projectCode}开标时间：${fmt}，请准时出席。`;
       // 专家侧占位符 {专家姓名} 逐人替换（同专家通知设计的 [[专家姓名]] 概念）
       const named = experts.map((e) => ({
         ...e,
