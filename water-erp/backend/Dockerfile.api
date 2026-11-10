@@ -70,6 +70,14 @@ RUN sed -i '/scca-transport/d; /scca-ukey/d' packages/ukey/src/index.ts \
  && npm run build \
  && rm -rf node_modules/.cache
 
+# ---- 构建指纹（2026-11-10 出包校验兜底）----
+# backend.sh 构建时注入当前 git 指纹（git describe --always --dirty），导出前
+# 比对镜像内 /app/BUILD_SHA，不符即拒绝出包——防「缓存/上下文/分支异常打出旧代码」
+# （--no-cache 防不了这种事故：11-04 实录 context 指旧目录时 --no-cache 照样打旧包）。
+# 必须放在最后一步：ARG 值变化只重建本薄层，上游层缓存不受影响。
+ARG GIT_SHA=unknown
+RUN echo "${GIT_SHA}" > /app/BUILD_SHA
+
 # ---- 运行层（同镜像瘦身：只留生产依赖 + 构建产物）----
 ENV NODE_ENV=production \
     PORT=4001

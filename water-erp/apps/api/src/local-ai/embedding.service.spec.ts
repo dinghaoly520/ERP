@@ -75,3 +75,18 @@ describe('EmbeddingService 小批+超时+重试（2026-11-09 生产实录修复�
     expect((global as any).fetch).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('embed 块级进度回调（2026-11-10：消掉嵌入静默窗口）', () => {
+  it('9 条输入按批 4 报 (4,9)/(8,9)/(9,9)', async () => {
+    const svc = makeService();
+    const seen: Array<[number, number]> = [];
+    (global as any).fetch = jest.fn(async (_u: string, init: any) =>
+      okResponse(JSON.parse(init.body).input.length));
+    const out = await svc.embed(
+      Array.from({ length: 9 }, (_, i) => `t${i}`),
+      (done, total) => seen.push([done, total]),
+    );
+    expect(out).toHaveLength(9);
+    expect(seen).toEqual([[4, 9], [8, 9], [9, 9]]);
+  });
+});

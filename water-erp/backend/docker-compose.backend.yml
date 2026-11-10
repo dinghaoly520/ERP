@@ -125,6 +125,11 @@ services:
       dockerfile: backend/Dockerfile.api
       # 构建容器内 DNS 解析失败（EAI_AGAIN），用宿主机网络栈构建（与前端同因同修）。
       network: host
+      # 2026-11-10 出包校验兜底：backend.sh 注入当前 git 指纹（git describe --always
+      # --dirty），导出前比对镜像内 /app/BUILD_SHA，不符拒绝出包。直跑 compose 不带
+      # 时为 unknown，不影响构建。
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
     image: water-erp-api:1.0.0
     container_name: water-erp-be-api
     working_dir: /app/apps/api

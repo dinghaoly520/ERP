@@ -221,9 +221,13 @@ export class OcrService {
     onProgress?: (processed: number, total: number) => void,
   ): Promise<OcrResult> {
     const key = this.cacheKey('pdf', buffer, maxPages, null);
-    return this.ocrOnce(key, 'pdf', () =>
+    const result = await this.ocrOnce(key, 'pdf', () =>
       this.ocrPdfUncached(buffer, maxPages, onProgress),
     );
+    // 缓存命中路径 compute 被跳过、onProgress 零调用（行上页数 0/? 显示缺口，2026-11-10）——
+    // 无条件补报终值；compute 路径已按批报过，末次重复同值幂等无害
+    await onProgress?.(result.processedPages, result.pageCount);
+    return result;
   }
 
   private async ocrPdfUncached(
