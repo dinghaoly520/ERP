@@ -313,7 +313,9 @@ export function ProjectManagementPage() {
                 </div>
               </div>
               <div className="page-hero__right">
-                <CompanySelect value={companyId} onChange={setCompanyId} />
+                {/* 计数口径=本公司进行中项目数（2026-11-10 用户裁定：项目管理页误落默认
+                    账号口径显示「办公/专家」）；零项目公司随 CompanySelect 过滤不进下拉 */}
+                <CompanySelect value={companyId} onChange={setCompanyId} countMode="projectsActive" />
                 {/* 归档记录入口已收敛至「采购台账」；/archive 页保留供归档待办通知直达 */}
                 <button
                   type="button"
