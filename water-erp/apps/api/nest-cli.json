@@ -3,6 +3,10 @@
   "collection": "@nestjs/schematics",
   "sourceRoot": "src",
   "compilerOptions": {
-    "tsConfigPath": "tsconfig.json"
+    "tsConfigPath": "tsconfig.json",
+    "assets": [
+      { "include": "assets/fonts/*.otf", "outDir": "dist" },
+      { "include": "assets/fonts/*.txt", "outDir": "dist" }
+    ]
   }
 }

@@ -197,7 +197,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
   // 正选专家替换弹窗
   const [replaceModalOpen, setReplaceModalOpen] = useState(false);
   const [replaceModalExpert, setReplaceModalExpert] = useState<{ id: string; name: string; isLead: boolean } | null>(null);
-  // 专家抽取情况导出（2026-10-22 Word 证明材料）
+  // 专家抽取情况导出（2026-11-10 起 PDF 直出证明材料）
   const [exportBusy, setExportBusy] = useState(false);
   /** 两段确认：先选候补，再确认替换（2026-09-23：此前点选即换、误触无挽回） */
   const [replaceModalAlt, setReplaceModalAlt] = useState<BidWorkspaceExpert | null>(null);
@@ -731,7 +731,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                 accentSoft="var(--stage-expert-soft)"
                 action={
                   <div className="flex items-center gap-2">
-                  {/* 导出专家抽取情况（2026-10-22）：Word 证明材料——抽取方式细节 + 正选/候补详情表 */}
+                  {/* 导出专家抽取情况（2026-11-10 起 PDF 直出）：抽取方式细节 + 各轮人员状态 + 正选/候补详情表 */}
                   {workspace && (
                     <button
                       onClick={() => {
@@ -739,13 +739,13 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                           try {
                             setExportBusy(true);
                             await downloadExtractionExport(workspace.project.id, workspace.project.name);
-                            showToast('专家抽取情况已导出（Word）');
+                            showToast('专家抽取情况已导出（PDF）');
                           } catch (e: any) { showToast(e?.message || '导出失败', 'err'); }
                           finally { setExportBusy(false); }
                         })();
                       }}
                       disabled={exportBusy}
-                      title="生成 Word 证明材料：本次专家抽取方式细节 + 正选/候补专家详情表"
+                      title="生成 PDF 证明材料：本次专家抽取方式细节 + 各轮接受/婉拒记录 + 正选/候补专家详情表"
                       className="neu-btn-xs gap-1 disabled:opacity-50"
                     >
                       {exportBusy ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />}

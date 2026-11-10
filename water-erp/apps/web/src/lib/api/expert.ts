@@ -336,7 +336,8 @@ export function getEvaluationProjects(expertId: string) {
   return api.get<ExpertEvaluationProject[]>(`/expert-admin/${expertId}/evaluation-projects`);
 }
 
-// 导出专家抽取情况（Word 证明材料，2026-10-22）：抽取方式细节 + 正选/候补专家详情表
+// 导出专家抽取情况（PDF 证明材料，2026-11-10 起由服务端 pdfmake 直出取代 Word）：
+// 抽取方式细节 + 各轮人员状态 + 正选/候补专家详情表
 export async function downloadExtractionExport(projectId: string, projectName?: string) {
   const res = await apiFetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api'}/expert-admin/projects/${projectId}/extraction-export`, {
     credentials: 'include',
@@ -349,7 +350,7 @@ export async function downloadExtractionExport(projectId: string, projectName?: 
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `专家抽取情况_${projectName || projectId}_${new Date().toISOString().slice(0, 10)}.docx`;
+  a.download = `专家抽取情况_${projectName || projectId}_${new Date().toISOString().slice(0, 10)}.pdf`;
   a.click();
   URL.revokeObjectURL(url);
 }

@@ -5,6 +5,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { ExpertAdminService } from './expert-admin.service';
+import { ExtractionReportPdfService } from './extraction-report-pdf.service';
 import { ExpertExtractionService } from './expert-extraction.service';
 import { ExpertMemoService } from './expert-memo.service';
 import { CreateExpertDto } from './dto/create-expert.dto';
@@ -41,6 +42,7 @@ export class ExpertAdminController {
     private expertAdminService: ExpertAdminService,
     private memoService: ExpertMemoService,
     private extractionService: ExpertExtractionService,
+    private extractionReportPdf: ExtractionReportPdfService,
   ) {}
 
   @Public()
@@ -262,10 +264,10 @@ export class ExpertAdminController {
   }
 
   @Get('projects/:projectId/extraction-export')
-  @ApiOperation({ summary: '导出专家抽取情况（Word：抽取方式细节 + 正选/候补专家详情表证明材料）' })
+  @ApiOperation({ summary: '导出专家抽取情况（PDF：抽取方式细节 + 各轮人员状态 + 正选/候补专家详情表证明材料）' })
   async extractionExport(@Param('projectId') projectId: string, @Res({ passthrough: true }) res: any) {
-    const { buffer, filename } = await this.expertAdminService.buildExtractionExport(projectId);
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    const { buffer, filename } = await this.extractionReportPdf.build(projectId);
+    res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
     return new StreamableFile(buffer);
   }
