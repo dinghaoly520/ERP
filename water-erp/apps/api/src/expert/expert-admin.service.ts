@@ -3095,7 +3095,8 @@ export class ExpertAdminService {
    *  静态文件升为第二权威源，导入不再依赖 Company 主数据预建档）：①主数据精确命中；
    *  ②名单精确命中（拼写别名先归一）→ 自动归属、公司行缺则按名单规范名建档（注册同款
    *  懒建档——companyId 外键与公司隔离依赖公司行）；③needMapping 人工指定（表格单位名
-   *  → 目标公司名，空串=显式不归属；目标须为既有公司或名单内公司）。除名单外一律不新建。 */
+   *  → 目标公司名，空串=显式不归属；目标须为既有公司或名单内公司）。除名单外一律不新建。
+   *  两阶段零副作用：有未命中单位返回 needMapping 前不建任何公司（取消导入无痕）。 */
   async importCsv(rows: Array<Record<string, string>>, operatorId?: string, companyMapping?: Record<string, string>) {
     const pick = (row: Record<string, string>, keys: string[]): string => {
       for (const k of Object.keys(row)) {
@@ -3142,32 +3143,55 @@ export class ExpertAdminService {
       }
     }
     /** 名单内公司按需建档：只写规范名——shortName/code 是人工维护的项目编号前缀（SWHI 等），
-     *  名单 18 位是社会信用代码，语义不同不写入 */
+     *  名单 18 位是社会信用代码，语义不同不写入。并发建档撞 name 唯一键（P2002）回读既有行 */
     const ensureListedCompany = async (canonical: string): Promise<{ id: string; name: string }> => {
       const existing = await this.prisma.company.findUnique({ where: { name: canonical }, select: { id: true, name: true } });
       if (existing) return existing;
-      return this.prisma.company.create({ data: { name: canonical }, select: { id: true, name: true } });
+      try {
+        return await this.prisma.company.create({ data: { name: canonical }, select: { id: true, name: true } });
+      } catch (e: any) {
+        if (e?.code === 'P2002') {
+          const raced = await this.prisma.company.findUnique({ where: { name: canonical }, select: { id: true, name: true } });
+          if (raced) return raced;
+        }
+        throw e;
+      }
     };
-    const resolution = new Map<string, { id: string; name: string; via: 'match' | 'auto' | 'manual' } | null>();
+    // ── 两阶段（2026-11-10 稳健轮）：阶段一零写入定归属计划——名单内缺档只记规范名
+    //    不落库；有未命中单位即返回 needMapping（取消导入零副作用）。全部可定后阶段二
+    //    统一建档回填 id——否则名单单位先建了公司、另一单位又弹指定面板，取消时已留痕。
+    const planned = new Map<string, { id: string | null; name: string; via: 'match' | 'auto' | 'manual' } | null>();
+    const toCreate = new Set<string>(); // 名单规范名（②自动命中 / ③人工指定的名单内目标）
     const unmatched: string[] = [];
     for (const name of distinctEmployers) {
       const hit = bySheetName.get(name);
-      if (hit) { resolution.set(name, { id: hit.id, name: hit.name, via: 'match' }); continue; }
+      if (hit) { planned.set(name, { id: hit.id, name: hit.name, via: 'match' }); continue; }
       const auto = canonicalSasac(name);
-      if (auto) { resolution.set(name, { ...(await ensureListedCompany(auto)), via: 'auto' }); continue; }
+      if (auto) { toCreate.add(auto); planned.set(name, { id: null, name: auto, via: 'auto' }); continue; }
       const target = (companyMapping ?? {})[name]?.trim();
       if (target) {
         // 预检已保证目标存在：既有公司行或名单规范名
         const existing = byTargetName.get(target);
-        resolution.set(name, { ...(existing ?? (await ensureListedCompany(canonicalSasac(target)!))), via: 'manual' });
+        if (existing) planned.set(name, { id: existing.id, name: existing.name, via: 'manual' });
+        else { toCreate.add(target); planned.set(name, { id: null, name: target, via: 'manual' }); }
       } else if (name in (companyMapping ?? {})) {
-        resolution.set(name, null); // 显式「不归属」
+        planned.set(name, null); // 显式「不归属」
       } else {
         unmatched.push(name);
       }
     }
     if (unmatched.length > 0) {
       return { needMapping: true as const, unmatched };
+    }
+    // 阶段二：名单缺档统一建档（同名多单位共享一次建档），回填 resolution
+    const createdCompanies = new Map<string, { id: string; name: string }>();
+    for (const canonical of toCreate) {
+      createdCompanies.set(canonical, await ensureListedCompany(canonical));
+    }
+    const resolution = new Map<string, { id: string; name: string; via: 'match' | 'auto' | 'manual' } | null>();
+    for (const [name, plan] of planned) {
+      if (plan === null) { resolution.set(name, null); continue; }
+      resolution.set(name, { id: plan.id ?? createdCompanies.get(plan.name)!.id, name: plan.name, via: plan.via });
     }
     const manualMappings = [...resolution.entries()]
       .filter(([, v]) => v?.via === 'manual')
