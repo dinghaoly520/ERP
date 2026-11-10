@@ -23,6 +23,7 @@
  *   如确需执行，须显式设置 ALLOW_PROD_SEED=1。
  */
 import { PrismaClient } from '@prisma/client';
+import { SASAC_UNITS } from '@water-erp/shared';
 import { readFileSync, mkdirSync, writeFileSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import { hashSync } from 'bcryptjs';
@@ -648,13 +649,19 @@ async function main() {
       { id: 'co-swhi-ny', name: '四川水发能源开发有限公司', shortName: '能源', code: 'SFNY' },
       { id: 'co-swhi-tzk', name: '四川省亭子口灌区建设开发有限公司', shortName: '亭子口', code: 'TZK' },
       { id: 'co-swhi-xjb', name: '四川省向家坝灌区建设开发有限责任公司', shortName: '向家坝', code: 'XJB' },
-      { id: 'co-swhi-ydm', name: '引大济岷水资源开发有限公司', shortName: '引大', code: 'YDJM' },
+      { id: 'co-swhi-ydm', name: '四川省引大济岷水资源开发有限公司', shortName: '引大', code: 'YDJM' },
       // 大岷管业（2026-10-19 固化）：供应商快照 companyId 指向此 id，全新库须先 upsert
       // 否则 SupplierCompanyLink 回填 FK 违反（companies 表不在 TRUNCATE 清单、全新库为空）
       { id: 'cmumahxdp05tpuuz5nqqr75p8', name: '四川水网大岷管业有限公司', shortName: '大岷', code: 'DMGY' },
     ] as const;
     for (const c of SEED_COMPANIES) {
       await prisma.company.upsert({ where: { name: c.name }, update: { shortName: c.shortName, code: c.code }, create: { ...c } });
+    }
+    // 集团全级次企业名单（62 家）全量入主数据（2026-11-10）：注册页名单与 Company 表对齐——
+    // 专家导入归属面板/公司选择器读 DB 主数据，缺档公司无从选择。置于 SEED_COMPANIES 之后：
+    // 8 家 curated 公司（shortName/项目编号前缀 code）先建档，此处 update:{} 只补缺不覆盖
+    for (const u of SASAC_UNITS) {
+      await prisma.company.upsert({ where: { name: u.name }, update: {}, create: { name: u.name } });
     }
     const sjy = await prisma.company.findUniqueOrThrow({ where: { id: 'co-swhi-sjy' } });
 

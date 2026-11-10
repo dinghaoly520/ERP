@@ -34,7 +34,7 @@ const SEED_COMPANIES = [
   { id: 'co-swhi-ny', name: '四川水发能源开发有限公司', shortName: '能源', code: null },
   { id: 'co-swhi-tzk', name: '四川省亭子口灌区建设开发有限公司', shortName: '亭子口', code: null },
   { id: 'co-swhi-xjb', name: '四川省向家坝灌区建设开发有限责任公司', shortName: '向家坝', code: null },
-  { id: 'co-swhi-ydm', name: '引大济岷水资源开发有限公司', shortName: '引大', code: null },
+  { id: 'co-swhi-ydm', name: '四川省引大济岷水资源开发有限公司', shortName: '引大', code: null },
 ] as const;
 
 type LibraryEntry = {
