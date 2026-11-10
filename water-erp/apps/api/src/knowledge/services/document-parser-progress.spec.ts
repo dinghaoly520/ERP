@@ -72,3 +72,72 @@ describe('DocumentParserService onProgress 快速路径回填（2026-11-06 显�
     expect(cb).toHaveBeenCalledWith(1, 1);
   });
 });
+
+/** strictOcr 严格模式（2026-11-10 生产实录：476 页扫描件 OCR 批 fetch failed 被 parsePdf 吞掉，
+ *  返回 pdf-parse 残稀文本 → processor 误标 READY(1 chunk, indexed=true) → 前端永不见失败提示）。
+ *  严格模式三失败（服务不可用/抛错/空结果）必须抛错穿透，由 KnowledgeParseProcessor 落 FAILED。 */
+describe('DocumentParserService strictOcr 严格模式（2026-11-10）', () => {
+  const pdfParseMock = require('pdf-parse') as jest.Mock;
+  const buf = Buffer.from('scanned-pdf');
+
+  const mkParser = (ocr: {
+    available?: boolean;
+    ocrPdf?: jest.Mock;
+  }) => {
+    const ocrAny: any = {
+      isAvailable: jest.fn().mockResolvedValue(ocr.available ?? true),
+      ocrPdf: ocr.ocrPdf ?? jest.fn(),
+      ocrImage: jest.fn().mockResolvedValue({ text: '图文字' }),
+    };
+    return { parser: new DocumentParserService(ocrAny as unknown as OcrService), ocr: ocrAny };
+  };
+
+  beforeEach(() => {
+    pdfParseMock.mockReset();
+    pdfParseMock.mockResolvedValue({ text: '稀', numpages: 476 }); // 476 页仅 1 字 = 稀疏扫描件
+  });
+
+  it('稀疏 PDF + OCR 抛错 + strictOcr → 抛错穿透（消息含「OCR 解析失败」与原始错误）', async () => {
+    const { parser } = mkParser({
+      ocrPdf: jest.fn().mockRejectedValue(new TypeError('fetch failed')),
+    });
+    await expect(
+      parser.parse(buf, 'application/pdf', 'scan.pdf', undefined, { strictOcr: true }),
+    ).rejects.toThrow(/OCR 解析失败.*fetch failed/);
+  });
+
+  it('稀疏 PDF + OCR 抛错 + 默认（不传 options）→ 仍宽容降级返回 pdf-parse 残文本（存量行为锁定，project-management 等依赖）', async () => {
+    const { parser, ocr } = mkParser({
+      ocrPdf: jest.fn().mockRejectedValue(new TypeError('fetch failed')),
+    });
+    await expect(
+      parser.parse(buf, 'application/pdf', 'scan.pdf'),
+    ).resolves.toBe('稀');
+    expect(ocr.ocrPdf).toHaveBeenCalledTimes(1);
+  });
+
+  it('稀疏 PDF + OCR 空结果 + strictOcr → 抛错（不得以空内容冒充解析成功）', async () => {
+    const { parser } = mkParser({
+      ocrPdf: jest.fn().mockResolvedValue({ text: '  ', processedPages: 476, pageCount: 476, pages: [] }),
+    });
+    await expect(
+      parser.parse(buf, 'application/pdf', 'scan.pdf', undefined, { strictOcr: true }),
+    ).rejects.toThrow(/未从该文档提取到文本/);
+  });
+
+  it('稀疏 PDF + OCR 服务不可用 + strictOcr → 抛错（扫描件唯一可读来源缺失）', async () => {
+    const { parser } = mkParser({ available: false });
+    await expect(
+      parser.parse(buf, 'application/pdf', 'scan.pdf', undefined, { strictOcr: true }),
+    ).rejects.toThrow(/OCR 服务不可用/);
+  });
+
+  it('原生密文本 PDF + strictOcr → 不走 OCR 不受影响，正常返回', async () => {
+    pdfParseMock.mockResolvedValueOnce({ text: 'A'.repeat(500), numpages: 5 }); // 100 字/页 ≥ 50
+    const { parser, ocr } = mkParser({ available: false });
+    await expect(
+      parser.parse(buf, 'application/pdf', 'native.pdf', undefined, { strictOcr: true }),
+    ).resolves.toBe('A'.repeat(500));
+    expect(ocr.ocrPdf).not.toHaveBeenCalled();
+  });
+});

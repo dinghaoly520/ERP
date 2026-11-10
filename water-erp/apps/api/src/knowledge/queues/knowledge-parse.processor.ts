@@ -86,6 +86,8 @@ export class KnowledgeParseProcessor extends WorkerHost {
         const alive = await this.prisma.knowledgeFile.count({ where: { id: fileId } });
         if (alive === 0) throw new KnowledgeParseCancelledError();
       };
+      // strictOcr=true（2026-11-10 生产实录）：扫描件 OCR 失败/空结果必须抛错落 FAILED——
+      // 此前宽容降级返回 pdf-parse 残稀文本，被误标 READY(1 chunk)，前端永无失败提示
       const content = await this.parser.parse(buffer, file.mimeType, file.fileName, async (processed, total) => {
         // 进度回写失败不得中断解析（fire-and-forget）；processedPages 仅展示用，乱序无害
         void this.prisma.knowledgeFile
@@ -95,7 +97,7 @@ export class KnowledgeParseProcessor extends WorkerHost {
           })
           .catch(() => undefined);
         await assertAlive();
-      });
+      }, { strictOcr: true });
 
       await assertAlive(); // 嵌入前检查点（OCR 后、长嵌入前的取消窗口）
       const textChunks = this.splitter.split(content);
