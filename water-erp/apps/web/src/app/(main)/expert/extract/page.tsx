@@ -7,14 +7,14 @@ import { toast } from 'sonner';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { localDateInputValue, localTimeInputValue } from '@/lib/local-date';
 import { useCompanyInfo } from '@/lib/api/company-info';
-import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, specialtyPoolCounts, listPoolCompanies, listExperts, getDemandRepDirectory, getBidProjectDetail, getProjectInvitations, proxyMarkExpertInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, fetchExtractionProfiles, fetchCommitteeAnalysis, createExternalDemandRep, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, type DemandRepDirectoryItem } from '@/lib/api/expert';
+import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, specialtyPoolCounts, listPoolCompanies, listExperts, getDemandRepDirectory, getBidProjectDetail, getProjectInvitations, proxyMarkExpertInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, fetchExtractionProfiles, fetchCommitteeAnalysis, createExternalDemandRep, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, type DemandRepDirectoryItem } from '@/lib/api/expert';
 import { UploadProgressRow } from '@/components/upload/upload-progress-row';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { QuotaMultiSelect } from '@/components/expert/quota-multi-select';
 import { StepTrack } from '@/components/step-track';
 import { CopyIconButton } from '@/components/copy-icon-button';
-import { Sparkles, ShieldCheck, AlertTriangle, Check, X, RefreshCw, UsersRound, Info, MessageSquare, Bell, Pencil, Plus, Clock, FileText, UserCircle, Search, ClipboardList, Upload, Loader2, Brain, Send, MapPin } from 'lucide-react';
+import { Sparkles, ShieldCheck, AlertTriangle, Check, X, RefreshCw, UsersRound, Info, MessageSquare, Bell, Plus, Clock, FileText, UserCircle, Search, ClipboardList, Upload, Loader2, Brain, Send, MapPin } from 'lucide-react';
 import { STAGE_LABEL } from '@water-erp/shared';
 
 /** 兼容新旧 API：新版返回 { total, items }，旧版返回数组 */
@@ -296,10 +296,6 @@ export function ExpertExtractPage({
   const [alternativeExperts, setAlternativeExperts] = useState<ExtractionSelected[]>([]);
   const [leadExpertId, setLeadExpertId] = useState<string | null>(null);
   const [step3Confirmed, setStep3Confirmed] = useState(false); // 步骤3确认后启用下一步
-  // 替换弹窗
-  const [showReplaceModal, setShowReplaceModal] = useState(false);
-  const [replaceTarget, setReplaceTarget] = useState<{ userId: string; role: 'selected' | 'alternative' } | null>(null);
-  const [replaceSearch, setReplaceSearch] = useState('');
   // 选用理由查看弹窗（2026-11-02 用户口径：理由不内联进表——长文撑坏表格，改按钮+弹窗查看）
   const [reasonView, setReasonView] = useState<{ name: string; reason: string } | null>(null);
   const [notifyChannelsByExpert, setNotifyChannelsByExpert] = useState<Map<string, string[]>>(new Map());
@@ -1200,23 +1196,6 @@ export function ExpertExtractPage({
   const et = extractMode === 'specialty_match' ? Math.max(qt, 1) : tn;
 
   // 候选池去重：补选弹窗打开时基于 reDraft，否则基于初始抽取
-  const availablePool = useMemo(() => {
-    const src = reDraft?.preview ?? preview;
-    if (!src?.candidatePool) return [];
-    const usedList = reDraft ? reDraft.selected : [...selectedExperts, ...alternativeExperts];
-    const used = new Set(usedList.map(e => e.userId));
-    return src.candidatePool.filter(c => !used.has(c.userId));
-  }, [preview, reDraft, selectedExperts, alternativeExperts]);
-
-  const filteredPool = useMemo(() =>
-    availablePool.filter(c =>
-      !replaceSearch.trim() ||
-      c.name.includes(replaceSearch.trim()) ||
-      c.specialty.includes(replaceSearch.trim())
-    ),
-  [availablePool, replaceSearch]);
-
-  // 自定义项目：上传文件 / AI 分析 / 创建影子项目并进入抽取
   // 2026-11-06 上传进度条：字节进度实时亮在上传钮下方（每文件行）
   const [upRows, setUpRows] = useState<Array<{ name: string; pct: number }>>([]);
   const handleUploadFiles = async (files: FileList | null) => {
@@ -2024,102 +2003,7 @@ export function ExpertExtractPage({
     }
   };
 
-  // 手动调整（按 userId 定位，避免排序后 index 错位）
-  const removeExpert = (userId: string, role: 'selected' | 'alternative') => {
-    if (role === 'selected') setSelectedExperts(prev => prev.filter(e => e.userId !== userId));
-    else setAlternativeExperts(prev => prev.filter(e => e.userId !== userId));
-  };
-  const openReplace = (userId: string, role: 'selected' | 'alternative') => {
-    setReplaceTarget({ userId, role });
-    setReplaceSearch('');
-    setShowReplaceModal(true);
-  };
-  const doReplace = (candidate: CandidatePoolItem) => {
-    if (!replaceTarget) return;
-    const newExpert: ExtractionSelected = {
-      userId: candidate.userId, name: candidate.name, specialty: candidate.specialty,
-      title: candidate.title || null, employer: candidate.employer || null,
-      matchScore: candidate.matchScore, reason: candidate.reason, role: replaceTarget.role === 'selected' ? '正选' : '候补',
-    };
-    if (reDraft) {
-      updateDraft({ selected: reDraft.selected.map(e => e.userId === replaceTarget.userId ? newExpert : e) });
-    } else if (replaceTarget.role === 'selected') {
-      setSelectedExperts(prev => prev.map(e => e.userId === replaceTarget.userId ? newExpert : e));
-    } else {
-      setAlternativeExperts(prev => prev.map(e => e.userId === replaceTarget.userId ? newExpert : e));
-    }
-    setShowReplaceModal(false);
-    setReplaceTarget(null);
-  };
-  const addExpert = (candidate: CandidatePoolItem) => {
-    const newExpert: ExtractionSelected = {
-      userId: candidate.userId, name: candidate.name, specialty: candidate.specialty,
-      title: candidate.title || null, employer: candidate.employer || null,
-      matchScore: candidate.matchScore, reason: candidate.reason, role: '正选',
-    };
-    if (reDraft) {
-      updateDraft({ selected: [...reDraft.selected, newExpert] });
-    } else {
-      setSelectedExperts(prev => [...prev, newExpert]);
-    }
-    setShowReplaceModal(false);
-    setReplaceTarget(null);
-  };
   const reset = () => { setStep(1); setDone(false); setPreview(null); setSelectedExperts([]); setAlternativeExperts([]); setNotifyResults(null); setConfirmedExpertIds([]); setStep3Confirmed(false); notifySentRef.current = false; originalConfirmedIdsRef.current = new Set(); quotaCacheRef.current.clear(); setReHistory([]); setAltPreview(null); setAltSelected([]); setAltNotified(false); setAltExhausted(false); invitationRestoredRef.current = false; modalLocalRestoredRef.current = false; localStorage.removeItem(`${storageKey}-${pid}`); localStorage.removeItem(LAST_PID_KEY); };
-
-  // 配置卡片
-  // 替换/添加弹窗
-  // 被替换的原专家信息
-  const replacedExpert = useMemo(() => {
-    if (!replaceTarget) return null;
-    const list = reDraft ? reDraft.selected : (replaceTarget.role === 'selected' ? selectedExperts : alternativeExperts);
-    return list.find(e => e.userId === replaceTarget.userId) || null;
-  }, [replaceTarget, selectedExperts, alternativeExperts, reDraft]);
-
-  const replaceModal = showReplaceModal && (
-    <Modal
-      open
-      onClose={() => { setShowReplaceModal(false); setReplaceTarget(null); }}
-      size="lg"
-      title={replaceTarget ? '替换专家' : '添加专家'}
-    >
-      {/* 原专家对比 */}
-      {replacedExpert && (
-        <div className="rounded-xl bg-[color-mix(in_oklch,var(--surface)_80%,transparent)] p-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.5)]">
-          <div className="text-[10px] font-semibold uppercase text-[var(--muted-foreground)] mb-2">当前专家</div>
-          <div className="flex items-center gap-3 text-xs">
-            <span className="font-bold text-[var(--foreground)]">{replacedExpert.name}</span>
-            <span className="text-[var(--muted-foreground)]">{replacedExpert.specialty}</span>
-            {replacedExpert.title && <span className="text-[var(--muted-foreground)]">· {replacedExpert.title}</span>}
-          </div>
-          <p className="text-[11px] text-[var(--muted-foreground)] mt-1">{replacedExpert.reason}</p>
-        </div>
-      )}
-      <input value={replaceSearch} onChange={e => setReplaceSearch(e.target.value)} placeholder="搜索候选专家姓名/专业..." className="neu-input text-sm w-full" autoFocus />
-      <div className="space-y-1 max-h-[400px] overflow-y-auto">
-        {filteredPool.length === 0 ? (
-          <p className="text-xs text-[var(--muted-foreground)] text-center py-8">暂无可用候选专家</p>
-        ) : (
-          filteredPool.map(c => { return (
-              <div key={c.userId} className="flex items-center justify-between rounded-lg bg-[var(--surface)] px-3 py-2 shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-[var(--foreground)] truncate">{c.name}</span>
-                    {c.evaluationLevel && <StatusBadge tone={c.evaluationLevel === 'A' ? 'green' : c.evaluationLevel === 'B' ? 'blue' : c.evaluationLevel === 'D' ? 'orange' : c.evaluationLevel === 'E' ? 'red' : 'gray'}>{c.evaluationLevel}</StatusBadge>}
-                    {c.currentLoadStatus && <span className="text-[10px] text-[var(--muted-foreground)]">{c.currentLoadStatus}</span>}
-                  </div>
-                  <div className="text-xs text-[var(--muted-foreground)] truncate">{c.specialty}{c.title ? ` · ${c.title}` : ''}</div>
-                </div>
-                <div className="flex items-center gap-2 ml-3">
-                  <button onClick={() => replaceTarget ? doReplace(c) : addExpert(c)} className="neu-btn-xs">选择</button>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-    </Modal>
-  );
 
   // 通知弹窗
   return (
@@ -3670,7 +3554,6 @@ export function ExpertExtractPage({
               <div className="neu-table-card p-3">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">补选专家 · {reDraft.selected.length} 人{reDraft.confirmed ? '（已确认入库）' : '（确认后入库）'}</span>
-                  {!reDraft.confirmed && <button onClick={() => { setReplaceTarget(null); setReplaceSearch(''); setShowReplaceModal(true); }} className="neu-btn-xs"><Plus size={12} />添加专家</button>}
                 </div>
                 {reDraft.selected.length === 0 ? (
                     <p className="text-xs text-[var(--muted-foreground)] text-center py-4">无补选专家</p>
@@ -3678,7 +3561,6 @@ export function ExpertExtractPage({
                   <div key={s.userId} className={`flex items-start gap-3 ${i > 0 ? 'border-t border-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)] mt-2 pt-2' : 'mt-2'}`}>
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-extrabold text-white">{i + 1}</span>
                     <div className="min-w-0 flex-1"><div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-bold text-[var(--foreground)]">{s.name}</span><StatusBadge tone="blue">{fmtExpertSpecialty(s.userId, s.specialty)}</StatusBadge>{s.evaluationLevel && <StatusBadge tone={s.evaluationLevel === 'A' ? 'green' : s.evaluationLevel === 'B' ? 'blue' : s.evaluationLevel === 'D' ? 'orange' : s.evaluationLevel === 'E' ? 'red' : 'gray'}>{s.evaluationLevel}</StatusBadge>}</div><p className="text-[11px] text-[var(--muted-foreground)] mt-0.5">公司：{s.employer || '—'} · 职称：{s.title || '—'}</p></div>
-                    {!reDraft.confirmed && <div className="flex items-center gap-1 shrink-0"><button onClick={() => { setReplaceTarget({ userId: s.userId, role: 'selected' }); setReplaceSearch(''); setShowReplaceModal(true); }} className="neu-btn-xs" title="替换"><Pencil size={11} /></button><button onClick={() => updateDraft({ selected: reDraft.selected.filter(x => x.userId !== s.userId) })} className="neu-btn-xs is-danger" title="移除"><X size={11} /></button></div>}
                   </div>
                 ))}
               </div>
@@ -3707,9 +3589,10 @@ export function ExpertExtractPage({
               )}
 
               <div className="flex items-center gap-2 pt-3 border-t border-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                <span className="flex-1 text-[11px] text-[var(--muted-foreground)]">{!reDraft.confirmed ? '确认后追加入库（不影响已确认专家）' : !reDraft.notified ? '通知内容默认复用步骤3模板' : '本轮补选已完成'}</span>
+                <span className="flex-1 text-[11px] text-[var(--muted-foreground)]">{!reDraft.confirmed ? '名单以抽取结果为准，确认后追加入库（不影响已确认专家）' : !reDraft.notified ? '通知内容默认复用步骤3模板' : '本轮补选已完成'}</span>
                 <div className="flex items-center gap-2">
                   {!reDraft.confirmed ? (
+                    /* 2026-11-09 用户裁定：补选不提供自主选择（添加/替换/移除）与重新抽取，抽取结果仅确认 */
                     <button onClick={confirmReDraft} disabled={confirming || reDraft.selected.length === 0} className="neu-btn-soft is-success">
                       <Check size={14} />{confirming ? '确认中...' : `确认补选专家（${reDraft.selected.length} 人）`}
                     </button>
@@ -3764,8 +3647,6 @@ export function ExpertExtractPage({
           )}
         </Modal>
       )}
-
-      {replaceModal}
 
       {/* 抽取历史弹窗 */}
       {showHistory && (
