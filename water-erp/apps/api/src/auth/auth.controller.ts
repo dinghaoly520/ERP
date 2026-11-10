@@ -164,7 +164,6 @@ export class AuthController {
         : result.code === 'EXPERT_INACTIVE' ? '该专家账号未启用，请联系管理单位'
         : result.code === 'ACCOUNT_DISABLED' ? '该供应商已被停用，如有疑问请联系采购中心'
         : result.code === 'ACCOUNT_BLACKLISTED' ? '该供应商已被列入黑名单，如有疑问请联系采购中心'
-        : result.code === 'SUPPLIER_NO_COMPANY' ? '贵司已无任何归属公司，账号暂无法登录；如需恢复请咨询采购中心'
         : result.code === 'SUPPLIER_REJECTED' ? '注册申请未通过审核，可在注册页修改资料后重新提交'
         : result.code === 'SUPPLIER_RETURNED' ? '注册资料已退回补正，请在注册页完成补正后重新提交'
         : '账号待审核，尚未激活';
@@ -287,9 +286,14 @@ export class AuthController {
 
   @Get('heartbeat')
   @AnyRole()
-  @ApiOperation({ summary: '单设备登录心跳：会话被顶替/账号冻结时返回 401，由前端踢回登录页' })
-  heartbeat() {
-    // 实际校验在全局 AuthGuard；本端点仅为前端提供轻量轮询目标（操作日志已排除）
+  @ApiOperation({ summary: '单设备登录心跳：会话被顶替/账号冻结/供应商零归属时返回 401，由前端踢回登录页' })
+  async heartbeat(@CurrentUser() user: AuthenticatedUser) {
+    // 实际校验在全局 AuthGuard；本端点仅为前端提供轻量轮询目标（操作日志已排除）。
+    // 零归属闸的会话面兜底（2026-11-10）：登录闸只拦「登录时」，已登录供应商在归属全部
+    // 退光后借 15s 心跳即时失效——仅供应商会话多一次索引计数（频率=心跳节奏，不入全局守卫）。
+    if (user?.role === 'supplier') {
+      await this.authService.assertSupplierHasCompany(user.sub);
+    }
     return { ok: true };
   }
 

@@ -178,6 +178,18 @@ describe('SupplierLinkService — 退库轨状态机', () => {
     await expect(svc2.applyLeave('u1', { companyId: 'co-b' })).rejects.toMatchObject({ response: { code: 'INVALID_STATUS' } });
   });
 
+  it('applyLeave：乐观锁兜底——findUnique 与 updateMany 间隙状态被并发变更（count=0）→ INVALID_STATUS', async () => {
+    const prisma = mkPrisma({ link: mkLink() });
+    prisma.supplierCompanyLink.updateMany.mockResolvedValue({ count: 0 }); // 并发：他请求先改走该行
+    notification.create.mockClear(); // describe 级共享 mock，清掉前序用例调用
+    const svc = newSvc(prisma);
+    await expect(svc.applyLeave('u1', { companyId: 'co-b' })).rejects.toMatchObject({
+      response: { code: 'INVALID_STATUS', error: expect.stringContaining('刷新') },
+    });
+    // 状态被并发吃掉后不得再发审批通知
+    expect(notification.create).not.toHaveBeenCalled();
+  });
+
   it('apply（加入）：WITHDRAWN 行复用 → PENDING 重走三级（退库后重新加入路径）', async () => {
     const prisma = mkPrisma({ link: mkLink({ status: 'WITHDRAWN' }) });
     const svc = newSvc(prisma);
