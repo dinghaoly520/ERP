@@ -566,21 +566,32 @@ export class ExpertAdminService {
 
   /* 专家录入 */
 
-  /** 录入表单所属部门联想（2026-11-09 用户裁定：部门同专业/职称下拉设计）：
-   *  专家域已用部门名按专家数降序——引导复用既有部门行（createExpert 按名
-   *  find-or-create，同字异名会裂出多行）；自定义输入仍放行走新建。
-   *  按名合并（2026-11-10）：Department 唯一键是 [companyId,name]，同名部门在
-   *  各公司各有一行（安全管理部/办公室等多公司重名）——按行返回会让联想下拉出现
-   *  重复项（React key 撞车实录），同名行专家数求和后出一条 */
-  async departmentOptions(): Promise<Array<{ name: string; count: number }>> {
-    const deps = await this.prisma.department.findMany({
-      select: { name: true, _count: { select: { users: { where: { role: 'bid_expert' } } } } },
-    });
+  /** 录入表单所属部门联想（2026-11-09 用户裁定：部门同专业/职称下拉设计；
+   *  2026-11-10 用户裁定：必须先选工作单位——按公司过滤，未传/公司未建档返回空，
+   *  前端在未选公司时禁用部门框）。选项 = 本公司专家在用部门（departmentId 关联，
+   *  专家建行 companyId=null 但挂在人上）∪ 公司主数据自有部门行；按名合并计数降序
+   *  ——Department 唯一键是 [companyId,name]，同名部门跨公司多行，按行返回会让联想
+   *  下拉出现重复项（React key 撞车实录）。自定义输入仍放行走 createExpert 按名新建。 */
+  async departmentOptions(company?: string): Promise<Array<{ name: string; count: number }>> {
+    const companyName = company?.trim();
+    if (!companyName) return [];
+    const companyRow = await this.findCompanyByName(companyName);
+    if (!companyRow) return []; // 外部单位（名单/主数据外手输）无从过滤——空表引导直接输入
+    const [experts, owned] = await Promise.all([
+      this.prisma.user.findMany({
+        where: { role: 'bid_expert', companyId: companyRow.id, departmentId: { not: null } },
+        select: { department: { select: { name: true } } },
+      }),
+      this.prisma.department.findMany({ where: { companyId: companyRow.id }, select: { name: true } }),
+    ]);
     const byName = new Map<string, number>();
-    for (const d of deps) {
+    for (const u of experts) {
+      const name = u.department?.name.trim();
+      if (name) byName.set(name, (byName.get(name) ?? 0) + 1);
+    }
+    for (const d of owned) {
       const name = d.name.trim();
-      if (!name) continue;
-      byName.set(name, (byName.get(name) ?? 0) + d._count.users);
+      if (name && !byName.has(name)) byName.set(name, 0); // 公司自有部门无专家在用也出选项
     }
     return [...byName.entries()]
       .map(([name, count]) => ({ name, count }))

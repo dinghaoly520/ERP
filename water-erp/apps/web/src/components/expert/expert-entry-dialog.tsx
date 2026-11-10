@@ -25,7 +25,8 @@ interface ExpertEntryDialogProps {
 
 export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDialogProps) {
   const [specialties, setSpecialties] = useState<string[]>([]);
-  // 所属部门联想（2026-11-09 用户裁定：同专业/职称下拉设计——专家域已用部门名，自定义仍可新建）
+  // 所属部门联想（2026-11-09 同专业/职称下拉设计；2026-11-10 裁定：必须先选工作单位——
+  // 选项按公司级联（本公司专家在用部门），未选公司禁用部门框，换公司级联清空）
   const [departments, setDepartments] = useState<string[]>([]);
   const [form, setForm] = useState<FormFields>(INITIAL);
   const [saving, setSaving] = useState(false);
@@ -36,13 +37,37 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
   useEffect(() => {
     if (open) {
       listSpecialties().then(setSpecialties).catch(() => toast.warning('加载专业列表失败，可手动输入'));
-      fetchExpertDepartmentOptions().then(rows => setDepartments(rows.map(r => r.name))).catch(() => {});
+      setDepartments([]);
       // 重置表单
       setForm(INITIAL);
       setErrors({});
       setServerError('');
     }
   }, [open]);
+
+  // 部门选项随工作单位级联（300ms 防抖，同 :3005 注册页口径）；外部单位/接口失败静默降级为空表
+  useEffect(() => {
+    const company = form.employer.trim();
+    if (!company) {
+      setDepartments([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      fetchExpertDepartmentOptions(company)
+        .then((rows) => { if (!cancelled) setDepartments(rows.map(r => r.name)); })
+        .catch(() => { if (!cancelled) setDepartments([]); });
+    }, 300);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [form.employer]);
+
+  const handleEmployerChange = (v: string) => {
+    // 换公司后原部门大概率不属于新公司：级联清空（部门选项随 effect 刷新）
+    if (v !== form.employer) {
+      set('employer', v);
+      if (form.departmentName) set('departmentName', '');
+    }
+  };
 
   const set = (k: keyof FormFields, v: string) => {
     setForm(prev => ({ ...prev, [k]: v }));
@@ -190,15 +215,29 @@ export function ExpertEntryDialog({ open, onClose, onSubmitted }: ExpertEntryDia
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">专业 <span className="text-[var(--danger)]">*</span></span><TypeaheadCombobox value={form.specialty} onChange={v => set('specialty', v)} options={specialties} allowCustom placeholder="输入或选择专业" emptyText="无匹配专业" triggerClassName={errors.specialty ? '!border-[var(--danger)]' : ''} /><FieldError field="specialty" /></label>
             <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">职称 <span className="text-[var(--danger)]">*</span></span><TypeaheadCombobox value={form.title} onChange={v => set('title', v)} options={[...TITLES]} allowCustom placeholder="输入或选择职称" emptyText="无匹配职称" triggerClassName={errors.title ? '!border-[var(--danger)]' : ''} /><FieldError field="title" /></label>
-            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">执业资格</span><input value={form.qualifications} onChange={e => set('qualifications', e.target.value)} list="entry-qual-list" placeholder="如 一级建造师、监理工程师（顿号分隔）" className={inputCls('qualifications')} /><datalist id="entry-qual-list">{QUALIFICATIONS.map(q => <option key={q} value={q} />)}</datalist></label>
-            {/* 工作单位：与 :3005 注册「公司」选择同款同源（UnitSearchSelect：62 家全级次企业名单 +
-                搜索 + 可手输），后端按名称命中公司主数据落归属 */}
+            {/* 工作单位+所属部门同排（2026-11-10 裁定）：单位与 :3005 注册「公司」选择同款同源
+                （UnitSearchSelect：62 家全级次企业名单 + 搜索 + 可手输），后端按名称命中公司主数据落归属；
+                部门选项随单位级联（本公司专家在用部门），未选单位禁用部门框 */}
             <div className="space-y-1">
               <span className="text-xs font-semibold text-[var(--muted-foreground)]">工作单位 <span className="text-[var(--danger)]">*</span></span>
-              <UnitSearchSelect value={form.employer} onChange={v => set('employer', v)} />
+              <UnitSearchSelect value={form.employer} onChange={handleEmployerChange} />
               <FieldError field="employer" />
             </div>
-            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">所属部门 <span className="text-[var(--danger)]">*</span></span><TypeaheadCombobox value={form.departmentName} onChange={v => set('departmentName', v)} options={departments} allowCustom placeholder="输入或选择部门" emptyText="无匹配部门" triggerClassName={errors.departmentName ? '!border-[var(--danger)]' : ''} /><FieldError field="departmentName" /></label>
+            <div className="space-y-1">
+              <span className="text-xs font-semibold text-[var(--muted-foreground)]">所属部门 <span className="text-[var(--danger)]">*</span></span>
+              <TypeaheadCombobox
+                value={form.departmentName}
+                onChange={v => set('departmentName', v)}
+                options={departments}
+                allowCustom
+                placeholder="选择或输入部门"
+                emptyText={form.employer.trim() ? '该公司暂无部门记录，可直接输入' : '请先选择工作单位，或直接输入部门'}
+                customHint="直接使用"
+                triggerClassName={`!h-[38px] ${errors.departmentName ? '!border-[var(--danger)]' : ''}`}
+              />
+              <FieldError field="departmentName" />
+            </div>
+            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">执业资格</span><input value={form.qualifications} onChange={e => set('qualifications', e.target.value)} list="entry-qual-list" placeholder="如 一级建造师、监理工程师（顿号分隔）" className={inputCls('qualifications')} /><datalist id="entry-qual-list">{QUALIFICATIONS.map(q => <option key={q} value={q} />)}</datalist></label>
           </div>
         </fieldset>
         <hr className="wb-section-rule" />
