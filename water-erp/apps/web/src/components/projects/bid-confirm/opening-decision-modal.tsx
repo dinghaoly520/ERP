@@ -73,17 +73,17 @@ function fmtCn(iso: string): string {
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-const SIGNATURE = '四川省水利发展集团有限公司';
-
+// 正文不带公司落款（2026-11-10 用户裁定）：短信通道发送时自动前置【四川省水利发展集团】签名，
+// 正文落款冗余且多耗分段字数——供应商/专家模板一律不附
 function buildSupplierTemplate(bp: BidProjectRef, mode: OpeningDecisionMode, fmt: string) {
   return mode === 'ontime'
     ? {
         title: `开标通知：${bp.name}`,
-        body: `{供应商名称} 您好！\n\n项目 ${bp.projectCode}（${bp.name}）将按计划于 ${fmt} 开标，请您安排代表准时出席，具体开标安排请以供应商门户最新通知为准。\n\n${SIGNATURE}`,
+        body: `{供应商名称} 您好！\n\n项目 ${bp.projectCode}（${bp.name}）将按计划于 ${fmt} 开标，请您安排代表准时出席，具体开标安排请以供应商门户最新通知为准。`,
       }
     : {
         title: `开标时间变更：${bp.name}`,
-        body: `{供应商名称} 您好！\n\n项目 ${bp.projectCode}（${bp.name}）开标时间调整至 ${fmt}，请您以最新时间为准安排出席；投标截止时间不变。\n\n${SIGNATURE}`,
+        body: `{供应商名称} 您好！\n\n项目 ${bp.projectCode}（${bp.name}）开标时间调整至 ${fmt}，请您以最新时间为准安排出席；投标截止时间不变。`,
       };
 }
 function buildExpertTemplate(bp: BidProjectRef, mode: OpeningDecisionMode, fmt: string) {
@@ -91,11 +91,11 @@ function buildExpertTemplate(bp: BidProjectRef, mode: OpeningDecisionMode, fmt: 
   return mode === 'ontime'
     ? {
         title: `评审出席提醒：${bp.name}`,
-        body: `{专家姓名} 老师：\n\n项目 ${bp.projectCode} 将按计划于 ${fmt} 开标，请您提前安排行程，准时出席评审工作。\n\n${SIGNATURE}`,
+        body: `{专家姓名} 老师：\n\n项目 ${bp.projectCode} 将按计划于 ${fmt} 开标，请您提前安排行程，准时出席评审工作。`,
       }
     : {
         title: `开标时间变更：${bp.name}`,
-        body: `{专家姓名} 老师：\n\n项目 ${bp.projectCode} 开标时间调整至 ${fmt}，请以最新时间为准安排出席评审。\n\n${SIGNATURE}`,
+        body: `{专家姓名} 老师：\n\n项目 ${bp.projectCode} 开标时间调整至 ${fmt}，请以最新时间为准安排出席评审。`,
       };
 }
 

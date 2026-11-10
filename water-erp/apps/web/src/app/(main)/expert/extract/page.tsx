@@ -1881,7 +1881,7 @@ export function ExpertExtractPage({
       // 2026-11-10 裁定：专家短信不透露项目名称）
       const altMsg = new Map(notifyMessages);
       for (const e of result.selected) {
-        altMsg.set(e.userId, `${e.name}专家您好！\n您被选为候补评审专家，若参与评审专家因故无法参加，将按序递补您参加评标。${openTimeFormatted ? `\n开标时间：${openTimeFormatted}` : ''}\n请您提前做好准备并保持通讯畅通。感谢您的支持与配合。\n\n四川省水利发展集团有限公司\n${new Date().toLocaleDateString('zh-CN', { year:'numeric', month:'long', day:'numeric' })}`);
+        altMsg.set(e.userId, `${e.name}专家您好！\n您被选为候补评审专家，若参与评审专家因故无法参加，将按序递补您参加评标。${openTimeFormatted ? `\n开标时间：${openTimeFormatted}` : ''}\n请您提前做好准备并保持通讯畅通。感谢您的支持与配合。\n\n${new Date().toLocaleDateString('zh-CN', { year:'numeric', month:'long', day:'numeric' })}`);
       }
       updateMessages(altMsg);
       toast.success(`候补专家抽取完成，共 ${result.selected.length} 人`);
