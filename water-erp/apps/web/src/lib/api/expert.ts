@@ -151,8 +151,11 @@ export function fetchExpertCompanyCounts(params?: { search?: string; specialty?:
   return api.get<Array<{ name: string; count: number }>>(`/expert-admin/company-counts${qs ? '?' + qs : ''}`);
 }
 
-export function fetchExpertDepartmentOptions() {
-  return api.get<Array<{ name: string; count: number }>>(`/expert-admin/department-options`);
+/** 所属部门联想（2026-11-10 裁定：须先选工作单位）——按公司名过滤；
+ *  未传/公司未建档（外部单位）后端返回空表 */
+export function fetchExpertDepartmentOptions(company?: string) {
+  const qs = company?.trim() ? `?company=${encodeURIComponent(company.trim())}` : '';
+  return api.get<Array<{ name: string; count: number }>>(`/expert-admin/department-options${qs}`);
 }
 
 export function createExpert(data: {

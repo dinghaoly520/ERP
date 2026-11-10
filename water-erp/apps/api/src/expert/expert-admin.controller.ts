@@ -96,9 +96,9 @@ export class ExpertAdminController {
   }
 
   @Get('department-options')
-  @ApiOperation({ summary: '录入表单所属部门联想：专家域已用部门名（按专家使用数降序；自定义输入仍可新建）' })
-  departmentOptions() {
-    return this.expertAdminService.departmentOptions();
+  @ApiOperation({ summary: '录入表单所属部门联想：按工作单位公司过滤（未传/公司未建档返回空；本公司专家在用部门 ∪ 公司自有部门，按专家使用数降序；自定义输入仍可新建）' })
+  departmentOptions(@Query('company') company?: string) {
+    return this.expertAdminService.departmentOptions(company);
   }
 
   @Get('pool-companies')

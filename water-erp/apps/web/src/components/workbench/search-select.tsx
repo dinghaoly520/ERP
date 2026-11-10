@@ -170,39 +170,40 @@ export function SearchSelect({
               )}
             </div>
           )}
-          {/* 当前值：白瓷片凸起 + 品牌蓝粗体 + 对勾（neu-tab v2 激活语义） */}
-          {(() => {
-            const cur = filtered.find((o) => o.value === value);
-            return cur ? (
+          {/* 全量按传入顺序渲染（2026-11-10 用户裁定：选中项不再置顶）；当前值在原位
+              以白瓷片凸起 + 品牌蓝粗体 + 对勾呈现（neu-tab v2 激活语义） */}
+          {filtered.map((o) => {
+            const isCurrent = o.value === value;
+            return isCurrent ? (
               <button
+                key={o.value}
                 type="button"
                 role="option"
                 aria-selected
-                onClick={() => pick(cur)}
+                onClick={() => pick(o)}
                 className="mb-0.5 flex w-full items-center justify-between gap-2 rounded-[10px] px-2.5 py-[7px] text-left text-xs font-bold text-[var(--accent)]"
                 style={{ background: "oklch(1 0 0)", boxShadow: "inset 0 1px 0 oklch(1 0 0 / 0.95), 2px 2px 6px oklch(0.55 0.03 258 / 0.16), -1px -1px 2px oklch(1 0 0 / 0.9)" }}
               >
-                <span className="truncate">{cur.label}</span>
+                <span className="truncate">{o.label}</span>
                 <Check size={12} strokeWidth={2.6} className="shrink-0" />
               </button>
-            ) : null;
-          })()}
-          {filtered.filter((o) => o.value !== value).map((o) => (
-            <button
-              key={o.value}
-              type="button"
-              role="option"
-              aria-selected={false}
-              onClick={() => pick(o)}
-              className="flex w-full items-center justify-between gap-2 rounded-[8px] px-2.5 py-[7px] text-left text-xs text-[color:var(--foreground)] transition-colors hover:bg-[color-mix(in_oklch,var(--accent)_6%,transparent)]"
-            >
-              <span className="min-w-0">
-                <span className="block truncate">{o.label}</span>
-                {o.sub && <span className="block truncate text-[10px] font-normal text-[color:var(--muted-foreground)]">{o.sub}</span>}
-              </span>
-              {o.meta && <span className="shrink-0 text-[10px] text-[color:var(--muted-foreground)]">{o.meta}</span>}
-            </button>
-          ))}
+            ) : (
+              <button
+                key={o.value}
+                type="button"
+                role="option"
+                aria-selected={false}
+                onClick={() => pick(o)}
+                className="flex w-full items-center justify-between gap-2 rounded-[8px] px-2.5 py-[7px] text-left text-xs text-[color:var(--foreground)] transition-colors hover:bg-[color-mix(in_oklch,var(--accent)_6%,transparent)]"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate">{o.label}</span>
+                  {o.sub && <span className="block truncate text-[10px] font-normal text-[color:var(--muted-foreground)]">{o.sub}</span>}
+                </span>
+                {o.meta && <span className="shrink-0 text-[10px] text-[color:var(--muted-foreground)]">{o.meta}</span>}
+              </button>
+            );
+          })}
           {filtered.length === 0 && !((allowCustom && text)) && (
             <div className="px-2 py-2 text-center text-[10px] text-[color:var(--muted-foreground)]">{emptyText}</div>
           )}

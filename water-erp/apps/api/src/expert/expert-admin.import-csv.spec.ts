@@ -203,6 +203,54 @@ describe('ExpertAdminService.importCsv 归属三档解析', () => {
     }
   });
 
+  it('简写+官方拼写两单位指向同一名单公司 → 只建一次档（toCreate 去重）', async () => {
+    const r = await service.importCsv([
+      { 姓名: '子', 专业领域: '水机', 工作单位: YDJM_ALIAS, 身份证号: '510000199001010011' },
+      { 姓名: '丑', 专业领域: '水土', 工作单位: YDJM_CANONICAL, 身份证号: '510000199001010022' },
+    ], 'op1');
+    expect(prisma.company.create).toHaveBeenCalledTimes(1);
+    expect(createdCompanies).toHaveLength(1);
+    if (!r.needMapping) {
+      expect(createdUsers[0].companyId).toBe(createdCompanies[0].id);
+      expect(createdUsers[1].companyId).toBe(createdCompanies[0].id); // 两行同源
+    }
+  });
+
+  it('needMapping 返回前零写入（两阶段）：名单单位建档延迟到确认后——取消导入无痕（2026-11-10 稳健轮回归）', async () => {
+    const r = await service.importCsv([
+      { 姓名: '甲', 专业领域: '水工', 工作单位: LISTED, 身份证号: '510000199001010088' },
+      { 姓名: '乙', 专业领域: '地质', 工作单位: NEW_NAME, 身份证号: '510000199001010099' },
+    ], 'op1');
+    expect(r.needMapping).toBe(true);
+    if (r.needMapping) expect(r.unmatched).toEqual([NEW_NAME]);
+    expect(prisma.company.create).not.toHaveBeenCalled(); // 名单单位未提前建档
+    expect(createdCompanies).toHaveLength(0);
+    expect(createdUsers).toHaveLength(0);
+  });
+
+  it('并发建档撞 name 唯一键（P2002）→ 回读既有行，不炸整批（2026-11-10 稳健轮）', async () => {
+    const raced = { id: 'co-raced', name: LISTED };
+    const byNameFind = prisma.company.findUnique.getMockImplementation();
+    let nameLookups = 0;
+    prisma.company.findUnique.mockImplementation(async (args: any) => {
+      if (args.where.name) {
+        nameLookups++;
+        return nameLookups === 1 ? null : raced; // 首查无档 → 建档撞键 → 回读命中
+      }
+      if (args.where.id === raced.id) return raced; // createExpert 归属回查（按 id）
+      return byNameFind ? byNameFind(args) : null;
+    });
+    prisma.company.create.mockRejectedValueOnce(Object.assign(new Error('Unique constraint failed'), { code: 'P2002' }));
+    const r = await service.importCsv([
+      { 姓名: '丙', 专业领域: '水文', 工作单位: LISTED, 身份证号: '510000199001010011' },
+    ], 'op1');
+    if (!r.needMapping) {
+      expect(createdUsers[0].companyId).toBe(raced.id);
+      expect(createdUsers[0].company).toBe(LISTED);
+      expect(r.results[0].状态).toBe('成功');
+    }
+  });
+
   it('重导修复：账号已在库且未归属 + 单位名命中 → 补录归属', async () => {
     prisma.user.findFirst.mockResolvedValueOnce({ id: 'dup-1', companyId: null }); // importCsv 查重命中
     const r = await service.importCsv([
