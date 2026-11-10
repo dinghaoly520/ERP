@@ -210,6 +210,13 @@ export class CaAuthController {
     if (supplier.isTemporary && supplier.temporaryExpiresAt && supplier.temporaryExpiresAt < new Date()) {
       throw new UnauthorizedException({ error: '临时供应商有效期已过，请联系采购中心', code: 'TEMPORARY_EXPIRED' });
     }
+    // 零归属闸（2026-11-10 用户裁定，与主登录 AuthService.login 同口径）：无任何归属公司的
+    // 供应商账号无法登录——CA 登录不走 login()，须在此独立设闸（口径：存在非 WITHDRAWN/REJECTED link）
+    if ((await this.prisma.supplierCompanyLink.count({
+      where: { supplierId: supplier.id, status: { notIn: ['WITHDRAWN', 'REJECTED'] } },
+    })) === 0) {
+      throw new UnauthorizedException({ error: '贵司已无任何归属公司，账号暂无法登录；如需恢复请咨询采购中心', code: 'SUPPLIER_NO_COMPANY' });
+    }
 
     // 共享登录收尾：会话轮换 + cookie 写入 + 审计（复用 AuthService）
     // I8 修复：sessionMeta 附 caLoginChallengeId——result 端点凭它恢复已成功会话

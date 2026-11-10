@@ -14,6 +14,18 @@ export class ApplyCompanyLinkDto {
   note?: string;
 }
 
+/** 申请退库（2026-11-10）：companyId 必填（限本人已在库归属——service 校验）；
+ *  「确认退库」文字确认为门户表单闸，后端不重复校验。
+ *  注意 companyId 用 @IsString 而非 @IsUUID——Company 主键为 cuid/短_slug 形态（同 ApplyCompanyLinkDto 注）。 */
+export class ApplyCompanyLinkLeaveDto {
+  @IsString() @MaxLength(64)
+  companyId!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional() @IsString() @MaxLength(200)
+  note?: string;
+}
+
 export class ApproveLinkDto {
   @ApiPropertyOptional()
   @IsOptional() @IsString() @MaxLength(500)

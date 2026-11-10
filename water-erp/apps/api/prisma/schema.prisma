@@ -1650,10 +1650,12 @@ model SupplierInvitation {
 /// 唯一通道=供应商自主申请（三级审批）；Supplier.companyId 降级为「主归属」
 /// （注册三级审批仍按它流转）；库可见性以本表 APPROVED link 为准。
 enum SupplierLinkStatus {
-  PENDING   // 三级审批中
+  PENDING   // 加入三级审批中
   APPROVED  // 在该公司库
-  REJECTED  // 申请被驳回（供应商可重新申请，原行复用）
+  REJECTED  // 加入申请被驳回（供应商可重新申请，原行复用）
   DISABLED  // 公司在自己库内停用（软移出，可恢复；不影响其他公司）
+  LEAVE_PENDING // 退库三级审批中（2026-11-10）：提交即暂停该公司库内权益（各消费端均按 APPROVED 过滤，天然排除）；终审通过→WITHDRAWN，驳回→回 APPROVED
+  WITHDRAWN // 已退库（可重新申请加入，原行复用）
 }
 
 model SupplierCompanyLink {

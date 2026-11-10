@@ -7,7 +7,11 @@ import type { AuthenticatedUser } from '../auth/auth.types';
 /** 供应商多公司归属（2026-10-16 spec）：SupplierCompanyLink 唯一通道=供应商自主申请（三级审批）。
  *  公司侧无任何全系统供应商检索/邀请入口（用户裁决 2026-10-16）。
  *  三级级权限/通知逻辑与 SupplierService 注册审批同口径——原实现为其私有方法，
- *  此处复制同款（约 60 行）避免与 4k 行 SupplierService 强耦合；口径漂移以 spec 为准。 */
+ *  此处复制同款（约 60 行）避免与 4k 行 SupplierService 强耦合；口径漂移以 spec 为准。
+ *  退库轨（2026-11-10）：已在库供应商可申请退出（applyLeave）——同款三级审批（LEAVE_PENDING），
+ *  终审通过 → WITHDRAWN（可重新申请加入）；驳回 → 回 APPROVED（仍在库）。
+ *  审批期间（LEAVE_PENDING）库内权益暂停：全库消费端均按 APPROVED 过滤，天然排除、零改动。
+ *  退光全部归属 → 登录闸拒绝（auth.service SUPPLIER_NO_COMPANY，2026-11-10 用户裁定）。 */
 @Injectable()
 export class SupplierLinkService {
   private static readonly STAGE_LABELS: Record<string, string> = { STAFF: '初审', LEADER: '复审', ADMIN: '终审' };
@@ -81,10 +85,11 @@ export class SupplierLinkService {
     const note = dto.note?.trim() || null;
     let linkId: string;
     if (existing && existing.status === 'PENDING') this.err('LINK_PENDING_EXISTS', '已有进行中的加入申请，请等待该公司处理');
+    if (existing && existing.status === 'LEAVE_PENDING') this.err('LINK_PENDING_EXISTS', '该公司存在进行中的退库申请，请等待处理完成后再申请加入');
     if (existing && existing.status === 'APPROVED') this.err('ALREADY_IN_COMPANY', '贵司已在该公司的供应商库中');
     if (existing && existing.status === 'DISABLED') this.err('LINK_DISABLED', '贵司已被该公司停用，请联系该公司恢复');
     if (existing) {
-      // REJECTED → 原行复用重新走三级
+      // REJECTED / WITHDRAWN → 原行复用重新走三级（驳回后重申、退库后重新加入）
       await this.prisma.supplierCompanyLink.update({
         where: { id: existing.id },
         data: { status: 'PENDING', reviewStage: 'STAFF', note, rejectReason: null, appliedAt: new Date() },
@@ -110,6 +115,39 @@ export class SupplierLinkService {
       link: `/supplier?tab=company-links`,
     });
     return { id: linkId };
+  }
+
+  /** 申请退库（2026-11-10）：已在库归属申请退出该公司供应商库，走同款三级审批。
+   *  行情态：APPROVED → LEAVE_PENDING（审批期间库内权益暂停）→ 终审 WITHDRAWN / 驳回回 APPROVED。
+   *  主归属同样可退（退光全部归属由登录闸兜底，用户裁定 2026-11-10）；终审通过时主归属自动改挂
+   *  其他在库公司（无则置空）。文字确认（输入「确认退库」）为门户表单闸，此处不重复校验。 */
+  async applyLeave(userId: string, dto: { companyId: string; note?: string }) {
+    const supplier = await this.requireSupplier(userId);
+    if (supplier.isTemporary) this.err('TEMPORARY_NOT_ALLOWED', '临时供应商须先转正，方可办理归属变更');
+    if (supplier.status !== 'APPROVED') this.err('SUPPLIER_NOT_APPROVED', '账号当前不在库状态，暂不能申请退库');
+
+    const link = await this.prisma.supplierCompanyLink.findUnique({
+      where: { supplierId_companyId: { supplierId: supplier.id, companyId: dto.companyId } },
+      include: { company: { select: { id: true, name: true } } },
+    });
+    if (!link) this.err('LINK_NOT_FOUND', '未找到贵司在该公司的在库归属');
+    if (link.status === 'LEAVE_PENDING') this.err('LINK_PENDING_EXISTS', '已有进行中的退库申请，请等待该公司处理');
+    if (link.status !== 'APPROVED') this.err('INVALID_STATUS', '仅已在库的归属可申请退库');
+
+    const note = dto.note?.trim() || null;
+    const claimed = await this.prisma.supplierCompanyLink.updateMany({
+      where: { id: link.id, status: 'APPROVED' },
+      data: { status: 'LEAVE_PENDING', reviewStage: 'STAFF', note, rejectReason: null, appliedAt: new Date() },
+    });
+    if (claimed.count === 0) this.err('INVALID_STATUS', '该归属状态已变更，请刷新后重试');
+
+    await this.notifyStageApprovers('STAFF', link.companyId, {
+      type: 'SUPPLIER_LINK_PENDING',
+      title: '供应商申请退出贵公司供应商库（初审）',
+      content: `${supplier.name} 申请退出贵公司供应商库，请前往审批。${note ? `申请说明：${note}` : ''}`,
+      link: `/supplier?tab=company-links`,
+    });
+    return { id: link.id };
   }
 
   // ───────────────────────── 内部：通知（与注册审批同口径） ─────────────────────────
@@ -154,12 +192,13 @@ export class SupplierLinkService {
   async approveLink(linkId: string, userId: string, reason?: string) {
     const link = await this.prisma.supplierCompanyLink.findUnique({
       where: { id: linkId },
-      include: { supplier: { select: { id: true, name: true, userId: true } }, company: { select: { name: true } } },
+      include: { supplier: { select: { id: true, name: true, userId: true, companyId: true } }, company: { select: { name: true } } },
     });
     if (!link) throw new NotFoundException({ error: '加入关系不存在', code: 'LINK_NOT_FOUND' });
-    if (link.status !== 'PENDING' || !link.reviewStage) {
+    if ((link.status !== 'PENDING' && link.status !== 'LEAVE_PENDING') || !link.reviewStage) {
       this.err('INVALID_STATUS', '该申请不在待审状态');
     }
+    const isLeave = link.status === 'LEAVE_PENDING';
     const stage = link.reviewStage;
     const reviewer = userId ? await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, companyId: true } }) : null;
     await this.assertStageApprover(stage, reviewer, link.companyId);
@@ -170,6 +209,36 @@ export class SupplierLinkService {
     }
 
     if (stage === 'ADMIN') {
+      if (isLeave) {
+        // 退库终审：LEAVE_PENDING → WITHDRAWN；若退的是主归属公司，主归属改挂其他在库公司（无则置空）
+        const claimed = await this.prisma.supplierCompanyLink.updateMany({
+          where: { id: linkId, status: 'LEAVE_PENDING', reviewStage: stage },
+          data: { status: 'WITHDRAWN', reviewStage: null, rejectReason: null, reviewedById: userId ?? null, reviewedAt: new Date() },
+        });
+        if (claimed.count === 0) throw new ConflictException({ error: '申请状态已变更，请刷新后重试', code: 'CONFLICT' });
+        if (userId) await this.audit(userId, 'SUPPLIER_LINK_LEAVE_APPROVED', linkId, { supplierId: link.supplierId, companyId: link.companyId, stage });
+        if (link.supplier.companyId === link.companyId) {
+          const next = await this.prisma.supplierCompanyLink.findFirst({
+            where: { supplierId: link.supplierId, status: 'APPROVED', companyId: { not: link.companyId } },
+            orderBy: { appliedAt: 'asc' },
+            include: { company: { select: { name: true } } },
+          });
+          await this.prisma.supplier.update({
+            where: { id: link.supplierId },
+            data: { companyId: next?.companyId ?? null, companyName: next?.company.name ?? null },
+          }).catch((err: any) => console.error(`[supplier-link] 主归属改挂失败 supplier=${link.supplierId}`, err?.message ?? err));
+        }
+        // 退库非入库前置事件，站内信即可（不走短信单点放行清单）
+        await this.notificationService.create({
+          userId: link.supplier.userId,
+          type: 'SUPPLIER_LINK_WITHDRAWN',
+          title: `已退出 ${link.company.name} 供应商库`,
+          content: `贵司退出 ${link.company.name} 的申请已通过三级审核，退库完成。如需再次加入，可在「公司归属管理」重新申请。`,
+          link: `/profile/company-links`,
+        });
+        return { success: true as const, stage: 'DONE' as const };
+      }
+
       const claimed = await this.prisma.supplierCompanyLink.updateMany({
         where: { id: linkId, status: 'PENDING', reviewStage: stage },
         data: { status: 'APPROVED', reviewStage: null, rejectReason: null, reviewedById: userId ?? null, reviewedAt: new Date() },
@@ -189,15 +258,15 @@ export class SupplierLinkService {
 
     const nextStage = stage === 'STAFF' ? 'LEADER' : 'ADMIN';
     const claimed = await this.prisma.supplierCompanyLink.updateMany({
-      where: { id: linkId, status: 'PENDING', reviewStage: stage },
+      where: { id: linkId, status: link.status, reviewStage: stage },
       data: { reviewStage: nextStage },
     });
     if (claimed.count === 0) throw new ConflictException({ error: '申请状态已变更，请刷新后重试', code: 'CONFLICT' });
-    if (userId) await this.audit(userId, `SUPPLIER_LINK_PASSED_${stage}`, linkId, { supplierId: link.supplierId, companyId: link.companyId, fromStage: stage, nextStage, reason: trimmed });
+    if (userId) await this.audit(userId, `SUPPLIER_LINK_${isLeave ? 'LEAVE_' : ''}PASSED_${stage}`, linkId, { supplierId: link.supplierId, companyId: link.companyId, fromStage: stage, nextStage, reason: trimmed });
     await this.notifyStageApprovers(nextStage, link.companyId, {
       type: 'SUPPLIER_LINK_PENDING',
-      title: `供应商加入申请待${SupplierLinkService.STAGE_LABELS[nextStage]}`,
-      content: `${link.supplier.name} 申请加入贵公司，已通过${SupplierLinkService.STAGE_LABELS[stage]}（缘由：${trimmed}），请前往审批。`,
+      title: `供应商${isLeave ? '退库' : '加入'}申请待${SupplierLinkService.STAGE_LABELS[nextStage]}`,
+      content: `${link.supplier.name} 申请${isLeave ? '退出' : '加入'}贵公司，已通过${SupplierLinkService.STAGE_LABELS[stage]}（缘由：${trimmed}），请前往审批。`,
       link: `/supplier?tab=company-links`,
     });
     return { success: true as const, stage: nextStage };
@@ -209,22 +278,28 @@ export class SupplierLinkService {
       include: { supplier: { select: { userId: true, name: true } }, company: { select: { name: true } } },
     });
     if (!link) throw new NotFoundException({ error: '加入关系不存在', code: 'LINK_NOT_FOUND' });
-    if (link.status !== 'PENDING' || !link.reviewStage) this.err('INVALID_STATUS', '该申请不在待审状态');
+    if ((link.status !== 'PENDING' && link.status !== 'LEAVE_PENDING') || !link.reviewStage) this.err('INVALID_STATUS', '该申请不在待审状态');
+    const isLeave = link.status === 'LEAVE_PENDING';
     const trimmed = reason.trim();
     if (!trimmed) this.err('REASON_REQUIRED', '驳回必须填写原因');
     const reviewer = userId ? await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, companyId: true } }) : null;
     await this.assertStageApprover(link.reviewStage, reviewer, link.companyId);
+    // 退库被驳回 ≠ 移出：状态回 APPROVED（贵司仍在其库中），rejectReason 留痕（门户归属卡提示+可重新申请退库）
     const claimed = await this.prisma.supplierCompanyLink.updateMany({
-      where: { id: linkId, status: 'PENDING', reviewStage: link.reviewStage },
-      data: { status: 'REJECTED', rejectReason: trimmed, reviewedById: userId ?? null, reviewedAt: new Date() },
+      where: { id: linkId, status: link.status, reviewStage: link.reviewStage },
+      data: isLeave
+        ? { status: 'APPROVED', reviewStage: null, rejectReason: trimmed, reviewedById: userId ?? null, reviewedAt: new Date() }
+        : { status: 'REJECTED', rejectReason: trimmed, reviewedById: userId ?? null, reviewedAt: new Date() },
     });
     if (claimed.count === 0) throw new ConflictException({ error: '申请状态已变更，请刷新后重试', code: 'CONFLICT' });
-    if (userId) await this.audit(userId, 'SUPPLIER_LINK_REJECTED', linkId, { supplierId: link.supplierId, companyId: link.companyId, stage: link.reviewStage, reason: trimmed });
+    if (userId) await this.audit(userId, isLeave ? 'SUPPLIER_LINK_LEAVE_REJECTED' : 'SUPPLIER_LINK_REJECTED', linkId, { supplierId: link.supplierId, companyId: link.companyId, stage: link.reviewStage, reason: trimmed });
     await this.notificationService.create({
       userId: link.supplier.userId,
       type: 'SUPPLIER_LINK_REJECTED',
-      title: `加入 ${link.company.name} 申请未通过`,
-      content: `贵司加入 ${link.company.name} 的申请未通过审核。原因：${trimmed}`,
+      title: isLeave ? `退出 ${link.company.name} 申请未通过` : `加入 ${link.company.name} 申请未通过`,
+      content: isLeave
+        ? `贵司退出 ${link.company.name} 的申请未通过审核，贵司仍在其供应商库中。原因：${trimmed}`
+        : `贵司加入 ${link.company.name} 的申请未通过审核。原因：${trimmed}`,
       link: `/profile/company-links`,
     });
     return { success: true as const };

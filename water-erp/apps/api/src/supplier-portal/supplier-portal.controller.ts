@@ -27,7 +27,7 @@ import { PerformanceService } from '../performance/performance.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { SupplierLinkService } from '../supplier/supplier-link.service';
-import { ApplyCompanyLinkDto } from '../supplier/dto/company-link.dto';
+import { ApplyCompanyLinkDto, ApplyCompanyLinkLeaveDto } from '../supplier/dto/company-link.dto';
 
 @Controller('supplier-portal')
 @Roles('supplier')
@@ -939,5 +939,11 @@ export class SupplierPortalController {
   @ApiOperation({ summary: '申请加入公司（走该公司三级审批）' })
   async applyCompanyLink(@Body() dto: ApplyCompanyLinkDto, @Request() req: any) {
     return this.linkService.apply(req.user.sub, dto);
+  }
+
+  @Post('company-links/apply-leave')
+  @ApiOperation({ summary: '申请退库（退出某家已在库公司，同款三级审批；2026-11-10）' })
+  async applyCompanyLinkLeave(@Body() dto: ApplyCompanyLinkLeaveDto, @Request() req: any) {
+    return this.linkService.applyLeave(req.user.sub, dto);
   }
 }

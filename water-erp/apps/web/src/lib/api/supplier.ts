@@ -790,7 +790,8 @@ export interface CompanyLinkRow {
   id: string;
   supplierId: string;
   companyId: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'DISABLED';
+  /** PENDING=加入审批中；LEAVE_PENDING=退库审批中（2026-11-10 退库轨，终审通过→WITHDRAWN/驳回回 APPROVED） */
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'DISABLED' | 'LEAVE_PENDING' | 'WITHDRAWN';
   /** 三级审批当前待审级 STAFF/LEADER/ADMIN；null=已终态（通过/驳回） */
   reviewStage: string | null;
   /** 供应商申请说明 */

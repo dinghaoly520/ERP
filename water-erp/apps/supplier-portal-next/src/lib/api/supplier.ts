@@ -373,7 +373,9 @@ export interface CompanyLinkView {
   id: string;
   companyId: string;
   companyName: string;
-  status: "PENDING" | "APPROVED" | "REJECTED" | "DISABLED";
+  /** PENDING=加入审批中；LEAVE_PENDING=退库审批中；APPROVED=已在库；REJECTED=加入未通过；
+   *  DISABLED=公司停用；WITHDRAWN=已退库（可重新申请加入）。APPROVED 行的 rejectReason 非空 = 退库申请被驳回 */
+  status: "PENDING" | "APPROVED" | "REJECTED" | "DISABLED" | "LEAVE_PENDING" | "WITHDRAWN";
   reviewStage: string | null;
   note: string | null;
   rejectReason: string | null;
@@ -389,5 +391,9 @@ export const supplierCompanyLinksApi = {
   /** 申请加入公司（companyId/companyName 二选一；公司只读解析不建档，不存在 400 COMPANY_NOT_FOUND；silent：错误文案由页面 toast） */
   apply(dto: { companyId?: string; companyName?: string; note?: string }) {
     return api.post<{ id: string }>("/supplier-portal/company-links/apply", dto, { silent: true });
+  },
+  /** 申请退库（限本人已在库归属；提交后该公司三级审批，期间库内权益暂停；silent：错误文案由弹窗 toast） */
+  applyLeave(dto: { companyId: string; note?: string }) {
+    return api.post<{ id: string }>("/supplier-portal/company-links/apply-leave", dto, { silent: true });
   },
 };

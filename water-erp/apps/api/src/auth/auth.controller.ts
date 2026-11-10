@@ -164,6 +164,7 @@ export class AuthController {
         : result.code === 'EXPERT_INACTIVE' ? '该专家账号未启用，请联系管理单位'
         : result.code === 'ACCOUNT_DISABLED' ? '该供应商已被停用，如有疑问请联系采购中心'
         : result.code === 'ACCOUNT_BLACKLISTED' ? '该供应商已被列入黑名单，如有疑问请联系采购中心'
+        : result.code === 'SUPPLIER_NO_COMPANY' ? '贵司已无任何归属公司，账号暂无法登录；如需恢复请咨询采购中心'
         : result.code === 'SUPPLIER_REJECTED' ? '注册申请未通过审核，可在注册页修改资料后重新提交'
         : result.code === 'SUPPLIER_RETURNED' ? '注册资料已退回补正，请在注册页完成补正后重新提交'
         : '账号待审核，尚未激活';

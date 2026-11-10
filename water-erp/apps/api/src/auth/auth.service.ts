@@ -230,10 +230,19 @@ export class AuthService {
     if (user.role === 'supplier') {
       const supplier = await this.prisma.supplier.findUnique({
         where: { userId: user.id },
-        select: { isTemporary: true, temporaryExpiresAt: true },
+        select: { id: true, isTemporary: true, temporaryExpiresAt: true },
       });
       if (supplier?.isTemporary && supplier.temporaryExpiresAt && supplier.temporaryExpiresAt < new Date()) {
         return { pending: true as const, role: user.role, code: 'TEMPORARY_EXPIRED' };
+      }
+      // 零归属闸（2026-11-10 用户裁定）：无任何归属公司的供应商账号无法登录。
+      // 归属口径 = 存在非终态退出（非 WITHDRAWN/REJECTED）的 link：在库（APPROVED）/公司停用（DISABLED，
+      // 可恢复，须能登录看到指引）/加入审批中（PENDING）/退库审批中（LEAVE_PENDING，驳回则仍在库）均算；
+      // 全部退光/从未通过任何归属审批才拦截。无 Supplier 行的裸账号（e2e 夹具形态）不适用本闸。
+      if (supplier && (await this.prisma.supplierCompanyLink.count({
+        where: { supplierId: supplier.id, status: { notIn: ['WITHDRAWN', 'REJECTED'] } },
+      })) === 0) {
+        return { pending: true as const, role: user.role, code: 'SUPPLIER_NO_COMPANY' };
       }
     }
     // 单设备登录（web 2026-08-21；supplier 2026-09-18；expert 2026-09-20）：轮换归 auth.controller

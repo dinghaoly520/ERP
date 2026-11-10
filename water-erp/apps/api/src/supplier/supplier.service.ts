@@ -2657,10 +2657,10 @@ export class SupplierService {
         ],
       }];
       if (companyIdFilter) regWhere.companyId = companyIdFilter;
-      // 加入审批（link 表）同口径三批：ADMIN 级全部 + 「公司无 leader」的 LEADER 级 + 「公司无 staff 且无 leader」的 STAFF 级。
+      // 加入/退库审批（link 表）同口径三批：ADMIN 级全部 + 「公司无 leader」的 LEADER 级 + 「公司无 staff 且无 leader」的 STAFF 级。
       // link.companyId 非空（必填外键）→ 无注册侧「未归属公司」分支。
       linkWhere = {
-        status: 'PENDING',
+        status: { in: ['PENDING', 'LEAVE_PENDING'] },
         AND: [{
           OR: [
             { reviewStage: 'ADMIN' },
@@ -2684,7 +2684,7 @@ export class SupplierService {
       }
       regWhere.reviewStage = { in: stageList };
       regWhere.companyId = myCompany;
-      linkWhere = { status: 'PENDING', reviewStage: { in: stageList }, companyId: myCompany };
+      linkWhere = { status: { in: ['PENDING', 'LEAVE_PENDING'] }, reviewStage: { in: stageList }, companyId: myCompany };
     } else {
       return { registration: 0, changes: 0, resets: 0, joins: 0 }; // supplier 等角色无审批待办
     }

@@ -60,6 +60,19 @@ describe('CA 认证 (e2e)', () => {
       });
       pilotSupplierId = sup.id;
     }
+    // 零归属登录闸（2026-11-10）：APPROVED 供应商须有归属 link 才能登录——夹具补一条在库归属
+    {
+      const company = await setupPrisma.company.upsert({
+        where: { name: 'e2e-CA测试公司' },
+        update: {},
+        create: { name: 'e2e-CA测试公司' },
+      });
+      await setupPrisma.supplierCompanyLink.upsert({
+        where: { supplierId_companyId: { supplierId: pilotSupplierId, companyId: company.id } },
+        update: { status: 'APPROVED' },
+        create: { supplierId: pilotSupplierId, companyId: company.id, status: 'APPROVED', appliedAt: new Date() },
+      });
+    }
     await setupPrisma.$disconnect();
     void pilotUserId;
     // CI e2e 的 .env 不含 CA 开关（本地 dev .env 开着所以绿）——本套件专测绑定链路，
