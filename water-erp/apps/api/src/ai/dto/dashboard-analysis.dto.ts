@@ -17,6 +17,11 @@ export class DashboardAnalysisDto {
   @IsOptional() @IsString()
   rangeLabel?: string;
 
+  /** 公司视野（all/单 id/逗号多选，2026-11-10）：传入则生成后存服务端缓存——
+   *  每公司一份最新，数据指纹未变时前端即时提取、不重请求生成 */
+  @IsOptional() @IsString()
+  cacheKey?: string;
+
   @IsOptional()
   summary?: unknown;
 

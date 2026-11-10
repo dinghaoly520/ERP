@@ -2493,15 +2493,79 @@ stageMatch 字段需要输出两部分判断结果：
       const cleanArr = async (arr: unknown) => Promise.all(
         (Array.isArray(arr) ? arr : []).map(async (x: unknown) => this.sanitizeAiText(typeof x === 'string' ? x : '')),
       );
-      return {
+      const result = {
         overview: await this.sanitizeAiText(raw?.overview || '分析完成'),
         highlights: await cleanArr(raw?.highlights),
         concerns: await cleanArr(raw?.concerns),
         suggestions: await cleanArr(raw?.suggestions),
       };
+      // 生成成功才落缓存（AI 不可用兜底文案不入库）；失败不阻断返回
+      await this.saveDashboardAnalysisCache(payload, result).catch(() => {});
+      return result;
     } catch {
       return { overview: 'AI 分析暂不可用', highlights: [], concerns: [], suggestions: [] };
     }
+  }
+
+  /** 仪表盘 AI 分析服务端缓存键（2026-11-10 用户裁定：每公司视野存最新一份，数据
+   *  未变即时提取、不重请求生成）。公司段归一化（多选排序稳定键），自定义日期区间
+   *  追加段——同键=同公司集+同区间视野。存储走 SystemConfig（key-value，零迁移）。 */
+  private dashAnalysisCacheKey(companyId: string, startDate?: string, endDate?: string): string {
+    const ids = (companyId ?? '').split(',').map(s => s.trim()).filter(Boolean).sort();
+    const companyPart = ids.length === 0 ? 'all' : ids.join(',');
+    const range = (startDate || endDate) ? `:${(startDate ?? '').slice(0, 10)}~${(endDate ?? '').slice(0, 10)}` : '';
+    return `dash-ai-analysis:${companyPart}${range}`;
+  }
+
+  /** 公司数据版本指纹（变更探测器，非全量等价）：轮次/PMI 项目/供应商归属链接的
+   *  count+max(updatedAt) 聚合按公司集过滤——任一表数据变动指纹即变。
+   *  'all' 在此归一为无过滤（与 dashAnalysisCacheKey 同口径——首版漏归一把 'all'
+   *  当字面 id 过滤致计数恒 0、缓存永不失效，2026-11-10 实录修复） */
+  private async dashDataFingerprint(companyId: string): Promise<string> {
+    const ids = (companyId ?? '').split(',').map(s => s.trim()).filter(s => s && s !== 'all');
+    const companyFilter = ids.length ? { companyId: { in: ids } } : {};
+    const [rounds, items, links] = await Promise.all([
+      this.prisma.procurementRound.aggregate({ where: companyFilter, _count: true, _max: { updatedAt: true } }),
+      this.prisma.projectManagementItem.aggregate({ where: companyFilter, _count: true, _max: { updatedAt: true } }),
+      this.prisma.supplierCompanyLink.aggregate({ where: companyFilter, _count: true, _max: { updatedAt: true } }),
+    ]);
+    return [
+      `r${rounds._count}@${rounds._max.updatedAt?.toISOString() ?? '-'}`,
+      `p${items._count}@${items._max.updatedAt?.toISOString() ?? '-'}`,
+      `s${links._count}@${links._max.updatedAt?.toISOString() ?? '-'}`,
+    ].join('|');
+  }
+
+  /** 缓存提取：指纹一致 → 命中返回该视野最新报告；miss/stale/缓存损坏 → hit=false
+   *  （多公司视野由前端提示手动「开始分析」，不自动生成） */
+  async getDashboardAnalysisCache(companyId = 'all', startDate?: string, endDate?: string) {
+    const key = this.dashAnalysisCacheKey(companyId, startDate, endDate);
+    const [fingerprint, row] = await Promise.all([
+      this.dashDataFingerprint(companyId),
+      this.prisma.systemConfig.findUnique({ where: { key } }),
+    ]);
+    if (row) {
+      try {
+        const cached = JSON.parse(row.value) as { fingerprint: string; result: unknown; generatedAt: string };
+        if (cached.fingerprint === fingerprint && cached.result && typeof cached.result === 'object') {
+          return { hit: true as const, fingerprint, result: cached.result, generatedAt: cached.generatedAt };
+        }
+      } catch { /* 损坏缓存按 miss 处理，下次生成时覆写 */ }
+    }
+    return { hit: false as const, fingerprint };
+  }
+
+  /** 生成成功后落存：带 cacheKey 才写（自定义透传视野不入库）；存时重算指纹（与数据同刻） */
+  private async saveDashboardAnalysisCache(
+    payload: { cacheKey?: string; startDate?: string; endDate?: string },
+    result: unknown,
+  ) {
+    const company = payload.cacheKey?.trim();
+    if (!company) return;
+    const key = this.dashAnalysisCacheKey(company, payload.startDate, payload.endDate);
+    const fingerprint = await this.dashDataFingerprint(company);
+    const value = JSON.stringify({ fingerprint, result, generatedAt: new Date().toISOString() });
+    await this.prisma.systemConfig.upsert({ where: { key }, update: { value }, create: { key, value } });
   }
 
   /** 采购台账 AI 分析 */

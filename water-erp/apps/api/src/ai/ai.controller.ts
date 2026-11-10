@@ -190,10 +190,21 @@ export class AiController {
 
   @Post('dashboard-analysis')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  @ApiOperation({ summary: 'AI采购仪表盘深度分析（从procurement迁入）' })
+  @ApiOperation({ summary: 'AI采购仪表盘深度分析（从procurement迁入；带 cacheKey 时生成结果落服务端缓存——每公司视野一份最新）' })
   @Roles('admin', 'bid_host', 'leader', 'staff')
   async dashboardAnalysis(@Body() payload: DashboardAnalysisDto) {
     return this.aiService.analyzeDashboard(payload);
+  }
+
+  @Get('dashboard-analysis/cache')
+  @ApiOperation({ summary: '仪表盘 AI 分析缓存提取（2026-11-10）：按公司视野+日期区间取最新一份，数据指纹未变即命中，不再每次重新生成' })
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  async dashboardAnalysisCache(
+    @Query('companyId') companyId = 'all',
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.aiService.getDashboardAnalysisCache(companyId, startDate, endDate);
   }
 
   @Post('procurement-analysis')

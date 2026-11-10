@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   AlertCircle, ArrowDown, ArrowRight, ArrowUp,
-  BarChart3, CalendarRange, ChevronRight, Eye,
+  BarChart3, Building2, CalendarRange, ChevronRight, Eye,
   FolderKanban, Layers, Lightbulb, PieChart,
   RefreshCw, Sparkles, Target, TrendingUp,
 } from "lucide-react";
@@ -16,7 +16,7 @@ import { AwardResultPanel } from "@/components/home/award-result-panel";
 import { PerformancePanel } from "@/components/home/performance-panel";
 import { CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
 import {
-  fetchDashboardAnalysis,
+  fetchDashboardAnalysis, fetchDashboardAnalysisCache,
   type DashboardAnalysisPayload, type DashboardAnalysisResult,
 } from "@/lib/api/ai";
 import { Modal, StatusBadge } from "@/components/workbench";
@@ -66,9 +66,11 @@ function KpiCard({ label, value, sub, signal, trend, trendLabel, index, reducedM
   );
 }
 
-function IntelligencePanel({ analysis, loading, error, onRefresh, index, reducedMotion }: {
+function IntelligencePanel({ analysis, loading, error, onRefresh, index, reducedMotion, manualPrompt }: {
   analysis: DashboardAnalysisResult | null; loading: boolean; error: string | null;
   onRefresh: () => void; index: number; reducedMotion: boolean;
+  /** 多公司视野且尚无缓存（2026-11-10 用户裁定）：不自动分析，提示手动「开始分析」 */
+  manualPrompt?: boolean;
 }) {
   const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.06);
   return (
@@ -79,14 +81,15 @@ function IntelligencePanel({ analysis, loading, error, onRefresh, index, reduced
           <div className="flex items-center gap-2">
             {loading && <div className="flex items-center gap-1.5 text-[11px] text-[var(--muted-foreground)]"><RefreshCw size={12} className="animate-spin" />分析中...</div>}
             {!loading && (
-              <button type="button" onClick={onRefresh} className="neu-btn-soft !h-7 !px-2.5 !text-[11px]" aria-label="重新生成分析">
-                <RefreshCw size={11} className="mr-1" />重新分析
+              <button type="button" onClick={onRefresh} className="neu-btn-soft !h-7 !px-2.5 !text-[11px]" aria-label={analysis?"重新生成分析":"开始生成分析"}>
+                <RefreshCw size={11} className="mr-1" />{analysis?"重新分析":"开始分析"}
               </button>
             )}
           </div>
         </div>
         {error && !analysis ? <div className="mx-4 mb-4 mt-1 flex items-center gap-2 rounded-[12px] border border-[color-mix(in_oklch,var(--danger)_25%,transparent)] bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-3 py-2.5 text-xs text-[var(--danger)]"><AlertCircle size={13} />{error}</div> : null}
         <div className="wb-panel-body">
+          {manualPrompt && !analysis && !loading ? <div className="neu-card-static mb-3 flex items-center gap-2.5 px-4 py-3.5"><div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)]"><Building2 size={13} className="text-[var(--accent)]" /></div><div><p className="text-xs font-semibold text-[var(--foreground)]">已选择多家公司</p><p className="mt-0.5 text-[11px] leading-relaxed text-[var(--muted-foreground)]">多公司组合分析不自动加载，点击右上角「开始分析」手动生成。</p></div></div> : null}
           {analysis?.overview ? <div className="neu-card-static mb-3 px-4 py-3.5"><div className="flex items-center gap-2 mb-2"><div className="flex h-5 w-5 items-center justify-center rounded-[6px] bg-[color-mix(in_oklch,var(--accent)_12%,transparent)]"><Target size={10} className="text-[var(--accent)]" /></div><span className="text-[11px] font-bold tracking-[0.08em] text-[var(--accent)]">综合研判</span></div><p className="text-[0.85rem] font-medium leading-[1.6] tracking-[-0.01em] text-[var(--foreground)]">{analysis.overview}</p></div> : loading ? <div className="flex h-[60px] items-center justify-center rounded-[14px] border border-dashed border-[color-mix(in_oklch,var(--muted-foreground)_25%,transparent)]"><span className="text-[11px] text-[var(--muted-foreground)]">正在生成分析...</span></div> : null}
           {analysis?.highlights && analysis.highlights.length > 0 && <div className="neu-card-static mb-3 px-3.5 py-3"><div className="flex items-center gap-1.5 mb-2.5"><TrendingUp size={12} className="text-[var(--success)]" /><span className="text-xs font-bold tracking-[0.1em] text-[var(--success)]">核心亮点</span></div><div className="grid grid-cols-2 gap-x-4 gap-y-1.5">{analysis.highlights.map((item, i) => <div key={i} className="flex items-start gap-2 transition-all duration-200 hover:translate-x-1"><div className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--success)]" /><span className="text-[11px] leading-[1.5] text-[var(--foreground)]">{item}</span></div>)}</div></div>}
           <div className="grid grid-cols-2 gap-2.5">
@@ -510,12 +513,6 @@ function DepartmentPanel({ profile, index, reducedMotion }: { profile: Dashboard
 // Main
 
 type DashboardHomeProps = { currentUserRole: AuthRole };
-const ANALYSIS_CACHE_KEY = "dashboard_analysis_cache";
-type AnalysisCache = { dataHash:string;result:DashboardAnalysisResult;timestamp:number };
-
-function generateDataHash(data: DashboardData): string {
-  return JSON.stringify({totalBudget:data.summary.totalBudget,totalAward:data.summary.totalAward,totalSavings:data.summary.totalSavings,totalCount:data.summary.totalCount,completedCount:data.summary.completedCount,startDate:data.range.startDate,endDate:data.range.endDate});
-}
 
 export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
   const reducedMotion = useReducedMotion()??false;
@@ -525,7 +522,6 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
   const [analysis,setAnalysis] = useState<DashboardAnalysisResult|null>(null);
   const [alLoading,setAlLoading] = useState(false);
   const [alErr,setAlErr] = useState<string|null>(null);
-  const [dataHash,setDataHash] = useState<string|null>(null);
   const [showDP,setShowDP] = useState(false);
   const [startDate,setStartDate] = useState("");
   const [endDate,setEndDate] = useState("");
@@ -548,16 +544,26 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
     riskProjects:d.riskProjects.map(r=>({project:r.project,department:r.department,reason:r.reason,pendingDays:r.pendingDays,severity:r.severity})),
   }),[]);
 
+  // 综合分析（2026-11-10 用户裁定）：服务端缓存即时提取——每公司视野存最新一份，
+  // 数据指纹未变不再请求 LLM；单公司/全部 miss 时自动生成，多公司 miss 只提示手动
+  // 「开始分析」不自动跑（组合视野消耗大且临时性强）
   const hra = useCallback(async(force=false)=>{
-    if(!data)return;const nh=generateDataHash(data);
-    if(!force){try{const c=localStorage.getItem(ANALYSIS_CACHE_KEY);if(c){const cache:AnalysisCache=JSON.parse(c);if(cache.dataHash===nh&&cache.result&&Array.isArray(cache.result.highlights)&&Array.isArray(cache.result.concerns)&&Array.isArray(cache.result.suggestions)){setAnalysis(cache.result);setDataHash(nh);return;}localStorage.removeItem(ANALYSIS_CACHE_KEY);}}catch{}}
+    if(!data)return;
+    const multi=companyId.includes(",");
+    if(!force){
+      try{
+        const c=await fetchDashboardAnalysisCache(companyId,startDate||undefined,endDate||undefined);
+        if(c.hit&&c.result&&Array.isArray(c.result.highlights)&&Array.isArray(c.result.concerns)&&Array.isArray(c.result.suggestions)){setAnalysis(c.result);setAlErr(null);return;}
+      }catch{/* 缓存接口失败：单公司退回自动生成，多公司按手动处理 */}
+      if(multi){setAnalysis(null);setAlErr(null);return;}
+    }
     setAnalysis(null);setAlErr(null);setAlLoading(true);
-    try{const r=await fetchDashboardAnalysis(bap(data));setAnalysis(r);setDataHash(nh);try{localStorage.setItem(ANALYSIS_CACHE_KEY,JSON.stringify({dataHash:nh,result:r,timestamp:Date.now()}));}catch{}}catch(err){setAlErr(err instanceof Error?err.message:"分析请求失败，请稍后重试");}finally{setAlLoading(false);}
-  },[data,bap]);
+    try{const r=await fetchDashboardAnalysis(bap(data),companyId);setAnalysis(r);}catch(err){setAlErr(err instanceof Error?err.message:"分析请求失败，请稍后重试");}finally{setAlLoading(false);}
+  },[data,bap,companyId,startDate,endDate]);
 
   const suppliers:SupplierDetail[]=useMemo(()=>{if(!data)return[];return data.supplierStats.map(s=>({...s,id:s.name}));},[data]);
 
-  const ld = useCallback(async(s?:string,e?:string,c?:string)=>{setLoading(true);setLoadErr(null);try{const d=await fetchDashboardData(s,e,c);setData(d);setAnalysis(null);setDataHash(null);}catch(err){setLoadErr(err instanceof Error?err.message:"加载仪表盘数据失败");}finally{setLoading(false);}},[],);
+  const ld = useCallback(async(s?:string,e?:string,c?:string)=>{setLoading(true);setLoadErr(null);try{const d=await fetchDashboardData(s,e,c);setData(d);setAnalysis(null);}catch(err){setLoadErr(err instanceof Error?err.message:"加载仪表盘数据失败");}finally{setLoading(false);}},[],);
   useEffect(()=>{ld();},[ld]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{ld(startDate||undefined,endDate||undefined,companyId);},[companyId]);
@@ -642,7 +648,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
         </div>
       </motion.div>
       <div className="mb-3 grid grid-cols-1 items-stretch gap-2 md:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr]">
-        <div className="flex h-full flex-col min-h-[280px] md:min-h-[300px]"><IntelligencePanel analysis={analysis} loading={alLoading} error={alErr} onRefresh={()=>hra(true)} index={7} reducedMotion={reducedMotion}/></div>
+        <div className="flex h-full flex-col min-h-[280px] md:min-h-[300px]"><IntelligencePanel analysis={analysis} loading={alLoading} error={alErr} onRefresh={()=>hra(true)} index={7} reducedMotion={reducedMotion} manualPrompt={companyId.includes(",")}/></div>
         <div className="flex h-full flex-col min-h-[280px] md:min-h-[300px]"><SavingsRankingPanel items={data.savingsRanking as SavingsRankingItem[]} index={8} reducedMotion={reducedMotion}/></div>
         <div className="flex h-full flex-col min-h-[280px] md:min-h-[300px] md:col-span-2 lg:col-span-1"><RiskProjectsPanel profile={data} index={9} reducedMotion={reducedMotion}/></div>
       </div>
