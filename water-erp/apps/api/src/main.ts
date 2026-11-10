@@ -8,6 +8,7 @@ import { AppModule } from './app.module';
 import { assertFieldSecretForProduction } from './common/crypto/sm-field-crypto';
 import { ensurePortFree } from './common/port-preflight';
 import { assertKmsSecretForProduction } from './common/crypto/envelope-crypto';
+import { parseFlexibleDate } from './common/parse-date.util';
 import { PORTS } from '@water-erp/config';
 
 // 全局未捕获异常/拒绝 —— 记录崩溃原因，避免静默退出
@@ -124,6 +125,15 @@ async function bootstrap() {
   }
   await app.listen(port);
   logger.log(`API running on http://localhost:${port}`);
+  // 时区口径自检（2026-11-09 生产 +8h 实录）：业务墙上时间按北京时间(+8)解析、与宿主时区解耦。
+  // 启动即跑真实解析器——生产日志一眼判定所跑构建是否含修复（462cb58b 期望 06:30:00.000Z；
+  // 出现 14:30:00.000Z = 旧构建在跑，dist 未重建）。
+  const tzProbe = parseFlexibleDate('2026年11月20日14:30');
+  const hostOffset = -new Date().getTimezoneOffset() / 60;
+  logger.log(
+    `时区自检：宿主 TZ=${process.env.TZ || '(系统默认)'} 偏移 ${hostOffset >= 0 ? '+' : ''}${hostOffset}h；` +
+      `parseFlexibleDate("2026年11月20日14:30") → ${tzProbe?.toISOString() ?? 'null'}（期望 2026-11-20T06:30:00.000Z）`,
+  );
   if (process.env.NODE_ENV !== 'production') {
     logger.log(`Swagger docs at http://localhost:${port}/api/docs`);
   }
