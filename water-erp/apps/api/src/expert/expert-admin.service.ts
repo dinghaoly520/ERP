@@ -568,14 +568,22 @@ export class ExpertAdminService {
 
   /** 录入表单所属部门联想（2026-11-09 用户裁定：部门同专业/职称下拉设计）：
    *  专家域已用部门名按专家数降序——引导复用既有部门行（createExpert 按名
-   *  find-or-create，同字异名会裂出多行）；自定义输入仍放行走新建 */
+   *  find-or-create，同字异名会裂出多行）；自定义输入仍放行走新建。
+   *  按名合并（2026-11-10）：Department 唯一键是 [companyId,name]，同名部门在
+   *  各公司各有一行（安全管理部/办公室等多公司重名）——按行返回会让联想下拉出现
+   *  重复项（React key 撞车实录），同名行专家数求和后出一条 */
   async departmentOptions(): Promise<Array<{ name: string; count: number }>> {
     const deps = await this.prisma.department.findMany({
       select: { name: true, _count: { select: { users: { where: { role: 'bid_expert' } } } } },
     });
-    return deps
-      .map(d => ({ name: d.name, count: d._count.users }))
-      .filter(d => d.name.trim().length > 0)
+    const byName = new Map<string, number>();
+    for (const d of deps) {
+      const name = d.name.trim();
+      if (!name) continue;
+      byName.set(name, (byName.get(name) ?? 0) + d._count.users);
+    }
+    return [...byName.entries()]
+      .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'zh'))
       .slice(0, 120);
   }
