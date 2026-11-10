@@ -174,21 +174,11 @@ export class WorkArrangementsService {
         });
         this.contentCache.set(userId, { data: { ...contentWithoutHeader }, itemCount: ctx.items.length, timestamp: now });
 
-        // 持久化到 DB
-        await this.saveDbCachedPlan(userId, dateStr, {
-          date: dayStart.toISOString(),
-          headerGreeting: result.headerGreeting,
-          namePraise: result.namePraise,
-          dailyGreeting: result.dailyGreeting,
-          riskSummary: result.riskSummary,
-          aiSuggestion: result.aiSuggestion,
-          overview: result.overview,
-          focusItems: result.focusItems,
-          timeBlocks: result.timeBlocks,
-          riskAlerts: result.riskAlerts,
-          completionAdvice: result.completionAdvice,
-          projectBrief: result.projectBrief,
-        });
+        // 持久化到 DB —— 与 buildDailyPlan/buildDailyPlanInternal 同构：完整 result 落库。
+        // 此前手工枚举字段清单漏了 dailyQuote：DB 缓存超 2 小时触发后台刷新后，当天
+        // 再进工作台「{时段}，{姓名}。」后的问候续句消失（2026-11-10 实录，缓存行
+        // dailyQuote 字段整体缺失佐证）。新增返回字段时三条写路径天然同步，不再漏。
+        await this.saveDbCachedPlan(userId, dateStr, result as Record<string, unknown>);
       } catch (err) {
         console.error('Background daily plan refresh failed:', err);
       } finally {
@@ -266,7 +256,7 @@ export class WorkArrangementsService {
         date: dayStart.toISOString(), headerGreeting: '', namePraise: '',
         dailyGreeting: '', riskSummary: '', aiSuggestion: '', overview: '',
         focusItems: [], timeBlocks: [], riskAlerts: [],
-        completionAdvice: '', projectBrief: '',
+        completionAdvice: '', projectBrief: '', dailyQuote: '',
       };
     }
   }

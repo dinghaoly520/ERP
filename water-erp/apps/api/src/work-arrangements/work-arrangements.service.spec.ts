@@ -30,6 +30,9 @@ describe('WorkArrangementsService', () => {
       projectManagementItem: {
         findUnique: jest.fn(),
       },
+      workArrangementDailyPlanCache: {
+        upsert: jest.fn(),
+      },
     };
 
     (prisma as Record<string, unknown>).$transaction = jest.fn(
@@ -209,5 +212,44 @@ describe('WorkArrangementsService', () => {
         preset: 'PLUS_30_MINUTES',
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('后台刷新持久化的每日计划保留 dailyQuote（问候续句不再被字段清单漏掉）', async () => {
+    const { service, prisma } = makeService();
+    const upsert = prisma.workArrangementDailyPlanCache.upsert;
+    upsert.mockResolvedValue({});
+
+    jest.spyOn(service as any, 'loadPlanContext').mockResolvedValue({
+      user: { username: 'Swhi-CGZX-01', role: 'leader', displayName: '采购中心领导 02' },
+      items: [],
+      isChairman: false,
+      allProjects: [],
+    });
+    jest.spyOn(service as any, 'generatePlanResult').mockResolvedValue({
+      date: '2026-11-09T16:00:00.000Z',
+      headerGreeting: '今天有2项工作需要你关注。',
+      namePraise: '',
+      dailyGreeting: '',
+      riskSummary: '风险可控',
+      aiSuggestion: '',
+      overview: '共2项任务',
+      focusItems: [],
+      timeBlocks: [],
+      riskAlerts: [],
+      completionAdvice: '',
+      projectBrief: '',
+      dailyQuote: '日头偏西，把最后几件事收干净再走。',
+    });
+
+    (service as any).refreshPlanInBackground('user-1', '2026-11-10', new Date('2026-11-10T00:00:00Z'), Date.now());
+    // fire-and-forget：轮询刷新锁（finally 中 delete）直至内部 promise 完成
+    for (let i = 0; i < 200 && (service as any).dbRefreshLocks.size > 0; i++) {
+      await new Promise((r) => setTimeout(r, 1));
+    }
+
+    expect(upsert).toHaveBeenCalledTimes(1);
+    const persisted = upsert.mock.calls[0][0].create.plan;
+    expect(persisted.dailyQuote).toBe('日头偏西，把最后几件事收干净再走。');
+    expect(persisted.headerGreeting).toBe('今天有2项工作需要你关注。');
   });
 });
