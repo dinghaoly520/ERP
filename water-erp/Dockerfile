@@ -107,6 +107,13 @@ RUN pnpm --filter public-portal        run build \
  && pnpm --filter expert-portal        run build \
  && pnpm --filter bid-portal           run build
 
+# ---- 构建指纹（2026-11-10 出包校验兜底，与 backend/Dockerfile.api 同款）----
+# front.sh 构建时注入当前 git 指纹（git describe --always --dirty），导出前
+# 比对镜像内 /repo/BUILD_SHA，不符即拒绝出包——防「缓存/上下文/分支异常打出旧代码」。
+# 必须放在最后一步：ARG 值变化只重建本薄层，上游层缓存不受影响。
+ARG GIT_SHA=unknown
+RUN echo "${GIT_SHA}" > /repo/BUILD_SHA
+
 EXPOSE 3002 3004 3005 3006 3007
 
 # 默认起 3002，docker-compose 用 command 覆盖成各自门户

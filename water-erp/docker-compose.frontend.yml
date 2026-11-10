@@ -30,6 +30,9 @@ x-portal-common: &portal-common
       API_ORIGIN: ${API_ORIGIN:-http://10.60.14.14:4001}
       # 依赖下载源（国内/内网必须能访问到这个地址，否则 pnpm install 会 EAI_AGAIN）
       NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+      # 2026-11-10 出包校验兜底：front.sh 注入当前 git 指纹，导出前比对镜像内
+      # /repo/BUILD_SHA，不符拒绝出包。直跑 compose 不带时为 unknown，不影响构建。
+      GIT_SHA: ${GIT_SHA:-unknown}
   image: water-erp-portal:${PORTAL_TAG:-1.0.0}
   restart: unless-stopped
   # 宿主机跑后端时容器内可用 host.docker.internal（Linux 需 host-gateway）
