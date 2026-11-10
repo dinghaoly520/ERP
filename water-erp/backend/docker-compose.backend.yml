@@ -130,6 +130,9 @@ services:
       # 时为 unknown，不影响构建。
       args:
         GIT_SHA: ${GIT_SHA:-unknown}
+        # 依赖源择优（2026-11-10）：backend.sh 探测可用源后注入（候选与探测逻辑在脚本内）；
+        # 对齐前端 docker-compose.frontend.yml 的同名参数。Dockerfile.api 已有对应 ARG。
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
     image: water-erp-api:1.0.0
     container_name: water-erp-be-api
     working_dir: /app/apps/api
