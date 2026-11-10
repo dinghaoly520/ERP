@@ -177,7 +177,9 @@ function PageHero({
           {/* 统计状态徽章（2026-11-09 用户裁定终版：与「已入库/账户已激活」同款描边小胶囊；居公司选择器左侧） */}
           <WbStatusBadge tone="blue">总计 {pagination.total}</WbStatusBadge>
           <WbStatusBadge tone={abnormalCount > 0 ? 'orange' : 'green'}>异常 {abnormalCount}</WbStatusBadge>
-          <CompanySelect value={companyId} onChange={onCompanyChange} countMode="projectsDone" />
+          {/* 计数口径=轮次数（2026-11-10 用户裁定：台账页内容是采购轮次，与列表同源
+              /procurements/company-counts；原 PMI 已归档计数致页面有数据而下拉 0 家） */}
+          <CompanySelect value={companyId} onChange={onCompanyChange} countMode="rounds" />
           {isAdmin && (
           <button
             type="button"

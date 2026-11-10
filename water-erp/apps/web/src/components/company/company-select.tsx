@@ -81,12 +81,15 @@ function subLabelFor(c: CompanyOption, countMode: CompanyCountMode, bizCounts: R
   if (countMode === "suppliers") return `${n} 家供应商`;
   if (countMode === "experts") return `${n} 位专家`;
   if (countMode === "announcements") return `${n} 条公告`;
+  if (countMode === "rounds") return `${n} 条`;
   return `${n} 个项目`;
 }
 
 /** 计数口径（2026-09-26 用户拍板）：下拉副标显示「当前页面的业务数据」按公司的数量——
- *  供应商页=各公司供应商数、专家页=各公司专家数；其余页面=账号口径（办公/专家拆分） */
-export type CompanyCountMode = 'accounts' | 'suppliers' | 'experts' | 'projectsDone' | 'projectsActive' | 'announcements';
+ *  供应商页=各公司供应商数、专家页=各公司专家数；其余页面=账号口径（办公/专家拆分）。
+ *  rounds=台账轮次数（2026-11-10 用户裁定：台账页内容是采购轮次，此前误用 PMI 已归档
+ *  项目计数，页面有 7 条而下拉 0 家的断桥由此而来） */
+export type CompanyCountMode = 'accounts' | 'suppliers' | 'experts' | 'projectsDone' | 'projectsActive' | 'announcements' | 'rounds';
 
 export function CompanySelect({
   value,
@@ -131,6 +134,7 @@ export function CompanySelect({
       : countMode === "experts" ? "/expert-admin/company-counts"
       : countMode === "projectsDone" ? "/project-management/company-counts?status=ARCHIVED"
       : countMode === "projectsActive" ? "/project-management/company-counts?status=ACTIVE"
+      : countMode === "rounds" ? "/procurements/company-counts"
       : "/announcements/company-counts";
     api
       .get<Array<{ name: string; count: number }>>(url)
@@ -140,7 +144,14 @@ export function CompanySelect({
 
   const syncAnchor = useCallback(() => {
     const r = btnRef.current?.getBoundingClientRect();
-    if (r) setAnchor({ top: r.bottom + 8, left: r.left, width: Math.max(r.width, 264) });
+    if (!r) return;
+    // 视口钳制（2026-11-10 用户实录：进度页选择器靠右，面板右缘出界）：
+    // 水平夹在 [8, innerWidth-宽-8]；垂直 320px 面板下方放不下且上方够 → 向上翻（SearchSelect 同语义）
+    const width = Math.max(r.width, 264);
+    const left = Math.min(Math.max(8, r.left), window.innerWidth - width - 8);
+    const POP_H = 320;
+    const flip = r.bottom + POP_H + 8 > window.innerHeight && r.top > POP_H + 16;
+    setAnchor({ top: flip ? r.top - POP_H - 8 : r.bottom + 8, left, width });
     setTimeout(() => searchRef.current?.focus(), 0);
   }, []);
 
@@ -312,7 +323,9 @@ export function CompanySelect({
                       ? `不限公司 · 共 ${options!.reduce((sum, c) => sum + (bizCounts?.[c.name] ?? 0), 0)} 位专家`
                       : countMode === "announcements"
                         ? `不限公司 · 共 ${options!.reduce((sum, c) => sum + (bizCounts?.[c.name] ?? 0), 0)} 条公告`
-                        : `不限公司 · 共 ${options!.reduce((sum, c) => sum + (bizCounts?.[c.name] ?? 0), 0)} 个项目`,
+                        : countMode === "rounds"
+                          ? `不限公司 · 共 ${options!.reduce((sum, c) => sum + (bizCounts?.[c.name] ?? 0), 0)} 条`
+                          : `不限公司 · 共 ${options!.reduce((sum, c) => sum + (bizCounts?.[c.name] ?? 0), 0)} 个项目`,
                 () => handleChange("all"),
               )}
               {(() => {
