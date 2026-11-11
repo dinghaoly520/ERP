@@ -10,9 +10,11 @@ dist/
 !.env.example
 !.env*.example
 .DS_Store
-# 根 .claude/ 全本地（含 cgzxui 本地生效副本，入库源在 apps/public-portal/.claude/skills/）；
-# 子目录 .claude/ 交由各自 .gitignore 管控——water-erp 的项目 skill（.claude/skills/票修）随库分发（2026-11-11）
-/.claude/
+# 根 .claude/ 本地配置不入库；例外：.claude/skills/ 项目 skill 随库分发（bug-fix 票修流水线，2026-11-11）
+# cgzxui 根副本仍是本地生效件（入库源在 water-erp/apps/public-portal/.claude/skills/cgzxui/），维持忽略
+/.claude/*
+!/.claude/skills/
+/.claude/skills/cgzxui/
 .superpowers/
 .worktrees/
 water-erp/apps/api/uploads/
