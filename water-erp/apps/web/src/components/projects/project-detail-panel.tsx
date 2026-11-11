@@ -2709,6 +2709,8 @@ export function ProjectDetailPanel({
                 changeRound: String(ctx.round),
                 changeReason: ctx.reason,
                 changeContent: ctx.changeContent,
+                ...(ctx.publishStart ? { announcementStart: ctx.publishStart } : {}),
+                ...(ctx.publishEnd ? { announcementEnd: ctx.publishEnd } : {}),
               },
               pendingRegister: pending,
             });
@@ -2726,6 +2728,8 @@ export function ProjectDetailPanel({
               changeRound: String(ctx.round),
               changeReason: ctx.reason,
               changeContent: ctx.changeContent,
+              ...(ctx.publishStart ? { announcementStart: ctx.publishStart } : {}),
+              ...(ctx.publishEnd ? { announcementEnd: ctx.publishEnd } : {}),
             },
           });
           if (publish) {

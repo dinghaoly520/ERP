@@ -19,6 +19,21 @@ import type { ProjectManagementItem } from '@/lib/types/project-management';
 
 type Step = 'type' | 'form';
 
+/** datetime-local 当前时刻 */
+function toLocalNow(): string {
+  const d = new Date();
+  const p = (x: number) => String(x).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/** datetime-local 今日 +n 天 */
+function daysAfter(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  const p = (x: number) => String(x).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 /** PMI 中文开标时间（YYYY年M月D日 HH:mm，+08 墙钟）→ datetime-local 输入值 */
 function cnToDatetimeLocal(cn: string | null | undefined): string {
   const m = (cn ?? '').match(/(\d{4})年(\d{1,2})月(\d{1,2})日\s*(\d{1,2}):(\d{2})/);
@@ -50,7 +65,7 @@ export function ChangeModal({
   /** 开标确认（BidProject 进入 OPENING 起）——标段分区闸：开标后标前锁死、标后解锁 */
   bidOpened: boolean;
   onRegistered: (
-    result: { needsAnnouncement: boolean; recordId: string; category: 'change_notice' | 'addendum'; round: number; reason: string; changeContent: string },
+    result: { needsAnnouncement: boolean; recordId: string; category: 'change_notice' | 'addendum'; round: number; reason: string; changeContent: string; publishStart?: string; publishEnd?: string },
     publish: boolean,
     /** 发布优先模式（2026-11-12 裁定）：尚未登记——公告发布成功后由面板补登记 */
     pending?: { type: 'CHANGE' | 'ADDENDUM'; reason: string; fields: Record<string, string> },
@@ -66,6 +81,10 @@ export function ChangeModal({
   // 登记前选择（2026-11-12 用户裁定）：是否先发布公告——发布优先模式未登记数据，
   // 公告发布成功才由面板补登记；取消发布=放弃本次修改
   const [awaitChoice, setAwaitChoice] = useState<{ type: 'CHANGE' | 'ADDENDUM'; reason: string; fields: Record<string, string> } | null>(null);
+  // 发布配置（2026-11-12 借鉴公告向导发布步）：正文/公示期限——随向导注入预填
+  const [pubStart, setPubStart] = useState('');
+  const [pubEnd, setPubEnd] = useState('');
+  const [pubContent, setPubContent] = useState('');
 
   // 归属项目候选：在办项目清单（排除本项目）；打开弹窗时取一次
   useEffect(() => {
@@ -147,6 +166,16 @@ export function ChangeModal({
         }
       }
     }
+    // 正文预填：变更对照或补遗事由；公示期默认 3 日（法定）
+    const cs = Object.entries(fields);
+    setPubContent(cs.length > 0
+      ? cs.map(([f]) => {
+          const def = CHANGE_FIELD_GROUPS.flatMap(g => g.fields).find(x => x.field === f);
+          return `${def?.label ?? f}：${currentOf(f) || '（空）'} → ${fields[f]}`;
+        }).join('\n')
+      : trimmedReason);
+    setPubStart(toLocalNow());
+    setPubEnd(daysAfter(3));
     setAwaitChoice({ type, reason: trimmedReason, fields });
   };
 
@@ -195,7 +224,9 @@ export function ChangeModal({
         category: payload.type === 'CHANGE' ? 'change_notice' : 'addendum',
         round: nextRound,
         reason: payload.reason,
-        changeContent,
+        changeContent: pubContent.trim() || changeContent,
+        publishStart: pubStart,
+        publishEnd: pubEnd,
       }, true, payload);
       onClose();
     } catch (e) {
@@ -349,18 +380,55 @@ export function ChangeModal({
         </div>
 
         {awaitChoice && (
+          <div className="space-y-4 px-6 pb-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-bold text-[var(--foreground)]">
+                发布{awaitChoice.type === 'CHANGE' ? '变更' : '补遗'}公告
+              </span>
+              <span className="text-[11px] font-medium text-[var(--muted-foreground)]">公示期默认 3 日（法定），可调整</span>
+            </div>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">公告内容</span>
+              <textarea
+                className="neu-input min-h-[110px] text-sm"
+                value={pubContent}
+                onChange={(e) => setPubContent(e.target.value)}
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">公示期限（起）</span>
+                <input type="datetime-local" className="workbench-input" value={pubStart} onChange={(e) => setPubStart(e.target.value)} />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">公示期限（止）</span>
+                <input type="datetime-local" className="workbench-input" value={pubEnd} onChange={(e) => setPubEnd(e.target.value)} />
+              </label>
+            </div>
+            <p className="rounded-[12px] bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-4 py-3 text-xs leading-5 text-[var(--muted-foreground)]">
+              下一步进入公告发布确认（可见范围、附件与平台同步在发布页配置）；公告发布成功后自动登记变更，取消则本次修改不生效。
+            </p>
+          </div>
+        )}
+
+        {awaitChoice && (
           <>
             <hr className="wb-section-rule" />
             <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-3.5">
-              <span className="text-sm text-[var(--foreground)]">
-                {'bidOpeningTime' in awaitChoice.fields ? '含开标时间变更，建议先发布公告' : '是否随本次登记发布公告？'}
-              </span>
+              <button type="button" className="neu-btn-soft" onClick={() => setAwaitChoice(null)}>
+                返回修改
+              </button>
               <div className="neu-btn-group">
                 <button type="button" className="neu-btn-soft" disabled={saving} onClick={() => void doRegister(awaitChoice)}>
                   暂不发布，直接登记
                 </button>
-                <button type="button" className="neu-btn-primary !h-[38px]" disabled={saving} onClick={() => void doPublishFirst(awaitChoice)}>
-                  先发布公告再登记
+                <button
+                  type="button"
+                  className="neu-btn-primary !h-[38px]"
+                  disabled={saving || !pubStart || !pubEnd || !pubContent.trim()}
+                  onClick={() => void doPublishFirst(awaitChoice)}
+                >
+                  下一步：发布公告
                 </button>
               </div>
             </div>
