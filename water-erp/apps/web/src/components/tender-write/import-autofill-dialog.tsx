@@ -13,7 +13,7 @@ import { importAutofill, announcementImportAutofill } from '@/lib/api/tender-wri
 
 /**
  * 导入识别弹窗（2026-11-11 全系统弹窗规范 A 版定版标本）：
- * 壳 = wb-modal-shell 瓷面（系统背景彩色渐变 + 顶缘内高光 + 方向性双影）；
+ * 壳 = wb-modal-shell 瓷面（纯白瓷底 + 顶缘内高光 + 方向性双影）；
  * 头部 = 图标井 + 动词标题 + 统计摘要行，hairline 分段；
  * 内容 = 章节内凹导航（激活白瓷片）+ 无框色调字段行 + 状态胶囊 + 来源内凹摘录盒；
  * 底部 = hairline + 左说明 + neu-btn-group 等高按钮组。

@@ -419,16 +419,16 @@ textarea.neu-input {
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.6);
   box-shadow:
-    0 4px 16px rgba(6, 78, 162, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    0 4px 16px oklch(0.5 0.16 258 / 0.08),
+    inset 0 1px 0 oklch(1 0 0 / 0.8);
   transition: all 0.3s ease;
 }
 
 .value-icon:hover {
   background: rgba(255, 255, 255, 0.6);
   box-shadow:
-    0 6px 24px rgba(6, 78, 162, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    0 6px 24px oklch(0.5 0.16 258 / 0.15),
+    inset 0 1px 0 oklch(1 0 0 / 0.9);
   transform: translateY(-2px);
 }
 
@@ -697,7 +697,7 @@ textarea.neu-input {
 /* active */
 .flow-h-block-active {
   opacity: 1;
-  box-shadow: 0 0 12px var(--block-color, oklch(0.5 0.14 258 / 0.3)), 0 0 0 3px color-mix(in srgb, var(--block-color, #7ec8e3) 15%, transparent);
+  box-shadow: 0 0 12px var(--block-color, oklch(0.5 0.14 258 / 0.3)), 0 0 0 3px color-mix(in srgb, var(--block-color, oklch(0.83 0.09 220)) 15%, transparent);
   transform: scaleY(1.3);
 }
 /* future */
@@ -705,8 +705,8 @@ textarea.neu-input {
   opacity: 0.22;
 }
 @keyframes block-active-pulse {
-  0%, 100% { box-shadow: 0 0 12px var(--block-color, oklch(0.5 0.14 258 / 0.3)), 0 0 0 3px color-mix(in srgb, var(--block-color, #7ec8e3) 12%, transparent); }
-  50%      { box-shadow: 0 0 18px var(--block-color, oklch(0.5 0.14 258 / 0.45)), 0 0 0 5px color-mix(in srgb, var(--block-color, #7ec8e3) 20%, transparent); }
+  0%, 100% { box-shadow: 0 0 12px var(--block-color, oklch(0.5 0.14 258 / 0.3)), 0 0 0 3px color-mix(in srgb, var(--block-color, oklch(0.83 0.09 220)) 12%, transparent); }
+  50%      { box-shadow: 0 0 18px var(--block-color, oklch(0.5 0.14 258 / 0.45)), 0 0 0 5px color-mix(in srgb, var(--block-color, oklch(0.83 0.09 220)) 20%, transparent); }
 }
 .flow-h-block-active {
   animation: block-active-pulse 2.5s ease-in-out infinite;
@@ -1112,8 +1112,8 @@ a.group:hover::after {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   box-shadow:
-    0 4px 20px rgba(6, 78, 162, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    0 4px 20px oklch(0.5 0.16 258 / 0.1),
+    inset 0 1px 0 oklch(1 0 0 / 0.9);
   transition:
     transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
     box-shadow 0.35s ease,
@@ -1169,8 +1169,8 @@ a.group:hover::after {
   color: #fff;
   background: linear-gradient(135deg, #064ea2, #0891b2);
   box-shadow:
-    0 8px 32px rgba(6, 78, 162, 0.25),
-    0 0 0 4px rgba(6, 78, 162, 0.06);
+    0 8px 32px oklch(0.5 0.16 258 / 0.25),
+    0 0 0 4px oklch(0.5 0.16 258 / 0.06);
 }
 
 .back-to-top:hover::before {
@@ -1239,7 +1239,7 @@ a.group:hover::after {
   height: 28px;
   border-radius: 4px;
   background: linear-gradient(180deg, #064ea2, #0891b2);
-  box-shadow: 0 0 12px rgba(6, 78, 162, 0.25);
+  box-shadow: 0 0 12px oklch(0.5 0.16 258 / 0.25);
 }
 
 /* ── Tab 标签 ── */
@@ -1798,8 +1798,8 @@ a.group:hover::after {
       color-mix(in srgb, var(--rank-color, #064ea2) 92%, white),
       color-mix(in srgb, var(--rank-color, #064ea2) 72%, #0f172a));
   box-shadow:
-    0 7px 16px color-mix(in srgb, var(--rank-color, #064ea2) 24%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    0 7px 16px color-mix(in srgb, var(--rank-color, oklch(0.5 0.16 258)) 24%, transparent),
+    inset 0 1px 0 oklch(1 0 0 / 0.28);
   flex-shrink: 0;
   margin-top: 2px;
   transition: all 0.3s ease;
@@ -2044,11 +2044,11 @@ a.group:hover::after {
 /* 水叮当头像呼吸动画 */
 @keyframes dingdang-breathe {
   0%, 100% {
-    box-shadow: 0 10px 26px rgba(6, 78, 162, 0.18);
+    box-shadow: 0 10px 26px oklch(0.5 0.16 258 / 0.18);
     transform: scale(1);
   }
   50% {
-    box-shadow: 0 14px 34px rgba(6, 78, 162, 0.28), 0 0 0 6px rgba(6, 78, 162, 0.06);
+    box-shadow: 0 14px 34px oklch(0.5 0.16 258 / 0.28), 0 0 0 6px oklch(0.5 0.16 258 / 0.06);
     transform: scale(1.04);
   }
 }
@@ -2466,13 +2466,9 @@ a.group:hover::after {
   font-weight: 900;
 }
 
-/* ── 全系统统一弹窗壳（2026-11-11 用户裁定）：系统背景彩色渐变 ── */
+/* ── 全系统统一弹窗壳（2026-11-11 用户裁定·同日改主意终版）：纯白瓷底 ── */
 .wb-modal-shell {
-  background:
-    radial-gradient(circle at 14% 12%, rgba(118, 165, 255, 0.16), transparent 24%),
-    radial-gradient(circle at 84% 16%, rgba(242, 201, 132, 0.12), transparent 18%),
-    radial-gradient(circle at 76% 82%, rgba(120, 209, 186, 0.1), transparent 20%),
-    linear-gradient(180deg, rgba(248, 251, 255, 0.99), rgba(240, 245, 252, 0.98));
+  background: oklch(1 0 0); /* 纯白瓷底（2026-11-11 用户改主意：彩色渐变→纯白瓷色） */
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 0.88),
     3px 4px 16px oklch(0.46 0.07 258 / 0.18),
@@ -2480,3 +2476,20 @@ a.group:hover::after {
   border-radius: 20px;
 }
 
+/* ── 公告详情/回执页静态表面（2026-11-11 自内联 style 收编，值原样平移）── */
+.announce-note-tint {
+  background: oklch(0.5 0.16 258 / 0.06);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.5);
+}
+.announce-meta-chip {
+  background: oklch(1 0 0 / 0.55);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 1px 2px oklch(0.55 0.03 258 / 0.08);
+}
+.announce-note-contact {
+  background: oklch(0.5 0.16 258 / 0.06);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.5), inset -1px -1px 3px oklch(0.55 0.03 258 / 0.05);
+}
+.rsvp-card {
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 35%, oklch(1 0 0 / 0.14) 70%);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.75), 2px 3px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.88);
+}

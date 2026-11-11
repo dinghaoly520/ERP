@@ -160,7 +160,7 @@
 
 /* ═══ Qual add panel (Teleport) ═══ */
 .add-overlay { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 32px; background: oklch(0.35 0.06 258 / 0.28); }
-/* 系统背景彩色渐变（2026-11-11 用户裁定）：与 body/.wb-modal-shell 同配方 */
+/* 纯白瓷底（2026-11-11 用户裁定终版）：与 .wb-modal-shell 同配方 */
 .add-panel {
   position: relative;
   width: 540px;
@@ -171,11 +171,7 @@
   overflow: hidden;
   border: none;
   border-radius: 20px;
-  background:
-    radial-gradient(circle at 14% 12%, rgba(118, 165, 255, 0.16), transparent 24%),
-    radial-gradient(circle at 84% 16%, rgba(242, 201, 132, 0.12), transparent 18%),
-    radial-gradient(circle at 76% 82%, rgba(120, 209, 186, 0.1), transparent 20%),
-    linear-gradient(180deg, rgba(248, 251, 255, 0.99), rgba(240, 245, 252, 0.98));
+  background: oklch(1 0 0); /* 纯白瓷底（2026-11-11 用户改主意：彩色渐变→纯白瓷色） */
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 0.88),
     3px 4px 16px oklch(0.46 0.07 258 / 0.18),
@@ -268,11 +264,7 @@
   overflow: hidden;
   border: none;
   border-radius: 20px;
-  background:
-    radial-gradient(circle at 14% 12%, rgba(118, 165, 255, 0.16), transparent 24%),
-    radial-gradient(circle at 84% 16%, rgba(242, 201, 132, 0.12), transparent 18%),
-    radial-gradient(circle at 76% 82%, rgba(120, 209, 186, 0.1), transparent 20%),
-    linear-gradient(180deg, rgba(248, 251, 255, 0.99), rgba(240, 245, 252, 0.98));
+  background: oklch(1 0 0); /* 纯白瓷底（2026-11-11 用户改主意：彩色渐变→纯白瓷色） */
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 0.88),
     3px 4px 16px oklch(0.46 0.07 258 / 0.18),
@@ -335,11 +327,7 @@
   flex-direction: column;
   overflow: hidden;
   border-radius: 20px;
-  background:
-    radial-gradient(circle at 14% 12%, rgba(118, 165, 255, 0.16), transparent 24%),
-    radial-gradient(circle at 84% 16%, rgba(242, 201, 132, 0.12), transparent 18%),
-    radial-gradient(circle at 76% 82%, rgba(120, 209, 186, 0.1), transparent 20%),
-    linear-gradient(180deg, rgba(248, 251, 255, 0.99), rgba(240, 245, 252, 0.98));
+  background: oklch(1 0 0); /* 纯白瓷底（2026-11-11 用户改主意：彩色渐变→纯白瓷色） */
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 0.88),
     3px 4px 16px oklch(0.46 0.07 258 / 0.18),
@@ -449,11 +437,7 @@
   flex-direction: column;
   overflow: hidden;
   border-radius: 20px;
-  background:
-    radial-gradient(circle at 14% 12%, rgba(118, 165, 255, 0.16), transparent 24%),
-    radial-gradient(circle at 84% 16%, rgba(242, 201, 132, 0.12), transparent 18%),
-    radial-gradient(circle at 76% 82%, rgba(120, 209, 186, 0.1), transparent 20%),
-    linear-gradient(180deg, rgba(248, 251, 255, 0.99), rgba(240, 245, 252, 0.98));
+  background: oklch(1 0 0); /* 纯白瓷底（2026-11-11 用户改主意：彩色渐变→纯白瓷色） */
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 0.88),
     3px 4px 16px oklch(0.46 0.07 258 / 0.18),
