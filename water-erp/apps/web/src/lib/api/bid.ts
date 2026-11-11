@@ -115,6 +115,11 @@ export interface BidWorkspace {
   };
 }
 
+/** 变更弹窗 BID 组现值（2026-11-11 变更体系）：资格要求/供货范围/质量要求取当前轮投标项目 */
+export function getBidProjectFields(bidProjectId: string) {
+  return api.get<Pick<BidProjectRef, 'id'> & { qualification: string | null; scope: string | null; qualityRequirement: string | null }>(`/bid/projects/${bidProjectId}`);
+}
+
 export function getBidWorkspace(bidProjectId: string) {
   return api.get<BidWorkspace>(`/bid/projects/${bidProjectId}/workspace`);
 }

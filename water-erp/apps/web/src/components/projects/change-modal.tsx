@@ -36,6 +36,7 @@ export function ChangeModal({
   isOpen,
   onClose,
   item,
+  currentValues,
   currentStage,
   bidFields,
   onRegistered,
@@ -43,6 +44,8 @@ export function ChangeModal({
   isOpen: boolean;
   onClose: () => void;
   item: ProjectManagementItem;
+  /** 现值源（2026-11-11 一致性修复）：面板口径 = item + extractedInfoOverride 非空键合并——与左栏展示同源，缺省回落 item */
+  currentValues?: Record<string, string | number | null> | null;
   currentStage: string | null;
   /** 当前轮 BidProject 字段现值（BID 组预填；无投标侧数据传 null） */
   bidFields: { qualification?: string | null; scope?: string | null; qualityRequirement?: string | null } | null;
@@ -54,7 +57,7 @@ export function ChangeModal({
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const pm = item as unknown as Record<string, string | number | null>;
+  const pm = { ...(item as unknown as Record<string, string | number | null>), ...(currentValues ?? {}) };
   const currentOf = (f: string): string => {
     if (f === 'bidOpeningTime') return cnToDatetimeLocal(pm.bidOpeningTime as string);
     const v = f === 'qualification' || f === 'scope' || f === 'qualityRequirement'
@@ -183,6 +186,18 @@ export function ChangeModal({
                             value={values[f.field] ?? currentOf(f.field)}
                             onChange={e => setValues(v => ({ ...v, [f.field]: e.target.value }))}
                           />
+                        ) : f.options ? (
+                          <select
+                            className={inputCls}
+                            disabled={!g.unlocked}
+                            value={values[f.field] ?? currentOf(f.field)}
+                            onChange={e => setValues(v => ({ ...v, [f.field]: e.target.value }))}
+                          >
+                            {/* 现值不在标准选项（存量数据）时动态补入，避免展示丢失 */}
+                            {(f.options.includes(currentOf(f.field)) ? f.options : [currentOf(f.field), ...f.options])
+                              .filter(Boolean)
+                              .map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                          </select>
                         ) : (
                           <input
                             type={f.kind === 'number' ? 'number' : 'text'}

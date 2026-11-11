@@ -1,3 +1,4 @@
+import { PROCUREMENT_CATEGORY_OPTIONS } from '@/lib/types/project-management';
 /**
  * 变更字段白名单（前端镜像）——与 apps/api/src/project-management/change-fields.ts 同源，
  * 改动必须两端同步（后端为权威闸，前端仅作表单分组/禁用展示）。
@@ -9,7 +10,9 @@ export type ChangeFieldDef = {
   label: string;
   kind: 'text' | 'number' | 'datetime';
   target: 'PMI' | 'BID';
-};
+  /** 下拉选项（2026-11-11 用户裁定：采购类别用下拉）——仅前端表单渲染用，后端闸不感知 */
+  options?: string[];
+}
 
 export type ChangeFieldGroup = {
   key: 'basic' | 'document' | 'notice';
@@ -27,7 +30,7 @@ export const CHANGE_FIELD_GROUPS: ChangeFieldGroup[] = [
     stageLabel: '采购立项',
     fields: [
       { field: 'title', label: '项目名称', kind: 'text', target: 'PMI' },
-      { field: 'procurementCategory', label: '采购类别', kind: 'text', target: 'PMI' },
+      { field: 'procurementCategory', label: '采购类别', kind: 'text', target: 'PMI', options: PROCUREMENT_CATEGORY_OPTIONS },
       { field: 'budgetAmount', label: '预算金额', kind: 'number', target: 'PMI' },
       { field: 'requesterName', label: '需求人', kind: 'text', target: 'PMI' },
       { field: 'requesterDepartment', label: '需求部门', kind: 'text', target: 'PMI' },
