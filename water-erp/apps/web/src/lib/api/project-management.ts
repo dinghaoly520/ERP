@@ -47,6 +47,9 @@ export type InitiationFields = {
   hasProcurementDemand: boolean;
   demandAttachment?: ProjectManagementAttachment;
   initiationAttachment?: ProjectManagementAttachment;
+  /** 多文件（2026-11-11）：数组优先，单数字段向后兼容 */
+  demandAttachments?: ProjectManagementAttachment[];
+  initiationAttachments?: ProjectManagementAttachment[];
   demandProject?: string;
   demandContractNumber?: string;
   initiationDate?: string;
@@ -128,15 +131,16 @@ export async function reprocProject(projectId: string, body: ReprocBody) {
 // 送审流落地时按后端实际路由重建。
 
 /** 从已上传的采购文件重新提取 projectOverview / bidOpeningTime / documentAcquireTime */
-export async function extractTenderFields(projectId: string, field?: string, timeoutMs = 150_000) {
-  const qs = field ? `?field=${field}` : '';
+export async function extractTenderFields(projectId: string, field?: string, timeoutMs = 150_000, dryRun = false) {
+  const qs = [field ? `field=${field}` : '', dryRun ? 'dryRun=true' : ''].filter(Boolean).join('&');
+  const qsPrefixed = qs ? `?${qs}` : '';
   // 兜底超时（2026-10-15）：LLM 调用后端已限 60s×1 重试，但连接悬死（如 dev watch 重启断流）
   // 时 fetch 永不落定、按钮无限转圈——AbortController 强制终止；150s > 后端最坏 120s，
   // 正常情况下后端结果/报错先到，abort 只是最后防线。
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await apiFetch(`${API_BASE}/project-management/${projectId}/extract-tender-fields${qs}`, {
+    const response = await apiFetch(`${API_BASE}/project-management/${projectId}/extract-tender-fields${qsPrefixed}`, {
       method: 'POST',
       credentials: 'include',
       signal: controller.signal,

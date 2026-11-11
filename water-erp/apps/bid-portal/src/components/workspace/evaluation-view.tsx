@@ -2085,6 +2085,8 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
           <div className="bid-overlay-backdrop" />
           <div className="bid-dialog relative mx-4 w-full max-w-[min(480px,92vw)] px-6 py-5" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-base font-black text-[color:var(--foreground)]">重新生成评标结果？</h3>
+            {/* 头部/内容隔离线（2026-11-11 用户裁定）：壳自带 px-6 内边距，线不加 mx 即与内容区对齐 */}
+            <div className="my-3 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
             <p className="mt-2 text-xs leading-relaxed text-[color:var(--muted-foreground)]">
               未闭环的评标签字包将随之作废（签字登记全部重置，须重新生成与登记）；已闭环签字包则后端拒绝重生成。
             </p>

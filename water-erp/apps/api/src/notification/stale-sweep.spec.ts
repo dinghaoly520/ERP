@@ -103,7 +103,8 @@ function makePrisma(tables: {
       count: jest.fn(async ({ where }: any) => suppliers.filter((s) => s.status === where.status).length),
     },
     supplierCompanyLink: {
-      count: jest.fn(async ({ where }: any) => links.filter((l) => l.status === where.status).length),
+      count: jest.fn(async ({ where }: any) => links.filter((l) =>
+        where.status?.in ? where.status.in.includes(l.status) : l.status === where.status).length),
     },
     supplierCatalogApplication: {
       findMany: jest.fn(async ({ where }: any) => apps.filter((a) => where.id.in.includes(a.id))),
@@ -219,9 +220,9 @@ describe('sweepStaleActionableNotifications', () => {
     expect(b._unresolved()).toEqual([]);
   });
 
-  it('加入审批：队列空全清、非空全留（无实体 id 可归因）', async () => {
+  it('加入/退库审批：队列空全清、非空全留（无实体 id 可归因；退库件 2026-11-10 同 type）', async () => {
     const rows = [N('l1', 'SUPPLIER_LINK_PENDING', '/supplier?tab=company-links')];
-    const a = makePrisma({ notifications: rows.map((n) => ({ ...n })), links: [{ id: 'l', status: 'PENDING' }] });
+    const a = makePrisma({ notifications: rows.map((n) => ({ ...n })), links: [{ id: 'l', status: 'PENDING' }, { id: 'l2', status: 'LEAVE_PENDING' }] });
     await sweepStaleActionableNotifications(a as any);
     expect(a._unresolved()).toEqual(['l1']);
     const b = makePrisma({ notifications: rows.map((n) => ({ ...n })), links: [] });

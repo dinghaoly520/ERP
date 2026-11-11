@@ -191,7 +191,7 @@ export default function DateRangeFilter({ value, onChange }: DateRangeFilterProp
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-[580px] rounded-[20px] bg-[var(--background)] p-4 shadow-[0_20px_60px_oklch(0.55_0.03_258_/_0.12),inset_0_1px_0_oklch(1_0_0_/_0.7)]">
+        <div className="wb-modal-shell absolute left-0 top-full z-50 mt-1 w-[580px] p-4">
           {/* 快捷预设 */}
           <div className="mb-3 flex items-center gap-1.5 border-b border-[oklch(0.6_0.04_258_/_0.14)] pb-3">
             <span className="mr-1 text-[10px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">

@@ -71,6 +71,20 @@ describe('dual-v3 全链 (e2e)', () => {
       const sup = await setup.supplier.findUnique({ where: { userId: user.id } });
       supplierId = sup!.id;
     }
+    // 零归属登录闸（2026-11-10）：APPROVED 供应商须有归属 link 才能登录——夹具补一条在库归属
+    // （upsert 幂等，兼容存量 DB 残留的无 link 行）
+    {
+      const company = await setup.company.upsert({
+        where: { name: 'e2e-v3测试公司' },
+        update: {},
+        create: { name: 'e2e-v3测试公司' },
+      });
+      await setup.supplierCompanyLink.upsert({
+        where: { supplierId_companyId: { supplierId, companyId: company.id } },
+        update: { status: 'APPROVED' },
+        create: { supplierId, companyId: company.id, status: 'APPROVED', appliedAt: new Date() },
+      });
+    }
     // SCCA 绑定（scca-pkcs7 ACTIVE + 签名证挂 CaCertificate）
     const certFp = 'e'.repeat(64);
     const existingCert = await setup.supplierCert.findFirst({ where: { supplierId } });

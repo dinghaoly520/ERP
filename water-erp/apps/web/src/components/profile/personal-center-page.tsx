@@ -116,7 +116,7 @@ export function PersonalCenterPage() {
       {modal !== 'closed' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={() => setModal('closed')} />
-          <div className="relative flex w-full max-w-[min(640px,92vw)] max-h-[88vh] flex-col overflow-hidden rounded-[20px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]" role="dialog" aria-modal="true">
+          <div className="relative flex w-full max-w-[min(640px,92vw)] max-h-[88vh] flex-col overflow-hidden wb-modal-shell" role="dialog" aria-modal="true">
             {/* 固定标题区 */}
             <div className="flex shrink-0 items-start justify-between gap-4 px-6 pb-4 pt-6">
               <div className="flex items-center gap-2.5">

@@ -286,9 +286,14 @@ export class AuthController {
 
   @Get('heartbeat')
   @AnyRole()
-  @ApiOperation({ summary: '单设备登录心跳：会话被顶替/账号冻结时返回 401，由前端踢回登录页' })
-  heartbeat() {
-    // 实际校验在全局 AuthGuard；本端点仅为前端提供轻量轮询目标（操作日志已排除）
+  @ApiOperation({ summary: '单设备登录心跳：会话被顶替/账号冻结/供应商零归属时返回 401，由前端踢回登录页' })
+  async heartbeat(@CurrentUser() user: AuthenticatedUser) {
+    // 实际校验在全局 AuthGuard；本端点仅为前端提供轻量轮询目标（操作日志已排除）。
+    // 零归属闸的会话面兜底（2026-11-10）：登录闸只拦「登录时」，已登录供应商在归属全部
+    // 退光后借 15s 心跳即时失效——仅供应商会话多一次索引计数（频率=心跳节奏，不入全局守卫）。
+    if (user?.role === 'supplier') {
+      await this.authService.assertSupplierHasCompany(user.sub);
+    }
     return { ok: true };
   }
 

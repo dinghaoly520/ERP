@@ -40,8 +40,8 @@ export class ExportAnnouncementDto {
     | 'INTERNAL_BIDDING'
     | 'INVITED_BIDDING';
 
-  @IsIn(['procurement_document', 'failed_bid', 'winning_bid'])
-  category: 'procurement_document' | 'failed_bid' | 'winning_bid';
+  @IsIn(['procurement_document', 'failed_bid', 'winning_bid', 'change_notice', 'addendum'])
+  category: 'procurement_document' | 'failed_bid' | 'winning_bid' | 'change_notice' | 'addendum';
 
   @IsObject()
   draft: Record<string, unknown>;

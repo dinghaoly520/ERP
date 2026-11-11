@@ -38,6 +38,18 @@ type Attachment = {
   uploadedById?: string;
 };
 
+/** 多文件识别字段合并：先解析的文件优先，后续文件只补空白值（不覆盖已识别结果） */
+function mergeFieldsFill<T extends Record<string, unknown>>(base: T, patch: T): T {
+  const out: Record<string, unknown> = { ...base };
+  for (const [k, v] of Object.entries(patch)) {
+    const cur = out[k];
+    const curEmpty = cur == null || cur === '' || (typeof cur === 'number' && cur === 0);
+    const has = v != null && v !== '' && !(typeof v === 'number' && v === 0);
+    if (curEmpty && has) out[k] = v;
+  }
+  return out as T;
+}
+
 export function CreateProjectDialog({
   isOpen,
   onClose,
@@ -58,14 +70,14 @@ export function CreateProjectDialog({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
 
-  // Demand document state
-  const [demandFile, setDemandFile] = useState<File | null>(null);
+  // Demand document state（多文件，2026-11-11 用户裁定：需求/立项均可多选上传识别）
+  const [demandFiles, setDemandFiles] = useState<File[]>([]);
   const [demandFields, setDemandFields] = useState<DemandFields>({});
-  const [demandAttachment, setDemandAttachment] = useState<Attachment | null>(null);
+  const [demandAttachments, setDemandAttachments] = useState<Attachment[]>([]);
   const [demandExtractedText, setDemandExtractedText] = useState<string>('');
 
   // Initiation document state
-  const [initiationFile, setInitiationFile] = useState<File | null>(null);
+  const [initiationFiles, setInitiationFiles] = useState<File[]>([]);
   const [initiationFields, setInitiationFields] = useState({
     requesterName: '',
     requesterDepartment: '',
@@ -78,7 +90,7 @@ export function CreateProjectDialog({
     procurementOrganizationForm: '',
     isAnnualBudget: false,
   });
-  const [initiationAttachment, setInitiationAttachment] = useState<Attachment | null>(null);
+  const [initiationAttachments, setInitiationAttachments] = useState<Attachment[]>([]);
   const [initiationExtractedText, setInitiationExtractedText] = useState<string>('');
 
   // Procurement method
@@ -112,11 +124,11 @@ export function CreateProjectDialog({
     if (!isOpen) return;
     
     if (step === 'upload') {
-      const hasDemand = demandExtracted && demandAttachment;
-      const hasInitiation = initiationExtracted && initiationAttachment;
+      const hasDemand = demandExtracted && demandAttachments.length > 0;
+      const hasInitiation = initiationExtracted && initiationAttachments.length > 0;
 
       // If both are extracted, or only initiation is extracted (no demand file), go to compare
-      if ((hasDemand && hasInitiation) || (hasInitiation && !demandFile)) {
+      if ((hasDemand && hasInitiation) || (hasInitiation && demandFiles.length === 0)) {
         const comparisons = compareFields(demandFields, initiationFields);
         setFieldComparisons(comparisons);
         // 新一轮对比生成 = 新文档数据，编辑锁随 comparisons 一同重置
@@ -124,7 +136,7 @@ export function CreateProjectDialog({
         setStep('compare');
       }
       // If only demand is extracted and no initiation file selected, go to compare (single doc mode)
-      else if (hasDemand && !initiationFile) {
+      else if (hasDemand && initiationFiles.length === 0) {
         const comparisons = compareFields(demandFields, {});
         setFieldComparisons(comparisons);
         // 新一轮对比生成 = 新文档数据，编辑锁随 comparisons 一同重置
@@ -132,7 +144,7 @@ export function CreateProjectDialog({
         setStep('compare');
       }
     }
-  }, [isOpen, demandExtracted, initiationExtracted, demandAttachment, initiationAttachment, demandFile, initiationFile, step, demandFields, initiationFields]);
+  }, [isOpen, demandExtracted, initiationExtracted, demandAttachments, initiationAttachments, demandFiles, initiationFiles, step, demandFields, initiationFields]);
 
   useEffect(() => {
     if (isOpen) {
@@ -162,11 +174,11 @@ export function CreateProjectDialog({
     setExtractingDemand(false);
     setExtractingInitiation(false);
     setErrorMessage(null);
-    setDemandFile(null);
+    setDemandFiles([]);
     setDemandFields({});
-    setDemandAttachment(null);
+    setDemandAttachments([]);
     setDemandExtractedText('');
-    setInitiationFile(null);
+    setInitiationFiles([]);
     setInitiationFields({
       requesterName: '',
       requesterDepartment: '',
@@ -179,7 +191,7 @@ export function CreateProjectDialog({
       procurementOrganizationForm: '',
       isAnnualBudget: false,
     });
-    setInitiationAttachment(null);
+    setInitiationAttachments([]);
     setInitiationExtractedText('');
     setProcurementMethod('');
     setFieldComparisons([]);
@@ -215,55 +227,72 @@ export function CreateProjectDialog({
 
 
   const handleExtractDemand = async () => {
-    if (!demandFile) return;
+    if (demandFiles.length === 0) return;
 
     setUpPct(0);
     setExtractingDemand(true);
     setErrorMessage(null);
 
     try {
-      const result = await extractDemandFields(demandFile, {
-        onProgress: (l, t) => setUpPct(t > 0 ? Math.round((l / t) * 100) : 0),
-      });
-      setDemandFields(result.fields);
-      setDemandAttachment(result.attachment);
-      setDemandExtractedText(result.extractedText);
+      let merged: DemandFields = {};
+      const atts: Attachment[] = [];
+      const texts: string[] = [];
+      // 多文件逐份识别（2026-11-11）：字段合并=先解析优先、后续补空白；附件全量保留
+      for (let i = 0; i < demandFiles.length; i++) {
+        const result = await extractDemandFields(demandFiles[i], {
+          onProgress: (l, t) => setUpPct(Math.round(((i + (t > 0 ? l / t : 0)) / demandFiles.length) * 100)),
+        });
+        merged = mergeFieldsFill(merged, result.fields as Record<string, unknown>) as DemandFields;
+        atts.push(result.attachment);
+        texts.push(result.extractedText);
+      }
+      setDemandFields(merged);
+      setDemandAttachments(atts);
+      setDemandExtractedText(texts.join('\n\n'));
       setDemandExtracted(true);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : '需求表解析失败，请稍后重试。');
+      setErrorMessage(error instanceof Error ? error.message : '需求文件解析失败，请稍后重试。');
     } finally {
       setExtractingDemand(false);
     }
   };
 
   const handleExtractInitiation = async () => {
-    if (!initiationFile) return;
+    if (initiationFiles.length === 0) return;
 
     setUpPct(0);
     setExtractingInitiation(true);
     setErrorMessage(null);
 
     try {
-      const result = await extractInitiationFields(initiationFile, {
-        onProgress: (l, t) => setUpPct(t > 0 ? Math.round((l / t) * 100) : 0),
-      });
+      let merged: Record<string, unknown> = {};
+      const atts: Attachment[] = [];
+      const texts: string[] = [];
+      for (let i = 0; i < initiationFiles.length; i++) {
+        const result = await extractInitiationFields(initiationFiles[i], {
+          onProgress: (l, t) => setUpPct(Math.round(((i + (t > 0 ? l / t : 0)) / initiationFiles.length) * 100)),
+        });
+        merged = mergeFieldsFill(merged, result.fields as unknown as Record<string, unknown>);
+        atts.push(result.attachment);
+        texts.push(result.extractedText);
+      }
       setInitiationFields({
-        requesterName: result.fields.requesterName || '',
-        requesterDepartment: result.fields.requesterDepartment || '',
-        procurementTitle: result.fields.procurementTitle || '',
-        procurementCategory: result.fields.procurementCategory || '',
-        budgetAmount: result.fields.budgetAmount || 0,
-        projectReason: result.fields.projectReason || '',
-        supplierRequirements: result.fields.supplierRequirements || '',
-        initiationDate: result.fields.initiationDate || '',
-        procurementOrganizationForm: result.fields.procurementOrganizationForm || '',
-        isAnnualBudget: result.fields.isAnnualBudget || false,
+        requesterName: String(merged.requesterName ?? ''),
+        requesterDepartment: String(merged.requesterDepartment ?? ''),
+        procurementTitle: String(merged.procurementTitle ?? ''),
+        procurementCategory: String(merged.procurementCategory ?? ''),
+        budgetAmount: Number(merged.budgetAmount ?? 0) || 0,
+        projectReason: String(merged.projectReason ?? ''),
+        supplierRequirements: String(merged.supplierRequirements ?? ''),
+        initiationDate: String(merged.initiationDate ?? ''),
+        procurementOrganizationForm: String(merged.procurementOrganizationForm ?? ''),
+        isAnnualBudget: Boolean(merged.isAnnualBudget ?? false),
       });
-      setInitiationAttachment(result.attachment);
-      setInitiationExtractedText(result.extractedText);
+      setInitiationAttachments(atts);
+      setInitiationExtractedText(texts.join('\n\n'));
       setInitiationExtracted(true);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : '立项表解析失败，请稍后重试。');
+      setErrorMessage(error instanceof Error ? error.message : '立项文件解析失败，请稍后重试。');
     } finally {
       setExtractingInitiation(false);
     }
@@ -296,8 +325,8 @@ export function CreateProjectDialog({
   };
 
   const canProceedFromUpload = () => {
-    const hasDemand = demandExtracted && demandAttachment;
-    const hasInitiation = initiationExtracted && initiationAttachment;
+    const hasDemand = demandExtracted && demandAttachments.length > 0;
+    const hasInitiation = initiationExtracted && initiationAttachments.length > 0;
     return hasDemand || hasInitiation;
   };
 
@@ -306,10 +335,10 @@ export function CreateProjectDialog({
   };
 
   /** Whether to show the demand column (需求表) */
-  const showDemandColumn = () => demandExtracted && !!demandAttachment;
+  const showDemandColumn = () => demandExtracted && demandAttachments.length > 0;
 
   /** Whether to show the initiation column (立项表) */
-  const showInitiationColumn = () => initiationExtracted && !!initiationAttachment;
+  const showInitiationColumn = () => initiationExtracted && initiationAttachments.length > 0;
 
   const handleSelectComparisonValue = (fieldName: string, value: string) => {
     setFieldComparisons((prev) =>
@@ -378,9 +407,9 @@ export function CreateProjectDialog({
         projectReason: mergedFields.projectReason || '',
         supplierRequirements: mergedFields.supplierRequirements || '',
         isAnnualBudget: initiationFields.isAnnualBudget || false,
-        hasProcurementDemand: !!demandAttachment,
-        demandAttachment: demandAttachment ?? undefined,
-        initiationAttachment: initiationAttachment ?? undefined,
+        hasProcurementDemand: demandAttachments.length > 0,
+        demandAttachments: demandAttachments.length > 0 ? demandAttachments : undefined,
+        initiationAttachments: initiationAttachments.length > 0 ? initiationAttachments : undefined,
         demandProject: String(resolveFieldValue('demandProject', demandFields.demandProject || '')) || undefined,
         demandContractNumber: demandFields.demandContractNumber,
         initiationDate: mergedFields.initiationDate || undefined,
@@ -422,72 +451,99 @@ export function CreateProjectDialog({
 
   const renderFileUpload = (
     label: string,
-    file: File | null,
-    onFileChange: (file: File | null) => void,
+    files: File[],
+    onFilesChange: (files: File[]) => void,
     isExtracted: boolean,
     onClear?: () => void,
     showClearButton?: boolean,
-  ) => (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <label className="text-sm font-semibold text-[color:var(--foreground)]">{label}</label>
-        <div className="flex items-center gap-2">
-          {showClearButton && file && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                onClear?.();
-              }}
-              className="neu-btn-xs"
-              title="清除"
-            >
-              <X size={16} />
-            </button>
-          )}
-          {isExtracted && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--success-soft)] text-xs font-medium text-[var(--success)]">
-              <CheckCircle size={12} />
-              已解析
-            </span>
-          )}
+  ) => {
+    const inputId = `file-upload-${label.replace(/[\s、，,]/g, '-')}`;
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-semibold text-[color:var(--foreground)]">{label}</label>
+          <div className="flex items-center gap-2">
+            {showClearButton && files.length > 0 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onClear?.();
+                }}
+                className="neu-btn-xs"
+                title="清除全部"
+              >
+                <X size={16} />
+              </button>
+            )}
+            {isExtracted && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--success-soft)] text-xs font-medium text-[var(--success)]">
+                <CheckCircle size={12} />
+                已解析
+              </span>
+            )}
+          </div>
         </div>
+        <input
+          type="file"
+          accept="application/pdf"
+          multiple
+          onChange={(event) => {
+            const picked = Array.from(event.target.files ?? []);
+            // 附件统一限制（2026-10-19）：解析入口仅大小校验（PDF 解析业务约束保持）；
+            // 超限文件跳过并提示，其余照常入列；重选同一文件也能再次触发
+            const ok: File[] = [];
+            for (const f of picked) {
+              const sizeErr = validateFileSize(f);
+              if (sizeErr) toast.error(`${f.name}：${sizeErr}`);
+              else ok.push(f);
+            }
+            if (ok.length > 0) onFilesChange([...files, ...ok]);
+            event.target.value = '';
+          }}
+          className="hidden"
+          id={inputId}
+        />
+        <label
+          htmlFor={inputId}
+          className={`neu-drop group flex items-center justify-center gap-2.5 px-4 py-4 ${
+            isExtracted ? 'is-done' : ''
+          }`}
+        >
+          {isExtracted ? (
+            <FileText size={20} className="text-[var(--success)]" />
+          ) : (
+            <Upload size={20} className="text-[var(--accent)]" />
+          )}
+          <span className={`text-sm ${isExtracted ? 'text-[var(--success)]' : 'text-[color:var(--muted-foreground)]'}`}>
+            {files.length > 0 ? `已选 ${files.length} 个文件` : '点击选择 PDF 文件，可多选'}
+          </span>
+        </label>
+        {/* 已选文件清单：解析前可逐个移除；解析后仅展示（移除需整体清除重选） */}
+        {files.length > 0 && (
+          <div className="space-y-1.5">
+            {files.map((f, i) => (
+              <div key={`${f.name}-${i}`} className="flex items-center gap-2 rounded-[10px] bg-[color-mix(in_oklch,var(--muted-foreground)_5%,transparent)] px-3 py-1.5">
+                <FileText size={13} className="shrink-0 text-[var(--accent)]" />
+                <span className="min-w-0 flex-1 truncate text-xs font-medium text-[color:var(--foreground)]" title={f.name}>{f.name}</span>
+                <span className="shrink-0 text-[11px] tabular-nums text-[color:var(--muted-foreground)]">{(f.size / 1024).toFixed(0)}KB</span>
+                {!isExtracted && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); onFilesChange(files.filter((_, idx) => idx !== i)); }}
+                    className="shrink-0 text-[color:var(--muted-foreground)] transition-colors hover:text-[var(--danger)]"
+                    title="移除该文件"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-      <input
-        type="file"
-        accept="application/pdf"
-        onChange={(event) => {
-          const file = event.target.files?.[0] ?? null;
-          // 附件统一限制（2026-10-19）：解析入口仅大小校验（PDF 解析业务约束保持）
-          if (file) {
-            const sizeErr = validateFileSize(file);
-            if (sizeErr) { toast.error(sizeErr); event.target.value = ''; return; }
-          }
-          onFileChange(file);
-        }}
-        className="hidden"
-        id={`file-upload-${label.replace(/\s/g, '-')}`}
-      />
-      <label
-        htmlFor={`file-upload-${label.replace(/\s/g, '-')}`}
-        className={`neu-drop group flex items-center justify-center gap-2.5 px-4 py-4 ${
-          isExtracted ? 'is-done' : ''
-        }`}
-      >
-        {isExtracted ? (
-          <FileText size={20} className="text-[var(--success)]" />
-        ) : (
-          <Upload size={20} className="text-[var(--accent)]" />
-        )}
-        <span className={`text-sm ${isExtracted ? 'text-[var(--success)]' : 'text-[color:var(--muted-foreground)]'}`}>
-          {file ? file.name : '点击选择 PDF 文件'}
-        </span>
-        {file && !isExtracted && (
-          <span className="text-xs text-[color:var(--muted-foreground)]">{(file.size / 1024).toFixed(0)}KB</span>
-        )}
-      </label>
-    </div>
-  );
+    );
+  };
 
   const renderFieldComparison = () => (
     <div className="space-y-5 pb-[1.7rem]">
@@ -698,7 +754,7 @@ export function CreateProjectDialog({
   const renderReview = () => (
     <div className="space-y-5 pb-[1.7rem]">
       {/* 两表未传时预告（2026-11-09）：建项后这两阶段为「待补充」 */}
-      {!demandFile && !initiationFile && (
+      {!demandFiles.length && !initiationFiles.length && (
         <div className="flex items-start gap-3 rounded-xl bg-[color-mix(in_oklch,var(--accent-soft)_30%,transparent)] px-4 py-3">
           <Info size={16} className="mt-0.5 shrink-0 text-[color:var(--accent)]" />
           <span className="text-xs leading-5 text-[color:var(--foreground)]">
@@ -893,14 +949,14 @@ export function CreateProjectDialog({
             {step === 'upload' && (
               <div className="space-y-6 pb-[1.7rem]">
                 {renderFileUpload(
-                  '采购需求表（可选）',
-                  demandFile,
-                  setDemandFile,
+                  '需求或调研文件、需求审批文件',
+                  demandFiles,
+                  setDemandFiles,
                   demandExtracted,
                   () => {
-                    setDemandFile(null);
+                    setDemandFiles([]);
                     setDemandFields({});
-                    setDemandAttachment(null);
+                    setDemandAttachments([]);
                     setDemandExtractedText('');
                     setDemandExtracted(false);
                   },
@@ -908,12 +964,12 @@ export function CreateProjectDialog({
                 )}
                 <div className="wb-section-rule" />
                 {renderFileUpload(
-                  '采购立项申请表（可选）',
-                  initiationFile,
-                  setInitiationFile,
+                  '立项证明文件',
+                  initiationFiles,
+                  setInitiationFiles,
                   initiationExtracted,
                   () => {
-                    setInitiationFile(null);
+                    setInitiationFiles([]);
                     setInitiationFields({
                       requesterName: '',
                       requesterDepartment: '',
@@ -926,7 +982,7 @@ export function CreateProjectDialog({
                       procurementOrganizationForm: '',
                       isAnnualBudget: false,
                     });
-                    setInitiationAttachment(null);
+                    setInitiationAttachments([]);
                     setInitiationExtractedText('');
                     setInitiationExtracted(false);
                   },
@@ -952,10 +1008,10 @@ export function CreateProjectDialog({
                 <button
                   type="button"
                   onClick={() => {
-                    if (demandFile && !demandExtracted) void handleExtractDemand();
-                    if (initiationFile && !initiationExtracted) void handleExtractInitiation();
+                    if (demandFiles.length > 0 && !demandExtracted) void handleExtractDemand();
+                    if (initiationFiles.length > 0 && !initiationExtracted) void handleExtractInitiation();
                   }}
-                  disabled={(!demandFile && !initiationFile) || (demandExtracted && initiationExtracted) || extractingDemand || extractingInitiation}
+                  disabled={(demandFiles.length === 0 && initiationFiles.length === 0) || (demandExtracted && initiationExtracted) || extractingDemand || extractingInitiation}
                   className="neu-btn-primary !h-[38px]"
                 >
                   {extractingDemand || extractingInitiation ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}

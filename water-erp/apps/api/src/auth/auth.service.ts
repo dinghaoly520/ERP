@@ -235,12 +235,37 @@ export class AuthService {
       if (supplier?.isTemporary && supplier.temporaryExpiresAt && supplier.temporaryExpiresAt < new Date()) {
         return { pending: true as const, role: user.role, code: 'TEMPORARY_EXPIRED' };
       }
+      // 零归属登录闸（口径与文案单一来源 assertSupplierHasCompany）
+      await this.assertSupplierHasCompany(user.id);
     }
     // 单设备登录（web 2026-08-21；supplier 2026-09-18；expert 2026-09-20）：轮换归 auth.controller
     // 条件块（cookiePortal ∈ 三门户时 rotatePortalSession——旧 token sid 与库中新值不一致，AuthGuard
     // 401 SESSION_REPLACED 互踢）。此前（93f4eaf8 起）此处无条件轮换，mall/bid 被静默赋予互踢+跨命名
     // 空间副作用（auth e2e mall 用例抓出）——bid/mall 恢复 issueToken（无 sid、不互踢）。
     return this.issueToken(user.id, user.username, user.role);
+  }
+
+  /** 零归属闸（2026-11-10 用户裁定）：无任何归属公司的供应商账号无法登录/续用。
+   *  归属口径 = 存在非终态退出（非 WITHDRAWN/REJECTED）的 SupplierCompanyLink：
+   *  在库（APPROVED）/公司停用（DISABLED，可恢复，须能登录看到指引）/加入审批中（PENDING）/
+   *  退库审批中（LEAVE_PENDING，驳回则仍在库）均算；全部退光/从未通过任何归属审批才拦截。
+   *  无 Supplier 行的裸账号（e2e 夹具形态）不适用。三个消费面单一来源：
+   *  主登录 login()、CA 登录 ca-auth.controller、会话心跳 auth.controller heartbeat。 */
+  async assertSupplierHasCompany(userId: string): Promise<void> {
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+    if (!supplier) return;
+    const liveLinks = await this.prisma.supplierCompanyLink.count({
+      where: { supplierId: supplier.id, status: { notIn: ['WITHDRAWN', 'REJECTED'] } },
+    });
+    if (liveLinks === 0) {
+      throw new UnauthorizedException({
+        error: '贵司已无任何归属公司，账号暂无法登录；如需恢复请咨询采购中心',
+        code: 'SUPPLIER_NO_COMPANY',
+      });
+    }
   }
 
   async me(userId: string) {

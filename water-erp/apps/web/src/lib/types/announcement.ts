@@ -2,7 +2,9 @@
 export type AnnouncementCategory =
   | "procurement_document" // 采购文件公告
   | "failed_bid" // 流标公告
-  | "winning_bid"; // 中标公告
+  | "winning_bid" // 中标公告
+  | "change_notice" // 变更公告（2026-11-11 变更体系）
+  | "addendum"; // 补遗公告
 
 export type AnnouncementCategoryMeta = {
   type: AnnouncementCategory;
@@ -26,6 +28,16 @@ export const ANNOUNCEMENT_CATEGORIES: AnnouncementCategoryMeta[] = [
     label: "中标公告",
     description: "发布项目中标结果公示，公告中标候选人及中标金额。",
   },
+  {
+    type: "change_notice",
+    label: "变更公告",
+    description: "项目信息有变化时发布，写明改了什么、为什么改。",
+  },
+  {
+    type: "addendum",
+    label: "补遗公告",
+    description: "对已发出的公告作补充说明，并通知相关供应商。",
+  },
 ];
 
 /** Which announcement categories are available for each tender document type */
@@ -33,11 +45,11 @@ export const ANNOUNCEMENT_AVAILABILITY: Record<
   string,
   AnnouncementCategory[]
 > = {
-  COMPETITIVE_NEGOTIATION: ["failed_bid", "winning_bid"],
-  INQUIRY_PURCHASE: ["procurement_document", "failed_bid", "winning_bid"],
-  INTERNAL_BIDDING: ["procurement_document", "failed_bid", "winning_bid"],
-  INVITED_BIDDING: ["procurement_document", "failed_bid", "winning_bid"],
-  SINGLE_SOURCE: ["procurement_document", "failed_bid", "winning_bid"],
+  COMPETITIVE_NEGOTIATION: ["procurement_document", "failed_bid", "winning_bid", "change_notice", "addendum"],
+  INQUIRY_PURCHASE: ["procurement_document", "failed_bid", "winning_bid", "change_notice", "addendum"],
+  INTERNAL_BIDDING: ["procurement_document", "failed_bid", "winning_bid", "change_notice", "addendum"],
+  INVITED_BIDDING: ["failed_bid", "winning_bid", "change_notice", "addendum"],
+  SINGLE_SOURCE: ["failed_bid", "winning_bid", "change_notice", "addendum"],
 };
 
 /**
@@ -147,11 +159,26 @@ export type WinningBidAnnouncementDraft = Record<
 
 // ─── Unified types ───
 
+export type ChangeAddendumAnnouncementFieldKey =
+  | "projectName"
+  | "projectCode"
+  | "changeRound"
+  | "changeReason"
+  | "changeContent"
+  | "announcementStart"
+  | "announcementEnd"
+  | "supervisionDepartment"
+  | "supervisionAddress"
+  | "supervisionContact"
+  | "supervisionPhone"
+  | "signatureDate";
+
 export type AnnouncementFieldKey =
   | InvitedBiddingAnnouncementFieldKey
   | SingleSourceAnnouncementFieldKey
   | FailedBidAnnouncementFieldKey
-  | WinningBidAnnouncementFieldKey;
+  | WinningBidAnnouncementFieldKey
+  | ChangeAddendumAnnouncementFieldKey;
 
 export type AnnouncementDraft =
   | InvitedBiddingAnnouncementDraft

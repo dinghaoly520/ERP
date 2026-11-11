@@ -1489,6 +1489,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                 来自加密承诺 · 自动公布
               </div>
             )}
+            {/* 头部/内容隔离线（2026-11-11 用户裁定）：壳自带 p-6 内边距，线不加 mx 即与内容区对齐；表单区已有 mt-4 故只留上间距 */}
+            <div className="mt-3 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
             {/* A-113：字段按项目配置序渲染——法定四键沿用既有控件（含 A-104 台账提示/凭证链接/密封 409 双确认流在提交侧），
                 动态键按 type 渲染 input/select；label 用配置 label（默认配置下与既有文案一致即零漂移） */}
             <div className="mt-4 grid grid-cols-2 gap-3">
@@ -1582,6 +1584,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           <div className="bid-dialog relative mx-4 w-full max-w-[min(480px,92vw)] px-6 py-5" role="dialog" aria-modal="true" aria-label={reasonDialog.title} onClick={(e) => e.stopPropagation()}>
             <h3 className="text-base font-black text-[color:var(--foreground)]">{reasonDialog.title}</h3>
             {reasonDialog.description && <p className="mb-2 text-xs text-[color:var(--muted-foreground)]">{reasonDialog.description}</p>}
+            {/* 头部/内容隔离线（2026-11-11 用户裁定）：壳自带 px-6 内边距，线不加 mx 即与内容区对齐 */}
+            <div className="my-3 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
             <textarea
               className="neu-input w-full text-sm"
               rows={3}

@@ -450,6 +450,24 @@ describe('AiService', () => {
   });
 
   describe('generateTenderFieldContent（保证金金额纯数字硬校验，2026-10-29）', () => {
+    it('长文字段（商务/技术要求等）：chatJson 带加档预算/超时 options（2026-11-11 延长响应）', async () => {
+      (service as any).llm.chatJson.mockResolvedValue({ content: '一、商务要求……' });
+      await service.generateTenderFieldContent({
+        fieldKey: 'businessRequirements', fieldLabel: '商务要求', currentValue: '', context: {},
+      });
+      // chatJson 全参签名：第 6 参为 options（maxTokens/timeoutMs 与预算成对——llm.service 铁律）
+      const opts = (service as any).llm.chatJson.mock.calls[0][5];
+      expect(opts).toMatchObject({ maxTokens: 32768, timeoutMs: 300000, retries: 1 });
+    });
+
+    it('普通字段：不带加档 options（走 LlmService 默认 180s/16384）', async () => {
+      (service as any).llm.chatJson.mockResolvedValue({ content: '内容' });
+      await service.generateTenderFieldContent({
+        fieldKey: 'deliveryDeadline', fieldLabel: '交付期限', currentValue: '', context: {},
+      });
+      expect((service as any).llm.chatJson.mock.calls[0]).toHaveLength(2);
+    });
+
     it('金额字段：纯数字原样透传', async () => {
       (service as any).llm.chatJson.mockResolvedValue({ content: '50000' });
       const res = await service.generateTenderFieldContent({

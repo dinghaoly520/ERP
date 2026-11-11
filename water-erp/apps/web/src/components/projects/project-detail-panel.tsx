@@ -38,6 +38,10 @@ import {
   type ProjectWorkflowStageKey,
 } from '@/lib/types/project-management';
 import { ProjectTimelineStrip } from './project-timeline-strip';
+import { ProjectChangeEntry } from './project-change-entry';
+import { bindChangeAnnouncement, registerChange } from '@/lib/api/project-changes';
+import { listAnnouncements } from '@/lib/api/announcement';
+import { ChangeModal } from './change-modal';
 import { ProjectStageTimeline } from './project-stage-timeline';
 import { StageFileList } from './stage-file-list';
 import { TenderWriteModal } from './tender-write-modal';
@@ -79,7 +83,7 @@ function ExpertInfoField({
   isEditing: boolean;
   editValue: string;
   onEditValueChange: (value: string) => void;
-  onStartEdit: () => void;
+  onStartEdit?: () => void;
   onSave: () => void;
   onCancel?: () => void;
   readOnly?: boolean;
@@ -164,11 +168,6 @@ function ExpertInfoField({
     <div>
       <div className="flex items-center justify-between gap-3 mb-2">
         <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">专家信息</span>
-        {!isEditing && !readOnly && (
-          <button type="button" onClick={onStartEdit} className="text-[11px] font-medium text-[color:var(--accent)] hover:underline">
-            <Pencil size={11} className="inline mr-1" />{hasValue ? `编辑（${experts.length}人）` : '添加专家'}
-          </button>
-        )}
       </div>
 
       {/* 弹窗编辑（2026-10-28）：信息栏恒显只读表；编辑在独立弹窗内进行（窄侧栏内联编辑实录弃用） */}
@@ -299,7 +298,7 @@ function BiddingUnitsField({
   isEditing: boolean;
   editValue: string;
   onEditValueChange: (value: string) => void;
-  onStartEdit: () => void;
+  onStartEdit?: () => void;
   onSave: () => void;
   onCancel?: () => void;
   readOnly?: boolean;
@@ -343,11 +342,6 @@ function BiddingUnitsField({
     <div>
       <div className="flex items-center justify-between gap-3 mb-1.5">
         <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">{label}</span>
-        {!isEditing && !readOnly && (
-          <button type="button" onClick={onStartEdit} className="text-[11px] font-medium text-[color:var(--accent)] hover:underline">
-            <Pencil size={11} className="inline mr-1" />{hasValue && units.length > 0 ? `编辑（${units.length}家）` : '添加'}
-          </button>
-        )}
       </div>
 
       {/* 弹窗编辑（2026-10-28 四改·与专家信息同款弹窗）：信息栏恒显只读名单 */}
@@ -637,6 +631,18 @@ export function ProjectDetailPanel({
 
   // 提取信息编辑状态
   const [editingField, setEditingField] = useState<string | null>(null);
+  const [changeModalOpen, setChangeModalOpen] = useState(false);
+  // 发布优先模式发布成功标记：向导 onPublished 先于 onClose 同步触发——
+  // 无此标记 onClose 会误报「已取消发布」（2026-11-12 审计修复）
+  const publishFirstDoneRef = useRef(false);
+  // 变更弹窗现值（与左栏同源）：override 非空键合并（变更范围=项目基本信息，2026-11-11 用户裁定）
+  const changeCurrentValues = useMemo(() => ({
+    ...(item as unknown as Record<string, string | number | null>),
+    ...Object.fromEntries(Object.entries(extractedInfoOverride ?? {}).filter(([, v]) => v != null && (v as string) !== '')),
+  }), [item, extractedInfoOverride]);
+
+  // 变更/补遗公告发布上下文（2026-11-11）：登记成功 → 拉起向导并发布后回填记录
+  const [changeWizardCtx, setChangeWizardCtx] = useState<{ category: 'change_notice' | 'addendum'; patch: Record<string, string>; recordId: string; /** 发布优先（2026-11-12）：公告成功后补登记的载荷；空=已登记只需回填 */ pendingRegister?: { type: 'CHANGE' | 'ADDENDUM'; reason: string; fields: Record<string, string> } } | null>(null);
   const [editValues, setEditValues] = useState({
     title: '',
     initiationDate: '',
@@ -833,7 +839,7 @@ export function ProjectDetailPanel({
   const [supplierExtractOpen, setSupplierExtractOpen] = useState(false);
   const [expertExtractOpen, setExpertExtractOpen] = useState(false);
   const [announcementPublishOpen, setAnnouncementPublishOpen] = useState(false);
-  const [announcementCategory, setAnnouncementCategory] = useState<'procurement_document' | 'failed_bid' | 'winning_bid'>('procurement_document');
+  const [announcementCategory, setAnnouncementCategory] = useState<'procurement_document' | 'failed_bid' | 'winning_bid' | 'change_notice' | 'addendum'>('procurement_document');
   const [bidConfirmOpen, setBidConfirmOpen] = useState(false);
   const [abortRestartOpen, setAbortRestartOpen] = useState(false);
   // 深链自动弹开标确认面板（一次性：触发后即清标记，关闭后不复发）
@@ -868,10 +874,11 @@ export function ProjectDetailPanel({
   }, []);
 
   // 供应商参与：拉取公告自动收集的参与供应商（下载采购文件 ∪ 登记的项目供应商）。
-  // 仅非谈判方式（参与的供应商）；谈判采购走「邀请的供应商」手动维护，不覆盖。
+  // 发布公告的方式（询比/谈判/竞价）拉「参与的供应商」；邀请类（邀请招标/直接采购）
+  // 走「邀请的供应商」手动维护，不覆盖（2026-11-12 流程互换）。
   useEffect(() => {
     setParticipantNames(null);
-    if (!item?.projectCode || item.procurementMethod === '谈判采购') return;
+    if (!item?.projectCode || ['邀请招标', '直接采购'].includes(item.procurementMethod)) return;
     let alive = true;
     getProjectParticipants(item.projectCode)
       .then((r) => {
@@ -1199,32 +1206,44 @@ export function ProjectDetailPanel({
     }
   };
 
-  const handleStartEdit = (field: string, currentValue: string | number | null | undefined) => {
+  /** 变更发起入口（2026-11-11 变更体系）：开标前弹三步变更/补遗弹窗 */
+  /** 变更/补遗公告关联原采购公告（2026-11-12 用户裁定）：按项目编号查已发布采购公告，
+   *  标题+发布日期随公告 meta 展示（门户预览与详情页「原采购公告」行） */
+  const fetchSourceAnnouncement = async (): Promise<string> => {
+    try {
+      const res = await listAnnouncements({ type: 'BID_NOTICE', status: 'PUBLISHED', pageSize: 100 });
+      const list = Array.isArray(res) ? res : (res as { items?: unknown[] }).items ?? [];
+      const src = (list as Array<{ title?: string; relatedProjectCode?: string; publishDate?: string }>)
+        .filter(x => item.projectCode && x.relatedProjectCode === item.projectCode)
+        .sort((x, y) => new Date(y.publishDate ?? 0).getTime() - new Date(x.publishDate ?? 0).getTime())[0];
+      if (!src) return '';
+      const d = src.publishDate ? new Date(src.publishDate).toLocaleDateString('zh-CN') : '';
+      return `《${src.title}》${d ? `（${d} 发布）` : ''}`;
+    } catch { return ''; }
+  };
+
+  const handleInitiateChange = () => {
+    setChangeModalOpen(true);
+  };
+
+  const handleStartEdit = (field: string, currentValue?: string | number | null) => {
+    // 只读化（2026-11-11 变更体系）：基本信息唯一人工编辑通道=标题栏「变更 / 补遗」。
+    // 例外：供应商/专家名单（AI 识别可能不准，需随时人工维护）走原直改通道，不进变更留痕。
+    const isRoster = field === 'expertInfo' || field === 'biddingUnits' || field === 'invitedSuppliers';
+    if (!isRoster) {
+      toast.info('项目基本信息请通过标题栏「变更 / 补遗」修改');
+      return;
+    }
     if (actionsDisabled) return; // 只读（归档/终止/非创建人）
-    if (isPastRound) { toast.warning('该步骤属已完成的历史轮次，仅供查看'); return; } // 2026-10-26 补：字段编辑入口未过旧轮闸
+    if (isPastRound) { toast.warning('该步骤属已完成的历史轮次，仅供查看'); return; }
     if (isBidLocked) { toast.warning('开标已确认，项目基本信息不可修改'); return; }
     setEditingField(field);
     let value = currentValue != null ? String(currentValue) : '';
-    // 投标单位字段：将顿号分隔转换为换行分隔，以便表格正确解析
-    if (field === 'biddingUnits' && value) {
-      value = value.split(/[、,]/).join('\n');
-    }
-    // 开标时间：时间点选择态——中文文本 → datetime-local
-    if (field === 'bidOpeningTime') {
-      setEditValues((prev) => ({ ...prev, bidOpeningTime: zhToDatetimeLocal(value) ?? '' }));
-      return;
-    }
-    // 采购文件获取时间：区间选择态——起止各自转 datetime-local，以 ~ 拼接为内部态
-    if (field === 'documentAcquireTime') {
-      const { start, end } = zhRangeToDatetimeLocal(value);
-      setEditValues((prev) => ({ ...prev, documentAcquireTime: [start, end].filter(Boolean).join('~') }));
-      return;
-    }
-    setEditValues((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    // 投标单位字段：顿号分隔转换行（表格解析口径，同旧逻辑）
+    if (field === 'biddingUnits' && value) value = value.split(/[、,]/).join('\n');
+    setEditValues((prev) => ({ ...prev, [field]: value }) as typeof prev);
   };
+
 
   const handleSaveField = async (field: string) => {
     // 与 handleStartEdit 同闸（2026-10-26 稳健补）：兜底编辑态跨阶段残留——
@@ -1282,62 +1301,6 @@ export function ProjectDetailPanel({
     }
   };
 
-  const handleAiExtractTender = async (field: string) => {
-    if (actionsDisabled) return; // 只读（归档/终止/非创建人）
-    const tenderStage = localItem.stages.find((s) => s.stageKey === 'TENDER_DOCUMENT');
-    const hasTenderFile = tenderStage?.attachments?.some((a) => isTenderMainFile(a.fileName));
-    if (!hasTenderFile) {
-      setAiResult({ type: 'warning', message: '请先在「采购文件」步骤上传采购文件后再使用 AI 提取' });
-      return;
-    }
-    setAiExtracting(field);
-    try {
-      const result = await extractTenderFields(item.id, field);
-      const val = result[field];
-      if (val) {
-        // 成功：静默更新左侧，不弹窗
-        await handleUpdated();
-      } else {
-        setAiResult({ type: 'error', message: '未能提取到该字段信息，请检查采购文件内容。' });
-      }
-    } catch (e) {
-      // 超时（AbortError）单独提示：AI 提取含大模型调用，慢/悬死连接 150s 强制终止——
-      // 无此分支会显示通用失败，用户无从分辨该等还是该查网络（2026-10-15 实录）
-      if (e instanceof DOMException && e.name === 'AbortError') {
-        setAiResult({ type: 'error', message: 'AI 提取超时（采购文件较长，大模型处理中）。请稍后刷新查看结果，或稍候重试。' });
-      } else {
-        setAiResult({ type: 'error', message: e instanceof Error ? e.message : 'AI 提取失败' });
-      }
-    } finally {
-      setAiExtracting(null);
-    }
-  };
-
-  // AI 提取并优化"申请立项事由 / 对供方的主要要求"：直接持久化结果并刷新，
-  // 不再进入编辑态让用户确认——AI 输出即终值，用户想微调可点字段右侧铅笔。
-  const handleAiOptimizeInitiation = async () => {
-    if (actionsDisabled) return; // 只读（归档/终止/非创建人）
-    setAiExtracting('initiation');
-    try {
-      const res = await optimizeInitiationFields(item.id);
-      const pr = typeof res?.projectReason === 'string' ? res.projectReason.trim() : '';
-      const sr = typeof res?.supplierRequirements === 'string' ? res.supplierRequirements.trim() : '';
-      if (!pr && !sr) {
-        setAiResult({ type: 'warning', message: 'AI 未能从采购需求/采购立项文件中提炼出相关内容，请检查是否已上传并分析文件。' });
-        return;
-      }
-      // 持久化：未提取到的字段回退到原值，避免空值覆盖已有内容
-      await updateProjectExtractedInfo(item.id, {
-        projectReason: pr || localItem.projectReason || '',
-        supplierRequirements: sr || localItem.supplierRequirements || '',
-      });
-      await handleUpdated();
-    } catch (e) {
-      setAiResult({ type: 'error', message: e instanceof Error ? e.message : 'AI 提取并优化失败' });
-    } finally {
-      setAiExtracting(null);
-    }
-  };
 
   const formatDate = (value: string | number | null | undefined) => {
     if (!value) return '';
@@ -1394,7 +1357,7 @@ export function ProjectDetailPanel({
     <>
       <div className="pm-detail-overlay absolute inset-0 z-[120] rounded-[24px] bg-[var(--background)]/60 backdrop-blur-[3px]" />
 
-      <section className={`absolute inset-0 z-[121] overflow-y-auto rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]${actionsDisabled ? ' pm-archived-readonly' : ''}`}>
+      <section className={`absolute inset-0 z-[121] overflow-y-auto wb-modal-shell${actionsDisabled ? ' pm-archived-readonly' : ''}`}>
         {/* page-hero: 标题 + 简报 + 流程 */}
         <div className="page-hero">
           {/* B3（A-204）时间信息轴 */}
@@ -1426,6 +1389,30 @@ export function ProjectDetailPanel({
               </div>
             </div>
             <div className="page-hero__right">
+              <ProjectChangeEntry
+                projectId={item.id}
+                canInitiate={!actionsDisabled}
+                onInitiate={handleInitiateChange}
+                onPublishAnnouncement={async (rec) => {
+                  const cs = rec.changeset ?? [];
+                  setChangeWizardCtx({
+                    category: rec.type === 'CHANGE' ? 'change_notice' : 'addendum',
+                    recordId: rec.id,
+                    patch: {
+                      projectName: item.title,
+                      projectCode: item.projectCode ?? '',
+                      changeRound: String(rec.round),
+                      changeReason: rec.reason,
+                      changeContent: cs.length > 0
+                        ? cs.map(c => `${c.label}：${c.from || '（空）'} → ${c.to || '（空）'}`).join('\n')
+                        : rec.reason,
+                      sourceAnnouncement: await fetchSourceAnnouncement(),
+                    },
+                  });
+                  setAnnouncementCategory(rec.type === 'CHANGE' ? 'change_notice' : 'addendum');
+                  setAnnouncementPublishOpen(true);
+                }}
+              />
               {!actionsDisabled && (
                 <button type="button" onClick={() => setTerminateOpen(true)} disabled={submitting || uploading} className="neu-btn-soft">
                   <Ban size={16} />项目终止
@@ -1701,10 +1688,10 @@ export function ProjectDetailPanel({
                       <button type="button" onClick={() => void handleSaveField('title')} className="neu-btn-xs"><Save size={13} /></button>
                     </div>
                   ) : (
-                    <button type="button" onClick={() => handleStartEdit('title', item.title)} className="group mt-1 flex w-full items-center gap-1.5 text-left">
+                    <div className="mt-1 flex w-full items-center gap-1.5 text-left">
                       <span className="text-[15px] font-bold tracking-[-0.02em] text-[color:var(--foreground)]">{item.title || <span className="text-[color:var(--muted-foreground)]/50">未命名项目</span>}</span>
                       <Pencil size={11} className="shrink-0 text-[color:var(--muted-foreground)] opacity-0 transition group-hover:opacity-100" />
-                    </button>
+                    </div>
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-3 text-sm">
@@ -1717,10 +1704,10 @@ export function ProjectDetailPanel({
                         <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs"><X size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('requesterName', item.requesterName)} className="group mt-0.5 flex items-center gap-1 w-full text-left">
+                      <div className="mt-0.5 flex items-center gap-1 w-full text-left">
                         <span className="text-[color:var(--foreground)]">{item.requesterName || <span className="text-[color:var(--muted-foreground)]/50">待补充</span>}</span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 shrink-0 text-[color:var(--muted-foreground)]" />
-                      </button>
+                      </div>
                     )}
                   </div>
                   <div>
@@ -1732,10 +1719,10 @@ export function ProjectDetailPanel({
                         <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs"><X size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('requesterDepartment', item.requesterDepartment)} className="group mt-0.5 flex items-center gap-1 w-full text-left">
+                      <div className="mt-0.5 flex items-center gap-1 w-full text-left">
                         <span className="text-[color:var(--foreground)]">{item.requesterDepartment || <span className="text-[color:var(--muted-foreground)]/50">待补充</span>}</span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 shrink-0 text-[color:var(--muted-foreground)]" />
-                      </button>
+                      </div>
                     )}
                   </div>
                   <div>
@@ -1752,10 +1739,10 @@ export function ProjectDetailPanel({
                         <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs"><X size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('procurementMethod', item.procurementMethod)} className="group mt-0.5 flex items-center gap-1 w-full text-left">
+                      <div className="mt-0.5 flex items-center gap-1 w-full text-left">
                         <span className="text-sm text-[color:var(--foreground)]">{item.procurementMethod || <span className="text-[color:var(--muted-foreground)]/50">待补充</span>}</span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 shrink-0 text-[color:var(--muted-foreground)]" />
-                      </button>
+                      </div>
                     )}
                   </div>
                   <div>
@@ -1772,10 +1759,10 @@ export function ProjectDetailPanel({
                         <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs"><X size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('procurementCategory', item.procurementCategory)} className="group mt-0.5 flex items-center gap-1 w-full text-left">
+                      <div className="mt-0.5 flex items-center gap-1 w-full text-left">
                         <span className="text-sm text-[color:var(--foreground)]">{item.procurementCategory || <span className="text-[color:var(--muted-foreground)]/50">待补充</span>}</span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 shrink-0 text-[color:var(--muted-foreground)]" />
-                      </button>
+                      </div>
                     )}
                   </div>
                   <div>
@@ -1787,10 +1774,10 @@ export function ProjectDetailPanel({
                         <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs"><X size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('budgetAmount', item.budgetAmount)} className="group mt-0.5 flex items-center gap-1 w-full text-left">
+                      <div className="mt-0.5 flex items-center gap-1 w-full text-left">
                         <span className="text-[15px] font-black tracking-[-0.02em] tabular-nums text-[color:var(--accent)]">{item.budgetAmount.toLocaleString('zh-CN')} <span className="text-[10px] font-semibold text-[color:var(--muted-foreground)]">元</span></span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 shrink-0 text-[color:var(--muted-foreground)]" />
-                      </button>
+                      </div>
                     )}
                   </div>
                   <div>
@@ -1801,10 +1788,10 @@ export function ProjectDetailPanel({
                         <button type="button" onClick={() => void handleSaveField('initiationDate')} className="neu-btn-xs"><Save size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('initiationDate', extractedInfoOverride?.initiationDate ?? item.initiationDate)} className="group mt-0.5 flex items-center gap-1">
+                      <div className="mt-0.5 flex items-center gap-1">
                         <span className="text-sm text-[color:var(--foreground)]">{formatDate(extractedInfoOverride?.initiationDate ?? item.initiationDate) || <span className="text-[color:var(--muted-foreground)]/50">待补充</span>}</span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
-                      </button>
+                      </div>
                     )}
                   </div>
                   <div>
@@ -1833,10 +1820,10 @@ export function ProjectDetailPanel({
                         <button type="button" onClick={() => { closeAttrDropdown(); setEditingField(null); }} className="neu-btn-xs shrink-0"><X size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('demandProject', item.demandProject || '')} className="group mt-0.5 flex items-center gap-1">
+                      <div className="mt-0.5 flex items-center gap-1">
                         <span className={item.demandProject ? 'text-sm text-[color:var(--foreground)]' : 'text-sm text-[color:var(--muted-foreground)]/50'}>{item.demandProject || '待补充'}</span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
-                      </button>
+                      </div>
                     )}
                   </div>
                   {/* 归属选择面板：UnitSearchSelect 同款——瓷片渐变 + sticky 搜索行 + 白瓷片激活项；
@@ -1926,18 +1913,7 @@ export function ProjectDetailPanel({
                   )}
                 </div>
                 <div className="mt-3 pt-3" style={{borderTop:"1px solid oklch(0.6 0.04 258 / 0.12)"}}>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">申请立项事由</span>
-                    <button
-                      type="button"
-                      onClick={() => void handleAiOptimizeInitiation()} data-ai-btn="1"
-                      disabled={aiExtracting === 'initiation' || stageLocked}
-                      title="依据采购需求、采购立项阶段上传的文件，AI 提取并优化以下两项内容"
-                      className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]"
-                    >
-                      {aiExtracting === 'initiation' ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />} AI 提取并优化
-                    </button>
-                  </div>
+                  <div><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">申请立项事由</span></div>
                   {editingField === 'projectReason' ? (
                     <div className="mt-1 flex items-start gap-2">
                       <textarea
@@ -1991,21 +1967,21 @@ export function ProjectDetailPanel({
                 </div>
                 <div className="space-y-3">
                   <div>
-                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">项目概况</span><button type="button" onClick={() => void handleAiExtractTender('projectOverview')} disabled={aiExtracting === 'projectOverview' || actionsDisabled} className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'projectOverview' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button></div>
+                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">项目概况</span></div>
                     {editingField === 'projectOverview' ? (
                       <div className="mt-1 flex items-start gap-2">
                         <textarea value={editValues.projectOverview} onChange={(e) => setEditValues((prev) => ({ ...prev, projectOverview: e.target.value }))} className="workbench-input !text-xs flex-1 min-h-[100px]" autoFocus />
                         <button type="button" onClick={() => void handleSaveField('projectOverview')} className="neu-btn-xs mt-1"><Save size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('projectOverview', extractedInfoOverride?.projectOverview ?? localItem.projectOverview ?? null)} className="group mt-1 block w-full text-left">
+                      <div className="mt-1 block w-full text-left">
                         <span className={`text-sm leading-6 ${(extractedInfoOverride?.projectOverview ?? localItem.projectOverview) ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{(extractedInfoOverride?.projectOverview ?? localItem.projectOverview) || '待补充'}</span>
                         <Pencil size={10} className="inline opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)] ml-1" />
-                      </button>
+                      </div>
                     )}
                   </div>
                   <div>
-                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">采购文件获取时间</span>{!isPastRound && <button type="button" onClick={() => void handleAiExtractTender('documentAcquireTime')} disabled={aiExtracting === 'documentAcquireTime' || actionsDisabled} className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'documentAcquireTime' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button>}</div>
+                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">采购文件获取时间</span></div>
                     {editingField === 'documentAcquireTime' ? (
                       <div className="mt-1 flex items-center gap-1.5">
                         <input type="datetime-local" value={(editValues.documentAcquireTime || '').split('~')[0] ?? ''} onChange={(e) => setEditValues((prev) => { const parts = (prev.documentAcquireTime || '').split('~'); return { ...prev, documentAcquireTime: `${e.target.value}~${parts[1] ?? ''}` }; })} className="workbench-input !h-[28px] !text-xs flex-1" autoFocus onKeyDown={(e) => { if (e.key === 'Escape') setEditingField(null); }} />
@@ -2016,14 +1992,14 @@ export function ProjectDetailPanel({
                     ) : isPastRound ? (
                       <span className="mt-0.5 block text-sm text-[color:var(--foreground)]">{roundTimeDisplay(pastRoundBpRef?.roundDocAcquireTime)}</span>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('documentAcquireTime', extractedInfoOverride?.documentAcquireTime ?? localItem.documentAcquireTime ?? null)} className="group mt-0.5 flex items-center gap-1">
+                      <div className="mt-0.5 flex items-center gap-1">
                         <span className={`text-sm ${(extractedInfoOverride?.documentAcquireTime ?? localItem.documentAcquireTime) ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{fmtAcquireTime(extractedInfoOverride?.documentAcquireTime ?? localItem.documentAcquireTime) || '待补充'}</span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
-                      </button>
+                      </div>
                     )}
                   </div>
                   <div>
-                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">开标时间</span>{!isPastRound && <button type="button" onClick={() => void handleAiExtractTender('bidOpeningTime')} disabled={aiExtracting === 'bidOpeningTime' || actionsDisabled} className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'bidOpeningTime' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button>}</div>
+                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">开标时间</span></div>
                     {editingField === 'bidOpeningTime' ? (
                       <div className="mt-1 flex items-center gap-1.5">
                         <input type="datetime-local" value={editValues.bidOpeningTime} onChange={(e) => setEditValues((prev) => ({ ...prev, bidOpeningTime: e.target.value }))} className="workbench-input !h-[28px] !text-xs flex-1" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveField('bidOpeningTime'); if (e.key === 'Escape') setEditingField(null); }} />
@@ -2032,10 +2008,10 @@ export function ProjectDetailPanel({
                     ) : isPastRound ? (
                       <span className="mt-0.5 block text-sm text-[color:var(--foreground)]">{roundTimeDisplay(pastRoundBpRef?.roundOpeningTime)}</span>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('bidOpeningTime', extractedInfoOverride?.bidOpeningTime ?? localItem.bidOpeningTime ?? null)} className="group mt-0.5 flex items-center gap-1">
+                      <div className="mt-0.5 flex items-center gap-1">
                         <span className={`text-sm ${(extractedInfoOverride?.bidOpeningTime ?? localItem.bidOpeningTime) ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{(extractedInfoOverride?.bidOpeningTime ?? localItem.bidOpeningTime) || '待补充'}</span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
-                      </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -2049,16 +2025,15 @@ export function ProjectDetailPanel({
                   <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]" style={{background:"var(--stage-announce-soft)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)"}}>
                     <UserPlus size={14} style={{color:"var(--stage-announce)"}} />
                   </div>
-                  <span className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">{item.procurementMethod === '谈判采购' ? '供应商邀请' : '供应商参与'}</span>
+                  <span className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">{['邀请招标', '直接采购'].includes(item.procurementMethod) ? '供应商邀请' : '供应商参与'}</span>
                 </div>
                 <BiddingUnitsField
                   readOnly={actionsDisabled}
-                  label={item.procurementMethod === '谈判采购' ? '邀请的供应商' : '参与的供应商'}
+                  label={['邀请招标', '直接采购'].includes(item.procurementMethod) ? '邀请的供应商' : '参与的供应商'}
                   value={participantNames ?? (extractedInfoOverride?.invitedSuppliers ?? item.invitedSuppliers ?? null)}
                   isEditing={editingField === 'invitedSuppliers'}
                   editValue={editValues.invitedSuppliers}
                   onEditValueChange={(v) => setEditValues((prev) => ({ ...prev, invitedSuppliers: v }))}
-                  onStartEdit={() => handleStartEdit('invitedSuppliers', extractedInfoOverride?.invitedSuppliers ?? item.invitedSuppliers ?? null)}
                   onSave={() => void handleSaveField('invitedSuppliers')}
                   onCancel={() => setEditingField(null)}
                 />
@@ -2080,7 +2055,6 @@ export function ProjectDetailPanel({
                   isEditing={editingField === 'expertInfo'}
                   editValue={editValues.expertInfo}
                   onEditValueChange={(v) => setEditValues((prev) => ({ ...prev, expertInfo: v }))}
-                  onStartEdit={() => handleStartEdit('expertInfo', extractedInfoOverride?.expertInfo ?? item.expertInfo)}
                   onSave={() => void handleSaveField('expertInfo')}
                   onCancel={() => setEditingField(null)}
                 />
@@ -2149,10 +2123,10 @@ export function ProjectDetailPanel({
                         <button type="button" onClick={() => void handleSaveField('paymentPerformance')} className="neu-btn-xs mt-1"><Save size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('paymentPerformance', extractedInfoOverride?.paymentPerformance ?? item.paymentPerformance ?? null)} className="group mt-1 block w-full text-left">
+                      <div className="mt-1 block w-full text-left">
                         <span className={`text-sm leading-6 ${(extractedInfoOverride?.paymentPerformance ?? item.paymentPerformance) ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{(extractedInfoOverride?.paymentPerformance ?? item.paymentPerformance) || '待补充'}</span>
                         <Pencil size={10} className="inline opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)] ml-1" />
-                      </button>
+                      </div>
                     )}
                   </div>
                   <div>
@@ -2163,10 +2137,10 @@ export function ProjectDetailPanel({
                         <button type="button" onClick={() => void handleSaveField('contractAmount')} className="neu-btn-xs"><Save size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('contractAmount', extractedInfoOverride?.contractAmount ?? item.contractAmount)} className="group mt-1 flex items-center gap-1">
+                      <div className="mt-1 flex items-center gap-1">
                         <span className="text-base font-black tracking-[-0.03em] tabular-nums text-[color:var(--foreground)]">{formatAmount(extractedInfoOverride?.contractAmount ?? item.contractAmount) || <span className="text-sm font-normal text-[color:var(--muted-foreground)]/50">待确定</span>}</span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
-                      </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -2693,12 +2667,98 @@ export function ProjectDetailPanel({
         project={item}
       />
 
+      {/* 变更 / 补遗三步弹窗（2026-11-11 变更体系）：左栏基本信息唯一编辑入口 */}
+      <ChangeModal
+        isOpen={changeModalOpen}
+        onClose={() => setChangeModalOpen(false)}
+        item={item}
+        currentStage={item.currentStage}
+        bidOpened={isBidLocked}
+        currentValues={changeCurrentValues}
+        onRegistered={async (ctx, publish, pending) => {
+          if (publish && pending) {
+            // 发布优先（2026-11-12 裁定）：信息尚未登记——公告发布成功才补登记；
+            // 向导被取消 = 放弃本次修改，数据不动
+            setChangeWizardCtx({
+              category: ctx.category,
+              recordId: '',
+              patch: {
+                projectName: item.title,
+                projectCode: item.projectCode ?? '',
+                changeRound: String(ctx.round),
+                changeReason: ctx.reason,
+                changeContent: ctx.changeContent,
+                sourceAnnouncement: await fetchSourceAnnouncement(),
+                ...(ctx.publishStart ? { announcementStart: ctx.publishStart } : {}),
+                ...(ctx.publishEnd ? { announcementEnd: ctx.publishEnd } : {}),
+                ...(ctx.patchExtra ?? {}),
+              },
+              pendingRegister: pending,
+            });
+            setAnnouncementCategory(ctx.category);
+            setAnnouncementPublishOpen(true);
+            return;
+          }
+          handleUpdated();
+          setChangeWizardCtx({
+            category: ctx.category,
+            recordId: ctx.recordId,
+            patch: {
+              projectName: item.title,
+              projectCode: item.projectCode ?? '',
+              changeRound: String(ctx.round),
+              changeReason: ctx.reason,
+              changeContent: ctx.changeContent,
+              sourceAnnouncement: await fetchSourceAnnouncement(),
+              ...(ctx.publishStart ? { announcementStart: ctx.publishStart } : {}),
+              ...(ctx.publishEnd ? { announcementEnd: ctx.publishEnd } : {}),
+              ...(ctx.patchExtra ?? {}),
+            },
+          });
+          if (publish) {
+            setAnnouncementCategory(ctx.category);
+            setAnnouncementPublishOpen(true);
+          } else {
+            toast.info('已留档；稍后可在「变更 / 补遗记录」中对本轮发布公告');
+          }
+        }}
+      />
+
       {/* 公告制作与发布弹窗（两步向导）*/}
       <AnnouncementPublishWizard
         isOpen={announcementPublishOpen}
-        onClose={() => { setAnnouncementPublishOpen(false); setAnnouncementCategory('procurement_document'); }}
+        initialDraftPatch={changeWizardCtx?.patch}
+        onClose={() => {
+          if (changeWizardCtx?.pendingRegister && !publishFirstDoneRef.current) {
+            toast.info('已取消发布，本次修改未登记');
+          }
+          if (changeWizardCtx?.pendingRegister) {
+            setChangeWizardCtx(null);
+          }
+          publishFirstDoneRef.current = false;
+          setAnnouncementPublishOpen(false);
+          setAnnouncementCategory('procurement_document');
+        }}
         project={item}
-        onPublished={() => {
+        onPublished={(result) => {
+          // 发布优先模式（2026-11-12 裁定）：公告成功 → 现在补登记信息变更并回填关联
+          if (changeWizardCtx?.pendingRegister && (announcementCategory === 'change_notice' || announcementCategory === 'addendum') && result?.id) {
+            publishFirstDoneRef.current = true; // 先于 onClose 置位，防误报取消
+            const payload = changeWizardCtx.pendingRegister;
+            void registerChange(item.id, payload)
+              .then(async (r) => {
+                await bindChangeAnnouncement(item.id, r.record.id, result.id);
+                toast.success(`公告已发布，第 ${r.record.round} 轮变更已登记`);
+                setChangeWizardCtx(null);
+                handleUpdated();
+              })
+              .catch((err: Error) => {
+                toast.error(`公告已发布，但变更登记失败：${err.message}（请在记录中重试登记）`);
+              });
+          } else if (changeWizardCtx && (announcementCategory === 'change_notice' || announcementCategory === 'addendum') && result?.id) {
+            // 已登记路径：回填关联（闭环记录上的「公告待发」红标）
+            void bindChangeAnnouncement(item.id, changeWizardCtx.recordId, result.id).then(() => handleUpdated()).catch(() => {});
+          }
           handleUpdated();
           setBpDataTick((t) => t + 1); // 公告闸 flag 即时刷新：failedBidNoticePublished 依赖 refs 重拉，不 bump 会拿旧值重开向导
           // 流标统一流（2026-10-23）：failed_bid 发布成功 → 自动进入决策向导（是否继续/信息确认/重启）
@@ -2874,6 +2934,7 @@ export function ProjectDetailPanel({
               </div>
               <button type="button" onClick={() => setAiResult(null)} className="neu-btn-xs"><X size={16} /></button>
             </div>
+            <div className="mt-3 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
             <p className="mt-3 text-sm leading-[1.6] text-[color:var(--muted-foreground)]">{aiResult.message}</p>
             <div className="mt-5 flex justify-end">
               <button type="button" onClick={() => setAiResult(null)} className="neu-btn-primary !h-[36px] !text-xs">知道了</button>
@@ -2902,6 +2963,7 @@ export function ProjectDetailPanel({
               </div>
               <button type="button" onClick={() => !waiving && setWaiveTarget(null)} className="neu-btn-xs"><X size={16} /></button>
             </div>
+            <div className="h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
             <p className="rounded-[10px] px-3.5 py-2.5 text-[12px] leading-relaxed text-[color:var(--foreground)] mb-4"
               style={{ background: 'color-mix(in oklch, var(--warning) 7%, transparent)' }}>
               {waiveTarget.message}

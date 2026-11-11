@@ -1,0 +1,934 @@
+---
+name: cgzxui
+description: Use when building or restyling ANY visual element in the five portals that carry the cgzxui system — public-portal (:3002), web (:3005), bid-portal (:3007), expert-portal (:3006), supplier-portal-next (:3004) — including new pages, buttons, cards, inputs, modals, drawers, or when the user says "和首页风格一致", "neumorphic", "新拟态", "凸起边框", or asks what class to use for a button/card/input. Also use whenever a component has inline style, bg-white, border-gray-200, rounded-full buttons, or flat box-shadows that violate cgzxui principles.
+---
+
+# cgzxui — 信息门户 UI 设计标准
+
+`apps/public-portal`（:3002）、`apps/web`（:3005）、`apps/bid-portal`（:3007）、`apps/expert-portal`（:3006）、`apps/supplier-portal-next`（:3004）五门户共用的 UI 规范。覆盖页面骨架、配色体系、neomorphic 模式、组件类目、弹窗抽屉、反模式。每门户在自身 `globals.css` 内置本规范的类层（同名同义，细节微调）；本技能 2026-09-04 起覆盖五门户：**git 入库源**在 apps/public-portal/.claude/skills/cgzxui/（被追踪），**仓库根** .claude/skills/cgzxui/ 为本地全工作目录生效副本（.claude/ 被 gitignore）——改动先写入入库源，再 cp 同步到根副本。
+
+## 何时使用 / 何时不使用
+
+✅ 五门户（public-portal / web / bid-portal / expert-portal / supplier-portal-next）内任何视觉元素
+✅ 看到内联 `style`、`bg-white`、`border-gray-200`、`rounded-full` 按钮、扁平 `box-shadow`
+✅ 新建页面/按钮/卡片/输入框/弹窗/抽屉
+✅ 被要求"和首页一致"
+
+❌ `apps/web` 中 tender-review/admin 等**范围外区域**的存量旧风格（不主动重制；新代码仍须合规）
+❌ 纯逻辑/数据工作（无 UI 改动）
+❌ 装饰性小元素的状态点/标签/badge — neumorphism 不用于文字级元素
+
+## 红牌检查（自动闸）
+
+`bash scripts/check-cgzxui-redcards.sh --ci`（在 water-erp/ 下）——确定性硬性模式（bg-white / border-gray / shadow-lg+ / 内联 boxShadow / CSS box-shadow 内 rgba/hex / 深色蒙层 / exp-alert 幽灵类），命中 exit 1；全门户清零后接入 CI validate job。报告模式（B1 内联计数等）供整改对账。
+
+## 核心原则
+
+1. **单一 CSS 源**：`globals.css`。内联 `style` 绕过 `:hover`/`:active` → 三态失效。
+2. **方向性双影**：光源左上，暗影右下 `(2px 2px)`，亮高光左上 `(-1px -1px)`。禁止扁平 `0 4px 20px rgba(...)`。
+3. **oklch() 色彩空间**：禁止 `rgba()`/`hex` 用于阴影。
+4. **三态完整**：默认凸起 → hover 抬升 → active 内凹。任何一态缺失 = bug。
+5. **reduced-motion 降级**：所有过渡在 `@media (prefers-reduced-motion)` 下禁用。
+6. **禁止外侧框线**：卡片、面板、容器等块级表面**不得**添加 `border` 框线。层次感由方向性双影 + 内高光线 + 玻璃背景差异化提供，外侧框线是对 neumorphic 美学的破坏——它把"从页面浮起"的物理感退化成了"贴上去的带框方块"。
+
+## 页面骨架（复制即用）
+
+新页面只需要这个结构，就能继承背景、装饰、顶栏、配色：
+
+```tsx
+'use client';
+import { useRouter } from 'next/navigation';
+import { UnifiedHeader } from '@/components/unified-header';
+import { FlowBackdrop } from '@/components/flow-stage';
+
+export default function MyPage() {
+  const router = useRouter();
+  return (
+    <div className="flow-page">
+      <FlowBackdrop />
+      <UnifiedHeader announcements={[]} onLoginClick={() => {}} onRegisterClick={() => {}} />
+
+      <div className="px-[clamp(28px,4vw,72px)] pt-3">
+        {/* 返回首页 — 与"全部公告"同款设计 */}
+        <a href="/" className="flow-back">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+            strokeLinejoin="round" className="flow-back-arrow">
+            <path d="M15 18l-6-6 6-6"/>
+          </svg>
+          返回首页
+        </a>
+      </div>
+
+      {/* 页面内容 */}
+    </div>
+  );
+}
+```
+
+- `.flow-page` — 提供 `oklch(0.975 0.012 258)` 背景 + 所有 CSS 变量 + 字体栈
+- `<FlowBackdrop />` — 四角光晕（`.flow-glow`）+ 浮动粒子（`.flow-particles`）
+- `<UnifiedHeader />` — sticky 玻璃顶栏（logo + 搜索 + 导航）
+
+## 配色体系
+
+### CSS 变量（定义在 `.flow-page`）
+
+| 变量 | 色值 | 用途 |
+|------|------|------|
+| `--bg` | `oklch(0.975 0.012 258)` | 页面背景（阴影推导基准） |
+| `--ink` | `oklch(0.24 0.038 258)` | 最深标题 |
+| `--fg` | `oklch(0.28 0.03 258)` | 主文字 |
+| `--fg-2` | `oklch(0.47 0.025 258)` | 次级文字 |
+| `--fg-3` | `oklch(0.6 0.03 258)` | 弱化文字 |
+| `--brand` | `oklch(0.5 0.16 258)` | 品牌蓝（≈ #064ea2） |
+| `--brand-deep` | `oklch(0.42 0.16 258)` | hover 加深 |
+| `--brand-soft` | `oklch(0.62 0.12 258)` | 柔和品牌蓝 |
+| `--water` | `oklch(0.5 0.12 175)` | 水主题青绿 |
+| `--glass` | `oklch(0.995 0.004 258 / 0.5)` | 玻璃面板背景 |
+| `--glass-border` | `oklch(1 0 0 / 0.7)` | 玻璃边框 |
+
+### Neumorphic 阴影色板
+
+| 角色 | 色值 | 不透明度 | 用途 |
+|------|------|----------|------|
+| 亮高光 | `oklch(1 0 0)` | 0.7–0.95 | 顶/左边缘光源 |
+| 暗投影 | `oklch(0.55 0.03 258)` | 0.08–0.18 | 底/右纵深 |
+| 悬停远投影 | `oklch(0.45 0.08 258)` | 0.10–0.14 | 抬升时远距离感 |
+| 内高光线 | `inset 0 1px 0 oklch(1 0 0)` | 0.7–0.85 | 顶部物理边缘光（**最关键细节**） |
+
+> 内高光线是 neumorphic 设计的灵魂——它模拟光线捕获在元素顶部边缘的物理现象，没有它，按钮只是"有阴影的方块"。
+
+## Neumorphic 三态模式
+
+这是所有交互表面的通用模板。按组件类型微调强度（链接按钮 alpha 0.1，主要按钮 alpha 0.25）：
+
+```css
+/* 默认 — 凸起 */
+background: #f4f7fc;            /* 链接按钮 */
+/* 或 oklch(1 0 0 / 0.55) + backdrop-filter — 玻璃卡片 */
+/* 或 oklch(0.5 0.16 258) — 品牌主按钮 */
+box-shadow:
+  inset 0 1px 0 oklch(1 0 0 / 0.7),           /* 顶缘内高光 */
+  2px 2px 4px oklch(0.55 0.03 258 / 0.1),     /* 右下暗影 */
+  -1px -1px 3px oklch(1 0 0 / 0.85);          /* 左上亮光 */
+
+/* 悬停 — 抬升 */
+transform: translateY(-1px);    /* 卡片 -2 ~ -4px */
+background: #eef2f8;
+box-shadow:
+  inset 0 1px 0 oklch(1 0 0 / 0.8),
+  3px 3px 6px oklch(0.55 0.03 258 / 0.14),
+  -2px -2px 5px oklch(1 0 0 / 0.9);
+
+/* 按下 — 内凹 */
+box-shadow:
+  inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15),
+  inset -2px -2px 5px oklch(1 0 0 / 0.5);
+```
+
+过渡：`transition: all 0.3s ease;` 或 `cubic-bezier(0.16, 1, 0.3, 1)`（更顺滑的抬起感）。
+
+## 组件类目速查
+
+> 完整 CSS 规格见 `references/component-specs.md`。下表是"该用哪个类名"的索引。
+
+### 按钮 / 链接
+
+| 类名 | 用途 | 背景 | 备注 |
+|------|------|------|------|
+| `.flow-back` | "返回首页"链接 | `#f4f7fc` | 左 chevron SVG，hover 左滑 4px |
+| `.announce-view-all` | "全部公告"链接 | `#f4f7fc` | 右 chevron SVG，hover 右滑 4px |
+
+> 这两个链接的箭头是 **SVG chevron**（`M15 18l-6-6 6-6` 左 / `M9 18l6-6-6-6` 右），不是文本字符——见 `references/component-specs.md` 的「箭头 SVG 源」。
+| `.neu-btn-primary` | **页面级唯一主行动**（流程提交/登录等） | `var(--brand)` | 44px 深色实心；**工具栏/表格行/卡片内操作禁用**（2026-10-22 铁律，见下节） |
+| `.neu-btn-primary.is-water` | 白瓷片主操作（工具栏/面板「添加 XX」类） | `oklch(1 0 0)` | 纯白底 + 顶缘内高光 + 品牌蓝粗体；配 `!h-[38px] !px-5` 用作面板级操作钮 |
+| `.neu-btn-soft` | 次要操作按钮 | `var(--surface)` | 38px 凸起，hover 抬升，active 内凹 |
+| `.neu-btn-xs` | 紧凑按钮 | `var(--surface)` | 30px，含 `.is-danger`/`.is-success`/`.is-warning` 颜色变体 |
+| `.neu-link` | 次级链接 | `#e8ecf2` | 经典 neumorphic |
+| `.neu-btn-group` | **按钮组容器** | — | 将并排的 `.neu-btn-primary`(44px) 与 `.neu-btn-soft`(38px) 统一为 38px 等高，消除高度不齐。**相邻双按钮铁律（2026-10-19 收录）**：标题栏（page-hero `actions`）右侧的成对操作——主操作 `primary`（可 water）+ 次操作默认 `soft`——必须包 `<span className="neu-btn-group">`：等高 38px、组内间距统一、随容器右对齐；次操作可带计数后缀（如「审核进度（2）」）。范本：:3004 企业信息「申请资料变更 / 变更记录」、公司归属管理「申请加入公司 / 审核进度」 |
+| `.flow-cta-btn` | CTA 底栏按钮 | `var(--brand)` | 54px |
+| `.hero-btn` | Hero 主 CTA | `var(--brand)` | 52px 大尺寸 |
+| `.hero-btn-outline` | Hero 描边 CTA | transparent | 描边变体 |
+| `.flow-cta-btn` | CTA 底栏按钮 | `var(--brand)` | 54px |
+| `.flow-cta-btn.ghost` | 幽灵变体 | transparent | 次要操作 |
+
+### 按钮深色与尺寸铁律（2026-10-22 用户裁定收录）
+
+> 判例：:3004 个人资料「添加联系人」曾用深色实心 `neu-btn-primary` 44px 挤在工具栏——
+> 改白瓷片 `is-water` 38px（同款判例还有「提出异议」）。深色块在浅色 neumorphic 画面里
+> 视觉压迫极强，只配承担"一页一次"的主行动；尺寸不随场景分级则行列错乱。
+
+| 场景 | 允许的按钮 | 禁止 |
+|------|-----------|------|
+| 页面 Hero/流程 CTA（一页一次的主行动） | `hero-btn`(52) / `flow-cta-btn`(54) / `neu-btn-primary`(44) | — |
+| 工具栏 / 面板头部 / page-hero actions | 白瓷片 `is-water` 38px、`neu-btn-soft` 38px（成对须 `.neu-btn-group`） | **任何深色实心**（`neu-btn-primary` 深底、自造深底类） |
+| 表格行内 / 列表项操作 | `neu-btn-xs`(30) | 深色实心；44px 大按钮塞进行内 |
+| 弹窗 footer | `neu-btn-soft` / 白瓷片 38px 同高（`.neu-btn-group`）；危险用 `is-danger` | 高低不齐；深色实心混排 |
+
+尺寸三档对号入座：**52-54 页面级 / 38 面板级 / 30 行内**；宽度随内容
+（`!px-*` 与文本长度适配），禁止固定小宽挤压文本、也禁止超大留白。
+
+### 卡片 / 容器
+
+| 类名 | 用途 |
+|------|------|
+| `.wb-panel` | 工作台面板（左纯白→右透明渐变 + 方向性双影，无可交互 hover） |
+| `.wb-panel-header` | 面板头部栏（`oklch(1 0 0 / 0.3)` 半透明底） |
+| `.wb-panel-body` | 面板内容区（flex-1，overflow-y:auto） |
+| `.neu-card` | 通用 neumorphic 卡片（glass 背景 + 内高光 + 双影，hover 抬升，**无外侧框线**） |
+| `.glass` | 基础玻璃面板（**无外侧框线**） |
+| `.flow-cta` | CTA 底栏（glass + 径向光芒） |
+| `.flow-pipe-shell` | 流程图谱外壳 |
+| `.flow-h-card` | 流程阶段卡片（`--card-color` 驱动配色） |
+| `.wb-section-rule` | 1px hairline 分割线（`oklch(0.6 0.04 258 / 0.16)`），替代裸 `border-t` |
+| `.page-hero` | **页面标题卡片**——玻璃渐变底（左纯白→右半透）+ 方向性双影 + ::after 彩色光晕 |
+| `.kpi-card` | 页面标题卡片内的指标瓷片——凸起浅底 + hover 抬升 + label/value/sub 排版 |
+| `.neu-table-card` | **数据表格卡片**——左纯白→右透明渐变毛玻璃 + 方向性双影 + hover 轻微抬升 |
+| `.neu-table` | 数据表格基类——半透明 thead + 四层行交互（透明/hover/选中/press） |
+| `.neu-batch-bar` | 批量操作浮条——表格卡片顶部滑入；玻璃 + 内高光 + 双影 |
+| `.neu-tab-bar` / `.neu-tab` | 内凹 tab 容器 + 凸起 tab 项（hover 抬升/激活内凹） |
+| `.neu-segment` / `.neu-segment-btn` / `.neu-segment-count` | **状态分段切换**——内凹轨道 + 滑动纯白拇指 + `aria-pressed`；类型/状态筛选用（放置原则见专节，**禁入标题卡**） |
+
+### 公告组件
+
+| 类名 | 用途 |
+|------|------|
+| `.announce-tabs` / `.announce-tab` | Tab 容器 / 单个 Tab |
+| `.announce-tab.is-active` | 激活态（内凹） |
+| `.announce-featured` | 精选公告大卡片 |
+| `.announce-side` / `.announce-side-item` | 侧边列表 / 子项 |
+
+### 表单
+
+| 类名 | 用途 |
+|------|------|
+| `.neu-input` | 内凹输入框（44px，focus 环，textarea 自动 min-height: 88px） |
+| `.workbench-input` | 内凹输入框（40px，含 select 下拉箭头），用于弹窗和面板内表单 |
+| **下拉选择器 SearchSelect** | 实体/名单类单值选择（≥9 项或可增长：公司、归属、专家、目录）：瓷片渐变面板 + sticky 搜索行 + 白瓷片激活项 + 视口翻转 + portal 挂 body。组件 `apps/web/src/components/workbench/search-select.tsx`。**分型边界见「下拉选择器（SearchSelect）」专节——短静态枚举（≤8）仍用原生 select** |
+
+## 下拉选择器（SearchSelect，2026-10-14 定版）
+
+实体/名单类单值选择的统一形态（自注册页公司选择器泛化为通用组件：
+`apps/web/src/components/workbench/search-select.tsx`；消费方：UnitSearchSelect、
+项目详情/新建项目归属选择、admin 公司选择器 CompanySelect）。
+
+### 分型规则（何时用哪种「下拉」）
+
+| 场景 | 用 |
+|------|-----|
+| 短静态枚举（≤8 项固定项：是/否、排序、状态筛选） | `workbench-input` 原生 `<select>`（既有表单规范，勿滥用 SearchSelect） |
+| 实体/名单单值选择（公司、归属项目、专家、目录…≥9 项或可增长） | **SearchSelect（本规范）** |
+| 远程联想输入（边打边搜，如供应商名称） | typeahead 输入框 + 候选面板（面板视觉对齐本规范：瓷片渐变 + 白瓷片激活） |
+| 树形 / 多选 | 专用组件（CategoryTreeSelect / quota-multi-select），面板视觉对齐本规范 |
+
+### 设计语言
+
+- **面板**：145° 白→浅灰渐变瓷片 + 方向性双影（无外框线）；**portal 挂 body**（摆脱
+  窄列/overflow 裁切）；**视口翻转定位**（下方放不下且上方够 → 向上弹）；maxHeight 260、
+  圆角 16、内边距 `0 6px 6px`（外层无顶 padding，防 sticky 滚动透字）
+- **搜索行**（sticky 贴顶）：内凹小输入（34px，surface 底 + 双 inset 影）+ Search 图标 +
+  hairline 分隔；**自动显隐**——选项 >8 或 allowCustom 时显示；打开即聚焦
+- **当前值**：白瓷片凸起（`oklch(1 0 0)` + 内高光 + 双影）+ 品牌蓝粗体 + 对勾
+  （与 neu-tab v2 激活语义统一）
+- **选项行**：hover 品牌蓝淡染；主标 + 右侧 `meta`（合同号/编号）+ 副标行 `sub`（分类/说明）
+- **allowCustom**：搜索词非名单项 → 「使用自定义名称「xx」」行直接采用
+- **兜底项**：「全部/其他」类固定项置顶或列尾；空态居中小字
+- **触发器**：surface 内凹 + chevron（打开旋转 180°）；标准 38px / compact 28px
+  （表单行内联，与 `workbench-input !h-[28px]` 等高）
+- **关闭语义**：外点 / Esc / 滚动离开 / resize；选中即回填收起
+
+### 反模式
+
+| 错误 | 正确 |
+|------|------|
+| absolute 列表挂在容器内（窄列裁切、随页滚动错位） | portal + fixed 定位 + 视口翻转 |
+| 白底/边框列表、无搜索行的长名单 | SearchSelect 规范面板 |
+| 给 ≤8 项静态枚举上 SearchSelect | 原生 `workbench-input` select |
+| 用原生 select 承载几十项实体名单 | SearchSelect（可搜索） |
+
+### 文件上传
+
+| 类名 | 用途 |
+|------|------|
+| `.neu-drop-zone` | 文件选择虚线拖放区（内凹 surface 底色，居中图标 + 文件名 + 提示文字） |
+| `.neu-attachment-item` | 已上传附件列表项（凸起 surface 底色 + 方向性双影，hover 加深投影） |
+| `.up-wave(--a/--b)` / `.up-shimmer` / `.up-ripple` | **上传进度水波+流光**（2026-11-06 定版）——填充区顶部双层错相波纹 + 白高光扫光 + 完成一次性涟漪；配套组件 WaterBar/UploadProgressList 与传输底座 `api.upload`，见「上传进度」专节与 `references/component-specs.md` |
+
+### 页面结构
+
+| 类名 | 用途 |
+|------|------|
+| `.flow-page` | **页面根容器**（必用） |
+| `.flow-header` | sticky 顶栏（72px 玻璃） |
+| `.flow-hero` / `.flow-hero-brand` | Hero 区域 / 品牌标识 |
+| `.flow-glow` | 四角光晕（fixed） |
+| `.flow-particles` / `.flow-particle` | 浮动粒子 |
+| `.flow-rise-1` ~ `.flow-rise-4` | 入场淡入升起（递增延迟） |
+
+### 侧边栏（AppShell，2026-09-18 定版）
+
+| 类名 / 属性 | 用途 |
+|------|------|
+| `.sidebar-card` | 侧栏容器——近实心亮白渐变 + 亮蓝调描边 + 方向性双影；`[data-mode="rail"]` 切 64px 图标窄栏 |
+| `.sidebar-nav-item` | 导航子项——透明融入容器（无凸起无白底），hover 轻蓝染，选中实白凹槽+外投影+斜切指示条 |
+| `.sidebar-item-label` | 子项文字——rail 态 `max-width:0 + opacity:0` 淡出收拢 |
+| `.sidebar-group-header` | 组头——11px uppercase 小标题；`[data-has-active="true"]` 标签染品牌蓝 |
+| `.sidebar-group-panel` | 组子项区——grid-rows 平滑展开/收起；宽态 `ml-1 pl-1.5` 缩进偏移 |
+| `.nav-active-skew` | 激活项左侧斜切指示条（skewY -14°） |
+| 组容器 `div[data-current="true"]` | 「当前组」子项图标染品牌蓝（方案C 标记链，见定版章节） |
+| `.tender-nav-tile` | tender-write 章节导航瓷砖——透玻璃三态，**选中与侧栏同款绑定**（见定版章节） |
+
+### 标签 / 装饰
+
+| 类名 | 用途 |
+|------|------|
+| `.flow-chip` | 角色标签（`--card-color` 驱动描边） |
+| `.flow-card-tag` | 卡片左上角彩色标签 |
+
+## 反模式与合理化陷阱
+
+### 禁止行为 + 为什么错
+
+| 反模式 | 为什么不好 | 压力下常见借口 |
+|--------|-----------|--------------|
+| `style={{ background: "linear-gradient(...)" }}` | 绕过 `:hover`/`:active` 选择器，三态失效 | "就这一处需要渐变背景" |
+| `box-shadow: 0 4px 20px rgba(...)` | 没有方向性，丧失浮起物理感 | "阴影强一点更明显" |
+| `className="bg-white rounded-[24px] shadow-2xl"` | 纯白与页面背景脱节，像贴上去的 | "弹窗就是要独立于页面" |
+| `className="rounded-full border border-gray-200 bg-white"` | 非 cgzxui 风格，无三态，无内凹 | "按钮不就该有个边吗" |
+| 给卡片/面板/容器加 `border` 或 `border-[...]` | 框线把 neumorphic"浮起"感退化为"贴上去的带框方块"，方向性双影已足够表达层次 | "卡片总得有个边吧" |
+| 漏 `:active` | 按下无反馈 | "hover 就够了" |
+| 保存按钮默认 44px 高于取消 38px | 底部按钮不齐平，视觉凌乱 | "高度不一样没关系" |
+| 并排按钮不用 `.neu-btn-group` 包裹 | 高度不一致，对齐偏移 | "我手动设了 height" |
+| 给文字/标签/badge 加 neumorphic shadow | 小元素变臃肿模糊 | "让标签突出一点" |
+| 工具栏/表格行/卡片内操作用深色实心按钮（`neu-btn-primary` 深底） | 深色块视觉压迫喧宾夺主，破坏浅色 neumorphic 层次 | "主操作就该醒目" ——醒目用白瓷片 `is-water`（品牌蓝粗体已足够强调） |
+| 按钮尺寸与场景不适配（44px 塞工具栏/行内、xs 当页面主 CTA、固定窄宽挤压文本） | 行列错乱、文本截断；按钮大小本身在传递层级 | "按钮大点好点" |
+
+### 红牌自检
+
+在提交任何视觉改动前，自查以下三项。任一命中 → 回退重做。
+
+- ❌ 文件中有 `style={{ }}`（CSS 变量传递如 `--item-accent` 除外）
+- ❌ 文件中有 `bg-white`、`border-gray-200`、`rounded-full` 修饰的按钮/输入框
+- ❌ 文件中有 `shadow-lg`、`shadow-2xl` 或内联 `boxShadow`
+- ❌ 卡片/面板/容器组件上有 `border` 或 `border-[...]` 类名（`border-t` hairline 内部分割线除外）
+- ❌ 工具栏/表格行/卡片内出现深色实心按钮（`neu-btn-primary` 未加 `.is-water`），或按钮高度与场景三档（52-54/38/30）不符
+
+## 反模式（为什么错）
+
+| 反模式 | 为什么不好 |
+|--------|-----------|
+| 扁平 shadow `0 4px 20px rgba(...)` | 没有方向性，丧失"浮起"的物理感，像贴纸 |
+| 给文字 / 标签 / badge 加 neumorphic shadow | neumorphism 是块级表面的语言，加在小元素上会显臃肿、糊一团 |
+| 暗影 alpha > 0.18 或 blur > 14px | 阴影过强破坏 subtle 美感，视觉噪声压过内容 |
+| `overflow: hidden` 裁切 neumorphic shadow | 阴影被切掉，凸起感消失。内层内容才用 overflow:hidden |
+| 内联 `style` 覆盖类名 | 绕过 `:hover`/`:active` 选择器，三态失效 |
+| 漏 `:active` 内凹态 | 按下没反馈，按钮像死的 |
+| 漏 `@media (prefers-reduced-motion: reduce)` | 前庭功能障碍用户会被动画触发眩晕 |
+| 同组件混用 Material elevation shadow | 两种设计语言打架，视觉不协调 |
+
+## 跨门户新增类目录（2026-09-04 链路整改引入）
+
+| 门户 | 类 | 用途 |
+|------|-----|------|
+| web | `.wb-alert` + `--info/--success/--warning/--danger` | 告警条（color-mix 底 + --tone 变量）——**替代 exp-alert**（web 端幽灵类） |
+| web | `.wb-icon-well` + `--xs/--sm/--md` | 图标井（`--well-bg`/`--well-fg` 变量驱动 + 内凹井影） |
+| web | `.wb-tone-banner` + 四变体 | 色调横幅（10% color-mix 底、无边框、svg 吃 tone） |
+| web | `.wb-status-pill` + `.wb-status-pill-dot` | 状态胶囊（--tone 驱动 12% 底） |
+| web | `.wb-note` | 凸起便笺（oklch(1 0 0/.48) 底 + 顶缘高光） |
+| web | `.wb-overlay-backdrop` / `.wb-modal-shell` / `.wb-overlay-panel(-header/-footer)` | 手写弹窗壳层（不 Modal 化的场景） |
+| web | `.tender-toast--ok/--err` | toast 色调变体（基类 .tender-toast） |
+| web | `.pm-help-anchor` / `.pm-help-dot` / `.pm-help-tip` | **？帮助图标 + hover 气泡**（2026-09-26 定稿，详见下方「？帮助气泡」节） |
+| bid-portal | `.bid-overlay` + `.bid-overlay-backdrop` | 标准三层蒙层（替代 JSX 字符串/内联蒙层常量） |
+| bid-portal | `.bid-dialog` | 弹窗薄板（+ `.neu-table.is-dense` 密度变体 / `.bid-tile` / `.bid-icon-well` / `.bid-pick-row`） |
+| bid-portal | `.bid-alert` + `--success/--info/--warning/--danger` | 告警条（--tone 化） |
+| bid-portal | `.bid-pill--*` + `data-invite/data-status/data-anomaly/data-rank…` | 状态徽章与状态色选择器组（7 个属性选择器先例） |
+| expert-portal | `.exp-icon-well` / `.exp-bubble` / `.exp-pill--solid` | 图标井 / 聊天气泡 / 实底徽章 |
+
+## 左侧导航栏 / AppShell 侧栏（web :3005，2026-09-18 收录）
+
+实现源：`apps/web/src/components/app-shell.tsx`（唯一落点，**侧栏结构冻结**——新功能只增导航项，不改壳）+ `globals.css` 搜 `sidebar-`。范本即 :3005 实物。
+
+**骨架**：`<aside data-mode={rail?'rail':'full'} class="sidebar-sheen sidebar-card mr-4 hidden w-[240px] shrink-0 flex-col rounded-tl-[24px] rounded-tr-[24px] rounded-bl-none rounded-br-[24px] pr-2 lg:flex">` —— 仅桌面（≥lg）；右下角无圆角（贴视口左缘）。竖向三段：品牌区 → `nav.sidebar-scroll.sidebar-nav`（flex-1 滚动）→ 底部折叠钮；段间用横向渐隐 hairline（`mx-3.5 h-px bg-[linear-gradient(90deg,transparent,rgba(160,178,210,.7),transparent)]`）。
+
+**容器质感 `.sidebar-card`**：175° 近实白玻璃渐变（oklch(1 0 0/.97)→(0.995 .005 248/.87)，透太多会显黯淡）+ `backdrop-filter: blur(26px) saturate(130%)` + **1.5px 亮蓝调描边** `oklch(0.78 0.05 250/.5)` + 四层影（内高光 `inset 0 1px 0 oklch(1 0 0/.88)` / 右下暗 `3px 3px 10px oklch(0.52 .04 258/.22)` / 左上亮 `-3px -3px 8px oklch(1 0 0/.94)` / 边缘蓝晕 `0 0 30px oklch(0.58 .14 258/.16)`）。
+
+**品牌区**：`command-orb brand-orb-3d` 48px 徽标球（hover `perspective(700px) rotateY(360deg) scale(1.08)` 0.75s）+ `.sidebar-brand-title` 品牌字「智慧水发·采购中心」彩色流转（品牌蓝基色 + 蓝绿青紫粉高光带 12s 无缝循环；`prefers-reduced-motion` 静态）。
+
+**导航两级 = 组 + 项（无更深嵌套）**：
+- 组头 `.sidebar-group-header`：13px Lucide 图标 + 11px `uppercase tracking-[.08em]` 标签 + `ChevronDown`（折叠 `-rotate-90`，0.2s）；hover 轻蓝染 `var(--accent-tint)`。折叠面板 `.sidebar-group-panel` 用 `grid-template-rows 0fr→1fr` 0.35s 展开（内容 `overflow:hidden; min-height:0`）。
+- 「当前组」双标记：组头 `data-has-active` → 标签染 `var(--accent-strong)`；组容器 `data-current` → 子项图标染 `var(--accent-strong)`（文字不变色）。
+- 导航项 `.sidebar-nav-item`（Link）：透明融入 → hover `accent-tint` → **active = 实白内凹**（`background: oklch(1 0 0)` + 内凹双影顶左暗/底右亮 + 柔和外影，文字 `accent-strong`）；激活书签 `.nav-active-skew`：左侧 2.5px 胶囊条 `skewY(-14deg)` + 蓝渐变 + 6px 蓝投影——**签名元素，勿改形态**。子项相对组头缩进 `ml-1 pl-1.5` 拉层级。
+
+**rail 窄栏**：`data-mode="rail"` → 64px；`.sidebar-item-label` max-width 160px→0 淡出（opacity+width 0.3s）、图标居中、品牌字隐藏、分组退化为 `w-7` 短分隔线；底部固定 `.sidebar-nav-item` 折叠钮（ChevronsLeft/Right，aria-expanded）。宽/窄切换动画 `width .3s cubic-bezier(.22,1,.36,1)`。
+
+**滚动**：`.sidebar-scroll` —— 6px 细滚动条、蓝渐变 thumb、`overscroll-behavior: contain`、smooth。
+
+**移动端（<lg）**：侧栏隐藏，由 `lg:hidden` 水平胶囊条替代（`interactive-surface` 圆片 + `overflow-x-auto`）。
+
+**反模式**：导航项不得加外框线/emoji/非 Lucide 图标；不引入第三级菜单；不把激活态做成描边或底色填充（实白内凹+斜切书签是既定语言）；不在壳内叠加大面积装饰。
+
+## 表单/确认弹窗内容范式（web :3005，2026-09-18 定稿）
+
+Modal 壳之上的内容层标准结构（范本：`apps/web/src/components/admin/account-management-panel.tsx` 的 `ResetPasswordModal`——账号管理改密弹窗）：
+
+1. **标题 = 动词短语 + 28px 图标井**：`neu-icon-well`（`inline-flex h-7 w-7 rounded-[9px]`）内 14px Lucide 图标（accent 色，strokeWidth 1.9）+「修改密码」式动词；**对象参数不进标题**，下沉到 description。
+2. **description = 对象标识**：`账号 <span class="font-mono font-semibold">{username}</span> · 姓名`——mono 承载编号/账号类标识。
+3. **只读凭据/关键值 = carved 内凹展示盒**：`neu-pre flex items-center gap-2.5 rounded-[10px] px-3 py-2.5` + 前导语境图标 + mono 值 + 右侧操作钮（显隐等）；空态/无数据文案写进盒内，不裸奔。
+4. **输入 = `neu-input` + 右内嵌图标钮**：`relative` 包裹，钮 `absolute right-2 top-1/2 -translate-y-1/2`；密码类加 `font-mono` 与语义 `autoComplete`（如 `new-password`，防浏览器回填旧密码）。
+5. **影响面提示 = warning 淡底警示条**：`flex items-start gap-2 rounded-[10px] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2.5` + 语境图标 + 关键词 `<strong>`；不用裸灰字（易被忽略）、不塞 footer。
+6. **footer = 同级软按钮**：并排 `neu-btn-soft !h-9 !text-xs`（等高等字号）；危险动作用 `is-danger` 变体。主操作**不强制 primary**——同权重选择用双 soft（用户拍板 2026-09-18）。
+
+**违例黑名单**（新代码禁止）：`fixed inset-0` 手搓壳 + `rounded-[20px] bg-[var(--background)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.12)]` 遗产模板——扁平全向 rgba 投影（反模式 #2）+ 无 focus trap/Esc/滚动锁/aria 全套。2026-09-18 盘点命中并**同日全数改造完毕**（→Modal+本范式）：expert/repository×2、expert/retirement、expert/[id]（编辑资料）、archive（质检）、supplier/selection（补选 + 供应商详情，内联 boxShadow 一并清除）。剩余手搓壳（global-search / dashboard-home / chat / tender-write 五对话框）为 z 层/交互特例，未列入本批。
+
+## 弹窗规范 A 版（全系统统一，2026-11-11 用户三选一定版）
+
+用户以导入识别弹窗为标本定版 **A · 瓷面弹窗·图标井头部**（否掉 B 面板横幅=chrome 过重、C 现行壳=不修黑名单扁平影）。标本实例 `apps/web/src/components/tender-write/import-autofill-dialog.tsx`（提交 `f3e840eaa`）。五件套：
+
+1. **壳 = `wb-modal-shell` 瓷面**：底色 = **纯白瓷 `oklch(1 0 0)`**（2026-11-11 用户裁定终版——同日两轮：先定「背景颜色中的彩色渐变」、后改主意纯白瓷；「瓷」质感靠顶缘内高光 + 方向性双影表达，页面 body 背景的彩色渐变保留、与此无关）+ 顶缘内高光 + 方向性双影 + `overflow-hidden`；蒙层 `bg-[var(--background)]/60 backdrop-blur-sm`；**头部与内容之间必有 hairline 隔离线**（2026-11-11 用户裁定：`<div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />`）。**共享 `workbench/modal.tsx` 已内置此壳 + `icon` 参数 + 头部隔离线**——新弹窗一律走共享 Modal 传 icon，勿再手搓壳（独立 portal 特例也用 wb-modal-shell 类；supplier 同配方 .gdlg-pn 族、bid 同配方 .bid-dialog、mobile 同配方 .m-sheet-panel）。扁平 `shadow-[0_20px_60px_…]` 全系统退场。五门户统一配方（同名类各门户 globals.css 各置一份）：
+
+   ```css
+   .wb-modal-shell {
+     background: oklch(1 0 0);
+     box-shadow:
+       inset 0 1px 0 oklch(1 0 0 / 0.88),
+       3px 4px 16px oklch(0.46 0.07 258 / 0.18),
+       -3px -3px 10px oklch(1 0 0 / 0.94);
+     border-radius: 20px;
+   }
+   ```
+2. **头部 = 图标井 + 动词标题 + description**（统计摘要/对象标识），hairline 分段；右上上下文操作 `neu-btn-soft` + 关闭 `neu-btn-xs`。
+3. **底部 = hairline + 左说明 + 右 `neu-btn-group`** 等高按钮组（primary 白瓷片随组归 38px；同权重双选择用双 soft）。
+4. **内容状态语言**：状态 = `wb-status-pill`（`--tone` 变量驱动）；数据行 = 无框色调行（`color-mix` 淡染替代 `border` + 色板底）；摘录/凭据 = `neu-pre` 内凹盒；错误 = `wb-alert--danger`；空态 = 内凹图标井 + 引导按钮；勾选 = `neu-checkbox`。
+5. **弹窗内竖排导航 = `neu-modal-nav-item`**（globals.css 标准件）：默认透明融入、hover 品牌淡染、**激活 = 凸起纯白瓷片 + 品牌蓝粗体**（与 neu-tab v2 同语义），点击滚动定位 + 滚动回写激活。
+
+存量手搓壳已于 2026-11-11 同日全量迁移完毕（五门户 + mobile；expert .exp-dialog 退役、bid .bid-dialog/supplier .gdlg-pn 族/mobile .m-sheet-panel 均换统一配方），全仓库 cgzxui 红牌硬性违规清零。壳底色沿革：近实底→彩色渐变→纯白瓷（2026-11-11 同日终版），勿复活前两版。
+
+## ？帮助气泡（.pm-help-dot / .pm-help-tip，2026-09-26 定版）
+
+字段级说明的统一载体：label 文字后跟 ？小圆标，hover / 键盘 focus 弹出说明气泡。web :3005 首用（评分标准卡办法/公式/去极值三处），其他门户需用时按同规格实现（前缀换成门户自己的）。
+
+```tsx
+<span className="flex items-center gap-1.5">
+  字段名
+  <span className="pm-help-anchor" tabIndex={0}>
+    <span className="pm-help-dot" aria-label="字段名说明" role="img">?</span>
+    <span className="pm-help-tip" role="tooltip">说明文字…</span>
+  </span>
+</span>
+```
+
+规格要点（照抄，勿偏离——全部实测校准过）：
+
+- **图标**：`.pm-help-dot` 14×14px 圆、1px 描边 + 顶缘内高光 + 微外影；**必须半角 `?`**（全角？墨迹在字身框内偏移，视觉不居中）+ `font-size: 9px; font-weight: 800; line-height: 1`——墨迹中心与圆心偏差 0px、占内径 48%。
+- **气泡**：`.pm-help-tip` 定位 `left:0; top:calc(100%+6px)`（**左对齐图标向下弹**，居中弹在面板左缘会越界裁切）；宽 14rem、方向性双影、11px 正文；**底色近实底** `linear-gradient(170deg, oklch(1 0 0/0.99), oklch(0.985 0.004 258/0.97))`——**勿抄 wb-modal-shell 的 0.72 尾端**（小文字气泡下背景字会透出；气泡靠双影分层，不靠透明度）。
+- **显隐**：纯 CSS——`.pm-help-anchor:hover .pm-help-tip, .pm-help-anchor:focus-visible .pm-help-tip`（hover + 键盘 Tab 双通道，anchor `tabIndex=0`）；默认 `opacity:0 + translateY(-2px)`，0.15s 淡入上浮。**键盘通道必须用 `:focus-visible` 勿用 `:focus-within`**——Modal 打开时 focus-trap 会程序化聚焦首个可聚焦元素，标题挂 ？锚点即中招自动弹泡（2026-09-27 应用模板弹窗实录）；focus-visible 仅键盘聚焦显示。
+- **可达性**：dot `role="img"` + `aria-label`，tip `role="tooltip"`。
+- **reduced-motion**：transition 降级瞬时（铁律）。
+- **反模式**：常驻说明段落（重复下拉选项文本/挤占布局）；原生 title（触屏无效）；全角？；气泡居中弹出。
+
+## 上传进度（水波+流光，2026-11-06 定版）
+
+全门户上传进度的统一视觉（水利品牌的水槽隐喻）。**任何要进度的上传必须走
+`api.upload`（`@water-erp/client` XHR 轨）——fetch 规范无上传进度事件**；展示层
+`WaterBar`（.up-* 动效类）+ 每文件行 `UploadProgressList` + 队列 `useFileUploads`。
+
+形态分级（对号入座）：
+
+| 场景 | 形态 |
+|------|------|
+| 多文件批量 | 聚合条（N/M · 总百分比 · 速度 · 取消）+ 每文件行（行内重试） |
+| 单文件中大件 | 紧凑单行：WaterBar + mono 百分比 |
+| 单文件小件 | 按钮内百分比文本，不出条 |
+| 亚秒级 Blob（签到照等） | 仅换 api.upload 轨，spinner 即轻量指示 |
+| 既有进度组件 | CSS 换肤（波层伪元素+扫光背景），不动传输 |
+
+铁律：失败不中断队列（逐文件标记可重试）；retry 不触发整批收尾；波幅 ≤3px、循环 ≥2s、
+无彩色渐变、终态无循环动效、`prefers-reduced-motion` 全退静态；百分比=Σ字节（非文件计数），
+数字 `font-mono tabular-nums`。完整 CSS/组件契约/反模式见
+`references/component-specs.md`「上传进度·水波+流光」节；判例 spec
+`docs/superpowers/specs/2026-11-06-upload-progress-design.md`。
+
+## 弹窗「Modal 化」决策规则（web :3005）
+
+- **默认用 workbench `Modal` 组件**（`src/components/workbench/modal.tsx`）：token 蒙层 + oklch 阴影 + focus trap + Esc + 滚动锁 + aria 全套；宽度用 `size` 或 `className="!max-w-[480px]"` 覆写；busy 防护映射 `closeOnBackdrop/closeOnEsc`。
+- **强制步骤弹窗不得 Modal 化**——Modal 头部固定渲染 X 关闭钮，会凭空新增关闭语义。判例：bid-confirm 的 notify-confirm（自动通知失败重试，无任何关闭途径）。这类用 `.wb-overlay-backdrop`+`.wb-modal-shell` 抽壳类。
+- **不变式**：同一时刻至多一个 Modal（Esc 会双层同关）。改造前核对弹窗开关互斥。
+- bid-portal 用 `.bid-overlay`+`.bid-dialog` 三层 JSX（范本 adjudicate-dialog.tsx L70-72）。
+
+## 合规范本（新代码照抄这些）
+
+- web：`apps/web/src/app/(main)/archive/page.tsx`（page-hero + neu-table-card + 模态模板全套）、`bid-confirm/supervision-push-block.tsx`
+- bid-portal：`opening-hall-sign-block.tsx`（纯 neu-card-static/neu-btn-soft）、`ai-analysis-card.tsx`、`adjudicate-dialog.tsx`
+- expert-portal：`exp-pin-dialog.tsx`（.exp-dialog + neu-input + 38px 齐平按钮组）
+
+## 文件参考
+
+| 文件 | 内容 |
+|------|------|
+| `apps/public-portal/src/app/globals.css` | public-portal 类名源（搜 `/* ──` 跳章节） |
+| `apps/web/src/app/globals.css` | web 类名源（wb-alert/wb-icon-well 等新类在末尾段落；**sidebar-* 侧栏定版类名源**） |
+| `apps/web/src/components/app-shell.tsx` | AppShell 侧栏结构源（`data-mode`/`data-current`/`data-has-active` 用法范本） |
+| `apps/bid-portal/src/app/globals.css` | bid-portal 类名源（bid-dialog/bid-overlay/data-* 选择器组） |
+| `apps/expert-portal/src/app/globals.css` | expert-portal 类名源（cgzxui 段 L212-851 + exp-*） |
+| `apps/supplier-portal-next/src/app/globals.css` | supplier 类名源（注意三层叠写结构，见台账） |
+| `apps/public-portal/src/app/home-client.tsx` | 首页参考实现（hero / 公告 / tabs / CTA） |
+| `apps/public-portal/src/components/unified-header.tsx` | 统一顶栏 |
+| `apps/public-portal/src/components/flow-track.tsx` | `FlowBackdrop` + `FlowTrack` |
+| `references/component-specs.md`（本 skill 内） | 按钮/卡片/输入框的完整 CSS 规格（含「上传进度·水波+流光」节） |
+| `apps/web/src/components/upload/water-bar.tsx`（及 bid-portal 自包含副本） | WaterBar 进度条组件源 |
+| `apps/web/src/lib/upload/use-file-uploads.ts` | 上传队列 hook 源（顺序/取消/重试/速度） |
+| `packages/client/src/index.ts` | `upload()` XHR 传输底座（进度/取消/错误归一） |
+| `apps/public-portal/.claude/skills/neumorphic-design/SKILL.md` | 专注新拟态细节的伴随 skill |
+| `docs/superpowers/specs/2026-07-02-announcement-raised-border-design.md` | 公告区新拟态设计规格 |
+| `scripts/check-cgzxui-redcards.sh`（water-erp/ 下） | 红牌检查闸（--ci / --app / --files） |
+
+## 常见任务
+
+**"新页面要和首页风格一致"** — 用上面"页面骨架"模板；卡片用 `.neu-card`；主 CTA 用 `.neu-btn-primary` 或 `.flow-cta-btn`。
+
+**"新建数据管理页面"** — 必须包含以下三层：
+1. `page-hero` 标题卡片（含 `page-hero__row` + hairline 分割线 + KPI 瓷片或搜索行）
+2. 独立的工具栏行/卡片（类型/状态切换用 `.neu-segment` 分段切换——hero 下方独立一行、置于页面底色；搜索 + 筛选下拉可并入同行，neumorphic 浅底 + 方向性双影）
+3. `neu-table-card` + `neu-table` 数据表格（透明行 + 四层交互 + 批量操作浮条）
+
+**"给表单字段/名词加说明文字"** — 用 ？帮助气泡（`.pm-help-anchor` + `.pm-help-dot` + `.pm-help-tip`，见跨门户目录与下方规范）挂在 label 文字后，**不要**用常驻说明段落（视觉噪音）也不要只靠原生 `title`（触屏无效、延迟大）。可操作警示（缺件/风险）才允许常驻（wb-alert）。
+
+**"改一个按钮的样式"** — 改 `globals.css` 中对应类名，**绝不**在 TSX 加内联 `style`。
+
+**"新建一个 neumorphic 组件"** — 参照三态模式，暗影 alpha 从 0.1 起，必须含 `inset 0 1px 0 oklch(1 0 0 / 0.7)` 内高光线。需要完整按钮/卡片 CSS 作参照，看 `references/component-specs.md`。
+
+## Page Hero — 页面标题卡片
+
+`.page-hero` 是数据管理页面的**统一标题栏**。信息发布中心、数据库、采购台账、采购进度、项目管理全部使用此模板。一个页面只有一个 `.page-hero`，放在最顶部。
+
+### 结构
+
+```tsx
+<div className="page-hero">
+  {/* 行 1：标题体 + 右侧操作 */}
+  <div className="page-hero__row">
+    <div className="page-hero__left">
+      <div className="page-hero__icon">
+        {/* Lucide 图标 17px，1.5px 描边 */}
+      </div>
+      <div>
+        <div className="page-hero__title">页面名称</div>
+        <div className="page-hero__sub">功能描述或统计摘要</div>
+      </div>
+    </div>
+
+    <div className="page-hero__right">
+      {/* page-hero__stat 统计 pill（可选） */}
+      <span className="page-hero__stat page-hero__stat--info">共 N 条</span>
+      <span className="page-hero__stat page-hero__stat--warn">
+        <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-[var(--danger)]" />
+        异常 N
+      </span>
+      {/* 操作按钮 — neu-btn-soft / neu-btn-primary */}
+    </div>
+  </div>
+
+  {/* hairline 分割线 — 所有页面统一 */}
+  <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }} />
+
+  {/* 行 2：KPI 指标瓷片 或 搜索/筛选工具栏 */}
+  {/* ... */}
+</div>
+```
+
+### 子元素速查
+
+| 类名 | 用途 | 细节 |
+|------|------|------|
+| `.page-hero__row` | 标题行容器 | `flex justify-between gap-1rem` |
+| `.page-hero__left` | 左侧：图标井 + 标题体 | `flex items-center gap-0.875rem` |
+| `.page-hero__icon` | 内凹图标井 | 40×40px，`inset 双影`，accent 色 |
+| `.page-hero__title` | 页面标题 | `font-display` 1.15rem 500-weight，-0.015em tracking |
+| `.page-hero__sub` | 副标题/统计摘要 | 0.75rem，muted-foreground |
+| `.page-hero__right` | 右侧操作区 | `flex items-center gap-0.5rem` |
+| `.page-hero__stat` | 统计 pill | 圆角 999px，边框 + 浅底 |
+| `.page-hero__stat--info` | 蓝色信息 pill | accent 色系 |
+| `.page-hero__stat--warn` | 红色预警 pill | danger 色系 |
+
+### KPI 指标瓷片（.kpi-card）
+
+```tsx
+<div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
+  <div className="flex items-center justify-between gap-2">
+    <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">label</span>
+    {/* 可选 signal 徽标：warning → 待处理橙 / danger → 风险红 / success → 正常绿 */}
+    {signal && (
+      <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold ...">
+        <span className={`h-1 w-1 rounded-full bg-[var(--success/warning/danger)]`} />
+        {status}
+      </span>
+    )}
+  </div>
+  <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{value}</span>
+  {sub && <span className="text-[10px] font-medium text-[var(--muted-foreground)]">{sub}</span>}
+</div>
+```
+
+**kpi-card 三态：** 默认凸起（浅底 + 内高光 + 方向性双影），hover 抬升 `translateY(-1px)` + 暗影加深，无 active 态（不可点击）。
+
+### 分割线规范
+
+标题行与 KPI/搜索行之间**必须**有 hairline 分割线。所有页面统一参数：
+
+```tsx
+<div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }} />
+```
+
+切勿使用裸 `<hr>` 或 `border-t border-gray-200`。
+
+### 完整示例（信息发布中心）
+
+```tsx
+<div className="page-hero">
+  <div className="page-hero__row">
+    <div className="page-hero__left">
+      <div className="page-hero__icon"><Megaphone size={17} /></div>
+      <div>
+        <div className="page-hero__title">信息发布中心</div>
+        <div className="page-hero__sub">招标公示、中标公示、政策法规、平台通知的起草与发布管理</div>
+      </div>
+    </div>
+    <div className="page-hero__right">
+      <button onClick={load} disabled={loading} className="neu-btn-xs"><RefreshCw size={14} /></button>
+      <button onClick={() => router.push('/notice/new')} className="neu-btn-soft"><PlusCircle size={15} /> 新建信息</button>
+    </div>
+  </div>
+
+  <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }} />
+
+  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+    <div className="kpi-card ...">{/* 已发布 */}</div>
+    <div className="kpi-card ...">{/* 待处理草稿 */}</div>
+    <div className="kpi-card ...">{/* 本月发布 */}</div>
+    <div className="kpi-card ...">{/* 浏览总量 */}</div>
+    <div className="kpi-card ...">{/* 缺招标文件 */}</div>
+  </div>
+</div>
+```
+
+---
+
+## 渐变底板设计（.wb-panel / .neu-table-card 内置）
+
+`.wb-panel` 和 `.neu-table-card` 自带从左纯白到右透明的渐变背景，无需外层包裹 `<div>`。多个并列/堆叠的组件共同形成整页从左到右的明→透视觉流动，与 `.page-hero` 的渐变方向一致（105deg）。
+
+### 渐变值
+
+```css
+background:
+  linear-gradient(105deg,
+    oklch(1 0 0 / 0.94) 0%,              /* 左侧：近乎不透明纯白 */
+    oklch(0.99 0.003 258 / 0.62) 35%,    /* 过渡点：高不透度暖白 */
+    oklch(1 0 0 / 0.14) 70%              /* 右侧：高度透明 */
+  );
+```
+
+### 为何嵌入组件而非外层包裹
+
+- **零额外标记**：每个 `wb-panel` / `neu-table-card` 自动获得渐变，不需 `<div className="page-content-sheet">` 包裹层。
+- **多组件协同**：同一页面内多个组件各自的渐变区域叠加，形成连续的从左亮→右透的视觉流。
+- **方向一致**：渐变角度 105deg 与 `page-hero` 完全相同，整个页面从左到右呈现统一的明暗过渡。
+
+### 反模式
+
+| 错误 | 正确 |
+|------|------|
+| `<div className="page-content-sheet p-4"><div className="wb-panel">...` | 直接用 `<div className="wb-panel">`，渐变内置 |
+| 再套一层容器只为加背景 | 背景是组件 CSS 的一部分 |
+
+---
+
+## 数据表格
+
+`.neu-table-card` 套 `.neu-table` 是 cgzxui 的标准表格模式。信息发布中心列表、通知中心均使用此模板。
+
+### 结构
+
+```tsx
+<div className="neu-table-card">
+  {/* 批量操作浮条（有选中项时显示）—— 玻璃 + 内高光 + 滑入动画 */}
+  {selectedCount > 0 && (
+    <div className="neu-batch-bar">
+      <span className="neu-batch-bar-count">已选 <strong>{N}</strong> 条</span>
+      <div className="neu-batch-bar-spacer" />
+      <button className="neu-btn-xs is-success">发布</button>
+      <button className="neu-btn-xs is-warning">归档</button>
+      <button className="neu-btn-xs is-danger">删除</button>
+      <button className="neu-btn-xs">取消选择</button>
+    </div>
+  )}
+
+  {/* 工具栏（可选）—— 底部 1px hairline 分割 */}
+  <div className="neu-table-card-header flex flex-wrap items-center justify-between gap-3">
+    <div className="neu-tab-bar">
+      <button className="neu-tab is-active">Tab A</button>
+      <button className="neu-tab">Tab B</button>
+    </div>
+    {/* 搜索/筛选 */}
+  </div>
+
+  {/* 表格主体 */}
+  <div className="overflow-x-auto">
+    <table className="neu-table w-full min-w-[760px]">
+      <thead>
+        <tr>
+          <th style={{ width: 44 }}>
+            <input type="checkbox" className="neu-checkbox" />
+          </th>
+          <th>列名</th>
+          {/* 可排序表头 */}
+          <th data-sortable="true" data-sort="desc">
+            <button className="neu-th-sort">
+              <span>列名</span>
+              <span className="neu-sort-indicator"><Icon size={12} /></span>
+            </button>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr className="row-clickable" data-selected="true">
+          <td>...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  {/* 分页 */}
+  <div className="neu-table-card-footer">
+    <span>共 N 条 · 第 P/T 页</span>
+    <div className="flex gap-1.5">
+      <button className="neu-btn-xs">←</button>
+      <button className="neu-btn-xs">→</button>
+    </div>
+  </div>
+</div>
+```
+
+### 行交互四层递进
+
+| 状态 | 选择器 | 效果 |
+|------|--------|------|
+| **默认** | `tbody tr` | `background: transparent` 融入卡片背景 |
+| **hover** | `tbody tr:hover` | 白色半透底 + 抬升阴影 + 品牌蓝微光内描边 + `translateY(-1px)` |
+| **选中** | `tbody tr[data-selected="true"]` | 品牌淡蓝半透底 + accent 2px 左侧色标 |
+| **press** | `tbody tr.row-clickable:active` | 瞬时按入内凹 `scale(0.995)` |
+
+### 表头与表头排序
+
+- **thead**: 半透明浅底 + 下缘 hairline 内阴影
+- **th**: 12px 加粗大写，muted-foreground
+- **可排序 th**: `data-sortable="true"` + `data-sort="asc/desc"`
+- **排序图标**: `.neu-th-sort` 按钮 + `.neu-sort-indicator` 包裹的 `ChevronUp/ChevronDown/ChevronsUpDown`
+
+### 关键 CSS 类名
+
+| 类名 | 用途 |
+|------|------|
+| `.neu-table-card` | 表格卡片外壳——透明毛玻璃 + 方向性双影 |
+| `.neu-table` | 表格基类——`border-collapse` + 14px |
+| `.neu-table-card-header` | 工具栏区——底部 1px hairline 分割 |
+| `.neu-table-card-footer` | 分页区——顶部 1px hairline 分割 |
+| `.neu-th-sort` | 排序表头按钮——透明底 + inline-flex |
+| `.neu-sort-indicator` | 排序图标容器 |
+| `.neu-checkbox` | 表格 checkbox——22px 圆形内凹 + checked 品牌蓝 + indeterminate 状态 |
+| `.neu-batch-bar` | 批量操作浮条——玻璃 + 内高光 + 双影 + 滑入动画 |
+| `.neu-tab-bar` | 内凹 tab 容器——inset 双影 + 圆角 14px |
+| `.neu-tab` | 单个 tab 按钮——凸起 + hover 抬升 + `.is-active` 内凹 |
+| `.neu-tab-count` | tab 右上角数字徽章 |
+
+### 反模式（表格专项）
+
+| 错误 | 正确 |
+|------|------|
+| `<table className="w-full border">` | `<table className="neu-table w-full">` |
+| `<tr className="bg-blue-50">` 标记选中 | `<tr data-selected="true">` |
+| `border-b border-gray-200` 行分割 | td 自带 `border-top: 1px solid oklch(.../0.06)` |
+| 内联 `style={{ background: ... }}` 行高亮 | 使用 `data-selected` 属性 + CSS 选择器 |
+
+## 状态分段切换（.neu-segment，2026-09-22 收录）
+
+互斥的类型/状态筛选切换。**范本：:3002 信息门户首页公告区与「全部公告」页**；同款已覆盖 :3005（公告发布中心/通知管理/供应商库/项目管理）、:3004（shared.css 跨页单源，六处）、:3006（登录角色切换/评审项目筛选）。内凹轨道 + 滑动纯白拇指——拇指是轨道上唯一凸起物。
+
+### 结构
+
+```tsx
+{/* 工具行容器——flex 包裹（.neu-segment 是 grid，裸放 block 父级会拉满整行） */}
+<div className="flex flex-wrap items-center gap-4">
+  <div
+    className="neu-segment"
+    role="group"
+    aria-label="公告类型"
+    data-count="8"                                    {/* 声明段数（默认 2），支持 2/3/5/6/7/8 */}
+    data-index={String(tabs.findIndex(t => t.key === active))}
+  >
+    <span className="neu-segment-thumb" aria-hidden="true" />
+    {tabs.map(t => (
+      <button type="button" className="neu-segment-btn" aria-pressed={t.key === active} onClick={() => setActive(t.key)}>
+        {t.label}
+        {t.count > 0 && <span className="neu-segment-count">{t.count}</span>}
+      </button>
+    ))}
+  </div>
+  {/* 同行右侧可放：搜索（固定 280px）/ 筛选下拉 / 操作按钮组（ml-auto） */}
+</div>
+```
+
+### 放置原则（2026-09-22 评审裁定）
+
+1. **hero 下方独立工具行**——严禁嵌入 page-hero 标题卡内部（hero 只承载标题 + KPI/搜索行）。
+2. **必须置于页面底色（oklch 0.975 一类）或非白瓷表面**。轨道为半透明白 `oklch(1 0 0/0.45)`，放在白瓷 hero 渐变底上对比度被洗掉，视觉上等于样式失效。
+3. 外层必须 **flex 包裹**，否则 grid 轨道拉满整行（2026-09-22 :3006 实测 1408px 全宽教训）。
+
+### 驱动方式
+
+- 容器 `data-count` 声明段数、`data-index` 驱动拇指位移——`translate` 为拇指自身宽度百分比，天然按段数缩放，无需逐段写死几何。
+- 按钮 `aria-pressed` 驱动文字态（选中染 accent + 加粗）；计数用 `.neu-segment-count` 徽标（选中态自动染 accent）。
+- reduced-motion：拇指滑动过渡禁用（各门户规格内已内置）。
+
+### 与 .neu-tab-bar 的分工边界
+
+| 场景 | 用 |
+|------|-----|
+| 互斥的类型/状态**筛选**（公告类型、供应商状态、通知业务域、进行中/已完成） | `.neu-segment` |
+| 同页多**视图**切换（账号管理三类视图、表格卡内 tab 组） | `.neu-tab-bar` + `.neu-tab` |
+| 采购文件编写类「模板类型」散开瓷片切换 | TenderTypeSwitcher 瓷片（另一语言，勿混用） |
+
+完整 CSS 规格见 `references/component-specs.md`「状态分段切换」节。
+
+## 侧边栏（AppShell Sidebar，2026-09-18 定版）
+
+门户左侧导航栏的统一规范，**此后侧栏设计以此为准**。类名源 `apps/web/src/app/globals.css`（搜 `sidebar-card`），结构源 `apps/web/src/components/app-shell.tsx`；其他门户需要侧栏时照此实现。
+
+### 设计原则
+
+1. **质感归容器**：凸起/阴影/毛玻璃只属于 `.sidebar-card` 一层；子项是平面列表（透明底 + 文字）。不做逐项白色凸起胶囊——胶囊阴影墙会毁掉列表的扫描性。
+2. **「当前组」用排版与色彩标记，不用几何线条**：蓝组头标签 → 蓝图标列 → 白底激活项，三层递进。竖向导轨线、组底板等方案已评审否决（见下方反模式）。
+3. **折叠 = icon-rail 二态**（240px 宽态 ⇄ 64px 图标窄栏），不是折叠到 0 消失。
+
+### 容器与折叠
+
+```tsx
+<aside data-mode={rail ? "rail" : "full"} className="sidebar-card ... w-[240px] ... rounded-[24px]">
+  {/* 品牌区（orb + 品牌字）→ hairline → nav（flex-1 滚动）→ hairline → 底部固定折叠区 */}
+</aside>
+```
+
+- **容器**：近实心亮白渐变 `oklch(1 0 0/0.97) → oklch(0.998 0.003 250/0.93) → oklch(0.995 0.005 248/0.87)` + 亮蓝调描边 `oklch(0.78 0.05 250/0.5)` + 方向性双影 + 顶缘内高光。**透明度低于 ~0.85 会把灰蓝底色/水彩光晕透出来显黯淡**（2026-09-18 两轮提亮定稿）。
+- **rail 态**（`data-mode="rail"`）：宽 64px；品牌字 `display:none`；分组退化为细分隔线；子项 `justify-content:center; gap:0; padding:0`；label `max-width:0 + opacity:0` 淡出；`title` 属性兜底提示。
+- **底部固定折叠区**：hairline + 图标居中按钮（复用 `.sidebar-nav-item justify-center`，仅图标 + `aria-label`/`title`，≥24px 目标）。禁止 13px 边缘手柄。
+- **状态持久化**：localStorage `app-shell:sidebar-hidden`（`"1"`=rail，沿用旧 key）。
+- **reduced-motion**：宽度/label 过渡降级为瞬时。
+
+### 子项三态与「当前组」标记链
+
+```css
+/* 默认 — 透明融入容器，深灰蓝文字（对比度 ≈8:1） */
+.sidebar-nav-item { color: oklch(0.42 0.032 248); background: transparent; }
+/* hover — 轻蓝染 */
+.sidebar-nav-item:hover { color: var(--foreground); background: var(--accent-tint); }
+/* 选中 — 实白凹陷 + 外投影：内凹双影（顶左暗 0.22/底右亮 0.7）+ 柔和外影 0.12 分离白块与面板 */
+.sidebar-nav-item[data-active="true"] {
+  color: var(--accent-strong);
+  background: oklch(1 0 0);
+  box-shadow:
+    inset 2px 2px 6px oklch(0.55 0.08 250 / 0.22),
+    inset -2px -2px 5px oklch(1 0 0 / 0.7),
+    2px 2px 6px oklch(0.55 0.08 250 / 0.12);
+}
+```
+
+「当前组」（含激活项的分组）标记链——**方案C，用户定版**：
+
+| 层 | 标记 |
+|----|------|
+| 组头标签 | `.sidebar-group-header[data-has-active="true"] span` → `--accent-strong` |
+| 组内全部子项**图标** | 组容器 `div[data-current="true"] .sidebar-nav-item > svg` → `--accent-strong`（文字色不变，`transition: color 0.25s`；rail 态同样分档） |
+| 激活项 | 实白底（`oklch(1 0 0)`）+ 品牌蓝字 + 内凹双影 + 柔和外投影 + `.nav-active-skew` |
+
+组头 11px semibold uppercase tracking 0.08em（与 14px 子项拉开层级）；子项区 `ml-1 pl-1.5` 缩进偏移（rail 态不加，避免图标列偏心）。
+
+### 章节导航瓷砖（.tender-nav-tile，tender-write）——与侧栏选中态同源
+
+文档工作区左侧章节导航的列表瓷砖，三态：
+
+```css
+/* 默认 — 105° 透玻璃小卡片（wb-panel 语言减半透明度），顶缘内高光 */
+.tender-nav-tile {
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.42) 0%, oklch(0.99 0.003 258 / 0.28) 55%, oklch(1 0 0 / 0.14) 88%);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.45);
+}
+/* hover — 透明度上调（0.6/0.42/0.22）+ 高光加深 */
+/* 选中 — 与 AppShell 侧栏选中项同款，两处绑定改一处须同步另一处 */
+.tender-nav-tile.is-active {
+  background: oklch(1 0 0);
+  box-shadow:
+    inset 2px 2px 6px oklch(0.55 0.08 250 / 0.22),
+    inset -2px -2px 5px oklch(1 0 0 / 0.7),
+    2px 2px 6px oklch(0.55 0.08 250 / 0.12);
+}
+```
+
+- 结构（`tender-section-nav.tsx`）：序号芯片（选中染 `--accent` 16% + accent 字）+ 标题 + 进度 `n/m` + 状态 pill（`sectionStateTone` 五态：idle 灰 / completed 绿 / active-complete 蓝 / active-missing 橙 / missing 红）。
+- 选中态的白色由瓷砖承担，蓝色识别交给序号芯片与状态 pill——与侧栏「白底蓝字蓝图标」同一分工原则。
+
+### 反模式（侧栏专项，均已评审否决，勿回潮）
+
+| 反模式 | 否决原因 |
+|--------|---------|
+| 子项白底凸起胶囊（逐项 `background:#fff` + 双影） | 阴影墙，列表失去列表感；质感应留给容器（2026-09-17 定版去凸起） |
+| 竖向导轨线（组面板 `border-l`） | 观感不佳（2026-09-17 用户否决）；`border-white/60` 在近实心白底上也不可见 |
+| 组底板/浅井（当前组整块 accent 染底） | 把「面」加了回来，与扁平语言回摆 |
+| 非当前组文字降权（0.42→0.52） | 整栏默认观感变黯淡，与提亮方向冲突 |
+| 图标井 / 密度聚焦 | 演示页可行但未选用；定版为纯色彩点蓝 |
+| 折叠到 0（宽态↔消失）+ 13px 边缘手柄 | 导航完全消失；手柄低于 WCAG 2.2 AA 24×24 最小目标 |
+| 组头与子项图标重复（UserRound×3 之类） | 图标失去区分信息（工作台 = `House`，不与组头重复） |
+
+## 模态弹窗 / 抽屉
+
+```tsx
+// 背景蒙层
+<div className="fixed inset-0 z-50 flex items-center justify-center">
+  <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={onClose} />
+  <div className="relative w-full max-w-[min(672px,92vw)] max-h-[90vh] overflow-y-auto rounded-[20px] bg-[var(--background)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.12)]" role="dialog">
+    {/* 标题 — 关闭按钮用 neu-btn-xs */}
+    <div className="flex items-start justify-between gap-4 pb-4">
+      <h2 className="text-lg font-semibold">标题</h2>
+      <button onClick={onClose} className="neu-btn-xs"><X size={16} /></button>
+    </div>
+    {/* 表单 — input/select 用 workbench-input; textarea 用 neu-input text-sm */}
+    <div className="space-y-4">
+      <input className="workbench-input" placeholder="..." />
+      <select className="workbench-input">...</select>
+      <textarea className="neu-input text-sm" rows={3} />
+    </div>
+    {/* 分割线 */}
+    <hr className="wb-section-rule" />
+    {/* 按钮 — 统一 38px */}
+    <div className="flex justify-end gap-3">
+      <button className="neu-btn-soft is-danger h-[38px]">删除</button>
+      <button className="neu-btn-soft h-[38px]">取消</button>
+      <button className="neu-btn-primary !h-[38px]">保存</button>
+    </div>
+  </div>
+</div>
+```
+
+**速查：**
+
+| 场景 | 错误 | 正确 |
+|------|------|------|
+| 弹窗外壳 | `bg-white shadow-2xl` | `bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]` |
+| 蒙层 | `bg-white/30` 或 `bg-black/30` | `bg-[var(--background)]/60` |
+| 输入框/下拉 | `rounded-[16px] border border-gray-200 bg-white` | `workbench-input` |
+| 文本框 | 同上 | `neu-input text-sm` |
+| 主按钮 | `rounded-full bg-blue-500` | `neu-btn-primary` |
+| 次要按钮 | `rounded-full border border-gray-200 bg-white` | `neu-btn-soft` |
+| 关闭按钮 | `rounded-full hover:bg-white` | `neu-btn-xs` |
+| 分割线 | `border-t border-gray-200` | `<hr className="wb-section-rule" />` |
+| 保存按钮不齐 | 默认 44px vs 其他 38px | `neu-btn-primary !h-[38px]` |

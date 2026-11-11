@@ -35,6 +35,8 @@ export function useConfirm() {
       <div className="bid-overlay-backdrop" />
       <div className="bid-dialog relative mx-4 w-full max-w-[min(440px,92vw)] px-6 py-5" role="alertdialog" aria-modal="true" aria-label={state.title ?? '确认操作'} onClick={(e) => e.stopPropagation()}>
         <h3 className="text-base font-black text-[color:var(--foreground)]">{state.title ?? '确认操作'}</h3>
+        {/* 头部/内容隔离线（2026-11-11 用户裁定）：壳自带 px-6 内边距，线不加 mx 即与内容区对齐 */}
+        <div className="my-3 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
         <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-[color:var(--muted-foreground)]">{state.message}</p>
         <div className="mt-4 flex justify-end gap-2">
           <button type="button" className="neu-btn-soft !h-8 !text-xs" onClick={() => close(false)}>取消</button>

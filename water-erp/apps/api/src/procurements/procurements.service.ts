@@ -200,7 +200,7 @@ export class ProcurementsService {
       contact: r.createdBy?.displayName ?? r.createdBy?.username ?? '', // 采购联系人 = 项目创建人（用户名称）
       category: r.project.businessCategory ?? '', // 采购类别
       method: r.procurementMethod ?? '', // 采购方式
-      publishForm: r.procurementMethod === '谈判采购' ? '供应商邀请' : '公告公示', // 发布形式：谈判采购=邀请，其余=公告
+      publishForm: ['邀请招标', '直接采购'].includes(r.procurementMethod) ? '供应商邀请' : '公告公示', // 发布形式：谈判采购=邀请，其余=公告
       budgetAmount: n(r.budgetAmount), // 采购预算金额（元）
       awardAmount: n(r.awardAmount), // 采购中标（成交）金额（元）
       procurementDate: d(r.procurementDate), // 采购日期（采购公告日期）
@@ -254,7 +254,7 @@ export class ProcurementsService {
       contact: m.createdBy?.displayName ?? m.createdBy?.username ?? m.requesterName ?? '', // 采购联系人 = 创建人
       category: m.procurementCategory ?? '', // 采购类别
       method: m.procurementMethod ?? '', // 采购方式
-      publishForm: m.procurementMethod === '谈判采购' ? '供应商邀请' : '公告公示', // 发布形式：谈判采购=邀请，其余=公告
+      publishForm: ['邀请招标', '直接采购'].includes(m.procurementMethod) ? '供应商邀请' : '公告公示', // 发布形式：谈判采购=邀请，其余=公告
       budgetAmount: m.budgetAmount === null ? null : Number(m.budgetAmount),
       awardAmount: m.contractAmount === null || m.contractAmount === undefined ? null : Number(m.contractAmount),
       // 采购日期 = 时间轴第三节点：有公告流程→「采购公告发布」；谈判/直接采购→「供应商邀请」

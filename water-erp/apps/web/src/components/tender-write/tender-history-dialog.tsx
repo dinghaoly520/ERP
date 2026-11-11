@@ -71,7 +71,7 @@ export function TenderHistoryDialog({
         className="absolute inset-0 bg-[rgba(242,246,255,0.42)] backdrop-blur-md"
         onClick={onClose}
       />
-      <div className="relative z-10 flex w-full max-w-[min(720px,92vw)] max-h-[80vh] flex-col overflow-hidden rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
+      <div className="relative z-10 flex w-full max-w-[min(720px,92vw)] max-h-[80vh] flex-col overflow-hidden wb-modal-shell">
         <div className="px-6 py-5" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
           <div className="flex items-start justify-between">
             <div>

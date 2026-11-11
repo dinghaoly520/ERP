@@ -142,19 +142,12 @@ export function TypeaheadCombobox({
           <div
             ref={popRef}
             role="listbox"
+            className="exp-combo-panel"
             style={{
               position: 'fixed',
               top: rect.top,
               left: rect.left,
               width: rect.width,
-              zIndex: 700,
-              maxHeight: 240,
-              overflowY: 'auto',
-              borderRadius: 16,
-              padding: '4px 6px 6px',
-              background: 'linear-gradient(145deg, oklch(1 0 0) 0%, oklch(0.965 0.012 258) 100%)',
-              boxShadow:
-                '6px 6px 18px oklch(0.55 0.03 258 / 0.16), -3px -3px 10px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.9)',
             }}
           >
             {rows.map((row, i) => {
@@ -192,18 +185,9 @@ export function TypeaheadCombobox({
                   onClick={() => pick(row.name)}
                   className={`mb-0.5 flex w-full items-center justify-between gap-2 rounded-[10px] px-2.5 py-[7px] text-left text-xs transition-colors ${
                     isCurrent
-                      ? 'font-bold text-[var(--accent)]'
+                      ? 'exp-combo-current font-bold text-[var(--accent)]'
                       : `text-[color:var(--foreground)] ${active ? 'bg-[color-mix(in_oklch,var(--accent)_6%,transparent)]' : ''}`
                   }`}
-                  style={
-                    isCurrent
-                      ? {
-                          background: 'oklch(1 0 0)',
-                          boxShadow:
-                            'inset 0 1px 0 oklch(1 0 0 / 0.95), 2px 2px 6px oklch(0.55 0.03 258 / 0.16), -1px -1px 2px oklch(1 0 0 / 0.9)',
-                        }
-                      : undefined
-                  }
                 >
                   <span className="truncate">{row.name}</span>
                   {isCurrent && <Check size={12} strokeWidth={2.6} className="shrink-0" />}

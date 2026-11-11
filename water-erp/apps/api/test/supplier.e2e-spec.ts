@@ -596,6 +596,13 @@ describe('Supplier (e2e)', () => {
         await prisma.supplierCompanyLink.deleteMany({
           where: { supplierId: sup.id, companyId: { not: sup.companyId ?? '' } },
         });
+        // 登录闸用例兜底：主归属 link 恢复在库（中途断言失败时不锁死种子供应商的后续登录）
+        if (sup.companyId) {
+          await prisma.supplierCompanyLink.updateMany({
+            where: { supplierId: sup.id, companyId: sup.companyId },
+            data: { status: 'APPROVED', reviewStage: null, rejectReason: null },
+          });
+        }
       }
       // C1 终审修复 e2e 夹具：删 User 即级联删 Supplier（onDelete: Cascade）
       if (c1UserId) {
@@ -675,6 +682,155 @@ describe('Supplier (e2e)', () => {
       expect(link).toBeTruthy();
       expect(link.status).toBe('REJECTED');
       expect(link.rejectReason).toBe('e2e 驳回原因');
+    });
+
+    // ── 退库轨（2026-11-10）：申请退库 → 三级审批 → 终态；驳回回库；退光全部 → 登录闸 ──
+
+    /** 状态自愈夹具：确保 B（建设）link 为 APPROVED——REJECTED/WITHDRAWN/无行时走「申请加入+三级通过」
+     *  建立在库态（顺带覆盖 WITHDRAWN 行复用重申路径）；PENDING/LEAVE_PENDING 视为脏态直接抛错。 */
+    const ensureApprovedLinkB = async (): Promise<string> => {
+      const mine = await request(app.getHttpServer())
+        .get('/api/supplier-portal/company-links')
+        .set('Cookie', supplierCookie)
+        .set('X-Portal', 'supplier')
+        .expect(200);
+      const existing = mine.body.find((l: any) => l.companyId === bCompanyId);
+      if (existing?.status === 'APPROVED') return existing.id;
+      if (existing && ['PENDING', 'LEAVE_PENDING'].includes(existing.status)) {
+        throw new Error(`e2e 前置脏态：B link 处于 ${existing.status}`);
+      }
+      const apply = await request(app.getHttpServer())
+        .post('/api/supplier-portal/company-links/apply')
+        .set('Cookie', supplierCookie)
+        .set('X-Portal', 'supplier')
+        .send({ companyName: bCompanyName })
+        .expect(201);
+      for (const [cookie, reason] of [
+        [jsStaffCookie, 'e2e 初审通过'],
+        [jsLeaderCookie, 'e2e 复审通过'],
+      ] as const) {
+        await request(app.getHttpServer())
+          .post(`/api/supplier/company-links/${apply.body.id}/approve`)
+          .set('Cookie', cookie)
+          .set('X-Portal', 'web')
+          .send({ reason })
+          .expect(201);
+      }
+      await request(app.getHttpServer())
+        .post(`/api/supplier/company-links/${apply.body.id}/approve`)
+        .set('Cookie', adminCookie)
+        .set('X-Portal', 'web')
+        .send({})
+        .expect(201);
+      return apply.body.id;
+    };
+
+    it('申请退库 → LEAVE_PENDING → 三级审批（staff→leader→admin）→ 终态 WITHDRAWN', async () => {
+      const linkId = await ensureApprovedLinkB();
+
+      // 1. 申请退库（companyId 直传本人已在库归属）
+      const leave = await request(app.getHttpServer())
+        .post('/api/supplier-portal/company-links/apply-leave')
+        .set('Cookie', supplierCookie)
+        .set('X-Portal', 'supplier')
+        .send({ companyId: bCompanyId, note: 'e2e 退库申请' })
+        .expect(201);
+      expect(leave.body.id).toBe(linkId);
+
+      // 2. 中间态硬断言：LEAVE_PENDING + 初审级
+      const mid = await request(app.getHttpServer())
+        .get('/api/supplier-portal/company-links')
+        .set('Cookie', supplierCookie)
+        .set('X-Portal', 'supplier');
+      const midLink = mid.body.find((l: any) => l.companyId === bCompanyId);
+      expect(midLink.status).toBe('LEAVE_PENDING');
+      expect(midLink.reviewStage).toBe('STAFF');
+
+      // 3. 三级逐级通过（同加入轨：staff/leader 须填同意缘由）
+      await request(app.getHttpServer())
+        .post(`/api/supplier/company-links/${linkId}/approve`)
+        .set('Cookie', jsStaffCookie)
+        .set('X-Portal', 'web')
+        .send({ reason: 'e2e 退库初审通过' })
+        .expect(201);
+      await request(app.getHttpServer())
+        .post(`/api/supplier/company-links/${linkId}/approve`)
+        .set('Cookie', jsLeaderCookie)
+        .set('X-Portal', 'web')
+        .send({ reason: 'e2e 退库复审通过' })
+        .expect(201);
+      const final = await request(app.getHttpServer())
+        .post(`/api/supplier/company-links/${linkId}/approve`)
+        .set('Cookie', adminCookie)
+        .set('X-Portal', 'web')
+        .send({})
+        .expect(201);
+      expect(final.body.stage).toBe('DONE');
+
+      // 4. 终态断言：WITHDRAWN（已退库，可重新申请加入）
+      const mine = await request(app.getHttpServer())
+        .get('/api/supplier-portal/company-links')
+        .set('Cookie', supplierCookie)
+        .set('X-Portal', 'supplier')
+        .expect(200);
+      const link = mine.body.find((l: any) => l.companyId === bCompanyId);
+      expect(link.status).toBe('WITHDRAWN');
+    });
+
+    it('退库驳回：STAFF 级驳回 → 状态回 APPROVED（仍在库）+ 原因留痕', async () => {
+      // WITHDRAWN 行复用重申（上一用例终态）→ 三级通过回 APPROVED，再走退库驳回
+      const linkId = await ensureApprovedLinkB();
+      const leave = await request(app.getHttpServer())
+        .post('/api/supplier-portal/company-links/apply-leave')
+        .set('Cookie', supplierCookie)
+        .set('X-Portal', 'supplier')
+        .send({ companyId: bCompanyId })
+        .expect(201);
+      expect(leave.body.id).toBe(linkId);
+
+      const rej = await request(app.getHttpServer())
+        .post(`/api/supplier/company-links/${linkId}/reject`)
+        .set('Cookie', jsStaffCookie)
+        .set('X-Portal', 'web')
+        .send({ reason: 'e2e 退库驳回：业务未结算' })
+        .expect(201);
+      expect(rej.body.success).toBe(true);
+
+      const mine = await request(app.getHttpServer())
+        .get('/api/supplier-portal/company-links')
+        .set('Cookie', supplierCookie)
+        .set('X-Portal', 'supplier')
+        .expect(200);
+      const link = mine.body.find((l: any) => l.companyId === bCompanyId);
+      // 驳回 ≠ 移出：状态回已在库 + 原因可查（门户归属卡「上次退库申请未通过」）
+      expect(link.status).toBe('APPROVED');
+      expect(link.rejectReason).toBe('e2e 退库驳回：业务未结算');
+    });
+
+    it('退光全部归属 → 登录闸 SUPPLIER_NO_COMPANY（2026-11-10 用户裁定）', async () => {
+      // 直改库把该供应商全部 link 置终态退出（状态流转本身已由前两用例覆盖，此处专测登录闸）
+      await prisma.supplierCompanyLink.updateMany({
+        where: { supplierId: sup.id },
+        data: { status: 'WITHDRAWN', reviewStage: null },
+      });
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .set('X-Portal', 'supplier')
+        .send({ username: '重庆蜀通岩土工程有限公司', password: 'supplier@2026' })
+        .expect(401);
+      expect(res.body.code).toBe('SUPPLIER_NO_COMPANY');
+
+      // 恢复主归属在库态（种子供应商为后续用例/套件服务；afterAll 另有兜底）
+      await prisma.supplierCompanyLink.update({
+        where: { supplierId_companyId: { supplierId: sup.id, companyId: sup.companyId! } },
+        data: { status: 'APPROVED', reviewStage: null, rejectReason: null },
+      });
+      const restored = await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .set('X-Portal', 'supplier')
+        .send({ username: '重庆蜀通岩土工程有限公司', password: 'supplier@2026' })
+        .expect(200);
+      expect(restored.headers['set-cookie']).toBeTruthy();
     });
 
     it('注册查重引导：他司已入库信用代码注册其他公司 → ACCOUNT_EXISTS_JOIN_INSTEAD', async () => {

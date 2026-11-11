@@ -65,7 +65,7 @@ export function GlobalSearch() {
   return (
     <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh]" onClick={() => setOpen(false)}>
       <div className="absolute inset-0 bg-[rgba(242,246,255,0.55)] backdrop-blur-md" />
-      <div className="relative z-10 w-full max-w-[min(580px,92vw)] rounded-[20px] bg-[var(--background)] shadow-[0_24px_72px_oklch(0.24_0.038_258/0.14)] overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="relative z-10 w-full max-w-[min(580px,92vw)] wb-modal-shell overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-3 px-4 py-3 border-b border-[oklch(0.6_0.04_258/0.12)]">
           {loading ? <Loader2 size={16} className="animate-spin text-[var(--muted-foreground)]" /> : <Search size={16} className="text-[var(--muted-foreground)]" />}
           <input

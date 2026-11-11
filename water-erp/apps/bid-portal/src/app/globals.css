@@ -435,15 +435,26 @@ select.neu-select {
 }
 /* cgzxui port applied — bid dashboard refactor */
 
-/* ── 弹窗外壳 .bid-dialog（cgzxui 模态规范：浮动薄板 + 顶缘内高光 + 环境投影，无外侧框线）── */
+/* ── 弹窗外壳 .bid-dialog（全系统统一弹窗壳 2026-11-11 用户裁定终版：纯白瓷底 + 方向性双影，与 .wb-modal-shell 同配方）── */
 .bid-dialog {
   position: relative;
   border-radius: 20px;
   overflow: hidden;
-  background: var(--background);
+  background: oklch(1 0 0); /* 纯白瓷底（2026-11-11 用户改主意：彩色渐变→纯白瓷色） */
   box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.7),
-    0 20px 60px oklch(0.3 0.05 258 / 0.2);
+    inset 0 1px 0 oklch(1 0 0 / 0.88),
+    3px 4px 16px oklch(0.46 0.07 258 / 0.18),
+    -3px -3px 10px oklch(1 0 0 / 0.94);
+}
+
+/* ── 全系统统一弹窗壳（2026-11-11 用户裁定终版）：纯白瓷底，与 .bid-dialog 同配方 ── */
+.wb-modal-shell {
+  background: oklch(1 0 0); /* 纯白瓷底（2026-11-11 用户改主意：彩色渐变→纯白瓷色） */
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.88),
+    3px 4px 16px oklch(0.46 0.07 258 / 0.18),
+    -3px -3px 10px oklch(1 0 0 / 0.94);
+  border-radius: 20px;
 }
 
 /* ── 弹窗蒙层 .bid-overlay / .bid-overlay-backdrop（亮色蒙层 + 模糊，替代暗色内联 MODAL_OVERLAY_STYLE）── */

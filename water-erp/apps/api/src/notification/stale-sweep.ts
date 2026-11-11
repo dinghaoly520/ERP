@@ -200,11 +200,11 @@ export async function sweepStaleActionableNotifications(prisma: SweepPrisma): Pr
     }
   }
 
-  // ── 3) 供应商加入审批（link 无实体 id：队列整体为空才兜底全清）──
+  // ── 3) 供应商加入/退库审批（link 无实体 id：队列整体为空才兜底全清；退库件同 type 通知，2026-11-10）──
   {
-    const pendingLinks = await prisma.supplierCompanyLink.count({ where: { status: 'PENDING' } });
+    const pendingLinks = await prisma.supplierCompanyLink.count({ where: { status: { in: ['PENDING', 'LEAVE_PENDING'] } } });
     if (pendingLinks === 0) {
-      await resolveAll('SUPPLIER_LINK_PENDING', '加入审批队列已空');
+      await resolveAll('SUPPLIER_LINK_PENDING', '加入/退库审批队列已空');
     }
   }
 

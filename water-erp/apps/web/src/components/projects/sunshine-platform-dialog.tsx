@@ -73,6 +73,9 @@ export const SUNSHINE_CATEGORY_INTERFACE: Record<AnnouncementCategory, { code: s
   procurement_document: { code: 'SCM0002', name: '招标公告信息' },
   winning_bid: { code: 'SCM0004', name: '中标公示信息' },
   failed_bid: { code: 'SCM0006', name: '终止招标信息' },
+  // 2026-11-11 变更体系：变更/补遗公告共走 SCM0003（changes 集合，round=变更轮次）
+  change_notice: { code: 'SCM0003', name: '变更公告信息' },
+  addendum: { code: 'SCM0003', name: '变更公告信息' },
 };
 
 export type SunshineCandidate = {
@@ -126,6 +129,13 @@ export type SunshinePublishConfig = {
  *  （2026-10-28 抽出）。返回缺失项中文标签清单；空数组=要素齐全，可通过平台侧校验。 */
 export function validateSunshineConfig(config: SunshinePublishConfig, category: AnnouncementCategory): string[] {
   const missingFields: string[] = [];
+  // 变更/补遗公告（SCM0003）必传面窄：发布时间+内容即可（轮次随快照，不走 SCM0001 全字段）
+  if (category === 'change_notice' || category === 'addendum') {
+    const req3 = (label: string, v: string) => { if (!v.trim()) missingFields.push(label); };
+    req3('公告发布时间', config.publishTime);
+    req3('变更内容', config.content);
+    return missingFields;
+  }
   const reqText = (label: string, v: string) => { if (!v.trim()) missingFields.push(label); };
   const reqNum = (label: string, v: number | null) => { if (v == null) missingFields.push(label); };
   reqText('招标计划编码', config.planCode);

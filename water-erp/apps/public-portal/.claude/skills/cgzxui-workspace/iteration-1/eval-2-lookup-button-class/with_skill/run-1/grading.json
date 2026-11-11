@@ -1,0 +1,35 @@
+{
+  "expectations": [
+    {
+      "text": "正确识别容器类名 .announce-view-all",
+      "passed": true,
+      "evidence": "answer.md 第 5 行明确给出容器类 .announce-view-all"
+    },
+    {
+      "text": "正确识别箭头类名 .announce-view-all-arrow",
+      "passed": true,
+      "evidence": "第 6 行 + 第 17 行 JSX 中 className=\"announce-view-all-arrow\""
+    },
+    {
+      "text": "指明箭头方向是 translateX(4px) 右滑",
+      "passed": true,
+      "evidence": "第 70 行 transform: translateX(4px)，并说明符合查看全部的语义方向"
+    },
+    {
+      "text": "提供可直接复制的 JSX 片段",
+      "passed": true,
+      "evidence": "第 12-22 行完整 JSX（a 标签 + SVG 双 path 箭头）"
+    },
+    {
+      "text": "说明默认背景色 #f4f7fc",
+      "passed": true,
+      "evidence": "第 35 行 background: #f4f7fc"
+    }
+  ],
+  "summary": {
+    "pass_rate": 1.0,
+    "passed": 5,
+    "failed": 0,
+    "total": 5
+  }
+}

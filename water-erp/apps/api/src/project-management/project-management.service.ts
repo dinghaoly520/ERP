@@ -149,8 +149,8 @@ const METHOD_STAGE_TEMPLATES: Record<string, Array<{ key: string; label: string 
   谈判采购: [
     { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
     { key: 'INITIATION', label: '采购立项' },
-    { key: 'TENDER_DOCUMENT', label: '采购文件' },
-    { key: 'SUPPLIER_INVITATION', label: '供应商邀请' },
+    { key: 'TENDER_DOCUMENT', label: '谈判文件' },
+    { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示' },
     { key: 'EXPERT_SELECTION', label: '专家选取' },
     { key: 'BID_EVALUATION', label: '开标评标' },
     { key: 'AWARD_DECISION', label: '定标' },
@@ -170,7 +170,7 @@ const METHOD_STAGE_TEMPLATES: Record<string, Array<{ key: string; label: string 
     { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
     { key: 'INITIATION', label: '采购立项' },
     { key: 'TENDER_DOCUMENT', label: '采购文件' },
-    { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示(供应商邀请)' },
+    { key: 'SUPPLIER_INVITATION', label: '供应商邀请' },
     { key: 'EXPERT_SELECTION', label: '专家选取' },
     { key: 'BID_EVALUATION', label: '开标评标' },
     { key: 'AWARD_DECISION', label: '定标' },
@@ -182,7 +182,7 @@ const METHOD_STAGE_TEMPLATES: Record<string, Array<{ key: string; label: string 
     { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
     { key: 'INITIATION', label: '采购立项' },
     { key: 'TENDER_DOCUMENT', label: '招标文件' },
-    { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示' },
+    { key: 'SUPPLIER_INVITATION', label: '供应商邀请' },
     { key: 'EXPERT_SELECTION', label: '专家抽取' },
     { key: 'BID_EVALUATION', label: '开标评标' },
     { key: 'AWARD_DECISION', label: '定标' },
@@ -879,7 +879,7 @@ export class ProjectManagementService {
    * 从已上传的采购文件重新提取 projectOverview / bidOpeningTime / documentAcquireTime。
    * 用于上传时解析失败、用户手动触发重新提取的场景。
    */
-  async extractTenderFields(itemId: string, field?: string) {
+  async extractTenderFields(itemId: string, field?: string, dryRun = false) {
     // 提前获取采购方式，用于适配不同采购方式的提取逻辑
     const itemMeta = await this.prisma.projectManagementItem.findUnique({
       where: { id: itemId },
@@ -969,7 +969,8 @@ export class ProjectManagementService {
     // 在开标评标完成前恒空——合法写入时点 = 评标结果回写/定标审批表/中标通知书/合同附件。
     // 公告向导的「核对供应商」继续走 checkSupplierChange（只读提取，不写库）。
 
-    if (Object.keys(updateData).length > 0) {
+    // dryRun（2026-11-11 变更体系）：只返回提取值不落库——变更弹窗 AI 预填用，登记时统一留痕
+    if (!dryRun && Object.keys(updateData).length > 0) {
       await this.prisma.projectManagementItem.update({ where: { id: itemId }, data: updateData });
       // 开标时间一致性（2026-11-09 用户裁定）：AI 提取落库后同步当前轮开标前 BidProject
       if (updateData.bidOpeningTime) {
@@ -988,7 +989,7 @@ export class ProjectManagementService {
    * deadline 落兜底 now+24h，时间轴错乱），未开标前回填修正；已进入 OPENING 及之后不回写——
    * 开标时间是已执行的过程事实（延时开标等流程拥有权威），基本信息修改不追溯。失败不阻断主流程。
    */
-  private async syncBidProjectOpeningFromPmi(projectId: string, bidOpeningTime: string) {
+  async syncBidProjectOpeningFromPmi(projectId: string, bidOpeningTime: string) {
     try {
       const parsed = parseBidOpeningTime(bidOpeningTime);
       if (!parsed) return;
@@ -1237,8 +1238,19 @@ ${shortlist}
 
     // Determine stages based on procurement method, then adjust for uploaded documents
     const isSmallPurchase = dto.procurementMethod === '小额采购';
-    const hasDemand = !!(dto.hasProcurementDemand && dto.demandAttachment);
-    const hasInitiation = !!dto.initiationAttachment;
+    // 多文件归一（2026-11-11 用户裁定：需求/立项支持多文件上传识别）——数组优先，单数字段向后兼容
+    const demandAtts = dto.demandAttachments?.length
+      ? dto.demandAttachments
+      : dto.demandAttachment
+        ? [dto.demandAttachment]
+        : [];
+    const initiationAtts = dto.initiationAttachments?.length
+      ? dto.initiationAttachments
+      : dto.initiationAttachment
+        ? [dto.initiationAttachment]
+        : [];
+    const hasDemand = !!(dto.hasProcurementDemand && demandAtts.length > 0);
+    const hasInitiation = initiationAtts.length > 0;
 
     type StageKey = typeof PROJECT_WORKFLOW_STAGES[number]['key'];
 
@@ -1399,18 +1411,18 @@ ${shortlist}
             data: { completedAt: new Date() },
           });
 
-          // Save demand attachment
-          await tx.attachment.create({
-            data: {
+          // Save demand attachments（多文件逐份挂到需求阶段）
+          await tx.attachment.createMany({
+            data: demandAtts.map((a) => ({
               projectManagementItemId: project.id,
               projectManagementStageId: demandStage.id,
               attachmentType: 'SUPPORTING_MATERIAL',
-              fileName: dto.demandAttachment!.fileName,
-              objectKey: dto.demandAttachment!.objectKey,
-              mimeType: dto.demandAttachment!.mimeType,
-              fileSize: dto.demandAttachment!.fileSize,
-              uploadedById: dto.demandAttachment!.uploadedById,
-            },
+              fileName: a.fileName,
+              objectKey: a.objectKey,
+              mimeType: a.mimeType,
+              fileSize: a.fileSize,
+              uploadedById: a.uploadedById,
+            })),
           });
         }
       }
@@ -1426,18 +1438,18 @@ ${shortlist}
             data: { completedAt: new Date() },
           });
 
-          // Save initiation attachment
-          await tx.attachment.create({
-            data: {
+          // Save initiation attachments（多文件逐份挂到立项阶段）
+          await tx.attachment.createMany({
+            data: initiationAtts.map((a) => ({
               projectManagementItemId: project.id,
               projectManagementStageId: initiationStage.id,
               attachmentType: 'SUPPORTING_MATERIAL',
-              fileName: dto.initiationAttachment!.fileName,
-              objectKey: dto.initiationAttachment!.objectKey,
-              mimeType: dto.initiationAttachment!.mimeType,
-              fileSize: dto.initiationAttachment!.fileSize,
-              uploadedById: dto.initiationAttachment!.uploadedById,
-            },
+              fileName: a.fileName,
+              objectKey: a.objectKey,
+              mimeType: a.mimeType,
+              fileSize: a.fileSize,
+              uploadedById: a.uploadedById,
+            })),
           });
         }
       }
@@ -4388,6 +4400,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
   async updateExtractedInfo(
     projectId: string,
     dto: {
+      internal?: boolean; // 服务端内部链路标志（变更服务/批量建档等）；HTTP 人工 PATCH 不带 → 闸下拦截
       title?: string;
       initiationDate?: string;
       evaluationMethod?: string;
@@ -4418,6 +4431,24 @@ ${JSON.stringify(algorithmResult, null, 2)}
       riskMeasures?: string;
     },
   ) {
+    // 人工编辑唯一入口闸（2026-11-11 变更体系 spec §2）：HTTP 人工 PATCH 一律走「变更 / 补遗」
+    // 登记留痕；internal=true 仅供服务端内部链路（变更服务/批量建档）。AI 批量提取走
+    // extractTenderFields 等独立端点，不经此方法，不受影响。
+    // 例外放行（2026-11-11 用户裁定）：供应商/专家名单字段——AI 识别可能不准需随时人工
+    // 维护，不走变更留痕；仅当 payload 纯名单字段时直改，混入其他字段仍拦。
+    const rosterOnly = (() => {
+      const ROSTER = new Set(['expertInfo', 'biddingUnits', 'invitedSuppliers']);
+      const provided = Object.keys(dto).filter(
+        (k) => k !== 'internal' && (dto as Record<string, unknown>)[k] !== undefined,
+      );
+      return provided.length > 0 && provided.every((k) => ROSTER.has(k));
+    })();
+    if (dto.internal !== true && !rosterOnly) {
+      throw new BadRequestException({
+        error: '项目基本信息修改请通过项目标题栏「变更 / 补遗」',
+        code: 'CHANGE_ONLY',
+      });
+    }
     await this.assertPmiMutable(projectId);
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
@@ -4428,6 +4459,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
 
     const updateData: Record<string, unknown> = {};
+
 
     if (dto.title !== undefined) {
       updateData.title = dto.title || null;

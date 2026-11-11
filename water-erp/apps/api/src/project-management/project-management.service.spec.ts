@@ -430,6 +430,7 @@ describe('ProjectManagementService', () => {
       },
       attachment: {
         create: jest.fn(),
+        createMany: jest.fn().mockResolvedValue({ count: 0 }),
         findMany: jest.fn(),
         findUnique: jest.fn(),
         delete: jest.fn(),
@@ -2086,7 +2087,7 @@ describe('reproc 流标重启（2026-10-23 统一流 spec）', () => {
 
     const created = prisma.projectManagementStage.createMany.mock.calls[0][0].data;
     expect(created.map((s: any) => s.stageKey)).toEqual([
-      'PROCUREMENT_DEMAND', 'INITIATION', 'TENDER_DOCUMENT', 'SUPPLIER_INVITATION', 'EXPERT_SELECTION', 'BID_EVALUATION', 'AWARD_DECISION', 'CONTRACT',
+      'PROCUREMENT_DEMAND', 'INITIATION', 'TENDER_DOCUMENT', 'PUBLIC_ANNOUNCEMENT', 'EXPERT_SELECTION', 'BID_EVALUATION', 'AWARD_DECISION', 'CONTRACT',
     ]);
     expect(prisma.projectManagementItem.update.mock.calls[0][0].data).toEqual(
       expect.objectContaining({ procurementMethod: '谈判采购', currentStage: 'PROCUREMENT_DEMAND', currentRound: 2 }),
@@ -2268,6 +2269,75 @@ describe('跳过建项待补充（2026-11-09 用户裁定）', () => {
     );
     expect(prisma.projectManagementItem.update).not.toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ currentStage: expect.anything() }) }),
+    );
+  });
+});
+
+describe('多文件建项（2026-11-11 用户裁定：需求/立项多文件上传识别）', () => {
+  const mkAtt = (name: string) => ({
+    fileName: name, objectKey: `uploads/${name}`, mimeType: 'application/pdf', fileSize: 100, uploadedById: 'u1',
+  });
+
+  function mockCreatePath(prisma: any) {
+    prisma.department.upsert.mockResolvedValue({ id: 'dept-01', name: '采购中心' });
+    prisma.projectManagementItem.create.mockResolvedValue({ id: 'pm-m', title: '多文件', currentStage: 'TENDER_DOCUMENT', status: 'ACTIVE' });
+    prisma.projectManagementStage.createMany.mockResolvedValue({ count: 8 });
+    prisma.projectManagementStage.findFirst.mockImplementation(({ where }: any) =>
+      Promise.resolve(where.stageKey ? { id: `st-${where.stageKey}`, stageKey: where.stageKey } : undefined),
+    );
+  }
+
+  it('多附件建项：全部附件逐份挂到对应阶段，双表完成、指针越过', async () => {
+    const { service, prisma } = makeService();
+    mockCreatePath(prisma);
+
+    await service.createFromInitiation({
+      requesterName: '张三', requesterDepartment: '采购中心', procurementTitle: '多文件建项',
+      procurementMethod: '询比采购', procurementCategory: '货物', procurementOrganizationForm: '自行招标',
+      budgetAmount: 10, isAnnualBudget: false, hasProcurementDemand: true,
+      projectReason: '测试', supplierRequirements: '无',
+      demandAttachments: [mkAtt('需求审批文件1.pdf'), mkAtt('调研报告2.pdf')],
+      initiationAttachments: [mkAtt('立项证明1.pdf')],
+    } as never);
+
+    expect(prisma.attachment.createMany).toHaveBeenCalledTimes(2);
+    const demandCall = prisma.attachment.createMany.mock.calls[0][0];
+    expect(demandCall.data).toHaveLength(2);
+    expect(demandCall.data.every((r: any) => r.projectManagementStageId === 'st-PROCUREMENT_DEMAND')).toBe(true);
+    const initiationCall = prisma.attachment.createMany.mock.calls[1][0];
+    expect(initiationCall.data).toHaveLength(1);
+    expect(initiationCall.data[0].projectManagementStageId).toBe('st-INITIATION');
+    // 双表模式：需求/立项均已完成，指针越过到采购文件
+    const rows = prisma.projectManagementStage.createMany.mock.calls[0][0].data as Array<{ stageKey: string; status: string }>;
+    const byKey = Object.fromEntries(rows.map((r) => [r.stageKey, r.status]));
+    expect(byKey['PROCUREMENT_DEMAND']).toBe('COMPLETED');
+    expect(byKey['INITIATION']).toBe('COMPLETED');
+    expect(prisma.projectManagementItem.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ currentStage: 'TENDER_DOCUMENT' }) }),
+    );
+  });
+
+  it('向后兼容：单数附件字段仍生效（数组未传时回退单件）', async () => {
+    const { service, prisma } = makeService();
+    mockCreatePath(prisma);
+
+    await service.createFromInitiation({
+      requesterName: '张三', requesterDepartment: '采购中心', procurementTitle: '单件兼容',
+      procurementMethod: '询比采购', procurementCategory: '货物', procurementOrganizationForm: '自行招标',
+      budgetAmount: 10, isAnnualBudget: false, hasProcurementDemand: true,
+      projectReason: '测试', supplierRequirements: '无',
+      demandAttachment: mkAtt('需求审批文件.pdf'),
+    } as never);
+
+    // 仅有需求件：需求完成、立项进行中为当前阶段
+    expect(prisma.attachment.createMany).toHaveBeenCalledTimes(1);
+    expect(prisma.attachment.createMany.mock.calls[0][0].data).toHaveLength(1);
+    const rows = prisma.projectManagementStage.createMany.mock.calls[0][0].data as Array<{ stageKey: string; status: string }>;
+    const byKey = Object.fromEntries(rows.map((r) => [r.stageKey, r.status]));
+    expect(byKey['PROCUREMENT_DEMAND']).toBe('COMPLETED');
+    expect(byKey['INITIATION']).toBe('IN_PROGRESS');
+    expect(prisma.projectManagementItem.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ currentStage: 'INITIATION' }) }),
     );
   });
 });

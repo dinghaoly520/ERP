@@ -28,7 +28,7 @@ export const QUOTATION_TEXT_AI_PROMPT =
 export const TENDER_DOCUMENT_TYPES: TenderDocumentTypeMeta[] = [
   {
     type: "COMPETITIVE_NEGOTIATION",
-    label: "谈判采购",
+    label: "谈判文件",
     availability: "ready",
     description: "技术复杂或不能确定详细规格的项目，通过多轮谈判择优确定成交供应商。",
   },

@@ -18,7 +18,7 @@ interface ExpPinDialogProps {
 
 /**
  * 证书口令弹窗（A-152 专家软证书/U盾解锁）——结构克隆 ConfirmDialog
- * （createPortal + .exp-dialog + Esc/遮罩关闭 + body 滚动锁），差异点：
+ * （createPortal + .wb-modal-shell + Esc/遮罩关闭 + body 滚动锁），差异点：
  * - `neu-input` type=password + Enter 提交、打开自动聚焦输入框
  * - busy 期间 Esc/遮罩/取消均不关（口令已提交，流程进行中）
  */
@@ -66,7 +66,7 @@ export function ExpPinDialog({
         onClick={() => { if (!busy) onCloseRef.current(); }}
       />
       <div
-        className="exp-dialog relative w-full max-w-sm p-5"
+        className="wb-modal-shell relative overflow-hidden w-full max-w-sm p-5"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-start gap-3">
@@ -80,6 +80,9 @@ export function ExpPinDialog({
             )}
           </div>
         </div>
+
+        {/* 头部/内容隔离线（2026-11-11 用户裁定）：hairline，与内容区同缩进（壳 p-5） */}
+        <div className="mx-5 mt-4 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
 
         <input
           ref={inputRef}

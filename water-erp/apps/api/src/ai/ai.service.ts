@@ -43,6 +43,14 @@ import { openPiiForMask } from '../common/crypto/sm-field-crypto';
  *  硬校验在 generateTenderFieldContent；前端 templates.ts 的 aiPrompt 是软约束（首次即合规引导）。 */
 const TENDER_NUMERIC_AMOUNT_FIELDS = new Set(['responseDepositAmount', 'performanceDepositAmount']);
 
+/** 采购文件长文字段（分级编号长文，2026-11-11 用户裁定延长响应）：商务要求/技术要求
+ *  （采购需求章节）与特定资格要求——单次生成量大、叠加思维链墙钟长，默认
+ *  180s/16384 常被掐成「AI 响应超时」。预算与超时成对提升（llm.service 铁律：
+ *  升顶须与 timeoutMs 成对，勿单方面调高）；web 代理侧同端点开 330s 特慢档。
+ *  内层 retries 压到 1：外层 generateTenderFieldContent 已有 3 次重试，叠乘会超代理窗口 */
+const TENDER_LONG_TEXT_FIELDS = new Set(['businessRequirements', 'technicalRequirements', 'qualificationRequirements']);
+const TENDER_LONG_TEXT_LLM_OPTIONS = { maxTokens: 32_768, timeoutMs: 300_000, retries: 1 };
+
 @Injectable()
 export class AiService {
   constructor(
@@ -2576,6 +2584,8 @@ stageMatch 字段需要输出两部分判断结果：
     aiPrompt?: string; context?: any;
   }) {
     const isNumericAmountField = TENDER_NUMERIC_AMOUNT_FIELDS.has(payload.fieldKey);
+    // 长文字段走加档预算/超时（chatJson 全参签名：temperature/signal/seed 占位后传 options）
+    const isLongTextField = TENDER_LONG_TEXT_FIELDS.has(payload.fieldKey);
     const systemPrompt =
       `你是招标/采购文件编写专家。默认以采购方（招标方）立场行文，向供应商提出要求、规范其投标与报价行为；` +
       `若字段要求中明确指定以供应商口吻填写（如供应商填报的报价清单），则按该字段指定口吻生成。` +
@@ -2596,7 +2606,9 @@ stageMatch 字段需要输出两部分判断结果：
     let nonNumericCount = 0;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const result = await this.llm.chatJson<{ content: string }>(systemPrompt, userPrompt);
+        const result = isLongTextField
+          ? await this.llm.chatJson<{ content: string }>(systemPrompt, userPrompt, 0, undefined, undefined, TENDER_LONG_TEXT_LLM_OPTIONS)
+          : await this.llm.chatJson<{ content: string }>(systemPrompt, userPrompt);
         const content = await this.sanitizeAiText((result.content || '').trim());
         if (isNumericAmountField) {
           // 金额字段：纯数字全匹配才算成功——「50,000元」规整为 50000；

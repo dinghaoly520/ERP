@@ -14,6 +14,11 @@ const AUTH_COOKIE_NAME = 'token_web';
 // 注意：大文件下载经此代理整包缓冲（dev 可接受；生产走域名/直连轨道）。
 const UPSTREAM_TIMEOUT_MS = 15_000;
 const UPSTREAM_TIMEOUT_SLOW_MS = 120_000;
+// 2026-11-11（生产实录「AI生成失败」）：采购文件长文字段（商务要求/技术要求/特定资格
+// 要求）同步生成可达 2-5 分钟——120s 慢路径档先于后端 300s LLM 预算掐断。该端点单列
+// 特慢档 330s（> 后端单次 300s，罩住外层重试的首轮全墙钟）。
+const UPSTREAM_TIMEOUT_LLM_LONG_MS = 330_000;
+const UPSTREAM_LLM_LONG_EXACT = ['/api/ai/tender-field-generate'];
 const TRANSPORT_RETRY_DELAYS_MS = [400, 1_000, 3_000, 8_000];
 /** LLM 慢路径：后端内部另有重试退避，合法耗时可达分钟级。除 /api/ai/* 外还包括
  *  文件导入 AI 识别（解析 PDF/docx + LLM 全字段分析，同步慢路径）——2026-10-30 实录：
@@ -43,6 +48,7 @@ const UPSTREAM_SLOW_PATH_SUFFIXES = ['/attachment-ai-polish'];
 const UPSTREAM_SLOW_PATH_PREFIXES_LARGE_BODY = ['/api/knowledge/'];
 
 function upstreamTimeoutFor(pathname: string): number {
+  if (UPSTREAM_LLM_LONG_EXACT.includes(pathname)) return UPSTREAM_TIMEOUT_LLM_LONG_MS;
   return UPSTREAM_SLOW_PATH_PREFIXES.some((p) => pathname.startsWith(p))
     || UPSTREAM_SLOW_PATH_EXACT.includes(pathname)
     || UPSTREAM_SLOW_PATH_SUFFIXES.some((s) => pathname.endsWith(s))

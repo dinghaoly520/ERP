@@ -1,5 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
 import { SupplierService } from './supplier.service';
+import { SupplierLinkService } from './supplier-link.service';
 
 /** 注册终审通过 upsert APPROVED link（多公司归属 2026-10-16）——三级闭环与库归属同事务一致。 */
 describe('SupplierService.approve — 终审 upsert company link', () => {
@@ -107,14 +108,153 @@ describe('myPendingReviewCount — joins 计数（多公司归属）', () => {
     const r = await svc.myPendingReviewCount({ sub: 'adm', role: 'admin', username: 'a' } as any);
     expect(r).toEqual({ registration: 0, changes: 0, resets: 0, joins: 7 });
     expect(prisma.supplierCompanyLink.count).toHaveBeenCalledTimes(1);
-    // 三批口径锁定在 where 结构上（link.companyId 非空，无「未归属公司」分支）
+    // 三批口径锁定在 where 结构上（link.companyId 非空，无「未归属公司」分支；
+    // 退库轨 2026-11-10：LEAVE_PENDING 一并计入待办）
     const where = (prisma.supplierCompanyLink.count as jest.Mock).mock.calls[0][0].where;
-    expect(where.status).toBe('PENDING');
+    expect(where.status).toEqual({ in: ['PENDING', 'LEAVE_PENDING'] });
     expect(where.AND[0].OR).toEqual([
       { reviewStage: 'ADMIN' },
       { reviewStage: 'LEADER', company: { users: { none: { role: 'leader', isActive: true } } } },
       { reviewStage: 'STAFF', company: { users: { none: { OR: [{ role: 'staff' }, { role: 'leader' }], isActive: true } } } },
     ]);
+  });
+});
+
+/** SupplierLinkService 退库轨（2026-11-10）：申请/审批/驳回的状态机与主归属改挂。 */
+describe('SupplierLinkService — 退库轨状态机', () => {
+  const mkLink = (over: Record<string, any> = {}) => ({
+    id: 'l1', supplierId: 's1', companyId: 'co-b', status: 'APPROVED', reviewStage: null,
+    note: null, rejectReason: null, appliedAt: null,
+    supplier: { id: 's1', name: '甲公司', userId: 'u1', companyId: 'co-b' },
+    company: { name: 'B公司' },
+    ...over,
+  });
+  const mkPrisma = (over: Record<string, any> = {}): any => ({
+    supplier: {
+      findUnique: jest.fn().mockResolvedValue(over.supplier
+        ?? { id: 's1', name: '甲公司', companyId: 'co-a', status: 'APPROVED', isTemporary: false, userId: 'u1' }),
+      update: jest.fn().mockResolvedValue({}),
+    },
+    company: { findUnique: jest.fn().mockResolvedValue({ id: 'co-b', name: 'B公司' }) },
+    user: {
+      findUnique: jest.fn().mockResolvedValue(over.reviewer ?? { id: 'rev', role: 'admin', companyId: null }),
+      findMany: jest.fn().mockResolvedValue([{ id: 'approver-1' }]), // 初审审批人（通知收件人）
+      count: jest.fn().mockResolvedValue(0), // admin 代审判定：公司无在编 staff/leader
+    },
+    auditLog: { create: jest.fn().mockResolvedValue({}) },
+    supplierCompanyLink: {
+      findUnique: jest.fn().mockResolvedValue(over.link ?? null),
+      findFirst: jest.fn().mockResolvedValue(over.nextPrimary ?? null),
+      create: jest.fn().mockResolvedValue({ id: 'l-new' }),
+      update: jest.fn().mockResolvedValue({}),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+    },
+  });
+  const notification: any = { create: jest.fn().mockResolvedValue({}), sendToUser: jest.fn().mockResolvedValue({}) };
+  const newSvc = (prisma: any) => new (SupplierLinkService as any)(prisma, notification, null);
+
+  it('applyLeave：APPROVED → LEAVE_PENDING（初审级起，乐观锁 where status=APPROVED）+ 通知初审审批人', async () => {
+    const prisma = mkPrisma({ link: mkLink() });
+    const svc = newSvc(prisma);
+    const r = await svc.applyLeave('u1', { companyId: 'co-b', note: '业务调整' });
+    expect(r).toEqual({ id: 'l1' });
+    expect(prisma.supplierCompanyLink.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'l1', status: 'APPROVED' },
+      data: expect.objectContaining({ status: 'LEAVE_PENDING', reviewStage: 'STAFF', rejectReason: null }),
+    }));
+    expect(notification.create).toHaveBeenCalledWith(expect.objectContaining({
+      title: expect.stringContaining('退出'),
+    }));
+  });
+
+  it('applyLeave：无行 → LINK_NOT_FOUND；LEAVE_PENDING 再申 → LINK_PENDING_EXISTS；非在库 → INVALID_STATUS', async () => {
+    const svc0 = newSvc(mkPrisma({ link: null }));
+    await expect(svc0.applyLeave('u1', { companyId: 'co-b' })).rejects.toMatchObject({ response: { code: 'LINK_NOT_FOUND' } });
+
+    const svc1 = newSvc(mkPrisma({ link: mkLink({ status: 'LEAVE_PENDING', reviewStage: 'STAFF' }) }));
+    await expect(svc1.applyLeave('u1', { companyId: 'co-b' })).rejects.toMatchObject({ response: { code: 'LINK_PENDING_EXISTS' } });
+
+    const svc2 = newSvc(mkPrisma({ link: mkLink({ status: 'DISABLED' }) }));
+    await expect(svc2.applyLeave('u1', { companyId: 'co-b' })).rejects.toMatchObject({ response: { code: 'INVALID_STATUS' } });
+  });
+
+  it('applyLeave：乐观锁兜底——findUnique 与 updateMany 间隙状态被并发变更（count=0）→ INVALID_STATUS', async () => {
+    const prisma = mkPrisma({ link: mkLink() });
+    prisma.supplierCompanyLink.updateMany.mockResolvedValue({ count: 0 }); // 并发：他请求先改走该行
+    notification.create.mockClear(); // describe 级共享 mock，清掉前序用例调用
+    const svc = newSvc(prisma);
+    await expect(svc.applyLeave('u1', { companyId: 'co-b' })).rejects.toMatchObject({
+      response: { code: 'INVALID_STATUS', error: expect.stringContaining('刷新') },
+    });
+    // 状态被并发吃掉后不得再发审批通知
+    expect(notification.create).not.toHaveBeenCalled();
+  });
+
+  it('apply（加入）：WITHDRAWN 行复用 → PENDING 重走三级（退库后重新加入路径）', async () => {
+    const prisma = mkPrisma({ link: mkLink({ status: 'WITHDRAWN' }) });
+    const svc = newSvc(prisma);
+    const r = await svc.apply('u1', { companyName: 'B公司' });
+    expect(r).toEqual({ id: 'l1' });
+    expect(prisma.supplierCompanyLink.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'l1' },
+      data: expect.objectContaining({ status: 'PENDING', reviewStage: 'STAFF' }),
+    }));
+  });
+
+  it('rejectLink（退库驳回）：状态回 APPROVED、reviewStage 清空、通知「仍在库」', async () => {
+    const prisma = mkPrisma({ link: mkLink({ status: 'LEAVE_PENDING', reviewStage: 'STAFF' }) });
+    const svc = newSvc(prisma);
+    await svc.rejectLink('l1', 'rev', '业务未结算');
+    expect(prisma.supplierCompanyLink.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'l1', status: 'LEAVE_PENDING', reviewStage: 'STAFF' },
+      data: expect.objectContaining({ status: 'APPROVED', reviewStage: null, rejectReason: '业务未结算' }),
+    }));
+    expect(notification.create).toHaveBeenCalledWith(expect.objectContaining({
+      content: expect.stringContaining('仍在其供应商库中'),
+    }));
+  });
+
+  it('approveLink（退库终审）：→ WITHDRAWN；退主归属 → 主归属改挂其他在库公司', async () => {
+    const nextPrimary = { companyId: 'co-c', company: { name: 'C公司' } };
+    // supplier.companyId=co-b（=link.companyId，主归属被退）
+    const prisma = mkPrisma({
+      link: mkLink({ status: 'LEAVE_PENDING', reviewStage: 'ADMIN' }),
+      supplier: { id: 's1', name: '甲公司', companyId: 'co-b', status: 'APPROVED', isTemporary: false, userId: 'u1' },
+      nextPrimary,
+    });
+    const svc = newSvc(prisma);
+    const r = await svc.approveLink('l1', 'rev');
+    expect(r).toEqual({ success: true, stage: 'DONE' });
+    expect(prisma.supplierCompanyLink.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'WITHDRAWN', reviewStage: null }),
+    }));
+    expect(prisma.supplier.update).toHaveBeenCalledWith({
+      where: { id: 's1' },
+      data: { companyId: 'co-c', companyName: 'C公司' },
+    });
+  });
+
+  it('approveLink（退库终审）：退非主归属 → 不动 supplier（主归属保持）；无其他在库 → 置空', async () => {
+    // link 内嵌 supplier.companyId=co-a ≠ link.companyId=co-b → 不触发改挂（判定源=include 的 link.supplier）
+    const prisma = mkPrisma({
+      link: mkLink({ status: 'LEAVE_PENDING', reviewStage: 'ADMIN', supplier: { id: 's1', name: '甲公司', userId: 'u1', companyId: 'co-a' } }),
+      nextPrimary: null,
+    });
+    const svc = newSvc(prisma);
+    await svc.approveLink('l1', 'rev');
+    expect(prisma.supplier.update).not.toHaveBeenCalled();
+
+    // 主归属被退且无其他在库 → companyId/companyName 置空（零归属账号由登录闸兜底）
+    const prisma2 = mkPrisma({
+      link: mkLink({ status: 'LEAVE_PENDING', reviewStage: 'ADMIN' }),
+      supplier: { id: 's1', name: '甲公司', companyId: 'co-b', status: 'APPROVED', isTemporary: false, userId: 'u1' },
+      nextPrimary: null,
+    });
+    await newSvc(prisma2).approveLink('l1', 'rev');
+    expect(prisma2.supplier.update).toHaveBeenCalledWith({
+      where: { id: 's1' },
+      data: { companyId: null, companyName: null },
+    });
   });
 });
 

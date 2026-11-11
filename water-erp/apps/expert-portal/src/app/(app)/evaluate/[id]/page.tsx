@@ -1475,11 +1475,13 @@ export default function ExpertEvaluatePage() {
       {showClarifications && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={() => setShowClarifications(false)} />
-          <div className="exp-dialog relative flex max-h-[90vh] min-h-[50vh] w-full max-w-3xl flex-col space-y-3 p-5" role="dialog" aria-modal="true" aria-label="澄清与答疑">
+          <div className="wb-modal-shell relative overflow-hidden flex max-h-[90vh] min-h-[50vh] w-full max-w-3xl flex-col space-y-3 p-5" role="dialog" aria-modal="true" aria-label="澄清与答疑">
           <div className="flex items-center justify-between">
             <h3 className="flex items-center gap-1.5 text-sm font-bold text-[var(--foreground)]"><MessageSquare size={14} strokeWidth={1.5} />澄清与答疑</h3>
             <button onClick={() => setShowClarifications(false)} aria-label="关闭" className="neu-btn-xs is-square"><X size={14} strokeWidth={1.5} /></button>
           </div>
+          {/* 头部/内容隔离线（2026-11-11 用户裁定）：hairline，与内容区同缩进（壳 p-5） */}
+          <div className="mx-5 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
           {clarifications.length === 0 ? (
             <p className="py-4 text-center text-xs text-[var(--muted-foreground)]">暂无澄清记录</p>
           ) : (
@@ -1539,7 +1541,7 @@ export default function ExpertEvaluatePage() {
       {showMessages && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={() => setShowMessages(false)} />
-          <div className="exp-dialog relative flex max-h-[80vh] min-h-[40vh] w-full max-w-lg flex-col p-0" role="dialog" aria-modal="true" aria-label="开标大厅消息">
+          <div className="wb-modal-shell relative overflow-hidden flex max-h-[80vh] min-h-[40vh] w-full max-w-lg flex-col p-0" role="dialog" aria-modal="true" aria-label="开标大厅消息">
             <div className="flex items-center justify-between px-4 py-2">
               <span className="text-xs text-[var(--muted-foreground)]">按 Esc 或点击遮罩关闭</span>
               <button onClick={() => setShowMessages(false)} aria-label="关闭" className="neu-btn-xs is-square"><X size={14} strokeWidth={1.5} /></button>
@@ -2525,11 +2527,13 @@ export default function ExpertEvaluatePage() {
         {/* ── 工位迁移码弹窗（2026-09-22）：QR + 倒计时 + 领取状态 ── */}
         {transferOpen && transferTicket && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--background)]/60 px-4 backdrop-blur-sm">
-            <div className="neu-card-static w-full max-w-sm p-6 text-center">
+            <div className="wb-modal-shell relative overflow-hidden w-full max-w-sm p-6 text-center">
               <div className="mb-1 flex items-center justify-center gap-2">
                 <Smartphone size={17} strokeWidth={1.5} className="text-[var(--accent-strong)]" />
                 <h3 className="text-sm font-bold text-[var(--foreground)]">迁移到打分平板</h3>
               </div>
+              {/* 头部/内容隔离线（2026-11-11 用户裁定）：hairline，与内容区同缩进（壳 p-6） */}
+              <div className="mx-6 mb-4 mt-3 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
               {transferStatus === 'claimed' ? (
                 <div className="exp-alert exp-alert--success mt-4 flex flex-col items-center gap-2 !p-4">
                   <CheckCircle size={26} strokeWidth={1.5} />

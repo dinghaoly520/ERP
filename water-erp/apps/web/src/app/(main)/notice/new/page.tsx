@@ -13,7 +13,6 @@ import { UploadProgressRow } from '@/components/upload/upload-progress-row';
 import { Upload, PlusCircle, Save, Send, FolderKanban, Megaphone, Search, X } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { useConfirm } from '@/components/workbench/use-confirm';
-import { ANNOUNCEMENT_TYPE_ORDER, announcementTypeGroupIndex } from '@water-erp/shared';
 import { PublishConfigSection, DEFAULT_PUBLISH_CONFIG, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
 import { Modal } from '@/components/workbench';
 import { fetchProjectManagementList, fetchPmBidProjectRefs } from '@/lib/api/project-management';
@@ -27,12 +26,18 @@ import { fetchCurrentUser } from '@/lib/api/auth';
  *  在项目管理中随流程进行制作和发布，均不在此创建（2026-11-06 文案口径）。
  *  2026-10-16 用户裁定：中标公告（PRE_WIN_NOTICE）、成交公告（WIN_NOTICE）、合同公告（CONTRACT_NOTICE）、
  *  履行结果公告（PERFORMANCE_NOTICE）同样收归项目向导（announcement-publish-wizard）
- *  生成——此四类不再提供手工创建入口。 */
+ *  生成——此四类不再提供手工创建入口。
+ *  2026-11-11 用户裁定：补遗公告（ADDENDUM，经项目变更登记后由变更流程发布）、
+ *  资格预审公告（PREQUAL_NOTICE）不再提供手工创建入口——类型联合/字段表保留，
+ *  供 notice/[id] 编辑既有公告与项目变更补遗链路使用。 */
 type NoticeType =
   | 'ADDENDUM'
   | 'PREQUAL_NOTICE'
   | 'POLICY'
   | 'PLATFORM';
+
+/** 本页类型选择器实际开放的类型（2026-11-11） */
+const CREATABLE_TYPES: NoticeType[] = ['POLICY', 'PLATFORM'];
 
 const typeLabel: Record<NoticeType, string> = {
   ADDENDUM: '补遗公告', PREQUAL_NOTICE: '资格预审公告', POLICY: '政策法规', PLATFORM: '平台通知',
@@ -388,11 +393,8 @@ export default function NewNoticePage() {
             <Step n={1} />信息类型
           </legend>
           <div className="neu-tab-bar">
-            {(Object.keys(typeLabel) as NoticeType[]).sort((a, b) => ANNOUNCEMENT_TYPE_ORDER.indexOf(a) - ANNOUNCEMENT_TYPE_ORDER.indexOf(b)).map((t, i, arr) => (
+            {CREATABLE_TYPES.map((t) => (
               <span key={t} className="flex items-center gap-1">
-                {i > 0 && announcementTypeGroupIndex(t) !== announcementTypeGroupIndex(arr[i - 1]) && (
-                  <span className="mx-1.5 h-4 w-px shrink-0 bg-[var(--border)]" aria-hidden="true" />
-                )}
                 <button
                   onClick={() => onTypeChange(t)}
                   className={`neu-tab ${type === t ? 'is-active' : ''}`}
@@ -404,7 +406,7 @@ export default function NewNoticePage() {
             ))}
           </div>
           <p className="mt-2 text-[11px] text-[var(--muted-foreground)]">
-            采购公告、流标公告、中标公告在项目管理中随流程进行制作和发布，均不在此处创建。
+            采购公告、流标公告、中标公告在项目管理中随流程进行制作和发布；补遗公告经项目变更登记后由变更流程发布——均不在此处创建。
           </p>
         </fieldset>
 

@@ -121,8 +121,7 @@ export default function AnnouncementDetailPage() {
 
           {/* 公示期满/已下线提示页（2026-10-20 用户裁定）：标题等元信息保留，正文不再显示 */}
           {item.titleOnly && (
-            <div className="mb-6 rounded-2xl px-6 py-10 text-center"
-              style={{ background: 'oklch(0.5 0.16 258 / 0.06)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+            <div className="announce-note-tint mb-6 rounded-2xl px-6 py-10 text-center">
               <div className="text-4xl mb-4">📭</div>
               <p className="text-lg font-bold text-[#18243a] mb-2">
                 {item.offlinedReason === 'PUBLICITY_ENDED' ? '该公告公示期已过，不再显示公示内容' : '该公告已下线'}
@@ -151,8 +150,7 @@ export default function AnnouncementDetailPage() {
                       const labelColor = isCode ? '#064ea2' : isMoney ? '#18a56c' : isDate ? '#f5a623' : '#8a96aa';
                       const valueColor = isCode ? '#064ea2' : isMoney ? '#18a56c' : '#26364e';
                       return (
-                        <span key={f.key} className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5"
-                          style={{ background: 'oklch(1 0 0 / 0.55)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 1px 2px oklch(0.55 0.03 258 / 0.08)' }}>
+                        <span key={f.key} className="announce-meta-chip inline-flex items-center gap-2 rounded-lg px-3 py-1.5">
                           <span className="text-[11px] font-bold tracking-wide" style={{ color: labelColor }}>{f.label}</span>
                           {/* 采购文件下载时间：新公告存区间（downloadPeriod），旧公告止点（downloadDeadline）——区间优先 */}
                           <span className="text-[13px] font-semibold" style={{ color: valueColor }}>{formatMetaValue(f, f.key === 'downloadDeadline' ? (meta.downloadPeriod ?? meta.downloadDeadline) : meta[f.key])}</span>
@@ -162,8 +160,7 @@ export default function AnnouncementDetailPage() {
                   </div>
                 )}
                 {areaFields.map(f => (
-                  <div key={f.key} className="mt-3 rounded-lg px-4 py-3"
-                    style={{ background: 'oklch(0.5 0.16 258 / 0.06)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+                  <div key={f.key} className="announce-note-tint mt-3 rounded-lg px-4 py-3">
                     <span className="text-[11px] font-bold tracking-wide" style={{ color: '#064ea2' }}>{f.label}</span>
                     <p className="mt-1.5 text-[14px] leading-relaxed whitespace-pre-wrap" style={{ color: '#26364e' }}>{meta[f.key]}</p>
                   </div>
@@ -227,8 +224,7 @@ export default function AnnouncementDetailPage() {
             if (!oc) return null;
             const isHtml = /<[a-z][\s\S]*>/i.test(oc);
             return (
-              <div className="mt-8 rounded-2xl px-5 py-4"
-                style={{ background: 'oklch(0.5 0.16 258 / 0.06)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5), inset -1px -1px 3px oklch(0.55 0.03 258 / 0.05)' }}>
+              <div className="announce-note-contact mt-8 rounded-2xl px-5 py-4">
                 <div className="flex items-center gap-2 mb-2">
                   <PhoneCall size={14} style={{ color: '#064ea2' }} />
                   <span className="text-sm font-bold" style={{ color: '#064ea2' }}>异议联系方式</span>

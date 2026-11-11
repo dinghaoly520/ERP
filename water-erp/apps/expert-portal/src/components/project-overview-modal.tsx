@@ -38,7 +38,7 @@ export function ProjectOverviewModal({ data, onClose }: { data: ProjectOverviewD
       role="dialog" aria-modal="true" aria-label="项目概要"
       onKeyDown={(e) => { if (e.key === 'Escape') { onClose(); } }}>
       <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="exp-dialog w-full max-w-md">
+      <div className="wb-modal-shell relative overflow-hidden w-full max-w-md">
         <div className="flex items-center justify-between gap-4 px-6 py-4">
           <div className="flex items-center gap-2">
             <Clock size={16} strokeWidth={1.5} className="text-[var(--accent-strong)]" />

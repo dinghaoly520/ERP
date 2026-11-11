@@ -167,6 +167,17 @@ describe('Opening Hall (e2e)', () => {
       },
     });
     nonMemberSupplierId = nmSupplier.id;
+    // 零归属登录闸（2026-11-10）：供应商须有归属 link 才能登录——夹具补一条在库归属
+    {
+      const company = await prisma.company.upsert({
+        where: { name: 'e2e-开标大厅测试公司' },
+        update: {},
+        create: { name: 'e2e-开标大厅测试公司' },
+      });
+      await prisma.supplierCompanyLink.create({
+        data: { supplierId: nmSupplier.id, companyId: company.id, status: 'APPROVED', appliedAt: new Date() },
+      });
+    }
     nonMemberCookie = await loginAs(app, `e2e-nonmember-${ts0}`, 'e2e@2026', 'supplier');
     expect(nonMemberCookie).toContain('token_supplier=');
 

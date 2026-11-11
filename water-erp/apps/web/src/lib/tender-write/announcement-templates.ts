@@ -38,6 +38,8 @@ export function getAnnouncementLabel(
   }
   if (category === "failed_bid") return "流标公告";
   if (category === "winning_bid") return "中标公告";
+  if (category === "change_notice") return "变更公告";
+  if (category === "addendum") return "补遗公告";
 
   return `${tenderLabel}公告`;
 }
@@ -360,6 +362,44 @@ export const WINNING_BID_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
 
 // ─── 获取字段配置 ───
 
+// ─── 变更/补遗公告 字段配置（2026-11-11 变更体系）——两类共用；轮次/理由/内容
+//     由变更弹窗经 initialDraftPatch 注入，公示期/监督块/落款与流标公告同款 ───
+// ─── 变更公告 字段配置（2026-11-12 拆分：两类各自表单与文案，不再共用）───
+export const CHANGE_NOTICE_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
+  { key: "projectName", label: "项目名称", placeholder: "请输入项目名称", autoFill: "projectName" },
+  { key: "projectCode", label: "项目编号", placeholder: "请输入项目编号" },
+  { key: "changeRound", label: "变更轮次", placeholder: "自动带入，可修改" },
+  { key: "changeReason", label: "变更理由", placeholder: "自动带入，可修改", multiline: true },
+  { key: "changeContent", label: "变更内容", placeholder: "自动带入，可修改", multiline: true },
+  {
+    key: "announcementStart",
+    label: "公示期限",
+    placeholder: "请选择起止时间",
+    type: "datetime-range",
+    rangeEndKey: "announcementEnd",
+  },
+  ...SUPERVISION_ANNOUNCEMENT_FIELDS,
+  { key: "signatureDate", label: "落款日期", placeholder: "选择日期", type: "date" },
+];
+
+// ─── 补遗公告 字段配置：轮次叫补遗轮次、事由/内容为补遗口径 ───
+export const ADDENDUM_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
+  { key: "projectName", label: "项目名称", placeholder: "请输入项目名称", autoFill: "projectName" },
+  { key: "projectCode", label: "项目编号", placeholder: "请输入项目编号" },
+  { key: "changeRound", label: "补遗轮次", placeholder: "自动带入，可修改" },
+  { key: "changeReason", label: "补遗事由", placeholder: "请输入补遗事由", multiline: true },
+  { key: "changeContent", label: "补遗内容", placeholder: "请输入补充说明正文", multiline: true },
+  {
+    key: "announcementStart",
+    label: "公示期限",
+    placeholder: "请选择起止时间",
+    type: "datetime-range",
+    rangeEndKey: "announcementEnd",
+  },
+  ...SUPERVISION_ANNOUNCEMENT_FIELDS,
+  { key: "signatureDate", label: "落款日期", placeholder: "选择日期", type: "date" },
+];
+
 export function getAnnouncementFields(
   tenderType: TenderDocumentType,
   category: AnnouncementCategory,
@@ -376,6 +416,12 @@ export function getAnnouncementFields(
   }
   if (category === "winning_bid") {
     return WINNING_BID_ANNOUNCEMENT_FIELDS;
+  }
+  if (category === "change_notice") {
+    return CHANGE_NOTICE_ANNOUNCEMENT_FIELDS;
+  }
+  if (category === "addendum") {
+    return ADDENDUM_ANNOUNCEMENT_FIELDS;
   }
   return [];
 }

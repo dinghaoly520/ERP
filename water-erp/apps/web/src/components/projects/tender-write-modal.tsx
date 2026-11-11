@@ -1066,12 +1066,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
             onClick={() => setShowReview(false)}
           />
           <div
-            className="relative z-10 mx-5 my-5 flex flex-1 flex-col overflow-hidden rounded-[28px]"
-            style={{
-              background: 'linear-gradient(170deg, oklch(1 0 0 / 0.94), oklch(0.988 0.005 258 / 0.62))',
-              boxShadow:
-                'inset 0 1px 0 oklch(1 0 0 / 0.88), 3px 4px 16px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)',
-            }}
+            className="wb-modal-shell relative z-10 mx-5 my-5 flex flex-1 flex-col overflow-hidden"
           >
             <div
               className="flex shrink-0 items-center justify-between gap-3 px-6 py-4"
@@ -1139,12 +1134,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
             onClick={handleSkipReviewUpload}
           />
           <div
-            className="relative z-10 mx-4 w-full max-w-[380px] rounded-[22px] p-6"
-            style={{
-              background: 'linear-gradient(170deg, oklch(1 0 0 / 0.95), oklch(0.985 0.005 258 / 0.65))',
-              boxShadow:
-                'inset 0 1px 0 oklch(1 0 0 / 0.9), 4px 5px 18px oklch(0.45 0.07 258 / 0.2), -2px -2px 8px oklch(1 0 0 / 0.9)',
-            }}
+            className="wb-modal-shell relative z-10 mx-4 w-full max-w-[380px] p-6"
           >
             <div className="flex items-start justify-between gap-3">
               <h2 className="text-[0.95rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
@@ -1152,6 +1142,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
               </h2>
               <button type="button" onClick={handleSkipReviewUpload} className="neu-btn-xs"><X size={16} /></button>
             </div>
+            <div className="mt-3 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
             <p className="mt-2.5 text-sm leading-[1.6] text-[color:var(--muted-foreground)]">
               是否将审查后的采购文件提交至项目采购文件阶段？提交的文件已包含你在审查中「接受」的全部修改建议。
             </p>
@@ -1195,7 +1186,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       {historyOpen && (
         <div className="fixed inset-0 z-[500] flex items-center justify-center" onClick={() => setHistoryOpen(false)}>
           <div className="absolute inset-0" style={{ background: 'oklch(0.975 0.012 258 / 0.6)', backdropFilter: 'blur(3px)' }} />
-          <div className="relative z-10 mx-5 w-full max-w-[440px] max-h-[70vh] overflow-y-auto rounded-[22px] p-6" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 3px 4px 18px oklch(0.46 0.07 258 / 0.18)' }} onClick={e => e.stopPropagation()}>
+          <div className="wb-modal-shell relative z-10 mx-5 max-h-[70vh] w-full max-w-[440px] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <History size={16} className="text-[var(--accent)]" />
@@ -1204,6 +1195,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
               </div>
               <button type="button" onClick={() => setHistoryOpen(false)} className="neu-btn-xs"><X size={16} /></button>
             </div>
+            <div className="h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
             {historyEntries.length === 0 ? (
               <div className="text-sm text-[color:var(--muted-foreground)] text-center py-8">暂无历史版本，请点击「保存当前」创建第一个版本</div>
             ) : (
@@ -1255,6 +1247,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
               </div>
               <button type="button" onClick={() => setClearConfirmOpen(false)} className="neu-btn-xs"><X size={16} /></button>
             </div>
+            <div className="h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
             <p className="text-sm text-[color:var(--muted-foreground)] mb-4">将清除当前采购文件的所有已填写内容，此操作不可撤销。</p>
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setClearConfirmOpen(false)} className="neu-btn-soft">取消</button>

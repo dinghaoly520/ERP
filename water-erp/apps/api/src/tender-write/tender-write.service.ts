@@ -21,7 +21,8 @@ import {
   buildInvitedBiddingAnnouncementPlan,
   buildInternalBiddingAnnouncementPlan,
   buildSingleSourceAnnouncementPlan,
-  buildFailedBidAnnouncementPlan,
+  buildFailedBidAnnouncementPlan,  buildChangeNoticeAnnouncementPlan,
+  buildAddendumAnnouncementPlan,
   buildWinningBidAnnouncementPlan,
   buildNotificationLetterPlan,
   buildDirectFilingPlan,
@@ -34,7 +35,9 @@ import {
   INTERNAL_BIDDING_ANNOUNCEMENT_TEMPLATE_FILE,
   INQUIRY_PURCHASE_ANNOUNCEMENT_TEMPLATE_FILE,
   SINGLE_SOURCE_ANNOUNCEMENT_TEMPLATE_FILE,
-  FAILED_BID_ANNOUNCEMENT_TEMPLATE_FILE,
+  FAILED_BID_ANNOUNCEMENT_TEMPLATE_FILE,  CHANGE_NOTICE_ANNOUNCEMENT_TEMPLATE_FILE,
+  ADDENDUM_ANNOUNCEMENT_TEMPLATE_FILE,
+  COMPETITIVE_NEGOTIATION_ANNOUNCEMENT_TEMPLATE_FILE,
   WINNING_BID_ANNOUNCEMENT_TEMPLATE_FILE,
   NOTIFICATION_LETTER_TEMPLATE_FILE,
   DIRECT_FILING_TEMPLATE_FILE,
@@ -160,7 +163,7 @@ export class TenderWriteService {
     } else if (documentType === 'INVITED_BIDDING') {
       typeLabel = '邀请招标采购文件';
     } else {
-      typeLabel = '谈判采购文件';
+      typeLabel = '谈判文件';
     }
 
     // 统一命名：{项目编号}-{项目名称}-{文件类型}-{YYYYMMDD}.docx
@@ -403,13 +406,12 @@ export class TenderWriteService {
       ]),
     ) as Record<string, unknown>;
 
-    // GB/T 43711（7.3）：谈判采购通过定向邀请（≥3 家）组织，不发布采购公告——
-    // 前端 ANNOUNCEMENT_AVAILABILITY 已限定谈判只有流标/中标公告，此处后端防线
-    // 堵 API 直发（此前 else 兜底复用邀请招标公告模板放行过「谈判采购公告」）
-    if (category === 'procurement_document' && tenderType === 'COMPETITIVE_NEGOTIATION') {
+    // 2026-11-12 用户裁定（流程互换）：谈判采购发布公告（模板=邀请招标公告改造）；
+    // 邀请招标/直接采购改走供应商邀请，不发布采购公告——后端防线堵 API 直发
+    if (category === 'procurement_document' && (tenderType === 'INVITED_BIDDING' || tenderType === 'SINGLE_SOURCE')) {
       throw new BadRequestException({
-        error: '谈判采购不发布采购公告：应通过供应商邀请（定向邀请函 + 回执）组织，供应商接受邀请后自动纳入投标项目',
-        code: 'NEGOTIATION_NO_PROCUREMENT_NOTICE',
+        error: '该采购方式不发布采购公告：应通过供应商邀请（定向邀请函 + 回执）组织，供应商接受邀请后自动纳入投标项目',
+        code: 'INVITED_NO_PROCUREMENT_NOTICE',
       });
     }
 
@@ -436,6 +438,17 @@ export class TenderWriteService {
           draft as Record<string, string>,
         );
         typeLabel = '竞价采购公告';
+      } else if (tenderType === 'COMPETITIVE_NEGOTIATION') {
+        // 2026-11-12 用户裁定（流程互换）：谈判采购发布公告——模板=邀请招标公告改造
+        // （术语适配：邀请招标→竞争性谈判），占位符与替换计划完全复用
+        templatePath = path.resolve(
+          PROJECT_ROOT,
+          COMPETITIVE_NEGOTIATION_ANNOUNCEMENT_TEMPLATE_FILE,
+        );
+        replacementPlan = buildInvitedBiddingAnnouncementPlan(
+          draft as Record<string, string>,
+        );
+        typeLabel = '谈判采购公告';
       } else if (tenderType === 'INQUIRY_PURCHASE') {
         templatePath = path.resolve(
           PROJECT_ROOT,
@@ -474,6 +487,25 @@ export class TenderWriteService {
         draft as Record<string, string>,
       );
       typeLabel = '中标公告';
+    } else if (category === 'change_notice') {
+      // 变更公告（2026-11-11 变更体系）：开标时间等信息变更的对外公告，轮次对齐 SCM0003
+      templatePath = path.resolve(
+        PROJECT_ROOT,
+        CHANGE_NOTICE_ANNOUNCEMENT_TEMPLATE_FILE,
+      );
+      replacementPlan = buildChangeNoticeAnnouncementPlan(
+        draft as Record<string, string>,
+      );
+      typeLabel = '变更公告';
+    } else if (category === 'addendum') {
+      templatePath = path.resolve(
+        PROJECT_ROOT,
+        ADDENDUM_ANNOUNCEMENT_TEMPLATE_FILE,
+      );
+      replacementPlan = buildAddendumAnnouncementPlan(
+        draft as Record<string, string>,
+      );
+      typeLabel = '补遗公告';
     } else {
       throw new BadRequestException(`Unknown announcement category: ${category}`);
     }

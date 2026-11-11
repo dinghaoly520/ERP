@@ -89,11 +89,13 @@ function ensureOverlay() {
     "@media (prefers-reduced-motion: reduce){.sp-crypto-spin-anim{animation:none}.sp-crypto-cancel:hover:not(:disabled){transform:none}}";
   root.appendChild(spinCss);
 
-  // 卡片视觉对齐 cgzxui 弹窗语言（.gdlg-pn 同源）：无外侧框线、表面渐变、方向性
-  // 双影（inset 高光 + 右下柔影 + 左上负向影，非全向投影）、tabular-nums
+  // 卡片视觉对齐 cgzxui 弹窗语言（.gdlg-pn/.wb-modal-shell 同源）：无外侧框线、
+  // 纯白瓷底（2026-11-11 用户裁定终版；oklch 字面量——
+  // 卡挂 body 下页面级变量不可达，勿引 var()）、方向性双影（inset 高光 +
+  // 右下柔影 + 左上负向影，非全向投影）
   const card = el(
     "div",
-    "width:420px;max-width:calc(100vw - 48px);background:linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));border-radius:16px;padding:24px 28px;box-shadow:inset 0 1px 0 oklch(1 0 0 / 0.75), 6px 6px 16px oklch(0.3 0.05 258 / 0.18), -1px -1px 3px oklch(1 0 0 / 0.85)",
+    "width:420px;max-width:calc(100vw - 48px);border-radius:20px;padding:24px 28px;background:oklch(1 0 0);box-shadow:inset 0 1px 0 oklch(1 0 0 / 0.88), 3px 4px 16px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)",
   );
   const headerRow = el("div", "display:flex;align-items:center;gap:14px");
   const spinner = el(

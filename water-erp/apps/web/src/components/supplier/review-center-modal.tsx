@@ -58,11 +58,11 @@ const STATUS_TABS = [
 ] as const;
 const PAGE_SIZE = 8;
 
-/* 审批中心三 panel（2026-10-16 增「加入审批」：供应商自主申请加入本公司的三级审批件） */
+/* 审批中心三 panel（2026-10-16 增「加入审批」；2026-11-10 并轨退库轨：供应商自主申请加入/退出本公司的三级审批件） */
 const PANEL_TABS = [
   { key: 'registration', label: '注册审批' },
   { key: 'changes', label: '信息更新审批' },
-  { key: 'company-links', label: '加入审批' },
+  { key: 'company-links', label: '加入/退库审批' },
 ] as const;
 type PanelKey = (typeof PANEL_TABS)[number]['key'];
 
@@ -82,7 +82,7 @@ export function ReviewCenterModal({ open, onClose }: { open: boolean; onClose: (
     if (open) {
       const id = sessionStorage.getItem('review-center-preselect');
       if (id) { setPreselectId(id); sessionStorage.removeItem('review-center-preselect'); }
-      // 深链预选 panel（2026-10-16）：通知 link /supplier?tab=company-links 直达「加入审批」
+      // 深链预选 panel（2026-10-16）：通知 link /supplier?tab=company-links 直达「加入/退库审批」
       const panelKey = sessionStorage.getItem('review-center-panel');
       if (panelKey && PANEL_TABS.some(p => p.key === panelKey)) {
         setPanel(panelKey as PanelKey);
@@ -112,7 +112,7 @@ export function ReviewCenterModal({ open, onClose }: { open: boolean; onClose: (
       open={open}
       onClose={onClose}
       title="供应商审批"
-      description="注册审批 · 信息更新审批 · 加入审批"
+      description="注册审批 · 信息更新审批 · 加入/退库审批"
       size="2xl"
       className="!max-w-[min(1180px,96vw)]"
       headerExtra={myRole === 'admin' ? (
@@ -139,7 +139,7 @@ export function ReviewCenterModal({ open, onClose }: { open: boolean; onClose: (
             {([
               { key: 'registration' as const, label: '注册审批', icon: Stamp, count: myCount.registration },
               { key: 'changes' as const, label: '信息更新审批', icon: FileClock, count: myCount.changes + myCount.resets },
-              { key: 'company-links' as const, label: '加入审批', icon: Building2, count: myCount.joins },
+              { key: 'company-links' as const, label: '加入/退库审批', icon: Building2, count: myCount.joins },
             ]).map(p => (
               <button key={p.key} type="button" className="neu-segment-btn" aria-pressed={panel === p.key}
                 onClick={() => setPanel(p.key)}>
@@ -210,9 +210,10 @@ function ChangesTabs() {
   );
 }
 
-/* ═══ 加入审批（多公司归属 2026-10-16）：供应商自主申请加入本公司的三级审批件 ═══
+/* ═══ 加入/退库审批（多公司归属 2026-10-16；退库轨 2026-11-10）：供应商自主申请的三级审批件 ═══
  *  公司侧零检索面（用户裁决 2026-10-16）：仅处理收到的申请，无邀请/全库搜索入口。
- *  三级流转与注册审批同构（staff 初审→leader 复审→admin 终审；通过后供应商入本公司库）。 */
+ *  三级流转与注册审批同构（staff 初审→leader 复审→admin 终审）；加入终审=正式入库，
+ *  退库终审=移出本公司库（驳回则供应商留在库中）。 */
 function CompanyLinksPanel({ myRole, onChanged }: { myRole?: string; onChanged: () => void }) {
   const router = useRouter();
   const [items, setItems] = useState<CompanyLinkRow[] | null>(null);
@@ -222,10 +223,17 @@ function CompanyLinksPanel({ myRole, onChanged }: { myRole?: string; onChanged: 
   const [confirming, setConfirming] = useState(false);
 
   const load = useCallback(() => {
-    companyLinksApi.list({ status: 'PENDING' })
-      .then(rows => { setItems(rows); setLoadFailed(false); })
+    // 加入（PENDING）+ 退库（LEAVE_PENDING）两队列并行拉取合并（按申请时间升序，同后端单队列口径）
+    Promise.all([
+      companyLinksApi.list({ status: 'PENDING' }),
+      companyLinksApi.list({ status: 'LEAVE_PENDING' }),
+    ])
+      .then(([joins, leaves]) => {
+        setItems([...joins, ...leaves].sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
+        setLoadFailed(false);
+      })
       // 加载失败必须可见（同注册审批面板口径）：静默置空会被误读为「角标有数、实际没有申请」
-      .catch(() => { setItems([]); setLoadFailed(true); toast.error('加入审批列表加载失败，请刷新重试'); });
+      .catch(() => { setItems([]); setLoadFailed(true); toast.error('加入/退库审批列表加载失败，请刷新重试'); });
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -245,6 +253,7 @@ function CompanyLinksPanel({ myRole, onChanged }: { myRole?: string; onChanged: 
   const act = async () => {
     if (!acting) return;
     const stage = acting.row.reviewStage ?? '';
+    const isLeave = acting.row.status === 'LEAVE_PENDING';
     if (acting.type === 'reject' && !reason.trim()) { toast.error('请填写驳回原因（供应商可见）'); return; }
     if (acting.type === 'approve' && stage !== 'ADMIN' && !reason.trim()) {
       toast.error(`请填写${STAGE_META[stage]?.short ?? '本级'}的同意缘由（后级审批人将据此复核）`);
@@ -255,11 +264,15 @@ function CompanyLinksPanel({ myRole, onChanged }: { myRole?: string; onChanged: 
       if (acting.type === 'approve') {
         const res = await companyLinksApi.approve(acting.row.id, reason.trim() || undefined);
         toast.success(res.stage === 'DONE'
-          ? `「${acting.row.supplier.name}」三级审核全部通过，已正式加入 ${acting.row.company.name}`
-          : `「${acting.row.supplier.name}」已通过${STAGE_META[stage]?.short ?? ''}，流转至${STAGE_META[res.stage]?.short ?? '下一级'}`);
+          ? (isLeave
+            ? `「${acting.row.supplier.name}」退库申请三级审核全部通过，已移出 ${acting.row.company.name} 供应商库`
+            : `「${acting.row.supplier.name}」三级审核全部通过，已正式加入 ${acting.row.company.name}`)
+          : `「${acting.row.supplier.name}」${isLeave ? '退库' : '加入'}申请已通过${STAGE_META[stage]?.short ?? ''}，流转至${STAGE_META[res.stage]?.short ?? '下一级'}`);
       } else {
         await companyLinksApi.reject(acting.row.id, reason.trim());
-        toast.success(`已驳回「${acting.row.supplier.name}」加入 ${acting.row.company.name} 的申请`);
+        toast.success(isLeave
+          ? `已驳回「${acting.row.supplier.name}」退出 ${acting.row.company.name} 的申请（该供应商仍留在库中）`
+          : `已驳回「${acting.row.supplier.name}」加入 ${acting.row.company.name} 的申请`);
       }
       setActing(null); setReason('');
       load(); onChanged();
@@ -284,8 +297,8 @@ function CompanyLinksPanel({ myRole, onChanged }: { myRole?: string; onChanged: 
               <Building2 size={14} strokeWidth={1.9} />
             </span>
             <div className="flex items-baseline gap-2">
-              <span className="text-[0.95rem] font-bold tracking-tight text-[var(--foreground)]">加入审批</span>
-              <span className="text-[11px] text-[var(--muted-foreground)]">供应商自主申请加入本公司 · 三级审核</span>
+              <span className="text-[0.95rem] font-bold tracking-tight text-[var(--foreground)]">加入/退库审批</span>
+              <span className="text-[11px] text-[var(--muted-foreground)]">供应商自主申请加入/退出本公司 · 三级审核</span>
             </div>
             {pending.length > 0 && <span className="neu-tab-count !static">{pending.length}</span>}
           </div>
@@ -295,7 +308,7 @@ function CompanyLinksPanel({ myRole, onChanged }: { myRole?: string; onChanged: 
           <div className="px-4 py-6 text-center text-xs text-[var(--muted-foreground)]">加载中…</div>
         ) : pending.length === 0 ? (
           <div className="px-4 py-5 text-center text-xs text-[var(--muted-foreground)]">
-            {loadFailed ? '加入审批列表加载失败，请点击右上角刷新重试' : '暂无待审的加入申请 · 供应商在门户自主申请加入后将出现在此处'}
+            {loadFailed ? '加入/退库审批列表加载失败，请点击右上角刷新重试' : '暂无待审的加入/退库申请 · 供应商在门户自主申请后将出现在此处'}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -303,7 +316,7 @@ function CompanyLinksPanel({ myRole, onChanged }: { myRole?: string; onChanged: 
               <thead>
                 <tr>
                   <th>供应商</th>
-                  <th>申请加入</th>
+                  <th>申请公司</th>
                   <th>申请说明</th>
                   <th style={{ textAlign: 'center' }}>当前级</th>
                   <th style={{ textAlign: 'center' }}>申请时间</th>
@@ -314,6 +327,7 @@ function CompanyLinksPanel({ myRole, onChanged }: { myRole?: string; onChanged: 
                 {pending.map(row => {
                   const st = row.reviewStage ?? '';
                   const meta = STAGE_META[st];
+                  const isLeave = row.status === 'LEAVE_PENDING';
                   const actionable = canAct(row);
                   return (
                     <tr key={row.id}>
@@ -337,7 +351,20 @@ function CompanyLinksPanel({ myRole, onChanged }: { myRole?: string; onChanged: 
                           </div>
                         </div>
                       </td>
-                      <td className="font-semibold text-[var(--foreground)]">{row.company.name}</td>
+                      <td>
+                        <div className="flex items-center gap-1.5">
+                          <span className={isLeave
+                            ? 'rounded-md px-1.5 py-px text-[9px] font-bold text-[var(--danger)]'
+                            : 'rounded-md px-1.5 py-px text-[9px] font-bold text-[var(--accent)]'
+                          } style={{ background: isLeave
+                            ? 'color-mix(in oklch, var(--danger) 9%, transparent)'
+                            : 'color-mix(in oklch, var(--accent) 9%, transparent)'
+                          }}>
+                            {isLeave ? '退库' : '加入'}
+                          </span>
+                          <span className="font-semibold text-[var(--foreground)]">{row.company.name}</span>
+                        </div>
+                      </td>
                       <td className="max-w-[220px] truncate text-[var(--muted-foreground)]" title={row.note ?? ''}>{row.note || '—'}</td>
                       <td style={{ textAlign: 'center' }}>
                         {meta
@@ -376,9 +403,11 @@ function CompanyLinksPanel({ myRole, onChanged }: { myRole?: string; onChanged: 
       <Modal
         open={acting !== null}
         onClose={() => setActing(null)}
-        title={acting?.type === 'approve' ? '通过加入申请' : '驳回加入申请'}
+        title={acting?.type === 'approve'
+          ? (acting.row.status === 'LEAVE_PENDING' ? '通过退库申请' : '通过加入申请')
+          : (acting?.row.status === 'LEAVE_PENDING' ? '驳回退库申请' : '驳回加入申请')}
         description={acting
-          ? <>{acting.row.supplier.name} 申请加入 <strong className="text-[var(--foreground)]">{acting.row.company.name}</strong>（当前{STAGE_META[actStage]?.label ?? '—'}）</>
+          ? <>{acting.row.supplier.name} 申请{acting.row.status === 'LEAVE_PENDING' ? '退出' : '加入'} <strong className="text-[var(--foreground)]">{acting.row.company.name}</strong>（当前{STAGE_META[actStage]?.label ?? '—'}）</>
           : null}
         footer={
           <>
@@ -387,12 +416,22 @@ function CompanyLinksPanel({ myRole, onChanged }: { myRole?: string; onChanged: 
               className={`neu-btn-soft ${acting?.type === 'approve' ? 'is-success' : 'is-danger'}`}>
               {confirming ? '处理中…'
                 : acting?.type === 'approve'
-                  ? (actStage === 'ADMIN' ? '终审通过 · 正式入库' : `通过 · 流转至${STAGE_META[actStage === 'STAFF' ? 'LEADER' : 'ADMIN']?.short ?? '下一级'}`)
+                  ? (actStage === 'ADMIN'
+                    ? (acting.row.status === 'LEAVE_PENDING' ? '终审通过 · 完成退库' : '终审通过 · 正式入库')
+                    : `通过 · 流转至${STAGE_META[actStage === 'STAFF' ? 'LEADER' : 'ADMIN']?.short ?? '下一级'}`)
                   : '确认驳回'}
             </button>
           </>
         }
       >
+        {acting?.row.status === 'LEAVE_PENDING' && (
+          <p className="mb-2.5 rounded-[10px] px-3 py-2.5 text-xs leading-5 text-[var(--foreground)]"
+            style={{ background: acting.type === 'approve' ? 'color-mix(in oklch, var(--warning) 8%, transparent)' : 'color-mix(in oklch, var(--accent) 7%, transparent)' }}>
+            {acting.type === 'approve'
+              ? '退库终审通过后，该供应商将移出贵司供应商库；若其已无其他归属公司，账号将无法登录。'
+              : '驳回后该供应商继续留在贵司供应商库（退库申请作废，可再次申请）。'}
+          </p>
+        )}
         <label className="block text-sm">
           {acting?.type === 'approve'
             ? (actStage === 'ADMIN' ? '终审意见（可选）' : `同意缘由（${STAGE_META[actStage]?.short ?? '本级'}必填 · 后级审批人将据此复核）`)
@@ -400,7 +439,7 @@ function CompanyLinksPanel({ myRole, onChanged }: { myRole?: string; onChanged: 
           <textarea className="neu-input mt-1.5 text-sm" rows={3} value={reason}
             onChange={e => setReason(e.target.value)}
             placeholder={acting?.type === 'approve'
-              ? (actStage === 'ADMIN' ? '终审确认意见…' : '如：经营范围与本公司采购需求匹配…')
+              ? (actStage === 'ADMIN' ? '终审确认意见…' : acting.row.status === 'LEAVE_PENDING' ? '如：已知悉该供应商退出意向…' : '如：经营范围与本公司采购需求匹配…')
               : '如：经营范围与本公司采购需求不符…'} />
         </label>
       </Modal>

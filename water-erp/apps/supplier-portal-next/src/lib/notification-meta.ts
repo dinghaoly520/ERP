@@ -66,6 +66,16 @@ export function getNotificationMeta(type: string): NotificationMeta {
   return META[type] ?? FALLBACK_META;
 }
 
+/** 「与您相关」标题前缀（后端定向标记，2026-11-10 裁定：⟺收件人被点名/真参与，广播永不标）。
+ *  展示侧拆出前缀渲染为品牌蓝文本段（存量带前缀的消息同样生效）。 */
+export const RELEVANCE_MARKER = "【与您相关】";
+
+export function splitRelevanceMarker(title: string): { marker: boolean; text: string } {
+  return title.startsWith(RELEVANCE_MARKER)
+    ? { marker: true, text: title.slice(RELEVANCE_MARKER.length) }
+    : { marker: false, text: title };
+}
+
 export function notificationTypesForGroup(group: NotificationGroup | "all"): string[] {
   if (group === "all") return [];
   return Object.entries(META)

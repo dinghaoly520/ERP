@@ -94,7 +94,7 @@ export default function ContactConfirmModal({ initialPhone, initialEmail, displa
       aria-describedby="contact-confirm-desc"
       className="fixed inset-0 z-[100] flex items-center justify-center bg-[var(--background)]/60 p-4 backdrop-blur-sm"
     >
-      <div className="exp-dialog w-full max-w-md">
+      <div className="wb-modal-shell relative overflow-hidden w-full max-w-md">
         <div className="p-6">
           <div className="flex items-center gap-3">
             <span className="page-hero__icon !h-11 !w-11 !rounded-xl">
@@ -106,6 +106,9 @@ export default function ContactConfirmModal({ initialPhone, initialEmail, displa
             </div>
           </div>
         </div>
+
+        {/* 头部/内容隔离线（2026-11-11 用户裁定）：hairline，与内容区同缩进（px-6） */}
+        <div className="mx-6 mb-4 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
 
         <div className="space-y-4 px-6 pb-2">
           <div>

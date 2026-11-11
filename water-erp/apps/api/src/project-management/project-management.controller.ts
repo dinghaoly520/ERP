@@ -24,6 +24,8 @@ import { QueryProjectManagementDto } from './dto/query-project-management.dto';
 import { ReprocDto } from './dto/reproc.dto';
 import { UpdateExtractedInfoDto } from './dto/update-extracted-info.dto';
 import { TerminateProjectDto } from './dto/terminate-project.dto';
+import { RegisterChangeDto, BindChangeAnnouncementDto } from './dto/register-change.dto';
+import { ProjectChangeService } from './change.service';
 import { SelectOfficialTenderDto } from './dto/select-official-tender.dto';
 import { UpdateProjectStageDto } from './dto/update-project-stage.dto';
 import { CreateTenderDraftVersionDto, SaveTenderDraftDto } from './dto/tender-draft.dto';
@@ -44,7 +46,35 @@ export class ProjectManagementController {
     private readonly companyScope: CompanyScopeService,
     private readonly timelineService: TimelineService,
     private readonly tenderDraftService: TenderDraftService,
+    private readonly changeService: ProjectChangeService,
   ) {}
+
+  // ── 变更体系（2026-11-11 spec）：基本信息唯一人工编辑通道=变更登记；写=仅创建人（类级守卫），读=创建人+本公司 leader+admin ──
+
+  @Post(':id/changes')
+  registerChange(
+    @Param('id') id: string,
+    @Body() dto: RegisterChangeDto,
+    @CurrentUser() user: AuthenticatedUser | undefined,
+  ) {
+    return this.changeService.register(id, user?.sub ?? '', user?.name ?? '', {
+      type: dto.type,
+      reason: dto.reason,
+      fields: dto.fields ?? {},
+    });
+  }
+
+  @Get(':id/changes')
+  listChanges(@Param('id') id: string) {
+    return this.changeService.list(id);
+  }
+
+  @Patch(':id/changes/:recordId/announcement')
+  bindChangeAnnouncement(@Param('recordId') recordId: string, @Body() dto: BindChangeAnnouncementDto) {
+    // 路由含 :id（2026-11-12 安全修复）：PmiOwnershipGuard 按写口径校验——
+    // 原裸 /changes/:recordId 无 :id 参数，守卫自动放行=任何人可回填任意记录
+    return this.changeService.bindAnnouncement(recordId, dto.announcementId);
+  }
 
   @Get()
   list(
@@ -238,8 +268,8 @@ export class ProjectManagementController {
 
   /** 流标后再次采购：按采购方式在定标后插入新一轮"采购文件→定标"阶段 */
   @Post(':id/extract-tender-fields')
-  extractTenderFields(@Param('id') id: string, @Query('field') field?: string) {
-    return this.projectManagementService.extractTenderFields(id, field);
+  extractTenderFields(@Param('id') id: string, @Query('field') field?: string, @Query('dryRun') dryRun?: string) {
+    return this.projectManagementService.extractTenderFields(id, field, dryRun === 'true');
   }
 
   /** 直接采购：读取项目各阶段文档，AI 推荐 3-5 家供应商供用户选择 */
