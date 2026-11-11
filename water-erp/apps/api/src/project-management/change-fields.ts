@@ -26,8 +26,7 @@ export const CHANGE_FIELD_GROUPS = [
       { field: 'requesterDepartment', label: '需求部门', kind: 'text', target: 'PMI' },
       { field: 'projectOverview', label: '项目概况', kind: 'text', target: 'PMI' },
       { field: 'initiationDate', label: '立项日期', kind: 'text', target: 'PMI' },
-      { field: 'evaluationMethod', label: '评审办法', kind: 'text', target: 'PMI' },
-      { field: 'demandProject', label: '需求项目', kind: 'text', target: 'PMI' },
+      { field: 'demandProject', label: '归属项目', kind: 'text', target: 'PMI' },
     ],
   },
   {

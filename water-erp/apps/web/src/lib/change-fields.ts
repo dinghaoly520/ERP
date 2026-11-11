@@ -12,6 +12,8 @@ export type ChangeFieldDef = {
   target: 'PMI' | 'BID';
   /** 下拉选项（2026-11-11 用户裁定：采购类别用下拉）——仅前端表单渲染用，后端闸不感知 */
   options?: string[];
+  /** 实体名单选择器（归属项目=项目清单，2026-11-11）：渲染走 SearchSelect，后端闸不感知 */
+  widget?: 'search-select';
 }
 
 export type ChangeFieldGroup = {
@@ -36,8 +38,7 @@ export const CHANGE_FIELD_GROUPS: ChangeFieldGroup[] = [
       { field: 'requesterDepartment', label: '需求部门', kind: 'text', target: 'PMI' },
       { field: 'projectOverview', label: '项目概况', kind: 'text', target: 'PMI' },
       { field: 'initiationDate', label: '立项日期', kind: 'text', target: 'PMI' },
-      { field: 'evaluationMethod', label: '评审办法', kind: 'text', target: 'PMI' },
-      { field: 'demandProject', label: '需求项目', kind: 'text', target: 'PMI' },
+      { field: 'demandProject', label: '归属项目', kind: 'text', target: 'PMI', widget: 'search-select' },
     ],
   },
   {
