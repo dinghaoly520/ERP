@@ -94,7 +94,7 @@ export default function ContactConfirmModal({ initialPhone, initialEmail, displa
       aria-describedby="contact-confirm-desc"
       className="fixed inset-0 z-[100] flex items-center justify-center bg-[var(--background)]/60 p-4 backdrop-blur-sm"
     >
-      <div className="exp-dialog w-full max-w-md">
+      <div className="wb-modal-shell relative overflow-hidden w-full max-w-md">
         <div className="p-6">
           <div className="flex items-center gap-3">
             <span className="page-hero__icon !h-11 !w-11 !rounded-xl">

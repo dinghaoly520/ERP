@@ -57,7 +57,7 @@ export function SyncConflictModal({ open, newItems, conflictItems, localDevice, 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--background)]/60 px-6 backdrop-blur-sm"
       onClick={onClose}>
-      <div className="exp-dialog w-full max-w-[520px]"
+      <div className="wb-modal-shell relative overflow-hidden w-full max-w-[520px]"
         onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-[oklch(0.6_0.04_258/0.12)] px-5 py-4">
           <h3 className="text-sm font-bold text-[var(--foreground)]">

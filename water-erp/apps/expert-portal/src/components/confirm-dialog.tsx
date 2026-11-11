@@ -17,7 +17,7 @@ interface ConfirmDialogProps {
 }
 
 /**
- * cgzxui 新拟态确认弹窗（.exp-dialog 浮动薄板 + 38px 齐平按钮）。
+ * cgzxui 新拟态确认弹窗（.wb-modal-shell 统一弹窗壳 + 38px 齐平按钮）。
  *
  * - createPortal 到 body，z-[60] 浮于全屏手写浮层（z-50）之上
  * - Esc 关闭、点遮罩关闭、卡片内点击不关
@@ -64,7 +64,7 @@ export function ConfirmDialog({
         onClick={() => onCancelRef.current()}
       />
       <div
-        className="exp-dialog relative w-full max-w-sm p-5"
+        className="wb-modal-shell relative overflow-hidden w-full max-w-sm p-5"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-start gap-3">

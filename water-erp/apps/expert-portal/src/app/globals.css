@@ -597,11 +597,42 @@ select.neu-select {
     -1px -1px 2px oklch(1 0 0 / 0.7);
 }
 
-/* ── 弹窗外壳 .exp-dialog（浮动薄板 + 顶缘内高光 + 环境投影，无外侧框线）── */
-.exp-dialog {
-  position: relative; border-radius: 20px; overflow: hidden;
-  background: var(--background);
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 0 20px 60px oklch(0.3 0.05 258 / 0.22);
+/* ── 全系统统一弹窗壳 .wb-modal-shell（2026-11-11 用户裁定）：系统背景彩色渐变 ──
+   居中弹窗/确认框壳统一挂此类（relative/overflow-hidden 等布局由组件工具类自带）；
+   取代旧 .exp-dialog 浮动薄板（随全系统统一壳标准退役）。 */
+.wb-modal-shell {
+  background:
+    radial-gradient(circle at 14% 12%, rgba(118, 165, 255, 0.16), transparent 24%),
+    radial-gradient(circle at 84% 16%, rgba(242, 201, 132, 0.12), transparent 18%),
+    radial-gradient(circle at 76% 82%, rgba(120, 209, 186, 0.1), transparent 20%),
+    linear-gradient(180deg, rgba(248, 251, 255, 0.99), rgba(240, 245, 252, 0.98));
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.88),
+    3px 4px 16px oklch(0.46 0.07 258 / 0.18),
+    -3px -3px 10px oklch(1 0 0 / 0.94);
+  border-radius: 20px;
+}
+
+/* ── 联想候选面板 .exp-combo-panel / .exp-combo-current（typeahead 浮层：
+   145° 瓷片渐变 + 方向性双影，2026-11-11 自 typeahead-combobox 内联样式收编）── */
+.exp-combo-panel {
+  z-index: 700;
+  max-height: 240px;
+  overflow-y: auto;
+  border-radius: 16px;
+  padding: 4px 6px 6px;
+  background: linear-gradient(145deg, oklch(1 0 0) 0%, oklch(0.965 0.012 258) 100%);
+  box-shadow:
+    6px 6px 18px oklch(0.55 0.03 258 / 0.16),
+    -3px -3px 10px oklch(1 0 0 / 0.9),
+    inset 0 1px 0 oklch(1 0 0 / 0.9);
+}
+.exp-combo-current {
+  background: oklch(1 0 0);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.95),
+    2px 2px 6px oklch(0.55 0.03 258 / 0.16),
+    -1px -1px 2px oklch(1 0 0 / 0.9);
 }
 
 /* ── 内联提示 .exp-alert（无边框，语义色底，--a 驱动）── */
