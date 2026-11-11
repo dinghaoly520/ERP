@@ -49,7 +49,10 @@ export function ChangeModal({
   currentStage: string | null;
   /** 开标确认（BidProject 进入 OPENING 起）——标段分区闸：开标后标前锁死、标后解锁 */
   bidOpened: boolean;
-  onRegistered: (result: { needsAnnouncement: boolean; recordId: string; category: 'change_notice' | 'addendum'; round: number; reason: string; changeContent: string }) => void;
+  onRegistered: (
+    result: { needsAnnouncement: boolean; recordId: string; category: 'change_notice' | 'addendum'; round: number; reason: string; changeContent: string },
+    publish: boolean,
+  ) => void;
 }) {
   const [step, setStep] = useState<Step>('type');
   const [type, setType] = useState<'CHANGE' | 'ADDENDUM'>('CHANGE');
@@ -58,6 +61,9 @@ export function ChangeModal({
   const [saving, setSaving] = useState(false);
   const [projectOptions, setProjectOptions] = useState<SearchSelectOption[]>([]);
   const [aiBusy, setAiBusy] = useState<string | null>(null);
+  // 登记成功后的发布选择（2026-11-12 用户裁定：是否发公告由用户选择，不强制）
+  const [pendingPublish, setPendingPublish] = useState<{ round: number; needsAnnouncement: boolean } | null>(null);
+  const [lastResult, setLastResult] = useState<Parameters<typeof onRegistered>[0] | null>(null);
 
   // 归属项目候选：在办项目清单（排除本项目）；打开弹窗时取一次
   useEffect(() => {
@@ -142,12 +148,13 @@ export function ChangeModal({
         }
       }
       const r = await registerChange(item.id, { type, reason: trimmedReason, fields });
-      toast.success(`已登记第 ${r.record.round} 轮${type === 'CHANGE' ? '变更' : '补遗'}`);
       const cs = (r.record.changeset ?? []) as Array<{ label: string; from: string; to: string }>;
       const changeContent = cs.length > 0
         ? cs.map(c => `${c.label}：${c.from || '（空）'} → ${c.to || '（空）'}`).join('\n')
         : trimmedReason;
-      onRegistered({
+      toast.success(`已登记第 ${r.record.round} 轮${type === 'CHANGE' ? '变更' : '补遗'}`);
+      setPendingPublish({ round: r.record.round, needsAnnouncement: r.needsAnnouncement });
+      setLastResult({
         needsAnnouncement: r.needsAnnouncement,
         recordId: r.record.id,
         category: type === 'CHANGE' ? 'change_notice' : 'addendum',
@@ -155,7 +162,6 @@ export function ChangeModal({
         reason: trimmedReason,
         changeContent,
       });
-      onClose();
     } catch (e) {
       toast.error((e as Error).message || '登记失败');
     } finally {
@@ -306,7 +312,26 @@ export function ChangeModal({
           )}
         </div>
 
-        {step === 'form' && (
+        {pendingPublish && lastResult && (
+          <>
+            <hr className="wb-section-rule" />
+            <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-3.5">
+              <span className="text-sm text-[var(--foreground)]">
+                已登记第 {pendingPublish.round} 轮{pendingPublish.needsAnnouncement ? '（含开标时间，建议发布公告）' : ''}
+              </span>
+              <div className="neu-btn-group">
+                <button type="button" className="neu-btn-soft" onClick={() => { onRegistered(lastResult, false); onClose(); }}>
+                  暂不发布
+                </button>
+                <button type="button" className="neu-btn-primary !h-[38px]" onClick={() => { onRegistered(lastResult, true); onClose(); }}>
+                  发布公告
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {step === 'form' && !pendingPublish && (
           <>
             <hr className="wb-section-rule" />
             <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-3.5">

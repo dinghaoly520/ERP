@@ -15,12 +15,15 @@ export function ProjectChangeEntry({
   projectId,
   canInitiate,
   onInitiate,
+  onPublishAnnouncement,
 }: {
   projectId: string;
   /** 创建人且项目可写（开标后仍可编辑标后——分区闸在弹窗内生效） */
   canInitiate: boolean;
-  /** 发起变更——竞态开标后由面板 toast「开标后不可修改标前数据」 */
+  /** 发起变更 */
   onInitiate: () => void;
+  /** 稍后发布公告（2026-11-12 裁定：发布不强制——记录行「公告待发」处随时可发） */
+  onPublishAnnouncement: (record: ProjectChangeRecord) => void;
 }) {
   const [recordsOpen, setRecordsOpen] = useState(false);
   const [records, setRecords] = useState<ProjectChangeRecord[] | null>(null);
@@ -119,9 +122,18 @@ export function ProjectChangeEntry({
                             </span>
                           </span>
                           {r.needsAnnouncement && !r.announcementId && (
-                            <span className="shrink-0 rounded-[6px] bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--warning)]">
-                              公告待发
-                            </span>
+                            <>
+                              <span className="shrink-0 rounded-[6px] bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--warning)]">
+                                公告待发
+                              </span>
+                              <button
+                                type="button"
+                                className="neu-btn-xs !h-[24px] shrink-0"
+                                onClick={(e) => { e.stopPropagation(); onPublishAnnouncement(r); }}
+                              >
+                                发布公告
+                              </button>
+                            </>
                           )}
                           <ChevronRight size={15} className={`shrink-0 text-[var(--muted-foreground)] transition-transform ${open ? 'rotate-90' : ''}`} />
                         </button>

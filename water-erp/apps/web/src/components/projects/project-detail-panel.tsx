@@ -1409,7 +1409,29 @@ export function ProjectDetailPanel({
               </div>
             </div>
             <div className="page-hero__right">
-              <ProjectChangeEntry projectId={item.id} canInitiate={!actionsDisabled} onInitiate={handleInitiateChange} />
+              <ProjectChangeEntry
+                projectId={item.id}
+                canInitiate={!actionsDisabled}
+                onInitiate={handleInitiateChange}
+                onPublishAnnouncement={(rec) => {
+                  const cs = rec.changeset ?? [];
+                  setChangeWizardCtx({
+                    category: rec.type === 'CHANGE' ? 'change_notice' : 'addendum',
+                    recordId: rec.id,
+                    patch: {
+                      projectName: item.title,
+                      projectCode: item.projectCode ?? '',
+                      changeRound: String(rec.round),
+                      changeReason: rec.reason,
+                      changeContent: cs.length > 0
+                        ? cs.map(c => `${c.label}：${c.from || '（空）'} → ${c.to || '（空）'}`).join('\n')
+                        : rec.reason,
+                    },
+                  });
+                  setAnnouncementCategory(rec.type === 'CHANGE' ? 'change_notice' : 'addendum');
+                  setAnnouncementPublishOpen(true);
+                }}
+              />
               {!actionsDisabled && (
                 <button type="button" onClick={() => setTerminateOpen(true)} disabled={submitting || uploading} className="neu-btn-soft">
                   <Ban size={16} />项目终止
@@ -2674,7 +2696,7 @@ export function ProjectDetailPanel({
         currentStage={item.currentStage}
         bidOpened={isBidLocked}
         currentValues={changeCurrentValues}
-        onRegistered={(ctx) => {
+        onRegistered={(ctx, publish) => {
           handleUpdated();
           setChangeWizardCtx({
             category: ctx.category,
@@ -2687,8 +2709,12 @@ export function ProjectDetailPanel({
               changeContent: ctx.changeContent,
             },
           });
-          setAnnouncementCategory(ctx.category);
-          setAnnouncementPublishOpen(true);
+          if (publish) {
+            setAnnouncementCategory(ctx.category);
+            setAnnouncementPublishOpen(true);
+          } else {
+            toast.info('已留档；稍后可在「变更 / 补遗记录」中对本轮发布公告');
+          }
         }}
       />
 
