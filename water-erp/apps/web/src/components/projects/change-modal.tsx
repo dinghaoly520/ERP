@@ -9,12 +9,12 @@
  * 服务端为权威闸（白名单/阶段/开标锁/理由），前端禁用仅作引导。
  */
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshCcw, FilePlus2, X } from 'lucide-react';
+import { RefreshCcw, FilePlus2, X, Sparkles, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { registerChange } from '@/lib/api/project-changes';
 import { CHANGE_FIELD_GROUPS, stageReached } from '@/lib/change-fields';
 import { SearchSelect, type SearchSelectOption } from '@/components/workbench/search-select';
-import { fetchProjectManagementList } from '@/lib/api/project-management';
+import { fetchProjectManagementList, extractTenderFields, optimizeInitiationFields } from '@/lib/api/project-management';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 
 type Step = 'type' | 'form';
@@ -54,6 +54,7 @@ export function ChangeModal({
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
   const [projectOptions, setProjectOptions] = useState<SearchSelectOption[]>([]);
+  const [aiBusy, setAiBusy] = useState<string | null>(null);
 
   // 归属项目候选：在办项目清单（排除本项目）；打开弹窗时取一次
   useEffect(() => {
@@ -82,6 +83,28 @@ export function ChangeModal({
     (n, g) => n + g.fields.filter(f => (values[f.field] ?? '') !== '' && values[f.field] !== currentOf(f.field)).length,
     0,
   );
+
+  /** AI 预填（不落库）：提取值进表单由用户核对，登记时统一留痕 */
+  const runAiAssist = async (field: string, source: 'tender-overview' | 'initiation') => {
+    setAiBusy(field);
+    try {
+      if (source === 'tender-overview') {
+        const r = await extractTenderFields(item.id, field, 150_000, true);
+        const v = r?.[field];
+        if (v) { setValues(prev => ({ ...prev, [field]: v })); toast.success('已提取，请核对后登记'); }
+        else toast.warning('AI 未能从采购文件中提取到该字段内容');
+      } else {
+        const r = await optimizeInitiationFields(item.id);
+        const v = (r as Record<string, string>)?.[field]?.trim();
+        if (v) { setValues(prev => ({ ...prev, [field]: v })); toast.success('已提取，请核对后登记'); }
+        else toast.warning('AI 未能从采购需求/立项文件中提炼出相关内容');
+      }
+    } catch (e) {
+      toast.error((e as Error).message || 'AI 提取失败');
+    } finally {
+      setAiBusy(null);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -128,7 +151,7 @@ export function ChangeModal({
     <div className="fixed inset-0 z-[540] flex items-center justify-center">
       <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={onClose} />
       <div
-        className="relative flex max-h-[86vh] w-full max-w-[min(680px,92vw)] flex-col overflow-hidden rounded-[20px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]"
+        className="relative flex max-h-[86vh] w-full max-w-[min(680px,92vw)] flex-col overflow-hidden wb-modal-shell"
         role="dialog"
       >
         {/* 标题 */}
@@ -171,10 +194,23 @@ export function ChangeModal({
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     {g.fields.map(f => (
-                      <label key={f.field} className="flex flex-col gap-1">
-                        <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
-                          {f.label}
-                          {g.unlocked && (values[f.field] ?? '') !== '' && (values[f.field] ?? '') !== currentOf(f.field) && <span className="ml-1 normal-case text-[var(--warning)]">已修改</span>}
+                      <label key={f.field} className={`flex flex-col gap-1${f.fullRow ? ' col-span-2' : ''}`}>
+                        <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+                          <span>
+                            {f.label}
+                            {g.unlocked && (values[f.field] ?? '') !== '' && (values[f.field] ?? '') !== currentOf(f.field) && <span className="ml-1 normal-case text-[var(--warning)]">已修改</span>}
+                          </span>
+                          {f.aiAssist && g.unlocked && (
+                            <button
+                              type="button"
+                              className="neu-btn-xs !h-[22px] !px-2 text-[10px]"
+                              disabled={aiBusy != null}
+                              onClick={() => void runAiAssist(f.field, f.aiAssist!)}
+                            >
+                              {aiBusy === f.field ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
+                              AI 提取并优化
+                            </button>
+                          )}
                         </span>
                         {f.multiline ? (
                           <textarea

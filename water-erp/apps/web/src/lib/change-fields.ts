@@ -16,6 +16,10 @@ export type ChangeFieldDef = {
   widget?: 'search-select';
   /** 多行文本（长段落字段如项目概况）——渲染为加高文本域 */
   multiline?: boolean;
+  /** 整行占位（2 列栅格跨双列，长段落字段） */
+  fullRow?: boolean;
+  /** AI 预填来源：tender-overview=采购文件提取（dryRun）；initiation=立项文件优化（两字段一次返回） */
+  aiAssist?: 'tender-overview' | 'initiation';
 }
 
 export type ChangeFieldGroup = {
@@ -39,11 +43,11 @@ export const CHANGE_FIELD_GROUPS: ChangeFieldGroup[] = [
       { field: 'budgetAmount', label: '预算金额', kind: 'number', target: 'PMI' },
       { field: 'requesterName', label: '需求人', kind: 'text', target: 'PMI' },
       { field: 'requesterDepartment', label: '需求部门', kind: 'text', target: 'PMI' },
-      { field: 'projectOverview', label: '项目概况', kind: 'text', target: 'PMI', multiline: true },
+      { field: 'projectOverview', label: '项目概况', kind: 'text', target: 'PMI', multiline: true, fullRow: true, aiAssist: 'tender-overview' },
       { field: 'initiationDate', label: '立项日期', kind: 'text', target: 'PMI' },
       { field: 'demandProject', label: '归属项目', kind: 'text', target: 'PMI', widget: 'search-select' },
-      { field: 'projectReason', label: '申请立项事由', kind: 'text', target: 'PMI', multiline: true },
-      { field: 'supplierRequirements', label: '对供方的主要要求', kind: 'text', target: 'PMI', multiline: true },
+      { field: 'projectReason', label: '申请立项事由', kind: 'text', target: 'PMI', multiline: true, fullRow: true, aiAssist: 'initiation' },
+      { field: 'supplierRequirements', label: '对供方的主要要求', kind: 'text', target: 'PMI', multiline: true, fullRow: true, aiAssist: 'initiation' },
     ],
   },
   {

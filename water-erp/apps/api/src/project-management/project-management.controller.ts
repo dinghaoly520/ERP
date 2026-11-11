@@ -266,8 +266,8 @@ export class ProjectManagementController {
 
   /** 流标后再次采购：按采购方式在定标后插入新一轮"采购文件→定标"阶段 */
   @Post(':id/extract-tender-fields')
-  extractTenderFields(@Param('id') id: string, @Query('field') field?: string) {
-    return this.projectManagementService.extractTenderFields(id, field);
+  extractTenderFields(@Param('id') id: string, @Query('field') field?: string, @Query('dryRun') dryRun?: string) {
+    return this.projectManagementService.extractTenderFields(id, field, dryRun === 'true');
   }
 
   /** 直接采购：读取项目各阶段文档，AI 推荐 3-5 家供应商供用户选择 */

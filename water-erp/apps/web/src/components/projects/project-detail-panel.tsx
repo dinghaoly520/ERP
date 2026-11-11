@@ -39,7 +39,7 @@ import {
 } from '@/lib/types/project-management';
 import { ProjectTimelineStrip } from './project-timeline-strip';
 import { ProjectChangeEntry } from './project-change-entry';
-import { bindChangeAnnouncement } from '@/lib/api/project-changes';
+import { bindChangeAnnouncement, registerChange } from '@/lib/api/project-changes';
 import { ChangeModal } from './change-modal';
 import { ProjectStageTimeline } from './project-stage-timeline';
 import { StageFileList } from './stage-file-list';
@@ -1336,11 +1336,14 @@ export function ProjectDetailPanel({
         setAiResult({ type: 'warning', message: 'AI 未能从采购需求/采购立项文件中提炼出相关内容，请检查是否已上传并分析文件。' });
         return;
       }
-      // 持久化：未提取到的字段回退到原值，避免空值覆盖已有内容
-      await updateProjectExtractedInfo(item.id, {
-        projectReason: pr || localItem.projectReason || '',
-        supplierRequirements: sr || localItem.supplierRequirements || '',
-      });
+      // 持久化走变更登记（2026-11-11 变更体系）：AI 优化也是基本信息变更，随轮次留痕；
+      // 仅登记提取到内容的字段（空值不覆盖已有内容，同旧语义）
+      const fields: Record<string, string> = {};
+      if (pr) fields.projectReason = pr;
+      if (sr) fields.supplierRequirements = sr;
+      if (Object.keys(fields).length > 0) {
+        await registerChange(item.id, { type: 'CHANGE', reason: 'AI 提取并优化', fields });
+      }
       await handleUpdated();
     } catch (e) {
       setAiResult({ type: 'error', message: e instanceof Error ? e.message : 'AI 提取并优化失败' });
@@ -1404,7 +1407,7 @@ export function ProjectDetailPanel({
     <>
       <div className="pm-detail-overlay absolute inset-0 z-[120] rounded-[24px] bg-[var(--background)]/60 backdrop-blur-[3px]" />
 
-      <section className={`absolute inset-0 z-[121] overflow-y-auto rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]${actionsDisabled ? ' pm-archived-readonly' : ''}`}>
+      <section className={`absolute inset-0 z-[121] overflow-y-auto wb-modal-shell${actionsDisabled ? ' pm-archived-readonly' : ''}`}>
         {/* page-hero: 标题 + 简报 + 流程 */}
         <div className="page-hero">
           {/* B3（A-204）时间信息轴 */}

@@ -879,7 +879,7 @@ export class ProjectManagementService {
    * 从已上传的采购文件重新提取 projectOverview / bidOpeningTime / documentAcquireTime。
    * 用于上传时解析失败、用户手动触发重新提取的场景。
    */
-  async extractTenderFields(itemId: string, field?: string) {
+  async extractTenderFields(itemId: string, field?: string, dryRun = false) {
     // 提前获取采购方式，用于适配不同采购方式的提取逻辑
     const itemMeta = await this.prisma.projectManagementItem.findUnique({
       where: { id: itemId },
@@ -969,7 +969,8 @@ export class ProjectManagementService {
     // 在开标评标完成前恒空——合法写入时点 = 评标结果回写/定标审批表/中标通知书/合同附件。
     // 公告向导的「核对供应商」继续走 checkSupplierChange（只读提取，不写库）。
 
-    if (Object.keys(updateData).length > 0) {
+    // dryRun（2026-11-11 变更体系）：只返回提取值不落库——变更弹窗 AI 预填用，登记时统一留痕
+    if (!dryRun && Object.keys(updateData).length > 0) {
       await this.prisma.projectManagementItem.update({ where: { id: itemId }, data: updateData });
       // 开标时间一致性（2026-11-09 用户裁定）：AI 提取落库后同步当前轮开标前 BidProject
       if (updateData.bidOpeningTime) {
