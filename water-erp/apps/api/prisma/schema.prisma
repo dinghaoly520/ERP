@@ -1984,6 +1984,7 @@ enum AnnouncementType {
   FAILED_BID_NOTICE // 流标公告（发布向导 failed_bid 类目生成）
   WIN_BID_NOTICE // 中标公告（发布向导 winning_bid 类目生成）
   CLARIFY_NOTICE // 澄清与修改公告（B-014 醒目公告，isTop）
+  CHANGE_NOTICE // 变更公告（2026-11-11 变更体系：开标时间等信息变更的对外公告，推 SCM0003）
 }
 
 enum AnnouncementStatus {
@@ -2791,6 +2792,25 @@ model ProjectManagementItem {
   @@index([status, currentStage])
   @@index([title])
   @@index([createdById])
+}
+
+// 项目变更记录（2026-11-11 变更体系，spec：docs/superpowers/specs/2026-11-11-project-change-system-design.md）：
+// 基本信息唯一人工编辑通道=变更弹窗——每次变更/补遗登记一条（轮次项目内自增，两类共序），
+// 字段级 diff + 必填理由留痕；涉及开标时间 → needsAnnouncement，须发变更公告（回填 announcementId）。
+model ProjectChangeRecord {
+  id                      String   @id @default(cuid())
+  projectManagementItemId String
+  round                   Int // 项目内轮次（变更与补遗共序，自增）
+  type                    String // 'CHANGE' | 'ADDENDUM'
+  reason                  String // 变更理由（必填）
+  changeset               Json // [{ field, label, from, to, stageKey }]
+  needsAnnouncement       Boolean  @default(false) // 涉及开标时间 → 须发变更公告
+  announcementId          String? // 关联变更/补遗公告（发布后回填）
+  operatorId              String
+  operatorName            String // displayName 快照（禁裸 username）
+  createdAt               DateTime @default(now())
+
+  @@index([projectManagementItemId, round])
 }
 
 // ── 归档域（DA/T 103-2024，2026-08-24；主线=项目管理 PMI 为卷）──
