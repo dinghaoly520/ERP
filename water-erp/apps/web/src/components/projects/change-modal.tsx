@@ -310,12 +310,29 @@ export function ChangeModal({
           <>
             <hr className="wb-section-rule" />
             <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-3.5">
-              <span className="text-xs text-[var(--muted-foreground)]">
-                {type === 'CHANGE' ? `已修改 ${changedCount} 个字段` : '补遗登记'}
-              </span>
+              {type === 'CHANGE' ? (
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${
+                    changedCount > 0
+                      ? 'bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] text-[var(--danger)]'
+                      : 'bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)] text-[var(--muted-foreground)]'
+                  }`}
+                >
+                  <span className={`h-1.5 w-1.5 rounded-full ${changedCount > 0 ? 'bg-[var(--danger)]' : 'bg-[var(--muted-foreground)]'}`} />
+                  已修改 {changedCount} 个字段
+                </span>
+              ) : (
+                <span className="text-xs text-[var(--muted-foreground)]">补遗登记</span>
+              )}
               <div className="neu-btn-group">
                 <button type="button" className="neu-btn-soft" onClick={() => setStep('type')}>上一步</button>
-                <button type="button" className="neu-btn-primary !h-[38px]" disabled={saving} onClick={() => void submit()}>
+                <button
+                  type="button"
+                  className="neu-btn-primary !h-[38px]"
+                  disabled={saving || (type === 'CHANGE' && changedCount === 0)}
+                  title={type === 'CHANGE' && changedCount === 0 ? '请先修改至少一个字段' : undefined}
+                  onClick={() => void submit()}
+                >
                   {saving ? '登记中…' : '登记并留档'}
                 </button>
               </div>
