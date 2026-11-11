@@ -39,6 +39,7 @@ import {
 } from '@/lib/types/project-management';
 import { ProjectTimelineStrip } from './project-timeline-strip';
 import { ProjectChangeEntry } from './project-change-entry';
+import { ChangeModal } from './change-modal';
 import { ProjectStageTimeline } from './project-stage-timeline';
 import { StageFileList } from './stage-file-list';
 import { TenderWriteModal } from './tender-write-modal';
@@ -638,6 +639,7 @@ export function ProjectDetailPanel({
 
   // 提取信息编辑状态
   const [editingField, setEditingField] = useState<string | null>(null);
+  const [changeModalOpen, setChangeModalOpen] = useState(false);
   const [editValues, setEditValues] = useState({
     title: '',
     initiationDate: '',
@@ -1200,38 +1202,19 @@ export function ProjectDetailPanel({
     }
   };
 
-  /** 变更发起入口（2026-11-11 变更体系）——Task 6 接三步弹窗，当前占位提示 */
+  /** 变更发起入口（2026-11-11 变更体系）：开标前弹三步变更/补遗弹窗 */
   const handleInitiateChange = () => {
     if (isBidLocked) { toast.warning('开标后不可修改标前数据'); return; }
-    toast.info('变更表单即将上线：当前可通过「变更 / 补遗记录」查看流水');
+    setChangeModalOpen(true);
   };
 
-  const handleStartEdit = (field: string, currentValue: string | number | null | undefined) => {
-    if (actionsDisabled) return; // 只读（归档/终止/非创建人）
-    if (isPastRound) { toast.warning('该步骤属已完成的历史轮次，仅供查看'); return; } // 2026-10-26 补：字段编辑入口未过旧轮闸
-    if (isBidLocked) { toast.warning('开标已确认，项目基本信息不可修改'); return; }
-    setEditingField(field);
-    let value = currentValue != null ? String(currentValue) : '';
-    // 投标单位字段：将顿号分隔转换为换行分隔，以便表格正确解析
-    if (field === 'biddingUnits' && value) {
-      value = value.split(/[、,]/).join('\n');
-    }
-    // 开标时间：时间点选择态——中文文本 → datetime-local
-    if (field === 'bidOpeningTime') {
-      setEditValues((prev) => ({ ...prev, bidOpeningTime: zhToDatetimeLocal(value) ?? '' }));
-      return;
-    }
-    // 采购文件获取时间：区间选择态——起止各自转 datetime-local，以 ~ 拼接为内部态
-    if (field === 'documentAcquireTime') {
-      const { start, end } = zhRangeToDatetimeLocal(value);
-      setEditValues((prev) => ({ ...prev, documentAcquireTime: [start, end].filter(Boolean).join('~') }));
-      return;
-    }
-    setEditValues((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+  const handleStartEdit = (_field: string, _currentValue?: string | number | null) => {
+    // 只读化（2026-11-11 变更体系）：基本信息唯一人工编辑通道=标题栏「变更 / 补遗」。
+    // 编辑按钮保留为引导入口（点击提示去向）；服务端 updateExtractedInfo 已加 CHANGE_ONLY 闸双保险。
+    toast.info('项目基本信息请通过标题栏「变更 / 补遗」修改并留痕');
+    return;
   };
+
 
   const handleSaveField = async (field: string) => {
     // 与 handleStartEdit 同闸（2026-10-26 稳健补）：兜底编辑态跨阶段残留——
@@ -2699,6 +2682,16 @@ export function ProjectDetailPanel({
           setTimeout(() => loadStepAnalysis(true), 200); // 名单可能变化，刷新步骤分析
         }}
         project={item}
+      />
+
+      {/* 变更 / 补遗三步弹窗（2026-11-11 变更体系）：左栏基本信息唯一编辑入口 */}
+      <ChangeModal
+        isOpen={changeModalOpen}
+        onClose={() => setChangeModalOpen(false)}
+        item={item}
+        currentStage={item.currentStage}
+        bidFields={null}
+        onRegistered={() => handleUpdated()}
       />
 
       {/* 公告制作与发布弹窗（两步向导）*/}
