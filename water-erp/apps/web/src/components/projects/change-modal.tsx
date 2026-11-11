@@ -15,6 +15,7 @@ import { registerChange, listChanges } from '@/lib/api/project-changes';
 import { CHANGE_FIELD_GROUPS, stageReached } from '@/lib/change-fields';
 import { SearchSelect, type SearchSelectOption } from '@/components/workbench/search-select';
 import { fetchProjectManagementList, extractTenderFields, optimizeInitiationFields } from '@/lib/api/project-management';
+import { fetchMyCompanyInfo } from '@/lib/api/company-info';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 
 type Step = 'type' | 'form';
@@ -65,7 +66,7 @@ export function ChangeModal({
   /** 开标确认（BidProject 进入 OPENING 起）——标段分区闸：开标后标前锁死、标后解锁 */
   bidOpened: boolean;
   onRegistered: (
-    result: { needsAnnouncement: boolean; recordId: string; category: 'change_notice' | 'addendum'; round: number; reason: string; changeContent: string; publishStart?: string; publishEnd?: string },
+    result: { needsAnnouncement: boolean; recordId: string; category: 'change_notice' | 'addendum'; round: number; reason: string; changeContent: string; publishStart?: string; publishEnd?: string; patchExtra?: Record<string, string> },
     publish: boolean,
     /** 发布优先模式（2026-11-12 裁定）：尚未登记——公告发布成功后由面板补登记 */
     pending?: { type: 'CHANGE' | 'ADDENDUM'; reason: string; fields: Record<string, string> },
@@ -85,6 +86,24 @@ export function ChangeModal({
   const [pubStart, setPubStart] = useState('');
   const [pubEnd, setPubEnd] = useState('');
   const [pubContent, setPubContent] = useState('');
+
+  // 监督举报块预填：公司信息管理的默认监督方案（2026-11-12 借鉴公告向导）
+  useEffect(() => {
+    if (!isOpen) return;
+    fetchMyCompanyInfo()
+      .then(ci => {
+        const sup = ci?.supervisionProfiles?.find(x => x.isDefault) ?? ci?.supervisionProfiles?.[0];
+        if (!sup) return;
+        setValues(prev => ({
+          ...prev,
+          supervisionDepartment: prev.supervisionDepartment || sup.department || '',
+          supervisionAddress: prev.supervisionAddress || sup.address || '',
+          supervisionContact: prev.supervisionContact || sup.contact || '',
+          supervisionPhone: prev.supervisionPhone || sup.phone || '',
+        }));
+      })
+      .catch(() => {});
+  }, [isOpen]);
 
   // 归属项目候选：在办项目清单（排除本项目）；打开弹窗时取一次
   useEffect(() => {
@@ -155,6 +174,8 @@ export function ChangeModal({
     const trimmedReason = reason.trim();
     if (!trimmedReason) { toast.error('请填写变更理由'); return; }
     if (type === 'CHANGE' && changedCount === 0) { toast.error('请至少修改一个字段'); return; }
+    if (type === 'ADDENDUM' && !(values.changeContent ?? '').trim()) { toast.error('请填写补遗内容'); return; }
+    if (type === 'ADDENDUM' && (!values.announcementStart || !values.announcementEnd)) { toast.error('请选择公示期限起止'); return; }
     const fields: Record<string, string> = {};
     if (type === 'CHANGE') {
       for (const g of groups) {
@@ -166,7 +187,15 @@ export function ChangeModal({
         }
       }
     }
-    // 正文预填：变更对照或补遗事由；公示期默认 3 日（法定）
+    // 补遗：正文/公示期直接取表单值（不再用默认 3 日）
+    if (type === 'ADDENDUM') {
+      setPubContent(values.changeContent ?? '');
+      setPubStart(values.announcementStart ?? '');
+      setPubEnd(values.announcementEnd ?? '');
+      setAwaitChoice({ type, reason: trimmedReason, fields });
+      return;
+    }
+    // 变更：正文预填对照；公示期默认 3 日（法定）
     const cs = Object.entries(fields);
     setPubContent(cs.length > 0
       ? cs.map(([f]) => {
@@ -218,6 +247,16 @@ export function ChangeModal({
             return `${def?.label ?? f}：${currentOf(f) || '（空）'} → ${payload.fields[f]}`;
           }).join('\n')
         : payload.reason;
+      // 补遗：公告表单值（名称/编号/监督块/落款）随 patch 注入向导
+      const addendumPatch: Record<string, string> = payload.type === 'ADDENDUM' ? {
+        projectName: values.projectName ?? String(pm.title ?? ''),
+        projectCode: values.projectCode ?? String(pm.projectCode ?? ''),
+        supervisionDepartment: values.supervisionDepartment ?? '',
+        supervisionAddress: values.supervisionAddress ?? '',
+        supervisionContact: values.supervisionContact ?? '',
+        supervisionPhone: values.supervisionPhone ?? '',
+        signatureDate: values.signatureDate ?? new Date().toISOString().slice(0, 10),
+      } : {};
       onRegistered({
         needsAnnouncement: 'bidOpeningTime' in payload.fields,
         recordId: '',
@@ -227,6 +266,7 @@ export function ChangeModal({
         changeContent: pubContent.trim() || changeContent,
         publishStart: pubStart,
         publishEnd: pubEnd,
+        patchExtra: addendumPatch,
       }, true, payload);
       onClose();
     } catch (e) {
@@ -256,7 +296,7 @@ export function ChangeModal({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4">
           {step === 'type' && (
-            <div className="space-y-3">
+            <div className="mt-8 space-y-3">
               <button type="button" onClick={() => { setType('CHANGE'); setStep('form'); }} className="neu-card block w-full p-4 text-left">
                 <div className="flex items-center gap-2 text-sm font-bold text-[var(--foreground)]"><RefreshCcw size={15} className="text-[var(--warning)]" />变更</div>
                 <p className="mt-1.5 text-xs leading-5 text-[var(--muted-foreground)]">
@@ -358,9 +398,53 @@ export function ChangeModal({
               ))}
 
               {type === 'ADDENDUM' && (
-                <p className="rounded-[12px] bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-4 py-3 text-xs leading-5 text-[var(--muted-foreground)]">
-                  补遗先登记留档；登记后可直接发布对外的补遗公告。
-                </p>
+                <div className="space-y-3">
+                  <p className="rounded-[12px] bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-4 py-3 text-xs leading-5 text-[var(--muted-foreground)]">
+                    补遗公告表单（与公告发布同款）：登记留档后可直接发布对外公告。
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">项目名称</span>
+                      <input type="text" className="workbench-input" value={values.projectName ?? String(pm.title ?? '')} onChange={e => setValues(v => ({ ...v, projectName: e.target.value }))} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">项目编号</span>
+                      <input type="text" className="workbench-input" value={values.projectCode ?? String(pm.projectCode ?? '')} onChange={e => setValues(v => ({ ...v, projectCode: e.target.value }))} />
+                    </label>
+                    <label className="col-span-2 flex flex-col gap-1">
+                      <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">补遗内容</span>
+                      <textarea className="neu-input min-h-[110px] text-sm" value={values.changeContent ?? ''} onChange={e => setValues(v => ({ ...v, changeContent: e.target.value }))} placeholder="补充说明正文（随公告发布）" />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">公示期限（起）</span>
+                      <input type="datetime-local" className="workbench-input" value={values.announcementStart ?? ''} onChange={e => setValues(v => ({ ...v, announcementStart: e.target.value }))} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">公示期限（止）</span>
+                      <input type="datetime-local" className="workbench-input" value={values.announcementEnd ?? ''} onChange={e => setValues(v => ({ ...v, announcementEnd: e.target.value }))} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">监督部门</span>
+                      <input type="text" className="workbench-input" value={values.supervisionDepartment ?? ''} onChange={e => setValues(v => ({ ...v, supervisionDepartment: e.target.value }))} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">监督地址</span>
+                      <input type="text" className="workbench-input" value={values.supervisionAddress ?? ''} onChange={e => setValues(v => ({ ...v, supervisionAddress: e.target.value }))} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">监督联系人</span>
+                      <input type="text" className="workbench-input" value={values.supervisionContact ?? ''} onChange={e => setValues(v => ({ ...v, supervisionContact: e.target.value }))} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">监督电话</span>
+                      <input type="text" className="workbench-input" value={values.supervisionPhone ?? ''} onChange={e => setValues(v => ({ ...v, supervisionPhone: e.target.value }))} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">落款日期</span>
+                      <input type="date" className="workbench-input" value={values.signatureDate ?? new Date().toISOString().slice(0, 10)} onChange={e => setValues(v => ({ ...v, signatureDate: e.target.value }))} />
+                    </label>
+                  </div>
+                </div>
               )}
 
               <label className="flex flex-col gap-1">

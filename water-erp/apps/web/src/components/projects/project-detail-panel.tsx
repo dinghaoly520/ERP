@@ -2711,6 +2711,7 @@ export function ProjectDetailPanel({
                 changeContent: ctx.changeContent,
                 ...(ctx.publishStart ? { announcementStart: ctx.publishStart } : {}),
                 ...(ctx.publishEnd ? { announcementEnd: ctx.publishEnd } : {}),
+                ...(ctx.patchExtra ?? {}),
               },
               pendingRegister: pending,
             });
@@ -2730,6 +2731,7 @@ export function ProjectDetailPanel({
               changeContent: ctx.changeContent,
               ...(ctx.publishStart ? { announcementStart: ctx.publishStart } : {}),
               ...(ctx.publishEnd ? { announcementEnd: ctx.publishEnd } : {}),
+              ...(ctx.patchExtra ?? {}),
             },
           });
           if (publish) {
