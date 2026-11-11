@@ -47,6 +47,8 @@ export function HallMessagePanel({ messages, onOpen }: Props) {
         <span className="text-sm font-bold text-[var(--foreground)]">开标大厅消息</span>
         <span className="text-[10px] text-[var(--muted-foreground)]">只读 · 公聊</span>
       </div>
+      {/* 头部/内容隔离线（2026-11-11 用户裁定）：hairline，与内容区同缩进（px-4） */}
+      <div className="mx-4 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
 
       {/* 消息列表 */}
       <div className="flex-1 overflow-y-auto px-4 pb-4">

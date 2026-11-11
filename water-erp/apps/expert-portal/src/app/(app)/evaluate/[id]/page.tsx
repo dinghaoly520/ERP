@@ -1478,6 +1478,8 @@ export default function ExpertEvaluatePage() {
             <h3 className="flex items-center gap-1.5 text-sm font-bold text-[var(--foreground)]"><MessageSquare size={14} strokeWidth={1.5} />澄清与答疑</h3>
             <button onClick={() => setShowClarifications(false)} aria-label="关闭" className="neu-btn-xs is-square"><X size={14} strokeWidth={1.5} /></button>
           </div>
+          {/* 头部/内容隔离线（2026-11-11 用户裁定）：hairline，与内容区同缩进（壳 p-5） */}
+          <div className="mx-5 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
           {clarifications.length === 0 ? (
             <p className="py-4 text-center text-xs text-[var(--muted-foreground)]">暂无澄清记录</p>
           ) : (
@@ -2528,6 +2530,8 @@ export default function ExpertEvaluatePage() {
                 <Smartphone size={17} strokeWidth={1.5} className="text-[var(--accent-strong)]" />
                 <h3 className="text-sm font-bold text-[var(--foreground)]">迁移到打分平板</h3>
               </div>
+              {/* 头部/内容隔离线（2026-11-11 用户裁定）：hairline，与内容区同缩进（壳 p-6） */}
+              <div className="mx-6 mb-4 mt-3 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
               {transferStatus === 'claimed' ? (
                 <div className="exp-alert exp-alert--success mt-4 flex flex-col items-center gap-2 !p-4">
                   <CheckCircle size={26} strokeWidth={1.5} />

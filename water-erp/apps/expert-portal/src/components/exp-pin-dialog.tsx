@@ -81,6 +81,9 @@ export function ExpPinDialog({
           </div>
         </div>
 
+        {/* 头部/内容隔离线（2026-11-11 用户裁定）：hairline，与内容区同缩进（壳 p-5） */}
+        <div className="mx-5 mt-4 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
+
         <input
           ref={inputRef}
           type="password"

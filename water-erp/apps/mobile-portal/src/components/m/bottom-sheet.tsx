@@ -77,7 +77,8 @@ export function BottomSheet({
       />
       <div className="m-sheet-panel" data-closing={closing ? "true" : "false"} onAnimationEnd={handleAnimationEnd}>
         <div aria-hidden className="mx-auto mb-2.5 h-1 w-10 rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_28%,transparent)]" />
-        <div className="mb-3 flex items-start justify-between gap-3">
+        {/* 标题行带 border-b hairline（2026-11-11 用户裁定：标题/内容隔离线），与面板内容同宽 */}
+        <div className="mb-3 flex items-start justify-between gap-3 border-b border-[oklch(0.6_0.04_258_/_0.16)] pb-2.5">
           <div className="min-w-0 flex-1 text-[18px] font-bold leading-snug tracking-[-0.02em] text-[var(--foreground)]">{title}</div>
           <button
             type="button"

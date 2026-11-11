@@ -659,6 +659,8 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
           <div className="bid-overlay-backdrop" />
           <div className="bid-dialog relative mx-4 w-full max-w-[min(440px,92vw)] px-6 py-5" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-base font-black text-[color:var(--foreground)]">确认操作</h3>
+            {/* 头部/内容隔离线（2026-11-11 用户裁定）：壳自带 px-6 内边距，线不加 mx 即与内容区对齐 */}
+            <div className="my-3 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
             <p className="mt-2 text-xs leading-relaxed text-[color:var(--muted-foreground)]">{confirmBox.message}</p>
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" className="neu-btn-soft !h-8 !text-xs" onClick={() => setConfirmBox(null)}>取消</button>
@@ -674,6 +676,8 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
           <div className="bid-overlay-backdrop" />
           <div className="bid-dialog relative mx-4 w-full max-w-[min(480px,92vw)] px-6 py-5" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-base font-black text-[color:var(--foreground)]">重开签字包（数据修正）</h3>
+            {/* 头部/内容隔离线（2026-11-11 用户裁定）：壳自带 px-6 内边距，线不加 mx 即与内容区对齐 */}
+            <div className="my-3 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
             <p className="mt-2 text-xs leading-relaxed text-[color:var(--muted-foreground)]">
               仅用于数据修正：解除签字闭环与回流包引用，全员正选签字状态回到「待签」（电子签名与书面不同意见一并清空；签字包
               PDF 快照与指纹保留）。重开后须重新登记签字、重新生成回流包；操作记入监督日志（高风险）。
