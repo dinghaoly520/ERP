@@ -1238,8 +1238,19 @@ ${shortlist}
 
     // Determine stages based on procurement method, then adjust for uploaded documents
     const isSmallPurchase = dto.procurementMethod === '小额采购';
-    const hasDemand = !!(dto.hasProcurementDemand && dto.demandAttachment);
-    const hasInitiation = !!dto.initiationAttachment;
+    // 多文件归一（2026-11-11 用户裁定：需求/立项支持多文件上传识别）——数组优先，单数字段向后兼容
+    const demandAtts = dto.demandAttachments?.length
+      ? dto.demandAttachments
+      : dto.demandAttachment
+        ? [dto.demandAttachment]
+        : [];
+    const initiationAtts = dto.initiationAttachments?.length
+      ? dto.initiationAttachments
+      : dto.initiationAttachment
+        ? [dto.initiationAttachment]
+        : [];
+    const hasDemand = !!(dto.hasProcurementDemand && demandAtts.length > 0);
+    const hasInitiation = initiationAtts.length > 0;
 
     type StageKey = typeof PROJECT_WORKFLOW_STAGES[number]['key'];
 
@@ -1400,18 +1411,18 @@ ${shortlist}
             data: { completedAt: new Date() },
           });
 
-          // Save demand attachment
-          await tx.attachment.create({
-            data: {
+          // Save demand attachments（多文件逐份挂到需求阶段）
+          await tx.attachment.createMany({
+            data: demandAtts.map((a) => ({
               projectManagementItemId: project.id,
               projectManagementStageId: demandStage.id,
               attachmentType: 'SUPPORTING_MATERIAL',
-              fileName: dto.demandAttachment!.fileName,
-              objectKey: dto.demandAttachment!.objectKey,
-              mimeType: dto.demandAttachment!.mimeType,
-              fileSize: dto.demandAttachment!.fileSize,
-              uploadedById: dto.demandAttachment!.uploadedById,
-            },
+              fileName: a.fileName,
+              objectKey: a.objectKey,
+              mimeType: a.mimeType,
+              fileSize: a.fileSize,
+              uploadedById: a.uploadedById,
+            })),
           });
         }
       }
@@ -1427,18 +1438,18 @@ ${shortlist}
             data: { completedAt: new Date() },
           });
 
-          // Save initiation attachment
-          await tx.attachment.create({
-            data: {
+          // Save initiation attachments（多文件逐份挂到立项阶段）
+          await tx.attachment.createMany({
+            data: initiationAtts.map((a) => ({
               projectManagementItemId: project.id,
               projectManagementStageId: initiationStage.id,
               attachmentType: 'SUPPORTING_MATERIAL',
-              fileName: dto.initiationAttachment!.fileName,
-              objectKey: dto.initiationAttachment!.objectKey,
-              mimeType: dto.initiationAttachment!.mimeType,
-              fileSize: dto.initiationAttachment!.fileSize,
-              uploadedById: dto.initiationAttachment!.uploadedById,
-            },
+              fileName: a.fileName,
+              objectKey: a.objectKey,
+              mimeType: a.mimeType,
+              fileSize: a.fileSize,
+              uploadedById: a.uploadedById,
+            })),
           });
         }
       }

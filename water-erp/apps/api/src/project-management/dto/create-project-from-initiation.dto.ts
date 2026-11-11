@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsBoolean,
   IsNotEmpty,
   IsNumber,
@@ -180,6 +181,13 @@ export class CreateProjectFromInitiationDto {
   @IsOptional()
   initiationAttachment?: InitiationAttachmentDto;
 
+  /** 多文件（2026-11-11 用户裁定：需求/立项支持多文件上传识别）；数组优先，单数字段向后兼容 */
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => InitiationAttachmentDto)
+  @IsOptional()
+  initiationAttachments?: InitiationAttachmentDto[];
+
   @IsString()
   @IsOptional()
   createdById?: string;
@@ -198,4 +206,10 @@ export class CreateProjectFromInitiationDto {
   @Type(() => DemandAttachmentDto)
   @IsOptional()
   demandAttachment?: DemandAttachmentDto;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DemandAttachmentDto)
+  @IsOptional()
+  demandAttachments?: DemandAttachmentDto[];
 }

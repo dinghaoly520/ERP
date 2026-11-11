@@ -47,6 +47,9 @@ export type InitiationFields = {
   hasProcurementDemand: boolean;
   demandAttachment?: ProjectManagementAttachment;
   initiationAttachment?: ProjectManagementAttachment;
+  /** 多文件（2026-11-11）：数组优先，单数字段向后兼容 */
+  demandAttachments?: ProjectManagementAttachment[];
+  initiationAttachments?: ProjectManagementAttachment[];
   demandProject?: string;
   demandContractNumber?: string;
   initiationDate?: string;
