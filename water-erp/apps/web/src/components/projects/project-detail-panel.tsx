@@ -641,6 +641,9 @@ export function ProjectDetailPanel({
   // 提取信息编辑状态
   const [editingField, setEditingField] = useState<string | null>(null);
   const [changeModalOpen, setChangeModalOpen] = useState(false);
+  // 发布优先模式发布成功标记：向导 onPublished 先于 onClose 同步触发——
+  // 无此标记 onClose 会误报「已取消发布」（2026-11-12 审计修复）
+  const publishFirstDoneRef = useRef(false);
   // 变更弹窗现值（与左栏同源）：override 非空键合并（变更范围=项目基本信息，2026-11-11 用户裁定）
   const changeCurrentValues = useMemo(() => ({
     ...(item as unknown as Record<string, string | number | null>),
@@ -2748,10 +2751,13 @@ export function ProjectDetailPanel({
         isOpen={announcementPublishOpen}
         initialDraftPatch={changeWizardCtx?.patch}
         onClose={() => {
-          if (changeWizardCtx?.pendingRegister) {
+          if (changeWizardCtx?.pendingRegister && !publishFirstDoneRef.current) {
             toast.info('已取消发布，本次修改未登记');
+          }
+          if (changeWizardCtx?.pendingRegister) {
             setChangeWizardCtx(null);
           }
+          publishFirstDoneRef.current = false;
           setAnnouncementPublishOpen(false);
           setAnnouncementCategory('procurement_document');
         }}
@@ -2759,10 +2765,11 @@ export function ProjectDetailPanel({
         onPublished={(result) => {
           // 发布优先模式（2026-11-12 裁定）：公告成功 → 现在补登记信息变更并回填关联
           if (changeWizardCtx?.pendingRegister && (announcementCategory === 'change_notice' || announcementCategory === 'addendum') && result?.id) {
+            publishFirstDoneRef.current = true; // 先于 onClose 置位，防误报取消
             const payload = changeWizardCtx.pendingRegister;
             void registerChange(item.id, payload)
               .then(async (r) => {
-                await bindChangeAnnouncement(r.record.id, result.id);
+                await bindChangeAnnouncement(item.id, r.record.id, result.id);
                 toast.success(`公告已发布，第 ${r.record.round} 轮变更已登记`);
                 setChangeWizardCtx(null);
                 handleUpdated();
@@ -2772,7 +2779,7 @@ export function ProjectDetailPanel({
               });
           } else if (changeWizardCtx && (announcementCategory === 'change_notice' || announcementCategory === 'addendum') && result?.id) {
             // 已登记路径：回填关联（闭环记录上的「公告待发」红标）
-            void bindChangeAnnouncement(changeWizardCtx.recordId, result.id).then(() => handleUpdated()).catch(() => {});
+            void bindChangeAnnouncement(item.id, changeWizardCtx.recordId, result.id).then(() => handleUpdated()).catch(() => {});
           }
           handleUpdated();
           setBpDataTick((t) => t + 1); // 公告闸 flag 即时刷新：failedBidNoticePublished 依赖 refs 重拉，不 bump 会拿旧值重开向导

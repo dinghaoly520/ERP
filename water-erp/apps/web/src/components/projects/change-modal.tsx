@@ -158,14 +158,15 @@ export function ChangeModal({
   };
 
   useEffect(() => {
-    if (isOpen && step === 'records' && records == null) {
+    if (isOpen && step === 'records') {
+      // 每次进入强制刷新（2026-11-12 审计修复）：登记新轮次后旧缓存不再复显
       setRecordsLoading(true);
       listChanges(item.id)
         .then(setRecords)
         .catch(() => setRecords([]))
         .finally(() => setRecordsLoading(false));
     }
-  }, [isOpen, step, records, item.id]);
+  }, [isOpen, step, item.id]);
 
   if (!isOpen) return null;
 

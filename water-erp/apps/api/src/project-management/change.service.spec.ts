@@ -4,7 +4,7 @@ import { ProjectChangeService } from './change.service';
  *  空变更拒绝、轮次自增、diff 留痕、开标时间→needsAnnouncement+PMI 中文格式同步。 */
 
 const PMI = {
-  id: 'p1', title: '原名', procurementCategory: '货物', budgetAmount: 100, currentStage: 'INITIATION',
+  id: 'p1', status: 'ACTIVE', title: '原名', procurementCategory: '货物', budgetAmount: 100, currentStage: 'INITIATION',
   requesterName: '李四', requesterDepartment: '勘察院', projectOverview: '概况',
   bidOpeningTime: '2026年11月15日 09:00', awardedSupplier: null, contractNumber: 'HT-1', contractAmount: 100, paymentPerformance: '已履约',
   stages: [{ stageKey: 'PROCUREMENT_DEMAND' }, { stageKey: 'INITIATION' }, { stageKey: 'TENDER_DOCUMENT' }],

@@ -36,6 +36,15 @@ export class ProjectChangeService {
       include: { stages: { select: { stageKey: true } } },
     });
     if (!pmi) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
+    // 终局项目不可变更（2026-11-12 审计修复）：归档/终止/回收站数据不可扰动——
+    // 与 PMI 写端点群 assertPmiMutable 同口径；否则终止项目 bp 已 ABORTED 被排除、
+    // 分区闸误判为「未开标」→ 标前组反而可改
+    if (pmi.status !== 'ACTIVE') {
+      throw new BadRequestException({
+        error: pmi.status === 'ARCHIVED' ? '项目已归档，不可变更' : pmi.status === 'TERMINATED' ? '项目已终止，不可变更' : '项目已移入回收站，不可变更',
+        code: 'PMI_NOT_ACTIVE',
+      });
+    }
 
     // 当前轮未终局的 BidProject（标段分区闸判定依据，2026-11-12 用户裁定：
     // 开标确认前标后锁死；开标确认后标前锁死）
@@ -109,14 +118,15 @@ export class ProjectChangeService {
       select: { displayName: true },
     }))?.displayName || operatorId;
 
-    const maxRound = await this.prisma.projectChangeRecord.aggregate({
-      where: { projectManagementItemId: projectId },
-      _max: { round: true },
-    });
-    const round = (maxRound._max.round ?? 0) + 1;
-
-    // 业务表写入与登记同事务（留痕与数据一致）；开标时间同步在事务外走既有 sync（幂等、失败不阻断）
+    // 业务表写入与登记同事务（留痕与数据一致）；轮次聚合移入事务收窄并发窗口
+    // （无 (project,round) 唯一约束下的残余竞态：极端并发可能同轮次两条——见审计记录，加约束需迁移）
+    // 开标时间同步在事务外走既有 sync（幂等、失败不阻断）
     const record = await this.prisma.$transaction(async (tx) => {
+      const maxRound = await tx.projectChangeRecord.aggregate({
+        where: { projectManagementItemId: projectId },
+        _max: { round: true },
+      });
+      const round = (maxRound._max.round ?? 0) + 1;
       if (Object.keys(pmiData).length > 0) {
         await tx.projectManagementItem.update({ where: { id: projectId }, data: pmiData });
       }

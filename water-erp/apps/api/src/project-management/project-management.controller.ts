@@ -69,8 +69,10 @@ export class ProjectManagementController {
     return this.changeService.list(id);
   }
 
-  @Patch('changes/:recordId/announcement')
+  @Patch(':id/changes/:recordId/announcement')
   bindChangeAnnouncement(@Param('recordId') recordId: string, @Body() dto: BindChangeAnnouncementDto) {
+    // 路由含 :id（2026-11-12 安全修复）：PmiOwnershipGuard 按写口径校验——
+    // 原裸 /changes/:recordId 无 :id 参数，守卫自动放行=任何人可回填任意记录
     return this.changeService.bindAnnouncement(recordId, dto.announcementId);
   }
 

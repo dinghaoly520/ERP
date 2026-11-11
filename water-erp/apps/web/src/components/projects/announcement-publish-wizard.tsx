@@ -1348,6 +1348,12 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
           config: sunshineConfig,
           issueType: visibility === 'PUBLIC' ? 1 : 2,
           isExternal: visibility === 'PUBLIC' ? 1 : 0,
+          // 变更/补遗轮次（2026-11-12 审计修复）：SCM0003 changes[].round 依赖——
+          // 此前快照缺 round，平台侧每轮都当第 1 轮
+          ...((category === 'change_notice' || category === 'addendum')
+            && Number((finalDraft as Record<string, string>).changeRound) > 0
+            ? { round: Number((finalDraft as Record<string, string>).changeRound) }
+            : {}),
         };
       }
       // 异议联系方式快照（2026-09-11）：随公告冻结在 metadata，详情页单独展示（澄清说明后续修改不影响已发公告）

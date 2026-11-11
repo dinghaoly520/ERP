@@ -47,8 +47,8 @@ export function listChanges(projectId: string): Promise<ProjectChangeRecord[]> {
 }
 
 /** 变更公告发布后回填（闭环「公告待发」） */
-export function bindChangeAnnouncement(recordId: string, announcementId: string): Promise<void> {
-  return request(`/changes/${recordId}/announcement`, {
+export function bindChangeAnnouncement(projectId: string, recordId: string, announcementId: string): Promise<void> {
+  return request(`/${projectId}/changes/${recordId}/announcement`, {
     method: 'PATCH',
     body: JSON.stringify({ announcementId }),
   });
