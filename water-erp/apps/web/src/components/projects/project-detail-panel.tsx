@@ -1227,11 +1227,22 @@ export function ProjectDetailPanel({
     setChangeModalOpen(true);
   };
 
-  const handleStartEdit = (_field: string, _currentValue?: string | number | null) => {
+  const handleStartEdit = (field: string, currentValue?: string | number | null) => {
     // 只读化（2026-11-11 变更体系）：基本信息唯一人工编辑通道=标题栏「变更 / 补遗」。
-    // 编辑按钮保留为引导入口（点击提示去向）；服务端 updateExtractedInfo 已加 CHANGE_ONLY 闸双保险。
-    toast.info('项目基本信息请通过标题栏「变更 / 补遗」修改并留痕');
-    return;
+    // 例外：供应商/专家名单（AI 识别可能不准，需随时人工维护）走原直改通道，不进变更留痕。
+    const isRoster = field === 'expertInfo' || field === 'biddingUnits' || field === 'invitedSuppliers';
+    if (!isRoster) {
+      toast.info('项目基本信息请通过标题栏「变更 / 补遗」修改');
+      return;
+    }
+    if (actionsDisabled) return; // 只读（归档/终止/非创建人）
+    if (isPastRound) { toast.warning('该步骤属已完成的历史轮次，仅供查看'); return; }
+    if (isBidLocked) { toast.warning('开标已确认，项目基本信息不可修改'); return; }
+    setEditingField(field);
+    let value = currentValue != null ? String(currentValue) : '';
+    // 投标单位字段：顿号分隔转换行（表格解析口径，同旧逻辑）
+    if (field === 'biddingUnits' && value) value = value.split(/[、,]/).join('\n');
+    setEditValues((prev) => ({ ...prev, [field]: value }) as typeof prev);
   };
 
 

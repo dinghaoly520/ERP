@@ -4422,9 +4422,18 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // 人工编辑唯一入口闸（2026-11-11 变更体系 spec §2）：HTTP 人工 PATCH 一律走「变更 / 补遗」
     // 登记留痕；internal=true 仅供服务端内部链路（变更服务/批量建档）。AI 批量提取走
     // extractTenderFields 等独立端点，不经此方法，不受影响。
-    if (dto.internal !== true) {
+    // 例外放行（2026-11-11 用户裁定）：供应商/专家名单字段——AI 识别可能不准需随时人工
+    // 维护，不走变更留痕；仅当 payload 纯名单字段时直改，混入其他字段仍拦。
+    const rosterOnly = (() => {
+      const ROSTER = new Set(['expertInfo', 'biddingUnits', 'invitedSuppliers']);
+      const provided = Object.keys(dto).filter(
+        (k) => k !== 'internal' && (dto as Record<string, unknown>)[k] !== undefined,
+      );
+      return provided.length > 0 && provided.every((k) => ROSTER.has(k));
+    })();
+    if (dto.internal !== true && !rosterOnly) {
       throw new BadRequestException({
-        error: '项目基本信息修改请通过项目标题栏「变更 / 补遗」流程登记留痕',
+        error: '项目基本信息修改请通过项目标题栏「变更 / 补遗」',
         code: 'CHANGE_ONLY',
       });
     }
