@@ -546,20 +546,40 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
 
   // 综合分析（2026-11-10 用户裁定）：服务端缓存即时提取——每公司视野存最新一份，
   // 数据指纹未变不再请求 LLM；单公司/全部 miss 时自动生成，多公司 miss 只提示手动
-  // 「开始分析」不自动跑（组合视野消耗大且临时性强）
-  const hra = useCallback(async(force=false)=>{
-    if(!data)return;
-    const multi=companyId.includes(",");
-    if(!force){
-      try{
-        const c=await fetchDashboardAnalysisCache(companyId,startDate||undefined,endDate||undefined);
-        if(c.hit&&c.result&&Array.isArray(c.result.highlights)&&Array.isArray(c.result.concerns)&&Array.isArray(c.result.suggestions)){setAnalysis(c.result);setAlErr(null);return;}
-      }catch{/* 缓存接口失败：单公司退回自动生成，多公司按手动处理 */}
-      if(multi){setAnalysis(null);setAlErr(null);return;}
-    }
-    setAnalysis(null);setAlErr(null);setAlLoading(true);
-    try{const r=await fetchDashboardAnalysis(bap(data),companyId);setAnalysis(r);}catch(err){setAlErr(err instanceof Error?err.message:"分析请求失败，请稍后重试");}finally{setAlLoading(false);}
-  },[data,bap,companyId,startDate,endDate]);
+  // 「开始分析」不自动跑。缓存读取挂载/换公司/换区间即行、与统计数据并行
+  // （2026-11-11：GET 实测毫秒级，此前串在 stats 聚合查询之后才显得「不秒开」）
+  const validCache = (r?: DashboardAnalysisResult | null): r is DashboardAnalysisResult =>
+    !!r && Array.isArray(r.highlights) && Array.isArray(r.concerns) && Array.isArray(r.suggestions);
+
+  const readAnalysisCache = useCallback(async () => {
+    try {
+      const c = await fetchDashboardAnalysisCache(companyId, startDate || undefined, endDate || undefined);
+      if (c.hit && validCache(c.result)) { setAnalysis(c.result); setAlErr(null); return; }
+    } catch { /* 缓存接口失败走生成路径 */ }
+    setAnalysis(null); // miss：清位待生成（多公司由生成 effect 跳过、走手动提示）
+  }, [companyId, startDate, endDate]);
+
+  useEffect(() => { void readAnalysisCache(); }, [readAnalysisCache]);
+
+  // miss 后自动生成：需 stats 组装 payload，等 data 就绪即跑；多公司不自动
+  useEffect(() => {
+    if (!data || companyId.includes(",") || analysis || alLoading) return;
+    void (async () => {
+      setAlErr(null); setAlLoading(true);
+      try { const r = await fetchDashboardAnalysis(bap(data), companyId); setAnalysis(r); }
+      catch (err) { setAlErr(err instanceof Error ? err.message : "分析请求失败，请稍后重试"); }
+      finally { setAlLoading(false); }
+    })();
+  }, [data, companyId, analysis, alLoading, bap]);
+
+  // 手动「开始分析/重新分析」：无视缓存直接生成
+  const forceAnalysis = useCallback(async () => {
+    if (!data) return;
+    setAnalysis(null); setAlErr(null); setAlLoading(true);
+    try { const r = await fetchDashboardAnalysis(bap(data), companyId); setAnalysis(r); }
+    catch (err) { setAlErr(err instanceof Error ? err.message : "分析请求失败，请稍后重试"); }
+    finally { setAlLoading(false); }
+  }, [data, bap, companyId]);
 
   const suppliers:SupplierDetail[]=useMemo(()=>{if(!data)return[];return data.supplierStats.map(s=>({...s,id:s.name}));},[data]);
 
@@ -582,7 +602,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
     lq:()=>{const d=new Date(),y=d.getFullYear(),q=Math.floor(d.getMonth()/3);if(q===0){applyQuick(`${y-1}-10-01`,`${y-1}-12-31`);}else{const sm=(q-1)*3+1,em=q*3,ld2=new Date(y,em,0).getDate();applyQuick(`${y}-${String(sm).padStart(2,"0")}-01`,`${y}-${String(em).padStart(2,"0")}-${ld2}`);}},
   };
 
-  useEffect(()=>{if(data&&!analysis&&!alLoading)hra(false);},[data,analysis,alLoading,hra]);
+  // 旧「data 到位即 hra」效应已由上方缓存并行读取 + miss 生成效应取代（2026-11-11）
 
   // 错误态先于加载态判断（2026-09-28 审计 P1：此前 loading||!data 在前，请求失败时 data
   // 恒 null，页面永远停在"加载中"，错误卡不可达；重试按钮也未接 ld，点了会永久转圈）
@@ -648,7 +668,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
         </div>
       </motion.div>
       <div className="mb-3 grid grid-cols-1 items-stretch gap-2 md:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr]">
-        <div className="flex h-full flex-col min-h-[280px] md:min-h-[300px]"><IntelligencePanel analysis={analysis} loading={alLoading} error={alErr} onRefresh={()=>hra(true)} index={7} reducedMotion={reducedMotion} manualPrompt={companyId.includes(",")}/></div>
+        <div className="flex h-full flex-col min-h-[280px] md:min-h-[300px]"><IntelligencePanel analysis={analysis} loading={alLoading} error={alErr} onRefresh={()=>void forceAnalysis()} index={7} reducedMotion={reducedMotion} manualPrompt={companyId.includes(",")}/></div>
         <div className="flex h-full flex-col min-h-[280px] md:min-h-[300px]"><SavingsRankingPanel items={data.savingsRanking as SavingsRankingItem[]} index={8} reducedMotion={reducedMotion}/></div>
         <div className="flex h-full flex-col min-h-[280px] md:min-h-[300px] md:col-span-2 lg:col-span-1"><RiskProjectsPanel profile={data} index={9} reducedMotion={reducedMotion}/></div>
       </div>

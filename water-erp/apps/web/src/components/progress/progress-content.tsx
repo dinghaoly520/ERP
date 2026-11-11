@@ -417,6 +417,9 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
   // admin 公司视图：全部=按公司分组（CompanySectionHeader），单公司=该公司标题
   const selectedCompanyName = useCompanyName(companyId);
   const [aiLoading, setAiLoading] = useState(false);
+  // 首检标记（2026-11-11）：缓存 GET 毫秒级返回前不显示「分析暂不可用」——
+  // 否则每次进页先闪错误态再翻成内容，观感即「缓存没生效」
+  const [aiChecked, setAiChecked] = useState(false);
 
   const applyInsightFilter = (insight: ProgressAiInsight) => {
     setKeyword(""); setSelectedProject(""); setSelectedRequester("");
@@ -439,18 +442,19 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
   // miss 只提示手动「开始分析」不自动跑
   const loadAiInsights = useCallback(async (forceRefresh = false) => {
     const multi = companyId.includes(",");
+    setAiChecked(false); // 换视野/重查期间回到「检查中」态，旧内容不冒充新视野结果
     if (!forceRefresh) {
       try {
         const c = await fetchProgressInsightCache(companyId);
-        if (c.hit && c.result && Array.isArray(c.result.insights)) { setAiInsights(c.result); return; }
+        if (c.hit && c.result && Array.isArray(c.result.insights)) { setAiInsights(c.result); setAiChecked(true); return; }
       } catch { /* 缓存接口失败：单公司退回自动生成，多公司按手动处理 */ }
-      if (multi) { setAiInsights(null); return; }
+      if (multi) { setAiInsights(null); setAiChecked(true); return; }
     }
     setAiLoading(true);
     try {
       const data = await fetchProgressAiInsights(companyId); setAiInsights(data);
     } catch { setAiInsights(null); }
-    finally { setAiLoading(false); }
+    finally { setAiLoading(false); setAiChecked(true); }
   }, [companyId]);
 
   useEffect(() => {
@@ -661,12 +665,12 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
               </div>
             </div>
             <div className="wb-panel-body">
-              {aiLoading && !aiInsights ? (
+              {(aiLoading || !aiChecked) && !aiInsights ? (
                 <div className="flex flex-col items-center gap-2 py-8 text-xs text-[color:var(--muted-foreground)]">
                   <div className="h-5 w-5 animate-spin rounded-full border-2 border-[oklch(0.5_0.16_258_/_0.25)] border-t-[oklch(0.5_0.16_258)]" />
                   正在分析项目数据...
                 </div>
-              ) : companyId.includes(",") && !aiInsights ? (
+              ) : companyId.includes(",") && aiChecked && !aiInsights ? (
                 <div className="neu-card-static mb-3 !rounded-[12px] !border-none flex items-center gap-2.5 px-3 py-2.5">
                   <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] bg-[oklch(0.5_0.16_258_/_0.08)]"><Building2 size={13} className="text-[oklch(0.5_0.16_258)]" /></div>
                   <div>
