@@ -15,7 +15,6 @@ import { registerChange, listChanges, type ProjectChangeRecord } from '@/lib/api
 import { CHANGE_FIELD_GROUPS, stageReached } from '@/lib/change-fields';
 import { SearchSelect, type SearchSelectOption } from '@/components/workbench/search-select';
 import { fetchProjectManagementList, extractTenderFields, optimizeInitiationFields } from '@/lib/api/project-management';
-import { fetchMyCompanyInfo } from '@/lib/api/company-info';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 
 type Step = 'type' | 'form' | 'records';
@@ -75,24 +74,6 @@ export function ChangeModal({
   const [pubStart, setPubStart] = useState('');
   const [pubEnd, setPubEnd] = useState('');
   const [pubContent, setPubContent] = useState('');
-
-  // 监督举报块预填：公司信息管理的默认监督方案（2026-11-12 借鉴公告向导）
-  useEffect(() => {
-    if (!isOpen) return;
-    fetchMyCompanyInfo()
-      .then(ci => {
-        const sup = ci?.supervisionProfiles?.find(x => x.isDefault) ?? ci?.supervisionProfiles?.[0];
-        if (!sup) return;
-        setValues(prev => ({
-          ...prev,
-          supervisionDepartment: prev.supervisionDepartment || sup.department || '',
-          supervisionAddress: prev.supervisionAddress || sup.address || '',
-          supervisionContact: prev.supervisionContact || sup.contact || '',
-          supervisionPhone: prev.supervisionPhone || sup.phone || '',
-        }));
-      })
-      .catch(() => {});
-  }, [isOpen]);
 
   // 归属项目候选：在办项目清单（排除本项目）；打开弹窗时取一次
   useEffect(() => {
@@ -175,7 +156,6 @@ export function ChangeModal({
     if (!trimmedReason) { toast.error('请填写变更理由'); return; }
     if (type === 'CHANGE' && changedCount === 0) { toast.error('请至少修改一个字段'); return; }
     if (type === 'ADDENDUM' && !(values.changeContent ?? '').trim()) { toast.error('请填写补遗内容'); return; }
-    if (type === 'ADDENDUM' && (!values.announcementStart || !values.announcementEnd)) { toast.error('请选择公示期限起止'); return; }
     const fields: Record<string, string> = {};
     if (type === 'CHANGE') {
       for (const g of groups) {
@@ -239,17 +219,9 @@ export function ChangeModal({
           }).join('\n')
         : (values.changeContent ?? payload.reason);
       // 补遗：公告表单值（正文/公示期/监督块/落款）随 patch 注入向导
+      // 补遗只预填内容（2026-11-12 裁定）：名称/公示期/监督块/落款在公告发布页面填入
       const patchExtra: Record<string, string> = payload.type === 'ADDENDUM' ? {
-        projectName: values.projectName ?? String(pm.title ?? ''),
-        projectCode: values.projectCode ?? String(pm.projectCode ?? ''),
         changeContent: values.changeContent ?? '',
-        ...(values.announcementStart ? { announcementStart: values.announcementStart } : {}),
-        ...(values.announcementEnd ? { announcementEnd: values.announcementEnd } : {}),
-        supervisionDepartment: values.supervisionDepartment ?? '',
-        supervisionAddress: values.supervisionAddress ?? '',
-        supervisionContact: values.supervisionContact ?? '',
-        supervisionPhone: values.supervisionPhone ?? '',
-        signatureDate: values.signatureDate ?? new Date().toISOString().slice(0, 10),
       } : {};
       onRegistered({
         needsAnnouncement: 'bidOpeningTime' in payload.fields,
@@ -466,50 +438,12 @@ export function ChangeModal({
               {type === 'ADDENDUM' && (
                 <div className="space-y-3">
                   <p className="rounded-[12px] bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-4 py-3 text-xs leading-5 text-[var(--muted-foreground)]">
-                    补遗公告表单（与公告发布同款）：登记留档后可直接发布对外公告。
+                    补遗登记：填写补充说明与理由留档；名称、公示期限、监督块等在公告发布页面填入。
                   </p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="flex flex-col gap-1">
-                      <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">项目名称</span>
-                      <input type="text" className="workbench-input" value={values.projectName ?? String(pm.title ?? '')} onChange={e => setValues(v => ({ ...v, projectName: e.target.value }))} />
-                    </label>
-                    <label className="flex flex-col gap-1">
-                      <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">项目编号</span>
-                      <input type="text" className="workbench-input" value={values.projectCode ?? String(pm.projectCode ?? '')} onChange={e => setValues(v => ({ ...v, projectCode: e.target.value }))} />
-                    </label>
-                    <label className="col-span-2 flex flex-col gap-1">
-                      <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">补遗内容</span>
-                      <textarea className="neu-input min-h-[110px] text-sm" value={values.changeContent ?? ''} onChange={e => setValues(v => ({ ...v, changeContent: e.target.value }))} placeholder="补充说明正文（随公告发布）" />
-                    </label>
-                    <label className="flex flex-col gap-1">
-                      <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">公示期限（起）</span>
-                      <input type="datetime-local" className="workbench-input" value={values.announcementStart ?? ''} onChange={e => setValues(v => ({ ...v, announcementStart: e.target.value }))} />
-                    </label>
-                    <label className="flex flex-col gap-1">
-                      <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">公示期限（止）</span>
-                      <input type="datetime-local" className="workbench-input" value={values.announcementEnd ?? ''} onChange={e => setValues(v => ({ ...v, announcementEnd: e.target.value }))} />
-                    </label>
-                    <label className="flex flex-col gap-1">
-                      <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">监督部门</span>
-                      <input type="text" className="workbench-input" value={values.supervisionDepartment ?? ''} onChange={e => setValues(v => ({ ...v, supervisionDepartment: e.target.value }))} />
-                    </label>
-                    <label className="flex flex-col gap-1">
-                      <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">监督地址</span>
-                      <input type="text" className="workbench-input" value={values.supervisionAddress ?? ''} onChange={e => setValues(v => ({ ...v, supervisionAddress: e.target.value }))} />
-                    </label>
-                    <label className="flex flex-col gap-1">
-                      <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">监督联系人</span>
-                      <input type="text" className="workbench-input" value={values.supervisionContact ?? ''} onChange={e => setValues(v => ({ ...v, supervisionContact: e.target.value }))} />
-                    </label>
-                    <label className="flex flex-col gap-1">
-                      <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">监督电话</span>
-                      <input type="text" className="workbench-input" value={values.supervisionPhone ?? ''} onChange={e => setValues(v => ({ ...v, supervisionPhone: e.target.value }))} />
-                    </label>
-                    <label className="flex flex-col gap-1">
-                      <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">落款日期</span>
-                      <input type="date" className="workbench-input" value={values.signatureDate ?? new Date().toISOString().slice(0, 10)} onChange={e => setValues(v => ({ ...v, signatureDate: e.target.value }))} />
-                    </label>
-                  </div>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">补遗内容</span>
+                    <textarea className="neu-input min-h-[130px] text-sm" value={values.changeContent ?? ''} onChange={e => setValues(v => ({ ...v, changeContent: e.target.value }))} placeholder="补充说明正文（随公告发布）" />
+                  </label>
                 </div>
               )}
 
