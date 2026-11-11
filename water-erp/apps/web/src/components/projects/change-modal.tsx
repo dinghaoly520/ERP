@@ -194,9 +194,11 @@ export function ChangeModal({
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     {g.fields.map(f => (
-                      <label key={f.field} className={`flex flex-col gap-1${f.fullRow ? ' col-span-2' : ''}`}>
-                        <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
-                          <span>
+                      // 勿把按钮放进 label：label 点击会转发给内部第一个可交互元素，
+                      // AI 按钮会被字段区远处点击误触（2026-11-12 实录）——按钮只随自身命中
+                      <div key={f.field} className={`flex flex-col gap-1${f.fullRow ? ' col-span-2' : ''}`}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
                             {f.label}
                             {g.unlocked && (values[f.field] ?? '') !== '' && (values[f.field] ?? '') !== currentOf(f.field) && <span className="ml-1 normal-case text-[var(--warning)]">已修改</span>}
                           </span>
@@ -211,7 +213,7 @@ export function ChangeModal({
                               AI 提取并优化
                             </button>
                           )}
-                        </span>
+                        </div>
                         {f.multiline ? (
                           <textarea
                             className="neu-input min-h-[110px] text-sm"
@@ -258,7 +260,7 @@ export function ChangeModal({
                             onChange={e => setValues(v => ({ ...v, [f.field]: e.target.value }))}
                           />
                         )}
-                      </label>
+                      </div>
                     ))}
                   </div>
                 </div>
