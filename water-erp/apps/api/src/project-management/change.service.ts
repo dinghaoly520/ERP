@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CHANGE_FIELD_GROUPS, FORBIDDEN_FIELDS, findFieldGroup, stageReached } from './change-fields';
+import { FORBIDDEN_FIELDS, findFieldGroup, stageReached } from './change-fields';
 import { ProjectManagementService } from './project-management.service';
 
 /** 项目变更登记服务（2026-11-11 spec §3/§4）——项目基本信息唯一人工编辑通道。
