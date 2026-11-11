@@ -1,12 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import {
-  createTableHistoryState,
-  popTableHistory,
-  recordTableEdit,
-  TABLE_HISTORY_LIMIT,
-} from "./table-history";
+// @ts-expect-error Node 原生 --test 的 ESM 解析需要显式 .ts 扩展；tsc（bundler 分辨）不接受——压此行（须单行 import：指令只作用于下一行）
+import { createTableHistoryState, popTableHistory, recordTableEdit, TABLE_HISTORY_LIMIT } from "./table-history.ts";
 import type { TableData } from "../types/tender-write";
 
 function snap(content: string): TableData {
