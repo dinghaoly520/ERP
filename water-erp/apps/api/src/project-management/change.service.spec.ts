@@ -57,7 +57,7 @@ describe('ProjectChangeService.register', () => {
   it('阶段闸门：立项期改 notice 组字段（开标时间）→ 400 STAGE_LOCKED「未进入 采购文件 阶段」', async () => {
     const { svc } = mk();
     await expect(svc.register('p1', 'u1', '张三', { type: 'CHANGE', reason: 'r', fields: { bidOpeningTime: '2026-11-16T01:00:00.000Z' } }))
-      .rejects.toMatchObject({ response: { code: 'STAGE_LOCKED', error: expect.stringContaining('公告与时间') } });
+      .rejects.toMatchObject({ response: { code: 'STAGE_LOCKED', error: expect.stringContaining('采购文件') } });
   });
 
   it('开标后（BidProject OPENING）→ 400 BID_LOCKED「开标后不可修改标前数据」', async () => {
