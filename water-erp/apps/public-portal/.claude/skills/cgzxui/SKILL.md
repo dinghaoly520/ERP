@@ -385,7 +385,7 @@ Modal 壳之上的内容层标准结构（范本：`apps/web/src/components/admi
 
 用户以导入识别弹窗为标本定版 **A · 瓷面弹窗·图标井头部**（否掉 B 面板横幅=chrome 过重、C 现行壳=不修黑名单扁平影）。标本实例 `apps/web/src/components/tender-write/import-autofill-dialog.tsx`（提交 `f3e840eaa`）。五件套：
 
-1. **壳 = `wb-modal-shell` 瓷面**：近实底渐变 + 顶缘内高光 + 方向性双影 + `overflow-hidden`；蒙层 `bg-[var(--background)]/60 backdrop-blur-sm`。**共享 `workbench/modal.tsx` 已升级此壳并新增 `icon` 参数**——新弹窗一律走共享 Modal 传 icon，勿再手搓壳（需独立 portal 的特例弹窗也用 wb-modal-shell 类）。扁平 `shadow-[0_20px_60px_…]` 全系统退场。
+1. **壳 = `wb-modal-shell` 瓷面**：底色 = **系统 105° 白→冰蓝玻璃渐变**（2026-11-11 用户裁定，与 `.wb-panel` 同源 `0.96→0.78→0.32`；前提=蒙层必带 blur，无蒙层小气泡勿抄）+ 顶缘内高光 + 方向性双影 + `overflow-hidden`；蒙层 `bg-[var(--background)]/60 backdrop-blur-sm`。**共享 `workbench/modal.tsx` 已升级此壳并新增 `icon` 参数**——新弹窗一律走共享 Modal 传 icon，勿再手搓壳（需独立 portal 的特例弹窗也用 wb-modal-shell 类）。扁平 `shadow-[0_20px_60px_…]` 全系统退场。
 2. **头部 = 图标井 + 动词标题 + description**（统计摘要/对象标识），hairline 分段；右上上下文操作 `neu-btn-soft` + 关闭 `neu-btn-xs`。
 3. **底部 = hairline + 左说明 + 右 `neu-btn-group`** 等高按钮组（primary 白瓷片随组归 38px；同权重双选择用双 soft）。
 4. **内容状态语言**：状态 = `wb-status-pill`（`--tone` 变量驱动）；数据行 = 无框色调行（`color-mix` 淡染替代 `border` + 色板底）；摘录/凭据 = `neu-pre` 内凹盒；错误 = `wb-alert--danger`；空态 = 内凹图标井 + 引导按钮；勾选 = `neu-checkbox`。
