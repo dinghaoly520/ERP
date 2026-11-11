@@ -67,8 +67,16 @@ export function useKnowledgeBaseOps() {
 
   const reindex = useCallback(async (kbId: string) => {
     try {
-      await reindexKnowledgeBase(kbId);
-      toast.success('重建索引完成');
+      // 异步化（2026-11-11）：后端立即 202、后台逐文件重建——大文档嵌入可达小时级，
+      // 同步等待会击穿门户代理 120s 时限伪装成失败
+      const res = await reindexKnowledgeBase(kbId);
+      if (res.alreadyRunning) {
+        toast('重建已在后台进行中，请稍后刷新查看文件徽章变化');
+      } else if (res.pendingCount === 0) {
+        toast.success('所有文件均已索引，无需重建');
+      } else {
+        toast.success(`重建索引已后台启动（待重建 ${res.pendingCount} 个文件），请稍后刷新查看「未索引」徽章变化`);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : '重建索引失败';
       toast.error(msg);

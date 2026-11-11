@@ -6,6 +6,7 @@ import {
   Delete,
   Param,
   Body,
+  Query,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
@@ -136,11 +137,16 @@ export class KnowledgeController {
   }
 
   @Post(':id/reindex')
-  @ApiOperation({ summary: 'Reindex knowledge base (创建者/admin)' })
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({
+    summary:
+      'Reindex knowledge base（异步：立即返回 202，后台逐文件重建——2026-11-11 同步版击穿 120s 代理窗；?force=true 整库全量重建，默认增量只修 indexed=false）',
+  })
   reindex(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser | undefined,
+    @Query('force') force?: string,
   ) {
-    return this.knowledge.reindex(id, user);
+    return this.knowledge.reindex(id, user, force === 'true' || force === '1');
   }
 }
