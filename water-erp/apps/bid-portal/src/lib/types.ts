@@ -75,6 +75,16 @@ export type BidProjectDetail = Omit<SharedBidProjectDetail, 'openingSession' | '
     response?: string | null; createdAt: string;
     resolvedAt?: string | null; resolvedBy?: string | null;
   }>;
+  /** #74（2026-11-11）：评标结果汇总（getProject include A4——orderBy rank asc 随详情全量下发）。
+   *  共享类型暂未声明，:3007 侧本地补齐（同 bidRounds 模式）；报价轮次面板以「非空=结果已生成」
+   *  冻结创建入口，镜像后端 createRound/submitQuote 的 RESULTS_FROZEN 闸。
+   *  totalScore/averageScore/bidPrice 为 Prisma Decimal，JSON 序列化为字符串，消费侧统一 Number()。 */
+  evaluationResults?: Array<{
+    id: string; supplierId: string; supplierName: string;
+    totalScore: number | string; averageScore: number | string;
+    rank: number; recommended: boolean; disqualified: boolean;
+    bidPrice?: number | string | null; generatedAt: string;
+  }>;
   experts: (SharedBidExpert & {
     expertRole?: string; // EXPERT_ROLE.REGULAR | EXPERT_ROLE.ALTERNATE（Prisma BidExpert.expertRole）
     /** 业主代表（含 2026-11-05 手动录入的临时账号）——BidExpert 标量列随详情全量下发，
