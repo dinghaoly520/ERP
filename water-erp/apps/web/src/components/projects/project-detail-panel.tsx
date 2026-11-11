@@ -82,7 +82,7 @@ function ExpertInfoField({
   isEditing: boolean;
   editValue: string;
   onEditValueChange: (value: string) => void;
-  onStartEdit: () => void;
+  onStartEdit?: () => void;
   onSave: () => void;
   onCancel?: () => void;
   readOnly?: boolean;
@@ -167,11 +167,6 @@ function ExpertInfoField({
     <div>
       <div className="flex items-center justify-between gap-3 mb-2">
         <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">专家信息</span>
-        {!isEditing && !readOnly && (
-          <button type="button" onClick={onStartEdit} className="text-[11px] font-medium text-[color:var(--accent)] hover:underline">
-            <Pencil size={11} className="inline mr-1" />{hasValue ? `编辑（${experts.length}人）` : '添加专家'}
-          </button>
-        )}
       </div>
 
       {/* 弹窗编辑（2026-10-28）：信息栏恒显只读表；编辑在独立弹窗内进行（窄侧栏内联编辑实录弃用） */}
@@ -302,7 +297,7 @@ function BiddingUnitsField({
   isEditing: boolean;
   editValue: string;
   onEditValueChange: (value: string) => void;
-  onStartEdit: () => void;
+  onStartEdit?: () => void;
   onSave: () => void;
   onCancel?: () => void;
   readOnly?: boolean;
@@ -346,11 +341,6 @@ function BiddingUnitsField({
     <div>
       <div className="flex items-center justify-between gap-3 mb-1.5">
         <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">{label}</span>
-        {!isEditing && !readOnly && (
-          <button type="button" onClick={onStartEdit} className="text-[11px] font-medium text-[color:var(--accent)] hover:underline">
-            <Pencil size={11} className="inline mr-1" />{hasValue && units.length > 0 ? `编辑（${units.length}家）` : '添加'}
-          </button>
-        )}
       </div>
 
       {/* 弹窗编辑（2026-10-28 四改·与专家信息同款弹窗）：信息栏恒显只读名单 */}
@@ -2026,7 +2016,6 @@ export function ProjectDetailPanel({
                   isEditing={editingField === 'invitedSuppliers'}
                   editValue={editValues.invitedSuppliers}
                   onEditValueChange={(v) => setEditValues((prev) => ({ ...prev, invitedSuppliers: v }))}
-                  onStartEdit={() => handleStartEdit('invitedSuppliers', extractedInfoOverride?.invitedSuppliers ?? item.invitedSuppliers ?? null)}
                   onSave={() => void handleSaveField('invitedSuppliers')}
                   onCancel={() => setEditingField(null)}
                 />
@@ -2048,7 +2037,6 @@ export function ProjectDetailPanel({
                   isEditing={editingField === 'expertInfo'}
                   editValue={editValues.expertInfo}
                   onEditValueChange={(v) => setEditValues((prev) => ({ ...prev, expertInfo: v }))}
-                  onStartEdit={() => handleStartEdit('expertInfo', extractedInfoOverride?.expertInfo ?? item.expertInfo)}
                   onSave={() => void handleSaveField('expertInfo')}
                   onCancel={() => setEditingField(null)}
                 />
