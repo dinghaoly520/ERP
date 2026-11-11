@@ -385,15 +385,11 @@ Modal 壳之上的内容层标准结构（范本：`apps/web/src/components/admi
 
 用户以导入识别弹窗为标本定版 **A · 瓷面弹窗·图标井头部**（否掉 B 面板横幅=chrome 过重、C 现行壳=不修黑名单扁平影）。标本实例 `apps/web/src/components/tender-write/import-autofill-dialog.tsx`（提交 `f3e840eaa`）。五件套：
 
-1. **壳 = `wb-modal-shell` 瓷面**：底色 = **系统背景彩色渐变**（2026-11-11 用户裁定「用背景颜色中的渐变」：与全局 body 背景同配方——白→冰蓝 180° 基底 + 蓝/琥珀/青绿三束角部光晕；非 wb-panel 那支白→透明明度渐变）+ 顶缘内高光 + 方向性双影 + `overflow-hidden`；蒙层 `bg-[var(--background)]/60 backdrop-blur-sm`。**共享 `workbench/modal.tsx` 已升级此壳并新增 `icon` 参数**——新弹窗一律走共享 Modal 传 icon，勿再手搓壳（需独立 portal 的特例弹窗也用 wb-modal-shell 类）。扁平 `shadow-[0_20px_60px_…]` 全系统退场。**五门户弹窗壳底色统一配方**（同名类各门户 globals.css 各置一份，色彩值全门户一致）：
+1. **壳 = `wb-modal-shell` 瓷面**：底色 = **纯白瓷 `oklch(1 0 0)`**（2026-11-11 用户裁定终版——同日两轮：先定「背景颜色中的彩色渐变」、后改主意纯白瓷；「瓷」质感靠顶缘内高光 + 方向性双影表达，页面 body 背景的彩色渐变保留、与此无关）+ 顶缘内高光 + 方向性双影 + `overflow-hidden`；蒙层 `bg-[var(--background)]/60 backdrop-blur-sm`；**头部与内容之间必有 hairline 隔离线**（2026-11-11 用户裁定：`<div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />`）。**共享 `workbench/modal.tsx` 已内置此壳 + `icon` 参数 + 头部隔离线**——新弹窗一律走共享 Modal 传 icon，勿再手搓壳（独立 portal 特例也用 wb-modal-shell 类；supplier 同配方 .gdlg-pn 族、bid 同配方 .bid-dialog、mobile 同配方 .m-sheet-panel）。扁平 `shadow-[0_20px_60px_…]` 全系统退场。五门户统一配方（同名类各门户 globals.css 各置一份）：
 
    ```css
    .wb-modal-shell {
-     background:
-       radial-gradient(circle at 14% 12%, rgba(118, 165, 255, 0.16), transparent 24%),
-       radial-gradient(circle at 84% 16%, rgba(242, 201, 132, 0.12), transparent 18%),
-       radial-gradient(circle at 76% 82%, rgba(120, 209, 186, 0.1), transparent 20%),
-       linear-gradient(180deg, rgba(248, 251, 255, 0.99), rgba(240, 245, 252, 0.98));
+     background: oklch(1 0 0);
      box-shadow:
        inset 0 1px 0 oklch(1 0 0 / 0.88),
        3px 4px 16px oklch(0.46 0.07 258 / 0.18),
@@ -406,7 +402,7 @@ Modal 壳之上的内容层标准结构（范本：`apps/web/src/components/admi
 4. **内容状态语言**：状态 = `wb-status-pill`（`--tone` 变量驱动）；数据行 = 无框色调行（`color-mix` 淡染替代 `border` + 色板底）；摘录/凭据 = `neu-pre` 内凹盒；错误 = `wb-alert--danger`；空态 = 内凹图标井 + 引导按钮；勾选 = `neu-checkbox`。
 5. **弹窗内竖排导航 = `neu-modal-nav-item`**（globals.css 标准件）：默认透明融入、hover 品牌淡染、**激活 = 凸起纯白瓷片 + 品牌蓝粗体**（与 neu-tab v2 同语义），点击滚动定位 + 滚动回写激活。
 
-存量手搓壳已于 2026-11-11 同日全量迁移完毕（五门户 + mobile；expert .exp-dialog/bid .bid-dialog/supplier .gdlg-pn 等旧壳类均换配方或退役），全仓库 cgzxui 红牌硬性违规清零。
+存量手搓壳已于 2026-11-11 同日全量迁移完毕（五门户 + mobile；expert .exp-dialog 退役、bid .bid-dialog/supplier .gdlg-pn 族/mobile .m-sheet-panel 均换统一配方），全仓库 cgzxui 红牌硬性违规清零。壳底色沿革：近实底→彩色渐变→纯白瓷（2026-11-11 同日终版），勿复活前两版。
 
 ## ？帮助气泡（.pm-help-dot / .pm-help-tip，2026-09-26 定版）
 

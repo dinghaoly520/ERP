@@ -11,23 +11,23 @@
 #   bash scripts/check-cgzxui-redcards.sh --app web       # 单应用（web|bid-portal|supplier-portal-next|expert-portal|public-portal）
 #   bash scripts/check-cgzxui-redcards.sh --files <路径…> # 指定文件/目录
 #
-# --ci 执法范围（2026-09-04 链路整改范围；范围外存量违规不阻断，报告模式仍可见）：
-#   - apps/bid-portal/src 全部
-#   - apps/supplier-portal-next/src 全部
-#   - apps/expert-portal/src 全部
+# --ci 执法范围（2026-11-11 扩面：原三门户全量 + web 链路区块 + public 全量）：
+#   - apps/bid-portal / supplier-portal-next / expert-portal / public-portal 四门户 src 全部
 #   - apps/web 仅链路区块：bid-confirm-panel.tsx / bid-confirm/** /
 #     procurements/archive-detail-modal.tsx / app/(main)/archive/**
+#   （web 全量存量 ~380 处 H1/H4 未清——见 docs/cgzxui-remediation/baseline-2026-11-11.txt 台账，清零后再扩）
 #
 # 模式分级：
 #   硬性（--ci 阻断）：H1 bg-white · H2 border-gray-* · H3 shadow-lg/xl/2xl/3xl
 #     H4 内联 boxShadow · H5 CSS box-shadow 内 rgba/hex · H6 深色蒙层 · H7 exp-alert(仅 web)
+#     H8 弹窗遗产扁平影 shadow-[0_20px_60px|0_24px_72px]（2026-11-11 弹窗规范全量退场）
 #   报告（不阻断）：B1 style={{ 计数 · B2 扁平影启发 · B3 卡片框线启发 · B4 shadow-sm/md
 #
 # 豁免（SKILL 条款）：
 #   - <th style={{ width: N }}>（SKILL「数据表格」模板原文许可）→ B1 豁免
 #   - page-hero hairline 内联 borderTop: "1px solid oklch(…"（SKILL page-hero 示例自带）→ B1 豁免
-#   - 模态浮影 0 20px 60px（SKILL 模态规范规定值）→ B2 白名单
 #   - 焦点环 0 0 0 Npx（环无方向性）→ B2 白名单（色空间仍受 H5 约束）
+#   - （旧「模态浮影 0 20px 60px 白名单」已废——2026-11-11 弹窗规范后该值为 H8 硬性）
 #   - CSS 变量传递/动态宽高等需上下文判断者：B1 逐条输出由人工/台账对账
 # ─────────────────────────────────────────────────────────────────────────────
 set -u
@@ -52,11 +52,12 @@ ROOT="$(dirname "$SCRIPT_DIR")"
 APPS=(web bid-portal supplier-portal-next expert-portal public-portal)
 declare -a TSX_FILES=() CSS_FILES=()
 
-# --ci 执法范围（见头注）：三门户全量 + web 链路区块
+# --ci 执法范围（见头注）：四门户全量 + web 链路区块（2026-11-11 扩面）
 CI_SCOPE=(
   "$ROOT/apps/bid-portal/src"
   "$ROOT/apps/supplier-portal-next/src"
   "$ROOT/apps/expert-portal/src"
+  "$ROOT/apps/public-portal/src"
   "$ROOT/apps/web/src/components/projects/bid-confirm-panel.tsx"
   "$ROOT/apps/web/src/components/projects/bid-confirm"
   "$ROOT/apps/web/src/components/procurements/archive-detail-modal.tsx"
@@ -125,6 +126,7 @@ scan_tsx "H3 扁平预设阴影" 'shadow-(lg|xl|2xl|3xl)([^a-zA-Z]|$)'
 scan_tsx "H4 内联 boxShadow" 'boxShadow[[:space:]]*[:=]'
 scan_tsx "H6 深色蒙层" 'bg-(black|slate-9|gray-9)[0-9a-zA-Z/]*'
 scan_tsx "H7 exp-alert 幽灵类" 'exp-alert' "apps/web/"
+scan_tsx "H8 弹窗遗产扁平影" 'shadow-\[0_(20px_60px|24px_72px)'
 
 # H5 CSS box-shadow 声明块内 rgba/hex（awk 跨行至分号）
 H5_OUT="$(awk '
@@ -198,7 +200,7 @@ echo "== B2 疑似扁平无方向阴影 =="
 awk '
   function flat(v) {
     return (v ~ /(^|,)[[:space:]]*0[[:space:]]+[0-9.]+px[[:space:]]+[0-9.]+px/ \
-            && v !~ /inset/ && v !~ /0 0 0/ && v !~ /0 20px 60px/)
+            && v !~ /inset/ && v !~ /0 0 0/)
   }
   indecl {
     buf = buf " " $0
