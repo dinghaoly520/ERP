@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CHANGE_FIELD_GROUPS, FORBIDDEN_FIELDS, findFieldGroup, stageReached } from './change-fields';
+import { ProjectManagementService } from './project-management.service';
 
 /** 项目变更登记服务（2026-11-11 spec §3/§4）——项目基本信息唯一人工编辑通道。
  *  每次变更/补遗一条 ProjectChangeRecord：轮次项目内自增（两类共序）、字段级 diff、必填理由。
@@ -9,7 +10,7 @@ import { CHANGE_FIELD_GROUPS, FORBIDDEN_FIELDS, findFieldGroup, stageReached } f
 export class ProjectChangeService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly pmiService: { syncBidProjectOpeningFromPmi: (projectId: string, cn: string) => Promise<void> },
+    private readonly pmiService: ProjectManagementService,
   ) {}
 
   /** Date → PMI 中文开标时间（固定 +08 墙钟——beijing-wallclock 裁定，禁本地时区构造） */
