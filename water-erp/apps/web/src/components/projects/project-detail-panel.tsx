@@ -38,6 +38,7 @@ import {
   type ProjectWorkflowStageKey,
 } from '@/lib/types/project-management';
 import { ProjectTimelineStrip } from './project-timeline-strip';
+import { ProjectChangeEntry } from './project-change-entry';
 import { ProjectStageTimeline } from './project-stage-timeline';
 import { StageFileList } from './stage-file-list';
 import { TenderWriteModal } from './tender-write-modal';
@@ -1199,6 +1200,12 @@ export function ProjectDetailPanel({
     }
   };
 
+  /** 变更发起入口（2026-11-11 变更体系）——Task 6 接三步弹窗，当前占位提示 */
+  const handleInitiateChange = () => {
+    if (isBidLocked) { toast.warning('开标后不可修改标前数据'); return; }
+    toast.info('变更表单即将上线：当前可通过「变更 / 补遗记录」查看流水');
+  };
+
   const handleStartEdit = (field: string, currentValue: string | number | null | undefined) => {
     if (actionsDisabled) return; // 只读（归档/终止/非创建人）
     if (isPastRound) { toast.warning('该步骤属已完成的历史轮次，仅供查看'); return; } // 2026-10-26 补：字段编辑入口未过旧轮闸
@@ -1426,6 +1433,7 @@ export function ProjectDetailPanel({
               </div>
             </div>
             <div className="page-hero__right">
+              <ProjectChangeEntry projectId={item.id} canInitiate={!actionsDisabled && !isBidLocked} onInitiate={handleInitiateChange} />
               {!actionsDisabled && (
                 <button type="button" onClick={() => setTerminateOpen(true)} disabled={submitting || uploading} className="neu-btn-soft">
                   <Ban size={16} />项目终止
