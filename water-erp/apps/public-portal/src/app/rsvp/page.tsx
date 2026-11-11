@@ -39,11 +39,7 @@ function RsvpBridgeInner() {
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
       <div
-        className="w-full max-w-md rounded-[20px] p-8 text-center"
-        style={{
-          background: 'linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 35%, oklch(1 0 0 / 0.14) 70%)',
-          boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.75), 2px 3px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.88)',
-        }}
+        className="rsvp-card w-full max-w-md rounded-[20px] p-8 text-center"
       >
         <div className="text-lg font-bold tracking-wide">蜀水云采</div>
         <div className="mt-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">邀请回执</div>
