@@ -211,7 +211,7 @@ export function ChangeModal({
                               onClick={() => void runAiAssist(f.field, f.aiAssist!)}
                             >
                               {aiBusy === f.field ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
-                              AI 提取
+                              {(f.field === 'bidOpeningTime' || f.field === 'documentAcquireTime') ? 'AI 提取' : 'AI 提取并优化'}
                             </button>
                           )}
                         </div>
