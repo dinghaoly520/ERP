@@ -1294,36 +1294,6 @@ export function ProjectDetailPanel({
     }
   };
 
-  const handleAiExtractTender = async (field: string) => {
-    if (actionsDisabled) return; // 只读（归档/终止/非创建人）
-    const tenderStage = localItem.stages.find((s) => s.stageKey === 'TENDER_DOCUMENT');
-    const hasTenderFile = tenderStage?.attachments?.some((a) => isTenderMainFile(a.fileName));
-    if (!hasTenderFile) {
-      setAiResult({ type: 'warning', message: '请先在「采购文件」步骤上传采购文件后再使用 AI 提取' });
-      return;
-    }
-    setAiExtracting(field);
-    try {
-      const result = await extractTenderFields(item.id, field);
-      const val = result[field];
-      if (val) {
-        // 成功：静默更新左侧，不弹窗
-        await handleUpdated();
-      } else {
-        setAiResult({ type: 'error', message: '未能提取到该字段信息，请检查采购文件内容。' });
-      }
-    } catch (e) {
-      // 超时（AbortError）单独提示：AI 提取含大模型调用，慢/悬死连接 150s 强制终止——
-      // 无此分支会显示通用失败，用户无从分辨该等还是该查网络（2026-10-15 实录）
-      if (e instanceof DOMException && e.name === 'AbortError') {
-        setAiResult({ type: 'error', message: 'AI 提取超时（采购文件较长，大模型处理中）。请稍后刷新查看结果，或稍候重试。' });
-      } else {
-        setAiResult({ type: 'error', message: e instanceof Error ? e.message : 'AI 提取失败' });
-      }
-    } finally {
-      setAiExtracting(null);
-    }
-  };
 
   const formatDate = (value: string | number | null | undefined) => {
     if (!value) return '';
@@ -1989,7 +1959,7 @@ export function ProjectDetailPanel({
                 </div>
                 <div className="space-y-3">
                   <div>
-                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">项目概况</span><button type="button" onClick={() => void handleAiExtractTender('projectOverview')} disabled={aiExtracting === 'projectOverview' || actionsDisabled} className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'projectOverview' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button></div>
+                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">项目概况</span></div>
                     {editingField === 'projectOverview' ? (
                       <div className="mt-1 flex items-start gap-2">
                         <textarea value={editValues.projectOverview} onChange={(e) => setEditValues((prev) => ({ ...prev, projectOverview: e.target.value }))} className="workbench-input !text-xs flex-1 min-h-[100px]" autoFocus />
@@ -2003,7 +1973,7 @@ export function ProjectDetailPanel({
                     )}
                   </div>
                   <div>
-                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">采购文件获取时间</span>{!isPastRound && <button type="button" onClick={() => void handleAiExtractTender('documentAcquireTime')} disabled={aiExtracting === 'documentAcquireTime' || actionsDisabled} className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'documentAcquireTime' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button>}</div>
+                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">采购文件获取时间</span></div>
                     {editingField === 'documentAcquireTime' ? (
                       <div className="mt-1 flex items-center gap-1.5">
                         <input type="datetime-local" value={(editValues.documentAcquireTime || '').split('~')[0] ?? ''} onChange={(e) => setEditValues((prev) => { const parts = (prev.documentAcquireTime || '').split('~'); return { ...prev, documentAcquireTime: `${e.target.value}~${parts[1] ?? ''}` }; })} className="workbench-input !h-[28px] !text-xs flex-1" autoFocus onKeyDown={(e) => { if (e.key === 'Escape') setEditingField(null); }} />
@@ -2021,7 +1991,7 @@ export function ProjectDetailPanel({
                     )}
                   </div>
                   <div>
-                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">开标时间</span>{!isPastRound && <button type="button" onClick={() => void handleAiExtractTender('bidOpeningTime')} disabled={aiExtracting === 'bidOpeningTime' || actionsDisabled} className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'bidOpeningTime' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button>}</div>
+                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">开标时间</span></div>
                     {editingField === 'bidOpeningTime' ? (
                       <div className="mt-1 flex items-center gap-1.5">
                         <input type="datetime-local" value={editValues.bidOpeningTime} onChange={(e) => setEditValues((prev) => ({ ...prev, bidOpeningTime: e.target.value }))} className="workbench-input !h-[28px] !text-xs flex-1" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveField('bidOpeningTime'); if (e.key === 'Escape') setEditingField(null); }} />
