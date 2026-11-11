@@ -24,6 +24,8 @@ import { QueryProjectManagementDto } from './dto/query-project-management.dto';
 import { ReprocDto } from './dto/reproc.dto';
 import { UpdateExtractedInfoDto } from './dto/update-extracted-info.dto';
 import { TerminateProjectDto } from './dto/terminate-project.dto';
+import { RegisterChangeDto, BindChangeAnnouncementDto } from './dto/register-change.dto';
+import { ProjectChangeService } from './change.service';
 import { SelectOfficialTenderDto } from './dto/select-official-tender.dto';
 import { UpdateProjectStageDto } from './dto/update-project-stage.dto';
 import { CreateTenderDraftVersionDto, SaveTenderDraftDto } from './dto/tender-draft.dto';
@@ -44,7 +46,33 @@ export class ProjectManagementController {
     private readonly companyScope: CompanyScopeService,
     private readonly timelineService: TimelineService,
     private readonly tenderDraftService: TenderDraftService,
+    private readonly changeService: ProjectChangeService,
   ) {}
+
+  // ── 变更体系（2026-11-11 spec）：基本信息唯一人工编辑通道=变更登记；写=仅创建人（类级守卫），读=创建人+本公司 leader+admin ──
+
+  @Post(':id/changes')
+  registerChange(
+    @Param('id') id: string,
+    @Body() dto: RegisterChangeDto,
+    @CurrentUser() user: AuthenticatedUser | undefined,
+  ) {
+    return this.changeService.register(id, user?.sub ?? '', user?.name ?? '', {
+      type: dto.type,
+      reason: dto.reason,
+      fields: dto.fields ?? {},
+    });
+  }
+
+  @Get(':id/changes')
+  listChanges(@Param('id') id: string) {
+    return this.changeService.list(id);
+  }
+
+  @Patch('changes/:recordId/announcement')
+  bindChangeAnnouncement(@Param('recordId') recordId: string, @Body() dto: BindChangeAnnouncementDto) {
+    return this.changeService.bindAnnouncement(recordId, dto.announcementId);
+  }
 
   @Get()
   list(

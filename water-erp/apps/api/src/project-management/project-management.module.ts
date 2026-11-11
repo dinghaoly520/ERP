@@ -10,6 +10,7 @@ import { ProjectManagementController } from './project-management.controller';
 import { StageComplianceConfigService } from './stage-compliance-config.service';
 import { StageComplianceController } from './stage-compliance.controller';
 import { TimelineService } from './timeline.service';
+import { ProjectChangeService } from './change.service';
 import { ProjectManagementService } from './project-management.service';
 import { TenderDraftService } from './tender-draft.service';
 import { GbCodeService } from '../common/gb-code.service';
@@ -21,7 +22,8 @@ import { BidModule } from '../bid/bid.module'; // ScoreStandardValidator（评�
   controllers: [StageComplianceController, ProjectManagementController],
   providers: [
     TimelineService,
-    GbCodeService, StageComplianceConfigService, ProjectManagementService, TenderDraftService],
+    GbCodeService, StageComplianceConfigService, ProjectManagementService, TenderDraftService,
+    ProjectChangeService],
   exports: [ProjectManagementService],
 })
 export class ProjectManagementModule {}

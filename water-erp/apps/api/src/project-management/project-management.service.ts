@@ -988,7 +988,7 @@ export class ProjectManagementService {
    * deadline 落兜底 now+24h，时间轴错乱），未开标前回填修正；已进入 OPENING 及之后不回写——
    * 开标时间是已执行的过程事实（延时开标等流程拥有权威），基本信息修改不追溯。失败不阻断主流程。
    */
-  private async syncBidProjectOpeningFromPmi(projectId: string, bidOpeningTime: string) {
+  async syncBidProjectOpeningFromPmi(projectId: string, bidOpeningTime: string) {
     try {
       const parsed = parseBidOpeningTime(bidOpeningTime);
       if (!parsed) return;
