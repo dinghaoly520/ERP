@@ -367,9 +367,9 @@ export const WINNING_BID_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
 export const CHANGE_ADDENDUM_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
   { key: "projectName", label: "项目名称", placeholder: "请输入项目名称", autoFill: "projectName" },
   { key: "projectCode", label: "项目编号", placeholder: "请输入项目编号" },
-  { key: "changeRound", label: "变更轮次", placeholder: "由变更登记自动带入" },
-  { key: "changeReason", label: "变更理由", placeholder: "由变更登记自动带入", multiline: true },
-  { key: "changeContent", label: "变更内容", placeholder: "由变更登记自动带入（字段前后对照）", multiline: true },
+  { key: "changeRound", label: "变更轮次", placeholder: "自动带入，可修改" },
+  { key: "changeReason", label: "变更理由", placeholder: "自动带入，可修改", multiline: true },
+  { key: "changeContent", label: "变更内容", placeholder: "自动带入，可修改", multiline: true },
   {
     key: "announcementStart",
     label: "公示期限",

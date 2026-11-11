@@ -31,12 +31,12 @@ export const ANNOUNCEMENT_CATEGORIES: AnnouncementCategoryMeta[] = [
   {
     type: "change_notice",
     label: "变更公告",
-    description: "发布项目信息变更公告（第 N 轮），公示变更理由与前后对照，推送平台变更接口。",
+    description: "项目信息有变化时发布，写明改了什么、为什么改。",
   },
   {
     type: "addendum",
     label: "补遗公告",
-    description: "发布补遗/澄清公告（第 N 轮），追加补充说明并定向通知已获取文件的供应商。",
+    description: "对已发出的公告作补充说明，并通知相关供应商。",
   },
 ];
 

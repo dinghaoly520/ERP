@@ -141,7 +141,7 @@ export function ChangeModal({
               >
                 <div className="flex items-center gap-2 text-sm font-bold text-[var(--foreground)]"><RefreshCcw size={15} className="text-[var(--warning)]" />变更</div>
                 <p className="mt-1.5 text-xs leading-5 text-[var(--muted-foreground)]">
-                  修改已发布的项目信息（按阶段解锁），登记轮次与理由；涉及开标时间须发布变更公告。
+                  修改已发布的项目信息，写明变更理由留档；改了开标时间的还要发变更公告。
                 </p>
               </button>
               <button
@@ -151,7 +151,7 @@ export function ChangeModal({
               >
                 <div className="flex items-center gap-2 text-sm font-bold text-[var(--foreground)]"><FilePlus2 size={15} className="text-[var(--accent)]" />补遗</div>
                 <p className="mt-1.5 text-xs leading-5 text-[var(--muted-foreground)]">
-                  不修改原信息，追加补充说明并登记轮次；对外补遗公告沿用既有发布链路。
+                  不动原公告，另发一份补充说明；需要对外发布的登记后直接发布。
                 </p>
               </button>
             </div>
@@ -201,7 +201,7 @@ export function ChangeModal({
 
               {type === 'ADDENDUM' && (
                 <p className="rounded-[12px] bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-4 py-3 text-xs leading-5 text-[var(--muted-foreground)]">
-                  补遗登记仅留痕（轮次+理由）；如需对外发布补遗公告，请在「④ 公告公示」阶段的公告制作与发布流程卡中操作。
+                  补遗先登记留档；登记后可直接发布对外的补遗公告。
                 </p>
               )}
 
