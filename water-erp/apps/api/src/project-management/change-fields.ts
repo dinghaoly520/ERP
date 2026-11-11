@@ -18,7 +18,9 @@ export const CHANGE_FIELD_GROUPS = [
     key: 'basic',
     zone: 'pre',
     label: '基本信息',
-    stageKey: 'INITIATION',
+    // 2026-11-12 用户裁定：基本信息自建档（需求阶段）即存在且可改——锚点放宽到
+    // PROCUREMENT_DEMAND，任何阶段指针下均解锁（标前分区闸仍兜底开标后锁死）
+    stageKey: 'PROCUREMENT_DEMAND',
     fields: [
       { field: 'title', label: '项目名称', kind: 'text', target: 'PMI' },
       { field: 'procurementCategory', label: '采购类别', kind: 'text', target: 'PMI' },

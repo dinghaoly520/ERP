@@ -98,7 +98,7 @@ describe('ProjectChangeService.register', () => {
     expect(created.reason).toBe('需求调整');
     expect(created.operatorName).toBe('张三');
     expect(created.changeset).toEqual(expect.arrayContaining([
-      expect.objectContaining({ field: 'title', label: '项目名称', from: '原名', to: '新名', stageKey: 'INITIATION' }),
+      expect.objectContaining({ field: 'title', label: '项目名称', from: '原名', to: '新名', stageKey: 'PROCUREMENT_DEMAND' }),
       expect.objectContaining({ field: 'budgetAmount', label: '预算金额', from: '100', to: '200' }),
     ]));
     expect(r.needsAnnouncement).toBe(false);
