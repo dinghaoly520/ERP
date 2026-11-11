@@ -1,6 +1,6 @@
 ---
 name: bug-fix
-description: 禅道 bug 票修流水线——按 docs/bugs/ 票修队列逐票修复：展示票面+方案→现场复核→用户强制确认→修复→代码审查+有头浏览器UI验收→用户强制验收确认→下一票。多机经 git 队列协调。用户说「票修」「/bug-fix」「修下一票」「继续票修」「开始修bug」时进入；带材料包路径参数（如「/bug-fix ~/下载/bug包」）时先走材料包入列再进循环。
+description: 禅道 bug 票修流水线——按 water-erp/docs/bugs/ 票修队列逐票修复：展示票面+方案→现场复核→用户强制确认→修复→代码审查+有头浏览器UI验收→用户强制验收确认→下一票。多机经 git 队列协调。用户说「票修」「/bug-fix」「修下一票」「继续票修」「开始修bug」时进入；带材料包路径参数（如「/bug-fix ~/下载/bug包」）时先走材料包入列再进循环。
 ---
 
 # 票修流水线
@@ -17,11 +17,11 @@ description: 禅道 bug 票修流水线——按 docs/bugs/ 票修队列逐票�
 
 | 资产 | 位置 |
 |---|---|
-| 票修队列（唯一状态面） | `docs/bugs/<日期>-<负责人>/票修队列.md`（当前批次 `2026-11-11-yuanguoyu`；可多批并存，见 ① 取票） |
+| 票修队列（唯一状态面） | `water-erp/docs/bugs/<日期>-<负责人>/票修队列.md`（当前批次 `2026-11-11-yuanguoyu`；可多批并存，见 ① 取票） |
 | 票面详情（v2 逐条核查+修复建议） | 同目录 `清单.md`；`清单.csv`；`images/`（压缩参考件） |
 | 验收截图存放 | 同目录 `evidence/bug{ID}/`（按票建目录） |
 | 原始材料（md5 原件、禅道库、OCR） | 仅本机 `~/桌面/禅道/bug-export/`——其他机器没有，别依赖 |
-| 测试账号 / 端口 | 仓库 `ACCOUNTS.md` 与 CLAUDE.md 种子表 |
+| 测试账号 / 端口 | `water-erp/ACCOUNTS.md` 与 CLAUDE.md 种子表 |
 
 ---
 
@@ -30,7 +30,7 @@ description: 禅道 bug 票修流水线——按 docs/bugs/ 票修队列逐票�
 用户带路径参数进入（bug 导出包经机器间直发：逐票清单 MD/CSV + images/），**先入列、再进循环**。材料已在 `docs/bugs/` 里的批次不需要此步——直接 pull 就有。
 
 1. **验包**：路径下应有逐票清单（MD 或 CSV）与 `images/`；缺什么如实报告，别硬猜格式。
-2. **落位**：拷贝到 `docs/bugs/<导出日期>-<负责人>/`。清单 MD+CSV 原样；images 里宽 >1600 的 PNG 压成 JPEG（q82、宽 1600）并**同步改写两份清单里的引用**——大体积原件不入库。
+2. **落位**：拷贝到 `water-erp/docs/bugs/<导出日期>-<负责人>/`。清单 MD+CSV 原样；images 里宽 >1600 的 PNG 压成 JPEG（q82、宽 1600）并**同步改写两份清单里的引用**——大体积原件不入库。
 3. **建队列**：同目录新建 `票修队列.md`，沿用现行格式；组/级/标题/联动备注从清单的汇总分组抄录，无汇总则整列「待处理·待分组」（首轮 ② 复核时再定组）。
 4. **入列 commit**：只 add 本批次目录（`chore(bugs): 入列 <日期>-<负责人> N 票`）→ 问用户是否推送。
 5. 回到 ⓪ 开工自检 → 逐票循环。
@@ -41,7 +41,7 @@ description: 禅道 bug 票修流水线——按 docs/bugs/ 票修队列逐票�
 
 1. **同机避让**：`git status` 查并行会话有无未提交改动 → 有的话记下它碰的文件，全程不 add 不改；共享高危文件（`schema.prisma`/`app.module.ts`/`bid.controller.ts`/`bid-confirm-panel.tsx`/`packages/shared`）只在对方工作区干净时才碰。
 2. **同步队列**：`git fetch` → 落后则问用户「拉取最新队列？」（建议拉）。
-3. **环境就绪**（已在跑且健康可跳过）：仓库根 `pnpm install` → `apps/api` 下 `npx prisma migrate status`（pending 则 `migrate deploy` + `generate`）→ `pnpm dev:kill && pnpm dev` → 10 端口全监听 + `curl localhost:4001/api/docs` 200。详细排障按 CLAUDE.md。
+3. **环境就绪**（已在跑且健康可跳过）：`water-erp/` 下 `pnpm install` → `water-erp/apps/api` 下 `npx prisma migrate status`（pending 则 `migrate deploy` + `generate`）→ `pnpm dev:kill && pnpm dev` → 10 端口全监听 + `curl localhost:4001/api/docs` 200。详细排障按 CLAUDE.md。
 4. **浏览器可用**：chrome-devtools-mcp `list_pages` 试探；被同机并行会话占用 → 互斥是 profile 级的，先协商等待，**勿擅杀活跃会话的进程树**；实在不行裸 CDP（:9333）兜底。
 
 之后进入逐票循环 ①→⑦。
@@ -52,7 +52,7 @@ description: 禅道 bug 票修流水线——按 docs/bugs/ 票修队列逐票�
 
 ### ① 取票 + 展示
 
-- 读票修队列，按行序取第一张「待处理」（跳过他人已领取行）。`docs/bugs/` 下多批次并存时：问用户修哪批，无偏好则按目录日期从旧到新。
+- 读票修队列，按行序取第一张「待处理」（跳过他人已领取行）。`water-erp/docs/bugs/` 下多批次并存时：问用户修哪批，无偏好则按目录日期从旧到新。
 - 从 `清单.md` 找该票详情，向用户**完整展示**：票面问题（报告人/日期/截图/OCR 实证括注）→ v2 代码核查结论（根因链/锚点）→ 修复建议 → **拟修改方式**（改哪些文件、怎么改、风险点、是否涉共享高危文件/裁定区）。
 - 联动票一并展出（#61↔#126、#115↔#166、#121↔#147、#96↔#150、#142↔#43/#44）。
 
@@ -89,7 +89,7 @@ v2 核查基准是 `ddf1cade0`，代码可能已前进，逐项重验：
 
 1. 种子账号登录对应门户（账号/端口见 ACCOUNTS.md 与清单头）；
 2. 重演 bug 场景验证已修复，顺带查邻近功能无回归；
-3. 截图 2-3 张（问题定位处/修复后效果/关联页）存 `evidence/bug{ID}/`；
+3. 截图 2-3 张（问题定位处/修复后效果/关联页）存 `water-erp/docs/bugs/<批次>/evidence/bug{ID}/`；
 4. 涉及特定数据态的票（如开标中项目），用种子项目或按 CLAUDE.md/记忆中的 DB 配方构造，勿凭空 mock。
 
 验收发现新问题 → 回 ④ 迭代（仍本地 commit），直到双验收都过。**不凭代码推断交验收。**
