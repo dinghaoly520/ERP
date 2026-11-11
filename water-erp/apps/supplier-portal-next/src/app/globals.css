@@ -2521,7 +2521,24 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 
 /* ─── 修改密码弹窗 — cgzxui neumorphic（规格对齐 ChangeRequest .dlg-*）─── */
 .pwd-ov { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 32px; background: oklch(0.35 0.06 258 / 0.28); }
-.pwd-pn { position: relative; width: 420px; max-width: 100%; display: flex; flex-direction: column; overflow: hidden; border-radius: 20px; background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258)); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.75), 0 20px 60px oklch(0.3 0.05 258 / 0.18); }
+.pwd-pn {
+  position: relative;
+  width: 420px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 14% 12%, rgba(118, 165, 255, 0.16), transparent 24%),
+    radial-gradient(circle at 84% 16%, rgba(242, 201, 132, 0.12), transparent 18%),
+    radial-gradient(circle at 76% 82%, rgba(120, 209, 186, 0.1), transparent 20%),
+    linear-gradient(180deg, rgba(248, 251, 255, 0.99), rgba(240, 245, 252, 0.98));
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.88),
+    3px 4px 16px oklch(0.46 0.07 258 / 0.18),
+    -3px -3px 10px oklch(1 0 0 / 0.94);
+}
 .pwd-h { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 26px 16px; border-bottom: 1px solid var(--hairline); }
 .pwd-hl { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .pwd-hi { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: oklch(0.985 0.005 258); color: var(--brand); box-shadow: inset 2.5px 2.5px 5px oklch(0.55 0.03 258 / 0.14), inset -2px -2px 5px oklch(1 0 0 / 0.75); flex-shrink: 0; }
@@ -2592,7 +2609,24 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 
 /* 通用弹窗 .gdlg-*（密码弹窗 .pwd-* 的通用化，供各页面表单弹窗复用） */
 .gdlg-ov { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 32px; background: oklch(0.35 0.06 258 / 0.28); }
-.gdlg-pn { position: relative; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; border-radius: 20px; background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258)); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.75), 0 20px 60px oklch(0.3 0.05 258 / 0.18); }
+/* 系统背景彩色渐变（2026-11-11 用户裁定：弹窗底色用「背景颜色中的」渐变）：与 body 背景同配方 */
+.gdlg-pn {
+  position: relative;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 14% 12%, rgba(118, 165, 255, 0.16), transparent 24%),
+    radial-gradient(circle at 84% 16%, rgba(242, 201, 132, 0.12), transparent 18%),
+    radial-gradient(circle at 76% 82%, rgba(120, 209, 186, 0.1), transparent 20%),
+    linear-gradient(180deg, rgba(248, 251, 255, 0.99), rgba(240, 245, 252, 0.98));
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.88),
+    3px 4px 16px oklch(0.46 0.07 258 / 0.18),
+    -3px -3px 10px oklch(1 0 0 / 0.94);
+}
 .gdlg-h { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 26px 16px; border-bottom: 1px solid var(--hairline); flex-shrink: 0; }
 .gdlg-hl { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .gdlg-hi { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: oklch(0.985 0.005 258); color: var(--brand); box-shadow: inset 2.5px 2.5px 5px oklch(0.55 0.03 258 / 0.14), inset -2px -2px 5px oklch(1 0 0 / 0.75); flex-shrink: 0; }
@@ -2605,6 +2639,21 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .gdlg-ft { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 16px 26px; border-top: 1px solid var(--hairline); background: oklch(1 0 0 / 0.3); flex-shrink: 0; }
 .gdlg-ft .neu-btn-primary { height: 38px; font-size: 13px; padding: 0 20px; }
 .gdlg-ft .neu-btn-soft { height: 38px; }
+
+/* 全系统统一弹窗壳（2026-11-11 用户裁定）：系统背景彩色渐变——与 :3005 web 的
+   .wb-modal-shell 同配方，也与本门户 body 背景同源（白→冰蓝基底 + 三束角部光晕） */
+.wb-modal-shell {
+  background:
+    radial-gradient(circle at 14% 12%, rgba(118, 165, 255, 0.16), transparent 24%),
+    radial-gradient(circle at 84% 16%, rgba(242, 201, 132, 0.12), transparent 18%),
+    radial-gradient(circle at 76% 82%, rgba(120, 209, 186, 0.1), transparent 20%),
+    linear-gradient(180deg, rgba(248, 251, 255, 0.99), rgba(240, 245, 252, 0.98));
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.88),
+    3px 4px 16px oklch(0.46 0.07 258 / 0.18),
+    -3px -3px 10px oklch(1 0 0 / 0.94);
+  border-radius: 20px;
+}
 
 /* 开关 */
 .sp-switch { position: relative; width: 40px; height: 22px; border-radius: 999px; border: none; cursor: pointer; background: oklch(0.9 0.01 258); box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 3px oklch(1 0 0 / 0.7); transition: background .2s ease; flex-shrink: 0; }
