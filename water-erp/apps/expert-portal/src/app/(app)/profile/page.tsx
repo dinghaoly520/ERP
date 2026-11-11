@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Pencil, ClipboardList, ScrollText, ChevronRight, UserCircle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { TypeaheadCombobox } from '@/components/workbench/typeahead-combobox';
+import { ProjectOverviewModal, isActiveProjectStage } from '@/components/project-overview-modal';
 import { EXPERT_TITLES, EXPERT_SPECIALTIES } from '@/lib/expert-standard-options';
 import { toast } from 'sonner';
 import { STAGE_LABEL, STAGE_COLOR } from '@water-erp/shared';
@@ -34,6 +35,9 @@ export default function ExpertProfilePage() {
   // 2026-11-06 扩面（用户裁定：除工作单位外全字段可改）——姓名/民族/身份证号/手机/邮箱/学历/专业/职称/部门
   const [form, setForm] = useState({ displayName: '', ethnicity: '', idNumber: '', phone: '', email: '', education: '', specialty: '', title: '', departmentName: '' });
   const [saving, setSaving] = useState(false);
+  // #155（2026-11-11）：评审记录行点击——活跃项目（OPENING/EVALUATING）进打分工作区；
+  // 非活跃（已归档/未开标等）开只读概览弹窗，不再误跳 /evaluate 被守卫弹回项目列表
+  const [overviewAssignment, setOverviewAssignment] = useState<ExpertProfile['assignments'][number] | null>(null);
 
   const fillForm = (data: ExpertProfile) => setForm({
     displayName: data.displayName,
@@ -293,7 +297,14 @@ export default function ExpertProfilePage() {
                   const done = a.progress >= 100;
                   const sc = done ? 'var(--success)' : STAGE_COLOR[a.project.stage] || 'var(--muted-foreground)';
                   return (
-                    <tr key={a.id} className="row-clickable" onClick={() => router.push(`/evaluate/${a.project.id}`)}>
+                    <tr key={a.id} className="row-clickable" onClick={() => {
+                      // 口径与 projects 页 handleCardClick 一致（isActiveProjectStage 单源）：活跃才进工作区，其余开只读概览
+                      if (isActiveProjectStage(a.project.stage)) {
+                        router.push(`/evaluate/${a.project.id}`);
+                      } else {
+                        setOverviewAssignment(a);
+                      }
+                    }}>
                       <td>
                         <p className="max-w-[280px] truncate font-bold text-[var(--foreground)]">{a.project.name}</p>
                         <p className="mt-0.5 font-mono text-xs text-[var(--muted-foreground)]">{a.project.projectCode}</p>
@@ -324,6 +335,8 @@ export default function ExpertProfilePage() {
           </table>
         </div>
       </div>
+
+      <ProjectOverviewModal data={overviewAssignment} onClose={() => setOverviewAssignment(null)} />
     </div>
   );
 }

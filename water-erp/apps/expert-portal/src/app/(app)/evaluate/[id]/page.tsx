@@ -33,6 +33,7 @@ import type { HallMessagePayload } from '@water-erp/shared';
 import { formatBytes } from '@/lib/utils';
 import { SyncConflictModal } from '@/components/evaluate/sync-conflict-modal';
 import { ScoreHistoryDrawer } from '@/components/evaluate/score-history-drawer';
+import { isActiveProjectStage } from '@/components/project-overview-modal';
 
 type Step = 'verify' | 'documents' | 'assist' | 'compare' | 'scoring' | 'verify-score' | 'report';
 const STEPS: { key: Step; label: string; Icon: React.ComponentType<{ size?: number; strokeWidth?: number }> }[] = [
@@ -365,7 +366,8 @@ export default function ExpertEvaluatePage() {
     return api.get<ExpertProjectDetail & { restricted?: boolean; noneEvaluation?: boolean }>(`/expert/projects/${projectId}`)
       .then(p => {
         // 2026-10-22：OPENING 返回 restricted 壳但须放行走待命页——只按阶段判（restricted 不再弹回）
-        if (p.stage !== 'OPENING' && p.stage !== 'EVALUATING') {
+        // 活跃谓词与 projects/profile 同源（isActiveProjectStage，#155 review 备注②收口）
+        if (!isActiveProjectStage(p.stage)) {
           toast.error('该项目尚未进入开评标阶段');
           router.replace('/projects');
           return;

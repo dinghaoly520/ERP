@@ -48,9 +48,16 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
   const canCreateRound = roundMode === 'negotiation'
     ? stage === 'EVALUATING'
     : stage === 'OPENING' || stage === 'EVALUATING';
+  // #74（2026-11-11）：结果冻结闸——评标结果已生成（evaluationResults 非空）后创建入口隐藏并提示，
+  // 镜像后端 createRound/submitQuote 的 RESULTS_FROZEN 闸。结果生成要求全部轮次 closed
+  // （ROUNDS_NOT_CLOSED），冻结态下轮次必为 closed，行内「下一轮/结束报价」（published 才渲染）
+  // 本就不可达——活漏洞唯此顶部入口，故冻结条件只挂在这里。
+  const resultsFrozen = (detail?.evaluationResults?.length ?? 0) > 0;
   const stageHint = stage === 'ARCHIVED' || stage === 'ABORTED'
     ? '项目已归档/流标，报价轮次只读'
-    : roundMode === 'negotiation' ? '评标完成后方可开启报价轮次' : '当前阶段不可创建报价轮次';
+    : resultsFrozen
+      ? '评标结果已生成，报价轮次只读（如需更正请走数据修正流程）'
+      : roundMode === 'negotiation' ? '评标完成后方可开启报价轮次' : '当前阶段不可创建报价轮次';
 
   const load = useCallback(async () => {
     if (!bidProjectId) return;
@@ -79,7 +86,7 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
   // 现改为「无进行中轮次（无轮 或 末轮 closed）」即可再开，文案按有无轮次区分。
   const lastRound = rounds[rounds.length - 1];
   const noActiveRound = rounds.length === 0 || lastRound?.status === 'closed';
-  const showCreateEntry = canCreateRound && noActiveRound;
+  const showCreateEntry = canCreateRound && noActiveRound && !resultsFrozen;
 
   const openCreateDialog = () => {
     // 默认勾选所有合格供应商
