@@ -4,7 +4,7 @@ import { ProjectChangeService } from './change.service';
  *  空变更拒绝、轮次自增、diff 留痕、开标时间→needsAnnouncement+PMI 中文格式同步。 */
 
 const PMI = {
-  id: 'p1', title: '原名', procurementCategory: '货物', budget: 100, currentStage: 'INITIATION',
+  id: 'p1', title: '原名', procurementCategory: '货物', budgetAmount: 100, currentStage: 'INITIATION',
   requesterName: '李四', requesterDepartment: '勘察院', projectOverview: '概况',
   bidOpeningTime: '2026年11月15日 09:00',
   stages: [{ stageKey: 'PROCUREMENT_DEMAND' }, { stageKey: 'INITIATION' }, { stageKey: 'TENDER_DOCUMENT' }],
@@ -74,11 +74,11 @@ describe('ProjectChangeService.register', () => {
 
   it('成功：轮次自增 + PMI 落库 + diff 留痕（label/from/to/stageKey）+ 操作人 displayName', async () => {
     const { prisma, svc } = mk({ maxRound: 2 });
-    const r = await svc.register('p1', 'u1', '张三', { type: 'CHANGE', reason: '需求调整', fields: { title: '新名', budget: 200 } });
+    const r = await svc.register('p1', 'u1', '张三', { type: 'CHANGE', reason: '需求调整', fields: { title: '新名', budgetAmount: 200 } });
     expect(r.record.round).toBe(3);
     expect(prisma.projectManagementItem.update).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: 'p1' },
-      data: expect.objectContaining({ title: '新名', budget: 200 }),
+      data: expect.objectContaining({ title: '新名', budgetAmount: 200 }),
     }));
     const created = prisma.projectChangeRecord.create.mock.calls[0][0].data;
     expect(created.round).toBe(3);
@@ -86,7 +86,7 @@ describe('ProjectChangeService.register', () => {
     expect(created.operatorName).toBe('张三');
     expect(created.changeset).toEqual(expect.arrayContaining([
       expect.objectContaining({ field: 'title', label: '项目名称', from: '原名', to: '新名', stageKey: 'INITIATION' }),
-      expect.objectContaining({ field: 'budget', label: '预算金额', from: '100', to: '200' }),
+      expect.objectContaining({ field: 'budgetAmount', label: '预算金额', from: '100', to: '200' }),
     ]));
     expect(r.needsAnnouncement).toBe(false);
   });

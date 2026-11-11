@@ -2,6 +2,10 @@ import { IsOptional, IsString, IsNumber } from 'class-validator';
 import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 export class UpdateExtractedInfoDto {
+  // 注：DTO 故意不含 internal 标志——ValidationPipe(whitelist) 会剥掉 HTTP 传入的 internal，
+  // 人工 PATCH 永远过不了服务层的 CHANGE_ONLY 闸（2026-11-11 变更体系）；internal 仅存在于
+  // 服务层方法签名的直调链路（变更服务等内部写入）。
+
   @IsOptional()
   @IsString()
   title?: string;

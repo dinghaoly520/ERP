@@ -21,10 +21,13 @@ export const CHANGE_FIELD_GROUPS = [
     fields: [
       { field: 'title', label: '项目名称', kind: 'text', target: 'PMI' },
       { field: 'procurementCategory', label: '采购类别', kind: 'text', target: 'PMI' },
-      { field: 'budget', label: '预算金额', kind: 'number', target: 'PMI' },
+      { field: 'budgetAmount', label: '预算金额', kind: 'number', target: 'PMI' },
       { field: 'requesterName', label: '需求人', kind: 'text', target: 'PMI' },
       { field: 'requesterDepartment', label: '需求部门', kind: 'text', target: 'PMI' },
       { field: 'projectOverview', label: '项目概况', kind: 'text', target: 'PMI' },
+      { field: 'initiationDate', label: '立项日期', kind: 'text', target: 'PMI' },
+      { field: 'evaluationMethod', label: '评审办法', kind: 'text', target: 'PMI' },
+      { field: 'demandProject', label: '需求项目', kind: 'text', target: 'PMI' },
     ],
   },
   {
@@ -41,7 +44,10 @@ export const CHANGE_FIELD_GROUPS = [
     key: 'notice',
     label: '公告与时间',
     stageKey: 'TENDER_DOCUMENT',
-    fields: [{ field: 'bidOpeningTime', label: '开标时间', kind: 'datetime', target: 'PMI' }],
+    fields: [
+      { field: 'bidOpeningTime', label: '开标时间', kind: 'datetime', target: 'PMI' },
+      { field: 'documentAcquireTime', label: '文件获取截止', kind: 'text', target: 'PMI' },
+    ],
   },
 ] as const satisfies ReadonlyArray<{
   key: 'basic' | 'document' | 'notice';

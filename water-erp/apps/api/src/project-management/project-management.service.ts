@@ -4388,6 +4388,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
   async updateExtractedInfo(
     projectId: string,
     dto: {
+      internal?: boolean; // 服务端内部链路标志（变更服务/批量建档等）；HTTP 人工 PATCH 不带 → 闸下拦截
       title?: string;
       initiationDate?: string;
       evaluationMethod?: string;
@@ -4418,6 +4419,15 @@ ${JSON.stringify(algorithmResult, null, 2)}
       riskMeasures?: string;
     },
   ) {
+    // 人工编辑唯一入口闸（2026-11-11 变更体系 spec §2）：HTTP 人工 PATCH 一律走「变更 / 补遗」
+    // 登记留痕；internal=true 仅供服务端内部链路（变更服务/批量建档）。AI 批量提取走
+    // extractTenderFields 等独立端点，不经此方法，不受影响。
+    if (dto.internal !== true) {
+      throw new BadRequestException({
+        error: '项目基本信息修改请通过项目标题栏「变更 / 补遗」流程登记留痕',
+        code: 'CHANGE_ONLY',
+      });
+    }
     await this.assertPmiMutable(projectId);
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
@@ -4428,6 +4438,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
 
     const updateData: Record<string, unknown> = {};
+
 
     if (dto.title !== undefined) {
       updateData.title = dto.title || null;
