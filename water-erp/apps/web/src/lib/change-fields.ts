@@ -76,8 +76,8 @@ export const CHANGE_FIELD_GROUPS: ChangeFieldGroup[] = [
     stageKey: 'TENDER_DOCUMENT',
     stageLabel: '采购文件',
     fields: [
-      { field: 'bidOpeningTime', label: '开标时间', kind: 'datetime', target: 'PMI' },
-      { field: 'documentAcquireTime', label: '文件获取截止', kind: 'text', target: 'PMI' },
+      { field: 'bidOpeningTime', label: '开标时间', kind: 'datetime', target: 'PMI', aiAssist: 'tender-overview' },
+      { field: 'documentAcquireTime', label: '文件获取截止', kind: 'text', target: 'PMI', aiAssist: 'tender-overview' },
     ],
   },
 ];

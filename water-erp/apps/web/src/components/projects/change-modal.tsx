@@ -90,7 +90,8 @@ export function ChangeModal({
     try {
       if (source === 'tender-overview') {
         const r = await extractTenderFields(item.id, field, 150_000, true);
-        const v = r?.[field];
+        let v = r?.[field];
+        if (v && field === 'bidOpeningTime') v = cnToDatetimeLocal(v); // 提取值为中文格式 → 控件值
         if (v) { setValues(prev => ({ ...prev, [field]: v })); toast.success('已提取，请核对后登记'); }
         else toast.warning('AI 未能从采购文件中提取到该字段内容');
       } else {

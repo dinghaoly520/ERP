@@ -1323,35 +1323,6 @@ export function ProjectDetailPanel({
     }
   };
 
-  // AI 提取并优化"申请立项事由 / 对供方的主要要求"：直接持久化结果并刷新，
-  // 不再进入编辑态让用户确认——AI 输出即终值，用户想微调可点字段右侧铅笔。
-  const handleAiOptimizeInitiation = async () => {
-    if (actionsDisabled) return; // 只读（归档/终止/非创建人）
-    setAiExtracting('initiation');
-    try {
-      const res = await optimizeInitiationFields(item.id);
-      const pr = typeof res?.projectReason === 'string' ? res.projectReason.trim() : '';
-      const sr = typeof res?.supplierRequirements === 'string' ? res.supplierRequirements.trim() : '';
-      if (!pr && !sr) {
-        setAiResult({ type: 'warning', message: 'AI 未能从采购需求/采购立项文件中提炼出相关内容，请检查是否已上传并分析文件。' });
-        return;
-      }
-      // 持久化走变更登记（2026-11-11 变更体系）：AI 优化也是基本信息变更，随轮次留痕；
-      // 仅登记提取到内容的字段（空值不覆盖已有内容，同旧语义）
-      const fields: Record<string, string> = {};
-      if (pr) fields.projectReason = pr;
-      if (sr) fields.supplierRequirements = sr;
-      if (Object.keys(fields).length > 0) {
-        await registerChange(item.id, { type: 'CHANGE', reason: 'AI 提取并优化', fields });
-      }
-      await handleUpdated();
-    } catch (e) {
-      setAiResult({ type: 'error', message: e instanceof Error ? e.message : 'AI 提取并优化失败' });
-    } finally {
-      setAiExtracting(null);
-    }
-  };
-
   const formatDate = (value: string | number | null | undefined) => {
     if (!value) return '';
     const date = new Date(String(value));
@@ -1715,10 +1686,10 @@ export function ProjectDetailPanel({
                       <button type="button" onClick={() => void handleSaveField('title')} className="neu-btn-xs"><Save size={13} /></button>
                     </div>
                   ) : (
-                    <button type="button" onClick={() => handleStartEdit('title', item.title)} className="group mt-1 flex w-full items-center gap-1.5 text-left">
+                    <div className="mt-1 flex w-full items-center gap-1.5 text-left">
                       <span className="text-[15px] font-bold tracking-[-0.02em] text-[color:var(--foreground)]">{item.title || <span className="text-[color:var(--muted-foreground)]/50">未命名项目</span>}</span>
                       <Pencil size={11} className="shrink-0 text-[color:var(--muted-foreground)] opacity-0 transition group-hover:opacity-100" />
-                    </button>
+                    </div>
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-3 text-sm">
@@ -1731,10 +1702,10 @@ export function ProjectDetailPanel({
                         <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs"><X size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('requesterName', item.requesterName)} className="group mt-0.5 flex items-center gap-1 w-full text-left">
+                      <div className="mt-0.5 flex items-center gap-1 w-full text-left">
                         <span className="text-[color:var(--foreground)]">{item.requesterName || <span className="text-[color:var(--muted-foreground)]/50">待补充</span>}</span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 shrink-0 text-[color:var(--muted-foreground)]" />
-                      </button>
+                      </div>
                     )}
                   </div>
                   <div>
@@ -1746,10 +1717,10 @@ export function ProjectDetailPanel({
                         <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs"><X size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('requesterDepartment', item.requesterDepartment)} className="group mt-0.5 flex items-center gap-1 w-full text-left">
+                      <div className="mt-0.5 flex items-center gap-1 w-full text-left">
                         <span className="text-[color:var(--foreground)]">{item.requesterDepartment || <span className="text-[color:var(--muted-foreground)]/50">待补充</span>}</span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 shrink-0 text-[color:var(--muted-foreground)]" />
-                      </button>
+                      </div>
                     )}
                   </div>
                   <div>
@@ -1766,10 +1737,10 @@ export function ProjectDetailPanel({
                         <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs"><X size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('procurementMethod', item.procurementMethod)} className="group mt-0.5 flex items-center gap-1 w-full text-left">
+                      <div className="mt-0.5 flex items-center gap-1 w-full text-left">
                         <span className="text-sm text-[color:var(--foreground)]">{item.procurementMethod || <span className="text-[color:var(--muted-foreground)]/50">待补充</span>}</span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 shrink-0 text-[color:var(--muted-foreground)]" />
-                      </button>
+                      </div>
                     )}
                   </div>
                   <div>
@@ -1786,10 +1757,10 @@ export function ProjectDetailPanel({
                         <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs"><X size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('procurementCategory', item.procurementCategory)} className="group mt-0.5 flex items-center gap-1 w-full text-left">
+                      <div className="mt-0.5 flex items-center gap-1 w-full text-left">
                         <span className="text-sm text-[color:var(--foreground)]">{item.procurementCategory || <span className="text-[color:var(--muted-foreground)]/50">待补充</span>}</span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 shrink-0 text-[color:var(--muted-foreground)]" />
-                      </button>
+                      </div>
                     )}
                   </div>
                   <div>
@@ -1801,10 +1772,10 @@ export function ProjectDetailPanel({
                         <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs"><X size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('budgetAmount', item.budgetAmount)} className="group mt-0.5 flex items-center gap-1 w-full text-left">
+                      <div className="mt-0.5 flex items-center gap-1 w-full text-left">
                         <span className="text-[15px] font-black tracking-[-0.02em] tabular-nums text-[color:var(--accent)]">{item.budgetAmount.toLocaleString('zh-CN')} <span className="text-[10px] font-semibold text-[color:var(--muted-foreground)]">元</span></span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 shrink-0 text-[color:var(--muted-foreground)]" />
-                      </button>
+                      </div>
                     )}
                   </div>
                   <div>
@@ -1815,10 +1786,10 @@ export function ProjectDetailPanel({
                         <button type="button" onClick={() => void handleSaveField('initiationDate')} className="neu-btn-xs"><Save size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('initiationDate', extractedInfoOverride?.initiationDate ?? item.initiationDate)} className="group mt-0.5 flex items-center gap-1">
+                      <div className="mt-0.5 flex items-center gap-1">
                         <span className="text-sm text-[color:var(--foreground)]">{formatDate(extractedInfoOverride?.initiationDate ?? item.initiationDate) || <span className="text-[color:var(--muted-foreground)]/50">待补充</span>}</span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
-                      </button>
+                      </div>
                     )}
                   </div>
                   <div>
@@ -1847,10 +1818,10 @@ export function ProjectDetailPanel({
                         <button type="button" onClick={() => { closeAttrDropdown(); setEditingField(null); }} className="neu-btn-xs shrink-0"><X size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('demandProject', item.demandProject || '')} className="group mt-0.5 flex items-center gap-1">
+                      <div className="mt-0.5 flex items-center gap-1">
                         <span className={item.demandProject ? 'text-sm text-[color:var(--foreground)]' : 'text-sm text-[color:var(--muted-foreground)]/50'}>{item.demandProject || '待补充'}</span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
-                      </button>
+                      </div>
                     )}
                   </div>
                   {/* 归属选择面板：UnitSearchSelect 同款——瓷片渐变 + sticky 搜索行 + 白瓷片激活项；
@@ -1940,18 +1911,7 @@ export function ProjectDetailPanel({
                   )}
                 </div>
                 <div className="mt-3 pt-3" style={{borderTop:"1px solid oklch(0.6 0.04 258 / 0.12)"}}>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">申请立项事由</span>
-                    <button
-                      type="button"
-                      onClick={() => void handleAiOptimizeInitiation()} data-ai-btn="1"
-                      disabled={aiExtracting === 'initiation' || stageLocked}
-                      title="依据采购需求、采购立项阶段上传的文件，AI 提取并优化以下两项内容"
-                      className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]"
-                    >
-                      {aiExtracting === 'initiation' ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />} AI 提取并优化
-                    </button>
-                  </div>
+                  <div><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">申请立项事由</span></div>
                   {editingField === 'projectReason' ? (
                     <div className="mt-1 flex items-start gap-2">
                       <textarea
@@ -2012,10 +1972,10 @@ export function ProjectDetailPanel({
                         <button type="button" onClick={() => void handleSaveField('projectOverview')} className="neu-btn-xs mt-1"><Save size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('projectOverview', extractedInfoOverride?.projectOverview ?? localItem.projectOverview ?? null)} className="group mt-1 block w-full text-left">
+                      <div className="mt-1 block w-full text-left">
                         <span className={`text-sm leading-6 ${(extractedInfoOverride?.projectOverview ?? localItem.projectOverview) ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{(extractedInfoOverride?.projectOverview ?? localItem.projectOverview) || '待补充'}</span>
                         <Pencil size={10} className="inline opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)] ml-1" />
-                      </button>
+                      </div>
                     )}
                   </div>
                   <div>
@@ -2030,10 +1990,10 @@ export function ProjectDetailPanel({
                     ) : isPastRound ? (
                       <span className="mt-0.5 block text-sm text-[color:var(--foreground)]">{roundTimeDisplay(pastRoundBpRef?.roundDocAcquireTime)}</span>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('documentAcquireTime', extractedInfoOverride?.documentAcquireTime ?? localItem.documentAcquireTime ?? null)} className="group mt-0.5 flex items-center gap-1">
+                      <div className="mt-0.5 flex items-center gap-1">
                         <span className={`text-sm ${(extractedInfoOverride?.documentAcquireTime ?? localItem.documentAcquireTime) ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{fmtAcquireTime(extractedInfoOverride?.documentAcquireTime ?? localItem.documentAcquireTime) || '待补充'}</span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
-                      </button>
+                      </div>
                     )}
                   </div>
                   <div>
@@ -2046,10 +2006,10 @@ export function ProjectDetailPanel({
                     ) : isPastRound ? (
                       <span className="mt-0.5 block text-sm text-[color:var(--foreground)]">{roundTimeDisplay(pastRoundBpRef?.roundOpeningTime)}</span>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('bidOpeningTime', extractedInfoOverride?.bidOpeningTime ?? localItem.bidOpeningTime ?? null)} className="group mt-0.5 flex items-center gap-1">
+                      <div className="mt-0.5 flex items-center gap-1">
                         <span className={`text-sm ${(extractedInfoOverride?.bidOpeningTime ?? localItem.bidOpeningTime) ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{(extractedInfoOverride?.bidOpeningTime ?? localItem.bidOpeningTime) || '待补充'}</span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
-                      </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -2163,10 +2123,10 @@ export function ProjectDetailPanel({
                         <button type="button" onClick={() => void handleSaveField('paymentPerformance')} className="neu-btn-xs mt-1"><Save size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('paymentPerformance', extractedInfoOverride?.paymentPerformance ?? item.paymentPerformance ?? null)} className="group mt-1 block w-full text-left">
+                      <div className="mt-1 block w-full text-left">
                         <span className={`text-sm leading-6 ${(extractedInfoOverride?.paymentPerformance ?? item.paymentPerformance) ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{(extractedInfoOverride?.paymentPerformance ?? item.paymentPerformance) || '待补充'}</span>
                         <Pencil size={10} className="inline opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)] ml-1" />
-                      </button>
+                      </div>
                     )}
                   </div>
                   <div>
@@ -2177,10 +2137,10 @@ export function ProjectDetailPanel({
                         <button type="button" onClick={() => void handleSaveField('contractAmount')} className="neu-btn-xs"><Save size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('contractAmount', extractedInfoOverride?.contractAmount ?? item.contractAmount)} className="group mt-1 flex items-center gap-1">
+                      <div className="mt-1 flex items-center gap-1">
                         <span className="text-base font-black tracking-[-0.03em] tabular-nums text-[color:var(--foreground)]">{formatAmount(extractedInfoOverride?.contractAmount ?? item.contractAmount) || <span className="text-sm font-normal text-[color:var(--muted-foreground)]/50">待确定</span>}</span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
-                      </button>
+                      </div>
                     )}
                   </div>
                 </div>
