@@ -219,27 +219,60 @@ export class KnowledgeService {
     return { deleted: true };
   }
 
-  /** 重建索引：indexed=false 徽章（嵌入降级）指引的补救动作——成功后复位 indexed:true
-   *  （评审 I-3）；嵌入/向量失败按文件降级（indexed:false 继续），不得中途 500
-   *  （旧行为：全库向量已清而循环中断，徽章与实际脱节）；循环中被并发删除的文件按
-   *  删除跳过（deletedSkipped 计数，2026-11-09 生产实录 P2025 整单炸的修复）。 */
-  async reindex(kbId: string, user: User) {
+  /** 后台重建进行中标记（kbId → run promise）：并发点击防重入 */
+  private readonly reindexRuns = new Map<string, Promise<void>>();
+  /** 最近一次后台重建 promise（观测/测试用；不参与守卫、不清理） */
+  private lastReindexRun: Promise<void> = Promise.resolve();
+
+  /** 重建索引（2026-11-11 异步化）：indexed=false 徽章（嵌入降级）指引的补救动作。
+   *  同步版在 KB 含大文档（476 页 676 块嵌入 ~1h，2026-11-10 生产实录）时必然击穿
+   *  门户 proxy 120s 代理窗——504 后 API 循环仍在跑，用户以为失败反复重试。
+   *  现立即返回，嵌入在后台逐文件进行、逐文件复位 indexed 徽章（前端刷新可见）：
+   *  - 增量语义（默认）：跳过 indexed=true 的文件（只修降级文件；进程重启中断后再点即续跑），
+   *    每文件先 deleteByFileId 再插（幂等替换，无整库清）
+   *  - force=true：先 deleteByCollection 整库清再全量重建（含 indexed=true）
+   *  按文件降级（嵌入/向量失败 indexed:false 继续，评审 I-3）与 2026-11-09 删除竞态
+   *  （预检跳过 / P2025 回收向量）语义原样保留。 */
+  async reindex(kbId: string, user: User, force = false) {
     await this.assertEditable(kbId, user);
+    if (this.reindexRuns.has(kbId)) {
+      return { started: false, alreadyRunning: true, fileCount: 0, pendingCount: 0, skippedCount: 0 };
+    }
     const kb = await this.prisma.knowledgeBase.findUnique({
       where: { id: kbId },
       include: { files: { orderBy: { createdAt: 'desc' } } },
     });
     if (!kb) throw new NotFoundException(`知识库不存在或已被删除（id：${kbId}）`);
 
-    await this.vectorSearch.deleteByCollection(kbId);
+    const targets = kb.files.filter(
+      (f): f is typeof f & { content: string } =>
+        !!f.content && (force || f.indexed !== true),
+    );
+
+    // 后台 promise 不得浮动 reject（2026-11-09 教训：unhandled rejection 崩进程）——
+    // 循环内部已按文件降级/竞态跳过，顶层只兜框架级异常，留痕即可
+    const run = this.runReindexInBackground(kbId, targets, force)
+      .catch((err) => console.error(`[reindex] 后台重建异常终止（kb=${kbId}）：`, err))
+      .finally(() => this.reindexRuns.delete(kbId)) as Promise<void>;
+    this.reindexRuns.set(kbId, run);
+    this.lastReindexRun = run;
+    return { started: true, fileCount: kb.files.length, pendingCount: targets.length, skippedCount: kb.files.length - targets.length };
+  }
+
+  private async runReindexInBackground(
+    kbId: string,
+    targets: Array<{ id: string; fileName: string; content: string }>,
+    force: boolean,
+  ): Promise<void> {
+    if (force) {
+      await this.vectorSearch.deleteByCollection(kbId);
+    }
 
     let degradedCount = 0;
     let deletedSkipped = 0;
-    for (const file of kb.files) {
-      if (!file.content) continue;
-
-      // 2026-11-09 生产实录：files 是循环前快照，嵌入慢（分钟级）窗口内文件可被并发
-      // deleteFile 删除——轮到时已不存在的直接跳过（省嵌入算力、防孤儿向量），不整单 404
+    for (const file of targets) {
+      // 2026-11-09 生产实录：targets 是调用时快照，嵌入慢（分钟级）窗口内文件可被并发
+      // deleteFile 删除——轮到时已不存在的直接跳过（省嵌入算力、防孤儿向量），不整单炸
       const stillExists = await this.prisma.knowledgeFile.findFirst({
         where: { id: file.id },
         select: { id: true },
@@ -264,6 +297,8 @@ export class KnowledgeService {
 
       if (textChunks.length > 0 && embeddings.length === textChunks.length) {
         try {
+          // 增量模式无整库清——先清同 fileId 旧块再插（幂等替换，防双跑孤儿/重复）
+          await this.vectorSearch.deleteByFileId(file.id);
           await this.vectorSearch.insertChunks(
             textChunks.map((chunk, i) => ({
               collectionName: kbId,
@@ -290,14 +325,14 @@ export class KnowledgeService {
         });
       } catch (err) {
         // 预检与 update 之间的残余竞态：文件刚被删——回收本次刚插入的向量（防孤儿
-        // 泄漏检索），按删除跳过继续；其余错误照抛。同 d4e9ad00b 协作式取消语义。
+        // 泄漏检索），按删除跳过继续；其余错误照抛（由 reindex 顶层兜底留痕）。
         if ((err as { code?: string })?.code === 'P2025') {
           deletedSkipped++;
           try {
             await this.vectorSearch.deleteByFileId(file.id);
           } catch (cleanupErr) {
             console.error(`Vector cleanup error for deleted ${file.fileName}:`, cleanupErr);
-            // 下次 reindex 开头 deleteByCollection 全清兜底
+            // 下次 reindex（force）开头 deleteByCollection 全清兜底
           }
           continue;
         }
@@ -305,7 +340,9 @@ export class KnowledgeService {
       }
     }
 
-    return { reindexed: true, fileCount: kb.files.length, degradedCount, deletedSkipped };
+    console.log(
+      `[reindex] kb=${kbId} 后台重建完成：重建 ${targets.length}、降级 ${degradedCount}、删除跳过 ${deletedSkipped}${force ? '（force 全量）' : '（增量）'}`,
+    );
   }
 
   /** 水叮当知识库面板取数（2026-11-03 设计 §4.3）：mine=本人库，shared=他人共享库

@@ -120,12 +120,21 @@ export async function retryKnowledgeFile(kbId: string, fileId: string): Promise<
   return res.json();
 }
 
-/** 重建向量索引（嵌入服务恢复后补建） */
-export async function reindexKnowledgeBase(kbId: string): Promise<{ reindexed: boolean }> {
-  const res = await apiFetch(`${API_BASE}/knowledge/${kbId}/reindex`, {
-    method: 'POST',
-    credentials: 'include',
-  });
+/** 重建向量索引（异步：202 立即返回，后台逐文件重建；force=整库全量，默认增量只修未索引文件） */
+export async function reindexKnowledgeBase(kbId: string, force = false): Promise<{
+  started: boolean;
+  alreadyRunning?: boolean;
+  fileCount: number;
+  pendingCount: number;
+  skippedCount: number;
+}> {
+  const res = await apiFetch(
+    `${API_BASE}/knowledge/${kbId}/reindex${force ? '?force=true' : ''}`,
+    {
+      method: 'POST',
+      credentials: 'include',
+    },
+  );
   if (!res.ok) throw await toApiError(res, '重建索引失败');
   return res.json();
 }
