@@ -37,15 +37,14 @@ export class ProjectChangeService {
     });
     if (!pmi) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
 
-    // 当前轮未终局的 BidProject（变更写 BID 字段与开标锁判定依据）
+    // 当前轮未终局的 BidProject（标段分区闸判定依据，2026-11-12 用户裁定：
+    // 开标确认前标后锁死；开标确认后标前锁死）
     const bp = await this.prisma.bidProject.findFirst({
       where: { projectManagementItemId: projectId, stage: { notIn: ['ABORTED'] } },
       orderBy: { round: 'desc' },
-      select: { id: true, stage: true, qualification: true, scope: true, qualityRequirement: true },
+      select: { id: true, stage: true },
     });
-    if (bp && ['OPENING', 'EVALUATING', 'ARCHIVED'].includes(bp.stage)) {
-      throw new BadRequestException({ error: '开标后不可修改标前数据', code: 'BID_LOCKED' });
-    }
+    const bidOpened = !!bp && ['OPENING', 'EVALUATING', 'ARCHIVED'].includes(bp.stage);
 
     const stageKeys = pmi.stages.map(s => s.stageKey);
     const pmiData: Record<string, unknown> = {};
@@ -65,7 +64,14 @@ export class ProjectChangeService {
           throw new BadRequestException({ error: `字段「${field}」不在可变更范围`, code: 'FIELD_NOT_ALLOWED' });
         }
         const def = group.fields.find(f => f.field === field)!;
-        if (!stageReached(stageKeys, pmi.currentStage, group.stageKey)) {
+        // 标段分区闸：标前（basic/采购文件）开标确认后锁死；标后（定标/合同）开标确认前锁死
+        if (group.zone === 'pre' && bidOpened) {
+          throw new BadRequestException({ error: '开标后不可修改标前数据', code: 'BID_LOCKED' });
+        }
+        if (group.zone === 'post' && !bidOpened) {
+          throw new BadRequestException({ error: '开标确认前，不能编辑标后', code: 'POST_BID_LOCKED' });
+        }
+        if (group.zone === 'pre' && !stageReached(stageKeys, pmi.currentStage, group.stageKey)) {
           throw new BadRequestException({
             error: `未进入 ${group.label} 阶段，不可变更`,
             code: 'STAGE_LOCKED',

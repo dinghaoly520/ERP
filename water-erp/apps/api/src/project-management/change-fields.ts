@@ -16,6 +16,7 @@ export const FORBIDDEN_FIELDS = ['biddingUnits', 'invitedSuppliers', 'experts'] 
 export const CHANGE_FIELD_GROUPS = [
   {
     key: 'basic',
+    zone: 'pre',
     label: '基本信息',
     stageKey: 'INITIATION',
     fields: [
@@ -34,6 +35,7 @@ export const CHANGE_FIELD_GROUPS = [
   },
   {
     key: 'notice',
+    zone: 'pre',
     label: '采购文件',
     stageKey: 'TENDER_DOCUMENT',
     fields: [
@@ -43,6 +45,7 @@ export const CHANGE_FIELD_GROUPS = [
   },
   {
     key: 'award',
+    zone: 'post',
     label: '定标',
     stageKey: 'AWARD_DECISION',
     fields: [
@@ -51,6 +54,7 @@ export const CHANGE_FIELD_GROUPS = [
   },
   {
     key: 'contract',
+    zone: 'post',
     label: '合同',
     stageKey: 'CONTRACT',
     fields: [
@@ -61,6 +65,8 @@ export const CHANGE_FIELD_GROUPS = [
   },
 ] as const satisfies ReadonlyArray<{
   key: 'basic' | 'award' | 'contract' | 'notice';
+  /** 标段分区（2026-11-12 用户裁定）：pre=标前（开标确认后锁死）；post=标后（开标确认前锁死） */
+  zone: 'pre' | 'post';
   label: string;
   stageKey: string;
   fields: readonly ChangeFieldDef[];

@@ -17,7 +17,7 @@ export function ProjectChangeEntry({
   onInitiate,
 }: {
   projectId: string;
-  /** 创建人且开标前（面板 actionsDisabled/isBidLocked 已合成） */
+  /** 创建人且项目可写（开标后仍可编辑标后——分区闸在弹窗内生效） */
   canInitiate: boolean;
   /** 发起变更——竞态开标后由面板 toast「开标后不可修改标前数据」 */
   onInitiate: () => void;

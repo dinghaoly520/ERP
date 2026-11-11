@@ -1213,7 +1213,6 @@ export function ProjectDetailPanel({
 
   /** 变更发起入口（2026-11-11 变更体系）：开标前弹三步变更/补遗弹窗 */
   const handleInitiateChange = () => {
-    if (isBidLocked) { toast.warning('开标后不可修改标前数据'); return; }
     setChangeModalOpen(true);
   };
 
@@ -1410,7 +1409,7 @@ export function ProjectDetailPanel({
               </div>
             </div>
             <div className="page-hero__right">
-              <ProjectChangeEntry projectId={item.id} canInitiate={!actionsDisabled && !isBidLocked} onInitiate={handleInitiateChange} />
+              <ProjectChangeEntry projectId={item.id} canInitiate={!actionsDisabled} onInitiate={handleInitiateChange} />
               {!actionsDisabled && (
                 <button type="button" onClick={() => setTerminateOpen(true)} disabled={submitting || uploading} className="neu-btn-soft">
                   <Ban size={16} />项目终止
@@ -2673,6 +2672,7 @@ export function ProjectDetailPanel({
         onClose={() => setChangeModalOpen(false)}
         item={item}
         currentStage={item.currentStage}
+        bidOpened={isBidLocked}
         currentValues={changeCurrentValues}
         onRegistered={(ctx) => {
           handleUpdated();

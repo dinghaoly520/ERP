@@ -6,7 +6,7 @@ import { ProjectChangeService } from './change.service';
 const PMI = {
   id: 'p1', title: '原名', procurementCategory: '货物', budgetAmount: 100, currentStage: 'INITIATION',
   requesterName: '李四', requesterDepartment: '勘察院', projectOverview: '概况',
-  bidOpeningTime: '2026年11月15日 09:00',
+  bidOpeningTime: '2026年11月15日 09:00', awardedSupplier: null, contractNumber: 'HT-1', contractAmount: 100, paymentPerformance: '已履约',
   stages: [{ stageKey: 'PROCUREMENT_DEMAND' }, { stageKey: 'INITIATION' }, { stageKey: 'TENDER_DOCUMENT' }],
 };
 const BP = { id: 'bp1', round: 1, stage: 'SUBMIT', qualification: '旧资格', scope: '旧范围', qualityRequirement: '旧要求' };
@@ -60,10 +60,23 @@ describe('ProjectChangeService.register', () => {
       .rejects.toMatchObject({ response: { code: 'STAGE_LOCKED', error: expect.stringContaining('采购文件') } });
   });
 
-  it('开标后（BidProject OPENING）→ 400 BID_LOCKED「开标后不可修改标前数据」', async () => {
-    const { svc } = mk({ bp: { ...BP, stage: 'OPENING' } });
+  it('标段分区（2026-11-12 裁定）：开标后标前锁死（BID_LOCKED），标后可编辑', async () => {
+    const { prisma, svc } = mk({ bp: { ...BP, stage: 'OPENING' } });
     await expect(svc.register('p1', 'u1', '张三', { type: 'CHANGE', reason: 'r', fields: { title: '新名' } }))
       .rejects.toMatchObject({ response: { code: 'BID_LOCKED', error: '开标后不可修改标前数据' } });
+    const r = await svc.register('p1', 'u1', '张三', { type: 'CHANGE', reason: '定标回填', fields: { awardedSupplier: '中标公司A' } });
+    expect(prisma.projectManagementItem.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ awardedSupplier: '中标公司A' }),
+    }));
+    expect(r.record.round).toBe(1);
+  });
+
+  it('标段分区：开标确认前标后锁死（POST_BID_LOCKED「开标确认前，不能编辑标后」）', async () => {
+    const { svc } = mk();
+    await expect(svc.register('p1', 'u1', '张三', { type: 'CHANGE', reason: 'r', fields: { awardedSupplier: '中标公司A' } }))
+      .rejects.toMatchObject({ response: { code: 'POST_BID_LOCKED', error: '开标确认前，不能编辑标后' } });
+    await expect(svc.register('p1', 'u1', '张三', { type: 'CHANGE', reason: 'r', fields: { contractNumber: 'HT-2' } }))
+      .rejects.toMatchObject({ response: { code: 'POST_BID_LOCKED' } });
   });
 
   it('值无变化 → 400 NO_CHANGE（防空轮次）', async () => {

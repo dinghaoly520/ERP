@@ -38,6 +38,7 @@ export function ChangeModal({
   item,
   currentValues,
   currentStage,
+  bidOpened,
   onRegistered,
 }: {
   isOpen: boolean;
@@ -46,6 +47,8 @@ export function ChangeModal({
   /** 现值源（与左栏同源）：item + extractedInfoOverride 非空键合并 */
   currentValues?: Record<string, string | number | null> | null;
   currentStage: string | null;
+  /** 开标确认（BidProject 进入 OPENING 起）——标段分区闸：开标后标前锁死、标后解锁 */
+  bidOpened: boolean;
   onRegistered: (result: { needsAnnouncement: boolean; recordId: string; category: 'change_notice' | 'addendum'; round: number; reason: string; changeContent: string }) => void;
 }) {
   const [step, setStep] = useState<Step>('type');
@@ -75,9 +78,21 @@ export function ChangeModal({
     return v == null ? '' : String(v);
   };
 
+  // 标段分区（2026-11-12 用户裁定）：标前开标确认后锁死（组内阶段闸仍适用）；
+  // 标后开标确认前锁死、确认后解锁（不再看阶段指针）
   const groups = useMemo(
-    () => CHANGE_FIELD_GROUPS.map(g => ({ ...g, unlocked: stageReached(currentStage, g.stageKey) })),
-    [currentStage],
+    () => CHANGE_FIELD_GROUPS.map(g => {
+      if (g.zone === 'post') {
+        return { ...g, unlocked: bidOpened, lockText: '开标确认前，不能编辑标后' };
+      }
+      const stageOk = stageReached(currentStage, g.stageKey);
+      return {
+        ...g,
+        unlocked: stageOk && !bidOpened,
+        lockText: bidOpened ? '开标后不可修改标前数据' : `未进入 ${g.stageLabel} 阶段，不可变更`,
+      };
+    }),
+    [currentStage, bidOpened],
   );
   const changedCount = groups.reduce(
     (n, g) => n + g.fields.filter(f => (values[f.field] ?? '') !== '' && values[f.field] !== currentOf(f.field)).length,
@@ -192,7 +207,7 @@ export function ChangeModal({
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold text-[var(--foreground)]">{g.label}</span>
                     {!g.unlocked && (
-                      <span className="text-[11px] font-medium text-[var(--muted-foreground)]">未进入 {g.stageLabel} 阶段，不可变更</span>
+                      <span className="text-[11px] font-medium text-[var(--danger)]">{g.lockText}</span>
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-3">
