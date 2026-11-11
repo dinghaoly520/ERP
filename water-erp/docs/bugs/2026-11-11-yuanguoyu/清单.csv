@@ -1,0 +1,22 @@
+﻿ID,等级,标题,报告人,创建时间,当前代码状态(v2核定),关键代码/根因,修复建议要点,截图文件
+59,S2,未组建会话点禁言/关闭报错,czy,2026-10-16,已修复待验收,exchange-drawer.tsx:436 disabled闸+红角标(commit 8c2736293),直接验收关单,images/bug59_115.jpg
+69,S3,未输入评分直接提交报错,czy,2026-10-19,已修复待验收,page.tsx:1012前端拦截+后端中文错误码,直接验收关单;可选catch分支专门toast,images/bug69_127.jpg
+99,S1,评分模式提示位置/无激活态,zengrui,2026-10-21,已修复待验收,login/page.tsx:252入口已移底部+文案翻转(85e38e223等),直接验收;残留tablet落地页顶部横幅可移底部,
+142,S2,专家异议处理显示英文,czy,2026-10-29,大概率已修复,http-exception.filter.ts:350全局中文化闸(51d5fd4d7 10-10),验收回归;收口3处裸枚举回退+type白名单,images/bug142_242.jpg
+61,S1,唱标结束后无法结束开标,czy,2026-10-16,基本已修复留2回归场景,bid.service.ts:1240 autoHandoverIfDone自动终局固化,回归A供应商失联不确认(建议超时置EXCEPTION);回归B与#126联调,images/bug61_117.jpg
+73,S1,标书获取/辅助评标/条款响应核对显示,czy,2026-10-19,部分修复,条款响应已实现(:1958);evaluate页仍3处用户可见招标文件(:968/:1782/:1846),3处文案按采购方式条件化(抄:204写法)后整票验收;勿无条件改齐(11-03裁定#3),images/bug73_133.jpg;images/bug73_134.jpg;images/bug73_135.jpg
+100,S1,平板扫码入口不可见,zengrui,2026-10-21,部分实现(可发现性),入口仅在verify步(page.tsx:1928);scoring步无,scoring步头部并列渲染同款按钮(零新增API),
+140,S3,评审流程优化,czy,2026-10-29,半数存在,b)无得分点项已双按钮;checklist型仍逐条勾选;a)短路未实现(progress分母全量),a)转需求评审:校验豁免+分母排除+免评只读态;b)checklist上方加一键双按钮,images/bug140_240.jpg
+98,S1,平板/web不能同时登录,zengrui,2026-10-21,有意设计需裁定,auth.service.ts:600单sid轮换+闸4工位锁(防冒名2026-09-20),路线A保留单会话修可发现性/路线B分设备槽大改;先补录复现路径,
+151,S2,供应商排名显示废标,zengrui,2026-10-30,有意设计可议点2个,废标置后非bug;仍占名次号(rank=index+1)+无原因,名次改—+落列disqualifiedReason挂提示;转产品确认,images/bug151_257.jpg
+74,S2,评标后仍可发起下一轮报价,czy,2026-10-19,UI层仍存在,后端409 RESULTS_FROZEN已封死;前端未消费evaluationResults;行内下一轮有M3恢复提示但重试仍409(11-11修正),types补字段+round-block冻结禁用两处按钮,images/bug74_136.jpg
+79,S3,状态展示与实际不符,czy,2026-10-20,仍存在,opening-hall.tsx:423 stageStep只判stage+会话存在;胶囊走shared派生,stageStep改从sessionStatus派生(映射进shared供两端复用),images/bug79_142.jpg
+101,S3,回执编号没有反显,zengrui,2026-10-22,仍存在(根因定位),receiptNo只在新建BidSupplier行生成;投递update分支永不补(:2586/:3131),update分支补ensureReceiptNo+存量回填脚本,images/bug101_171.jpg
+115,S3,下载回流包格式有问题,zengrui,2026-10-23,仍存在(根因三连),inline+application/json+target_blank=新标签页开JSON;filename非RFC5987乱码,streamFile支持?download=1改attachment+filename*;前端加download属性;可选zip化,images/bug115_197.jpg;images/bug115_198.jpg
+60,S2,查看唱标信息与设计不符,czy,2026-10-16,仍存在,查看态复用录入控件+readOnly被四项必填校验绑架(:545);无设计稿对标注释,readOnly改只读值块+校验分支;索要设计稿对齐,images/bug60_116.jpg
+121,S3,归档详情缺通过/不通过评分点,czy,2026-10-26,仍存在(前后端双缺),归档详情无评分段;handover-preview.tsx:467只渲染数值丢passed(后端已下发),快修handover-preview通过性分支;归档详情补评分段前后端,images/bug121_211.jpg
+147,S3,项目详情缺评分明细卡片,czy,2026-10-30,仍存在(模块缺失),ArchiveDetailModal无评分代码;现有视图挂在开标确认面板,与#121并票:归档详情新增评分明细卡片(复用ScoreSnapshotSection),images/bug147_251.jpg
+150,S3,标书文件名反显错误,zengrui,2026-10-30,仍存在(根因定位),解密落库originalName被覆盖为role.plain(supplier-portal.service.ts:3842),方案A:解密资产按role反查投递资产名剥.outer后继承;前端无需改,images/bug150_256.jpg
+155,S3,评审记录跳转到评审项目,zengrui,2026-11-05,仍存在(1行),profile/page.tsx:296无条件push /evaluate,复用projects页口径:活跃才进工作区否则只读概览,images/bug155_262.jpg;images/bug155_263.jpg
+97,S3,评分输入先十位后个位,zengrui,2026-10-21,体验仍存在(OS键盘),代码无分步控件;type=number触发系统分段键盘,加inputMode=decimal+自定义一步式ScorePad,
+96,S2,平板端预览文件失效,czy,2026-10-21,未单独深查,与#150文档资产链路同域(documents-step预览+decryptedAssets),先随#150修复回归;仍失效再专项排查viewer/签名URL,images/bug96_164.jpg
