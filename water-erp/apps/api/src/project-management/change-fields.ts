@@ -34,7 +34,7 @@ export const CHANGE_FIELD_GROUPS = [
   },
   {
     key: 'notice',
-    label: '公告与时间',
+    label: '采购文件',
     stageKey: 'TENDER_DOCUMENT',
     fields: [
       { field: 'bidOpeningTime', label: '开标时间', kind: 'datetime', target: 'PMI' },
