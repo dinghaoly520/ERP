@@ -7722,6 +7722,43 @@ select.workbench-input {
   background: linear-gradient(105deg, oklch(1 0 0 / 0.3), oklch(1 0 0 / 0.05));
   border-top: 1px solid oklch(0.6 0.04 258 / 0.14);
 }
+
+/* ── neu-modal-nav-item 弹窗章节导航项（2026-11-11 弹窗规范 A 版）─────────
+   导入识别弹窗首用、系统弹窗标准件：竖排导航，默认透明融入，
+   hover 品牌淡染，激活 = 凸起纯白瓷片 + 品牌蓝粗体（与 neu-tab v2 激活语义统一） */
+.neu-modal-nav-item {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: var(--muted-foreground);
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+.neu-modal-nav-item:hover {
+  background: color-mix(in oklch, var(--accent) 7%, transparent);
+  color: var(--foreground);
+}
+.neu-modal-nav-item.is-active {
+  background: oklch(1 0 0);
+  color: var(--accent-strong);
+  font-weight: 700;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    2px 2px 5px oklch(0.5 0.08 258 / 0.12),
+    -1px -1px 3px oklch(1 0 0 / 0.85);
+}
+.neu-modal-nav-item.is-active:active {
+  box-shadow:
+    inset 2px 2px 5px oklch(0.5 0.08 258 / 0.16),
+    inset -2px -2px 5px oklch(1 0 0 / 0.5);
+}
+@media (prefers-reduced-motion: reduce) {
+  .neu-modal-nav-item { transition: none; }
+}
 /* ── 已归档项目详情只读态：隐藏全部编辑入口（铅笔 / AI 提取 / AI 优化 / 补充材料按钮） ── */
 .pm-archived-readonly .lucide-pencil { display: none !important; }
 .pm-archived-readonly .ai-inline-btn { display: none !important; }
