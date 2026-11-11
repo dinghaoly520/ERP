@@ -1,16 +1,13 @@
 'use client';
 
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ClipboardList, Building2, FileText, MessageSquare, Calendar, Clock, Lock, X } from 'lucide-react';
+import { ClipboardList, Building2, FileText, MessageSquare, Calendar, Lock } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ExpertProject } from '@/lib/types';
+import { ProjectOverviewModal, isActiveProjectStage } from '@/components/project-overview-modal';
 import { STAGE_LABEL, STAGE_COLOR } from '@water-erp/shared';
-
-function isActive(stage: string) {
-  return stage === 'OPENING' || stage === 'EVALUATING';
-}
 
 export default function ExpertProjectsPage() {
   const router = useRouter();
@@ -34,17 +31,9 @@ export default function ExpertProjectsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Auto-focus modal close button when opened
-  const modalCloseRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (overviewProject && modalCloseRef.current) {
-      modalCloseRef.current.focus();
-    }
-  }, [overviewProject]);
-
   const filtered = projects.filter(ep => {
     const s = ep.project.stage;
-    if (filter === 'reviewable') return isActive(s);
+    if (filter === 'reviewable') return isActiveProjectStage(s);
     if (filter === 'archived') return s === 'ARCHIVED';
     return true;
   });
@@ -55,7 +44,7 @@ export default function ExpertProjectsPage() {
     for (const ep of projects) {
       all++;
       const s = ep.project.stage;
-      if (isActive(s)) reviewable++;
+      if (isActiveProjectStage(s)) reviewable++;
       else if (s === 'ARCHIVED') archived++;
     }
     return { all, reviewable, archived };
@@ -68,7 +57,7 @@ export default function ExpertProjectsPage() {
   ];
 
   const handleCardClick = (ep: ExpertProject) => {
-    if (isActive(ep.project.stage)) {
+    if (isActiveProjectStage(ep.project.stage)) {
       router.push(`/evaluate/${ep.project.id}`);
     } else {
       setOverviewProject(ep);
@@ -139,7 +128,7 @@ export default function ExpertProjectsPage() {
       ) : (
         <div className="space-y-4">
           {filtered.map(ep => {
-            const active = isActive(ep.project.stage);
+            const active = isActiveProjectStage(ep.project.stage);
             const done = ep.progress >= 100;
             const sc = STAGE_COLOR[ep.project.stage] || 'var(--muted-foreground)';
 
@@ -232,89 +221,8 @@ export default function ExpertProjectsPage() {
         </div>
       )}
 
-      {/* Overview Modal for inactive projects */}
-      {overviewProject && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          role="dialog" aria-modal="true" aria-label="项目概要"
-          onKeyDown={(e) => { if (e.key === 'Escape') { setOverviewProject(null); } }}>
-          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={() => setOverviewProject(null)} />
-          <div className="exp-dialog w-full max-w-md">
-            <div className="flex items-center justify-between gap-4 px-6 py-4">
-              <div className="flex items-center gap-2">
-                <Clock size={16} strokeWidth={1.5} className="text-[var(--accent-strong)]" />
-                <h3 className="text-base font-bold text-[var(--foreground)]">项目概要</h3>
-              </div>
-              <button ref={modalCloseRef} onClick={() => setOverviewProject(null)}
-                className="neu-btn-xs is-square" aria-label="关闭">
-                <X size={15} strokeWidth={1.6} />
-              </button>
-            </div>
-            <hr className="wb-section-rule" />
-            <div className="space-y-4 px-6 py-5">
-              <div className="flex items-center gap-3">
-                <span className="exp-user-chip-avatar !h-11 !w-11 !rounded-xl !text-base">
-                  {overviewProject.project.name[0]}
-                </span>
-                <div className="min-w-0">
-                  <p className="truncate font-bold text-[var(--foreground)]">{overviewProject.project.name}</p>
-                  <p className="font-mono text-xs text-[var(--muted-foreground)]">{overviewProject.project.projectCode}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <p className="mb-1 text-xs text-[var(--muted-foreground)]">当前阶段</p>
-                  <span className="exp-pill" style={{
-                    '--c': STAGE_COLOR[overviewProject.project.stage] || 'var(--muted-foreground)',
-                  } as React.CSSProperties}>
-                    {STAGE_LABEL[overviewProject.project.stage] || overviewProject.project.stage}
-                  </span>
-                </div>
-                <div>
-                  <p className="mb-1 text-xs text-[var(--muted-foreground)]">投标单位</p>
-                  <p className="font-semibold text-[var(--foreground)]">{overviewProject.project.suppliers?.length ?? 0} 家</p>
-                </div>
-                <div>
-                  <p className="mb-1 text-xs text-[var(--muted-foreground)]">开标时间</p>
-                  <p className="font-semibold text-[var(--foreground)]">
-                    {new Date(overviewProject.project.openTime).toLocaleDateString('zh-CN')}
-                  </p>
-                </div>
-                <div>
-                  <p className="mb-1 text-xs text-[var(--muted-foreground)]">专业领域</p>
-                  <p className="font-semibold text-[var(--foreground)]">{overviewProject.major || '综合评审'}</p>
-                </div>
-              </div>
-
-              {overviewProject.project.stage === 'ARCHIVED' ? (
-                <div className="exp-alert exp-alert--success flex items-start gap-2.5">
-                  <ClipboardList size={14} strokeWidth={1.5} className="mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-[13px] font-bold">该项目已完成全部评审流程并归档</p>
-                    <p className="mt-0.5 font-medium opacity-80">
-                      归档期意味着招标及评审环节已经结束，所有评分与报告均已定稿。您可以在个人信息页查看您的评审记录。
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="exp-alert exp-alert--warn flex items-start gap-2.5">
-                  <Lock size={14} strokeWidth={1.5} className="mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-[13px] font-bold">该项目尚未进入开评标阶段</p>
-                    <p className="mt-0.5 font-medium opacity-80">
-                      请等待管理端启动开标。开标后，您将可以进入评审向导进行身份核验与专家打分。
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-            <hr className="wb-section-rule" />
-            <div className="flex justify-end px-6 py-4">
-              <button onClick={() => setOverviewProject(null)} className="neu-btn-soft h-[38px]">关闭</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Overview Modal for inactive projects（#155：抽出公共组件，与 profile 页评审记录行共用） */}
+      <ProjectOverviewModal data={overviewProject} onClose={() => setOverviewProject(null)} />
     </div>
   );
 }
