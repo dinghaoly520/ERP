@@ -68,7 +68,7 @@ export function ProjectChangeEntry({
         <div className="fixed inset-0 z-[500] flex items-center justify-center">
           <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={() => setRecordsOpen(false)} />
           <div
-            className="relative flex max-h-[82vh] w-full max-w-[min(680px,92vw)] flex-col overflow-hidden rounded-[20px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]"
+            className="relative flex max-h-[82vh] w-full max-w-[min(680px,92vw)] flex-col overflow-hidden wb-modal-shell"
             role="dialog"
           >
             <div className="flex shrink-0 items-start justify-between gap-4 px-6 pb-4 pt-5">

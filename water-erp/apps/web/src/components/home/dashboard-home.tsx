@@ -637,7 +637,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
               {showDP && <div className="fixed inset-0 z-[999]" onClick={()=>setShowDP(false)}/>}
               <button ref={dateBtnRef} onClick={()=>setShowDP(!showDP)} className="neu-btn-soft !h-[36px] !px-3.5 !text-xs flex items-center gap-1.5"><CalendarRange size={13}/> {data.range.startDate??"起始"} ~ {data.range.endDate??"至今"}</button>
               {showDP && createPortal(
-                <div className="fixed z-[1000] w-[288px] rounded-[18px] bg-[var(--background)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.15)] ring-1 ring-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]" style={{top: (dateBtnRef.current?.getBoundingClientRect().bottom ?? 120) + 8, right: window.innerWidth - (dateBtnRef.current?.getBoundingClientRect().right ?? window.innerWidth - 16)}}>
+                <div className="neu-pop fixed z-[1000] w-[288px] rounded-[18px] p-5" style={{top: (dateBtnRef.current?.getBoundingClientRect().bottom ?? 120) + 8, right: window.innerWidth - (dateBtnRef.current?.getBoundingClientRect().right ?? window.innerWidth - 16)}}>
                 <div className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--muted-foreground)] mb-2">快捷选择</div>
                 <div className="grid grid-cols-3 gap-1.5 mb-3">
                   {(["tm","tq","fh","fy","lm","lq"] as const).map(k=><button key={k} onClick={()=>dp[k]()} className="neu-btn-xs !px-2 !py-1 !text-[10px]">{{tm:"本月",tq:"本季度",fh:"上半年",fy:"全年",lm:"上月",lq:"上季度"}[k]}</button>)}

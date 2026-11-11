@@ -1066,12 +1066,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
             onClick={() => setShowReview(false)}
           />
           <div
-            className="relative z-10 mx-5 my-5 flex flex-1 flex-col overflow-hidden rounded-[28px]"
-            style={{
-              background: 'linear-gradient(170deg, oklch(1 0 0 / 0.94), oklch(0.988 0.005 258 / 0.62))',
-              boxShadow:
-                'inset 0 1px 0 oklch(1 0 0 / 0.88), 3px 4px 16px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)',
-            }}
+            className="wb-modal-shell relative z-10 mx-5 my-5 flex flex-1 flex-col overflow-hidden"
           >
             <div
               className="flex shrink-0 items-center justify-between gap-3 px-6 py-4"
@@ -1139,12 +1134,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
             onClick={handleSkipReviewUpload}
           />
           <div
-            className="relative z-10 mx-4 w-full max-w-[380px] rounded-[22px] p-6"
-            style={{
-              background: 'linear-gradient(170deg, oklch(1 0 0 / 0.95), oklch(0.985 0.005 258 / 0.65))',
-              boxShadow:
-                'inset 0 1px 0 oklch(1 0 0 / 0.9), 4px 5px 18px oklch(0.45 0.07 258 / 0.2), -2px -2px 8px oklch(1 0 0 / 0.9)',
-            }}
+            className="wb-modal-shell relative z-10 mx-4 w-full max-w-[380px] p-6"
           >
             <div className="flex items-start justify-between gap-3">
               <h2 className="text-[0.95rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
@@ -1195,7 +1185,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       {historyOpen && (
         <div className="fixed inset-0 z-[500] flex items-center justify-center" onClick={() => setHistoryOpen(false)}>
           <div className="absolute inset-0" style={{ background: 'oklch(0.975 0.012 258 / 0.6)', backdropFilter: 'blur(3px)' }} />
-          <div className="relative z-10 mx-5 w-full max-w-[440px] max-h-[70vh] overflow-y-auto rounded-[22px] p-6" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 3px 4px 18px oklch(0.46 0.07 258 / 0.18)' }} onClick={e => e.stopPropagation()}>
+          <div className="wb-modal-shell relative z-10 mx-5 max-h-[70vh] w-full max-w-[440px] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <History size={16} className="text-[var(--accent)]" />

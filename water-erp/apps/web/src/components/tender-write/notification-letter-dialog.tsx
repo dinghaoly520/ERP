@@ -802,7 +802,7 @@ export function NotificationLetterDialog({
                               className={commonInputClass}
                             />
                             {projectDropdownOpen && filteredProjects.length > 0 && (
-                              <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-[14px] border border-[oklch(0.6_0.04_258_/_0.22)] bg-[var(--background)] shadow-[0_16px_40px_oklch(0.24_0.038_258/0.1)]">
+                              <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto neu-pop rounded-[14px]">
                                 {filteredProjects.map((p) => (
                                   <button
                                     key={p.name}

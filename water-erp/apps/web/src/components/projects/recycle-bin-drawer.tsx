@@ -47,7 +47,7 @@ export function RecycleBinDrawer({
       />
 
       <section className="fixed inset-0 z-[93] flex items-center justify-center px-4 py-6">
-        <div className="flex h-[min(760px,calc(100dvh-3rem))] w-full max-w-[min(860px,92vw)] flex-col overflow-hidden rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
+        <div className="flex h-[min(760px,calc(100dvh-3rem))] w-full max-w-[min(860px,92vw)] flex-col overflow-hidden wb-modal-shell">
           <div className="px-5 py-5 sm:px-6 lg:px-7" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
@@ -197,7 +197,7 @@ export function RecycleBinDrawer({
               if (!submittingId) setShowDeleteAllConfirm(false);
             }}
           />
-          <div className="relative w-full max-w-[460px] overflow-hidden rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
+          <div className="relative w-full max-w-[460px] overflow-hidden wb-modal-shell">
             <div className="absolute inset-x-0 top-0 h-1.5 bg-[linear-gradient(90deg,rgba(209,88,88,0.95),rgba(234,191,106,0.72),rgba(121,162,239,0.35))]" />
             <div className="px-6 py-6">
               <div className="flex items-start gap-4">

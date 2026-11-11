@@ -163,7 +163,7 @@ export function ChatMessage({
         {chartModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="absolute inset-0 bg-[var(--background)]/70 backdrop-blur-sm" onClick={() => setChartModalOpen(false)} />
-            <div className="relative flex max-h-[85vh] w-full max-w-[min(720px,92vw)] flex-col rounded-[20px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]" role="dialog" aria-modal="true">
+            <div className="relative flex max-h-[85vh] w-full max-w-[min(720px,92vw)] flex-col wb-modal-shell" role="dialog" aria-modal="true">
               <div className="flex shrink-0 items-center justify-between px-6 pb-3 pt-5">
                 <span className="text-sm font-bold text-[var(--foreground)]">数据图表</span>
                 <button onClick={() => setChartModalOpen(false)} className="neu-btn-xs"><X size={14} /></button>

@@ -125,7 +125,7 @@ export function PersonalCenterHero({ user, onOpenBasicInfo, onOpenPreferences, o
       {showLoginHistory && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={() => setShowLoginHistory(false)} />
-          <div className="relative w-full max-w-[min(640px,92vw)] max-h-[80vh] overflow-y-auto rounded-[20px] bg-[var(--background)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.12)]" role="dialog" aria-modal="true">
+          <div className="relative w-full max-w-[min(640px,92vw)] max-h-[80vh] overflow-y-auto wb-modal-shell p-6" role="dialog" aria-modal="true">
             <div className="flex items-start justify-between gap-4 pb-4">
               <div className="flex items-center gap-2.5">
                 <div className="neu-icon-well flex h-9 w-9 items-center justify-center rounded-[10px]">
