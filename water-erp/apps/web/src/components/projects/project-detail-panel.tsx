@@ -2878,6 +2878,7 @@ export function ProjectDetailPanel({
               </div>
               <button type="button" onClick={() => setAiResult(null)} className="neu-btn-xs"><X size={16} /></button>
             </div>
+            <div className="mt-3 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
             <p className="mt-3 text-sm leading-[1.6] text-[color:var(--muted-foreground)]">{aiResult.message}</p>
             <div className="mt-5 flex justify-end">
               <button type="button" onClick={() => setAiResult(null)} className="neu-btn-primary !h-[36px] !text-xs">知道了</button>
@@ -2906,6 +2907,7 @@ export function ProjectDetailPanel({
               </div>
               <button type="button" onClick={() => !waiving && setWaiveTarget(null)} className="neu-btn-xs"><X size={16} /></button>
             </div>
+            <div className="h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
             <p className="rounded-[10px] px-3.5 py-2.5 text-[12px] leading-relaxed text-[color:var(--foreground)] mb-4"
               style={{ background: 'color-mix(in oklch, var(--warning) 7%, transparent)' }}>
               {waiveTarget.message}

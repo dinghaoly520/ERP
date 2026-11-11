@@ -80,6 +80,8 @@ export function ProjectChangeEntry({
               <button type="button" onClick={() => setRecordsOpen(false)} className="neu-btn-xs"><X size={15} /></button>
             </div>
 
+            <div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
+
             <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-5">
               {loading && <p className="py-8 text-center text-sm text-[var(--muted-foreground)]">正在加载…</p>}
               {!loading && records && records.length === 0 && (

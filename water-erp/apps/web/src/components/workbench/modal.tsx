@@ -158,6 +158,10 @@ export function Modal({
             </button>
           </div>
         </div>
+        {/* 头部/内容隔离线（2026-11-11 用户裁定）：hairline，与内容区同缩进 */}
+        {(title || description || headerExtra) && (
+          <div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
+        )}
 
         {/* 内容区 — 仅此处滚动 */}
         <div className="flex-1 overflow-y-auto px-6">

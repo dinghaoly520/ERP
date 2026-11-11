@@ -226,6 +226,8 @@ export function RecycleBinDrawer({
                 </button>
               </div>
 
+              <div className="mt-5 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
+
               <div className="mt-5 rounded-[18px] border border-[color-mix(in_oklch,var(--danger)_14%,transparent)] bg-[linear-gradient(145deg,rgba(255,245,245,0.86),rgba(255,255,255,0.72))] px-4 py-3 text-sm leading-6 text-[rgba(145,63,63,0.92)]">
                 建议仅在确认项目已无归档价值时使用。若只是误移除，请选择"恢复项目"。
               </div>

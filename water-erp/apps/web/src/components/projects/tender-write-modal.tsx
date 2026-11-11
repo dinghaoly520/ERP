@@ -1142,6 +1142,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
               </h2>
               <button type="button" onClick={handleSkipReviewUpload} className="neu-btn-xs"><X size={16} /></button>
             </div>
+            <div className="mt-3 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
             <p className="mt-2.5 text-sm leading-[1.6] text-[color:var(--muted-foreground)]">
               是否将审查后的采购文件提交至项目采购文件阶段？提交的文件已包含你在审查中「接受」的全部修改建议。
             </p>
@@ -1194,6 +1195,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
               </div>
               <button type="button" onClick={() => setHistoryOpen(false)} className="neu-btn-xs"><X size={16} /></button>
             </div>
+            <div className="h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
             {historyEntries.length === 0 ? (
               <div className="text-sm text-[color:var(--muted-foreground)] text-center py-8">暂无历史版本，请点击「保存当前」创建第一个版本</div>
             ) : (
@@ -1245,6 +1247,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
               </div>
               <button type="button" onClick={() => setClearConfirmOpen(false)} className="neu-btn-xs"><X size={16} /></button>
             </div>
+            <div className="h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
             <p className="text-sm text-[color:var(--muted-foreground)] mb-4">将清除当前采购文件的所有已填写内容，此操作不可撤销。</p>
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setClearConfirmOpen(false)} className="neu-btn-soft">取消</button>
