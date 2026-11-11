@@ -535,7 +535,7 @@ export function ChangeModal({
                   已修改 {changedCount} 个字段
                 </span>
               ) : (
-                <span className="text-xs text-[var(--muted-foreground)]">补遗登记</span>
+                <span />
               )}
               <div className="neu-btn-group">
                 <button type="button" className="neu-btn-soft" onClick={() => setStep('type')}>上一步</button>
