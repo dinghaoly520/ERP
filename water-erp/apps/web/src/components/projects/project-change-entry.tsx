@@ -57,14 +57,6 @@ export function ProjectChangeEntry({
           <RefreshCcw size={16} />变更 / 补遗
         </button>
       )}
-      <button
-        type="button"
-        onClick={() => setRecordsOpen(true)}
-        className="neu-btn-soft"
-        title="查看本项目变更与补遗记录"
-      >
-        <ScrollText size={16} />变更 / 补遗记录
-      </button>
 
       {recordsOpen && (
         <div className="fixed inset-0 z-[500] flex items-center justify-center">
