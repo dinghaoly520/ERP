@@ -76,6 +76,7 @@ const TYPE_META: Record<AnnouncementType, MetaField[]> = {
   ],
   CHANGE_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'changeRound', label: '变更轮次' },
+    { key: 'sourceAnnouncement', label: '原采购公告' },
     { key: 'changeReason', label: '变更理由', area: true },
   ],
   CLARIFY_NOTICE: [

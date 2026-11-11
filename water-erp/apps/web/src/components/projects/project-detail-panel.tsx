@@ -40,6 +40,7 @@ import {
 import { ProjectTimelineStrip } from './project-timeline-strip';
 import { ProjectChangeEntry } from './project-change-entry';
 import { bindChangeAnnouncement, registerChange } from '@/lib/api/project-changes';
+import { listAnnouncements } from '@/lib/api/announcement';
 import { ChangeModal } from './change-modal';
 import { ProjectStageTimeline } from './project-stage-timeline';
 import { StageFileList } from './stage-file-list';
@@ -1205,6 +1206,21 @@ export function ProjectDetailPanel({
   };
 
   /** 变更发起入口（2026-11-11 变更体系）：开标前弹三步变更/补遗弹窗 */
+  /** 变更/补遗公告关联原采购公告（2026-11-12 用户裁定）：按项目编号查已发布采购公告，
+   *  标题+发布日期随公告 meta 展示（门户预览与详情页「原采购公告」行） */
+  const fetchSourceAnnouncement = async (): Promise<string> => {
+    try {
+      const res = await listAnnouncements({ type: 'BID_NOTICE', status: 'PUBLISHED', pageSize: 100 });
+      const list = Array.isArray(res) ? res : (res as { items?: unknown[] }).items ?? [];
+      const src = (list as Array<{ title?: string; relatedProjectCode?: string; publishDate?: string }>)
+        .filter(x => item.projectCode && x.relatedProjectCode === item.projectCode)
+        .sort((x, y) => new Date(y.publishDate ?? 0).getTime() - new Date(x.publishDate ?? 0).getTime())[0];
+      if (!src) return '';
+      const d = src.publishDate ? new Date(src.publishDate).toLocaleDateString('zh-CN') : '';
+      return `《${src.title}》${d ? `（${d} 发布）` : ''}`;
+    } catch { return ''; }
+  };
+
   const handleInitiateChange = () => {
     setChangeModalOpen(true);
   };
@@ -1376,7 +1392,7 @@ export function ProjectDetailPanel({
                 projectId={item.id}
                 canInitiate={!actionsDisabled}
                 onInitiate={handleInitiateChange}
-                onPublishAnnouncement={(rec) => {
+                onPublishAnnouncement={async (rec) => {
                   const cs = rec.changeset ?? [];
                   setChangeWizardCtx({
                     category: rec.type === 'CHANGE' ? 'change_notice' : 'addendum',
@@ -1389,6 +1405,7 @@ export function ProjectDetailPanel({
                       changeContent: cs.length > 0
                         ? cs.map(c => `${c.label}：${c.from || '（空）'} → ${c.to || '（空）'}`).join('\n')
                         : rec.reason,
+                      sourceAnnouncement: await fetchSourceAnnouncement(),
                     },
                   });
                   setAnnouncementCategory(rec.type === 'CHANGE' ? 'change_notice' : 'addendum');
@@ -2657,7 +2674,7 @@ export function ProjectDetailPanel({
         currentStage={item.currentStage}
         bidOpened={isBidLocked}
         currentValues={changeCurrentValues}
-        onRegistered={(ctx, publish, pending) => {
+        onRegistered={async (ctx, publish, pending) => {
           if (publish && pending) {
             // 发布优先（2026-11-12 裁定）：信息尚未登记——公告发布成功才补登记；
             // 向导被取消 = 放弃本次修改，数据不动
@@ -2670,6 +2687,7 @@ export function ProjectDetailPanel({
                 changeRound: String(ctx.round),
                 changeReason: ctx.reason,
                 changeContent: ctx.changeContent,
+                sourceAnnouncement: await fetchSourceAnnouncement(),
                 ...(ctx.publishStart ? { announcementStart: ctx.publishStart } : {}),
                 ...(ctx.publishEnd ? { announcementEnd: ctx.publishEnd } : {}),
                 ...(ctx.patchExtra ?? {}),
@@ -2690,6 +2708,7 @@ export function ProjectDetailPanel({
               changeRound: String(ctx.round),
               changeReason: ctx.reason,
               changeContent: ctx.changeContent,
+              sourceAnnouncement: await fetchSourceAnnouncement(),
               ...(ctx.publishStart ? { announcementStart: ctx.publishStart } : {}),
               ...(ctx.publishEnd ? { announcementEnd: ctx.publishEnd } : {}),
               ...(ctx.patchExtra ?? {}),

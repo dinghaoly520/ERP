@@ -336,10 +336,12 @@ const PORTAL_META_FIELDS: Record<string, PortalMetaField[]> = {
   ],
   CHANGE_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'changeRound', label: '变更轮次' },
+    { key: 'sourceAnnouncement', label: '原采购公告' },
     { key: 'changeReason', label: '变更理由', area: true },
   ],
   ADDENDUM: [
     { key: 'projectCode', label: '项目编号' }, { key: 'changeRound', label: '补遗轮次' },
+    { key: 'sourceAnnouncement', label: '原采购公告' },
     { key: 'changeReason', label: '补遗事由', area: true },
   ],
 };

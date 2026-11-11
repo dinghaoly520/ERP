@@ -167,12 +167,10 @@ export function ChangeModal({
         }
       }
     }
-    // 补遗：正文/公示期直接取表单值（不再用默认 3 日）
+    // 补遗必须发公告（2026-11-12 用户裁定）：跳过选择步，直接进入公告发布（发布优先）；
+    // 取消发布 = 放弃补遗（无登记留档的单独路径）
     if (type === 'ADDENDUM') {
-      setPubContent(values.changeContent ?? '');
-      setPubStart(values.announcementStart ?? '');
-      setPubEnd(values.announcementEnd ?? '');
-      setAwaitChoice({ type, reason: trimmedReason, fields });
+      await doPublishFirst({ type, reason: trimmedReason, fields });
       return;
     }
     setAwaitChoice({ type, reason: trimmedReason, fields });
