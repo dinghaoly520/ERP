@@ -51,6 +51,16 @@ export const CHANGE_FIELD_GROUPS: ChangeFieldGroup[] = [
     ],
   },
   {
+    key: 'notice',
+    label: '公告与时间',
+    stageKey: 'TENDER_DOCUMENT',
+    stageLabel: '采购文件',
+    fields: [
+      { field: 'bidOpeningTime', label: '开标时间', kind: 'datetime', target: 'PMI', aiAssist: 'tender-overview' },
+      { field: 'documentAcquireTime', label: '文件获取截止', kind: 'text', target: 'PMI', aiAssist: 'tender-overview' },
+    ],
+  },
+  {
     key: 'award',
     label: '定标',
     stageKey: 'AWARD_DECISION',
@@ -68,16 +78,6 @@ export const CHANGE_FIELD_GROUPS: ChangeFieldGroup[] = [
       { field: 'contractNumber', label: '合同编号', kind: 'text', target: 'PMI' },
       { field: 'contractAmount', label: '合同金额', kind: 'number', target: 'PMI' },
       { field: 'paymentPerformance', label: '履约情况', kind: 'text', target: 'PMI', multiline: true },
-    ],
-  },
-  {
-    key: 'notice',
-    label: '公告与时间',
-    stageKey: 'TENDER_DOCUMENT',
-    stageLabel: '采购文件',
-    fields: [
-      { field: 'bidOpeningTime', label: '开标时间', kind: 'datetime', target: 'PMI', aiAssist: 'tender-overview' },
-      { field: 'documentAcquireTime', label: '文件获取截止', kind: 'text', target: 'PMI', aiAssist: 'tender-overview' },
     ],
   },
 ];
