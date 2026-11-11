@@ -80,11 +80,14 @@ const STAGE_ORDER = [
   'EXPERT_SELECTION', 'BID_EVALUATION', 'AWARD_DECISION', 'CONTRACT', 'DIRECT_PURCHASE_FILING',
 ];
 
-/** 组是否解锁：当前阶段序 ≥ 组锚点序。currentStage 空（项目无阶段指针）视为刚立项——仅 basic 组可改。 */
-export function stageReached(allStages: string[], currentStage: string | null, groupStageKey: string): boolean {
-  const order = allStages.length ? allStages : STAGE_ORDER;
-  const cur = currentStage ? order.indexOf(currentStage) : order.indexOf('INITIATION');
-  const need = order.indexOf(groupStageKey);
+/** 组是否解锁：当前阶段序 ≥ 组锚点序。currentStage 空（项目无阶段指针）视为刚立项——仅 basic 组可改。
+ *  恒按 STAGE_ORDER 超集算相对序（与 web 侧同口径），不按项目自身阶段链——链会因
+ *  ①include 未排序（DB 返回字母序，2026-11-12 SWHI-JJ-2026102302 实录：EXPERT_SELECTION
+ *  被判在 TENDER_DOCUMENT 之前）②存量方式链缺锚点键（旧版直接采购链无 TENDER_DOCUMENT，
+ *  indexOf 得 -1 恒锁）而失真。 */
+export function stageReached(currentStage: string | null, groupStageKey: string): boolean {
+  const cur = currentStage ? STAGE_ORDER.indexOf(currentStage) : STAGE_ORDER.indexOf('INITIATION');
+  const need = STAGE_ORDER.indexOf(groupStageKey);
   return cur >= 0 && need >= 0 && cur >= need;
 }
 

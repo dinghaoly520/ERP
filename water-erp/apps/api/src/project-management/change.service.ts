@@ -33,7 +33,6 @@ export class ProjectChangeService {
 
     const pmi = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
-      include: { stages: { select: { stageKey: true } } },
     });
     if (!pmi) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
     // 终局项目不可变更（2026-11-12 审计修复）：归档/终止/回收站数据不可扰动——
@@ -55,7 +54,6 @@ export class ProjectChangeService {
     });
     const bidOpened = !!bp && ['OPENING', 'EVALUATING', 'ARCHIVED'].includes(bp.stage);
 
-    const stageKeys = pmi.stages.map(s => s.stageKey);
     const pmiData: Record<string, unknown> = {};
     const diffs: Array<{ field: string; label: string; from: string; to: string; stageKey: string }> = [];
     let needsAnnouncement = false;
@@ -80,7 +78,7 @@ export class ProjectChangeService {
         if (group.zone === 'post' && !bidOpened) {
           throw new BadRequestException({ error: '开标确认前，不能编辑标后', code: 'POST_BID_LOCKED' });
         }
-        if (group.zone === 'pre' && !stageReached(stageKeys, pmi.currentStage, group.stageKey)) {
+        if (group.zone === 'pre' && !stageReached(pmi.currentStage, group.stageKey)) {
           throw new BadRequestException({
             error: `未进入 ${group.label} 阶段，不可变更`,
             code: 'STAGE_LOCKED',
