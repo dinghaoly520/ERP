@@ -2373,13 +2373,17 @@ export const SINGLE_SOURCE_ANNOUNCEMENT_TEMPLATE_FILE =
   '模板文件/直接采购公告模板.docx';
 export const FAILED_BID_ANNOUNCEMENT_TEMPLATE_FILE = '模板文件/流标公示模板.docx';
 export const WINNING_BID_ANNOUNCEMENT_TEMPLATE_FILE = '模板文件/中标公告模板.docx';
+export const CHANGE_NOTICE_ANNOUNCEMENT_TEMPLATE_FILE = '模板文件/变更公告模板.docx';
+export const ADDENDUM_ANNOUNCEMENT_TEMPLATE_FILE = '模板文件/补遗公告模板.docx';
 export const NOTIFICATION_LETTER_TEMPLATE_FILE = '模板文件/中标通知书模板.docx';
 export const DIRECT_FILING_TEMPLATE_FILE = '模板文件/直接采购备案表模板.docx';
 
 export type AnnouncementCategory =
   | 'procurement_document'
   | 'failed_bid'
-  | 'winning_bid';
+  | 'winning_bid'
+  | 'change_notice' // 变更公告（2026-11-11 变更体系，推 SCM0003）
+  | 'addendum'; // 补遗公告（与变更共用轮次留痕）
 
 export type AnnouncementDraft = {
   projectName?: string;
@@ -2396,6 +2400,10 @@ export type AnnouncementDraft = {
   contactPhone?: string;
   contactEmail?: string;
   signatureDate?: string;
+  /** 变更/补遗公告域（2026-11-11 变更体系）——由变更弹窗注入 */
+  changeRound?: string;
+  changeReason?: string;
+  changeContent?: string;
   argumentOpinion?: string;
   supplierName?: string;
   supplierAddress?: string;
@@ -2521,6 +2529,37 @@ export function buildSingleSourceAnnouncementPlan(
     { targetText: '公示期限2', ...buildReplacement('公示期限（止）', formatAnnouncementDateToChinese(answers.announcementEnd || '')) },
     { targetText: '公示期限3', ...buildReplacement('公示天数', answers.announcementDays) },
     { targetText: '采购时间', ...buildReplacement('采购时间', formatAnnouncementDateToChinese(answers.procurementTime || '')) },
+    { targetText: '落款日期', ...buildReplacement('落款日期', formatAnnouncementDateToChinese(answers.signatureDate || '')) },
+  ];
+}
+
+/** 变更公告替换计划（2026-11-11 变更体系）：模板=变更公告模板.docx（克隆流标版式）。
+ *  变更内容=字段级「label：from → to」逐行文本（isHierarchicalText 分段渲染）。 */
+export function buildChangeNoticeAnnouncementPlan(
+  answers: AnnouncementDraft,
+): TemplateReplacement[] {
+  return [
+    { targetText: '项目名称', ...buildReplacement('项目名称', answers.projectName) },
+    { targetText: '项目编号', ...buildReplacement('项目编号', answers.projectCode) },
+    { targetText: '变更轮次', ...buildReplacement('变更轮次', answers.changeRound) },
+    { targetText: '变更理由', ...buildReplacement('变更理由', answers.changeReason) },
+    { targetText: '变更内容', ...buildReplacement('变更内容', answers.changeContent), isHierarchicalText: true },
+    { targetText: '公示期限', replacementText: formatPublicityPeriodRange(answers) || '3日', highlight: false },
+    { targetText: '落款日期', ...buildReplacement('落款日期', formatAnnouncementDateToChinese(answers.signatureDate || '')) },
+  ];
+}
+
+/** 补遗公告替换计划：与变更公告同构（轮次/事由/内容），模板=补遗公告模板.docx。 */
+export function buildAddendumAnnouncementPlan(
+  answers: AnnouncementDraft,
+): TemplateReplacement[] {
+  return [
+    { targetText: '项目名称', ...buildReplacement('项目名称', answers.projectName) },
+    { targetText: '项目编号', ...buildReplacement('项目编号', answers.projectCode) },
+    { targetText: '变更轮次', ...buildReplacement('补遗轮次', answers.changeRound) },
+    { targetText: '变更理由', ...buildReplacement('补遗事由', answers.changeReason) },
+    { targetText: '变更内容', ...buildReplacement('补遗内容', answers.changeContent), isHierarchicalText: true },
+    { targetText: '公示期限', replacementText: formatPublicityPeriodRange(answers) || '3日', highlight: false },
     { targetText: '落款日期', ...buildReplacement('落款日期', formatAnnouncementDateToChinese(answers.signatureDate || '')) },
   ];
 }

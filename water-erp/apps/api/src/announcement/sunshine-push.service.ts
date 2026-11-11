@@ -24,14 +24,17 @@ const SCM_PATHS: Record<string, string> = {
   SCM0002: '/dataService/import/announcement',
   SCM0004: '/dataService/import/publicity',
   SCM0006: '/dataService/import/termination',
+  SCM0003: '/dataService/import/announcementChanges',
 };
 
 /** 发布向导写入的快照（sunshine-platform-dialog SunshinePublishConfig 镜像——字段以文档为准） */
 interface SunshineSnapshot {
   enabled: boolean;
-  interfaceCode: 'SCM0002' | 'SCM0004' | 'SCM0006';
+  interfaceCode: 'SCM0002' | 'SCM0004' | 'SCM0006' | 'SCM0003';
   /** 发布时项目 id（unique/planUnique/tenderPackage 溯源键，2026-10-28 补入快照） */
   projectId?: string;
+  /** 变更/补遗轮次（SCM0003 专用，2026-11-11 变更体系）——对齐 ProjectChangeRecord.round */
+  round?: number;
   issueType: 1 | 2;
   isExternal: 0 | 1;
   config: {
@@ -110,6 +113,36 @@ export class SunshinePushService {
           at: new Date().toISOString(), baseUrl: base ?? '', ok: false, skipped: true,
           results: [{ iface: '-', path: '-', status: -1, message: '推送未启用或 env 未配置（SUNSHINE_PUSH_ENABLED/SUNSHINE_API_URL/SUNSHINE_IDENTITY）' }],
         });
+        return;
+      }
+
+      // SCM0003 变更公告（2026-11-11 变更体系）：单接口直发 changes 集合——不带 SCM0001
+      // 前缀（招标计划已由首发公告建立），round=变更/补遗轮次；发布时间缺省当前时刻。
+      if (snap.interfaceCode === 'SCM0003') {
+        const planUnique = snap.projectId || '';
+        const round = snap.round ?? 1;
+        // 平台期望北京墙钟；快照时间可能是 ISO（Z）——统一 +08 归一（beijing-wallclock 裁定）
+        const rawPt = (snap.config as { publishTime?: string }).publishTime || new Date().toISOString();
+        const pd = new Date(rawPt);
+        const publishTime = Number.isNaN(pd.getTime())
+          ? apiTime(rawPt)
+          : (() => {
+              const p2 = (x: number) => String(x).padStart(2, '0');
+              const bj = new Date(pd.getTime() + 8 * 3600_000);
+              return `${bj.getUTCFullYear()}-${p2(bj.getUTCMonth() + 1)}-${p2(bj.getUTCDate())} ${p2(bj.getUTCHours())}:${p2(bj.getUTCMinutes())}:${p2(bj.getUTCSeconds())}`;
+            })();
+        const changeContent = announcement.content || (snap.config as { content?: string }).content || '';
+        const r3 = await this.post(`${base}${SCM_PATHS.SCM0003}`, {
+          identity,
+          planUnique,
+          changes: [{ unique: `${planUnique}-change-${round}`, publishTime, round, content: changeContent }],
+        });
+        await this.record(announcement.id, meta, {
+          at: new Date().toISOString(), baseUrl: base, ok: r3.status === 0,
+          results: [{ iface: 'SCM0003', path: SCM_PATHS.SCM0003, ...r3 }],
+        });
+        if (r3.status !== 0) this.logger.warn(`阳光采购变更公告推送失败 (announcementId=${announcement.id}): ${r3.message}`);
+        else this.logger.log(`阳光采购变更公告推送完成 (announcementId=${announcement.id}): SCM0003=${r3.status}`);
         return;
       }
 

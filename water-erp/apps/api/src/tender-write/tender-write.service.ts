@@ -21,7 +21,8 @@ import {
   buildInvitedBiddingAnnouncementPlan,
   buildInternalBiddingAnnouncementPlan,
   buildSingleSourceAnnouncementPlan,
-  buildFailedBidAnnouncementPlan,
+  buildFailedBidAnnouncementPlan,  buildChangeNoticeAnnouncementPlan,
+  buildAddendumAnnouncementPlan,
   buildWinningBidAnnouncementPlan,
   buildNotificationLetterPlan,
   buildDirectFilingPlan,
@@ -34,7 +35,8 @@ import {
   INTERNAL_BIDDING_ANNOUNCEMENT_TEMPLATE_FILE,
   INQUIRY_PURCHASE_ANNOUNCEMENT_TEMPLATE_FILE,
   SINGLE_SOURCE_ANNOUNCEMENT_TEMPLATE_FILE,
-  FAILED_BID_ANNOUNCEMENT_TEMPLATE_FILE,
+  FAILED_BID_ANNOUNCEMENT_TEMPLATE_FILE,  CHANGE_NOTICE_ANNOUNCEMENT_TEMPLATE_FILE,
+  ADDENDUM_ANNOUNCEMENT_TEMPLATE_FILE,
   WINNING_BID_ANNOUNCEMENT_TEMPLATE_FILE,
   NOTIFICATION_LETTER_TEMPLATE_FILE,
   DIRECT_FILING_TEMPLATE_FILE,
@@ -474,6 +476,25 @@ export class TenderWriteService {
         draft as Record<string, string>,
       );
       typeLabel = '中标公告';
+    } else if (category === 'change_notice') {
+      // 变更公告（2026-11-11 变更体系）：开标时间等信息变更的对外公告，轮次对齐 SCM0003
+      templatePath = path.resolve(
+        PROJECT_ROOT,
+        CHANGE_NOTICE_ANNOUNCEMENT_TEMPLATE_FILE,
+      );
+      replacementPlan = buildChangeNoticeAnnouncementPlan(
+        draft as Record<string, string>,
+      );
+      typeLabel = '变更公告';
+    } else if (category === 'addendum') {
+      templatePath = path.resolve(
+        PROJECT_ROOT,
+        ADDENDUM_ANNOUNCEMENT_TEMPLATE_FILE,
+      );
+      replacementPlan = buildAddendumAnnouncementPlan(
+        draft as Record<string, string>,
+      );
+      typeLabel = '补遗公告';
     } else {
       throw new BadRequestException(`Unknown announcement category: ${category}`);
     }
