@@ -171,7 +171,7 @@ export function ImportAutofillDialog({
   initialFilesNote?: string;
   /** 公告模式（2026-11-03）：传入即按（公告类别 × 采购方式）识别公告字段，忽略 documentType */
   announcement?: {
-    category: 'procurement_document' | 'failed_bid' | 'winning_bid';
+    category: 'procurement_document' | 'failed_bid' | 'winning_bid' | 'change_notice' | 'addendum';
     tenderType: string;
   };
 }) {

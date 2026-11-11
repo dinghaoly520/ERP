@@ -15,6 +15,8 @@ export const ANNOUNCEMENT_TYPE_LABELS = {
   PLATFORM: '平台通知',
   FAILED_BID_NOTICE: '流标公告',
   WIN_BID_NOTICE: '中标公告',
+  CLARIFY_NOTICE: '澄清与修改公告',
+  CHANGE_NOTICE: '变更公告',
 } as const;
 
 export type AnnouncementTypeValue = keyof typeof ANNOUNCEMENT_TYPE_LABELS;

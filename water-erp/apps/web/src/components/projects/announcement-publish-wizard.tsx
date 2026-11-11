@@ -153,11 +153,14 @@ type Props = {
   isOpen: boolean;
   onClose: () => void;
   project: ProjectManagementItem | null;
-  onPublished: () => void;
+  /** 发布成功回调（带公告 id——变更/补遗公告回填 ProjectChangeRecord 用） */
+  onPublished: (result: { id: string }) => void;
   /** 公告文件上传至 PUBLIC_ANNOUNCEMENT 阶段成功后回调，供父面板即时刷新（无需手动刷新页面） */
   onStageAttachmentUploaded?: (result: UploadStageAttachmentResult) => void;
   /** 锁定的公告分类；默认 procurement_document（采购文件公告）。定标阶段复用时传 winning_bid / failed_bid */
   initialCategory?: AnnouncementCategory;
+  /** 变更/补遗公告域注入（2026-11-11 变更体系）：变更弹窗带入轮次/理由/内容；提供时忽略本地缓存（数据须最新） */
+  initialDraftPatch?: Record<string, string>;
 };
 
 const inputCls =
@@ -311,6 +314,8 @@ const PORTAL_TYPE_TAG: Record<string, { tag: string; color: string }> = {
   WIN_BID_NOTICE: { tag: '中标公告', color: '#18a56c' },
   PRE_WIN_NOTICE: { tag: '中标公告', color: '#18a56c' },
   FAILED_BID_NOTICE: { tag: '流标公告', color: '#e08a00' },
+  CHANGE_NOTICE: { tag: '变更公告', color: '#b45309' },
+  ADDENDUM: { tag: '补遗公告', color: '#0e7490' },
 };
 type PortalMetaField = { key: string; label: string; area?: boolean; date?: boolean };
 const PORTAL_META_FIELDS: Record<string, PortalMetaField[]> = {
@@ -328,6 +333,14 @@ const PORTAL_META_FIELDS: Record<string, PortalMetaField[]> = {
   // 2026-11-06：流标公告公示期限起止选择落地，门户预览同步公示期芯片
   FAILED_BID_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'publicityPeriod', label: '公示期' },
+  ],
+  CHANGE_NOTICE: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'changeRound', label: '变更轮次' },
+    { key: 'changeReason', label: '变更理由', area: true },
+  ],
+  ADDENDUM: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'changeRound', label: '补遗轮次' },
+    { key: 'changeReason', label: '补遗事由', area: true },
   ],
 };
 /** 元数据值格式化（门户同款：日期 locale 化、预算/金额万元化） */
@@ -501,7 +514,7 @@ function saveWizardState(projectId: string, category: string, state: Record<stri
   try { const prev = loadWizardState(projectId, category) || {}; localStorage.setItem(wizardStorageKey(projectId, category), JSON.stringify({ ...prev, ...state, _ts: Date.now() })); } catch {}
 }
 
-export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublished, onStageAttachmentUploaded, initialCategory = 'procurement_document' }: Props) {
+export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublished, onStageAttachmentUploaded, initialCategory = 'procurement_document', initialDraftPatch }: Props) {
   // Wizard state
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [loading, setLoading] = useState(true);
@@ -665,7 +678,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     if (!isOpen || !project) return;
 
     // ★ 检查 sessionStorage 缓存（按 initialCategory 隔离）—— 同类公告有缓存则恢复，否则全新预填
-    const cachedWiz = loadWizardState(project.id, initialCategory);
+    // 变更/补遗注入（2026-11-11）：带 initialDraftPatch 时忽略缓存——轮次/理由必须取登记最新值
+    const cachedWiz = initialDraftPatch ? null : loadWizardState(project.id, initialCategory);
 
     setLoading(true);
     setStep(1);
@@ -753,6 +767,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       return;
     }
     const emptyDraft = createEmptyAnnouncementDraft(tt, procCat);
+    // 变更/补遗注入：轮次/理由/内容等直接并入草稿（表单可再改）
+    if (initialDraftPatch) Object.assign(emptyDraft as Record<string, string>, initialDraftPatch);
     const filledDraft = applyAutoFill(
       emptyDraft,
       preTender as Record<string, string>,
@@ -1194,6 +1210,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       const announcementType: AnnouncementType =
         category === 'failed_bid' ? 'FAILED_BID_NOTICE'
         : category === 'winning_bid' ? 'WIN_BID_NOTICE'
+        : category === 'change_notice' ? 'CHANGE_NOTICE'
+        : category === 'addendum' ? 'ADDENDUM'
         : 'BID_NOTICE';
       const displayMeta: Record<string, unknown> = {
         ...(finalDraft as Record<string, unknown>),
@@ -1288,6 +1306,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     const announcementType: AnnouncementType =
       category === 'failed_bid' ? 'FAILED_BID_NOTICE'
       : category === 'winning_bid' ? 'WIN_BID_NOTICE'
+      : category === 'change_notice' ? 'CHANGE_NOTICE'
+      : category === 'addendum' ? 'ADDENDUM'
       : 'BID_NOTICE';
     const draftRecord = draft as Record<string, string>;
     setBusy(true);
@@ -1472,7 +1492,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
 
       toast.success(publishTiming === 'now' ? '已发布' : publishTiming === 'announcement_start' ? '已设定按公示期限起始时间发布' : '已保存为定时发布');
       if (category === 'failed_bid') toast.info('流标公告已发布，即将进入收尾决策');
-      onPublished();
+      onPublished({ id });
       onClose();
     } catch (e) {
       toast.error((e as Error).message || '发布失败');

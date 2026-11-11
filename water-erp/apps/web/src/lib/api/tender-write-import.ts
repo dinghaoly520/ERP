@@ -24,7 +24,7 @@ export async function importAutofill(
 
 /** 公告导入识别（2026-11-03）：按（公告类别 × 采购方式）字段表识别，确认后由公告编辑器回填草稿 */
 export async function announcementImportAutofill(
-  category: 'procurement_document' | 'failed_bid' | 'winning_bid',
+  category: 'procurement_document' | 'failed_bid' | 'winning_bid' | 'change_notice' | 'addendum',
   tenderType: string,
   files: File[],
   opts?: UploadOpts,

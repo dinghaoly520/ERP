@@ -39,6 +39,7 @@ import {
 } from '@/lib/types/project-management';
 import { ProjectTimelineStrip } from './project-timeline-strip';
 import { ProjectChangeEntry } from './project-change-entry';
+import { bindChangeAnnouncement } from '@/lib/api/project-changes';
 import { ChangeModal } from './change-modal';
 import { ProjectStageTimeline } from './project-stage-timeline';
 import { StageFileList } from './stage-file-list';
@@ -640,6 +641,8 @@ export function ProjectDetailPanel({
   // 提取信息编辑状态
   const [editingField, setEditingField] = useState<string | null>(null);
   const [changeModalOpen, setChangeModalOpen] = useState(false);
+  // 变更/补遗公告发布上下文（2026-11-11）：登记成功 → 拉起向导并发布后回填记录
+  const [changeWizardCtx, setChangeWizardCtx] = useState<{ category: 'change_notice' | 'addendum'; patch: Record<string, string>; recordId: string } | null>(null);
   const [editValues, setEditValues] = useState({
     title: '',
     initiationDate: '',
@@ -836,7 +839,7 @@ export function ProjectDetailPanel({
   const [supplierExtractOpen, setSupplierExtractOpen] = useState(false);
   const [expertExtractOpen, setExpertExtractOpen] = useState(false);
   const [announcementPublishOpen, setAnnouncementPublishOpen] = useState(false);
-  const [announcementCategory, setAnnouncementCategory] = useState<'procurement_document' | 'failed_bid' | 'winning_bid'>('procurement_document');
+  const [announcementCategory, setAnnouncementCategory] = useState<'procurement_document' | 'failed_bid' | 'winning_bid' | 'change_notice' | 'addendum'>('procurement_document');
   const [bidConfirmOpen, setBidConfirmOpen] = useState(false);
   const [abortRestartOpen, setAbortRestartOpen] = useState(false);
   // 深链自动弹开标确认面板（一次性：触发后即清标记，关闭后不复发）
@@ -2691,15 +2694,35 @@ export function ProjectDetailPanel({
         item={item}
         currentStage={item.currentStage}
         bidFields={null}
-        onRegistered={() => handleUpdated()}
+        onRegistered={(ctx) => {
+          handleUpdated();
+          setChangeWizardCtx({
+            category: ctx.category,
+            recordId: ctx.recordId,
+            patch: {
+              projectName: item.title,
+              projectCode: item.projectCode ?? '',
+              changeRound: String(ctx.round),
+              changeReason: ctx.reason,
+              changeContent: ctx.changeContent,
+            },
+          });
+          setAnnouncementCategory(ctx.category);
+          setAnnouncementPublishOpen(true);
+        }}
       />
 
       {/* 公告制作与发布弹窗（两步向导）*/}
       <AnnouncementPublishWizard
         isOpen={announcementPublishOpen}
+        initialDraftPatch={changeWizardCtx?.patch}
         onClose={() => { setAnnouncementPublishOpen(false); setAnnouncementCategory('procurement_document'); }}
         project={item}
-        onPublished={() => {
+        onPublished={(result) => {
+          // 变更/补遗公告发布成功 → 回填关联（闭环记录上的「公告待发」红标）
+          if (changeWizardCtx && (announcementCategory === 'change_notice' || announcementCategory === 'addendum') && result?.id) {
+            void bindChangeAnnouncement(changeWizardCtx.recordId, result.id).then(() => handleUpdated()).catch(() => {});
+          }
           handleUpdated();
           setBpDataTick((t) => t + 1); // 公告闸 flag 即时刷新：failedBidNoticePublished 依赖 refs 重拉，不 bump 会拿旧值重开向导
           // 流标统一流（2026-10-23）：failed_bid 发布成功 → 自动进入决策向导（是否继续/信息确认/重启）

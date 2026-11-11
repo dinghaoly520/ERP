@@ -12,7 +12,7 @@ import { ANN_TYPE_LABEL, ANN_STATUS_LABEL, ANN_STATUS_TONE } from '@/lib/announc
 /* ── 只读门户视角（2026-09-26）：回收站「查看」与对外展示用——纯公告本体，零管理操作 ── */
 
 const typeTone: Record<AnnouncementType, 'blue' | 'green' | 'orange' | 'gray'> = {
-  BID_NOTICE: 'blue', ADDENDUM: 'orange', PREQUAL_NOTICE: 'blue', PRE_WIN_NOTICE: 'green', WIN_NOTICE: 'green', CONTRACT_NOTICE: 'blue', PERFORMANCE_NOTICE: 'green', POLICY: 'orange', PLATFORM: 'gray', FAILED_BID_NOTICE: 'orange', WIN_BID_NOTICE: 'green',
+  BID_NOTICE: 'blue', ADDENDUM: 'orange', PREQUAL_NOTICE: 'blue', PRE_WIN_NOTICE: 'green', WIN_NOTICE: 'green', CONTRACT_NOTICE: 'blue', PERFORMANCE_NOTICE: 'green', POLICY: 'orange', PLATFORM: 'gray', FAILED_BID_NOTICE: 'orange', WIN_BID_NOTICE: 'green', CLARIFY_NOTICE: 'orange', CHANGE_NOTICE: 'orange',
 };
 // 映射统一 lib/announcement-meta（2026-09-29 R5）
 const typeLabel = ANN_TYPE_LABEL;
@@ -73,6 +73,13 @@ const TYPE_META: Record<AnnouncementType, MetaField[]> = {
     { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '采购方式' }, { key: 'budget', label: '最高限价' },
     { key: 'openTime', label: '开标时间' }, { key: 'bidder1Name', label: '中标供应商' }, { key: 'bidder1Price', label: '中标价格' },
     { key: 'remark', label: '备注' },
+  ],
+  CHANGE_NOTICE: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'changeRound', label: '变更轮次' },
+    { key: 'changeReason', label: '变更理由', area: true },
+  ],
+  CLARIFY_NOTICE: [
+    { key: 'projectCode', label: '项目编号' },
   ],
 };
 

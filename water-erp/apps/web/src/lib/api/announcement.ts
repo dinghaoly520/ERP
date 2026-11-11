@@ -4,7 +4,7 @@ import { apiFetch } from './api-fetch';
 
 /* ── 信息发布中心视图模型 ── */
 
-export type AnnouncementType = 'BID_NOTICE' | 'ADDENDUM' | 'PREQUAL_NOTICE' | 'PRE_WIN_NOTICE' | 'WIN_NOTICE' | 'CONTRACT_NOTICE' | 'PERFORMANCE_NOTICE' | 'POLICY' | 'PLATFORM' | 'FAILED_BID_NOTICE' | 'WIN_BID_NOTICE';
+export type AnnouncementType = 'BID_NOTICE' | 'ADDENDUM' | 'PREQUAL_NOTICE' | 'PRE_WIN_NOTICE' | 'WIN_NOTICE' | 'CONTRACT_NOTICE' | 'PERFORMANCE_NOTICE' | 'POLICY' | 'PLATFORM' | 'FAILED_BID_NOTICE' | 'WIN_BID_NOTICE' | 'CLARIFY_NOTICE' | 'CHANGE_NOTICE';
 export type AnnouncementStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED' | 'HIDDEN' | 'OFFLINE';
 
 export interface AnnouncementAttachment {

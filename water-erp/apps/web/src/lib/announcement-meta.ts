@@ -13,7 +13,7 @@ export const ANN_TYPE_LABEL: Record<AnnouncementType, string> =
 export const ANN_TYPE_TONE: Record<AnnouncementType, 'blue' | 'green' | 'orange' | 'gray'> = {
   BID_NOTICE: 'blue', ADDENDUM: 'orange', PREQUAL_NOTICE: 'blue', PRE_WIN_NOTICE: 'green',
   WIN_NOTICE: 'green', CONTRACT_NOTICE: 'blue', PERFORMANCE_NOTICE: 'green',
-  POLICY: 'orange', PLATFORM: 'gray', FAILED_BID_NOTICE: 'orange', WIN_BID_NOTICE: 'green',
+  POLICY: 'orange', PLATFORM: 'gray', FAILED_BID_NOTICE: 'orange', WIN_BID_NOTICE: 'green', CLARIFY_NOTICE: 'orange', CHANGE_NOTICE: 'orange',
 };
 
 export const ANN_STATUS_LABEL: Record<AnnouncementStatus, string> = {

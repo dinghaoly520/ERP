@@ -46,7 +46,7 @@ export function ChangeModal({
   currentStage: string | null;
   /** 当前轮 BidProject 字段现值（BID 组预填；无投标侧数据传 null） */
   bidFields: { qualification?: string | null; scope?: string | null; qualityRequirement?: string | null } | null;
-  onRegistered: (result: { needsAnnouncement: boolean; recordId: string }) => void;
+  onRegistered: (result: { needsAnnouncement: boolean; recordId: string; category: 'change_notice' | 'addendum'; round: number; reason: string; changeContent: string }) => void;
 }) {
   const [step, setStep] = useState<Step>('type');
   const [type, setType] = useState<'CHANGE' | 'ADDENDUM'>('CHANGE');
@@ -93,8 +93,18 @@ export function ChangeModal({
       }
       const r = await registerChange(item.id, { type, reason: trimmedReason, fields });
       toast.success(`已登记第 ${r.record.round} 轮${type === 'CHANGE' ? '变更' : '补遗'}`);
-      if (r.needsAnnouncement) toast.warning('开标时间已变更：须发布变更公告（记录中标「公告待发」）');
-      onRegistered({ needsAnnouncement: r.needsAnnouncement, recordId: r.record.id });
+      const cs = (r.record.changeset ?? []) as Array<{ label: string; from: string; to: string }>;
+      const changeContent = cs.length > 0
+        ? cs.map(c => `${c.label}：${c.from || '（空）'} → ${c.to || '（空）'}`).join('\n')
+        : trimmedReason; // 补遗无字段 diff：正文即事由
+      onRegistered({
+        needsAnnouncement: r.needsAnnouncement,
+        recordId: r.record.id,
+        category: type === 'CHANGE' ? 'change_notice' : 'addendum',
+        round: r.record.round,
+        reason: trimmedReason,
+        changeContent,
+      });
       onClose();
     } catch (e) {
       toast.error((e as Error).message || '登记失败');
