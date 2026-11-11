@@ -21,7 +21,7 @@ describe('ProjectManagementController', () => {
       deletePermanently: jest.fn(),
       completeProject: jest.fn(),
       analyzeProject: jest.fn(),
-    } as never, { stampFor: jest.fn().mockResolvedValue({}), resolveScope: jest.fn().mockResolvedValue({ all: true }), filter: jest.fn().mockReturnValue({}) } as never,
+    } as never, { stampFor: jest.fn().mockResolvedValue({}), resolveScope: jest.fn().mockResolvedValue({ all: true }), filter: jest.fn().mockReturnValue({}) } as never, { register: jest.fn(), list: jest.fn(), bindAnnouncement: jest.fn() } as never,
       { getTimeline: jest.fn() } as never,
       {} as never); // TenderDraftService——本 spec 未覆盖草稿端点，占位即可
 
@@ -71,7 +71,7 @@ describe('ProjectManagementController', () => {
       deletePermanently,
       completeProject: jest.fn(),
       analyzeProject: jest.fn(),
-    } as never, { stampFor: jest.fn().mockResolvedValue({}), resolveScope: jest.fn().mockResolvedValue({ all: true }), filter: jest.fn().mockReturnValue({}) } as never,
+    } as never, { stampFor: jest.fn().mockResolvedValue({}), resolveScope: jest.fn().mockResolvedValue({ all: true }), filter: jest.fn().mockReturnValue({}) } as never, { register: jest.fn(), list: jest.fn(), bindAnnouncement: jest.fn() } as never,
       { getTimeline: jest.fn() } as never,
       {} as never); // TenderDraftService——本 spec 未覆盖草稿端点，占位即可
 
@@ -113,7 +113,7 @@ describe('ProjectManagementController', () => {
       deletePermanently: jest.fn(),
       completeProject: jest.fn(),
       analyzeProject,
-    } as never, { stampFor: jest.fn().mockResolvedValue({}), resolveScope: jest.fn().mockResolvedValue({ all: true }), filter: jest.fn().mockReturnValue({}) } as never,
+    } as never, { stampFor: jest.fn().mockResolvedValue({}), resolveScope: jest.fn().mockResolvedValue({ all: true }), filter: jest.fn().mockReturnValue({}) } as never, { register: jest.fn(), list: jest.fn(), bindAnnouncement: jest.fn() } as never,
       { getTimeline: jest.fn() } as never,
       {} as never); // TenderDraftService——本 spec 未覆盖草稿端点，占位即可
 
