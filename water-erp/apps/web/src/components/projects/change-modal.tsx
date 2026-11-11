@@ -181,7 +181,15 @@ export function ChangeModal({
                           {f.label}
                           {g.unlocked && (values[f.field] ?? '') !== '' && (values[f.field] ?? '') !== currentOf(f.field) && <span className="ml-1 normal-case text-[var(--warning)]">已修改</span>}
                         </span>
-                        {f.widget === 'search-select' ? (
+                        {f.multiline ? (
+                          <textarea
+                            className="neu-input min-h-[110px] text-sm"
+                            disabled={!g.unlocked}
+                            placeholder={currentOf(f.field) || '（空）'}
+                            value={values[f.field] ?? ''}
+                            onChange={e => setValues(v => ({ ...v, [f.field]: e.target.value }))}
+                          />
+                        ) : f.widget === 'search-select' ? (
                           <SearchSelect
                             options={projectOptions}
                             value={values[f.field] ?? currentOf(f.field)}

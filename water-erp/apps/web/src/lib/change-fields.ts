@@ -14,6 +14,8 @@ export type ChangeFieldDef = {
   options?: string[];
   /** 实体名单选择器（归属项目=项目清单，2026-11-11）：渲染走 SearchSelect，后端闸不感知 */
   widget?: 'search-select';
+  /** 多行文本（长段落字段如项目概况）——渲染为加高文本域 */
+  multiline?: boolean;
 }
 
 export type ChangeFieldGroup = {
@@ -36,7 +38,7 @@ export const CHANGE_FIELD_GROUPS: ChangeFieldGroup[] = [
       { field: 'budgetAmount', label: '预算金额', kind: 'number', target: 'PMI' },
       { field: 'requesterName', label: '需求人', kind: 'text', target: 'PMI' },
       { field: 'requesterDepartment', label: '需求部门', kind: 'text', target: 'PMI' },
-      { field: 'projectOverview', label: '项目概况', kind: 'text', target: 'PMI' },
+      { field: 'projectOverview', label: '项目概况', kind: 'text', target: 'PMI', multiline: true },
       { field: 'initiationDate', label: '立项日期', kind: 'text', target: 'PMI' },
       { field: 'demandProject', label: '归属项目', kind: 'text', target: 'PMI', widget: 'search-select' },
     ],
