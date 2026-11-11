@@ -21,6 +21,7 @@ export const CHANGE_FIELD_GROUPS = [
     fields: [
       { field: 'title', label: '项目名称', kind: 'text', target: 'PMI' },
       { field: 'procurementCategory', label: '采购类别', kind: 'text', target: 'PMI' },
+      { field: 'procurementMethod', label: '采购方式', kind: 'text', target: 'PMI' },
       { field: 'budgetAmount', label: '预算金额', kind: 'number', target: 'PMI' },
       { field: 'requesterName', label: '需求人', kind: 'text', target: 'PMI' },
       { field: 'requesterDepartment', label: '需求部门', kind: 'text', target: 'PMI' },
@@ -29,6 +30,24 @@ export const CHANGE_FIELD_GROUPS = [
       { field: 'demandProject', label: '归属项目', kind: 'text', target: 'PMI' },
       { field: 'projectReason', label: '申请立项事由', kind: 'text', target: 'PMI' },
       { field: 'supplierRequirements', label: '对供方的主要要求', kind: 'text', target: 'PMI' },
+    ],
+  },
+  {
+    key: 'award',
+    label: '定标',
+    stageKey: 'AWARD_DECISION',
+    fields: [
+      { field: 'awardedSupplier', label: '中标供应商', kind: 'text', target: 'PMI' },
+    ],
+  },
+  {
+    key: 'contract',
+    label: '合同',
+    stageKey: 'CONTRACT',
+    fields: [
+      { field: 'contractNumber', label: '合同编号', kind: 'text', target: 'PMI' },
+      { field: 'contractAmount', label: '合同金额', kind: 'number', target: 'PMI' },
+      { field: 'paymentPerformance', label: '履约情况', kind: 'text', target: 'PMI' },
     ],
   },
   {
@@ -41,7 +60,7 @@ export const CHANGE_FIELD_GROUPS = [
     ],
   },
 ] as const satisfies ReadonlyArray<{
-  key: 'basic' | 'document' | 'notice';
+  key: 'basic' | 'award' | 'contract' | 'notice';
   label: string;
   stageKey: string;
   fields: readonly ChangeFieldDef[];

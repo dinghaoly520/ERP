@@ -3,8 +3,8 @@ import { CHANGE_FIELD_GROUPS, stageReached, FORBIDDEN_FIELDS, findFieldGroup } f
 const STAGES = ['PROCUREMENT_DEMAND', 'INITIATION', 'TENDER_DOCUMENT', 'PUBLIC_ANNOUNCEMENT', 'EXPERT_SELECTION', 'BID_EVALUATION', 'AWARD_DECISION', 'CONTRACT'];
 
 describe('变更字段分组与阶段闸门（2026-11-11 spec §2）', () => {
-  it('两组均有阶段锚点，且开标时间在公告组', () => {
-    expect(CHANGE_FIELD_GROUPS.map(g => g.key)).toEqual(['basic', 'notice']);
+  it('四组均有阶段锚点，且开标时间在公告组', () => {
+    expect(CHANGE_FIELD_GROUPS.map(g => g.key)).toEqual(['basic', 'award', 'contract', 'notice']);
     const notice = findFieldGroup('bidOpeningTime');
     expect(notice?.key).toBe('notice');
     expect(notice?.stageKey).toBe('TENDER_DOCUMENT');
