@@ -164,6 +164,8 @@ export function ChangeModal({
           <button type="button" onClick={onClose} className="neu-btn-xs"><X size={15} /></button>
         </div>
 
+        <div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
+
         <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4">
           {step === 'type' && (
             <div className="space-y-3">
@@ -201,7 +203,7 @@ export function ChangeModal({
                         <div className="flex items-center gap-2">
                           <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
                             {f.label}
-                            {g.unlocked && (values[f.field] ?? '') !== '' && (values[f.field] ?? '') !== currentOf(f.field) && <span className="ml-1 normal-case text-[var(--warning)]">已修改</span>}
+                            {g.unlocked && (values[f.field] ?? '') !== '' && (values[f.field] ?? '') !== currentOf(f.field) && <span className="ml-1 font-bold normal-case text-[var(--danger)]">已修改</span>}
                           </span>
                           {f.aiAssist && g.unlocked && (
                             <button
