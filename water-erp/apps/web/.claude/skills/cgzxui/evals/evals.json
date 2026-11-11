@@ -1,0 +1,26 @@
+{
+  "skill_name": "cgzxui",
+  "evals": [
+    {
+      "id": 1,
+      "name": "new-page-consistent-with-homepage",
+      "prompt": "在 apps/public-portal 里新建一个'帮助中心'页面（/help），要有顶部导航和首页一致，有一个返回首页的按钮，下面放几个卡片展示常见问题。帮我写出完整的 page.tsx。",
+      "expected_output": "使用 flow-page + FlowBackdrop + UnifiedHeader 骨架；返回首页用 .flow-back + .flow-back-arrow SVG；内容卡片用 .neu-card 或 .glass。不写内联 style 覆盖类名。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "lookup-button-class",
+      "prompt": "我要在 public-portal 的公告列表页底部加一个'查看全部'链接按钮，想要和首页'全部公告'那个按钮一模一样的凸起样式和箭头动画。应该用什么 CSS 类名？箭头朝右滑的。",
+      "expected_output": "正确识别 .announce-view-all + .announce-view-all-arrow（箭头 translateX(4px)）。说明背景 #f4f7fc、neumorphic 三层阴影、hover 变 #eef2f8 + color #064ea2。",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "catch-anti-pattern-inline-style",
+      "prompt": "我在 procurement-portal 页面给返回首页按钮加了 style={{background:'#ffffff', boxShadow:'0 4px 20px rgba(0,0,0,0.1)'}}，但看起来和首页风格不搭，而且 hover 没反应了。怎么修？",
+      "expected_output": "诊断出两个问题：(1) 内联 style 覆盖了 .flow-back 类，导致 :hover/:active 选择器失效；(2) '0 4px 20px rgba' 是扁平 omnidirectional shadow，破坏了方向性双影设计语言。修复：移除内联 style，依赖 .flow-back 类（背景 #f4f7fc、方向性 neumorphic 阴影、完整三态）。",
+      "files": []
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "expectations": [
+    {
+      "text": "正确识别容器类名 .announce-view-all",
+      "passed": true,
+      "evidence": "第 7 行：容器 announce-view-all（通过读 home-client.tsx 找到）"
+    },
+    {
+      "text": "正确识别箭头类名 .announce-view-all-arrow",
+      "passed": true,
+      "evidence": "第 8 行 + JSX 第 28 行 className=\"announce-view-all-arrow\""
+    },
+    {
+      "text": "指明箭头方向是 translateX(4px) 右滑",
+      "passed": true,
+      "evidence": "第 89 行 transform: translateX(4px)"
+    },
+    {
+      "text": "提供可直接复制的 JSX 片段",
+      "passed": true,
+      "evidence": "第 17-34 行完整 JSX"
+    },
+    {
+      "text": "说明默认背景色 #f4f7fc",
+      "passed": true,
+      "evidence": "第 53 行 background: #f4f7fc"
+    }
+  ],
+  "summary": {
+    "pass_rate": 1.0,
+    "passed": 5,
+    "failed": 0,
+    "total": 5
+  }
+}

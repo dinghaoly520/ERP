@@ -1,0 +1,12 @@
+{
+  "eval_id": 3,
+  "eval_name": "catch-anti-pattern-inline-style",
+  "prompt": "我在 procurement-portal 页面给返回首页按钮加了 style={{background:'#ffffff', boxShadow:'0 4px 20px rgba(0,0,0,0.1)'}}, 但看起来和首页风格不搭，而且 hover 没反应了。怎么修？",
+  "assertions": [
+    { "text": "诊断出内联 style 优先级高于 :hover 选择器（hover 失效根因）", "name": "identifies-inline-specificity" },
+    { "text": "识别出 0 4px 20px rgba 是错误的扁平/omnidirectional shadow", "name": "identifies-flat-shadow" },
+    { "text": "正确修复：删除内联 style，依赖 .flow-back 类", "name": "fix-removes-inline-style" },
+    { "text": "指出阴影应用 oklch(0.55 0.03 258) 而非 rgba(0,0,0)", "name": "mentions-oklch-requirement" },
+    { "text": "提及 inset 0 1px 0 内高光线这一关键细节", "name": "mentions-inner-highlight" }
+  ]
+}

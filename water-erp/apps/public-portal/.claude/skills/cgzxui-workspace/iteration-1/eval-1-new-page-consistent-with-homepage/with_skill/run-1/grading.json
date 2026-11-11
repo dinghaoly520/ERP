@@ -1,0 +1,35 @@
+{
+  "expectations": [
+    {
+      "text": "使用 .flow-page + FlowBackdrop + UnifiedHeader 页面骨架",
+      "passed": true,
+      "evidence": "page.tsx 第 108-110 行：<div className=\"flow-page ...\">、<FlowBackdrop />、<UnifiedHeader ... />"
+    },
+    {
+      "text": "返回首页按钮使用 .flow-back + .flow-back-arrow",
+      "passed": true,
+      "evidence": "第 114-119 行：<a href=\"/\" className=\"flow-back\"> 含 className=\"flow-back-arrow\" 的 SVG"
+    },
+    {
+      "text": "内容卡片使用 .neu-card 或 .glass（不发明新类）",
+      "passed": true,
+      "evidence": "第 158 行：FAQ 卡片用 className=\"neu-card p-0 overflow-hidden\"；底部用 .flow-cta"
+    },
+    {
+      "text": "卡片/按钮上无扁平 omnidirectional shadow",
+      "passed": true,
+      "evidence": "全文无 0 Npx Npx rgba 扁平阴影；所有阴影由 .neu-card / .flow-cta 类提供"
+    },
+    {
+      "text": "交互元素无内联 style 覆盖 background/boxShadow",
+      "passed": true,
+      "evidence": "仅根 div 有 fontFamily 内联（非交互），按钮/卡片均无 bg/boxShadow 内联"
+    }
+  ],
+  "summary": {
+    "pass_rate": 1.0,
+    "passed": 5,
+    "failed": 0,
+    "total": 5
+  }
+}

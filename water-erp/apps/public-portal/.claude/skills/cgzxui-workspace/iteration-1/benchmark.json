@@ -1,0 +1,323 @@
+{
+  "metadata": {
+    "skill_name": "cgzxui",
+    "skill_path": "<path/to/skill>",
+    "executor_model": "<model-name>",
+    "analyzer_model": "<model-name>",
+    "timestamp": "2026-07-03T04:46:47Z",
+    "evals_run": [
+      1,
+      2,
+      3
+    ],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u4f7f\u7528 .flow-page + FlowBackdrop + UnifiedHeader \u9875\u9762\u9aa8\u67b6",
+          "passed": true,
+          "evidence": "page.tsx \u7b2c 108-110 \u884c\uff1a<div className=\"flow-page ...\">\u3001<FlowBackdrop />\u3001<UnifiedHeader ... />"
+        },
+        {
+          "text": "\u8fd4\u56de\u9996\u9875\u6309\u94ae\u4f7f\u7528 .flow-back + .flow-back-arrow",
+          "passed": true,
+          "evidence": "\u7b2c 114-119 \u884c\uff1a<a href=\"/\" className=\"flow-back\"> \u542b className=\"flow-back-arrow\" \u7684 SVG"
+        },
+        {
+          "text": "\u5185\u5bb9\u5361\u7247\u4f7f\u7528 .neu-card \u6216 .glass\uff08\u4e0d\u53d1\u660e\u65b0\u7c7b\uff09",
+          "passed": true,
+          "evidence": "\u7b2c 158 \u884c\uff1aFAQ \u5361\u7247\u7528 className=\"neu-card p-0 overflow-hidden\"\uff1b\u5e95\u90e8\u7528 .flow-cta"
+        },
+        {
+          "text": "\u5361\u7247/\u6309\u94ae\u4e0a\u65e0\u6241\u5e73 omnidirectional shadow",
+          "passed": true,
+          "evidence": "\u5168\u6587\u65e0 0 Npx Npx rgba \u6241\u5e73\u9634\u5f71\uff1b\u6240\u6709\u9634\u5f71\u7531 .neu-card / .flow-cta \u7c7b\u63d0\u4f9b"
+        },
+        {
+          "text": "\u4ea4\u4e92\u5143\u7d20\u65e0\u5185\u8054 style \u8986\u76d6 background/boxShadow",
+          "passed": true,
+          "evidence": "\u4ec5\u6839 div \u6709 fontFamily \u5185\u8054\uff08\u975e\u4ea4\u4e92\uff09\uff0c\u6309\u94ae/\u5361\u7247\u5747\u65e0 bg/boxShadow \u5185\u8054"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u6b63\u786e\u8bc6\u522b\u5bb9\u5668\u7c7b\u540d .announce-view-all",
+          "passed": true,
+          "evidence": "answer.md \u7b2c 5 \u884c\u660e\u786e\u7ed9\u51fa\u5bb9\u5668\u7c7b .announce-view-all"
+        },
+        {
+          "text": "\u6b63\u786e\u8bc6\u522b\u7bad\u5934\u7c7b\u540d .announce-view-all-arrow",
+          "passed": true,
+          "evidence": "\u7b2c 6 \u884c + \u7b2c 17 \u884c JSX \u4e2d className=\"announce-view-all-arrow\""
+        },
+        {
+          "text": "\u6307\u660e\u7bad\u5934\u65b9\u5411\u662f translateX(4px) \u53f3\u6ed1",
+          "passed": true,
+          "evidence": "\u7b2c 70 \u884c transform: translateX(4px)\uff0c\u5e76\u8bf4\u660e\u7b26\u5408\u67e5\u770b\u5168\u90e8\u7684\u8bed\u4e49\u65b9\u5411"
+        },
+        {
+          "text": "\u63d0\u4f9b\u53ef\u76f4\u63a5\u590d\u5236\u7684 JSX \u7247\u6bb5",
+          "passed": true,
+          "evidence": "\u7b2c 12-22 \u884c\u5b8c\u6574 JSX\uff08a \u6807\u7b7e + SVG \u53cc path \u7bad\u5934\uff09"
+        },
+        {
+          "text": "\u8bf4\u660e\u9ed8\u8ba4\u80cc\u666f\u8272 #f4f7fc",
+          "passed": true,
+          "evidence": "\u7b2c 35 \u884c background: #f4f7fc"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u8bca\u65ad\u51fa\u5185\u8054 style \u4f18\u5148\u7ea7\u9ad8\u4e8e :hover \u9009\u62e9\u5668\uff08hover \u5931\u6548\u6839\u56e0\uff09",
+          "passed": true,
+          "evidence": "answer.md \u7b2c 19-24 \u884c\uff1a\u8be6\u7ec6\u89e3\u91ca inline level \u4f18\u5148\u7ea7\u538b\u8fc7 .flow-back:hover \u7684 selector level"
+        },
+        {
+          "text": "\u8bc6\u522b\u51fa 0 4px 20px rgba \u662f\u9519\u8bef\u7684\u6241\u5e73/omnidirectional shadow",
+          "passed": true,
+          "evidence": "\u7b2c 27-34 \u884c\uff1a\u660e\u786e\u6307\u51fa\u96f6\u65b9\u5411\u504f\u79fb\u3001blur \u8fc7\u5927\u3001\u7eaf\u9ed1\u4e09\u4e2a\u95ee\u9898"
+        },
+        {
+          "text": "\u6b63\u786e\u4fee\u590d\uff1a\u5220\u9664\u5185\u8054 style\uff0c\u4f9d\u8d56 .flow-back \u7c7b",
+          "passed": true,
+          "evidence": "\u7b2c 44-49 \u884c\uff1a\u5220\u9664 style\uff0c\u4fdd\u7559 className=\"flow-back\""
+        },
+        {
+          "text": "\u6307\u51fa\u9634\u5f71\u5e94\u7528 oklch(0.55 0.03 258) \u800c\u975e rgba(0,0,0)",
+          "passed": true,
+          "evidence": "\u7b2c 33 \u884c\uff1askill \u89c4\u5b9a\u9634\u5f71\u8272\u7528 oklch(0.55 0.03 258) \u51b7\u84dd\u7070\uff0c\u4fdd\u8bc1\u9634\u5f71\u5728\u4e0d\u540c\u4eae\u5ea6\u4e0b\u4fdd\u6301\u4e00\u81f4\u57fa\u8c03"
+        },
+        {
+          "text": "\u63d0\u53ca inset 0 1px 0 \u5185\u9ad8\u5149\u7ebf\u8fd9\u4e00\u5173\u952e\u7ec6\u8282",
+          "passed": true,
+          "evidence": "\u7b2c 34 \u884c\uff1a\u7f3a\u5931 inset 0 1px 0 oklch(1 0 0 / 0.7) \u5185\u9ad8\u5149\u7ebf\uff08skill \u79f0\u4e3a neumorphic \u8bbe\u8ba1\u7684\u7075\u9b42\uff09"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u4f7f\u7528 .flow-page + FlowBackdrop + UnifiedHeader \u9875\u9762\u9aa8\u67b6",
+          "passed": true,
+          "evidence": "\u7b2c 64-71 \u884c\uff1aflow-page + FlowBackdrop + UnifiedHeader\uff08\u4ece\u73b0\u6709\u9875\u9762\u590d\u5236\u4e86\u9aa8\u67b6\uff09"
+        },
+        {
+          "text": "\u8fd4\u56de\u9996\u9875\u6309\u94ae\u4f7f\u7528 .flow-back + .flow-back-arrow",
+          "passed": true,
+          "evidence": "\u7b2c 75-93 \u884c\uff1aclassName=\"flow-back ...\" \u542b flow-back-arrow SVG"
+        },
+        {
+          "text": "\u5185\u5bb9\u5361\u7247\u4f7f\u7528 .neu-card \u6216 .glass\uff08\u4e0d\u53d1\u660e\u65b0\u7c7b\uff09",
+          "passed": false,
+          "evidence": "\u7b2c 111-113 \u884c\uff1a\u53d1\u660e\u4e86 .help-faq-card \u65b0\u7c7b + Tailwind bg-white border-[#e3eaf3]\uff0c\u672a\u7528 neu-card/glass"
+        },
+        {
+          "text": "\u5361\u7247/\u6309\u94ae\u4e0a\u65e0\u6241\u5e73 omnidirectional shadow",
+          "passed": false,
+          "evidence": "\u7b2c 113 \u884c hover:shadow-[0_12px_40px_rgba(6,78,162,0.10)] \u662f\u6241\u5e73 omnidirectional shadow\uff0c\u7834\u574f neumorphic \u65b9\u5411\u6027\u53cc\u5f71"
+        },
+        {
+          "text": "\u4ea4\u4e92\u5143\u7d20\u65e0\u5185\u8054 style \u8986\u76d6 background/boxShadow",
+          "passed": false,
+          "evidence": "\u7b2c 158-167 \u884c CTA \u6309\u94ae\u7528 Tailwind \u5185\u8054 bg-[#064ea2] hover:bg-[#043f88] border-[#d2deed]\uff0c\u672a\u7528 .flow-cta-btn / .neu-btn-primary"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u6b63\u786e\u8bc6\u522b\u5bb9\u5668\u7c7b\u540d .announce-view-all",
+          "passed": true,
+          "evidence": "\u7b2c 7 \u884c\uff1a\u5bb9\u5668 announce-view-all\uff08\u901a\u8fc7\u8bfb home-client.tsx \u627e\u5230\uff09"
+        },
+        {
+          "text": "\u6b63\u786e\u8bc6\u522b\u7bad\u5934\u7c7b\u540d .announce-view-all-arrow",
+          "passed": true,
+          "evidence": "\u7b2c 8 \u884c + JSX \u7b2c 28 \u884c className=\"announce-view-all-arrow\""
+        },
+        {
+          "text": "\u6307\u660e\u7bad\u5934\u65b9\u5411\u662f translateX(4px) \u53f3\u6ed1",
+          "passed": true,
+          "evidence": "\u7b2c 89 \u884c transform: translateX(4px)"
+        },
+        {
+          "text": "\u63d0\u4f9b\u53ef\u76f4\u63a5\u590d\u5236\u7684 JSX \u7247\u6bb5",
+          "passed": true,
+          "evidence": "\u7b2c 17-34 \u884c\u5b8c\u6574 JSX"
+        },
+        {
+          "text": "\u8bf4\u660e\u9ed8\u8ba4\u80cc\u666f\u8272 #f4f7fc",
+          "passed": true,
+          "evidence": "\u7b2c 53 \u884c background: #f4f7fc"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u8bca\u65ad\u51fa\u5185\u8054 style \u4f18\u5148\u7ea7\u9ad8\u4e8e :hover \u9009\u62e9\u5668\uff08hover \u5931\u6548\u6839\u56e0\uff09",
+          "passed": true,
+          "evidence": "\u7b2c 17-30 \u884c\uff1a\u8be6\u7ec6 CSS \u4f18\u5148\u7ea7\u8ba1\u7b97 (1,0,0,0) vs (0,0,2,0)\uff0c\u89e3\u91ca inline \u538b\u8fc7 .flow-back:hover"
+        },
+        {
+          "text": "\u8bc6\u522b\u51fa 0 4px 20px rgba \u662f\u9519\u8bef\u7684\u6241\u5e73/omnidirectional shadow",
+          "passed": true,
+          "evidence": "\u7b2c 62 \u884c\uff1a\u8bc6\u522b\u51fa inline #ffffff + 0 4px 20px \u662f\u901a\u7528\u5361\u7247\u6d6e\u8d77\u98ce\u683c\uff0c\u4e0e\u53cc\u5411\u67d4\u5149 + inset \u9ad8\u5149\u7684\u8bbe\u8ba1\u8bed\u8a00\u4e0d\u7b26"
+        },
+        {
+          "text": "\u6b63\u786e\u4fee\u590d\uff1a\u5220\u9664\u5185\u8054 style\uff0c\u4f9d\u8d56 .flow-back \u7c7b",
+          "passed": true,
+          "evidence": "\u7b2c 47-51 \u884c\uff1a\u4fee\u6b63\u540e\u7684 <a> \u79fb\u9664 style\uff0c\u4fdd\u7559 className=\"flow-back\""
+        },
+        {
+          "text": "\u6307\u51fa\u9634\u5f71\u5e94\u7528 oklch(0.55 0.03 258) \u800c\u975e rgba(0,0,0)",
+          "passed": false,
+          "evidence": "\u672a\u660e\u786e\u6307\u51fa rgba(0,0,0) \u5e94\u66ff\u6362\u4e3a oklch \u8272\u5f69\uff1b\u53ea\u5728\u63cf\u8ff0 .flow-back \u65f6\u63d0\u5230 oklch \u4f46\u672a\u4f5c\u4e3a\u95ee\u9898\u8bca\u65ad"
+        },
+        {
+          "text": "\u63d0\u53ca inset 0 1px 0 \u5185\u9ad8\u5149\u7ebf\u8fd9\u4e00\u5173\u952e\u7ec6\u8282",
+          "passed": false,
+          "evidence": "\u7b2c 59 \u884c\u63d0\u5230 inset 0 1px 0 oklch(1 0 0 / 0.7) \u9876\u90e8\u9ad8\u5149\uff0c\u4f46\u672a\u5c06\u5176\u4f5c\u4e3a\u8bca\u65ad\u7528\u6237\u9634\u5f71\u9519\u8bef\u7684\u5173\u952e\u8bba\u70b9"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "tokens": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0,
+        "max": 0
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.6667,
+        "stddev": 0.3055,
+        "min": 0.4,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "tokens": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0,
+        "max": 0
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.33",
+      "time_seconds": "+0.0",
+      "tokens": "+0"
+    }
+  },
+  "notes": []
+}

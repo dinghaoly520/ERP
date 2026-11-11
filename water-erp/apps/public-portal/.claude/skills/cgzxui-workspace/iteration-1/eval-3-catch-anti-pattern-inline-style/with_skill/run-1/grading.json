@@ -1,0 +1,35 @@
+{
+  "expectations": [
+    {
+      "text": "诊断出内联 style 优先级高于 :hover 选择器（hover 失效根因）",
+      "passed": true,
+      "evidence": "answer.md 第 19-24 行：详细解释 inline level 优先级压过 .flow-back:hover 的 selector level"
+    },
+    {
+      "text": "识别出 0 4px 20px rgba 是错误的扁平/omnidirectional shadow",
+      "passed": true,
+      "evidence": "第 27-34 行：明确指出零方向偏移、blur 过大、纯黑三个问题"
+    },
+    {
+      "text": "正确修复：删除内联 style，依赖 .flow-back 类",
+      "passed": true,
+      "evidence": "第 44-49 行：删除 style，保留 className=\"flow-back\""
+    },
+    {
+      "text": "指出阴影应用 oklch(0.55 0.03 258) 而非 rgba(0,0,0)",
+      "passed": true,
+      "evidence": "第 33 行：skill 规定阴影色用 oklch(0.55 0.03 258) 冷蓝灰，保证阴影在不同亮度下保持一致基调"
+    },
+    {
+      "text": "提及 inset 0 1px 0 内高光线这一关键细节",
+      "passed": true,
+      "evidence": "第 34 行：缺失 inset 0 1px 0 oklch(1 0 0 / 0.7) 内高光线（skill 称为 neumorphic 设计的灵魂）"
+    }
+  ],
+  "summary": {
+    "pass_rate": 1.0,
+    "passed": 5,
+    "failed": 0,
+    "total": 5
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "eval_id": 2,
+  "eval_name": "lookup-button-class",
+  "prompt": "我要在 public-portal 的公告列表页底部加一个'查看全部'链接按钮，想要和首页'全部公告'那个按钮一模一样的凸起样式和箭头动画。应该用什么 CSS 类名？箭头朝右滑的。",
+  "assertions": [
+    { "text": "正确识别容器类名 .announce-view-all", "name": "correct-container-class" },
+    { "text": "正确识别箭头类名 .announce-view-all-arrow", "name": "correct-arrow-class" },
+    { "text": "指明箭头方向是 translateX(4px) 右滑", "name": "correct-arrow-direction" },
+    { "text": "提供可直接复制的 JSX 片段", "name": "provides-jsx-snippet" },
+    { "text": "说明默认背景色 #f4f7fc", "name": "correct-background-color" }
+  ]
+}

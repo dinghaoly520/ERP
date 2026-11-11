@@ -1,0 +1,35 @@
+{
+  "expectations": [
+    {
+      "text": "使用 .flow-page + FlowBackdrop + UnifiedHeader 页面骨架",
+      "passed": true,
+      "evidence": "第 64-71 行：flow-page + FlowBackdrop + UnifiedHeader（从现有页面复制了骨架）"
+    },
+    {
+      "text": "返回首页按钮使用 .flow-back + .flow-back-arrow",
+      "passed": true,
+      "evidence": "第 75-93 行：className=\"flow-back ...\" 含 flow-back-arrow SVG"
+    },
+    {
+      "text": "内容卡片使用 .neu-card 或 .glass（不发明新类）",
+      "passed": false,
+      "evidence": "第 111-113 行：发明了 .help-faq-card 新类 + Tailwind bg-white border-[#e3eaf3]，未用 neu-card/glass"
+    },
+    {
+      "text": "卡片/按钮上无扁平 omnidirectional shadow",
+      "passed": false,
+      "evidence": "第 113 行 hover:shadow-[0_12px_40px_rgba(6,78,162,0.10)] 是扁平 omnidirectional shadow，破坏 neumorphic 方向性双影"
+    },
+    {
+      "text": "交互元素无内联 style 覆盖 background/boxShadow",
+      "passed": false,
+      "evidence": "第 158-167 行 CTA 按钮用 Tailwind 内联 bg-[#064ea2] hover:bg-[#043f88] border-[#d2deed]，未用 .flow-cta-btn / .neu-btn-primary"
+    }
+  ],
+  "summary": {
+    "pass_rate": 0.4,
+    "passed": 2,
+    "failed": 3,
+    "total": 5
+  }
+}

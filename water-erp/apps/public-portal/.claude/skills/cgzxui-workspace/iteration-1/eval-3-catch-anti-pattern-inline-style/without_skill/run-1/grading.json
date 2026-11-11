@@ -1,0 +1,35 @@
+{
+  "expectations": [
+    {
+      "text": "诊断出内联 style 优先级高于 :hover 选择器（hover 失效根因）",
+      "passed": true,
+      "evidence": "第 17-30 行：详细 CSS 优先级计算 (1,0,0,0) vs (0,0,2,0)，解释 inline 压过 .flow-back:hover"
+    },
+    {
+      "text": "识别出 0 4px 20px rgba 是错误的扁平/omnidirectional shadow",
+      "passed": true,
+      "evidence": "第 62 行：识别出 inline #ffffff + 0 4px 20px 是通用卡片浮起风格，与双向柔光 + inset 高光的设计语言不符"
+    },
+    {
+      "text": "正确修复：删除内联 style，依赖 .flow-back 类",
+      "passed": true,
+      "evidence": "第 47-51 行：修正后的 <a> 移除 style，保留 className=\"flow-back\""
+    },
+    {
+      "text": "指出阴影应用 oklch(0.55 0.03 258) 而非 rgba(0,0,0)",
+      "passed": false,
+      "evidence": "未明确指出 rgba(0,0,0) 应替换为 oklch 色彩；只在描述 .flow-back 时提到 oklch 但未作为问题诊断"
+    },
+    {
+      "text": "提及 inset 0 1px 0 内高光线这一关键细节",
+      "passed": false,
+      "evidence": "第 59 行提到 inset 0 1px 0 oklch(1 0 0 / 0.7) 顶部高光，但未将其作为诊断用户阴影错误的关键论点"
+    }
+  ],
+  "summary": {
+    "pass_rate": 0.6,
+    "passed": 3,
+    "failed": 2,
+    "total": 5
+  }
+}
