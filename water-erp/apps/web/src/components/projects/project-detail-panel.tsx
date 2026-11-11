@@ -648,7 +648,7 @@ export function ProjectDetailPanel({
   }), [item, extractedInfoOverride]);
 
   // 变更/补遗公告发布上下文（2026-11-11）：登记成功 → 拉起向导并发布后回填记录
-  const [changeWizardCtx, setChangeWizardCtx] = useState<{ category: 'change_notice' | 'addendum'; patch: Record<string, string>; recordId: string } | null>(null);
+  const [changeWizardCtx, setChangeWizardCtx] = useState<{ category: 'change_notice' | 'addendum'; patch: Record<string, string>; recordId: string; /** 发布优先（2026-11-12）：公告成功后补登记的载荷；空=已登记只需回填 */ pendingRegister?: { type: 'CHANGE' | 'ADDENDUM'; reason: string; fields: Record<string, string> } } | null>(null);
   const [editValues, setEditValues] = useState({
     title: '',
     initiationDate: '',
@@ -2696,7 +2696,26 @@ export function ProjectDetailPanel({
         currentStage={item.currentStage}
         bidOpened={isBidLocked}
         currentValues={changeCurrentValues}
-        onRegistered={(ctx, publish) => {
+        onRegistered={(ctx, publish, pending) => {
+          if (publish && pending) {
+            // 发布优先（2026-11-12 裁定）：信息尚未登记——公告发布成功才补登记；
+            // 向导被取消 = 放弃本次修改，数据不动
+            setChangeWizardCtx({
+              category: ctx.category,
+              recordId: '',
+              patch: {
+                projectName: item.title,
+                projectCode: item.projectCode ?? '',
+                changeRound: String(ctx.round),
+                changeReason: ctx.reason,
+                changeContent: ctx.changeContent,
+              },
+              pendingRegister: pending,
+            });
+            setAnnouncementCategory(ctx.category);
+            setAnnouncementPublishOpen(true);
+            return;
+          }
           handleUpdated();
           setChangeWizardCtx({
             category: ctx.category,
@@ -2722,11 +2741,31 @@ export function ProjectDetailPanel({
       <AnnouncementPublishWizard
         isOpen={announcementPublishOpen}
         initialDraftPatch={changeWizardCtx?.patch}
-        onClose={() => { setAnnouncementPublishOpen(false); setAnnouncementCategory('procurement_document'); }}
+        onClose={() => {
+          if (changeWizardCtx?.pendingRegister) {
+            toast.info('已取消发布，本次修改未登记');
+            setChangeWizardCtx(null);
+          }
+          setAnnouncementPublishOpen(false);
+          setAnnouncementCategory('procurement_document');
+        }}
         project={item}
         onPublished={(result) => {
-          // 变更/补遗公告发布成功 → 回填关联（闭环记录上的「公告待发」红标）
-          if (changeWizardCtx && (announcementCategory === 'change_notice' || announcementCategory === 'addendum') && result?.id) {
+          // 发布优先模式（2026-11-12 裁定）：公告成功 → 现在补登记信息变更并回填关联
+          if (changeWizardCtx?.pendingRegister && (announcementCategory === 'change_notice' || announcementCategory === 'addendum') && result?.id) {
+            const payload = changeWizardCtx.pendingRegister;
+            void registerChange(item.id, payload)
+              .then(async (r) => {
+                await bindChangeAnnouncement(r.record.id, result.id);
+                toast.success(`公告已发布，第 ${r.record.round} 轮变更已登记`);
+                setChangeWizardCtx(null);
+                handleUpdated();
+              })
+              .catch((err: Error) => {
+                toast.error(`公告已发布，但变更登记失败：${err.message}（请在记录中重试登记）`);
+              });
+          } else if (changeWizardCtx && (announcementCategory === 'change_notice' || announcementCategory === 'addendum') && result?.id) {
+            // 已登记路径：回填关联（闭环记录上的「公告待发」红标）
             void bindChangeAnnouncement(changeWizardCtx.recordId, result.id).then(() => handleUpdated()).catch(() => {});
           }
           handleUpdated();

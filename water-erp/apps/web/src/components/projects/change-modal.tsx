@@ -11,7 +11,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { RefreshCcw, FilePlus2, X, Sparkles, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { registerChange } from '@/lib/api/project-changes';
+import { registerChange, listChanges } from '@/lib/api/project-changes';
 import { CHANGE_FIELD_GROUPS, stageReached } from '@/lib/change-fields';
 import { SearchSelect, type SearchSelectOption } from '@/components/workbench/search-select';
 import { fetchProjectManagementList, extractTenderFields, optimizeInitiationFields } from '@/lib/api/project-management';
@@ -52,6 +52,8 @@ export function ChangeModal({
   onRegistered: (
     result: { needsAnnouncement: boolean; recordId: string; category: 'change_notice' | 'addendum'; round: number; reason: string; changeContent: string },
     publish: boolean,
+    /** 发布优先模式（2026-11-12 裁定）：尚未登记——公告发布成功后由面板补登记 */
+    pending?: { type: 'CHANGE' | 'ADDENDUM'; reason: string; fields: Record<string, string> },
   ) => void;
 }) {
   const [step, setStep] = useState<Step>('type');
@@ -61,9 +63,9 @@ export function ChangeModal({
   const [saving, setSaving] = useState(false);
   const [projectOptions, setProjectOptions] = useState<SearchSelectOption[]>([]);
   const [aiBusy, setAiBusy] = useState<string | null>(null);
-  // 登记成功后的发布选择（2026-11-12 用户裁定：是否发公告由用户选择，不强制）
-  const [pendingPublish, setPendingPublish] = useState<{ round: number; needsAnnouncement: boolean } | null>(null);
-  const [lastResult, setLastResult] = useState<Parameters<typeof onRegistered>[0] | null>(null);
+  // 登记前选择（2026-11-12 用户裁定）：是否先发布公告——发布优先模式未登记数据，
+  // 公告发布成功才由面板补登记；取消发布=放弃本次修改
+  const [awaitChoice, setAwaitChoice] = useState<{ type: 'CHANGE' | 'ADDENDUM'; reason: string; fields: Record<string, string> } | null>(null);
 
   // 归属项目候选：在办项目清单（排除本项目）；打开弹窗时取一次
   useEffect(() => {
@@ -134,36 +136,70 @@ export function ChangeModal({
     const trimmedReason = reason.trim();
     if (!trimmedReason) { toast.error('请填写变更理由'); return; }
     if (type === 'CHANGE' && changedCount === 0) { toast.error('请至少修改一个字段'); return; }
-    setSaving(true);
-    try {
-      const fields: Record<string, string> = {};
-      if (type === 'CHANGE') {
-        for (const g of groups) {
-          if (!g.unlocked) continue;
-          for (const f of g.fields) {
-            const v = values[f.field] ?? '';
-            if (v === '' || v === currentOf(f.field)) continue;
-            fields[f.field] = f.field === 'bidOpeningTime' ? localInputToIso(v) : v;
-          }
+    const fields: Record<string, string> = {};
+    if (type === 'CHANGE') {
+      for (const g of groups) {
+        if (!g.unlocked) continue;
+        for (const f of g.fields) {
+          const v = values[f.field] ?? '';
+          if (v === '' || v === currentOf(f.field)) continue;
+          fields[f.field] = f.field === 'bidOpeningTime' ? localInputToIso(v) : v;
         }
       }
-      const r = await registerChange(item.id, { type, reason: trimmedReason, fields });
+    }
+    setAwaitChoice({ type, reason: trimmedReason, fields });
+  };
+
+  /** 直接登记（暂不发布路径） */
+  const doRegister = async (payload: { type: 'CHANGE' | 'ADDENDUM'; reason: string; fields: Record<string, string> }) => {
+    setSaving(true);
+    try {
+      const r = await registerChange(item.id, payload);
+      toast.success(`已登记第 ${r.record.round} 轮${payload.type === 'CHANGE' ? '变更' : '补遗'}`);
       const cs = (r.record.changeset ?? []) as Array<{ label: string; from: string; to: string }>;
       const changeContent = cs.length > 0
         ? cs.map(c => `${c.label}：${c.from || '（空）'} → ${c.to || '（空）'}`).join('\n')
-        : trimmedReason;
-      toast.success(`已登记第 ${r.record.round} 轮${type === 'CHANGE' ? '变更' : '补遗'}`);
-      setPendingPublish({ round: r.record.round, needsAnnouncement: r.needsAnnouncement });
-      setLastResult({
+        : payload.reason;
+      onRegistered({
         needsAnnouncement: r.needsAnnouncement,
         recordId: r.record.id,
-        category: type === 'CHANGE' ? 'change_notice' : 'addendum',
+        category: payload.type === 'CHANGE' ? 'change_notice' : 'addendum',
         round: r.record.round,
-        reason: trimmedReason,
+        reason: payload.reason,
         changeContent,
-      });
+      }, false);
+      onClose();
     } catch (e) {
       toast.error((e as Error).message || '登记失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /** 发布优先（2026-11-12 裁定）：不预登记——公告成功后面板补登记；轮次按现流水预测 */
+  const doPublishFirst = async (payload: { type: 'CHANGE' | 'ADDENDUM'; reason: string; fields: Record<string, string> }) => {
+    setSaving(true);
+    try {
+      const recs = await listChanges(item.id).catch(() => []);
+      const nextRound = (recs[0]?.round ?? 0) + 1;
+      const cs = Object.entries(payload.fields);
+      const changeContent = cs.length > 0
+        ? cs.map(([f]) => {
+            const def = CHANGE_FIELD_GROUPS.flatMap(g => g.fields).find(x => x.field === f);
+            return `${def?.label ?? f}：${currentOf(f) || '（空）'} → ${payload.fields[f]}`;
+          }).join('\n')
+        : payload.reason;
+      onRegistered({
+        needsAnnouncement: 'bidOpeningTime' in payload.fields,
+        recordId: '',
+        category: payload.type === 'CHANGE' ? 'change_notice' : 'addendum',
+        round: nextRound,
+        reason: payload.reason,
+        changeContent,
+      }, true, payload);
+      onClose();
+    } catch (e) {
+      toast.error((e as Error).message || '操作失败');
     } finally {
       setSaving(false);
     }
@@ -312,26 +348,26 @@ export function ChangeModal({
           )}
         </div>
 
-        {pendingPublish && lastResult && (
+        {awaitChoice && (
           <>
             <hr className="wb-section-rule" />
             <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-3.5">
               <span className="text-sm text-[var(--foreground)]">
-                已登记第 {pendingPublish.round} 轮{pendingPublish.needsAnnouncement ? '（含开标时间，建议发布公告）' : ''}
+                {'bidOpeningTime' in awaitChoice.fields ? '含开标时间变更，建议先发布公告' : '是否随本次登记发布公告？'}
               </span>
               <div className="neu-btn-group">
-                <button type="button" className="neu-btn-soft" onClick={() => { onRegistered(lastResult, false); onClose(); }}>
-                  暂不发布
+                <button type="button" className="neu-btn-soft" disabled={saving} onClick={() => void doRegister(awaitChoice)}>
+                  暂不发布，直接登记
                 </button>
-                <button type="button" className="neu-btn-primary !h-[38px]" onClick={() => { onRegistered(lastResult, true); onClose(); }}>
-                  发布公告
+                <button type="button" className="neu-btn-primary !h-[38px]" disabled={saving} onClick={() => void doPublishFirst(awaitChoice)}>
+                  先发布公告再登记
                 </button>
               </div>
             </div>
           </>
         )}
 
-        {step === 'form' && !pendingPublish && (
+        {step === 'form' && !awaitChoice && (
           <>
             <hr className="wb-section-rule" />
             <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-3.5">
