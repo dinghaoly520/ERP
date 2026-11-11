@@ -4,7 +4,7 @@ const STAGES = ['PROCUREMENT_DEMAND', 'INITIATION', 'TENDER_DOCUMENT', 'PUBLIC_A
 
 describe('变更字段分组与阶段闸门（2026-11-11 spec §2）', () => {
   it('四组均有阶段锚点，且开标时间在公告组', () => {
-    expect(CHANGE_FIELD_GROUPS.map(g => g.key)).toEqual(['basic', 'award', 'contract', 'notice']);
+    expect(CHANGE_FIELD_GROUPS.map(g => g.key)).toEqual(['basic', 'notice', 'award', 'contract']);
     const notice = findFieldGroup('bidOpeningTime');
     expect(notice?.key).toBe('notice');
     expect(notice?.stageKey).toBe('TENDER_DOCUMENT');
