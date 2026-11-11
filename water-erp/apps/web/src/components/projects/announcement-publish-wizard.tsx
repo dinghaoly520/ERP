@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import {
-  Megaphone, X, Send, Upload, Loader2, ChevronLeft, ChevronRight, Search, CheckCircle2, CloudUpload, Eye, FileText, PhoneCall, ChevronDown,
+  Megaphone, X, Send, Upload, Loader2, ChevronLeft, ChevronRight, CheckCircle2, CloudUpload, Eye, FileText, PhoneCall, ChevronDown,
 } from 'lucide-react';
 import { BID_DEADLINE_BEFORE_OPENING_MS, formatDurationCn } from '@water-erp/shared';
 import {
@@ -25,8 +25,6 @@ import { generateFieldContent } from '@/lib/api/tender-sample';
 import { getSupplierList } from '@/lib/api/supplier';
 import { getObjectionContact } from '@/lib/api/system-config';
 import { fetchCurrentUser } from '@/lib/api/auth';
-import { listBidProjects, type BidProjectOption } from '@/lib/api/expert';
-import type { Supplier } from '@/lib/types';
 import { AnnouncementDialog } from '@/components/tender-write/announcement-dialog';
 import {
   SunshinePlatformDialog,
@@ -531,7 +529,9 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
   const [selectedMeta, setSelectedMeta] = useState<TenderDocumentTypeMeta | null>(null);
 
   // Step 2 config
-  const [visibility, setVisibility] = useState<'PUBLIC' | 'RESTRICTED'>('PUBLIC');
+  // 公告范围固定全部可见（2026-11-11 用户裁定：「部分供应商可见」选项下线——公告中心
+  // 本体 2026-11-06 已删，此为项目发布向导侧收口；存量 RESTRICTED 公告不受影响）
+  const visibility = 'PUBLIC' as const;
   // 阳光采购弹窗「招标经办人/发布人」填当前登录人（2026-11-09 用户裁定）：挂载时取
   // /auth/me；取不到则弹窗内留空可手填
   const [currentUserName, setCurrentUserName] = useState<string | undefined>(undefined);
@@ -540,7 +540,6 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       .then((u) => setCurrentUserName(u.displayName || u.username))
       .catch(() => { /* 会话异常不阻塞向导 */ });
   }, []);
-  const [restrictedSupplierIds, setRestrictedSupplierIds] = useState<string[]>([]);
   // ★ 阳光采购平台同步发布（2026-09-24）：与公告范围（全部/部分可见）不互斥的附加选项，所有公告类型常置；
   // 配置内容按《天府阳光采购平台招标数据接口文档 V2.0.5》设计，发布时快照写入 metadata.sunshinePublish
   const [sunshineOn, setSunshineOn] = useState(false);
@@ -638,12 +637,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
   // 中标公告 AI 自动填入进度（步骤文案 + 完成计数），loading 面板实时展示
   const [aiFill, setAiFill] = useState<{ steps: string[]; done: number } | null>(null);
 
-  // Supplier picker
-  const [allSuppliers, setAllSuppliers] = useState<Supplier[]>([]);
-  const [supplierSearch, setSupplierSearch] = useState('');
-  const [showSupplierPicker, setShowSupplierPicker] = useState(false);
-  // 直接采购：自动匹配公告中拟定供应商的待匹配名称（匹配完清空）
-  const [autoMatchName, setAutoMatchName] = useState('');
+  // 供应商选择器状态已随「部分供应商可见」选项下线移除（2026-11-11）
 
   // #20 公告类型配置：控制各类型公告的发布配置区块可见性；新增类型仅需加一行
   // 中标公告（2026-09-04 重构）：不沿用采购公告的配置——无关键时间线（开标已完成）、
@@ -691,10 +685,6 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     setPreview(null);
     setTenderPreviewOpen(false);
     setAttPreview(null);
-    setVisibility('PUBLIC');
-    setRestrictedSupplierIds([]);
-    setShowSupplierPicker(false);
-    setAutoMatchName('');
     setPublishTiming('now');
     setScheduledDate('');
     setBusy(false);
@@ -728,8 +718,10 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         saveWizardState(project.id, restoreCategory, { draft: cachedWiz.draft as Record<string, string>, openingTimeSource: openSync.source });
       }
       setDraft(cachedWiz.draft as AnnouncementDraft);
-      setVisibility(cachedWiz.visibility ?? 'PUBLIC');
-      setRestrictedSupplierIds(cachedWiz.restrictedSupplierIds ?? []);
+      // 存量缓存若为「部分供应商可见」→ 按新口径转全部可见（选项已下线，2026-11-11）
+      if (cachedWiz.visibility === 'RESTRICTED') {
+        toast.info('原公告范围「部分供应商可见」已转为全部可见');
+      }
       setPublishTiming(cachedWiz.publishTiming === 'scheduled' ? 'scheduled' : 'now'); // 旧缓存的 announcement_start 已废弃，归一到 now
       setScheduledDate(cachedWiz.scheduledDate ?? '');
       setAnnouncementEndDate(cachedWiz.announcementEndDate ?? '');
@@ -739,10 +731,6 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       setNotifyOnPublish(cachedWiz.notifyOnPublish ?? true);
       setSunshineOn(cachedWiz.sunshineOn ?? false);
       setSunshineConfig(cachedWiz.sunshineConfig ?? null);
-      if (tt === 'SINGLE_SOURCE') {
-        const sn = (cachedWiz.draft as Record<string, string>).supplierName?.trim();
-        if (sn) setAutoMatchName(sn);
-      }
       setLoading(false);
       // 后台 .docx 解析仅作增量（日期类字段归一——中文原文并入 datetime-local 会被浏览器静默丢弃）
       parseAnnouncementFields(project.id)
@@ -918,42 +906,12 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       }
     }
 
-    // ★ 默认公告范围：全部可见
-    setVisibility('PUBLIC');
-
-    // 流标公告：强制全部可见 + 立即发布
+    // 流标公告：立即发布（公告范围已固定全部可见，2026-11-11）
     if (initialCategory === 'failed_bid') {
-      setVisibility('PUBLIC');
       setPublishTiming('now');
     }
 
-    // ★ 加载投标项目中被邀供应商
-    {
-      const defaultRestricted =
-        tt === 'COMPETITIVE_NEGOTIATION' || tt === 'INTERNAL_BIDDING' || tt === 'SINGLE_SOURCE';
-      if (defaultRestricted) {
-        listBidProjects()
-          .then(async (bidProjects: BidProjectOption[]) => {
-            const match = bidProjects.find(
-              (bp) => bp.name === project.title || project.title.includes(bp.name) || bp.name.includes(project.title),
-            );
-            if (!match) return;
-            const detail = await getBidProjectDetail(match.id).catch(() => null);
-            if (!detail?.suppliers?.length) return;
-            const ids = detail.suppliers
-              .filter((s: { supplierId: string | null }) => s.supplierId)
-              .map((s: { supplierId: string | null }) => s.supplierId!);
-            if (ids.length > 0) setRestrictedSupplierIds(ids);
-          })
-          .catch(() => {});
-      }
-    }
-
-    // ★ 直接采购：自动读取公告中的拟定供应商
-    if (tt === 'SINGLE_SOURCE') {
-      const sn = (filledDraft as Record<string, string>).supplierName || '';
-      if (sn.trim()) setAutoMatchName(sn);
-    }
+    // 被邀供应商预填已随「部分供应商可见」选项下线移除（2026-11-11）
 
     // ★ 直接采购：异步补充供应商地址 + AI 生成论证意见
     if (isSingleSource) {
@@ -1107,33 +1065,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     return () => document.removeEventListener('keydown', onKey);
   }, [isOpen, onClose]);
 
-  // Supplier list for picker（visibility 为部分可见时加载；并消费 autoMatchName 自动选中）
-  useEffect(() => {
-    if (visibility !== 'RESTRICTED' || !isOpen) return;
-    getSupplierList({ status: 'APPROVED', search: supplierSearch || undefined, pageSize: 200 })
-      .then((r) => {
-        setAllSuppliers(r.items);
-        if (autoMatchName.trim()) {
-          const name = autoMatchName.trim();
-          const matched = r.items.filter(
-            (s) => s.name === name || s.name.includes(name) || name.includes(s.name),
-          );
-          if (matched.length > 0) {
-            setRestrictedSupplierIds(matched.map((s) => s.id));
-          }
-          setAutoMatchName('');
-        }
-      })
-      .catch(() => {
-        /* ignore */
-      });
-  }, [visibility, isOpen, supplierSearch, autoMatchName]);
-
-  // 已选供应商名称解析（从 allSuppliers + 额外按 id 查询兜底）
-  const restrictedSuppliers = useMemo(() => {
-    const known = new Map(allSuppliers.map((s) => [s.id, s.name]));
-    return restrictedSupplierIds.map((id) => ({ id, name: known.get(id) || id.slice(-8) }));
-  }, [restrictedSupplierIds, allSuppliers]);
+  // 供应商可见范围选择器已随「部分供应商可见」选项下线（2026-11-11）——
+  // 供应商列表按需加载/已选解析逻辑一并移除
 
   const handleNext = () => {
     if (!draft || !category) {
@@ -1189,10 +1122,6 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     if ((category === 'procurement_document' || category === 'winning_bid' || category === 'failed_bid')
       && !(draft as Record<string, string>).announcementEnd) {
       toast.error('公告制作中未填写公示期限（止），请返回填写');
-      return;
-    }
-    if (visibility === 'RESTRICTED' && restrictedSupplierIds.length === 0) {
-      toast.error('请至少选择一家可见供应商');
       return;
     }
     setBusy(true);
@@ -1283,10 +1212,6 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       toast.error('公告制作中未填写公示期限（止），请返回填写');
       return;
     }
-    if (visibility === 'RESTRICTED' && restrictedSupplierIds.length === 0) {
-      toast.error('请至少选择一家可见供应商');
-      return;
-    }
     // 阳光采购平台：勾选同步但未完成配置 → 拦截发布并拉起配置弹窗
     if (sunshineOn && !sunshineConfig) {
       setSunshineModalOpen(true);
@@ -1336,20 +1261,20 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
 
       // 3. 创建公告（正文为全文；canonical 精炼字段供「信息发布」详情页与后端消费）
       const meta: Record<string, unknown> = { ...finalDraft, visibility, category, ...buildCanonicalMeta(project, finalDraft, tenderType === 'SINGLE_SOURCE') };
-      if (visibility === 'RESTRICTED') meta.restrictedSupplierIds = restrictedSupplierIds;
       if (publishTiming === 'scheduled') meta.scheduledPublishDate = scheduledDate;
       else if (publishTiming === 'announcement_start') meta.scheduledPublishDate = (finalDraft as Record<string, string>).announcementStart;
       meta.notifyOnPublish = notifyOnPublish;
       // 阳光采购平台同步快照（2026-09-24）：按接口文档 V2.0.5 组织，供后端推送链路消费；
-      // issueType/isExternal 由公告范围冻结（全部可见=公开方式+对外，部分可见=邀请方式+不对外）
+      // issueType/isExternal 由公告范围冻结——公告范围已固定全部可见（2026-11-11），
+      // 恒为 公开方式+对外
       if (sunshineOn && sunshineConfig && category) {
         meta.sunshinePublish = {
           enabled: true,
           interfaceCode: SUNSHINE_CATEGORY_INTERFACE[category].code,
           projectId: project?.id, // unique/planUnique 溯源键（后端推送与报文预览同源）
           config: sunshineConfig,
-          issueType: visibility === 'PUBLIC' ? 1 : 2,
-          isExternal: visibility === 'PUBLIC' ? 1 : 0,
+          issueType: 1,
+          isExternal: 1,
           // 变更/补遗轮次（2026-11-12 审计修复）：SCM0003 changes[].round 依赖——
           // 此前快照缺 round，平台侧每轮都当第 1 轮
           ...((category === 'change_notice' || category === 'addendum')
@@ -1647,7 +1572,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               const pubStart = dr.announcementStart || '';
               const pubEnd = announcementEndDate || dr.announcementEnd || '';
               const summaryRows: Array<[string, React.ReactNode]> = [
-                ['公告范围', visibility === 'PUBLIC' ? '全部可见' : `部分供应商可见（${restrictedSupplierIds.length} 家）`],
+                ['公告范围', '全部可见'],
                 ['发布时间', publishTiming === 'now' ? '确认后立即发布' : `定时 ${formatDateTimeDisplay(scheduledDate)}`],
               ];
               if (pubStart || pubEnd) {
@@ -1816,60 +1741,15 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               ) : (
               <div className="flex flex-col rounded-[20px] p-5 space-y-3" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
                 <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">公告范围</div>
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="radio"
-                    name="visibility"
-                    checked={visibility === 'PUBLIC'}
-                    onChange={() => setVisibility('PUBLIC')}
-                    className="accent-[var(--accent)]"
-                  />
-                  全部可见
-                </label>
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="radio"
-                    name="visibility"
-                    checked={visibility === 'RESTRICTED'}
-                    onChange={() => { setVisibility('RESTRICTED'); setShowSupplierPicker(true); }}
-                    className="accent-[var(--accent)]"
-                  />
-                  部分供应商可见
-                </label>
-                {visibility === 'RESTRICTED' && (
-                  <div className="pt-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {restrictedSupplierIds.length > 0 ? (
-                        <>
-                          {restrictedSuppliers.map((s) => (
-                            <span
-                              key={s.id}
-                              className="inline-flex items-center gap-1 rounded-lg bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-1 text-xs font-semibold text-[var(--accent)]"
-                            >
-                              {s.name}
-                              <button
-                                type="button"
-                                onClick={() => setRestrictedSupplierIds((prev) => prev.filter((x) => x !== s.id))}
-                                className="opacity-70 hover:opacity-100"
-                              >
-                                <X size={11} />
-                              </button>
-                            </span>
-                          ))}
-                        </>
-                      ) : (
-                        <span className="text-xs text-[var(--muted-foreground)]">未选择供应商</span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => setShowSupplierPicker(true)}
-                        className="neu-btn-xs ml-auto shrink-0"
-                      >
-                        <Search size={11} />选择供应商
-                      </button>
-                    </div>
-                  </div>
-                )}
+                {/* 固定全部可见（2026-11-11 用户裁定：「部分供应商可见」选项下线——
+                    公告中心本体 2026-11-06 已先行删除，此处为项目发布向导侧收口） */}
+                <div className="flex items-center justify-between gap-3">
+                  <label className="flex items-center gap-2 text-sm text-[color:var(--foreground)]">
+                    <input type="radio" checked readOnly className="accent-[var(--accent)]" />
+                    全部可见
+                  </label>
+                  <span className="text-[10px] leading-tight text-[var(--muted-foreground)]">公告对全部入库供应商可见</span>
+                </div>
                 <SunshineSyncRow
                   sunshineOn={sunshineOn}
                   sunshineConfig={sunshineConfig}
@@ -2217,86 +2097,10 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
           </div>
         </div>
       )}
-
-      {/* 供应商选择弹窗 */}
-      {showSupplierPicker && (
-        <div className="fixed inset-0 z-[600] flex items-center justify-center">
-          <div
-            className="absolute inset-0"
-            style={{ background: 'oklch(0.1 0.02 258 / 0.42)', backdropFilter: 'blur(4px)' }}
-            onClick={() => setShowSupplierPicker(false)}
-          />
-          <div
-            className="relative z-10 flex max-h-[80vh] w-full max-w-[520px] flex-col overflow-hidden rounded-[24px]"
-            style={{
-              background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))',
-              boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 4px 5px 18px oklch(0.45 0.07 258 / 0.2), -2px -2px 8px oklch(1 0 0 / 0.9)',
-            }}
-          >
-            {/* 标题 */}
-            <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-4" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
-              <div className="text-[0.92rem] font-semibold text-[var(--foreground)]">选择可见供应商</div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold tabular-nums text-[var(--accent)]">已选 {restrictedSupplierIds.length}</span>
-                <button type="button" onClick={() => setShowSupplierPicker(false)} className="neu-btn-xs"><X size={16} /></button>
-              </div>
-            </div>
-
-            {/* 搜索 + 列表 */}
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4 space-y-2">
-              <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
-                <input
-                  value={supplierSearch}
-                  onChange={(e) => setSupplierSearch(e.target.value)}
-                  placeholder="搜索供应商名称..."
-                  className="workbench-input w-full !pl-9 text-sm"
-                  autoFocus
-                />
-              </div>
-              <div className="max-h-[420px] overflow-y-auto rounded-[12px] divide-y divide-[oklch(0.6_0.04_258_/_0.08)]"
-                style={{ background: 'oklch(1 0 0 / 0.38)', boxShadow: 'inset 1px 1px 3px oklch(0.55 0.03 258 / 0.08), inset -1px -1px 2px oklch(1 0 0 / 0.6)' }}>
-                {allSuppliers.map((s) => (
-                  <label
-                    key={s.id}
-                    className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-[oklch(1_0_0_/_0.3)] cursor-pointer transition-colors"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={restrictedSupplierIds.includes(s.id)}
-                      onChange={() =>
-                        setRestrictedSupplierIds((prev) =>
-                          prev.includes(s.id)
-                            ? prev.filter((x) => x !== s.id)
-                            : [...prev, s.id],
-                        )
-                      }
-                      className="accent-[var(--accent)]"
-                    />
-                    <span className="text-[var(--foreground)]">{s.name}</span>
-                  </label>
-                ))}
-                {allSuppliers.length === 0 && (
-                  <p className="px-3 py-6 text-xs text-[var(--muted-foreground)] text-center">
-                    无匹配供应商
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* 底栏 */}
-            <div className="flex shrink-0 items-center justify-end gap-3 px-6 py-3.5" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
-              <button type="button" onClick={() => setShowSupplierPicker(false)} className="neu-btn-soft">取消</button>
-              <button type="button" onClick={() => setShowSupplierPicker(false)} className="neu-btn-primary !h-[38px]">
-                确定（{restrictedSupplierIds.length}）
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
+
 
 function AttachmentSection({
   pendingFiles,
