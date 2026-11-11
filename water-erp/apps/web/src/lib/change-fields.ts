@@ -19,7 +19,7 @@ export type ChangeFieldDef = {
 }
 
 export type ChangeFieldGroup = {
-  key: 'basic' | 'document' | 'notice';
+  key: 'basic' | 'notice';
   label: string;
   stageKey: string;
   stageLabel: string;
@@ -41,17 +41,6 @@ export const CHANGE_FIELD_GROUPS: ChangeFieldGroup[] = [
       { field: 'projectOverview', label: '项目概况', kind: 'text', target: 'PMI', multiline: true },
       { field: 'initiationDate', label: '立项日期', kind: 'text', target: 'PMI' },
       { field: 'demandProject', label: '归属项目', kind: 'text', target: 'PMI', widget: 'search-select' },
-    ],
-  },
-  {
-    key: 'document',
-    label: '采购文件',
-    stageKey: 'TENDER_DOCUMENT',
-    stageLabel: '采购文件',
-    fields: [
-      { field: 'qualification', label: '资格要求', kind: 'text', target: 'BID' },
-      { field: 'scope', label: '供货范围', kind: 'text', target: 'BID' },
-      { field: 'qualityRequirement', label: '质量要求', kind: 'text', target: 'BID' },
     ],
   },
   {

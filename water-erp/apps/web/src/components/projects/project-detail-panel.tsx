@@ -40,7 +40,6 @@ import {
 import { ProjectTimelineStrip } from './project-timeline-strip';
 import { ProjectChangeEntry } from './project-change-entry';
 import { bindChangeAnnouncement } from '@/lib/api/project-changes';
-import { getBidProjectFields } from '@/lib/api/bid';
 import { ChangeModal } from './change-modal';
 import { ProjectStageTimeline } from './project-stage-timeline';
 import { StageFileList } from './stage-file-list';
@@ -642,8 +641,7 @@ export function ProjectDetailPanel({
   // 提取信息编辑状态
   const [editingField, setEditingField] = useState<string | null>(null);
   const [changeModalOpen, setChangeModalOpen] = useState(false);
-  // 变更弹窗现值（与左栏同源）：override 非空键合并 + BID 组字段现取
-  const [changeBidFields, setChangeBidFields] = useState<{ qualification: string | null; scope: string | null; qualityRequirement: string | null } | null>(null);
+  // 变更弹窗现值（与左栏同源）：override 非空键合并（变更范围=项目基本信息，2026-11-11 用户裁定）
   const changeCurrentValues = useMemo(() => ({
     ...(item as unknown as Record<string, string | number | null>),
     ...Object.fromEntries(Object.entries(extractedInfoOverride ?? {}).filter(([, v]) => v != null && (v as string) !== '')),
@@ -1216,14 +1214,6 @@ export function ProjectDetailPanel({
   /** 变更发起入口（2026-11-11 变更体系）：开标前弹三步变更/补遗弹窗 */
   const handleInitiateChange = () => {
     if (isBidLocked) { toast.warning('开标后不可修改标前数据'); return; }
-    // BID 组现值（资格要求等）随开随取——与投标项目当前值一致
-    if (currentRoundBp?.id) {
-      getBidProjectFields(currentRoundBp.id)
-        .then(r => setChangeBidFields({ qualification: r.qualification, scope: r.scope, qualityRequirement: r.qualityRequirement }))
-        .catch(() => setChangeBidFields(null));
-    } else {
-      setChangeBidFields(null);
-    }
     setChangeModalOpen(true);
   };
 
@@ -2721,7 +2711,6 @@ export function ProjectDetailPanel({
         item={item}
         currentStage={item.currentStage}
         currentValues={changeCurrentValues}
-        bidFields={changeBidFields}
         onRegistered={(ctx) => {
           handleUpdated();
           setChangeWizardCtx({

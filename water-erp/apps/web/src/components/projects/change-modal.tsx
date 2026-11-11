@@ -38,7 +38,6 @@ export function ChangeModal({
   item,
   currentValues,
   currentStage,
-  bidFields,
   onRegistered,
 }: {
   isOpen: boolean;
@@ -47,8 +46,6 @@ export function ChangeModal({
   /** 现值源（与左栏同源）：item + extractedInfoOverride 非空键合并 */
   currentValues?: Record<string, string | number | null> | null;
   currentStage: string | null;
-  /** 当前轮 BidProject 字段现值（BID 组预填；无投标侧数据传 null） */
-  bidFields: { qualification?: string | null; scope?: string | null; qualityRequirement?: string | null } | null;
   onRegistered: (result: { needsAnnouncement: boolean; recordId: string; category: 'change_notice' | 'addendum'; round: number; reason: string; changeContent: string }) => void;
 }) {
   const [step, setStep] = useState<Step>('type');
@@ -73,9 +70,7 @@ export function ChangeModal({
   const pm = { ...(item as unknown as Record<string, string | number | null>), ...(currentValues ?? {}) };
   const currentOf = (f: string): string => {
     if (f === 'bidOpeningTime') return cnToDatetimeLocal(pm.bidOpeningTime as string);
-    const v = f === 'qualification' || f === 'scope' || f === 'qualityRequirement'
-      ? (bidFields as Record<string, string | null | undefined> | null)?.[f]
-      : pm[f];
+    const v = pm[f];
     return v == null ? '' : String(v);
   };
 

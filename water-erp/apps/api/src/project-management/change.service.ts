@@ -49,7 +49,6 @@ export class ProjectChangeService {
 
     const stageKeys = pmi.stages.map(s => s.stageKey);
     const pmiData: Record<string, unknown> = {};
-    const bidData: Record<string, unknown> = {};
     const diffs: Array<{ field: string; label: string; from: string; to: string; stageKey: string }> = [];
     let needsAnnouncement = false;
 
@@ -85,14 +84,10 @@ export class ProjectChangeService {
           to = ProjectChangeService.formatBeijingCn(d);
           pmiData.bidOpeningTime = to;
           needsAnnouncement = true;
-        } else if (def.target === 'PMI') {
+        } else {
           from = String((pmi as Record<string, unknown>)[field] ?? '');
           to = def.kind === 'number' ? String(Number(raw)) : String(raw ?? '');
           (pmiData as Record<string, unknown>)[field] = def.kind === 'number' ? Number(raw) : to;
-        } else {
-          from = String((bp as Record<string, unknown>)[field] ?? '');
-          to = String(raw ?? '');
-          (bidData as Record<string, unknown>)[field] = to;
         }
         if (from === to) continue; // 同值跳过；全表无差异 → NO_CHANGE
         diffs.push({ field, label: def.label, from, to, stageKey: group.stageKey });
@@ -118,9 +113,6 @@ export class ProjectChangeService {
     const record = await this.prisma.$transaction(async (tx) => {
       if (Object.keys(pmiData).length > 0) {
         await tx.projectManagementItem.update({ where: { id: projectId }, data: pmiData });
-      }
-      if (Object.keys(bidData).length > 0 && bp) {
-        await tx.bidProject.update({ where: { id: bp.id }, data: bidData });
       }
       return tx.projectChangeRecord.create({
         data: {

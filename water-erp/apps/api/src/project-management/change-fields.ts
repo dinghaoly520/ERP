@@ -6,8 +6,8 @@ export type ChangeFieldDef = {
   field: string;
   label: string;
   kind: 'text' | 'number' | 'datetime';
-  /** 写入目标表：PMI=ProjectManagementItem；BID=BidProject（当前轮未归档行） */
-  target: 'PMI' | 'BID';
+  /** 写入目标：PMI=ProjectManagementItem（2026-11-11 用户裁定：变更范围=项目基本信息，采购文件域字段不入白名单） */
+  target: 'PMI';
 };
 
 /** 禁入白名单的字段（点名字段+提示去向；新名单字段加入这里） */
@@ -27,16 +27,6 @@ export const CHANGE_FIELD_GROUPS = [
       { field: 'projectOverview', label: '项目概况', kind: 'text', target: 'PMI' },
       { field: 'initiationDate', label: '立项日期', kind: 'text', target: 'PMI' },
       { field: 'demandProject', label: '归属项目', kind: 'text', target: 'PMI' },
-    ],
-  },
-  {
-    key: 'document',
-    label: '采购文件',
-    stageKey: 'TENDER_DOCUMENT',
-    fields: [
-      { field: 'qualification', label: '资格要求', kind: 'text', target: 'BID' },
-      { field: 'scope', label: '供货范围', kind: 'text', target: 'BID' },
-      { field: 'qualityRequirement', label: '质量要求', kind: 'text', target: 'BID' },
     ],
   },
   {
