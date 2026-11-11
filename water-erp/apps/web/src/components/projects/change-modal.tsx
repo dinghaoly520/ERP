@@ -9,16 +9,16 @@
  * 服务端为权威闸（白名单/阶段/开标锁/理由），前端禁用仅作引导。
  */
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshCcw, FilePlus2, X, Sparkles, Loader2 } from 'lucide-react';
+import { RefreshCcw, FilePlus2, X, Sparkles, Loader2, ScrollText, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
-import { registerChange, listChanges } from '@/lib/api/project-changes';
+import { registerChange, listChanges, type ProjectChangeRecord } from '@/lib/api/project-changes';
 import { CHANGE_FIELD_GROUPS, stageReached } from '@/lib/change-fields';
 import { SearchSelect, type SearchSelectOption } from '@/components/workbench/search-select';
 import { fetchProjectManagementList, extractTenderFields, optimizeInitiationFields } from '@/lib/api/project-management';
 import { fetchMyCompanyInfo } from '@/lib/api/company-info';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 
-type Step = 'type' | 'form';
+type Step = 'type' | 'form' | 'records';
 
 /** PMI 中文开标时间（YYYY年M月D日 HH:mm，+08 墙钟）→ datetime-local 输入值 */
 function cnToDatetimeLocal(cn: string | null | undefined): string {
@@ -64,6 +64,10 @@ export function ChangeModal({
   const [saving, setSaving] = useState(false);
   const [projectOptions, setProjectOptions] = useState<SearchSelectOption[]>([]);
   const [aiBusy, setAiBusy] = useState<string | null>(null);
+  // 记录视图（2026-11-12：并入本窗口第三步）
+  const [records, setRecords] = useState<ProjectChangeRecord[] | null>(null);
+  const [recordsLoading, setRecordsLoading] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   // 登记前选择（2026-11-12 用户裁定）：是否先发布公告——发布优先模式未登记数据，
   // 公告发布成功才由面板补登记；取消发布=放弃本次修改
   const [awaitChoice, setAwaitChoice] = useState<{ type: 'CHANGE' | 'ADDENDUM'; reason: string; fields: Record<string, string> } | null>(null);
@@ -152,6 +156,16 @@ export function ChangeModal({
       setAiBusy(null);
     }
   };
+
+  useEffect(() => {
+    if (isOpen && step === 'records' && records == null) {
+      setRecordsLoading(true);
+      listChanges(item.id)
+        .then(setRecords)
+        .catch(() => setRecords([]))
+        .finally(() => setRecordsLoading(false));
+    }
+  }, [isOpen, step, records, item.id]);
 
   if (!isOpen) return null;
 
@@ -264,7 +278,7 @@ export function ChangeModal({
         <div className="flex shrink-0 items-start justify-between gap-4 px-6 pb-4 pt-5">
           <div className="flex items-center gap-2 text-lg font-semibold tracking-[-0.02em] text-[var(--foreground)]">
             {type === 'CHANGE' ? <RefreshCcw size={16} className="text-[var(--accent)]" /> : <FilePlus2 size={16} className="text-[var(--accent)]" />}
-            {step === 'type' ? '变更 / 补遗' : type === 'CHANGE' ? '变更 · 修改信息' : '补遗 · 说明'}
+            {step === 'type' ? '变更 / 补遗' : step === 'records' ? '变更 / 补遗记录' : type === 'CHANGE' ? '变更 · 修改信息' : '补遗 · 说明'}
           </div>
           <button type="button" onClick={onClose} className="neu-btn-xs"><X size={15} /></button>
         </div>
@@ -286,6 +300,80 @@ export function ChangeModal({
                   不动原公告，另发一份补充说明；需要对外发布的登记后直接发布。
                 </p>
               </button>
+              <button type="button" onClick={() => setStep('records')} className="neu-card block w-full p-4 text-left">
+                <div className="flex items-center gap-2 text-sm font-bold text-[var(--foreground)]"><ScrollText size={15} className="text-[var(--muted-foreground)]" />变更 / 补遗记录</div>
+                <p className="mt-1.5 text-xs leading-5 text-[var(--muted-foreground)]">查看本项目历次变更与补遗的轮次、理由与内容对照。</p>
+              </button>
+            </div>
+          )}
+
+          {step === 'records' && (
+            <div className="mt-4 space-y-2">
+              {recordsLoading && <p className="py-8 text-center text-sm text-[var(--muted-foreground)]">正在加载…</p>}
+              {!recordsLoading && records && records.length === 0 && (
+                <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">本项目尚无变更 / 补遗记录</p>
+              )}
+              {!recordsLoading && records && records.length > 0 && records.map((r) => {
+                const summary = r.changeset?.[0]
+                  ? `${r.changeset[0].label}：${r.changeset[0].from} → ${r.changeset[0].to}${r.changeset.length > 1 ? ` 等 ${r.changeset.length} 项` : ''}`
+                  : '补遗登记';
+                const open = expandedId === r.id;
+                return (
+                  <div key={r.id} className="rounded-[12px] bg-[var(--surface)]">
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left"
+                      onClick={() => setExpandedId(open ? null : r.id)}
+                    >
+                      <span
+                        className="inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-[7px] px-1.5 text-[11px] font-extrabold"
+                        style={{
+                          background: r.type === 'CHANGE' ? 'color-mix(in oklch, var(--warning) 16%, transparent)' : 'color-mix(in oklch, var(--accent) 14%, transparent)',
+                          color: r.type === 'CHANGE' ? 'var(--warning)' : 'var(--accent)',
+                        }}
+                      >
+                        {r.round}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px] font-semibold text-[var(--foreground)]">
+                          {r.type === 'CHANGE' ? '变更' : '补遗'} · {summary}
+                        </span>
+                        <span className="mt-0.5 block text-[11px] text-[var(--muted-foreground)]">
+                          理由：{r.reason} · {r.operatorName} · {new Date(r.createdAt).toLocaleString('zh-CN', { hour12: false })}
+                        </span>
+                      </span>
+                      {r.needsAnnouncement && !r.announcementId && (
+                        <span className="shrink-0 rounded-[6px] bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--warning)]">
+                          公告待发
+                        </span>
+                      )}
+                      <ChevronRight size={15} className={`shrink-0 text-[var(--muted-foreground)] transition-transform ${open ? 'rotate-90' : ''}`} />
+                    </button>
+                    {open && r.changeset?.length > 0 && (
+                      <div className="px-4 pb-3">
+                        <table className="w-full text-[12px]">
+                          <thead>
+                            <tr className="text-left text-[10px] font-bold uppercase tracking-wide text-[var(--muted-foreground)]">
+                              <th className="py-1 pr-2 font-bold">字段</th>
+                              <th className="py-1 pr-2 font-bold">原值</th>
+                              <th className="py-1 font-bold">新值</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {r.changeset.map((c) => (
+                              <tr key={c.field} className="text-[var(--foreground)]">
+                                <td className="border-t border-[var(--border)]/60 py-1.5 pr-2 font-semibold">{c.label}</td>
+                                <td className="border-t border-[var(--border)]/60 py-1.5 pr-2 text-[var(--muted-foreground)]">{c.from || '（空）'}</td>
+                                <td className="border-t border-[var(--border)]/60 py-1.5 font-semibold text-[var(--accent-strong)]">{c.to || '（空）'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -460,6 +548,15 @@ export function ChangeModal({
                   发布公告
                 </button>
               </div>
+            </div>
+          </>
+        )}
+
+        {step === 'records' && (
+          <>
+            <hr className="wb-section-rule" />
+            <div className="flex shrink-0 items-center justify-end px-6 py-3.5">
+              <button type="button" className="neu-btn-soft" onClick={() => setStep('type')}>返回</button>
             </div>
           </>
         )}
