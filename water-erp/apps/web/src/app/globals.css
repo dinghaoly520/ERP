@@ -2116,8 +2116,8 @@ a {
   line-height: 1.6;
   color: var(--foreground);
   text-align: left;
-  /* 近实底（2026-09-26 修正）：勿抄 wb-modal-shell 的渐变尾端（2026-11-11 起为系统
-     105° 渐变 0.32 尾端）——无蒙层小文字气泡下背景字会透出；
+  /* 近实底（2026-09-26 修正）：勿抄 wb-modal-shell 的彩色渐变底（其近不透明
+     度兜底可读性）——无蒙层小文字气泡下背景字会透出；
      气泡自带头缘内高光与双影，不需要靠透明度呼吸 */
   background: linear-gradient(170deg, oklch(1 0 0 / 0.99), oklch(0.985 0.004 258 / 0.97));
   box-shadow:
@@ -7690,10 +7690,13 @@ select.workbench-input {
 }
 
 .wb-modal-shell {
-  /* 系统渐变底板（2026-11-11 用户裁定：弹窗底色改用系统背景渐变）：
-     与 .wb-panel 同源 105° 白→冰蓝玻璃渐变——前提是蒙层必带 blur（透出的是
-     雾化背景，非生内容；pm-help-tip 类无蒙层小气泡仍须近实底，勿抄此处） */
-  background: linear-gradient(105deg, oklch(1 0 0 / 0.96) 0%, oklch(0.99 0.003 258 / 0.78) 50%, oklch(1 0 0 / 0.32) 88%);
+  /* 系统背景彩色渐变（2026-11-11 用户裁定：弹窗底色用「背景颜色中的」渐变）：
+     与全局 body 背景同配方——白→冰蓝 180° 基底 + 蓝/琥珀/青绿三束角部光晕 */
+  background:
+    radial-gradient(circle at 14% 12%, rgba(118, 165, 255, 0.16), transparent 24%),
+    radial-gradient(circle at 84% 16%, rgba(242, 201, 132, 0.12), transparent 18%),
+    radial-gradient(circle at 76% 82%, rgba(120, 209, 186, 0.1), transparent 20%),
+    linear-gradient(180deg, rgba(248, 251, 255, 0.99), rgba(240, 245, 252, 0.98));
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 0.88),
     3px 4px 16px oklch(0.46 0.07 258 / 0.18),
