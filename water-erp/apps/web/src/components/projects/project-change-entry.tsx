@@ -72,7 +72,7 @@ export function ProjectChangeEntry({
             role="dialog"
           >
             <div className="flex shrink-0 items-start justify-between gap-4 px-6 pb-4 pt-5">
-              <div className="flex items-center gap-2 text-base font-semibold text-[var(--foreground)]">
+              <div className="flex items-center gap-2 text-lg font-semibold tracking-[-0.02em] text-[var(--foreground)]">
                 <ScrollText size={16} className="text-[var(--accent)]" />
                 变更 / 补遗记录
                 {records && <span className="text-xs font-normal text-[var(--muted-foreground)]">共 {records.length} 轮</span>}

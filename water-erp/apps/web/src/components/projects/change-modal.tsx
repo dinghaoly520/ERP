@@ -156,7 +156,7 @@ export function ChangeModal({
       >
         {/* 标题 */}
         <div className="flex shrink-0 items-start justify-between gap-4 px-6 pb-4 pt-5">
-          <div className="flex items-center gap-2 text-base font-semibold text-[var(--foreground)]">
+          <div className="flex items-center gap-2 text-lg font-semibold tracking-[-0.02em] text-[var(--foreground)]">
             {type === 'CHANGE' ? <RefreshCcw size={16} className="text-[var(--accent)]" /> : <FilePlus2 size={16} className="text-[var(--accent)]" />}
             {step === 'type' ? '变更 / 补遗' : type === 'CHANGE' ? '变更 · 修改信息' : '补遗 · 说明'}
           </div>
@@ -187,7 +187,7 @@ export function ChangeModal({
                 <div key={g.key} className="space-y-3">
                   {gi > 0 && <hr className="wb-section-rule" />}
                   <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-bold text-[var(--foreground)]">{g.label}</span>
+                    <span className="text-sm font-bold text-[var(--foreground)]">{g.label}</span>
                     {!g.unlocked && (
                       <span className="text-[11px] font-medium text-[var(--muted-foreground)]">未进入 {g.stageLabel} 阶段，不可变更</span>
                     )}
@@ -198,14 +198,14 @@ export function ChangeModal({
                       // AI 按钮会被字段区远处点击误触（2026-11-12 实录）——按钮只随自身命中
                       <div key={f.field} className={`flex flex-col gap-1${f.fullRow ? ' col-span-2' : ''}`}>
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+                          <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
                             {f.label}
                             {g.unlocked && (values[f.field] ?? '') !== '' && (values[f.field] ?? '') !== currentOf(f.field) && <span className="ml-1 normal-case text-[var(--warning)]">已修改</span>}
                           </span>
                           {f.aiAssist && g.unlocked && (
                             <button
                               type="button"
-                              className="neu-btn-xs !h-[22px] !px-2 text-[10px]"
+                              className="neu-btn-xs !h-[22px] !px-2 !text-[10px] !font-semibold"
                               disabled={aiBusy != null}
                               onClick={() => void runAiAssist(f.field, f.aiAssist!)}
                             >
@@ -273,7 +273,7 @@ export function ChangeModal({
               )}
 
               <label className="flex flex-col gap-1">
-                <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+                <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
                   变更理由<span className="ml-1 font-normal normal-case text-[var(--warning)]">必填，随轮次留档</span>
                 </span>
                 <textarea
