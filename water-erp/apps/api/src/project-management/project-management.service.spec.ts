@@ -2086,7 +2086,7 @@ describe('reproc 流标重启（2026-10-23 统一流 spec）', () => {
 
     const created = prisma.projectManagementStage.createMany.mock.calls[0][0].data;
     expect(created.map((s: any) => s.stageKey)).toEqual([
-      'PROCUREMENT_DEMAND', 'INITIATION', 'TENDER_DOCUMENT', 'SUPPLIER_INVITATION', 'EXPERT_SELECTION', 'BID_EVALUATION', 'AWARD_DECISION', 'CONTRACT',
+      'PROCUREMENT_DEMAND', 'INITIATION', 'TENDER_DOCUMENT', 'PUBLIC_ANNOUNCEMENT', 'EXPERT_SELECTION', 'BID_EVALUATION', 'AWARD_DECISION', 'CONTRACT',
     ]);
     expect(prisma.projectManagementItem.update.mock.calls[0][0].data).toEqual(
       expect.objectContaining({ procurementMethod: '谈判采购', currentStage: 'PROCUREMENT_DEMAND', currentRound: 2 }),

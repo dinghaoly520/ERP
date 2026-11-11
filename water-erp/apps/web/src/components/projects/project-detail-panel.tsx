@@ -874,10 +874,11 @@ export function ProjectDetailPanel({
   }, []);
 
   // 供应商参与：拉取公告自动收集的参与供应商（下载采购文件 ∪ 登记的项目供应商）。
-  // 仅非谈判方式（参与的供应商）；谈判采购走「邀请的供应商」手动维护，不覆盖。
+  // 发布公告的方式（询比/谈判/竞价）拉「参与的供应商」；邀请类（邀请招标/直接采购）
+  // 走「邀请的供应商」手动维护，不覆盖（2026-11-12 流程互换）。
   useEffect(() => {
     setParticipantNames(null);
-    if (!item?.projectCode || item.procurementMethod === '谈判采购') return;
+    if (!item?.projectCode || ['邀请招标', '直接采购'].includes(item.procurementMethod)) return;
     let alive = true;
     getProjectParticipants(item.projectCode)
       .then((r) => {
@@ -2024,11 +2025,11 @@ export function ProjectDetailPanel({
                   <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]" style={{background:"var(--stage-announce-soft)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)"}}>
                     <UserPlus size={14} style={{color:"var(--stage-announce)"}} />
                   </div>
-                  <span className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">{item.procurementMethod === '谈判采购' ? '供应商邀请' : '供应商参与'}</span>
+                  <span className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">{['邀请招标', '直接采购'].includes(item.procurementMethod) ? '供应商邀请' : '供应商参与'}</span>
                 </div>
                 <BiddingUnitsField
                   readOnly={actionsDisabled}
-                  label={item.procurementMethod === '谈判采购' ? '邀请的供应商' : '参与的供应商'}
+                  label={['邀请招标', '直接采购'].includes(item.procurementMethod) ? '邀请的供应商' : '参与的供应商'}
                   value={participantNames ?? (extractedInfoOverride?.invitedSuppliers ?? item.invitedSuppliers ?? null)}
                   isEditing={editingField === 'invitedSuppliers'}
                   editValue={editValues.invitedSuppliers}

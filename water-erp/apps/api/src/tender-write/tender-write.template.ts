@@ -2374,6 +2374,7 @@ export const SINGLE_SOURCE_ANNOUNCEMENT_TEMPLATE_FILE =
 export const FAILED_BID_ANNOUNCEMENT_TEMPLATE_FILE = '模板文件/流标公示模板.docx';
 export const WINNING_BID_ANNOUNCEMENT_TEMPLATE_FILE = '模板文件/中标公告模板.docx';
 export const CHANGE_NOTICE_ANNOUNCEMENT_TEMPLATE_FILE = '模板文件/变更公告模板.docx';
+export const COMPETITIVE_NEGOTIATION_ANNOUNCEMENT_TEMPLATE_FILE = '模板文件/谈判采购公告模板.docx';
 export const ADDENDUM_ANNOUNCEMENT_TEMPLATE_FILE = '模板文件/补遗公告模板.docx';
 export const NOTIFICATION_LETTER_TEMPLATE_FILE = '模板文件/中标通知书模板.docx';
 export const DIRECT_FILING_TEMPLATE_FILE = '模板文件/直接采购备案表模板.docx';

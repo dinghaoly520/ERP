@@ -45,11 +45,11 @@ export const ANNOUNCEMENT_AVAILABILITY: Record<
   string,
   AnnouncementCategory[]
 > = {
-  COMPETITIVE_NEGOTIATION: ["failed_bid", "winning_bid", "change_notice", "addendum"],
+  COMPETITIVE_NEGOTIATION: ["procurement_document", "failed_bid", "winning_bid", "change_notice", "addendum"],
   INQUIRY_PURCHASE: ["procurement_document", "failed_bid", "winning_bid", "change_notice", "addendum"],
   INTERNAL_BIDDING: ["procurement_document", "failed_bid", "winning_bid", "change_notice", "addendum"],
-  INVITED_BIDDING: ["procurement_document", "failed_bid", "winning_bid", "change_notice", "addendum"],
-  SINGLE_SOURCE: ["procurement_document", "failed_bid", "winning_bid", "change_notice", "addendum"],
+  INVITED_BIDDING: ["failed_bid", "winning_bid", "change_notice", "addendum"],
+  SINGLE_SOURCE: ["failed_bid", "winning_bid", "change_notice", "addendum"],
 };
 
 /**
