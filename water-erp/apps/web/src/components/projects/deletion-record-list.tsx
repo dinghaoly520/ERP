@@ -13,19 +13,21 @@ function terminateTimeOf(r: ProjectDeletionRecord) {
   return r.terminatedAt ?? r.recycledAt ?? null;
 }
 
-/** 终止时简报（2026-11-12 用户裁定：结合终止原因重写）——AI 项目简报（如有）在前，
- *  「终止时所在阶段 + 终止原因」收尾成自然叙述；三项全无（存量迁移行）返回 null 不显示。 */
-function briefOf(r: ProjectDeletionRecord) {
-  // AI 简报常以句号收尾，去尾句号防拼接后双句号
-  const head = r.analysisSummary?.trim().replace(/。+$/, '') || null;
+/** 项目简报正文（2026-11-12 用户裁定）：AI 项目简报（与详情页同源快照），去尾句号防双句号；
+ *  无则 null——终止阶段/原因独立成行（terminationNoteOf），不再拼进简报。 */
+function briefBodyOf(r: ProjectDeletionRecord) {
+  return r.analysisSummary?.trim().replace(/。+$/, '') || null;
+}
+
+/** 终止信息行（独立一行）：终止时所在阶段 + 终止原因；两项全无返回 null。 */
+function terminationNoteOf(r: ProjectDeletionRecord) {
   const stage = r.terminatedStage?.trim() || null;
   const reason = r.terminationReason?.trim() || null;
-  const tail = [
+  const parts = [
     ...(stage ? [`终止时处于「${stage}」阶段`] : []),
     ...(reason ? [`终止原因：「${reason}」`] : []),
-  ].join('，');
-  if (head) return tail ? `${head}。${tail}。` : `${head}。`;
-  return tail ? `项目${tail}。` : null;
+  ];
+  return parts.length > 0 ? `${parts.join('，')}。` : null;
 }
 
 /** 移除记录只读行（spec 2026-11-12 §9）：无任何操作按钮；空列表不渲染。
@@ -66,15 +68,26 @@ export function DeletionRecordList({ records, showHeader = true }: { records: Pr
             <div className="text-xs text-[color:var(--muted-foreground)] sm:text-right">
               操作人：{r.deletedByName}
             </div>
-            {/* 项目简报（2026-11-12 用户裁定）：占满整行完整展示——与详情页同源快照 */}
+            {/* 项目简报正文整行（2026-11-12 用户裁定：与详情页同源快照，完整展示）；
+                终止阶段+原因独立成行（用户裁定：单起一行） */}
             {(() => {
-              const brief = briefOf(r);
-              return brief ? (
-                <div className="col-span-full mt-1 text-xs leading-5 text-[color:var(--muted-foreground)]">
-                  <span className="font-semibold text-[color:var(--foreground)]">项目简报：</span>
-                  {brief}
-                </div>
-              ) : null;
+              const body = briefBodyOf(r);
+              const note = terminationNoteOf(r);
+              return (
+                <>
+                  {body ? (
+                    <div className="col-span-full mt-1 text-xs leading-5 text-[color:var(--muted-foreground)]">
+                      <span className="font-semibold text-[color:var(--foreground)]">项目简报：</span>
+                      {body}。
+                    </div>
+                  ) : null}
+                  {note ? (
+                    <div className="col-span-full text-xs leading-5 text-[color:var(--muted-foreground)]">
+                      {note}
+                    </div>
+                  ) : null}
+                </>
+              );
             })()}
           </div>
         ))}
