@@ -13,7 +13,7 @@ description: 禅道 bug 整理核查与入库流水线——按仓库权威 SOP 
 
 1. **禅道栈在跑**：`docker ps` 见 `zentao-standalone-db-1`；没起则 `~/桌面/禅道/start-zentao.sh`（先问用户）。
 2. **OCR 在跑**：`curl -s --noproxy '*' http://localhost:8110/health` 或 PM2 `erp-ocr` 状态；截图取证唯一权威通道（SOP §3，勿信 CDN 回传）。
-3. **ERP 工作区**：`git log --oneline -1` 记基准 commit（写进产出件）；并行会话避让规则同仓库 CLAUDE.md——前六步只读安全，§8 起只 add 自己的批次目录。
+3. **ERP 工作区先同步再记基准**：`git fetch` → 落后则**问用户**是否拉取（pull 前树必须干净，绝不 autostash/脏树——并行会话避让）；拉不了就按当前 HEAD 继续，但产出件「核查方法备注」必须写明「核查基准=本地 HEAD `<hash>`，落后 origin/main N 提交」。随后 `git log --oneline -1` 记基准 commit（写进产出件）。前六步只读安全，§8 起只 add 自己的批次目录。
 
 ## 1. 定范围（先问用户）
 
