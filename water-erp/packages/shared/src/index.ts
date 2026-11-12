@@ -16,5 +16,6 @@ export * from './data-class';
 export * from './file-name';
 export * from './format-bid';
 export * from './evaluation-rules';
+export * from './procurement-method-label';
 export * from './company-order';
 export * from './sasac-units';

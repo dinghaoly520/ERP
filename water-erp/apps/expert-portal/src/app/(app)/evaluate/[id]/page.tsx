@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
-import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
+import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL, tenderDocumentLabel } from '@water-erp/shared';
 import { validateSupplierScores, buildFullPoints, committedRecordFor, isCommittedEquivalent, filterScorableItems, type ScoreEntry } from '@/lib/score-validation';
 import { markTransferClaimed } from '@/lib/transfer-claimed-flag';
 import { ArrowLeft, Check, ShieldCheck, ShieldAlert, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, Clock, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History, Info, Smartphone, UserRoundCog, Hourglass } from 'lucide-react';
@@ -798,6 +798,13 @@ export default function ExpertEvaluatePage() {
     || confirmedConflictIds.size !== conflictedSupplierIds.size
     || [...conflictedSupplierIds].some((id) => !confirmedConflictIds.has(id));
 
+  // #73（2026-11-12）：采购/招标文件称谓按方式条件化——法定招标方式（公开/邀请）显法定名
+  // 「招标文件」（2026-11-03 裁定#3），其余含未知值走 canon「采购文件」（shared 单源词表，
+  // 生产 distinct 核对口径见 procurement-method-label.ts）；谈判文档源铁证双保险
+  const tenderDocLabel = project?.tenderDocument?.source === 'negotiation'
+    ? '采购文件'
+    : tenderDocumentLabel(project?.procurementMethod);
+
   // 未签到期间 10s 静默轮询（silent 防整页卸载）：host 待核验登记（2026-09-20 §4.2）/ self 态 :3007 R9 手动确认
   // 签到 / 口令待验（2026-09-20 §4）/ 启动前待命 OPENING 等 stage 翻转（2026-10-21 启动闸，WS 为主断连兜底）
   const roomGatePending = !!project?.roomCodeActive && !project?.roomCodeVerified;
@@ -1012,7 +1019,7 @@ export default function ExpertEvaluatePage() {
       setDocuments({});
       await Promise.all(data.suppliers.map(s => loadDocuments(s.id, batchSeq)));
       if (!data.tenderDocument) {
-        toast.message('招标文件可能未上传，请联系管理员');
+        toast.message(`${tenderDocumentLabel(data.procurementMethod)}可能未上传，请联系管理员`);
       }
     } catch (e: any) {
       toast.error(e?.message || '刷新失败');
@@ -1869,7 +1876,7 @@ export default function ExpertEvaluatePage() {
                         <Gavel size={14} strokeWidth={1.5} /> 评标纪律承诺
                       </h3>
                       <ul className="mb-1 space-y-2 text-sm text-[var(--muted-foreground)]">
-                        <li className="flex items-start gap-2"><span className="text-[var(--accent-strong)]">•</span>严格按照招标文件规定的评审标准和方法进行评审</li>
+                        <li className="flex items-start gap-2"><span className="text-[var(--accent-strong)]">•</span>严格按照{tenderDocLabel}规定的评审标准和方法进行评审</li>
                         <li className="flex items-start gap-2"><span className="text-[var(--accent-strong)]">•</span>独立评审，不与其他专家串通或私下交流评审意见</li>
                         <li className="flex items-start gap-2"><span className="text-[var(--accent-strong)]">•</span>客观公正，不带任何偏见和个人倾向</li>
                         <li className="flex items-start gap-2"><span className="text-[var(--accent-strong)]">•</span>对评审过程和结果保密，不向任何人透露</li>
@@ -1933,7 +1940,7 @@ export default function ExpertEvaluatePage() {
                         <p>一、AI 辅助工具生成的合规判断、风险提示、评分建议等内容，性质均为<strong className="text-[var(--foreground)]">辅助参考</strong>，不构成评审结论；</p>
                         <p>二、上述 AI 意见仅供本人在评标过程中参考，<strong className="text-[var(--foreground)]">不得干预或干扰本人的独立职业判断</strong>；</p>
                         <p>三、任何 AI 输出均<strong className="text-[var(--foreground)]">不得作为本人打分的直接依据或唯一理由</strong>，本人对每一项评分及其理由独立负责；</p>
-                        <p>四、最终评审意见与评分结果，由本人依据招标文件规定的标准和方法、结合专业判断独立作出，不由 AI 决定，亦不因 AI 意见而免除本人的评审责任。</p>
+                        <p>四、最终评审意见与评分结果，由本人依据{tenderDocLabel}规定的标准和方法、结合专业判断独立作出，不由 AI 决定，亦不因 AI 意见而免除本人的评审责任。</p>
                       </div>
                       <p className="text-sm font-medium text-[var(--muted-foreground)]">本人确认已阅读并充分理解上述声明。</p>
                       <label className="flex cursor-pointer items-center gap-3">
