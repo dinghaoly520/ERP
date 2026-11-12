@@ -19,6 +19,10 @@ const modal = readFileSync(
   resolve("src/components/projects/tender-write-modal.tsx"),
   "utf8",
 );
+const writeback = readFileSync(
+  resolve("src/lib/tender-write/quotation-ai-writeback.ts"),
+  "utf8",
+);
 
 test("CR-01: 历史应用路径过 sanitize——handleApplyHistory 的 draftData 先消毒再入 state", () => {
   const fn = page.match(/const handleApplyHistory =[\s\S]*?\n  };/)?.[0] ?? "";
@@ -47,4 +51,16 @@ test("CR-01: 「参考上一轮」服务器轨过 sanitize——上一轮服务�
     "裸转 r.drafts as TenderDraftsState（未消毒）形态不得回归",
   );
   assert.match(modal, /sanitizeTenderDraftsState\(r\.drafts as TenderDraftsState\)/);
+});
+
+test("CR-05: 报价双版本生成不得全有全无——Promise.all 弃用、allSettled 按各自结果落形", () => {
+  assert.doesNotMatch(
+    modal,
+    /await Promise\.all\(\[/,
+    "await Promise.all([ 一败全弃形态不得回归（文字版失败连带丢弃已成功的表格版）",
+  );
+  const allSettledCount = (modal.match(/Promise\.allSettled\(/g) ?? []).length;
+  assert.ok(allSettledCount >= 2, `报价双版本两处调用点应均走 allSettled，实测 ${allSettledCount}`);
+  assert.match(modal, /settledAiContent/);
+  assert.match(writeback, /export function settledAiContent/);
 });

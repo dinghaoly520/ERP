@@ -24,6 +24,19 @@ export type QuotationBatchWriteBack = {
 };
 
 /**
+ * allSettled 结果 → 内容串（CR-05 2026-11-12）：rejected → 空串（该版缺省，
+ * 另一版仍可落形——旧 Promise.all 一败全弃是净回归）；fulfilled → 清洗链
+ * （乱码 U+FFFD / 连续问号 / 尾空白）——与单字段 AI 生成的清洗口径一致。
+ */
+export function settledAiContent(r: PromiseSettledResult<{ content?: string }>): string {
+  if (r.status !== "fulfilled") return "";
+  return (r.value.content ?? "")
+    .replace(/�/g, "")
+    .replace(/\?{2,}(?=\s|$|。|，|；)/g, "")
+    .replace(/\s+$/, "");
+}
+
+/**
  * 两版生成产物落形：
  * - 表格版可解析 → type='table' + 表格 +（文字版成功的）段落——默认展示表格、切文字模式段落现成；
  * - 表格版解析失败 → type='text' + 段落（内容决定展示模式，不让空表占着默认位）。

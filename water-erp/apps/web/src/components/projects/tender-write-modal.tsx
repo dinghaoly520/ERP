@@ -37,6 +37,7 @@ import {
 import {
   planQuotationBatchWriteBack,
   QUOTATION_TEXT_VERSION_PROMPT,
+  settledAiContent,
 } from '@/lib/tender-write/quotation-ai-writeback';
 import { tableHasDataRows } from '@/lib/tender-write/quotation-table-text';
 import { TenderReviewProvider } from '@/components/tender-review/tender-review-provider';
@@ -402,14 +403,17 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
         // 时段落已现成，无需再点一次 AI
         if (f.fieldKey === 'quotationLetter') {
           try {
-            const [tableRes, textRes] = await Promise.all([
+            // CR-05（2026-11-12）：allSettled 按各自结果落形——旧 Promise.all 一败全弃
+            // 是净回归（文字版超时/429 连带丢弃已成功的表格版）；双失败才跳过写回
+            const [tableSettled, textSettled] = await Promise.allSettled([
               generateFieldContent({ fieldKey: f.fieldKey, fieldLabel: f.label, currentValue: '', aiPrompt: f.aiPrompt, context }),
               generateFieldContent({ fieldKey: f.fieldKey, fieldLabel: f.label, currentValue: '', aiPrompt: QUOTATION_TEXT_VERSION_PROMPT, context }),
             ]);
-            const plan = planQuotationBatchWriteBack(
-              (tableRes.content ?? '').replace(/�/g, '').replace(/\?{2,}(?=\s|$|。|，|；)/g, '').replace(/\s+$/, ''),
-              (textRes.content ?? '').replace(/�/g, '').replace(/\?{2,}(?=\s|$|。|，|；)/g, '').replace(/\s+$/, ''),
-            );
+            if (tableSettled.status === 'rejected' && textSettled.status === 'rejected') {
+              await new Promise((r) => setTimeout(r, 300));
+              continue;
+            }
+            const plan = planQuotationBatchWriteBack(settledAiContent(tableSettled), settledAiContent(textSettled));
             setDrafts((prev) => {
               const emptyFn = {
                 COMPETITIVE_NEGOTIATION: createEmptyCompetitiveNegotiationDraft,
@@ -616,17 +620,19 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       try {
         // 报价表双版本齐生成（2026-11-12 用户裁定）：表格版+文字版一次到位，默认先使用表格
         if (f.fieldKey === 'quotationLetter') {
-          const [tableRes, textRes] = await Promise.all([
+          // CR-05（2026-11-12）：allSettled 按各自结果落形——旧 Promise.all 一败全弃
+          // 是净回归（文字版超时/429 连带丢弃已成功的表格版）；双失败才跳过写回
+          //（字段级吞错不中断批量的语义不变）
+          const [tableSettled, textSettled] = await Promise.allSettled([
             generateFieldContent({ fieldKey: f.fieldKey, fieldLabel: f.label, currentValue: '', aiPrompt: f.aiPrompt, context }),
             generateFieldContent({ fieldKey: f.fieldKey, fieldLabel: f.label, currentValue: '', aiPrompt: QUOTATION_TEXT_VERSION_PROMPT, context }),
           ]);
-          const plan = planQuotationBatchWriteBack(
-            (tableRes.content ?? '').replace(/�/g, '').replace(/\?{2,}(?=\s|$|。|，|；)/g, '').replace(/\s+$/, ''),
-            (textRes.content ?? '').replace(/�/g, '').replace(/\?{2,}(?=\s|$|。|，|；)/g, '').replace(/\s+$/, ''),
-          );
-          updateDraft('quotationLetterType', plan.quotationLetterType);
-          if (plan.quotationLetter !== undefined) updateDraft(f.fieldKey as TenderFieldKey, plan.quotationLetter);
-          if (plan.quotationTable !== undefined) updateDraftTable(plan.quotationTable);
+          if (tableSettled.status !== 'rejected' || textSettled.status !== 'rejected') {
+            const plan = planQuotationBatchWriteBack(settledAiContent(tableSettled), settledAiContent(textSettled));
+            updateDraft('quotationLetterType', plan.quotationLetterType);
+            if (plan.quotationLetter !== undefined) updateDraft(f.fieldKey as TenderFieldKey, plan.quotationLetter);
+            if (plan.quotationTable !== undefined) updateDraftTable(plan.quotationTable);
+          }
         } else {
           const result = await generateFieldContent({
             fieldKey: f.fieldKey as TenderFieldKey,
