@@ -44,7 +44,6 @@ import { getDownloadUrl } from '@/lib/api/review';
 import type { ReviewTask } from '@/lib/types/tender-review';
 import {
   uploadProjectStageAttachment,
-  updateProjectExtractedInfo,
   fetchProjectTenderDraft,
   saveProjectTenderDraft,
   clearProjectTenderDraft,
@@ -759,28 +758,9 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
         });
         const uploaded = await uploadProjectStageAttachment(project.id, 'TENDER_DOCUMENT', file);
         onAttachmentUploaded?.(uploaded);
-        // 同步 tender-write draft 中的字段到项目基本信息（绕过 PDF 解析）
-        // 不同模板的字段名不同：projectOverview/projectIntroduction、documentAcquireTime 等
-        const draftRecord = currentDraft as Record<string, string>;
-        const infoUpdate: Record<string, string> = {};
-        // 2026-10-29 询比 v2：草稿字段与其他类型统一为 projectOverview（旧 projectIntroduction 已废）
-        const overviewVal = draftRecord['projectOverview']?.trim();
-        if (overviewVal) infoUpdate.projectOverview = overviewVal;
-        const acquireVal = draftRecord['documentAcquireTime']?.trim();
-        if (acquireVal) infoUpdate.documentAcquireTime = acquireVal;
-        // 询比评审方法固定综合评分法（草稿无 evaluationMethod 字段）；其余类型读草稿值
-        if (selectedType === 'INQUIRY_PURCHASE') {
-          infoUpdate.evaluationMethod = '综合评分法';
-        } else {
-          const evalVal = draftRecord['evaluationMethod']?.trim();
-          if (evalVal) { infoUpdate.evaluationMethod = evalVal /* 非ExtractedInfo字段但DB接受 */; }
-        }
-        if (Object.keys(infoUpdate).length > 0) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          try { await updateProjectExtractedInfo(project.id, infoUpdate as any); } catch { /* 同步失败不阻塞 */ }
-        }
-        // 刷新父组件项目数据，使基本信息中刚写入的 projectOverview / documentAcquireTime
-        // / evaluationMethod 等字段即时显示，避免必须手动刷新页面。
+        // 字段回填说明（2026-11-12）：概况/获取时段/开标时间由上传链路的文档提取落库
+        // （isTenderMainFile 已认「谈判文件」）；原「草稿字段 PATCH extracted-info 同步」自
+        // 2026-11-11 变更体系闸门（CHANGE_ONLY）起恒 400 且被吞——死通道已删，改文档提取正路。
         try { await onUpdated?.(); } catch { /* 刷新失败不阻塞导出 */ }
         toast.success('采购文件已上传至项目采购文件阶段');
       } catch {
@@ -850,25 +830,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       });
       const uploaded = await uploadProjectStageAttachment(project.id, 'TENDER_DOCUMENT', file);
       onAttachmentUploaded?.(uploaded);
-      // 同步 tender-write draft 中的字段到项目基本信息（绕过 PDF 解析）
-      const draftRecord2 = currentDraft as Record<string, string>;
-      const infoUpdate2: Record<string, string> = {};
-      // 2026-10-29 询比 v2：与其他类型统一读 projectOverview（旧 projectIntroduction 已废）
-      const overviewVal2 = draftRecord2['projectOverview']?.trim();
-      if (overviewVal2) infoUpdate2.projectOverview = overviewVal2;
-      const acquireVal2 = draftRecord2['documentAcquireTime']?.trim();
-      if (acquireVal2) infoUpdate2.documentAcquireTime = acquireVal2;
-      // 询比评审方法固定综合评分法；其余类型读草稿值（与直接导出同步同口径）
-      if (selectedType === 'INQUIRY_PURCHASE') {
-        infoUpdate2.evaluationMethod = '综合评分法';
-      } else {
-        const evalVal2 = draftRecord2['evaluationMethod']?.trim();
-        if (evalVal2) { infoUpdate2.evaluationMethod = evalVal2; }
-      }
-      if (Object.keys(infoUpdate2).length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        try { await updateProjectExtractedInfo(project.id, infoUpdate2 as any); } catch { /* 同步失败不阻塞 */ }
-      }
+      // 字段回填走上传链路文档提取（同导出路径注释，2026-11-12）；草稿 PATCH 同步已被变更体系闸门封死，删。
       toast.success('采购文件已提交至项目采购文件阶段');
       setShowReviewUploadDialog(false);
       setShowReview(false);

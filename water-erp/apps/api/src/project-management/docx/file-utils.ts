@@ -27,7 +27,8 @@ import { basename, extname, join, resolve } from 'node:path';
    * project-detail-panel.tsx 的前端预检保持同款正则（后端判定为准，预检仅快速反馈）。
    */
   export function isTenderMainFile(fileName: string): boolean {
-    return /采购文件|招标文件/.test(fileName)
+    // 谈判文件=谈判采购导出命名（tender-write.service 统一命名 typeLabel），2026-11-12 前漏网致上传后字段提取整段跳过
+    return /采购文件|招标文件|谈判文件/.test(fileName)
       && !/审批表|公告|通知书|采购合同|合同书|合同文本|合同协议|需求书|需求文件|需求说明|需求清单|立项申请|立项报告|立项书/.test(fileName);
   }
 
