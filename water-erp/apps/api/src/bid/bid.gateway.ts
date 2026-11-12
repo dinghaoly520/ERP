@@ -5,10 +5,11 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
+import { ExpertPairingRegistry } from '../auth/expert-pairing.registry';
 import { PORTS, portalFromHostname } from '@water-erp/config';
 import {
   BID_EVENT,
@@ -177,6 +178,10 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly jwt: JwtService,
     private readonly prisma: PrismaService,
+    // TAB-SYNC-01（Task 6）：平板配对登记存活校验。@Optional 同 auth.guard.ts /
+    // expert-pairing.registry 的 REDIS_CLIENT 模式，仅防测试直构；生产经 BidModule
+    // imports ExpertPairingModule 解析。缺失时 scoped token 一律 fail closed 拒连。
+    @Optional() private readonly pairingRegistry?: ExpertPairingRegistry,
   ) {}
 
   // ── Connection lifecycle: JWT auth + role flag ──
@@ -194,8 +199,9 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
     let role: string | undefined;
     let userId: string | undefined;
+    let payload: { role?: string; sub?: string; sid?: string; scope?: string; jti?: string } | undefined;
     try {
-      const payload = await this.jwt.verifyAsync(token);
+      payload = await this.jwt.verifyAsync(token);
       role = payload?.role;
       userId = payload?.sub;
     } catch (err) {
@@ -207,6 +213,46 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.logger.warn('WS 拒绝连接：JWT 载荷缺 role/sub');
       socket.disconnect(true);
       return;
+    }
+    // ── TAB-SYNC-01（Task 6，spec §10）：握手期会话/配对校验 ──
+    // 存量缺口（评审事实更正）：此前 handleConnection 只验 JWT 签名，桌面登出/会话轮换后
+    // 旧设备 socket 仍可凭未过期 JWT 自由重连（HTTP 面 AuthGuard 已拦、WS 面漏）。
+    // ① sid 一致：带 sid 的 token（web/supplier/expert 单设备命名空间 + 平板配对令牌）与
+    //    库中 User.webSessionId 对账（notification.gateway 同款先例）。无 sid 的 token
+    //    （token_bid 等旧命名空间）不受影响，照常放行。
+    if (payload?.sid) {
+      const su = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { webSessionId: true },
+      });
+      if (payload.sid !== su?.webSessionId) {
+        this.logger.warn(`WS 拒绝连接：会话已轮换或登出（sid 失配）userId=${userId}`);
+        socket.disconnect(true);
+        return;
+      }
+    }
+    // ② 配对存活：scope=tablet-pairing 受限令牌逐连接核对 Redis 登记（解绑/过期/被新配对
+    //    单飞替换即拒——AuthGuard 逐请求口径的 WS 面）。fail closed：registry 缺失（测试
+    //    直构防御位）或 Redis 故障（isAlive 抛 ServiceUnavailableException）一律拒连——
+    //    Redis 不可用不得放进未校验的配对 socket。
+    if (payload?.scope === 'tablet-pairing') {
+      let alive = false;
+      try {
+        alive = this.pairingRegistry
+          ? await this.pairingRegistry.isAlive(payload.jti as string, userId)
+          : false;
+      } catch (err) {
+        this.logger.warn(
+          `WS 拒绝连接：配对登记校验异常（fail closed）userId=${userId}（${(err as Error).message}）`,
+        );
+        socket.disconnect(true);
+        return;
+      }
+      if (!alive) {
+        this.logger.warn(`WS 拒绝连接：配对已解除或过期（pairingId=${payload.jti}）`);
+        socket.disconnect(true);
+        return;
+      }
     }
     (socket.data as any).userId = userId;
     (socket.data as any).role = role;
