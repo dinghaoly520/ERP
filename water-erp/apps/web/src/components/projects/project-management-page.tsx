@@ -1,12 +1,13 @@
 "use client";
 
-import { AlertCircle, Ban, CheckCircle2, ClipboardCopy, FolderOpen, Plus, Recycle, Search, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2, ClipboardCopy, FolderOpen, Loader2, Plus, Recycle, Search, Trash2, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import {
   deleteProjectPermanently,
+  fetchDeletionRecords,
   fetchProjectManagementList,
   moveProjectToRecycleBin,
   restoreProjectFromRecycleBin,
@@ -14,11 +15,13 @@ import {
 } from '@/lib/api/project-management';
 import type { AuthUser } from '@/lib/api/auth';
 import { fetchCurrentUser } from '@/lib/api/auth';
-import type { ProjectManagementItem } from '@/lib/types/project-management';
+import type { ProjectDeletionRecord, ProjectManagementItem } from '@/lib/types/project-management';
 import { CreateProjectDialog } from './create-project-dialog';
 import { ProjectCard } from './project-card';
 import { ProjectDetailPanel } from './project-detail-panel';
-import { RecycleBinDrawer } from './recycle-bin-drawer';
+import { RecycledProjectCard } from './recycled-project-card';
+import { DeletionRecordList } from './deletion-record-list';
+import { LoginErrorDialog } from '@/components/login/login-error-dialog';
 import { useAssistant } from "@/components/assistant/assistant-provider";
 import { isGroupedCompanyView, CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
 import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from "@/components/company/company-tag";
@@ -28,13 +31,16 @@ export function ProjectManagementPage() {
   const [archivedItems, setArchivedItems] = useState<ProjectManagementItem[]>([]);
   const [terminatedItems, setTerminatedItems] = useState<ProjectManagementItem[]>([]);
   const [recycledItems, setRecycledItems] = useState<ProjectManagementItem[]>([]);
-  const [activeTab, setActiveTab] = useState<'active' | 'archived' | 'terminated'>('active');
+  const [activeTab, setActiveTab] = useState<'active' | 'archived' | 'removed'>('active');
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [drawerErrorMessage, setDrawerErrorMessage] = useState<string | null>(null);
+  const [removedErrorMessage, setRemovedErrorMessage] = useState<string | null>(null);
   const [keyword, setKeyword] = useState('');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showRecycleBin, setShowRecycleBin] = useState(false);
+  // 「已移出」区（spec 2026-11-12 §3.2）：删除留痕 + 已终止卡清理确认 + 一键删除确认
+  const [deletionRecords, setDeletionRecords] = useState<ProjectDeletionRecord[]>([]);
+  const [cleanupTarget, setCleanupTarget] = useState<ProjectManagementItem | null>(null);
+  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [sortBy, setSortBy] = useState<'createdAt' | 'updatedAt' | 'budgetAmount' | 'title'>('updatedAt');
   // 级联筛选：filterType 选维度，filterValue 选值
   const [filterType, setFilterType] = useState<'method' | 'department' | 'operator'>('method');
@@ -53,16 +59,18 @@ export function ProjectManagementPage() {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const [activeItems, archived, terminated, recycled] = await Promise.all([
+      const [activeItems, archived, terminated, recycled, records] = await Promise.all([
         fetchProjectManagementList('ACTIVE', companyId),
         fetchProjectManagementList('ARCHIVED', companyId),
         fetchProjectManagementList('TERMINATED', companyId),
         fetchProjectManagementList('RECYCLED', companyId),
+        fetchDeletionRecords(companyId),
       ]);
       setItems(activeItems);
       setArchivedItems(archived);
       setTerminatedItems(terminated);
       setRecycledItems(recycled);
+      setDeletionRecords(records);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '加载项目失败。');
     } finally {
@@ -147,8 +155,10 @@ export function ProjectManagementPage() {
     return Array.from(set).sort();
   }, [items]);
 
-  // 当前 tab 的数据源（active/archived/terminated）
-  const sourceItems = activeTab === 'archived' ? archivedItems : activeTab === 'terminated' ? terminatedItems : items;
+  // 当前 tab 的数据源（active/archived/removed——removed 合并已终止+已移除供筛选下拉取值）
+  const sourceItems = activeTab === 'archived' ? archivedItems
+    : activeTab === 'removed' ? [...terminatedItems, ...recycledItems]
+    : items;
 
   const operators = useMemo(() => {
     const source = sourceItems;
@@ -164,8 +174,8 @@ export function ProjectManagementPage() {
     return Array.from(new Set(source.map(i => i.createdByName).filter(Boolean))).sort();
   }, [filterType, sourceItems]);
 
-  const filteredItems = useMemo(() => {
-    const source = sourceItems;
+  // 筛选管线抽参（2026-11-12 已移出区）：已终止/已移除两节各自过同一管线（spec §3.2 共用搜索/排序/筛选）
+  const applyFilters = (source: ProjectManagementItem[]) => {
     let result = [...source];
 
     // Text search
@@ -202,7 +212,27 @@ export function ProjectManagementPage() {
     });
 
     return result;
-  }, [activeTab, sourceItems, keyword, sortBy, filterType, filterValue]);
+  };
+
+  const filteredItems = useMemo(() => applyFilters(sourceItems), [sourceItems, keyword, sortBy, filterType, filterValue]);
+  // 「已移出」两节（卡片管线）+ 留痕节（仅关键词，deletedAt 倒序由后端定）
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const filteredTerminated = useMemo(
+    () => (activeTab === 'removed' ? applyFilters(terminatedItems) : []),
+    [activeTab, terminatedItems, keyword, sortBy, filterType, filterValue],
+  );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const filteredRecycled = useMemo(
+    () => (activeTab === 'removed' ? applyFilters(recycledItems) : []),
+    [activeTab, recycledItems, keyword, sortBy, filterType, filterValue],
+  );
+  const filteredRecords = useMemo(() => {
+    const normalized = keyword.trim().toLowerCase();
+    if (!normalized) return deletionRecords;
+    return deletionRecords.filter((r) =>
+      [r.title, r.requesterName, r.requesterDepartment, r.projectCode ?? ''].join(' ').toLowerCase().includes(normalized),
+    );
+  }, [deletionRecords, keyword]);
 
   // admin 全部公司视图：按公司分组（计数降序、未归属沉底）；单公司视图用选择器公司名
   const companyViewAll = currentUser?.role === 'admin' && isGroupedCompanyView(companyId);
@@ -256,12 +286,12 @@ export function ProjectManagementPage() {
 
   const handleRestore = async (projectId: string) => {
     setRecycleActionId(projectId);
-    setDrawerErrorMessage(null);
+    setRemovedErrorMessage(null);
     try {
       await restoreProjectFromRecycleBin(projectId);
       await loadItems();
     } catch (error) {
-      setDrawerErrorMessage(error instanceof Error ? error.message : '恢复项目失败。');
+      setRemovedErrorMessage(error instanceof Error ? error.message : '恢复项目失败。');
     } finally {
       setRecycleActionId(null);
     }
@@ -269,12 +299,12 @@ export function ProjectManagementPage() {
 
   const handleDeletePermanently = async (projectId: string) => {
     setRecycleActionId(projectId);
-    setDrawerErrorMessage(null);
+    setRemovedErrorMessage(null);
     try {
       await deleteProjectPermanently(projectId);
       await loadItems();
     } catch (error) {
-      setDrawerErrorMessage(error instanceof Error ? error.message : '彻底删除失败。');
+      setRemovedErrorMessage(error instanceof Error ? error.message : '彻底删除失败。');
     } finally {
       setRecycleActionId(null);
     }
@@ -284,12 +314,12 @@ export function ProjectManagementPage() {
     if (recycledItems.length === 0) return;
 
     setRecycleActionId('__all__');
-    setDrawerErrorMessage(null);
+    setRemovedErrorMessage(null);
     try {
       await Promise.all(recycledItems.map((item) => deleteProjectPermanently(item.id)));
       await loadItems();
     } catch (error) {
-      setDrawerErrorMessage(error instanceof Error ? error.message : '一键删除失败。');
+      setRemovedErrorMessage(error instanceof Error ? error.message : '一键删除失败。');
       throw error;
     } finally {
       setRecycleActionId(null);
@@ -316,20 +346,7 @@ export function ProjectManagementPage() {
                 {/* 计数口径=本公司进行中项目数（2026-11-10 用户裁定：项目管理页误落默认
                     账号口径显示「办公/专家」）；零项目公司随 CompanySelect 过滤不进下拉 */}
                 <CompanySelect value={companyId} onChange={setCompanyId} countMode="projectsActive" />
-                {/* 归档记录入口已收敛至「采购台账」；/archive 页保留供归档待办通知直达 */}
-                <button
-                  type="button"
-                  onClick={() => setShowRecycleBin(true)}
-                  className="neu-btn-soft is-danger"
-                >
-                  <Recycle size={16} />
-                  回收站
-                  {recycledItems.length ? (
-                    <span className="rounded-full bg-[rgba(234,191,106,0.16)] px-2 py-0.5 text-[11px] text-[color:var(--warning)]">
-                      {recycledItems.length}
-                    </span>
-                  ) : null}
-                </button>
+                {/* 回收站已并入「已移出」tab（spec 2026-11-12）；归档记录入口收敛至「采购台账」 */}
                 <button
                   type="button"
                   onClick={() => setShowCreateDialog(true)}
@@ -384,13 +401,15 @@ export function ProjectManagementPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setActiveTab('terminated')}
+                    onClick={() => setActiveTab('removed')}
                     className="neu-segment-btn"
-                    aria-pressed={activeTab === 'terminated'}
+                    aria-pressed={activeTab === 'removed'}
                   >
-                    <Ban size={13} className="inline mr-1" />
-                    已终止
-                    {terminatedItems.length > 0 && <span className="neu-segment-count">{terminatedItems.length}</span>}
+                    <Recycle size={13} className="inline mr-1" />
+                    已移出
+                    {(terminatedItems.length + recycledItems.length) > 0 && (
+                      <span className="neu-segment-count">{terminatedItems.length + recycledItems.length}</span>
+                    )}
                   </button>
                 </div>
                 <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">排序</span>
@@ -447,6 +466,96 @@ export function ProjectManagementPage() {
                 <div className="text-[0.9rem] font-semibold text-[rgba(96,139,239,0.4)]">暂无项目</div>
               </div>
             </div>
+          ) : activeTab === 'removed' ? (
+            <div className="space-y-6">
+              {/* 已终止节（spec §3.2-1）：ProjectCard 只读详情 + 创建人弱清理按钮（裁定 #2 终态可清理） */}
+              <section className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-[13px] font-bold tracking-[0.02em] text-[color:var(--foreground)]">已终止</h3>
+                  <span className="neu-segment-count">{filteredTerminated.length}</span>
+                  <span className="text-xs text-[color:var(--muted-foreground)]">业务结局留痕，只读</span>
+                </div>
+                {filteredTerminated.length === 0 ? (
+                  <div className="wb-panel p-4 text-sm text-[color:var(--muted-foreground)]">暂无已终止项目</div>
+                ) : (
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    {filteredTerminated.map((item) => (
+                      <div key={item.id} className="space-y-2">
+                        <ProjectCard
+                          item={item}
+                          variant="terminated"
+                          onOpen={() => {
+                            setSelectedItemId(item.id);
+                            setPageContext({
+                              selectedItemId: item.id,
+                              selectedItemType: 'project',
+                              selectedItemData: {
+                                title: item.title,
+                                currentStage: item.currentStage,
+                                status: item.status,
+                                requesterDepartment: item.requesterDepartment,
+                              },
+                            });
+                          }}
+                        />
+                        {canModifyProject(item) && (
+                          <div className="flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => setCleanupTarget(item)}
+                              className="neu-btn-soft is-danger !h-8 !text-xs"
+                            >
+                              <Trash2 size={14} />移除清理
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* 已移除节（spec §3.2-2）：简化卡 + 恢复/彻底删除（自退役抽屉迁入） */}
+              <section className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-[13px] font-bold tracking-[0.02em] text-[color:var(--foreground)]">已移除</h3>
+                    <span className="neu-segment-count">{filteredRecycled.length}</span>
+                    <span className="text-xs text-[color:var(--muted-foreground)]">可恢复，彻底删除受 3 年保留期约束</span>
+                  </div>
+                  {filteredRecycled.length > 0 && filteredRecycled.every((i) => canModifyProject(i)) ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteAllConfirm(true)}
+                      disabled={Boolean(recycleActionId)}
+                      className="neu-btn-soft is-danger !h-8 !text-xs"
+                    >
+                      <Trash2 size={14} />
+                      {recycleActionId === '__all__' ? '删除中...' : '一键删除'}
+                    </button>
+                  ) : null}
+                </div>
+                {filteredRecycled.length === 0 ? (
+                  <div className="wb-panel p-4 text-sm text-[color:var(--muted-foreground)]">暂无已移除项目</div>
+                ) : (
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    {filteredRecycled.map((item) => (
+                      <RecycledProjectCard
+                        key={item.id}
+                        item={item}
+                        submitting={recycleActionId === item.id}
+                        canModify={canModifyProject(item)}
+                        onRestore={(id) => void handleRestore(id)}
+                        onDelete={(id) => void handleDeletePermanently(id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* 已彻底删除节（spec §3.2-3）：留痕只读行（空态不渲染） */}
+              <DeletionRecordList records={filteredRecords} />
+            </div>
           ) : companyViewAll ? (
             <div className="space-y-5">
               {companyGroups.map((g) => (
@@ -457,7 +566,7 @@ export function ProjectManagementPage() {
                       <ProjectCard
                         key={item.id}
                         item={item}
-                        variant={activeTab === 'archived' ? 'archived' : activeTab === 'terminated' ? 'terminated' : 'active'}
+                        variant={activeTab === 'archived' ? 'archived' : 'active'}
                         onOpen={() => {
                           setSelectedItemId(item.id);
                           setPageContext({
@@ -487,7 +596,7 @@ export function ProjectManagementPage() {
                   <ProjectCard
                     key={item.id}
                     item={item}
-                    variant={activeTab === 'archived' ? 'archived' : activeTab === 'terminated' ? 'terminated' : 'active'}
+                    variant={activeTab === 'archived' ? 'archived' : 'active'}
                     onOpen={() => {
                       setSelectedItemId(item.id);
                       setPageContext({
@@ -541,21 +650,129 @@ export function ProjectManagementPage() {
         }}
       />
 
-      <RecycleBinDrawer
-        isOpen={showRecycleBin}
-        items={recycledItems}
-        submittingId={recycleActionId}
-        errorMessage={drawerErrorMessage}
-        canModify={canModifyProject}
-        onClose={() => {
-          setShowRecycleBin(false);
-          setDrawerErrorMessage(null);
-        }}
-        onRestore={handleRestore}
-        onDelete={handleDeletePermanently}
-        onDeleteAll={handleDeleteAllPermanently}
-        onDismissError={() => setDrawerErrorMessage(null)}
+      {/* 已移出区操作错误弹窗（自退役抽屉迁入） */}
+      <LoginErrorDialog
+        title="操作失败"
+        isOpen={Boolean(removedErrorMessage)}
+        message={removedErrorMessage ?? ''}
+        onClose={() => setRemovedErrorMessage(null)}
       />
+
+      {/* 已终止卡「移除清理」确认（弹窗规范 A 版） */}
+      {cleanupTarget ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 py-6">
+          <div
+            className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-md"
+            onClick={() => {
+              if (!recycleActionId) setCleanupTarget(null);
+            }}
+          />
+          <div className="relative w-full max-w-[460px] overflow-hidden wb-modal-shell">
+            <div className="absolute inset-x-0 top-0 h-1.5 bg-[linear-gradient(90deg,rgba(209,88,88,0.95),rgba(234,191,106,0.72),rgba(121,162,239,0.35))]" />
+            <div className="px-6 py-6">
+              <div className="flex items-start gap-4">
+                <div className="flex h-13 w-13 shrink-0 items-center justify-center rounded-[18px] border border-[color-mix(in_oklch,var(--danger)_24%,transparent)] bg-[color-mix(in_oklch,var(--danger)_11%,transparent)] text-[color:var(--danger)]">
+                  <AlertTriangle size={24} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="inline-flex rounded-full bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-2.5 py-1 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--danger)]">
+                    移除清理
+                  </div>
+                  <h3 className="mt-3 font-[family-name:var(--font-display)] text-[1.28rem] font-semibold tracking-[-0.05em] text-[color:var(--foreground)]">
+                    将「{cleanupTarget.title}」移入已移除？
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-[color:var(--muted-foreground)]">
+                    项目进入已移除区，可恢复{cleanupTarget.terminatedAt ? '（回到已终止）' : ''}；彻底删除须满 3 年保留期，届时将留下不可删除的留痕记录。
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCleanupTarget(null)}
+                  disabled={Boolean(recycleActionId)}
+                  className="neu-btn-xs"
+                  aria-label="取消移除清理"
+                >
+                  <X size={17} />
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 px-6 py-4" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
+              <button type="button" onClick={() => setCleanupTarget(null)} disabled={Boolean(recycleActionId)} className="neu-btn-soft">
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const target = cleanupTarget;
+                  setCleanupTarget(null);
+                  if (target) void handleMoveToRecycleBin(target.id);
+                }}
+                disabled={Boolean(recycleActionId)}
+                className="neu-btn-primary is-danger"
+              >
+                <Trash2 size={16} />
+                确认移除
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* 已移除节「一键删除」确认（自退役抽屉迁入，数据源改 filteredRecycled） */}
+      {showDeleteAllConfirm ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 py-6">
+          <div
+            className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-md"
+            onClick={() => {
+              if (!recycleActionId) setShowDeleteAllConfirm(false);
+            }}
+          />
+          <div className="relative w-full max-w-[460px] overflow-hidden wb-modal-shell">
+            <div className="absolute inset-x-0 top-0 h-1.5 bg-[linear-gradient(90deg,rgba(209,88,88,0.95),rgba(234,191,106,0.72),rgba(121,162,239,0.35))]" />
+            <div className="px-6 py-6">
+              <div className="flex items-start gap-4">
+                <div className="flex h-13 w-13 shrink-0 items-center justify-center rounded-[18px] border border-[color-mix(in_oklch,var(--danger)_24%,transparent)] bg-[color-mix(in_oklch,var(--danger)_11%,transparent)] text-[color:var(--danger)]">
+                  <AlertTriangle size={24} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="inline-flex rounded-full bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-2.5 py-1 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--danger)]">
+                    不可恢复操作
+                  </div>
+                  <h3 className="mt-3 font-[family-name:var(--font-display)] text-[1.28rem] font-semibold tracking-[-0.05em] text-[color:var(--foreground)]">
+                    清空已移除区？
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-[color:var(--muted-foreground)]">
+                    将彻底删除已移除区中的 <span className="font-semibold text-[color:var(--danger)]">{filteredRecycled.length}</span> 个项目（须均满 3 年保留期）。删除后无法恢复，将留下留痕记录。
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteAllConfirm(false)}
+                  disabled={Boolean(recycleActionId)}
+                  className="neu-btn-xs"
+                  aria-label="取消一键删除"
+                >
+                  <X size={17} />
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 px-6 py-4" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
+              <button type="button" onClick={() => setShowDeleteAllConfirm(false)} disabled={Boolean(recycleActionId)} className="neu-btn-soft">
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDeleteAllPermanently().then(() => setShowDeleteAllConfirm(false))}
+                disabled={Boolean(recycleActionId)}
+                className="neu-btn-primary is-danger"
+              >
+                {recycleActionId === '__all__' ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                {recycleActionId === '__all__' ? '正在删除' : '确认一键删除'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* 浮动新建按钮（.fab-create：类化浅染底，替代旧内联蓝色渐变） */}
       <button
