@@ -83,7 +83,8 @@ export function CreateProjectDialog({
     requesterDepartment: '',
     procurementTitle: '',
     procurementCategory: '',
-    budgetAmount: 0,
+    // number | ''：清空态存 ''（Number('')===0 会把「清空重输」锁死成永删不掉的 0，2026-11-12）
+    budgetAmount: 0 as number | '',
     projectReason: '',
     supplierRequirements: '',
     initiationDate: '',
@@ -129,7 +130,11 @@ export function CreateProjectDialog({
 
       // If both are extracted, or only initiation is extracted (no demand file), go to compare
       if ((hasDemand && hasInitiation) || (hasInitiation && demandFiles.length === 0)) {
-        const comparisons = compareFields(demandFields, initiationFields);
+        // budgetAmount 清空态（''）对比较环节=未填写，归一为 undefined（compareFields 契约是 number）
+        const comparisons = compareFields(
+          demandFields,
+          { ...initiationFields, budgetAmount: initiationFields.budgetAmount === '' ? undefined : initiationFields.budgetAmount },
+        );
         setFieldComparisons(comparisons);
         // 新一轮对比生成 = 新文档数据，编辑锁随 comparisons 一同重置
         setEditedFields(new Set());
@@ -855,7 +860,9 @@ export function CreateProjectDialog({
               type="number"
               value={resolveFieldValue('budgetAmount', initiationFields.budgetAmount || demandFields.budgetAmount || 0)}
               onChange={(e) => {
-                const v = Number(e.target.value);
+                const raw = e.target.value;
+                // 空串原样保留：清空后回填 0 会立刻被 value 回显成 "0"，无法清空重输
+                const v = raw === '' ? ('' as number | '') : Number(raw);
                 setInitiationFields((prev) => ({ ...prev, budgetAmount: v }));
                 // 同步覆盖 compare 步骤的 selectedValue，避免解析模式预置值（如 0）锁死手工修正
                 setFieldComparisons((prev) =>
