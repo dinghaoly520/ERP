@@ -64,3 +64,18 @@ test("CR-05: 报价双版本生成不得全有全无——Promise.all 弃用、a
   assert.match(modal, /settledAiContent/);
   assert.match(writeback, /export function settledAiContent/);
 });
+
+test("CR-09: 归档卷弹窗 api 助手须容错 ok-空响应——不得有无守卫的 return res.json()", () => {
+  const volumeModal = readFileSync(
+    resolve("src/components/procurements/archive-volume-modal.tsx"),
+    "utf8",
+  );
+  // ok 分支无条件 res.json() 会把「端点空体 200」（如 check-latest 无记录时 Express
+  // send(null)=空串）炸成 Unexpected end of JSON input，整弹窗加载失败
+  assert.doesNotMatch(
+    volumeModal,
+    /return res\.json\(\);/,
+    "无守卫 return res.json(); 不得回归——空体 200 必须容错为 null",
+  );
+  assert.match(volumeModal, /text \? JSON\.parse\(text\) : null/);
+});
