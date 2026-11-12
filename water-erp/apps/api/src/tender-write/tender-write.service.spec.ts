@@ -8,6 +8,17 @@ import {
 } from './tender-write.template';
 import type { InternalBiddingAnswers } from './tender-write.types';
 import { buildStandardFileName, beijingMinuteStamp } from '@water-erp/shared';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as JSZip from 'jszip';
+import {
+  buildCoverProjectCodeReplacements,
+  COMPETITIVE_NEGOTIATION_TEMPLATE_FILE,
+  SINGLE_SOURCE_TEMPLATE_FILE,
+  INQUIRY_PURCHASE_TEMPLATE_FILE,
+  INTERNAL_BIDDING_TEMPLATE_FILE,
+  INVITED_BIDDING_TEMPLATE_FILE,
+} from './tender-write.template';
 
 describe('tender-write template helpers', () => {
   it('normalizes malformed placeholder closers before rendering', () => {
@@ -773,5 +784,41 @@ describe('导出文件命名（系统导出版+分钟级时间，2026-11-12）',
 
   it('beijingMinuteStamp 输出北京时间分钟级 YYYYMMDDHHmm（UTC 输入 +8h）', () => {
     expect(beijingMinuteStamp(new Date('2026-11-12T07:30:59Z'))).toBe('202611121530');
+  });
+});
+
+describe('封面项目编号（2026-11-12 用户裁定：项目名称下方裸编号，无标签）', () => {
+  const TEMPLATES = [
+    ['谈判', COMPETITIVE_NEGOTIATION_TEMPLATE_FILE],
+    ['直接采购', SINGLE_SOURCE_TEMPLATE_FILE],
+    ['询比', INQUIRY_PURCHASE_TEMPLATE_FILE],
+    ['竞价', INTERNAL_BIDDING_TEMPLATE_FILE],
+    ['邀请招标', INVITED_BIDDING_TEMPLATE_FILE],
+  ] as const;
+
+  it.each(TEMPLATES)('%s 模板封面含 {{项目编号}}，位于 {{项目名称}} 之后、采购人行之前', async (_label, file) => {
+    const buf = fs.readFileSync(path.resolve(__dirname, '..', '..', file));
+    const zip = await JSZip.loadAsync(buf);
+    const xml = await zip.file('word/document.xml')!.async('string');
+    const text = xml.replace(/<[^>]+>/g, '');
+    const iName = text.indexOf('{{项目名称}}');
+    const iCode = text.indexOf('{{项目编号}}');
+    const iOwner = text.indexOf('{{采购人名称}}');
+    expect(iName).toBeGreaterThanOrEqual(0);
+    expect(iCode).toBeGreaterThan(iName);
+    expect(iCode).toBeLessThan(iOwner);
+    expect(text).not.toContain('项目编号：'); // 无标签裁定
+  });
+
+  it('buildCoverProjectCodeReplacements：有编号填值、无编号空串防红残留', () => {
+    expect(buildCoverProjectCodeReplacements('SWHI-TP-2026111201')).toEqual([
+      { targetText: '项目编号', replacementText: 'SWHI-TP-2026111201', highlight: false },
+    ]);
+    expect(buildCoverProjectCodeReplacements(undefined)).toEqual([
+      { targetText: '项目编号', replacementText: '', highlight: false },
+    ]);
+    expect(buildCoverProjectCodeReplacements('  ')).toEqual([
+      { targetText: '项目编号', replacementText: '', highlight: false },
+    ]);
   });
 });

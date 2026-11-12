@@ -43,6 +43,7 @@ import {
   NOTIFICATION_LETTER_TEMPLATE_FILE,
   DIRECT_FILING_TEMPLATE_FILE,
   renderTemplateXml,
+  buildCoverProjectCodeReplacements,
   type AnnouncementCategory,
 } from './tender-write.template';
 import type {
@@ -228,6 +229,8 @@ export class TenderWriteService {
       ownerCompanyName,
       this.supervisionFromDraft(dto.answers as Record<string, unknown>),
     );
+    // 封面项目编号（2026-11-12）：项目名称下方裸编号；独立页无项目上下文置空
+    const coverCodePlan = buildCoverProjectCodeReplacements(dto.projectCode);
 
     let updatedXml: string;
 
@@ -235,6 +238,7 @@ export class TenderWriteService {
       updatedXml = renderTemplateXml(documentXml, [
         ...buildSingleSourceReplacementPlan(dto.answers as SingleSourceAnswers),
         ...tenantPlan,
+        ...coverCodePlan,
       ]);
     } else if (dto.documentType === 'INQUIRY_PURCHASE') {
       updatedXml = renderTemplateXml(documentXml, [
@@ -242,6 +246,7 @@ export class TenderWriteService {
           dto.answers as InquiryPurchaseAnswers,
         ),
         ...tenantPlan,
+        ...coverCodePlan,
       ]);
     } else if (
       dto.documentType === 'INTERNAL_BIDDING' ||
@@ -252,6 +257,7 @@ export class TenderWriteService {
           dto.answers as InternalBiddingAnswers,
         ),
         ...tenantPlan,
+        ...coverCodePlan,
       ]);
     } else {
       updatedXml = renderTemplateXml(documentXml, [
@@ -259,6 +265,7 @@ export class TenderWriteService {
           dto.answers as CompetitiveNegotiationAnswers,
         ),
         ...tenantPlan,
+        ...coverCodePlan,
       ]);
     }
 

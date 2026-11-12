@@ -2745,3 +2745,15 @@ export function buildDirectFilingPlan(draft: DirectFilingDraft): TemplateReplace
     { targetText: '备注', replacementText: draft.remark?.trim() || ' ', highlight: false },
   ];
 }
+
+/** 封面项目编号行（2026-11-12 用户裁定）：五模板封面 {{项目名称}} 段下方裸编号占位
+ *  {{项目编号}}（无「项目编号：」标签）；项目上下文导出填 projectCode，独立页导出置
+ *  空串——占位符仍被消费，防未填红显残留。 */
+export function buildCoverProjectCodeReplacements(
+  projectCode?: string | null,
+): Array<{ targetText: string; replacementText: string; highlight: boolean }> {
+  // targetText 约定不带花括号（renderTemplateXml 搜索时自动包 {{}}——与 tenant-tokens 同口径）
+  return [
+    { targetText: '项目编号', replacementText: projectCode?.trim() || '', highlight: false },
+  ];
+}
