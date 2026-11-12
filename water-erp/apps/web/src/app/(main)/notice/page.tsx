@@ -653,10 +653,11 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
               )}
 
               {/* KPI 行 */}
-              <div className="mt-1 grid grid-cols-3 gap-2">
+              <div className="mt-1 grid grid-cols-4 gap-2">
                 <KpiTile label="参与供应商" value={result.stats.total} />
+                <KpiTile label="已确认意向" value={result.stats.intentConfirmed} accent="accent" />
                 <KpiTile label="已提交标书" value={result.stats.submitted} accent="success" />
-                <KpiTile label="已下载文件" value={downloadCount} accent="accent" />
+                <KpiTile label="已下载文件" value={downloadCount} />
               </div>
             </div>
           </div>
@@ -668,6 +669,7 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
                 <tr>
                   <th className="text-left">供应商</th>
                   <th className="text-left">业务标签</th>
+                  <th className="text-center">意向</th>
                   <th className="text-center">下载</th>
                   <th className="text-center">标书状态</th>
                   <th className="text-right">提交时间</th>
@@ -676,7 +678,7 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
               <tbody>
                 {result.suppliers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-12 text-center">
+                    <td colSpan={6} className="py-12 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <FileText size={20} className="text-[var(--muted-foreground)]/50" />
                         <p className="text-sm font-semibold text-[var(--foreground)]">暂无供应商参与</p>
@@ -700,6 +702,19 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
                           <span key={j} className="inline-flex rounded-[5px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--accent)]">{t}</span>
                         )) : <span className="text-[11px] text-[var(--muted-foreground)]/60">—</span>}
                       </div>
+                    </td>
+                    <td className="text-center">
+                      {s.intentConfirmedAt ? (
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className="text-[0.8rem] font-semibold text-[var(--accent)]">已确认</span>
+                          <span className="text-[10px] tabular-nums text-[var(--muted-foreground)]">
+                            {new Date(s.intentConfirmedAt).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })}{' '}
+                            {new Date(s.intentConfirmedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-[var(--muted-foreground)]/60">未确认</span>
+                      )}
                     </td>
                     <td className="text-center">
                       {s.lastDownloadAt ? (

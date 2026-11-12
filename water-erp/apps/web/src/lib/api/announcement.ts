@@ -212,11 +212,13 @@ export interface Participant {
   submitted: boolean;
   withdrawn: boolean;
   submittedAt?: string | null;
+  /** 参与意向确认时间（2026-11-12；null=未确认） */
+  intentConfirmedAt?: string | null;
 }
 export interface ParticipantsResult {
   project: { name: string; projectCode: string; stage: string; deadline: string | null } | null;
   suppliers: Participant[];
-  stats: { total: number; submitted: number };
+  stats: { total: number; submitted: number; intentConfirmed: number };
   hasBidDocument: boolean;
 }
 export function getParticipants(id: string) {

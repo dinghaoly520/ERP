@@ -431,7 +431,7 @@ function ReadOnlyView({ ann }: { ann: AnnouncementListItem }) {
             <div className="flex items-center gap-2 mb-3">
               <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">投标情况</span>
               {participants && (
-                <span className="neu-tab-count ml-auto">{participants.stats.total} 家参与 · {participants.stats.submitted} 家已递交</span>
+                <span className="neu-tab-count ml-auto">{participants.stats.total} 家参与 · {participants.stats.intentConfirmed} 家已确认意向 · {participants.stats.submitted} 家已递交</span>
               )}
             </div>
             {participants === null ? (
@@ -449,6 +449,7 @@ function ReadOnlyView({ ann }: { ann: AnnouncementListItem }) {
                       <p className="truncate text-sm font-medium text-[var(--foreground)]" title={s.supplierName}>{s.supplierName}</p>
                       <p className="text-[11px] leading-snug text-[var(--muted-foreground)]">
                         {s.lastDownloadAt ? `最近下载 ${new Date(s.lastDownloadAt).toLocaleString('zh-CN')}` : '未下载过采购文件'}
+                        {s.intentConfirmedAt && ` · 意向确认于 ${new Date(s.intentConfirmedAt).toLocaleString('zh-CN')}`}
                         {s.downloadCount > 0 && ` · ${s.downloadCount} 次`}
                         {s.submittedAt && ` · 递交于 ${new Date(s.submittedAt).toLocaleString('zh-CN')}`}
                       </p>
