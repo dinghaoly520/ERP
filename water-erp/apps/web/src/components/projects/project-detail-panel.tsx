@@ -669,8 +669,10 @@ export function ProjectDetailPanel({
 
   // CR-11（2026-11-12）：末臂兜底 stages 空数组——`?? stages[0]` 在空数组仍 undefined，
   // 首个消费 selectedStage.stageKey 即崩整页（数据破坏面白屏实录）。合成占位行让面板
-  // 可挂载：isCurrentStage 比较不中、hero 视觉走 ?? 兜底、各完成闸按 NOT_STARTED 处理。
-  // 不能改早退渲染——本组件在 selectedStage 之后仍有大量 hooks，提前 return 破 hooks 顺序。
+  // 可挂载：NOT_STARTED 使 stageLocked 恒 true（完成/上传/分析闸全关，防占位阶段误操作
+  // ——真实守护者是该闸而非 isCurrentStage，后者在 currentStage 保留时反而会命中）、
+  // hero 视觉走 ?? 兜底。不能改早退渲染——本组件在 selectedStage 之后仍有大量 hooks，
+  // 提前 return 破 hooks 顺序。
   const selectedStage = useMemo<ProjectManagementStage>(
     () =>
       // round 感知（2026-09-24 I-1）：多轮项目每轮各有一行同 stageKey——不带 round 恒命中首轮行

@@ -106,4 +106,5 @@ test("CR-11: 项目详情面板 selectedStage 须兜底 stages 空数组——�
   const memo = panel.match(/const selectedStage = useMemo[\s\S]*?\)\);/);
   assert.ok(memo, "selectedStage memo 应存在");
   assert.match(memo[0], /__no_stage__/, "空数组兜底占位行（__no_stage__）不得移除");
+  assert.match(memo[0], /status: 'NOT_STARTED'/, "占位行必须 NOT_STARTED——stageLocked 安全闸依赖它（改 IN_PROGRESS 会让 canCompleteStage 放开）");
 });
