@@ -223,7 +223,7 @@ export function AbortDialog({ bidProjectId, projectName, projectCode, isOpen, on
           </div>
 
           <div className="wb-alert wb-alert--info !p-3 text-xs text-[var(--muted-foreground)]">
-            确认后将依次执行：① 项目置为流标 → ② 开标归档（终局封存，不可逆）——流标公告在完成后发布
+            确认后将依次执行：① 项目置为流标 → ② 开标资料归档封存（归档后不可更改）——流标公告在完成后发布
           </div>
 
           {(step === 'aborting' || step === 'archiving') && (

@@ -213,7 +213,7 @@ export function SupervisionPushBlock({ bidProjectId, isAdmin }: Props) {
           className="neu-btn-soft !h-[32px] !text-xs"
           onClick={() => void handleVoucher()}
           disabled={busy || !gate?.ready}
-          title={gate?.ready ? '导出签名信封 + 尝试日志离线凭证（JSON）' : '推送前置未满足，暂不可导出'}
+          title={gate?.ready ? '导出签名信封 + 尝试日志离线凭证（JSON）' : '推送条件未满足，暂不可导出'}
         >
           <FileDown size={13} /> 离线导出凭证
         </button>

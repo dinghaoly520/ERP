@@ -437,7 +437,7 @@ export default function SupplierDashboardPage() {
           <button type="button" onClick={() => { setFrozenLoading(true); setFrozenOpen(true); }} className="kpi-card group flex h-full flex-col gap-1.5 p-3 text-left cursor-pointer w-full">
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">停用/黑名单</span>
             <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats ? (stats.disabled ?? 0) + (stats.blacklist ?? 0) : '—'}</span>
-            <span className="text-[10px] font-medium text-[var(--muted-foreground)] leading-tight group-hover:text-[var(--accent)]">状态冻结 · 查看名单</span>
+            <span className="text-[10px] font-medium text-[var(--muted-foreground)] leading-tight group-hover:text-[var(--accent)]">停用/黑名单 · 查看名单</span>
           </button>
           <button type="button" onClick={() => setAlertsOpen(true)} className="kpi-card group flex h-full flex-col gap-1.5 p-3 text-left cursor-pointer w-full">
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">资质预警</span>
@@ -600,7 +600,7 @@ export default function SupplierDashboardPage() {
         open={frozenOpen}
         onClose={() => setFrozenOpen(false)}
         title="停用/黑名单供应商"
-        description="状态冻结的供应商名单，随当前公司视野过滤"
+        description="已停用或列入黑名单的供应商名单，随当前公司视野过滤"
         size="lg"
         footer={
           <div className="flex w-full items-center gap-2">

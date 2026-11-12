@@ -162,7 +162,7 @@ export function StageFileList({
           const kind = getFileKind(file.fileName);
           // 冻结行（已完成 03 的正式盖章版）：编辑/删除禁用 + 行内徽标提示
           const frozen = !!(file.id && frozenAttachmentIds?.includes(file.id));
-          const frozenTitle = '正式盖章版已随 03 步骤完成冻结——如需修改请先重开该步骤';
+          const frozenTitle = '正式盖章版已在 03 步骤定稿锁定——如需修改请先重开该步骤';
           return (
             <div
               key={file.objectKey}
@@ -185,7 +185,7 @@ export function StageFileList({
                         className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-1.5 py-0.5 text-[9px] font-bold text-[var(--accent)]"
                         title={frozenTitle}
                       >
-                        正式盖章版·已冻结
+                        正式盖章版·已锁定
                       </span>
                     )}
                   </div>

@@ -955,7 +955,7 @@ export function HandoverPreview({ downloadUrl }: { downloadUrl: string }) {
       setError(null);
       apiFetch(downloadUrl)
         .then(async (res) => {
-          if (!res.ok) throw new Error(`回流包拉取失败（HTTP ${res.status}）`);
+          if (!res.ok) throw new Error(`回流包获取失败（HTTP ${res.status}）`);
           return res.json() as Promise<HandoverPackage>;
         })
         .then((j) => {
@@ -963,7 +963,7 @@ export function HandoverPreview({ downloadUrl }: { downloadUrl: string }) {
           setPkg(j);
         })
         .catch((e) => {
-          setError(e instanceof Error ? e.message : '回流包拉取失败');
+          setError(e instanceof Error ? e.message : '回流包获取失败');
         })
         .finally(() => {
           loadingRef.current = false;

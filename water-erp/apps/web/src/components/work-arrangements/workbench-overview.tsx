@@ -124,7 +124,7 @@ export function WorkbenchOverview({
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 animate-pulse rounded-full bg-[color:var(--accent)]" />
               <span className="text-[14px] leading-relaxed text-[color:var(--muted-foreground)]">
-                正在为您准备今日工作简报...
+                正在生成今日工作简报…
               </span>
             </div>
           ) : (

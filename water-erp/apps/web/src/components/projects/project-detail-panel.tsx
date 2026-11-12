@@ -184,7 +184,7 @@ function ExpertInfoField({
                 </div>
                 <div className="min-w-0">
                   <div className="text-[0.92rem] font-semibold text-[var(--foreground)]">编辑评审专家</div>
-                  <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">{editExperts.length} 人 · 保存后写入项目基本信息</div>
+                  <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">{editExperts.length} 人 · 保存后记入项目基本信息</div>
                 </div>
               </div>
               <button type="button" onClick={() => { if (snapshot !== null) onEditValueChange(snapshot); onCancel?.(); }} className="neu-btn-xs"><X size={16} /></button>
@@ -357,7 +357,7 @@ function BiddingUnitsField({
                 </div>
                 <div className="min-w-0">
                   <div className="text-[0.92rem] font-semibold text-[var(--foreground)]">编辑{label}</div>
-                  <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">{editUnits.filter(u => u.trim()).length} 家 · 保存后写入项目基本信息</div>
+                  <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">{editUnits.filter(u => u.trim()).length} 家 · 保存后记入项目基本信息</div>
                 </div>
               </div>
               <button type="button" onClick={cancelUnits} className="neu-btn-xs"><X size={16} /></button>
