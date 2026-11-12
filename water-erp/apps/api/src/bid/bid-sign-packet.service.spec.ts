@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 
 import * as crypto from 'crypto';
+import JSZip = require('jszip');
 import { BidSignPacketService } from './bid-sign-packet.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { assertSignGateClosed } from './bid-state';
@@ -13,11 +14,13 @@ const prisma = {
   bidEvaluationResult: { count: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
   bidSupervisionLog: { create: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]) },
   auditLog: { create: jest.fn().mockResolvedValue({}) },
-  fileAsset: { create: jest.fn(), upsert: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
   // 2026-09-18 完整性扩展 v2：回流包新增 delegate（备忘/条款裁定/AI 分析），findUnique/findMany 必须回值
   expertMemo: { findMany: jest.fn().mockResolvedValue([]) },
   bidRequirementReview: { findMany: jest.fn().mockResolvedValue([]) },
-  aiBidAnalysisTask: { findUnique: jest.fn().mockResolvedValue(null) },
+  aiBidAnalysisTask: { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
+  aiBidReport: { findMany: jest.fn().mockResolvedValue([]) },
+  fileAsset: { create: jest.fn(), upsert: jest.fn(), findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn() },
+  bidOpeningSession: { findFirst: jest.fn().mockResolvedValue(null) },
   // buildSnapshot 的 12 个 delegate：findMany 必须回数组（快照代码直接 .map/断言）
   bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
   bidSupplier: { findMany: jest.fn().mockResolvedValue([]) },
@@ -40,7 +43,7 @@ const expertId = 'e1';
 function makeService(): BidSignPacketService {
   return new BidSignPacketService(
     prisma as unknown as PrismaService,
-    { upload: jest.fn() } as any,          // storage：Task 3/4 才用到
+    { upload: jest.fn(), download: jest.fn().mockResolvedValue(Buffer.from('file-bytes')) } as any, // storage：Task 3/4 用 upload；#115 证据包用 download
     { generateDocument: jest.fn() } as any, // docx：Task 3 才用到
     { buildEvaluationPackage: jest.fn() } as any, // evalResults（handover 用例挂 buildEvaluationPackage mock；空对象会 TypeError）
   );
@@ -814,5 +817,93 @@ describe('BidSignPacketService.reopen（数据修正）', () => {
     expect(log.riskFlag).toBe('高');
     expect(log.operatorRole).toBe('admin');
     expect(log.result).toContain('回填修正：签字包基于缺员数据生成');
+  });
+});
+
+// ── #115（2026-11-12 B+ 裁定）：评标证据包 zip ──────────────────────────────
+describe('BidSignPacketService.buildEvidenceZip — 分目录聚合 + 解包断言', () => {
+  beforeEach(() => { jest.clearAllMocks(); });
+
+  function arrangeClosedProject() {
+    (prisma.bidProject.findUnique as jest.Mock).mockImplementation((a: any) => {
+      if (a?.where?.id === projectId) return Promise.resolve({ id: projectId, stage: 'ARCHIVED', name: '测试项目', projectCode: 'SW-TP-1' });
+      return Promise.resolve(null);
+    });
+    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({
+      id: 'pk1', projectId, fileAssetId: 'fa-pdf', signPageScanFileId: 'fa-scan',
+      handoverFileAssetId: 'fa-json', closedAt: new Date(), handoverSha256: 'sha-h',
+    });
+    (prisma.bidExpert.findMany as jest.Mock).mockResolvedValue([
+      { expertName: '李冷欧', signScanFileId: 'fa-exp1' },
+    ]);
+    (prisma.bidOpeningSession.findFirst as jest.Mock).mockResolvedValue({ handoverAssetId: 'fa-open' });
+    (prisma.bidSupervisionLog.findMany as jest.Mock).mockResolvedValue([
+      { time: new Date('2026-10-23T07:00:00Z'), role: '系统', target: '甲公司', action: '流标', result: '测试', riskFlag: '高' },
+    ]);
+    (prisma.bidEvaluationResult.findMany as jest.Mock).mockResolvedValue([
+      { rank: 1, supplierName: '甲公司', totalScore: '300.00', averageScore: '100.00', bidPrice: '10000', disqualified: false, recommended: true, generatedAt: new Date('2026-10-23T08:00:00Z') },
+    ]);
+    (prisma.aiBidAnalysisTask.findMany as jest.Mock).mockResolvedValue([{ id: 't1' }]);
+    (prisma.aiBidReport.findMany as jest.Mock).mockResolvedValue([
+      { id: 'r1', taskId: 't1', pdfFileId: null, docxFileId: 'fa-ai', conclusion: '正常' },
+      { id: 'r2', taskId: 't1', pdfFileId: null, docxFileId: null, conclusion: '无文件' },
+    ]);
+    const asset = (id: string, originalName: string) => ({ id, originalName, key: `k-${id}`, sealedPath: null, sealedKey: null, clientEncrypted: false, mimeType: 'application/octet-stream' });
+    (prisma.fileAsset.findUnique as jest.Mock).mockImplementation((a: any) => {
+      const map: Record<string, { originalName: string }> = {
+        'fa-json': asset('fa-json', '评标回流包-p1.json'),
+        'fa-pdf': asset('fa-pdf', '评标签字包.pdf'),
+        'fa-scan': asset('fa-scan', '主报告签字页扫描.png'),
+        'fa-exp1': asset('fa-exp1', '李冷欧-签字.jpg'),
+        'fa-open': asset('fa-open', '开标文件包.json'),
+        'fa-ai': asset('fa-ai', 'AI报告-甲.docx'),
+      };
+      return Promise.resolve(map[a?.where?.id] ?? null);
+    });
+  }
+
+  it('回流未生成 → 404 HANDOVER_NOT_GENERATED', async () => {
+    (prisma.bidProject.findUnique as jest.Mock).mockResolvedValue({ id: projectId, stage: 'EVALUATING' });
+    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({ handoverFileAssetId: null });
+    const service = makeService();
+    await expect(service.buildEvidenceZip(projectId)).rejects.toMatchObject({ response: { code: 'HANDOVER_NOT_GENERATED' } });
+  });
+
+  it('分目录聚合全部七类内容，文件名带项目编号', async () => {
+    arrangeClosedProject();
+    const service = makeService();
+    const { buffer, fileName } = await service.buildEvidenceZip(projectId);
+
+    expect(fileName).toBe('评标证据包-SW-TP-1.zip');
+    const zip = await JSZip.loadAsync(buffer);
+    const names = Object.keys(zip.files).filter(n => !zip.files[n].dir).sort();
+    expect(names).toEqual([
+      '00-回流清单/评标回流包-p1.json',
+      '01-评标签字/主报告签字页扫描.png',
+      '01-评标签字/李冷欧-签字.jpg',
+      '01-评标签字/评标签字包.pdf',
+      '02-开标移交/开标文件包.json',
+      '03-监督时间线/监督日志.csv',
+      '04-评标结果/评标结果.csv',
+      '05-AI辅助评标/AI报告-2.json',   // 无文件 → 整行 JSON dump（'2' 码位先于 '甲'）
+      '05-AI辅助评标/AI报告-甲.docx', // 有 docx 资产 → 保留资产原名取文件
+    ]);
+    // CSV 内容断言：监督日志行 + 评标结果（报价元侧直显）
+    const logCsv = await zip.file('03-监督时间线/监督日志.csv')!.async('string');
+    expect(logCsv).toContain('"流标"');
+    const resultCsv = await zip.file('04-评标结果/评标结果.csv')!.async('string');
+    expect(resultCsv).toContain('"甲公司"');
+    expect(resultCsv).toContain('"10000"');
+  });
+
+  it('密封/加密资产防御性跳过，不中断打包', async () => {
+    arrangeClosedProject();
+    (prisma.fileAsset.findUnique as jest.Mock).mockImplementation((a: any) =>
+      Promise.resolve({ id: a?.where?.id, originalName: 'x.pdf', key: 'k', sealedPath: null, sealedKey: 'wrapped-key', clientEncrypted: false, mimeType: 'application/pdf' }));
+    const service = makeService();
+    const { buffer } = await service.buildEvidenceZip(projectId);
+    const zip = await JSZip.loadAsync(buffer);
+    // 全部文件资产被跳过 → 仅剩 CSV 两件 + AI JSON dump
+    expect(Object.keys(zip.files).filter(n => !zip.files[n].dir).sort()).toEqual(['03-监督时间线/监督日志.csv', '04-评标结果/评标结果.csv', '05-AI辅助评标/AI报告-2.json']);
   });
 });

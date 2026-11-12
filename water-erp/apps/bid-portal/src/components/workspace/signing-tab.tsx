@@ -612,9 +612,11 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
           <span className="text-sm font-semibold text-[var(--success)]">签字已闭环，采购管理工作台可执行完整归档</span>
           {esignedCount > 0 && <span className="text-xs text-[var(--success)]">含 {esignedCount} 位专家电子签名</span>}
           <div className="ml-auto flex items-center gap-2">
+            {/* #115（2026-11-12 B+ 裁定）：裸 JSON 是机器通道（:3005 fetch 消费），人只触达 zip 证据包——
+                attachment 落盘，不再新标签页直开 JSON */}
             {data.packet?.handoverFileAssetId ? (
-              <a href={data.packet.handoverDownloadUrl!} target="_blank" rel="noopener" className="neu-btn-soft !h-[30px] !text-[11px]">
-                <FileDown size={12} /> 下载回流包
+              <a href={`/api/bid/projects/${projectId}/sign-packet/evidence-zip`} className="neu-btn-soft !h-[30px] !text-[11px]">
+                <FileDown size={12} /> 下载证据包(zip)
               </a>
             ) : canHost ? (
               <button

@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -15,6 +15,7 @@ import { BidEvaluationResultsService } from './bid-evaluation-results.service'; 
 import { buildStandardFileName } from '@water-erp/shared';
 import { isNoneEvaluation } from './none-evaluation.util';
 import { formatAmountWithUnit, resolveOpeningAmountUnitMap } from './opening-amount-unit.util';
+import JSZip = require('jszip');
 
 export type SignStatusValue = 'PENDING' | 'SIGNED' | 'REFUSED_DISSENT' | 'DEEMED_AGREED';
 
@@ -68,6 +69,7 @@ const SCAN_MIMES = new Set(['image/jpeg', 'image/png', 'application/pdf']);
 
 @Injectable()
 export class BidSignPacketService {
+  private readonly logger = new Logger(BidSignPacketService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
@@ -782,4 +784,115 @@ export class BidSignPacketService {
       })),
     };
   }
+
+  // ── #115（2026-11-12 B+ 裁定）：评标证据包 zip ─────────────────────────────
+  // 裸 JSON 回流包是机器通道（:3005 fetch 消费），人不再触达；主持人/:3005 下载的是
+  // 分目录证据包。聚合范围（用户裁定含 AI 辅助报告）：
+  //   00-回流清单 / 01-评标签字（包 PDF+共签扫描+个人扫描若有）/ 02-开标移交（开标文件包）
+  //   03-监督时间线（CSV）/ 04-评标结果（CSV，报价=元侧铁律直显）/ 05-AI辅助评标（docx/pdf 资产，无文件则 JSON dump）
+  // 不入包：投标文件本体（敏感+体积，完整归档走 :3005 正门）、中标通知书/公示（时序在回流后）。
+  async buildEvidenceZip(projectId: string): Promise<{ buffer: Buffer; fileName: string }> {
+    const packet = await this.prisma.bidSignPacket.findUnique({ where: { projectId } });
+    if (!packet?.handoverFileAssetId) {
+      throw new NotFoundException({ error: '回流包尚未生成，无法打包证据包', code: 'HANDOVER_NOT_GENERATED' });
+    }
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { projectCode: true },
+    });
+
+    const zip = new JSZip();
+    const skipped: string[] = [];
+    // 服务自产资产（签字包/回流/开标文件包/扫描件/AI 报告）均为明文直存；
+    // 防御：偶遇密封/客户端加密资产（本流程不应有）跳过并记名，不中断打包
+    const addAsset = async (assetId: string | null | undefined, dir: string, fallbackName: string) => {
+      if (!assetId) return;
+      const asset = await this.prisma.fileAsset.findUnique({ where: { id: assetId } });
+      if (!asset) { skipped.push(assetId); return; }
+      if (asset.sealedKey || asset.clientEncrypted) { skipped.push(asset.id); return; }
+      try {
+        const buf = await this.storage.download(asset.sealedPath || asset.key);
+        const ext = (asset.originalName || fallbackName).includes('.') ? '' : this.extOf(asset.mimeType);
+        zip.file(`${dir}/${asset.originalName || fallbackName}${ext}`, buf);
+      } catch { skipped.push(asset.id); }
+    };
+
+    // 00-回流清单：机器 JSON 副本（审计完整性；原件仍是 :3005 回传通道）
+    await addAsset(packet.handoverFileAssetId, '00-回流清单', `评标回流包-${projectId}.json`);
+    // 01-评标签字：包 PDF + 主报告共签扫描 + 个人签字扫描（若有）
+    await addAsset(packet.fileAssetId, '01-评标签字', '评标签字包.pdf');
+    await addAsset(packet.signPageScanFileId, '01-评标签字', '主报告签字页扫描');
+    const experts = await this.prisma.bidExpert.findMany({
+      where: { projectId, signScanFileId: { not: null } },
+      select: { expertName: true, signScanFileId: true },
+    });
+    for (const e of experts) await addAsset(e.signScanFileId, '01-评标签字', `个人签字扫描-${e.expertName}`);
+    // 02-开标移交：开标文件包（:3007 完成开标回传 :3005 的资料）
+    const session = await this.prisma.bidOpeningSession.findFirst({
+      where: { projectId },
+      select: { handoverAssetId: true },
+    });
+    await addAsset(session?.handoverAssetId, '02-开标移交', '开标文件包.json');
+    // 03-监督时间线：CSV（法定监督留痕，此前从未随回流下发）
+    const logs = await this.prisma.bidSupervisionLog.findMany({
+      where: { projectId },
+      orderBy: { time: 'asc' },
+    });
+    zip.file('03-监督时间线/监督日志.csv', toCsv(
+      ['时间', '角色', '对象', '动作', '结果', '风险级别'],
+      logs.map(l => [l.time.toISOString(), l.role ?? '', l.target ?? '', l.action ?? '', l.result ?? '', l.riskFlag ?? '']),
+    ));
+    // 04-评标结果：CSV（人读视图；bidPrice=元侧，铁律直显不换算）
+    const results = await this.prisma.bidEvaluationResult.findMany({
+      where: { projectId },
+      orderBy: { rank: 'asc' },
+    });
+    zip.file('04-评标结果/评标结果.csv', toCsv(
+      ['排名', '供应商', '总分', '平均分', '报价(元)', '废标', '中标候选人', '生成时间'],
+      results.map(r => [
+        String(r.rank), r.supplierName, String(Number(r.totalScore)), String(Number(r.averageScore)),
+        r.bidPrice == null ? '' : String(Number(r.bidPrice)),
+        r.disqualified ? '是' : '否', r.recommended ? '是' : '否', r.generatedAt.toISOString(),
+      ]),
+    ));
+    // 05-AI辅助评标：优先 docx/pdf 报告文件资产；无文件则整行 JSON dump（用户裁定纳入）
+    const tasks = await this.prisma.aiBidAnalysisTask.findMany({
+      where: { projectId },
+      select: { id: true },
+    });
+    const aiReports = tasks.length
+      ? await this.prisma.aiBidReport.findMany({ where: { taskId: { in: tasks.map(t => t.id) } } })
+      : [];
+    for (const [i, r] of aiReports.entries()) {
+      const fileAssetId = r.pdfFileId ?? r.docxFileId;
+      if (fileAssetId) {
+        await addAsset(fileAssetId, '05-AI辅助评标', `AI报告-${i + 1}`);
+      } else {
+        zip.file(`05-AI辅助评标/AI报告-${i + 1}.json`, JSON.stringify(r, null, 2));
+      }
+    }
+
+    if (skipped.length) {
+      this.logger?.warn?.(`[evidence-zip] ${projectId} 跳过资产：${skipped.join('、')}`);
+    }
+    const buffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+    return { buffer, fileName: `评标证据包-${project?.projectCode || projectId}.zip` };
+  }
+
+  private extOf(mimeType: string | null): string {
+    switch (mimeType) {
+      case 'application/pdf': return '.pdf';
+      case 'application/json': return '.json';
+      case 'image/png': return '.png';
+      case 'image/jpeg': return '.jpg';
+      case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': return '.docx';
+      default: return '';
+    }
+  }
+}
+
+/** CSV 序列化：全字段双引号包裹、内部引号翻倍（RFC 4180）；行尾 CRLF（Excel 友好） */
+function toCsv(headers: string[], rows: string[][]): string {
+  const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  return [headers, ...rows].map(r => r.map(esc).join(',')).join('\r\n') + '\r\n';
 }
