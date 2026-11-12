@@ -23,6 +23,12 @@ describe('uniqueEntryName（ZIP 同名消歧）', () => {
     const used = new Set<string>(['expert_memo_ink/批注']);
     expect(uniqueEntryName('expert_memo_ink', '批注', used)).toBe('expert_memo_ink/批注_2');
   });
+
+  it('含路径分隔符 → 白名单化落在类目目录内（zip-slip 防御，bug#150 评审）', () => {
+    const used = new Set<string>();
+    expect(uniqueEntryName('bid_decrypted', '../../evil/标书.pdf', used)).toBe('bid_decrypted/.._.._evil_标书.pdf');
+    expect(uniqueEntryName('bid_decrypted', 'a\\b.docx', used)).toBe('bid_decrypted/a_b.docx');
+  });
 });
 
 describe('assertNoMissingRefs（引用件缺行对账）', () => {

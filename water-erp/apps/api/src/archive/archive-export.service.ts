@@ -32,16 +32,19 @@ export function assertNoMissingRefs(refIds: ReadonlySet<string>, foundIds: Reado
   }
 }
 
-/** ZIP 同目录同名消歧：JSZip file() 同路径是覆盖语义，撞名加 _2/_3 序号 */
+/** ZIP 同目录同名消歧：JSZip file() 同路径是覆盖语义，撞名加 _2/_3 序号。
+ * 文件名白名单化（bug#150 评审[中]）：originalName 是入库自由文本（bid_decrypted 现为供应商
+ * 可控继承名），剥路径分隔符防 zip-slip/子目录逃逸——对齐 bid-sign-packet CR-06 同款口径。 */
 export function uniqueEntryName(category: string, originalName: string, used: Set<string>): string {
-  const base = `${category}/${originalName}`;
+  const safeName = originalName.replace(/[/\\]/g, '_');
+  const base = `${category}/${safeName}`;
   if (!used.has(base)) {
     used.add(base);
     return base;
   }
-  const dot = originalName.lastIndexOf('.');
-  const stem = dot > 0 ? originalName.slice(0, dot) : originalName;
-  const ext = dot > 0 ? originalName.slice(dot) : '';
+  const dot = safeName.lastIndexOf('.');
+  const stem = dot > 0 ? safeName.slice(0, dot) : safeName;
+  const ext = dot > 0 ? safeName.slice(dot) : '';
   for (let i = 2; ; i++) {
     const candidate = `${category}/${stem}_${i}${ext}`;
     if (!used.has(candidate)) {
