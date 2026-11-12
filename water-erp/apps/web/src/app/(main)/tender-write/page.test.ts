@@ -39,3 +39,12 @@ test("CR-01: 版本恢复路径过 sanitize——setDrafts(entry.drafts) 须包 
   );
   assert.match(modal, /setDrafts\(sanitizeTenderDraftsState\(entry\.drafts\)\)/);
 });
+
+test("CR-01: 「参考上一轮」服务器轨过 sanitize——上一轮服务端草稿入 ref 前消毒（评审补漏的第三路径）", () => {
+  assert.doesNotMatch(
+    modal,
+    /\? \(r\.drafts as TenderDraftsState\) : null/,
+    "裸转 r.drafts as TenderDraftsState（未消毒）形态不得回归",
+  );
+  assert.match(modal, /sanitizeTenderDraftsState\(r\.drafts as TenderDraftsState\)/);
+});

@@ -227,7 +227,10 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     void fetchProjectTenderDraft(projectId, prevRound)
       .then((r) => {
         if (cancelled) return;
-        const server = r?.drafts ? (r.drafts as TenderDraftsState) : null;
+        // CR-01（评审补漏）：上一轮服务端草稿同样可能是 quotationLetterType 引入前的存量，
+        // 入 ref 前过 sanitize——与 catch 兜底轨（loadDraftsFromStorage 内消毒）同口径，
+        // 否则「参考上一轮」带入后真文字报价被预览/导出按表格模式渲染成空表。
+        const server = r?.drafts ? sanitizeTenderDraftsState(r.drafts as TenderDraftsState) : null;
         prevRoundDraftRef.current = server ?? loadDraftsFromStorage(projectId, prevRound);
         setPrevRoundAvailable(hasContent(prevRoundDraftRef.current) || !!prevTenderFile);
       })
