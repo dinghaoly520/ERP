@@ -457,6 +457,13 @@ function BidSubmitInner() {
   })();
 
   const canConfirm = preflightItems.every((i) => i.ok || !i.required);
+  // bug#134（2026-11-12 裁定）：banner 点名具体缺失的必填项——报告人曾把拦截误归因到
+  // 橙色警示（不拦截）的选填「质量承诺」行，实际拦截项是「交货/工期」等必填项
+  const failedRequiredLabels = preflightItems.filter((i) => i.required && !i.ok).map((i) => i.label);
+  // 评审建议（2026-11-12）：失败项含「投标截止/供应商资质」等不可修复项时「请完善」是失真指令
+  // （截止已过/未过审，重填永不成功）——改中性文案
+  const PREFLIGHT_FIXABLE = new Set(["投标报价", "交货工期", "完整标书文件", "拆分标书文件", "投标保证金凭证"]);
+  const failedAllFixable = failedRequiredLabels.every((l) => PREFLIGHT_FIXABLE.has(l));
 
   /** 第一步（提交前检查）「确认提交」→ 检查通过后收起检查表、弹出第二步 U盾 PIN 验证。
    *  PIN 不再出现在检查弹窗内——两步流与旧版一致：检查（无 PIN）→ PIN → 加密提交。 */
@@ -841,7 +848,7 @@ function BidSubmitInner() {
           ))}
         </div>
         {!canConfirm
-          ? <BAlert type="error" className="mt-4" title="存在未通过的必填项，请完善后重新提交" />
+          ? <BAlert type="error" className="mt-4" title={`存在未通过的必填项：${failedRequiredLabels.join("、")}——${failedAllFixable ? "请完善后重新提交" : "请检查以上必填项（截止已过/资质未通过等无法通过重新填写解决）"}${preflightItems.some((i) => !i.ok && !i.required) ? "（橙色行为选填项，不拦截提交）" : ""}`} />
           : <BAlert type="success" className="mt-4" title="检查通过。确认后需输入 U盾 PIN，随后开始双层加密与盾签名，期间请勿关闭页面" />}
       </SpDialog>
 

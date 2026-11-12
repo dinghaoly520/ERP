@@ -27,13 +27,15 @@ function formatDateTime(iso: string | null): string {
 }
 
 function ProgressStat({
-  icon, label, done, total, tone,
+  icon, label, done, total, tone, title,
 }: {
   icon: React.ReactNode;
   label: string;
   done: number;
   total: number;
   tone: 'accent' | 'success' | 'warning' | 'danger';
+  /** 悬浮说明（2026-11-12 bug#144 裁定）：口径不透明的统计项加原生 title 防误读 */
+  title?: string;
 }) {
   const color =
     tone === 'success' ? 'var(--success)' :
@@ -41,7 +43,7 @@ function ProgressStat({
     tone === 'danger' ? 'var(--danger)' : 'var(--accent)';
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   return (
-    <div className="neu-tile flex-1 px-3.5 py-3">
+    <div className="neu-tile flex-1 px-3.5 py-3" title={title}>
       <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-[var(--muted-foreground)]">
         <span style={{ color }}>{icon}</span>
         {label}
@@ -162,7 +164,7 @@ export function OpeningProgressBlock({ detail, onAbort }: Props) {
             <ProgressStat icon={<KeyRound size={12} />} label="标书解密" done={decrypted} total={total} tone={decrypted === total && total > 0 ? 'success' : 'accent'} />
             <ProgressStat icon={<FileCheck size={12} />} label="唱标录入" done={Math.min(recorded, total)} total={total} tone={recorded >= total && total > 0 ? 'success' : 'accent'} />
             <ProgressStat icon={<UserCheck size={12} />} label="供应商确认" done={confirmed} total={total} tone={confirmed === total && total > 0 ? 'success' : 'accent'} />
-            <ProgressStat icon={<AlertTriangle size={12} />} label="待处理异议" done={disputed} total={total} tone={disputed > 0 ? 'danger' : 'success'} />
+            <ProgressStat icon={<AlertTriangle size={12} />} label="待处理异议" done={disputed} total={total} tone={disputed > 0 ? 'danger' : 'success'} title="统计已提交开标异议、且尚未经主持人裁决的供应商家数；已裁决完毕的异议不计入此数" />
           </div>
 
           {openingDone && stage === 'OPENING' && (
