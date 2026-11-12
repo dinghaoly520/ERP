@@ -467,7 +467,7 @@ function CompetitiveNegotiationPreview({
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
             {projectCode && (
-              <div className="mt-1.5 text-sm font-medium tabular-nums tracking-[0.02em] text-[color:var(--muted-foreground)]">
+              <div className="mt-1.5 text-sm font-medium tabular-nums tracking-[0.02em] text-[color:var(--foreground)]">
                 {projectCode}
               </div>
             )}
@@ -800,7 +800,7 @@ function SingleSourcePreview({
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
             {projectCode && (
-              <div className="mt-1.5 text-sm font-medium tabular-nums tracking-[0.02em] text-[color:var(--muted-foreground)]">
+              <div className="mt-1.5 text-sm font-medium tabular-nums tracking-[0.02em] text-[color:var(--foreground)]">
                 {projectCode}
               </div>
             )}
@@ -1166,7 +1166,7 @@ function InquiryPurchasePreview({
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
             {projectCode && (
-              <div className="mt-1.5 text-sm font-medium tabular-nums tracking-[0.02em] text-[color:var(--muted-foreground)]">
+              <div className="mt-1.5 text-sm font-medium tabular-nums tracking-[0.02em] text-[color:var(--foreground)]">
                 {projectCode}
               </div>
             )}
@@ -1634,7 +1634,7 @@ function InternalBiddingPreview({
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
             {projectCode && (
-              <div className="mt-1.5 text-sm font-medium tabular-nums tracking-[0.02em] text-[color:var(--muted-foreground)]">
+              <div className="mt-1.5 text-sm font-medium tabular-nums tracking-[0.02em] text-[color:var(--foreground)]">
                 {projectCode}
               </div>
             )}
