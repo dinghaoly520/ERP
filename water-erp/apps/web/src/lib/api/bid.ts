@@ -63,6 +63,8 @@ export interface BidWorkspaceSupplier {
   } | null;
   submitted: boolean;
   withdrawn: boolean;
+  /** 参与意向确认时间（2026-11-12）；意向-only 补行（id=intent-*）恒有值 */
+  intentConfirmedAt: string | null;
 }
 
 export interface BidWorkspaceExpert {
@@ -105,6 +107,7 @@ export interface BidWorkspace {
     supplierTotal: number;
     submitted: number;
     withdrawn: number;
+    intentConfirmed: number;
     expertCount: number;
     expertSignedIn: number;
     /** 开标就绪度信号（C5）：解密成功 / 供应商已确认 / 待处理异议 / 已唱标记录数 */

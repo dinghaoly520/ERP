@@ -548,6 +548,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
     withdrawn: boolean;
     submittedAt: string | null;
     bidPrice: string | null;
+    intentConfirmedAt: string | null;
   };
   const wsSuppliers = workspace?.suppliers ?? [];
   const submissionBySupplier = new Map<string, (typeof wsSuppliers)[number]>();
@@ -566,17 +567,19 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
           withdrawn: !!sub?.withdrawn,
           submittedAt: sub?.submission?.submittedAt ?? null,
           bidPrice: sub?.submission?.bidPrice ?? null,
+          intentConfirmedAt: sub?.intentConfirmedAt ?? null,
         };
       })
     : wsSuppliers.map((s) => ({
         key: s.id,
         supplierName: s.supplierName,
-        tags: s.tags ?? [],
+        tags: s.tags?.length ? s.tags : (String(s.id).startsWith('intent-') ? ['自主确认'] : []),
         rsvpStatus: s.supplierId ? rsvpMap.get(s.supplierId) : undefined,
         submitted: s.submitted,
         withdrawn: s.withdrawn,
         submittedAt: s.submission?.submittedAt ?? null,
         bidPrice: s.submission?.bidPrice ?? null,
+        intentConfirmedAt: s.intentConfirmedAt ?? null,
       }));
 
   return (
@@ -696,6 +699,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                         <tr>
                           <th style={{ width: 140 }}>供应商</th>
                           <th style={{ width: 160 }}>业务标签</th>
+                          {!isNegotiation && <th style={{ width: 110 }}>意向</th>}
                           {showRsvpColumn && <th style={{ width: 80 }}>回执情况</th>}
                           <th style={{ width: 70 }}>投递状态</th>
                           <th style={{ width: 130 }}>投递时间</th>
@@ -711,6 +715,20 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                             <tr key={r.key} className="row-clickable">
                               <td className="font-medium text-[var(--foreground)]">{r.supplierName}</td>
                               <td className="text-[var(--muted-foreground)]">{r.tags.length > 0 ? r.tags.join('、') : '—'}</td>
+                              {!isNegotiation && (
+                                <td>
+                                  {r.intentConfirmedAt ? (
+                                    <div className="flex flex-col">
+                                      <StatusPill tone="success">已确认</StatusPill>
+                                      <span className="mt-0.5 text-[10px] tabular-nums text-[var(--muted-foreground)]">
+                                        {formatDateTime(r.intentConfirmedAt)}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[11px] text-[var(--muted-foreground)]/60">未确认</span>
+                                  )}
+                                </td>
+                              )}
                               {showRsvpColumn && <td><StatusPill tone={rsvpTone}>{rsvpLabel}</StatusPill></td>}
                               <td><StatusPill tone={tone}>{label}</StatusPill></td>
                               <td className="tabular-nums text-[var(--muted-foreground)]">{r.submittedAt ? formatDateTime(r.submittedAt) : '—'}</td>
@@ -1357,7 +1375,8 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
         {workspace && (
           <div className="wb-note px-3.5 py-2.5 text-[11px]">
             <div className="flex items-center gap-4 text-[color:var(--muted-foreground)]">
-              <span>受邀 <strong className="text-[color:var(--foreground)]">{workspace.suppliers.length}</strong> 家</span>
+              <span>供应商 <strong className="text-[color:var(--foreground)]">{workspace.suppliers.length}</strong> 家</span>
+              <span>已确认意向 <strong className="text-[color:var(--accent)]">{workspace.stats.intentConfirmed}</strong></span>
               <span>已投递 <strong className="text-[color:var(--success)]">{workspace.suppliers.filter(s => s.submitted).length}</strong></span>
               <span>未投递 <strong className="text-[color:var(--warning)]">{workspace.suppliers.filter(s => !s.submitted && !s.withdrawn).length}</strong></span>
               <span>已撤回 <strong className="text-[color:var(--danger)]">{workspace.suppliers.filter(s => s.withdrawn).length}</strong></span>
