@@ -480,7 +480,8 @@ export class ExpertService {
 
   /** B6（2026-11-12）：组长待复议清单——仅通过性投票废标（source=passfail 且 scoreItemId 非空；
    *  manual/dispute 废标走主持人处置轨，不入组长复议）。收录：无动议 / voting 中（横幅态）/
-   *  closed+tie_deadlock（可重发）；排除 closed 已终局（approved/rejected）。 */
+   *  closed+tie_deadlock（可重发）；排除 closed 已终局（approved/rejected）。
+   *  票面明细批量单查（getProject 每 10s 轮询，N+1 会放大——终审收尾 #9）。 */
   private async buildPendingInvalidReviews(projectId: string) {
     const invalids = await this.prisma.bidInvalidBid.findMany({
       where: { projectId, status: 'invalid', source: 'passfail', scoreItemId: { not: null } },
@@ -495,13 +496,9 @@ export class ExpertService {
       ? await this.prisma.bidMotion.findMany({ where: { id: { in: motionIds } }, select: { id: true, status: true, result: true } })
       : [];
     const motionById = new Map(motions.map(m => [m.id, m]));
-    const out: Array<{
-      invalidBidId: string; supplierId: string; supplierName: string;
-      scoreItemId: string; scoreItemName: string; category: 'QUALIFICATION' | 'RESPONSIVE';
-      failCount: number; totalCount: number;
-      votes: Array<{ expertName: string; passed: boolean; reason: string | null }>;
-      hasOpenMotion: boolean; canRemotion: boolean;
-    }> = [];
+
+    // 第一遍：按动议状态分类过滤（不查库）
+    const classified: Array<{ inv: typeof invalids[number]; hasOpenMotion: boolean; canRemotion: boolean }> = [];
     for (const inv of invalids) {
       let hasOpenMotion = false;
       let canRemotion = true;
@@ -511,25 +508,39 @@ export class ExpertService {
         else if (m?.status === 'closed' && m.result !== 'tie_deadlock') continue; // 已终局——排除
         // tie_deadlock → 可重发；motion 记录缺失（异常态）按可重发处理
       }
-      const records = await this.prisma.bidScoreRecord.findMany({
-        where: { scoreItemId: inv.scoreItemId!, supplierId: inv.supplierId, passed: { not: null } },
-        select: { passed: true, reason: true, expert: { select: { expertName: true } } },
-      });
-      out.push({
-        invalidBidId: inv.id,
-        supplierId: inv.supplierId,
-        supplierName: inv.supplier?.supplierName ?? inv.supplierId,
-        scoreItemId: inv.scoreItemId ?? '',
-        scoreItemName: inv.scoreItem?.name?.trim() || inv.scoreItemId?.slice(-8) || '通过性审查',
-        category: (inv.scoreItem?.category === 'RESPONSIVE') ? 'RESPONSIVE' : 'QUALIFICATION',
-        failCount: inv.failCount,
-        totalCount: inv.totalCount,
-        votes: records.map(r => ({ expertName: r.expert?.expertName ?? '—', passed: r.passed === true, reason: r.reason ?? null })),
-        hasOpenMotion,
-        canRemotion,
-      });
+      classified.push({ inv, hasOpenMotion, canRemotion });
     }
-    return out;
+    if (classified.length === 0) return [];
+
+    // 第二遍：全部 (供应商, 评分项) 对的票面一次批量查（替代逐行 N+1）
+    const voteRecords = await this.prisma.bidScoreRecord.findMany({
+      where: {
+        passed: { not: null },
+        OR: classified.map(({ inv }) => ({ AND: [{ scoreItemId: inv.scoreItemId! }, { supplierId: inv.supplierId }] })),
+      },
+      select: { scoreItemId: true, supplierId: true, passed: true, reason: true, expert: { select: { expertName: true } } },
+    });
+    const votesByPair = new Map<string, Array<{ expertName: string; passed: boolean; reason: string | null }>>();
+    for (const r of voteRecords) {
+      const key = `${r.supplierId}:${r.scoreItemId}`;
+      const arr = votesByPair.get(key) ?? [];
+      arr.push({ expertName: r.expert?.expertName ?? '—', passed: r.passed === true, reason: r.reason ?? null });
+      votesByPair.set(key, arr);
+    }
+
+    return classified.map(({ inv, hasOpenMotion, canRemotion }) => ({
+      invalidBidId: inv.id,
+      supplierId: inv.supplierId,
+      supplierName: inv.supplier?.supplierName ?? inv.supplierId,
+      scoreItemId: inv.scoreItemId ?? '',
+      scoreItemName: inv.scoreItem?.name?.trim() || inv.scoreItemId?.slice(-8) || '通过性审查',
+      category: (inv.scoreItem?.category === 'RESPONSIVE') ? 'RESPONSIVE' : 'QUALIFICATION',
+      failCount: inv.failCount,
+      totalCount: inv.totalCount,
+      votes: votesByPair.get(`${inv.supplierId}:${inv.scoreItemId}`) ?? [],
+      hasOpenMotion,
+      canRemotion,
+    }));
   }
 
   /* 身份核验 */
@@ -3338,7 +3349,13 @@ export class ExpertService {
       include: { votes: true },
       orderBy: { createdAt: 'desc' },
     });
-    return motions.map(m => this.stripMotionVotesForExpert(m, expert.id, !!expert.isLead));
+    // 合格投票权集合（正选∧未婉拒）——votedCount 分子与 quorum 同源
+    const eligible = await this.prisma.bidExpert.findMany({
+      where: { projectId, expertRole: '正选', invitationStatus: { not: 'declined' } },
+      select: { id: true },
+    });
+    const eligibleIds = new Set(eligible.map(e => e.id));
+    return motions.map(m => this.stripMotionVotesForExpert(m, expert.id, !!expert.isLead, eligibleIds));
   }
 
   /** 专家间可见性收口：非组长不返回逐人投票明细（votes）。
@@ -3346,11 +3363,13 @@ export class ExpertService {
    * 组长保留 votes（催促未投/主持表决需要）。派生字段（myVote/votedCount/计数）两组长均返回，前端统一消费。 */
   private stripMotionVotesForExpert<
     T extends { status: string; votes: Array<{ expertId: string; vote: string }> },
-  >(motion: T, expertId: string, isLead: boolean) {
+  >(motion: T, expertId: string, isLead: boolean, eligibleVoterIds?: Set<string>) {
     const { votes, ...rest } = motion;
     const derived = {
       myVote: votes.find(v => v.expertId === expertId)?.vote ?? null,
-      votedCount: votes.length,
+      // 分子口径对齐（终审收尾 #6）：votedCount 只计合格票（正选∧未婉拒，与 closeMotion
+      // quorum 同谓词）——候补/婉拒存量票不凑「已投」数，防仪表盘看似达标而后端 400
+      votedCount: eligibleVoterIds ? votes.filter(v => eligibleVoterIds.has(v.expertId)).length : votes.length,
       ...(rest.status === 'voting'
         ? {}
         : {
@@ -3382,6 +3401,17 @@ export class ExpertService {
       where: { projectId: { in: projectIds }, expertRole: '正选', invitationStatus: { not: 'declined' } },
       _count: { _all: true },
     });
+    // 合格投票权集合（分子 votedCount 同源谓词，终审收尾 #6）
+    const eligibleRows = await this.prisma.bidExpert.findMany({
+      where: { projectId: { in: projectIds }, expertRole: '正选', invitationStatus: { not: 'declined' } },
+      select: { id: true, projectId: true },
+    });
+    const eligibleByProject = new Map<string, Set<string>>();
+    for (const row of eligibleRows) {
+      const set = eligibleByProject.get(row.projectId) ?? new Set<string>();
+      set.add(row.id);
+      eligibleByProject.set(row.projectId, set);
+    }
     const projectMap = new Map(records.map(r => [r.projectId, {
       name: r.project.name,
       stage: r.project.stage,
@@ -3413,7 +3443,7 @@ export class ExpertService {
         isLead: r.isLead,
       })),
       motions: motions.map(m => ({
-        ...this.stripMotionVotesForExpert(m, recByProject.get(m.projectId)!.id, !!recByProject.get(m.projectId)!.isLead),
+        ...this.stripMotionVotesForExpert(m, recByProject.get(m.projectId)!.id, !!recByProject.get(m.projectId)!.isLead, eligibleByProject.get(m.projectId)),
         projectName: projectMap.get(m.projectId)?.name ?? '',
         projectStage: projectMap.get(m.projectId)?.stage ?? '',
         totalVoters: projectMap.get(m.projectId)?.totalVoters ?? 0,

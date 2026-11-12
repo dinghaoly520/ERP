@@ -1852,9 +1852,9 @@ describe('ExpertService', () => {
         prisma.attachment.findMany.mockResolvedValue([]);
         prisma.fileAsset.findMany.mockResolvedValue([]);
         prisma.bidScoreRecord.findMany.mockImplementation((a: any) =>
-          a.where?.scoreItemId ? Promise.resolve([
-            { passed: false, reason: '资质缺失', expert: { expertName: '王' } },
-            { passed: true, reason: null, expert: { expertName: '李' } },
+          a.where?.OR || a.where?.scoreItemId ? Promise.resolve([
+            { scoreItemId: 'si1', supplierId: 'sup1', passed: false, reason: '资质缺失', expert: { expertName: '王' } },
+            { scoreItemId: 'si1', supplierId: 'sup1', passed: true, reason: null, expert: { expertName: '李' } },
           ]) : Promise.resolve([]));
       });
 
@@ -1880,6 +1880,24 @@ describe('ExpertService', () => {
             { expertName: '李', passed: true, reason: null },
           ],
         });
+      });
+
+      it('票面批量单查（N+1 收敛）：两项废标只发一次 bidScoreRecord.findMany（getProject 每 10s 轮询放大）', async () => {
+        prisma.bidExpert.findFirst.mockImplementation(async (a: any) =>
+          a?.where?.userId ? { ...mockExpert, signedIn: true, isLead: true } : null);
+        prisma.bidInvalidBid.findMany.mockResolvedValue([
+          { id: 'inv-1', supplierId: 'sup1', scoreItemId: 'si1', status: 'invalid', motionId: null, failCount: 2, totalCount: 3, supplier: { supplierName: '甲' }, scoreItem: { name: '资格性审查', category: 'QUALIFICATION' } },
+          { id: 'inv-2', supplierId: 'sup2', scoreItemId: 'si1', status: 'invalid', motionId: null, failCount: 2, totalCount: 3, supplier: { supplierName: '乙' }, scoreItem: { name: '资格性审查', category: 'QUALIFICATION' } },
+        ]);
+        prisma.bidMotion.findMany.mockResolvedValue([]);
+
+        await service.getProject('user-1', 'proj-1');
+
+        const pairQueries = (prisma.bidScoreRecord.findMany as jest.Mock).mock.calls
+          .filter((c: any[]) => c[0]?.where?.OR);
+        expect(pairQueries).toHaveLength(1);                              // 批量单查，非逐行 N 次
+        expect(pairQueries[0][0].where.OR).toHaveLength(2);              // 两组 (supplier,item) 对
+        expect(pairQueries[0][0].where.OR[0]).toEqual({ AND: [{ scoreItemId: 'si1' }, { supplierId: 'sup1' }] });
       });
 
       it('非组长 → 不下发该字段（票面明细保密口径）', async () => {
@@ -2375,6 +2393,25 @@ describe('ExpertService', () => {
       expect(prisma.bidExpert.groupBy).toHaveBeenCalledWith(expect.objectContaining({
         where: expect.objectContaining({ expertRole: '正选', invitationStatus: { not: 'declined' } }),
       }));
+    });
+
+    it('分子口径对齐：votedCount 只计合格票（候补/婉拒存量票不凑「已投」数，与 quorum 闸同源）', async () => {
+      // records（本人行）与合格集查询按 where 形状分流
+      prisma.bidExpert.findMany.mockImplementation(async (a: any) =>
+        a.where?.expertRole === '正选'
+          ? [{ id: 'ok-1', projectId: 'p3' }]                                                    // 合格投票权集合
+          : [{ id: 'sub-1', expertName: '候补', isLead: false, projectId: 'p3', expertRole: '候补', invitationStatus: 'confirmed', project: { name: '项目三', stage: 'EVALUATING' } }]);
+      prisma.bidExpert.groupBy.mockResolvedValue([{ projectId: 'p3', _count: { _all: 1 } }]);
+      prisma.bidMotion.findMany.mockResolvedValue([
+        { id: 'm1', projectId: 'p3', status: 'voting', votes: [
+          { expertId: 'ok-1', vote: 'approve' },
+          { expertId: 'sub-1', vote: 'approve' },   // 候补存量票——不计入「已投」
+        ] },
+      ]);
+      prisma.expertDispute.findMany.mockResolvedValue([]);
+
+      const result: any = await service.getMyTasks('u-sub-viewer');
+      expect(result.motions[0].votedCount).toBe(1);
     });
   });
 
@@ -3853,6 +3890,11 @@ describe('ExpertService', () => {
       { expertId: 'exp-2', vote: 'reject' },
       { expertId: 'exp-3', vote: 'abstain' },
     ];
+
+    beforeEach(() => {
+      // 合格投票权集合（votedCount 分子同源谓词）：三票全为正选合格票——保持原 votedCount=3 断言语义
+      prisma.bidExpert.findMany.mockResolvedValue([{ id: 'exp-1' }, { id: 'exp-2' }, { id: 'exp-3' }]);
+    });
 
     it('非组长：voting 期动议不返回 votes/赞反计数，仅本人票与已投数（防从众）', async () => {
       prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, isLead: false });
