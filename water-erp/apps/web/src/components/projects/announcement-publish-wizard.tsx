@@ -1733,7 +1733,6 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                   <SunshineSyncRow
                     sunshineOn={sunshineOn}
                     sunshineConfig={sunshineConfig}
-                    category={category}
                     onToggle={(on) => { setSunshineOn(on); if (on) setSunshineModalOpen(true); }}
                     onOpenConfig={() => setSunshineModalOpen(true)}
                   />
@@ -1753,7 +1752,6 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                 <SunshineSyncRow
                   sunshineOn={sunshineOn}
                   sunshineConfig={sunshineConfig}
-                  category={category}
                   onToggle={(on) => { setSunshineOn(on); if (on) setSunshineModalOpen(true); }}
                   onOpenConfig={() => setSunshineModalOpen(true)}
                 />
@@ -2177,17 +2175,14 @@ function AttachmentSection({
 function SunshineSyncRow({
   sunshineOn,
   sunshineConfig,
-  category,
   onToggle,
   onOpenConfig,
 }: {
   sunshineOn: boolean;
   sunshineConfig: SunshinePublishConfig | null;
-  category: AnnouncementCategory | null;
   onToggle: (on: boolean) => void;
   onOpenConfig: () => void;
 }) {
-  const iface = category ? SUNSHINE_CATEGORY_INTERFACE[category] : null;
   return (
     <>
       <div className="mt-3 flex items-center gap-2 border-t border-[oklch(0.6_0.04_258_/_0.1)] pt-3">
@@ -2218,8 +2213,7 @@ function SunshineSyncRow({
         </button>
       </div>
       <p className="mt-1.5 text-[10px] leading-relaxed text-[var(--muted-foreground)]">
-        发布时按《天府阳光采购平台招标数据接口文档 V2.0.5》同步推送本公告
-        {iface ? `（${iface.code} ${iface.name}）` : ''}，并自动先推送 SCM0001 招标基础信息。
+        发布时同步推送本公告至天府阳光采购平台，并自动先推送招标基础信息。
         正式推送需由平台分配身份标识并开通 IP 白名单——接入完成前，此处配置仅随公告存档，不会实际推送。
       </p>
     </>
