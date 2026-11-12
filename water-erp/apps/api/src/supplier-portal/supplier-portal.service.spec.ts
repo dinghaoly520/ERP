@@ -2389,6 +2389,8 @@ describe('SupplierPortalService', () => {
       prisma.fileAsset.create = jest.fn(); // 存量桩保留(其他路径防御)
       // decrypt-upload 明文资产走 upsert(确定性 key 重试安全)——排队 id 断言亦挂此处
       prisma.fileAsset.upsert = jest.fn().mockImplementation(({ create }: any) => Promise.resolve({ id: `fa-${String(create.key).split('/').pop()}`, key: create.key }));
+      // #150 反显名继承：外层资产名反查（findMany）——默认全 miss → 回退 role.plain（既有用例口径不变）
+      prisma.fileAsset.findMany = jest.fn().mockResolvedValue([]);
       prisma.bidOpeningRecord.upsert = jest.fn().mockResolvedValue({});
       prisma.bidOpeningRecord.create = jest.fn();
 
@@ -2523,6 +2525,47 @@ describe('SupplierPortalService', () => {
       expect(gateway.notifyDecryptStatus).toHaveBeenCalledWith('project-1', 'bs-1', '四川水发建设有限公司', 'SUCCESS');
       expect(gateway.notifySupervisionLog).toHaveBeenCalled();
       expect(gateway.notifyAnomaly).not.toHaveBeenCalled();
+    });
+
+    it('decrypt-upload：#150 明文资产反显名继承投递原始名（外层资产名剥 .outer）——create/update 两分支同刷（DANGER 重置重试不复留旧错名）', async () => {
+      // 外层资产名 = 原名+.outer（dual-v3-client.ts:154 上传口径）；专家端 documents-step 反显此列
+      prisma.fileAsset.findMany.mockResolvedValue([
+        { id: 'fa-t', originalName: '技术标书-final V2.pdf.outer' },
+        { id: 'fa-b', originalName: '商务响应文件.docx.outer' },
+      ]);
+      const res: any = await service.decryptUpload('supplier-1', 'project-1',
+        { technical: plainT, business: plainB }, JSON.stringify(FIELDS), NONCE);
+
+      expect(res.decryptStatus).toBe('SUCCESS');
+      // 按 role 反查外层资产列（technicalFileAssetId/businessFileAssetId）
+      expect(prisma.fileAsset.findMany).toHaveBeenCalledWith({
+        where: { id: { in: ['fa-t', 'fa-b'] } },
+        select: { id: true, originalName: true },
+      });
+      expect(prisma.fileAsset.upsert).toHaveBeenNthCalledWith(1, expect.objectContaining({
+        create: expect.objectContaining({ originalName: '技术标书-final V2.pdf' }),
+        update: expect.objectContaining({ originalName: '技术标书-final V2.pdf' }),
+      }));
+      expect(prisma.fileAsset.upsert).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        create: expect.objectContaining({ originalName: '商务响应文件.docx' }),
+        update: expect.objectContaining({ originalName: '商务响应文件.docx' }),
+      }));
+    });
+
+    it('decrypt-upload：#150 外层资产名缺失（无 .outer 后缀/查无资产）→ 逐角色回退 role.plain，不炸解密链路', async () => {
+      // 一个查无资产（coverLetter 场景类比）、一个名字无 .outer 后缀
+      prisma.fileAsset.findMany.mockResolvedValue([{ id: 'fa-b', originalName: 'legacy-name.bin' }]);
+      const res: any = await service.decryptUpload('supplier-1', 'project-1',
+        { technical: plainT, business: plainB }, JSON.stringify(FIELDS), NONCE);
+
+      expect(res.decryptStatus).toBe('SUCCESS');
+      expect(prisma.fileAsset.upsert).toHaveBeenNthCalledWith(1, expect.objectContaining({
+        create: expect.objectContaining({ originalName: 'technical.plain' }),
+      }));
+      // 无 .outer 后缀的外层名仍优于合成名（最接近原始名的可用事实）
+      expect(prisma.fileAsset.upsert).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        create: expect.objectContaining({ originalName: 'legacy-name.bin' }),
+      }));
     });
 
     it('decrypt-upload：sha256 闸门失败（上传明文与存证锚点不符）→ DANGER+EXCEPTION+归因 UNKNOWN+WS DANGER，零明文落库', async () => {

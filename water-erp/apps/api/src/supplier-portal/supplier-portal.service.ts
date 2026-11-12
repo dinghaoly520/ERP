@@ -3811,6 +3811,32 @@ export class SupplierPortalService {
       }
     }
 
+    // #150（2026-11-12）：明文资产反显名继承投递原始名——专家端标书获取恒显 technical.plain 的根因修复。
+    // 名字源双轨：①外层资产列（dual-v2/legacy 投递写列）②信封 files[role].assetId（dual-v3 三列为空、
+    // staged C_outer 挂信封，submitBidV3 归属校验同款读法）——上传名=原名+.outer（dual-v3-client.ts:154），
+    // 剥尾缀即供应商原始名；C_inner 资产名亦为合成 `${role}.inner` 不可用。
+    // 查无资产→回退 role.plain；名字无 .outer 后缀→按原样用（最接近原始名的可用事实）。
+    const plainNameByRole = new Map<EnvelopeRole, string>();
+    if (!gateError && uploaded.length) {
+      const envAssetIdOf = (role: EnvelopeRole) =>
+        ((submission.envelope as { files?: Record<string, { assetId?: string }> } | null)?.files?.[role]?.assetId) ?? undefined;
+      const idByRole = new Map<EnvelopeRole, string>();
+      for (const { role } of uploaded) {
+        const colId = (submission as any)[DUAL_ROLE_ASSET_KEY[role]] as string | undefined;
+        const id = colId ?? envAssetIdOf(role);
+        if (id) idByRole.set(role, id);
+      }
+      const ids = [...new Set(idByRole.values())];
+      const rows = ids.length
+        ? await this.prisma.fileAsset.findMany({ where: { id: { in: ids } }, select: { id: true, originalName: true } })
+        : [];
+      const nameById = new Map(rows.map(r => [r.id, r.originalName]));
+      for (const { role } of uploaded) {
+        const outerName = idByRole.has(role) ? nameById.get(idByRole.get(role)!) : undefined;
+        plainNameByRole.set(role, outerName?.endsWith('.outer') ? outerName.slice(0, -'.outer'.length) : (outerName || `${role}.plain`));
+      }
+    }
+
     // ③ 短事务终局写入（DB 状态+归属链+唱标预填+监督日志；WS 全部后置）
     const outcome = gateError ? ('DANGER' as const) : ('SUCCESS' as const);
     let finalState: any = null;
@@ -3839,7 +3865,8 @@ export class SupplierPortalService {
             where: { key: objectKeyOf(role) },
             create: {
               key: objectKeyOf(role),
-              originalName: `${role}.plain`,
+              // #150：继承投递原始名（剥 .outer）——专家端反显/证据链用；回退合成名
+              originalName: plainNameByRole.get(role) ?? `${role}.plain`,
               mimeType: 'application/octet-stream',
               size: buf.length,
               sha256: await sha256Hex(buf), // 明文哈希（下载链路/审计锚点）
@@ -3849,6 +3876,9 @@ export class SupplierPortalService {
               uploaderId: supplier.userId,
             },
             update: {
+              // #150：update 分支同刷 originalName——DANGER 后「重置解密机会」重试复用同 key，
+              // 不刷则修复前入库的旧错名（technical.plain）永久残留
+              originalName: plainNameByRole.get(role) ?? `${role}.plain`,
               size: buf.length,
               sha256: await sha256Hex(buf),
               uploaderId: supplier.userId,
