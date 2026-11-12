@@ -5997,6 +5997,31 @@ ${JSON.stringify(algorithmResult, null, 2)}
       return project;
     }
 
+    // 状态闸（spec 2026-11-12 §4.2，裁定 #1）：仅进行中（建错移除）与已终止（终态清理）
+    // 可入回收站；已完成是成果记录，保持已完成 tab 纯净、拒收清理。
+    if (project.status === PROJECT_MANAGEMENT_STATUS.ARCHIVED) {
+      throw new BadRequestException('已完成项目不可移除清理。');
+    }
+
+    // 投标活动闸（P2-2 收口，2026-11-12）：与 completeProject/公告删除同源——关联招标项目
+    // 仍处活动阶段时禁移除，否则 PMI 消失而投标侧永卡活动态；终态项目终止时已联动流标，自然放行。
+    const activeBidProjects = await this.prisma.bidProject.findMany({
+      where: {
+        projectManagementItemId: projectId,
+        stage: { in: ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING'] },
+      },
+      select: { name: true, stage: true },
+    });
+    if (activeBidProjects.length > 0) {
+      const names = activeBidProjects
+        .map((bp) => `「${bp.name}」(${STAGE_LABEL[bp.stage] ?? bp.stage})`)
+        .join('、');
+      throw new ConflictException({
+        error: `关联招标项目仍在开评标流程中：${names}。请先终止项目（联动流标）后再移除，或在「开标确认」面板完成完整归档`,
+        code: 'BID_IN_PROGRESS',
+      });
+    }
+
     return this.prisma.projectManagementItem.update({
       where: { id: projectId },
       data: { status: PROJECT_MANAGEMENT_STATUS.RECYCLED, recycledAt: new Date() },

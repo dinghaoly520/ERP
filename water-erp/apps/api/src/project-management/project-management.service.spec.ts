@@ -1588,6 +1588,50 @@ describe('ProjectManagementService', () => {
     });
   });
 
+  describe('moveToRecycleBin 状态与投标闸（spec 2026-11-12 §4.2）', () => {
+    const USER = { sub: 'u-1', username: '张三', role: 'staff' } as any;
+
+    it('TERMINATED 项目放行——终态清理通道（裁定 #2 前置）', async () => {
+      const { service, prisma } = makeService();
+      prisma.projectManagementItem.findUnique.mockResolvedValue({ id: 'pm-01', status: 'TERMINATED', createdById: 'u-1' });
+      prisma.bidProject.findMany.mockResolvedValue([]);
+      prisma.projectManagementItem.update.mockResolvedValue({ id: 'pm-01', status: 'RECYCLED' });
+
+      await expect(service.moveToRecycleBin('pm-01', USER)).resolves.toMatchObject({ status: 'RECYCLED' });
+      expect(prisma.projectManagementItem.update).toHaveBeenCalledWith({
+        where: { id: 'pm-01' },
+        data: expect.objectContaining({ status: 'RECYCLED' }),
+      });
+    });
+
+    it('ARCHIVED 项目拒收——已完成不可清理（裁定 #1）', async () => {
+      const { service, prisma } = makeService();
+      prisma.projectManagementItem.findUnique.mockResolvedValue({ id: 'pm-01', status: 'ARCHIVED', createdById: 'u-1' });
+
+      await expect(service.moveToRecycleBin('pm-01', USER)).rejects.toThrow(BadRequestException);
+      expect(prisma.projectManagementItem.update).not.toHaveBeenCalled();
+    });
+
+    it('关联投标项目活动态 → 409 BID_IN_PROGRESS（P2-2 收口）', async () => {
+      const { service, prisma } = makeService();
+      prisma.projectManagementItem.findUnique.mockResolvedValue({ id: 'pm-01', status: 'ACTIVE', createdById: 'u-1' });
+      prisma.bidProject.findMany.mockResolvedValue([{ name: '测试投标项目', stage: 'OPENING' }]);
+
+      await expect(service.moveToRecycleBin('pm-01', USER)).rejects.toMatchObject({
+        response: { code: 'BID_IN_PROGRESS' },
+      });
+      expect(prisma.projectManagementItem.update).not.toHaveBeenCalled();
+    });
+
+    it('RECYCLED 幂等——直接返回不重写 recycledAt', async () => {
+      const { service, prisma } = makeService();
+      prisma.projectManagementItem.findUnique.mockResolvedValue({ id: 'pm-01', status: 'RECYCLED', createdById: 'u-1' });
+
+      await expect(service.moveToRecycleBin('pm-01', USER)).resolves.toMatchObject({ status: 'RECYCLED' });
+      expect(prisma.projectManagementItem.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('updateStage 阶段完成实质校验（P1-12）', () => {
     const completing = { status: 'COMPLETED' } as any;
 
