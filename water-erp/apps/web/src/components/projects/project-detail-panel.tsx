@@ -2335,10 +2335,16 @@ export function ProjectDetailPanel({
               )}
             </div>
 
-            <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-4 py-3">
-              <p className="text-xs leading-5 text-[var(--muted-foreground)]">
-                终止将记录当前所在阶段（{(() => { const s = item.stages.find((st) => st.stageKey === item.currentStage); return s?.stageName ?? item.currentStage; })()}）及已上传资料，写入采购台账（标记为已取消）。已发布的采购公告将同步下架，进行中的招标流程联动流标，未完成工作安排自动取消。操作不可逆，终止后不可恢复；如需继续采购请重新建立项目。
-              </p>
+            {/* 终止警示（2026-11-12 用户裁定：红色分条 +「请注意」标题） */}
+            <div className="rounded-[12px] border border-[color-mix(in_oklch,var(--danger)_22%,transparent)] bg-[color-mix(in_oklch,var(--danger)_6%,transparent)] px-4 py-3">
+              <div className="text-xs font-bold text-[var(--danger)]">请注意：</div>
+              <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs leading-5 text-[var(--danger)]">
+                <li>终止将记录当前所在阶段（{(() => { const s = item.stages.find((st) => st.stageKey === item.currentStage); return s?.stageName ?? item.currentStage; })()}）及已上传资料，写入采购台账（标记为已取消）。</li>
+                <li>已发布的采购公告将同步下架。</li>
+                <li>进行中的招标流程联动流标。</li>
+                <li>未完成工作安排自动取消。</li>
+                <li>操作不可逆，终止后不可恢复；如需继续采购请重新建立项目。</li>
+              </ul>
             </div>
           </div>
         </Modal>
