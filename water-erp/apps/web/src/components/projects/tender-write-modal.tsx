@@ -1250,7 +1250,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
             {historyEntries.length === 0 ? (
               <div className="text-sm text-[color:var(--muted-foreground)] text-center py-8">暂无历史版本，请点击「保存当前」创建第一个版本</div>
             ) : (
-              <div className="space-y-2 mb-4">
+              <div className="mt-4 space-y-2 mb-4">
                 {historyEntries.map((entry, i) => (
                   <button
                     key={i}
