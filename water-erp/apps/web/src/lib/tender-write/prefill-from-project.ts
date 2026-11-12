@@ -20,6 +20,7 @@ import {
   INQUIRY_PURCHASE_SECTIONS,
   INTERNAL_BIDDING_SECTIONS,
   INVITED_BIDDING_SECTIONS,
+  QUOTATION_TEXT_AI_PROMPT,
 } from './templates';
 
 /**
@@ -116,15 +117,26 @@ function resolveAiPrompt(tenderType: TenderDocumentType, fieldKey: string): stri
 /**
  * 返回该类型中适合 AI 生成且没有预填值的字段列表。
  * 每个条目的 aiPrompt 从 templates.ts 章节配置中解析，确保批量自动生成与编辑器内单字段生成使用同一份提示词。
+ * quotationMode='text'（2026-11-12 双模式区分裁定）：报价表按「填入文字」模式生成——
+ * 改用叙述性提示词（与编辑器单字段 AI 同一份常量），不再产出 Tab 分隔的表格制式文本。
  */
-export function getAiGenerationFields(tenderType: TenderDocumentType): Array<{
+export function getAiGenerationFields(
+  tenderType: TenderDocumentType,
+  opts?: { quotationMode?: "text" | "table" },
+): Array<{
   fieldKey: string;
   label: string;
   aiPrompt?: string;
 }> {
   // 为每个字段补上 templates.ts 中配置的 aiPrompt
   const withPrompts = (fields: Array<{ fieldKey: string; label: string }>) =>
-    fields.map((f) => ({ ...f, aiPrompt: resolveAiPrompt(tenderType, f.fieldKey) }));
+    fields.map((f) => ({
+      ...f,
+      aiPrompt:
+        f.fieldKey === "quotationLetter" && opts?.quotationMode === "text"
+          ? QUOTATION_TEXT_AI_PROMPT
+          : resolveAiPrompt(tenderType, f.fieldKey),
+    }));
 
   // projectName 不在 AI 生成清单（2026-10-30 实录）：名称权威来源是 PMI 标题预填，LLM 只会
   // 写整段综述盖掉名称（服务端 tender-field-generate 亦拦 PROJECT_NAME_NO_AI）。同批移除的

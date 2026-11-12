@@ -36,6 +36,28 @@ test("getAiGenerationFields：清单内字段必须都能解析到 aiPrompt（�
   }
 });
 
+test("getAiGenerationFields：quotationLetter 提示词按报价表模式分流（2026-11-12 双模式区分裁定）", () => {
+  const types: TenderDocumentType[] = [
+    "COMPETITIVE_NEGOTIATION",
+    "SINGLE_SOURCE",
+    "INQUIRY_PURCHASE",
+    "INTERNAL_BIDDING",
+    "INVITED_BIDDING",
+  ];
+  for (const t of types) {
+    // 默认（表格模式）：模板字段提示词=Tab 分隔表格制式
+    const tableMode = getAiGenerationFields(t).find((f) => f.fieldKey === "quotationLetter");
+    assert.ok(tableMode?.aiPrompt?.includes("必须以制表符"), `${t} 默认应为表格制式提示词`);
+
+    // 文字模式：改用叙述性提示词（与编辑器单字段 AI 同一份常量）
+    const textMode = getAiGenerationFields(t, { quotationMode: "text" }).find(
+      (f) => f.fieldKey === "quotationLetter",
+    );
+    assert.ok(textMode?.aiPrompt?.includes("必须采用叙述性文字表达"), `${t} 文字模式应为叙述性提示词`);
+    assert.ok(!textMode?.aiPrompt?.includes("必须以制表符"), `${t} 文字模式不得残留表格制式指令`);
+  }
+});
+
 const mkProject = (): ProjectManagementItem =>
   ({
     id: "pmi-1",

@@ -33,6 +33,11 @@ import {
   getAiGenerationFields,
   buildAiGenerationContext,
 } from '@/lib/tender-write/prefill-from-project';
+import {
+  resolveQuotationAiMode,
+  planQuotationWriteBack,
+} from '@/lib/tender-write/quotation-ai-writeback';
+import { tableHasDataRows } from '@/lib/tender-write/quotation-table-text';
 import { TenderReviewProvider } from '@/components/tender-review/tender-review-provider';
 import ProjectReviewFlow from '@/components/tender-review/project-review-flow';
 import { getDownloadUrl } from '@/lib/api/review';
@@ -367,15 +372,24 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       return;
     }
 
+    // 报价表模式分流（2026-11-12 用户裁定：填入文字/设计表格的 AI 产物形态必须区分）：
+    // 批量生成按草稿显式模式选提示词（文字=叙述性）与写回形态（文字=字符串、表格=转表），
+    // 与编辑器单字段 AI（2026-11-04 分流）同口径
+    const quotationMode = resolveQuotationAiMode(
+      (saved?.[typeKey] as { quotationLetterType?: string } | undefined)?.quotationLetterType,
+    );
+    const batchFields =
+      quotationMode === 'table' ? aiFields : getAiGenerationFields(type, { quotationMode });
+
     const context = buildAiGenerationContext(project);
     setAiGenerating(true);
     setAiDone(0);
-    setAiTotal(aiFields.length);
+    setAiTotal(batchFields.length);
 
     (async () => {
-      for (let i = 0; i < aiFields.length; i++) {
-        const f = aiFields[i];
-        setAiProgress(`${f.label}（${i + 1}/${aiFields.length}）`);
+      for (let i = 0; i < batchFields.length; i++) {
+        const f = batchFields[i];
+        setAiProgress(`${f.label}（${i + 1}/${batchFields.length}）`);
         setAiDone(i + 1);
 
         const current = String((draftsRef.current[typeKey] as Record<string, string>)?.[f.fieldKey] ?? '');
@@ -401,7 +415,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
               .replace(/\?{2,}(?=\s|$|。|，|；)/g, '')
               .replace(/\s+$/, '');
             const isQuotationField = f.fieldKey === 'quotationLetter';
-            const tableData = isQuotationField ? parseQuotationTextToTable(cleaned) : null;
+            const writeBack = isQuotationField ? planQuotationWriteBack(quotationMode, cleaned) : null;
             setDrafts((prev) => {
               const emptyFn = {
                 COMPETITIVE_NEGOTIATION: createEmptyCompetitiveNegotiationDraft,
@@ -411,14 +425,26 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                 INVITED_BIDDING: createEmptyInvitedBiddingDraft,
               }[type];
               const base = { ...(emptyFn?.() ?? {}), ...(prev[typeKey] ?? {}) };
-              if (tableData) {
+              if (writeBack?.kind === 'table') {
+                // 表格制式落表格——不再把 Tab 文本写入 quotationLetter 字符串
+                // （旧写法会在切「填入文字」时把表格行暴露进文字框，2026-11-12 修复）
                 return {
                   ...prev,
                   [typeKey]: {
                     ...base,
                     quotationLetterType: 'table',
-                    quotationLetterTable: tableData,
-                    [f.fieldKey]: cleaned,
+                    quotationLetterTable: writeBack.table,
+                  },
+                };
+              }
+              if (writeBack?.kind === 'text') {
+                // 叙述性文字落字符串；表格模式解析失败的回退也落文字形态（内容决定展示模式）
+                return {
+                  ...prev,
+                  [typeKey]: {
+                    ...base,
+                    quotationLetterType: 'text',
+                    [f.fieldKey]: writeBack.text,
                   },
                 };
               }
@@ -558,10 +584,21 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     if (!selectedType || !project) return;
     const type = selectedType as TenderDocumentType;
     const typeKey = selectedType as keyof TenderDraftsState;
-    const aiFields = getAiGenerationFields(type);
+    // 报价表模式分流（2026-11-12 用户裁定）：按草稿显式模式选提示词与写回形态，
+    // 文字模式产出叙述性段落、表格模式转表——不再把 Tab 表格行灌进文字框
+    const currentDraft = draftsRef.current[typeKey] as Record<string, unknown> | undefined;
+    const quotationMode = resolveQuotationAiMode(currentDraft?.quotationLetterType);
+    const aiFields = getAiGenerationFields(type, { quotationMode });
     const context = buildAiGenerationContext(project);
-    const currentDraftRef = draftsRef.current[typeKey] as Record<string, string>;
+    const currentDraftRef = currentDraft as Record<string, string>;
+    const quotationTable = (currentDraft as { quotationLetterTable?: TableData } | undefined)?.quotationLetterTable;
     const emptyFields = aiFields.filter((f) => {
+      if (f.fieldKey === 'quotationLetter') {
+        // 字符串与表格数据行任一有内容即视为已填——表格模式表格有数据 ≠ 未填，
+        // 否则会对已生成过报价表的草稿反复重生成
+        if (String(currentDraftRef?.quotationLetter ?? '').trim()) return false;
+        return !(quotationTable && tableHasDataRows(quotationTable));
+      }
       const val = currentDraftRef?.[f.fieldKey];
       return !val?.trim();
     });
@@ -581,14 +618,26 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
         });
         if (result.content) {
           const cleaned = result.content.replace(/�/g, '').replace(/\?{2,}(?=\s|$|。|，|；)/g, '').replace(/\s+$/, '');
-          updateDraft(f.fieldKey as TenderFieldKey, cleaned);
+          if (f.fieldKey === 'quotationLetter') {
+            const writeBack = planQuotationWriteBack(quotationMode, cleaned);
+            if (writeBack.kind === 'table') {
+              updateDraft('quotationLetterType', 'table');
+              updateDraftTable(writeBack.table);
+            } else {
+              // 叙述性文字落字符串（含表格模式解析失败回退）——模式随内容形态
+              updateDraft('quotationLetterType', 'text');
+              updateDraft(f.fieldKey as TenderFieldKey, writeBack.text);
+            }
+          } else {
+            updateDraft(f.fieldKey as TenderFieldKey, cleaned);
+          }
         }
       } catch { /* single field failure doesn't stop */ }
       await new Promise((r) => setTimeout(r, 300));
     }
     setBatchFilling(false);
     toast.success(`已填入 ${emptyFields.length} 个字段`);
-  }, [selectedType, project, updateDraft]);
+  }, [selectedType, project, updateDraft, updateDraftTable]);
 
   // ── 导入识别：多文件(.docx/.pdf/.md/.txt) AI 识别后勾选回填（纯分析，不上传/不落库）──
   const [importDialogOpen, setImportDialogOpen] = useState(false);
