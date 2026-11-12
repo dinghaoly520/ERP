@@ -122,6 +122,12 @@ function normalizeSubmissionRequirements(value: string): string {
     : `5.提交成果要求：${trimmed}`;
 }
 
+/** 值尾去句号（2026-11-12）：引导语同行型字段模板自带收尾句号——值本身带句号时
+ * 拼接出「。。」双句号，渲染前剥掉值尾句号由模板统一收尾。 */
+function stripTrailingPeriod(value: string): string {
+  return value.trim().replace(/。+$/, '');
+}
+
 
 /** 报价表模式（与后端 resolveQuotationMode 同口径）。显式选择按存值；
  * 未设置一律默认表格（2026-11-12 用户裁定「优先默认使用表格」——存量真文字草稿
@@ -165,12 +171,16 @@ function PreviewValue({
   value,
   placeholder,
   multiline = false,
+  inline = false,
   fieldKey,
   onValueChange,
 }: {
   value: string;
   placeholder: string;
   multiline?: boolean;
+  /** 行内形态（2026-11-12 用户裁定）：引导语同行型字段（如「2.本项目特定资格要求：值」）
+   * 用 inline——multiline 可编辑态默认 block 会把值拆到引导语下一行。 */
+  inline?: boolean;
   fieldKey?: TenderFieldKey;
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
 }) {
@@ -268,7 +278,7 @@ function PreviewValue({
             selection.addRange(range);
           }
         }}
-        className={`tender-preview-editable outline-none rounded-[4px] px-1 -mx-1 hover:bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] focus:bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] transition-colors cursor-text ${multiline ? 'whitespace-pre-wrap block' : ''} ${isEmpty && frozen === null ? 'tender-preview-placeholder min-w-[4rem] inline-block' : 'text-[color:var(--accent-strong)]'}`}
+        className={`tender-preview-editable outline-none rounded-[4px] px-1 -mx-1 hover:bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] focus:bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] transition-colors cursor-text ${multiline ? (inline ? 'whitespace-pre-wrap inline' : 'whitespace-pre-wrap block') : ''} ${isEmpty && frozen === null ? 'tender-preview-placeholder min-w-[4rem] inline-block' : 'text-[color:var(--accent-strong)]'}`}
       >
         {shouldRenderChildren ? childrenText : null}
       </span>
@@ -344,6 +354,7 @@ export function TenderPreviewDocument({
   onSectionClick,
   onValueChange,
   companyName,
+  projectCode,
 }: {
   documentType: ReadyTenderDocumentType;
   draft: ReadyTenderDraft;
@@ -352,6 +363,8 @@ export function TenderPreviewDocument({
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
   /** 当前用户公司名（2026-10-09）：预览固定公司名按登录账号公司展示 */
   companyName?: string;
+  /** 项目编号（2026-11-12）：封面项目名称下方裸编号——与导出模板封面同口径；独立页无项目不传即不显示 */
+  projectCode?: string;
 }) {
   const content = (() => {
     if (documentType === 'SINGLE_SOURCE') {
@@ -361,6 +374,7 @@ export function TenderPreviewDocument({
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
           onValueChange={onValueChange}
+          projectCode={projectCode}
         />
       );
     }
@@ -372,6 +386,7 @@ export function TenderPreviewDocument({
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
           onValueChange={onValueChange}
+          projectCode={projectCode}
         />
       );
     }
@@ -384,6 +399,7 @@ export function TenderPreviewDocument({
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
           onValueChange={onValueChange}
+          projectCode={projectCode}
         />
       );
     }
@@ -394,6 +410,7 @@ export function TenderPreviewDocument({
         activeSectionKey={activeSectionKey}
         onSectionClick={onSectionClick}
         onValueChange={onValueChange}
+        projectCode={projectCode}
       />
     );
   })();
@@ -410,11 +427,14 @@ function CompetitiveNegotiationPreview({
   activeSectionKey,
   onSectionClick,
   onValueChange,
+  projectCode,
 }: {
   draft: CompetitiveNegotiationDraft;
   activeSectionKey: TenderSectionKey;
   onSectionClick?: (key: TenderSectionKey) => void;
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
+  /** 项目编号：封面名称下方裸编号（透传自主组件） */
+  projectCode?: string;
 }) {
   // Helper to create PreviewValue with onValueChange
   const PV = (value: string, placeholder: string, fieldKey: TenderFieldKey, multiline = false) => (
@@ -444,6 +464,11 @@ function CompetitiveNegotiationPreview({
             <div className="text-xl font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
+            {projectCode && (
+              <div className="mt-1.5 text-sm font-medium tabular-nums tracking-[0.02em] text-[color:var(--accent-strong)]">
+                {projectCode}
+              </div>
+            )}
             <div className="mt-4 text-sm font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">
               谈判采购文件
             </div>
@@ -488,7 +513,7 @@ function CompetitiveNegotiationPreview({
               <p className="ml-4">1.2未被市场监督管理机关在"国家企业信用信息公示系统"网站（www.gsxt.gov.cn）列入严重违法失信名单；</p>
               <p className="ml-4">1.3未被最高人民法院在"信用中国"网站（www.creditchina.gov.cn）列入严重失信名单；</p>
               <p className="ml-4">1.4符合法律、行政法规规定的其他条件。</p>
-              <p className="mt-2">2.本项目特定资格要求：<PreviewValue value={draft.qualificationRequirements} placeholder="{{特定资格要求}}" multiline fieldKey="qualificationRequirements" onValueChange={onValueChange} />。</p>
+              <p className="mt-2">2.本项目特定资格要求：<PreviewValue value={stripTrailingPeriod(draft.qualificationRequirements)} placeholder="{{特定资格要求}}" multiline inline fieldKey="qualificationRequirements" onValueChange={onValueChange} />。</p>
               <p className="mt-2">3.本项目不接受被邀请的供应商以联合体形式参加谈判。</p>
             </div>
           </div>
@@ -748,11 +773,14 @@ function SingleSourcePreview({
   activeSectionKey,
   onSectionClick,
   onValueChange,
+  projectCode,
 }: {
   draft: SingleSourceDraft;
   activeSectionKey: TenderSectionKey;
   onSectionClick?: (key: TenderSectionKey) => void;
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
+  /** 项目编号：封面名称下方裸编号（透传自主组件） */
+  projectCode?: string;
 }) {
   return (
     <div className="pb-4">
@@ -769,6 +797,11 @@ function SingleSourcePreview({
             <div className="text-xl font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
+            {projectCode && (
+              <div className="mt-1.5 text-sm font-medium tabular-nums tracking-[0.02em] text-[color:var(--accent-strong)]">
+                {projectCode}
+              </div>
+            )}
             <div className="mt-4 text-sm font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">
               直接采购文件
             </div>
@@ -1099,11 +1132,14 @@ function InquiryPurchasePreview({
   activeSectionKey,
   onSectionClick,
   onValueChange,
+  projectCode,
 }: {
   draft: InquiryPurchaseDraft;
   activeSectionKey: TenderSectionKey;
   onSectionClick?: (key: TenderSectionKey) => void;
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
+  /** 项目编号：封面名称下方裸编号（透传自主组件） */
+  projectCode?: string;
 }) {
   // 询比 v2（2026-10-29 模板）：与竞价预览同构的五章制；术语恒为询比口径
   const T = { docTitle: '询比采购文件', party: '供应商', file: '响应文件', chapter: '采购邀请', buyer: '采购人' };
@@ -1127,6 +1163,11 @@ function InquiryPurchasePreview({
             <div className="text-xl font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
+            {projectCode && (
+              <div className="mt-1.5 text-sm font-medium tabular-nums tracking-[0.02em] text-[color:var(--accent-strong)]">
+                {projectCode}
+              </div>
+            )}
             <div className="mt-4 text-sm font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">
               {T.docTitle}
             </div>
@@ -1171,7 +1212,7 @@ function InquiryPurchasePreview({
               <p className="ml-4">1.2 未被市场监督管理机关在"国家企业信用信息公示系统"网站（www.gsxt.gov.cn）列入严重违法失信名单；</p>
               <p className="ml-4">1.3 未被最高人民法院在"信用中国"网站（www.creditchina.gov.cn）列入严重失信名单；</p>
               <p className="ml-4">1.4 符合法律、行政法规规定的其他条件。</p>
-              <p className="mt-2">2.本项目特定资格要求：<PreviewValue value={draft.qualificationRequirements} placeholder="{{特定资质要求}}" multiline fieldKey="qualificationRequirements" onValueChange={onValueChange} />。</p>
+              <p className="mt-2">2.本项目特定资格要求：<PreviewValue value={stripTrailingPeriod(draft.qualificationRequirements)} placeholder="{{特定资格要求}}" multiline inline fieldKey="qualificationRequirements" onValueChange={onValueChange} />。</p>
               <p className="mt-2">3.本项目{!draft.consortiumFormType ? '☐' : (draft.consortiumFormType === 'accept' ? '☑' : '☐')}接受/{!draft.consortiumFormType ? '☐' : (draft.consortiumFormType === 'reject' ? '☑' : '☐')}不接受被邀请的{T.party}以联合体形式参加响应。
               {!draft.consortiumFormType ? (
                 <span><br />联合体还应满足下列要求：<span className="rounded-[6px] bg-[rgba(234,188,110,0.12)] px-1 text-[rgba(178,124,42,1)]">{"{{联合体形式}}"}</span>。</span>
@@ -1559,6 +1600,7 @@ function InternalBiddingPreview({
   activeSectionKey,
   onSectionClick,
   onValueChange,
+  projectCode,
   isInvited = false,
 }: {
   draft: InternalBiddingDraft;
@@ -1566,6 +1608,8 @@ function InternalBiddingPreview({
   onSectionClick?: (key: TenderSectionKey) => void;
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
   isInvited?: boolean;
+  /** 项目编号：封面名称下方裸编号（透传自主组件） */
+  projectCode?: string;
 }) {
   // 术语映射：邀请招标 vs 竞价采购
   const T = isInvited
@@ -1587,6 +1631,11 @@ function InternalBiddingPreview({
             <div className="text-xl font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
+            {projectCode && (
+              <div className="mt-1.5 text-sm font-medium tabular-nums tracking-[0.02em] text-[color:var(--accent-strong)]">
+                {projectCode}
+              </div>
+            )}
             <div className="mt-4 text-sm font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">
               {T.docTitle}
             </div>
@@ -1631,7 +1680,7 @@ function InternalBiddingPreview({
               <p className="ml-4">1.2 未被市场监督管理机关在"国家企业信用信息公示系统"网站（www.gsxt.gov.cn）列入严重违法失信名单；</p>
               <p className="ml-4">1.3 未被最高人民法院在"信用中国"网站（www.creditchina.gov.cn）列入严重失信名单；</p>
               <p className="ml-4">1.4 符合法律、行政法规规定的其他条件。</p>
-              <p className="mt-2">2.本项目特定资格要求：<PreviewValue value={draft.qualificationRequirements} placeholder="{{特定资质要求}}" multiline fieldKey="qualificationRequirements" onValueChange={onValueChange} />。</p>
+              <p className="mt-2">2.本项目特定资格要求：<PreviewValue value={stripTrailingPeriod(draft.qualificationRequirements)} placeholder="{{特定资格要求}}" multiline inline fieldKey="qualificationRequirements" onValueChange={onValueChange} />。</p>
               <p className="mt-2">3.本项目{!draft.consortiumFormType ? '☐' : (draft.consortiumFormType === 'accept' ? '☑' : '☐')}接受/{!draft.consortiumFormType ? '☐' : (draft.consortiumFormType === 'reject' ? '☑' : '☐')}不接受被邀请的{T.party}以联合体形式参加响应。
               {!draft.consortiumFormType ? (
                 <span><br />联合体还应满足下列要求：<span className="rounded-[6px] bg-[rgba(234,188,110,0.12)] px-1 text-[rgba(178,124,42,1)]">{"{{联合体形式}}"}</span>。</span>

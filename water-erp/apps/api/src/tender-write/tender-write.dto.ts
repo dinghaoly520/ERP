@@ -19,6 +19,12 @@ export class ExportTenderWriteDto {
   @IsObject()
   answers: Record<string, unknown>;
 
+  /** 导出格式（2026-11-12 用户裁定：导出时可选）——pdf 走 LibreOffice 转换，
+   *  服务器未装时回退 docx（响应头 X-Export-Format 标记实际格式）。 */
+  @IsIn(['docx', 'pdf'])
+  @IsOptional()
+  format?: 'docx' | 'pdf';
+
   /** 项目编号（统一命名用，项目绑定场景由前端传入） */
   @IsString()
   @IsOptional()

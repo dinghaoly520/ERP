@@ -27,7 +27,10 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
       notification: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       $transaction: jest.fn().mockResolvedValue([]),
     };
-    notification = { create: jest.fn(), sendToRole: jest.fn() };
+    notification = {
+      create: jest.fn(), sendToRole: jest.fn(),
+      sendToCompanyRoles: jest.fn().mockResolvedValue({ sent: 1, fallbackAdmin: false, userIds: ['u-admin'] }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -95,9 +98,9 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
       expect(candidates).toHaveLength(1);
       expect(candidates[0].userId).toBe('u1');
       expect(candidates[0].reason).toContain('E');
-      // 预警只通知，不改状态
+      // 预警只通知，不改状态（2026-11-12 起 sendToCompanyRoles 按归属公司分组发送）
       expect(prisma.expertProfile.updateMany).not.toHaveBeenCalled();
-      expect(notification.sendToRole).toHaveBeenCalled();
+      expect(notification.sendToCompanyRoles).toHaveBeenCalled();
     });
 
     it('连续 D 级不再触发退库预警（阈值已收紧为连续 E 级）', async () => {

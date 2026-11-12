@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as JSZip from 'jszip';
 import {
   buildInquiryPurchaseReplacementPlan,
+  buildCoverProjectCodeReplacements,
   renderTemplateXml,
   INQUIRY_PURCHASE_TEMPLATE_FILE,
 } from './tender-write.template';
@@ -151,11 +152,12 @@ describe('询比采购文件模板 v2（综合评分法评审标准）', () => {
     ).rejects.toMatchObject({ status: 400, response: { code: 'SCORING_NOT_FILLED' } });
   });
 
-  it('占位符全覆盖：替换计划+租户替换后零残留', async () => {
+  it('占位符全覆盖：替换计划+租户替换+封面编号后零残留', async () => {
     const xml = await loadTemplateXml();
     const rendered = renderTemplateXml(xml, [
       ...buildInquiryPurchaseReplacementPlan(fixture()),
       ...tenantPlan,
+      ...buildCoverProjectCodeReplacements('TP-2026111201'),
     ]);
     expect(extractPlaceholders(rendered)).toEqual([]);
   });

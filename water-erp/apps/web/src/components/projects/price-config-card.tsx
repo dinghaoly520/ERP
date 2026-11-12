@@ -103,8 +103,8 @@ function validateParams(k: string, penaltyRate: string, noPenaltyRange: string):
 }
 
 export function EvaluationBasisFields({
-  detail, onChanged, priceItemCount,
-}: { detail: PriceConfigSource | null; onChanged: () => void; priceItemCount?: number }) {
+  detail, onChanged, priceItemCount, fallbackCeilingPrice,
+}: { detail: PriceConfigSource | null; onChanged: () => void; priceItemCount?: number; fallbackCeilingPrice?: number | null }) {
   const [ceilingPrice, setCeilingPrice] = useState("");
   const [evaluationMethod, setEvaluationMethod] = useState("");
   const [formulaCalc, setFormulaCalc] = useState("manual");
@@ -119,8 +119,11 @@ export function EvaluationBasisFields({
 
   // 载荷就位/变更时回显（string 化避免受控警告；公式回显=引擎实际生效口径）
   /* eslint-disable react-hooks/set-state-in-effect -- 载荷回显：detail 变更时同步表单初值，符合受控表单惯例 */
+  // 限价未设置时按项目预算预填（建议值，2026-11-12）：预算（元）≠法定限价，须用户核实后
+  // 显式「保存配置」才落库——预填即 dirty 亮保存钮；用户清空不回灌（effect 不因输入重跑）
+  const prefillCeiling = fallbackCeilingPrice != null && fallbackCeilingPrice > 0 ? String(fallbackCeilingPrice) : "";
   useEffect(() => {
-    setCeilingPrice(detail?.ceilingPrice != null ? String(detail.ceilingPrice) : "");
+    setCeilingPrice(detail?.ceilingPrice != null ? String(detail.ceilingPrice) : (prefillCeiling || ""));
     // 回显=实际生效口径：null（罕见）按采购方式推导，不再提供「未设置」空选项（曾致用户
     // 误解为专家手动打分）；保存即落显式值，顺带规范化数据
     setEvaluationMethod(detail?.evaluationMethod ?? deriveEvalMethod(detail?.procurementMethod));
@@ -129,7 +132,7 @@ export function EvaluationBasisFields({
     setParamK(cfgObj?.K != null ? String(cfgObj.K) : "");
     setParamPenalty(cfgObj?.penaltyRate != null ? String(cfgObj.penaltyRate) : "");
     setParamRange(cfgObj?.noPenaltyRange != null ? String(cfgObj.noPenaltyRange) : "");
-  }, [detail?.id, detail?.ceilingPrice, detail?.evaluationMethod, detail?.priceFormulaConfig]);
+  }, [detail?.id, detail?.ceilingPrice, detail?.evaluationMethod, detail?.priceFormulaConfig, prefillCeiling]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const softLocked = softLockedOf(detail?.stage);
@@ -240,6 +243,11 @@ export function EvaluationBasisFields({
             placeholder="未设置" disabled={softLocked && !ceilingBackfillable}
             className="workbench-input mt-1 w-full !text-[13px] tabular-nums"
           />
+          {detail?.ceilingPrice == null && prefillCeiling !== "" && (
+            <span className="mt-1 block text-[10px] leading-relaxed text-[var(--muted-foreground)]">
+              已按项目预算（{prefillCeiling} 元）预填，请核实后点「保存配置」生效
+            </span>
+          )}
         </label>
         <label className="block text-xs text-[var(--muted-foreground)]">
           <span className="flex items-center gap-1.5">

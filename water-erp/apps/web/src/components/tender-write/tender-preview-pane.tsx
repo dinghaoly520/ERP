@@ -20,6 +20,7 @@ export function TenderPreviewPane({
   scrollToCenter = false,
   focusedFieldKey,
   onValueChange,
+  projectCode,
 }: {
   documentType: ReadyTenderDocumentType;
   draft: ReadyTenderDraft;
@@ -30,6 +31,8 @@ export function TenderPreviewPane({
   scrollToCenter?: boolean;
   focusedFieldKey?: string;
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
+  /** 项目编号（2026-11-12）：封面名称下方裸编号，透传至预览文档 */
+  projectCode?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   // 当前用户公司名（2026-10-09）：预览固定公司名按登录账号公司展示；取不到回退平台主公司
@@ -144,6 +147,7 @@ export function TenderPreviewPane({
             onSectionClick={onSectionClick}
             onValueChange={onValueChange}
             companyName={companyName ?? undefined}
+            projectCode={projectCode}
           />
         </div>
       </div>

@@ -40,6 +40,7 @@ export function TenderWriteWorkspace({
   onAutoFillAll,
   batchFilling,
   sectionGate,
+  projectCode,
 }: {
   documentType: ReadyTenderDocumentType;
   draft: ReadyTenderDraft;
@@ -53,6 +54,8 @@ export function TenderWriteWorkspace({
   onOpenSupplierSelect?: () => void;
   onAutoFillAll?: () => void;
   batchFilling?: boolean;
+  /** 项目编号（2026-11-12）：封面名称下方裸编号，透传至预览 */
+  projectCode?: string;
   /** 前置章节闸（询比评分标准章节）：未满足时该节可进入但只渲染解锁提示 */
   sectionGate?: {
     key: TenderSectionKey;
@@ -256,6 +259,7 @@ export function TenderWriteWorkspace({
           scrollToCenter={scrollToCenter}
           focusedFieldKey={focusedFieldKey}
           onValueChange={handlePreviewValueChange}
+          projectCode={projectCode}
         />
       </div>
 

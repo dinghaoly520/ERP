@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { NOTIFICATION_REGISTRY } from '@water-erp/shared';
 import { NotificationService } from './notification.service';
 import { EmailChannel } from './channels/email.channel';
 import { SmsChannel } from './channels/sms.channel';
@@ -19,6 +20,8 @@ describe('NotificationService', () => {
     },
     notificationDeliveryLog: { create: jest.fn().mockResolvedValue({}) },
     user: { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
+    // resolveOwn 整组消解事务（2026-11-12）：直接执行回调，tx 复用同一 mock 面板
+    $transaction: jest.fn((fn: (tx: unknown) => Promise<unknown>) => fn(prisma)),
   };
   const emailChannel = { send: jest.fn().mockResolvedValue({ status: 'skipped' }) } as any;
   const smsChannel = { send: jest.fn().mockResolvedValue({ status: 'skipped' }) } as any;
@@ -207,13 +210,13 @@ describe('NotificationService', () => {
     jest.spyOn(service as any, 'pushRealtime').mockImplementation(() => {});
 
     const r1 = await service.sendToCompanyRoles('co-x', ['leader', 'staff'], { type: 'T', title: 't', content: 'c', link: '/x' });
-    expect(r1).toEqual({ sent: 2, fallbackAdmin: false });
+    expect(r1).toEqual({ sent: 2, fallbackAdmin: false, userIds: ['u-x1', 'u-x2'] }); // userIds（2026-11-12）：取代旧批按收件人圈旧通知
     expect(prisma.notification.create).toHaveBeenCalledTimes(2);
     expect(prisma.notification.create).toHaveBeenCalledWith({ data: expect.objectContaining({ userId: 'u-x1', type: 'T' }) });
 
     prisma.notification.create.mockClear();
     const r2 = await service.sendToCompanyRoles(null, ['leader'], { type: 'T', title: 't', content: 'c' });
-    expect(r2).toEqual({ sent: 1, fallbackAdmin: true });
+    expect(r2).toEqual({ sent: 1, fallbackAdmin: true, userIds: ['u-admin'] });
     expect(prisma.notification.create).toHaveBeenCalledWith({ data: expect.objectContaining({ userId: 'u-admin' }) });
   });
 
@@ -229,6 +232,69 @@ describe('NotificationService', () => {
       where: { id: 'n1' },
       data: { resolvedAt: expect.any(Date), isRead: true, readAt: expect.any(Date) },
     });
+  });
+
+  it('resolveOwn 群发复核型（连拒预警）整组消解：任一收件人办结，同 type+link+content 的群发副本一并办结（2026-11-12 实录：02 办结后 01 仍挂待办）', async () => {
+    const content = '专家「朱少帅」已连续 3 次拒绝评审邀请（含婉拒/超时弃权/代婉拒），请复核其参评意愿与库内状态。';
+    prisma.notification.findUnique.mockReset().mockResolvedValue({
+      id: 'n1', userId: 'u1', type: 'EXPERT_DECLINE_STREAK', resolvedAt: null, isRead: false,
+      link: '/expert/e1?tab=overview', content,
+    });
+    prisma.notification.update.mockClear().mockResolvedValue({ id: 'n1' });
+    prisma.notification.updateMany.mockClear().mockResolvedValue({ count: 9 });
+
+    await service.resolveOwn('n1', 'u1');
+
+    expect(prisma.notification.updateMany).toHaveBeenCalledWith({
+      where: { type: 'EXPERT_DECLINE_STREAK', link: '/expert/e1?tab=overview', content, resolvedAt: null },
+      data: { resolvedAt: expect.any(Date), isRead: true, readAt: expect.any(Date) },
+    });
+  });
+
+  it('resolveOwn 非群发复核型不整组消解：个人待办办结只动本人行', async () => {
+    prisma.notification.findUnique.mockReset().mockResolvedValue({
+      id: 'n2', userId: 'u1', type: 'SUPPLIER_PENDING', resolvedAt: null, isRead: false,
+      link: '/supplier/approval?supplierId=s1', content: 'x',
+    });
+    prisma.notification.update.mockClear().mockResolvedValue({ id: 'n2' });
+    prisma.notification.updateMany.mockClear();
+
+    await service.resolveOwn('n2', 'u1');
+
+    expect(prisma.notification.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('sharedResolve 全集契约（2026-11-12 举一反三）：内部角色群发复核型清单封口——新增群发复核型预警须入列，事件性/个人待办禁入', () => {
+    // 同签名=同一工作项才可入列（type+link+content 不含时间维度）；反例 BID_CLARIFICATION_CREATED
+    // 同签名跨多次澄清事件，标了会把后续事件一并误消解。
+    const shared = NOTIFICATION_REGISTRY.filter(s => s.sharedResolve).map(s => s.code).sort();
+    expect(shared).toEqual([
+      'ACCOUNT_SECURITY_FEEDBACK',
+      'ARCHIVE_INTEGRITY_ALERT',
+      'EXPERT_DECLINE_STREAK',
+      'EXPERT_RETIRE_CANDIDATE',
+      'PRE_WIN_CONFIRM_DUE',
+      'SUPPLIER_CLEANUP_DUE',
+      'SUPPLIER_DECLINE_STREAK',
+      'SUPPLIER_ELIMINATE_CANDIDATE',
+    ]);
+  });
+
+  it('resolveOwn 整组消解走事务：本人行与群发副本行同生共死（部分失败=半消解僵尸组）', async () => {
+    prisma.notification.findUnique.mockReset().mockResolvedValue({
+      id: 'n1', userId: 'u1', type: 'EXPERT_RETIRE_CANDIDATE', resolvedAt: null, isRead: false,
+      link: '/expert/retirement', content: '172 名专家进入退库候选',
+    });
+    prisma.notification.update.mockClear().mockResolvedValue({ id: 'n1' });
+    prisma.notification.updateMany.mockClear().mockResolvedValue({ count: 5 });
+    (prisma.$transaction as jest.Mock).mockClear();
+
+    await service.resolveOwn('n1', 'u1');
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    // 事务回调内两写都发生（mock $transaction 直接执行回调）
+    expect(prisma.notification.update).toHaveBeenCalled();
+    expect(prisma.notification.updateMany).toHaveBeenCalled();
   });
 
   it('resolveOwn 幂等：已办结不重置时间、不落库', async () => {

@@ -517,10 +517,12 @@ export async function sweepStaleActionableNotifications(prisma: SweepPrisma): Pr
   }
 
   // ── 4e) 开标域阶段窗口统一对账（2026-11-02 全量矩阵审计）──
-  // 三类窗口 × link 含项目 id（/my-bids/{id}、/bid/project/{id}、?projectId=）：截标窗口（受邀/
-  // 催投/催供应商/时间变更）离开 DOWNLOAD/SUBMIT 即失效；开标窗口（临近开标/解密临期/会场交流/
-  // 异议超时）评标启动或终局即失效；评标窗口（评标超时/专家指派/催专家）项目终局即失效。
-  // 项目删除同样消解；无 id 存量（/dashboard 等）不动——已读兜底。
+  // 三类窗口 × link 含项目 id（/my-bids/{id}、/bid/project/{id}、/bids/{id}、?projectId=）：截标
+  // 窗口（受邀/催投/催供应商/时间变更）离开 DOWNLOAD/SUBMIT 即失效；开标窗口（临近开标/解密
+  // 临期/会场交流/异议超时）评标启动或终局即失效；评标窗口（评标超时/专家指派/催专家/澄清/
+  // 报价轮）项目终局即失效。项目删除同样消解；无 id 存量（/dashboard 等）不动——已读兜底。
+  // 2026-11-12 举一反三补：BID_CLARIFICATION_CREATED/BID_ROUND_OPEN 两型漏窗口覆盖且
+  // /bids/{id}/… 前缀不被提取——澄清应邀答复只在评标期有意义，项目终局即僵尸。
   {
     const BID_STAGE_WINDOWS: Array<{ types: string[]; stale: (stage: string | undefined) => boolean }> = [
       {
@@ -532,7 +534,7 @@ export async function sweepStaleActionableNotifications(prisma: SweepPrisma): Pr
         stale: (st) => st === undefined || ['EVALUATING', 'ARCHIVED', 'ABORTED'].includes(st),
       },
       {
-        types: ['EVAL_DEADLINE_EXPIRED', 'EXPERT_ASSIGNED', 'BID_NUDGE_EXPERT'],
+        types: ['EVAL_DEADLINE_EXPIRED', 'EXPERT_ASSIGNED', 'BID_NUDGE_EXPERT', 'BID_CLARIFICATION_CREATED', 'BID_ROUND_OPEN'],
         stale: (st) => st === undefined || st === 'ARCHIVED' || st === 'ABORTED',
       },
     ];
@@ -542,6 +544,9 @@ export async function sweepStaleActionableNotifications(prisma: SweepPrisma): Pr
       if (m1) return m1[1];
       const m2 = /\/bid\/project\/([A-Za-z0-9_-]+)/.exec(link);
       if (m2) return m2[1];
+      // 供应商端 /bids/{projectId}/…（clarifications、round-quote 等）——先于 ?projectId= 参数形
+      const m3 = /\/bids\/([A-Za-z0-9_-]+)/.exec(link);
+      if (m3) return m3[1];
       return extractParam(link, 'projectId');
     };
     for (const { types, stale } of BID_STAGE_WINDOWS) {

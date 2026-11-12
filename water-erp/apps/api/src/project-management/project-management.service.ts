@@ -1474,9 +1474,7 @@ ${shortlist}
     file: Express.Multer.File,
     uploadedById?: string,
   ) {
-    if (!file.mimetype.includes('pdf')) {
-      throw new BadRequestException('请上传 PDF 文件。');
-    }
+    this.assertExtractFileKind(file);
 
     const { absolutePath, attachment } = await this.persistUploadedFile(
       file,
@@ -3396,9 +3394,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     file: Express.Multer.File,
     uploadedById?: string,
   ) {
-    if (!file.mimetype.includes('pdf')) {
-      throw new BadRequestException('请上传 PDF 文件。');
-    }
+    this.assertExtractFileKind(file);
 
     const { absolutePath, attachment } = await this.persistUploadedFile(
       file,
@@ -6206,6 +6202,23 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
 
     return { success: true };
+  }
+
+  /** 识别入口文件类型闸（2026-11-11 用户裁定：不再限 PDF，放开 Word/TXT）：
+ *  documentParser 原生支持 pdf/docx/doc/txt——按扩展名或 MIME 双判白名单，
+ *  其余类型（压缩包/可执行等）拒绝，防走错解析器 */
+  private assertExtractFileKind(file: Express.Multer.File): void {
+    const name = (file.originalname || '').toLowerCase();
+    const byName = /\.(pdf|docx|doc|txt)$/.test(name);
+    const mime = file.mimetype || '';
+    const byMime =
+      mime.includes('pdf') ||
+      mime.includes('msword') ||
+      mime.includes('officedocument.wordprocessingml') ||
+      mime.includes('text/plain');
+    if (!byName && !byMime) {
+      throw new BadRequestException('仅支持 PDF、Word（doc/docx）、TXT 文件。');
+    }
   }
 
   private async extractFileText(

@@ -298,7 +298,7 @@ export default function ProjectReviewFlow({ projectId, documentType, answers, pr
           </button>
         </div>
       )}
-      {task && <ReportViewCombined task={task} onBack={() => backToConfig(task)} />}
+      {task && <ReportViewCombined task={task} onBack={() => backToConfig(task)} hideBack />}
     </div>
   );
 }

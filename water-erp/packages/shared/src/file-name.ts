@@ -32,13 +32,24 @@ export interface StandardFileNameInput {
   tag?: string | null;
   /** 生成日期，默认今天 */
   date?: Date;
+  /** 日期槽位覆盖（2026-11-12）：提供时替换默认 YYYYMMDD——如「系统导出版」需分钟级
+   *  YYYYMMDDHHmm 时传入，避免与尾段日冗余 */
+  dateSuffix?: string;
   /** 扩展名，默认 .docx */
   ext?: string;
 }
 
+/** 北京时间分钟级时间戳 YYYYMMDDHHmm（服务器可能 UTC，文件名恒用户口径 +8）。 */
+export function beijingMinuteStamp(date: Date = new Date()): string {
+  return new Date(date.getTime() + 8 * 3600_000)
+    .toISOString()
+    .slice(0, 16)
+    .replace(/[-:T]/g, '');
+}
+
 export function buildStandardFileName(input: StandardFileNameInput): string {
   const date = input.date ?? new Date();
-  const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
+  const dateStr = input.dateSuffix ?? date.toISOString().slice(0, 10).replace(/-/g, '');
   const parts = [input.code, input.name, input.docType, input.tag, dateStr]
     .map((p) => (p != null && String(p).trim() ? sanitizePart(String(p)) : ''))
     .filter(Boolean);

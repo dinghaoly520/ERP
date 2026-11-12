@@ -256,7 +256,7 @@ export function ChangeModal({
 
         <div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-4 pb-4">
           {step === 'type' && (
             <div className="mt-8 space-y-3">
               <button type="button" onClick={() => { setType('CHANGE'); setStep('form'); }} className="neu-card block w-full p-4 text-left">

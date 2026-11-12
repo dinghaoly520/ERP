@@ -17,6 +17,8 @@ const FIELDS_WITHOUT_ACTIONS: Set<string> = new Set([
   'supervisionPhone',
   'bidOpeningPlace',
   'contactAddress',
+  // 公告开标地点（2026-11-12）：与 bidOpeningPlace 同语义——操作入口只有「地点」条目选择按钮
+  'openingLocation',
 ]);
 
 // 仅藏 AI 按钮、保留收藏/样本库的字段（2026-10-16 用户裁定）：

@@ -30,18 +30,15 @@ export class TenderWriteController {
     @CurrentUser() user: { sub?: string },
     @Res() res: Response,
   ) {
-    const { buffer, fileName } = await this.tenderWriteService.exportDocument(
-      dto,
-      user,
-    );
+    const { buffer, fileName, mimeType, format } =
+      await this.tenderWriteService.exportDocument(dto, user);
     res.setHeader(
       'Content-Disposition',
       `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
     );
-    res.setHeader(
-      'Content-Type',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    );
+    res.setHeader('Content-Type', mimeType);
+    // 实际导出格式标记：选 pdf 但服务器无 LibreOffice 回退 docx 时，前端据此提示
+    res.setHeader('X-Export-Format', format);
     res.send(buffer);
   }
 

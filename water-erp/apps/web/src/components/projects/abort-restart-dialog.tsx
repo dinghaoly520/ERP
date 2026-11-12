@@ -504,12 +504,12 @@ export function AbortRestartDialog({
               <>
                 <FileUp size={22} className="mx-auto mb-2 text-[var(--accent)]" />
                 <p className="text-sm font-semibold text-[var(--foreground)]">点击上传{startStage === 'PROCUREMENT_DEMAND' ? '采购需求表' : '立项文件'}</p>
-                <p className="mt-1 text-xs text-[var(--muted-foreground)]">仅支持 PDF，最大 100MB</p>
+                <p className="mt-1 text-xs text-[var(--muted-foreground)]">支持 PDF / Word / TXT，最大 100MB</p>
               </>
             )}
             <input
               type="file"
-              accept="application/pdf,.pdf"
+              accept=".pdf,.doc,.docx,.txt"
               className="hidden"
               disabled={uploading}
               onChange={(e) => {

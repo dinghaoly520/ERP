@@ -107,6 +107,8 @@ const FIELDS_WITHOUT_ACTIONS: Set<string> = new Set([
   "scheduleRequirementsType",
   "bidder1Remark",
   "bidder1RemarkType",
+  // 开标地点（2026-11-12）：无 AI/样本语义——专属「地点」条目选择按钮（公司信息管理维护）
+  "openingLocation",
   // 监督信息（2026-10-09）：无 AI/样本语义
   "supervisionDepartment",
   "supervisionAddress",
@@ -276,6 +278,12 @@ function announcementFieldHasValue(
   return true;
 }
 
+
+/** 公示期限显示名（2026-11-12 用户裁定）：公告制作页面显示为「公示期限（采购文件获取时间）」。
+ *  仅显示层改名——字段配置（announcement-templates）被 04 公告向导/直采备案等共用，源 label 不动。 */
+const displayFieldLabel = (label: string) =>
+  label === "公示期限" ? "公示期限（采购文件获取时间）" : label;
+
 /** datetime-local 字段的展示值兼容层（2026-09-21 公示期限（止）统一 datetime 后）：
  *  存量草稿/缓存/.docx 解析可能是旧「公告截止时间」的 date-only 值（YYYY-MM-DD），
  *  datetime-local input 收到会判非法显空——渲染时补 23:59 升级（当日截止惯例，
@@ -300,6 +308,7 @@ function AnnouncementFieldEditor({
   onAiGenerate,
   onContactOpen,
   onSupervisorOpen,
+  onPlaceOpen,
   onSupplierCheck,
   supplierChecking,
 }: {
@@ -314,6 +323,8 @@ function AnnouncementFieldEditor({
   onSampleOpen: (fieldKey: AnnouncementFieldKey, fieldLabel: string) => void;
   onAiGenerate: (fieldKey: AnnouncementFieldKey, fieldLabel: string, value: string, aiPrompt?: string) => void;
   onContactOpen?: () => void;
+  /** 打开公司维护的开标地点条目选择器（开标地点字段专属，2026-11-12） */
+  onPlaceOpen?: () => void;
   /** 监督人字段（supervisionContact）专属：打开监督举报条目选择（2026-10-09 联系人多选 → 2026-10-13 改条目整块填四字段） */
   onSupervisorOpen?: () => void;
   /** 拟定供应商名称专属：核对采购文件中供应商是否已更换（替代 AI 内容优化） */
@@ -328,6 +339,7 @@ function AnnouncementFieldEditor({
   const hideActions = FIELDS_WITHOUT_ACTIONS.has(field.key);
   const isContactField = field.key === "contactName";
   const isSupervisionContactField = field.key === "supervisionContact";
+  const isPlaceField = field.key === "openingLocation";
 
   // Composite field state
   const compositeConfig = field.composite;
@@ -355,13 +367,13 @@ function AnnouncementFieldEditor({
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium text-[color:var(--foreground)]">
-          {field.label}
+          {displayFieldLabel(field.label)}
         </span>
         <div className="flex items-center gap-2">
           {/* 监督人按钮豁免（2026-10-16）：supervisionContact 虽在 FIELDS_WITHOUT_ACTIONS
               （无 AI/样本语义），但「监督人」条目选择按钮须与采购文件编写（tender-section-editor）
               同款——那边按钮不受 hideActions 闸门影响恒显示，此处外层闸门曾把整个组件一起藏掉。 */}
-          {(!hideActions || isSupervisionContactField) && (
+          {(!hideActions || isSupervisionContactField || isPlaceField) && (
             <TenderFieldActions
               fieldKey={field.key as TenderFieldKey}
               currentValue={value}
@@ -373,6 +385,8 @@ function AnnouncementFieldEditor({
               onAiGenerate={() => onAiGenerate(field.key, field.label, value, field.aiPrompt)}
               onContactOpen={onContactOpen}
               isSupervisionContactField={isSupervisionContactField}
+              isPlaceField={isPlaceField}
+              onPlaceOpen={onPlaceOpen}
               onSupervisorOpen={onSupervisorOpen}
               aiOverride={field.key === 'supplierName' && onSupplierCheck ? {
                 title: '核对供应商：重新解析采购文件，检查拟定供应商是否已更换',
@@ -505,7 +519,7 @@ function AnnouncementFieldEditor({
         <div className="mt-2 flex items-center gap-2">
           <input
             type="datetime-local"
-            aria-label={`${field.label}（起）`}
+            aria-label={`${displayFieldLabel(field.label)}（起）`}
             value={shownValue}
             onChange={(e) => onChange(field.key, e.target.value)}
             onFocus={() => onFieldFocus?.(field.key)}
@@ -514,7 +528,7 @@ function AnnouncementFieldEditor({
           <span className="shrink-0 text-xs font-semibold text-[color:var(--muted-foreground)]">至</span>
           <input
             type="datetime-local"
-            aria-label={`${field.label}（止）`}
+            aria-label={`${displayFieldLabel(field.label)}（止）`}
             value={(() => {
               const endRaw = (field.rangeEndKey ? draftRecord[field.rangeEndKey] : '').trim();
               return /^\d{4}-\d{2}-\d{2}$/.test(endRaw) ? `${endRaw}T23:59` : endRaw;
@@ -596,6 +610,8 @@ export function AnnouncementDialog({
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
   // 监督人多选（2026-10-09）：公告监督块「联系人」行从本公司联系人多选
   const [supervisorPickerOpen, setSupervisorPickerOpen] = useState(false);
+  // 开标地点条目选择（2026-11-12 与采购文件编写同款）：公司信息管理维护的地点条目单选
+  const [placePickerOpen, setPlacePickerOpen] = useState(false);
   // 当前用户公司名（预览公司名与监督部门默认值用）——取不到时预览按平台主公司口径展示
   const [companyName, setCompanyName] = useState<string | null>(null);
   // 本公司维护信息（2026-10-10 联动）：监督块与采购人联系方式空缺时预填
@@ -679,11 +695,14 @@ export function AnnouncementDialog({
       }
     }
     if (wanted('registrationMethod')) {
+      // 值尾去句号（2026-11-12，与预览 stripTrailingPeriod 同裁定）：join 后模板统一收尾「。」，
+      // 值自带尾句号会拼出「。。」（实录：钻机采购要求见附件一。。）
+      const strip = (v: string) => v.trim().replace(/。+$/, '');
       const parts: string[] = [];
       const reqs = project.supplierRequirements?.trim() || tenderRecord.qualificationRequirements?.trim();
-      if (reqs) parts.push(`供应商资格条件：${reqs}`);
+      if (reqs) parts.push(`供应商资格条件：${strip(reqs)}`);
       const materials = tenderRecord.requiredDocuments?.trim();
-      if (materials) parts.push(`报名材料：${materials}`);
+      if (materials) parts.push(`报名材料：${strip(materials)}`);
       if (parts.length > 0) patch.registrationMethod = `${parts.join('；')}。`;
     }
     if (Object.keys(patch).length > 0) {
@@ -703,6 +722,11 @@ export function AnnouncementDialog({
     const wanted = (key: string) =>
       fields.some((f) => f.key === key) && !rec[key]?.trim() && !patch[key]?.trim();
 
+    // 开标地点（2026-11-12 用户裁定改输入）：公司维护值（公司信息管理·开标地点）预填，
+    // 未维护留空由用户手填——导出/预览不再锁死模板默认串
+    if (wanted('openingLocation') && companyInfo.bidOpeningAddress) {
+      patch.openingLocation = companyInfo.bidOpeningAddress;
+    }
     if (wanted('supervisionDepartment') && companyInfo.supervisionDept) {
       patch.supervisionDepartment = companyInfo.supervisionDept;
     }
@@ -1524,6 +1548,7 @@ export function AnnouncementDialog({
                       onAiGenerate={handleAiGenerate}
                       onContactOpen={() => setContactPickerOpen(true)}
                       onSupervisorOpen={() => setSupervisorPickerOpen(true)}
+                      onPlaceOpen={() => setPlacePickerOpen(true)}
                       onSupplierCheck={handleSupplierCheck}
                       supplierChecking={supplierChecking}
                     />
@@ -1662,6 +1687,16 @@ export function AnnouncementDialog({
           kind="supervision"
           onSelectSupervision={handleSupervisionSelect}
           onClose={() => setSupervisorPickerOpen(false)}
+        />
+      )}
+
+      {/* 开标地点条目选择（公司信息管理维护；与采购文件编写同款，2026-11-12） */}
+      {placePickerOpen && (
+        <CompanyEntryPickerDialog
+          isOpen={placePickerOpen}
+          kind="place"
+          onSelectPlace={(address) => handleFieldChange("openingLocation", address)}
+          onClose={() => setPlacePickerOpen(false)}
         />
       )}
 

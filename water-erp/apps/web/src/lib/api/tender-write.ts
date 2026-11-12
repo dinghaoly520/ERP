@@ -27,6 +27,8 @@ export async function exportTenderDocument(payload: {
   answers: ReadyTenderDraft;
   /** 项目编号（统一命名用，项目绑定场景传入） */
   projectCode?: string;
+  /** 导出格式（2026-11-12）：pdf 走服务器 LibreOffice 转换，不可用回退 docx——回读 format 知实际产物 */
+  format?: 'docx' | 'pdf';
 }) {
   const response = await apiFetch(`${API_BASE}/tender-write/export`, {
     method: "POST",
@@ -45,5 +47,7 @@ export async function exportTenderDocument(payload: {
     fileName:
       parseFileName(response.headers.get("content-disposition")) ??
       "招标文件.docx",
+    /** 实际导出格式（X-Export-Format）：选 pdf 但服务器无转换环境时为 'docx'（回退） */
+    format: (response.headers.get('X-Export-Format') === 'pdf' ? 'pdf' : 'docx') as 'pdf' | 'docx',
   };
 }

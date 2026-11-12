@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FileDown, FileText, FileUp, FolderInput, History, Loader2, Save, Search, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { TenderExportFormatDialog } from '@/components/tender-write/export-format-dialog';
 import { apiFetch } from '@/lib/api/api-fetch';
 import { TenderWriteWorkspace } from '@/components/tender-write/tender-write-workspace';
 import { mapProcurementMethodToTenderType } from '@/lib/tender-write/procurement-method-map';
@@ -44,7 +45,6 @@ import { getDownloadUrl } from '@/lib/api/review';
 import type { ReviewTask } from '@/lib/types/tender-review';
 import {
   uploadProjectStageAttachment,
-  updateProjectExtractedInfo,
   fetchProjectTenderDraft,
   saveProjectTenderDraft,
   clearProjectTenderDraft,
@@ -146,6 +146,8 @@ type Props = {
 
 export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTitle, project, onAttachmentUploaded, onUpdated }: Props) {
   const [exporting, setExporting] = useState(false);
+  /** 导出格式选择弹窗（2026-11-12：Word/PDF 二选一） */
+  const [exportFormatOpen, setExportFormatOpen] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiProgress, setAiProgress] = useState('');
@@ -731,8 +733,8 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
 
   // ---------- 导出 / 审查 ----------
 
-  /** 直接导出：下载文件 + 上传至项目采购文件阶段。 */
-  const handleDirectExport = useCallback(async () => {
+  /** 导出前置校验（询比评分闸）——通过后弹格式选择（2026-11-12：Word/PDF 二选一）。 */
+  const handleExportClick = useCallback(() => {
     if (!selectedType || !project) return;
     // 询比 v2：评审方法固定综合评分法——评分标准未填有效行阻止导出（与 /tender-write 同闸门）
     if (
@@ -742,10 +744,16 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       setErrorMessage('综合评分法评审标准未填写：请在「评审程序和评定成交的标准」章节填写评分标准后再导出');
       return;
     }
+    setExportFormatOpen(true);
+  }, [selectedType, project, currentDraft]);
+
+  /** 直接导出：下载文件 + 上传至项目采购文件阶段。 */
+  const handleDirectExport = useCallback(async (format: 'docx' | 'pdf') => {
+    if (!selectedType || !project) return;
     setExporting(true);
     setErrorMessage(null);
     try {
-      const result = await exportTenderDocument({ documentType: selectedType, answers: currentDraft, projectCode: project?.projectCode || undefined });
+      const result = await exportTenderDocument({ documentType: selectedType, answers: currentDraft, projectCode: project?.projectCode || undefined, format });
       // 下载
       const url = URL.createObjectURL(result.blob);
       const a = document.createElement('a');
@@ -753,37 +761,24 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       a.download = result.fileName;
       a.click();
       URL.revokeObjectURL(url);
+      if (format === 'pdf' && result.format === 'docx') {
+        toast.warning('服务器未配置 PDF 转换环境，已回退导出 Word 文档');
+      }
       setSuccessMessage('导出成功');
       setTimeout(() => setSuccessMessage(null), 2000);
-      // 上传至项目阶段
+      // 上传至项目阶段（PDF 版按实际格式上传）
       try {
         const file = new File([result.blob], result.fileName, {
-          type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          type:
+            result.format === 'pdf'
+              ? 'application/pdf'
+              : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         });
         const uploaded = await uploadProjectStageAttachment(project.id, 'TENDER_DOCUMENT', file);
         onAttachmentUploaded?.(uploaded);
-        // 同步 tender-write draft 中的字段到项目基本信息（绕过 PDF 解析）
-        // 不同模板的字段名不同：projectOverview/projectIntroduction、documentAcquireTime 等
-        const draftRecord = currentDraft as Record<string, string>;
-        const infoUpdate: Record<string, string> = {};
-        // 2026-10-29 询比 v2：草稿字段与其他类型统一为 projectOverview（旧 projectIntroduction 已废）
-        const overviewVal = draftRecord['projectOverview']?.trim();
-        if (overviewVal) infoUpdate.projectOverview = overviewVal;
-        const acquireVal = draftRecord['documentAcquireTime']?.trim();
-        if (acquireVal) infoUpdate.documentAcquireTime = acquireVal;
-        // 询比评审方法固定综合评分法（草稿无 evaluationMethod 字段）；其余类型读草稿值
-        if (selectedType === 'INQUIRY_PURCHASE') {
-          infoUpdate.evaluationMethod = '综合评分法';
-        } else {
-          const evalVal = draftRecord['evaluationMethod']?.trim();
-          if (evalVal) { infoUpdate.evaluationMethod = evalVal /* 非ExtractedInfo字段但DB接受 */; }
-        }
-        if (Object.keys(infoUpdate).length > 0) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          try { await updateProjectExtractedInfo(project.id, infoUpdate as any); } catch { /* 同步失败不阻塞 */ }
-        }
-        // 刷新父组件项目数据，使基本信息中刚写入的 projectOverview / documentAcquireTime
-        // / evaluationMethod 等字段即时显示，避免必须手动刷新页面。
+        // 字段回填说明（2026-11-12）：概况/获取时段/开标时间由上传链路的文档提取落库
+        // （isTenderMainFile 已认「谈判文件」）；原「草稿字段 PATCH extracted-info 同步」自
+        // 2026-11-11 变更体系闸门（CHANGE_ONLY）起恒 400 且被吞——死通道已删，改文档提取正路。
         try { await onUpdated?.(); } catch { /* 刷新失败不阻塞导出 */ }
         toast.success('采购文件已上传至项目采购文件阶段');
       } catch {
@@ -853,25 +848,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       });
       const uploaded = await uploadProjectStageAttachment(project.id, 'TENDER_DOCUMENT', file);
       onAttachmentUploaded?.(uploaded);
-      // 同步 tender-write draft 中的字段到项目基本信息（绕过 PDF 解析）
-      const draftRecord2 = currentDraft as Record<string, string>;
-      const infoUpdate2: Record<string, string> = {};
-      // 2026-10-29 询比 v2：与其他类型统一读 projectOverview（旧 projectIntroduction 已废）
-      const overviewVal2 = draftRecord2['projectOverview']?.trim();
-      if (overviewVal2) infoUpdate2.projectOverview = overviewVal2;
-      const acquireVal2 = draftRecord2['documentAcquireTime']?.trim();
-      if (acquireVal2) infoUpdate2.documentAcquireTime = acquireVal2;
-      // 询比评审方法固定综合评分法；其余类型读草稿值（与直接导出同步同口径）
-      if (selectedType === 'INQUIRY_PURCHASE') {
-        infoUpdate2.evaluationMethod = '综合评分法';
-      } else {
-        const evalVal2 = draftRecord2['evaluationMethod']?.trim();
-        if (evalVal2) { infoUpdate2.evaluationMethod = evalVal2; }
-      }
-      if (Object.keys(infoUpdate2).length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        try { await updateProjectExtractedInfo(project.id, infoUpdate2 as any); } catch { /* 同步失败不阻塞 */ }
-      }
+      // 字段回填走上传链路文档提取（同导出路径注释，2026-11-12）；草稿 PATCH 同步已被变更体系闸门封死，删。
       toast.success('采购文件已提交至项目采购文件阶段');
       setShowReviewUploadDialog(false);
       setShowReview(false);
@@ -1059,7 +1036,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
             </button>
             <button
               type="button"
-              onClick={() => void handleDirectExport()}
+              onClick={handleExportClick}
               disabled={exporting}
               className="neu-btn-soft gap-2 h-9 text-xs"
             >
@@ -1097,6 +1074,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
               onOpenSupplierSelect={() => setSupplierSelectOpen(true)}
               onAutoFillAll={handleAutoFillAll}
               batchFilling={batchFilling}
+              projectCode={project?.projectCode ?? undefined}
             />
           ) : (
             <div className="flex-1 flex items-center justify-center">
@@ -1140,23 +1118,10 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
           <div
             className="wb-modal-shell relative z-10 mx-5 my-5 flex flex-1 flex-col overflow-hidden"
           >
-            <div
-              className="flex shrink-0 items-center justify-between gap-3 px-6 py-4"
-              style={{
-                background:
-                  'linear-gradient(105deg, oklch(1 0 0 / 0.92) 0%, oklch(0.975 0.006 258 / 0.58) 60%)',
-                borderBottom: '1px solid oklch(0.6 0.04 258 / 0.14)',
-              }}
-            >
+            {/* 头部对齐弹窗规范 A 版（2026-11-12 cgzxui）：纯白瓷壳上透明头部 + hairline 隔离线，图标井走类 */}
+            <div className="flex shrink-0 items-center justify-between gap-3 px-6 pt-6 pb-4">
               <div className="flex items-center gap-3 min-w-0">
-                <div
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px]"
-                  style={{
-                    background: 'color-mix(in oklch, var(--accent-soft) 45%, transparent)',
-                    boxShadow:
-                      'inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.1)',
-                  }}
-                >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-[color-mix(in_oklch,var(--accent-soft)_45%,transparent)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.65),2px_2px_4px_oklch(0.55_0.03_258_/_0.1)]">
                   <Search size={17} className="text-[var(--accent)]" />
                 </div>
                 <div className="min-w-0">
@@ -1172,14 +1137,8 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                 <X size={16} />
               </button>
             </div>
-            <div
-              className="flex-1 min-h-0 overflow-hidden flex flex-col"
-              style={{
-                background: 'oklch(0.975 0.012 258 / 0.32)',
-                boxShadow:
-                  'inset 2px 3px 8px oklch(0.5 0.04 258 / 0.1), inset -1px -1px 3px oklch(1 0 0 / 0.55)',
-              }}
-            >
+            <div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[oklch(0.975_0.012_258_/_0.32)] shadow-[inset_2px_3px_8px_oklch(0.5_0.04_258_/_0.1),inset_-1px_-1px_3px_oklch(1_0_0_/_0.55)]">
               <TenderReviewProvider onReviewComplete={handleReviewComplete}>
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden h-full">
                   {project && selectedType && (
@@ -1253,6 +1212,17 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
           }}
         />
       )}
+
+      {/* 导出格式选择弹窗（Word/PDF，2026-11-12） */}
+      <TenderExportFormatDialog
+        open={exportFormatOpen}
+        busy={exporting}
+        onClose={() => setExportFormatOpen(false)}
+        onConfirm={(format) => {
+          setExportFormatOpen(false);
+          void handleDirectExport(format);
+        }}
+      />
 
       {/* 历史记录弹窗 */}
       {historyOpen && (

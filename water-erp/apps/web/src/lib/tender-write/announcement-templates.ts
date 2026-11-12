@@ -139,6 +139,13 @@ export const INVITED_OR_INTERNAL_BIDDING_ANNOUNCEMENT_FIELDS: AnnouncementFieldC
     type: "datetime-local",
   },
   {
+    key: "openingLocation",
+    label: "开标地点",
+    // 2026-11-12 用户裁定：公告开标地点改为可输入（与采购文件编写一致）；
+    // 预填公司维护值（公司信息管理·开标地点），未维护留空手填
+    placeholder: "请输入开标地点",
+  },
+  {
     key: "contactName",
     label: "联系人",
     placeholder: "请填写联系人",
@@ -231,6 +238,11 @@ export const SINGLE_SOURCE_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
     placeholder: "选择日期时间",
     type: "datetime-local",
   },
+    {
+      key: "openingLocation",
+      label: "采购地点",
+      placeholder: "请输入采购地点",
+    },
   ...SUPERVISION_ANNOUNCEMENT_FIELDS,
   {
     key: "signatureDate",
@@ -262,6 +274,13 @@ export const FAILED_BID_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
     // 2026-10-21 用户口径：与采购文件模板统一——仅支持时间选择，不再允许填写文字
     placeholder: "选择日期时间",
     type: "datetime-local",
+  },
+  {
+    key: "openingLocation",
+    label: "开标地点",
+    // 2026-11-12 用户裁定：公告开标地点改为可输入（与采购文件编写一致）；
+    // 预填公司维护值（公司信息管理·开标地点），未维护留空手填
+    placeholder: "请输入开标地点",
   },
   {
     key: "resultInfo",
@@ -316,6 +335,13 @@ export const WINNING_BID_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
     // 2026-10-21 用户口径：与采购文件模板统一——仅支持时间选择，不再允许填写文字
     placeholder: "选择日期时间",
     type: "datetime-local",
+  },
+  {
+    key: "openingLocation",
+    label: "开标地点",
+    // 2026-11-12 用户裁定：公告开标地点改为可输入（与采购文件编写一致）；
+    // 预填公司维护值（公司信息管理·开标地点），未维护留空手填
+    placeholder: "请输入开标地点",
   },
   // Bidder fields are handled dynamically — see BidderEditor in announcement-dialog
   {
@@ -440,6 +466,7 @@ export function createEmptyInvitedBiddingAnnouncementDraft(): InvitedBiddingAnno
     announcementStart: "",
     announcementEnd: "",
     bidOpeningTime: "",
+    openingLocation: "",
     bidOpeningTimeType: "",
     contactName: "",
     contactPhone: "",
@@ -465,6 +492,7 @@ export function createEmptySingleSourceAnnouncementDraft(): SingleSourceAnnounce
     announcementEnd: "",
     announcementDays: "",
     procurementTime: "",
+    openingLocation: "",
     supervisionDepartment: "",
     supervisionAddress: "",
     supervisionContact: "",

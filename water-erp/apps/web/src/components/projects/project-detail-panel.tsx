@@ -2159,9 +2159,9 @@ export function ProjectDetailPanel({
                     : isSupplementStage
                       ? '本阶段建项时未上传文件：可补传材料、补填信息后点击「补录完成」，项目进度不受影响。'
                     : selectedStage.stageKey === 'PROCUREMENT_DEMAND' && isCurrentStage
-                      ? '请上传采购需求申请表（PDF），系统将自动提取项目基本信息。'
+                      ? '请上传采购需求申请表（PDF / Word / TXT），系统将自动提取项目基本信息。'
                     : selectedStage.stageKey === 'INITIATION' && isCurrentStage
-                      ? '请上传采购立项申请表（PDF），核实补充信息后进入采购文件阶段。'
+                      ? '请上传采购立项申请表（PDF / Word / TXT），核实补充信息后进入采购文件阶段。'
                     : selectedStage.stageKey === 'TENDER_DOCUMENT' && isCurrentStage
                       ? '请上传或编写采购文件（.docx）。直接采购/谈判采购可在线编辑。'
                     : selectedStage.stageKey === 'SUPPLIER_INVITATION' && isCurrentStage

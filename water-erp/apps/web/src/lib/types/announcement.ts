@@ -76,6 +76,7 @@ export type InvitedBiddingAnnouncementFieldKey =
   | "announcementEnd"
   | "bidOpeningTime"
   | "bidOpeningTimeType"
+  | "openingLocation"
   | "contactName"
   | "contactPhone"
   | "contactEmail"
@@ -101,6 +102,7 @@ export type SingleSourceAnnouncementFieldKey =
   | "announcementEnd"
   | "announcementDays"
   | "procurementTime"
+  | "openingLocation"
   | SupervisionFieldKey
   | "signatureDate";
 
