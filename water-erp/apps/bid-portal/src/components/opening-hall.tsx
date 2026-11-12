@@ -30,7 +30,11 @@ const decryptColors: Record<string, { cls: string }> = {
   DANGER: { cls: 'text-[var(--danger)] bg-[oklch(0.66_0.175_27_/_0.16)]' },
 };
 
-const STAGES = ['投递中', '解密中', '确认中', '已完成'] as const;
+// #79（2026-11-12 用户裁定 A 案）：步 0 改「待开标」——大厅可见时（OPENING 起）截标已完成，
+// 「投递中」在现场语义失真；ABORTED 终局变体「已流标」（danger 色）——流标非完成，旧并到
+// 「已完成」是为避开「投递中脉动」的历史权宜（步 0 语义修正后该权宜不再必要）。
+const STAGES = ['待开标', '解密中', '确认中', '已完成'] as const;
+const STAGES_FAILED = ['待开标', '解密中', '确认中', '已流标'] as const;
 
 /** 双信封轨判据（阶段2.5 收口：dual-v2|dual-v3 同走新轨——旧轨主持端代解密 decryptSupplier 已于 2026-10-14 剪除） */
 const isDualTrack = (v?: string | null): boolean => v === 'dual-v2' || v === 'dual-v3';
@@ -125,20 +129,24 @@ function RingCountdown({ remaining, big }: { remaining: number; big?: boolean })
   );
 }
 
-/* Stage Stepper（浅色新拟态分段） */
-function StageStepper({ step }: { step: number }) {
+/* Stage Stepper（浅色新拟态分段；failed=流标终局——末位换「已流标」danger 态） */
+function StageStepper({ step, failed }: { step: number; failed?: boolean }) {
+  const stages = failed ? STAGES_FAILED : STAGES;
+  const lastIdx = stages.length - 1;
   return (
     <div className="flex items-center gap-1">
-      {STAGES.map((label, i) => (
+      {stages.map((label, i) => (
         <div key={label} className="flex items-center gap-1">
           <div className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold transition-all duration-500 ${
-            i === step ? 'bg-[oklch(0.92_0.012_258)] text-[color:var(--foreground)] shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258_/_0.18),inset_-2px_-2px_5px_oklch(1_0_0_/_0.6)]' :
+            i === step ? (failed && i === lastIdx
+              ? 'bg-[oklch(0.94_0.05_27)] text-[color:var(--danger)] shadow-[inset_2px_2px_5px_oklch(0.5_0.05_27_/_0.18),inset_-2px_-2px_5px_oklch(1_0_0_/_0.6)]'
+              : 'bg-[oklch(0.92_0.012_258)] text-[color:var(--foreground)] shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258_/_0.18),inset_-2px_-2px_5px_oklch(1_0_0_/_0.6)]') :
             i < step ? 'text-[color:var(--accent-strong)]' : 'text-[color:var(--muted-foreground)] opacity-50'
           }`}>
-            {i < step ? <CheckCircle size={11} /> : i === step ? <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--accent-strong)]" /> : <span className="h-2 w-2 rounded-full bg-[oklch(0.8_0.02_258)]" />}
+            {i < step ? <CheckCircle size={11} /> : i === step ? <span className={`h-2 w-2 animate-pulse rounded-full ${failed && i === lastIdx ? 'bg-[var(--danger)]' : 'bg-[var(--accent-strong)]'}`} /> : <span className="h-2 w-2 rounded-full bg-[oklch(0.8_0.02_258)]" />}
             {label}
           </div>
-          {i < STAGES.length - 1 && <span className="h-px w-4 bg-[oklch(0.8_0.02_258)]" />}
+          {i < lastIdx && <span className="h-px w-4 bg-[oklch(0.8_0.02_258)]" />}
         </div>
       ))}
     </div>
@@ -866,7 +874,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
               </div>
             )}
           </div>
-          <StageStepper step={stageStep} />
+          <StageStepper step={stageStep} failed={project?.stage === 'ABORTED'} />
         </div>
       )}
 
