@@ -98,6 +98,7 @@ describe('ExpertService', () => {
       broadcastAggregatePresence: jest.fn(),
       notifyBidValidity: jest.fn(),
       notifyAnomaly: jest.fn(),
+      notifyLeadReviewSuggested: jest.fn(),
       notifyClarificationCreated: jest.fn(),
     };
     signature = { verify: jest.fn(), isValidPublicKey: jest.fn() };
@@ -1298,6 +1299,102 @@ describe('ExpertService', () => {
         scores: [{ scoreItemId: 'si1', supplierId: 'sup1', passed: false, reason: '资质证明材料缺失，不符合招标文件第3.2条' }],
       } as any)).resolves.toBeTruthy();
       expect(prisma.bidScoreRecord.upsert).toHaveBeenCalled();
+    });
+
+    it('B2：过半新建废标（motionId 空）→ 定向推送组长复议召集，载荷含记名票面', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        id: 'exp3', userId: 'user3', projectId: 'p1', reportConfirmed: false,
+        signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true, conflictedSupplierIds: [], expertName: '王', expertRole: '正选',
+      });
+      prisma.bidScoreItem.findMany.mockImplementation((a: any) =>
+        a.where?.id
+          ? Promise.resolve([{ id: 'si1', maxScore: 0, category: 'QUALIFICATION', name: '资格性审查' }].filter(i => a.where.id.in.includes(i.id)))
+          : Promise.resolve([{ id: 'si1', maxScore: 0, category: 'QUALIFICATION', name: '资格性审查' }]));
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'sup1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'submitted' }]);
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidScoreRecord.upsert.mockResolvedValue({});
+      prisma.bidScoreRecord.findMany.mockImplementation((a: any) =>
+        a.where?.scoreItemId === 'si1' ? Promise.resolve([
+          { passed: false, reason: '资质缺失', expert: { expertName: '王' } },
+          { passed: false, reason: '社保不连续', expert: { expertName: '李' } },
+        ]) : Promise.resolve([{ score: 0 }]));
+      prisma.bidScoreRecord.count.mockResolvedValue(1);
+      // 新建路径：findFirst miss → create 返回含 id/motionId 的行（真实 Prisma 行为）
+      prisma.bidInvalidBid.findFirst.mockResolvedValue(null);
+      prisma.bidInvalidBid.create.mockResolvedValue({ id: 'inv-1', motionId: null });
+      prisma.bidInvalidBid.count.mockResolvedValue(1);
+      prisma.bidExpert.findMany.mockResolvedValue([]);
+
+      await service.submitScores('user3', 'p1', {
+        supplierName: '甲',
+        scores: [{ scoreItemId: 'si1', supplierId: 'sup1', passed: false, reason: '不符' }],
+      } as any);
+
+      expect(gateway.notifyLeadReviewSuggested).toHaveBeenCalledTimes(1);
+      expect(gateway.notifyLeadReviewSuggested).toHaveBeenCalledWith('p1', 'exp3', expect.objectContaining({
+        invalidBidId: 'inv-1', supplierId: 'sup1', supplierName: '甲',
+        scoreItemId: 'si1', scoreItemName: '资格性审查', category: 'QUALIFICATION',
+        failCount: 2, totalCount: 2,
+        votes: [
+          { expertName: '王', passed: false, reason: '资质缺失' },
+          { expertName: '李', passed: false, reason: '社保不连续' },
+        ],
+      }));
+      // D2：全员广播仅计数+名称（无逐票明细）
+      expect(gateway.notifyBidValidity).toHaveBeenCalledWith('p1', expect.objectContaining({
+        supplierId: 'sup1', supplierName: '甲', scoreItemId: 'si1', scoreItemName: '资格性审查',
+        category: 'QUALIFICATION', failCount: 2, totalCount: 2, status: 'invalid',
+      }));
+    });
+
+    it('B2：已有动议关联（existingRec.motionId 非空）→ 不重复推送组长', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        id: 'exp3', userId: 'user3', projectId: 'p1', reportConfirmed: false,
+        signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true, conflictedSupplierIds: [], expertName: '王', expertRole: '正选',
+      });
+      prisma.bidScoreItem.findMany.mockResolvedValue([{ id: 'si1', maxScore: 0, category: 'QUALIFICATION', name: '资格性审查' }]);
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'sup1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'submitted' }]);
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidScoreRecord.upsert.mockResolvedValue({});
+      prisma.bidScoreRecord.findMany.mockImplementation((a: any) =>
+        a.where?.scoreItemId === 'si1' ? Promise.resolve([{ passed: false }, { passed: false }]) : Promise.resolve([{ score: 0 }]));
+      prisma.bidScoreRecord.count.mockResolvedValue(1);
+      prisma.bidInvalidBid.findFirst.mockResolvedValue({ id: 'inv-1', motionId: 'm-1', status: 'invalid' });
+      prisma.bidInvalidBid.update.mockResolvedValue({});
+      prisma.bidInvalidBid.count.mockResolvedValue(1);
+      prisma.bidExpert.findMany.mockResolvedValue([]);
+
+      await service.submitScores('user3', 'p1', {
+        supplierName: '甲',
+        scores: [{ scoreItemId: 'si1', supplierId: 'sup1', passed: false, reason: '不符' }],
+      } as any);
+
+      expect(gateway.notifyLeadReviewSuggested).not.toHaveBeenCalled();
+    });
+
+    it('B2：推送抛异常 → 吞掉不阻塞评分主流程（安全网已落库）', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        id: 'exp3', userId: 'user3', projectId: 'p1', reportConfirmed: false,
+        signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true, conflictedSupplierIds: [], expertName: '王', expertRole: '正选',
+      });
+      prisma.bidScoreItem.findMany.mockResolvedValue([{ id: 'si1', maxScore: 0, category: 'QUALIFICATION', name: '资格性审查' }]);
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'sup1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'submitted' }]);
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidScoreRecord.upsert.mockResolvedValue({});
+      prisma.bidScoreRecord.findMany.mockImplementation((a: any) =>
+        a.where?.scoreItemId === 'si1' ? Promise.resolve([{ passed: false }, { passed: false }]) : Promise.resolve([{ score: 0 }]));
+      prisma.bidScoreRecord.count.mockResolvedValue(1);
+      prisma.bidInvalidBid.findFirst.mockResolvedValue(null);
+      prisma.bidInvalidBid.create.mockResolvedValue({ id: 'inv-1', motionId: null });
+      prisma.bidInvalidBid.count.mockResolvedValue(1);
+      prisma.bidExpert.findMany.mockResolvedValue([]);
+      gateway.notifyLeadReviewSuggested.mockImplementation(() => { throw new Error('ws down'); });
+
+      await expect(service.submitScores('user3', 'p1', {
+        supplierName: '甲',
+        scores: [{ scoreItemId: 'si1', supplierId: 'sup1', passed: false, reason: '不符' }],
+      } as any)).resolves.toBeTruthy();
+      expect(prisma.bidInvalidBid.create).toHaveBeenCalled(); // 主流程（废标落库）不受推送失败影响
     });
 
     it('P1-6（中断审查）：废标翻转 → 全体正选专家 progress 按可评集合重算（未评分废标家的专家不再卡 N-1/N）', async () => {

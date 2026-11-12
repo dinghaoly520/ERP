@@ -1903,6 +1903,18 @@ export class ExpertService {
         const m = itemMeta.get(s.scoreItemId);
         return m && (m.category === 'QUALIFICATION' || m.category === 'RESPONSIVE');
       });
+      // D2（2026-11-12）：广播载荷增强字段——supplierName 就近取自已载 bidSuppliers
+      const supplierNameMap = new Map(bidSuppliers.map(b => [b.id, b.supplierName]));
+      const validityEmit = (s: string, itemId: string, verdict: { failCount: number; totalCount: number }, status: 'invalid' | 'revoked') => {
+        const m = itemMeta.get(itemId);
+        this.gateway?.notifyBidValidity?.(projectId, {
+          supplierId: s, failCount: verdict.failCount, totalCount: verdict.totalCount, status,
+          supplierName: supplierNameMap.get(s),
+          scoreItemId: itemId,
+          scoreItemName: m?.name,
+          category: (m?.category === 'QUALIFICATION' || m?.category === 'RESPONSIVE') ? m.category : undefined,
+        });
+      };
       for (const s of Array.from(new Set(passFailTouched.map(x => x.supplierId)))) {
         const items = passFailTouched.filter(x => x.supplierId === s).map(x => x.scoreItemId);
         for (const itemId of Array.from(new Set(items))) {
@@ -1913,24 +1925,33 @@ export class ExpertService {
             const existingRec = await this.prisma.bidInvalidBid.findFirst({
               where: { projectId, supplierId: s, scoreItemId: itemId },
             });
+            let writtenRow: { id: string; motionId: string | null } | null = existingRec ?? null;
             if (existingRec) {
               await this.prisma.bidInvalidBid.update({
                 where: { id: existingRec.id },
                 data: { failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid', revokedAt: null, revokedBy: null, reason: `通过性审查不通过票过半（${verdict.failCount}/${verdict.totalCount}）` },
               });
             } else {
-              await this.prisma.bidInvalidBid.create({
+              writtenRow = await this.prisma.bidInvalidBid.create({
                 data: { projectId, supplierId: s, scoreItemId: itemId, source: 'passfail', failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid', reason: `通过性审查不通过票过半（${verdict.failCount}/${verdict.totalCount}）` },
               });
             }
-            this.gateway?.notifyBidValidity?.(projectId, { supplierId: s, failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid' });
+            validityEmit(s, itemId, verdict, 'invalid');
+            // B2（2026-11-12）：过半落库 → 组长复议召集（定向 WS；已有动议/推送失败均不阻塞）
+            await this.suggestLeadReview(projectId, writtenRow, verdict, {
+              supplierId: s,
+              supplierName: supplierNameMap.get(s) ?? s,
+              scoreItemId: itemId,
+              scoreItemName: itemMeta.get(itemId)?.name ?? itemId.slice(-8),
+              category: (itemMeta.get(itemId)?.category === 'RESPONSIVE') ? 'RESPONSIVE' : 'QUALIFICATION',
+            });
           } else {
             // 不过半：若之前 invalid 现恢复（票数变化，决策 B 接受跳变）
             const existing = await this.prisma.bidInvalidBid.findFirst({ where: { projectId, supplierId: s, scoreItemId: itemId } });
             if (existing?.status === 'invalid') {
               validityFlipped = true;
               await this.prisma.bidInvalidBid.update({ where: { id: existing.id }, data: { status: 'revoked', revokedAt: new Date() } });
-              this.gateway?.notifyBidValidity?.(projectId, { supplierId: s, failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'revoked' });
+              validityEmit(s, itemId, verdict, 'revoked');
             }
           }
         }
@@ -2035,6 +2056,46 @@ export class ExpertService {
     }
 
     return result;
+  }
+
+  /** B2（2026-11-12）：过半废标落库 → 组长复议召集（定向 WS，轻量勿阻塞：任何失败仅告警）。
+   *  motionId 非空 = 已有动议在途/已裁定，不重复打扰；组长实时查库（isLead 转移天然跟随）。 */
+  private async suggestLeadReview(
+    projectId: string,
+    invalidBidRow: { id: string; motionId: string | null } | null,
+    verdict: { failCount: number; totalCount: number },
+    ctx: {
+      supplierId: string; supplierName: string;
+      scoreItemId: string; scoreItemName: string;
+      category: 'QUALIFICATION' | 'RESPONSIVE';
+    },
+  ): Promise<void> {
+    try {
+      if (!invalidBidRow || invalidBidRow.motionId) return;
+      const lead = await this.prisma.bidExpert.findFirst({
+        where: { projectId, isLead: true, expertRole: '正选', invitationStatus: { not: 'declined' } },
+        select: { id: true },
+      });
+      if (!lead) return;
+      const records = await this.prisma.bidScoreRecord.findMany({
+        where: { scoreItemId: ctx.scoreItemId, supplierId: ctx.supplierId, passed: { not: null } },
+        select: { passed: true, reason: true, expert: { select: { expertName: true } } },
+      });
+      this.gateway?.notifyLeadReviewSuggested?.(projectId, lead.id, {
+        projectId,
+        invalidBidId: invalidBidRow.id,
+        supplierId: ctx.supplierId,
+        supplierName: ctx.supplierName,
+        scoreItemId: ctx.scoreItemId,
+        scoreItemName: ctx.scoreItemName,
+        category: ctx.category,
+        failCount: verdict.failCount,
+        totalCount: verdict.totalCount,
+        votes: records.map(r => ({ expertName: r.expert?.expertName ?? '—', passed: r.passed === true, reason: r.reason ?? null })),
+      });
+    } catch (e) {
+      this.logger.warn(`组长复议召集推送失败（不阻塞评分主流程）：${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   async getMyScores(userId: string, projectId: string) {
