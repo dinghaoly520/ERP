@@ -3,19 +3,20 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { awardLetterDeliveryUiState, validateAwardLetterFile } from './bid';
 
-test('award letter accepts PDF and Office documents up to 20 MiB', () => {
+test('award letter accepts PDF and Office documents up to 100 MiB', () => {
   assert.equal(validateAwardLetterFile({ name: '通知书.pdf', type: 'application/pdf', size: 1024 }), null);
   assert.equal(validateAwardLetterFile({
     name: '通知书.docx',
     type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    size: 20 * 1024 * 1024,
+    // 2026-10-19 附件统一限制：通知书上限 20MB → 100MB（bid.ts AWARD_LETTER_MAX_BYTES）
+    size: 100 * 1024 * 1024,
   }), null);
 });
 
 test('award letter rejects missing, executable and oversized files', () => {
   assert.equal(validateAwardLetterFile(null), '请先选择中标通知书文件');
   assert.match(validateAwardLetterFile({ name: '通知书.exe', type: 'application/octet-stream', size: 12 }) ?? '', /PDF、DOC/);
-  assert.match(validateAwardLetterFile({ name: '通知书.pdf', type: 'application/pdf', size: 20 * 1024 * 1024 + 1 }) ?? '', /20 MB/);
+  assert.match(validateAwardLetterFile({ name: '通知书.pdf', type: 'application/pdf', size: 100 * 1024 * 1024 + 1 }) ?? '', /100 MB/);
 });
 
 test('award letter delivery UI allows only unsigned deliveries to be reissued', () => {

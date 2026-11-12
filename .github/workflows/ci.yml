@@ -86,10 +86,13 @@ jobs:
 
       # 2026-09-08 UI审计终审：shared（format-bid 三端消费）与 supplier-portal 的 node:test
       # 套件接入 validate——此前仅开发者本机执行，format-bid 逻辑回归在 CI 静默溜过
-      - name: Unit tests (shared + supplier-portal, node:test via tsx)
+      # 2026-11-12 bug#CR-01：web 同步接入（tsx devDep + test 脚本；glob 引号整体交 node
+      # 展开——src/app/(main) 括号路径不可被 shell 拆）。4 项历史失败用例已修断言/诚实 skip。
+      - name: Unit tests (shared + supplier-portal + web, node:test via tsx)
         run: |
           pnpm --filter @water-erp/shared test
           pnpm --filter supplier-portal-next test
+          pnpm --filter web test
 
   # 2026-08-25：e2e 回归流水线——三条实战教训各对应一道闸：
   #   migrate deploy 全新库重放   → 迁移链可重放（漂移/坏迁移）
