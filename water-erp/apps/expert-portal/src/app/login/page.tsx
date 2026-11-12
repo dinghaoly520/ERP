@@ -244,7 +244,7 @@ function ExpertLoginPage() {
           </div>
 
           {/* 设备模式显式入口（仅专家 tab——平板路由只对 bid_expert 有意义，管理员登录直跳 :3007）。
-              主路径是桌面评审页扫码迁移（/tablet/claim）；此处为确定性兜底（平板会话中断重登等）。
+              主路径是桌面评审页扫码配对（/tablet/pair）；此处为确定性兜底（平板会话中断重登等）。
               文案与去向随 device_mode cookie 翻转：未声明/桌面态→「进平板」，tablet 态→「回桌面」——
               点击 307 回弹本页后链接即变，作为切换已生效的可见反馈。
               ?device=tablet|desktop 由 proxy 写 7 天 cookie 后 302 对应首页（未登录则再弹回本页并带 redirect）

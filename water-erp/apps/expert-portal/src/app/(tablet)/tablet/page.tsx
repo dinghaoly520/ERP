@@ -55,7 +55,7 @@ export default function TabletLandingPage() {
         <h1 className="text-[1.35rem] font-black tracking-[-0.01em] text-[var(--foreground)]">评标项目</h1>
         <div ref={hintRef} className="exp-alert flex items-center gap-2.5 !text-[13px]">
           <AlertTriangle size={15} strokeWidth={1.8} className="shrink-0" />
-          <span>评分实时同步至桌面端 · 请在桌面端审阅并提交</span>
+          <span>已与桌面配对 · 评分实时同步，请在桌面端审阅并提交</span>
         </div>
       </div>
 

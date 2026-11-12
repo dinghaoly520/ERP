@@ -20,7 +20,7 @@ const client = createApiClient({
   //  - 其余（JWT 过期 / cookie 被清）→ 直接跳登录页
   // 登录页自身的 401（口令错误）由表单 catch 呈现，不做全局兜底。
   on401: (error) => {
-    if (window.location.pathname === '/login' || window.location.pathname === '/tablet/claim') return; // claim 页的密码错 401 由表单就地呈现
+    if (window.location.pathname === '/login' || window.location.pathname === '/tablet/pair') return; // 配对页的密码错 401 由表单就地呈现
     if (error.code === 'SESSION_REPLACED') { showSessionReplacedOverlay(error.message); return; }
     if (error.code === 'ACCOUNT_FROZEN') { showFrozenOverlay(error.message); return; }
     // 2026-11-05：临时账号随项目终态失效 / 密码变更吊销旧会话——此前落入兜底静默跳登录，

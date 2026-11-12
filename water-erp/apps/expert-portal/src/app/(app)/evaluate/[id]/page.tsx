@@ -2724,7 +2724,7 @@ export default function ExpertEvaluatePage() {
                   </p>
                   <div className="mx-auto flex w-fit rounded-2xl bg-[oklch(1_0_0/0.97)] p-3 shadow-[inset_0_0_0_1px_oklch(0.6_0.04_258/0.15)]">
                     <QRCodeSVG
-                      value={portalURL('expert', `/tablet/claim?tk=${encodeURIComponent(transferTicket.ticket)}&p=${projectId}`)}
+                      value={portalURL('expert', `/tablet/pair?tk=${encodeURIComponent(transferTicket.ticket)}&projectId=${projectId}`)}
                       size={188}
                       level="M"
                     />
