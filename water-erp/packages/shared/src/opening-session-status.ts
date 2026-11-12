@@ -33,3 +33,31 @@ export function deriveOpeningSessionStatus(input: OpeningSessionStatusInput): Op
   if (start !== null && Number.isFinite(start) && now < start) return '待开标';
   return '开标中';
 }
+
+/**
+ * 开标步进条步序派生（#79，2026-11-12）——与 deriveOpeningSessionStatus 同源单一口径。
+ * 步序口径（:3007 大厅 STAGES）：0=投递中 1=解密中 2=确认中 3=已完成。
+ * 映射：无会话/待开标→0；开标中/已暂停→1；窗口已关闭→2；已结束→3。
+ *
+ * 待开标落 0 而非 1（对 v2 原案的修正）：窗口未开供应商尚不能解密，高亮「解密中」
+ * 属提前高亮——与旧 stageStep「会话组建即高亮确认中」同类病灶，票面投诉本体。
+ * 旧实现按 stage+会话存在性判定（OPENING+session→确认中），与状态胶囊（本文件
+ * 时刻判定）两套口径；本函数为唯一派生源，胶囊与步进条共用。
+ */
+export function deriveOpeningStageStep(
+  stage: string | null | undefined,
+  session: Pick<OpeningSessionStatusInput, 'pausedAt' | 'handoverAt' | 'decryptWindowStart' | 'decryptWindowEnd'> | null | undefined,
+  now?: number,
+): 0 | 1 | 2 | 3 {
+  if (!session) return 0;
+  switch (deriveOpeningSessionStatus({ stage, ...session, now })) {
+    case '已结束':
+      return 3;
+    case '窗口已关闭':
+      return 2;
+    case '待开标':
+      return 0;
+    default:
+      return 1; // 开标中 / 已暂停（暂停隐含窗口已开）
+  }
+}

@@ -9,7 +9,7 @@ import {
   Unlock, Clock, Shield, CheckCircle, AlertTriangle, ExternalLink,
   Volume2, Zap, Loader, LoaderCircle, FileText, RotateCcw, PencilLine, Lock, Gavel,
   Eye, ShieldCheck } from "lucide-react";
-import { DECRYPT_LABEL, BOND_STATUS_OPTIONS, deriveOpeningSessionStatus, evaluateBondCompliance } from '@water-erp/shared';
+import { DECRYPT_LABEL, BOND_STATUS_OPTIONS, deriveOpeningSessionStatus, deriveOpeningStageStep, evaluateBondCompliance } from '@water-erp/shared';
 import { toast } from 'sonner';
 import { ExchangeDrawer } from '@/components/bid/exchange-drawer';
 import { portalURL } from '@water-erp/config';
@@ -420,19 +420,13 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     return allDecryptResolved && allRecorded && allConfirmResolved && noPendingDispute;
   }, [project]);
 
-  const stageStep = useMemo(() => {
-    if (!project) return 0;
-    if (project.stage === 'ARCHIVED') return 3;
-    if (project.stage === 'EVALUATING') return 3;
-    // 流标=开标过程终局，步进到「已完成」（与「开标已结束」横幅口径一致；原落 0 令「投递中」脉动误导）
-    if (project.stage === 'ABORTED') return 3;
-    // 会话已结束（「完成开标·移交」只写 handoverAt、不改 stage，项目停留 OPENING）——
-    // 步进条须随会话终局翻到「已完成」，不能等 :3007/:3005 推进阶段才动
-    if (project.stage === 'OPENING' && project.openingSession?.handoverAt) return 3;
-    if (project.stage === 'OPENING' && project.openingSession) return 2;
-    if (project.stage === 'OPENING') return 1;
-    return 0;
-  }, [project]);
+  // #79（2026-11-12）：步进条步序改与状态胶囊同源——shared deriveOpeningStageStep
+  // （窗口时刻判定），替换旧「stage+会话存在性」判定（会话组建但窗口未开即高亮「确认中」、
+  // 跳过「解密中」的两套口径病灶）。now 与胶囊同用 serverTimeOffset 校正。
+  const stageStep = useMemo(
+    () => deriveOpeningStageStep(project?.stage, project?.openingSession ?? null, now + serverTimeOffset),
+    [project, now, serverTimeOffset],
+  );
 
   const session = project?.openingSession;
   // 暂停期间倒计时冻结在暂停时刻的剩余值（后端在「恢复开标」时才把暂停时长补偿进 decryptWindowEnd）——
