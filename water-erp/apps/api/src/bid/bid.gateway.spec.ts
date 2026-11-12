@@ -521,3 +521,95 @@ describe('BidGateway host 房公司隔离（P2-1，2026-09-09）——BidCompany
     expect(joined).toEqual(expect.arrayContaining(['project:p1', 'host:p1']));
   });
 });
+
+describe('BidGateway 专家连接表与复议定向推送（B1，2026-11-12）', () => {
+  const prismaMock = {
+    bidExpert: { findFirst: jest.fn() },
+    bidProject: { findUnique: jest.fn().mockResolvedValue(null) },
+    supplier: { findFirst: jest.fn() },
+    bidSupplier: { findFirst: jest.fn(), update: jest.fn(), findMany: jest.fn() },
+    user: { findUnique: jest.fn().mockResolvedValue(null) },
+  } as any;
+
+  function makeGateway() {
+    const gw = new BidGateway({} as any, prismaMock);
+    jest.spyOn(gw, 'broadcastHallPresence').mockResolvedValue(undefined);
+    jest.spyOn(gw, 'broadcastAggregatePresence').mockResolvedValue(undefined);
+    return gw;
+  }
+  /** 专家 client：prisma 按需返回指派行（id 即 BidExpert.id） */
+  function makeExpertClient(sockId: string, expertId: string, userId: string) {
+    prismaMock.bidExpert.findFirst.mockResolvedValue({ id: expertId, userId });
+    const joined: string[] = [];
+    return {
+      client: { id: sockId, data: { role: 'bid_expert', userId }, join: (r: string) => joined.push(r), leave: jest.fn() } as any,
+      joined,
+    };
+  }
+  function captureServer(gw: BidGateway) {
+    const emitted: Array<{ room: string; event: string; payload: any }> = [];
+    gw.server = { to: (room: string) => ({ emit: (event: string, payload: any) => emitted.push({ room, event, payload }) }) } as any;
+    return emitted;
+  }
+  const reviewPayload = {
+    projectId: 'p1', invalidBidId: 'inv-1', supplierId: 'sup1', supplierName: '甲',
+    scoreItemId: 'si1', scoreItemName: '资格性审查', category: 'QUALIFICATION' as const,
+    failCount: 2, totalCount: 2, votes: [],
+  };
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('join 登记 expertId → notifyLeadReviewSuggested 定向本项目 socket + host 房（跨项目 tab 不误投）', async () => {
+    const gw = makeGateway();
+    const emitted = captureServer(gw);
+    const a = makeExpertClient('sock-p1', 'exp-lead', 'u-lead');
+    const b = makeExpertClient('sock-p2', 'exp-lead', 'u-lead'); // 同专家另一项目
+    expect(await gw.handleJoinProject(a.client, 'p1')).toEqual({ ok: true });
+    expect(await gw.handleJoinProject(b.client, 'p2')).toEqual({ ok: true });
+
+    gw.notifyLeadReviewSuggested('p1', 'exp-lead', reviewPayload);
+
+    const rooms = emitted.map(e => e.room);
+    expect(rooms).toContain('sock-p1');
+    expect(rooms).not.toContain('sock-p2'); // supplierSocketsIn 同款项目过滤（R8 镜像）
+    expect(rooms).toContain('host:p1');
+    expect(emitted.every(e => e.event === BID_EVENT.LEAD_REVIEW_SUGGESTED)).toBe(true);
+    expect(emitted[0].payload.invalidBidId).toBe('inv-1');
+    expect(emitted[0].payload.timestamp).toBeTruthy();
+  });
+
+  it('notifyMotionCreated → experts 房广播（轻载荷）', () => {
+    const gw = makeGateway();
+    const emitted = captureServer(gw);
+    gw.notifyMotionCreated('p1', { projectId: 'p1', motionId: 'm-1', type: 'invalid_bid', title: '废标复议表决' });
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0]).toMatchObject({ room: 'experts:p1', event: BID_EVENT.MOTION_CREATED });
+    expect(emitted[0].payload.motionId).toBe('m-1');
+  });
+
+  it('handleDisconnect 清理——断连后定向推送零 socket 送达（仅 host 房）', async () => {
+    const gw = makeGateway();
+    const emitted = captureServer(gw);
+    const a = makeExpertClient('sock-x', 'exp-lead', 'u-lead');
+    await gw.handleJoinProject(a.client, 'p1');
+
+    gw.handleDisconnect(a.client);
+    emitted.length = 0;
+    gw.notifyLeadReviewSuggested('p1', 'exp-lead', reviewPayload);
+
+    expect(emitted.map(e => e.room)).toEqual(['host:p1']); // socket 已清，防离场后仍收定向
+  });
+
+  it('leave:project 清理（以 socketProjects 登记为准）', async () => {
+    const gw = makeGateway();
+    const emitted = captureServer(gw);
+    const a = makeExpertClient('sock-y', 'exp-lead', 'u-lead');
+    await gw.handleJoinProject(a.client, 'p1');
+
+    gw.handleLeaveProject(a.client, 'p1');
+    emitted.length = 0;
+    gw.notifyLeadReviewSuggested('p1', 'exp-lead', reviewPayload);
+
+    expect(emitted.map(e => e.room)).toEqual(['host:p1']);
+  });
+});

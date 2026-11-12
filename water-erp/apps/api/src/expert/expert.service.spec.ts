@@ -1433,6 +1433,19 @@ describe('ExpertService', () => {
           .rejects.toMatchObject({ response: { code: 'NOT_INVALID' } });
       });
 
+      it('Final-Minor①：manual/dispute 来源不入复议——查询即过滤 source=passfail', async () => {
+        prisma.bidExpert.findFirst.mockResolvedValue(leadExpert);
+        // 模拟 manual 行：真实 Prisma 下 where source='passfail' 把它滤为 null
+        prisma.bidInvalidBid.findFirst.mockResolvedValue(null);
+
+        await expect(service.createInvalidBidReviewMotion('user-lead', 'p1', { invalidBidId: 'inv-1' }))
+          .rejects.toMatchObject({ response: { code: 'NOT_FOUND' } });
+        // 过滤本体在查询条件里
+        expect(prisma.bidInvalidBid.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+          where: expect.objectContaining({ id: 'inv-1', projectId: 'p1', source: 'passfail' }),
+        }));
+      });
+
       it('关联动议 voting 中 → 409 RULING_ALREADY_OPEN（防并发双发）', async () => {
         prisma.bidExpert.findFirst.mockResolvedValue(leadExpert);
         prisma.bidInvalidBid.findFirst.mockResolvedValue({ ...invalidBidRow, motionId: 'm-0' });
@@ -1591,8 +1604,9 @@ describe('ExpertService', () => {
         { id: 'e3', isLead: false },
       ];
       const invalidBidRow = {
-        id: 'inv-1', projectId: 'p1', supplierId: 'sup1', status: 'invalid', motionId: 'm-1',
-        failCount: 2, totalCount: 3, supplier: { supplierName: '甲' },
+        id: 'inv-1', projectId: 'p1', supplierId: 'sup1', scoreItemId: 'si1', status: 'invalid', motionId: 'm-1',
+        failCount: 2, totalCount: 3,
+        supplier: { supplierName: '甲' }, scoreItem: { name: '资格性审查', category: 'QUALIFICATION' },
       };
 
       function mockMotion(votes: Array<{ expertId: string; vote: string }>, type = 'invalid_bid') {
@@ -1646,6 +1660,8 @@ describe('ExpertService', () => {
         expect(bidService.invalidateResultsForRuling).toHaveBeenCalled();
         expect(gateway.notifyBidValidity).toHaveBeenCalledWith('p1', expect.objectContaining({
           supplierId: 'sup1', status: 'revoked',
+          // Final-Minor④：推翻路径 WS 载荷补 D2 增强字段（与实时翻转路径同口径）
+          supplierName: '甲', scoreItemName: '资格性审查', category: 'QUALIFICATION',
         }));
         expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
           data: expect.objectContaining({ action: expect.stringContaining('推翻废标') }),
@@ -1735,6 +1751,19 @@ describe('ExpertService', () => {
         expect(prisma.bidInvalidBid.update).toHaveBeenCalledWith(expect.objectContaining({
           data: expect.objectContaining({ status: 'revoked' }),
         }));
+      });
+
+      it('Final-Minor②：closed 动议重复 close → 400 MOTION_NOT_VOTING，零状态写', async () => {
+        prisma.bidMotion.findUnique.mockResolvedValue({
+          id: 'm-1', projectId: 'p1', type: 'invalid_bid', title: '废标复议表决', status: 'closed', result: 'approved', createdBy: 'exp-lead',
+          votes: [], project: { experts },
+        });
+        prisma.bidExpert.findFirst.mockResolvedValue(leadOperator);
+
+        await expect(service.closeMotion('user-lead', 'm-1'))
+          .rejects.toMatchObject({ response: { code: 'MOTION_NOT_VOTING' } });
+        expect(prisma.bidMotion.update).not.toHaveBeenCalled();
+        expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
       });
 
       it('回归：非 invalid_bid 类型动议不受裁定分支影响（原路径不动）', async () => {

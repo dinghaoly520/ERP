@@ -3054,7 +3054,9 @@ export class ExpertService {
     if (!expert.isLead) throw new ForbiddenException({ error: '仅评审组长可发起废标复议表决', code: 'NOT_LEAD' });
 
     const invalidBid = await this.prisma.bidInvalidBid.findFirst({
-      where: { id: dto.invalidBidId, projectId },
+      // Final-Minor①（终审）：与 B6 兜底同口径——复议召集只对通过性投票废标开放，
+      // manual/dispute 废标走主持人处置轨（rejected 若能撤销主持轨废标属越权）
+      where: { id: dto.invalidBidId, projectId, source: 'passfail' },
       include: { supplier: { select: { supplierName: true } }, scoreItem: { select: { name: true, category: true } } },
     });
     if (!invalidBid) throw new BadRequestException({ error: '废标记录不存在或不属于当前项目', code: 'NOT_FOUND' });
@@ -3156,6 +3158,9 @@ export class ExpertService {
       } } } },
     });
     if (!motion) throw new BadRequestException({ error: '动议不存在', code: 'NOT_FOUND' });
+    // Final-Minor②（终审）：重复 close 防线（镜像 castVote 的 MOTION_NOT_VOTING）——
+    // 双击/陈旧标签页二次 close 会重复跑裁定分支（重复高风险留痕、二次清结果）
+    if (motion.status !== 'voting') throw new BadRequestException({ error: '动议不在投票阶段', code: 'MOTION_NOT_VOTING' });
 
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId: motion.projectId },
@@ -3192,13 +3197,18 @@ export class ExpertService {
 
     // B5（2026-11-12）：invalid_bid 动议——裁定联动废标状态（维持留痕 / 推翻恢复 / 平票维持现状）
     let invalidBid: {
-      id: string; supplierId: string; status: string; failCount: number; totalCount: number;
+      id: string; supplierId: string; scoreItemId: string | null; status: string; failCount: number; totalCount: number;
       supplier?: { supplierName: string } | null;
+      scoreItem?: { name: string | null; category: string | null } | null;
     } | null = null;
     if (motion.type === 'invalid_bid') {
       invalidBid = await this.prisma.bidInvalidBid.findFirst({
         where: { motionId: motion.id },
-        include: { supplier: { select: { supplierName: true } } },
+        include: {
+          supplier: { select: { supplierName: true } },
+          // Final-Minor④（终审）：推翻路径 WS 载荷补 D2 增强字段（与实时翻转路径同口径）
+          scoreItem: { select: { name: true, category: true } },
+        },
       });
       if (invalidBid && result === 'rejected') {
         // 事务前预检：推翻废标撞已闭环签字包 → 整个裁定无法落地（spec §10 闭环不可更正）。
@@ -3233,6 +3243,11 @@ export class ExpertService {
         this.gateway?.notifyBidValidity?.(motion.projectId, {
           supplierId: invalidBid.supplierId,
           supplierName: invalidBid.supplier?.supplierName,
+          scoreItemId: invalidBid.scoreItemId ?? undefined,
+          scoreItemName: invalidBid.scoreItem?.name ?? undefined,
+          category: (invalidBid.scoreItem?.category === 'QUALIFICATION' || invalidBid.scoreItem?.category === 'RESPONSIVE')
+            ? invalidBid.scoreItem.category
+            : undefined,
           failCount: invalidBid.failCount,
           totalCount: invalidBid.totalCount,
           status: 'revoked',
