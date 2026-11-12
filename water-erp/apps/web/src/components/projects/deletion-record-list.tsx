@@ -28,7 +28,7 @@ export function DeletionRecordList({ records, showHeader = true }: { records: Pr
         {records.map((r) => (
           <div key={r.id} className="grid gap-x-6 gap-y-1 px-4 py-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
             <div className="min-w-0">
-              <div className="truncate text-[13px] font-semibold text-[color:var(--foreground)]">
+              <div className="text-[13px] font-semibold leading-snug text-[color:var(--foreground)]">
                 {r.title}
                 {r.projectCode ? (
                   <span className="ml-2 font-mono text-[10px] font-bold text-[color:var(--accent-strong)]">{r.projectCode}</span>
