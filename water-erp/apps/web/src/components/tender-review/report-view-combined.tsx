@@ -127,9 +127,12 @@ const FILTER_OPTIONS: Array<{ key: FilterKey; label: string; icon: React.ReactNo
 interface ReportViewCombinedProps {
   task: ReviewTask;
   onBack: () => void;
+  /** 隐藏「返回」按钮（2026-11-12 用户裁定）：编写弹窗审查流已有右上角 ✕ 关闭，返回冗余；
+   *  审查报告面板（reports-panel-compact）的返回是唯一返程入口，不传。 */
+  hideBack?: boolean;
 }
 
-export default function ReportViewCombined({ task: initialTask, onBack }: ReportViewCombinedProps) {
+export default function ReportViewCombined({ task: initialTask, onBack, hideBack }: ReportViewCombinedProps) {
   const [task, setTask] = useState<ReviewTask>(initialTask);
   const report = task.results as ReviewReport | null;
   const [issues, setIssues] = useState<Issue[]>(() => report ? flattenReport(report) : []);
@@ -286,13 +289,15 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
     <div className="flex flex-col h-full gap-3">
       {/* Header */}
       <div className="flex items-center gap-3 pt-3 shrink-0">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          返回
-        </button>
+        {!hideBack && (
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            返回
+          </button>
+        )}
         <div className="flex-1 min-w-0 flex items-center gap-2">
           <span className="text-sm font-medium text-[var(--foreground)] truncate">
             {task.documentName}
