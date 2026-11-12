@@ -43,6 +43,7 @@ import { closeSignLoopIfDone } from '../bid/sign-loop.util';
 import { isNoneEvaluation } from '../bid/none-evaluation.util';
 import { buildClarificationNotice } from '../bid/clarification-notify.util';
 import { buildExpertEsignCanonical } from './expert-esign.util';
+import { ExpertPairingRegistry } from '../auth/expert-pairing.registry';
 import type { ExpertEsignatureRecord } from './expert-esign.util';
 import { BindExpertCertDto } from './dto/expert-cert.dto';
 import { ExpertEsignDto } from './dto/expert-esign.dto';
@@ -91,6 +92,9 @@ export class ExpertService {
     @Optional() @Inject('REDIS_CLIENT') private readonly redis?: Redis,
     /** B5（2026-11-12）：废标复议推翻路径的结果失效联动（ExpertModule 已 import BidModule，单向无环） */
     @Optional() private readonly bidService?: BidService,
+    /** TAB-SYNC-01 平板配对登记（ExpertModule 已 import ExpertPairingModule）：
+     *  getPairing 查活动配对 / unpair 吊销——桌面端「已配对」徽章与解除按钮的数据面 */
+    @Optional() private readonly pairingRegistry?: ExpertPairingRegistry,
   ) {}
 
   /* 个人资料 */
@@ -3639,20 +3643,20 @@ export class ExpertService {
     return { expert, packet };
   }
 
-  /* ══ 工位迁移码（2026-09-22 修正方案）：票据免闸4解锁 + 密码重证 + 留档照证据 ══
-   * 语义：同人「会话迁移」而非新登录——claim 走 rotatePortalSession 直轮换，
-   * 不经过 login 的 checkExpertSeatLock（闸4 评标期登录锁定）。设计评审结论：
-   * 纯票据是 bearer 凭证，两专家互扫即评分归因失真，故领取必须密码重证
-   * （docs/2026-09-22 工位迁移方案讨论）；留档照为检测级证据（检测≠识别），
-   * 威慑与事后审计用，不作为身份闸。 */
+  /* ══ 平板配对码（TAB-SYNC-01；2026-09-22 迁移制演进为配对制）：票据免闸4解锁 + 密码重证 + 留档照证据 ══
+   * 语义：同人「双端并存」而非会话迁移——桌面保持唯一全量会话，claim 走
+   * ExpertPairingRegistry 登记 + 受限 JWT（scope=tablet-pairing），不轮换 webSessionId、
+   * 不经过 login 的 checkExpertSeatLock（闸4 评标期登录锁定）。设计评审结论（沿用迁移制）：
+   * 纯票据是 bearer 凭证，两专家互扫即评分归因失真，故领取必须密码重证；
+   * 留档照为检测级证据（检测≠识别），威慑与事后审计用，不作为身份闸。 */
 
   private readonly TRANSFER_TTL_SECONDS = 90;
 
-  /** 签发迁移码：核验全齐 + 口令已验 + 有活动会话；90s 单次，Redis 原子 */
-  async issueTransferTicket(userId: string, projectId: string) {
+  /** 签发配对码：核验全齐 + 口令已验 + 有活动会话；90s 单次，Redis 原子 */
+  async issuePairingTicket(userId: string, projectId: string) {
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
     if (!project || project.stage !== 'EVALUATING') {
-      throw new BadRequestException({ error: '项目不在评标中，不能迁移工位', code: 'NOT_EVALUATING' });
+      throw new BadRequestException({ error: '项目不在评标中，不能配对平板', code: 'NOT_EVALUATING' });
     }
     const expert = await this.prisma.bidExpert.findFirst({
       where: { projectId, userId },
@@ -3660,37 +3664,39 @@ export class ExpertService {
     });
     if (!expert) throw new ForbiddenException({ error: '专家不在该项目', code: 'NOT_PROJECT_EXPERT' });
     if (!(expert.signedIn && expert.avoidanceConfirmed && expert.aiConsentConfirmed)) {
-      throw new BadRequestException({ error: '身份核验未完成，不能迁移工位', code: 'VERIFY_INCOMPLETE' });
+      throw new BadRequestException({ error: '身份核验未完成，不能配对平板', code: 'VERIFY_INCOMPLETE' });
     }
     await this.assertRoomUnlocked(projectId, userId); // 评标室口令已验（未启用口令的项目恒放行）
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { webSessionId: true } });
-    if (!user?.webSessionId) throw new ConflictException({ error: '当前无活动会话，无需迁移', code: 'NO_SESSION' });
-    if (!this.redis) throw new ServiceUnavailableException('Redis 不可用，迁移码暂不可用');
+    if (!user?.webSessionId) throw new ConflictException({ error: '当前无活动会话，无法配对', code: 'NO_SESSION' });
+    if (!this.redis) throw new ServiceUnavailableException('Redis 不可用，配对码暂不可用');
     const ticket = randomBytes(32).toString('base64url');
     const ticketId = randomBytes(8).toString('hex');
     const payload = JSON.stringify({ userId, expertId: expert.id, expertName: expert.expertName, projectId, sid: user.webSessionId, ticketId });
     await this.redis.set(`expert-transfer:${ticket}`, payload, 'EX', this.TRANSFER_TTL_SECONDS);
     await this.redis.set(`expert-transfer-status:${ticketId}`, JSON.stringify({ userId, status: 'pending' }), 'EX', 180);
     await this.prisma.bidSupervisionLog.create({
-      data: { projectId, time: new Date(), role: '评审专家', target: expert.expertName, action: '工位迁移码签发', result: `有效期 ${this.TRANSFER_TTL_SECONDS}s 单次使用；扫码领取需输入登录密码`, riskFlag: '无' },
+      data: { projectId, time: new Date(), role: '评审专家', target: expert.expertName, action: '平板配对码签发', result: `有效期 ${this.TRANSFER_TTL_SECONDS}s 单次使用；扫码领取需输入登录密码`, riskFlag: '无' },
     }).catch(() => {});
     return { ticket, ticketId, expiresInSeconds: this.TRANSFER_TTL_SECONDS };
   }
 
-  /** 迁移码状态（@Public 轮询：桌面领取成功后自身会话已亡，不能依赖 token 轮询）
-   *  ticketId 为 16 hex 随机且短时效，仅暴露 pending/claimed/expired，无敏感信息。 */
-  async transferTicketStatus(ticketId: string) {
+  /** 配对码状态（@Public 轮询：配对码单次且 90s 短时效——桌面 QR 弹窗轮询 pending→paired；
+   *  配对制下桌面会话不亡，仍保留 @Public 免 token 形态与迁移制一致）
+   *  ticketId 为 16 hex 随机且短时效，仅暴露 pending/paired/expired，无敏感信息。 */
+  async pairingTicketStatus(ticketId: string) {
     if (!this.redis) throw new ServiceUnavailableException('Redis 不可用');
     const raw = await this.redis.get(`expert-transfer-status:${ticketId}`);
     if (!raw) return { status: 'expired' as const };
     const parsed = JSON.parse(raw) as { status: string };
-    return { status: parsed.status as 'pending' | 'claimed' | 'expired' };
+    return { status: parsed.status as 'pending' | 'paired' | 'expired' };
   }
 
-  /** 迁移留档照登记（检测级证据；skipped=摄像头不可用跳过——如实留痕）
-   *  严版（2026-09-23）：签到无留档照者（transferPhotoPendingAt 非空）skipped 必须有主持人豁免
-   *  （transferPhotoExemptAt），否则 403 PHOTO_REQUIRED_FOR_TRANSFER——服务端权威，前端隐藏只是 UX。 */
-  async recordTransferPhoto(userId: string, projectId: string, dto: { photoAssetId?: string | null; occlusion?: 'passed' | 'unchecked' | null; skipped?: boolean }) {
+  /** 配对留档照登记（检测级证据；skipped=摄像头不可用跳过——如实留痕）
+   *  严版（2026-09-23，迁移制沿用）：签到无留档照者（transferPhotoPendingAt 非空）skipped
+   *  必须有主持人豁免（transferPhotoExemptAt），否则 403 PHOTO_REQUIRED_FOR_TRANSFER——
+   *  服务端权威，前端隐藏只是 UX。 */
+  async recordPairingPhoto(userId: string, projectId: string, dto: { photoAssetId?: string | null; occlusion?: 'passed' | 'unchecked' | null; skipped?: boolean }) {
     const expert = await this.prisma.bidExpert.findFirst({
       where: { projectId, userId },
       select: { id: true, expertName: true, transferPhotoPendingAt: true, transferPhotoExemptAt: true },
@@ -3698,7 +3704,7 @@ export class ExpertService {
     if (!expert) throw new ForbiddenException({ error: '专家不在该项目', code: 'NOT_PROJECT_EXPERT' });
     if (dto.skipped && expert.transferPhotoPendingAt && !expert.transferPhotoExemptAt) {
       throw new ForbiddenException({
-        error: '您的签到未留档照，迁移留档照不可跳过——请拍摄，或由主持人现场确认豁免',
+        error: '您的签到未留档照，配对留档照不可跳过——请拍摄，或由主持人现场确认豁免',
         code: 'PHOTO_REQUIRED_FOR_TRANSFER',
       });
     }
@@ -3709,18 +3715,18 @@ export class ExpertService {
     await this.prisma.bidSupervisionLog.create({
       data: {
         projectId, time: new Date(), role: '评审专家', target: expert.expertName,
-        action: '工位迁移留档照',
+        action: '平板配对留档照',
         result: dto.skipped || !dto.photoAssetId
-          ? `迁移后未拍摄留档照（${dto.skipped ? '跳过' : '未提供'}${expert.transferPhotoExemptAt ? '——主持人已豁免' : ''}）`
-          : `迁移后留档照已拍摄（遮挡检测：${dto.occlusion === 'passed' ? '通过' : dto.occlusion === 'unchecked' ? '未运行' : '未记录'}）`,
+          ? `配对后未拍摄留档照（${dto.skipped ? '跳过' : '未提供'}${expert.transferPhotoExemptAt ? '——主持人已豁免' : ''}）`
+          : `配对后留档照已拍摄（遮挡检测：${dto.occlusion === 'passed' ? '通过' : dto.occlusion === 'unchecked' ? '未运行' : '未记录'}）`,
         riskFlag: dto.skipped || !dto.photoAssetId ? '低' : '无',
       },
     }).catch(() => {});
     return { ok: true };
   }
 
-  /** 迁移留档照状态（严版 2026-09-23）：claim 页轮询豁免解锁 */
-  async transferPhotoStatus(userId: string, projectId: string) {
+  /** 配对留档照状态（严版 2026-09-23）：pair 页轮询豁免解锁 */
+  async pairingPhotoStatus(userId: string, projectId: string) {
     const expert = await this.prisma.bidExpert.findFirst({
       where: { projectId, userId },
       select: { transferPhotoPendingAt: true, transferPhotoExemptAt: true },
@@ -3730,5 +3736,47 @@ export class ExpertService {
       photoRequired: !!expert.transferPhotoPendingAt,
       exempted: !!expert.transferPhotoExemptAt,
     };
+  }
+
+  /** 当前活动配对（桌面全量会话专用）：「已配对」徽章与解除按钮的数据源。
+   *  registry.getActive 经反向索引 expert-pairing:active:{eid}:{pid} 取当前唯一活动配对；
+   *  无配对 → { device: null, pairedAt: null }（与未配对态区分于 404——桌面轮询友好）。
+   *  不入 PAIRING_ALLOWED 写面白名单：平板侧持 scoped 令牌不得改配对（解绑归桌面）。 */
+  async getPairing(userId: string, projectId: string) {
+    const expert = await this.prisma.bidExpert.findFirst({
+      where: { projectId, userId },
+      select: { id: true },
+    });
+    if (!expert) throw new ForbiddenException({ error: '专家不在该项目', code: 'NOT_PROJECT_EXPERT' });
+    if (!this.pairingRegistry) throw new ServiceUnavailableException('Redis 不可用，配对状态暂不可用');
+    const active = await this.pairingRegistry.getActive(expert.id, projectId);
+    if (!active) return { device: null, pairedAt: null };
+    return { device: active.device, pairedAt: active.pairedAt };
+  }
+
+  /** 桌面端主动解除配对：吊销活动配对（平板下一请求 401 PAIRING_REVOKED）+ 监督日志。
+   *  无活动配对 → 幂等 { ok: true }（不写日志）；revoke 与 getActive 间的竞态窗内条目
+   *  消失（TTL 到期）→ revoke 返回 null，同样静默幂等。桌面会话不受任何影响。 */
+  async unpair(userId: string, projectId: string, reason?: string) {
+    const expert = await this.prisma.bidExpert.findFirst({
+      where: { projectId, userId },
+      select: { id: true, expertName: true },
+    });
+    if (!expert) throw new ForbiddenException({ error: '专家不在该项目', code: 'NOT_PROJECT_EXPERT' });
+    if (!this.pairingRegistry) throw new ServiceUnavailableException('Redis 不可用，解除配对暂不可用');
+    const active = await this.pairingRegistry.getActive(expert.id, projectId);
+    if (!active) return { ok: true };
+    const revoked = await this.pairingRegistry.revoke(active.pairingId);
+    if (revoked) {
+      await this.prisma.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '评审专家', target: expert.expertName,
+          action: '平板解除配对',
+          result: reason?.trim() ? `桌面端主动解除配对（${reason.trim()}）` : '桌面端主动解除配对',
+          riskFlag: '无',
+        },
+      }).catch(() => {});
+    }
+    return { ok: true };
   }
 }

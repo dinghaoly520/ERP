@@ -29,7 +29,7 @@ import { ConfirmContactDto } from './dto/confirm-contact.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
 import { UpsertRequirementReviewDto } from './dto/upsert-requirement-review.dto';
 import { ConfirmReportDto } from './dto/confirm-report.dto';
-import { ExpertTransferClaimDto, TransferPhotoDto } from './dto/expert-transfer.dto';
+import { PairingPhotoDto } from './dto/expert-pairing.dto';
 import { ConfirmAvoidanceDto } from './dto/confirm-avoidance.dto';
 import { SignInDto } from './dto/sign-in.dto';
 import { BindExpertCertDto } from './dto/expert-cert.dto';
@@ -61,39 +61,58 @@ export class ExpertController {
   ) {}
 
   /* ── 个人资料 ── */
-  /* ══ 工位迁移码（2026-09-22 修正方案：票据免闸4解锁 + 密码重证 + 留档照证据）══ */
+  /* ══ 平板配对码（TAB-SYNC-01；2026-09-22 迁移制演进为配对制）：票据免闸4解锁 + 密码重证 + 留档照证据 ══ */
 
-  @Post('projects/:projectId/transfer-ticket')
+  @Post('projects/:projectId/pairing-ticket')
   @Roles('bid_expert')
-  @ApiOperation({ summary: '工位迁移码签发：核验全齐+口令已验+有活动会话；90s 单次（Redis 原子）' })
-  issueTransferTicket(@Param('projectId') projectId: string, @CurrentUser('sub') userId: string) {
-    return this.expertService.issueTransferTicket(userId, projectId);
+  @ApiOperation({ summary: '平板配对码签发（桌面端）：核验全齐+口令已验+有活动会话；90s 单次（Redis 原子）' })
+  issuePairingTicket(@Param('projectId') projectId: string, @CurrentUser('sub') userId: string) {
+    return this.expertService.issuePairingTicket(userId, projectId);
   }
 
-  @Get('transfer-ticket/:ticketId/status')
+  @Get('pairing-ticket/:ticketId/status')
   @Public()
   @Throttle({ default: { limit: 30, ttl: 60000 } })
-  @ApiOperation({ summary: '迁移码状态轮询（@Public：领取成功后桌面会话已亡，不能带 token）——ticketId 随机短时效，仅暴露 pending/claimed/expired' })
-  transferTicketStatus(@Param('ticketId') ticketId: string) {
-    return this.expertService.transferTicketStatus(ticketId);
+  @ApiOperation({ summary: '配对码状态轮询（桌面 QR 弹窗 pending→paired；ticketId 随机短时效，仅暴露 pending/paired/expired）' })
+  pairingTicketStatus(@Param('ticketId') ticketId: string) {
+    return this.expertService.pairingTicketStatus(ticketId);
   }
 
-  @Get('projects/:projectId/transfer-photo-status')
+  @Get('projects/:projectId/pairing-photo-status')
   @Roles('bid_expert')
-  @ApiOperation({ summary: '迁移留档照状态（严版 2026-09-23）：claim 页轮询主持人豁免解锁' })
-  transferPhotoStatus(@Param('projectId') projectId: string, @CurrentUser('sub') userId: string) {
-    return this.expertService.transferPhotoStatus(userId, projectId);
+  @ApiOperation({ summary: '配对留档照状态（严版 2026-09-23）：pair 页轮询主持人豁免解锁' })
+  pairingPhotoStatus(@Param('projectId') projectId: string, @CurrentUser('sub') userId: string) {
+    return this.expertService.pairingPhotoStatus(userId, projectId);
   }
 
-  @Post('projects/:projectId/transfer-photo')
+  @Post('projects/:projectId/pairing-photo')
   @Roles('bid_expert')
-  @ApiOperation({ summary: '迁移后留档照登记（检测级证据；skipped 跳过如实留痕）' })
-  recordTransferPhoto(
+  @ApiOperation({ summary: '配对后留档照登记（检测级证据；skipped 跳过如实留痕）' })
+  recordPairingPhoto(
     @Param('projectId') projectId: string,
     @CurrentUser('sub') userId: string,
-    @Body() dto: TransferPhotoDto,
+    @Body() dto: PairingPhotoDto,
   ) {
-    return this.expertService.recordTransferPhoto(userId, projectId, dto);
+    return this.expertService.recordPairingPhoto(userId, projectId, dto);
+  }
+
+  /* ══ 平板配对管理（TAB-SYNC-01）：桌面全量会话专用——GET 查活动配对（已配对徽章数据源）、
+   *  DELETE 解除配对（平板下一请求 401 PAIRING_REVOKED）。均不入 PAIRING_ALLOWED 白名单：
+   *  PairingScopeGuard 对 scoped 请求默认拒绝（GET pairing 虽被只读全集 /^\/expert\/projects/
+   *  覆盖，但 DELETE 无白名单条目恒拒——配对生命周期归桌面端裁决）。══ */
+
+  @Get('projects/:projectId/pairing')
+  @Roles('bid_expert')
+  @ApiOperation({ summary: '当前活动配对（桌面全量会话专用）：{ device, pairedAt } | { device: null, pairedAt: null }' })
+  getPairing(@Param('projectId') projectId: string, @CurrentUser('sub') userId: string) {
+    return this.expertService.getPairing(userId, projectId);
+  }
+
+  @Delete('projects/:projectId/pairing')
+  @Roles('bid_expert')
+  @ApiOperation({ summary: '桌面端主动解除配对（幂等）：吊销活动配对 + 监督日志；桌面会话不受影响' })
+  unpair(@Param('projectId') projectId: string, @CurrentUser('sub') userId: string) {
+    return this.expertService.unpair(userId, projectId);
   }
 
   @Get('profile')

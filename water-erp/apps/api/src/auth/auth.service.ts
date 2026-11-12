@@ -16,6 +16,7 @@ import { RegisterDto } from './dto/register.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { findOpenEvaluationWindows } from '../expert/expert-room.util';
 import { CompanyScopeService } from '../company/company-scope';
+import { ExpertPairingRegistry } from './expert-pairing.registry';
 
 /**
  * 登录时按来源门户（X-Portal）优先匹配的 role 顺序。
@@ -46,6 +47,9 @@ export class AuthService {
     // 公司名→Company 记录统一收口（2026-11-06 改公司全链路联动裁定）；
     // Optional 仅防测试直构，生产由 @Global CompanyScopeModule 提供
     @Optional() private readonly companyScope?: CompanyScopeService,
+    // TAB-SYNC-01 平板配对登记（AuthModule 已 import+re-export ExpertPairingModule）：
+    // claim 登记新配对（单台替换）——配对不轮换会话，桌面 sid 原样随受限令牌下发
+    @Optional() private readonly pairingRegistry?: ExpertPairingRegistry,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -653,38 +657,40 @@ export class AuthService {
     };
   }
 
-  /* ══ 工位迁移领取（2026-09-22 修正方案）：票据（免闸4）+ 密码重证（个人秘密绑定）→ 会话轮换 ══
+  /* ══ 平板配对领取（TAB-SYNC-01；2026-09-22 迁移制演进为配对制）：票据（免闸4）+ 密码重证（个人秘密绑定）→ 受限令牌 ══
    * @Public 端点（平板尚无会话）；票据 90s 单次 + 密码连错 3 次烧票。
-   * 刻意不调 checkExpertSeatLock：这是已认证同人的会话迁移（桌面核验+口令全齐后签发），
+   * 刻意不调 checkExpertSeatLock：这是已认证同人的平板配对（桌面核验+口令全齐后签发），
    * 不是新登录——闸4 防的是冒名抢占，本路径的身份绑定由「票据签发前置核验 + 密码重证」承担。
-   * 成功即 rotatePortalSession（新 sid 归平板、桌面旧 token 自然 401 SESSION_REPLACED），
-   * 设备快照（sessionMeta）随轮换同写——主持人工位矩阵实时看到「在线设备」切换。 */
-  async claimExpertTransfer(
+   * 成功【不轮换会话】：registry.register 登记配对（单台替换旧平板）+ 签受限 JWT
+   * （scope=tablet-pairing、携带桌面 sid、显式 12h）——桌面全量会话不受影响（spec §5.1/§11
+   * 反目标铁律：配对任何动作不得使桌面会话失效；桌面 sid 轮换/登出时平板令牌自然失配 401）。 */
+  async claimExpertPairing(
     dto: { ticket: string; password: string },
     meta: { ip?: string | null; userAgent?: string | null },
   ) {
     if (!this.redis) throw new ServiceUnavailableException('Redis 不可用');
+    if (!this.pairingRegistry) throw new ServiceUnavailableException('Redis 不可用，平板配对暂不可用');
     const key = `expert-transfer:${dto.ticket}`;
-    // 并发互斥（严格审查修复）：get→校验→del 之间存在竞态窗口，两请求可同时持票通过
-    // （密码都对则双重轮换，单次语义被破坏）。按票据互斥锁串行化领取全程。
+    // 并发互斥（严格审查修复，迁移制沿用）：get→校验→del 之间存在竞态窗口，两请求可同时
+    // 持票通过（密码都对则双重登记，单次语义被破坏）。按票据互斥锁串行化领取全程。
     const raw0 = await this.redis.get(key);
     if (!raw0) {
-      throw new BadRequestException({ error: '迁移码已过期或已使用，请在桌面端重新生成', code: 'TICKET_INVALID' });
+      throw new BadRequestException({ error: '配对码已过期或已使用，请在桌面端重新生成', code: 'TICKET_INVALID' });
     }
     const t0 = JSON.parse(raw0) as { ticketId: string };
     const lockKey = `expert-transfer-lock:${t0.ticketId}`;
     const locked = await this.redis.set(lockKey, '1', 'EX', 15, 'NX');
     if (!locked) {
-      throw new ConflictException({ error: '该迁移码正在领取中，请稍候重试', code: 'CLAIM_IN_PROGRESS' });
+      throw new ConflictException({ error: '该配对码正在领取中，请稍候重试', code: 'CLAIM_IN_PROGRESS' });
     }
     try {
-      return await this.claimExpertTransferLocked(dto, meta, key);
+      return await this.claimExpertPairingLocked(dto, meta, key);
     } finally {
       await this.redis.del(lockKey).catch(() => {});
     }
   }
 
-  private async claimExpertTransferLocked(
+  private async claimExpertPairingLocked(
     dto: { ticket: string; password: string },
     meta: { ip?: string | null; userAgent?: string | null },
     key: string,
@@ -693,7 +699,7 @@ export class AuthService {
     if (!redis) throw new ServiceUnavailableException('Redis 不可用');
     const raw = await redis.get(key);
     if (!raw) {
-      throw new BadRequestException({ error: '迁移码已过期或已使用，请在桌面端重新生成', code: 'TICKET_INVALID' });
+      throw new BadRequestException({ error: '配对码已过期或已使用，请在桌面端重新生成', code: 'TICKET_INVALID' });
     }
     const t = JSON.parse(raw) as { userId: string; expertName: string; projectId: string; sid: string; ticketId: string };
     const user = await this.prisma.user.findUnique({
@@ -702,10 +708,10 @@ export class AuthService {
     });
     if (!user || user.role !== 'bid_expert' || !user.isActive || user.isFrozen) {
       await redis.del(key);
-      throw new BadRequestException({ error: '迁移码无效', code: 'TICKET_INVALID' });
+      throw new BadRequestException({ error: '配对码无效', code: 'TICKET_INVALID' });
     }
     // 临时需求方代表（2026-11-05）：claim 是独立入口不走 login 闸——同口径复核未终态绑定，
-    // 防 90s 票据窗口内项目归档/流标后过期 temp 账号仍领票迁平板（会话 DOA）
+    // 防 90s 票据窗口内项目归档/流标后过期 temp 账号仍领票配对平板（会话 DOA）
     if (user.isTempExpert) {
       const binding = await this.prisma.bidExpert.count({
         where: { userId: user.id, project: { stage: { notIn: ['ARCHIVED', 'ABORTED'] } } },
@@ -718,7 +724,7 @@ export class AuthService {
     // 票据绑定签发时会话：桌面会话已被替换/吊销 → 票据随之作废（防旧票复用）
     if (!user.webSessionId || user.webSessionId !== t.sid) {
       await redis.del(key);
-      throw new ConflictException({ error: '桌面会话已变化，迁移码失效，请重新生成', code: 'TICKET_STALE' });
+      throw new ConflictException({ error: '桌面会话已变化，配对码失效，请重新生成', code: 'TICKET_STALE' });
     }
     // 密码重证：错 3 次烧票（票据是能力凭证，须防持票者暴力试密码）
     if (!user.passwordHash || !compareSync(dto.password, user.passwordHash)) {
@@ -727,37 +733,60 @@ export class AuthService {
       await redis.expire(aKey, 90);
       if (attempts >= 3) {
         await redis.del(key);
-        throw new BadRequestException({ error: '密码连续错误 3 次，迁移码已作废，请回桌面重新生成', code: 'TICKET_BURNED' });
+        throw new BadRequestException({ error: '密码连续错误 3 次，配对码已作废，请回桌面重新生成', code: 'TICKET_BURNED' });
       }
       throw new UnauthorizedException({ error: `登录密码错误（剩余 ${3 - attempts} 次机会）`, code: 'PASSWORD_MISMATCH' });
     }
     await redis.del(key); // 单次使用（成功即销毁）
-    await redis.set(`expert-transfer-status:${t.ticketId}`, JSON.stringify({ userId: t.userId, status: 'claimed' }), 'EX', 180);
-    // 严版（2026-09-23）：签到无留档照者迁移后强制补拍——置 pending，拍完/豁免跳过才清；
-    // 服务端权威：photoRequired 时 recordTransferPhoto(skipped) 无豁免必 403
+    // 状态键 pending→paired（桌面 QR 弹窗轮询口径；迁移制为 claimed）
+    await redis.set(`expert-transfer-status:${t.ticketId}`, JSON.stringify({ userId: t.userId, status: 'paired' }), 'EX', 180);
+    // 严版（2026-09-23，迁移制沿用）：签到无留档照者配对后强制补拍——置 pending，拍完/豁免
+    // 跳过才清；服务端权威：photoRequired 时 recordPairingPhoto(skipped) 无豁免必 403
     const expert = await this.prisma.bidExpert.findFirst({
       where: { projectId: t.projectId, userId: t.userId },
-      select: { signInMeta: true },
+      select: { id: true, signInMeta: true },
     });
-    const signInMeta = (expert?.signInMeta ?? null) as { photoAssetId?: string | null } | null;
+    // 配对须绑定当前 BidExpert 行（eid 入 JWT + 登记键）：票据窗口内专家被替换/移除 → 票据作废
+    if (!expert) {
+      await redis.del(key);
+      throw new BadRequestException({ error: '配对码无效', code: 'TICKET_INVALID' });
+    }
+    const signInMeta = (expert.signInMeta ?? null) as { photoAssetId?: string | null } | null;
     const photoRequired = !signInMeta?.photoAssetId;
     if (photoRequired) {
       await this.prisma.bidExpert.updateMany({
         where: { projectId: t.projectId, userId: t.userId },
-        // 豁免是逐次现场判定——新一轮迁移重新补拍要求，旧豁免不沿用
+        // 豁免是逐次现场判定——新一轮配对重新补拍要求，旧豁免不沿用
         data: { transferPhotoPendingAt: new Date(), transferPhotoExemptAt: null, transferPhotoExemptByName: null },
       });
     }
+    // ── 配对制核心差异（spec §5.1）：不轮换会话，改登记配对 + 签受限令牌 ──
+    // ①登记：同 expert+project 已有旧配对时 register 单飞替换（旧平板令牌随 jti 失效）
     const device = buildSessionMeta(meta.userAgent, meta.ip);
-    const token = await this.rotatePortalSession(user.id, user.username, user.role, device);
+    const { pairingId } = await this.pairingRegistry!.register({
+      userId: user.id,
+      expertId: expert.id,
+      projectId: t.projectId,
+      device: { uaSummary: device.uaSummary, ip: device.ip },
+    });
+    // ②受限令牌：同 JWT_SECRET + token_expert 命名空间；sid=桌面当前会话（上面已比对相等，
+    //   桌面轮换/登出即失配 401）；expiresIn 必须显式 12h——JwtModule 默认 signOptions 7d
+    //   不覆盖则静默变 7 天（spec §5.1 实现注记）
+    const access_token = this.jwt.sign(
+      {
+        sub: user.id, username: user.username, role: user.role,
+        sid: t.sid, scope: 'tablet-pairing', pid: t.projectId, eid: expert.id, jti: pairingId,
+      },
+      { expiresIn: '12h' },
+    );
     await this.prisma.bidSupervisionLog.create({
       data: {
         projectId: t.projectId, time: new Date(), role: '评审专家', target: t.expertName,
-        action: '工位迁移',
-        result: `桌面→平板工位迁移（迁移码单次使用，密码重证通过）；新设备 ${device.uaSummary}；原桌面会话已失效`,
+        action: '平板配对成功',
+        result: `桌面→平板配对（配对码单次使用，密码重证通过）；新设备 ${device.uaSummary}；桌面会话不受影响`,
         riskFlag: '无',
       },
     }).catch(() => {});
-    return { access_token: token.access_token, role: user.role, username: user.username, projectId: t.projectId, photoRequired };
+    return { access_token, role: user.role, username: user.username, projectId: t.projectId, photoRequired };
   }
 }

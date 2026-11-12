@@ -5,7 +5,7 @@ import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
-import { ExpertTransferClaimDto } from '../expert/dto/expert-transfer.dto';
+import { ExpertPairingClaimDto } from '../expert/dto/expert-pairing.dto';
 import { RegisterDto } from './dto/register.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -206,7 +206,7 @@ export class AuthController {
           result.userId, result.username, seat.windows, getClientIp(req), (req.headers['user-agent'] as string) ?? null,
         );
         throw new ConflictException({
-          error: `评标期间账号已锁定（项目【${seat.projectNames.join('、')}】评标未结束），如需更换设备请联系主持人解除锁定`,
+          error: `评标期间账号已锁定（项目【${seat.projectNames.join('、')}】评标未结束），如需更换设备请联系主持人解除锁定；评标期间如需使用平板打分，请在桌面端「配对打分平板」生成配对码`,
           code: 'ACCOUNT_EVALUATING',
         });
       }
@@ -242,24 +242,25 @@ export class AuthController {
     return { access_token: result.access_token, role: result.role, username: result.username };
   }
 
-  /* ══ 工位迁移领取（2026-09-22 修正方案）：票据（免闸4）+ 密码重证 → 会话轮换到平板 ══
-   * 刻意不进 login 路径的闸4 工位锁定（同人迁移非新登录）；成功 Set-Cookie token_expert，
-   * 桌面旧 token 随 sid 轮换自然 401 SESSION_REPLACED。 */
-  @Post('expert-transfer/claim')
+  /* ══ 平板配对领取（TAB-SYNC-01；2026-09-22 迁移制演进为配对制）：票据（免闸4）+ 密码重证 → 受限令牌 ══
+   * 刻意不进 login 路径的闸4 工位锁定（同人配对非新登录）；成功 Set-Cookie token_expert
+   * （scoped 令牌，scope=tablet-pairing）——不轮换会话，桌面全量会话不受影响。 */
+  @Post('expert-pairing/claim')
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: '工位迁移领取：迁移码（单次 90s）+ 登录密码重证 → 会话轮换至当前设备' })
-  async claimExpertTransfer(
-    @Body() dto: ExpertTransferClaimDto,
+  @ApiOperation({ summary: '平板配对领取：配对码（单次 90s）+ 登录密码重证 → 受限令牌（不轮换桌面会话）' })
+  async claimExpertPairing(
+    @Body() dto: ExpertPairingClaimDto,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.authService.claimExpertTransfer(dto, {
+    const result = await this.authService.claimExpertPairing(dto, {
       ip: getClientIp(req),
       userAgent: (req.headers['user-agent'] as string) ?? null,
     }) as { access_token: string; role: string; username: string; projectId: string; photoRequired: boolean };
-    // 与登录同款 cookie 轨（命名空间 expert；localhost 各端口共享 cookie 域）
+    // 与登录同款 cookie 轨（命名空间 expert；localhost 各端口共享 cookie 域）——
+    // scoped 令牌同轨写入 token_expert，配对/全量身份仅靠 claims scope 区分（spec §5.2）
     res.cookie(cookieNameForPortal('expert'), result.access_token, COOKIE_OPTS);
     return { access_token: result.access_token, role: result.role, username: result.username, projectId: result.projectId, photoRequired: result.photoRequired };
   }
