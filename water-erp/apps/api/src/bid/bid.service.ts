@@ -1527,7 +1527,7 @@ export class BidService {
       await lockAndReassertStage(tx, id, 'ABORTED');
       const result = await tx.bidProject.update({
         where: { id },
-        data: { stage: 'ABORTED', riskNote },
+        data: { stage: 'ABORTED', riskNote, abortedAt: new Date() },
         select: { id: true, stage: true },
       });
       await tx.bidSupervisionLog.create({
@@ -5083,11 +5083,17 @@ export class BidService {
     return result;
   }
 
+  /** B5（2026-11-12）：废标复议推翻路径复用（ExpertService 经 DI 调用）——与异议裁决/手动废标同口径：
+   *  无结果时 no-op；未闭环签字包随结果作废并重置签字状态；已闭环包 409 在调用方事务内回滚。 */
+  async invalidateResultsForRuling(tx: any, projectId: string, targetName: string): Promise<void> {
+    return this.invalidateEvaluationResultsAndPacket(tx, projectId, targetName);
+  }
+
   /**
    * H6/废标联动——清除已有评标结果并失效未闭环签字包（事务内调用）。
-   * resolveExpertDispute 与 manualMarkInvalidBid 共用同一口径：已有官方结果即清除、
-   * 未闭环签字包删除并重置全员签字状态（快照与结果分叉）；闭环包抛 409 SIGN_PACKET_CLOSED
-   * （spec §10 闭环后不可更正，由外层事务回滚保证废标本身不生效）。无结果时不触碰结果/签字包。
+   * resolveExpertDispute 与 manualMarkInvalidBid（及 B5 复议推翻路径经 invalidateResultsForRuling）共用同一口径：
+   * 已有官方结果即清除、未闭环签字包删除并重置全员签字状态（快照与结果分叉）；闭环包抛 409
+   * SIGN_PACKET_CLOSED（spec §10 闭环后不可更正，由外层事务回滚保证废标本身不生效）。无结果时不触碰结果/签字包。
    */
   private async invalidateEvaluationResultsAndPacket(tx: any, projectId: string, targetName: string): Promise<void> {
     const existingResults = await tx.bidEvaluationResult.count({ where: { projectId } });

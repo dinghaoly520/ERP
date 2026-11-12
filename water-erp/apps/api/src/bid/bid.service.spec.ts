@@ -891,6 +891,8 @@ describe('BidService — stage transitions', () => {
       expect(upd.riskNote).toContain('操作人 张采购');
       expect(upd.riskNote).not.toContain('u-actor-id-cuid');
       expect(upd.riskNote).not.toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/); // 不再裸 ISO
+      // #79 延伸（2026-11-12）：流标时刻显式落列——ABORTED→ARCHIVED 后 :3007「已流标」身份不丢
+      expect(upd.abortedAt).toBeInstanceOf(Date);
     });
 
     it('操作人查无对应用户 → 省略操作人字段（绝不嵌 id）', async () => {

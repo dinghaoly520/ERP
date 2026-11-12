@@ -10,6 +10,7 @@ import { Prisma } from '@prisma/client';
 import { sealPii, openPii, blindIndexPii } from '../common/crypto/sm-field-crypto';
 import { AiService } from '../ai/ai.service';
 import { BidGateway } from '../bid/bid.gateway';
+import { BidService } from '../bid/bid.service';
 import { NotificationService } from '../notification/notification.service';
 import { PlaintextFetcherService, BidderFileType } from '../ai-bid-analysis/services/plaintext-fetcher.service';
 import { BatchScoreDto } from './dto/batch-score.dto';
@@ -87,6 +88,8 @@ export class ExpertService {
     @Optional() private readonly gateway?: BidGateway,
     @Optional() private readonly notificationService?: NotificationService,
     @Optional() @Inject('REDIS_CLIENT') private readonly redis?: Redis,
+    /** B5（2026-11-12）：废标复议推翻路径的结果失效联动（ExpertModule 已 import BidModule，单向无环） */
+    @Optional() private readonly bidService?: BidService,
   ) {}
 
   /* 个人资料 */
@@ -470,7 +473,63 @@ export class ExpertService {
       noneEvaluation,
       restricted: false,
       tenderDocument,
+      // B6（2026-11-12）：组长兜底——未复议/表决中的过半废标清单（WS 推送只是加速器，刷新即恢复弹窗）
+      ...(expertRecord.isLead ? { pendingInvalidReviews: await this.buildPendingInvalidReviews(projectId) } : {}),
     };
+  }
+
+  /** B6（2026-11-12）：组长待复议清单——仅通过性投票废标（source=passfail 且 scoreItemId 非空；
+   *  manual/dispute 废标走主持人处置轨，不入组长复议）。收录：无动议 / voting 中（横幅态）/
+   *  closed+tie_deadlock（可重发）；排除 closed 已终局（approved/rejected）。 */
+  private async buildPendingInvalidReviews(projectId: string) {
+    const invalids = await this.prisma.bidInvalidBid.findMany({
+      where: { projectId, status: 'invalid', source: 'passfail', scoreItemId: { not: null } },
+      include: {
+        supplier: { select: { supplierName: true } },
+        scoreItem: { select: { name: true, category: true } },
+      },
+    });
+    if (invalids.length === 0) return [];
+    const motionIds = invalids.map(i => i.motionId).filter((m): m is string => !!m);
+    const motions = motionIds.length > 0
+      ? await this.prisma.bidMotion.findMany({ where: { id: { in: motionIds } }, select: { id: true, status: true, result: true } })
+      : [];
+    const motionById = new Map(motions.map(m => [m.id, m]));
+    const out: Array<{
+      invalidBidId: string; supplierId: string; supplierName: string;
+      scoreItemId: string; scoreItemName: string; category: 'QUALIFICATION' | 'RESPONSIVE';
+      failCount: number; totalCount: number;
+      votes: Array<{ expertName: string; passed: boolean; reason: string | null }>;
+      hasOpenMotion: boolean; canRemotion: boolean;
+    }> = [];
+    for (const inv of invalids) {
+      let hasOpenMotion = false;
+      let canRemotion = true;
+      if (inv.motionId) {
+        const m = motionById.get(inv.motionId);
+        if (m?.status === 'voting') { hasOpenMotion = true; canRemotion = false; }
+        else if (m?.status === 'closed' && m.result !== 'tie_deadlock') continue; // 已终局——排除
+        // tie_deadlock → 可重发；motion 记录缺失（异常态）按可重发处理
+      }
+      const records = await this.prisma.bidScoreRecord.findMany({
+        where: { scoreItemId: inv.scoreItemId!, supplierId: inv.supplierId, passed: { not: null } },
+        select: { passed: true, reason: true, expert: { select: { expertName: true } } },
+      });
+      out.push({
+        invalidBidId: inv.id,
+        supplierId: inv.supplierId,
+        supplierName: inv.supplier?.supplierName ?? inv.supplierId,
+        scoreItemId: inv.scoreItemId ?? '',
+        scoreItemName: inv.scoreItem?.name?.trim() || inv.scoreItemId?.slice(-8) || '通过性审查',
+        category: (inv.scoreItem?.category === 'RESPONSIVE') ? 'RESPONSIVE' : 'QUALIFICATION',
+        failCount: inv.failCount,
+        totalCount: inv.totalCount,
+        votes: records.map(r => ({ expertName: r.expert?.expertName ?? '—', passed: r.passed === true, reason: r.reason ?? null })),
+        hasOpenMotion,
+        canRemotion,
+      });
+    }
+    return out;
   }
 
   /* 身份核验 */
@@ -1723,6 +1782,49 @@ export class ExpertService {
           item.passed = null as unknown as undefined;
         }
       }
+      // D1（2026-11-12）：通过性项判不通过必须附理由——此前仅前端闸（score-validation.ts），
+      // 直写 API 可空理由落库；两条路径（有/无 pointDecisions）在上方分支已定出最终 passed，此处统一拦截
+      if ((meta.category === 'QUALIFICATION' || meta.category === 'RESPONSIVE')
+          && item.passed === false && !(item.reason ?? '').trim()) {
+        throw new BadRequestException({
+          error: `通过性审查项 ${meta.name ?? item.scoreItemId.slice(-8)} 判不通过必须填写理由`,
+          code: 'FAIL_REASON_REQUIRED',
+        });
+      }
+    }
+
+    // B4（2026-11-12）：废标复议冻结闸——通过性项关联动议期间/之后拒收该项评分投票：
+    //  voting=表决进行中暂停（防两套投票打架）；closed=已裁定终局锁（双向：维持防改票翻转裁定、
+    //  推翻防再投票翻回）。只锁 (供应商, 通过性项) 精确对，数值项与其他供应商不受牵连。
+    const passFailPairs = dto.scores
+      .filter(s => { const m = itemMeta.get(s.scoreItemId); return m && (m.category === 'QUALIFICATION' || m.category === 'RESPONSIVE'); })
+      .map(s => ({ supplierId: s.supplierId, scoreItemId: s.scoreItemId }));
+    if (passFailPairs.length > 0) {
+      const linked = await this.prisma.bidInvalidBid.findMany({
+        where: {
+          projectId, motionId: { not: null },
+          OR: passFailPairs.map(p => ({ AND: [{ supplierId: p.supplierId }, { scoreItemId: p.scoreItemId }] })),
+        },
+        select: { supplierId: true, scoreItemId: true, motionId: true },
+      });
+      if (linked.length > 0) {
+        const motions = await this.prisma.bidMotion.findMany({
+          where: { id: { in: linked.map(l => l.motionId!).filter(Boolean) } },
+          select: { id: true, status: true },
+        });
+        const voting = motions.some(m => m.status === 'voting');
+        const first = linked[0];
+        const firstItemId = first.scoreItemId ?? '';
+        const label = itemMeta.get(firstItemId)?.name?.trim() || (firstItemId || '该项').slice(-8);
+        throw new BadRequestException({
+          error: voting
+            ? `评分项 ${label} 废标复议表决进行中，该项评分投票已暂停——请等待组长结束表决`
+            : `评分项 ${label} 已经委员会裁定，该项评分投票已冻结`,
+          code: voting ? 'RULING_IN_PROGRESS' : 'RULING_FINAL',
+          scoreItemId: firstItemId || undefined,
+          supplierId: first.supplierId,
+        });
+      }
     }
 
     // 查 AI 建议分（用于评分 delta 飞轮：专家 vs AI 差异）
@@ -1894,6 +1996,18 @@ export class ExpertService {
         const m = itemMeta.get(s.scoreItemId);
         return m && (m.category === 'QUALIFICATION' || m.category === 'RESPONSIVE');
       });
+      // D2（2026-11-12）：广播载荷增强字段——supplierName 就近取自已载 bidSuppliers
+      const supplierNameMap = new Map(bidSuppliers.map(b => [b.id, b.supplierName]));
+      const validityEmit = (s: string, itemId: string, verdict: { failCount: number; totalCount: number }, status: 'invalid' | 'revoked') => {
+        const m = itemMeta.get(itemId);
+        this.gateway?.notifyBidValidity?.(projectId, {
+          supplierId: s, failCount: verdict.failCount, totalCount: verdict.totalCount, status,
+          supplierName: supplierNameMap.get(s),
+          scoreItemId: itemId,
+          scoreItemName: m?.name,
+          category: (m?.category === 'QUALIFICATION' || m?.category === 'RESPONSIVE') ? m.category : undefined,
+        });
+      };
       for (const s of Array.from(new Set(passFailTouched.map(x => x.supplierId)))) {
         const items = passFailTouched.filter(x => x.supplierId === s).map(x => x.scoreItemId);
         for (const itemId of Array.from(new Set(items))) {
@@ -1904,24 +2018,33 @@ export class ExpertService {
             const existingRec = await this.prisma.bidInvalidBid.findFirst({
               where: { projectId, supplierId: s, scoreItemId: itemId },
             });
+            let writtenRow: { id: string; motionId: string | null } | null = existingRec ?? null;
             if (existingRec) {
               await this.prisma.bidInvalidBid.update({
                 where: { id: existingRec.id },
                 data: { failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid', revokedAt: null, revokedBy: null, reason: `通过性审查不通过票过半（${verdict.failCount}/${verdict.totalCount}）` },
               });
             } else {
-              await this.prisma.bidInvalidBid.create({
+              writtenRow = await this.prisma.bidInvalidBid.create({
                 data: { projectId, supplierId: s, scoreItemId: itemId, source: 'passfail', failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid', reason: `通过性审查不通过票过半（${verdict.failCount}/${verdict.totalCount}）` },
               });
             }
-            this.gateway?.notifyBidValidity?.(projectId, { supplierId: s, failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid' });
+            validityEmit(s, itemId, verdict, 'invalid');
+            // B2（2026-11-12）：过半落库 → 组长复议召集（定向 WS；已有动议/推送失败均不阻塞）
+            await this.suggestLeadReview(projectId, writtenRow, verdict, {
+              supplierId: s,
+              supplierName: supplierNameMap.get(s) ?? s,
+              scoreItemId: itemId,
+              scoreItemName: itemMeta.get(itemId)?.name ?? itemId.slice(-8),
+              category: (itemMeta.get(itemId)?.category === 'RESPONSIVE') ? 'RESPONSIVE' : 'QUALIFICATION',
+            });
           } else {
             // 不过半：若之前 invalid 现恢复（票数变化，决策 B 接受跳变）
             const existing = await this.prisma.bidInvalidBid.findFirst({ where: { projectId, supplierId: s, scoreItemId: itemId } });
             if (existing?.status === 'invalid') {
               validityFlipped = true;
               await this.prisma.bidInvalidBid.update({ where: { id: existing.id }, data: { status: 'revoked', revokedAt: new Date() } });
-              this.gateway?.notifyBidValidity?.(projectId, { supplierId: s, failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'revoked' });
+              validityEmit(s, itemId, verdict, 'revoked');
             }
           }
         }
@@ -2026,6 +2149,46 @@ export class ExpertService {
     }
 
     return result;
+  }
+
+  /** B2（2026-11-12）：过半废标落库 → 组长复议召集（定向 WS，轻量勿阻塞：任何失败仅告警）。
+   *  motionId 非空 = 已有动议在途/已裁定，不重复打扰；组长实时查库（isLead 转移天然跟随）。 */
+  private async suggestLeadReview(
+    projectId: string,
+    invalidBidRow: { id: string; motionId: string | null } | null,
+    verdict: { failCount: number; totalCount: number },
+    ctx: {
+      supplierId: string; supplierName: string;
+      scoreItemId: string; scoreItemName: string;
+      category: 'QUALIFICATION' | 'RESPONSIVE';
+    },
+  ): Promise<void> {
+    try {
+      if (!invalidBidRow || invalidBidRow.motionId) return;
+      const lead = await this.prisma.bidExpert.findFirst({
+        where: { projectId, isLead: true, expertRole: '正选', invitationStatus: { not: 'declined' } },
+        select: { id: true },
+      });
+      if (!lead) return;
+      const records = await this.prisma.bidScoreRecord.findMany({
+        where: { scoreItemId: ctx.scoreItemId, supplierId: ctx.supplierId, passed: { not: null } },
+        select: { passed: true, reason: true, expert: { select: { expertName: true } } },
+      });
+      this.gateway?.notifyLeadReviewSuggested?.(projectId, lead.id, {
+        projectId,
+        invalidBidId: invalidBidRow.id,
+        supplierId: ctx.supplierId,
+        supplierName: ctx.supplierName,
+        scoreItemId: ctx.scoreItemId,
+        scoreItemName: ctx.scoreItemName,
+        category: ctx.category,
+        failCount: verdict.failCount,
+        totalCount: verdict.totalCount,
+        votes: records.map(r => ({ expertName: r.expert?.expertName ?? '—', passed: r.passed === true, reason: r.reason ?? null })),
+      });
+    } catch (e) {
+      this.logger.warn(`组长复议召集推送失败（不阻塞评分主流程）：${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   async getMyScores(userId: string, projectId: string) {
@@ -2881,6 +3044,71 @@ export class ExpertService {
   // C1: 投票/合议/决议
 
   /** 发起表决(仅组长) */
+  /** B3（2026-11-12）：组长发起废标复议动议——事务建 type='invalid_bid' 动议并回写
+   *  BidInvalidBid.motionId（占位防并发双发：非空即锁，后到者按状态闸 409）。
+   *  平票死锁（closed+tie_deadlock）允许重发：motionId 改指新动议。 */
+  async createInvalidBidReviewMotion(userId: string, projectId: string, dto: { invalidBidId: string; description?: string }) {
+    await this.assertRoomUnlocked(projectId, userId);
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
+    if (!expert) throw new ForbiddenException({ error: '不是项目评审专家', code: 'NOT_PROJECT_EXPERT' });
+    if (!expert.isLead) throw new ForbiddenException({ error: '仅评审组长可发起废标复议表决', code: 'NOT_LEAD' });
+
+    const invalidBid = await this.prisma.bidInvalidBid.findFirst({
+      // Final-Minor①（终审）：与 B6 兜底同口径——复议召集只对通过性投票废标开放，
+      // manual/dispute 废标走主持人处置轨（rejected 若能撤销主持轨废标属越权）
+      where: { id: dto.invalidBidId, projectId, source: 'passfail' },
+      include: { supplier: { select: { supplierName: true } }, scoreItem: { select: { name: true, category: true } } },
+    });
+    if (!invalidBid) throw new BadRequestException({ error: '废标记录不存在或不属于当前项目', code: 'NOT_FOUND' });
+    if (invalidBid.status !== 'invalid') {
+      throw new ConflictException({ error: '该废标已恢复（revoked），无可复议事项', code: 'NOT_INVALID' });
+    }
+    if (invalidBid.motionId) {
+      const linked = await this.prisma.bidMotion.findUnique({ where: { id: invalidBid.motionId } });
+      if (linked?.status === 'voting') {
+        throw new ConflictException({ error: '该项复议表决已在进行中，不可重复发起', code: 'RULING_ALREADY_OPEN' });
+      }
+      if (linked?.status === 'closed' && linked.result !== 'tie_deadlock') {
+        throw new ConflictException({ error: '该项已经委员会裁定，评分投票已冻结，不可再次发起', code: 'RULING_FINAL' });
+      }
+      // closed+tie_deadlock → 平票死锁，允许重发（下方新动议接管 motionId）
+    }
+
+    const itemName = invalidBid.scoreItem?.name?.trim() || invalidBid.scoreItemId?.slice(-8) || '通过性审查';
+    const supplierName = invalidBid.supplier.supplierName;
+    const title = `废标复议表决：${supplierName}·${itemName}（不通过 ${invalidBid.failCount}/${invalidBid.totalCount}）`;
+    const customDesc = dto.description?.trim();
+    const description = customDesc || `通过性审查不通过票 ${invalidBid.failCount}/${invalidBid.totalCount}（严格过半），提交委员会复议裁定。`;
+
+    const motion = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.bidMotion.create({
+        data: { projectId, type: 'invalid_bid', title, description, createdBy: expert.id, status: 'voting' },
+      });
+      // Final 修复①（终审评审）：并发占位改条件写——外层判重在事务外，READ COMMITTED 下
+      // 双发两请求可同读 motionId=null 双过闸；此处带期望旧值条件写，后提交者 count=0
+      // 抛 409 回滚（含刚建动议），真正防双发。tie_deadlock 重发路径同防线（期望旧动议 id）。
+      const claimed = await tx.bidInvalidBid.updateMany({
+        where: { id: invalidBid.id, motionId: invalidBid.motionId },
+        data: { motionId: created.id },
+      });
+      if (claimed.count === 0) {
+        throw new ConflictException({ error: '该项复议表决已在进行中，不可重复发起', code: 'RULING_ALREADY_OPEN' });
+      }
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '评审组长', target: supplierName,
+          action: '发起废标复议表决',
+          result: `${itemName} 不通过 ${invalidBid.failCount}/${invalidBid.totalCount} 票${customDesc ? `——组长说明：${customDesc}` : '（票数过半自动触发）'}`,
+          riskFlag: '高',
+        },
+      });
+      return created;
+    });
+
+    this.gateway?.notifyMotionCreated?.(projectId, { projectId, motionId: motion.id, type: 'invalid_bid', title });
+    return motion;
+  }
+
   async createMotion(userId: string, projectId: string, dto: { type: string; title: string; description?: string }) {
     await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
@@ -2930,6 +3158,9 @@ export class ExpertService {
       } } } },
     });
     if (!motion) throw new BadRequestException({ error: '动议不存在', code: 'NOT_FOUND' });
+    // Final-Minor②（终审）：重复 close 防线（镜像 castVote 的 MOTION_NOT_VOTING）——
+    // 双击/陈旧标签页二次 close 会重复跑裁定分支（重复高风险留痕、二次清结果）
+    if (motion.status !== 'voting') throw new BadRequestException({ error: '动议不在投票阶段', code: 'MOTION_NOT_VOTING' });
 
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId: motion.projectId },
@@ -2964,9 +3195,126 @@ export class ExpertService {
       else result = 'tie_deadlock'; // 组长未投票或弃权——保留平票，须人工介入
     }
 
-    return this.prisma.bidMotion.update({
-      where: { id: motionId },
-      data: { status: 'closed', result, closedAt: new Date() },
+    // B5（2026-11-12）：invalid_bid 动议——裁定联动废标状态（维持留痕 / 推翻恢复 / 平票维持现状）
+    let invalidBid: {
+      id: string; supplierId: string; scoreItemId: string | null; status: string; failCount: number; totalCount: number;
+      supplier?: { supplierName: string } | null;
+      scoreItem?: { name: string | null; category: string | null } | null;
+    } | null = null;
+    if (motion.type === 'invalid_bid') {
+      invalidBid = await this.prisma.bidInvalidBid.findFirst({
+        where: { motionId: motion.id },
+        include: {
+          supplier: { select: { supplierName: true } },
+          // Final-Minor④（终审）：推翻路径 WS 载荷补 D2 增强字段（与实时翻转路径同口径）
+          scoreItem: { select: { name: true, category: true } },
+        },
+      });
+      if (invalidBid && result === 'rejected') {
+        // 事务前预检：推翻废标撞已闭环签字包 → 整个裁定无法落地（spec §10 闭环不可更正）。
+        // 文案转译：private helper 的 409 是从「废标清除结果」方向写的，此处是推翻方向。
+        const packet = await this.prisma.bidSignPacket.findUnique({
+          where: { projectId: motion.projectId },
+          select: { closedAt: true },
+        });
+        if (packet?.closedAt) {
+          throw new ConflictException({
+            error: '推翻废标与已闭环签字包冲突——已签字的评标结果曾把该供应商排除在外；请走数据修正流程重开签字包后再行裁定',
+            code: 'SIGN_PACKET_CLOSED',
+          });
+        }
+      }
+    }
+
+    const abstains = motion.votes.filter(v => v.vote === 'abstain').length;
+    const closedMotion = await this.prisma.$transaction(async (tx) => {
+      if (invalidBid) {
+        await this.applyInvalidBidRuling(tx, motion.projectId, result, invalidBid!, expert, { approves, rejects, abstains });
+      }
+      return tx.bidMotion.update({
+        where: { id: motionId },
+        data: { status: 'closed', result, closedAt: new Date() },
+      });
+    });
+
+    // 推翻后置动作（事务已提交）：WS 广播 revoked + 全员进度分母恢复（镜像 submitScores revoke 路径）
+    if (invalidBid && result === 'rejected') {
+      try {
+        this.gateway?.notifyBidValidity?.(motion.projectId, {
+          supplierId: invalidBid.supplierId,
+          supplierName: invalidBid.supplier?.supplierName,
+          scoreItemId: invalidBid.scoreItemId ?? undefined,
+          scoreItemName: invalidBid.scoreItem?.name ?? undefined,
+          category: (invalidBid.scoreItem?.category === 'QUALIFICATION' || invalidBid.scoreItem?.category === 'RESPONSIVE')
+            ? invalidBid.scoreItem.category
+            : undefined,
+          failCount: invalidBid.failCount,
+          totalCount: invalidBid.totalCount,
+          status: 'revoked',
+        });
+      } catch { /* 推送失败不影响裁定 */ }
+      try {
+        await recomputeAllExpertsProgress(this.prisma, motion.projectId);
+      } catch (e) {
+        this.logger.error('推翻废标后全体专家进度重算失败（不阻塞裁定主流程）', e instanceof Error ? e.message : String(e));
+      }
+    }
+    return closedMotion;
+  }
+
+  /** B5（2026-11-12）：invalid_bid 裁定三路落地（closeMotion 事务内）：
+   *  approved→维持废标仅留痕；rejected→复用 revoke 语义（H2 使权威重算自动不计该项失败票）
+   *  +bidValidity 聚合重算 + 结果失效联动；tie_deadlock→维持现状留痕（组长可重发动议）。 */
+  private async applyInvalidBidRuling(
+    tx: { bidInvalidBid: { update: (a: any) => Promise<unknown>; count: (a: any) => Promise<number> }; bidSupplier: { update: (a: any) => Promise<unknown> }; bidSupervisionLog: { create: (a: any) => Promise<unknown> } },
+    projectId: string,
+    result: string,
+    invalidBid: { id: string; supplierId: string; failCount: number; totalCount: number; supplier?: { supplierName: string } | null },
+    operator: { userId: string },
+    tally: { approves: number; rejects: number; abstains: number },
+  ): Promise<void> {
+    const counts = `赞成 ${tally.approves}/反对 ${tally.rejects}/弃权 ${tally.abstains}`;
+    const supplierName = invalidBid.supplier?.supplierName ?? invalidBid.supplierId;
+    if (result === 'approved') {
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '评标委员会', target: supplierName,
+          action: '废标复议表决：维持废标', result: `${counts}——依据委员会表决，废标维持`, riskFlag: '高',
+        },
+      });
+      return;
+    }
+    if (result === 'rejected') {
+      await tx.bidInvalidBid.update({
+        where: { id: invalidBid.id },
+        data: { status: 'revoked', revokedAt: new Date(), revokedBy: operator.userId },
+      });
+      const otherInvalid = await tx.bidInvalidBid.count({
+        where: { projectId, supplierId: invalidBid.supplierId, status: 'invalid', id: { not: invalidBid.id } },
+      });
+      await tx.bidSupplier.update({
+        where: { id: invalidBid.supplierId },
+        data: { bidValidity: otherInvalid > 0 ? 'invalid' : 'valid' },
+      });
+      // 已生成的评标结果曾把该供应商排除——作废重生成（无结果时 helper no-op；
+      // 未闭环签字包一并失效重置，闭环包已被上方预检 409 挡住）
+      if (this.bidService?.invalidateResultsForRuling) {
+        await this.bidService.invalidateResultsForRuling(tx, projectId, supplierName);
+      }
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '评标委员会', target: supplierName,
+          action: '废标复议表决：推翻废标，恢复参评资格', result: `${counts}——已恢复该供应商参评资格；如评标结果此前已生成将一并作废，请重新生成`, riskFlag: '高',
+        },
+      });
+      return;
+    }
+    // tie_deadlock：无状态写，维持废标现状（安全网在），须组长重新召集表决（B3 允许重发）
+    await tx.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '评标委员会', target: supplierName,
+        action: '废标复议表决平票未决', result: `${counts}——组长未投票或弃权，维持废标现状，须重新召集表决`, riskFlag: '高',
+      },
     });
   }
 

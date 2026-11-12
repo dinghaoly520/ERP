@@ -535,6 +535,13 @@ export class ExpertController {
     return this.expertService.createMotion(userId, projectId, dto);
   }
 
+  /** B3（2026-11-12）：废标复议表决——组长对过半废标项发起委员会裁定动议 */
+  @Post('projects/:projectId/invalid-bid-reviews')
+  @ApiOperation({ summary: '发起废标复议表决（仅组长；过半废标项一致性讨论+最终裁定）' })
+  createInvalidBidReviewMotion(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string, @Body() dto: { invalidBidId: string; description?: string }) {
+    return this.expertService.createInvalidBidReviewMotion(userId, projectId, dto);
+  }
+
   @Post('motions/:motionId/vote')
   @ApiOperation({ summary: '投票（一票制，不可改投）' })
   castVote(@CurrentUser('sub') userId: string, @Param('motionId') motionId: string, @Body() dto: { vote: string; reason?: string }) {

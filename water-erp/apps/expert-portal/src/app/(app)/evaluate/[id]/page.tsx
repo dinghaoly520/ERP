@@ -29,7 +29,8 @@ import { PointChecklistScoring, type PointDecisionValue } from '@/components/eva
 import { buildReqToPointIndex, disputesToPoint, type LinkedDispute } from '@/lib/requirement-dispute-link';
 import { MemoPanel } from '@/components/memo/memo-panel';
 import { HallMessagePanel } from '@/components/evaluate/hall-message-panel';
-import type { HallMessagePayload } from '@water-erp/shared';
+import type { HallMessagePayload, LeadReviewSuggestedPayload, MotionCreatedPayload } from '@water-erp/shared';
+import { LeadReviewModal, type LeadReviewView } from '@/components/evaluate/lead-review-modal';
 import { formatBytes } from '@/lib/utils';
 import { SyncConflictModal } from '@/components/evaluate/sync-conflict-modal';
 import { ScoreHistoryDrawer } from '@/components/evaluate/score-history-drawer';
@@ -174,11 +175,30 @@ export default function ExpertEvaluatePage() {
         else next.delete(d.supplierId);
         return next;
       });
-      const supplierName = project?.suppliers.find(s => s.id === d.supplierId)?.supplierName ?? d.supplierId;
+      // D2（2026-11-12）：载荷已带 supplierName/scoreItemName（后端增强），带回退查表
+      const supplierName = d.supplierName ?? project?.suppliers.find(s => s.id === d.supplierId)?.supplierName ?? d.supplierId;
+      const itemLabel = d.scoreItemName ? `${d.scoreItemName} ` : '';
       pushLiveEvent(
-        `${supplierName} ${d.status === 'invalid' ? '被废标' : '废标已撤销'}（${d.failCount}/${d.totalCount}）`,
+        `${supplierName} ${itemLabel}${d.status === 'invalid' ? '被废标·待组长召集复议' : '废标已撤销'}（${d.failCount}/${d.totalCount}）`,
         'stage',
       );
+    },
+    // B2（2026-11-12）：过半废标复议召集（仅组长 socket 收到）→ 入队弹窗
+    onLeadReviewSuggested: (d: LeadReviewSuggestedPayload) => {
+      setLeadReviewQueue(prev => prev.some(r => r.invalidBidId === d.invalidBidId) ? prev : [...prev, {
+        invalidBidId: d.invalidBidId,
+        supplierName: d.supplierName,
+        scoreItemName: d.scoreItemName,
+        category: d.category,
+        failCount: d.failCount,
+        totalCount: d.totalCount,
+        votes: d.votes,
+      }]);
+    },
+    // B3（2026-11-12）：动议已发起 → 顶部横幅提醒投票（复用首页待处理事项投票 UI）
+    onMotionCreated: (d: MotionCreatedPayload) => {
+      setMotionBanner(d);
+      pushLiveEvent(`组长已发起表决：${d.title.slice(0, 24)}`, 'stage');
     },
     // D1: 开标大厅公聊消息
     onHallMessage: (d) => {
@@ -242,6 +262,13 @@ export default function ExpertEvaluatePage() {
   const [conflictedSupplierIds, setConflictedSupplierIds] = useState<Set<string>>(new Set());
   // backend `bid:validity:change` invalid/revoked → real-time grey-out
   const [invalidSupplierIds, setInvalidSupplierIds] = useState<Set<string>>(new Set());
+  // B7（2026-11-12）：组长复议召集队列——WS 即时 + getProject 兜底双源，按 invalidBidId 去重；
+  // dismissed 只影响弹窗（常驻横幅计数仍可见），废标状态不受影响（安全网已落）
+  const [leadReviewQueue, setLeadReviewQueue] = useState<LeadReviewView[]>([]);
+  const [dismissedReviewIds, setDismissedReviewIds] = useState<Set<string>>(new Set());
+  const [reviewBusy, setReviewBusy] = useState(false);
+  // B3：动议已发起——全员横幅提醒投票（操作在首页待处理事项）
+  const [motionBanner, setMotionBanner] = useState<MotionCreatedPayload | null>(null);
   const [avoiding, setAvoiding] = useState(false);
   // ④ AI 辅助评标声明：勾选门控（确认态以服务端 expert.aiConsentConfirmed 为准）
   const [aiConsentChecked, setAiConsentChecked] = useState(false);
@@ -375,6 +402,24 @@ export default function ExpertEvaluatePage() {
         setProject(p);
         // M-2: hydrate invalid supplier IDs from server data so grey-out survives page refresh.
         setInvalidSupplierIds(new Set((p.suppliers || []).filter(s => s.bidValidity === 'invalid').map(s => s.id))); // 用共享类型字段，去 unsafe cast
+        // B6（2026-11-12）：组长兜底——刷新/重连即恢复复议弹窗（WS 只是加速器）；
+        // hasOpenMotion 项只入横幅态（Final 修复②：入弹窗队列会在发起表决后弹死胡同对话框）
+        const pendingReviews = (p as { pendingInvalidReviews?: LeadReviewView[] }).pendingInvalidReviews;
+        if (Array.isArray(pendingReviews) && pendingReviews.length > 0) {
+          setLeadReviewQueue(prev => {
+            const seen = new Set(prev.map(r => r.invalidBidId));
+            const queueable = pendingReviews.filter(r => !r.hasOpenMotion);
+            return [...prev, ...queueable.filter(r => !seen.has(r.invalidBidId))];
+          });
+          const openMotion = pendingReviews.find(r => r.hasOpenMotion);
+          if (openMotion) {
+            setMotionBanner(prev => prev ?? {
+              projectId: projectId, motionId: '', type: 'invalid_bid',
+              title: `废标复议表决进行中：${openMotion.supplierName}·${openMotion.scoreItemName}`,
+              timestamp: Date.now(),
+            });
+          }
+        }
         // hydrate with composite keys so each supplier's scores are isolated.
         const existing: Record<string, { score: number; reason: string }> = {};
         p.myScores.forEach((rec: { supplierId: string; scoreItemId: string; score: number; passed?: boolean | null; reason?: string }) => {
@@ -1011,6 +1056,25 @@ export default function ExpertEvaluatePage() {
    *  （evaluateInvalidBid 票数变化即 revoke）；未投过票者不得新开评分废标家。平板端只读不提交，无此口 */
   const hasCommittedScoresFor = (sid: string) => (project?.myScores ?? []).some((rec: { supplierId: string }) => rec.supplierId === sid);
 
+  /** B7（2026-11-12）：组长发起废标复议表决——POST 后裁决流程移交既有动议体系（投票/结算）。 */
+  const handleStartReview = async (invalidBidId: string) => {
+    setReviewBusy(true);
+    try {
+      await api.post(`/expert/projects/${projectId}/invalid-bid-reviews`, { invalidBidId });
+      toast.success('复议表决已发起——请通知各位专家在「工作台-待处理事项」投票');
+      setLeadReviewQueue(prev => prev.filter(r => r.invalidBidId !== invalidBidId));
+      loadProject(activeSupplier ?? undefined);
+    } catch (e: any) {
+      toast.error(e.message || '发起失败');
+    }
+    setReviewBusy(false);
+  };
+
+  /** 暂不处理：仅收起弹窗（横幅计数保留），废标状态不受影响 */
+  const handleDismissReview = (invalidBidId: string) => {
+    setDismissedReviewIds(prev => new Set(prev).add(invalidBidId));
+  };
+
   const handleSubmitScores = async () => {
     if (!project || !activeSupplier) return;
     if (expert?.reportConfirmed) { toast.warning('评审报告已确认，评分已锁定'); return; }
@@ -1437,6 +1501,28 @@ export default function ExpertEvaluatePage() {
           </div>
         );
       })()}
+
+      {/* B3（2026-11-12）：动议表决横幅——全员提醒（投票在首页待处理事项） */}
+      {motionBanner && (
+        <div className="exp-alert exp-alert--info mb-3 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 !px-4">
+          <Gavel size={13} strokeWidth={1.5} />
+          <span className="min-w-0 flex-1 truncate">
+            {motionBanner.title ? `表决进行中：${motionBanner.title}` : '组长已发起废标复议表决'}——请到工作台「待处理事项」完成投票
+          </span>
+          <a href="/" className="neu-btn-xs is-info shrink-0">去投票</a>
+          <button type="button" onClick={() => setMotionBanner(null)} className="neu-btn-xs shrink-0" aria-label="关闭表决横幅">关闭</button>
+        </div>
+      )}
+      {/* B6/B7：组长暂缓的复议项计数横幅（弹窗已收起，随时可重开） */}
+      {leadReviewQueue.filter(r => dismissedReviewIds.has(r.invalidBidId)).length > 0 && (
+        <div className="exp-alert exp-alert--warn mb-3 flex shrink-0 items-center gap-2 !px-4">
+          <Gavel size={13} strokeWidth={1.5} />
+          <span className="min-w-0 flex-1">
+            有 {leadReviewQueue.filter(r => dismissedReviewIds.has(r.invalidBidId)).length} 项过半废标待复议召集（{leadReviewQueue.filter(r => dismissedReviewIds.has(r.invalidBidId)).map(r => `${r.supplierName}·${r.scoreItemName}`).join('、')}）
+          </span>
+          <button type="button" onClick={() => setDismissedReviewIds(new Set())} className="neu-btn-xs shrink-0">重新打开</button>
+        </div>
+      )}
 
       {/* 顶部导航 */}
       <div className="mb-4 flex shrink-0 items-center justify-between">
@@ -2523,6 +2609,14 @@ export default function ExpertEvaluatePage() {
           supplierId={activeSupplier}
           suppliers={project?.suppliers.map(s => ({ id: s.id, supplierName: s.supplierName })) ?? []}
           onClose={() => setHistoryOpen(false)}
+        />
+        {/* B7（2026-11-12）：组长废标复议召集弹窗——队列首个未忽略项；仅组长收到载荷/兜底数据 */}
+        <LeadReviewModal
+          open={isLead}
+          review={leadReviewQueue.find(r => !dismissedReviewIds.has(r.invalidBidId)) ?? null}
+          busy={reviewBusy}
+          onSubmit={handleStartReview}
+          onDismiss={handleDismissReview}
         />
         {/* ── 工位迁移码弹窗（2026-09-22）：QR + 倒计时 + 领取状态 ── */}
         {transferOpen && transferTicket && (

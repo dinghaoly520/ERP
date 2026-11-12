@@ -410,6 +410,7 @@ model BidProject {
   legalMandatory            Boolean                    @default(false) // W2：依法必招标志——B-004/B-009 时间规则仅对此强制
   scoreStandardPublishedAt  DateTime?
   riskNote                  String?
+  abortedAt                 DateTime? // 流标时刻显式标记（#79 延伸，2026-11-12）：ABORTED→ARCHIVED 归档后 :3007 步进条「已流标」身份不丢；riskNote 前缀启发式（DTO 可手工填）不可靠故落列。流标重启=新行（ensureBidProject 旁路懒建），本列只置不清、无跨轮污染
   budget                    Decimal?                   @db.Decimal(14, 2)
   ceilingPrice              Decimal?                   @db.Decimal(14, 2) // P1: 最高限价/控制价(逐项目可编辑)
   evaluationMethod          String? // P2: 评标办法 comprehensive|lowest_price|ratio|none

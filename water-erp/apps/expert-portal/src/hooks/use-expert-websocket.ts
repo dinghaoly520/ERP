@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
-import type { ConnectionState, ExpertPresenceAggregatePayload, ExpertPresencePayload, DecryptStatusPayload, StageChangePayload, ClarificationCreatedPayload, ClarificationRepliedPayload, BidValidityChangePayload, HallMessagePayload, ScoresSubmittedPayload, DraftSavedPayload, EvaluationExtendedPayload, RoomCodeRotatedPayload, ScoringReopenedPayload } from '@water-erp/shared';
+import type { ConnectionState, ExpertPresenceAggregatePayload, ExpertPresencePayload, DecryptStatusPayload, StageChangePayload, ClarificationCreatedPayload, ClarificationRepliedPayload, BidValidityChangePayload, HallMessagePayload, ScoresSubmittedPayload, DraftSavedPayload, EvaluationExtendedPayload, RoomCodeRotatedPayload, ScoringReopenedPayload, LeadReviewSuggestedPayload, MotionCreatedPayload } from '@water-erp/shared';
 import { BID_EVENT } from '@water-erp/shared';
 import { bidWsUrl } from '@water-erp/config';
 
@@ -30,6 +30,10 @@ interface Handlers {
   onRoomCodeRotated?: (d: RoomCodeRotatedPayload) => void;
   /** P2-11（中断审查）：评审确认已重开——陈旧「已确认/已锁定」态据此重拉解锁 */
   onScoringReopened?: (d: ScoringReopenedPayload) => void;
+  /** B2（2026-11-12）：过半废标复议召集——定向推组长，载荷含逐票理由 */
+  onLeadReviewSuggested?: (d: LeadReviewSuggestedPayload) => void;
+  /** B3（2026-11-12）：动议已发起——全员提醒投票 */
+  onMotionCreated?: (d: MotionCreatedPayload) => void;
 }
 
 export function useExpertWebSocket(projectId: string | undefined, handlers: Handlers) {
@@ -67,6 +71,8 @@ export function useExpertWebSocket(projectId: string | undefined, handlers: Hand
     on(BID_EVENT.EVALUATION_EXTENDED, 'onEvaluationExtended');
     on(BID_EVENT.ROOM_CODE_ROTATED, 'onRoomCodeRotated');
     on(BID_EVENT.SCORING_REOPENED, 'onScoringReopened');
+    on(BID_EVENT.LEAD_REVIEW_SUGGESTED, 'onLeadReviewSuggested');
+    on(BID_EVENT.MOTION_CREATED, 'onMotionCreated');
   }
 
   const clearHeartbeatTimers = useCallback(() => {

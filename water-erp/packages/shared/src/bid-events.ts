@@ -43,6 +43,10 @@ export const BID_EVENT = {
   ROOM_CODE_ROTATED: 'room:code:rotated',
   /** 评审确认已重开（P2-11）：专家端陈旧「已确认/已锁定」态据此重拉解锁 */
   SCORING_REOPENED: 'scoring:reopened',
+  /** 废标复议召集（B2，2026-11-12）：过半废标瞬间定向推评审组长——载荷含逐票理由（仅组长与 host 房） */
+  LEAD_REVIEW_SUGGESTED: 'lead:review:suggested',
+  /** 动议已发起（B3，2026-11-12）：专家房轻载荷提醒投票（motionId/title/type） */
+  MOTION_CREATED: 'motion:created',
 } as const;
 
 // ── 载荷类型 ──
@@ -142,6 +146,41 @@ export interface BidValidityChangePayload {
   failCount: number;
   totalCount: number;
   status: 'invalid' | 'revoked';
+  timestamp: number;
+  /** D2（2026-11-12）增强字段——全员广播仅计数+名称，逐票理由与署名不进本载荷（保密口径） */
+  supplierName?: string;
+  scoreItemId?: string;
+  scoreItemName?: string;
+  category?: 'QUALIFICATION' | 'RESPONSIVE';
+}
+
+/** B2（2026-11-12）：过半废标复议召集——逐票明细（记名）仅组长定向载荷与 getProject 组长兜底使用 */
+export interface LeadReviewVoteDetail {
+  expertName: string;
+  passed: boolean;
+  reason: string | null;
+}
+
+export interface LeadReviewSuggestedPayload {
+  projectId: string;
+  invalidBidId: string;
+  supplierId: string;
+  supplierName: string;
+  scoreItemId: string;
+  scoreItemName: string;
+  category: 'QUALIFICATION' | 'RESPONSIVE';
+  failCount: number;
+  totalCount: number;
+  votes: LeadReviewVoteDetail[];
+  timestamp: number;
+}
+
+/** B3（2026-11-12）：动议已发起——专家房轻载荷（投票操作在既有待处理事项 UI） */
+export interface MotionCreatedPayload {
+  projectId: string;
+  motionId: string;
+  type: string;
+  title: string;
   timestamp: number;
 }
 
