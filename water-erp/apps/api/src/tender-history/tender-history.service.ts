@@ -11,6 +11,9 @@ import {
 
 @Injectable()
 export class TenderHistoryService {
+  /** 每 (userId, documentType) 保留的最新记录上限——与项目侧草稿版本 MAX_VERSIONS=20 同语义（2026-11-12）。 */
+  private static readonly MAX_RECORDS_PER_TYPE = 20;
+
   constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreateTenderHistoryDto, user: AuthenticatedUser) {
@@ -19,7 +22,7 @@ export class TenderHistoryService {
       .update(draftDataString)
       .digest('hex');
 
-    return this.prisma.tenderDocumentHistory.upsert({
+    const saved = await this.prisma.tenderDocumentHistory.upsert({
       where: {
         userId_documentType_contentHash: {
           userId: user.sub,
@@ -39,6 +42,33 @@ export class TenderHistoryService {
         userId: user.sub,
       },
     });
+
+    await this.trimToLimit(dto.documentType, user.sub);
+
+    return saved;
+  }
+
+  /** 清空当前用户该类型的全部记录（「清空历史」按钮；恒按本人收口，admin 也不清他人）。 */
+  async clearMine(documentType: string, user: AuthenticatedUser) {
+    const deleted = await this.prisma.tenderDocumentHistory.deleteMany({
+      where: { documentType, userId: user.sub },
+    });
+    return { cleared: true, count: deleted.count };
+  }
+
+  /** 每 (userId, documentType) 只留最新 MAX_RECORDS_PER_TYPE 条，溢出删除。 */
+  private async trimToLimit(documentType: string, userId: string) {
+    const overflow = await this.prisma.tenderDocumentHistory.findMany({
+      where: { userId, documentType },
+      orderBy: { createdAt: 'desc' },
+      skip: TenderHistoryService.MAX_RECORDS_PER_TYPE,
+      select: { id: true },
+    });
+    if (overflow.length > 0) {
+      await this.prisma.tenderDocumentHistory.deleteMany({
+        where: { id: { in: overflow.map((r) => r.id) } },
+      });
+    }
   }
 
   async findMany(query: QueryTenderHistoryDto, user: AuthenticatedUser) {

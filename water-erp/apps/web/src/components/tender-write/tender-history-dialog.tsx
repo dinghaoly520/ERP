@@ -1,31 +1,44 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock3, History, Loader2, Trash2, X } from "lucide-react";
-import { deleteTenderHistory, fetchTenderHistory } from "@/lib/api/tender-history";
+import { History, Loader2, X } from "lucide-react";
+import { toast } from "sonner";
+import { clearTenderHistoryByType, fetchTenderHistory } from "@/lib/api/tender-history";
 import type {
   TenderDocumentType,
   TenderHistoryRecord,
 } from "@/lib/types/tender-write";
 
+/** 与项目侧弹窗 MAX_HISTORY 同源的服务端记录上限（tender-history.service MAX_RECORDS_PER_TYPE）。 */
+const MAX_RECORDS = 20;
+
 type TenderHistoryDialogProps = {
   isOpen: boolean;
   documentType: TenderDocumentType;
-  documentLabel: string;
   onApply: (record: TenderHistoryRecord) => void;
   onClose: () => void;
 };
 
+/** 版本条目主标：2026/11/12 10:42（与项目侧版本 label 同构）。 */
+function formatVersionLabel(createdAt: string) {
+  return new Date(createdAt).toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function TenderHistoryDialog({
   isOpen,
   documentType,
-  documentLabel,
   onApply,
   onClose,
 }: TenderHistoryDialogProps) {
   const [records, setRecords] = useState<TenderHistoryRecord[]>([]);
   const [loading, setLoading] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [clearing, setClearing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const loadRecords = async () => {
@@ -48,16 +61,17 @@ export function TenderHistoryDialog({
     loadRecords();
   }, [documentType, isOpen]);
 
-  const handleDelete = async (id: string) => {
-    setDeletingId(id);
+  const handleClear = async () => {
+    setClearing(true);
     setErrorMessage(null);
     try {
-      await deleteTenderHistory(id);
-      setRecords((prev) => prev.filter((r) => r.id !== id));
+      await clearTenderHistoryByType(documentType);
+      setRecords([]);
+      toast.success("已清空历史记录");
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "删除失败");
+      setErrorMessage(error instanceof Error ? error.message : "清空历史失败");
     } finally {
-      setDeletingId(null);
+      setClearing(false);
     }
   };
 
@@ -71,102 +85,82 @@ export function TenderHistoryDialog({
         className="absolute inset-0 bg-[rgba(242,246,255,0.42)] backdrop-blur-md"
         onClick={onClose}
       />
-      <div className="relative z-10 flex w-full max-w-[min(720px,92vw)] max-h-[80vh] flex-col overflow-hidden wb-modal-shell">
-        <div className="px-6 py-5" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[rgba(94,126,189,0.76)]">
-                历史记录
-              </div>
-              <div className="mt-2 text-lg font-semibold text-[color:var(--foreground)]">
-                {documentLabel}
-              </div>
-              <p className="mt-2 text-sm text-[color:var(--muted-foreground)]">
-                仅展示当前所选类型的保存记录，点击"应用"即可一次性导入全部填写内容。
-              </p>
-            </div>
+      <div className="wb-modal-shell relative z-10 mx-2 w-full max-w-[440px] overflow-y-auto p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <History size={16} className="text-[var(--accent)]" />
+            <span className="text-sm font-semibold text-[color:var(--foreground)]">
+              草稿历史版本
+            </span>
+            {records.length > 0 && (
+              <span className="text-[10px] tabular-nums text-[color:var(--muted-foreground)]">
+                {records.length}/{MAX_RECORDS}
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="neu-btn-xs"
+            aria-label="关闭历史记录弹窗"
+          >
+            <X size={16} />
+          </button>
+        </div>
+        <div className="h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
+
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 py-8 text-sm text-[color:var(--muted-foreground)]">
+            <Loader2 size={16} className="animate-spin" />
+            正在加载历史记录...
+          </div>
+        ) : errorMessage ? (
+          <div className="my-4 rounded-[12px] bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-4 py-4 text-sm text-[color:var(--danger)] shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--danger)_20%,transparent)]">
+            {errorMessage}
+          </div>
+        ) : records.length === 0 ? (
+          <div className="py-8 text-center text-sm text-[color:var(--muted-foreground)]">
+            暂无历史版本，请点击「保存当前」创建第一个版本
+          </div>
+        ) : (
+          <div className="mb-4 mt-4 space-y-2">
+            {records.map((record) => (
+              <button
+                key={record.id}
+                type="button"
+                onClick={() => {
+                  onApply(record);
+                  toast.success(`已恢复 ${formatVersionLabel(record.createdAt)} 版本`);
+                }}
+                className="w-full rounded-[12px] bg-[oklch(1_0_0_/_0.48)] px-3.5 py-3 text-left shadow-[inset_0_1px_0_oklch(1_0_0_/_0.5)] transition hover:ring-1 hover:ring-[var(--accent)]/30"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[13px] font-semibold text-[color:var(--foreground)]">
+                    {formatVersionLabel(record.createdAt)}
+                  </span>
+                  <span className="text-[10px] text-[var(--accent)]">点击恢复</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <p className="mb-3 text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">
+          点击任意版本即可恢复草稿内容。草稿与历史版本已同步至服务器，同一账号在任何设备登录均保持一致。
+        </p>
+        <div className="flex justify-end gap-2">
+          {records.length > 0 && (
             <button
               type="button"
-              onClick={onClose}
-              className="neu-btn-xs"
-              aria-label="关闭历史记录弹窗"
+              onClick={() => void handleClear()}
+              disabled={clearing}
+              className="neu-btn-xs is-danger gap-1"
             >
-              <X size={16} />
+              {clearing ? <Loader2 size={14} className="animate-spin" /> : null}
+              清空历史
             </button>
-          </div>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-          {loading ? (
-            <div className="flex items-center justify-center gap-2 py-10 text-sm text-[color:var(--muted-foreground)]">
-              <Loader2 size={16} className="animate-spin" />
-              正在加载历史记录...
-            </div>
-          ) : errorMessage ? (
-            <div className="rounded-[12px] border border-[color-mix(in_oklch,var(--danger)_20%,transparent)] bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-4 py-4 text-sm text-[color:var(--danger)]">
-              {errorMessage}
-            </div>
-          ) : records.length === 0 ? (
-            <div className="wb-panel flex items-center justify-center px-5 py-10 text-center text-sm text-[color:var(--muted-foreground)]">
-              当前类型还没有保存记录。
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {records.map((record) => (
-                <div
-                  key={record.id}
-                  className="neu-card-static !rounded-[16px] px-4 py-4"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold text-[color:var(--foreground)]">
-                        {record.title}
-                      </div>
-                      <div className="mt-2 flex items-center gap-2 text-xs text-[color:var(--muted-foreground)]">
-                        <Clock3 size={13} />
-                        <span>
-                          {new Date(record.createdAt).toLocaleString("zh-CN", {
-                            year: "numeric",
-                            month: "2-digit",
-                            day: "2-digit",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => onApply(record)}
-                        className="neu-btn-soft"
-                      >
-                        应用
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleDelete(record.id)}
-                        disabled={deletingId === record.id}
-                        className="neu-btn-soft is-danger"
-                        title="删除此记录"
-                      >
-                        {deletingId === record.id ? (
-                          <Loader2 size={16} className="animate-spin" />
-                        ) : (
-                          <Trash2 size={16} />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
           )}
-        </div>
-
-        <div className="flex justify-end px-6 py-4" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
-          <button type="button" onClick={onClose} className="neu-btn-soft"
-          >
+          <button type="button" onClick={onClose} className="neu-btn-soft">
             关闭
           </button>
         </div>
