@@ -1999,6 +1999,19 @@ export class SupplierPortalService {
     return true;
   }
 
+  /** 履约闸（2026-11-12 用户裁定：确认意向后方可投递）：公开项目投递/存草稿前置校验。
+   *  邀请制（定向/谈判）豁免——回执即承诺。意向窗口与投递窗口重合，无死锁。 */
+  private async assertBidIntentConfirmed(supplierId: string, projectId: string) {
+    if (!(await this.isIntentApplicable(projectId))) return;
+    const intent = await this.prisma.supplierBidIntent.findUnique({
+      where: { projectId_supplierId: { projectId, supplierId } },
+      select: { id: true },
+    });
+    if (!intent) {
+      throw new BadRequestException({ error: '请先确认参与意向，再投递标书', code: 'INTENT_REQUIRED' });
+    }
+  }
+
   /** 确认参与意向（2026-11-12）：公开项目、单向不可撤回、幂等（重复确认保留首次时间）。 */
   async confirmBidIntent(supplierId: string, projectId: string) {
     const project = await this.prisma.bidProject.findUnique({
@@ -2358,6 +2371,9 @@ export class SupplierPortalService {
       throw new BadRequestException({ error: '临时供应商权限已过期，无法投标', code: 'TEMPORARY_EXPIRED' });
     }
 
+    // 履约闸（2026-11-12）：公开项目须先确认参与意向（邀请制/谈判豁免）
+    await this.assertBidIntentConfirmed(supplierId, projectId);
+
     // 前端「完整标书/拆分文件」字段归一到三角色契约，否则 pickBidSubmissionFields 丢弃 → 标书丢失 → 流标。
     normalizeBidFileAssets(data);
 
@@ -2711,6 +2727,8 @@ export class SupplierPortalService {
   }
 
   async saveBidDraft(supplierId: string, projectId: string, data: BidSubmissionData) {
+    // 履约闸（2026-11-12）：公开项目须先确认参与意向（邀请制/谈判豁免）——先于既有闸门，保证 INTENT_REQUIRED 优先可见
+    await this.assertBidIntentConfirmed(supplierId, projectId);
     const { supplier } = await this.assertCanSaveBidDraft(supplierId, projectId);
     normalizeBidFileAssets(data); // 归一前端完整/拆分模型
     // dual-v2：信封验签是 submitBid 新轨专属——草稿不做验签，envelope 一律剥离不落库（防伪造信封暂存）。

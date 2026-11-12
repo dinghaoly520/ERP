@@ -2846,6 +2846,53 @@ describe('SupplierPortalService', () => {
       });
     });
   });
+
+  describe('投递前置意向闸（2026-11-12）', () => {
+    // saveBidDraft 成功链路最小 mock（assertCanSaveBidDraft 放行 + 无既有草稿 → create 新建；
+    // 空资产 {} 经 normalize 后全 undefined，assertBidFileAssetsOwnedByUser 空集早退，无需 fileAsset mock）
+    function mockDraftPass() {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', stage: 'SUBMIT', deadline: new Date(Date.now() + 3600_000),
+      });
+      prisma.supplier.findUnique.mockResolvedValue({ id: 's1', userId: 'u1', status: 'APPROVED', name: '测试供应商' });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue(null);
+      prisma.supplierBidSubmission.create.mockResolvedValue({ id: 'sub1', status: 'draft' });
+    }
+
+    it('公开项目且无意向：保存草稿 400 INTENT_REQUIRED', async () => {
+      prisma.bidDocument.findFirst.mockResolvedValue({ accessScope: 'OPEN' });
+      prisma.supplierBidIntent.findUnique.mockResolvedValue(null);
+      await expect(service.saveBidDraft('s1', 'p1', {} as any)).rejects.toMatchObject({
+        response: { code: 'INTENT_REQUIRED' },
+      });
+    });
+
+    it('邀请制项目豁免（不抛 INTENT_REQUIRED——由后续既有闸门接管）', async () => {
+      prisma.bidDocument.findFirst.mockResolvedValue({ accessScope: 'INVITED' });
+      mockDraftPass();
+      await expect(service.saveBidDraft('s1', 'p1', {} as any)).resolves.toBeTruthy();
+      expect(prisma.supplierBidIntent.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('公开项目且已有意向：放行（后续链路接管）', async () => {
+      prisma.bidDocument.findFirst.mockResolvedValue({ accessScope: 'OPEN' });
+      prisma.supplierBidIntent.findUnique.mockResolvedValue({ id: 'i1' });
+      mockDraftPass();
+      await expect(service.saveBidDraft('s1', 'p1', {} as any)).resolves.toBeTruthy();
+    });
+
+    it('公开项目且无意向：投递 submitBid 同闸 400 INTENT_REQUIRED（临时过期闸之后）', async () => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue(null);
+      // submitBid 前置两闸放行：非黑名单、非临时过期
+      prisma.supplier.findUnique.mockResolvedValue({ id: 's1', status: 'APPROVED', isTemporary: false, temporaryExpiresAt: null });
+      prisma.bidDocument.findFirst.mockResolvedValue({ accessScope: 'OPEN' });
+      prisma.supplierBidIntent.findUnique.mockResolvedValue(null);
+      await expect(service.submitBid('s1', 'p1', {} as any)).rejects.toMatchObject({
+        response: { code: 'INTENT_REQUIRED' },
+      });
+      expect(prisma.supplierBidSubmission.create).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe('SupplierPortalService P1-7 — 澄清答疑仅本项目成员可见', () => {
