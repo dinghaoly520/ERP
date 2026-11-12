@@ -1723,6 +1723,15 @@ export class ExpertService {
           item.passed = null as unknown as undefined;
         }
       }
+      // D1（2026-11-12）：通过性项判不通过必须附理由——此前仅前端闸（score-validation.ts），
+      // 直写 API 可空理由落库；两条路径（有/无 pointDecisions）在上方分支已定出最终 passed，此处统一拦截
+      if ((meta.category === 'QUALIFICATION' || meta.category === 'RESPONSIVE')
+          && item.passed === false && !(item.reason ?? '').trim()) {
+        throw new BadRequestException({
+          error: `通过性审查项 ${meta.name ?? item.scoreItemId.slice(-8)} 判不通过必须填写理由`,
+          code: 'FAIL_REASON_REQUIRED',
+        });
+      }
     }
 
     // 查 AI 建议分（用于评分 delta 飞轮：专家 vs AI 差异）

@@ -1250,6 +1250,56 @@ describe('ExpertService', () => {
       }));
     });
 
+    it('D1：无得分点路径——不通过且理由纯空格 → 400 FAIL_REASON_REQUIRED（此前仅前端闸）', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        id: 'exp3', userId: 'user3', projectId: 'p1', reportConfirmed: false,
+        signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true, conflictedSupplierIds: [], expertName: '王', expertRole: '正选',
+      });
+      prisma.bidScoreItem.findMany.mockResolvedValue([{ id: 'si1', maxScore: 0, category: 'QUALIFICATION', name: '资格性审查' }]);
+      prisma.bidScorePoint.findMany.mockResolvedValue([]);
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'sup1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'submitted' }]);
+
+      await expect(service.submitScores('user3', 'p1', {
+        supplierName: '甲',
+        scores: [{ scoreItemId: 'si1', supplierId: 'sup1', passed: false, reason: '   ' }],
+      } as any)).rejects.toMatchObject({ response: { code: 'FAIL_REASON_REQUIRED' } });
+      expect(prisma.bidScoreRecord.upsert).not.toHaveBeenCalled();
+    });
+
+    it('D1：checklist 路径——客观分点未全勾（推导不通过）且无理由 → 400 FAIL_REASON_REQUIRED', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        id: 'exp3', userId: 'user3', projectId: 'p1', reportConfirmed: false,
+        signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true, conflictedSupplierIds: [], expertName: '王', expertRole: '正选',
+      });
+      prisma.bidScoreItem.findMany.mockResolvedValue([{ id: 'si1', maxScore: 0, category: 'QUALIFICATION', name: '资格性审查' }]);
+      prisma.bidScorePoint.findMany.mockResolvedValue([{ id: 'pt1', scoreItemId: 'si1', objective: true, fullScore: 5 }]);
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'sup1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'submitted' }]);
+
+      await expect(service.submitScores('user3', 'p1', {
+        supplierName: '甲',
+        scores: [{ scoreItemId: 'si1', supplierId: 'sup1', pointDecisions: [{ pointId: 'pt1', checked: false, awardedScore: 0 }] }],
+      } as any)).rejects.toMatchObject({ response: { code: 'FAIL_REASON_REQUIRED' } });
+      expect(prisma.bidScorePointDecision.upsert).not.toHaveBeenCalled();
+    });
+
+    it('D1：不通过但附有效理由 → 放行，不因理由闸误伤', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        id: 'exp3', userId: 'user3', projectId: 'p1', reportConfirmed: false,
+        signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true, conflictedSupplierIds: [], expertName: '王', expertRole: '正选',
+      });
+      prisma.bidScoreItem.findMany.mockResolvedValue([{ id: 'si1', maxScore: 0, category: 'QUALIFICATION', name: '资格性审查' }]);
+      prisma.bidScorePoint.findMany.mockResolvedValue([]);
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'sup1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'submitted' }]);
+      prisma.bidScoreRecord.upsert.mockResolvedValue({});
+      prisma.bidScoreRecord.count.mockResolvedValue(1);
+
+      await expect(service.submitScores('user3', 'p1', {
+        supplierName: '甲',
+        scores: [{ scoreItemId: 'si1', supplierId: 'sup1', passed: false, reason: '资质证明材料缺失，不符合招标文件第3.2条' }],
+      } as any)).resolves.toBeTruthy();
+      expect(prisma.bidScoreRecord.upsert).toHaveBeenCalled();
+    });
+
     it('P1-6（中断审查）：废标翻转 → 全体正选专家 progress 按可评集合重算（未评分废标家的专家不再卡 N-1/N）', async () => {
       prisma.bidExpert.findFirst.mockResolvedValue({
         id: 'exp3', userId: 'user3', projectId: 'p1', reportConfirmed: false,
