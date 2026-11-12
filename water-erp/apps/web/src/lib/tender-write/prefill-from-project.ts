@@ -116,6 +116,8 @@ function resolveAiPrompt(tenderType: TenderDocumentType, fieldKey: string): stri
 /**
  * 返回该类型中适合 AI 生成且没有预填值的字段列表。
  * 每个条目的 aiPrompt 从 templates.ts 章节配置中解析，确保批量自动生成与编辑器内单字段生成使用同一份提示词。
+ * 注：quotationLetter 的 aiPrompt 是表格版提示词——批量通道双版本齐生成（表格版用本
+ * 提示词转表、文字版另用 QUOTATION_TEXT_AI_PROMPT，见 quotation-ai-writeback），2026-11-12 裁定。
  */
 export function getAiGenerationFields(tenderType: TenderDocumentType): Array<{
   fieldKey: string;

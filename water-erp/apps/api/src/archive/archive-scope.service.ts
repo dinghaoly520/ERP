@@ -21,6 +21,38 @@ export const HANDOVER_KEY_PATTERNS: Record<string, (bpId: string) => object> = {
   opening_sign_scan: (bpId) => ({ key: { contains: bpId }, category: 'opening_sign_scan' }),
 };
 
+/** 归档范围项 × 采购方式适用矩阵（bug#84 2026-11-12）——缺省（不在表内）= 全方式适用。
+ *  招标专属文书仅对招标方式展示（谈判/询比/竞价项目不再出现「招标公告 缺件」等误导行）；
+ *  非招标方式对应「采购公告/采购邀请书/采购文件」（谈判发公告、邀请招标/直接采购走邀请——
+ *  2026-11-12 流程互换裁定）；邀请招标/公开招标保留法定名「招标文件」（2026-11-03 裁定 #3）。 */
+const METHOD_SCOPE: Record<string, string[]> = {
+  // 招标专属（资格预审族仅招标方式存在）
+  招标公告: ['公开招标'],
+  资格预审公告: ['公开招标', '邀请招标'],
+  投标邀请书: ['邀请招标'],
+  招标文件: ['公开招标', '邀请招标'],
+  资格预审文件: ['公开招标', '邀请招标'],
+  现场踏勘通知: ['公开招标', '邀请招标'],
+  招标文件澄清与修改: ['公开招标', '邀请招标'],
+  资格预审申请文件: ['公开招标', '邀请招标'],
+  资格审查委员会组建文件: ['公开招标', '邀请招标'],
+  通过资格预审申请人名单: ['公开招标', '邀请招标'],
+  未通过资格预审申请人名单: ['公开招标', '邀请招标'],
+  资格预审通过通知书: ['公开招标', '邀请招标'],
+  资格预审结果通知书: ['公开招标', '邀请招标'],
+  // 非招标方式专属
+  采购公告: ['谈判采购', '询比采购', '竞价采购'],
+  采购邀请书: ['直接采购'],
+  采购文件: ['谈判采购', '询比采购', '竞价采购', '直接采购'],
+};
+
+/** 范围项是否适用于该采购方式（方式为空按全适用处理——存量数据兜底） */
+export function scopeItemAppliesToMethod(materialName: string, procurementMethod: string | null | undefined): boolean {
+  if (!procurementMethod) return true;
+  const methods = METHOD_SCOPE[materialName];
+  return !methods || methods.includes(procurementMethod);
+}
+
 export interface ScopeMatchRow {
   scopeItemId: string;
   code: string;
@@ -58,10 +90,15 @@ export class ArchiveScopeService {
   /** 阶段闸门：该阶段必选项（attachment 源）是否齐件。返回缺件清单（空=通过） */
   async checkStageGate(projectId: string, stageKey: string): Promise<string[]> {
     await this.ensureSeeded();
-    const required = await this.prisma.archiveScopeItem.findMany({
+    // bug#84（2026-11-12）：闸门缺件提示同口径按采购方式过滤
+    const method = (await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+      select: { procurementMethod: true },
+    }))?.procurementMethod;
+    const required = (await this.prisma.archiveScopeItem.findMany({
       where: { sourceType: 'attachment', isRequired: true, stageKeys: { has: stageKey } },
       orderBy: { sortOrder: 'asc' },
-    });
+    })).filter((r) => scopeItemAppliesToMethod(r.materialName, method));
     if (required.length === 0) return [];
     const count = await this.prisma.attachment.count({
       where: { projectManagementItemId: projectId, projectManagementStage: { stageKey } },
@@ -71,7 +108,7 @@ export class ArchiveScopeService {
   }
 
   /**
-   * 全量勾稽快照：范围 35 项逐项比对 + 元数据自动捕获。
+   * 全量勾稽快照：范围表（38 项，按采购方式过滤后）逐项比对 + 元数据自动捕获。
    * @param opts.enrichMeta true=顺带 upsert ArchiveMetadata（勾稽/导出场景）；纯查询传 false
    */
   async snapshot(pmiId: string, opts: { enrichMeta?: boolean } = {}): Promise<{
@@ -83,7 +120,7 @@ export class ArchiveScopeService {
     const item = await this.prisma.projectManagementItem.findUnique({
       where: { id: pmiId },
       select: {
-        id: true, title: true, projectCode: true,
+        id: true, title: true, projectCode: true, procurementMethod: true,
         requesterName: true, requesterDepartment: true, awardedSupplier: true,
         stages: { orderBy: { stageOrder: 'asc' }, include: { attachments: true } },
         bidProjects: { select: { id: true } },
@@ -118,7 +155,9 @@ export class ArchiveScopeService {
       }
     }
 
-    const scopeItems = await this.prisma.archiveScopeItem.findMany({ orderBy: { sortOrder: 'asc' } });
+    const scopeItems = (await this.prisma.archiveScopeItem.findMany({ orderBy: { sortOrder: 'asc' } }))
+      // bug#84（2026-11-12）：按项目采购方式过滤——招标专属文书不出现在谈判/询比等项目
+      .filter((si) => scopeItemAppliesToMethod(si.materialName, item.procurementMethod));
     const rows: ScopeMatchRow[] = [];
 
     for (const si of scopeItems) {

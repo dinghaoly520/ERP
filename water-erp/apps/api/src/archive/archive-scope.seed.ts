@@ -1,7 +1,7 @@
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
- * DA/T 103-2024 附录 B「招标投标电子文件归档范围参考表」全量种子（35 项）。
+ * DA/T 103-2024 附录 B「招标投标电子文件归档范围参考表」种子（35 项招标类目 + 3 项采购侧类目〔bug#84 2026-11-12〕）。
  * 三源映射：
  *  - attachment：PMI 阶段附件（实际类型均为 SUPPORTING_MATERIAL，语义靠 stageKeys 承载）
  *  - fileAsset：开评标回流件（FileAsset.category，经 BidProject 关联定位）
@@ -41,6 +41,12 @@ export const ARCHIVE_SCOPE_SEED: Array<{
   { code: '2.11', stage: '招标', materialName: '未通过资格预审申请人名单', sourceType: 'manual', stageKeys: ['EXPERT_SELECTION'] },
   { code: '2.12', stage: '招标', materialName: '资格预审通过通知书', sourceType: 'manual', stageKeys: ['EXPERT_SELECTION'], keepByBidder: true, keepByAgency: true },
   { code: '2.13', stage: '招标', materialName: '资格预审结果通知书', sourceType: 'manual', stageKeys: ['EXPERT_SELECTION'], keepByBidder: true, keepByAgency: true },
+  // ── 2N 采购阶段（bug#84 2026-11-12：非招标方式类目——谈判/询比/竞价发采购公告、
+  //    直接采购走邀请〔2026-11-12 流程互换裁定〕；邀请招标保留法定名「招标文件」〔2026-11-03 裁定#3〕。
+  //    适用方式过滤在 archive-scope.service 的 METHOD_SCOPE 矩阵，本表只加条目）──
+  { code: '2N.1', stage: '采购', materialName: '采购公告', sourceType: 'attachment', stageKeys: ['PUBLIC_ANNOUNCEMENT'], isRequired: true, keepByAgency: true },
+  { code: '2N.2', stage: '采购', materialName: '采购邀请书', sourceType: 'attachment', stageKeys: ['SUPPLIER_INVITATION'], keepByBidder: true, keepByAgency: true },
+  { code: '2N.3', stage: '采购', materialName: '采购文件', sourceType: 'attachment', stageKeys: ['TENDER_DOCUMENT'], isRequired: true, keepByBidder: true, keepByAgency: true },
   // ── 3 投标阶段 ──
   { code: '3.1', stage: '投标', materialName: '投标文件', sourceType: 'fileAsset', fileCategories: ['bid_decrypted'], isRequired: false, keepByBidder: true, keepByAgency: true },
   { code: '3.2', stage: '投标', materialName: '投标保证金凭证', sourceType: 'manual', stageKeys: ['BID_EVALUATION'], keepByBidder: true, keepByAgency: true },

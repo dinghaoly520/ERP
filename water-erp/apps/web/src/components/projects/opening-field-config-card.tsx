@@ -183,7 +183,9 @@ export function OpeningFieldConfigCard({ bidProject, onChanged }: Props) {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="neu-table w-full min-w-[760px] [&_td]:!py-1.5 [&_th]:!py-2">
+        {/* bug#42（2026-11-12）：td 补左对齐覆写——表头 th 均 !text-left，而 neu-table td 基类居中，
+            auto 布局弹性列吸宽后居中的输入框/文本与左对齐表头视觉脱离（实测右移 112/208px） */}
+        <table className="neu-table w-full min-w-[760px] [&_td]:!text-left [&_td]:!py-1.5 [&_th]:!py-2">
           <thead>
             <tr>
               <th className="w-10 !text-left !text-[10px]">序</th>

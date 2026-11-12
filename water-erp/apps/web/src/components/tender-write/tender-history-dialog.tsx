@@ -2,30 +2,52 @@
 
 import { useEffect, useState } from "react";
 import { Clock3, History, Loader2, Trash2, X } from "lucide-react";
-import { deleteTenderHistory, fetchTenderHistory } from "@/lib/api/tender-history";
+import { toast } from "sonner";
+import {
+  clearTenderHistoryByType,
+  deleteTenderHistory,
+  fetchTenderHistory,
+} from "@/lib/api/tender-history";
 import type {
   TenderDocumentType,
   TenderHistoryRecord,
 } from "@/lib/types/tender-write";
 
+/** 与项目侧弹窗 MAX_HISTORY 同源的服务端记录上限（tender-history.service MAX_RECORDS_PER_TYPE）。 */
+const MAX_RECORDS = 20;
+
 type TenderHistoryDialogProps = {
   isOpen: boolean;
   documentType: TenderDocumentType;
-  documentLabel: string;
   onApply: (record: TenderHistoryRecord) => void;
   onClose: () => void;
 };
 
+/** 记录时间戳：2026/11/12 10:42（与项目侧版本 label 同构）。 */
+function formatVersionLabel(createdAt: string) {
+  return new Date(createdAt).toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * 工具栏侧（/tender-write）历史记录弹窗——2026-11-12 对齐项目侧「草稿历史版本」组件框，
+ * 但保留本侧特有信息与操作：历史跨所有项目（记录带标题区分）+ 单条「应用/删除」。
+ */
 export function TenderHistoryDialog({
   isOpen,
   documentType,
-  documentLabel,
   onApply,
   onClose,
 }: TenderHistoryDialogProps) {
   const [records, setRecords] = useState<TenderHistoryRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [clearing, setClearing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const loadRecords = async () => {
@@ -61,6 +83,20 @@ export function TenderHistoryDialog({
     }
   };
 
+  const handleClear = async () => {
+    setClearing(true);
+    setErrorMessage(null);
+    try {
+      await clearTenderHistoryByType(documentType);
+      setRecords([]);
+      toast.success("已清空历史记录");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "清空历史失败");
+    } finally {
+      setClearing(false);
+    }
+  };
+
   if (!isOpen) {
     return null;
   }
@@ -71,75 +107,71 @@ export function TenderHistoryDialog({
         className="absolute inset-0 bg-[rgba(242,246,255,0.42)] backdrop-blur-md"
         onClick={onClose}
       />
-      <div className="relative z-10 flex w-full max-w-[min(720px,92vw)] max-h-[80vh] flex-col overflow-hidden wb-modal-shell">
-        <div className="px-6 py-5" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[rgba(94,126,189,0.76)]">
-                历史记录
-              </div>
-              <div className="mt-2 text-lg font-semibold text-[color:var(--foreground)]">
-                {documentLabel}
-              </div>
-              <p className="mt-2 text-sm text-[color:var(--muted-foreground)]">
-                仅展示当前所选类型的保存记录，点击"应用"即可一次性导入全部填写内容。
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="neu-btn-xs"
-              aria-label="关闭历史记录弹窗"
-            >
-              <X size={16} />
-            </button>
+      <div className="wb-modal-shell relative z-10 mx-2 flex max-h-[80vh] w-full max-w-[440px] flex-col overflow-hidden p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <History size={16} className="text-[var(--accent)]" />
+            <span className="text-sm font-semibold text-[color:var(--foreground)]">
+              草稿历史版本
+            </span>
+            {records.length > 0 && (
+              <span className="text-[10px] tabular-nums text-[color:var(--muted-foreground)]">
+                {records.length}/{MAX_RECORDS}
+              </span>
+            )}
           </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="neu-btn-xs"
+            aria-label="关闭历史记录弹窗"
+          >
+            <X size={16} />
+          </button>
         </div>
+        <div className="h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {loading ? (
-            <div className="flex items-center justify-center gap-2 py-10 text-sm text-[color:var(--muted-foreground)]">
+            <div className="flex items-center justify-center gap-2 py-8 text-sm text-[color:var(--muted-foreground)]">
               <Loader2 size={16} className="animate-spin" />
               正在加载历史记录...
             </div>
           ) : errorMessage ? (
-            <div className="rounded-[12px] border border-[color-mix(in_oklch,var(--danger)_20%,transparent)] bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-4 py-4 text-sm text-[color:var(--danger)]">
+            <div className="my-4 rounded-[12px] bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-4 py-4 text-sm text-[color:var(--danger)] shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--danger)_20%,transparent)]">
               {errorMessage}
             </div>
           ) : records.length === 0 ? (
-            <div className="wb-panel flex items-center justify-center px-5 py-10 text-center text-sm text-[color:var(--muted-foreground)]">
-              当前类型还没有保存记录。
+            <div className="py-8 text-center text-sm text-[color:var(--muted-foreground)]">
+              暂无历史版本，请点击「保存当前」创建第一个版本
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="mt-4 space-y-2">
               {records.map((record) => (
                 <div
                   key={record.id}
-                  className="neu-card-static !rounded-[16px] px-4 py-4"
+                  className="rounded-[12px] bg-[#f4f7fc] px-3.5 py-3 shadow-[inset_0_1px_0_oklch(1_0_0_/_0.8),2px_2px_5px_oklch(0.55_0.03_258_/_0.12),-1px_-1px_3px_oklch(1_0_0_/_0.9)] transition-all duration-200 hover:-translate-y-px hover:shadow-[inset_0_1px_0_oklch(1_0_0_/_0.9),3px_3px_7px_oklch(0.55_0.03_258_/_0.16),-2px_-2px_5px_oklch(1_0_0_/_0.95)] hover:ring-1 hover:ring-[var(--accent)]/40"
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold text-[color:var(--foreground)]">
+                      <div className="truncate text-[13px] font-semibold text-[color:var(--foreground)]">
                         {record.title}
                       </div>
-                      <div className="mt-2 flex items-center gap-2 text-xs text-[color:var(--muted-foreground)]">
-                        <Clock3 size={13} />
-                        <span>
-                          {new Date(record.createdAt).toLocaleString("zh-CN", {
-                            year: "numeric",
-                            month: "2-digit",
-                            day: "2-digit",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                      <div className="mt-1 flex items-center gap-1.5 text-[11px] text-[color:var(--muted-foreground)]">
+                        <Clock3 size={12} />
+                        <span className="tabular-nums">
+                          {formatVersionLabel(record.createdAt)}
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex shrink-0 items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => onApply(record)}
-                        className="neu-btn-soft"
+                        onClick={() => {
+                          onApply(record);
+                          toast.success(`已应用「${record.title}」草稿`);
+                        }}
+                        className="neu-btn-xs"
                       >
                         应用
                       </button>
@@ -147,13 +179,13 @@ export function TenderHistoryDialog({
                         type="button"
                         onClick={() => void handleDelete(record.id)}
                         disabled={deletingId === record.id}
-                        className="neu-btn-soft is-danger"
+                        className="neu-btn-xs is-danger"
                         title="删除此记录"
                       >
                         {deletingId === record.id ? (
-                          <Loader2 size={16} className="animate-spin" />
+                          <Loader2 size={14} className="animate-spin" />
                         ) : (
-                          <Trash2 size={16} />
+                          <Trash2 size={14} />
                         )}
                       </button>
                     </div>
@@ -164,11 +196,26 @@ export function TenderHistoryDialog({
           )}
         </div>
 
-        <div className="flex justify-end px-6 py-4" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
-          <button type="button" onClick={onClose} className="neu-btn-soft"
-          >
-            关闭
-          </button>
+        <div className="mt-4 shrink-0">
+          <p className="mb-3 text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">
+            点击「应用」即可恢复该条草稿内容。
+          </p>
+          <div className="flex justify-end gap-2">
+            {records.length > 0 && (
+              <button
+                type="button"
+                onClick={() => void handleClear()}
+                disabled={clearing}
+                className="neu-btn-xs is-danger gap-1"
+              >
+                {clearing ? <Loader2 size={14} className="animate-spin" /> : null}
+                清空历史
+              </button>
+            )}
+            <button type="button" onClick={onClose} className="neu-btn-soft">
+              关闭
+            </button>
+          </div>
         </div>
       </div>
     </div>

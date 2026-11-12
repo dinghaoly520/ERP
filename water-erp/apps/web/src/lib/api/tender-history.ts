@@ -57,3 +57,19 @@ export async function deleteTenderHistory(id: string): Promise<void> {
     throw new Error('删除历史记录失败');
   }
 }
+
+/** 清空当前用户该类型全部记录（「清空历史」，2026-11-12 与项目侧弹窗对齐）。 */
+export async function clearTenderHistoryByType(
+  documentType: TenderDocumentType,
+): Promise<void> {
+  const params = new URLSearchParams({ documentType });
+
+  const response = await apiFetch(`${API_BASE}/tender-history?${params.toString()}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new Error('清空历史记录失败');
+  }
+}

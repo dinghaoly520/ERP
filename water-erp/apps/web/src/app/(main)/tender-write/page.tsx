@@ -625,7 +625,6 @@ export default function TenderWritePage() {
         <TenderHistoryDialog
           isOpen={showHistoryDialog}
           documentType={selectedType}
-          documentLabel={selectedMeta.label}
           onApply={handleApplyHistory}
           onClose={() => setShowHistoryDialog(false)}
         />

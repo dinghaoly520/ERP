@@ -52,4 +52,13 @@ export class TenderHistoryController {
   ) {
     return this.tenderHistoryService.delete(id, user);
   }
+
+  /** 清空当前用户该类型全部记录（「清空历史」）。无参 DELETE 与 @Delete(':id') 路径不冲突。 */
+  @Delete()
+  clearByType(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: QueryTenderHistoryDto,
+  ) {
+    return this.tenderHistoryService.clearMine(query.documentType, user);
+  }
 }

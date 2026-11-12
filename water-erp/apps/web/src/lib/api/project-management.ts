@@ -669,3 +669,15 @@ export async function clearProjectTenderDraftVersions(projectId: string, round?:
     credentials: 'include',
   });
 }
+
+/** 删除该轮单条历史版本（幂等；「删除」按钮，2026-11-12）。 */
+export async function deleteProjectTenderDraftVersion(
+  projectId: string,
+  versionId: string,
+  round?: number,
+): Promise<void> {
+  await apiFetch(`${API_BASE}/project-management/${projectId}/tender-draft/versions/${versionId}${roundQuery(round)}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+}

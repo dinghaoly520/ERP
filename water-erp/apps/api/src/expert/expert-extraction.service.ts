@@ -672,7 +672,8 @@ export class ExpertExtractionService {
             data: {
               projectId, time: new Date(), role: '系统', target: '专家抽取',
               action: '交叉回避告警',
-              result: crossConflicts.map(c => `${c.expertName} - ${c.conflictDetail}（${c.conflictType}）`).join('；'),
+              // bug#43②（2026-11-12）：删 (same_employer) 英文枚举尾巴——conflictDetail 已是完整中文句
+              result: crossConflicts.map(c => `${c.expertName} - ${c.conflictDetail}`).join('；'),
               riskFlag: '中风险',
             },
           }).catch(() => {});

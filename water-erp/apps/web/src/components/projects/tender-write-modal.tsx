@@ -33,6 +33,11 @@ import {
   getAiGenerationFields,
   buildAiGenerationContext,
 } from '@/lib/tender-write/prefill-from-project';
+import {
+  planQuotationBatchWriteBack,
+  QUOTATION_TEXT_VERSION_PROMPT,
+} from '@/lib/tender-write/quotation-ai-writeback';
+import { tableHasDataRows } from '@/lib/tender-write/quotation-table-text';
 import { TenderReviewProvider } from '@/components/tender-review/tender-review-provider';
 import ProjectReviewFlow from '@/components/tender-review/project-review-flow';
 import { getDownloadUrl } from '@/lib/api/review';
@@ -46,6 +51,7 @@ import {
   fetchProjectTenderDraftVersions,
   addProjectTenderDraftVersion,
   clearProjectTenderDraftVersions,
+  deleteProjectTenderDraftVersion,
   type UploadStageAttachmentResult,
 } from '@/lib/api/project-management';
 import { SupplierSelectModal } from '@/components/tender-write/supplier-select-modal';
@@ -93,7 +99,7 @@ const TENDER_OPENING_KEY: Record<string, string> = {
 
 const asDraftPayload = (d: TenderDraftsState) => d as unknown as Record<string, unknown>;
 
-type DraftHistoryEntry = { timestamp: string; label: string; drafts: TenderDraftsState };
+type DraftHistoryEntry = { timestamp: string; label: string; drafts: TenderDraftsState; id?: string };
 
 function loadDraftHistory(projectId: string, round: number): DraftHistoryEntry[] {
   try {
@@ -386,6 +392,43 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
         const prefillVal = String((prefill as Record<string, unknown>)?.[f.fieldKey] ?? '');
         if (prefillVal.trim()) continue;
 
+        // 报价表双版本齐生成（2026-11-12 用户裁定）：表格版（f.aiPrompt=表格制式提示词→转表）
+        // 与文字版（叙述性提示词→段落）并行一次到位，默认先使用表格展示——用户切「填入文字」
+        // 时段落已现成，无需再点一次 AI
+        if (f.fieldKey === 'quotationLetter') {
+          try {
+            const [tableRes, textRes] = await Promise.all([
+              generateFieldContent({ fieldKey: f.fieldKey, fieldLabel: f.label, currentValue: '', aiPrompt: f.aiPrompt, context }),
+              generateFieldContent({ fieldKey: f.fieldKey, fieldLabel: f.label, currentValue: '', aiPrompt: QUOTATION_TEXT_VERSION_PROMPT, context }),
+            ]);
+            const plan = planQuotationBatchWriteBack(
+              (tableRes.content ?? '').replace(/�/g, '').replace(/\?{2,}(?=\s|$|。|，|；)/g, '').replace(/\s+$/, ''),
+              (textRes.content ?? '').replace(/�/g, '').replace(/\?{2,}(?=\s|$|。|，|；)/g, '').replace(/\s+$/, ''),
+            );
+            setDrafts((prev) => {
+              const emptyFn = {
+                COMPETITIVE_NEGOTIATION: createEmptyCompetitiveNegotiationDraft,
+                SINGLE_SOURCE: createEmptySingleSourceDraft,
+                INQUIRY_PURCHASE: createEmptyInquiryPurchaseDraft,
+                INTERNAL_BIDDING: createEmptyInternalBiddingDraft,
+                INVITED_BIDDING: createEmptyInvitedBiddingDraft,
+              }[type];
+              const base = { ...(emptyFn?.() ?? {}), ...(prev[typeKey] ?? {}) };
+              return {
+                ...prev,
+                [typeKey]: {
+                  ...base,
+                  quotationLetterType: plan.quotationLetterType,
+                  ...(plan.quotationLetter !== undefined ? { quotationLetter: plan.quotationLetter } : {}),
+                  ...(plan.quotationTable !== undefined ? { quotationLetterTable: plan.quotationTable } : {}),
+                },
+              };
+            });
+          } catch { /* single field failure doesn't stop */ }
+          await new Promise((r) => setTimeout(r, 300));
+          continue;
+        }
+
         try {
           const result = await generateFieldContent({
             fieldKey: f.fieldKey,
@@ -400,8 +443,6 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
               .replace(/�/g, '')
               .replace(/\?{2,}(?=\s|$|。|，|；)/g, '')
               .replace(/\s+$/, '');
-            const isQuotationField = f.fieldKey === 'quotationLetter';
-            const tableData = isQuotationField ? parseQuotationTextToTable(cleaned) : null;
             setDrafts((prev) => {
               const emptyFn = {
                 COMPETITIVE_NEGOTIATION: createEmptyCompetitiveNegotiationDraft,
@@ -411,17 +452,6 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                 INVITED_BIDDING: createEmptyInvitedBiddingDraft,
               }[type];
               const base = { ...(emptyFn?.() ?? {}), ...(prev[typeKey] ?? {}) };
-              if (tableData) {
-                return {
-                  ...prev,
-                  [typeKey]: {
-                    ...base,
-                    quotationLetterType: 'table',
-                    quotationLetterTable: tableData,
-                    [f.fieldKey]: cleaned,
-                  },
-                };
-              }
               return { ...prev, [typeKey]: { ...base, [f.fieldKey]: cleaned } };
             });
           }
@@ -561,7 +591,14 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     const aiFields = getAiGenerationFields(type);
     const context = buildAiGenerationContext(project);
     const currentDraftRef = draftsRef.current[typeKey] as Record<string, string>;
+    const quotationTable = (draftsRef.current[typeKey] as { quotationLetterTable?: TableData } | undefined)?.quotationLetterTable;
     const emptyFields = aiFields.filter((f) => {
+      if (f.fieldKey === 'quotationLetter') {
+        // 双版本任一有内容即视为已填（段落字符串或表格数据行）——
+        // 否则会对已生成过报价表的草稿反复重生成
+        if (String(currentDraftRef?.quotationLetter ?? '').trim()) return false;
+        return !(quotationTable && tableHasDataRows(quotationTable));
+      }
       const val = currentDraftRef?.[f.fieldKey];
       return !val?.trim();
     });
@@ -572,23 +609,38 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     setBatchFilling(true);
     for (const f of emptyFields) {
       try {
-        const result = await generateFieldContent({
-          fieldKey: f.fieldKey as TenderFieldKey,
-          fieldLabel: f.label,
-          currentValue: '',
-          aiPrompt: f.aiPrompt,
-          context,
-        });
-        if (result.content) {
-          const cleaned = result.content.replace(/�/g, '').replace(/\?{2,}(?=\s|$|。|，|；)/g, '').replace(/\s+$/, '');
-          updateDraft(f.fieldKey as TenderFieldKey, cleaned);
+        // 报价表双版本齐生成（2026-11-12 用户裁定）：表格版+文字版一次到位，默认先使用表格
+        if (f.fieldKey === 'quotationLetter') {
+          const [tableRes, textRes] = await Promise.all([
+            generateFieldContent({ fieldKey: f.fieldKey, fieldLabel: f.label, currentValue: '', aiPrompt: f.aiPrompt, context }),
+            generateFieldContent({ fieldKey: f.fieldKey, fieldLabel: f.label, currentValue: '', aiPrompt: QUOTATION_TEXT_VERSION_PROMPT, context }),
+          ]);
+          const plan = planQuotationBatchWriteBack(
+            (tableRes.content ?? '').replace(/�/g, '').replace(/\?{2,}(?=\s|$|。|，|；)/g, '').replace(/\s+$/, ''),
+            (textRes.content ?? '').replace(/�/g, '').replace(/\?{2,}(?=\s|$|。|，|；)/g, '').replace(/\s+$/, ''),
+          );
+          updateDraft('quotationLetterType', plan.quotationLetterType);
+          if (plan.quotationLetter !== undefined) updateDraft(f.fieldKey as TenderFieldKey, plan.quotationLetter);
+          if (plan.quotationTable !== undefined) updateDraftTable(plan.quotationTable);
+        } else {
+          const result = await generateFieldContent({
+            fieldKey: f.fieldKey as TenderFieldKey,
+            fieldLabel: f.label,
+            currentValue: '',
+            aiPrompt: f.aiPrompt,
+            context,
+          });
+          if (result.content) {
+            const cleaned = result.content.replace(/�/g, '').replace(/\?{2,}(?=\s|$|。|，|；)/g, '').replace(/\s+$/, '');
+            updateDraft(f.fieldKey as TenderFieldKey, cleaned);
+          }
         }
       } catch { /* single field failure doesn't stop */ }
       await new Promise((r) => setTimeout(r, 300));
     }
     setBatchFilling(false);
     toast.success(`已填入 ${emptyFields.length} 个字段`);
-  }, [selectedType, project, updateDraft]);
+  }, [selectedType, project, updateDraft, updateDraftTable]);
 
   // ── 导入识别：多文件(.docx/.pdf/.md/.txt) AI 识别后勾选回填（纯分析，不上传/不落库）──
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -629,10 +681,27 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     let entries: DraftHistoryEntry[] | null = null;
     try {
       const versions = await fetchProjectTenderDraftVersions(projectId, round);
-      entries = versions.map((v) => ({ timestamp: v.timestamp, label: v.label, drafts: v.drafts as TenderDraftsState }));
+      entries = versions.map((v) => ({ id: v.id, timestamp: v.timestamp, label: v.label, drafts: v.drafts as TenderDraftsState }));
     } catch { entries = null; }
     setHistoryEntries(entries ?? loadDraftHistory(projectId, round));
     setHistoryOpen(true);
+  }, [project?.id, round]);
+
+  // ── 删除单条历史版本（服务端幂等删除；离线本地兜底条目无 id 不出删除钮）──
+  const [deletingVersionId, setDeletingVersionId] = useState<string | null>(null);
+  const handleDeleteVersion = useCallback(async (versionId: string) => {
+    const projectId = project?.id;
+    if (!projectId) return;
+    setDeletingVersionId(versionId);
+    try {
+      await deleteProjectTenderDraftVersion(projectId, versionId, round);
+      setHistoryEntries((prev) => prev.filter((e) => e.id !== versionId));
+      toast.success('已删除该版本');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '删除版本失败');
+    } finally {
+      setDeletingVersionId(null);
+    }
   }, [project?.id, round]);
 
   // ── 一键清除 ──
@@ -1199,30 +1268,44 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
             {historyEntries.length === 0 ? (
               <div className="text-sm text-[color:var(--muted-foreground)] text-center py-8">暂无历史版本，请点击「保存当前」创建第一个版本</div>
             ) : (
-              <div className="space-y-2 mb-4">
-                {historyEntries.map((entry, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => {
-                      setDrafts(entry.drafts);
-                      draftRestoredFromStorageRef.current = true;
-                      setShowWorkspace(true);
-                      setHistoryOpen(false);
-                      toast.success(`已恢复 ${entry.label} 版本`);
-                    }}
-                    className="w-full text-left rounded-[12px] px-3.5 py-3 transition hover:ring-1 hover:ring-[var(--accent)]/30"
-                    style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}
+              <div className="mt-4 space-y-2 mb-4">
+                {historyEntries.map((entry) => (
+                  <div
+                    key={entry.id ?? entry.timestamp}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-[12px] bg-[#f4f7fc] px-3.5 py-3 shadow-[inset_0_1px_0_oklch(1_0_0_/_0.8),2px_2px_5px_oklch(0.55_0.03_258_/_0.12),-1px_-1px_3px_oklch(1_0_0_/_0.9)] transition-all duration-200 hover:-translate-y-px hover:shadow-[inset_0_1px_0_oklch(1_0_0_/_0.9),3px_3px_7px_oklch(0.55_0.03_258_/_0.16),-2px_-2px_5px_oklch(1_0_0_/_0.95)] hover:ring-1 hover:ring-[var(--accent)]/40"
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[13px] font-semibold text-[color:var(--foreground)]">{entry.label}</span>
-                      <span className="text-[10px] text-[color:var(--accent)]">点击恢复</span>
+                    <span className="text-[13px] font-semibold tabular-nums text-[color:var(--foreground)]">{entry.label}</span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDrafts(entry.drafts);
+                          draftRestoredFromStorageRef.current = true;
+                          setShowWorkspace(true);
+                          setHistoryOpen(false);
+                          toast.success(`已恢复 ${entry.label} 版本`);
+                        }}
+                        className="neu-btn-xs"
+                      >
+                        应用
+                      </button>
+                      {entry.id ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteVersion(entry.id as string)}
+                          disabled={deletingVersionId === entry.id}
+                          className="neu-btn-xs is-danger"
+                          title="删除此版本"
+                        >
+                          {deletingVersionId === entry.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                        </button>
+                      ) : null}
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             )}
-            <p className="text-[11px] text-[color:var(--muted-foreground)] mb-3">点击任意版本即可恢复草稿内容。草稿与历史版本已同步至服务器，同一账号在任何设备登录均保持一致。</p>
+            <p className="text-[11px] text-[color:var(--muted-foreground)] mb-3">点击「应用」即可恢复该条草稿内容。</p>
             <div className="flex justify-end gap-2">
               {historyEntries.length > 0 && (
                 <button type="button" onClick={() => { const pid = project?.id; if (pid) { void clearProjectTenderDraftVersions(pid, round).catch(() => {}); saveDraftHistory(pid, round, []); setHistoryEntries([]); toast.success('已清空历史记录'); } }} className="neu-btn-xs is-danger">清空历史</button>
