@@ -15,6 +15,7 @@ import {
   canonicalEnvelopeHash,
   canonicalJson,
   computeFieldsCommit,
+  computeV3FieldsCommit,
   randomHex,
   sha256Hex,
   signEnvelopeMsg,
@@ -2565,6 +2566,43 @@ describe('SupplierPortalService', () => {
       // 无 .outer 后缀的外层名仍优于合成名（最接近原始名的可用事实）
       expect(prisma.fileAsset.upsert).toHaveBeenNthCalledWith(2, expect.objectContaining({
         create: expect.objectContaining({ originalName: 'legacy-name.bin' }),
+      }));
+    });
+
+    it('decrypt-upload：#150 dual-v3 轨——三列为空、名字源走信封 files[role].assetId（现行主轨）', async () => {
+      const envelopeV3 = {
+        version: 'dual-v3', certSn: 'MOCK-CERT-V3', adminCertId: 'cert-admin-1',
+        files: {
+          technical: { assetId: 'stg-t', innerSha256: 'sha-inner-t', plainSha256: plainTSha },
+          business: { assetId: 'stg-b', innerSha256: 'sha-inner-b', plainSha256: plainBSha },
+        },
+        sealedFields: { cipher: 'cc-sealed', kself: 'kk-sealed' },
+        fieldsCommit: await computeV3FieldsCommit(FIELDS as unknown as import('@water-erp/ukey').V3Fields, NONCE),
+      };
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue(defaultSubmission({
+        envelopeVersion: 'dual-v3', envelope: envelopeV3,
+        technicalFileAssetId: null, businessFileAssetId: null, coverLetterAssetId: null,
+      }));
+      // v3 快照交叉：SubmissionVersion 冻结信封须与行内一致
+      prisma.submissionVersion.findUnique = jest.fn().mockResolvedValue({ envelope: envelopeV3 });
+      // 信封挂的 staged C_outer 资产（上传名=原名+.outer，encrypted-asset.controller 落 file.originalname）
+      prisma.fileAsset.findMany.mockResolvedValue([
+        { id: 'stg-t', originalName: '技术标书-final V2.pdf.outer' },
+        { id: 'stg-b', originalName: '商务响应文件.docx.outer' },
+      ]);
+      const res: any = await service.decryptUpload('supplier-1', 'project-1',
+        { technical: plainT, business: plainB }, JSON.stringify(FIELDS), NONCE);
+
+      expect(res.decryptStatus).toBe('SUCCESS');
+      expect(prisma.fileAsset.findMany).toHaveBeenCalledWith({
+        where: { id: { in: ['stg-t', 'stg-b'] } }, select: { id: true, originalName: true },
+      });
+      expect(prisma.fileAsset.upsert).toHaveBeenNthCalledWith(1, expect.objectContaining({
+        create: expect.objectContaining({ originalName: '技术标书-final V2.pdf' }),
+        update: expect.objectContaining({ originalName: '技术标书-final V2.pdf' }),
+      }));
+      expect(prisma.fileAsset.upsert).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        create: expect.objectContaining({ originalName: '商务响应文件.docx' }),
       }));
     });
 

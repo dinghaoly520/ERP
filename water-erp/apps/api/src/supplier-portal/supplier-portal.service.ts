@@ -3833,7 +3833,12 @@ export class SupplierPortalService {
       const nameById = new Map(rows.map(r => [r.id, r.originalName]));
       for (const { role } of uploaded) {
         const outerName = idByRole.has(role) ? nameById.get(idByRole.get(role)!) : undefined;
-        plainNameByRole.set(role, outerName?.endsWith('.outer') ? outerName.slice(0, -'.outer'.length) : (outerName || `${role}.plain`));
+        // 后缀剥离双口径：dual-v3 上传名=原名+.outer（dual-v3-client.ts:154）、dual-v2=原名+.enc
+        // （submitBid :2376 剥离先例）；剥后空串（病态名恰为裸后缀）回退合成名
+        const stripped = outerName?.endsWith('.outer') ? outerName.slice(0, -'.outer'.length)
+          : outerName?.endsWith('.enc') ? outerName.slice(0, -'.enc'.length)
+          : outerName;
+        plainNameByRole.set(role, stripped || `${role}.plain`);
       }
     }
 

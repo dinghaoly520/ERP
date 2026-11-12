@@ -4,14 +4,15 @@
  * （外层资产名剥 .outer），本脚本把存量行按同口径补齐，专家端反显/证据链不再显示合成名。
  *
  * 口径（与 supplier-portal.service.ts plainNameByRole 一致）：
- *   submission 三角色列 → 外层 FileAsset.originalName → 剥尾 `.outer`；
+ *   submission 三角色列/信封 files[role].assetId（dual-v3）→ 外层 FileAsset.originalName
+ *   → 剥尾 `.outer`（dual-v3）或 `.enc`（dual-v2）；
  *   查无外层资产/名字缺失 → 跳过该行（保持合成名，不猜）；
  *   现值非该 role 合成名（已被人改过）→ 跳过不动。
  *
  * 用法：npx tsx scripts/backfill-decrypted-plain-names.ts           # dry-run（默认）
  *       npx tsx scripts/backfill-decrypted-plain-names.ts --execute
  */
-import { Prisma, PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const execute = process.argv.includes('--execute');
@@ -54,7 +55,10 @@ async function main() {
       if (dec.originalName !== `${role}.plain`) continue; // 已被人改过/已是正确名 → 不动
       const outerName = outer?.originalName;
       if (!outerName) continue;
-      const to = outerName.endsWith('.outer') ? outerName.slice(0, -'.outer'.length) : outerName;
+      // 与 service 同口径：.outer（dual-v3）/ .enc（dual-v2）双后缀剥离，剥后空串跳过
+      const to = outerName.endsWith('.outer') ? outerName.slice(0, -'.outer'.length)
+        : outerName.endsWith('.enc') ? outerName.slice(0, -'.enc'.length)
+        : outerName;
       if (!to || to === dec.originalName) continue;
       plans.push({ assetId: decId, from: dec.originalName, to });
     }
