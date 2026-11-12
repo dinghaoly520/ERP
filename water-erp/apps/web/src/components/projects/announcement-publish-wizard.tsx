@@ -195,8 +195,10 @@ function buildCanonicalMeta(
   put('scope', d.projectOverview);
   // 直接采购（单一来源）无投标竞争，不发布「投标人资格要求」——供应商信息已在公告正文「拟定供应商信息」体现，
   // 把供应商名称写成资格要求不合理。
+  // qualification 取公告正文「报名方式及条件」（registrationMethod）——2026-11-12 用户裁定 A：
+  // 芯片以公告自己发布的内容为单一事实源；此前取采购文件·特定资格要求曾致正文与芯片各说各话。
   if (!isSingleSource) {
-    put('qualification', d.qualificationRequirements || project?.supplierRequirements);
+    put('qualification', d.registrationMethod);
   }
 
   // 采购文件下载时间公共解析（两采购方式分支共用）：
