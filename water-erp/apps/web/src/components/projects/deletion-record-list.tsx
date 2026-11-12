@@ -13,14 +13,18 @@ function terminateTimeOf(r: ProjectDeletionRecord) {
   return r.terminatedAt ?? r.recycledAt ?? null;
 }
 
-/** 终止时简报（2026-11-12）：AI 项目简报优先（按需生成，多数项目无）；无则兜底
- *  「终止时所在阶段 + 终止原因」——新流程记录两项必有，保证每条记录都有简报可显。 */
+/** 终止时简报（2026-11-12 用户裁定：结合终止原因重写）——AI 项目简报（如有）在前，
+ *  「终止时所在阶段 + 终止原因」收尾成自然叙述；三项全无（存量迁移行）返回 null 不显示。 */
 function briefOf(r: ProjectDeletionRecord) {
-  if (r.analysisSummary) return r.analysisSummary;
-  if (r.terminatedStage || r.terminationReason) {
-    return `终止时处于「${r.terminatedStage ?? '未记录'}」阶段；终止原因：${r.terminationReason ?? '未记录'}`;
-  }
-  return null;
+  const head = r.analysisSummary?.trim() || null;
+  const stage = r.terminatedStage?.trim() || null;
+  const reason = r.terminationReason?.trim() || null;
+  const tail = [
+    ...(stage ? [`终止时处于「${stage}」阶段`] : []),
+    ...(reason ? [`终止原因：「${reason}」`] : []),
+  ].join('，');
+  if (head) return tail ? `${head}。${tail}。` : `${head}。`;
+  return tail ? `项目${tail}。` : null;
 }
 
 /** 移除记录只读行（spec 2026-11-12 §9）：无任何操作按钮；空列表不渲染。
