@@ -399,11 +399,12 @@ export function PlatformPushBlock({ bidProjectId }: Props) {
                         {row.ready ? (
                           <span className="font-semibold text-[var(--success)]">完整</span>
                         ) : (
+                          /* bug#44（2026-11-12）：待补全单元格本体显中文（复用 MISSING_HINTS 词表），title 保留原始字段 key 供排障 */
                           <span
                             className="font-semibold text-[var(--warning)]"
                             title={`缺 ${row.missing.join('/')}——${missingHints.join('；')}`}
                           >
-                            待补全（{row.missing.join('/')}）
+                            待补全（{missingHints.join('；')}）
                           </span>
                         )}
                       </td>
