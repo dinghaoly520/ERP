@@ -59,6 +59,7 @@ describe('ExpertService', () => {
       bidInvalidBid: { upsert: jest.fn().mockResolvedValue({}), findUnique: jest.fn(), findFirst: jest.fn().mockResolvedValue(null), update: jest.fn().mockResolvedValue({}), create: jest.fn().mockResolvedValue({}), count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
       supplierBidSubmission: { findUnique: jest.fn(), findMany: jest.fn() }, // findMany：getReport→resolveOpeningAmountUnitMap（P1-1 单位口径）
       supplier: { findUnique: jest.fn() },
+      bidDocument: { findFirst: jest.fn().mockResolvedValue(null) },
       fileAsset: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn() },
       attachment: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidScoreRecord: {
@@ -1715,6 +1716,101 @@ describe('ExpertService', () => {
 
         expect(prisma.bidInvalidBid.findFirst).not.toHaveBeenCalled();
         expect(prisma.bidMotion.update).toHaveBeenCalled();
+      });
+    });
+
+    describe('getProject B6：组长 pendingInvalidReviews 兜底下发', () => {
+      beforeEach(() => {
+        prisma.bidProject.findUnique.mockImplementation(async (args: any) => {
+          if (args?.select?.stage) return { stage: 'EVALUATING' };
+          return {
+            id: 'proj-1', stage: 'EVALUATING', projectCode: 'SWHI-1', name: '测试项目',
+            suppliers: [], openingSession: null, openingRecords: [], experts: [],
+            scoreItems: [], clarifications: [], supervisionLogs: [],
+          };
+        });
+        prisma.attachment.findMany.mockResolvedValue([]);
+        prisma.fileAsset.findMany.mockResolvedValue([]);
+        prisma.bidScoreRecord.findMany.mockImplementation((a: any) =>
+          a.where?.scoreItemId ? Promise.resolve([
+            { passed: false, reason: '资质缺失', expert: { expertName: '王' } },
+            { passed: true, reason: null, expert: { expertName: '李' } },
+          ]) : Promise.resolve([]));
+      });
+
+      it('isLead → 附带 pendingInvalidReviews（记名票面），无动议项 canRemotion=true', async () => {
+        prisma.bidExpert.findFirst.mockImplementation(async (a: any) =>
+          a?.where?.userId ? { ...mockExpert, signedIn: true, isLead: true } : null);
+        prisma.bidInvalidBid.findMany.mockResolvedValue([{
+          id: 'inv-1', projectId: 'proj-1', supplierId: 'sup1', scoreItemId: 'si1', status: 'invalid',
+          motionId: null, failCount: 2, totalCount: 3, source: 'passfail',
+          supplier: { supplierName: '甲' }, scoreItem: { name: '资格性审查', category: 'QUALIFICATION' },
+        }]);
+        prisma.bidMotion.findMany.mockResolvedValue([]);
+
+        const result: any = await service.getProject('user-1', 'proj-1');
+
+        expect(result.pendingInvalidReviews).toHaveLength(1);
+        expect(result.pendingInvalidReviews[0]).toMatchObject({
+          invalidBidId: 'inv-1', supplierName: '甲', scoreItemName: '资格性审查',
+          category: 'QUALIFICATION', failCount: 2, totalCount: 3,
+          hasOpenMotion: false, canRemotion: true,
+          votes: [
+            { expertName: '王', passed: false, reason: '资质缺失' },
+            { expertName: '李', passed: true, reason: null },
+          ],
+        });
+      });
+
+      it('非组长 → 不下发该字段（票面明细保密口径）', async () => {
+        prisma.bidExpert.findFirst.mockImplementation(async (a: any) =>
+          a?.where?.userId ? { ...mockExpert, signedIn: true, isLead: false } : null);
+        prisma.bidInvalidBid.findMany.mockResolvedValue([{
+          id: 'inv-1', status: 'invalid', motionId: null, supplierId: 'sup1', scoreItemId: 'si1',
+          failCount: 2, totalCount: 3, supplier: { supplierName: '甲' }, scoreItem: { name: '资格性审查', category: 'QUALIFICATION' },
+        }]);
+
+        const result: any = await service.getProject('user-1', 'proj-1');
+
+        expect(result.pendingInvalidReviews).toBeUndefined();
+        expect(prisma.bidInvalidBid.findMany).not.toHaveBeenCalled();
+      });
+
+      it('已终局（closed+approved）→ 不在列表；voting 中 → hasOpenMotion=true/canRemotion=false', async () => {
+        prisma.bidExpert.findFirst.mockImplementation(async (a: any) =>
+          a?.where?.userId ? { ...mockExpert, signedIn: true, isLead: true } : null);
+        prisma.bidInvalidBid.findMany.mockResolvedValue([
+          { id: 'inv-1', supplierId: 'sup1', scoreItemId: 'si1', status: 'invalid', motionId: 'm-1', failCount: 2, totalCount: 3, supplier: { supplierName: '甲' }, scoreItem: { name: '资格性审查', category: 'QUALIFICATION' } },
+          { id: 'inv-2', supplierId: 'sup2', scoreItemId: 'si1', status: 'invalid', motionId: 'm-2', failCount: 2, totalCount: 3, supplier: { supplierName: '乙' }, scoreItem: { name: '资格性审查', category: 'QUALIFICATION' } },
+        ]);
+        prisma.bidMotion.findMany.mockResolvedValue([
+          { id: 'm-1', status: 'voting', result: null },
+          { id: 'm-2', status: 'closed', result: 'approved' },
+        ]);
+
+        const result: any = await service.getProject('user-1', 'proj-1');
+
+        expect(result.pendingInvalidReviews).toHaveLength(1);
+        expect(result.pendingInvalidReviews[0]).toMatchObject({ invalidBidId: 'inv-1', hasOpenMotion: true, canRemotion: false });
+      });
+
+      it('manual/dispute 来源（scoreItemId null）不入复议清单——查询即过滤 source=passfail 且 scoreItemId 非空', async () => {
+        prisma.bidExpert.findFirst.mockImplementation(async (a: any) =>
+          a?.where?.userId ? { ...mockExpert, signedIn: true, isLead: true } : null);
+        const manualRow = {
+          id: 'inv-m', status: 'invalid', motionId: null, source: 'manual', scoreItemId: null,
+          supplierId: 'sup1', failCount: 0, totalCount: 0, supplier: { supplierName: '甲' },
+        };
+        // 真实 Prisma 会按 where 过滤；mock 按查询形状分流，模拟 manual 行被排除
+        prisma.bidInvalidBid.findMany.mockImplementation(async (a: any) =>
+          a.where?.source === 'passfail' ? [] : [manualRow]);
+
+        const result: any = await service.getProject('user-1', 'proj-1');
+
+        expect(prisma.bidInvalidBid.findMany).toHaveBeenCalledWith(expect.objectContaining({
+          where: expect.objectContaining({ source: 'passfail', scoreItemId: { not: null } }),
+        }));
+        expect(result.pendingInvalidReviews).toHaveLength(0);
       });
     });
 

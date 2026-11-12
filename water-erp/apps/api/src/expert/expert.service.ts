@@ -473,7 +473,63 @@ export class ExpertService {
       noneEvaluation,
       restricted: false,
       tenderDocument,
+      // B6（2026-11-12）：组长兜底——未复议/表决中的过半废标清单（WS 推送只是加速器，刷新即恢复弹窗）
+      ...(expertRecord.isLead ? { pendingInvalidReviews: await this.buildPendingInvalidReviews(projectId) } : {}),
     };
+  }
+
+  /** B6（2026-11-12）：组长待复议清单——仅通过性投票废标（source=passfail 且 scoreItemId 非空；
+   *  manual/dispute 废标走主持人处置轨，不入组长复议）。收录：无动议 / voting 中（横幅态）/
+   *  closed+tie_deadlock（可重发）；排除 closed 已终局（approved/rejected）。 */
+  private async buildPendingInvalidReviews(projectId: string) {
+    const invalids = await this.prisma.bidInvalidBid.findMany({
+      where: { projectId, status: 'invalid', source: 'passfail', scoreItemId: { not: null } },
+      include: {
+        supplier: { select: { supplierName: true } },
+        scoreItem: { select: { name: true, category: true } },
+      },
+    });
+    if (invalids.length === 0) return [];
+    const motionIds = invalids.map(i => i.motionId).filter((m): m is string => !!m);
+    const motions = motionIds.length > 0
+      ? await this.prisma.bidMotion.findMany({ where: { id: { in: motionIds } }, select: { id: true, status: true, result: true } })
+      : [];
+    const motionById = new Map(motions.map(m => [m.id, m]));
+    const out: Array<{
+      invalidBidId: string; supplierId: string; supplierName: string;
+      scoreItemId: string; scoreItemName: string; category: 'QUALIFICATION' | 'RESPONSIVE';
+      failCount: number; totalCount: number;
+      votes: Array<{ expertName: string; passed: boolean; reason: string | null }>;
+      hasOpenMotion: boolean; canRemotion: boolean;
+    }> = [];
+    for (const inv of invalids) {
+      let hasOpenMotion = false;
+      let canRemotion = true;
+      if (inv.motionId) {
+        const m = motionById.get(inv.motionId);
+        if (m?.status === 'voting') { hasOpenMotion = true; canRemotion = false; }
+        else if (m?.status === 'closed' && m.result !== 'tie_deadlock') continue; // 已终局——排除
+        // tie_deadlock → 可重发；motion 记录缺失（异常态）按可重发处理
+      }
+      const records = await this.prisma.bidScoreRecord.findMany({
+        where: { scoreItemId: inv.scoreItemId!, supplierId: inv.supplierId, passed: { not: null } },
+        select: { passed: true, reason: true, expert: { select: { expertName: true } } },
+      });
+      out.push({
+        invalidBidId: inv.id,
+        supplierId: inv.supplierId,
+        supplierName: inv.supplier?.supplierName ?? inv.supplierId,
+        scoreItemId: inv.scoreItemId ?? '',
+        scoreItemName: inv.scoreItem?.name?.trim() || inv.scoreItemId?.slice(-8) || '通过性审查',
+        category: (inv.scoreItem?.category === 'RESPONSIVE') ? 'RESPONSIVE' : 'QUALIFICATION',
+        failCount: inv.failCount,
+        totalCount: inv.totalCount,
+        votes: records.map(r => ({ expertName: r.expert?.expertName ?? '—', passed: r.passed === true, reason: r.reason ?? null })),
+        hasOpenMotion,
+        canRemotion,
+      });
+    }
+    return out;
   }
 
   /* 身份核验 */
