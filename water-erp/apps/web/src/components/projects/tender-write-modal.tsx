@@ -1137,23 +1137,10 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
           <div
             className="wb-modal-shell relative z-10 mx-5 my-5 flex flex-1 flex-col overflow-hidden"
           >
-            <div
-              className="flex shrink-0 items-center justify-between gap-3 px-6 py-4"
-              style={{
-                background:
-                  'linear-gradient(105deg, oklch(1 0 0 / 0.92) 0%, oklch(0.975 0.006 258 / 0.58) 60%)',
-                borderBottom: '1px solid oklch(0.6 0.04 258 / 0.14)',
-              }}
-            >
+            {/* 头部对齐弹窗规范 A 版（2026-11-12 cgzxui）：纯白瓷壳上透明头部 + hairline 隔离线，图标井走类 */}
+            <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-4">
               <div className="flex items-center gap-3 min-w-0">
-                <div
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px]"
-                  style={{
-                    background: 'color-mix(in oklch, var(--accent-soft) 45%, transparent)',
-                    boxShadow:
-                      'inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.1)',
-                  }}
-                >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-[color-mix(in_oklch,var(--accent-soft)_45%,transparent)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.65),2px_2px_4px_oklch(0.55_0.03_258_/_0.1)]">
                   <Search size={17} className="text-[var(--accent)]" />
                 </div>
                 <div className="min-w-0">
@@ -1169,14 +1156,8 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                 <X size={16} />
               </button>
             </div>
-            <div
-              className="flex-1 min-h-0 overflow-hidden flex flex-col"
-              style={{
-                background: 'oklch(0.975 0.012 258 / 0.32)',
-                boxShadow:
-                  'inset 2px 3px 8px oklch(0.5 0.04 258 / 0.1), inset -1px -1px 3px oklch(1 0 0 / 0.55)',
-              }}
-            >
+            <div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[oklch(0.975_0.012_258_/_0.32)] shadow-[inset_2px_3px_8px_oklch(0.5_0.04_258_/_0.1),inset_-1px_-1px_3px_oklch(1_0_0_/_0.55)]">
               <TenderReviewProvider onReviewComplete={handleReviewComplete}>
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden h-full">
                   {project && selectedType && (

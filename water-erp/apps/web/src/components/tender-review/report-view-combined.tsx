@@ -119,9 +119,9 @@ const FILTER_OPTIONS: Array<{ key: FilterKey; label: string; icon: React.ReactNo
   { key: 'critical', label: '严重', icon: <XCircle className="h-4 w-4" />, colorClass: 'text-[var(--danger)]' },
   { key: 'warning', label: '警告', icon: <AlertTriangle className="h-4 w-4" />, colorClass: 'text-[var(--warning)]' },
   { key: 'info', label: '提示', icon: <Circle className="h-4 w-4" />, colorClass: 'text-[var(--accent)]' },
-  { key: 'dataMissing', label: '忽略', icon: <Circle className="h-4 w-4" />, colorClass: 'text-orange-400' },
+  { key: 'dataMissing', label: '忽略', icon: <Circle className="h-4 w-4" />, colorClass: 'text-[var(--muted-foreground)]' },
   { key: 'passed', label: '通过', icon: <CheckCircle2 className="h-4 w-4" />, colorClass: 'text-[var(--success)]' },
-  { key: 'skipped', label: '跳过', icon: <CircleSlash className="h-4 w-4" />, colorClass: 'text-gray-400' },
+  { key: 'skipped', label: '跳过', icon: <CircleSlash className="h-4 w-4" />, colorClass: 'text-[var(--muted-foreground)]/60' },
 ];
 
 interface ReportViewCombinedProps {
@@ -153,9 +153,9 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
       { key: 'critical', label: '严重违规', icon: <XCircle className="h-3.5 w-3.5" />, iconColor: 'text-[var(--danger)]', dotColor: 'bg-[var(--danger)]', issues: [] },
       { key: 'warning', label: '警告', icon: <AlertTriangle className="h-3.5 w-3.5" />, iconColor: 'text-[var(--warning)]', dotColor: 'bg-[var(--warning)]', issues: [] },
       { key: 'info', label: '提示', icon: <Circle className="h-3.5 w-3.5" />, iconColor: 'text-[var(--accent)]', dotColor: 'bg-[var(--accent)]', issues: [] },
-      { key: 'dataMissing', label: '忽略项', icon: <Circle className="h-3.5 w-3.5" />, iconColor: 'text-orange-400', dotColor: 'bg-orange-400', issues: [] },
+      { key: 'dataMissing', label: '忽略项', icon: <Circle className="h-3.5 w-3.5" />, iconColor: 'text-[var(--muted-foreground)]', dotColor: 'bg-[var(--muted-foreground)]', issues: [] },
       { key: 'passed', label: '通过', icon: <CheckCircle2 className="h-3.5 w-3.5" />, iconColor: 'text-[var(--success)]', dotColor: 'bg-[var(--success)]', issues: [] },
-      { key: 'skipped', label: '不适用', icon: <CircleSlash className="h-3.5 w-3.5" />, iconColor: 'text-gray-400', dotColor: 'bg-gray-400', issues: [] },
+      { key: 'skipped', label: '不适用', icon: <CircleSlash className="h-3.5 w-3.5" />, iconColor: 'text-[var(--muted-foreground)]/60', dotColor: 'bg-[var(--muted-foreground)]/50', issues: [] },
     ];
 
     issues.forEach((issue, idx) => {
@@ -299,8 +299,8 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
           </span>
           <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
             task.reviewMode === 'strict'
-              ? 'bg-indigo-400/10 text-indigo-400'
-              : 'bg-purple-400/10 text-purple-400'
+              ? 'bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[var(--accent)]'
+              : 'bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)] text-[var(--muted-foreground)]'
           }`}>
             {task.reviewMode === 'strict' ? '严格审查' : '通用审查'}
           </span>
@@ -314,18 +314,14 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
           <button
             onClick={handleDownload}
             disabled={!hasModifications}
-            className={`flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-xs font-medium transition-colors ${
-              hasModifications
-                ? 'bg-[color-mix(in_oklch,var(--accent-soft)_45%,transparent)] text-[color:var(--accent)] hover:bg-[color-mix(in_oklch,var(--accent-soft)_65%,transparent)]'
-                : 'bg-[color-mix(in_oklch,var(--muted)_20%,transparent)] text-[color:var(--muted-foreground)]/40 cursor-not-allowed'
-            }`}
+            className="neu-btn-xs gap-1.5"
           >
             <Download className="h-3 w-3" />
             导出
           </button>
           <button
             onClick={() => void handleDownloadPdf()}
-            className="flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-xs font-medium transition-colors bg-[color-mix(in_oklch,var(--accent-soft)_45%,transparent)] text-[color:var(--accent)] hover:bg-[color-mix(in_oklch,var(--accent-soft)_65%,transparent)]"
+            className="neu-btn-xs gap-1.5"
           >
             <FileDown className="h-3 w-3" />
             审查报告 Word
@@ -334,7 +330,7 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
             <button
               type="button"
               onClick={() => onReviewComplete(task)}
-              className="flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-xs font-semibold transition-all duration-200 bg-[color-mix(in_oklch,var(--success)_15%,transparent)] text-[var(--success)] hover:bg-[color-mix(in_oklch,var(--success)_28%,transparent)] active:scale-95"
+              className="neu-btn-xs is-success gap-1.5"
             >
               <CheckCircle2 className="h-3.5 w-3.5" />
               审查结束，提交采购文件
@@ -351,31 +347,26 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
         </div>
       </div>
 
-      {/* Stats bar with filter buttons */}
-      <div className="neu-tile flex items-center gap-2 px-4 py-2.5 shrink-0">
-        {FILTER_OPTIONS.map((opt) => {
-          const count = counts[opt.key];
-          if (count === 0 && opt.key !== 'all') return null;
-          const isSelected = filter === opt.key;
-          return (
-            <button
-              key={opt.key}
-              onClick={() => setFilter(opt.key)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] font-medium transition-colors ${
-                isSelected
-                  ? 'bg-[color-mix(in_oklch,var(--accent-soft)_45%,transparent)] text-[color:var(--accent)]'
-                  : 'text-[color:var(--muted-foreground)] hover:bg-[color-mix(in_oklch,var(--muted)_25%,transparent)]'
-              }`}
-              style={isSelected ? {boxShadow:"inset 1px 2px 3px oklch(0.55 0.03 258 / 0.1)", fontSize:12} : {fontSize:12}}
-            >
-              {opt.icon && <span className={opt.colorClass}>{opt.icon}</span>}
-              <span>{opt.label}</span>
-              <span className={`text-[10px] ${isSelected ? '' : 'text-[var(--muted-foreground)]/60'}`}>
-                {count}
-              </span>
-            </button>
-          );
-        })}
+      {/* Stats bar with filter buttons —— 多选一筛选走 neu-tab-bar 内凹轨道规范（2026-11-12 cgzxui 对齐） */}
+      <div className="neu-tile flex items-center gap-3 px-3 py-2 shrink-0">
+        <div className="neu-tab-bar flex flex-wrap">
+          {FILTER_OPTIONS.map((opt) => {
+            const count = counts[opt.key];
+            if (count === 0 && opt.key !== 'all') return null;
+            const isSelected = filter === opt.key;
+            return (
+              <button
+                key={opt.key}
+                onClick={() => setFilter(opt.key)}
+                className={`neu-tab !px-3 !py-1 !text-xs ${isSelected ? 'is-active' : ''}`}
+              >
+                {opt.icon && <span className={opt.colorClass}>{opt.icon}</span>}
+                {opt.label}
+                <span className="neu-tab-count">{count}</span>
+              </button>
+            );
+          })}
+        </div>
 
         {/* Progress */}
         {totalIssues > 0 && (
@@ -491,12 +482,12 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
                       </>
                     )}
                   </div>
-                  <div className={`rounded-[12px] border p-3 ${
+                  <div className={`rounded-[12px] p-3 shadow-[inset_1px_2px_4px_oklch(0.55_0.03_258_/_0.1),inset_-1px_-1px_3px_oklch(1_0_0_/_0.6)] ${
                     selectedIssue.notApplicable
-                      ? 'bg-[color-mix(in_oklch,var(--muted)_15%,transparent)] border-[color-mix(in_oklch,var(--muted-foreground)_15%,transparent)]'
+                      ? 'bg-[color-mix(in_oklch,var(--muted)_15%,transparent)]'
                       : selectedIssue.passed
-                      ? 'bg-[color-mix(in_oklch,var(--success)_6%,transparent)] border-[color-mix(in_oklch,var(--success)_18%,transparent)]'
-                      : 'bg-[color-mix(in_oklch,var(--danger)_6%,transparent)] border-[color-mix(in_oklch,var(--danger)_18%,transparent)]'
+                      ? 'bg-[color-mix(in_oklch,var(--success)_6%,transparent)]'
+                      : 'bg-[color-mix(in_oklch,var(--danger)_6%,transparent)]'
                   }`}>
                     <div className="flex items-center gap-2 mb-2">
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-[4px] font-medium ${SEVERITY_COLORS[selectedIssue.severity]}`}>
