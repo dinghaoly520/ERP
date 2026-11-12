@@ -667,15 +667,28 @@ export function ProjectDetailPanel({
     supplierRequirements: '',
   });
 
-  const selectedStage = useMemo(
+  // CR-11（2026-11-12）：末臂兜底 stages 空数组——`?? stages[0]` 在空数组仍 undefined，
+  // 首个消费 selectedStage.stageKey 即崩整页（数据破坏面白屏实录）。合成占位行让面板
+  // 可挂载：isCurrentStage 比较不中、hero 视觉走 ?? 兜底、各完成闸按 NOT_STARTED 处理。
+  // 不能改早退渲染——本组件在 selectedStage 之后仍有大量 hooks，提前 return 破 hooks 顺序。
+  const selectedStage = useMemo<ProjectManagementStage>(
     () =>
       // round 感知（2026-09-24 I-1）：多轮项目每轮各有一行同 stageKey——不带 round 恒命中首轮行
       localItem.stages.find(
         (stage) => stage.stageKey === selectedStageKey && (stage.round ?? 1) === selectedRound,
       ) ??
       localItem.stages.find((stage) => stage.stageKey === selectedStageKey) ??
-      localItem.stages[0],
-    [localItem.stages, selectedStageKey, selectedRound],
+      localItem.stages[0] ??
+      ({
+        id: '__no_stage__',
+        stageKey: (localItem.currentStage as ProjectWorkflowStageKey | undefined) ?? 'PROCUREMENT_DEMAND',
+        stageName: '暂无阶段数据',
+        stageOrder: 0,
+        round: localItem.currentRound ?? 1,
+        status: 'NOT_STARTED',
+        attachments: [],
+      } satisfies ProjectManagementStage),
+    [localItem.stages, selectedStageKey, selectedRound, localItem.currentStage, localItem.currentRound],
   );
 
   const archiveStepState = getArchiveStepState(item);

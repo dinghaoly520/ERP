@@ -95,3 +95,15 @@ test("CR-10: 流标提示条判定须含 abortedAt 臂——对齐后端三臂�
   );
   assert.match(bidApi, /abortedAt\?: string \| null/);
 });
+
+test("CR-11: 项目详情面板 selectedStage 须兜底 stages 空数组——占位行防整页白屏", () => {
+  const panel = readFileSync(
+    resolve("src/components/projects/project-detail-panel.tsx"),
+    "utf8",
+  );
+  // `?? stages[0]` 在空数组仍 undefined，首个消费 selectedStage.stageKey 即崩；
+  // 修法=末臂合成占位行（不得用早退渲染——组件后段仍有 hooks）
+  const memo = panel.match(/const selectedStage = useMemo[\s\S]*?\)\);/);
+  assert.ok(memo, "selectedStage memo 应存在");
+  assert.match(memo[0], /__no_stage__/, "空数组兜底占位行（__no_stage__）不得移除");
+});
