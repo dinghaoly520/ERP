@@ -1815,7 +1815,10 @@ describe('SupplierPortalService', () => {
 
     it('#101 名册行已存在且无回执号 → update 分支补生成 TB- 号（根因：名册先行建行不写号，投递走 update 永不补）', async () => {
       const { envelope, signature } = await buildDualSubmission();
-      // 首查=名册行（receiptNo null）；后续=撞号查重（空）
+      // 首查=名册行（receiptNo null）；后续=撞号查重（空）。
+      // 注意：计数前提=assertCanSubmitBid 的公告池查被 beforeEach 的 announcement.findFirst 真值短路——
+      // 若日后往 bidProject mock 加邀请域方式/清掉 announcement mock，计数会错位（退化形态=create 分支被触发、
+      // 本用例响亮失败，非假绿）
       let findCalls = 0;
       prisma.bidSupplier.findFirst.mockImplementation(async () => {
         findCalls += 1;
