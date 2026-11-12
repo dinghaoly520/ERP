@@ -4,6 +4,7 @@ import * as request from 'supertest';
 import * as cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { BidIntentOversightService } from '../src/supplier/bid-intent-oversight.service';
 
 /** 登录并返回 cookie；带 X-Portal 以匹配按门户命名的 cookie */
 async function loginAs(
@@ -890,6 +891,173 @@ describe('Supplier (e2e)', () => {
         .set('X-Portal', 'web')
         .expect(200);
       expect(lib.body.items.some((i: any) => i.id === c1SupplierId)).toBe(false);
+    });
+  });
+
+  // ── 投标意向确认链路（2026-11-12 履约闭环）：公开项目（BidDocument.accessScope=OPEN）
+  //    投递前须先确认参与意向；邀请制/谈判项目（无 BidDocument）豁免——豁免路径由本文件 A-94
+  //    及 bid/bid-v3/sealed-bid-backup 等既有用例天然覆盖（其夹具项目均无 BidDocument，
+  //    加确认调用反而 400 INTENT_NOT_APPLICABLE——逐处按项目性质判断的结论，勿回补）。──
+  describe('投标意向确认链路（2026-11-12）', () => {
+    /** 供应商会话须现登：前文「退光全部归属→登录闸」用例重登过重庆蜀通（单设备登录会话轮换），
+     *  外层 beforeAll 的 supplierCookie 已失效——本 describe 自取新会话。 */
+    let intentCookie: string[] = [];
+
+    beforeAll(async () => {
+      intentCookie = await loginAs(app, '重庆蜀通岩土工程有限公司', 'supplier@2026', 'supplier');
+    });
+
+    /** 公开项目夹具：项目 + 已发布公告（过 G3 投递闸）+ OPEN 采购文件（过 isIntentApplicable）。
+     *  三者齐备才是履约闸口径下的「公开项目」——缺 BidDocument 即豁免。 */
+    const openProjectIds: string[] = [];
+    const openAnnouncementIds: string[] = [];
+    const openAssetIds: string[] = [];
+
+    async function createOpenProject(): Promise<string> {
+      const ts = Date.now();
+      const project = await prisma.bidProject.create({
+        data: {
+          projectCode: `E2E-INTENT-${ts}`, name: 'E2E 意向确认链路项目', stage: 'SUBMIT',
+          procurementMethod: '公开招标',
+          openTime: new Date(Date.now() + 24 * 3600_000), deadline: new Date(Date.now() + 48 * 3600_000),
+        },
+      });
+      const announcement = await prisma.announcement.create({
+        data: { title: `E2E意向公告-${ts}`, content: '<p>x</p>', type: 'BID_NOTICE', status: 'PUBLISHED', relatedProjectCode: project.projectCode },
+      });
+      const asset = await prisma.fileAsset.create({
+        data: { key: `e2e/intent-doc-${ts}.txt`, originalName: 'doc.txt', mimeType: 'text/plain', size: 1, sha256: 'a'.repeat(64), category: 'bid_document' },
+      });
+      await prisma.bidDocument.create({
+        data: { announcementId: announcement.id, fileAssetId: asset.id, title: '招标文件', accessScope: 'OPEN', decryptKey: '00:11:22', bidProjectId: project.id },
+      });
+      openProjectIds.push(project.id);
+      openAnnouncementIds.push(announcement.id);
+      openAssetIds.push(asset.id);
+      return project.id;
+    }
+
+    afterAll(async () => {
+      // 公告删=级联 BidDocument；FileAsset/BidProject 随后自清（SupplierBidIntent 挂 project 级联）
+      await prisma.announcement.deleteMany({ where: { id: { in: openAnnouncementIds } } }).catch(() => {});
+      await prisma.fileAsset.deleteMany({ where: { id: { in: openAssetIds } } }).catch(() => {});
+      await prisma.bidProject.deleteMany({ where: { id: { in: openProjectIds } } }).catch(() => {});
+    });
+
+    it('未确认→投递 400 INTENT_REQUIRED→确认→重复确认幂等→投递过意向闸', async () => {
+      const projectId = await createOpenProject();
+      // 旧轨关停用例同款 body（bid.e2e-spec）：合法 DTO，使服务层闸门顺序可断言
+      const submitBody = { bidPrice: '100', hostDecryptAuthorized: true };
+
+      // 1) 未确认直接投递 → 意向闸优先（先于 G3 公告闸/旧轨关停闸）
+      const blocked = await request(app.getHttpServer())
+        .post(`/api/supplier-portal/bid-submissions/${projectId}/submit`)
+        .set('Cookie', intentCookie)
+        .set('X-Portal', 'supplier')
+        .send(submitBody)
+        .expect(400);
+      expect(blocked.body.code).toBe('INTENT_REQUIRED');
+
+      // 2) 确认参与意向 → 201
+      const confirm = await request(app.getHttpServer())
+        .post(`/api/supplier-portal/bid-projects/${projectId}/confirm-intent`)
+        .set('Cookie', intentCookie)
+        .set('X-Portal', 'supplier')
+        .expect(201);
+      expect(confirm.body.confirmed).toBe(true);
+      expect(confirm.body.confirmedAt).toBeTruthy();
+
+      // 3) 重复确认幂等 → 201 且 confirmedAt 不刷新（单向承诺以首次为准）
+      const again = await request(app.getHttpServer())
+        .post(`/api/supplier-portal/bid-projects/${projectId}/confirm-intent`)
+        .set('Cookie', intentCookie)
+        .set('X-Portal', 'supplier')
+        .expect(201);
+      expect(again.body.confirmedAt).toBe(confirm.body.confirmedAt);
+
+      // 4) 确认后再投递 → 过意向闸，落到下一道既有闸（旧轨投递关停）——非 INTENT_REQUIRED 即通过
+      const passed = await request(app.getHttpServer())
+        .post(`/api/supplier-portal/bid-submissions/${projectId}/submit`)
+        .set('Cookie', intentCookie)
+        .set('X-Portal', 'supplier')
+        .send(submitBody)
+        .expect(400);
+      expect(passed.body.code).toBe('LEGACY_TRACK_CLOSED');
+    });
+
+    it('邀请回执确认×3 未投递→开标→自动拉黑+处罚留痕+通知', async () => {
+      // 专用供应商（防污染种子供应商——拉黑态会打断并行套件的登录/投递用例）
+      const ts = Date.now();
+      const user = await prisma.user.create({
+        data: { username: `e2e-intent-sup-${ts}`, role: 'supplier', displayName: '意向履约e2e供应商' },
+      });
+      const supplier = await prisma.supplier.create({
+        data: {
+          userId: user.id, supplierNo: `E2E-INT-${ts}`, name: `意向履约e2e供应商${ts}`,
+          normalizedName: `意向履约e2e供应商${ts}`, creditCode: `9151INTENT${String(ts).slice(-8)}`,
+          enterpriseType: 'OTHER', legalPerson: 'e2e', registeredAddress: 'e2e', businessScope: 'e2e',
+          status: 'APPROVED',
+        },
+      });
+      // 1) 3 个 SUBMIT 阶段项目 + 每项目一条 ACCEPTED 邀请回执（承诺=RSVP 轨）
+      const projects: string[] = [];
+      try {
+        for (let i = 0; i < 3; i++) {
+          const p = await prisma.bidProject.create({
+            data: {
+              projectCode: `E2E-NS-${ts}-${i}`, name: `E2E 履约事故项目${i}`, stage: 'SUBMIT',
+              procurementMethod: '邀请招标',
+              openTime: new Date(Date.now() + 24 * 3600_000), deadline: new Date(Date.now() + 48 * 3600_000),
+            },
+          });
+          projects.push(p.id);
+          await prisma.invitationRsvp.create({
+            data: {
+              token: `e2e-rsvp-${ts}-${i}`, invitationId: `e2e-inv-${ts}-${i}`,
+              projectId: p.id, supplierId: supplier.id, supplierName: supplier.name,
+              title: `E2E 履约事故项目${i}`, summary: 'e2e 履约监督夹具',
+              status: 'ACCEPTED', respondedAt: new Date(), expiresAt: new Date(Date.now() + 3600_000),
+            },
+          });
+        }
+
+        // 2) 逐项目开标（直推 OPENING——阶段推进即时钩子挂 BidService 轨，此处直写后手动扫，
+        //    等价且不受 :3005 开标准备 checklist 约束）→ 履约扫描
+        const oversight = app.get(BidIntentOversightService);
+        for (let i = 0; i < 2; i++) {
+          await prisma.bidProject.update({ where: { id: projects[i] }, data: { stage: 'OPENING' } });
+          const r = await oversight.sweepProject(projects[i]);
+          expect(r.created).toBe(1);
+        }
+        // 前 2 次事故：未到阈值，不拉黑
+        expect((await prisma.supplier.findUnique({ where: { id: supplier.id } }))?.status).toBe('APPROVED');
+
+        await prisma.bidProject.update({ where: { id: projects[2] }, data: { stage: 'OPENING' } });
+        const third = await oversight.sweepProject(projects[2]);
+        expect(third.created).toBe(1);
+
+        // 3) 第 3 个项目扫后断言：拉黑 + 账号停用 + AUTO- 处罚文号 + 站内通知
+        const after = await prisma.supplier.findUnique({ where: { id: supplier.id } });
+        expect(after?.status).toBe('BLACKLIST');
+        expect(after?.disableReason).toContain('未投递');
+        const penalty = await prisma.supplierPenalty.findFirst({ where: { supplierId: supplier.id } });
+        expect(penalty?.penaltyDocNo).toMatch(/^AUTO-\d{8}-\d{3}$/);
+        expect((await prisma.user.findUnique({ where: { id: user.id } }))?.isActive).toBe(false);
+        // 通知为 fire-and-forget 投递——短轮询等它落库
+        let notice: { content: string } | null = null;
+        for (let i = 0; i < 20 && !notice; i++) {
+          notice = await prisma.notification.findFirst({ where: { userId: user.id, type: 'SUPPLIER_BLACKLISTED' }, select: { content: true } });
+          if (!notice) await new Promise((r) => setTimeout(r, 100));
+        }
+        expect(notice?.content).toContain('如有异议请联系采购中心');
+      } finally {
+        // 自清（防污染同文件其他用例/并行套件）：通知两表→回执→项目（级联事故行）→User（级联供应商/处罚）
+        await prisma.notificationDeliveryLog.deleteMany({ where: { userId: user.id } }).catch(() => {});
+        await prisma.notification.deleteMany({ where: { userId: user.id } }).catch(() => {});
+        await prisma.invitationRsvp.deleteMany({ where: { supplierId: supplier.id } }).catch(() => {});
+        await prisma.bidProject.deleteMany({ where: { id: { in: projects } } }).catch(() => {});
+        await prisma.user.deleteMany({ where: { id: user.id } }).catch(() => {});
+      }
     });
   });
 });
