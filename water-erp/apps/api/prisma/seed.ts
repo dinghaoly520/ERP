@@ -24,8 +24,9 @@
  */
 import { PrismaClient } from '@prisma/client';
 import { SASAC_UNITS } from '@water-erp/shared';
-import { readFileSync, mkdirSync, writeFileSync, chmodSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync, mkdirSync, writeFileSync, chmodSync, statSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+import { join, resolve } from 'node:path';
 import { hashSync } from 'bcryptjs';
 import { encryptPasswordVault } from '../src/auth/password-vault.util';
 import { GbCodeService } from '../src/common/gb-code.service';
