@@ -42,7 +42,6 @@ export function DeletionRecordList({ records, showHeader = true }: { records: Pr
               </div>
               <div className="mt-0.5 text-xs text-[color:var(--muted-foreground)]">
                 {r.requesterDepartment} · {r.requesterName} · {r.procurementMethod}
-                {r.terminatedRoundNo ? '（终止时生成的采购台账记录已同步删除）' : ''}
               </div>
               {/* 终止时简报（2026-11-12 用户裁定）：TERMINATED 后冻结、删除时快照；超两行截断，悬浮看全文 */}
               {r.analysisSummary ? (
