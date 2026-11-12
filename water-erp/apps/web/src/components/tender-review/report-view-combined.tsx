@@ -285,7 +285,7 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
   return (
     <div className="flex flex-col h-full gap-3">
       {/* Header */}
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex items-center gap-3 pt-3 shrink-0">
         <button
           onClick={onBack}
           className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
