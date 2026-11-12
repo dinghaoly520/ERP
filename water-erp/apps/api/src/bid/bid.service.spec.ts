@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 import { ConflictException, BadRequestException } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import * as crypto from 'crypto';
 import { BidService } from './bid.service';
 import { BidOpeningRecordService } from './bid-opening-record.service';
@@ -58,6 +59,14 @@ const DUAL_ENVELOPE_SVC = {
 };
 /* A-143（Task 4）：BidService 构造器新增 SignatureService（verifyClarificationReply 用）——同口径全局 mock */
 const SIGNATURE_SVC = { provide: SignatureService, useValue: { verify: jest.fn().mockReturnValue(false) } };
+
+/* Task 7（2026-11-12）：阶段推进履约扫描钩子。SupplierModule 经 ProjectManagementModule 与 BidModule
+   成环（bid.module imports SupplierModule 会在模块加载期即 ReferenceError: Cannot access 'BidModule'
+   before initialization），故 BidService 经 ModuleRef 懒解析 BidIntentOversightService（strict:false
+   跨模块检索）而非构造器直注。真实 ModuleRef 在 TestingModule 自动注册；显式 useValue 覆盖后
+   get() 恒回本 mock——BidService 内唯一 moduleRef.get 消费点即 fireIntentSweep。 */
+const INTENT_OVERSIGHT_MOCK = { sweepProject: jest.fn().mockResolvedValue({ created: 0 }), sweepAll: jest.fn() };
+const MODULE_REF_SVC = { provide: ModuleRef, useValue: { get: jest.fn().mockReturnValue(INTENT_OVERSIGHT_MOCK) } };
 
 /* ── 纯函数测试：bid-state 状态机 ── */
 
@@ -180,7 +189,7 @@ describe('BidService — stage transitions', () => {
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
@@ -875,6 +884,28 @@ describe('BidService — stage transitions', () => {
         data: expect.objectContaining({ action: '强制开标(忽略checklist)' }),
       }));
     });
+
+    it('Task 7：SUBMIT→OPENING 推进后触发履约扫描钩子（事务提交之后、以项目 id 调 sweepProject）', async () => {
+      const past = new Date(Date.now() - 3600_000);
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: 'P', deadline: past, projectManagementItemId: null, round: 1, assignedHostUserId: 'u1', procurementMethod: '谈判采购' });
+      prisma.bidExpert.count.mockResolvedValue(3);
+      prisma.bidSupplier.count.mockImplementation(async (args: any) =>
+        args?.where?.submitStatus === '已提交' ? 3 : 3);
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'OPENING' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      // 事务边界留痕：sweep 必须在 $transaction 回调返回（提交）之后才触发，不得在事务体内
+      const events: string[] = [];
+      const baseTx = prisma.$transaction;
+      prisma.$transaction = jest.fn(async (cb: any) => { events.push('tx'); try { return await baseTx(cb); } finally { events.push('tx-done'); } });
+      INTENT_OVERSIGHT_MOCK.sweepProject.mockClear();
+      INTENT_OVERSIGHT_MOCK.sweepProject.mockImplementation(async () => { events.push('sweep'); return { created: 0 }; });
+
+      const result = await service.startOpening('p1', {}, 'u1');
+      expect(result.stage).toBe('OPENING');
+      await new Promise((r) => setImmediate(r)); // fire-and-forget flush
+      expect(INTENT_OVERSIGHT_MOCK.sweepProject).toHaveBeenCalledWith('p1');
+      expect(events.indexOf('tx-done')).toBeLessThan(events.indexOf('sweep'));
+    });
   });
 
   describe('abortBidProject — 留痕串码修复（2026-10-27：操作人姓名快照+时间本地可读）', () => {
@@ -1214,6 +1245,24 @@ describe('BidService — stage transitions', () => {
       expect(prisma.bidArchiveItem.create.mock.calls.length).toBeGreaterThanOrEqual(7);
     });
 
+    it('Task 7：EVALUATING→ARCHIVED 归档后触发履约扫描钩子（以项目 id 调 sweepProject）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: '测试项目' });
+      prisma.bidArchiveItem.findMany
+        .mockResolvedValueOnce([]) // ensureArchiveItems（tx 内）
+        .mockResolvedValueOnce([{ id: 'a1', status: 'PENDING_CONFIRM' }]);
+      prisma.bidArchiveItem.create.mockResolvedValue({});
+      prisma.bidArchiveItem.update.mockResolvedValue({ hashDigest: 'sha256:abc' });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'ARCHIVED' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.bidSupplier.findMany.mockResolvedValue([]); // G5: 无可评供应商
+      prisma.bidEvaluationResult.count.mockResolvedValue(0);
+      INTENT_OVERSIGHT_MOCK.sweepProject.mockClear();
+
+      await service.archiveAll('p1');
+      await new Promise((r) => setImmediate(r)); // fire-and-forget flush
+      expect(INTENT_OVERSIGHT_MOCK.sweepProject).toHaveBeenCalledWith('p1');
+    });
+
     it('uses transaction for atomic archive + stage update + supervision log', async () => {
       prisma.bidProject.findUnique
         .mockResolvedValueOnce({ id: 'p1', projectCode: 'BID-TEST', stage: 'EVALUATING', name: '测试项目' })
@@ -1511,6 +1560,18 @@ describe('BidService — stage transitions', () => {
           data: expect.objectContaining({ action: '启动评标 (OPENING→EVALUATING)' }),
         }),
       );
+    });
+
+    it('Task 7：OPENING→EVALUATING 推进后触发履约扫描钩子（以项目 id 调 sweepProject）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'EVALUATING' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.bidSupplier.findMany.mockResolvedValue([]);
+      INTENT_OVERSIGHT_MOCK.sweepProject.mockClear();
+
+      await service.startEvaluation('p1');
+      await new Promise((r) => setImmediate(r)); // fire-and-forget flush
+      expect(INTENT_OVERSIGHT_MOCK.sweepProject).toHaveBeenCalledWith('p1');
     });
 
     it('P1-2（第三波）：基准价偏离法激活但缺最高限价 → 启动评标即 400 CEILING_PRICE_REQUIRED（死局前移，不再等专家评完点生成才炸）', async () => {
@@ -2022,7 +2083,7 @@ describe('BidService — score items (评分标准)', () => {
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -2260,7 +2321,7 @@ describe('BidService — nudge (催办)', () => {
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -2408,7 +2469,7 @@ describe('BidService — inviteSuppliers (邀请供应商)', () => {
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -2573,7 +2634,7 @@ describe('BidService.archiveAll — 预成交公示自动生成 (G1/C1)', () => 
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
@@ -2638,7 +2699,7 @@ describe('BidService — createProject 字段写入', () => {
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
@@ -2690,7 +2751,7 @@ describe('截标↔开标间隔（P0-2；间隔=共享常量）', () => {
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
@@ -2850,7 +2911,7 @@ describe('BidService — 得分点管理 (ScorePoint CRUD)', () => {
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -2976,7 +3037,7 @@ describe('BidService — revokeInvalidBid (废标复核撤销)', () => {
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
@@ -3032,7 +3093,7 @@ describe('assignHost (BidService) — 主持人=项目公司内员工（2026-10-
       providers: [
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: {} },
@@ -3155,7 +3216,7 @@ describe('listHosts (BidService) — 公司范围候选（2026-10-15）', () => 
       providers: [
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: {} },
@@ -3240,7 +3301,7 @@ describe('listProjects actor 过滤 (R1 硬分流) — Task 2', () => {
       providers: [
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: {} },
@@ -3303,7 +3364,7 @@ describe('startOpening 指派前置闸门 (R2) — Task 4', () => {
       providers: [
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: {} },
@@ -3386,7 +3447,7 @@ describe('BidService — getAiAnalysisProgress', () => {
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: getQueueToken(QUEUE_NAMES.TENDER_PROCESSING), useValue: tenderQ },
@@ -3576,7 +3637,7 @@ describe('BidService — retryAiBidders', () => {
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: getQueueToken(QUEUE_NAMES.BIDDER_PROCESSING), useValue: bidderQueue },
@@ -3659,7 +3720,7 @@ describe('BidService — retryAiBidders', () => {
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -3740,7 +3801,7 @@ describe('BidService — rerunAiAnalysis (N8 存量补建)', () => {
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: getQueueToken(QUEUE_NAMES.TENDER_PROCESSING), useValue: tenderQueue },
@@ -3842,7 +3903,7 @@ describe('BidService — rerunAiAnalysis (N8 存量补建)', () => {
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         // 注意：故意不提供 TENDER_PROCESSING 队列 token
@@ -3931,7 +3992,7 @@ describe('BidService — rerunAiAnalysis F15/F19 停摆豁免', () => {
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: getQueueToken(QUEUE_NAMES.TENDER_PROCESSING), useValue: tenderQueue },
@@ -4117,7 +4178,7 @@ describe('createRound — 供应商准入', () => {
       providers: [
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: PrismaService, useValue: prisma },
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn(), assertScoreStandardComplete: jest.fn() } },
@@ -4247,7 +4308,7 @@ describe('createRound — 谈判采购评标完成闸门（先评标→再报价
       providers: [
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: PrismaService, useValue: prisma },
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn(), assertScoreStandardComplete: jest.fn() } },
@@ -4325,7 +4386,7 @@ describe('submitQuote — 准入校验', () => {
       providers: [
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: PrismaService, useValue: prisma },
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn(), assertScoreStandardComplete: jest.fn() } },
@@ -4377,7 +4438,7 @@ describe('getMinBidders procurement-method-aware', () => {
       providers: [
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: PrismaService, useValue: {} },
         { provide: ScoreStandardValidator, useValue: {} },
@@ -4418,7 +4479,7 @@ describe('checkDisputeTimeout', () => {
       providers: [
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: PrismaService, useValue: prisma },
         { provide: ScoreStandardValidator, useValue: {} },
@@ -4508,7 +4569,7 @@ describe('BidService — syncFromAnnouncement 时间合理性校验（P1-15/走�
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -4583,7 +4644,7 @@ describe('BidService — 解密失败归因矩阵（Task 15, §5.5）——裁�
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: BidGateway, useValue: gateway },
@@ -5635,7 +5696,7 @@ describe('autoHandoverIfDone / startEvaluation 移交兜底', () => {
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
@@ -5777,7 +5838,7 @@ describe('BidService — extendEvaluationDeadline 上限校验', () => {
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -5840,7 +5901,7 @@ describe('BidService — rotateRoomCode 广播', () => {
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -5888,7 +5949,7 @@ describe('BidService — updatePriceConfig 限价补设窄口', () => {
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -5933,7 +5994,7 @@ describe('BidService — report notes (A-151 评标报告章节附注)', () => {
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -6032,7 +6093,7 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -6266,7 +6327,7 @@ describe('BidService — reopenExpertScoring', () => {
       providers: [
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
@@ -6429,7 +6490,7 @@ describe('BidService — resolveExpertDispute 废标联动重算', () => {
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC, MODULE_REF_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],

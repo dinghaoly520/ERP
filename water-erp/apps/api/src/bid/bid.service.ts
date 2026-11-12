@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, Optional, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import * as crypto from 'crypto';
 import { GB_ARCHIVE_CATEGORIES, parseAmountToYuan, renderNotificationPayload } from '@water-erp/shared';
 import { resolveOpeningAmountUnitMap, formatAmountWithUnit, DUAL_V2_AMOUNT_UNIT } from './opening-amount-unit.util';
@@ -62,6 +63,7 @@ import { SignatureService } from '../common/crypto/signature.service';
 import { buildClarificationReplyCanonical } from '../supplier-portal/clarification-reply.util';
 import { buildClarificationNotice } from './clarification-notify.util';
 import { findCrossWindowExperts, findOpenEvaluationWindows, generateRoomCode, notifyAdmins } from '../expert/expert-room.util';
+import { BidIntentOversightService } from '../supplier/bid-intent-oversight.service';
 
 /** AI 分析「卡住」判定阈值：bidder 处于中间态且 updatedAt 停摆超过该时长（单家 OCR+LLM 约 5-15 分钟，30 分钟留足余量） */
 const AI_STUCK_THRESHOLD_MS = 30 * 60 * 1000;
@@ -100,6 +102,7 @@ export class BidService {
     private readonly dualEnvelope: DualEnvelopeService,
     private readonly signature: SignatureService,
     private readonly openingRecord: BidOpeningRecordService,
+    private readonly moduleRef: ModuleRef,
     @Optional() private readonly clarificationAi?: ClarificationAiService,
     @Optional() private readonly gateway?: BidGateway,
     @Optional()
@@ -111,6 +114,18 @@ export class BidService {
   ) {}
 
   private readonly logger = new Logger(BidService.name);
+
+  /** Task 7（2026-11-12）：阶段推进至 OPENING/EVALUATING/ARCHIVED 后即时履约扫描。
+   *  fire-and-forget——解析或扫描失败一律静默，不影响阶段流转；漏扫由
+   *  BidIntentOversightService 每日 04:20 Cron 兜底。经 ModuleRef 懒解析而非模块 imports：
+   *  SupplierModule → ProjectManagementModule → BidModule 成环（直接 imports 在模块加载期即
+   *  ReferenceError: Cannot access 'BidModule' before initialization，forwardRef 依 2026-11-12
+   *  分工禁用），strict:false 跨模块检索（SupplierModule 随 AppModule 常驻，进程内必可解析）。 */
+  private fireIntentSweep(projectId: string): void {
+    try {
+      void this.moduleRef.get(BidIntentOversightService, { strict: false }).sweepProject(projectId).catch(() => undefined);
+    } catch { /* 上下文未注册（单元测试/独立 worker）静默——04:20 Cron 兜底 */ }
+  }
 
   async getDashboardStats() {
     const [
@@ -1916,6 +1931,9 @@ export class BidService {
       return { updated, wsMeta: { sessionUpserted, action, result } };
     });
 
+    // 履约扫描（fire-and-forget，失败不影响流转；漏挂由每日 04:20 Cron 兜底）
+    this.fireIntentSweep(id);
+
     // 事务已提交——在此发 WS（回滚不再产生假事件）
     {
       const { sessionUpserted, action, result } = txResult.wsMeta;
@@ -2383,6 +2401,9 @@ export class BidService {
       }
       return result;
     });
+
+    // 履约扫描（fire-and-forget，失败不影响流转；漏挂由每日 04:20 Cron 兜底）
+    this.fireIntentSweep(id);
 
     // Defer WebSocket notifications until after transaction commits
     this.gateway?.notifyStageChange(id, project.stage, 'EVALUATING', 'host');
@@ -4330,6 +4351,9 @@ export class BidService {
         include: { archiveItems: true },
       });
     });
+
+    // 履约扫描（fire-and-forget，失败不影响流转；漏挂由每日 04:20 Cron 兜底）
+    this.fireIntentSweep(id);
 
     this.gateway?.notifyStageChange(id, project.stage, 'ARCHIVED', 'host');
     this.gateway?.notifySupervisionLog(id, { role: '系统', action: '一键归档', target: project.name, result: `归档 ${result?.archiveItems?.length ?? 0} 项${scope === 'opening' ? '（开标归档）' : ''}`, riskFlag: '无' });
