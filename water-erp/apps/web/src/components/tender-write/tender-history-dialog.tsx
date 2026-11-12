@@ -150,7 +150,7 @@ export function TenderHistoryDialog({
               {records.map((record) => (
                 <div
                   key={record.id}
-                  className="rounded-[12px] bg-[#f4f7fc] px-3.5 py-3 shadow-[inset_0_1px_0_oklch(1_0_0_/_0.8),2px_2px_5px_oklch(0.55_0.03_258_/_0.12),-1px_-1px_3px_oklch(1_0_0_/_0.9)]"
+                  className="rounded-[12px] bg-[#f4f7fc] px-3.5 py-3 shadow-[inset_0_1px_0_oklch(1_0_0_/_0.8),2px_2px_5px_oklch(0.55_0.03_258_/_0.12),-1px_-1px_3px_oklch(1_0_0_/_0.9)] transition-all duration-200 hover:-translate-y-px hover:shadow-[inset_0_1px_0_oklch(1_0_0_/_0.9),3px_3px_7px_oklch(0.55_0.03_258_/_0.16),-2px_-2px_5px_oklch(1_0_0_/_0.95)] hover:ring-1 hover:ring-[var(--accent)]/40"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
