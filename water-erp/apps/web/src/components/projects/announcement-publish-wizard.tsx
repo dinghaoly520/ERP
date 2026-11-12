@@ -2218,9 +2218,9 @@ function SunshineSyncRow({
         </button>
       </div>
       <p className="mt-1.5 text-[10px] leading-relaxed text-[var(--muted-foreground)]">
-        按《天府阳光采购平台招标数据接口文档 V2.0.5》推送本公告
-        {iface ? `（${iface.code} ${iface.name}，前置推送 SCM0001 招标基础信息）` : '（前置推送 SCM0001 招标基础信息）'}；
-        推送需平台分配身份标识并加 IP 白名单，接入完成前配置仅随公告存档。
+        发布时按《天府阳光采购平台招标数据接口文档 V2.0.5》同步推送本公告
+        {iface ? `（${iface.code} ${iface.name}）` : ''}，并自动先推送 SCM0001 招标基础信息。
+        正式推送需由平台分配身份标识并开通 IP 白名单——接入完成前，此处配置仅随公告存档，不会实际推送。
       </p>
     </>
   );
