@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException, ForbiddenException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException, ForbiddenException, Optional } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
@@ -7,6 +7,7 @@ import { IS_OPTIONAL_AUTH_KEY } from '../common/decorators/optional-auth.decorat
 import { tokenFromRequest, portalFromRequest } from './portal-cookie';
 import { checkPortRole } from './port-roles';
 import { PrismaService } from '../prisma/prisma.service';
+import { ExpertPairingRegistry } from './expert-pairing.registry';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -14,6 +15,10 @@ export class AuthGuard implements CanActivate {
     private jwt: JwtService,
     private reflector: Reflector,
     private prisma: PrismaService,
+    // TAB-SYNC-01：@Optional 同 expert-pairing.registry 的 REDIS_CLIENT 模式，仅防测试直构；
+    // 生产经 APP_GUARD（AppModule scope）解析——依赖 AuthModule re-export ExpertPairingModule
+    // （同 JwtModule 先例：全局守卫的构造依赖须在其注册模块 scope 可见）。
+    @Optional() private readonly pairingRegistry?: ExpertPairingRegistry,
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -95,6 +100,27 @@ export class AuthGuard implements CanActivate {
       const roleCheck = checkPortRole(payload.role, portalFromRequest(req));
       if (roleCheck) {
         throw new ForbiddenException({ error: roleCheck, code: 'PORT_ROLE_MISMATCH' });
+      }
+
+      // TAB-SYNC-01 平板配对受限令牌（scope=tablet-pairing）：逐请求核对配对存活（Redis
+      // 登记被吊销/过期——桌面重新生成配对码、解绑、登出卫生——即 401）；存活则挂
+      // req.pairingScope 供 PairingScopeGuard 白名单裁决。registry 缺失（防御性直构）
+      // 一律按不存活处理（fail closed）；抛出的 401 带 code，经下方 catch 原样透传。
+      if (payload.scope === 'tablet-pairing') {
+        const alive = this.pairingRegistry
+          ? await this.pairingRegistry.isAlive(payload.jti, payload.sub)
+          : false;
+        if (!alive) {
+          throw new UnauthorizedException({
+            error: '配对已解除或过期，请在桌面端重新生成配对码',
+            code: 'PAIRING_REVOKED',
+          });
+        }
+        (req as any).pairingScope = {
+          projectId: payload.pid,
+          expertId: payload.eid,
+          pairingId: payload.jti,
+        };
       }
     } catch (err) {
       // 带 code 的异常（PORT_ROLE_MISMATCH / SESSION_REPLACED）原样抛出，

@@ -20,6 +20,7 @@ import { cookieNameForPortal, portalForRole, portalFromRequest, tokenFromRequest
 import { checkPortRole } from './port-roles';
 import { ROLE_PORTAL } from '@water-erp/config';
 import { normalizeCompanyName } from '../company/company-scope';
+import { ExpertPairingRegistry } from './expert-pairing.registry';
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
@@ -45,6 +46,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly pairingRegistry: ExpertPairingRegistry,
   ) {}
 
   @Post('register')
@@ -320,12 +322,38 @@ export class AuthController {
     // 登出即吊销（2026-09-18；X-P1-02 2026-09-29 修正）：仅带 sid 的 token（web/supplier/expert
     // 单设备命名空间）才清会话 ID——token_bid 无 sid 不清，:3007 登出若清此列会误杀同账号
     // :3005 会话（跨命名空间互杀）；无 sid 会话不校验此列，清 cookie 已阻断重放。
+    //
+    // TAB-SYNC-01 登出分流：平板配对受限令牌（scope=tablet-pairing）的 sid 是**桌面会话**的，
+    // 走下方 shouldRevokeSession 清 webSessionId 会误杀桌面登录——平板登出只吊销本配对
+    // （revoke→null=已被吊销，照常收尾）并写监督日志，cookie 照清。payload 由全局 AuthGuard
+    // 校验后挂 req.user（logout @AnyRole，必存在）。
+    const claims = (req as { user?: { scope?: string; jti?: string; username?: string } }).user;
     const revokeToken = tokenFromRequest(req);
-    if (revokeToken && (await this.authService.shouldRevokeSession(revokeToken))) {
+    if (revokeToken && claims?.scope === 'tablet-pairing') {
+      const revoked = await this.pairingRegistry.revoke(claims.jti ?? '').catch(() => null);
+      if (revoked) {
+        await this.prisma.bidSupervisionLog
+          .create({
+            data: {
+              projectId: revoked.projectId,
+              time: new Date(),
+              role: '评审专家',
+              target: claims.username ?? '平板端',
+              action: '平板解除配对',
+              result: '平板端登出解除配对；桌面会话不受影响',
+              riskFlag: '无',
+            },
+          })
+          .catch(() => {});
+      }
+    } else if (revokeToken && (await this.authService.shouldRevokeSession(revokeToken))) {
       await this.prisma.user.update({
         where: { id: userId },
         data: { webSessionId: null },
       });
+      // 登出卫生（TAB-SYNC-01）：桌面全量会话登出顺带吊销该专家名下全部平板配对
+      //（不阻塞登出——失败静默，配对 TTL 12h 兜底自清）。
+      await this.pairingRegistry.revokeForUser(userId).catch(() => {});
     }
 
     // 清除当前门户的 cookie（按 X-Portal / 来源端口），同时清除旧版 token。
