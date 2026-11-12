@@ -71,6 +71,7 @@ const ALL_TABLES = [
   'ProjectManagementItem', 'ProjectManagementStage',
   'ReviewTask', 'RoundParticipant',
   'Supplier', 'SupplierBidSubmission',
+  'SupplierBidIntent', 'SupplierBidNoShow',
   'SupplierCert', 'SupplierChangeRecord', 'SupplierClassification', 'SupplierContact',
   'SupplierEvaluation', 'SupplierQualification',
   'SystemConfig',
@@ -335,6 +336,65 @@ async function main() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (prisma[delegate] as any).createMany({ data: rows });
     console.log(`    ${tableName}: ${rows.length}`);
+  }
+
+  // ═══ 参与意向/事故种子（2026-11-12 履约闭环）═══
+  // 英雄项目三家已投递供应商补意向（三视图演示有数据）；重庆蜀通 2 条 legacy 事故
+  // （不触发拉黑——口径 #8）。两表已入 TRUNCATE 清单，此处 upsert 幂等（重复行 no-op）。
+  {
+    // 快照项目名不含「英雄」：英雄项目实名「2026年度智慧水利大数据平台建设项目」
+    // （id cmqhero-bid-proj01、EVALUATING；另有 SUBMIT 项目「智慧水务大数据平台建设」是水务≠水利，勿混淆）
+    const heroProject = await prisma.bidProject.findFirst({
+      where: { name: { contains: '智慧水利大数据平台' } },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    if (heroProject) {
+      const intentSuppliers = await prisma.supplier.findMany({
+        where: { name: { in: ['四川水发建设有限公司', '中科院成都信息技术股份有限公司', '四川省通信产业服务有限公司'] } },
+        select: { id: true },
+      });
+      for (const s of intentSuppliers) {
+        await prisma.supplierBidIntent.upsert({
+          where: { projectId_supplierId: { projectId: heroProject.id, supplierId: s.id } },
+          update: {},
+          create: { projectId: heroProject.id, supplierId: s.id },
+        });
+      }
+      console.log(`    英雄项目意向：${intentSuppliers.length} 家（${heroProject.id}）`);
+    } else {
+      console.warn('    ⚠ 未找到英雄项目（智慧水利大数据平台），跳过意向种子');
+    }
+    // 快照无 ARCHIVED/OPENING 项目（仅英雄项目过开标）——事故语义=开标后承诺未投递，
+    // 先取开标后项目、不足 2 条以最早 SUBMIT 项目补位：legacy 事故仅展示计入不触发拉黑，
+    // 参与情况明细「项目当前阶段」列本就渲染项目现值，历史事故不与之矛盾。
+    const demoSupplier = await prisma.supplier.findFirst({ where: { name: '重庆蜀通岩土工程有限公司' }, select: { id: true } });
+    if (demoSupplier) {
+      const postOpening = await prisma.bidProject.findMany({
+        where: { stage: { in: ['OPENING', 'EVALUATING', 'ARCHIVED'] } },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        select: { id: true },
+        take: 2,
+      });
+      const fillers = postOpening.length < 2
+        ? await prisma.bidProject.findMany({
+            where: { stage: 'SUBMIT' },
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+            select: { id: true },
+            take: 2 - postOpening.length,
+          })
+        : [];
+      for (const p of [...postOpening, ...fillers]) {
+        await prisma.supplierBidNoShow.upsert({
+          where: { projectId_supplierId: { projectId: p.id, supplierId: demoSupplier.id } },
+          update: {},
+          create: { projectId: p.id, supplierId: demoSupplier.id, track: 'INTENT', legacy: true },
+        });
+      }
+      console.log(`    蜀通 legacy 事故：${postOpening.length + fillers.length} 条`);
+    } else {
+      console.warn('    ⚠ 未找到重庆蜀通岩土工程有限公司，跳过事故种子');
+    }
   }
 
   // ═══ 公告↔项目挂钩修复（P2-1，2026-08-16 全链路审计）═══
