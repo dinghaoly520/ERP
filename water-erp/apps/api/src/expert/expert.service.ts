@@ -286,7 +286,7 @@ export class ExpertService {
 
   /* 项目列表 */
 
-  async listProjects(userId: string) {
+  async listProjects(userId: string, pairingScope?: { projectId: string }) {
     const records = await this.prisma.bidExpert.findMany({
       where: {
         userId,
@@ -308,9 +308,15 @@ export class ExpertService {
       orderBy: { createdAt: 'desc' },
     });
 
+    // TAB-SYNC-01：平板配对受限令牌的项目宇宙收口——scoped 会话裸列表（无 pid 参数、
+    // PairingScopeGuard 天然豁免）在此过滤为仅配对项目；配对项目不在本人项目集 → 空（不回退全量）。
+    const visible = pairingScope
+      ? records.filter((p) => p.project?.id === pairingScope.projectId)
+      : records;
+
     // Sort: active projects (OPENING > EVALUATING) first, then others by createdAt desc.
     const stagePriority: Record<string, number> = { OPENING: 0, EVALUATING: 1 };
-    return records.sort((a, b) => {
+    return visible.sort((a, b) => {
       const pa = stagePriority[a.project.stage] ?? 2;
       const pb = stagePriority[b.project.stage] ?? 2;
       if (pa !== pb) return pa - pb;
@@ -2790,7 +2796,13 @@ export class ExpertService {
 
   /** G3: 保存/加载评分草稿(服务端持久化,防 localStorage 丢失)。
    *  按 device 分槽存储，避免平板与桌面互相覆盖。 */
-  async saveScoreDraft(userId: string, projectId: string, draft: Record<string, unknown>, device?: 'tablet' | 'desktop') {
+  async saveScoreDraft(
+    userId: string,
+    projectId: string,
+    draft: Record<string, unknown>,
+    device?: 'tablet' | 'desktop',
+    pairingScope?: { projectId: string },
+  ) {
     await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     await assertEvaluationStarted(this.prisma, projectId); // 启动闸（2026-10-21）：启动前不得预写评分草稿
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
@@ -2804,7 +2816,9 @@ export class ExpertService {
     if (expert.reportConfirmed && !isEmptyClear) {
       throw new BadRequestException({ error: '评审报告已确认，评分已锁定', code: 'SCORE_LOCKED' });
     }
-    const deviceSlot = device === 'tablet' ? 'tablet' : 'desktop';
+    // TAB-SYNC-01：scoped（平板配对）客户端恒写 tablet 槽——纵深防御，伪报 device=desktop
+    // 也不得覆盖桌面槽（controller 已强制 'tablet'，此处双保险直落库层）
+    const deviceSlot = pairingScope ? 'tablet' : (device === 'tablet' ? 'tablet' : 'desktop');
     // 兼容旧扁平格式：若 scoreDraft 不含 device 分槽，初始化为空对象
     const existing = (expert.scoreDraft as any) ?? {};
     const merged = typeof existing.tablet === 'object' || typeof existing.desktop === 'object'
@@ -2813,13 +2827,19 @@ export class ExpertService {
     return this.prisma.bidExpert.update({ where: { id: expert.id }, data: { scoreDraft: merged as any } });
   }
 
-  async getScoreDraft(userId: string, projectId: string, device?: 'tablet' | 'desktop') {
+  async getScoreDraft(
+    userId: string,
+    projectId: string,
+    device?: 'tablet' | 'desktop',
+    pairingScope?: { projectId: string },
+  ) {
     await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     await assertEvaluationStarted(this.prisma, projectId); // 启动闸（2026-10-21）
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId }, select: { scoreDraft: true } });
     // TAB-SYNC-01 §4.1：合并语义抽到纯函数 mergeDraftSlots——逐键取最新 savedAt
     // （旧「本设备槽整槽优先」× 回声 = 同键双端再编辑静默分叉，已废弃）
-    return mergeDraftSlots(expert?.scoreDraft, device);
+    // TAB-SYNC-01：scoped 读同槽强制 tablet（读无害，与写同口径——配对平板 tiebreak 本槽优先）
+    return mergeDraftSlots(expert?.scoreDraft, pairingScope ? 'tablet' : device);
   }
 
   /** 评分历史：已提交值 + 修改快照 + 草稿值 + 未评分项，按 scoreItemId 分组 */

@@ -71,6 +71,14 @@ describe('shouldExclude', () => {
   it('对象模式：method 大小写不敏感', () => {
     expect(shouldExclude('get', '/api/tender-review/review/tasks/x', DEFAULT_EXCLUDE_PATHS)).toBe(true);
   });
+
+  it('TAB-SYNC-01：评分草稿 2s 防抖自动保存 POST 排除（真评分审计在 BidScoreRecordHistory 快照+监督日志，spec §11.4）', () => {
+    expect(shouldExclude('POST', '/api/expert/projects/p1/score-draft', DEFAULT_EXCLUDE_PATHS)).toBe(true);
+    // 方法限定：GET 读草稿（合并读取）不受本条牵连
+    expect(shouldExclude('GET', '/api/expert/projects/p1/score-draft', DEFAULT_EXCLUDE_PATHS)).toBe(false);
+    // 正则 $ 锚：相邻路径不受牵连（如 score-draft 下的子路径）
+    expect(shouldExclude('POST', '/api/expert/projects/p1/score-draft/extra', DEFAULT_EXCLUDE_PATHS)).toBe(false);
+  });
 });
 
 describe('parseExcludePaths', () => {

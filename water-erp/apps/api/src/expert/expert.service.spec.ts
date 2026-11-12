@@ -228,6 +228,50 @@ describe('ExpertService', () => {
     });
   });
 
+  describe('TAB-SYNC-01 平板配对受限令牌收口（scoped 会话：tablet 槽强制 + 配对项目过滤）', () => {
+    it('saveScoreDraft：pairingScope 存在 → 即便伪报 device=desktop 也恒落 tablet 槽（桌面槽不被覆盖）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', roomCode: null });
+      const desktopSlot = { scores: { keep: { score: 9, reason: '桌面既有' } }, savedAt: 100 };
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        ...mockExpert,
+        reportConfirmed: false,
+        scoreDraft: { desktop: desktopSlot, tablet: { scores: {}, savedAt: 0 } },
+      });
+      prisma.bidExpert.update.mockResolvedValue({});
+      const draft = { scores: { 'sup:i': { score: 1, reason: '平板' } }, savedAt: 200 };
+
+      await service.saveScoreDraft('user-1', 'proj-1', draft, 'desktop', { projectId: 'proj-1' });
+
+      expect(prisma.bidExpert.update).toHaveBeenCalledTimes(1);
+      const data = prisma.bidExpert.update.mock.calls[0][0].data;
+      expect(data.scoreDraft.tablet).toEqual(draft);
+      expect(data.scoreDraft.desktop).toEqual(desktopSlot); // 桌面槽原样保留，scoped 客户端不可覆盖
+
+      // 对照：同一载荷、无 pairingScope（桌面全量会话）→ device=desktop 照旧落 desktop 槽
+      await service.saveScoreDraft('user-1', 'proj-1', draft, 'desktop');
+      const data2 = prisma.bidExpert.update.mock.calls[1][0].data;
+      expect(data2.scoreDraft.desktop).toEqual(draft);
+    });
+
+    it('listProjects：pairingScope 存在 → 仅返回配对项目（配对项目不在本人项目集 → 空）', async () => {
+      const rec = (id: string, proj: string, stage: string) => ({
+        id, expertName: '王建国', major: '水利工程', signedIn: true,
+        progress: 50, totalScore: 80, createdAt: new Date(),
+        project: { id: proj, stage, projectCode: `GC-${proj}`, name: `项目${proj}`, openTime: new Date(), suppliers: [], scoreItems: [], _count: { clarifications: 0 } },
+        scoreRecords: [],
+      });
+      prisma.bidExpert.findMany.mockResolvedValue([rec('exp-2', 'proj-2', 'EVALUATING'), rec('exp-1', 'proj-1', 'OPENING')]);
+
+      const result = await service.listProjects('user-1', { projectId: 'proj-2' });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].project.id).toBe('proj-2');
+      // 配对项目不在本人项目集（异常态）→ 空，不回退全量
+      const none = await service.listProjects('user-1', { projectId: 'proj-x' });
+      expect(none).toHaveLength(0);
+    });
+  });
+
   describe('confirmAvoidance（2026-09-18 用户裁定：只认专家手动申报，系统不自动合并冲突）', () => {
     it('显式传入（含空数组）→ 以传入值整体替换（可清空既有申报）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });

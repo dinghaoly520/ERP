@@ -143,8 +143,9 @@ export class ExpertController {
 
   /* 项目列表 */
   @Get('projects')
-  listProjects(@CurrentUser('sub') userId: string) {
-    return this.expertService.listProjects(userId);
+  listProjects(@CurrentUser('sub') userId: string, @Req() req?: any) {
+    // TAB-SYNC-01：scoped（平板配对）会话的项目宇宙收口——service 过滤为仅配对项目
+    return this.expertService.listProjects(userId, req?.pairingScope);
   }
 
   /* 评审邀请确认（通知链接落地页用，专家操作本人邀请） */
@@ -603,9 +604,12 @@ export class ExpertController {
     @Param('projectId') projectId: string,
     @Body() draft: Record<string, unknown>,
     @Query('device') device?: string,
+    @Req() req?: any,
   ) {
-    const d = (device === 'tablet' || device === 'desktop') ? device : 'desktop';
-    const result = await this.expertService.saveScoreDraft(userId, projectId, draft, d);
+    // TAB-SYNC-01：平板配对受限令牌恒写 tablet 槽（service 层同款强制为纵深防御）
+    const pairingScope: { projectId: string } | undefined = req?.pairingScope;
+    const d = pairingScope ? 'tablet' : ((device === 'tablet' || device === 'desktop') ? device : 'desktop');
+    const result = await this.expertService.saveScoreDraft(userId, projectId, draft, d, pairingScope);
     // WS 通知同项目其他专家端（自己的 device 不会收到——由客户端过滤）
     try {
       const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
@@ -619,9 +623,12 @@ export class ExpertController {
     @CurrentUser('sub') userId: string,
     @Param('projectId') projectId: string,
     @Query('device') device?: string,
+    @Req() req?: any,
   ) {
+    // TAB-SYNC-01：scoped 读同槽强制 tablet（读无害，与写同口径）；device 参数照旧透传，scope 下 service 再收口
+    const pairingScope: { projectId: string } | undefined = req?.pairingScope;
     const d = (device === 'tablet' || device === 'desktop') ? device : undefined;
-    return this.expertService.getScoreDraft(userId, projectId, d);
+    return this.expertService.getScoreDraft(userId, projectId, d, pairingScope);
   }
 
   @Get('projects/:projectId/score-history')
