@@ -175,6 +175,7 @@ describe('AnnouncementService — getParticipants 报价解密门控', () => {
       bidProject: { findUnique: jest.fn() },
       bidSupplier: { findMany: jest.fn() },
       supplierBidSubmission: { findMany: jest.fn() },
+      supplierBidIntent: { findMany: jest.fn().mockResolvedValue([]) },
       bidDocument: { findUnique: jest.fn().mockResolvedValue(null) },
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
       bidDocumentAccess: { findMany: jest.fn().mockResolvedValue([]) },
@@ -1403,6 +1404,7 @@ describe('AnnouncementService — getProjectParticipants 轮界收口（2026-10-
       bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'p-r2', projectCode: 'SWHI-XX-R2', stage: 'DOWNLOAD', deadline: new Date() }) },
       bidSupplier: { findMany: jest.fn().mockResolvedValue([]) },
       supplierBidSubmission: { findMany: jest.fn().mockResolvedValue([]) },
+      supplierBidIntent: { findMany: jest.fn().mockResolvedValue([]) },
       bidDocument: { findUnique: jest.fn().mockResolvedValue(null) },
       bidDocumentAccess: { findMany: jest.fn().mockResolvedValue([]) },
       $transaction: jest.fn(async (cb: any) => cb(svcPrisma)),
@@ -1904,5 +1906,78 @@ describe('AnnouncementService — 补遗项目闸 ADDENDUM_BID_STARTED（2026-11
     await expect(mk(null)).resolves.toBeUndefined();
     await expect(mk('OPENING', undefined as any)).rejects.toBeTruthy(); // code 缺省值仍拦
     await expect(mk('OPENING', '')).resolves.toBeUndefined(); // 空编码不查不拦
+  });
+});
+
+describe('AnnouncementService — getParticipants 合并意向集（2026-11-12 投标意向）', () => {
+  let service: AnnouncementService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      announcement: { findUnique: jest.fn() },
+      bidProject: { findUnique: jest.fn() },
+      procurementProject: { findUnique: jest.fn().mockResolvedValue(null) },
+      projectManagementItem: { findFirst: jest.fn().mockResolvedValue(null) },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([]) },
+      supplierBidSubmission: { findMany: jest.fn().mockResolvedValue([]) },
+      supplierBidIntent: { findMany: jest.fn().mockResolvedValue([]) },
+      bidDocument: { findUnique: jest.fn().mockResolvedValue(null) },
+      bidDocumentAccess: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AnnouncementService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: AnnouncementAiService, useValue: {} },
+        { provide: SunshinePushService, useValue: { onPublish: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(AnnouncementService);
+  });
+
+  it('意向-only 供应商补行且 stats.intentConfirmed 正确（2026-11-12）', async () => {
+    // 公告命中 bidProject；无下载/名册/投递，仅一条意向 → 补行展示
+    prisma.announcement.findUnique.mockResolvedValue({ type: 'BID_NOTICE', relatedProjectCode: 'C1' });
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'C1', stage: 'SUBMIT', deadline: new Date() });
+    prisma.supplierBidIntent.findMany.mockResolvedValue([
+      { supplierId: 's9', confirmedAt: new Date('2026-11-12T08:00:00Z'), supplier: { name: '意向供应商', tags: [] } },
+    ]);
+
+    const r = await service.getParticipants('ann1');
+    expect(r.suppliers).toHaveLength(1);
+    expect(r.suppliers[0]).toMatchObject({ supplierName: '意向供应商', intentConfirmedAt: expect.any(Date), submitted: false });
+    expect(r.stats.intentConfirmed).toBe(1);
+  });
+
+  it('既有行命中意向 → 原行补 intentConfirmedAt 不重复建行；无意向行保持 null', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({ type: 'BID_NOTICE', relatedProjectCode: 'C1' });
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'C1', stage: 'SUBMIT', deadline: new Date() });
+    prisma.bidSupplier.findMany.mockResolvedValue([
+      { supplierId: 'su1', supplierName: '名册供应商', lastDownloadAt: null, submitStatus: '未提交', supplier: { name: '名册供应商', tags: [] } },
+      { supplierId: 'su2', supplierName: '无名册意向', lastDownloadAt: null, submitStatus: '未提交', supplier: { name: '无名册意向', tags: [] } },
+    ]);
+    const confirmedAt = new Date('2026-11-12T06:30:00Z');
+    prisma.supplierBidIntent.findMany.mockResolvedValue([
+      { supplierId: 'su1', confirmedAt, supplier: { name: '名册供应商', tags: [] } },
+    ]);
+
+    const r = await service.getParticipants('ann1');
+    expect(r.suppliers).toHaveLength(2); // su1 命中原行、su2 无意向——均不因意向集增行
+    const su1 = r.suppliers.find((s: any) => s.supplierName === '名册供应商')!
+    const su2 = r.suppliers.find((s: any) => s.supplierName === '无名册意向')!
+    expect(su1.intentConfirmedAt).toEqual(confirmedAt);
+    expect(su2.intentConfirmedAt).toBeNull();
+    expect(r.stats.intentConfirmed).toBe(1);
+    expect(r.stats.total).toBe(2);
+  });
+
+  it('无关联项目 → 不查意向、stats.intentConfirmed 为 0', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({ type: 'BID_NOTICE', relatedProjectCode: 'NOPE' });
+    prisma.bidProject.findUnique.mockResolvedValue(null);
+
+    const r = await service.getParticipants('ann1');
+    expect(prisma.supplierBidIntent.findMany).not.toHaveBeenCalled();
+    expect(r.stats.intentConfirmed).toBe(0);
   });
 });

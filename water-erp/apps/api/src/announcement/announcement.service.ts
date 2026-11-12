@@ -1696,6 +1696,7 @@ export class AnnouncementService {
       submitted: boolean;
       withdrawn: boolean;
       submittedAt: Date | null;
+      intentConfirmedAt: Date | null;
     };
 
     // 1. 解析关联项目（三级回退）
@@ -1771,9 +1772,10 @@ export class AnnouncementService {
 
     let bidSuppliers: { supplierId: string | null; supplierName: string; lastDownloadAt: Date | null; submitStatus: string; supplier: { name: string; tags: string[] } | null }[] = [];
     let submissions: { supplierId: string; status: string; submittedAt: Date | null }[] = [];
+    let intents: { supplierId: string; confirmedAt: Date; supplier: { name: string; tags: string[] } }[] = [];
 
     if (projectId) {
-      [bidSuppliers, submissions] = await Promise.all([
+      [bidSuppliers, submissions, intents] = await Promise.all([
         this.prisma.bidSupplier.findMany({
           where: { projectId },
           include: { supplier: { select: { name: true, tags: true } } },
@@ -1783,10 +1785,14 @@ export class AnnouncementService {
           where: { projectId },
           select: { supplierId: true, status: true, submittedAt: true },
         }),
+        this.prisma.supplierBidIntent.findMany({
+          where: { projectId },
+          include: { supplier: { select: { name: true, tags: true } } },
+        }),
       ]);
     }
 
-    // 3. 合并去重：下载者 ∪ 项目供应商
+    // 3. 合并去重：下载者 ∪ 项目供应商 ∪ 意向集
     const subMap = new Map(submissions.map(s => [s.supplierId, s]));
     const rowMap = new Map<string, SupplierRow>();
 
@@ -1802,6 +1808,7 @@ export class AnnouncementService {
         submitted: sub?.status === 'submitted' || (bs?.submitStatus === '已提交') || false,
         withdrawn: sub?.status === 'withdrawn' || false,
         submittedAt: sub?.submittedAt ?? null,
+        intentConfirmedAt: null,
       });
     }
 
@@ -1821,6 +1828,27 @@ export class AnnouncementService {
         submitted: sub?.status === 'submitted' || (!sub && bs.submitStatus === '已提交') || false,
         withdrawn: sub?.status === 'withdrawn' || false,
         submittedAt: sub?.submittedAt ?? null,
+        intentConfirmedAt: null,
+      });
+    }
+
+    // 意向集（2026-11-12）：命中既有行补时间戳；意向-only 供应商（未下载/未入名册）补行展示
+    for (const it of intents) {
+      const row = rowMap.get(it.supplierId);
+      if (row) {
+        row.intentConfirmedAt = it.confirmedAt;
+        continue;
+      }
+      const sub = subMap.get(it.supplierId);
+      rowMap.set(it.supplierId, {
+        supplierName: it.supplier.name,
+        tags: it.supplier.tags ?? [],
+        lastDownloadAt: null,
+        downloadCount: 0,
+        submitted: sub?.status === 'submitted' || false,
+        withdrawn: sub?.status === 'withdrawn' || false,
+        submittedAt: sub?.submittedAt ?? null,
+        intentConfirmedAt: it.confirmedAt,
       });
     }
 
@@ -1837,7 +1865,7 @@ export class AnnouncementService {
     return {
       project: displayProject,
       suppliers: rows,
-      stats: { total: rows.length, submitted: rows.filter(r => r.submitted).length },
+      stats: { total: rows.length, submitted: rows.filter(r => r.submitted).length, intentConfirmed: rows.filter(r => r.intentConfirmedAt).length },
       hasBidDocument: !!bidDoc,
     };
   }
