@@ -712,6 +712,11 @@ export function AnnouncementDialog({
     const wanted = (key: string) =>
       fields.some((f) => f.key === key) && !rec[key]?.trim() && !patch[key]?.trim();
 
+    // 开标地点（2026-11-12 用户裁定改输入）：公司维护值（公司信息管理·开标地点）预填，
+    // 未维护留空由用户手填——导出/预览不再锁死模板默认串
+    if (wanted('openingLocation') && companyInfo.bidOpeningAddress) {
+      patch.openingLocation = companyInfo.bidOpeningAddress;
+    }
     if (wanted('supervisionDepartment') && companyInfo.supervisionDept) {
       patch.supervisionDepartment = companyInfo.supervisionDept;
     }

@@ -343,7 +343,7 @@ function InvitedOrInternalBiddingAnnouncementPreview({
           <p>
             开标时间：{PV(formatDateToChinese(draft.bidOpeningTime), "{{开标时间}}", "bidOpeningTime")}。
           </p>
-          <p>开标地点：<OpeningPlace fallback="四川省成都市双流区红莲街三段383号四川省水利发展集团有限公司B座采购中心" /></p>
+          <p>开标地点：{PV(draft.openingLocation, "{{开标地点}}", "openingLocation")}</p>
         </div>
       </div>
 
@@ -477,7 +477,7 @@ function SingleSourceAnnouncementPreview({
           <p>
             采购时间：{PV(formatDateToChinese(draft.procurementTime), "{{采购时间}}", "procurementTime")}
           </p>
-          <p>采购地点：<OpeningPlace fallback="四川省成都市双流区红莲街三段383号四川省水利发展集团有限公司B座3楼采购中心" /></p>
+          <p>采购地点：{PV(draft.openingLocation, "{{采购地点}}", "openingLocation")}</p>
         </div>
       </div>
 

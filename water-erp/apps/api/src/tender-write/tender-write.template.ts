@@ -2395,6 +2395,9 @@ export type AnnouncementDraft = {
   announcementEnd?: string;
   announcementDays?: string;
   bidOpeningTime?: string;
+  /** 开标/采购地点（2026-11-12 用户裁定：公告改为可输入，与采购文件编写一致）；
+   *  空时回退 applyTenantTokens 公司维护值安全网（旧模板固定串口径） */
+  openingLocation?: string;
   contactName?: string;
   contactPhone?: string;
   contactEmail?: string;
@@ -2498,6 +2501,7 @@ export function buildInvitedBiddingAnnouncementPlan(
     { targetText: '公示期限1', ...buildReplacement('公示期限（起）', formatAnnouncementDateToChinese(answers.announcementStart || '')) },
     { targetText: '公示期限2', ...buildReplacement('公示期限（止）', formatAnnouncementDateToChinese(answers.announcementEnd || '')) },
     { targetText: '开标时间', ...buildReplacement('开标时间', formatBidOpeningTime(answers.bidOpeningTime, answers.bidOpeningTimeType)) },
+    { targetText: '开标地点', ...buildReplacement('开标地点', answers.openingLocation) },
     { targetText: '联系人', ...buildReplacement('联系人', answers.contactName) },
     { targetText: '联系电话', ...buildReplacement('联系电话', answers.contactPhone) },
     { targetText: '联系邮箱', ...buildReplacement('联系邮箱', answers.contactEmail) },
@@ -2527,6 +2531,7 @@ export function buildSingleSourceAnnouncementPlan(
     { targetText: '公示期限1', ...buildReplacement('公示期限（起）', formatAnnouncementDateToChinese(answers.announcementStart || '')) },
     { targetText: '公示期限2', ...buildReplacement('公示期限（止）', formatAnnouncementDateToChinese(answers.announcementEnd || '')) },
     { targetText: '公示期限3', ...buildReplacement('公示天数', answers.announcementDays) },
+    { targetText: '采购地点', ...buildReplacement('采购地点', answers.openingLocation) },
     { targetText: '采购时间', ...buildReplacement('采购时间', formatAnnouncementDateToChinese(answers.procurementTime || '')) },
     { targetText: '落款日期', ...buildReplacement('落款日期', formatAnnouncementDateToChinese(answers.signatureDate || '')) },
   ];
