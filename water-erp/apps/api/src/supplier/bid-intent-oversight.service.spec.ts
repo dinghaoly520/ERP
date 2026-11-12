@@ -135,4 +135,17 @@ describe('BidIntentOversightService（2026-11-12 履约闭环）', () => {
     await expect(service.sweepProject('p1')).resolves.toBeTruthy();
     expect(prisma.supplier.updateMany).not.toHaveBeenCalled();
   });
+
+  it('getParticipation KPI 聚合与 blacklist 视图', async () => {
+    prisma.supplierBidIntent.findMany.mockResolvedValue([{ supplierId: 's1', confirmedAt: new Date(), project: { id: 'p1', name: 'A', projectCode: 'BID-1', stage: 'ARCHIVED' } }]);
+    prisma.invitationRsvp.findMany.mockResolvedValue([{ projectId: 'p2', respondedAt: new Date() }]);
+    prisma.supplierBidSubmission.findMany.mockResolvedValue([{ projectId: 'p1', submittedAt: new Date() }]);
+    prisma.supplierBidNoShow.findMany.mockResolvedValue([{ legacy: true, detectedAt: new Date(), track: 'RSVP', project: { name: 'B', projectCode: 'BID-2', stage: 'ARCHIVED' } }]);
+    prisma.supplier.findUnique.mockResolvedValue({ status: 'BLACKLIST', disableReason: '测试' });
+    prisma.supplierPenalty.findMany.mockResolvedValue([{ penaltyDocNo: 'AUTO-1', authority: '采购中心', decisionDate: new Date(), penaltyContent: 'x' }]);
+    const r = await service.getParticipation('s1');
+    expect(r.kpi).toMatchObject({ intentTotal: 1, rsvpAcceptedTotal: 1, submittedTotal: 1, noShowTotal: 1, noShowActiveCount: 0 });
+    expect(r.intents[0].submitted).toBe(true);
+    expect(r.blacklist?.reason).toBe('测试');
+  });
 });

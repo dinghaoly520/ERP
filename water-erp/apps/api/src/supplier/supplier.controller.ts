@@ -28,6 +28,7 @@ import { NegotiationConfigDto } from './dto/negotiation-config.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupplierLinkService } from './supplier-link.service';
 import { ApproveLinkDto, RejectLinkDto } from './dto/company-link.dto';
+import { BidIntentOversightService } from './bid-intent-oversight.service';
 
 @ApiTags('供应商管理')
 @ApiCookieAuth('token')
@@ -37,6 +38,7 @@ export class SupplierController {
     private supplierService: SupplierService,
     private prisma: PrismaService,
     private linkService: SupplierLinkService,
+    private intentOversight: BidIntentOversightService,
   ) {}
 
   @Post('register')
@@ -150,6 +152,13 @@ export class SupplierController {
   @ApiOperation({ summary: '供应商审核历史（不可变留痕）' })
   async getApprovalHistory(@Param('id') id: string) {
     return this.supplierService.getApprovalHistory(id);
+  }
+
+  @Get(':id/participation')
+  @Roles('admin', 'leader', 'staff') // 参与情况（履约）：供应商库读口径，同 :id/approval-history
+  @ApiOperation({ summary: '供应商参与情况（履约闭环）：意向/回执/投递/未投递事故聚合（2026-11-12）' })
+  async getParticipation(@Param('id') id: string) {
+    return this.intentOversight.getParticipation(id);
   }
 
   @Get('register/status')
