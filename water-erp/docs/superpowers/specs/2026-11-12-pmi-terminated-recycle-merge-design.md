@@ -88,7 +88,7 @@ RECYCLED ──恢复──▶ 按戳推断原状态
 
 ### 4.5 新端点：删除留痕列表
 
-`GET /project-management/deletion-records`——继承控制器类级 `@Roles('leader','admin','staff')`（与列表同口径），公司隔离（`CompanyScopeService`）、按 `deletedAt` 倒序、分页（page/pageSize，默认 20）。实现注记：控制器无裸 `@Get(':id')`，静态路由不被吞；声明放在静态路由区（`project-attributions` 一带）以绝后患。仅此一个读端点，无任何写/删端点。
+`GET /project-management/deletion-records`——继承控制器类级 `@Roles('leader','admin','staff')`（与列表同口径），可见性与 `list()` 完全同构：staff=本人留痕（createdById）、leader=本公司、admin=全量+`?companyId=` 筛选（`CompanyScopeService`）。返回按 `deletedAt` 倒序**最近 200 条**（规划期修订：撤分页——彻底删除有 3 年保留期前置，表常年近空，200 上限+前端本地搜索足够；量大再上分页）。实现注记：控制器无裸 `@Get(':id')`，静态路由不被吞；声明放在静态路由区（`project-attributions` 一带）以绝后患。仅此一个读端点，无任何写/删端点。
 
 ## 5. 删除留痕模型 `ProjectDeletionRecord`
 
@@ -105,6 +105,7 @@ model ProjectDeletionRecord {
   budgetAmount      Decimal? @db.Decimal(14, 2)
   companyId         String?
   companyName       String?  // 写时快照
+  createdById       String?  // 原创建人（staff 可见性=本人留痕，对齐 list() 口径——规划期补）
   // 终止信息快照（曾终止过的项目才有——即被连带删除的台账 CANCELLED 轮次的幸存痕迹）
   terminatedAt      DateTime?
   terminationReason String?
