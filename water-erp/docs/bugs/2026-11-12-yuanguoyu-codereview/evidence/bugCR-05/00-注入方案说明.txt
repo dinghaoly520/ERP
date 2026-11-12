@@ -1,0 +1,14 @@
+CR-05 验收故障注入方案（浏览器层，不碰应用代码）：
+- 拦 window.fetch：POST /api/ai/tender-field-generate
+  · aiPrompt 含「叙述性文字表达」（文字版提示词独有标记）→ 恒 500
+  · fieldKey=quotationLetter（表格版）→ 200 + 合成 Tab 表（CR05潜水钻机/CR05高压泥浆泵两行）
+  · 其他字段 → 200 + 合成填充内容
+- 空草稿打开编写弹窗（TP-2026081802 谈判采购，Swhi-CGZX-01）→ 自动触发 AI 逐字段生成（:405 向导路径）
+
+结果：
+- 修复前（ac44415ea^）：表格版 200 成功，但文字版 500 → Promise.all 整体 reject 被吞
+  → 报价区零内容（tableVersionLanded=false）——票面净回归 1:1 复现（截图 00-）
+- 修复后（ac44415ea）：同注入 → 表格版落形，预览可见合成表内容（tableVersionLanded=true）
+  （截图 01-；恢复修复版复验 02-）
+
+验收数据清理：测试项目本地草稿键已删、服务器 round-1 草稿已 DELETE。
