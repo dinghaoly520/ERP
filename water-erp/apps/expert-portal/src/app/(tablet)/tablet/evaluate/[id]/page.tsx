@@ -1165,6 +1165,42 @@ export default function TabletEvaluatePage() {
                             )}
                             {hasPoints && (
                               <div>
+                                {/* #140b（2026-11-12）：checklist 型一键置全量双按钮——同无得分点款样式；
+                                    通过=客观点全勾@满分+主观点满分（显式 passed 覆盖全主观点边界）；
+                                    不通过=全清零+聚焦理由框 */}
+                                {!readOnly && (
+                                  <div className="mb-2.5 flex items-center gap-2.5">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setScores(prev => {
+                                          const cur = prev[k] ?? { score: 0, reason: '' };
+                                          const points: Record<string, PointDecisionValue> = {};
+                                          for (const p of pfPoints) points[p.id] = { checked: true, awardedScore: Number(p.fullScore) };
+                                          return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: true } };
+                                        })
+                                      }
+                                      className={`${verdict === true ? 'neu-btn-primary' : 'neu-btn-soft'} is-success !h-12 flex-1`}
+                                    >
+                                      通过
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setScores(prev => {
+                                          const cur = prev[k] ?? { score: 0, reason: '' };
+                                          const points: Record<string, PointDecisionValue> = {};
+                                          for (const p of pfPoints) points[p.id] = { checked: false, awardedScore: 0 };
+                                          return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: false } };
+                                        });
+                                        setTimeout(() => document.querySelector<HTMLTextAreaElement>(`[aria-label="${item.name} 不通过理由"]`)?.focus(), 0);
+                                      }}
+                                      className={`${verdict === false ? 'neu-btn-primary' : 'neu-btn-soft'} is-danger !h-12 flex-1`}
+                                    >
+                                      不通过
+                                    </button>
+                                  </div>
+                                )}
                                 <PointChecklistScoring
                                   points={pfPoints}
                                   value={pfValueMap}
@@ -1189,6 +1225,7 @@ export default function TabletEvaluatePage() {
                             {verdict === false && (
                               <textarea
                                 placeholder="不通过理由（必填）"
+                                aria-label={`${item.name} 不通过理由`}
                                 value={val?.reason || ''}
                                 onChange={e => {
                                   const v = e.target.value;

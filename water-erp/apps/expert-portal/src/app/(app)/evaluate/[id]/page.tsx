@@ -2316,6 +2316,36 @@ export default function ExpertEvaluatePage() {
                                     )}
                                     {hasPoints && (
                                       <div className="mb-3">
+                                        {/* #140b（2026-11-12）：checklist 型一键置全量双按钮——与无得分点款同款。
+                                            通过=客观点全勾@满分+主观点满分；不通过=全清零+聚焦理由框（aria-label 定位）。
+                                            显式写 passed：全主观点项的「全勾推导」恒 false，按钮语义须自持 */}
+                                        {!scoreLocked && canScoreActiveSupplier && (
+                                          <div className="mb-3 flex items-center gap-3">
+                                            <button type="button"
+                                              onClick={() => setScores(prev => {
+                                                const cur = prev[k] ?? { score: 0, reason: '' };
+                                                const points: Record<string, PointDecisionValue> = {};
+                                                for (const p of pfPoints) points[p.id] = { checked: true, awardedScore: Number(p.fullScore) };
+                                                return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: true } };
+                                              })}
+                                              className={`neu-btn-soft is-success ${verdict === true ? '!bg-[oklch(0.96_0.05_164/0.5)]' : ''}`}>
+                                              {verdict === true && <Check size={14} strokeWidth={2.5} />}通过
+                                            </button>
+                                            <button type="button"
+                                              onClick={() => {
+                                                setScores(prev => {
+                                                  const cur = prev[k] ?? { score: 0, reason: '' };
+                                                  const points: Record<string, PointDecisionValue> = {};
+                                                  for (const p of pfPoints) points[p.id] = { checked: false, awardedScore: 0 };
+                                                  return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: false } };
+                                                });
+                                                setTimeout(() => document.querySelector<HTMLTextAreaElement>(`[aria-label="${item.name} 不通过理由"]`)?.focus(), 0);
+                                              }}
+                                              className={`neu-btn-soft is-danger ${verdict === false ? '!bg-[oklch(0.96_0.05_27/0.5)]' : ''}`}>
+                                              {verdict === false && <X size={14} strokeWidth={2.5} />}不通过
+                                            </button>
+                                          </div>
+                                        )}
                                         <PointChecklistScoring
                                           points={pfPoints}
                                           value={pfValueMap}
