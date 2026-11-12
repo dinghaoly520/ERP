@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import Folder from "@/components/Folder";
 import { Modal } from "@/components/workbench";
+import { ScoreSnapshotSection } from "@/components/projects/bid-confirm/handover-preview";
 import { analyzeProjectStep } from "@/lib/api/project-management";
 import { apiFetch } from '@/lib/api/api-fetch';
 
@@ -63,6 +64,13 @@ type ArchiveDetailData = {
     }>;
   }>;
   summary: string;
+  /** #121②：评分段（关联投标项目有评标结果时下发；复用 ScoreSnapshotSection 渲染数值+通过性双形态） */
+  scoreDetail?: {
+    bidProject: { id: string; projectCode: string; name: string; stage: string; procurementMethod: string | null };
+    items: { id: string; name: string; category?: string; maxScore?: number; points: { id: string; name: string }[] }[];
+    records: { expertId: string; supplierId: string; scoreItemId: string; score: number; passed?: boolean | null }[];
+    results: { supplierId: string; supplierName: string; totalScore?: number; averageScore?: number; rank?: number; recommended?: boolean; disqualified?: boolean; bidPrice?: number | null }[];
+  } | null;
 };
 
 type FilePreviewModalProps = {
@@ -607,6 +615,31 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                       </p>
                     </div>
                   </motion.div>
+
+                  {/* #121②：评分明细卡（关联投标项目有评标结果时才下发；复用回流包查验的快照组件——数值+通过性双形态） */}
+                  {data.scoreDetail && (
+                    <motion.div
+                      {...fadeIn(2, reducedMotion)}
+                      className="wb-note p-5"
+                    >
+                      <div className="flex items-center gap-2 mb-4">
+                        <ClipboardList size={16} className="text-[var(--accent)]" />
+                        <h3 className="text-base font-semibold">评分明细</h3>
+                        <span className="text-xs text-[color:var(--muted-foreground)]">
+                          关联投标项目 {data.scoreDetail.bidProject.projectCode} · {data.scoreDetail.results.length} 家供应商
+                        </span>
+                      </div>
+                      <ScoreSnapshotSection
+                        pkg={{
+                          evaluationSnapshot: {
+                            scoreItemDefinitions: data.scoreDetail.items,
+                            scoreRecords: data.scoreDetail.records,
+                          },
+                          evaluationResults: data.scoreDetail.results,
+                        }}
+                      />
+                    </motion.div>
+                  )}
                 </div>
 
                 {/* Right Panel - 阶段材料 + 步骤分析（tab 切换） */}
