@@ -1138,7 +1138,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
             className="wb-modal-shell relative z-10 mx-5 my-5 flex flex-1 flex-col overflow-hidden"
           >
             {/* 头部对齐弹窗规范 A 版（2026-11-12 cgzxui）：纯白瓷壳上透明头部 + hairline 隔离线，图标井走类 */}
-            <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-4">
+            <div className="flex shrink-0 items-center justify-between gap-3 px-6 pt-6 pb-4">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-[color-mix(in_oklch,var(--accent-soft)_45%,transparent)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.65),2px_2px_4px_oklch(0.55_0.03_258_/_0.1)]">
                   <Search size={17} className="text-[var(--accent)]" />
