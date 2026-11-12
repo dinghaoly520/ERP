@@ -77,7 +77,7 @@ describe('ExpertService', () => {
       aiBidderResult: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidScoreDelta: { upsert: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       expertDispute: { findFirst: jest.fn(), create: jest.fn(), findMany: jest.fn() },
-      bidMotion: { findMany: jest.fn() },
+      bidMotion: { findMany: jest.fn(), findUnique: jest.fn(), create: jest.fn(), update: jest.fn().mockResolvedValue({}) },
       bidSignPacket: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}) },
       expertCert: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn().mockResolvedValue({}), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
@@ -99,6 +99,7 @@ describe('ExpertService', () => {
       notifyBidValidity: jest.fn(),
       notifyAnomaly: jest.fn(),
       notifyLeadReviewSuggested: jest.fn(),
+      notifyMotionCreated: jest.fn(),
       notifyClarificationCreated: jest.fn(),
     };
     signature = { verify: jest.fn(), isValidPublicKey: jest.fn() };
@@ -1395,6 +1396,87 @@ describe('ExpertService', () => {
         scores: [{ scoreItemId: 'si1', supplierId: 'sup1', passed: false, reason: '不符' }],
       } as any)).resolves.toBeTruthy();
       expect(prisma.bidInvalidBid.create).toHaveBeenCalled(); // 主流程（废标落库）不受推送失败影响
+    });
+
+    describe('createInvalidBidReviewMotion B3：组长发起废标复议动议', () => {
+      const leadExpert = {
+        id: 'exp-lead', userId: 'user-lead', projectId: 'p1', isLead: true, expertRole: '正选',
+        expertName: '组长', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true,
+        confidentialityAgreed: true, disciplineAgreed: true, reportConfirmed: false, conflictedSupplierIds: [],
+      };
+      const invalidBidRow = {
+        id: 'inv-1', projectId: 'p1', supplierId: 'sup1', scoreItemId: 'si1',
+        status: 'invalid', motionId: null as string | null, failCount: 2, totalCount: 3, source: 'passfail',
+        supplier: { supplierName: '甲' }, scoreItem: { name: '资格性审查', category: 'QUALIFICATION' },
+      };
+
+      function mockHappyPath() {
+        prisma.bidInvalidBid.findFirst.mockResolvedValue(invalidBidRow);
+        prisma.bidMotion.create.mockResolvedValue({ id: 'm-1', type: 'invalid_bid', status: 'voting', title: '废标复议表决：甲·资格性审查（不通过 2/3）' });
+      }
+
+      it('非组长 → 403 NOT_LEAD', async () => {
+        prisma.bidExpert.findFirst.mockResolvedValue({ ...leadExpert, isLead: false });
+        await expect(service.createInvalidBidReviewMotion('user-lead', 'p1', { invalidBidId: 'inv-1' }))
+          .rejects.toMatchObject({ response: { code: 'NOT_LEAD' } });
+      });
+
+      it('废标已恢复（revoked）→ 409 NOT_INVALID', async () => {
+        prisma.bidExpert.findFirst.mockResolvedValue(leadExpert);
+        prisma.bidInvalidBid.findFirst.mockResolvedValue({ ...invalidBidRow, status: 'revoked' });
+        await expect(service.createInvalidBidReviewMotion('user-lead', 'p1', { invalidBidId: 'inv-1' }))
+          .rejects.toMatchObject({ response: { code: 'NOT_INVALID' } });
+      });
+
+      it('关联动议 voting 中 → 409 RULING_ALREADY_OPEN（防并发双发）', async () => {
+        prisma.bidExpert.findFirst.mockResolvedValue(leadExpert);
+        prisma.bidInvalidBid.findFirst.mockResolvedValue({ ...invalidBidRow, motionId: 'm-0' });
+        prisma.bidMotion.findUnique.mockResolvedValue({ id: 'm-0', status: 'voting', result: null });
+        await expect(service.createInvalidBidReviewMotion('user-lead', 'p1', { invalidBidId: 'inv-1' }))
+          .rejects.toMatchObject({ response: { code: 'RULING_ALREADY_OPEN' } });
+      });
+
+      it('关联动议已裁定（closed+approved）→ 409 RULING_FINAL', async () => {
+        prisma.bidExpert.findFirst.mockResolvedValue(leadExpert);
+        prisma.bidInvalidBid.findFirst.mockResolvedValue({ ...invalidBidRow, motionId: 'm-0' });
+        prisma.bidMotion.findUnique.mockResolvedValue({ id: 'm-0', status: 'closed', result: 'approved' });
+        await expect(service.createInvalidBidReviewMotion('user-lead', 'p1', { invalidBidId: 'inv-1' }))
+          .rejects.toMatchObject({ response: { code: 'RULING_FINAL' } });
+      });
+
+      it('平票死锁（closed+tie_deadlock）→ 允许重发新动议', async () => {
+        prisma.bidExpert.findFirst.mockResolvedValue(leadExpert);
+        prisma.bidInvalidBid.findFirst.mockResolvedValue({ ...invalidBidRow, motionId: 'm-0' });
+        prisma.bidMotion.findUnique.mockResolvedValue({ id: 'm-0', status: 'closed', result: 'tie_deadlock' });
+        mockHappyPath();
+
+        await expect(service.createInvalidBidReviewMotion('user-lead', 'p1', { invalidBidId: 'inv-1' })).resolves.toBeTruthy();
+        expect(prisma.bidMotion.create).toHaveBeenCalled();
+      });
+
+      it('happy path：事务建动议+回写 motionId+监督日志+WS 广播', async () => {
+        prisma.bidExpert.findFirst.mockResolvedValue(leadExpert);
+        mockHappyPath();
+
+        await service.createInvalidBidReviewMotion('user-lead', 'p1', { invalidBidId: 'inv-1', description: '请各位复核资质条款' });
+
+        expect(prisma.bidMotion.create).toHaveBeenCalledWith(expect.objectContaining({
+          data: expect.objectContaining({
+            projectId: 'p1', type: 'invalid_bid', createdBy: 'exp-lead', status: 'voting',
+            title: '废标复议表决：甲·资格性审查（不通过 2/3）',
+            description: '请各位复核资质条款',
+          }),
+        }));
+        expect(prisma.bidInvalidBid.update).toHaveBeenCalledWith(expect.objectContaining({
+          where: { id: 'inv-1' }, data: { motionId: 'm-1' },
+        }));
+        expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
+          data: expect.objectContaining({ action: '发起废标复议表决', riskFlag: '高', role: '评审组长', target: '甲' }),
+        }));
+        expect(gateway.notifyMotionCreated).toHaveBeenCalledWith('p1', expect.objectContaining({
+          motionId: 'm-1', type: 'invalid_bid', title: '废标复议表决：甲·资格性审查（不通过 2/3）',
+        }));
+      });
     });
 
     it('P1-6（中断审查）：废标翻转 → 全体正选专家 progress 按可评集合重算（未评分废标家的专家不再卡 N-1/N）', async () => {

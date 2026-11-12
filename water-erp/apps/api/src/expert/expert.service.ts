@@ -2951,6 +2951,60 @@ export class ExpertService {
   // C1: 投票/合议/决议
 
   /** 发起表决(仅组长) */
+  /** B3（2026-11-12）：组长发起废标复议动议——事务建 type='invalid_bid' 动议并回写
+   *  BidInvalidBid.motionId（占位防并发双发：非空即锁，后到者按状态闸 409）。
+   *  平票死锁（closed+tie_deadlock）允许重发：motionId 改指新动议。 */
+  async createInvalidBidReviewMotion(userId: string, projectId: string, dto: { invalidBidId: string; description?: string }) {
+    await this.assertRoomUnlocked(projectId, userId);
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
+    if (!expert) throw new ForbiddenException({ error: '不是项目评审专家', code: 'NOT_PROJECT_EXPERT' });
+    if (!expert.isLead) throw new ForbiddenException({ error: '仅评审组长可发起废标复议表决', code: 'NOT_LEAD' });
+
+    const invalidBid = await this.prisma.bidInvalidBid.findFirst({
+      where: { id: dto.invalidBidId, projectId },
+      include: { supplier: { select: { supplierName: true } }, scoreItem: { select: { name: true, category: true } } },
+    });
+    if (!invalidBid) throw new BadRequestException({ error: '废标记录不存在或不属于当前项目', code: 'NOT_FOUND' });
+    if (invalidBid.status !== 'invalid') {
+      throw new ConflictException({ error: '该废标已恢复（revoked），无可复议事项', code: 'NOT_INVALID' });
+    }
+    if (invalidBid.motionId) {
+      const linked = await this.prisma.bidMotion.findUnique({ where: { id: invalidBid.motionId } });
+      if (linked?.status === 'voting') {
+        throw new ConflictException({ error: '该项复议表决已在进行中，不可重复发起', code: 'RULING_ALREADY_OPEN' });
+      }
+      if (linked?.status === 'closed' && linked.result !== 'tie_deadlock') {
+        throw new ConflictException({ error: '该项已经委员会裁定，评分投票已冻结，不可再次发起', code: 'RULING_FINAL' });
+      }
+      // closed+tie_deadlock → 平票死锁，允许重发（下方新动议接管 motionId）
+    }
+
+    const itemName = invalidBid.scoreItem?.name?.trim() || invalidBid.scoreItemId?.slice(-8) || '通过性审查';
+    const supplierName = invalidBid.supplier.supplierName;
+    const title = `废标复议表决：${supplierName}·${itemName}（不通过 ${invalidBid.failCount}/${invalidBid.totalCount}）`;
+    const customDesc = dto.description?.trim();
+    const description = customDesc || `通过性审查不通过票 ${invalidBid.failCount}/${invalidBid.totalCount}（严格过半），提交委员会复议裁定。`;
+
+    const motion = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.bidMotion.create({
+        data: { projectId, type: 'invalid_bid', title, description, createdBy: expert.id, status: 'voting' },
+      });
+      await tx.bidInvalidBid.update({ where: { id: invalidBid.id }, data: { motionId: created.id } });
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '评审组长', target: supplierName,
+          action: '发起废标复议表决',
+          result: `${itemName} 不通过 ${invalidBid.failCount}/${invalidBid.totalCount} 票${customDesc ? `——组长说明：${customDesc}` : '（票数过半自动触发）'}`,
+          riskFlag: '高',
+        },
+      });
+      return created;
+    });
+
+    this.gateway?.notifyMotionCreated?.(projectId, { projectId, motionId: motion.id, type: 'invalid_bid', title });
+    return motion;
+  }
+
   async createMotion(userId: string, projectId: string, dto: { type: string; title: string; description?: string }) {
     await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
