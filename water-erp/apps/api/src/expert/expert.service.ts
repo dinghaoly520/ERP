@@ -1616,12 +1616,14 @@ export class ExpertService {
     const scoreItemIds = dto.scores.map(s => s.scoreItemId);
     const scoreItems = await this.prisma.bidScoreItem.findMany({
       where: { id: { in: scoreItemIds }, projectId },
-      select: { id: true, maxScore: true, category: true },
+      select: { id: true, maxScore: true, category: true, name: true },
     });
     if (scoreItems.length !== new Set(scoreItemIds).size) {
       throw new BadRequestException({ error: '评分项不属于当前项目', code: 'SCORE_ITEM_NOT_IN_PROJECT' });
     }
-    const itemMeta = new Map(scoreItems.map(si => [si.id, { maxScore: Number(si.maxScore), category: si.category as string }]));
+    // #142（2026-11-12）：itemMeta 增携 name——用户可见文案（校验报错/偏差告警标题）一律用评分项名称，
+    // cuid 主键不再裸露（名称缺失才回退 cuid 尾 8 位）。
+    const itemMeta = new Map(scoreItems.map(si => [si.id, { maxScore: Number(si.maxScore), category: si.category as string, name: (si as { name?: string }).name }]));
 
     // 加固（2026-09-26）：价格分公式激活时拒收 PRICE 项——专家端 UI 对公式 PRICE 项只读无入口，
     // 此处封"绕过前端直写"的洞：残留记录本被聚合层跳过（aggregate-supplier-scores 公式产出时
@@ -1652,7 +1654,7 @@ export class ExpertService {
     // 批量查所有相关 item 的 points（判断 item 有无 points + decision 校验）
     const allPoints = await this.prisma.bidScorePoint.findMany({
       where: { scoreItemId: { in: scoreItemIds } },
-      select: { id: true, scoreItemId: true, objective: true, fullScore: true },
+      select: { id: true, scoreItemId: true, objective: true, fullScore: true, name: true },
     });
     const pointsByItem = new Map<string, typeof allPoints>();
     for (const p of allPoints) {
@@ -1670,7 +1672,7 @@ export class ExpertService {
         const decisions = item.pointDecisions ?? [];
         if (decisions.length === 0) {
           throw new BadRequestException({
-            error: `评分项 ${item.scoreItemId} 含得分点，必须提交得分点裁定`,
+            error: `评分项 ${meta.name ?? item.scoreItemId.slice(-8)} 含得分点，必须提交得分点裁定`,
             code: 'DECISIONS_REQUIRED',
           });
         }
@@ -1680,7 +1682,7 @@ export class ExpertService {
             throw new BadRequestException({ error: `得分点 ${d.pointId} 不属于该评分项`, code: 'POINT_NOT_IN_ITEM' });
           }
           if (Number(d.awardedScore) > Number(pm.fullScore)) {
-            throw new BadRequestException({ error: `得分点 ${d.pointId} 分数 ${d.awardedScore} 超过满分 ${pm.fullScore}`, code: 'POINT_SCORE_EXCEEDS_MAX' });
+            throw new BadRequestException({ error: `得分点 ${pm.name ?? d.pointId} 分数 ${d.awardedScore} 超过满分 ${pm.fullScore}`, code: 'POINT_SCORE_EXCEEDS_MAX' });
           }
         }
         // 由 decisions 算 score/passed
@@ -1699,7 +1701,7 @@ export class ExpertService {
           // 通过性项：必须有 passed，忽略 score
           if (typeof item.passed !== 'boolean') {
             throw new BadRequestException({
-              error: `通过性审查项 ${item.scoreItemId} 必须提供 passed（通过/不通过）`,
+              error: `通过性审查项 ${meta.name ?? item.scoreItemId.slice(-8)} 必须提供 passed（通过/不通过）`,
               code: 'PASS_FAIL_VERDICT_REQUIRED',
             });
           }
@@ -1708,13 +1710,13 @@ export class ExpertService {
           // 数值项：必须有 score 且 ≤ maxScore
           if (typeof item.score !== 'number') {
             throw new BadRequestException({
-              error: `评分项 ${item.scoreItemId} 必须提供 score`,
+              error: `评分项 ${meta.name ?? item.scoreItemId.slice(-8)} 必须提供 score`,
               code: 'SCORE_REQUIRED',
             });
           }
           if (item.score > meta.maxScore) {
             throw new BadRequestException({
-              error: `评分项 ${item.scoreItemId} 分数 ${item.score} 超过满分 ${meta.maxScore}`,
+              error: `评分项 ${meta.name ?? item.scoreItemId.slice(-8)} 分数 ${item.score} 超过满分 ${meta.maxScore}`,
               code: 'SCORE_EXCEEDS_MAX',
             });
           }
@@ -1977,16 +1979,24 @@ export class ExpertService {
             severity: alert.severity,
           });
 
-          // DANGER 级偏差自动创建异议工单（幂等：同 expert+item+supplier 的 open dispute 不重复）
+          // DANGER 级偏差自动创建异议工单（幂等：同 expert+item 的 open dispute 不重复）
           if (alert.severity === 'danger') {
             try {
+              // #142（2026-11-12）：标题用评分项名称（cuid 不再裸露——测试报告的「英文」即尾缀）；
+              // 幂等查重改双 token OR——名称（新格式）+ cuid 尾 8 位（存量格式标题），同时修复
+              // 旧查重用全串 contains 对尾 8 位标题永不命中、重复提交会重复建单的缺陷。
+              const itemTail = item.scoreItemId.slice(-8);
+              const itemLabel = meta.name ?? itemTail;
               const existing = await this.prisma.expertDispute.findFirst({
                 where: {
                   projectId,
                   expertId: expert.id,
                   type: 'scoring',
                   status: 'open',
-                  title: { contains: item.scoreItemId },
+                  OR: [
+                    { title: { contains: itemLabel } },
+                    { title: { contains: itemTail } },
+                  ],
                 },
               });
               if (!existing) {
@@ -1996,7 +2006,7 @@ export class ExpertService {
                     expertId: expert.id,
                     expertName: expert.expertName,
                     type: 'scoring',
-                    title: `评分偏差告警（评分项 ${item.scoreItemId.slice(-8)}）`,
+                    title: `评分偏差告警（评分项 ${itemLabel}）`,
                     content: alert.detail,
                     status: 'open',
                   },
