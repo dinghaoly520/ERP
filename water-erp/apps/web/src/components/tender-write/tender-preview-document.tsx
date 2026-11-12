@@ -183,8 +183,6 @@ function PreviewValue({
   inline?: boolean;
   fieldKey?: TenderFieldKey;
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
-  /** 项目编号：封面名称下方裸编号（透传自主组件） */
-  projectCode?: string;
 }) {
   const isEmpty = typeof value !== 'string' || !value.trim();
   const elementRef = useRef<HTMLSpanElement | null>(null);
@@ -467,7 +465,7 @@ function CompetitiveNegotiationPreview({
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
             {projectCode && (
-              <div className="mt-1.5 text-sm font-medium tabular-nums tracking-[0.02em] text-[color:var(--foreground)]">
+              <div className="mt-1.5 text-sm font-medium tabular-nums tracking-[0.02em] text-[color:var(--accent-strong)]">
                 {projectCode}
               </div>
             )}
@@ -800,7 +798,7 @@ function SingleSourcePreview({
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
             {projectCode && (
-              <div className="mt-1.5 text-sm font-medium tabular-nums tracking-[0.02em] text-[color:var(--foreground)]">
+              <div className="mt-1.5 text-sm font-medium tabular-nums tracking-[0.02em] text-[color:var(--accent-strong)]">
                 {projectCode}
               </div>
             )}
@@ -1166,7 +1164,7 @@ function InquiryPurchasePreview({
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
             {projectCode && (
-              <div className="mt-1.5 text-sm font-medium tabular-nums tracking-[0.02em] text-[color:var(--foreground)]">
+              <div className="mt-1.5 text-sm font-medium tabular-nums tracking-[0.02em] text-[color:var(--accent-strong)]">
                 {projectCode}
               </div>
             )}
@@ -1634,7 +1632,7 @@ function InternalBiddingPreview({
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
             {projectCode && (
-              <div className="mt-1.5 text-sm font-medium tabular-nums tracking-[0.02em] text-[color:var(--foreground)]">
+              <div className="mt-1.5 text-sm font-medium tabular-nums tracking-[0.02em] text-[color:var(--accent-strong)]">
                 {projectCode}
               </div>
             )}
