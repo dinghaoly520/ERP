@@ -1,9 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { ExpertAdminService } from '../expert/expert-admin.service';
 import { SupplierService } from '../supplier/supplier.service';
+import { BID_CONFIRM_TIMEOUT_AFTER_WINDOW_MS } from '@water-erp/shared';
 import { AnnouncementService } from '../announcement/announcement.service';
 import { parseScheduledPublishDate } from '../announcement/scheduled-publish.util';
 import { BidService } from '../bid/bid.service';
@@ -80,6 +81,34 @@ export class SchedulerService {
       this.logger.log(`幽灵待办消解 ${r.type}（${r.rule}）：${r.resolved} 条`);
     }
     if (results.length === 0) this.logger.log('幽灵待办对账：无需消解');
+  }
+
+  /** #61回归A（2026-11-12）：唱标确认超时自动闭环扫描——每 10 分钟。OPENING 项目中
+   *  解密窗口结束已超 BID_CONFIRM_TIMEOUT_AFTER_WINDOW_MS 的，把仍 PENDING 确认的参标家
+   *  置 EXCEPTION（视同放弃确认）并触发 autoHandoverIfDone——全静默场景（供应商失联+
+   *  主持人不在场）无需任何人操作即可固化开标移交。闭包本体在 BidService（惰性挂
+   *  getOpeningNotReady 三路），此处只做扫描驱动。 */
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  async scanConfirmTimeouts() {
+    const threshold = new Date(Date.now() - BID_CONFIRM_TIMEOUT_AFTER_WINDOW_MS);
+    const sessions = await this.prisma.bidOpeningSession.findMany({
+      where: { decryptWindowEnd: { lt: threshold } },
+      select: { projectId: true },
+    });
+    if (sessions.length === 0) return;
+    const projects = await this.prisma.bidProject.findMany({
+      where: { id: { in: sessions.map(s => s.projectId) }, stage: 'OPENING' },
+      select: { id: true },
+    });
+    for (const p of projects) {
+      try {
+        await this.bidService.autoCloseExpiredConfirmations(p.id);
+        await this.bidService.autoHandoverIfDone(p.id, '确认超时扫描');
+      } catch (err) {
+        this.logger.error(`确认超时扫描失败 ${p.id}`, err as Error);
+      }
+    }
+    if (projects.length > 0) this.logger.log(`确认超时扫描：处理 ${projects.length} 个 OPENING 项目`);
   }
 
   /** 专家 AI 综合评价全量刷新（2026-11-04）：每月 1 日 00:00。聚合档案与履职数据

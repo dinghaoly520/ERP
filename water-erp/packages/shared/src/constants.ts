@@ -165,6 +165,11 @@ export const BID_DEADLINE_BEFORE_OPENING_MS = 10 * 60_000; // 2026-10-16 正式�
  *  默认跟随截标↔开标间隔（2026-10-16 用户裁定）；独立成常量便于单独调整。 */
 export const BID_OPENING_IMMINENT_WARNING_MS = BID_DEADLINE_BEFORE_OPENING_MS;
 
+/** #61回归A（2026-11-12）：唱标确认超时缓冲——解密窗口结束后该时长仍未确认唱标的参标家，
+ *  自动置 confirmStatus='EXCEPTION'（视同放弃确认，开标完成度闸放行）+ 监督日志高风险留痕。
+ *  确认是轻操作（现场分钟级完成），2 小时充裕；调整须过产品裁定。 */
+export const BID_CONFIRM_TIMEOUT_AFTER_WINDOW_MS = 2 * 3_600_000;
+
 /** 毫秒时长中文标签：≥1 小时 → 「X 小时 Y 分」（Y 为 0 省略）；<1 小时 → 「N 分钟」；<1 分钟 → 「不足 1 分钟」。
  *  供固定口径标签（如「开标前 10 分钟」）与实时剩余时长（预警横幅倒计时）共用。 */
 export function formatDurationCn(ms: number): string {

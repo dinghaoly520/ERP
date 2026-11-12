@@ -63,6 +63,51 @@ describe('autoNudgePendingBidders — 截止 24h（P0-2 第六写点）', () => 
   });
 });
 
+describe('scanConfirmTimeouts — #61回归A 确认超时扫描（10min cron 薄壳）', () => {
+  const makeScheduler = () => {
+    const prisma: any = {
+      bidOpeningSession: { findMany: jest.fn() },
+      bidProject: { findMany: jest.fn() },
+    };
+    const bidService: any = {
+      autoCloseExpiredConfirmations: jest.fn().mockResolvedValue(undefined),
+      autoHandoverIfDone: jest.fn().mockResolvedValue(undefined),
+    };
+    const scheduler = new SchedulerService(prisma, {} as any, {} as any, {} as any, {} as any, bidService);
+    return { scheduler, prisma, bidService };
+  };
+
+  it('无过期会话 → 零调用', async () => {
+    const { scheduler, prisma, bidService } = makeScheduler();
+    prisma.bidOpeningSession.findMany.mockResolvedValue([]);
+    await scheduler.scanConfirmTimeouts();
+    expect(bidService.autoCloseExpiredConfirmations).not.toHaveBeenCalled();
+  });
+
+  it('过期会话+OPENING 项目 → 闭环后触发自动固化（全静默场景无需人工）', async () => {
+    const { scheduler, prisma, bidService } = makeScheduler();
+    prisma.bidOpeningSession.findMany.mockResolvedValue([{ projectId: 'p1' }]);
+    prisma.bidProject.findMany.mockResolvedValue([{ id: 'p1' }]);
+    await scheduler.scanConfirmTimeouts();
+    expect(bidService.autoCloseExpiredConfirmations).toHaveBeenCalledWith('p1');
+    expect(bidService.autoHandoverIfDone).toHaveBeenCalledWith('p1', '确认超时扫描');
+  });
+
+  it('会话过期但项目已非 OPENING → 过滤不触发；单项目异常不中断批次', async () => {
+    const { scheduler, prisma, bidService } = makeScheduler();
+    prisma.bidOpeningSession.findMany.mockResolvedValue([{ projectId: 'pX' }]);
+    prisma.bidProject.findMany.mockResolvedValue([]); // 全被 stage 过滤
+    await scheduler.scanConfirmTimeouts();
+    expect(bidService.autoCloseExpiredConfirmations).not.toHaveBeenCalled();
+
+    prisma.bidProject.findMany.mockResolvedValue([{ id: 'p1' }, { id: 'p2' }]);
+    bidService.autoCloseExpiredConfirmations.mockRejectedValueOnce(new Error('db hiccup'));
+    await scheduler.scanConfirmTimeouts(); // p1 抛错被吞，p2 照常
+    expect(bidService.autoHandoverIfDone).toHaveBeenCalledTimes(1);
+    expect(bidService.autoHandoverIfDone).toHaveBeenCalledWith('p2', '确认超时扫描');
+  });
+});
+
 describe('remindBondReturns — A-105 pending 口径（终审 Critical#2 共享谓词）', () => {
   const makeScheduler = () => {
     const prisma: any = {
