@@ -58,16 +58,6 @@ export function DeletionRecordList({ records, showHeader = true }: { records: Pr
               <div className="mt-0.5 text-xs text-[color:var(--muted-foreground)]">
                 {r.requesterDepartment} · {r.requesterName} · {r.procurementMethod}
               </div>
-              {/* 项目简报（2026-11-12 用户裁定）：完整展示不截断——与详情页同源快照 */}
-              {(() => {
-                const brief = briefOf(r);
-                return brief ? (
-                  <div className="mt-1 text-xs leading-5 text-[color:var(--muted-foreground)]">
-                    <span className="font-semibold text-[color:var(--foreground)]">项目简报：</span>
-                    {brief}
-                  </div>
-                ) : null;
-              })()}
             </div>
             <div className="text-xs tabular-nums text-[color:var(--muted-foreground)]">
               {terminateTimeOf(r) ? <div>终止时间：{fmtDate(terminateTimeOf(r))}</div> : null}
@@ -76,6 +66,16 @@ export function DeletionRecordList({ records, showHeader = true }: { records: Pr
             <div className="text-xs text-[color:var(--muted-foreground)] sm:text-right">
               操作人：{r.deletedByName}
             </div>
+            {/* 项目简报（2026-11-12 用户裁定）：占满整行完整展示——与详情页同源快照 */}
+            {(() => {
+              const brief = briefOf(r);
+              return brief ? (
+                <div className="col-span-full mt-1 text-xs leading-5 text-[color:var(--muted-foreground)]">
+                  <span className="font-semibold text-[color:var(--foreground)]">项目简报：</span>
+                  {brief}
+                </div>
+              ) : null;
+            })()}
           </div>
         ))}
       </div>
