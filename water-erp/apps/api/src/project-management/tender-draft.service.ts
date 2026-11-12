@@ -126,6 +126,15 @@ export class TenderDraftService {
     return { cleared: true };
   }
 
+  /** 删除该轮单条历史版本（id+项目+轮三重定位；目标不存在幂等返回 deleted:false）。 */
+  async deleteVersion(projectId: string, versionId: string, round?: number) {
+    const targetRound = await this.resolveRound(projectId, round);
+    const deleted = await this.prisma.projectTenderDraftVersion.deleteMany({
+      where: { id: versionId, projectId, round: targetRound },
+    });
+    return { deleted: deleted.count > 0 };
+  }
+
   /** round 缺省=PMI currentRound（存量调用不变）；项目不存在抛 404。 */
   private async resolveRound(projectId: string, round?: number) {
     if (round != null) {

@@ -51,6 +51,7 @@ import {
   fetchProjectTenderDraftVersions,
   addProjectTenderDraftVersion,
   clearProjectTenderDraftVersions,
+  deleteProjectTenderDraftVersion,
   type UploadStageAttachmentResult,
 } from '@/lib/api/project-management';
 import { SupplierSelectModal } from '@/components/tender-write/supplier-select-modal';
@@ -98,7 +99,7 @@ const TENDER_OPENING_KEY: Record<string, string> = {
 
 const asDraftPayload = (d: TenderDraftsState) => d as unknown as Record<string, unknown>;
 
-type DraftHistoryEntry = { timestamp: string; label: string; drafts: TenderDraftsState };
+type DraftHistoryEntry = { timestamp: string; label: string; drafts: TenderDraftsState; id?: string };
 
 function loadDraftHistory(projectId: string, round: number): DraftHistoryEntry[] {
   try {
@@ -680,10 +681,27 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     let entries: DraftHistoryEntry[] | null = null;
     try {
       const versions = await fetchProjectTenderDraftVersions(projectId, round);
-      entries = versions.map((v) => ({ timestamp: v.timestamp, label: v.label, drafts: v.drafts as TenderDraftsState }));
+      entries = versions.map((v) => ({ id: v.id, timestamp: v.timestamp, label: v.label, drafts: v.drafts as TenderDraftsState }));
     } catch { entries = null; }
     setHistoryEntries(entries ?? loadDraftHistory(projectId, round));
     setHistoryOpen(true);
+  }, [project?.id, round]);
+
+  // ── 删除单条历史版本（服务端幂等删除；离线本地兜底条目无 id 不出删除钮）──
+  const [deletingVersionId, setDeletingVersionId] = useState<string | null>(null);
+  const handleDeleteVersion = useCallback(async (versionId: string) => {
+    const projectId = project?.id;
+    if (!projectId) return;
+    setDeletingVersionId(versionId);
+    try {
+      await deleteProjectTenderDraftVersion(projectId, versionId, round);
+      setHistoryEntries((prev) => prev.filter((e) => e.id !== versionId));
+      toast.success('已删除该版本');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '删除版本失败');
+    } finally {
+      setDeletingVersionId(null);
+    }
   }, [project?.id, round]);
 
   // ── 一键清除 ──
@@ -1251,28 +1269,43 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
               <div className="text-sm text-[color:var(--muted-foreground)] text-center py-8">暂无历史版本，请点击「保存当前」创建第一个版本</div>
             ) : (
               <div className="mt-4 space-y-2 mb-4">
-                {historyEntries.map((entry, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => {
-                      setDrafts(entry.drafts);
-                      draftRestoredFromStorageRef.current = true;
-                      setShowWorkspace(true);
-                      setHistoryOpen(false);
-                      toast.success(`已恢复 ${entry.label} 版本`);
-                    }}
-                    className="w-full rounded-[12px] bg-[#f4f7fc] px-3.5 py-3 text-left shadow-[inset_0_1px_0_oklch(1_0_0_/_0.8),2px_2px_5px_oklch(0.55_0.03_258_/_0.12),-1px_-1px_3px_oklch(1_0_0_/_0.9)] transition-all duration-200 hover:-translate-y-px hover:shadow-[inset_0_1px_0_oklch(1_0_0_/_0.9),3px_3px_7px_oklch(0.55_0.03_258_/_0.16),-2px_-2px_5px_oklch(1_0_0_/_0.95)] hover:ring-1 hover:ring-[var(--accent)]/40 active:translate-y-0 active:shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258_/_0.15),inset_-1px_-1px_4px_oklch(1_0_0_/_0.7)]"
+                {historyEntries.map((entry) => (
+                  <div
+                    key={entry.id ?? entry.timestamp}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-[12px] bg-[#f4f7fc] px-3.5 py-3 shadow-[inset_0_1px_0_oklch(1_0_0_/_0.8),2px_2px_5px_oklch(0.55_0.03_258_/_0.12),-1px_-1px_3px_oklch(1_0_0_/_0.9)]"
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[13px] font-semibold text-[color:var(--foreground)]">{entry.label}</span>
-                      <span className="text-[10px] text-[color:var(--accent)]">点击恢复</span>
+                    <span className="text-[13px] font-semibold tabular-nums text-[color:var(--foreground)]">{entry.label}</span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDrafts(entry.drafts);
+                          draftRestoredFromStorageRef.current = true;
+                          setShowWorkspace(true);
+                          setHistoryOpen(false);
+                          toast.success(`已恢复 ${entry.label} 版本`);
+                        }}
+                        className="neu-btn-soft"
+                      >
+                        应用
+                      </button>
+                      {entry.id ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteVersion(entry.id as string)}
+                          disabled={deletingVersionId === entry.id}
+                          className="neu-btn-soft is-danger"
+                          title="删除此版本"
+                        >
+                          {deletingVersionId === entry.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                        </button>
+                      ) : null}
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             )}
-            <p className="text-[11px] text-[color:var(--muted-foreground)] mb-3">点击任意版本即可恢复草稿内容。草稿与历史版本已同步至服务器，同一账号在任何设备登录均保持一致。</p>
+            <p className="text-[11px] text-[color:var(--muted-foreground)] mb-3">点击「应用」即可恢复该条草稿内容。草稿与历史版本已同步至服务器，同一账号在任何设备登录均保持一致。</p>
             <div className="flex justify-end gap-2">
               {historyEntries.length > 0 && (
                 <button type="button" onClick={() => { const pid = project?.id; if (pid) { void clearProjectTenderDraftVersions(pid, round).catch(() => {}); saveDraftHistory(pid, round, []); setHistoryEntries([]); toast.success('已清空历史记录'); } }} className="neu-btn-xs is-danger">清空历史</button>

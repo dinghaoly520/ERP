@@ -383,6 +383,15 @@ export class ProjectManagementController {
     return this.tenderDraftService.clearVersions(id, round ? Number(round) : undefined);
   }
 
+  @Delete(':id/tender-draft/versions/:versionId')
+  deleteTenderDraftVersion(
+    @Param('id') id: string,
+    @Param('versionId') versionId: string,
+    @Query('round') round?: string,
+  ) {
+    return this.tenderDraftService.deleteVersion(id, versionId, round ? Number(round) : undefined);
+  }
+
   @Post(':id/refresh-summary')
   refreshProjectSummary(@Param('id') id: string) {
     return this.projectManagementService.refreshProjectAnalysis(id);
