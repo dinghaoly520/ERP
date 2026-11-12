@@ -253,6 +253,16 @@ describe('PlatformPushService.preview', () => {
     });
   });
 
+  it('CR-08 评审补漏：ITEM_NOT_READY 消息显键名（{key,label} 契约下 join 前取 key，防 [object Object] 直出 toast）', async () => {
+    const { svc } = makeSvc({ bidProject: { ...PROJECT, gbProcureCode: null } });
+    const err = await svc.preview({ itemIds: ['announcement:a1'] }).then(
+      () => null,
+      (e: any) => e,
+    );
+    expect(err?.getResponse?.().error).toContain('缺 gbProcureCode');
+    expect(err?.getResponse?.().error).not.toContain('[object');
+  });
+
   it('itemId 前缀不合法 → 400 INVALID_ITEM_ID', async () => {
     const { svc } = makeSvc();
     await expect(svc.preview({ itemIds: ['bogus:xyz'] })).rejects.toMatchObject({

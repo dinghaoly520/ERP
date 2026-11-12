@@ -579,7 +579,8 @@ export class PlatformPushService {
     const notReady = items.filter((i) => i.missing.length > 0);
     if (notReady.length) {
       throw new BadRequestException({
-        error: `映射不完整禁推：${notReady.map((i) => `${i.itemId} 缺 ${i.missing.join('/')}`).join('；')}`,
+        // CR-08 评审补漏：missing 已是 {key,label}[]——join 前取 key，否则 [object Object] 直出 toast
+        error: `映射不完整禁推：${notReady.map((i) => `${i.itemId} 缺 ${i.missing.map((m) => m.key).join('/')}`).join('；')}`,
         code: 'ITEM_NOT_READY',
         items: notReady.map((i) => ({ itemId: i.itemId, missing: i.missing })),
       });
