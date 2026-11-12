@@ -561,7 +561,7 @@ export function ProjectManagementPage() {
               if (!removingId) setCleanupTarget(null);
             }}
           />
-          <div className="relative w-full max-w-[460px] overflow-hidden wb-modal-shell">
+          <div className="relative w-full max-w-[600px] overflow-hidden wb-modal-shell">
             <div className="absolute inset-x-0 top-0 h-1.5 bg-[linear-gradient(90deg,rgba(209,88,88,0.95),rgba(234,191,106,0.72),rgba(121,162,239,0.35))]" />
             <div className="px-6 py-6">
               <div className="flex items-start gap-4">
@@ -591,7 +591,7 @@ export function ProjectManagementPage() {
               </div>
             </div>
             <div className="flex items-center justify-end gap-3 px-6 py-4" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
-              <button type="button" onClick={() => setCleanupTarget(null)} disabled={Boolean(removingId)} className="neu-btn-soft">
+              <button type="button" onClick={() => setCleanupTarget(null)} disabled={Boolean(removingId)} className="neu-btn-soft !h-9 !text-xs">
                 取消
               </button>
               <button
@@ -602,7 +602,7 @@ export function ProjectManagementPage() {
                   if (target) void handleRemoveProject(target.id);
                 }}
                 disabled={Boolean(removingId)}
-                className="neu-btn-primary is-danger"
+                className="neu-btn-soft is-danger !h-9 !text-xs"
               >
                 <Trash2 size={16} />
                 确认移除
