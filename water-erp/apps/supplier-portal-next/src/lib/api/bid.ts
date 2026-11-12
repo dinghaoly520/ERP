@@ -40,6 +40,9 @@ export const bidApi = {
   getMyOutcome(projectId: string) {
     return api.get<any>(`/supplier-portal/bid-projects/${projectId}/my-outcome`);
   },
+  /** 确认参与意向（2026-11-12）：公开项目投递前置；幂等、不可撤回 */
+  confirmIntent: (projectId: string) =>
+    api.post<{ confirmed: true; confirmedAt: string }>(`/supplier-portal/bid-projects/${projectId}/confirm-intent`),
   // 谈判采购文件（受邀项目，获取窗口内可下载）
   getNegotiationFiles(projectId: string) {
     return api.get<any>(`/supplier-portal/bid-projects/${projectId}/negotiation-files`);

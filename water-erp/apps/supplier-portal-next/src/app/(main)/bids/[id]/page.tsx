@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -19,6 +19,7 @@ import { authedFileAction, saveBlob } from "@/lib/authed-file";
 import { downloadNegotiationFilesGated, NegoPasswordDialog, type NegoFilesMeta } from "@/components/nego-download";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import { InvitationDocxPreview } from "@/components/invitation-docx-preview";
+import { BidIntentDialog } from "@/components/bid-intent-dialog";
 import { SpButton, SpInput, SpDialog, LoadingBlock } from "@/components/ui";
 import { HelpTip } from "@/components/help-tip";
 import { ServerClock } from "@/components/server-clock";
@@ -206,6 +207,13 @@ function BidDetailInner() {
   const canSubmit = !!project && isApproved
     && ["DOWNLOAD", "SUBMIT"].includes(project.stage)
     && new Date(project.deadline).getTime() > serverNowMs();
+  // ── 拟参与意向（2026-11-12 履约闭环）：未确认前不可投递 ──
+  const [intentOpen, setIntentOpen] = useState(false);
+  const [intentOverride, setIntentOverride] = useState<string | null>(null); // 确认后即时态（loadAll 会带 myIntentConfirmedAt，重载后自然对齐）
+  const intentThenSubmitRef = useRef(false);
+  const myIntentConfirmedAt = intentOverride ?? project?.myIntentConfirmedAt ?? null;
+  // 采购口径（2026-11-03）：招标不得泛指——仅方式名含「招标」用「招标」措辞（邀请招标本就无此按钮，实际命中=公开招标）
+  const intentLabel = `拟参与本次${(project?.procurementMethod || "").includes("招标") ? "招标" : "采购"}`;
   // B4-1（2026-09-30）：去掉 Math.max 兜底——ABORTED（-1）曾被吞成 0，进度条把「下载中」
   // 点亮为当前阶段，与同卡下方 stage-msg 的「本项目已流标」自相矛盾；流标时各步全灰更准确
   const stageIdx = STAGES.indexOf((project?.stage || "DOWNLOAD") as (typeof STAGES)[number]);
@@ -387,6 +395,12 @@ function BidDetailInner() {
       toast.warning("只有已入库供应商可以提交标书");
       return;
     }
+    // 履约闸引导（2026-11-12）：未确认意向先弹确认，确认后直跳投递页（后端 INTENT_REQUIRED 兜底）
+    if (project?.intentApplicable && !myIntentConfirmedAt) {
+      intentThenSubmitRef.current = true;
+      setIntentOpen(true);
+      return;
+    }
     // 投递页 = 旧版表单 UI + SCCA dual-v3 内核（2026-10-14 用户裁定：恢复旧前端设计、后端走 SCCA）
     router.push(`/bids/${projectId}/submit`);
   }
@@ -507,6 +521,16 @@ function BidDetailInner() {
                   )}
                 </span>
                 <div className="neu-btn-group">
+                  {project.intentApplicable && (project.intentConfirmable || myIntentConfirmedAt) && (
+                    <button
+                      type="button"
+                      className="neu-btn-soft"
+                      disabled={!!myIntentConfirmedAt}
+                      onClick={() => { intentThenSubmitRef.current = false; setIntentOpen(true); }}
+                    >
+                      {myIntentConfirmedAt ? "已确认参与" : intentLabel}
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="neu-btn-primary is-water"
@@ -1039,6 +1063,21 @@ function BidDetailInner() {
           <SpInput value={decryptPwd} maxLength={10} onChange={(e) => setDecryptPwd(e.target.value)} placeholder="请输入6位下载密码" />
         </div>
       </SpDialog>
+
+      {/* 拟参与确认弹窗（2026-11-12）：goToSubmit 拦截与操作条按钮共用 */}
+      <BidIntentDialog
+        open={intentOpen}
+        projectId={projectId}
+        projectName={project?.name}
+        onClose={() => { setIntentOpen(false); intentThenSubmitRef.current = false; }}
+        onConfirmed={(confirmedAt) => {
+          setIntentOverride(confirmedAt);
+          if (intentThenSubmitRef.current) {
+            intentThenSubmitRef.current = false;
+            router.push(`/bids/${projectId}/submit`);
+          }
+        }}
+      />
     </div>
   );
 }

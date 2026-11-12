@@ -15,6 +15,7 @@ import {
 } from "lucide-react";;;
 import { serverNowMs, STAGE_LABEL } from "@water-erp/shared";
 import { bidApi } from "@/lib/api/bid";
+import { BidIntentDialog } from "@/components/bid-intent-dialog";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { SpButton, SpPagination, EmptyState } from "@/components/ui";
 import { CountdownTimer } from "@/components/countdown-timer";
@@ -88,6 +89,8 @@ export default function BidListPage() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
   const [projects, setProjects] = useState<any[]>([]);
+  // 拟参与确认弹窗目标行（2026-11-12 履约闭环）：确认成功就地改行状态，不整页 reload
+  const [intentTarget, setIntentTarget] = useState<any | null>(null);
   const [blacklisted, setBlacklisted] = useState(false);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -333,6 +336,11 @@ export default function BidListPage() {
                       </strong>
                       <CountdownTimer deadline={p.deadline} />
                     </div>
+                    {p.intentApplicable && (p.myIntent ? (
+                      <button type="button" className="neu-btn-xs row-action" disabled>已确认参与</button>
+                    ) : p.intentConfirmable ? (
+                      <button type="button" className="neu-btn-xs row-action" onClick={() => setIntentTarget(p)}>拟参与</button>
+                    ) : null)}
                     <Link
                       href={`/bids/${encodeURIComponent(p.id)}?from=list`}
                       className="opportunity-detail-link neu-btn-xs row-action"
@@ -378,6 +386,21 @@ export default function BidListPage() {
       <NegoPasswordDialog open={!!negoPwdFor} busy={!!negoLoading}
         onClose={() => setNegoPwdFor(null)}
         onConfirm={doDownloadNegoWithPwd} />
+
+      {/* 拟参与确认弹窗（2026-11-12）：确认成功就地改行状态 */}
+      {intentTarget && (
+        <BidIntentDialog
+          open
+          projectId={intentTarget.id}
+          projectName={intentTarget.name}
+          onClose={() => setIntentTarget(null)}
+          onConfirmed={() =>
+            setProjects((prev) =>
+              prev.map((x) => (x.id === intentTarget.id ? { ...x, myIntent: true, intentConfirmable: false } : x)),
+            )
+          }
+        />
+      )}
     </div>
   );
 }

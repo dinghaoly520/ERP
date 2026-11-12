@@ -312,6 +312,12 @@ function BidSubmitInner() {
           router.push(`/bids/${projectId}`); // 草稿保存后的跳转保留原逻辑
           return;
         }
+        // 拟参与意向闸（2026-11-12）：未确认先回详情页确认（省得白输 PIN；后端投递闸 INTENT_REQUIRED 兜底）
+        if (p && p.intentApplicable && !p.myIntentConfirmedAt) {
+          toast.warning("请先确认参与意向，再投递标书");
+          router.push(`/bids/${projectId}`);
+          return;
+        }
         try {
           const sub: any = await supplierApi.getBidSubmission(projectId);
           if (cancelled) return;
@@ -588,6 +594,13 @@ function BidSubmitInner() {
       toast.success("标书提交成功！");
       router.push("/my-bids");
     } catch (err: any) {
+      // 意向未确认（2026-11-12）：后端 INTENT_REQUIRED → 回详情页先确认（详情页 goToSubmit 会弹确认弹窗）
+      const errCode = (err as any)?.code ?? ((err as any)?.data as Record<string, unknown> | undefined)?.code;
+      if (errCode === "INTENT_REQUIRED") {
+        toast.warning("请先确认参与意向，再投递标书");
+        router.push(`/bids/${projectId}`);
+        return;
+      }
       // 信封组装/盾操作等本地错误（无 status）给 message；API 错误由全局 toast
       if (cryptoCancelled) {
         toast.info(CRYPTO_CANCEL_MSG); // 留在表单页可重投（finally 已复位 submitting/PIN）
