@@ -92,7 +92,7 @@ export default function AdjudicateDialog({ open, supplierName, mode, submitting,
                 <p>重置后供应商可重新解密上传；解密窗口须开启，否则请先延长窗口。</p>
               )}
               {mode === 'unknown' && (
-                <p>裁决将写入监督日志与开标文件包，并按归因通知供应商。请审慎判定。</p>
+                <p>裁决将记入监督日志与开标文件包，并按责任归属通知供应商。请审慎判定。</p>
               )}
             </div>
           </div>

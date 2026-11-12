@@ -205,7 +205,7 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
         <div className="space-y-3">
           {loadError && (
             <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--danger)]/30 bg-[var(--danger)]/5 px-3.5 py-2.5 text-[11px] text-[var(--danger)]">
-              <span className="flex items-center gap-1.5"><AlertTriangle size={12} strokeWidth={1.7} /> 澄清台账拉取失败——下方内容可能非最新，且不代表「暂无记录」。</span>
+              <span className="flex items-center gap-1.5"><AlertTriangle size={12} strokeWidth={1.7} /> 澄清记录获取失败——下方内容可能不是最新，并不代表没有记录。</span>
               <button type="button" onClick={() => load()} className="neu-btn-xs !h-[24px] shrink-0">重试</button>
             </div>
           )}
@@ -478,7 +478,7 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
             <hr className="wb-section-rule mx-6" />
             <div className="space-y-3.5 px-6 py-5">
               <p className="text-[11px] leading-5 text-[var(--muted-foreground)]">
-                评标澄清的在线答复已由供应商经门户电子签名提交；此处仅登记供应商经书面/电话等线下途径作出的答复（降级留痕，无电子签名）。
+                评标澄清的在线答复已由供应商经门户电子签名提交；此处仅登记供应商经书面/电话等线下途径作出的答复（线下登记，无电子签名）。
               </p>
               <div>
                 <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">线下答复内容</label>

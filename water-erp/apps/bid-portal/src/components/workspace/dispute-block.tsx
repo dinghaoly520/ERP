@@ -122,7 +122,7 @@ export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }:
         ? `有效供应商仅 ${validSuppliers.length} 家（< ${minBidders}），不足法定家数，经评标委员会认定流标`
         : '经评标委员会认定流标（评标中现场裁量，须按法定程序公告）';
     const warn = resultsGenerated
-      ? `${reasonBase}；已生成的官方评标结果将作废并高风险留痕。确认执行？此操作不可逆。`
+      ? `${reasonBase}；已生成的官方评标结果将作废，并记入高风险监督日志。确认执行？此操作不可撤销。`
       : `${reasonBase}。确认执行流标？此操作不可逆。`;
     if (!(await confirm({ message: warn, danger: true }))) return;
     setBusyId('__abort__');
