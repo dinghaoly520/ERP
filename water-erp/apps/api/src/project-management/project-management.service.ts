@@ -6014,6 +6014,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         procurementMethod: true, budgetAmount: true, companyId: true, companyName: true,
         terminatedAt: true, terminationReason: true, terminatedStage: true,
         terminatedProcurementRoundId: true, terminatedById: true,
+        analysisSummary: true,
       },
     });
 
@@ -6121,6 +6122,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
           terminatedStage: project.terminatedStage,
           terminatedByName: nameOf(project.terminatedById),
           terminatedRoundNo: round?.roundNo ?? null,
+          // 终止时简报快照（2026-11-12 用户裁定：记录中展示）：TERMINATED 后 PMI 冻结，
+          // analysisSummary 不再变更——删除时取值即终止时值
+          analysisSummary: project.analysisSummary,
           recycledAt: project.recycledAt,
           deletedByName: nameOf(user?.sub) ?? user?.username ?? '未知',
         },

@@ -2763,6 +2763,7 @@ model ProjectDeletionRecord {
   terminatedStage     String?
   terminatedByName    String? // displayName 快照
   terminatedRoundNo   Int? // 被连带删除的台账轮次号
+  analysisSummary     String? // 终止时项目简报快照（PMI.analysisSummary——终止后冻结，删除时=终止时）
   recycledAt          DateTime?
   deletedAt           DateTime  @default(now())
   deletedByName       String // 操作人 displayName 快照

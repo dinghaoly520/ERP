@@ -183,6 +183,8 @@ export interface ProjectDeletionRecord {
   terminatedStage?: string | null;
   terminatedByName?: string | null;
   terminatedRoundNo?: number | null;
+  /** 终止时项目简报快照（存量未终止移除的行为 null） */
+  analysisSummary?: string | null;
   recycledAt?: string | null;
   deletedAt: string;
   deletedByName: string;

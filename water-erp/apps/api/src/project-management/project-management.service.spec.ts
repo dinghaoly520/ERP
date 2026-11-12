@@ -1593,6 +1593,7 @@ describe('ProjectManagementService', () => {
       terminatedAt: new Date('2026-10-01'), terminationReason: '需求取消',
       terminatedStage: '采购文件', terminatedProcurementRoundId: 'round-1',
       terminatedById: 'u-2',
+      analysisSummary: '项目推进至采购文件阶段，已完成需求确认。',
     };
 
     const makeReady = (prisma: Record<string, any>) => {
@@ -1624,6 +1625,7 @@ describe('ProjectManagementService', () => {
           terminationReason: '需求取消',
           terminatedByName: '王五',
           terminatedRoundNo: 2,
+          analysisSummary: '项目推进至采购文件阶段，已完成需求确认。',
           recycledAt: null,
           deletedByName: '张三',
         }),

@@ -38,6 +38,13 @@ export function DeletionRecordList({ records, showHeader = true }: { records: Pr
                 {r.requesterDepartment} · {r.requesterName} · {r.procurementMethod}
                 {r.terminatedRoundNo ? `（台账轮次 #${r.terminatedRoundNo} 已随删）` : ''}
               </div>
+              {/* 终止时简报（2026-11-12 用户裁定）：TERMINATED 后冻结、删除时快照；超两行截断，悬浮看全文 */}
+              {r.analysisSummary ? (
+                <div className="mt-1 line-clamp-2 text-xs leading-5 text-[color:var(--muted-foreground)]" title={r.analysisSummary}>
+                  <span className="font-semibold text-[color:var(--foreground)]">终止时简报：</span>
+                  {r.analysisSummary}
+                </div>
+              ) : null}
             </div>
             <div className="text-xs tabular-nums text-[color:var(--muted-foreground)]">
               {/* 时间列（2026-11-12 用户裁定）：终止时间 + 移除时间；未终止的存量迁移行不显示终止行 */}
