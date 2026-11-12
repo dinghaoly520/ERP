@@ -171,7 +171,7 @@ export function TenderHistoryDialog({
                           onApply(record);
                           toast.success(`已应用「${record.title}」草稿`);
                         }}
-                        className="neu-btn-soft"
+                        className="neu-btn-xs"
                       >
                         应用
                       </button>
@@ -179,13 +179,13 @@ export function TenderHistoryDialog({
                         type="button"
                         onClick={() => void handleDelete(record.id)}
                         disabled={deletingId === record.id}
-                        className="neu-btn-soft is-danger"
+                        className="neu-btn-xs is-danger"
                         title="删除此记录"
                       >
                         {deletingId === record.id ? (
-                          <Loader2 size={16} className="animate-spin" />
+                          <Loader2 size={14} className="animate-spin" />
                         ) : (
-                          <Trash2 size={16} />
+                          <Trash2 size={14} />
                         )}
                       </button>
                     </div>

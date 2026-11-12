@@ -1285,7 +1285,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                           setHistoryOpen(false);
                           toast.success(`已恢复 ${entry.label} 版本`);
                         }}
-                        className="neu-btn-soft"
+                        className="neu-btn-xs"
                       >
                         应用
                       </button>
@@ -1294,10 +1294,10 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                           type="button"
                           onClick={() => void handleDeleteVersion(entry.id as string)}
                           disabled={deletingVersionId === entry.id}
-                          className="neu-btn-soft is-danger"
+                          className="neu-btn-xs is-danger"
                           title="删除此版本"
                         >
-                          {deletingVersionId === entry.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                          {deletingVersionId === entry.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                         </button>
                       ) : null}
                     </div>
