@@ -134,7 +134,9 @@ describe('SupplierPortalService', () => {
       announcement: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       // PMI 桥接（resolveDisplayCode/listBidProjects 经 projectManagementItemId/projectCode 关联）
       projectManagementItem: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn().mockResolvedValue(null) },
-      bidDocument: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+      bidDocument: { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+      // 2026-11-12 意向确认（Task 2）：confirmBidIntent 闸门走 bidDocument.findFirst + supplierBidIntent.upsert
+      supplierBidIntent: { upsert: jest.fn(), findFirst: jest.fn(), count: jest.fn() },
     };
     // G3 兜底默认放行（投递时校验已发布招标公告）；个别用例可覆盖为 null 验证拦截
     prisma.announcement.findFirst.mockResolvedValue({ id: 'notice-1' });
@@ -2667,6 +2669,98 @@ describe('SupplierPortalService', () => {
   });
 
   // A-87 getTenderRequirements 端点已删（2026-09-29 SUP-P3-03 死代码清理），spec 段随删
+
+  describe('confirmBidIntent（2026-11-12 意向确认）', () => {
+    const baseProject = { id: 'p1', companyId: 'c1', stage: 'SUBMIT', deadline: new Date(Date.now() + 86400_000), isExtractionOnly: false };
+
+    function mockVisible() {
+      prisma.supplierCompanyLink.findMany.mockResolvedValue([{ companyId: 'c1' }]);
+      prisma.bidSupplier.findFirst.mockResolvedValue(null);
+      prisma.supplierBidSubmission.findFirst.mockResolvedValue(null);
+    }
+
+    it('公开项目+可见+窗口内：upsert 落库并返回确认时间', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue(baseProject);
+      prisma.bidDocument.findFirst.mockResolvedValue({ accessScope: 'OPEN' });
+      mockVisible();
+      prisma.supplier.findUnique.mockResolvedValue({ status: 'APPROVED' });
+      prisma.supplierBidIntent.upsert.mockResolvedValue({ confirmedAt: new Date('2026-11-12T02:00:00Z') });
+      const r = await service.confirmBidIntent('s1', 'p1');
+      expect(r.confirmed).toBe(true);
+      expect(prisma.supplierBidIntent.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        where: { projectId_supplierId: { projectId: 'p1', supplierId: 's1' } },
+        update: {},
+      }));
+    });
+
+    it('幂等：重复确认 update:{} 不刷新首次时间', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue(baseProject);
+      prisma.bidDocument.findFirst.mockResolvedValue({ accessScope: 'OPEN' });
+      mockVisible();
+      prisma.supplier.findUnique.mockResolvedValue({ status: 'APPROVED' });
+      const first = new Date('2026-11-11T01:00:00Z');
+      prisma.supplierBidIntent.upsert.mockResolvedValue({ confirmedAt: first });
+      const r = await service.confirmBidIntent('s1', 'p1');
+      expect(r.confirmedAt).toBe(first);
+    });
+
+    it('邀请制项目（INVITED）拒绝 INTENT_NOT_APPLICABLE', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue(baseProject);
+      prisma.bidDocument.findFirst.mockResolvedValue({ accessScope: 'INVITED' });
+      await expect(service.confirmBidIntent('s1', 'p1')).rejects.toMatchObject({
+        response: { code: 'INTENT_NOT_APPLICABLE' },
+      });
+    });
+
+    it('谈判项目（无 BidDocument）拒绝 INTENT_NOT_APPLICABLE', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue(baseProject);
+      prisma.bidDocument.findFirst.mockResolvedValue(null);
+      await expect(service.confirmBidIntent('s1', 'p1')).rejects.toMatchObject({
+        response: { code: 'INTENT_NOT_APPLICABLE' },
+      });
+    });
+
+    it('黑名单供应商 403 SUPPLIER_BLACKLISTED', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue(baseProject);
+      prisma.bidDocument.findFirst.mockResolvedValue({ accessScope: 'OPEN' });
+      mockVisible();
+      prisma.supplier.findUnique.mockResolvedValue({ status: 'BLACKLIST' });
+      await expect(service.confirmBidIntent('s1', 'p1')).rejects.toMatchObject({
+        response: { code: 'SUPPLIER_BLACKLISTED' },
+      });
+    });
+
+    it('阶段已过 SUBMIT 拒绝 INTENT_STAGE_CLOSED', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ ...baseProject, stage: 'OPENING' });
+      prisma.bidDocument.findFirst.mockResolvedValue({ accessScope: 'OPEN' });
+      mockVisible();
+      prisma.supplier.findUnique.mockResolvedValue({ status: 'APPROVED' });
+      await expect(service.confirmBidIntent('s1', 'p1')).rejects.toMatchObject({
+        response: { code: 'INTENT_STAGE_CLOSED' },
+      });
+    });
+
+    it('截标已过拒绝 INTENT_DEADLINE_PASSED', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ ...baseProject, deadline: new Date(Date.now() - 1000) });
+      prisma.bidDocument.findFirst.mockResolvedValue({ accessScope: 'OPEN' });
+      mockVisible();
+      prisma.supplier.findUnique.mockResolvedValue({ status: 'APPROVED' });
+      await expect(service.confirmBidIntent('s1', 'p1')).rejects.toMatchObject({
+        response: { code: 'INTENT_DEADLINE_PASSED' },
+      });
+    });
+
+    it('非可见供应商 403 COMPANY_SCOPE_FORBIDDEN', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue(baseProject);
+      prisma.bidDocument.findFirst.mockResolvedValue({ accessScope: 'OPEN' });
+      prisma.supplierCompanyLink.findMany.mockResolvedValue([]);
+      prisma.bidSupplier.findFirst.mockResolvedValue(null);
+      prisma.supplierBidSubmission.findFirst.mockResolvedValue(null);
+      await expect(service.confirmBidIntent('s1', 'p1')).rejects.toMatchObject({
+        response: { code: 'COMPANY_SCOPE_FORBIDDEN' },
+      });
+    });
+  });
 });
 
 describe('SupplierPortalService P1-7 — 澄清答疑仅本项目成员可见', () => {

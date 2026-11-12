@@ -440,6 +440,13 @@ export class SupplierPortalController {
     return this.portalService.getBidProject(id, await this.getSupplierId(req.user?.sub));
   }
 
+  // 确认参与意向（2026-11-12 履约闭环）：仅公开项目；单向不可撤回；幂等
+  @Post('bid-projects/:id/confirm-intent')
+  async confirmBidIntent(@Request() req: any, @Param('id') id: string) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.confirmBidIntent(supplierId, id);
+  }
+
   @Get('bid-projects/:id/overview')
   async getBidProjectOverview(@Request() req: any, @Param('id') id: string) {
     const supplierId = await this.getSupplierId(req.user.sub);

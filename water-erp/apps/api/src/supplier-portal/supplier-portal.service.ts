@@ -1967,6 +1967,57 @@ export class SupplierPortalService {
     return result;
   }
 
+  /** 项目是否适用「确认参与意向」（2026-11-12 履约闭环）：公开公告项目（BidDocument.accessScope=OPEN）。
+   *  邀请制（INVITED/DESIGNATED）与无 BidDocument 的谈判项目不适用——其承诺=邀请回执。
+   *  判定与 listBidProjects 富化 scopeMap 同源同口径（都查 BidDocument.accessScope），防两处漂移。 */
+  async isIntentApplicable(projectId: string): Promise<boolean> {
+    const doc = await this.prisma.bidDocument.findFirst({
+      where: { bidProjectId: projectId },
+      select: { accessScope: true },
+    });
+    return !!doc && doc.accessScope === 'OPEN';
+  }
+
+  /** 意向可确认窗口派生（列表/详情 intentConfirmable 与确认端点闸门同源） */
+  private computeIntentConfirmable(project: { stage: string; deadline: Date | null }, intentExists: boolean): boolean {
+    if (intentExists) return false;
+    if (!['DOWNLOAD', 'SUBMIT'].includes(project.stage)) return false;
+    if (project.deadline && project.deadline.getTime() < Date.now()) return false;
+    return true;
+  }
+
+  /** 确认参与意向（2026-11-12）：公开项目、单向不可撤回、幂等（重复确认保留首次时间）。 */
+  async confirmBidIntent(supplierId: string, projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { id: true, companyId: true, stage: true, deadline: true, isExtractionOnly: true },
+    });
+    if (!project || project.isExtractionOnly) {
+      throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
+    }
+    if (!(await this.isIntentApplicable(projectId))) {
+      throw new BadRequestException({ error: '该项目为邀请制采购，确认参加请回复采购邀请回执', code: 'INTENT_NOT_APPLICABLE' });
+    }
+    await this.assertProjectVisibleToSupplier(project, supplierId);
+    const self = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { status: true } });
+    if (self?.status === 'BLACKLIST') {
+      throw new ForbiddenException({ error: '贵单位已被列入黑名单，无法确认参与意向', code: 'SUPPLIER_BLACKLISTED' });
+    }
+    if (!['DOWNLOAD', 'SUBMIT'].includes(project.stage)) {
+      throw new ConflictException({ error: '项目已进入开标或后续阶段，无法确认参与意向', code: 'INTENT_STAGE_CLOSED' });
+    }
+    if (project.deadline && project.deadline.getTime() < Date.now()) {
+      throw new ConflictException({ error: '投标截止时间已过，无法确认参与意向', code: 'INTENT_DEADLINE_PASSED' });
+    }
+    const intent = await this.prisma.supplierBidIntent.upsert({
+      where: { projectId_supplierId: { projectId, supplierId } },
+      update: {}, // 幂等：重复确认不刷新 confirmedAt（单向承诺以首次为准）
+      create: { projectId, supplierId },
+      select: { confirmedAt: true },
+    });
+    return { confirmed: true, confirmedAt: intent.confirmedAt };
+  }
+
   /** 供应商项目可见性读闸（2026-10-21 边界闭环）：项目公司 ∈ APPROVED 归属 ∪ 受邀行 ∪ 本人投递。
    *  与 listBidProjects 列表隔离同口径——防拿到 id 的他司供应商直连读详情/概览/文件。 */
   private async assertProjectVisibleToSupplier(project: { id: string; companyId?: string | null }, supplierId: string) {
