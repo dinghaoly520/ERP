@@ -169,7 +169,7 @@ export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
       <SpDialog
         open={open}
         onClose={() => !busy && setOpen(false)}
-        title="SCCA CA 开标解密（双层信封内层）"
+        title="SCCA CA 开标解密（投标文件内层）"
         width={440}
         footer={
           <>

@@ -188,9 +188,9 @@ export default function ChatPage() {
           <Bot size={13} className="shrink-0 text-[var(--accent)]" />
           {isAdmin
             ? adminScopeCount > 0
-              ? `当前口径：已选 ${adminScopeCount} 家公司（数据库页可切换）`
-              : "当前口径：全部公司（数据库页可切换）"
-            : "当前口径：本公司数据"}
+              ? `当前范围：已选 ${adminScopeCount} 家公司（数据库页可切换）`
+              : "当前范围：全部公司（数据库页可切换）"
+            : "当前范围：本公司数据"}
         </span>
         <button type="button" onClick={openHistory} className="neu-btn-soft h-8 shrink-0 rounded-[9px] px-2.5 text-[13px] active:scale-95">
           <History size={12} /> 历史

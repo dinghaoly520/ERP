@@ -613,7 +613,7 @@ export default function DashboardPage() {
               <div>
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <span className="min-w-0 flex-1 text-[14px] text-[var(--muted-foreground)]">
-                    {aiResult ? "以下为当前口径的分析结果" : "基于当前筛选数据生成综合研判"}
+                    {aiResult ? "以下为当前筛选范围的分析结果" : "基于当前筛选数据生成综合研判"}
                   </span>
                   <button
                     type="button"
