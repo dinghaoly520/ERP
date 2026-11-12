@@ -20,11 +20,16 @@
 /** 法定招标方式（显法定名「招标文件」的完备白名单——新增法定方式须修法后再改这里） */
 export const LEGAL_TENDER_METHODS = ['公开招标', '邀请招标'] as const;
 
-/** 已知非招标方式（含历史/变体拼写）——统一「采购文件」。未收录≠招标：未知值走 canon 默认 */
-export const NON_TENDER_METHODS = [
+/** 已知非招标方式（含历史/变体拼写）——统一「采购文件」。未收录≠招标：未知值走 canon 默认。
+ * 命名带 KNOWN_ 前缀防与 apps/api/src/bid/non-tender-deal.service.ts 的同名异词导出
+ * （api 版=竞争性谈判/询价/单一来源三词）混淆——两表用途不同，勿互抄。 */
+export const KNOWN_NON_TENDER_METHODS = [
   '谈判采购', '竞争性谈判',          // 谈判（method-filter util alias 对）
   '询比采购', '询比',
   '竞价采购', '竞价',
+  '询价',                              // bid/non-tender-deal.service BAD_METHOD 词
+  '竞争性磋商',                        // ai.service 词汇
+  '框架协议采购',                      // PMI KNOWN_METHODS 九词之一（archive-scope 注释：暂不映射走 fail-open）
   '直接采购', '直接委托', '续约',
   '单一来源', '单一来源采购',
   '直接委托续约采购', '直接签订合同',
