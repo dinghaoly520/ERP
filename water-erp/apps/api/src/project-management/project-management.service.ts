@@ -4280,7 +4280,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         const note = `项目终止联动流标（${formatNoteTimestamp(terminatedAt)}${terminatorLabel ? `，操作人 ${terminatorLabel}` : ''}，终止原因：${reason}）`;
         await tx.bidProject.update({
           where: { id: bp.id },
-          data: { stage: 'ABORTED', riskNote: note },
+          data: { stage: 'ABORTED', riskNote: note, abortedAt: terminatedAt },
         });
         await tx.bidSupervisionLog.create({
           data: {

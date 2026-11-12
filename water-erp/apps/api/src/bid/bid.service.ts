@@ -1527,7 +1527,7 @@ export class BidService {
       await lockAndReassertStage(tx, id, 'ABORTED');
       const result = await tx.bidProject.update({
         where: { id },
-        data: { stage: 'ABORTED', riskNote },
+        data: { stage: 'ABORTED', riskNote, abortedAt: new Date() },
         select: { id: true, stage: true },
       });
       await tx.bidSupervisionLog.create({
