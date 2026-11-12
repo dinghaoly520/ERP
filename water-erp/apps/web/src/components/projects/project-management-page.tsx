@@ -623,11 +623,7 @@ export function ProjectManagementPage() {
             <div className="absolute inset-x-0 top-0 h-1.5 bg-[linear-gradient(90deg,rgba(209,88,88,0.6),rgba(234,191,106,0.45),rgba(121,162,239,0.3))]" />
             <div className="flex items-start justify-between gap-4 px-6 py-5" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
               <div className="min-w-0">
-                <div className="inline-flex items-center gap-2 rounded-full bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-3 py-1 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--accent)]">
-                  <FileX2 size={14} />
-                  移除记录
-                </div>
-                <h3 className="mt-3 font-[family-name:var(--font-display)] text-[1.28rem] font-semibold tracking-[-0.05em] text-[color:var(--foreground)]">
+                <h3 className="font-[family-name:var(--font-display)] text-[1.28rem] font-semibold tracking-[-0.05em] text-[color:var(--foreground)]">
                   已移除的项目{deletionRecords.length > 0 ? `（${deletionRecords.length}）` : ''}
                 </h3>
               </div>
