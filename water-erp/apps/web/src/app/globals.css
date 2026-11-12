@@ -7975,3 +7975,5 @@ select.workbench-input {
   pointer-events: none;
   background: linear-gradient(180deg, color-mix(in oklch, var(--accent) 6%, transparent), transparent);
 }
+
+/* cache-bust 2026-11-12: force Tailwind rescan after cgzxui SKILL.md class-name fix */
