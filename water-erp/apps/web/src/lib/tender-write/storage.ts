@@ -1,9 +1,11 @@
 import type {
+  TableData,
   TenderDocumentType,
   TenderDraftRecord,
   TenderDraftsState,
 } from "@/lib/types/tender-write";
 import { createEmptyTenderDrafts } from "@/lib/tender-write/templates";
+import { parseQuotationTextToTable, tableHasDataRows } from "@/lib/tender-write/quotation-table-text";
 
 const SELECTED_TYPE_KEY = "tender-write:selected-type:v1";
 const DRAFTS_KEY = "tender-write:drafts:v1";
@@ -43,6 +45,29 @@ export function beginTenderWriteSession(sessionId: string) {
  */
 const STRUCTURED_DRAFT_FIELDS = new Set(['quotationLetterTable', 'scoringItems']);
 
+/**
+ * 报价表模式归一化（2026-11-12 用户裁定「优先默认使用表格」，所有草稿恢复路径统一收口）：
+ * - 字符串实为 Tab 表格行（旧批量通道写入的错形残留——文字模式下文字框暴露表格制式）
+ *   → 收敛表格模式；表格无数据行时用残留文本转表（表格内容归表格）
+ * - 未设模式 → 默认表格；真文字（无 Tab 的叙述性内容）保文字模式（内容保护，不吞存量）
+ * - 显式表格 / 文字+真段落 → 不扰动；幂等（归一化后的草稿再过一遍不变）
+ */
+function normalizeQuotationMode(out: Record<string, unknown>): void {
+  if (!('quotationLetter' in out) && !('quotationLetterTable' in out)) return;
+  const q = typeof out.quotationLetter === 'string' ? out.quotationLetter : '';
+  const type = out.quotationLetterType;
+  if (q.includes('\t')) {
+    out.quotationLetterType = 'table';
+    const tbl = out.quotationLetterTable as TableData | undefined;
+    if (!tbl || !tableHasDataRows(tbl)) {
+      const parsed = parseQuotationTextToTable(q);
+      if (parsed) out.quotationLetterTable = parsed;
+    }
+  } else if (type !== 'text' && type !== 'table') {
+    out.quotationLetterType = q.trim() ? 'text' : 'table';
+  }
+}
+
 export function sanitizeTenderDraft(
   draft: Record<string, unknown> | null | undefined,
 ): Record<string, unknown> {
@@ -62,6 +87,7 @@ export function sanitizeTenderDraft(
     }
     // 其余畸形值丢弃
   }
+  normalizeQuotationMode(out);
   return out;
 }
 

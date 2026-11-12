@@ -343,16 +343,14 @@ function buildReplacement(
  * Uses 仿宋 for Chinese characters as default (consistent with template)
  * Table width is set to auto-fit to window
  */
-/** 报价函模式解析（2026-09-09 拍板：优先表格）——显式选择按存值；
- * 未选择时：已有文字内容的老草稿保持文字（不吞存量），否则默认表格。 */
+/** 报价函模式解析（与前端预览 isQuotationTableMode 同口径）——显式选择按存值；
+ * 未设置一律默认表格（2026-11-12 用户裁定「优先默认使用表格」；存量真文字草稿
+ * 已在前端恢复时经 sanitize 归一化补齐显式模式，服务器草稿均有显式存值）。 */
 function resolveQuotationMode(answers: {
   quotationLetterType?: string;
   quotationLetter?: string;
 }): 'text' | 'table' {
-  if (answers.quotationLetterType === 'table' || answers.quotationLetterType === 'text') {
-    return answers.quotationLetterType;
-  }
-  return answers.quotationLetter?.trim() ? 'text' : 'table';
+  return answers.quotationLetterType === 'text' ? 'text' : 'table';
 }
 
 /** 表格模式下无表数据时的兜底空表（与前端 createDefaultQuotationTable 同构）。 */

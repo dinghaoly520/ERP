@@ -123,12 +123,12 @@ function normalizeSubmissionRequirements(value: string): string {
 }
 
 
-/** 报价表模式（与后端 resolveQuotationMode 同口径，2026-09-09 拍板：优先表格）。
- * 显式选择按存值；未选择时无文字存量 → 表格模式（无表数据时展示默认空表）。 */
+/** 报价表模式（与后端 resolveQuotationMode 同口径）。显式选择按存值；
+ * 未设置一律默认表格（2026-11-12 用户裁定「优先默认使用表格」——存量真文字草稿
+ * 已在恢复时经 sanitize 归一化，此处为最后防线；无表数据时展示默认空表）。 */
 function isQuotationTableMode(draft: ReadyTenderDraft): boolean {
   const t = (draft as { quotationLetterType?: string }).quotationLetterType;
-  if (t === 'table' || t === 'text') return t === 'table';
-  return !(typeof draft.quotationLetter === 'string' && draft.quotationLetter.trim());
+  return t !== 'text';
 }
 
 function renderPreviewTable(tableData: TableData) {

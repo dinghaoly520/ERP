@@ -1130,10 +1130,10 @@ export function TenderSectionEditor({
             // Handle quotationType field (text/table selection)
             if (field.quotationType) {
               const typeKey = 'quotationLetterType' as TenderFieldKey;
-              // 报价表优先表格——显式选择按存值；未选择时
-              // 有文字存量（老草稿）保持文字，否则默认表格
+              // 报价表优先表格（2026-11-12 用户裁定「优先默认使用表格」）——显式选择按存值；
+              // 未设置一律默认表格（存量真文字草稿已在恢复时经 sanitize 归一化，此处为最后防线）
               const rawType = draft[typeKey as keyof ReadyTenderDraft] as string;
-              const typeValue = rawType === 'table' || rawType === 'text' ? rawType : (value.trim() ? 'text' : 'table');
+              const typeValue = rawType === 'text' ? 'text' : 'table';
               const isText = typeValue === 'text';
               const isTable = typeValue === 'table';
 

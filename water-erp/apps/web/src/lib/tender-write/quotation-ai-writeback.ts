@@ -1,30 +1,47 @@
 import type { TableData } from "../types/tender-write";
-import { parseQuotationTextToTable } from "../../components/tender-write/quotation-table-editor";
+import { parseQuotationTextToTable } from "./quotation-table-text";
+import { QUOTATION_TEXT_AI_PROMPT } from "./templates";
 
 /**
- * 报价表批量 AI 写回策略（2026-11-12 用户裁定：填入文字/设计表格两种模式的 AI 产物形态必须区分）。
- * 编辑器单字段 AI 已按模式分流（2026-11-04 裁定）；打开弹窗批量生成与「智能填入未填项」
- * 两个批量通道经本模块收敛到同口径——模式决定提示词（见 getAiGenerationFields）与写回形态。
+ * 报价表批量 AI 双版本生成策略（2026-11-12 用户裁定）：
+ * 「智能填入未填项」与打开弹窗批量生成时，报价表**表格版与文字版一起生成**——
+ * 表格版（模板字段 aiPrompt 的 Tab 制式提示词 → 转表）+ 文字版（叙述性提示词 → 段落），
+ * 一次到位；展示**默认先用表格**（quotationLetterType='table'），用户切「填入文字」
+ * 时段落已现成（无需再点一次 AI）。编辑器单字段 AI 仍按当前模式优化对应版本（2026-11-04 分流不变）。
  */
 
-/** 批量通道的报价表模式判定：显式存值优先，未设默认表格（报价表优先表格，2026-09-09 拍板；
- * 批量只对空字段发起生成，无需字符串存量回退分支）。 */
-export function resolveQuotationAiMode(typeValue: unknown): "text" | "table" {
-  return typeValue === "text" ? "text" : "table";
-}
+/** 文字版（叙述性段落）提示词——与编辑器单字段 AI 同一份常量，templates.ts 为唯一来源。 */
+export const QUOTATION_TEXT_VERSION_PROMPT = QUOTATION_TEXT_AI_PROMPT;
 
-export type QuotationWriteBack =
-  | { kind: "text"; text: string }
-  | { kind: "table"; table: TableData };
+/** 批量双版本生成结果 → 草稿写回计划。 */
+export type QuotationBatchWriteBack = {
+  /** 展示模式：表格版解析成功恒 table（默认先使用表格）；失败退 text（内容决定模式）。 */
+  quotationLetterType: "table" | "text";
+  /** 文字版段落（生成成功时写入 quotationLetter；失败时缺省）。 */
+  quotationLetter?: string;
+  /** 表格版数据（解析成功时写入 quotationLetterTable）。 */
+  quotationTable?: TableData;
+};
 
 /**
- * 生成结果按模式落形：
- * - 文字模式：原样落文字，不解析表格；
- * - 表格模式：Tab/分隔行解析落表格；解析失败回退文字形态（内容决定展示模式——
- *   避免把不可解析的文字灌进表格模式的字符串字段，切「填入文字」时暴露错形内容）。
+ * 两版生成产物落形：
+ * - 表格版可解析 → type='table' + 表格 +（文字版成功的）段落——默认展示表格、切文字模式段落现成；
+ * - 表格版解析失败 → type='text' + 段落（内容决定展示模式，不让空表占着默认位）。
  */
-export function planQuotationWriteBack(mode: "text" | "table", content: string): QuotationWriteBack {
-  if (mode === "text") return { kind: "text", text: content };
-  const table = parseQuotationTextToTable(content);
-  return table ? { kind: "table", table } : { kind: "text", text: content };
+export function planQuotationBatchWriteBack(
+  tableContent: string,
+  textContent: string,
+): QuotationBatchWriteBack {
+  const table = parseQuotationTextToTable(tableContent);
+  if (table) {
+    return {
+      quotationLetterType: "table",
+      ...(textContent.trim() ? { quotationLetter: textContent } : {}),
+      quotationTable: table,
+    };
+  }
+  return {
+    quotationLetterType: "text",
+    ...(textContent.trim() ? { quotationLetter: textContent } : {}),
+  };
 }

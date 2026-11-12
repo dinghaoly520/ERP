@@ -34,8 +34,8 @@ import {
   buildAiGenerationContext,
 } from '@/lib/tender-write/prefill-from-project';
 import {
-  resolveQuotationAiMode,
-  planQuotationWriteBack,
+  planQuotationBatchWriteBack,
+  QUOTATION_TEXT_VERSION_PROMPT,
 } from '@/lib/tender-write/quotation-ai-writeback';
 import { tableHasDataRows } from '@/lib/tender-write/quotation-table-text';
 import { TenderReviewProvider } from '@/components/tender-review/tender-review-provider';
@@ -372,24 +372,15 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       return;
     }
 
-    // 报价表模式分流（2026-11-12 用户裁定：填入文字/设计表格的 AI 产物形态必须区分）：
-    // 批量生成按草稿显式模式选提示词（文字=叙述性）与写回形态（文字=字符串、表格=转表），
-    // 与编辑器单字段 AI（2026-11-04 分流）同口径
-    const quotationMode = resolveQuotationAiMode(
-      (saved?.[typeKey] as { quotationLetterType?: string } | undefined)?.quotationLetterType,
-    );
-    const batchFields =
-      quotationMode === 'table' ? aiFields : getAiGenerationFields(type, { quotationMode });
-
     const context = buildAiGenerationContext(project);
     setAiGenerating(true);
     setAiDone(0);
-    setAiTotal(batchFields.length);
+    setAiTotal(aiFields.length);
 
     (async () => {
-      for (let i = 0; i < batchFields.length; i++) {
-        const f = batchFields[i];
-        setAiProgress(`${f.label}（${i + 1}/${batchFields.length}）`);
+      for (let i = 0; i < aiFields.length; i++) {
+        const f = aiFields[i];
+        setAiProgress(`${f.label}（${i + 1}/${aiFields.length}）`);
         setAiDone(i + 1);
 
         const current = String((draftsRef.current[typeKey] as Record<string, string>)?.[f.fieldKey] ?? '');
@@ -399,6 +390,43 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
         // AI 生成，结果回写无条件覆盖（projectName 被整段综述顶掉即此链）
         const prefillVal = String((prefill as Record<string, unknown>)?.[f.fieldKey] ?? '');
         if (prefillVal.trim()) continue;
+
+        // 报价表双版本齐生成（2026-11-12 用户裁定）：表格版（f.aiPrompt=表格制式提示词→转表）
+        // 与文字版（叙述性提示词→段落）并行一次到位，默认先使用表格展示——用户切「填入文字」
+        // 时段落已现成，无需再点一次 AI
+        if (f.fieldKey === 'quotationLetter') {
+          try {
+            const [tableRes, textRes] = await Promise.all([
+              generateFieldContent({ fieldKey: f.fieldKey, fieldLabel: f.label, currentValue: '', aiPrompt: f.aiPrompt, context }),
+              generateFieldContent({ fieldKey: f.fieldKey, fieldLabel: f.label, currentValue: '', aiPrompt: QUOTATION_TEXT_VERSION_PROMPT, context }),
+            ]);
+            const plan = planQuotationBatchWriteBack(
+              (tableRes.content ?? '').replace(/�/g, '').replace(/\?{2,}(?=\s|$|。|，|；)/g, '').replace(/\s+$/, ''),
+              (textRes.content ?? '').replace(/�/g, '').replace(/\?{2,}(?=\s|$|。|，|；)/g, '').replace(/\s+$/, ''),
+            );
+            setDrafts((prev) => {
+              const emptyFn = {
+                COMPETITIVE_NEGOTIATION: createEmptyCompetitiveNegotiationDraft,
+                SINGLE_SOURCE: createEmptySingleSourceDraft,
+                INQUIRY_PURCHASE: createEmptyInquiryPurchaseDraft,
+                INTERNAL_BIDDING: createEmptyInternalBiddingDraft,
+                INVITED_BIDDING: createEmptyInvitedBiddingDraft,
+              }[type];
+              const base = { ...(emptyFn?.() ?? {}), ...(prev[typeKey] ?? {}) };
+              return {
+                ...prev,
+                [typeKey]: {
+                  ...base,
+                  quotationLetterType: plan.quotationLetterType,
+                  ...(plan.quotationLetter !== undefined ? { quotationLetter: plan.quotationLetter } : {}),
+                  ...(plan.quotationTable !== undefined ? { quotationLetterTable: plan.quotationTable } : {}),
+                },
+              };
+            });
+          } catch { /* single field failure doesn't stop */ }
+          await new Promise((r) => setTimeout(r, 300));
+          continue;
+        }
 
         try {
           const result = await generateFieldContent({
@@ -414,8 +442,6 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
               .replace(/�/g, '')
               .replace(/\?{2,}(?=\s|$|。|，|；)/g, '')
               .replace(/\s+$/, '');
-            const isQuotationField = f.fieldKey === 'quotationLetter';
-            const writeBack = isQuotationField ? planQuotationWriteBack(quotationMode, cleaned) : null;
             setDrafts((prev) => {
               const emptyFn = {
                 COMPETITIVE_NEGOTIATION: createEmptyCompetitiveNegotiationDraft,
@@ -425,29 +451,6 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                 INVITED_BIDDING: createEmptyInvitedBiddingDraft,
               }[type];
               const base = { ...(emptyFn?.() ?? {}), ...(prev[typeKey] ?? {}) };
-              if (writeBack?.kind === 'table') {
-                // 表格制式落表格——不再把 Tab 文本写入 quotationLetter 字符串
-                // （旧写法会在切「填入文字」时把表格行暴露进文字框，2026-11-12 修复）
-                return {
-                  ...prev,
-                  [typeKey]: {
-                    ...base,
-                    quotationLetterType: 'table',
-                    quotationLetterTable: writeBack.table,
-                  },
-                };
-              }
-              if (writeBack?.kind === 'text') {
-                // 叙述性文字落字符串；表格模式解析失败的回退也落文字形态（内容决定展示模式）
-                return {
-                  ...prev,
-                  [typeKey]: {
-                    ...base,
-                    quotationLetterType: 'text',
-                    [f.fieldKey]: writeBack.text,
-                  },
-                };
-              }
               return { ...prev, [typeKey]: { ...base, [f.fieldKey]: cleaned } };
             });
           }
@@ -584,17 +587,13 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     if (!selectedType || !project) return;
     const type = selectedType as TenderDocumentType;
     const typeKey = selectedType as keyof TenderDraftsState;
-    // 报价表模式分流（2026-11-12 用户裁定）：按草稿显式模式选提示词与写回形态，
-    // 文字模式产出叙述性段落、表格模式转表——不再把 Tab 表格行灌进文字框
-    const currentDraft = draftsRef.current[typeKey] as Record<string, unknown> | undefined;
-    const quotationMode = resolveQuotationAiMode(currentDraft?.quotationLetterType);
-    const aiFields = getAiGenerationFields(type, { quotationMode });
+    const aiFields = getAiGenerationFields(type);
     const context = buildAiGenerationContext(project);
-    const currentDraftRef = currentDraft as Record<string, string>;
-    const quotationTable = (currentDraft as { quotationLetterTable?: TableData } | undefined)?.quotationLetterTable;
+    const currentDraftRef = draftsRef.current[typeKey] as Record<string, string>;
+    const quotationTable = (draftsRef.current[typeKey] as { quotationLetterTable?: TableData } | undefined)?.quotationLetterTable;
     const emptyFields = aiFields.filter((f) => {
       if (f.fieldKey === 'quotationLetter') {
-        // 字符串与表格数据行任一有内容即视为已填——表格模式表格有数据 ≠ 未填，
+        // 双版本任一有内容即视为已填（段落字符串或表格数据行）——
         // 否则会对已生成过报价表的草稿反复重生成
         if (String(currentDraftRef?.quotationLetter ?? '').trim()) return false;
         return !(quotationTable && tableHasDataRows(quotationTable));
@@ -609,26 +608,29 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     setBatchFilling(true);
     for (const f of emptyFields) {
       try {
-        const result = await generateFieldContent({
-          fieldKey: f.fieldKey as TenderFieldKey,
-          fieldLabel: f.label,
-          currentValue: '',
-          aiPrompt: f.aiPrompt,
-          context,
-        });
-        if (result.content) {
-          const cleaned = result.content.replace(/�/g, '').replace(/\?{2,}(?=\s|$|。|，|；)/g, '').replace(/\s+$/, '');
-          if (f.fieldKey === 'quotationLetter') {
-            const writeBack = planQuotationWriteBack(quotationMode, cleaned);
-            if (writeBack.kind === 'table') {
-              updateDraft('quotationLetterType', 'table');
-              updateDraftTable(writeBack.table);
-            } else {
-              // 叙述性文字落字符串（含表格模式解析失败回退）——模式随内容形态
-              updateDraft('quotationLetterType', 'text');
-              updateDraft(f.fieldKey as TenderFieldKey, writeBack.text);
-            }
-          } else {
+        // 报价表双版本齐生成（2026-11-12 用户裁定）：表格版+文字版一次到位，默认先使用表格
+        if (f.fieldKey === 'quotationLetter') {
+          const [tableRes, textRes] = await Promise.all([
+            generateFieldContent({ fieldKey: f.fieldKey, fieldLabel: f.label, currentValue: '', aiPrompt: f.aiPrompt, context }),
+            generateFieldContent({ fieldKey: f.fieldKey, fieldLabel: f.label, currentValue: '', aiPrompt: QUOTATION_TEXT_VERSION_PROMPT, context }),
+          ]);
+          const plan = planQuotationBatchWriteBack(
+            (tableRes.content ?? '').replace(/�/g, '').replace(/\?{2,}(?=\s|$|。|，|；)/g, '').replace(/\s+$/, ''),
+            (textRes.content ?? '').replace(/�/g, '').replace(/\?{2,}(?=\s|$|。|，|；)/g, '').replace(/\s+$/, ''),
+          );
+          updateDraft('quotationLetterType', plan.quotationLetterType);
+          if (plan.quotationLetter !== undefined) updateDraft(f.fieldKey as TenderFieldKey, plan.quotationLetter);
+          if (plan.quotationTable !== undefined) updateDraftTable(plan.quotationTable);
+        } else {
+          const result = await generateFieldContent({
+            fieldKey: f.fieldKey as TenderFieldKey,
+            fieldLabel: f.label,
+            currentValue: '',
+            aiPrompt: f.aiPrompt,
+            context,
+          });
+          if (result.content) {
+            const cleaned = result.content.replace(/�/g, '').replace(/\?{2,}(?=\s|$|。|，|；)/g, '').replace(/\s+$/, '');
             updateDraft(f.fieldKey as TenderFieldKey, cleaned);
           }
         }
