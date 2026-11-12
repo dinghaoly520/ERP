@@ -36,28 +36,43 @@ export function deriveOpeningSessionStatus(input: OpeningSessionStatusInput): Op
 
 /**
  * 开标步进条步序派生（#79，2026-11-12）——与 deriveOpeningSessionStatus 同源单一口径。
- * 步序口径（:3007 大厅 STAGES）：0=投递中 1=解密中 2=确认中 3=已完成。
- * 映射：无会话/待开标→0；开标中/已暂停→1；窗口已关闭→2；已结束→3。
+ * 步序口径（:3007 大厅 STAGES）：0=待开标 1=解密中 2=确认中 3=已完成/已流标。
+ *
+ * 两条派生纪律（区别于胶囊 deriveOpeningSessionStatus）：
+ * 1. **终局优先**：后端终局写点（completeOpening/startEvaluation 兜底/abortBidProject）均不清
+ *    pausedAt，若沿用胶囊「已暂停 > 已结束」优先级（那侧是文档化口径，本函数不动），
+ *    暂停未恢复即终局的会话步进条会回退脉动「解密中」、与移交/流标横幅矛盾——
+ *    步进条表达「过程是否走完」，handoverAt 或阶段离开开标即 3（2026-11-12 评审发现1）。
+ * 2. **暂停不挪步**：暂停冻结在所在步（待开标期暂停→0、窗口进行中暂停→1、窗口关闭后暂停→2），
+ *    「已暂停」的展示交状态胶囊；故非终局派生时不传 pausedAt（pauseOpening 无窗口已开闸，
+ *    待开标期也可暂停——传了会把 0 顶成 1，复现提前高亮）。
  *
  * 待开标落 0 而非 1（对 v2 原案的修正）：窗口未开供应商尚不能解密，高亮「解密中」
  * 属提前高亮——与旧 stageStep「会话组建即高亮确认中」同类病灶，票面投诉本体。
- * 旧实现按 stage+会话存在性判定（OPENING+session→确认中），与状态胶囊（本文件
- * 时刻判定）两套口径；本函数为唯一派生源，胶囊与步进条共用。
  */
 export function deriveOpeningStageStep(
   stage: string | null | undefined,
   session: Pick<OpeningSessionStatusInput, 'pausedAt' | 'handoverAt' | 'decryptWindowStart' | 'decryptWindowEnd'> | null | undefined,
   now?: number,
 ): 0 | 1 | 2 | 3 {
+  // 终局优先（压过 pausedAt——见函数头纪律 1）
+  if (session?.handoverAt) return 3;
+  if (stage && stage !== 'OPENING' && stage !== 'DOWNLOAD' && stage !== 'SUBMIT') return 3;
   if (!session) return 0;
-  switch (deriveOpeningSessionStatus({ stage, ...session, now })) {
-    case '已结束':
-      return 3;
+  // 非终局：窗口时刻定位（不传 pausedAt——见纪律 2）
+  switch (deriveOpeningSessionStatus({
+    stage,
+    pausedAt: undefined,
+    handoverAt: session.handoverAt,
+    decryptWindowStart: session.decryptWindowStart,
+    decryptWindowEnd: session.decryptWindowEnd,
+    now,
+  })) {
     case '窗口已关闭':
       return 2;
     case '待开标':
       return 0;
     default:
-      return 1; // 开标中 / 已暂停（暂停隐含窗口已开）
+      return 1; // 开标中（含窗口进行中暂停冻结在解密步）
   }
 }
