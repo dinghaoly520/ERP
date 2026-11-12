@@ -91,8 +91,9 @@ export class SchedulerService {
   @Cron(CronExpression.EVERY_10_MINUTES)
   async scanConfirmTimeouts() {
     const threshold = new Date(Date.now() - BID_CONFIRM_TIMEOUT_AFTER_WINDOW_MS);
+    // status 过滤（评审[低/高]）：开标完成但未启动评标的项目每轮重扫纯日志噪音——只扫进行中会话
     const sessions = await this.prisma.bidOpeningSession.findMany({
-      where: { decryptWindowEnd: { lt: threshold } },
+      where: { decryptWindowEnd: { lt: threshold }, status: '进行中' },
       select: { projectId: true },
     });
     if (sessions.length === 0) return;

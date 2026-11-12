@@ -2060,20 +2060,29 @@ export class BidService {
       if (pending.length === 0) return;
 
       const hours = Math.round(BID_CONFIRM_TIMEOUT_AFTER_WINDOW_MS / 3_600_000);
+      // CAS 状态守卫（评审[中/高]，同 attributePendingDualSuppliers 先例）：where 带 confirmStatus='PENDING'
+      // ——防窄窗口覆盖供应商迟来确认（CONFIRMED/DISPUTED 不动，证据件不自相矛盾）+双路径并发双写日志；
+      // count 门只把真正闭环的家计入日志名单（消虚报）
+      const closed: string[] = [];
       for (const s of pending) {
-        await this.prisma.bidSupplier.update({
-          where: { id: s.id },
+        const r = await this.prisma.bidSupplier.updateMany({
+          where: { id: s.id, confirmStatus: 'PENDING' },
           data: { confirmStatus: 'EXCEPTION' },
-        }).catch(err => this.logger.error(`确认超时闭环失败 ${s.supplierName}`, err as Error));
+        }).catch(err => {
+          this.logger.error(`确认超时闭环失败 ${s.supplierName}`, err as Error);
+          return { count: 0 };
+        });
+        if (r.count > 0) closed.push(s.supplierName);
       }
+      if (closed.length === 0) return; // 全被并发路径处理（供应商刚确认/已闭）→ 零写零日志
       await this.prisma.bidSupervisionLog.create({
         data: {
-          projectId, time: new Date(), role: '系统', target: pending.map(s => s.supplierName).join('、'),
+          projectId, time: new Date(), role: '系统', target: closed.join('、'),
           action: '唱标确认超时自动闭环', riskFlag: '高风险',
           result: `解密窗口结束已超 ${hours} 小时仍未确认唱标，视同放弃确认自动置异常（#61回归A）`,
         },
       }).catch(() => {});
-      this.logger.warn(`[confirm-timeout] ${projectId} 自动闭环 ${pending.length} 家未确认唱标`);
+      this.logger.warn(`[confirm-timeout] ${projectId} 自动闭环 ${closed.length} 家未确认唱标`);
     } catch (err) {
       this.logger.warn(`[confirm-timeout] ${projectId} 闭环检查异常（不阻塞调用流）: ${(err as Error).message}`);
     }

@@ -6511,7 +6511,7 @@ describe('BidService — autoCloseExpiredConfirmations（#61回归A）', () => {
     prisma = {
       bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'OPENING' }) },
       bidOpeningSession: { findUnique: jest.fn().mockResolvedValue({ decryptWindowEnd: ENDED_3H_AGO }) },
-      bidSupplier: { findMany: jest.fn(), update: jest.fn().mockResolvedValue({}) },
+      bidSupplier: { findMany: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       supplierBidSubmission: { findMany: jest.fn() },
       bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
     };
@@ -6536,14 +6536,14 @@ describe('BidService — autoCloseExpiredConfirmations（#61回归A）', () => {
     prisma.bidOpeningSession.findUnique.mockResolvedValue({ decryptWindowEnd: ENDED_30MIN_AGO });
     await service.autoCloseExpiredConfirmations('p1');
     expect(prisma.bidSupplier.findMany).not.toHaveBeenCalled();
-    expect(prisma.bidSupplier.update).not.toHaveBeenCalled();
+    expect(prisma.bidSupplier.updateMany).not.toHaveBeenCalled();
   });
 
   it('非 OPENING 项目 → 过期检查后止步（session 残留行防误闭，零写零日志）', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
     await service.autoCloseExpiredConfirmations('p1');
     expect(prisma.bidSupplier.findMany).not.toHaveBeenCalled();
-    expect(prisma.bidSupplier.update).not.toHaveBeenCalled();
+    expect(prisma.bidSupplier.updateMany).not.toHaveBeenCalled();
     expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
   });
 
@@ -6556,19 +6556,33 @@ describe('BidService — autoCloseExpiredConfirmations（#61回归A）', () => {
 
     await service.autoCloseExpiredConfirmations('p1');
 
-    expect(prisma.bidSupplier.update).toHaveBeenCalledTimes(1);
-    expect(prisma.bidSupplier.update).toHaveBeenCalledWith({ where: { id: 'bs1' }, data: { confirmStatus: 'EXCEPTION' } });
+    expect(prisma.bidSupplier.updateMany).toHaveBeenCalledTimes(1);
+    expect(prisma.bidSupplier.updateMany).toHaveBeenCalledWith({
+      where: { id: 'bs1', confirmStatus: 'PENDING' },  // CAS：状态守卫防覆盖迟来确认
+      data: { confirmStatus: 'EXCEPTION' },
+    });
     const log = prisma.bidSupervisionLog.create.mock.calls[0][0].data;
     expect(log.action).toBe('唱标确认超时自动闭环');
     expect(log.riskFlag).toBe('高风险');
-    expect(log.target).toBe('失联公司');
+    expect(log.target).toBe('失联公司');  // 只记真正闭环的家（未投递/被并发处理者不虚报）
+  });
+
+  it('CAS 抢占失败（供应商迟来刚确认，count=0）→ 不写该家、全零时零日志（防双路径双写）', async () => {
+    prisma.bidSupplier.findMany.mockResolvedValue([
+      { id: 'bs1', supplierName: '刚确认公司', supplierId: 's1', submitStatus: '已提交' },
+    ]);
+    prisma.supplierBidSubmission.findMany.mockResolvedValue([{ supplierId: 's1', status: 'submitted' }]);
+    prisma.bidSupplier.updateMany.mockResolvedValue({ count: 0 }); // 并发窗口：CONFIRMED 已落
+
+    await service.autoCloseExpiredConfirmations('p1');
+    expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
   });
 
   it('无 PENDING 家 → 零写零日志（幂等）', async () => {
     prisma.bidSupplier.findMany.mockResolvedValue([]);
     prisma.supplierBidSubmission.findMany.mockResolvedValue([]);
     await service.autoCloseExpiredConfirmations('p1');
-    expect(prisma.bidSupplier.update).not.toHaveBeenCalled();
+    expect(prisma.bidSupplier.updateMany).not.toHaveBeenCalled();
     expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
   });
 
@@ -6585,6 +6599,9 @@ describe('BidService — autoCloseExpiredConfirmations（#61回归A）', () => {
 
     const notReady = await (service as any).getOpeningNotReady('p1');
     expect(notReady).toEqual([]);
-    expect(prisma.bidSupplier.update).toHaveBeenCalledWith({ where: { id: 'bs1' }, data: { confirmStatus: 'EXCEPTION' } });
+    expect(prisma.bidSupplier.updateMany).toHaveBeenCalledWith({
+      where: { id: 'bs1', confirmStatus: 'PENDING' },
+      data: { confirmStatus: 'EXCEPTION' },
+    });
   });
 });
