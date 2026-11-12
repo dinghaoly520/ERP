@@ -2214,7 +2214,6 @@ function SunshineSyncRow({
       </div>
       <p className="mt-1.5 text-[10px] leading-relaxed text-[var(--muted-foreground)]">
         发布时同步推送本公告至天府阳光采购平台，并自动先推送招标基础信息。
-        正式推送需由平台分配身份标识并开通 IP 白名单——接入完成前，此处配置仅随公告存档，不会实际推送。
       </p>
     </>
   );
