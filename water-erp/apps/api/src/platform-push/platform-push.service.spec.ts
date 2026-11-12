@@ -116,10 +116,12 @@ describe('PlatformPushService.pending 完整度判定', () => {
     const out = await svc.pending({ projectId: 'p1' });
     const annRow = out.items.find((i: any) => i.itemId === 'announcement:a1')!;
     expect(annRow.ready).toBe(false);
-    expect(annRow.missing).toEqual(expect.arrayContaining(['gbProcureCode', 'publishDate']));
+    // CR-08（裁定 A）：missing 随行携带中文 label（组装点即话术源头）；键与话术成对校验
+    expect(annRow.missing.map((m: any) => m.key)).toEqual(expect.arrayContaining(['gbProcureCode', 'publishDate']));
+    expect(annRow.missing.every((m: any) => typeof m.label === 'string' && m.label.length > 0)).toBe(true);
     // 同项目缺码传导至合同行；金额/签约时间完整
     const conRow = out.items.find((i: any) => i.itemId === 'contract:c1')!;
-    expect(conRow.missing).toEqual(['gbProcureCode']);
+    expect(conRow.missing.map((m: any) => m.key)).toEqual(['gbProcureCode']);
     // 处罚为全局行（不挂项目），结构化字段全量 → ready
     const penaltyRow = out.items.find((i: any) => i.itemId === 'penalty:pen1')!;
     expect(penaltyRow.ready).toBe(true);
@@ -180,7 +182,8 @@ describe('PlatformPushService K2：plan 合成项（开标前）', () => {
     const out = await svc.pending({ projectId: 'p1' });
     const planRow = out.items.find((i: any) => i.itemId === 'plan:p1')!;
     expect(planRow.ready).toBe(false);
-    expect(planRow.missing).toEqual(['budget']);
+    expect(planRow.missing.map((m: any) => m.key)).toEqual(['budget']);
+    expect(planRow.missing[0].label).toContain('预算');
     // 开标后计划信息窗口关闭——清单不再出现 plan 行（由招标公告类承接）
     const opened = makePendingSvc({
       anns: [], contracts: [], penalties: [],

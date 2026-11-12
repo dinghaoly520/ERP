@@ -184,14 +184,16 @@ describe('对接专项 platform-push 人工确认制 (e2e)', () => {
     expect(res.body.channels.map((c: { code: string }) => c.code).sort()).toEqual(
       ['ceb_national', 'mock', 'mwr_water', 'offline', 'sc_province'],
     );
-    const items = res.body.items as { itemId: string; ready: boolean; missing: string[] }[];
+    const items = res.body.items as { itemId: string; ready: boolean; missing: Array<{ key: string; label: string }> }[];
     const a1 = items.find((i) => i.itemId === itemAnnA1());
     const a2 = items.find((i) => i.itemId === itemAnnA2());
     const c1 = items.find((i) => i.itemId === itemContract());
     expect(a1).toMatchObject({ itemType: 'bid_notice', ready: true, missing: [] });
     expect(a2).toMatchObject({ itemType: 'clarify', ready: true });
     expect(c1).toMatchObject({ itemType: 'contract', ready: false });
-    expect(c1!.missing).toEqual(expect.arrayContaining(['amount', 'signedAt']));
+    // CR-08 裁定 A：missing 随行中文 label（键+话术成对断言）
+    expect(c1!.missing.map((m) => m.key)).toEqual(expect.arrayContaining(['amount', 'signedAt']));
+    expect(c1!.missing.every((m) => m.label.length > 0)).toBe(true);
   });
 
   it('pending：无码项目公告行 ready=false 且 missing 含 gbProcureCode', async () => {
@@ -200,11 +202,11 @@ describe('对接专项 platform-push 人工确认制 (e2e)', () => {
       .set('Cookie', staffCookie)
       .set('X-Portal', 'web')
       .expect(200);
-    const b1 = (res.body.items as { itemId: string; ready: boolean; missing: string[] }[])
+    const b1 = (res.body.items as { itemId: string; ready: boolean; missing: Array<{ key: string; label: string }> }[])
       .find((i) => i.itemId === `announcement:${annB1Id}`);
     expect(b1).toBeTruthy();
     expect(b1!.ready).toBe(false);
-    expect(b1!.missing).toContain('gbProcureCode');
+    expect(b1!.missing.map((m) => m.key)).toContain('gbProcureCode');
   });
 
   it('preview：中间信封（gbProcureCode/标题/字段映射）+ 64 位载荷指纹', async () => {

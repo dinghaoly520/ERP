@@ -21,9 +21,10 @@ export interface PendingItem {
   itemId: string;
   itemType: PushItemType;
   title: string;
-  /** 映射完整度（false = 缺字段禁推，missing 列缺口名） */
+  /** 映射完整度（false = 缺字段禁推，missing 列缺口）——CR-08 裁定 A：随行携带中文
+   *  label（后端组装点 MissingKey 穷举 Record 编译强制），前端不再维护手工词典 */
   ready: boolean;
-  missing: string[];
+  missing: Array<{ key: string; label: string }>;
   lastPush: {
     channel: string;
     status: string;

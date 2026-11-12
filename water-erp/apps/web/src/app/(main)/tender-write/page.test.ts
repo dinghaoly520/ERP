@@ -108,3 +108,16 @@ test("CR-11: 项目详情面板 selectedStage 须兜底 stages 空数组——�
   assert.match(memo[0], /__no_stage__/, "空数组兜底占位行（__no_stage__）不得移除");
   assert.match(memo[0], /status: 'NOT_STARTED'/, "占位行必须 NOT_STARTED——stageLocked 安全闸依赖它（改 IN_PROGRESS 会让 canCompleteStage 放开）");
 });
+
+test("CR-08: 平台推送缺件提示消费后端 label——前端手工词典（MISSING_HINTS）不得回归", () => {
+  const pushBlock = readFileSync(
+    resolve("src/components/projects/bid-confirm/platform-push-block.tsx"),
+    "utf8",
+  );
+  const pushApi = readFileSync(resolve("src/lib/api/platform-push.ts"), "utf8");
+  // 裁定 A（2026-11-12）：话术源头=后端组装点（MissingKey 穷举 Record 编译强制），
+  // 前端词典是 bug#44 同位复发两回的结构性根因
+  assert.doesNotMatch(pushBlock, /MISSING_HINTS/, "前端手工词典不得回归——缺件提示必须消费后端随行 label");
+  assert.match(pushBlock, /row\.missing\.map\(\(m\) => m\.label\)/);
+  assert.match(pushApi, /missing: Array<\{ key: string; label: string \}>/);
+});
