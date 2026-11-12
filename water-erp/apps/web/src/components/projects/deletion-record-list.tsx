@@ -36,12 +36,12 @@ export function DeletionRecordList({ records, showHeader = true }: { records: Pr
               </div>
               <div className="mt-0.5 text-xs text-[color:var(--muted-foreground)]">
                 {r.requesterDepartment} · {r.requesterName} · {r.procurementMethod}
-                {r.terminatedAt ? ` · 曾于 ${fmtDate(r.terminatedAt)} 终止` : ''}
                 {r.terminatedRoundNo ? `（台账轮次 #${r.terminatedRoundNo} 已随删）` : ''}
               </div>
             </div>
             <div className="text-xs tabular-nums text-[color:var(--muted-foreground)]">
-              {r.recycledAt ? <div>移入回收：{fmtDate(r.recycledAt)}</div> : null}
+              {/* 时间列（2026-11-12 用户裁定）：终止时间 + 移除时间；未终止的存量迁移行不显示终止行 */}
+              {r.terminatedAt ? <div>终止时间：{fmtDate(r.terminatedAt)}</div> : null}
               <div>移除时间：{fmtDate(r.deletedAt)}</div>
             </div>
             <div className="text-xs text-[color:var(--muted-foreground)] sm:text-right">
