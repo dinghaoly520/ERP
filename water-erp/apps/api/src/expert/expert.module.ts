@@ -15,9 +15,10 @@ import { BidModule } from '../bid/bid.module';
 import { AiBidAnalysisModule } from '../ai-bid-analysis/ai-bid-analysis.module';
 import { TenderClarificationModule } from '../tender-clarification/tender-clarification.module';
 import { SignatureService } from '../common/crypto/signature.service';
+import { ExpertPairingModule } from '../auth/expert-pairing.module';
 
 @Module({
-  imports: [AuthModule, AiModule, NotificationModule, BidModule, AiBidAnalysisModule, TenderClarificationModule],
+  imports: [AuthModule, AiModule, NotificationModule, BidModule, AiBidAnalysisModule, TenderClarificationModule, ExpertPairingModule],
   controllers: [ExpertController, ExpertAdminController],
   providers: [ExpertService, ExpertAdminService, ExtractionReportPdfService, ExpertExtractionService, ExpertExtractionAiService, ExpertCrossConflictService, ExpertMemoService, SignatureService],
   exports: [ExpertAdminService, ExpertMemoService],

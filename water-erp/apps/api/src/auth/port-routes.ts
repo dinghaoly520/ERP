@@ -97,6 +97,17 @@ export const BID_ALLOWED_WITHIN_WEB_EXCLUSIVE: RegExp[] = [
 ];
 
 /**
+ * :3005 管理端在 :3007 独占路径内的例外路径（归档收尾所需的只读端点，#115 B+）。
+ * 端点自身的 @Roles（admin/bid_host/leader/staff）+ BidCompanyScopeGuard 公司隔离仍生效，
+ * 此处只豁免端口层——与「sign-packet 基础 GET 共享（:3005 归档块展示回流状态）」同 rationale：
+ * 证据包 zip 是回流 JSON 的人读视图，归档收尾人员（:3005）与现场主持人（:3007）同权下载。
+ */
+export const WEB_ALLOWED_WITHIN_BID_EXCLUSIVE: RegExp[] = [
+  // 评标证据包 zip（evaluation-handover-block 横幅「下载证据包(zip)」，2026-11-12 #115）
+  /^\/api\/bid\/projects\/[^/]+\/sign-packet\/evidence-zip$/,
+];
+
+/**
  * 判断请求路径是否对给定门户可用。
  * 返回 null 表示放行，返回字符串表示拒绝原因。
  */
@@ -116,8 +127,9 @@ export function checkPortRouteAccess(
     return '该接口仅在采购管理端(:3005)可用';
   }
 
-  // :3005 (web) 调用 :3007 独占路径 → 拒绝
+  // :3005 (web) 调用 :3007 独占路径 → 拒绝（归档收尾所需的个别只读端点例外）
   if (portal === 'web' && BID_EXCLUSIVE_PATTERNS.some(re => re.test(path))) {
+    if (WEB_ALLOWED_WITHIN_BID_EXCLUSIVE.some(re => re.test(path))) return null;
     return '该操作仅在开评标管理端(:3007)可用';
   }
 

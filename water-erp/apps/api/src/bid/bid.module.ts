@@ -32,12 +32,14 @@ import { BidBackupModule } from '../bid-backup/bid-backup.module';
 import { AdminKeyService } from '../common/crypto/admin-keystore.service';
 import { DualEnvelopeService } from '../common/crypto/dual-envelope.service';
 import { SignatureService } from '../common/crypto/signature.service';
+import { ExpertPairingModule } from '../auth/expert-pairing.module';
 
 @Module({
   imports: [
     AuthModule,
     PrismaModule,
     NotificationModule,
+    ExpertPairingModule,
     BullModule.registerQueue(
       { name: QUEUE_NAMES.TENDER_PROCESSING },
       { name: QUEUE_NAMES.BIDDER_PROCESSING }, // 单家重试 AI 分析（retryAiBidders）

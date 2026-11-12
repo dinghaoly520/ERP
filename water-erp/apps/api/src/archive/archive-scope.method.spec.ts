@@ -117,6 +117,40 @@ describe('ArchiveScopeService.snapshot · 按方式过滤（集成）', () => {
     expect(names).not.toContain('采购公告');
     expect(names).not.toContain('招标文件');
   });
+
+  it('CR-02：非规范方式（单一来源采购）快照得采购族行，无招标行——不再整体消失', async () => {
+    const { svc } = makeService({ procurementMethod: '单一来源采购' });
+    const r = await svc.snapshot('pmi1', { enrichMeta: false });
+    const names = r.rows.map((x) => x.materialName);
+    expect(names).toContain('采购文件');
+    expect(names).toContain('采购邀请书');
+    expect(names).not.toContain('招标文件');
+  });
+});
+
+describe('scopeItemAppliesToMethod · CR-02 非规范方式串归一', () => {
+  it('提取链可落的非规范值归一到直接采购族——得「采购邀请书/采购文件」，无招标行/公告行', () => {
+    for (const m of ['单一来源采购', '直接委托续约采购', '直接签订合同']) {
+      expect(scopeItemAppliesToMethod('采购文件', m)).toBe(true);
+      expect(scopeItemAppliesToMethod('采购邀请书', m)).toBe(true);
+      expect(scopeItemAppliesToMethod('采购公告', m)).toBe(false);
+      expect(scopeItemAppliesToMethod('招标文件', m)).toBe(false);
+    }
+  });
+
+  it('竞争性谈判 ≈ 谈判采购（2026-11-04 method-filter 别名先例）', () => {
+    expect(scopeItemAppliesToMethod('采购公告', '竞争性谈判')).toBe(true);
+    expect(scopeItemAppliesToMethod('采购文件', '竞争性谈判')).toBe(true);
+    expect(scopeItemAppliesToMethod('采购邀请书', '竞争性谈判')).toBe(false);
+    expect(scopeItemAppliesToMethod('招标文件', '竞争性谈判')).toBe(false);
+  });
+
+  it('未知串 fail-open 全适用（闸门安全向）——框架协议采购暂未映射亦走此轨（2026-11-12 裁定）', () => {
+    for (const m of ['框架协议采购', '随便什么方式', '公开招标/邀请招标']) {
+      expect(scopeItemAppliesToMethod('招标文件', m)).toBe(true);
+      expect(scopeItemAppliesToMethod('采购文件', m)).toBe(true);
+    }
+  });
 });
 
 describe('ArchiveScopeService.checkStageGate · 闸门同口径过滤', () => {
@@ -153,5 +187,12 @@ describe('ArchiveScopeService.checkStageGate · 闸门同口径过滤', () => {
     const missingInv = await inv.svc.checkStageGate('pmi1', 'PUBLIC_ANNOUNCEMENT');
     expect(missingInv.some((m) => m.includes('招标公告'))).toBe(false);
     expect(missingInv.some((m) => m.includes('采购公告'))).toBe(false);
+  });
+
+  it('CR-02：非规范方式（单一来源采购）TENDER_DOCUMENT 闸门不再零文件放行——提示采购文件缺件', async () => {
+    const { svc } = makeService({ procurementMethod: '单一来源采购' });
+    const missing = await svc.checkStageGate('pmi1', 'TENDER_DOCUMENT');
+    expect(missing.some((m) => m.includes('2N.3 采购文件'))).toBe(true);
+    expect(missing.some((m) => m.includes('2.4 招标文件'))).toBe(false);
   });
 });

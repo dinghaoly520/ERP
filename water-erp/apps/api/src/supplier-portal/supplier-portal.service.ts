@@ -317,6 +317,20 @@ export class SupplierPortalService {
     return `AL-${suffix || 'RECEIPT'}`;
   }
 
+  /**
+   * #101（2026-11-12）：TB-回执号生成（TB-yyyymmdd-NNN，≤3 次撞号查重——同日随机三位数碰撞窗口收敛）。
+   * 抽自投递事务 create 分支的两处同款循环；update 分支（名册行先于投递存在时）补号同用。
+   */
+  private async nextBidReceiptNo(tx: Prisma.TransactionClient, now: Date): Promise<string> {
+    let receiptNo = '';
+    for (let tryNo = 0; tryNo < 3; tryNo++) {
+      receiptNo = `TB-${now.toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(Math.random() * 999)).padStart(3, '0')}`;
+      const clash = await tx.bidSupplier.findFirst({ where: { receiptNo }, select: { id: true } });
+      if (!clash) break;
+    }
+    return receiptNo;
+  }
+
   private awardNotificationLink(deliveryId: string): string {
     return `/award-letters?deliveryId=${encodeURIComponent(deliveryId)}`;
   }
@@ -2698,16 +2712,14 @@ export class SupplierPortalService {
         });
         let receiptNo: string | null = existingBidSupplier?.receiptNo ?? null;
         if (existingBidSupplier) {
-          await tx.bidSupplier.update({
-            where: { id: existingBidSupplier.id },
-            data: { supplierId, submitStatus: '已提交', encryptStatus: bidSupplierEncryptStatus },
-          });
+          // #101：名册行先于投递存在（invite/rsvp 等建行不写号）——无号时补生成；有号不动（幂等不覆盖）
+          const patch: { supplierId: string; submitStatus: string; encryptStatus: string; receiptNo?: string } = {
+            supplierId, submitStatus: '已提交', encryptStatus: bidSupplierEncryptStatus,
+          };
+          if (!receiptNo) patch.receiptNo = receiptNo = await this.nextBidReceiptNo(tx, now);
+          await tx.bidSupplier.update({ where: { id: existingBidSupplier.id }, data: patch });
         } else {
-          for (let tryNo = 0; tryNo < 3; tryNo++) {
-            receiptNo = `TB-${now.toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(Math.random() * 999)).padStart(3, '0')}`;
-            const clash = await tx.bidSupplier.findFirst({ where: { receiptNo }, select: { id: true } });
-            if (!clash) break;
-          }
+          receiptNo = await this.nextBidReceiptNo(tx, now);
           await tx.bidSupplier.create({
             data: {
               projectId,
@@ -3245,17 +3257,15 @@ export class SupplierPortalService {
         });
         let receiptNo = existingBidSupplier?.receiptNo ?? null;
         if (existingBidSupplier) {
-          await tx.bidSupplier.update({
-            where: { id: existingBidSupplier.id },
-            data: { supplierId, submitStatus: '已提交', encryptStatus: '双层信封已验签' },
-          });
+          // #101：名册行先于投递存在——无号时补生成；有号不动（幂等，同 v2 轨口径）
+          const patch: { supplierId: string; submitStatus: string; encryptStatus: string; receiptNo?: string } = {
+            supplierId, submitStatus: '已提交', encryptStatus: '双层信封已验签',
+          };
+          if (!receiptNo) patch.receiptNo = receiptNo = await this.nextBidReceiptNo(tx, now);
+          await tx.bidSupplier.update({ where: { id: existingBidSupplier.id }, data: patch });
         } else {
           // T8：receiptNo 撞号查重重生成（≤3 次——同日随机三位数碰撞窗口收敛）
-          for (let tryNo = 0; tryNo < 3; tryNo++) {
-            receiptNo = `TB-${now.toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(Math.random() * 999)).padStart(3, '0')}`;
-            const clash = await tx.bidSupplier.findFirst({ where: { receiptNo }, select: { id: true } });
-            if (!clash) break;
-          }
+          receiptNo = await this.nextBidReceiptNo(tx, now);
           await tx.bidSupplier.create({
             data: {
               projectId, supplierId, supplierName: supplier.name,
@@ -3927,6 +3937,37 @@ export class SupplierPortalService {
       }
     }
 
+    // #150（2026-11-12）：明文资产反显名继承投递原始名——专家端标书获取恒显 technical.plain 的根因修复。
+    // 名字源双轨：①外层资产列（dual-v2/legacy 投递写列）②信封 files[role].assetId（dual-v3 三列为空、
+    // staged C_outer 挂信封，submitBidV3 归属校验同款读法）——上传名=原名+.outer（dual-v3-client.ts:154），
+    // 剥尾缀即供应商原始名；C_inner 资产名亦为合成 `${role}.inner` 不可用。
+    // 查无资产→回退 role.plain；名字无 .outer 后缀→按原样用（最接近原始名的可用事实）。
+    const plainNameByRole = new Map<EnvelopeRole, string>();
+    if (!gateError && uploaded.length) {
+      const envAssetIdOf = (role: EnvelopeRole) =>
+        ((submission.envelope as { files?: Record<string, { assetId?: string }> } | null)?.files?.[role]?.assetId) ?? undefined;
+      const idByRole = new Map<EnvelopeRole, string>();
+      for (const { role } of uploaded) {
+        const colId = (submission as any)[DUAL_ROLE_ASSET_KEY[role]] as string | undefined;
+        const id = colId ?? envAssetIdOf(role);
+        if (id) idByRole.set(role, id);
+      }
+      const ids = [...new Set(idByRole.values())];
+      const rows = ids.length
+        ? await this.prisma.fileAsset.findMany({ where: { id: { in: ids } }, select: { id: true, originalName: true } })
+        : [];
+      const nameById = new Map(rows.map(r => [r.id, r.originalName]));
+      for (const { role } of uploaded) {
+        const outerName = idByRole.has(role) ? nameById.get(idByRole.get(role)!) : undefined;
+        // 后缀剥离双口径：dual-v3 上传名=原名+.outer（dual-v3-client.ts:154）、dual-v2=原名+.enc
+        // （submitBid :2376 剥离先例）；剥后空串（病态名恰为裸后缀）回退合成名
+        const stripped = outerName?.endsWith('.outer') ? outerName.slice(0, -'.outer'.length)
+          : outerName?.endsWith('.enc') ? outerName.slice(0, -'.enc'.length)
+          : outerName;
+        plainNameByRole.set(role, stripped || `${role}.plain`);
+      }
+    }
+
     // ③ 短事务终局写入（DB 状态+归属链+唱标预填+监督日志；WS 全部后置）
     const outcome = gateError ? ('DANGER' as const) : ('SUCCESS' as const);
     let finalState: any = null;
@@ -3955,7 +3996,8 @@ export class SupplierPortalService {
             where: { key: objectKeyOf(role) },
             create: {
               key: objectKeyOf(role),
-              originalName: `${role}.plain`,
+              // #150：继承投递原始名（剥 .outer）——专家端反显/证据链用；回退合成名
+              originalName: plainNameByRole.get(role) ?? `${role}.plain`,
               mimeType: 'application/octet-stream',
               size: buf.length,
               sha256: await sha256Hex(buf), // 明文哈希（下载链路/审计锚点）
@@ -3965,6 +4007,9 @@ export class SupplierPortalService {
               uploaderId: supplier.userId,
             },
             update: {
+              // #150：update 分支同刷 originalName——DANGER 后「重置解密机会」重试复用同 key，
+              // 不刷则修复前入库的旧错名（technical.plain）永久残留
+              originalName: plainNameByRole.get(role) ?? `${role}.plain`,
               size: buf.length,
               sha256: await sha256Hex(buf),
               uploaderId: supplier.userId,

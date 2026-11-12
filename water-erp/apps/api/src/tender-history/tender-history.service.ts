@@ -21,6 +21,7 @@ export class TenderHistoryService {
     const contentHash = createHash('sha256')
       .update(draftDataString)
       .digest('hex');
+    const now = new Date();
 
     const saved = await this.prisma.tenderDocumentHistory.upsert({
       where: {
@@ -32,7 +33,11 @@ export class TenderHistoryService {
       },
       update: {
         title: dto.title,
-        updatedAt: new Date(),
+        // CR-04（2026-11-12）：重存即「最近使用」——createdAt 一并补写让该行回到最新位。
+        // 旧实现只写 title/updatedAt：重存与最旧一条同 hash 的草稿时该行仍居末位，
+        // 紧随的 trimToLimit 把它当第 21 条删掉，保存动作静默无效。
+        createdAt: now,
+        updatedAt: now,
       },
       create: {
         documentType: dto.documentType,
@@ -56,11 +61,12 @@ export class TenderHistoryService {
     return { cleared: true, count: deleted.count };
   }
 
-  /** 每 (userId, documentType) 只留最新 MAX_RECORDS_PER_TYPE 条，溢出删除。 */
+  /** 每 (userId, documentType) 只留最新 MAX_RECORDS_PER_TYPE 条，溢出删除。
+   *  次级键 updatedAt：createdAt 同毫秒并列时裁剪结果不确定（CR-04），补确定性。 */
   private async trimToLimit(documentType: string, userId: string) {
     const overflow = await this.prisma.tenderDocumentHistory.findMany({
       where: { userId, documentType },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { updatedAt: 'desc' }],
       skip: TenderHistoryService.MAX_RECORDS_PER_TYPE,
       select: { id: true },
     });

@@ -53,6 +53,7 @@ describe('ExpertService', () => {
         update: jest.fn(),
         updateMany: jest.fn(),
         count: jest.fn(),
+        groupBy: jest.fn().mockResolvedValue([]),
       },
       bidProject: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}) },
       bidSupplier: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn(), update: jest.fn().mockResolvedValue({}) },
@@ -81,6 +82,7 @@ describe('ExpertService', () => {
       bidScoreDelta: { upsert: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       expertDispute: { findFirst: jest.fn(), create: jest.fn(), findMany: jest.fn() },
       bidMotion: { findMany: jest.fn(), findUnique: jest.fn(), create: jest.fn(), update: jest.fn().mockResolvedValue({}) },
+      bidVote: { findUnique: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}) },
       bidSignPacket: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}) },
       expertCert: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn().mockResolvedValue({}), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
@@ -1753,6 +1755,64 @@ describe('ExpertService', () => {
         }));
       });
 
+      it('castVote 成员闸 A：候补专家 → 403 SUBSTITUTE_EXPERT（与签到/评分/报告确认同构）', async () => {
+        prisma.bidMotion.findUnique.mockResolvedValue({ id: 'm-1', projectId: 'p1', status: 'voting' });
+        prisma.bidExpert.findFirst.mockResolvedValue({ id: 'sub-1', userId: 'u-sub', expertRole: '候补', invitationStatus: 'confirmed' });
+
+        await expect(service.castVote('u-sub', 'm-1', 'approve'))
+          .rejects.toMatchObject({ response: { code: 'SUBSTITUTE_EXPERT' } });
+        expect(prisma.bidVote.create).not.toHaveBeenCalled();
+      });
+
+      it('castVote 成员闸 A：已婉拒正选 → 403 EXPERT_DECLINED（2026-10-27 裁定同口径）', async () => {
+        prisma.bidMotion.findUnique.mockResolvedValue({ id: 'm-1', projectId: 'p1', status: 'voting' });
+        prisma.bidExpert.findFirst.mockResolvedValue({ id: 'e9', userId: 'u-decl', expertRole: '正选', invitationStatus: 'declined' });
+
+        await expect(service.castVote('u-decl', 'm-1', 'approve'))
+          .rejects.toMatchObject({ response: { code: 'EXPERT_DECLINED' } });
+        expect(prisma.bidVote.create).not.toHaveBeenCalled();
+      });
+
+      it('castVote 成员闸 A：pending 正选维持放行（英雄项目种子=正选 pending 既有宽容口径）', async () => {
+        prisma.bidMotion.findUnique.mockResolvedValue({ id: 'm-1', projectId: 'p1', status: 'voting' });
+        prisma.bidExpert.findFirst.mockResolvedValue({ id: 'e8', userId: 'u-pend', expertRole: '正选', invitationStatus: 'pending' });
+        prisma.bidVote.findUnique.mockResolvedValue(null);
+        prisma.bidVote.create.mockResolvedValue({});
+
+        await expect(service.castVote('u-pend', 'm-1', 'abstain')).resolves.toBeTruthy();
+      });
+
+      it('结算过滤 B：候补票不计多数——剔除后平票走组长决定票，结果翻转', async () => {
+        // 正选 3 人（lead+e2+e3，quorum=2）；票面：e2 reject、候补X reject、lead approve
+        // 不过滤：2 reject > 1 approve → rejected（推翻废标）；过滤后：1:1 平票 → lead 决定票 approve → approved
+        mockMotion([
+          { expertId: 'e2', vote: 'reject' },
+          { expertId: 'sub-x', vote: 'reject' },   // 候补票（不在正选集合）
+          { expertId: 'exp-lead', vote: 'approve' },
+        ]);
+
+        await service.closeMotion('user-lead', 'm-1');
+
+        expect(prisma.bidMotion.update).toHaveBeenCalledWith(expect.objectContaining({
+          data: expect.objectContaining({ result: 'approved' }),   // 若未剔候补票此处应为 rejected
+        }));
+        // 留痕计数只数正选有效票：approve 1（lead）/ reject 1（e2）/ 弃权 0 —— 候补 reject 不进计数
+        expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
+          data: expect.objectContaining({ result: expect.stringContaining('赞成 1/反对 1/弃权 0') }),
+        }));
+      });
+
+      it('quorum 按有效票计：候补票不凑法定人数（2 票含 1 候补 < 门槛 2 → QUORUM_NOT_MET）', async () => {
+        mockMotion([
+          { expertId: 'e2', vote: 'approve' },
+          { expertId: 'sub-x', vote: 'approve' },  // 候补票不可凑数
+        ]);
+
+        await expect(service.closeMotion('user-lead', 'm-1'))
+          .rejects.toMatchObject({ response: { code: 'QUORUM_NOT_MET' } });
+        expect(prisma.bidMotion.update).not.toHaveBeenCalled();
+      });
+
       it('Final-Minor②：closed 动议重复 close → 400 MOTION_NOT_VOTING，零状态写', async () => {
         prisma.bidMotion.findUnique.mockResolvedValue({
           id: 'm-1', projectId: 'p1', type: 'invalid_bid', title: '废标复议表决', status: 'closed', result: 'approved', createdBy: 'exp-lead',
@@ -1792,9 +1852,9 @@ describe('ExpertService', () => {
         prisma.attachment.findMany.mockResolvedValue([]);
         prisma.fileAsset.findMany.mockResolvedValue([]);
         prisma.bidScoreRecord.findMany.mockImplementation((a: any) =>
-          a.where?.scoreItemId ? Promise.resolve([
-            { passed: false, reason: '资质缺失', expert: { expertName: '王' } },
-            { passed: true, reason: null, expert: { expertName: '李' } },
+          a.where?.OR || a.where?.scoreItemId ? Promise.resolve([
+            { scoreItemId: 'si1', supplierId: 'sup1', passed: false, reason: '资质缺失', expert: { expertName: '王' } },
+            { scoreItemId: 'si1', supplierId: 'sup1', passed: true, reason: null, expert: { expertName: '李' } },
           ]) : Promise.resolve([]));
       });
 
@@ -1820,6 +1880,24 @@ describe('ExpertService', () => {
             { expertName: '李', passed: true, reason: null },
           ],
         });
+      });
+
+      it('票面批量单查（N+1 收敛）：两项废标只发一次 bidScoreRecord.findMany（getProject 每 10s 轮询放大）', async () => {
+        prisma.bidExpert.findFirst.mockImplementation(async (a: any) =>
+          a?.where?.userId ? { ...mockExpert, signedIn: true, isLead: true } : null);
+        prisma.bidInvalidBid.findMany.mockResolvedValue([
+          { id: 'inv-1', supplierId: 'sup1', scoreItemId: 'si1', status: 'invalid', motionId: null, failCount: 2, totalCount: 3, supplier: { supplierName: '甲' }, scoreItem: { name: '资格性审查', category: 'QUALIFICATION' } },
+          { id: 'inv-2', supplierId: 'sup2', scoreItemId: 'si1', status: 'invalid', motionId: null, failCount: 2, totalCount: 3, supplier: { supplierName: '乙' }, scoreItem: { name: '资格性审查', category: 'QUALIFICATION' } },
+        ]);
+        prisma.bidMotion.findMany.mockResolvedValue([]);
+
+        await service.getProject('user-1', 'proj-1');
+
+        const pairQueries = (prisma.bidScoreRecord.findMany as jest.Mock).mock.calls
+          .filter((c: any[]) => c[0]?.where?.OR);
+        expect(pairQueries).toHaveLength(1);                              // 批量单查，非逐行 N 次
+        expect(pairQueries[0][0].where.OR).toHaveLength(2);              // 两组 (supplier,item) 对
+        expect(pairQueries[0][0].where.OR[0]).toEqual({ AND: [{ scoreItemId: 'si1' }, { supplierId: 'sup1' }] });
       });
 
       it('非组长 → 不下发该字段（票面明细保密口径）', async () => {
@@ -2278,6 +2356,62 @@ describe('ExpertService', () => {
       } as any);
 
       expect(prisma.expertDispute.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getMyTasks：表决入口按成员资格收口（2026-11-12 终审收尾）', () => {
+    it('候补/declined → canVote=false；正选 confirmed → canVote=true', async () => {
+      prisma.bidExpert.findMany.mockResolvedValue([
+        { id: 'sub-1', expertName: '候补', isLead: false, projectId: 'p1', expertRole: '候补', invitationStatus: 'confirmed', project: { name: '项目一', stage: 'EVALUATING' } },
+        { id: 'dec-1', expertName: '婉拒', isLead: false, projectId: 'p2', expertRole: '正选', invitationStatus: 'declined', project: { name: '项目二', stage: 'EVALUATING' } },
+        { id: 'ok-1', expertName: '正选', isLead: false, projectId: 'p3', expertRole: '正选', invitationStatus: 'confirmed', project: { name: '项目三', stage: 'EVALUATING' } },
+      ]);
+      prisma.bidExpert.groupBy.mockResolvedValue([{ projectId: 'p1', _count: { _all: 3 } }]);
+      prisma.bidMotion.findMany.mockResolvedValue([
+        { id: 'm1', projectId: 'p1', status: 'voting', votes: [] },
+        { id: 'm2', projectId: 'p2', status: 'voting', votes: [] },
+        { id: 'm3', projectId: 'p3', status: 'voting', votes: [] },
+      ]);
+      prisma.expertDispute.findMany.mockResolvedValue([]);
+
+      const result: any = await service.getMyTasks('u-x');
+      const byId = Object.fromEntries(result.motions.map((m: any) => [m.id, m]));
+      expect(byId.m1.canVote).toBe(false);  // 候补——递补前非委员
+      expect(byId.m2.canVote).toBe(false);  // 已婉拒正选
+      expect(byId.m3.canVote).toBe(true);   // 正选 confirmed
+    });
+
+    it('分母口径对齐：totalVoters 剔除已婉拒正选（与 closeMotion quorum 同源）', async () => {
+      prisma.bidExpert.findMany.mockResolvedValue([
+        { id: 'ok-1', expertName: '正选', isLead: false, projectId: 'p3', expertRole: '正选', invitationStatus: 'confirmed', project: { name: '项目三', stage: 'EVALUATING' } },
+      ]);
+      prisma.bidMotion.findMany.mockResolvedValue([]);
+      prisma.expertDispute.findMany.mockResolvedValue([]);
+
+      await service.getMyTasks('u-x');
+
+      expect(prisma.bidExpert.groupBy).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ expertRole: '正选', invitationStatus: { not: 'declined' } }),
+      }));
+    });
+
+    it('分子口径对齐：votedCount 只计合格票（候补/婉拒存量票不凑「已投」数，与 quorum 闸同源）', async () => {
+      // records（本人行）与合格集查询按 where 形状分流
+      prisma.bidExpert.findMany.mockImplementation(async (a: any) =>
+        a.where?.expertRole === '正选'
+          ? [{ id: 'ok-1', projectId: 'p3' }]                                                    // 合格投票权集合
+          : [{ id: 'sub-1', expertName: '候补', isLead: false, projectId: 'p3', expertRole: '候补', invitationStatus: 'confirmed', project: { name: '项目三', stage: 'EVALUATING' } }]);
+      prisma.bidExpert.groupBy.mockResolvedValue([{ projectId: 'p3', _count: { _all: 1 } }]);
+      prisma.bidMotion.findMany.mockResolvedValue([
+        { id: 'm1', projectId: 'p3', status: 'voting', votes: [
+          { expertId: 'ok-1', vote: 'approve' },
+          { expertId: 'sub-1', vote: 'approve' },   // 候补存量票——不计入「已投」
+        ] },
+      ]);
+      prisma.expertDispute.findMany.mockResolvedValue([]);
+
+      const result: any = await service.getMyTasks('u-sub-viewer');
+      expect(result.motions[0].votedCount).toBe(1);
     });
   });
 
@@ -3756,6 +3890,11 @@ describe('ExpertService', () => {
       { expertId: 'exp-2', vote: 'reject' },
       { expertId: 'exp-3', vote: 'abstain' },
     ];
+
+    beforeEach(() => {
+      // 合格投票权集合（votedCount 分子同源谓词）：三票全为正选合格票——保持原 votedCount=3 断言语义
+      prisma.bidExpert.findMany.mockResolvedValue([{ id: 'exp-1' }, { id: 'exp-2' }, { id: 'exp-3' }]);
+    });
 
     it('非组长：voting 期动议不返回 votes/赞反计数，仅本人票与已投数（防从众）', async () => {
       prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, isLead: false });

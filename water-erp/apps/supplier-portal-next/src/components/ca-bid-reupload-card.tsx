@@ -178,7 +178,7 @@ export function CaBidReuploadCard({ projectId, onReuploaded }: {
       <SpDialog
         open={open}
         onClose={() => stage !== 'running' && setOpen(false)}
-        title="SCCA CA 开标期补传（双层信封重封）"
+        title="SCCA CA 开标期补传（重新加密上传）"
         width={480}
         footer={
           <>

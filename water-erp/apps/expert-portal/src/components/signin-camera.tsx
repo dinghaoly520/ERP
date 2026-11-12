@@ -277,7 +277,7 @@ export function SigninCamera({ userName, identityMode = 'self', onSignIn, busy =
             >
               <ScanFace size={13} strokeWidth={1.5} />
               {detectorState === 'loading' && '检测组件加载中…'}
-              {detectorState === 'failed' && '遮挡检测不可用（降级必拍）'}
+              {detectorState === 'failed' && '遮挡检测不可用（须现场拍照核验）'}
               {detectorState === 'ready' && (faceStatus === 'ok' ? '面部完整，可拍照' : hint || '检测中…')}
             </div>
           </>
@@ -345,7 +345,7 @@ export function SigninCamera({ userName, identityMode = 'self', onSignIn, busy =
       {state === 'captured' && (
         <>
           <p className="mb-3 flex items-center gap-1.5 text-[11px] text-[var(--muted-foreground)]">
-            {userName ? `留痕人：${userName} · ` : ''}
+            {userName ? `记录人：${userName} · ` : ''}
             照片将作为签到留档证据保存
             {occlusion === 'unchecked' && '（遮挡检测未运行）'}
           </p>

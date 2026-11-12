@@ -1,0 +1,11 @@
+{
+  "batch": "2026-11-12-yuanguoyu-正式环境",
+  "exported": "2026-11-12",
+  "source": "zentao 22.6 (local docker)",
+  "files": {
+    "bug164_273.png": {
+      "md5": "ee06c194aa2dc1c3763d0a0f087d5ba1",
+      "size": 776111
+    }
+  }
+}

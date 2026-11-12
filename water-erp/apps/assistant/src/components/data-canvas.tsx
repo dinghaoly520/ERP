@@ -32,7 +32,7 @@ export function DataCanvas({
         <div className={styles.empty}>
           <BarChart3 className={styles.emptyIcon} strokeWidth={1.2} />
           <p className={styles.emptyText}>
-            暂无数据卡片。在对话中提出分析问题（如"帮我看看当前的采购情况"），AI 会生成数据卡片和图表。
+            暂无数据卡片。在对话中提出分析问题（如「帮我看看当前的采购情况」），AI 会生成数据卡片和图表。
           </p>
         </div>
       </div>

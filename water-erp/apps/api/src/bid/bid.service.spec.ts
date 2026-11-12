@@ -6601,3 +6601,113 @@ describe('BidService — claimActiveHost TTL 过期可接管', () => {
     expect(r.existingHost).toBe('旧主持');
   });
 });
+
+/* ═══════════════════════════════════════════════════════════════════
+   #61回归A：唱标确认超时自动闭环（autoCloseExpiredConfirmations）
+   供应商失联永不确认 → 解密窗口结束 + 2h 缓冲后置 EXCEPTION 放行开标完成度闸
+   ═══════════════════════════════════════════════════════════════════ */
+
+describe('BidService — autoCloseExpiredConfirmations（#61回归A）', () => {
+  let service: BidService;
+  let prisma: any;
+  const ENDED_3H_AGO = new Date(Date.now() - 3 * 3_600_000);   // 窗口结束已 3h（> 2h 缓冲）
+  const ENDED_30MIN_AGO = new Date(Date.now() - 30 * 60_000);  // 结束 30min（未过缓冲）
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'OPENING' }) },
+      bidOpeningSession: { findUnique: jest.fn().mockResolvedValue({ decryptWindowEnd: ENDED_3H_AGO }) },
+      bidSupplier: { findMany: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      supplierBidSubmission: { findMany: jest.fn() },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const mod = await Test.createTestingModule({
+      providers: [
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { sendToUser: jest.fn() } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMaxScore: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
+        BidService,
+        BidOpeningRecordService,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        BidScoreStandardService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
+        { provide: BidGateway, useValue: { notifyDecryptStatus: jest.fn() } },
+      ],
+    }).compile();
+    service = mod.get(BidService);
+  });
+
+  it('窗口结束未过 2h 缓冲 → 不动任何家（供应商仍可确认）', async () => {
+    prisma.bidOpeningSession.findUnique.mockResolvedValue({ decryptWindowEnd: ENDED_30MIN_AGO });
+    await service.autoCloseExpiredConfirmations('p1');
+    expect(prisma.bidSupplier.findMany).not.toHaveBeenCalled();
+    expect(prisma.bidSupplier.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('非 OPENING 项目 → 过期检查后止步（session 残留行防误闭，零写零日志）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+    await service.autoCloseExpiredConfirmations('p1');
+    expect(prisma.bidSupplier.findMany).not.toHaveBeenCalled();
+    expect(prisma.bidSupplier.updateMany).not.toHaveBeenCalled();
+    expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+  });
+
+  it('过期 → 参标 PENDING 置 EXCEPTION + 监督日志高风险；未投递家不参与', async () => {
+    prisma.bidSupplier.findMany.mockResolvedValue([
+      { id: 'bs1', supplierName: '失联公司', supplierId: 's1', submitStatus: '已提交' },
+      { id: 'bs2', supplierName: '名册未投递家', supplierId: 's2', submitStatus: null },
+    ]);
+    prisma.supplierBidSubmission.findMany.mockResolvedValue([{ supplierId: 's1', status: 'submitted' }]);
+
+    await service.autoCloseExpiredConfirmations('p1');
+
+    expect(prisma.bidSupplier.updateMany).toHaveBeenCalledTimes(1);
+    expect(prisma.bidSupplier.updateMany).toHaveBeenCalledWith({
+      where: { id: 'bs1', confirmStatus: 'PENDING' },  // CAS：状态守卫防覆盖迟来确认
+      data: { confirmStatus: 'EXCEPTION' },
+    });
+    const log = prisma.bidSupervisionLog.create.mock.calls[0][0].data;
+    expect(log.action).toBe('唱标确认超时自动闭环');
+    expect(log.riskFlag).toBe('高风险');
+    expect(log.target).toBe('失联公司');  // 只记真正闭环的家（未投递/被并发处理者不虚报）
+  });
+
+  it('CAS 抢占失败（供应商迟来刚确认，count=0）→ 不写该家、全零时零日志（防双路径双写）', async () => {
+    prisma.bidSupplier.findMany.mockResolvedValue([
+      { id: 'bs1', supplierName: '刚确认公司', supplierId: 's1', submitStatus: '已提交' },
+    ]);
+    prisma.supplierBidSubmission.findMany.mockResolvedValue([{ supplierId: 's1', status: 'submitted' }]);
+    prisma.bidSupplier.updateMany.mockResolvedValue({ count: 0 }); // 并发窗口：CONFIRMED 已落
+
+    await service.autoCloseExpiredConfirmations('p1');
+    expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+  });
+
+  it('无 PENDING 家 → 零写零日志（幂等）', async () => {
+    prisma.bidSupplier.findMany.mockResolvedValue([]);
+    prisma.supplierBidSubmission.findMany.mockResolvedValue([]);
+    await service.autoCloseExpiredConfirmations('p1');
+    expect(prisma.bidSupplier.updateMany).not.toHaveBeenCalled();
+    expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+  });
+
+  it('getOpeningNotReady 集成：闭包先于闸判定——过期待确认家不再阻塞', async () => {
+    jest.spyOn(service as any, 'attributePendingDualSuppliers').mockResolvedValue(undefined);
+    prisma.bidSupplier.findMany
+      .mockResolvedValueOnce([  // 闭包扫描：一家失联
+        { id: 'bs1', supplierName: '失联公司', supplierId: 's1', submitStatus: '已提交' },
+      ])
+      .mockResolvedValue([    // 闸判定复查：闭包后仍返回该行（DB mock 不变），但闭包已置 EXCEPTION → 闸按新态判
+        { supplierName: '失联公司', supplierId: 's1', submitStatus: '已提交', decryptStatus: 'SUCCESS', confirmStatus: 'EXCEPTION' },
+      ]);
+    prisma.supplierBidSubmission.findMany.mockResolvedValue([{ supplierId: 's1', status: 'submitted' }]);
+
+    const notReady = await (service as any).getOpeningNotReady('p1');
+    expect(notReady).toEqual([]);
+    expect(prisma.bidSupplier.updateMany).toHaveBeenCalledWith({
+      where: { id: 'bs1', confirmStatus: 'PENDING' },
+      data: { confirmStatus: 'EXCEPTION' },
+    });
+  });
+});

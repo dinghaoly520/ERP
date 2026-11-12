@@ -674,7 +674,7 @@ export class ProjectManagementService {
   /**
    * 流标后再次采购（2026-10-23 统一流改造，spec 2026-10-23-abort-restart-unification）：
    * 入参起点（采购需求/采购立项/采购文件）+ 可选采购方式变更 + 可选基本信息差异更新。
-   * 前置：当前轮 BidProject 已终局且系流标（ABORTED；或开标归档 ARCHIVED 且 riskNote 流标前缀）。
+   * 前置：当前轮 BidProject 已终局且系流标（ABORTED 显式态；或 abortedAt 显式列；或开标归档 ARCHIVED 且 riskNote 流标前缀——存量兜底，见 CR-03 三臂判据）。
    * 单事务：旧轮开标评标置流标终态 → 删当前轮尾部（定标/合同/备案表）→ 按方式模板从起点
    * 截取到模板末尾插入新轮（起点激活）→ PMI 指针/方式/基本信息更新。
    */
@@ -747,14 +747,18 @@ export class ProjectManagementService {
     }
 
     // 前置：当前轮 BidProject 已终局且系流标（createdAt desc 与全库当前轮解析口径
-    // 一致——同轮多行时取最新，防 findFirst 任意取行误判未流标）
+    // 一致——同轮多行时取最新，防 findFirst 任意取行误判未流标）。
+    // 流标判据三臂（CR-03 2026-11-12）：ABORTED 显式态；abortedAt 显式列（#79 延伸，
+    // 两 abort 写点都置值、只置不清——联动流标 note 前缀「项目终止联动流标（」不匹配
+    // startsWith('流标')，归档后若无此列即误拦再次采购）；riskNote 前缀启发式仅兜
+    // 存量（列落地前的已归档流标行该列全 null，DTO 手工填亦不可靠但历史如此）。
     const currentRound = item.currentRound ?? 1;
     const bp = await this.prisma.bidProject.findFirst({
       where: { projectManagementItemId: itemId, round: currentRound },
-      select: { stage: true, riskNote: true },
+      select: { stage: true, riskNote: true, abortedAt: true },
       orderBy: { createdAt: 'desc' },
     });
-    const bpAborted = !!bp && (bp.stage === 'ABORTED' || (bp.stage === 'ARCHIVED' && (bp.riskNote ?? '').startsWith('流标')));
+    const bpAborted = !!bp && (bp.stage === 'ABORTED' || !!bp.abortedAt || (bp.stage === 'ARCHIVED' && (bp.riskNote ?? '').startsWith('流标')));
     if (!bp || !bpAborted) {
       throw new ConflictException({
         error: '当前轮开评标流程尚未流标，请先发布流标公告完成流标，再发起再次采购',

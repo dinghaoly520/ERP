@@ -37,7 +37,7 @@ hr.tfe-page-break::after {
 .tfe-review-insertion { background: color-mix(in oklch, #22c55e 18%, transparent); border-bottom: 2px solid #22c55e; }
 .tfe-review-deletion { background: color-mix(in oklch, var(--danger) 14%, transparent); text-decoration: line-through; }
 .tfe-review-comment { background: color-mix(in oklch, #f59e0b 22%, transparent); border-bottom: 2px dashed #f59e0b; cursor: pointer; position: relative; }
-.tfe-review-comment::after { content: '💬'; font-size: 10px; margin-left: 1px; vertical-align: super; }
+.tfe-review-comment::after { content: '✎'; font-size: 10px; margin-left: 1px; vertical-align: super; }
 .tfe-review-highlight { background: color-mix(in oklch, #fde047 30%, transparent); }
 /* 用户修改标红 */
 .tfe-modified { background: color-mix(in oklch, var(--danger) 14%, transparent); text-decoration: underline; text-decoration-color: var(--danger); text-underline-offset: 2px; border-radius: 2px; padding: 0 1px; }

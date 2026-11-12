@@ -5,7 +5,7 @@ import {
   type ProjectWorkflowStageKey,
 } from '@/lib/types/project-management';
 import { Fragment, useState } from 'react';
-import { AlertTriangle, Loader2, RotateCcw, X } from 'lucide-react';
+import { AlertTriangle, Loader2, Lock, RotateCcw, X } from 'lucide-react';
 
 type ArchiveStepState = 'PENDING' | 'READY' | 'DONE';
 
@@ -348,7 +348,7 @@ export function ProjectStageTimeline({
                               className="pm-stage-progress pm-stage-progress--completed cursor-not-allowed opacity-70"
                               title="该步骤属已完成的历史轮次，仅供查看"
                             >
-                              已完成 🔒
+                              已完成 <Lock size={11} className="inline" />
                             </span>
                           ) : entry.isCompleted && !isSelected && onReopenStage && !isStageLocked?.(stageKey, entry.round) ? (
                             /* 已完成徽章 → 可点击重开（卡片是 button，内层用 span role=button 避免嵌套 button 的 hydration 错误） */
@@ -368,7 +368,7 @@ export function ProjectStageTimeline({
                               className="pm-stage-progress pm-stage-progress--completed cursor-not-allowed opacity-70"
                               title="开标已确认，前置步骤已锁定不可重开"
                             >
-                              已完成 🔒
+                              已完成 <Lock size={11} className="inline" />
                             </span>
                           ) : (
                             <span

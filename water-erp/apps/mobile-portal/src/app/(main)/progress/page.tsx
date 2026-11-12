@@ -411,7 +411,7 @@ export default function ProgressPage() {
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <span className="min-w-0 flex-1 text-[14px] text-[var(--muted-foreground)]">
-                    {insights ? "以下为当前口径的分析结果" : "基于当前公司口径生成进度洞察"}
+                    {insights ? "以下为当前范围的分析结果" : "基于当前公司数据生成进度洞察"}
                   </span>
                   <button
                     type="button"
@@ -481,7 +481,7 @@ export default function ProgressPage() {
                 )}
               </div>
             ) : (
-              <p className="px-1 text-[14px] text-[var(--muted-foreground)]">展开后可基于当前口径生成综合研判与分级提示</p>
+              <p className="px-1 text-[14px] text-[var(--muted-foreground)]">展开后可基于当前数据生成综合研判与分级提示</p>
             )}
           </SectionCard>
 

@@ -1125,7 +1125,7 @@ export default function ProcurementsPage() {
     } catch (err) {
       console.error("AI analysis failed:", err);
       setAiAnalysisResult({
-        overview: "AI分析暂时不可用，请稍后再试。",
+        overview: "AI 分析暂时不可用，请稍后重试",
         highlights: [],
         concerns: [],
         suggestions: [],

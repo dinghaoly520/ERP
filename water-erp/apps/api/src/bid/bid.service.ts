@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, Optional, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import * as crypto from 'crypto';
-import { GB_ARCHIVE_CATEGORIES, parseAmountToYuan, renderNotificationPayload } from '@water-erp/shared';
+import { GB_ARCHIVE_CATEGORIES, BID_CONFIRM_TIMEOUT_AFTER_WINDOW_MS, parseAmountToYuan, renderNotificationPayload } from '@water-erp/shared';
 import { resolveOpeningAmountUnitMap, formatAmountWithUnit, DUAL_V2_AMOUNT_UNIT } from './opening-amount-unit.util';
 import { isNoneEvaluation } from './none-evaluation.util';
 import { buildArchiveTemplate } from './archive-template';
@@ -2078,8 +2078,69 @@ export class BidService {
    * 归因 BIDDER 的家转终局态后自然放行；UNKNOWN 家仍 PENDING 继续阻塞。
    */
   /** H4 共享守卫（非抛错版）：返回未到终局态的供应商名单（空数组=开标已完成）——assertOpeningDone 与自动固化钩子共用 */
+  /** #61回归A（2026-11-12）：唱标确认超时自动闭环（惰性，参照 checkDisputeTimeout 模式）——
+   *  OPENING 项目参标家中解密 SUCCESS 且确认 PENDING、解密窗口结束已超
+   *  BID_CONFIRM_TIMEOUT_AFTER_WINDOW_MS 的，置 confirmStatus='EXCEPTION'（视同放弃确认）
+   *  + 监督日志高风险留痕。不抛错不阻塞——闭包后闸判定自然放行，开标可结束。 */
+  async autoCloseExpiredConfirmations(projectId: string): Promise<void> {
+    // 全防包装（同 checkDisputeTimeout 铁则）：惰性闭包绝不让异常上行阻塞调用流
+    //（完成开标/启动评标/自动固化三路都是法定操作，闭环失败只留日志下次再试）。
+    // 查序：session+过期先行——未过期/无会话零接触后续表（也避免在无会话语境多打 bidProject 查询）
+    try {
+      const session = await this.prisma.bidOpeningSession.findUnique({
+        where: { projectId },
+        select: { decryptWindowEnd: true },
+      });
+      if (!session?.decryptWindowEnd) return;
+      if (new Date() <= new Date(session.decryptWindowEnd.getTime() + BID_CONFIRM_TIMEOUT_AFTER_WINDOW_MS)) return; // 未过缓冲
+
+      const project = await this.prisma.bidProject.findUnique({
+        where: { id: projectId },
+        select: { stage: true },
+      });
+      if (project?.stage !== 'OPENING') return;
+
+      const subBySupplier = await this.loadSubmissionStatusMap(this.prisma, projectId);
+      const pending = (await this.prisma.bidSupplier.findMany({
+        where: { projectId, submitStatus: { not: '已撤回' }, decryptStatus: 'SUCCESS', confirmStatus: 'PENDING' },
+        select: { id: true, supplierName: true, supplierId: true, submitStatus: true },
+      })).filter(s => BidService.isSubmittedRow(s, subBySupplier)); // 未投递家不参与开标完成度（同闸口径）
+      if (pending.length === 0) return;
+
+      const hours = Math.round(BID_CONFIRM_TIMEOUT_AFTER_WINDOW_MS / 3_600_000);
+      // CAS 状态守卫（评审[中/高]，同 attributePendingDualSuppliers 先例）：where 带 confirmStatus='PENDING'
+      // ——防窄窗口覆盖供应商迟来确认（CONFIRMED/DISPUTED 不动，证据件不自相矛盾）+双路径并发双写日志；
+      // count 门只把真正闭环的家计入日志名单（消虚报）
+      const closed: string[] = [];
+      for (const s of pending) {
+        const r = await this.prisma.bidSupplier.updateMany({
+          where: { id: s.id, confirmStatus: 'PENDING' },
+          data: { confirmStatus: 'EXCEPTION' },
+        }).catch(err => {
+          this.logger.error(`确认超时闭环失败 ${s.supplierName}`, err as Error);
+          return { count: 0 };
+        });
+        if (r.count > 0) closed.push(s.supplierName);
+      }
+      if (closed.length === 0) return; // 全被并发路径处理（供应商刚确认/已闭）→ 零写零日志
+      await this.prisma.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '系统', target: closed.join('、'),
+          action: '唱标确认超时自动闭环', riskFlag: '高风险',
+          result: `解密窗口结束已超 ${hours} 小时仍未确认唱标，视同放弃确认自动置异常（#61回归A）`,
+        },
+      }).catch(() => {});
+      this.logger.warn(`[confirm-timeout] ${projectId} 自动闭环 ${closed.length} 家未确认唱标`);
+    } catch (err) {
+      this.logger.warn(`[confirm-timeout] ${projectId} 闭环检查异常（不阻塞调用流）: ${(err as Error).message}`);
+    }
+  }
+
   private async getOpeningNotReady(id: string): Promise<string[]> {
     await this.attributePendingDualSuppliers(id);
+    // #61回归A：唱标确认超时惰性闭环（先于闸判定）——三路触发全覆盖
+    // （autoHandoverIfDone / assertOpeningDone→完成开标 / 启动评标兜底）；全静默场景由 Scheduler 扫描兜底
+    await this.autoCloseExpiredConfirmations(id);
     const activeSuppliers = await this.prisma.bidSupplier.findMany({
       where: { projectId: id, submitStatus: { not: '已撤回' } },
       select: { supplierName: true, supplierId: true, submitStatus: true, decryptStatus: true, confirmStatus: true },

@@ -10,10 +10,12 @@ import { AuthGuard } from './auth.guard';
 import { getJwtSecret } from '../common/jwt-secret.helper';
 import { VerificationModule } from '../verification/verification.module';
 import { NotificationModule } from '../notification/notification.module';
+import { ExpertPairingModule } from './expert-pairing.module';
 
 @Module({
   imports: [
     forwardRef(() => NotificationModule),
+    ExpertPairingModule,
     JwtModule.register({
       secret: getJwtSecret(),
       signOptions: { expiresIn: '7d' },

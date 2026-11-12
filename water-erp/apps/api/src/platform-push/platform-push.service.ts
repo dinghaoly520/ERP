@@ -20,6 +20,22 @@ import {
   DispatchPushDto, ExportPushDto, ITEM_ID_PATTERN, PendingQueryDto, PreviewPushDto,
 } from './dto/platform-push.dto';
 
+/** 缺口键全集——MISSING_LABELS 为其穷举 Record：新增缺口键必须同步补话术（TS 编译
+ *  强制），第三个「漏配词典裸英文 key」永不发生（CR-08 裁定 A）。 */
+export type MissingKey = 'gbProcureCode' | 'publishDate' | 'amount' | 'signedAt' | 'budget';
+
+export type MissingGap = { key: MissingKey; label: string };
+
+const MISSING_LABELS: Record<MissingKey, string> = {
+  gbProcureCode: '项目未取得国标采购编码（21 位统一交易识别码）——存量项目在回填清单内，新项目创建时自动赋码',
+  publishDate: '公告缺少发布时间——到信息发布中心补录',
+  amount: '合同缺少金额——补录合同金额（公开口径）',
+  signedAt: '合同缺少签订时间——补录合同签订日期',
+  budget: '招标计划缺少预算金额——到项目管理补录项目预算',
+};
+
+const missingOf = (key: MissingKey): MissingGap => ({ key, label: MISSING_LABELS[key] });
+
 /** 待推数据项（内部统一形态：pending 行展示 / preview·dispatch·export 序列化同源） */
 export interface PushItem {
   itemId: string;
@@ -28,8 +44,10 @@ export interface PushItem {
   projectId: string | null;
   projectCode: string | null;
   gbProcureCode: string | null;
-  /** 映射完整度缺口（缺 gbProcureCode / 缺 publishDate 等；非空 = 禁推） */
-  missing: string[];
+  /** 映射完整度缺口（缺 gbProcureCode / 缺 publishDate 等；非空 = 禁推）。
+   *  CR-08（2026-11-12 裁定 A）：随行携带中文 label——组装点即话术源头，前端不再
+   *  维护手工词典（bug#44 同位复发两回的结构性根因）。 */
+  missing: MissingGap[];
   announcement?: {
     type: string; title: string; content: string;
     publishDate: Date | null; publicityEnd: Date | null; relatedProjectCode: string | null;
@@ -285,9 +303,9 @@ export class PlatformPushService {
     procurementMethod: string; deadline: Date; openTime: Date;
     ceilingPrice: { toString(): string } | null; budget: { toString(): string } | null;
   } | null): PushItem {
-    const missing: string[] = [];
-    if (!project?.gbProcureCode) missing.push('gbProcureCode');
-    if (!a.publishDate) missing.push('publishDate');
+    const missing: MissingGap[] = [];
+    if (!project?.gbProcureCode) missing.push(missingOf('gbProcureCode'));
+    if (!a.publishDate) missing.push(missingOf('publishDate'));
     return {
       itemId: `announcement:${a.id}`,
       itemType: ANNOUNCEMENT_TYPE_TO_ITEM_TYPE[a.type]!,
@@ -314,10 +332,10 @@ export class PlatformPushService {
   }, project: {
     id: string; projectCode: string; gbProcureCode: string | null;
   } | null): PushItem {
-    const missing: string[] = [];
-    if (!project?.gbProcureCode) missing.push('gbProcureCode');
-    if (c.amount == null) missing.push('amount');
-    if (!c.signedAt) missing.push('signedAt');
+    const missing: MissingGap[] = [];
+    if (!project?.gbProcureCode) missing.push(missingOf('gbProcureCode'));
+    if (c.amount == null) missing.push(missingOf('amount'));
+    if (!c.signedAt) missing.push(missingOf('signedAt'));
     return {
       itemId: `contract:${c.id}`,
       itemType: 'contract',
@@ -363,9 +381,9 @@ export class PlatformPushService {
     budget: { toString(): string } | null;
     projectManagementItem?: { title: string; procurementCategory: string } | null;
   }): PushItem {
-    const missing: string[] = [];
-    if (!project.gbProcureCode) missing.push('gbProcureCode');
-    if (project.budget == null) missing.push('budget');
+    const missing: MissingGap[] = [];
+    if (!project.gbProcureCode) missing.push(missingOf('gbProcureCode'));
+    if (project.budget == null) missing.push(missingOf('budget'));
     return {
       itemId: `plan:${project.id}`,
       itemType: 'plan',
@@ -561,7 +579,8 @@ export class PlatformPushService {
     const notReady = items.filter((i) => i.missing.length > 0);
     if (notReady.length) {
       throw new BadRequestException({
-        error: `映射不完整禁推：${notReady.map((i) => `${i.itemId} 缺 ${i.missing.join('/')}`).join('；')}`,
+        // CR-08 评审补漏：missing 已是 {key,label}[]——join 前取 key，否则 [object Object] 直出 toast
+        error: `映射不完整禁推：${notReady.map((i) => `${i.itemId} 缺 ${i.missing.map((m) => m.key).join('/')}`).join('；')}`,
         code: 'ITEM_NOT_READY',
         items: notReady.map((i) => ({ itemId: i.itemId, missing: i.missing })),
       });

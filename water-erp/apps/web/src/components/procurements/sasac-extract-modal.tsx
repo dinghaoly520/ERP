@@ -479,7 +479,7 @@ export function SasacExtractModal({ open, onClose, companyId }: { open: boolean;
               </span>
               <div className="text-sm font-medium text-[var(--foreground)]">采购组织结构树 · 待接入</div>
               <div className="mt-1 max-w-[360px] text-sm leading-6 text-[color:var(--muted-foreground)]">
-                指标：单位统一社会信用代码 / 采购单位ID / 上级单位ID / 所属集团ID。写入逻辑确认后在此生成。
+                指标：单位统一社会信用代码 / 采购单位ID / 上级单位ID / 所属集团ID。确认后在此生成。
               </div>
             </div>
           ) : (

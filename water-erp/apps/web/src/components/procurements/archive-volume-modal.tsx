@@ -54,7 +54,11 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     const body = await res.json().catch(() => ({}));
     throw new Error(body?.error ?? `请求失败（${res.status}）`);
   }
-  return res.json();
+  // CR-09（2026-11-12）：ok-空响应容错为 null——check-latest 对无检测记录的 PMI 由
+  // findFirst→null 经 Express send(null) 落 200 空体，无条件 res.json() 会炸成
+  // Unexpected end of JSON input 导致整弹窗加载失败；调用方类型本就是 | null。
+  const text = await res.text();
+  return (text ? JSON.parse(text) : null) as T;
 }
 
 export function ArchiveVolumeModal({

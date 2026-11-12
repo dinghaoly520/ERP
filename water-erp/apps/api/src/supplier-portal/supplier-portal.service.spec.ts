@@ -15,6 +15,7 @@ import {
   canonicalEnvelopeHash,
   canonicalJson,
   computeFieldsCommit,
+  computeV3FieldsCommit,
   randomHex,
   sha256Hex,
   signEnvelopeMsg,
@@ -1899,6 +1900,42 @@ describe('SupplierPortalService', () => {
       );
     });
 
+    it('#101 名册行已存在且无回执号 → update 分支补生成 TB- 号（根因：名册先行建行不写号，投递走 update 永不补）', async () => {
+      const { envelope, signature } = await buildDualSubmission();
+      // 首查=名册行（receiptNo null）；后续=撞号查重（空）。
+      // 注意：计数前提=assertCanSubmitBid 的公告池查被 beforeEach 的 announcement.findFirst 真值短路——
+      // 若日后往 bidProject mock 加邀请域方式/清掉 announcement mock，计数会错位（退化形态=create 分支被触发、
+      // 本用例响亮失败，非假绿）
+      let findCalls = 0;
+      prisma.bidSupplier.findFirst.mockImplementation(async () => {
+        findCalls += 1;
+        return findCalls === 1
+          ? { id: 'bs-existing', supplierId: 'supplier-1', supplierName: '测试供应商', receiptNo: null }
+          : null;
+      });
+      await service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', bidPrice: '980000', envelope, signature,
+      } as any);
+
+      expect(prisma.bidSupplier.create).not.toHaveBeenCalled();
+      const upd = prisma.bidSupplier.update.mock.calls[0][0];
+      expect(upd.where).toEqual({ id: 'bs-existing' });
+      expect(upd.data.receiptNo).toMatch(/^TB-\d{8}-\d{3}$/);
+    });
+
+    it('#101 名册行已有回执号 → update 不覆盖（幂等；data 无 receiptNo 键）', async () => {
+      const { envelope, signature } = await buildDualSubmission();
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-existing', supplierId: 'supplier-1', supplierName: '测试供应商', receiptNo: 'TB-20260101-001' });
+      await service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', bidPrice: '980000', envelope, signature,
+      } as any);
+
+      const upd = prisma.bidSupplier.update.mock.calls[0][0];
+      expect(upd.where).toEqual({ id: 'bs-existing' });
+      expect(upd.data).not.toHaveProperty('receiptNo');
+      expect(upd.data.submitStatus).toBe('已提交');
+    });
+
     it('② asset 非 clientEncrypted → 400 BID_FILE_NOT_ENCRYPTED（拒收未按双层信封加密的文件）', async () => {
       prisma.fileAsset.findMany.mockResolvedValue([{ ...dualAsset(), clientEncrypted: false }]);
       prisma.fileAsset.findUnique.mockResolvedValue({ ...dualAsset(), clientEncrypted: false });
@@ -2476,6 +2513,8 @@ describe('SupplierPortalService', () => {
       prisma.fileAsset.create = jest.fn(); // 存量桩保留(其他路径防御)
       // decrypt-upload 明文资产走 upsert(确定性 key 重试安全)——排队 id 断言亦挂此处
       prisma.fileAsset.upsert = jest.fn().mockImplementation(({ create }: any) => Promise.resolve({ id: `fa-${String(create.key).split('/').pop()}`, key: create.key }));
+      // #150 反显名继承：外层资产名反查（findMany）——默认全 miss → 回退 role.plain（既有用例口径不变）
+      prisma.fileAsset.findMany = jest.fn().mockResolvedValue([]);
       prisma.bidOpeningRecord.upsert = jest.fn().mockResolvedValue({});
       prisma.bidOpeningRecord.create = jest.fn();
 
@@ -2610,6 +2649,84 @@ describe('SupplierPortalService', () => {
       expect(gateway.notifyDecryptStatus).toHaveBeenCalledWith('project-1', 'bs-1', '四川水发建设有限公司', 'SUCCESS');
       expect(gateway.notifySupervisionLog).toHaveBeenCalled();
       expect(gateway.notifyAnomaly).not.toHaveBeenCalled();
+    });
+
+    it('decrypt-upload：#150 明文资产反显名继承投递原始名（外层资产名剥 .outer）——create/update 两分支同刷（DANGER 重置重试不复留旧错名）', async () => {
+      // 外层资产名 = 原名+.outer（dual-v3-client.ts:154 上传口径）；专家端 documents-step 反显此列
+      prisma.fileAsset.findMany.mockResolvedValue([
+        { id: 'fa-t', originalName: '技术标书-final V2.pdf.outer' },
+        { id: 'fa-b', originalName: '商务响应文件.docx.outer' },
+      ]);
+      const res: any = await service.decryptUpload('supplier-1', 'project-1',
+        { technical: plainT, business: plainB }, JSON.stringify(FIELDS), NONCE);
+
+      expect(res.decryptStatus).toBe('SUCCESS');
+      // 按 role 反查外层资产列（technicalFileAssetId/businessFileAssetId）
+      expect(prisma.fileAsset.findMany).toHaveBeenCalledWith({
+        where: { id: { in: ['fa-t', 'fa-b'] } },
+        select: { id: true, originalName: true },
+      });
+      expect(prisma.fileAsset.upsert).toHaveBeenNthCalledWith(1, expect.objectContaining({
+        create: expect.objectContaining({ originalName: '技术标书-final V2.pdf' }),
+        update: expect.objectContaining({ originalName: '技术标书-final V2.pdf' }),
+      }));
+      expect(prisma.fileAsset.upsert).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        create: expect.objectContaining({ originalName: '商务响应文件.docx' }),
+        update: expect.objectContaining({ originalName: '商务响应文件.docx' }),
+      }));
+    });
+
+    it('decrypt-upload：#150 外层资产名缺失（无 .outer 后缀/查无资产）→ 逐角色回退 role.plain，不炸解密链路', async () => {
+      // 一个查无资产（coverLetter 场景类比）、一个名字无 .outer 后缀
+      prisma.fileAsset.findMany.mockResolvedValue([{ id: 'fa-b', originalName: 'legacy-name.bin' }]);
+      const res: any = await service.decryptUpload('supplier-1', 'project-1',
+        { technical: plainT, business: plainB }, JSON.stringify(FIELDS), NONCE);
+
+      expect(res.decryptStatus).toBe('SUCCESS');
+      expect(prisma.fileAsset.upsert).toHaveBeenNthCalledWith(1, expect.objectContaining({
+        create: expect.objectContaining({ originalName: 'technical.plain' }),
+      }));
+      // 无 .outer 后缀的外层名仍优于合成名（最接近原始名的可用事实）
+      expect(prisma.fileAsset.upsert).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        create: expect.objectContaining({ originalName: 'legacy-name.bin' }),
+      }));
+    });
+
+    it('decrypt-upload：#150 dual-v3 轨——三列为空、名字源走信封 files[role].assetId（现行主轨）', async () => {
+      const envelopeV3 = {
+        version: 'dual-v3', certSn: 'MOCK-CERT-V3', adminCertId: 'cert-admin-1',
+        files: {
+          technical: { assetId: 'stg-t', innerSha256: 'sha-inner-t', plainSha256: plainTSha },
+          business: { assetId: 'stg-b', innerSha256: 'sha-inner-b', plainSha256: plainBSha },
+        },
+        sealedFields: { cipher: 'cc-sealed', kself: 'kk-sealed' },
+        fieldsCommit: await computeV3FieldsCommit(FIELDS as unknown as import('@water-erp/ukey').V3Fields, NONCE),
+      };
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue(defaultSubmission({
+        envelopeVersion: 'dual-v3', envelope: envelopeV3,
+        technicalFileAssetId: null, businessFileAssetId: null, coverLetterAssetId: null,
+      }));
+      // v3 快照交叉：SubmissionVersion 冻结信封须与行内一致
+      prisma.submissionVersion.findUnique = jest.fn().mockResolvedValue({ envelope: envelopeV3 });
+      // 信封挂的 staged C_outer 资产（上传名=原名+.outer，encrypted-asset.controller 落 file.originalname）
+      prisma.fileAsset.findMany.mockResolvedValue([
+        { id: 'stg-t', originalName: '技术标书-final V2.pdf.outer' },
+        { id: 'stg-b', originalName: '商务响应文件.docx.outer' },
+      ]);
+      const res: any = await service.decryptUpload('supplier-1', 'project-1',
+        { technical: plainT, business: plainB }, JSON.stringify(FIELDS), NONCE);
+
+      expect(res.decryptStatus).toBe('SUCCESS');
+      expect(prisma.fileAsset.findMany).toHaveBeenCalledWith({
+        where: { id: { in: ['stg-t', 'stg-b'] } }, select: { id: true, originalName: true },
+      });
+      expect(prisma.fileAsset.upsert).toHaveBeenNthCalledWith(1, expect.objectContaining({
+        create: expect.objectContaining({ originalName: '技术标书-final V2.pdf' }),
+        update: expect.objectContaining({ originalName: '技术标书-final V2.pdf' }),
+      }));
+      expect(prisma.fileAsset.upsert).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        create: expect.objectContaining({ originalName: '商务响应文件.docx' }),
+      }));
     });
 
     it('decrypt-upload：sha256 闸门失败（上传明文与存证锚点不符）→ DANGER+EXCEPTION+归因 UNKNOWN+WS DANGER，零明文落库', async () => {

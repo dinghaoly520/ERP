@@ -187,7 +187,7 @@ export function OpeningTemplateLibraryDialog({
       <Modal open={open} onClose={onClose} title="开标记录模板库" size="lg">
         <div className="mb-3 rounded-lg bg-[var(--accent-soft)] px-3 py-2">
           <p className="text-xs text-[var(--muted-foreground)]">
-            「应用」= 把模板的唱标字段写入本项目（开标开始后锁定）；「生效中」模板供监管导出使用，同类仅一个生效，生效中不可删除。
+            「应用」= 把模板的唱标字段套用到本项目（开标开始后锁定）；「生效中」模板供监管导出使用，同类仅一个生效，生效中不可删除。
           </p>
         </div>
 

@@ -97,7 +97,7 @@ export async function pickShieldByFingerprint(
   }
   const names = certs.map((c) => c.displayName || c.container).join('、');
   throw new Error(
-    `插错盾：本标信封收件证书指纹 ${recipientCertFingerprint.slice(0, 16)}… 与当前 U盾（${names}）不符，` +
+    `插错盾：当前插入的 U盾（${names}）与本标要求不符（要求的证书指纹 ${recipientCertFingerprint.slice(0, 16)}…），` +
       '请换插投递本标时使用的原盾后重试',
   );
 }

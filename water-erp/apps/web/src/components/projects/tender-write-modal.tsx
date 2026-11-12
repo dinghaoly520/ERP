@@ -37,6 +37,7 @@ import {
 import {
   planQuotationBatchWriteBack,
   QUOTATION_TEXT_VERSION_PROMPT,
+  settledAiContent,
 } from '@/lib/tender-write/quotation-ai-writeback';
 import { tableHasDataRows } from '@/lib/tender-write/quotation-table-text';
 import { TenderReviewProvider } from '@/components/tender-review/tender-review-provider';
@@ -229,7 +230,10 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     void fetchProjectTenderDraft(projectId, prevRound)
       .then((r) => {
         if (cancelled) return;
-        const server = r?.drafts ? (r.drafts as TenderDraftsState) : null;
+        // CR-01（评审补漏）：上一轮服务端草稿同样可能是 quotationLetterType 引入前的存量，
+        // 入 ref 前过 sanitize——与 catch 兜底轨（loadDraftsFromStorage 内消毒）同口径，
+        // 否则「参考上一轮」带入后真文字报价被预览/导出按表格模式渲染成空表。
+        const server = r?.drafts ? sanitizeTenderDraftsState(r.drafts as TenderDraftsState) : null;
         prevRoundDraftRef.current = server ?? loadDraftsFromStorage(projectId, prevRound);
         setPrevRoundAvailable(hasContent(prevRoundDraftRef.current) || !!prevTenderFile);
       })
@@ -399,14 +403,17 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
         // 时段落已现成，无需再点一次 AI
         if (f.fieldKey === 'quotationLetter') {
           try {
-            const [tableRes, textRes] = await Promise.all([
+            // CR-05（2026-11-12）：allSettled 按各自结果落形——旧 Promise.all 一败全弃
+            // 是净回归（文字版超时/429 连带丢弃已成功的表格版）；双失败才跳过写回
+            const [tableSettled, textSettled] = await Promise.allSettled([
               generateFieldContent({ fieldKey: f.fieldKey, fieldLabel: f.label, currentValue: '', aiPrompt: f.aiPrompt, context }),
               generateFieldContent({ fieldKey: f.fieldKey, fieldLabel: f.label, currentValue: '', aiPrompt: QUOTATION_TEXT_VERSION_PROMPT, context }),
             ]);
-            const plan = planQuotationBatchWriteBack(
-              (tableRes.content ?? '').replace(/�/g, '').replace(/\?{2,}(?=\s|$|。|，|；)/g, '').replace(/\s+$/, ''),
-              (textRes.content ?? '').replace(/�/g, '').replace(/\?{2,}(?=\s|$|。|，|；)/g, '').replace(/\s+$/, ''),
-            );
+            if (tableSettled.status === 'rejected' && textSettled.status === 'rejected') {
+              await new Promise((r) => setTimeout(r, 300));
+              continue;
+            }
+            const plan = planQuotationBatchWriteBack(settledAiContent(tableSettled), settledAiContent(textSettled));
             setDrafts((prev) => {
               const emptyFn = {
                 COMPETITIVE_NEGOTIATION: createEmptyCompetitiveNegotiationDraft,
@@ -613,17 +620,19 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       try {
         // 报价表双版本齐生成（2026-11-12 用户裁定）：表格版+文字版一次到位，默认先使用表格
         if (f.fieldKey === 'quotationLetter') {
-          const [tableRes, textRes] = await Promise.all([
+          // CR-05（2026-11-12）：allSettled 按各自结果落形——旧 Promise.all 一败全弃
+          // 是净回归（文字版超时/429 连带丢弃已成功的表格版）；双失败才跳过写回
+          //（字段级吞错不中断批量的语义不变）
+          const [tableSettled, textSettled] = await Promise.allSettled([
             generateFieldContent({ fieldKey: f.fieldKey, fieldLabel: f.label, currentValue: '', aiPrompt: f.aiPrompt, context }),
             generateFieldContent({ fieldKey: f.fieldKey, fieldLabel: f.label, currentValue: '', aiPrompt: QUOTATION_TEXT_VERSION_PROMPT, context }),
           ]);
-          const plan = planQuotationBatchWriteBack(
-            (tableRes.content ?? '').replace(/�/g, '').replace(/\?{2,}(?=\s|$|。|，|；)/g, '').replace(/\s+$/, ''),
-            (textRes.content ?? '').replace(/�/g, '').replace(/\?{2,}(?=\s|$|。|，|；)/g, '').replace(/\s+$/, ''),
-          );
-          updateDraft('quotationLetterType', plan.quotationLetterType);
-          if (plan.quotationLetter !== undefined) updateDraft(f.fieldKey as TenderFieldKey, plan.quotationLetter);
-          if (plan.quotationTable !== undefined) updateDraftTable(plan.quotationTable);
+          if (tableSettled.status !== 'rejected' || textSettled.status !== 'rejected') {
+            const plan = planQuotationBatchWriteBack(settledAiContent(tableSettled), settledAiContent(textSettled));
+            updateDraft('quotationLetterType', plan.quotationLetterType);
+            if (plan.quotationLetter !== undefined) updateDraft(f.fieldKey as TenderFieldKey, plan.quotationLetter);
+            if (plan.quotationTable !== undefined) updateDraftTable(plan.quotationTable);
+          }
         } else {
           const result = await generateFieldContent({
             fieldKey: f.fieldKey as TenderFieldKey,
@@ -1249,7 +1258,9 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                       <button
                         type="button"
                         onClick={() => {
-                          setDrafts(entry.drafts);
+                          // CR-01：版本快照可能是 quotationLetterType 引入前的存量（文字报价+无 type），
+                          // 裸恢复会绕过报价模式归一化——真文字被预览/导出按表格模式渲染成空表。
+                          setDrafts(sanitizeTenderDraftsState(entry.drafts));
                           draftRestoredFromStorageRef.current = true;
                           setShowWorkspace(true);
                           setHistoryOpen(false);

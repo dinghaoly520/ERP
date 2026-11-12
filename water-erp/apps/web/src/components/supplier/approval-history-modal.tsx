@@ -13,7 +13,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { History, Loader2, Search } from 'lucide-react';
+import { History, Loader2, Paperclip, Search } from 'lucide-react';
 import { Modal } from '@/components/workbench';
 import { listAllApprovalRecords, type AllApprovalRecord } from '@/lib/api/supplier';
 import { CompanySectionHeader, buildCompanyCounts, NO_COMPANY } from '@/components/company/company-tag';
@@ -231,7 +231,7 @@ export function ApprovalHistoryModal({ open, onClose }: { open: boolean; onClose
                         <div className="max-w-[320px] px-3 py-2">
                           <span className="block truncate text-[12px] text-[var(--muted-foreground)]" title={r.reason ?? ''}>{r.reason || '—'}</span>
                           {(r.attachmentIds ?? []).length > 0 && (
-                            <span className="mt-0.5 block font-mono text-[10px] text-[var(--accent)]">📎 {r.attachmentIds!.length} 个附件（详情见审批窗口）</span>
+                            <span className="mt-0.5 block font-mono text-[10px] text-[var(--accent)]"><Paperclip size={10} className="inline" /> {r.attachmentIds!.length} 个附件（详情见审批窗口）</span>
                           )}
                         </div>
                         <div className="px-3 py-2 text-right font-mono text-[11px] tabular-nums text-[var(--muted-foreground)]">

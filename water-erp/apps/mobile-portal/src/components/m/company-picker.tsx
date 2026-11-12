@@ -106,7 +106,7 @@ export function CompanyPicker({
           >
             <span className="min-w-0 flex-1">
               <span className={`block truncate text-[16px] ${draft.length === 0 ? "font-bold text-[var(--accent)]" : "font-semibold text-[var(--foreground)]"}`}>全部公司</span>
-              <span className="mt-0.5 block truncate text-[14px] text-[var(--muted-foreground)]">{options.length} 家公司汇总口径</span>
+              <span className="mt-0.5 block truncate text-[14px] text-[var(--muted-foreground)]">已汇总 {options.length} 家公司</span>
             </span>
             {draft.length === 0 ? <Check size={15} className="shrink-0 text-[var(--accent)]" /> : null}
           </button>

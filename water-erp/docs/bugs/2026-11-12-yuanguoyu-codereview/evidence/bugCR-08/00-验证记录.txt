@@ -1,0 +1,17 @@
+CR-08 裁定 A 验证（2026-11-12）
+
+── UI 实演（深链 ?projectId=cmrbvege00006e8ec59ebd358&panel=bid-confirm，Swhi-CGZX-01 创建人）──
+手术：流域水质在线监测仪表 bp（cmspfi2uw…）gbProcureCode 置 NULL（验后已还原）
+→ 开标确认面板 → 平台推送块：
+  · 修复后：待补全行显示「项目未取得国标采购编码（21 位统一交易识别码）——…」中文话术（后端随行 label），无裸英文 key（截图 01-）
+  · pending API 响应实测携带 {key:'gbProcureCode', label:'项目未取得…'} 成对字段
+
+── 结构性证明（灭类机制）──
+临时给 MissingKey 联合类型加第 6 键 'cr08ProofKey' 而不补 MISSING_LABELS 话术：
+  → npx tsc --noEmit 即红：
+    error TS2741: Property 'cr08ProofKey' is missing in type '{…}' but required in type 'Record<MissingKey, string>'
+  → 还原后绿。第三个「漏配词典裸英文 key」从此在编译期被拦死。
+
+── 旧病机理（历史记录，无需复演）──
+bug#44（2026-11-12 修复）+ budget 键同位漏配（词典注释自证）= 英文 key 直出用户脸两回；
+根治=话术源头移到组装点（本提交），前端词典已删（源码断言锁死不得回归）。

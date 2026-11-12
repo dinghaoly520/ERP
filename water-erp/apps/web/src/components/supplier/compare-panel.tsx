@@ -162,7 +162,7 @@ export function ComparePanel({ isOpen, candidates, onClose }: Props) {
               <div className="h-full rounded-full" style={{ width: `${pct}%`, background: scoreColor(c.matchScore) }} />
             </div>
             <span className="rounded-[4px] px-1.5 py-0.5 text-[10px] font-bold" style={{ color: scoreColor(c.matchScore), background: `color-mix(in oklch, ${scoreColor(c.matchScore)} 14%, transparent)` }}>{scoreLabel(c.matchScore)}</span>
-            {c.matchScore === bestScores.score && <span className="text-[9px] font-bold text-[var(--success)]">🏆 最高</span>}
+            {c.matchScore === bestScores.score && <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-[var(--success)]"><Award size={10} strokeWidth={2.2} /> 最高</span>}
           </div>
         );
       }
@@ -218,7 +218,7 @@ export function ComparePanel({ isOpen, candidates, onClose }: Props) {
               <div className="font-semibold tabular-nums text-[var(--foreground)]">{c.evaluation.level} 级</div>
               <div className="text-[var(--muted-foreground)]">{c.evaluation.count} 次评价</div>
             </div>
-            {c.evaluation.level === bestScores.evalLevel && <span className="text-[9px] font-bold text-[var(--success)]">🏆 最优</span>}
+            {c.evaluation.level === bestScores.evalLevel && <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-[var(--success)]"><Award size={10} strokeWidth={2.2} /> 最优</span>}
           </div>
         ) : <span className="text-xs text-[var(--muted-foreground)]/50">暂无</span>;
       case "projects":
@@ -228,7 +228,7 @@ export function ComparePanel({ isOpen, candidates, onClose }: Props) {
             <span className={`block text-[10px] font-semibold ${c.activeProjects >= 5 ? "text-[var(--danger)]" : c.activeProjects > 0 ? "text-[var(--muted-foreground)]" : "text-[var(--success)]"}`}>
               {c.activeProjects >= 5 ? "繁忙" : c.activeProjects > 0 ? "正常" : "空闲"}
             </span>
-            {c.activeProjects === bestScores.projects && c.activeProjects >= 0 && <span className="text-[9px] font-bold text-[var(--success)]">🏆 最少</span>}
+            {c.activeProjects === bestScores.projects && c.activeProjects >= 0 && <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-[var(--success)]"><Award size={10} strokeWidth={2.2} /> 最少</span>}
           </div>
         );
       case "contact":
@@ -298,7 +298,7 @@ export function ComparePanel({ isOpen, candidates, onClose }: Props) {
                   <Columns3 size={28} className="text-[var(--accent)]" />
                 </div>
                 <h3 className="text-sm font-bold text-[var(--foreground)] mb-1">选择供应商开始对比</h3>
-                <p className="text-xs text-[var(--muted-foreground)] max-w-sm">在上方选项卡中勾选 2 至 4 家供应商，系统将并列展示标签、实力、资质、履约等 13 项维度，最佳项高亮标记 🏆</p>
+                <p className="text-xs text-[var(--muted-foreground)] max-w-sm">在上方选项卡中勾选 2 至 4 家供应商，系统将并列展示标签、实力、资质、履约等 13 项维度，最佳项以奖杯图标高亮标记</p>
               </div>
             ) : (
               /* 对比表格（按组分段） */

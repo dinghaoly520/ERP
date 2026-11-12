@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { planQuotationBatchWriteBack, QUOTATION_TEXT_VERSION_PROMPT } from "./quotation-ai-writeback";
+import { planQuotationBatchWriteBack, QUOTATION_TEXT_VERSION_PROMPT, settledAiContent } from "./quotation-ai-writeback";
 
 const TAB_ROW = "便携式全液压岩心钻机主机\t800型，钻进深度NQ≥800m\t台\t1\t____\t____";
 const PARAGRAPH = "我方就本项目所供设备逐项报价如下：1. 便携式全液压岩心钻机1台，规格800型，单价____元，合价____元。";
@@ -31,4 +31,23 @@ test("planQuotationBatchWriteBack：文字版失败的兜底——仅表格版�
 test("QUOTATION_TEXT_VERSION_PROMPT：文字版提示词为叙述性口径（与编辑器单字段 AI 同源）", () => {
   assert.ok(QUOTATION_TEXT_VERSION_PROMPT.includes("必须采用叙述性文字表达"));
   assert.ok(!QUOTATION_TEXT_VERSION_PROMPT.includes("必须以制表符"));
+});
+
+// ── CR-05（2026-11-12 代码审查移交）：双版本生成弃全有全无 ──
+test("settledAiContent：rejected → 空串（该版缺省，另一版仍可落形）", () => {
+  const r: PromiseSettledResult<{ content?: string }> = { status: "rejected", reason: new Error("500") };
+  assert.equal(settledAiContent(r), "");
+});
+
+test("settledAiContent：fulfilled → 清洗链（乱码字符/连续问号/尾空白）", () => {
+  const r: PromiseSettledResult<{ content?: string }> = {
+    status: "fulfilled",
+    value: { content: "CR05潜水钻机\tXY-2型\t台\t2��??  \n" },
+  };
+  assert.equal(settledAiContent(r), "CR05潜水钻机\tXY-2型\t台\t2");
+});
+
+test("settledAiContent：fulfilled 但 content 缺省 → 空串", () => {
+  const r: PromiseSettledResult<{ content?: string }> = { status: "fulfilled", value: {} };
+  assert.equal(settledAiContent(r), "");
 });

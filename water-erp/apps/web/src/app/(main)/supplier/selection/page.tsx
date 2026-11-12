@@ -2288,7 +2288,7 @@ export function SupplierSelectionPage({
                     {result.engine && (
                       <span className="ml-auto rounded-[4px] px-1.5 py-0.5 text-[9px] font-bold"
                         style={{ color: result.engine === 'deepseek' ? 'var(--accent)' : 'var(--warning)', background: `color-mix(in oklch, ${result.engine === 'deepseek' ? 'var(--accent)' : 'var(--warning)'} 14%, transparent)` }}
-                        title={result.engine === 'deepseek' ? '由 DeepSeek 大模型语义匹配' : 'AI 服务不可用，已降级为规则关键词匹配（精度较低）'}>
+                        title={result.engine === 'deepseek' ? '由 DeepSeek 大模型语义匹配' : 'AI 服务不可用，已改用关键词匹配（精度较低）'}>
                         {result.engine === 'deepseek' ? 'AI 匹配' : '规则匹配（AI 不可用）'}
                       </span>
                     )}

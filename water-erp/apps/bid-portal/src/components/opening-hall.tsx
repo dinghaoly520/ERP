@@ -691,7 +691,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
         && project.suppliers.some(s => s.submitStatus === '已提交' && s.decryptStatus !== 'SUCCESS' && s.decryptStatus !== 'DANGER') && (
         <div className="space-y-1 rounded-xl bg-[oklch(0.66_0.175_27_/_0.12)] px-4 py-3 text-sm font-bold text-[var(--danger)]">
           <div className="flex items-center gap-2">
-            <AlertTriangle size={16} /> 解密窗口已过期，仍有供应商未到终局态。
+            <AlertTriangle size={16} /> 解密窗口已过期，仍有供应商未完成解密。
           </div>
           <div className="pl-6 text-xs font-medium text-[var(--foreground)]">
             {hasDual
@@ -870,7 +870,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
             {session?.pausedAt && (
               <div className="mt-2 flex items-center gap-2 rounded-xl bg-[oklch(0.78_0.12_83_/_0.16)] px-3 py-1.5 text-xs font-bold text-[oklch(0.46_0.11_65)]">
                 <AlertTriangle size={14} className="animate-pulse" />
-                开标已暂停 — 解密操作被禁止，窗口计时已冻结
+                开标已暂停 — 暂停期间不可解密，窗口计时已同步暂停
               </div>
             )}
           </div>

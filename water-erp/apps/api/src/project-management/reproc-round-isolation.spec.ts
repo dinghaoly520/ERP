@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { ProjectManagementService } from './project-management.service';
 
 /** 2026-10-28 二轮隔离（spec 2026-10-28-pmi-reproc-round-isolation）：
@@ -35,7 +35,7 @@ describe('流标再采第二轮隔离', () => {
     { stageKey: 'CONTRACT', stageOrder: 9, round: 1, status: 'NOT_STARTED' },
   ];
 
-  const mkReprocPrisma = (opts: { timesAlreadyCleared?: boolean } = {}) => {
+  const mkReprocPrisma = (opts: { timesAlreadyCleared?: boolean; bp?: Record<string, unknown> } = {}) => {
     const tx = {
       projectManagementStage: {
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
@@ -62,7 +62,9 @@ describe('流标再采第二轮隔离', () => {
         }),
       },
       bidProject: {
-        findFirst: jest.fn().mockResolvedValue({ stage: 'ABORTED', riskNote: '流标（竞价采购，投标供应商 2 家）' }),
+        findFirst: jest.fn().mockResolvedValue(
+          opts.bp ?? { stage: 'ABORTED', riskNote: '流标（竞价采购，投标供应商 2 家）' },
+        ),
       },
       projectManagementStage: {
         findMany: jest.fn().mockResolvedValue([
@@ -115,6 +117,39 @@ describe('流标再采第二轮隔离', () => {
       where: { projectManagementItemId: 'pmi-1', round: 1 },
       data: { roundOpeningTime: null, roundDocAcquireTime: null },
     });
+  });
+
+  // ── CR-03（2026-11-12 代码审查移交）：流标判定 abortedAt 臂 ──
+  it('CR-03：终止联动流标后归档（ARCHIVED+联动前缀+abortedAt）→ 再次采购放行，不再 409', async () => {
+    // 联动流标 note 前缀「项目终止联动流标（」本就不匹配 startsWith('流标')——归档后
+    // 旧判据只剩启发式臂即误判未流标；abortedAt 列（#79 延伸，两 abort 写点都置值、
+    // 只置不清）是可靠判据。
+    const prisma = mkReprocPrisma({
+      bp: { stage: 'ARCHIVED', riskNote: '项目终止联动流标（2026年11月12日 10:00，操作人 张三，终止原因：预算调整）', abortedAt: new Date(2026, 10, 12, 10, 0) },
+    });
+    const svc = mkService(prisma);
+    await expect(svc.reproc('pmi-1', { startStageKey: 'TENDER_DOCUMENT' } as never)).resolves.toMatchObject({ round: 2 });
+  });
+
+  it('CR-03：存量已归档流标行（ARCHIVED+流标前缀+abortedAt null，列落地前数据）→ 启发式臂保留仍放行', async () => {
+    const prisma = mkReprocPrisma({
+      bp: { stage: 'ARCHIVED', riskNote: '流标（竞价采购，投标供应商 2 家）', abortedAt: null },
+    });
+    const svc = mkService(prisma);
+    await expect(svc.reproc('pmi-1', { startStageKey: 'TENDER_DOCUMENT' } as never)).resolves.toMatchObject({ round: 2 });
+  });
+
+  it('CR-03：非流标归档行（ARCHIVED+无流标痕迹+abortedAt null）→ 仍 409 BID_NOT_ABORTED', async () => {
+    const prisma = mkReprocPrisma({
+      bp: { stage: 'ARCHIVED', riskNote: '正常归档', abortedAt: null },
+    });
+    const svc = mkService(prisma);
+    const err = await svc.reproc('pmi-1', { startStageKey: 'TENDER_DOCUMENT' } as never).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(ConflictException);
+    expect((err as ConflictException).getStatus()).toBe(409);
   });
 
   it('reproc：两时间本就为空 → 跳过快照（不产生空写），PMI 更新仍含清空值幂等无害', async () => {

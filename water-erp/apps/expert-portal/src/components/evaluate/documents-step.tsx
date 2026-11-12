@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Download, FileText, RotateCcw, Loader, ScrollText, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ExpertProjectDetail, DecryptedDocuments } from '@/lib/types';
-import { DECRYPT_LABEL } from '@water-erp/shared';
+import { DECRYPT_LABEL , tenderDocumentLabel } from '@water-erp/shared';
 import { formatBytes } from '@/lib/utils';
 import { api } from '@/lib/api';
 
@@ -201,7 +201,9 @@ export function DocumentsStep({ project, documents, onRefresh, refreshing }: Doc
             <FileText size={15} strokeWidth={1.5} />
           </div>
           <div className="min-w-0">
-            <h3 className="text-sm font-bold text-[var(--foreground)]">{project.tenderDocument?.source === 'negotiation' ? '采购文件' : '招标文件'}</h3>
+            {/* #73（2026-11-12 评审收口）：改走 shared 单源词表（同 evaluate 页三处口径）——
+                原 source 二分对询比/竞价显「招标文件」与本页其他文案称谓分裂；谈判 source 铁证保留 */}
+            <h3 className="text-sm font-bold text-[var(--foreground)]">{project.tenderDocument?.source === 'negotiation' ? '采购文件' : tenderDocumentLabel(project.procurementMethod)}</h3>
             <p className="text-[10px] text-[var(--muted-foreground)]">评标依据原文 · 请独立核对 ★号实质性条款</p>
           </div>
         </div>

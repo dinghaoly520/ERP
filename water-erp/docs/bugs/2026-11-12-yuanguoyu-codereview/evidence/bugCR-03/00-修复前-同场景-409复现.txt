@@ -1,0 +1,13 @@
+POST /api/project-management/cmrbvege000022b9e8ab294bf/reproc  {"startStageKey":"TENDER_DOCUMENT"}
+（登录=Swhi-CGZX-01 项目创建人；BidProject 手术态：stage=ARCHIVED + riskNote=项目终止联动流标（… + abortedAt=NOW）
+
+── 修复前（328faf0ba^ 临时回滚，2026-11-12 19:43）──
+HTTP 409
+{"statusCode":409,"code":"BID_NOT_ABORTED","error":"当前轮开评标流程尚未流标，请先发布流标公告完成流标，再发起再次采购","timestamp":"2026-11-12T11:43:32.464Z","path":"/api/project-management/cmrbvege000022b9e8ab294bf/reproc"}
+
+── 修复后（328faf0ba，同请求同数据态）──
+HTTP 201
+{"round":2,"inserted":6}
+
+── UI 可见结果 ──
+:3005 /projects → 智慧水务大数据平台建设 → 阶段流程显示第 2 轮（截图 02-）。

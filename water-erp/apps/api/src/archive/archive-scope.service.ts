@@ -46,11 +46,32 @@ const METHOD_SCOPE: Record<string, string[]> = {
   采购文件: ['谈判采购', '询比采购', '竞价采购', '直接采购'],
 };
 
-/** 范围项是否适用于该采购方式（方式为空按全适用处理——存量数据兜底） */
+/** 矩阵认识的全部方式值（归一后仍不在其中 = 未知串，走 fail-open 全适用） */
+const MATRIX_METHODS = new Set(Object.values(METHOD_SCOPE).flat());
+
+/** 非规范方式串归一（CR-02 2026-11-12）：PMI 提取链（KNOWN_METHODS 行匹配）可落
+ *  「单一来源采购/直接委托续约采购/直接签订合同」等矩阵不认的值——归一后再查矩阵，
+ *  否则「采购文件/招标文件」双双不适配 → TENDER_DOCUMENT 必选集被滤空 → 阶段闸门
+ *  零文件放行、归档快照无任何文书行。族归属裁定（2026-11-12 用户确认）：
+ *  三个非竞争串并入直接采购族（得采购邀请书+采购文件）；竞争性谈判≈谈判采购
+ *  （2026-11-04 method-filter 别名先例）；框架协议采购暂不映射（走未知串 fail-open）。 */
+const METHOD_NORMALIZE: Record<string, string> = {
+  竞争性谈判: '谈判采购',
+  单一来源采购: '直接采购',
+  直接委托续约采购: '直接采购',
+  直接签订合同: '直接采购',
+};
+
+/** 范围项是否适用于该采购方式（方式为空按全适用处理——存量数据兜底）。
+ *  归一后仍不在矩阵任何方式列表的未知串亦按全适用处理（fail-open，闸门安全向）：
+ *  垃圾串最多带来误导行，必选集不再被静默滤空致零文件放行。 */
 export function scopeItemAppliesToMethod(materialName: string, procurementMethod: string | null | undefined): boolean {
   if (!procurementMethod) return true;
+  const method = METHOD_NORMALIZE[procurementMethod] ?? procurementMethod;
   const methods = METHOD_SCOPE[materialName];
-  return !methods || methods.includes(procurementMethod);
+  if (!methods) return true;
+  if (!MATRIX_METHODS.has(method)) return true;
+  return methods.includes(method);
 }
 
 export interface ScopeMatchRow {

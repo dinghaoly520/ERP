@@ -28,9 +28,12 @@ describe('Invalid Bid Review Motion (e2e)', () => {
     lead: 'IBR-LEAD-2026',
     e2: 'IBR-E2-2026',
     e3: 'IBR-E3-2026',
+    sub: 'IBR-SUB-2026',   // 候补
+    dec: 'IBR-DEC-2026',   // 已婉拒正选
   };
   let projectIdA: string; // rejected（推翻）路
   let projectIdB: string; // approved（维持）路
+  let projectIdC: string; // 表决成员闸 + quorum 分母对齐
   let supplierIdA: string;
   let supplierIdB: string;
   let itemA: string;
@@ -104,11 +107,11 @@ describe('Invalid Bid Review Motion (e2e)', () => {
   });
 
   afterAll(async () => {
-    for (const pid of [projectIdA, projectIdB]) {
+    for (const pid of [projectIdA, projectIdB, projectIdC]) {
       if (!pid) continue;
       await prisma.bidProject.delete({ where: { id: pid } }).catch(() => {});
     }
-    await prisma.user.deleteMany({ where: { username: { in: [U.lead, U.e2, U.e3] } } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { username: { in: [U.lead, U.e2, U.e3, U.sub, U.dec] } } }).catch(() => {});
     await app.close();
   });
 
@@ -258,5 +261,76 @@ describe('Invalid Bid Review Motion (e2e)', () => {
       where: { projectId: projectIdB, action: { contains: '维持废标' } },
     });
     expect(log).toBeTruthy();
+  });
+
+  describe('表决成员闸 A + 结算过滤 B + quorum 分母对齐（2026-11-12 终审收尾）', () => {
+    let subCookie: string[];
+    let decCookie: string[];
+    let motionIdC: string;
+    const vote = (cookie: string[], v: string) =>
+      request(app.getHttpServer())
+        .post(`/api/expert/motions/${motionIdC}/vote`)
+        .set('Cookie', cookie).set('X-Portal', 'expert')
+        .send({ vote: v });
+
+    beforeAll(async () => {
+      // 项目 C：正选 4 人（lead+e2+e3+dec），dec 已婉拒；候补 sub 一名。
+      // 分母对齐断言数：对齐前分母=4 → quorum=3（2 票 NOT_MET）；对齐后分母=3 → quorum=2（2 票 MET）
+      const proj = await prisma.bidProject.create({
+        data: {
+          projectCode: `IBR-QC-${Date.now()}`, name: '表决成员闸测试', procurementMethod: '公开招标',
+          openTime: new Date(Date.now() - 7200_000), deadline: new Date(Date.now() - 3600_000),
+          stage: 'EVALUATING',
+        },
+      });
+      projectIdC = proj.id;
+      const [lead, e2, e3, sub, dec] = await Promise.all([mkUser(U.lead), mkUser(U.e2), mkUser(U.e3), mkUser(U.sub), mkUser(U.dec)]);
+      const base = {
+        projectId: projectIdC, major: '造价', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true,
+        confidentialityAgreed: true, disciplineAgreed: true, reportConfirmed: false,
+      };
+      await prisma.bidExpert.create({ data: { ...base, userId: lead.id, expertName: '组长·闸测', expertRole: '正选', invitationStatus: 'confirmed', isLead: true } });
+      await prisma.bidExpert.create({ data: { ...base, userId: e2.id, expertName: '专家二', expertRole: '正选', invitationStatus: 'confirmed' } });
+      await prisma.bidExpert.create({ data: { ...base, userId: e3.id, expertName: '专家三', expertRole: '正选', invitationStatus: 'confirmed' } });
+      await prisma.bidExpert.create({ data: { ...base, userId: dec.id, expertName: '婉拒专家', expertRole: '正选', invitationStatus: 'declined' } });
+      await prisma.bidExpert.create({ data: { ...base, userId: sub.id, expertName: '候补专家', expertRole: '候补', invitationStatus: 'confirmed' } });
+
+      [subCookie, decCookie] = await Promise.all([
+        loginAs(app, U.sub, PW, 'expert'),
+        loginAs(app, U.dec, PW, 'expert'),
+      ]);
+      // 组长发普通动议（type other，不触发裁定分支，纯表决链）
+      const res = await request(app.getHttpServer())
+        .post(`/api/expert/projects/${projectIdC}/motions`)
+        .set('Cookie', leadCookie).set('X-Portal', 'expert')
+        .send({ type: 'other', title: '成员闸测试动议' })
+        .expect(201);
+      motionIdC = res.body.id;
+    });
+
+    it('A：候补专家投票 → 403 SUBSTITUTE_EXPERT，票不落库', async () => {
+      await vote(subCookie, 'approve')
+        .expect(403)
+        .expect(r => expect(r.body).toMatchObject({ code: 'SUBSTITUTE_EXPERT' }));
+      expect(await prisma.bidVote.count({ where: { motionId: motionIdC } })).toBe(0);
+    });
+
+    it('A：已婉拒正选投票 → 403 EXPERT_DECLINED，票不落库', async () => {
+      await vote(decCookie, 'reject')
+        .expect(403)
+        .expect(r => expect(r.body).toMatchObject({ code: 'EXPERT_DECLINED' }));
+      expect(await prisma.bidVote.count({ where: { motionId: motionIdC } })).toBe(0);
+    });
+
+    it('分母对齐：declined 正选不占 quorum 分母——2 有效票（分母3/门槛2）可 close；旧口径下应 QUORUM_NOT_MET', async () => {
+      await vote(leadCookie, 'approve').expect(201);
+      await vote(e2Cookie, 'approve').expect(201);
+
+      await request(app.getHttpServer())
+        .post(`/api/expert/motions/${motionIdC}/close`)
+        .set('Cookie', leadCookie).set('X-Portal', 'expert')
+        .expect(201)
+        .expect(r => expect(r.body).toMatchObject({ status: 'closed', result: 'approved' }));
+    });
   });
 });

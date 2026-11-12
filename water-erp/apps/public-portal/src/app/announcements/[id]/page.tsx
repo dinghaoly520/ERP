@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { Download, FileText, Paperclip, PhoneCall } from 'lucide-react';
+import { Download, FileText, Inbox, Loader2, Paperclip, PhoneCall, TriangleAlert } from 'lucide-react';
 import { fetchPublicAnnouncement, downloadAnnouncementAttachment, type AnnouncementItem, ANNOUNCEMENT_TYPE_META, formatMetaValue, type MetaField } from '@/lib/announcements';
 import { UnifiedHeader } from '@/components/unified-header';
 import { FlowBackdrop } from '@/components/flow-stage';
@@ -72,14 +72,14 @@ export default function AnnouncementDetailPage() {
 
   if (loading) return (
     <div className="flow-page flex flex-col items-center justify-center gap-4" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
-      <div className="text-5xl">⏳</div>
-      <p className="text-[#5a6d8a] font-semibold">正在加载公告...</p>
+      <Loader2 size={40} className="animate-spin text-[#5a6d8a]" />
+      <p className="text-[#5a6d8a] font-semibold">正在加载公告…</p>
     </div>
   );
 
   if (!item) return (
     <div className="flow-page flex flex-col items-center justify-center gap-4" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
-      <div className="text-5xl">{errMsg?.includes('已下线') ? '📩' : '📢'}</div>
+      <div className="text-[#5a6d8a]">{errMsg?.includes('已下线') ? <Inbox size={40} /> : <TriangleAlert size={40} />}</div>
       <p className="text-[#5a6d8a] font-semibold">{errMsg ?? '未找到该公告'}</p>
       <button onClick={() => router.push('/announcements')}
         className="neu-btn-primary">
@@ -122,7 +122,7 @@ export default function AnnouncementDetailPage() {
           {/* 公示期满/已下线提示页（2026-10-20 用户裁定）：标题等元信息保留，正文不再显示 */}
           {item.titleOnly && (
             <div className="announce-note-tint mb-6 rounded-2xl px-6 py-10 text-center">
-              <div className="text-4xl mb-4">📭</div>
+              <Inbox size={36} className="mb-4 text-[#8a96aa]" />
               <p className="text-lg font-bold text-[#18243a] mb-2">
                 {item.offlinedReason === 'PUBLICITY_ENDED' ? '该公告公示期已过，不再显示公示内容' : '该公告已下线'}
               </p>

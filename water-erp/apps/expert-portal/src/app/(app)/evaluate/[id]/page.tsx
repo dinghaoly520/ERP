@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
-import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
+import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL, tenderDocumentLabel } from '@water-erp/shared';
 import { validateSupplierScores, buildFullPoints, committedRecordFor, isCommittedEquivalent, filterScorableItems, type ScoreEntry } from '@/lib/score-validation';
 import { markTransferClaimed } from '@/lib/transfer-claimed-flag';
 import { ArrowLeft, Check, ShieldCheck, ShieldAlert, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, Clock, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History, Info, Smartphone, UserRoundCog, Hourglass } from 'lucide-react';
@@ -179,7 +179,7 @@ export default function ExpertEvaluatePage() {
       const supplierName = d.supplierName ?? project?.suppliers.find(s => s.id === d.supplierId)?.supplierName ?? d.supplierId;
       const itemLabel = d.scoreItemName ? `${d.scoreItemName} ` : '';
       pushLiveEvent(
-        `${supplierName} ${itemLabel}${d.status === 'invalid' ? '被废标·待组长召集复议' : '废标已撤销'}（${d.failCount}/${d.totalCount}）`,
+        `${supplierName} ${itemLabel}${d.status === 'invalid' ? '被废标，待组长复议' : '废标已撤销'}（${d.failCount}/${d.totalCount}）`,
         'stage',
       );
     },
@@ -798,6 +798,13 @@ export default function ExpertEvaluatePage() {
     || confirmedConflictIds.size !== conflictedSupplierIds.size
     || [...conflictedSupplierIds].some((id) => !confirmedConflictIds.has(id));
 
+  // #73（2026-11-12）：采购/招标文件称谓按方式条件化——法定招标方式（公开/邀请）显法定名
+  // 「招标文件」（2026-11-03 裁定#3），其余含未知值走 canon「采购文件」（shared 单源词表，
+  // 生产 distinct 核对口径见 procurement-method-label.ts）；谈判文档源铁证双保险
+  const tenderDocLabel = project?.tenderDocument?.source === 'negotiation'
+    ? '采购文件'
+    : tenderDocumentLabel(project?.procurementMethod);
+
   // 未签到期间 10s 静默轮询（silent 防整页卸载）：host 待核验登记（2026-09-20 §4.2）/ self 态 :3007 R9 手动确认
   // 签到 / 口令待验（2026-09-20 §4）/ 启动前待命 OPENING 等 stage 翻转（2026-10-21 启动闸，WS 为主断连兜底）
   const roomGatePending = !!project?.roomCodeActive && !project?.roomCodeVerified;
@@ -1012,7 +1019,7 @@ export default function ExpertEvaluatePage() {
       setDocuments({});
       await Promise.all(data.suppliers.map(s => loadDocuments(s.id, batchSeq)));
       if (!data.tenderDocument) {
-        toast.message('招标文件可能未上传，请联系管理员');
+        toast.message(`${tenderDocumentLabel(data.procurementMethod)}可能未上传，请联系管理员`);
       }
     } catch (e: any) {
       toast.error(e?.message || '刷新失败');
@@ -1061,7 +1068,7 @@ export default function ExpertEvaluatePage() {
     setReviewBusy(true);
     try {
       await api.post(`/expert/projects/${projectId}/invalid-bid-reviews`, { invalidBidId });
-      toast.success('复议表决已发起——请通知各位专家在「工作台-待处理事项」投票');
+      toast.success('复议表决已发起——请通知各位专家在工作台「待处理事项」中投票');
       setLeadReviewQueue(prev => prev.filter(r => r.invalidBidId !== invalidBidId));
       loadProject(activeSupplier ?? undefined);
     } catch (e: any) {
@@ -1518,7 +1525,7 @@ export default function ExpertEvaluatePage() {
         <div className="exp-alert exp-alert--warn mb-3 flex shrink-0 items-center gap-2 !px-4">
           <Gavel size={13} strokeWidth={1.5} />
           <span className="min-w-0 flex-1">
-            有 {leadReviewQueue.filter(r => dismissedReviewIds.has(r.invalidBidId)).length} 项过半废标待复议召集（{leadReviewQueue.filter(r => dismissedReviewIds.has(r.invalidBidId)).map(r => `${r.supplierName}·${r.scoreItemName}`).join('、')}）
+            有 {leadReviewQueue.filter(r => dismissedReviewIds.has(r.invalidBidId)).length} 项废标待您召集复议（{leadReviewQueue.filter(r => dismissedReviewIds.has(r.invalidBidId)).map(r => `${r.supplierName}·${r.scoreItemName}`).join('、')}）
           </span>
           <button type="button" onClick={() => setDismissedReviewIds(new Set())} className="neu-btn-xs shrink-0">重新打开</button>
         </div>
@@ -1869,7 +1876,7 @@ export default function ExpertEvaluatePage() {
                         <Gavel size={14} strokeWidth={1.5} /> 评标纪律承诺
                       </h3>
                       <ul className="mb-1 space-y-2 text-sm text-[var(--muted-foreground)]">
-                        <li className="flex items-start gap-2"><span className="text-[var(--accent-strong)]">•</span>严格按照招标文件规定的评审标准和方法进行评审</li>
+                        <li className="flex items-start gap-2"><span className="text-[var(--accent-strong)]">•</span>严格按照{tenderDocLabel}规定的评审标准和方法进行评审</li>
                         <li className="flex items-start gap-2"><span className="text-[var(--accent-strong)]">•</span>独立评审，不与其他专家串通或私下交流评审意见</li>
                         <li className="flex items-start gap-2"><span className="text-[var(--accent-strong)]">•</span>客观公正，不带任何偏见和个人倾向</li>
                         <li className="flex items-start gap-2"><span className="text-[var(--accent-strong)]">•</span>对评审过程和结果保密，不向任何人透露</li>
@@ -1933,7 +1940,7 @@ export default function ExpertEvaluatePage() {
                         <p>一、AI 辅助工具生成的合规判断、风险提示、评分建议等内容，性质均为<strong className="text-[var(--foreground)]">辅助参考</strong>，不构成评审结论；</p>
                         <p>二、上述 AI 意见仅供本人在评标过程中参考，<strong className="text-[var(--foreground)]">不得干预或干扰本人的独立职业判断</strong>；</p>
                         <p>三、任何 AI 输出均<strong className="text-[var(--foreground)]">不得作为本人打分的直接依据或唯一理由</strong>，本人对每一项评分及其理由独立负责；</p>
-                        <p>四、最终评审意见与评分结果，由本人依据招标文件规定的标准和方法、结合专业判断独立作出，不由 AI 决定，亦不因 AI 意见而免除本人的评审责任。</p>
+                        <p>四、最终评审意见与评分结果，由本人依据{tenderDocLabel}规定的标准和方法、结合专业判断独立作出，不由 AI 决定，亦不因 AI 意见而免除本人的评审责任。</p>
                       </div>
                       <p className="text-sm font-medium text-[var(--muted-foreground)]">本人确认已阅读并充分理解上述声明。</p>
                       <label className="flex cursor-pointer items-center gap-3">
@@ -2156,15 +2163,34 @@ export default function ExpertEvaluatePage() {
                   <h2 className="text-lg font-bold text-[var(--foreground)]">专家独立打分</h2>
                   <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">请根据您的专业判断进行客观评分</p>
                 </div>
-                {/* 评分历史入口（替代备忘按钮） */}
-                <button
-                  type="button"
-                  onClick={() => setHistoryOpen(true)}
-                  className="neu-btn-xs shrink-0"
-                  aria-label="查看评分历史"
-                >
-                  <History size={14} strokeWidth={1.7} /> 评分历史
-                </button>
+                <div className="flex shrink-0 items-center gap-2">
+                  {/* #100（2026-11-12）：迁移入口补位到评分步头部——原唯一入口在 verify 步
+                      「核验完成」横幅，而 progress>0 自动跳 scoring 步后不可见（b0f7eccdd 智能初始步
+                      与 verify-only 入口的组合盲区）；条件与 verify 步同款（stage EVALUATING+核验五项齐），
+                      服务端签发闸（核验全齐+口令已验+活动会话）不感知调用步骤，零新增 API */}
+                  {project?.stage === 'EVALUATING'
+                    && confidentialityAgreed && disciplineAgreed
+                    && expert?.signedIn && expert?.avoidanceConfirmed && expert?.aiConsentConfirmed && (
+                    <button
+                      type="button"
+                      onClick={() => void openTransferDialog()}
+                      disabled={transferBusy}
+                      className="neu-btn-xs"
+                      aria-label="生成工位迁移二维码"
+                    >
+                      <Smartphone size={14} strokeWidth={1.7} /> 迁移到打分平板
+                    </button>
+                  )}
+                  {/* 评分历史入口（替代备忘按钮） */}
+                  <button
+                    type="button"
+                    onClick={() => setHistoryOpen(true)}
+                    className="neu-btn-xs"
+                    aria-label="查看评分历史"
+                  >
+                    <History size={14} strokeWidth={1.7} /> 评分历史
+                  </button>
+                </div>
               </div>
 
               {/* 专家间可见性收口：表决动态不再出现在打分步骤——
@@ -2290,6 +2316,48 @@ export default function ExpertEvaluatePage() {
                                     )}
                                     {hasPoints && (
                                       <div className="mb-3">
+                                        {/* #140b（2026-11-12）：checklist 型一键置全量双按钮——与无得分点款同款。
+                                            通过=客观点全勾@满分+主观点满分；不通过=全清零+聚焦理由框（aria-label 定位）。
+                                            显式写 passed：全主观点项的「全勾推导」恒 false，按钮语义须自持 */}
+                                        {/* 评审收口[高/高]：全主观点项（客观点空集）后端 P2 规则「不自动通过」——显式 passed
+                                            不达提交层（payload 只送 pointDecisions），一键通过对该形态是假动作 → 按钮组整体
+                                            隐藏回退逐条勾选，待产品裁定是否支持显式通过（P2 本意防自动通过非防人工通过） */}
+                                        {!scoreLocked && canScoreActiveSupplier && pfPoints.some(p => p.objective) && (
+                                          <div className="mb-3 flex items-center gap-3">
+                                            <button type="button"
+                                              onClick={() => setScores(prev => {
+                                                const cur = prev[k] ?? { score: 0, reason: '' };
+                                                const points: Record<string, PointDecisionValue> = {};
+                                                for (const p of pfPoints) {
+                                                  const base = pfValueMap[p.id] ?? { checked: false, awardedScore: 0 };
+                                                  points[p.id] = { ...base, checked: p.objective ? true : base.checked, awardedScore: Number(p.fullScore) };
+                                                }
+                                                return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: true } };
+                                              })}
+                                              className={`neu-btn-soft is-success ${verdict === true ? '!bg-[oklch(0.96_0.05_164/0.5)]' : ''}`}>
+                                              {verdict === true && <Check size={14} strokeWidth={2.5} />}通过
+                                            </button>
+                                            <button type="button"
+                                              onClick={() => {
+                                                setScores(prev => {
+                                                  const cur = prev[k] ?? { score: 0, reason: '' };
+                                                  const points: Record<string, PointDecisionValue> = {};
+                                                  for (const p of pfPoints) {
+                                                    const base = pfValueMap[p.id] ?? { checked: false, awardedScore: 0 };
+                                                    points[p.id] = { ...base, checked: false, awardedScore: 0 };
+                                                  }
+                                                  return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: false } };
+                                                });
+                                                setTimeout(() => {
+                                                  const el = document.querySelector<HTMLTextAreaElement>(`[aria-label="${CSS.escape(item.name)} 不通过理由"]`);
+                                                  el?.focus();
+                                                }, 0);
+                                              }}
+                                              className={`neu-btn-soft is-danger ${verdict === false ? '!bg-[oklch(0.96_0.05_27/0.5)]' : ''}`}>
+                                              {verdict === false && <X size={14} strokeWidth={2.5} />}不通过
+                                            </button>
+                                          </div>
+                                        )}
                                         <PointChecklistScoring
                                           points={pfPoints}
                                           value={pfValueMap}
@@ -2407,7 +2475,7 @@ export default function ExpertEvaluatePage() {
                                       className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-[linear-gradient(to_right,var(--fill)_var(--pct),oklch(0.96_0.01_258)_var(--pct))] accent-[var(--accent-strong)] focus:outline-none"
                                       style={{ '--fill': catColor, '--pct': `${pct}%` } as React.CSSProperties}
                                       aria-label={`${item.name} 评分`} aria-valuemin={0} aria-valuemax={max} aria-valuenow={currentScore} aria-valuetext={`${currentScore} / ${max} 分`} tabIndex={0} />
-                                    <input type="number" min={0} max={max} step={0.5} value={currentScore}
+                                    <input type="number" inputMode="decimal" min={0} max={max} step={0.5} value={currentScore}
                                       onChange={e => setScores(prev => ({ ...prev, [k]: { score: Math.max(0, Math.min(parseFloat(e.target.value) || 0, max)), reason: prev[k]?.reason || '' } }))}
                                       onKeyDown={e => { if (e.key === 'ArrowUp') { e.preventDefault(); const v = Math.min((currentScore || 0) + 0.5, max); setScores(prev => ({ ...prev, [k]: { score: v, reason: prev[k]?.reason || '' } })); } else if (e.key === 'ArrowDown') { e.preventDefault(); const v = Math.max((currentScore || 0) - 0.5, 0); setScores(prev => ({ ...prev, [k]: { score: v, reason: prev[k]?.reason || '' } })); } handleScoringKeyDown(e, isLastItem); }}
                                       className="exp-score-input"
@@ -2610,14 +2678,20 @@ export default function ExpertEvaluatePage() {
           suppliers={project?.suppliers.map(s => ({ id: s.id, supplierName: s.supplierName })) ?? []}
           onClose={() => setHistoryOpen(false)}
         />
-        {/* B7（2026-11-12）：组长废标复议召集弹窗——队列首个未忽略项；仅组长收到载荷/兜底数据 */}
-        <LeadReviewModal
-          open={isLead}
-          review={leadReviewQueue.find(r => !dismissedReviewIds.has(r.invalidBidId)) ?? null}
-          busy={reviewBusy}
-          onSubmit={handleStartReview}
-          onDismiss={handleDismissReview}
-        />
+        {/* B7（2026-11-12）：组长废标复议召集弹窗——队列首个未忽略项；仅组长收到载荷/兜底数据。
+            open 语义=「当前可见」而非「具备资格」（终审收尾 #1：open={isLead} 曾致组长空队列时 effect 仍锁滚动） */}
+        {(() => {
+          const currentReview = leadReviewQueue.find(r => !dismissedReviewIds.has(r.invalidBidId)) ?? null;
+          return (
+            <LeadReviewModal
+              open={isLead && !!currentReview}
+              review={currentReview}
+              busy={reviewBusy}
+              onSubmit={handleStartReview}
+              onDismiss={handleDismissReview}
+            />
+          );
+        })()}
         {/* ── 工位迁移码弹窗（2026-09-22）：QR + 倒计时 + 领取状态 ── */}
         {transferOpen && transferTicket && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--background)]/60 px-4 backdrop-blur-sm">

@@ -324,7 +324,7 @@ function HallExchangeReadonly({ projectId }: { projectId: string }) {
               </button>
             ))}
           </div>
-          {active ? <MsgList items={privateMsgs} /> : <div className="text-xs text-[color:var(--muted-foreground)]">选择供应商查看私聊留痕</div>}
+          {active ? <MsgList items={privateMsgs} /> : <div className="text-xs text-[color:var(--muted-foreground)]">选择供应商查看单独交流记录</div>}
         </div>
       </div>
     </Panel>

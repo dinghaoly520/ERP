@@ -570,6 +570,8 @@ export interface BidProjectDetail {
   openTime: string;
   deadline: string;
   riskNote?: string | null;
+  /** 流标时刻显式标记（CR-10）：getProject include 全量下行本就携带，前端镜像判定消费 */
+  abortedAt?: string | null;
   qualityRequirement?: string | null;
   scoreStandardPublishedAt?: string | null;
   evaluationDeadline?: string | null; // E2: 评标截止时间

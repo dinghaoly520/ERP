@@ -443,15 +443,30 @@ export function ProjectDetailPanel({
     supplierRequirements: '',
   });
 
-  const selectedStage = useMemo(
+  // CR-11（2026-11-12）：末臂兜底 stages 空数组——`?? stages[0]` 在空数组仍 undefined，
+  // 首个消费 selectedStage.stageKey 即崩整页（数据破坏面白屏实录）。合成占位行让面板
+  // 可挂载：NOT_STARTED 使 stageLocked 恒 true（完成/上传/分析闸全关，防占位阶段误操作
+  // ——真实守护者是该闸而非 isCurrentStage，后者在 currentStage 保留时反而会命中）、
+  // hero 视觉走 ?? 兜底。不能改早退渲染——本组件在 selectedStage 之后仍有大量 hooks，
+  // 提前 return 破 hooks 顺序。
+  const selectedStage = useMemo<ProjectManagementStage>(
     () =>
       // round 感知（2026-09-24 I-1）：多轮项目每轮各有一行同 stageKey——不带 round 恒命中首轮行
       localItem.stages.find(
         (stage) => stage.stageKey === selectedStageKey && (stage.round ?? 1) === selectedRound,
       ) ??
       localItem.stages.find((stage) => stage.stageKey === selectedStageKey) ??
-      localItem.stages[0],
-    [localItem.stages, selectedStageKey, selectedRound],
+      localItem.stages[0] ??
+      ({
+        id: '__no_stage__',
+        stageKey: (localItem.currentStage as ProjectWorkflowStageKey | undefined) ?? 'PROCUREMENT_DEMAND',
+        stageName: '暂无阶段数据',
+        stageOrder: 0,
+        round: localItem.currentRound ?? 1,
+        status: 'NOT_STARTED',
+        attachments: [],
+      } satisfies ProjectManagementStage),
+    [localItem.stages, selectedStageKey, selectedRound, localItem.currentStage, localItem.currentRound],
   );
 
   const archiveStepState = getArchiveStepState(item);
@@ -521,9 +536,14 @@ export function ProjectDetailPanel({
   const pastRoundBpRef = isPastRound ? bpRefs.find((r) => r.round === selectedRound) ?? null : null;
   const roundTimeDisplay = (iso: string | null | undefined) =>
     iso ? new Date(iso).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '—';
+  // CR-10（2026-11-12）：三臂对齐后端 reproc 流标闸（project-management.service CR-03）——
+  // abortedAt 显式列臂补齐后，联动流标（note 前缀「项目终止联动流标（」不匹配 startsWith）
+  // 归档后的行横幅不再隐身、再次采购入口可达；前缀启发式臂保留兜存量（列落地前行该列全 null）。
+  const abortedAtMark = currentRoundBp ? bpDetails[currentRoundBp.id]?.abortedAt ?? null : null;
   const bidAborted =
     item.status === 'ACTIVE' &&
     (currentRoundBp?.stage === 'ABORTED' ||
+      !!abortedAtMark ||
       (currentRoundBp?.stage === 'ARCHIVED' && abortedRiskNote.startsWith('流标')));
   useEffect(() => {
     let cancelled = false;

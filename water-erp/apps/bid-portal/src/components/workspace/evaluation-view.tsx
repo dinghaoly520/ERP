@@ -380,7 +380,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         reason: manualReason.trim(),
         ...(manualDocType ? { docType: manualDocType } : {}),
       });
-      showToast(`已确认 ${manualFor.expertName} 签到（主持人现场确认，已留痕）`, 'ok');
+      showToast(`已确认 ${manualFor.expertName} 签到（主持人现场确认，已记入监督日志）`, 'ok');
       setManualFor(null);
       setManualReason('');
       setManualDocType('');
@@ -399,7 +399,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     setExemptBusy(true);
     try {
       await confirmTransferPhotoExemption(projectId, exemptFor.id, { reason: exemptReason.trim() });
-      showToast(`已豁免 ${exemptFor.expertName} 的迁移留档照（已留痕）`, 'ok');
+      showToast(`已豁免 ${exemptFor.expertName} 的迁移留档照（已记入监督日志）`, 'ok');
       setExemptFor(null);
       setExemptReason('');
       getExpertVerification(projectId).then(setVerification).catch(() => {});
@@ -449,7 +449,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     setRejectBusy(true);
     try {
       await rejectExpertVerification(projectId, rejectFor.id, { type: rejectType, ...(rejectNote.trim() ? { note: rejectNote.trim() } : {}) });
-      showToast(`已登记 ${rejectFor.expertName} 核验异常（${rejectType}，高风险留痕）`, 'ok');
+      showToast(`已登记 ${rejectFor.expertName} 核验异常（${rejectType}，已记入高风险监督日志）`, 'ok');
       setRejectFor(null);
       setRejectNote('');
       getExpertVerification(projectId).then(setVerification).catch(() => {});
@@ -467,7 +467,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     setUnrejectBusy(true);
     try {
       await retractExpertVerification(projectId, unrejectFor.id, { reason: unrejectReason.trim() });
-      showToast(`已撤销 ${unrejectFor.expertName} 异常登记（更正日志留痕）`, 'ok');
+      showToast(`已撤销 ${unrejectFor.expertName} 异常登记（撤销原因已记入日志）`, 'ok');
       setUnrejectFor(null);
       setUnrejectReason('');
       getExpertVerification(projectId).then(setVerification).catch(() => {});
@@ -615,7 +615,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   const minBidders = project.minBidders ?? 3;
   const biddersOk = evaluableCount >= minBidders;
   const startBlockers: string[] = [];
-  if (!openingDone) startBlockers.push(`开标未完成：${notReadySuppliers.map(s => s.supplierName).join('、')} 未到终局态`);
+  if (!openingDone) startBlockers.push(`开标未完成：${notReadySuppliers.map(s => s.supplierName).join('、')} 尚未完成解密或异常处置`);
   if (!committeeOk) startBlockers.push(`已确认正选专家 ${confirmedRegular} 人，须 5 人以上单数（小项目可为 3 人单数；水利项目 7 人以上单数）`);
   if (!biddersOk) startBlockers.push(`有效投标（解密成功且未撤回）仅 ${evaluableCount} 家，不足法定 ${minBidders} 家`);
 
@@ -713,7 +713,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
 
   async function handleReopenScoring() {
     if (!reopenReason.trim()) {
-      showToast('请填写书面重开理由（入监督日志留痕）', 'err');
+      showToast('请填写书面重开理由（将记入监督日志）', 'err');
       return;
     }
     setReopenBusy(true);
@@ -1078,7 +1078,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       type="button"
                       onClick={() => { setRejectFor({ id: row.id, expertName: row.expertName }); setRejectType('人证不符'); setRejectNote(''); }}
                       className="neu-btn-xs"
-                      title="登记人证不符/照片异常/到场异常（写入监督日志）"
+                      title="登记人证不符/照片异常/到场异常（将记入监督日志）"
                     >
                       异常
                     </button>
@@ -1726,7 +1726,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             <div className="px-6 py-5">
               <p className="mb-4 flex items-start gap-1.5 text-xs leading-5 text-[var(--muted-foreground)]">
                 <span>专家「{manualFor.expertName}」未能拍摄留档照，请<span className="font-semibold text-[var(--warning)]">现场核对其身份证件后</span>确认签到。</span>
-                <HelpTip text="确认将写入监督日志，并在签字包中披露。" className="mt-px shrink-0" />
+                <HelpTip text="确认操作将记入监督日志，并在签字包中披露。" className="mt-px shrink-0" />
               </p>
               <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">降级理由（必填）</label>
               <textarea
@@ -1774,7 +1774,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             <div className="px-6 py-5">
               <p className="mb-4 flex items-start gap-1.5 text-xs leading-5 text-[var(--muted-foreground)]">
                 <span>专家「{releaseFor.expertName}」更换设备需<span className="font-semibold text-[var(--warning)]">现场核对其身份证件后</span>解除锁定。</span>
-                <HelpTip text="解除后原会话失效、专家可重新登录；操作写入监督日志。" className="mt-px shrink-0" />
+                <HelpTip text="解除后原会话失效、专家可重新登录；操作将记入监督日志。" className="mt-px shrink-0" />
               </p>
               <div className="mb-4 flex items-center gap-2 rounded-[10px] bg-[oklch(0.975_0.012_258/0.7)] px-3 py-2 text-[11px] text-[var(--muted-foreground)]">
                 <MonitorSmartphone size={13} strokeWidth={1.7} className="shrink-0 text-[var(--accent-strong)]" />
@@ -1808,7 +1808,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 disabled={releaseBusy || !releaseReason.trim()}
                 className="neu-btn-primary is-water !h-[36px] !text-xs"
               >
-                {releaseBusy ? '解除中…' : '解除并留痕'}
+                {releaseBusy ? '解除中…' : '解除并记入日志'}
               </button>
             </div>
           </div>
@@ -1828,7 +1828,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             <div className="px-6 py-5">
               <p className="mb-4 flex items-start gap-1.5 text-xs leading-5 text-[var(--muted-foreground)]">
                 <span>专家「{exemptFor.expertName}」签到未留档照，迁移后<strong className="text-[var(--foreground)]">本应强制补拍</strong>。仅在摄像头确实不可用时，请<span className="font-semibold text-[var(--warning)]">现场核实</span>后豁免。</span>
-                <HelpTip text="豁免写入监督日志（中风险）并显示于监督时间线；专家平板自动解锁进入评审。" className="mt-px shrink-0" />
+                <HelpTip text="豁免操作将记入监督日志（中等风险）并显示在监督时间线；专家平板随后解锁进入评审。" className="mt-px shrink-0" />
               </p>
               <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">豁免理由（必填）</label>
               <textarea
@@ -1849,7 +1849,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 disabled={exemptBusy || !exemptReason.trim()}
                 className="neu-btn-primary is-water !h-[36px] !text-xs"
               >
-                {exemptBusy ? '豁免中…' : '确认豁免并留痕'}
+                {exemptBusy ? '豁免中…' : '确认豁免'}
               </button>
             </div>
           </div>
@@ -2013,7 +2013,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 className="workbench-input w-full resize-none"
               />
               <p className="mt-3 flex items-center gap-1.5 text-[11px] leading-4 text-[var(--muted-foreground)]">
-                审批后累加 {extendHours} 小时，写入监督与审计日志
+                审批后累加 {extendHours} 小时，并记入监督与审计日志
                 <HelpTip text="在当前截止时间基础上累加；已超时则自当前时刻起算。" />
               </p>
             </div>
@@ -2041,7 +2041,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             <div className="px-6 py-5">
               <p className="mb-3 text-xs leading-5 text-[var(--muted-foreground)]">
                 解锁已确认报告的专家评分：该专家可修改评分并重新确认；<span className="font-semibold text-[var(--foreground)]">全员正选重新确认后</span>方可重新生成评标结果。
-                已提交评分<span className="font-semibold text-[var(--foreground)]">完整保留</span>（改分留痕），本操作写入高风险监督日志与审计日志。
+                已提交评分<span className="font-semibold text-[var(--foreground)]">完整保留</span>（历史改分记录一并保留），本操作将记入高风险监督日志与审计日志。
               </p>
               <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">重开范围</label>
               <select value={reopenScope} onChange={(e) => setReopenScope(e.target.value)} className="workbench-input w-full">

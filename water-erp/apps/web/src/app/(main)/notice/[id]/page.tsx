@@ -17,7 +17,7 @@ import { getSupplierList } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
 import { StatusBadge } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
-import { ArrowLeft, Pencil, X, EyeOff, PackageX, Megaphone, Upload, Sparkles, Clock } from 'lucide-react';
+import { ArrowLeft, Pencil, X, EyeOff, Lock, PackageX, Megaphone, Upload, Sparkles, Clock } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { fetchProjectManagementList, fetchPmBidProjectRefs } from '@/lib/api/project-management';
 import { PublishConfigSection, configFromMetadata, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
@@ -408,7 +408,7 @@ function ReadOnlyView({ ann }: { ann: AnnouncementListItem }) {
           <div className="neu-table-card p-4">
             <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">采购文件</span>
             <div className="mt-3 rounded-[10px] bg-[var(--surface)] p-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.5),1px_1px_3px_oklch(0.55_0.03_258/0.06),-1px_-1px_2px_oklch(1_0_0/0.6)]">
-              <p className="text-sm font-bold text-[var(--foreground)] break-words leading-snug">🔒 {bidDoc.title}</p>
+              <p className="text-sm font-bold text-[var(--foreground)] break-words leading-snug"><Lock size={13} className="inline shrink-0" /> {bidDoc.title}</p>
               <p className="mt-1 text-[11px] text-[var(--muted-foreground)] break-words leading-snug">{bidDoc.fileName} · {(bidDoc.fileSize / 1024).toFixed(0)} KB · {bidDoc.downloadCount} 次下载</p>
               {bidDoc.requirePayment && <span className="mt-1 inline-flex text-[11px] font-semibold text-[var(--warning)]">需付费下载</span>}
             </div>

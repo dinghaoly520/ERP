@@ -112,7 +112,7 @@ export function PointChecklistScoring({ points, value, onChange, readOnly, compa
               {/* fullScore=0（通过制得分点）隐藏数字输入与「/ 0」噪声——勾选即满分 0 */}
               {max > 0 && (
                 <>
-                  <input type="number" min={0} max={max} step={0.5} value={v.awardedScore} disabled={readOnly}
+                  <input type="number" inputMode="decimal" min={0} max={max} step={0.5} value={v.awardedScore} disabled={readOnly}
                     onClick={e => e.stopPropagation()}
                     onKeyDown={e => e.stopPropagation()}
                     onChange={e => onChange(p.id, { ...v, awardedScore: Math.max(0, Math.min(Number(e.target.value) || 0, max)) })}

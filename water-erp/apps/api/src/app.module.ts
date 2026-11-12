@@ -39,6 +39,7 @@ import { AiBidAnalysisModule } from './ai-bid-analysis/ai-bid-analysis.module';
 import { BullModule } from '@nestjs/bullmq';
 import { AuthGuard } from './auth/auth.guard';
 import { PortRouteGuard } from './auth/port-route.guard';
+import { PairingScopeGuard } from './auth/pairing-scope.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 // ── 采购中心迁入模块 ──
 import { UserSettingsModule } from './user-settings/user-settings.module';
@@ -132,6 +133,8 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     { provide: APP_GUARD, useClass: PortRouteGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // TAB-SYNC-01：平板配对受限令牌白名单守卫（链尾——scoped 请求默认拒绝 + pid 绑定）
+    { provide: APP_GUARD, useClass: PairingScopeGuard },
   ],
 })
 export class AppModule {}
