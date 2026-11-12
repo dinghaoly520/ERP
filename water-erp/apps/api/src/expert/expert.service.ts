@@ -1679,10 +1679,10 @@ export class ExpertService {
         for (const d of decisions) {
           const pm = pointMeta.get(d.pointId);
           if (!pm) {
-            throw new BadRequestException({ error: `得分点 ${d.pointId} 不属于该评分项`, code: 'POINT_NOT_IN_ITEM' });
+            throw new BadRequestException({ error: `得分点 ${d.pointId.slice(-8)} 不属于该评分项`, code: 'POINT_NOT_IN_ITEM' });
           }
           if (Number(d.awardedScore) > Number(pm.fullScore)) {
-            throw new BadRequestException({ error: `得分点 ${pm.name ?? d.pointId} 分数 ${d.awardedScore} 超过满分 ${pm.fullScore}`, code: 'POINT_SCORE_EXCEEDS_MAX' });
+            throw new BadRequestException({ error: `得分点 ${pm.name ?? d.pointId.slice(-8)} 分数 ${d.awardedScore} 超过满分 ${pm.fullScore}`, code: 'POINT_SCORE_EXCEEDS_MAX' });
           }
         }
         // 由 decisions 算 score/passed
@@ -1986,13 +1986,18 @@ export class ExpertService {
               // 幂等查重改双 token OR——名称（新格式）+ cuid 尾 8 位（存量格式标题），同时修复
               // 旧查重用全串 contains 对尾 8 位标题永不命中、重复提交会重复建单的缺陷。
               const itemTail = item.scoreItemId.slice(-8);
-              const itemLabel = meta.name ?? itemTail;
+              // L1 加固（2026-11-12 评审）：名称可为空串（update DTO 缺 @IsNotEmpty），contains:'' 会
+              // 编译为 LIKE '%%' 命中任意标题、把查重变成万能抑制器——空串/纯空白一律回退尾缀。
+              const itemLabel = meta.name?.trim() ? meta.name.trim() : itemTail;
               const existing = await this.prisma.expertDispute.findFirst({
                 where: {
                   projectId,
                   expertId: expert.id,
                   type: 'scoring',
                   status: 'open',
+                  // L2/L3 已知权衡（2026-11-12 评审）：contains 式幂等键对子串（「价格评分」vs
+                  // 「价格评分（附加）」）与 LIKE 通配符（%/ _）存在误命中、可能误抑制新告警；
+                  // 根治=ExpertDispute 增 scoreItemId 列做真键（另票），此处以名称+尾缀双 token 过渡。
                   OR: [
                     { title: { contains: itemLabel } },
                     { title: { contains: itemTail } },
