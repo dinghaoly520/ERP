@@ -23,10 +23,23 @@ describe('BidGateway handleConnection 握手校验（sid 一致 + 配对存活�
 
   function makeGateway(
     payload: Record<string, unknown>,
-    opts: { user?: { webSessionId: string | null } | null; alive?: boolean | Error; withRegistry?: boolean } = {},
+    opts: {
+      user?: { webSessionId: string | null } | null;
+      userError?: Error;
+      alive?: boolean | Error;
+      withRegistry?: boolean;
+    } = {},
   ) {
     const jwt = { verifyAsync: jest.fn().mockResolvedValue(payload) };
-    const prisma = { user: { findUnique: jest.fn().mockResolvedValue(opts.user === undefined ? null : opts.user) } };
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockImplementation(() =>
+          opts.userError
+            ? Promise.reject(opts.userError)
+            : Promise.resolve(opts.user === undefined ? null : opts.user),
+        ),
+      },
+    };
     const registry = {
       isAlive: jest.fn().mockImplementation(() =>
         opts.alive instanceof Error ? Promise.reject(opts.alive) : Promise.resolve(opts.alive ?? false),
@@ -65,6 +78,21 @@ describe('BidGateway handleConnection 握手校验（sid 一致 + 配对存活�
     await gw.handleConnection(socket);
     expect(socket.disconnect).toHaveBeenCalledWith(true);
     expect((socket.data as any).userId).toBeUndefined();
+  });
+
+  it('①c prisma 查询抛错（DB 瞬断）→ fail closed 拒连，不悬挂未认证连接、不上抛 unhandled rejection', async () => {
+    // 评审实证（fix round 1）：@nestjs/websockets@11 经 .subscribe(args => handleConnection(...args))
+    // 调用且无错误回调、返回 promise 被丢弃——findUnique 上抛 = socket 悬挂未认证 +
+    // unhandled rejection（默认 Node 语义终止进程；DB 瞬断 + WS 自动重连 = API 崩溃向量）。
+    const socket = makeSocket();
+    const { gw, warnSpy } = makeGateway(
+      { sub: 'u1', role: 'bid_expert', sid: 'sid-ok' },
+      { userError: new Error('db down') },
+    );
+    await expect(gw.handleConnection(socket)).resolves.toBeUndefined(); // 不得 reject
+    expect(socket.disconnect).toHaveBeenCalledWith(true);
+    expect((socket.data as any).userId).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('会话校验异常'));
   });
 
   it('② scope=tablet-pairing 且配对登记已死（isAlive false）→ disconnect(true)', async () => {

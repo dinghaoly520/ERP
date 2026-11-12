@@ -221,10 +221,22 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     //    库中 User.webSessionId 对账（notification.gateway 同款先例）。无 sid 的 token
     //    （token_bid 等旧命名空间）不受影响，照常放行。
     if (payload?.sid) {
-      const su = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { webSessionId: true },
-      });
+      // fail closed：@nestjs/websockets 订阅 handleConnection 无错误回调、返回 promise 被
+      // 丢弃——findUnique 上抛 = socket 悬挂未认证 + unhandled rejection（默认 Node 语义
+      // 终止进程；DB 瞬断 + WS 客户端自动重连 = API 崩溃向量）。异常一律拒连（fix round 1）。
+      let su: { webSessionId: string | null } | null = null;
+      try {
+        su = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { webSessionId: true },
+        });
+      } catch (err) {
+        this.logger.warn(
+          `WS 拒绝连接：会话校验异常（fail closed）userId=${userId}（${(err as Error).message}）`,
+        );
+        socket.disconnect(true);
+        return;
+      }
       if (payload.sid !== su?.webSessionId) {
         this.logger.warn(`WS 拒绝连接：会话已轮换或登出（sid 失配）userId=${userId}`);
         socket.disconnect(true);
