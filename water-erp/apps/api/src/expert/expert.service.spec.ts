@@ -1471,7 +1471,7 @@ describe('ExpertService', () => {
         signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true, conflictedSupplierIds: [], expertName: '刘', expertRole: '正选',
       });
       prisma.bidScoreItem.findMany.mockResolvedValue([
-        { id: 'si1', maxScore: 100, category: 'BUSINESS' },
+        { id: 'si1', maxScore: 100, category: 'BUSINESS', name: '商务能力' },
       ]);
       prisma.bidSupplier.findMany.mockResolvedValue([
         { id: 'sup1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'submitted' },
@@ -1505,7 +1505,11 @@ describe('ExpertService', () => {
           expertId: 'exp1',
           type: 'scoring',
           status: 'open',
-          title: { contains: 'si1' },
+          // #142（2026-11-12）：查重改双 token OR——名称（新格式标题）+ cuid 尾缀（存量格式标题）
+          OR: [
+            { title: { contains: '商务能力' } },
+            { title: { contains: 'si1' } },
+          ],
         }),
       }));
       expect(prisma.expertDispute.create).toHaveBeenCalledWith(expect.objectContaining({
@@ -1514,11 +1518,104 @@ describe('ExpertService', () => {
           expertId: 'exp1',
           expertName: '刘',
           type: 'scoring',
-          title: expect.stringContaining('si1'),
+          title: expect.stringContaining('商务能力'),
           content: expect.stringContaining('30'),
           status: 'open',
         }),
       }));
+    });
+
+    it('#142 评分偏差告警标题用评分项名称而非 cuid 尾缀（名称缺失才回退）', async () => {
+      const longId = 'cmtestscoreitem01x'; // 18 位仿 cuid：slice(-8) = 'eitem01x'
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        id: 'exp1', userId: 'u1', projectId: 'p1', reportConfirmed: false,
+        signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true, conflictedSupplierIds: [], expertName: '刘', expertRole: '正选',
+      });
+      prisma.bidScoreItem.findMany.mockResolvedValue([
+        { id: longId, maxScore: 100, category: 'BUSINESS', name: '商务评分' },
+      ]);
+      prisma.bidSupplier.findMany.mockResolvedValue([
+        { id: 'sup1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'submitted' },
+      ]);
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidScoreRecord.upsert.mockResolvedValue({});
+      prisma.bidScoreItem.count.mockResolvedValue(2);
+      prisma.bidScoreRecord.findMany.mockImplementation((a: any) => {
+        if (a.where?.expertId && a.where.expertId.not) {
+          return Promise.resolve([
+            { expertId: 'e1', scoreItemId: longId, supplierId: 'sup1', score: 82 },
+            { expertId: 'e2', scoreItemId: longId, supplierId: 'sup1', score: 84 },
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+      prisma.bidScoreRecord.count.mockResolvedValue(1);
+      prisma.bidScoreReview.upsert.mockResolvedValue({});
+      prisma.bidInvalidBid.count.mockResolvedValue(0);
+      prisma.expertDispute.findFirst.mockResolvedValue(null);
+      prisma.expertDispute.create.mockResolvedValue({ id: 'd2' });
+
+      await service.submitScores('u1', 'p1', {
+        supplierName: '甲',
+        scores: [{ scoreItemId: longId, supplierId: 'sup1', score: 30 }],
+      } as any);
+
+      const title = prisma.expertDispute.create.mock.calls[0][0].data.title;
+      expect(title).toContain('商务评分');
+      expect(title).not.toContain('eitem01x'); // cuid 尾缀不得出现在标题
+      // 幂等查重双 token：名称 + 尾缀（兜底存量格式标题）
+      const where = prisma.expertDispute.findFirst.mock.calls.at(-1)[0].where;
+      expect(where.OR).toEqual(
+        expect.arrayContaining([
+          { title: { contains: '商务评分' } },
+          { title: { contains: 'eitem01x' } },
+        ]),
+      );
+    });
+
+    it('#142 L1 加固：名称为空串时回退尾缀——contains:"" 全匹配不得成为万能抑制器', async () => {
+      const longId = 'cmtestscoreitem02x'; // slice(-8) = 'eitem02x'
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        id: 'exp1', userId: 'u1', projectId: 'p1', reportConfirmed: false,
+        signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true, conflictedSupplierIds: [], expertName: '刘', expertRole: '正选',
+      });
+      prisma.bidScoreItem.findMany.mockResolvedValue([
+        { id: longId, maxScore: 100, category: 'BUSINESS', name: '' }, // update DTO 漏 @IsNotEmpty 可写入空串
+      ]);
+      prisma.bidSupplier.findMany.mockResolvedValue([
+        { id: 'sup1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'submitted' },
+      ]);
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidScoreRecord.upsert.mockResolvedValue({});
+      prisma.bidScoreItem.count.mockResolvedValue(2);
+      prisma.bidScoreRecord.findMany.mockImplementation((a: any) => {
+        if (a.where?.expertId && a.where.expertId.not) {
+          return Promise.resolve([
+            { expertId: 'e1', scoreItemId: longId, supplierId: 'sup1', score: 82 },
+            { expertId: 'e2', scoreItemId: longId, supplierId: 'sup1', score: 84 },
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+      prisma.bidScoreRecord.count.mockResolvedValue(1);
+      prisma.bidScoreReview.upsert.mockResolvedValue({});
+      prisma.bidInvalidBid.count.mockResolvedValue(0);
+      prisma.expertDispute.findFirst.mockResolvedValue(null);
+      prisma.expertDispute.create.mockResolvedValue({ id: 'd3' });
+
+      await service.submitScores('u1', 'p1', {
+        supplierName: '甲',
+        scores: [{ scoreItemId: longId, supplierId: 'sup1', score: 30 }],
+      } as any);
+
+      // 空串名称不得进标题、也不得进查重 token（LIKE '%%' 全匹配）
+      const title = prisma.expertDispute.create.mock.calls[0][0].data.title;
+      expect(title).toBe('评分偏差告警（评分项 eitem02x）');
+      const tokens = prisma.expertDispute.findFirst.mock.calls.at(-1)[0].where.OR.map(
+        (b: any) => b.title.contains,
+      );
+      expect(tokens).not.toContain('');
+      expect(tokens).toEqual(['eitem02x', 'eitem02x']);
     });
 
     it('DANGER 级偏差幂等：已有 open dispute 时不重复创建', async () => {
