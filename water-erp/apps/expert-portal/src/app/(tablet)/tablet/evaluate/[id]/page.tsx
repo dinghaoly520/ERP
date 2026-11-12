@@ -528,9 +528,11 @@ export default function TabletEvaluatePage() {
     setPointMemoCounts(prev => prev[pid] === count ? prev : { ...prev, [pid]: count });
   }, []);
 
-  // 平板修改拦截器：检测已有值的修改 → 弹确认
+  // 平板修改拦截器：仅「勾选切换」弹确认（97b 裁定 2026-11-12）——number 逐键输入豁免：
+  // 原口径把 awardedScore 变化也拦，逐键弹确认+受控回弹且确认落中间态值，多数字编辑不可用；
+  // 数字路径已有 clamp+max 防呆。判据干净：组件内勾选路径必翻 checked、数字路径 checked 恒不变。
   // fallbackMap = 回退渲染值（buildFullPoints/pfValueMap）——无已存 points 时以回退值判旧值，
-  // 已提交点的第一次点击即弹确认（此前视为新增绕过确认）
+  // 已提交点的勾选切换也弹确认（此前视为新增绕过确认）
   const makeTabletOnChange = (scoreItemId: string, itemPoints: any[], fallbackMap: Record<string, PointDecisionValue> | undefined, defaultApply: (pid: string, pv: PointDecisionValue) => void) => {
     return (pid: string, pv: PointDecisionValue) => {
       const k = scoreKey(activeSupplier, scoreItemId);
@@ -538,12 +540,9 @@ export default function TabletEvaluatePage() {
       const oldPointVal = cur?.points?.[pid] ?? fallbackMap?.[pid];
       const pointName = itemPoints.find(p => p.id === pid)?.name ?? pid;
 
-      const isModify = oldPointVal && (
-        oldPointVal.checked !== pv.checked ||
-        oldPointVal.awardedScore !== pv.awardedScore
-      );
+      const isCheckboxFlip = !!oldPointVal && oldPointVal.checked !== pv.checked;
 
-      if (isModify) {
+      if (isCheckboxFlip) {
         setPendingModify({
           scoreItemId,
           pointId: pid,
@@ -1390,15 +1389,11 @@ export default function TabletEvaluatePage() {
         </Panel>
       </PanelGroup>
 
-      {/* 修改确认弹窗（单项改分防误触，与已删除的批量重置无关） */}
+      {/* 勾选切换确认弹窗（97b：number 输入豁免拦截，仅防勾选误触——分数改动分支已不可达） */}
       <ConfirmDialog
         open={pendingModify !== null}
         title="确认修改评分"
-        message={pendingModify ? `确定将「${pendingModify.pointName}」${
-          !pendingModify.oldVal.checked && pendingModify.newVal.checked ? '勾选该得分点'
-          : pendingModify.oldVal.checked && !pendingModify.newVal.checked ? '取消勾选'
-          : `从 ${pendingModify.oldVal.awardedScore} 分改为 ${pendingModify.newVal.awardedScore} 分`
-        }？` : ''}
+        message={pendingModify ? `确定将「${pendingModify.pointName}」${pendingModify.newVal.checked ? '勾选该得分点' : '取消勾选'}？` : ''}
         confirmText="确认修改"
         cancelText="取消"
         danger
