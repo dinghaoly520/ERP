@@ -84,7 +84,7 @@ export const CHANGE_FIELD_GROUPS: ChangeFieldGroup[] = [
     fields: [
       { field: 'contractNumber', label: '合同编号', kind: 'text', target: 'PMI' },
       { field: 'contractAmount', label: '合同金额', kind: 'number', target: 'PMI' },
-      { field: 'paymentPerformance', label: '履约情况', kind: 'text', target: 'PMI', multiline: true },
+      { field: 'paymentPerformance', label: '履约情况', kind: 'text', target: 'PMI', multiline: true, fullRow: true },
     ],
   },
 ];
