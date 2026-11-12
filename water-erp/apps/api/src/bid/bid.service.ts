@@ -5308,7 +5308,9 @@ export class BidService {
     await this.prisma.bidProject.update({ where: { id: projectId }, data: { currentRoundNo: roundNo } });
 
     await this.prisma.bidSupervisionLog.create({
-      data: { projectId, time: new Date(), role: '开标主持人', target: `第${roundNo}轮报价`, action: '创建报价轮次', result: `类型: ${roundType}`, riskFlag: '无' },
+      // bug#43 同类出清（2026-11-12 评审发现）：roundType 英文枚举（negotiation/sealed_auction/final_quote）
+      // 直出监督时间线——映射中文（镜像专家门户 quote-history ROUND_TYPE_LABEL）
+      data: { projectId, time: new Date(), role: '开标主持人', target: `第${roundNo}轮报价`, action: '创建报价轮次', result: `类型: ${({ negotiation: '谈判轮', final_quote: '最终报价轮', sealed_auction: '竞价轮' } as Record<string, string>)[roundType] ?? roundType}`, riskFlag: '无' },
     }).catch(() => {});
 
     // 仅通知本轮被邀请供应商，避免向全体供应商泄露定向谈判/报价轮次。

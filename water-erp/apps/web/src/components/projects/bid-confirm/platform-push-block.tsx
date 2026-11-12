@@ -57,6 +57,8 @@ const MISSING_HINTS: Record<string, string> = {
   publishDate: '公告缺少发布时间——到信息发布中心补录',
   amount: '合同缺少金额——补录合同金额（公开口径）',
   signedAt: '合同缺少签订时间——补录合同签订日期',
+  // 评审补（2026-11-12）：planToItem 招标计划合成项的预算缺键（platform-push.service:367）——漏此条英文 key 同位复发
+  budget: '招标计划缺少预算金额——到项目管理补录项目预算',
 };
 
 const PUSH_STATUS_LABELS: Record<string, string> = {
