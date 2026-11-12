@@ -481,6 +481,8 @@ model BidProject {
   createdAt                 DateTime                   @default(now())
   updatedAt                 DateTime                   @updatedAt
   bidSignPacket             BidSignPacket?
+  bidIntents                SupplierBidIntent[]
+  noShowRecords             SupplierBidNoShow[]
 
   @@index([stage])
 }
@@ -537,6 +539,39 @@ model BidSupplier {
   bondReturnReason      String? // A-105：不予退还理由（与 bondReturnedAt 互斥使用）
 
   @@unique([projectId, supplierName])
+  @@index([supplierId])
+}
+
+/// 供应商参与意向（2026-11-12 履约闭环）：公开项目（BidDocument.accessScope=OPEN）供应商「拟参与」确认。
+/// 邀请制（INVITED/DESIGNATED/谈判无文档）不适用——其承诺=InvitationRsvp 回执。单向确认不可撤回。
+model SupplierBidIntent {
+  id          String     @id @default(cuid())
+  projectId   String
+  supplierId  String
+  confirmedAt DateTime   @default(now())
+  createdAt   DateTime   @default(now())
+  project     BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplier    Supplier   @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, supplierId])
+  @@index([projectId])
+}
+
+/// 确认参与未投递事故（2026-11-12 履约闭环）：项目开标后（stage∈OPENING/EVALUATING/ARCHIVED）
+/// 承诺方未投递。track: INTENT=公开意向 | RSVP=回执确认参加。legacy=承诺时间早于功能部署
+/// （迁移完成时刻）——展示计入、不触发自动拉黑（2026-11-12 用户裁定：存量不追溯）。
+/// 每项目每家一条（两轨去重、INTENT 优先）。
+model SupplierBidNoShow {
+  id         String     @id @default(cuid())
+  projectId  String
+  supplierId String
+  track      String
+  detectedAt DateTime   @default(now())
+  legacy     Boolean    @default(false)
+  project    BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplier    Supplier   @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, supplierId])
   @@index([supplierId])
 }
 
@@ -1587,6 +1622,8 @@ model Supplier {
   invitation            SupplierInvitation[]         @relation("InvitationUsedBy")
   certs                 SupplierCert[]
   companyLinks          SupplierCompanyLink[] @relation("SupplierCompanyLinks")
+  bidIntents            SupplierBidIntent[]
+  noShowRecords         SupplierBidNoShow[]
 
   // ── 采购中心关联 ──
   awardedRounds  ProcurementRound[] @relation("AwardedSupplier")
