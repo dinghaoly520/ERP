@@ -8,6 +8,8 @@
  */
 
 import { ExternalLink, Gavel, KeyRound, FileCheck, UserCheck, AlertTriangle, Ban } from 'lucide-react';
+import { toast } from 'sonner';
+import { apiFetch } from '@/lib/api/api-fetch';
 import { portalURL } from '@water-erp/config';
 import { deriveOpeningSessionStatus } from '@water-erp/shared';
 import type { BidProjectDetail } from '@/lib/api/bid';
@@ -24,6 +26,26 @@ function formatDateTime(iso: string | null): string {
   if (Number.isNaN(d.getTime())) return '—';
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** 开标文件包落盘下载（bug#114/#143 2026-11-12）：直链 <a> × 后端 inline disposition × JSON 本体
+ *  → 新标签内联渲染「代码页面」。改为 fetch→blob→download 带中文名落盘；href 保留作兜底。
+ *  评审必改已采纳：走 apiFetch 补 tab 级 X-Web-Token（token_web 全局一份，裸 fetch 在多标签
+ *  双账号下会以他人身份请求——审计归因错人，正是 apiFetch 约定要防的串台类）。 */
+async function downloadHandoverAsset(fileAssetId: string, fileName: string) {
+  try {
+    const res = await apiFetch(`/api/upload/files/${fileAssetId}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch {
+    toast.error('开标文件包下载失败，请稍后重试');
+  }
 }
 
 function ProgressStat({
@@ -152,6 +174,11 @@ export function OpeningProgressBlock({ detail, onAbort }: Props) {
                 href={`/api/upload/files/${openingSession.handoverAssetId}`}
                 target="_blank"
                 rel="noopener"
+                onClick={(e) => {
+                  // bug#114/#143：拦截直链（浏览器对 JSON×inline 会内联渲染代码页），改带名落盘
+                  e.preventDefault();
+                  void downloadHandoverAsset(openingSession.handoverAssetId!, `开标文件包-${detail?.projectCode ?? '项目'}.json`);
+                }}
                 className="ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold text-[var(--accent)] hover:underline"
               >
                 <FileCheck size={11} /> 下载开标文件包
