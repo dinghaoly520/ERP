@@ -6063,7 +6063,13 @@ ${JSON.stringify(algorithmResult, null, 2)}
   async deletePermanently(projectId: string, user?: AuthenticatedUser) {
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
-      select: { id: true, status: true, createdById: true, archiveExportedAt: true, recycledAt: true },
+      select: {
+        id: true, status: true, createdById: true, archiveExportedAt: true, recycledAt: true,
+        title: true, projectCode: true, requesterName: true, requesterDepartment: true,
+        procurementMethod: true, budgetAmount: true, companyId: true, companyName: true,
+        terminatedAt: true, terminationReason: true, terminatedStage: true,
+        terminatedProcurementRoundId: true, terminatedById: true,
+      },
     });
 
     if (!project) {
@@ -6103,9 +6109,85 @@ ${JSON.stringify(algorithmResult, null, 2)}
       );
     }
 
-    await this.prisma.projectManagementItem.delete({
-      where: { id: projectId },
+    // ── 留痕 + 卫生清理（spec 2026-11-12 §4.4/§5，2026-11-12）──
+    // 终止人/操作人 displayName 快照（2026-11-09 裁定：username 兜底）
+    const snapshotUsers = await this.prisma.user.findMany({
+      where: {
+        id: { in: [user?.sub, project.terminatedById].filter((x): x is string => Boolean(x)) },
+      },
+      select: { id: true, displayName: true, username: true },
     });
+    const nameOf = (uid?: string | null) => {
+      const u = snapshotUsers.find((x) => x.id === uid);
+      return u?.displayName || u?.username || null;
+    };
+
+    // 连带删除的台账轮次（裁定 #2：CANCELLED 轮次随项目删除，痕迹由墓碑承载）
+    const round = project.terminatedProcurementRoundId
+      ? await this.prisma.procurementRound.findUnique({
+          where: { id: project.terminatedProcurementRoundId },
+          select: { id: true, roundNo: true },
+        })
+      : null;
+
+    // 附件三条归属：PMI 直挂 + stage 挂（stage 删除时 Attachment 行 SetNull 存活，须显式收）+ 轮次挂
+    const stageIds = await this.prisma.projectManagementStage.findMany({
+      where: { projectManagementItemId: projectId },
+      select: { id: true },
+    });
+    const attachmentWhere = {
+      OR: [
+        { projectManagementItemId: projectId },
+        ...(stageIds.length > 0 ? [{ projectManagementStageId: { in: stageIds.map((s) => s.id) } }] : []),
+        ...(round ? [{ procurementRoundId: round.id }] : []),
+      ],
+    };
+    const attachments = await this.prisma.attachment.findMany({
+      where: attachmentWhere,
+      select: { objectKey: true },
+    });
+
+    await this.prisma.$transaction(async (tx) => {
+      // 1. 墓碑留痕（永不可删——无删除端点）
+      await tx.projectDeletionRecord.create({
+        data: {
+          projectId: project.id,
+          title: project.title,
+          projectCode: project.projectCode,
+          requesterName: project.requesterName,
+          requesterDepartment: project.requesterDepartment,
+          procurementMethod: project.procurementMethod,
+          budgetAmount: project.budgetAmount,
+          companyId: project.companyId,
+          companyName: project.companyName,
+          createdById: project.createdById,
+          terminatedAt: project.terminatedAt,
+          terminationReason: project.terminationReason,
+          terminatedStage: project.terminatedStage,
+          terminatedByName: nameOf(project.terminatedById),
+          terminatedRoundNo: round?.roundNo ?? null,
+          recycledAt: project.recycledAt,
+          deletedByName: nameOf(user?.sub) ?? user?.username ?? '未知',
+        },
+      });
+      // 2. 附件行清理（AttachmentVersion 随 Attachment onDelete: Cascade）
+      await tx.attachment.deleteMany({ where: attachmentWhere });
+      // 3. 台账轮次连带删除（RoundSupplier 随 onDelete: Cascade）
+      if (round) {
+        await tx.procurementRound.delete({ where: { id: round.id } });
+      }
+      // 4. PMI 本体（stages/planItems/teamMembers 级联；BidProject SetNull 软摘挂——投标侧记录存活仅断链）
+      await tx.projectManagementItem.delete({ where: { id: projectId } });
+    });
+
+    // 磁盘文件 best-effort（事务已提交；失败仅留孤儿文件，与 deleteAttachment 容错口径一致）
+    for (const att of attachments) {
+      try {
+        await unlink(resolve(process.cwd(), 'uploads', att.objectKey));
+      } catch {
+        // 文件可能已不存在，继续
+      }
+    }
 
     return { success: true };
   }

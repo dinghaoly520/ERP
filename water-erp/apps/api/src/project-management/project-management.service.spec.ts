@@ -378,6 +378,7 @@ jest.mock('node:fs/promises', () => ({
   mkdir: jest.fn(),
   readFile: jest.fn(),
   writeFile: jest.fn(),
+  unlink: jest.fn(),
 }));
 
 describe('ProjectManagementService', () => {
@@ -413,6 +414,8 @@ describe('ProjectManagementService', () => {
         findMany: jest.fn(),
         findUnique: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn(),
+        delete: jest.fn(),
         count: jest.fn().mockResolvedValue(0),
         groupBy: jest.fn().mockResolvedValue([]),
       },
@@ -434,12 +437,24 @@ describe('ProjectManagementService', () => {
         findMany: jest.fn(),
         findUnique: jest.fn(),
         delete: jest.fn(),
+        deleteMany: jest.fn(),
       },
       project: {
         create: jest.fn(),
       },
       procurementRound: {
         create: jest.fn(),
+        findUnique: jest.fn().mockResolvedValue(null),
+        delete: jest.fn(),
+      },
+      // 删除留痕（spec 2026-11-12 §4.4/§5）
+      projectDeletionRecord: {
+        create: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      user: {
+        findMany: jest.fn().mockResolvedValue([]),
+        findUnique: jest.fn().mockResolvedValue(null),
       },
       // analyzeStep 数据面（2026-10-13 扩面）：默认空结果，各用例按需覆写
       bidProject: {
@@ -1650,6 +1665,107 @@ describe('ProjectManagementService', () => {
       expect(prisma.projectManagementItem.update).toHaveBeenCalledWith({
         where: { id: 'pm-01' },
         data: { status: expected, recycledAt: null },
+      });
+    });
+  });
+
+  describe('deletePermanently 留痕+附件卫生+台账轮次连带（spec 2026-11-12 §4.4/§5）', () => {
+    const USER = { sub: 'u-1', username: '张三', role: 'staff' } as any;
+    const FOUR_YEARS_AGO = new Date(Date.now() - 4 * 365 * 86400000);
+
+    const BASE_PROJECT = {
+      id: 'pm-01', status: 'RECYCLED', createdById: 'u-1',
+      archiveExportedAt: null, recycledAt: FOUR_YEARS_AGO,
+      title: '已终止的测试项目', projectCode: 'TP-2026-01',
+      requesterName: '李四', requesterDepartment: '采购中心',
+      procurementMethod: '公开招标', budgetAmount: 100000,
+      companyId: 'co-1', companyName: '四川水发',
+      terminatedAt: new Date('2026-10-01'), terminationReason: '需求取消',
+      terminatedStage: '采购文件', terminatedProcurementRoundId: 'round-1',
+      terminatedById: 'u-2',
+    };
+
+    const makeReady = (prisma: Record<string, any>) => {
+      prisma.projectManagementItem.findUnique.mockResolvedValue({ ...BASE_PROJECT });
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u-1', displayName: '张三', username: 'zhang' },
+        { id: 'u-2', displayName: '王五', username: 'wang' },
+      ]);
+      prisma.procurementRound.findUnique.mockResolvedValue({ id: 'round-1', roundNo: 2 });
+      prisma.projectManagementStage.findMany.mockResolvedValue([{ id: 'st-1' }]);
+      prisma.attachment.findMany.mockResolvedValue([{ objectKey: 'a/b.pdf' }, { objectKey: 'c/d.docx' }]);
+    };
+
+    it('写墓碑留痕：项目快照 + 终止人/操作人 displayName + 轮次号', async () => {
+      const { service, prisma } = makeService();
+      makeReady(prisma);
+      await service.deletePermanently('pm-01', USER);
+
+      expect(prisma.projectDeletionRecord.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          projectId: 'pm-01',
+          title: '已终止的测试项目',
+          projectCode: 'TP-2026-01',
+          procurementMethod: '公开招标',
+          companyId: 'co-1',
+          createdById: 'u-1',
+          terminatedAt: new Date('2026-10-01'),
+          terminationReason: '需求取消',
+          terminatedByName: '王五',
+          terminatedRoundNo: 2,
+          recycledAt: FOUR_YEARS_AGO,
+          deletedByName: '张三',
+        }),
+      });
+    });
+
+    it('附件行清理覆盖 PMI 直挂 + stage 挂 + 轮次挂三条归属', async () => {
+      const { service, prisma } = makeService();
+      makeReady(prisma);
+      await service.deletePermanently('pm-01', USER);
+
+      expect(prisma.attachment.deleteMany).toHaveBeenCalledWith({
+        where: {
+          OR: [
+            { projectManagementItemId: 'pm-01' },
+            { projectManagementStageId: { in: ['st-1'] } },
+            { procurementRoundId: 'round-1' },
+          ],
+        },
+      });
+    });
+
+    it('连带删除台账轮次 + 删除 PMI 本体（裁定 #2）', async () => {
+      const { service, prisma } = makeService();
+      makeReady(prisma);
+      await service.deletePermanently('pm-01', USER);
+
+      expect(prisma.procurementRound.delete).toHaveBeenCalledWith({ where: { id: 'round-1' } });
+      expect(prisma.projectManagementItem.delete).toHaveBeenCalledWith({ where: { id: 'pm-01' } });
+    });
+
+    it('磁盘文件事务后 best-effort 清理（unlink 容错）', async () => {
+      const { service, prisma } = makeService();
+      makeReady(prisma);
+      const unlinkMock = unlink as unknown as jest.Mock;
+      unlinkMock.mockReset().mockResolvedValue(undefined);
+      await service.deletePermanently('pm-01', USER);
+
+      expect(unlinkMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('无轮次项目（建错直删）不触碰 procurementRound', async () => {
+      const { service, prisma } = makeService();
+      makeReady(prisma);
+      prisma.projectManagementItem.findUnique.mockResolvedValue({
+        ...BASE_PROJECT,
+        terminatedProcurementRoundId: null, terminatedById: null,
+      });
+      await service.deletePermanently('pm-01', USER);
+
+      expect(prisma.procurementRound.delete).not.toHaveBeenCalled();
+      expect(prisma.projectDeletionRecord.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ terminatedRoundNo: null, terminatedByName: null }),
       });
     });
   });
