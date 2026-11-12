@@ -399,11 +399,9 @@ export function ProjectManagementPage() {
             /* 已终止区（spec 2026-11-12 §9 终版）：单一数据=终止的项目；卡片可开只读详情；
                创建人可「移除」=立即彻底删除+移除记录；节头右侧「移除记录」按钮弹层 */
             <section className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-[13px] font-bold tracking-[0.02em] text-[color:var(--foreground)]">已终止项目</h3>
-                  <span className="neu-segment-count">{displayItems.length}</span>
-                </div>
+              {/* 节头仅存移除记录按钮（2026-11-12 用户裁定：删「已终止项目」标题与计数；
+                  按钮居内容区右上角，空态即「暂无项目」组件右上角，非空同位恒在） */}
+              <div className="flex justify-end">
                 <button
                   type="button"
                   onClick={() => setShowRecordsModal(true)}
