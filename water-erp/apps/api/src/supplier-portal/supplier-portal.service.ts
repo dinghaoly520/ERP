@@ -1903,17 +1903,6 @@ export class SupplierPortalService {
   ) {
     const cfg = await this.assertNegotiationAccess(projectId, supplierId);
 
-    // 下载留痕（2026-11-12）：谈判轨此前零记录——回写名册下载状态/时间，
-    // 公告「投标情况」/开标确认面板的下载列对谈判项目不再失真
-    // （名册行已被 assertNegotiationAccess 校验存在；updateMany 0 行也不阻断下载）
-    const dlSupplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { name: true } });
-    if (dlSupplier) {
-      await this.prisma.bidSupplier.updateMany({
-        where: { projectId, supplierName: dlSupplier.name },
-        data: { downloadStatus: '已下载', lastDownloadAt: new Date() },
-      }).catch(() => undefined);
-    }
-
     // 解密下载密码闸：encrypted 且配置了密码才设闸（「有密码才生效」与公告链路同语义，
     // 防旧 DTO 下发的 encrypted-无密码坏配置让下载恒 403 卡死）；未传/错传同码不泄露差异
     if (cfg.downloadMode === 'encrypted' && cfg.downloadPassword) {
@@ -1939,6 +1928,7 @@ export class SupplierPortalService {
       res.setHeader('Content-Length', String(buffer.length));
       res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(attachment.fileName)}"`);
       res.end(buffer);
+      await this.markNegotiationDownloaded(projectId, supplierId);
       return;
     }
 
@@ -1964,10 +1954,29 @@ export class SupplierPortalService {
       res.setHeader('Content-Length', String(buffer.length));
       res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(asset.originalName)}"`);
       res.end(buffer);
+      await this.markNegotiationDownloaded(projectId, supplierId);
       return;
     }
 
     throw new NotFoundException({ error: '谈判采购文件不存在', code: 'NOT_FOUND' });
+  }
+
+  /** 下载留痕（2026-11-12）：谈判轨此前零记录——回写名册下载状态/时间，
+   * 公告「投标情况」/开标确认面板的下载列对谈判项目不再失真。
+   * 留痕时点=下载成功（仅在两条交付轨 res.end 送出后调用）——密码闸/清单闸/
+   * 读文件失败等出口不写；整体吞错，留痕失败不波及已完成的下载响应
+   * （名册行已被 assertNegotiationAccess 校验存在；updateMany 0 行为正常 resolve）。 */
+  private async markNegotiationDownloaded(projectId: string, supplierId: string) {
+    try {
+      const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { name: true } });
+      if (!supplier) return;
+      await this.prisma.bidSupplier.updateMany({
+        where: { projectId, supplierName: supplier.name },
+        data: { downloadStatus: '已下载', lastDownloadAt: new Date() },
+      });
+    } catch {
+      // 留痕失败静默（仅记录用途，不影响已送出的文件）
+    }
   }
 
   /** 批量读取项目的谈判配置（Redis），返回 projectId → 配置摘要 映射 */

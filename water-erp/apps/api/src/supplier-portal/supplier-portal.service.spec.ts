@@ -3869,7 +3869,8 @@ describe('SupplierPortalService — getNegotiationFiles / downloadNegotiationFil
   });
 
   /* ── 谈判下载留痕（2026-11-12）：谈判轨此前零记录——下载后回写名册，
-   * 公告「投标情况」/开标确认面板的下载列对谈判项目不再失真 ── */
+   * 公告「投标情况」/开标确认面板的下载列对谈判项目不再失真。
+   * 留痕时点=下载成功（res.end 送出后）——授权尝试/失败出口不写 ── */
   describe('谈判下载留痕（2026-11-12）', () => {
     it('下载成功后回写名册 downloadStatus/lastDownloadAt', async () => {
       // FileAsset 兼容轨（免真实磁盘临时文件）。streamToBuffer 走 spyOn 覆写：
@@ -3885,11 +3886,20 @@ describe('SupplierPortalService — getNegotiationFiles / downloadNegotiationFil
         expect(res.end).toHaveBeenCalledWith(Buffer.from('DL-PLAIN'));
         expect(prisma.bidSupplier.updateMany).toHaveBeenCalledWith(expect.objectContaining({
           where: { projectId: 'bp-1', supplierName: '腾威达液压设备（成都）有限公司' },
-          data: expect.objectContaining({ downloadStatus: '已下载' }),
+          data: expect.objectContaining({ downloadStatus: '已下载', lastDownloadAt: expect.any(Date) }),
         }));
       } finally {
         stbSpy.mockRestore();
       }
+    });
+
+    it('失败出口不写名册：encrypted 错密码（403 WRONG_PASSWORD）→ updateMany 未被调用', async () => {
+      redis.get.mockResolvedValue(JSON.stringify(CFG_ENC));
+      await expect(svc.downloadNegotiationFile('bp-1', 'att-1', 'sup-1', res, '000000')).rejects.toMatchObject({
+        status: 403,
+        response: { code: 'WRONG_PASSWORD' },
+      });
+      expect(prisma.bidSupplier.updateMany).not.toHaveBeenCalled();
     });
   });
 
