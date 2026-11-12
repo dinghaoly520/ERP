@@ -522,6 +522,10 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
   const [analysis,setAnalysis] = useState<DashboardAnalysisResult|null>(null);
   const [alLoading,setAlLoading] = useState(false);
   const [alErr,setAlErr] = useState<string|null>(null);
+  // 当前 data 的归属公司视野（2026-11-12 稳健轮）：生成效应核对 dataCompanyId===companyId
+  // 才放行——否则换公司瞬间（缓存 miss + 新 stats 未返回）会用旧公司数据生成并存进
+  // 新公司的服务端缓存键（scope 派生键），新公司缓存被旧视角内容污染
+  const [dataCompanyId,setDataCompanyId] = useState<string|null>(null);
   const [showDP,setShowDP] = useState(false);
   const [startDate,setStartDate] = useState("");
   const [endDate,setEndDate] = useState("");
@@ -568,9 +572,10 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
 
   useEffect(() => { void readAnalysisCache(); }, [readAnalysisCache]);
 
-  // miss 后自动生成：需 stats 组装 payload，等 data 就绪 + 缓存检查收口即跑；多公司不自动
+  // miss 后自动生成：需 stats 组装 payload，等 data 就绪（且归属公司与当前视野一致）
+  // + 缓存检查收口即跑；多公司不自动
   useEffect(() => {
-    if (!data || !cacheChecked || companyId.includes(",") || analysis || alLoading) return;
+    if (!data || dataCompanyId !== companyId || !cacheChecked || companyId.includes(",") || analysis || alLoading) return;
     void (async () => {
       setAlErr(null); setAlLoading(true);
       try { const r = await fetchDashboardAnalysis(bap(data), companyId); setAnalysis(r); }
@@ -593,7 +598,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
   // 注意 ld 不再 setAnalysis(null)（2026-11-12 竞态修复）：分析生命周期归缓存读取/
   // 生成效应管（公司/区间变化由其 deps 自动重置）——ld 迟到完成时清分析会把
   // 已命中的缓存内容抹掉、再触发一次误生成
-  const ld = useCallback(async(s?:string,e?:string,c?:string)=>{setLoading(true);setLoadErr(null);try{const d=await fetchDashboardData(s,e,c);setData(d);}catch(err){setLoadErr(err instanceof Error?err.message:"加载仪表盘数据失败");}finally{setLoading(false);}},[],);
+  const ld = useCallback(async(s?:string,e?:string,c?:string)=>{setLoading(true);setLoadErr(null);try{const d=await fetchDashboardData(s,e,c);setData(d);setDataCompanyId(c??"all");}catch(err){setLoadErr(err instanceof Error?err.message:"加载仪表盘数据失败");}finally{setLoading(false);}},[],);
   useEffect(()=>{ld();},[ld]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{ld(startDate||undefined,endDate||undefined,companyId);},[companyId]);
