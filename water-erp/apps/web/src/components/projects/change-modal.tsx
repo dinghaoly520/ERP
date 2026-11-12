@@ -9,7 +9,7 @@
  * 服务端为权威闸（白名单/阶段/开标锁/理由），前端禁用仅作引导。
  */
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshCcw, FilePlus2, X, Sparkles, Loader2, ScrollText, ChevronRight } from 'lucide-react';
+import { RefreshCcw, FilePlus2, X, Sparkles, Loader2, ScrollText, ChevronRight, PenLine } from 'lucide-react';
 import { toast } from 'sonner';
 import { registerChange, listChanges, type ProjectChangeRecord } from '@/lib/api/project-changes';
 import { CHANGE_FIELD_GROUPS, stageReached } from '@/lib/change-fields';
@@ -445,18 +445,23 @@ export function ChangeModal({
                 </div>
               )}
 
-              <label className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
-                  变更理由<span className="ml-1 font-normal normal-case text-[var(--warning)]">必填，随轮次留档</span>
-                </span>
+              {/* 变更理由（2026-11-12 用户裁定：凸显设计——警示色内凹面板+图标井，与常规字段区分） */}
+              <div className="flex flex-col gap-2 rounded-[14px] bg-[color-mix(in_oklch,var(--warning)_7%,transparent)] p-3.5 shadow-[inset_1px_2px_5px_oklch(0.55_0.03_258_/_0.1),inset_-1px_-1px_3px_oklch(1_0_0_/_0.6)]">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] bg-[color-mix(in_oklch,var(--warning)_16%,transparent)] text-[var(--warning)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.55)]">
+                    <PenLine size={12} />
+                  </span>
+                  <span className="text-xs font-bold tracking-[0.04em] text-[color:var(--foreground)]">变更理由</span>
+                  <span className="rounded-full bg-[color-mix(in_oklch,var(--warning)_16%,transparent)] px-2 py-0.5 text-[10px] font-semibold text-[var(--warning)]">必填 · 随轮次留档</span>
+                </div>
                 <textarea
-                  className="neu-input text-sm"
+                  className="neu-input min-h-[96px] text-sm"
                   maxLength={200}
                   placeholder="如：需求方要求调整供货范围"
                   value={reason}
                   onChange={e => setReason(e.target.value)}
                 />
-              </label>
+              </div>
             </div>
           )}
         </div>
