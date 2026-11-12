@@ -1126,7 +1126,8 @@ export class ExpertAdminService {
         throw new BadRequestException({ error: `专家 ${a.userId} 分工值非法（reviewGroup/dutyRole 不在白名单）`, code: 'INVALID_COMMITTEE_VALUE' });
       }
     }
-    const roster = await this.prisma.bidExpert.findMany({ where: { projectId, expertRole: '正选' }, select: { userId: true } });
+    // bug#43①（2026-11-12）：select 补 expertName——监督日志 result 此前直写裸 cuid（zengrui 10-15 实录）
+    const roster = await this.prisma.bidExpert.findMany({ where: { projectId, expertRole: '正选' }, select: { userId: true, expertName: true } });
     const ids = new Set(roster.map(r => r.userId));
     for (const a of dto.assignments) {
       if (!ids.has(a.userId)) throw new BadRequestException({ error: `专家 ${a.userId} 不在本项目正选名单`, code: 'EXPERT_NOT_IN_COMMITTEE' });
@@ -1140,7 +1141,11 @@ export class ExpertAdminService {
           } });
       }
       await tx.bidSupervisionLog.create({ data: { projectId, time: new Date(), role: '系统', target: '评标委员会',
-        action: '评委分工设置', result: dto.assignments.map(a => `${a.userId}:${a.reviewGroup ?? '—'}/${a.dutyRole ?? '—'}`).join('；'), riskFlag: '无', operatorId: actorId ?? undefined } });
+        action: '评委分工设置', result: dto.assignments.map(a => {
+          // bug#43①：显专家姓名（cuid 对人不友好；名重时监督侧可经专家库反查）
+          const name = roster.find(r => r.userId === a.userId)?.expertName ?? a.userId;
+          return `${name}:${a.reviewGroup ?? '—'}/${a.dutyRole ?? '—'}`;
+        }).join('；'), riskFlag: '无', operatorId: actorId ?? undefined } });
     });
     return { success: true };
   }
