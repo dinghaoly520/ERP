@@ -4135,7 +4135,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
    *  - 同时写入采购台账：一条 CANCELLED 轮次（格式与归档一致，缺省字段留空，附终止原因）
    *  - 终止项目在「项目管理 → 已终止」列表只读查看，不得再编辑/推进
    */
-  async terminateProject(projectId: string, dto: { reason?: string; notify?: 'none' | 'accepted' | 'all' }, userId?: string, user?: AuthenticatedUser) {
+  async terminateProject(projectId: string, dto: { reason?: string; notify?: 'none' | 'accepted' }, userId?: string, user?: AuthenticatedUser) {
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
       select: {

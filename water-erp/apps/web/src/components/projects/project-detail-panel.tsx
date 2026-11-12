@@ -262,7 +262,7 @@ export function ProjectDetailPanel({
   item: ProjectManagementItem;
   onClose: () => void;
   onUpdated: () => Promise<void>;
-  onTerminate?: (projectId: string, reason: string, notify: 'none' | 'accepted' | 'all') => Promise<void>;
+  onTerminate?: (projectId: string, reason: string, notify: 'none' | 'accepted') => Promise<void>;
   canModify?: boolean;
   currentUsername?: string;
   currentUserRole?: string;
@@ -949,7 +949,7 @@ export function ProjectDetailPanel({
   //（2026-11-12 §9：终止是详情面板唯一收尾动作；移除改在已终止卡片上操作）
   const [terminateOpen, setTerminateOpen] = useState(false);
   const [terminateReason, setTerminateReason] = useState('');
-  const [terminateNotify, setTerminateNotify] = useState<'none' | 'accepted' | 'all'>('none');
+  const [terminateNotify, setTerminateNotify] = useState<'none' | 'accepted'>('none');
   const [terminating, setTerminating] = useState(false);
 
   const submitTerminate = async () => {
@@ -2304,7 +2304,6 @@ export function ProjectDetailPanel({
                 {([
                   { key: 'none', label: '不发送通知', desc: '' },
                   { key: 'accepted', label: '通知已确认参与的供应商', desc: '仅回执「已确认参加」的供应商' },
-                  { key: 'all', label: '通知全部受邀供应商', desc: '含待确认/已放弃的全部受邀供应商' },
                 ] as const).map((opt) => (
                   <label
                     key={opt.key}

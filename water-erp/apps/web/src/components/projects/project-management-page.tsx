@@ -238,7 +238,7 @@ export function ProjectManagementPage() {
     return project.createdById === currentUser.id;
   };
 
-  const handleTerminate = async (projectId: string, reason: string, notify: 'none' | 'accepted' | 'all') => {
+  const handleTerminate = async (projectId: string, reason: string, notify: 'none' | 'accepted') => {
     setErrorMessage(null);
     const result = await terminateProject(projectId, reason, notify);
     if (result?.notifiedCount) {
