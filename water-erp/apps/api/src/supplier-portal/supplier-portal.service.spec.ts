@@ -1813,6 +1813,39 @@ describe('SupplierPortalService', () => {
       );
     });
 
+    it('#101 名册行已存在且无回执号 → update 分支补生成 TB- 号（根因：名册先行建行不写号，投递走 update 永不补）', async () => {
+      const { envelope, signature } = await buildDualSubmission();
+      // 首查=名册行（receiptNo null）；后续=撞号查重（空）
+      let findCalls = 0;
+      prisma.bidSupplier.findFirst.mockImplementation(async () => {
+        findCalls += 1;
+        return findCalls === 1
+          ? { id: 'bs-existing', supplierId: 'supplier-1', supplierName: '测试供应商', receiptNo: null }
+          : null;
+      });
+      await service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', bidPrice: '980000', envelope, signature,
+      } as any);
+
+      expect(prisma.bidSupplier.create).not.toHaveBeenCalled();
+      const upd = prisma.bidSupplier.update.mock.calls[0][0];
+      expect(upd.where).toEqual({ id: 'bs-existing' });
+      expect(upd.data.receiptNo).toMatch(/^TB-\d{8}-\d{3}$/);
+    });
+
+    it('#101 名册行已有回执号 → update 不覆盖（幂等；data 无 receiptNo 键）', async () => {
+      const { envelope, signature } = await buildDualSubmission();
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-existing', supplierId: 'supplier-1', supplierName: '测试供应商', receiptNo: 'TB-20260101-001' });
+      await service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', bidPrice: '980000', envelope, signature,
+      } as any);
+
+      const upd = prisma.bidSupplier.update.mock.calls[0][0];
+      expect(upd.where).toEqual({ id: 'bs-existing' });
+      expect(upd.data).not.toHaveProperty('receiptNo');
+      expect(upd.data.submitStatus).toBe('已提交');
+    });
+
     it('② asset 非 clientEncrypted → 400 BID_FILE_NOT_ENCRYPTED（拒收未按双层信封加密的文件）', async () => {
       prisma.fileAsset.findMany.mockResolvedValue([{ ...dualAsset(), clientEncrypted: false }]);
       prisma.fileAsset.findUnique.mockResolvedValue({ ...dualAsset(), clientEncrypted: false });

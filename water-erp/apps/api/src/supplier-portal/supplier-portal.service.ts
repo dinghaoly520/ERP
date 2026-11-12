@@ -317,6 +317,20 @@ export class SupplierPortalService {
     return `AL-${suffix || 'RECEIPT'}`;
   }
 
+  /**
+   * #101（2026-11-12）：TB-回执号生成（TB-yyyymmdd-NNN，≤3 次撞号查重——同日随机三位数碰撞窗口收敛）。
+   * 抽自投递事务 create 分支的两处同款循环；update 分支（名册行先于投递存在时）补号同用。
+   */
+  private async nextBidReceiptNo(tx: Prisma.TransactionClient, now: Date): Promise<string> {
+    let receiptNo = '';
+    for (let tryNo = 0; tryNo < 3; tryNo++) {
+      receiptNo = `TB-${now.toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(Math.random() * 999)).padStart(3, '0')}`;
+      const clash = await tx.bidSupplier.findFirst({ where: { receiptNo }, select: { id: true } });
+      if (!clash) break;
+    }
+    return receiptNo;
+  }
+
   private awardNotificationLink(deliveryId: string): string {
     return `/award-letters?deliveryId=${encodeURIComponent(deliveryId)}`;
   }
@@ -2584,16 +2598,14 @@ export class SupplierPortalService {
         });
         let receiptNo: string | null = existingBidSupplier?.receiptNo ?? null;
         if (existingBidSupplier) {
-          await tx.bidSupplier.update({
-            where: { id: existingBidSupplier.id },
-            data: { supplierId, submitStatus: '已提交', encryptStatus: bidSupplierEncryptStatus },
-          });
+          // #101：名册行先于投递存在（invite/rsvp 等建行不写号）——无号时补生成；有号不动（幂等不覆盖）
+          const patch: { supplierId: string; submitStatus: string; encryptStatus: string; receiptNo?: string } = {
+            supplierId, submitStatus: '已提交', encryptStatus: bidSupplierEncryptStatus,
+          };
+          if (!receiptNo) patch.receiptNo = receiptNo = await this.nextBidReceiptNo(tx, now);
+          await tx.bidSupplier.update({ where: { id: existingBidSupplier.id }, data: patch });
         } else {
-          for (let tryNo = 0; tryNo < 3; tryNo++) {
-            receiptNo = `TB-${now.toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(Math.random() * 999)).padStart(3, '0')}`;
-            const clash = await tx.bidSupplier.findFirst({ where: { receiptNo }, select: { id: true } });
-            if (!clash) break;
-          }
+          receiptNo = await this.nextBidReceiptNo(tx, now);
           await tx.bidSupplier.create({
             data: {
               projectId,
@@ -3129,17 +3141,15 @@ export class SupplierPortalService {
         });
         let receiptNo = existingBidSupplier?.receiptNo ?? null;
         if (existingBidSupplier) {
-          await tx.bidSupplier.update({
-            where: { id: existingBidSupplier.id },
-            data: { supplierId, submitStatus: '已提交', encryptStatus: '双层信封已验签' },
-          });
+          // #101：名册行先于投递存在——无号时补生成；有号不动（幂等，同 v2 轨口径）
+          const patch: { supplierId: string; submitStatus: string; encryptStatus: string; receiptNo?: string } = {
+            supplierId, submitStatus: '已提交', encryptStatus: '双层信封已验签',
+          };
+          if (!receiptNo) patch.receiptNo = receiptNo = await this.nextBidReceiptNo(tx, now);
+          await tx.bidSupplier.update({ where: { id: existingBidSupplier.id }, data: patch });
         } else {
           // T8：receiptNo 撞号查重重生成（≤3 次——同日随机三位数碰撞窗口收敛）
-          for (let tryNo = 0; tryNo < 3; tryNo++) {
-            receiptNo = `TB-${now.toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(Math.random() * 999)).padStart(3, '0')}`;
-            const clash = await tx.bidSupplier.findFirst({ where: { receiptNo }, select: { id: true } });
-            if (!clash) break;
-          }
+          receiptNo = await this.nextBidReceiptNo(tx, now);
           await tx.bidSupplier.create({
             data: {
               projectId, supplierId, supplierName: supplier.name,
