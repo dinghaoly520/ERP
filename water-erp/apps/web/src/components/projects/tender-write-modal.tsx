@@ -1071,6 +1071,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
               onOpenSupplierSelect={() => setSupplierSelectOpen(true)}
               onAutoFillAll={handleAutoFillAll}
               batchFilling={batchFilling}
+              projectCode={project?.projectCode ?? undefined}
             />
           ) : (
             <div className="flex-1 flex items-center justify-center">

@@ -183,6 +183,8 @@ function PreviewValue({
   inline?: boolean;
   fieldKey?: TenderFieldKey;
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
+  /** 项目编号：封面名称下方裸编号（透传自主组件） */
+  projectCode?: string;
 }) {
   const isEmpty = typeof value !== 'string' || !value.trim();
   const elementRef = useRef<HTMLSpanElement | null>(null);
@@ -354,6 +356,7 @@ export function TenderPreviewDocument({
   onSectionClick,
   onValueChange,
   companyName,
+  projectCode,
 }: {
   documentType: ReadyTenderDocumentType;
   draft: ReadyTenderDraft;
@@ -362,6 +365,8 @@ export function TenderPreviewDocument({
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
   /** 当前用户公司名（2026-10-09）：预览固定公司名按登录账号公司展示 */
   companyName?: string;
+  /** 项目编号（2026-11-12）：封面项目名称下方裸编号——与导出模板封面同口径；独立页无项目不传即不显示 */
+  projectCode?: string;
 }) {
   const content = (() => {
     if (documentType === 'SINGLE_SOURCE') {
@@ -371,6 +376,7 @@ export function TenderPreviewDocument({
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
           onValueChange={onValueChange}
+          projectCode={projectCode}
         />
       );
     }
@@ -382,6 +388,7 @@ export function TenderPreviewDocument({
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
           onValueChange={onValueChange}
+          projectCode={projectCode}
         />
       );
     }
@@ -394,6 +401,7 @@ export function TenderPreviewDocument({
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
           onValueChange={onValueChange}
+          projectCode={projectCode}
         />
       );
     }
@@ -404,6 +412,7 @@ export function TenderPreviewDocument({
         activeSectionKey={activeSectionKey}
         onSectionClick={onSectionClick}
         onValueChange={onValueChange}
+        projectCode={projectCode}
       />
     );
   })();
@@ -420,11 +429,14 @@ function CompetitiveNegotiationPreview({
   activeSectionKey,
   onSectionClick,
   onValueChange,
+  projectCode,
 }: {
   draft: CompetitiveNegotiationDraft;
   activeSectionKey: TenderSectionKey;
   onSectionClick?: (key: TenderSectionKey) => void;
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
+  /** 项目编号：封面名称下方裸编号（透传自主组件） */
+  projectCode?: string;
 }) {
   // Helper to create PreviewValue with onValueChange
   const PV = (value: string, placeholder: string, fieldKey: TenderFieldKey, multiline = false) => (
@@ -454,6 +466,11 @@ function CompetitiveNegotiationPreview({
             <div className="text-xl font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
+            {projectCode && (
+              <div className="mt-1.5 text-sm font-medium tabular-nums tracking-[0.02em] text-[color:var(--muted-foreground)]">
+                {projectCode}
+              </div>
+            )}
             <div className="mt-4 text-sm font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">
               谈判采购文件
             </div>
@@ -758,11 +775,14 @@ function SingleSourcePreview({
   activeSectionKey,
   onSectionClick,
   onValueChange,
+  projectCode,
 }: {
   draft: SingleSourceDraft;
   activeSectionKey: TenderSectionKey;
   onSectionClick?: (key: TenderSectionKey) => void;
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
+  /** 项目编号：封面名称下方裸编号（透传自主组件） */
+  projectCode?: string;
 }) {
   return (
     <div className="pb-4">
@@ -779,6 +799,11 @@ function SingleSourcePreview({
             <div className="text-xl font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
+            {projectCode && (
+              <div className="mt-1.5 text-sm font-medium tabular-nums tracking-[0.02em] text-[color:var(--muted-foreground)]">
+                {projectCode}
+              </div>
+            )}
             <div className="mt-4 text-sm font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">
               直接采购文件
             </div>
@@ -1109,11 +1134,14 @@ function InquiryPurchasePreview({
   activeSectionKey,
   onSectionClick,
   onValueChange,
+  projectCode,
 }: {
   draft: InquiryPurchaseDraft;
   activeSectionKey: TenderSectionKey;
   onSectionClick?: (key: TenderSectionKey) => void;
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
+  /** 项目编号：封面名称下方裸编号（透传自主组件） */
+  projectCode?: string;
 }) {
   // 询比 v2（2026-10-29 模板）：与竞价预览同构的五章制；术语恒为询比口径
   const T = { docTitle: '询比采购文件', party: '供应商', file: '响应文件', chapter: '采购邀请', buyer: '采购人' };
@@ -1137,6 +1165,11 @@ function InquiryPurchasePreview({
             <div className="text-xl font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
+            {projectCode && (
+              <div className="mt-1.5 text-sm font-medium tabular-nums tracking-[0.02em] text-[color:var(--muted-foreground)]">
+                {projectCode}
+              </div>
+            )}
             <div className="mt-4 text-sm font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">
               {T.docTitle}
             </div>
@@ -1569,6 +1602,7 @@ function InternalBiddingPreview({
   activeSectionKey,
   onSectionClick,
   onValueChange,
+  projectCode,
   isInvited = false,
 }: {
   draft: InternalBiddingDraft;
@@ -1576,6 +1610,8 @@ function InternalBiddingPreview({
   onSectionClick?: (key: TenderSectionKey) => void;
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
   isInvited?: boolean;
+  /** 项目编号：封面名称下方裸编号（透传自主组件） */
+  projectCode?: string;
 }) {
   // 术语映射：邀请招标 vs 竞价采购
   const T = isInvited
@@ -1597,6 +1633,11 @@ function InternalBiddingPreview({
             <div className="text-xl font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
+            {projectCode && (
+              <div className="mt-1.5 text-sm font-medium tabular-nums tracking-[0.02em] text-[color:var(--muted-foreground)]">
+                {projectCode}
+              </div>
+            )}
             <div className="mt-4 text-sm font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">
               {T.docTitle}
             </div>
