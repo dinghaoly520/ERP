@@ -62,6 +62,10 @@ export interface NotificationTypeSpec {
   link?: (ctx: NotificationRenderCtx) => string;
   /** 幽灵/历史类型：代码不再产生，仅为存量数据显示保留 */
   deprecated?: boolean;
+  /** 群发复核型待办（2026-11-12）：群发给多人每人一行的复核预警，复核是一次性共享工作——
+   *  任一收件人办结即整组消解（同 type+link+content 的群发副本，resolveOwn 整组 fan-out）。
+   *  无此标记的可操作类型办结仅消解本人行（个人待办/审批镜像）。 */
+  sharedResolve?: boolean;
 }
 
 const IN_APP: NotificationChannelKind[] = ['in_app'];
@@ -497,7 +501,7 @@ const EXPERT_SPECS: NotificationTypeSpec[] = [
   { code: 'EXPERT_SWAP_PROMOTED', label: '专家替补上岗', domain: 'expert', icon: 'UserCheck', tone: 'blue', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'EXPERT_SWAP_RELEASED', label: '专家替补释放', domain: 'expert', icon: 'UserMinus', tone: 'gray', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'EXPERT_INVITATION_OVERRIDDEN', label: '专家邀请变更', domain: 'expert', icon: 'RefreshCw', tone: 'orange', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP }, // 2026-10-21 代为变更设计适配：工作人员把专家「确认参加」改为「婉拒」时通知本人（含理由与操作人），事件同步计入邀请轨迹
-  { code: 'EXPERT_DECLINE_STREAK', label: '专家连续婉拒预警', domain: 'expert', icon: 'AlertTriangle', tone: 'red', actionable: true, audiences: [{ kind: 'ROLE', roles: ['leader', 'staff'] }], channels: IN_APP, link: (ctx) => `/expert/${ctx.userId}?tab=overview` }, // 2026-11-03 直达该专家「评审项目」页签（连拒记录与历次邀请在此复核）；2026-10-21 邀请信用：连续 3 次拒绝评审邀请触发一次预警（同段连拒期不重复）
+  { code: 'EXPERT_DECLINE_STREAK', label: '专家连续婉拒预警', domain: 'expert', icon: 'AlertTriangle', tone: 'red', actionable: true, sharedResolve: true, audiences: [{ kind: 'ROLE', roles: ['leader', 'staff'] }], channels: IN_APP, link: (ctx) => `/expert/${ctx.userId}?tab=overview` }, // 2026-11-03 直达该专家「评审项目」页签（连拒记录与历次邀请在此复核）；2026-10-21 邀请信用：连续 3 次拒绝评审邀请触发一次预警（同段连拒期不重复）
   { code: 'EXPERT_DISPUTE_RESOLVED', label: '专家异议结果', domain: 'expert', icon: 'CheckCircle2', tone: 'green', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'EXPERT_RETIRE_CANDIDATE', label: '专家退库预警', domain: 'expert', icon: 'UserMinus', tone: 'orange', actionable: true,
     // 2026-09-26 超界修复：专家库管理事件归 :3005（leader+staff 复核），不进 bid_host/admin；link 指 :3005 退库复核页
@@ -547,7 +551,7 @@ const SUPPLIER_SPECS: NotificationTypeSpec[] = [
   { code: 'SUPPLIER_LINK_REJECTED', label: '加入公司驳回', domain: 'supplier', icon: 'XCircle', tone: 'red', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'SUPPLIER_LINK_DISABLED', label: '加入公司停用', domain: 'supplier', icon: 'UserMinus', tone: 'orange', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP }, // 公司侧库内停用（软移出，可恢复；终审 I1 2026-10-19）——恢复不通知（供应商 myLinks 自见状态）
   { code: 'RSVP_OVERRIDDEN', label: '回执状态变更', domain: 'supplier', icon: 'RefreshCw', tone: 'orange', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP }, // 2026-10-21 回执一次性锁定：工作人员把供应商「确认参加」改为「拒绝」时通知本人（含理由与操作人）
-  { code: 'SUPPLIER_DECLINE_STREAK', label: '供应商连续婉拒预警', domain: 'supplier', icon: 'AlertTriangle', tone: 'red', actionable: true, audiences: [{ kind: 'ROLE', roles: ['leader', 'staff'] }], channels: IN_APP, link: () => '/supplier/repository' }, // 2026-10-21 邀请信用：连续 3 次拒绝采购邀请（自答婉拒/超时弃权/代婉拒均计）触发一次预警——同一段连拒期内不重复
+  { code: 'SUPPLIER_DECLINE_STREAK', label: '供应商连续婉拒预警', domain: 'supplier', icon: 'AlertTriangle', tone: 'red', actionable: true, sharedResolve: true, audiences: [{ kind: 'ROLE', roles: ['leader', 'staff'] }], channels: IN_APP, link: () => '/supplier/repository' }, // 2026-10-21 邀请信用：连续 3 次拒绝采购邀请（自答婉拒/超时弃权/代婉拒均计）触发一次预警——同一段连拒期内不重复；sharedResolve（2026-11-12）：群发复核型，任一人办结整组消解
   // 2026-10-27 补登记（全量产生点↔注册表对齐扫描）：三处产生点此前未注册，标签退化「其他通知」
   { code: 'SUPPLIER_CHANGE_PENDING', label: '资料变更待审批', domain: 'supplier', icon: 'FilePenLine', tone: 'orange', actionable: true, audiences: [{ kind: 'COMPANY_LEADER_STAFF' }], channels: IN_APP, link: () => '/supplier?tab=changes' }, // supplier-portal.service：供应商档案字段变更申请 → 审批中心·信息更新审批
   { code: 'CERT_EXPIRY_REMINDER', label: 'CA 证书到期提醒', domain: 'supplier', icon: 'CreditCard', tone: 'orange', actionable: true, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP, link: () => '/profile/ukey' }, // scheduler buildCertExpiryNotification（A-13 到期提醒 30/7 天两档+过期补发）

@@ -491,7 +491,7 @@ export function CreateProjectDialog({
         </div>
         <input
           type="file"
-          accept="application/pdf"
+          accept=".pdf,.doc,.docx,.txt"
           multiple
           onChange={(event) => {
             const picked = Array.from(event.target.files ?? []);
@@ -521,7 +521,7 @@ export function CreateProjectDialog({
             <Upload size={20} className="text-[var(--accent)]" />
           )}
           <span className={`text-sm ${isExtracted ? 'text-[var(--success)]' : 'text-[color:var(--muted-foreground)]'}`}>
-            {files.length > 0 ? `已选 ${files.length} 个文件` : '点击选择 PDF 文件，可多选'}
+            {files.length > 0 ? `已选 ${files.length} 个文件` : '点击选择文件，可多选（PDF / Word / TXT）'}
           </span>
         </label>
         {/* 已选文件清单：解析前可逐个移除；解析后仅展示（移除需整体清除重选） */}

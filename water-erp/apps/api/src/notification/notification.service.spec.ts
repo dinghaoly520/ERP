@@ -231,6 +231,36 @@ describe('NotificationService', () => {
     });
   });
 
+  it('resolveOwn 群发复核型（连拒预警）整组消解：任一收件人办结，同 type+link+content 的群发副本一并办结（2026-11-12 实录：02 办结后 01 仍挂待办）', async () => {
+    const content = '专家「朱少帅」已连续 3 次拒绝评审邀请（含婉拒/超时弃权/代婉拒），请复核其参评意愿与库内状态。';
+    prisma.notification.findUnique.mockReset().mockResolvedValue({
+      id: 'n1', userId: 'u1', type: 'EXPERT_DECLINE_STREAK', resolvedAt: null, isRead: false,
+      link: '/expert/e1?tab=overview', content,
+    });
+    prisma.notification.update.mockClear().mockResolvedValue({ id: 'n1' });
+    prisma.notification.updateMany.mockClear().mockResolvedValue({ count: 9 });
+
+    await service.resolveOwn('n1', 'u1');
+
+    expect(prisma.notification.updateMany).toHaveBeenCalledWith({
+      where: { type: 'EXPERT_DECLINE_STREAK', link: '/expert/e1?tab=overview', content, resolvedAt: null },
+      data: { resolvedAt: expect.any(Date), isRead: true, readAt: expect.any(Date) },
+    });
+  });
+
+  it('resolveOwn 非群发复核型不整组消解：个人待办办结只动本人行', async () => {
+    prisma.notification.findUnique.mockReset().mockResolvedValue({
+      id: 'n2', userId: 'u1', type: 'SUPPLIER_PENDING', resolvedAt: null, isRead: false,
+      link: '/supplier/approval?supplierId=s1', content: 'x',
+    });
+    prisma.notification.update.mockClear().mockResolvedValue({ id: 'n2' });
+    prisma.notification.updateMany.mockClear();
+
+    await service.resolveOwn('n2', 'u1');
+
+    expect(prisma.notification.updateMany).not.toHaveBeenCalled();
+  });
+
   it('resolveOwn 幂等：已办结不重置时间、不落库', async () => {
     const done = { id: 'n2', userId: 'u1', type: 'SUPPLIER_PENDING', resolvedAt: new Date('2026-11-01'), isRead: false };
     prisma.notification.findUnique.mockReset().mockResolvedValue(done);

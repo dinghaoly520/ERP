@@ -13,6 +13,8 @@ import { sweepStaleActionableNotifications } from './stale-sweep';
 /** 可操作（待办类）类型集合——五段状态视图的 todo/done 判定依据（注册表派生） */
 const ACTIONABLE_TYPES = NOTIFICATION_REGISTRY.filter(s => s.actionable).map(s => s.code);
 const READONLY_TYPES = NOTIFICATION_REGISTRY.filter(s => !s.actionable).map(s => s.code);
+/** 群发复核型待办集合（注册表派生）：办结语义=整组消解（同 type+link+content 的群发副本） */
+const SHARED_RESOLVE_TYPES = NOTIFICATION_REGISTRY.filter(s => s.sharedResolve).map(s => s.code);
 
 @Injectable()
 export class NotificationService {
@@ -448,9 +450,23 @@ export class NotificationService {
     }
     if (notification.resolvedAt) return notification; // 幂等：已办结不重置时间
     const now = new Date();
-    return this.prisma.notification.update({
+    const updated = await this.prisma.notification.update({
       where: { id: notificationId },
       data: { resolvedAt: now, isRead: true, readAt: now },
     });
+    // 群发复核型（连拒预警对，2026-11-12 实录：02 办结后 01 仍挂待办）：预警群发给归属
+    // 公司全体 leader/staff 每人一行，复核却是一次性共享工作——任一人办结即整组消解。
+    // 按 type+link+content 逐字匹配同批副本（sendToCompanyRoles 同 payload 群发、副本逐字
+    // 相同）；link 无实体 id 的类型（供应商连拒 link=/supplier/repository）靠 content 锁定实体。
+    if (SHARED_RESOLVE_TYPES.includes(notification.type)) {
+      await this.prisma.notification.updateMany({
+        where: {
+          type: notification.type, link: notification.link, content: notification.content,
+          resolvedAt: null,
+        },
+        data: { resolvedAt: now, isRead: true, readAt: now },
+      });
+    }
+    return updated;
   }
 }

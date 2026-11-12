@@ -560,7 +560,7 @@ Modal 壳之上的内容层标准结构（范本：`apps/web/src/components/admi
     {/* 可选 signal 徽标：warning → 待处理橙 / danger → 风险红 / success → 正常绿 */}
     {signal && (
       <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold ...">
-        <span className={`h-1 w-1 rounded-full bg-[var(--success/warning/danger)]`} />
+        <span className={`h-1 w-1 rounded-full ${signal === 'success' ? 'bg-[var(--success)]' : signal === 'warning' ? 'bg-[var(--warning)]' : 'bg-[var(--danger)]'}`} />
         {status}
       </span>
     )}
