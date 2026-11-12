@@ -62,7 +62,7 @@ export function DeletionRecordList({ records, showHeader = true }: { records: Pr
                 const brief = briefOf(r);
                 return brief ? (
                   <div className="mt-1 line-clamp-2 text-xs leading-5 text-[color:var(--muted-foreground)]" title={brief}>
-                    <span className="font-semibold text-[color:var(--foreground)]">终止时简报：</span>
+                    <span className="font-semibold text-[color:var(--foreground)]">项目简报：</span>
                     {brief}
                   </div>
                 ) : null;
