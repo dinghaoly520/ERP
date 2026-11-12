@@ -53,6 +53,7 @@ describe('ExpertService', () => {
         update: jest.fn(),
         updateMany: jest.fn(),
         count: jest.fn(),
+        groupBy: jest.fn().mockResolvedValue([]),
       },
       bidProject: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}) },
       bidSupplier: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn(), update: jest.fn().mockResolvedValue({}) },
@@ -2337,6 +2338,29 @@ describe('ExpertService', () => {
       } as any);
 
       expect(prisma.expertDispute.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getMyTasks：表决入口按成员资格收口（2026-11-12 终审收尾）', () => {
+    it('候补/declined → canVote=false；正选 confirmed → canVote=true', async () => {
+      prisma.bidExpert.findMany.mockResolvedValue([
+        { id: 'sub-1', expertName: '候补', isLead: false, projectId: 'p1', expertRole: '候补', invitationStatus: 'confirmed', project: { name: '项目一', stage: 'EVALUATING' } },
+        { id: 'dec-1', expertName: '婉拒', isLead: false, projectId: 'p2', expertRole: '正选', invitationStatus: 'declined', project: { name: '项目二', stage: 'EVALUATING' } },
+        { id: 'ok-1', expertName: '正选', isLead: false, projectId: 'p3', expertRole: '正选', invitationStatus: 'confirmed', project: { name: '项目三', stage: 'EVALUATING' } },
+      ]);
+      prisma.bidExpert.groupBy.mockResolvedValue([{ projectId: 'p1', _count: { _all: 3 } }]);
+      prisma.bidMotion.findMany.mockResolvedValue([
+        { id: 'm1', projectId: 'p1', status: 'voting', votes: [] },
+        { id: 'm2', projectId: 'p2', status: 'voting', votes: [] },
+        { id: 'm3', projectId: 'p3', status: 'voting', votes: [] },
+      ]);
+      prisma.expertDispute.findMany.mockResolvedValue([]);
+
+      const result: any = await service.getMyTasks('u-x');
+      const byId = Object.fromEntries(result.motions.map((m: any) => [m.id, m]));
+      expect(byId.m1.canVote).toBe(false);  // 候补——递补前非委员
+      expect(byId.m2.canVote).toBe(false);  // 已婉拒正选
+      expect(byId.m3.canVote).toBe(true);   // 正选 confirmed
     });
   });
 

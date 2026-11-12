@@ -27,6 +27,8 @@ interface MotionItem {
   rejectCount?: number;
   abstainCount?: number;
   votes?: Array<{ expertId: string; vote: string }>;
+  /** 成员资格收口（2026-11-12）：候补递补前/已婉拒正选不渲染投票按钮（后端 castVote 硬拦的 UX 面）；缺省放行（兼容旧载荷） */
+  canVote?: boolean;
 }
 interface DisputeItem {
   id: string; projectId: string; projectName: string;
@@ -381,7 +383,8 @@ export default function ExpertDashboardPage() {
                       const quorum = m.totalVoters ?? 0;
                       const sc = STAGE_COLOR[m.projectStage as keyof typeof STAGE_COLOR];
                       const isVoting = m.status === 'voting';
-                      const needVote = isVoting && !m.myVote;
+                      // 成员资格收口：canVote=false（候补/已婉拒）不渲染投票按钮——旁听可见进度
+                      const needVote = isVoting && !m.myVote && m.canVote !== false;
                       return (
                         <div key={m.id} className={`rounded-lg px-2 py-2 ${isVoting ? '' : 'opacity-50'}`}>
                           <div className="flex items-center gap-2 text-xs mb-1.5">
@@ -393,7 +396,7 @@ export default function ExpertDashboardPage() {
                             )}
                             <span className="exp-pill ml-auto shrink-0 !px-1.5 !py-0.5 !text-[9px]"
                               style={{ '--c': needVote ? 'var(--warning)' : 'var(--muted-foreground)' } as React.CSSProperties}>
-                              {isVoting ? (m.myVote ? `已投：${VOTE_LABEL[m.myVote] ?? m.myVote}` : '待投票') : (
+                              {isVoting ? (m.myVote ? `已投：${VOTE_LABEL[m.myVote] ?? m.myVote}` : (m.canVote === false ? '旁听' : '待投票')) : (
                                 m.result === 'approved' ? '✓ 通过' : m.result === 'rejected' ? '✗ 否决' : '△ 平票'
                               )}
                             </span>

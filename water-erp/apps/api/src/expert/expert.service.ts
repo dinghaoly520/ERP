@@ -3368,7 +3368,7 @@ export class ExpertService {
   async getMyTasks(userId: string) {
     const records = await this.prisma.bidExpert.findMany({
       where: { userId, project: { stage: { in: ['OPENING', 'EVALUATING'] } } },
-      select: { id: true, expertName: true, isLead: true, projectId: true, project: { select: { name: true, stage: true } } },
+      select: { id: true, expertName: true, isLead: true, projectId: true, expertRole: true, invitationStatus: true, project: { select: { name: true, stage: true } } },
     });
     if (records.length === 0) return { motions: [], disputes: [], projects: [] };
 
@@ -3416,6 +3416,9 @@ export class ExpertService {
         projectName: projectMap.get(m.projectId)?.name ?? '',
         projectStage: projectMap.get(m.projectId)?.stage ?? '',
         totalVoters: projectMap.get(m.projectId)?.totalVoters ?? 0,
+        // 表决入口收口（2026-11-12 终审）：与 castVote 成员闸同口径——候补递补前/已婉拒正选
+        // 不渲染投票按钮（后端仍硬拦，此处是 UX 面；旁听可见投票进度）
+        canVote: (() => { const r = recByProject.get(m.projectId)!; return r.expertRole === '正选' && r.invitationStatus !== 'declined'; })(),
       })),
       disputes: disputes.map(d => ({
         ...d,
