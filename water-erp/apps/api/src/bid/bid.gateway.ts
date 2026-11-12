@@ -24,6 +24,8 @@ import {
   type SupervisionLogPayload,
   type AnomalyDetectedPayload,
   type BidValidityChangePayload,
+  type LeadReviewSuggestedPayload,
+  type MotionCreatedPayload,
   type HallMessagePayload,
   type HallPresenceUpdatePayload,
   type HallCheckinPayload,
@@ -164,6 +166,8 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   /** supplierId(Supplier.id) → socket id 集合（私聊定向投递 + 在场感知）。 */
   private readonly supplierSockets = new Map<string, Set<string>>();
+  /** expertId(BidExpert.id) → socket id 集合（B1 2026-11-12：组长复议召集等专家定向投递）。 */
+  private readonly expertSockets = new Map<string, Set<string>>();
   /** socket.id → 所属项目（断连时回收在场表）。 */
   private readonly socketProjects = new Map<string, string>();
 
@@ -220,6 +224,15 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
         if (set.size === 0) this.supplierSockets.delete(supplierId);
       }
     }
+    // B1（2026-11-12）：专家连接表回收（镜像 supplier——防止离场后仍收定向推送）
+    const expertId: string | undefined = (socket.data as any).expertId;
+    if (expertId) {
+      const set = this.expertSockets.get(expertId);
+      if (set) {
+        set.delete(socket.id);
+        if (set.size === 0) this.expertSockets.delete(expertId);
+      }
+    }
     this.socketProjects.delete(socket.id);
     if (projectId) this.broadcastHallPresence(projectId).catch(() => {});
   }
@@ -264,6 +277,12 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
         where: { projectId, userId, invitationStatus: { not: 'declined' } },
       });
       if (!assigned) return { error: 'NOT_ASSIGNED_EXPERT' };
+      // B1（2026-11-12）：登记专家连接表——组长复议召集等定向投递按 expertId 寻址（镜像 supplier 分支）
+      (client.data as any).expertId = assigned.id;
+      let expertSet = this.expertSockets.get(assigned.id);
+      if (!expertSet) { expertSet = new Set(); this.expertSockets.set(assigned.id, expertSet); }
+      expertSet.add(client.id);
+      this.socketProjects.set(client.id, projectId);
       client.join(`project:${projectId}`);
       client.join(`experts:${projectId}`);
       // 立即推送当前聚合进度快照（修复：专家进入时看不到专家组签到/进度信息）
@@ -301,6 +320,15 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
       if (set) {
         set.delete(client.id);
         if (set.size === 0) this.supplierSockets.delete(supplierId);
+      }
+    }
+    // B1（2026-11-12）：专家连接表回收（以 socketProjects 登记为准，同上口径）
+    const leavingExpertId: string | undefined = (client.data as any).expertId;
+    if (leavingExpertId && registered) {
+      const set = this.expertSockets.get(leavingExpertId);
+      if (set) {
+        set.delete(client.id);
+        if (set.size === 0) this.expertSockets.delete(leavingExpertId);
       }
     }
     this.socketProjects.delete(client.id);
@@ -477,6 +505,23 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(`project:${projectId}`).emit(BID_EVENT.BID_VALIDITY_CHANGE, payload);
   }
 
+  // ── B2/B3（2026-11-12）：废标复议召集——组长定向（含逐票理由，保密口径：仅组长+host 房）+ 动议发起广播 ──
+
+  /** 过半废标瞬间定向推组长复议召集；host 房同步知情（监督/主持人视图）。 */
+  notifyLeadReviewSuggested(projectId: string, leadExpertId: string, data: Omit<LeadReviewSuggestedPayload, 'timestamp'>) {
+    const payload: LeadReviewSuggestedPayload = { ...data, timestamp: Date.now() };
+    for (const sid of this.expertSocketsIn(leadExpertId, projectId)) {
+      this.server.to(sid).emit(BID_EVENT.LEAD_REVIEW_SUGGESTED, payload);
+    }
+    this.server.to(`host:${projectId}`).emit(BID_EVENT.LEAD_REVIEW_SUGGESTED, payload);
+  }
+
+  /** 动议已发起——专家房轻载荷提醒（投票操作在既有待处理事项 UI）。 */
+  notifyMotionCreated(projectId: string, data: Omit<MotionCreatedPayload, 'timestamp'>) {
+    const payload: MotionCreatedPayload = { ...data, timestamp: Date.now() };
+    this.server.to(`experts:${projectId}`).emit(BID_EVENT.MOTION_CREATED, payload);
+  }
+
   // ── Host-only events: supervision log, anomaly ──
 
   notifySupervisionLog(projectId: string, log: Omit<SupervisionLogPayload, 'time'> & { time?: number }) {
@@ -500,6 +545,13 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
    */
   private supplierSocketsIn(supplierId: string, projectId: string): string[] {
     const ids = this.supplierSockets.get(supplierId);
+    if (!ids) return [];
+    return [...ids].filter(sid => this.socketProjects.get(sid) === projectId);
+  }
+
+  /** B1（2026-11-12）：该专家在指定项目内的 socket 列表（按 socketProjects 过滤，镜像 supplierSocketsIn）。 */
+  private expertSocketsIn(expertId: string, projectId: string): string[] {
+    const ids = this.expertSockets.get(expertId);
     if (!ids) return [];
     return [...ids].filter(sid => this.socketProjects.get(sid) === projectId);
   }
