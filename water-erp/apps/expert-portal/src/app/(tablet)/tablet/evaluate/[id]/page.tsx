@@ -1168,7 +1168,9 @@ export default function TabletEvaluatePage() {
                                 {/* #140b（2026-11-12）：checklist 型一键置全量双按钮——同无得分点款样式；
                                     通过=客观点全勾@满分+主观点满分（显式 passed 覆盖全主观点边界）；
                                     不通过=全清零+聚焦理由框 */}
-                                {!readOnly && (
+                                {/* 评审收口[高/高]：全主观点项（客观点空集）后端 P2 规则不支持通过态——按钮组
+                                    隐藏回退逐条勾选，待产品裁定（同桌面页口径） */}
+                                {!readOnly && pfPoints.some(p => p.objective) && (
                                   <div className="mb-2.5 flex items-center gap-2.5">
                                     <button
                                       type="button"
@@ -1176,7 +1178,10 @@ export default function TabletEvaluatePage() {
                                         setScores(prev => {
                                           const cur = prev[k] ?? { score: 0, reason: '' };
                                           const points: Record<string, PointDecisionValue> = {};
-                                          for (const p of pfPoints) points[p.id] = { checked: true, awardedScore: Number(p.fullScore) };
+                                          for (const p of pfPoints) {
+                                            const base = pfValueMap[p.id] ?? { checked: false, awardedScore: 0 };
+                                            points[p.id] = { ...base, checked: p.objective ? true : base.checked, awardedScore: Number(p.fullScore) };
+                                          }
                                           return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: true } };
                                         })
                                       }
@@ -1190,10 +1195,16 @@ export default function TabletEvaluatePage() {
                                         setScores(prev => {
                                           const cur = prev[k] ?? { score: 0, reason: '' };
                                           const points: Record<string, PointDecisionValue> = {};
-                                          for (const p of pfPoints) points[p.id] = { checked: false, awardedScore: 0 };
+                                          for (const p of pfPoints) {
+                                            const base = pfValueMap[p.id] ?? { checked: false, awardedScore: 0 };
+                                            points[p.id] = { ...base, checked: false, awardedScore: 0 };
+                                          }
                                           return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: false } };
                                         });
-                                        setTimeout(() => document.querySelector<HTMLTextAreaElement>(`[aria-label="${item.name} 不通过理由"]`)?.focus(), 0);
+                                        setTimeout(() => {
+                                          const el = document.querySelector<HTMLTextAreaElement>(`[aria-label="${CSS.escape(item.name)} 不通过理由"]`);
+                                          el?.focus();
+                                        }, 0);
                                       }}
                                       className={`${verdict === false ? 'neu-btn-primary' : 'neu-btn-soft'} is-danger !h-12 flex-1`}
                                     >

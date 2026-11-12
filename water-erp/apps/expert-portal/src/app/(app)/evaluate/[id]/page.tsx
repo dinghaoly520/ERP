@@ -2319,13 +2319,19 @@ export default function ExpertEvaluatePage() {
                                         {/* #140b（2026-11-12）：checklist 型一键置全量双按钮——与无得分点款同款。
                                             通过=客观点全勾@满分+主观点满分；不通过=全清零+聚焦理由框（aria-label 定位）。
                                             显式写 passed：全主观点项的「全勾推导」恒 false，按钮语义须自持 */}
-                                        {!scoreLocked && canScoreActiveSupplier && (
+                                        {/* 评审收口[高/高]：全主观点项（客观点空集）后端 P2 规则「不自动通过」——显式 passed
+                                            不达提交层（payload 只送 pointDecisions），一键通过对该形态是假动作 → 按钮组整体
+                                            隐藏回退逐条勾选，待产品裁定是否支持显式通过（P2 本意防自动通过非防人工通过） */}
+                                        {!scoreLocked && canScoreActiveSupplier && pfPoints.some(p => p.objective) && (
                                           <div className="mb-3 flex items-center gap-3">
                                             <button type="button"
                                               onClick={() => setScores(prev => {
                                                 const cur = prev[k] ?? { score: 0, reason: '' };
                                                 const points: Record<string, PointDecisionValue> = {};
-                                                for (const p of pfPoints) points[p.id] = { checked: true, awardedScore: Number(p.fullScore) };
+                                                for (const p of pfPoints) {
+                                                  const base = pfValueMap[p.id] ?? { checked: false, awardedScore: 0 };
+                                                  points[p.id] = { ...base, checked: p.objective ? true : base.checked, awardedScore: Number(p.fullScore) };
+                                                }
                                                 return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: true } };
                                               })}
                                               className={`neu-btn-soft is-success ${verdict === true ? '!bg-[oklch(0.96_0.05_164/0.5)]' : ''}`}>
@@ -2336,10 +2342,16 @@ export default function ExpertEvaluatePage() {
                                                 setScores(prev => {
                                                   const cur = prev[k] ?? { score: 0, reason: '' };
                                                   const points: Record<string, PointDecisionValue> = {};
-                                                  for (const p of pfPoints) points[p.id] = { checked: false, awardedScore: 0 };
+                                                  for (const p of pfPoints) {
+                                                    const base = pfValueMap[p.id] ?? { checked: false, awardedScore: 0 };
+                                                    points[p.id] = { ...base, checked: false, awardedScore: 0 };
+                                                  }
                                                   return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: false } };
                                                 });
-                                                setTimeout(() => document.querySelector<HTMLTextAreaElement>(`[aria-label="${item.name} 不通过理由"]`)?.focus(), 0);
+                                                setTimeout(() => {
+                                                  const el = document.querySelector<HTMLTextAreaElement>(`[aria-label="${CSS.escape(item.name)} 不通过理由"]`);
+                                                  el?.focus();
+                                                }, 0);
                                               }}
                                               className={`neu-btn-soft is-danger ${verdict === false ? '!bg-[oklch(0.96_0.05_27/0.5)]' : ''}`}>
                                               {verdict === false && <X size={14} strokeWidth={2.5} />}不通过
