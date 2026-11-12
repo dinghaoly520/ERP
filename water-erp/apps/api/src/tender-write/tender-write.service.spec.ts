@@ -7,6 +7,7 @@ import {
   renderTemplateXml,
 } from './tender-write.template';
 import type { InternalBiddingAnswers } from './tender-write.types';
+import { buildStandardFileName, beijingMinuteStamp } from '@water-erp/shared';
 
 describe('tender-write template helpers', () => {
   it('normalizes malformed placeholder closers before rendering', () => {
@@ -754,5 +755,23 @@ describe('single-source tender template helpers', () => {
     expect(quotationReplacement?.tableXml).toContain('<w:tbl>');
     expect(quotationReplacement?.tableXml).toContain('设备名称');
     expect(quotationReplacement?.tableXml).toContain('VWP型振弦式渗压计');
+  });
+});
+
+describe('导出文件命名（系统导出版+分钟级时间，2026-11-12）', () => {
+  it('dateSuffix 覆盖日期槽位，tag 拼入类型之后', () => {
+    expect(
+      buildStandardFileName({
+        code: 'SWHI-TP-2026111201',
+        name: '便携式钻机采购',
+        docType: '谈判文件',
+        tag: '系统导出版',
+        dateSuffix: '202611121530',
+      }),
+    ).toBe('SWHI-TP-2026111201-便携式钻机采购-谈判文件-系统导出版-202611121530.docx');
+  });
+
+  it('beijingMinuteStamp 输出北京时间分钟级 YYYYMMDDHHmm（UTC 输入 +8h）', () => {
+    expect(beijingMinuteStamp(new Date('2026-11-12T07:30:59Z'))).toBe('202611121530');
   });
 });

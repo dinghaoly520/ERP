@@ -18,6 +18,7 @@ import { Eraser, FileDown, FileText, History, Megaphone, Save, ScanText, Mail } 
 import { motion, useReducedMotion } from "framer-motion";
 import { LoginErrorDialog } from "@/components/login/login-error-dialog";
 import { TenderHistoryDialog } from "@/components/tender-write/tender-history-dialog";
+import { TenderExportFormatDialog } from "@/components/tender-write/export-format-dialog";
 import { ImportAutofillButton } from "@/components/tender-write/import-autofill-button";
 import { ImportAutofillDialog } from "@/components/tender-write/import-autofill-dialog";
 import { TenderWriteWorkspace } from "@/components/tender-write/tender-write-workspace";
@@ -148,6 +149,7 @@ export default function TenderWritePage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showExportFormat, setShowExportFormat] = useState(false);
   const [showAnnouncementDialog, setShowAnnouncementDialog] = useState(false);
   const [showNotificationDialog, setShowNotificationDialog] = useState(false);
 
@@ -459,7 +461,8 @@ export default function TenderWritePage() {
     setShowHistoryDialog(false);
   };
 
-  const handleExport = async () => {
+  /** 导出前置校验（询比评分标准闸等）——通过后弹格式选择（2026-11-12：Word/PDF 二选一） */
+  const handleExportClick = () => {
     if (!isReadyType || !selectedMeta) {
       setErrorMessage("当前模板尚未配置导出。");
       return;
@@ -475,6 +478,10 @@ export default function TenderWritePage() {
       return;
     }
 
+    setShowExportFormat(true);
+  };
+
+  const handleExport = async (format: 'docx' | 'pdf') => {
     setExporting(true);
     setSuccessMessage(null);
     setErrorMessage(null);
@@ -492,11 +499,16 @@ export default function TenderWritePage() {
       const result = await exportTenderDocument({
         documentType: selectedType as ReadyTenderDocumentType,
         answers: currentDraft,
+        format,
       });
       const saved = await saveFileWithPicker(result.blob, result.fileName);
       if (saved) {
-        setSuccessMessage("导出成功！已自动保存到历史记录。");
-        setTimeout(() => setSuccessMessage(null), 2000);
+        if (format === 'pdf' && result.format === 'docx') {
+          setSuccessMessage("服务器未配置 PDF 转换环境，已回退导出 Word 文档；已自动保存到历史记录。");
+        } else {
+          setSuccessMessage("导出成功！已自动保存到历史记录。");
+        }
+        setTimeout(() => setSuccessMessage(null), 4000);
       }
     } catch (error) {
       setErrorMessage(
@@ -585,7 +597,7 @@ export default function TenderWritePage() {
                 <button type="button" onClick={() => setShowHistoryDialog(true)} className="neu-btn-soft">
                   <History size={14} />历史记录
                 </button>
-                <button type="button" onClick={() => void handleExport()} disabled={exporting || selectedMeta?.availability !== "ready"} className="neu-btn-soft is-primary">
+                <button type="button" onClick={handleExportClick} disabled={exporting || selectedMeta?.availability !== "ready"} className="neu-btn-soft is-primary">
                   <FileDown size={14} />{exporting ? "导出中..." : "导出采购文件"}
                 </button>
               </div>
@@ -627,6 +639,18 @@ export default function TenderWritePage() {
           documentType={selectedType}
           onApply={handleApplyHistory}
           onClose={() => setShowHistoryDialog(false)}
+        />
+      ) : null}
+
+      {selectedType && selectedMeta ? (
+        <TenderExportFormatDialog
+          open={showExportFormat}
+          busy={exporting}
+          onClose={() => setShowExportFormat(false)}
+          onConfirm={(format) => {
+            setShowExportFormat(false);
+            void handleExport(format);
+          }}
         />
       ) : null}
 

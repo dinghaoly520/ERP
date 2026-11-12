@@ -12,7 +12,8 @@ import * as mammoth from 'mammoth';
 import pdfParse = require('pdf-parse');
 import * as XLSX from 'xlsx';
 import { ExportTenderWriteDto, ExportAnnouncementDto, ExportNotificationLetterDto, ExportDirectFilingDto } from './tender-write.dto';
-import { buildStandardFileName } from '@water-erp/shared';
+import { buildStandardFileName, beijingMinuteStamp } from '@water-erp/shared';
+import { convertOfficeToPdf } from '../common/office-to-pdf.util';
 import {
   buildCompetitiveNegotiationReplacementPlan,
   buildSingleSourceReplacementPlan,
@@ -152,7 +153,6 @@ export class TenderWriteService {
     projectCode?: string,
   ) {
     const trimmedName = projectName.trim();
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     let typeLabel: string;
     if (documentType === 'SINGLE_SOURCE') {
       typeLabel = '直接采购文件';
@@ -166,8 +166,15 @@ export class TenderWriteService {
       typeLabel = '谈判文件';
     }
 
-    // 统一命名：{项目编号}-{项目名称}-{文件类型}-{YYYYMMDD}.docx
-    return buildStandardFileName({ code: projectCode, name: trimmedName, docType: typeLabel });
+    // 统一命名：{项目编号}-{项目名称}-{文件类型}-系统导出版-{YYYYMMDDHHmm 北京时间}.docx
+    // （2026-11-12 用户裁定：系统导出件与手工/盖章版以「系统导出版+分钟级时间」区分）
+    return buildStandardFileName({
+      code: projectCode,
+      name: trimmedName,
+      docType: typeLabel,
+      tag: '系统导出版',
+      dateSuffix: beijingMinuteStamp(),
+    });
   }
 
   async exportDocument(dto: ExportTenderWriteDto, user?: { sub?: string }) {
@@ -263,13 +270,31 @@ export class TenderWriteService {
     );
     zip.file('word/document.xml', tenantedXml);
 
+    const docxBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+    const docxFileName = this.resolveDownloadFileName(
+      dto.documentType,
+      (dto.answers.projectName as string) ?? '',
+      dto.projectCode,
+    );
+
+    // PDF 版（2026-11-12）：LibreOffice 转换；服务器未装/转换失败回退 docx（format 标记实际产物）
+    if (dto.format === 'pdf') {
+      const pdf = convertOfficeToPdf(
+        docxBuffer,
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        docxFileName,
+      );
+      if (pdf) {
+        return { buffer: pdf.buffer, fileName: pdf.fileName, mimeType: 'application/pdf', format: 'pdf' as const };
+      }
+      return { buffer: docxBuffer, fileName: docxFileName, mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', format: 'docx' as const };
+    }
+
     return {
-      buffer: await zip.generateAsync({ type: 'nodebuffer' }),
-      fileName: this.resolveDownloadFileName(
-        dto.documentType,
-        (dto.answers.projectName as string) ?? '',
-        dto.projectCode,
-      ),
+      buffer: docxBuffer,
+      fileName: docxFileName,
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      format: 'docx' as const,
     };
   }
 

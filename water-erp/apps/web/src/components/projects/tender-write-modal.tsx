@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FileDown, FileText, FileUp, FolderInput, History, Loader2, Save, Search, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { TenderExportFormatDialog } from '@/components/tender-write/export-format-dialog';
 import { apiFetch } from '@/lib/api/api-fetch';
 import { TenderWriteWorkspace } from '@/components/tender-write/tender-write-workspace';
 import { mapProcurementMethodToTenderType } from '@/lib/tender-write/procurement-method-map';
@@ -145,6 +146,8 @@ type Props = {
 
 export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTitle, project, onAttachmentUploaded, onUpdated }: Props) {
   const [exporting, setExporting] = useState(false);
+  /** 导出格式选择弹窗（2026-11-12：Word/PDF 二选一） */
+  const [exportFormatOpen, setExportFormatOpen] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiProgress, setAiProgress] = useState('');
@@ -727,8 +730,8 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
 
   // ---------- 导出 / 审查 ----------
 
-  /** 直接导出：下载文件 + 上传至项目采购文件阶段。 */
-  const handleDirectExport = useCallback(async () => {
+  /** 导出前置校验（询比评分闸）——通过后弹格式选择（2026-11-12：Word/PDF 二选一）。 */
+  const handleExportClick = useCallback(() => {
     if (!selectedType || !project) return;
     // 询比 v2：评审方法固定综合评分法——评分标准未填有效行阻止导出（与 /tender-write 同闸门）
     if (
@@ -738,10 +741,16 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       setErrorMessage('综合评分法评审标准未填写：请在「评审程序和评定成交的标准」章节填写评分标准后再导出');
       return;
     }
+    setExportFormatOpen(true);
+  }, [selectedType, project, currentDraft]);
+
+  /** 直接导出：下载文件 + 上传至项目采购文件阶段。 */
+  const handleDirectExport = useCallback(async (format: 'docx' | 'pdf') => {
+    if (!selectedType || !project) return;
     setExporting(true);
     setErrorMessage(null);
     try {
-      const result = await exportTenderDocument({ documentType: selectedType, answers: currentDraft, projectCode: project?.projectCode || undefined });
+      const result = await exportTenderDocument({ documentType: selectedType, answers: currentDraft, projectCode: project?.projectCode || undefined, format });
       // 下载
       const url = URL.createObjectURL(result.blob);
       const a = document.createElement('a');
@@ -749,12 +758,18 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       a.download = result.fileName;
       a.click();
       URL.revokeObjectURL(url);
+      if (format === 'pdf' && result.format === 'docx') {
+        toast.warning('服务器未配置 PDF 转换环境，已回退导出 Word 文档');
+      }
       setSuccessMessage('导出成功');
       setTimeout(() => setSuccessMessage(null), 2000);
-      // 上传至项目阶段
+      // 上传至项目阶段（PDF 版按实际格式上传）
       try {
         const file = new File([result.blob], result.fileName, {
-          type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          type:
+            result.format === 'pdf'
+              ? 'application/pdf'
+              : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         });
         const uploaded = await uploadProjectStageAttachment(project.id, 'TENDER_DOCUMENT', file);
         onAttachmentUploaded?.(uploaded);
@@ -1018,7 +1033,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
             </button>
             <button
               type="button"
-              onClick={() => void handleDirectExport()}
+              onClick={handleExportClick}
               disabled={exporting}
               className="neu-btn-soft gap-2 h-9 text-xs"
             >
@@ -1193,6 +1208,17 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
           }}
         />
       )}
+
+      {/* 导出格式选择弹窗（Word/PDF，2026-11-12） */}
+      <TenderExportFormatDialog
+        open={exportFormatOpen}
+        busy={exporting}
+        onClose={() => setExportFormatOpen(false)}
+        onConfirm={(format) => {
+          setExportFormatOpen(false);
+          void handleDirectExport(format);
+        }}
+      />
 
       {/* 历史记录弹窗 */}
       {historyOpen && (
