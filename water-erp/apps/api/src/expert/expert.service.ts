@@ -1818,8 +1818,8 @@ export class ExpertService {
         const label = itemMeta.get(firstItemId)?.name?.trim() || (firstItemId || '该项').slice(-8);
         throw new BadRequestException({
           error: voting
-            ? `评分项 ${label} 废标复议表决进行中，该项评分投票已暂停——请等待组长结束表决`
-            : `评分项 ${label} 已经委员会裁定，该项评分投票已冻结`,
+            ? `评分项 ${label} 废标复议表决进行中，该审查项暂停评分——请等待组长宣布表决结果`
+            : `评分项 ${label} 已经委员会裁定，评分结果已定案`,
           code: voting ? 'RULING_IN_PROGRESS' : 'RULING_FINAL',
           scoreItemId: firstItemId || undefined,
           supplierId: first.supplierId,
@@ -3061,7 +3061,7 @@ export class ExpertService {
     });
     if (!invalidBid) throw new BadRequestException({ error: '废标记录不存在或不属于当前项目', code: 'NOT_FOUND' });
     if (invalidBid.status !== 'invalid') {
-      throw new ConflictException({ error: '该废标已恢复（revoked），无可复议事项', code: 'NOT_INVALID' });
+      throw new ConflictException({ error: '该废标已被撤销，无可复议事项', code: 'NOT_INVALID' });
     }
     if (invalidBid.motionId) {
       const linked = await this.prisma.bidMotion.findUnique({ where: { id: invalidBid.motionId } });
@@ -3069,7 +3069,7 @@ export class ExpertService {
         throw new ConflictException({ error: '该项复议表决已在进行中，不可重复发起', code: 'RULING_ALREADY_OPEN' });
       }
       if (linked?.status === 'closed' && linked.result !== 'tie_deadlock') {
-        throw new ConflictException({ error: '该项已经委员会裁定，评分投票已冻结，不可再次发起', code: 'RULING_FINAL' });
+        throw new ConflictException({ error: '该项已经委员会裁定，定案后不可再次发起复议', code: 'RULING_FINAL' });
       }
       // closed+tie_deadlock → 平票死锁，允许重发（下方新动议接管 motionId）
     }

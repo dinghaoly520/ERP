@@ -30,7 +30,7 @@ interface LeadReviewModalProps {
 /**
  * cgzxui 新拟态弹窗（.wb-modal-shell 壳 + 38px 齐平按钮，与 ConfirmDialog 同体系）。
  * 内容：供应商/评分项/票数 + 记名票面（逐票理由）；动作：发起复议表决（组长）/ 暂不处理。
- * 文案要点：裁定后该项评分投票冻结；也可现场讨论后由专家改票（票数变化自动恢复）。
+ * 文案要点：裁定作出后即为最终结论；也可现场讨论后由专家改票（票数不再过半即恢复参评）。
  */
 export function LeadReviewModal({ open, review, busy, onSubmit, onDismiss }: LeadReviewModalProps) {
   const onDismissRef = useRef(onDismiss);
@@ -79,7 +79,7 @@ export function LeadReviewModal({ open, review, busy, onSubmit, onDismiss }: Lea
               废标复议召集：{review.supplierName}
             </h2>
             <p className="mt-1 text-[13px] leading-relaxed text-[var(--muted-foreground)]">
-              {categoryLabel}「{review.scoreItemName}」不通过票 <span className="font-bold text-[var(--danger)]">{review.failCount}/{review.totalCount}</span>（严格过半，已自动废标）——请召集委员会复议并最终裁定。
+              {categoryLabel}「{review.scoreItemName}」不通过票 <span className="font-bold text-[var(--danger)]">{review.failCount}/{review.totalCount}</span>，已过半——该供应商已按规则废标。请召集评标委员会复议，作出最终裁定。
             </p>
           </div>
         </div>
@@ -111,7 +111,7 @@ export function LeadReviewModal({ open, review, busy, onSubmit, onDismiss }: Lea
 
         <p className="mt-3 flex items-start gap-1.5 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
           <AlertTriangle size={12} strokeWidth={1.5} className="mt-0.5 shrink-0" />
-          发起表决后该项评分投票暂停，裁定落地后终局冻结（不可再改票）；也可现场讨论后由专家自行改票——票数变化将自动恢复该供应商参评。
+          发起表决后，该审查项暂停评分；裁定作出后即为最终结论，不能再改票。也可以先现场讨论、由专家自行改票——票数不再过半时，该供应商即恢复参评。
         </p>
 
         <div className="mx-5 mt-4 h-px shrink-0 bg-[oklch(0.6_0.04_258/0.16)]" />

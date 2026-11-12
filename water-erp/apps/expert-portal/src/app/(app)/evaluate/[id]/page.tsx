@@ -179,7 +179,7 @@ export default function ExpertEvaluatePage() {
       const supplierName = d.supplierName ?? project?.suppliers.find(s => s.id === d.supplierId)?.supplierName ?? d.supplierId;
       const itemLabel = d.scoreItemName ? `${d.scoreItemName} ` : '';
       pushLiveEvent(
-        `${supplierName} ${itemLabel}${d.status === 'invalid' ? '被废标·待组长召集复议' : '废标已撤销'}（${d.failCount}/${d.totalCount}）`,
+        `${supplierName} ${itemLabel}${d.status === 'invalid' ? '被废标，待组长复议' : '废标已撤销'}（${d.failCount}/${d.totalCount}）`,
         'stage',
       );
     },
@@ -1061,7 +1061,7 @@ export default function ExpertEvaluatePage() {
     setReviewBusy(true);
     try {
       await api.post(`/expert/projects/${projectId}/invalid-bid-reviews`, { invalidBidId });
-      toast.success('复议表决已发起——请通知各位专家在「工作台-待处理事项」投票');
+      toast.success('复议表决已发起——请通知各位专家在工作台「待处理事项」中投票');
       setLeadReviewQueue(prev => prev.filter(r => r.invalidBidId !== invalidBidId));
       loadProject(activeSupplier ?? undefined);
     } catch (e: any) {
@@ -1518,7 +1518,7 @@ export default function ExpertEvaluatePage() {
         <div className="exp-alert exp-alert--warn mb-3 flex shrink-0 items-center gap-2 !px-4">
           <Gavel size={13} strokeWidth={1.5} />
           <span className="min-w-0 flex-1">
-            有 {leadReviewQueue.filter(r => dismissedReviewIds.has(r.invalidBidId)).length} 项过半废标待复议召集（{leadReviewQueue.filter(r => dismissedReviewIds.has(r.invalidBidId)).map(r => `${r.supplierName}·${r.scoreItemName}`).join('、')}）
+            有 {leadReviewQueue.filter(r => dismissedReviewIds.has(r.invalidBidId)).length} 项废标待您召集复议（{leadReviewQueue.filter(r => dismissedReviewIds.has(r.invalidBidId)).map(r => `${r.supplierName}·${r.scoreItemName}`).join('、')}）
           </span>
           <button type="button" onClick={() => setDismissedReviewIds(new Set())} className="neu-btn-xs shrink-0">重新打开</button>
         </div>
