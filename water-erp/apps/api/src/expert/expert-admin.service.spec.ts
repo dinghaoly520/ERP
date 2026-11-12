@@ -83,6 +83,10 @@ describe('ExpertAdminService', () => {
         create: jest.fn().mockResolvedValue({}),
         count: jest.fn().mockResolvedValue(0),
       },
+      notification: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       // 同时支持数组式（Promise.all）与函数式（执行回调）事务，使事务内逻辑真实运行
       $transaction: jest.fn().mockImplementation(async (arg: any) =>
         typeof arg === 'function' ? arg(prisma) : Promise.all(arg),
@@ -100,7 +104,7 @@ describe('ExpertAdminService', () => {
         ExpertAdminService,
         { provide: PrismaService, useValue: prisma },
         { provide: ExpertExtractionAiService, useValue: extractionAi },
-        { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn(), sendToUser: jest.fn().mockResolvedValue({}) } },
+        { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn(), sendToUser: jest.fn().mockResolvedValue({}), sendToCompanyRoles: jest.fn().mockResolvedValue({ sent: 0, fallbackAdmin: false, userIds: [] }) } },
         { provide: EmbeddingService, useValue: { embed: jest.fn().mockResolvedValue([]) } },
         { provide: LlmService, useValue: llm },
         { provide: OcrService, useValue: { isAvailable: jest.fn().mockResolvedValue(false), ocrImage: jest.fn() } },
@@ -255,6 +259,38 @@ describe('ExpertAdminService', () => {
       await service.reviewRetirementCandidates(ACTOR);
       const where = prisma.user.findMany.mock.calls[0][0].where;
       expect(where.expertProfile.entryStatus).toEqual({ in: ['ACTIVE', 'SUSPENDED'] });
+    });
+
+    it('reviewRetirementCandidates：批报按候选归属公司分组发送+取代钩子限定本轮收件人（2026-11-12 举一反三：平台广播跨公司泄漏、全库清吞他司待办）', async () => {
+      // 两公司各一名「近 12 个月无分配」候选
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'e-sjy', displayName: '周雄', companyId: 'co-sjy', expertProfile: { specialty: '水工' } },
+        { id: 'e-js', displayName: '李四', companyId: 'co-js', expertProfile: { specialty: '法律' } },
+      ]);
+      notification.sendToCompanyRoles.mockReset()
+        .mockResolvedValueOnce({ sent: 2, fallbackAdmin: false, userIds: ['u-sjy-1', 'u-sjy-2'] })
+        .mockResolvedValueOnce({ sent: 1, fallbackAdmin: false, userIds: ['u-js-1'] });
+      notification.sendToRole.mockClear();
+
+      await service.reviewRetirementCandidates(ACTOR);
+
+      // ① 两归属公司各发一批，content 只含本公司候选名——他司名单不外泄；不再平台广播
+      const calls = notification.sendToCompanyRoles.mock.calls;
+      expect(calls.map(c => c[0]).sort()).toEqual(['co-js', 'co-sjy']);
+      const sjyCall = calls.find(c => c[0] === 'co-sjy')!;
+      expect(sjyCall[1]).toEqual(['leader', 'staff']);
+      expect(sjyCall[2].content).toContain('周雄');
+      expect(sjyCall[2].content).not.toContain('李四');
+      expect(notification.sendToRole).not.toHaveBeenCalled();
+      // ② 取代旧批：限定本轮实际收件人 + createdAt 圈旧批——不开全库清（他司待办不吞）
+      expect(prisma.notification.updateMany).toHaveBeenCalledWith({
+        where: {
+          type: 'EXPERT_RETIRE_CANDIDATE', resolvedAt: null,
+          createdAt: { lt: expect.any(Date) },
+          userId: { in: ['u-sjy-1', 'u-sjy-2', 'u-js-1'] },
+        },
+        data: { resolvedAt: expect.any(Date) },
+      });
     });
   });
 

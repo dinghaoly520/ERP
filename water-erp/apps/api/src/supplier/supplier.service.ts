@@ -2166,7 +2166,14 @@ export class SupplierService {
       data: { status: 'APPROVED', reviewedById: reviewerUserId ?? null, reviewedAt: new Date() },
     });
     // 2026-09-27 待办闭环：标签入池通知（link=/supplier）随审批消音
-    await this.notificationService.resolveActionable('SUPPLIER_PENDING', '/supplier').catch(() => {});
+    // 2026-11-12 举一反三收紧（与 PROFILE_CHANGE 2026-09-29 精确消音同款）：generic link
+    // 行按供应商名归因——甲司标签审毕只清甲司的待办，并行在审的乙司不受牵连；此前
+    // 无条件全清 generic 行，审批人关于其它在审标签的待办会凭空消失（漏审）。
+    const tagSupplier = await this.prisma.supplier.findUnique({
+      where: { id: tag.createdBySupplierId ?? '' },
+      select: { name: true },
+    }).catch(() => null);
+    await this.notificationService.resolveActionableBySupplierName('SUPPLIER_PENDING', '/supplier', tagSupplier?.name).catch(() => {});
     return updated;
   }
 
@@ -2179,7 +2186,12 @@ export class SupplierService {
       where: { id },
       data: { status: 'REJECTED', reviewedById: reviewerUserId ?? null, reviewedAt: new Date() },
     });
-    await this.notificationService.resolveActionable('SUPPLIER_PENDING', '/supplier').catch(() => {});
+    // 同 approveBusinessTag：按供应商名归因消音（2026-11-12），不无条件全清 generic 行
+    const tagSupplier = await this.prisma.supplier.findUnique({
+      where: { id: tag.createdBySupplierId ?? '' },
+      select: { name: true },
+    }).catch(() => null);
+    await this.notificationService.resolveActionableBySupplierName('SUPPLIER_PENDING', '/supplier', tagSupplier?.name).catch(() => {});
     return updated;
   }
 

@@ -64,7 +64,10 @@ export interface NotificationTypeSpec {
   deprecated?: boolean;
   /** 群发复核型待办（2026-11-12）：群发给多人每人一行的复核预警，复核是一次性共享工作——
    *  任一收件人办结即整组消解（同 type+link+content 的群发副本，resolveOwn 整组 fan-out）。
-   *  无此标记的可操作类型办结仅消解本人行（个人待办/审批镜像）。 */
+   *  无此标记的可操作类型办结仅消解本人行（个人待办/审批镜像）。
+   *  入列铁律：**同签名=同一工作项**——签名不含时间维度，事件性重复通知（同文案跨多次事件，
+   *  如 BID_CLARIFICATION_CREATED 同项目多次澄清）禁标，否则一次办结误杀后续事件；
+   *  仅限内部角色群发的复核/预警/告警批报类。 */
   sharedResolve?: boolean;
 }
 
@@ -503,9 +506,9 @@ const EXPERT_SPECS: NotificationTypeSpec[] = [
   { code: 'EXPERT_INVITATION_OVERRIDDEN', label: '专家邀请变更', domain: 'expert', icon: 'RefreshCw', tone: 'orange', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP }, // 2026-10-21 代为变更设计适配：工作人员把专家「确认参加」改为「婉拒」时通知本人（含理由与操作人），事件同步计入邀请轨迹
   { code: 'EXPERT_DECLINE_STREAK', label: '专家连续婉拒预警', domain: 'expert', icon: 'AlertTriangle', tone: 'red', actionable: true, sharedResolve: true, audiences: [{ kind: 'ROLE', roles: ['leader', 'staff'] }], channels: IN_APP, link: (ctx) => `/expert/${ctx.userId}?tab=overview` }, // 2026-11-03 直达该专家「评审项目」页签（连拒记录与历次邀请在此复核）；2026-10-21 邀请信用：连续 3 次拒绝评审邀请触发一次预警（同段连拒期不重复）
   { code: 'EXPERT_DISPUTE_RESOLVED', label: '专家异议结果', domain: 'expert', icon: 'CheckCircle2', tone: 'green', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
-  { code: 'EXPERT_RETIRE_CANDIDATE', label: '专家退库预警', domain: 'expert', icon: 'UserMinus', tone: 'orange', actionable: true,
+  { code: 'EXPERT_RETIRE_CANDIDATE', label: '专家退库预警', domain: 'expert', icon: 'UserMinus', tone: 'orange', actionable: true, sharedResolve: true,
     // 2026-09-26 超界修复：专家库管理事件归 :3005（leader+staff 复核），不进 bid_host/admin；link 指 :3005 退库复核页
-    audiences: [{ kind: 'ROLE', roles: ['leader', 'staff'] }], channels: IN_APP, link: () => '/expert/retirement' },
+    audiences: [{ kind: 'ROLE', roles: ['leader', 'staff'] }], channels: IN_APP, link: () => '/expert/retirement' }, // sharedResolve（2026-11-12）：批报复核共享，新批取代钩子本就跨全员整组消解；旧收件人（如存量 bid_host）不再收新批、永不被取代，靠整组口径兜住
   // 报告确认重开（受控数据更正）：主持人/管理员书面理由解锁，评分历史保留、须重新确认后重生成结果
   {
     code: 'EVALUATION_REOPEN',
@@ -537,14 +540,14 @@ const SUPPLIER_SPECS: NotificationTypeSpec[] = [
   { code: 'SUPPLIER_RETURNED', label: '退回补正', domain: 'supplier', icon: 'RotateCcw', tone: 'orange', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'SUPPLIER_BLACKLISTED', label: '供应商拉黑', domain: 'supplier', icon: 'Ban', tone: 'red', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'SUPPLIER_UNBLACKLISTED', label: '供应商解除拉黑', domain: 'supplier', icon: 'CircleCheck', tone: 'green', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
-  { code: 'SUPPLIER_ELIMINATE_CANDIDATE', label: '供应商淘汰预警', domain: 'supplier', icon: 'UserMinus', tone: 'orange', actionable: true, audiences: [{ kind: 'ROLE', roles: ['leader', 'staff'] }], channels: IN_APP }, // 2026-09-26 已去 admin
+  { code: 'SUPPLIER_ELIMINATE_CANDIDATE', label: '供应商淘汰预警', domain: 'supplier', icon: 'UserMinus', tone: 'orange', actionable: true, sharedResolve: true, audiences: [{ kind: 'ROLE', roles: ['leader', 'staff'] }], channels: IN_APP }, // 2026-09-26 已去 admin；sharedResolve（2026-11-12）：与专家退库批报同构的群发复核型
   { code: 'SUPPLIER_VISIT_REGISTERED', label: '供应商来访登记', domain: 'supplier', icon: 'CalendarCheck', tone: 'blue', actionable: false, audiences: [{ kind: 'ROLE', roles: ['staff'] }], channels: IN_APP }, // 门户来访登记表单（:3002 /contact/visitor，@Public 匿名提交）：实际投递=访问单位（Company.name 精确匹配）归属公司 staff，无人回退平台 admin
   { code: 'SUPPLIER_REVIEW_URGE', label: '供应商催审', domain: 'supplier', icon: 'Clock', tone: 'orange', actionable: true, audiences: LEGACY('现按归属公司工作人员+回退全体，挂起待议'), channels: IN_APP },
   { code: 'PREQUAL_RESULT', label: '资格预审结果', domain: 'supplier', icon: 'FileCheck2', tone: 'blue', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'QUALIFICATION_EXPIRING', label: '资质到期', domain: 'supplier', icon: 'AlertTriangle', tone: 'orange', actionable: true, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'OBJECTION_ANSWERED', label: '异议答复', domain: 'bid', icon: 'MessageCircle', tone: 'blue', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP }, // 2026-09-27 从 SYSTEM 拆分（供应商收）
   { code: 'SELECTION_SHARED', label: '候选名单分享', domain: 'supplier', icon: 'Share2', tone: 'blue', actionable: false, audiences: [{ kind: 'ROLE', roles: ['leader'] }], channels: IN_APP },
-  { code: 'SUPPLIER_CLEANUP_DUE', label: '临时供应商清理', domain: 'supplier', icon: 'UserMinus', tone: 'orange', actionable: true, audiences: [{ kind: 'ROLE', roles: ['staff'] }], channels: IN_APP, link: () => '/supplier/repository' }, // 2026-09-27 从 SYSTEM 拆分
+  { code: 'SUPPLIER_CLEANUP_DUE', label: '临时供应商清理', domain: 'supplier', icon: 'UserMinus', tone: 'orange', actionable: true, sharedResolve: true, audiences: [{ kind: 'ROLE', roles: ['staff'] }], channels: IN_APP, link: () => '/supplier/repository' }, // 2026-09-27 从 SYSTEM 拆分；sharedResolve（2026-11-12）：清理复核共享（每日 cron 群发，同签名副本一次点击整组清）
   // 供应商多公司归属（2026-10-16）：加入申请三级审批链（SupplierLinkService）
   { code: 'SUPPLIER_LINK_PENDING', label: '供应商加入申请', domain: 'supplier', icon: 'UserPlus', tone: 'blue', actionable: true, audiences: [{ kind: 'COMPANY_LEADER_STAFF' }], channels: IN_APP, link: () => '/supplier?tab=company-links' }, // 实际投递按 notifyStageApprovers 逐级（staff→leader→admin 上浮），audience 为类型快照；入口=审批中心 company-links
   { code: 'SUPPLIER_LINK_APPROVED', label: '加入公司通过', domain: 'supplier', icon: 'CheckCircle2', tone: 'green', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
@@ -564,7 +567,7 @@ const ACCOUNT_SPECS: NotificationTypeSpec[] = [
   { code: 'PROFILE_CHANGE_REVIEWED', label: '资料变更审批', domain: 'account', icon: 'IdCard', tone: 'blue', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'PASSWORD_CHANGE_REVIEWED', label: '密码变更审批', domain: 'account', icon: 'KeyRound', tone: 'blue', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'PASSWORD_RESET_APPROVED', label: '密码重置审批', domain: 'account', icon: 'KeyRound', tone: 'green', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
-  { code: 'ACCOUNT_SECURITY_FEEDBACK', label: '账号安全反馈', domain: 'account', icon: 'ShieldAlert', tone: 'red', actionable: true, audiences: [{ kind: 'ROLE', roles: ['admin'] }], channels: IN_APP },
+  { code: 'ACCOUNT_SECURITY_FEEDBACK', label: '账号安全反馈', domain: 'account', icon: 'ShieldAlert', tone: 'red', actionable: true, sharedResolve: true, audiences: [{ kind: 'ROLE', roles: ['admin'] }], channels: IN_APP }, // sharedResolve（2026-11-12）：群发全部 admin 的核查任务，一次核查即完成（content 含账号/IP，按事件自然分组）
   // 2026-10-27 补登记（产生点 auth/password-requests.service——此前未注册，标签退化「其他通知」）
   { code: 'PASSWORD_CHANGE_PENDING', label: '密码修改待审批', domain: 'account', icon: 'KeyRound', tone: 'orange', actionable: true, audiences: [{ kind: 'ROLE', roles: ['admin'] }], channels: IN_APP },
   { code: 'PASSWORD_RESET_PENDING', label: '密码重置待审批', domain: 'account', icon: 'KeyRound', tone: 'orange', actionable: true, audiences: [{ kind: 'ROLE', roles: ['admin'] }], channels: IN_APP },
@@ -574,7 +577,7 @@ const ARCHIVE_SPECS: NotificationTypeSpec[] = [
   { code: 'ARCHIVE_READY', label: '归档待办', domain: 'archive', icon: 'FileArchive', tone: 'orange', actionable: true, audiences: [{ kind: 'ROLE', roles: ['leader'] }], channels: IN_APP }, // 2026-09-26 已实施：业务通知不进 admin
   { code: 'ARCHIVE_TRANSFER_DUE', label: '归档移交临期', domain: 'archive', icon: 'CalendarClock', tone: 'orange', actionable: true, audiences: [{ kind: 'ROLE', roles: ['staff', 'leader'] }], channels: IN_APP },
   { code: 'ARCHIVE_OVERDUE', label: '归档严重逾期', domain: 'archive', icon: 'AlertTriangle', tone: 'red', actionable: true, audiences: [{ kind: 'ROLE', roles: ['leader'] }], channels: IN_APP }, // 2026-09-26 已实施
-  { code: 'ARCHIVE_INTEGRITY_ALERT', label: '档案完整性告警', domain: 'archive', icon: 'ShieldAlert', tone: 'red', actionable: true, audiences: [{ kind: 'ROLE', roles: ['staff'] }], channels: IN_APP, link: () => '/archive' }, // 2026-09-27 从 SYSTEM 拆分
+  { code: 'ARCHIVE_INTEGRITY_ALERT', label: '档案完整性告警', domain: 'archive', icon: 'ShieldAlert', tone: 'red', actionable: true, sharedResolve: true, audiences: [{ kind: 'ROLE', roles: ['staff'] }], channels: IN_APP, link: () => '/archive' }, // 2026-09-27 从 SYSTEM 拆分；sharedResolve（2026-11-12）：月度抽检告警的核查共享——同签名=同故障集（同计数跨月合并可接受：所指大概率同一批未修复项目）
 ];
 
 /* ── 合同履约域（2026-09-26 补齐：合同签约此前零通知） ── */
@@ -613,7 +616,7 @@ const CONTRACT_SPECS: NotificationTypeSpec[] = [
 
 const ANNOUNCEMENT_SPECS: NotificationTypeSpec[] = [
   { code: 'ANNOUNCEMENT_PUBLISHED', label: '公告发布', domain: 'announcement', icon: 'Megaphone', tone: 'blue', actionable: false, audiences: LEGACY('公告订阅供应商定向，挂起待议'), channels: IN_APP },
-  { code: 'PRE_WIN_CONFIRM_DUE', label: '成交公告待确认', domain: 'announcement', icon: 'ClipboardCheck', tone: 'orange', actionable: true, audiences: [{ kind: 'ROLE', roles: ['staff'] }], channels: IN_APP, link: () => '/notice' }, // 2026-09-27 从 SYSTEM 拆分
+  { code: 'PRE_WIN_CONFIRM_DUE', label: '成交公告待确认', domain: 'announcement', icon: 'ClipboardCheck', tone: 'orange', actionable: true, sharedResolve: true, audiences: [{ kind: 'ROLE', roles: ['staff'] }], channels: IN_APP, link: () => '/notice' }, // 2026-09-27 从 SYSTEM 拆分；sharedResolve（2026-11-12）：确认发布成交公告是一次性动作（cron 有 winnerConfirmRemindedAt 防重发），一人确认=全组了结
 ];
 
 const SYSTEM_SPECS: NotificationTypeSpec[] = [

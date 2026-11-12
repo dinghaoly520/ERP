@@ -443,6 +443,24 @@ describe('sweepStaleActionableNotifications', () => {
     expect(prisma._unresolved().sort()).toEqual(['c10', 'c12', 'c2', 'c4', 'c6', 'c7']);
   });
 
+  it('澄清/报价轮·/bids/{id} link 形态 + 项目终局消解（2026-11-12 举一反三：该两型无窗口覆盖、/bids/ 前缀不被提取）', async () => {
+    const prisma = makePrisma({
+      notifications: [
+        N('e1', 'BID_CLARIFICATION_CREATED', '/bids/b-archived/clarifications', ''),
+        N('e2', 'BID_CLARIFICATION_CREATED', '/bids/b-evaluating/clarifications', ''),
+        N('e3', 'BID_ROUND_OPEN', '/bids/b-aborted/round-quote', ''),
+        N('e4', 'BID_ROUND_OPEN', '/bids/b-evaluating/round-quote', ''),
+      ],
+      bidProjects: [
+        { id: 'b-archived', stage: 'ARCHIVED', projectManagementItemId: null },
+        { id: 'b-aborted', stage: 'ABORTED', projectManagementItemId: null },
+        { id: 'b-evaluating', stage: 'EVALUATING', projectManagementItemId: null },
+      ],
+    });
+    await sweepStaleActionableNotifications(prisma as any);
+    expect(prisma._unresolved().sort()).toEqual(['e2', 'e4']);
+  });
+
   it('供应商催审·按 supplierId：审结/删除消解，仍在审保留', async () => {
     const prisma = makePrisma({
       notifications: [

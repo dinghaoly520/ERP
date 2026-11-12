@@ -2366,7 +2366,7 @@ export class ExpertAdminService {
     // Index: userId → true if has recent assignment
     const hasRecentAssign = new Set(allRecentAssigns.map(a => a.userId));
 
-    const candidates: Array<{ userId: string; displayName: string; specialty?: string; reason: string }> = [];
+    const candidates: Array<{ userId: string; displayName: string; companyId: string | null; specialty?: string; reason: string }> = [];
 
     for (const e of experts) {
       const recent = evalsByExpert.get(e.id) || [];
@@ -2377,31 +2377,52 @@ export class ExpertAdminService {
         reason = '近 12 个月无评标分配';
       }
       if (reason) {
-        candidates.push({ userId: e.id, displayName: e.displayName, specialty: e.expertProfile?.specialty, reason });
+        // companyId：批报按归属公司分组发送（2026-11-12）——sendToCompanyRoles 收件人同口径
+        candidates.push({ userId: e.id, displayName: e.displayName, companyId: e.companyId, specialty: e.expertProfile?.specialty, reason });
       }
     }
 
     if (candidates.length > 0) {
       // 新批取代旧批（2026-10-22）：本扫描被 /expert/retirement 页面每次打开与 cron 双路
-      // 调用，旧批报留待办无限累积（leader/staff 曾积 42 条）。发新批前消解全部旧未消解，
-      // 各收件人恒只保留最新一批；真值在退库复核页实时计算。
-      await this.prisma.notification.updateMany({
-        where: { type: 'EXPERT_RETIRE_CANDIDATE', resolvedAt: null },
-        data: { resolvedAt: new Date() },
-      }).catch(() => {});
-      const names = candidates.map(c => `${c.displayName}（${c.reason}）`).join('；');
-      const payload = {
-        type: 'EXPERT_RETIRE_CANDIDATE',
-        title: '专家退库预警',
-        content: `${candidates.length} 名专家进入退库候选，请人工复核：${names}`,
-        link: '/expert/retirement',
-      };
+      // 调用，旧批报留待办无限累积（leader/staff 曾积 42 条）。真值在退库复核页实时计算。
+      // 2026-11-12 举一反三修复（与连拒预警 2026-11-02 跨公司错发同族）：
+      // ① 按候选专家归属公司分组发送——原平台广播 sendToRole 把全库候选名单发给全平台
+      //   leader/staff（实录：172 名候选批报到设计院 24 人+集团 12 人），违反专家库公司
+      //   隔离，且收件人点进复核页只见本公司子集（待办数与页面数对不上）；
+      // ② 取代钩子加收件人过滤——原 updateMany 全库清，A 公司开页会把 B 公司挂着的
+      //   待办一并消解且不发新批=他司通知凭空丢失；
+      // ③ 先发新批、后取代旧批（createdAt < batchStart 圈旧批）——中途失败宁可
+      //   重复待办，不可丢失待办。
+      const batchStart = new Date();
+      const recipientIds = new Set<string>();
+      const byCompany = new Map<string | null, typeof candidates>();
+      for (const c of candidates) {
+        const arr = byCompany.get(c.companyId) ?? [];
+        arr.push(c);
+        byCompany.set(c.companyId, arr);
+      }
       // 2026-09-26 场内矩阵：退库预警是专家库管理事件（:3005），不进 bid_host（场内角色）；
-      // 收件人=leader+staff（expert-admin 类级 @Roles 已允许复核），link 指向 :3005 退库复核页
-      await Promise.all([
-        this.notification.sendToRole('leader', payload),
-        this.notification.sendToRole('staff', payload),
-      ]);
+      // 收件人=候选归属公司 leader+staff（无人兜底 admin），link 指向 :3005 退库复核页
+      for (const [companyId, group] of byCompany) {
+        const names = group.map(c => `${c.displayName}（${c.reason}）`).join('；');
+        const r = await this.notification.sendToCompanyRoles(companyId, ['leader', 'staff'], {
+          type: 'EXPERT_RETIRE_CANDIDATE',
+          title: '专家退库预警',
+          content: `${group.length} 名专家进入退库候选，请人工复核：${names}`,
+          link: '/expert/retirement',
+        }).catch(() => ({ sent: 0, fallbackAdmin: false, userIds: [] as string[] }));
+        r.userIds?.forEach((id) => recipientIds.add(id));
+      }
+      if (recipientIds.size > 0) {
+        await this.prisma.notification.updateMany({
+          where: {
+            type: 'EXPERT_RETIRE_CANDIDATE', resolvedAt: null,
+            createdAt: { lt: batchStart },
+            userId: { in: [...recipientIds] },
+          },
+          data: { resolvedAt: new Date() },
+        }).catch(() => {});
+      }
     }
 
     return candidates;

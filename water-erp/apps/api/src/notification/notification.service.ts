@@ -340,7 +340,7 @@ export class NotificationService {
     companyId: string | null | undefined,
     roles: Array<'leader' | 'staff'>,
     payload: { type: string; title: string; content: string; link?: string | null },
-  ): Promise<{ sent: number; fallbackAdmin: boolean }> {
+  ): Promise<{ sent: number; fallbackAdmin: boolean; userIds: string[] }> {
     let userIds: string[] = [];
     if (companyId) {
       const users = await this.prisma.user.findMany({
@@ -359,7 +359,9 @@ export class NotificationService {
       userIds = admins.map((u) => u.id);
     }
     await Promise.allSettled(userIds.map((id) => this.sendToUser(id, ['in_app'], payload)));
-    return { sent: userIds.length, fallbackAdmin };
+    // userIds（2026-11-12）：实际收件人 id 集——调用方的「取代旧批」按收件人圈旧通知，
+    // 避免全库清吞掉他司仍挂着的待办（专家退库批报实录）。
+    return { sent: userIds.length, fallbackAdmin, userIds };
   }
 
   /**
@@ -436,7 +438,8 @@ export class NotificationService {
    * 此前按钮误调 markAsRead——其对 actionable 未办结通知按 2026-09-29 守卫是
    * no-op（点开≠办结），toast 谎报成功、刷新后仍滞留待办段。办结同时置已读：
    * 已办必然已阅，未读角标与五段计数同步消减。复核型待办（预警类，无业务
-   * resolveActionable 调用点）此前无任何消解路径，这是唯一出口。
+   * resolveActionable 调用点）此前无任何消解路径，这是唯一出口。2026-11-12 起分两档：
+   * sharedResolve 群发复核型任一人办结=整组消解，个人待办仍只动本人行。
    */
   async resolveOwn(notificationId: string, userId: string) {
     const notification = await this.prisma.notification.findUnique({
@@ -450,23 +453,28 @@ export class NotificationService {
     }
     if (notification.resolvedAt) return notification; // 幂等：已办结不重置时间
     const now = new Date();
-    const updated = await this.prisma.notification.update({
-      where: { id: notificationId },
-      data: { resolvedAt: now, isRead: true, readAt: now },
-    });
-    // 群发复核型（连拒预警对，2026-11-12 实录：02 办结后 01 仍挂待办）：预警群发给归属
-    // 公司全体 leader/staff 每人一行，复核却是一次性共享工作——任一人办结即整组消解。
-    // 按 type+link+content 逐字匹配同批副本（sendToCompanyRoles 同 payload 群发、副本逐字
-    // 相同）；link 无实体 id 的类型（供应商连拒 link=/supplier/repository）靠 content 锁定实体。
-    if (SHARED_RESOLVE_TYPES.includes(notification.type)) {
-      await this.prisma.notification.updateMany({
-        where: {
-          type: notification.type, link: notification.link, content: notification.content,
-          resolvedAt: null,
-        },
+    // 两写同事务（2026-11-12 举一反三）：本人行与整组副本行同生共死——裸写中途失败
+    // 会留下「半消解组」僵尸（一人已办、他人仍挂），正是整组口径要消灭的形态。
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.notification.update({
+        where: { id: notificationId },
         data: { resolvedAt: now, isRead: true, readAt: now },
       });
-    }
-    return updated;
+      // 群发复核型（连拒预警对，2026-11-12 实录：02 办结后 01 仍挂待办）：预警群发给归属
+      // 公司全体 leader/staff 每人一行，复核却是一次性共享工作——任一人办结即整组消解。
+      // 按 type+link+content 逐字匹配同批副本（sendToCompanyRoles/sendToRole 同 payload 群发、
+      // 副本逐字相同）；link 无实体 id 的类型靠 content 锁定实体。同签名=同一工作项是入列
+      // 铁律（注册表 sharedResolve 注释），事件性重复通知禁标。
+      if (SHARED_RESOLVE_TYPES.includes(notification.type)) {
+        await tx.notification.updateMany({
+          where: {
+            type: notification.type, link: notification.link, content: notification.content,
+            resolvedAt: null,
+          },
+          data: { resolvedAt: now, isRead: true, readAt: now },
+        });
+      }
+      return updated;
+    });
   }
 }
