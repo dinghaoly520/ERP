@@ -2475,7 +2475,7 @@ export default function ExpertEvaluatePage() {
                                       className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-[linear-gradient(to_right,var(--fill)_var(--pct),oklch(0.96_0.01_258)_var(--pct))] accent-[var(--accent-strong)] focus:outline-none"
                                       style={{ '--fill': catColor, '--pct': `${pct}%` } as React.CSSProperties}
                                       aria-label={`${item.name} 评分`} aria-valuemin={0} aria-valuemax={max} aria-valuenow={currentScore} aria-valuetext={`${currentScore} / ${max} 分`} tabIndex={0} />
-                                    <input type="number" min={0} max={max} step={0.5} value={currentScore}
+                                    <input type="number" inputMode="decimal" min={0} max={max} step={0.5} value={currentScore}
                                       onChange={e => setScores(prev => ({ ...prev, [k]: { score: Math.max(0, Math.min(parseFloat(e.target.value) || 0, max)), reason: prev[k]?.reason || '' } }))}
                                       onKeyDown={e => { if (e.key === 'ArrowUp') { e.preventDefault(); const v = Math.min((currentScore || 0) + 0.5, max); setScores(prev => ({ ...prev, [k]: { score: v, reason: prev[k]?.reason || '' } })); } else if (e.key === 'ArrowDown') { e.preventDefault(); const v = Math.max((currentScore || 0) - 0.5, 0); setScores(prev => ({ ...prev, [k]: { score: v, reason: prev[k]?.reason || '' } })); } handleScoringKeyDown(e, isLastItem); }}
                                       className="exp-score-input"

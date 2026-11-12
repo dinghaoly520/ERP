@@ -1328,6 +1328,7 @@ export default function TabletEvaluatePage() {
                               />
                               <input
                                 type="number"
+                                inputMode="decimal"
                                 min={0}
                                 max={max}
                                 step={0.5}
