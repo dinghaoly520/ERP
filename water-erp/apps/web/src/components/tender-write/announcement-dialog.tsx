@@ -107,6 +107,8 @@ const FIELDS_WITHOUT_ACTIONS: Set<string> = new Set([
   "scheduleRequirementsType",
   "bidder1Remark",
   "bidder1RemarkType",
+  // 开标地点（2026-11-12）：无 AI/样本语义——专属「地点」条目选择按钮（公司信息管理维护）
+  "openingLocation",
   // 监督信息（2026-10-09）：无 AI/样本语义
   "supervisionDepartment",
   "supervisionAddress",
@@ -306,6 +308,7 @@ function AnnouncementFieldEditor({
   onAiGenerate,
   onContactOpen,
   onSupervisorOpen,
+  onPlaceOpen,
   onSupplierCheck,
   supplierChecking,
 }: {
@@ -320,6 +323,8 @@ function AnnouncementFieldEditor({
   onSampleOpen: (fieldKey: AnnouncementFieldKey, fieldLabel: string) => void;
   onAiGenerate: (fieldKey: AnnouncementFieldKey, fieldLabel: string, value: string, aiPrompt?: string) => void;
   onContactOpen?: () => void;
+  /** 打开公司维护的开标地点条目选择器（开标地点字段专属，2026-11-12） */
+  onPlaceOpen?: () => void;
   /** 监督人字段（supervisionContact）专属：打开监督举报条目选择（2026-10-09 联系人多选 → 2026-10-13 改条目整块填四字段） */
   onSupervisorOpen?: () => void;
   /** 拟定供应商名称专属：核对采购文件中供应商是否已更换（替代 AI 内容优化） */
@@ -334,6 +339,7 @@ function AnnouncementFieldEditor({
   const hideActions = FIELDS_WITHOUT_ACTIONS.has(field.key);
   const isContactField = field.key === "contactName";
   const isSupervisionContactField = field.key === "supervisionContact";
+  const isPlaceField = field.key === "openingLocation";
 
   // Composite field state
   const compositeConfig = field.composite;
@@ -367,7 +373,7 @@ function AnnouncementFieldEditor({
           {/* 监督人按钮豁免（2026-10-16）：supervisionContact 虽在 FIELDS_WITHOUT_ACTIONS
               （无 AI/样本语义），但「监督人」条目选择按钮须与采购文件编写（tender-section-editor）
               同款——那边按钮不受 hideActions 闸门影响恒显示，此处外层闸门曾把整个组件一起藏掉。 */}
-          {(!hideActions || isSupervisionContactField) && (
+          {(!hideActions || isSupervisionContactField || isPlaceField) && (
             <TenderFieldActions
               fieldKey={field.key as TenderFieldKey}
               currentValue={value}
@@ -379,6 +385,8 @@ function AnnouncementFieldEditor({
               onAiGenerate={() => onAiGenerate(field.key, field.label, value, field.aiPrompt)}
               onContactOpen={onContactOpen}
               isSupervisionContactField={isSupervisionContactField}
+              isPlaceField={isPlaceField}
+              onPlaceOpen={onPlaceOpen}
               onSupervisorOpen={onSupervisorOpen}
               aiOverride={field.key === 'supplierName' && onSupplierCheck ? {
                 title: '核对供应商：重新解析采购文件，检查拟定供应商是否已更换',
@@ -602,6 +610,8 @@ export function AnnouncementDialog({
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
   // 监督人多选（2026-10-09）：公告监督块「联系人」行从本公司联系人多选
   const [supervisorPickerOpen, setSupervisorPickerOpen] = useState(false);
+  // 开标地点条目选择（2026-11-12 与采购文件编写同款）：公司信息管理维护的地点条目单选
+  const [placePickerOpen, setPlacePickerOpen] = useState(false);
   // 当前用户公司名（预览公司名与监督部门默认值用）——取不到时预览按平台主公司口径展示
   const [companyName, setCompanyName] = useState<string | null>(null);
   // 本公司维护信息（2026-10-10 联动）：监督块与采购人联系方式空缺时预填
@@ -1538,6 +1548,7 @@ export function AnnouncementDialog({
                       onAiGenerate={handleAiGenerate}
                       onContactOpen={() => setContactPickerOpen(true)}
                       onSupervisorOpen={() => setSupervisorPickerOpen(true)}
+                      onPlaceOpen={() => setPlacePickerOpen(true)}
                       onSupplierCheck={handleSupplierCheck}
                       supplierChecking={supplierChecking}
                     />
@@ -1676,6 +1687,16 @@ export function AnnouncementDialog({
           kind="supervision"
           onSelectSupervision={handleSupervisionSelect}
           onClose={() => setSupervisorPickerOpen(false)}
+        />
+      )}
+
+      {/* 开标地点条目选择（公司信息管理维护；与采购文件编写同款，2026-11-12） */}
+      {placePickerOpen && (
+        <CompanyEntryPickerDialog
+          isOpen={placePickerOpen}
+          kind="place"
+          onSelectPlace={(address) => handleFieldChange("openingLocation", address)}
+          onClose={() => setPlacePickerOpen(false)}
         />
       )}
 
