@@ -1770,6 +1770,46 @@ describe('ProjectManagementService', () => {
     });
   });
 
+  describe('listDeletionRecords 可见性与形状（spec 2026-11-12 §4.5）', () => {
+    it('staff 仅本人留痕（对齐 list() 口径）', async () => {
+      const { service, prisma } = makeService();
+      prisma.projectDeletionRecord.findMany.mockResolvedValue([]);
+
+      await service.listDeletionRecords({}, { sub: 'u-1', username: 's', role: 'staff' } as any);
+
+      expect(prisma.projectDeletionRecord.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: { createdById: 'u-1' },
+      }));
+    });
+
+    it('leader/admin 走 companyScope 公司过滤', async () => {
+      const { service, prisma } = makeService();
+      prisma.projectDeletionRecord.findMany.mockResolvedValue([]);
+
+      await service.listDeletionRecords({}, { sub: 'u-1', username: 'l', role: 'leader' } as any);
+
+      expect(prisma.projectDeletionRecord.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: { companyId: { in: ['co-test'] } },
+      }));
+    });
+
+    it('deletedAt 倒序 + take 200 + Decimal 序列化为 number', async () => {
+      const { service, prisma } = makeService();
+      prisma.projectDeletionRecord.findMany.mockResolvedValue([
+        { id: 'r-1', budgetAmount: null },
+        { id: 'r-2', budgetAmount: { toNumber: () => 100, valueOf: () => 100 } as any },
+      ]);
+
+      const result = await service.listDeletionRecords({}, { sub: 'u-1', username: 's', role: 'staff' } as any);
+
+      expect(prisma.projectDeletionRecord.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        orderBy: { deletedAt: 'desc' },
+        take: 200,
+      }));
+      expect(result[1].budgetAmount).toBe(100);
+    });
+  });
+
   describe('updateStage 阶段完成实质校验（P1-12）', () => {
     const completing = { status: 'COMPLETED' } as any;
 

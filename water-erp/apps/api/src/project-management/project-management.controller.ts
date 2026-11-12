@@ -84,6 +84,16 @@ export class ProjectManagementController {
     return this.projectManagementService.list(query, user);
   }
 
+  // 删除留痕（spec 2026-11-12 §4.5）：静态路由须在 :id 子路径路由之前声明（本控制器无裸
+  // @Get(':id')，此处前置属双保险）。继承类级 @Roles，无写端点——记录天然不可删。
+  @Get('deletion-records')
+  listDeletionRecords(
+    @Query('companyId') companyId?: string,
+    @CurrentUser() user?: AuthenticatedUser,
+  ) {
+    return this.projectManagementService.listDeletionRecords({ companyId }, user);
+  }
+
   @Get('project-attributions')
   getProjectAttributions(
     @Query('companyId') companyId?: string,

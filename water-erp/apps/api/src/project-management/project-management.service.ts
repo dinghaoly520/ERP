@@ -5980,6 +5980,27 @@ ${JSON.stringify(algorithmResult, null, 2)}
     fileStream.pipe(res);
   }
 
+  /** 删除留痕列表（spec 2026-11-12 §4.5）：可见性与 list() 同构——staff=本人留痕、
+   *  leader=本公司、admin=全量+companyId 筛选；deletedAt 倒序最近 200 条（彻底删除有
+   *  3 年保留期前置，表常年近空，200 上限+前端本地搜索足够）。 */
+  async listDeletionRecords(query: { companyId?: string }, user?: AuthenticatedUser) {
+    const where: Record<string, unknown> = {};
+    if (user?.role === 'leader') {
+      Object.assign(where, this.companyScope.filter(await this.companyScope.resolveScope(user)));
+    } else if (user?.role === 'admin') {
+      Object.assign(where, this.companyScope.filter(await this.companyScope.resolveScope(user, query.companyId)));
+    } else {
+      where.createdById = user?.sub ?? '__no_user__';
+    }
+
+    const records = await this.prisma.projectDeletionRecord.findMany({
+      where,
+      orderBy: { deletedAt: 'desc' },
+      take: 200,
+    });
+    return records.map((r) => ({ ...r, budgetAmount: r.budgetAmount === null ? null : Number(r.budgetAmount) }));
+  }
+
   async moveToRecycleBin(projectId: string, user?: AuthenticatedUser) {
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
