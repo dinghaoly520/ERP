@@ -239,19 +239,23 @@ function InvitedOrInternalBiddingAnnouncementPreview({
   const company = companyName?.trim() || OWNER_COMPANY_FALLBACK;
   const cd = useCompanyDefaults();
 
+  // 文案对齐导出模板（2026-11-12）：谈判落本组件时曾兜到「竞价」说法——模板实际为
+  // 「谈判采购公告」+「采用竞争性谈判方式」；竞价模板标题为「内部竞标（竞价）公告」另议不动
   const docLabel =
     tenderType === "INQUIRY_PURCHASE"
       ? "询比采购公告"
       : tenderType === "INVITED_BIDDING"
         ? "邀请招标公告"
-        : "竞价采购公告";
+        : tenderType === "COMPETITIVE_NEGOTIATION"
+          ? "谈判采购公告"
+          : "竞价采购公告";
 
   return (
     <div className="mx-auto max-w-[72ch] space-y-5">
       {/* 标题 */}
       <div className="text-center">
         <div className="text-xl font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
-          {PV(draft.projectName, "{{项目名称}}", "projectName")}采购
+          {PV(draft.projectName, "{{项目名称}}", "projectName")}
         </div>
         <div className="mt-2 text-lg font-semibold tracking-[0.06em] text-[rgba(80,102,146,0.92)]">
           {docLabel}
@@ -265,7 +269,9 @@ function InvitedOrInternalBiddingAnnouncementPreview({
             ? "询比采购"
             : tenderType === "INVITED_BIDDING"
               ? "邀请招标"
-              : "竞价采购"}
+              : tenderType === "COMPETITIVE_NEGOTIATION"
+                ? "竞争性谈判"
+                : "竞价采购"}
           方式对
           {PV(draft.projectName, "{{项目名称}}", "projectName")}进行采购，现公示如下：
         </p>
@@ -279,7 +285,7 @@ function InvitedOrInternalBiddingAnnouncementPreview({
         <div className="mt-2 space-y-1 text-[0.92rem] leading-8">
           <p>采 购 人：{company}</p>
           <p>
-            项目名称：{PV(draft.projectName, "{{项目名称}}", "projectName")}采购
+            项目名称：{PV(draft.projectName, "{{项目名称}}", "projectName")}
           </p>
         </div>
       </div>
@@ -319,7 +325,7 @@ function InvitedOrInternalBiddingAnnouncementPreview({
       {/* 四、公示期限 */}
       <div>
         <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
-          四、公示期限
+          四、公示期限（采购文件获取时间）
         </div>
         <div className="mt-2 text-[0.92rem] leading-8">
           本公告有效期从
@@ -453,7 +459,7 @@ function SingleSourceAnnouncementPreview({
       {/* 五、公示期限 */}
       <div>
         <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
-          五、公示期限
+          五、公示期限（采购文件获取时间）
         </div>
         <div className="mt-2 text-[0.92rem] leading-8">
           {PV(formatDateToChinese(draft.announcementStart), "{{公示期限（起）}}", "announcementStart")}至
@@ -612,7 +618,7 @@ function WinningBidAnnouncementPreview({
       {/* 标题 */}
       <div className="text-center">
         <div className="text-xl font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
-          {PV(draft.projectName, "{{项目名称}}", "projectName")}采购
+          {PV(draft.projectName, "{{项目名称}}", "projectName")}
         </div>
         <div className="mt-2 text-lg font-semibold tracking-[0.06em] text-[rgba(80,102,146,0.92)]">
           中标公告

@@ -276,6 +276,12 @@ function announcementFieldHasValue(
   return true;
 }
 
+
+/** 公示期限显示名（2026-11-12 用户裁定）：公告制作页面显示为「公示期限（采购文件获取时间）」。
+ *  仅显示层改名——字段配置（announcement-templates）被 04 公告向导/直采备案等共用，源 label 不动。 */
+const displayFieldLabel = (label: string) =>
+  label === "公示期限" ? "公示期限（采购文件获取时间）" : label;
+
 /** datetime-local 字段的展示值兼容层（2026-09-21 公示期限（止）统一 datetime 后）：
  *  存量草稿/缓存/.docx 解析可能是旧「公告截止时间」的 date-only 值（YYYY-MM-DD），
  *  datetime-local input 收到会判非法显空——渲染时补 23:59 升级（当日截止惯例，
@@ -355,7 +361,7 @@ function AnnouncementFieldEditor({
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium text-[color:var(--foreground)]">
-          {field.label}
+          {displayFieldLabel(field.label)}
         </span>
         <div className="flex items-center gap-2">
           {/* 监督人按钮豁免（2026-10-16）：supervisionContact 虽在 FIELDS_WITHOUT_ACTIONS
@@ -505,7 +511,7 @@ function AnnouncementFieldEditor({
         <div className="mt-2 flex items-center gap-2">
           <input
             type="datetime-local"
-            aria-label={`${field.label}（起）`}
+            aria-label={`${displayFieldLabel(field.label)}（起）`}
             value={shownValue}
             onChange={(e) => onChange(field.key, e.target.value)}
             onFocus={() => onFieldFocus?.(field.key)}
@@ -514,7 +520,7 @@ function AnnouncementFieldEditor({
           <span className="shrink-0 text-xs font-semibold text-[color:var(--muted-foreground)]">至</span>
           <input
             type="datetime-local"
-            aria-label={`${field.label}（止）`}
+            aria-label={`${displayFieldLabel(field.label)}（止）`}
             value={(() => {
               const endRaw = (field.rangeEndKey ? draftRecord[field.rangeEndKey] : '').trim();
               return /^\d{4}-\d{2}-\d{2}$/.test(endRaw) ? `${endRaw}T23:59` : endRaw;
