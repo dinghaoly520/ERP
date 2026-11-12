@@ -72,11 +72,6 @@ export function TenderExportFormatDialog({ open, busy, onClose, onConfirm }: Pro
           PDF 文档
         </button>
       </div>
-      <p className="mt-3 text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">
-        {format === 'pdf'
-          ? 'PDF 由服务器 LibreOffice 转换，版式与 Word 一致；服务器未配置转换环境时将自动回退 Word 并提示。'
-          : 'Word 文档（.docx），可直接编辑后上传或走 AI 审查。'}
-      </p>
     </Modal>
   );
 }

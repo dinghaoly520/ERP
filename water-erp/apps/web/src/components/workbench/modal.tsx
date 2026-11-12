@@ -163,8 +163,8 @@ export function Modal({
           <div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
         )}
 
-        {/* 内容区 — 仅此处滚动 */}
-        <div className="flex-1 overflow-y-auto px-6">
+        {/* 内容区 — 仅此处滚动；pt-4 与头部隔离线留出呼吸距离（2026-11-12 用户裁定） */}
+        <div className="flex-1 overflow-y-auto px-6 pt-4">
           <div className="space-y-4 pb-4">{children}</div>
         </div>
 
