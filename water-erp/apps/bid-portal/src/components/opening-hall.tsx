@@ -874,7 +874,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
               </div>
             )}
           </div>
-          <StageStepper step={stageStep} failed={project?.stage === 'ABORTED'} />
+          {/* #79 延伸：failed 判据含 abortedAt——流标后归档（ABORTED→ARCHIVED 合法收尾）仍显「已流标」 */}
+          <StageStepper step={stageStep} failed={project?.stage === 'ABORTED' || !!project?.abortedAt} />
         </div>
       )}
 

@@ -68,6 +68,9 @@ export type BidProjectDetail = Omit<SharedBidProjectDetail, 'openingSession' | '
   leaderCoSigned?: boolean;
   /** F9（2026-08-28）：getProject include 的报价轮次（谈判项目生成闸门：≥1 轮且全部 closed；sealed_auction 豁免） */
   bidRounds?: Array<{ id: string; roundNo: number; status: string }>;
+  /** #79 延伸（2026-11-12）：流标时刻显式标记（BidProject 全标量随详情下发）——开标大厅步进条
+   *  「已流标」变体判据；ABORTED→ARCHIVED 归档后身份不丢（流标重启=新行，本列只置不清）。 */
+  abortedAt?: string | null;
   /** D2: 专家异议工单（getProject include，:3007 裁决用；与 :3005 同形状） */
   expertDisputes?: Array<{
     id: string; expertName: string; type: string; // scoring | procedure | other
