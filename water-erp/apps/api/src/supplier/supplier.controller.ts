@@ -155,6 +155,7 @@ export class SupplierController {
   }
 
   @Get(':id/participation')
+  @UseGuards(SupplierScopeGuard)
   @Roles('admin', 'leader', 'staff') // 参与情况（履约）：供应商库读口径，同 :id/approval-history
   @ApiOperation({ summary: '供应商参与情况（履约闭环）：意向/回执/投递/未投递事故聚合（2026-11-12）' })
   async getParticipation(@Param('id') id: string) {
