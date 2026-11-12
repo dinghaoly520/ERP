@@ -1,9 +1,9 @@
 ---
-name: bug-sync
-description: 禅道 bug 整理核查与入库流水线——按仓库权威 SOP 手册从禅道拉取新 bug、核对元数据、附件 md5 校验、OCR 截图取证、代码核查，然后产出即入库 docs/bugs/<批次>/（原件+manifest+票修队列）并交接 /bug-fix 修复。仅限装有禅道 docker 与 OCR 的机器。用户说「整理bug」「同步bug」「拉取禅道bug」「bug入库」「/bug-sync」时进入。
+name: bug-zentao-sync
+description: 禅道 bug 整理核查与入库流水线——按仓库权威 SOP 手册从禅道拉取新 bug、核对元数据、附件 md5 校验、OCR 截图取证、代码核查，然后产出即入库 docs/bugs/<批次>/（原件+manifest+票修队列）并交接 /bug-fix 修复。仅限装有禅道 docker 与 OCR 的机器。用户说「整理bug」「同步bug」「拉取禅道bug」「bug入库」「/bug-zentao-sync」时进入。
 ---
 
-# bug-sync · 禅道 bug 整理入库流水线
+# bug-zentao-sync · 禅道 bug 整理入库流水线
 
 把禅道新 bug 变成仓库里可修的批次材料。**本 skill 只是编排入口——工序细节一律以仓库权威手册为准，勿凭记忆重造**：
 
