@@ -124,6 +124,10 @@ const FILTER_OPTIONS: Array<{ key: FilterKey; label: string; icon: React.ReactNo
   { key: 'skipped', label: '跳过', icon: <CircleSlash className="h-4 w-4" />, colorClass: 'text-[var(--muted-foreground)]/60' },
 ];
 
+/** 文档名编号分离（2026-11-12）：形如「SWHI-TP-2026111201-名称…」/「TP-2026101901-名称…」——
+ *  前段 字母数字(-字母2-4)?-数字4+ 即项目编号；匹配失败整名作标题（不拆）。 */
+const DOC_CODE_RE = /^([A-Za-z0-9]+(?:-[A-Za-z]{1,4})?-\d{4,})-(.+)$/;
+
 interface ReportViewCombinedProps {
   task: ReviewTask;
   onBack: () => void;
@@ -299,9 +303,21 @@ export default function ReportViewCombined({ task: initialTask, onBack, hideBack
           </button>
         )}
         <div className="flex-1 min-w-0 flex items-center gap-2">
-          <span className="text-sm font-medium text-[var(--foreground)] truncate">
-            {task.documentName}
-          </span>
+          {(() => {
+            const m = DOC_CODE_RE.exec(task.documentName);
+            return (
+              <>
+                <span className="text-sm font-medium text-[var(--foreground)] truncate">
+                  {m ? m[2] : task.documentName}
+                </span>
+                {m && (
+                  <span className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-2 py-0.5 text-[10px] font-semibold tabular-nums tracking-[0.04em] text-[var(--accent)]">
+                    {m[1]}
+                  </span>
+                )}
+              </>
+            );
+          })()}
           <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
             task.reviewMode === 'strict'
               ? 'bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[var(--accent)]'
