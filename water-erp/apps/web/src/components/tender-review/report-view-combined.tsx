@@ -288,7 +288,7 @@ export default function ReportViewCombined({ task: initialTask, onBack, hideBack
   return (
     <div className="flex flex-col h-full gap-3">
       {/* Header */}
-      <div className="flex items-center gap-3 pt-3 pr-4 shrink-0">
+      <div className="flex items-center gap-3 pt-3 px-4 shrink-0">
         {!hideBack && (
           <button
             onClick={onBack}
