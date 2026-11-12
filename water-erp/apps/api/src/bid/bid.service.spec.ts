@@ -152,11 +152,13 @@ describe('BidService — stage transitions', () => {
       bidSupplier: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn(), groupBy: jest.fn().mockResolvedValue([]) },
       // 2026-10-23 监督上报通知：escalated 迁移判定需要旧标注（findUnique）+ upsert 落库
       bidSupervisionAnnotation: { findUnique: jest.fn(), upsert: jest.fn() },
-      bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), upsert: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }), findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue([]) },
+      bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), upsert: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }), findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn(), findFirst: jest.fn().mockResolvedValue({ generatedAt: new Date(Date.now() - 3600_000) }) },
       bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), create: jest.fn(), groupBy: jest.fn() },
       // T17：getProject 派生下发 envelopeVersion/outerDecryptedAt/packageFetchedAt 需要 findMany（默认空）
       supplierBidSubmission: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue([]) },
+      // Task 9（2026-11-12）：getWorkspace Promise.all 第 5 项读意向——默认空桩，意向用例自行覆盖
+      supplierBidIntent: { findMany: jest.fn().mockResolvedValue([]) },
       bidOpeningSession: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
       // 签字闸门默认放行（闭环+回流齐）：full 归档用例不逐个 mock；单测闸门本身见 bid-sign-packet.service.spec
       bidSignPacket: { findUnique: jest.fn().mockResolvedValue({ fileAssetId: 'fa-sign', sha256: 'sha-sign', signPageScanFileId: null, closedAt: new Date(), handoverFileAssetId: 'fa-handover' }), delete: jest.fn().mockResolvedValue({}) },
@@ -237,6 +239,49 @@ describe('BidService — stage transitions', () => {
       }
       expect(res.projects[0].expertCount).toBe(4);
       expect(res.projects[0].expertSignedIn).toBe(2);
+    });
+  });
+
+  describe('getWorkspace 合并意向维度（2026-11-12 供应商意向）', () => {
+    beforeEach(() => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '测试项目', projectCode: 'BID-1', procurementMethod: '公开招标', stage: 'DOWNLOAD', openTime: new Date(), deadline: new Date() });
+      // 名册仅含 s2（不含意向 s1）——意向-only 补行触发前提
+      prisma.bidSupplier.findMany.mockResolvedValue([
+        { id: 'bs1', supplierId: 's2', supplierName: '受邀供应商', downloadStatus: '已下载', submitStatus: '待提交', decryptStatus: 'PENDING', confirmStatus: 'PENDING', supplier: { id: 's2', name: '受邀供应商', tags: [], industry: null } },
+      ]);
+      prisma.bidExpert.findMany.mockResolvedValue([]);
+      prisma.supplierBidSubmission.findMany.mockResolvedValue([]);
+      prisma.bidOpeningRecord.count.mockResolvedValue(0);
+    });
+
+    it('workspace 并入意向维度：意向-only 补行 + stats.intentConfirmed（2026-11-12）', async () => {
+      // 在既有 getWorkspace 用例的 prisma mock 基础上仅补一笔（名册 supplierId 不含 's1'）：
+      prisma.supplierBidIntent.findMany.mockResolvedValue([
+        {
+          id: 'in1',
+          supplierId: 's1',
+          confirmedAt: new Date('2026-11-12T01:00:00Z'),
+          supplier: { id: 's1', name: '意向供应商', tags: [], industry: null },
+        },
+      ]);
+      const ws = await service.getWorkspace('p1');
+      const intentOnly = ws.suppliers.find((s: any) => s.supplierId === 's1')!;
+      expect(intentOnly).toBeTruthy();
+      expect(intentOnly.intentConfirmedAt).toEqual(new Date('2026-11-12T01:00:00Z'));
+      expect(intentOnly.downloadStatus).toBe('待下载');
+      expect(intentOnly.submitted).toBe(false);
+      expect(String(intentOnly.id)).toMatch(/^intent-/);
+      expect(ws.stats.intentConfirmed).toBe(1);
+    });
+
+    it('名册内供应商确认过意向 → 行内并入 intentConfirmedAt，不重复补行', async () => {
+      prisma.supplierBidIntent.findMany.mockResolvedValue([
+        { id: 'in2', supplierId: 's2', confirmedAt: new Date('2026-11-12T02:00:00Z'), supplier: { id: 's2', name: '受邀供应商', tags: [], industry: null } },
+      ]);
+      const ws = await service.getWorkspace('p1');
+      expect(ws.suppliers).toHaveLength(1);
+      expect(ws.suppliers[0].intentConfirmedAt).toEqual(new Date('2026-11-12T02:00:00Z'));
+      expect(ws.stats.intentConfirmed).toBe(1);
     });
   });
 

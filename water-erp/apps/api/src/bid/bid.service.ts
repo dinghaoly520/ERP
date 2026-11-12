@@ -681,7 +681,7 @@ export class BidService {
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
 
-    const [suppliers, experts, submissions, openingRecordCount] = await Promise.all([
+    const [suppliers, experts, submissions, openingRecordCount, bidIntents] = await Promise.all([
       this.prisma.bidSupplier.findMany({
         where: { projectId: id },
         include: { supplier: { select: { id: true, name: true, tags: true, industry: true } } },
@@ -700,8 +700,15 @@ export class BidService {
         select: { supplierId: true, status: true, submittedAt: true, bidPrice: true, deliveryPeriod: true },
       }),
       this.prisma.bidOpeningRecord.count({ where: { projectId: id } }),
+      // 供应商意向维度（2026-11-12）：公开项目确认参与——名册行并入 intentConfirmedAt、
+      // 意向-only 供应商补行（未受邀/未下载）
+      this.prisma.supplierBidIntent.findMany({
+        where: { projectId: id },
+        include: { supplier: { select: { id: true, name: true, tags: true, industry: true } } },
+      }),
     ]);
     const subMap = new Map(submissions.map(s => [s.supplierId, s]));
+    const intentMap = new Map(bidIntents.map((i) => [i.supplierId, i.confirmedAt] as const));
 
     const supplierRows = suppliers.map(s => {
       const submission = s.supplierId ? (subMap.get(s.supplierId) ?? null) : null;
@@ -733,8 +740,29 @@ export class BidService {
         submission: safeSubmission,
         submitted,
         withdrawn,
+        intentConfirmedAt: (s.supplierId ? intentMap.get(s.supplierId) : undefined) ?? null,
       };
     });
+    // 意向-only 供应商（公开项目确认参与但未受邀/未下载）补行——开标确认面板「自主确认」
+    const knownSupplierIds = new Set(supplierRows.map((r) => r.supplierId).filter(Boolean) as string[]);
+    for (const it of bidIntents) {
+      if (knownSupplierIds.has(it.supplierId)) continue;
+      supplierRows.push({
+        id: `intent-${it.id}`,
+        supplierId: it.supplierId,
+        supplierName: it.supplier.name,
+        industry: it.supplier.industry ?? null,
+        tags: it.supplier.tags ?? [],
+        downloadStatus: '待下载',
+        submitStatus: '待提交',
+        decryptStatus: 'PENDING',
+        confirmStatus: 'PENDING',
+        submission: null,
+        submitted: false,
+        withdrawn: false,
+        intentConfirmedAt: it.confirmedAt,
+      });
+    }
     // A-100：接收列表按接收时间排序——已递交(submittedAt 升序)在前、未递交(名册序)居中、已撤回殿后
     sortSupplierRowsBySubmission(supplierRows);
 
@@ -753,6 +781,8 @@ export class BidService {
         confirmedCount: supplierRows.filter(s => s.confirmStatus === 'CONFIRMED').length,
         pendingDisputeCount: supplierRows.filter(s => s.confirmStatus === 'DISPUTED').length,
         openingRecordedCount: openingRecordCount,
+        // 意向维度（2026-11-12）：已确认参与的供应商数（名册内合并行 + 意向-only 补行）
+        intentConfirmed: supplierRows.filter((s) => s.intentConfirmedAt).length,
       },
     };
   }
