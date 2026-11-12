@@ -402,12 +402,14 @@ export default function ExpertEvaluatePage() {
         setProject(p);
         // M-2: hydrate invalid supplier IDs from server data so grey-out survives page refresh.
         setInvalidSupplierIds(new Set((p.suppliers || []).filter(s => s.bidValidity === 'invalid').map(s => s.id))); // 用共享类型字段，去 unsafe cast
-        // B6（2026-11-12）：组长兜底——刷新/重连即恢复复议弹窗（WS 只是加速器）；表决中的项入横幅态
+        // B6（2026-11-12）：组长兜底——刷新/重连即恢复复议弹窗（WS 只是加速器）；
+        // hasOpenMotion 项只入横幅态（Final 修复②：入弹窗队列会在发起表决后弹死胡同对话框）
         const pendingReviews = (p as { pendingInvalidReviews?: LeadReviewView[] }).pendingInvalidReviews;
         if (Array.isArray(pendingReviews) && pendingReviews.length > 0) {
           setLeadReviewQueue(prev => {
             const seen = new Set(prev.map(r => r.invalidBidId));
-            return [...prev, ...pendingReviews.filter(r => !seen.has(r.invalidBidId))];
+            const queueable = pendingReviews.filter(r => !r.hasOpenMotion);
+            return [...prev, ...queueable.filter(r => !seen.has(r.invalidBidId))];
           });
           const openMotion = pendingReviews.find(r => r.hasOpenMotion);
           if (openMotion) {

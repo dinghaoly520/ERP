@@ -147,7 +147,7 @@ describe('Invalid Bid Review Motion (e2e)', () => {
     expect((nonLead.body as any).pendingInvalidReviews).toBeUndefined();
   });
 
-  it('组长发起复议动议 → 双发 409 RULING_ALREADY_OPEN + B4 冻结闸（该项改票被拒）', async () => {
+  it('组长发起复议动议 → 真并发双发恰成一单（条件写占位）+ B4 冻结闸（该项改票被拒）', async () => {
     const create = (cookie: string[]) =>
       request(app.getHttpServer())
         .post(`/api/expert/projects/${projectIdA}/invalid-bid-reviews`)
@@ -156,14 +156,19 @@ describe('Invalid Bid Review Motion (e2e)', () => {
 
     // 非组长 403
     await create(e2Cookie).expect(403);
-    // 组长发起成功
-    const res = await create(leadCookie).expect(201);
-    expect(res.body).toMatchObject({ type: 'invalid_bid', status: 'voting', projectId: projectIdA });
-    expect((res.body as any).title).toContain('复议推翻测试供应商');
-    // motionId 回写占位
+    // 真并发双发（READ COMMITTED 竞态）：事务内条件写占位 → 恰好一单成功
+    const results = await Promise.allSettled([
+      create(leadCookie),
+      create(leadCookie),
+    ]);
+    const statuses = results.map(r => (r.status === 'fulfilled' ? r.value.status : -1)).sort();
+    expect(statuses).toEqual([201, 409]);
+    const votingMotions = await prisma.bidMotion.count({ where: { projectId: projectIdA, type: 'invalid_bid', status: 'voting' } });
+    expect(votingMotions).toBe(1);
+
     const linked = await prisma.bidInvalidBid.findUnique({ where: { id: invalidBidA } });
-    expect(linked?.motionId).toBe(res.body.id);
-    // 双发 → 409
+    expect(linked?.motionId).toBeTruthy();
+    // 顺序双发 → 外层判重 409
     await create(leadCookie).expect(409).expect(r => expect(r.body).toMatchObject({ code: 'RULING_ALREADY_OPEN' }));
 
     // B4：表决期间该项评分投票冻结（专家二改票恢复的尝试被暂停闸挡下）

@@ -3082,7 +3082,16 @@ export class ExpertService {
       const created = await tx.bidMotion.create({
         data: { projectId, type: 'invalid_bid', title, description, createdBy: expert.id, status: 'voting' },
       });
-      await tx.bidInvalidBid.update({ where: { id: invalidBid.id }, data: { motionId: created.id } });
+      // Final 修复①（终审评审）：并发占位改条件写——外层判重在事务外，READ COMMITTED 下
+      // 双发两请求可同读 motionId=null 双过闸；此处带期望旧值条件写，后提交者 count=0
+      // 抛 409 回滚（含刚建动议），真正防双发。tie_deadlock 重发路径同防线（期望旧动议 id）。
+      const claimed = await tx.bidInvalidBid.updateMany({
+        where: { id: invalidBid.id, motionId: invalidBid.motionId },
+        data: { motionId: created.id },
+      });
+      if (claimed.count === 0) {
+        throw new ConflictException({ error: '该项复议表决已在进行中，不可重复发起', code: 'RULING_ALREADY_OPEN' });
+      }
       await tx.bidSupervisionLog.create({
         data: {
           projectId, time: new Date(), role: '评审组长', target: supplierName,
