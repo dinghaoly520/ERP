@@ -279,6 +279,10 @@ function announcementFieldHasValue(
 }
 
 
+/** 报名方式固定句（2026-11-12 用户裁定）：资格条件部分由 AI 生成追加 */
+const REGISTRATION_METHOD_FIXED =
+  "访问https://ssyc.scsfjt.com四川水发集团“蜀水云采·智慧水发”的供应商门户进行注册、查询项目和文件投递。";
+
 /** 公示期限显示名（2026-11-12 用户裁定）：公告制作页面显示为「公示期限（采购文件获取时间）」。
  *  仅显示层改名——字段配置（announcement-templates）被 04 公告向导/直采备案等共用，源 label 不动。 */
 const displayFieldLabel = (label: string) =>
@@ -695,15 +699,9 @@ export function AnnouncementDialog({
       }
     }
     if (wanted('registrationMethod')) {
-      // 值尾去句号（2026-11-12，与预览 stripTrailingPeriod 同裁定）：join 后模板统一收尾「。」，
-      // 值自带尾句号会拼出「。。」（实录：钻机采购要求见附件一。。）
-      const strip = (v: string) => v.trim().replace(/。+$/, '');
-      const parts: string[] = [];
-      const reqs = project.supplierRequirements?.trim() || tenderRecord.qualificationRequirements?.trim();
-      if (reqs) parts.push(`供应商资格条件：${strip(reqs)}`);
-      const materials = tenderRecord.requiredDocuments?.trim();
-      if (materials) parts.push(`报名材料：${strip(materials)}`);
-      if (parts.length > 0) patch.registrationMethod = `${parts.join('；')}。`;
+      // 2026-11-12 用户裁定：报名方式固定为供应商门户句（同步保底写入）；资格条件不再直取
+      // 字段拼装，由 AI 综合项目基本信息+采购文件生成（见下方自动触发 effect）
+      patch.registrationMethod = REGISTRATION_METHOD_FIXED;
     }
     if (Object.keys(patch).length > 0) {
       setDraft((prev) => (prev ? ({ ...prev, ...patch } as AnnouncementDraft) : prev));
@@ -784,6 +782,23 @@ export function AnnouncementDialog({
       }
     }
   }, [draft, category, embedded, onDraftChange]);
+
+  // 报名方式及条件 AI 自动生成（2026-11-12 用户裁定）：预填仅落固定句，条件部分由 AI
+  // 综合生成——一次性触发（ref 防重入/防循环：AI 写回再渲染不再触发）
+  const registrationAiFiredRef = useRef(false);
+  const registrationField = fields.find((f) => f.key === "registrationMethod");
+  useEffect(() => {
+    if (step !== "edit" || !draft || registrationAiFiredRef.current) return;
+    const cur = (draft as Record<string, string>).registrationMethod?.trim() ?? "";
+    if (cur && cur !== REGISTRATION_METHOD_FIXED) return; // 已有完整内容（含用户手编）不覆盖
+    registrationAiFiredRef.current = true;
+    void handleAiGenerate(
+      "registrationMethod",
+      "报名方式及条件",
+      cur,
+      registrationField?.aiPrompt,
+    );
+  }, [step, draft, registrationField]);
 
   const handleFieldChange = (key: AnnouncementFieldKey, value: string) => {
     setDraft((prev) => {
@@ -914,6 +929,21 @@ export function AnnouncementDialog({
             const fc = fields.find((f) => f.key === key);
             context[fc?.label ?? key] = val;
           }
+        }
+      }
+
+      // 项目基本信息（2026-11-12）：报名方式及条件等需综合项目概况/供应商要求/方式/预算
+      if (project) {
+        const pmEntries: Array<[string, unknown]> = [
+          ["项目名称", project.title],
+          ["采购方式", project.procurementMethod],
+          ["项目概况", project.projectOverview],
+          ["供应商要求", project.supplierRequirements],
+          ["预算金额", project.budgetAmount != null ? String(project.budgetAmount) : ""],
+          ["实施部门", project.implementerName ?? ""],
+        ];
+        for (const [k, v] of pmEntries) {
+          if (typeof v === "string" && v.trim()) context[`[项目]${k}`] = v;
         }
       }
 
