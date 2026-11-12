@@ -6078,6 +6078,18 @@ ${JSON.stringify(algorithmResult, null, 2)}
       return u?.displayName || u?.username || null;
     };
 
+    // 项目简报快照源与详情页「项目简报」同源（getProjectSummary 的文件缓存——项目实际
+    // 展示什么就存什么，2026-11-12 用户裁定：勿依赖 DB 列碰巧有值）；缓存缺失回退 DB 列
+    let briefForTombstone: string | null = project.analysisSummary ?? null;
+    try {
+      const cached = JSON.parse(
+        await readFile(getProjectSummaryCachePath(projectId), 'utf8'),
+      ) as { summary?: string };
+      if (cached.summary?.trim()) briefForTombstone = cached.summary.trim();
+    } catch {
+      // 无缓存文件（从未生成过简报）——回退 DB 列
+    }
+
     // 连带删除的台账轮次（裁定 #2：CANCELLED 轮次随项目删除，痕迹由墓碑承载）
     const round = project.terminatedProcurementRoundId
       ? await this.prisma.procurementRound.findUnique({
@@ -6122,9 +6134,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
           terminatedStage: project.terminatedStage,
           terminatedByName: nameOf(project.terminatedById),
           terminatedRoundNo: round?.roundNo ?? null,
-          // 终止时简报快照（2026-11-12 用户裁定：记录中展示）：TERMINATED 后 PMI 冻结，
-          // analysisSummary 不再变更——删除时取值即终止时值
-          analysisSummary: project.analysisSummary,
+          // 终止时简报快照（2026-11-12 用户裁定：记录中展示）：与详情页同源——
+          // 文件缓存优先、DB 列兜底（briefForTombstone）
+          analysisSummary: briefForTombstone,
           recycledAt: project.recycledAt,
           deletedByName: nameOf(user?.sub) ?? user?.username ?? '未知',
         },
