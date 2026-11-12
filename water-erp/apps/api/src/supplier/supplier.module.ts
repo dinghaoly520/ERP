@@ -5,6 +5,7 @@ import { SupplierLinkService } from './supplier-link.service';
 import { RsvpController } from './rsvp.controller';
 import { RsvpService } from './rsvp.service';
 import { OwnerGuard } from './owner.guard';
+import { BidIntentOversightService } from './bid-intent-oversight.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationModule } from '../notification/notification.module';
 import { AuthModule } from '../auth/auth.module';
@@ -14,7 +15,7 @@ import { ProjectManagementModule } from '../project-management/project-managemen
 @Module({
   imports: [AuthModule, PrismaModule, NotificationModule, VerificationModule, ProjectManagementModule],
   controllers: [SupplierController, RsvpController],
-  providers: [SupplierService, SupplierLinkService, RsvpService, OwnerGuard],
-  exports: [SupplierService, SupplierLinkService, RsvpService],
+  providers: [SupplierService, SupplierLinkService, RsvpService, OwnerGuard, BidIntentOversightService],
+  exports: [SupplierService, SupplierLinkService, RsvpService, BidIntentOversightService],
 })
 export class SupplierModule {}
