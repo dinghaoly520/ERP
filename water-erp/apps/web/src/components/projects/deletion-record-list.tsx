@@ -58,11 +58,11 @@ export function DeletionRecordList({ records, showHeader = true }: { records: Pr
               <div className="mt-0.5 text-xs text-[color:var(--muted-foreground)]">
                 {r.requesterDepartment} · {r.requesterName} · {r.procurementMethod}
               </div>
-              {/* 终止时简报（2026-11-12 用户裁定）：AI 简报优先、无则终止阶段+原因兜底；超两行截断 */}
+              {/* 项目简报（2026-11-12 用户裁定）：完整展示不截断——与详情页同源快照 */}
               {(() => {
                 const brief = briefOf(r);
                 return brief ? (
-                  <div className="mt-1 line-clamp-2 text-xs leading-5 text-[color:var(--muted-foreground)]" title={brief}>
+                  <div className="mt-1 text-xs leading-5 text-[color:var(--muted-foreground)]">
                     <span className="font-semibold text-[color:var(--foreground)]">项目简报：</span>
                     {brief}
                   </div>
