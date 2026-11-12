@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Archive, Award, Ban, Building2, Check, ChevronDown, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileCheck2, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, Plus, Recycle, RefreshCw, Save, ScrollText, Search, Shield, Sparkles, UploadCloud, UserPlus, X } from 'lucide-react';
+import { AlertTriangle, Archive, Award, Ban, Building2, Check, ChevronDown, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileCheck2, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Search, Shield, UploadCloud, UserPlus, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
@@ -69,31 +69,22 @@ import { ATTACHMENT_ACCEPT, ATTACHMENT_HINT, validateAttachmentFile } from '@/li
 
 
 // Expert info display component - handles structured expert data
-function ExpertInfoField({
-  value,
-  isEditing,
-  editValue,
-  onEditValueChange,
-  onStartEdit,
-  onSave,
-  onCancel,
-  readOnly = false,
-}: {
-  value: string | null | undefined;
-  isEditing: boolean;
-  editValue: string;
-  onEditValueChange: (value: string) => void;
-  onStartEdit?: () => void;
-  onSave: () => void;
-  onCancel?: () => void;
-  readOnly?: boolean;
-}) {
-  // 弹窗编辑（2026-10-28 用户口径：侧栏内联编辑既挤又乱，改独立弹窗；信息栏恒显只读表）
-  const [snapshot, setSnapshot] = useState<string | null>(null);
-  useEffect(() => {
-    if (isEditing) setSnapshot(editValue); // 开窗快照：取消时回滚未保存的草稿
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditing]);
+// 多值字段稳健显示（2026-10-27）：括号组展开 → 顿号/逗号拆分 → 去空去重 → 顿号重连——
+// 抽取链路写入的专业/职称常含「(A、B)」分组与逐字重复（工程建设、工程建设），直出会撑破行视觉
+const cleanMulti = (v?: string | null): string => {
+  if (!v?.trim()) return '—';
+  const seen = new Set<string>();
+  const items: string[] = [];
+  for (const raw of v.replace(/[（）()]/g, '').split(/[、，,;；]/)) {
+    const t = raw.trim();
+    if (t && !seen.has(t)) { seen.add(t); items.push(t); }
+  }
+  return items.length ? items.join('、') : '—';
+};
+
+function ExpertInfoField({ value }: { value: string | null | undefined }) {
+  // 2026-11-12 用户裁定：项目基本信息·评审专家名单不允许编辑——编辑弹窗与增删行机器整体移除，
+  // 纯展示名单表（名单维护走专家抽取/替换流程，不走基本信息手编）
   const hasValue = value !== null && value !== undefined && value !== '';
 
   // Parse experts from a pipe-delimited string: "姓名|部门|专业|职称|角色" per line. 续行合并
@@ -123,128 +114,11 @@ function ExpertInfoField({
 
   const experts = parseExperts(hasValue ? String(value) : null);
 
-  // Parse edit value for table editing — always start from editValue,
-  // falling back to display value when edit is first entered
-  const editExperts = parseExperts(editValue);
-
-  const syncEditValue = (rows: Array<{ name: string; department: string; specialty: string; title: string; role: string }>) => {
-    onEditValueChange(rows.map(e => `${e.name}|${e.department}|${e.specialty}|${e.title}|${e.role||''}`).join('\n'));
-  };
-
-  const updateExpertField = (index: number, field: 'name' | 'department' | 'specialty' | 'title' | 'role', newValue: string) => {
-    const updated = [...editExperts];
-    if (index >= updated.length) {
-      for (let i = updated.length; i <= index; i++) {
-        updated.push({ name: '', department: '', specialty: '', title: '', role: '' });
-      }
-    }
-    updated[index] = { ...updated[index], [field]: newValue };
-    syncEditValue(updated);
-  };
-
-  const addExpertRow = () => {
-    // 角色限选正选/候补（2026-10-29）：新增行默认正选，免得空角色行保存后只读表无徽标
-    syncEditValue([...editExperts, { name: '', department: '', specialty: '', title: '', role: '正选' }]);
-  };
-
-  const removeExpertRow = (index: number) => {
-    syncEditValue(editExperts.filter((_, i) => i !== index));
-  };
-
-  // 多值字段稳健显示（2026-10-27）：括号组展开 → 顿号/逗号拆分 → 去空去重 → 顿号重连——
-  // 抽取链路写入的专业/职称常含「(A、B)」分组与逐字重复（工程建设、工程建设），直出会撑破行视觉
-  const cleanMulti = (v?: string | null): string => {
-    if (!v?.trim()) return '—';
-    const seen = new Set<string>();
-    const items: string[] = [];
-    for (const raw of v.replace(/[（）()]/g, '').split(/[、，,;；]/)) {
-      const t = raw.trim();
-      if (t && !seen.has(t)) { seen.add(t); items.push(t); }
-    }
-    return items.length ? items.join('、') : '—';
-  };
-
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 mb-2">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">专家信息</span>
+      <div className="flex items-center gap-3 mb-1.5">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">评审专家名单</span>
       </div>
-
-      {/* 弹窗编辑（2026-10-28）：信息栏恒显只读表；编辑在独立弹窗内进行（窄侧栏内联编辑实录弃用） */}
-      {isEditing && (
-        <div className="fixed inset-0 z-[600] flex items-center justify-center">
-          <div className="absolute inset-0" style={{ background: 'oklch(0.1 0.02 258 / 0.42)', backdropFilter: 'blur(4px)' }} onClick={() => { if (snapshot !== null) onEditValueChange(snapshot); onCancel?.(); }} />
-          <div className="relative z-10 flex max-h-[82vh] w-full max-w-[860px] flex-col overflow-hidden rounded-[24px]"
-            style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 4px 5px 18px oklch(0.45 0.07 258 / 0.2), -2px -2px 8px oklch(1 0 0 / 0.9)' }}>
-            {/* 弹窗头 */}
-            <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-4" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px]" style={{ background: 'color-mix(in oklch, var(--stage-expert-soft, var(--accent-soft)) 45%, transparent)' }}>
-                  <Shield size={17} style={{ color: 'var(--stage-expert, var(--accent))' }} />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-[0.92rem] font-semibold text-[var(--foreground)]">编辑评审专家</div>
-                  <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">{editExperts.length} 人 · 保存后写入项目基本信息</div>
-                </div>
-              </div>
-              <button type="button" onClick={() => { if (snapshot !== null) onEditValueChange(snapshot); onCancel?.(); }} className="neu-btn-xs"><X size={16} /></button>
-            </div>
-            {/* 弹窗体 */}
-            <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-6 py-4">
-          {/* 专家行（2026-10-28 三改）：单行五字段与只读表同构（姓名/部门/专业/职称/角色各一列，专业弹性占宽），
-              序号徽标行首 + 删除钮行尾；弹窗加宽 860px 承载 */}
-          {editExperts.map((expert, i) => (
-            <div key={i} className="flex items-end gap-1.5 rounded-lg px-2.5 py-2" style={{ background: 'oklch(1 0 0 / 0.45)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
-              <span className="mb-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] text-[9px] font-extrabold text-white" style={{ background: 'linear-gradient(135deg, oklch(0.52 0.16 258), oklch(0.45 0.14 258))' }}>{i + 1}</span>
-              {([
-                ['姓名', 'name', expert.name, 'w-[11%] min-w-[64px]'],
-                ['部门', 'department', expert.department, 'w-[17%] min-w-[96px]'],
-                ['专业', 'specialty', expert.specialty, 'min-w-0 flex-1'],
-                ['职称', 'title', expert.title, 'w-[15%] min-w-[88px]'],
-                ['角色', 'role', (expert as any).role || '', 'w-[10%] min-w-[60px]'],
-              ] as const).map(([label, key, value, wCls]) => (
-                <label key={key} className={`flex min-w-0 flex-col gap-0.5 ${wCls}`}>
-                  <span className="text-[9px] font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">{label}</span>
-                  {/* 角色限选正选/候补（2026-10-29 用户裁定）：显示值按「含候补/补选→候补，否则→正选」
-                      映射；未改选不回写——存量「正选·组长」「需求方代表」（抽取回写值）不被静默抹平，
-                      组长皇冠/需求方代表标记随原值保留 */}
-                  {key === 'role' ? (
-                    <select
-                      value={(() => { const r = (expert as any).role || ''; return r.includes('候补') || r === '补选' ? '候补' : '正选'; })()}
-                      onChange={(e) => updateExpertField(i, 'role', e.target.value)}
-                      className="!h-[30px] !min-w-0 !rounded-[9px] !border-0 !text-xs !text-[var(--foreground)] focus:!ring-2 focus:!ring-[color-mix(in_oklch,var(--accent)_35%,transparent)]"
-                      style={{ background: 'oklch(0.972 0.012 258 / 0.65)', boxShadow: 'inset 1px 1px 3px oklch(0.55 0.03 258 / 0.08), inset -1px -1px 2px oklch(1 0 0 / 0.7)' }}
-                    >
-                      <option value="正选">正选</option>
-                      <option value="候补">候补</option>
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      value={value as string}
-                      onChange={(e) => updateExpertField(i, key as 'name', e.target.value)}
-                      placeholder={label === '姓名' ? '姓名' : ''}
-                      className="!h-[30px] !min-w-0 !rounded-[9px] !border-0 !text-xs !text-[var(--foreground)] focus:!ring-2 focus:!ring-[color-mix(in_oklch,var(--accent)_35%,transparent)]"
-                      style={{ background: 'oklch(0.972 0.012 258 / 0.65)', boxShadow: 'inset 1px 1px 3px oklch(0.55 0.03 258 / 0.08), inset -1px -1px 2px oklch(1 0 0 / 0.7)' }}
-                    />
-                  )}
-                </label>
-              ))}
-              <button type="button" onClick={() => removeExpertRow(i)} className="neu-btn-xs mb-0.5 !h-6 !w-6 shrink-0 !p-0 justify-center" aria-label="删除该专家"><X size={12} /></button>
-            </div>
-          ))}
-            </div>
-            {/* 弹窗脚 */}
-            <div className="flex shrink-0 items-center gap-2 px-6 py-3.5" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
-              <button type="button" onClick={addExpertRow} className="neu-btn-xs gap-1"><Plus size={12} />添加专家</button>
-              <span className="text-[10px] text-[var(--muted-foreground)]">{editExperts.length} 人</span>
-              <div className="flex-1" />
-              <button type="button" onClick={() => { if (snapshot !== null) onEditValueChange(snapshot); onCancel?.(); }} className="neu-btn-soft !h-[34px]">取消</button>
-              <button type="button" onClick={onSave} className="neu-btn-primary !h-[34px]"><Save size={13} />保存</button>
-            </div>
-          </div>
-        </div>
-      )}
       {hasValue && experts.length > 0 ? (
         <div className="overflow-x-auto rounded-[10px]" style={{ background: 'oklch(1 0 0 / 0.3)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
           <table className="neu-table w-full min-w-[500px]">
@@ -263,9 +137,8 @@ function ExpertInfoField({
                 <tr key={i}>
                   <td className="text-center tabular-nums" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)', verticalAlign: 'top' }}>{i + 1}</td>
                   <td className="font-medium text-center" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--foreground)', verticalAlign: 'top' }}>
-                      <span className="inline-flex items-center gap-1">{expert.name}{(expert as any).role?.includes('组长') ? <span title="评审组长"><Crown size={12} className="text-[#7c3aed]" aria-label="评审组长" /></span> : null}</span>
-                    </td>
-
+                    <span className="inline-flex items-center gap-1">{expert.name}{(expert as any).role?.includes('组长') ? <span title="评审组长"><Crown size={12} className="text-[#7c3aed]" aria-label="评审组长" /></span> : null}</span>
+                  </td>
                   <td className="text-center" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)', verticalAlign: 'top' }}>{cleanMulti(expert.department)}</td>
                   <td className="text-center" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)', verticalAlign: 'top' }}>{cleanMulti(expert.specialty)}</td>
                   <td className="text-center" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)', verticalAlign: 'top' }}>{cleanMulti(expert.title)}</td>
@@ -282,113 +155,18 @@ function ExpertInfoField({
   );
 }
 
-function BiddingUnitsField({
-  label,
-  value,
-  isEditing,
-  editValue,
-  onEditValueChange,
-  onStartEdit,
-  onSave,
-  onCancel,
-  readOnly = false,
-}: {
-  label: string;
-  value: string | number | null | undefined;
-  isEditing: boolean;
-  editValue: string;
-  onEditValueChange: (value: string) => void;
-  onStartEdit?: () => void;
-  onSave: () => void;
-  onCancel?: () => void;
-  readOnly?: boolean;
-}) {
-  // 弹窗编辑（2026-10-28 四改·与专家信息同款）：开窗快照，取消回滚草稿
-  const [unitSnapshot, setUnitSnapshot] = useState<string | null>(null);
-  useEffect(() => {
-    if (isEditing) setUnitSnapshot(editValue);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditing]);
-  const cancelUnits = () => { if (unitSnapshot !== null) onEditValueChange(unitSnapshot); onCancel?.(); };
+function BiddingUnitsField({ label, value }: { label: string; value: string | number | null | undefined }) {
+  // 2026-11-12 用户裁定：项目基本信息·供应商参与/邀请不允许编辑——编辑弹窗与增删行机器
+  // 整体移除，纯展示名单（参与名单=公告自动收集∪项目登记；邀请名单走供应商邀请流程卡）
   const hasValue = value !== null && value !== undefined && value !== '';
-  // 解析投标单位（用顿号、逗号或换行分隔）
   const units = hasValue ? String(value).split(/[、,\n]/).filter(u => u.trim()) : [];
-  const unitName = label.replace('邀请的 ', '');
-
-  // Parse edit value — keep empty rows visible during editing so "+" works
-  const editUnits = editValue ? editValue.split('\n') : [''];
-
-  const updateUnit = (index: number, newValue: string) => {
-    const updated = [...editUnits];
-    if (index >= updated.length) {
-      for (let i = updated.length; i <= index; i++) {
-        updated.push('');
-      }
-    }
-    updated[index] = newValue;
-    onEditValueChange(updated.join('\n'));
-  };
-
-  const addUnitRow = () => {
-    onEditValueChange([...editUnits, ''].join('\n'));
-  };
-
-  const removeUnitRow = (index: number) => {
-    const updated = editUnits.filter((_, i) => i !== index);
-    onEditValueChange(updated.join('\n'));
-  };
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 mb-1.5">
+      <div className="flex items-center gap-3 mb-1.5">
         <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">{label}</span>
       </div>
-
-      {/* 弹窗编辑（2026-10-28 四改·与专家信息同款弹窗）：信息栏恒显只读名单 */}
-      {isEditing && (
-        <div className="fixed inset-0 z-[600] flex items-center justify-center">
-          <div className="absolute inset-0" style={{ background: 'oklch(0.1 0.02 258 / 0.42)', backdropFilter: 'blur(4px)' }} onClick={cancelUnits} />
-          <div className="relative z-10 flex max-h-[82vh] w-full max-w-[620px] flex-col overflow-hidden rounded-[24px]"
-            style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 4px 5px 18px oklch(0.45 0.07 258 / 0.2), -2px -2px 8px oklch(1 0 0 / 0.9)' }}>
-            <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-4" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px]" style={{ background: 'color-mix(in oklch, var(--stage-announce-soft, var(--accent-soft)) 45%, transparent)' }}>
-                  <UserPlus size={17} style={{ color: 'var(--stage-announce, var(--accent))' }} />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-[0.92rem] font-semibold text-[var(--foreground)]">编辑{label}</div>
-                  <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">{editUnits.filter(u => u.trim()).length} 家 · 保存后写入项目基本信息</div>
-                </div>
-              </div>
-              <button type="button" onClick={cancelUnits} className="neu-btn-xs"><X size={16} /></button>
-            </div>
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-6 py-4">
-              {editUnits.map((unit, i) => (
-                <div key={i} className="flex items-center gap-1.5 rounded-lg px-2.5 py-2" style={{ background: 'oklch(1 0 0 / 0.45)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
-                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] text-[9px] font-extrabold text-white" style={{ background: 'linear-gradient(135deg, oklch(0.52 0.16 258), oklch(0.45 0.14 258))' }}>{i + 1}</span>
-                  <input
-                    type="text"
-                    value={unit}
-                    onChange={(e) => updateUnit(i, e.target.value)}
-                    placeholder={`输入${unitName}名称`}
-                    className="!h-[30px] !min-w-0 !flex-1 !rounded-[9px] !border-0 !text-xs !text-[var(--foreground)] focus:!ring-2 focus:!ring-[color-mix(in_oklch,var(--accent)_35%,transparent)]"
-                    style={{ background: 'oklch(0.972 0.012 258 / 0.65)', boxShadow: 'inset 1px 1px 3px oklch(0.55 0.03 258 / 0.08), inset -1px -1px 2px oklch(1 0 0 / 0.7)' }}
-                  />
-                  <button type="button" onClick={() => removeUnitRow(i)} className="neu-btn-xs !h-6 !w-6 shrink-0 !p-0 justify-center" aria-label={`删除该${unitName}`}><X size={12} /></button>
-                </div>
-              ))}
-            </div>
-            <div className="flex shrink-0 items-center gap-2 px-6 py-3.5" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
-              <button type="button" onClick={addUnitRow} className="neu-btn-xs gap-1"><Plus size={12} />添加{unitName}</button>
-              <span className="text-[10px] text-[var(--muted-foreground)]">{editUnits.filter(u => u.trim()).length} 家</span>
-              <div className="flex-1" />
-              <button type="button" onClick={cancelUnits} className="neu-btn-soft !h-[34px]">取消</button>
-              <button type="button" onClick={onSave} className="neu-btn-primary !h-[34px]"><Save size={13} />保存</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {hasValue && units.length > 0 ? (
+      {units.length > 0 ? (
         <div className="space-y-1.5">
           {units.map((unit, i) => (
             <div
@@ -2028,14 +1806,8 @@ export function ProjectDetailPanel({
                   <span className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">{['邀请招标', '直接采购'].includes(item.procurementMethod) ? '供应商邀请' : '供应商参与'}</span>
                 </div>
                 <BiddingUnitsField
-                  readOnly={actionsDisabled}
                   label={['邀请招标', '直接采购'].includes(item.procurementMethod) ? '邀请的供应商' : '参与的供应商'}
                   value={participantNames ?? (extractedInfoOverride?.invitedSuppliers ?? item.invitedSuppliers ?? null)}
-                  isEditing={editingField === 'invitedSuppliers'}
-                  editValue={editValues.invitedSuppliers}
-                  onEditValueChange={(v) => setEditValues((prev) => ({ ...prev, invitedSuppliers: v }))}
-                  onSave={() => void handleSaveField('invitedSuppliers')}
-                  onCancel={() => setEditingField(null)}
                 />
               </div>
               )}
@@ -2047,16 +1819,10 @@ export function ProjectDetailPanel({
                   <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]" style={{background:"var(--stage-expert-soft)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)"}}>
                     <Shield size={14} style={{color:"var(--stage-expert)"}} />
                   </div>
-                  <span className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">专家评审</span>
+                  <span className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">评审专家名单</span>
                 </div>
                 <ExpertInfoField
-                  readOnly={actionsDisabled}
                   value={extractedInfoOverride?.expertInfo ?? item.expertInfo}
-                  isEditing={editingField === 'expertInfo'}
-                  editValue={editValues.expertInfo}
-                  onEditValueChange={(v) => setEditValues((prev) => ({ ...prev, expertInfo: v }))}
-                  onSave={() => void handleSaveField('expertInfo')}
-                  onCancel={() => setEditingField(null)}
                 />
               </div>
 
