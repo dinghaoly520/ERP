@@ -131,10 +131,10 @@ model SupplierBidNoShow {
 
 该供应商 `legacy=false` 事故数 ≥3 且 `Supplier.status ≠ BLACKLIST` → 事务内：
 
-1. **复用既有 `blacklistSupplier` service 路径**（`supplier.controller.ts:684` 人工拉黑同款）：`Supplier.status=BLACKLIST` + `disableReason`（注明「累计 3 次确认参与采购项目但未投递投标/响应文件」+ 三个项目名与时间）；
+1. **复用既有拉黑不变式**（与人工 `blacklistSupplier`（`supplier.service.ts:3401`）同一内核：状态占用更新防并发 + `disableReason` 注明「累计 3 次确认参与采购项目但未投递投标/响应文件」+ 三个项目名与时间 + **账号联动停用 isActive=false**）。人工端点的角色守卫与状态闸不动；自动路径为无用户调用、幂等跳过（已在黑名单/PENDING/RETURNED 待审核态跳过并记日志，cron 不得抛死）；
 2. `SupplierPenalty` 自动留痕（文号 `AUTO-YYYYMMDD-NNN` 随机防撞重试，机关=采购中心，decisionDate=now，penaltyContent=同理由）——cron 路径不经 HTTP 无 OperationLog，**留痕权威=处罚表+disableReason**；
-3. 通知该供应商**全部关联账号**（现 Supplier.userId 1:1，按关联账号查询实现、兼容将来多账号）：`sendToUser(uid, ['in_app'], {...})`，类型 `SUPPLIER_AUTO_BLACKLISTED`（注册进 `packages/shared/src/notification-registry.ts` 并重建 shared），标题/内容含理由与项目清单，link 指向供应商门户 `/dashboard`；
-4. **不冻结登录**（User.isFrozen 不动）——供应商仍可登录查看通知与申诉；拉黑效果走既有链路（投递/获取文件 403 SUPPLIER_BLACKLISTED、项目机会黑名单横幅）。
+3. 通知该供应商**全部关联账号**（现 Supplier.userId 1:1，按关联账号查询实现、兼容将来多账号）：`sendToUser(uid, ['in_app'], {...})`，**复用既有已注册类型 `SUPPLIER_BLACKLISTED`**（人工拉黑同款，零 registry 改动），内容注明「系统自动」与理由、项目清单；
+4. **账号联动停用遵 2026-10-15 平台既有裁定**（黑名单必须立刻丧失登录能力——防被拉黑仍可登录投标）：供应商解黑走既有 `unblacklistSupplier`（联动恢复账号 isActive），届时可见上述通知；申诉渠道=线下联系采购中心（通知文案同人工款「如有异议请联系采购中心」）。
 
 人工恢复通道已现成：`POST /supplier/:id/unblacklist`（:692），零新增。
 
@@ -191,7 +191,7 @@ model SupplierBidNoShow {
   - 拉黑：满 3 触发 / legacy 豁免（2 legacy+1 新不触发、3 新触发）/ 幂等不重复拉黑 / 通知发送 / 复用 blacklistSupplier 路径；
   - participation 聚合口径；listBidProjects 批量 myIntent/intentApplicable。
 - **e2e**：既有提交流程套件（`bid` / `bid-v3` / `clarification-reply` / `opening-hall`）中 **OPEN 项目**提交前补 confirm-intent 调用（谈判/受邀套件无需）；新增两条链路：「未确认提交 → 400 INTENT_REQUIRED → 确认 → 投递成功」；「回执确认 ×3 未投递 → 开标 → 自动拉黑+通知+处罚留痕」。CI 无独立 selfcheck 脚本（已随 040df9a8 删除），兼容面即上述套件。
-- **构建链**：`notification-registry.ts` 新类型 → `pnpm --filter @water-erp/shared build`；迁移入链后 CI 全新库重放自动覆盖。
+- **构建链**：通知复用既有 `SUPPLIER_BLACKLISTED` 类型，无 shared/registry 改动；迁移入链后 CI 全新库重放自动覆盖。
 
 ## 14. 部署注意
 
