@@ -954,7 +954,7 @@ export function ProjectDetailPanel({
       await onMoveToRecycleBin(item.id);
       onClose();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : '移至回收站失败。');
+      setErrorMessage(error instanceof Error ? error.message : '移除项目失败。');
     } finally {
       setSubmitting(false);
     }
@@ -1198,7 +1198,7 @@ export function ProjectDetailPanel({
               )}
               {!actionsDisabled && (
                 <button type="button" onClick={() => void moveToRecycleBin()} disabled={submitting || uploading} className="neu-btn-soft is-danger">
-                  <Recycle size={16} />移至回收站
+                  <Recycle size={16} />移除项目
                 </button>
               )}
               <button type="button" onClick={onClose} className="neu-btn-soft">

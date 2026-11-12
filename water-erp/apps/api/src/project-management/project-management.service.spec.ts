@@ -441,11 +441,13 @@ describe('ProjectManagementService', () => {
       },
       project: {
         create: jest.fn(),
+        delete: jest.fn(),
       },
       procurementRound: {
         create: jest.fn(),
         findUnique: jest.fn().mockResolvedValue(null),
         delete: jest.fn(),
+        count: jest.fn().mockResolvedValue(0),
       },
       // 删除留痕（spec 2026-11-12 §4.4/§5）
       projectDeletionRecord: {
@@ -1691,7 +1693,7 @@ describe('ProjectManagementService', () => {
         { id: 'u-1', displayName: '张三', username: 'zhang' },
         { id: 'u-2', displayName: '王五', username: 'wang' },
       ]);
-      prisma.procurementRound.findUnique.mockResolvedValue({ id: 'round-1', roundNo: 2 });
+      prisma.procurementRound.findUnique.mockResolvedValue({ id: 'round-1', roundNo: 2, projectId: 'proj-1' });
       prisma.projectManagementStage.findMany.mockResolvedValue([{ id: 'st-1' }]);
       prisma.attachment.findMany.mockResolvedValue([{ objectKey: 'a/b.pdf' }, { objectKey: 'c/d.docx' }]);
     };
@@ -1735,12 +1737,14 @@ describe('ProjectManagementService', () => {
       });
     });
 
-    it('连带删除台账轮次 + 删除 PMI 本体（裁定 #2）', async () => {
+    it('连带删除台账轮次 + 无引用父级 Project 行 + 删除 PMI 本体（裁定 #2 + 探针孤儿修复）', async () => {
       const { service, prisma } = makeService();
       makeReady(prisma);
       await service.deletePermanently('pm-01', USER);
 
       expect(prisma.procurementRound.delete).toHaveBeenCalledWith({ where: { id: 'round-1' } });
+      expect(prisma.procurementRound.count).toHaveBeenCalledWith({ where: { projectId: 'proj-1' } });
+      expect(prisma.project.delete).toHaveBeenCalledWith({ where: { id: 'proj-1' } });
       expect(prisma.projectManagementItem.delete).toHaveBeenCalledWith({ where: { id: 'pm-01' } });
     });
 
@@ -1764,6 +1768,7 @@ describe('ProjectManagementService', () => {
       await service.deletePermanently('pm-01', USER);
 
       expect(prisma.procurementRound.delete).not.toHaveBeenCalled();
+      expect(prisma.project.delete).not.toHaveBeenCalled();
       expect(prisma.projectDeletionRecord.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ terminatedRoundNo: null, terminatedByName: null }),
       });

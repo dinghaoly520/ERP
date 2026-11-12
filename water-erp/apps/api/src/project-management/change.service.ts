@@ -40,7 +40,7 @@ export class ProjectChangeService {
     // 分区闸误判为「未开标」→ 标前组反而可改
     if (pmi.status !== 'ACTIVE') {
       throw new BadRequestException({
-        error: pmi.status === 'ARCHIVED' ? '项目已归档，不可变更' : pmi.status === 'TERMINATED' ? '项目已终止，不可变更' : '项目已移入回收站，不可变更',
+        error: pmi.status === 'ARCHIVED' ? '项目已归档，不可变更' : pmi.status === 'TERMINATED' ? '项目已终止，不可变更' : '项目已移除，不可变更',
         code: 'PMI_NOT_ACTIVE',
       });
     }

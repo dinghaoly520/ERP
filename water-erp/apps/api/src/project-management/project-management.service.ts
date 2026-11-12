@@ -75,7 +75,7 @@ const PROJECT_MANAGEMENT_STATUS: Record<
 const PMI_STATUS_MUTABLE_LABEL: Record<string, string> = {
   ARCHIVED: '已归档',
   TERMINATED: '已终止',
-  RECYCLED: '已移入回收站',
+  RECYCLED: '已移除',
 };
 
 const PROJECT_STAGE_STATUS: Record<
@@ -6012,7 +6012,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
 
     // Creator-only (2026-10-10 读写分级：leader/admin 对他人项目只读)
-    this.assertCanManageProject(user, project, '仅项目创建人可将项目移至回收站。');
+    this.assertCanManageProject(user, project, '仅项目创建人可移除该项目。');
 
     if (project.status === PROJECT_MANAGEMENT_STATUS.RECYCLED) {
       return project;
@@ -6063,7 +6063,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     this.assertCanManageProject(user, project, '仅项目创建人可恢复该项目。');
 
     if (project.status !== PROJECT_MANAGEMENT_STATUS.RECYCLED) {
-      throw new BadRequestException('只有回收站中的项目可以恢复。');
+      throw new BadRequestException('只有已移除的项目可以恢复。');
     }
 
     // 三向按戳推断（spec 2026-11-12 §4.3）：恢复回原状态而非恒回 ACTIVE——终止记录被
@@ -6101,7 +6101,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     this.assertCanManageProject(user, project, '仅项目创建人可彻底删除该项目。');
 
     if (project.status !== PROJECT_MANAGEMENT_STATUS.RECYCLED) {
-      throw new BadRequestException('请先将项目移入回收站后再彻底删除。');
+      throw new BadRequestException('请先将项目移除后再彻底删除。');
     }
 
     // DA/T 103-2024 §8.5 保留策略（S1）
@@ -6119,14 +6119,14 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const THREE_YEARS_MS = 3 * 365 * 86400000;
     if (!recycledAt) {
       throw new ConflictException(
-        '该项目缺少回收时间记录（历史数据），请先恢复项目后重新移入回收站，以启动 3 年保留期计算（DA/T 103-2024 §8.5）。',
+        '该项目缺少移除时间记录（历史数据），请先恢复项目后重新移除，以启动 3 年保留期计算（DA/T 103-2024 §8.5）。',
       );
     }
     const recycledSince = Date.now() - recycledAt.getTime();
     if (recycledSince < THREE_YEARS_MS) {
       const daysLeft = Math.ceil((THREE_YEARS_MS - recycledSince) / 86400000);
       throw new ConflictException(
-        `依据 DA/T 103-2024 §8.5，电子文件在平台至少保留 3 年；该项目自 ${recycledAt.toLocaleDateString('zh-CN')} 回收，尚余 ${Math.floor(daysLeft / 30)} 个月，暂不能彻底删除。`,
+        `依据 DA/T 103-2024 §8.5，电子文件在平台至少保留 3 年；该项目自 ${recycledAt.toLocaleDateString('zh-CN')} 移除，尚余 ${Math.floor(daysLeft / 30)} 个月，暂不能彻底删除。`,
       );
     }
 
@@ -6147,7 +6147,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const round = project.terminatedProcurementRoundId
       ? await this.prisma.procurementRound.findUnique({
           where: { id: project.terminatedProcurementRoundId },
-          select: { id: true, roundNo: true },
+          select: { id: true, roundNo: true, projectId: true },
         })
       : null;
 
@@ -6193,9 +6193,15 @@ ${JSON.stringify(algorithmResult, null, 2)}
       });
       // 2. 附件行清理（AttachmentVersion 随 Attachment onDelete: Cascade）
       await tx.attachment.deleteMany({ where: attachmentWhere });
-      // 3. 台账轮次连带删除（RoundSupplier 随 onDelete: Cascade）
+      // 3. 台账轮次连带删除（RoundParticipant 随 onDelete: Cascade）；轮次父级遗留 Project
+      //    行（终止链路 upsert 所建、FK 真实存在——探针 2026-11-12 实录）无其余轮次引用时
+      //    一并清理，防孤儿堆积
       if (round) {
         await tx.procurementRound.delete({ where: { id: round.id } });
+        const remainingRounds = await tx.procurementRound.count({ where: { projectId: round.projectId } });
+        if (remainingRounds === 0) {
+          await tx.project.delete({ where: { id: round.projectId } });
+        }
       }
       // 4. PMI 本体（stages/planItems/teamMembers 级联；BidProject SetNull 软摘挂——投标侧记录存活仅断链）
       await tx.projectManagementItem.delete({ where: { id: projectId } });

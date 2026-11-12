@@ -268,7 +268,7 @@ export function ProjectManagementPage() {
       }
       await loadItems();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : '移至回收站失败。');
+      setErrorMessage(error instanceof Error ? error.message : '移除项目失败。');
     }
   };
 
