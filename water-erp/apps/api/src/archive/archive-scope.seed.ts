@@ -1,7 +1,7 @@
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
- * DA/T 103-2024 附录 B「招标投标电子文件归档范围参考表」全量种子（35 项）。
+ * DA/T 103-2024 附录 B「招标投标电子文件归档范围参考表」种子（35 项招标类目 + 3 项采购侧类目〔bug#84 2026-11-12〕）。
  * 三源映射：
  *  - attachment：PMI 阶段附件（实际类型均为 SUPPORTING_MATERIAL，语义靠 stageKeys 承载）
  *  - fileAsset：开评标回流件（FileAsset.category，经 BidProject 关联定位）

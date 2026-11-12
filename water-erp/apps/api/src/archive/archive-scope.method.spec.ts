@@ -121,9 +121,12 @@ describe('ArchiveScopeService.snapshot · 按方式过滤（集成）', () => {
 
 describe('ArchiveScopeService.checkStageGate · 闸门同口径过滤', () => {
   function makeService(pmi: { procurementMethod: string | null }) {
+    // 镜像 TENDER_DOCUMENT / PUBLIC_ANNOUNCEMENT 阶段的真实必选行集（评审 B1：防 mock 工件失真）
     const requiredRows = [
       { code: '2.1', materialName: '招标公告', sourceType: 'attachment', isRequired: true },
       { code: '2N.1', materialName: '采购公告', sourceType: 'attachment', isRequired: true },
+      { code: '2.4', materialName: '招标文件', sourceType: 'attachment', isRequired: true },
+      { code: '2N.3', materialName: '采购文件', sourceType: 'attachment', isRequired: true },
     ];
     const prisma: any = {
       archiveScopeItem: { count: jest.fn().mockResolvedValue(999), findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue(requiredRows) },
@@ -136,8 +139,8 @@ describe('ArchiveScopeService.checkStageGate · 闸门同口径过滤', () => {
   it('谈判项目 TENDER_DOCUMENT 阶段闸门：提示「采购文件」而非「招标文件」缺件', async () => {
     const { svc } = makeService({ procurementMethod: '谈判采购' });
     const missing = await svc.checkStageGate('pmi1', 'TENDER_DOCUMENT');
-    expect(missing.some((m) => m.includes('采购公告'))).toBe(true);
-    expect(missing.some((m) => m.includes('招标公告'))).toBe(false);
+    expect(missing.some((m) => m.includes('2N.3 采购文件'))).toBe(true);
+    expect(missing.some((m) => m.includes('2.4 招标文件'))).toBe(false);
   });
 
   it('公开招标项目：闸门提示法定名「招标公告」；邀请招标不发公告（流程互换裁定）不提示', async () => {

@@ -108,7 +108,7 @@ export class ArchiveScopeService {
   }
 
   /**
-   * 全量勾稽快照：范围 35 项逐项比对 + 元数据自动捕获。
+   * 全量勾稽快照：范围表（38 项，按采购方式过滤后）逐项比对 + 元数据自动捕获。
    * @param opts.enrichMeta true=顺带 upsert ArchiveMetadata（勾稽/导出场景）；纯查询传 false
    */
   async snapshot(pmiId: string, opts: { enrichMeta?: boolean } = {}): Promise<{
