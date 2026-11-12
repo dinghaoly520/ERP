@@ -7,6 +7,12 @@ function fmtDate(value?: string | null) {
   return value ? new Date(value).toLocaleDateString('zh-CN') : '—';
 }
 
+/** 终止时间（2026-11-12 用户口径：标签改名、行恒显）——新流程取 terminatedAt；
+ *  存量迁移行（未终止即移除的旧数据）回退取 recycledAt，防整行消失。 */
+function terminateTimeOf(r: ProjectDeletionRecord) {
+  return r.terminatedAt ?? r.recycledAt ?? null;
+}
+
 /** 移除记录只读行（spec 2026-11-12 §9）：无任何操作按钮；空列表不渲染。
  *  弹层内使用时传 showHeader={false}（标题由弹层承担）。 */
 export function DeletionRecordList({ records, showHeader = true }: { records: ProjectDeletionRecord[]; showHeader?: boolean }) {
@@ -47,8 +53,7 @@ export function DeletionRecordList({ records, showHeader = true }: { records: Pr
               ) : null}
             </div>
             <div className="text-xs tabular-nums text-[color:var(--muted-foreground)]">
-              {/* 时间列（2026-11-12 用户裁定）：终止时间 + 移除时间；未终止的存量迁移行不显示终止行 */}
-              {r.terminatedAt ? <div>终止时间：{fmtDate(r.terminatedAt)}</div> : null}
+              {terminateTimeOf(r) ? <div>终止时间：{fmtDate(terminateTimeOf(r))}</div> : null}
               <div>移除时间：{fmtDate(r.deletedAt)}</div>
             </div>
             <div className="text-xs text-[color:var(--muted-foreground)] sm:text-right">
