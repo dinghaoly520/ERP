@@ -2610,14 +2610,20 @@ export default function ExpertEvaluatePage() {
           suppliers={project?.suppliers.map(s => ({ id: s.id, supplierName: s.supplierName })) ?? []}
           onClose={() => setHistoryOpen(false)}
         />
-        {/* B7（2026-11-12）：组长废标复议召集弹窗——队列首个未忽略项；仅组长收到载荷/兜底数据 */}
-        <LeadReviewModal
-          open={isLead}
-          review={leadReviewQueue.find(r => !dismissedReviewIds.has(r.invalidBidId)) ?? null}
-          busy={reviewBusy}
-          onSubmit={handleStartReview}
-          onDismiss={handleDismissReview}
-        />
+        {/* B7（2026-11-12）：组长废标复议召集弹窗——队列首个未忽略项；仅组长收到载荷/兜底数据。
+            open 语义=「当前可见」而非「具备资格」（终审收尾 #1：open={isLead} 曾致组长空队列时 effect 仍锁滚动） */}
+        {(() => {
+          const currentReview = leadReviewQueue.find(r => !dismissedReviewIds.has(r.invalidBidId)) ?? null;
+          return (
+            <LeadReviewModal
+              open={isLead && !!currentReview}
+              review={currentReview}
+              busy={reviewBusy}
+              onSubmit={handleStartReview}
+              onDismiss={handleDismissReview}
+            />
+          );
+        })()}
         {/* ── 工位迁移码弹窗（2026-09-22）：QR + 倒计时 + 领取状态 ── */}
         {transferOpen && transferTicket && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--background)]/60 px-4 backdrop-blur-sm">

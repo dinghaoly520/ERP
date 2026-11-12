@@ -2362,6 +2362,20 @@ describe('ExpertService', () => {
       expect(byId.m2.canVote).toBe(false);  // 已婉拒正选
       expect(byId.m3.canVote).toBe(true);   // 正选 confirmed
     });
+
+    it('分母口径对齐：totalVoters 剔除已婉拒正选（与 closeMotion quorum 同源）', async () => {
+      prisma.bidExpert.findMany.mockResolvedValue([
+        { id: 'ok-1', expertName: '正选', isLead: false, projectId: 'p3', expertRole: '正选', invitationStatus: 'confirmed', project: { name: '项目三', stage: 'EVALUATING' } },
+      ]);
+      prisma.bidMotion.findMany.mockResolvedValue([]);
+      prisma.expertDispute.findMany.mockResolvedValue([]);
+
+      await service.getMyTasks('u-x');
+
+      expect(prisma.bidExpert.groupBy).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ expertRole: '正选', invitationStatus: { not: 'declined' } }),
+      }));
+    });
   });
 
   describe('confirmReport', () => {

@@ -38,8 +38,10 @@ export function LeadReviewModal({ open, review, busy, onSubmit, onDismiss }: Lea
   const dismissRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && review) onDismissRef.current(review.invalidBidId); };
+    // 守卫必须含 review：open 只是「具备弹出资格」（组长恒真），无待复议项时
+    // 不得挂滚动锁/键盘监听——否则组长的评标页整页锁死不可滚动（终审收尾 #1）
+    if (!open || !review) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onDismissRef.current(review.invalidBidId); };
     document.addEventListener('keydown', onKey);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';

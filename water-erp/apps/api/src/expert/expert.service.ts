@@ -3375,10 +3375,11 @@ export class ExpertService {
     const projectIds = [...new Set(records.map(r => r.projectId))];
     const expertIds = records.map(r => r.id);
 
-    // 每个项目的正选委员总数（用于表决进度「已投/应投」）
+    // 每个项目的正选委员总数（用于表决进度「已投/应投」）——
+    // 分母口径与 closeMotion quorum 同源：剔除已婉拒正选（终审收尾 #3，避免展示口径与后端闸门分叉）
     const voterCounts = await this.prisma.bidExpert.groupBy({
       by: ['projectId'],
-      where: { projectId: { in: projectIds }, expertRole: '正选' },
+      where: { projectId: { in: projectIds }, expertRole: '正选', invitationStatus: { not: 'declined' } },
       _count: { _all: true },
     });
     const projectMap = new Map(records.map(r => [r.projectId, {
