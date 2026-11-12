@@ -21,6 +21,7 @@ import {
   assertEvaluationStage, assertEvaluationStarted,
   isRoomVerified, ROOM_CODE_MAX_ATTEMPTS, ROOM_CODE_LOCK_MINUTES,
 } from './expert-room.util';
+import { mergeDraftSlots } from './score-draft-merge.util';
 import { ConfirmContactDto } from './dto/confirm-contact.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
 import { UpsertRequirementReviewDto } from './dto/upsert-requirement-review.dto';
@@ -2812,26 +2813,9 @@ export class ExpertService {
     await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     await assertEvaluationStarted(this.prisma, projectId); // 启动闸（2026-10-21）
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId }, select: { scoreDraft: true } });
-    const raw = (expert?.scoreDraft ?? {}) as any;
-    // 兼容旧扁平格式 → 视为 desktop 草稿
-    if (!raw || (typeof raw.tablet !== 'object' && typeof raw.desktop !== 'object')) {
-      if (raw && typeof raw.scores === 'object') return raw; // 旧格式直接返回
-      return null;
-    }
-    // 新格式：合并 tablet + desktop 草稿，对本设备优先（同一 scoreKey 本设备的覆盖对方的）
-    const own = (device === 'tablet' ? raw.tablet : raw.desktop) ?? {};
-    const other = (device === 'tablet' ? raw.desktop : raw.tablet) ?? {};
-    const ownScores = own?.scores ?? {};
-    const otherScores = other?.scores ?? {};
-    const mergedScores = { ...otherScores, ...ownScores }; // 本设备覆盖
-    const mergedSavedAt = Math.max(
-      own?.savedAt ?? 0,
-      other?.savedAt ?? 0,
-    );
-    return {
-      scores: mergedScores,
-      savedAt: mergedSavedAt,
-    };
+    // TAB-SYNC-01 §4.1：合并语义抽到纯函数 mergeDraftSlots——逐键取最新 savedAt
+    // （旧「本设备槽整槽优先」× 回声 = 同键双端再编辑静默分叉，已废弃）
+    return mergeDraftSlots(expert?.scoreDraft, device);
   }
 
   /** 评分历史：已提交值 + 修改快照 + 草稿值 + 未评分项，按 scoreItemId 分组 */
