@@ -413,9 +413,15 @@ export function ProjectManagementPage() {
                   移除记录{deletionRecords.length > 0 ? `（${deletionRecords.length}）` : ''}
                 </button>
               </div>
-              {/* 空列表不影响节头（2026-11-12 用户裁定）：移除记录按钮恒在——记录是永存的，与当前有无终止项目无关。
-                  已完成/已终止空列表不显示占位文案（用户裁定：空白即可），仅进行中保留「暂无项目」。 */}
-              {displayItems.length > 0 && (
+              {/* 空列表不影响节头（2026-11-12 用户裁定）：移除记录按钮恒在——记录是永存的，
+                  与当前有无终止项目无关。空列表统一显示「暂无项目」占位（三 tab 同口径）。 */}
+              {displayItems.length === 0 ? (
+                <div className="wb-panel p-4">
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <div className="text-[0.9rem] font-semibold text-[rgba(96,139,239,0.4)]">暂无项目</div>
+                  </div>
+                </div>
+              ) : (
                 <div className="grid gap-4 xl:grid-cols-2">
                   {displayItems.map((item) => (
                     <ProjectCard
@@ -457,13 +463,11 @@ export function ProjectManagementPage() {
               )}
             </section>
           ) : displayItems.length === 0 ? (
-            activeTab === 'active' ? (
-              <div className="wb-panel p-4">
-                <div className="flex flex-col items-center justify-center py-12">
-                  <div className="text-[0.9rem] font-semibold text-[rgba(96,139,239,0.4)]">暂无项目</div>
-                </div>
+            <div className="wb-panel p-4">
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="text-[0.9rem] font-semibold text-[rgba(96,139,239,0.4)]">暂无项目</div>
               </div>
-            ) : null
+            </div>
           ) : companyViewAll ? (
             <div className="space-y-5">
               {companyGroups.map((g) => (
