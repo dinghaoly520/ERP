@@ -53,6 +53,7 @@ import { hasValidScoringRows } from "@/components/tender-write/scoring-items-edi
 import {
   readTenderWriteState,
   resetTenderDraftByType,
+  sanitizeTenderDraft,
   writeTenderWriteState,
 } from "@/lib/tender-write/storage";
 import type {
@@ -71,6 +72,7 @@ import type {
   ScoringItem,
   TableData,
   TenderDocumentType,
+  TenderDraftRecord,
   TenderDraftsState,
   TenderHistoryRecord,
   TenderSectionConfig,
@@ -451,9 +453,10 @@ export default function TenderWritePage() {
   const handleApplyHistory = (record: TenderHistoryRecord) => {
     setDrafts((previous) => ({
       ...previous,
-      [record.documentType]: {
-        ...record.draftData,
-      },
+      // CR-01：历史记录可能是 quotationLetterType 引入前的存量（文字报价+无 type），
+      // 直铺会绕过报价模式归一化——真文字被预览/导出按表格模式渲染成空表。
+      // 应用即过消毒（与初始加载/localStorage 读路径同口径）。
+      [record.documentType]: sanitizeTenderDraft(record.draftData) as TenderDraftRecord,
     }));
     setActiveSectionKey("cover");
     setShowHistoryDialog(false);

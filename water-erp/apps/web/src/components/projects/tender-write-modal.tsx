@@ -1279,7 +1279,9 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                       <button
                         type="button"
                         onClick={() => {
-                          setDrafts(entry.drafts);
+                          // CR-01：版本快照可能是 quotationLetterType 引入前的存量（文字报价+无 type），
+                          // 裸恢复会绕过报价模式归一化——真文字被预览/导出按表格模式渲染成空表。
+                          setDrafts(sanitizeTenderDraftsState(entry.drafts));
                           draftRestoredFromStorageRef.current = true;
                           setShowWorkspace(true);
                           setHistoryOpen(false);
