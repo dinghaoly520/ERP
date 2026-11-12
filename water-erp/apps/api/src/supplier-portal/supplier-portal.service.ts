@@ -1664,7 +1664,7 @@ export class SupplierPortalService {
 
     // 富化 accessScope（来自 BidDocument）供前端分类
     const projectIds = items.map(i => i.id);
-    const [bidDocs, mySubmissions] = projectIds.length > 0
+    const [bidDocs, mySubmissions, myIntents] = projectIds.length > 0
       ? await Promise.all([
           this.prisma.bidDocument.findMany({
             where: { bidProjectId: { in: projectIds } },
@@ -1676,8 +1676,14 @@ export class SupplierPortalService {
                 select: { projectId: true, status: true },
               })
             : Promise.resolve([]),
+          supplierId
+            ? this.prisma.supplierBidIntent.findMany({
+                where: { supplierId, projectId: { in: projectIds } },
+                select: { projectId: true, confirmedAt: true },
+              })
+            : Promise.resolve([]),
         ])
-      : [[], []];
+      : [[], [], []];
     const scopeMap: Record<string, string> = {};
     for (const d of bidDocs) {
       if (d.bidProjectId) scopeMap[d.bidProjectId] = d.accessScope;
@@ -1685,10 +1691,17 @@ export class SupplierPortalService {
     const submissionStatusMap = new Map<string, string>(
       mySubmissions.map((submission) => [submission.projectId, submission.status] as const),
     );
+    const intentMap = new Map(myIntents.map((i) => [i.projectId, i.confirmedAt] as const));
     const enrichedItems = items.map(i => ({
       ...i,
       accessScope: scopeMap[i.id] || 'OPEN',
       mySubmissionStatus: submissionStatusMap.get(i.id) ?? null,
+      // 意向三态（2026-11-12 履约闭环）：intentApplicable 用严格等于判 scopeMap——
+      // 谈判项目无 BidDocument 行（scopeMap 无键）须为 false，不得沿用上面 || 'OPEN' 的展示默认，
+      // 否则列表显示按钮、点击确认却 400 INTENT_NOT_APPLICABLE。不返家数（口径裁定）。
+      intentApplicable: scopeMap[i.id] === 'OPEN',
+      myIntent: intentMap.has(i.id),
+      intentConfirmable: this.computeIntentConfirmable(i, intentMap.has(i.id)),
     }));
 
     // 富化谈判配置（来自 Redis）：采购文件获取窗口、开标时间、下载模式、文件数
@@ -2081,6 +2094,20 @@ export class SupplierPortalService {
       await this.assertProjectVisibleToSupplier(project, supplierId);
     }
     if (project) {
+      // 意向状态富化（2026-11-12）：供应商端按钮三态单一事实源
+      // （intentConfirmable 仅窗口派生——applicable 另判，与确认端点闸门同源）
+      if (supplierId) {
+        const [applicable, intent] = await Promise.all([
+          this.isIntentApplicable(id),
+          this.prisma.supplierBidIntent.findUnique({
+            where: { projectId_supplierId: { projectId: id, supplierId } },
+            select: { confirmedAt: true },
+          }),
+        ]);
+        (project as any).intentApplicable = applicable;
+        (project as any).myIntentConfirmedAt = intent?.confirmedAt ?? null;
+        (project as any).intentConfirmable = this.computeIntentConfirmable(project, !!intent);
+      }
       // 澄清答疑记录仅本项目投标成员可见——非成员（浏览机会的供应商）剥离，
       // 防评标期澄清答复（可能含他方商务信息）泄露给任意登录供应商（评标保密）。
       if (supplierId) {

@@ -135,8 +135,9 @@ describe('SupplierPortalService', () => {
       // PMI 桥接（resolveDisplayCode/listBidProjects 经 projectManagementItemId/projectCode 关联）
       projectManagementItem: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn().mockResolvedValue(null) },
       bidDocument: { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
-      // 2026-11-12 意向确认（Task 2）：confirmBidIntent 闸门走 bidDocument.findFirst + supplierBidIntent.upsert
-      supplierBidIntent: { upsert: jest.fn(), findFirst: jest.fn(), count: jest.fn() },
+      // 2026-11-12 意向确认（Task 2）：confirmBidIntent 闸门走 bidDocument.findFirst + supplierBidIntent.upsert；
+      // Task 3 列表/详情富化另走 findMany（列表批量）/findUnique（详情，默认未确认）
+      supplierBidIntent: { upsert: jest.fn(), findFirst: jest.fn(), count: jest.fn(), findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn().mockResolvedValue(null) },
     };
     // G3 兜底默认放行（投递时校验已发布招标公告）；个别用例可覆盖为 null 验证拦截
     prisma.announcement.findFirst.mockResolvedValue({ id: 'notice-1' });
@@ -1010,6 +1011,90 @@ describe('SupplierPortalService', () => {
       for (const f of ['suppliers', 'openingRecords', 'openingSession', 'experts', 'scoreItems', 'supervisionLogs', 'archiveItems']) {
         expect(select[f]).toBeUndefined();
       }
+    });
+  });
+
+  describe('listBidProjects 意向富化（2026-11-12）', () => {
+    it('公开文档项目 intentApplicable=true 并带 myIntent/intentConfirmable；谈判项目（无文档）false', async () => {
+      const future = new Date(Date.now() + 3600_000);
+      // 底座参 listBidProjects 既有用例 mock 形状：p-open/p-invited 走公开分支解析
+      // （bidDocument.findMany 对 openIds 查询与富化查询同回两行）；p-nego 走受邀分支
+      // （谈判采购=邀请制、无 BidDocument 行——谈判项目恒空见「谈判采购文件读端口径」）
+      prisma.bidSupplier.findMany.mockResolvedValue([{ projectId: 'p-nego' }]);
+      prisma.bidDocument.findMany.mockResolvedValue([
+        { bidProjectId: 'p-open', accessScope: 'OPEN' },
+        { bidProjectId: 'p-invited', accessScope: 'INVITED' },
+      ]);
+      prisma.announcement.findMany.mockResolvedValue([]);
+      prisma.projectManagementItem.findMany.mockResolvedValue([]);
+      prisma.bidProject.findMany.mockImplementation(async ({ where }: any) => {
+        // 受邀明细查询（谈判采购：确认参加即显示，不入 NOTICE_GATED）
+        if (where?.id?.in?.includes('p-nego')) {
+          return [{ id: 'p-nego', procurementMethod: '谈判采购', projectManagementItemId: null, projectCode: 'BID-NEGO' }];
+        }
+        // 公开分支方式过滤查询（询比采购=公告公开型，放行）
+        if (where?.id?.in) {
+          return [
+            { id: 'p-open', procurementMethod: '询比采购' },
+            { id: 'p-invited', procurementMethod: '询比采购' },
+          ].filter((p) => where.id.in.includes(p.id));
+        }
+        // 主列表查询（OR 分支为 id.in）
+        if (where?.OR) {
+          return [
+            { id: 'p-open', projectCode: 'BID-1', name: '公开项目', stage: 'SUBMIT', deadline: future, openTime: future, createdAt: new Date() },
+            { id: 'p-invited', projectCode: 'BID-2', name: '邀请文档项目', stage: 'SUBMIT', deadline: future, openTime: future, createdAt: new Date() },
+            { id: 'p-nego', projectCode: 'BID-3', name: '谈判项目', stage: 'SUBMIT', deadline: future, openTime: future, createdAt: new Date() },
+          ];
+        }
+        return [];
+      });
+      prisma.bidProject.count.mockResolvedValue(0);
+      prisma.supplierBidIntent.findMany.mockResolvedValue([{ projectId: 'p-open', confirmedAt: new Date() }]);
+      const r = await service.listBidProjects(1, 20, {}, 's1');
+      const open: any = r.items.find((i: any) => i.id === 'p-open');
+      const invited: any = r.items.find((i: any) => i.id === 'p-invited');
+      expect(open.intentApplicable).toBe(true);
+      expect(open.myIntent).toBe(true);
+      expect(open.intentConfirmable).toBe(false); // 已确认→不可再确认
+      expect(invited.intentApplicable).toBe(false);
+      expect(invited.myIntent).toBe(false);
+      // 谈判项目（无 BidDocument 行）：scopeMap 无键，严格判定（非展示层 || 'OPEN' 默认）→ false
+      const nego: any = r.items.find((i: any) => i.id === 'p-nego');
+      expect(nego.intentApplicable).toBe(false);
+      expect(nego.myIntent).toBe(false);
+      // 不返家数（口径裁定）：意向相关仅三态字段，无任何 count
+      const intentKeys = Object.keys(open).filter((k) => k.startsWith('intent') || k.startsWith('myIntent'));
+      expect(intentKeys.sort()).toEqual(['intentApplicable', 'intentConfirmable', 'myIntent']);
+    });
+
+    it('详情三态：已确认公开项目 → myIntentConfirmedAt 有值、intentConfirmable=false', async () => {
+      const confirmedAt = new Date('2026-11-12T02:00:00Z');
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p-open', companyId: 'co-mine', projectCode: 'BID-1', projectManagementItemId: null,
+        name: '公开项目', stage: 'SUBMIT', deadline: new Date(Date.now() + 3600_000),
+        isExtractionOnly: false, clarifications: [],
+      });
+      prisma.bidDocument.findFirst.mockResolvedValue({ accessScope: 'OPEN' });
+      prisma.supplierBidIntent.findUnique.mockResolvedValue({ confirmedAt });
+      const r: any = await service.getBidProject('p-open', 'sup-1');
+      expect(r.intentApplicable).toBe(true);
+      expect(r.myIntentConfirmedAt).toEqual(confirmedAt);
+      expect(r.intentConfirmable).toBe(false);
+    });
+
+    it('详情三态：未确认公开项目（窗口内）→ myIntentConfirmedAt=null、intentConfirmable=true；邀请制不适用', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p-inv', companyId: 'co-mine', projectCode: 'BID-2', projectManagementItemId: null,
+        name: '邀请项目', stage: 'DOWNLOAD', deadline: new Date(Date.now() + 3600_000),
+        isExtractionOnly: false, clarifications: [],
+      });
+      prisma.bidDocument.findFirst.mockResolvedValue({ accessScope: 'INVITED' });
+      prisma.supplierBidIntent.findUnique.mockResolvedValue(null);
+      const r: any = await service.getBidProject('p-inv', 'sup-1');
+      expect(r.intentApplicable).toBe(false);
+      expect(r.myIntentConfirmedAt).toBeNull();
+      expect(r.intentConfirmable).toBe(true); // 窗口派生字段：可确认窗口仍在（applicable 另判）
     });
   });
 
@@ -2774,6 +2859,9 @@ describe('SupplierPortalService P1-7 — 澄清答疑仅本项目成员可见', 
       announcement: { findFirst: jest.fn().mockResolvedValue(null) },
       fileAsset: { findFirst: jest.fn().mockResolvedValue(null) },
       invitationRsvp: { findFirst: jest.fn().mockResolvedValue(null) },
+      // 意向三态富化（2026-11-12）：getBidProject 读闸后追加两查（默认无文档=不适用，测试只断言澄清口径）
+      bidDocument: { findFirst: jest.fn().mockResolvedValue(null) },
+      supplierBidIntent: { findUnique: jest.fn().mockResolvedValue(null) },
     };
     const { SupplierPortalService } = await import('./supplier-portal.service');
     const instance: any = Object.create(SupplierPortalService.prototype);
@@ -3456,6 +3544,9 @@ describe('SupplierPortalService — getBidProject 谈判采购适应性', () => 
       announcement: { findFirst: jest.fn().mockResolvedValue(null) },
       fileAsset: { findFirst: jest.fn().mockResolvedValue(null) },
       invitationRsvp: { findFirst: jest.fn().mockResolvedValue(null) },
+      // 意向三态富化（2026-11-12）：谈判项目无 BidDocument 行 → findFirst(null)=不适用（真实口径）
+      bidDocument: { findFirst: jest.fn().mockResolvedValue(null) },
+      supplierBidIntent: { findUnique: jest.fn().mockResolvedValue(null) },
     };
     redis = { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn() };
     const instance: any = Object.create(SupplierPortalService.prototype);
