@@ -2156,15 +2156,34 @@ export default function ExpertEvaluatePage() {
                   <h2 className="text-lg font-bold text-[var(--foreground)]">专家独立打分</h2>
                   <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">请根据您的专业判断进行客观评分</p>
                 </div>
-                {/* 评分历史入口（替代备忘按钮） */}
-                <button
-                  type="button"
-                  onClick={() => setHistoryOpen(true)}
-                  className="neu-btn-xs shrink-0"
-                  aria-label="查看评分历史"
-                >
-                  <History size={14} strokeWidth={1.7} /> 评分历史
-                </button>
+                <div className="flex shrink-0 items-center gap-2">
+                  {/* #100（2026-11-12）：迁移入口补位到评分步头部——原唯一入口在 verify 步
+                      「核验完成」横幅，而 progress>0 自动跳 scoring 步后不可见（b0f7eccdd 智能初始步
+                      与 verify-only 入口的组合盲区）；条件与 verify 步同款（stage EVALUATING+核验五项齐），
+                      服务端签发闸（核验全齐+口令已验+活动会话）不感知调用步骤，零新增 API */}
+                  {project?.stage === 'EVALUATING'
+                    && confidentialityAgreed && disciplineAgreed
+                    && expert?.signedIn && expert?.avoidanceConfirmed && expert?.aiConsentConfirmed && (
+                    <button
+                      type="button"
+                      onClick={() => void openTransferDialog()}
+                      disabled={transferBusy}
+                      className="neu-btn-xs"
+                      aria-label="生成工位迁移二维码"
+                    >
+                      <Smartphone size={14} strokeWidth={1.7} /> 迁移到打分平板
+                    </button>
+                  )}
+                  {/* 评分历史入口（替代备忘按钮） */}
+                  <button
+                    type="button"
+                    onClick={() => setHistoryOpen(true)}
+                    className="neu-btn-xs"
+                    aria-label="查看评分历史"
+                  >
+                    <History size={14} strokeWidth={1.7} /> 评分历史
+                  </button>
+                </div>
               </div>
 
               {/* 专家间可见性收口：表决动态不再出现在打分步骤——
