@@ -3681,7 +3681,7 @@ describe('SupplierPortalService — getNegotiationFiles / downloadNegotiationFil
   beforeEach(() => {
     prisma = {
       supplier: { findUnique: jest.fn().mockResolvedValue({ id: 'sup-1', name: '腾威达液压设备（成都）有限公司' }) },
-      bidSupplier: { findUnique: jest.fn().mockResolvedValue({ id: 'roster-1' }) },
+      bidSupplier: { findUnique: jest.fn().mockResolvedValue({ id: 'roster-1' }), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       fileAsset: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn().mockResolvedValue(null) },
       attachment: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn().mockResolvedValue(null) },
     };
@@ -3865,6 +3865,31 @@ describe('SupplierPortalService — getNegotiationFiles / downloadNegotiationFil
     await expect(svc.downloadNegotiationFile('bp-1', 'fa-x', 'sup-1', res, '285913')).rejects.toMatchObject({
       status: 403,
       response: { code: 'FILE_NOT_IN_CONFIG' },
+    });
+  });
+
+  /* ── 谈判下载留痕（2026-11-12）：谈判轨此前零记录——下载后回写名册，
+   * 公告「投标情况」/开标确认面板的下载列对谈判项目不再失真 ── */
+  describe('谈判下载留痕（2026-11-12）', () => {
+    it('下载成功后回写名册 downloadStatus/lastDownloadAt', async () => {
+      // FileAsset 兼容轨（免真实磁盘临时文件）。streamToBuffer 走 spyOn 覆写：
+      // 既有 FileAsset 用例的 mockRestore 会清掉文件顶部工厂 mock 的实现
+      //（本用例排其后，裸依赖全局 mock 恒拿 undefined）——桩形状与其对齐
+      const cryptoMod = require('../announcement/bid-document.crypto');
+      const stbSpy = jest.spyOn(cryptoMod, 'streamToBuffer').mockResolvedValue(Buffer.from('DL-PLAIN'));
+      redis.get.mockResolvedValue(JSON.stringify({ ...CFG, refFileKeys: ['general/k1.pdf'] }));
+      prisma.attachment.findUnique.mockResolvedValue(null);
+      prisma.fileAsset.findUnique.mockResolvedValue({ key: 'general/k1.pdf', sealedPath: null, sealedKey: null, clientEncrypted: false, originalName: 'f.pdf', mimeType: 'application/pdf' });
+      try {
+        await svc.downloadNegotiationFile('bp-1', 'fa-1', 'sup-1', res);
+        expect(res.end).toHaveBeenCalledWith(Buffer.from('DL-PLAIN'));
+        expect(prisma.bidSupplier.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+          where: { projectId: 'bp-1', supplierName: '腾威达液压设备（成都）有限公司' },
+          data: expect.objectContaining({ downloadStatus: '已下载' }),
+        }));
+      } finally {
+        stbSpy.mockRestore();
+      }
     });
   });
 

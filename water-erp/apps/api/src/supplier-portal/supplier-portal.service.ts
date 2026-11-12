@@ -1903,6 +1903,17 @@ export class SupplierPortalService {
   ) {
     const cfg = await this.assertNegotiationAccess(projectId, supplierId);
 
+    // 下载留痕（2026-11-12）：谈判轨此前零记录——回写名册下载状态/时间，
+    // 公告「投标情况」/开标确认面板的下载列对谈判项目不再失真
+    // （名册行已被 assertNegotiationAccess 校验存在；updateMany 0 行也不阻断下载）
+    const dlSupplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { name: true } });
+    if (dlSupplier) {
+      await this.prisma.bidSupplier.updateMany({
+        where: { projectId, supplierName: dlSupplier.name },
+        data: { downloadStatus: '已下载', lastDownloadAt: new Date() },
+      }).catch(() => undefined);
+    }
+
     // 解密下载密码闸：encrypted 且配置了密码才设闸（「有密码才生效」与公告链路同语义，
     // 防旧 DTO 下发的 encrypted-无密码坏配置让下载恒 403 卡死）；未传/错传同码不泄露差异
     if (cfg.downloadMode === 'encrypted' && cfg.downloadPassword) {
