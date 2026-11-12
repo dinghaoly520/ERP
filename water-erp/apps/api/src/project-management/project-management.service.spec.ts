@@ -1632,6 +1632,28 @@ describe('ProjectManagementService', () => {
     });
   });
 
+  describe('restoreFromRecycleBin 三向按戳推断（spec 2026-11-12 §4.3）', () => {
+    const USER = { sub: 'u-1', username: '张三', role: 'staff' } as any;
+
+    it.each([
+      ['terminatedAt 戳 → 回到 TERMINATED（终止记录不复活为进行中）', { terminatedAt: new Date('2026-10-01') }, 'TERMINATED'],
+      ['archivedAt 戳 → 回到 ARCHIVED（放行集收紧前的存量兜底）', { archivedAt: new Date('2026-09-01') }, 'ARCHIVED'],
+      ['无戳 → 回到 ACTIVE（建错移除的撤回）', {}, 'ACTIVE'],
+    ])('%s', async (_name, stamps, expected) => {
+      const { service, prisma } = makeService();
+      prisma.projectManagementItem.findUnique.mockResolvedValue({
+        id: 'pm-01', status: 'RECYCLED', createdById: 'u-1', ...stamps,
+      });
+      prisma.projectManagementItem.update.mockResolvedValue({ id: 'pm-01', status: expected });
+
+      await expect(service.restoreFromRecycleBin('pm-01', USER)).resolves.toMatchObject({ status: expected });
+      expect(prisma.projectManagementItem.update).toHaveBeenCalledWith({
+        where: { id: 'pm-01' },
+        data: { status: expected, recycledAt: null },
+      });
+    });
+  });
+
   describe('updateStage 阶段完成实质校验（P1-12）', () => {
     const completing = { status: 'COMPLETED' } as any;
 

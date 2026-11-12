@@ -6031,7 +6031,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
   async restoreFromRecycleBin(projectId: string, user?: AuthenticatedUser) {
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
-      select: { id: true, status: true, createdById: true },
+      select: { id: true, status: true, createdById: true, terminatedAt: true, archivedAt: true },
     });
 
     if (!project) {
@@ -6045,9 +6045,18 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new BadRequestException('只有回收站中的项目可以恢复。');
     }
 
+    // 三向按戳推断（spec 2026-11-12 §4.3）：恢复回原状态而非恒回 ACTIVE——终止记录被
+    // 「清理→反悔」后复活为进行中属业务终态破坏。两戳互斥（terminate/complete 均只从
+    // ACTIVE 进入），推断无需 priorStatus 列、无迁移。
+    const restoreStatus = project.terminatedAt
+      ? PROJECT_MANAGEMENT_STATUS.TERMINATED
+      : project.archivedAt
+        ? PROJECT_MANAGEMENT_STATUS.ARCHIVED
+        : PROJECT_MANAGEMENT_STATUS.ACTIVE;
+
     return this.prisma.projectManagementItem.update({
       where: { id: projectId },
-      data: { status: PROJECT_MANAGEMENT_STATUS.ACTIVE, recycledAt: null },
+      data: { status: restoreStatus, recycledAt: null },
     });
   }
 
