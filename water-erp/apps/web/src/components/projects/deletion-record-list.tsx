@@ -13,6 +13,16 @@ function terminateTimeOf(r: ProjectDeletionRecord) {
   return r.terminatedAt ?? r.recycledAt ?? null;
 }
 
+/** 终止时简报（2026-11-12）：AI 项目简报优先（按需生成，多数项目无）；无则兜底
+ *  「终止时所在阶段 + 终止原因」——新流程记录两项必有，保证每条记录都有简报可显。 */
+function briefOf(r: ProjectDeletionRecord) {
+  if (r.analysisSummary) return r.analysisSummary;
+  if (r.terminatedStage || r.terminationReason) {
+    return `终止时处于「${r.terminatedStage ?? '未记录'}」阶段；终止原因：${r.terminationReason ?? '未记录'}`;
+  }
+  return null;
+}
+
 /** 移除记录只读行（spec 2026-11-12 §9）：无任何操作按钮；空列表不渲染。
  *  弹层内使用时传 showHeader={false}（标题由弹层承担）。 */
 export function DeletionRecordList({ records, showHeader = true }: { records: ProjectDeletionRecord[]; showHeader?: boolean }) {
@@ -43,13 +53,16 @@ export function DeletionRecordList({ records, showHeader = true }: { records: Pr
               <div className="mt-0.5 text-xs text-[color:var(--muted-foreground)]">
                 {r.requesterDepartment} · {r.requesterName} · {r.procurementMethod}
               </div>
-              {/* 终止时简报（2026-11-12 用户裁定）：TERMINATED 后冻结、删除时快照；超两行截断，悬浮看全文 */}
-              {r.analysisSummary ? (
-                <div className="mt-1 line-clamp-2 text-xs leading-5 text-[color:var(--muted-foreground)]" title={r.analysisSummary}>
-                  <span className="font-semibold text-[color:var(--foreground)]">终止时简报：</span>
-                  {r.analysisSummary}
-                </div>
-              ) : null}
+              {/* 终止时简报（2026-11-12 用户裁定）：AI 简报优先、无则终止阶段+原因兜底；超两行截断 */}
+              {(() => {
+                const brief = briefOf(r);
+                return brief ? (
+                  <div className="mt-1 line-clamp-2 text-xs leading-5 text-[color:var(--muted-foreground)]" title={brief}>
+                    <span className="font-semibold text-[color:var(--foreground)]">终止时简报：</span>
+                    {brief}
+                  </div>
+                ) : null;
+              })()}
             </div>
             <div className="text-xs tabular-nums text-[color:var(--muted-foreground)]">
               {terminateTimeOf(r) ? <div>终止时间：{fmtDate(terminateTimeOf(r))}</div> : null}
