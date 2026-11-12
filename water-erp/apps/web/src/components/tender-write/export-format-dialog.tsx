@@ -29,6 +29,7 @@ export function TenderExportFormatDialog({ open, busy, onClose, onConfirm }: Pro
       icon={<FileDown size={14} />}
       title="导出采购文件"
       description="选择导出格式"
+      compact
       footer={
         <div className="neu-btn-group flex justify-end gap-2">
           <button type="button" onClick={onClose} disabled={busy} className="neu-btn-soft">

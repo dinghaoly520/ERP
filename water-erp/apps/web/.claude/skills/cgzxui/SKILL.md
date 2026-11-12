@@ -256,7 +256,7 @@ box-shadow:
 
 以导入识别弹窗为标本定版 **A · 瓷面弹窗·图标井头部**。五件套（标本 `components/tender-write/import-autofill-dialog.tsx`，提交 `f3e840eaa`）：
 
-1. **壳 = `wb-modal-shell` 瓷面**：底色 = **纯白瓷 `oklch(1 0 0)`**（2026-11-11 用户裁定终版——同日两轮：先定「背景颜色中的彩色渐变」、后改主意纯白瓷；「瓷」质感靠顶缘内高光 + 方向性双影表达，页面 body 背景的彩色渐变保留与此无关）+ 顶缘内高光 + 方向性双影 + `overflow-hidden`；蒙层 `bg-[var(--background)]/60 backdrop-blur-sm`；**头部与内容之间必有 hairline 隔离线**（2026-11-11 用户裁定：`<div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />`）。**共享 `workbench/modal.tsx` 已内置此壳 + `icon` 参数 + 头部隔离线**——新弹窗一律走共享 Modal 传 icon，勿再手搓壳（独立 portal 特例也用 wb-modal-shell 类；supplier 用同配方 .gdlg-pn 族、bid 用同配方 .bid-dialog）。扁平 `shadow-[0_20px_60px_…]` 全系统退场。五门户统一配方（同名类各门户 globals.css 各置一份）：
+1. **壳 = `wb-modal-shell` 瓷面**：底色 = **纯白瓷 `oklch(1 0 0)`**（2026-11-11 用户裁定终版——同日两轮：先定「背景颜色中的彩色渐变」、后改主意纯白瓷；「瓷」质感靠顶缘内高光 + 方向性双影表达，页面 body 背景的彩色渐变保留与此无关）+ 顶缘内高光 + 方向性双影 + `overflow-hidden`；蒙层 `bg-[var(--background)]/60 backdrop-blur-sm`；**头部与内容之间必有 hairline 隔离线，且内容区与隔离线之间留出呼吸距离（内容区 `pt-4`，内容不得贴线——2026-11-12 用户裁定）**（隔离线 2026-11-11 用户裁定：`<div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />`）。**共享 `workbench/modal.tsx` 已内置此壳 + `icon` 参数 + 头部隔离线 + 内容留距**——新弹窗一律走共享 Modal 传 icon，勿再手搓壳（独立 portal 特例也用 wb-modal-shell 类；supplier 用同配方 .gdlg-pn 族、bid 用同配方 .bid-dialog）。**紧凑变体 `compact`**（2026-11-12 用户裁定）：内容少的小弹窗（二选一确认类）共享 Modal 传 `compact`——内容区 `pb-2`、底栏 `pt-2 pb-4`、底部分割线 `mb-3`，避免大片留白。扁平 `shadow-[0_20px_60px_…]` 全系统退场。五门户统一配方（同名类各门户 globals.css 各置一份）：
 
    ```css
    .wb-modal-shell {

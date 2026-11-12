@@ -169,7 +169,7 @@ export function ChatMessage({
                 <button onClick={() => setChartModalOpen(false)} className="neu-btn-xs"><X size={14} /></button>
               </div>
               <div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
-              <div className="overflow-y-auto px-6 pb-6">
+              <div className="overflow-y-auto px-6 pt-4 pb-6">
                 {richCards.length > 0 && <DataCards cards={richCards} />}
               </div>
             </div>

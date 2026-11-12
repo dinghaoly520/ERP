@@ -76,7 +76,7 @@ export function ProjectChangeEntry({
 
             <div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-5">
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-4 pb-5">
               {loading && <p className="py-8 text-center text-sm text-[var(--muted-foreground)]">正在加载…</p>}
               {!loading && records && records.length === 0 && (
                 <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">本项目尚无变更 / 补遗记录</p>

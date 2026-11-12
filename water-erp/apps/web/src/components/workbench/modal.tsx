@@ -21,6 +21,9 @@ type ModalProps = {
   headerExtra?: React.ReactNode;
   /** 标题图标（2026-11-11 弹窗规范 A 版）：渲染在 28px 内凹图标井内，14px Lucide 图标 */
   icon?: React.ReactNode;
+  /** 紧凑变体（2026-11-12 用户裁定）：内容少的小弹窗（如二选一确认）收身——
+   *  内容区 pb-2、底栏 pt-2/pb-4、分割线 mb-3，避免大片留白 */
+  compact?: boolean;
   /** Extra classes on the dialog surface (rarely needed). */
   className?: string;
 };
@@ -41,6 +44,7 @@ export function Modal({
   className = '',
   headerExtra,
   icon,
+  compact = false,
 }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
@@ -165,13 +169,13 @@ export function Modal({
 
         {/* 内容区 — 仅此处滚动；pt-4 与头部隔离线留出呼吸距离（2026-11-12 用户裁定） */}
         <div className="flex-1 overflow-y-auto px-6 pt-4">
-          <div className="space-y-4 pb-4">{children}</div>
+          <div className={`space-y-4 ${compact ? 'pb-2' : 'pb-4'}`}>{children}</div>
         </div>
 
-        {/* 底部操作栏 — 固定不滚动 */}
+        {/* 底部操作栏 — 固定不滚动（compact：紧凑弹窗收身，少留白） */}
         {footer && (
-          <div className="shrink-0 px-6 pb-6 pt-3">
-            <hr className="wb-section-rule mb-4" />
+          <div className={`shrink-0 px-6 ${compact ? 'pb-4 pt-2' : 'pb-6 pt-3'}`}>
+            <hr className={`wb-section-rule ${compact ? 'mb-3' : 'mb-4'}`} />
             <div className="flex justify-end gap-3">{footer}</div>
           </div>
         )}
