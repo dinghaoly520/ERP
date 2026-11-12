@@ -522,6 +522,10 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
   const [analysis,setAnalysis] = useState<DashboardAnalysisResult|null>(null);
   const [alLoading,setAlLoading] = useState(false);
   const [alErr,setAlErr] = useState<string|null>(null);
+  // 当前 data 的归属公司视野（2026-11-12 稳健轮）：生成效应核对 dataCompanyId===companyId
+  // 才放行——否则换公司瞬间（缓存 miss + 新 stats 未返回）会用旧公司数据生成并存进
+  // 新公司的服务端缓存键（scope 派生键），新公司缓存被旧视角内容污染
+  const [dataCompanyId,setDataCompanyId] = useState<string|null>(null);
   const [showDP,setShowDP] = useState(false);
   const [startDate,setStartDate] = useState("");
   const [endDate,setEndDate] = useState("");
@@ -551,26 +555,34 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
   const validCache = (r?: DashboardAnalysisResult | null): r is DashboardAnalysisResult =>
     !!r && Array.isArray(r.highlights) && Array.isArray(r.concerns) && Array.isArray(r.suggestions);
 
+  // 缓存检查门闩（2026-11-12 用户实录竞态修复）：生成效应必须等缓存检查收口再判
+  // analysis——否则 stats 与缓存 GET 并行时，stats 先到、analysis 仍空 → 误判 miss
+  // 直接起 POST，缓存命中被浪费，来回切页每次都「重新生成」
+  const [cacheChecked, setCacheChecked] = useState(false);
+
   const readAnalysisCache = useCallback(async () => {
+    setCacheChecked(false);
     try {
       const c = await fetchDashboardAnalysisCache(companyId, startDate || undefined, endDate || undefined);
-      if (c.hit && validCache(c.result)) { setAnalysis(c.result); setAlErr(null); return; }
+      if (c.hit && validCache(c.result)) { setAnalysis(c.result); setAlErr(null); setCacheChecked(true); return; }
     } catch { /* 缓存接口失败走生成路径 */ }
     setAnalysis(null); // miss：清位待生成（多公司由生成 effect 跳过、走手动提示）
+    setCacheChecked(true);
   }, [companyId, startDate, endDate]);
 
   useEffect(() => { void readAnalysisCache(); }, [readAnalysisCache]);
 
-  // miss 后自动生成：需 stats 组装 payload，等 data 就绪即跑；多公司不自动
+  // miss 后自动生成：需 stats 组装 payload，等 data 就绪（且归属公司与当前视野一致）
+  // + 缓存检查收口即跑；多公司不自动
   useEffect(() => {
-    if (!data || companyId.includes(",") || analysis || alLoading) return;
+    if (!data || dataCompanyId !== companyId || !cacheChecked || companyId.includes(",") || analysis || alLoading) return;
     void (async () => {
       setAlErr(null); setAlLoading(true);
       try { const r = await fetchDashboardAnalysis(bap(data), companyId); setAnalysis(r); }
       catch (err) { setAlErr(err instanceof Error ? err.message : "分析请求失败，请稍后重试"); }
       finally { setAlLoading(false); }
     })();
-  }, [data, companyId, analysis, alLoading, bap]);
+  }, [data, cacheChecked, companyId, analysis, alLoading, bap]);
 
   // 手动「开始分析/重新分析」：无视缓存直接生成
   const forceAnalysis = useCallback(async () => {
@@ -583,7 +595,10 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
 
   const suppliers:SupplierDetail[]=useMemo(()=>{if(!data)return[];return data.supplierStats.map(s=>({...s,id:s.name}));},[data]);
 
-  const ld = useCallback(async(s?:string,e?:string,c?:string)=>{setLoading(true);setLoadErr(null);try{const d=await fetchDashboardData(s,e,c);setData(d);setAnalysis(null);}catch(err){setLoadErr(err instanceof Error?err.message:"加载仪表盘数据失败");}finally{setLoading(false);}},[],);
+  // 注意 ld 不再 setAnalysis(null)（2026-11-12 竞态修复）：分析生命周期归缓存读取/
+  // 生成效应管（公司/区间变化由其 deps 自动重置）——ld 迟到完成时清分析会把
+  // 已命中的缓存内容抹掉、再触发一次误生成
+  const ld = useCallback(async(s?:string,e?:string,c?:string)=>{setLoading(true);setLoadErr(null);try{const d=await fetchDashboardData(s,e,c);setData(d);setDataCompanyId(c??"all");}catch(err){setLoadErr(err instanceof Error?err.message:"加载仪表盘数据失败");}finally{setLoading(false);}},[],);
   useEffect(()=>{ld();},[ld]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{ld(startDate||undefined,endDate||undefined,companyId);},[companyId]);
