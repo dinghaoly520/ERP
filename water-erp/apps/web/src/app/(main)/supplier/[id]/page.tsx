@@ -18,12 +18,13 @@ import { CheckCircle2, Check, Search, X, XCircle, RotateCcw, FileCheck, Building
 import { SupplierTimeline } from '@/components/supplier/timeline';
 import { ApprovalChangeHistory } from '@/components/supplier/approval-change-history';
 import { PortraitTab } from '@/components/supplier/portrait-tab';
+import { ParticipationTab } from '@/components/supplier/participation-tab';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import { CopyIconButton } from '@/components/copy-icon-button';
 
 // 2026-10-23 板块合并（11→5）：info=基本信息+联系人+归属公司+变更记录、qualifications=资质材料+文件档案、
 // evaluations=履约评价+奖惩记录、rsvp=邀请回执+沟通记录；旧深链键经 MERGED_TAB 归组映射
-type TabKey = 'info' | 'portrait' | 'qualifications' | 'evaluations' | 'rsvp';
+type TabKey = 'info' | 'portrait' | 'qualifications' | 'evaluations' | 'rsvp' | 'participation';
 const MERGED_TAB: Record<string, TabKey> = {
   info: 'info', portrait: 'portrait', qualifications: 'qualifications', evaluations: 'evaluations', rsvp: 'rsvp',
   contacts: 'info', links: 'info', changes: 'info', records: 'evaluations', documents: 'qualifications', communications: 'rsvp',
@@ -339,6 +340,7 @@ export default function SupplierDetailPage() {
     { key: 'portrait', label: '画像与动态' },
     // 合并计数（2026-10-23）：资质+文件 / 评价+奖惩；邀请数沿用回执统计
     { key: 'qualifications', label: '资质材料', count: qualifications.length },
+    { key: 'participation', label: '参与情况' },
     { key: 'evaluations', label: '履约评价', count: evaluations.length },
     { key: 'rsvp', label: '邀请回执', count: rsvpHistory?.stats.invited },
   ];
@@ -805,6 +807,9 @@ export default function SupplierDetailPage() {
             <section><PortraitTab supplierId={id as string} /></section>
           </div>
         )}
+
+        {/* 参与情况（2026-11-12 履约闭环）：意向/回执/投递 KPI + 确认未投递事故 + 拉黑状态 */}
+        {activeTab === 'participation' && <ParticipationTab supplierId={supplier.id} />}
 
         {/* 联系人 */}
         {activeTab === 'info' && (

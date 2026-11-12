@@ -333,6 +333,24 @@ export function getRsvpHistory(supplierId: string) {
   return api.get<RsvpHistoryResult>(`/supplier/rsvp/history?supplierId=${encodeURIComponent(supplierId)}`);
 }
 
+/** 供应商参与情况（2026-11-12 履约闭环）：意向/回执/投递/未投递事故聚合 */
+export interface ParticipationView {
+  kpi: {
+    intentTotal: number;
+    rsvpAcceptedTotal: number;
+    submittedTotal: number;
+    noShowTotal: number;
+    noShowActiveCount: number;
+    blacklistThreshold: number;
+  };
+  incidents: { projectName: string; projectCode: string; stage: string; track: string; detectedAt: string; legacy: boolean }[];
+  intents: { projectName: string; projectCode: string; stage: string; confirmedAt: string; submitted: boolean }[];
+  blacklist: { reason: string | null; penalties: { penaltyDocNo: string; authority: string; decisionDate: string; penaltyContent: string }[] } | null;
+}
+export function getSupplierParticipation(supplierId: string) {
+  return api.get<ParticipationView>(`/supplier/${encodeURIComponent(supplierId)}/participation`);
+}
+
 // 供应商详情
 export function getSupplier(id: string) {
   return api.get<Supplier>(`/supplier/${id}`);
