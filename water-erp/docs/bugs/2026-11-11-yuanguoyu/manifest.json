@@ -1,0 +1,90 @@
+{
+ "source": "zentao 导出 md5 校验原件（SOP §2.2 N/N 全绿）",
+ "generatedAt": "2026-11-11",
+ "files": {
+  "bug101_171.png": {
+   "md5": "6f9bcb2f863b2bf4c34c969330fb7c8c",
+   "size": 744752
+  },
+  "bug115_197.png": {
+   "md5": "f43382f29d643a4add21d41b47425f7c",
+   "size": 851840
+  },
+  "bug115_198.png": {
+   "md5": "21db27693ccff9fb295dabf6e3e5da20",
+   "size": 71783
+  },
+  "bug121_211.png": {
+   "md5": "6870a664f927d32a529b1d3c204db862",
+   "size": 1749779
+  },
+  "bug140_240.png": {
+   "md5": "e3d0e6504cb8294c74deb50d10770c03",
+   "size": 1781294
+  },
+  "bug142_242.png": {
+   "md5": "ce519396bf592027ada8eb7dace8623b",
+   "size": 1767264
+  },
+  "bug147_251.png": {
+   "md5": "1c5d0fa3780e9564d8178be92befc2b0",
+   "size": 3237405
+  },
+  "bug150_256.png": {
+   "md5": "c7e8fedbd1e22dfc1b046c035a66146e",
+   "size": 1024140
+  },
+  "bug151_257.png": {
+   "md5": "6712bd41492a9bec4b82076a649f9007",
+   "size": 1412295
+  },
+  "bug155_262.png": {
+   "md5": "49e36ff71ea6991f3e2ecac6e9e54f99",
+   "size": 961605
+  },
+  "bug155_263.png": {
+   "md5": "6c0afe0ceae44984293a3c577580ca06",
+   "size": 771723
+  },
+  "bug59_115.png": {
+   "md5": "ae8d1a801350674f6d79f51f08787116",
+   "size": 869357
+  },
+  "bug60_116.png": {
+   "md5": "7d52bace7034c2cbfffb81f5701b57b8",
+   "size": 324758
+  },
+  "bug61_117.png": {
+   "md5": "89ae57f91deb9c153e8833b34867fd94",
+   "size": 1799816
+  },
+  "bug69_127.png": {
+   "md5": "d762ff0dac15558d9340c108551c8f24",
+   "size": 1493944
+  },
+  "bug73_133.png": {
+   "md5": "6da25e387fa626552d32e414ff774cb0",
+   "size": 1976371
+  },
+  "bug73_134.png": {
+   "md5": "5ac4e39660ca854c011c289ab7de2419",
+   "size": 1326166
+  },
+  "bug73_135.png": {
+   "md5": "9b79f5bcfdebe34570b433202296309a",
+   "size": 1409276
+  },
+  "bug74_136.png": {
+   "md5": "20bd16f7d1e3f84076b759b8d9dec9cd",
+   "size": 1778287
+  },
+  "bug79_142.png": {
+   "md5": "c8a5cd8310b2eabf05b2b9fb1275874c",
+   "size": 925631
+  },
+  "bug96_164.jpg": {
+   "md5": "77c2da0f2981a4d4ccb562183e3a8a23",
+   "size": 112860
+  }
+ }
+}
