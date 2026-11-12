@@ -16,7 +16,8 @@ function terminateTimeOf(r: ProjectDeletionRecord) {
 /** 终止时简报（2026-11-12 用户裁定：结合终止原因重写）——AI 项目简报（如有）在前，
  *  「终止时所在阶段 + 终止原因」收尾成自然叙述；三项全无（存量迁移行）返回 null 不显示。 */
 function briefOf(r: ProjectDeletionRecord) {
-  const head = r.analysisSummary?.trim() || null;
+  // AI 简报常以句号收尾，去尾句号防拼接后双句号
+  const head = r.analysisSummary?.trim().replace(/。+$/, '') || null;
   const stage = r.terminatedStage?.trim() || null;
   const reason = r.terminationReason?.trim() || null;
   const tail = [
