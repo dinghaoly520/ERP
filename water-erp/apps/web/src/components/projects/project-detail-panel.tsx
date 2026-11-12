@@ -1279,7 +1279,7 @@ export function ProjectDetailPanel({
                 <div className="mt-2 flex items-center gap-1.5 border-t border-[color-mix(in_oklch,var(--danger)_15%,transparent)] pt-2 text-[11px] text-[var(--muted-foreground)]">
                   <span className="font-semibold">终止时所在阶段：</span>
                   <span>{item.terminatedStage}</span>
-                  <span className="ml-auto text-[var(--muted-foreground)]">终止不可恢复，仅供查阅；如需继续采购请重新建立项目</span>
+                  <span className="ml-auto text-[var(--muted-foreground)]">终止不可恢复，仅供查阅；如需清理记录，可在项目列表·已移出区操作；如需继续采购请重新建立项目</span>
                 </div>
               )}
             </div>
