@@ -1734,6 +1734,40 @@ export class ExpertService {
       }
     }
 
+    // B4（2026-11-12）：废标复议冻结闸——通过性项关联动议期间/之后拒收该项评分投票：
+    //  voting=表决进行中暂停（防两套投票打架）；closed=已裁定终局锁（双向：维持防改票翻转裁定、
+    //  推翻防再投票翻回）。只锁 (供应商, 通过性项) 精确对，数值项与其他供应商不受牵连。
+    const passFailPairs = dto.scores
+      .filter(s => { const m = itemMeta.get(s.scoreItemId); return m && (m.category === 'QUALIFICATION' || m.category === 'RESPONSIVE'); })
+      .map(s => ({ supplierId: s.supplierId, scoreItemId: s.scoreItemId }));
+    if (passFailPairs.length > 0) {
+      const linked = await this.prisma.bidInvalidBid.findMany({
+        where: {
+          projectId, motionId: { not: null },
+          OR: passFailPairs.map(p => ({ AND: [{ supplierId: p.supplierId }, { scoreItemId: p.scoreItemId }] })),
+        },
+        select: { supplierId: true, scoreItemId: true, motionId: true },
+      });
+      if (linked.length > 0) {
+        const motions = await this.prisma.bidMotion.findMany({
+          where: { id: { in: linked.map(l => l.motionId!).filter(Boolean) } },
+          select: { id: true, status: true },
+        });
+        const voting = motions.some(m => m.status === 'voting');
+        const first = linked[0];
+        const firstItemId = first.scoreItemId ?? '';
+        const label = itemMeta.get(firstItemId)?.name?.trim() || (firstItemId || '该项').slice(-8);
+        throw new BadRequestException({
+          error: voting
+            ? `评分项 ${label} 废标复议表决进行中，该项评分投票已暂停——请等待组长结束表决`
+            : `评分项 ${label} 已经委员会裁定，该项评分投票已冻结`,
+          code: voting ? 'RULING_IN_PROGRESS' : 'RULING_FINAL',
+          scoreItemId: firstItemId || undefined,
+          supplierId: first.supplierId,
+        });
+      }
+    }
+
     // 查 AI 建议分（用于评分 delta 飞轮：专家 vs AI 差异）
     const aiResults = await this.prisma.aiBidderResult.findMany({
       where: { task: { projectId }, status: 'COMPLETED' },
