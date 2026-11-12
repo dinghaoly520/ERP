@@ -42,7 +42,7 @@ export const CHANGE_FIELD_GROUPS = [
     stageKey: 'TENDER_DOCUMENT',
     fields: [
       { field: 'bidOpeningTime', label: '开标时间', kind: 'datetime', target: 'PMI' },
-      { field: 'documentAcquireTime', label: '文件获取截止', kind: 'text', target: 'PMI' },
+      { field: 'documentAcquireTime', label: '文件获取时间', kind: 'text', target: 'PMI' },
     ],
   },
   {

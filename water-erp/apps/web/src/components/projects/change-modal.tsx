@@ -10,6 +10,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { RefreshCcw, FilePlus2, X, Sparkles, Loader2, ScrollText, ChevronRight, PenLine } from 'lucide-react';
+import { zhRangeToDatetimeLocal, datetimeLocalToZh } from '@/lib/utils/format-acquire-time';
 import { toast } from 'sonner';
 import { registerChange, listChanges, type ProjectChangeRecord } from '@/lib/api/project-changes';
 import { CHANGE_FIELD_GROUPS, stageReached } from '@/lib/change-fields';
@@ -163,7 +164,14 @@ export function ChangeModal({
         for (const f of g.fields) {
           const v = values[f.field] ?? '';
           if (v === '' || v === currentOf(f.field)) continue;
-          fields[f.field] = f.field === 'bidOpeningTime' ? localInputToIso(v) : v;
+          if (f.field === 'bidOpeningTime') { fields[f.field] = localInputToIso(v); continue; }
+          if (f.field === 'documentAcquireTime') {
+            const [s0, e0] = v.split('~');
+            const sz = datetimeLocalToZh(s0), ez = datetimeLocalToZh(e0);
+            fields[f.field] = sz ? (ez ? `${sz}-${ez}` : sz) : '';
+            continue;
+          }
+          fields[f.field] = v;
         }
       }
     }
@@ -389,6 +397,27 @@ export function ChangeModal({
                             value={values[f.field] ?? ''}
                             onChange={e => setValues(v => ({ ...v, [f.field]: e.target.value }))}
                           />
+                        ) : f.widget === 'datetime-range' ? (
+                          <div className="flex items-center gap-1.5">
+                            {(() => {
+                              // 已选值（s~e）优先；未动过则回显当前库值（中文区间→选择器值）
+                              const cur = (values[f.field] || '').trim();
+                              let s0: string, e0: string;
+                              if (cur.includes('~')) { [s0, e0] = cur.split('~'); }
+                              else { const r = zhRangeToDatetimeLocal(currentOf(f.field)); s0 = r.start ?? ''; e0 = r.end ?? ''; }
+                              return (
+                                <>
+                                  <input type="datetime-local" className="workbench-input"
+                                    value={s0 ?? ''}
+                                    onChange={e => setValues(v => ({ ...v, [f.field]: `${e.target.value}~${(v[f.field] || '').split('~')[1] ?? e0 ?? ''}` }))} />
+                                  <span className="shrink-0 text-xs font-semibold text-[var(--muted-foreground)]">—</span>
+                                  <input type="datetime-local" className="workbench-input"
+                                    value={e0 ?? ''}
+                                    onChange={e => setValues(v => ({ ...v, [f.field]: `${(v[f.field] || '').split('~')[0] ?? s0 ?? ''}~${e.target.value}` }))} />
+                                </>
+                              );
+                            })()}
+                          </div>
                         ) : f.widget === 'search-select' ? (
                           <SearchSelect
                             options={projectOptions}
