@@ -628,9 +628,8 @@ export function ProjectManagementPage() {
                   移除记录
                 </div>
                 <h3 className="mt-3 font-[family-name:var(--font-display)] text-[1.28rem] font-semibold tracking-[-0.05em] text-[color:var(--foreground)]">
-                  已移除的项目
+                  已移除的项目{deletionRecords.length > 0 ? `（${deletionRecords.length}）` : ''}
                 </h3>
-                <p className="mt-1 text-sm text-[color:var(--muted-foreground)]">数据已清，记录永存</p>
               </div>
               <button type="button" onClick={() => setShowRecordsModal(false)} className="neu-btn-xs" aria-label="关闭移除记录">
                 <X size={18} />
@@ -642,7 +641,7 @@ export function ProjectManagementPage() {
                   暂无移除记录。在已终止项目卡片上点「移除」并确认后，会在此留下记录。
                 </div>
               ) : (
-                <DeletionRecordList records={filteredRecords} />
+                <DeletionRecordList records={filteredRecords} showHeader={false} />
               )}
             </div>
           </div>
