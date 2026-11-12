@@ -1,4 +1,10 @@
-import { Inject, Injectable, Optional, ServiceUnavailableException } from '@nestjs/common';
+import {
+  ConflictException,
+  Inject,
+  Injectable,
+  Optional,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import type Redis from 'ioredis';
 import { randomUUID } from 'node:crypto';
 
@@ -10,10 +16,13 @@ import { randomUUID } from 'node:crypto';
  * 键契约（TTL 统一 12h，与受限令牌生命周期上限对齐）：
  *   expert-pairing:{jti}             → JSON {userId, expertId, projectId, pairedAt, device}
  *   expert-pairing:active:{eid}:{pid} → jti 字符串（反向索引，供主持端 getActive / register 替换）
+ *   expert-pairing:lock:{eid}:{pid}   → '1'（register 短锁，TTL 5s；瞬时键，非配对数据）
  */
 const ENTRY_KEY_PREFIX = 'expert-pairing:';
 const ACTIVE_KEY_PREFIX = 'expert-pairing:active:';
+const LOCK_KEY_PREFIX = 'expert-pairing:lock:';
 const PAIRING_TTL_SECONDS = 12 * 3600;
+const REGISTER_LOCK_TTL_SECONDS = 5;
 
 export interface ExpertPairingDevice {
   uaSummary: string;
@@ -40,7 +49,10 @@ export class ExpertPairingRegistry {
     return this.redis;
   }
 
-  /** 登记新配对。同 expert+project 已有旧配对时单飞替换（旧 jti 条目即删，旧平板令牌随之失效）。 */
+  /** 登记新配对。同 expert+project 已有旧配对时单飞替换（旧 jti 条目即删，旧平板令牌随之失效）。
+   *  并发互斥（评审 F1 裁定）：GET active → DEL → SET → SET 非原子，并发 register 会留下双活动
+   *  条目（败者 jti 经 isAlive 存活 12h）——按 expert+project 短锁串行化，锁获取失败 409 让
+   *  调用方稍候重试（沿用 expert-transfer 票据锁模式，auth.service claimExpertTransfer）。 */
   async register(args: {
     userId: string;
     expertId: string;
@@ -49,23 +61,35 @@ export class ExpertPairingRegistry {
   }): Promise<{ pairingId: string; replaced: string | null }> {
     const redis = this.client();
     const activeKey = `${ACTIVE_KEY_PREFIX}${args.expertId}:${args.projectId}`;
-    const oldJti = await redis.get(activeKey);
-    let replaced: string | null = null;
-    if (oldJti) {
-      await redis.del(`${ENTRY_KEY_PREFIX}${oldJti}`);
-      replaced = oldJti;
+    const lockKey = `${LOCK_KEY_PREFIX}${args.expertId}:${args.projectId}`;
+    const locked = await redis.set(lockKey, '1', 'EX', REGISTER_LOCK_TTL_SECONDS, 'NX');
+    if (!locked) {
+      throw new ConflictException({
+        error: '配对操作正在进行中，请稍候重试',
+        code: 'PAIRING_IN_PROGRESS',
+      });
     }
-    const pairingId = randomUUID();
-    const entry: ExpertPairingEntry = {
-      userId: args.userId,
-      expertId: args.expertId,
-      projectId: args.projectId,
-      pairedAt: Date.now(),
-      device: args.device,
-    };
-    await redis.set(`${ENTRY_KEY_PREFIX}${pairingId}`, JSON.stringify(entry), 'EX', PAIRING_TTL_SECONDS);
-    await redis.set(activeKey, pairingId, 'EX', PAIRING_TTL_SECONDS);
-    return { pairingId, replaced };
+    try {
+      const oldJti = await redis.get(activeKey);
+      let replaced: string | null = null;
+      if (oldJti) {
+        await redis.del(`${ENTRY_KEY_PREFIX}${oldJti}`);
+        replaced = oldJti;
+      }
+      const pairingId = randomUUID();
+      const entry: ExpertPairingEntry = {
+        userId: args.userId,
+        expertId: args.expertId,
+        projectId: args.projectId,
+        pairedAt: Date.now(),
+        device: args.device,
+      };
+      await redis.set(`${ENTRY_KEY_PREFIX}${pairingId}`, JSON.stringify(entry), 'EX', PAIRING_TTL_SECONDS);
+      await redis.set(activeKey, pairingId, 'EX', PAIRING_TTL_SECONDS);
+      return { pairingId, replaced };
+    } finally {
+      await this.releaseLock(redis, lockKey);
+    }
   }
 
   /** 配对令牌是否存活（AuthGuard 逐请求调用）：条目在且 userId 匹配。 */
@@ -80,11 +104,16 @@ export class ExpertPairingRegistry {
     }
   }
 
-  /** 当前活跃配对（主持端面板）。active 键在而条目已过期（TTL 竞态窗）→ null，与 isAlive 口径一致。 */
+  /** 当前活跃配对（主持端面板）。active 键在而条目已过期（TTL 竞态窗）→ null，与 isAlive 口径一致。
+   *  device 投影透传 ip（评审 F2：与 ExpertPairingDevice 绑定约束签名 {uaSummary, ip} 对齐）。 */
   async getActive(
     expertId: string,
     projectId: string,
-  ): Promise<{ pairingId: string; device: { uaSummary: string } | null; pairedAt: number } | null> {
+  ): Promise<{
+    pairingId: string;
+    device: { uaSummary: string; ip?: string | null } | null;
+    pairedAt: number;
+  } | null> {
     const redis = this.client();
     const pairingId = await redis.get(`${ACTIVE_KEY_PREFIX}${expertId}:${projectId}`);
     if (!pairingId) return null;
@@ -95,7 +124,7 @@ export class ExpertPairingRegistry {
       return {
         pairingId,
         device: entry.device && typeof entry.device.uaSummary === 'string'
-          ? { uaSummary: entry.device.uaSummary }
+          ? { uaSummary: entry.device.uaSummary, ip: entry.device.ip ?? null }
           : null,
         pairedAt: entry.pairedAt,
       };
@@ -149,6 +178,13 @@ export class ExpertPairingRegistry {
         await this.clearActiveKeyIfPointsTo(redis, entry.expertId, entry.projectId, jti);
       }
     } while (cursor !== '0');
+  }
+
+  /** 释放 register 短锁：DEL 前比对值仍为 '1'（本锁标记）防误删他人锁——锁过期后他人重取时
+   *  键可能已被覆盖；释放失败不掩盖注册结果（catch 吞掉，锁 TTL 5s 兜底自清）。 */
+  private async releaseLock(redis: Redis, lockKey: string): Promise<void> {
+    const lockVal = await redis.get(lockKey).catch(() => null);
+    if (lockVal === '1') await redis.del(lockKey).catch(() => {});
   }
 
   private async clearActiveKeyIfPointsTo(

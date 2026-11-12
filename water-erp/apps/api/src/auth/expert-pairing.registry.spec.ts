@@ -1,4 +1,4 @@
-import { ServiceUnavailableException } from '@nestjs/common';
+import { ConflictException, ServiceUnavailableException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import type Redis from 'ioredis';
 import { ExpertPairingRegistry } from './expert-pairing.registry';
@@ -9,15 +9,22 @@ import { RedisModule } from '../redis/redis.module';
 class FakeRedis {
   store = new Map<string, string>();
   ttls = new Map<string, number>();
+  /** set(..., 'EX', n) 调用日志（含已释放键）：[key, ttlSeconds][] */
+  setLog: [string, number][] = [];
 
   async get(key: string): Promise<string | null> {
     return this.store.get(key) ?? null;
   }
 
-  /** ioredis: set(key, value, 'EX', seconds) */
-  async set(key: string, value: string, ...rest: unknown[]): Promise<'OK'> {
+  /** ioredis: set(key, value, 'EX', seconds[, 'NX'])——NX 时键已存在返回 null */
+  async set(key: string, value: string, ...rest: unknown[]): Promise<'OK' | null> {
+    if (rest.includes('NX') && this.store.has(key)) return null;
     const exIdx = rest.indexOf('EX');
-    if (exIdx >= 0) this.ttls.set(key, Number(rest[exIdx + 1]));
+    if (exIdx >= 0) {
+      const ttl = Number(rest[exIdx + 1]);
+      this.ttls.set(key, ttl);
+      this.setLog.push([key, ttl]);
+    }
     this.store.set(key, value);
     return 'OK';
   }
@@ -112,6 +119,34 @@ describe('ExpertPairingRegistry', () => {
     });
   });
 
+  describe('register（并发互斥锁，评审 F1）', () => {
+    it('锁被占 → ConflictException(PAIRING_IN_PROGRESS) 且不写任何键', async () => {
+      const { fake, reg } = make();
+      fake.store.set('expert-pairing:lock:e-1:p-1', '1'); // 模拟同 expert+project 并发 register 进行中
+      const err = await register(reg, 'u-1').catch(e => e);
+      expect(err).toBeInstanceOf(ConflictException);
+      expect((err as ConflictException).getResponse()).toMatchObject({ code: 'PAIRING_IN_PROGRESS' });
+      expect(fake.store.size).toBe(1); // 仅占位锁本身，未落 entry/active 任何键
+      expect(fake.store.has('expert-pairing:active:e-1:p-1')).toBe(false);
+    });
+
+    it('正常路径 finally 释放锁（完成后锁键消失，不阻断后续 register）', async () => {
+      const { fake, reg } = make();
+      await register(reg, 'u-1');
+      expect(fake.store.has('expert-pairing:lock:e-1:p-1')).toBe(false);
+      // 锁泄漏时同 expert+project 二次 register 会 409——替换路径隐式锁定本不变量
+      const second = await register(reg, 'u-1');
+      expect(second.replaced).not.toBeNull();
+    });
+
+    it('锁 TTL 为 5s（防持锁进程崩溃后死锁）', async () => {
+      const { fake, reg } = make();
+      await register(reg, 'u-1');
+      const lockSet = fake.setLog.find(([k]) => k === 'expert-pairing:lock:e-1:p-1');
+      expect(lockSet).toEqual(['expert-pairing:lock:e-1:p-1', 5]);
+    });
+  });
+
   describe('isAlive', () => {
     it('userId 匹配 → true；不匹配 → false；未知 pairingId → false', async () => {
       const { reg } = make();
@@ -167,6 +202,24 @@ describe('ExpertPairingRegistry', () => {
         device: { uaSummary: DEVICE.uaSummary },
       });
       expect(typeof active!.pairedAt).toBe('number');
+    });
+
+    it('device 投影透传 ip（评审 F2：绑定约束签名 {uaSummary, ip}）', async () => {
+      const { reg } = make();
+      await register(reg, 'u-1');
+      const active = await reg.getActive('e-1', 'p-1');
+      expect(active!.device).toEqual({ uaSummary: DEVICE.uaSummary, ip: DEVICE.ip });
+    });
+
+    it('entry 无 ip 字段 → device.ip 归一为 null（非 undefined）', async () => {
+      const { fake, reg } = make();
+      const res = await register(reg, 'u-1');
+      const key = `expert-pairing:${res.pairingId}`;
+      const entry = JSON.parse(fake.store.get(key)!);
+      delete entry.device.ip;
+      fake.store.set(key, JSON.stringify(entry));
+      const active = await reg.getActive('e-1', 'p-1');
+      expect(active!.device).toEqual({ uaSummary: DEVICE.uaSummary, ip: null });
     });
 
     it('无配对 → null', async () => {
