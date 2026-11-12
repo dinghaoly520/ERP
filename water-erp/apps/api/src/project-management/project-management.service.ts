@@ -5706,10 +5706,6 @@ ${JSON.stringify(algorithmResult, null, 2)}
   }
 
   /**
-   * Get archive detail for a procurement round (from archived project management item)
-   * Reads and parses the archived TXT file
-   */
-  /**
    * #121②：归档详情评分段——PMI→关联 BidProject（取有评标结果者；流标再采多 BP 时定位有效轮），
    * 下发 评分项定义+得分点 / 专家评分记录（含 passed——通过性项表决口径）/ 评标结果名次。
    * 前端归档弹窗「评分明细」卡片复用 handover-preview 的 ScoreSnapshotSection 渲染（数值+通过性双形态）。
@@ -5735,20 +5731,25 @@ ${JSON.stringify(algorithmResult, null, 2)}
       this.prisma.bidEvaluationResult.findMany({ where: { projectId: bp.id }, orderBy: { rank: 'asc' } }),
     ]);
     if (results.length === 0) return null;
+    // Decimal → number 归一（镜像 buildEvaluationPackage 口径：JSON 序列化为字符串会撒谎给前端 number 声明）
     return {
       bidProject: bp,
       items: items.map((i) => ({
-        id: i.id, name: i.name, category: i.category, maxScore: i.maxScore, points: i.points,
+        id: i.id, name: i.name, category: i.category, maxScore: Number(i.maxScore), points: i.points,
       })),
-      records,
+      records: records.map((r) => ({ ...r, score: Number(r.score) })),
       results: results.map((r) => ({
-        supplierId: r.supplierId, supplierName: r.supplierName, totalScore: r.totalScore,
-        averageScore: r.averageScore, rank: r.rank, recommended: r.recommended,
-        disqualified: r.disqualified, bidPrice: r.bidPrice,
+        supplierId: r.supplierId, supplierName: r.supplierName, totalScore: Number(r.totalScore),
+        averageScore: Number(r.averageScore), rank: r.rank, recommended: r.recommended,
+        disqualified: r.disqualified, bidPrice: r.bidPrice == null ? null : Number(r.bidPrice),
       })),
     };
   }
 
+  /**
+   * Get archive detail for a procurement round (from archived project management item)
+   * Reads and parses the archived TXT file
+   */
   async getArchiveDetail(procurementRoundId: string) {
     // Find the project management item that was archived to this procurement round
     const pmItem = await this.prisma.projectManagementItem.findFirst({

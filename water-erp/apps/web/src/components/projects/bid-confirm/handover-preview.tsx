@@ -398,7 +398,9 @@ export function ScoreSnapshotSection({ pkg }: { pkg: Partial<HandoverPackage> })
     c.n += 1;
     if (pfItemIds.has(r.scoreItemId) && (r.passed === true || r.passed === false)) {
       c.votes = (c.votes ?? 0) + 1;
-      if (r.passed) c.pass = (c.pass ?? 0) + 1;
+      // 评审发现：pass 仅在投通过票时赋值 → 全票不通过时 undefined，着色判 c.pass === 0 永假、
+      // 「全否红」永不触发（恰是废标信号最重的一幕）。恒赋值保 0 基线。
+      c.pass = (c.pass ?? 0) + (r.passed ? 1 : 0);
     }
     cell.set(key, c);
   }
@@ -420,7 +422,7 @@ export function ScoreSnapshotSection({ pkg }: { pkg: Partial<HandoverPackage> })
         <span>
           评分项 <span className="font-semibold text-[var(--foreground)]">{defs.length}</span> 项 ·
           评分记录 <span className="font-semibold text-[var(--foreground)]">{records.length}</span> 条 ·
-          专家 <span className="font-semibold text-[var(--foreground)]">{confirmations.length}</span> 人
+          专家 <span className="font-semibold text-[var(--foreground)]">{confirmations.length > 0 ? confirmations.length : new Set(records.map((r) => r.expertId)).size}</span> 人
         </span>
         <span title={`完整指纹 ${snap.fingerprint ?? ''}`} className="font-mono">
           {shortHash(snap.fingerprint)}
