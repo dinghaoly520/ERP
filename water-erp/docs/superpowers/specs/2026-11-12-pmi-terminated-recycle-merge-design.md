@@ -1,8 +1,8 @@
 # 项目管理「已终止 × 回收站」合并落地设计（已移出区 + 删除留痕）
 
 - 日期：2026-11-12
-- 状态：已定稿（用户裁定三项，见 §6）
-- 范围：:3005 项目管理页（`apps/web`）+ PMI 三端点（`apps/api/src/project-management/project-management.service.ts`）+ 新增删除留痕表
+- 状态：已定稿；**同日二次收口（§9，裁定 #4/#5）推翻暂存态**——现行形态以 §9 为准，§2-§4 中与 §9 冲突处以 §9 为准
+- 范围：:3005 项目管理页（`apps/web`）+ PMI 端点（`apps/api/src/project-management/project-management.service.ts`）+ 删除留痕表
 
 ## 1. 背景与问题
 
@@ -145,3 +145,35 @@ model ProjectDeletionRecord {
 - 删除留痕不做导出/检索专门页——活在「已移出」tab 内，随本页搜索
 - 不合并详情面板两个入口按钮（终止/移除语义差异大：终止须填原因+联动，合并对话框反增一步）
 - 迁移注意：本地库漂移口径（memory `local-db-migration-drift`）——新表迁移走 `migrate dev --create-only` → `db execute` → `resolve --applied`；`schema.prisma` 为并行会话共享高危文件，改前核 `git status`、提交内附迁移
+
+## 9. 二次收口（2026-11-12 同日，裁定 #4/#5——推翻 §2/§3/§4 的暂存态设计）
+
+用户理清终版逻辑：**移除的唯一路径 = 先终止 → 在已终止卡片上点移除 → 确认 → 立即彻底删除并留移除记录**。
+
+### 9.1 终版状态机
+
+```
+ACTIVE ──项目终止（详情面板唯一收尾按钮，须填原因+联动）──▶ TERMINATED（可看只读详情，同已完成）
+TERMINATED ──卡片「移除」+确认──▶ 立即彻底删除（内容全清）+ 移除记录（墓碑）
+（RECYCLED 暂存态废除：不再产生；存量 10 行一次性清转为墓碑——scripts/migrate-recycled-to-deletion-records.ts）
+```
+
+### 9.2 UI 终版（:3005）
+
+- **Tab**：`进行中 | 已完成 | 已终止`（「已移出」名废弃，计数=TERMINATED）
+- **已终止 tab**：单一数据=终止的项目卡片（可开只读详情）+ 卡片角部「移除」弱按钮 → 确认弹窗（内容全部清除、仅留移除记录、不可恢复）→ 直删
+- **移除记录**：节头右侧「移除记录」按钮 → 弹层（wb-modal-shell）内嵌 DeletionRecordList 只读行
+- **无「已移除」节**、无恢复/一键删除/回收站任何概念
+- **详情面板**：仅「项目终止」一个收尾按钮（「移除项目」按钮删除）
+
+### 9.3 后端终版
+
+- `moveToRecycleBin` / `restoreFromRecycleBin`：端点+服务+前端 client **整体移除**（无消费方）
+- `deletePermanently` 终版前置：status ∈ {TERMINATED, RECYCLED}（RECYCLED 仅存量迁移口径）；仅创建人；**ASIP 已导出禁删闸保留**；**新增 BID_IN_PROGRESS 防御闸**（终止链路已联动流标，正常恒过）；**3 年保留期闸与 recycledAt 前置闸废除**（裁定 #4：演示与实操中该闸恒不可满足，「最终的移除」语义即直删）
+- 墓碑 `recycledAt` 终版：直删路径恒 null（仅存量清转行有值）；`DeletionRecordList` 的「移入回收」行仅在 recycledAt 有值时渲染
+- 留痕表/读端点 `GET deletion-records` 不变
+
+### 9.4 裁定记录
+
+4. **移除路径唯一化 + 3 年闸废除**（推翻 §4.4-② 与 §2「可反悔暂存」层）：终止→卡片移除→直删留痕；ASIP/投标/创建人三闸保留
+5. **存量 RECYCLED 一次性清转**（用户：「不再要这个小节」）：10 行现存数据经同一删除管线转为移除记录，页面不再有任何「已移除」表面

@@ -48,15 +48,7 @@ describe('ProjectManagementController', () => {
     );
   });
 
-  it('forwards recycle bin actions to the service', async () => {
-    const moveToRecycleBin = jest.fn().mockResolvedValue({
-      id: 'pm-01',
-      status: 'RECYCLED',
-    });
-    const restoreFromRecycleBin = jest.fn().mockResolvedValue({
-      id: 'pm-01',
-      status: 'ACTIVE',
-    });
+  it('forwards project removal to the service（2026-11-12 §9：移除=直删留痕唯一路径）', async () => {
     const deletePermanently = jest.fn().mockResolvedValue({ success: true });
 
     const controller = new ProjectManagementController({
@@ -66,8 +58,6 @@ describe('ProjectManagementController', () => {
       extractInitiationFromUploadedFile: jest.fn(),
       updateStage: jest.fn(),
       addStageAttachment: jest.fn(),
-      moveToRecycleBin,
-      restoreFromRecycleBin,
       deletePermanently,
       completeProject: jest.fn(),
       analyzeProject: jest.fn(),
@@ -75,20 +65,10 @@ describe('ProjectManagementController', () => {
       { getTimeline: jest.fn() } as never,
       {} as never); // TenderDraftService——本 spec 未覆盖草稿端点，占位即可
 
-    await expect(controller.moveToRecycleBin('pm-01', undefined)).resolves.toMatchObject({
-      status: 'RECYCLED',
-    });
-    await expect(
-      controller.restoreFromRecycleBin('pm-01', undefined),
-    ).resolves.toMatchObject({
-      status: 'ACTIVE',
-    });
     await expect(controller.deletePermanently('pm-01', undefined)).resolves.toEqual({
       success: true,
     });
 
-    expect(moveToRecycleBin).toHaveBeenCalledWith('pm-01', undefined);
-    expect(restoreFromRecycleBin).toHaveBeenCalledWith('pm-01', undefined);
     expect(deletePermanently).toHaveBeenCalledWith('pm-01', undefined);
   });
 

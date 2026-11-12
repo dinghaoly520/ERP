@@ -6001,86 +6001,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
     return records.map((r) => ({ ...r, budgetAmount: r.budgetAmount === null ? null : Number(r.budgetAmount) }));
   }
 
-  async moveToRecycleBin(projectId: string, user?: AuthenticatedUser) {
-    const project = await this.prisma.projectManagementItem.findUnique({
-      where: { id: projectId },
-      select: { id: true, status: true, createdById: true },
-    });
-
-    if (!project) {
-      throw new NotFoundException('未找到对应项目。');
-    }
-
-    // Creator-only (2026-10-10 读写分级：leader/admin 对他人项目只读)
-    this.assertCanManageProject(user, project, '仅项目创建人可移除该项目。');
-
-    if (project.status === PROJECT_MANAGEMENT_STATUS.RECYCLED) {
-      return project;
-    }
-
-    // 状态闸（spec 2026-11-12 §4.2，裁定 #1）：仅进行中（建错移除）与已终止（终态清理）
-    // 可入回收站；已完成是成果记录，保持已完成 tab 纯净、拒收清理。
-    if (project.status === PROJECT_MANAGEMENT_STATUS.ARCHIVED) {
-      throw new BadRequestException('已完成项目不可移除清理。');
-    }
-
-    // 投标活动闸（P2-2 收口，2026-11-12）：与 completeProject/公告删除同源——关联招标项目
-    // 仍处活动阶段时禁移除，否则 PMI 消失而投标侧永卡活动态；终态项目终止时已联动流标，自然放行。
-    const activeBidProjects = await this.prisma.bidProject.findMany({
-      where: {
-        projectManagementItemId: projectId,
-        stage: { in: ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING'] },
-      },
-      select: { name: true, stage: true },
-    });
-    if (activeBidProjects.length > 0) {
-      const names = activeBidProjects
-        .map((bp) => `「${bp.name}」(${STAGE_LABEL[bp.stage] ?? bp.stage})`)
-        .join('、');
-      throw new ConflictException({
-        error: `关联招标项目仍在开评标流程中：${names}。请先终止项目（联动流标）后再移除，或在「开标确认」面板完成完整归档`,
-        code: 'BID_IN_PROGRESS',
-      });
-    }
-
-    return this.prisma.projectManagementItem.update({
-      where: { id: projectId },
-      data: { status: PROJECT_MANAGEMENT_STATUS.RECYCLED, recycledAt: new Date() },
-    });
-  }
-
-  async restoreFromRecycleBin(projectId: string, user?: AuthenticatedUser) {
-    const project = await this.prisma.projectManagementItem.findUnique({
-      where: { id: projectId },
-      select: { id: true, status: true, createdById: true, terminatedAt: true, archivedAt: true },
-    });
-
-    if (!project) {
-      throw new NotFoundException('未找到对应项目。');
-    }
-
-    // Creator-only (2026-10-10 读写分级：leader/admin 对他人项目只读)
-    this.assertCanManageProject(user, project, '仅项目创建人可恢复该项目。');
-
-    if (project.status !== PROJECT_MANAGEMENT_STATUS.RECYCLED) {
-      throw new BadRequestException('只有已移除的项目可以恢复。');
-    }
-
-    // 三向按戳推断（spec 2026-11-12 §4.3）：恢复回原状态而非恒回 ACTIVE——终止记录被
-    // 「清理→反悔」后复活为进行中属业务终态破坏。两戳互斥（terminate/complete 均只从
-    // ACTIVE 进入），推断无需 priorStatus 列、无迁移。
-    const restoreStatus = project.terminatedAt
-      ? PROJECT_MANAGEMENT_STATUS.TERMINATED
-      : project.archivedAt
-        ? PROJECT_MANAGEMENT_STATUS.ARCHIVED
-        : PROJECT_MANAGEMENT_STATUS.ACTIVE;
-
-    return this.prisma.projectManagementItem.update({
-      where: { id: projectId },
-      data: { status: restoreStatus, recycledAt: null },
-    });
-  }
-
+  /** 项目移除（spec 2026-11-12 §9 二次收口，裁定 #4）：唯一路径=已终止卡片「移除」→
+   *  立即彻底删除（内容全清）+ 移除记录（墓碑）。暂存态（moveToRecycleBin/restore）已废除。
+   *  闸门：仅创建人 + 仅终态可移除 + ASIP 已导出禁删 + 投标活动防御闸（终止链路已联动
+   *  流标，正常恒过）。3 年保留期闸随裁定 #4 废除。 */
   async deletePermanently(projectId: string, user?: AuthenticatedUser) {
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
@@ -6098,36 +6022,46 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
 
     // Creator-only (2026-10-10 读写分级：leader/admin 对他人项目只读)
-    this.assertCanManageProject(user, project, '仅项目创建人可彻底删除该项目。');
+    this.assertCanManageProject(user, project, '仅项目创建人可移除该项目。');
 
-    if (project.status !== PROJECT_MANAGEMENT_STATUS.RECYCLED) {
-      throw new BadRequestException('请先将项目移除后再彻底删除。');
+    // 终态前置（裁定 #4）：移除只发生在已终止项目上（RECYCLED 仅存量迁移口径兜底）；
+    // 进行中须先走「项目终止」、已完成是成果记录不可移除（裁定 #1 延续）。
+    if (
+      project.status !== PROJECT_MANAGEMENT_STATUS.TERMINATED &&
+      project.status !== PROJECT_MANAGEMENT_STATUS.RECYCLED
+    ) {
+      throw new BadRequestException(
+        project.status === PROJECT_MANAGEMENT_STATUS.ARCHIVED
+          ? '已完成项目不可移除。'
+          : '进行中项目请先终止后再移除。',
+      );
     }
 
-    // DA/T 103-2024 §8.5 保留策略（S1）
-    // ① 已导出归档信息包（ASIP）的卷 = 已移交档案，平台侧禁止物理删除；
-    //    如确需重做，先由 leader/admin 在归档管理页取消归档标记并清除导出记录。
+    // ASIP 已导出归档禁删（DA/T 103-2024：已移交档案平台侧禁物理删除）——3 年保留期闸
+    // 已随裁定 #4 废除，此闸为归档移交的绝对红线，保留。
     if (project.archiveExportedAt) {
       throw new ConflictException(
-        `该项目已于 ${project.archiveExportedAt.toLocaleDateString('zh-CN')} 导出归档信息包（DA/T 103-2024 档案保留），禁止彻底删除。`,
+        `该项目已于 ${project.archiveExportedAt.toLocaleDateString('zh-CN')} 导出归档信息包（DA/T 103-2024 档案保留），禁止移除。`,
       );
     }
-    // ② 回收站起算不足 3 年：电子文件在原平台至少保留 3 年（即使未归档）
-    // M1：以 recycledAt（移入回收站时写入）为准；updatedAt 会被任何字段更新刷新，不能作起算点。
-    // 存量项目（字段上线前已回收）无 recycledAt → 从严拒绝并提示先恢复再回收以记录时间。
-    const recycledAt = project.recycledAt ?? null;
-    const THREE_YEARS_MS = 3 * 365 * 86400000;
-    if (!recycledAt) {
-      throw new ConflictException(
-        '该项目缺少移除时间记录（历史数据），请先恢复项目后重新移除，以启动 3 年保留期计算（DA/T 103-2024 §8.5）。',
-      );
-    }
-    const recycledSince = Date.now() - recycledAt.getTime();
-    if (recycledSince < THREE_YEARS_MS) {
-      const daysLeft = Math.ceil((THREE_YEARS_MS - recycledSince) / 86400000);
-      throw new ConflictException(
-        `依据 DA/T 103-2024 §8.5，电子文件在平台至少保留 3 年；该项目自 ${recycledAt.toLocaleDateString('zh-CN')} 移除，尚余 ${Math.floor(daysLeft / 30)} 个月，暂不能彻底删除。`,
-      );
+
+    // 投标活动防御闸：终止链路已联动流标（ABORTED 终态），正常恒过；防数据异常时
+    // PMI 消失而投标侧永卡活动态（与 completeProject/公告删除同源口径）。
+    const activeBidProjects = await this.prisma.bidProject.findMany({
+      where: {
+        projectManagementItemId: projectId,
+        stage: { in: ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING'] },
+      },
+      select: { name: true, stage: true },
+    });
+    if (activeBidProjects.length > 0) {
+      const names = activeBidProjects
+        .map((bp) => `「${bp.name}」(${STAGE_LABEL[bp.stage] ?? bp.stage})`)
+        .join('、');
+      throw new ConflictException({
+        error: `关联招标项目仍在开评标流程中：${names}。请先处理投标流程（流标或归档）后再移除`,
+        code: 'BID_IN_PROGRESS',
+      });
     }
 
     // ── 留痕 + 卫生清理（spec 2026-11-12 §4.4/§5，2026-11-12）──

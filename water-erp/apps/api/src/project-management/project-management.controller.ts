@@ -407,22 +407,6 @@ export class ProjectManagementController {
     return this.projectManagementService.refreshProjectAnalysis(id);
   }
 
-  @Post(':id/recycle')
-  moveToRecycleBin(
-    @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser | undefined,
-  ) {
-    return this.projectManagementService.moveToRecycleBin(id, user);
-  }
-
-  @Post(':id/restore')
-  restoreFromRecycleBin(
-    @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser | undefined,
-  ) {
-    return this.projectManagementService.restoreFromRecycleBin(id, user);
-  }
-
   @Post(':id/terminate')
   terminate(
     @Param('id') id: string,

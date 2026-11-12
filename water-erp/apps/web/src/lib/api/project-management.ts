@@ -368,17 +368,9 @@ export async function selectOfficialTender(
   return parseJsonResponse<{ stageId: string; round: number; officialTenderAttachmentId: string; fileName: string }>(response);
 }
 
-export async function moveProjectToRecycleBin(projectId: string) {
-  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/recycle`, {
-    method: 'POST',
-    credentials: 'include',
-  });
-
-  return parseJsonResponse<ProjectManagementItem>(response);
-}
-
 /** 项目终止（2026-09-20）：填终止原因，项目进入「已终止」只读列表并写入台账 CANCELLED 轮次；
- *  notify 由用户选择：none=不发送 | accepted=通知已确认参与的供应商 | all=通知全部受邀供应商 */
+ *  notify 由用户选择：none=不发送 | accepted=通知已确认参与的供应商 | all=通知全部受邀供应商。
+ *  2026-11-12 §9：终止是唯一收尾入口，移除只发生在已终止卡片上（deleteProjectPermanently）。 */
 export async function terminateProject(projectId: string, reason: string, notify: 'none' | 'accepted' | 'all' = 'none') {
   const response = await apiFetch(`${API_BASE}/project-management/${projectId}/terminate`, {
     method: 'POST',
@@ -388,15 +380,6 @@ export async function terminateProject(projectId: string, reason: string, notify
   });
 
   return parseJsonResponse<ProjectManagementItem & { notifiedCount?: number }>(response);
-}
-
-export async function restoreProjectFromRecycleBin(projectId: string) {
-  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/restore`, {
-    method: 'POST',
-    credentials: 'include',
-  });
-
-  return parseJsonResponse<ProjectManagementItem>(response);
 }
 
 export async function deleteProjectPermanently(projectId: string) {

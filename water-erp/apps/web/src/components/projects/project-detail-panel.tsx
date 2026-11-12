@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Archive, Award, Ban, Building2, Check, ChevronDown, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileCheck2, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Search, Shield, UploadCloud, UserPlus, X } from 'lucide-react';
+import { AlertTriangle, Archive, Award, Ban, Building2, Check, ChevronDown, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileCheck2, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, RefreshCw, Save, ScrollText, Search, Shield, UploadCloud, UserPlus, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
@@ -253,7 +253,6 @@ export function ProjectDetailPanel({
   item,
   onClose,
   onUpdated,
-  onMoveToRecycleBin,
   onTerminate,
   canModify = true,
   currentUsername,
@@ -263,7 +262,6 @@ export function ProjectDetailPanel({
   item: ProjectManagementItem;
   onClose: () => void;
   onUpdated: () => Promise<void>;
-  onMoveToRecycleBin: (projectId: string) => Promise<void>;
   onTerminate?: (projectId: string, reason: string, notify: 'none' | 'accepted' | 'all') => Promise<void>;
   canModify?: boolean;
   currentUsername?: string;
@@ -947,20 +945,8 @@ export function ProjectDetailPanel({
     }
   };
 
-  const moveToRecycleBin = async () => {
-    setSubmitting(true);
-    setErrorMessage(null);
-    try {
-      await onMoveToRecycleBin(item.id);
-      onClose();
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : '移除项目失败。');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   // 项目终止：填终止原因，项目进「已终止」只读列表 + 台账 CANCELLED 轮次
+  //（2026-11-12 §9：终止是详情面板唯一收尾动作；移除改在已终止卡片上操作）
   const [terminateOpen, setTerminateOpen] = useState(false);
   const [terminateReason, setTerminateReason] = useState('');
   const [terminateNotify, setTerminateNotify] = useState<'none' | 'accepted' | 'all'>('none');
@@ -1192,13 +1178,8 @@ export function ProjectDetailPanel({
                 }}
               />
               {!actionsDisabled && (
-                <button type="button" onClick={() => setTerminateOpen(true)} disabled={submitting || uploading} className="neu-btn-soft">
+                <button type="button" onClick={() => setTerminateOpen(true)} disabled={submitting || uploading} className="neu-btn-soft is-danger">
                   <Ban size={16} />项目终止
-                </button>
-              )}
-              {!actionsDisabled && (
-                <button type="button" onClick={() => void moveToRecycleBin()} disabled={submitting || uploading} className="neu-btn-soft is-danger">
-                  <Recycle size={16} />移除项目
                 </button>
               )}
               <button type="button" onClick={onClose} className="neu-btn-soft">
@@ -1279,7 +1260,7 @@ export function ProjectDetailPanel({
                 <div className="mt-2 flex items-center gap-1.5 border-t border-[color-mix(in_oklch,var(--danger)_15%,transparent)] pt-2 text-[11px] text-[var(--muted-foreground)]">
                   <span className="font-semibold">终止时所在阶段：</span>
                   <span>{item.terminatedStage}</span>
-                  <span className="ml-auto text-[var(--muted-foreground)]">终止不可恢复，仅供查阅；如需清理记录，可在项目列表·已移出区操作；如需继续采购请重新建立项目</span>
+                  <span className="ml-auto text-[var(--muted-foreground)]">终止不可恢复，仅供查阅；如需移除记录，可在项目列表·已终止区的卡片上操作；如需继续采购请重新建立项目</span>
                 </div>
               )}
             </div>

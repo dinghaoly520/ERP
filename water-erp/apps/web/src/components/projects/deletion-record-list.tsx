@@ -7,21 +7,23 @@ function fmtDate(value?: string | null) {
   return value ? new Date(value).toLocaleDateString('zh-CN') : '—';
 }
 
-/** 「已彻底删除」节（spec 2026-11-12 §3.2-3）：紧凑只读行，无任何操作按钮；
- *  空列表不渲染（空态隐藏节标题）。 */
-export function DeletionRecordList({ records }: { records: ProjectDeletionRecord[] }) {
+/** 移除记录只读行（spec 2026-11-12 §9）：无任何操作按钮；空列表不渲染。
+ *  弹层内使用时传 showHeader={false}（标题由弹层承担）。 */
+export function DeletionRecordList({ records, showHeader = true }: { records: ProjectDeletionRecord[]; showHeader?: boolean }) {
   if (records.length === 0) return null;
 
   return (
     <section className="space-y-3">
-      <div className="flex items-center gap-2">
-        <FileX2 size={14} className="text-[color:var(--muted-foreground)]" />
-        <h3 className="text-[13px] font-bold tracking-[0.02em] text-[color:var(--foreground)]">
-          已彻底删除
-        </h3>
-        <span className="neu-segment-count">{records.length}</span>
-        <span className="text-xs text-[color:var(--muted-foreground)]">数据已清，记录永存</span>
-      </div>
+      {showHeader ? (
+        <div className="flex items-center gap-2">
+          <FileX2 size={14} className="text-[color:var(--muted-foreground)]" />
+          <h3 className="text-[13px] font-bold tracking-[0.02em] text-[color:var(--foreground)]">
+            移除记录
+          </h3>
+          <span className="neu-segment-count">{records.length}</span>
+          <span className="text-xs text-[color:var(--muted-foreground)]">数据已清，记录永存</span>
+        </div>
+      ) : null}
       <div className="wb-panel divide-y divide-[oklch(0.6_0.04_258/0.12)] overflow-hidden">
         {records.map((r) => (
           <div key={r.id} className="grid gap-x-6 gap-y-1 px-4 py-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
@@ -39,8 +41,8 @@ export function DeletionRecordList({ records }: { records: ProjectDeletionRecord
               </div>
             </div>
             <div className="text-xs tabular-nums text-[color:var(--muted-foreground)]">
-              <div>移入回收：{fmtDate(r.recycledAt)}</div>
-              <div>彻底删除：{fmtDate(r.deletedAt)}</div>
+              {r.recycledAt ? <div>移入回收：{fmtDate(r.recycledAt)}</div> : null}
+              <div>移除时间：{fmtDate(r.deletedAt)}</div>
             </div>
             <div className="text-xs text-[color:var(--muted-foreground)] sm:text-right">
               操作人：{r.deletedByName}

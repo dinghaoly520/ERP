@@ -1579,105 +1579,13 @@ describe('ProjectManagementService', () => {
     });
   });
 
-  it('restores a recycled project back to active status', async () => {
-    const { service, prisma } = makeService();
-
-    prisma.projectManagementItem.findUnique.mockResolvedValue({
-      id: 'pm-01',
-      status: 'RECYCLED',
-    });
-    prisma.projectManagementItem.update.mockResolvedValue({
-      id: 'pm-01',
-      status: 'ACTIVE',
-    });
-
-    await expect(service.restoreFromRecycleBin('pm-01')).resolves.toMatchObject(
-      {
-        id: 'pm-01',
-        status: 'ACTIVE',
-      },
-    );
-
-    expect(prisma.projectManagementItem.update).toHaveBeenCalledWith({
-      where: { id: 'pm-01' },
-      // 恢复时同时清空回收时间（3 年保留期起算字段，不能沿用旧值）
-      data: { status: 'ACTIVE', recycledAt: null },
-    });
-  });
-
-  describe('moveToRecycleBin 状态与投标闸（spec 2026-11-12 §4.2）', () => {
+  describe('deletePermanently 终版（spec 2026-11-12 §9：直删留痕+四闸）', () => {
     const USER = { sub: 'u-1', username: '张三', role: 'staff' } as any;
 
-    it('TERMINATED 项目放行——终态清理通道（裁定 #2 前置）', async () => {
-      const { service, prisma } = makeService();
-      prisma.projectManagementItem.findUnique.mockResolvedValue({ id: 'pm-01', status: 'TERMINATED', createdById: 'u-1' });
-      prisma.bidProject.findMany.mockResolvedValue([]);
-      prisma.projectManagementItem.update.mockResolvedValue({ id: 'pm-01', status: 'RECYCLED' });
-
-      await expect(service.moveToRecycleBin('pm-01', USER)).resolves.toMatchObject({ status: 'RECYCLED' });
-      expect(prisma.projectManagementItem.update).toHaveBeenCalledWith({
-        where: { id: 'pm-01' },
-        data: expect.objectContaining({ status: 'RECYCLED' }),
-      });
-    });
-
-    it('ARCHIVED 项目拒收——已完成不可清理（裁定 #1）', async () => {
-      const { service, prisma } = makeService();
-      prisma.projectManagementItem.findUnique.mockResolvedValue({ id: 'pm-01', status: 'ARCHIVED', createdById: 'u-1' });
-
-      await expect(service.moveToRecycleBin('pm-01', USER)).rejects.toThrow(BadRequestException);
-      expect(prisma.projectManagementItem.update).not.toHaveBeenCalled();
-    });
-
-    it('关联投标项目活动态 → 409 BID_IN_PROGRESS（P2-2 收口）', async () => {
-      const { service, prisma } = makeService();
-      prisma.projectManagementItem.findUnique.mockResolvedValue({ id: 'pm-01', status: 'ACTIVE', createdById: 'u-1' });
-      prisma.bidProject.findMany.mockResolvedValue([{ name: '测试投标项目', stage: 'OPENING' }]);
-
-      await expect(service.moveToRecycleBin('pm-01', USER)).rejects.toMatchObject({
-        response: { code: 'BID_IN_PROGRESS' },
-      });
-      expect(prisma.projectManagementItem.update).not.toHaveBeenCalled();
-    });
-
-    it('RECYCLED 幂等——直接返回不重写 recycledAt', async () => {
-      const { service, prisma } = makeService();
-      prisma.projectManagementItem.findUnique.mockResolvedValue({ id: 'pm-01', status: 'RECYCLED', createdById: 'u-1' });
-
-      await expect(service.moveToRecycleBin('pm-01', USER)).resolves.toMatchObject({ status: 'RECYCLED' });
-      expect(prisma.projectManagementItem.update).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('restoreFromRecycleBin 三向按戳推断（spec 2026-11-12 §4.3）', () => {
-    const USER = { sub: 'u-1', username: '张三', role: 'staff' } as any;
-
-    it.each([
-      ['terminatedAt 戳 → 回到 TERMINATED（终止记录不复活为进行中）', { terminatedAt: new Date('2026-10-01') }, 'TERMINATED'],
-      ['archivedAt 戳 → 回到 ARCHIVED（放行集收紧前的存量兜底）', { archivedAt: new Date('2026-09-01') }, 'ARCHIVED'],
-      ['无戳 → 回到 ACTIVE（建错移除的撤回）', {}, 'ACTIVE'],
-    ])('%s', async (_name, stamps, expected) => {
-      const { service, prisma } = makeService();
-      prisma.projectManagementItem.findUnique.mockResolvedValue({
-        id: 'pm-01', status: 'RECYCLED', createdById: 'u-1', ...stamps,
-      });
-      prisma.projectManagementItem.update.mockResolvedValue({ id: 'pm-01', status: expected });
-
-      await expect(service.restoreFromRecycleBin('pm-01', USER)).resolves.toMatchObject({ status: expected });
-      expect(prisma.projectManagementItem.update).toHaveBeenCalledWith({
-        where: { id: 'pm-01' },
-        data: { status: expected, recycledAt: null },
-      });
-    });
-  });
-
-  describe('deletePermanently 留痕+附件卫生+台账轮次连带（spec 2026-11-12 §4.4/§5）', () => {
-    const USER = { sub: 'u-1', username: '张三', role: 'staff' } as any;
-    const FOUR_YEARS_AGO = new Date(Date.now() - 4 * 365 * 86400000);
-
+    // 直删路径：TERMINATED 项目从已终止卡片移除，无 recycledAt（暂存态已废除）
     const BASE_PROJECT = {
-      id: 'pm-01', status: 'RECYCLED', createdById: 'u-1',
-      archiveExportedAt: null, recycledAt: FOUR_YEARS_AGO,
+      id: 'pm-01', status: 'TERMINATED', createdById: 'u-1',
+      archiveExportedAt: null, recycledAt: null,
       title: '已终止的测试项目', projectCode: 'TP-2026-01',
       requesterName: '李四', requesterDepartment: '采购中心',
       procurementMethod: '公开招标', budgetAmount: 100000,
@@ -1696,9 +1604,10 @@ describe('ProjectManagementService', () => {
       prisma.procurementRound.findUnique.mockResolvedValue({ id: 'round-1', roundNo: 2, projectId: 'proj-1' });
       prisma.projectManagementStage.findMany.mockResolvedValue([{ id: 'st-1' }]);
       prisma.attachment.findMany.mockResolvedValue([{ objectKey: 'a/b.pdf' }, { objectKey: 'c/d.docx' }]);
+      prisma.bidProject.findMany.mockResolvedValue([]);
     };
 
-    it('写墓碑留痕：项目快照 + 终止人/操作人 displayName + 轮次号', async () => {
+    it('TERMINATED 直删：写墓碑留痕（快照 + displayName + 轮次号 + recycledAt 恒 null）', async () => {
       const { service, prisma } = makeService();
       makeReady(prisma);
       await service.deletePermanently('pm-01', USER);
@@ -1715,7 +1624,7 @@ describe('ProjectManagementService', () => {
           terminationReason: '需求取消',
           terminatedByName: '王五',
           terminatedRoundNo: 2,
-          recycledAt: FOUR_YEARS_AGO,
+          recycledAt: null,
           deletedByName: '张三',
         }),
       });
@@ -1758,7 +1667,7 @@ describe('ProjectManagementService', () => {
       expect(unlinkMock).toHaveBeenCalledTimes(2);
     });
 
-    it('无轮次项目（建错直删）不触碰 procurementRound', async () => {
+    it('无轮次项目不触碰 procurementRound', async () => {
       const { service, prisma } = makeService();
       makeReady(prisma);
       prisma.projectManagementItem.findUnique.mockResolvedValue({
@@ -1772,6 +1681,49 @@ describe('ProjectManagementService', () => {
       expect(prisma.projectDeletionRecord.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ terminatedRoundNo: null, terminatedByName: null }),
       });
+    });
+
+    it('ACTIVE 项目拒删——引导先终止（裁定 #4：移除只发生在已终止）', async () => {
+      const { service, prisma } = makeService();
+      makeReady(prisma);
+      prisma.projectManagementItem.findUnique.mockResolvedValue({ ...BASE_PROJECT, status: 'ACTIVE' });
+
+      await expect(service.deletePermanently('pm-01', USER)).rejects.toMatchObject({
+        response: { message: '进行中项目请先终止后再移除。' },
+      });
+      expect(prisma.projectManagementItem.delete).not.toHaveBeenCalled();
+    });
+
+    it('ARCHIVED 项目拒删——已完成不可移除（裁定 #1 延续）', async () => {
+      const { service, prisma } = makeService();
+      makeReady(prisma);
+      prisma.projectManagementItem.findUnique.mockResolvedValue({ ...BASE_PROJECT, status: 'ARCHIVED' });
+
+      await expect(service.deletePermanently('pm-01', USER)).rejects.toMatchObject({
+        response: { message: '已完成项目不可移除。' },
+      });
+    });
+
+    it('ASIP 已导出禁删（归档移交绝对红线）', async () => {
+      const { service, prisma } = makeService();
+      makeReady(prisma);
+      prisma.projectManagementItem.findUnique.mockResolvedValue({
+        ...BASE_PROJECT, archiveExportedAt: new Date('2026-11-01'),
+      });
+
+      await expect(service.deletePermanently('pm-01', USER)).rejects.toMatchObject({ status: 409 });
+      expect(prisma.projectManagementItem.delete).not.toHaveBeenCalled();
+    });
+
+    it('关联投标活动态 → 409 BID_IN_PROGRESS（防御闸）', async () => {
+      const { service, prisma } = makeService();
+      makeReady(prisma);
+      prisma.bidProject.findMany.mockResolvedValue([{ name: '测试投标项目', stage: 'OPENING' }]);
+
+      await expect(service.deletePermanently('pm-01', USER)).rejects.toMatchObject({
+        response: { code: 'BID_IN_PROGRESS' },
+      });
+      expect(prisma.projectManagementItem.delete).not.toHaveBeenCalled();
     });
   });
 
