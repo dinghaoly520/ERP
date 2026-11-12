@@ -1262,8 +1262,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                       setHistoryOpen(false);
                       toast.success(`已恢复 ${entry.label} 版本`);
                     }}
-                    className="w-full text-left rounded-[12px] px-3.5 py-3 transition hover:ring-1 hover:ring-[var(--accent)]/30"
-                    style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}
+                    className="w-full rounded-[12px] bg-[#f4f7fc] px-3.5 py-3 text-left shadow-[inset_0_1px_0_oklch(1_0_0_/_0.8),2px_2px_5px_oklch(0.55_0.03_258_/_0.12),-1px_-1px_3px_oklch(1_0_0_/_0.9)] transition-all duration-200 hover:-translate-y-px hover:shadow-[inset_0_1px_0_oklch(1_0_0_/_0.9),3px_3px_7px_oklch(0.55_0.03_258_/_0.16),-2px_-2px_5px_oklch(1_0_0_/_0.95)] hover:ring-1 hover:ring-[var(--accent)]/40 active:translate-y-0 active:shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258_/_0.15),inset_-1px_-1px_4px_oklch(1_0_0_/_0.7)]"
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-[13px] font-semibold text-[color:var(--foreground)]">{entry.label}</span>
