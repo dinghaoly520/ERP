@@ -2744,6 +2744,32 @@ model AttachmentVersion {
 
 // ── 项目管理（全生命周期）──
 
+// ── 删除留痕（spec 2026-11-12 §5）：彻底删除 PMI 时的墓碑记录。写入仅在 deletePermanently
+// 事务内，无独立写端点、无删除端点=天然不可删（对齐 OperationLog 归档哲学）──
+model ProjectDeletionRecord {
+  id                  String    @id @default(cuid())
+  projectId           String // 被删 PMI 原 id（留痕定位，非外键）
+  title               String
+  projectCode         String?
+  requesterName       String
+  requesterDepartment String
+  procurementMethod   String
+  budgetAmount        Decimal?  @db.Decimal(14, 2)
+  companyId           String?
+  companyName         String? // 写时快照
+  createdById         String? // 原创建人（staff 可见性=本人留痕，对齐 list() 口径）
+  terminatedAt        DateTime?
+  terminationReason   String?
+  terminatedStage     String?
+  terminatedByName    String? // displayName 快照
+  terminatedRoundNo   Int? // 被连带删除的台账轮次号
+  recycledAt          DateTime?
+  deletedAt           DateTime  @default(now())
+  deletedByName       String // 操作人 displayName 快照
+
+  @@index([companyId, deletedAt])
+}
+
 model ProjectManagementItem {
   id                           String                      @id @default(cuid())
   title                        String
