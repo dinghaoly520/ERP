@@ -395,12 +395,6 @@ export function ProjectManagementPage() {
                 <span className="text-sm text-[color:var(--muted-foreground)]">正在加载项目...</span>
               </div>
             </div>
-          ) : displayItems.length === 0 ? (
-            <div className="wb-panel p-4">
-              <div className="flex flex-col items-center justify-center py-12">
-                <div className="text-[0.9rem] font-semibold text-[rgba(96,139,239,0.4)]">暂无项目</div>
-              </div>
-            </div>
           ) : activeTab === 'terminated' ? (
             /* 已终止区（spec 2026-11-12 §9 终版）：单一数据=终止的项目；卡片可开只读详情；
                创建人可「移除」=立即彻底删除+移除记录；节头右侧「移除记录」按钮弹层 */
@@ -419,45 +413,56 @@ export function ProjectManagementPage() {
                   移除记录{deletionRecords.length > 0 ? `（${deletionRecords.length}）` : ''}
                 </button>
               </div>
-              <div className="grid gap-4 xl:grid-cols-2">
-                {displayItems.map((item) => (
-                  <ProjectCard
-                    key={item.id}
-                    item={item}
-                    variant="terminated"
-                    cornerAction={
-                      canModifyProject(item) ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setCleanupTarget(item);
-                          }}
-                          disabled={removingId === item.id}
-                          className="neu-btn-soft is-danger !h-7 !px-2.5 !text-[11px]"
-                        >
-                          {removingId === item.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                          {removingId === item.id ? '移除中...' : '移除'}
-                        </button>
-                      ) : undefined
-                    }
-                    onOpen={() => {
-                      setSelectedItemId(item.id);
-                      setPageContext({
-                        selectedItemId: item.id,
-                        selectedItemType: 'project',
-                        selectedItemData: {
-                          title: item.title,
-                          currentStage: item.currentStage,
-                          status: item.status,
-                          requesterDepartment: item.requesterDepartment,
-                        },
-                      });
-                    }}
-                  />
-                ))}
-              </div>
+              {/* 空列表不影响节头（2026-11-12 用户裁定）：移除记录按钮恒在——记录是永存的，与当前有无终止项目无关 */}
+              {displayItems.length === 0 ? (
+                <div className="wb-panel p-4 text-sm text-[color:var(--muted-foreground)]">暂无已终止项目</div>
+              ) : (
+                <div className="grid gap-4 xl:grid-cols-2">
+                  {displayItems.map((item) => (
+                    <ProjectCard
+                      key={item.id}
+                      item={item}
+                      variant="terminated"
+                      cornerAction={
+                        canModifyProject(item) ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCleanupTarget(item);
+                            }}
+                            disabled={removingId === item.id}
+                            className="neu-btn-soft is-danger !h-7 !px-2.5 !text-[11px]"
+                          >
+                            {removingId === item.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                            {removingId === item.id ? '移除中...' : '移除'}
+                          </button>
+                        ) : undefined
+                      }
+                      onOpen={() => {
+                        setSelectedItemId(item.id);
+                        setPageContext({
+                          selectedItemId: item.id,
+                          selectedItemType: 'project',
+                          selectedItemData: {
+                            title: item.title,
+                            currentStage: item.currentStage,
+                            status: item.status,
+                            requesterDepartment: item.requesterDepartment,
+                          },
+                        });
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
             </section>
+          ) : displayItems.length === 0 ? (
+            <div className="wb-panel p-4">
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="text-[0.9rem] font-semibold text-[rgba(96,139,239,0.4)]">暂无项目</div>
+              </div>
+            </div>
           ) : companyViewAll ? (
             <div className="space-y-5">
               {companyGroups.map((g) => (
