@@ -10,6 +10,7 @@ import { Prisma } from '@prisma/client';
 import { sealPii, openPii, blindIndexPii } from '../common/crypto/sm-field-crypto';
 import { AiService } from '../ai/ai.service';
 import { BidGateway } from '../bid/bid.gateway';
+import { BidService } from '../bid/bid.service';
 import { NotificationService } from '../notification/notification.service';
 import { PlaintextFetcherService, BidderFileType } from '../ai-bid-analysis/services/plaintext-fetcher.service';
 import { BatchScoreDto } from './dto/batch-score.dto';
@@ -87,6 +88,8 @@ export class ExpertService {
     @Optional() private readonly gateway?: BidGateway,
     @Optional() private readonly notificationService?: NotificationService,
     @Optional() @Inject('REDIS_CLIENT') private readonly redis?: Redis,
+    /** B5（2026-11-12）：废标复议推翻路径的结果失效联动（ExpertModule 已 import BidModule，单向无环） */
+    @Optional() private readonly bidService?: BidService,
   ) {}
 
   /* 个人资料 */
@@ -3122,9 +3125,116 @@ export class ExpertService {
       else result = 'tie_deadlock'; // 组长未投票或弃权——保留平票，须人工介入
     }
 
-    return this.prisma.bidMotion.update({
-      where: { id: motionId },
-      data: { status: 'closed', result, closedAt: new Date() },
+    // B5（2026-11-12）：invalid_bid 动议——裁定联动废标状态（维持留痕 / 推翻恢复 / 平票维持现状）
+    let invalidBid: {
+      id: string; supplierId: string; status: string; failCount: number; totalCount: number;
+      supplier?: { supplierName: string } | null;
+    } | null = null;
+    if (motion.type === 'invalid_bid') {
+      invalidBid = await this.prisma.bidInvalidBid.findFirst({
+        where: { motionId: motion.id },
+        include: { supplier: { select: { supplierName: true } } },
+      });
+      if (invalidBid && result === 'rejected') {
+        // 事务前预检：推翻废标撞已闭环签字包 → 整个裁定无法落地（spec §10 闭环不可更正）。
+        // 文案转译：private helper 的 409 是从「废标清除结果」方向写的，此处是推翻方向。
+        const packet = await this.prisma.bidSignPacket.findUnique({
+          where: { projectId: motion.projectId },
+          select: { closedAt: true },
+        });
+        if (packet?.closedAt) {
+          throw new ConflictException({
+            error: '推翻废标与已闭环签字包冲突——已签字的评标结果曾把该供应商排除在外；请走数据修正流程重开签字包后再行裁定',
+            code: 'SIGN_PACKET_CLOSED',
+          });
+        }
+      }
+    }
+
+    const abstains = motion.votes.filter(v => v.vote === 'abstain').length;
+    const closedMotion = await this.prisma.$transaction(async (tx) => {
+      if (invalidBid) {
+        await this.applyInvalidBidRuling(tx, motion.projectId, result, invalidBid!, expert, { approves, rejects, abstains });
+      }
+      return tx.bidMotion.update({
+        where: { id: motionId },
+        data: { status: 'closed', result, closedAt: new Date() },
+      });
+    });
+
+    // 推翻后置动作（事务已提交）：WS 广播 revoked + 全员进度分母恢复（镜像 submitScores revoke 路径）
+    if (invalidBid && result === 'rejected') {
+      try {
+        this.gateway?.notifyBidValidity?.(motion.projectId, {
+          supplierId: invalidBid.supplierId,
+          supplierName: invalidBid.supplier?.supplierName,
+          failCount: invalidBid.failCount,
+          totalCount: invalidBid.totalCount,
+          status: 'revoked',
+        });
+      } catch { /* 推送失败不影响裁定 */ }
+      try {
+        await recomputeAllExpertsProgress(this.prisma, motion.projectId);
+      } catch (e) {
+        this.logger.error('推翻废标后全体专家进度重算失败（不阻塞裁定主流程）', e instanceof Error ? e.message : String(e));
+      }
+    }
+    return closedMotion;
+  }
+
+  /** B5（2026-11-12）：invalid_bid 裁定三路落地（closeMotion 事务内）：
+   *  approved→维持废标仅留痕；rejected→复用 revoke 语义（H2 使权威重算自动不计该项失败票）
+   *  +bidValidity 聚合重算 + 结果失效联动；tie_deadlock→维持现状留痕（组长可重发动议）。 */
+  private async applyInvalidBidRuling(
+    tx: { bidInvalidBid: { update: (a: any) => Promise<unknown>; count: (a: any) => Promise<number> }; bidSupplier: { update: (a: any) => Promise<unknown> }; bidSupervisionLog: { create: (a: any) => Promise<unknown> } },
+    projectId: string,
+    result: string,
+    invalidBid: { id: string; supplierId: string; failCount: number; totalCount: number; supplier?: { supplierName: string } | null },
+    operator: { userId: string },
+    tally: { approves: number; rejects: number; abstains: number },
+  ): Promise<void> {
+    const counts = `赞成 ${tally.approves}/反对 ${tally.rejects}/弃权 ${tally.abstains}`;
+    const supplierName = invalidBid.supplier?.supplierName ?? invalidBid.supplierId;
+    if (result === 'approved') {
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '评标委员会', target: supplierName,
+          action: '废标复议表决：维持废标', result: `${counts}——依据委员会表决，废标维持`, riskFlag: '高',
+        },
+      });
+      return;
+    }
+    if (result === 'rejected') {
+      await tx.bidInvalidBid.update({
+        where: { id: invalidBid.id },
+        data: { status: 'revoked', revokedAt: new Date(), revokedBy: operator.userId },
+      });
+      const otherInvalid = await tx.bidInvalidBid.count({
+        where: { projectId, supplierId: invalidBid.supplierId, status: 'invalid', id: { not: invalidBid.id } },
+      });
+      await tx.bidSupplier.update({
+        where: { id: invalidBid.supplierId },
+        data: { bidValidity: otherInvalid > 0 ? 'invalid' : 'valid' },
+      });
+      // 已生成的评标结果曾把该供应商排除——作废重生成（无结果时 helper no-op；
+      // 未闭环签字包一并失效重置，闭环包已被上方预检 409 挡住）
+      if (this.bidService?.invalidateResultsForRuling) {
+        await this.bidService.invalidateResultsForRuling(tx, projectId, supplierName);
+      }
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '评标委员会', target: supplierName,
+          action: '废标复议表决：推翻废标，恢复参评资格', result: `${counts}——已恢复该供应商参评资格；如评标结果此前已生成将一并作废，请重新生成`, riskFlag: '高',
+        },
+      });
+      return;
+    }
+    // tie_deadlock：无状态写，维持废标现状（安全网在），须组长重新召集表决（B3 允许重发）
+    await tx.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '评标委员会', target: supplierName,
+        action: '废标复议表决平票未决', result: `${counts}——组长未投票或弃权，维持废标现状，须重新召集表决`, riskFlag: '高',
+      },
     });
   }
 

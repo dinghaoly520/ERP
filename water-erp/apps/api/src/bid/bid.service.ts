@@ -5086,6 +5086,12 @@ export class BidService {
    * 未闭环签字包删除并重置全员签字状态（快照与结果分叉）；闭环包抛 409 SIGN_PACKET_CLOSED
    * （spec §10 闭环后不可更正，由外层事务回滚保证废标本身不生效）。无结果时不触碰结果/签字包。
    */
+  /** B5（2026-11-12）：废标复议推翻路径复用（ExpertService 经 DI 调用）——与异议裁决/手动废标同口径：
+   *  无结果时 no-op；未闭环签字包随结果作废并重置签字状态；已闭环包 409 在调用方事务内回滚。 */
+  async invalidateResultsForRuling(tx: any, projectId: string, targetName: string): Promise<void> {
+    return this.invalidateEvaluationResultsAndPacket(tx, projectId, targetName);
+  }
+
   private async invalidateEvaluationResultsAndPacket(tx: any, projectId: string, targetName: string): Promise<void> {
     const existingResults = await tx.bidEvaluationResult.count({ where: { projectId } });
     if (existingResults === 0) return;
