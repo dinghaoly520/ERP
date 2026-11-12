@@ -2116,7 +2116,10 @@ export class BidService {
     for (const s of pending) {
       if (!s.supplierId) continue; // 未关联账户 → 无信封提交记录（守卫继续阻塞，主持人人工处置）
       const sub = subBySupplier.get(s.supplierId);
-      if (!sub || sub.envelopeVersion !== 'dual-v2') continue; // 旧轨沿用现行语义，不自动归因
+      // bug#126（2026-11-12）：dual- 家族全量入扫掠——原写死 !== 'dual-v2' 把 dual-v3 整体跳过，
+      // v3 供应商永不落 UNKNOWN → 解密过点后点裁决恒 400「无待裁决归因」（与横幅指引矛盾）。
+      // v3 与 v2 的 outerDecryptedAt/packageFetchedAt 语义同轨（bid-decrypt.service v3 叠加 fence 同字段）。
+      if (!sub || !sub.envelopeVersion?.startsWith('dual-')) continue; // 旧轨沿用现行语义，不自动归因
 
       if (!sub.outerDecryptedAt || !sub.packageFetchedAt) {
         // 矩阵行 1/2：管理方未解外层 / 供应商未取包——无法区分原因，只置 UNKNOWN（非终局态）

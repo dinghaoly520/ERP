@@ -4638,6 +4638,24 @@ describe('BidService — 解密失败归因矩阵（Task 15, §5.5）——裁�
     }));
   });
 
+  it('bug#126（2026-11-12）：dual-v3 信封同入扫掠——未解未取包也置 UNKNOWN，不再恒 400 无待裁决归因', async () => {
+    prisma.bidOpeningSession.findUnique.mockResolvedValue({ decryptWindowEnd: WINDOW_ENDED });
+    prisma.bidSupplier.findMany
+      .mockResolvedValueOnce([{ id: 'bs1', supplierId: 's1', supplierName: '丙公司' }])
+      .mockResolvedValue([{ supplierName: '丙公司', supplierId: 's1', submitStatus: '已提交', decryptStatus: 'PENDING', confirmStatus: 'PENDING' }]);
+    prisma.supplierBidSubmission.findMany.mockResolvedValue([
+      // dual-v3（11-05 转正）：外层未解/包未取——此前 :2119 写死 !== 'dual-v2' 整体跳过，永不 UNKNOWN
+      { supplierId: 's1', status: 'submitted', envelopeVersion: 'dual-v3', outerDecryptedAt: null, packageFetchedAt: null },
+    ]);
+    prisma.bidSupplier.updateMany.mockResolvedValue({ count: 1 });
+
+    await expect(runGuard()).rejects.toMatchObject({ response: { code: 'OPENING_NOT_DONE' } });
+    expect(prisma.bidSupplier.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: 'bs1', decryptStatus: 'PENDING' }),
+      data: { dangerAttribution: 'UNKNOWN' },
+    }));
+  });
+
   it('矩阵行 3：外层已解且已取包未完成解密 → BIDDER 终局 + 权利告知通知（守卫放行）', async () => {
     prisma.bidOpeningSession.findUnique.mockResolvedValue({ decryptWindowEnd: WINDOW_ENDED });
     prisma.bidSupplier.findMany
