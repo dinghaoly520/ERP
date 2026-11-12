@@ -3137,6 +3137,10 @@ export class ExpertService {
       where: { userId, projectId: motion.projectId },
     });
     if (!expert) throw new ForbiddenException({ error: '不是该项目评审专家', code: 'NOT_PROJECT_EXPERT' });
+    // 成员闸 A（2026-11-12 终审收尾）：与签到/评分/报告确认同构——候补递补前、
+    // 已婉拒正选均非评标委员会成员，其票不得进入法定表决（pending 维持既有宽容口径）
+    this.assertRegularExpert(expert, '参与表决');
+    this.assertInvitationActive(expert, '参与表决');
     await this.assertRoomUnlocked(motion.projectId, userId); // 动议表决属评标过程写操作，口令闸不可绕过
 
     const existing = await this.prisma.bidVote.findUnique({ where: { motionId_expertId: { motionId, expertId: expert.id } } });
@@ -3153,7 +3157,10 @@ export class ExpertService {
     const motion = await this.prisma.bidMotion.findUnique({
       where: { id: motionId },
       include: { votes: true, project: { select: { experts: {
-        where: { expertRole: '正选' },
+        // 分母对齐（2026-11-12 终审收尾）：委员会投票权集合 = 正选 ∧ 未婉拒——
+        // declined 正选不再占 quorum 分母（与 panelSize/expectedVoters 的 confirmed 口径同向），
+        // 该集合同时是结算过滤 B 的有效票判定源
+        where: { expertRole: '正选', invitationStatus: { not: 'declined' } },
         select: { id: true, isLead: true },
       } } } },
     });
@@ -3170,15 +3177,19 @@ export class ExpertService {
     if (!expert.isLead && motion.createdBy !== expert.id)
       throw new ForbiddenException({ error: '仅评审组长或动议发起人可结束投票', code: 'NOT_AUTHORIZED' });
 
-    const approves = motion.votes.filter(v => v.vote === 'approve').length;
-    const rejects = motion.votes.filter(v => v.vote === 'reject').length;
+    // 结算过滤 B（2026-11-12 终审收尾）：非正选/已婉拒专家的存量票不计入
+    // quorum 与多数——其票面仍留档（BidVote 不删），但不得左右裁定结果
+    const voterIds = new Set(motion.project.experts.map(e => e.id));
+    const eligibleVotes = motion.votes.filter(v => voterIds.has(v.expertId));
+    const approves = eligibleVotes.filter(v => v.vote === 'approve').length;
+    const rejects = eligibleVotes.filter(v => v.vote === 'reject').length;
     const totalVoters = motion.project.experts.length;
 
-    // 常量门槛——须过半数正选专家投票方可结束（防 1 票草率结案）
+    // 常量门槛——须过半数正选专家投票方可结束（防 1 票草率结案；按有效票计）
     const quorum = Math.floor(totalVoters / 2) + 1;
-    if (motion.votes.length < quorum) {
+    if (eligibleVotes.length < quorum) {
       throw new BadRequestException({
-        error: `投票人数不足（${motion.votes.length}/${totalVoters}），须至少 ${quorum} 人投票方可结束`,
+        error: `投票人数不足（${eligibleVotes.length}/${totalVoters}），须至少 ${quorum} 人投票方可结束`,
         code: 'QUORUM_NOT_MET',
       });
     }
@@ -3226,7 +3237,7 @@ export class ExpertService {
       }
     }
 
-    const abstains = motion.votes.filter(v => v.vote === 'abstain').length;
+    const abstains = eligibleVotes.filter(v => v.vote === 'abstain').length;
     const closedMotion = await this.prisma.$transaction(async (tx) => {
       if (invalidBid) {
         await this.applyInvalidBidRuling(tx, motion.projectId, result, invalidBid!, expert, { approves, rejects, abstains });

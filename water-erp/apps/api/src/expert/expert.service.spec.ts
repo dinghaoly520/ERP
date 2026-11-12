@@ -81,6 +81,7 @@ describe('ExpertService', () => {
       bidScoreDelta: { upsert: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       expertDispute: { findFirst: jest.fn(), create: jest.fn(), findMany: jest.fn() },
       bidMotion: { findMany: jest.fn(), findUnique: jest.fn(), create: jest.fn(), update: jest.fn().mockResolvedValue({}) },
+      bidVote: { findUnique: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}) },
       bidSignPacket: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}) },
       expertCert: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn().mockResolvedValue({}), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
@@ -1751,6 +1752,64 @@ describe('ExpertService', () => {
         expect(prisma.bidInvalidBid.update).toHaveBeenCalledWith(expect.objectContaining({
           data: expect.objectContaining({ status: 'revoked' }),
         }));
+      });
+
+      it('castVote 成员闸 A：候补专家 → 403 SUBSTITUTE_EXPERT（与签到/评分/报告确认同构）', async () => {
+        prisma.bidMotion.findUnique.mockResolvedValue({ id: 'm-1', projectId: 'p1', status: 'voting' });
+        prisma.bidExpert.findFirst.mockResolvedValue({ id: 'sub-1', userId: 'u-sub', expertRole: '候补', invitationStatus: 'confirmed' });
+
+        await expect(service.castVote('u-sub', 'm-1', 'approve'))
+          .rejects.toMatchObject({ response: { code: 'SUBSTITUTE_EXPERT' } });
+        expect(prisma.bidVote.create).not.toHaveBeenCalled();
+      });
+
+      it('castVote 成员闸 A：已婉拒正选 → 403 EXPERT_DECLINED（2026-10-27 裁定同口径）', async () => {
+        prisma.bidMotion.findUnique.mockResolvedValue({ id: 'm-1', projectId: 'p1', status: 'voting' });
+        prisma.bidExpert.findFirst.mockResolvedValue({ id: 'e9', userId: 'u-decl', expertRole: '正选', invitationStatus: 'declined' });
+
+        await expect(service.castVote('u-decl', 'm-1', 'approve'))
+          .rejects.toMatchObject({ response: { code: 'EXPERT_DECLINED' } });
+        expect(prisma.bidVote.create).not.toHaveBeenCalled();
+      });
+
+      it('castVote 成员闸 A：pending 正选维持放行（英雄项目种子=正选 pending 既有宽容口径）', async () => {
+        prisma.bidMotion.findUnique.mockResolvedValue({ id: 'm-1', projectId: 'p1', status: 'voting' });
+        prisma.bidExpert.findFirst.mockResolvedValue({ id: 'e8', userId: 'u-pend', expertRole: '正选', invitationStatus: 'pending' });
+        prisma.bidVote.findUnique.mockResolvedValue(null);
+        prisma.bidVote.create.mockResolvedValue({});
+
+        await expect(service.castVote('u-pend', 'm-1', 'abstain')).resolves.toBeTruthy();
+      });
+
+      it('结算过滤 B：候补票不计多数——剔除后平票走组长决定票，结果翻转', async () => {
+        // 正选 3 人（lead+e2+e3，quorum=2）；票面：e2 reject、候补X reject、lead approve
+        // 不过滤：2 reject > 1 approve → rejected（推翻废标）；过滤后：1:1 平票 → lead 决定票 approve → approved
+        mockMotion([
+          { expertId: 'e2', vote: 'reject' },
+          { expertId: 'sub-x', vote: 'reject' },   // 候补票（不在正选集合）
+          { expertId: 'exp-lead', vote: 'approve' },
+        ]);
+
+        await service.closeMotion('user-lead', 'm-1');
+
+        expect(prisma.bidMotion.update).toHaveBeenCalledWith(expect.objectContaining({
+          data: expect.objectContaining({ result: 'approved' }),   // 若未剔候补票此处应为 rejected
+        }));
+        // 留痕计数只数正选有效票：approve 1（lead）/ reject 1（e2）/ 弃权 0 —— 候补 reject 不进计数
+        expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
+          data: expect.objectContaining({ result: expect.stringContaining('赞成 1/反对 1/弃权 0') }),
+        }));
+      });
+
+      it('quorum 按有效票计：候补票不凑法定人数（2 票含 1 候补 < 门槛 2 → QUORUM_NOT_MET）', async () => {
+        mockMotion([
+          { expertId: 'e2', vote: 'approve' },
+          { expertId: 'sub-x', vote: 'approve' },  // 候补票不可凑数
+        ]);
+
+        await expect(service.closeMotion('user-lead', 'm-1'))
+          .rejects.toMatchObject({ response: { code: 'QUORUM_NOT_MET' } });
+        expect(prisma.bidMotion.update).not.toHaveBeenCalled();
       });
 
       it('Final-Minor②：closed 动议重复 close → 400 MOTION_NOT_VOTING，零状态写', async () => {
