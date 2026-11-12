@@ -1,4 +1,5 @@
 import type {
+  ProjectDeletionRecord,
   ProjectDetailAnalysis,
   ProjectManagementAttachment,
   ProjectManagementItem,
@@ -405,6 +406,19 @@ export async function deleteProjectPermanently(projectId: string) {
   });
 
   return parseJsonResponse<{ success: true }>(response);
+}
+
+/** 删除留痕列表（spec 2026-11-12 §4.5）：deletedAt 倒序最近 200 条，前端本地搜索 */
+export async function fetchDeletionRecords(companyId?: string) {
+  const params = new URLSearchParams();
+  if (companyId && companyId !== 'all') params.set('companyId', companyId);
+  const query = params.toString() ? `?${params.toString()}` : '';
+  const response = await apiFetch(`${API_BASE}/project-management/deletion-records${query}`, {
+    credentials: 'include',
+    cache: 'no-store',
+  });
+
+  return parseJsonResponse<ProjectDeletionRecord[]>(response);
 }
 
 export async function analyzeProjectManagementItem(

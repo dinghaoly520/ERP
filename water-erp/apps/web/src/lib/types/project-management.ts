@@ -166,6 +166,28 @@ export type ProjectManagementStage = {
 
 export type ProjectManagementItemStatus = 'ACTIVE' | 'ARCHIVED' | 'RECYCLED' | 'TERMINATED';
 
+/** 彻底删除留痕（墓碑）——spec 2026-11-12 §5。后端 deletedAt 倒序最近 200 条。 */
+export interface ProjectDeletionRecord {
+  id: string;
+  projectId: string;
+  title: string;
+  projectCode?: string | null;
+  requesterName: string;
+  requesterDepartment: string;
+  procurementMethod: string;
+  budgetAmount?: number | null;
+  companyId?: string | null;
+  companyName?: string | null;
+  terminatedAt?: string | null;
+  terminationReason?: string | null;
+  terminatedStage?: string | null;
+  terminatedByName?: string | null;
+  terminatedRoundNo?: number | null;
+  recycledAt?: string | null;
+  deletedAt: string;
+  deletedByName: string;
+}
+
 export const PROJECT_MANAGEMENT_STATUS_LABELS: Record<ProjectManagementItemStatus, string> = {
   ACTIVE: '进行中',
   ARCHIVED: '已归档',
