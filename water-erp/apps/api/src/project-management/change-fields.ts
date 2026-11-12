@@ -24,8 +24,8 @@ export const CHANGE_FIELD_GROUPS = [
     fields: [
       { field: 'title', label: '项目名称', kind: 'text', target: 'PMI' },
       { field: 'procurementCategory', label: '采购类别', kind: 'text', target: 'PMI' },
-      { field: 'procurementMethod', label: '采购方式', kind: 'text', target: 'PMI' },
-      { field: 'budgetAmount', label: '预算金额', kind: 'number', target: 'PMI' },
+      // 采购方式/预算金额已移出可变更范围（2026-11-12 用户裁定）——方式调整走再次采购流，
+      // 预算调整立项侧管控；服务端 findFieldGroup 白名单同步拒绝
       { field: 'requesterName', label: '需求人', kind: 'text', target: 'PMI' },
       { field: 'requesterDepartment', label: '需求部门', kind: 'text', target: 'PMI' },
       { field: 'projectOverview', label: '项目概况', kind: 'text', target: 'PMI' },

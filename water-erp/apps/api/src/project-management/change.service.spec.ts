@@ -87,11 +87,11 @@ describe('ProjectChangeService.register', () => {
 
   it('成功：轮次自增 + PMI 落库 + diff 留痕（label/from/to/stageKey）+ 操作人 displayName', async () => {
     const { prisma, svc } = mk({ maxRound: 2 });
-    const r = await svc.register('p1', 'u1', '张三', { type: 'CHANGE', reason: '需求调整', fields: { title: '新名', budgetAmount: 200 } });
+    const r = await svc.register('p1', 'u1', '张三', { type: 'CHANGE', reason: '需求调整', fields: { title: '新名', procurementCategory: '服务' } });
     expect(r.record.round).toBe(3);
     expect(prisma.projectManagementItem.update).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: 'p1' },
-      data: expect.objectContaining({ title: '新名', budgetAmount: 200 }),
+      data: expect.objectContaining({ title: '新名', procurementCategory: '服务' }),
     }));
     const created = prisma.projectChangeRecord.create.mock.calls[0][0].data;
     expect(created.round).toBe(3);
@@ -99,7 +99,7 @@ describe('ProjectChangeService.register', () => {
     expect(created.operatorName).toBe('张三');
     expect(created.changeset).toEqual(expect.arrayContaining([
       expect.objectContaining({ field: 'title', label: '项目名称', from: '原名', to: '新名', stageKey: 'PROCUREMENT_DEMAND' }),
-      expect.objectContaining({ field: 'budgetAmount', label: '预算金额', from: '100', to: '200' }),
+      expect.objectContaining({ field: 'procurementCategory', label: '采购类别', from: '货物', to: '服务' }),
     ]));
     expect(r.needsAnnouncement).toBe(false);
   });
