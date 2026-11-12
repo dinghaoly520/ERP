@@ -198,7 +198,7 @@ export function TenderHistoryDialog({
 
         <div className="mt-4 shrink-0">
           <p className="mb-3 text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">
-            点击「应用」即可恢复该条草稿内容。草稿与历史版本已同步至服务器，同一账号在任何设备登录均保持一致。
+            点击「应用」即可恢复该条草稿内容。
           </p>
           <div className="flex justify-end gap-2">
             {records.length > 0 && (

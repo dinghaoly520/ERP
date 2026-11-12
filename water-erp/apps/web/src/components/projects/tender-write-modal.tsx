@@ -1305,7 +1305,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                 ))}
               </div>
             )}
-            <p className="text-[11px] text-[color:var(--muted-foreground)] mb-3">点击「应用」即可恢复该条草稿内容。草稿与历史版本已同步至服务器，同一账号在任何设备登录均保持一致。</p>
+            <p className="text-[11px] text-[color:var(--muted-foreground)] mb-3">点击「应用」即可恢复该条草稿内容。</p>
             <div className="flex justify-end gap-2">
               {historyEntries.length > 0 && (
                 <button type="button" onClick={() => { const pid = project?.id; if (pid) { void clearProjectTenderDraftVersions(pid, round).catch(() => {}); saveDraftHistory(pid, round, []); setHistoryEntries([]); toast.success('已清空历史记录'); } }} className="neu-btn-xs is-danger">清空历史</button>
