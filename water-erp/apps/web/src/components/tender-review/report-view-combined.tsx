@@ -320,9 +320,10 @@ export default function ReportViewCombined({ task: initialTask, onBack, hideBack
             onClick={handleDownload}
             disabled={!hasModifications}
             className="neu-btn-xs gap-1.5"
+            title="下载已采纳修改建议的采购文件（docx）"
           >
             <Download className="h-3 w-3" />
-            导出
+            导出修订文件
           </button>
           <button
             onClick={() => void handleDownloadPdf()}
