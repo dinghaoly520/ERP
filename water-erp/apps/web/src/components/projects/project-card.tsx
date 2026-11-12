@@ -20,10 +20,14 @@ export function ProjectCard({
   item,
   onOpen,
   variant = 'active',
+  cornerAction,
 }: {
   item: ProjectManagementItem;
   onOpen: () => void;
   variant?: 'active' | 'archived' | 'terminated';
+  /** 卡片右上角操作位（状态徽标上方，如已终止卡的「移除」按钮）——调用方须自行
+   *  stopPropagation 防触发 onOpen。根节点因此为 div[role=button]（按钮嵌按钮不合法）。 */
+  cornerAction?: React.ReactNode;
 }) {
   // 轮次口径（2026-10-26 流标再采适配）：进度与阶段行一律限当前轮——两轮平铺会把
   // 第 1 轮的完成数灌进第 2 轮分母，阶段行不带 round 还会命中第 1 轮旧行（方式变更
@@ -41,10 +45,17 @@ export function ProjectCard({
   const currentStageColor = STAGE_COLOR[currentStage?.stageKey ?? ''] ?? 'var(--accent)';
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onOpen}
-      className="neu-card group relative w-full p-5 text-left"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+      className="neu-card group relative w-full cursor-pointer p-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
@@ -85,9 +96,13 @@ export function ProjectCard({
           </div>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-3 py-1 text-[11px] font-semibold text-[color:var(--accent)] transition-colors duration-200 group-hover:bg-[color-mix(in_oklch,var(--accent)_18%,transparent)]">
-            {PROJECT_MANAGEMENT_STATUS_LABELS[item.status]}
-          </span>
+          {cornerAction}
+          {/* 已终止卡右上角不放状态徽标（2026-11-12 用户裁定）——底部横栏已有「已终止·原因·日期」，避免重复 */}
+          {variant !== 'terminated' && (
+            <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-3 py-1 text-[11px] font-semibold text-[color:var(--accent)] transition-colors duration-200 group-hover:bg-[color-mix(in_oklch,var(--accent)_18%,transparent)]">
+              {PROJECT_MANAGEMENT_STATUS_LABELS[item.status]}
+            </span>
+          )}
         </div>
       </div>
       <div className="mt-4 grid gap-2 text-sm text-[color:var(--muted-foreground)] sm:grid-cols-2">
@@ -148,6 +163,6 @@ export function ProjectCard({
           </div>
         </div>
       )}
-    </button>
+    </div>
   );
 }

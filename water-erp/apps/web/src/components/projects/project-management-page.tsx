@@ -422,38 +422,40 @@ export function ProjectManagementPage() {
               </div>
               <div className="grid gap-4 xl:grid-cols-2">
                 {displayItems.map((item) => (
-                  <div key={item.id} className="space-y-2">
-                    <ProjectCard
-                      item={item}
-                      variant="terminated"
-                      onOpen={() => {
-                        setSelectedItemId(item.id);
-                        setPageContext({
-                          selectedItemId: item.id,
-                          selectedItemType: 'project',
-                          selectedItemData: {
-                            title: item.title,
-                            currentStage: item.currentStage,
-                            status: item.status,
-                            requesterDepartment: item.requesterDepartment,
-                          },
-                        });
-                      }}
-                    />
-                    {canModifyProject(item) && (
-                      <div className="flex justify-end">
+                  <ProjectCard
+                    key={item.id}
+                    item={item}
+                    variant="terminated"
+                    cornerAction={
+                      canModifyProject(item) ? (
                         <button
                           type="button"
-                          onClick={() => setCleanupTarget(item)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCleanupTarget(item);
+                          }}
                           disabled={removingId === item.id}
-                          className="neu-btn-soft is-danger !h-8 !text-xs"
+                          className="neu-btn-soft is-danger !h-7 !px-2.5 !text-[11px]"
                         >
-                          {removingId === item.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                          {removingId === item.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
                           {removingId === item.id ? '移除中...' : '移除'}
                         </button>
-                      </div>
-                    )}
-                  </div>
+                      ) : undefined
+                    }
+                    onOpen={() => {
+                      setSelectedItemId(item.id);
+                      setPageContext({
+                        selectedItemId: item.id,
+                        selectedItemType: 'project',
+                        selectedItemData: {
+                          title: item.title,
+                          currentStage: item.currentStage,
+                          status: item.status,
+                          requesterDepartment: item.requesterDepartment,
+                        },
+                      });
+                    }}
+                  />
                 ))}
               </div>
             </section>
