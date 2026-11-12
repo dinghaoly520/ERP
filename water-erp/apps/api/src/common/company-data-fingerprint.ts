@@ -29,18 +29,29 @@ export function insightCacheKey(
   return `${namespace}:${normalizeCompanyScope(companyId)}${range}`;
 }
 
-/** 公司数据版本指纹（变更探测器，非全量等价）：轮次/PMI 项目/供应商归属链接的
- *  count+max(updatedAt) 聚合按公司集过滤——任一表数据变动指纹即变 */
-export async function companyDataFingerprint(prisma: PrismaService, companyId?: string | null): Promise<string> {
+/** 指纹变体：full=三表（进度洞察——PMI 写入也该重分析）；ledger=仅台账表
+ *  （数据库/综合分析——2026-11-12 用户裁定「数据库的数据只和台账内容有关」：
+ *  变更登记等 PMI 写入不得使其失效，只查台账不查 PMI/归属链接） */
+export type InsightFingerprintVariant = 'full' | 'ledger';
+
+/** 公司数据版本指纹（变更探测器，非全量等价）：按公司集过滤的 count+max(updatedAt)
+ *  聚合——变体内任一表数据变动指纹即变 */
+export async function companyDataFingerprint(
+  prisma: PrismaService,
+  companyId?: string | null,
+  variant: InsightFingerprintVariant = 'full',
+): Promise<string> {
   const scope = normalizeCompanyScope(companyId);
   const companyFilter = scope === 'all' ? {} : { companyId: { in: scope.split(',') } };
-  const [rounds, items, links] = await Promise.all([
-    prisma.procurementRound.aggregate({ where: companyFilter, _count: true, _max: { updatedAt: true } }),
+  const rounds = await prisma.procurementRound.aggregate({ where: companyFilter, _count: true, _max: { updatedAt: true } });
+  const segR = `r${rounds._count}@${rounds._max.updatedAt?.toISOString() ?? '-'}`;
+  if (variant === 'ledger') return segR;
+  const [items, links] = await Promise.all([
     prisma.projectManagementItem.aggregate({ where: companyFilter, _count: true, _max: { updatedAt: true } }),
     prisma.supplierCompanyLink.aggregate({ where: companyFilter, _count: true, _max: { updatedAt: true } }),
   ]);
   return [
-    `r${rounds._count}@${rounds._max.updatedAt?.toISOString() ?? '-'}`,
+    segR,
     `p${items._count}@${items._max.updatedAt?.toISOString() ?? '-'}`,
     `s${links._count}@${links._max.updatedAt?.toISOString() ?? '-'}`,
   ].join('|');
@@ -53,10 +64,11 @@ export async function readInsightCache<T = unknown>(
   companyId?: string | null,
   startDate?: string,
   endDate?: string,
+  variant: InsightFingerprintVariant = 'full',
 ): Promise<{ hit: true; fingerprint: string; result: T; generatedAt: string } | { hit: false; fingerprint: string }> {
   const key = insightCacheKey(namespace, companyId, startDate, endDate);
   const [fingerprint, row] = await Promise.all([
-    companyDataFingerprint(prisma, companyId),
+    companyDataFingerprint(prisma, companyId, variant),
     prisma.systemConfig.findUnique({ where: { key } }),
   ]);
   if (row) {
@@ -78,9 +90,10 @@ export async function writeInsightCache(
   result: unknown,
   startDate?: string,
   endDate?: string,
+  variant: InsightFingerprintVariant = 'full',
 ): Promise<void> {
   const key = insightCacheKey(namespace, companyId, startDate, endDate);
-  const fingerprint = await companyDataFingerprint(prisma, companyId);
+  const fingerprint = await companyDataFingerprint(prisma, companyId, variant);
   const value = JSON.stringify({ fingerprint, result, generatedAt: new Date().toISOString() });
   await prisma.systemConfig.upsert({ where: { key }, update: { value }, create: { key, value } });
 }

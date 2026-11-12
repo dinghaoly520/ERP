@@ -2535,7 +2535,8 @@ stageMatch 字段需要输出两部分判断结果：
   async getDashboardAnalysisCache(user: AuthenticatedUser | undefined, companyId = 'all', startDate?: string, endDate?: string) {
     const scopeKey = await this.dashCacheScopeKey(user, companyId);
     if (scopeKey === null) return { hit: false as const, fingerprint: '' };
-    return readInsightCache(this.prisma, AiService.DASH_INSIGHT_NS, scopeKey, startDate, endDate);
+    // ledger 变体（2026-11-12 用户裁定：数据库只与台账内容有关——PMI 写入不失效）
+    return readInsightCache(this.prisma, AiService.DASH_INSIGHT_NS, scopeKey, startDate, endDate, 'ledger');
   }
 
   /** 生成成功后落存：键由登录人 scope 派生（admin=选择器；非 admin=本公司）；
@@ -2547,7 +2548,7 @@ stageMatch 字段需要输出两部分判断结果：
   ) {
     const scopeKey = await this.dashCacheScopeKey(user, payload.companyId);
     if (scopeKey === null) return;
-    await writeInsightCache(this.prisma, AiService.DASH_INSIGHT_NS, scopeKey, result, payload.startDate, payload.endDate);
+    await writeInsightCache(this.prisma, AiService.DASH_INSIGHT_NS, scopeKey, result, payload.startDate, payload.endDate, 'ledger');
   }
 
   /** 采购台账 AI 分析 */

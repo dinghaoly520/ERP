@@ -15,7 +15,8 @@ import { CompanyScopeService } from '../company/company-scope';
 describe('AiService 仪表盘分析缓存', () => {
   let service: AiService;
   let prisma: any;
-  const FP = 'r7@2026-11-10T00:00:00.000Z|p3@-|s2@-';
+  // 2026-11-12 用户裁定：数据库指纹走 ledger 变体（仅台账表）——PMI/归属链接段不再入指纹
+  const FP = 'r7@2026-11-10T00:00:00.000Z';
   const RESULT = { overview: '总评', highlights: ['亮点'], concerns: [], suggestions: [] };
   const ADMIN = { sub: 'u-admin', role: 'admin', username: 'a' } as never;
   const STAFF = { sub: 'u-staff', role: 'staff', username: 's' } as never;
