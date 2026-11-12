@@ -38,6 +38,12 @@ export function ChatPanel({ projectId, supplierId, supplierName: _supplierName, 
   const [stageClosed, setStageClosed] = useState(() => !!stage && stage !== "OPENING");
   // 会话闸：初值按传入 sessionReady 判定（页面 getProject.openingSession），组建成功经 onOpeningStarted 翻转
   const [sessionOpen, setSessionOpen] = useState(sessionReady);
+  // props→state 同步（2026-11-12 bug#138）：本组件常在 project 加载完成前挂载（页面 supplierId
+  // 先就绪即渲染），上面两个一次性 useState 初值会把 project=null 时的 false 锁死——已组建会话
+  // 恒显「尚未组建」。与 WS 单向翻转同向无回翻冲突：会话只建不删（sessionReady 恒单调升）、
+  // 阶段单向棘轮（stage 离开 OPENING 只进不退）。
+  useEffect(() => { setSessionOpen(sessionReady); }, [sessionReady]);
+  useEffect(() => { setStageClosed(!!stage && stage !== "OPENING"); }, [stage]);
   const hydratedRef = useRef(false); // R3：首次加载完成后才在重连时做 REST 补齐
   const wasConnectedRef = useRef(false); // R3：区分首连与断线重连——首连的补齐由挂载 hydrate 覆盖，不重复拉取
   const listEl = useRef<HTMLDivElement | null>(null);
