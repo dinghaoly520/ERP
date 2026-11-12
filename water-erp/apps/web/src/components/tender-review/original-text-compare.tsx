@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { BookOpen, FileText, MapPin } from 'lucide-react';
 
 interface OriginalTextCompareProps {
   documentExcerpt?: string;
@@ -46,13 +47,13 @@ export default function OriginalTextCompare({
   return (
     <div>
       <div className="text-xs font-semibold text-[var(--muted-foreground)] mb-2 flex items-center gap-1.5">
-        📄 原文对照
+        <FileText size={12} /> 原文对照
       </div>
       <div className="flex flex-col gap-3">
         {docText && (
           <div className="rounded-xl bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] border-l-[3px] border-[var(--accent)] p-3">
-            <div className="text-[11px] font-semibold text-[var(--accent)] mb-1.5">
-              📍 被审文件 · {docSource}
+            <div className="text-[11px] font-semibold text-[var(--accent)] mb-1.5 flex items-center gap-1">
+              <MapPin size={11} /> 被审文件 · {docSource}
             </div>
             <div className="text-xs text-[var(--muted-foreground)] leading-relaxed">
               &ldquo;{docExpanded ? docText : docText.slice(0, TRUNCATE_LENGTH) + (docText.length > TRUNCATE_LENGTH ? '...' : '')}&rdquo;
@@ -69,8 +70,8 @@ export default function OriginalTextCompare({
         )}
         {kbText && (
           <div className="rounded-xl bg-[color-mix(in_oklch,var(--success)_4%,transparent)] border-l-[3px] border-[var(--success)] p-3">
-            <div className="text-[11px] font-semibold text-[var(--success)] mb-1.5">
-              📖 对应条款 · {kbSource}
+            <div className="text-[11px] font-semibold text-[var(--success)] mb-1.5 flex items-center gap-1">
+              <BookOpen size={11} /> 对应条款 · {kbSource}
             </div>
             <div className="text-xs text-[var(--muted-foreground)] leading-relaxed">
               &ldquo;{kbExpanded ? kbText : kbText.slice(0, TRUNCATE_LENGTH) + (kbText.length > TRUNCATE_LENGTH ? '...' : '')}&rdquo;

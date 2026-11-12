@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Upload } from 'lucide-react';
+import { Lock, Upload } from 'lucide-react';
 import { uploadBidDocument, updateBidDocumentConfig, confirmBidDocPayment, removeBidDocument } from '@/lib/api/announcement';
 import type { BidDocumentManage } from '@/lib/api/announcement';
 import { UploadProgressRow } from '@/components/upload/upload-progress-row';
@@ -127,7 +127,7 @@ export function BidDocEditSection({ annId, bidDoc, onChanged, ensureAnnId, headi
         /* 已上传状态 */
         <div className="mt-3 space-y-3">
           <div className="flex items-center justify-between rounded-[8px] bg-[var(--surface)] px-3 py-2 shadow-[inset_0_1px_0_oklch(1_0_0/0.5),1px_1px_2px_oklch(0.55_0.03_258/0.05),-1px_-1px_1px_oklch(1_0_0/0.6)]">
-            <div className="min-w-0"><p className="break-words text-[0.85rem] font-bold text-[var(--foreground)] leading-snug">🔒 {bidDoc.title}</p><p className="text-[11px] text-[var(--muted-foreground)]">{bidDoc.fileName} · {(bidDoc.fileSize / 1024).toFixed(0)} KB · {bidDoc.downloadCount} 次</p></div>
+            <div className="min-w-0"><p className="break-words text-[0.85rem] font-bold text-[var(--foreground)] leading-snug"><Lock size={12} className="inline shrink-0" /> {bidDoc.title}</p><p className="text-[11px] text-[var(--muted-foreground)]">{bidDoc.fileName} · {(bidDoc.fileSize / 1024).toFixed(0)} KB · {bidDoc.downloadCount} 次</p></div>
             <button onClick={removeDoc} className="neu-btn-xs is-danger ml-2 shrink-0">删除</button>
           </div>
           <div className="space-y-1.5">
@@ -245,7 +245,7 @@ export function AddendumRefDocSection({ annId, bidDoc, onChanged, ensureAnnId }:
           <div className="flex items-center justify-between gap-2 rounded-[10px] bg-[var(--surface)] px-3 py-2"
             style={{ boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5), 1px 1px 2px oklch(0.55 0.03 258 / 0.05), -1px -1px 1px oklch(1 0 0 / 0.6)' }}>
             <div className="min-w-0">
-              <div className="truncate text-[0.85rem] font-bold text-[var(--foreground)] leading-snug">🔒 {bidDoc.title}</div>
+              <div className="truncate text-[0.85rem] font-bold text-[var(--foreground)] leading-snug"><Lock size={12} className="inline shrink-0" /> {bidDoc.title}</div>
               <div className="text-[11px] text-[var(--muted-foreground)] truncate">{bidDoc.fileName} · {(bidDoc.fileSize / 1024).toFixed(0)} KB · {bidDoc.downloadCount} 次下载</div>
             </div>
             <button type="button" onClick={removeDoc} className="neu-btn-xs is-danger shrink-0">删除</button>

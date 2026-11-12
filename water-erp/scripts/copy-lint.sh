@@ -47,7 +47,7 @@ RULES=(
   'U3|规则兜底|LLM 综合|幂等|回滚|透传|[\p{Han}\d] payloadHash|（payloadHash）|payloadHash（|schema=[a-z]'
   'U4|」tab|\p{Han} tab \p{Han}'
   'U5|（EXCEPTION）'
-  'U6|🔓|⚠|✅|⬜|✏|⭐'
+  'U6|🔓|⚠|✅|⬜|✏|⭐|⏳|🔒|📢|📭|📩|🏆|📎|📄|📍|📖|💬'
   'U7|测试账号|测试: |即将上线'
 )
 
@@ -84,7 +84,7 @@ scan_set() {  # $@=路径；报告直印，脏标记置全局 UI_DIRTY
   find "$@" -type f \( -name '*.ts' -o -name '*.tsx' \) \
     ! -path '*/node_modules/*' ! -path '*/dist/*' ! -path '*/.next/*' \
     ! -name '*.spec.ts' ! -name '*.spec.tsx' ! -path '*/__tests__/*' ! -path '*/test/*' \
-    ! -path '*/.superpowers/*' 2>/dev/null | xargs -r -d '\n' awk "$AWK_FILTER" 2>/dev/null > /tmp/copylint-lines.$$
+    ! -path '*/.superpowers/*' ! -path '*/.claude/*' 2>/dev/null | xargs -r -d '\n' awk "$AWK_FILTER" 2>/dev/null > /tmp/copylint-lines.$$
   if [[ -s /tmp/copylint-lines.$$ ]]; then
     for entry in "${RULES[@]}"; do
       label="${entry%%|*}"; pattern="${entry#*|}"

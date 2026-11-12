@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { sortByCompanyName } from '@water-erp/shared';
-import { Building2, ChevronDown, Eye, Megaphone, Search } from 'lucide-react';
+import { Building2, ChevronDown, Eye, Loader2, Megaphone, Search, TriangleAlert } from 'lucide-react';
 import { fetchPublicAnnouncements, ANNOUNCEMENT_TABS, type AnnouncementItem } from '@/lib/announcements';
 import { UnifiedHeader } from '@/components/unified-header';
 import { FlowBackdrop } from '@/components/flow-stage';
@@ -166,19 +166,19 @@ function AnnouncementsContent() {
         {/* 列表 */}
         {loading ? (
           <div className="glass rounded-2xl p-16 text-center">
-            <div className="text-5xl mb-4">⏳</div>
-            <p className="text-[#5a6d8a] font-semibold">正在加载公告...</p>
+            <Loader2 size={40} className="mb-4 animate-spin text-[#5a6d8a]" />
+            <p className="text-[#5a6d8a] font-semibold">正在加载公告…</p>
           </div>
         ) : loadFailed ? (
           <div className="glass rounded-2xl p-16 text-center flex flex-col items-center gap-3">
-            <div className="text-5xl mb-1">⚠️</div>
+            <TriangleAlert size={40} className="mb-1 text-[#5a6d8a]" />
             <p className="text-[#5a6d8a] font-semibold">公告加载失败</p>
             <p className="text-xs text-[#8a96aa]">网络或服务暂时不可用，请稍后重试</p>
             <button onClick={() => setReloadTick(t => t + 1)} className="neu-btn-soft">重新加载</button>
           </div>
         ) : visibleItems.length === 0 ? (
           <div className="glass rounded-2xl p-16 text-center">
-            <div className="text-5xl mb-4">📢</div>
+            <Megaphone size={40} className="mb-4 text-[#5a6d8a]" />
             <p className="text-[#5a6d8a] font-semibold mb-1">暂无相关公告</p>
             <p className="text-xs text-[#8a96aa]">试试切换分类、筛选发布单位或调整搜索关键词</p>
           </div>
