@@ -679,11 +679,14 @@ export function AnnouncementDialog({
       }
     }
     if (wanted('registrationMethod')) {
+      // 值尾去句号（2026-11-12，与预览 stripTrailingPeriod 同裁定）：join 后模板统一收尾「。」，
+      // 值自带尾句号会拼出「。。」（实录：钻机采购要求见附件一。。）
+      const strip = (v: string) => v.trim().replace(/。+$/, '');
       const parts: string[] = [];
       const reqs = project.supplierRequirements?.trim() || tenderRecord.qualificationRequirements?.trim();
-      if (reqs) parts.push(`供应商资格条件：${reqs}`);
+      if (reqs) parts.push(`供应商资格条件：${strip(reqs)}`);
       const materials = tenderRecord.requiredDocuments?.trim();
-      if (materials) parts.push(`报名材料：${materials}`);
+      if (materials) parts.push(`报名材料：${strip(materials)}`);
       if (parts.length > 0) patch.registrationMethod = `${parts.join('；')}。`;
     }
     if (Object.keys(patch).length > 0) {
