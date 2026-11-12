@@ -4,12 +4,16 @@ import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { AssignedHostGuard } from './assigned-host.guard';
+import { BidCompanyScopeGuard } from './bid-company-scope.guard';
 import { BidSignPacketService } from './bid-sign-packet.service';
 import { RegisterSignDto, ReopenSignPacketDto } from './dto/bid-sign-packet.dto';
 
 @ApiTags('开评标管理·评标签字')
 @ApiCookieAuth('token')
 @Controller('bid/projects/:id/sign-packet')
+// 公司隔离（#115 审查发现）：对齐 BidController 全部 projects/:id/* 口径——证据包含签字扫描件/
+// 评标结果/监督时间线，跨公司内部角色不得拉取（admin/:3007 被指派人由守卫内豁免）
+@UseGuards(BidCompanyScopeGuard)
 export class BidSignPacketController {
   constructor(private readonly service: BidSignPacketService) {}
 

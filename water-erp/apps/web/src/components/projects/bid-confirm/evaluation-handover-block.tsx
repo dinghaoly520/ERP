@@ -106,13 +106,13 @@ export function EvaluationHandoverBlock({ bidProjectId, detail }: Props) {
         <div className="wb-tone-banner wb-tone-banner--success flex-wrap text-xs">
           <PenLine size={13} className="shrink-0 text-[var(--success)]" />
           <span className="font-semibold text-[var(--success)]">评标资料已接收（签字闭环 {signData.packet.closedAt ? new Date(signData.packet.closedAt).toLocaleString('zh-CN') : ''}）</span>
+          {/* #115（2026-11-12 B+）：裸 JSON 是机器通道（下方 HandoverPreview/归档 fetch 消费），
+              人只触达 zip 证据包——attachment 落盘，不再新标签页直开 JSON（与 :3007 评标签字同口径） */}
           <a
-            href={signData.packet.handoverDownloadUrl!}
-            target="_blank"
-            rel="noopener"
+            href={`/api/bid/projects/${bidProjectId}/sign-packet/evidence-zip`}
             className="ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold text-[var(--accent)] hover:underline"
           >
-            <FileCheck size={11} /> 下载评标回流包
+            <FileCheck size={11} /> 下载证据包(zip)
           </a>
         </div>
       )}

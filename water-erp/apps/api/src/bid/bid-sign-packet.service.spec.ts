@@ -888,12 +888,76 @@ describe('BidSignPacketService.buildEvidenceZip — 分目录聚合 + 解包断�
       '05-AI辅助评标/AI报告-2.json',   // 无文件 → 整行 JSON dump（'2' 码位先于 '甲'）
       '05-AI辅助评标/AI报告-甲.docx', // 有 docx 资产 → 保留资产原名取文件
     ]);
-    // CSV 内容断言：监督日志行 + 评标结果（报价元侧直显）
+    // CSV 内容断言：监督日志行 + 评标结果（报价元侧直显）+ UTF-8 BOM（中文 Excel 直开不乱码）
     const logCsv = await zip.file('03-监督时间线/监督日志.csv')!.async('string');
+    expect(logCsv.charCodeAt(0)).toBe(0xfeff);
     expect(logCsv).toContain('"流标"');
     const resultCsv = await zip.file('04-评标结果/评标结果.csv')!.async('string');
+    expect(resultCsv.charCodeAt(0)).toBe(0xfeff);
     expect(resultCsv).toContain('"甲公司"');
     expect(resultCsv).toContain('"10000"');
+  });
+
+  it('CSV 公式注入中和：监督日志 result 含供应商自由文本 =HYPERLINK → 前置单引号', async () => {
+    arrangeClosedProject();
+    (prisma.bidSupervisionLog.findMany as jest.Mock).mockResolvedValue([
+      { time: new Date('2026-10-23T07:00:00Z'), role: '供应商', target: '甲公司', action: '开标异议', result: '=HYPERLINK("http://evil.example","点我")', riskFlag: '中' },
+    ]);
+    const service = makeService();
+    const { buffer } = await service.buildEvidenceZip(projectId);
+    const zip = await JSZip.loadAsync(buffer);
+    const csv = await zip.file('03-监督时间线/监督日志.csv')!.async('string');
+    expect(csv).toContain('\'=HYPERLINK(""http://evil.example""'); // = 开头值被前置 ' 中和（引号翻倍 RFC 4180）
+  });
+
+  it('同名扫描件按目录去重加 (2) 后缀，不静默覆盖（jszip 同名写入只留最后一条）', async () => {
+    arrangeClosedProject();
+    (prisma.bidExpert.findMany as jest.Mock).mockResolvedValue([
+      { expertName: '专家甲', signScanFileId: 'fa-exp1' },
+      { expertName: '专家乙', signScanFileId: 'fa-exp2' },
+    ]);
+    const orig = (prisma.fileAsset.findUnique as jest.Mock).getMockImplementation();
+    (prisma.fileAsset.findUnique as jest.Mock).mockImplementation(async (a: any) => {
+      if (a?.where?.id === 'fa-exp2') {
+        return { id: 'fa-exp2', originalName: '李冷欧-签字.jpg', key: 'k-fa-exp2', sealedPath: null, sealedKey: null, clientEncrypted: false, mimeType: 'image/jpeg' };
+      }
+      return orig!(a);
+    });
+    const service = makeService();
+    const { buffer } = await service.buildEvidenceZip(projectId);
+    const zip = await JSZip.loadAsync(buffer);
+    const names = Object.keys(zip.files).filter(n => n.startsWith('01-'));
+    expect(names).toContain('01-评标签字/李冷欧-签字.jpg');
+    expect(names).toContain('01-评标签字/李冷欧-签字(2).jpg');
+  });
+
+  it('originalName 含路径分隔符 → 白名单化落在预定目录内（zip-slip 防御，CR-06）', async () => {
+    arrangeClosedProject();
+    const orig = (prisma.fileAsset.findUnique as jest.Mock).getMockImplementation();
+    (prisma.fileAsset.findUnique as jest.Mock).mockImplementation(async (a: any) => {
+      const r = await orig!(a);
+      if (a?.where?.id === 'fa-exp1') return { ...r, originalName: '../../evil/签字.jpg' };
+      return r;
+    });
+    const service = makeService();
+    const { buffer } = await service.buildEvidenceZip(projectId);
+    const zip = await JSZip.loadAsync(buffer);
+    const names = Object.keys(zip.files).filter(n => !zip.files[n].dir);
+    expect(names).toContain('01-评标签字/.._.._evil_签字.jpg'); // 分隔符换 _
+    expect(names.every(n => /^0[0-5]-/.test(n))).toBe(true); // 无目录外条目
+  });
+
+  it('sealedPath 有值（旧轨密封缺 sealedKey）防御性跳过，不把密文打进包', async () => {
+    arrangeClosedProject();
+    const orig = (prisma.fileAsset.findUnique as jest.Mock).getMockImplementation();
+    (prisma.fileAsset.findUnique as jest.Mock).mockImplementation(async (a: any) => {
+      const r = await orig!(a);
+      return r ? { ...r, sealedPath: 'sealed/legacy-obj', sealedKey: null } : r;
+    });
+    const service = makeService();
+    const { buffer } = await service.buildEvidenceZip(projectId);
+    const zip = await JSZip.loadAsync(buffer);
+    expect(Object.keys(zip.files).filter(n => !zip.files[n].dir).sort()).toEqual(['03-监督时间线/监督日志.csv', '04-评标结果/评标结果.csv', '05-AI辅助评标/AI报告-2.json']);
   });
 
   it('密封/加密资产防御性跳过，不中断打包', async () => {

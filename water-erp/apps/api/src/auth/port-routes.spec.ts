@@ -45,6 +45,12 @@ describe('checkPortRouteAccess', () => {
       expect(checkPortRouteAccess('GET', '/api/bid/projects/p1/sign-packet', 'web')).toBeNull();
     });
 
+    it('放行证据包 zip 下载（#115 B+：:3005 归档横幅同权下载，仅此一条子路径）', () => {
+      expect(checkPortRouteAccess('GET', '/api/bid/projects/p1/sign-packet/evidence-zip', 'web')).toBeNull();
+      // 其余 sign-packet/ 子路径仍独占 :3007
+      expect(checkPortRouteAccess('GET', '/api/bid/projects/p1/sign-packet/evidence-zip/other', 'web')).toBe('该操作仅在开评标管理端(:3007)可用');
+    });
+
     it('放行共享 bid 路径与 :3005 评标前/后操作', () => {
       for (const path of [
         '/api/bid/projects',
