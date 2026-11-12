@@ -523,7 +523,7 @@ function CompetitiveNegotiationPreview({
             </div>
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>1.时　　间：<PreviewValue value={fmtAcquireTime(draft.documentAcquireTime) ?? ''} placeholder="{{文件获取时间}}" fieldKey="documentAcquireTime" onValueChange={onValueChange} />。</p>
-              <p>2.方　　式：采购人以电子邮件的方式将采购文件发放给所有供应商。</p>
+              <p>2.方　　式：访问https://ssyc.scsfjt.com四川水发集团“蜀水云采·智慧水发”的供应商门户进行注册、查询项目并下载采购文件。</p>
             </div>
           </div>
           <div className="tender-preview-subsection">
@@ -1231,7 +1231,7 @@ function InquiryPurchasePreview({
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>1.时　　间：<PreviewValue value={fmtAcquireTime(draft.documentAcquireTime) ?? ''} placeholder="{{文件获取时间}}" fieldKey="documentAcquireTime" onValueChange={onValueChange} />。</p>
               <p>2.地　　点：<PreviewValue value={draft.contactAddress} placeholder="{{联系人地址}}" fieldKey="contactAddress" onValueChange={onValueChange} /></p>
-              <p>3.方　　式：邮箱发送/现场获取。</p>
+              <p>3.方　　式：访问https://ssyc.scsfjt.com四川水发集团“蜀水云采·智慧水发”的供应商门户进行注册、查询项目并下载采购文件。</p>
               <p>4.售　　价：<PreviewValue value={draft.documentPrice} placeholder="{{采购文件售价}}" fieldKey="documentPrice" onValueChange={onValueChange} />元/份</p>
             </div>
           </div>
@@ -1699,7 +1699,7 @@ function InternalBiddingPreview({
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>1.时　　间：<PreviewValue value={fmtAcquireTime(draft.documentAcquireTime) ?? ''} placeholder="{{文件获取时间}}" fieldKey="documentAcquireTime" onValueChange={onValueChange} />。</p>
               <p>2.地　　点：<PreviewValue value={draft.contactAddress} placeholder="{{联系人地址}}" fieldKey="contactAddress" onValueChange={onValueChange} /></p>
-              <p>3.方　　式：邮箱发送/现场获取。</p>
+              <p>3.方　　式：访问https://ssyc.scsfjt.com四川水发集团“蜀水云采·智慧水发”的供应商门户进行注册、查询项目并下载采购文件。</p>
               <p>4.售　　价：<PreviewValue value={draft.documentPrice} placeholder="{{采购文件售价}}" fieldKey="documentPrice" onValueChange={onValueChange} />元/份</p>
             </div>
           </div>
