@@ -79,3 +79,19 @@ test("CR-09: 归档卷弹窗 api 助手须容错 ok-空响应——不得有无�
   );
   assert.match(volumeModal, /text \? JSON\.parse\(text\) : null/);
 });
+
+test("CR-10: 流标提示条判定须含 abortedAt 臂——对齐后端三臂（联动流标归档行横幅不丢）", () => {
+  const panel = readFileSync(
+    resolve("src/components/projects/project-detail-panel.tsx"),
+    "utf8",
+  );
+  const bidApi = readFileSync(resolve("src/lib/api/bid.ts"), "utf8");
+  const m = panel.match(/const bidAborted =[\s\S]*?;/);
+  assert.ok(m, "bidAborted 判定应存在");
+  assert.match(
+    m[0],
+    /abortedAt/,
+    "bidAborted 判定须含 abortedAt 显式列臂（CR-03 后端三臂的前端镜像，否则联动流标归档行横幅不显示）",
+  );
+  assert.match(bidApi, /abortedAt\?: string \| null/);
+});

@@ -745,9 +745,14 @@ export function ProjectDetailPanel({
   const pastRoundBpRef = isPastRound ? bpRefs.find((r) => r.round === selectedRound) ?? null : null;
   const roundTimeDisplay = (iso: string | null | undefined) =>
     iso ? new Date(iso).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '—';
+  // CR-10（2026-11-12）：三臂对齐后端 reproc 流标闸（project-management.service CR-03）——
+  // abortedAt 显式列臂补齐后，联动流标（note 前缀「项目终止联动流标（」不匹配 startsWith）
+  // 归档后的行横幅不再隐身、再次采购入口可达；前缀启发式臂保留兜存量（列落地前行该列全 null）。
+  const abortedAtMark = currentRoundBp ? bpDetails[currentRoundBp.id]?.abortedAt ?? null : null;
   const bidAborted =
     item.status === 'ACTIVE' &&
     (currentRoundBp?.stage === 'ABORTED' ||
+      !!abortedAtMark ||
       (currentRoundBp?.stage === 'ARCHIVED' && abortedRiskNote.startsWith('流标')));
   useEffect(() => {
     let cancelled = false;
