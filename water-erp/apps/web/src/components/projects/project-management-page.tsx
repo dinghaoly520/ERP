@@ -409,7 +409,6 @@ export function ProjectManagementPage() {
                 <div className="flex items-center gap-2">
                   <h3 className="text-[13px] font-bold tracking-[0.02em] text-[color:var(--foreground)]">已终止项目</h3>
                   <span className="neu-segment-count">{displayItems.length}</span>
-                  <span className="text-xs text-[color:var(--muted-foreground)]">业务结局留痕，只读可查</span>
                 </div>
                 <button
                   type="button"
