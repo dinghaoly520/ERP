@@ -398,7 +398,7 @@ export function ChangeModal({
                             onChange={e => setValues(v => ({ ...v, [f.field]: e.target.value }))}
                           />
                         ) : f.widget === 'datetime-range' ? (
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 overflow-hidden">
                             {(() => {
                               // 已选值（s~e）优先；未动过则回显当前库值（中文区间→选择器值）
                               const cur = (values[f.field] || '').trim();
@@ -407,11 +407,11 @@ export function ChangeModal({
                               else { const r = zhRangeToDatetimeLocal(currentOf(f.field)); s0 = r.start ?? ''; e0 = r.end ?? ''; }
                               return (
                                 <>
-                                  <input type="datetime-local" className="workbench-input"
+                                  <input type="datetime-local" className="workbench-input min-w-0 flex-1"
                                     value={s0 ?? ''}
                                     onChange={e => setValues(v => ({ ...v, [f.field]: `${e.target.value}~${(v[f.field] || '').split('~')[1] ?? e0 ?? ''}` }))} />
                                   <span className="shrink-0 text-xs font-semibold text-[var(--muted-foreground)]">—</span>
-                                  <input type="datetime-local" className="workbench-input"
+                                  <input type="datetime-local" className="workbench-input min-w-0 flex-1"
                                     value={e0 ?? ''}
                                     onChange={e => setValues(v => ({ ...v, [f.field]: `${(v[f.field] || '').split('~')[0] ?? s0 ?? ''}~${e.target.value}` }))} />
                                 </>
