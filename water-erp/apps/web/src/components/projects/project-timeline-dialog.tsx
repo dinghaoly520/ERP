@@ -16,7 +16,7 @@ import { apiFetch } from '@/lib/api/api-fetch';
 type TimelineNode = {
   key: string; label: string; time: string | null; timeEnd?: string | null; source: string;
   tone?: 'danger';
-  group?: { label: string; count: number; time: string | null }[];
+  group?: { label: string; count: number; time: string | null; detail?: string[] }[];
 };
 type TimelineRound = { round: number; nodes: TimelineNode[] };
 type TimelineData = { rounds: TimelineRound[]; currentRound: number };
@@ -100,8 +100,8 @@ function TimelineRoundSection({ r, isCurrent, multiRound }: { r: TimelineRound; 
                 {n.group && (
                   <div className="mt-1.5 space-y-1 rounded-[9px] bg-[oklch(0.972_0.012_258/0.5)] px-2.5 py-1.5 shadow-[inset_1px_1px_3px_oklch(0.55_0.03_258_/_0.08),inset_-1px_-1px_2px_oklch(1_0_0/0.7)]">
                     {n.group.map(g => (
-                      <div key={g.label} className="flex items-baseline justify-between gap-3 text-[11px]">
-                        <span className="font-medium text-[color:var(--foreground)]">{g.label}</span>
+                      <div key={g.label} title={g.detail?.length ? g.detail.join('\n') : undefined} className="flex items-baseline justify-between gap-3 text-[11px]">
+                        <span className="font-medium text-[color:var(--foreground)]">{g.label}{g.detail?.length ? <span className="ml-1 text-[9px] text-[color:var(--muted-foreground)]/70">悬停看每家</span> : null}</span>
                         <span className="flex items-baseline gap-2">
                           <span className="tabular-nums font-bold text-[color:var(--accent-strong)]">{g.count} 家</span>
                           <span className="tabular-nums text-[color:var(--muted-foreground)]">{g.time ? fmt(g.time) : '—'}</span>

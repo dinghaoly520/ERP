@@ -29,7 +29,7 @@ export interface TimelineNode {
   source: string; // 来源模块（展示用）
   tone?: 'danger'; // 红色警示节点（2026-11-13：资料变更）
   /** 组合子项（2026-11-13：供应商参与=拟参与/回执+下载+投递合为一个整体） */
-  group?: { label: string; count: number; time: string | null }[];
+  group?: { label: string; count: number; time: string | null; detail?: string[] }[];
 }
 
 /**
@@ -219,15 +219,15 @@ export class TimelineService {
     const bpIds0 = allBps.map((b) => b.id);
     const [intents0, rsvps0, bidSups0, subs0, letters0, changes0] = await Promise.all([
       bpIds0.length ? this.prisma.supplierBidIntent.findMany({
-        where: { projectId: { in: bpIds0 } }, select: { projectId: true, supplierId: true, confirmedAt: true },
+        where: { projectId: { in: bpIds0 } }, select: { projectId: true, supplierId: true, confirmedAt: true, supplier: { select: { name: true } } },
       }) : Promise.resolve([] as never[]),
       this.prisma.invitationRsvp.findMany({
         where: { projectId: { in: [pmiId, ...bpIds0] }, respondedAt: { not: null } },
-        select: { projectId: true, supplierId: true, respondedAt: true },
+        select: { projectId: true, supplierId: true, supplierName: true, respondedAt: true },
       }),
       bpIds0.length ? this.prisma.bidSupplier.findMany({
         where: { projectId: { in: bpIds0 }, lastDownloadAt: { not: null } },
-        select: { projectId: true, lastDownloadAt: true },
+        select: { projectId: true, supplierName: true, lastDownloadAt: true },
       }) : Promise.resolve([] as never[]),
       bpIds0.length ? this.prisma.supplierBidSubmission.findMany({
         where: { projectId: { in: bpIds0 } }, select: { projectId: true, createdAt: true },
@@ -241,31 +241,59 @@ export class TimelineService {
     ]);
     const bpRoundOf = (pid: string | null): number =>
       pid === pmiId || pid == null ? 1 : (allBps.find((b) => b.id === pid)?.round ?? 1);
-    const activityByRound = new Map<number, { suppliers: Set<string>; latest: string; dl: { n: number; t: string }; sb: { n: number; t: string } }>();
+    /** 悬停明细时刻（2026-11-13 用户裁定 A）：北京时间 M/D HH:mm */
+    const bjShort = (iso: string) => {
+      const b = new Date(new Date(iso).getTime() + 8 * 3600_000); // 恒北京时间（服务器可能 UTC）
+      return `${b.getUTCMonth() + 1}/${b.getUTCDate()} ${String(b.getUTCHours()).padStart(2, '0')}:${String(b.getUTCMinutes()).padStart(2, '0')}`;
+    };
+    type Sub = { label: string; count: number; time: string | null; detail: string[] };
+    const activityByRound = new Map<number, {
+      track: Map<string, { name: string; latest: string }>;
+      dl: Array<{ name: string; t: string }>;
+      sb: Array<{ supplierId: string; t: string }>;
+    }>();
     const touch = (r: number) => {
-      if (!activityByRound.has(r)) activityByRound.set(r, { suppliers: new Set(), latest: '', dl: { n: 0, t: '' }, sb: { n: 0, t: '' } });
+      if (!activityByRound.has(r)) activityByRound.set(r, { track: new Map(), dl: [], sb: [] });
       return activityByRound.get(r)!;
     };
     const maxIso = (a: string, b: string) => (a >= b ? a : b);
-    for (const x of intents0 as Array<{ projectId: string; supplierId: string; confirmedAt: Date }>) {
+    const trackTouch = (a: ReturnType<typeof touch>, supplierId: string, name: string, t: string) => {
+      const cur = a.track.get(supplierId) ?? { name, latest: '' };
+      cur.name = cur.name || name;
+      cur.latest = maxIso(cur.latest, t);
+      a.track.set(supplierId, cur);
+    };
+    for (const x of intents0 as Array<{ projectId: string; supplierId: string; confirmedAt: Date; supplier?: { name: string } }>) {
       const a = touch(bpRoundOf(x.projectId));
-      a.suppliers.add(x.supplierId);
-      a.latest = maxIso(a.latest, toIso(x.confirmedAt) ?? '');
+      trackTouch(a, x.supplierId, x.supplier?.name ?? '', toIso(x.confirmedAt) ?? '');
     }
-    for (const x of rsvps0 as Array<{ projectId: string | null; supplierId: string; respondedAt: Date | null }>) {
+    for (const x of rsvps0 as Array<{ projectId: string | null; supplierId: string; supplierName?: string; respondedAt: Date | null }>) {
+      if (!x.respondedAt) continue; // 双保险：mock 绕过 where 时纯通知行不计
       const a = touch(bpRoundOf(x.projectId));
-      a.suppliers.add(x.supplierId);
-      a.latest = maxIso(a.latest, toIso(x.respondedAt) ?? '');
+      trackTouch(a, x.supplierId, x.supplierName ?? '', toIso(x.respondedAt) ?? '');
     }
-    for (const x of bidSups0 as Array<{ projectId: string; lastDownloadAt: Date | null }>) {
-      const a = touch(bpRoundOf(x.projectId));
-      if (x.lastDownloadAt) { a.dl.n += 1; a.dl.t = maxIso(a.dl.t, toIso(x.lastDownloadAt) ?? ''); }
+    for (const x of bidSups0 as Array<{ projectId: string; supplierName: string; lastDownloadAt: Date | null }>) {
+      if (!x.lastDownloadAt) continue;
+      touch(bpRoundOf(x.projectId)).dl.push({ name: x.supplierName, t: toIso(x.lastDownloadAt) ?? '' });
     }
-    for (const x of subs0 as Array<{ projectId: string; createdAt: Date }>) {
-      const a = touch(bpRoundOf(x.projectId));
-      a.sb.n += 1;
-      a.sb.t = maxIso(a.sb.t, toIso(x.createdAt) ?? '');
+    for (const x of subs0 as Array<{ projectId: string; supplierId: string; createdAt: Date }>) {
+      touch(bpRoundOf(x.projectId)).sb.push({ supplierId: x.supplierId, t: toIso(x.createdAt) ?? '' });
     }
+    // 提交明细名称联查：Submission 无 supplier 关系——已知名（意向/回执）优先，缺的查 Supplier
+    const knownNames = new Map<string, string>();
+    for (const a of activityByRound.values()) for (const [sid, v] of a.track) if (v.name) knownNames.set(sid, v.name);
+    const missingIds = [...new Set([...activityByRound.values()].flatMap((a) => a.sb.map((x) => x.supplierId)))].filter((sid) => !knownNames.has(sid));
+    if (missingIds.length > 0) {
+      const rows = await this.prisma.supplier.findMany({ where: { id: { in: missingIds } }, select: { id: true, name: true } });
+      for (const r of rows) knownNames.set(r.id, r.name);
+    }
+    const toSub = (label: string, rows: Array<{ name: string; t: string }>): Sub => ({
+      label,
+      count: rows.length,
+      time: rows.map((r) => r.t).sort().pop() ?? null,
+      detail: rows.sort((a, b) => (a.t < b.t ? 1 : -1)).map((r) => `${r.name} · ${bjShort(r.t)}`),
+    });
+
     // 中标通知书发布（按轮）：deliveredAt 优先、缺则 createdAt 取最早一条（首次送达即发布）
     const awardLetterByRound = new Map<number, string>();
     for (const x of letters0 as Array<{ projectId: string; deliveredAt: Date | null; createdAt: Date }>) {
@@ -341,16 +369,17 @@ export class TimelineService {
       // 供应商参与：注入组合子项（time=三源最近时刻；全空则整节点移除）
       {
         const a = activityByRound.get(r);
-        const hasA = a && (a.suppliers.size > 0 || a.dl.n > 0 || a.sb.n > 0);
+        const hasA = a && (a.track.size > 0 || a.dl.length > 0 || a.sb.length > 0);
         const idx = nodes.findIndex((n) => n.key === 'supplierActivity');
         if (hasA && a) {
-          const latestAll = [a.latest, a.dl.t, a.sb.t].filter(Boolean).sort().pop() ?? null;
+          const latestAll = [...a.track.values()].map((v) => v.latest).concat(a.dl.map((x) => x.t), a.sb.map((x) => x.t)).filter(Boolean).sort().pop() ?? null;
+          const trackRows = [...a.track.entries()].map(([sid, v]) => ({ name: v.name || knownNames.get(sid) || '未知供应商', t: v.latest }));
           nodes[idx] = {
             key: 'supplierActivity', label: '供应商参与', time: latestAll, source: '供应商参与',
             group: [
-              { label: '拟参与/回执', count: a.suppliers.size, time: a.latest || null },
-              { label: '下载采购文件', count: a.dl.n, time: a.dl.t || null },
-              { label: '提交标书', count: a.sb.n, time: a.sb.t || null },
+              toSub('拟参与/回执', trackRows),
+              toSub('下载采购文件', a.dl),
+              toSub('提交标书', a.sb.map((x) => ({ name: knownNames.get(x.supplierId) ?? '未知供应商', t: x.t }))),
             ],
           };
         } else if (idx >= 0) {

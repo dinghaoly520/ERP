@@ -18,7 +18,7 @@ import { apiFetch } from '@/lib/api/api-fetch';
 type TimelineNode = {
   key: string; label: string; time: string | null; timeEnd?: string | null; source: string;
   tone?: 'danger'; // 红色警示节点（2026-11-13：资料变更）
-  group?: { label: string; count: number; time: string | null }[]; // 组合子项（供应商参与）
+  group?: { label: string; count: number; time: string | null; detail?: string[] }[]; // 组合子项（供应商参与；detail=悬停每家明细）
 };
 type TimelineRound = { round: number; nodes: TimelineNode[] };
 type TimelineData = { rounds: TimelineRound[]; currentRound: number };
@@ -101,7 +101,7 @@ export function ProjectTimelineStrip({ pmiId, refreshKey = 0 }: { pmiId: string;
                     ? 'bg-white text-[color:var(--foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.9),1px_1px_3px_oklch(0.55_0.03_258/0.12),-1px_-1px_2px_oklch(1_0_0/0.85)]'
                     : 'text-[color:var(--muted-foreground)]/60'
                 }`}
-                title={`${n.label}（来源：${n.source}）${n.group ? '：' + n.group.map(g => `${g.label} ${g.count} 家${g.time ? '，最近 ' + g.time : ''}`).join('；') : ''}`}
+                title={[`${n.label}（来源：${n.source}）`, ...(n.group ?? []).flatMap(g => [`${g.label} · ${g.count} 家`, ...(g.detail ?? [])])].join('\n')}
               >
                 <span className={`h-1 w-1 rounded-full ${n.tone === 'danger' ? 'bg-[var(--danger)]' : n.time ? 'bg-[var(--accent)]' : 'bg-[color:var(--muted-foreground)]/40'}`} />
                 {n.label}

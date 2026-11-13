@@ -8,10 +8,11 @@ import { TimelineService } from './timeline.service';
  * 断言辅助 nodesOf() 取首轮节点（等价旧数组形态）。
  */
 describe('TimelineService（B3 A-204，按轮分组）', () => {
-  const mk = (pmi: any, bps: any[] = [], contract: any = null, stage: any = null, published: any[] = [], opts: { hasPublicStage?: boolean | null; rsvpRows?: any[]; packets?: any[]; assets?: any[]; extractStamps?: string[]; intents?: any[]; rsvpAll?: any[]; bidSuppliers?: any[]; submissions?: any[]; awardLetters?: any[]; changeRecords?: any[] } = {}) => ({
+  const mk = (pmi: any, bps: any[] = [], contract: any = null, stage: any = null, published: any[] = [], opts: { hasPublicStage?: boolean | null; rsvpRows?: any[]; packets?: any[]; assets?: any[]; extractStamps?: string[]; intents?: any[]; rsvpAll?: any[]; bidSuppliers?: any[]; submissions?: any[]; awardLetters?: any[]; changeRecords?: any[]; supplierNames?: any[] } = {}) => ({
     projectManagementItem: { findUnique: jest.fn().mockResolvedValue(pmi) },
     // 供应商参与组合节点（2026-11-13）：意向/回执/下载/投递四源，用例经 opts 注入
     supplierBidIntent: { findMany: jest.fn().mockResolvedValue(opts.intents ?? []) },
+    supplier: { findMany: jest.fn().mockResolvedValue(opts.supplierNames ?? []) },
     bidSupplier: { findMany: jest.fn().mockResolvedValue(opts.bidSuppliers ?? []) },
     supplierBidSubmission: { findMany: jest.fn().mockResolvedValue(opts.submissions ?? []) },
     // 中标通知书发布（2026-11-13）：AwardLetterDelivery 推送时刻
@@ -373,19 +374,23 @@ describe('TimelineService（B3 A-204，按轮分组）', () => {
 
     it('供应商参与=一个组合节点：位于采购文件获取后、投标截止前；三行子项=两轨去重计数+各最近时刻', async () => {
       const prisma = mk(basePmi, baseBps, null, null, [], {
-        intents: [{ projectId: 'bp-1', supplierId: 's1', confirmedAt: new Date('2026-11-13T09:00:00Z') }],
-        rsvpAll: [{ projectId: 'bp-1', supplierId: 's1', respondedAt: new Date('2026-11-13T08:00:00Z') }, // 与意向同家去重
-                  { projectId: 'bp-1', supplierId: 's2', respondedAt: new Date('2026-11-14T10:00:00Z') }],
-        bidSuppliers: [{ projectId: 'bp-1', lastDownloadAt: new Date('2026-11-15T09:00:00Z') }, { projectId: 'bp-1', lastDownloadAt: null }],
+        intents: [{ projectId: 'bp-1', supplierId: 's1', confirmedAt: new Date('2026-11-13T09:00:00Z'), supplier: { name: '甲公司' } }],
+        rsvpAll: [{ projectId: 'bp-1', supplierId: 's1', supplierName: '甲公司', respondedAt: new Date('2026-11-13T08:00:00Z') }, // 与意向同家去重
+                  { projectId: 'bp-1', supplierId: 's2', supplierName: '乙公司', respondedAt: new Date('2026-11-14T10:00:00Z') }],
+        bidSuppliers: [{ projectId: 'bp-1', supplierName: '丙公司', lastDownloadAt: new Date('2026-11-15T09:00:00Z') }, { projectId: 'bp-1', supplierName: '丁公司', lastDownloadAt: null }],
         submissions: [{ projectId: 'bp-1', supplierId: 's2', createdAt: new Date('2026-11-20T16:00:00Z') }],
+        supplierNames: [{ id: 's1', name: '甲公司' }, { id: 's2', name: '乙公司' }],
       });
       const nodes = await nodesOf(prisma);
       const g = nodes.find(n => n.key === 'supplierActivity');
       expect(g?.label).toBe('供应商参与');
       expect(g?.group).toEqual([
-        { label: '拟参与/回执', count: 2, time: new Date('2026-11-14T10:00:00Z').toISOString() },
-        { label: '下载采购文件', count: 1, time: new Date('2026-11-15T09:00:00Z').toISOString() },
-        { label: '提交标书', count: 1, time: new Date('2026-11-20T16:00:00Z').toISOString() },
+        { label: '拟参与/回执', count: 2, time: new Date('2026-11-14T10:00:00Z').toISOString(),
+          detail: ['乙公司 · 11/14 18:00', '甲公司 · 11/13 17:00'] }, // 悬停明细：名称+时刻，时间倒序；北京时刻换算
+        { label: '下载采购文件', count: 1, time: new Date('2026-11-15T09:00:00Z').toISOString(),
+          detail: ['丙公司 · 11/15 17:00'] },
+        { label: '提交标书', count: 1, time: new Date('2026-11-20T16:00:00Z').toISOString(),
+          detail: ['乙公司 · 11/21 00:00'] },
       ]);
       const acq = nodes.findIndex(n => n.key === 'documentAcquire');
       const dl = nodes.findIndex(n => n.key === 'bidDeadline');
