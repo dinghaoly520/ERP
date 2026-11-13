@@ -244,7 +244,7 @@ export class TimelineService {
     /** 悬停明细时刻（2026-11-13 用户裁定 A）：北京时间 M/D HH:mm */
     const bjShort = (iso: string) => {
       const b = new Date(new Date(iso).getTime() + 8 * 3600_000); // 恒北京时间（服务器可能 UTC）
-      return `${b.getUTCMonth() + 1}/${b.getUTCDate()} ${String(b.getUTCHours()).padStart(2, '0')}:${String(b.getUTCMinutes()).padStart(2, '0')}`;
+      return `${b.getUTCFullYear()}/${b.getUTCMonth() + 1}/${b.getUTCDate()} ${String(b.getUTCHours()).padStart(2, '0')}:${String(b.getUTCMinutes()).padStart(2, '0')}`;
     };
     type Sub = { label: string; count: number; time: string | null; detail: string[] };
     const activityByRound = new Map<number, {

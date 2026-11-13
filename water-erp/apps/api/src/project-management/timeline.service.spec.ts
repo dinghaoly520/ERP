@@ -386,11 +386,11 @@ describe('TimelineService（B3 A-204，按轮分组）', () => {
       expect(g?.label).toBe('供应商参与');
       expect(g?.group).toEqual([
         { label: '拟参与/回执', count: 2, time: new Date('2026-11-14T10:00:00Z').toISOString(),
-          detail: ['乙公司 · 11/14 18:00', '甲公司 · 11/13 17:00'] }, // 悬停明细：名称+时刻，时间倒序；北京时刻换算
+          detail: ['乙公司 · 2026/11/14 18:00', '甲公司 · 2026/11/13 17:00'] }, // 悬停明细：名称+时刻，时间倒序；北京时刻换算
         { label: '下载采购文件', count: 1, time: new Date('2026-11-15T09:00:00Z').toISOString(),
-          detail: ['丙公司 · 11/15 17:00'] },
+          detail: ['丙公司 · 2026/11/15 17:00'] },
         { label: '提交标书', count: 1, time: new Date('2026-11-20T16:00:00Z').toISOString(),
-          detail: ['乙公司 · 11/21 00:00'] },
+          detail: ['乙公司 · 2026/11/21 00:00'] },
       ]);
       const acq = nodes.findIndex(n => n.key === 'documentAcquire');
       const dl = nodes.findIndex(n => n.key === 'bidDeadline');
