@@ -64,6 +64,7 @@ import { buildClarificationReplyCanonical } from '../supplier-portal/clarificati
 import { buildClarificationNotice } from './clarification-notify.util';
 import { findCrossWindowExperts, findOpenEvaluationWindows, generateRoomCode, notifyAdmins } from '../expert/expert-room.util';
 import { BidIntentOversightService } from '../supplier/bid-intent-oversight.service';
+import { ExpertPairingRegistry } from '../auth/expert-pairing.registry';
 
 /** AI 分析「卡住」判定阈值：bidder 处于中间态且 updatedAt 停摆超过该时长（单家 OCR+LLM 约 5-15 分钟，30 分钟留足余量） */
 const AI_STUCK_THRESHOLD_MS = 30 * 60 * 1000;
@@ -105,6 +106,9 @@ export class BidService {
     private readonly moduleRef: ModuleRef,
     @Optional() private readonly clarificationAi?: ClarificationAiService,
     @Optional() private readonly gateway?: BidGateway,
+    // TAB-SYNC-01（2026-11-12 spec §9.3）：主持端核验矩阵平板配对可见性——BidModule imports
+    // ExpertPairingModule（Task 6）解析；@Optional 与 gateway 同款（单测直构/独立 worker 降级）
+    @Optional() private readonly pairingRegistry?: ExpertPairingRegistry,
     @Optional()
     @InjectQueue(QUEUE_NAMES.TENDER_PROCESSING)
     private readonly tenderQueue?: Queue,
@@ -3489,6 +3493,20 @@ export class BidService {
         result: l.result,
       });
     }
+    // TAB-SYNC-01（2026-11-12 spec §9.3）：平板配对快照（Redis 登记键 expertId= BidExpert.id）。
+    // 并行查（本端点 30s 轮询）；registry 抛错（Redis 挂）或未注入（单测直构）一律降级 null——
+    // 配对可见性缺失不得连坐整个核验矩阵。
+    const tabletPairedByExpert = new Map<
+      string,
+      { device: { uaSummary: string; ip?: string | null } | null; pairedAt: number | null } | null
+    >(
+      await Promise.all(
+        experts.map(async (e) => {
+          const active = await this.pairingRegistry?.getActive(e.id, projectId).catch(() => null);
+          return [e.id, active ? { device: active.device, pairedAt: active.pairedAt } : null] as const;
+        }),
+      ),
+    );
     return {
       projectId,
       mode: resolveIdentityVerifyMode(),
@@ -3501,6 +3519,8 @@ export class BidService {
           id: e.id, expertName: e.expertName, major: e.major, expertRole: e.expertRole,
           // 当前在线设备（null=无活动会话）；签到设备由 signInMeta.userAgent 即时分类
           onlineDevice: su?.webSessionId ? (sm ?? { deviceClass: 'unknown', uaSummary: '未记录' }) : null,
+          // TAB-SYNC-01：当前活跃平板配对（null=未配对或登记不可用——监督侧双设备视图的第二行）
+          tabletPaired: tabletPairedByExpert.get(e.id) ?? null,
           signInDevice: meta.userAgent ? classifyUserAgent(meta.userAgent) : null,
           isLead: e.isLead, isPurchaserRepresentative: e.isPurchaserRepresentative,
           signedIn: e.signedIn, signInIp: e.signInIp,
@@ -3647,8 +3667,9 @@ export class BidService {
     return { ok: true, expertId: expert.id, expertName: expert.expertName };
   }
 
-  /** 主持人确认迁移留档照豁免（严版 2026-09-23）：摄像头不可用等现场判定，理由必填+监督留痕（中风险） */
-  async confirmTransferPhotoExemption(projectId: string, expertId: string, actor: { id: string; username: string }, reason: string) {
+  /** 主持人确认配对留档照豁免（严版 2026-09-23；TAB-SYNC-01 配对制沿用——2026-11-12 随端点
+   *  由迁移改名）：摄像头不可用等现场判定，理由必填+监督留痕（中风险） */
+  async confirmPairingPhotoExemption(projectId: string, expertId: string, actor: { id: string; username: string }, reason: string) {
     if (!reason?.trim() || reason.trim().length > 200) {
       throw new BadRequestException({ error: '豁免理由必填（≤200 字）', code: 'REASON_REQUIRED' });
     }
@@ -3667,8 +3688,8 @@ export class BidService {
     await this.prisma.bidSupervisionLog.create({
       data: {
         projectId, time: new Date(), role: '主持人', target: expert.expertName,
-        action: '迁移留档照豁免',
-        result: `确认人 ${actorName}；理由：${reason.trim()}${expert.transferPhotoPendingAt ? '' : '（当前无待补拍迁移照）'}`,
+        action: '配对留档照豁免',
+        result: `确认人 ${actorName}；理由：${reason.trim()}${expert.transferPhotoPendingAt ? '' : '（当前无待补拍配对照）'}`,
         riskFlag: '中',
       },
     }).catch(() => {});

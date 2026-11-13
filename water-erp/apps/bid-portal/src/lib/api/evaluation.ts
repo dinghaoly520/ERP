@@ -235,6 +235,8 @@ export interface ExpertVerificationRow {
   identityDocType: string | null;
   /** 当前会话设备（2026-09-22）：null=无活动会话；快照=登录时分类 */
   onlineDevice: { deviceClass: string; uaSummary: string; ip?: string | null; at?: string } | null;
+  /** TAB-SYNC-01（2026-11-12 spec §9.3）：当前活跃平板配对（Redis 快照）；null=未配对或登记不可用 */
+  tabletPaired: { device: { uaSummary: string; ip?: string | null } | null; pairedAt: number | null } | null;
   /** 签到设备（signInMeta.userAgent 即时分类） */
   signInDevice: { deviceClass: string; uaSummary: string } | null;
   /** 严版（2026-09-23）：迁移留档照待补拍/豁免态 */
@@ -262,13 +264,13 @@ export function manualConfirmExpertVerification(
   return api.post(`/bid/projects/${projectId}/expert-verification/${expertId}/manual-confirm`, body);
 }
 
-/** 严版（2026-09-23）：主持人确认迁移留档照豁免——摄像头不可用等现场判定，理由必填 */
-export function confirmTransferPhotoExemption(
+/** 严版（2026-09-23；TAB-SYNC-01 配对制沿用）：主持人确认配对留档照豁免——摄像头不可用等现场判定，理由必填 */
+export function confirmPairingPhotoExemption(
   projectId: string,
   expertId: string,
   body: { reason: string },
 ): Promise<{ ok: boolean; expertId: string; expertName: string }> {
-  return api.post(`/bid/projects/${projectId}/expert-verification/${expertId}/confirm-transfer-photo`, body);
+  return api.post(`/bid/projects/${projectId}/expert-verification/${expertId}/confirm-pairing-photo`, body);
 }
 
 /** R5（2026-09-20 spec §4.4）：核验异常登记 */
