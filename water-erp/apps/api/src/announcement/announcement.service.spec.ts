@@ -1387,7 +1387,7 @@ describe('AnnouncementService — getProjectParticipants 轮界收口（2026-10-
       anns: [{ id: 'ann-r1', createdAt: new Date('2026-10-20T02:00:00Z') }], // 仅旧轮公告
     }));
     const r = await service.getProjectParticipants('SWHI-XX');
-    expect(r).toEqual({ announcementId: null, suppliers: [], stats: { total: 0, submitted: 0 } });
+    expect(r).toEqual({ announcementId: null, suppliers: [], stats: { total: 0, submitted: 0, intentConfirmed: 0 } });
   });
 
   it('本轮公告已发布（轮界之后）→ 命中本轮公告；单轮项目（无轮界）行为不变', async () => {

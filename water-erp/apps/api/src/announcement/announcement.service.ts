@@ -1899,7 +1899,7 @@ export class AnnouncementService {
       select: { id: true },
     });
     if (!ann) {
-      return { announcementId: null, suppliers: [], stats: { total: 0, submitted: 0 } };
+      return { announcementId: null, suppliers: [], stats: { total: 0, submitted: 0, intentConfirmed: 0 } };
     }
     const result = await this.getParticipants(ann.id);
     return {
