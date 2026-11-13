@@ -535,7 +535,9 @@ export function ExpertExtractPage({
       if (snap.quotas?.length) setQuotas(snap.quotas.map(coerceQuota));
       if (snap.selectedExperts?.length) {
         // 分离需求方代表：旧快照不含 demandRepPersons，需求方代表混在 selectedExperts 中
-        const drs = snap.selectedExperts.filter((s: ExtractionSelected) => s.reason === '指定需求方代表');
+        // 迁移键含部门抽取（2026-11-13 修复：旧键只认「指定」，部门抽取代表 reason=
+        // 「部门抽取需求方代表」命中不上——重载后代表无法归位、确认只送部分人（生产实录））
+        const drs = snap.selectedExperts.filter((s: ExtractionSelected) => s.reason === '指定需求方代表' || s.reason === '部门抽取需求方代表');
         const nonDrs = snap.selectedExperts.filter((s: ExtractionSelected) => s.reason !== '指定需求方代表');
         if (drs.length > 0 && !snap.needDemandRep) {
           setNeedDemandRep(true);
@@ -562,7 +564,7 @@ export function ExpertExtractPage({
       if (snap.confirmedExpertIds?.length) { setConfirmedExpertIds(snap.confirmedExpertIds); originalConfirmedIdsRef.current = new Set(snap.confirmedExpertIds); setStep3Confirmed(true); }
       if (snap.step3Confirmed) setStep3Confirmed(snap.step3Confirmed);
       if (snap.step) setStep(snap.step);
-      if (snap.needDemandRep) { setNeedDemandRep(true); if (snap.demandRepPersons?.length) setDemandRepPersons(snap.demandRepPersons); if (snap.demandRepCount) setDemandRepCount(snap.demandRepCount); if (snap.demandRepMode) setDemandRepMode(snap.demandRepMode); if (snap.demandRepCompany) setDemandRepCompany(snap.demandRepCompany); if (snap.demandRepDept) setDemandRepDept(snap.demandRepDept); if (snap.demandRepDeptSpecialty) setDemandRepDeptSpecialty(snap.demandRepDeptSpecialty); }
+      if (snap.needDemandRep || snap.demandRepPersons?.length) { setNeedDemandRep(true); if (snap.demandRepPersons?.length) setDemandRepPersons(snap.demandRepPersons); if (snap.demandRepCount) setDemandRepCount(snap.demandRepCount); if (snap.demandRepMode) setDemandRepMode(snap.demandRepMode); if (snap.demandRepCompany) setDemandRepCompany(snap.demandRepCompany); if (snap.demandRepDept) setDemandRepDept(snap.demandRepDept); if (snap.demandRepDeptSpecialty) setDemandRepDeptSpecialty(snap.demandRepDeptSpecialty); }
       if (snap.totalSeats) setTotalSeats(snap.totalSeats);
       if (snap.notifyMessagesArr?.length) setNotifyMessages(new Map(snap.notifyMessagesArr));
       if (snap.phoneScriptsArr?.length) { /* 电话话术已下线（2026-10-27），旧快照字段忽略 */ }
@@ -677,7 +679,9 @@ export function ExpertExtractPage({
       if (snap.extractMode) setExtractMode(snap.extractMode);
       if (snap.quotas?.length) setQuotas(snap.quotas.map(coerceQuota));
       if (snap.selectedExperts?.length) {
-        const drs = snap.selectedExperts.filter((s: ExtractionSelected) => s.reason === '指定需求方代表');
+        // 迁移键含部门抽取（2026-11-13 修复：旧键只认「指定」，部门抽取代表 reason=
+        // 「部门抽取需求方代表」命中不上——重载后代表无法归位、确认只送部分人（生产实录））
+        const drs = snap.selectedExperts.filter((s: ExtractionSelected) => s.reason === '指定需求方代表' || s.reason === '部门抽取需求方代表');
         const nonDrs = snap.selectedExperts.filter((s: ExtractionSelected) => s.reason !== '指定需求方代表');
         if (drs.length > 0 && !snap.needDemandRep) {
           setNeedDemandRep(true);
@@ -714,7 +718,7 @@ export function ExpertExtractPage({
       if (snap.altExhausted) setAltExhausted(true);
       if (snap.altSelected?.length) setAltSelected(snap.altSelected);
       if (snap.altNotified) setAltNotified(snap.altNotified);
-      if (snap.needDemandRep) { setNeedDemandRep(true); if (snap.demandRepPersons?.length) setDemandRepPersons(snap.demandRepPersons); if (snap.demandRepCount) setDemandRepCount(snap.demandRepCount); if (snap.demandRepMode) setDemandRepMode(snap.demandRepMode); if (snap.demandRepCompany) setDemandRepCompany(snap.demandRepCompany); if (snap.demandRepDept) setDemandRepDept(snap.demandRepDept); if (snap.demandRepDeptSpecialty) setDemandRepDeptSpecialty(snap.demandRepDeptSpecialty); }
+      if (snap.needDemandRep || snap.demandRepPersons?.length) { setNeedDemandRep(true); if (snap.demandRepPersons?.length) setDemandRepPersons(snap.demandRepPersons); if (snap.demandRepCount) setDemandRepCount(snap.demandRepCount); if (snap.demandRepMode) setDemandRepMode(snap.demandRepMode); if (snap.demandRepCompany) setDemandRepCompany(snap.demandRepCompany); if (snap.demandRepDept) setDemandRepDept(snap.demandRepDept); if (snap.demandRepDeptSpecialty) setDemandRepDeptSpecialty(snap.demandRepDeptSpecialty); }
       if (snap.totalSeats) setTotalSeats(snap.totalSeats);
     } catch { localStorage.removeItem(LAST_PID_KEY); }
   }, []);
@@ -1510,6 +1514,8 @@ export function ExpertExtractPage({
         userId: s.userId, expertName: s.name,
         major: s.specialty,
         isLead: false,
+        // 代表标识（2026-11-13 修复：此前漏送致代表行入库 isPurchaserRepresentative 恒 false）
+        isPurchaserRepresentative: demandRepIdSet.has(s.userId),
       }));
       const result = await confirmExtraction({ projectId: pid, experts: exps, extractMode: extractMode === 'manual' ? undefined : extractMode, companyIds: extractionCompanyIds() });
       const ids = result.expertIds || exps.map(e => e.userId);
@@ -1896,6 +1902,8 @@ export function ExpertExtractPage({
         userId: s.userId, expertName: s.name,
         major: s.specialty,
         isLead: false,
+        // 代表标识（2026-11-13 修复：此前漏送致代表行入库 isPurchaserRepresentative 恒 false）
+        isPurchaserRepresentative: demandRepIdSet.has(s.userId),
       }));
       const result = await confirmExtraction({ projectId: pid, experts: exps, extractMode: extractMode === 'manual' ? undefined : extractMode, companyIds: extractionCompanyIds() });
       const ids = result.expertIds || exps.map(e => e.userId);
