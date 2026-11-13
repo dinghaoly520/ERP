@@ -1710,6 +1710,9 @@ export class AnnouncementService {
     contact: { type: 'string' },
     openTime: { type: 'string' },
     deadline: { type: 'string' },
+    // 2026-11-13 实录补键：向导「下载截止」此前被白名单剥落 → syncFromAnnouncement 收不到
+    // → BidProject.downloadDeadline 停留 PMI 懒建旧值，下载闸与详情显示（读 metadata）各说各话
+    downloadDeadline: { type: 'string' },
     // A3（GB/T 43711 7.2.2.3）：直接采购理由随公告同步到 BidProject.directSourcingReason
     directSourcingReason: { type: 'string' },
     // C1（7.5.2.2）：预成交公示/成交公告的异议渠道

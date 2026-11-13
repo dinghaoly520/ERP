@@ -39,3 +39,18 @@ export function parseFlexibleDate(raw: string | null | undefined): Date | null {
   );
   return Number.isNaN(dt.getTime()) ? null : dt;
 }
+
+/**
+ * 区间文本取**止点**（2026-11-13 实录）：PMI 懒建取下载截止 split('至') 不识别时间段
+ * 选择器的连字符区间「2026年3月20日9:00-2026年11月25日15:00」，整串落入
+ * parseFlexibleDate 抓到区间**起点**被当成截止落列 → 供应商详情页「下载时间已截止」误报。
+ *
+ * 分隔符兼容：中文「至」与「起-止」连字符（仅切「时刻-年份」之间的连字符——
+ * 裸 ISO 日期内部的 '-' 前无时刻、后无『年』，不会被误切）。单值文本行为同 parseFlexibleDate。
+ */
+export function parseFlexibleRangeEnd(raw: string | null | undefined): Date | null {
+  if (!raw) return null;
+  const parts = raw.trim().split(/至|(?<=\d{1,2}:\d{2})\s*-\s*(?=\d{4}\D)/);
+  const last = parts.map((p) => p.trim()).filter(Boolean).pop();
+  return parseFlexibleDate(last ?? null);
+}

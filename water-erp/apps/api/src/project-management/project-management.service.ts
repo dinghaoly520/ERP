@@ -8,7 +8,7 @@ import { Response } from 'express';
 import { ResultStatus, SourceType, type Prisma } from '@prisma/client';
 import { BID_DEADLINE_BEFORE_OPENING_MS, STAGE_LABEL } from '@water-erp/shared';
 import { AiService } from '../ai/ai.service';
-import { parseFlexibleDate } from '../common/parse-date.util';
+import { parseFlexibleDate, parseFlexibleRangeEnd } from '../common/parse-date.util';
 import { assertAttachmentRules } from '../upload/attachment-rules';
 import { generateProjectCode, generatePmiProjectCode, resolveHostedProjectCode, stageCodeFor } from '../common/project-code.util';
 import type { AuthenticatedUser } from '../auth/auth.types';
@@ -594,12 +594,12 @@ export class ProjectManagementService {
     if (openTimeIsPureFallback && deadline.getTime() <= Date.now()) {
       deadline = new Date(Date.now() + 24 * 60 * 60 * 1000);
     }
-    // 采购文件下载截止：documentAcquireTime（"起至止"区间）取截止侧（如 2026/3/26 15:00）
+    // 采购文件下载截止：documentAcquireTime（"起至止"/「起-止」区间）取截止侧（2026-11-13：
+    // 改 parseFlexibleRangeEnd——此前 split('至') 不识别时间段选择器的连字符区间，整串解析
+    // 抓到区间起点被当成截止落列，供应商详情页误报「下载时间已截止」）
     let downloadDeadline: Date | null = null;
     if (item.documentAcquireTime) {
-      const seg = String(item.documentAcquireTime).split('至');
-      const endRaw = seg[seg.length - 1]?.trim() || '';
-      downloadDeadline = parseFlexibleDate(endRaw);
+      downloadDeadline = parseFlexibleRangeEnd(String(item.documentAcquireTime));
     }
 
     const created = await this.prisma.bidProject.create({

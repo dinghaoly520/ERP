@@ -4,7 +4,40 @@
  * 本组用例在 TZ=UTC / TZ=Asia/Shanghai 下跑必须同样成立（2026-11-09 生产 +8h 实录：
  * UTC 服务器上组件构造 new Date(y,m,d,h,min) 把 10:30 做成 10:30Z，时间轴全端 +8h）。
  */
-import { parseFlexibleDate } from './parse-date.util';
+import { parseFlexibleDate, parseFlexibleRangeEnd } from './parse-date.util';
+
+describe('parseFlexibleRangeEnd 区间取止点（2026-11-13 实录）', () => {
+  // 实录根因：PMI 懒建取下载截止 split('至') 不识别时间段选择器的连字符区间，
+  // 整串落入 parseFlexibleDate 抓到区间【起点】被当成截止落列 → 详情页「下载时间已截止」误报
+  it('连字符中文区间取止点（此前误取起点）', () => {
+    expect(parseFlexibleRangeEnd('2026年3月20日9:00-2026年11月25日15:00')?.toISOString())
+      .toBe('2026-11-25T07:00:00.000Z');
+  });
+
+  it('中文「至」区间取止点', () => {
+    expect(parseFlexibleRangeEnd('2026年11月20日9:00 至 2026年11月25日15:00')?.toISOString())
+      .toBe('2026-11-25T07:00:00.000Z');
+  });
+
+  it('ISO 斜杠区间不误切（内部连字符非区间分隔）', () => {
+    expect(parseFlexibleRangeEnd('2026/11/20 09:00-2026/11/25 15:00')?.toISOString())
+      .toBe('2026-11-25T07:00:00.000Z');
+    expect(parseFlexibleRangeEnd('2026-11-20 09:00 - 2026-11-25 15:00')?.toISOString())
+      .toBe('2026-11-25T07:00:00.000Z');
+  });
+
+  it('ISO 单值日期不因内部连字符被切坏', () => {
+    // 关键回归防线：裸 ISO 日期含 '-'，若误切会碎成 "25 15:00" 解析失败
+    expect(parseFlexibleRangeEnd('2026-11-25 15:00')?.toISOString()).toBe('2026-11-25T07:00:00.000Z');
+    expect(parseFlexibleRangeEnd('2026年11月25日 15:00')?.toISOString()).toBe('2026-11-25T07:00:00.000Z');
+  });
+
+  it('空/不可解析返回 null', () => {
+    expect(parseFlexibleRangeEnd(null)).toBeNull();
+    expect(parseFlexibleRangeEnd('')).toBeNull();
+    expect(parseFlexibleRangeEnd('随时')).toBeNull();
+  });
+});
 
 describe('parseFlexibleDate 北京时间确定性', () => {
   const cases: Array<[string, string]> = [
