@@ -6691,6 +6691,7 @@ describe('BidService — autoCloseExpiredConfirmations（#61回归A）', () => {
     expect(args.data.confirmStatus).toBe('逾期未确认-异常');
     expect(args.data.handleResult).toMatch(/^\[确认超时闭环\] 解密窗口结束已超 2 小时/);
     expect(args.data.handledAt).toBeInstanceOf(Date);
+    expect(args.data.handledBy).toBeNull(); // 系统动作无 actor（评审 F2：镜像样式契约含此字段）
   });
 
   it('#61b 镜像失败不阻塞闭环（铁则：闭包异常只留日志）+ CAS 抢占失败家不镜像', async () => {
