@@ -817,37 +817,24 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
           fd.bidder1RemarkType = '手动填入';
           fd.bidder1Remark = em;
         }
-        // 公示期限（2026-11-06 用户裁定）：改为起止选择（与采购公告同款控件）——默认预填
-        // 3 天区间（今日起算），经办可改；止点直供公开端显示窗口。异议受理不再硬编码 3 天。
-        if (!fd.announcementStart && !fd.announcementEnd) {
-          const pad = (n: number) => String(n).padStart(2, '0');
-          const fmtT = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-          const start = new Date();
-          const end = new Date(start.getTime() + 3 * 86400000);
-          fd.announcementStart = fmtT(start);
-          fd.announcementEnd = fmtT(end);
-        }
+        // 公示期限不再默认预填（2026-11-13 用户裁定「必须填写起止时间，不需要兜底」）：
+        // 起止必填由发布校验拦截；表单侧「发布时」按钮 + 天数下拉快捷赋值（落点为具体时间点）。
+        // 旧默认预填（今日+3 天）曾造成「公示期限制死了 3 天」的固化误解（同日修复）。
         if (!fd.objection?.trim()) {
           fd.objection = '供应商或其他利害关系人对中标结果有异议的，应在上述公示期限内以书面形式向采购人提出。';
         }
       }
 
-      // ★ 流标公告：公示期限同款预填（2026-11-06 与采购公告同款起止选择，止点直供公开端
-      // 显示窗口）；默认 3 天区间（今日起算），经办可改
-      if (initialCategory === 'failed_bid' && !fd.announcementStart && !fd.announcementEnd) {
-        const pad = (n: number) => String(n).padStart(2, '0');
-        const fmtT = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-        const start = new Date();
-        const end = new Date(start.getTime() + 3 * 86400000);
-        fd.announcementStart = fmtT(start);
-        fd.announcementEnd = fmtT(end);
-      }
+      // ★ 流标公告：公示期限同款不再默认预填（2026-11-13 与中标公告同裁定——必填+快捷件）
     }
 
-    // 从采购文件获取时间(documentAcquireTime)区间自动填入公示期限起/止（带 HH:MM）
+    // 从采购文件获取时间(documentAcquireTime)区间自动填入公示期限起/止（带 HH:MM）。
+    // 仅服务采购文件公告（公示期=获取窗口语义）；中标/流标/变更三类不带入（2026-11-13
+    // 用户裁定「必须填写起止」——公示期从发布起算，与获取窗口无业务关联，带入旧值
+    // 反而顶掉「必填+快捷件」的主动填写；实测曾带入三月旧窗口值）。
     // documentAcquireTime 格式如 "2026年03月23日09:00至2026年03月26日15:00"
     // 分隔符可能是 "至" 或 "-"
-    const acquireTime = project.documentAcquireTime?.trim();
+    const acquireTime = procCat === 'procurement_document' ? project.documentAcquireTime?.trim() : undefined;
     if (acquireTime) {
       const sepMatch = acquireTime.match(/至|-|~/);
       const sepIdx = sepMatch ? acquireTime.indexOf(sepMatch[0]) : -1;
@@ -1105,10 +1092,18 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     }
     // 公示期限（止）必填：采购公告（docx 占位文案防漏）+ 流标/中标公告（2026-11-06 起止
     // 选择，止点=公开端显示窗口，缺失则窗口无从谈起）
-    if ((category === 'procurement_document' || category === 'winning_bid' || category === 'failed_bid')
-      && !(draft as Record<string, string>).announcementEnd) {
+    // 公示期起止必填（2026-11-13 用户裁定「必须填写起止时间，不需要兜底」）：
+    // 中标/流标/变更三类起止都要（采购文件公告的「公示期限（采购文件获取时间）」仍只查止）
+    if (category === 'procurement_document' && !(draft as Record<string, string>).announcementEnd) {
       toast.error('公告制作中未填写公示期限（止），请返回填写');
       return;
+    }
+    if (category === 'winning_bid' || category === 'failed_bid' || category === 'change_notice') {
+      const fd = draft as Record<string, string>;
+      if (!fd.announcementEnd || !fd.announcementStart) {
+        toast.error('请填写公示期限起止时间（起可用「发布时」一键填充，止可按天数下拉推算）');
+        return;
+      }
     }
     setBusy(true);
     try {
@@ -1193,10 +1188,18 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     // 公示期限（止）空值会让 docx 模板渲染出「请填写公示期限（止）」占位文案并随公告发布
     // （实测存量公告已出现）——采购公告发布前强制校验。流标/中标公告 2026-11-06 改起止选择
     // 后同校验：止点直供公开端显示窗口（publicityEnd），缺失即无从起算。
-    if ((category === 'procurement_document' || category === 'winning_bid' || category === 'failed_bid')
-      && !(draft as Record<string, string>).announcementEnd) {
+    // 公示期起止必填（2026-11-13 用户裁定「必须填写起止时间，不需要兜底」）：
+    // 中标/流标/变更三类起止都要（采购文件公告的「公示期限（采购文件获取时间）」仍只查止）
+    if (category === 'procurement_document' && !(draft as Record<string, string>).announcementEnd) {
       toast.error('公告制作中未填写公示期限（止），请返回填写');
       return;
+    }
+    if (category === 'winning_bid' || category === 'failed_bid' || category === 'change_notice') {
+      const fd = draft as Record<string, string>;
+      if (!fd.announcementEnd || !fd.announcementStart) {
+        toast.error('请填写公示期限起止时间（起可用「发布时」一键填充，止可按天数下拉推算）');
+        return;
+      }
     }
     // 阳光采购平台：勾选同步但未完成配置 → 拦截发布并拉起配置弹窗
     if (sunshineOn && !sunshineConfig) {
@@ -1379,9 +1382,9 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         summary: draftRecord.projectOverview?.slice(0, 100) || '',
         status,
         publishDate: publishTiming === 'now' ? new Date().toISOString() : undefined,
-        // 公示截止直供（2026-11-06）：流标/中标公告所选止点 → 后端 publicityEnd（公开端显示窗口）；
-        // 定时发布传定时时刻（服务端按 publishDate 校验止点晚于发布）
-        ...((category === 'winning_bid' || category === 'failed_bid') && effectiveAnnouncementEnd
+        // 公示截止直供（2026-11-06；2026-11-13 扩变更公告）：流标/中标/变更所选止点 →
+        // 后端 publicityEnd（公开端显示窗口）；定时发布传定时时刻（服务端按 publishDate 校验止点晚于发布）
+        ...((category === 'winning_bid' || category === 'failed_bid' || category === 'change_notice') && effectiveAnnouncementEnd
           ? { publicityEnd: new Date(effectiveAnnouncementEnd).toISOString() }
           : {}),
         metadata: meta,

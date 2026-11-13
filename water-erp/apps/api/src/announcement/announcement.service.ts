@@ -45,6 +45,11 @@ export class AnnouncementService {
   /** 公告类型→中文名称（AI 摘要 prompt 期望中文类型名；两段式公示语义收口 shared） */
   private static readonly TYPE_LABELS: Record<string, string> = { ...ANNOUNCEMENT_TYPE_LABELS };
 
+  /** 公示期起止必填的公告类型（2026-11-13 用户裁定）：中标/流标/变更——发布时须带
+   *  publicityEnd（止）+ metadata.announcementStart（起），缺失 400 PUBLICITY_PERIOD_REQUIRED；
+   *  同时这三类不再走「+3 日」兜底（编写侧以「发布时」按钮/天数下拉快捷赋具体时间点）。 */
+  private static readonly PUBLICITY_REQUIRED_TYPES = new Set(['WIN_BID_NOTICE', 'FAILED_BID_NOTICE', 'CHANGE_NOTICE']);
+
   /** 对接专项 Phase 1（T4）：发布赋码闸（自愈版，2026-10-20 缺码事故）——发布关联 BidProject
    *  的公告时，项目须已有 21 位国标采购编码（省平台统一交易识别码前置）。无关联项目（POLICY/
    *  PLATFORM 等）不拦。缺码不再硬拦：旁路创建（ensureBidProject 懒建/流标重启等）的缺码行
@@ -132,6 +137,18 @@ export class AnnouncementService {
       );
     }
 
+    // 公示期起止必填（2026-11-13 用户裁定，中标/流标/变更三类——API 直发纵深防线；
+    // 前端向导同款校验+「发布时/天数」快捷件，落点均为具体时间点）
+    if (status === 'PUBLISHED' && AnnouncementService.PUBLICITY_REQUIRED_TYPES.has(dto.type)) {
+      const meta = (dto.metadata as Record<string, any>) ?? {};
+      if (!dto.publicityEnd || !String(meta.announcementStart ?? '').trim()) {
+        throw new BadRequestException({
+          error: '请填写公示期限起止时间（起可用「发布时」、止可按天数推算——均为具体时间点）',
+          code: 'PUBLICITY_PERIOD_REQUIRED',
+        });
+      }
+    }
+
     // A2（表 B.1）：公告按类型落默认公开范围（可由 dto.metadata.dataClass 覆盖）
     const dataClass = ((dto.metadata as any)?.dataClass as string) ?? ANNOUNCEMENT_TYPE_DATA_CLASS[dto.type] ?? 'public_voluntary';
 
@@ -165,12 +182,10 @@ export class AnnouncementService {
 
     // C1（7.5.2）：直接以 PUBLISHED 创建的预成交公示/成交公告同样设公示期（登记制路径，
     // publishDate 可回填线下发布日→公示期随之起算）；BID_NOTICE 同设 3 天（2026-09-09：前端状态
-    // 徽标按此判定）。流标/中标公告 2026-11-06 用户裁定纳入同口径（推翻原「WIN_BID_NOTICE
-    // 结果公告长期可查」不落库的理由）：与采购公告一样只在公示期限内显示内容；编写侧
-    // 起止选择直供的 publicityEnd 已在建行落库，此处仅兜底（未直供时自动顺延 3 日）。
+    // 徽标按此判定）。流标/中标公告 2026-11-13 用户裁定移出兜底（「必须填写起止时间，
+    // 不需要兜底」——起止缺失在建行前已 400 PUBLICITY_PERIOD_REQUIRED 拦截）。
     if (
-      (dto.type === 'PRE_WIN_NOTICE' || dto.type === 'WIN_NOTICE' || dto.type === 'BID_NOTICE'
-        || dto.type === 'FAILED_BID_NOTICE' || dto.type === 'WIN_BID_NOTICE')
+      (dto.type === 'PRE_WIN_NOTICE' || dto.type === 'WIN_NOTICE' || dto.type === 'BID_NOTICE')
       && status === 'PUBLISHED' && !result.publicityEnd
     ) {
       const end = new Date(result.publishDate || new Date());
@@ -409,7 +424,8 @@ export class AnnouncementService {
    */
   private resolveChosenPublicityEnd(type: string | undefined, publicityEnd: string | undefined, publishDate?: string): Date | null {
     if (!publicityEnd) return null;
-    if (type !== 'FAILED_BID_NOTICE' && type !== 'WIN_BID_NOTICE') return null;
+    // 2026-11-13 扩变更公告（CHANGE_NOTICE）——三类公示止点同款直供公开端显示窗口
+    if (type !== 'FAILED_BID_NOTICE' && type !== 'WIN_BID_NOTICE' && type !== 'CHANGE_NOTICE') return null;
     const end = new Date(publicityEnd);
     if (Number.isNaN(end.getTime())) {
       throw new BadRequestException({ error: '公示截止时间格式无效', code: 'PUBLICITY_END_INVALID' });
@@ -638,6 +654,18 @@ export class AnnouncementService {
         dto.relatedProjectCode ?? announcement.relatedProjectCode ?? effectiveMeta?.projectCode,
       );
     }
+    // 公示期起止必填（2026-11-13 用户裁定，中标/流标/变更三类——update 路径纵深：
+    // 编辑转发布/定时到点/批量发布均汇于此；起取 dto/库中 metadata，止取 dto 直供或库中 publicityEnd）
+    if (isPublishTransition && AnnouncementService.PUBLICITY_REQUIRED_TYPES.has(dto.type ?? announcement.type)) {
+      const effectiveMeta = ((dto.metadata ?? announcement.metadata) ?? {}) as Record<string, any>;
+      const hasEnd = Boolean(dto.publicityEnd ?? announcement.publicityEnd);
+      if (!hasEnd || !String(effectiveMeta.announcementStart ?? '').trim()) {
+        throw new BadRequestException({
+          error: '请填写公示期限起止时间（起可用「发布时」、止可按天数推算——均为具体时间点）',
+          code: 'PUBLICITY_PERIOD_REQUIRED',
+        });
+      }
+    }
     const isBidNoticePublish =
       isPublishTransition &&
       (dto.type ?? announcement.type) === 'BID_NOTICE';
@@ -723,11 +751,10 @@ export class AnnouncementService {
 
     // A1→C1（GB/T 43711 7.5.2）：预成交公示发布时自动设置公示期（3 个日历日）；
     // WIN_NOTICE 保留同逻辑以兼容存量"中标公示"与手动直发成交公告的路径。
-    // 流标/中标公告 2026-11-06 纳入同口径（用户裁定与采购公告一致：期限内才显示内容）；
-    // 编写侧起止选择直供的止点已随草稿落库，此处仅对未直供的兜底顺延 3 日（定时发布防漏）。
+    // 流标/中标/变更公告 2026-11-13 用户裁定移出兜底（「必须填写起止时间」——转发布前
+    // 已 400 PUBLICITY_PERIOD_REQUIRED 拦截，直供止点随草稿落库）。
     if (
-      (result.type === 'PRE_WIN_NOTICE' || result.type === 'WIN_NOTICE' || result.type === 'BID_NOTICE'
-        || result.type === 'FAILED_BID_NOTICE' || result.type === 'WIN_BID_NOTICE')
+      (result.type === 'PRE_WIN_NOTICE' || result.type === 'WIN_NOTICE' || result.type === 'BID_NOTICE')
       && targetStatus === 'PUBLISHED' && !result.publicityEnd
     ) {
       const end = new Date(result.publishDate || new Date());

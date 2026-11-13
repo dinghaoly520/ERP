@@ -305,12 +305,37 @@ function displayValueForField(field: AnnouncementFieldConfig, value: string): st
   return value;
 }
 
+/** 公示期快捷件适用类别（2026-11-13 用户裁定）：中标/流标/变更三类公告的公示起止必填、
+ *  起可一键「发布时」、止可按天数下拉推算——快捷件只是赋值器，落点一律具体时间点
+ *  （datetime 落库与展示，不存「N 天」文字）。采购文件公告（procurement_document）的
+ *  「公示期限（采购文件获取时间）」语义不同，不加。 */
+const PUBLICITY_QUICK_CATEGORIES = new Set<string>(["winning_bid", "failed_bid", "change_notice"]);
+/** 止点快捷天数选项（用户钦定清单） */
+const PUBLICITY_QUICK_DAYS = [1, 2, 3, 4, 5, 10, 20];
+
+/** 当前时刻 → datetime-local 值（YYYY-MM-DDTHH:MM） */
+function nowLocalIso(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** 起点值 + N 天 → datetime-local 值（同刻顺延 N*24h；起点非法返回 ''） */
+function plusDaysIso(startIso: string, days: number): string {
+  const t = new Date(startIso).getTime();
+  if (Number.isNaN(t)) return "";
+  const d = new Date(t + days * 86400000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function AnnouncementFieldEditor({
   field,
   value,
   draftRecord,
   onChange,
   onFieldFocus,
+  category,
   favoriteStates,
   generatingStates,
   onFavoriteToggle,
@@ -326,6 +351,8 @@ function AnnouncementFieldEditor({
   value: string;
   draftRecord: Record<string, string>;
   onChange: (key: AnnouncementFieldKey, value: string) => void;
+  /** 当前公告类别（2026-11-13）：公示期快捷件仅对中标/流标/变更三类启用 */
+  category?: AnnouncementCategory | null;
   onFieldFocus?: (fieldKey: AnnouncementFieldKey) => void;
   favoriteStates: Record<string, boolean>;
   generatingStates: Record<string, boolean>;
@@ -525,7 +552,10 @@ function AnnouncementFieldEditor({
         />
       ) : field.type === "datetime-range" ? (
         /* 公示期限（2026-10-21 用户口径）：起/止两个时间选择器同一行形成时间段；起存
-            field.key、止存 rangeEndKey，均 ISO（date-only 存量显示时补 23:59 同口径） */
+            field.key、止存 rangeEndKey，均 ISO（date-only 存量显示时补 23:59 同口径）。
+            快捷件（2026-11-13 用户裁定，仅中标/流标/变更）：起「发布时」一键填当前时刻、
+            止「+N天」下拉按起点推算——赋值落进 datetime 输入即具体时间点（非文字语义），
+            赋值后仍可手改；起点为空时天数下拉禁用（无基线可推）。 */
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <input
             type="datetime-local"
@@ -535,6 +565,16 @@ function AnnouncementFieldEditor({
             onFocus={() => onFieldFocus?.(field.key)}
             className={`${commonInputClass} !w-auto min-w-0 flex-1`}
           />
+          {field.key === "announcementStart" && category != null && PUBLICITY_QUICK_CATEGORIES.has(category) && (
+            <button
+              type="button"
+              onClick={() => onChange(field.key, nowLocalIso())}
+              className="shrink-0 rounded-[10px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.45)] px-2.5 py-1.5 text-xs font-semibold text-[rgba(76,111,189,1)] transition-colors hover:border-[rgba(107,149,240,0.4)] hover:bg-[oklch(1_0_0_/_0.75)]"
+              title="起点一键填为当前时刻（发布时刻）"
+            >
+              发布时
+            </button>
+          )}
           <span className="shrink-0 text-xs font-semibold text-[color:var(--muted-foreground)]">至</span>
           <input
             type="datetime-local"
@@ -547,6 +587,29 @@ function AnnouncementFieldEditor({
             onFocus={() => field.rangeEndKey && onFieldFocus?.(field.rangeEndKey)}
             className={`${commonInputClass} !w-auto min-w-0 flex-1`}
           />
+          {field.key === "announcementStart" && category != null && PUBLICITY_QUICK_CATEGORIES.has(category) && field.rangeEndKey && (() => {
+            const startVal = (draftRecord[field.key] ?? '').trim();
+            const base = /^\d{4}-\d{2}-\d{2}/.test(startVal) ? `${startVal.length <= 10 ? `${startVal}T00:00` : startVal}` : '';
+            return (
+              <select
+                aria-label="公示期限天数快捷选择"
+                value=""
+                disabled={!base}
+                title={base ? `按起点推算止点（起点 + N 天）` : '请先填写公示期限（起）'}
+                onChange={(e) => {
+                  const days = Number(e.target.value);
+                  if (!days || !base) return;
+                  onChange(field.rangeEndKey!, plusDaysIso(base, days));
+                }}
+                className="shrink-0 cursor-pointer rounded-[10px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.45)] px-2 py-1.5 text-xs font-semibold text-[color:var(--foreground)] outline-none transition-colors hover:border-[rgba(107,149,240,0.4)] disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                <option value="">+N天</option>
+                {PUBLICITY_QUICK_DAYS.map((n) => (
+                  <option key={n} value={n}>{`${n}天`}</option>
+                ))}
+              </select>
+            );
+          })()}
         </div>
       ) : field.type === "date" ? (
         <input
@@ -1577,6 +1640,7 @@ export function AnnouncementDialog({
                       draftRecord={draftRecord}
                       onChange={field.key === "contactName" ? handleContactNameChange : handleFieldChange}
                       onFieldFocus={handleFieldFocus}
+                      category={category}
                       favoriteStates={favoriteStates}
                       generatingStates={generatingStates}
                       onFavoriteToggle={handleFavoriteToggle}
