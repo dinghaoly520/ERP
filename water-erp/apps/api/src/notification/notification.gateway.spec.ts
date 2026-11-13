@@ -1,3 +1,4 @@
+import { ServiceUnavailableException } from '@nestjs/common';
 import { NotificationGateway } from './notification.gateway';
 
 /**
@@ -156,5 +157,106 @@ describe('NotificationGateway 会话轮换防护（2026-10-14 单设备互踢配
     const jwt = { verifyAsync: jest.fn() };
     const gw = new NotificationGateway(jwt as any, {} as any);
     expect(() => gw.evictUser('u-supplier')).not.toThrow();
+  });
+});
+
+describe('NotificationGateway 配对存活校验（TAB-SYNC-01 fix #8，镜像 bid.gateway T6）', () => {
+  /**
+   * scope=tablet-pairing 受限令牌逐连接核对 Redis 登记：此前只验 JWT+sid——被吊销的
+   * 平板令牌仍可开 /notifications socket 直到 12h JWT 过期（AuthGuard HTTP 面已拦、WS 面漏）。
+   * 三态：存活放行 / 已死拒连 / registry 抛错（Redis 故障）fail closed 拒连。
+   */
+  const DESK_SID = 'desk-sid-0001';
+
+  function makePairingGateway(opts: {
+    alive?: boolean | Error;
+    withRegistry?: boolean;
+    webSessionId?: string | null;
+  } = {}) {
+    const jwt = {
+      verifyAsync: jest.fn().mockResolvedValue({
+        sub: 'u-expert',
+        sid: DESK_SID,
+        scope: 'tablet-pairing',
+        jti: 'pair-1',
+      }),
+    };
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({ webSessionId: opts.webSessionId ?? DESK_SID }),
+      },
+    };
+    const registry = {
+      isAlive: jest.fn().mockImplementation(() =>
+        opts.alive instanceof Error ? Promise.reject(opts.alive) : Promise.resolve(opts.alive ?? false),
+      ),
+    };
+    const gw = new NotificationGateway(
+      jwt as any,
+      prisma as any,
+      (opts.withRegistry === false ? undefined : registry) as any,
+    );
+    const disconnected: boolean[] = [];
+    const client = ({
+      id: 'sock-pair',
+      handshake: { headers: { 'x-portal': 'expert', cookie: 'token_expert=jwt-pair' } },
+      data: {} as any,
+      join: jest.fn(),
+      disconnect: (v: boolean) => disconnected.push(v),
+    }) as any;
+    return { gw, client, disconnected, registry };
+  }
+
+  it('scoped 令牌 + 配对登记存活 → 正常入房 user:{sub}', async () => {
+    const { gw, client, disconnected, registry } = makePairingGateway({ alive: true });
+    await gw.handleConnection(client);
+    expect(registry.isAlive).toHaveBeenCalledWith('pair-1', 'u-expert');
+    expect(client.join).toHaveBeenCalledWith('user:u-expert');
+    expect(client.data.userId).toBe('u-expert');
+    expect(disconnected).toEqual([]);
+  });
+
+  it('scoped 令牌 + 配对已死（isAlive false：解绑/过期/被新配对替换）→ 拒连不入房', async () => {
+    const { gw, client, disconnected, registry } = makePairingGateway({ alive: false });
+    await gw.handleConnection(client);
+    expect(registry.isAlive).toHaveBeenCalledWith('pair-1', 'u-expert');
+    expect(client.join).not.toHaveBeenCalled();
+    expect(disconnected).toEqual([true]);
+  });
+
+  it('registry 抛错（Redis 故障 ServiceUnavailableException）→ fail closed 拒连', async () => {
+    const { gw, client, disconnected } = makePairingGateway({
+      alive: new ServiceUnavailableException('Redis 不可用'),
+    });
+    await expect(gw.handleConnection(client)).resolves.toBeUndefined(); // 不得 reject（unhandled rejection 向量）
+    expect(client.join).not.toHaveBeenCalled();
+    expect(disconnected).toEqual([true]);
+  });
+
+  it('registry 缺失（测试直构防御位）+ scoped 令牌 → 同样 fail closed 拒连', async () => {
+    const { gw, client, disconnected } = makePairingGateway({ withRegistry: false });
+    await gw.handleConnection(client);
+    expect(client.join).not.toHaveBeenCalled();
+    expect(disconnected).toEqual([true]);
+  });
+
+  it('非 scoped 令牌（普通桌面会话）→ 不查 registry、照常入房（存量行为不变）', async () => {
+    const jwt = { verifyAsync: jest.fn().mockResolvedValue({ sub: 'u-expert', sid: DESK_SID }) };
+    const prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue({ webSessionId: DESK_SID }) },
+    };
+    const registry = { isAlive: jest.fn() };
+    const gw = new NotificationGateway(jwt as any, prisma as any, registry as any);
+    const client = ({
+      id: 'sock-plain',
+      handshake: { headers: { 'x-portal': 'expert', cookie: 'token_expert=jwt-x' } },
+      data: {} as any,
+      join: jest.fn(),
+      disconnect: jest.fn(),
+    }) as any;
+    await gw.handleConnection(client);
+    expect(registry.isAlive).not.toHaveBeenCalled();
+    expect(client.join).toHaveBeenCalledWith('user:u-expert');
+    expect(client.disconnect).not.toHaveBeenCalled();
   });
 });

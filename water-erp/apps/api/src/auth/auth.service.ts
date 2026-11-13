@@ -755,9 +755,7 @@ export class AuthService {
       }).catch(() => {});
       throw new UnauthorizedException({ error: `登录密码错误（剩余 ${3 - attempts} 次机会）`, code: 'PASSWORD_MISMATCH' });
     }
-    await redis.del(key); // 单次使用（成功即销毁）
-    // 状态键 pending→paired（桌面 QR 弹窗轮询口径；迁移制为 claimed）
-    await redis.set(`expert-transfer-status:${t.ticketId}`, JSON.stringify({ userId: t.userId, status: 'paired' }), 'EX', 180);
+    await redis.del(key); // 单次使用（成功即销毁；烧票保持早位——防持票者重试，单次语义不受后续失败影响）
     // 严版（2026-09-23，迁移制沿用）：签到无留档照者配对后强制补拍——置 pending，拍完/豁免
     // 跳过才清；服务端权威：photoRequired 时 recordPairingPhoto(skipped) 无豁免必 403
     const expert = await this.prisma.bidExpert.findFirst({
@@ -797,6 +795,11 @@ export class AuthService {
       },
       { expiresIn: '12h' },
     );
+    // 状态键 pending→paired（桌面 QR 弹窗轮询口径；迁移制为 claimed）。fix #6 时序：置 paired
+    // 须在 register+签发成功之后——早置会在专家行缺失/register 失败时留下「票据已烧 + 状态
+    // 已 paired」的僵局（桌面 QR 弹窗 180s 恒显已配对，用户重扫码又无票可领）；上移后失败
+    // 路径状态键停在 pending，桌面端按既有轮询口径提示重新生成。
+    await redis.set(`expert-transfer-status:${t.ticketId}`, JSON.stringify({ userId: t.userId, status: 'paired' }), 'EX', 180);
     await this.prisma.bidSupervisionLog.create({
       data: {
         projectId: t.projectId, time: new Date(), role: '评审专家', target: t.expertName,

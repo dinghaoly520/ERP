@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException, ForbiddenException, Optional } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException, ForbiddenException, ServiceUnavailableException, Optional } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
@@ -125,7 +125,15 @@ export class AuthGuard implements CanActivate {
     } catch (err) {
       // 带 code 的异常（PORT_ROLE_MISMATCH / SESSION_REPLACED）原样抛出，
       // 其余（JWT 过期/签名错误等）统一归为 401。
-      if (err instanceof ForbiddenException || err instanceof UnauthorizedException) throw err;
+      // ServiceUnavailableException 原样透传（fix #7）：isAlive 在 Redis 故障时抛 503——
+      // 归一成裸 401 会让平板端把「服务暂不可用」误判为「配对失效」走重登回路（登录成功
+      // 后闸4 仍 409，死循环）；503 才能让前端按服务故障处理而非清配对态。
+      if (
+        err instanceof ForbiddenException ||
+        err instanceof UnauthorizedException ||
+        err instanceof ServiceUnavailableException
+      )
+        throw err;
       throw new UnauthorizedException();
     }
     return true;

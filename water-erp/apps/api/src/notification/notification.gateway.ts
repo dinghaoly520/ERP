@@ -4,12 +4,13 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import { PORTS } from '@water-erp/config';
 import { tokenFromHandshake } from '../bid/bid.gateway';
 import { PrismaService } from '../prisma/prisma.service';
+import { ExpertPairingRegistry } from '../auth/expert-pairing.registry';
 
 /**
  * 通知实时推送网关（2026-09-22）：站内通知创建后即时推送到目标账号的页面，
@@ -62,6 +63,10 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
   constructor(
     private readonly jwt: JwtService,
     private readonly prisma: PrismaService,
+    // TAB-SYNC-01（fix #8，镜像 bid.gateway T6）：平板配对登记存活校验。@Optional 同
+    // auth.guard.ts / bid.gateway 模式，仅防测试直构；生产经 NotificationModule imports
+    // ExpertPairingModule 解析。缺失时 scoped token 一律 fail closed 拒连。
+    @Optional() private readonly pairingRegistry?: ExpertPairingRegistry,
   ) {}
 
   @WebSocketServer()
@@ -75,7 +80,9 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
         client.disconnect(true);
         return;
       }
-      const payload = await this.jwt.verifyAsync<{ sub: string; sid?: string }>(token).catch(() => null);
+      const payload = await this.jwt
+        .verifyAsync<{ sub: string; sid?: string; scope?: string; jti?: string }>(token)
+        .catch(() => null);
       if (!payload?.sub) {
         client.disconnect(true);
         return;
@@ -88,6 +95,30 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
         });
         if (!user || user.webSessionId !== payload.sid) {
           this.logger.debug(`拒绝已轮换会话的 WS 连接 ${client.id} → user:${payload.sub}`);
+          client.disconnect(true);
+          return;
+        }
+      }
+      // TAB-SYNC-01（fix #8，镜像 bid.gateway T6）：配对存活——scope=tablet-pairing 受限令牌
+      // 逐连接核对 Redis 登记（解绑/过期/被新配对单飞替换即拒——AuthGuard 逐请求口径的 WS 面）。
+      // 此前只验 JWT+sid：被吊销的平板令牌仍可开通知 socket 直到 12h JWT 过期。
+      // fail closed：registry 缺失（测试直构防御位）或 Redis 故障（isAlive 抛
+      // ServiceUnavailableException）一律拒连——Redis 不可用不得放进未校验的配对 socket。
+      if (payload.scope === 'tablet-pairing') {
+        let alive = false;
+        try {
+          alive = this.pairingRegistry
+            ? await this.pairingRegistry.isAlive(payload.jti as string, payload.sub)
+            : false;
+        } catch (err) {
+          this.logger.warn(
+            `WS 通知拒绝连接：配对登记校验异常（fail closed）userId=${payload.sub}（${(err as Error).message}）`,
+          );
+          client.disconnect(true);
+          return;
+        }
+        if (!alive) {
+          this.logger.warn(`WS 通知拒绝连接：配对已解除或过期（pairingId=${payload.jti}）`);
           client.disconnect(true);
           return;
         }

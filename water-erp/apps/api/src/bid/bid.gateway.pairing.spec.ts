@@ -184,14 +184,44 @@ describe('notifyDraftSaved 节流：前沿发射 + 尾沿补发（终审 Fix1）
     expect(emit).toHaveBeenCalledTimes(1);
   });
 
-  it('窗口内连续压下多笔 → 只补发一枚且 device 为最新一笔（latest wins）', async () => {
+  it('窗口内连续压下多笔（跨设备 tablet→desktop→tablet）→ 尾沿对被压设备集各发一枚（desktop/tablet 都不丢）', async () => {
     const { gw, emit } = makeDraftGateway();
     gw.notifyDraftSaved('p1', 'e1', 'tablet'); // 前沿
-    gw.notifyDraftSaved('p1', 'e1', 'desktop'); // 压下 → 挂尾沿(desktop)
-    gw.notifyDraftSaved('p1', 'e1', 'tablet'); // 压下 → 清旧挂起、以本笔重挂(tablet)
+    gw.notifyDraftSaved('p1', 'e1', 'desktop'); // 压下 → pending={desktop}
+    gw.notifyDraftSaved('p1', 'e1', 'tablet'); // 压下 → pending={desktop,tablet}
+    await sleep(130);
+    expect(emit).toHaveBeenCalledTimes(3); // 前沿 1 + 尾沿 2
+    expect(emit.mock.calls.slice(1).map((c) => c[1].device).sort()).toEqual(['desktop', 'tablet']);
+  });
+
+  it('fix #2 混合设备窗口：前沿 desktop，tablet+desktop 相继被压 → 尾沿两枚（双端都能收到本窗通知）', async () => {
+    const { gw, emit } = makeDraftGateway();
+    gw.notifyDraftSaved('p1', 'e1', 'desktop'); // t0 前沿：立即发 desktop
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit.mock.calls[0][1]).toMatchObject({ projectId: 'p1', expertId: 'e1', device: 'desktop' });
+
+    gw.notifyDraftSaved('p1', 'e1', 'tablet'); // t1 平板存被压（pending={tablet}）
+    gw.notifyDraftSaved('p1', 'e1', 'desktop'); // t2 桌面存被压（pending={tablet,desktop}）
+    expect(emit).toHaveBeenCalledTimes(1); // 窗口内不连发
+
+    await sleep(130); // 尾沿：被压设备集每设备一枚
+    const trailing = emit.mock.calls.slice(1);
+    expect(trailing).toHaveLength(2); // server.emit 恰两次（desktop/tablet 各一）
+    expect(trailing.map((c) => c[1].device).sort()).toEqual(['desktop', 'tablet']);
+    for (const c of trailing) {
+      expect(c[1]).toMatchObject({ projectId: 'p1', expertId: 'e1' }); // 载荷其余字段同前沿
+    }
+  });
+
+  it('fix #2 单设备连发突发 → 尾沿仍只补发一枚（每设备每窗 ≤1 发射语义保持）', async () => {
+    const { gw, emit } = makeDraftGateway();
+    gw.notifyDraftSaved('p1', 'e1', 'desktop'); // 前沿
+    gw.notifyDraftSaved('p1', 'e1', 'desktop'); // 压下 ×3（同设备）
+    gw.notifyDraftSaved('p1', 'e1', 'desktop');
+    gw.notifyDraftSaved('p1', 'e1', 'desktop');
     await sleep(130);
     expect(emit).toHaveBeenCalledTimes(2);
-    expect(emit.mock.calls[1][1]).toMatchObject({ projectId: 'p1', expertId: 'e1', device: 'tablet' });
+    expect(emit.mock.calls[1][1]).toMatchObject({ device: 'desktop' });
   });
 
   it('补发推进节流窗口：紧邻补发的新笔仍被压至下一窗口（≤1 发射/窗口语义保持）', async () => {

@@ -278,6 +278,23 @@ describe('AuthService.claimExpertPairing（Task 5 配对语义）', () => {
       }),
     );
   });
+
+  it('⑨专家行缺失（票据窗口内被替换/移除）→ 烧票报 TICKET_INVALID，状态键不置 paired（fix #6 时序）', async () => {
+    const { svc, prisma, redis, registry } = makeService();
+    prisma.bidExpert.findFirst.mockResolvedValue(null); // 专家已不在本项目
+
+    await expect(
+      svc.claimExpertPairing({ ticket: 'tick-1', password: PASSWORD }, {}),
+    ).rejects.toMatchObject({ response: { code: 'TICKET_INVALID' } });
+
+    // 票据已烧（单次语义保持）；状态键不得置 paired——否则桌面 QR 弹窗 180s 恒显「已配对」，
+    // 而票据已毁、重扫码无票可领（僵局）。停在 pending/缺省由桌面端按既有轮询口径提示重新生成。
+    expect(redis.store.has(TICKET_KEY)).toBe(false);
+    const statusRaw = redis.store.get('expert-transfer-status:tid-1');
+    expect(statusRaw === undefined || (JSON.parse(statusRaw) as { status?: string }).status !== 'paired').toBe(true);
+    expect(registry.register).not.toHaveBeenCalled();
+    // 成功路径置 paired 已由 ① 断言（fix #6 只挪时序，不删成功面）
+  });
 });
 
 describe('ExpertService.getPairing / unpair（Task 5 查询与解绑）', () => {

@@ -328,7 +328,7 @@ export class AuthController {
     // 走下方 shouldRevokeSession 清 webSessionId 会误杀桌面登录——平板登出只吊销本配对
     // （revoke→null=已被吊销，照常收尾）并写监督日志，cookie 照清。payload 由全局 AuthGuard
     // 校验后挂 req.user（logout @AnyRole，必存在）。
-    const claims = (req as { user?: { scope?: string; jti?: string; username?: string } }).user;
+    const claims = (req as { user?: { scope?: string; jti?: string; username?: string; role?: string } }).user;
     const revokeToken = tokenFromRequest(req);
     if (revokeToken && claims?.scope === 'tablet-pairing') {
       const revoked = await this.pairingRegistry.revoke(claims.jti ?? '').catch(() => null);
@@ -353,8 +353,11 @@ export class AuthController {
         data: { webSessionId: null },
       });
       // 登出卫生（TAB-SYNC-01）：桌面全量会话登出顺带吊销该专家名下全部平板配对
-      //（不阻塞登出——失败静默，配对 TTL 12h 兜底自清）。
-      await this.pairingRegistry.revokeForUser(userId).catch(() => {});
+      //（不阻塞登出——失败静默，配对 TTL 12h 兜底自清）。fix #14 角色闸：只有 bid_expert
+      // 可能有配对——web/supplier 等其余角色的每次登出不再付 revokeForUser 的全键域 SCAN。
+      if (claims?.role === 'bid_expert') {
+        await this.pairingRegistry.revokeForUser(userId).catch(() => {});
+      }
     }
 
     // 清除当前门户的 cookie（按 X-Portal / 来源端口），同时清除旧版 token。

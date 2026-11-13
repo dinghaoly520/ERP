@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AuthGuard } from './auth.guard';
 import { AuthController } from './auth.controller';
@@ -38,13 +38,21 @@ describe('AuthGuard × tablet-pairing（Task 4）', () => {
   const jwt = new JwtService({ secret });
   const reflector = { getAllAndOverride: () => undefined } as any;
 
-  /** 直构守卫（无既有 auth.guard spec——本文件即首测；registry 可缺省） */
-  const makeGuard = (isAlive: boolean | undefined) => {
+  /** 直构守卫（无既有 auth.guard spec——本文件即首测；registry 可缺省；Error=reject 桩） */
+  const makeGuard = (isAlive: boolean | undefined | Error) => {
     const prisma = {
       user: { findUnique: jest.fn().mockResolvedValue({ ...USER_ROW }) },
       bidExpert: { count: jest.fn() },
     };
-    const registry = isAlive === undefined ? undefined : { isAlive: jest.fn().mockResolvedValue(isAlive) };
+    const registry =
+      isAlive === undefined
+        ? undefined
+        : {
+            isAlive:
+              isAlive instanceof Error
+                ? jest.fn().mockRejectedValue(isAlive)
+                : jest.fn().mockResolvedValue(isAlive),
+          };
     return {
       guard: new AuthGuard(jwt, reflector, prisma as any, registry as any),
       registry,
@@ -115,6 +123,22 @@ describe('AuthGuard × tablet-pairing（Task 4）', () => {
     const { execCtx } = ctx(jwt.sign({ ...SCOPED_CLAIMS }));
 
     await expect(guard.canActivate(execCtx)).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('fix #7：isAlive 抛 ServiceUnavailableException（Redis 故障）→ 503 原样透传，不得归一成裸 401', async () => {
+    const { guard } = makeGuard(new ServiceUnavailableException('Redis 不可用'));
+    const { execCtx } = ctx(jwt.sign({ ...SCOPED_CLAIMS }));
+
+    let err: unknown;
+    try {
+      await guard.canActivate(execCtx);
+    } catch (e) {
+      err = e;
+    }
+    // 透传 503：归一成裸 401 会让平板端把服务故障误判为配对失效走重登回路（登录后闸4 仍 409 死循环）
+    expect(err).toBeInstanceOf(ServiceUnavailableException);
+    expect((err as ServiceUnavailableException).getStatus()).toBe(503);
+    expect(err).not.toBeInstanceOf(UnauthorizedException);
   });
 });
 
@@ -212,5 +236,40 @@ describe('AuthController.logout 登出分流（Task 4）', () => {
     expect(registry.revokeForUser).toHaveBeenCalledWith('u1');
     expect(registry.revoke).not.toHaveBeenCalled();
     expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+  });
+
+  it('fix #14 角色闸：supplier 角色登出 → 不调 revokeForUser（不付全键域 SCAN，原 sid 吊销不变）', async () => {
+    const { controller, authService, prisma, registry } = makeController(null);
+    const res = { clearCookie: jest.fn() } as any;
+
+    await controller.logout(
+      'u-sup',
+      reqStub({ sub: 'u-sup', username: '蜀通', role: 'supplier', sid: 'sid-sup-1' }),
+      res,
+    );
+
+    // 既有行为不变：带 sid 会话 → 清 webSessionId、清 cookie
+    expect(authService.shouldRevokeSession).toHaveBeenCalledWith('tok-1');
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: 'u-sup' },
+      data: { webSessionId: null },
+    });
+    expect(res.clearCookie).toHaveBeenCalled();
+    // 只有 bid_expert 可能有配对——其余角色登出不得触发 revokeForUser 的全键域 SCAN
+    expect(registry.revokeForUser).not.toHaveBeenCalled();
+    expect(registry.revoke).not.toHaveBeenCalled();
+  });
+
+  it('fix #14 角色闸：staff 角色登出 → 同样不调 revokeForUser', async () => {
+    const { controller, registry } = makeController(null);
+    const res = { clearCookie: jest.fn() } as any;
+
+    await controller.logout(
+      'u-staff',
+      reqStub({ sub: 'u-staff', username: 'staff-1', role: 'staff', sid: 'sid-staff-1' }),
+      res,
+    );
+
+    expect(registry.revokeForUser).not.toHaveBeenCalled();
   });
 });

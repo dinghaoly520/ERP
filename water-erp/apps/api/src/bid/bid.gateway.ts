@@ -700,15 +700,22 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
   /** 草稿保存限流窗口（ms）——类字段便于测试缩短（终审 Fix1） */
   private DRAFT_SAVED_THROTTLE_MS = 3000;
 
-  /** 草稿保存限流：键 `${projectId}:${expertId}` → 窗口起点 + 挂起的尾沿发射器 */
-  private draftSavedThrottle = new Map<string, { last: number; timer?: ReturnType<typeof setTimeout> }>();
+  /** 草稿保存限流：键 `${projectId}:${expertId}` → 窗口起点 + 被压设备集 + 挂起的尾沿发射器 */
+  private draftSavedThrottle = new Map<
+    string,
+    { last: number; timer?: ReturnType<typeof setTimeout>; pendingDevices?: Set<'tablet' | 'desktop'> }
+  >();
 
   /** 草稿保存通知：广播到专家房（仅同项目其他专家），不含草稿内容。
    *  前沿节流 + 尾沿补发（终审 Fix1）：窗口内被压下的保存不再静默丢弃——若无尾沿补发，
    *  突发编辑的【末笔】被吞后，对端（仅凭 DRAFT_SAVED 拉取）永远看不到该笔，桌面可能
-   *  漏掉平板最后一次微调就提交。窗口内连续压下只保留一个挂起发射（最新 device 获胜），
-   *  发射时刻锚定窗口起点（last + 窗口），补发后窗口随之推进——≤1 发射/3s 窗口的
-   *  节流语义不变；尾沿发射仅在确有被压下保存时存在。 */
+   *  漏掉平板最后一次微调就提交。发射时刻锚定窗口起点（last + 窗口），补发后窗口随之
+   *  推进——≤1 发射/3s 窗口的节流语义不变；尾沿发射仅在确有被压下保存时存在。
+   *  尾沿多设备（fix #2）：客户端按 device 自筛（桌面忽略 device==='desktop'），尾沿若只带
+   *  最后被压那笔的设备，同窗双端各存一笔时另一端永远收不到通知（t0 桌面存→前沿发
+   *  desktop；t1 平板存被压；t2 桌面存重挂尾沿(desktop)→补发只发 desktop，桌面自筛丢弃，
+   *  平板侧始终不知桌面 t2 之外——另一端成通知盲区）。故窗口内累计【被压设备集】，尾沿
+   *  对集内每个设备各发一枚——每设备每窗 ≤1 发射的节流语义不变。 */
   notifyDraftSaved(projectId: string, expertId: string, device: 'tablet' | 'desktop') {
     const key = `${projectId}:${expertId}`;
     const now = Date.now();
@@ -719,16 +726,18 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.server.to(`experts:${projectId}`).emit(BID_EVENT.DRAFT_SAVED, payload);
     };
     if (now - last < this.DRAFT_SAVED_THROTTLE_MS) {
-      // 压下：清旧挂起、以本笔 device 重挂（最新获胜）；delay 锚定窗口起点，不随补发顺延
+      // 压下：累计被压设备集、重挂尾沿；delay 仍锚定窗口起点，不随补发顺延
       if (entry?.timer) clearTimeout(entry.timer);
+      const pendingDevices = entry?.pendingDevices ?? new Set<'tablet' | 'desktop'>();
+      pendingDevices.add(device);
       const timer = setTimeout(
         () => {
           this.draftSavedThrottle.set(key, { last: Date.now() }); // 窗口推进（防补发后紧邻笔连发）
-          emit(device);
+          for (const d of pendingDevices) emit(d); // 被压设备各一枚（同设备连发仍只一枚）
         },
         Math.max(0, last + this.DRAFT_SAVED_THROTTLE_MS - now),
       );
-      this.draftSavedThrottle.set(key, { last, timer });
+      this.draftSavedThrottle.set(key, { last, timer, pendingDevices });
       return;
     }
     if (entry?.timer) clearTimeout(entry.timer); // 防御：新窗口首笔到达时清残留挂起（时钟边界竞态）
