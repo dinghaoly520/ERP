@@ -115,12 +115,13 @@ export class AnnouncementService {
       );
     }
 
-    // GB/T 43711（7.3）：谈判采购通过定向邀请组织，不发布采购公告（前端类别矩阵
-    // ANNOUNCEMENT_AVAILABILITY 已限定谈判只有流标/中标公告）——此为 API 直发防线
-    if (dto.type === 'BID_NOTICE' && (dto.metadata as Record<string, any> | null)?.method === '谈判采购') {
+    // 2026-11-12 用户裁定（流程互换）：谈判采购改为发布公告（模板=邀请招标公告改造）；
+    // 邀请招标/直接采购改走供应商邀请，不发布采购公告（前端类别矩阵已同步）——
+    // 此为 API 直发防线（与 exportAnnouncement 的 INVITED_NO_PROCUREMENT_NOTICE 同口径）
+    if (dto.type === 'BID_NOTICE' && ['邀请招标', '直接采购'].includes(String((dto.metadata as Record<string, any> | null)?.method ?? ''))) {
       throw new BadRequestException({
-        error: '谈判采购不发布采购公告：应通过供应商邀请（定向邀请函 + 回执）组织，供应商接受邀请后自动纳入投标项目',
-        code: 'NEGOTIATION_NO_PROCUREMENT_NOTICE',
+        error: '该采购方式不发布采购公告：应通过供应商邀请（定向邀请函 + 回执）组织，供应商接受邀请后自动纳入投标项目',
+        code: 'INVITED_NO_PROCUREMENT_NOTICE',
       });
     }
 

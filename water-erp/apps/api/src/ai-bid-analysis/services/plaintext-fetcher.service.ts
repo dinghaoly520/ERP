@@ -114,8 +114,9 @@ export class PlaintextFetcherService {
    *   （双编号并集：公告实际存 PMI 业务编号，仅按内部编号查恒空——2026-10-20 实录
    *    DMGY-XB-2026100901 内部码 XB-…，tenderText=0、条款提取整链空；同 supplier-portal
    *    resolveAnnouncementCodes 口径）
-   * 谈判轨：谈判项目不发布采购公告（邀请书替代），BidDocument 恒空 → Redis
-   *   negotiation-config（refFileKeys=PMI 附件主轨 / attachFileIds·refFileKeys 兜底=FileAsset）
+   * 谈判轨：谈判项目的采购文件不进 BidDocument（2026-11-12 流程互换后谈判虽改发公告，
+   *   文件交付机制未变——仍经 Redis negotiation-config：refFileKeys=PMI 附件主轨 /
+   *   attachFileIds·refFileKeys 兜底=FileAsset；公告轨 miss 自然回退至此）
    * 返回 { buffer, fileName }（fileName 供 processFile 按扩展名分派 docx/pdf/ocr 路径）。
    */
   async fetchTenderPlaintext(projectId: string): Promise<{ buffer: Buffer; fileName: string } | null> {
