@@ -672,7 +672,7 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
 
           {/* 供应商表格 */}
           <div className="overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
-            <table className="neu-table participants-table w-full min-w-[680px] text-sm">
+            <table className="neu-table participants-table w-full min-w-[640px] text-sm">
               <thead>
                 <tr>
                   <th className="text-left">供应商</th>
@@ -680,13 +680,12 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
                   <th className="text-center">意向</th>
                   <th className="text-center">下载</th>
                   <th className="text-center">标书状态</th>
-                  <th className="text-right">提交时间</th>
                 </tr>
               </thead>
               <tbody>
                 {result.suppliers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center">
+                    <td colSpan={5} className="py-12 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <FileText size={20} className="text-[var(--muted-foreground)]/50" />
                         <p className="text-sm font-semibold text-[var(--foreground)]">暂无供应商参与</p>
@@ -711,41 +710,27 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
                         )) : <span className="text-[11px] text-[var(--muted-foreground)]/60">—</span>}
                       </div>
                     </td>
+                    {/* 三状态列统一形态（2026-11-13 用户裁定）：状态徽章 + 其下 10px 时间行 */}
                     <td className="text-center">
-                      {s.intentConfirmedAt ? (
-                        <div className="flex flex-col items-center gap-0.5">
-                          <span className="text-[0.8rem] font-semibold text-[var(--accent)]">已确认</span>
-                          <span className="text-[10px] tabular-nums text-[var(--muted-foreground)]">
-                            {new Date(s.intentConfirmedAt).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })}{' '}
-                            {new Date(s.intentConfirmedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-[11px] text-[var(--muted-foreground)]/60">未确认</span>
-                      )}
+                      <div className="flex flex-col items-center gap-0.5">
+                        <StatusPill text={s.intentConfirmedAt ? '已确认' : '未确认'} tone={s.intentConfirmedAt ? 'accent' : 'muted'} />
+                        <StatusTime iso={s.intentConfirmedAt} extra={undefined} />
+                      </div>
                     </td>
                     <td className="text-center">
-                      {s.lastDownloadAt ? (
-                        <div className="flex flex-col items-center gap-0.5">
-                          <span className="text-[0.8rem] tabular-nums font-semibold text-[var(--foreground)]">
-                            {new Date(s.lastDownloadAt).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })}
-                          </span>
-                          <span className="text-[10px] tabular-nums text-[var(--muted-foreground)]">
-                            {new Date(s.lastDownloadAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-                            {s.downloadCount > 1 && <> · {s.downloadCount}次</>}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-[11px] font-semibold text-[var(--warning)]">未下载</span>
-                      )}
+                      <div className="flex flex-col items-center gap-0.5">
+                        <StatusPill text={s.lastDownloadAt ? '已下载' : '未下载'} tone={s.lastDownloadAt ? 'success' : 'muted'} />
+                        <StatusTime iso={s.lastDownloadAt} extra={s.downloadCount > 1 ? ` · ${s.downloadCount}次` : undefined} />
+                      </div>
                     </td>
                     <td className="text-center">
-                      <BidStatusBadge withdrawn={s.withdrawn} submitted={s.submitted} />
-                    </td>
-                    <td className="text-right tabular-nums text-[0.8rem] text-[var(--muted-foreground)]">
-                      {s.submittedAt
-                        ? new Date(s.submittedAt).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }) + ' ' + new Date(s.submittedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-                        : <span className="text-[var(--muted-foreground)]/40">—</span>}
+                      <div className="flex flex-col items-center gap-0.5">
+                        <StatusPill
+                          text={s.withdrawn ? '已撤回' : s.submitted ? '已提交' : '未提交'}
+                          tone={s.withdrawn ? 'danger' : s.submitted ? 'success' : 'muted'}
+                        />
+                        <StatusTime iso={s.submittedAt} extra={undefined} />
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -758,8 +743,23 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
   );
 }
 
-function BidStatusBadge({ withdrawn, submitted }: { withdrawn: boolean; submitted: boolean }) {
-  if (withdrawn) return <span className="inline-flex items-center rounded-md bg-[color-mix(in_oklch,var(--danger)_18%,transparent)] px-2 py-1 text-[11px] font-semibold text-[var(--danger)]">已撤回</span>;
-  if (submitted) return <span className="inline-flex items-center rounded-md bg-[color-mix(in_oklch,var(--success)_18%,transparent)] px-2 py-1 text-[11px] font-semibold text-[var(--success)]">已提交</span>;
-  return <span className="inline-flex items-center rounded-md bg-[var(--muted)]/50 px-2 py-1 text-[11px] font-semibold text-[var(--muted-foreground)]">未提交</span>;
+/* 三状态列统一形态（2026-11-13）：StatusPill 状态徽章 + StatusTime 时间行（无则 — 占位保持节奏） */
+function StatusPill({ text, tone }: { text: string; tone: 'success' | 'accent' | 'danger' | 'muted' }) {
+  const toneCls =
+    tone === 'success' ? 'bg-[color-mix(in_oklch,var(--success)_18%,transparent)] text-[var(--success)]'
+    : tone === 'accent' ? 'bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] text-[var(--accent)]'
+    : tone === 'danger' ? 'bg-[color-mix(in_oklch,var(--danger)_18%,transparent)] text-[var(--danger)]'
+    : 'bg-[var(--muted)]/50 text-[var(--muted-foreground)]';
+  return <span className={`inline-flex items-center rounded-md px-2 py-1 text-[11px] font-semibold ${toneCls}`}>{text}</span>;
+}
+
+function StatusTime({ iso, extra }: { iso?: string | null; extra?: string }) {
+  if (!iso) return <span className="text-[10px] text-[var(--muted-foreground)]/40">—</span>;
+  const d = new Date(iso);
+  return (
+    <span className="text-[10px] tabular-nums text-[var(--muted-foreground)]">
+      {d.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })}{' '}
+      {d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}{extra}
+    </span>
+  );
 }
