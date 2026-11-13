@@ -257,6 +257,13 @@ export class ExpertAdminController {
     return this.expertAdminService.retrospectExtraction(projectId);
   }
 
+  /** 专家抽取完成时刻（2026-11-13 用户裁定）：前端进入「专家组确认」（向导第 5 步）时点击落戳——幂等，首次为准 */
+  @Post('projects/:id/expert-extract-stamp')
+  @ApiOperation({ summary: '专家抽取完成落戳：进入专家组确认步骤时记录时刻（首次点击为准，重复点击不漂移）' })
+  async stampExpertExtract(@Param('id') id: string) {
+    return this.expertAdminService.stampExpertExtractFinalized(id);
+  }
+
   @Get('invitations/:projectId')
   @ApiOperation({ summary: '查询项目专家邀请状态（正选+候补）' })
   getProjectInvitations(@Param('projectId') projectId: string) {

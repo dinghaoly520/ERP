@@ -186,6 +186,30 @@ export class TimelineService {
       return toIso(rows[0].createdAt);
     };
 
+    // 专家抽取完成时刻（2026-11-13 用户裁定）：进入专家组确认（抽取向导第 5 步）时落戳
+    // SystemConfig（键按 BidProject=轮次域，首次点击为准）；时间轴在投标截止↔开标之间展示
+    const extractStampByRound = new Map<number, string>();
+    {
+      const keys = allBps.map((b) => `expert-extract-finalized:${b.id}`);
+      const rows = keys.length
+        ? await this.prisma.systemConfig.findMany({ where: { key: { in: keys } }, select: { key: true, value: true } })
+        : [];
+      const stampByBp = new Map<string, string>();
+      for (const row of rows) {
+        try {
+          const at = (JSON.parse(row.value) as { at?: string }).at;
+          if (at) stampByBp.set(row.key, at);
+        } catch { /* 损坏值按未登记 */ }
+      }
+      for (const b of allBps) {
+        const at = stampByBp.get(`expert-extract-finalized:${b.id}`);
+        if (!at) continue;
+        const r = b.round ?? 1;
+        const prev = extractStampByRound.get(r);
+        if (!prev || at < prev) extractStampByRound.set(r, at); // 同轮多 BP 取最早（首次完成）
+      }
+    }
+
     // 合同签订：合同登记优先，缺则 CONTRACT 阶段完成兜底（均为项目级 → 末轮）
     const contract = await this.prisma.contract.findFirst({
       where: { projectManagementItemId: pmiId },
@@ -230,6 +254,7 @@ export class TimelineService {
           ? [{ key: 'documentAcquire', label: '采购文件获取', time: acquireRange.start, timeEnd: acquireRange.end, source: '项目管理' } as TimelineNode]
           : []),
         { key: 'bidDeadline', label: '投标截止', time: deadlineIso, source: deadlineSource },
+        { key: 'expertExtraction', label: '专家抽取', time: extractStampByRound.get(r) ?? null, source: '专家抽取' },
         { key: 'bidOpening', label: '开标', time: openingIso, source: '招标项目' },
         { key: 'evaluationEnd', label: '评标结束', time: evalEndByRound.get(r) || null, source: '评标回流包' },
         { key: 'winNoticePublish', label: '中标公告发布', time: publishTimeOf(r, ['WIN_BID_NOTICE', 'PRE_WIN_NOTICE', 'WIN_NOTICE']), source: '公告' },

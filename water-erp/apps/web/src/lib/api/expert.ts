@@ -521,6 +521,15 @@ export interface ExpertInvitationTrailItem {
   reason: string | null; createdAt: string;
 }
 
+/** 专家抽取完成落戳（2026-11-13 用户裁定）：进入「专家组确认」（向导第 5 步）点击时记录——幂等，首次为准 */
+export async function stampExpertExtractFinalized(projectId: string): Promise<void> {
+  await apiFetch(`/api/expert-admin/projects/${projectId}/expert-extract-stamp`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'X-Portal': 'web' },
+  });
+}
+
 export function getProjectInvitations(projectId: string) {
   return api.get<{
     experts: { id: string; userId: string; expertName: string; major: string; isLead: boolean; expertRole: string; invitationStatus: string; reviewGroup?: string | null; dutyRole?: string | null; title?: string | null; employer?: string | null; phone?: string | null; rsvpRespondedAt?: string | null; rsvpExpiresAt?: string | null; rsvpNo?: string; notified?: boolean;

@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { localDateInputValue, localTimeInputValue } from '@/lib/local-date';
 import { useCompanyInfo } from '@/lib/api/company-info';
-import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, specialtyPoolCounts, listPoolCompanies, listExperts, getDemandRepDirectory, getBidProjectDetail, getProjectInvitations, proxyMarkExpertInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, fetchExtractionProfiles, fetchCommitteeAnalysis, createExternalDemandRep, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, type DemandRepDirectoryItem } from '@/lib/api/expert';
+import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, specialtyPoolCounts, listPoolCompanies, listExperts, getDemandRepDirectory, getBidProjectDetail, getProjectInvitations, proxyMarkExpertInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, fetchExtractionProfiles, fetchCommitteeAnalysis, createExternalDemandRep, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, type DemandRepDirectoryItem, stampExpertExtractFinalized } from '@/lib/api/expert';
 import { UploadProgressRow } from '@/components/upload/upload-progress-row';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
@@ -3106,7 +3106,7 @@ export function ExpertExtractPage({
                 {(() => {
                   const full = (invitationData?.experts?.filter(e => e.expertRole === '正选' && e.invitationStatus === 'confirmed').length ?? 0) >= totalSeats;
                   if (full) return (
-                    <button onClick={() => setStep(5)} className="neu-btn-soft is-info">
+                    <button onClick={() => { void stampExpertExtractFinalized(pid).catch(() => {}); setStep(5); }} className="neu-btn-soft is-info">
                       下一步：专家组确认<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
                     </button>
                   );

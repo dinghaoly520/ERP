@@ -1151,6 +1151,25 @@ export class ExpertAdminService {
   }
 
   /** 查询项目专家邀请状态（正选+候补） */
+  /** 专家抽取完成时刻（2026-11-13 用户裁定）：进入「专家组确认」（向导第 5 步）点击时落戳。
+   *  SystemConfig 键按 BidProject（轮次域）；幂等=首次点击为准——第 6 步回看再进不漂移。 */
+  async stampExpertExtractFinalized(bidProjectId: string) {
+    const key = `expert-extract-finalized:${bidProjectId}`;
+    const existing = await this.prisma.systemConfig.findUnique({ where: { key } });
+    if (existing) {
+      try { return { stampedAt: (JSON.parse(existing.value) as { at?: string }).at ?? null, first: false }; } catch { /* 损坏值覆写 */ }
+    }
+    const project = await this.prisma.bidProject.findUnique({ where: { id: bidProjectId }, select: { id: true } });
+    if (!project) throw new NotFoundException('项目不存在');
+    const at = new Date().toISOString();
+    await this.prisma.systemConfig.upsert({
+      where: { key },
+      update: {},
+      create: { key, value: JSON.stringify({ at }) },
+    });
+    return { stampedAt: at, first: true };
+  }
+
   async getProjectInvitations(projectId: string) {
     // 先清理超时未回复的 pending 邀请——与 RSVP verify 行为一致（TTL 过期自动弃权并递补）
     const expiredPending = await this.prisma.bidExpert.findMany({
