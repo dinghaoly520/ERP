@@ -102,10 +102,8 @@ function TimelineRoundSection({ r, isCurrent, multiRound }: { r: TimelineRound; 
                     {n.group.map(g => (
                       <div key={g.label} title={g.detail?.length ? g.detail.join('\n') : undefined} className="flex items-baseline justify-between gap-3 text-[11px]">
                         <span className="font-medium text-[color:var(--foreground)]">{g.label}</span>
-                        <span className="flex items-baseline gap-2">
-                          <span className="tabular-nums font-bold text-[color:var(--accent-strong)]">{g.count} 家</span>
-                          <span className="tabular-nums text-[color:var(--muted-foreground)]">{g.time ? fmt(g.time) : '—'}</span>
-                        </span>
+                        {/* 时刻只在悬停明细里（2026-11-13 用户裁定）——行内只显家数 */}
+                        <span className="tabular-nums font-bold text-[color:var(--accent-strong)]">{g.count} 家</span>
                       </div>
                     ))}
                   </div>
