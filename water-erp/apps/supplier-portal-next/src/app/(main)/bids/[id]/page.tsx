@@ -236,12 +236,12 @@ function BidDetailInner() {
     if (m.projectCode) fields.push({ label: "项目编号", value: m.projectCode, kind: 'code' });
     if (m.method) fields.push({ label: "采购方式", value: m.method, kind: 'plain' });
     if (m.budget != null && m.budget !== "") fields.push({ label: "预算金额", value: fmtBudget(m.budget), kind: 'money' });
+    if (m.downloadDeadline) fields.push({ label: "采购文件下载截止", value: fmtMetaDate(m.downloadDeadline), kind: 'date' });
     // 口径修正（2026-09-14）：投标截止以项目截标时间（BidProject.deadline）为准；
     // 公告 metadata.deadline 实为公示期止，仅项目无截标时间时兜底展示
+    // 排序（2026-11-13 用户裁定）：投标截止紧挨开标时间之前；下载方式置末位
     const bidDeadline = project?.deadline || m.deadline;
     if (bidDeadline) fields.push({ label: "投标截止", value: fmtMetaDate(bidDeadline), kind: 'date' });
-    if (m.downloadDeadline) fields.push({ label: "采购文件下载截止", value: fmtMetaDate(m.downloadDeadline), kind: 'date' });
-    if (m.downloadMode) fields.push({ label: "下载方式", value: m.downloadMode === "encrypted" ? "解密下载" : m.downloadMode === "paid" ? "付费下载" : "免费下载", kind: 'plain' });
     // 开标时间同截止口径（2026-11-10）：以 BidProject 现值为准——延时开标后自动为新时间；
     // 与公告快照不一致时带延期标注（原时间+方向），不做无痕静默替换
     const openTimeShown = project?.openTime || m.openTime;
@@ -252,6 +252,7 @@ function BidDetailInner() {
       });
     }
     if (m.contact) fields.push({ label: "联系方式", value: m.contact, kind: 'plain' });
+    if (m.downloadMode) fields.push({ label: "下载方式", value: m.downloadMode === "encrypted" ? "解密下载" : m.downloadMode === "paid" ? "付费下载" : "免费下载", kind: 'plain' });
     return fields;
   })();
 
