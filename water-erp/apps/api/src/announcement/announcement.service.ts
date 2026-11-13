@@ -1744,7 +1744,7 @@ export class AnnouncementService {
   async getParticipants(id: string) {
     const ann = await this.prisma.announcement.findUnique({
       where: { id },
-      select: { id: true, type: true, title: true, relatedProjectCode: true },
+      select: { id: true, type: true, title: true, relatedProjectCode: true, companyId: true },
     });
     if (!ann) throw new BadRequestException({ error: '公告不存在', code: 'NOT_FOUND' });
 
@@ -1795,8 +1795,12 @@ export class AnnouncementService {
             orderBy: [{ round: 'desc' }, { createdAt: 'desc' }],
           });
           if (!bp) {
+            // 标题兜底公司闸（2026-11-13）：兜底此前全局按标题匹配——同名项目家族（如
+            // 「便携式全液压岩心钻机」×8）下，A 公司公告可命中 B 公司同名项目的名册。
+            // 收紧为同源才兜底：公司公告配本公司项目、平台级公告（companyId null）只配
+            // 无归属项目（null↔null）。外键主链不受影响（外键本身就是精确归属）。
             bp = await this.prisma.bidProject.findFirst({
-              where: { name: pmi.title },
+              where: { name: pmi.title, companyId: ann.companyId ?? null },
               select: { id: true, name: true, projectCode: true, stage: true, deadline: true },
               orderBy: { createdAt: 'desc' },
             });

@@ -165,6 +165,73 @@ describe('AnnouncementService — P0-4 删除闸门（进行中项目禁删公�
   });
 });
 
+describe('AnnouncementService — getParticipants 标题兜底公司闸（2026-11-13）', () => {
+  let service: AnnouncementService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      announcement: { findUnique: jest.fn() },
+      bidProject: { findUnique: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) },
+      procurementProject: { findUnique: jest.fn().mockResolvedValue(null) },
+      projectManagementItem: { findFirst: jest.fn() },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([]) },
+      supplierBidSubmission: { findMany: jest.fn().mockResolvedValue([]) },
+      supplierBidIntent: { findMany: jest.fn().mockResolvedValue([]) },
+      bidDocument: { findUnique: jest.fn().mockResolvedValue(null) },
+      bidDocumentAccess: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AnnouncementService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: AnnouncementAiService, useValue: {} },
+        { provide: SunshinePushService, useValue: { onPublish: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(AnnouncementService);
+  });
+
+  it('PMI 外键 miss 的标题兜底必须带公司约束——他司同名项目不得串入', async () => {
+    // 实录风险面：同名项目家族 ×N（如「便携式全液压岩心钻机」×8），兜底若全局按标题
+    // 匹配，A 公司公告可命中 B 公司同名项目的名册（2026-09-29 修过主链、兜底仍裸奔）
+    prisma.announcement.findUnique.mockResolvedValue({
+      id: 'ann1', type: 'BID_NOTICE', title: '某公告', relatedProjectCode: 'C1', companyId: 'co-A',
+    });
+    prisma.bidProject.findUnique.mockResolvedValue(null); // 编码直找 miss
+    prisma.projectManagementItem.findFirst.mockResolvedValue({
+      id: 'pmi1', title: '同名项目', projectCode: 'C1', currentStage: '', bidOpeningTime: null,
+    });
+    prisma.bidProject.findFirst
+      .mockResolvedValueOnce(null) // PMI 外键关联 miss（每项目两跳：FK→标题）
+      .mockResolvedValueOnce(null); // 标题兜底也 miss（他司同名不该命中）
+
+    const r = await service.getParticipants('ann1');
+    const titleCall = prisma.bidProject.findFirst.mock.calls.find(
+      (c: any[]) => c[0]?.where?.name === '同名项目',
+    );
+    expect(titleCall).toBeTruthy();
+    expect(titleCall![0].where.companyId).toBe('co-A'); // 公司闸是断言核心
+    expect(r.project?.name).toBe('同名项目'); // 未命中时回 PMI 伪项目，不串他司名册
+    expect(r.suppliers).toEqual([]);
+  });
+
+  it('平台级公告（companyId null）兜底只配无归属项目', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({
+      id: 'ann2', type: 'BID_NOTICE', title: '某公告', relatedProjectCode: 'C2', companyId: null,
+    });
+    prisma.bidProject.findUnique.mockResolvedValue(null);
+    prisma.projectManagementItem.findFirst.mockResolvedValue({
+      id: 'pmi2', title: '同名项目B', projectCode: 'C2', currentStage: '', bidOpeningTime: null,
+    });
+    await service.getParticipants('ann2');
+    const titleCall = prisma.bidProject.findFirst.mock.calls.find(
+      (c: any[]) => c[0]?.where?.name === '同名项目B',
+    );
+    expect(titleCall![0].where.companyId).toBeNull(); // null↔null：平台级只配平台级
+  });
+});
+
 describe('AnnouncementService — getParticipants 报价解密门控', () => {
   let service: AnnouncementService;
   let prisma: any;
