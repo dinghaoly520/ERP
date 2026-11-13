@@ -157,3 +157,16 @@ export function showPasswordChangedOverlay(message?: string) {
   });
   window.setTimeout(goToLogin, 20000);
 }
+
+/** 平板配对已解除/过期（TAB-SYNC-01 受限 scoped 令牌被吊销）：仅提示，回登录页。
+ *  非安全事件——桌面重新生成配对码/解绑/桌面登出卫生均会走到这里；重新配对须回
+ *  桌面端扫码，直接重登救不活配对，故不落「会话过期」通用跳转口径。 */
+export function showPairingRevokedOverlay(message?: string) {
+  renderOverlay({
+    title: '配对已解除或过期',
+    desc: message && message.trim() ? message : '配对已解除或过期，请在桌面端重新生成配对码。',
+    primaryText: '知道了',
+    onPrimary: goToLogin,
+  });
+  window.setTimeout(goToLogin, 20000);
+}

@@ -32,6 +32,26 @@ export interface ScoreEntry {
   savedAt?: number;
 }
 
+/** 归一后的条目：passed 收窄为 boolean/缺省（评分页本地形状），savedAt 等其余字段保留 */
+export type NormalizedScoreEntry = Omit<ScoreEntry, 'passed'> & { passed?: boolean };
+
+/**
+ * 服务端草稿形状归一（TAB-SYNC-01）：ScoreEntry.passed 服务端可落 null（数值项天然无
+ * 通过性），而评分页本地形状只认 boolean/缺省——深比较走 JSON.stringify，null 与缺省
+ * 序列化不同，不归一直接进 threeWayMerge 会把「远端未变」的数值项误判为分歧（假冲突；
+ * 桌面端复审 Minor 项，平板端在 merge 输入侧做对）。逐条浅拷贝并剥除 null（undefined
+ * 序列化天然丢弃），不原地改入参；savedAt 等其余字段原样保留。next/baseline 输出侧
+ * 同用本函数收窄类型（对齐桌面端 toPageScores 的语义）。
+ */
+export function normalizeDraftEntries(scores: Record<string, ScoreEntry>): Record<string, NormalizedScoreEntry> {
+  const out: Record<string, NormalizedScoreEntry> = {};
+  for (const [k, v] of Object.entries(scores)) {
+    const { passed, ...rest } = v;
+    out[k] = passed == null ? rest : { ...rest, passed };
+  }
+  return out;
+}
+
 export interface DraftMergeConflict {
   key: string;
   local: ScoreEntry;

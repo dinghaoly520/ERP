@@ -12,6 +12,7 @@ import {
 } from '@water-erp/shared';
 import type { ExpertProjectDetail } from '@/lib/types';
 import { buildFullPoints, committedRecordFor, isCommittedEquivalent, type ScoreEntry } from '@/lib/score-validation';
+import { threeWayMerge, normalizeDraftEntries } from '@/lib/draft-merge';
 import { buildReqToPointIndex, disputesToPoint, type LinkedDispute } from '@/lib/requirement-dispute-link';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { SupplierTabBar } from '@/components/evaluate/supplier-tab-bar';
@@ -24,10 +25,13 @@ import { SyncConflictModal } from '@/components/evaluate/sync-conflict-modal';
 const scoreKey = (supplierId: string, scoreItemId: string) => `${supplierId}:${scoreItemId}`;
 
 /**
- * 平板触屏评标页，提供分组评分项、评审备忘和评分草稿暂存。
- * 身份核验、文件获取、条款核对与评审报告等步骤在桌面端完成。
+ * 平板触屏评标页，提供身份核验（平板补齐版）、分组评分项、评审备忘和评分草稿暂存。
+ * 文件获取、条款核对与评审报告等步骤在桌面端完成。
  * 本页由 (tablet)/layout.tsx 鉴权，API 客户端处理 cookie 与 X-Portal。
- * 平板仅保存本地和服务端草稿；正式提交在桌面端专家打分页完成。
+ * TAB-SYNC-01 配对制（2026-09-22 迁移制演进为配对制）：本页经桌面端配对码进入（受限
+ * scoped 令牌，桌面会话不受影响），评分草稿与桌面端实时同步（last-synced 基线三方合并，
+ * §4.1）；平板仅保存本地和服务端草稿，正式提交在桌面端专家打分页完成。配对被解除/
+ * 过期后下一请求 401 PAIRING_REVOKED（api.ts on401 遮罩回登录页）。
  */
 
 
@@ -89,6 +93,13 @@ export default function TabletEvaluatePage() {
   // 未落盘评分改动标记（断点续评加固，与桌面端同款）：驱动 beforeunload 原生防误关——
   // 关页/刷新弹浏览器确认，回调内同步补写 localStorage（服务端槽位由 2s 防抖兜底）
   const scoresRef = useRef<Record<string, ScoreEntry>>({});
+  // TAB-SYNC-01：scoresRef 恒随最新 scores（三方合并拉取须读当前值而非事件闭包快照；
+  // beforeunload 同步补写同源）——纯重渲染 scores 引用未变不触发
+  useEffect(() => { scoresRef.current = scores; }, [scores]);
+  // TAB-SYNC-01 §4.1 last-synced 基线：草稿三方合并的「本页起点」——恢复草稿/服务端数据
+  // 合并落定后初始化为当时快照；此后 pull 接受（onDraftSaved）与 push 推进
+  // （advanceBaselineAfterPush）逐键更新。savedAt 不参与内容相等（draft-merge 契约）
+  const baselineRef = useRef<Record<string, ScoreEntry>>({});
   const unflushedRef = useRef(false);
   const [hasUnflushed, setHasUnflushed] = useState(false);
   const draftStorageKey = useMemo(() => {
@@ -133,6 +144,9 @@ export default function TabletEvaluatePage() {
             if (committedSupplierId && k.startsWith(`${committedSupplierId}:`)) continue; // 已提交的用服务端值
             if (!(k in next)) next[k] = v; // 其他供应商的未提交编辑保留
           }
+          // TAB-SYNC-01：服务端已提交数据合并落定 → 快照即新的 last-synced 基线
+          //（提交分非本端未同步分歧，后续 WS pull 与此对表）
+          baselineRef.current = { ...next };
           return next;
         });
         // 同时取 pointDecisions（checklist hydrate）+ disputesBySupplier（Phase 2 争议徽章）
@@ -159,6 +173,9 @@ export default function TabletEvaluatePage() {
                   points: { ...(cur.points ?? {}), [pd.pointId]: { checked: pd.checked, awardedScore: Number(pd.awardedScore), note: pd.note || undefined } },
                 };
               }
+              // TAB-SYNC-01：已提交点决策合并落定 → 快照基线（承接上一处 committed 合并，
+              // 与桌面端 loadMyScores 落点同源）
+              baselineRef.current = { ...next };
               return next;
             });
           })
@@ -189,7 +206,9 @@ export default function TabletEvaluatePage() {
       loadProject();
     },
     onRoomCodeRotated: () => {
-      toast.warning('评标室口令已轮换，请向主持人获取新口令后重新验证进入');
+      // TAB-SYNC-01：room-code/verify 已入 PAIRING_ALLOWED 白名单——平板可自验新口令，
+      // 无须再指引「向主持人获取」（口令本体仍只能从主持人处得）
+      toast.warning('评标室口令已轮换，请输入新口令重新验证');
       loadProject();
     },
     onScoringReopened: (d) => {
@@ -203,30 +222,37 @@ export default function TabletEvaluatePage() {
     },
     onDraftSaved: (d) => {
       if (d.device === 'tablet') return;
-      // 从服务端拉取合并后的草稿
+      // 跨专家噪音过滤：draft:saved 按项目房间广播，只响应本人草稿（他人保存不触发本端拉取）
+      if (!project?.myExpertRecord?.id || d.expertId !== project.myExpertRecord.id) return;
+      // TAB-SYNC-01（T8 接线契约②）：冲突未裁决期间暂停拉取合并——冲突键 baseline 已前移到
+      // local，此时拉取会把同一远端分歧静默接受为「远端未变」（桌面端评审 Minor#1）
+      if (conflictModalOpen || draftConflicts.length > 0) return;
       api.get<{ scores: Record<string, ScoreEntry>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft?device=tablet`)
         .then(draft => {
           if (!draft?.scores) return;
-          const newItems: string[] = [];
-          const conflicts: typeof draftConflicts = [];
-          for (const [key, remoteVal] of Object.entries(draft.scores)) {
-            if (!(key in scores)) {
-              newItems.push(key);
-            } else if (JSON.stringify(scores[key]) !== JSON.stringify(remoteVal)) {
-              const itemName = project?.scoreItems.find(si => key.endsWith(`:${si.id}`))?.name ?? key;
-              conflicts.push({ key, scoreItemName: itemName, localVal: scores[key], remoteVal });
+          // TAB-SYNC-01 §4.1：last-synced 基线三方合并——本端未动的键接受远端（含新增键静默
+          // 并入）、双端并发分歧进横幅/裁决弹窗（next 对冲突键保留本端）；baseline 推进为本次
+          // 接受后的快照。scoresRef 读当前值（事件闭包里的 scores 可能滞后于最近编辑）。
+          // 归一先行（桌面端复审 Minor 项，平板做对）：服务端形状 passed=null 先剥为缺省再进
+          // threeWayMerge——JSON.stringify 深比较视 null≠缺省，数值项会整批假冲突。
+          const remote = normalizeDraftEntries(draft.scores);
+          const result = threeWayMerge(scoresRef.current, baselineRef.current, remote);
+          const nextScores = normalizeDraftEntries(result.next);
+          setScores(prev => {
+            let changed = false;
+            for (const k of new Set([...Object.keys(prev), ...Object.keys(nextScores)])) {
+              if (JSON.stringify(prev[k]) !== JSON.stringify(nextScores[k])) { changed = true; break; }
             }
-          }
-          // 静默合并新增项
-          if (newItems.length > 0) {
-            setScores(prev => {
-              const next = { ...prev };
-              for (const k of newItems) next[k] = draft.scores![k];
-              return next;
-            });
-          }
-          // 冲突项存入 state → 显示横幅
-          if (conflicts.length > 0) {
+            return changed ? nextScores : prev;
+          });
+          baselineRef.current = normalizeDraftEntries(result.baseline);
+          if (result.conflicts.length > 0) {
+            const conflicts: typeof draftConflicts = result.conflicts.map(c => ({
+              key: c.key,
+              scoreItemName: project?.scoreItems.find(si => c.key.endsWith(`:${si.id}`))?.name ?? c.key,
+              localVal: c.local,
+              remoteVal: c.remote,
+            }));
             setDraftConflicts(prev => [...prev, ...conflicts]);
           }
         })
@@ -272,10 +298,19 @@ export default function TabletEvaluatePage() {
     return draftScores;
   }, [project]);
 
+  // TAB-SYNC-01（T8 接线契约①）：本端推送成功后对「本次推送的键」推进 baseline——
+  // 推送值即双端共同所见，不推进则桌面端后续对同键的编辑会被误判为双端分歧（假冲突）。
+  // 只并入本端推送键、不整表重拉：GET score-draft 返回双槽逐键取新的合并视图，会把桌面
+  // 尚未拉取合并的新值提为基线，随后 pull 判其「远端未变」而静默丢弃本端编辑。
+  // 有未裁决冲突时跳过（T8 契约②同源：冲突键 baseline 已前移到 local）。
+  const advanceBaselineAfterPush = (pending: Record<string, ScoreEntry>) => {
+    if (conflictModalOpen || draftConflicts.length > 0) return;
+    for (const [k, v] of Object.entries(pending)) baselineRef.current[k] = v;
+  };
+
   // 草稿自动暂存（scores 变化后 2 秒防抖）
   useEffect(() => {
     if (!draftStorageKey) return;
-    scoresRef.current = scores; // beforeunload 同步补写取最新值
     // 草稿检查未完成或仍有待处理草稿横幅时暂停自动保存，避免覆盖待恢复草稿；
     // 悬置期间清掉已排定的定时器（A3）
     if (!draftCheckDone || draftAvailable !== null) {
@@ -293,8 +328,10 @@ export default function TabletEvaluatePage() {
         const draftScores = buildPendingTabletDraft(scores);
         if (Object.keys(draftScores).length > 0) {
           localStorage.setItem(draftStorageKey, JSON.stringify({ scores: draftScores, savedAt: Date.now() }));
-          // 同步草稿到服务端（与桌面端一致，跨设备恢复）
-          api.post(`/expert/projects/${projectId}/score-draft?device=tablet`, { scores: draftScores, savedAt: Date.now() }).catch(() => {});
+          // 同步草稿到服务端（与桌面端一致，跨设备恢复）；成功后推进 last-synced 基线（T8 契约①）
+          api.post(`/expert/projects/${projectId}/score-draft?device=tablet`, { scores: draftScores, savedAt: Date.now() })
+            .then(() => advanceBaselineAfterPush(draftScores))
+            .catch(() => {});
         } else {
           localStorage.removeItem(draftStorageKey); // 无未提交条目 → 清掉草稿
           // 服务端 tablet 槽同步清空（此前只清 localStorage，槽内残留仍会触发恢复横幅）
@@ -363,7 +400,11 @@ export default function TabletEvaluatePage() {
       if (raw) {
         const draft = JSON.parse(raw) as { scores: Record<string, ScoreEntry>; savedAt: number };
         const norm = normalizeDraftScores(draft.scores);
-        setScores((prev) => ({ ...prev, ...norm }));
+        // TAB-SYNC-01：恢复落定即本页起点——以合并后快照初始化 last-synced 基线
+        //（scoresRef 在本点击前已同步提交态，等效于 setScores 的 prev）
+        const merged = { ...scoresRef.current, ...norm };
+        setScores(merged);
+        baselineRef.current = merged;
         toast.success(`已恢复 ${Object.keys(norm).length} 项评分`);
         setDraftAvailable(null); setDraftDismissed(true); setServerDraft(null);
         return;
@@ -371,7 +412,10 @@ export default function TabletEvaluatePage() {
     } catch { /* 本地损坏 → fallback 服务端 */ }
     if (serverDraft) {
       const norm = normalizeDraftScores(serverDraft);
-      setScores((prev) => ({ ...prev, ...norm }));
+      // 同上：恢复落定即新基线（服务端草稿是双槽逐键取新的合并视图）
+      const merged = { ...scoresRef.current, ...norm };
+      setScores(merged);
+      baselineRef.current = merged;
       toast.success(`已恢复 ${Object.keys(norm).length} 项评分（来自已保存的草稿）`);
     }
     setDraftAvailable(null); setDraftDismissed(true); setServerDraft(null);
@@ -1151,7 +1195,7 @@ export default function TabletEvaluatePage() {
                                       onClick={() =>
                                         setScores(prev => ({
                                           ...prev,
-                                          [k]: { score: 0, reason: prev[k]?.reason || '', passed: opt.v },
+                                          [k]: { score: 0, reason: prev[k]?.reason || '', passed: opt.v, savedAt: Date.now() },
                                         }))
                                       }
                                       className={`${selected ? 'neu-btn-primary' : 'neu-btn-soft'} ${opt.v ? 'is-success' : 'is-danger'} !h-12 flex-1`}
@@ -1181,7 +1225,7 @@ export default function TabletEvaluatePage() {
                                             const base = pfValueMap[p.id] ?? { checked: false, awardedScore: 0 };
                                             points[p.id] = { ...base, checked: p.objective ? true : base.checked, awardedScore: Number(p.fullScore) };
                                           }
-                                          return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: true } };
+                                          return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: true, savedAt: Date.now() } };
                                         })
                                       }
                                       className={`${verdict === true ? 'neu-btn-primary' : 'neu-btn-soft'} is-success !h-12 flex-1`}
@@ -1198,7 +1242,7 @@ export default function TabletEvaluatePage() {
                                             const base = pfValueMap[p.id] ?? { checked: false, awardedScore: 0 };
                                             points[p.id] = { ...base, checked: false, awardedScore: 0 };
                                           }
-                                          return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: false } };
+                                          return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: false, savedAt: Date.now() } };
                                         });
                                         setTimeout(() => {
                                           const el = document.querySelector<HTMLTextAreaElement>(`[aria-label="${CSS.escape(item.name)} 不通过理由"]`);
@@ -1226,7 +1270,7 @@ export default function TabletEvaluatePage() {
                                       const points = { ...(cur.points ?? pfValueMap), [pid]: pv };
                                       const objectivePts = pfPoints.filter(p => p.objective);
                                       const allChecked = objectivePts.length > 0 && objectivePts.every(p => points[p.id]?.checked === true);
-                                      return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: allChecked } };
+                                      return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: allChecked, savedAt: Date.now() } };
                                     })
                                   )}
                                 />
@@ -1241,7 +1285,7 @@ export default function TabletEvaluatePage() {
                                   const v = e.target.value;
                                   setScores(prev => ({
                                     ...prev,
-                                    [k]: { score: 0, reason: v, passed: false, points: prev[k]?.points },
+                                    [k]: { score: 0, reason: v, passed: false, points: prev[k]?.points, savedAt: Date.now() },
                                   }));
                                 }}
                                 disabled={readOnly}
@@ -1303,7 +1347,7 @@ export default function TabletEvaluatePage() {
                                     (s, p) => s + (points[p.id]?.awardedScore ?? 0),
                                     0,
                                   );
-                                  return { ...prev, [k]: { ...cur, points, score } };
+                                  return { ...prev, [k]: { ...cur, points, score, savedAt: Date.now() } };
                                 })
                               )}
                             />
@@ -1319,7 +1363,7 @@ export default function TabletEvaluatePage() {
                                 onChange={e =>
                                   setScores(prev => ({
                                     ...prev,
-                                    [k]: { score: parseFloat(e.target.value), reason: prev[k]?.reason || '' },
+                                    [k]: { score: parseFloat(e.target.value), reason: prev[k]?.reason || '', savedAt: Date.now() },
                                   }))
                                 }
                                 className="h-2 flex-1 cursor-pointer accent-[var(--accent-strong)] disabled:opacity-60"
@@ -1339,6 +1383,7 @@ export default function TabletEvaluatePage() {
                                     [k]: {
                                       score: Math.max(0, Math.min(parseFloat(e.target.value) || 0, max)), // clamp 到 [0, max]，禁负分
                                       reason: prev[k]?.reason || '',
+                                      savedAt: Date.now(),
                                     },
                                   }))
                                 }
@@ -1354,7 +1399,7 @@ export default function TabletEvaluatePage() {
                               const v = e.target.value;
                               setScores(prev => {
                                 const cur = prev[k] ?? { score: 0, reason: '' };
-                                return { ...prev, [k]: { ...cur, reason: v } };
+                                return { ...prev, [k]: { ...cur, reason: v, savedAt: Date.now() } };
                               });
                             }}
                             disabled={readOnly}
@@ -1427,10 +1472,16 @@ export default function TabletEvaluatePage() {
           setScores(prev => {
             const next = { ...prev };
             for (const c of draftConflicts) {
+              // remoteVal 在 merge 输入侧已归一（passed null→缺省，见 onDraftSaved），可直接采纳
               if (resolved[c.key] === 'remote') next[c.key] = c.remoteVal;
             }
             return next;
           });
+          // TAB-SYNC-01（draft-merge 契约）：裁决后同步 last-synced 基线——被采纳值成为该键
+          // 新基线，本端后续对同键的编辑不再误报冲突（'local' 裁决键 baseline 已=local 无需动）
+          for (const c of draftConflicts) {
+            if (resolved[c.key] === 'remote') baselineRef.current[c.key] = c.remoteVal;
+          }
           setDraftConflicts([]);
           setConflictModalOpen(false);
         }}
