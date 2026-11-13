@@ -312,6 +312,10 @@ function displayValueForField(field: AnnouncementFieldConfig, value: string): st
 const PUBLICITY_QUICK_CATEGORIES = new Set<string>(["winning_bid", "failed_bid", "change_notice"]);
 /** 止点快捷天数选项（用户钦定清单） */
 const PUBLICITY_QUICK_DAYS = [1, 2, 3, 4, 5, 10, 20];
+/** 「发布时」模式标记键（2026-11-13 用户二轮裁定）：值为 '1' 表示起点以**实际发布时刻**
+ *  为准——按钮点击时先填当前时刻作演示值，确认发布（或预览）时由向导按真实发布时刻
+ *  （定时发布=定时时刻）重算起止并回填；手填起点即自动退出该模式。 */
+const PUBLISH_AT_START_KEY = "announcementStartAtPublish";
 
 /** 当前时刻 → datetime-local 值（YYYY-MM-DDTHH:MM） */
 function nowLocalIso(): string {
@@ -561,20 +565,45 @@ function AnnouncementFieldEditor({
             type="datetime-local"
             aria-label={`${displayFieldLabel(field.label)}（起）`}
             value={shownValue}
-            onChange={(e) => onChange(field.key, e.target.value)}
+            onChange={(e) => {
+              onChange(field.key, e.target.value);
+              // 手填起点即退出「发布时」模式（自动改值不改模式语义，2026-11-13）
+              if (draftRecord[PUBLISH_AT_START_KEY] === "1") {
+                onChange(PUBLISH_AT_START_KEY as AnnouncementFieldKey, "");
+              }
+            }}
             onFocus={() => onFieldFocus?.(field.key)}
             className={`${commonInputClass} !w-auto min-w-0 flex-1`}
           />
-          {field.key === "announcementStart" && category != null && PUBLICITY_QUICK_CATEGORIES.has(category) && (
-            <button
-              type="button"
-              onClick={() => onChange(field.key, nowLocalIso())}
-              className="shrink-0 rounded-[10px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.45)] px-2.5 py-1.5 text-xs font-semibold text-[rgba(76,111,189,1)] transition-colors hover:border-[rgba(107,149,240,0.4)] hover:bg-[oklch(1_0_0_/_0.75)]"
-              title="起点一键填为当前时刻（发布时刻）"
-            >
-              发布时
-            </button>
-          )}
+          {field.key === "announcementStart" && category != null && PUBLICITY_QUICK_CATEGORIES.has(category) && (() => {
+            const atPublish = draftRecord[PUBLISH_AT_START_KEY] === "1";
+            return (
+              <button
+                type="button"
+                onClick={() => {
+                  if (atPublish) {
+                    // 再点一次=退出该模式：清标记（起止保留演示值，可继续手改）
+                    onChange(PUBLISH_AT_START_KEY as AnnouncementFieldKey, "");
+                  } else {
+                    // 进入「发布时」模式：先填当前时刻作演示值——确认发布时以实际发布
+                    // 时刻重算覆盖（定时发布=定时时刻），发布后回填真实值（2026-11-13 二轮裁定）
+                    onChange(PUBLISH_AT_START_KEY as AnnouncementFieldKey, "1");
+                    onChange(field.key, nowLocalIso());
+                  }
+                }}
+                aria-pressed={atPublish}
+                className={[
+                  'shrink-0 rounded-[10px] border px-2.5 py-1.5 text-xs font-semibold transition-colors',
+                  atPublish
+                    ? 'border-[rgba(107,149,240,0.55)] bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[rgba(76,111,189,1)]'
+                    : 'border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.45)] text-[rgba(76,111,189,1)] hover:border-[rgba(107,149,240,0.4)] hover:bg-[oklch(1_0_0_/_0.75)]',
+                ].join(' ')}
+                title={atPublish ? '已锁定：以实际发布时刻为起点（点击退出）' : '起点以实际发布时刻为准——点击发布后按真实时刻重算回填'}
+              >
+                {atPublish ? "发布时 ✓" : "发布时"}
+              </button>
+            );
+          })()}
           <span className="shrink-0 text-xs font-semibold text-[color:var(--muted-foreground)]">至</span>
           <input
             type="datetime-local"

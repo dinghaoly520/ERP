@@ -492,6 +492,27 @@ function publicityPeriodText(startIso?: string, endIso?: string, base?: Date): s
   return `3天（${fmtDate(b)} 至 ${fmtDate(end)}）`;
 }
 
+/** 「发布时」模式换算（2026-11-13 二轮裁定：落点=真正点击发布的时刻，而非点按钮时刻）：
+ *  按钮点击时起填的当前时刻只是演示值——预览/确认发布时以基准时刻（发布=点击确认瞬间；
+ *  定时发布=定时时刻）重算起止，止保持演示值的天数差平移；发布后回填真实值。
+ *  非该模式（标记非 '1' 或演示起止不完整）返回 null。 */
+function resolvePublishAtStartSpan(
+  fd: Record<string, string>,
+  baseIso?: string,
+): { start: string; end: string } | null {
+  if (fd.announcementStartAtPublish !== '1') return null;
+  const s = new Date(fd.announcementStart).getTime();
+  const e = new Date(fd.announcementEnd).getTime();
+  if (Number.isNaN(s) || Number.isNaN(e)) return null;
+  const base = baseIso ? new Date(baseIso).getTime() : Date.now();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const fmt = (t: number) => {
+    const d = new Date(t);
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  return { start: fmt(base), end: fmt(base + (e - s)) };
+}
+
 /** 中文日期时间 "2026年3月26日15:00" / "2026年10月20日14时00分00秒" → YYYY-MM-DDTHH:MM（datetime-local 格式） */
 function toDatetimeLocalValue(text: string): string {
   if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(text)) return text;
@@ -1107,9 +1128,18 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     }
     setBusy(true);
     try {
-      // 与 handlePublish 同口径合并公示期限（止）——预览所见即发布所得
-      const effectiveAnnouncementEnd = ((draft as Record<string, string>).announcementEnd ?? '');
-      const finalDraft = { ...(draft as Record<string, string>), announcementEnd: effectiveAnnouncementEnd } as AnnouncementDraft;
+      // 与 handlePublish 同口径合并公示期限（止）——预览所见即发布所得；
+      // 「发布时」模式（2026-11-13）：预览以当前时刻重算演示（发布才是权威动作，标记保留）
+      const publishAtPreview = resolvePublishAtStartSpan(
+        draft as Record<string, string>,
+        publishTiming === 'scheduled' && scheduledDate ? scheduledDate : undefined,
+      );
+      const effectiveAnnouncementEnd = publishAtPreview?.end ?? ((draft as Record<string, string>).announcementEnd ?? '');
+      const finalDraft = {
+        ...(draft as Record<string, string>),
+        announcementEnd: effectiveAnnouncementEnd,
+        ...(publishAtPreview ? { announcementStart: publishAtPreview.start } : {}),
+      } as AnnouncementDraft;
       const built = await buildAnnouncement({
         tenderType,
         category,
@@ -1231,8 +1261,18 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       // 1. 用公告模板渲染生成 docx + 提取公告全文（mammoth）
       // 公示期限（止）合并进 draft：发布配置状态优先，为空（如缓存恢复存了空值）时回落草稿值——
       // 此前裸用状态会把公告制作里已填的正确日期覆盖成空 → docx 渲染成「请填写公示期限（止）」
-      const effectiveAnnouncementEnd = ((draft as Record<string, string>).announcementEnd ?? '');
-      const finalDraft = { ...(draft as Record<string, string>), announcementEnd: effectiveAnnouncementEnd } as AnnouncementDraft;
+      // 「发布时」模式（2026-11-13 二轮裁定）：此处即「点击确认发布」的瞬间——以当下时刻
+      // （定时发布=定时时刻）重算起止并定值，标记消费清除；发布成功后回填真实值
+      const publishAtFinal = resolvePublishAtStartSpan(
+        draft as Record<string, string>,
+        publishTiming === 'scheduled' && scheduledDate ? scheduledDate : undefined,
+      );
+      const effectiveAnnouncementEnd = publishAtFinal?.end ?? ((draft as Record<string, string>).announcementEnd ?? '');
+      const finalDraft = {
+        ...(draft as Record<string, string>),
+        announcementEnd: effectiveAnnouncementEnd,
+        ...(publishAtFinal ? { announcementStart: publishAtFinal.start, announcementStartAtPublish: '' } : {}),
+      } as AnnouncementDraft;
       // 复用「预览并发布」生成的 docx（同一 draft 构建，预览即所得）；直接调用兜底重建
       const built = preview ?? await buildAnnouncement({
         tenderType,
@@ -1395,6 +1435,12 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       if (saved.projectSyncWarning) toast.error(saved.projectSyncWarning);
       const id = saved.id;
       setAnnId(id);
+      // 「发布时」模式回填（2026-11-13 二轮裁定「点击了发布之后，再将时间填入回去」）：
+      // 表单与缓存草稿写入以本次发布时刻定值的起止——重开向导看到的就是真实发布时刻
+      if (publishAtFinal) {
+        setDraft(finalDraft);
+        if (project) saveWizardState(project.id, category, { draft: finalDraft as Record<string, string> });
+      }
 
       // 4. 把生成的公告 docx 上传到项目 PUBLIC_ANNOUNCEMENT 阶段
       try {
