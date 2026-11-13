@@ -1387,7 +1387,7 @@ describe('AnnouncementService — getProjectParticipants 轮界收口（2026-10-
       anns: [{ id: 'ann-r1', createdAt: new Date('2026-10-20T02:00:00Z') }], // 仅旧轮公告
     }));
     const r = await service.getProjectParticipants('SWHI-XX');
-    expect(r).toEqual({ announcementId: null, suppliers: [], stats: { total: 0, submitted: 0 } });
+    expect(r).toEqual({ announcementId: null, suppliers: [], stats: { total: 0, submitted: 0, intentConfirmed: 0 } });
   });
 
   it('本轮公告已发布（轮界之后）→ 命中本轮公告；单轮项目（无轮界）行为不变', async () => {
@@ -1660,7 +1660,12 @@ describe('AnnouncementService — 流标/中标公告公示期限直供与兜底
     await svc.create(dto('WIN_BID_NOTICE', { publicityEnd: chosen.toISOString() }), 'u1');
     const data = prisma.announcement.create.mock.calls[0][0].data;
     expect(data.publicityEnd?.getTime()).toBe(chosen.getTime());
-    expect(prisma.announcement.update).not.toHaveBeenCalled();
+    // 摘要后台补写（2026-11-13 异步化）也会调 update（data.aiSummary）——本用例只断言
+    // 没有任何 update 写 publicityEnd（直供止点不被兜底顺延覆盖）
+    const publicityWrites = prisma.announcement.update.mock.calls.filter(
+      ([, args]: any[]) => args?.data && 'publicityEnd' in args.data,
+    );
+    expect(publicityWrites).toHaveLength(0);
   });
 
   it('流标公告：未直供发布 → 兜底顺延 3 日（与采购公告同口径）', async () => {

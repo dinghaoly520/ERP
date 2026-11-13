@@ -78,6 +78,8 @@ const mkPrisma = () => ({
   submissionVersion: { findUnique: jest.fn().mockResolvedValue({ envelopeHash: 'd'.repeat(64), envelope: ENVELOPE }) },
   fileAsset: {
     findUnique: jest.fn().mockResolvedValue({ id: 'inner-1', sha256: 'i'.repeat(64), size: 4096 }),
+    // bug#150 名字继承反查（32b6f9e7ac）：[] → nameById 空 → 回退 role.plain，保持本套件原语义
+    findMany: jest.fn().mockResolvedValue([]),
     upsert: jest.fn().mockResolvedValue({ id: 'dec-1' }),
   },
   supplierCert: { findFirst: jest.fn() },

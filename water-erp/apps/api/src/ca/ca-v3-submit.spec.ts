@@ -72,6 +72,8 @@ describe('submitBidV3（评审修复轮）', () => {
       bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'proj-1', stage: 'SUBMIT', deadline: new Date(Date.now() + 86400000), procurementMethod: '公开招标', projectManagementItemId: null, bondRequired: false }) },
       announcement: { findFirst: jest.fn().mockResolvedValue({ id: 'a-1' }) },
       bidSupplier: { findFirst: jest.fn().mockResolvedValue(null) },
+      // 投递前置意向闸（2026-11-12 Task 4）：submitBid 先经 isIntentApplicable——null=非公开项目→豁免（空桩先例同 T8/T9）
+      bidDocument: { findFirst: jest.fn().mockResolvedValue(null) },
       fileAsset: {
         findMany: jest.fn().mockResolvedValue([{ id: 'fa-mine', uploaderId: 'user-1' }]),
         findUnique: jest.fn().mockResolvedValue({ id: 'fa-mine', key: 'v3-staging/x.outer' }),

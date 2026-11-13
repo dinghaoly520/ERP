@@ -132,11 +132,12 @@ export class TenderWriteController {
     @Body() dto: AnnouncementImportAutofillDto,
     @UploadedFiles() files: Express.Multer.File[],
   ) {
-    // GB/T 43711（7.3）：谈判采购不发布采购公告（同 exportAnnouncement 防线）
-    if (dto.category === 'procurement_document' && dto.tenderType === 'COMPETITIVE_NEGOTIATION') {
+    // 2026-11-12 用户裁定（流程互换）：邀请招标/直接采购不发布采购公告（同 exportAnnouncement
+    // 防线）；谈判采购已改发公告，导入识别正常开放
+    if (dto.category === 'procurement_document' && (dto.tenderType === 'INVITED_BIDDING' || dto.tenderType === 'SINGLE_SOURCE')) {
       throw new BadRequestException({
-        error: '谈判采购不发布采购公告，无对应公告字段可识别',
-        code: 'NEGOTIATION_NO_PROCUREMENT_NOTICE',
+        error: '该采购方式不发布采购公告，无对应公告字段可识别',
+        code: 'INVITED_NO_PROCUREMENT_NOTICE',
       });
     }
     if (!files || files.length === 0) {

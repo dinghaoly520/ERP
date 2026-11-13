@@ -40,6 +40,7 @@ import {
 import { ProjectTimelineStrip } from './project-timeline-strip';
 import { ProjectChangeEntry } from './project-change-entry';
 import { bindChangeAnnouncement, registerChange } from '@/lib/api/project-changes';
+import { roundBidOpened, latestBidOpened } from '@/lib/bid-lock';
 import { listAnnouncements } from '@/lib/api/announcement';
 import { ChangeModal } from './change-modal';
 import { ProjectStageTimeline } from './project-stage-timeline';
@@ -473,28 +474,37 @@ export function ProjectDetailPanel({
   const showArchiveStep = archiveStepState !== 'PENDING';
   const isCurrentStage = selectedStage.stageKey === localItem.currentStage && selectedRound === (localItem.currentRound ?? 1);
 
-  // ★ 开标锁定：开标确认阶段已进行（IN_PROGRESS/COMPLETED）→ 前置内容不可修改——但只锁
-  // 「开标评标」之前的前置阶段（口径修正：定标/合同等后置阶段不受锁，否则线下定标→扫描回填
-  // 永不可达）。轮次对齐（2026-10-23 流标统一流）：开标评标按选中轮取行，不带 round 命中第一轮。
-  const bidEvalStage = localItem.stages.find(
-    (s) => s.stageKey === 'BID_EVALUATION' && (s.round ?? 1) === selectedRound,
-  );
-  const isBidLocked = bidEvalStage?.status === 'IN_PROGRESS' || bidEvalStage?.status === 'COMPLETED';
+  // ── BP（各轮 BidProject）只读解析（fetchPmBidProjectRefs 只查不建）──
+  // 驱动 03 徽标/评分标准卡/流标提示条（bpDetails/bpScoreItems 逐 BP 拉取），以及下方
+  // 开标锁判定（2026-11-13 时机修正：判据换源=该轮 bp 实际阶段）。
+  // 状态用于完成前预检与弹层；权威判定在服务端闸门（SCORE_STANDARD_REQUIRED）。
+  const [bpRefs, setBpRefs] = useState<Awaited<ReturnType<typeof fetchPmBidProjectRefs>>>([]);
+  const [bpDetails, setBpDetails] = useState<Record<string, BidProjectDetail>>({});
+  const [bpScoreItems, setBpScoreItems] = useState<Record<string, BidScoreItem[]>>({});
+  const [bpDataTick, setBpDataTick] = useState(0);
+
+  // ★ 开标锁定（2026-11-13 时机修正，spec docs/superpowers/specs/2026-11-13-pmi-bid-lock-timing-design.md）：
+  // 只有真正启动开标（开标确认面板点「按时开标」→ BidProject→OPENING）才落锁——到达开标确认页
+  // （阶段行 IN_PROGRESS）或延时开标（仅改 openTime）不锁。判据换源 bpRefs（该轮 BidProject 实际
+  // 阶段），与后端四道闸同口径（reopenStage/change.service/ADDENDUM_BID_STARTED/mine 过滤）；
+  // 流标轮（ABORTED）不锁——后端重开闸穿闸，此前按阶段行状态误锁。仍只锁「开标评标」之前的
+  // 前置阶段（定标/合同后置不受锁，线下定标→扫描回填可达）。
+  const isBidLocked = latestBidOpened(bpRefs);
 
   const isLockedByBid = (stageKey: string, round?: number) => {
     // 2026-11-05：按被判条目自身轮次定位（时间轴逐卡判定时旧轮条目此前误读当前选中轮）——
-    // 锁定与否看该轮自己的开标评标状态，与该轮阶段序比较
+    // 锁定与否看该轮自己的开标状态（bp 实际阶段），与该轮阶段序比较
     const targetRound = round ?? selectedRound;
+    if (!roundBidOpened(bpRefs, targetRound)) return false;
     const targetBidEval = localItem.stages.find(
       (s) => s.stageKey === 'BID_EVALUATION' && (s.round ?? 1) === targetRound,
     );
-    const bidLocked =
-      targetBidEval?.status === 'IN_PROGRESS' || targetBidEval?.status === 'COMPLETED';
-    if (!bidLocked) return false;
+    // 该轮无「开标评标」阶段行（方式链差异）→ 不锁——对齐后端 reopenStage 的 if (bidEval && …) 口径
+    if (!targetBidEval) return false;
     const stageOrder = localItem.stages.find(
       (s) => s.stageKey === stageKey && (s.round ?? 1) === targetRound,
     )?.stageOrder ?? Infinity;
-    return stageOrder < (targetBidEval?.stageOrder ?? Infinity);
+    return stageOrder < targetBidEval.stageOrder;
   };
 
   // 轮次锁（2026-10-23 流标统一流）：旧轮全部只读（含已完成阶段——补传/编辑/AI 提取全关，查看与附件下载保留）
@@ -521,13 +531,6 @@ export function ProjectDetailPanel({
 	const { Icon: HeroIcon } = heroVisual;
   const focusAccentClassName = `pm-stage-accent--${selectedStage.stageKey.toLowerCase()}`;
 
-  // ── 评分标准卡（2026-09-24 方案 v2：自开标确认面板迁至 03「采购文件」）──
-  // 只读解析（fetchPmBidProjectRefs 只查不建）+ 逐 BP 详情/评分项，驱动卡片与 03 徽标。
-  // 状态用于完成前预检与弹层；权威判定在服务端闸门（SCORE_STANDARD_REQUIRED）。
-  const [bpRefs, setBpRefs] = useState<Awaited<ReturnType<typeof fetchPmBidProjectRefs>>>([]);
-  const [bpDetails, setBpDetails] = useState<Record<string, BidProjectDetail>>({});
-  const [bpScoreItems, setBpScoreItems] = useState<Record<string, BidScoreItem[]>>({});
-  const [bpDataTick, setBpDataTick] = useState(0);
   // ── 流标提示条（2026-10-21）：投标侧已流标而 PMI 仍 ACTIVE——按当前轮对齐，防 reproc 后旧轮误报 ──
   const currentRoundBp = bpRefs.find((r) => r.round === (item.currentRound ?? 1)) ?? null;
   const abortedRiskNote = currentRoundBp ? bpDetails[currentRoundBp.id]?.riskNote ?? '' : '';
@@ -637,6 +640,15 @@ export function ProjectDetailPanel({
   const [announcementPublishOpen, setAnnouncementPublishOpen] = useState(false);
   const [announcementCategory, setAnnouncementCategory] = useState<'procurement_document' | 'failed_bid' | 'winning_bid' | 'change_notice' | 'addendum'>('procurement_document');
   const [bidConfirmOpen, setBidConfirmOpen] = useState(false);
+  /** 开标确认面板统一关闭（2026-11-13 时机修正）：面板内任何变更（按时/延时开标·流标·归档）
+   *  关闭时回流——bpRefs 重拉驱动锁态翻转；handleUpdated 重拉列表与 PMI 字段（延时后开标时间同步值）。
+   *  面板是模态覆盖层，打开期间父层不可交互，关闭即刷新足够即时。
+   *  须声明在 bidConfirmOpen/bpDataTick 之后——前向引用会让 react-compiler 放弃本组件记忆化。 */
+  const closeBidConfirm = useCallback(() => {
+    setBidConfirmOpen(false);
+    setBpDataTick((t) => t + 1);
+    handleUpdated().catch(() => {});
+  }, [handleUpdated]);
   const [abortRestartOpen, setAbortRestartOpen] = useState(false);
   // 深链自动弹开标确认面板（一次性：触发后即清标记，关闭后不复发）
   const autoOpenedBidConfirm = useRef(false);
@@ -1370,7 +1382,7 @@ export function ProjectDetailPanel({
                 // 旧轮全部只读（2026-10-23 流标统一流）：历史轮次步骤卡快捷操作全关（按被点卡片自身轮次判）
                 if ((round ?? 1) < (localItem.currentRound ?? 1)) { toast.warning('该步骤属已完成的历史轮次，仅供查看'); return; }
                 // P0-3：开标锁定只锁前置阶段——BID_EVALUATION 自身与后置（定标）入口必须可进
-                //（阶段推进后 status=IN_PROGRESS 即 isBidLocked=true，旧守卫把面板唯一入口拦死）
+                //（isLockedByBid 只按 stageOrder 锁前置——BID_EVALUATION 自身不小于自身序，天然可达）
                 if (isLockedByBid(stageKey)) { toast.warning('开标已确认，前置步骤已锁定'); return; }
                 if (stageKey === 'TENDER_DOCUMENT') {
                   setTenderWriteStageAction(stageKey);
@@ -2632,7 +2644,7 @@ export function ProjectDetailPanel({
       {/* 开标确认面板：投标状态 / 专家确认 / 唱标字段 / 开标决策（评分标准已迁 03「采购文件」步骤，2026-09-24） */}
       <BidConfirmPanel
         isOpen={bidConfirmOpen}
-        onClose={() => setBidConfirmOpen(false)}
+        onClose={closeBidConfirm}
         project={item}
         round={bidConfirmRound}
         onSyncProjectInfo={(info) => {
@@ -2652,12 +2664,12 @@ export function ProjectDetailPanel({
           }).catch(() => {});
         }}
         onAbort={() => {
-          setBidConfirmOpen(false);
+          closeBidConfirm();
           setAnnouncementCategory('failed_bid');
           setAnnouncementPublishOpen(true);
         }}
         onPublishNotice={() => {
-          setBidConfirmOpen(false);
+          closeBidConfirm();
           setAnnouncementCategory('failed_bid');
           setAnnouncementPublishOpen(true);
         }}

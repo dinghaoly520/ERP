@@ -1049,9 +1049,9 @@ export class ExpertService {
     };
   }
 
-  /** 谈判采购文件轨（2026-10-20，镜像供应商端修复 14f55c5f）：谈判项目不发布采购公告
-   *  （采购邀请书替代，:3005 selection 向导），BidDocument 恒空；采购文件经 Redis
-   *  negotiation-config 交付——refFileKeys 主轨=PMI 阶段附件（本地 uploads/ 磁盘），
+  /** 谈判采购文件轨（2026-10-20，镜像供应商端修复 14f55c5f；2026-11-12 流程互换后
+   *  归因更新）：谈判项目的采购文件不进 BidDocument（发公告后文件交付机制未变），
+   *  经 Redis negotiation-config 交付——refFileKeys 主轨=PMI 阶段附件（本地 uploads/ 磁盘），
    *  attachFileIds/refFileKeys 兜底=FileAsset。公告轨 miss 时回退此轨，否则专家端
    *  「招标文件」卡恒空（SWHI-TP-2026102003 实录）。
    *  注意：不加供应商获取窗口闸——窗口面向供应商获取期，评标阶段（OPENING/EVALUATING）
