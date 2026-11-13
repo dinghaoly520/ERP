@@ -526,14 +526,14 @@ function AnnouncementFieldEditor({
       ) : field.type === "datetime-range" ? (
         /* 公示期限（2026-10-21 用户口径）：起/止两个时间选择器同一行形成时间段；起存
             field.key、止存 rangeEndKey，均 ISO（date-only 存量显示时补 23:59 同口径） */
-        <div className="mt-2 flex items-center gap-2">
+        <div className="mt-2 flex flex-wrap items-center gap-2">
           <input
             type="datetime-local"
             aria-label={`${displayFieldLabel(field.label)}（起）`}
             value={shownValue}
             onChange={(e) => onChange(field.key, e.target.value)}
             onFocus={() => onFieldFocus?.(field.key)}
-            className={`${commonInputClass} min-w-0 flex-1`}
+            className={`${commonInputClass} !w-auto min-w-0 flex-1`}
           />
           <span className="shrink-0 text-xs font-semibold text-[color:var(--muted-foreground)]">至</span>
           <input
@@ -545,7 +545,7 @@ function AnnouncementFieldEditor({
             })()}
             onChange={(e) => field.rangeEndKey && onChange(field.rangeEndKey, e.target.value)}
             onFocus={() => field.rangeEndKey && onFieldFocus?.(field.rangeEndKey)}
-            className={`${commonInputClass} min-w-0 flex-1`}
+            className={`${commonInputClass} !w-auto min-w-0 flex-1`}
           />
         </div>
       ) : field.type === "date" ? (
