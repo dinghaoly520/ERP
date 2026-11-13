@@ -697,16 +697,42 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(`host:${projectId}`).emit(BID_EVENT.SCORES_SUBMITTED, payload);
   }
 
-  /** 草稿保存限流：键 `${projectId}:${expertId}`，3s 内不重复发送 */
-  private draftSavedThrottle = new Map<string, number>();
+  /** 草稿保存限流窗口（ms）——类字段便于测试缩短（终审 Fix1） */
+  private DRAFT_SAVED_THROTTLE_MS = 3000;
 
-  /** 草稿保存通知：广播到专家房（仅同项目其他专家），不含草稿内容 */
+  /** 草稿保存限流：键 `${projectId}:${expertId}` → 窗口起点 + 挂起的尾沿发射器 */
+  private draftSavedThrottle = new Map<string, { last: number; timer?: ReturnType<typeof setTimeout> }>();
+
+  /** 草稿保存通知：广播到专家房（仅同项目其他专家），不含草稿内容。
+   *  前沿节流 + 尾沿补发（终审 Fix1）：窗口内被压下的保存不再静默丢弃——若无尾沿补发，
+   *  突发编辑的【末笔】被吞后，对端（仅凭 DRAFT_SAVED 拉取）永远看不到该笔，桌面可能
+   *  漏掉平板最后一次微调就提交。窗口内连续压下只保留一个挂起发射（最新 device 获胜），
+   *  发射时刻锚定窗口起点（last + 窗口），补发后窗口随之推进——≤1 发射/3s 窗口的
+   *  节流语义不变；尾沿发射仅在确有被压下保存时存在。 */
   notifyDraftSaved(projectId: string, expertId: string, device: 'tablet' | 'desktop') {
     const key = `${projectId}:${expertId}`;
-    const last = this.draftSavedThrottle.get(key) ?? 0;
-    if (Date.now() - last < 3000) return;
-    this.draftSavedThrottle.set(key, Date.now());
-    const payload: DraftSavedPayload = { projectId, expertId, device, timestamp: Date.now() };
-    this.server.to(`experts:${projectId}`).emit(BID_EVENT.DRAFT_SAVED, payload);
+    const now = Date.now();
+    const entry = this.draftSavedThrottle.get(key);
+    const last = entry?.last ?? 0;
+    const emit = (device2: 'tablet' | 'desktop') => {
+      const payload: DraftSavedPayload = { projectId, expertId, device: device2, timestamp: Date.now() };
+      this.server.to(`experts:${projectId}`).emit(BID_EVENT.DRAFT_SAVED, payload);
+    };
+    if (now - last < this.DRAFT_SAVED_THROTTLE_MS) {
+      // 压下：清旧挂起、以本笔 device 重挂（最新获胜）；delay 锚定窗口起点，不随补发顺延
+      if (entry?.timer) clearTimeout(entry.timer);
+      const timer = setTimeout(
+        () => {
+          this.draftSavedThrottle.set(key, { last: Date.now() }); // 窗口推进（防补发后紧邻笔连发）
+          emit(device);
+        },
+        Math.max(0, last + this.DRAFT_SAVED_THROTTLE_MS - now),
+      );
+      this.draftSavedThrottle.set(key, { last, timer });
+      return;
+    }
+    if (entry?.timer) clearTimeout(entry.timer); // 防御：新窗口首笔到达时清残留挂起（时钟边界竞态）
+    this.draftSavedThrottle.set(key, { last: now });
+    emit(device);
   }
 }

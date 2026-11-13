@@ -63,6 +63,7 @@ describe('AuthService.claimExpertPairing（Task 5 配对语义）', () => {
     webSessionId?: string;
     signInMeta?: unknown;
     pairingId?: string;
+    replaced?: string | null;
   } = {}) => {
     const redis = opts.redis ?? new FakeRedis();
     redis.store.set(TICKET_KEY, JSON.stringify(TICKET_PAYLOAD));
@@ -87,7 +88,10 @@ describe('AuthService.claimExpertPairing（Task 5 配对语义）', () => {
       bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
     };
     const registry = {
-      register: jest.fn().mockResolvedValue({ pairingId: opts.pairingId ?? 'jti-new-1', replaced: null }),
+      register: jest.fn().mockResolvedValue({
+        pairingId: opts.pairingId ?? 'jti-new-1',
+        replaced: opts.replaced ?? null,
+      }),
       revoke: jest.fn(),
       getActive: jest.fn(),
       isAlive: jest.fn(),
@@ -209,6 +213,70 @@ describe('AuthService.claimExpertPairing（Task 5 配对语义）', () => {
     expect(registry.register).not.toHaveBeenCalled();
     // 未获锁即返回：票据仍在（由持锁方裁决单次语义）
     expect(redis.store.has(TICKET_KEY)).toBe(true);
+  });
+
+  it('⑥register 单飞替换旧配对（replaced 非空）→ 成功日志追加「替换旧平板，旧配对已吊销」（终审 Fix2a）', async () => {
+    const { svc, prisma } = makeService({ replaced: 'jti-old-1' });
+
+    await svc.claimExpertPairing(
+      { ticket: 'tick-1', password: PASSWORD },
+      { ip: '10.1.2.3', userAgent: TABLET_UA },
+    );
+
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          projectId: 'p1',
+          action: '平板配对成功',
+          result: expect.stringContaining('替换旧平板，旧配对已吊销'),
+        }),
+      }),
+    );
+  });
+
+  it('⑦密码错（未烧票）→ 监督日志「平板配对密码错误」（riskFlag 中，含次数/剩余）（终审 Fix2b）', async () => {
+    const { svc, prisma, registry } = makeService();
+
+    await expect(
+      svc.claimExpertPairing({ ticket: 'tick-1', password: 'wrong' }, {}),
+    ).rejects.toMatchObject({ response: { code: 'PASSWORD_MISMATCH' } });
+
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          projectId: 'p1',
+          role: '评审专家',
+          target: '杨睿',
+          action: '平板配对密码错误',
+          result: '第 1 次错误（剩余 2 次机会）',
+          riskFlag: '中',
+        }),
+      }),
+    );
+    expect(registry.register).not.toHaveBeenCalled();
+  });
+
+  it('⑧第 3 次密码错烧票 → 监督日志「平板配对码烧毁」（riskFlag 中）（终审 Fix2c）', async () => {
+    const { svc, prisma } = makeService();
+
+    for (let i = 0; i < 3; i++) {
+      await expect(
+        svc.claimExpertPairing({ ticket: 'tick-1', password: 'wrong' }, {}),
+      ).rejects.toMatchObject({ response: { code: i < 2 ? 'PASSWORD_MISMATCH' : 'TICKET_BURNED' } });
+    }
+
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          projectId: 'p1',
+          role: '评审专家',
+          target: '杨睿',
+          action: '平板配对码烧毁',
+          result: '密码连续错误 3 次，配对码作废',
+          riskFlag: '中',
+        }),
+      }),
+    );
   });
 });
 

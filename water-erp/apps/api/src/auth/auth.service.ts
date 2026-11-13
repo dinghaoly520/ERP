@@ -733,8 +733,26 @@ export class AuthService {
       await redis.expire(aKey, 90);
       if (attempts >= 3) {
         await redis.del(key);
+        // 终审 Fix2c：烧票落监督日志（中风险）——暴力试密码是配对码安全事件，须可审计
+        await this.prisma.bidSupervisionLog.create({
+          data: {
+            projectId: t.projectId, time: new Date(), role: '评审专家', target: t.expertName,
+            action: '平板配对码烧毁',
+            result: '密码连续错误 3 次，配对码作废',
+            riskFlag: '中',
+          },
+        }).catch(() => {});
         throw new BadRequestException({ error: '密码连续错误 3 次，配对码已作废，请回桌面重新生成', code: 'TICKET_BURNED' });
       }
+      // 终审 Fix2b：密码错落监督日志（中风险）——留次数痕迹，烧票事件有前因可循
+      await this.prisma.bidSupervisionLog.create({
+        data: {
+          projectId: t.projectId, time: new Date(), role: '评审专家', target: t.expertName,
+          action: '平板配对密码错误',
+          result: `第 ${attempts} 次错误（剩余 ${3 - attempts} 次机会）`,
+          riskFlag: '中',
+        },
+      }).catch(() => {});
       throw new UnauthorizedException({ error: `登录密码错误（剩余 ${3 - attempts} 次机会）`, code: 'PASSWORD_MISMATCH' });
     }
     await redis.del(key); // 单次使用（成功即销毁）
@@ -763,7 +781,7 @@ export class AuthService {
     // ── 配对制核心差异（spec §5.1）：不轮换会话，改登记配对 + 签受限令牌 ──
     // ①登记：同 expert+project 已有旧配对时 register 单飞替换（旧平板令牌随 jti 失效）
     const device = buildSessionMeta(meta.userAgent, meta.ip);
-    const { pairingId } = await this.pairingRegistry!.register({
+    const { pairingId, replaced } = await this.pairingRegistry!.register({
       userId: user.id,
       expertId: expert.id,
       projectId: t.projectId,
@@ -783,7 +801,8 @@ export class AuthService {
       data: {
         projectId: t.projectId, time: new Date(), role: '评审专家', target: t.expertName,
         action: '平板配对成功',
-        result: `桌面→平板配对（配对码单次使用，密码重证通过）；新设备 ${device.uaSummary}；桌面会话不受影响`,
+        // 终审 Fix2a：register 单飞替换旧配对时留痕（监督视图可辨「换平板」而非「首配」）
+        result: `桌面→平板配对（配对码单次使用，密码重证通过）；新设备 ${device.uaSummary}；桌面会话不受影响${replaced ? '（替换旧平板，旧配对已吊销）' : ''}`,
         riskFlag: '无',
       },
     }).catch(() => {});

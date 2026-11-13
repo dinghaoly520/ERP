@@ -9,7 +9,7 @@ import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL, tenderDocumentLabel } from '@water-erp/shared';
 import { validateSupplierScores, buildFullPoints, committedRecordFor, isCommittedEquivalent, filterScorableItems, type ScoreEntry } from '@/lib/score-validation';
-import { threeWayMerge } from '@/lib/draft-merge';
+import { threeWayMerge, normalizeDraftEntries } from '@/lib/draft-merge';
 import { ArrowLeft, Check, ShieldCheck, ShieldAlert, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, Clock, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History, Info, Smartphone, UserRoundCog, Hourglass } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
 import { SigninCamera } from '@/components/signin-camera';
@@ -236,7 +236,11 @@ export default function ExpertEvaluatePage() {
           // TAB-SYNC-01 §4.1：last-synced 基线三方合并——本端未动的键接受远端（含新增键静默
           // 并入）、双端并发分歧进横幅/裁决弹窗（next 对冲突键保留本端）；baseline 推进为本次
           // 接受后的快照。scoresRef 读当前值（事件闭包里的 scores 可能滞后于最近编辑）。
-          const result = threeWayMerge(scoresRef.current, baselineRef.current, draft.scores);
+          // 归一先行（终审 Fix3，与平板端对齐）：服务端形状 passed=null 先剥为缺省再进
+          // threeWayMerge——JSON.stringify 深比较视 null≠缺省，数值项会整批假冲突；
+          // 输出侧 toPageScores 本就归一，此处补输入侧。
+          const remote = normalizeDraftEntries(draft.scores);
+          const result = threeWayMerge(scoresRef.current, baselineRef.current, remote);
           const nextScores = toPageScores(result.next);
           setScores(prev => {
             let changed = false;

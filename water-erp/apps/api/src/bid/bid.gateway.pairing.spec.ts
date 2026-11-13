@@ -151,3 +151,69 @@ describe('BidGateway handleConnection 握手校验（sid 一致 + 配对存活�
     expect(prisma.user.findUnique).toHaveBeenCalled(); // sid 检查先行（sid 匹配通过后才到配对闸）
   });
 });
+
+describe('notifyDraftSaved 节流：前沿发射 + 尾沿补发（终审 Fix1）', () => {
+  /** 直构网关：server 桩收 emit；节流窗缩至 50ms 用真实定时器实测尾沿 */
+  function makeDraftGateway() {
+    const gw = new BidGateway({} as any, {} as any, undefined);
+    const emit = jest.fn();
+    (gw as any).server = { to: jest.fn().mockReturnValue({ emit }) };
+    (gw as any).DRAFT_SAVED_THROTTLE_MS = 50;
+    return { gw, emit };
+  }
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  it('窗口内第二笔被压下 → 窗口期满补发一枚（末笔不丢，device 取被压下那笔）', async () => {
+    const { gw, emit } = makeDraftGateway();
+    gw.notifyDraftSaved('p1', 'e1', 'tablet'); // 前沿：立即发射
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit.mock.calls[0][1]).toMatchObject({ projectId: 'p1', expertId: 'e1', device: 'tablet' });
+
+    gw.notifyDraftSaved('p1', 'e1', 'desktop'); // 窗口内：压下，挂尾沿
+    expect(emit).toHaveBeenCalledTimes(1);
+
+    await sleep(130); // > 50ms 窗口
+    expect(emit).toHaveBeenCalledTimes(2);
+    expect(emit.mock.calls[1][1]).toMatchObject({ projectId: 'p1', expertId: 'e1', device: 'desktop' });
+  });
+
+  it('窗口内仅一笔（无压下）→ 无尾沿补发', async () => {
+    const { gw, emit } = makeDraftGateway();
+    gw.notifyDraftSaved('p1', 'e1', 'tablet');
+    await sleep(130);
+    expect(emit).toHaveBeenCalledTimes(1);
+  });
+
+  it('窗口内连续压下多笔 → 只补发一枚且 device 为最新一笔（latest wins）', async () => {
+    const { gw, emit } = makeDraftGateway();
+    gw.notifyDraftSaved('p1', 'e1', 'tablet'); // 前沿
+    gw.notifyDraftSaved('p1', 'e1', 'desktop'); // 压下 → 挂尾沿(desktop)
+    gw.notifyDraftSaved('p1', 'e1', 'tablet'); // 压下 → 清旧挂起、以本笔重挂(tablet)
+    await sleep(130);
+    expect(emit).toHaveBeenCalledTimes(2);
+    expect(emit.mock.calls[1][1]).toMatchObject({ projectId: 'p1', expertId: 'e1', device: 'tablet' });
+  });
+
+  it('补发推进节流窗口：紧邻补发的新笔仍被压至下一窗口（≤1 发射/窗口语义保持）', async () => {
+    const { gw, emit } = makeDraftGateway();
+    gw.notifyDraftSaved('p1', 'e1', 'tablet'); // t≈0 前沿
+    gw.notifyDraftSaved('p1', 'e1', 'desktop'); // 压下 → 尾沿 t≈50ms
+    await sleep(60);
+    expect(emit).toHaveBeenCalledTimes(2); // 尾沿已补发
+
+    gw.notifyDraftSaved('p1', 'e1', 'tablet'); // 距尾沿 <50ms → 仍压下（窗口随补发推进，不连发）
+    expect(emit).toHaveBeenCalledTimes(2);
+    await sleep(80);
+    expect(emit).toHaveBeenCalledTimes(3); // 下一窗口补发
+    expect(emit.mock.calls[2][1]).toMatchObject({ device: 'tablet' });
+  });
+
+  it('窗口外新保存 → 立即发射（前沿行为不变）', async () => {
+    const { gw, emit } = makeDraftGateway();
+    gw.notifyDraftSaved('p1', 'e1', 'tablet');
+    await sleep(130); // 窗口早已过
+    gw.notifyDraftSaved('p1', 'e1', 'desktop');
+    expect(emit).toHaveBeenCalledTimes(2);
+    expect(emit.mock.calls[1][1]).toMatchObject({ device: 'desktop' });
+  });
+});
