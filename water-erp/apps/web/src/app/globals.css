@@ -6311,6 +6311,14 @@ select.workbench-input {
 .neu-table th[class*="text-center"], .neu-table td[class*="text-center"] { text-align: center; }
 .neu-table th[class*="align-top"],   .neu-table td[class*="align-top"]   { vertical-align: top; }
 
+/* 投标情况表列对齐（2026-11-13）：表头对齐显式锁定——th 上的 text-* 工具类依赖上方
+   桥接规则，旧构建/缓存 chunk 缺桥时静默失效（实录：意向/下载/标书状态表头左贴）。
+   列序：1 供应商 / 2 业务标签 左对齐，3 意向 / 4 下载 / 5 标书状态 居中，6 提交时间 右对齐。 */
+.neu-table.participants-table th:nth-child(1), .neu-table.participants-table th:nth-child(2) { text-align: left; }
+.neu-table.participants-table th:nth-child(3), .neu-table.participants-table th:nth-child(4),
+.neu-table.participants-table th:nth-child(5) { text-align: center; }
+.neu-table.participants-table th:nth-child(6) { text-align: right; }
+
 
 /*
   行交互反馈 —— 四层递进

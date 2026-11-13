@@ -675,7 +675,7 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
 
           {/* 供应商表格 */}
           <div className="overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
-            <table className="neu-table w-full min-w-[680px] text-sm">
+            <table className="neu-table participants-table w-full min-w-[680px] text-sm">
               <thead>
                 <tr>
                   <th className="text-left">供应商</th>
