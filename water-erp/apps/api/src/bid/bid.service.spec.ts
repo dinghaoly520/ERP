@@ -6765,4 +6765,23 @@ describe('BidService — autoCloseExpiredConfirmations（#61回归A）', () => {
       data: { confirmStatus: 'EXCEPTION' },
     });
   });
+
+  it('#61c syncMultiRoundPrices 补建记录=中文正源（待供应商确认/解密成功）——英文双轨漏闭包镜像 CAS', async () => {
+    // 本 describe 的闭包向 mock 无报价轮模型——用例内自备
+    prisma.bidRound = { findFirst: jest.fn().mockResolvedValue({ id: 'rd1', roundNo: 2, status: 'closed' }) };
+    prisma.bidQuote = { findMany: jest.fn().mockResolvedValue([{ bidSupplierId: 'bs1', quotePrice: 1539500 }]) };
+    prisma.bidSupplier.findUnique = jest.fn().mockResolvedValue({ supplierName: '甲' });
+    prisma.bidOpeningRecord.findMany = jest.fn().mockResolvedValue([]); // 单位图为空 → 元轨直存
+    prisma.bidOpeningRecord.upsert = jest.fn().mockResolvedValue({});
+    prisma.$transaction = jest.fn(async (cb: any) => cb(prisma));
+
+    await service.syncMultiRoundPrices('p1');
+
+    const create = prisma.bidOpeningRecord.upsert.mock.calls[0]?.[0]?.create;
+    expect(create).toMatchObject({
+      confirmStatus: '待供应商确认',   // 61b 镜像 CAS 覆盖面内的唯一合法待确认态
+      decryptResult: '解密成功',
+    });
+    expect(create.confirmStatus).not.toBe('PENDING');
+  });
 });

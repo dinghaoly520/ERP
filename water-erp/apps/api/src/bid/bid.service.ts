@@ -5595,7 +5595,9 @@ export class BidService {
             amount,
             amountUnit,
             period: '', qualityTarget: '', bondStatus: '',
-            confirmStatus: 'PENDING', decryptResult: 'SUCCESS',
+            // #61c（61b 评审 F3）：记录侧状态为中文文本域——对齐其余三方写点（主持唱标/解密即唱标/异议退回），
+            // 英文双轨会漏出 61b 闭包镜像 CAS（in ['待供应商确认','待确认']）的覆盖面
+            confirmStatus: '待供应商确认', decryptResult: '解密成功',
           },
           update: { amount, amountUnit },
         });
