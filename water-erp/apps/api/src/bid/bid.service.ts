@@ -2124,7 +2124,26 @@ export class BidService {
           this.logger.error(`确认超时闭环失败 ${s.supplierName}`, err as Error);
           return { count: 0 };
         });
-        if (r.count > 0) closed.push(s.supplierName);
+        if (r.count > 0) {
+          closed.push(s.supplierName);
+          // #61b：记录层终局性镜像——闭包翻供应商态的同时翻 BidOpeningRecord（纸面证据不自相矛盾）。
+          // 镜像 overrideDispute exception 出口样式：中文终局态 + handleResult 前置标签 + handledAt；
+          // 记录侧 CAS（仅待确认态可翻）——异议/终局态记录不覆盖，同供应商侧防窄窗口并发双写。
+          await this.prisma.bidOpeningRecord.updateMany({
+            where: {
+              projectId, bidSupplierId: s.id,
+              confirmStatus: { in: ['待供应商确认', '待确认'] },
+            },
+            data: {
+              confirmStatus: '逾期未确认-异常',
+              handleResult: `[确认超时闭环] 解密窗口结束已超 ${hours} 小时仍未确认唱标，视同放弃确认自动置异常`,
+              handledAt: new Date(),
+              handledBy: null,
+            },
+          }).catch(err => {
+            this.logger.error(`确认超时闭环记录镜像失败 ${s.supplierName}`, err as Error);
+          });
+        }
       }
       if (closed.length === 0) return; // 全被并发路径处理（供应商刚确认/已闭）→ 零写零日志
       await this.prisma.bidSupervisionLog.create({

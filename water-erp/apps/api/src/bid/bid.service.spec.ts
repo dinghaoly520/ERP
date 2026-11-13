@@ -6620,6 +6620,7 @@ describe('BidService — autoCloseExpiredConfirmations（#61回归A）', () => {
       bidSupplier: { findMany: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       supplierBidSubmission: { findMany: jest.fn() },
       bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+      bidOpeningRecord: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) }, // #61b 记录镜像
     };
     const mod = await Test.createTestingModule({
       providers: [
@@ -6671,6 +6672,44 @@ describe('BidService — autoCloseExpiredConfirmations（#61回归A）', () => {
     expect(log.action).toBe('唱标确认超时自动闭环');
     expect(log.riskFlag).toBe('高风险');
     expect(log.target).toBe('失联公司');  // 只记真正闭环的家（未投递/被并发处理者不虚报）
+  });
+
+  it('#61b 记录层终局性镜像：CAS 成功家同步翻 BidOpeningRecord「逾期未确认-异常」（记录侧 CAS 仅待确认态）', async () => {
+    prisma.bidSupplier.findMany.mockResolvedValue([
+      { id: 'bs1', supplierName: '失联公司', supplierId: 's1', submitStatus: '已提交' },
+    ]);
+    prisma.supplierBidSubmission.findMany.mockResolvedValue([{ supplierId: 's1', status: 'submitted' }]);
+
+    await service.autoCloseExpiredConfirmations('p1');
+
+    expect(prisma.bidOpeningRecord.updateMany).toHaveBeenCalledTimes(1);
+    const [args] = prisma.bidOpeningRecord.updateMany.mock.calls[0];
+    expect(args.where).toEqual({
+      projectId: 'p1', bidSupplierId: 'bs1',
+      confirmStatus: { in: ['待供应商确认', '待确认'] },  // 记录侧 CAS——异议/终局态不覆盖
+    });
+    expect(args.data.confirmStatus).toBe('逾期未确认-异常');
+    expect(args.data.handleResult).toMatch(/^\[确认超时闭环\] 解密窗口结束已超 2 小时/);
+    expect(args.data.handledAt).toBeInstanceOf(Date);
+  });
+
+  it('#61b 镜像失败不阻塞闭环（铁则：闭包异常只留日志）+ CAS 抢占失败家不镜像', async () => {
+    prisma.bidSupplier.findMany.mockResolvedValue([
+      { id: 'bs1', supplierName: '失联公司', supplierId: 's1', submitStatus: '已提交' },
+    ]);
+    prisma.supplierBidSubmission.findMany.mockResolvedValue([{ supplierId: 's1', status: 'submitted' }]);
+    prisma.bidOpeningRecord.updateMany.mockRejectedValue(new Error('record-lock'));
+    prisma.bidSupplier.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+
+    await service.autoCloseExpiredConfirmations('p1');
+    // 镜像失败但供应商侧闭环与监督日志照常
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledTimes(1);
+
+    // CAS 抢占失败（count=0）→ 该家零镜像
+    prisma.bidOpeningRecord.updateMany.mockClear();
+    prisma.bidSupplier.updateMany.mockResolvedValue({ count: 0 });
+    await service.autoCloseExpiredConfirmations('p1');
+    expect(prisma.bidOpeningRecord.updateMany).not.toHaveBeenCalled();
   });
 
   it('CAS 抢占失败（供应商迟来刚确认，count=0）→ 不写该家、全零时零日志（防双路径双写）', async () => {
