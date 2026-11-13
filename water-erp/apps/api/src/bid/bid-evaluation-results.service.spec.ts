@@ -279,7 +279,7 @@ describe('BidEvaluationResultsService — evaluation results', () => {
       expect(ok.disqualified).toBe(false);
       expect(ok.disqualifiedReason).toBeNull(); // 未废标家恒 null（非 undefined——列存在性稳定）
       expect(bad.disqualified).toBe(true);
-      // 多项失败 join「；」——资格在前（items 顺序）
+      // 多项失败 join「；」——资格在前（类别 canon 序排序保证，与记录到达序无关；评审 F1/F4）
       expect(bad.disqualifiedReason).toBe(
         '经评审委员会表决，资格审查不通过（不通过 2/2 票），依据招标文件规定予以废标；经评审委员会表决，响应性审查不通过（不通过 2/2 票），依据招标文件规定予以废标',
       );

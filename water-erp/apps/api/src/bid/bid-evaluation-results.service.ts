@@ -415,12 +415,17 @@ export class BidEvaluationResultsService {
     }
 
     // #151：废标原因组装（监督日志与结果落列同源同文；单供应商多项失败 join「；」）
+    // 评审 F1：join 前按类别 canon 序排序（资格→响应性→超限价）——DB 返回堆序非确定，
+    // 结果重生成（显式支持的数据修正流）时同一输入不得产出换序文本。
+    const DISQUALIFY_CATEGORY_ORDER: Record<string, number> = { QUALIFICATION: 0, RESPONSIVE: 1, 超限价: 2 };
     const composeDisqualifyReason = (f: { category: string; fail: number; total: number }) =>
       f.category === '超限价'
         ? '最终报价超过最高限价，依据采购文件规定予以废标'
         : `经评审委员会表决，${f.category === 'QUALIFICATION' ? '资格' : '响应性'}审查不通过（不通过 ${f.fail}/${f.total} 票），依据招标文件规定予以废标`;
     const disqualifyReasonBySupplier = new Map<string, string>();
-    for (const f of passFailFailures) {
+    for (const f of [...passFailFailures].sort(
+      (a, b) => (DISQUALIFY_CATEGORY_ORDER[a.category] ?? 9) - (DISQUALIFY_CATEGORY_ORDER[b.category] ?? 9),
+    )) {
       const text = composeDisqualifyReason(f);
       disqualifyReasonBySupplier.set(
         f.supplierId,
